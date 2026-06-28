@@ -1,5 +1,4 @@
 // @effect-diagnostics anyUnknownInErrorContext:off asyncFunction:off nodeBuiltinImport:off strictBooleanExpressions:off
-import { ApiRouter, type OperationContractSource } from '@modern-js/bff-core';
 import type {
   Context,
   Next,
@@ -117,11 +116,6 @@ export class EffectAdapter {
   private handler: RequestHandler | null = null;
   private dispose: (() => Promise<void>) | null = null;
   private prefix = '/api';
-  /**
-   * True when the loaded handler does NOT run the policy seam internally
-   * (plain `handler` exports); the adapter middleware enforces it instead.
-   */
-  private policyEnforcedInMiddleware = false;
 
   constructor(api: ServerPluginAPI) {
     this.api = api;
@@ -143,7 +137,7 @@ export class EffectAdapter {
     await this.reloadHandler();
 
     this.effectMiddleware = {
-      name: 'effect-bff-handler',
+      name: 'effect-api-handler',
       path: enableHandleWeb ? '*' : `${prefix}/*`,
       method: 'all',
       order: 'post',
@@ -156,26 +150,10 @@ export class EffectAdapter {
           }
           return this.handleRuntimeError(
             new Error(
-              '[BFF][Effect] Missing Effect entry. Define api/effect/index or configure bff.effect.entry.',
+              '[BFF][Effect] Missing Effect entry. Define api/index or configure bff.effect.entry.',
             ),
             c,
           );
-        }
-
-        if (
-          this.crossProjectPolicy?.enabled &&
-          this.policyEnforcedInMiddleware &&
-          this.isApiRequestPath(c.req.path, prefix, enableHandleWeb)
-        ) {
-          // Plain `handler` exports bypass the createHttpApiHandler policy
-          // seam, so the adapter enforces the cross-project policy here.
-          const denial = checkCrossProjectPolicyForRequest(
-            c.req.raw,
-            this.crossProjectPolicy,
-          );
-          if (denial) {
-            return denial;
-          }
         }
 
         let response: Response;
@@ -237,105 +215,26 @@ export class EffectAdapter {
     const { appDirectory, apiDirectory } = this.api.getServerContext();
     const bffConfig = this.api.getServerConfig()?.bff;
     const configuredEntry = bffConfig?.effect?.entry;
-    const defaultEntry = path.resolve(
+
+    if (configuredEntry) {
+      const entryWithoutExt = path.isAbsolute(configuredEntry)
+        ? configuredEntry
+        : path.resolve(appDirectory || process.cwd(), configuredEntry);
+      return resolveJsOrTsEntry(entryWithoutExt);
+    }
+
+    const apiRoot = path.resolve(
       appDirectory || process.cwd(),
       apiDirectory || API_DIR,
-      'effect',
-      'index',
     );
 
-    const entryWithoutExt = configuredEntry
-      ? path.isAbsolute(configuredEntry)
-        ? configuredEntry
-        : path.resolve(appDirectory || process.cwd(), configuredEntry)
-      : defaultEntry;
-
-    return resolveJsOrTsEntry(entryWithoutExt);
-  }
-
-  private isApiRequestPath(
-    requestPath: string,
-    prefix: string,
-    enableHandleWeb: boolean | undefined,
-  ) {
-    if (!enableHandleWeb) {
-      // Middleware path is already scoped to `${prefix}/*`.
-      return true;
-    }
-    const normalized = normalizePrefix(prefix);
-    if (!normalized) {
-      return true;
-    }
-    return (
-      requestPath === normalized || requestPath.startsWith(`${normalized}/`)
-    );
+    return resolveJsOrTsEntry(path.resolve(apiRoot, 'index'));
   }
 
   /**
-   * Contract sources for the lambda-lane handlers hosted alongside the
-   * effect entry. Cross-project SDKs generate per-operation contracts for
-   * `api/lambda` handlers with the exact same `ApiRouter` derivation used
-   * here, so the server-side expected-contract map must include them —
-   * otherwise every lambda-lane operation of a hosted producer SDK would be
-   * denied as `unknown_operation_contract`.
-   */
-  private async collectLambdaContractSources(): Promise<
-    OperationContractSource[]
-  > {
-    try {
-      const serverContext = this.api.getServerContext() as {
-        distDirectory?: string;
-        appDirectory?: string;
-        apiDirectory?: string;
-        lambdaDirectory?: string;
-      };
-      const appDir = serverContext.distDirectory || serverContext.appDirectory;
-      if (!appDir) {
-        return [];
-      }
-      const apiDir =
-        typeof serverContext.apiDirectory === 'string'
-          ? serverContext.apiDirectory
-          : path.resolve(appDir, API_DIR);
-      // Only framework-mode lambda layouts apply in the effect lane: without
-      // an actual lambda directory ApiRouter would fall back to function
-      // mode and misread the effect entry itself as lambda handlers.
-      const lambdaDir =
-        typeof serverContext.lambdaDirectory === 'string'
-          ? serverContext.lambdaDirectory
-          : path.join(apiDir, 'lambda');
-      if (!(await fs.pathExists(lambdaDir))) {
-        return [];
-      }
-
-      const apiRouter = new ApiRouter({
-        appDir,
-        apiDir,
-        lambdaDir,
-        prefix: this.prefix,
-        httpMethodDecider: this.api.getServerConfig()?.bff?.httpMethodDecider,
-      });
-      const handlerInfos = await apiRouter.getApiHandlers();
-      return handlerInfos.map(info => ({
-        name: info.name,
-        httpMethod: info.httpMethod,
-        routePath: info.routePath,
-        filename: info.filename,
-        handler: info.handler,
-      }));
-    } catch (error) {
-      logger.warn(
-        `[BFF][Effect] Failed to derive lambda operation contracts for the cross-project policy: ${String(error)}`,
-      );
-      return [];
-    }
-  }
-
-  /**
-   * Resolves the cross-project policy from the reflected HttpApi endpoints
-   * (plus any hosted lambda-lane handlers) so the expected operation
-   * contracts match the hashes the client generators stamp into generated
-   * SDKs.
+   * Resolves the cross-project policy from the reflected HttpApi endpoints so
+   * the expected operation contracts match the hashes the client generators
+   * stamp into generated SDKs.
    */
   private async refreshCrossProjectPolicy(mod: EffectApiModule | null) {
     let contractSources: ReturnType<typeof toOperationContractSources> = [];
@@ -364,17 +263,7 @@ export class EffectAdapter {
       }
     }
 
-    let policy = resolveAdapterCrossProjectPolicy(this.api, contractSources);
-    if (policy?.enabled) {
-      // Only walk the lambda handlers when the policy actually applies:
-      // loading them is wasted work (and a potential module side effect)
-      // for servers that never evaluate the policy.
-      const lambdaSources = await this.collectLambdaContractSources();
-      if (lambdaSources.length > 0) {
-        contractSources = [...contractSources, ...lambdaSources];
-        policy = resolveAdapterCrossProjectPolicy(this.api, contractSources);
-      }
-    }
+    const policy = resolveAdapterCrossProjectPolicy(this.api, contractSources);
     this.crossProjectPolicy = policy;
     if (this.crossProjectPolicy?.enabled && contractSources.length === 0) {
       logger.warn(
@@ -384,9 +273,10 @@ export class EffectAdapter {
   }
 
   private async loadEffectHandlerFromModule(mod: EffectApiModule) {
+    const effectConfig = this.api.getServerConfig()?.bff?.effect;
     return resolveEffectBffModuleHandler(mod, {
-      openapi: this.api.getServerConfig()?.bff?.effect?.openapi,
-      dataPlatform: this.api.getServerConfig()?.bff?.effect?.dataPlatform,
+      openapi: effectConfig?.openapi,
+      dataPlatform: effectConfig?.dataPlatform,
       validateRequest: request =>
         checkCrossProjectPolicyForRequest(request, this.crossProjectPolicy),
       onWarning: message => {
@@ -437,7 +327,7 @@ export class EffectAdapter {
 
     if (!loaded) {
       logger.warn(
-        `[BFF][Effect] Invalid Effect entry module: ${entryFile}. Export { api, layer } or handler.`,
+        `[BFF][Effect] Invalid Effect entry module: ${entryFile}. Export defineEffectBff(...) or a { api, layer } HttpApi module.`,
       );
       this.handler = null;
       return;
@@ -445,7 +335,6 @@ export class EffectAdapter {
 
     this.handler = loaded.handler;
     this.dispose = loaded.dispose || null;
-    this.policyEnforcedInMiddleware = !loaded.appliesRequestValidator;
   }
 
   private async disposeCurrentHandler() {

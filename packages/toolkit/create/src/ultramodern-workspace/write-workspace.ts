@@ -234,7 +234,7 @@ export function writeApp(
     writeAppFile('src/routes/shell-frame.tsx', createShellFrameComponent());
     writeFile(
       targetDir,
-      `${resolvedApp.directory}/src/effect/vertical-clients.ts`,
+      `${resolvedApp.directory}/src/api/vertical-clients.ts`,
       createShellEffectClient(scope, remotes),
     );
   }
@@ -242,18 +242,18 @@ export function writeApp(
   if (appHasEffectApi(resolvedApp)) {
     writeFile(
       targetDir,
-      `${resolvedApp.directory}/shared/effect/api.ts`,
+      `${resolvedApp.directory}/shared/api.ts`,
       createEffectSharedApi(resolvedApp),
     );
     writeFile(
       targetDir,
-      `${resolvedApp.directory}/api/effect/index.ts`,
-      createEffectServiceEntry(resolvedApp, '../../shared/effect/api.ts'),
+      `${resolvedApp.directory}/api/index.ts`,
+      createEffectServiceEntry(resolvedApp, '../shared/api.ts'),
     );
     writeFile(
       targetDir,
-      `${resolvedApp.directory}/src/effect/${resolvedApp.effectApi.stem}-client.ts`,
-      createEffectClient(resolvedApp, '../../shared/effect/api'),
+      `${resolvedApp.directory}/src/api/${resolvedApp.effectApi.stem}-client.ts`,
+      createEffectClient(resolvedApp, '../../shared/api'),
     );
   }
 

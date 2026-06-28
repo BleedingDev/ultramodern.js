@@ -78,7 +78,11 @@ export function createTopology(
     })),
     validation: {
       script: 'scripts/validate-ultramodern-workspace.mjs',
-      commands: ['pnpm i18n:boundaries', 'pnpm contract:check'],
+      commands: [
+        'pnpm i18n:boundaries',
+        'pnpm api:check',
+        'pnpm contract:check',
+      ],
     },
   };
 }
@@ -288,6 +292,7 @@ export function createUltramodernConfig(
         publicSurface: 'scripts/generate-public-surface-assets.mjs',
         cloudflareProof: 'scripts/proof-cloudflare-version.mjs',
         performanceReadiness: 'scripts/ultramodern-performance-readiness.mjs',
+        apiBoundaries: 'scripts/check-ultramodern-api-boundaries.mjs',
         skills: 'scripts/bootstrap-agent-skills.mjs',
       },
     },

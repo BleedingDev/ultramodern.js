@@ -266,16 +266,16 @@ describe('data-platform batch transport', () => {
     });
 
     const results = await Promise.all([
-      request('http://localhost:3011/host-api/effect/a', {
+      request('http://localhost:3011/host-api/a', {
         method: 'GET',
       }),
-      request('http://localhost:3011/host-api/effect/b', {
+      request('http://localhost:3011/host-api/b', {
         method: 'GET',
       }),
-      request('http://localhost:3010/remote-api/effect/a', {
+      request('http://localhost:3010/remote-api/a', {
         method: 'GET',
       }),
-      request('http://localhost:3010/remote-api/effect/b', {
+      request('http://localhost:3010/remote-api/b', {
         method: 'GET',
       }),
     ]);

@@ -297,11 +297,12 @@ export function createRootPackageJson(
       'performance:readiness':
         'node ./scripts/ultramodern-performance-readiness.mjs',
       'contract:check': 'node ./scripts/validate-ultramodern-workspace.mjs',
+      'api:check': 'node ./scripts/check-ultramodern-api-boundaries.mjs',
       'i18n:boundaries': 'node ./scripts/check-ultramodern-i18n-boundaries.mjs',
       ...bridgeScripts,
       postinstall:
         "oxfmt . '!repos/**' && node ./scripts/bootstrap-agent-skills.mjs --postinstall",
-      check: `pnpm format:check && pnpm lint && pnpm typecheck && pnpm skills:check && pnpm i18n:boundaries && pnpm contract:check && pnpm performance:readiness${bridgeCheck}`,
+      check: `pnpm format:check && pnpm lint && pnpm typecheck && pnpm skills:check && pnpm i18n:boundaries && pnpm api:check && pnpm contract:check && pnpm performance:readiness${bridgeCheck}`,
     },
     engines: {
       node: '>=26',
@@ -558,7 +559,7 @@ export function createAppPackage(
       role: app.kind === 'shell' ? 'shell' : 'module-federation-remote',
       appId: app.id,
       topology: `${relativeRootFor(app.directory)}/topology/reference-topology.json`,
-      ...(appHasEffectApi(app) ? { apiRuntime: 'effect-bff' } : {}),
+      ...(appHasEffectApi(app) ? { apiRuntime: 'effect' } : {}),
     },
     'zephyr:dependencies': createZephyrDependencies(scope, app, remotes),
     dependencies: appDependencies(scope, packageSource, app, remotes, bridge),
@@ -567,12 +568,12 @@ export function createAppPackage(
 
   if (appHasEffectApi(app)) {
     Object.assign(packageExports, {
-      './effect/client': `./src/effect/${app.effectApi.stem}-client.ts`,
-      './shared/effect/api': './shared/effect/api.ts',
+      './api': './shared/api.ts',
+      './api/client': `./src/api/${app.effectApi.stem}-client.ts`,
     });
   } else if (app.kind === 'shell') {
     Object.assign(packageExports, {
-      './effect/clients': './src/effect/vertical-clients.ts',
+      './api/clients': './src/api/vertical-clients.ts',
     });
   }
 

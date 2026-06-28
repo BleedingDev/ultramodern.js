@@ -128,14 +128,14 @@ function assertModuleFederationWarningHygiene(
 
 function assertGeneratedVerticalFiles(workspaceDir: string, id: string) {
   for (const relativePath of [
-    `verticals/${id}/api/effect/index.ts`,
+    `verticals/${id}/api/index.ts`,
     `verticals/${id}/locales/cs/${id}.json`,
     `verticals/${id}/locales/cs/translation.json`,
     `verticals/${id}/locales/en/${id}.json`,
     `verticals/${id}/locales/en/translation.json`,
-    `verticals/${id}/shared/effect/api.ts`,
+    `verticals/${id}/shared/api.ts`,
     `verticals/${id}/src/components/${id}-widget.tsx`,
-    `verticals/${id}/src/effect/${id}-client.ts`,
+    `verticals/${id}/src/api/${id}-client.ts`,
     `verticals/${id}/src/federation-entry.tsx`,
     `verticals/${id}/src/routes/[lang]/page.tsx`,
     `verticals/${id}/src/routes/ultramodern-route-metadata.ts`,
@@ -189,11 +189,8 @@ function assertIntegratedVertical(
   assert.equal(topologyEntry.moduleFederation.manifestUrl, manifestUrl);
   assert.equal(topologyEntry.package, packageName);
   assert.equal(topologyEntry.path, `verticals/${id}`);
-  assert.equal(topologyEntry.api.effect.bff.prefix, `/${id}-api`);
-  assert.equal(
-    topologyEntry.api.effect.serverEntry,
-    `verticals/${id}/api/effect/index.ts`,
-  );
+  assert.equal(topologyEntry.api.bff.prefix, `/${id}-api`);
+  assert.equal(topologyEntry.api.serverEntry, `verticals/${id}/api/index.ts`);
   assert.equal(ownershipEntry.package, packageName);
   assert.equal(ownershipEntry.path, `verticals/${id}`);
   assert.equal(ownershipEntry.ownership.team, 'super-app-platform');
@@ -229,10 +226,7 @@ function assertIntegratedVertical(
     verticalPackage.exports['./Widget'],
     `./src/components/${id}-widget.tsx`,
   );
-  assert.equal(
-    verticalPackage.exports['./shared/effect/api'],
-    './shared/effect/api.ts',
-  );
+  assert.equal(verticalPackage.exports['./api'], './shared/api.ts');
   assert.equal(
     verticalPackage.dependencies['@modern-js/plugin-bff'],
     'npm:@bleedingdev/modern-js-plugin-bff@3.2.0-ultramodern.108',
@@ -390,7 +384,7 @@ test('workspace and MicroVertical integration stays coherent across public API a
     assertIntegratedVertical(workspaceDir, 'catalog', 4101);
     assertIntegratedVertical(workspaceDir, 'checkout', 4102);
     assert.match(
-      read(workspaceDir, 'apps/shell-super-app/src/effect/vertical-clients.ts'),
+      read(workspaceDir, 'apps/shell-super-app/src/api/vertical-clients.ts'),
       /createCheckoutClient/,
     );
     assert.match(
@@ -453,17 +447,15 @@ test('generated MicroVertical self-check names corrupted contracts and fix areas
       },
       expectedContract:
         /MicroVertical contract self-check failed: topology\/local-overlays\/development\.json apis\.catalog\./,
-      expectedFixArea: /Fix area: restore generated local Effect API overlay\./,
+      expectedFixArea: /Fix area: restore generated local API overlay\./,
     },
     {
       workspaceName: 'vertical-file-missing',
       mutate: (workspaceDir: string) => {
-        fs.rmSync(
-          path.join(workspaceDir, 'verticals/catalog/shared/effect/api.ts'),
-        );
+        fs.rmSync(path.join(workspaceDir, 'verticals/catalog/shared/api.ts'));
       },
       expectedContract:
-        /MicroVertical contract self-check failed: required files for catalog\. Missing verticals\/catalog\/shared\/effect\/api\.ts\./,
+        /MicroVertical contract self-check failed: required files for catalog\. Missing verticals\/catalog\/shared\/api\.ts\./,
       expectedFixArea:
         /Fix area: restore the generated MicroVertical files or rerun the MicroVertical generator\./,
     },

@@ -33,7 +33,7 @@ UltraModern.js additions are designed as the default product surface for new Sup
 | Build diagnostics | RsDoctor is generally opt-in | Adds a first-class `performance.rsdoctor` config surface (opt-in; the earlier default-on behavior and diagnostics contract artifact were reverted) |
 | Output and static serving | Precompression behavior is app-defined | Enables `output.precompress` by default and serves `.br` / `.gz` variants via `Accept-Encoding` negotiation |
 | BFF runtime and contracts | Standard BFF runtime/client generation | Adds `requestId`-aware producer isolation, fail-fast initialization checks, and operation/trace correlation headers |
-| BFF runtime choices | Hono runtime path only in Modern.js 3.0 baseline (no built-in Effect runtime path) | Sets Effect as default runtime, enforces strict runtime split (`effect` -> `api/effect`, `hono` -> `api/lambda`), and adds Effect-Schema-first contracts plus MF failure-injection reliability coverage |
+| BFF runtime choices | Hono runtime path only in Modern.js 3.0 baseline (no built-in Effect runtime path) | Sets Effect as the strict default API runtime (`api/index.ts`, `shared/api.ts`, `src/api/*`) and keeps raw Hono handlers as an explicit compatibility lane |
 | Telemetry standardization | Observability wiring is often app-specific | Adds framework-level telemetry pipeline with OTLP/VictoriaMetrics exporters, redaction, batching, and backpressure controls |
 | App-level MF SSR handshake | No dedicated super-app app-level stability contract focus | Adds `server.ssr.moduleFederationAppSSR` plus integration-tested env/config handshake |
 | MF vertical loading reliability | Retry/fallback patterns are often implemented per app | Adds deterministic timeout/network/contract-error reliability matrix and distributed OTEL continuity tests |
@@ -46,16 +46,16 @@ UltraModern.js additions are designed as the default product surface for new Sup
 
 - We do not hide the fork behind legacy Modern.js branding.
 - We do not optimize for generic Modern.js defaults when they conflict with SuperApp reliability.
-- We keep both runtime modes (`effect`, `hono`) as explicit choices and avoid implicit fallback between them.
-- We avoid incompatible API changes unless there is a hard reliability requirement.
+- Generated UltraModern API work uses the Effect runtime only; raw Hono/function handlers are not part of the generated API architecture.
+- We make incompatible scaffold changes when they remove architecture drift.
 
 ## Migration Guide
 
-For teams already on Modern.js 3.0 or an older BleedingDev UltraModern scaffold, the adoption path remains compatibility-aware: keep the pieces that reduce risk, move toward MV-first / TanStack-first / Effect-first defaults, and keep fallback lanes explicit while you adopt UltraModern.js 3.0 as a separate framework.
+For teams already on Modern.js 3.0 or an older BleedingDev UltraModern scaffold, the adoption path is to move API work onto the strict Effect API surface instead of preserving older raw handler layouts.
 
 1. Keep existing React Router apps running as-is. TanStack Router is the preferred path for new scaffolds and incremental route adoption, but the React Router lane remains supported while teams move on their own schedule.
-2. Prefer `bff.runtimeFramework: 'effect'` for new BFF work, with the entry implemented at `api/effect/index.ts`. If your app already uses Hono handlers under `api/lambda/**`, keep `bff.runtimeFramework: 'hono'` until you are ready to move them; Hono remains a supported compatibility lane.
-3. Treat the baseline contracts as progressive defaults, not a forced cutover. `MODERN_BASELINE_ENABLE_MF_SSR`, `MODERN_BASELINE_ENABLE_BFF_REQUEST_ID`, and `MODERN_BASELINE_ENABLE_TELEMETRY_EXPORTERS` already let each app opt out while it converges on the preferred stack.
+2. Use `bff.runtimeFramework: 'effect'` with `bff.effect.strictEffectApproach: true` for API work. Entries live at `api/index.ts`, contracts live at `shared/api.ts`, clients live under `src/api/*`, and request/response/error shapes come from Effect `Schema` plus `HttpApi`.
+3. Treat raw handlers, `api/lambda/**`, manual `Response` construction, and manual request parsing as migration defects in generated UltraModern workspaces.
 4. The public preset now ships with explicit release and certification gates. Generated workspaces include `.github/workflows/ultramodern-workspace-gates.yml`, so `pnpm check` and `pnpm build` stay part of the local adoption contract from day one while CI runs the primitive gates as parallel matrix jobs.
 
 For an older generated workspace, migrate by treating the published cohort as
@@ -73,12 +73,12 @@ mise exec -- pnpm build
 
 Use one package-source strategy per repo. The published BleedingDev create
 package defaults to `--ultramodern-package-source=install` and records the
-exact cohort in `.modernjs/ultramodern-package-source.json`. Keep `--workspace`
-only for local monorepo testing against unreleased packages. Release proof and
-CI should pin the exact cohort with `--ultramodern-package-version` when a
-repo must prove a specific published framework version.
+exact cohort in `.modernjs/ultramodern.json`. Keep `--workspace` only for local
+monorepo testing against unreleased packages. Release proof and CI should pin
+the exact cohort with `--ultramodern-package-version` when a repo must prove a
+specific published framework version.
 
-Older repos with Effect BFF entries and `verbatimModuleSyntax` should update to
+Older repos with nested Effect entries and `verbatimModuleSyntax` should update to
 the latest BleedingDev cohort instead of adding app-level `"type": "module"`
 metadata, Module Federation shims, or custom server wrappers. The framework BFF
 compiler normalizes CommonJS server output while generated app packages keep
@@ -239,8 +239,8 @@ non-indexable routes emit no JSON-LD by default. Public route owners can add
 `jsonLd` beside localized paths and use the generated
 `src/routes/ultramodern-jsonld.ts` helpers for common schema.org shapes.
 
-The generated contract writes `.modernjs/ultramodern-generated-contract.json`
-with a `cssFederation` section:
+The generated contract writes `.modernjs/ultramodern.json` with a
+`cssFederation` section:
 
 - `packages/shared-design-tokens` owns the shared token layer and exports `./tokens.css`.
 - Shell CSS owns only shell base and overlay layers under `[data-app-id="shell-super-app"]`.
@@ -248,7 +248,7 @@ with a `cssFederation` section:
 - Tailwind CSS v4 is local to each generated app through `@tailwindcss/postcss`; shared base styles must not be duplicated by verticals.
 - SSR first paint requires shared token CSS and app-owned CSS to be emitted by Modern/Rspack assets. Vertical CSS is loaded through manifest ownership, not copied into shell source.
 
-Version switching must select UI, Effect API, CSS, i18n JSON, and MF manifest evidence from the same vertical build marker. A shell render that only changes the UI marker is not enough.
+Version switching must select UI, API, CSS, i18n JSON, and MF manifest evidence from the same vertical build marker. A shell render that only changes the UI marker is not enough.
 
 ### Validation And Deploy
 

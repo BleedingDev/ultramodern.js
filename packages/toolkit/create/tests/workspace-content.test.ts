@@ -24,9 +24,9 @@ const fixturesDir = path.join(__dirname, 'fixtures');
  * - generated script wrappers: pinned with targeted assertions after a
  *   vertical joins. The placeholder-dense validator now lives in the
  *   versioned @modern-js/create tool surface instead of copied app source.
- * - verticals/catalog/shared/effect/api.ts: fully code-generated Effect API
+ * - verticals/catalog/shared/api.ts: fully code-generated API
  *   contract file (no template on disk), the pure-codegen risk class.
- * - verticals/catalog/src/effect/catalog-client.ts: the generated Effect
+ * - verticals/catalog/src/api/catalog-client.ts: the generated Effect
  *   client. It once advertised locale/operationContext/traceparent options
  *   and silently dropped them; the snapshot pins the requestContext wiring
  *   into makeEffectHttpApiClient.
@@ -45,8 +45,8 @@ const defaultScaffoldSnapshots = [
 ];
 
 const catalogVerticalSnapshots = [
-  'verticals/catalog/shared/effect/api.ts',
-  'verticals/catalog/src/effect/catalog-client.ts',
+  'verticals/catalog/shared/api.ts',
+  'verticals/catalog/src/api/catalog-client.ts',
   'verticals/catalog/src/routes/[lang]/page.tsx',
 ];
 
@@ -385,14 +385,14 @@ test('rendered contents of the highest-risk generated files match the checked-in
       'generated Module Federation telemetry must stay compatible with exactOptionalPropertyTypes',
     );
 
-    // Regression: the generated Effect client once accepted
+    // Regression: the generated API client once accepted
     // locale/operationContext/traceparent options and then passed only
     // { baseUrl } to makeEffectHttpApiClient, so no operation-context header
     // was ever sent. Unlike the byte snapshot, these assertions survive a
     // blind fixture regeneration: the client must forward all three options
     // through the plugin-bff requestContext envelope.
     const generatedClient = fs.readFileSync(
-      path.join(workspaceDir, 'verticals/catalog/src/effect/catalog-client.ts'),
+      path.join(workspaceDir, 'verticals/catalog/src/api/catalog-client.ts'),
       'utf-8',
     );
     assert.match(
@@ -427,13 +427,13 @@ test('rendered contents of the highest-risk generated files match the checked-in
       'generated client factory must have an explicit portable return type',
     );
     const generatedSharedApi = fs.readFileSync(
-      path.join(workspaceDir, 'verticals/catalog/shared/effect/api.ts'),
+      path.join(workspaceDir, 'verticals/catalog/shared/api.ts'),
       'utf-8',
     );
     assert.doesNotMatch(
       generatedSharedApi,
       /ReadonlyArray</,
-      'generated shared Effect APIs must use readonly T[] array syntax so generated oxlint rules pass',
+      'generated shared APIs must use readonly T[] array syntax so generated oxlint rules pass',
     );
     assert.doesNotMatch(
       generatedSharedApi,
@@ -456,17 +456,17 @@ test('rendered contents of the highest-risk generated files match the checked-in
       'generated shared API must not emit Effect TaggedErrorClass placeholders',
     );
     const generatedEffectEntry = fs.readFileSync(
-      path.join(workspaceDir, 'verticals/catalog/api/effect/index.ts'),
+      path.join(workspaceDir, 'verticals/catalog/api/index.ts'),
       'utf-8',
     );
     assert.match(
       generatedEffectEntry,
-      /const effectBff: EffectBffDefinition<typeof catalogEffectApi, EffectRuntimeLayer> &\s*EffectBffRuntime<typeof catalogEffectApi, EffectRuntimeLayer>/,
+      /const apiRuntime: EffectBffDefinition<typeof catalogApi, EffectRuntimeLayer> &\s*EffectBffRuntime<typeof catalogApi, EffectRuntimeLayer>/,
       'generated Effect entry must name its default export type for declaration emit',
     );
     assert.match(
       generatedEffectEntry,
-      /from '\.\.\/\.\.\/shared\/ultramodern-build\.ts';/,
+      /from '\.\.\/shared\/ultramodern-build\.ts';/,
       'generated Effect entry must read build metadata from the BFF-visible shared boundary',
     );
     assert.doesNotMatch(

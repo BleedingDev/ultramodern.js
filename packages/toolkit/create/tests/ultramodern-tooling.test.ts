@@ -12,8 +12,8 @@ import {
   generateUltramodernWorkspace,
 } from '../src/ultramodern-workspace';
 
-const legacyContractPath = '.modernjs/ultramodern-generated-contract.json';
-const legacyPackageSourcePath = '.modernjs/ultramodern-package-source.json';
+const retiredContractPath = '.modernjs/ultramodern-generated-contract.json';
+const retiredPackageSourcePath = '.modernjs/ultramodern-package-source.json';
 
 function scaffoldWorkspace(name: string) {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-tooling-'));
@@ -31,7 +31,7 @@ function scaffoldWorkspace(name: string) {
   return { tempRoot, workspaceDir };
 }
 
-test('UltraModern tooling config prefers compact config and falls back to legacy contract', () => {
+test('UltraModern tooling config reads compact config and rejects retired metadata', () => {
   const { tempRoot, workspaceDir } = scaffoldWorkspace('tooling-config');
 
   try {
@@ -49,31 +49,23 @@ test('UltraModern tooling config prefers compact config and falls back to legacy
     );
     assert.equal(compact.topology.apps[0].moduleFederation?.role, 'host');
     assert.equal(
-      fs.existsSync(path.join(workspaceDir, legacyContractPath)),
+      fs.existsSync(path.join(workspaceDir, retiredContractPath)),
       false,
     );
     assert.equal(
-      fs.existsSync(path.join(workspaceDir, legacyPackageSourcePath)),
+      fs.existsSync(path.join(workspaceDir, retiredPackageSourcePath)),
       false,
     );
 
-    const legacyWorkspaceDir = path.join(tempRoot, 'legacy-tooling-config');
-    fs.mkdirSync(path.join(legacyWorkspaceDir, '.modernjs'), {
+    const retiredMetadataWorkspaceDir = path.join(
+      tempRoot,
+      'retired-metadata-tooling-config',
+    );
+    fs.mkdirSync(path.join(retiredMetadataWorkspaceDir, '.modernjs'), {
       recursive: true,
     });
-    fs.mkdirSync(path.join(legacyWorkspaceDir, 'topology/local-overlays'), {
-      recursive: true,
-    });
     fs.writeFileSync(
-      path.join(legacyWorkspaceDir, 'package.json'),
-      `${JSON.stringify({ name: 'legacy-tooling-config' }, null, 2)}\n`,
-    );
-    fs.writeFileSync(
-      path.join(legacyWorkspaceDir, 'topology/local-overlays/development.json'),
-      `${JSON.stringify({ ports: { 'shell-super-app': 3020 } }, null, 2)}\n`,
-    );
-    fs.writeFileSync(
-      path.join(legacyWorkspaceDir, legacyPackageSourcePath),
+      path.join(retiredMetadataWorkspaceDir, retiredPackageSourcePath),
       `${JSON.stringify(
         {
           schemaVersion: 1,
@@ -91,7 +83,7 @@ test('UltraModern tooling config prefers compact config and falls back to legacy
       )}\n`,
     );
     fs.writeFileSync(
-      path.join(legacyWorkspaceDir, legacyContractPath),
+      path.join(retiredMetadataWorkspaceDir, retiredContractPath),
       `${JSON.stringify(
         {
           schemaVersion: 1,
@@ -115,19 +107,9 @@ test('UltraModern tooling config prefers compact config and falls back to legacy
       )}\n`,
     );
 
-    const legacy = readUltramodernConfig(legacyWorkspaceDir);
-    assert.equal(legacy.source, 'legacy');
-    assert.equal(legacy.workspace.packageScope, 'legacy-tooling-config');
-    assert.equal(legacy.packageSource?.strategy, 'install');
-    assert.equal(
-      legacy.packageSource?.modernPackageVersion,
-      '3.2.0-ultramodern.108',
-    );
-    assert.equal(legacy.packageSource?.aliasScope, 'bleedingdev');
-    assert.equal(legacy.packageSource?.aliasPackageNamePrefix, 'modern-js-');
-    assert.deepEqual(
-      legacy.topology.apps.map(app => app.id),
-      ['shell-super-app'],
+    assert.throws(
+      () => readUltramodernConfig(retiredMetadataWorkspaceDir),
+      /Missing UltraModern config\. Expected \.modernjs\/ultramodern\.json/u,
     );
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });

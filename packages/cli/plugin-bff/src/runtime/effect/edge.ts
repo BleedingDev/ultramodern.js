@@ -167,7 +167,7 @@ export async function createEffectBffEdgeHandler(
 
   if (!loaded) {
     throw new Error(
-      '[BFF][Effect] Invalid Effect edge module. Export { api, layer }, createHandler, or handler.',
+      '[BFF][Effect] Invalid Effect edge module. Export defineEffectBff(...) or a { api, layer } HttpApi module.',
     );
   }
 

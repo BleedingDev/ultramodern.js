@@ -11,7 +11,7 @@ export function verticalEffectApiExport(service: {
   id: string;
   effectApi?: WorkspaceEffectApi;
 }) {
-  return `${toCamelCase(effectApiStem(service))}EffectApi`;
+  return `${toCamelCase(effectApiStem(service))}Api`;
 }
 
 export function verticalEffectGroupName(service: {
@@ -25,7 +25,7 @@ export function verticalEffectApiName(service: {
   id: string;
   effectApi?: WorkspaceEffectApi;
 }) {
-  return `${toPascalCase(effectApiStem(service))}EffectApi`;
+  return `${toPascalCase(effectApiStem(service))}Api`;
 }
 
 export function verticalEffectSchemaExport(service: {
@@ -153,24 +153,24 @@ function createCheckoutCartEndpointDefinitions(service: {
 
   return `
     .add(
-      HttpApiEndpoint.get('getCart', '/effect/checkout/cart', {
+      HttpApiEndpoint.get('getCart', '/checkout/cart', {
         success: checkoutCartSchema,
       }),
     )
     .add(
-      HttpApiEndpoint.post('addCartItem', '/effect/checkout/cart/items', {
+      HttpApiEndpoint.post('addCartItem', '/checkout/cart/items', {
         payload: checkoutAddCartItemPayloadSchema,
         success: checkoutCartSchema,
       }),
     )
     .add(
-      HttpApiEndpoint.post('removeCartItem', '/effect/checkout/cart/remove', {
+      HttpApiEndpoint.post('removeCartItem', '/checkout/cart/remove', {
         payload: checkoutRemoveCartItemPayloadSchema,
         success: checkoutCartSchema,
       }),
     )
     .add(
-      HttpApiEndpoint.post('clearCart', '/effect/checkout/cart/clear', {
+      HttpApiEndpoint.post('clearCart', '/checkout/cart/clear', {
         success: checkoutCartSchema,
       }),
     )`;
@@ -191,25 +191,25 @@ function createCheckoutCartOperationContexts(service: {
   addCartItem: {
     method: 'POST',
     operationId: '${apiName}:${groupName}:addCartItem',
-    routePath: '/effect/checkout/cart/items',
+    routePath: '/checkout/cart/items',
     source: 'generated-client',
   },
   clearCart: {
     method: 'POST',
     operationId: '${apiName}:${groupName}:clearCart',
-    routePath: '/effect/checkout/cart/clear',
+    routePath: '/checkout/cart/clear',
     source: 'generated-client',
   },
   getCart: {
     method: 'GET',
     operationId: '${apiName}:${groupName}:getCart',
-    routePath: '/effect/checkout/cart',
+    routePath: '/checkout/cart',
     source: 'generated-client',
   },
   removeCartItem: {
     method: 'POST',
     operationId: '${apiName}:${groupName}:removeCartItem',
-    routePath: '/effect/checkout/cart/remove',
+    routePath: '/checkout/cart/remove',
     source: 'generated-client',
   },`;
 }
@@ -222,7 +222,7 @@ function createCheckoutCartApiContractFields(service: {
     return '';
   }
 
-  return `  checkoutCartPath: '${effectApiPrefix(service)}/effect/checkout/cart',
+  return `  checkoutCartPath: '${effectApiPrefix(service)}/checkout/cart',
 `;
 }
 
@@ -273,7 +273,7 @@ function createCheckoutCartServerHandlers(service: {
   return `
       .handle('getCart', () =>
         Effect.sync(() => createCheckoutCartSnapshot()).pipe(
-          Effect.withSpan('ultramodern.effect.${groupName}.checkout.getCart', {
+          Effect.withSpan('ultramodern.api.${groupName}.checkout.getCart', {
             attributes: operationAttributes(${groupName}OperationContexts.getCart),
             kind: 'server',
           }),
@@ -291,7 +291,7 @@ function createCheckoutCartServerHandlers(service: {
           });
           return createCheckoutCartSnapshot();
         }).pipe(
-          Effect.withSpan('ultramodern.effect.${groupName}.checkout.addCartItem', {
+          Effect.withSpan('ultramodern.api.${groupName}.checkout.addCartItem', {
             attributes: operationAttributes(${groupName}OperationContexts.addCartItem),
             kind: 'server',
           }),
@@ -302,7 +302,7 @@ function createCheckoutCartServerHandlers(service: {
           checkoutCartLines.delete(payload.sku);
           return createCheckoutCartSnapshot();
         }).pipe(
-          Effect.withSpan('ultramodern.effect.${groupName}.checkout.removeCartItem', {
+          Effect.withSpan('ultramodern.api.${groupName}.checkout.removeCartItem', {
             attributes: operationAttributes(${groupName}OperationContexts.removeCartItem),
             kind: 'server',
           }),
@@ -313,7 +313,7 @@ function createCheckoutCartServerHandlers(service: {
           checkoutCartLines.clear();
           return createCheckoutCartSnapshot();
         }).pipe(
-          Effect.withSpan('ultramodern.effect.${groupName}.checkout.clearCart', {
+          Effect.withSpan('ultramodern.api.${groupName}.checkout.clearCart', {
             attributes: operationAttributes(${groupName}OperationContexts.clearCart),
             kind: 'server',
           }),
@@ -470,7 +470,7 @@ export interface ${itemType} {
 
 export interface ${readinessType} {
   readonly checks: {
-    readonly effectBff: 'ready';
+    readonly api: 'ready';
     readonly moduleFederation: 'ready';
     readonly ssr: 'ready';
     readonly translations: 'ready';
@@ -514,7 +514,7 @@ export const ${schemaExport}: Schema.Codec<${itemType}> = Schema.Struct({
 
 export const ${readinessSchemaExport}: Schema.Codec<${readinessType}> = Schema.Struct({
   checks: Schema.Struct({
-    effectBff: Schema.Literal('ready'),
+    api: Schema.Literal('ready'),
     moduleFederation: Schema.Literal('ready'),
     ssr: Schema.Literal('ready'),
     translations: Schema.Literal('ready'),
@@ -551,7 +551,7 @@ export interface OperationContext {
 export const ${apiExport} = HttpApi.make('${apiName}').add(
   HttpApiGroup.make('${groupName}')
     .add(
-      HttpApiEndpoint.get('list', '/effect/${stem}', {
+      HttpApiEndpoint.get('list', '/${stem}', {
         query: {
           limit: Schema.optional(Schema.FiniteFromString),
         },
@@ -561,12 +561,12 @@ export const ${apiExport} = HttpApi.make('${apiName}').add(
       }),
     )
     .add(
-      HttpApiEndpoint.get('readiness', '/effect/${stem}/readiness', {
+      HttpApiEndpoint.get('readiness', '/${stem}/readiness', {
         success: ${readinessSchemaExport},
       }),
     )
     .add(
-      HttpApiEndpoint.get('get', '/effect/${stem}/:id', {
+      HttpApiEndpoint.get('get', '/${stem}/:id', {
         error: ${notFoundSchemaExport},
         params: {
           id: Schema.String,
@@ -575,7 +575,7 @@ export const ${apiExport} = HttpApi.make('${apiName}').add(
       }),
     )
     .add(
-      HttpApiEndpoint.post('create', '/effect/${stem}', {
+      HttpApiEndpoint.post('create', '/${stem}', {
         payload: ${createPayloadSchemaExport},
         success: Schema.Struct({
           item: ${schemaExport},
@@ -588,34 +588,34 @@ export const ${groupName}OperationContexts = {
 ${checkoutCartOperationContextEntries}  create: {
     method: 'POST',
     operationId: '${apiName}:${groupName}:create',
-    routePath: '/effect/${stem}',
+    routePath: '/${stem}',
     source: 'generated-client',
   },
   get: {
     method: 'GET',
     operationId: '${apiName}:${groupName}:get',
-    routePath: '/effect/${stem}/:id',
+    routePath: '/${stem}/:id',
     source: 'generated-client',
   },
   list: {
     method: 'GET',
     operationId: '${apiName}:${groupName}:list',
-    routePath: '/effect/${stem}',
+    routePath: '/${stem}',
     source: 'generated-client',
   },
   readiness: {
     method: 'GET',
     operationId: '${apiName}:${groupName}:readiness',
-    routePath: '/effect/${stem}/readiness',
+    routePath: '/${stem}/readiness',
     source: 'generated-client',
   },
 } satisfies Record<string, OperationContext>;
 
 export const ${groupName}ApiContract = {
   apiPrefix: '${apiPrefix}',
-  basePath: '${apiPrefix}/effect/${stem}',
+  basePath: '${apiPrefix}/${stem}',
 ${createCheckoutCartApiContractFields(service)}  ownerId: '${service.id}',
-  readinessPath: '${apiPrefix}/effect/${stem}/readiness',
+  readinessPath: '${apiPrefix}/${stem}/readiness',
 } as const;
 `;
 }
@@ -648,7 +648,7 @@ import type {
   EffectBffRuntime,
   EffectRuntimeLayer,
 } from '@modern-js/plugin-bff/effect-edge';
-import { ultramodernApiMarker } from '../../shared/ultramodern-build.ts';
+import { ultramodernApiMarker } from '../shared/ultramodern-build.ts';
 import {
   ${apiExport},
   ${groupName}OperationContexts,
@@ -689,7 +689,7 @@ const ${groupName}Layer = HttpApiBuilder.group(
               ? ${groupName}Items.slice(0, query.limit)
               : ${groupName}Items,
         }).pipe(
-          Effect.withSpan('ultramodern.effect.${groupName}.list', {
+          Effect.withSpan('ultramodern.api.${groupName}.list', {
             attributes: operationAttributes(${groupName}OperationContexts.list),
             kind: 'server',
           }),
@@ -698,7 +698,7 @@ const ${groupName}Layer = HttpApiBuilder.group(
       .handle('readiness', () =>
         Effect.succeed({
           checks: {
-            effectBff: 'ready' as const,
+            api: 'ready' as const,
             moduleFederation: 'ready' as const,
             ssr: 'ready' as const,
             translations: 'ready' as const,
@@ -707,7 +707,7 @@ const ${groupName}Layer = HttpApiBuilder.group(
           status: 'ready' as const,
           versionSkew: 'none' as const,
         }).pipe(
-          Effect.withSpan('ultramodern.effect.${groupName}.readiness', {
+          Effect.withSpan('ultramodern.api.${groupName}.readiness', {
             attributes: operationAttributes(${groupName}OperationContexts.readiness),
             kind: 'server',
           }),
@@ -727,7 +727,7 @@ const ${groupName}Layer = HttpApiBuilder.group(
             : Effect.succeed(matchedItem);
 
         return result.pipe(
-            Effect.withSpan('ultramodern.effect.${groupName}.get', {
+            Effect.withSpan('ultramodern.api.${groupName}.get', {
               attributes: operationAttributes(${groupName}OperationContexts.get),
               kind: 'server',
             }),
@@ -744,7 +744,7 @@ const ${groupName}Layer = HttpApiBuilder.group(
             title: payload.title,
           },
         }).pipe(
-          Effect.withSpan('ultramodern.effect.${groupName}.create', {
+          Effect.withSpan('ultramodern.api.${groupName}.create', {
             attributes: operationAttributes(${groupName}OperationContexts.create),
             kind: 'server',
           }),
@@ -756,13 +756,13 @@ const layer = HttpApiBuilder.layer(${apiExport}).pipe(
   Layer.provide(${groupName}Layer),
 ) satisfies EffectRuntimeLayer;
 
-const effectBff: EffectBffDefinition<typeof ${apiExport}, EffectRuntimeLayer> &
+const apiRuntime: EffectBffDefinition<typeof ${apiExport}, EffectRuntimeLayer> &
   EffectBffRuntime<typeof ${apiExport}, EffectRuntimeLayer> = defineEffectBff({
   api: ${apiExport},
   layer,
 });
 
-export default effectBff;
+export default apiRuntime;
 `;
 }
 
@@ -819,7 +819,7 @@ import type {
 
 export { Effect, runEffectRequest };
 
-type ${pascalStem}EffectGroups = typeof ${apiExport} extends HttpApi.HttpApi<
+type ${pascalStem}ApiGroups = typeof ${apiExport} extends HttpApi.HttpApi<
   infer _ApiId,
   infer Groups
 >
@@ -827,7 +827,7 @@ type ${pascalStem}EffectGroups = typeof ${apiExport} extends HttpApi.HttpApi<
   : never;
 
 export type ${clientTypeName} = HttpApiClient.Client<
-  Extract<${pascalStem}EffectGroups, HttpApiGroup.Any>,
+  Extract<${pascalStem}ApiGroups, HttpApiGroup.Any>,
   never,
   never
 >;
@@ -944,7 +944,7 @@ ${checkoutCartExports}  create${pascalSingular},
   get${pascalStem}Readiness,
   list${pascalStem},
   type ${pascalStem}ClientOptions,
-} from '${packageName(scope, remote.packageSuffix)}/effect/client';`;
+} from '${packageName(scope, remote.packageSuffix)}/api/client';`;
     })
     .join('\n\n');
 
@@ -960,13 +960,13 @@ export function createEffectReadinessContract(app: {
 }): JsonValue {
   const stem = effectApiStem(app);
   return {
-    endpoint: `/effect/${stem}/readiness`,
+    endpoint: `/${stem}/readiness`,
     marker: {
       ui: 'ultramodernUiMarker',
       api: 'ultramodernApiMarker',
       skew: 'none',
     },
-    checks: ['moduleFederation', 'ssr', 'translations', 'effectBff'],
+    checks: ['moduleFederation', 'ssr', 'translations', 'api'],
   };
 }
 
@@ -981,7 +981,7 @@ export function createEffectRequestContextContract(): JsonValue {
       'x-ultramodern-env',
       'x-vertical-version-id',
     ],
-    source: 'shell-to-vertical-effect-client',
+    source: 'shell-to-vertical-api-client',
   };
 }
 
@@ -991,34 +991,34 @@ export function createEffectDomainOperations(app: {
 }): JsonValue {
   const stem = effectApiStem(app);
   const group = verticalEffectGroupName(app);
-  const basePath = `/effect/${stem}`;
+  const basePath = `/${stem}`;
   const checkoutCartOperations = serviceHasCheckoutCartState(app)
     ? {
         checkoutCartAddItem: {
           client: 'addCheckoutCartItem',
           method: 'POST',
-          path: '/effect/checkout/cart/items',
+          path: '/checkout/cart/items',
           resource: 'checkout-cart',
           owner: app.id,
         },
         checkoutCartClear: {
           client: 'clearCheckoutCart',
           method: 'POST',
-          path: '/effect/checkout/cart/clear',
+          path: '/checkout/cart/clear',
           resource: 'checkout-cart',
           owner: app.id,
         },
         checkoutCartRead: {
           client: 'getCheckoutCart',
           method: 'GET',
-          path: '/effect/checkout/cart',
+          path: '/checkout/cart',
           resource: 'checkout-cart',
           owner: app.id,
         },
         checkoutCartRemoveItem: {
           client: 'removeCheckoutCartItem',
           method: 'POST',
-          path: '/effect/checkout/cart/remove',
+          path: '/checkout/cart/remove',
           resource: 'checkout-cart',
           owner: app.id,
         },
@@ -1059,27 +1059,26 @@ export function effectApiTopologyMetadata(
   }
 
   return {
-    effect: {
-      runtime: 'effect',
-      bff: {
-        prefix: app.effectApi.prefix,
-        openapi: '/openapi.json',
-      },
-      contract: {
-        export: './shared/effect/api',
-        path: `${app.directory}/shared/effect/api.ts`,
-      },
-      client: {
-        export: './effect/client',
-        path: `${app.directory}/src/effect/${app.effectApi.stem}-client.ts`,
-      },
-      serverEntry: `${app.directory}/api/effect/index.ts`,
-      basePath: `${app.effectApi.prefix}/effect/${app.effectApi.stem}`,
-      consumedBy: app.effectApi.consumedBy,
-      readiness: createEffectReadinessContract(app),
-      requestContext: createEffectRequestContextContract(),
-      domainOperations: createEffectDomainOperations(app),
+    runtime: 'effect',
+    bff: {
+      prefix: app.effectApi.prefix,
+      openapi: '/openapi.json',
+      strictEffectApproach: true,
     },
+    contract: {
+      export: './api',
+      path: `${app.directory}/shared/api.ts`,
+    },
+    client: {
+      export: './api/client',
+      path: `${app.directory}/src/api/${app.effectApi.stem}-client.ts`,
+    },
+    serverEntry: `${app.directory}/api/index.ts`,
+    basePath: `${app.effectApi.prefix}/${app.effectApi.stem}`,
+    consumedBy: app.effectApi.consumedBy,
+    readiness: createEffectReadinessContract(app),
+    requestContext: createEffectRequestContextContract(),
+    domainOperations: createEffectDomainOperations(app),
   };
 }
 
@@ -1092,22 +1091,22 @@ export function createEffectOperationContract(target: {
     ? {
         addCartItem: {
           method: 'POST',
-          path: '/effect/checkout/cart/items',
+          path: '/checkout/cart/items',
           source: 'generated-client',
         },
         clearCart: {
           method: 'POST',
-          path: '/effect/checkout/cart/clear',
+          path: '/checkout/cart/clear',
           source: 'generated-client',
         },
         getCart: {
           method: 'GET',
-          path: '/effect/checkout/cart',
+          path: '/checkout/cart',
           source: 'generated-client',
         },
         removeCartItem: {
           method: 'POST',
-          path: '/effect/checkout/cart/remove',
+          path: '/checkout/cart/remove',
           source: 'generated-client',
         },
       }
@@ -1119,22 +1118,22 @@ export function createEffectOperationContract(target: {
       ...checkoutCartOperations,
       list: {
         method: 'GET',
-        path: `/effect/${stem}`,
+        path: `/${stem}`,
         source: 'generated-client',
       },
       readiness: {
         method: 'GET',
-        path: `/effect/${stem}/readiness`,
+        path: `/${stem}/readiness`,
         source: 'generated-client',
       },
       get: {
         method: 'GET',
-        path: `/effect/${stem}/:id`,
+        path: `/${stem}/:id`,
         source: 'generated-client',
       },
       create: {
         method: 'POST',
-        path: `/effect/${stem}`,
+        path: `/${stem}`,
         source: 'generated-client',
       },
     },

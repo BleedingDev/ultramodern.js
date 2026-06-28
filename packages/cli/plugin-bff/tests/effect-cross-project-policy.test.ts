@@ -33,7 +33,7 @@ const PREFIX = '/api';
 
 const pingApi = HttpApi.make('PolicyTestApi').add(
   HttpApiGroup.make('greetings').add(
-    HttpApiEndpoint.get('ping', '/effect/ping', {
+    HttpApiEndpoint.get('ping', '/ping', {
       success: Schema.Struct({
         ok: Schema.Boolean,
       }),
@@ -120,7 +120,7 @@ describe('effect lane cross-project policy enforcement', () => {
 
     try {
       const response = await handler.handler(
-        new Request('http://localhost/effect/ping'),
+        new Request('http://localhost/ping'),
       );
       expect(response.status).toBe(403);
       await expect(response.json()).resolves.toMatchObject({
@@ -137,7 +137,7 @@ describe('effect lane cross-project policy enforcement', () => {
 
     try {
       const response = await handler.handler(
-        new Request('http://localhost/effect/ping', {
+        new Request('http://localhost/ping', {
           headers: validPolicyHeaders(),
         }),
       );
@@ -160,7 +160,7 @@ describe('effect lane cross-project policy enforcement', () => {
       headers['x-modernjs-bff-operation-context'] = JSON.stringify(details);
 
       const response = await handler.handler(
-        new Request('http://localhost/effect/ping', { headers }),
+        new Request('http://localhost/ping', { headers }),
       );
       expect(response.status).toBe(403);
       await expect(response.json()).resolves.toMatchObject({
@@ -184,7 +184,7 @@ describe('effect lane cross-project policy enforcement', () => {
       // Client-asserted envelope claims "crm" but the verified channel says
       // "billing": the client-controlled header must not win.
       const spoofed = await handler.handler(
-        new Request('http://localhost/effect/ping', {
+        new Request('http://localhost/ping', {
           headers: {
             ...validPolicyHeaders(),
             'x-verified-producer': 'billing',
@@ -197,7 +197,7 @@ describe('effect lane cross-project policy enforcement', () => {
       });
 
       const verified = await handler.handler(
-        new Request('http://localhost/effect/ping', {
+        new Request('http://localhost/ping', {
           headers: {
             ...validPolicyHeaders(),
             'x-verified-producer': 'crm',
@@ -221,12 +221,12 @@ describe('effect lane cross-project policy enforcement', () => {
         items: [
           {
             id: 'no-headers',
-            path: '/effect/ping',
+            path: '/ping',
             method: 'GET',
           },
           {
             id: 'with-headers',
-            path: '/effect/ping',
+            path: '/ping',
             method: 'GET',
             headers: validPolicyHeaders(),
           },
@@ -294,12 +294,11 @@ describe('custom createHandler factory policy enforcement', () => {
     );
 
     expect(loaded).not.toBeNull();
-    expect(loaded?.appliesRequestValidator).toBe(true);
     expect(warnings).toEqual([]);
 
     try {
       const denied = await loaded!.handler(
-        new Request('http://localhost/effect/ping'),
+        new Request('http://localhost/ping'),
       );
       expect(denied.status).toBe(403);
       await expect(denied.json()).resolves.toMatchObject({
@@ -308,7 +307,7 @@ describe('custom createHandler factory policy enforcement', () => {
       });
 
       const allowed = await loaded!.handler(
-        new Request('http://localhost/effect/ping', {
+        new Request('http://localhost/ping', {
           headers: validPolicyHeaders(),
         }),
       );
@@ -319,306 +318,23 @@ describe('custom createHandler factory policy enforcement', () => {
     }
   });
 
-  test('unbranded custom factories that ignore validateRequest fall back to middleware enforcement', async () => {
-    const policy = resolvePolicy();
+  test('unbranded custom factories are rejected by strictEffectApproach by default', async () => {
     const warnings: string[] = [];
-    // A custom factory matching the public EffectBffHandlerFactory shape
-    // that performs NO policy check (it ignores options entirely).
     const customModule: EffectApiModule = {
       createHandler: () => ({
-        handler: async () =>
-          new Response(JSON.stringify({ ok: true, lane: 'custom-factory' }), {
-            headers: { 'content-type': 'application/json; charset=utf-8' },
-          }),
+        handler: async () => new Response(JSON.stringify({ ok: true })),
         dispose: async () => Promise.resolve(),
       }),
     };
 
     const loaded = await resolveEffectBffModuleHandler(customModule, {
-      validateRequest: request =>
-        checkCrossProjectPolicyForRequest(request, policy),
       onWarning: message => warnings.push(message),
     });
 
-    expect(loaded).not.toBeNull();
-    // The factory cannot be trusted to run the policy seam, so it must NOT
-    // claim internal enforcement — the adapter middleware takes over
-    // (policyEnforcedInMiddleware = !appliesRequestValidator).
-    expect(loaded?.appliesRequestValidator).toBeUndefined();
-    expect(warnings.some(message => message.includes('defineEffectBff'))).toBe(
-      true,
-    );
-
-    try {
-      // Proof the factory really ignores the validator: without middleware
-      // enforcement this unauthenticated request would sail through.
-      const unenforced = await loaded!.handler(
-        new Request('http://localhost/effect/ping'),
-      );
-      expect(unenforced.status).toBe(200);
-
-      // The middleware-side check the adapter applies for this shape still
-      // denies the same request.
-      const denial = checkCrossProjectPolicyForRequest(
-        new Request('http://localhost/api/effect/ping'),
-        policy,
-      );
-      expect(denial?.status).toBe(403);
-      await expect(denial?.json()).resolves.toMatchObject({
-        reason: 'missing_envelope',
-      });
-    } finally {
-      await loaded?.dispose?.();
-    }
-  });
-
-  test('effect adapter denies unauthenticated requests when the entry exports a custom factory ignoring validateRequest', async () => {
-    const appDir = await fs.promises.mkdtemp(
-      path.join(os.tmpdir(), 'modern-plugin-bff-custom-factory-'),
-    );
-    const middlewares: Array<{
-      handler: (ctx: unknown, next: () => Promise<void>) => Promise<unknown>;
-    }> = [];
-
-    try {
-      const entryFile = path.join(appDir, 'api', 'effect', 'index.js');
-      await fs.promises.mkdir(path.dirname(entryFile), { recursive: true });
-      await fs.promises.writeFile(
-        entryFile,
-        `module.exports = {
-  createHandler: () => ({
-    handler: async () =>
-      new Response(JSON.stringify({ ok: true, lane: 'custom-factory' }), {
-        headers: { 'content-type': 'application/json; charset=utf-8' },
-      }),
-    dispose: async () => {},
-  }),
-};
-`,
-      );
-
-      const api = {
-        getServerContext() {
-          return {
-            bffRuntimeFramework: 'effect',
-            middlewares,
-            appDirectory: appDir,
-          };
-        },
-        getServerConfig() {
-          return {
-            bff: {
-              requestId: REQUEST_ID,
-              isCrossProjectServer: true,
-              crossProjectPolicy: { enabled: true },
-            },
-          };
-        },
-      } as unknown as ServerPluginAPI;
-
-      const adapter = new EffectAdapter(api);
-      await adapter.registerMiddleware({
-        prefix: '/api',
-        enableHandleWeb: false,
-      });
-
-      const middleware = middlewares[0];
-      expect(middleware).toBeDefined();
-
-      const invoke = (request: Request) =>
-        middleware!.handler(
-          {
-            req: {
-              raw: request,
-              path: new URL(request.url).pathname,
-              method: request.method,
-            },
-            env: {},
-          },
-          async () => {},
-        ) as Promise<Response>;
-
-      // The factory ignores validateRequest, so without middleware fallback
-      // this request would be silently let through (the pre-fix behavior).
-      const denied = await invoke(
-        new Request('http://localhost/api/effect/ping'),
-      );
-      expect(denied.status).toBe(403);
-      await expect(denied.json()).resolves.toMatchObject({
-        code: 'BFF_CROSS_PROJECT_POLICY_DENIED',
-        reason: 'missing_envelope',
-      });
-
-      // Requests carrying a valid envelope/operation context still reach the
-      // custom handler through the middleware check.
-      const allowed = await invoke(
-        new Request('http://localhost/api/effect/ping', {
-          headers: validPolicyHeaders(),
-        }),
-      );
-      expect(allowed.status).toBe(200);
-      await expect(allowed.json()).resolves.toMatchObject({
-        lane: 'custom-factory',
-      });
-    } finally {
-      await fs.promises.rm(appDir, { recursive: true, force: true });
-    }
-  });
-
-  test('effect adapter contract map covers hosted lambda-lane handlers', async () => {
-    const appDir = await fs.promises.mkdtemp(
-      path.join(os.tmpdir(), 'modern-plugin-bff-lambda-contracts-'),
-    );
-    const middlewares: Array<{
-      handler: (ctx: unknown, next: () => Promise<void>) => Promise<unknown>;
-    }> = [];
-
-    try {
-      // Producer SDK layout: an effect entry with a custom factory (policy
-      // enforced by the adapter middleware) plus lambda-lane handlers the
-      // generated client stamps per-operation contracts for.
-      await fs.promises.writeFile(
-        path.join(appDir, 'package.json'),
-        JSON.stringify({ name: 'producer-sdk', version: '3.2.1' }),
-      );
-      const entryFile = path.join(appDir, 'api', 'effect', 'index.js');
-      await fs.promises.mkdir(path.dirname(entryFile), { recursive: true });
-      await fs.promises.writeFile(
-        entryFile,
-        `module.exports = {
-  createHandler: () => ({
-    handler: async () =>
-      new Response(JSON.stringify({ ok: true, lane: 'custom-factory' }), {
-        headers: { 'content-type': 'application/json; charset=utf-8' },
-      }),
-    dispose: async () => {},
-  }),
-};
-`,
-      );
-      const lambdaFile = path.join(appDir, 'api', 'lambda', 'index.js');
-      await fs.promises.mkdir(path.dirname(lambdaFile), { recursive: true });
-      await fs.promises.writeFile(
-        lambdaFile,
-        `module.exports.default = async () => ({ message: 'hello' });
-`,
-      );
-
-      const apiDirectory = path.join(appDir, 'api');
-      const api = {
-        getServerContext() {
-          return {
-            bffRuntimeFramework: 'effect',
-            middlewares,
-            appDirectory: appDir,
-            apiDirectory,
-          };
-        },
-        getServerConfig() {
-          return {
-            bff: {
-              requestId: REQUEST_ID,
-              isCrossProjectServer: true,
-              crossProjectPolicy: { enabled: true },
-            },
-          };
-        },
-      } as unknown as ServerPluginAPI;
-
-      const adapter = new EffectAdapter(api);
-      await adapter.registerMiddleware({
-        prefix: '/api',
-        enableHandleWeb: false,
-      });
-
-      // The expected-contract map must include the lambda-lane operation
-      // keyed exactly like buildOperationContractMap on the client side.
-      const lambdaContract =
-        adapter.crossProjectPolicy?.expectedOperationContracts?.['GET:/api'];
-      expect(lambdaContract).toBeDefined();
-      expect(lambdaContract).toMatchObject({
-        requestId: REQUEST_ID,
-        method: 'GET',
-        routePath: '/api',
-        operationId: `${REQUEST_ID}:default`,
-        // semver major of the producer package.json
-        operationVersion: 3,
-      });
-      expect(lambdaContract!.schemaHash).toMatch(/^[0-9a-f]{64}$/);
-      expect(
-        adapter.crossProjectPolicy?.expectedOperationContracts?.[
-          `operation:${REQUEST_ID}:default`
-        ],
-      ).toBe(lambdaContract);
-
-      const middleware = middlewares[0];
-      expect(middleware).toBeDefined();
-
-      const invoke = (request: Request) =>
-        middleware!.handler(
-          {
-            req: {
-              raw: request,
-              path: new URL(request.url).pathname,
-              method: request.method,
-            },
-            env: {},
-          },
-          async () => {},
-        ) as Promise<Response>;
-
-      // A lambda-lane request stamped the way the generated client does it
-      // passes the middleware policy (pre-fix: unknown_operation_contract).
-      const allowed = await invoke(
-        new Request('http://localhost/api', {
-          headers: {
-            'x-modernjs-bff-envelope': JSON.stringify({
-              requestId: REQUEST_ID,
-            }),
-            'x-operation-id': `${REQUEST_ID}:default`,
-            'x-modernjs-bff-operation-context': JSON.stringify({
-              requestId: REQUEST_ID,
-              operationId: `${REQUEST_ID}:default`,
-              method: 'GET',
-              routePath: '/api',
-              schemaHash: lambdaContract!.schemaHash,
-              operationVersion: 3,
-            }),
-          },
-        }),
-      );
-      expect(allowed.status).toBe(200);
-      await expect(allowed.json()).resolves.toMatchObject({
-        lane: 'custom-factory',
-      });
-
-      // An unknown lambda-lane operation is still denied.
-      const denied = await invoke(
-        new Request('http://localhost/api/unknown', {
-          headers: {
-            'x-modernjs-bff-envelope': JSON.stringify({
-              requestId: REQUEST_ID,
-            }),
-            'x-operation-id': `${REQUEST_ID}:nope`,
-            'x-modernjs-bff-operation-context': JSON.stringify({
-              requestId: REQUEST_ID,
-              operationId: `${REQUEST_ID}:nope`,
-              method: 'GET',
-              routePath: '/api/unknown',
-              schemaHash: 'a'.repeat(64),
-              operationVersion: 3,
-            }),
-          },
-        }),
-      );
-      expect(denied.status).toBe(403);
-      await expect(denied.json()).resolves.toMatchObject({
-        code: 'BFF_CROSS_PROJECT_POLICY_DENIED',
-        reason: 'unknown_operation_contract',
-      });
-    } finally {
-      await fs.promises.rm(appDir, { recursive: true, force: true });
-    }
+    expect(loaded).toBeNull();
+    expect(
+      warnings.some(message => message.includes('strictEffectApproach')),
+    ).toBe(true);
   });
 });
 
@@ -630,7 +346,7 @@ describe('defineEffectBff client placeholder', () => {
     });
 
     expect(() => (runtime.client as Record<string, unknown>).greetings).toThrow(
-      /only exists when this module is imported through the "@api\/effect\/\*" transformed path/,
+      /only exists when the API entry is imported through the "@api\/index" transformed path/,
     );
   });
 

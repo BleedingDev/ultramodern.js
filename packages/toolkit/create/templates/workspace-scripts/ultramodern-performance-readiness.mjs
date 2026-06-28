@@ -7,7 +7,6 @@ const defaultReportPath =
   '.codex/reports/performance-readiness/ultramodern-performance-readiness.json';
 const configPath = 'scripts/ultramodern-performance-readiness.config.mjs';
 const compactConfigPath = '.modernjs/ultramodern.json';
-const legacyContractPath = '.modernjs/ultramodern-generated-contract.json';
 const optOutEnv = 'ULTRAMODERN_PERFORMANCE_READINESS_DIAGNOSTICS';
 const signalIds = [
   'bfcache',
@@ -219,15 +218,8 @@ const readGeneratedContractView = () => {
     };
   }
 
-  if (exists(legacyContractPath)) {
-    return {
-      sourcePath: legacyContractPath,
-      ...readJson(legacyContractPath),
-    };
-  }
-
   throw new Error(
-    `Missing UltraModern config. Expected ${compactConfigPath} or ${legacyContractPath}.`,
+    `Missing UltraModern config. Expected ${compactConfigPath}.`,
   );
 };
 

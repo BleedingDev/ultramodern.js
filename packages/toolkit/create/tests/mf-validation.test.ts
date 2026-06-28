@@ -82,14 +82,16 @@ test('discovers Module Federation configs from generated metadata and app-root f
     'apps/contract-remote/module-federation.config.ts': mfConfig(),
     'apps/scanned-remote/module-federation.config.ts': mfConfig(),
   });
-  writeJson(workspaceRoot, '.modernjs/ultramodern-generated-contract.json', {
-    apps: [
-      {
-        id: 'contract-remote',
-        moduleFederation: { exposes: ['./Widget'] },
-        path: 'apps/contract-remote',
-      },
-    ],
+  writeJson(workspaceRoot, '.modernjs/ultramodern.json', {
+    topology: {
+      apps: [
+        {
+          id: 'contract-remote',
+          moduleFederation: { exposes: ['./Widget'] },
+          path: 'apps/contract-remote',
+        },
+      ],
+    },
   });
 
   assert.deepEqual(
@@ -104,20 +106,22 @@ test('validates real exposes even when the generated contract exposes are stale'
   const workspaceRoot = createWorkspace({
     'apps/custom/module-federation.config.ts': mfConfig(),
   });
-  writeJson(workspaceRoot, '.modernjs/ultramodern-generated-contract.json', {
-    apps: [
-      {
-        id: 'custom',
-        moduleFederation: {
-          dts: {
-            compilerInstance: 'tsgo',
-            tsConfigPath: './tsconfig.mf-types.json',
+  writeJson(workspaceRoot, '.modernjs/ultramodern.json', {
+    topology: {
+      apps: [
+        {
+          id: 'custom',
+          moduleFederation: {
+            dts: {
+              compilerInstance: 'tsgo',
+              tsConfigPath: './tsconfig.mf-types.json',
+            },
+            exposes: [],
           },
-          exposes: [],
+          path: 'apps/custom',
         },
-        path: 'apps/custom',
-      },
-    ],
+      ],
+    },
   });
 
   assertThrowsWithMessage(

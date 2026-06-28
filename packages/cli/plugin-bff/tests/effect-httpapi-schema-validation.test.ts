@@ -29,7 +29,7 @@ const recommendationNotFoundSchema = RecommendationNotFound.pipe(
 const recommendationsApi = HttpApi.make('RecommendationsContractTestApi').add(
   HttpApiGroup.make('recommendations')
     .add(
-      HttpApiEndpoint.get('list', '/effect/recommendations', {
+      HttpApiEndpoint.get('list', '/recommendations', {
         query: {
           limit: Schema.optional(Schema.NumberFromString),
         },
@@ -39,7 +39,7 @@ const recommendationsApi = HttpApi.make('RecommendationsContractTestApi').add(
       }),
     )
     .add(
-      HttpApiEndpoint.get('get', '/effect/recommendations/:id', {
+      HttpApiEndpoint.get('get', '/recommendations/:id', {
         params: {
           id: Schema.String,
         },
@@ -48,7 +48,7 @@ const recommendationsApi = HttpApi.make('RecommendationsContractTestApi').add(
       }),
     )
     .add(
-      HttpApiEndpoint.post('create', '/effect/recommendations', {
+      HttpApiEndpoint.post('create', '/recommendations', {
         payload: Schema.Struct({
           title: Schema.String,
         }),
@@ -58,7 +58,7 @@ const recommendationsApi = HttpApi.make('RecommendationsContractTestApi').add(
       }),
     )
     .add(
-      HttpApiEndpoint.post('reset', '/effect/recommendations/reset', {
+      HttpApiEndpoint.post('reset', '/recommendations/reset', {
         success: Schema.Struct({
           ok: Schema.Boolean,
         }),
@@ -129,7 +129,7 @@ describe('effect HttpApi schema validation', () => {
 
     try {
       const listResponse = await handler.handler(
-        new Request('http://localhost/effect/recommendations?limit=1'),
+        new Request('http://localhost/recommendations?limit=1'),
       );
       expect(listResponse.status).toBe(200);
       await expect(listResponse.json()).resolves.toEqual({
@@ -142,9 +142,7 @@ describe('effect HttpApi schema validation', () => {
       });
 
       const getResponse = await handler.handler(
-        new Request(
-          'http://localhost/effect/recommendations/starter-recommendations',
-        ),
+        new Request('http://localhost/recommendations/starter-recommendations'),
       );
       expect(getResponse.status).toBe(200);
       await expect(getResponse.json()).resolves.toEqual({
@@ -153,7 +151,7 @@ describe('effect HttpApi schema validation', () => {
       });
 
       const createResponse = await handler.handler(
-        new Request('http://localhost/effect/recommendations', {
+        new Request('http://localhost/recommendations', {
           body: JSON.stringify({ title: 'New item' }),
           headers: {
             'content-type': 'application/json',
@@ -180,7 +178,7 @@ describe('effect HttpApi schema validation', () => {
 
     try {
       const response = await handler.handler(
-        new Request('http://localhost/effect/recommendations', {
+        new Request('http://localhost/recommendations', {
           body: JSON.stringify({ title: 123 }),
           headers: {
             'content-type': 'application/json',
@@ -201,7 +199,7 @@ describe('effect HttpApi schema validation', () => {
 
     try {
       const response = await handler.handler(
-        new Request('http://localhost/effect/recommendations', {
+        new Request('http://localhost/recommendations', {
           body: '{',
           headers: {
             'content-type': 'application/json',
@@ -225,7 +223,7 @@ describe('effect HttpApi schema validation', () => {
 
     try {
       const response = await handler.handler(
-        new Request('http://localhost/effect/recommendations/reset', {
+        new Request('http://localhost/recommendations/reset', {
           body: '',
           headers: {
             'content-type': 'application/json',
@@ -249,7 +247,7 @@ describe('effect HttpApi schema validation', () => {
 
     try {
       const response = await handler.handler(
-        new Request('http://localhost/effect/recommendations/reset', {
+        new Request('http://localhost/recommendations/reset', {
           headers: {
             'content-type': 'application/json',
           },
@@ -272,7 +270,7 @@ describe('effect HttpApi schema validation', () => {
 
     try {
       const response = await handler.handler(
-        new Request('http://localhost/effect/recommendations/missing'),
+        new Request('http://localhost/recommendations/missing'),
       );
 
       expect(response.status).toBe(404);

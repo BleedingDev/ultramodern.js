@@ -9,10 +9,6 @@ const workspaceRoot = path.resolve(
   process.env.ULTRAMODERN_WORKSPACE_ROOT ??
     path.join(path.dirname(fileURLToPath(import.meta.url)), '..'),
 );
-const contractPath = path.join(
-  workspaceRoot,
-  '.modernjs/ultramodern-generated-contract.json',
-);
 const compactConfigPath = path.join(workspaceRoot, '.modernjs/ultramodern.json');
 const defaultOut = path.join(
   workspaceRoot,
@@ -219,7 +215,7 @@ function createCloudflareRoutes(app) {
     locale: `/locales/en/${appNamespace(app)}.json`,
     ...(app.effectApi
       ? {
-          effectReadiness: `${app.effectApi.prefix}/effect/${app.effectApi.stem}/readiness`,
+          apiReadiness: `${app.effectApi.prefix}/${app.effectApi.stem}/readiness`,
         }
       : {}),
   };
@@ -285,17 +281,11 @@ function readGeneratedContractView() {
   if (fs.existsSync(compactConfigPath)) {
     return synthesizeContractFromCompactConfig(readJson(compactConfigPath));
   }
-  if (fs.existsSync(contractPath)) {
-    return {
-      sourcePath: contractPath,
-      ...readJson(contractPath),
-    };
-  }
   throw new Error(
     `Missing UltraModern config. Expected ${path.relative(
       workspaceRoot,
       compactConfigPath,
-    )} or ${path.relative(workspaceRoot, contractPath)}.`,
+    )}.`,
   );
 }
 
@@ -379,7 +369,7 @@ async function main(argv = process.argv.slice(2)) {
     schemaVersion: 1,
     generatedAt: new Date().toISOString(),
     status: results.length > 0 ? 'pass' : 'skipped',
-    contractPath: contract.sourcePath ?? contractPath,
+    contractPath: contract.sourcePath ?? compactConfigPath,
     results,
     skipped,
   };

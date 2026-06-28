@@ -8,7 +8,7 @@ import {
 export const bffEffectApi = HttpApi.make('BffEffectApi').add(
   HttpApiGroup.make('greetings')
     .add(
-      HttpApiEndpoint.get('hello', '/effect/hello', {
+      HttpApiEndpoint.get('hello', '/hello', {
         success: Schema.Struct({
           message: Schema.String,
           runtime: Schema.Literal('effect'),
@@ -16,7 +16,7 @@ export const bffEffectApi = HttpApi.make('BffEffectApi').add(
       }),
     )
     .add(
-      HttpApiEndpoint.get('userById', '/effect/user/:id', {
+      HttpApiEndpoint.get('userById', '/user/:id', {
         params: {
           id: Schema.String,
         },
@@ -30,7 +30,7 @@ export const bffEffectApi = HttpApi.make('BffEffectApi').add(
       }),
     )
     .add(
-      HttpApiEndpoint.post('echo', '/effect/echo', {
+      HttpApiEndpoint.post('echo', '/echo', {
         payload: Schema.Struct({
           text: Schema.String,
         }),
@@ -40,14 +40,14 @@ export const bffEffectApi = HttpApi.make('BffEffectApi').add(
       }),
     )
     .add(
-      HttpApiEndpoint.get('managedFailure', '/effect/managed', {
+      HttpApiEndpoint.get('managedFailure', '/managed', {
         success: Schema.Struct({
           message: Schema.String,
         }),
       }),
     )
     .add(
-      HttpApiEndpoint.get('traceRun', '/effect/trace/run', {
+      HttpApiEndpoint.get('traceRun', '/trace/run', {
         headers: {
           traceparent: Schema.optional(Schema.String),
         },
@@ -58,7 +58,7 @@ export const bffEffectApi = HttpApi.make('BffEffectApi').add(
       }),
     )
     .add(
-      HttpApiEndpoint.get('traceSpans', '/effect/trace/spans', {
+      HttpApiEndpoint.get('traceSpans', '/trace/spans', {
         query: {
           traceId: Schema.optional(Schema.String),
         },
@@ -75,7 +75,7 @@ export const bffEffectApi = HttpApi.make('BffEffectApi').add(
       }),
     )
     .add(
-      HttpApiEndpoint.post('traceReset', '/effect/trace/reset', {
+      HttpApiEndpoint.post('traceReset', '/trace/reset', {
         success: Schema.Struct({
           ok: Schema.Boolean,
         }),

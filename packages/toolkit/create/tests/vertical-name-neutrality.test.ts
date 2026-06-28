@@ -112,20 +112,20 @@ test('verticals named after the old demo trio scaffold exactly like any other ve
       assert.equal(appConfig.path, `verticals/${name}`);
       assert.equal(appConfig.effectApi.prefix, `/${name}-api`);
 
-      const sharedApi = read(`verticals/${name}/shared/effect/api.ts`);
+      const sharedApi = read(`verticals/${name}/shared/api.ts`);
       assert.match(
         sharedApi,
-        new RegExp(`HttpApiEndpoint\\.get\\('list', '/effect/${name}'`),
+        new RegExp(`HttpApiEndpoint\\.get\\('list', '/${name}'`),
         `${name} must use the generic list endpoint`,
       );
       assert.match(
         sharedApi,
-        new RegExp(`HttpApiEndpoint\\.get\\('get', '/effect/${name}/:id'`),
+        new RegExp(`HttpApiEndpoint\\.get\\('get', '/${name}/:id'`),
         `${name} must use the generic detail endpoint`,
       );
       assert.match(
         sharedApi,
-        new RegExp(`HttpApiEndpoint\\.post\\('create', '/effect/${name}'`),
+        new RegExp(`HttpApiEndpoint\\.post\\('create', '/${name}'`),
         `${name} must use the generic create endpoint`,
       );
     }

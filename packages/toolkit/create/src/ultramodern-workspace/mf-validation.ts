@@ -3,10 +3,7 @@ import path from 'node:path';
 
 const moduleFederationConfigFile = 'module-federation.config.ts';
 const mfTypesArchive = 'dist/@mf-types.zip';
-const generatedMetadataPaths = [
-  '.modernjs/ultramodern.json',
-  '.modernjs/ultramodern-generated-contract.json',
-];
+const generatedMetadataPaths = ['.modernjs/ultramodern.json'];
 const defaultAppRootDirs = ['apps', 'verticals'];
 const skippedScanDirs = new Set([
   '.git',

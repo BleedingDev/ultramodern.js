@@ -228,11 +228,11 @@ function delegateLegacyModernJsSetup(args: string[]) {
 }
 
 // The UltraModern scaffold ships exactly one BFF shape: every MicroVertical
-// exposes an Effect BFF (plugin-bff runtimeFramework 'effect'). `--bff` keeps
-// working as an explicit opt-in to that default; `--bff-runtime` selects the
-// runtime and rejects anything the workspace generator cannot scaffold (the
-// pre-UltraModern hono single-app scaffold was removed together with the old
-// CLI).
+// exposes a strict Effect API runtime (plugin-bff runtimeFramework 'effect').
+// `--bff` keeps working as an explicit opt-in to that default; `--bff-runtime`
+// selects the runtime and rejects anything the workspace generator cannot
+// scaffold (the pre-UltraModern hono single-app scaffold was removed together
+// with the old CLI).
 function detectBffRuntime(args: string[]): SupportedBffRuntime {
   if (args.some(arg => arg.startsWith(`${BFF_FLAG}=`))) {
     console.error(
@@ -259,7 +259,7 @@ function detectBffRuntime(args: string[]): SupportedBffRuntime {
 
   if (!(SUPPORTED_BFF_RUNTIMES as readonly string[]).includes(runtime)) {
     console.error(
-      `Unsupported BFF runtime "${runtime}". UltraModern workspaces scaffold an Effect BFF for every MicroVertical (supported: ${SUPPORTED_BFF_RUNTIMES.join(', ')}).`,
+      `Unsupported BFF runtime "${runtime}". UltraModern workspaces scaffold a strict Effect API runtime for every MicroVertical (supported: ${SUPPORTED_BFF_RUNTIMES.join(', ')}).`,
     );
     process.exit(1);
   }
@@ -808,7 +808,7 @@ async function main() {
   // Validate the BFF flag surface before any prompt or filesystem write so an
   // unsupported runtime never leaves a half-created project behind. The
   // returned runtime is always 'effect' today: the workspace generator bakes
-  // the Effect BFF into every scaffolded vertical.
+  // the strict Effect API runtime into every scaffolded vertical.
   detectBffRuntime(args);
   const dryRun = detectDryRunFlag(args);
   const verticalInput = resolveVerticalCliInput(args);

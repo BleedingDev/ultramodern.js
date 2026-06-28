@@ -170,20 +170,14 @@ test('generated checkout vertical keeps Effect-backed cart state out of shared c
     const sharedContracts = readGenerated(
       'packages/shared-contracts/src/index.ts',
     );
-    const checkoutSharedApi = readGenerated(
-      'verticals/checkout/shared/effect/api.ts',
-    );
-    const checkoutServer = readGenerated(
-      'verticals/checkout/api/effect/index.ts',
-    );
+    const checkoutSharedApi = readGenerated('verticals/checkout/shared/api.ts');
+    const checkoutServer = readGenerated('verticals/checkout/api/index.ts');
     const checkoutClient = readGenerated(
-      'verticals/checkout/src/effect/checkout-client.ts',
+      'verticals/checkout/src/api/checkout-client.ts',
     );
-    const exploreSharedApi = readGenerated(
-      'verticals/explore/shared/effect/api.ts',
-    );
+    const exploreSharedApi = readGenerated('verticals/explore/shared/api.ts');
     const shellClients = readGenerated(
-      'apps/shell-super-app/src/effect/vertical-clients.ts',
+      'apps/shell-super-app/src/api/vertical-clients.ts',
     );
 
     assert.match(sharedContracts, /ultramodern:navigate/);

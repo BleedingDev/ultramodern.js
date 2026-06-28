@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -78,6 +79,14 @@ function runCreateInWorkspace(workspaceDir: string, args: string[]) {
   });
 }
 
+function generatedToolEnv(env: Record<string, string | undefined> = {}) {
+  return {
+    ...process.env,
+    ULTRAMODERN_CREATE_BIN: createBin,
+    ...env,
+  };
+}
+
 function readText(root: string, relativePath: string) {
   return fs.readFileSync(path.join(root, relativePath), 'utf-8');
 }
@@ -96,7 +105,7 @@ function runPerformanceReadiness(
     {
       cwd: workspaceDir,
       env: {
-        ...process.env,
+        ...generatedToolEnv(),
         ...env,
       },
       stdio: 'pipe',
@@ -111,7 +120,7 @@ function expectDedicatedAssetPrefixExpression(modernConfig: string) {
   expect(assetPrefixMatch?.groups?.expression).toBeDefined();
   const assetPrefixExpression = assetPrefixMatch?.groups?.expression ?? '';
   expect(assetPrefixExpression).toContain(
-    "configuredModernAssetPrefix || configuredUltramodernAssetPrefix || '/'",
+    'configuredModernAssetPrefix || configuredUltramodernAssetPrefix || defaultAssetPrefix',
   );
   expect(assetPrefixExpression).not.toMatch(
     /configuredSiteUrl|MODERN_PUBLIC_SITE_URL|configuredCloudflareUrl|inferredCloudflareUrl/u,
@@ -244,22 +253,801 @@ function expectNoDirectEffectDependency(packageJson: {
   expect(packageJson.devDependencies?.effect).toBeUndefined();
 }
 
+type CompactApp = {
+  id: string;
+  kind: 'shell' | 'vertical';
+  path: string;
+  package?: string;
+  packageSuffix: string;
+  domain?: string;
+  port: number;
+  portEnv: string;
+  mfName: string;
+  exposes: string[];
+  verticalRefs: string[];
+  moduleFederationSsr: boolean;
+  routes?: Record<string, any>;
+  effectApi?: {
+    stem: string;
+    prefix: string;
+    consumedBy: string[];
+  };
+};
+
+const toKebabCase = (value: string) =>
+  String(value)
+    .trim()
+    .replace(/([a-z0-9])([A-Z])/gu, '$1-$2')
+    .replace(/[^a-zA-Z0-9._-]+/gu, '-')
+    .replace(/[._]+/gu, '-')
+    .toLowerCase()
+    .replace(/-+/gu, '-')
+    .replace(/^-+|-+$/gu, '');
+
+const toPascalCase = (value: string) =>
+  toKebabCase(value)
+    .split('-')
+    .filter(Boolean)
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join('');
+
+const toCamelCase = (value: string) => {
+  const pascal = toPascalCase(value);
+  return `${pascal.charAt(0).toLowerCase()}${pascal.slice(1)}`;
+};
+
+const toEnvSegment = (value: string) =>
+  toKebabCase(value).replace(/-/gu, '_').toUpperCase();
+
+const normalizeRelativePath = (value: unknown) =>
+  String(value ?? '')
+    .replace(/\\/gu, '/')
+    .replace(/^\.\/+/u, '');
+
+const packageNameFor = (scope: string, suffix: string) => `@${scope}/${suffix}`;
+const appNamespace = (app: CompactApp) =>
+  app.kind === 'shell' ? 'shell' : (app.domain ?? app.id);
+const tailwindPrefixDigitWords = [
+  'zero',
+  'one',
+  'two',
+  'three',
+  'four',
+  'five',
+  'six',
+  'seven',
+  'eight',
+  'nine',
+] as const;
+const tailwindPrefixFor = (app: CompactApp) =>
+  app.kind === 'shell'
+    ? 'shell'
+    : String(app.domain ?? app.id)
+        .toLowerCase()
+        .replace(/[^a-z0-9]/gu, '')
+        .replace(/[0-9]/gu, digit => tailwindPrefixDigitWords[Number(digit)]);
+const expectedChunkLoadingGlobal = (mfName: string) =>
+  `__ULTRAMODERN_${mfName
+    .replace(/([a-z0-9])([A-Z])/gu, '$1_$2')
+    .replace(/[^a-zA-Z0-9]+/gu, '_')
+    .replace(/^_+|_+$/gu, '')
+    .toUpperCase()}_LOADED_CHUNKS__`;
+const expectedWorkerName = (scope: string, packageSuffix: string) =>
+  `${toKebabCase(scope)}-${packageSuffix}`.slice(0, 63);
+const buildMarkerFor = (scope: string, app: CompactApp) =>
+  crypto
+    .createHash('sha256')
+    .update(`${scope}:${app.packageSuffix}:${app.id}:0.1.0`)
+    .digest('hex')
+    .slice(0, 16);
+
+function normalizeCompactApp(rawApp: Record<string, any>): CompactApp {
+  const id = String(rawApp.id);
+  const kind = rawApp.kind === 'vertical' ? 'vertical' : 'shell';
+  const appPath =
+    typeof rawApp.path === 'string'
+      ? normalizeRelativePath(rawApp.path)
+      : kind === 'shell'
+        ? 'apps/shell-super-app'
+        : `verticals/${toKebabCase(id)}`;
+  const packageSuffix =
+    typeof rawApp.packageSuffix === 'string'
+      ? rawApp.packageSuffix
+      : (appPath.split('/').at(-1) ?? id);
+  const domain =
+    typeof rawApp.domain === 'string'
+      ? rawApp.domain
+      : kind === 'vertical'
+        ? packageSuffix
+        : undefined;
+  const moduleFederation =
+    rawApp.moduleFederation && typeof rawApp.moduleFederation === 'object'
+      ? rawApp.moduleFederation
+      : {};
+  const effectApi =
+    rawApp.effectApi && typeof rawApp.effectApi === 'object'
+      ? {
+          stem:
+            typeof rawApp.effectApi.stem === 'string'
+              ? rawApp.effectApi.stem
+              : (domain ?? id),
+          prefix:
+            typeof rawApp.effectApi.prefix === 'string'
+              ? rawApp.effectApi.prefix
+              : `/${domain ?? id}-api`,
+          consumedBy: Array.isArray(rawApp.effectApi.consumedBy)
+            ? rawApp.effectApi.consumedBy.filter(
+                (consumer: unknown): consumer is string =>
+                  typeof consumer === 'string',
+              )
+            : ['shell-super-app', id],
+        }
+      : undefined;
+
+  return {
+    id,
+    kind,
+    path: appPath,
+    package: typeof rawApp.package === 'string' ? rawApp.package : undefined,
+    packageSuffix,
+    domain,
+    port:
+      typeof rawApp.port === 'number'
+        ? rawApp.port
+        : kind === 'shell'
+          ? 3020
+          : 3030,
+    portEnv:
+      typeof rawApp.portEnv === 'string'
+        ? rawApp.portEnv
+        : kind === 'shell'
+          ? 'SHELL_SUPER_APP_PORT'
+          : `VERTICAL_${toEnvSegment(domain ?? id)}_PORT`,
+    mfName:
+      typeof moduleFederation.name === 'string'
+        ? moduleFederation.name
+        : kind === 'shell'
+          ? 'shellSuperApp'
+          : `vertical${toPascalCase(domain ?? id)}`,
+    exposes: Array.isArray(moduleFederation.exposes)
+      ? moduleFederation.exposes.filter(
+          (expose: unknown): expose is string => typeof expose === 'string',
+        )
+      : [],
+    verticalRefs: Array.isArray(moduleFederation.verticalRefs)
+      ? moduleFederation.verticalRefs.filter(
+          (ref: unknown): ref is string => typeof ref === 'string',
+        )
+      : [],
+    moduleFederationSsr: moduleFederation.ssr !== false,
+    routes:
+      rawApp.routes && typeof rawApp.routes === 'object'
+        ? rawApp.routes
+        : undefined,
+    effectApi,
+  };
+}
+
+function compactAppsFromConfig(config: Record<string, any>) {
+  return Array.isArray(config.topology?.apps)
+    ? config.topology.apps.map((app: Record<string, any>) =>
+        normalizeCompactApp(app),
+      )
+    : [];
+}
+
+function remoteDependencyAliasFor(app: CompactApp) {
+  return toCamelCase(app.domain ?? app.id.replace(/^remote-/u, ''));
+}
+
+function remoteContractsFor(app: CompactApp, apps: CompactApp[]) {
+  return app.verticalRefs
+    .map(ref => apps.find(candidate => candidate.id === ref))
+    .filter((remote): remote is CompactApp => Boolean(remote))
+    .map(remote => ({
+      id: remote.id,
+      alias: remoteDependencyAliasFor(remote),
+      name: remote.mfName,
+      manifestEnv: `VERTICAL_${toEnvSegment(remote.domain ?? remote.id)}_MF_MANIFEST`,
+      manifestUrl: `http://localhost:${remote.port}/mf-manifest.json`,
+    }));
+}
+
+function createRouteOwnedEntries(app: CompactApp) {
+  const namespace = appNamespace(app);
+  return [
+    {
+      canonicalPath: '/',
+      descriptionKey: `${namespace}.seo.description`,
+      id: app.kind === 'shell' ? 'shell-home' : `${app.id}-home`,
+      indexable: false,
+      localisedPaths: {
+        cs: '/',
+        en: '/',
+      },
+      mfBoundaryId: app.mfName,
+      namespace,
+      ownerAppId: app.id,
+      public: false,
+      publicSurface: 'private-app-screen',
+      titleKey: app.kind === 'shell' ? 'shell.title' : `${namespace}.title`,
+    },
+  ];
+}
+
+function createPublicRoutes(app: CompactApp) {
+  return createRouteOwnedEntries(app)
+    .filter(route => route.public && route.indexable)
+    .map(route => ({
+      canonicalPath: route.canonicalPath,
+      descriptionKey: route.descriptionKey,
+      id: route.id,
+      localisedPaths: route.localisedPaths,
+      namespace: route.namespace,
+      ownerAppId: route.ownerAppId,
+      titleKey: route.titleKey,
+    }));
+}
+
+function createLocalisedUrls(app: CompactApp) {
+  return Object.fromEntries(
+    createRouteOwnedEntries(app).flatMap(route => {
+      if (route.canonicalPath === '/') {
+        return [];
+      }
+      return Array.from(
+        new Set([route.canonicalPath, ...Object.values(route.localisedPaths)]),
+      ).map(pathname => [pathname, route.localisedPaths]);
+    }),
+  );
+}
+
+function createPublicSurface(app: CompactApp) {
+  const publicRoutes = createPublicRoutes(app);
+  const basePublicSurface = {
+    artifactLifecycle: 'build-and-deploy-output',
+    authoring: 'colocated-route-meta',
+    cloudflareOutputRoot: '.output/public',
+    concreteUrlPaths: [],
+    contentExpansion: {
+      authoring: 'route-owned-esm-provider',
+      defaultProviderFile: 'route.sitemap.mjs',
+      draftPolicy: 'omit-draft-by-default',
+      entryExport: 'default-or-entries',
+      indexablePolicy: 'omit-indexable-false',
+      lifecycle: 'executed-during-public-surface-generation',
+      paramsSource: 'params-or-localeParams',
+    },
+    contentSources: [],
+    files:
+      publicRoutes.length > 0
+        ? ['robots.txt', 'sitemap.xml', 'site.webmanifest']
+        : ['robots.txt'],
+    generatedManifest: './src/routes/ultramodern-route-metadata',
+    generator: 'scripts/generate-public-surface-assets.mjs',
+    languages: ['en', 'cs'],
+    metadataExport: './src/routes/ultramodern-route-metadata',
+    omittedByDefault: ['api-catalog.json', 'llms.txt', 'security.txt'],
+    outputRoot: 'dist/public',
+    privateRoutePolicy: 'omit-from-generated-public-surface',
+    publicRoutes,
+    routeEntries: [],
+    source: 'route-owned-public-routes',
+  };
+
+  return app.routes?.publicSurface &&
+    typeof app.routes.publicSurface === 'object'
+    ? {
+        ...basePublicSurface,
+        ...app.routes.publicSurface,
+      }
+    : basePublicSurface;
+}
+
+function createPublicHead() {
+  return {
+    alternates: {
+      hreflang: ['en', 'cs'],
+      xDefault: 'en',
+    },
+    authoring: 'colocated-route-meta',
+    canonical: {
+      publicIndexableOnly: true,
+      source: 'localized canonical route URL',
+    },
+    description: {
+      required: true,
+      source: 'route.descriptionKey',
+    },
+    generator: './src/routes/ultramodern-route-head',
+    openGraph: {
+      publicIndexableOnly: true,
+      required: ['og:title', 'og:description', 'og:url', 'og:type'],
+    },
+    privateRouteRobots: 'noindex, nofollow',
+    renderer: '@modern-js/runtime/head Helmet',
+    ssr: true,
+    structuredData: {
+      helperModule: './src/routes/ultramodern-jsonld',
+      helperTypes: [
+        'WebPage',
+        'WebApplication',
+        'SoftwareApplication',
+        'BreadcrumbList',
+        'FAQPage',
+        'Organization',
+      ],
+      inference: false,
+      optional: true,
+      publicIndexableOnly: true,
+      sanitizesHtmlOpenBracket: true,
+      source: 'route.jsonLd',
+    },
+    title: {
+      required: true,
+      source: 'route.titleKey',
+    },
+    twitter: {
+      publicIndexableOnly: true,
+      required: ['twitter:card', 'twitter:title', 'twitter:description'],
+    },
+  };
+}
+
+function createCloudflareSecurity() {
+  return {
+    contentSecurityPolicy: {
+      directives: {
+        'base-uri': ["'self'"],
+        'connect-src': ["'self'", 'https:', 'http:', 'wss:', 'ws:'],
+        'default-src': ["'self'"],
+        'font-src': ["'self'", 'data:', 'https:', 'http:'],
+        'form-action': ["'self'"],
+        'frame-ancestors': ["'self'"],
+        'img-src': ["'self'", 'data:', 'blob:', 'https:', 'http:'],
+        'manifest-src': ["'self'", 'https:', 'http:'],
+        'object-src': ["'none'"],
+        'script-src': [
+          "'self'",
+          "'unsafe-inline'",
+          "'unsafe-eval'",
+          'https:',
+          'http:',
+          'blob:',
+        ],
+        'style-src': ["'self'", "'unsafe-inline'", 'https:', 'http:'],
+        'worker-src': ["'self'", 'blob:'],
+      },
+      mode: 'report-only',
+      reason:
+        'Report-only by default so Cloudflare Module Federation SSR can prove remote script, style, and connect compatibility before enforcement.',
+    },
+    enabled: true,
+    headers: {
+      contentTypeOptions: 'nosniff',
+      permissionsPolicy:
+        'camera=(), geolocation=(), microphone=(), payment=(), usb=()',
+      referrerPolicy: 'strict-origin-when-cross-origin',
+    },
+    noindex: {
+      localhost: true,
+      previewHostnames: [],
+      workersDev: true,
+    },
+  };
+}
+
+function createQualityGates() {
+  return {
+    assets: {
+      cacheControlRequiredForCss: true,
+      cssPreloadRequired: true,
+      cssResponseRequired: true,
+      sourcemapsPubliclyReferenced: false,
+    },
+    budgets: {
+      cssAssetMaxBytes: 750_000,
+      localeJsonMaxBytes: 100_000,
+      mfManifestMaxBytes: 500_000,
+      sitemapXmlMaxBytes: 500_000,
+      ssrHtmlMaxBytes: 250_000,
+    },
+    csp: {
+      decision:
+        'Report-only remains the generated final mode until public smoke proof records MF SSR script/style/connect compatibility for the deployed surface.',
+      finalMode: 'report-only-dogfood',
+    },
+    indexing: {
+      previewNoindex: true,
+      productionPublicRoutesIndexable: true,
+    },
+    publicRoutes: {
+      requireRobotsSitemapConsistency: true,
+      requireSitemapWhenPresent: true,
+      requireWebManifestWhenPresent: true,
+    },
+    statusCodes: {
+      notFoundRoute: '/__ultramodern-smoke-missing/nope',
+      unknownRouteStatus: 404,
+    },
+  };
+}
+
+function createCloudflareRoutes(app: CompactApp) {
+  return {
+    locale: `/locales/en/${appNamespace(app)}.json`,
+    mfManifest: '/mf-manifest.json',
+    ssr: '/en',
+    ...(app.effectApi
+      ? {
+          apiReadiness: `${app.effectApi.prefix}/${app.effectApi.stem}/readiness`,
+        }
+      : {}),
+  };
+}
+
+function createCloudflareDeploy(scope: string, app: CompactApp) {
+  return {
+    assetsBinding: 'ASSETS',
+    compatibilityDate: '2026-06-02',
+    compatibilityFlags: ['nodejs_compat', 'global_fetch_strictly_public'],
+    evidence: {
+      proofScript: 'scripts/proof-cloudflare-version.mjs',
+      reportDefault:
+        '.codex/reports/cloudflare-version-proof/public-url-proof.json',
+    },
+    publicUrlEnv: `ULTRAMODERN_PUBLIC_URL_${toEnvSegment(app.id)}`,
+    qualityGates: createQualityGates(),
+    routes: createCloudflareRoutes(app),
+    security: createCloudflareSecurity(),
+    target: 'cloudflare',
+    workerName: expectedWorkerName(scope, app.packageSuffix),
+  };
+}
+
+function createAppConfigContract(app: CompactApp) {
+  return {
+    dev: {
+      assetPrefix: '/',
+    },
+    html: {
+      outputStructure: 'flat',
+    },
+    output: {
+      assetPrefix: {
+        default: app.kind === 'shell' ? '/' : 'app-public-origin',
+        envFallbackOrder: ['MODERN_ASSET_PREFIX', 'ULTRAMODERN_ASSET_PREFIX'],
+      },
+      disableTsChecker: false,
+      distPath: {
+        html: './',
+      },
+      polyfill: 'off',
+      splitRouteChunks: true,
+    },
+    performance: {
+      readinessDiagnostics: {
+        default: 'enabled',
+        failOn: 'framework-invariant',
+        optOut: {
+          config: 'scripts/ultramodern-performance-readiness.config.mjs',
+          env: 'ULTRAMODERN_PERFORMANCE_READINESS_DIAGNOSTICS=false',
+        },
+        report:
+          '.codex/reports/performance-readiness/ultramodern-performance-readiness.json',
+      },
+    },
+    plugins: [
+      'appTools',
+      'tanstackRouterPlugin',
+      'i18nPlugin',
+      ...(app.effectApi ? ['bffPlugin'] : []),
+      'moduleFederationPlugin',
+      'zephyrRspackPlugin',
+    ],
+    preset: 'presetUltramodern',
+    rspack: {
+      output: {
+        chunkLoadingGlobal: expectedChunkLoadingGlobal(app.mfName),
+        uniqueName: app.mfName,
+      },
+    },
+    source: {
+      mainEntryName: 'index',
+      siteUrl: {
+        defaultLocalhostPort: app.port,
+        envFallbackOrder: [
+          'MODERN_PUBLIC_SITE_URL',
+          `ULTRAMODERN_PUBLIC_URL_${toEnvSegment(app.id)}`,
+          'ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN',
+          app.portEnv,
+        ],
+      },
+      siteUrlGlobal: 'ULTRAMODERN_SITE_URL',
+    },
+    ...(app.effectApi
+      ? {
+          bff: {
+            openapi: '/openapi.json',
+            prefix: app.effectApi.prefix,
+            runtimeFramework: 'effect',
+          },
+        }
+      : {}),
+  };
+}
+
+function cssDedupe(scope: string) {
+  return {
+    duplicateBaseStylesAllowed: false,
+    runtimeLoad: 'once-per-content-hash',
+    sharedLayers: ['ultramodern-shared-tokens'],
+    sharedPackage: packageNameFor(scope, 'shared-design-tokens'),
+    strategy: 'shared-token-package-plus-css-content-hash',
+  };
+}
+
+function createStylingContract(scope: string, app: CompactApp) {
+  const sharedTokenPackage = packageNameFor(scope, 'shared-design-tokens');
+  const ownedLayers =
+    app.kind === 'shell'
+      ? ['ultramodern-shell-base', 'ultramodern-shell-overlay']
+      : [`ultramodern-vertical-${app.domain ?? app.id}`];
+
+  return {
+    federation: {
+      assets: {
+        contentHash: true,
+        emittedBy: 'modern-rspack-css-extraction',
+        owned: ['src/routes/index.css'],
+        shared: [`${sharedTokenPackage}/tokens.css`],
+      },
+      dedupe: cssDedupe(scope),
+      entrypoints: {
+        css: ['src/routes/index.css'],
+        layoutImport: 'src/routes/layout.tsx',
+        ...(app.kind === 'shell'
+          ? {}
+          : { federationEntry: 'src/federation-entry.tsx' }),
+      },
+      layers: {
+        owned: ownedLayers,
+        shared: ['ultramodern-shared-tokens'],
+      },
+      owner: {
+        id: app.id,
+        package: app.package ?? packageNameFor(scope, app.packageSuffix),
+      },
+      role: app.kind === 'shell' ? 'shell-base-overlay' : 'vertical-css',
+      rootSelector: `[data-app-id="${app.id}"]`,
+      ssr: {
+        cloudflare: true,
+        firstPaintRequired: true,
+        verticalCss:
+          app.kind === 'shell'
+            ? 'host-preloads-shell-and-shared-css'
+            : 'federated-manifest-owned-css',
+      },
+      classPrefix: `${tailwindPrefixFor(app)}:`,
+    },
+    postcssPlugins: ['@tailwindcss/postcss'],
+    tailwind: true,
+  };
+}
+
+function createEffectApiContract(app: CompactApp) {
+  if (!app.effectApi) {
+    return undefined;
+  }
+  const stem = app.effectApi.stem;
+  return {
+    client: './api/client',
+    contract: './api',
+    domainOperations: {
+      workspaceCreate: {
+        client: `create${toPascalCase(stem)}`,
+        method: 'POST',
+        owner: app.id,
+        path: `/${stem}`,
+        resource: toCamelCase(stem),
+      },
+      workspaceDetail: {
+        client: `get${toPascalCase(stem)}`,
+        method: 'GET',
+        owner: app.id,
+        path: `/${stem}/:id`,
+        resource: 'workspace-item',
+      },
+      workspaceFeed: {
+        client: `list${toPascalCase(stem)}`,
+        method: 'GET',
+        owner: app.id,
+        path: `/${stem}`,
+        resource: 'workspace-items',
+      },
+    },
+    group: toCamelCase(stem),
+    import: '@modern-js/plugin-bff/effect-edge',
+    openapi: '/openapi.json',
+    operations: {
+      readiness: {
+        method: 'GET',
+        path: `/${stem}/readiness`,
+        source: 'generated-client',
+      },
+    },
+    prefix: app.effectApi.prefix,
+    readiness: {
+      checks: ['moduleFederation', 'ssr', 'translations', 'api'],
+      endpoint: `/${stem}/readiness`,
+      marker: {
+        api: 'ultramodernApiMarker',
+        skew: 'none',
+        ui: 'ultramodernUiMarker',
+      },
+    },
+    requestContext: {
+      propagatedHeaders: [
+        'accept-language',
+        'authorization',
+        'traceparent',
+        'x-correlation-id',
+        'x-tenant-id',
+        'x-ultramodern-env',
+        'x-vertical-version-id',
+      ],
+      source: 'shell-to-vertical-api-client',
+    },
+    runtime: 'effect',
+    strictEffectApproach: true,
+    workerEntry: 'worker/__modern_bff_effect.js',
+  };
+}
+
+function createAppContract(scope: string, app: CompactApp, apps: CompactApp[]) {
+  return {
+    api: createEffectApiContract(app),
+    config: createAppConfigContract(app),
+    deploy: {
+      cloudflare: createCloudflareDeploy(scope, app),
+      target: 'cloudflare',
+      worker: {
+        compatibilityDate: '2026-06-02',
+        name: expectedWorkerName(scope, app.packageSuffix),
+        security: createCloudflareSecurity(),
+        ssr: true,
+      },
+    },
+    i18n: {
+      backend: {
+        enabled: true,
+        loadPath: '/locales/{{lng}}/{{ns}}.json',
+      },
+      languages: ['en', 'cs'],
+      localisedUrls: createLocalisedUrls(app),
+      namespace: appNamespace(app),
+      namespaces: [appNamespace(app), 'translation'],
+      resourceOwnership: {
+        ownerAppId: app.id,
+        source: 'route-owned',
+      },
+    },
+    id: app.id,
+    kind: app.kind,
+    marker: {
+      appId: app.id,
+      apiSurface: app.effectApi ? 'api' : undefined,
+      build: buildMarkerFor(scope, app),
+      deployProfile: 'cloudflare-ssr-mf-effect-v1',
+      packageName: app.package ?? packageNameFor(scope, app.packageSuffix),
+      uiSurface: 'ui',
+      version: '0.1.0',
+    },
+    moduleFederation: {
+      browserSafeExposesOnly: true,
+      dts: {
+        compilerInstance: 'tsgo',
+        displayErrorInTerminal: true,
+        tsConfigPath: './tsconfig.mf-types.json',
+      },
+      exposes: app.exposes,
+      name: app.mfName,
+      ...(app.verticalRefs.length
+        ? {
+            remotes: remoteContractsFor(app, apps),
+            verticalRefs: app.verticalRefs,
+          }
+        : {}),
+    },
+    package: app.package ?? packageNameFor(scope, app.packageSuffix),
+    path: app.path,
+    routes: {
+      generatedManifest: true,
+      generatedRouteMap: true,
+      localisedUrls: createLocalisedUrls(app),
+      metadataAuthoring: 'colocated-route-meta',
+      metadataExport: './src/routes/ultramodern-route-metadata',
+      owned: createRouteOwnedEntries(app),
+      privateByDefault: true,
+      publicHead: createPublicHead(),
+      publicRoutes: createPublicRoutes(app),
+      publicSurface: createPublicSurface(app),
+      publicnessDefault: 'private-app-screen',
+      source: 'route-owned',
+    },
+    ssr: app.moduleFederationSsr
+      ? {
+          mode: 'string',
+          moduleFederationAppSSR: true,
+        }
+      : undefined,
+    styling: createStylingContract(scope, app),
+  };
+}
+
 function readGeneratedContract(workspaceDir: string) {
-  return readJson<{
-    cssFederation: Record<string, any>;
-    apps: Array<{
-      id: string;
-      config: Record<string, any>;
-      deploy: Record<string, any>;
-      effect?: Record<string, any>;
-      i18n: Record<string, any>;
-      kind: string;
-      marker: Record<string, any>;
-      moduleFederation: Record<string, any>;
-      routes: Record<string, any>;
-      styling: Record<string, any>;
-    }>;
-  }>(workspaceDir, '.modernjs/ultramodern-generated-contract.json');
+  const config = readJson<Record<string, any>>(
+    workspaceDir,
+    '.modernjs/ultramodern.json',
+  );
+  const scope = config.workspace?.packageScope ?? path.basename(workspaceDir);
+  const apps = compactAppsFromConfig(config);
+  return {
+    apps: apps.map(app => createAppContract(scope, app, apps)),
+    cssFederation: {
+      sharedDesignTokens: {
+        assets: {
+          exports: ['./tokens.css'],
+        },
+        classPrefix: '--um-',
+        dedupe: cssDedupe(scope),
+        entrypoints: {
+          css: ['packages/shared-design-tokens/src/tokens.css'],
+        },
+        layers: {
+          owned: ['ultramodern-shared-tokens'],
+        },
+        owner: {
+          id: 'shared-design-tokens',
+          package: packageNameFor(scope, 'shared-design-tokens'),
+        },
+        role: 'shared-design-tokens',
+        rootSelector: ':root',
+        ssr: {
+          firstPaintRequired: true,
+        },
+      },
+    },
+    node: {
+      engineRange: '>=26',
+      version: config.workspace?.node?.version ?? '26.3.0',
+    },
+    performanceReadiness: {
+      default: 'enabled',
+      mode: 'diagnostic',
+      optOut: {
+        env: 'ULTRAMODERN_PERFORMANCE_READINESS_DIAGNOSTICS=false',
+      },
+      report: {
+        config: 'scripts/ultramodern-performance-readiness.config.mjs',
+        defaultPath:
+          '.codex/reports/performance-readiness/ultramodern-performance-readiness.json',
+        deterministic: true,
+        script: 'scripts/ultramodern-performance-readiness.mjs',
+      },
+      scope: 'ultramodern-generated-and-framework-owned',
+      signals: [
+        'bfcache',
+        'core-web-vitals-rum',
+        'duplicate-prefetch-warmup',
+        'cache-policy-sanity',
+        'save-data-behavior',
+        'cloudflare-ssr-cache-hints',
+      ].map(id => ({ id })),
+    },
+    profile: config.profile ?? 'cloudflare-ssr-mf-effect-v1',
+    schemaVersion: 1,
+  };
 }
 
 function getGeneratedAppContract(workspaceDir: string, appId: string) {
@@ -357,7 +1145,7 @@ function readGeneratedJsonConst<T>(source: string, constName: string): T {
   if (!match?.[1]) {
     throw new Error(`Expected generated const ${constName}`);
   }
-  return JSON.parse(match[1]);
+  return Function(`"use strict"; return (${match[1]});`)() as T;
 }
 
 function expectRouteMetadataCompatibility(
@@ -712,9 +1500,12 @@ function proofHtml(
 </html>`;
 }
 
-async function importGeneratedCloudflareProofHelper(workspaceDir: string) {
+async function importGeneratedCloudflareProofHelper() {
   const helperUrl = pathToFileURL(
-    path.join(workspaceDir, 'scripts/ultramodern-cloudflare-proof.mjs'),
+    path.join(
+      repoRoot,
+      'packages/toolkit/create/templates/workspace-scripts/ultramodern-cloudflare-proof.mjs',
+    ),
   );
   return import(`${helperUrl.href}?proof-test=${Date.now()}-${Math.random()}`);
 }
@@ -763,7 +1554,7 @@ function createGeneratedProofRoutes(
   const localeRoute = routes.locale ?? `/locales/en/${app.i18n.namespace}.json`;
   const notFoundRoute =
     app.deploy.cloudflare.qualityGates.statusCodes.notFoundRoute ??
-    '/__ultramodern-smoke-missing';
+    '/__ultramodern-smoke-missing/nope';
   const cssRoute = '/assets/generated-proof.css';
   const fakeRoutes = new Map<string, Response>();
   const publicRoute =
@@ -882,9 +1673,9 @@ function createGeneratedProofRoutes(
     );
   }
 
-  if (routes.effectReadiness) {
+  if (routes.apiReadiness) {
     fakeRoutes.set(
-      routes.effectReadiness,
+      routes.apiReadiness,
       proofResponse(
         app,
         JSON.stringify({ marker: { build: app.marker.build } }),
@@ -934,8 +1725,7 @@ async function expectGeneratedCloudflareProofBehavior(
   workspaceDir: string,
   apps: Array<ReturnType<typeof getGeneratedAppContract>>,
 ) {
-  const { validateApp } =
-    await importGeneratedCloudflareProofHelper(workspaceDir);
+  const { validateApp } = await importGeneratedCloudflareProofHelper();
 
   for (const app of apps) {
     const privateUrl = `https://${app.id}.example.workers.dev`;
@@ -1030,20 +1820,18 @@ async function expectGeneratedCloudflareProofContract(
     'scripts/proof-cloudflare-version.mjs',
   );
   const proofHelperScript = readText(
-    workspaceDir,
-    'scripts/ultramodern-cloudflare-proof.mjs',
+    repoRoot,
+    'packages/toolkit/create/templates/workspace-scripts/ultramodern-cloudflare-proof.mjs',
   );
-  expect(proofScript).toContain(
-    "import { validateApp } from './ultramodern-cloudflare-proof.mjs';",
-  );
-  expect(proofHelperScript).toContain('export { validateApp };');
+  expect(proofScript).toContain('ULTRAMODERN_CREATE_BIN');
+  expect(proofScript).toContain("'cloudflare-proof'");
 
   const helpOutput = execFileSync(
     process.execPath,
     ['scripts/proof-cloudflare-version.mjs', '--help'],
     {
       cwd: workspaceDir,
-      env: envWithoutGeneratedPublicUrls(publicUrlEnvNames),
+      env: generatedToolEnv(envWithoutGeneratedPublicUrls(publicUrlEnvNames)),
       stdio: 'pipe',
     },
   ).toString();
@@ -1115,7 +1903,7 @@ async function expectGeneratedCloudflareProofContract(
         requireWebManifestWhenPresent: true,
       },
       statusCodes: {
-        notFoundRoute: '/__ultramodern-smoke-missing',
+        notFoundRoute: '/__ultramodern-smoke-missing/nope',
         unknownRouteStatus: 404,
       },
     });
@@ -1128,7 +1916,7 @@ async function expectGeneratedCloudflareProofContract(
     ['scripts/proof-cloudflare-version.mjs', '--out', skippedReportPath],
     {
       cwd: workspaceDir,
-      env: envWithoutGeneratedPublicUrls(publicUrlEnvNames),
+      env: generatedToolEnv(envWithoutGeneratedPublicUrls(publicUrlEnvNames)),
       stdio: 'pipe',
     },
   ).toString();
@@ -1139,10 +1927,7 @@ async function expectGeneratedCloudflareProofContract(
   expect(skippedReport).toMatchObject({
     schemaVersion: 1,
     status: 'skipped',
-    contractPath: path.join(
-      realWorkspaceDir,
-      '.modernjs/ultramodern-generated-contract.json',
-    ),
+    contractPath: path.join(realWorkspaceDir, '.modernjs/ultramodern.json'),
     results: [],
     skipped: apps.map(app => ({
       appId: app.id,
@@ -1166,7 +1951,7 @@ async function expectGeneratedCloudflareProofContract(
     ],
     {
       cwd: workspaceDir,
-      env: envWithoutGeneratedPublicUrls(publicUrlEnvNames),
+      env: generatedToolEnv(envWithoutGeneratedPublicUrls(publicUrlEnvNames)),
       stdio: 'pipe',
     },
   );
@@ -1195,7 +1980,7 @@ async function expectGeneratedCloudflareProofContract(
       ],
       {
         cwd: workspaceDir,
-        env: envWithoutGeneratedPublicUrls(publicUrlEnvNames),
+        env: generatedToolEnv(envWithoutGeneratedPublicUrls(publicUrlEnvNames)),
         stdio: 'pipe',
       },
     ),
@@ -1241,29 +2026,27 @@ describe('create-ultramodern-workspace', () => {
       'README.md',
       'oxlint.config.ts',
       'oxfmt.config.ts',
-      '.agents/skills-lock.json',
-      '.agents/rstackjs-agent-skills-LICENSE',
-      '.agents/skills/rsbuild-best-practices/SKILL.md',
-      '.agents/skills/rspack-best-practices/SKILL.md',
-      '.agents/skills/rspack-tracing/SKILL.md',
-      '.agents/skills/rspack-tracing/references/tracing-guide.md',
-      '.agents/skills/rspack-tracing/scripts/analyze_trace.js',
-      '.agents/skills/rsdoctor-analysis/SKILL.md',
-      '.agents/skills/rsdoctor-analysis/references/rsdoctor-data-types.md',
-      '.agents/skills/rslib-best-practices/SKILL.md',
-      '.agents/skills/rslib-modern-package/SKILL.md',
-      '.agents/skills/rstest-best-practices/SKILL.md',
+      '.agents/agent-reference-repos.json',
+      '.codex/skills-lock.json',
+      '.codex/rstackjs-agent-skills-LICENSE',
+      '.codex/skills/rsbuild-best-practices/SKILL.md',
+      '.codex/skills/rspack-best-practices/SKILL.md',
+      '.codex/skills/rspack-tracing/SKILL.md',
+      '.codex/skills/rspack-tracing/references/tracing-guide.md',
+      '.codex/skills/rspack-tracing/scripts/analyze_trace.js',
+      '.codex/skills/rsdoctor-analysis/SKILL.md',
+      '.codex/skills/rsdoctor-analysis/references/rsdoctor-data-types.md',
+      '.codex/skills/rslib-best-practices/SKILL.md',
+      '.codex/skills/rslib-modern-package/SKILL.md',
+      '.codex/skills/rstest-best-practices/SKILL.md',
       'scripts/assert-mf-types.mjs',
       'scripts/validate-ultramodern-workspace.mjs',
-      'scripts/ultramodern-cloudflare-proof.mjs',
       'scripts/proof-cloudflare-version.mjs',
       'scripts/ultramodern-performance-readiness.config.mjs',
       'scripts/ultramodern-performance-readiness.mjs',
       'scripts/ultramodern-typecheck.mjs',
       'scripts/bootstrap-agent-skills.mjs',
-      '.modernjs/ultramodern-workspace-template-manifest.json',
-      '.modernjs/ultramodern-package-source.json',
-      '.modernjs/ultramodern-generated-contract.json',
+      '.modernjs/ultramodern.json',
       'topology/reference-topology.json',
       'topology/ownership.json',
       'topology/local-overlays/development.json',
@@ -1273,7 +2056,7 @@ describe('create-ultramodern-workspace', () => {
       'apps/shell-super-app/modern.config.ts',
       'apps/shell-super-app/module-federation.config.ts',
       'apps/shell-super-app/src/ultramodern-build.ts',
-      'apps/shell-super-app/src/effect/vertical-clients.ts',
+      'apps/shell-super-app/src/api/vertical-clients.ts',
       'apps/shell-super-app/postcss.config.mjs',
       'apps/shell-super-app/tailwind.config.ts',
       'apps/shell-super-app/locales/en/translation.json',
@@ -1293,6 +2076,12 @@ describe('create-ultramodern-workspace', () => {
     ]) {
       expectPath(workspaceDir, relativePath);
     }
+    expectNoPath(
+      workspaceDir,
+      '.modernjs/ultramodern-workspace-template-manifest.json',
+    );
+    expectNoPath(workspaceDir, '.modernjs/ultramodern-package-source.json');
+    expectNoPath(workspaceDir, '.modernjs/ultramodern-generated-contract.json');
     expectNoPath(workspaceDir, 'packages/shared-effect-api');
     expectNoPath(workspaceDir, 'verticals/workspace');
     expectNoPath(workspaceDir, 'verticals/records');
@@ -1318,7 +2107,7 @@ describe('create-ultramodern-workspace', () => {
       workspaceDir,
       '.github/workflows/ultramodern-workspace-gates.yml',
     );
-    expect(workflowText).toContain('node-version: "26.3.0"');
+    expect(workflowText).toMatch(/node-version:\s*['"]26\.3\.0['"]/u);
     expect(workflowText).not.toContain('FORCE_JAVASCRIPT_ACTIONS_TO_NODE24');
     expect(rootPackage.workspaces).toEqual([
       'apps/*',
@@ -1329,7 +2118,7 @@ describe('create-ultramodern-workspace', () => {
     expect(rootPackage.modernjs.preset).toBe('presetUltramodern');
     expect(rootPackage.modernjs.packageSource).toEqual({
       strategy: 'install',
-      config: './.modernjs/ultramodern-package-source.json',
+      config: './.modernjs/ultramodern.json',
     });
     expect(rootPackage.scripts['contract:check']).toBe(
       'node ./scripts/validate-ultramodern-workspace.mjs',
@@ -1427,7 +2216,6 @@ describe('create-ultramodern-workspace', () => {
       path.join(workspaceDir, 'scripts/bootstrap-agent-skills.mjs'),
       'utf8',
     );
-    expect(agentSkillsBootstrap).toContain('never installs system packages');
     expect(agentSkillsBootstrap).not.toContain("run('brew'");
     expect(agentSkillsBootstrap).not.toContain('runShell(');
     const agentReferenceRepoSetup = fs.readFileSync(
@@ -1466,24 +2254,22 @@ describe('create-ultramodern-workspace', () => {
       workspaceDir,
       'scripts/ultramodern-typecheck.mjs',
     );
-    expect(typecheckScript).toContain("'--checkers'");
-    expect(typecheckScript).toContain("'--builders'");
-    expect(typecheckScript).toContain("'--stopBuildOnErrors'");
-    expect(typecheckScript).toContain('get-exe-path');
+    expect(typecheckScript).toContain('ULTRAMODERN_CREATE_BIN');
+    expect(typecheckScript).toContain("'typecheck'");
     expect(rootPackage.devDependencies.typescript).toBeUndefined();
 
     expectPath(workspaceDir, 'AGENTS.md');
     expectPath(workspaceDir, '.codex/hooks.json');
     expectPath(workspaceDir, 'lefthook.yml');
 
-    const skillsLock = readJson(workspaceDir, '.agents/skills-lock.json');
+    const skillsLock = readJson(workspaceDir, '.codex/skills-lock.json');
     expect(skillsLock.source.repository).toBe(
       'https://github.com/rstackjs/agent-skills',
     );
     expect(skillsLock.source.commit).toBe(
       '61c948b42512e223bad44b83af4080eba48b2677',
     );
-    expect(skillsLock.installDir).toBe('.agents/skills');
+    expect(skillsLock.installDir).toBe('.codex/skills');
     expect(
       skillsLock.baseline.map((skill: { name: string }) => skill.name),
     ).toEqual([
@@ -1496,7 +2282,7 @@ describe('create-ultramodern-workspace', () => {
       'rstest-best-practices',
       'mf',
     ]);
-    expectPath(workspaceDir, '.agents/skills/rslib-modern-package/SKILL.md');
+    expectPath(workspaceDir, '.codex/skills/rslib-modern-package/SKILL.md');
     const privateSource = skillsLock.sources.find(
       (source: { repository: string }) =>
         source.repository === 'https://github.com/TechsioCZ/skills',
@@ -1634,7 +2420,7 @@ describe('create-ultramodern-workspace', () => {
         '@modern-js/plugin-bff',
       );
       expect(packageJson.exports).toMatchObject({
-        './effect/clients': './src/effect/vertical-clients.ts',
+        './api/clients': './src/api/vertical-clients.ts',
       });
       expect(packageJson.modernjs.preset).toBe('presetUltramodern');
     }
@@ -1685,9 +2471,9 @@ describe('create-ultramodern-workspace', () => {
     );
     expect(shellModernConfig).toContain('security: {');
     expect(shellModernConfig).toContain("compatibilityDate: '2026-06-02'");
-    expect(shellModernConfig).toContain('"mode": "report-only"');
-    expect(shellModernConfig).toContain('"script-src"');
-    expect(shellModernConfig).toContain('"connect-src"');
+    expect(shellModernConfig).toContain("mode: 'report-only'");
+    expect(shellModernConfig).toContain("'script-src'");
+    expect(shellModernConfig).toContain("'connect-src'");
     expect(shellModernConfig).toContain('const assetPrefix =');
     expectDedicatedAssetPrefixExpression(shellModernConfig);
     expect(shellModernConfig).toContain("assetPrefix: '/',");
@@ -1695,9 +2481,9 @@ describe('create-ultramodern-workspace', () => {
     expect(shellModernConfig).toMatch(
       /const siteUrl =\s*configuredSiteUrl \|\|\s*configuredCloudflareUrl \|\|/,
     );
-    expect(shellModuleFederationConfig).toContain(`bridge: {
-    enableBridgeRouter: false,
-  },`);
+    expect(shellModuleFederationConfig).toMatch(
+      /bridge:\s*\{\s*enableBridgeRouter:\s*false,\s*\}/u,
+    );
     expect(shellModuleFederationConfig).not.toContain(
       'enableBridgeRouter: true',
     );
@@ -1856,7 +2642,7 @@ describe('create-ultramodern-workspace', () => {
             requireWebManifestWhenPresent: true,
           },
           statusCodes: {
-            notFoundRoute: '/__ultramodern-smoke-missing',
+            notFoundRoute: '/__ultramodern-smoke-missing/nope',
             unknownRouteStatus: 404,
           },
           indexing: {
@@ -1930,80 +2716,30 @@ describe('create-ultramodern-workspace', () => {
       ),
     ).toBe(false);
 
-    const manifest = readJson(
+    const ultramodernConfig = readJson(
       workspaceDir,
-      '.modernjs/ultramodern-workspace-template-manifest.json',
+      '.modernjs/ultramodern.json',
     );
-    expect(manifest.template.id).toBe(
-      'modernjs-ultramodern-superapp-workspace',
-    );
-    expect(manifest.template.compatibilityLane).toBe('ultramodern-mv');
-    expect(manifest.materialization.allowedPaths).toEqual(
-      expect.arrayContaining(['tsconfig.json', 'tsconfig.base.json']),
-    );
-    expect(manifest.validation.expectedCommands).toEqual([
-      'mise install',
-      'pnpm install',
-      'pnpm run typecheck',
-      'pnpm run i18n:boundaries',
-      'pnpm run contract:check',
-      'pnpm run performance:readiness',
-    ]);
-    expect(manifest.validation.postMaterializationValidation).toEqual([
-      'ultramodern-workspace-contract-check',
-      'github-workflow-security-enforced',
-      'pnpm-11-policy-enforced',
-      'template-manifest-retained',
-    ]);
-    expect(manifest.packageSource.strategy).toBe('install');
-    expect(manifest.agentSkills.source.commit).toBe(
-      '61c948b42512e223bad44b83af4080eba48b2677',
-    );
-    expect(manifest.agentSkills.baseline).toEqual([
-      'rsbuild-best-practices',
-      'rspack-best-practices',
-      'rspack-tracing',
-      'rsdoctor-analysis',
-      'rslib-best-practices',
-      'rslib-modern-package',
-      'rstest-best-practices',
-    ]);
-    expect(manifest.agentSkills.moduleFederationSource).toMatchObject({
-      repository: 'https://github.com/module-federation/agent-skills',
-      commit: '07bb5b6c43ad457609e00c081b72d4c42508ec76',
-      install: 'clone',
-      baseline: ['mf'],
+    expect(ultramodernConfig.profile).toBe('cloudflare-ssr-mf-effect-v1');
+    expect(ultramodernConfig.generator.package).toBe('@modern-js/create');
+    expect(ultramodernConfig.packageSource).toMatchObject({
+      strategy: 'install',
+      modernPackageVersion: testFrameworkVersion,
+      aliasScope: 'bleedingdev',
+      aliasPackageNamePrefix: 'modern-js-',
     });
-    expect(manifest.agentSkills.privateSource).toMatchObject({
-      repository: 'https://github.com/TechsioCZ/skills',
-      install: 'clone-if-authorized',
-      baseline: [
-        'plan-graph',
-        'dag',
-        'subagent-graph',
-        'helm',
-        'debugger-mode',
-      ],
+    expect(ultramodernConfig.agentSkills).toMatchObject({
+      target: 'codex',
+      mode: 'repo-owned-default-on',
+      selfContainedVendoring: true,
     });
-
-    const packageSource = readJson(
-      workspaceDir,
-      '.modernjs/ultramodern-package-source.json',
-    );
-    expect(packageSource.strategy).toBe('install');
-    expect(packageSource.modernPackages.specifier).toBe(testFrameworkVersion);
-    expect(packageSource.modernPackages.aliases).toMatchObject(
-      bleedingDevAliases,
-    );
-    expect(packageSource.generatedWorkspacePackages.specifier).toBe(
-      'workspace:*',
-    );
 
     const validationOutput = execFileSync(
       process.execPath,
       ['scripts/validate-ultramodern-workspace.mjs'],
       {
         cwd: workspaceDir,
+        env: generatedToolEnv(),
         stdio: 'pipe',
       },
     ).toString();
@@ -2030,6 +2766,7 @@ describe('create-ultramodern-workspace', () => {
         ['scripts/validate-ultramodern-workspace.mjs'],
         {
           cwd: workspaceDir,
+          env: generatedToolEnv(),
           stdio: 'pipe',
         },
       );
@@ -2203,7 +2940,7 @@ process.exit(1);
       {
         cwd: workspaceDir,
         env: {
-          ...process.env,
+          ...generatedToolEnv(),
           PATH: `${fakeBinDir}${path.delimiter}${process.env.PATH ?? ''}`,
         },
         stdio: 'pipe',
@@ -2218,6 +2955,7 @@ process.exit(1);
       ['scripts/assert-mf-types.mjs', '--help'],
       {
         cwd: workspaceDir,
+        env: generatedToolEnv(),
         stdio: 'pipe',
       },
     ).toString();
@@ -2228,6 +2966,7 @@ process.exit(1);
       ['scripts/generate-public-surface-assets.mjs', '--help'],
       {
         cwd: workspaceDir,
+        env: generatedToolEnv(),
         stdio: 'pipe',
       },
     ).toString();
@@ -2259,9 +2998,9 @@ process.exit(1);
       'verticals/catalog/tsconfig.mf-types.json',
       'verticals/catalog/modern.config.ts',
       'verticals/catalog/module-federation.config.ts',
-      'verticals/catalog/api/effect/index.ts',
-      'verticals/catalog/shared/effect/api.ts',
-      'verticals/catalog/src/effect/catalog-client.ts',
+      'verticals/catalog/api/index.ts',
+      'verticals/catalog/shared/api.ts',
+      'verticals/catalog/src/api/catalog-client.ts',
       'verticals/catalog/locales/en/translation.json',
       'verticals/catalog/locales/cs/translation.json',
       'verticals/catalog/src/routes/[lang]/page.tsx',
@@ -2329,8 +3068,8 @@ process.exit(1);
       '@modern-js/plugin-bff',
     );
     expect(remotePackage.exports).toMatchObject({
-      './effect/client': './src/effect/catalog-client.ts',
-      './shared/effect/api': './shared/effect/api.ts',
+      './api/client': './src/api/catalog-client.ts',
+      './api': './shared/api.ts',
     });
     expectNoPath(workspaceDir, 'services/service-catalog-effect');
 
@@ -2427,18 +3166,18 @@ process.exit(1);
       workspaceDir,
       'verticals/catalog/modern.config.ts',
     );
-    const catalogEffectEntry = readText(
+    const catalogApiEntry = readText(
       workspaceDir,
-      'verticals/catalog/api/effect/index.ts',
+      'verticals/catalog/api/index.ts',
     );
-    const catalogEffectApi = readText(
+    const catalogApi = readText(
       workspaceDir,
-      'verticals/catalog/shared/effect/api.ts',
+      'verticals/catalog/shared/api.ts',
     );
     expect(catalogModuleFederationConfig).toContain(
       "tsConfigPath: './tsconfig.mf-types.json'",
     );
-    expect(catalogModernConfig).toContain("entry: './api/effect/index'");
+    expect(catalogModernConfig).toContain("entry: './api/index'");
     expect(catalogModernConfig).toContain('const assetPrefix =');
     expectDedicatedAssetPrefixExpression(catalogModernConfig);
     expect(catalogModernConfig).toContain("assetPrefix: '/',");
@@ -2446,18 +3185,16 @@ process.exit(1);
     expect(catalogModernConfig).toMatch(
       /const siteUrl =\s*configuredSiteUrl \|\|\s*configuredCloudflareUrl \|\|/,
     );
-    expect(catalogEffectApi).toContain(
+    expect(catalogApi).toContain(
       'limit: Schema.optional(Schema.FiniteFromString)',
     );
-    expect(catalogEffectApi).not.toContain('Schema.NumberFromString');
-    expect(catalogEffectEntry).toContain(
-      "from '../../shared/ultramodern-build.ts'",
+    expect(catalogApi).not.toContain('Schema.NumberFromString');
+    expect(catalogApiEntry).toContain("from '../shared/ultramodern-build.ts'");
+    expect(catalogApiEntry).not.toContain('../../src/ultramodern-build');
+    expect(catalogApiEntry).toContain("from '../shared/api.ts'");
+    expect(catalogModuleFederationConfig).toMatch(
+      /bridge:\s*\{\s*enableBridgeRouter:\s*false,\s*\}/u,
     );
-    expect(catalogEffectEntry).not.toContain('../../src/ultramodern-build');
-    expect(catalogEffectEntry).toContain("from '../../shared/effect/api.ts'");
-    expect(catalogModuleFederationConfig).toContain(`bridge: {
-    enableBridgeRouter: false,
-  },`);
     expect(catalogModuleFederationConfig).not.toContain(
       'enableBridgeRouter: true',
     );
@@ -2522,27 +3259,31 @@ process.exit(1);
       ),
     ).toMatchObject({
       api: {
-        effect: {
-          runtime: 'effect',
-          bff: {
-            prefix: '/catalog-api',
-            openapi: '/openapi.json',
-          },
-          contract: {
-            export: './shared/effect/api',
-            path: 'verticals/catalog/shared/effect/api.ts',
-          },
-          client: {
-            export: './effect/client',
-            path: 'verticals/catalog/src/effect/catalog-client.ts',
-          },
-          serverEntry: 'verticals/catalog/api/effect/index.ts',
+        runtime: 'effect',
+        bff: {
+          prefix: '/catalog-api',
+          openapi: '/openapi.json',
+          strictEffectApproach: true,
         },
+        contract: {
+          export: './api',
+          path: 'verticals/catalog/shared/api.ts',
+        },
+        client: {
+          export: './api/client',
+          path: 'verticals/catalog/src/api/catalog-client.ts',
+        },
+        serverEntry: 'verticals/catalog/api/index.ts',
       },
       moduleFederation: {
         manifestUrl: 'http://localhost:4101/mf-manifest.json',
       },
     });
+    expect(
+      topology.verticals.find(
+        (vertical: { id: string }) => vertical.id === 'catalog',
+      ).api.effect,
+    ).toBeUndefined();
     expect(
       (topology.effectServices ?? []).some(
         (service: { id: string }) => service.id === 'service-catalog-effect',
@@ -2625,6 +3366,7 @@ process.exit(1);
       ['scripts/validate-ultramodern-workspace.mjs'],
       {
         cwd: workspaceDir,
+        env: generatedToolEnv(),
         stdio: 'pipe',
       },
     ).toString();
@@ -2666,7 +3408,7 @@ process.exit(1);
     const rootPackage = readJson(workspaceDir, 'package.json');
     expect(rootPackage.modernjs.packageSource).toEqual({
       strategy: 'install',
-      config: './.modernjs/ultramodern-package-source.json',
+      config: './.modernjs/ultramodern.json',
     });
     expect(rootPackage.devDependencies['@modern-js/create']).toBe(
       '3.2.0-ultramodern.0',
@@ -2675,17 +3417,16 @@ process.exit(1);
       '3.2.0-ultramodern.0',
     );
 
-    const packageSource = readJson(
+    const ultramodernConfig = readJson(
       workspaceDir,
-      '.modernjs/ultramodern-package-source.json',
+      '.modernjs/ultramodern.json',
     );
-    expect(packageSource.strategy).toBe('install');
-    expect(packageSource.modernPackages.specifier).toBe('3.2.0-ultramodern.0');
-    expect(packageSource.modernPackages.registry).toBe(
+    expect(ultramodernConfig.packageSource.strategy).toBe('install');
+    expect(ultramodernConfig.packageSource.modernPackageVersion).toBe(
+      '3.2.0-ultramodern.0',
+    );
+    expect(ultramodernConfig.packageSource.registry).toBe(
       'https://registry.example.test/',
-    );
-    expect(packageSource.generatedWorkspacePackages.specifier).toBe(
-      'workspace:*',
     );
 
     const shellPackage = readJson(
@@ -2728,6 +3469,7 @@ process.exit(1);
       ['scripts/validate-ultramodern-workspace.mjs'],
       {
         cwd: workspaceDir,
+        env: generatedToolEnv(),
         stdio: 'pipe',
       },
     ).toString();
@@ -2797,10 +3539,21 @@ process.exit(1);
     ];
     shellContract.routes.publicSurface.routeEntries = [];
     shellContract.routes.publicSurface.concreteUrlPaths = [];
+    const ultramodernConfig = readJson(
+      workspaceDir,
+      '.modernjs/ultramodern.json',
+    );
+    const shellConfig = ultramodernConfig.topology.apps.find(
+      (app: { id: string }) => app.id === 'shell-super-app',
+    );
+    expect(shellConfig).toBeDefined();
+    shellConfig!.routes = {
+      publicSurface: shellContract.routes.publicSurface,
+    };
     writeText(
       workspaceDir,
-      '.modernjs/ultramodern-generated-contract.json',
-      `${JSON.stringify(generatedContract, null, 2)}\n`,
+      '.modernjs/ultramodern.json',
+      `${JSON.stringify(ultramodernConfig, null, 2)}\n`,
     );
     writeText(
       workspaceDir,
@@ -2875,7 +3628,7 @@ export const entries = [
       {
         cwd: workspaceDir,
         env: {
-          ...process.env,
+          ...generatedToolEnv(),
           ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP: 'https://example.com',
         },
         stdio: 'pipe',
@@ -2947,7 +3700,7 @@ export const entries = [
       {
         cwd: workspaceDir,
         env: {
-          ...process.env,
+          ...generatedToolEnv(),
           MODERN_PUBLIC_SITE_URL: 'https://global.example/path-is-ignored',
           ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP:
             'https://per-app.example.workers.dev',
@@ -2987,18 +3740,15 @@ export const entries = [
       'en',
     ]);
 
-    const packageSource = readJson(
+    const ultramodernConfig = readJson(
       workspaceDir,
-      '.modernjs/ultramodern-package-source.json',
+      '.modernjs/ultramodern.json',
     );
-    expect(packageSource.modernPackages.aliases).toMatchObject({
-      '@modern-js/create': '@bleedingdev/modern-js-create',
-      '@modern-js/code-tools': '@bleedingdev/modern-js-code-tools',
-      '@modern-js/app-tools': '@bleedingdev/modern-js-app-tools',
-      '@modern-js/plugin-bff': '@bleedingdev/modern-js-plugin-bff',
-      '@modern-js/plugin-i18n': '@bleedingdev/modern-js-plugin-i18n',
-      '@modern-js/plugin-tanstack': '@bleedingdev/modern-js-plugin-tanstack',
-      '@modern-js/runtime': '@bleedingdev/modern-js-runtime',
+    expect(ultramodernConfig.packageSource).toMatchObject({
+      aliasScope: 'bleedingdev',
+      aliasPackageNamePrefix: 'modern-js-',
+      modernPackageVersion: '3.2.0-ultramodern.0',
+      strategy: 'install',
     });
 
     const shellPackage = readJson(
@@ -3030,6 +3780,7 @@ export const entries = [
       ['scripts/validate-ultramodern-workspace.mjs'],
       {
         cwd: workspaceDir,
+        env: generatedToolEnv(),
         stdio: 'pipe',
       },
     ).toString();

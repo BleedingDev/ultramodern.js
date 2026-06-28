@@ -29,10 +29,11 @@ export function createAppModernConfig(
   const bffConfig = appHasEffectApi(app)
     ? `      bff: {
         effect: {
-          entry: './api/effect/index',
+          entry: './api/index',
           openapi: {
             path: '/openapi.json',
           },
+          strictEffectApproach: true,
         },
         prefix: '${effectApiPrefix(app)}',
         runtimeFramework: 'effect',
@@ -468,7 +469,7 @@ export const ultramodernUiMarker = {
 
 export const ultramodernApiMarker = {
   ...ultramodernVerticalIdentity,
-  surface: 'effect-bff',
+  surface: 'api',
 } as const;
 `;
 }

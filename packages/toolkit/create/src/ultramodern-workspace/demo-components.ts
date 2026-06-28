@@ -248,39 +248,39 @@ ${showcaseItems}
 
 export function createRemotePage(app: WorkspaceApp): string {
   const tw = createTw(tailwindPrefixForApp(app));
-  const listEffectItems = `list${toPascalCase(effectApiStem(app))}`;
-  const effectBffImport = appHasEffectApi(app)
+  const listApiItems = `list${toPascalCase(effectApiStem(app))}`;
+  const apiImport = appHasEffectApi(app)
     ? `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
 import { Link } from '@modern-js/plugin-tanstack/runtime';
 import { useEffect, useState } from 'react';
 import {
   Effect,
-  ${listEffectItems},
+  ${listApiItems},
   runEffectRequest,
-} from '../../effect/${effectApiStem(app)}-client';
+} from '../../api/${effectApiStem(app)}-client';
 import { UltramodernRouteHead } from '../ultramodern-route-head';
 import { ultramodernUiMarker } from '../../ultramodern-build';
 `
     : "import { useModernI18n } from '@modern-js/plugin-i18n/runtime';\nimport { Link } from '@modern-js/plugin-tanstack/runtime';\nimport { UltramodernRouteHead } from '../ultramodern-route-head';\nimport { ultramodernUiMarker } from '../../ultramodern-build';\n";
-  const effectBffState = appHasEffectApi(app)
-    ? `  const [effectApiStatus, setEffectApiStatus] = useState('pending');
+  const apiState = appHasEffectApi(app)
+    ? `  const [apiStatus, setApiStatus] = useState('pending');
 
   useEffect(() => {
     let cancelled = false;
     void runEffectRequest(
-      ${listEffectItems}({ limit: 1 }).pipe(
+      ${listApiItems}({ limit: 1 }).pipe(
         Effect.match({
           onFailure: () => {
             if (cancelled) {
               return;
             }
-            setEffectApiStatus('unavailable');
+            setApiStatus('unavailable');
           },
           onSuccess: data => {
             if (cancelled) {
               return;
             }
-            setEffectApiStatus(data.items.at(0)?.title ?? 'empty');
+            setApiStatus(data.items.at(0)?.title ?? 'empty');
           },
         }),
       ),
@@ -293,15 +293,15 @@ import { ultramodernUiMarker } from '../../ultramodern-build';
 
 `
     : '';
-  const effectBffMarkup = appHasEffectApi(app)
-    ? `      <p data-testid="effect-bff-status">{effectApiStatus}</p>
+  const apiMarkup = appHasEffectApi(app)
+    ? `      <p data-testid="api-status">{apiStatus}</p>
 `
     : '';
 
-  return `${effectBffImport}
+  return `${apiImport}
 export default function ${toPascalCase(app.id)}Home() {
   const { language, supportedLanguages, t } = useModernI18n();
-${effectBffState}  return (
+${apiState}  return (
     <main className="${tw('min-h-screen bg-um-canvas px-4 py-6 text-um-foreground sm:px-8')}">
       <UltramodernRouteHead />
       <nav aria-label={t('${app.domain}.language.switcher')} className="${tw('flex gap-3')}">
@@ -322,7 +322,7 @@ ${effectBffState}  return (
       <p className="${tw('sr-only')}" data-build-marker={ultramodernUiMarker.build} data-testid="ultramodern-ui-marker">
         {ultramodernUiMarker.appId}:{ultramodernUiMarker.version}
       </p>
-${effectBffMarkup}    </main>
+${apiMarkup}    </main>
   );
 }
 `;

@@ -23,7 +23,7 @@ export interface CatalogItem {
 
 export interface CatalogReadiness {
   readonly checks: {
-    readonly effectBff: 'ready';
+    readonly api: 'ready';
     readonly moduleFederation: 'ready';
     readonly ssr: 'ready';
     readonly translations: 'ready';
@@ -67,7 +67,7 @@ export const catalogItemSchema: Schema.Codec<CatalogItem> = Schema.Struct({
 
 export const catalogReadinessSchema: Schema.Codec<CatalogReadiness> = Schema.Struct({
   checks: Schema.Struct({
-    effectBff: Schema.Literal('ready'),
+    api: Schema.Literal('ready'),
     moduleFederation: Schema.Literal('ready'),
     ssr: Schema.Literal('ready'),
     translations: Schema.Literal('ready'),
@@ -96,10 +96,10 @@ export interface OperationContext {
   traceId?: string;
 }
 
-export const catalogEffectApi = HttpApi.make('CatalogEffectApi').add(
+export const catalogApi = HttpApi.make('CatalogApi').add(
   HttpApiGroup.make('catalog')
     .add(
-      HttpApiEndpoint.get('list', '/effect/catalog', {
+      HttpApiEndpoint.get('list', '/catalog', {
         query: {
           limit: Schema.optional(Schema.FiniteFromString),
         },
@@ -109,12 +109,12 @@ export const catalogEffectApi = HttpApi.make('CatalogEffectApi').add(
       }),
     )
     .add(
-      HttpApiEndpoint.get('readiness', '/effect/catalog/readiness', {
+      HttpApiEndpoint.get('readiness', '/catalog/readiness', {
         success: catalogReadinessSchema,
       }),
     )
     .add(
-      HttpApiEndpoint.get('get', '/effect/catalog/:id', {
+      HttpApiEndpoint.get('get', '/catalog/:id', {
         error: catalogNotFoundSchema,
         params: {
           id: Schema.String,
@@ -123,7 +123,7 @@ export const catalogEffectApi = HttpApi.make('CatalogEffectApi').add(
       }),
     )
     .add(
-      HttpApiEndpoint.post('create', '/effect/catalog', {
+      HttpApiEndpoint.post('create', '/catalog', {
         payload: catalogCreatePayloadSchema,
         success: Schema.Struct({
           item: catalogItemSchema,
@@ -135,33 +135,33 @@ export const catalogEffectApi = HttpApi.make('CatalogEffectApi').add(
 export const catalogOperationContexts = {
   create: {
     method: 'POST',
-    operationId: 'CatalogEffectApi:catalog:create',
-    routePath: '/effect/catalog',
+    operationId: 'CatalogApi:catalog:create',
+    routePath: '/catalog',
     source: 'generated-client',
   },
   get: {
     method: 'GET',
-    operationId: 'CatalogEffectApi:catalog:get',
-    routePath: '/effect/catalog/:id',
+    operationId: 'CatalogApi:catalog:get',
+    routePath: '/catalog/:id',
     source: 'generated-client',
   },
   list: {
     method: 'GET',
-    operationId: 'CatalogEffectApi:catalog:list',
-    routePath: '/effect/catalog',
+    operationId: 'CatalogApi:catalog:list',
+    routePath: '/catalog',
     source: 'generated-client',
   },
   readiness: {
     method: 'GET',
-    operationId: 'CatalogEffectApi:catalog:readiness',
-    routePath: '/effect/catalog/readiness',
+    operationId: 'CatalogApi:catalog:readiness',
+    routePath: '/catalog/readiness',
     source: 'generated-client',
   },
 } satisfies Record<string, OperationContext>;
 
 export const catalogApiContract = {
   apiPrefix: '/catalog-api',
-  basePath: '/catalog-api/effect/catalog',
+  basePath: '/catalog-api/catalog',
   ownerId: 'catalog',
-  readinessPath: '/catalog-api/effect/catalog/readiness',
+  readinessPath: '/catalog-api/catalog/readiness',
 } as const;

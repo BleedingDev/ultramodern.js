@@ -6,8 +6,8 @@ import {
   Layer,
   OpenTelemetry,
 } from '@modern-js/plugin-bff/effect-server';
-import { bffEffectApi } from '../../shared/effect-api';
-import { bffRpcGroup } from '../../shared/effect-rpc';
+import { bffEffectApi } from '../shared/effect-api';
+import { bffRpcGroup } from '../shared/effect-rpc';
 
 type TraceSpanProcessor = Exclude<
   OpenTelemetry.NodeSdk.Configuration['spanProcessor'],
@@ -170,7 +170,7 @@ const withManagedFailure = {
     return {
       handler: async (request: Request) => {
         const pathname = new URL(request.url).pathname;
-        if (pathname.endsWith('/effect/managed')) {
+        if (pathname.endsWith('/managed')) {
           const managedError = new Error('Managed effect error') as Error & {
             status?: number;
           };

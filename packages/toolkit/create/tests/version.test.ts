@@ -238,7 +238,7 @@ test('built public UltraModern subpath imports from an ESM consumer and generate
             '.modernjs/ultramodern.json',
             'apps/shell-super-app/package.json',
             'verticals/catalog/package.json',
-            'verticals/catalog/shared/effect/api.ts',
+            'verticals/catalog/shared/api.ts',
           ]) {
             if (!fs.existsSync(path.join(workspaceRoot, relativePath))) {
               throw new Error(\`Missing generated path: \${relativePath}\`);

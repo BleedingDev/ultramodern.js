@@ -1,5 +1,5 @@
 // @effect-diagnostics anyUnknownInErrorContext:off asyncFunction:off
-import effectBff from '@api/effect/index';
+import api from '@api/index';
 import {
   makeEffectRpcClient,
   runEffectRequest,
@@ -24,11 +24,11 @@ export default function Page() {
   const [rpcMessage, setRpcMessage] = useState('pending');
 
   useEffect(() => {
-    effectBff.client.greetings.hello({}).then(data => {
+    api.client.greetings.hello({}).then(data => {
       setEffectMessage(data.message);
     });
 
-    const userByIdRequest = effectBff.client.greetings.userById({
+    const userByIdRequest = api.client.greetings.userById({
       params: { id: '42' },
       query: { source: 'browser' },
     });
@@ -41,7 +41,7 @@ export default function Page() {
       setProjectionMessage(data.id);
     });
 
-    effectBff.client.greetings
+    api.client.greetings
       .echo({
         payload: { text: 'echo-from-client' },
       })

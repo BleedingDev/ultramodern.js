@@ -24,7 +24,7 @@ const SERVER_OUTPUT_DIRECTORY = 'server';
 const DEFAULT_SERVER_ONLY_PUBLIC_ASSET_EXCLUDES = ['api', 'shared'] as const;
 const BFF_EFFECT_WORKER_ENTRY = `${WORKER_BUNDLE_DIRECTORY}/__modern_bff_effect.js`;
 const EFFECT_BFF_CLOUDFLARE_IMPORT_GUIDANCE =
-  'Ensure the Effect BFF entry exists at api/effect/index.ts or bff.effect.entry, and import Cloudflare edge handlers from @modern-js/plugin-bff/effect-edge instead of lambda/Hono server helpers.';
+  'Ensure the Effect API entry exists at api/index.ts or bff.effect.entry, and import Cloudflare edge handlers from @modern-js/plugin-bff/effect-edge instead of lambda/Hono server helpers.';
 const DEFAULT_COMPATIBILITY_DATE = '2026-06-02';
 const COMPATIBILITY_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/u;
 const REQUIRED_COMPATIBILITY_FLAGS = [
@@ -444,7 +444,7 @@ const createMissingEffectBffWorkerError = (
   worker: string,
 ) =>
   new Error(
-    `Cloudflare Effect BFF is configured, but the BFF worker bundle is missing: ${path.join(
+    `Cloudflare Effect API runtime is configured, but the BFF worker bundle is missing: ${path.join(
       outputDirectory,
       worker,
     )}. ${EFFECT_BFF_CLOUDFLARE_IMPORT_GUIDANCE}`,
@@ -475,13 +475,13 @@ const createWorkerManifest = async (
 
   const bffPrefix = modernConfig.bff?.prefix;
   const primaryBffPrefix = Array.isArray(bffPrefix) ? bffPrefix[0] : bffPrefix;
-  const isEffectBff =
+  const isEffectApi =
     Boolean(modernConfig.bff) && modernConfig.bff?.runtimeFramework !== 'hono';
-  const effectBffWorkerExists = await fse.pathExists(
+  const effectApiWorkerExists = await fse.pathExists(
     path.join(outputDirectory, BFF_EFFECT_WORKER_ENTRY),
   );
 
-  if (isEffectBff && primaryBffPrefix && !effectBffWorkerExists) {
+  if (isEffectApi && primaryBffPrefix && !effectApiWorkerExists) {
     throw createMissingEffectBffWorkerError(
       outputDirectory,
       BFF_EFFECT_WORKER_ENTRY,
@@ -517,7 +517,7 @@ const createWorkerManifest = async (
     },
     security: createCloudflareWorkerSecurityPolicy(modernConfig),
     bff:
-      isEffectBff && primaryBffPrefix && effectBffWorkerExists
+      isEffectApi && primaryBffPrefix && effectApiWorkerExists
         ? {
             runtimeFramework: 'effect',
             prefix: primaryBffPrefix,

@@ -11,8 +11,8 @@ const __manifest = {
       \\"group\\": \\"greetings\\",
       \\"endpoint\\": \\"ping\\",
       \\"method\\": \\"GET\\",
-      \\"routePath\\": \\"/api/effect/ping\\",
-      \\"schemaHash\\": \\"0bfea052768db9529fa082d9c210bda7f2685b88f6d2731aef440420fb4b72ae\\",
+      \\"routePath\\": \\"/api/ping\\",
+      \\"schemaHash\\": \\"79e7af54a6acdc89412d8c3b8ebb3f5ec530fef378cf64b92e550cc5698faa5e\\",
       \\"operationVersion\\": 2
     }
   ]
@@ -43,14 +43,14 @@ const __generated = createGeneratedEffectClient(__manifest, __config, __requestR
 const client = __generated.client;
 const operationManifest = __generated.operationManifest;
 const createEffectRequestContext = __generated.createEffectRequestContext;
-const effectBffModule = {
+const apiModule = {
   client,
   operationManifest,
   createEffectRequestContext,
 };
 
 export { client, createEffectRequestContext, operationManifest };
-export default effectBffModule;
+export default apiModule;
 "
 `;
 
@@ -116,12 +116,12 @@ export declare const createEffectRequestContext: (
   requestContext: Record<string, unknown>,
 ) => EffectRequestContext;
 export declare const operationManifest: GeneratedEffectOperationManifest;
-declare const effectBffModule: {
+declare const apiModule: {
   client: GeneratedEffectClient;
   createEffectRequestContext: typeof createEffectRequestContext;
   operationManifest: GeneratedEffectOperationManifest;
 };
 
-export default effectBffModule;
+export default apiModule;
 "
 `;

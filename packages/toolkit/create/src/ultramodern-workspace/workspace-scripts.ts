@@ -189,6 +189,12 @@ export function createWorkspaceI18nBoundaryValidationScript(): string {
   );
 }
 
+export function createWorkspaceApiBoundaryValidationScript(): string {
+  return readFileTemplate(
+    'workspace-scripts/check-ultramodern-api-boundaries.mjs',
+  );
+}
+
 export function createPerformanceReadinessConfigScript(): string {
   return readFileTemplate(
     'workspace-scripts/ultramodern-performance-readiness.config.mjs',
@@ -215,6 +221,11 @@ export function writeGeneratedWorkspaceScripts(
     targetDir,
     'scripts/check-ultramodern-i18n-boundaries.mjs',
     createWorkspaceI18nBoundaryValidationScript(),
+  );
+  writeFileReplacing(
+    targetDir,
+    'scripts/check-ultramodern-api-boundaries.mjs',
+    createWorkspaceApiBoundaryValidationScript(),
   );
   writeFileReplacing(
     targetDir,

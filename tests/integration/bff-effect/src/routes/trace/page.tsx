@@ -1,5 +1,5 @@
 // @effect-diagnostics asyncFunction:off globalTimers:off newPromise:off strictBooleanExpressions:off
-import effectBff from '@api/effect/index';
+import api from '@api/index';
 import { useEffect, useState } from 'react';
 
 type TraceViewModel = {
@@ -50,15 +50,15 @@ export default function TracePage() {
 
     const run = async () => {
       const { traceId, rootSpanId, traceparent } = createTraceparent();
-      await effectBff.client.greetings.traceReset({});
-      await effectBff.client.greetings.traceRun({
+      await api.client.greetings.traceReset({});
+      await api.client.greetings.traceRun({
         headers: {
           traceparent,
         },
       });
 
       for (let attempt = 0; attempt < 20; attempt++) {
-        const { spans } = await effectBff.client.greetings.traceSpans({
+        const { spans } = await api.client.greetings.traceSpans({
           query: { traceId },
         });
         const runSpan = spans.find(

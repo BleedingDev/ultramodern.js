@@ -230,14 +230,14 @@ const __generated = createGeneratedEffectClient(__manifest, __config, __requestR
 const client = __generated.client;
 const operationManifest = __generated.operationManifest;
 const createEffectRequestContext = __generated.createEffectRequestContext;
-const effectBffModule = {
+const apiModule = {
   client,
   operationManifest,
   createEffectRequestContext,
 };
 
 export { client, createEffectRequestContext, operationManifest };
-export default effectBffModule;
+export default apiModule;
 `;
 }
 
@@ -325,13 +325,13 @@ export declare const createEffectRequestContext: (
   requestContext: Record<string, unknown>,
 ) => EffectRequestContext;
 export declare const operationManifest: GeneratedEffectOperationManifest;
-declare const effectBffModule: {
+declare const apiModule: {
   client: GeneratedEffectClient;
   createEffectRequestContext: typeof createEffectRequestContext;
   operationManifest: GeneratedEffectOperationManifest;
 };
 
-export default effectBffModule;
+export default apiModule;
 `;
 }
 
@@ -380,16 +380,20 @@ export function resolveEffectEntryFile(options: {
 }) {
   const { appDir, apiDir, effectEntry } = options;
 
-  const defaultEntry = path.resolve(apiDir, 'effect', 'index');
-  const entryWithoutExt = effectEntry
-    ? path.isAbsolute(effectEntry)
-      ? effectEntry
-      : path.resolve(appDir, effectEntry)
-    : defaultEntry;
+  const resolveEntry = (entryWithoutExt: string) => {
+    if (path.extname(entryWithoutExt)) {
+      return fs.existsSync(entryWithoutExt) ? entryWithoutExt : undefined;
+    }
 
-  if (path.extname(entryWithoutExt)) {
-    return fs.existsSync(entryWithoutExt) ? entryWithoutExt : undefined;
+    return findExists(JS_OR_TS_EXTS.map(ext => `${entryWithoutExt}${ext}`));
+  };
+
+  if (effectEntry) {
+    const entryWithoutExt = path.isAbsolute(effectEntry)
+      ? effectEntry
+      : path.resolve(appDir, effectEntry);
+    return resolveEntry(entryWithoutExt);
   }
 
-  return findExists(JS_OR_TS_EXTS.map(ext => `${entryWithoutExt}${ext}`));
+  return resolveEntry(path.resolve(apiDir, 'index'));
 }

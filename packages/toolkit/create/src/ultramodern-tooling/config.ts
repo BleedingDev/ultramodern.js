@@ -6,7 +6,6 @@ import {
 } from '../ultramodern-workspace/bridge-config';
 import {
   createNeutralOwnership,
-  GENERATED_CONTRACT_PATH,
   shellApp,
   ULTRAMODERN_CONFIG_PATH,
 } from '../ultramodern-workspace/descriptors';
@@ -17,11 +16,7 @@ import type {
   WorkspaceEffectApi,
 } from '../ultramodern-workspace/types';
 
-const PACKAGE_SOURCE_METADATA_PATH =
-  '.modernjs/ultramodern-package-source.json';
-const DEVELOPMENT_OVERLAY_PATH = 'topology/local-overlays/development.json';
-
-export type UltramodernToolingConfigSource = 'compact' | 'legacy';
+export type UltramodernToolingConfigSource = 'compact';
 
 export type UltramodernToolingConfigApp = {
   id: string;
@@ -61,7 +56,6 @@ export type UltramodernToolingConfig = {
   topology: {
     apps: UltramodernToolingConfigApp[];
   };
-  legacyContract?: Record<string, any>;
 };
 
 function readJsonObject(filePath: string): Record<string, any> {
@@ -87,66 +81,7 @@ function packageScopeFromRoot(workspaceRoot: string): string {
     : path.basename(workspaceRoot);
 }
 
-function packageSourceFromMetadata(
-  workspaceRoot: string,
-): ResolvedPackageSource | undefined {
-  const metadataPath = path.join(workspaceRoot, PACKAGE_SOURCE_METADATA_PATH);
-  if (!fs.existsSync(metadataPath)) {
-    return undefined;
-  }
-
-  const metadata = readJsonObject(metadataPath);
-  const aliases = metadata.modernPackages?.aliases ?? {};
-  const firstAlias = Object.values(aliases).find(
-    (value): value is string => typeof value === 'string',
-  );
-  const firstPackage = Object.keys(aliases)[0];
-  const aliasScope = firstAlias?.match(/^@([^/]+)\//)?.[1];
-  const unscopedName = firstPackage?.split('/').at(-1) ?? '';
-  const aliasUnscopedName = firstAlias?.split('/').at(-1) ?? '';
-  const aliasPackageNamePrefix =
-    aliasUnscopedName &&
-    unscopedName &&
-    aliasUnscopedName.endsWith(unscopedName)
-      ? aliasUnscopedName.slice(0, -unscopedName.length)
-      : undefined;
-
-  return {
-    strategy: metadata.strategy === 'install' ? 'install' : 'workspace',
-    modernPackageVersion:
-      typeof metadata.modernPackages?.specifier === 'string'
-        ? metadata.modernPackages.specifier
-        : 'workspace:*',
-    registry:
-      typeof metadata.modernPackages?.registry === 'string'
-        ? metadata.modernPackages.registry
-        : undefined,
-    aliasScope,
-    aliasPackageNamePrefix,
-  };
-}
-
-function readOverlayPorts(workspaceRoot: string): Record<string, number> {
-  const overlayPath = path.join(workspaceRoot, DEVELOPMENT_OVERLAY_PATH);
-  if (!fs.existsSync(overlayPath)) {
-    return {};
-  }
-
-  const overlay = readJsonObject(overlayPath);
-  const ports = overlay.ports;
-  if (ports === null || typeof ports !== 'object' || Array.isArray(ports)) {
-    return {};
-  }
-
-  return Object.fromEntries(
-    Object.entries(ports).filter(
-      (entry): entry is [string, number] => typeof entry[1] === 'number',
-    ),
-  );
-}
-
 function normalizeCompactConfig(
-  workspaceRoot: string,
   sourcePath: string,
   config: Record<string, any>,
 ): UltramodernToolingConfig {
@@ -174,7 +109,7 @@ function normalizeCompactConfig(
               ? config.packageSource.aliasPackageNamePrefix
               : undefined,
         } satisfies ResolvedPackageSource)
-      : packageSourceFromMetadata(workspaceRoot);
+      : undefined;
 
   return {
     schemaVersion:
@@ -277,127 +212,16 @@ function normalizeCompactConfig(
   };
 }
 
-function adaptLegacyContract(
-  workspaceRoot: string,
-  sourcePath: string,
-  contract: Record<string, any>,
-): UltramodernToolingConfig {
-  const ports = readOverlayPorts(workspaceRoot);
-  const apps = Array.isArray(contract.apps) ? contract.apps : [];
-  const shell = apps.find(
-    (app: Record<string, any>) => app?.id === shellApp.id,
-  );
-
-  return {
-    schemaVersion:
-      typeof contract.schemaVersion === 'number' ? contract.schemaVersion : 1,
-    profile:
-      typeof contract.profile === 'string' ? contract.profile : undefined,
-    source: 'legacy',
-    sourcePath,
-    workspace: {
-      packageScope: packageScopeFromRoot(workspaceRoot),
-    },
-    packageSource: packageSourceFromMetadata(workspaceRoot),
-    features: {
-      tailwind: shell?.styling?.tailwind !== false,
-    },
-    topology: {
-      apps: apps.map((app: Record<string, any>) => {
-        const id = String(app.id);
-        const appPath =
-          typeof app.path === 'string'
-            ? app.path
-            : id === shellApp.id
-              ? shellApp.directory
-              : `verticals/${toKebabCase(id)}`;
-        const domain =
-          typeof app.i18n?.namespace === 'string' &&
-          app.i18n.namespace !== 'shell'
-            ? app.i18n.namespace
-            : appPath.split('/').at(-1);
-
-        return {
-          id,
-          kind: app.kind === 'vertical' ? 'vertical' : 'shell',
-          path: appPath,
-          package: typeof app.package === 'string' ? app.package : undefined,
-          packageSuffix:
-            typeof app.package === 'string'
-              ? app.package.split('/').at(-1)
-              : appPath.split('/').at(-1),
-          displayName: id === shellApp.id ? shellApp.displayName : undefined,
-          domain,
-          port: ports[id],
-          moduleFederation:
-            app.moduleFederation && typeof app.moduleFederation === 'object'
-              ? {
-                  role: app.kind === 'vertical' ? 'remote' : 'host',
-                  name:
-                    typeof app.moduleFederation.name === 'string'
-                      ? app.moduleFederation.name
-                      : undefined,
-                  exposes: Array.isArray(app.moduleFederation.exposes)
-                    ? app.moduleFederation.exposes.filter(
-                        (expose: unknown): expose is string =>
-                          typeof expose === 'string',
-                      )
-                    : undefined,
-                  verticalRefs: Array.isArray(app.moduleFederation.verticalRefs)
-                    ? app.moduleFederation.verticalRefs.filter(
-                        (ref: unknown): ref is string =>
-                          typeof ref === 'string',
-                      )
-                    : undefined,
-                  hostOnly: app.kind !== 'vertical',
-                }
-              : undefined,
-          effectApi:
-            app.effect && typeof app.effect === 'object'
-              ? {
-                  stem:
-                    typeof app.effect.prefix === 'string'
-                      ? (app.effect.prefix.split('/').filter(Boolean).at(-1) ??
-                        domain ??
-                        id)
-                      : (domain ?? id),
-                  prefix:
-                    typeof app.effect.prefix === 'string'
-                      ? app.effect.prefix
-                      : `/${domain ?? id}-api`,
-                  consumedBy: [shellApp.id, id],
-                }
-              : undefined,
-        };
-      }),
-    },
-    legacyContract: contract,
-  };
-}
-
 export function readUltramodernConfig(
   workspaceRoot = process.cwd(),
 ): UltramodernToolingConfig {
   const compactPath = path.join(workspaceRoot, ULTRAMODERN_CONFIG_PATH);
   if (fs.existsSync(compactPath)) {
-    return normalizeCompactConfig(
-      workspaceRoot,
-      compactPath,
-      readJsonObject(compactPath),
-    );
-  }
-
-  const legacyPath = path.join(workspaceRoot, GENERATED_CONTRACT_PATH);
-  if (fs.existsSync(legacyPath)) {
-    return adaptLegacyContract(
-      workspaceRoot,
-      legacyPath,
-      readJsonObject(legacyPath),
-    );
+    return normalizeCompactConfig(compactPath, readJsonObject(compactPath));
   }
 
   throw new Error(
-    `Missing UltraModern config. Expected ${ULTRAMODERN_CONFIG_PATH} or ${GENERATED_CONTRACT_PATH}.`,
+    `Missing UltraModern config. Expected ${ULTRAMODERN_CONFIG_PATH}.`,
   );
 }
 

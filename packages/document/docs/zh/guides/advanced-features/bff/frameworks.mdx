@@ -7,7 +7,7 @@ title: 运行时框架
 
 Modern.js 目前支持两种 BFF 运行时框架：
 
-- `effect`（默认）：使用 `api/effect/index` 的 [Effect HttpApi](https://effect.website/) 运行时。
+- `effect`（默认）：使用 `api/index` 的 [Effect HttpApi](https://effect.website/) 运行时。
 - `hono`：使用 `api/lambda/**` 的文件约定 BFF 处理函数。
 
 `effect` 与 `hono` 为严格模式，两者之间不会自动回退。
@@ -23,6 +23,8 @@ export default defineConfig({
   bff: {
     runtimeFramework: 'effect',
     effect: {
+      entry: './api/index',
+      strictEffectApproach: true,
       openapi: {
         path: '/openapi.json',
       },
@@ -33,7 +35,7 @@ export default defineConfig({
 
 先在共享目录中定义 Effect HttpApi 契约（前后端共享类型）：
 
-```ts title="shared/effect/api.ts"
+```ts title="shared/api.ts"
 import {
   HttpApi,
   HttpApiEndpoint,
@@ -41,18 +43,18 @@ import {
   Schema,
 } from '@modern-js/plugin-bff/effect-client';
 
-export const bffEffectApi = HttpApi.make('MyApi').add(
+export const bffApi = HttpApi.make('MyApi').add(
   HttpApiGroup.make('hello').add(
-    HttpApiEndpoint.get('ping', '/effect/ping', {
+    HttpApiEndpoint.get('ping', '/ping', {
       success: Schema.String,
     }),
   ),
 );
 ```
 
-然后在 `api/effect/index.ts` 中实现 Effect BFF 入口：
+然后在 `api/index.ts` 中实现 Effect BFF 入口：
 
-```ts title="api/effect/index.ts"
+```ts title="api/index.ts"
 import {
   Schema,
   Effect,
@@ -61,7 +63,7 @@ import {
   Layer,
   ServiceMap,
 } from '@modern-js/plugin-bff/effect-server';
-import { bffEffectApi } from '../../shared/effect/api';
+import { bffApi } from '../shared/api';
 
 class GreetingUnavailableError extends Schema.TaggedError<GreetingUnavailableError>()(
   'GreetingUnavailableError',
@@ -87,7 +89,7 @@ class GreetingService extends ServiceMap.Service<GreetingService>()('GreetingSer
   static readonly layer = Layer.effect(this, this.make);
 }
 
-const group = HttpApiBuilder.group(bffEffectApi, 'hello', handlers =>
+const group = HttpApiBuilder.group(bffApi, 'hello', handlers =>
   handlers.handle('ping', () =>
     GreetingService.use(service => service.hello()).pipe(
       Effect.catchTag('GreetingUnavailableError', error =>
@@ -97,23 +99,23 @@ const group = HttpApiBuilder.group(bffEffectApi, 'hello', handlers =>
   ),
 );
 
-const layer = HttpApiBuilder.layer(bffEffectApi).pipe(
+const layer = HttpApiBuilder.layer(bffApi).pipe(
   Layer.provide(group),
   Layer.provide(GreetingService.layer),
 );
 
-export default defineEffectBff({ api: bffEffectApi, layer });
+export default defineEffectBff({ api: bffApi, layer });
 ```
 
-在浏览器代码中通过 `@api/effect/index` 调用接口：
+在浏览器代码中通过 `@api/index` 调用接口：
 
 ```ts title="src/routes/page.tsx"
-import effectBff from '@api/effect/index';
+import api from '@api/index';
 
-const response = await effectBff.client.hello.ping({});
+const response = await api.client.hello.ping({});
 ```
 
-`effectBff.client.*` 由 BFF loader 针对 `@api/effect/*` 导入物化生成。不要直接导入 `api/effect/index` 并期望在服务端代码、脚本或测试中运行 `client`；直接导入入口时拿到的是服务端运行时定义，其中的 `client` 只是类型占位。
+`api.client.*` 由 BFF loader 针对 `@api/index` 导入物化生成。不要直接导入 `api/index` 并期望在服务端代码、脚本或测试中运行 `client`；直接导入入口时拿到的是服务端运行时定义，其中的 `client` 只是类型占位。
 
 import Hono from '@site-docs/components/hono';
 

@@ -21,8 +21,8 @@ export default defineConfig({
 });
 ```
 
-- Set to `'effect'` to run BFF only from `api/effect/index` (Effect HttpApi runtime).
+- Set to `'effect'` to run BFF only from `api/index` (Effect HttpApi runtime).
 - Set to `'hono'` to run BFF only from file-convention handlers under `api/lambda/**`.
 
 There is no implicit fallback between runtimes. Choose one runtime mode per app.
-Generated UltraModern apps use the Effect lane by default; set `runtimeFramework: 'hono'` only for the compatibility runtime.
+Generated UltraModern apps use strict Effect APIs by default and set `bff.effect.strictEffectApproach: true`.

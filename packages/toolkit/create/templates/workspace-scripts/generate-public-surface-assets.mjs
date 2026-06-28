@@ -7,10 +7,6 @@ const workspaceRoot = path.resolve(
   process.env.ULTRAMODERN_WORKSPACE_ROOT ??
     path.join(path.dirname(fileURLToPath(import.meta.url)), '..'),
 );
-const contractPath = path.join(
-  workspaceRoot,
-  '.modernjs/ultramodern-generated-contract.json',
-);
 const compactConfigPath = path.join(workspaceRoot, '.modernjs/ultramodern.json');
 
 function readJson(filePath) {
@@ -107,6 +103,10 @@ function normalizeCompactApp(rawApp) {
     marker: {
       appId: id,
     },
+    routes:
+      rawApp.routes && typeof rawApp.routes === 'object'
+        ? rawApp.routes
+        : undefined,
     effectApi:
       rawApp.effectApi && typeof rawApp.effectApi === 'object'
         ? {
@@ -165,7 +165,7 @@ function createPublicRoutes(app) {
 
 function createPublicSurface(app) {
   const publicRoutes = createPublicRoutes(app);
-  return {
+  const basePublicSurface = {
     authoring: 'colocated-route-meta',
     artifactLifecycle: 'build-and-deploy-output',
     generatedManifest: './src/routes/ultramodern-route-metadata',
@@ -195,6 +195,14 @@ function createPublicSurface(app) {
     routeEntries: [],
     concreteUrlPaths: [],
   };
+
+  return app.routes?.publicSurface &&
+    typeof app.routes.publicSurface === 'object'
+    ? {
+        ...basePublicSurface,
+        ...app.routes.publicSurface,
+      }
+    : basePublicSurface;
 }
 
 function createCloudflareDeploy(config, app) {
@@ -237,17 +245,11 @@ function readGeneratedContractView() {
   if (fs.existsSync(compactConfigPath)) {
     return synthesizeContractFromCompactConfig(readJson(compactConfigPath));
   }
-  if (fs.existsSync(contractPath)) {
-    return {
-      sourcePath: contractPath,
-      ...readJson(contractPath),
-    };
-  }
   throw new Error(
     `Missing UltraModern config. Expected ${path.relative(
       workspaceRoot,
       compactConfigPath,
-    )} or ${path.relative(workspaceRoot, contractPath)}.`,
+    )}.`,
   );
 }
 

@@ -2,10 +2,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const root = process.cwd();
-const generatedContractPath = path.join(
-  root,
-  '.modernjs/ultramodern-generated-contract.json',
-);
 const compactConfigPath = path.join(root, '.modernjs/ultramodern.json');
 const defaultAppDirs = {{defaultAppDirsJson}};
 
@@ -53,13 +49,7 @@ function readGeneratedContractView() {
         : [],
     };
   }
-  if (fs.existsSync(generatedContractPath)) {
-    return {
-      sourcePath: generatedContractPath,
-      ...readJson(generatedContractPath),
-    };
-  }
-  return undefined;
+  throw new Error('Missing UltraModern config. Expected .modernjs/ultramodern.json.');
 }
 
 const generatedContract = readGeneratedContractView();

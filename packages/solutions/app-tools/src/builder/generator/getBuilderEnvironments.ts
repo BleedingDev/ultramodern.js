@@ -156,13 +156,14 @@ function getEffectBffEntry(
   }
 
   const configuredEntry = normalizedConfig.bff.effect?.entry;
-  const entryWithoutOrWithExtension = configuredEntry
-    ? path.isAbsolute(configuredEntry)
+  if (configuredEntry) {
+    const entryWithoutOrWithExtension = path.isAbsolute(configuredEntry)
       ? configuredEntry
-      : path.resolve(appContext.appDirectory, configuredEntry)
-    : path.resolve(appContext.apiDirectory, 'effect', 'index');
+      : path.resolve(appContext.appDirectory, configuredEntry);
+    return resolveJsOrTsEntry(entryWithoutOrWithExtension);
+  }
 
-  return resolveJsOrTsEntry(entryWithoutOrWithExtension);
+  return resolveJsOrTsEntry(path.resolve(appContext.apiDirectory, 'index'));
 }
 
 function isCloudflareWorkerDeploy(normalizedConfig: AppNormalizedConfig) {
@@ -322,7 +323,7 @@ export function getBuilderEnvironments(
   if (useWorkerTarget) {
     const useCloudflareModuleWorker =
       isCloudflareWorkerDeploy(normalizedConfig);
-    const effectBffEntry = useCloudflareModuleWorker
+    const effectApiEntry = useCloudflareModuleWorker
       ? getEffectBffEntry(normalizedConfig, appContext)
       : undefined;
     const tanstackRouterSsrServerFile = useCloudflareModuleWorker
@@ -394,11 +395,11 @@ export function getBuilderEnvironments(
     const baseWorkerEntries = useCloudflareModuleWorker
       ? cloudflareWorkerServerEntries
       : serverEntries;
-    const workerEntries = effectBffEntry
+    const workerEntries = effectApiEntry
       ? {
           ...baseWorkerEntries,
           [BFF_EFFECT_WORKER_ENTRY_NAME]: [
-            `${effectBffEntry}?${BFF_EFFECT_WORKER_RUNTIME_QUERY}`,
+            `${effectApiEntry}?${BFF_EFFECT_WORKER_RUNTIME_QUERY}`,
           ],
         }
       : baseWorkerEntries;

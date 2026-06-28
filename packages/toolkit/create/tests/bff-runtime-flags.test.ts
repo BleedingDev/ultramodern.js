@@ -30,7 +30,7 @@ const withTempDir = (fn: (tmpDir: string) => void) => {
   }
 };
 
-test('--bff keeps the default Effect BFF workspace scaffold', () => {
+test('--bff keeps the default strict Effect approach workspace scaffold', () => {
   withTempDir(tmpDir => {
     const createResult = runCli(tmpDir, ['bff-default-smoke', '--bff']);
     assert.equal(createResult.status, 0, createResult.stderr);
@@ -46,9 +46,7 @@ test('--bff keeps the default Effect BFF workspace scaffold', () => {
     assert.match(modernConfig, /runtimeFramework: 'effect'/);
     assert.match(modernConfig, /bffPlugin\(\)/);
     assert.equal(
-      fs.existsSync(
-        path.join(workspaceDir, 'verticals/catalog/api/effect/index.ts'),
-      ),
+      fs.existsSync(path.join(workspaceDir, 'verticals/catalog/api/index.ts')),
       true,
     );
   });
@@ -72,9 +70,7 @@ test('--bff-runtime effect selects the default Effect runtime explicitly', () =>
     ]);
     assert.equal(verticalResult.status, 0, verticalResult.stderr);
     assert.equal(
-      fs.existsSync(
-        path.join(workspaceDir, 'verticals/catalog/shared/effect/api.ts'),
-      ),
+      fs.existsSync(path.join(workspaceDir, 'verticals/catalog/shared/api.ts')),
       true,
     );
   });

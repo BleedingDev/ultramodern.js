@@ -1,6 +1,6 @@
 // @effect-diagnostics processEnv:off strictBooleanExpressions:off
 /**
- * Runtime for generated Effect BFF clients.
+ * Runtime for generated Effect API clients.
  *
  * `utils/effectClientGenerator` used to inline ~330 lines of untyped JS into
  * every generated client module. The generated module now shrinks to an

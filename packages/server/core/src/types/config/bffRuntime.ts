@@ -113,6 +113,17 @@ export interface BffEffectDataPlatformUserConfig {
 
 export interface BffEffectUserConfig {
   entry?: string;
+  /**
+   * Enforce Effect-native API/runtime modules instead of raw request handlers.
+   *
+   * When enabled, Effect API entries must export a `defineEffectBff(...)`
+   * definition or a `{ api, layer }` HttpApi module. Raw `handler` exports,
+   * default request handlers, and unbranded custom `createHandler` factories
+   * are treated as legacy escape hatches.
+   *
+   * @default true
+   */
+  strictEffectApproach?: true;
   openapi?: BffEffectOpenApiUserConfig;
   dataPlatform?: BffEffectDataPlatformUserConfig;
 }

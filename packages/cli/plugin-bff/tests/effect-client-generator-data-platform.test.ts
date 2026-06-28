@@ -31,7 +31,7 @@ const createFixtureApp = async () => {
 
 const api = HttpApi.make('CodegenTestApi').add(
   HttpApiGroup.make('greetings').add(
-    HttpApiEndpoint.get('ping', '/effect/ping', {
+    HttpApiEndpoint.get('ping', '/ping', {
       success: Schema.Struct({
         ok: Schema.Boolean,
       }),
@@ -84,7 +84,7 @@ describe('effect client generator data-platform integration', () => {
         {
           name: 'ping',
           httpMethod: 'GET',
-          routePath: '/api/effect/ping',
+          routePath: '/api/ping',
         },
         'test-effect-app',
       );

@@ -9,6 +9,7 @@ title: effect
 ```ts
 type BffEffectUserConfig = {
   entry?: string;
+  strictEffectApproach?: true;
   openapi?: boolean | { path?: string };
   dataPlatform?: {
     enabled?: boolean;
@@ -58,7 +59,7 @@ import EnableBFFCaution from "@site-docs/components/enable-bff-caution";
 ## bff.effect.entry
 
 - **类型：** `string`
-- **默认值：** `<apiDirectory>/effect/index`
+- **默认值：** `<apiDirectory>/index`
 
 用于指定 Effect HttpApi 运行时入口模块。
 
@@ -67,11 +68,18 @@ export default defineConfig({
   bff: {
     runtimeFramework: 'effect',
     effect: {
-      entry: './api/effect/index',
+      entry: './api/index',
     },
   },
 });
 ```
+
+## bff.effect.strictEffectApproach
+
+- **类型：** `true`
+- **默认值：** `true`
+
+Effect BFF 模块必须导出严格 Effect API surface（`defineEffectBff(...)` 或 `{ api, layer }`），原始 request handler 会被拒绝。生成的 UltraModern 应用会显式写入这个标记。
 
 ## bff.effect.openapi
 
@@ -173,4 +181,4 @@ export default defineConfig({
 
 `batch.flushIntervalMs` 用于控制生成的 Effect 客户端微批处理窗口；`maxConcurrency` 与 `requestTimeoutMs` 由服务端批处理网关用于内部请求分发。
 
-生成的 `effectBff.client.*` API 只存在于 loader 物化后的 `@api/effect/*` 导入中。直接导入服务端入口（`api/effect/index`）时拿到的是 Effect BFF 定义；其中的 `client` 属性只是占位，并会在访问具体操作时报错。
+生成的 `api.client.*` API 只存在于 loader 物化后的 `@api/index` 导入中。直接导入服务端入口（`api/index`）时拿到的是 Effect BFF 定义；其中的 `client` 属性只是占位，并会在访问具体操作时报错。

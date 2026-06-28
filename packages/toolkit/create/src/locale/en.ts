@@ -28,7 +28,7 @@ export const EN_LOCALE = {
       'BRUTAL WARNING: YOU ARE OPTING OUT OF ULTRAMODERN.JS DEFAULTS.',
       'The unattended default is the best UltraModern.js configuration:',
       'a structured SuperApp workspace, presetUltramodern, TanStack Router,',
-      'Effect BFF, Tailwind CSS v4, and the BleedingDev package cohort.',
+      'a strict Effect API runtime, Tailwind CSS v4, and the BleedingDev package cohort.',
       'The original Modern.js setup is a dangerous opt-in path.',
       '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!',
     ].join('\n'),
@@ -47,7 +47,7 @@ export const EN_LOCALE = {
     optionTailwind:
       '      --no-tailwind Disable default Tailwind CSS v4 workspace styling',
     optionBff:
-      '      --bff Keep the default Effect BFF scaffolding (every MicroVertical ships an Effect BFF)',
+      '      --bff Keep the default strict Effect API runtime (every MicroVertical ships one)',
     optionBffRuntime:
       '      --bff-runtime Select the BFF runtime for scaffolded MicroVerticals (supported: effect; default: effect)',
     optionWorkspace:

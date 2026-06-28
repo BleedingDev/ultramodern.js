@@ -125,7 +125,7 @@ describe('create-bff-runtime', () => {
     }
   });
 
-  test('scaffolds the Effect BFF runtime by default with --bff', () => {
+  test('scaffolds the strict Effect approach by default with --bff', () => {
     const workspaceDir = path.join(tempRoot, 'with-bff-effect-default');
     scaffoldWorkspaceWithVertical(
       workspaceDir,
@@ -169,8 +169,8 @@ describe('create-bff-runtime', () => {
     expectNoTemplateArtifacts(modernConfig);
 
     expectNoPath(workspaceDir, 'verticals/greetings/api/lambda');
-    expectPath(workspaceDir, 'verticals/greetings/api/effect/index.ts');
-    expectPath(workspaceDir, 'verticals/greetings/shared/effect/api.ts');
+    expectPath(workspaceDir, 'verticals/greetings/api/index.ts');
+    expectPath(workspaceDir, 'verticals/greetings/shared/api.ts');
     expectPath(workspaceDir, 'verticals/greetings/postcss.config.mjs');
     expectPath(workspaceDir, 'verticals/greetings/tailwind.config.ts');
     expect(
@@ -182,7 +182,7 @@ describe('create-bff-runtime', () => {
     );
   });
 
-  test('scaffolds the Effect BFF runtime with an explicit --bff-runtime effect', () => {
+  test('scaffolds the strict Effect approach with an explicit --bff-runtime effect', () => {
     const workspaceDir = path.join(tempRoot, 'with-bff-effect');
     scaffoldWorkspaceWithVertical(
       workspaceDir,
@@ -192,31 +192,28 @@ describe('create-bff-runtime', () => {
 
     const effectEntry = readText(
       workspaceDir,
-      'verticals/greetings/api/effect/index.ts',
+      'verticals/greetings/api/index.ts',
     );
     expect(effectEntry).toContain('defineEffectBff');
     expect(effectEntry).toContain("from '@modern-js/plugin-bff/effect-edge'");
-    expect(effectEntry).toContain("from '../../shared/effect/api.ts'");
+    expect(effectEntry).toContain("from '../shared/api.ts'");
     expectNoPath(workspaceDir, 'verticals/greetings/api/lambda');
 
     const sharedEffectApi = readText(
       workspaceDir,
-      'verticals/greetings/shared/effect/api.ts',
+      'verticals/greetings/shared/api.ts',
     );
     expect(sharedEffectApi).toContain('@modern-js/plugin-bff/effect-client');
-    expect(sharedEffectApi).toContain('greetingsEffectApi');
+    expect(sharedEffectApi).toContain('greetingsApi');
 
-    expectPath(
-      workspaceDir,
-      'verticals/greetings/src/effect/greetings-client.ts',
-    );
+    expectPath(workspaceDir, 'verticals/greetings/src/api/greetings-client.ts');
     const routePage = readText(
       workspaceDir,
       'verticals/greetings/src/routes/[lang]/page.tsx',
     );
     expectNoTemplateArtifacts(routePage);
-    expect(routePage).toContain("from '../../effect/greetings-client'");
-    expect(routePage).toContain('data-testid="effect-bff-status"');
+    expect(routePage).toContain("from '../../api/greetings-client'");
+    expect(routePage).toContain('data-testid="api-status"');
 
     const tsConfig = readJson<{ include: string[] }>(
       workspaceDir,
@@ -248,12 +245,14 @@ describe('create-bff-runtime', () => {
       ['greetings', '--vertical', '--lang', 'en'],
     );
 
-    const packageSource = readJson(
+    const ultramodernConfig = readJson(
       workspaceDir,
-      '.modernjs/ultramodern-package-source.json',
+      '.modernjs/ultramodern.json',
     );
-    expect(packageSource.strategy).toBe('workspace');
-    expect(packageSource.modernPackages.specifier).toBe('workspace:*');
+    expect(ultramodernConfig.packageSource.strategy).toBe('workspace');
+    expect(ultramodernConfig.packageSource.modernPackageVersion).toBe(
+      'workspace:*',
+    );
 
     expectWorkspaceModernVersions(readJson(workspaceDir, 'package.json'));
     expectWorkspaceModernVersions(

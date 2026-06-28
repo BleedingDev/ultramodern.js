@@ -1,5 +1,5 @@
 // @effect-diagnostics asyncFunction:off globalFetch:off
-import effectBff from '@api/effect/index';
+import api from '@api/index';
 import { configure } from '@modern-js/plugin-bff/client';
 import { useEffect, useState } from 'react';
 
@@ -24,7 +24,7 @@ export default function CustomSdkPage() {
   const [message, setMessage] = useState('pending');
 
   useEffect(() => {
-    effectBff.client.greetings.hello({}).then(data => {
+    api.client.greetings.hello({}).then(data => {
       const maybeResponse = data as unknown;
       if (maybeResponse instanceof Response) {
         maybeResponse

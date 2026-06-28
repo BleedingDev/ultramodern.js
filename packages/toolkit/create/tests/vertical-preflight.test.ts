@@ -8,8 +8,6 @@ import {
 } from '../src/ultramodern-workspace';
 
 const ultramodernConfigPath = '.modernjs/ultramodern.json';
-const generatedContractPath = '.modernjs/ultramodern-generated-contract.json';
-const packageSourcePath = '.modernjs/ultramodern-package-source.json';
 const topologyPath = 'topology/reference-topology.json';
 const ownershipPath = 'topology/ownership.json';
 const overlayPath = 'topology/local-overlays/development.json';
@@ -135,10 +133,9 @@ function addExistingTopologyVertical(
       sharedContractVersion: 'mf-ssr-contract-v1',
     },
     api: {
-      effect: {
-        bff: {
-          prefix: patch.apiPrefix ?? `/${id}-api`,
-        },
+      runtime: 'effect',
+      bff: {
+        prefix: patch.apiPrefix ?? `/${id}-api`,
       },
     },
   });
@@ -167,9 +164,9 @@ test('preflight rejects invalid fresh vertical input before writes', () => {
   }
 });
 
-test('preflight verifies compact config and legacy fallback fixtures', () => {
+test('preflight requires compact config fixtures', () => {
   const nonObject = createWorkspace();
-  const legacyFallback = createWorkspace();
+  const missingCompact = createWorkspace();
 
   try {
     writeJson(nonObject.workspaceDir, ultramodernConfigPath, []);
@@ -178,37 +175,35 @@ test('preflight verifies compact config and legacy fallback fixtures', () => {
       /UltraModern workspace file must contain a JSON object: .*ultramodern\.json/,
     );
 
-    fs.rmSync(path.join(legacyFallback.workspaceDir, ultramodernConfigPath));
-    writeJson(legacyFallback.workspaceDir, generatedContractPath, {
-      apps: [],
-    });
-    writeJson(legacyFallback.workspaceDir, packageSourcePath, {
-      schemaVersion: 1,
-      strategy: 'install',
-      modernPackages: {
-        specifier: '3.2.0-ultramodern.108',
-        aliases: {
-          '@modern-js/runtime': '@bleedingdev/modern-js-runtime',
+    fs.rmSync(path.join(missingCompact.workspaceDir, ultramodernConfigPath));
+    writeJson(
+      missingCompact.workspaceDir,
+      '.modernjs/ultramodern-generated-contract.json',
+      {
+        apps: [],
+      },
+    );
+    writeJson(
+      missingCompact.workspaceDir,
+      '.modernjs/ultramodern-package-source.json',
+      {
+        schemaVersion: 1,
+        strategy: 'install',
+        modernPackages: {
+          specifier: '3.2.0-ultramodern.108',
+          aliases: {
+            '@modern-js/runtime': '@bleedingdev/modern-js-runtime',
+          },
         },
       },
-    });
-    addUltramodernVertical({
-      workspaceRoot: legacyFallback.workspaceDir,
-      name: 'checkout',
-      modernVersion: '3.2.1',
-    });
-    const compactConfig = readJson(
-      legacyFallback.workspaceDir,
-      ultramodernConfigPath,
     );
-    assert.equal(compactConfig.packageSource.strategy, 'install');
-    assert.equal(
-      compactConfig.packageSource.modernPackageVersion,
-      '3.2.0-ultramodern.108',
+    expectAddVerticalFailureLeavesWorkspaceUnchanged(
+      missingCompact.workspaceDir,
+      /Missing UltraModern workspace file: .*ultramodern\.json/,
     );
   } finally {
     fs.rmSync(nonObject.tempRoot, { recursive: true, force: true });
-    fs.rmSync(legacyFallback.tempRoot, { recursive: true, force: true });
+    fs.rmSync(missingCompact.tempRoot, { recursive: true, force: true });
   }
 });
 
@@ -252,12 +247,12 @@ test.each([
     error: /Duplicate development port "4101"/,
   },
   {
-    label: 'duplicate Effect API prefixes',
+    label: 'duplicate API prefixes',
     mutate: (workspaceDir: string) =>
       addExistingTopologyVertical(workspaceDir, {
         apiPrefix: '/catalog-api',
       }),
-    error: /Duplicate Effect API prefix "\/catalog-api"/,
+    error: /Duplicate API prefix "\/catalog-api"/,
   },
   {
     label: 'duplicate manifest environment names',

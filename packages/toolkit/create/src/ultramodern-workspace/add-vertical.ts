@@ -22,7 +22,6 @@ import {
   createShellHost,
   createVerticalDescriptor,
   effectApiPrefix,
-  GENERATED_CONTRACT_PATH,
   remoteDependencyAlias,
   shellApp,
   ULTRAMODERN_CONFIG_PATH,
@@ -89,8 +88,6 @@ const FIRST_VERTICAL_PORT = 4101;
 const TOPOLOGY_PATH = 'topology/reference-topology.json';
 const OWNERSHIP_PATH = 'topology/ownership.json';
 const DEVELOPMENT_OVERLAY_PATH = 'topology/local-overlays/development.json';
-const PACKAGE_SOURCE_METADATA_PATH =
-  '.modernjs/ultramodern-package-source.json';
 
 export type AddUltramodernVerticalPreflight = {
   name: string;
@@ -131,41 +128,7 @@ export function existingPackageSource(
     }
   }
 
-  const metadataPath = path.join(workspaceRoot, PACKAGE_SOURCE_METADATA_PATH);
-  if (!fs.existsSync(metadataPath)) {
-    return resolvePackageSource({
-      targetDir: workspaceRoot,
-      packageName: path.basename(workspaceRoot),
-      modernVersion,
-    });
-  }
-
-  const metadata = readJsonFile(metadataPath);
-  const aliases = metadata.modernPackages?.aliases ?? {};
-  const firstAlias = Object.values(aliases).find(
-    (value): value is string => typeof value === 'string',
-  );
-  const firstPackage = Object.keys(aliases)[0];
-  const aliasScope = firstAlias?.match(/^@([^/]+)\//)?.[1];
-  const unscopedName = firstPackage?.split('/').at(-1) ?? '';
-  const aliasUnscopedName = firstAlias?.split('/').at(-1) ?? '';
-  const aliasPackageNamePrefix =
-    aliasUnscopedName &&
-    unscopedName &&
-    aliasUnscopedName.endsWith(unscopedName)
-      ? aliasUnscopedName.slice(0, -unscopedName.length)
-      : undefined;
-
-  return {
-    strategy: metadata.strategy === 'install' ? 'install' : 'workspace',
-    modernPackageVersion:
-      typeof metadata.modernPackages?.specifier === 'string'
-        ? metadata.modernPackages.specifier
-        : modernVersion,
-    registry: metadata.modernPackages?.registry,
-    aliasScope,
-    aliasPackageNamePrefix,
-  };
+  throw new Error(`Missing UltraModern workspace file: ${compactPath}`);
 }
 
 export function existingTailwindEnabled(workspaceRoot: string): boolean {
@@ -174,20 +137,7 @@ export function existingTailwindEnabled(workspaceRoot: string): boolean {
     return readUltramodernConfig(workspaceRoot).features.tailwind;
   }
 
-  const contractPath = path.join(workspaceRoot, GENERATED_CONTRACT_PATH);
-  if (!fs.existsSync(contractPath)) {
-    return true;
-  }
-  const contract = readJsonFile(contractPath);
-  const apps =
-    isRecord(contract) && Array.isArray(contract.apps) ? contract.apps : [];
-  const shell = apps.find(
-    (app: unknown): app is Record<string, JsonValue> =>
-      isRecord(app) && app.id === shellApp.id,
-  );
-  return shell?.styling && isRecord(shell.styling)
-    ? shell.styling.tailwind !== false
-    : true;
+  throw new Error(`Missing UltraModern workspace file: ${compactPath}`);
 }
 
 export function existingBridgeConfig(
@@ -354,7 +304,7 @@ export function rewriteShellAppFiles(
   );
   writeFileReplacing(
     workspaceRoot,
-    `${shellApp.directory}/src/effect/vertical-clients.ts`,
+    `${shellApp.directory}/src/api/vertical-clients.ts`,
     createShellEffectClient(scope, remotes),
   );
 }
@@ -455,21 +405,21 @@ export function verticalsFromTopology(
   return (topology.verticals ?? []).map((vertical: any) => {
     const domain = vertical.domain ?? String(vertical.id);
     const packageSuffix = vertical.package?.split('/').at(-1) ?? domain;
-    const effectApi = vertical.api?.effect
-      ? ({
-          stem:
-            typeof vertical.api.effect.basePath === 'string'
-              ? (vertical.api.effect.basePath
-                  .split('/')
-                  .filter(Boolean)
-                  .at(-1) ?? domain)
-              : domain,
-          prefix: vertical.api.effect.bff?.prefix ?? `/${domain}-api`,
-          consumedBy: Array.isArray(vertical.api.effect.consumedBy)
-            ? vertical.api.effect.consumedBy
-            : [shellApp.id, vertical.id],
-        } satisfies WorkspaceEffectApi)
-      : undefined;
+    const apiTopology = vertical.api;
+    const effectApi =
+      apiTopology?.runtime === 'effect'
+        ? ({
+            stem:
+              typeof apiTopology.basePath === 'string'
+                ? (apiTopology.basePath.split('/').filter(Boolean).at(-1) ??
+                  domain)
+                : domain,
+            prefix: apiTopology.bff?.prefix ?? `/${domain}-api`,
+            consumedBy: Array.isArray(apiTopology.consumedBy)
+              ? apiTopology.consumedBy
+              : [shellApp.id, vertical.id],
+          } satisfies WorkspaceEffectApi)
+        : undefined;
 
     return {
       id: vertical.id,
@@ -602,15 +552,7 @@ function readRequiredJsonObject(filePath: string): Record<string, any> {
 
 function readRequiredWorkspaceConfig(workspaceRoot: string) {
   const compactPath = path.join(workspaceRoot, ULTRAMODERN_CONFIG_PATH);
-  if (fs.existsSync(compactPath)) {
-    readRequiredJsonObject(compactPath);
-    return;
-  }
-
-  readRequiredJsonObject(path.join(workspaceRoot, GENERATED_CONTRACT_PATH));
-  readRequiredJsonObject(
-    path.join(workspaceRoot, PACKAGE_SOURCE_METADATA_PATH),
-  );
+  readRequiredJsonObject(compactPath);
 }
 
 function assertOptionalJsonObject(
@@ -655,14 +597,9 @@ function validateWorkspaceAppDescriptors(apps: WorkspaceApp[]) {
     }
     assertNonEmptyString(app.mfName, `Module Federation name for ${appLabel}`);
     if (app.effectApi) {
-      assertNonEmptyString(
-        app.effectApi.prefix,
-        `Effect API prefix for ${appLabel}`,
-      );
+      assertNonEmptyString(app.effectApi.prefix, `API prefix for ${appLabel}`);
       if (!app.effectApi.prefix.startsWith('/')) {
-        throw new Error(
-          `Effect API prefix for ${appLabel} must start with "/"`,
-        );
+        throw new Error(`API prefix for ${appLabel} must start with "/"`);
       }
     }
   }
@@ -676,7 +613,7 @@ function validateUniqueWorkspaceAppDescriptors(apps: WorkspaceApp[]) {
   );
   assertUniqueAppField(apps, 'Module Federation name', app => app.mfName);
   assertUniqueAppField(apps, 'development port', app => String(app.port));
-  assertUniqueAppField(apps, 'Effect API prefix', app => app.effectApi?.prefix);
+  assertUniqueAppField(apps, 'API prefix', app => app.effectApi?.prefix);
   assertUniqueAppField(apps, 'manifest environment name', app =>
     app.kind === 'vertical' ? createRemoteManifestEnv(app) : undefined,
   );
@@ -804,7 +741,7 @@ function createDryRunJsonMutations(
         {
           path: DEVELOPMENT_OVERLAY_PATH,
           pointer: `/apis/${vertical.id}`,
-          description: `Add local Effect API URL for ${vertical.id}`,
+          description: `Add local API URL for ${vertical.id}`,
           value: `http://localhost:${vertical.port}${effectApiPrefix(vertical)}`,
         },
       ]

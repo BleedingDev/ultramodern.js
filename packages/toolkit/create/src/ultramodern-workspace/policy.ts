@@ -33,7 +33,7 @@ export function createCloudflareProofRoute(app: WorkspaceApp): JsonValue {
     locale: `/locales/en/${appI18nNamespace(app)}.json`,
     ...(appHasEffectApi(app)
       ? {
-          effectReadiness: `${effectApiPrefix(app)}/effect/${effectApiStem(
+          apiReadiness: `${effectApiPrefix(app)}/${effectApiStem(
             app,
           )}/readiness`,
         }

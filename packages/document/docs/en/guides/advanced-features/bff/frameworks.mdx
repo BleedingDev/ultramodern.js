@@ -7,7 +7,7 @@ title: Runtime Framework
 
 Modern.js supports two BFF runtime frameworks:
 
-- `effect` (default): use [Effect HttpApi](https://effect.website/) runtime from `api/effect/index`.
+- `effect` (default): use [Effect HttpApi](https://effect.website/) runtime from `api/index`.
 - `hono`: use file-convention BFF handlers from `api/lambda/**`.
 
 `effect` and `hono` are strict runtime modes. There is no automatic fallback between them.
@@ -23,6 +23,8 @@ export default defineConfig({
   bff: {
     runtimeFramework: 'effect',
     effect: {
+      entry: './api/index',
+      strictEffectApproach: true,
       openapi: {
         path: '/openapi.json',
       },
@@ -33,7 +35,7 @@ export default defineConfig({
 
 Define a shared Effect HttpApi contract (for type-safe client + server):
 
-```ts title="shared/effect/api.ts"
+```ts title="shared/api.ts"
 import {
   HttpApi,
   HttpApiEndpoint,
@@ -41,18 +43,18 @@ import {
   Schema,
 } from '@modern-js/plugin-bff/effect-client';
 
-export const bffEffectApi = HttpApi.make('MyApi').add(
+export const bffApi = HttpApi.make('MyApi').add(
   HttpApiGroup.make('hello').add(
-    HttpApiEndpoint.get('ping', '/effect/ping', {
+    HttpApiEndpoint.get('ping', '/ping', {
       success: Schema.String,
     }),
   ),
 );
 ```
 
-Implement your Effect BFF entry at `api/effect/index.ts`:
+Implement your Effect API entry at `api/index.ts`:
 
-```ts title="api/effect/index.ts"
+```ts title="api/index.ts"
 import {
   Schema,
   Effect,
@@ -61,7 +63,7 @@ import {
   Layer,
   ServiceMap,
 } from '@modern-js/plugin-bff/effect-server';
-import { bffEffectApi } from '../../shared/effect/api';
+import { bffApi } from '../shared/api';
 
 class GreetingUnavailableError extends Schema.TaggedError<GreetingUnavailableError>()(
   'GreetingUnavailableError',
@@ -87,7 +89,7 @@ class GreetingService extends ServiceMap.Service<GreetingService>()('GreetingSer
   static readonly layer = Layer.effect(this, this.make);
 }
 
-const group = HttpApiBuilder.group(bffEffectApi, 'hello', handlers =>
+const group = HttpApiBuilder.group(bffApi, 'hello', handlers =>
   handlers.handle('ping', () =>
     GreetingService.use(service => service.hello()).pipe(
       Effect.catchTag('GreetingUnavailableError', error =>
@@ -97,23 +99,23 @@ const group = HttpApiBuilder.group(bffEffectApi, 'hello', handlers =>
   ),
 );
 
-const layer = HttpApiBuilder.layer(bffEffectApi).pipe(
+const layer = HttpApiBuilder.layer(bffApi).pipe(
   Layer.provide(group),
   Layer.provide(GreetingService.layer),
 );
 
-export default defineEffectBff({ api: bffEffectApi, layer });
+export default defineEffectBff({ api: bffApi, layer });
 ```
 
-Call Effect endpoints from browser code via `@api/effect/index`:
+Call Effect endpoints from browser code via `@api/index`:
 
 ```ts title="src/routes/page.tsx"
-import effectBff from '@api/effect/index';
+import api from '@api/index';
 
-const response = await effectBff.client.hello.ping({});
+const response = await api.client.hello.ping({});
 ```
 
-The `effectBff.client.*` surface is materialized by the BFF loader for `@api/effect/*` imports. Do not import `api/effect/index` directly and expect `client` to run in server code, scripts, or tests; direct entry imports expose the server runtime definition, and `client` is only a typed placeholder there.
+The `api.client.*` surface is materialized by the BFF loader for `@api/index` imports. Do not import `api/index` directly and expect `client` to run in server code, scripts, or tests; direct entry imports expose the server runtime definition, and `client` is only a typed placeholder there.
 
 import Hono from '@site-docs-en/components/hono';
 

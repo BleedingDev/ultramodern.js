@@ -16,11 +16,11 @@ const expectedCloudflareDeployScript = {{expectedCloudflareDeployScriptJson}};
 const expectedCloudflareSecurity = {{expectedCloudflareSecurityJson}};
 const publicSurfaceManagedSourceAssetPaths = {{publicSurfaceManagedSourceAssetPathsJson}};
 const compactConfigPath = '.modernjs/ultramodern.json';
-const legacyGeneratedContractPath =
-  '.modernjs/ultramodern-generated-contract.json';
-const legacyPackageSourcePath = '.modernjs/ultramodern-package-source.json';
-const legacyTemplateManifestPath =
-  '.modernjs/ultramodern-workspace-template-manifest.json';
+const retiredMetadataPaths = [
+  '.modernjs/ultramodern-generated-contract.json',
+  '.modernjs/ultramodern-package-source.json',
+  '.modernjs/ultramodern-workspace-template-manifest.json',
+];
 const modernPackageCohort = [
   '@modern-js/create',
   '@modern-js/code-tools',
@@ -86,11 +86,7 @@ const assertArray = (value, contract, fixArea) => {
 };
 const findById = (entries, id) =>
   Array.isArray(entries) ? entries.find(entry => entry?.id === id) : undefined;
-const exists = relativePath => fs.existsSync(path.join(root, relativePath));
-const hasCompactConfig = exists(compactConfigPath);
-const generatedContractLabel = hasCompactConfig
-  ? compactConfigPath
-  : legacyGeneratedContractPath;
+const generatedContractLabel = compactConfigPath;
 const toKebabCase = value =>
   String(value)
     .trim()
@@ -115,10 +111,25 @@ const packageNameFor = (scope, suffix) => `@${scope}/${suffix}`;
 const normalizeRelativePath = value =>
   String(value ?? '').replace(/\\/gu, '/').replace(/^\.\/+/u, '');
 const appNamespace = app => (app.kind === 'shell' ? 'shell' : (app.domain ?? app.id));
+const tailwindPrefixDigitWords = [
+  'zero',
+  'one',
+  'two',
+  'three',
+  'four',
+  'five',
+  'six',
+  'seven',
+  'eight',
+  'nine',
+];
 const tailwindPrefixFor = app =>
   app.kind === 'shell'
     ? 'shell'
-    : String(app.domain ?? app.id).toLowerCase().replace(/[^a-z0-9]/gu, '');
+    : String(app.domain ?? app.id)
+        .toLowerCase()
+        .replace(/[^a-z0-9]/gu, '')
+        .replace(/[0-9]/gu, digit => tailwindPrefixDigitWords[Number(digit)]);
 const buildMarkerFor = app =>
   crypto
     .createHash('sha256')
@@ -385,7 +396,7 @@ const createCloudflareRoutes = app => ({
   locale: `/locales/en/${appNamespace(app)}.json`,
   ...(app.effectApi
     ? {
-        effectReadiness: `${app.effectApi.prefix}/effect/${app.effectApi.stem}/readiness`,
+        apiReadiness: `${app.effectApi.prefix}/${app.effectApi.stem}/readiness`,
       }
     : {}),
 });
@@ -406,13 +417,13 @@ const createCloudflareDeploy = app => ({
   },
 });
 const createEffectReadiness = app => ({
-  endpoint: `/effect/${app.effectApi.stem}/readiness`,
+  endpoint: `/${app.effectApi.stem}/readiness`,
   marker: {
     ui: 'ultramodernUiMarker',
     api: 'ultramodernApiMarker',
     skew: 'none',
   },
-  checks: ['moduleFederation', 'ssr', 'translations', 'effectBff'],
+  checks: ['moduleFederation', 'ssr', 'translations', 'api'],
 });
 const createEffectRequestContext = () => ({
   propagatedHeaders: [
@@ -424,12 +435,12 @@ const createEffectRequestContext = () => ({
     'x-ultramodern-env',
     'x-vertical-version-id',
   ],
-  source: 'shell-to-vertical-effect-client',
+  source: 'shell-to-vertical-api-client',
 });
 const createEffectDomainOperations = app => {
   const stem = app.effectApi.stem;
   const group = toCamelCase(stem);
-  const basePath = `/effect/${stem}`;
+  const basePath = `/${stem}`;
   return {
     workspaceFeed: {
       client: `list${toPascalCase(stem)}`,
@@ -459,7 +470,7 @@ const createEffectOperationContract = app => ({
   operations: {
     readiness: {
       method: 'GET',
-      path: `/effect/${app.effectApi.stem}/readiness`,
+      path: `/${app.effectApi.stem}/readiness`,
       source: 'generated-client',
     },
   },
@@ -627,18 +638,19 @@ const createAppContract = (app, apps) => ({
     build: buildMarkerFor(app),
     deployProfile: 'cloudflare-ssr-mf-effect-v1',
     uiSurface: 'ui',
-    ...(app.effectApi ? { apiSurface: 'effect-bff' } : {}),
+    ...(app.effectApi ? { apiSurface: 'api' } : {}),
   },
   ...(app.effectApi
     ? {
-        effect: {
+        api: {
           runtime: 'effect',
           import: '@modern-js/plugin-bff/effect-edge',
           prefix: app.effectApi.prefix,
           openapi: '/openapi.json',
+          strictEffectApproach: true,
           workerEntry: 'worker/__modern_bff_effect.js',
-          contract: './shared/effect/api',
-          client: './effect/client',
+          contract: './api',
+          client: './api/client',
           readiness: createEffectReadiness(app),
           requestContext: createEffectRequestContext(),
           domainOperations: createEffectDomainOperations(app),
@@ -751,16 +763,10 @@ const synthesizeGeneratedContractFromCompact = config => {
   };
 };
 const readPackageSourceView = config => {
-  if (config) {
-    return synthesizePackageSourceFromCompact(config);
-  }
-  return readJson(legacyPackageSourcePath);
+  return synthesizePackageSourceFromCompact(config);
 };
 const readGeneratedContractView = config => {
-  if (config) {
-    return synthesizeGeneratedContractFromCompact(config);
-  }
-  return readJson(legacyGeneratedContractPath);
+  return synthesizeGeneratedContractFromCompact(config);
 };
 const expectedManifestUrl = vertical =>
   `http://localhost:${vertical.port}/mf-manifest.json`;
@@ -787,9 +793,9 @@ const requiredMicroVerticalPaths = vertical => [
   `${vertical.path}/tsconfig.mf-types.json`,
   `${vertical.path}/modern.config.ts`,
   `${vertical.path}/module-federation.config.ts`,
-  `${vertical.path}/api/effect/index.ts`,
-  `${vertical.path}/shared/effect/api.ts`,
-  `${vertical.path}/src/effect/${vertical.stem}-client.ts`,
+  `${vertical.path}/api/index.ts`,
+  `${vertical.path}/shared/api.ts`,
+  `${vertical.path}/src/api/${vertical.stem}-client.ts`,
   `${vertical.path}/src/modern-app-env.d.ts`,
   `${vertical.path}/src/modern.runtime.ts`,
   `${vertical.path}/src/federation-entry.tsx`,
@@ -865,7 +871,7 @@ const assertMicroVerticalContractGraph = ({
   assertObject(
     overlay.apis,
     'topology/local-overlays/development.json apis',
-    'restore generated local Effect API overlays',
+    'restore generated local API overlays',
   );
   assertArray(
     generatedContract.apps,
@@ -958,9 +964,9 @@ const assertMicroVerticalContractGraph = ({
             remoteContractSubset,
           ),
         },
-        effect: {
-          prefix: topologyEntry.api?.effect?.bff?.prefix,
-          serverEntry: topologyEntry.api?.effect?.serverEntry,
+        api: {
+          prefix: topologyEntry.api?.bff?.prefix,
+          serverEntry: topologyEntry.api?.serverEntry,
         },
       },
       {
@@ -974,9 +980,9 @@ const assertMicroVerticalContractGraph = ({
           verticalRefs: expectedRefs,
           remotes: expectedRemoteSubsetsForRefs(expectedRefs),
         },
-        effect: {
+        api: {
           prefix: vertical.apiPrefix,
-          serverEntry: `${vertical.path}/api/effect/index.ts`,
+          serverEntry: `${vertical.path}/api/index.ts`,
         },
       },
       `topology/reference-topology.json verticals.${vertical.id}`,
@@ -1017,14 +1023,14 @@ const assertMicroVerticalContractGraph = ({
       overlay.apis[vertical.id],
       expectedApiUrl(vertical),
       `topology/local-overlays/development.json apis.${vertical.id}`,
-      'restore generated local Effect API overlay',
+      'restore generated local API overlay',
     );
 
     assertSameJson(
       shellPackage.dependencies?.[vertical.packageName],
       'workspace:*',
       `apps/shell-super-app/package.json dependencies.${vertical.packageName}`,
-      'restore shell dependency for the MicroVertical Effect API consumer',
+      'restore shell dependency for the MicroVertical API consumer',
     );
     assertSameJson(
       shellPackage['zephyr:dependencies']?.[vertical.zephyrAlias],
@@ -1051,10 +1057,10 @@ const assertMicroVerticalContractGraph = ({
             remoteContractSubset,
           ),
         },
-        effect: {
-          prefix: contractEntry.effect?.prefix,
-          contract: contractEntry.effect?.contract,
-          client: contractEntry.effect?.client,
+        api: {
+          prefix: contractEntry.api?.prefix,
+          contract: contractEntry.api?.contract,
+          client: contractEntry.api?.client,
         },
         ssr: contractEntry.ssr,
       },
@@ -1068,10 +1074,10 @@ const assertMicroVerticalContractGraph = ({
           verticalRefs: expectedRefs,
           remotes: expectedRemoteSubsetsForRefs(expectedRefs),
         },
-        effect: {
+        api: {
           prefix: vertical.apiPrefix,
-          contract: './shared/effect/api',
-          client: './effect/client',
+          contract: './api',
+          client: './api/client',
         },
         ssr: {
           mode: 'string',
@@ -1470,6 +1476,7 @@ const requiredPaths = [
   'topology/local-overlays/development.json',
   'scripts/assert-mf-types.mjs',
   'scripts/bootstrap-agent-skills.mjs',
+  'scripts/check-ultramodern-api-boundaries.mjs',
   'scripts/check-ultramodern-i18n-boundaries.mjs',
   'scripts/generate-public-surface-assets.mjs',
   'scripts/proof-cloudflare-version.mjs',
@@ -1485,7 +1492,7 @@ const requiredPaths = [
   'apps/shell-super-app/module-federation.config.ts',
   'apps/shell-super-app/src/modern-app-env.d.ts',
   'apps/shell-super-app/src/modern.runtime.ts',
-  'apps/shell-super-app/src/effect/vertical-clients.ts',
+  'apps/shell-super-app/src/api/vertical-clients.ts',
   'apps/shell-super-app/locales/en/translation.json',
   `apps/shell-super-app/locales/en/${shellNamespace}.json`,
   'apps/shell-super-app/locales/cs/translation.json',
@@ -1520,15 +1527,7 @@ if (tailwindEnabled) {
   );
 }
 
-if (hasCompactConfig) {
-  requiredPaths.push(compactConfigPath);
-} else {
-  requiredPaths.push(
-    legacyTemplateManifestPath,
-    legacyPackageSourcePath,
-    legacyGeneratedContractPath,
-  );
-}
+requiredPaths.push(compactConfigPath);
 
 for (const vertical of fullStackVerticals) {
   requiredMicroVerticalPaths(vertical).forEach(
@@ -1541,17 +1540,11 @@ for (const requiredPath of requiredPaths) {
 for (const oldRemotePath of oldRemotePaths) {
   assertNotExists(oldRemotePath);
 }
-if (hasCompactConfig) {
-  for (const retiredMetadataPath of [
-    legacyTemplateManifestPath,
-    legacyPackageSourcePath,
-    legacyGeneratedContractPath,
-  ]) {
-    assertNotExists(retiredMetadataPath);
-  }
+for (const retiredMetadataPath of retiredMetadataPaths) {
+  assertNotExists(retiredMetadataPath);
 }
 const rootPackage = readJson('package.json');
-const ultramodernConfig = hasCompactConfig ? readJson(compactConfigPath) : undefined;
+const ultramodernConfig = readJson(compactConfigPath);
 const bridgeConfig =
   ultramodernConfig?.bridge?.enabled === true ? ultramodernConfig.bridge : undefined;
 const packageSource = readPackageSourceView(ultramodernConfig);
@@ -1595,11 +1588,8 @@ assert(
 assert(!workflowText.includes('FORCE_JAVASCRIPT_ACTIONS_TO_NODE24'), 'CI workflow must not carry the legacy Node 24 override');
 assert(rootPackage.modernjs?.preset === 'presetUltramodern', 'Root must declare presetUltramodern');
 assert(
-  rootPackage.modernjs?.packageSource?.config ===
-    (hasCompactConfig ? './.modernjs/ultramodern.json' : './.modernjs/ultramodern-package-source.json'),
-  hasCompactConfig
-    ? 'Root must point at compact UltraModern config'
-    : 'Root must point at package source metadata',
+  rootPackage.modernjs?.packageSource?.config === './.modernjs/ultramodern.json',
+  'Root must point at compact UltraModern config',
 );
 assert(rootPackage.modernjs?.packageSource?.strategy === packageSource.strategy, 'Root package source strategy must match metadata');
 assert(packageSource.strategy === 'workspace' || packageSource.strategy === 'install', 'Package source strategy must be workspace or install');
@@ -1677,12 +1667,15 @@ if (bridgeConfig) {
   assert(rootPackage.scripts?.typecheck === 'node ./scripts/ultramodern-typecheck.mjs --build tsconfig.json', 'Root typecheck must run TS-Go build mode across project references');
 }
 assert(rootPackage.scripts?.['contract:check'] === 'node ./scripts/validate-ultramodern-workspace.mjs', 'Root must expose contract:check');
+assert(rootPackage.scripts?.['api:check'] === 'node ./scripts/check-ultramodern-api-boundaries.mjs', 'Root must expose api:check');
 assert(rootPackage.scripts?.['i18n:boundaries'] === 'node ./scripts/check-ultramodern-i18n-boundaries.mjs', 'Root must expose i18n:boundaries');
 assert(rootPackage.scripts?.['performance:readiness'] === 'node ./scripts/ultramodern-performance-readiness.mjs', 'Root must expose default-on performance readiness diagnostics');
 assert(
   bridgeConfig
-    ? rootPackage.scripts?.check?.endsWith('&& pnpm performance:readiness && pnpm bridge:check')
-    : rootPackage.scripts?.check?.endsWith('&& pnpm performance:readiness'),
+    ? rootPackage.scripts?.check?.includes('pnpm api:check') &&
+        rootPackage.scripts.check.endsWith('&& pnpm performance:readiness && pnpm bridge:check')
+    : rootPackage.scripts?.check?.includes('pnpm api:check') &&
+        rootPackage.scripts.check.endsWith('&& pnpm performance:readiness'),
   'Root check must run default-on performance readiness diagnostics and bridge gates when configured',
 );
 const performanceReadinessConfig = readText('scripts/ultramodern-performance-readiness.config.mjs');
@@ -1858,8 +1851,8 @@ for (const vertical of fullStackVerticals) {
   assert(packageJson.dependencies?.['@modern-js/plugin-i18n'] === expectedModernPackageSpecifier('@modern-js/plugin-i18n'), `${vertical.id} plugin-i18n dependency must match package source metadata`);
   assert(packageJson.dependencies?.['@modern-js/plugin-tanstack'] === expectedModernPackageSpecifier('@modern-js/plugin-tanstack'), `${vertical.id} plugin-tanstack dependency must match package source metadata`);
   assert(packageJson.dependencies?.['@modern-js/runtime'] === expectedModernPackageSpecifier('@modern-js/runtime'), `${vertical.id} runtime dependency must match package source metadata`);
-  assert(packageJson.exports?.['./effect/client'] === `./src/effect/${vertical.stem}-client.ts`, `${vertical.id} must export its Effect client`);
-  assert(packageJson.exports?.['./shared/effect/api'] === './shared/effect/api.ts', `${vertical.id} must export its Effect API contract`);
+  assert(packageJson.exports?.['./api/client'] === `./src/api/${vertical.stem}-client.ts`, `${vertical.id} must export its API client`);
+  assert(packageJson.exports?.['./api'] === './shared/api.ts', `${vertical.id} must export its API contract`);
   const expectedVerticalZephyrDependencies = Object.fromEntries(
     fullStackVerticals
       .filter(candidate => vertical.verticalRefs.includes(candidate.id))
@@ -1906,7 +1899,7 @@ for (const vertical of fullStackVerticals) {
   assert(contractEntry?.config?.performance?.readinessDiagnostics?.default === 'enabled', `${vertical.id} performance readiness diagnostics must be default-on`);
   assert(contractEntry?.config?.performance?.readinessDiagnostics?.failOn === 'framework-invariant', `${vertical.id} performance readiness diagnostics must only fail framework invariants by default`);
   assert(contractEntry?.config?.performance?.readinessDiagnostics?.optOut?.config === 'scripts/ultramodern-performance-readiness.config.mjs', `${vertical.id} performance readiness opt-out config is incorrect`);
-  assert(contractEntry?.deploy?.cloudflare?.routes?.effectReadiness === `${vertical.apiPrefix}/effect/${vertical.stem}/readiness`, `${vertical.id} Cloudflare proof readiness route is incorrect`);
+  assert(contractEntry?.deploy?.cloudflare?.routes?.apiReadiness === `${vertical.apiPrefix}/${vertical.stem}/readiness`, `${vertical.id} Cloudflare proof readiness route is incorrect`);
   assert(contractEntry?.config?.rspack?.output?.uniqueName === vertical.mfName, `${vertical.id} Rspack uniqueName is incorrect`);
   assert(contractEntry?.config?.rspack?.output?.chunkLoadingGlobal === expectedChunkLoadingGlobal(vertical.mfName), `${vertical.id} Rspack chunkLoadingGlobal is incorrect`);
   assert(contractEntry?.moduleFederation?.name === vertical.mfName, `${vertical.id} MF name is incorrect`);
@@ -1920,12 +1913,14 @@ for (const vertical of fullStackVerticals) {
       JSON.stringify(vertical.verticalRefs),
     `${vertical.id} MF consumed verticals are incorrect`,
   );
-  assert(contractEntry?.effect?.prefix === vertical.apiPrefix, `${vertical.id} Effect API prefix is incorrect`);
-  assert(contractEntry?.effect?.group === vertical.group, `${vertical.id} Effect group is incorrect`);
-  assert(contractEntry?.effect?.readiness?.endpoint === `/effect/${vertical.stem}/readiness`, `${vertical.id} readiness endpoint is incorrect`);
-  assert(contractEntry?.effect?.operations?.readiness?.path === `/effect/${vertical.stem}/readiness`, `${vertical.id} readiness operation is missing`);
-  assert(contractEntry?.effect?.requestContext?.propagatedHeaders?.includes('traceparent'), `${vertical.id} trace context propagation is missing`);
-  assert(Object.keys(contractEntry?.effect?.domainOperations ?? {}).length >= 3, `${vertical.id} domain operations are missing`);
+  assert(contractEntry?.api?.prefix === vertical.apiPrefix, `${vertical.id} API prefix is incorrect`);
+  assert(contractEntry?.api?.group === vertical.group, `${vertical.id} API group is incorrect`);
+  assert(contractEntry?.api?.runtime === 'effect', `${vertical.id} API runtime must be Effect`);
+  assert(contractEntry?.api?.strictEffectApproach === true, `${vertical.id} strictEffectApproach must be enabled`);
+  assert(contractEntry?.api?.readiness?.endpoint === `/${vertical.stem}/readiness`, `${vertical.id} readiness endpoint is incorrect`);
+  assert(contractEntry?.api?.operations?.readiness?.path === `/${vertical.stem}/readiness`, `${vertical.id} readiness operation is missing`);
+  assert(contractEntry?.api?.requestContext?.propagatedHeaders?.includes('traceparent'), `${vertical.id} trace context propagation is missing`);
+  assert(Object.keys(contractEntry?.api?.domainOperations ?? {}).length >= 3, `${vertical.id} domain operations are missing`);
   assert(contractEntry?.i18n?.languages?.includes('en') && contractEntry?.i18n?.languages?.includes('cs'), `${vertical.id} must declare i18n languages`);
   assert(contractEntry?.i18n?.namespace === vertical.namespace, `${vertical.id} i18n namespace is incorrect`);
   assert(
@@ -1964,10 +1959,11 @@ for (const vertical of fullStackVerticals) {
   assert(topologyEntry?.moduleFederation?.name === vertical.mfName, `${vertical.id} topology MF name is incorrect`);
   assert(JSON.stringify(topologyEntry?.moduleFederation?.exposes) === JSON.stringify(vertical.exposes), `${vertical.id} topology exposes are incorrect`);
   assert(JSON.stringify(topologyEntry?.moduleFederation?.verticalRefs ?? []) === JSON.stringify(vertical.verticalRefs), `${vertical.id} topology verticalRefs are incorrect`);
-  assert(topologyEntry?.api?.effect?.bff?.prefix === vertical.apiPrefix, `${vertical.id} topology API prefix is incorrect`);
-  assert(topologyEntry?.api?.effect?.serverEntry === `${vertical.path}/api/effect/index.ts`, `${vertical.id} topology server entry is incorrect`);
-  assert(topologyEntry?.api?.effect?.readiness?.endpoint === `/effect/${vertical.stem}/readiness`, `${vertical.id} topology readiness endpoint is incorrect`);
-  assert(Object.keys(topologyEntry?.api?.effect?.domainOperations ?? {}).length >= 3, `${vertical.id} topology domain operations are missing`);
+  assert(topologyEntry?.api?.bff?.prefix === vertical.apiPrefix, `${vertical.id} topology API prefix is incorrect`);
+  assert(topologyEntry?.api?.bff?.strictEffectApproach === true, `${vertical.id} topology strictEffectApproach is incorrect`);
+  assert(topologyEntry?.api?.serverEntry === `${vertical.path}/api/index.ts`, `${vertical.id} topology server entry is incorrect`);
+  assert(topologyEntry?.api?.readiness?.endpoint === `/${vertical.stem}/readiness`, `${vertical.id} topology readiness endpoint is incorrect`);
+  assert(Object.keys(topologyEntry?.api?.domainOperations ?? {}).length >= 3, `${vertical.id} topology domain operations are missing`);
 
   assert(ownership.owners?.some(owner => owner.id === vertical.id && owner.path === vertical.path), `${vertical.id} ownership entry is missing`);
   assert(overlay.ports?.[vertical.id], `${vertical.id} development port is missing`);

@@ -36,28 +36,15 @@ export type EffectApiModule = {
 export type LoadedEffectBffHandler = {
   handler: EffectBffRequestHandler;
   dispose?: () => Promise<void>;
-  /**
-   * True when the handler is known to apply `validateRequest` internally
-   * (including per batched item): `{ api, layer }` modules resolved through
-   * `createHttpApiHandler`, and `createHandler` factories branded by
-   * `defineEffectBff` (see `EFFECT_VALIDATOR_AWARE_FACTORY`). Plain
-   * `handler` exports and unbranded custom factories leave this unset; the
-   * adapter middleware must enforce the policy itself for those.
-   */
-  appliesRequestValidator?: boolean;
 };
 
 export type ResolveEffectBffModuleHandlerOptions = {
   openapi?: EffectBffOpenApiConfig;
   dataPlatform?: EffectDataPlatformValidationOptions;
   /**
-   * Server-seam request validator (cross-project policy). Applied by
-   * `createHttpApiHandler` to direct, batched and rpc requests.
-   *
-   * Note: plain `handler` exports and unbranded custom `createHandler`
-   * factories bypass this seam — the effect adapter enforces the policy in
-   * its middleware for those shapes instead (see
-   * `LoadedEffectBffHandler.appliesRequestValidator`).
+   * Server-seam request validator (cross-project policy). Strict Effect
+   * entries forward it into `createHttpApiHandler`, where it applies to
+   * direct, batched and rpc requests.
    */
   validateRequest?: EffectRequestValidator;
   onWarning?: (message: string) => void;
@@ -101,6 +88,17 @@ function isEffectServiceContext(
 const emptyEffectServiceContext =
   Context.empty() as EffectServiceContext.Context<any>;
 
+const strictEffectApproachMessage =
+  '[BFF][Effect] strictEffectApproach is enforced: Effect API entries must export defineEffectBff(...) or a { api, layer } HttpApi module. Raw handler exports, default request handlers, and unbranded custom createHandler factories are not valid Effect API entries.';
+
+function rejectLegacyEffectModuleShape(
+  options: ResolveEffectBffModuleHandlerOptions,
+  shape: string,
+) {
+  options.onWarning?.(`${strictEffectApproachMessage} Rejected ${shape}.`);
+  return true;
+}
+
 function callEffectBffRequestHandler(
   handler: EffectBffRequestHandler,
   request: Request,
@@ -109,18 +107,14 @@ function callEffectBffRequestHandler(
   return context === undefined ? handler(request) : handler(request, context);
 }
 
-function createLoadedHandler(
-  webHandler: {
-    handler: EffectBffRequestHandler;
-    dispose: () => Promise<void>;
-  },
-  appliesRequestValidator: boolean,
-): LoadedEffectBffHandler {
+function createLoadedHandler(webHandler: {
+  handler: EffectBffRequestHandler;
+  dispose: () => Promise<void>;
+}): LoadedEffectBffHandler {
   return {
     handler: (request, context) =>
       callEffectBffRequestHandler(webHandler.handler, request, context),
     dispose: webHandler.dispose,
-    ...(appliesRequestValidator ? { appliesRequestValidator: true } : {}),
   };
 }
 
@@ -135,7 +129,6 @@ function createLoadedHttpApiHandler(
       return webHandler.handler(request, effectContext);
     },
     dispose: webHandler.dispose,
-    appliesRequestValidator: true,
   };
 }
 
@@ -144,6 +137,9 @@ function resolveNormalizedEffectBffModuleHandler(
   options: ResolveEffectBffModuleHandlerOptions = {},
 ): LoadedEffectBffHandler | null {
   if (isRequestHandler(normalizedModule.handler)) {
+    if (rejectLegacyEffectModuleShape(options, '`handler` export')) {
+      return null;
+    }
     return {
       handler: normalizedModule.handler,
     };
@@ -151,6 +147,9 @@ function resolveNormalizedEffectBffModuleHandler(
 
   const entry = normalizedModule.default;
   if (isRequestHandler(entry)) {
+    if (rejectLegacyEffectModuleShape(options, 'default request handler')) {
+      return null;
+    }
     return {
       handler: entry,
     };
@@ -174,6 +173,9 @@ function resolveNormalizedEffectBffModuleHandler(
   }
 
   if (isRequestHandler(normalizedModule.handler)) {
+    if (rejectLegacyEffectModuleShape(options, '`handler` export')) {
+      return null;
+    }
     return {
       handler: normalizedModule.handler,
     };
@@ -183,21 +185,21 @@ function resolveNormalizedEffectBffModuleHandler(
     const factory = normalizedModule.createHandler;
     // Only `defineEffectBff`-branded factories are guaranteed to forward
     // `validateRequest` into `createHttpApiHandler`. A hand-written factory
-    // matching the same shape may ignore it, so treat it like a plain
-    // `handler` export: the adapter middleware enforces the policy on the
-    // outer request instead of silently skipping enforcement.
+    // matching the same shape may ignore it, so reject it like a plain
+    // `handler` export.
     const validatorAware = isValidatorAwareHandlerFactory(factory);
-    if (!validatorAware && options.validateRequest !== undefined) {
-      options.onWarning?.(
-        '[BFF][Effect] Custom createHandler export detected: it cannot be verified to apply validateRequest (cross-project policy), so the policy is enforced by the adapter middleware on the outer request. Batched calls will be denied at the batch POST (it carries no per-operation contract); export defineEffectBff(...) to get per-batch-item enforcement.',
-      );
+    if (
+      !validatorAware &&
+      rejectLegacyEffectModuleShape(options, 'unbranded `createHandler` export')
+    ) {
+      return null;
     }
     const webHandler = factory({
       openapi: options.openapi,
       dataPlatform: options.dataPlatform,
       validateRequest: options.validateRequest,
     });
-    return createLoadedHandler(webHandler, validatorAware);
+    return createLoadedHandler(webHandler);
   }
 
   if (isEffectApiDefinition(normalizedModule)) {
@@ -233,6 +235,9 @@ export function resolveEffectBffModuleHandler(
   };
 
   if (isRequestHandler(normalizedModule.handler)) {
+    if (rejectLegacyEffectModuleShape(options, '`handler` export')) {
+      return Promise.resolve(null);
+    }
     return Promise.resolve({
       handler: normalizedModule.handler,
     });
@@ -240,6 +245,9 @@ export function resolveEffectBffModuleHandler(
 
   const entry = normalizedModule.default;
   if (isRequestHandler(entry)) {
+    if (rejectLegacyEffectModuleShape(options, 'default request handler')) {
+      return Promise.resolve(null);
+    }
     return Promise.resolve({
       handler: entry,
     });
@@ -249,6 +257,14 @@ export function resolveEffectBffModuleHandler(
     return Promise.resolve((entry as () => unknown | Promise<unknown>)()).then(
       out => {
         if (isRequestHandler(out)) {
+          if (
+            rejectLegacyEffectModuleShape(
+              options,
+              'default factory returning a request handler',
+            )
+          ) {
+            return null;
+          }
           return {
             handler: out,
           };

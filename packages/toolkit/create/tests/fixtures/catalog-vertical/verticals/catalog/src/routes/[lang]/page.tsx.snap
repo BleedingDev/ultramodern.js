@@ -1,13 +1,13 @@
 import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
 import { Link } from '@modern-js/plugin-tanstack/runtime';
 import { useEffect, useState } from 'react';
-import { Effect, listCatalog, runEffectRequest } from '../../effect/catalog-client';
+import { Effect, listCatalog, runEffectRequest } from '../../api/catalog-client';
 import { UltramodernRouteHead } from '../ultramodern-route-head';
 import { ultramodernUiMarker } from '../../ultramodern-build';
 
 export default function CatalogHome() {
   const { language, supportedLanguages, t } = useModernI18n();
-  const [effectApiStatus, setEffectApiStatus] = useState('pending');
+  const [apiStatus, setApiStatus] = useState('pending');
 
   useEffect(() => {
     let cancelled = false;
@@ -18,13 +18,13 @@ export default function CatalogHome() {
             if (cancelled) {
               return;
             }
-            setEffectApiStatus('unavailable');
+            setApiStatus('unavailable');
           },
           onSuccess: (data) => {
             if (cancelled) {
               return;
             }
-            setEffectApiStatus(data.items.at(0)?.title ?? 'empty');
+            setApiStatus(data.items.at(0)?.title ?? 'empty');
           },
         }),
       ),
@@ -65,7 +65,7 @@ export default function CatalogHome() {
       >
         {ultramodernUiMarker.appId}:{ultramodernUiMarker.version}
       </p>
-      <p data-testid="effect-bff-status">{effectApiStatus}</p>
+      <p data-testid="api-status">{apiStatus}</p>
     </main>
   );
 }

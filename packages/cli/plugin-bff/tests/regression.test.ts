@@ -88,8 +88,8 @@ describe('plugin-bff regressions', () => {
 
     const context = {
       req: {
-        raw: new Request('http://localhost/api/effect/hello'),
-        path: '/api/effect/hello',
+        raw: new Request('http://localhost/api/hello'),
+        path: '/api/hello',
         method: 'GET',
       },
       env: {},
@@ -100,7 +100,7 @@ describe('plugin-bff regressions', () => {
       async () => {},
     )) as Response | undefined;
 
-    expect(seenPath).toBe('/effect/hello');
+    expect(seenPath).toBe('/hello');
     expect(response).toBeInstanceOf(Response);
     expect(response?.status).toBe(200);
   });
@@ -159,8 +159,8 @@ describe('plugin-bff regressions', () => {
     const response = (await middleware.handler(
       {
         req: {
-          raw: new Request('http://localhost/api/effect/maintenance'),
-          path: '/api/effect/maintenance',
+          raw: new Request('http://localhost/api/maintenance'),
+          path: '/api/maintenance',
           method: 'GET',
         },
         env: {},
@@ -191,25 +191,25 @@ describe('plugin-bff regressions', () => {
       surface: 'dev mounted web middleware',
       prefix: '/api',
       enableHandleWeb: true,
-      url: 'http://shell.local/api/effect/whoami',
-      contextPath: '/api/effect/whoami',
-      servicePath: '/effect/whoami',
+      url: 'http://shell.local/api/whoami',
+      contextPath: '/api/whoami',
+      servicePath: '/whoami',
     },
     {
       surface: 'build mounted API middleware',
       prefix: '/api',
       enableHandleWeb: false,
-      url: 'http://shell.local/api/effect/whoami',
-      contextPath: '/api/effect/whoami',
-      servicePath: '/effect/whoami',
+      url: 'http://shell.local/api/whoami',
+      contextPath: '/api/whoami',
+      servicePath: '/whoami',
     },
     {
       surface: 'serve root middleware',
       prefix: '/',
       enableHandleWeb: false,
-      url: 'http://remote.local/effect/whoami',
-      contextPath: '/effect/whoami',
-      servicePath: '/effect/whoami',
+      url: 'http://remote.local/whoami',
+      contextPath: '/whoami',
+      servicePath: '/whoami',
     },
   ])('propagates auth, tenant, locale, and trace metadata into Effect services for $surface', async ({
     prefix,
@@ -362,7 +362,7 @@ describe('plugin-bff regressions', () => {
     );
 
     try {
-      const entryFile = path.join(appDir, 'api', 'effect', 'index.js');
+      const entryFile = path.join(appDir, 'api', 'index.js');
       await fs.promises.mkdir(path.dirname(entryFile), { recursive: true });
       await fs.promises.writeFile(
         entryFile,
@@ -404,7 +404,7 @@ describe('plugin-bff regressions', () => {
 
     try {
       const apiDir = path.join(appDir, 'api');
-      const entryFile = path.join(apiDir, 'effect', `custom${extension}`);
+      const entryFile = path.join(apiDir, `custom${extension}`);
       await fs.promises.mkdir(path.dirname(entryFile), { recursive: true });
       await fs.promises.writeFile(entryFile, '');
 
@@ -419,7 +419,7 @@ describe('plugin-bff regressions', () => {
           return {
             bff: {
               effect: {
-                entry: `api/effect/custom${extension}`,
+                entry: `api/custom${extension}`,
               },
             },
           };
@@ -477,15 +477,14 @@ describe('plugin-bff regressions', () => {
 
     try {
       const apiDir = path.join(appDir, 'api');
-      const effectDir = path.join(apiDir, 'effect');
       const lambdaDir = path.join(apiDir, 'lambda');
-      await fs.promises.mkdir(effectDir, { recursive: true });
+      await fs.promises.mkdir(apiDir, { recursive: true });
       await fs.promises.writeFile(
         path.join(appDir, 'package.json'),
         JSON.stringify({ name: 'module-app', version: '1.0.0' }, null, 2),
       );
       await fs.promises.writeFile(
-        path.join(effectDir, 'index.js'),
+        path.join(apiDir, 'index.js'),
         `const {
   HttpApi,
   HttpApiEndpoint,
@@ -495,7 +494,7 @@ describe('plugin-bff regressions', () => {
 
 const api = HttpApi.make('ModuleApi').add(
   HttpApiGroup.make('greetings').add(
-    HttpApiEndpoint.get('ping', '/effect/ping', {
+    HttpApiEndpoint.get('ping', '/ping', {
       success: Schema.Struct({
         ok: Schema.Boolean,
       }),
@@ -532,9 +531,7 @@ module.exports = { api };
         type: 'module',
       });
       await expect(
-        fs.promises.stat(
-          path.join(appDir, '.modern-js', 'client', 'effect', 'index.js'),
-        ),
+        fs.promises.stat(path.join(appDir, '.modern-js', 'client', 'index.js')),
       ).resolves.toBeDefined();
     } finally {
       process.chdir(previousCwd);

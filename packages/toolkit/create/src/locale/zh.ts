@@ -27,7 +27,7 @@ export const ZH_LOCALE = {
       '严重警告：你正在退出 ULTRAMODERN.JS 默认配置。',
       '免交互默认值是最佳 UltraModern.js 配置：',
       '结构化 SuperApp 工作区、presetUltramodern、TanStack Router、',
-      'Effect BFF、Tailwind CSS v4，以及 BleedingDev 包版本队列。',
+      '严格 Effect API 运行时、Tailwind CSS v4，以及 BleedingDev 包版本队列。',
       '原始 Modern.js 初始化是危险的显式选择路径。',
       '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!',
     ].join('\n'),
@@ -43,7 +43,7 @@ export const ZH_LOCALE = {
     optionLang: '  -l, --lang     设置语言 (默认 en；zh 需显式选择)',
     optionTailwind: '      --no-tailwind 禁用默认 Tailwind CSS v4 工作区样式',
     optionBff:
-      '      --bff 保留默认的 Effect BFF 脚手架（每个 MicroVertical 自带 Effect BFF）',
+      '      --bff 保留默认的严格 Effect API 运行时（每个 MicroVertical 自带一个）',
     optionBffRuntime:
       '      --bff-runtime 选择 MicroVertical 脚手架的 BFF 运行时（支持: effect；默认: effect）',
     optionWorkspace:

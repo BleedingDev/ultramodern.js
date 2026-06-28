@@ -840,13 +840,13 @@ async function validateI18nEvidence(evidence, app, publicUrl, routes) {
 }
 
 async function validateReadinessEvidence(evidence, app, publicUrl, routes) {
-  if (routes.effectReadiness) {
-    const readiness = await fetchText(joinUrl(publicUrl, routes.effectReadiness));
+  if (routes.apiReadiness) {
+    const readiness = await fetchText(joinUrl(publicUrl, routes.apiReadiness));
     const readinessJson = parseMaybeJson(readiness.body);
     const apiMarker = markerFromJson(readinessJson);
     evidence.assertions.push({
       type: 'api-marker',
-      route: routes.effectReadiness,
+      route: routes.apiReadiness,
       expected: app.marker?.build,
       actual: apiMarker,
       status: readiness.ok && apiMarker === app.marker?.build ? 'pass' : 'fail',

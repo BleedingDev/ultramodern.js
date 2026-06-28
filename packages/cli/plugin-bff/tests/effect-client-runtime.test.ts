@@ -11,7 +11,7 @@ const PING_ENDPOINT: GeneratedEffectEndpoint = {
   group: 'greetings',
   endpoint: 'ping',
   method: 'GET',
-  routePath: '/api/effect/ping',
+  routePath: '/api/ping',
   schemaHash: 'hash-ping',
   operationVersion: 3,
 };
@@ -71,7 +71,7 @@ describe('effect-client runtime (createGeneratedEffectClient)', () => {
     expect(typeof generated.client.greetings!.ping).toBe('function');
     expect(generated.operationManifest.greetings!.ping).toMatchObject({
       apiId: 'TestApi',
-      operationId: 'GET:/api/effect/ping',
+      operationId: 'GET:/api/ping',
       schemaHash: 'hash-ping',
       operationVersion: 3,
       version: 3,
@@ -79,12 +79,12 @@ describe('effect-client runtime (createGeneratedEffectClient)', () => {
 
     expect(createRequestCalls).toHaveLength(1);
     expect(createRequestCalls[0]).toMatchObject({
-      path: '/api/effect/ping',
+      path: '/api/ping',
       method: 'GET',
       port: 8080,
       httpMethodDecider: 'functionName',
       operationContext: {
-        operationId: 'GET:/api/effect/ping',
+        operationId: 'GET:/api/ping',
         schemaHash: 'hash-ping',
         operationVersion: 3,
       },

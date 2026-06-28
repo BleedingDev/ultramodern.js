@@ -46,7 +46,7 @@ export interface BffUserConfig {
   /**
    * Selects the BFF runtime implementation.
    *
-   * - `effect`: only `api/effect/index` is served.
+   * - `effect`: only `api/index` (or the configured `bff.effect.entry`) is served.
    * - `hono`: only `api/lambda/**` handlers are served.
    *
    * @default 'effect'

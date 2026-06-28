@@ -245,11 +245,8 @@ export type EffectRequestValidator = (
  * seam runs inside the produced handler, including per batched item.
  *
  * `defineEffectBff` brands its factory automatically. Hand-written factories
- * are NOT assumed to honor `validateRequest` (the option is newer than the
- * factory shape), so the effect adapter falls back to middleware enforcement
- * for unbranded factories instead of silently skipping the policy. Custom
- * factories that do forward `validateRequest` into `createHttpApiHandler`
- * may opt in by setting this symbol property to `true`.
+ * are NOT assumed to honor `validateRequest`, so strict module resolution
+ * rejects unbranded factories instead of silently skipping the policy.
  *
  * Registered via `Symbol.for` so independently loaded runtime copies agree.
  */
@@ -837,9 +834,8 @@ export function defineEffectBff<
       validateRequest: options?.validateRequest,
     });
   };
-  // Brand the factory so module resolution (and the effect adapter) can
-  // trust that `validateRequest` is enforced inside the produced handler —
-  // unbranded factories get adapter-middleware enforcement instead.
+  // Brand the factory so module resolution can trust that `validateRequest`
+  // is enforced inside the produced handler.
   Object.defineProperty(createHandler, EFFECT_VALIDATOR_AWARE_FACTORY, {
     value: true,
   });
@@ -861,7 +857,7 @@ const LOADER_CLIENT_IGNORED_KEYS = new Set<PropertyKey>([
 
 /**
  * `defineEffectBff(...).client` is only materialized when the entry module
- * is imported through the `@api/effect/*` transform (the webpack/rspack
+ * is imported through the `@api/index` transform (the webpack/rspack
  * loader swaps the module for generated client code). Importing the entry
  * directly (server code, scripts, tests) used to return a `client` typed as
  * fully functional but `undefined` at runtime — a bare TypeError with zero
@@ -873,7 +869,7 @@ function createLoaderMaterializedClientPlaceholder<
 >(): EffectApiPromiseClientFromApi<TApi> {
   const explain = (property: PropertyKey): never => {
     throw new Error(
-      `[BFF][Effect] effectBff.client.${String(property)} is not available here: the typed client only exists when this module is imported through the "@api/effect/*" transformed path (the BFF loader replaces it with generated client code). On the server, use HttpApiClient or call the Effect layer directly.`,
+      `[BFF][Effect] client.${String(property)} is not available here: the typed client only exists when the API entry is imported through the "@api/index" transformed path (the BFF loader replaces it with generated client code). On the server, use HttpApiClient or call the Effect layer directly.`,
     );
   };
 

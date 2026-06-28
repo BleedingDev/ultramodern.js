@@ -9,6 +9,7 @@ title: effect
 ```ts
 type BffEffectUserConfig = {
   entry?: string;
+  strictEffectApproach?: true;
   openapi?: boolean | { path?: string };
   dataPlatform?: {
     enabled?: boolean;
@@ -58,7 +59,7 @@ For Effect v4, TypeScript should use export-map aware module resolution.
 ## bff.effect.entry
 
 - **Type:** `string`
-- **Default:** `<apiDirectory>/effect/index`
+- **Default:** `<apiDirectory>/index`
 
 Specifies the entry module for Effect HttpApi runtime.
 
@@ -67,11 +68,18 @@ export default defineConfig({
   bff: {
     runtimeFramework: 'effect',
     effect: {
-      entry: './api/effect/index',
+      entry: './api/index',
     },
   },
 });
 ```
+
+## bff.effect.strictEffectApproach
+
+- **Type:** `true`
+- **Default:** `true`
+
+Effect BFF modules must expose the strict Effect API surface (`defineEffectBff(...)` or `{ api, layer }`) and raw request handlers are rejected. Generated UltraModern apps write this marker explicitly.
 
 ## bff.effect.openapi
 
@@ -173,4 +181,4 @@ export default defineConfig({
 
 `batch.flushIntervalMs` controls the client-side micro-batch window in the generated Effect client. `maxConcurrency` and `requestTimeoutMs` are applied by the server batch gateway when dispatching items.
 
-The generated `effectBff.client.*` API only exists for loader-materialized `@api/effect/*` imports. Directly importing the server entry (`api/effect/index`) exposes the Effect BFF definition; its `client` property is a placeholder that fails on operation access.
+The generated `api.client.*` API only exists for loader-materialized `@api/index` imports. Directly importing the server entry (`api/index`) exposes the Effect BFF definition; its `client` property is a placeholder that fails on operation access.

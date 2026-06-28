@@ -31,7 +31,7 @@ const browserLaunchOptions = launchOptions as Parameters<
 >[0];
 
 async function expectEffectHttpApiRoute(port: number) {
-  const response = await fetch(`${host}:${port}/bff-api/effect/hello`);
+  const response = await fetch(`${host}:${port}/bff-api/hello`);
   expect(response.status).toBe(200);
   await expect(response.json()).resolves.toEqual({
     message: 'Hello from Effect HttpApi',
@@ -41,7 +41,7 @@ async function expectEffectHttpApiRoute(port: number) {
 
 async function expectEffectPathAndQueryRoute(port: number) {
   const response = await fetch(
-    `${host}:${port}/bff-api/effect/user/42?source=runtime`,
+    `${host}:${port}/bff-api/user/42?source=runtime`,
   );
   expect(response.status).toBe(200);
   await expect(response.json()).resolves.toEqual({
@@ -51,7 +51,7 @@ async function expectEffectPathAndQueryRoute(port: number) {
 }
 
 async function expectEffectPayloadRoute(port: number) {
-  const response = await fetch(`${host}:${port}/bff-api/effect/echo`, {
+  const response = await fetch(`${host}:${port}/bff-api/echo`, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
@@ -108,14 +108,14 @@ async function expectOpenApiRoute(port: number) {
   expect(response.status).toBe(200);
   const json = await response.json();
   expect(typeof json.openapi).toBe('string');
-  expect(json.paths['/effect/hello']).toBeDefined();
-  expect(json.paths['/effect/user/{id}']).toBeDefined();
-  expect(json.paths['/effect/echo']).toBeDefined();
-  expect(json.paths['/effect/managed']).toBeDefined();
+  expect(json.paths['/hello']).toBeDefined();
+  expect(json.paths['/user/{id}']).toBeDefined();
+  expect(json.paths['/echo']).toBeDefined();
+  expect(json.paths['/managed']).toBeDefined();
 }
 
 async function expectManagedEffectErrorRoute(port: number) {
-  const response = await fetch(`${host}:${port}/bff-api/effect/managed`);
+  const response = await fetch(`${host}:${port}/bff-api/managed`);
   expect(response.status).toBe(501);
   await expect(response.json()).resolves.toEqual({
     error: 'customize response in effect serverConfig',
@@ -156,11 +156,11 @@ function expectDurationHeader(
 }
 
 async function expectCustomServerHeaders(port: number) {
-  const apiResponse = await fetch(`${host}:${port}/bff-api/effect/hello`);
+  const apiResponse = await fetch(`${host}:${port}/bff-api/hello`);
   expect(apiResponse.status).toBe(200);
   expectDurationHeader(
     apiResponse.headers.get('x-effect-request-middleware'),
-    '/bff-api/effect/hello',
+    '/bff-api/hello',
     'x-effect-request-middleware',
   );
 

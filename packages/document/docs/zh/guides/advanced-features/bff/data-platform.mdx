@@ -59,9 +59,9 @@ Envelope 校验默认开启，但只有设置 `requireEnvelope` 时才强制要�
 
 ## Effect 客户端自动行为
 
-使用生成的 Effect 客户端（`@api/effect/index`）时，Modern.js 会在同源请求中自动附加序列化的 envelope 请求头（`x-modernjs-data-envelope`）。
+使用生成的 Effect 客户端（`@api/index`）时，Modern.js 会在同源请求中自动附加序列化的 envelope 请求头（`x-modernjs-data-envelope`）。
 
-生成客户端由 loader 物化。请在浏览器或会被客户端打包的代码中通过 `@api/effect/*` 导入；直接导入服务端入口（`api/effect/index`）时拿到的是 Effect BFF 定义，其中只包含占位的 `client`。
+生成客户端由 loader 物化。请在浏览器或会被客户端打包的代码中通过 `@api/index` 导入；直接导入服务端入口（`api/index`）时拿到的是 Effect BFF 定义，其中只包含占位的 `client`。
 
 Envelope 默认包含：
 
