@@ -1787,6 +1787,7 @@ assert(shellPackage.dependencies?.['@modern-js/plugin-bff'] === expectedModernPa
 assert(shellPackage.dependencies?.['@modern-js/plugin-i18n'] === expectedModernPackageSpecifier('@modern-js/plugin-i18n'), 'Shell plugin-i18n dependency must match package source metadata');
 assert(shellPackage.dependencies?.['@modern-js/plugin-tanstack'] === expectedModernPackageSpecifier('@modern-js/plugin-tanstack'), 'Shell plugin-tanstack dependency must match package source metadata');
 assert(shellPackage.dependencies?.['@modern-js/runtime'] === expectedModernPackageSpecifier('@modern-js/runtime'), 'Shell runtime dependency must match package source metadata');
+assert(shellPackage.scripts?.['cloudflare:deploy'] === 'ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS=true pnpm run cloudflare:build && wrangler deploy --config .output/wrangler.json', 'Shell must expose cloudflare:deploy');
 assertBuildCacheBase('shell-super-app', shellModernConfig);
 assertCloudflareBuildSkipsDeployRebuild('shell-super-app', shellPackage);
 const shellContract = generatedContract.apps?.find(app => app.id === 'shell-super-app');

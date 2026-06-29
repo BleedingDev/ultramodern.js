@@ -275,6 +275,48 @@ function updateGeneratedToolingDependencies(packageJson: Record<string, any>) {
   return changed;
 }
 
+const cloudflareModernDeployCommand =
+  'ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern deploy';
+const cloudflareModernDeploySkipBuildCommand = `${cloudflareModernDeployCommand} --skip-build`;
+const cloudflareWranglerDeployCommand =
+  'wrangler deploy --config .output/wrangler.json';
+const cloudflareWranglerDeployInvalidSkipBuildCommand = `${cloudflareWranglerDeployCommand} --skip-build`;
+
+function updateGeneratedPackageScripts(packageJson: Record<string, any>) {
+  const scripts = packageJson.scripts;
+  if (!scripts || typeof scripts !== 'object' || Array.isArray(scripts)) {
+    return false;
+  }
+
+  let changed = false;
+  const cloudflareBuild = scripts['cloudflare:build'];
+  if (
+    typeof cloudflareBuild === 'string' &&
+    cloudflareBuild.includes(cloudflareModernDeployCommand) &&
+    !cloudflareBuild.includes(cloudflareModernDeploySkipBuildCommand)
+  ) {
+    scripts['cloudflare:build'] = cloudflareBuild.replace(
+      cloudflareModernDeployCommand,
+      cloudflareModernDeploySkipBuildCommand,
+    );
+    changed = true;
+  }
+
+  const cloudflareDeploy = scripts['cloudflare:deploy'];
+  if (
+    typeof cloudflareDeploy === 'string' &&
+    cloudflareDeploy.includes(cloudflareWranglerDeployInvalidSkipBuildCommand)
+  ) {
+    scripts['cloudflare:deploy'] = cloudflareDeploy.replace(
+      cloudflareWranglerDeployInvalidSkipBuildCommand,
+      cloudflareWranglerDeployCommand,
+    );
+    changed = true;
+  }
+
+  return changed;
+}
+
 function normalizeStrictEffectApiMetadata(value: Record<string, any>) {
   const api = value.api;
   if (!api || typeof api !== 'object' || Array.isArray(api)) {
@@ -623,7 +665,11 @@ has to pass pnpm api:check and pnpm contract:check.
     );
     const toolingDependenciesChanged =
       updateGeneratedToolingDependencies(packageJson);
-    const changed = modernDependenciesChanged || toolingDependenciesChanged;
+    const generatedScriptsChanged = updateGeneratedPackageScripts(packageJson);
+    const changed =
+      modernDependenciesChanged ||
+      toolingDependenciesChanged ||
+      generatedScriptsChanged;
 
     if (changed) {
       writeJsonFile(packageFile, packageJson);

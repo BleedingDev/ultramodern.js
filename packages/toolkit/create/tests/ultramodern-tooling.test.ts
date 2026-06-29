@@ -178,6 +178,22 @@ test('UltraModern migrate-strict-effect updates package cohort and direct API me
     rootPackageBefore.devDependencies.oxfmt = '0.55.0';
     writeJson(workspaceDir, 'package.json', rootPackageBefore);
 
+    for (const packageFile of [
+      'apps/shell-super-app/package.json',
+      'verticals/catalog/package.json',
+    ]) {
+      const packageJson = readJson(workspaceDir, packageFile);
+      packageJson.scripts['cloudflare:build'] = packageJson.scripts[
+        'cloudflare:build'
+      ].replace(
+        'MODERNJS_DEPLOY=cloudflare modern deploy --skip-build',
+        'MODERNJS_DEPLOY=cloudflare modern deploy',
+      );
+      packageJson.scripts['cloudflare:deploy'] =
+        `${packageJson.scripts['cloudflare:deploy']} --skip-build`;
+      writeJson(workspaceDir, packageFile, packageJson);
+    }
+
     const pnpmWorkspaceFile = path.join(workspaceDir, 'pnpm-workspace.yaml');
     fs.writeFileSync(
       pnpmWorkspaceFile,
@@ -285,6 +301,27 @@ test('UltraModern migrate-strict-effect updates package cohort and direct API me
     assert.equal(
       shellPackage.dependencies['@modern-js/plugin-bff'],
       'npm:@bleedingdev/modern-js-plugin-bff@3.5.0-ultramodern.1',
+    );
+    assert.match(
+      shellPackage.scripts['cloudflare:build'],
+      /MODERNJS_DEPLOY=cloudflare modern deploy --skip-build/u,
+    );
+    assert.equal(
+      shellPackage.scripts['cloudflare:deploy'],
+      'ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS=true pnpm run cloudflare:build && wrangler deploy --config .output/wrangler.json',
+    );
+
+    const catalogPackage = readJson(
+      workspaceDir,
+      'verticals/catalog/package.json',
+    );
+    assert.match(
+      catalogPackage.scripts['cloudflare:build'],
+      /MODERNJS_DEPLOY=cloudflare modern deploy --skip-build/u,
+    );
+    assert.equal(
+      catalogPackage.scripts['cloudflare:deploy'],
+      'ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS=true pnpm run cloudflare:build && wrangler deploy --config .output/wrangler.json',
     );
 
     const migratedTopology = readJson(
