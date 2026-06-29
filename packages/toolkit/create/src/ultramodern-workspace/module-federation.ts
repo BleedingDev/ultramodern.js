@@ -118,6 +118,8 @@ ${defaultAssetPrefixSource}
 // load remoteEntry.js and exposed chunks from the remote origin, not the host.
 const assetPrefix =
   configuredModernAssetPrefix || configuredUltramodernAssetPrefix || defaultAssetPrefix;
+const buildCacheTarget = cloudflareDeployEnabled ? 'cloudflare' : 'web';
+const buildCacheDirectory = \`node_modules/.cache/rspack-\${appId}-\${buildCacheTarget}\`;
 
 if (
   cloudflareDeployEnabled &&
@@ -166,6 +168,10 @@ ${bffConfig}      ...(cloudflareDeployEnabled
         splitRouteChunks: true,
       },
       performance: {
+        buildCache: {
+          cacheDigest: [appId, buildCacheTarget],
+          cacheDirectory: buildCacheDirectory,
+        },
         rsdoctor: {
           disableClientServer: true,
           enabled: process.env['ULTRAMODERN_RSDOCTOR'] === 'true',

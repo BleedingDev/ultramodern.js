@@ -296,6 +296,7 @@ export function createRootPackageJson(
       'mf:types': 'node ./scripts/assert-mf-types.mts',
       'performance:readiness':
         'node ./scripts/ultramodern-performance-readiness.mts',
+      'migrate:strict-effect': 'node ./scripts/migrate-strict-effect.mts',
       'contract:check': 'node ./scripts/validate-ultramodern-workspace.mts',
       'api:check': 'node ./scripts/check-ultramodern-api-boundaries.mts',
       'i18n:boundaries': 'node ./scripts/check-ultramodern-i18n-boundaries.mts',

@@ -97,7 +97,12 @@ function assertNotContains(relativePath, content, pattern, message) {
 }
 
 for (const forbiddenPath of [
-  'apps/shell-super-app/src/effect',
+  ...listDirectories('apps').flatMap(appPath => [
+    `${appPath}/api/effect`,
+    `${appPath}/api/lambda`,
+    `${appPath}/shared/effect`,
+    `${appPath}/src/effect`,
+  ]),
   ...listDirectories('verticals').flatMap(verticalPath => [
     `${verticalPath}/api/effect`,
     `${verticalPath}/api/lambda`,
@@ -148,6 +153,12 @@ for (const file of textFiles) {
       /\bcreateHandler\s*[:=]\s*(?!defineEffectBff\b)/u,
       'API modules must not define unbranded handler factories; use defineEffectBff(...).',
     );
+    assertNotContains(
+      file,
+      content,
+      /\bSchema\.(?:UnknownFromJsonString|Unknown|Any)\b/u,
+      'API modules must use concrete request, response and error schemas; Schema.UnknownFromJsonString, Schema.Unknown and Schema.Any are forbidden in UltraModern API code.',
+    );
   }
 
   assertNotContains(
@@ -170,17 +181,18 @@ for (const file of textFiles) {
   );
 }
 
+const verticalDirectories = listDirectories('verticals');
 const shellClient = 'apps/shell-super-app/src/api/vertical-clients.ts';
-if (exists('apps/shell-super-app')) {
+if (exists('apps/shell-super-app') && verticalDirectories.length > 0) {
   assert(exists(shellClient), `${shellClient} must aggregate vertical API clients.`);
 }
 
-for (const verticalPath of listDirectories('verticals')) {
-  const apiEntry = `${verticalPath}/api/index.ts`;
-  const sharedApi = `${verticalPath}/shared/api.ts`;
-  const srcApiDirectory = `${verticalPath}/src/api`;
-  const modernConfig = `${verticalPath}/modern.config.ts`;
-  const packageJsonPath = `${verticalPath}/package.json`;
+function assertApiSurface(appPath) {
+  const apiEntry = `${appPath}/api/index.ts`;
+  const sharedApi = `${appPath}/shared/api.ts`;
+  const srcApiDirectory = `${appPath}/src/api`;
+  const modernConfig = `${appPath}/modern.config.ts`;
+  const packageJsonPath = `${appPath}/package.json`;
 
   assert(exists(apiEntry), `${apiEntry} is required.`);
   assert(exists(sharedApi), `${sharedApi} is required.`);
@@ -286,6 +298,16 @@ for (const verticalPath of listDirectories('verticals')) {
       `${packageJsonPath}: package must export ./api/client from src/api/*.`,
     );
   }
+}
+
+for (const appPath of listDirectories('apps')) {
+  if (exists(`${appPath}/api/index.ts`) || exists(`${appPath}/shared/api.ts`)) {
+    assertApiSurface(appPath);
+  }
+}
+
+for (const verticalPath of verticalDirectories) {
+  assertApiSurface(verticalPath);
 }
 
 if (exists('apps/shell-super-app/package.json')) {

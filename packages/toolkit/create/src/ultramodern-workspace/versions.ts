@@ -13,6 +13,8 @@ export const CLOUDFLARE_COMPATIBILITY_DATE = '2026-06-02';
 export const TAILWIND_VERSION = '4.3.1';
 export const TAILWIND_POSTCSS_VERSION = '4.3.1';
 export const POSTCSS_VERSION = '8.5.15';
+export const EFFECT_VERSION = '4.0.0-beta.89';
+export const EFFECT_VITEST_VERSION = '4.0.0-beta.89';
 export const EFFECT_TSGO_VERSION = '0.14.6';
 export const TYPESCRIPT_STABLE_VERSION = '6.0.3';
 export const TYPESCRIPT_NATIVE_PREVIEW_VERSION = '7.0.0-dev.20260624.1';
@@ -39,6 +41,8 @@ export const ultramodernWorkspaceVersions = {
   tanstackRouter: TANSTACK_ROUTER_VERSION,
   tanstackRouterCore: TANSTACK_ROUTER_CORE_VERSION,
   moduleFederation: MODULE_FEDERATION_VERSION,
+  effect: EFFECT_VERSION,
+  effectVitest: EFFECT_VITEST_VERSION,
   tailwind: TAILWIND_VERSION,
   tailwindPostcss: TAILWIND_POSTCSS_VERSION,
 };

@@ -264,10 +264,29 @@ describe('effect edge runtime', () => {
     }
   });
 
-  test('edge-safe entry does not import Node-only Effect context surface', async () => {
+  test('edge-safe entry exposes scoped Effect context helpers', async () => {
     const edgeRuntime = await import('../src/runtime/effect/edge');
-    expect('useEffectContext' in edgeRuntime).toBe(false);
-    expect('useOperationContext' in edgeRuntime).toBe(false);
+    expect(typeof edgeRuntime.useEffectContext).toBe('function');
+    expect(typeof edgeRuntime.useOperationContext).toBe('function');
+
+    const response = await edgeRuntime.dispatchEffectBffRequest(
+      () =>
+        new Response(
+          JSON.stringify({
+            path: edgeRuntime.useEffectContext().path,
+            method: edgeRuntime.useOperationContext().method,
+          }),
+          { headers: { 'content-type': 'application/json' } },
+        ),
+      new Request('http://localhost/api/ping'),
+      { prefix: '/api' },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      path: '/api/ping',
+      method: 'GET',
+    });
   });
 
   test('worker consumer builds through plugin-bff without a direct effect dependency', async () => {

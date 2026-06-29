@@ -45,6 +45,13 @@ import EnableBFFCaution from "@site-docs-en/components/enable-bff-caution";
 
 `bff.effect` is only effective when `bff.runtimeFramework` is set to `'effect'`.
 
+Generated UltraModern workspaces use this runtime as the only generated HTTP API
+path. The API contract lives at `shared/api.ts`, the server runtime lives at
+`api/index.ts`, clients live under `src/api/*-client.ts`, and generated checks
+reject `api/effect`, `api/lambda`, `shared/effect`, `src/effect`, Hono server
+imports, raw request handlers, manual request parsing, and manual `Response`
+construction in API modules.
+
 For Effect v4, TypeScript should use export-map aware module resolution.
 
 ```json title="tsconfig.json"
@@ -186,3 +193,97 @@ export default defineConfig({
 `batch.flushIntervalMs` controls the client-side micro-batch window in the generated Effect client. `maxConcurrency` and `requestTimeoutMs` are applied by the server batch gateway when dispatching items.
 
 The generated `api.client.*` API only exists for loader-materialized `@api/index` imports. Directly importing the server entry (`api/index`) exposes the Effect BFF definition; its `client` property is a placeholder that fails on operation access.
+
+## Effect cohort
+
+UltraModern-generated workspaces pin the framework-compatible Effect cohort
+through `pnpm-workspace.yaml` overrides. For `3.5.0-ultramodern.1`, generated
+apps use:
+
+```yaml
+overrides:
+  '@effect/vitest': 4.0.0-beta.89
+  effect: 4.0.0-beta.89
+```
+
+Do not add a different direct `effect` version in an app package. A mismatched
+Effect beta can fail while building layers or HTTP middleware because runtime
+services come from different package instances.
+
+## Contract tests
+
+Strict Effect APIs should test the declared `HttpApi` contract, not a raw
+request handler. Edge-compatible tests can use the framework helper:
+
+```ts
+import { createEffectBffTestHandler } from '@modern-js/plugin-bff/effect-edge';
+import apiModule from '../api/index';
+
+const testApi = await createEffectBffTestHandler({
+  module: apiModule,
+  prefix: '/api',
+});
+
+const response = await testApi.handler(new Request('http://localhost/api/ping'));
+```
+
+If you manually compose an Effect web handler in a low-level proof, provide the
+platform services explicitly:
+
+```ts
+import {
+  HttpApiBuilder,
+  HttpRouter,
+  HttpServer,
+  Layer,
+} from '@modern-js/plugin-bff/effect-server';
+
+const handler = HttpRouter.toWebHandler(
+  HttpApiBuilder.layer(api).pipe(
+    Layer.provide(apiGroupLayer),
+    Layer.provide(HttpServer.layerServices),
+  ),
+).handler;
+```
+
+Prefer the generated helper unless the test needs to inspect the low-level
+Effect router composition.
+
+## Dynamic CORS
+
+For dynamic origin predicates, use Effect HTTP middleware as a layer. In the
+current Effect v4 beta cohort, `HttpRouter.middleware(...)` returns a `Layer`
+directly:
+
+```ts
+import {
+  Effect,
+  HttpApiBuilder,
+  HttpMiddleware,
+  HttpRouter,
+  Layer,
+} from '@modern-js/plugin-bff/effect-server';
+
+const corsLayer = HttpRouter.middleware(
+  Effect.succeed(
+    HttpMiddleware.cors({
+      allowedOrigins: origin =>
+        origin.endsWith('.example.com') ? origin : undefined,
+    }),
+  ),
+);
+
+const layer = HttpApiBuilder.layer(api).pipe(
+  Layer.provide(apiGroupLayer),
+  Layer.provide(corsLayer),
+);
+```
+
+Do not read a `.layer` property from `HttpRouter.middleware(...)`.
+
+## Other transports
+
+`strictEffectApproach` governs generated HTTP API modules. Effect RPC,
+WebSockets, and other transports remain valid when they are modeled as explicit
+transport surfaces with typed Effect programs. They do not make raw HTTP
+request handlers valid inside generated UltraModern API modules.

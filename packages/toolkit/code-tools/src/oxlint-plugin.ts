@@ -129,11 +129,11 @@ const SPLIT_TRANSLATION_KEY_PATTERN = /\.(?:prefix|suffix|before|after)$/u;
 
 const API_SOURCE_FILE_PATTERN = /(?:^|\/)(?:api\/|shared\/api\.[cm]?[jt]sx?$)/u;
 const FORBIDDEN_GENERATED_EFFECT_PATH_PATTERN =
-  /(?:^|\/)(?:apps\/shell-super-app\/src\/effect|verticals\/[^/]+\/(?:api\/(?:effect|lambda)|shared\/effect|src\/effect))(?:\/|$)/u;
-const VERTICAL_API_ENTRY_PATTERN =
-  /(?:^|\/)verticals\/[^/]+\/api\/index\.[cm]?[jt]sx?$/u;
+  /(?:^|\/)(?:(?:apps|verticals)\/[^/]+\/(?:api\/(?:effect|lambda)|shared\/effect|src\/effect))(?:\/|$)/u;
+const API_ENTRY_PATTERN =
+  /(?:^|\/)(?:apps|verticals)\/[^/]+\/api\/index\.[cm]?[jt]sx?$/u;
 const SHARED_API_CONTRACT_PATTERN =
-  /(?:^|\/)verticals\/[^/]+\/shared\/api\.[cm]?[jt]sx?$/u;
+  /(?:^|\/)(?:apps|verticals)\/[^/]+\/shared\/api\.[cm]?[jt]sx?$/u;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -458,8 +458,8 @@ const isForbiddenGeneratedEffectPath = (
 ): boolean =>
   FORBIDDEN_GENERATED_EFFECT_PATH_PATTERN.test(normalizeFilename(filePath));
 
-const isVerticalApiEntryFile = (filePath: string | undefined): boolean =>
-  VERTICAL_API_ENTRY_PATTERN.test(normalizeFilename(filePath));
+const isApiEntryFile = (filePath: string | undefined): boolean =>
+  API_ENTRY_PATTERN.test(normalizeFilename(filePath));
 
 const isSharedApiContractFile = (filePath: string | undefined): boolean =>
   SHARED_API_CONTRACT_PATTERN.test(normalizeFilename(filePath));
@@ -664,7 +664,7 @@ const createStrictEffectApiBoundariesRule = (): Rule => ({
           'UltraModern API apps must keep strictEffectApproach enabled.',
         );
 
-        if (isVerticalApiEntryFile(filename)) {
+        if (isApiEntryFile(filename)) {
           reportMissingProgramPattern(
             context,
             node,
@@ -757,6 +757,13 @@ const createStrictEffectApiBoundariesRule = (): Rule => ({
           source,
           /\bcreateHandler\s*[:=]\s*(?!defineEffectBff\b)/u,
           'API modules must not define unbranded handler factories; use defineEffectBff(...).',
+        );
+        reportProgramPattern(
+          context,
+          node,
+          source,
+          /\bSchema\.(?:UnknownFromJsonString|Unknown|Any)\b/u,
+          'API modules must use concrete request, response and error schemas; Schema.UnknownFromJsonString, Schema.Unknown and Schema.Any are forbidden in UltraModern API code.',
         );
       },
     };

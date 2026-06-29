@@ -1,6 +1,7 @@
 // @effect-diagnostics anyUnknownInErrorContext:off asyncFunction:off strictBooleanExpressions:off
 
 import { createSafeFailureResponse } from '../safe-failure';
+import { runWithEffectContext } from './edge-context';
 import type {
   EffectBffOpenApiConfig,
   EffectDataPlatformValidationOptions,
@@ -15,6 +16,11 @@ import {
   type EffectContext,
 } from './operation-context';
 
+export {
+  runWithEffectContext,
+  useEffectContext,
+  useOperationContext,
+} from './edge-context';
 export * from './handler';
 export {
   type CreateEffectOperationContextOptions,
@@ -129,10 +135,11 @@ export async function dispatchEffectBffRequest(
   );
 
   try {
-    const response =
+    const response = await runWithEffectContext(effectContext, () =>
       handler.length > 1
-        ? await handler(effectRequest, effectContext)
-        : await handler(effectRequest);
+        ? handler(effectRequest, effectContext)
+        : handler(effectRequest),
+    );
 
     if (!(response instanceof Response)) {
       throw new Error(
@@ -155,6 +162,8 @@ export async function dispatchEffectBffRequest(
     return createRuntimeErrorResponse(error);
   }
 }
+
+export const createEffectBffTestHandler = createEffectBffEdgeHandler;
 
 export async function createEffectBffEdgeHandler(
   options: EffectBffEdgeHandlerOptions,

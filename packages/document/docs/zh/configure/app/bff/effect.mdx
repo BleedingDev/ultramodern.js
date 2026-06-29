@@ -45,6 +45,12 @@ import EnableBFFCaution from "@site-docs/components/enable-bff-caution";
 
 仅当 `bff.runtimeFramework` 设置为 `'effect'` 时，`bff.effect` 才会生效。
 
+生成的 UltraModern workspace 只把这个运行时作为生成 HTTP API 路径。API 契约固定在
+`shared/api.ts`，服务端运行时固定在 `api/index.ts`，客户端固定在
+`src/api/*-client.ts`。生成检查会拒绝 `api/effect`、`api/lambda`、
+`shared/effect`、`src/effect`、Hono server import、原始 request handler、手写
+request parsing，以及 API 模块里的手写 `Response`。
+
 对于 Effect v4，TypeScript 需要使用支持 `exports` 映射的模块解析方式。
 
 ```json title="tsconfig.json"
@@ -185,3 +191,92 @@ export default defineConfig({
 `batch.flushIntervalMs` 用于控制生成的 Effect 客户端微批处理窗口；`maxConcurrency` 与 `requestTimeoutMs` 由服务端批处理网关用于内部请求分发。
 
 生成的 `api.client.*` API 只存在于 loader 物化后的 `@api/index` 导入中。直接导入服务端入口（`api/index`）时拿到的是 Effect BFF 定义；其中的 `client` 属性只是占位，并会在访问具体操作时报错。
+
+## Effect 版本组
+
+UltraModern 生成的 workspace 会通过 `pnpm-workspace.yaml` overrides 锁定与框架兼容的
+Effect 版本组。`3.5.0-ultramodern.1` 使用：
+
+```yaml
+overrides:
+  '@effect/vitest': 4.0.0-beta.89
+  effect: 4.0.0-beta.89
+```
+
+不要在应用包里添加不同版本的直接 `effect` 依赖。Effect beta 不一致时，Layer 或 HTTP
+middleware 构建可能因为运行时 service 来自不同包实例而失败。
+
+## 契约测试
+
+严格 Effect API 测试应当测试声明的 `HttpApi` 契约，而不是原始 request handler。
+Edge 兼容测试可以使用框架 helper：
+
+```ts
+import { createEffectBffTestHandler } from '@modern-js/plugin-bff/effect-edge';
+import apiModule from '../api/index';
+
+const testApi = await createEffectBffTestHandler({
+  module: apiModule,
+  prefix: '/api',
+});
+
+const response = await testApi.handler(new Request('http://localhost/api/ping'));
+```
+
+如果低层 proof 必须手动组合 web handler，需要在调用 `HttpRouter.toWebHandler` 前提供
+`HttpServer.layerServices`：
+
+```ts
+import {
+  HttpApiBuilder,
+  HttpRouter,
+  HttpServer,
+  Layer,
+} from '@modern-js/plugin-bff/effect-server';
+
+const handler = HttpRouter.toWebHandler(
+  HttpApiBuilder.layer(api).pipe(
+    Layer.provide(apiGroupLayer),
+    Layer.provide(HttpServer.layerServices),
+  ),
+).handler;
+```
+
+优先使用生成 helper，除非测试必须检查底层 Effect router 组合。
+
+## 动态 CORS
+
+需要动态 origin predicate 时，使用 Effect HTTP middleware 作为 Layer。在当前锁定的
+Effect v4 beta 版本组中，`HttpRouter.middleware(...)` 直接返回 `Layer`：
+
+```ts
+import {
+  Effect,
+  HttpApiBuilder,
+  HttpMiddleware,
+  HttpRouter,
+  Layer,
+} from '@modern-js/plugin-bff/effect-server';
+
+const corsLayer = HttpRouter.middleware(
+  Effect.succeed(
+    HttpMiddleware.cors({
+      allowedOrigins: origin =>
+        origin.endsWith('.example.com') ? origin : undefined,
+    }),
+  ),
+);
+
+const layer = HttpApiBuilder.layer(api).pipe(
+  Layer.provide(apiGroupLayer),
+  Layer.provide(corsLayer),
+);
+```
+
+不要从 `HttpRouter.middleware(...)` 读取 `.layer` 属性。
+
+## 其他传输
+
+`strictEffectApproach` 约束生成的 HTTP API 模块。Effect RPC、WebSocket 和其他传输在
+建模为显式传输 surface、并使用类型化 Effect 程序时仍然有效。它们不让生成的
+UltraModern API 模块中的原始 HTTP request handler 变得有效。

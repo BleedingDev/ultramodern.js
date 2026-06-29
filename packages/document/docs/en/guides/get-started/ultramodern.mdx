@@ -78,12 +78,33 @@ mise exec -- pnpm check
 mise exec -- pnpm build
 ```
 
-Strict generated API migration requires `3.5.0-ultramodern.0` or newer.
+Strict generated API migration requires `3.5.0-ultramodern.1` or newer.
 `3.4.0-ultramodern.20` and earlier cohorts do not include this full direct
-`api/index.ts` generator, generated `.mts` checks, and strict Oxlint boundary
-rule set. Agents that cannot install that BleedingDev cohort yet should use the
-local Modern.js workspace for migration validation; otherwise pin
-`3.5.0-ultramodern.0` or newer with `--ultramodern-package-version`.
+`api/index.ts` generator, generated `.mts` checks, strict Oxlint boundary rule
+set, Effect cohort overrides, and strict Effect migration command. Agents that
+cannot install that BleedingDev cohort yet should use the local Modern.js
+workspace for migration validation; otherwise pin `3.5.0-ultramodern.1` or
+newer with `--ultramodern-package-version`.
+
+Before hand-editing package aliases or generated metadata, run the framework
+migration command from the target workspace:
+
+```bash
+pnpm dlx @bleedingdev/modern-js-create@3.5.0-ultramodern.1 ultramodern \
+  migrate-strict-effect --version 3.5.0-ultramodern.1
+pnpm api:check
+pnpm contract:check
+```
+
+The command updates `.modernjs/ultramodern.json`, root
+`modernjs.packageSource`, generated Modern package aliases, direct topology API
+metadata, and the pnpm lockfile. Remaining failures are source migration work:
+move code to `shared/api.ts`, `api/index.ts`, and `src/api/*-client.ts`, then
+delete `api/effect`, `api/lambda`, `shared/effect`, and `src/effect`.
+
+Generated strict Effect workspaces pin the compatible Effect cohort with pnpm
+overrides: `effect@4.0.0-beta.89` and `@effect/vitest@4.0.0-beta.89`. Do not
+add app-local direct Effect versions that disagree with those overrides.
 
 Gradual migration means old, unmigrated Modern.js apps can keep their existing
 runtime until they are converted. Once a surface is generated or migrated as
@@ -122,6 +143,17 @@ Effect RPC, WebSockets, and other transports should be added as explicit
 transport surfaces when needed. They do not make raw request handlers valid
 inside generated HTTP API modules.
 
+Strict API tests should exercise the `HttpApi` contract. Use
+`createEffectBffTestHandler` from `@modern-js/plugin-bff/effect-edge` for
+edge-compatible proof tests; if you manually compose a web handler, provide
+`HttpServer.layerServices` beside your API group layer before calling
+`HttpRouter.toWebHandler`.
+
+For dynamic origin CORS predicates inside strict Effect HTTP APIs, prefer
+`HttpRouter.middleware(Effect.succeed(HttpMiddleware.cors(...)))`.
+`HttpRouter.middleware(...)` returns a `Layer` directly in the pinned Effect
+cohort; do not read a `.layer` property from it.
+
 Use one package-source strategy per repo. The published BleedingDev create
 package defaults to `--ultramodern-package-source=install` and records the
 exact cohort in `.modernjs/ultramodern.json`. Keep `--workspace` only for local
@@ -147,6 +179,13 @@ After installing the new cohort, run the generated
 manual edits. Fix topology, ownership, package-source, local overlay, generated
 contract, Tailwind prefix, or Module Federation conflicts in the owning files
 instead of patching generated output by hand.
+
+Cloudflare D1 bindings are first-class on `deploy.worker.d1Databases`; use that
+config instead of app-local postprocessing when a generated app owns D1
+migrations. Cloudflare public output excludes server-only `api` and `shared`
+directories by default, and generated Modern/Rspack caches are isolated per app
+and build target so local `build` and `cloudflare:build` runs do not share the
+same Rspack cache directory.
 
 ## Human Workflow
 

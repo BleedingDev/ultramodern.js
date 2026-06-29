@@ -280,6 +280,11 @@ export function writeGeneratedWorkspaceScripts(
   );
   writeWorkspaceOwnedMtsScript(
     targetDir,
+    'migrate-strict-effect',
+    createToolWrapperScript('migrate-strict-effect'),
+  );
+  writeWorkspaceOwnedMtsScript(
+    targetDir,
     'ultramodern-typecheck',
     createToolWrapperScript('typecheck'),
   );

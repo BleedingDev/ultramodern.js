@@ -27,6 +27,34 @@ export interface CloudflareWorkerArtifactConfig {
   to: string;
 }
 
+export interface CloudflareWorkerD1DatabaseConfig {
+  /**
+   * Worker binding name, for example `DB`.
+   */
+  binding: string;
+  /**
+   * Cloudflare D1 database name.
+   */
+  databaseName: string;
+  /**
+   * Cloudflare D1 database id.
+   */
+  databaseId: string;
+  /**
+   * Optional local migrations directory, relative to the app root. When set,
+   * Modern.js stages it into `.output` and points Wrangler at the staged copy.
+   */
+  migrationsDir?: string;
+  /**
+   * Optional preview database id used by Wrangler preview/local flows.
+   */
+  previewDatabaseId?: string;
+  /**
+   * Wrangler remote flag for D1 commands.
+   */
+  remote?: boolean;
+}
+
 export interface CloudflareWorkerSecurityCspConfig {
   mode?: CloudflareWorkerSecurityCspMode;
   directives?: Record<string, string[] | string | false>;

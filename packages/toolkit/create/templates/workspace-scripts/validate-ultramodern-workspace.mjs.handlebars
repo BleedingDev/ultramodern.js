@@ -1701,6 +1701,7 @@ assert(
 assert(rootPackage.scripts?.['mf:types'] === 'node ./scripts/assert-mf-types.mts', 'Root must expose mf:types');
 assert(rootPackage.scripts?.['cloudflare:deploy'] === expectedCloudflareDeployScript, 'Root must expose cloudflare:deploy');
 assert(rootPackage.scripts?.['cloudflare:proof'] === 'node ./scripts/proof-cloudflare-version.mts --out .codex/reports/cloudflare-version-proof/public-url-proof.json', 'Root must expose cloudflare:proof');
+assert(rootPackage.scripts?.['migrate:strict-effect'] === 'node ./scripts/migrate-strict-effect.mts', 'Root must expose migrate:strict-effect');
 assert(rootPackage.scripts?.['skills:install'] === 'node ./scripts/bootstrap-agent-skills.mts', 'Root must expose skills:install');
 assert(rootPackage.scripts?.['skills:check'] === 'node ./scripts/bootstrap-agent-skills.mts --check', 'Root must expose skills:check');
 assert(rootPackage.scripts?.postinstall === "oxfmt . '!repos/**' && node ./scripts/bootstrap-agent-skills.mts --postinstall", 'Root postinstall must format, run the default-on Codex skills bootstrap, and leave reference repository installs explicit');
@@ -1709,6 +1710,7 @@ const agentSkillsBootstrap = readText('scripts/bootstrap-agent-skills.mts');
 assertToolWrapper('scripts/assert-mf-types.mts', 'mf-types');
 assertToolWrapper('scripts/generate-public-surface-assets.mts', 'public-surface');
 assertToolWrapper('scripts/proof-cloudflare-version.mts', 'cloudflare-proof');
+assertToolWrapper('scripts/migrate-strict-effect.mts', 'migrate-strict-effect');
 assertToolWrapper('scripts/bootstrap-agent-skills.mts', 'skills');
 assert(!agentSkillsBootstrap.includes("run('brew'") && !agentSkillsBootstrap.includes('runShell('), 'Agent skills bootstrap must never invoke system package managers');
 const agentReferenceRepoSetup = readText('scripts/setup-agent-reference-repos.mts');

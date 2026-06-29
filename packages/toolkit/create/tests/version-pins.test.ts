@@ -4,6 +4,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { generateUltramodernWorkspace } from '../src/ultramodern-workspace';
 import {
+  EFFECT_VERSION,
+  EFFECT_VITEST_VERSION,
   NODE_FETCH_VERSION,
   PNPM_VERSION,
   TANSTACK_ROUTER_CORE_VERSION,
@@ -43,6 +45,16 @@ test('static templates read version pins from versions.ts placeholders', () => {
     pnpmWorkspaceTemplate,
     /node-fetch: '\{\{nodeFetchVersion\}\}'/,
     'pnpm-workspace override must use the nodeFetchVersion placeholder',
+  );
+  assert.match(
+    pnpmWorkspaceTemplate,
+    /effect: \{\{effectVersion\}\}/,
+    'pnpm-workspace override must use the effectVersion placeholder',
+  );
+  assert.match(
+    pnpmWorkspaceTemplate,
+    /'@effect\/vitest': \{\{effectVitestVersion\}\}/,
+    'pnpm-workspace override must use the effectVitestVersion placeholder',
   );
   for (const buildToolchainPackage of [
     '@rsbuild/core',
@@ -133,6 +145,14 @@ test('generated workspace renders the pins from versions.ts', () => {
     assert.ok(
       pnpmWorkspace.includes(`node-fetch: '${NODE_FETCH_VERSION}'`),
       'generated pnpm-workspace override must match NODE_FETCH_VERSION',
+    );
+    assert.ok(
+      pnpmWorkspace.includes(`effect: ${EFFECT_VERSION}`),
+      'generated pnpm-workspace override must match EFFECT_VERSION',
+    );
+    assert.ok(
+      pnpmWorkspace.includes(`'@effect/vitest': ${EFFECT_VITEST_VERSION}`),
+      'generated pnpm-workspace override must match EFFECT_VITEST_VERSION',
     );
     for (const buildToolchainPackage of [
       '@rsbuild/core',

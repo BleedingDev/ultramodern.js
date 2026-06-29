@@ -2,6 +2,7 @@ import path from 'node:path';
 import { fs as fse } from '@modern-js/utils';
 import type {
   CloudflareWorkerArtifactConfig,
+  CloudflareWorkerD1DatabaseConfig,
   CloudflareWorkerSecurityConfig,
   JsonValue,
 } from '../../../types/config/deploy';
@@ -343,11 +344,89 @@ const createWranglerAssetsConfig = (
   };
 };
 
+const assertNonEmptyString = (value: unknown, label: string): string => {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    throw new Error(`${label} must be a non-empty string.`);
+  }
+
+  return value.trim();
+};
+
+const normalizeD1Database = (
+  database: CloudflareWorkerD1DatabaseConfig,
+  index: number,
+) => {
+  const binding = assertNonEmptyString(
+    database.binding,
+    `deploy.worker.d1Databases[${index}].binding`,
+  );
+  const databaseName = assertNonEmptyString(
+    database.databaseName,
+    `deploy.worker.d1Databases[${index}].databaseName`,
+  );
+  const databaseId = assertNonEmptyString(
+    database.databaseId,
+    `deploy.worker.d1Databases[${index}].databaseId`,
+  );
+  const migrationsDir =
+    database.migrationsDir === undefined
+      ? undefined
+      : normalizeRelativePath(
+          database.migrationsDir,
+          `deploy.worker.d1Databases[${index}].migrationsDir`,
+          'app root',
+        );
+  const previewDatabaseId =
+    database.previewDatabaseId === undefined
+      ? undefined
+      : assertNonEmptyString(
+          database.previewDatabaseId,
+          `deploy.worker.d1Databases[${index}].previewDatabaseId`,
+        );
+
+  return {
+    binding,
+    database_name: databaseName,
+    database_id: databaseId,
+    ...(migrationsDir === undefined ? {} : { migrations_dir: migrationsDir }),
+    ...(previewDatabaseId === undefined
+      ? {}
+      : { preview_database_id: previewDatabaseId }),
+    ...(database.remote === undefined ? {} : { remote: database.remote }),
+  };
+};
+
+const createWranglerD1Databases = (
+  modernConfig: Parameters<CreatePreset>[0]['modernConfig'],
+  configuredWranglerD1: JsonValue | undefined,
+) => {
+  const d1Databases = modernConfig.deploy?.worker?.d1Databases;
+  if (d1Databases === undefined) {
+    return configuredWranglerD1;
+  }
+
+  if (configuredWranglerD1 !== undefined) {
+    throw new Error(
+      'Use deploy.worker.d1Databases or deploy.worker.wrangler.d1_databases, not both.',
+    );
+  }
+
+  if (!Array.isArray(d1Databases)) {
+    throw new Error('deploy.worker.d1Databases must be an array.');
+  }
+
+  return d1Databases.map(normalizeD1Database);
+};
+
 const createWranglerConfig = (
   appDirectory: string,
   modernConfig: Parameters<CreatePreset>[0]['modernConfig'],
 ) => {
   const wrangler = getConfiguredWrangler(modernConfig);
+  const d1Databases = createWranglerD1Databases(
+    modernConfig,
+    wrangler.d1_databases,
+  );
 
   return {
     $schema: 'node_modules/wrangler/config-schema.json',
@@ -359,6 +438,7 @@ const createWranglerConfig = (
       wrangler.compatibility_flags,
     ),
     assets: createWranglerAssetsConfig(wrangler.assets),
+    ...(d1Databases === undefined ? {} : { d1_databases: d1Databases }),
   };
 };
 
@@ -421,6 +501,35 @@ const copyCloudflareArtifacts = async (
     }
 
     await fse.copy(sourcePath, path.join(outputDirectory, artifact.to));
+  }
+};
+
+const copyCloudflareD1Migrations = async (
+  appDirectory: string,
+  outputDirectory: string,
+  modernConfig: Parameters<CreatePreset>[0]['modernConfig'],
+) => {
+  for (const [index, database] of (
+    modernConfig.deploy?.worker?.d1Databases ?? []
+  ).entries()) {
+    if (!database.migrationsDir) {
+      continue;
+    }
+
+    const migrationsDir = normalizeRelativePath(
+      database.migrationsDir,
+      `deploy.worker.d1Databases[${index}].migrationsDir`,
+      'app root',
+    );
+    const sourcePath = path.join(appDirectory, migrationsDir);
+
+    if (!(await fse.pathExists(sourcePath))) {
+      throw new Error(
+        `deploy.worker.d1Databases[${index}].migrationsDir does not exist: ${migrationsDir}`,
+      );
+    }
+
+    await fse.copy(sourcePath, path.join(outputDirectory, migrationsDir));
   }
 };
 
@@ -686,6 +795,11 @@ export const createCloudflarePreset: CreatePreset = ({
         appDirectory,
         outputDirectory,
         cloudflareArtifacts,
+      );
+      await copyCloudflareD1Migrations(
+        appDirectory,
+        outputDirectory,
+        modernConfig,
       );
 
       await fse.writeJSON(

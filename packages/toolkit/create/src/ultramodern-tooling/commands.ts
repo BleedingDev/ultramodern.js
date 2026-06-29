@@ -4,6 +4,15 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { resolveCreatePackageRoot } from '../create-package-root';
+import {
+  BLEEDINGDEV_PACKAGE_NAME_PREFIX,
+  BLEEDINGDEV_PACKAGE_SCOPE,
+  modernPackageSpecifier,
+  type ResolvedUltramodernPackageSource,
+  ULTRAMODERN_SINGLE_APP_MODERN_PACKAGES,
+  ULTRAMODERN_WORKSPACE_MODERN_PACKAGES,
+  WORKSPACE_PACKAGE_VERSION,
+} from '../ultramodern-package-source';
 import { validateModuleFederationTypes } from '../ultramodern-workspace/mf-validation';
 import { createWorkspaceValidationScript } from '../ultramodern-workspace/workspace-scripts';
 import {
@@ -27,6 +36,7 @@ Commands:
   validate
   typecheck
   mf-types
+  migrate-strict-effect
   public-surface
   cloudflare-proof
   performance-readiness
@@ -107,6 +117,372 @@ Checks real Module Federation config files and DTS archives for exposed apps.
   return 0;
 }
 
+const modernPackageNames = new Set<string>([
+  ...ULTRAMODERN_SINGLE_APP_MODERN_PACKAGES,
+  ...ULTRAMODERN_WORKSPACE_MODERN_PACKAGES,
+]);
+
+function readJsonFile(filePath: string) {
+  return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+}
+
+function writeJsonFile(filePath: string, value: unknown) {
+  fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf-8');
+}
+
+function readOption(args: string[], name: string) {
+  const prefix = `${name}=`;
+  const inline = args.find(arg => arg.startsWith(prefix));
+  if (inline) {
+    const value = inline.slice(prefix.length);
+    if (!value) {
+      throw new Error(`${name} needs a value.`);
+    }
+    return value;
+  }
+
+  const index = args.indexOf(name);
+  if (index === -1) {
+    return undefined;
+  }
+
+  const value = args[index + 1];
+  if (!value || value.startsWith('--')) {
+    throw new Error(`${name} needs a value.`);
+  }
+  return value;
+}
+
+function hasFlag(args: string[], name: string) {
+  return args.includes(name);
+}
+
+function listWorkspacePackageFiles(workspaceRoot: string) {
+  const packageFiles = ['package.json'];
+
+  for (const directory of ['apps', 'verticals', 'packages']) {
+    const absoluteDirectory = path.join(workspaceRoot, directory);
+    if (!fs.existsSync(absoluteDirectory)) {
+      continue;
+    }
+
+    for (const entry of fs.readdirSync(absoluteDirectory, {
+      withFileTypes: true,
+    })) {
+      if (!entry.isDirectory()) {
+        continue;
+      }
+      const packageFile = path.join(directory, entry.name, 'package.json');
+      if (fs.existsSync(path.join(workspaceRoot, packageFile))) {
+        packageFiles.push(packageFile);
+      }
+    }
+  }
+
+  return packageFiles;
+}
+
+function updateModernDependencies(
+  packageJson: Record<string, any>,
+  packageSource: ResolvedUltramodernPackageSource,
+) {
+  let changed = false;
+  for (const section of [
+    'dependencies',
+    'devDependencies',
+    'peerDependencies',
+    'optionalDependencies',
+  ]) {
+    const dependencies = packageJson[section];
+    if (
+      !dependencies ||
+      typeof dependencies !== 'object' ||
+      Array.isArray(dependencies)
+    ) {
+      continue;
+    }
+
+    for (const packageName of Object.keys(dependencies)) {
+      if (!modernPackageNames.has(packageName)) {
+        continue;
+      }
+
+      const nextSpecifier = modernPackageSpecifier(packageName, packageSource);
+      if (dependencies[packageName] !== nextSpecifier) {
+        dependencies[packageName] = nextSpecifier;
+        changed = true;
+      }
+    }
+  }
+
+  return changed;
+}
+
+function normalizeStrictEffectApiMetadata(value: Record<string, any>) {
+  const api = value.api;
+  if (!api || typeof api !== 'object' || Array.isArray(api)) {
+    return false;
+  }
+
+  let changed = false;
+  const oldEffect = api.effect;
+  if (oldEffect && typeof oldEffect === 'object' && !Array.isArray(oldEffect)) {
+    if (api.stem === undefined && typeof oldEffect.stem === 'string') {
+      api.stem = oldEffect.stem;
+      changed = true;
+    }
+    if (api.prefix === undefined && typeof oldEffect.prefix === 'string') {
+      api.prefix = oldEffect.prefix;
+      changed = true;
+    }
+    if (api.consumedBy === undefined && Array.isArray(oldEffect.consumedBy)) {
+      api.consumedBy = oldEffect.consumedBy;
+      changed = true;
+    }
+    delete api.effect;
+    changed = true;
+  }
+
+  if (api.runtime !== undefined && api.runtime !== 'effect') {
+    api.runtime = 'effect';
+    changed = true;
+  }
+
+  if (api.bff && typeof api.bff === 'object' && !Array.isArray(api.bff)) {
+    if (api.bff.strictEffectApproach !== true) {
+      api.bff.strictEffectApproach = true;
+      changed = true;
+    }
+  }
+
+  if (typeof value.path === 'string') {
+    const directServerEntry = `${value.path}/api/index.ts`;
+    if (
+      typeof api.serverEntry === 'string' &&
+      /\/api\/effect\/index\.[cm]?[jt]sx?$/u.test(api.serverEntry)
+    ) {
+      api.serverEntry = directServerEntry;
+      changed = true;
+    }
+
+    if (
+      api.contract &&
+      typeof api.contract === 'object' &&
+      !Array.isArray(api.contract)
+    ) {
+      if (api.contract.export === './shared/effect/api') {
+        api.contract.export = './api';
+        changed = true;
+      }
+      if (
+        typeof api.contract.path === 'string' &&
+        /\/shared\/effect\/api\.[cm]?[jt]sx?$/u.test(api.contract.path)
+      ) {
+        api.contract.path = `${value.path}/shared/api.ts`;
+        changed = true;
+      }
+    }
+
+    if (
+      api.client &&
+      typeof api.client === 'object' &&
+      !Array.isArray(api.client)
+    ) {
+      if (api.client.export === './effect/client') {
+        api.client.export = './api/client';
+        changed = true;
+      }
+      if (
+        typeof api.client.path === 'string' &&
+        /\/src\/effect\/[^/]+-client\.[cm]?ts$/u.test(api.client.path)
+      ) {
+        const basename = path.basename(api.client.path);
+        api.client.path = `${value.path}/src/api/${basename}`;
+        changed = true;
+      }
+    }
+
+    if (api.serverEntry === undefined && api.runtime === 'effect') {
+      api.serverEntry = directServerEntry;
+      changed = true;
+    }
+  }
+
+  return changed;
+}
+
+function updateUltramodernConfig(
+  workspaceRoot: string,
+  packageSource: ResolvedUltramodernPackageSource,
+) {
+  const configPath = path.join(workspaceRoot, '.modernjs/ultramodern.json');
+  const config = readJsonFile(configPath);
+  config.packageSource = {
+    strategy: packageSource.strategy,
+    modernPackageVersion: packageSource.modernPackageVersion,
+    ...(packageSource.registry ? { registry: packageSource.registry } : {}),
+    ...(packageSource.aliasScope
+      ? { aliasScope: packageSource.aliasScope }
+      : {}),
+    ...(packageSource.aliasPackageNamePrefix
+      ? { aliasPackageNamePrefix: packageSource.aliasPackageNamePrefix }
+      : {}),
+  };
+
+  for (const app of config.topology?.apps ?? []) {
+    if (app && typeof app === 'object' && !Array.isArray(app)) {
+      normalizeStrictEffectApiMetadata(app);
+    }
+  }
+
+  writeJsonFile(configPath, config);
+}
+
+function updateReferenceTopology(workspaceRoot: string) {
+  const topologyPath = path.join(
+    workspaceRoot,
+    'topology/reference-topology.json',
+  );
+  if (!fs.existsSync(topologyPath)) {
+    return false;
+  }
+
+  const topology = readJsonFile(topologyPath);
+  let changed = false;
+  for (const vertical of topology.verticals ?? []) {
+    if (vertical && typeof vertical === 'object' && !Array.isArray(vertical)) {
+      changed = normalizeStrictEffectApiMetadata(vertical) || changed;
+    }
+  }
+
+  if (changed) {
+    writeJsonFile(topologyPath, topology);
+  }
+
+  return changed;
+}
+
+function createMigrationPackageSource(
+  args: string[],
+  current: ReturnType<typeof readUltramodernConfig>,
+): ResolvedUltramodernPackageSource {
+  const strategy = hasFlag(args, '--workspace') ? 'workspace' : 'install';
+  const registry =
+    readOption(args, '--registry') ??
+    readOption(args, '--ultramodern-package-registry');
+  const explicitAliasScope =
+    readOption(args, '--alias-scope') ??
+    readOption(args, '--ultramodern-package-scope');
+  const aliasScope =
+    explicitAliasScope ??
+    (strategy === 'install' && registry === undefined
+      ? (current.packageSource?.aliasScope ?? BLEEDINGDEV_PACKAGE_SCOPE)
+      : current.packageSource?.aliasScope);
+  const aliasPackageNamePrefix =
+    readOption(args, '--alias-package-name-prefix') ??
+    readOption(args, '--ultramodern-package-name-prefix') ??
+    current.packageSource?.aliasPackageNamePrefix ??
+    (aliasScope ? BLEEDINGDEV_PACKAGE_NAME_PREFIX : undefined);
+
+  if (strategy === 'workspace') {
+    return {
+      strategy,
+      modernPackageVersion: WORKSPACE_PACKAGE_VERSION,
+      ...(registry ? { registry } : {}),
+      ...(aliasScope ? { aliasScope } : {}),
+      ...(aliasPackageNamePrefix ? { aliasPackageNamePrefix } : {}),
+    };
+  }
+
+  const version =
+    readOption(args, '--version') ??
+    readOption(args, '--ultramodern-package-version') ??
+    current.packageSource?.modernPackageVersion;
+
+  if (!version || version === WORKSPACE_PACKAGE_VERSION) {
+    throw new Error(
+      'migrate-strict-effect needs --version <published-ultramodern-version> for install package source.',
+    );
+  }
+
+  return {
+    strategy,
+    modernPackageVersion: version,
+    ...(registry ? { registry } : {}),
+    ...(aliasScope ? { aliasScope } : {}),
+    ...(aliasPackageNamePrefix ? { aliasPackageNamePrefix } : {}),
+  };
+}
+
+function runPnpmLockfileRefresh(context: CommandContext) {
+  const result = spawnSync(
+    'pnpm',
+    ['install', '--lockfile-only', '--ignore-scripts'],
+    {
+      cwd: context.workspaceRoot,
+      stdio: 'inherit',
+    },
+  );
+
+  if (result.error) {
+    throw result.error;
+  }
+
+  return result.status ?? 1;
+}
+
+function runMigrateStrictEffect(args: string[], context: CommandContext) {
+  if (args.includes('--help') || args.includes('-h')) {
+    process.stdout.write(`Usage:
+  modern-js-create ultramodern migrate-strict-effect --version <version> [--skip-install]
+
+Updates generated UltraModern package-source metadata, Modern package aliases,
+direct Effect API topology metadata, and the pnpm lockfile for strict Effect
+workspaces. Source code still has to pass pnpm api:check and pnpm contract:check.
+`);
+    return 0;
+  }
+
+  const current = readUltramodernConfig(context.workspaceRoot);
+  const packageSource = createMigrationPackageSource(args, current);
+
+  updateUltramodernConfig(context.workspaceRoot, packageSource);
+  updateReferenceTopology(context.workspaceRoot);
+
+  for (const relativePackageFile of listWorkspacePackageFiles(
+    context.workspaceRoot,
+  )) {
+    const packageFile = path.join(context.workspaceRoot, relativePackageFile);
+    const packageJson = readJsonFile(packageFile);
+
+    if (relativePackageFile === 'package.json') {
+      packageJson.modernjs ??= {};
+      packageJson.modernjs.packageSource = {
+        strategy: packageSource.strategy,
+        config: './.modernjs/ultramodern.json',
+      };
+    }
+
+    if (updateModernDependencies(packageJson, packageSource)) {
+      writeJsonFile(packageFile, packageJson);
+    } else if (relativePackageFile === 'package.json') {
+      writeJsonFile(packageFile, packageJson);
+    }
+  }
+
+  if (!hasFlag(args, '--skip-install')) {
+    const status = runPnpmLockfileRefresh(context);
+    if (status !== 0) {
+      return status;
+    }
+  }
+
+  process.stdout.write(
+    `UltraModern strict Effect metadata migrated to ${packageSource.modernPackageVersion}. Run pnpm api:check && pnpm contract:check next.\n`,
+  );
+  return 0;
+}
+
 function runSkills(args: string[], context: CommandContext) {
   const [subcommand, ...rest] = args;
   if (subcommand === 'install') {
@@ -155,6 +531,8 @@ export async function runUltramodernToolingCli(
         );
       case 'mf-types':
         return runMfTypes(rest, context);
+      case 'migrate-strict-effect':
+        return runMigrateStrictEffect(rest, context);
       case 'public-surface':
         return spawnNodeScript(
           'templates/workspace-scripts/generate-public-surface-assets.mjs',

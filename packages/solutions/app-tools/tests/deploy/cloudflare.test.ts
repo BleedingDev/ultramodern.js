@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url';
 import { createCloudflarePreset } from '../../src/plugins/deploy/platforms/cloudflare';
 import type {
   CloudflareWorkerArtifactConfig,
+  CloudflareWorkerD1DatabaseConfig,
   CloudflareWorkerSecurityConfig,
   JsonValue,
 } from '../../src/types/config/deploy';
@@ -27,6 +28,7 @@ const createAssetBinding = (publicDirectory: string) => ({
 async function createFixture({
   artifacts,
   compatibilityDate,
+  d1Databases,
   includeBffWorker = true,
   includeServerOnlyDistSources = false,
   publicAssetExcludes,
@@ -37,6 +39,7 @@ async function createFixture({
 }: {
   artifacts?: CloudflareWorkerArtifactConfig[];
   compatibilityDate?: string;
+  d1Databases?: CloudflareWorkerD1DatabaseConfig[];
   includeBffWorker?: boolean;
   includeServerOnlyDistSources?: boolean;
   publicAssetExcludes?: string[];
@@ -325,6 +328,7 @@ async function createFixture({
         worker: {
           artifacts,
           compatibilityDate,
+          d1Databases,
           name: workerName,
           publicAssetExcludes,
           security: workerSecurity,
@@ -359,7 +363,7 @@ afterEach(async () => {
 describe('cloudflare deploy preset', () => {
   it('fails clearly when Effect BFF is configured but its worker bundle is missing', async () => {
     await expect(createFixture({ includeBffWorker: false })).rejects.toThrow(
-      /Cloudflare Effect BFF is configured, but the BFF worker bundle is missing: .*worker[\\/]__modern_bff_effect\.js.*@modern-js\/plugin-bff\/effect-edge/u,
+      /Cloudflare Effect API runtime is configured, but the BFF worker bundle is missing: .*worker[\\/]__modern_bff_effect\.js.*@modern-js\/plugin-bff\/effect-edge/u,
     );
   });
 
@@ -651,6 +655,63 @@ describe('cloudflare deploy preset', () => {
         'utf-8',
       ),
     ).resolves.toBe('{"revision":"2026-06-27"}');
+  });
+
+  it('emits declarative D1 bindings and stages migrations', async () => {
+    const { outputDirectory } = await createFixture({
+      d1Databases: [
+        {
+          binding: 'DB',
+          databaseName: 'app-data',
+          databaseId: '11111111-1111-4111-8111-111111111111',
+          migrationsDir: 'migrations/d1',
+          previewDatabaseId: '22222222-2222-4222-8222-222222222222',
+          remote: true,
+        },
+      ],
+      sourceFiles: {
+        'migrations/d1': {
+          '0001_init.sql': 'CREATE TABLE suggestions (id TEXT PRIMARY KEY);',
+        },
+      },
+    });
+    const wranglerConfig = JSON.parse(
+      await fs.readFile(path.join(outputDirectory, 'wrangler.json'), 'utf-8'),
+    );
+
+    expect(wranglerConfig.d1_databases).toEqual([
+      {
+        binding: 'DB',
+        database_name: 'app-data',
+        database_id: '11111111-1111-4111-8111-111111111111',
+        migrations_dir: 'migrations/d1',
+        preview_database_id: '22222222-2222-4222-8222-222222222222',
+        remote: true,
+      },
+    ]);
+    await expect(
+      fs.readFile(
+        path.join(outputDirectory, 'migrations/d1/0001_init.sql'),
+        'utf-8',
+      ),
+    ).resolves.toBe('CREATE TABLE suggestions (id TEXT PRIMARY KEY);');
+  });
+
+  it('rejects mixed declarative and raw Wrangler D1 config', async () => {
+    await expect(
+      createFixture({
+        d1Databases: [
+          {
+            binding: 'DB',
+            databaseName: 'app',
+            databaseId: '11111111-1111-4111-8111-111111111111',
+          },
+        ],
+        wrangler: {
+          d1_databases: [],
+        },
+      }),
+    ).rejects.toThrow(/deploy\.worker\.d1Databases.*wrangler\.d1_databases/u);
   });
 
   it('rejects artifacts staged into framework-owned Cloudflare output paths', async () => {

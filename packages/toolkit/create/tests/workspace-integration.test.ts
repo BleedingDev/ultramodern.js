@@ -118,6 +118,16 @@ function assertModuleFederationWarningHygiene(
   );
   assert.match(
     modernConfig,
+    /const buildCacheTarget = cloudflareDeployEnabled \? 'cloudflare' : 'web';/,
+    `${label} must isolate normal and Cloudflare Rspack cache targets`,
+  );
+  assert.match(
+    modernConfig,
+    /cacheDirectory: buildCacheDirectory,/,
+    `${label} must use a per-target Rspack cache directory`,
+  );
+  assert.match(
+    modernConfig,
     /devServer:\s*\{\s*headers:\s*\{\s*'Access-Control-Allow-Headers':\s*'Accept, Authorization, Content-Type, X-Requested-With',\s*'Access-Control-Allow-Methods':\s*'GET, HEAD, OPTIONS',\s*'Access-Control-Allow-Origin':\s*moduleFederationDevServerOrigin,\s*\},\s*\},/,
     `${label} must provide explicit devServer headers so MF does not inject wildcard CORS defaults`,
   );

@@ -292,6 +292,7 @@ export function createUltramodernConfig(
         publicSurface: 'scripts/generate-public-surface-assets.mts',
         cloudflareProof: 'scripts/proof-cloudflare-version.mts',
         performanceReadiness: 'scripts/ultramodern-performance-readiness.mts',
+        migrateStrictEffect: 'scripts/migrate-strict-effect.mts',
         apiBoundaries: 'scripts/check-ultramodern-api-boundaries.mts',
         skills: 'scripts/bootstrap-agent-skills.mts',
       },

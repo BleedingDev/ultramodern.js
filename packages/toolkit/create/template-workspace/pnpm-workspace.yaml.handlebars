@@ -37,11 +37,14 @@ peerDependencyRules:
     '@module-federation/enhanced>typescript': '{{typescriptVersion}}'
     '@module-federation/modern-js-v3>typescript': '{{typescriptVersion}}'
     '@module-federation/rspack>typescript': '{{typescriptVersion}}'
+    '@effect/vitest>effect': '{{effectVersion}}'
     'i18next>typescript': '{{typescriptVersion}}'
 
 overrides:
   '@tanstack/react-router': {{tanstackRouterVersion}}
   '@tanstack/router-core': {{tanstackRouterCoreVersion}}
+  '@effect/vitest': {{effectVitestVersion}}
+  effect: {{effectVersion}}
   node-fetch: '{{nodeFetchVersion}}'
 
 allowBuilds:

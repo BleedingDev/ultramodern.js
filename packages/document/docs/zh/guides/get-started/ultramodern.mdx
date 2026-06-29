@@ -71,11 +71,30 @@ mise exec -- pnpm check
 mise exec -- pnpm build
 ```
 
-严格生成 API 迁移要求 `3.5.0-ultramodern.0` 或更新版本。
+严格生成 API 迁移要求 `3.5.0-ultramodern.1` 或更新版本。
 `3.4.0-ultramodern.20` 及更早 cohort 还没有这套完整的直接
-`api/index.ts` 生成器、生成的 `.mts` 检查和严格 Oxlint 边界规则。还不能安装该
-BleedingDev cohort 的 agent 应使用本地 Modern.js workspace 做迁移校验；否则用
-`--ultramodern-package-version` 固定 `3.5.0-ultramodern.0` 或更新版本。
+`api/index.ts` 生成器、生成的 `.mts` 检查、严格 Oxlint 边界规则、Effect 版本组
+overrides 和严格 Effect 迁移命令。还不能安装该 BleedingDev cohort 的 agent 应使用本地
+Modern.js workspace 做迁移校验；否则用 `--ultramodern-package-version` 固定
+`3.5.0-ultramodern.1` 或更新版本。
+
+手写 package alias 或生成 metadata 之前，先在目标 workspace 运行框架迁移命令：
+
+```bash
+pnpm dlx @bleedingdev/modern-js-create@3.5.0-ultramodern.1 ultramodern \
+  migrate-strict-effect --version 3.5.0-ultramodern.1
+pnpm api:check
+pnpm contract:check
+```
+
+该命令会更新 `.modernjs/ultramodern.json`、根 `modernjs.packageSource`、生成的
+Modern package alias、直接 topology API metadata 和 pnpm lockfile。剩余失败就是源码迁移：
+把代码移到 `shared/api.ts`、`api/index.ts` 和 `src/api/*-client.ts`，再删除
+`api/effect`、`api/lambda`、`shared/effect` 和 `src/effect`。
+
+严格 Effect 生成 workspace 会通过 pnpm overrides 固定兼容版本组：
+`effect@4.0.0-beta.89` 和 `@effect/vitest@4.0.0-beta.89`。不要添加与这些
+overrides 冲突的 app 本地直接 Effect 版本。
 
 渐进迁移意味着尚未迁移的旧 Modern.js app 可以保留现有 runtime，直到被转换为
 UltraModern。一个 surface 一旦生成为或迁移为 UltraModern HTTP API，就只能使用
@@ -110,6 +129,15 @@ shim 来让旧布局通过。
 Effect RPC、WebSockets 和其他传输方式应在需要时作为显式 transport surface 增加。
 它们不能作为在生成 HTTP API 模块中重新引入原始 request handler 的理由。
 
+严格 API 测试应执行 `HttpApi` 契约。Edge 兼容 proof 测试使用
+`@modern-js/plugin-bff/effect-edge` 的 `createEffectBffTestHandler`；如果必须手动组合
+web handler，在调用 `HttpRouter.toWebHandler` 前要把 `HttpServer.layerServices` 和
+API group layer 一起提供。
+
+动态 origin CORS predicate 使用
+`HttpRouter.middleware(Effect.succeed(HttpMiddleware.cors(...)))`。在固定的 Effect
+版本组中，`HttpRouter.middleware(...)` 直接返回 `Layer`；不要读取 `.layer` 属性。
+
 每个仓库只使用一种 package-source 策略。已发布的 BleedingDev create 包默认使用
 `--ultramodern-package-source=install`，并把精确 cohort 记录到
 `.modernjs/ultramodern.json`。`--workspace` 只用于本地 monorepo
@@ -126,6 +154,11 @@ CommonJS，同时生成的 app package 继续为 Module Federation DTS 保留稳
 `scripts/validate-ultramodern-workspace.mts` 契约校验，再接受人工改动。topology、
 ownership、package-source、本地 overlay、生成契约、Tailwind prefix 或 Module
 Federation 冲突，都应在对应归属文件中修复，不要手写补丁覆盖生成结果。
+
+Cloudflare D1 绑定使用一等配置 `deploy.worker.d1Databases`；生成 app 拥有 D1
+migration 时不要再用 app 本地 postprocess。Cloudflare public output 默认排除服务端
+`api` 和 `shared` 目录，并且生成的 Modern/Rspack cache 会按 app 与构建目标隔离，避免
+本地 `build` 与 `cloudflare:build` 共享同一个 Rspack cache 目录。
 
 ## 人类工作流
 

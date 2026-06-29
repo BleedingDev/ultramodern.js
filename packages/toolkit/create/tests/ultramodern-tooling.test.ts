@@ -15,6 +15,19 @@ import {
 const retiredContractPath = '.modernjs/ultramodern-generated-contract.json';
 const retiredPackageSourcePath = '.modernjs/ultramodern-package-source.json';
 
+function readJson(workspaceDir: string, relativePath: string) {
+  return JSON.parse(
+    fs.readFileSync(path.join(workspaceDir, relativePath), 'utf-8'),
+  );
+}
+
+function writeJson(workspaceDir: string, relativePath: string, value: unknown) {
+  fs.writeFileSync(
+    path.join(workspaceDir, relativePath),
+    `${JSON.stringify(value, null, 2)}\n`,
+  );
+}
+
 function scaffoldWorkspace(name: string) {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-tooling-'));
   const workspaceDir = path.join(tempRoot, name);
@@ -110,6 +123,111 @@ test('UltraModern tooling config reads compact config and rejects retired metada
     assert.throws(
       () => readUltramodernConfig(retiredMetadataWorkspaceDir),
       /Missing UltraModern config\. Expected \.modernjs\/ultramodern\.json/u,
+    );
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('UltraModern migrate-strict-effect updates package cohort and direct API metadata', async () => {
+  const { tempRoot, workspaceDir } = scaffoldWorkspace('tooling-migrate');
+
+  try {
+    addUltramodernVertical({
+      workspaceRoot: workspaceDir,
+      name: 'catalog',
+      modernVersion: '3.2.1',
+    });
+
+    const topology = readJson(workspaceDir, 'topology/reference-topology.json');
+    const catalog = topology.verticals.find(
+      (vertical: Record<string, unknown>) => vertical.id === 'catalog',
+    );
+    catalog.api = {
+      ...catalog.api,
+      effect: {
+        stem: 'catalog',
+        prefix: '/catalog-api',
+        consumedBy: ['shell-super-app', 'catalog'],
+      },
+      bff: {
+        prefix: '/catalog-api',
+        strictEffectApproach: false,
+      },
+      contract: {
+        export: './shared/effect/api',
+        path: 'verticals/catalog/shared/effect/api.ts',
+      },
+      client: {
+        export: './effect/client',
+        path: 'verticals/catalog/src/effect/catalog-client.ts',
+      },
+      serverEntry: 'verticals/catalog/api/effect/index.ts',
+    };
+    writeJson(workspaceDir, 'topology/reference-topology.json', topology);
+
+    assert.equal(
+      await runUltramodernToolingCli(
+        [
+          'migrate-strict-effect',
+          '--version',
+          '3.5.0-ultramodern.1',
+          '--skip-install',
+        ],
+        workspaceDir,
+      ),
+      0,
+    );
+
+    const compactConfig = readJson(workspaceDir, '.modernjs/ultramodern.json');
+    assert.equal(
+      compactConfig.packageSource.modernPackageVersion,
+      '3.5.0-ultramodern.1',
+    );
+    assert.equal(compactConfig.packageSource.aliasScope, 'bleedingdev');
+    assert.equal(
+      compactConfig.packageSource.aliasPackageNamePrefix,
+      'modern-js-',
+    );
+
+    const rootPackage = readJson(workspaceDir, 'package.json');
+    assert.equal(
+      rootPackage.devDependencies['@modern-js/create'],
+      'npm:@bleedingdev/modern-js-create@3.5.0-ultramodern.1',
+    );
+    assert.equal(rootPackage.modernjs.packageSource.strategy, 'install');
+
+    const shellPackage = readJson(
+      workspaceDir,
+      'apps/shell-super-app/package.json',
+    );
+    assert.equal(
+      shellPackage.dependencies['@modern-js/plugin-bff'],
+      'npm:@bleedingdev/modern-js-plugin-bff@3.5.0-ultramodern.1',
+    );
+
+    const migratedTopology = readJson(
+      workspaceDir,
+      'topology/reference-topology.json',
+    );
+    const migratedCatalog = migratedTopology.verticals.find(
+      (vertical: Record<string, unknown>) => vertical.id === 'catalog',
+    );
+    assert.equal(migratedCatalog.api.effect, undefined);
+    assert.equal(migratedCatalog.api.bff.strictEffectApproach, true);
+    assert.equal(
+      migratedCatalog.api.serverEntry,
+      'verticals/catalog/api/index.ts',
+    );
+    assert.equal(migratedCatalog.api.contract.export, './api');
+    assert.equal(
+      migratedCatalog.api.contract.path,
+      'verticals/catalog/shared/api.ts',
+    );
+    assert.equal(migratedCatalog.api.client.export, './api/client');
+    assert.equal(
+      migratedCatalog.api.client.path,
+      'verticals/catalog/src/api/catalog-client.ts',
     );
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });

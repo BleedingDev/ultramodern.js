@@ -62,6 +62,15 @@ export type EffectRuntimeLayer = Layer.Layer<
   EffectRuntimeRequirements
 >;
 const emptyEffectServiceContext = Context.empty() as Context.Context<any>;
+
+const isEffectServiceContext = (
+  context: unknown,
+): context is Context.Context<any> =>
+  typeof context === 'object' && context !== null && 'mapUnsafe' in context;
+
+const toEffectServiceContext = (context: unknown) =>
+  isEffectServiceContext(context) ? context : emptyEffectServiceContext;
+
 export type EffectRpcSerialization =
   | 'json'
   | 'ndjson'
@@ -974,7 +983,7 @@ export function createHttpApiHandler<
     }
     return httpApiHandler.handler(
       preparedRequest,
-      context ?? emptyEffectServiceContext,
+      toEffectServiceContext(context),
     );
   };
 
@@ -1261,10 +1270,7 @@ export function createHttpApiHandler<
         if (policyDenial) {
           return policyDenial;
         }
-        return rpcHandler.handler(
-          request,
-          context ?? emptyEffectServiceContext,
-        );
+        return rpcHandler.handler(request, toEffectServiceContext(context));
       }
       return handleHttpApiRequest(request);
     },

@@ -353,6 +353,56 @@ export const raw = () => new Response('legacy');
     );
   });
 
+  test('workspace runner applies strict API entry checks to shell-owned APIs', () => {
+    const root = trackTempRoot();
+    writeFile(
+      root,
+      'apps/shell-super-app/api/index.ts',
+      `
+export const runtime = {};
+`,
+    );
+
+    const result = captureConsole(() =>
+      runWorkspaceSourceCheck({
+        cwd: root,
+        sourceRoots: ['apps'],
+        locales: [],
+      }),
+    );
+    const output = combinedOutput(result);
+
+    expect(result.exitCode).toBe(1);
+    expect(output).toContain(
+      'Generated API entries must export defineEffectBff',
+    );
+    expect(output).toContain('must implement handlers through HttpApiBuilder');
+  });
+
+  test('workspace runner rejects weak generic schemas in API modules', () => {
+    const root = trackTempRoot();
+    writeFile(
+      root,
+      'apps/shell-super-app/shared/api.ts',
+      `
+import { Schema } from '@modern-js/plugin-bff/effect-edge';
+
+export const Payload = Schema.UnknownFromJsonString;
+`,
+    );
+
+    const result = captureConsole(() =>
+      runWorkspaceSourceCheck({
+        cwd: root,
+        sourceRoots: ['apps'],
+        locales: [],
+      }),
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(combinedOutput(result)).toContain('must use concrete request');
+  });
+
   test('workspace runner rejects legacy API paths and non-HttpApi contracts', () => {
     const root = trackTempRoot();
     writeFile(

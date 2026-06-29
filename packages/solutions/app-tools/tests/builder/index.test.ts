@@ -143,8 +143,8 @@ describe('create builder Options', () => {
     );
     const apiDirectory = path.join(appDirectory, 'api');
 
-    fs.mkdirSync(path.join(apiDirectory, 'effect'), { recursive: true });
-    fs.writeFileSync(path.join(apiDirectory, 'effect/index.ts'), '');
+    fs.mkdirSync(apiDirectory, { recursive: true });
+    fs.writeFileSync(path.join(apiDirectory, 'index.ts'), '');
 
     try {
       const appContext = {
@@ -181,7 +181,7 @@ describe('create builder Options', () => {
       expect(result.environments.workerSSR?.source?.entry).toEqual({
         main: ['./src/index.server.jsx'],
         __modern_bff_effect: [
-          `${path.join(apiDirectory, 'effect/index.ts')}?modern-bff-runtime`,
+          `${path.join(apiDirectory, 'index.ts')}?modern-bff-runtime`,
         ],
       });
       expect(result.environments.workerSSR?.tools?.htmlPlugin).toBe(false);

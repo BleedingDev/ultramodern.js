@@ -69,7 +69,7 @@ typecheck, skills, i18n boundary validation, contract validation, and build as
 separate matrix jobs so failures are isolated and parallelizable.
 
 Type checking is TS7-first. `pnpm typecheck` runs
-`scripts/ultramodern-typecheck.mjs` in TS-Go build mode over
+`scripts/ultramodern-typecheck.mts` in TS-Go build mode over
 `tsconfig.json` project references, with native-preview `--checkers` and
 `--builders` enabled by default. `@typescript/native-preview` is the TS7 latest
 dev compiler lane. The classic `typescript` package is pinned to latest TS6
@@ -147,11 +147,50 @@ ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP=https://shell-super-app.example.workers.d
 pnpm cloudflare:proof -- --require-public-urls
 ```
 
+## Strict Effect API
+
+Generated HTTP APIs use the direct strict Effect topology only:
+
+- API contracts live at `shared/api.ts`.
+- Runtime entries live at `api/index.ts`.
+- Browser clients live under `src/api/*-client.ts`.
+- `modern.config.ts` uses `bff.runtimeFramework: 'effect'`,
+  `bff.effect.entry: './api/index'`, and
+  `bff.effect.strictEffectApproach: true`.
+
+Do not add `api/effect`, `api/lambda`, `shared/effect`, `src/effect`, Hono
+server imports, raw request handlers, manual `request.json()` parsing, or
+manual `new Response(...)` construction inside generated API modules.
+`pnpm api:check` and Oxlint enforce this. Model requests, responses, and typed
+errors with concrete Effect `Schema` values; generic JSON shortcuts such as
+`Schema.UnknownFromJsonString`, `Schema.Unknown`, and `Schema.Any` are rejected
+in API modules.
+
+Generated pnpm overrides pin the framework-compatible Effect cohort. Keep
+`effect` and `@effect/vitest` aligned with `pnpm-workspace.yaml`; do not add
+new direct package-level Effect versions unless the whole UltraModern cohort is
+upgraded.
+
+For older generated workspaces, run the framework migration command first:
+
+```bash
+pnpm dlx @bleedingdev/modern-js-create@3.5.0-ultramodern.1 ultramodern \
+  migrate-strict-effect --version 3.5.0-ultramodern.1
+pnpm api:check
+pnpm contract:check
+```
+
+The command updates generated package-source metadata, Modern package aliases,
+direct API topology metadata, and the lockfile. Remaining failures are source
+migration work; fix the owning API files instead of adding compatibility shims.
+
 ## Troubleshooting
 
 | Symptom | Current check | Owner |
 | --- | --- | --- |
 | Package cohort mismatch | Regenerate with one package source strategy, run `mise install`, then rerun `pnpm install` from the activated shell. | Generated workspace package source metadata |
+| Effect runtime cohort mismatch | Keep `effect` and `@effect/vitest` on the generated pnpm override versions, then rerun `pnpm install`. | Generated workspace dependency policy |
+| Old nested API path | Run `pnpm api:check`, move code to `api/index.ts`, `shared/api.ts`, and `src/api/*`, then delete `api/effect`, `api/lambda`, `shared/effect`, and `src/effect`. | API owner |
 | Install failure | Check the active Node/pnpm from `mise install`; rerun `pnpm install` after the shell sees the pinned versions. | Toolchain setup |
 | Build failure | Run the matching primitive gate (`pnpm lint`, `pnpm typecheck`, `pnpm i18n:boundaries`, `pnpm contract:check`) before `pnpm build`; fix the owning failure first. | Owning package or generated contract |
 | Missing public URL | Set the app public URL env key recorded in `.modernjs/ultramodern.json`, for example `ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP`. | Deployment operator |
