@@ -12,6 +12,18 @@ const repoRoot = path.resolve(new URL('../..', import.meta.url).pathname);
 const execFileAsync = promisify(execFile);
 const { parseCliArgs } = cliKit;
 const { readJsonFile, writeJsonFile } = fsKit;
+const npmPublishAttempts = 3;
+const npmPublishRetryDelayMs = 15_000;
+const transientNpmPublishErrorPatterns = [
+  /TLOG_CREATE_ENTRY_ERROR/u,
+  /error creating tlog entry/u,
+  /rekor\.sigstore\.dev/u,
+  /ETIMEDOUT/u,
+  /ECONNRESET/u,
+  /EAI_AGAIN/u,
+  /ESOCKETTIMEDOUT/u,
+  /socket hang up/u,
+];
 const createTemplateRequiredFiles = [
   'template-workspace/.agents/agent-reference-repos.json',
   'template-workspace/.codex/rstackjs-agent-skills-LICENSE',
@@ -577,12 +589,27 @@ function runAsync(command, args, options = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       cwd: options.cwd ?? repoRoot,
-      stdio: options.stdio ?? 'inherit',
+      stdio: options.captureOutput
+        ? ['ignore', 'pipe', 'pipe']
+        : (options.stdio ?? 'inherit'),
       env: {
         ...process.env,
         FORCE_COLOR: '0',
       },
     });
+
+    const stdout = [];
+    const stderr = [];
+    if (options.captureOutput) {
+      child.stdout?.on('data', chunk => {
+        stdout.push(chunk);
+        process.stdout.write(chunk);
+      });
+      child.stderr?.on('data', chunk => {
+        stderr.push(chunk);
+        process.stderr.write(chunk);
+      });
+    }
 
     child.on('error', reject);
     child.on('close', status => {
@@ -591,9 +618,29 @@ function runAsync(command, args, options = {}) {
         return;
       }
 
-      reject(new Error(`${command} ${args.join(' ')} failed with ${status}`));
+      const error = new Error(
+        `${command} ${args.join(' ')} failed with ${status}`,
+      );
+      error.status = status;
+      error.stdout = Buffer.concat(stdout).toString('utf-8');
+      error.stderr = Buffer.concat(stderr).toString('utf-8');
+      reject(error);
     });
   });
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function isTransientNpmPublishError(error) {
+  const output = [
+    error instanceof Error ? error.message : '',
+    typeof error?.stdout === 'string' ? error.stdout : '',
+    typeof error?.stderr === 'string' ? error.stderr : '',
+  ].join('\n');
+
+  return transientNpmPublishErrorPatterns.some(pattern => pattern.test(output));
 }
 
 function packSourcePackage(packageName, packDir) {
@@ -809,7 +856,13 @@ function validatePublishManifest(manifest) {
   }
 }
 
-async function publishPackage(packageDir, options) {
+async function publishPackage(
+  packageDir,
+  options,
+  runner = runAsync,
+  wait = sleep,
+  registry = { packageExists },
+) {
   const packageJson = readJsonFile(path.join(packageDir, 'package.json'));
   const args = [
     'publish',
@@ -826,7 +879,37 @@ async function publishPackage(packageDir, options) {
     args.push('--provenance');
   }
 
-  await runAsync('npm', args);
+  const maxAttempts = options.dryRun ? 1 : npmPublishAttempts;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      await runner('npm', args, { captureOutput: true });
+      return packageJson.name;
+    } catch (error) {
+      if (
+        !options.dryRun &&
+        (await registry.packageExists(packageJson.name, packageJson.version))
+      ) {
+        console.log(
+          `Reusing existing ${packageJson.name}@${packageJson.version} after npm publish returned an error`,
+        );
+        return packageJson.name;
+      }
+
+      const shouldRetry =
+        attempt < maxAttempts && isTransientNpmPublishError(error);
+      if (!shouldRetry) {
+        throw error;
+      }
+
+      console.warn(
+        `npm publish for ${packageJson.name}@${packageJson.version} failed with a transient registry/provenance error; retrying attempt ${
+          attempt + 1
+        }/${maxAttempts} in ${npmPublishRetryDelayMs}ms.`,
+      );
+      await wait(npmPublishRetryDelayMs);
+    }
+  }
+
   return packageJson.name;
 }
 
@@ -1101,8 +1184,10 @@ if (isDirectRun()) {
 
 export {
   assertRegistryTarballReachable,
+  isTransientNpmPublishError,
   orderPublishItems,
   parseArgs,
+  publishPackage,
   validateFullCohortManifest,
   validateRegistryCohort,
 };

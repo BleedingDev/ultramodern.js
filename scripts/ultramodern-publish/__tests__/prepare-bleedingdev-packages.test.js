@@ -444,6 +444,67 @@ test('validateRegistryCohort accepts a coherent latest-tagged full cohort', asyn
   );
 });
 
+test('isTransientNpmPublishError recognizes provenance and registry transport failures', async () => {
+  const { isTransientNpmPublishError } = await import(
+    '../prepare-bleedingdev-packages.mjs'
+  );
+
+  assert.equal(
+    isTransientNpmPublishError({
+      stderr:
+        'npm error code TLOG_CREATE_ENTRY_ERROR\nnpm error error creating tlog entry\nInvalid response body while trying to fetch https://rekor.sigstore.dev/api/v1/log/entries: aborted',
+    }),
+    true,
+  );
+  assert.equal(
+    isTransientNpmPublishError({
+      stderr:
+        'npm error code E403\nnpm error You cannot publish over a version',
+    }),
+    false,
+  );
+});
+
+test('publishPackage retries transient provenance failures', async () => {
+  const { publishPackage } = await import(
+    '../prepare-bleedingdev-packages.mjs'
+  );
+  const root = makeTempDir();
+  const packageDir = path.join(root, 'package');
+  writeJson(path.join(packageDir, 'package.json'), {
+    name: '@bleedingdev/modern-js-server-core',
+    version: '0.0.0-ultramodern-test-retry',
+  });
+  const calls = [];
+
+  try {
+    const publishedName = await publishPackage(
+      packageDir,
+      { dryRun: false, tag: 'latest' },
+      async (command, args, options) => {
+        calls.push({ command, args, options });
+        if (calls.length === 1) {
+          const error = new Error('npm publish failed with 1');
+          error.stderr =
+            'npm error code TLOG_CREATE_ENTRY_ERROR\nnpm error error creating tlog entry';
+          throw error;
+        }
+      },
+      async () => {},
+      { packageExists: async () => false },
+    );
+
+    assert.equal(publishedName, '@bleedingdev/modern-js-server-core');
+    assert.equal(calls.length, 2);
+    assert.equal(calls[0].command, 'npm');
+    assert.deepEqual(calls[0].options, { captureOutput: true });
+    assert.deepEqual(calls[1].options, { captureOutput: true });
+    assert(calls[0].args.includes('--provenance'));
+  } finally {
+    removeDir(root);
+  }
+});
+
 test('publish-existing accepts create packages with hidden template files before trusted publish check', () => {
   const outDir = makeCreateFixture({ includeTemplateDotFiles: true });
 

@@ -193,8 +193,8 @@ For strict Effect API migrations, update generated package metadata and Modern
 package aliases through the framework command before hand-editing app code:
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-create@3.5.0-ultramodern.6 ultramodern \
-  migrate-strict-effect --version 3.5.0-ultramodern.6
+pnpm dlx @bleedingdev/modern-js-create@3.5.0-ultramodern.9 ultramodern \
+  migrate-strict-effect --version 3.5.0-ultramodern.9
 pnpm api:check
 pnpm contract:check
 pnpm check
