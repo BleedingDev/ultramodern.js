@@ -78,20 +78,20 @@ mise exec -- pnpm check
 mise exec -- pnpm build
 ```
 
-Strict generated API migration requires `3.5.0-ultramodern.5` or newer.
+Strict generated API migration requires `3.5.0-ultramodern.6` or newer.
 `3.4.0-ultramodern.20` and earlier cohorts do not include this full direct
 `api/index.ts` generator, generated `.mts` checks, strict Oxlint boundary rule
 set, Effect cohort overrides, and strict Effect migration command. Agents that
 cannot install that BleedingDev cohort yet should use the local Modern.js
-workspace for migration validation; otherwise pin `3.5.0-ultramodern.5` or
+workspace for migration validation; otherwise pin `3.5.0-ultramodern.6` or
 newer with `--ultramodern-package-version`.
 
 Before hand-editing package aliases or generated metadata, run the framework
 migration command from the target workspace:
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-create@3.5.0-ultramodern.5 ultramodern \
-  migrate-strict-effect --version 3.5.0-ultramodern.5
+pnpm dlx @bleedingdev/modern-js-create@3.5.0-ultramodern.6 ultramodern \
+  migrate-strict-effect --version 3.5.0-ultramodern.6
 pnpm api:check
 pnpm contract:check
 ```

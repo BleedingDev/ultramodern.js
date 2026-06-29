@@ -25,6 +25,14 @@ type TsgoConfig = {
   include?: string[];
 };
 
+type NativePreviewPackageJson = {
+  bin?:
+    | string
+    | {
+        tsgo?: string;
+      };
+};
+
 const copyFiles = async (from: string, to: string, appDirectory: string) => {
   if (await fs.pathExists(from)) {
     const relativePath = path.relative(appDirectory, from);
@@ -177,6 +185,27 @@ const runTsgo = (
     },
   );
 
+const getTsgoBinEntry = (pkg: NativePreviewPackageJson) => {
+  if (typeof pkg.bin === 'string') {
+    return pkg.bin;
+  }
+  return pkg.bin?.tsgo;
+};
+
+const resolveTsgoBinPath = (pkgPath: string) => {
+  const pkgDir = path.dirname(pkgPath);
+  const pkg = require(pkgPath) as NativePreviewPackageJson;
+  const declaredBinEntry = getTsgoBinEntry(pkg);
+  const candidates = [
+    declaredBinEntry ? path.resolve(pkgDir, declaredBinEntry) : undefined,
+    path.join(pkgDir, 'bin/tsgo.js'),
+  ].filter((candidate): candidate is string => Boolean(candidate));
+
+  return (
+    candidates.find(candidate => fs.existsSync(candidate)) ?? candidates[0]
+  );
+};
+
 // Resolve the tsgo binary from the app first (so apps control the compiler
 // version), then from this package's own dependency tree (covering hoisted
 // installs, where @modern-js/builder pulls the package in). The `resolvePaths`
@@ -189,7 +218,7 @@ export const getTsgoBinPath = (
     const pkgPath = require.resolve('@typescript/native-preview/package.json', {
       paths: resolvePaths,
     });
-    return path.join(path.dirname(pkgPath), 'bin/tsgo.js');
+    return resolveTsgoBinPath(pkgPath);
   } catch {
     throw new Error(
       'tsgo could not be found! Please install "@typescript/native-preview" in your project to compile BFF/server code.',

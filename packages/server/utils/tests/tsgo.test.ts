@@ -25,6 +25,22 @@ describe('getTsgoBinPath', () => {
     await fs.outputJSON(path.join(pkgDir, 'package.json'), {
       name: '@typescript/native-preview',
       version: '0.0.0-test',
+      bin: {
+        tsgo: './bin/tsgo',
+      },
+    });
+    await fs.outputFile(path.join(pkgDir, 'bin/tsgo'), '// stub\n');
+
+    const binPath = getTsgoBinPath(tmpDir);
+
+    expect(binPath).toBe(path.join(pkgDir, 'bin/tsgo'));
+  });
+
+  it('supports older native-preview installs with bin/tsgo.js', async () => {
+    const pkgDir = path.join(tmpDir, 'node_modules/@typescript/native-preview');
+    await fs.outputJSON(path.join(pkgDir, 'package.json'), {
+      name: '@typescript/native-preview',
+      version: '0.0.0-test',
     });
     await fs.outputFile(path.join(pkgDir, 'bin/tsgo.js'), '// stub\n');
 
@@ -38,7 +54,7 @@ describe('getTsgoBinPath', () => {
     // own module tree (hoisted installs / the workspace devDependency).
     const binPath = getTsgoBinPath(tmpDir);
 
-    expect(binPath).toMatch(/tsgo\.js$/);
+    expect(binPath).toMatch(/tsgo(?:\.js)?$/);
     expect(fs.existsSync(binPath)).toBe(true);
   });
 

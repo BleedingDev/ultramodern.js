@@ -3,10 +3,21 @@ import path from 'node:path';
 
 const fixtureDir = path.resolve(__dirname, 'type-fixture');
 
-const tsgoBin = path.join(
-  path.dirname(require.resolve('@typescript/native-preview/package.json')),
-  'bin/tsgo.js',
-);
+function resolveTsgoBin() {
+  const pkgPath = require.resolve('@typescript/native-preview/package.json');
+  const pkgDir = path.dirname(pkgPath);
+  const pkg = require(pkgPath) as {
+    bin?:
+      | string
+      | {
+          tsgo?: string;
+        };
+  };
+  const binEntry = typeof pkg.bin === 'string' ? pkg.bin : pkg.bin?.tsgo;
+  return path.resolve(pkgDir, binEntry ?? 'bin/tsgo.js');
+}
+
+const tsgoBin = resolveTsgoBin();
 
 describe('Link type-level tests', () => {
   test('fixture type-checks correctly: valid uses compile, invalid uses are rejected', () => {

@@ -71,18 +71,18 @@ mise exec -- pnpm check
 mise exec -- pnpm build
 ```
 
-严格生成 API 迁移要求 `3.5.0-ultramodern.5` 或更新版本。
+严格生成 API 迁移要求 `3.5.0-ultramodern.6` 或更新版本。
 `3.4.0-ultramodern.20` 及更早 cohort 还没有这套完整的直接
 `api/index.ts` 生成器、生成的 `.mts` 检查、严格 Oxlint 边界规则、Effect 版本组
 overrides 和严格 Effect 迁移命令。还不能安装该 BleedingDev cohort 的 agent 应使用本地
 Modern.js workspace 做迁移校验；否则用 `--ultramodern-package-version` 固定
-`3.5.0-ultramodern.5` 或更新版本。
+`3.5.0-ultramodern.6` 或更新版本。
 
 手写 package alias 或生成 metadata 之前，先在目标 workspace 运行框架迁移命令：
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-create@3.5.0-ultramodern.5 ultramodern \
-  migrate-strict-effect --version 3.5.0-ultramodern.5
+pnpm dlx @bleedingdev/modern-js-create@3.5.0-ultramodern.6 ultramodern \
+  migrate-strict-effect --version 3.5.0-ultramodern.6
 pnpm api:check
 pnpm contract:check
 ```
