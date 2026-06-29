@@ -14,6 +14,17 @@ import {
   WORKSPACE_PACKAGE_VERSION,
 } from '../ultramodern-package-source';
 import { validateModuleFederationTypes } from '../ultramodern-workspace/mf-validation';
+import {
+  EFFECT_TSGO_VERSION,
+  EFFECT_VERSION,
+  EFFECT_VITEST_VERSION,
+  OXFMT_VERSION,
+  OXLINT_VERSION,
+  TYPESCRIPT_NATIVE_PREVIEW_VERSION,
+  WRANGLER_VERSION,
+  ZEPHYR_AGENT_VERSION,
+  ZEPHYR_RSPACK_PLUGIN_VERSION,
+} from '../ultramodern-workspace/versions';
 import { createWorkspaceValidationScript } from '../ultramodern-workspace/workspace-scripts';
 import {
   readUltramodernConfig,
@@ -218,6 +229,47 @@ function updateModernDependencies(
   return changed;
 }
 
+const generatedToolingDependencyPins = new Map<string, string>([
+  ['@effect/tsgo', EFFECT_TSGO_VERSION],
+  ['@typescript/native-preview', TYPESCRIPT_NATIVE_PREVIEW_VERSION],
+  ['oxfmt', OXFMT_VERSION],
+  ['oxlint', OXLINT_VERSION],
+  ['wrangler', WRANGLER_VERSION],
+  ['zephyr-agent', ZEPHYR_AGENT_VERSION],
+  ['zephyr-rspack-plugin', ZEPHYR_RSPACK_PLUGIN_VERSION],
+]);
+
+function updateGeneratedToolingDependencies(packageJson: Record<string, any>) {
+  let changed = false;
+  for (const section of [
+    'dependencies',
+    'devDependencies',
+    'peerDependencies',
+    'optionalDependencies',
+  ]) {
+    const dependencies = packageJson[section];
+    if (
+      !dependencies ||
+      typeof dependencies !== 'object' ||
+      Array.isArray(dependencies)
+    ) {
+      continue;
+    }
+
+    for (const [packageName, version] of generatedToolingDependencyPins) {
+      if (
+        Object.prototype.hasOwnProperty.call(dependencies, packageName) &&
+        dependencies[packageName] !== version
+      ) {
+        dependencies[packageName] = version;
+        changed = true;
+      }
+    }
+  }
+
+  return changed;
+}
+
 function normalizeStrictEffectApiMetadata(value: Record<string, any>) {
   const api = value.api;
   if (!api || typeof api !== 'object' || Array.isArray(api)) {
@@ -306,6 +358,94 @@ function normalizeStrictEffectApiMetadata(value: Record<string, any>) {
       api.serverEntry = directServerEntry;
       changed = true;
     }
+  }
+
+  return changed;
+}
+
+function replaceYamlLine(source: string, pattern: RegExp, replacement: string) {
+  const updated = source.replace(pattern, replacement);
+  return {
+    source: updated,
+    changed: updated !== source,
+  };
+}
+
+function ensureYamlListItem(source: string, key: string, item: string) {
+  const itemLine = `  - '${item}'`;
+  const headerPattern = new RegExp(`^${key}:\\n(?:(?:  - .+\\n)*)`, 'mu');
+  const existingItemPattern = new RegExp(
+    `^  - '${item.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}'$`,
+    'mu',
+  );
+  if (existingItemPattern.test(source)) {
+    return { source, changed: false };
+  }
+
+  const header = source.match(headerPattern);
+  if (header) {
+    return {
+      source: source.replace(headerPattern, `${header[0]}${itemLine}\n`),
+      changed: true,
+    };
+  }
+
+  const block = `${key}:\n${itemLine}\n`;
+  const afterTrustPolicyIgnore = source.replace(
+    /^(trustPolicyIgnoreAfter: .+\n)/mu,
+    `$1${block}`,
+  );
+  if (afterTrustPolicyIgnore !== source) {
+    return { source: afterTrustPolicyIgnore, changed: true };
+  }
+
+  return {
+    source: `${source.trimEnd()}\n${block}`,
+    changed: true,
+  };
+}
+
+function updateGeneratedPnpmWorkspacePolicy(workspaceRoot: string) {
+  const workspaceFile = path.join(workspaceRoot, 'pnpm-workspace.yaml');
+  if (!fs.existsSync(workspaceFile)) {
+    return false;
+  }
+
+  let source = fs.readFileSync(workspaceFile, 'utf-8');
+  let changed = false;
+
+  const replacements: Array<[RegExp, string]> = [
+    [
+      /^ {4}'@effect\/vitest>effect': .+$/mu,
+      `    '@effect/vitest>effect': '${EFFECT_VERSION}'`,
+    ],
+    [
+      /^ {2}'@effect\/vitest': .+$/mu,
+      `  '@effect/vitest': ${EFFECT_VITEST_VERSION}`,
+    ],
+    [/^ {2}effect: .+$/mu, `  effect: ${EFFECT_VERSION}`],
+    [
+      /^ {2}- '@effect\/opentelemetry@[^']+'$/mu,
+      `  - '@effect/opentelemetry@${EFFECT_VERSION}'`,
+    ],
+  ];
+
+  for (const [pattern, replacement] of replacements) {
+    const result = replaceYamlLine(source, pattern, replacement);
+    source = result.source;
+    changed = result.changed || changed;
+  }
+
+  const trustPolicyExclude = ensureYamlListItem(
+    source,
+    'trustPolicyExclude',
+    `@effect/opentelemetry@${EFFECT_VERSION}`,
+  );
+  source = trustPolicyExclude.source;
+  changed = trustPolicyExclude.changed || changed;
+
+  if (changed) {
+    fs.writeFileSync(workspaceFile, source, 'utf-8');
   }
 
   return changed;
@@ -437,8 +577,9 @@ function runMigrateStrictEffect(args: string[], context: CommandContext) {
   modern-js-create ultramodern migrate-strict-effect --version <version> [--skip-install]
 
 Updates generated UltraModern package-source metadata, Modern package aliases,
-direct Effect API topology metadata, and the pnpm lockfile for strict Effect
-workspaces. Source code still has to pass pnpm api:check and pnpm contract:check.
+framework-owned toolchain pins, direct Effect API topology metadata, strict
+Effect pnpm overrides/trust policy, and the pnpm lockfile. Source code still
+has to pass pnpm api:check and pnpm contract:check.
 `);
     return 0;
   }
@@ -463,12 +604,22 @@ workspaces. Source code still has to pass pnpm api:check and pnpm contract:check
       };
     }
 
-    if (updateModernDependencies(packageJson, packageSource)) {
+    const modernDependenciesChanged = updateModernDependencies(
+      packageJson,
+      packageSource,
+    );
+    const toolingDependenciesChanged =
+      updateGeneratedToolingDependencies(packageJson);
+    const changed = modernDependenciesChanged || toolingDependenciesChanged;
+
+    if (changed) {
       writeJsonFile(packageFile, packageJson);
     } else if (relativePackageFile === 'package.json') {
       writeJsonFile(packageFile, packageJson);
     }
   }
+
+  updateGeneratedPnpmWorkspacePolicy(context.workspaceRoot);
 
   if (!hasFlag(args, '--skip-install')) {
     const status = runPnpmLockfileRefresh(context);

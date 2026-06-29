@@ -154,6 +154,10 @@ test('generated workspace renders the pins from versions.ts', () => {
       pnpmWorkspace.includes(`'@effect/vitest': ${EFFECT_VITEST_VERSION}`),
       'generated pnpm-workspace override must match EFFECT_VITEST_VERSION',
     );
+    assert.ok(
+      pnpmWorkspace.includes(`'@effect/opentelemetry@${EFFECT_VERSION}'`),
+      'generated pnpm-workspace trustPolicyExclude must match EFFECT_VERSION',
+    );
     for (const buildToolchainPackage of [
       '@rsbuild/core',
       '@rsbuild/plugin-react',

@@ -14,6 +14,7 @@ const codeToolsPackageDir = path.resolve(
 );
 const testFrameworkVersion = '3.2.0-ultramodern.108';
 const testTypescriptVersion = '6.0.3';
+const testEffectVersion = '4.0.0-beta.91';
 const frameworkVersionEnv = 'MODERN_CREATE_ULTRAMODERN_FRAMEWORK_VERSION';
 const bleedingDevAliases = {
   '@modern-js/create': '@bleedingdev/modern-js-create',
@@ -218,16 +219,22 @@ function expectPnpm11Policy(workspaceDir: string) {
       '@module-federation/enhanced>typescript': testTypescriptVersion,
       '@module-federation/modern-js-v3>typescript': testTypescriptVersion,
       '@module-federation/rspack>typescript': testTypescriptVersion,
+      '@effect/vitest>effect': testEffectVersion,
       'i18next>typescript': testTypescriptVersion,
     },
   });
   expect(readPnpmConfig(workspaceDir, 'overrides')).toEqual({
     '@tanstack/react-router': '1.170.16',
     '@tanstack/router-core': '1.171.13',
+    '@effect/vitest': testEffectVersion,
+    effect: testEffectVersion,
     'node-fetch': '^3.3.2',
   });
   expect(readPnpmConfig(workspaceDir, 'trustPolicy')).toBe('no-downgrade');
   expect(readPnpmConfig(workspaceDir, 'trustPolicyIgnoreAfter')).toBe(1440);
+  expect(readPnpmConfig(workspaceDir, 'trustPolicyExclude')).toEqual([
+    `@effect/opentelemetry@${testEffectVersion}`,
+  ]);
   expect(readPnpmConfig(workspaceDir, 'blockExoticSubdeps')).toBe(true);
   expect(readPnpmConfig(workspaceDir, 'engineStrict')).toBe(true);
   expect(readPnpmConfig(workspaceDir, 'pmOnFail')).toBe('error');

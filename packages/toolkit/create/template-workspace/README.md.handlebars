@@ -169,19 +169,22 @@ in API modules.
 Generated pnpm overrides pin the framework-compatible Effect cohort. Keep
 `effect` and `@effect/vitest` aligned with `pnpm-workspace.yaml`; do not add
 new direct package-level Effect versions unless the whole UltraModern cohort is
-upgraded.
+upgraded. The generated pnpm trust policy intentionally excludes the matching
+`@effect/opentelemetry` cohort package from no-downgrade checks while Effect's
+beta publishes move from trusted-publisher metadata to provenance attestations.
 
 For older generated workspaces, run the framework migration command first:
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-create@3.5.0-ultramodern.2 ultramodern \
-  migrate-strict-effect --version 3.5.0-ultramodern.2
+pnpm dlx @bleedingdev/modern-js-create@3.5.0-ultramodern.3 ultramodern \
+  migrate-strict-effect --version 3.5.0-ultramodern.3
 pnpm api:check
 pnpm contract:check
 ```
 
 The command updates generated package-source metadata, Modern package aliases,
-direct API topology metadata, and the lockfile. Remaining failures are source
+framework-owned toolchain pins, direct API topology metadata, strict Effect pnpm
+overrides/trust policy, and the lockfile. Remaining failures are source
 migration work; fix the owning API files instead of adding compatibility shims.
 
 ## Troubleshooting

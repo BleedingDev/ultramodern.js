@@ -7,17 +7,8 @@ import { rstest } from '@rstest/core';
 const repoRoot = path.resolve(__dirname, '../../../../');
 const createBin = path.resolve(repoRoot, 'packages/toolkit/create/bin/run.js');
 const expectedBleedingDevFrameworkVersion = '3.2.0-ultramodern.108';
+const expectedEffectVersion = '4.0.0-beta.91';
 const shellAppPath = 'apps/shell-super-app';
-
-const expectedBleedingDevAliases = {
-  '@modern-js/app-tools': '@bleedingdev/modern-js-app-tools',
-  '@modern-js/code-tools': '@bleedingdev/modern-js-code-tools',
-  '@modern-js/create': '@bleedingdev/modern-js-create',
-  '@modern-js/plugin-bff': '@bleedingdev/modern-js-plugin-bff',
-  '@modern-js/plugin-i18n': '@bleedingdev/modern-js-plugin-i18n',
-  '@modern-js/plugin-tanstack': '@bleedingdev/modern-js-plugin-tanstack',
-  '@modern-js/runtime': '@bleedingdev/modern-js-runtime',
-};
 
 function readJson<T = any>(baseDir: string, relativePath: string): T {
   return JSON.parse(fs.readFileSync(path.join(baseDir, relativePath), 'utf-8'));
@@ -75,6 +66,9 @@ function expectPnpm11Policy(projectDir: string) {
   ]);
   expect(readPnpmConfig(projectDir, 'trustPolicy')).toBe('no-downgrade');
   expect(readPnpmConfig(projectDir, 'trustPolicyIgnoreAfter')).toBe(1440);
+  expect(readPnpmConfig(projectDir, 'trustPolicyExclude')).toEqual([
+    `@effect/opentelemetry@${expectedEffectVersion}`,
+  ]);
   expect(readPnpmConfig(projectDir, 'blockExoticSubdeps')).toBe(true);
   expect(readPnpmConfig(projectDir, 'engineStrict')).toBe(true);
   expect(readPnpmConfig(projectDir, 'pmOnFail')).toBe('error');
@@ -173,16 +167,23 @@ describe('create-tailwind', () => {
   });
 
   test('uses BleedingDev npm aliases for UltraModern package installs', () => {
-    const packageSource = readJson(
+    expect(
+      fs.existsSync(
+        path.join(withTailwindDir, '.modernjs/ultramodern-package-source.json'),
+      ),
+    ).toBe(false);
+
+    const ultramodernConfig = readJson(
       withTailwindDir,
-      '.modernjs/ultramodern-package-source.json',
+      '.modernjs/ultramodern.json',
     );
-    expect(packageSource.strategy).toBe('install');
-    expect(packageSource.modernPackages.specifier).toBe(
+    expect(ultramodernConfig.packageSource.strategy).toBe('install');
+    expect(ultramodernConfig.packageSource.modernPackageVersion).toBe(
       expectedBleedingDevFrameworkVersion,
     );
-    expect(packageSource.modernPackages.aliases).toMatchObject(
-      expectedBleedingDevAliases,
+    expect(ultramodernConfig.packageSource.aliasScope).toBe('bleedingdev');
+    expect(ultramodernConfig.packageSource.aliasPackageNamePrefix).toBe(
+      'modern-js-',
     );
 
     const shellPackage = readJson(

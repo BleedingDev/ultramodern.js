@@ -11,6 +11,12 @@ import {
   addUltramodernVertical,
   generateUltramodernWorkspace,
 } from '../src/ultramodern-workspace';
+import {
+  EFFECT_VERSION,
+  EFFECT_VITEST_VERSION,
+  OXFMT_VERSION,
+  TYPESCRIPT_NATIVE_PREVIEW_VERSION,
+} from '../src/ultramodern-workspace/versions';
 
 const retiredContractPath = '.modernjs/ultramodern-generated-contract.json';
 const retiredPackageSourcePath = '.modernjs/ultramodern-package-source.json';
@@ -166,6 +172,33 @@ test('UltraModern migrate-strict-effect updates package cohort and direct API me
     };
     writeJson(workspaceDir, 'topology/reference-topology.json', topology);
 
+    const rootPackageBefore = readJson(workspaceDir, 'package.json');
+    rootPackageBefore.devDependencies['@typescript/native-preview'] =
+      '7.0.0-dev.20260620.1';
+    rootPackageBefore.devDependencies.oxfmt = '0.55.0';
+    writeJson(workspaceDir, 'package.json', rootPackageBefore);
+
+    const pnpmWorkspaceFile = path.join(workspaceDir, 'pnpm-workspace.yaml');
+    fs.writeFileSync(
+      pnpmWorkspaceFile,
+      fs
+        .readFileSync(pnpmWorkspaceFile, 'utf-8')
+        .replace(
+          `'@effect/vitest>effect': '${EFFECT_VERSION}'`,
+          "'@effect/vitest>effect': '4.0.0-beta.89'",
+        )
+        .replace(
+          `'@effect/vitest': ${EFFECT_VITEST_VERSION}`,
+          "'@effect/vitest': 4.0.0-beta.89",
+        )
+        .replace(`effect: ${EFFECT_VERSION}`, 'effect: 4.0.0-beta.89')
+        .replace(
+          `trustPolicyExclude:\n  - '@effect/opentelemetry@${EFFECT_VERSION}'\n`,
+          '',
+        ),
+      'utf-8',
+    );
+
     assert.equal(
       await runUltramodernToolingCli(
         [
@@ -195,7 +228,27 @@ test('UltraModern migrate-strict-effect updates package cohort and direct API me
       rootPackage.devDependencies['@modern-js/create'],
       'npm:@bleedingdev/modern-js-create@3.5.0-ultramodern.1',
     );
+    assert.equal(
+      rootPackage.devDependencies['@typescript/native-preview'],
+      TYPESCRIPT_NATIVE_PREVIEW_VERSION,
+    );
+    assert.equal(rootPackage.devDependencies.oxfmt, OXFMT_VERSION);
     assert.equal(rootPackage.modernjs.packageSource.strategy, 'install');
+
+    const pnpmWorkspace = fs.readFileSync(pnpmWorkspaceFile, 'utf-8');
+    assert.match(
+      pnpmWorkspace,
+      new RegExp(`'@effect/vitest>effect': '${EFFECT_VERSION}'`, 'u'),
+    );
+    assert.match(
+      pnpmWorkspace,
+      new RegExp(`'@effect/vitest': ${EFFECT_VITEST_VERSION}`, 'u'),
+    );
+    assert.match(pnpmWorkspace, new RegExp(`effect: ${EFFECT_VERSION}`, 'u'));
+    assert.match(
+      pnpmWorkspace,
+      new RegExp(`'@effect/opentelemetry@${EFFECT_VERSION}'`, 'u'),
+    );
 
     const shellPackage = readJson(
       workspaceDir,

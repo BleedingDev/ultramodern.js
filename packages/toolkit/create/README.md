@@ -193,8 +193,8 @@ For strict Effect API migrations, update generated package metadata and Modern
 package aliases through the framework command before hand-editing app code:
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-create@3.5.0-ultramodern.2 ultramodern \
-  migrate-strict-effect --version 3.5.0-ultramodern.2
+pnpm dlx @bleedingdev/modern-js-create@3.5.0-ultramodern.3 ultramodern \
+  migrate-strict-effect --version 3.5.0-ultramodern.3
 pnpm api:check
 pnpm contract:check
 pnpm check
@@ -202,7 +202,8 @@ pnpm build
 ```
 
 The command updates `.modernjs/ultramodern.json`, root `modernjs.packageSource`,
-generated Modern package aliases, old direct topology metadata, and the pnpm
+generated Modern package aliases, framework-owned toolchain pins, old direct
+topology metadata, strict Effect pnpm overrides/trust policy, and the pnpm
 lockfile. It does not invent compatibility shims or move business code behind
 your back. If `pnpm api:check` still fails, migrate the source to
 `shared/api.ts`, `api/index.ts`, and `src/api/*-client.ts` and delete
@@ -210,8 +211,10 @@ your back. If `pnpm api:check` still fails, migrate the source to
 
 Generated strict Effect workspaces pin the compatible Effect cohort through
 `pnpm-workspace.yaml` overrides: `effect@4.0.0-beta.91` and
-`@effect/vitest@4.0.0-beta.91`. Do not override those in app packages; update
-the framework cohort when the runtime moves.
+`@effect/vitest@4.0.0-beta.91`. The generated pnpm policy also excludes the
+known `@effect/opentelemetry@4.0.0-beta.91` trusted-publisher to provenance
+transition from no-downgrade checks. Do not override those in app packages;
+update the framework cohort when the runtime moves.
 
 Use `--ultramodern-package-source=install` for published cohort proof and pin a
 specific release with `--ultramodern-package-version` when CI must prove an

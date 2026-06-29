@@ -24,6 +24,8 @@ minimumReleaseAgeExclude:
   - 'ts-checker-rspack-plugin'
 trustPolicy: no-downgrade
 trustPolicyIgnoreAfter: 1440
+trustPolicyExclude:
+  - '@effect/opentelemetry@{{effectVersion}}'
 blockExoticSubdeps: true
 engineStrict: true
 pmOnFail: error
