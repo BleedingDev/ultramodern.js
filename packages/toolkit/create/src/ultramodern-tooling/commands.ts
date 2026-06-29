@@ -239,6 +239,11 @@ const generatedToolingDependencyPins = new Map<string, string>([
   ['zephyr-rspack-plugin', ZEPHYR_RSPACK_PLUGIN_VERSION],
 ]);
 
+const strictEffectTrustPolicyExclusions = [
+  `effect@${EFFECT_VERSION}`,
+  `@effect/opentelemetry@${EFFECT_VERSION}`,
+];
+
 function updateGeneratedToolingDependencies(packageJson: Record<string, any>) {
   let changed = false;
   for (const section of [
@@ -424,10 +429,6 @@ function updateGeneratedPnpmWorkspacePolicy(workspaceRoot: string) {
       `  '@effect/vitest': ${EFFECT_VITEST_VERSION}`,
     ],
     [/^ {2}effect: .+$/mu, `  effect: ${EFFECT_VERSION}`],
-    [
-      /^ {2}- '@effect\/opentelemetry@[^']+'$/mu,
-      `  - '@effect/opentelemetry@${EFFECT_VERSION}'`,
-    ],
   ];
 
   for (const [pattern, replacement] of replacements) {
@@ -436,13 +437,28 @@ function updateGeneratedPnpmWorkspacePolicy(workspaceRoot: string) {
     changed = result.changed || changed;
   }
 
-  const trustPolicyExclude = ensureYamlListItem(
-    source,
-    'trustPolicyExclude',
-    `@effect/opentelemetry@${EFFECT_VERSION}`,
-  );
-  source = trustPolicyExclude.source;
-  changed = trustPolicyExclude.changed || changed;
+  for (const item of strictEffectTrustPolicyExclusions) {
+    const packageName = item.slice(0, item.lastIndexOf('@'));
+    const escapedPackageName = packageName.replace(
+      /[.*+?^${}()|[\]\\]/gu,
+      '\\$&',
+    );
+    const currentVersion = replaceYamlLine(
+      source,
+      new RegExp(`^ {2}- '${escapedPackageName}@[^']+'$`, 'mu'),
+      `  - '${item}'`,
+    );
+    source = currentVersion.source;
+    changed = currentVersion.changed || changed;
+
+    const trustPolicyExclude = ensureYamlListItem(
+      source,
+      'trustPolicyExclude',
+      item,
+    );
+    source = trustPolicyExclude.source;
+    changed = trustPolicyExclude.changed || changed;
+  }
 
   if (changed) {
     fs.writeFileSync(workspaceFile, source, 'utf-8');

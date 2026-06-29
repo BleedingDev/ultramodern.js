@@ -67,6 +67,7 @@ function expectPnpm11Policy(projectDir: string) {
   expect(readPnpmConfig(projectDir, 'trustPolicy')).toBe('no-downgrade');
   expect(readPnpmConfig(projectDir, 'trustPolicyIgnoreAfter')).toBe(1440);
   expect(readPnpmConfig(projectDir, 'trustPolicyExclude')).toEqual([
+    `effect@${expectedEffectVersion}`,
     `@effect/opentelemetry@${expectedEffectVersion}`,
   ]);
   expect(readPnpmConfig(projectDir, 'blockExoticSubdeps')).toBe(true);

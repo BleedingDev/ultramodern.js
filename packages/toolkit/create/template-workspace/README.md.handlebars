@@ -170,14 +170,15 @@ Generated pnpm overrides pin the framework-compatible Effect cohort. Keep
 `effect` and `@effect/vitest` aligned with `pnpm-workspace.yaml`; do not add
 new direct package-level Effect versions unless the whole UltraModern cohort is
 upgraded. The generated pnpm trust policy intentionally excludes the matching
-`@effect/opentelemetry` cohort package from no-downgrade checks while Effect's
-beta publishes move from trusted-publisher metadata to provenance attestations.
+`effect` and `@effect/opentelemetry` cohort packages from no-downgrade checks
+while Effect's beta publishes move from trusted-publisher metadata to
+provenance attestations.
 
 For older generated workspaces, run the framework migration command first:
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-create@3.5.0-ultramodern.3 ultramodern \
-  migrate-strict-effect --version 3.5.0-ultramodern.3
+pnpm dlx @bleedingdev/modern-js-create@3.5.0-ultramodern.4 ultramodern \
+  migrate-strict-effect --version 3.5.0-ultramodern.4
 pnpm api:check
 pnpm contract:check
 ```

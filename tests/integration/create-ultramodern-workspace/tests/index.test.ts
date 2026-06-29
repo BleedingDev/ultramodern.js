@@ -233,6 +233,7 @@ function expectPnpm11Policy(workspaceDir: string) {
   expect(readPnpmConfig(workspaceDir, 'trustPolicy')).toBe('no-downgrade');
   expect(readPnpmConfig(workspaceDir, 'trustPolicyIgnoreAfter')).toBe(1440);
   expect(readPnpmConfig(workspaceDir, 'trustPolicyExclude')).toEqual([
+    `effect@${testEffectVersion}`,
     `@effect/opentelemetry@${testEffectVersion}`,
   ]);
   expect(readPnpmConfig(workspaceDir, 'blockExoticSubdeps')).toBe(true);

@@ -193,7 +193,7 @@ test('UltraModern migrate-strict-effect updates package cohort and direct API me
         )
         .replace(`effect: ${EFFECT_VERSION}`, 'effect: 4.0.0-beta.89')
         .replace(
-          `trustPolicyExclude:\n  - '@effect/opentelemetry@${EFFECT_VERSION}'\n`,
+          `trustPolicyExclude:\n  - 'effect@${EFFECT_VERSION}'\n  - '@effect/opentelemetry@${EFFECT_VERSION}'\n`,
           '',
         ),
       'utf-8',
@@ -245,6 +245,7 @@ test('UltraModern migrate-strict-effect updates package cohort and direct API me
       new RegExp(`'@effect/vitest': ${EFFECT_VITEST_VERSION}`, 'u'),
     );
     assert.match(pnpmWorkspace, new RegExp(`effect: ${EFFECT_VERSION}`, 'u'));
+    assert.match(pnpmWorkspace, new RegExp(`'effect@${EFFECT_VERSION}'`, 'u'));
     assert.match(
       pnpmWorkspace,
       new RegExp(`'@effect/opentelemetry@${EFFECT_VERSION}'`, 'u'),
