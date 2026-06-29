@@ -147,6 +147,14 @@ test('generated workspace renders the pins from versions.ts', () => {
       'generated pnpm-workspace override must match NODE_FETCH_VERSION',
     );
     assert.ok(
+      pnpmWorkspace.includes(`'effect@${EFFECT_VERSION}'`),
+      'generated pnpm-workspace policy exclusions must include effect',
+    );
+    assert.ok(
+      pnpmWorkspace.includes(`'@effect/opentelemetry@${EFFECT_VERSION}'`),
+      'generated pnpm-workspace policy exclusions must include @effect/opentelemetry',
+    );
+    assert.ok(
       pnpmWorkspace.includes(`effect: ${EFFECT_VERSION}`),
       'generated pnpm-workspace override must match EFFECT_VERSION',
     );

@@ -195,9 +195,13 @@ export default defineConfig({
 ## Effect 版本组
 
 UltraModern 生成的 workspace 会通过 `pnpm-workspace.yaml` overrides 锁定与框架兼容的
-Effect 版本组。`3.5.0-ultramodern.4` 使用：
+Effect 版本组。`3.5.0-ultramodern.5` 使用：
 
 ```yaml
+minimumReleaseAgeExclude:
+  - 'effect@4.0.0-beta.91'
+  - '@effect/opentelemetry@4.0.0-beta.91'
+
 trustPolicyExclude:
   - 'effect@4.0.0-beta.91'
   - '@effect/opentelemetry@4.0.0-beta.91'
@@ -208,10 +212,10 @@ overrides:
 ```
 
 不要在应用包里添加不同版本的直接 `effect` 依赖。Effect beta 不一致时，Layer 或 HTTP
-middleware 构建可能因为运行时 service 来自不同包实例而失败。保留生成的
-`trustPolicyExclude` 条目并让它跟随同一个 Effect 版本组；它用于处理 `effect` 和
-`@effect/opentelemetry` 从 trusted-publisher metadata 迁移到 provenance
-attestation 时的 pnpm no-downgrade 检查。
+middleware 构建可能因为运行时 service 来自不同包实例而失败。保留生成的 policy
+exclusion 条目并让它跟随同一个 Effect 版本组；它用于处理框架选定 Effect beta 版本在
+24 小时成熟期内的安装，以及 `effect` 和 `@effect/opentelemetry` 从 trusted-publisher
+metadata 迁移到 provenance attestation 时的 pnpm no-downgrade 检查。
 
 ## 契约测试
 

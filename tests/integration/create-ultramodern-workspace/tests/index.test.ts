@@ -197,6 +197,8 @@ function expectPnpm11Policy(workspaceDir: string) {
   ).toBe(false);
   expect(readPnpmConfig(workspaceDir, 'minimumReleaseAgeExclude')).toEqual([
     '@bleedingdev/modern-js-*',
+    `effect@${testEffectVersion}`,
+    `@effect/opentelemetry@${testEffectVersion}`,
     '@tanstack/react-router',
     '@tanstack/router-core',
     'typescript',

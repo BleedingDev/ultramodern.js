@@ -239,7 +239,7 @@ const generatedToolingDependencyPins = new Map<string, string>([
   ['zephyr-rspack-plugin', ZEPHYR_RSPACK_PLUGIN_VERSION],
 ]);
 
-const strictEffectTrustPolicyExclusions = [
+const strictEffectPackageVersionPolicyExclusions = [
   `effect@${EFFECT_VERSION}`,
   `@effect/opentelemetry@${EFFECT_VERSION}`,
 ];
@@ -379,16 +379,12 @@ function replaceYamlLine(source: string, pattern: RegExp, replacement: string) {
 function ensureYamlListItem(source: string, key: string, item: string) {
   const itemLine = `  - '${item}'`;
   const headerPattern = new RegExp(`^${key}:\\n(?:(?:  - .+\\n)*)`, 'mu');
-  const existingItemPattern = new RegExp(
-    `^  - '${item.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}'$`,
-    'mu',
-  );
-  if (existingItemPattern.test(source)) {
-    return { source, changed: false };
-  }
-
   const header = source.match(headerPattern);
   if (header) {
+    if (header[0].split('\n').includes(itemLine)) {
+      return { source, changed: false };
+    }
+
     return {
       source: source.replace(headerPattern, `${header[0]}${itemLine}\n`),
       changed: true,
@@ -437,7 +433,7 @@ function updateGeneratedPnpmWorkspacePolicy(workspaceRoot: string) {
     changed = result.changed || changed;
   }
 
-  for (const item of strictEffectTrustPolicyExclusions) {
+  for (const item of strictEffectPackageVersionPolicyExclusions) {
     const packageName = item.slice(0, item.lastIndexOf('@'));
     const escapedPackageName = packageName.replace(
       /[.*+?^${}()|[\]\\]/gu,
@@ -445,19 +441,20 @@ function updateGeneratedPnpmWorkspacePolicy(workspaceRoot: string) {
     );
     const currentVersion = replaceYamlLine(
       source,
-      new RegExp(`^ {2}- '${escapedPackageName}@[^']+'$`, 'mu'),
+      new RegExp(`^ {2}- '${escapedPackageName}@[^']+'$`, 'gmu'),
       `  - '${item}'`,
     );
     source = currentVersion.source;
     changed = currentVersion.changed || changed;
 
-    const trustPolicyExclude = ensureYamlListItem(
-      source,
+    for (const policyKey of [
+      'minimumReleaseAgeExclude',
       'trustPolicyExclude',
-      item,
-    );
-    source = trustPolicyExclude.source;
-    changed = trustPolicyExclude.changed || changed;
+    ]) {
+      const policyExclude = ensureYamlListItem(source, policyKey, item);
+      source = policyExclude.source;
+      changed = policyExclude.changed || changed;
+    }
   }
 
   if (changed) {

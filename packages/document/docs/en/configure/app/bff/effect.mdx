@@ -197,10 +197,14 @@ The generated `api.client.*` API only exists for loader-materialized `@api/index
 ## Effect cohort
 
 UltraModern-generated workspaces pin the framework-compatible Effect cohort
-through `pnpm-workspace.yaml` overrides. For `3.5.0-ultramodern.4`, generated
+through `pnpm-workspace.yaml` overrides. For `3.5.0-ultramodern.5`, generated
 apps use:
 
 ```yaml
+minimumReleaseAgeExclude:
+  - 'effect@4.0.0-beta.91'
+  - '@effect/opentelemetry@4.0.0-beta.91'
+
 trustPolicyExclude:
   - 'effect@4.0.0-beta.91'
   - '@effect/opentelemetry@4.0.0-beta.91'
@@ -213,8 +217,9 @@ overrides:
 Do not add a different direct `effect` version in an app package. A mismatched
 Effect beta can fail while building layers or HTTP middleware because runtime
 services come from different package instances. Keep the generated
-`trustPolicyExclude` entries with the same Effect cohort; they handle the
-`effect` and `@effect/opentelemetry` trusted-publisher to provenance metadata
+policy exclusion entries with the same Effect cohort; they handle the
+framework-selected Effect beta versions before the 24-hour maturity window and
+the `effect`/`@effect/opentelemetry` trusted-publisher to provenance metadata
 transition without weakening UltraModern API architecture checks.
 
 ## Contract tests

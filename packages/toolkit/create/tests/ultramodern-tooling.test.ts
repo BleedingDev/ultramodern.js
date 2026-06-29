@@ -193,6 +193,10 @@ test('UltraModern migrate-strict-effect updates package cohort and direct API me
         )
         .replace(`effect: ${EFFECT_VERSION}`, 'effect: 4.0.0-beta.89')
         .replace(
+          `  - 'effect@${EFFECT_VERSION}'\n  - '@effect/opentelemetry@${EFFECT_VERSION}'\n`,
+          '',
+        )
+        .replace(
           `trustPolicyExclude:\n  - 'effect@${EFFECT_VERSION}'\n  - '@effect/opentelemetry@${EFFECT_VERSION}'\n`,
           '',
         ),
@@ -245,10 +249,33 @@ test('UltraModern migrate-strict-effect updates package cohort and direct API me
       new RegExp(`'@effect/vitest': ${EFFECT_VITEST_VERSION}`, 'u'),
     );
     assert.match(pnpmWorkspace, new RegExp(`effect: ${EFFECT_VERSION}`, 'u'));
-    assert.match(pnpmWorkspace, new RegExp(`'effect@${EFFECT_VERSION}'`, 'u'));
     assert.match(
       pnpmWorkspace,
-      new RegExp(`'@effect/opentelemetry@${EFFECT_VERSION}'`, 'u'),
+      new RegExp(
+        `minimumReleaseAgeExclude:\\n(?:  - .+\\n)*  - 'effect@${EFFECT_VERSION}'`,
+        'u',
+      ),
+    );
+    assert.match(
+      pnpmWorkspace,
+      new RegExp(
+        `minimumReleaseAgeExclude:\\n(?:  - .+\\n)*  - '@effect/opentelemetry@${EFFECT_VERSION}'`,
+        'u',
+      ),
+    );
+    assert.match(
+      pnpmWorkspace,
+      new RegExp(
+        `trustPolicyExclude:\\n(?:  - .+\\n)*  - 'effect@${EFFECT_VERSION}'`,
+        'u',
+      ),
+    );
+    assert.match(
+      pnpmWorkspace,
+      new RegExp(
+        `trustPolicyExclude:\\n(?:  - .+\\n)*  - '@effect/opentelemetry@${EFFECT_VERSION}'`,
+        'u',
+      ),
     );
 
     const shellPackage = readJson(

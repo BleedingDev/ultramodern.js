@@ -49,6 +49,8 @@ function expectPnpm11Policy(projectDir: string) {
   );
   expect(readPnpmConfig(projectDir, 'minimumReleaseAgeExclude')).toEqual([
     '@bleedingdev/modern-js-*',
+    `effect@${expectedEffectVersion}`,
+    `@effect/opentelemetry@${expectedEffectVersion}`,
     '@tanstack/react-router',
     '@tanstack/router-core',
     'typescript',
