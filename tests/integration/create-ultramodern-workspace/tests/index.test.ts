@@ -2399,7 +2399,7 @@ describe('create-ultramodern-workspace', () => {
         'ULTRAMODERN_ZEPHYR=false modern build && node ../../scripts/generate-public-surface-assets.mts --app shell-super-app --target dist',
       );
       expect(packageJson.scripts['cloudflare:build']).toBe(
-        'ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern build && node ../../scripts/generate-public-surface-assets.mts --app shell-super-app --target dist && ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern deploy && node ../../scripts/generate-public-surface-assets.mts --app shell-super-app --target cloudflare',
+        'ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern build && node ../../scripts/generate-public-surface-assets.mts --app shell-super-app --target dist && ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern deploy --skip-build && node ../../scripts/generate-public-surface-assets.mts --app shell-super-app --target cloudflare',
       );
       expect(packageJson.scripts['cloudflare:deploy']).toBe(
         'ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS=true pnpm run cloudflare:build && wrangler deploy --config .output/wrangler.json',

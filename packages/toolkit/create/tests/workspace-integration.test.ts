@@ -123,8 +123,13 @@ function assertModuleFederationWarningHygiene(
   );
   assert.match(
     modernConfig,
+    /const buildCacheDirectory = `node_modules\/\.cache\/rspack-\$\{appId\}-\$\{buildCacheTarget\}`;/,
+    `${label} must provide a per-app/per-target Rspack cache base directory`,
+  );
+  assert.match(
+    modernConfig,
     /cacheDirectory: buildCacheDirectory,/,
-    `${label} must use a per-target Rspack cache directory`,
+    `${label} must pass the per-target Rspack cache base directory to the builder`,
   );
   assert.match(
     modernConfig,

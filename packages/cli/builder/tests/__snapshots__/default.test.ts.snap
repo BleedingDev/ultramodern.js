@@ -10,7 +10,7 @@ exports[`builder rspack > should generator rspack config correctly 1`] = `
     "maxAge": 604800,
     "maxVersions": 3,
     "storage": {
-      "directory": "<WORKSPACE>/packages/cli/builder/node_modules/.cache/rspack",
+      "directory": "<WORKSPACE>/packages/cli/builder/node_modules/.cache/rspack/web",
       "type": "filesystem",
     },
     "type": "persistent",
@@ -1528,6 +1528,7 @@ exports[`builder rspack > should generator rspack config correctly 1`] = `
 exports[`builder rspack > should generator rspack config correctly 2`] = `
 [
   "modern-js:rspack-2-1-defaults",
+  "modern-js:environment-build-cache-isolation",
   "builder:global-vars",
   "builder:devtool",
   "builder:emit-route-file",
@@ -1556,7 +1557,7 @@ exports[`builder rspack > should generator rspack config correctly when node 1`]
     "maxAge": 604800,
     "maxVersions": 3,
     "storage": {
-      "directory": "<WORKSPACE>/packages/cli/builder/node_modules/.cache/rspack",
+      "directory": "<WORKSPACE>/packages/cli/builder/node_modules/.cache/rspack/server",
       "type": "filesystem",
     },
     "type": "persistent",
@@ -2533,7 +2534,7 @@ exports[`builder rspack > should generator rspack config correctly when prod 1`]
     "maxAge": 604800,
     "maxVersions": 3,
     "storage": {
-      "directory": "<WORKSPACE>/packages/cli/builder/node_modules/.cache/rspack",
+      "directory": "<WORKSPACE>/packages/cli/builder/node_modules/.cache/rspack/web",
       "type": "filesystem",
     },
     "type": "persistent",
@@ -4068,7 +4069,7 @@ exports[`builder rspack > should generator rspack config correctly when service-
     "maxAge": 604800,
     "maxVersions": 3,
     "storage": {
-      "directory": "<WORKSPACE>/packages/cli/builder/node_modules/.cache/rspack",
+      "directory": "<WORKSPACE>/packages/cli/builder/node_modules/.cache/rspack/workerSSR",
       "type": "filesystem",
     },
     "type": "persistent",

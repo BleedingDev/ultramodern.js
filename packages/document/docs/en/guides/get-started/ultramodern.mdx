@@ -189,9 +189,9 @@ instead of patching generated output by hand.
 Cloudflare D1 bindings are first-class on `deploy.worker.d1Databases`; use that
 config instead of app-local postprocessing when a generated app owns D1
 migrations. Cloudflare public output excludes server-only `api` and `shared`
-directories by default, and generated Modern/Rspack caches are isolated per app
-and build target so local `build` and `cloudflare:build` runs do not share the
-same Rspack cache directory.
+directories by default, and generated Modern/Rspack caches are isolated per app,
+build target, and Rspack environment so local `build`, `cloudflare:build`, and
+multi-environment compilers do not share the same filesystem cache directory.
 
 ## Human Workflow
 

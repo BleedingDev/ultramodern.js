@@ -11,6 +11,7 @@ import { pluginReact } from '@rsbuild/plugin-react';
 import { pluginSass } from '@rsbuild/plugin-sass';
 import { pluginDevtool } from '../plugins/devtools';
 import { pluginEmitRouteFile } from '../plugins/emitRouteFile';
+import { pluginEnvironmentBuildCacheIsolation } from '../plugins/environmentBuildCache';
 import { pluginEnvironmentDefaults } from '../plugins/environmentDefaults';
 import { pluginGlobalVars } from '../plugins/globalVars';
 import { pluginHtmlMinifierTerser } from '../plugins/htmlMinify';
@@ -224,6 +225,7 @@ export async function parseCommonConfig(
 
   const rsbuildPlugins: RsbuildPlugin[] = [
     pluginRspack21({ sourceImport }),
+    pluginEnvironmentBuildCacheIsolation(),
     pluginGlobalVars(globalVars),
     pluginDevtool({
       sourceMap,

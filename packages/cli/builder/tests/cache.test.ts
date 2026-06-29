@@ -1,6 +1,7 @@
 import { describe, expect, it } from '@rstest/core';
 import { join } from 'path';
 import { createBuilder } from '../src';
+import { isolateEnvironmentBuildCacheDirectory } from '../src/plugins/environmentBuildCache';
 
 describe('builder rspack with cache', () => {
   it('should disable cache by default', async () => {
@@ -37,5 +38,67 @@ describe('builder rspack with cache', () => {
     expect(bundlerConfigs[0].cache).toMatchSnapshot();
     expect(bundlerConfigs[0].cache.maxAge).toBe(7 * 24 * 60 * 60);
     expect(bundlerConfigs[0].cache.maxVersions).toBe(3);
+  });
+
+  it('should isolate persistent cache directories by environment', async () => {
+    const cacheDirectory = 'node_modules/.cache/rspack-ultramodern-app';
+    const rsbuild = await createBuilder({
+      bundlerType: 'rspack',
+      config: {
+        performance: {
+          buildCache: {
+            cacheDirectory,
+            cacheDigest: ['ultramodern-app', 'cloudflare'],
+          },
+        },
+        environments: {
+          client: {
+            output: {
+              target: 'web',
+            },
+          },
+          server: {
+            output: {
+              target: 'node',
+            },
+          },
+          workerSSR: {
+            output: {
+              target: 'web',
+            },
+          },
+        },
+      },
+      frameworkConfigPath: 'modern.config.ts',
+      cwd: join(__dirname, '..'),
+    });
+
+    const {
+      origin: { bundlerConfigs },
+    } = await rsbuild.inspectConfig();
+
+    const directories = Object.fromEntries(
+      bundlerConfigs.map(config => [
+        String(config.cache.version).split('-')[0],
+        config.cache.storage.directory,
+      ]),
+    );
+    const expectedRoot = join(__dirname, '..', cacheDirectory);
+
+    expect(directories.client).toBe(join(expectedRoot, 'client'));
+    expect(directories.server).toBe(join(expectedRoot, 'server'));
+    expect(directories.workerSSR).toBe(join(expectedRoot, 'workerSSR'));
+    expect(new Set(Object.values(directories)).size).toBe(
+      Object.values(directories).length,
+    );
+  });
+
+  it('keeps already-isolated cache directories stable', () => {
+    expect(
+      isolateEnvironmentBuildCacheDirectory(
+        'node_modules/.cache/rspack-app/client',
+        'client',
+      ),
+    ).toBe('node_modules/.cache/rspack-app/client');
   });
 });
