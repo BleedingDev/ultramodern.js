@@ -2244,10 +2244,10 @@ describe('create-ultramodern-workspace', () => {
         '@modern-js/code-tools',
       ),
       '@modern-js/create': expectedBleedingDevSpecifier('@modern-js/create'),
-      '@typescript/native-preview': '7.0.0-dev.20260624.1',
+      '@typescript/native-preview': '7.0.0-dev.20260628.1',
       lefthook: '^2.1.9',
       oxlint: '1.71.0',
-      oxfmt: '0.55.0',
+      oxfmt: '0.56.0',
       ultracite: '7.8.3',
       wrangler: '4.102.0',
       'zephyr-agent': '1.1.1',
@@ -2369,7 +2369,7 @@ describe('create-ultramodern-workspace', () => {
       );
       expect(packageJson.devDependencies['@effect/tsgo']).toBe('0.14.6');
       expect(packageJson.devDependencies['@typescript/native-preview']).toBe(
-        '7.0.0-dev.20260624.1',
+        '7.0.0-dev.20260628.1',
       );
       expect(packageJson.devDependencies.typescript).toBe(
         testTypescriptVersion,

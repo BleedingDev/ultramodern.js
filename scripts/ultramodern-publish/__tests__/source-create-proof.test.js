@@ -218,7 +218,7 @@ const makeFixture = ({
       version: '3.2.0-ultramodern.1',
       dependencies: {
         '@modern-js/codesmith': stagedCreateCodeSmithDependency,
-        oxfmt: '0.55.0',
+        oxfmt: '0.56.0',
         ultracite: '7.8.3',
         ...(createI18nDependencyBlock === 'dependencies'
           ? createI18nDependency
@@ -345,7 +345,7 @@ test('validateSourceProof accepts staged local cohort metadata', async () => {
       },
       {
         dependencyName: 'oxfmt',
-        specifier: '0.55.0',
+        specifier: '0.56.0',
       },
       {
         dependencyName: 'ultracite',

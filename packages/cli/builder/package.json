@@ -33,7 +33,7 @@
   },
   "dependencies": {
     "@modern-js/utils": "workspace:*",
-    "@rsbuild/core": "2.1.0",
+    "@rsbuild/core": "2.1.1",
     "@rsbuild/plugin-assets-retry": "2.0.1",
     "@rsbuild/plugin-check-syntax": "2.0.0",
     "@rsbuild/plugin-css-minimizer": "2.0.1",
@@ -48,7 +48,7 @@
     "@rsdoctor/rspack-plugin": "^1.5.16",
     "@swc/core": "1.15.43",
     "@swc/helpers": "^0.5.23",
-    "@typescript/native-preview": "7.0.0-dev.20260624.1",
+    "@typescript/native-preview": "7.0.0-dev.20260628.1",
     "autoprefixer": "10.5.2",
     "browserslist": "4.28.4",
     "core-js": "^3.49.0",
@@ -70,7 +70,7 @@
   "devDependencies": {
     "@modern-js/rslib": "workspace:*",
     "@modern-js/types": "workspace:*",
-    "@rslib/core": "0.23.0",
+    "@rslib/core": "0.23.1",
     "@scripts/rstest-config": "workspace:*",
     "@types/html-minifier-terser": "^7.0.2",
     "@types/lodash": "^4.17.24",

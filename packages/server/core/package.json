@@ -87,12 +87,12 @@
   "devDependencies": {
     "@modern-js/rslib": "workspace:*",
     "@modern-js/types": "workspace:*",
-    "@rslib/core": "0.23.0",
+    "@rslib/core": "0.23.1",
     "@scripts/rstest-config": "workspace:*",
     "@types/cloneable-readable": "^2.0.3",
     "@types/merge-deep": "^3.0.3",
     "@types/node": "^26.0.1",
-    "@typescript/native-preview": "7.0.0-dev.20260624.1",
+    "@typescript/native-preview": "7.0.0-dev.20260628.1",
     "http-proxy-middleware": "^4.1.1"
   },
   "sideEffects": false,

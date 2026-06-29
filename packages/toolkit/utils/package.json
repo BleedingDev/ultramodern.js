@@ -195,10 +195,10 @@
   "devDependencies": {
     "@modern-js/rslib": "workspace:*",
     "@modern-js/types": "workspace:*",
-    "@rslib/core": "0.23.0",
+    "@rslib/core": "0.23.1",
     "@scripts/rstest-config": "workspace:*",
     "@types/node": "^26.0.1",
-    "@typescript/native-preview": "7.0.0-dev.20260624.1",
+    "@typescript/native-preview": "7.0.0-dev.20260628.1",
     "happy-dom": "^20.10.6"
   },
   "peerDependencies": {

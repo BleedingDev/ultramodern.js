@@ -92,7 +92,7 @@
     "@modern-js/server-utils": "workspace:*",
     "@modern-js/types": "workspace:*",
     "@modern-js/utils": "workspace:*",
-    "@rsbuild/core": "2.1.0",
+    "@rsbuild/core": "2.1.1",
     "@swc/core": "1.15.43",
     "@swc/helpers": "^0.5.23",
     "compression-webpack-plugin": "^12.0.0",
@@ -107,11 +107,11 @@
   },
   "devDependencies": {
     "@modern-js/rslib": "workspace:*",
-    "@rslib/core": "0.23.0",
+    "@rslib/core": "0.23.1",
     "@scripts/rstest-config": "workspace:*",
     "@types/babel__traverse": "7.28.0",
     "@types/node": "^26.0.1",
-    "@typescript/native-preview": "7.0.0-dev.20260624.1",
+    "@typescript/native-preview": "7.0.0-dev.20260628.1",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^6.0.3"

@@ -11,7 +11,7 @@
     "@modern-js/plugin-i18n": "workspace:*",
     "@modern-js/runtime": "workspace:*",
     "@module-federation/modern-js-v3": "2.6.0",
-    "i18next": "26.3.2",
+    "i18next": "26.3.3",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-i18next": "17.0.8"
@@ -19,6 +19,6 @@
   "devDependencies": {
     "@modern-js/app-tools": "workspace:*",
     "@modern-js/plugin-ssg": "workspace:*",
-    "@typescript/native-preview": "7.0.0-dev.20260624.1"
+    "@typescript/native-preview": "7.0.0-dev.20260628.1"
   }
 }
