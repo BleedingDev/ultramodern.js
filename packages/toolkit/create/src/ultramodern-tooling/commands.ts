@@ -519,6 +519,29 @@ function ensureYamlMapEntry(
   };
 }
 
+function removeYamlMapEntry(source: string, entryKey: string) {
+  const packageName = entryKey.includes('@')
+    ? entryKey.slice(0, entryKey.lastIndexOf('@'))
+    : entryKey;
+  const escapedPackageName = packageName.replace(
+    /[.*+?^${}()|[\]\\]/gu,
+    '\\$&',
+  );
+  const currentEntryPattern = new RegExp(
+    `^ {2}'${escapedPackageName}@[^']+': .+\\n?`,
+    'mu',
+  );
+
+  if (!currentEntryPattern.test(source)) {
+    return { source, changed: false };
+  }
+
+  return {
+    source: source.replace(currentEntryPattern, ''),
+    changed: true,
+  };
+}
+
 function ensureGeneratedPatchFile(
   workspaceRoot: string,
   relativePatchPath: string,
@@ -538,7 +561,87 @@ function ensureGeneratedPatchFile(
   return true;
 }
 
-function ensureGeneratedDeclarationPatches(workspaceRoot: string) {
+function removeGeneratedPatchFileIfUnchanged(
+  workspaceRoot: string,
+  relativePatchPath: string,
+  sourcePatchPath: string,
+) {
+  const targetPath = path.join(workspaceRoot, relativePatchPath);
+  if (!fs.existsSync(targetPath)) {
+    return false;
+  }
+
+  const patch = fs.readFileSync(sourcePatchPath, 'utf-8');
+  if (fs.readFileSync(targetPath, 'utf-8') !== patch) {
+    return false;
+  }
+
+  fs.rmSync(targetPath);
+  return true;
+}
+
+function workspaceUsesDependency(workspaceRoot: string, packageName: string) {
+  const packageJsonPaths = [path.join(workspaceRoot, 'package.json')];
+
+  for (const workspaceDir of ['apps', 'verticals', 'packages']) {
+    const absoluteWorkspaceDir = path.join(workspaceRoot, workspaceDir);
+    if (!fs.existsSync(absoluteWorkspaceDir)) {
+      continue;
+    }
+
+    for (const entry of fs.readdirSync(absoluteWorkspaceDir, {
+      withFileTypes: true,
+    })) {
+      if (!entry.isDirectory()) {
+        continue;
+      }
+
+      const packageJsonPath = path.join(
+        absoluteWorkspaceDir,
+        entry.name,
+        'package.json',
+      );
+      if (fs.existsSync(packageJsonPath)) {
+        packageJsonPaths.push(packageJsonPath);
+      }
+    }
+  }
+
+  for (const packageJsonPath of packageJsonPaths) {
+    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+    for (const field of [
+      'dependencies',
+      'devDependencies',
+      'peerDependencies',
+      'optionalDependencies',
+    ]) {
+      const dependencies = packageJson[field];
+      if (!dependencies || typeof dependencies !== 'object') {
+        continue;
+      }
+
+      if (Object.prototype.hasOwnProperty.call(dependencies, packageName)) {
+        return true;
+      }
+
+      for (const specifier of Object.values(dependencies)) {
+        if (
+          typeof specifier === 'string' &&
+          specifier.startsWith(`npm:${packageName}@`)
+        ) {
+          return true;
+        }
+      }
+    }
+  }
+
+  return false;
+}
+
+function ensureGeneratedDeclarationPatches(
+  workspaceRoot: string,
+  options: { includeDrizzleOrmPatch: boolean },
+) {
   let changed = false;
   changed =
     ensureGeneratedPatchFile(
@@ -546,12 +649,21 @@ function ensureGeneratedDeclarationPatches(workspaceRoot: string) {
       effectDeclarationPatchPath,
       effectDeclarationPatchSourcePath,
     ) || changed;
-  changed =
-    ensureGeneratedPatchFile(
-      workspaceRoot,
-      drizzleOrmDeclarationPatchPath,
-      drizzleOrmDeclarationPatchSourcePath,
-    ) || changed;
+  if (options.includeDrizzleOrmPatch) {
+    changed =
+      ensureGeneratedPatchFile(
+        workspaceRoot,
+        drizzleOrmDeclarationPatchPath,
+        drizzleOrmDeclarationPatchSourcePath,
+      ) || changed;
+  } else {
+    changed =
+      removeGeneratedPatchFileIfUnchanged(
+        workspaceRoot,
+        drizzleOrmDeclarationPatchPath,
+        drizzleOrmDeclarationPatchSourcePath,
+      ) || changed;
+  }
   return changed;
 }
 
@@ -563,6 +675,7 @@ function updateGeneratedPnpmWorkspacePolicy(workspaceRoot: string) {
 
   let source = fs.readFileSync(workspaceFile, 'utf-8');
   let changed = false;
+  const usesDrizzleOrm = workspaceUsesDependency(workspaceRoot, 'drizzle-orm');
 
   const replacements: Array<[RegExp, string]> = [
     [
@@ -615,12 +728,14 @@ function updateGeneratedPnpmWorkspacePolicy(workspaceRoot: string) {
   source = effectPatch.source;
   changed = effectPatch.changed || changed;
 
-  const drizzleOrmPatch = ensureYamlMapEntry(
-    source,
-    'patchedDependencies',
-    `drizzle-orm@${DRIZZLE_ORM_VERSION}`,
-    drizzleOrmDeclarationPatchPath,
-  );
+  const drizzleOrmPatch = usesDrizzleOrm
+    ? ensureYamlMapEntry(
+        source,
+        'patchedDependencies',
+        `drizzle-orm@${DRIZZLE_ORM_VERSION}`,
+        drizzleOrmDeclarationPatchPath,
+      )
+    : removeYamlMapEntry(source, `drizzle-orm@${DRIZZLE_ORM_VERSION}`);
   source = drizzleOrmPatch.source;
   changed = drizzleOrmPatch.changed || changed;
 
@@ -899,7 +1014,12 @@ and pnpm contract:check.
   }
 
   updateGeneratedPnpmWorkspacePolicy(context.workspaceRoot);
-  ensureGeneratedDeclarationPatches(context.workspaceRoot);
+  ensureGeneratedDeclarationPatches(context.workspaceRoot, {
+    includeDrizzleOrmPatch: workspaceUsesDependency(
+      context.workspaceRoot,
+      'drizzle-orm',
+    ),
+  });
 
   if (!hasFlag(args, '--skip-install')) {
     const status = runPnpmLockfileRefresh(context);

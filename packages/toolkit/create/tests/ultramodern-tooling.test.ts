@@ -181,6 +181,7 @@ test('UltraModern migrate-strict-effect updates package cohort and direct API me
     const rootPackageBefore = readJson(workspaceDir, 'package.json');
     rootPackageBefore.devDependencies['@typescript/native-preview'] =
       '7.0.0-dev.20260620.1';
+    rootPackageBefore.devDependencies['drizzle-orm'] = DRIZZLE_ORM_VERSION;
     rootPackageBefore.devDependencies.oxfmt = '0.55.0';
     writeJson(workspaceDir, 'package.json', rootPackageBefore);
 
@@ -537,6 +538,59 @@ declare module '*.css' {}
     assert.equal(
       migratedCatalog.api.client.path,
       'verticals/catalog/src/api/catalog-client.ts',
+    );
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('UltraModern migrate-strict-effect removes unused Drizzle declaration patches', async () => {
+  const { tempRoot, workspaceDir } = scaffoldWorkspace('tooling-no-drizzle');
+
+  try {
+    const pnpmWorkspaceFile = path.join(workspaceDir, 'pnpm-workspace.yaml');
+    fs.writeFileSync(
+      pnpmWorkspaceFile,
+      fs
+        .readFileSync(pnpmWorkspaceFile, 'utf-8')
+        .replace(
+          `  'effect@${EFFECT_VERSION}': patches/effect-schema-error-type-id.patch\n`,
+          `  'effect@${EFFECT_VERSION}': patches/effect-schema-error-type-id.patch\n  'drizzle-orm@${DRIZZLE_ORM_VERSION}': patches/drizzle-orm-ts7-strict-declarations.patch\n`,
+        ),
+      'utf-8',
+    );
+
+    assert.equal(
+      await runUltramodernToolingCli(
+        [
+          'migrate-strict-effect',
+          '--version',
+          '3.5.0-ultramodern.1',
+          '--skip-install',
+        ],
+        workspaceDir,
+      ),
+      0,
+    );
+
+    const pnpmWorkspace = fs.readFileSync(pnpmWorkspaceFile, 'utf-8');
+    assert.doesNotMatch(
+      pnpmWorkspace,
+      new RegExp(
+        `'drizzle-orm@${DRIZZLE_ORM_VERSION}': patches/drizzle-orm-ts7-strict-declarations\\.patch`,
+        'u',
+      ),
+      'migrate-strict-effect must remove stale Drizzle patches when drizzle-orm is not installed',
+    );
+    assert.equal(
+      fs.existsSync(
+        path.join(
+          workspaceDir,
+          'patches/drizzle-orm-ts7-strict-declarations.patch',
+        ),
+      ),
+      false,
+      'migrate-strict-effect must remove the generated Drizzle patch file when it is unused',
     );
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
