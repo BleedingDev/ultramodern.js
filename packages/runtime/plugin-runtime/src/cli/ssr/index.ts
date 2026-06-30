@@ -266,8 +266,6 @@ const ssrBuilderPlugin = (
       const hasModuleFederationRuntimeMarker =
         hasServerRendering && shouldUseModuleFederationNodeOutput(config);
       const hasExplicitMfSsrFlag = isModuleFederationAppSSREnabled(userConfig);
-      const isCloudflareWorkerSSR =
-        name === 'workerSSR' && userConfig.deploy?.target === 'cloudflare';
       const requireExplicitMfSsrFlag =
         process.env.MODERN_MF_APP_SSR_REQUIRE_EXPLICIT === 'true';
 
@@ -287,7 +285,7 @@ const ssrBuilderPlugin = (
         console.warn(warningMessage);
       }
       const isModuleFederationAppSSR =
-        hasServerRendering && hasExplicitMfSsrFlag && !isCloudflareWorkerSSR;
+        hasServerRendering && hasExplicitMfSsrFlag;
       // Maybe we can enable it for node 18 and above, but we can't ensure it in the compilation.
       const ssrEnv =
         userConfig.deploy?.worker?.ssr || userConfig.server?.rsc

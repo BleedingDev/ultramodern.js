@@ -1,4 +1,4 @@
-import type { Context } from 'react';
+import { createContext } from 'react';
 import {
   ReactRuntimeContext,
   type RequestContext,
@@ -34,8 +34,9 @@ export interface TInternalRuntimeContext extends TRuntimeContext {
   _internalRouterBaseName?: any;
 }
 
-export const InternalRuntimeContext =
-  RuntimeContext as Context<TInternalRuntimeContext>;
+export const InternalRuntimeContext = createContext<TInternalRuntimeContext>(
+  {} as TInternalRuntimeContext,
+);
 
 export const getInitialContext = (
   isBrowser = true,

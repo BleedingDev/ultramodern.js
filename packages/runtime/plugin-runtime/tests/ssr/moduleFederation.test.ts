@@ -349,4 +349,35 @@ describe('module federation SSR output compatibility', () => {
     );
     expect(result.tools?.bundlerChain).toBeUndefined();
   });
+
+  it('honors explicit mf ssr stable flag for Cloudflare worker SSR builds', () => {
+    const transform = createEnvironmentConfigTransformer({
+      normalizedConfig: {
+        deploy: {
+          target: 'cloudflare',
+        },
+        server: {
+          ssr: {
+            mode: 'stream',
+            moduleFederationAppSSR: true,
+          },
+        },
+      },
+    });
+
+    const result = transform(
+      {
+        output: {
+          target: 'web-worker',
+        },
+      },
+      'workerSSR',
+    );
+
+    expect(result.output.module).toBe(true);
+    expect(result.output.target).toBe('web-worker');
+    expect(result.source?.define?.['process.env.MODERN_MF_APP_SSR']).toBe(
+      'true',
+    );
+  });
 });
