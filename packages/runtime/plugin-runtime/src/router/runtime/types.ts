@@ -4,7 +4,15 @@ import type {
   RouteObject,
   RouteProps,
 } from '@modern-js/runtime-utils/router';
-import type { NestedRoute, PageRoute } from '@modern-js/types';
+
+export type ModernRoute = {
+  type: 'nested' | 'page';
+  path?: string;
+  id?: string;
+  component?: React.ComponentType | string;
+  children?: ModernRoute[];
+  [key: string]: any;
+};
 
 export type SingleRouteConfig = RouteProps & {
   redirect?: string;
@@ -34,7 +42,7 @@ export type RouterConfig = {
   framework?: RouterFramework;
   routesConfig: {
     globalApp?: React.ComponentType<any>;
-    routes?: (NestedRoute | PageRoute)[];
+    routes?: ModernRoute[];
   };
   /**
    * You should not use it

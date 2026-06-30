@@ -1,21 +1,51 @@
-import type {
-  RouterFramework,
-  // The router runtime state types are owned by @modern-js/runtime; they are
-  // imported through the `/context` seam instead of being copied here so
-  // upstream fixes propagate to this package automatically.
-} from '@modern-js/runtime/context';
 import type { RouteObject } from '@modern-js/runtime-utils/router';
-import type { NestedRoute, PageRoute } from '@modern-js/types';
 import type React from 'react';
 
-export type {
-  BuiltInRouterFramework,
-  InternalRouterRuntimeState,
-  InternalRouterServerSnapshot,
-  RouterFramework,
-  RouterRouteMatchSnapshot,
-  RouterServerPrepareResult,
-} from '@modern-js/runtime/context';
+export type BuiltInRouterFramework = 'react-router' | 'tanstack';
+export type RouterFramework = BuiltInRouterFramework | (string & {});
+
+export type ModernRoute = {
+  type: 'nested' | 'page';
+  path?: string;
+  id?: string;
+  component?: React.ComponentType | string;
+  children?: ModernRoute[];
+  [key: string]: any;
+};
+
+export type RouterRouteMatchSnapshot = {
+  routeId: string;
+  assetRouteId?: string;
+  pathname?: string;
+  params?: Record<string, string>;
+};
+
+export type InternalRouterServerSnapshot = {
+  framework?: RouterFramework;
+  basename?: string;
+  statusCode?: number;
+  errors?: Record<string, unknown>;
+  routerData?: {
+    loaderData?: Record<string, unknown>;
+    errors?: Record<string, unknown>;
+  };
+  hydrationScript?: string;
+  hydrationScripts?: string[];
+  matchedRouteIds?: string[];
+  matches?: RouterRouteMatchSnapshot[];
+};
+
+export type InternalRouterRuntimeState = {
+  framework: RouterFramework;
+  basename?: string;
+  instance?: unknown;
+  hydrationScript?: string;
+  hydrationScripts?: string[];
+  matchedRouteIds?: string[];
+  matches?: RouterRouteMatchSnapshot[];
+  serverSnapshot?: InternalRouterServerSnapshot;
+  cleanup?: () => void | Promise<void>;
+};
 
 /**
  * TanStack-specific router config. Unlike the react-router provider config,
@@ -26,7 +56,7 @@ export type RouterConfig = {
   framework?: RouterFramework;
   routesConfig: {
     globalApp?: React.ComponentType<any>;
-    routes?: (NestedRoute | PageRoute)[];
+    routes?: ModernRoute[];
   };
   serverBase?: string[];
   supportHtml5History?: boolean;

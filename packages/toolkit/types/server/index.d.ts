@@ -2,7 +2,6 @@ export * from './bff';
 export * from './context';
 export * from './devServer';
 export * from './hook';
-export * from './middleware';
 export * from './monitor';
 export * from './route';
 export * from './rsc';

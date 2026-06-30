@@ -43,6 +43,11 @@ test('static templates read version pins from versions.ts placeholders', () => {
   );
   assert.match(
     pnpmWorkspaceTemplate,
+    /'effect@\{\{effectVersion\}\}': patches\/effect-schema-error-type-id\.patch/,
+    'pnpm-workspace patchedDependency must use the effectVersion placeholder for the strict declaration patch',
+  );
+  assert.match(
+    pnpmWorkspaceTemplate,
     /node-fetch: '\{\{nodeFetchVersion\}\}'/,
     'pnpm-workspace override must use the nodeFetchVersion placeholder',
   );
@@ -134,6 +139,12 @@ test('generated workspace renders the pins from versions.ts', () => {
       'generated pnpm-workspace patchedDependency must match TANSTACK_ROUTER_CORE_VERSION',
     );
     assert.ok(
+      pnpmWorkspace.includes(
+        `'effect@${EFFECT_VERSION}': patches/effect-schema-error-type-id.patch`,
+      ),
+      'generated pnpm-workspace patchedDependency must match EFFECT_VERSION',
+    );
+    assert.ok(
       fs.existsSync(
         path.join(
           workspaceDir,
@@ -141,6 +152,12 @@ test('generated workspace renders the pins from versions.ts', () => {
         ),
       ),
       'generated router-core patch file must match TANSTACK_ROUTER_CORE_VERSION',
+    );
+    assert.ok(
+      fs.existsSync(
+        path.join(workspaceDir, 'patches/effect-schema-error-type-id.patch'),
+      ),
+      'generated Effect declaration patch file must be present',
     );
     assert.ok(
       pnpmWorkspace.includes(`node-fetch: '${NODE_FETCH_VERSION}'`),

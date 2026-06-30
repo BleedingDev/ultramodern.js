@@ -16,7 +16,7 @@ import { time } from '@modern-js/runtime-utils/time';
 import { LOADER_REPORTER_NAME } from '@modern-js/utils/universal/constants';
 import type React from 'react';
 import { useContext } from 'react';
-import type { RuntimePlugin } from '../../core';
+import type { RuntimePlugin } from '../../common';
 import {
   getGlobalEnableRsc,
   getGlobalLayoutApp,

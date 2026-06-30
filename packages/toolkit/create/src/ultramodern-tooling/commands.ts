@@ -13,7 +13,13 @@ import {
   ULTRAMODERN_WORKSPACE_MODERN_PACKAGES,
   WORKSPACE_PACKAGE_VERSION,
 } from '../ultramodern-package-source';
+import { createAppEnvDts } from '../ultramodern-workspace/app-files';
 import { validateModuleFederationTypes } from '../ultramodern-workspace/mf-validation';
+import {
+  createAppMfTypesTsConfig,
+  createAppTsConfig,
+  createTsConfigBase,
+} from '../ultramodern-workspace/package-json';
 import {
   EFFECT_TSGO_VERSION,
   EFFECT_VERSION,
@@ -28,6 +34,7 @@ import {
 import { createWorkspaceValidationScript } from '../ultramodern-workspace/workspace-scripts';
 import {
   readUltramodernConfig,
+  type UltramodernToolingConfig,
   workspaceAppsFromToolingConfig,
 } from './config';
 
@@ -243,6 +250,12 @@ const strictEffectPackageVersionPolicyExclusions = [
   `effect@${EFFECT_VERSION}`,
   `@effect/opentelemetry@${EFFECT_VERSION}`,
 ];
+const effectDeclarationPatchPath = 'patches/effect-schema-error-type-id.patch';
+const effectDeclarationPatchSourcePath = path.join(
+  createPackageRoot,
+  'template-workspace',
+  effectDeclarationPatchPath,
+);
 
 function updateGeneratedToolingDependencies(packageJson: Record<string, any>) {
   let changed = false;
@@ -448,6 +461,70 @@ function ensureYamlListItem(source: string, key: string, item: string) {
   };
 }
 
+function ensureYamlMapEntry(
+  source: string,
+  key: string,
+  entryKey: string,
+  value: string,
+) {
+  const entryLine = `  '${entryKey}': ${value}`;
+  const packageName = entryKey.includes('@')
+    ? entryKey.slice(0, entryKey.lastIndexOf('@'))
+    : entryKey;
+  const escapedPackageName = packageName.replace(
+    /[.*+?^${}()|[\]\\]/gu,
+    '\\$&',
+  );
+  const currentEntryPattern = new RegExp(
+    `^ {2}'${escapedPackageName}@[^']+': .+$`,
+    'mu',
+  );
+  const currentEntry = source.match(currentEntryPattern);
+  if (currentEntry) {
+    if (currentEntry[0] === entryLine) {
+      return { source, changed: false };
+    }
+
+    return {
+      source: source.replace(currentEntryPattern, entryLine),
+      changed: true,
+    };
+  }
+
+  const headerPattern = new RegExp(`^${key}:\\n(?:(?:  .+\\n)*)`, 'mu');
+  const header = source.match(headerPattern);
+  if (header) {
+    if (header[0].split('\n').includes(entryLine)) {
+      return { source, changed: false };
+    }
+
+    return {
+      source: source.replace(headerPattern, `${header[0]}${entryLine}\n`),
+      changed: true,
+    };
+  }
+
+  return {
+    source: `${source.trimEnd()}\n${key}:\n${entryLine}\n`,
+    changed: true,
+  };
+}
+
+function ensureEffectDeclarationPatch(workspaceRoot: string) {
+  const targetPath = path.join(workspaceRoot, effectDeclarationPatchPath);
+  const patch = fs.readFileSync(effectDeclarationPatchSourcePath, 'utf-8');
+  if (
+    fs.existsSync(targetPath) &&
+    fs.readFileSync(targetPath, 'utf-8') === patch
+  ) {
+    return false;
+  }
+
+  fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+  fs.writeFileSync(targetPath, patch, 'utf-8');
+  return true;
+}
+
 function updateGeneratedPnpmWorkspacePolicy(workspaceRoot: string) {
   const workspaceFile = path.join(workspaceRoot, 'pnpm-workspace.yaml');
   if (!fs.existsSync(workspaceFile)) {
@@ -499,6 +576,15 @@ function updateGeneratedPnpmWorkspacePolicy(workspaceRoot: string) {
     }
   }
 
+  const effectPatch = ensureYamlMapEntry(
+    source,
+    'patchedDependencies',
+    `effect@${EFFECT_VERSION}`,
+    effectDeclarationPatchPath,
+  );
+  source = effectPatch.source;
+  changed = effectPatch.changed || changed;
+
   if (changed) {
     fs.writeFileSync(workspaceFile, source, 'utf-8');
   }
@@ -531,6 +617,62 @@ function updateUltramodernConfig(
   }
 
   writeJsonFile(configPath, config);
+}
+
+function writeJsonIfChanged(filePath: string, value: unknown) {
+  const next = `${JSON.stringify(value, null, 2)}\n`;
+  if (fs.existsSync(filePath) && fs.readFileSync(filePath, 'utf-8') === next) {
+    return false;
+  }
+
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, next, 'utf-8');
+  return true;
+}
+
+function writeTextIfChanged(filePath: string, value: string) {
+  if (fs.existsSync(filePath) && fs.readFileSync(filePath, 'utf-8') === value) {
+    return false;
+  }
+
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, value, 'utf-8');
+  return true;
+}
+
+function updateGeneratedTypeScriptSurfaces(
+  workspaceRoot: string,
+  config: UltramodernToolingConfig,
+) {
+  let changed = false;
+  const apps = workspaceAppsFromToolingConfig(config);
+  const remotes = apps.filter(app => app.kind !== 'shell');
+
+  changed =
+    writeJsonIfChanged(
+      path.join(workspaceRoot, 'tsconfig.base.json'),
+      createTsConfigBase(),
+    ) || changed;
+
+  for (const app of apps) {
+    changed =
+      writeJsonIfChanged(
+        path.join(workspaceRoot, app.directory, 'tsconfig.json'),
+        createAppTsConfig(app, remotes),
+      ) || changed;
+    changed =
+      writeJsonIfChanged(
+        path.join(workspaceRoot, app.directory, 'tsconfig.mf-types.json'),
+        createAppMfTypesTsConfig(app),
+      ) || changed;
+    changed =
+      writeTextIfChanged(
+        path.join(workspaceRoot, app.directory, 'src/modern-app-env.d.ts'),
+        createAppEnvDts(app, remotes),
+      ) || changed;
+  }
+
+  return changed;
 }
 
 function updateReferenceTopology(workspaceRoot: string) {
@@ -633,8 +775,9 @@ function runMigrateStrictEffect(args: string[], context: CommandContext) {
 
 Updates generated UltraModern package-source metadata, Modern package aliases,
 framework-owned toolchain pins, direct Effect API topology metadata, strict
-Effect pnpm overrides/trust policy, and the pnpm lockfile. Source code still
-has to pass pnpm api:check and pnpm contract:check.
+Effect pnpm overrides/trust policy, framework-owned TypeScript config
+surfaces, and the pnpm lockfile. Source code still has to pass pnpm api:check
+and pnpm contract:check.
 `);
     return 0;
   }
@@ -644,6 +787,7 @@ has to pass pnpm api:check and pnpm contract:check.
 
   updateUltramodernConfig(context.workspaceRoot, packageSource);
   updateReferenceTopology(context.workspaceRoot);
+  updateGeneratedTypeScriptSurfaces(context.workspaceRoot, current);
 
   for (const relativePackageFile of listWorkspacePackageFiles(
     context.workspaceRoot,
@@ -679,6 +823,7 @@ has to pass pnpm api:check and pnpm contract:check.
   }
 
   updateGeneratedPnpmWorkspacePolicy(context.workspaceRoot);
+  ensureEffectDeclarationPatch(context.workspaceRoot);
 
   if (!hasFlag(args, '--skip-install')) {
     const status = runPnpmLockfileRefresh(context);

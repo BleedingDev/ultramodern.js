@@ -1,5 +1,3 @@
-import type { Plugin, RuntimePluginExtends } from '@modern-js/plugin';
-import type { RuntimePluginAPI } from '@modern-js/plugin/runtime';
 import {
   getGlobalLayoutApp,
   getGlobalRoutes,
@@ -15,19 +13,27 @@ export type TanstackRouterRuntimeConfig = {
   [key: string]: unknown;
 };
 
-type TanstackRouterRuntimeExtends = Required<
-  RuntimePluginExtends<TanstackRouterRuntimeConfig, TInternalRuntimeContext>
-> & {
-  extendHooks: RouterExtendsHooks;
+type RuntimeInterrupt = (value?: unknown) => unknown;
+
+export type TanstackRouterPluginAPI = {
+  getRuntimeConfig: () => TanstackRouterRuntimeConfig;
+  getHooks: () => RouterExtendsHooks;
+  onBeforeRender: (
+    listener: (
+      context: TInternalRuntimeContext,
+      interrupt: RuntimeInterrupt,
+    ) => unknown,
+  ) => void;
+  wrapRoot: (listener: (App: any) => any) => void;
+  [key: string]: any;
 };
 
-export type TanstackRouterPluginAPI =
-  RuntimePluginAPI<TanstackRouterRuntimeExtends>;
-
-export type TanstackRouterRuntimePlugin = Plugin<
-  TanstackRouterPluginAPI,
-  TInternalRuntimeContext
->;
+export type TanstackRouterRuntimePlugin = {
+  name?: string;
+  registryHooks?: RouterExtendsHooks;
+  setup?: (api: TanstackRouterPluginAPI) => unknown;
+  [key: string]: unknown;
+};
 
 export function getMergedRouterConfig(
   api: TanstackRouterPluginAPI,
@@ -39,9 +45,11 @@ export function getMergedRouterConfig(
   return merge(pluginConfig.router || {}, userConfig) as RouterConfig;
 }
 
-export function getFinalRouteConfig(mergedConfig: RouterConfig) {
+export function getFinalRouteConfig(
+  mergedConfig: RouterConfig,
+): RouterConfig['routesConfig'] {
   return {
-    routes: getGlobalRoutes(),
+    routes: getGlobalRoutes() as RouterConfig['routesConfig']['routes'],
     globalApp: getGlobalLayoutApp(),
     ...mergedConfig.routesConfig,
   };

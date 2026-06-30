@@ -12,6 +12,10 @@ import {
   generateUltramodernWorkspace,
 } from '../src/ultramodern-workspace';
 import {
+  createAppMfTypesTsConfig,
+  createAppTsConfig,
+} from '../src/ultramodern-workspace/package-json';
+import {
   EFFECT_VERSION,
   EFFECT_VITEST_VERSION,
   OXFMT_VERSION,
@@ -209,6 +213,10 @@ test('UltraModern migrate-strict-effect updates package cohort and direct API me
         )
         .replace(`effect: ${EFFECT_VERSION}`, 'effect: 4.0.0-beta.89')
         .replace(
+          `  'effect@${EFFECT_VERSION}': patches/effect-schema-error-type-id.patch\n`,
+          '',
+        )
+        .replace(
           `  - 'effect@${EFFECT_VERSION}'\n  - '@effect/opentelemetry@${EFFECT_VERSION}'\n`,
           '',
         )
@@ -218,6 +226,52 @@ test('UltraModern migrate-strict-effect updates package cohort and direct API me
         ),
       'utf-8',
     );
+    fs.rmSync(
+      path.join(workspaceDir, 'patches/effect-schema-error-type-id.patch'),
+      {
+        force: true,
+      },
+    );
+
+    const baseTsConfig = readJson(workspaceDir, 'tsconfig.base.json');
+    baseTsConfig.compilerOptions.skipLibCheck = true;
+    writeJson(workspaceDir, 'tsconfig.base.json', baseTsConfig);
+
+    for (const appDir of ['apps/shell-super-app', 'verticals/catalog']) {
+      const appTsConfig = readJson(workspaceDir, `${appDir}/tsconfig.json`);
+      appTsConfig.include = [
+        ...appTsConfig.include,
+        'modern.config.ts',
+        'module-federation.config.ts',
+      ];
+      writeJson(workspaceDir, `${appDir}/tsconfig.json`, appTsConfig);
+
+      const mfTypesTsConfig = readJson(
+        workspaceDir,
+        `${appDir}/tsconfig.mf-types.json`,
+      );
+      mfTypesTsConfig.extends = './tsconfig.json';
+      writeJson(
+        workspaceDir,
+        `${appDir}/tsconfig.mf-types.json`,
+        mfTypesTsConfig,
+      );
+
+      fs.writeFileSync(
+        path.join(workspaceDir, appDir, 'src/modern-app-env.d.ts'),
+        `/// <reference types='@modern-js/app-tools/types' />
+
+declare global {
+  const ULTRAMODERN_SITE_URL: string;
+}
+
+declare module '*.svg' {}
+
+declare module '*.css' {}
+`,
+        'utf-8',
+      );
+    }
 
     assert.equal(
       await runUltramodernToolingCli(
@@ -268,6 +322,13 @@ test('UltraModern migrate-strict-effect updates package cohort and direct API me
     assert.match(
       pnpmWorkspace,
       new RegExp(
+        `'effect@${EFFECT_VERSION}': patches/effect-schema-error-type-id\\.patch`,
+        'u',
+      ),
+    );
+    assert.match(
+      pnpmWorkspace,
+      new RegExp(
         `minimumReleaseAgeExclude:\\n(?:  - .+\\n)*  - 'effect@${EFFECT_VERSION}'`,
         'u',
       ),
@@ -293,6 +354,59 @@ test('UltraModern migrate-strict-effect updates package cohort and direct API me
         'u',
       ),
     );
+    assert.ok(
+      fs.existsSync(
+        path.join(workspaceDir, 'patches/effect-schema-error-type-id.patch'),
+      ),
+      'migrate-strict-effect must restore the generated Effect declaration patch',
+    );
+
+    const migratedBaseTsConfig = readJson(workspaceDir, 'tsconfig.base.json');
+    assert.equal(
+      migratedBaseTsConfig.compilerOptions.skipLibCheck,
+      undefined,
+      'migrate-strict-effect must remove generated skipLibCheck',
+    );
+
+    const shellTsConfig = readJson(
+      workspaceDir,
+      'apps/shell-super-app/tsconfig.json',
+    );
+    assert.deepEqual(shellTsConfig.include, [
+      'src',
+      'locales/**/*.json',
+      'package.json',
+      'shared',
+    ]);
+
+    const catalogTsConfig = readJson(
+      workspaceDir,
+      'verticals/catalog/tsconfig.json',
+    );
+    assert.deepEqual(catalogTsConfig.include, [
+      'src',
+      'locales/**/*.json',
+      'package.json',
+      'shared',
+      'api',
+    ]);
+
+    for (const appDir of ['apps/shell-super-app', 'verticals/catalog']) {
+      const mfTypesTsConfig = readJson(
+        workspaceDir,
+        `${appDir}/tsconfig.mf-types.json`,
+      );
+      assert.equal(mfTypesTsConfig.extends, '../../tsconfig.base.json');
+
+      const appEnv = fs.readFileSync(
+        path.join(workspaceDir, appDir, 'src/modern-app-env.d.ts'),
+        'utf-8',
+      );
+      assert.match(appEnv, /^import '@modern-js\/app-tools\/types';/u);
+      assert.doesNotMatch(appEnv, /<reference types=/u);
+      assert.doesNotMatch(appEnv, /declare module '\*\.svg'/u);
+      assert.doesNotMatch(appEnv, /declare module '\*\.css'/u);
+    }
 
     const shellPackage = readJson(
       workspaceDir,
@@ -453,4 +567,85 @@ test('compact UltraModern config maps component exposes to concrete DTS source f
     './Route': './src/federation-entry.tsx',
     './Widget': './src/components/catalog-widget.tsx',
   });
+  assert.deepEqual(
+    (createAppMfTypesTsConfig(catalog!) as Record<string, unknown>).include,
+    [
+      'src/federation-entry.tsx',
+      'src/components/product-grid.tsx',
+      'src/components/catalog-widget.tsx',
+      'src/features/custom-surface.tsx',
+      'src/modern-app-env.d.ts',
+    ],
+    'custom expose order must keep the route entry first for MF DTS validation',
+  );
+});
+
+test('generated app tsconfig uses sibling-relative vertical references', () => {
+  const apps = workspaceAppsFromToolingConfig({
+    schemaVersion: 1,
+    source: 'compact',
+    sourcePath: '.modernjs/ultramodern.json',
+    workspace: {
+      packageScope: 'tooling-references',
+    },
+    features: {
+      tailwind: true,
+    },
+    topology: {
+      apps: [
+        {
+          id: 'shell-super-app',
+          kind: 'shell',
+          path: 'apps/shell-super-app',
+          moduleFederation: {
+            role: 'host',
+            verticalRefs: ['catalog', 'checkout'],
+          },
+        },
+        {
+          id: 'catalog',
+          kind: 'vertical',
+          path: 'verticals/catalog',
+          moduleFederation: {
+            role: 'remote',
+            exposes: ['./Route'],
+          },
+          api: {
+            stem: 'catalog',
+            prefix: '/catalog-api',
+            consumedBy: ['shell-super-app', 'catalog', 'checkout'],
+          },
+        },
+        {
+          id: 'checkout',
+          kind: 'vertical',
+          path: 'verticals/checkout',
+          moduleFederation: {
+            role: 'remote',
+            exposes: ['./Route'],
+            verticalRefs: ['catalog'],
+          },
+          api: {
+            stem: 'checkout',
+            prefix: '/checkout-api',
+            consumedBy: ['shell-super-app', 'checkout'],
+          },
+        },
+      ],
+    },
+  });
+  const checkout = apps.find(app => app.id === 'checkout');
+  assert.deepEqual(
+    (
+      createAppTsConfig(
+        checkout!,
+        apps.filter(app => app.kind !== 'shell'),
+      ) as Record<string, unknown>
+    ).references,
+    [
+      { path: '../../packages/shared-contracts' },
+      { path: '../../packages/shared-design-tokens' },
+      { path: '../catalog' },
+    ],
+  );
 });

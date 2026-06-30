@@ -1,8 +1,29 @@
-import type { InternalRuntimeContext } from '@modern-js/plugin';
-import type { NestedRoute, PageRoute } from '@modern-js/types';
 import type React from 'react';
-import type { RuntimeExtends } from '../plugin/types';
 import type { ServerPayload } from './serverPayload/index';
+
+export type RuntimeRoute = {
+  children?: RuntimeRoute[];
+  routes?: RuntimeRoute[];
+  [key: string]: any;
+};
+
+type RuntimeHookCaller = {
+  call: (...args: any[]) => any;
+  [key: string]: unknown;
+};
+
+type RuntimeHooks = Record<string, RuntimeHookCaller>;
+
+type RuntimePluginAPI = {
+  updateRuntimeContext?: (context: unknown) => unknown;
+  [key: string]: any;
+};
+
+type InternalRuntimeContextLike = {
+  hooks: RuntimeHooks;
+  pluginAPI?: RuntimePluginAPI;
+  [key: string]: any;
+};
 
 // Router runtime state shared between router providers (react-router,
 // @modern-js/plugin-tanstack, ...) and the SSR pipeline. Exported from the
@@ -69,7 +90,7 @@ interface GlobalContext {
   /**
    * nest router and page router config
    */
-  routes?: (NestedRoute | PageRoute)[];
+  routes?: RuntimeRoute[];
   /**
    * nest router init function
    */
@@ -83,7 +104,7 @@ interface GlobalContext {
    */
   basename?: string;
 
-  internalRuntimeContext?: InternalRuntimeContext<RuntimeExtends>;
+  internalRuntimeContext?: InternalRuntimeContextLike;
   /**
    * RSCRoot
    */
@@ -131,7 +152,7 @@ export function getGlobalRSCRoot() {
 }
 
 export function setGlobalInternalRuntimeContext(
-  context: InternalRuntimeContext<RuntimeExtends>,
+  context: InternalRuntimeContextLike,
 ) {
   globalContext.internalRuntimeContext = context;
 }
@@ -144,7 +165,7 @@ export function getGlobalApp() {
   return globalContext.App;
 }
 
-export function getGlobalRoutes(): undefined | (NestedRoute | PageRoute)[] {
+export function getGlobalRoutes(): undefined | RuntimeRoute[] {
   return globalContext.routes;
 }
 

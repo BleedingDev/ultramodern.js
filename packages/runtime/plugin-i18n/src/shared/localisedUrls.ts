@@ -1,4 +1,10 @@
-import type { NestedRouteForCli, PageRoute } from '@modern-js/types';
+export type LocalisedRoute = {
+  type: 'nested' | 'page';
+  path?: string;
+  id?: string;
+  children?: LocalisedRoute[];
+  [key: string]: any;
+};
 
 export type LocalisedUrlPathMap = Record<string, string>;
 export type LocalisedUrlsMap = Record<string, LocalisedUrlPathMap>;
@@ -144,11 +150,11 @@ const ensureLocalisedUrlsForPath = (
 };
 
 export const validateLocalisedUrls = (
-  routes: (NestedRouteForCli | PageRoute)[],
+  routes: LocalisedRoute[],
   languages: string[],
   localisedUrls: LocalisedUrlsMap,
 ) => {
-  const visit = (route: NestedRouteForCli | PageRoute, parentPath: string) => {
+  const visit = (route: LocalisedRoute, parentPath: string) => {
     const canonicalPath = joinPath(parentPath, route.path);
     if (isLocalisableRoutePath(route.path)) {
       ensureLocalisedUrlsForPath(canonicalPath, languages, localisedUrls);
@@ -191,12 +197,12 @@ const getLocalisedRoutePaths = (
 };
 
 const transformLocalisedRoute = (
-  route: NestedRouteForCli | PageRoute,
+  route: LocalisedRoute,
   parentCanonicalPath: string,
   parentLocalisedPaths: Record<string, string>,
   languages: string[],
   localisedUrls: LocalisedUrlsMap,
-): (NestedRouteForCli | PageRoute)[] => {
+): LocalisedRoute[] => {
   const canonicalPath = joinPath(parentCanonicalPath, route.path);
   const localisedUrlEntry = isLocalisableRoutePath(route.path)
     ? ensureLocalisedUrlsForPath(canonicalPath, languages, localisedUrls)
@@ -224,7 +230,7 @@ const transformLocalisedRoute = (
   const baseRoute = {
     ...route,
     ...(children ? { children } : {}),
-  } as NestedRouteForCli | PageRoute;
+  } as LocalisedRoute;
 
   if (!localisedUrlEntry) {
     return [baseRoute];
@@ -243,7 +249,7 @@ const transformLocalisedRoute = (
 const legalRouteIdPart = (value: string): string =>
   value.replace(/[^a-zA-Z0-9_$-]+/g, '_').replace(/^_+|_+$/g, '') || 'index';
 
-const suffixRouteIds = <T extends NestedRouteForCli | PageRoute>(
+const suffixRouteIds = <T extends LocalisedRoute>(
   route: T,
   suffix: string,
 ): T => {
@@ -260,11 +266,11 @@ const suffixRouteIds = <T extends NestedRouteForCli | PageRoute>(
 };
 
 const cloneRouteWithLocalisedPath = (
-  route: NestedRouteForCli | PageRoute,
+  route: LocalisedRoute,
   path: string,
   index: number,
   canonicalPath: string,
-): NestedRouteForCli | PageRoute => {
+): LocalisedRoute => {
   const leadingLocaleParam = getLeadingLocaleParam(route.path);
   const localisedPath = leadingLocaleParam
     ? normaliseRoutePath(`${leadingLocaleParam}/${path}`)
@@ -272,7 +278,7 @@ const cloneRouteWithLocalisedPath = (
   const routeWithPath = {
     ...route,
     path: localisedPath,
-  } as NestedRouteForCli | PageRoute;
+  } as LocalisedRoute;
   // Language-agnostic source pattern; lets downstream codegen collapse the
   // localized physical variants back to one canonical route.
   (routeWithPath as { modernCanonicalPath?: string }).modernCanonicalPath =
@@ -284,10 +290,10 @@ const cloneRouteWithLocalisedPath = (
 };
 
 export const applyLocalisedUrlsToRoutes = (
-  routes: (NestedRouteForCli | PageRoute)[],
+  routes: LocalisedRoute[],
   languages: string[],
   localisedUrls: LocalisedUrlsMap,
-): (NestedRouteForCli | PageRoute)[] => {
+): LocalisedRoute[] => {
   const rootLocalisedPaths = languages.reduce<Record<string, string>>(
     (acc, language) => {
       acc[language] = '/';

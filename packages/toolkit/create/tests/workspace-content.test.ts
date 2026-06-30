@@ -188,6 +188,25 @@ test('rendered contents of the highest-risk generated files match the checked-in
       ),
       'utf-8',
     );
+    const shellModernAppEnv = fs.readFileSync(
+      path.join(workspaceDir, 'apps/shell-super-app/src/modern-app-env.d.ts'),
+      'utf-8',
+    );
+    assert.match(
+      shellModernAppEnv,
+      /import '@modern-js\/app-tools\/types';/,
+      'generated app env must use the framework-owned app ambient type bundle',
+    );
+    assert.match(
+      shellModernAppEnv,
+      /declare global \{\s*const ULTRAMODERN_SITE_URL: string;\s*\}/,
+      'generated app env must keep generated globals explicit after importing app ambient types',
+    );
+    assert.doesNotMatch(
+      shellModernAppEnv,
+      /declare module '\*\.(?:svg|css)'/,
+      'generated app env must not redeclare framework-owned asset modules',
+    );
     assert.match(
       shellModernConfig,
       /'@modern-js\/plugin-i18n\/runtime':\s*'@modern-js\/plugin-i18n\/runtime\/no-react-i18next'/,
@@ -219,10 +238,16 @@ test('rendered contents of the highest-risk generated files match the checked-in
         path.join(workspaceDir, 'apps/shell-super-app/tsconfig.mf-types.json'),
       ),
       {
-        extends: './tsconfig.json',
+        extends: '../../tsconfig.base.json',
         include: ['src/modern-app-env.d.ts'],
       },
       'generated shell MF DTS tsconfig must not include app router ambient registrations',
+    );
+    assert.deepEqual(
+      readJson(path.join(workspaceDir, 'apps/shell-super-app/tsconfig.json'))
+        .include,
+      ['src', 'locales/**/*.json', 'package.json', 'shared'],
+      'generated shell app typecheck must not include Modern or Module Federation tool config declarations',
     );
     assert.match(
       shellRouteHead,
@@ -346,7 +371,7 @@ test('rendered contents of the highest-risk generated files match the checked-in
         path.join(workspaceDir, 'verticals/catalog/tsconfig.mf-types.json'),
       ),
       {
-        extends: './tsconfig.json',
+        extends: '../../tsconfig.base.json',
         include: [
           'src/federation-entry.tsx',
           'src/components/catalog-widget.tsx',
@@ -354,6 +379,31 @@ test('rendered contents of the highest-risk generated files match the checked-in
         ],
       },
       'generated vertical MF DTS tsconfig must only include exposed public surfaces',
+    );
+    assert.deepEqual(
+      readJson(path.join(workspaceDir, 'verticals/catalog/tsconfig.json'))
+        .include,
+      ['src', 'locales/**/*.json', 'package.json', 'shared', 'api'],
+      'generated vertical app typecheck must not include Modern or Module Federation tool config declarations',
+    );
+    const verticalModernAppEnv = fs.readFileSync(
+      path.join(workspaceDir, 'verticals/catalog/src/modern-app-env.d.ts'),
+      'utf-8',
+    );
+    assert.match(
+      verticalModernAppEnv,
+      /import '@modern-js\/app-tools\/types';/,
+      'generated vertical env must use the framework-owned app ambient type bundle',
+    );
+    assert.match(
+      verticalModernAppEnv,
+      /declare global \{\s*const ULTRAMODERN_SITE_URL: string;\s*\}/,
+      'generated vertical env must keep generated globals explicit after importing app ambient types',
+    );
+    assert.doesNotMatch(
+      verticalModernAppEnv,
+      /declare module '\*\.(?:svg|css)'/,
+      'generated vertical env must not redeclare framework-owned asset modules',
     );
 
     // Regression: the vertical page once read the bare identifier

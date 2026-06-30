@@ -252,6 +252,17 @@ function expectPnpm11Policy(workspaceDir: string) {
     sharp: true,
     workerd: true,
   });
+  const realWorkspaceDir = fs.realpathSync(workspaceDir);
+  expect(readPnpmConfig(workspaceDir, 'patchedDependencies')).toEqual({
+    '@tanstack/router-core@1.171.13': path.join(
+      realWorkspaceDir,
+      'patches/@tanstack__router-core@1.171.13.patch',
+    ),
+    [`effect@${testEffectVersion}`]: path.join(
+      realWorkspaceDir,
+      'patches/effect-schema-error-type-id.patch',
+    ),
+  });
   expect(readPnpmConfig(workspaceDir, 'onlyBuiltDependencies')).toBeUndefined();
 }
 
@@ -2083,6 +2094,7 @@ describe('create-ultramodern-workspace', () => {
       'packages/shared-design-tokens/src/index.ts',
       'packages/shared-design-tokens/src/tokens.css',
       'packages/shared-design-tokens/tsconfig.json',
+      'patches/effect-schema-error-type-id.patch',
     ]) {
       expectPath(workspaceDir, relativePath);
     }
@@ -2183,7 +2195,7 @@ describe('create-ultramodern-workspace', () => {
     expect(
       readJson(workspaceDir, 'apps/shell-super-app/tsconfig.mf-types.json'),
     ).toEqual({
-      extends: './tsconfig.json',
+      extends: '../../tsconfig.base.json',
       include: ['src/modern-app-env.d.ts'],
     });
     expect(
@@ -3138,22 +3150,14 @@ process.exit(1);
         tsBuildInfoFile:
           '../../node_modules/.cache/tsgo/verticals__catalog.tsbuildinfo',
       },
-      include: [
-        'src',
-        'locales/**/*.json',
-        'modern.config.ts',
-        'module-federation.config.ts',
-        'package.json',
-        'shared',
-        'api',
-      ],
+      include: ['src', 'locales/**/*.json', 'package.json', 'shared', 'api'],
       references: [
         { path: '../../packages/shared-contracts' },
         { path: '../../packages/shared-design-tokens' },
       ],
     });
     expect(catalogMfTypesTsConfig).toEqual({
-      extends: './tsconfig.json',
+      extends: '../../tsconfig.base.json',
       include: [
         'src/federation-entry.tsx',
         'src/components/catalog-widget.tsx',

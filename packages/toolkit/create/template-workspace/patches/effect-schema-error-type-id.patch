@@ -1,0 +1,18 @@
+diff --git a/dist/internal/schema/schema.d.ts b/dist/internal/schema/schema.d.ts
+index 7fbeec1a56a85ab1569f8b80e319fb4638a91615..21d38f72238f748d989d3080f77d0edfc63c0e16 100644
+--- a/dist/internal/schema/schema.d.ts
++++ b/dist/internal/schema/schema.d.ts
+@@ -3,0 +4 @@
++export declare const SchemaErrorTypeId: "~effect/Schema/SchemaError";
+diff --git a/dist/unstable/http/internal/preResponseHandler.d.ts b/dist/unstable/http/internal/preResponseHandler.d.ts
+index 81e81e744fa55db2647a8483991db403d451e7dd..040d6c97b85d0c01d4a477013010b9f54d462de8 100644
+--- a/dist/unstable/http/internal/preResponseHandler.d.ts
++++ b/dist/unstable/http/internal/preResponseHandler.d.ts
+@@ -1 +1,6 @@
+-export {};
++import type * as Effect from "../../../Effect.ts";
++import type { HttpServerError } from "../HttpServerError.ts";
++import type { HttpServerRequest } from "../HttpServerRequest.ts";
++import type { HttpServerResponse } from "../HttpServerResponse.ts";
++export declare const requestPreResponseHandlers: WeakMap<object, (request: HttpServerRequest, response: HttpServerResponse) => Effect.Effect<HttpServerResponse, HttpServerError>>;
++export declare const appendPreResponseHandlerUnsafe: (request: HttpServerRequest, handler: (request: HttpServerRequest, response: HttpServerResponse) => Effect.Effect<HttpServerResponse, HttpServerError>) => void;

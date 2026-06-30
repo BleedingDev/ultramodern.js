@@ -12,7 +12,7 @@
  * - `@modern-js/plugin-tanstack` registers the `tanstack` provider when its
  *   runtime entry is imported.
  */
-import type { RuntimePlugin } from '../../core';
+import type { RuntimePlugin } from '../../common';
 import type { RouterExtendsHooks } from './hooks';
 import {
   modifyRoutes,

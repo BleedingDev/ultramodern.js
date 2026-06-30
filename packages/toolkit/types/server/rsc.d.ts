@@ -44,11 +44,3 @@ export type SSRManifest = {
   moduleLoading: ModuleLoading;
   styles: string[];
 };
-
-export type ServerManifest = {
-  [id: string]: ImportManifestEntry;
-};
-
-export type ClientManifest = {
-  [id: string]: ImportManifestEntry;
-};

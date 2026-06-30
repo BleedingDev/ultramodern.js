@@ -1,3 +1,4 @@
+import path from 'node:path';
 import {
   modernPackageSpecifier,
   WORKSPACE_PACKAGE_VERSION,
@@ -380,7 +381,6 @@ export function createTsConfigBase(): JsonValue {
       noFallthroughCasesInSwitch: true,
       noPropertyAccessFromIndexSignature: true,
       noImplicitReturns: true,
-      skipLibCheck: true,
       resolveJsonModule: true,
       plugins: [
         {
@@ -417,7 +417,7 @@ function createReferences(
   return [...new Set(references)]
     .filter(reference => reference !== packageDir)
     .map(reference => ({
-      path: `${relativeRootFor(packageDir)}/${reference}`,
+      path: path.relative(packageDir, reference).split(path.sep).join('/'),
     }));
 }
 
@@ -436,8 +436,6 @@ export function createPackageTsConfig(
   const include = resolvedOptions.include ?? [
     'src',
     'locales/**/*.json',
-    'modern.config.ts',
-    'module-federation.config.ts',
     'package.json',
     'shared',
   ];
@@ -485,12 +483,14 @@ export function createAppTsConfig(
 }
 
 export function createAppMfTypesTsConfig(app: WorkspaceApp): JsonValue {
-  const exposedFiles = Object.values(app.exposes ?? {}).map(exposePath =>
-    exposePath.replace(/^\.\//u, ''),
-  );
+  const exposedFiles = Object.entries(app.exposes ?? {})
+    .sort(([left], [right]) =>
+      left === './Route' ? -1 : right === './Route' ? 1 : 0,
+    )
+    .map(([, exposePath]) => exposePath.replace(/^\.\//u, ''));
 
   return {
-    extends: './tsconfig.json',
+    extends: `${relativeRootFor(app.directory)}/tsconfig.base.json`,
     include: [...new Set([...exposedFiles, 'src/modern-app-env.d.ts'])],
   };
 }

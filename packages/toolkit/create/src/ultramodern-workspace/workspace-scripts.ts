@@ -25,6 +25,7 @@ import {
 import type { WorkspaceApp } from './types';
 import {
   CLOUDFLARE_COMPATIBILITY_DATE,
+  EFFECT_VERSION,
   NODE_VERSION,
   PNPM_VERSION,
 } from './versions';
@@ -185,6 +186,7 @@ export function createWorkspaceValidationScript(
     'workspace-scripts/validate-ultramodern-workspace.mjs',
     {
       packageScope: scope,
+      effectVersion: EFFECT_VERSION,
       nodeVersion: NODE_VERSION,
       pnpmVersion: PNPM_VERSION,
       tailwindEnabledJson: JSON.stringify(enableTailwind),

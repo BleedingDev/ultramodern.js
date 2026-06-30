@@ -3,18 +3,27 @@ import type { RouteObject } from '@modern-js/runtime-utils/router';
 import type { TRuntimeContext } from '../../core/context/runtime';
 import type { RouterLifecycleContext } from './lifecycle';
 
+export type RouterSyncHook<Handler extends (...args: any[]) => any> = {
+  call: (...args: Parameters<Handler>) => ReturnType<Handler>;
+  [key: string]: unknown;
+};
+
+const createRouterSyncHook = <Handler extends (...args: any[]) => any>() =>
+  createSyncHook<Handler>() as RouterSyncHook<Handler>;
+
 // only for inhouse use
-const modifyRoutes = createSyncHook<(routes: RouteObject[]) => RouteObject[]>();
+const modifyRoutes =
+  createRouterSyncHook<(routes: RouteObject[]) => RouteObject[]>();
 const onBeforeCreateRoutes =
-  createSyncHook<(context: TRuntimeContext) => void>();
+  createRouterSyncHook<(context: TRuntimeContext) => void>();
 const onBeforeCreateRouter =
-  createSyncHook<(context: RouterLifecycleContext) => void>();
+  createRouterSyncHook<(context: RouterLifecycleContext) => void>();
 const onAfterCreateRouter =
-  createSyncHook<(context: RouterLifecycleContext) => void>();
+  createRouterSyncHook<(context: RouterLifecycleContext) => void>();
 const onBeforeHydrateRouter =
-  createSyncHook<(context: RouterLifecycleContext) => void>();
+  createRouterSyncHook<(context: RouterLifecycleContext) => void>();
 const onAfterHydrateRouter =
-  createSyncHook<(context: RouterLifecycleContext) => void>();
+  createRouterSyncHook<(context: RouterLifecycleContext) => void>();
 
 export {
   modifyRoutes,

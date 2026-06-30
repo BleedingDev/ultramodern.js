@@ -48,20 +48,20 @@ export function createAppEnvDts(
     )
     .join('\n');
 
-  const reactTypeReference = remoteModuleDeclarations
-    ? "/// <reference types='react' />\n"
+  const reactTypeImport = remoteModuleDeclarations
+    ? "import type React from 'react';\n"
     : '';
-  const siteUrlDeclaration = 'declare const ULTRAMODERN_SITE_URL: string;';
 
-  return `${reactTypeReference}/// <reference types='@modern-js/app-tools/types' />
-
-${siteUrlDeclaration}
-declare module '*.svg' {
-  const url: string;
-  export default url;
-}
-declare module '*.css';
-${remoteModuleDeclarations ? `\n${remoteModuleDeclarations}` : ''}`;
+  return [
+    `import '@modern-js/app-tools/types';\n${reactTypeImport}`.trimEnd(),
+    `declare global {
+  const ULTRAMODERN_SITE_URL: string;
+}`,
+    remoteModuleDeclarations.trimEnd(),
+  ]
+    .filter(section => section.length > 0)
+    .join('\n\n')
+    .concat('\n');
 }
 
 export function createAppRuntimeConfig(

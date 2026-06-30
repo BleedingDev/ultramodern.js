@@ -1,12 +1,14 @@
 // @effect-diagnostics strictBooleanExpressions:off
 import type { RouteObject } from '@modern-js/runtime-utils/router';
-import type { NestedRoute, PageRoute, SSRMode } from '@modern-js/types';
 import React from 'react';
+import type { ModernRoute } from './types';
+
+export type SSRMode = 'string' | 'stream';
 
 type RouterConfig = {
   routesConfig: {
     globalApp?: React.ComponentType<any>;
-    routes?: (NestedRoute | PageRoute)[];
+    routes?: ModernRoute[];
   };
 };
 
@@ -29,7 +31,7 @@ export type ModernRouteObject = RouteObject & {
 };
 
 export function getRouteObjects(
-  routes: (NestedRoute | PageRoute)[],
+  routes: ModernRoute[],
   {
     globalApp,
     ssrMode,

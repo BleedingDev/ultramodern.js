@@ -9,20 +9,21 @@ import { shellApp } from '../../../toolkit/create/src/ultramodern-workspace/desc
 const repoRoot = join(__dirname, '../../../..');
 
 describe('app-tools types', () => {
-  it('includes Rsbuild client types from the shared app-tools type reference', () => {
+  it('keeps app environment types independent from tool configuration types', () => {
     const appToolsTypes = readFileSync(
       join(repoRoot, 'packages/solutions/app-tools/lib/types.d.ts'),
       'utf-8',
     );
     const appEnvTemplate = createAppEnvDts(shellApp);
 
-    expect(appToolsTypes).toContain(
-      '/// <reference types="@rsbuild/core/types" />',
-    );
-    expect(appEnvTemplate).toContain(
-      "/// <reference types='@modern-js/app-tools/types' />",
-    );
+    expect(appToolsTypes).not.toContain('@rsbuild/core/types');
+    expect(appToolsTypes).not.toContain('../dist/types/index.d.ts');
+    expect(appToolsTypes).toContain("declare module '*.svg'");
+    expect(appEnvTemplate).toContain("import '@modern-js/app-tools/types';");
+    expect(appEnvTemplate).toContain('declare global');
     expect(appEnvTemplate).not.toContain('@rsbuild/core/types');
+    expect(appEnvTemplate).not.toContain("declare module '*.svg'");
+    expect(appEnvTemplate).not.toContain("declare module '*.css'");
   });
 
   it('exposes public root types through standard export conditions', () => {

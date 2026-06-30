@@ -1,6 +1,6 @@
 import type { Config as JestConfigTypes } from '@jest/types';
 
-export type JestConfig = JestConfigTypes.Config;
+export type JestConfig = JestConfigTypes.InitialOptions;
 
 export interface TestConfig {
   /**
@@ -82,7 +82,8 @@ export interface Route {
 
 export type NestedRouteForCli = NestedRoute<string>;
 
-export interface NestedRoute<T = string | (() => JSX.Element)> extends Route {
+export interface NestedRoute<T = string | (() => React.ReactElement)>
+  extends Route {
   type: 'nested';
   origin: 'file-system' | 'config';
   // Route type to distinguish between page and layout routes

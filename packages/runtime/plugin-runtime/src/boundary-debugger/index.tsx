@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { RuntimePlugin } from '../core';
+import type { RuntimePlugin } from '../common';
 
 export type BoundaryDebugEntry = {
   appId: string;

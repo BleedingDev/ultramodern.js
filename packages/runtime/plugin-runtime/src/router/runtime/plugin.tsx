@@ -16,7 +16,7 @@ import {
 import { normalizePathname } from '@modern-js/runtime-utils/url';
 import * as React from 'react';
 import { useContext, useEffect, useMemo } from 'react';
-import { RuntimeContext, type RuntimePlugin } from '../../core';
+import type { RuntimePlugin } from '../../common';
 import {
   getGlobalIsRscClient,
   getGlobalLayoutApp,

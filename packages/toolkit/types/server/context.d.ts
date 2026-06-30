@@ -1,4 +1,3 @@
-import type { SSRMode } from 'common';
 import type {
   Server as HttpServer,
   IncomingHttpHeaders,
@@ -6,6 +5,7 @@ import type {
   ServerResponse,
 } from 'http';
 import type qs from 'querystring';
+import type { SSRMode } from '../common';
 import type { Logger, Metrics, Reporter, ServerTiming } from './utils';
 
 export interface RequestPayload {
@@ -57,7 +57,7 @@ export interface ModernServerContext {
 
   resHasHandled: () => boolean;
 
-  error: (dig: string, e: Error | string = '') => void;
+  error: (dig: string, e?: Error | string) => void;
 
   setServerData: (key: string, value: any) => void;
 }
