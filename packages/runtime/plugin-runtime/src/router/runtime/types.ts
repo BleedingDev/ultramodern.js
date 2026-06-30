@@ -1,4 +1,3 @@
-import type { RequestContext } from '@modern-js/runtime-utils/node';
 import type {
   Params,
   RouteObject,
@@ -133,8 +132,27 @@ export type ModernRouteObject = RouteObject & {
   entryCssFiles?: string[];
 };
 
-// fork from react-router
-// due to the context is any in react-router.
+type LoaderContextKey<T = unknown> = {
+  symbol: symbol;
+  getDefaultValue: () => T;
+};
+
+interface LoaderRequestGet<P extends Record<string, unknown>> {
+  <Key extends keyof P>(key: Key): P[Key];
+  <T>(key: LoaderContextKey<T>): T;
+}
+
+interface LoaderRequestSet<P extends Record<string, unknown>> {
+  <Key extends keyof P>(key: Key, value: P[Key]): void;
+  <T>(key: LoaderContextKey<T>, value: T): void;
+}
+
+type LoaderRequestContext<P extends Record<string, unknown> = {}> = {
+  get: LoaderRequestGet<P & Record<string, unknown>>;
+  set: LoaderRequestSet<P & Record<string, unknown>>;
+};
+
+// fork from react-router due to the context being any in react-router.
 interface DataFunctionArgs<D = any> {
   request: Request;
   params: Params;
@@ -143,7 +161,7 @@ interface DataFunctionArgs<D = any> {
 
 export type LoaderFunctionArgs<
   P extends Record<string, unknown> = Record<string, unknown>,
-> = DataFunctionArgs<RequestContext<P>>;
+> = DataFunctionArgs<LoaderRequestContext<P>>;
 
 declare type DataFunctionValue = Response | NonNullable<unknown> | null;
 

@@ -1,5 +1,3 @@
-import type { HttpMethodDecider } from '@modern-js/types';
-
 export const BFF_ENVELOPE_HEADER = 'x-modernjs-bff-envelope';
 export const BFF_OPERATION_CONTEXT_HEADER = 'x-operation-id';
 export const BFF_OPERATION_CONTEXT_DETAIL_HEADER =
@@ -26,6 +24,8 @@ export type BFFRequestPayload = {
 export type Sender<F = typeof fetch> = ((...args: any[]) => Promise<any>) & {
   fetch?: F;
 };
+
+export type HttpMethodDecider = 'functionName' | 'inputParams';
 
 export type ResolveHeadersOptions = {
   requestId: string;

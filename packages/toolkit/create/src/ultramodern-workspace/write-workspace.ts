@@ -82,6 +82,7 @@ import type {
   WorkspaceApp,
 } from './types';
 import {
+  DRIZZLE_ORM_VERSION,
   EFFECT_VERSION,
   EFFECT_VITEST_VERSION,
   NODE_FETCH_VERSION,
@@ -410,6 +411,7 @@ export function generateUltramodernWorkspace(
     nodeVersion: NODE_VERSION,
     pnpmVersion: PNPM_VERSION,
     nodeFetchVersion: NODE_FETCH_VERSION,
+    drizzleOrmVersion: DRIZZLE_ORM_VERSION,
     effectVersion: EFFECT_VERSION,
     effectVitestVersion: EFFECT_VITEST_VERSION,
     tanstackRouterCoreVersion: TANSTACK_ROUTER_CORE_VERSION,

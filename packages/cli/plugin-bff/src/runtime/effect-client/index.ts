@@ -214,7 +214,7 @@ export function makeEffectHttpApiClient<
   api: HttpApi.HttpApi<ApiId, Groups>,
   options?: EffectHttpApiClientOptions,
 ): Effect.Effect<
-  HttpApiClient.Client<Groups>,
+  HttpApiClient.Client<Groups, never, never>,
   never,
   HttpApiGroup.MiddlewareClient<Groups>
 > {

@@ -1790,8 +1790,11 @@ assert(JSON.stringify(generatedContract.performanceReadiness?.signals?.map(signa
 const shellModernConfig = readText('apps/shell-super-app/modern.config.ts');
 const shellModuleFederationConfig = readText('apps/shell-super-app/module-federation.config.ts');
 const shellModernAppEnv = readText('apps/shell-super-app/src/modern-app-env.d.ts');
+const gitignore = readText('.gitignore');
 const shellRouteHead = readText('apps/shell-super-app/src/routes/ultramodern-route-head.tsx');
 const shellRouteMetadata = readText('apps/shell-super-app/src/routes/ultramodern-route-metadata.ts');
+assert(/^\.mf\/$/mu.test(gitignore), 'Generated .gitignore must ignore root Module Federation diagnostics');
+assert(/^\*\*\/\.mf\/$/mu.test(gitignore), 'Generated .gitignore must ignore per-app Module Federation diagnostics');
 assert(shellModernAppEnv.includes("import '@modern-js/app-tools/types';"), 'Shell app env must import the framework-owned app ambient type bundle through module resolution');
 assert(/declare global \{\s*const ULTRAMODERN_SITE_URL: string;\s*\}/u.test(shellModernAppEnv), 'Shell app env must keep generated globals explicit after importing app ambient types');
 assert(!shellModernAppEnv.includes("declare module '*.svg'"), 'Shell app env must not redeclare framework-owned svg asset modules');

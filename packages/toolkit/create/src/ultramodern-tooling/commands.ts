@@ -18,9 +18,11 @@ import { validateModuleFederationTypes } from '../ultramodern-workspace/mf-valid
 import {
   createAppMfTypesTsConfig,
   createAppTsConfig,
+  createSharedPackageTsConfig,
   createTsConfigBase,
 } from '../ultramodern-workspace/package-json';
 import {
+  DRIZZLE_ORM_VERSION,
   EFFECT_TSGO_VERSION,
   EFFECT_VERSION,
   EFFECT_VITEST_VERSION,
@@ -255,6 +257,13 @@ const effectDeclarationPatchSourcePath = path.join(
   createPackageRoot,
   'template-workspace',
   effectDeclarationPatchPath,
+);
+const drizzleOrmDeclarationPatchPath =
+  'patches/drizzle-orm-ts7-strict-declarations.patch';
+const drizzleOrmDeclarationPatchSourcePath = path.join(
+  createPackageRoot,
+  'template-workspace',
+  drizzleOrmDeclarationPatchPath,
 );
 
 function updateGeneratedToolingDependencies(packageJson: Record<string, any>) {
@@ -510,9 +519,13 @@ function ensureYamlMapEntry(
   };
 }
 
-function ensureEffectDeclarationPatch(workspaceRoot: string) {
-  const targetPath = path.join(workspaceRoot, effectDeclarationPatchPath);
-  const patch = fs.readFileSync(effectDeclarationPatchSourcePath, 'utf-8');
+function ensureGeneratedPatchFile(
+  workspaceRoot: string,
+  relativePatchPath: string,
+  sourcePatchPath: string,
+) {
+  const targetPath = path.join(workspaceRoot, relativePatchPath);
+  const patch = fs.readFileSync(sourcePatchPath, 'utf-8');
   if (
     fs.existsSync(targetPath) &&
     fs.readFileSync(targetPath, 'utf-8') === patch
@@ -523,6 +536,23 @@ function ensureEffectDeclarationPatch(workspaceRoot: string) {
   fs.mkdirSync(path.dirname(targetPath), { recursive: true });
   fs.writeFileSync(targetPath, patch, 'utf-8');
   return true;
+}
+
+function ensureGeneratedDeclarationPatches(workspaceRoot: string) {
+  let changed = false;
+  changed =
+    ensureGeneratedPatchFile(
+      workspaceRoot,
+      effectDeclarationPatchPath,
+      effectDeclarationPatchSourcePath,
+    ) || changed;
+  changed =
+    ensureGeneratedPatchFile(
+      workspaceRoot,
+      drizzleOrmDeclarationPatchPath,
+      drizzleOrmDeclarationPatchSourcePath,
+    ) || changed;
+  return changed;
 }
 
 function updateGeneratedPnpmWorkspacePolicy(workspaceRoot: string) {
@@ -585,6 +615,15 @@ function updateGeneratedPnpmWorkspacePolicy(workspaceRoot: string) {
   source = effectPatch.source;
   changed = effectPatch.changed || changed;
 
+  const drizzleOrmPatch = ensureYamlMapEntry(
+    source,
+    'patchedDependencies',
+    `drizzle-orm@${DRIZZLE_ORM_VERSION}`,
+    drizzleOrmDeclarationPatchPath,
+  );
+  source = drizzleOrmPatch.source;
+  changed = drizzleOrmPatch.changed || changed;
+
   if (changed) {
     fs.writeFileSync(workspaceFile, source, 'utf-8');
   }
@@ -640,6 +679,31 @@ function writeTextIfChanged(filePath: string, value: string) {
   return true;
 }
 
+function ensureGeneratedIgnoreRules(workspaceRoot: string) {
+  const gitignorePath = path.join(workspaceRoot, '.gitignore');
+  const existing = fs.existsSync(gitignorePath)
+    ? fs.readFileSync(gitignorePath, 'utf-8')
+    : '';
+  const lines =
+    existing.trimEnd().length === 0 ? [] : existing.trimEnd().split(/\r?\n/u);
+  let changed = false;
+
+  for (const rule of ['.mf/', '**/.mf/']) {
+    if (!lines.includes(rule)) {
+      lines.push(rule);
+      changed = true;
+    }
+  }
+
+  if (!changed) {
+    return false;
+  }
+
+  const next = `${lines.join('\n')}\n`;
+  fs.writeFileSync(gitignorePath, next, 'utf-8');
+  return true;
+}
+
 function updateGeneratedTypeScriptSurfaces(
   workspaceRoot: string,
   config: UltramodernToolingConfig,
@@ -653,6 +717,18 @@ function updateGeneratedTypeScriptSurfaces(
       path.join(workspaceRoot, 'tsconfig.base.json'),
       createTsConfigBase(),
     ) || changed;
+  changed = ensureGeneratedIgnoreRules(workspaceRoot) || changed;
+
+  for (const sharedPackage of [
+    'packages/shared-contracts',
+    'packages/shared-design-tokens',
+  ]) {
+    changed =
+      writeJsonIfChanged(
+        path.join(workspaceRoot, sharedPackage, 'tsconfig.json'),
+        createSharedPackageTsConfig(sharedPackage),
+      ) || changed;
+  }
 
   for (const app of apps) {
     changed =
@@ -823,7 +899,7 @@ and pnpm contract:check.
   }
 
   updateGeneratedPnpmWorkspacePolicy(context.workspaceRoot);
-  ensureEffectDeclarationPatch(context.workspaceRoot);
+  ensureGeneratedDeclarationPatches(context.workspaceRoot);
 
   if (!hasFlag(args, '--skip-install')) {
     const status = runPnpmLockfileRefresh(context);

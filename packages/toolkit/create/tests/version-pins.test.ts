@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { generateUltramodernWorkspace } from '../src/ultramodern-workspace';
 import {
+  DRIZZLE_ORM_VERSION,
   EFFECT_VERSION,
   EFFECT_VITEST_VERSION,
   NODE_FETCH_VERSION,
@@ -45,6 +46,11 @@ test('static templates read version pins from versions.ts placeholders', () => {
     pnpmWorkspaceTemplate,
     /'effect@\{\{effectVersion\}\}': patches\/effect-schema-error-type-id\.patch/,
     'pnpm-workspace patchedDependency must use the effectVersion placeholder for the strict declaration patch',
+  );
+  assert.match(
+    pnpmWorkspaceTemplate,
+    /'drizzle-orm@\{\{drizzleOrmVersion\}\}': patches\/drizzle-orm-ts7-strict-declarations\.patch/,
+    'pnpm-workspace patchedDependency must use the drizzleOrmVersion placeholder for the strict declaration patch',
   );
   assert.match(
     pnpmWorkspaceTemplate,
@@ -145,6 +151,12 @@ test('generated workspace renders the pins from versions.ts', () => {
       'generated pnpm-workspace patchedDependency must match EFFECT_VERSION',
     );
     assert.ok(
+      pnpmWorkspace.includes(
+        `'drizzle-orm@${DRIZZLE_ORM_VERSION}': patches/drizzle-orm-ts7-strict-declarations.patch`,
+      ),
+      'generated pnpm-workspace patchedDependency must match DRIZZLE_ORM_VERSION',
+    );
+    assert.ok(
       fs.existsSync(
         path.join(
           workspaceDir,
@@ -158,6 +170,15 @@ test('generated workspace renders the pins from versions.ts', () => {
         path.join(workspaceDir, 'patches/effect-schema-error-type-id.patch'),
       ),
       'generated Effect declaration patch file must be present',
+    );
+    assert.ok(
+      fs.existsSync(
+        path.join(
+          workspaceDir,
+          'patches/drizzle-orm-ts7-strict-declarations.patch',
+        ),
+      ),
+      'generated Drizzle declaration patch file must be present',
     );
     assert.ok(
       pnpmWorkspace.includes(`node-fetch: '${NODE_FETCH_VERSION}'`),

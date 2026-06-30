@@ -51,10 +51,10 @@ export type EffectRuntimeRequirements =
   | FileSystem.FileSystem
   | HttpPlatform.HttpPlatform
   | HttpRouter.HttpRouter
-  | HttpRouter.Request<'Error', any>
-  | HttpRouter.Request<'GlobalError', any>
-  | HttpRouter.Request<'GlobalRequires', any>
-  | HttpRouter.Request<'Requires', any>
+  | HttpRouter.Request<'Error', unknown>
+  | HttpRouter.Request<'GlobalError', unknown>
+  | HttpRouter.Request<'GlobalRequires', unknown>
+  | HttpRouter.Request<'Requires', unknown>
   | Path.Path;
 export type EffectRuntimeLayer = Layer.Layer<
   never,
@@ -129,7 +129,7 @@ export type EffectApiClientFromApi<
   TApi extends HttpApi.AnyWithProps = HttpApi.AnyWithProps,
 > =
   TApi extends HttpApi.HttpApi<infer _ApiId, infer Groups>
-    ? HttpApiClient.Client<Extract<Groups, HttpApiGroup.Any>, unknown, never>
+    ? HttpApiClient.Client<Extract<Groups, HttpApiGroup.Any>, never, never>
     : never;
 
 export type EffectApiPromiseClientFromApi<

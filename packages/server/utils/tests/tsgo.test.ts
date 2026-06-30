@@ -213,6 +213,63 @@ describe('createResolvedTsgoConfig', () => {
     }
   });
 
+  it('disables composite declaration-only settings for server emits', async () => {
+    const { example, tempRoot } = await createIsolatedTsExample();
+    const tsconfigPath = path.join(example, 'tsconfig.composite.json');
+    const sourceDirs = [
+      path.join(example, 'api'),
+      path.join(example, 'shared'),
+    ];
+
+    await fs.outputJSON(tsconfigPath, {
+      extends: './tsconfig.json',
+      compilerOptions: {
+        composite: true,
+        declaration: true,
+        declarationMap: true,
+        emitDeclarationOnly: true,
+        incremental: true,
+        noEmit: false,
+        tsBuildInfoFile: './node_modules/.cache/app.tsbuildinfo',
+      },
+      include: ['api', 'shared', 'modern-app-env.d.ts'],
+    });
+
+    const { config, resolvedConfigPath } = await createResolvedTsgoConfig(
+      example,
+      tsconfigPath,
+      path.join(example, 'dist-composite'),
+      sourceDirs,
+      undefined,
+      getTsgoBinPath(example),
+    );
+
+    try {
+      expect(config.compilerOptions).toMatchObject({
+        composite: false,
+        declaration: false,
+        declarationMap: false,
+        emitDeclarationOnly: false,
+        incremental: false,
+        noEmit: false,
+      });
+      expect(config.compilerOptions).not.toHaveProperty('tsBuildInfoFile');
+      await expect(fs.readJSON(resolvedConfigPath)).resolves.toMatchObject({
+        compilerOptions: {
+          composite: false,
+          declaration: false,
+          declarationMap: false,
+          emitDeclarationOnly: false,
+          incremental: false,
+          noEmit: false,
+        },
+      });
+    } finally {
+      await fs.remove(resolvedConfigPath);
+      await fs.remove(tempRoot);
+    }
+  });
+
   it('keeps allowImportingTsExtensions valid when forcing emit', async () => {
     const { example, tempRoot } = await createIsolatedTsExample();
     const tsconfigPath = path.join(example, 'tsconfig.allow-importing-ts.json');

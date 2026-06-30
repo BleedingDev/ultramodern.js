@@ -192,6 +192,20 @@ test('rendered contents of the highest-risk generated files match the checked-in
       path.join(workspaceDir, 'apps/shell-super-app/src/modern-app-env.d.ts'),
       'utf-8',
     );
+    const gitignore = fs.readFileSync(
+      path.join(workspaceDir, '.gitignore'),
+      'utf-8',
+    );
+    assert.match(
+      gitignore,
+      /^\.mf\/$/mu,
+      'generated workspaces must ignore root Module Federation diagnostics',
+    );
+    assert.match(
+      gitignore,
+      /^\*\*\/\.mf\/$/mu,
+      'generated workspaces must ignore per-app Module Federation diagnostics',
+    );
     assert.match(
       shellModernAppEnv,
       /import '@modern-js\/app-tools\/types';/,

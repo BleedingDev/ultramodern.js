@@ -16,6 +16,7 @@ export const POSTCSS_VERSION = '8.5.15';
 export const EFFECT_VERSION = '4.0.0-beta.91';
 export const EFFECT_VITEST_VERSION = '4.0.0-beta.91';
 export const EFFECT_TSGO_VERSION = '0.14.6';
+export const DRIZZLE_ORM_VERSION = '1.0.0-rc.4';
 export const TYPESCRIPT_STABLE_VERSION = '6.0.3';
 export const TYPESCRIPT_NATIVE_PREVIEW_VERSION = '7.0.0-dev.20260628.1';
 export const TYPESCRIPT_VERSION = TYPESCRIPT_STABLE_VERSION;
@@ -43,6 +44,7 @@ export const ultramodernWorkspaceVersions = {
   moduleFederation: MODULE_FEDERATION_VERSION,
   effect: EFFECT_VERSION,
   effectVitest: EFFECT_VITEST_VERSION,
+  drizzleOrm: DRIZZLE_ORM_VERSION,
   tailwind: TAILWIND_VERSION,
   tailwindPostcss: TAILWIND_POSTCSS_VERSION,
 };

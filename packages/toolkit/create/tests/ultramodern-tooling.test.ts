@@ -14,8 +14,10 @@ import {
 import {
   createAppMfTypesTsConfig,
   createAppTsConfig,
+  createSharedPackageTsConfig,
 } from '../src/ultramodern-workspace/package-json';
 import {
+  DRIZZLE_ORM_VERSION,
   EFFECT_VERSION,
   EFFECT_VITEST_VERSION,
   OXFMT_VERSION,
@@ -217,6 +219,10 @@ test('UltraModern migrate-strict-effect updates package cohort and direct API me
           '',
         )
         .replace(
+          `  'drizzle-orm@${DRIZZLE_ORM_VERSION}': patches/drizzle-orm-ts7-strict-declarations.patch\n`,
+          '',
+        )
+        .replace(
           `  - 'effect@${EFFECT_VERSION}'\n  - '@effect/opentelemetry@${EFFECT_VERSION}'\n`,
           '',
         )
@@ -232,10 +238,44 @@ test('UltraModern migrate-strict-effect updates package cohort and direct API me
         force: true,
       },
     );
+    fs.rmSync(
+      path.join(
+        workspaceDir,
+        'patches/drizzle-orm-ts7-strict-declarations.patch',
+      ),
+      {
+        force: true,
+      },
+    );
 
     const baseTsConfig = readJson(workspaceDir, 'tsconfig.base.json');
     baseTsConfig.compilerOptions.skipLibCheck = true;
     writeJson(workspaceDir, 'tsconfig.base.json', baseTsConfig);
+
+    const gitignorePath = path.join(workspaceDir, '.gitignore');
+    fs.writeFileSync(
+      gitignorePath,
+      fs
+        .readFileSync(gitignorePath, 'utf-8')
+        .replace(/^\.mf\/\n/mu, '')
+        .replace(/^\*\*\/\.mf\/\n/mu, ''),
+      'utf-8',
+    );
+
+    for (const sharedPackageDir of [
+      'packages/shared-contracts',
+      'packages/shared-design-tokens',
+    ]) {
+      writeJson(workspaceDir, `${sharedPackageDir}/tsconfig.json`, {
+        extends: '../../tsconfig.base.json',
+        compilerOptions: {
+          composite: true,
+          incremental: true,
+          tsBuildInfoFile: `../../node_modules/.cache/tsgo/${sharedPackageDir.replace(/[^a-zA-Z0-9._-]+/gu, '__')}.tsbuildinfo`,
+        },
+        include: ['src'],
+      });
+    }
 
     for (const appDir of ['apps/shell-super-app', 'verticals/catalog']) {
       const appTsConfig = readJson(workspaceDir, `${appDir}/tsconfig.json`);
@@ -329,6 +369,13 @@ declare module '*.css' {}
     assert.match(
       pnpmWorkspace,
       new RegExp(
+        `'drizzle-orm@${DRIZZLE_ORM_VERSION}': patches/drizzle-orm-ts7-strict-declarations\\.patch`,
+        'u',
+      ),
+    );
+    assert.match(
+      pnpmWorkspace,
+      new RegExp(
         `minimumReleaseAgeExclude:\\n(?:  - .+\\n)*  - 'effect@${EFFECT_VERSION}'`,
         'u',
       ),
@@ -360,12 +407,32 @@ declare module '*.css' {}
       ),
       'migrate-strict-effect must restore the generated Effect declaration patch',
     );
+    assert.ok(
+      fs.existsSync(
+        path.join(
+          workspaceDir,
+          'patches/drizzle-orm-ts7-strict-declarations.patch',
+        ),
+      ),
+      'migrate-strict-effect must restore the generated Drizzle declaration patch',
+    );
 
     const migratedBaseTsConfig = readJson(workspaceDir, 'tsconfig.base.json');
     assert.equal(
       migratedBaseTsConfig.compilerOptions.skipLibCheck,
       undefined,
       'migrate-strict-effect must remove generated skipLibCheck',
+    );
+    const migratedGitignore = fs.readFileSync(gitignorePath, 'utf-8');
+    assert.match(
+      migratedGitignore,
+      /^\.mf\/$/mu,
+      'migrate-strict-effect must ignore root Module Federation diagnostics',
+    );
+    assert.match(
+      migratedGitignore,
+      /^\*\*\/\.mf\/$/mu,
+      'migrate-strict-effect must ignore per-app Module Federation diagnostics',
     );
 
     const shellTsConfig = readJson(
@@ -390,6 +457,16 @@ declare module '*.css' {}
       'shared',
       'api',
     ]);
+
+    for (const sharedPackageDir of [
+      'packages/shared-contracts',
+      'packages/shared-design-tokens',
+    ]) {
+      assert.deepEqual(
+        readJson(workspaceDir, `${sharedPackageDir}/tsconfig.json`),
+        createSharedPackageTsConfig(sharedPackageDir),
+      );
+    }
 
     for (const appDir of ['apps/shell-super-app', 'verticals/catalog']) {
       const mfTypesTsConfig = readJson(

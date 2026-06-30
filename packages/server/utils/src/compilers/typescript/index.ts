@@ -12,6 +12,11 @@ type TsgoConfig = {
   compilerOptions?: {
     allowImportingTsExtensions?: boolean;
     baseUrl?: unknown;
+    composite?: boolean;
+    declaration?: boolean;
+    declarationMap?: boolean;
+    emitDeclarationOnly?: boolean;
+    incremental?: boolean;
     module?: string;
     moduleResolution?: string;
     noEmit?: boolean;
@@ -19,6 +24,7 @@ type TsgoConfig = {
     outDir?: string;
     rootDir?: string;
     rewriteRelativeImportExtensions?: boolean;
+    tsBuildInfoFile?: string;
     verbatimModuleSyntax?: boolean;
   };
   files?: string[];
@@ -70,7 +76,13 @@ export const createResolvedTsgoConfig = async (
   config.compilerOptions ??= {};
   config.compilerOptions.rootDir = appDirectory;
   config.compilerOptions.outDir = distDir;
+  config.compilerOptions.composite = false;
+  config.compilerOptions.declaration = false;
+  config.compilerOptions.declarationMap = false;
+  config.compilerOptions.emitDeclarationOnly = false;
+  config.compilerOptions.incremental = false;
   config.compilerOptions.noEmit = false;
+  delete config.compilerOptions.tsBuildInfoFile;
   if (config.compilerOptions.allowImportingTsExtensions === true) {
     config.compilerOptions.rewriteRelativeImportExtensions = true;
   }
