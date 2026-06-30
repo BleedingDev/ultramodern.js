@@ -1029,12 +1029,6 @@ export default {
       return finalizeResponseForRequest(corsPreflightResponse, request);
     }
 
-    const assetResponse = await fetchAsset(request, env);
-
-    if (assetResponse) {
-      return finalizeResponseForRequest(assetResponse, request);
-    }
-
     const bffResponse = await dispatchBffRequest(request, env);
 
     if (bffResponse) {
@@ -1051,6 +1045,12 @@ export default {
       isAssetLikePathname(pathname) &&
       !routeMatchesExactly(route, pathname)
     ) {
+      const assetResponse = await fetchAsset(request, env);
+
+      if (assetResponse) {
+        return finalizeResponseForRequest(assetResponse, request);
+      }
+
       return finalizeResponseForRequest(
         withAppCorsHeaders(new Response('Not found', { status: 404 }), request),
         request,
@@ -1073,6 +1073,12 @@ export default {
 
     if (htmlResponse) {
       return finalizeResponseForRequest(htmlResponse, request);
+    }
+
+    const assetResponse = await fetchAsset(request, env);
+
+    if (assetResponse) {
+      return finalizeResponseForRequest(assetResponse, request);
     }
 
     return finalizeResponseForRequest(

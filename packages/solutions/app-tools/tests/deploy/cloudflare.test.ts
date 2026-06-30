@@ -25,6 +25,33 @@ const createAssetBinding = (publicDirectory: string) => ({
   },
 });
 
+const createSpaFallbackAssetBinding = (publicDirectory: string) => {
+  const assetBinding = createAssetBinding(publicDirectory);
+
+  return {
+    fetch: async (request: Request) => {
+      const response = await assetBinding.fetch(request);
+
+      if (response.status !== 404) {
+        return response;
+      }
+
+      const { pathname } = new URL(request.url);
+
+      if (path.extname(pathname) === '') {
+        return new Response('<!doctype html><div id="root"></div>', {
+          headers: {
+            'content-type': 'text/html; charset=utf-8',
+          },
+          status: 200,
+        });
+      }
+
+      return response;
+    },
+  };
+};
+
 async function createFixture({
   artifacts,
   compatibilityDate,
@@ -1027,10 +1054,46 @@ describe('cloudflare deploy preset', () => {
 
     expect(response.status).toBe(200);
     expect(await response.text()).toBe('<!doctype html><html>plain</html>');
+    expect(requestedPaths).toEqual(['/html/plain/index.html']);
+  });
+
+  it('dispatches SSR document routes before Cloudflare Assets SPA fallback', async () => {
+    const { outputDirectory } = await createFixture();
+    const entryPath = path.join(outputDirectory, 'server/index.mjs');
+    const worker = (
+      await import(`${pathToFileURL(entryPath).href}?t=${Date.now()}`)
+    ).default;
+    const publicDirectory = path.join(outputDirectory, 'public');
+    const requestedPaths: string[] = [];
+    const assetBinding = createSpaFallbackAssetBinding(publicDirectory);
+
+    const response = await worker.fetch(
+      new Request('https://example.com/dashboard/settings'),
+      {
+        ASSETS: {
+          fetch: async (request: Request) => {
+            requestedPaths.push(new URL(request.url).pathname);
+
+            return assetBinding.fetch(request);
+          },
+        },
+      },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      pathname: '/dashboard/settings',
+      entryName: 'main',
+      htmlTemplate: '<!doctype html><html>main</html>',
+      routeAssetKeys: ['main'],
+      loadableName: 'loadable-fixture',
+    });
     expect(requestedPaths).toEqual([
-      '/plain/details',
-      '/html/plain/index.html',
+      '/html/main/index.html',
+      '/routes-manifest.json',
+      '/loadable-stats.json',
     ]);
+    expect(requestedPaths).not.toContain('/dashboard/settings');
   });
 
   it('dispatches route.worker modules with request handler resources', async () => {
@@ -1593,9 +1656,9 @@ describe('cloudflare deploy preset', () => {
       new Request('https://example.com/commerce-api/effect/recommendations'),
       {
         TEST_VALUE: 'edge-env',
-        ASSETS: {
-          fetch: async () => new Response('missing', { status: 404 }),
-        },
+        ASSETS: createSpaFallbackAssetBinding(
+          path.join(outputDirectory, 'public'),
+        ),
       },
     );
 
