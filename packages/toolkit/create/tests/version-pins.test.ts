@@ -6,6 +6,7 @@ import { generateUltramodernWorkspace } from '../src/ultramodern-workspace';
 import {
   EFFECT_VERSION,
   EFFECT_VITEST_VERSION,
+  MODULE_FEDERATION_VERSION,
   NODE_FETCH_VERSION,
   PNPM_VERSION,
   TANSTACK_ROUTER_CORE_VERSION,
@@ -40,6 +41,11 @@ test('static templates read version pins from versions.ts placeholders', () => {
     pnpmWorkspaceTemplate,
     /'@tanstack\/router-core@\{\{tanstackRouterCoreVersion\}\}': patches\/@tanstack__router-core@\{\{tanstackRouterCoreVersion\}\}\.patch/,
     'pnpm-workspace patchedDependency must use the tanstackRouterCoreVersion placeholder',
+  );
+  assert.match(
+    pnpmWorkspaceTemplate,
+    /'@module-federation\/modern-js-v3@\{\{moduleFederationVersion\}\}': patches\/@module-federation__modern-js-v3@\{\{moduleFederationVersion\}\}\.patch/,
+    'pnpm-workspace patchedDependency must use the moduleFederationVersion placeholder',
   );
   assert.match(
     pnpmWorkspaceTemplate,
@@ -145,6 +151,12 @@ test('generated workspace renders the pins from versions.ts', () => {
     );
     assert.ok(
       pnpmWorkspace.includes(
+        `'@module-federation/modern-js-v3@${MODULE_FEDERATION_VERSION}': patches/@module-federation__modern-js-v3@${MODULE_FEDERATION_VERSION}.patch`,
+      ),
+      'generated pnpm-workspace patchedDependency must match MODULE_FEDERATION_VERSION',
+    );
+    assert.ok(
+      pnpmWorkspace.includes(
         `'effect@${EFFECT_VERSION}': patches/effect-schema-error-type-id.patch`,
       ),
       'generated pnpm-workspace patchedDependency must match EFFECT_VERSION',
@@ -161,6 +173,15 @@ test('generated workspace renders the pins from versions.ts', () => {
         ),
       ),
       'generated router-core patch file must match TANSTACK_ROUTER_CORE_VERSION',
+    );
+    assert.ok(
+      fs.existsSync(
+        path.join(
+          workspaceDir,
+          `patches/@module-federation__modern-js-v3@${MODULE_FEDERATION_VERSION}.patch`,
+        ),
+      ),
+      'generated Module Federation Modern.js patch file must match MODULE_FEDERATION_VERSION',
     );
     assert.ok(
       fs.existsSync(

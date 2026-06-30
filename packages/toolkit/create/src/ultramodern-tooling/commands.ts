@@ -27,6 +27,7 @@ import {
   EFFECT_TSGO_VERSION,
   EFFECT_VERSION,
   EFFECT_VITEST_VERSION,
+  MODULE_FEDERATION_VERSION,
   OXFMT_VERSION,
   OXLINT_VERSION,
   TYPESCRIPT_NATIVE_PREVIEW_VERSION,
@@ -253,6 +254,12 @@ const strictEffectPackageVersionPolicyExclusions = [
   `effect@${EFFECT_VERSION}`,
   `@effect/opentelemetry@${EFFECT_VERSION}`,
 ];
+const moduleFederationModernJsPatchPath = `patches/@module-federation__modern-js-v3@${MODULE_FEDERATION_VERSION}.patch`;
+const moduleFederationModernJsPatchSourcePath = path.join(
+  createPackageRoot,
+  'template-workspace',
+  moduleFederationModernJsPatchPath,
+);
 const effectDeclarationPatchPath = 'patches/effect-schema-error-type-id.patch';
 const effectDeclarationPatchSourcePath = path.join(
   createPackageRoot,
@@ -658,6 +665,12 @@ function ensureGeneratedDeclarationPatches(
   changed =
     ensureGeneratedPatchFile(
       workspaceRoot,
+      moduleFederationModernJsPatchPath,
+      moduleFederationModernJsPatchSourcePath,
+    ) || changed;
+  changed =
+    ensureGeneratedPatchFile(
+      workspaceRoot,
       effectDeclarationPatchPath,
       effectDeclarationPatchSourcePath,
     ) || changed;
@@ -739,6 +752,15 @@ function updateGeneratedPnpmWorkspacePolicy(workspaceRoot: string) {
   );
   source = effectPatch.source;
   changed = effectPatch.changed || changed;
+
+  const moduleFederationModernJsPatch = ensureYamlMapEntry(
+    source,
+    'patchedDependencies',
+    `@module-federation/modern-js-v3@${MODULE_FEDERATION_VERSION}`,
+    moduleFederationModernJsPatchPath,
+  );
+  source = moduleFederationModernJsPatch.source;
+  changed = moduleFederationModernJsPatch.changed || changed;
 
   const drizzleOrmPatch = usesDrizzleOrm
     ? ensureYamlMapEntry(

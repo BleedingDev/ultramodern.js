@@ -42,6 +42,7 @@ allowBuilds:
 patchedDependencies:
   # Lazy-load Module Federation DTS helpers so apps with `dts: false` do not
   # import the DTS plugin in the TS 7 native-preview lane.
+  '@module-federation/modern-js-v3@2.6.0': patches/@module-federation__modern-js-v3@2.6.0.patch
   '@module-federation/manifest@2.6.0': patches/@module-federation__manifest@2.6.0.patch
   '@module-federation/rspack@2.6.0': patches/@module-federation__rspack@2.6.0.patch
   # Stop TanStack loadMatches from dereferencing cached preload matches after

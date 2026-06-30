@@ -7,6 +7,7 @@ This directory contains pnpm patches for external packages. These are not fork s
 `pnpm-workspace.yaml` currently applies:
 
 - `@module-federation/manifest@2.6.0` -> `patches/@module-federation__manifest@2.6.0.patch`
+- `@module-federation/modern-js-v3@2.6.0` -> `patches/@module-federation__modern-js-v3@2.6.0.patch`
 - `@module-federation/rspack@2.6.0` -> `patches/@module-federation__rspack@2.6.0.patch`
 - `@tanstack/router-core@1.171.13` -> `patches/@tanstack__router-core@1.171.13.patch`
 
@@ -18,6 +19,7 @@ key plus `pnpm-lock.yaml`.
 ## What the patches do
 
 - `@module-federation/manifest`: avoids loading `@module-federation/dts-plugin/core` at module import time and returns default type metadata immediately when `dts: false`.
+- `@module-federation/modern-js-v3`: suppresses the stream SSR splitChunks warning when `splitChunks.chunks` is already `async`, while still coercing invalid values to `async`.
 - `@module-federation/rspack`: avoids loading `@module-federation/dts-plugin` at module import time and only requires `DtsPlugin` when DTS generation is enabled.
 - `@tanstack/router-core`: makes `loadMatches` tolerate a cached preload match disappearing after `RouterCore.updateMatch` deletes it on redirect. This preserves TanStack's immediate redirected-cache cleanup while preventing same-call `getMatch(id)!._nonReactive` reads from crashing.
 

@@ -26,6 +26,7 @@ import type { WorkspaceApp } from './types';
 import {
   CLOUDFLARE_COMPATIBILITY_DATE,
   EFFECT_VERSION,
+  MODULE_FEDERATION_VERSION,
   NODE_VERSION,
   PNPM_VERSION,
 } from './versions';
@@ -187,6 +188,7 @@ export function createWorkspaceValidationScript(
     {
       packageScope: scope,
       effectVersion: EFFECT_VERSION,
+      moduleFederationVersion: MODULE_FEDERATION_VERSION,
       nodeVersion: NODE_VERSION,
       pnpmVersion: PNPM_VERSION,
       tailwindEnabledJson: JSON.stringify(enableTailwind),

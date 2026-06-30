@@ -283,15 +283,26 @@ test ! -e .output/public/shared
 
 Adjust paths for vertical app output when validating a multi-app workspace.
 
-## 10. Remaining External Work
+## 10. External Tooling Decisions
 
 This release does not hide external warnings with generated app shims.
 
-Known follow-ups:
+Current dispositions:
 
-1. the upstream Module Federation splitChunks warning may still appear even
-   when generated defaults are already stream-SSR-compatible.
-2. Alchemy should be evaluated separately as an optional Cloudflare
-   infrastructure-as-code layer after the generic Wrangler-compatible config is
-   stable. It should not become default generated framework plumbing unless it
-   cleanly consumes prebuilt Worker output without duplicating deploy ownership.
+1. Generated workspaces carry the `@module-federation/modern-js-v3` patch that
+   keeps the stream-SSR splitChunks warning aligned with the actual config. The
+   patch is framework-owned and generated with the workspace; apps must not add
+   local shims or warning suppressions.
+2. Alchemy remains an optional infrastructure-as-code/upload layer, not default
+   UltraModern framework plumbing. The generated Cloudflare path keeps Modern
+   responsible for `.output/` and `.output/wrangler.json`, with Wrangler as the
+   default deploy owner. An Alchemy recipe is acceptable only if it consumes that
+   prebuilt output or faithfully mirrors the emitted Wrangler config, including
+   compatibility dates, flags, assets, bindings, and Worker module content,
+   without running a second framework build.
+3. Full ESM output for Module Federation apps is deferred. Generated root and
+   shared packages remain ESM, and the Cloudflare outer Worker remains ESM, but
+   MF host/remote app packages stay CommonJS-compatible and do not opt into
+   app-level `"type": "module"` or `output.module`. Revisit this only after the
+   Rsbuild/Rspack/Module Federation stack officially supports ESM output for MF
+   SSR and DTS generation without app-local compatibility shims.

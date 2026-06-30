@@ -1503,6 +1503,7 @@ const requiredPaths = [
   '.gitignore',
   'package.json',
   'pnpm-workspace.yaml',
+  'patches/@module-federation__modern-js-v3@{{moduleFederationVersion}}.patch',
   'patches/effect-schema-error-type-id.patch',
   'tsconfig.json',
   'tsconfig.base.json',
@@ -1580,6 +1581,12 @@ for (const requiredPath of requiredPaths) {
   assertExists(requiredPath);
 }
 const pnpmWorkspace = readText('pnpm-workspace.yaml');
+assert(
+  pnpmWorkspace.includes(
+    "'@module-federation/modern-js-v3@{{moduleFederationVersion}}': patches/@module-federation__modern-js-v3@{{moduleFederationVersion}}.patch",
+  ),
+  'pnpm-workspace.yaml must patch the generated Module Federation Modern.js integration cohort',
+);
 assert(
   pnpmWorkspace.includes(
     "'effect@{{effectVersion}}': patches/effect-schema-error-type-id.patch",

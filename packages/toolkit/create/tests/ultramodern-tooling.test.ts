@@ -20,6 +20,7 @@ import {
   DRIZZLE_ORM_VERSION,
   EFFECT_VERSION,
   EFFECT_VITEST_VERSION,
+  MODULE_FEDERATION_VERSION,
   OXFMT_VERSION,
   TYPESCRIPT_NATIVE_PREVIEW_VERSION,
 } from '../src/ultramodern-workspace/versions';
@@ -403,6 +404,13 @@ declare module '*.css' {}
       new RegExp(`'@effect/vitest': ${EFFECT_VITEST_VERSION}`, 'u'),
     );
     assert.match(pnpmWorkspace, new RegExp(`effect: ${EFFECT_VERSION}`, 'u'));
+    assert.match(
+      pnpmWorkspace,
+      new RegExp(
+        `'@module-federation/modern-js-v3@${MODULE_FEDERATION_VERSION}': patches/@module-federation__modern-js-v3@${MODULE_FEDERATION_VERSION}\\.patch`,
+        'u',
+      ),
+    );
     assert.match(
       pnpmWorkspace,
       new RegExp(
