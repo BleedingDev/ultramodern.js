@@ -78,6 +78,44 @@ mise exec -- pnpm check
 mise exec -- pnpm build
 ```
 
+### Migrating to `3.5.0-ultramodern.18`
+
+Use `3.5.0-ultramodern.18` or newer for localized Cloudflare SSR workspaces.
+This cohort moves bare locale-root redirects into the framework-owned
+Cloudflare Worker entry and the i18n server runtime. A request for `/` is
+redirected server-side with `302` to the negotiated locale path, for example
+`/cs` for `Accept-Language: cs-CZ` or `/en` for English and fallback traffic.
+
+Existing generated workspaces should upgrade the whole BleedingDev Modern
+package cohort together:
+
+```bash
+pnpm dlx @bleedingdev/modern-js-create@3.5.0-ultramodern.18 ultramodern \
+  migrate-strict-effect --version 3.5.0-ultramodern.18
+pnpm install
+pnpm check
+pnpm build
+pnpm cloudflare:build
+```
+
+For deployed Cloudflare Workers, redeploy after the cohort update and verify
+the root response before accepting the migration:
+
+```bash
+curl -I -H 'Accept-Language: cs-CZ,cs;q=0.9,en;q=0.1' https://<worker-host>/
+```
+
+The expected response is `302` with `Location: /cs` or the matching locale,
+`Cache-Control: private, no-store`, and `Vary` covering the locale detection
+headers. Following the redirect should return the SSR locale page with the
+matching document language and i18n SSR data.
+
+Do not fix older root `404` responses by adding app-owned root route files,
+client-side redirects, custom navigation wrappers, Cloudflare Worker
+postprocessing, generated output edits, or local redirect shims. If `/` still
+returns `404` after upgrading, confirm the production build log shows
+`Modern.js Framework v3.5.0-ultramodern.18` or newer and redeploy the Worker.
+
 Strict generated API migration requires `3.5.0-ultramodern.10` or newer.
 `3.4.0-ultramodern.20` and earlier cohorts do not include this full direct
 `api/index.ts` generator, generated `.mts` checks, strict Oxlint boundary rule
