@@ -174,6 +174,27 @@ function assertModuleFederationWarningHygiene(modernConfig: string) {
   );
 }
 
+function assertShellDevAssetPrefix(modernConfig: string) {
+  assert.match(
+    modernConfig,
+    /dev:\s*\{\s*\/\/ Keep shell dev assets origin-relative[\s\S]*?assetPrefix:\s*'\/',\s*\}/,
+    'generated shell Modern config must keep shell dev assets origin-relative',
+  );
+}
+
+function assertRemoteDevAssetPrefix(modernConfig: string) {
+  assert.match(
+    modernConfig,
+    /dev:\s*\{\s*\/\/ Remote dev manifests must publish an absolute publicPath[\s\S]*?assetPrefix,\s*\}/,
+    'generated remote Modern config must publish dev assets from its own remote origin',
+  );
+  assert.doesNotMatch(
+    modernConfig,
+    /dev:\s*\{[\s\S]*?assetPrefix:\s*'\/',\s*\}/,
+    'generated remote Modern config must not publish origin-relative dev assets',
+  );
+}
+
 test('rendered contents of the highest-risk generated files match the checked-in snapshots', () => {
   const tempRoot = fs.mkdtempSync(
     path.join(os.tmpdir(), 'um-workspace-content-'),
@@ -272,6 +293,7 @@ test('rendered contents of the highest-risk generated files match the checked-in
       'generated Modern config must not suppress i18n bundler warnings',
     );
     assertModuleFederationWarningHygiene(shellModernConfig);
+    assertShellDevAssetPrefix(shellModernConfig);
     assert.match(
       shellModuleFederationConfig,
       /tsConfigPath: '\.\/tsconfig\.mf-types\.json'/,
@@ -430,6 +452,12 @@ test('rendered contents of the highest-risk generated files match the checked-in
       ['src', 'locales/**/*.json', 'package.json', 'shared', 'api'],
       'generated vertical app typecheck must not include Modern or Module Federation tool config declarations',
     );
+    const verticalModernConfig = fs.readFileSync(
+      path.join(workspaceDir, 'verticals/catalog/modern.config.ts'),
+      'utf-8',
+    );
+    assertModuleFederationWarningHygiene(verticalModernConfig);
+    assertRemoteDevAssetPrefix(verticalModernConfig);
     const verticalModernAppEnv = fs.readFileSync(
       path.join(workspaceDir, 'verticals/catalog/src/modern-app-env.d.ts'),
       'utf-8',

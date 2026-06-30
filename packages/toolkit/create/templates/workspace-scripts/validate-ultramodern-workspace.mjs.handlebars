@@ -486,7 +486,7 @@ const createAppConfigContract = app => ({
     'zephyrRspackPlugin',
   ],
   dev: {
-    assetPrefix: '/',
+    assetPrefix: app.kind === 'shell' ? '/' : 'app-public-origin',
   },
   output: {
     assetPrefix: {
@@ -1967,9 +1967,9 @@ for (const vertical of fullStackVerticals) {
   assert(!verticalAssetPrefixExpression.includes('configuredSiteUrl') && !verticalAssetPrefixExpression.includes('MODERN_PUBLIC_SITE_URL'), `${vertical.id} asset prefix must not fall back to MODERN_PUBLIC_SITE_URL`);
   assert(modernConfig.includes(`envValue('ULTRAMODERN_PUBLIC_URL_${vertical.id.replace(/-/g, '_').toUpperCase()}')`), `${vertical.id} asset prefix must read its per-app public URL`);
   assert(modernConfig.includes('inferredCloudflareUrl'), `${vertical.id} asset prefix must support workers.dev origin inference`);
-  assert(modernConfig.includes("assetPrefix: '/'"), `${vertical.id} modern.config.ts must keep dev assets origin-relative`);
+  assert(/dev:\s*\{\s*\/\/ Remote dev manifests must publish an absolute publicPath[\s\S]*?assetPrefix,\s*\}/u.test(modernConfig), `${vertical.id} modern.config.ts must publish dev assets from its own remote origin`);
   assert(modernConfig.includes('assetPrefix,'), `${vertical.id} modern.config.ts must wire output.assetPrefix to the derived asset prefix`);
-  assert(contractEntry?.config?.dev?.assetPrefix === '/', `${vertical.id} dev asset prefix must stay origin-relative`);
+  assert(contractEntry?.config?.dev?.assetPrefix === 'app-public-origin', `${vertical.id} dev asset prefix must default to its app public origin`);
   assert(contractEntry?.config?.output?.assetPrefix?.default === 'app-public-origin', `${vertical.id} asset prefix must default to its app public origin`);
   assert(JSON.stringify(contractEntry?.config?.output?.assetPrefix?.envFallbackOrder) === JSON.stringify(['MODERN_ASSET_PREFIX', 'ULTRAMODERN_ASSET_PREFIX']), `${vertical.id} asset prefix env fallback order is incorrect`);
   assert(contractEntry?.config?.output?.disableTsChecker === false, `${vertical.id} must keep the framework TypeScript checker enabled`);

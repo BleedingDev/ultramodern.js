@@ -50,6 +50,14 @@ export function createAppModernConfig(
   (cloudflareDeployEnabled ? '/' : \`http://localhost:\${port}\`);
 const defaultRemoteAssetPrefix = \`\${remoteAssetOrigin.replace(/\\/+$/u, '')}/\`;
 const defaultAssetPrefix = defaultRemoteAssetPrefix;`;
+  const devAssetPrefixSource =
+    app.kind === 'shell'
+      ? `        // Keep shell dev assets origin-relative so the shell works through
+        // tunnels and local previews without rewriting its own chunks.
+        assetPrefix: '/',`
+      : `        // Remote dev manifests must publish an absolute publicPath so host
+        // shells load remoteEntry.js and exposed chunks from this dev server.
+        assetPrefix,`;
   return `// @effect-diagnostics processEnv:off
 import {
   appTools,
@@ -153,9 +161,7 @@ ${bffConfig}      ...(cloudflareDeployEnabled
           }
         : {}),
       dev: {
-        // Keep dev assets origin-relative too; the default absolute
-        // http://localhost:<port> prefix breaks pages served through tunnels.
-        assetPrefix: '/',
+${devAssetPrefixSource}
       },
       html: {
         outputStructure: 'flat',
