@@ -57,8 +57,10 @@ async function createFixture({
   compatibilityDate,
   d1Databases,
   includeBffWorker = true,
+  includeRootRoute = false,
   includeServerOnlyDistSources = false,
   publicAssetExcludes,
+  serverPlugins,
   sourceFiles,
   wrangler,
   workerName,
@@ -68,8 +70,13 @@ async function createFixture({
   compatibilityDate?: string;
   d1Databases?: CloudflareWorkerD1DatabaseConfig[];
   includeBffWorker?: boolean;
+  includeRootRoute?: boolean;
   includeServerOnlyDistSources?: boolean;
   publicAssetExcludes?: string[];
+  serverPlugins?: Array<{
+    name: string;
+    options?: Record<string, unknown>;
+  }>;
   sourceFiles?: Record<string, Record<string, string>>;
   wrangler?: Record<string, JsonValue>;
   workerName?: string;
@@ -271,6 +278,18 @@ async function createFixture({
     path.join(distDirectory, 'route.json'),
     JSON.stringify({
       routes: [
+        ...(includeRootRoute
+          ? [
+              {
+                urlPath: '/',
+                entryName: 'main',
+                entryPath: 'html/main/index.html',
+                isSSR: true,
+                worker: 'worker/main.js',
+                bundle: 'bundles/main.js',
+              },
+            ]
+          : []),
         {
           urlPath: '/dashboard',
           entryName: 'main',
@@ -345,6 +364,7 @@ async function createFixture({
     appContext: {
       appDirectory,
       distDirectory,
+      serverPlugins: serverPlugins ?? [],
     } as any,
     modernConfig: {
       bff: {
@@ -948,6 +968,138 @@ describe('cloudflare deploy preset', () => {
     await expect(
       fs.readFile(path.join(outputDirectory, 'worker/package.json'), 'utf-8'),
     ).resolves.toBe('{"type":"commonjs"}\n');
+  });
+
+  it('emits native Cloudflare locale redirects from i18n server plugin options', async () => {
+    const i18nServerPlugin = {
+      name: '@modern-js/plugin-i18n/server',
+      options: {
+        localeDetection: {
+          fallbackLanguage: 'en',
+          ignoreRedirectRoutes: ['/assets'],
+          languages: ['en', 'cs'],
+          localePathRedirect: true,
+          localisedUrls: {
+            '/terms-of-service': {
+              cs: '/obchodni-podminky',
+              en: '/terms-of-service',
+            },
+          },
+        },
+        staticRoutePrefixes: ['/public-assets'],
+      },
+    };
+    const { outputDirectory } = await createFixture({
+      includeRootRoute: true,
+      serverPlugins: [i18nServerPlugin],
+    });
+    const workerManifest = JSON.parse(
+      await fs.readFile(
+        path.join(outputDirectory, 'server/modern-worker-manifest.json'),
+        'utf-8',
+      ),
+    );
+
+    expect(workerManifest.i18n.entries.main).toMatchObject({
+      fallbackLanguage: 'en',
+      i18nextDetector: true,
+      ignoreRedirectRoutes: ['/assets'],
+      languages: ['en', 'cs'],
+      staticRoutePrefixes: ['/public-assets'],
+    });
+    expect(workerManifest.i18n.entries.main.localisedUrls).toEqual({
+      '/terms-of-service': {
+        cs: '/obchodni-podminky',
+        en: '/terms-of-service',
+      },
+    });
+
+    const worker = (
+      await import(
+        `${pathToFileURL(path.join(outputDirectory, 'server/index.mjs')).href}?t=${Date.now()}`
+      )
+    ).default;
+    const env = {
+      ASSETS: createAssetBinding(path.join(outputDirectory, 'public')),
+    };
+
+    const rootCs = await worker.fetch(
+      new Request('https://example.com/', {
+        headers: {
+          'accept-language': 'cs-CZ,cs;q=0.9,en;q=0.1',
+        },
+      }),
+      env,
+    );
+    expect(rootCs.status).toBe(302);
+    expect(rootCs.headers.get('location')).toBe('/cs');
+    expect(rootCs.headers.get('cache-control')).toBe('private, no-store');
+    expect(rootCs.headers.get('vary')).toBe('Accept-Language, Cookie');
+
+    const queryWins = await worker.fetch(
+      new Request('https://example.com/?lng=en&utm=tractor', {
+        headers: {
+          'accept-language': 'cs-CZ,cs;q=0.9',
+        },
+      }),
+      env,
+    );
+    expect(queryWins.status).toBe(302);
+    expect(queryWins.headers.get('location')).toBe('/en?lng=en&utm=tractor');
+
+    const cookieWinsOverHeader = await worker.fetch(
+      new Request('https://example.com/', {
+        headers: {
+          'accept-language': 'cs-CZ,cs;q=0.9',
+          cookie: 'i18next=en',
+        },
+      }),
+      env,
+    );
+    expect(cookieWinsOverHeader.status).toBe(302);
+    expect(cookieWinsOverHeader.headers.get('location')).toBe('/en');
+
+    const mountedRoute = await worker.fetch(
+      new Request('https://example.com/dashboard/settings', {
+        headers: {
+          'accept-language': 'cs-CZ,cs;q=0.9',
+        },
+      }),
+      env,
+    );
+    expect(mountedRoute.status).toBe(302);
+    expect(mountedRoute.headers.get('location')).toBe('/dashboard/cs/settings');
+
+    const localisedRoute = await worker.fetch(
+      new Request('https://example.com/terms-of-service', {
+        headers: {
+          'accept-language': 'cs-CZ,cs;q=0.9',
+        },
+      }),
+      env,
+    );
+    expect(localisedRoute.status).toBe(302);
+    expect(localisedRoute.headers.get('location')).toBe(
+      '/cs/obchodni-podminky',
+    );
+
+    const canonicalisedRoute = await worker.fetch(
+      new Request('https://example.com/cs/terms-of-service'),
+      env,
+    );
+    expect(canonicalisedRoute.status).toBe(302);
+    expect(canonicalisedRoute.headers.get('location')).toBe(
+      '/cs/obchodni-podminky',
+    );
+
+    const ignoredRoute = await worker.fetch(
+      new Request('https://example.com/assets/logo'),
+      env,
+    );
+    expect(ignoredRoute.status).toBe(200);
+    await expect(ignoredRoute.json()).resolves.toMatchObject({
+      pathname: '/assets/logo',
+    });
   });
 
   it('emits a fetch-based worker entry that serves bound assets', async () => {

@@ -118,6 +118,19 @@ describe('i18n TanStack localisedUrls', () => {
     expect(html.text).toMatch(/path:.*\/cs\/produkty\/bota/s);
   });
 
+  test('SSR redirects the bare TanStack root using Accept-Language', async () => {
+    const response = await fetch(`http://localhost:${appPort}/`, {
+      headers: {
+        Accept: 'text/html',
+        'Accept-Language': 'cs-CZ,cs;q=0.9,en;q=0.1',
+      },
+      redirect: 'manual',
+    });
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get('location')).toBe('/cs');
+  });
+
   test('generated TanStack route types include localized aliases', () => {
     try {
       execFileSync(

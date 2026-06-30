@@ -509,7 +509,6 @@ describe('i18n server API prefix skips', () => {
           header: () => ({ host: 'localhost' }),
         },
         get: () => null,
-        redirect: (url: string) => ({ redirectedTo: url }),
       }) as any;
 
     // Sanity: well-formed non-canonical slugs still redirect.
@@ -517,7 +516,10 @@ describe('i18n server API prefix skips', () => {
       createContext('/cs/products/bota'),
       async () => {},
     );
-    expect(redirected).toEqual({ redirectedTo: '/cs/produkty/bota' });
+    expect(redirected.status).toBe(302);
+    expect(redirected.headers.get('location')).toBe('/cs/produkty/bota');
+    expect(redirected.headers.get('cache-control')).toBe('private, no-store');
+    expect(redirected.headers.get('vary')).toBe('Accept-Language, Cookie');
 
     // Malformed encoding must fall through to next() instead of throwing.
     let nextCalls = 0;

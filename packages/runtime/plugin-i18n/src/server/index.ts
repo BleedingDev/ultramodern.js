@@ -328,6 +328,16 @@ const buildLocalizedUrl = (
   return localizedUrl;
 };
 
+const createLocaleRedirectResponse = (location: string): Response =>
+  new Response(null, {
+    status: 302,
+    headers: {
+      'Cache-Control': 'private, no-store',
+      Location: location,
+      Vary: 'Accept-Language, Cookie',
+    },
+  });
+
 export const i18nServerPlugin = (options: I18nPluginOptions): ServerPlugin => ({
   name: '@modern-js/plugin-i18n/server',
   setup: api => {
@@ -475,7 +485,7 @@ export const i18nServerPlugin = (options: I18nPluginOptions): ServerPlugin => ({
                   languages,
                   localisedUrls,
                 );
-                return c.redirect(localizedUrl);
+                return createLocaleRedirectResponse(localizedUrl);
               }
               const localisedUrlsConfig =
                 resolveLocalisedUrlsConfig(localisedUrls);
@@ -488,7 +498,7 @@ export const i18nServerPlugin = (options: I18nPluginOptions): ServerPlugin => ({
                   localisedUrls,
                 );
                 if (expectedUrl !== `${pathname}${url.search}${url.hash}`) {
-                  return c.redirect(expectedUrl);
+                  return createLocaleRedirectResponse(expectedUrl);
                 }
               }
               await next();
