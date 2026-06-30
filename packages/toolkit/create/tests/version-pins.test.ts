@@ -49,6 +49,11 @@ test('static templates read version pins from versions.ts placeholders', () => {
   );
   assert.match(
     pnpmWorkspaceTemplate,
+    /'@module-federation\/bridge-react@\{\{moduleFederationVersion\}\}': patches\/@module-federation__bridge-react@\{\{moduleFederationVersion\}\}\.patch/,
+    'pnpm-workspace patchedDependency must use the moduleFederationVersion placeholder for the React bridge patch',
+  );
+  assert.match(
+    pnpmWorkspaceTemplate,
     /'effect@\{\{effectVersion\}\}': patches\/effect-schema-error-type-id\.patch/,
     'pnpm-workspace patchedDependency must use the effectVersion placeholder for the strict declaration patch',
   );
@@ -157,6 +162,12 @@ test('generated workspace renders the pins from versions.ts', () => {
     );
     assert.ok(
       pnpmWorkspace.includes(
+        `'@module-federation/bridge-react@${MODULE_FEDERATION_VERSION}': patches/@module-federation__bridge-react@${MODULE_FEDERATION_VERSION}.patch`,
+      ),
+      'generated pnpm-workspace React bridge patchedDependency must match MODULE_FEDERATION_VERSION',
+    );
+    assert.ok(
+      pnpmWorkspace.includes(
         `'effect@${EFFECT_VERSION}': patches/effect-schema-error-type-id.patch`,
       ),
       'generated pnpm-workspace patchedDependency must match EFFECT_VERSION',
@@ -182,6 +193,15 @@ test('generated workspace renders the pins from versions.ts', () => {
         ),
       ),
       'generated Module Federation Modern.js patch file must match MODULE_FEDERATION_VERSION',
+    );
+    assert.ok(
+      fs.existsSync(
+        path.join(
+          workspaceDir,
+          `patches/@module-federation__bridge-react@${MODULE_FEDERATION_VERSION}.patch`,
+        ),
+      ),
+      'generated Module Federation React bridge patch file must match MODULE_FEDERATION_VERSION',
     );
     assert.ok(
       fs.existsSync(

@@ -260,6 +260,12 @@ const moduleFederationModernJsPatchSourcePath = path.join(
   'template-workspace',
   moduleFederationModernJsPatchPath,
 );
+const moduleFederationBridgeReactPatchPath = `patches/@module-federation__bridge-react@${MODULE_FEDERATION_VERSION}.patch`;
+const moduleFederationBridgeReactPatchSourcePath = path.join(
+  createPackageRoot,
+  'template-workspace',
+  moduleFederationBridgeReactPatchPath,
+);
 const effectDeclarationPatchPath = 'patches/effect-schema-error-type-id.patch';
 const effectDeclarationPatchSourcePath = path.join(
   createPackageRoot,
@@ -671,6 +677,12 @@ function ensureGeneratedDeclarationPatches(
   changed =
     ensureGeneratedPatchFile(
       workspaceRoot,
+      moduleFederationBridgeReactPatchPath,
+      moduleFederationBridgeReactPatchSourcePath,
+    ) || changed;
+  changed =
+    ensureGeneratedPatchFile(
+      workspaceRoot,
       effectDeclarationPatchPath,
       effectDeclarationPatchSourcePath,
     ) || changed;
@@ -761,6 +773,15 @@ function updateGeneratedPnpmWorkspacePolicy(workspaceRoot: string) {
   );
   source = moduleFederationModernJsPatch.source;
   changed = moduleFederationModernJsPatch.changed || changed;
+
+  const moduleFederationBridgeReactPatch = ensureYamlMapEntry(
+    source,
+    'patchedDependencies',
+    `@module-federation/bridge-react@${MODULE_FEDERATION_VERSION}`,
+    moduleFederationBridgeReactPatchPath,
+  );
+  source = moduleFederationBridgeReactPatch.source;
+  changed = moduleFederationBridgeReactPatch.changed || changed;
 
   const drizzleOrmPatch = usesDrizzleOrm
     ? ensureYamlMapEntry(

@@ -263,6 +263,10 @@ test('UltraModern migrate-strict-effect updates package cohort and direct API me
           '',
         )
         .replace(
+          `  '@module-federation/bridge-react@${MODULE_FEDERATION_VERSION}': patches/@module-federation__bridge-react@${MODULE_FEDERATION_VERSION}.patch\n`,
+          '',
+        )
+        .replace(
           `  'drizzle-orm@${DRIZZLE_ORM_VERSION}': patches/drizzle-orm-ts7-strict-declarations.patch\n`,
           '',
         )
@@ -278,6 +282,15 @@ test('UltraModern migrate-strict-effect updates package cohort and direct API me
     );
     fs.rmSync(
       path.join(workspaceDir, 'patches/effect-schema-error-type-id.patch'),
+      {
+        force: true,
+      },
+    );
+    fs.rmSync(
+      path.join(
+        workspaceDir,
+        `patches/@module-federation__bridge-react@${MODULE_FEDERATION_VERSION}.patch`,
+      ),
       {
         force: true,
       },
@@ -414,6 +427,13 @@ declare module '*.css' {}
     assert.match(
       pnpmWorkspace,
       new RegExp(
+        `'@module-federation/bridge-react@${MODULE_FEDERATION_VERSION}': patches/@module-federation__bridge-react@${MODULE_FEDERATION_VERSION}\\.patch`,
+        'u',
+      ),
+    );
+    assert.match(
+      pnpmWorkspace,
+      new RegExp(
         `'effect@${EFFECT_VERSION}': patches/effect-schema-error-type-id\\.patch`,
         'u',
       ),
@@ -458,6 +478,15 @@ declare module '*.css' {}
         path.join(workspaceDir, 'patches/effect-schema-error-type-id.patch'),
       ),
       'migrate-strict-effect must restore the generated Effect declaration patch',
+    );
+    assert.ok(
+      fs.existsSync(
+        path.join(
+          workspaceDir,
+          `patches/@module-federation__bridge-react@${MODULE_FEDERATION_VERSION}.patch`,
+        ),
+      ),
+      'migrate-strict-effect must restore the generated Module Federation React bridge patch',
     );
     assert.ok(
       fs.existsSync(

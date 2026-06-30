@@ -1504,6 +1504,7 @@ const requiredPaths = [
   'package.json',
   'pnpm-workspace.yaml',
   'patches/@module-federation__modern-js-v3@{{moduleFederationVersion}}.patch',
+  'patches/@module-federation__bridge-react@{{moduleFederationVersion}}.patch',
   'patches/effect-schema-error-type-id.patch',
   'tsconfig.json',
   'tsconfig.base.json',
@@ -1586,6 +1587,12 @@ assert(
     "'@module-federation/modern-js-v3@{{moduleFederationVersion}}': patches/@module-federation__modern-js-v3@{{moduleFederationVersion}}.patch",
   ),
   'pnpm-workspace.yaml must patch the generated Module Federation Modern.js integration cohort',
+);
+assert(
+  pnpmWorkspace.includes(
+    "'@module-federation/bridge-react@{{moduleFederationVersion}}': patches/@module-federation__bridge-react@{{moduleFederationVersion}}.patch",
+  ),
+  'pnpm-workspace.yaml must patch the generated Module Federation React bridge cohort',
 );
 assert(
   pnpmWorkspace.includes(

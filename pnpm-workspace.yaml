@@ -45,6 +45,9 @@ patchedDependencies:
   '@module-federation/modern-js-v3@2.6.0': patches/@module-federation__modern-js-v3@2.6.0.patch
   '@module-federation/manifest@2.6.0': patches/@module-federation__manifest@2.6.0.patch
   '@module-federation/rspack@2.6.0': patches/@module-federation__rspack@2.6.0.patch
+  # Keep bridge-react SSR stylesheet assets hydration-stable while avoiding
+  # duplicate stylesheet links after the client has mounted.
+  '@module-federation/bridge-react@2.6.0': patches/@module-federation__bridge-react@2.6.0.patch
   # Stop TanStack loadMatches from dereferencing cached preload matches after
   # RouterCore.updateMatch deletes them on redirect.
   '@tanstack/router-core@1.171.13': patches/@tanstack__router-core@1.171.13.patch
