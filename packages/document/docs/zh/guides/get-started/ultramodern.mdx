@@ -161,9 +161,9 @@ Federation 冲突，都应在对应归属文件中修复，不要手写补丁覆
 
 Cloudflare D1 绑定使用一等配置 `deploy.worker.d1Databases`；生成 app 拥有 D1
 migration 时不要再用 app 本地 postprocess。Cloudflare public output 默认排除服务端
-`api` 和 `shared` 目录，并且生成的 Modern/Rspack cache 会按 app、构建目标和 Rspack
-environment 隔离，避免本地 `build`、`cloudflare:build` 以及多 environment compiler
-共享同一个文件系统 cache 目录。
+`api` 和 `shared` 目录，并且生成的 Modern/Rspack 输出根目录、temp 目录和 cache
+会按 app、构建目标和 Rspack environment 隔离，避免本地 `build`、`cloudflare:build`
+以及多 environment compiler 共享可变构建状态。
 
 ## 人类工作流
 

@@ -525,8 +525,6 @@ export function createAppPackage(
     app,
     'dist',
   );
-  const publicSurfaceCloudflareBuildCommand =
-    createPublicSurfaceGenerationCommand(app, 'dist');
   const publicSurfaceCloudflareOutputCommand =
     createPublicSurfaceGenerationCommand(app, 'cloudflare');
   const packageExports: Record<string, JsonValue> = Object.fromEntries(
@@ -544,7 +542,7 @@ export function createAppPackage(
       build: app.exposes
         ? `ULTRAMODERN_ZEPHYR=false modern build && ${publicSurfaceBuildCommand} && node ${relativeRootFor(app.directory)}/scripts/assert-mf-types.mts`
         : `ULTRAMODERN_ZEPHYR=false modern build && ${publicSurfaceBuildCommand}`,
-      'cloudflare:build': `ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern build && ${publicSurfaceCloudflareBuildCommand} && ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern deploy --skip-build && ${publicSurfaceCloudflareOutputCommand}`,
+      'cloudflare:build': `ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern build && ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern deploy --skip-build && ${publicSurfaceCloudflareOutputCommand}`,
       'cloudflare:deploy':
         'ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS=true pnpm run cloudflare:build && wrangler deploy --config .output/wrangler.json',
       'cloudflare:preview':

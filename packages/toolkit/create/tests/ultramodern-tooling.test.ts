@@ -33,6 +33,10 @@ function readJson(workspaceDir: string, relativePath: string) {
   );
 }
 
+function readText(workspaceDir: string, relativePath: string) {
+  return fs.readFileSync(path.join(workspaceDir, relativePath), 'utf-8');
+}
+
 function writeJson(workspaceDir: string, relativePath: string, value: unknown) {
   fs.writeFileSync(
     path.join(workspaceDir, relativePath),
@@ -54,6 +58,44 @@ function scaffoldWorkspace(name: string) {
     },
   });
   return { tempRoot, workspaceDir };
+}
+
+function assertTargetIsolatedModernConfig(source: string, label: string) {
+  assert.match(
+    source,
+    /const buildTarget = cloudflareDeployEnabled \? 'cloudflare' : 'web';/,
+    `${label} must derive mutable build paths from the active target`,
+  );
+  assert.match(
+    source,
+    /const buildOutputRoot = cloudflareDeployEnabled \? 'dist-cloudflare' : 'dist';/,
+    `${label} must isolate normal and Cloudflare output roots`,
+  );
+  assert.match(
+    source,
+    /const buildTempDirectory = `node_modules\/\.modern-js-\$\{appId\}-\$\{buildTarget\}`;/,
+    `${label} must isolate normal and Cloudflare Modern temp directories`,
+  );
+  assert.match(
+    source,
+    /const buildCacheDirectory = `node_modules\/\.cache\/rspack-\$\{appId\}-\$\{buildTarget\}`;/,
+    `${label} must isolate Rspack cache directories by target`,
+  );
+  assert.match(
+    source,
+    /root: buildOutputRoot,/,
+    `${label} must pass the per-target output root to the builder`,
+  );
+  assert.match(
+    source,
+    /tempDir: buildTempDirectory,/,
+    `${label} must pass the per-target Modern temp directory to the builder`,
+  );
+  assert.match(
+    source,
+    /cacheDigest: \[appId, buildTarget\],/,
+    `${label} must include the target in the Rspack cache digest`,
+  );
 }
 
 test('UltraModern tooling config reads compact config and rejects retired metadata', () => {
@@ -259,7 +301,8 @@ test('UltraModern migrate-strict-effect updates package cohort and direct API me
       fs
         .readFileSync(gitignorePath, 'utf-8')
         .replace(/^\.mf\/\n/mu, '')
-        .replace(/^\*\*\/\.mf\/\n/mu, ''),
+        .replace(/^\*\*\/\.mf\/\n/mu, '')
+        .replace(/^dist-cloudflare\/\n/mu, ''),
       'utf-8',
     );
 
@@ -435,6 +478,11 @@ declare module '*.css' {}
       /^\*\*\/\.mf\/$/mu,
       'migrate-strict-effect must ignore per-app Module Federation diagnostics',
     );
+    assert.match(
+      migratedGitignore,
+      /^dist-cloudflare\/$/mu,
+      'migrate-strict-effect must ignore Cloudflare build output',
+    );
 
     const shellTsConfig = readJson(
       workspaceDir,
@@ -498,9 +546,17 @@ declare module '*.css' {}
       shellPackage.scripts['cloudflare:build'],
       /MODERNJS_DEPLOY=cloudflare modern deploy --skip-build/u,
     );
+    assert.doesNotMatch(
+      shellPackage.scripts['cloudflare:build'],
+      /--target dist && ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern deploy/u,
+    );
     assert.equal(
       shellPackage.scripts['cloudflare:deploy'],
       'ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS=true pnpm run cloudflare:build && wrangler deploy --config .output/wrangler.json',
+    );
+    assertTargetIsolatedModernConfig(
+      readText(workspaceDir, 'apps/shell-super-app/modern.config.ts'),
+      'shell modern.config.ts',
     );
 
     const catalogPackage = readJson(
@@ -511,9 +567,17 @@ declare module '*.css' {}
       catalogPackage.scripts['cloudflare:build'],
       /MODERNJS_DEPLOY=cloudflare modern deploy --skip-build/u,
     );
+    assert.doesNotMatch(
+      catalogPackage.scripts['cloudflare:build'],
+      /--target dist && ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern deploy/u,
+    );
     assert.equal(
       catalogPackage.scripts['cloudflare:deploy'],
       'ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS=true pnpm run cloudflare:build && wrangler deploy --config .output/wrangler.json',
+    );
+    assertTargetIsolatedModernConfig(
+      readText(workspaceDir, 'verticals/catalog/modern.config.ts'),
+      'catalog modern.config.ts',
     );
 
     const migratedTopology = readJson(

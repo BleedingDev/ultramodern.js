@@ -1363,12 +1363,17 @@ const extractAssetPrefixExpression = modernConfig => {
   assert(match?.groups?.expression, 'modern.config.ts must assign assetPrefix');
   return match.groups.expression;
 };
-const assertBuildCacheBase = (appId, modernConfig) => {
+const assertTargetIsolatedBuildArtifacts = (appId, modernConfig) => {
   assert(
-    modernConfig.includes("const buildCacheTarget = cloudflareDeployEnabled ? 'cloudflare' : 'web';") &&
-      modernConfig.includes('const buildCacheDirectory = `node_modules/.cache/rspack-${appId}-${buildCacheTarget}`;') &&
+    modernConfig.includes("const buildTarget = cloudflareDeployEnabled ? 'cloudflare' : 'web';") &&
+      modernConfig.includes("const buildOutputRoot = cloudflareDeployEnabled ? 'dist-cloudflare' : 'dist';") &&
+      modernConfig.includes('const buildTempDirectory = `node_modules/.modern-js-${appId}-${buildTarget}`;') &&
+      modernConfig.includes('const buildCacheDirectory = `node_modules/.cache/rspack-${appId}-${buildTarget}`;') &&
+      modernConfig.includes('root: buildOutputRoot,') &&
+      modernConfig.includes('tempDir: buildTempDirectory,') &&
+      modernConfig.includes('cacheDigest: [appId, buildTarget],') &&
       modernConfig.includes('cacheDirectory: buildCacheDirectory,'),
-    `${appId} must provide a per-app/per-target Rspack cache base directory`,
+    `${appId} must isolate build output, Modern temp files, and Rspack cache by app and build target`,
   );
 };
 const assertCloudflareBuildSkipsDeployRebuild = (appId, packageJson) => {
@@ -1377,6 +1382,12 @@ const assertCloudflareBuildSkipsDeployRebuild = (appId, packageJson) => {
       'ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern deploy --skip-build',
     ),
     `${appId} cloudflare:build must deploy with --skip-build after the explicit Cloudflare build`,
+  );
+  assert(
+    !packageJson.scripts?.['cloudflare:build']?.includes(
+      '--target dist && ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern deploy',
+    ),
+    `${appId} cloudflare:build must not write public-surface assets into the normal web dist before deploy`,
   );
 };
 const stripYamlInlineComment = value => {
@@ -1795,6 +1806,7 @@ const shellRouteHead = readText('apps/shell-super-app/src/routes/ultramodern-rou
 const shellRouteMetadata = readText('apps/shell-super-app/src/routes/ultramodern-route-metadata.ts');
 assert(/^\.mf\/$/mu.test(gitignore), 'Generated .gitignore must ignore root Module Federation diagnostics');
 assert(/^\*\*\/\.mf\/$/mu.test(gitignore), 'Generated .gitignore must ignore per-app Module Federation diagnostics');
+assert(/^dist-cloudflare\/$/mu.test(gitignore), 'Generated .gitignore must ignore Cloudflare build output');
 assert(shellModernAppEnv.includes("import '@modern-js/app-tools/types';"), 'Shell app env must import the framework-owned app ambient type bundle through module resolution');
 assert(/declare global \{\s*const ULTRAMODERN_SITE_URL: string;\s*\}/u.test(shellModernAppEnv), 'Shell app env must keep generated globals explicit after importing app ambient types');
 assert(!shellModernAppEnv.includes("declare module '*.svg'"), 'Shell app env must not redeclare framework-owned svg asset modules');
@@ -1818,7 +1830,7 @@ assert(shellPackage.dependencies?.['@modern-js/plugin-i18n'] === expectedModernP
 assert(shellPackage.dependencies?.['@modern-js/plugin-tanstack'] === expectedModernPackageSpecifier('@modern-js/plugin-tanstack'), 'Shell plugin-tanstack dependency must match package source metadata');
 assert(shellPackage.dependencies?.['@modern-js/runtime'] === expectedModernPackageSpecifier('@modern-js/runtime'), 'Shell runtime dependency must match package source metadata');
 assert(shellPackage.scripts?.['cloudflare:deploy'] === 'ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS=true pnpm run cloudflare:build && wrangler deploy --config .output/wrangler.json', 'Shell must expose cloudflare:deploy');
-assertBuildCacheBase('shell-super-app', shellModernConfig);
+assertTargetIsolatedBuildArtifacts('shell-super-app', shellModernConfig);
 assertCloudflareBuildSkipsDeployRebuild('shell-super-app', shellPackage);
 const shellContract = generatedContract.apps?.find(app => app.id === 'shell-super-app');
 assert(shellContract?.deploy?.cloudflare?.workerName === expectedWorkerName('shell-super-app'), 'Shell Cloudflare workerName is incorrect');
@@ -1901,7 +1913,7 @@ for (const vertical of fullStackVerticals) {
   assert(routeMetadata.includes("authoring: 'colocated-route-meta'"), `${vertical.id} route metadata manifest must advertise colocated authoring`);
   assert(packageJson.name === vertical.packageName, `${vertical.id} package name is incorrect`);
   assert(packageJson.scripts?.['cloudflare:deploy'] === 'ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS=true pnpm run cloudflare:build && wrangler deploy --config .output/wrangler.json', `${vertical.id} must expose cloudflare:deploy`);
-  assertBuildCacheBase(vertical.id, modernConfig);
+  assertTargetIsolatedBuildArtifacts(vertical.id, modernConfig);
   assertCloudflareBuildSkipsDeployRebuild(vertical.id, packageJson);
   assert(packageJson.scripts?.['cloudflare:proof']?.includes(`--app ${vertical.id}`), `${vertical.id} must expose cloudflare:proof`);
   assert(packageJson.devDependencies?.['@modern-js/app-tools'] === expectedModernPackageSpecifier('@modern-js/app-tools'), `${vertical.id} app-tools dependency must match package source metadata`);

@@ -118,13 +118,38 @@ function assertModuleFederationWarningHygiene(
   );
   assert.match(
     modernConfig,
-    /const buildCacheTarget = cloudflareDeployEnabled \? 'cloudflare' : 'web';/,
-    `${label} must isolate normal and Cloudflare Rspack cache targets`,
+    /const buildTarget = cloudflareDeployEnabled \? 'cloudflare' : 'web';/,
+    `${label} must derive mutable build paths from the active target`,
   );
   assert.match(
     modernConfig,
-    /const buildCacheDirectory = `node_modules\/\.cache\/rspack-\$\{appId\}-\$\{buildCacheTarget\}`;/,
+    /const buildOutputRoot = cloudflareDeployEnabled \? 'dist-cloudflare' : 'dist';/,
+    `${label} must isolate normal and Cloudflare output roots`,
+  );
+  assert.match(
+    modernConfig,
+    /const buildTempDirectory = `node_modules\/\.modern-js-\$\{appId\}-\$\{buildTarget\}`;/,
+    `${label} must isolate normal and Cloudflare Modern temp directories`,
+  );
+  assert.match(
+    modernConfig,
+    /const buildCacheDirectory = `node_modules\/\.cache\/rspack-\$\{appId\}-\$\{buildTarget\}`;/,
     `${label} must provide a per-app/per-target Rspack cache base directory`,
+  );
+  assert.match(
+    modernConfig,
+    /root: buildOutputRoot,/,
+    `${label} must pass the per-target output root to the builder`,
+  );
+  assert.match(
+    modernConfig,
+    /tempDir: buildTempDirectory,/,
+    `${label} must pass the per-target Modern temp directory to the builder`,
+  );
+  assert.match(
+    modernConfig,
+    /cacheDigest: \[appId, buildTarget\],/,
+    `${label} must include the build target in the Rspack cache digest`,
   );
   assert.match(
     modernConfig,

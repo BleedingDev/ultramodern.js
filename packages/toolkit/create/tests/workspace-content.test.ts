@@ -114,13 +114,38 @@ function assertModuleFederationWarningHygiene(modernConfig: string) {
   );
   assert.match(
     modernConfig,
-    /const buildCacheTarget = cloudflareDeployEnabled \? 'cloudflare' : 'web';/,
-    'generated Modern config must isolate normal and Cloudflare Rspack cache targets',
+    /const buildTarget = cloudflareDeployEnabled \? 'cloudflare' : 'web';/,
+    'generated Modern config must derive mutable build paths from the active target',
   );
   assert.match(
     modernConfig,
-    /const buildCacheDirectory = `node_modules\/\.cache\/rspack-\$\{appId\}-\$\{buildCacheTarget\}`;/,
+    /const buildOutputRoot = cloudflareDeployEnabled \? 'dist-cloudflare' : 'dist';/,
+    'generated Modern config must isolate normal and Cloudflare output roots',
+  );
+  assert.match(
+    modernConfig,
+    /const buildTempDirectory = `node_modules\/\.modern-js-\$\{appId\}-\$\{buildTarget\}`;/,
+    'generated Modern config must isolate normal and Cloudflare Modern temp directories',
+  );
+  assert.match(
+    modernConfig,
+    /const buildCacheDirectory = `node_modules\/\.cache\/rspack-\$\{appId\}-\$\{buildTarget\}`;/,
     'generated Modern config must provide a per-app/per-target Rspack cache base directory',
+  );
+  assert.match(
+    modernConfig,
+    /root: buildOutputRoot,/,
+    'generated Modern config must pass the per-target output root to the builder',
+  );
+  assert.match(
+    modernConfig,
+    /tempDir: buildTempDirectory,/,
+    'generated Modern config must pass the per-target Modern temp directory to the builder',
+  );
+  assert.match(
+    modernConfig,
+    /cacheDigest: \[appId, buildTarget\],/,
+    'generated Modern config must include the build target in the Rspack cache digest',
   );
   assert.match(
     modernConfig,
@@ -205,6 +230,11 @@ test('rendered contents of the highest-risk generated files match the checked-in
       gitignore,
       /^\*\*\/\.mf\/$/mu,
       'generated workspaces must ignore per-app Module Federation diagnostics',
+    );
+    assert.match(
+      gitignore,
+      /^dist-cloudflare\/$/mu,
+      'generated workspaces must ignore Cloudflare build output',
     );
     assert.match(
       shellModernAppEnv,

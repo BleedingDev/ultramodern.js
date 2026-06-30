@@ -15,6 +15,7 @@ import {
 } from '../ultramodern-package-source';
 import { createAppEnvDts } from '../ultramodern-workspace/app-files';
 import { validateModuleFederationTypes } from '../ultramodern-workspace/mf-validation';
+import { createAppModernConfig } from '../ultramodern-workspace/module-federation';
 import {
   createAppMfTypesTsConfig,
   createAppTsConfig,
@@ -312,16 +313,27 @@ function updateGeneratedPackageScripts(packageJson: Record<string, any>) {
 
   let changed = false;
   const cloudflareBuild = scripts['cloudflare:build'];
-  if (
-    typeof cloudflareBuild === 'string' &&
-    cloudflareBuild.includes(cloudflareModernDeployCommand) &&
-    !cloudflareBuild.includes(cloudflareModernDeploySkipBuildCommand)
-  ) {
-    scripts['cloudflare:build'] = cloudflareBuild.replace(
-      cloudflareModernDeployCommand,
-      cloudflareModernDeploySkipBuildCommand,
+  if (typeof cloudflareBuild === 'string') {
+    let nextCloudflareBuild = cloudflareBuild;
+    if (
+      nextCloudflareBuild.includes(cloudflareModernDeployCommand) &&
+      !nextCloudflareBuild.includes(cloudflareModernDeploySkipBuildCommand)
+    ) {
+      nextCloudflareBuild = nextCloudflareBuild.replace(
+        cloudflareModernDeployCommand,
+        cloudflareModernDeploySkipBuildCommand,
+      );
+    }
+
+    nextCloudflareBuild = nextCloudflareBuild.replace(
+      / && node \S*scripts\/generate-public-surface-assets\.m[ct]s --app [^&]+ --target dist(?= && ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern deploy --skip-build)/u,
+      '',
     );
-    changed = true;
+
+    if (nextCloudflareBuild !== cloudflareBuild) {
+      scripts['cloudflare:build'] = nextCloudflareBuild;
+      changed = true;
+    }
   }
 
   const cloudflareDeploy = scripts['cloudflare:deploy'];
@@ -803,7 +815,7 @@ function ensureGeneratedIgnoreRules(workspaceRoot: string) {
     existing.trimEnd().length === 0 ? [] : existing.trimEnd().split(/\r?\n/u);
   let changed = false;
 
-  for (const rule of ['.mf/', '**/.mf/']) {
+  for (const rule of ['.mf/', '**/.mf/', 'dist-cloudflare/']) {
     if (!lines.includes(rule)) {
       lines.push(rule);
       changed = true;
@@ -860,6 +872,24 @@ function updateGeneratedTypeScriptSurfaces(
       writeTextIfChanged(
         path.join(workspaceRoot, app.directory, 'src/modern-app-env.d.ts'),
         createAppEnvDts(app, remotes),
+      ) || changed;
+  }
+
+  return changed;
+}
+
+function updateGeneratedModernConfigs(
+  workspaceRoot: string,
+  config: UltramodernToolingConfig,
+) {
+  let changed = false;
+  const apps = workspaceAppsFromToolingConfig(config);
+
+  for (const app of apps) {
+    changed =
+      writeTextIfChanged(
+        path.join(workspaceRoot, app.directory, 'modern.config.ts'),
+        createAppModernConfig(config.workspace.packageScope, app),
       ) || changed;
   }
 
@@ -978,7 +1008,9 @@ and pnpm contract:check.
 
   updateUltramodernConfig(context.workspaceRoot, packageSource);
   updateReferenceTopology(context.workspaceRoot);
-  updateGeneratedTypeScriptSurfaces(context.workspaceRoot, current);
+  const migrated = readUltramodernConfig(context.workspaceRoot);
+  updateGeneratedTypeScriptSurfaces(context.workspaceRoot, migrated);
+  updateGeneratedModernConfigs(context.workspaceRoot, migrated);
 
   for (const relativePackageFile of listWorkspacePackageFiles(
     context.workspaceRoot,
