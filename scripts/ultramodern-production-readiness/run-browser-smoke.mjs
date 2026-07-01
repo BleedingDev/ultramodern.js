@@ -463,6 +463,44 @@ function isSameOriginAsset(target, url) {
   }
 }
 
+export function findDuplicateStylesheetHrefs(stylesheetHrefs) {
+  const counts = new Map();
+  for (const href of stylesheetHrefs) {
+    if (typeof href !== 'string' || href.length === 0) {
+      continue;
+    }
+    counts.set(href, (counts.get(href) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .filter(([, count]) => count > 1)
+    .map(([href, count]) => ({ count, href }));
+}
+
+async function waitForHydrationStyles(page) {
+  if (typeof page.waitForLoadState === 'function') {
+    await page
+      .waitForLoadState('networkidle', { timeout: 15_000 })
+      .catch(() => {
+        // Network idle is a best-effort hydration settle point; streaming,
+        // beacons, or long-polling should not hide the stylesheet assertion.
+      });
+  }
+
+  if (typeof page.waitForTimeout === 'function') {
+    await page.waitForTimeout(250);
+  }
+}
+
+async function collectStylesheetLinks(page) {
+  return page.$$eval('link[rel~="stylesheet"]', links =>
+    links.map(link => ({
+      dataChunk: link.getAttribute('data-chunk') ?? undefined,
+      href: link.href,
+      rel: link.getAttribute('rel') ?? link.rel ?? '',
+    })),
+  );
+}
+
 async function maybeScreenshot(page, filePath) {
   try {
     await page.screenshot({ fullPage: true, path: filePath });
@@ -581,6 +619,7 @@ export async function validateBrowserTarget(target, browser, { artifactDir }) {
   const consoleMessages = [];
   const pageErrors = [];
   const failedResponses = [];
+  let stylesheetLinks = [];
 
   page.on('console', message => {
     const serialized = serializeConsoleMessage(message);
@@ -663,6 +702,27 @@ export async function validateBrowserTarget(target, browser, { artifactDir }) {
       }
     }
 
+    await waitForHydrationStyles(page);
+    stylesheetLinks = await collectStylesheetLinks(page);
+    const duplicateStylesheetHrefs = findDuplicateStylesheetHrefs(
+      stylesheetLinks.map(link => link.href),
+    );
+    assertions.push(
+      assertion(
+        'stylesheet-href-dedupe',
+        duplicateStylesheetHrefs.length === 0 ? 'pass' : 'fail',
+        {
+          duplicateStylesheetHrefs,
+          stylesheetCount: stylesheetLinks.length,
+        },
+      ),
+    );
+    assertPass(
+      duplicateStylesheetHrefs.length === 0,
+      `${app.id} rendered duplicate stylesheet links after hydration`,
+      { duplicateStylesheetHrefs, stylesheetLinks },
+    );
+
     const csLink = page.locator('a[href="/cs"], a[href$="/cs"]').first();
     if (app.kind !== 'shell' && (await csLink.count()) > 0) {
       await csLink.click();
@@ -725,6 +785,11 @@ export async function validateBrowserTarget(target, browser, { artifactDir }) {
     writeJsonFile(
       path.join(appArtifactDir, 'failed-responses.json'),
       failedResponses,
+      { atomic: false },
+    );
+    writeJsonFile(
+      path.join(appArtifactDir, 'stylesheets.json'),
+      stylesheetLinks,
       { atomic: false },
     );
     await context.close();

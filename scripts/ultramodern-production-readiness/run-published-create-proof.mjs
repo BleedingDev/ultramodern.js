@@ -515,6 +515,14 @@ function runBrowserSmoke(projectDir, { mode, requirePublicUrls = false }) {
   return readJsonFile(path.resolve(repoRoot, out));
 }
 
+function createCloudflareProofArgs({ requirePublicUrls = false } = {}) {
+  const args = ['cloudflare:proof'];
+  if (requirePublicUrls) {
+    args.push('--require-public-urls');
+  }
+  return args;
+}
+
 function createSharedContractVersionAssertion({ topology, generatedContract }) {
   const versions = [
     topology?.shell?.moduleFederation?.sharedContractVersion,
@@ -744,7 +752,7 @@ async function main() {
     if (options.deployCloudflare) {
       timedStep(summary, 'cloudflareDeploy', () => {
         run('pnpm', ['cloudflare:deploy'], { cwd: projectDir });
-        run('pnpm', ['cloudflare:proof', '--', '--require-public-urls'], {
+        run('pnpm', createCloudflareProofArgs({ requirePublicUrls: true }), {
           cwd: projectDir,
         });
       });
@@ -803,6 +811,7 @@ if (
 export {
   assertGeneratedCohort,
   createCleanPnpmDlxEnv,
+  createCloudflareProofArgs,
   createPnpmDlxArgs,
   createTopologyEvidence,
   generateVerticalNames,

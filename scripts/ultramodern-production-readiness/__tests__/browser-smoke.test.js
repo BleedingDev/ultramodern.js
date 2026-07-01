@@ -248,10 +248,27 @@ test('fails when the MF manifest is missing', async () => {
   );
 });
 
-function createFakeBrowser({ consoleError = false } = {}) {
+function createFakeBrowser({ consoleError = false, stylesheetHrefs } = {}) {
   const handlers = {};
   const contextOptions = [];
+  const resolvedStylesheetHrefs = stylesheetHrefs ?? [
+    'http://localhost:3020/static/css/app.css',
+  ];
   const page = {
+    async $$eval(selector, mapper) {
+      if (selector !== 'link[rel~="stylesheet"]') {
+        return mapper([]);
+      }
+      return mapper(
+        resolvedStylesheetHrefs.map(href => ({
+          getAttribute(name) {
+            return name === 'rel' ? 'stylesheet' : null;
+          },
+          href,
+          rel: 'stylesheet',
+        })),
+      );
+    },
     locator(selector) {
       return {
         async click() {},
@@ -279,7 +296,9 @@ function createFakeBrowser({ consoleError = false } = {}) {
       }
     },
     async screenshot() {},
+    async waitForLoadState() {},
     async waitForSelector() {},
+    async waitForTimeout() {},
   };
   const browser = {
     contextOptions,
@@ -295,6 +314,19 @@ function createFakeBrowser({ consoleError = false } = {}) {
   };
   return browser;
 }
+
+test('finds duplicate hydrated stylesheet hrefs', async () => {
+  const { findDuplicateStylesheetHrefs } = await loadSmoke();
+
+  assert.deepEqual(
+    findDuplicateStylesheetHrefs([
+      'https://shell.example/static/app.css',
+      'https://remote.example/static/remote.css',
+      'https://shell.example/static/app.css',
+    ]),
+    [{ count: 2, href: 'https://shell.example/static/app.css' }],
+  );
+});
 
 test('fails when the browser emits a console error', async () => {
   const { createSmokeTargets, validateBrowserTarget } = await loadSmoke();
@@ -344,11 +376,53 @@ test('checks SSR output with JavaScript disabled', async () => {
       true,
     );
     assert.equal(
+      assertions.some(item => item.type === 'stylesheet-href-dedupe'),
+      true,
+    );
+    assert.equal(
       fs.existsSync(
         path.join(root, 'shell-super-app/no-js-failed-responses.json'),
       ),
       true,
     );
+    assert.equal(
+      fs.existsSync(path.join(root, 'shell-super-app/stylesheets.json')),
+      true,
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('fails when hydrated stylesheets contain duplicate hrefs', async () => {
+  const { createSmokeTargets, validateBrowserTarget } = await loadSmoke();
+  const root = tempRoot();
+  const [target] = createSmokeTargets(createContract()).targets;
+
+  try {
+    await assert.rejects(
+      () =>
+        validateBrowserTarget(
+          target,
+          createFakeBrowser({
+            stylesheetHrefs: [
+              'http://localhost:3020/static/css/async/async-index.css',
+              'http://localhost:3020/static/css/async/async-index.css',
+            ],
+          }),
+          {
+            artifactDir: root,
+          },
+        ),
+      /rendered duplicate stylesheet links after hydration/,
+    );
+    const stylesheets = JSON.parse(
+      fs.readFileSync(
+        path.join(root, 'shell-super-app/stylesheets.json'),
+        'utf8',
+      ),
+    );
+    assert.equal(stylesheets.length, 2);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

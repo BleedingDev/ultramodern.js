@@ -139,6 +139,16 @@ test('builds the supported pnpm dlx package command contract', async () => {
   });
 });
 
+test('builds Cloudflare proof args without a pnpm separator argument', async () => {
+  const { createCloudflareProofArgs } = await loadProof();
+
+  assert.deepEqual(createCloudflareProofArgs(), ['cloudflare:proof']);
+  assert.deepEqual(createCloudflareProofArgs({ requirePublicUrls: true }), [
+    'cloudflare:proof',
+    '--require-public-urls',
+  ]);
+});
+
 test('asserts generated cohorts from package source metadata and framework version', async () => {
   const { assertGeneratedCohort } = await loadProof();
   const root = fs.mkdtempSync(
