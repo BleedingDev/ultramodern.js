@@ -87,13 +87,13 @@ proof after deployment:
 
 ```bash
 # Run from the generated workspace:
-pnpm cloudflare:proof -- --require-public-urls
+pnpm cloudflare:proof --require-public-urls
 
 ULTRAMODERN_PUBLIC_URL_REMOTE_EXPLORE=https://remote-explore.example.workers.dev \
 ULTRAMODERN_PUBLIC_URL_REMOTE_DECIDE=https://remote-decide.example.workers.dev \
 ULTRAMODERN_PUBLIC_URL_REMOTE_CHECKOUT=https://remote-checkout.example.workers.dev \
 ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP=https://shell-super-app.example.workers.dev \
-pnpm cloudflare:proof -- --require-public-urls
+pnpm cloudflare:proof --require-public-urls
 ```
 
 Zephyr evidence is split into dry-run configuration proof and live public URL

@@ -420,7 +420,7 @@ hyphens converted to underscores and uppercased:
 pnpm cloudflare:deploy
 ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP=https://shell-super-app.example.workers.dev \
 ULTRAMODERN_PUBLIC_URL_TRANSPORTATION=https://transportation.example.workers.dev \
-pnpm cloudflare:proof -- --require-public-urls
+pnpm cloudflare:proof --require-public-urls
 ```
 
 Without public URLs and credentials, use local primitive gates and `pnpm build`

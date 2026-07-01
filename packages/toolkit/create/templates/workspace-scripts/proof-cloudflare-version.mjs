@@ -298,7 +298,9 @@ function parseArgs(argv) {
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
-    if (arg === '--app') {
+    if (arg === '--') {
+      continue;
+    } else if (arg === '--app') {
       parsed.appId = argv[index + 1];
       index += 1;
     } else if (arg === '--out') {

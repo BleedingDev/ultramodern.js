@@ -403,7 +403,7 @@ Cloudflare and Zephyr proof:
 ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP=https://shell-super-app.example.workers.dev \
 ULTRAMODERN_PUBLIC_URL_TRANSPORTATION=https://transportation.example.workers.dev \
 ULTRAMODERN_PUBLIC_URL_PAYMENTS=https://payments.example.workers.dev \
-mise exec -- pnpm cloudflare:proof -- --require-public-urls
+mise exec -- pnpm cloudflare:proof --require-public-urls
 ```
 
 Live Cloudflare and Zephyr proof requires public Worker URLs and Zephyr credentials. Without those, the repo can validate generated contracts, local builds, local Cloudflare output, dry-run Zephyr evidence plans, and local evidence schemas, but it cannot prove shell-driven live version selection.

@@ -2007,6 +2007,7 @@ async function expectGeneratedCloudflareProofContract(
         apps[0].id,
         '--out',
         requiredReportPath,
+        '--',
         '--require-public-urls',
       ],
       {

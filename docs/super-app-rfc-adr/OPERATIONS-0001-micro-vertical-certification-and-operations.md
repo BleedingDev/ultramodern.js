@@ -169,7 +169,7 @@ ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP=https://shell-super-app.example.workers.d
 ULTRAMODERN_PUBLIC_URL_REMOTE_EXPLORE=https://remote-explore.example.workers.dev \
 ULTRAMODERN_PUBLIC_URL_REMOTE_DECIDE=https://remote-decide.example.workers.dev \
 ULTRAMODERN_PUBLIC_URL_REMOTE_CHECKOUT=https://remote-checkout.example.workers.dev \
-pnpm cloudflare:proof -- --require-public-urls
+pnpm cloudflare:proof --require-public-urls
 ```
 
 Live Zephyr evidence requires valid Zephyr credentials and public v1/v2 runtime,
