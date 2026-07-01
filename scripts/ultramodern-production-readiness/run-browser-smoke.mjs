@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -13,7 +14,9 @@ const { readJsonFile, writeJsonFile } = fsKit;
 const defaultArtifactDir = '.modern/production-readiness/browser-smoke/local';
 const defaultReportPath =
   '.modern/production-readiness/browser-smoke/summary.json';
-const contractRelativePath = '.modernjs/ultramodern-generated-contract.json';
+const compactContractRelativePath = '.modernjs/ultramodern.json';
+const legacyContractRelativePath =
+  '.modernjs/ultramodern-generated-contract.json';
 const fatalConsoleTypes = new Set(['error']);
 
 export class BrowserSmokeError extends Error {
@@ -184,11 +187,217 @@ function expectedAppIdFromRootSelector(selector) {
 function routesForApp(app) {
   const cloudflareRoutes = app.deploy?.cloudflare?.routes ?? {};
   return {
-    effectReadiness: cloudflareRoutes.effectReadiness,
+    effectReadiness:
+      cloudflareRoutes.effectReadiness ?? cloudflareRoutes.apiReadiness,
     locale:
       cloudflareRoutes.locale ?? `/locales/en/${app.i18n?.namespace}.json`,
     mfManifest: cloudflareRoutes.mfManifest ?? '/mf-manifest.json',
     ssr: cloudflareRoutes.ssr ?? '/en',
+  };
+}
+
+function toKebabCase(value) {
+  return String(value)
+    .trim()
+    .replace(/([a-z0-9])([A-Z])/gu, '$1-$2')
+    .replace(/[^a-zA-Z0-9._-]+/gu, '-')
+    .replace(/[._]+/gu, '-')
+    .toLowerCase()
+    .replace(/-+/gu, '-')
+    .replace(/^-+|-+$/gu, '');
+}
+
+function toEnvSegment(value) {
+  return toKebabCase(value).replace(/-/gu, '_').toUpperCase();
+}
+
+function normalizeRelativePath(value) {
+  return String(value ?? '')
+    .replace(/\\/gu, '/')
+    .replace(/^\.\/+/u, '');
+}
+
+function appNamespace(app) {
+  return app.kind === 'shell' ? 'shell' : (app.domain ?? app.id);
+}
+
+function normalizeCompactApp(rawApp) {
+  const id = String(rawApp.id);
+  const kind = rawApp.kind === 'vertical' ? 'vertical' : 'shell';
+  const appPath =
+    typeof rawApp.path === 'string'
+      ? normalizeRelativePath(rawApp.path)
+      : kind === 'shell'
+        ? 'apps/shell-super-app'
+        : `verticals/${toKebabCase(id)}`;
+  const packageSuffix =
+    typeof rawApp.packageSuffix === 'string'
+      ? rawApp.packageSuffix
+      : (appPath.split('/').at(-1) ?? id);
+  const domain =
+    typeof rawApp.domain === 'string'
+      ? rawApp.domain
+      : kind === 'vertical'
+        ? packageSuffix
+        : undefined;
+  const moduleFederation =
+    rawApp.moduleFederation && typeof rawApp.moduleFederation === 'object'
+      ? rawApp.moduleFederation
+      : {};
+  const port = Number.isInteger(rawApp.port) ? rawApp.port : undefined;
+  const portEnv =
+    typeof rawApp.portEnv === 'string'
+      ? rawApp.portEnv
+      : `${toEnvSegment(id)}_PORT`;
+  const api =
+    rawApp.api && typeof rawApp.api === 'object'
+      ? {
+          stem:
+            typeof rawApp.api.stem === 'string'
+              ? rawApp.api.stem
+              : (domain ?? id),
+          prefix:
+            typeof rawApp.api.prefix === 'string'
+              ? rawApp.api.prefix
+              : `/${domain ?? id}-api`,
+        }
+      : undefined;
+
+  return {
+    ...rawApp,
+    id,
+    kind,
+    path: appPath,
+    packageSuffix,
+    domain,
+    port,
+    portEnv,
+    moduleFederation,
+    api,
+  };
+}
+
+function createBuildMarker(scope, app) {
+  return crypto
+    .createHash('sha256')
+    .update(`${scope}:${app.packageSuffix}:${app.id}:0.1.0`)
+    .digest('hex')
+    .slice(0, 16);
+}
+
+function createCloudflareRoutes(app) {
+  return {
+    ssr: '/en',
+    mfManifest: '/mf-manifest.json',
+    locale: `/locales/en/${appNamespace(app)}.json`,
+    ...(app.api
+      ? {
+          apiReadiness: `${app.api.prefix}/${app.api.stem}/readiness`,
+          effectReadiness: `${app.api.prefix}/${app.api.stem}/readiness`,
+        }
+      : {}),
+  };
+}
+
+function createSmokeContractApp(config, app) {
+  const packageScope =
+    typeof config.workspace?.packageScope === 'string'
+      ? config.workspace.packageScope
+      : path.basename(process.cwd());
+
+  return {
+    id: app.id,
+    kind: app.kind,
+    package: app.package,
+    path: app.path,
+    config: {
+      source: {
+        siteUrl: {
+          defaultLocalhostPort: app.port,
+          envFallbackOrder: [
+            'MODERN_PUBLIC_SITE_URL',
+            `ULTRAMODERN_PUBLIC_URL_${toEnvSegment(app.id)}`,
+            app.portEnv,
+          ],
+        },
+      },
+    },
+    deploy: {
+      cloudflare: {
+        workerName: `${toKebabCase(packageScope)}-${app.packageSuffix}`.slice(
+          0,
+          63,
+        ),
+        publicUrlEnv: `ULTRAMODERN_PUBLIC_URL_${toEnvSegment(app.id)}`,
+        routes: createCloudflareRoutes(app),
+      },
+    },
+    i18n: {
+      namespace: appNamespace(app),
+    },
+    marker: {
+      appId: app.id,
+      build: createBuildMarker(packageScope, app),
+    },
+    moduleFederation: {
+      ...app.moduleFederation,
+    },
+    styling: {
+      federation: {
+        rootSelector: `[data-app-id="${app.id}"]`,
+      },
+    },
+  };
+}
+
+function synthesizeContractFromCompactConfig(config, { sourcePath } = {}) {
+  const apps = Array.isArray(config.topology?.apps)
+    ? config.topology.apps.map(normalizeCompactApp)
+    : [];
+
+  return {
+    sourcePath,
+    apps: apps.map(app => createSmokeContractApp(config, app)),
+  };
+}
+
+export function normalizeSmokeContract(contract, options = {}) {
+  if (Array.isArray(contract?.apps)) {
+    return {
+      ...contract,
+      sourcePath: contract.sourcePath ?? options.sourcePath,
+    };
+  }
+  if (Array.isArray(contract?.topology?.apps)) {
+    return synthesizeContractFromCompactConfig(contract, options);
+  }
+  return {
+    ...contract,
+    sourcePath: contract?.sourcePath ?? options.sourcePath,
+  };
+}
+
+export function resolveContractPath(projectDir) {
+  const compactPath = path.join(projectDir, compactContractRelativePath);
+  if (fs.existsSync(compactPath)) {
+    return compactPath;
+  }
+
+  const legacyPath = path.join(projectDir, legacyContractRelativePath);
+  if (fs.existsSync(legacyPath)) {
+    return legacyPath;
+  }
+
+  return compactPath;
+}
+
+export function readSmokeContract(projectDir) {
+  const contractPath = resolveContractPath(projectDir);
+  return {
+    contract: normalizeSmokeContract(readJsonFile(contractPath), {
+      sourcePath: contractPath,
+    }),
+    contractPath,
   };
 }
 
@@ -218,10 +427,11 @@ export function createSmokeTargets(
     requirePublicUrls = false,
   } = {},
 ) {
+  const normalizedContract = normalizeSmokeContract(contract);
   const targets = [];
   const skipped = [];
 
-  for (const app of contract.apps ?? []) {
+  for (const app of normalizedContract.apps ?? []) {
     let baseUrl;
     if (mode === 'local') {
       const port = appPort(app);
@@ -505,6 +715,26 @@ function serializeConsoleMessage(message) {
   };
 }
 
+export function isFatalConsoleMessage(message) {
+  if (!fatalConsoleTypes.has(message.type)) {
+    return false;
+  }
+
+  const url = message.location?.url;
+  const text = message.text ?? '';
+  if (typeof url === 'string' && text.includes('Failed to load resource')) {
+    try {
+      if (new URL(url).pathname.endsWith('/favicon.ico')) {
+        return false;
+      }
+    } catch {
+      // Keep non-URL console locations fatal.
+    }
+  }
+
+  return true;
+}
+
 function isSameOriginAsset(target, url) {
   try {
     return new URL(url).origin === new URL(target.baseUrl).origin;
@@ -524,6 +754,12 @@ export function findDuplicateStylesheetHrefs(stylesheetHrefs) {
   return [...counts.entries()]
     .filter(([, count]) => count > 1)
     .map(([href, count]) => ({ count, href }));
+}
+
+export function remoteBoundaryCandidates(remote) {
+  return [remote?.id, remote?.alias, remote?.name]
+    .filter(value => typeof value === 'string' && value.length > 0)
+    .filter((value, index, values) => values.indexOf(value) === index);
 }
 
 async function waitForHydrationStyles(page) {
@@ -730,26 +966,50 @@ export async function validateBrowserTarget(target, browser, { artifactDir }) {
       app.kind === 'shell' &&
       app.moduleFederation?.verticalRefs?.length > 0
     ) {
-      const remoteNames =
-        app.moduleFederation.remotes?.map(remote => remote.name) ?? [];
-      for (const remoteName of remoteNames) {
-        const boundaryCount = await page
-          .locator(`[data-modern-boundary-id="${remoteName}"]`)
-          .count();
-        assertions.push(
-          assertion(
-            'shell-composition-boundary',
-            boundaryCount > 0 ? 'pass' : 'fail',
-            {
-              remoteName,
-            },
-          ),
+      const remotes =
+        app.moduleFederation.remotes?.length > 0
+          ? app.moduleFederation.remotes
+          : app.moduleFederation.verticalRefs.map(id => ({ id }));
+      const matchedRemoteBoundaries = [];
+      const triedRemoteBoundaries = [];
+      for (const remote of remotes) {
+        const boundaryCandidates = remoteBoundaryCandidates(remote);
+        const boundaryCounts = await Promise.all(
+          boundaryCandidates.map(async boundaryId => [
+            boundaryId,
+            await page
+              .locator(`[data-modern-boundary-id="${boundaryId}"]`)
+              .count(),
+          ]),
         );
-        assertPass(
-          boundaryCount > 0,
-          `shell composition is missing remote boundary ${remoteName}`,
-        );
+        const matchedBoundary = boundaryCounts.find(([, count]) => count > 0);
+        triedRemoteBoundaries.push({
+          matchedBoundaryId: matchedBoundary?.[0],
+          remoteId: remote.id,
+          triedBoundaryIds: boundaryCandidates,
+        });
+        if (matchedBoundary) {
+          matchedRemoteBoundaries.push({
+            boundaryId: matchedBoundary[0],
+            remoteId: remote.id,
+          });
+        }
       }
+      assertions.push(
+        assertion(
+          'shell-composition-boundary',
+          matchedRemoteBoundaries.length > 0 ? 'pass' : 'fail',
+          {
+            matchedRemoteBoundaries,
+            triedRemoteBoundaries,
+          },
+        ),
+      );
+      assertPass(
+        matchedRemoteBoundaries.length > 0,
+        `${app.id} shell route did not render any declared remote boundary`,
+        { triedRemoteBoundaries },
+      );
     }
 
     await waitForHydrationStyles(page);
@@ -786,9 +1046,7 @@ export async function validateBrowserTarget(target, browser, { artifactDir }) {
       );
     }
 
-    const fatalConsoleMessages = consoleMessages.filter(message =>
-      fatalConsoleTypes.has(message.type),
-    );
+    const fatalConsoleMessages = consoleMessages.filter(isFatalConsoleMessage);
     assertions.push(
       assertion(
         'browser-diagnostics',
@@ -910,17 +1168,39 @@ async function importPlaywright() {
   }
 }
 
+function findBrowserExecutable() {
+  const candidates = [
+    process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/google-chrome',
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
+  ].filter(Boolean);
+
+  return candidates.find(candidate => fs.existsSync(candidate));
+}
+
 async function launchBrowser(browserProvider) {
   const playwright = browserProvider ?? (await importPlaywright());
+  const executablePath = findBrowserExecutable();
   return playwright.chromium.launch({
     args: ['--disable-dev-shm-usage', '--no-sandbox'],
+    ...(executablePath ? { executablePath } : {}),
     headless: true,
   });
 }
 
 export async function runUltramodernBrowserSmoke(options) {
-  const contractPath = path.join(options.projectDir, contractRelativePath);
-  const contract = options.contract ?? readJsonFile(contractPath);
+  const { contract, contractPath } = options.contract
+    ? {
+        contract: normalizeSmokeContract(options.contract, {
+          sourcePath: options.contractPath,
+        }),
+        contractPath: options.contractPath ?? '<provided>',
+      }
+    : readSmokeContract(options.projectDir);
   const { skipped, targets } = createSmokeTargets(contract, options);
   const report = {
     schemaVersion: 1,

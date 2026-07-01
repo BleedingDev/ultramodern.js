@@ -91,6 +91,57 @@ function createContract() {
   };
 }
 
+function createCompactConfig() {
+  return {
+    workspace: {
+      packageScope: '@demo',
+    },
+    topology: {
+      apps: [
+        {
+          id: 'shell-super-app',
+          kind: 'shell',
+          package: '@demo/shell-super-app',
+          packageSuffix: 'shell-super-app',
+          path: 'apps/shell-super-app',
+          port: 3020,
+          portEnv: 'SHELL_SUPER_APP_PORT',
+          moduleFederation: {
+            remotes: [
+              {
+                id: 'inventory',
+                alias: 'inventory',
+                name: 'verticalInventory',
+                manifestEnv: 'VERTICAL_INVENTORY_MF_MANIFEST',
+                manifestUrl: 'http://localhost:3021/mf-manifest.json',
+              },
+            ],
+            verticalRefs: ['inventory'],
+          },
+        },
+        {
+          id: 'inventory',
+          kind: 'vertical',
+          package: '@demo/inventory',
+          packageSuffix: 'inventory',
+          path: 'verticals/inventory',
+          domain: 'inventory',
+          port: 3021,
+          portEnv: 'VERTICAL_INVENTORY_PORT',
+          moduleFederation: {
+            exposes: ['./Route'],
+            name: 'verticalInventory',
+          },
+          api: {
+            stem: 'inventory',
+            prefix: '/inventory-api',
+          },
+        },
+      ],
+    },
+  };
+}
+
 function html({ appId = 'shell-super-app', marker = 'build-shell' } = {}) {
   return `<html><body><div data-app-id="${appId}"><p data-testid="ultramodern-ui-marker" data-build-marker="${marker}">marker</p></div></body></html>`;
 }
@@ -125,6 +176,58 @@ test('creates local and public smoke targets from the generated contract', async
       },
     }).targets.map(target => target.baseUrl),
     ['https://shell.example.test'],
+  );
+});
+
+test('creates smoke targets from the compact UltraModern config', async () => {
+  const { createSmokeTargets, orderTargetsForLocalStartup } = await loadSmoke();
+  const { targets } = createSmokeTargets(createCompactConfig());
+
+  assert.deepEqual(
+    targets.map(target => [target.app.id, target.baseUrl, target.portEnv]),
+    [
+      ['shell-super-app', 'http://localhost:3020', 'SHELL_SUPER_APP_PORT'],
+      ['inventory', 'http://localhost:3021', 'VERTICAL_INVENTORY_PORT'],
+    ],
+  );
+  assert.equal(targets[0].routes.locale, '/locales/en/shell.json');
+  assert.equal(targets[1].routes.locale, '/locales/en/inventory.json');
+  assert.equal(
+    targets[1].routes.effectReadiness,
+    '/inventory-api/inventory/readiness',
+  );
+  assert.equal(
+    targets[0].app.styling.federation.rootSelector,
+    '[data-app-id="shell-super-app"]',
+  );
+  assert.equal(targets[0].app.marker.build, 'c5a63bfde2bb14b6');
+
+  const ordered = orderTargetsForLocalStartup(targets);
+  assert.deepEqual(
+    ordered.remotes.map(target => target.app.id),
+    ['inventory'],
+  );
+  assert.deepEqual(
+    ordered.shells.map(target => target.app.id),
+    ['shell-super-app'],
+  );
+});
+
+test('reads compact config before the retired generated contract path', async () => {
+  const { readSmokeContract } = await loadSmoke();
+  const root = tempRoot();
+  fs.mkdirSync(path.join(root, '.modernjs'));
+  fs.writeFileSync(
+    path.join(root, '.modernjs/ultramodern.json'),
+    JSON.stringify(createCompactConfig()),
+  );
+
+  const { contract, contractPath } = readSmokeContract(root);
+
+  assert.equal(contractPath, path.join(root, '.modernjs/ultramodern.json'));
+  assert.deepEqual(
+    contract.apps.map(app => app.id),
+    ['shell-super-app', 'inventory'],
   );
 });
 
@@ -265,7 +368,7 @@ test('starts shell only after local remotes publish MF manifests', async () => {
   });
 
   const events = [];
-  const browser = createFakeBrowser();
+  const browser = createFakeBrowser({ boundaryIds: ['inventory'] });
 
   try {
     await runUltramodernBrowserSmoke({
@@ -371,7 +474,12 @@ test('fails when the MF manifest is missing', async () => {
   );
 });
 
-function createFakeBrowser({ consoleError = false, stylesheetHrefs } = {}) {
+function createFakeBrowser({
+  boundaryIds = [],
+  consoleError = false,
+  consoleMessages = [],
+  stylesheetHrefs,
+} = {}) {
   const handlers = {};
   const contextOptions = [];
   const resolvedStylesheetHrefs = stylesheetHrefs ?? [
@@ -396,7 +504,14 @@ function createFakeBrowser({ consoleError = false, stylesheetHrefs } = {}) {
       return {
         async click() {},
         async count() {
-          return selector.includes('[data-app-id="shell-super-app"]') ? 1 : 0;
+          if (selector.includes('[data-app-id="shell-super-app"]')) {
+            return 1;
+          }
+          return boundaryIds.some(boundaryId =>
+            selector.includes(`[data-modern-boundary-id="${boundaryId}"]`),
+          )
+            ? 1
+            : 0;
         },
         first() {
           return this;
@@ -410,6 +525,14 @@ function createFakeBrowser({ consoleError = false, stylesheetHrefs } = {}) {
       handlers[event] = handler;
     },
     async goto() {
+      for (const message of consoleMessages) {
+        handlers.console?.({
+          location: () =>
+            message.location ?? { url: 'http://localhost:3020/en' },
+          text: () => message.text,
+          type: () => message.type,
+        });
+      }
       if (consoleError) {
         handlers.console?.({
           location: () => ({ url: 'http://localhost:3020/en' }),
@@ -452,6 +575,19 @@ test('finds duplicate hydrated stylesheet hrefs', async () => {
   );
 });
 
+test('prefers generated app ids for shell composition boundaries', async () => {
+  const { remoteBoundaryCandidates } = await loadSmoke();
+
+  assert.deepEqual(
+    remoteBoundaryCandidates({
+      alias: 'explore',
+      id: 'explore',
+      name: 'verticalExplore',
+    }),
+    ['explore', 'verticalExplore'],
+  );
+});
+
 test('fails when the browser emits a console error', async () => {
   const { createSmokeTargets, validateBrowserTarget } = await loadSmoke();
   const root = tempRoot();
@@ -472,6 +608,37 @@ test('fails when the browser emits a console error', async () => {
     assert.equal(
       fs.existsSync(path.join(root, 'shell-super-app/console.json')),
       true,
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('ignores browser favicon console noise', async () => {
+  const { createSmokeTargets, validateBrowserTarget } = await loadSmoke();
+  const root = tempRoot();
+  const [target] = createSmokeTargets(createContract()).targets;
+
+  try {
+    const assertions = await validateBrowserTarget(
+      target,
+      createFakeBrowser({
+        consoleMessages: [
+          {
+            location: { url: 'http://localhost:3020/en/favicon.ico' },
+            text: 'Failed to load resource: the server responded with a status of 404 (Not Found)',
+            type: 'error',
+          },
+        ],
+      }),
+      {
+        artifactDir: root,
+      },
+    );
+
+    assert.equal(
+      assertions.find(item => item.type === 'browser-diagnostics')?.status,
+      'pass',
     );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
