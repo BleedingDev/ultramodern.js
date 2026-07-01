@@ -778,6 +778,15 @@ function updateGeneratedPnpmWorkspacePolicy(workspaceRoot: string) {
     changed = result.changed || changed;
   }
 
+  const parcelWatcherBuildPolicy = ensureYamlScalarMapEntry(
+    source,
+    'allowBuilds',
+    "'@parcel/watcher'",
+    'true',
+  );
+  source = parcelWatcherBuildPolicy.source;
+  changed = parcelWatcherBuildPolicy.changed || changed;
+
   for (const item of strictEffectPackageVersionPolicyExclusions) {
     const packageName = item.slice(0, item.lastIndexOf('@'));
     const escapedPackageName = packageName.replace(

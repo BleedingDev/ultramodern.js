@@ -245,6 +245,7 @@ function expectPnpm11Policy(workspaceDir: string) {
   expect(readPnpmConfig(workspaceDir, 'verifyDepsBeforeRun')).toBe('error');
   expect(readPnpmConfig(workspaceDir, 'strictDepBuilds')).toBe(true);
   expect(readPnpmConfig(workspaceDir, 'allowBuilds')).toEqual({
+    '@parcel/watcher': true,
     '@swc/core': true,
     'core-js': true,
     esbuild: true,
