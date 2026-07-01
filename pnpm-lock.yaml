@@ -2565,8 +2565,6 @@ importers:
         specifier: ^6.0.3
         version: 6.0.3
 
-  tests/integration/bff-corss-project/bff-api-app/dist-1/client: {}
-
   tests/integration/bff-corss-project/bff-client-app:
     dependencies:
       '@modern-js/plugin-bff':
@@ -4093,8 +4091,6 @@ importers:
         specifier: ^6.0.3
         version: 6.0.3
 
-  tests/integration/routes-tanstack-mf/mf-host/dist/shared/effect: {}
-
   tests/integration/routes-tanstack-mf/mf-host/shared/effect: {}
 
   tests/integration/routes-tanstack-mf/mf-remote:
@@ -4171,11 +4167,7 @@ importers:
         specifier: ^6.0.3
         version: 6.0.3
 
-  tests/integration/routes-tanstack-mf/mf-remote-2/dist/shared/effect: {}
-
   tests/integration/routes-tanstack-mf/mf-remote-2/shared/effect: {}
-
-  tests/integration/routes-tanstack-mf/mf-remote/dist/shared/effect: {}
 
   tests/integration/routes-tanstack-mf/mf-remote/shared/effect: {}
 
@@ -12063,6 +12055,10 @@ packages:
 
   fs-extra@11.3.5:
     resolution: {integrity: sha512-eKpRKAovdpZtR1WopLHxlBWvAgPny3c4gX1G5Jhwmmw4XJj0ifSD5qB5TOo8hmA0wlRKDAOAhEE1yVPgs6Fgcg==}
+    engines: {node: '>=14.14'}
+
+  fs-extra@11.3.6:
+    resolution: {integrity: sha512-w8ZNZr2mKIc7qeNaQ9AVPT1+iFaI+Avd4xudVOvdDJ8VytREi1Ft5Ih7hd9jjehod8vAM5GMsfQ/TpPf4EyoEA==}
     engines: {node: '>=14.14'}
 
   fs-extra@7.0.1:
@@ -23238,6 +23234,12 @@ snapshots:
       jsonfile: 6.2.1
       universalify: 2.0.1
 
+  fs-extra@11.3.6:
+    dependencies:
+      graceful-fs: 4.2.11
+      jsonfile: 6.2.1
+      universalify: 2.0.1
+
   fs-extra@7.0.1:
     dependencies:
       graceful-fs: 4.2.11
@@ -27275,7 +27277,7 @@ snapshots:
       cjs-module-lexer: 2.2.0
       constants-browserify: 1.0.0
       es-module-lexer: 1.7.0
-      fs-extra: 11.3.5
+      fs-extra: 11.3.6
       magic-string: 0.30.21
       path-browserify: 1.0.1
       picocolors: 1.1.1
