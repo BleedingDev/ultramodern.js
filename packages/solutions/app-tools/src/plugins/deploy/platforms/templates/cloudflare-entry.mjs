@@ -1240,6 +1240,18 @@ function escapeAttribute(value) {
     .replace(/>/g, '&gt;');
 }
 
+function isAbsoluteUrl(value) {
+  return /^[a-z][a-z\d+.-]*:/iu.test(value);
+}
+
+function toRouteCssHtmlHref(asset) {
+  if (isAbsoluteUrl(asset) || asset.startsWith('/')) {
+    return asset;
+  }
+
+  return `/${asset.replace(/^\/+/u, '')}`;
+}
+
 async function withRouteCssLinks(response, route, routeManifest, request, env) {
   const contentType = response.headers.get('content-type') || '';
 
@@ -1248,27 +1260,48 @@ async function withRouteCssLinks(response, route, routeManifest, request, env) {
   }
 
   const html = await response.text();
-  const cssHrefs = [
-    ...collectRouteCssAssets(route, routeManifest).map(asset =>
-      new URL(asset, request.url).toString(),
-    ),
-    ...(await collectRenderedRemoteCssHrefs(html, request, env)),
+  const cssEntries = [
+    ...collectRouteCssAssets(route, routeManifest).map(asset => {
+      const href = toRouteCssHtmlHref(asset);
+
+      return {
+        href,
+        preloadHref: new URL(href, request.url).toString(),
+      };
+    }),
+    ...(await collectRenderedRemoteCssHrefs(html, request, env)).map(href => ({
+      href,
+      preloadHref: new URL(href, request.url).toString(),
+    })),
   ];
 
-  if (cssHrefs.length === 0) {
+  if (cssEntries.length === 0) {
     return response;
   }
 
-  const uniqueCssHrefs = [...new Set(cssHrefs)];
+  const seenCssHrefs = new Set();
+  const uniqueCssEntries = cssEntries.filter(entry => {
+    if (seenCssHrefs.has(entry.preloadHref)) {
+      return false;
+    }
+
+    seenCssHrefs.add(entry.preloadHref);
+    return true;
+  });
   const headers = new Headers(response.headers);
 
-  for (const href of uniqueCssHrefs) {
-    headers.append('link', `<${href}>; rel=preload; as=style`);
+  for (const { preloadHref } of uniqueCssEntries) {
+    headers.append('link', `<${preloadHref}>; rel=preload; as=style`);
   }
 
-  const links = uniqueCssHrefs
-    .filter(href => !html.includes(href))
-    .map(href => `<link rel="stylesheet" href="${escapeAttribute(href)}">`);
+  const links = uniqueCssEntries
+    .filter(
+      ({ href, preloadHref }) =>
+        !html.includes(href) && !html.includes(preloadHref),
+    )
+    .map(
+      ({ href }) => `<link rel="stylesheet" href="${escapeAttribute(href)}">`,
+    );
 
   if (links.length === 0 || !html.includes('</head>')) {
     return new Response(html, {

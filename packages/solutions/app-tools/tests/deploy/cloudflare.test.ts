@@ -1336,7 +1336,7 @@ describe('cloudflare deploy preset', () => {
       '<https://example.com/static/app.css>; rel=preload; as=style',
     );
     expect(await response.text()).toContain(
-      '<link rel="stylesheet" href="https://example.com/static/app.css">',
+      '<link rel="stylesheet" href="/static/app.css">',
     );
 
     const workersDevResponse = await worker.fetch(
@@ -1447,7 +1447,8 @@ describe('cloudflare deploy preset', () => {
       expect(linkHeader).toContain(
         '<https://checkout.example.com/static/css/checkout.css>; rel=preload; as=style',
       );
-      expect(html).toContain(
+      expect(html).toContain('<link rel="stylesheet" href="/static/app.css">');
+      expect(html).not.toContain(
         '<link rel="stylesheet" href="https://example.com/static/app.css">',
       );
       expect(html).toContain(
