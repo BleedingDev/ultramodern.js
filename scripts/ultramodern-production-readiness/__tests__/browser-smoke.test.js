@@ -191,6 +191,129 @@ test('orders local smoke startup so remotes are ready before shell', async () =>
   );
 });
 
+test('waits for remote manifest JSON readiness', async () => {
+  const { createSmokeTargets, waitForTarget } = await loadSmoke();
+  const [target] = createSmokeTargets(createContract()).targets;
+  const calls = [];
+  let manifestAttempts = 0;
+
+  await waitForTarget(target, {
+    fetchImpl: async url => {
+      const pathname = new URL(url).pathname;
+      calls.push(pathname);
+      if (pathname === '/mf-manifest.json') {
+        manifestAttempts += 1;
+        return response(
+          200,
+          manifestAttempts === 1
+            ? '<html>not ready</html>'
+            : JSON.stringify({ metaData: { name: 'shellSuperApp' } }),
+        );
+      }
+      return response(200, html());
+    },
+    requireManifest: true,
+    retryDelayMs: 0,
+    timeoutMs: 1_000,
+  });
+
+  assert.deepEqual(calls, ['/en', '/mf-manifest.json', '/mf-manifest.json']);
+});
+
+test('fails readiness when required MF manifest never becomes valid JSON', async () => {
+  const { createSmokeTargets, waitForTarget } = await loadSmoke();
+  const [target] = createSmokeTargets(createContract()).targets;
+
+  await assert.rejects(
+    () =>
+      waitForTarget(target, {
+        fetchImpl: async url => {
+          const pathname = new URL(url).pathname;
+          return response(
+            200,
+            pathname === '/mf-manifest.json'
+              ? '<html>not ready</html>'
+              : html(),
+          );
+        },
+        requireManifest: true,
+        retryDelayMs: 1,
+        timeoutMs: 5,
+      }),
+    /did not publish a ready MF manifest/,
+  );
+});
+
+test('starts shell only after local remotes publish MF manifests', async () => {
+  const { runUltramodernBrowserSmoke } = await loadSmoke();
+  const root = tempRoot();
+  const contract = createContract();
+  contract.apps[0].moduleFederation.verticalRefs = ['inventory'];
+  contract.apps.push({
+    ...contract.apps[0],
+    id: 'inventory',
+    kind: 'vertical',
+    package: '@demo/inventory',
+    config: {
+      source: {
+        siteUrl: {
+          defaultLocalhostPort: 3021,
+          envFallbackOrder: ['VERTICAL_INVENTORY_PORT'],
+        },
+      },
+    },
+  });
+
+  const events = [];
+  const browser = createFakeBrowser();
+
+  try {
+    await runUltramodernBrowserSmoke({
+      artifactDir: root,
+      browserProvider: {
+        chromium: {
+          async launch() {
+            return browser;
+          },
+        },
+      },
+      contract,
+      fetchImpl: async url => {
+        const parsed = new URL(url);
+        events.push(`fetch:${parsed.port}:${parsed.pathname}`);
+        if (parsed.pathname === '/locales/en/shell.json') {
+          return response(200, JSON.stringify({ shell: { title: 'Shell' } }));
+        }
+        if (parsed.pathname === '/mf-manifest.json') {
+          return response(200, JSON.stringify({ metaData: { name: 'app' } }));
+        }
+        return response(200, html());
+      },
+      generatedAt: '2026-07-01T00:00:00.000Z',
+      mode: 'local',
+      out: path.join(root, 'summary.json'),
+      projectDir: root,
+      retryDelayMs: 0,
+      startServerImpl(target) {
+        events.push(`start:${target.app.id}`);
+        return {
+          async stop() {},
+        };
+      },
+      timeoutMs: 1_000,
+    });
+
+    assert.deepEqual(events.slice(0, 4), [
+      'start:inventory',
+      'fetch:3021:/en',
+      'fetch:3021:/mf-manifest.json',
+      'start:shell-super-app',
+    ]);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('passes route, marker, manifest, and locale HTTP assertions', async () => {
   const { createSmokeTargets, validateHttpTarget } = await loadSmoke();
   const [target] = createSmokeTargets(createContract()).targets;
@@ -302,6 +425,7 @@ function createFakeBrowser({ consoleError = false, stylesheetHrefs } = {}) {
   };
   const browser = {
     contextOptions,
+    async close() {},
     async newContext(options = {}) {
       contextOptions.push(options);
       return {

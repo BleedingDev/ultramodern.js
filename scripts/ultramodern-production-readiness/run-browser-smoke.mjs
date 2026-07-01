@@ -293,7 +293,10 @@ async function fetchText(url, fetchImpl) {
   };
 }
 
-async function waitForTarget(target, { fetchImpl, timeoutMs }) {
+async function waitForTargetSsr(
+  target,
+  { fetchImpl, retryDelayMs, timeoutMs },
+) {
   const startedAt = Date.now();
   let lastError;
   while (Date.now() - startedAt < timeoutMs) {
@@ -308,7 +311,7 @@ async function waitForTarget(target, { fetchImpl, timeoutMs }) {
     } catch (error) {
       lastError = error;
     }
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise(resolve => setTimeout(resolve, retryDelayMs));
   }
   throw new BrowserSmokeError(
     `${target.app.id} did not become reachable at ${target.baseUrl}`,
@@ -316,6 +319,53 @@ async function waitForTarget(target, { fetchImpl, timeoutMs }) {
       cause: lastError instanceof Error ? lastError.message : String(lastError),
     },
   );
+}
+
+async function waitForTargetManifest(
+  target,
+  { fetchImpl, retryDelayMs, timeoutMs },
+) {
+  const manifestUrl = joinUrl(target.baseUrl, target.routes.mfManifest);
+  const startedAt = Date.now();
+  let lastError;
+  while (Date.now() - startedAt < timeoutMs) {
+    try {
+      const manifest = await fetchText(manifestUrl, fetchImpl);
+      if (manifest.ok && parseMaybeJson(manifest.body)) {
+        return;
+      }
+      lastError = new Error(
+        manifest.ok
+          ? 'MF manifest is not valid JSON'
+          : `HTTP ${manifest.status}`,
+      );
+    } catch (error) {
+      lastError = error;
+    }
+    await new Promise(resolve => setTimeout(resolve, retryDelayMs));
+  }
+  throw new BrowserSmokeError(
+    `${target.app.id} did not publish a ready MF manifest at ${manifestUrl}`,
+    {
+      cause: lastError instanceof Error ? lastError.message : String(lastError),
+      route: target.routes.mfManifest,
+    },
+  );
+}
+
+export async function waitForTarget(
+  target,
+  {
+    fetchImpl,
+    requireManifest = false,
+    retryDelayMs = 500,
+    timeoutMs = 60_000,
+  },
+) {
+  await waitForTargetSsr(target, { fetchImpl, retryDelayMs, timeoutMs });
+  if (requireManifest) {
+    await waitForTargetManifest(target, { fetchImpl, retryDelayMs, timeoutMs });
+  }
 }
 
 export async function validateHttpTarget(target, { fetchImpl = fetch } = {}) {
@@ -887,24 +937,28 @@ export async function runUltramodernBrowserSmoke(options) {
   let browser;
   const localStartupOrder =
     options.mode === 'local' ? orderTargetsForLocalStartup(targets) : undefined;
+  const startServerImpl = options.startServerImpl ?? startServer;
 
   try {
     if (localStartupOrder) {
       for (const target of localStartupOrder.remotes) {
-        servers.push(startServer(target, options));
+        servers.push(startServerImpl(target, options));
       }
       for (const target of localStartupOrder.remotes) {
         await waitForTarget(target, {
           fetchImpl: options.fetchImpl ?? fetch,
+          requireManifest: true,
+          retryDelayMs: options.retryDelayMs,
           timeoutMs: options.timeoutMs,
         });
       }
       for (const target of localStartupOrder.shells) {
-        servers.push(startServer(target, options));
+        servers.push(startServerImpl(target, options));
       }
       for (const target of localStartupOrder.shells) {
         await waitForTarget(target, {
           fetchImpl: options.fetchImpl ?? fetch,
+          retryDelayMs: options.retryDelayMs,
           timeoutMs: options.timeoutMs,
         });
       }
