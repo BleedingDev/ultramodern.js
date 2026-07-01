@@ -153,7 +153,6 @@ export function appDependencies(
     react: REACT_VERSION,
     'react-dom': REACT_DOM_VERSION,
     'react-router': REACT_ROUTER_VERSION,
-    'react-router-dom': REACT_ROUTER_VERSION,
   };
 
   for (const dependency of bridge?.dependencies ?? []) {
