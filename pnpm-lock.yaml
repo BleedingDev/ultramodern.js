@@ -332,8 +332,8 @@ importers:
   packages/cli/plugin-bff:
     dependencies:
       '@effect/opentelemetry':
-        specifier: 4.0.0-beta.91
-        version: 4.0.0-beta.91(@opentelemetry/api-logs@0.219.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.219.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-node@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-web@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.41.1)(effect@4.0.0-beta.91)
+        specifier: 4.0.0-beta.92
+        version: 4.0.0-beta.92(@opentelemetry/api-logs@0.219.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.219.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-node@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-web@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.41.1)(effect@4.0.0-beta.92)
       '@modern-js/bff-core':
         specifier: workspace:*
         version: link:../../server/bff-core
@@ -386,8 +386,8 @@ importers:
         specifier: ^0.5.23
         version: 0.5.23
       effect:
-        specifier: 4.0.0-beta.91
-        version: 4.0.0-beta.91
+        specifier: 4.0.0-beta.92
+        version: 4.0.0-beta.92
       qs:
         specifier: '>=6.15.3'
         version: 6.15.3
@@ -6319,8 +6319,8 @@ packages:
     peerDependencies:
       postcss: ^8.4
 
-  '@effect/opentelemetry@4.0.0-beta.91':
-    resolution: {integrity: sha512-M3OCl+z4fDELkmDs+828aXA4PtfqcdTSJJ475Z7g7yOLNeNFL+wOlOpOZzAP0UsO/CQEM9MlaP0tf3f2CnbRYg==}
+  '@effect/opentelemetry@4.0.0-beta.92':
+    resolution: {integrity: sha512-EenWwMgOtwR+s9enP0XoFlEsCzmlwDGfIMmbGuQ6dCsiEiCp0knq7AgwF7SI8j2WHk7Uky6GJp4qUT2XxZJTHQ==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       '@opentelemetry/api': ^1.9
@@ -6332,7 +6332,7 @@ packages:
       '@opentelemetry/sdk-trace-node': ^2.0.0
       '@opentelemetry/sdk-trace-web': ^2.0.0
       '@opentelemetry/semantic-conventions': ^1.33.0
-      effect: ^4.0.0-beta.91
+      effect: ^4.0.0-beta.92
     peerDependenciesMeta:
       '@opentelemetry/api':
         optional: true
@@ -11572,8 +11572,8 @@ packages:
   ee-first@1.1.1:
     resolution: {integrity: sha512-WMwm9LhRUo+WUaRN+vRuETqG89IgZphVSNkdFgeb6sS/E4OrDIN7t48CAewSHXc6C8lefD8KKfr5vY61brQlow==}
 
-  effect@4.0.0-beta.91:
-    resolution: {integrity: sha512-FFlkWiy1QK4xuHd/nui9LKD/5qkpSHJdMcbsEY7jl9V27+txye6W+RAIlmWjuA2vvtUyZmzGKarVtdU0l1pdBQ==}
+  effect@4.0.0-beta.92:
+    resolution: {integrity: sha512-et6Fy8X9cxhzV/w4U372lB7YCP/B9a8FYVxlx9UMzSgnmwWKxpldnaHz7mHpZHh+OU+ENhU9DO/rTAakmT0sEA==}
 
   ejs@5.0.1:
     resolution: {integrity: sha512-COqBPFMxuPTPspXl2DkVYaDS3HtrD1GpzOGkNTJ1IYkifq/r9h8SVEFrjA3D9/VJGOEoMQcrlhpntcSUrM8k6A==}
@@ -17155,10 +17155,10 @@ snapshots:
     dependencies:
       postcss: 8.5.15
 
-  '@effect/opentelemetry@4.0.0-beta.91(@opentelemetry/api-logs@0.219.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.219.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-node@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-web@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.41.1)(effect@4.0.0-beta.91)':
+  '@effect/opentelemetry@4.0.0-beta.92(@opentelemetry/api-logs@0.219.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.219.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-node@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-web@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.41.1)(effect@4.0.0-beta.92)':
     dependencies:
       '@opentelemetry/semantic-conventions': 1.41.1
-      effect: 4.0.0-beta.91
+      effect: 4.0.0-beta.92
     optionalDependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/api-logs': 0.219.0
@@ -22642,7 +22642,7 @@ snapshots:
 
   ee-first@1.1.1: {}
 
-  effect@4.0.0-beta.91:
+  effect@4.0.0-beta.92:
     dependencies:
       '@standard-schema/spec': 1.1.0
       fast-check: 4.8.0

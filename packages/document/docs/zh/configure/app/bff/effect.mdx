@@ -195,20 +195,21 @@ export default defineConfig({
 ## Effect 版本组
 
 UltraModern 生成的 workspace 会通过 `pnpm-workspace.yaml` overrides 锁定与框架兼容的
-Effect 版本组。`3.5.0-ultramodern.10` 使用：
+Effect 版本组。当前 UltraModern 版本组使用：
 
 ```yaml
 minimumReleaseAgeExclude:
-  - 'effect@4.0.0-beta.91'
-  - '@effect/opentelemetry@4.0.0-beta.91'
+  - 'effect@4.0.0-beta.92'
+  - '@effect/opentelemetry@4.0.0-beta.92'
 
 trustPolicyExclude:
-  - 'effect@4.0.0-beta.91'
-  - '@effect/opentelemetry@4.0.0-beta.91'
+  - 'effect@4.0.0-beta.92'
+  - '@effect/opentelemetry@4.0.0-beta.92'
 
 overrides:
-  '@effect/vitest': 4.0.0-beta.91
-  effect: 4.0.0-beta.91
+  '@effect/opentelemetry': 4.0.0-beta.92
+  '@effect/vitest': 4.0.0-beta.92
+  effect: 4.0.0-beta.92
 ```
 
 不要在应用包里添加不同版本的直接 `effect` 依赖。Effect beta 不一致时，Layer 或 HTTP

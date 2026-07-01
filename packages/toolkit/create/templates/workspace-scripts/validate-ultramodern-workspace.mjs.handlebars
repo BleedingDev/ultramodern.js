@@ -1583,6 +1583,14 @@ for (const requiredPath of requiredPaths) {
 }
 const pnpmWorkspace = readText('pnpm-workspace.yaml');
 assert(
+  pnpmWorkspace.includes("'@effect/opentelemetry': {{effectVersion}}"),
+  'pnpm-workspace.yaml must override @effect/opentelemetry to the generated Effect cohort',
+);
+assert(
+  pnpmWorkspace.includes('effect: {{effectVersion}}'),
+  'pnpm-workspace.yaml must override effect to the generated Effect cohort',
+);
+assert(
   pnpmWorkspace.includes(
     "'@module-federation/modern-js-v3@{{moduleFederationVersion}}': patches/@module-federation__modern-js-v3@{{moduleFederationVersion}}.patch",
   ),

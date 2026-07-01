@@ -258,6 +258,7 @@ test('UltraModern migrate-strict-effect updates package cohort and direct API me
           "'@effect/vitest': 4.0.0-beta.89",
         )
         .replace(`effect: ${EFFECT_VERSION}`, 'effect: 4.0.0-beta.89')
+        .replace(`  '@effect/opentelemetry': ${EFFECT_VERSION}\n`, '')
         .replace(
           `  'effect@${EFFECT_VERSION}': patches/effect-schema-error-type-id.patch\n`,
           '',
@@ -417,6 +418,10 @@ declare module '*.css' {}
       new RegExp(`'@effect/vitest': ${EFFECT_VITEST_VERSION}`, 'u'),
     );
     assert.match(pnpmWorkspace, new RegExp(`effect: ${EFFECT_VERSION}`, 'u'));
+    assert.match(
+      pnpmWorkspace,
+      new RegExp(`'@effect/opentelemetry': ${EFFECT_VERSION}`, 'u'),
+    );
     assert.match(
       pnpmWorkspace,
       new RegExp(

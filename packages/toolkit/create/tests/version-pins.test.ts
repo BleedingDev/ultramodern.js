@@ -14,6 +14,10 @@ import {
 } from '../src/ultramodern-workspace/versions';
 
 const templateWorkspaceDir = path.resolve(__dirname, '../template-workspace');
+const pluginBffPackagePath = path.resolve(
+  __dirname,
+  '../../../cli/plugin-bff/package.json',
+);
 
 const readTemplate = (relativePath: string) =>
   fs.readFileSync(path.join(templateWorkspaceDir, relativePath), 'utf-8');
@@ -71,6 +75,11 @@ test('static templates read version pins from versions.ts placeholders', () => {
     pnpmWorkspaceTemplate,
     /effect: \{\{effectVersion\}\}/,
     'pnpm-workspace override must use the effectVersion placeholder',
+  );
+  assert.match(
+    pnpmWorkspaceTemplate,
+    /'@effect\/opentelemetry': \{\{effectVersion\}\}/,
+    'pnpm-workspace override must use the effectVersion placeholder for @effect/opentelemetry',
   );
   assert.match(
     pnpmWorkspaceTemplate,
@@ -235,6 +244,10 @@ test('generated workspace renders the pins from versions.ts', () => {
       'generated pnpm-workspace override must match EFFECT_VERSION',
     );
     assert.ok(
+      pnpmWorkspace.includes(`'@effect/opentelemetry': ${EFFECT_VERSION}`),
+      'generated pnpm-workspace override must align @effect/opentelemetry with EFFECT_VERSION',
+    );
+    assert.ok(
       pnpmWorkspace.includes(`'@effect/vitest': ${EFFECT_VITEST_VERSION}`),
       'generated pnpm-workspace override must match EFFECT_VITEST_VERSION',
     );
@@ -279,4 +292,26 @@ test('generated workspace renders the pins from versions.ts', () => {
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
+});
+
+test('plugin-bff declares the same Effect cohort generated workspaces pin', () => {
+  const pluginBffPackage = JSON.parse(
+    fs.readFileSync(pluginBffPackagePath, 'utf-8'),
+  );
+
+  assert.equal(
+    pluginBffPackage.dependencies.effect,
+    EFFECT_VERSION,
+    '@modern-js/plugin-bff must not force a different Effect version than generated pnpm overrides',
+  );
+  assert.equal(
+    pluginBffPackage.dependencies['@effect/opentelemetry'],
+    EFFECT_VERSION,
+    '@modern-js/plugin-bff must keep @effect/opentelemetry on the generated Effect cohort',
+  );
+  assert.doesNotMatch(
+    JSON.stringify(pluginBffPackage),
+    /4\.0\.0-beta\.91/u,
+    '@modern-js/plugin-bff must not retain stale beta.91 Effect pins',
+  );
 });

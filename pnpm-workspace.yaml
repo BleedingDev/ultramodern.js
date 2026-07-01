@@ -184,5 +184,5 @@ minimumReleaseAgeExclude:
   - '@img/sharp-win32-ia32@0.35.2'
   - '@img/sharp-win32-x64@0.35.2'
   - sharp@0.35.2
-  - '@effect/opentelemetry@4.0.0-beta.91'
-  - effect@4.0.0-beta.91
+  - '@effect/opentelemetry@4.0.0-beta.92'
+  - effect@4.0.0-beta.92

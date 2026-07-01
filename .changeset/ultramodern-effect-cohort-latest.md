@@ -6,9 +6,10 @@
 ---
 
 Update UltraModern to the latest compatible dependency cohort: generated
-workspaces now pin `effect`/`@effect/vitest` to `4.0.0-beta.91`, use the latest
-TypeScript native preview and oxfmt pins, and the framework runtime moves its
-Effect/OpenTelemetry dependency pair to the same beta.91 cohort.
+workspaces now pin `effect`, `@effect/opentelemetry`, and `@effect/vitest` to
+`4.0.0-beta.92`, use the latest TypeScript native preview and oxfmt pins, and
+the framework runtime moves its Effect/OpenTelemetry dependency pair to the
+same beta.92 cohort.
 
 The repository dependency refresh also updates the Rsbuild/Rspack, Rslib,
 Rspress, i18next, nock, antd, vue, mermaid, js-yaml, filesize, and prettier

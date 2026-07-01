@@ -14,7 +14,7 @@ const codeToolsPackageDir = path.resolve(
 );
 const testFrameworkVersion = '3.2.0-ultramodern.108';
 const testTypescriptVersion = '6.0.3';
-const testEffectVersion = '4.0.0-beta.91';
+const testEffectVersion = '4.0.0-beta.92';
 const frameworkVersionEnv = 'MODERN_CREATE_ULTRAMODERN_FRAMEWORK_VERSION';
 const bleedingDevAliases = {
   '@modern-js/create': '@bleedingdev/modern-js-create',
@@ -228,6 +228,7 @@ function expectPnpm11Policy(workspaceDir: string) {
   expect(readPnpmConfig(workspaceDir, 'overrides')).toEqual({
     '@tanstack/react-router': '1.170.16',
     '@tanstack/router-core': '1.171.13',
+    '@effect/opentelemetry': testEffectVersion,
     '@effect/vitest': testEffectVersion,
     effect: testEffectVersion,
     'node-fetch': '^3.3.2',
@@ -254,6 +255,14 @@ function expectPnpm11Policy(workspaceDir: string) {
   });
   const realWorkspaceDir = fs.realpathSync(workspaceDir);
   expect(readPnpmConfig(workspaceDir, 'patchedDependencies')).toEqual({
+    '@module-federation/bridge-react@2.6.0': path.join(
+      realWorkspaceDir,
+      'patches/@module-federation__bridge-react@2.6.0.patch',
+    ),
+    '@module-federation/modern-js-v3@2.6.0': path.join(
+      realWorkspaceDir,
+      'patches/@module-federation__modern-js-v3@2.6.0.patch',
+    ),
     '@tanstack/router-core@1.171.13': path.join(
       realWorkspaceDir,
       'patches/@tanstack__router-core@1.171.13.patch',
@@ -3196,7 +3205,9 @@ process.exit(1);
     expect(catalogModernConfig).toContain("entry: './api/index'");
     expect(catalogModernConfig).toContain('const assetPrefix =');
     expectDedicatedAssetPrefixExpression(catalogModernConfig);
-    expect(catalogModernConfig).toContain("assetPrefix: '/',");
+    expect(catalogModernConfig).toContain(
+      'const defaultAssetPrefix = defaultRemoteAssetPrefix;',
+    );
     expect(catalogModernConfig).toContain('assetPrefix,');
     expect(catalogModernConfig).toMatch(
       /const siteUrl =\s*configuredSiteUrl \|\|\s*configuredCloudflareUrl \|\|/,

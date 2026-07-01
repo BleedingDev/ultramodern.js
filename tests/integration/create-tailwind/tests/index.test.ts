@@ -7,7 +7,7 @@ import { rstest } from '@rstest/core';
 const repoRoot = path.resolve(__dirname, '../../../../');
 const createBin = path.resolve(repoRoot, 'packages/toolkit/create/bin/run.js');
 const expectedBleedingDevFrameworkVersion = '3.2.0-ultramodern.108';
-const expectedEffectVersion = '4.0.0-beta.91';
+const expectedEffectVersion = '4.0.0-beta.92';
 const shellAppPath = 'apps/shell-super-app';
 
 function readJson<T = any>(baseDir: string, relativePath: string): T {

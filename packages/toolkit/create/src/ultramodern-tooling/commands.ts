@@ -544,6 +544,42 @@ function ensureYamlMapEntry(
   };
 }
 
+function ensureYamlScalarMapEntry(
+  source: string,
+  key: string,
+  entryKey: string,
+  value: string,
+) {
+  const entryLine = `  ${entryKey}: ${value}`;
+  const escapedEntryKey = entryKey.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+  const currentEntryPattern = new RegExp(`^ {2}${escapedEntryKey}: .+$`, 'mu');
+  const currentEntry = source.match(currentEntryPattern);
+  if (currentEntry) {
+    if (currentEntry[0] === entryLine) {
+      return { source, changed: false };
+    }
+
+    return {
+      source: source.replace(currentEntryPattern, entryLine),
+      changed: true,
+    };
+  }
+
+  const headerPattern = new RegExp(`^${key}:\\n(?:(?:  .+\\n)*)`, 'mu');
+  const header = source.match(headerPattern);
+  if (header) {
+    return {
+      source: source.replace(headerPattern, `${header[0]}${entryLine}\n`),
+      changed: true,
+    };
+  }
+
+  return {
+    source: `${source.trimEnd()}\n${key}:\n${entryLine}\n`,
+    changed: true,
+  };
+}
+
 function removeYamlMapEntry(source: string, entryKey: string) {
   const packageName = entryKey.includes('@')
     ? entryKey.slice(0, entryKey.lastIndexOf('@'))
@@ -719,15 +755,25 @@ function updateGeneratedPnpmWorkspacePolicy(workspaceRoot: string) {
       /^ {4}'@effect\/vitest>effect': .+$/mu,
       `    '@effect/vitest>effect': '${EFFECT_VERSION}'`,
     ],
-    [
-      /^ {2}'@effect\/vitest': .+$/mu,
-      `  '@effect/vitest': ${EFFECT_VITEST_VERSION}`,
-    ],
-    [/^ {2}effect: .+$/mu, `  effect: ${EFFECT_VERSION}`],
   ];
 
   for (const [pattern, replacement] of replacements) {
     const result = replaceYamlLine(source, pattern, replacement);
+    source = result.source;
+    changed = result.changed || changed;
+  }
+
+  for (const [entryKey, version] of [
+    [`'@effect/opentelemetry'`, EFFECT_VERSION],
+    [`'@effect/vitest'`, EFFECT_VITEST_VERSION],
+    ['effect', EFFECT_VERSION],
+  ]) {
+    const result = ensureYamlScalarMapEntry(
+      source,
+      'overrides',
+      entryKey,
+      version,
+    );
     source = result.source;
     changed = result.changed || changed;
   }
