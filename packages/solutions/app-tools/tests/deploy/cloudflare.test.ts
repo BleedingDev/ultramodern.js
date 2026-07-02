@@ -980,12 +980,20 @@ describe('cloudflare deploy preset', () => {
           from: 'ops/owned-data',
           to: 'smart-suggest-owned-data',
         },
+        {
+          from: 'public-surface',
+          to: '.',
+        },
       ],
       sourceFiles: {
         'ops/owned-data': {
           'manifest.json':
             '{"schemaVersion":"smart-suggest-owned-artifacts/v1"}',
           'postal-prefix/CZ/101.json': '{"records":[]}',
+        },
+        'public-surface': {
+          'robots.txt': 'User-agent: *\nDisallow: /\n',
+          'site.webmanifest': '{"name":"Smart Suggest"}',
         },
       },
     });
@@ -1008,6 +1016,15 @@ describe('cloudflare deploy preset', () => {
         'utf-8',
       ),
     ).resolves.toBe('{"records":[]}');
+    await expect(
+      fs.readFile(path.join(outputDirectory, 'public/robots.txt'), 'utf-8'),
+    ).resolves.toBe('User-agent: *\nDisallow: /\n');
+    await expect(
+      fs.readFile(
+        path.join(outputDirectory, 'public/site.webmanifest'),
+        'utf-8',
+      ),
+    ).resolves.toBe('{"name":"Smart Suggest"}');
   });
 
   it('emits declarative D1 bindings and stages migrations', async () => {

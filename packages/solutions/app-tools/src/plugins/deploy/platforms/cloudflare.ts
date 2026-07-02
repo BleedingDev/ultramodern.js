@@ -310,6 +310,7 @@ const normalizeRelativePath = (
   value: unknown,
   label: string,
   scope = 'app output',
+  options: { allowRoot?: boolean } = {},
 ) => {
   if (typeof value !== 'string') {
     throw new Error(`${label} must be a relative path inside the ${scope}.`);
@@ -321,11 +322,12 @@ const normalizeRelativePath = (
     .replace(/^\.\/+/u, '')
     .replace(/\/+$/u, '');
   const segments = normalized.split('/');
+  const isRootDestination = normalized === '.';
 
   if (
     !normalized ||
     path.isAbsolute(normalized) ||
-    normalized === '.' ||
+    (!options.allowRoot && isRootDestination) ||
     segments.includes('..')
   ) {
     throw new Error(`${label} must be a relative path inside the ${scope}.`);
@@ -697,6 +699,7 @@ const normalizeCloudflarePublicAsset = (
     asset.to,
     `deploy.worker.publicAssets[${index}].to`,
     'Cloudflare public output',
+    { allowRoot: true },
   );
 
   return {

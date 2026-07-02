@@ -60,10 +60,10 @@ importers:
         version: 2.5.1
       '@changesets/cli':
         specifier: ^2.31.0
-        version: 2.31.0(@types/node@26.0.1)
+        version: 2.31.0(@types/node@12.20.55)
       '@commitlint/cli':
         specifier: ^21.1.0
-        version: 21.1.0(@types/node@26.0.1)(conventional-commits-parser@6.4.0)(typescript@6.0.3)
+        version: 21.1.0(@types/node@12.20.55)(conventional-commits-parser@6.4.0)
       '@commitlint/config-conventional':
         specifier: ^21.1.0
         version: 21.1.0
@@ -75,7 +75,7 @@ importers:
         version: link:packages/tsconfig
       '@rstest/core':
         specifier: 0.10.6
-        version: 0.10.6(@module-federation/runtime-tools@2.6.0(node-fetch@2.7.0(encoding@0.1.13)))(core-js@3.49.0)(happy-dom@20.10.6(bufferutil@4.1.0)(utf-8-validate@5.0.10))
+        version: 0.10.6
       '@scripts/build':
         specifier: workspace:*
         version: link:scripts/build
@@ -102,7 +102,10 @@ importers:
         version: 17.0.8
       nx:
         specifier: ^23.0.1
-        version: 23.0.1(@swc/core@1.15.43(@swc/helpers@0.5.23))(debug@4.4.3)
+        version: 23.0.1
+      oxfmt:
+        specifier: 0.56.0
+        version: 0.56.0
       rimraf:
         specifier: ^6.1.3
         version: 6.1.3
@@ -133,7 +136,7 @@ importers:
         version: 2.1.1(@module-federation/runtime-tools@2.6.0(node-fetch@2.7.0(encoding@0.1.13)))(core-js@3.49.0)
       '@rsdoctor/rspack-plugin':
         specifier: ^1.5.16
-        version: 1.5.16(@emnapi/core@1.11.0)(@emnapi/runtime@1.11.1)(@rsbuild/core@2.1.1(@module-federation/runtime-tools@2.6.0(node-fetch@2.7.0(encoding@0.1.13)))(core-js@3.49.0))(@rspack/core@2.1.1(@module-federation/runtime-tools@2.6.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.23))(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+        version: 1.5.16(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(@rsbuild/core@2.1.1(@module-federation/runtime-tools@2.6.0(node-fetch@2.7.0(encoding@0.1.13)))(core-js@3.49.0))(@rspack/core@2.1.1(@module-federation/runtime-tools@2.6.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.23))(bufferutil@4.1.0)(utf-8-validate@5.0.10)
       '@types/node':
         specifier: ^26.0.1
         version: 26.0.1
@@ -2565,8 +2568,6 @@ importers:
         specifier: ^6.0.3
         version: 6.0.3
 
-  tests/integration/bff-corss-project/bff-api-app/dist-1/client: {}
-
   tests/integration/bff-corss-project/bff-client-app:
     dependencies:
       '@modern-js/plugin-bff':
@@ -4093,8 +4094,6 @@ importers:
         specifier: ^6.0.3
         version: 6.0.3
 
-  tests/integration/routes-tanstack-mf/mf-host/dist/shared/effect: {}
-
   tests/integration/routes-tanstack-mf/mf-host/shared/effect: {}
 
   tests/integration/routes-tanstack-mf/mf-remote:
@@ -4171,11 +4170,7 @@ importers:
         specifier: ^6.0.3
         version: 6.0.3
 
-  tests/integration/routes-tanstack-mf/mf-remote-2/dist/shared/effect: {}
-
   tests/integration/routes-tanstack-mf/mf-remote-2/shared/effect: {}
-
-  tests/integration/routes-tanstack-mf/mf-remote/dist/shared/effect: {}
 
   tests/integration/routes-tanstack-mf/mf-remote/shared/effect: {}
 
@@ -16773,7 +16768,7 @@ snapshots:
     dependencies:
       '@changesets/types': 6.1.0
 
-  '@changesets/cli@2.31.0(@types/node@26.0.1)':
+  '@changesets/cli@2.31.0(@types/node@12.20.55)':
     dependencies:
       '@changesets/apply-release-plan': 7.1.1
       '@changesets/assemble-release-plan': 6.0.10
@@ -16789,7 +16784,7 @@ snapshots:
       '@changesets/should-skip-package': 0.1.2
       '@changesets/types': 6.1.0
       '@changesets/write': 0.4.0
-      '@inquirer/external-editor': 1.0.3(@types/node@26.0.1)
+      '@inquirer/external-editor': 1.0.3(@types/node@12.20.55)
       '@manypkg/get-packages': 1.1.3
       ansi-colors: 4.1.3
       enquirer: 2.4.1
@@ -17011,12 +17006,12 @@ snapshots:
 
   '@colordx/core@5.4.3': {}
 
-  '@commitlint/cli@21.1.0(@types/node@26.0.1)(conventional-commits-parser@6.4.0)(typescript@6.0.3)':
+  '@commitlint/cli@21.1.0(@types/node@12.20.55)(conventional-commits-parser@6.4.0)':
     dependencies:
       '@commitlint/config-conventional': 21.1.0
       '@commitlint/format': 21.1.0
       '@commitlint/lint': 21.1.0
-      '@commitlint/load': 21.1.0(@types/node@26.0.1)(typescript@6.0.3)
+      '@commitlint/load': 21.1.0(@types/node@12.20.55)
       '@commitlint/read': 21.1.0(conventional-commits-parser@6.4.0)
       '@commitlint/types': 21.1.0
       tinyexec: 1.2.4
@@ -17061,14 +17056,14 @@ snapshots:
       '@commitlint/rules': 21.1.0
       '@commitlint/types': 21.1.0
 
-  '@commitlint/load@21.1.0(@types/node@26.0.1)(typescript@6.0.3)':
+  '@commitlint/load@21.1.0(@types/node@12.20.55)':
     dependencies:
       '@commitlint/config-validator': 21.1.0
       '@commitlint/execute-rule': 21.0.1
       '@commitlint/resolve-extends': 21.1.0
       '@commitlint/types': 21.1.0
-      cosmiconfig: 9.0.2(typescript@6.0.3)
-      cosmiconfig-typescript-loader: 6.3.0(@types/node@26.0.1)(cosmiconfig@9.0.2(typescript@6.0.3))(typescript@6.0.3)
+      cosmiconfig: 9.0.2
+      cosmiconfig-typescript-loader: 6.3.0(@types/node@12.20.55)(cosmiconfig@9.0.2)
       es-toolkit: 1.48.1
       is-plain-obj: 4.1.0
       picocolors: 1.1.1
@@ -17659,12 +17654,12 @@ snapshots:
     optionalDependencies:
       '@types/node': 26.0.1
 
-  '@inquirer/external-editor@1.0.3(@types/node@26.0.1)':
+  '@inquirer/external-editor@1.0.3(@types/node@12.20.55)':
     dependencies:
       chardet: 2.2.0
       iconv-lite: 0.7.2
     optionalDependencies:
-      '@types/node': 26.0.1
+      '@types/node': 12.20.55
 
   '@inquirer/external-editor@3.0.3(@types/node@26.0.1)':
     dependencies:
@@ -18551,13 +18546,6 @@ snapshots:
     dependencies:
       '@emnapi/core': 1.11.0
       '@emnapi/runtime': 1.11.0
-      '@tybys/wasm-util': 0.10.3
-    optional: true
-
-  '@napi-rs/wasm-runtime@1.1.6(@emnapi/core@1.11.0)(@emnapi/runtime@1.11.1)':
-    dependencies:
-      '@emnapi/core': 1.11.0
-      '@emnapi/runtime': 1.11.1
       '@tybys/wasm-util': 0.10.3
     optional: true
 
@@ -19501,6 +19489,13 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  '@rsbuild/core@2.0.15':
+    dependencies:
+      '@rspack/core': 2.0.8(@swc/helpers@0.5.23)
+      '@swc/helpers': 0.5.23
+    transitivePeerDependencies:
+      - '@module-federation/runtime-tools'
+
   '@rsbuild/core@2.0.15(@module-federation/runtime-tools@2.6.0(node-fetch@2.7.0(encoding@0.1.13)))(core-js@3.49.0)':
     dependencies:
       '@rspack/core': 2.0.8(@module-federation/runtime-tools@2.6.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.23)
@@ -19695,30 +19690,6 @@ snapshots:
 
   '@rsdoctor/client@1.5.16': {}
 
-  '@rsdoctor/core@1.5.16(@emnapi/core@1.11.0)(@emnapi/runtime@1.11.1)(@rsbuild/core@2.1.1(@module-federation/runtime-tools@2.6.0(node-fetch@2.7.0(encoding@0.1.13)))(core-js@3.49.0))(@rspack/core@2.1.1(@module-federation/runtime-tools@2.6.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.23))(bufferutil@4.1.0)(utf-8-validate@5.0.10)':
-    dependencies:
-      '@rsbuild/plugin-check-syntax': 1.6.1(@rsbuild/core@2.1.1(@module-federation/runtime-tools@2.6.0(node-fetch@2.7.0(encoding@0.1.13)))(core-js@3.49.0))
-      '@rsdoctor/graph': 1.5.16(@rspack/core@2.1.1(@module-federation/runtime-tools@2.6.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.23))
-      '@rsdoctor/sdk': 1.5.16(@rspack/core@2.1.1(@module-federation/runtime-tools@2.6.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.23))(bufferutil@4.1.0)(utf-8-validate@5.0.10)
-      '@rsdoctor/types': 1.5.16(@rspack/core@2.1.1(@module-federation/runtime-tools@2.6.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.23))
-      '@rsdoctor/utils': 1.5.16(@rspack/core@2.1.1(@module-federation/runtime-tools@2.6.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.23))
-      '@rspack/resolver': 0.2.8(@emnapi/core@1.11.0)(@emnapi/runtime@1.11.1)
-      browserslist-load-config: 1.0.3
-      es-toolkit: 1.49.0
-      filesize: 11.0.19
-      fs-extra: 11.3.5
-      semver: 7.8.5
-      source-map: 0.7.6
-    transitivePeerDependencies:
-      - '@emnapi/core'
-      - '@emnapi/runtime'
-      - '@rsbuild/core'
-      - '@rspack/core'
-      - bufferutil
-      - supports-color
-      - utf-8-validate
-      - webpack
-
   '@rsdoctor/core@1.5.16(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(@rsbuild/core@2.1.1(@module-federation/runtime-tools@2.6.0(node-fetch@2.7.0(encoding@0.1.13)))(core-js@3.49.0))(@rspack/core@2.1.1(@module-federation/runtime-tools@2.6.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.23))(bufferutil@4.1.0)(utf-8-validate@5.0.10)':
     dependencies:
       '@rsbuild/plugin-check-syntax': 1.6.1(@rsbuild/core@2.1.1(@module-federation/runtime-tools@2.6.0(node-fetch@2.7.0(encoding@0.1.13)))(core-js@3.49.0))
@@ -19752,24 +19723,6 @@ snapshots:
       source-map: 0.7.6
     transitivePeerDependencies:
       - '@rspack/core'
-      - webpack
-
-  '@rsdoctor/rspack-plugin@1.5.16(@emnapi/core@1.11.0)(@emnapi/runtime@1.11.1)(@rsbuild/core@2.1.1(@module-federation/runtime-tools@2.6.0(node-fetch@2.7.0(encoding@0.1.13)))(core-js@3.49.0))(@rspack/core@2.1.1(@module-federation/runtime-tools@2.6.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.23))(bufferutil@4.1.0)(utf-8-validate@5.0.10)':
-    dependencies:
-      '@rsdoctor/core': 1.5.16(@emnapi/core@1.11.0)(@emnapi/runtime@1.11.1)(@rsbuild/core@2.1.1(@module-federation/runtime-tools@2.6.0(node-fetch@2.7.0(encoding@0.1.13)))(core-js@3.49.0))(@rspack/core@2.1.1(@module-federation/runtime-tools@2.6.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.23))(bufferutil@4.1.0)(utf-8-validate@5.0.10)
-      '@rsdoctor/graph': 1.5.16(@rspack/core@2.1.1(@module-federation/runtime-tools@2.6.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.23))
-      '@rsdoctor/sdk': 1.5.16(@rspack/core@2.1.1(@module-federation/runtime-tools@2.6.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.23))(bufferutil@4.1.0)(utf-8-validate@5.0.10)
-      '@rsdoctor/types': 1.5.16(@rspack/core@2.1.1(@module-federation/runtime-tools@2.6.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.23))
-      '@rsdoctor/utils': 1.5.16(@rspack/core@2.1.1(@module-federation/runtime-tools@2.6.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.23))
-    optionalDependencies:
-      '@rspack/core': 2.1.1(@module-federation/runtime-tools@2.6.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.23)
-    transitivePeerDependencies:
-      - '@emnapi/core'
-      - '@emnapi/runtime'
-      - '@rsbuild/core'
-      - bufferutil
-      - supports-color
-      - utf-8-validate
       - webpack
 
   '@rsdoctor/rspack-plugin@1.5.16(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(@rsbuild/core@2.1.1(@module-federation/runtime-tools@2.6.0(node-fetch@2.7.0(encoding@0.1.13)))(core-js@3.49.0))(@rspack/core@2.1.1(@module-federation/runtime-tools@2.6.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.23))(bufferutil@4.1.0)(utf-8-validate@5.0.10)':
@@ -19957,6 +19910,12 @@ snapshots:
       '@module-federation/runtime-tools': 2.6.0(node-fetch@2.7.0(encoding@0.1.13))
       '@swc/helpers': 0.5.23
 
+  '@rspack/core@2.0.8(@swc/helpers@0.5.23)':
+    dependencies:
+      '@rspack/binding': 2.0.8
+    optionalDependencies:
+      '@swc/helpers': 0.5.23
+
   '@rspack/core@2.1.1(@module-federation/runtime-tools@2.6.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.23)':
     dependencies:
       '@rspack/binding': 2.1.1
@@ -19996,14 +19955,6 @@ snapshots:
   '@rspack/resolver-binding-linux-x64-musl@0.2.8':
     optional: true
 
-  '@rspack/resolver-binding-wasm32-wasi@0.2.8(@emnapi/core@1.11.0)(@emnapi/runtime@1.11.1)':
-    dependencies:
-      '@napi-rs/wasm-runtime': 1.1.6(@emnapi/core@1.11.0)(@emnapi/runtime@1.11.1)
-    transitivePeerDependencies:
-      - '@emnapi/core'
-      - '@emnapi/runtime'
-    optional: true
-
   '@rspack/resolver-binding-wasm32-wasi@0.2.8(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)':
     dependencies:
       '@napi-rs/wasm-runtime': 1.1.6(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)
@@ -20020,22 +19971,6 @@ snapshots:
 
   '@rspack/resolver-binding-win32-x64-msvc@0.2.8':
     optional: true
-
-  '@rspack/resolver@0.2.8(@emnapi/core@1.11.0)(@emnapi/runtime@1.11.1)':
-    optionalDependencies:
-      '@rspack/resolver-binding-darwin-arm64': 0.2.8
-      '@rspack/resolver-binding-darwin-x64': 0.2.8
-      '@rspack/resolver-binding-linux-arm64-gnu': 0.2.8
-      '@rspack/resolver-binding-linux-arm64-musl': 0.2.8
-      '@rspack/resolver-binding-linux-x64-gnu': 0.2.8
-      '@rspack/resolver-binding-linux-x64-musl': 0.2.8
-      '@rspack/resolver-binding-wasm32-wasi': 0.2.8(@emnapi/core@1.11.0)(@emnapi/runtime@1.11.1)
-      '@rspack/resolver-binding-win32-arm64-msvc': 0.2.8
-      '@rspack/resolver-binding-win32-ia32-msvc': 0.2.8
-      '@rspack/resolver-binding-win32-x64-msvc': 0.2.8
-    transitivePeerDependencies:
-      - '@emnapi/core'
-      - '@emnapi/runtime'
 
   '@rspack/resolver@0.2.8(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)':
     optionalDependencies:
@@ -20148,6 +20083,14 @@ snapshots:
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
+
+  '@rstest/core@0.10.6':
+    dependencies:
+      '@rsbuild/core': 2.0.15
+      '@types/chai': 5.2.3
+    transitivePeerDependencies:
+      - '@module-federation/runtime-tools'
+      - core-js
 
   '@rstest/core@0.10.6(@module-federation/runtime-tools@2.6.0(node-fetch@2.7.0(encoding@0.1.13)))(core-js@3.49.0)(happy-dom@20.10.6(bufferutil@4.1.0)(utf-8-validate@5.0.10))':
     dependencies:
@@ -21468,9 +21411,9 @@ snapshots:
     dependencies:
       possible-typed-array-names: 1.1.0
 
-  axios@1.16.0(debug@4.4.3):
+  axios@1.16.0:
     dependencies:
-      follow-redirects: 1.16.0(debug@4.4.3)
+      follow-redirects: 1.16.0
       form-data: 4.0.6
       proxy-from-env: 2.1.0
     transitivePeerDependencies:
@@ -21994,12 +21937,11 @@ snapshots:
     dependencies:
       layout-base: 2.0.1
 
-  cosmiconfig-typescript-loader@6.3.0(@types/node@26.0.1)(cosmiconfig@9.0.2(typescript@6.0.3))(typescript@6.0.3):
+  cosmiconfig-typescript-loader@6.3.0(@types/node@12.20.55)(cosmiconfig@9.0.2):
     dependencies:
-      '@types/node': 26.0.1
-      cosmiconfig: 9.0.2(typescript@6.0.3)
+      '@types/node': 12.20.55
+      cosmiconfig: 9.0.2
       jiti: 2.6.1
-      typescript: 6.0.3
 
   cosmiconfig@7.1.0:
     dependencies:
@@ -22018,14 +21960,12 @@ snapshots:
     optionalDependencies:
       typescript: 6.0.3
 
-  cosmiconfig@9.0.2(typescript@6.0.3):
+  cosmiconfig@9.0.2:
     dependencies:
       env-paths: 2.2.1
       import-fresh: 3.3.1
       js-yaml: 4.3.0
       parse-json: 5.2.0
-    optionalDependencies:
-      typescript: 6.0.3
 
   create-ecdh@4.0.4:
     dependencies:
@@ -23175,6 +23115,8 @@ snapshots:
   flatted@3.4.2: {}
 
   flexsearch@0.8.212: {}
+
+  follow-redirects@1.16.0: {}
 
   follow-redirects@1.16.0(debug@4.4.3):
     optionalDependencies:
@@ -25264,7 +25206,7 @@ snapshots:
     dependencies:
       boolbase: 1.0.0
 
-  nx@23.0.1(@swc/core@1.15.43(@swc/helpers@0.5.23))(debug@4.4.3):
+  nx@23.0.1:
     dependencies:
       '@emnapi/core': 1.4.5
       '@emnapi/runtime': 1.4.5
@@ -25279,7 +25221,7 @@ snapshots:
       ansi-styles: 4.3.0
       argparse: 2.0.1
       asynckit: 0.4.0
-      axios: 1.16.0(debug@4.4.3)
+      axios: 1.16.0
       balanced-match: 4.0.3
       base64-js: 1.5.1
       bl: 4.1.0
@@ -25312,7 +25254,7 @@ snapshots:
       escape-string-regexp: 1.0.5
       figures: 3.2.0
       flat: 5.0.2
-      follow-redirects: 1.16.0(debug@4.4.3)
+      follow-redirects: 1.16.0
       form-data: 4.0.6
       fs-constants: 1.0.0
       function-bind: 1.1.2
@@ -25388,7 +25330,6 @@ snapshots:
       '@nx/nx-linux-x64-musl': 23.0.1
       '@nx/nx-win32-arm64-msvc': 23.0.1
       '@nx/nx-win32-x64-msvc': 23.0.1
-      '@swc/core': 1.15.43(@swc/helpers@0.5.23)
     transitivePeerDependencies:
       - debug
 

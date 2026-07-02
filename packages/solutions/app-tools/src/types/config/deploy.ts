@@ -70,7 +70,8 @@ export interface DeployUserConfig {
     artifacts?: CloudflareWorkerArtifactConfig[];
     /**
      * Additional app-root files or directories to serve as Cloudflare Worker
-     * Static Assets under `.output/public`.
+     * Static Assets under `.output/public`. Use `to: '.'` to copy a
+     * source directory's contents into the public asset root.
      */
     publicAssets?: CloudflareWorkerPublicAssetConfig[];
     /**
