@@ -197,6 +197,10 @@ describe('create builder Options', () => {
       const chunkFormat = rstest.fn().mockReturnThis();
       const chunkLoading = rstest.fn().mockReturnThis();
       const workerChunkLoading = rstest.fn().mockReturnThis();
+      const usedExports = rstest.fn().mockReturnThis();
+      const providedExports = rstest.fn().mockReturnThis();
+      const innerGraph = rstest.fn().mockReturnThis();
+      const sideEffects = rstest.fn().mockReturnThis();
       const chain = {
         merge: rstest.fn(),
         externalsPresets: rstest.fn(),
@@ -206,6 +210,12 @@ describe('create builder Options', () => {
           chunkFormat,
           chunkLoading,
           workerChunkLoading,
+        },
+        optimization: {
+          usedExports,
+          providedExports,
+          innerGraph,
+          sideEffects,
         },
         plugins: {
           delete: (name: string) => {
@@ -271,6 +281,10 @@ describe('create builder Options', () => {
       expect(chunkFormat).toHaveBeenCalledWith('module');
       expect(chunkLoading).toHaveBeenCalledWith('import');
       expect(workerChunkLoading).toHaveBeenCalledWith('import');
+      expect(usedExports).toHaveBeenCalledWith(false);
+      expect(providedExports).toHaveBeenCalledWith(false);
+      expect(innerGraph).toHaveBeenCalledWith(false);
+      expect(sideEffects).toHaveBeenCalledWith(false);
       expect(deletedPlugins.has('plugin-module-federation')).toBe(true);
       expect(aliases.get('@modern-js/runtime/rsc/server$')).toMatch(
         /runtime[/\\]plugin-runtime[/\\]dist[/\\]esm[/\\]rsc[/\\]server\.worker\.mjs$/,

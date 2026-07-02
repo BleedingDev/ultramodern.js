@@ -52,8 +52,209 @@ const createSpaFallbackAssetBinding = (publicDirectory: string) => {
   };
 };
 
+const effectEdgePackageSource = `
+let currentContext;
+
+function normalizePrefix(prefix) {
+  if (!prefix || prefix === '/') {
+    return '';
+  }
+
+  return prefix.endsWith('/') ? prefix.slice(0, -1) : prefix;
+}
+
+function matchesPrefix(pathname, prefix) {
+  const normalized = normalizePrefix(prefix);
+
+  return (
+    !normalized ||
+    pathname === normalized ||
+    pathname.startsWith(\`\${normalized}/\`)
+  );
+}
+
+function createRequestForMountedPrefix(request, prefix) {
+  const normalized = normalizePrefix(prefix);
+
+  if (!normalized) {
+    return request;
+  }
+
+  const url = new URL(request.url);
+
+  if (!matchesPrefix(url.pathname, normalized)) {
+    return request;
+  }
+
+  const nextPath = url.pathname.slice(normalized.length) || '/';
+  url.pathname = nextPath.startsWith('/') ? nextPath : \`/\${nextPath}\`;
+
+  return new Request(url, request);
+}
+
+function getRuntimeModule(workerModule) {
+  const defaultExport = workerModule.default;
+  const nestedDefaultExport =
+    defaultExport && typeof defaultExport === 'object'
+      ? defaultExport.default
+      : undefined;
+
+  return defaultExport && typeof defaultExport === 'object'
+    ? {
+        ...workerModule,
+        ...defaultExport,
+        ...(nestedDefaultExport && typeof nestedDefaultExport === 'object'
+          ? nestedDefaultExport
+          : {}),
+      }
+    : workerModule;
+}
+
+export async function createEffectBffEdgeHandler(options) {
+  const runtime = getRuntimeModule(options.module);
+  const created =
+    typeof runtime.createHandler === 'function'
+      ? runtime.createHandler()
+      : undefined;
+  const handler =
+    typeof created?.handler === 'function'
+      ? created.handler
+      : runtime.api &&
+          runtime.layer &&
+          typeof runtime.layer.handle === 'function'
+        ? runtime.layer.handle
+        : undefined;
+
+  if (typeof handler !== 'function') {
+    throw new Error('test Effect BFF worker has no handler');
+  }
+
+  return {
+    handler: async (request, dispatchOptions = {}) => {
+      const url = new URL(request.url);
+
+      if (!matchesPrefix(url.pathname, options.prefix)) {
+        return new Response(null, { status: 404 });
+      }
+
+      const effectRequest = createRequestForMountedPrefix(
+        request,
+        options.prefix,
+      );
+      const context = {
+        request: effectRequest,
+        env: dispatchOptions.env || {},
+        path: url.pathname,
+        method: request.method,
+        operationContext: {
+          request: effectRequest,
+          env: dispatchOptions.env || {},
+          path: url.pathname,
+          method: request.method,
+          routePath: new URL(effectRequest.url).pathname,
+          attributes: {
+            mountedPath: url.pathname,
+          },
+        },
+      };
+      const previousContext = currentContext;
+
+      currentContext = context;
+
+      try {
+        const response = await handler(effectRequest);
+        return new Response(response.body, response);
+      } finally {
+        currentContext = previousContext;
+      }
+    },
+    dispose: created?.dispose || (async () => {}),
+  };
+}
+
+export function useEffectContext() {
+  if (!currentContext) {
+    throw new Error("Can't call useEffectContext out of Effect runtime scope");
+  }
+
+  return currentContext;
+}
+`;
+
+const defaultEffectBffWorkerSource = `
+const createHandler = () => ({
+  handler: async request => {
+    const { useEffectContext } = await import('@modern-js/plugin-bff/effect-edge');
+    const context = useEffectContext();
+
+    return new Response(JSON.stringify({
+      pathname: new URL(request.url).pathname,
+      originalPath: context.path,
+      method: context.method,
+      envValue: context.env.TEST_VALUE,
+    }), { headers: { 'content-type': 'application/json' } });
+  },
+  dispose: async () => {},
+});
+
+Object.defineProperty(createHandler, Symbol.for('modernjs.effect.validatorAware'), {
+  value: true,
+});
+
+module.exports = { default: { createHandler } };
+`;
+
+const effectHttpApiWorkerSource = `
+module.exports = { default: {
+  api: { name: 'SmartSuggestHttpApi' },
+  layer: {
+    handle: async request => {
+      const { useEffectContext } = await import('@modern-js/plugin-bff/effect-edge');
+      const context = useEffectContext();
+
+      return new Response(JSON.stringify({
+        pathname: new URL(request.url).pathname,
+        routePath: context.operationContext.routePath,
+        originalPath: context.path,
+        envValue: context.env.TEST_VALUE,
+      }), { headers: { 'content-type': 'application/json' } });
+    },
+  },
+} };
+`;
+
+const effectDrizzleWorkerSource = `
+const createHandler = () => ({
+  handler: async request => {
+    const { sqliteTable, text, entityKind } = await import('drizzle-orm/sqlite-core');
+    const { useEffectContext } = await import('@modern-js/plugin-bff/effect-edge');
+    const context = useEffectContext();
+    const table = sqliteTable('smart_suggest_addresses', {
+      street: text('street'),
+    });
+
+    return new Response(JSON.stringify({
+      pathname: new URL(request.url).pathname,
+      originalPath: context.path,
+      envValue: context.env.TEST_VALUE,
+      tableName: table.name,
+      entityKind: table[entityKind],
+    }), { headers: { 'content-type': 'application/json' } });
+  },
+  dispose: async () => {},
+});
+
+Object.defineProperty(createHandler, Symbol.for('modernjs.effect.validatorAware'), {
+  value: true,
+});
+
+module.exports = { default: { createHandler } };
+`;
+
 async function createFixture({
   artifacts,
+  bffPrefix = '/commerce-api',
+  bffWorkerSource = defaultEffectBffWorkerSource,
   compatibilityDate,
   d1Databases,
   includeBffWorker = true,
@@ -67,6 +268,8 @@ async function createFixture({
   workerSecurity,
 }: {
   artifacts?: CloudflareWorkerArtifactConfig[];
+  bffPrefix?: string;
+  bffWorkerSource?: string;
   compatibilityDate?: string;
   d1Databases?: CloudflareWorkerD1DatabaseConfig[];
   includeBffWorker?: boolean;
@@ -86,6 +289,76 @@ async function createFixture({
     path.join(os.tmpdir(), 'modern-cloudflare-deploy-'),
   );
   tempDirectories.push(appDirectory);
+
+  const effectEdgePackageDirectory = path.join(
+    appDirectory,
+    'node_modules/@modern-js/plugin-bff',
+  );
+  await fs.mkdir(effectEdgePackageDirectory, { recursive: true });
+  await fs.writeFile(
+    path.join(effectEdgePackageDirectory, 'package.json'),
+    `${JSON.stringify(
+      {
+        type: 'module',
+        exports: {
+          './effect-edge': './effect-edge.mjs',
+        },
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  await fs.writeFile(
+    path.join(effectEdgePackageDirectory, 'effect-edge.mjs'),
+    effectEdgePackageSource,
+  );
+
+  const drizzlePackageDirectory = path.join(
+    appDirectory,
+    'node_modules/drizzle-orm',
+  );
+  await fs.mkdir(path.join(drizzlePackageDirectory, 'sqlite-core'), {
+    recursive: true,
+  });
+  await fs.writeFile(
+    path.join(drizzlePackageDirectory, 'package.json'),
+    `${JSON.stringify(
+      {
+        type: 'module',
+        exports: {
+          './sqlite-core': './sqlite-core/index.mjs',
+        },
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  await fs.writeFile(
+    path.join(drizzlePackageDirectory, 'sqlite-core/index.mjs'),
+    `
+export const entityKind = Symbol.for('drizzle:entityKind');
+
+export class SQLiteTable {
+  static [entityKind] = 'SQLiteTable';
+}
+
+export function text(name) {
+  return { name, type: 'text' };
+}
+
+export function sqliteTable(name, columns) {
+  class SmartSuggestTable extends SQLiteTable {
+    static [entityKind] = 'SQLiteTable';
+  }
+
+  return Object.assign(new SmartSuggestTable(), {
+    columns,
+    name,
+    [entityKind]: SmartSuggestTable[entityKind],
+  });
+}
+`,
+  );
 
   const distDirectory = path.join(appDirectory, 'dist');
   if (includeServerOnlyDistSources) {
@@ -217,15 +490,7 @@ async function createFixture({
   if (includeBffWorker) {
     await fs.writeFile(
       path.join(distDirectory, 'worker/__modern_bff_effect.js'),
-      `module.exports = { default: {
-      handler: async (request, context) => new Response(JSON.stringify({
-          pathname: new URL(request.url).pathname,
-          originalPath: context.path,
-          method: context.method,
-          envValue: context.env.TEST_VALUE
-        }), { headers: { 'content-type': 'application/json' } }),
-      dispose: async () => {}
-    } };`,
+      bffWorkerSource,
     );
   }
   await fs.writeFile(
@@ -368,7 +633,7 @@ async function createFixture({
     } as any,
     modernConfig: {
       bff: {
-        prefix: '/commerce-api',
+        prefix: bffPrefix,
         runtimeFramework: 'effect',
       },
       deploy: {
@@ -970,6 +1235,37 @@ describe('cloudflare deploy preset', () => {
     ).resolves.toBe('{"type":"commonjs"}\n');
   });
 
+  it('emits explicit Effect BFF dispatch without runtime duck-typing', async () => {
+    const { outputDirectory } = await createFixture();
+    const entrySource = await fs.readFile(
+      path.join(outputDirectory, 'server/index.mjs'),
+      'utf-8',
+    );
+    const effectBranchStart = entrySource.indexOf(
+      "if (bff.runtimeFramework === 'effect')",
+    );
+    const directHandlerStart = entrySource.indexOf('const directHandler');
+    const effectBranch = entrySource.slice(
+      effectBranchStart,
+      directHandlerStart,
+    );
+
+    expect(entrySource).toContain(
+      "import('@modern-js/plugin-bff/effect-edge')",
+    );
+    expect(effectBranchStart).toBeGreaterThan(-1);
+    expect(directHandlerStart).toBeGreaterThan(effectBranchStart);
+    expect(effectBranch).toContain('createEffectBffEdgeHandler');
+    expect(effectBranch).toContain('effectHandler.handler(request, { env })');
+    expect(effectBranch).not.toContain('handler.length');
+    expect(entrySource).not.toContain(
+      'typeof runtime.dispatchEffectBffRequest',
+    );
+    expect(entrySource).not.toContain(
+      'typeof defaultExport?.dispatchEffectBffRequest',
+    );
+  });
+
   it('emits native Cloudflare locale redirects from i18n server plugin options', async () => {
     const i18nServerPlugin = {
       name: '@modern-js/plugin-i18n/server',
@@ -1129,6 +1425,34 @@ describe('cloudflare deploy preset', () => {
     expect(await response.text()).toBe('app();');
   });
 
+  it('does not route non-GET asset-like requests through the asset binding', async () => {
+    const { outputDirectory } = await createFixture();
+    const entryPath = path.join(outputDirectory, 'server/index.mjs');
+    const worker = (
+      await import(`${pathToFileURL(entryPath).href}?t=${Date.now()}`)
+    ).default;
+    const assetRequests: string[] = [];
+
+    const response = await worker.fetch(
+      new Request('https://example.com/static/app.js', { method: 'POST' }),
+      {
+        ASSETS: {
+          fetch: async (request: Request) => {
+            assetRequests.push(
+              `${request.method} ${new URL(request.url).pathname}`,
+            );
+            return new Response('asset should not handle POST', {
+              status: 200,
+            });
+          },
+        },
+      },
+    );
+
+    expect(assetRequests).toEqual([]);
+    expect(response.status).toBe(404);
+  });
+
   it('does not send asset-like misses through SSR route fallback', async () => {
     const { outputDirectory } = await createFixture();
     const entryPath = path.join(outputDirectory, 'server/index.mjs');
@@ -1150,6 +1474,24 @@ describe('cloudflare deploy preset', () => {
     expect(response.headers.get('access-control-allow-origin')).toBeNull();
     expect(response.headers.get('x-content-type-options')).toBe('nosniff');
     expect(await response.text()).toBe('Not found');
+  });
+
+  it('treats missing HTML paths as asset misses instead of SSR fallback', async () => {
+    const { outputDirectory } = await createFixture();
+    const entryPath = path.join(outputDirectory, 'server/index.mjs');
+    const worker = (
+      await import(`${pathToFileURL(entryPath).href}?t=${Date.now()}`)
+    ).default;
+
+    const response = await worker.fetch(
+      new Request('https://example.com/dashboard/missing.html'),
+      {
+        ASSETS: createAssetBinding(path.join(outputDirectory, 'public')),
+      },
+    );
+
+    expect(response.status).toBe(404);
+    await expect(response.text()).resolves.toBe('Not found');
   });
 
   it('answers Cloudflare CORS preflight requests for federated assets', async () => {
@@ -1799,14 +2141,14 @@ describe('cloudflare deploy preset', () => {
   });
 
   it('dispatches Effect BFF worker modules before SSR route fallback', async () => {
-    const { outputDirectory } = await createFixture();
+    const { outputDirectory } = await createFixture({ bffPrefix: '/api' });
     const entryPath = path.join(outputDirectory, 'server/index.mjs');
     const worker = (
       await import(`${pathToFileURL(entryPath).href}?t=${Date.now()}`)
     ).default;
 
     const response = await worker.fetch(
-      new Request('https://example.com/commerce-api/effect/recommendations'),
+      new Request('https://example.com/api/effect/recommendations'),
       {
         TEST_VALUE: 'edge-env',
         ASSETS: createSpaFallbackAssetBinding(
@@ -1820,9 +2162,90 @@ describe('cloudflare deploy preset', () => {
     expect(response.headers.get('access-control-allow-origin')).toBeNull();
     await expect(response.json()).resolves.toEqual({
       pathname: '/effect/recommendations',
-      originalPath: '/commerce-api/effect/recommendations',
+      originalPath: '/api/effect/recommendations',
       method: 'GET',
       envValue: 'edge-env',
+    });
+
+    const fallbackResponse = await worker.fetch(
+      new Request('https://example.com/dashboard/settings'),
+      {
+        ASSETS: createAssetBinding(path.join(outputDirectory, 'public')),
+      },
+    );
+
+    expect(fallbackResponse.status).toBe(200);
+    await expect(fallbackResponse.json()).resolves.toEqual({
+      pathname: '/dashboard/settings',
+      entryName: 'main',
+      htmlTemplate: '<!doctype html><html>main</html>',
+      routeAssetKeys: ['main'],
+      loadableName: 'loadable-fixture',
+    });
+  });
+
+  it('dispatches Effect HttpApi modules without a second handler argument', async () => {
+    const { outputDirectory } = await createFixture({
+      bffWorkerSource: effectHttpApiWorkerSource,
+    });
+    const entryPath = path.join(outputDirectory, 'server/index.mjs');
+    const worker = (
+      await import(`${pathToFileURL(entryPath).href}?t=${Date.now()}`)
+    ).default;
+
+    const response = await worker.fetch(
+      new Request('https://example.com/commerce-api/effect/http-api'),
+      {
+        TEST_VALUE: 'http-api-env',
+        ASSETS: createSpaFallbackAssetBinding(
+          path.join(outputDirectory, 'public'),
+        ),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      pathname: '/effect/http-api',
+      routePath: '/effect/http-api',
+      originalPath: '/commerce-api/effect/http-api',
+      envValue: 'http-api-env',
+    });
+  });
+
+  it('executes generated Effect BFF workers that import Drizzle sqlite-core without post-build mutation', async () => {
+    const { outputDirectory } = await createFixture({
+      bffWorkerSource: effectDrizzleWorkerSource,
+    });
+    const workerBundleSource = await fs.readFile(
+      path.join(outputDirectory, 'worker/__modern_bff_effect.js'),
+      'utf-8',
+    );
+    const entryPath = path.join(outputDirectory, 'server/index.mjs');
+    const worker = (
+      await import(`${pathToFileURL(entryPath).href}?t=${Date.now()}`)
+    ).default;
+
+    expect(workerBundleSource).toContain('drizzle-orm/sqlite-core');
+    expect(workerBundleSource).not.toContain(';entityKind;');
+    expect(workerBundleSource).not.toContain(';entityKind,entityKind;');
+
+    const response = await worker.fetch(
+      new Request('https://example.com/commerce-api/effect/drizzle'),
+      {
+        TEST_VALUE: 'drizzle-env',
+        ASSETS: createSpaFallbackAssetBinding(
+          path.join(outputDirectory, 'public'),
+        ),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      pathname: '/effect/drizzle',
+      originalPath: '/commerce-api/effect/drizzle',
+      envValue: 'drizzle-env',
+      tableName: 'smart_suggest_addresses',
+      entityKind: 'SQLiteTable',
     });
   });
 

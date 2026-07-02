@@ -11,6 +11,7 @@ import {
   HttpApiGroup,
   Layer,
   Schema,
+  useEffectContext,
 } from '../src/runtime/effect/edge';
 
 describe('effect edge runtime', () => {
@@ -39,6 +40,36 @@ describe('effect edge runtime', () => {
       contextPath: '/api/ping',
       routePath: '/ping',
       mountedPath: '/api/ping',
+      env: 'cloudflare',
+    });
+  });
+
+  test('dispatches one-argument handlers with Effect context env', async () => {
+    const response = await dispatchEffectBffRequest(
+      request => {
+        const context = useEffectContext();
+
+        return Response.json({
+          requestPath: new URL(request.url).pathname,
+          contextPath: context.path,
+          routePath: context.operationContext.routePath,
+          env: context.env.RUNTIME,
+        });
+      },
+      new Request('http://localhost/api/context'),
+      {
+        prefix: '/api',
+        env: {
+          RUNTIME: 'cloudflare',
+        },
+      },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      requestPath: '/context',
+      contextPath: '/api/context',
+      routePath: '/context',
       env: 'cloudflare',
     });
   });

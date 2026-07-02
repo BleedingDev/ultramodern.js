@@ -430,6 +430,11 @@ export function getBuilderEnvironments(
                   .chunkFormat('module')
                   .chunkLoading('import')
                   .workerChunkLoading('import');
+                chain.optimization
+                  .usedExports(false)
+                  .providedExports(false)
+                  .innerGraph(false)
+                  .sideEffects(false);
                 chain.plugins.delete('plugin-module-federation');
                 if (tanstackRouterSsrServerFile) {
                   chain.resolve.alias.set(

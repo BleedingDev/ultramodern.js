@@ -136,9 +136,7 @@ export async function dispatchEffectBffRequest(
 
   try {
     const response = await runWithEffectContext(effectContext, () =>
-      handler.length > 1
-        ? handler(effectRequest, effectContext)
-        : handler(effectRequest),
+      handler(effectRequest, effectContext),
     );
 
     if (!(response instanceof Response)) {

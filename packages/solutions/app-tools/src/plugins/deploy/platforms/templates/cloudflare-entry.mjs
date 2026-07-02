@@ -2,6 +2,8 @@ const ASSETS_BINDING = 'ASSETS';
 const MODERN_WORKER_MANIFEST = p_workerManifest;
 const WORKER_MODULE_LOADERS = p_workerModuleLoaders;
 const workerModulePromises = new Map();
+const effectBffHandlerPromises = new Map();
+let effectEdgeRuntimePromise;
 const remoteJsonPromises = new Map();
 const CORS_POLICY = MODERN_WORKER_MANIFEST.security?.cors || {};
 const ASSET_CORS_ENABLED = CORS_POLICY.assets !== false;
@@ -319,6 +321,10 @@ async function createCorsPreflightResponse(request, env) {
 }
 
 async function fetchAsset(request, env) {
+  if (request.method !== 'GET' && request.method !== 'HEAD') {
+    return null;
+  }
+
   const assets = env?.[ASSETS_BINDING];
 
   if (!assets || typeof assets.fetch !== 'function') {
@@ -431,7 +437,7 @@ function getPathExtension(pathname) {
 function isAssetLikePathname(pathname) {
   const extension = getPathExtension(pathname);
 
-  return extension !== '' && extension !== '.html' && extension !== '.htm';
+  return extension !== '';
 }
 
 function routeMatchesExactly(route, pathname) {
@@ -1347,6 +1353,12 @@ async function loadWorkerModule(workerPath) {
   return workerModulePromises.get(workerPath);
 }
 
+async function loadEffectEdgeRuntime() {
+  effectEdgeRuntimePromise ??= import('@modern-js/plugin-bff/effect-edge');
+
+  return effectEdgeRuntimePromise;
+}
+
 function getRuntimeModule(workerModule) {
   const defaultExport = workerModule.default;
   const nestedDefaultExport =
@@ -1474,23 +1486,6 @@ function createRequestForMountedPrefix(request, prefix) {
   return new Request(url, request);
 }
 
-function createEffectContext(originalRequest, mountedRequest, env) {
-  const url = new URL(originalRequest.url);
-
-  return {
-    request: mountedRequest,
-    env: env || {},
-    path: url.pathname,
-    method: originalRequest.method,
-    operationContext: {
-      request: mountedRequest,
-      env: env || {},
-      path: url.pathname,
-      method: originalRequest.method,
-    },
-  };
-}
-
 async function dispatchBffRequest(request, env) {
   const bff = MODERN_WORKER_MANIFEST.bff;
 
@@ -1514,9 +1509,26 @@ async function dispatchBffRequest(request, env) {
   }
 
   const mountedRequest = createRequestForMountedPrefix(request, bff.prefix);
-  const effectContext = createEffectContext(request, mountedRequest, env);
   const defaultExport = workerModule.default;
   const runtime = getRuntimeModule(workerModule);
+
+  if (bff.runtimeFramework === 'effect') {
+    let effectHandlerPromise = effectBffHandlerPromises.get(bff.worker);
+
+    if (!effectHandlerPromise) {
+      const { createEffectBffEdgeHandler } = await loadEffectEdgeRuntime();
+
+      effectHandlerPromise = createEffectBffEdgeHandler({
+        module: runtime,
+        prefix: bff.prefix,
+      });
+      effectBffHandlerPromises.set(bff.worker, effectHandlerPromise);
+    }
+
+    const effectHandler = await effectHandlerPromise;
+    return effectHandler.handler(request, { env });
+  }
+
   const directHandler =
     (typeof runtime.handler === 'function' && runtime.handler) ||
     (typeof defaultExport === 'function' && defaultExport);
@@ -1538,6 +1550,19 @@ async function dispatchBffRequest(request, env) {
       },
     );
   }
+
+  const effectContext = {
+    request: mountedRequest,
+    env: env || {},
+    path: new URL(request.url).pathname,
+    method: request.method,
+    operationContext: {
+      request: mountedRequest,
+      env: env || {},
+      path: new URL(request.url).pathname,
+      method: request.method,
+    },
+  };
 
   return handler.length > 1
     ? handler(mountedRequest, effectContext)
