@@ -3,6 +3,7 @@ import { fs as fse } from '@modern-js/utils';
 import type {
   CloudflareWorkerArtifactConfig,
   CloudflareWorkerD1DatabaseConfig,
+  CloudflareWorkerPublicAssetConfig,
   CloudflareWorkerSecurityConfig,
   JsonValue,
 } from '../../../types/config/deploy';
@@ -683,6 +684,35 @@ const getCloudflareArtifacts = (
     normalizeCloudflareArtifact,
   );
 
+const normalizeCloudflarePublicAsset = (
+  asset: CloudflareWorkerPublicAssetConfig,
+  index: number,
+) => {
+  const from = normalizeRelativePath(
+    asset.from,
+    `deploy.worker.publicAssets[${index}].from`,
+    'app root',
+  );
+  const to = normalizeRelativePath(
+    asset.to,
+    `deploy.worker.publicAssets[${index}].to`,
+    'Cloudflare public output',
+  );
+
+  return {
+    from,
+    to,
+    index,
+  };
+};
+
+const getCloudflarePublicAssets = (
+  modernConfig: Parameters<CreatePreset>[0]['modernConfig'],
+) =>
+  (modernConfig.deploy?.worker?.publicAssets ?? []).map(
+    normalizeCloudflarePublicAsset,
+  );
+
 const copyCloudflareArtifacts = async (
   appDirectory: string,
   outputDirectory: string,
@@ -698,6 +728,24 @@ const copyCloudflareArtifacts = async (
     }
 
     await fse.copy(sourcePath, path.join(outputDirectory, artifact.to));
+  }
+};
+
+const copyCloudflarePublicAssets = async (
+  appDirectory: string,
+  publicDirectory: string,
+  publicAssets: ReturnType<typeof getCloudflarePublicAssets>,
+) => {
+  for (const asset of publicAssets) {
+    const sourcePath = path.join(appDirectory, asset.from);
+
+    if (!(await fse.pathExists(sourcePath))) {
+      throw new Error(
+        `deploy.worker.publicAssets[${asset.index}].from does not exist: ${asset.from}`,
+      );
+    }
+
+    await fse.copy(sourcePath, path.join(publicDirectory, asset.to));
   }
 };
 
@@ -994,6 +1042,11 @@ export const createCloudflarePreset: CreatePreset = ({
         appDirectory,
         outputDirectory,
         cloudflareArtifacts,
+      );
+      await copyCloudflarePublicAssets(
+        appDirectory,
+        publicDirectory,
+        getCloudflarePublicAssets(modernConfig),
       );
       await copyCloudflareD1Migrations(
         appDirectory,

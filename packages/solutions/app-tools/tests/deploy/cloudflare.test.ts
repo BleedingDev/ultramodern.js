@@ -6,6 +6,7 @@ import { createCloudflarePreset } from '../../src/plugins/deploy/platforms/cloud
 import type {
   CloudflareWorkerArtifactConfig,
   CloudflareWorkerD1DatabaseConfig,
+  CloudflareWorkerPublicAssetConfig,
   CloudflareWorkerSecurityConfig,
   JsonValue,
 } from '../../src/types/config/deploy';
@@ -261,6 +262,7 @@ async function createFixture({
   includeRootRoute = false,
   includeServerOnlyDistSources = false,
   publicAssetExcludes,
+  publicAssets,
   serverPlugins,
   sourceFiles,
   wrangler,
@@ -276,6 +278,7 @@ async function createFixture({
   includeRootRoute?: boolean;
   includeServerOnlyDistSources?: boolean;
   publicAssetExcludes?: string[];
+  publicAssets?: CloudflareWorkerPublicAssetConfig[];
   serverPlugins?: Array<{
     name: string;
     options?: Record<string, unknown>;
@@ -643,6 +646,7 @@ export function sqliteTable(name, columns) {
           d1Databases,
           name: workerName,
           publicAssetExcludes,
+          publicAssets,
           security: workerSecurity,
           wrangler,
         },
@@ -969,6 +973,43 @@ describe('cloudflare deploy preset', () => {
     ).resolves.toBe('{"revision":"2026-06-27"}');
   });
 
+  it('stages configured public assets under Cloudflare Worker Static Assets', async () => {
+    const { outputDirectory } = await createFixture({
+      publicAssets: [
+        {
+          from: 'ops/owned-data',
+          to: 'smart-suggest-owned-data',
+        },
+      ],
+      sourceFiles: {
+        'ops/owned-data': {
+          'manifest.json':
+            '{"schemaVersion":"smart-suggest-owned-artifacts/v1"}',
+          'postal-prefix/CZ/101.json': '{"records":[]}',
+        },
+      },
+    });
+
+    await expect(
+      fs.readFile(
+        path.join(
+          outputDirectory,
+          'public/smart-suggest-owned-data/manifest.json',
+        ),
+        'utf-8',
+      ),
+    ).resolves.toBe('{"schemaVersion":"smart-suggest-owned-artifacts/v1"}');
+    await expect(
+      fs.readFile(
+        path.join(
+          outputDirectory,
+          'public/smart-suggest-owned-data/postal-prefix/CZ/101.json',
+        ),
+        'utf-8',
+      ),
+    ).resolves.toBe('{"records":[]}');
+  });
+
   it('emits declarative D1 bindings and stages migrations', async () => {
     const { outputDirectory } = await createFixture({
       d1Databases: [
@@ -1086,6 +1127,40 @@ describe('cloudflare deploy preset', () => {
         },
       }),
     ).rejects.toThrow(/deploy\.worker\.artifacts\[0\]\.to/u);
+  });
+
+  it('rejects public asset paths escape through parent directory segments', async () => {
+    await expect(
+      createFixture({
+        publicAssets: [
+          {
+            from: 'ops/..',
+            to: 'smart-suggest-owned-data',
+          },
+        ],
+        sourceFiles: {
+          ops: {
+            'manifest.json': '{}',
+          },
+        },
+      }),
+    ).rejects.toThrow(/deploy\.worker\.publicAssets\[0\]\.from/u);
+
+    await expect(
+      createFixture({
+        publicAssets: [
+          {
+            from: 'ops/manifest.json',
+            to: 'smart-suggest-owned-data/..',
+          },
+        ],
+        sourceFiles: {
+          ops: {
+            'manifest.json': '{}',
+          },
+        },
+      }),
+    ).rejects.toThrow(/deploy\.worker\.publicAssets\[0\]\.to/u);
   });
 
   it('places client-facing assets under the configured public asset root only', async () => {

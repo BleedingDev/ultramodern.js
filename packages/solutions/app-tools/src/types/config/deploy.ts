@@ -1,6 +1,7 @@
 import type {
   CloudflareWorkerArtifactConfig,
   CloudflareWorkerD1DatabaseConfig,
+  CloudflareWorkerPublicAssetConfig,
   CloudflareWorkerSecurityConfig,
   DeployTarget,
   JsonValue,
@@ -9,6 +10,7 @@ import type {
 export type {
   CloudflareWorkerArtifactConfig,
   CloudflareWorkerD1DatabaseConfig,
+  CloudflareWorkerPublicAssetConfig,
   CloudflareWorkerSecurityConfig,
   CloudflareWorkerSecurityCorsConfig,
   CloudflareWorkerSecurityCspConfig,
@@ -66,6 +68,11 @@ export interface DeployUserConfig {
      * Use this for provider resources such as migrations or generated config.
      */
     artifacts?: CloudflareWorkerArtifactConfig[];
+    /**
+     * Additional app-root files or directories to serve as Cloudflare Worker
+     * Static Assets under `.output/public`.
+     */
+    publicAssets?: CloudflareWorkerPublicAssetConfig[];
     /**
      * First-class Cloudflare D1 bindings. Modern.js writes these to
      * `wrangler.json` as `d1_databases` and stages configured migration

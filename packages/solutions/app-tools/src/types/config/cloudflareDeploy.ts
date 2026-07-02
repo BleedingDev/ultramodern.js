@@ -27,6 +27,18 @@ export interface CloudflareWorkerArtifactConfig {
   to: string;
 }
 
+export interface CloudflareWorkerPublicAssetConfig {
+  /**
+   * Source file or directory, relative to the app root, to copy into
+   * Cloudflare Worker Static Assets.
+   */
+  from: string;
+  /**
+   * Destination path relative to `.output/public`.
+   */
+  to: string;
+}
+
 export interface CloudflareWorkerD1DatabaseConfig {
   /**
    * Worker binding name, for example `DB`.
