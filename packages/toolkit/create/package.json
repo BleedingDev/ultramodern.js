@@ -93,7 +93,8 @@
     "@types/node": "^26.0.1",
     "@typescript/native-preview": "7.0.0-dev.20260628.1",
     "tsx": "^4.22.4",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "@modern-js/i18n-utils": "workspace:*"
   },
   "publishConfig": {
     "main": "./dist/esm-node/index.js",
