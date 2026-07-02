@@ -25,6 +25,17 @@ import { NODE_MODULES_REGEX } from './utils';
 
 const CSS_MODULES_REGEX = /\.modules?\.\w+$/i;
 const GLOBAL_CSS_REGEX = /\.global\.\w+$/;
+const DEFAULT_CSS_MINIFIER_OPTIONS = {
+  minimizerOptions: {
+    preset: [
+      'default',
+      {
+        calc: false,
+        mergeLonghand: false,
+      },
+    ],
+  },
+};
 
 /** Determine if a file path is a CSS module when disableCssModuleExtension is enabled. */
 export const isLooseCssModules = (path: string) => {
@@ -331,7 +342,7 @@ export async function parseCommonConfig(
 
   rsbuildPlugins.push(
     pluginCssMinimizer({
-      pluginOptions: minifyCss,
+      pluginOptions: minifyCss ?? DEFAULT_CSS_MINIFIER_OPTIONS,
     }),
   );
 

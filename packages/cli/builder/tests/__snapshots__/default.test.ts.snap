@@ -3865,6 +3865,7 @@ exports[`builder rspack > should generator rspack config correctly when prod 1`]
               "preset": [
                 "default",
                 {
+                  "calc": false,
                   "mergeLonghand": false,
                 },
               ],
@@ -4922,6 +4923,7 @@ exports[`builder rspack > should generator rspack config correctly when service-
               "preset": [
                 "default",
                 {
+                  "calc": false,
                   "mergeLonghand": false,
                 },
               ],
