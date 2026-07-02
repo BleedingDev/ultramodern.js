@@ -432,7 +432,7 @@ export function getBuilderEnvironments(
                   .workerChunkLoading('import');
                 chain.optimization
                   .usedExports(false)
-                  .providedExports(false)
+                  .providedExports(true)
                   .innerGraph(false)
                   .sideEffects(false);
                 chain.plugins.delete('plugin-module-federation');

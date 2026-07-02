@@ -1564,9 +1564,7 @@ async function dispatchBffRequest(request, env) {
     },
   };
 
-  return handler.length > 1
-    ? handler(mountedRequest, effectContext)
-    : handler(mountedRequest);
+  return handler(mountedRequest, effectContext);
 }
 
 export default {

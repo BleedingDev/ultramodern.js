@@ -1258,6 +1258,7 @@ describe('cloudflare deploy preset', () => {
     expect(effectBranch).toContain('createEffectBffEdgeHandler');
     expect(effectBranch).toContain('effectHandler.handler(request, { env })');
     expect(effectBranch).not.toContain('handler.length');
+    expect(entrySource).not.toContain('handler.length');
     expect(entrySource).not.toContain(
       'typeof runtime.dispatchEffectBffRequest',
     );

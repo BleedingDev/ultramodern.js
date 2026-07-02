@@ -282,7 +282,7 @@ describe('create builder Options', () => {
       expect(chunkLoading).toHaveBeenCalledWith('import');
       expect(workerChunkLoading).toHaveBeenCalledWith('import');
       expect(usedExports).toHaveBeenCalledWith(false);
-      expect(providedExports).toHaveBeenCalledWith(false);
+      expect(providedExports).toHaveBeenCalledWith(true);
       expect(innerGraph).toHaveBeenCalledWith(false);
       expect(sideEffects).toHaveBeenCalledWith(false);
       expect(deletedPlugins.has('plugin-module-federation')).toBe(true);
