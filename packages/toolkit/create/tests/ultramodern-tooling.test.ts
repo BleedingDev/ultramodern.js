@@ -123,6 +123,23 @@ test('Cloudflare output verifier wrapper uses explicit options contract', () => 
   );
 });
 
+test('routes-generate command drives the plugin-tanstack headless export', () => {
+  const source = fs.readFileSync(
+    path.join(__dirname, '../src/ultramodern-tooling/commands.ts'),
+    'utf-8',
+  );
+
+  assert.match(
+    source,
+    /case GENERATED_TOOLING_COMMANDS\.routesGenerate\.command:/u,
+  );
+  assert.match(
+    source,
+    /generateTanstackRouteArtifacts\(\{ appDirectory: target\.appDirectory \}\)/u,
+  );
+  assert.match(source, /appRequire\.resolve\('@modern-js\/plugin-tanstack'\)/u);
+});
+
 test('backend federation proof skips runtime loading when no backend apps exist', async () => {
   const { tempRoot, workspaceDir } = scaffoldWorkspace('tooling-proof-empty');
 
@@ -398,7 +415,7 @@ test('UltraModern tooling config reads compact config and rejects retired metada
 
     assert.throws(
       () => readUltramodernConfig(retiredMetadataWorkspaceDir),
-      /Missing UltraModern config\. Expected \.modernjs\/ultramodern\.json/u,
+      /Legacy UltraModern metadata detected/u,
     );
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
@@ -1274,4 +1291,319 @@ test('generated app tsconfig uses sibling-relative vertical references', () => {
       { path: '../catalog' },
     ],
   );
+});
+
+function hashWorkspaceTree(root: string): Record<string, string> {
+  const tree: Record<string, string> = {};
+  const walk = (dir: string) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const absolute = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(absolute);
+      } else if (entry.isFile()) {
+        const relative = path.relative(root, absolute);
+        tree[relative] = fs.readFileSync(absolute).toString('base64');
+      }
+    }
+  };
+  walk(root);
+  return tree;
+}
+
+function captureStdout<T>(run: () => T): { result: T; output: string } {
+  const original = process.stdout.write.bind(process.stdout);
+  let output = '';
+  (process.stdout as NodeJS.WriteStream).write = ((chunk: unknown) => {
+    output += typeof chunk === 'string' ? chunk : String(chunk);
+    return true;
+  }) as typeof process.stdout.write;
+  try {
+    const result = run();
+    return { result, output };
+  } finally {
+    process.stdout.write = original;
+  }
+}
+
+test('UltraModern migrate synthesizes the compact config from legacy 3.2 metadata', async () => {
+  const { tempRoot, workspaceDir } = scaffoldWorkspace('tooling-legacy-trio');
+
+  try {
+    fs.rmSync(path.join(workspaceDir, '.modernjs/ultramodern.json'));
+
+    writeJson(workspaceDir, retiredContractPath, {
+      schemaVersion: 1,
+      profile: 'cloudflare-ssr-mf-effect-v1',
+      apps: [
+        {
+          id: 'shell-super-app',
+          kind: 'shell',
+          path: 'apps/shell-super-app',
+          package: '@tooling-legacy-trio/shell-super-app',
+          styling: { tailwind: true },
+          moduleFederation: {
+            name: 'shellSuperApp',
+            role: 'host',
+            verticalRefs: [],
+          },
+          i18n: { namespace: 'shell' },
+        },
+      ],
+    });
+    writeJson(workspaceDir, retiredPackageSourcePath, {
+      schemaVersion: 1,
+      strategy: 'install',
+      modernPackages: {
+        specifier: '3.2.0-ultramodern.108',
+        registry: 'https://registry.npmjs.org/',
+        aliases: {
+          '@modern-js/app-tools': '@bleedingdev/modern-js-app-tools',
+        },
+      },
+    });
+    writeJson(workspaceDir, 'topology/local-overlays/development.json', {
+      ports: { 'shell-super-app': 8080 },
+    });
+
+    assert.equal(
+      await runUltramodernToolingCli(
+        [
+          'migrate-strict-effect',
+          '--version',
+          '3.5.0-ultramodern.1',
+          '--skip-install',
+        ],
+        workspaceDir,
+      ),
+      0,
+    );
+
+    assert.equal(
+      fs.existsSync(path.join(workspaceDir, '.modernjs/ultramodern.json')),
+      true,
+    );
+
+    const config = readUltramodernConfig(workspaceDir);
+    assert.equal(config.source, 'compact');
+    assert.equal(config.packageSource?.aliasScope, 'bleedingdev');
+    assert.equal(config.packageSource?.aliasPackageNamePrefix, 'modern-js-');
+    assert.equal(
+      config.packageSource?.modernPackageVersion,
+      '3.5.0-ultramodern.1',
+    );
+
+    const compactConfig = readJson(workspaceDir, '.modernjs/ultramodern.json');
+    assert.equal(compactConfig.packageSource.aliasScope, 'bleedingdev');
+    assert.equal(
+      compactConfig.packageSource.aliasPackageNamePrefix,
+      'modern-js-',
+    );
+    assert.equal(compactConfig.topology.apps[0].moduleFederation.role, 'host');
+    assert.equal(compactConfig.topology.apps[0].port, 8080);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('UltraModern migrate --dry-run leaves the workspace byte-identical', async () => {
+  const { tempRoot, workspaceDir } = scaffoldWorkspace('tooling-dry-run');
+
+  try {
+    const before = hashWorkspaceTree(workspaceDir);
+
+    const { result, output } = captureStdout(() =>
+      runUltramodernToolingCli(
+        [
+          'migrate-strict-effect',
+          '--dry-run',
+          '--version',
+          '3.5.0-ultramodern.1',
+        ],
+        workspaceDir,
+      ),
+    );
+    assert.equal(await result, 0);
+
+    const after = hashWorkspaceTree(workspaceDir);
+    assert.deepEqual(after, before);
+    assert.match(output, /\[dry-run\] would write/u);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('UltraModern migrate keeps generated gitignore rules idempotent', async () => {
+  const { tempRoot, workspaceDir } = scaffoldWorkspace('tooling-gitignore');
+
+  try {
+    for (let run = 0; run < 2; run += 1) {
+      assert.equal(
+        await runUltramodernToolingCli(
+          [
+            'migrate-strict-effect',
+            '--version',
+            '3.5.0-ultramodern.1',
+            '--skip-install',
+          ],
+          workspaceDir,
+        ),
+        0,
+      );
+    }
+
+    const gitignore = readText(workspaceDir, '.gitignore');
+    for (const rule of [
+      '.output/',
+      '**/.output/',
+      '.modern-js/',
+      '**/.modern-js/',
+    ]) {
+      const occurrences = gitignore
+        .split(/\r?\n/u)
+        .filter(line => line === rule).length;
+      assert.equal(occurrences, 1, `${rule} must appear exactly once`);
+    }
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('UltraModern migrate dedupes unquoted pnpm patchedDependencies keys', async () => {
+  const { tempRoot, workspaceDir } = scaffoldWorkspace('tooling-yaml-dedupe');
+
+  try {
+    const pnpmWorkspaceFile = path.join(workspaceDir, 'pnpm-workspace.yaml');
+    const unquotedLine = `  effect@${EFFECT_VERSION}: patches/effect-schema-error-type-id.patch`;
+    fs.writeFileSync(
+      pnpmWorkspaceFile,
+      fs
+        .readFileSync(pnpmWorkspaceFile, 'utf-8')
+        .replace(
+          `  'effect@${EFFECT_VERSION}': patches/effect-schema-error-type-id.patch`,
+          `${unquotedLine}\n${unquotedLine}`,
+        ),
+      'utf-8',
+    );
+
+    assert.equal(
+      await runUltramodernToolingCli(
+        [
+          'migrate-strict-effect',
+          '--version',
+          '3.5.0-ultramodern.1',
+          '--skip-install',
+        ],
+        workspaceDir,
+      ),
+      0,
+    );
+
+    const pnpmWorkspace = fs.readFileSync(pnpmWorkspaceFile, 'utf-8');
+    const effectPatchLines = pnpmWorkspace
+      .split(/\r?\n/u)
+      .filter(line =>
+        /effect@.*effect-schema-error-type-id\.patch/u.test(line),
+      );
+    assert.deepEqual(effectPatchLines, [
+      `  'effect@${EFFECT_VERSION}': patches/effect-schema-error-type-id.patch`,
+    ]);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('UltraModern migrate syncs oxfmt ignorePatterns and tolerates unparseable configs', async () => {
+  const { tempRoot, workspaceDir } = scaffoldWorkspace('tooling-oxfmt');
+
+  try {
+    const oxfmtPath = path.join(workspaceDir, 'oxfmt.config.ts');
+    fs.writeFileSync(
+      oxfmtPath,
+      `import { defineConfig } from 'oxfmt';
+
+export default defineConfig({
+  ignorePatterns: [
+    '.modernjs',
+    '**/modern-tanstack/**',
+  ],
+  singleQuote: true,
+});
+`,
+      'utf-8',
+    );
+
+    assert.equal(
+      await runUltramodernToolingCli(
+        [
+          'migrate-strict-effect',
+          '--version',
+          '3.5.0-ultramodern.1',
+          '--skip-install',
+        ],
+        workspaceDir,
+      ),
+      0,
+    );
+
+    const patched = fs.readFileSync(oxfmtPath, 'utf-8');
+    for (const pattern of [
+      '.modernjs',
+      '.output',
+      '**/modern-tanstack/**',
+      '**/routeTree.gen.*',
+    ]) {
+      const occurrences = patched
+        .split(/\r?\n/u)
+        .filter(line => line.includes(`'${pattern}'`)).length;
+      assert.equal(occurrences, 1, `${pattern} must appear exactly once`);
+    }
+
+    const afterFirst = patched;
+    assert.equal(
+      await runUltramodernToolingCli(
+        [
+          'migrate-strict-effect',
+          '--version',
+          '3.5.0-ultramodern.1',
+          '--skip-install',
+        ],
+        workspaceDir,
+      ),
+      0,
+    );
+    assert.equal(
+      fs.readFileSync(oxfmtPath, 'utf-8'),
+      afterFirst,
+      'oxfmt ignorePatterns sync must be idempotent',
+    );
+
+    const unparseable = `import { defineConfig } from 'oxfmt';
+import extra from './extra-ignores';
+
+export default defineConfig({
+  ignorePatterns: [...extra],
+  singleQuote: true,
+});
+`;
+    fs.writeFileSync(oxfmtPath, unparseable, 'utf-8');
+    assert.equal(
+      await runUltramodernToolingCli(
+        [
+          'migrate-strict-effect',
+          '--version',
+          '3.5.0-ultramodern.1',
+          '--skip-install',
+        ],
+        workspaceDir,
+      ),
+      0,
+    );
+    assert.equal(
+      fs.readFileSync(oxfmtPath, 'utf-8'),
+      unparseable,
+      'unparseable ignorePatterns must be left byte-unchanged',
+    );
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
 });

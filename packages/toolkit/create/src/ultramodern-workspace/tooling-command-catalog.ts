@@ -8,7 +8,8 @@ export type GeneratedToolingCommandId =
   | 'cloudflareProof'
   | 'cloudflareOutputVerify'
   | 'performanceReadiness'
-  | 'migrateStrictEffect';
+  | 'migrateStrictEffect'
+  | 'routesGenerate';
 
 export type GeneratedToolingCommandKey = GeneratedToolingCommandId;
 
@@ -110,6 +111,12 @@ export const generatedToolingCommands = [
     wrapperName: 'migrate-strict-effect',
     contractKey: 'migrateStrictEffect',
     rootScript: 'migrate:strict-effect',
+  }),
+  defineToolingCommand({
+    id: 'routesGenerate',
+    command: 'routes-generate',
+    wrapperName: 'generate-tanstack-routes',
+    contractKey: 'routesGenerate',
   }),
 ] as const satisfies readonly GeneratedToolingCommand[];
 

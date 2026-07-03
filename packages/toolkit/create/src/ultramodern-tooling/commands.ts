@@ -58,7 +58,9 @@ import {
 } from '../ultramodern-workspace/workspace-scripts';
 import { createZeropsYaml } from '../ultramodern-workspace/zerops';
 import {
+  normalizeCompactUltramodernConfig,
   readUltramodernConfig,
+  synthesizeCompactUltramodernConfig,
   type UltramodernToolingConfig,
   workspaceAppsFromToolingConfig,
 } from './config';
@@ -183,12 +185,68 @@ const modernPackageNames = new Set<string>([
   ...ULTRAMODERN_WORKSPACE_MODERN_PACKAGES,
 ]);
 
+type MigrationIo = {
+  workspaceRoot: string;
+  dryRun: boolean;
+  plan: string[];
+  write(filePath: string, content: string): boolean;
+  remove(filePath: string): boolean;
+  log(message: string): void;
+};
+
+function createMigrationIo(
+  workspaceRoot: string,
+  dryRun: boolean,
+): MigrationIo {
+  const plan: string[] = [];
+  const rel = (p: string) =>
+    path.relative(workspaceRoot, p) || path.basename(p);
+  return {
+    workspaceRoot,
+    dryRun,
+    plan,
+    write(filePath, content) {
+      if (
+        fs.existsSync(filePath) &&
+        fs.readFileSync(filePath, 'utf-8') === content
+      ) {
+        return false;
+      }
+      if (dryRun) {
+        plan.push(`[dry-run] would write ${rel(filePath)}`);
+        return true;
+      }
+      fs.mkdirSync(path.dirname(filePath), { recursive: true });
+      fs.writeFileSync(filePath, content, 'utf-8');
+      return true;
+    },
+    remove(filePath) {
+      if (!fs.existsSync(filePath)) {
+        return false;
+      }
+      if (dryRun) {
+        plan.push(`[dry-run] would delete ${rel(filePath)}`);
+        return true;
+      }
+      fs.rmSync(filePath);
+      return true;
+    },
+    log(message) {
+      if (dryRun) {
+        plan.push(`[dry-run] ${message}`);
+      } else {
+        process.stdout.write(`[ultramodern] ${message}\n`);
+      }
+    },
+  };
+}
+
 function readJsonFile(filePath: string) {
   return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
 }
 
-function writeJsonFile(filePath: string, value: unknown) {
-  fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf-8');
+function writeJsonFile(io: MigrationIo, filePath: string, value: unknown) {
+  return io.write(filePath, `${JSON.stringify(value, null, 2)}\n`);
 }
 
 function readOption(args: string[], name: string) {
@@ -562,21 +620,12 @@ function normalizeStrictEffectApiMetadata(value: Record<string, any>) {
   return changed;
 }
 
-function removeGeneratedFileIfExists(
-  workspaceRoot: string,
-  relativePath: string,
-) {
-  const filePath = path.join(workspaceRoot, relativePath);
-  if (!fs.existsSync(filePath)) {
-    return false;
-  }
-
-  fs.rmSync(filePath);
-  return true;
+function removeGeneratedFileIfExists(io: MigrationIo, relativePath: string) {
+  return io.remove(path.join(io.workspaceRoot, relativePath));
 }
 
 function removeStaleBackendFederationArtifacts(
-  workspaceRoot: string,
+  io: MigrationIo,
   config: UltramodernToolingConfig,
 ) {
   let changed = false;
@@ -585,14 +634,13 @@ function removeStaleBackendFederationArtifacts(
     'scripts/proof-node-backend-federation.mts',
     'scripts/verify-cloudflare-output.mts',
   ]) {
-    changed =
-      removeGeneratedFileIfExists(workspaceRoot, relativePath) || changed;
+    changed = removeGeneratedFileIfExists(io, relativePath) || changed;
   }
 
   for (const app of workspaceAppsFromToolingConfig(config)) {
     changed =
       removeGeneratedFileIfExists(
-        workspaceRoot,
+        io,
         path.join(app.directory, 'api/backend-federation.ts'),
       ) || changed;
   }
@@ -601,36 +649,44 @@ function removeStaleBackendFederationArtifacts(
 }
 
 function updateGeneratedZeropsArtifacts(
-  workspaceRoot: string,
+  io: MigrationIo,
   config: UltramodernToolingConfig,
 ) {
   const apps = workspaceAppsFromToolingConfig(config);
   let changed = writeTextIfChanged(
-    path.join(workspaceRoot, 'zerops.yaml'),
+    io,
+    path.join(io.workspaceRoot, 'zerops.yaml'),
     `${createZeropsYaml(config.workspace.packageScope, apps)}\n`,
   );
   changed =
     writeTextIfChanged(
-      path.join(workspaceRoot, 'scripts/materialize-zerops-runtime.mjs'),
+      io,
+      path.join(io.workspaceRoot, 'scripts/materialize-zerops-runtime.mjs'),
       createZeropsRuntimeMaterializationScript(),
     ) || changed;
   return changed;
 }
 
 function updateGeneratedBuildIdentityModules(
-  workspaceRoot: string,
+  io: MigrationIo,
   config: UltramodernToolingConfig,
 ) {
   let changed = false;
   for (const app of workspaceAppsFromToolingConfig(config)) {
     changed =
       writeTextIfChanged(
-        path.join(workspaceRoot, app.directory, 'src/ultramodern-build.ts'),
+        io,
+        path.join(io.workspaceRoot, app.directory, 'src/ultramodern-build.ts'),
         createUltramodernBuildReexportModule(),
       ) || changed;
     changed =
       writeTextIfChanged(
-        path.join(workspaceRoot, app.directory, 'shared/ultramodern-build.ts'),
+        io,
+        path.join(
+          io.workspaceRoot,
+          app.directory,
+          'shared/ultramodern-build.ts',
+        ),
         createUltramodernBuildModule(config.workspace.packageScope, app),
       ) || changed;
   }
@@ -638,7 +694,7 @@ function updateGeneratedBuildIdentityModules(
 }
 
 function updateGeneratedBackendFederationContractFiles(
-  workspaceRoot: string,
+  io: MigrationIo,
   config: UltramodernToolingConfig,
 ) {
   let changed = false;
@@ -648,7 +704,8 @@ function updateGeneratedBackendFederationContractFiles(
     }
     changed =
       writeTextIfChanged(
-        path.join(workspaceRoot, app.directory, 'api/backend-federation.ts'),
+        io,
+        path.join(io.workspaceRoot, app.directory, 'api/backend-federation.ts'),
         createBackendFederationContractFile(app),
       ) || changed;
   }
@@ -693,34 +750,54 @@ function ensureYamlListItem(source: string, key: string, item: string) {
   };
 }
 
-function ensureYamlMapEntry(
+function yamlEntryPattern(entryKey: string, scalar = false): RegExp {
+  const bareKey = entryKey.replace(/^['"]|['"]$/gu, '');
+  if (scalar) {
+    const esc = bareKey.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+    return new RegExp(`^ {2}(?:'${esc}'|"${esc}"|${esc}): .+$`, 'gmu');
+  }
+
+  const packageName = bareKey.includes('@')
+    ? bareKey.slice(0, bareKey.lastIndexOf('@'))
+    : bareKey;
+  const esc = packageName.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+  return new RegExp(
+    `^ {2}(?:'${esc}@[^']+'|"${esc}@[^"]+"|${esc}@[^:'"\\s]+): .+$`,
+    'gmu',
+  );
+}
+
+function upsertYamlEntry(
   source: string,
   key: string,
-  entryKey: string,
-  value: string,
+  entryLine: string,
+  pattern: RegExp,
 ) {
-  const entryLine = `  '${entryKey}': ${value}`;
-  const packageName = entryKey.includes('@')
-    ? entryKey.slice(0, entryKey.lastIndexOf('@'))
-    : entryKey;
-  const escapedPackageName = packageName.replace(
-    /[.*+?^${}()|[\]\\]/gu,
-    '\\$&',
-  );
-  const currentEntryPattern = new RegExp(
-    `^ {2}'${escapedPackageName}@[^']+': .+$`,
-    'mu',
-  );
-  const currentEntry = source.match(currentEntryPattern);
-  if (currentEntry) {
-    if (currentEntry[0] === entryLine) {
-      return { source, changed: false };
-    }
+  const linePattern = new RegExp(pattern.source, 'u');
+  const lines = source.split('\n');
+  let seen = false;
+  let changed = false;
+  const out: string[] = [];
 
-    return {
-      source: source.replace(currentEntryPattern, entryLine),
-      changed: true,
-    };
+  for (const line of lines) {
+    if (linePattern.test(line)) {
+      if (seen) {
+        // Drop duplicate matching entries; the first match is canonical.
+        changed = true;
+        continue;
+      }
+      seen = true;
+      if (line !== entryLine) {
+        changed = true;
+      }
+      out.push(entryLine);
+    } else {
+      out.push(line);
+    }
+  }
+
+  if (seen) {
+    return { source: out.join('\n'), changed };
   }
 
   const headerPattern = new RegExp(`^${key}:\\n(?:(?:  .+\\n)*)`, 'mu');
@@ -742,90 +819,67 @@ function ensureYamlMapEntry(
   };
 }
 
+function ensureYamlMapEntry(
+  source: string,
+  key: string,
+  entryKey: string,
+  value: string,
+) {
+  return upsertYamlEntry(
+    source,
+    key,
+    `  '${entryKey}': ${value}`,
+    yamlEntryPattern(entryKey),
+  );
+}
+
 function ensureYamlScalarMapEntry(
   source: string,
   key: string,
   entryKey: string,
   value: string,
 ) {
-  const entryLine = `  ${entryKey}: ${value}`;
-  const escapedEntryKey = entryKey.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
-  const currentEntryPattern = new RegExp(`^ {2}${escapedEntryKey}: .+$`, 'mu');
-  const currentEntry = source.match(currentEntryPattern);
-  if (currentEntry) {
-    if (currentEntry[0] === entryLine) {
-      return { source, changed: false };
-    }
-
-    return {
-      source: source.replace(currentEntryPattern, entryLine),
-      changed: true,
-    };
-  }
-
-  const headerPattern = new RegExp(`^${key}:\\n(?:(?:  .+\\n)*)`, 'mu');
-  const header = source.match(headerPattern);
-  if (header) {
-    return {
-      source: source.replace(headerPattern, `${header[0]}${entryLine}\n`),
-      changed: true,
-    };
-  }
-
-  return {
-    source: `${source.trimEnd()}\n${key}:\n${entryLine}\n`,
-    changed: true,
-  };
+  return upsertYamlEntry(
+    source,
+    key,
+    `  ${entryKey}: ${value}`,
+    yamlEntryPattern(entryKey, true),
+  );
 }
 
 function removeYamlMapEntry(source: string, entryKey: string) {
-  const packageName = entryKey.includes('@')
-    ? entryKey.slice(0, entryKey.lastIndexOf('@'))
-    : entryKey;
-  const escapedPackageName = packageName.replace(
-    /[.*+?^${}()|[\]\\]/gu,
-    '\\$&',
-  );
-  const currentEntryPattern = new RegExp(
-    `^ {2}'${escapedPackageName}@[^']+': .+\\n?`,
-    'mu',
-  );
+  const linePattern = new RegExp(yamlEntryPattern(entryKey).source, 'u');
+  const lines = source.split('\n');
+  let changed = false;
+  const out: string[] = [];
 
-  if (!currentEntryPattern.test(source)) {
-    return { source, changed: false };
+  for (const line of lines) {
+    if (linePattern.test(line)) {
+      changed = true;
+      continue;
+    }
+    out.push(line);
   }
 
-  return {
-    source: source.replace(currentEntryPattern, ''),
-    changed: true,
-  };
+  return changed ? { source: out.join('\n'), changed } : { source, changed };
 }
 
 function ensureGeneratedPatchFile(
-  workspaceRoot: string,
+  io: MigrationIo,
   relativePatchPath: string,
   sourcePatchPath: string,
 ) {
-  const targetPath = path.join(workspaceRoot, relativePatchPath);
+  const targetPath = path.join(io.workspaceRoot, relativePatchPath);
   const patch = fs.readFileSync(sourcePatchPath, 'utf-8');
-  if (
-    fs.existsSync(targetPath) &&
-    fs.readFileSync(targetPath, 'utf-8') === patch
-  ) {
-    return false;
-  }
-
-  fs.mkdirSync(path.dirname(targetPath), { recursive: true });
-  fs.writeFileSync(targetPath, patch, 'utf-8');
-  return true;
+  return io.write(targetPath, patch);
 }
 
 function removeGeneratedPatchFileIfUnchanged(
-  workspaceRoot: string,
+  io: MigrationIo,
   relativePatchPath: string,
   sourcePatchPath: string,
 ) {
-  const targetPath = path.join(workspaceRoot, relativePatchPath);
+  const targetPath = path.join(io.workspaceRoot, relativePatchPath);
   if (!fs.existsSync(targetPath)) {
     return false;
   }
@@ -835,8 +889,7 @@ function removeGeneratedPatchFileIfUnchanged(
     return false;
   }
 
-  fs.rmSync(targetPath);
-  return true;
+  return io.remove(targetPath);
 }
 
 function workspaceUsesDependency(workspaceRoot: string, packageName: string) {
@@ -898,39 +951,39 @@ function workspaceUsesDependency(workspaceRoot: string, packageName: string) {
 }
 
 function ensureGeneratedDeclarationPatches(
-  workspaceRoot: string,
+  io: MigrationIo,
   options: { includeDrizzleOrmPatch: boolean },
 ) {
   let changed = false;
   changed =
     ensureGeneratedPatchFile(
-      workspaceRoot,
+      io,
       moduleFederationModernJsPatchPath,
       moduleFederationModernJsPatchSourcePath,
     ) || changed;
   changed =
     ensureGeneratedPatchFile(
-      workspaceRoot,
+      io,
       moduleFederationBridgeReactPatchPath,
       moduleFederationBridgeReactPatchSourcePath,
     ) || changed;
   changed =
     ensureGeneratedPatchFile(
-      workspaceRoot,
+      io,
       effectDeclarationPatchPath,
       effectDeclarationPatchSourcePath,
     ) || changed;
   if (options.includeDrizzleOrmPatch) {
     changed =
       ensureGeneratedPatchFile(
-        workspaceRoot,
+        io,
         drizzleOrmDeclarationPatchPath,
         drizzleOrmDeclarationPatchSourcePath,
       ) || changed;
   } else {
     changed =
       removeGeneratedPatchFileIfUnchanged(
-        workspaceRoot,
+        io,
         drizzleOrmDeclarationPatchPath,
         drizzleOrmDeclarationPatchSourcePath,
       ) || changed;
@@ -938,15 +991,18 @@ function ensureGeneratedDeclarationPatches(
   return changed;
 }
 
-function updateGeneratedPnpmWorkspacePolicy(workspaceRoot: string) {
-  const workspaceFile = path.join(workspaceRoot, 'pnpm-workspace.yaml');
+function updateGeneratedPnpmWorkspacePolicy(io: MigrationIo) {
+  const workspaceFile = path.join(io.workspaceRoot, 'pnpm-workspace.yaml');
   if (!fs.existsSync(workspaceFile)) {
     return false;
   }
 
   let source = fs.readFileSync(workspaceFile, 'utf-8');
   let changed = false;
-  const usesDrizzleOrm = workspaceUsesDependency(workspaceRoot, 'drizzle-orm');
+  const usesDrizzleOrm = workspaceUsesDependency(
+    io.workspaceRoot,
+    'drizzle-orm',
+  );
 
   const replacements: Array<[RegExp, string]> = [
     [
@@ -1048,18 +1104,18 @@ function updateGeneratedPnpmWorkspacePolicy(workspaceRoot: string) {
   changed = drizzleOrmPatch.changed || changed;
 
   if (changed) {
-    fs.writeFileSync(workspaceFile, source, 'utf-8');
+    io.write(workspaceFile, source);
   }
 
   return changed;
 }
 
 function updateUltramodernConfig(
-  workspaceRoot: string,
+  io: MigrationIo,
+  config: Record<string, any>,
   packageSource: ResolvedUltramodernPackageSource,
 ) {
-  const configPath = path.join(workspaceRoot, '.modernjs/ultramodern.json');
-  const config = readJsonFile(configPath);
+  const configPath = path.join(io.workspaceRoot, '.modernjs/ultramodern.json');
   config.packageSource = {
     strategy: packageSource.strategy,
     modernPackageVersion: packageSource.modernPackageVersion,
@@ -1078,32 +1134,19 @@ function updateUltramodernConfig(
     }
   }
 
-  writeJsonFile(configPath, config);
+  writeJsonFile(io, configPath, config);
 }
 
-function writeJsonIfChanged(filePath: string, value: unknown) {
-  const next = `${JSON.stringify(value, null, 2)}\n`;
-  if (fs.existsSync(filePath) && fs.readFileSync(filePath, 'utf-8') === next) {
-    return false;
-  }
-
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, next, 'utf-8');
-  return true;
+function writeJsonIfChanged(io: MigrationIo, filePath: string, value: unknown) {
+  return io.write(filePath, `${JSON.stringify(value, null, 2)}\n`);
 }
 
-function writeTextIfChanged(filePath: string, value: string) {
-  if (fs.existsSync(filePath) && fs.readFileSync(filePath, 'utf-8') === value) {
-    return false;
-  }
-
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, value, 'utf-8');
-  return true;
+function writeTextIfChanged(io: MigrationIo, filePath: string, value: string) {
+  return io.write(filePath, value);
 }
 
-function ensureGeneratedIgnoreRules(workspaceRoot: string) {
-  const gitignorePath = path.join(workspaceRoot, '.gitignore');
+function ensureGeneratedIgnoreRules(io: MigrationIo) {
+  const gitignorePath = path.join(io.workspaceRoot, '.gitignore');
   const existing = fs.existsSync(gitignorePath)
     ? fs.readFileSync(gitignorePath, 'utf-8')
     : '';
@@ -1111,7 +1154,15 @@ function ensureGeneratedIgnoreRules(workspaceRoot: string) {
     existing.trimEnd().length === 0 ? [] : existing.trimEnd().split(/\r?\n/u);
   let changed = false;
 
-  for (const rule of ['.mf/', '**/.mf/', 'dist-cloudflare/']) {
+  for (const rule of [
+    '.mf/',
+    '**/.mf/',
+    'dist-cloudflare/',
+    '.output/',
+    '**/.output/',
+    '.modern-js/',
+    '**/.modern-js/',
+  ]) {
     if (!lines.includes(rule)) {
       lines.push(rule);
       changed = true;
@@ -1122,13 +1173,11 @@ function ensureGeneratedIgnoreRules(workspaceRoot: string) {
     return false;
   }
 
-  const next = `${lines.join('\n')}\n`;
-  fs.writeFileSync(gitignorePath, next, 'utf-8');
-  return true;
+  return io.write(gitignorePath, `${lines.join('\n')}\n`);
 }
 
 function updateGeneratedTypeScriptSurfaces(
-  workspaceRoot: string,
+  io: MigrationIo,
   config: UltramodernToolingConfig,
 ) {
   let changed = false;
@@ -1137,10 +1186,11 @@ function updateGeneratedTypeScriptSurfaces(
 
   changed =
     writeJsonIfChanged(
-      path.join(workspaceRoot, 'tsconfig.base.json'),
+      io,
+      path.join(io.workspaceRoot, 'tsconfig.base.json'),
       createTsConfigBase(),
     ) || changed;
-  changed = ensureGeneratedIgnoreRules(workspaceRoot) || changed;
+  changed = ensureGeneratedIgnoreRules(io) || changed;
 
   for (const sharedPackage of [
     'packages/shared-contracts',
@@ -1148,7 +1198,8 @@ function updateGeneratedTypeScriptSurfaces(
   ]) {
     changed =
       writeJsonIfChanged(
-        path.join(workspaceRoot, sharedPackage, 'tsconfig.json'),
+        io,
+        path.join(io.workspaceRoot, sharedPackage, 'tsconfig.json'),
         createSharedPackageTsConfig(sharedPackage),
       ) || changed;
   }
@@ -1156,17 +1207,20 @@ function updateGeneratedTypeScriptSurfaces(
   for (const app of apps) {
     changed =
       writeJsonIfChanged(
-        path.join(workspaceRoot, app.directory, 'tsconfig.json'),
+        io,
+        path.join(io.workspaceRoot, app.directory, 'tsconfig.json'),
         createAppTsConfig(app, remotes),
       ) || changed;
     changed =
       writeJsonIfChanged(
-        path.join(workspaceRoot, app.directory, 'tsconfig.mf-types.json'),
+        io,
+        path.join(io.workspaceRoot, app.directory, 'tsconfig.mf-types.json'),
         createAppMfTypesTsConfig(app),
       ) || changed;
     changed =
       writeTextIfChanged(
-        path.join(workspaceRoot, app.directory, 'src/modern-app-env.d.ts'),
+        io,
+        path.join(io.workspaceRoot, app.directory, 'src/modern-app-env.d.ts'),
         createAppEnvDts(app, remotes),
       ) || changed;
   }
@@ -1175,7 +1229,7 @@ function updateGeneratedTypeScriptSurfaces(
 }
 
 function updateGeneratedModernConfigs(
-  workspaceRoot: string,
+  io: MigrationIo,
   config: UltramodernToolingConfig,
 ) {
   let changed = false;
@@ -1185,7 +1239,8 @@ function updateGeneratedModernConfigs(
   for (const app of apps) {
     changed =
       writeTextIfChanged(
-        path.join(workspaceRoot, app.directory, 'modern.config.ts'),
+        io,
+        path.join(io.workspaceRoot, app.directory, 'modern.config.ts'),
         createAppModernConfig(config.workspace.packageScope, app, remotes),
       ) || changed;
   }
@@ -1193,9 +1248,127 @@ function updateGeneratedModernConfigs(
   return changed;
 }
 
-function updateReferenceTopology(workspaceRoot: string) {
+function ensureGeneratedOxfmtIgnorePatterns(io: MigrationIo) {
+  const configPath = path.join(io.workspaceRoot, 'oxfmt.config.ts');
+  if (!fs.existsSync(configPath)) {
+    return false;
+  }
+
+  const source = fs.readFileSync(configPath, 'utf-8');
+  const requiredPatterns = [
+    '.modernjs',
+    '.output',
+    '**/modern-tanstack/**',
+    '**/routeTree.gen.*',
+  ];
+
+  const warnUnparseable = () => {
+    const message =
+      `Could not update oxfmt.config.ts ignorePatterns automatically; ` +
+      `add these entries manually: ${requiredPatterns.join(', ')}.`;
+    if (io.dryRun) {
+      io.log(message);
+    } else {
+      process.stderr.write(`[ultramodern] ${message}\n`);
+    }
+  };
+
+  const anchor = source.indexOf('ignorePatterns:');
+  if (anchor === -1) {
+    warnUnparseable();
+    return false;
+  }
+
+  const openBracket = source.indexOf('[', anchor);
+  if (openBracket === -1) {
+    warnUnparseable();
+    return false;
+  }
+
+  // Bracket-match to find the matching closing ], skipping brackets inside
+  // string literals (e.g. a glob like '**/[locale]/**').
+  let depth = 0;
+  let closeBracket = -1;
+  let stringQuote: string | undefined;
+  for (let index = openBracket; index < source.length; index += 1) {
+    const char = source[index];
+    if (stringQuote) {
+      if (char === '\\') {
+        index += 1;
+      } else if (char === stringQuote) {
+        stringQuote = undefined;
+      }
+      continue;
+    }
+    if (char === "'" || char === '"' || char === '`') {
+      stringQuote = char;
+    } else if (char === '[') {
+      depth += 1;
+    } else if (char === ']') {
+      depth -= 1;
+      if (depth === 0) {
+        closeBracket = index;
+        break;
+      }
+    }
+  }
+
+  if (closeBracket === -1) {
+    warnUnparseable();
+    return false;
+  }
+
+  const body = source.slice(openBracket + 1, closeBracket);
+  // Reject dynamic/spread ignorePattern arrays we cannot safely edit.
+  if (body.includes('...')) {
+    warnUnparseable();
+    return false;
+  }
+
+  const literalPattern = /(['"`])((?:\\.|(?!\1).)*)\1/g;
+  const existing = new Set<string>();
+  for (const match of body.matchAll(literalPattern)) {
+    existing.add(match[2]);
+  }
+
+  const missing = requiredPatterns.filter(pattern => !existing.has(pattern));
+  if (missing.length === 0) {
+    return false;
+  }
+
+  // Derive indentation and quote style from the last existing literal line.
+  const bodyLines = body.split('\n');
+  let indent = '  ';
+  let quote = "'";
+  for (let index = bodyLines.length - 1; index >= 0; index -= 1) {
+    const literal = bodyLines[index].match(/^(\s*)(['"`])/u);
+    if (literal) {
+      indent = literal[1];
+      quote = literal[2];
+      break;
+    }
+  }
+
+  const head = source.slice(0, closeBracket);
+  const rest = source.slice(closeBracket);
+  const tailMatch = head.match(/(\r?\n[ \t]*)$/u);
+  const tail = tailMatch ? tailMatch[1] : '\n';
+  let bodyContent = tailMatch ? head.slice(0, head.length - tail.length) : head;
+  if (!/[[,]\s*$/u.test(bodyContent)) {
+    bodyContent = `${bodyContent},`;
+  }
+
+  const insertionLines = missing
+    .map(pattern => `${indent}${quote}${pattern}${quote},`)
+    .join('\n');
+  const nextSource = `${bodyContent}\n${insertionLines}${tail}${rest}`;
+
+  return io.write(configPath, nextSource);
+}
+
+function updateReferenceTopology(io: MigrationIo) {
   const topologyPath = path.join(
-    workspaceRoot,
+    io.workspaceRoot,
     'topology/reference-topology.json',
   );
   if (!fs.existsSync(topologyPath)) {
@@ -1211,7 +1384,7 @@ function updateReferenceTopology(workspaceRoot: string) {
   }
 
   if (changed) {
-    writeJsonFile(topologyPath, topology);
+    writeJsonFile(io, topologyPath, topology);
   }
 
   return changed;
@@ -1289,39 +1462,84 @@ function runPnpmLockfileRefresh(context: CommandContext) {
 function runMigrateStrictEffect(args: string[], context: CommandContext) {
   if (args.includes('--help') || args.includes('-h')) {
     process.stdout.write(`Usage:
-  modern-js-create ultramodern migrate-strict-effect --version <version> [--skip-install]
+  modern-js-create ultramodern migrate-strict-effect --version <version> [--dry-run] [--skip-install]
 
 Updates generated UltraModern package-source metadata, Modern package aliases,
 framework-owned toolchain pins, direct Effect API topology metadata, strict
 Effect pnpm overrides/trust policy, framework-owned TypeScript config
 surfaces, and the pnpm lockfile. Source code still has to pass pnpm api:check
 and pnpm contract:check.
+
+When the compact config is absent but legacy UltraModern 3.2 metadata is
+present, the compact config is synthesized from it first. Shell-only
+workspaces skip the backend-federation and Zerops runtime stages. Pass
+--dry-run to print the planned filesystem changes without writing anything
+(implies --skip-install).
 `);
     return 0;
   }
 
-  const current = readUltramodernConfig(context.workspaceRoot);
+  const dryRun = hasFlag(args, '--dry-run');
+  const skipInstall = dryRun || hasFlag(args, '--skip-install');
+  const io = createMigrationIo(context.workspaceRoot, dryRun);
+
+  const compactPath = path.join(io.workspaceRoot, '.modernjs/ultramodern.json');
+  let raw: Record<string, any>;
+  if (fs.existsSync(compactPath)) {
+    raw = readJsonFile(compactPath);
+  } else {
+    const synthesized = synthesizeCompactUltramodernConfig(io.workspaceRoot);
+    if (!synthesized) {
+      throw new Error(
+        'Missing .modernjs/ultramodern.json and no legacy UltraModern metadata ' +
+          '(.modernjs/ultramodern-generated-contract.json) was found to synthesize it from.',
+      );
+    }
+    raw = synthesized.compact;
+    io.write(compactPath, `${JSON.stringify(raw, null, 2)}\n`);
+    io.log(
+      `Synthesized .modernjs/ultramodern.json from legacy metadata: ${synthesized.sources.join(', ')}.`,
+    );
+    if (synthesized.missing.length > 0) {
+      io.log(
+        `Legacy metadata not found (using defaults): ${synthesized.missing.join(', ')}.`,
+      );
+    }
+  }
+
+  const current = normalizeCompactUltramodernConfig(io.workspaceRoot, raw);
   const packageSource = createMigrationPackageSource(args, current);
 
-  updateUltramodernConfig(context.workspaceRoot, packageSource);
-  updateReferenceTopology(context.workspaceRoot);
-  const migrated = readUltramodernConfig(context.workspaceRoot);
+  updateUltramodernConfig(io, raw, packageSource);
+  updateReferenceTopology(io);
+  const migrated = normalizeCompactUltramodernConfig(io.workspaceRoot, raw);
   const migratedApps = workspaceAppsFromToolingConfig(migrated);
-  removeStaleBackendFederationArtifacts(context.workspaceRoot, migrated);
-  writeGeneratedToolWrapperScripts(context.workspaceRoot);
-  updateGeneratedZeropsArtifacts(context.workspaceRoot, migrated);
-  updateGeneratedBackendFederationContractFiles(
-    context.workspaceRoot,
-    migrated,
-  );
-  updateGeneratedBuildIdentityModules(context.workspaceRoot, migrated);
-  updateGeneratedTypeScriptSurfaces(context.workspaceRoot, migrated);
-  updateGeneratedModernConfigs(context.workspaceRoot, migrated);
+  const shellOnly = !migrated.topology.apps.some(app => app.api);
+
+  if (shellOnly) {
+    io.log(
+      'Shell-only workspace: skipping backend-federation and Zerops runtime stages.',
+    );
+  } else {
+    removeStaleBackendFederationArtifacts(io, migrated);
+    updateGeneratedZeropsArtifacts(io, migrated);
+    updateGeneratedBackendFederationContractFiles(io, migrated);
+  }
+
+  if (dryRun) {
+    io.log('would refresh generated tool wrapper scripts under scripts/');
+  } else {
+    writeGeneratedToolWrapperScripts(io.workspaceRoot);
+  }
+
+  updateGeneratedBuildIdentityModules(io, migrated);
+  updateGeneratedTypeScriptSurfaces(io, migrated);
+  updateGeneratedModernConfigs(io, migrated);
 
   for (const relativePackageFile of listWorkspacePackageFiles(
-    context.workspaceRoot,
+    io.workspaceRoot,
   )) {
-    const packageFile = path.join(context.workspaceRoot, relativePackageFile);
+    const packageFile = path.join(io.workspaceRoot, relativePackageFile);
     const packageJson = readJsonFile(packageFile);
 
     if (relativePackageFile === 'package.json') {
@@ -1332,41 +1550,40 @@ and pnpm contract:check.
       };
     }
 
-    const modernDependenciesChanged = updateModernDependencies(
-      packageJson,
-      packageSource,
-    );
-    const toolingDependenciesChanged =
-      updateGeneratedToolingDependencies(packageJson);
-    const generatedScriptsChanged = updateGeneratedPackageScripts(packageJson, {
+    updateModernDependencies(packageJson, packageSource);
+    updateGeneratedToolingDependencies(packageJson);
+    updateGeneratedPackageScripts(packageJson, {
       relativePackageFile,
       apps: migratedApps,
     });
-    const changed =
-      modernDependenciesChanged ||
-      toolingDependenciesChanged ||
-      generatedScriptsChanged;
 
-    if (changed) {
-      writeJsonFile(packageFile, packageJson);
-    } else if (relativePackageFile === 'package.json') {
-      writeJsonFile(packageFile, packageJson);
-    }
+    writeJsonFile(io, packageFile, packageJson);
   }
 
-  updateGeneratedPnpmWorkspacePolicy(context.workspaceRoot);
-  ensureGeneratedDeclarationPatches(context.workspaceRoot, {
+  updateGeneratedPnpmWorkspacePolicy(io);
+  ensureGeneratedDeclarationPatches(io, {
     includeDrizzleOrmPatch: workspaceUsesDependency(
-      context.workspaceRoot,
+      io.workspaceRoot,
       'drizzle-orm',
     ),
   });
+  ensureGeneratedOxfmtIgnorePatterns(io);
 
-  if (!hasFlag(args, '--skip-install')) {
+  if (!skipInstall) {
     const status = runPnpmLockfileRefresh(context);
     if (status !== 0) {
       return status;
     }
+  }
+
+  if (dryRun) {
+    for (const line of io.plan) {
+      process.stdout.write(`${line}\n`);
+    }
+    process.stdout.write(
+      `[dry-run] migrate-strict-effect would migrate UltraModern strict Effect metadata to ${packageSource.modernPackageVersion}.\n`,
+    );
+    return 0;
   }
 
   process.stdout.write(
@@ -1513,6 +1730,91 @@ Without --app or --output, every generated workspace app is verified.
   return runRenderedModule(source, context);
 }
 
+interface RoutesGenerateTarget {
+  label: string;
+  appDirectory: string;
+}
+
+const resolveRoutesGenerateTargets = (
+  args: string[],
+  context: CommandContext,
+): RoutesGenerateTarget[] => {
+  const appId = readOption(args, '--app');
+
+  const targets = workspaceAppsFromToolingConfig(
+    readUltramodernConfig(context.workspaceRoot),
+  )
+    .filter(app => !appId || app.id === appId)
+    .map(app => ({
+      label: app.id,
+      appDirectory: path.join(context.workspaceRoot, app.directory),
+    }));
+
+  if (targets.length === 0) {
+    throw new Error(
+      `No generated UltraModern app matched ${appId ?? '<any>'}.`,
+    );
+  }
+
+  return targets;
+};
+
+const renderRoutesGenerateModule = ({
+  workspaceRoot,
+  targets,
+}: {
+  workspaceRoot: string;
+  targets: RoutesGenerateTarget[];
+}) => `
+import { createRequire } from 'node:module';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+
+const workspaceRoot = ${JSON.stringify(workspaceRoot)};
+const targets = ${JSON.stringify(targets, null, 2)};
+const appRequire = createRequire(path.join(workspaceRoot, 'package.json'));
+const pluginUrl = pathToFileURL(
+  appRequire.resolve('@modern-js/plugin-tanstack'),
+).href;
+const { generateTanstackRouteArtifacts } = await import(pluginUrl);
+
+let failed = false;
+// Sequential — the app-tools cli singleton is not re-entrant.
+for (const target of targets) {
+  try {
+    await generateTanstackRouteArtifacts({ appDirectory: target.appDirectory });
+    console.log(\`[ultramodern] TanStack route artifacts generated: \${target.label}\`);
+  } catch (error) {
+    failed = true;
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(\`[ultramodern] TanStack route generation failed: \${target.label}\`);
+    console.error(\`- \${message}\`);
+  }
+}
+
+process.exit(failed ? 1 : 0);
+`;
+
+function runRoutesGenerate(args: string[], context: CommandContext) {
+  if (args.includes('--help') || args.includes('-h')) {
+    process.stdout.write(`Usage:
+  modern-js-create ultramodern routes-generate [--app <id>]
+
+Regenerates TanStack route artifacts (router.gen.ts, register.gen.d.ts) for
+generated UltraModern apps without running dev or build. Without --app, every
+generated workspace app is regenerated.
+`);
+    return 0;
+  }
+
+  const source = renderRoutesGenerateModule({
+    workspaceRoot: context.workspaceRoot,
+    targets: resolveRoutesGenerateTargets(args, context),
+  });
+
+  return runRenderedModule(source, context);
+}
+
 export async function runUltramodernToolingCli(
   args: string[],
   workspaceRoot = process.env.ULTRAMODERN_WORKSPACE_ROOT ?? process.cwd(),
@@ -1538,6 +1840,8 @@ export async function runUltramodernToolingCli(
         return runMigrateStrictEffect(rest, context);
       case GENERATED_TOOLING_COMMANDS.cloudflareOutputVerify.command:
         return runCloudflareOutputVerify(rest, context);
+      case GENERATED_TOOLING_COMMANDS.routesGenerate.command:
+        return runRoutesGenerate(rest, context);
       case 'sync-delivery-unit':
         return runSyncDeliveryUnit(rest, context);
       case 'skills':

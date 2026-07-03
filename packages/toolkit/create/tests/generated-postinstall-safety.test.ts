@@ -429,3 +429,50 @@ test('skills:check advises about missing clone-backed Codex skills', () => {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
 });
+
+test('bootstrap-agent-skills resolves the agents-standard .agents/ lockfile layout', () => {
+  const { tempRoot, workspaceDir } = scaffoldWorkspace();
+
+  try {
+    fs.mkdirSync(path.join(workspaceDir, '.agents'), { recursive: true });
+    fs.renameSync(
+      path.join(workspaceDir, '.codex/skills-lock.json'),
+      path.join(workspaceDir, '.agents/skills-lock.json'),
+    );
+
+    const result = spawnSync(
+      process.execPath,
+      ['scripts/bootstrap-agent-skills.mts', '--check'],
+      {
+        cwd: workspaceDir,
+        encoding: 'utf-8',
+        env: withCreateBinEnv(),
+      },
+    );
+
+    assert.equal(result.status, 0, result.stderr);
+    assert.doesNotMatch(result.stderr, /Missing skills-lock\.json/u);
+
+    // The workspace-side validator script is a thin wrapper forwarding to
+    // `modern-js-create ultramodern validate`; the actual assertions live in
+    // the packaged handlebars template.
+    const validatorSource = fs.readFileSync(
+      path.join(
+        __dirname,
+        '../templates/workspace-scripts/validate-ultramodern-workspace.mjs.handlebars',
+      ),
+      'utf-8',
+    );
+    assert.match(
+      validatorSource,
+      /assertAnyOf\(\['\.agents\/skills-lock\.json', '\.codex\/skills-lock\.json'\]\);/u,
+    );
+    assert.doesNotMatch(
+      validatorSource,
+      /^\s*'\.codex\/skills-lock\.json',$/mu,
+      'validator must not hard-require the legacy skills-lock path',
+    );
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});

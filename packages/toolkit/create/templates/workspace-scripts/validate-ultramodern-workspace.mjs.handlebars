@@ -1690,6 +1690,7 @@ const requiredPaths = [
   'scripts/check-ultramodern-i18n-boundaries.mts',
   'scripts/generate-node-backend-federation.mts',
   'scripts/generate-public-surface-assets.mts',
+  'scripts/generate-tanstack-routes.mts',
   'scripts/proof-cloudflare-version.mts',
   'scripts/proof-node-backend-federation.mts',
   'scripts/setup-agent-reference-repos.mts',
@@ -1927,6 +1928,7 @@ assert(rootPackage.scripts?.['zerops:materialize'] === 'node ./scripts/materiali
 assertNotExists('scripts/generate-node-backend-federation.mjs');
 assertNotExists('scripts/proof-node-backend-federation.mjs');
 assertNotExists('scripts/verify-cloudflare-output.mjs');
+assertNotExists('scripts/generate-tanstack-routes.mjs');
 assert(
   rootPackage.scripts?.['node:proof'] ===
     'node ./scripts/proof-node-backend-federation.mts',
@@ -2010,6 +2012,7 @@ const agentSkillsBootstrap = readText('scripts/bootstrap-agent-skills.mts');
 assertToolWrapper('scripts/assert-mf-types.mts', 'mf-types');
 assertToolWrapper('scripts/generate-node-backend-federation.mts', 'backend-federation-generate');
 assertToolWrapper('scripts/generate-public-surface-assets.mts', 'public-surface');
+assertToolWrapper('scripts/generate-tanstack-routes.mts', 'routes-generate');
 assertToolWrapper('scripts/proof-node-backend-federation.mts', 'backend-federation-proof');
 assertToolWrapper('scripts/proof-cloudflare-version.mts', 'cloudflare-proof');
 assertToolWrapper('scripts/verify-cloudflare-output.mts', 'cloudflare-output-verify');

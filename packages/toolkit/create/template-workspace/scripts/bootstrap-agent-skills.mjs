@@ -7,8 +7,14 @@ import { fileURLToPath } from 'node:url';
 const root = process.cwd();
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const templateWorkspaceDir = path.resolve(scriptDir, '..');
+// Vendored skills always ship under template-workspace/.codex/skills; the
+// workspace-side lockfile may live under .agents/ (agents-standard layout) or
+// .codex/ (legacy default).
 const vendoredSkillsDir = path.join(templateWorkspaceDir, '.codex/skills');
-const lockPath = path.join(root, '.codex/skills-lock.json');
+const lockRoot = fs.existsSync(path.join(root, '.agents/skills-lock.json'))
+  ? '.agents'
+  : '.codex';
+const lockPath = path.join(root, `${lockRoot}/skills-lock.json`);
 const checkOnly = process.argv.includes('--check');
 const postinstall = process.argv.includes('--postinstall');
 const truthy = value => /^(1|true|yes|on)$/i.test(String(value ?? ''));
@@ -175,12 +181,14 @@ const resolveSkillDir = (sourceRoot, skillName) => {
 };
 
 if (!fs.existsSync(lockPath)) {
-  console.error('Missing .codex/skills-lock.json');
+  console.error(
+    'Missing skills-lock.json: expected .agents/skills-lock.json or .codex/skills-lock.json',
+  );
   process.exit(1);
 }
 
 const lock = readJson(lockPath);
-const installDir = path.join(root, lock.installDir ?? '.codex/skills');
+const installDir = path.join(root, lock.installDir ?? `${lockRoot}/skills`);
 const sources = lock.sources ?? [];
 const vendoredSources = sources.filter(source => source.install === 'vendored');
 const cloneSources = sources.filter(source => source.install === 'clone');

@@ -89,6 +89,7 @@ const expectedWorkspaceManifest = [
   'scripts/check-ultramodern-i18n-boundaries.mts',
   'scripts/generate-node-backend-federation.mts',
   'scripts/generate-public-surface-assets.mts',
+  'scripts/generate-tanstack-routes.mts',
   'scripts/materialize-zerops-runtime.mjs',
   'scripts/migrate-strict-effect.mts',
   'scripts/proof-cloudflare-version.mts',
