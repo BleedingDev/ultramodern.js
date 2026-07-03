@@ -23,6 +23,7 @@ describe('plugin-bff regressions', () => {
       fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf8'),
     );
 
+    expect(packageJson.exports['./package.json']).toBe('./package.json');
     expect(packageJson.exports['./server']).toEqual(
       packageJson.exports['./effect-server'],
     );
