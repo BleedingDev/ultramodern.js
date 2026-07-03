@@ -221,6 +221,65 @@ test('allows an explicit host-only config with no exposes', () => {
   });
 });
 
+test('allows a host-only config using consume-only DTS settings', () => {
+  const workspaceRoot = createWorkspace({
+    'apps/host/module-federation.config.ts': `// ultramodern-mf: host-only
+import { createModuleFederationConfig } from '@module-federation/modern-js-v3';
+
+export default createModuleFederationConfig({
+  dts: {
+    consumeTypes: true,
+    generateTypes: false,
+    tsConfigPath: './tsconfig.mf-types.json',
+  },
+  filename: 'remoteEntry.js',
+  name: 'host',
+});
+`,
+  });
+
+  assert.deepEqual(validateModuleFederationTypes({ workspaceRoot }), {
+    apps: [
+      {
+        appDir: 'apps/host',
+        configPath: 'apps/host/module-federation.config.ts',
+        dts: {
+          compilerInstance: undefined,
+          tsConfigPath: './tsconfig.mf-types.json',
+        },
+        exposes: [],
+        hostOnlyNoExposes: true,
+      },
+    ],
+    configCount: 1,
+    exposedAppCount: 0,
+    hostOnlyAppCount: 1,
+  });
+});
+
+test('rejects an exposing app that uses the relaxed consume-only DTS shape', () => {
+  const workspaceRoot = createWorkspace({
+    'apps/remote/module-federation.config.ts': `import { createModuleFederationConfig } from '@module-federation/modern-js-v3';
+
+export default createModuleFederationConfig({
+  dts: {
+    consumeTypes: true,
+    generateTypes: false,
+    tsConfigPath: './tsconfig.mf-types.json',
+  },
+  exposes: { './Widget': './src/widget.tsx' },
+  filename: 'remoteEntry.js',
+  name: 'remote',
+});
+`,
+  });
+
+  assertThrowsWithMessage(
+    () => validateModuleFederationTypes({ workspaceRoot }),
+    /compilerInstance must be "tsgo"/,
+  );
+});
+
 test('rejects dynamic exposes without evaluating Module Federation config code', () => {
   const workspaceRoot = createWorkspace({
     'apps/dynamic/module-federation.config.ts': `import fs from 'node:fs';

@@ -438,6 +438,15 @@ test('rendered contents of the highest-risk generated files match the checked-in
       ).cloudflareOutputVerify,
       'scripts/verify-cloudflare-output.mts',
     );
+    assert.equal(
+      (
+        (compactConfig.tooling as Record<string, unknown>).wrappers as Record<
+          string,
+          unknown
+        >
+      ).routesGenerate,
+      'scripts/generate-tanstack-routes.mts',
+    );
     const rootPackage = readJson(path.join(workspaceDir, 'package.json'));
     assert.equal(
       (
