@@ -518,4 +518,37 @@ export function tanstackRouterPlugin(
   };
 }
 
+/**
+ * Headless regeneration of `router.gen.ts` / `register.gen.d.ts` for a generated
+ * app, without running a full dev/build. Drives the app-tools analyze `onPrepare`
+ * (which fires `generateEntryCode`) and returns before any bundling — the app's
+ * own registered plugin-tanstack writes the artifacts via its `generateEntryCode`
+ * subscriber. Reuses the exact hook dev/build use, so there is no scanning drift.
+ */
+export async function generateTanstackRouteArtifacts(opts: {
+  appDirectory: string;
+  version?: string;
+}): Promise<void> {
+  const [{ createRunOptions }, { cli }, utils] = await Promise.all([
+    import('@modern-js/app-tools/cli/run'),
+    import('@modern-js/plugin/cli'),
+    import('@modern-js/utils'),
+  ]);
+  // Load-bearing, not decoration: app-tools' analyze.onPrepare only fires
+  // generateEntryCode (the hook that writes the route artifacts) when
+  // checkIsBuildCommands() is true, and getCommand() resolves the command
+  // from MODERN_ARGV before process.argv — cli.init's `command` option does
+  // not feed that check.
+  process.env.MODERN_ARGV = 'node modern build';
+  process.env.NODE_ENV = process.env.NODE_ENV || 'production';
+  const runOptions = await createRunOptions({
+    cwd: opts.appDirectory,
+    version:
+      opts.version || process.env.MODERN_JS_VERSION || '0.0.0-routes-generate',
+    internalPlugins: (utils as { INTERNAL_RUNTIME_PLUGINS: unknown })
+      .INTERNAL_RUNTIME_PLUGINS as never,
+  });
+  await cli.init({ ...runOptions, command: 'build' });
+}
+
 export default tanstackRouterPlugin;

@@ -2,9 +2,9 @@ import {
   type AnyRouter,
   type LinkComponentProps,
   type RegisteredRouter,
-  Link as TanStackLink,
+  useLinkProps,
 } from '@tanstack/react-router';
-import type { ReactElement } from 'react';
+import type { AnchorHTMLAttributes, ReactElement, ReactNode, Ref } from 'react';
 
 export type PrefetchBehavior = 'intent' | 'render' | 'viewport' | 'none';
 
@@ -65,21 +65,79 @@ type LinkComponentImplProps = LinkProps<
   string | undefined,
   string,
   string
->;
+> & { ref?: Ref<HTMLAnchorElement> };
 
 const LinkComponentImpl = (props: LinkComponentImplProps) => {
-  const { prefetch, preload, ...rest } = props;
-  return (
-    <TanStackLink
-      {...rest}
-      preload={
-        resolvePreloadFromPrefetch(
-          prefetch,
-          preload,
-        ) as LinkComponentImplProps['preload']
-      }
-    />
-  );
+  const {
+    prefetch,
+    preload,
+    'aria-current': ariaCurrentProp,
+    ref,
+    children,
+    ...rest
+  } = props as LinkComponentImplProps & {
+    children?: ReactNode | ((state: { isActive: boolean }) => ReactNode);
+  };
+  const hasAriaCurrentOverride = 'aria-current' in props;
+
+  // Children are rendered by us, not by useLinkProps() — the hook filters
+  // unknown/function props out of its return value, so anything routed
+  // through it would be silently dropped.
+  const linkOptions = {
+    ...rest,
+    preload: resolvePreloadFromPrefetch(
+      prefetch,
+      preload,
+    ) as LinkComponentImplProps['preload'],
+  } as LinkComponentImplProps;
+
+  // TanStack Router's useLinkProps() unconditionally spreads
+  // STATIC_ACTIVE_PROPS = { "data-status": "active", "aria-current": "page" }
+  // as the LAST entry of the props object it returns for an active link
+  // (@tanstack/react-router dist/esm/link.js:369 `...isActive &&
+  // STATIC_ACTIVE_PROPS`, defined at line 379-382, spread after
+  // `...propsSafeToSpread`, `...resolvedActiveProps`, and
+  // `...resolvedInactiveProps`). That means any caller-supplied aria-current
+  // -- whether passed directly or via activeProps -- is always clobbered by
+  // the time <Link>/createLink render the anchor; there is no props-merge
+  // order that lets a caller win from inside <Link>. So instead of
+  // delegating rendering to <Link>, we call useLinkProps() ourselves and
+  // re-apply the caller's original aria-current (including `false`, meaning
+  // "suppress the attribute entirely") as the final word on the anchor we
+  // render.
+  const linkProps = useLinkProps(
+    linkOptions,
+    ref,
+  ) as AnchorHTMLAttributes<HTMLAnchorElement> & {
+    disabled?: boolean;
+    type?: string;
+  };
+
+  // TanStack's own Link strips `type` and `disabled` before rendering the
+  // anchor (link.js:449-452) — mirror that.
+  const { disabled: _disabled, type: _type, ...anchorProps } = linkProps;
+
+  if (hasAriaCurrentOverride) {
+    if (ariaCurrentProp === false || typeof ariaCurrentProp === 'undefined') {
+      delete anchorProps['aria-current'];
+    } else {
+      anchorProps['aria-current'] = ariaCurrentProp;
+    }
+  }
+
+  // TanStack's Link resolves render-prop children with the active state
+  // (link.js:450) — without this, function children reach React as an
+  // invalid child and crash the render.
+  const resolvedChildren =
+    typeof children === 'function'
+      ? children({
+          isActive:
+            (anchorProps as Record<string, unknown>)['data-status'] ===
+            'active',
+        })
+      : children;
+
+  return <a {...anchorProps}>{resolvedChildren}</a>;
 };
 
 export const Link = LinkComponentImpl as LinkComponent;
