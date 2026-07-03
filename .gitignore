@@ -71,6 +71,7 @@ dist-ssg
 
 # agent planning artifacts (local only)
 .codex/
+.fastcontext/
 .swe
 .cursor
 .claude
