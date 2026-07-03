@@ -2,6 +2,7 @@
 
 - Status: Proposed
 - Date: 2026-04-29
+- Amended by: `ADR-0019-federated-loading-unified-delivery.md`
 - Related Plan: `.codex/plans/ultramodern-mv-operations-certification.plan.md`
 - Depends on:
   - `ADR-0002-app-level-mf-ssr-strategy.md`
@@ -9,12 +10,13 @@
   - `CI-GATES-0001-check-and-artifact-map.md`
   - `ADR-0012-mv-topology-manifest-and-zephyr-profile.md`
   - `ADR-0015-mv-ownership-and-blast-radius-gates.md`
+  - `ADR-0019-federated-loading-unified-delivery.md`
 
 ## 1. Purpose
 
-This document defines how shell, remote, and service Micro Verticals are certified, released, rolled back, and operated after extraction.
+This document defines how shell, MicroVertical delivery units, horizontal remotes, and cross-vertical services are certified, released, rolled back, and operated after extraction.
 
-Micro Verticals are production-ready only when independent deployment has a matching operations contract. A remote that can be deployed separately must also be observable, revocable, fallback-safe, and rollback-rehearsed separately.
+Micro Verticals are production-ready only when their full delivery unit has a matching operations contract. Separately delivered horizontal remotes and cross-vertical services must also be observable, revocable, fallback-safe, and rollback-rehearsed as their own delivery units.
 
 ## 2. Release Train Model
 
@@ -30,17 +32,18 @@ The shell release owns:
 
 The shell should be released independently from remotes as long as remote references are resolved by topology IDs rather than source-level URLs.
 
-### 2.2 Remote release
+### 2.2 MicroVertical delivery-unit release
 
-Remote releases own:
+MicroVertical delivery-unit releases own:
 
 1. immutable MF manifest and remote entry artifacts.
 2. compatibility metadata declared by the topology manifest.
 3. artifact digest, SRI, provenance, and optional attestation evidence where the topology policy requires them.
 4. remote-local route and UI behavior.
-5. fallback and degradation evidence.
+5. matching API/backend/server capability identity.
+6. fallback and degradation evidence.
 
-Remote promotion order:
+Delivery-unit promotion order:
 
 1. local.
 2. preview.
@@ -62,6 +65,8 @@ Service releases own:
 
 Service deployment may move faster than shell deployment only when generated clients or declared contracts preserve compatibility for current consumers.
 
+This section applies to cross-vertical service delivery units. A service that is the server capability of one MicroVertical is not a separate release train; it promotes and rolls back inside the MicroVertical delivery unit under section 2.2.
+
 ## 3. Certification Evidence
 
 A vertical adoption package must include:
@@ -70,7 +75,7 @@ A vertical adoption package must include:
 | --- | --- |
 | Architecture evidence | topology IDs, route ownership, remote/service boundaries, shared-package consumers |
 | Validation evidence | contract gates, topology manifest validation, artifact policy validation, boundary guards |
-| Test evidence | dev/build/serve checks, remote unavailable behavior, version skew, service propagation |
+| Test evidence | dev/build/serve checks, remote unavailable behavior, cross-delivery-unit compatibility, service propagation |
 | Rollout evidence | canary plan, rollout percentage, SLOs, rollback trigger, owner |
 | Fallback evidence | timeout, network, artifact policy rejection, compatibility, service degradation |
 | Rollback evidence | LKG selection, kill switch, remote disable, service disable, recovery budget |
@@ -136,7 +141,7 @@ Operator actions:
 | Remote unavailable | shell renders degraded UI and emits fallback telemetry |
 | Digest mismatch | remote is rejected and fallback path wins |
 | Artifact revocation | revoked artifact cannot be selected from current, overlay, or LKG |
-| Version skew | host and remote pass compatibility or degrade deterministically |
+| Cross-delivery-unit compatibility | shell and separate delivery units pass compatibility or degrade deterministically |
 | Rollback drill | LKG, kill switch, or disable action completes within declared recovery budget |
 
 ## 6. Required Gates
@@ -180,7 +185,7 @@ Zephyr evidence is not a substitute for live version-switching proof.
 
 A Micro Vertical is operable when:
 
-1. shell, remote, and service release trains are independent but topology-coordinated.
+1. shell, MicroVertical delivery units, horizontal remotes, and cross-vertical service delivery units are independently promotable, but frontend/API/backend surfaces inside one MicroVertical are not.
 2. canary and rollback controls are named before production rollout.
 3. fallback rehearsal covers remote, compatibility, artifact-policy, and service failures.
 4. evidence proves both Bun and Node expectations or records explicit unsupported scope.

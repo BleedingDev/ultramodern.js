@@ -8,6 +8,7 @@
   - `ADR-0003-effect-only-mf-data-fetch-reliability.md`
   - `ADR-0005-cross-project-bff-hardening.md`
   - `ADR-0017-superapp-composition-router-framework-coordination.md`
+  - `ADR-0019-federated-loading-unified-delivery.md`
   - `CLOUDFLARE-ZEPHYR-0001-ultramodern-worker-ssr.md`
   - `ZEROPS-0001-ultramodern-full-stack-node-proof.md`
 
@@ -32,6 +33,8 @@ Sources checked July 3, 2026:
 - Zephyr TanStack Start docs: <https://docs.zephyr-cloud.io/meta-frameworks/tanstack-start>
 - Cloudflare Service Bindings docs: <https://developers.cloudflare.com/workers/runtime-apis/bindings/service-bindings/>
 - Cloudflare dynamic dispatch Worker docs: <https://developers.cloudflare.com/cloudflare-for-platforms/workers-for-platforms/configuration/dynamic-dispatch/>
+
+ADR-0019 governs MicroVertical delivery-unit identity. Cloudflare and Node `executionSurfaces` are platform surfaces for the same delivery unit, not independent promotion choices.
 
 ## 2. Decision
 

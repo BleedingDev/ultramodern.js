@@ -2,9 +2,11 @@
 
 - Status: Proposed
 - Date: 2026-04-29
+- Amended by: `ADR-0019-federated-loading-unified-delivery.md`
 - Related Plan: `.codex/plans/ultramodern-mv-workspace-scaffolding.plan.md`
 - Depends on:
   - `DELIVERY-0001-micro-vertical-reference-delivery.md`
+  - `ADR-0019-federated-loading-unified-delivery.md`
   - `ADR-0012-mv-topology-manifest-and-zephyr-profile.md`
   - `ADR-0014-mv-template-supply-chain-policy.md`
   - `packages/toolkit/create/README.md`
@@ -25,10 +27,10 @@ A Micro Vertical workspace uses these package roles:
 | Package class | Example path | Owner | Primary contract |
 | --- | --- | --- | --- |
 | Shell app | `apps/shell` | Platform shell owner | Route assembly, trust policy, topology selection, global telemetry, fallback policy |
-| Remote vertical | `apps/remotes/<vertical>` | Vertical owner | Route subtree, remote-local loader/action behavior, remote manifest, degradation UI |
-| Service | `services/<service>` | Service owner | Effect HttpApi boundary, request context propagation, operation contracts |
+| Remote vertical | `apps/remotes/<vertical>` | Vertical owner | MicroVertical delivery unit: route subtree, composition surfaces, delivery-unit identity, degradation UI |
+| Service | `services/<service>` | Service owner | Effect HttpApi boundary; same MicroVertical delivery unit when it is that vertical's server capability, separate delivery unit when cross-vertical |
 | Shared package | `packages/<name>` | Platform or vertical owner | Tokens, primitives, domain-neutral utilities, generated clients |
-| Horizontal design-system remote | `apps/remotes/design-system` | Design-system owner | Module Federation remote for tokens/primitives when independent deployment is required |
+| Horizontal design-system remote | `apps/remotes/design-system` | Design-system owner | Separate delivery unit for cross-vertical tokens/primitives when independent promotion is required |
 
 The workspace root owns package-manager configuration, CI orchestration, shared lint/test tooling, and release-gate entrypoints. It must not own feature workflow code.
 
@@ -53,6 +55,8 @@ micro-vertical-workspace/
     topology/
     evidence/
 ```
+
+Directory/package boundaries are not release boundaries. A service package that provides one MicroVertical's server capability belongs to that MicroVertical delivery unit even when it lives under `services/`.
 
 ## 3. Scaffold Recipes
 
@@ -93,7 +97,7 @@ pnpm dlx @bleedingdev/modern-js-create catalog --microvertical remote
 Remote requirements:
 
 1. own its route subtree, loader/action bridge, local presentation, and degraded UI.
-2. publish MF manifest artifacts through the topology manifest.
+2. publish composition-surface artifacts through one MicroVertical delivery-unit identity.
 3. emit remote failure and fallback telemetry.
 4. declare ownership metadata before production rollout.
 
@@ -110,7 +114,7 @@ pnpm dlx @bleedingdev/modern-js-create design-system --microvertical horizontal-
 
 Horizontal remote requirements:
 
-1. own a cross-vertical runtime surface such as independently deployed UI primitives.
+1. own a cross-vertical delivery unit such as independently promoted UI primitives.
 2. use the same topology, trust, SSR compatibility, and fallback contracts as vertical remotes.
 3. avoid becoming a second framework mode or shared global application state.
 
@@ -128,6 +132,7 @@ Service requirements:
 2. preserve trace, locale, auth, and session propagation through `createRequestContextHeaders(...)`.
 3. model HTTP endpoints through Effect HttpApi contracts and typed error channels.
 4. publish service references through topology metadata, not source-level environment URLs.
+5. declare whether the service is the server capability of one MicroVertical delivery unit or a separate cross-vertical delivery unit.
 
 Reference proof:
 
@@ -142,7 +147,7 @@ pnpm dlx @bleedingdev/modern-js-create catalog-contracts --microvertical shared
 
 Shared packages are created as normal workspace packages, not app remotes.
 
-When the design system needs an independent release train, create it as a horizontal Module Federation remote instead of treating it as a special framework subsystem. It must use the same topology, trust, compatibility, SSR, and fallback expectations as vertical remotes.
+When the design system needs an independent release boundary, create it as a horizontal Module Federation remote delivery unit instead of treating it as a special framework subsystem. It must use the same topology, trust, compatibility, SSR, and fallback expectations as vertical remotes.
 
 Allowed shared-package roles:
 
@@ -165,8 +170,9 @@ Local orchestration should model production boundaries while keeping iteration f
 1. use `workspace:*` dependencies through `--workspace` for local Modern.js package testing.
 2. run shell, remotes, and services as separate processes on stable local ports.
 3. resolve remotes and services through a local topology overlay.
-4. simulate version skew by pinning one package to a built artifact while another uses workspace source.
+4. rehearse cross-delivery-unit compatibility by pinning one delivery-unit artifact while another uses workspace source.
 5. rehearse remote-unavailable behavior by disabling or stopping a remote process.
+6. reject frontend/API/backend marker mismatch inside one MicroVertical as a negative validation path, not a supported local development mode.
 
 Minimum local commands:
 
@@ -176,7 +182,7 @@ pnpm --filter @my-super-app/service-catalog-api-effect dev
 pnpm --filter @my-super-app/shell-super-app dev
 ```
 
-Version-skew rehearsal:
+Cross-delivery-unit compatibility rehearsal:
 
 ```bash
 pnpm --filter @my-super-app/remote-catalog build
@@ -227,4 +233,4 @@ A workspace is ready for Micro Vertical adoption when:
 4. service packages use Effect HttpApi for generated HTTP APIs.
 5. shared packages expose tokens, primitives, generated clients, or domain-neutral utilities only.
 6. local orchestration can run shell, remote, and service processes together.
-7. version-skew and remote-unavailable scenarios are rehearsed before production certification.
+7. cross-delivery-unit compatibility and remote-unavailable scenarios are rehearsed before production certification without permitting frontend/API/backend drift inside one MicroVertical.

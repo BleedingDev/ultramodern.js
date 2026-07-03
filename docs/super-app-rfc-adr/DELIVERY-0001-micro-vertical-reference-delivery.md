@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-04-22
+- Amended by: `ADR-0019-federated-loading-unified-delivery.md`
 - Related Plans:
   - `ultramodern-single-preset-mv-program.plan.md`
   - `ultramodern-mv-core-router-seams.plan.md`
@@ -55,6 +56,8 @@ Reference implementations:
 
 ### 2.3 Service Boundary
 
+Independent means separate cross-vertical delivery unit per `ADR-0019-federated-loading-unified-delivery.md`. A service that is the server capability of one MicroVertical is not independent; it belongs to that vertical's delivery unit.
+
 An independent service owns:
 
 - Effect HttpApi transport/runtime for generated HTTP APIs,
@@ -85,13 +88,14 @@ Promote a slice to an MF remote when all are true:
 
 - the route subtree has stable ownership,
 - the feature can degrade independently,
-- the route can tolerate host/remote version skew via compatibility/trust checks,
-- the vertical benefits from an independent release train.
+- the shell can tolerate cross-delivery-unit compatibility failures through trust checks and fallback,
+- the vertical benefits from promotion as one MicroVertical delivery unit.
 
 Required handoff surfaces:
 
 - route ownership metadata,
 - loader bridge contract,
+- delivery-unit identity metadata,
 - fallback UI,
 - remote trust metadata,
 - compatibility digest.
@@ -108,6 +112,8 @@ Promote data/workflow logic out of the shell or remote when:
 - identity, locale, or trace propagation must remain stable across deployment boundaries,
 - request hardening or envelope policy matters more than in-process convenience,
 - the runtime needs an independent scale/failure boundary.
+
+If the service is the server capability of a MicroVertical, it remains inside that MicroVertical delivery unit and promotes with the matching UI/API surfaces. If it is a cross-vertical service, model it as a separate delivery unit.
 
 Preferred path:
 
@@ -143,8 +149,8 @@ For a new Micro Vertical under `presetUltramodern(...)`:
 3. Add contract coverage before extracting a remote or service.
 4. Use generated request-context helpers instead of ad hoc locale/trace header plumbing.
 5. Keep generated HTTP APIs on Effect HttpApi contracts.
-6. Require fallback behavior and telemetry before independent deployment.
-7. Keep shell/remote/service boundaries visible in release gates and certification evidence.
+6. Require fallback behavior and telemetry before delivery-unit promotion.
+7. Keep shell, MicroVertical, horizontal-remote, and cross-vertical service boundaries visible in release gates and certification evidence.
 
 ## 6. Result
 
