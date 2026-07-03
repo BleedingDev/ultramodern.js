@@ -733,6 +733,27 @@ function validateUiMarkerEvidence(evidence, app, ssr) {
     status: uiMarker === app.marker?.build ? 'pass' : 'fail',
   });
   assert(uiMarker === app.marker?.build, `${app.id} UI marker mismatch`);
+
+  if (app.deliveryUnit) {
+    evidence.assertions.push({
+      type: 'delivery-unit-ui-marker',
+      unitId: app.deliveryUnit.unitId,
+      expected: app.deliveryUnit.surfaces?.ui?.buildMarker ?? app.deliveryUnit.buildMarker,
+      actual: uiMarker,
+      status:
+        uiMarker === (app.deliveryUnit.surfaces?.ui?.buildMarker ?? app.deliveryUnit.buildMarker)
+          ? 'pass'
+          : 'fail',
+    });
+    assert(
+      uiMarker !== undefined,
+      `${app.id} delivery unit ${app.deliveryUnit.unitId} is declared but SSR response is missing its build marker`,
+    );
+    assert(
+      uiMarker === (app.deliveryUnit.surfaces?.ui?.buildMarker ?? app.deliveryUnit.buildMarker),
+      `${app.id} delivery unit ${app.deliveryUnit.unitId} UI surface build marker mismatch`,
+    );
+  }
 }
 
 function validateCssRootMarkerEvidence(evidence, app, ssr) {
@@ -903,6 +924,25 @@ async function validateReadinessEvidence(evidence, app, publicUrl, routes) {
       `${app.id} Effect readiness returned HTTP ${readiness.status}`,
     );
     assert(apiMarker === app.marker?.build, `${app.id} API marker mismatch`);
+
+    if (app.deliveryUnit) {
+      evidence.assertions.push({
+        type: 'delivery-unit-api-marker',
+        route: routes.apiReadiness,
+        unitId: app.deliveryUnit.unitId,
+        expected: app.deliveryUnit.buildMarker,
+        actual: apiMarker,
+        status: apiMarker === app.deliveryUnit.buildMarker ? 'pass' : 'fail',
+      });
+      assert(
+        apiMarker !== undefined,
+        `${app.id} delivery unit ${app.deliveryUnit.unitId} is declared but readiness response is missing its build marker`,
+      );
+      assert(
+        apiMarker === app.deliveryUnit.buildMarker,
+        `${app.id} delivery unit ${app.deliveryUnit.unitId} API surface build marker mismatch`,
+      );
+    }
   }
 }
 

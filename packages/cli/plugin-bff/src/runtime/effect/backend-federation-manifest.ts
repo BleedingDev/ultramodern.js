@@ -21,17 +21,27 @@ export type BackendFederationManifestAdapterErrorCode =
   | 'timeout'
   | 'version_mismatch';
 
+export const BACKEND_FEDERATION_MANIFEST_ADAPTER_FAILURE_EVENT =
+  'modernjs:microvertical-server-fallback' as const;
+
 export class BackendFederationManifestAdapterError extends Error {
   code: BackendFederationManifestAdapterErrorCode;
+  readonly failureEvent = BACKEND_FEDERATION_MANIFEST_ADAPTER_FAILURE_EVENT;
+  details?: Record<string, unknown>;
 
   constructor(
     code: BackendFederationManifestAdapterErrorCode,
     message: string,
     cause?: unknown,
+    details?: Record<string, unknown>,
   ) {
     super(message);
     this.name = 'BackendFederationManifestAdapterError';
     this.code = code;
+
+    if (details) {
+      this.details = details;
+    }
 
     if (cause !== undefined) {
       (this as { cause?: unknown }).cause = cause;
@@ -43,10 +53,23 @@ export type BackendFederationManifest = Record<string, unknown>;
 
 export type BackendFederationVersionBoundaryExpectation = {
   buildVersion?: string;
+  /**
+   * Delivery-unit build marker (ADR-0019). Semantically the same value as
+   * `buildVersion`; treated as an alias. If both are set and disagree the
+   * expectation itself is invalid and fails closed before any manifest
+   * comparison runs.
+   */
+  buildMarker?: string;
   contractVersion?: string;
   nodeAdapterVersion?: string;
   packageName?: string;
   remoteName?: string;
+  /**
+   * Delivery-unit identity root (ADR-0019 §3). When set, the manifest's
+   * `backendFederation.versionBoundary.deliveryUnit.unitId` (or the
+   * top-level `backendFederation.deliveryUnit.unitId` fallback) must match.
+   */
+  unitId?: string;
   version?: string;
 };
 
@@ -111,6 +134,7 @@ function assertVersionValue(
   actual: string | undefined,
   expected: string | undefined,
   label: string,
+  details?: Record<string, unknown>,
 ) {
   if (expected === undefined) {
     return;
@@ -120,6 +144,8 @@ function assertVersionValue(
     throw new BackendFederationManifestAdapterError(
       'version_mismatch',
       `[BFF][Effect] Backend federation ${label} mismatch: expected ${expected}, received ${actual ?? 'undefined'}.`,
+      undefined,
+      { label, expected, received: actual, ...details },
     );
   }
 }
@@ -128,6 +154,7 @@ function assertConsistentValue(
   left: string | undefined,
   right: string | undefined,
   label: string,
+  details?: Record<string, unknown>,
 ) {
   if (left === undefined || right === undefined || left === right) {
     return;
@@ -136,6 +163,8 @@ function assertConsistentValue(
   throw new BackendFederationManifestAdapterError(
     'version_mismatch',
     `[BFF][Effect] Backend federation ${label} mismatch: expected ${left}, received ${right}.`,
+    undefined,
+    { label, expected: left, received: right, ...details },
   );
 }
 
@@ -240,10 +269,59 @@ function versionBoundaryMetadata(manifest: BackendFederationManifest) {
   return recordField(backendFederationMetadata(manifest), 'versionBoundary');
 }
 
+function deliveryUnitMetadata(record: Record<string, unknown> | undefined) {
+  return recordField(record, 'deliveryUnit');
+}
+
+/**
+ * Resolves the delivery-unit identity root for a manifest (ADR-0019 §3):
+ * prefers `versionBoundary.deliveryUnit`, falls back to the top-level
+ * `backendFederation.deliveryUnit` record. Both are additive/optional so
+ * legacy manifests without delivery-unit metadata continue to validate.
+ */
+function manifestDeliveryUnit(
+  backendFederation: Record<string, unknown> | undefined,
+  boundary: Record<string, unknown> | undefined,
+) {
+  return {
+    boundary: deliveryUnitMetadata(boundary),
+    top: deliveryUnitMetadata(backendFederation),
+  };
+}
+
+function resolveExpectedBuildMarker(
+  expected: BackendFederationVersionBoundaryExpectation,
+) {
+  if (
+    expected.buildVersion !== undefined &&
+    expected.buildMarker !== undefined &&
+    expected.buildVersion !== expected.buildMarker
+  ) {
+    throw new BackendFederationManifestAdapterError(
+      'version_mismatch',
+      `[BFF][Effect] Backend federation expected buildVersion/buildMarker mismatch: buildVersion ${expected.buildVersion}, buildMarker ${expected.buildMarker}.`,
+      undefined,
+      {
+        label: 'expected.buildVersion/buildMarker',
+        expected: expected.buildVersion,
+        received: expected.buildMarker,
+      },
+    );
+  }
+
+  // Intentionally no fallback to `buildVersion` here: this is only used to
+  // compare against manifest `deliveryUnit.buildMarker`, which is a
+  // separate, additive field. Callers that only pass `buildVersion` (the
+  // pre-ADR-0019 expectation shape) must not be forced to also match a
+  // delivery-unit build marker on the manifest.
+  return expected.buildMarker;
+}
+
 function validateBackendFederationManifest(
   manifest: BackendFederationManifest,
   expected: BackendFederationVersionBoundaryExpectation = {},
 ) {
+  const expectedBuildMarker = resolveExpectedBuildMarker(expected);
   const backendFederation = backendFederationMetadata(manifest);
   assertManifestAdapter(
     backendFederation,
@@ -306,6 +384,28 @@ function validateBackendFederationManifest(
     stringValue(boundary?.buildVersion),
     'manifest versionBoundary.buildVersion',
   );
+
+  const deliveryUnit = manifestDeliveryUnit(backendFederation, boundary);
+  assertConsistentValue(
+    stringValue(deliveryUnit.boundary?.buildMarker),
+    stringValue(boundary?.buildVersion),
+    'versionBoundary.deliveryUnit.buildMarker vs versionBoundary.buildVersion',
+  );
+  assertConsistentValue(
+    stringValue(deliveryUnit.top?.unitId),
+    stringValue(deliveryUnit.boundary?.unitId),
+    'backendFederation.deliveryUnit.unitId vs versionBoundary.deliveryUnit.unitId',
+  );
+
+  const manifestUnitId =
+    stringValue(deliveryUnit.boundary?.unitId) ??
+    stringValue(deliveryUnit.top?.unitId);
+  assertVersionValue(manifestUnitId, expected.unitId, 'deliveryUnit.unitId');
+  assertVersionValue(
+    stringValue(deliveryUnit.boundary?.buildMarker),
+    expectedBuildMarker,
+    'deliveryUnit.buildMarker',
+  );
 }
 
 function validateLoadedBackendFederationContract(
@@ -355,6 +455,25 @@ function validateLoadedBackendFederationContract(
     stringValue(compatibility.build),
     stringValue(boundary?.buildVersion),
     'expose buildVersion',
+  );
+
+  const deliveryUnit = manifestDeliveryUnit(backendFederation, boundary);
+  const manifestUnitId =
+    stringValue(deliveryUnit.boundary?.unitId) ??
+    stringValue(deliveryUnit.top?.unitId);
+  const manifestBuildMarker = stringValue(deliveryUnit.boundary?.buildMarker);
+
+  // Only enforced when both sides declare the field: absence on either side
+  // is a legacy manifest/expose and must stay backward compatible.
+  assertConsistentValue(
+    manifestUnitId,
+    stringValue(compatibility.unitId),
+    'deliveryUnit.unitId vs expose compatibility.unitId',
+  );
+  assertConsistentValue(
+    manifestBuildMarker,
+    stringValue(compatibility.build),
+    'deliveryUnit.buildMarker vs expose compatibility.build',
   );
 }
 

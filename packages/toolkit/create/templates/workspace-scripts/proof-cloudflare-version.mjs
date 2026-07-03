@@ -134,6 +134,30 @@ function createBuildMarker(scope, app) {
     .slice(0, 16);
 }
 
+function createDeliveryUnit(packageScope, app) {
+  const unitId = `${packageScope}/${app.domain ?? app.id}`;
+  const buildMarker = createBuildMarker(packageScope, app);
+  const identity = {
+    unitId,
+    buildMarker,
+    sourceRevision: 'workspace',
+  };
+
+  return {
+    schemaVersion: 1,
+    kind: 'microvertical-delivery-unit',
+    unitId,
+    packageName: `@${packageScope}/${app.packageSuffix}`,
+    version: '0.1.0',
+    buildMarker,
+    sourceRevision: 'workspace',
+    surfaces: {
+      ui: { ...identity, surface: 'ui' },
+      api: { ...identity, surface: 'api' },
+    },
+  };
+}
+
 function createCloudflareSecurity() {
   return {
     enabled: true,
@@ -385,6 +409,7 @@ function createProofTarget(app) {
       ? { backendFederation: app.backendFederation }
       : {}),
     ...(app.serverExecution ? { serverExecution: app.serverExecution } : {}),
+    ...(app.deliveryUnit ? { deliveryUnit: app.deliveryUnit } : {}),
   };
 }
 
@@ -419,6 +444,9 @@ function createContractApp(config, app, apps) {
   const workerName = createCloudflareWorkerName(packageScope, app);
   const backendFederation = createBackendFederationProof(packageScope, app);
   const serverExecution = createServerExecutionProof(packageScope, app);
+  const deliveryUnit = app.api
+    ? createDeliveryUnit(packageScope, app)
+    : undefined;
   const serviceBindings = createShellServiceBindingProof(
     packageScope,
     app,
@@ -447,6 +475,7 @@ function createContractApp(config, app, apps) {
       appId: app.id,
       build: createBuildMarker(packageScope, app),
     },
+    ...(deliveryUnit ? { deliveryUnit } : {}),
     ...(backendFederation ? { backendFederation } : {}),
     ...(serverExecution ? { serverExecution } : {}),
     routes: {

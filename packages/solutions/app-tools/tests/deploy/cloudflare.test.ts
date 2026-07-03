@@ -281,6 +281,8 @@ async function createFixture({
   wrangler,
   workerName,
   workerSecurity,
+  deliveryUnit,
+  buildModuleIdentity,
 }: {
   artifacts?: CloudflareWorkerArtifactConfig[];
   bffPrefix?: string;
@@ -302,6 +304,16 @@ async function createFixture({
   wrangler?: Record<string, JsonValue>;
   workerName?: string;
   workerSecurity?: Record<string, unknown>;
+  deliveryUnit?: {
+    unitId: string;
+    buildMarker: string;
+    sourceRevision: string;
+  };
+  buildModuleIdentity?: {
+    unitId: string;
+    buildMarker: string;
+    sourceRevision: string;
+  };
 } = {}) {
   const appDirectory = await fs.mkdtemp(
     path.join(os.tmpdir(), 'modern-cloudflare-deploy-'),
@@ -635,6 +647,46 @@ export function sqliteTable(name, columns) {
     const filePath = path.join(distDirectory, filename);
     await fs.mkdir(path.dirname(filePath), { recursive: true });
     await fs.writeFile(filePath, content);
+  }
+
+  if (deliveryUnit) {
+    await fs.mkdir(path.join(appDirectory, '.modernjs'), { recursive: true });
+    await fs.writeFile(
+      path.join(appDirectory, '.modernjs/ultramodern.json'),
+      `${JSON.stringify(
+        {
+          topology: {
+            apps: [
+              {
+                id: 'checkout',
+                kind: 'remote',
+                path: '.',
+                api: { prefix: bffPrefix },
+                deliveryUnit: {
+                  unitId: deliveryUnit.unitId,
+                  buildMarker: deliveryUnit.buildMarker,
+                  sourceRevision: deliveryUnit.sourceRevision,
+                },
+              },
+            ],
+          },
+        },
+        null,
+        2,
+      )}\n`,
+    );
+
+    const buildIdentity = buildModuleIdentity ?? deliveryUnit;
+    await fs.mkdir(path.join(appDirectory, 'shared'), { recursive: true });
+    await fs.writeFile(
+      path.join(appDirectory, 'shared/ultramodern-build.ts'),
+      `export const ultramodernDeliveryUnit = {
+  build: '${buildIdentity.buildMarker}',
+  sourceRevision: '${buildIdentity.sourceRevision}',
+  unitId: '${buildIdentity.unitId}',
+} as const;
+`,
+    );
   }
 
   const preset = createCloudflarePreset({
@@ -1424,6 +1476,46 @@ describe('cloudflare deploy preset', () => {
     await expect(
       fs.readFile(path.join(outputDirectory, 'worker/package.json'), 'utf-8'),
     ).resolves.toBe('{"type":"commonjs"}\n');
+  });
+
+  it('stamps the delivery-unit identity into the Cloudflare worker manifest', async () => {
+    const deliveryUnit = {
+      unitId: 'acme/checkout',
+      buildMarker: '0123456789abcdef',
+      sourceRevision: 'workspace',
+    };
+    const { outputDirectory } = await createFixture({ deliveryUnit });
+    const workerManifest = JSON.parse(
+      await fs.readFile(
+        path.join(outputDirectory, 'server/modern-worker-manifest.json'),
+        'utf-8',
+      ),
+    );
+
+    expect(workerManifest.deliveryUnit).toEqual({
+      ...deliveryUnit,
+      surfaces: {
+        ui: { ...deliveryUnit, surface: 'ui' },
+        api: { ...deliveryUnit, surface: 'api' },
+      },
+    });
+  });
+
+  it('fails closed when the bundled build marker drifts from the topology delivery-unit record', async () => {
+    await expect(
+      createFixture({
+        deliveryUnit: {
+          unitId: 'acme/checkout',
+          buildMarker: '0123456789abcdef',
+          sourceRevision: 'workspace',
+        },
+        buildModuleIdentity: {
+          unitId: 'acme/checkout',
+          buildMarker: 'deadbeefdeadbeef',
+          sourceRevision: 'workspace',
+        },
+      }),
+    ).rejects.toThrow(/delivery-unit-drift/u);
   });
 
   it('emits explicit Effect BFF dispatch without runtime duck-typing', async () => {

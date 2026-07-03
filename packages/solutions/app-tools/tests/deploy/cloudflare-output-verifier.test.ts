@@ -19,10 +19,12 @@ const createOutputFixture = async ({
   bffWorkerSource = 'module.exports = { default: { handler: async () => new Response("ok") } };\n',
   routeWorker,
   wrangler,
+  deliveryUnit,
 }: {
   bffWorkerSource?: string | false;
   routeWorker?: string;
   wrangler?: Record<string, unknown>;
+  deliveryUnit?: unknown;
 } = {}) => {
   const directory = await fs.mkdtemp(
     path.join(os.tmpdir(), 'modern-cloudflare-output-verifier-'),
@@ -98,6 +100,7 @@ const createOutputFixture = async ({
               worker: 'worker/__modern_bff_effect.js',
             },
           }),
+      ...(deliveryUnit === undefined ? {} : { deliveryUnit }),
     },
   );
   await writeJson(path.join(outputDirectory, 'wrangler.json'), {
@@ -197,6 +200,118 @@ describe('Cloudflare output verifier', () => {
       ok: true,
       issues: [],
     });
+  });
+
+  const createDeliveryUnitStamp = (
+    identity: {
+      unitId: string;
+      buildMarker: string;
+      sourceRevision: string;
+    },
+    surfaceOverrides: {
+      ui?: Record<string, unknown>;
+      api?: Record<string, unknown>;
+    } = {},
+  ) => ({
+    ...identity,
+    surfaces: {
+      ui: { ...identity, surface: 'ui', ...surfaceOverrides.ui },
+      api: { ...identity, surface: 'api', ...surfaceOverrides.api },
+    },
+  });
+
+  const topologyRecord = {
+    unitId: 'acme/checkout',
+    buildMarker: '0123456789abcdef',
+    sourceRevision: 'workspace',
+  };
+
+  it('accepts a Cloudflare worker manifest whose delivery-unit stamp matches the topology record', async () => {
+    const { outputDirectory } = await createOutputFixture({
+      deliveryUnit: createDeliveryUnitStamp(topologyRecord),
+    });
+
+    await expect(
+      verifyCloudflareOutput({
+        outputDirectory,
+        importWorker: false,
+        deliveryUnit: topologyRecord,
+      }),
+    ).resolves.toEqual({ ok: true, issues: [] });
+  });
+
+  it('fails closed when the stamped delivery-unit build marker drifts from the topology record', async () => {
+    const { outputDirectory } = await createOutputFixture({
+      deliveryUnit: createDeliveryUnitStamp({
+        ...topologyRecord,
+        buildMarker: 'deadbeefdeadbeef',
+      }),
+    });
+
+    const result = await verifyCloudflareOutput({
+      outputDirectory,
+      importWorker: false,
+      deliveryUnit: topologyRecord,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        code: 'delivery-unit-drift',
+        message:
+          'Cloudflare worker manifest deliveryUnit.buildMarker must match the topology delivery-unit record (expected 0123456789abcdef, received deadbeefdeadbeef).',
+      }),
+    );
+  });
+
+  it('fails closed when the topology declares a delivery unit but the manifest carries no stamp', async () => {
+    const { outputDirectory } = await createOutputFixture();
+
+    const result = await verifyCloudflareOutput({
+      outputDirectory,
+      importWorker: false,
+      deliveryUnit: topologyRecord,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        code: 'missing-delivery-unit',
+        message:
+          'Cloudflare worker manifest is missing the delivery-unit identity declared by the workspace topology (expected unitId acme/checkout, buildMarker 0123456789abcdef).',
+      }),
+    );
+  });
+
+  it('fails closed when UI and API surface markers do not derive from one delivery-unit record', async () => {
+    const { outputDirectory } = await createOutputFixture({
+      deliveryUnit: createDeliveryUnitStamp(topologyRecord, {
+        api: { buildMarker: 'deadbeefdeadbeef' },
+      }),
+    });
+
+    const result = await verifyCloudflareOutput({
+      outputDirectory,
+      importWorker: false,
+      deliveryUnit: topologyRecord,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        code: 'delivery-unit-drift',
+        message:
+          'Cloudflare worker manifest api surface deliveryUnit.buildMarker must derive from one delivery-unit record (expected 0123456789abcdef, received deadbeefdeadbeef).',
+      }),
+    );
+  });
+
+  it('leaves legacy Cloudflare output without a delivery-unit declaration unchanged', async () => {
+    const { outputDirectory } = await createOutputFixture();
+
+    await expect(
+      verifyCloudflareOutput({ outputDirectory, importWorker: false }),
+    ).resolves.toEqual({ ok: true, issues: [] });
   });
 
   it('reports invalid Wrangler static asset invariants', async () => {

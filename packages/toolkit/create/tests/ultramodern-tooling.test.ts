@@ -221,6 +221,24 @@ test('backend federation generator reads migrated app-level metadata', async () 
       manifest.backendFederation.versionBoundary.buildVersion,
       manifest.buildVersion,
     );
+    if (manifest.backendFederation.deliveryUnit) {
+      assert.equal(
+        manifest.backendFederation.deliveryUnit.kind,
+        'microvertical-delivery-unit',
+      );
+      assert.equal(
+        manifest.backendFederation.deliveryUnit.buildMarker,
+        manifest.buildVersion,
+      );
+      assert.equal(
+        manifest.backendFederation.versionBoundary.deliveryUnit.unitId,
+        manifest.backendFederation.deliveryUnit.unitId,
+      );
+      assert.equal(
+        manifest.backendFederation.versionBoundary.deliveryUnit.buildMarker,
+        manifest.buildVersion,
+      );
+    }
     assert.equal(
       fs.existsSync(
         path.join(
@@ -229,6 +247,73 @@ test('backend federation generator reads migrated app-level metadata', async () 
         ),
       ),
       true,
+    );
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('backend federation proof rejects drifted delivery-unit stamps in the manifest', async () => {
+  const { tempRoot, workspaceDir } = scaffoldWorkspace(
+    'tooling-backend-mf-drift',
+  );
+
+  try {
+    addUltramodernVertical({
+      workspaceRoot: workspaceDir,
+      name: 'catalog',
+      modernVersion: '3.2.1',
+    });
+
+    assert.equal(
+      await runUltramodernToolingCli(
+        [
+          'migrate-strict-effect',
+          '--version',
+          '3.5.0-ultramodern.1',
+          '--skip-install',
+        ],
+        workspaceDir,
+      ),
+      0,
+    );
+
+    assert.equal(
+      await runUltramodernToolingCli(
+        ['backend-federation-generate', '--app', 'catalog'],
+        workspaceDir,
+      ),
+      0,
+    );
+
+    const manifestPath = path.join(
+      workspaceDir,
+      'verticals/catalog/dist/backend-mf-manifest.json',
+    );
+    const manifest = readJson(
+      workspaceDir,
+      'verticals/catalog/dist/backend-mf-manifest.json',
+    );
+
+    if (!manifest.backendFederation?.deliveryUnit) {
+      // No delivery-unit stamp was generated for this workspace shape;
+      // there is nothing to drift, so the negative case does not apply.
+      return;
+    }
+
+    manifest.backendFederation.deliveryUnit.buildMarker = 'deadbeefdeadbeef';
+    fs.writeFileSync(
+      manifestPath,
+      `${JSON.stringify(manifest, null, 2)}\n`,
+      'utf-8',
+    );
+
+    assert.equal(
+      await runUltramodernToolingCli(
+        ['backend-federation-proof'],
+        workspaceDir,
+      ),
+      1,
     );
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });

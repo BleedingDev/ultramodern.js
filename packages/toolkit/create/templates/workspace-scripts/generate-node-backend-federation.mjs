@@ -30,6 +30,8 @@ function readBuildIdentity(app) {
     buildVersion: source.match(/\bbuild:\s*['"]([^'"]+)['"]/u)?.[1],
     packageName: source.match(/\bpackageName:\s*['"]([^'"]+)['"]/u)?.[1],
     version: source.match(/\bversion:\s*['"]([^'"]+)['"]/u)?.[1],
+    unitId: source.match(/\bunitId:\s*['"]([^'"]+)['"]/u)?.[1],
+    sourceRevision: source.match(/\bsourceRevision:\s*['"]([^'"]+)['"]/u)?.[1],
   };
 }
 
@@ -152,6 +154,13 @@ export default { init, get };
 function createManifest(app) {
   const backend = normalizeBackendFederation(app);
   const buildIdentity = readBuildIdentity(app);
+  const compactDeliveryUnit =
+    app.deliveryUnit && typeof app.deliveryUnit === 'object'
+      ? app.deliveryUnit
+      : undefined;
+  const unitId = compactDeliveryUnit?.unitId ?? buildIdentity.unitId;
+  const sourceRevision =
+    compactDeliveryUnit?.sourceRevision ?? buildIdentity.sourceRevision;
   return {
     schemaVersion: 1,
     name: backend.name,
@@ -197,10 +206,31 @@ function createManifest(app) {
       containerEntry: backend.containerEntry,
       expose: backend.expose,
       runtimePackage: backend.runtimePackage,
+      ...(unitId && buildIdentity.buildVersion
+        ? {
+            deliveryUnit: {
+              schemaVersion: 1,
+              kind: 'microvertical-delivery-unit',
+              unitId,
+              packageName: buildIdentity.packageName,
+              version: buildIdentity.version,
+              buildMarker: buildIdentity.buildVersion,
+              sourceRevision,
+            },
+          }
+        : {}),
       versionBoundary: {
         packageName: buildIdentity.packageName,
         version: buildIdentity.version,
         buildVersion: buildIdentity.buildVersion,
+        ...(unitId && buildIdentity.buildVersion
+          ? {
+              deliveryUnit: {
+                unitId,
+                buildMarker: buildIdentity.buildVersion,
+              },
+            }
+          : {}),
       },
     },
   };

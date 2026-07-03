@@ -494,4 +494,153 @@ module.exports = {
       }),
     ).rejects.toThrow(/strictEffectApproach: true/u);
   });
+
+  describe('ADR-0019 delivery-unit identity root', () => {
+    function createBackendManifestWithDeliveryUnit(
+      deliveryUnit: Record<string, unknown>,
+    ) {
+      const manifest = createBackendManifest();
+      manifest.backendFederation.versionBoundary.deliveryUnit = deliveryUnit;
+      return manifest;
+    }
+
+    test('legacy manifest without deliveryUnit metadata still passes existing checks', async () => {
+      const manifest = createBackendManifest();
+
+      const loaded = await loadBackendFederatedEffectApiFromManifest({
+        hostName: 'legacyManifestBackendHost',
+        manifest,
+        expected: {
+          buildVersion: 'catalog-build-123',
+          packageName: '@tractor-store-vertical-demo/catalog',
+          version: '1.2.3',
+        },
+        plugins: [
+          createBackendFederationLoadEntryPlugin({
+            resolveEntry() {
+              return createEffectApiEntryExports(
+                createManifestEffectApiModule(),
+              );
+            },
+          }),
+        ],
+      });
+
+      expect(loaded.contract).toEqual({ servicePrefix: '/catalog-api' });
+    });
+
+    test('fails closed, telemetry-visible, when manifest deliveryUnit.buildMarker disagrees with versionBoundary.buildVersion', async () => {
+      const manifest = createBackendManifestWithDeliveryUnit({
+        unitId: 'catalog@21',
+        buildMarker: 'catalog-build-999',
+      });
+
+      await expect(
+        loadBackendFederatedEffectApiFromManifest({
+          hostName: 'deliveryUnitMismatchBackendHost',
+          manifest,
+          plugins: [
+            createBackendFederationLoadEntryPlugin({
+              resolveEntry() {
+                return createEffectApiEntryExports(
+                  createManifestEffectApiModule(),
+                );
+              },
+            }),
+          ],
+        }),
+      ).rejects.toMatchObject({
+        code: 'version_mismatch',
+        failureEvent: 'modernjs:microvertical-server-fallback',
+      });
+    });
+
+    test('fails closed when expected.unitId does not match manifest deliveryUnit.unitId', async () => {
+      const manifest = createBackendManifestWithDeliveryUnit({
+        unitId: 'catalog@21',
+        buildMarker: 'catalog-build-123',
+      });
+      const fallbackErrors: BackendFederationManifestAdapterError[] = [];
+
+      const loaded = await loadBackendFederatedEffectApiFromManifest({
+        hostName: 'unitIdMismatchBackendHost',
+        manifest,
+        expected: {
+          unitId: 'catalog@17',
+        },
+        fallback(error) {
+          fallbackErrors.push(error);
+          return createManifestEffectApiModule({
+            runtime: { brand: 'typed-effect-fallback' },
+          });
+        },
+        plugins: [
+          createBackendFederationLoadEntryPlugin({
+            resolveEntry() {
+              return createEffectApiEntryExports(
+                createManifestEffectApiModule(),
+              );
+            },
+          }),
+        ],
+      });
+
+      expect(fallbackErrors).toHaveLength(1);
+      const [fallbackError] = fallbackErrors;
+      expect(fallbackError).toBeInstanceOf(
+        BackendFederationManifestAdapterError,
+      );
+      expect(fallbackError.code).toBe('version_mismatch');
+      expect(fallbackError.failureEvent).toBe(
+        'modernjs:microvertical-server-fallback',
+      );
+      expect(fallbackError.details).toMatchObject({
+        label: 'deliveryUnit.unitId',
+        expected: 'catalog@17',
+        received: 'catalog@21',
+      });
+      expect(loaded.runtime).toEqual({ brand: 'typed-effect-fallback' });
+    });
+
+    test('fails closed when loaded compatibility.unitId does not match manifest deliveryUnit.unitId', async () => {
+      const manifest = createBackendManifestWithDeliveryUnit({
+        unitId: 'catalog@21',
+        buildMarker: 'catalog-build-123',
+      });
+
+      await expect(
+        loadBackendFederatedEffectApiFromManifest({
+          hostName: 'exposeUnitIdMismatchBackendHost',
+          manifest,
+          plugins: [
+            createBackendFederationLoadEntryPlugin({
+              resolveEntry() {
+                return createEffectApiEntryExports(
+                  createManifestEffectApiModule({
+                    backendFederationContract: {
+                      compatibility: {
+                        build: 'catalog-build-123',
+                        contractVersion: BACKEND_FEDERATION_CONTRACT_VERSION,
+                        nodeAdapterVersion:
+                          BACKEND_FEDERATION_NODE_ADAPTER_VERSION,
+                        packageName: '@tractor-store-vertical-demo/catalog',
+                        unitId: 'catalog@17',
+                      },
+                      name: 'verticalCatalogBackend',
+                      role: 'microvertical-server',
+                      runtimeFramework: 'effect',
+                      strictEffectApproach: true,
+                    },
+                  }),
+                );
+              },
+            }),
+          ],
+        }),
+      ).rejects.toMatchObject({
+        code: 'version_mismatch',
+        failureEvent: 'modernjs:microvertical-server-fallback',
+      });
+    });
+  });
 });

@@ -39,6 +39,8 @@ function readBuildIdentity(app) {
     buildVersion: source.match(/\bbuild:\s*['"]([^'"]+)['"]/u)?.[1],
     packageName: source.match(/\bpackageName:\s*['"]([^'"]+)['"]/u)?.[1],
     version: source.match(/\bversion:\s*['"]([^'"]+)['"]/u)?.[1],
+    unitId: source.match(/\bunitId:\s*['"]([^'"]+)['"]/u)?.[1],
+    sourceRevision: source.match(/\bsourceRevision:\s*['"]([^'"]+)['"]/u)?.[1],
   };
 }
 
@@ -191,6 +193,10 @@ function compactApps(config, appFilter) {
       containerEntry: createBackendContainerEntry(app),
       remoteType: resolveRemoteType(app),
       smokeChecks: collectJsonSmokeChecks(apps, app),
+      compactDeliveryUnit:
+        app.deliveryUnit && typeof app.deliveryUnit === 'object'
+          ? app.deliveryUnit
+          : undefined,
     }));
 
   if (appFilter && filteredApps.length === 0) {
@@ -433,9 +439,91 @@ function validateManifest(app, manifest, buildIdentity) {
     `${app.id} backend manifest version-boundary build version`,
   );
 
+  const manifestDeliveryUnit = manifest.backendFederation?.deliveryUnit;
+  if (manifestDeliveryUnit) {
+    assertEqual(
+      manifestDeliveryUnit.unitId,
+      buildIdentity.unitId,
+      `${app.id} backend manifest delivery-unit id`,
+    );
+    assertEqual(
+      manifestDeliveryUnit.buildMarker,
+      buildIdentity.buildVersion,
+      `${app.id} backend manifest delivery-unit build marker`,
+    );
+    assertEqual(
+      manifestDeliveryUnit.packageName,
+      buildIdentity.packageName,
+      `${app.id} backend manifest delivery-unit package name`,
+    );
+    assertEqual(
+      manifestDeliveryUnit.version,
+      buildIdentity.version,
+      `${app.id} backend manifest delivery-unit version`,
+    );
+    assertEqual(
+      manifestDeliveryUnit.sourceRevision,
+      buildIdentity.sourceRevision,
+      `${app.id} backend manifest delivery-unit source revision`,
+    );
+  }
+
+  const versionBoundaryDeliveryUnit =
+    manifest.backendFederation?.versionBoundary?.deliveryUnit;
+  if (versionBoundaryDeliveryUnit) {
+    assertEqual(
+      versionBoundaryDeliveryUnit.unitId,
+      buildIdentity.unitId,
+      `${app.id} backend manifest version-boundary delivery-unit id`,
+    );
+    assertEqual(
+      versionBoundaryDeliveryUnit.buildMarker,
+      buildIdentity.buildVersion,
+      `${app.id} backend manifest version-boundary delivery-unit build marker`,
+    );
+  }
+
   const exposes = Array.isArray(manifest.exposes) ? manifest.exposes : [];
   if (!exposes.some((expose) => expose?.name === backendExpose)) {
     throw new Error(`${app.id} backend manifest missing ${backendExpose} expose`);
+  }
+}
+
+function assertCompactDeliveryUnitMatchesBuild(app, buildIdentity) {
+  const compactDeliveryUnit = app.compactDeliveryUnit;
+  if (!compactDeliveryUnit) {
+    return;
+  }
+
+  const mismatches = [];
+  const compare = (label, a, b) => {
+    if (a !== undefined && b !== undefined && a !== b) {
+      mismatches.push(`${label}: deliveryUnit=${a} vs ultramodern-build=${b}`);
+    }
+  };
+  compare('unitId', compactDeliveryUnit.unitId, buildIdentity.unitId);
+  compare(
+    'buildMarker/build',
+    compactDeliveryUnit.buildMarker,
+    buildIdentity.buildVersion,
+  );
+  compare(
+    'packageName',
+    compactDeliveryUnit.packageName,
+    buildIdentity.packageName,
+  );
+  compare('version', compactDeliveryUnit.version, buildIdentity.version);
+
+  if (mismatches.length > 0) {
+    throw new Error(
+      `${app.id} delivery-unit identity drift between ${path.relative(
+        workspaceRoot,
+        compactConfigPath,
+      )} (deliveryUnit) and ${path.relative(
+        workspaceRoot,
+        path.join(workspaceRoot, app.directory, 'shared/ultramodern-build.ts'),
+      )}: ${mismatches.join('; ')}`,
+    );
   }
 }
 
@@ -466,6 +554,7 @@ async function proveBackend(app, backendRuntime, target) {
   assertFile(entryPath, app.id, 'backend remote entry');
 
   const buildIdentity = readBuildIdentity(app);
+  assertCompactDeliveryUnitMatchesBuild(app, buildIdentity);
   const manifest = readJson(manifestPath);
   validateManifest(app, manifest, buildIdentity);
 
@@ -524,6 +613,13 @@ async function proveBackend(app, backendRuntime, target) {
     backendContract?.compatibility?.build,
     `${app.id} backend manifest/expose build coupling`,
   );
+  if (backendContract?.compatibility?.unitId !== undefined) {
+    assertEqual(
+      backendContract.compatibility.unitId,
+      manifest.backendFederation?.deliveryUnit?.unitId,
+      `${app.id} backend expose delivery-unit id`,
+    );
+  }
 
   if (loaded.api === undefined || loaded.runtime === undefined) {
     throw new Error(`${app.id} backend expose missing api/runtime exports`);
@@ -545,6 +641,8 @@ async function proveBackend(app, backendRuntime, target) {
       packageName: buildIdentity.packageName,
       version: buildIdentity.version,
       buildVersion: buildIdentity.buildVersion,
+      unitId: buildIdentity.unitId,
+      sourceRevision: buildIdentity.sourceRevision,
     },
     smokeChecks,
     status: 'pass',

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -60,5 +61,43 @@ test('Cloudflare proof resolves MF publicPath values against the manifest URL', 
   assert.equal(
     resolveModuleFederationPublicPath(undefined, manifestUrl),
     undefined,
+  );
+});
+
+test('Cloudflare proof template asserts delivery-unit marker coupling on UI and API surfaces', () => {
+  const proofTemplate = fs.readFileSync(
+    path.join(
+      packageRoot,
+      'templates/workspace-scripts/ultramodern-cloudflare-proof.mjs',
+    ),
+    'utf-8',
+  );
+
+  assert.match(proofTemplate, /type: 'delivery-unit-ui-marker'/);
+  assert.match(proofTemplate, /type: 'delivery-unit-api-marker'/);
+  assert.match(
+    proofTemplate,
+    /is declared but SSR response is missing its build marker/,
+  );
+  assert.match(
+    proofTemplate,
+    /is declared but readiness response is missing its build marker/,
+  );
+});
+
+test('Cloudflare version proof synthesizes a delivery-unit block per API app', () => {
+  const generatorTemplate = fs.readFileSync(
+    path.join(
+      packageRoot,
+      'templates/workspace-scripts/proof-cloudflare-version.mjs',
+    ),
+    'utf-8',
+  );
+
+  assert.match(generatorTemplate, /function createDeliveryUnit\(/);
+  assert.match(generatorTemplate, /kind: 'microvertical-delivery-unit'/);
+  assert.match(
+    generatorTemplate,
+    /surfaces: \{\s*ui: \{ \.\.\.identity, surface: 'ui' \},\s*api: \{ \.\.\.identity, surface: 'api' \},/,
   );
 });

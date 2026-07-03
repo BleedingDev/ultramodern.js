@@ -53,6 +53,14 @@ const assertExists = relativePath => {
 const assertNotExists = relativePath => {
   assert(!fs.existsSync(path.join(root, relativePath)), `Unexpected ${relativePath}`);
 };
+const assertAnyOf = relativePaths => {
+  assert(
+    relativePaths.some(relativePath =>
+      fs.existsSync(path.join(root, relativePath)),
+    ),
+    `Missing one of: ${relativePaths.join(', ')}`,
+  );
+};
 const formatJson = value =>
   value === undefined ? 'undefined' : JSON.stringify(value);
 const selfCheckFailure = (contract, message, fixArea) =>
@@ -136,6 +144,28 @@ const buildMarkerFor = app =>
     .update(`${packageScope}:${app.packageSuffix}:${app.id}:0.1.0`)
     .digest('hex')
     .slice(0, 16);
+const deliveryUnitIdentityFixArea =
+  'regenerate vertical identity from delivery-unit record; do not hand-edit surface markers';
+const deliveryUnitBlock = record => ({
+  schemaVersion: record?.schemaVersion,
+  kind: record?.kind,
+  unitId: record?.unitId,
+  packageName: record?.packageName,
+  version: record?.version,
+  buildMarker: record?.buildMarker,
+  sourceRevision: record?.sourceRevision,
+});
+const assertDeliveryUnitMarkerSpread = (source, exportName, contract) => {
+  const spreadPattern = new RegExp(
+    `export const ${exportName} = \\{\\s*\\.\\.\\.ultramodernDeliveryUnit,`,
+  );
+  assertSelfCheck(
+    spreadPattern.test(source),
+    contract,
+    `${exportName} must spread ...ultramodernDeliveryUnit rather than hand-forking per-surface fields`,
+    deliveryUnitIdentityFixArea,
+  );
+};
 const normalizeCompactApp = rawApp => {
   const id = String(rawApp.id);
   const kind = rawApp.kind === 'vertical' ? 'vertical' : 'shell';
@@ -1098,6 +1128,27 @@ const assertMicroVerticalContractGraph = ({
  'restore generated MicroVertical server execution contract',
  );
 
+    if (vertical.deliveryUnit) {
+      const expectedDeliveryUnit = deliveryUnitBlock(vertical.deliveryUnit);
+      assertSameJson(
+        deliveryUnitBlock(topologyEntry.deliveryUnit),
+        expectedDeliveryUnit,
+        `topology/reference-topology.json verticals.${vertical.id}.deliveryUnit`,
+        deliveryUnitIdentityFixArea,
+      );
+      assertSameJson(
+        deliveryUnitBlock(topologyEntry.backendFederation?.deliveryUnit),
+        expectedDeliveryUnit,
+        `topology/reference-topology.json verticals.${vertical.id}.backendFederation.deliveryUnit`,
+        deliveryUnitIdentityFixArea,
+      );
+      assertSelfCheck(
+        topologyEntry.backendFederation?.versionBoundary?.identityRoot === 'deliveryUnit',
+        `topology/reference-topology.json verticals.${vertical.id}.backendFederation.versionBoundary.identityRoot`,
+        `Expected "deliveryUnit", found ${formatJson(topologyEntry.backendFederation?.versionBoundary?.identityRoot)}`,
+        deliveryUnitIdentityFixArea,
+      );
+    }
 
     assertObject(
       ownershipEntry,
@@ -1630,8 +1681,6 @@ const requiredPaths = [
   '.github/renovate.json',
   '.github/workflows/ultramodern-workspace-gates.yml',
   '.agents/agent-reference-repos.json',
-  '.codex/skills-lock.json',
-  '.codex/rstackjs-agent-skills-LICENSE',
   'topology/reference-topology.json',
   'topology/ownership.json',
   'topology/local-overlays/development.json',
@@ -1701,6 +1750,13 @@ for (const vertical of fullStackVerticals) {
 for (const requiredPath of requiredPaths) {
   assertExists(requiredPath);
 }
+// Agent skills metadata may live under .agents/ (agents-standard layout) or
+// .codex/ (legacy scaffold default).
+assertAnyOf(['.agents/skills-lock.json', '.codex/skills-lock.json']);
+assertAnyOf([
+  '.agents/rstackjs-agent-skills-LICENSE',
+  '.codex/rstackjs-agent-skills-LICENSE',
+]);
 const pnpmWorkspace = readText('pnpm-workspace.yaml');
 assert(
   pnpmWorkspace.includes("'@effect/opentelemetry': {{effectVersion}}"),
@@ -2103,6 +2159,54 @@ for (const vertical of fullStackVerticals) {
   const modernAppEnv = readText(`${vertical.path}/src/modern-app-env.d.ts`);
   const routeHead = readText(`${vertical.path}/src/routes/ultramodern-route-head.tsx`);
   const routeMetadata = readText(`${vertical.path}/src/routes/ultramodern-route-metadata.ts`);
+  const ultramodernBuildSource = readText(`${vertical.path}/shared/ultramodern-build.ts`);
+  if (vertical.deliveryUnit) {
+    const buildLabel = `${vertical.path}/shared/ultramodern-build.ts ultramodernDeliveryUnit`;
+    assertSelfCheck(
+      ultramodernBuildSource.includes('export const ultramodernDeliveryUnit'),
+      buildLabel,
+      'Missing ultramodernDeliveryUnit export',
+      deliveryUnitIdentityFixArea,
+    );
+    const buildMatch = /\bbuild:\s*'([^']+)'/u.exec(ultramodernBuildSource);
+    const unitIdMatch = /\bunitId:\s*'([^']+)'/u.exec(ultramodernBuildSource);
+    const packageNameMatch = /\bpackageName:\s*'([^']+)'/u.exec(ultramodernBuildSource);
+    const versionMatch = /\bversion:\s*'([^']+)'/u.exec(ultramodernBuildSource);
+    assertSelfCheck(
+      buildMatch?.[1] === vertical.deliveryUnit.buildMarker,
+      buildLabel,
+      `Expected build "${vertical.deliveryUnit.buildMarker}", found ${formatJson(buildMatch?.[1])}`,
+      deliveryUnitIdentityFixArea,
+    );
+    assertSelfCheck(
+      unitIdMatch?.[1] === vertical.deliveryUnit.unitId,
+      buildLabel,
+      `Expected unitId "${vertical.deliveryUnit.unitId}", found ${formatJson(unitIdMatch?.[1])}`,
+      deliveryUnitIdentityFixArea,
+    );
+    assertSelfCheck(
+      packageNameMatch?.[1] === vertical.deliveryUnit.packageName,
+      buildLabel,
+      `Expected packageName "${vertical.deliveryUnit.packageName}", found ${formatJson(packageNameMatch?.[1])}`,
+      deliveryUnitIdentityFixArea,
+    );
+    assertSelfCheck(
+      versionMatch?.[1] === vertical.deliveryUnit.version,
+      buildLabel,
+      `Expected version "${vertical.deliveryUnit.version}", found ${formatJson(versionMatch?.[1])}`,
+      deliveryUnitIdentityFixArea,
+    );
+    assertDeliveryUnitMarkerSpread(
+      ultramodernBuildSource,
+      'ultramodernUiMarker',
+      `${vertical.path}/shared/ultramodern-build.ts ultramodernUiMarker`,
+    );
+    assertDeliveryUnitMarkerSpread(
+      ultramodernBuildSource,
+      'ultramodernApiMarker',
+      `${vertical.path}/shared/ultramodern-build.ts ultramodernApiMarker`,
+    );
+  }
   assert(modernAppEnv.includes("import '@modern-js/app-tools/types';"), `${vertical.id} app env must import the framework-owned app ambient type bundle through module resolution`);
   assert(/declare global \{\s*const ULTRAMODERN_SITE_URL: string;\s*\}/u.test(modernAppEnv), `${vertical.id} app env must keep generated globals explicit after importing app ambient types`);
   assert(!modernAppEnv.includes("declare module '*.svg'"), `${vertical.id} app env must not redeclare framework-owned svg asset modules`);
@@ -2232,6 +2336,37 @@ for (const vertical of fullStackVerticals) {
   assert(topologyEntry?.api?.serverEntry === `${vertical.path}/api/index.ts`, `${vertical.id} topology server entry is incorrect`);
   assert(topologyEntry?.api?.readiness?.endpoint === `/${vertical.stem}/readiness`, `${vertical.id} topology readiness endpoint is incorrect`);
   assert(Object.keys(topologyEntry?.api?.domainOperations ?? {}).length >= 3, `${vertical.id} topology domain operations are missing`);
+
+  if (vertical.deliveryUnit) {
+    const expectedDeliveryUnit = deliveryUnitBlock(vertical.deliveryUnit);
+    const compactAppEntry = ultramodernConfig.topology?.apps?.find(
+      entry => entry?.id === vertical.id,
+    );
+    assertSameJson(
+      deliveryUnitBlock(compactAppEntry?.deliveryUnit),
+      expectedDeliveryUnit,
+      `${compactConfigPath} topology.apps.${vertical.id}.deliveryUnit`,
+      deliveryUnitIdentityFixArea,
+    );
+    assertSameJson(
+      deliveryUnitBlock(compactAppEntry?.backendFederation?.deliveryUnit),
+      expectedDeliveryUnit,
+      `${compactConfigPath} topology.apps.${vertical.id}.backendFederation.deliveryUnit`,
+      deliveryUnitIdentityFixArea,
+    );
+    assertSelfCheck(
+      compactAppEntry?.backendFederation?.versionBoundary?.identityRoot === 'deliveryUnit',
+      `${compactConfigPath} topology.apps.${vertical.id}.backendFederation.versionBoundary.identityRoot`,
+      `Expected "deliveryUnit", found ${formatJson(compactAppEntry?.backendFederation?.versionBoundary?.identityRoot)}`,
+      deliveryUnitIdentityFixArea,
+    );
+    assertSameJson(
+      deliveryUnitBlock(compactAppEntry?.deliveryUnit),
+      deliveryUnitBlock(topologyEntry?.deliveryUnit),
+      `${compactConfigPath} vs topology/reference-topology.json verticals.${vertical.id}.deliveryUnit`,
+      deliveryUnitIdentityFixArea,
+    );
+  }
 
   assert(ownership.owners?.some(owner => owner.id === vertical.id && owner.path === vertical.path), `${vertical.id} ownership entry is missing`);
   assert(overlay.ports?.[vertical.id], `${vertical.id} development port is missing`);

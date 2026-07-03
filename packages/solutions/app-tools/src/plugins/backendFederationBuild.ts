@@ -40,6 +40,13 @@ type CompactApp = {
       };
     };
   };
+  deliveryUnit?: {
+    unitId?: unknown;
+    buildMarker?: unknown;
+    sourceRevision?: unknown;
+    packageName?: unknown;
+    version?: unknown;
+  };
   serverExecution?: {
     node?: {
       remoteName?: unknown;
@@ -62,6 +69,8 @@ type BackendFederationApp = {
   packageName?: string;
   version?: string;
   buildVersion?: string;
+  unitId?: string;
+  sourceRevision?: string;
   port: number;
   apiPrefix: string;
   apiStem: string;
@@ -70,12 +79,21 @@ type BackendFederationApp = {
   containerEntry: string;
   remoteType: string;
   uiManifestUrl?: string;
+  compactDeliveryUnit?: {
+    unitId?: string;
+    buildMarker?: string;
+    sourceRevision?: string;
+    packageName?: string;
+    version?: string;
+  };
 };
 
 type BackendFederationBuildIdentity = {
   packageName?: string;
   version?: string;
   buildVersion?: string;
+  unitId?: string;
+  sourceRevision?: string;
 };
 
 export type BackendFederationArtifactResult = {
@@ -95,13 +113,13 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const readJsonFile = async <T>(filePath: string): Promise<T> =>
   JSON.parse(await fs.readFile(filePath, 'utf8')) as T;
 
+const buildModulePathFor = (appDirectory: string) =>
+  path.join(appDirectory, 'shared/ultramodern-build.ts');
+
 const readBuildIdentity = async (
   appDirectory: string,
 ): Promise<BackendFederationBuildIdentity> => {
-  const buildModulePath = path.join(
-    appDirectory,
-    'shared/ultramodern-build.ts',
-  );
+  const buildModulePath = buildModulePathFor(appDirectory);
   if (!existsSync(buildModulePath)) {
     return {};
   }
@@ -111,6 +129,8 @@ const readBuildIdentity = async (
     buildVersion: source.match(/\bbuild:\s*['"]([^'"]+)['"]/u)?.[1],
     packageName: source.match(/\bpackageName:\s*['"]([^'"]+)['"]/u)?.[1],
     version: source.match(/\bversion:\s*['"]([^'"]+)['"]/u)?.[1],
+    unitId: source.match(/\bunitId:\s*['"]([^'"]+)['"]/u)?.[1],
+    sourceRevision: source.match(/\bsourceRevision:\s*['"]([^'"]+)['"]/u)?.[1],
   };
 };
 
@@ -205,6 +225,15 @@ const createAppFromCompactMetadata = (
     stringValue(
       compactApp.backendFederation?.versionBoundary?.ui?.manifestUrl,
     ) ?? stringValue(compactApp.moduleFederation?.manifestUrl);
+  const compactDeliveryUnit = isRecord(compactApp.deliveryUnit)
+    ? {
+        unitId: stringValue(compactApp.deliveryUnit.unitId),
+        buildMarker: stringValue(compactApp.deliveryUnit.buildMarker),
+        sourceRevision: stringValue(compactApp.deliveryUnit.sourceRevision),
+        packageName: stringValue(compactApp.deliveryUnit.packageName),
+        version: stringValue(compactApp.deliveryUnit.version),
+      }
+    : undefined;
 
   return {
     id,
@@ -218,6 +247,7 @@ const createAppFromCompactMetadata = (
     containerEntry,
     remoteType,
     uiManifestUrl,
+    compactDeliveryUnit,
   };
 };
 
@@ -283,6 +313,8 @@ export const __modernjsBackendFederation = ${JSON.stringify(
         path.relative(workspaceRoot, effectApiPath),
       ),
       version: app.version,
+      ...(app.unitId ? { unitId: app.unitId } : {}),
+      ...(app.sourceRevision ? { sourceRevision: app.sourceRevision } : {}),
     },
     null,
     2,
@@ -383,12 +415,33 @@ const createBackendManifest = (
       },
       readinessPath: `${app.apiPrefix}/${app.apiStem}/readiness`,
       openapiPath: `${app.apiPrefix}/openapi.json`,
+      ...(app.unitId && app.buildVersion
+        ? {
+            deliveryUnit: {
+              schemaVersion: 1,
+              kind: 'microvertical-delivery-unit',
+              unitId: app.unitId,
+              packageName: app.packageName,
+              version: app.version,
+              buildMarker: app.buildVersion,
+              sourceRevision: app.sourceRevision,
+            },
+          }
+        : {}),
       versionBoundary: {
         invariant: 'web-and-api-same-build',
         packageName: app.packageName,
         version: app.version,
         buildVersion: app.buildVersion,
         ...(app.uiManifestUrl ? { uiManifestUrl: app.uiManifestUrl } : {}),
+        ...(app.unitId && app.buildVersion
+          ? {
+              deliveryUnit: {
+                unitId: app.unitId,
+                buildMarker: app.buildVersion,
+              },
+            }
+          : {}),
       },
     },
   };
@@ -417,10 +470,68 @@ export const emitBackendFederationArtifacts = async (
     return undefined;
   }
   const buildIdentity = await readBuildIdentity(appDirectory);
-  const resolvedApp = {
+  const compactDeliveryUnit = app.compactDeliveryUnit;
+  const hasCompactDeliveryUnit =
+    compactDeliveryUnit !== undefined &&
+    (compactDeliveryUnit.unitId !== undefined ||
+      compactDeliveryUnit.buildMarker !== undefined ||
+      compactDeliveryUnit.packageName !== undefined ||
+      compactDeliveryUnit.version !== undefined);
+  const hasBuildIdentity =
+    buildIdentity.unitId !== undefined ||
+    buildIdentity.buildVersion !== undefined ||
+    buildIdentity.packageName !== undefined ||
+    buildIdentity.version !== undefined;
+
+  if (hasCompactDeliveryUnit && hasBuildIdentity) {
+    const compactConfigPath = path.join(workspaceRoot, COMPACT_CONFIG_PATH);
+    const buildModulePath = buildModulePathFor(appDirectory);
+    const mismatches: string[] = [];
+    const compare = (label: string, a?: string, b?: string) => {
+      if (a !== undefined && b !== undefined && a !== b) {
+        mismatches.push(
+          `${label}: deliveryUnit=${a} vs ultramodern-build=${b}`,
+        );
+      }
+    };
+    compare('unitId', compactDeliveryUnit?.unitId, buildIdentity.unitId);
+    compare(
+      'buildMarker/build',
+      compactDeliveryUnit?.buildMarker,
+      buildIdentity.buildVersion,
+    );
+    compare(
+      'packageName',
+      compactDeliveryUnit?.packageName,
+      buildIdentity.packageName,
+    );
+    compare('version', compactDeliveryUnit?.version, buildIdentity.version);
+
+    if (mismatches.length > 0) {
+      throw new Error(
+        `[backend-federation-build] Delivery-unit identity drift between ${compactConfigPath} (deliveryUnit) and ${buildModulePath}: ${mismatches.join('; ')}`,
+      );
+    }
+  }
+
+  const unitId = compactDeliveryUnit?.unitId ?? buildIdentity.unitId;
+  const buildVersion =
+    compactDeliveryUnit?.buildMarker ?? buildIdentity.buildVersion;
+  const sourceRevision =
+    compactDeliveryUnit?.sourceRevision ?? buildIdentity.sourceRevision;
+  const packageName =
+    compactDeliveryUnit?.packageName ??
+    buildIdentity.packageName ??
+    app.packageName;
+  const version = compactDeliveryUnit?.version ?? buildIdentity.version;
+
+  const resolvedApp: BackendFederationApp = {
     ...app,
-    ...buildIdentity,
-    packageName: buildIdentity.packageName ?? app.packageName,
+    packageName,
+    version,
+    buildVersion,
+    unitId,
+    sourceRevision,
   };
 
   const manifestPath = path.join(distDirectory, BACKEND_MANIFEST_FILE);

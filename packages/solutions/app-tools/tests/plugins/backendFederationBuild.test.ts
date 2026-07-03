@@ -152,6 +152,190 @@ describe('backend federation build artifacts', () => {
     expect(remoteEntry).toContain('"version": "0.1.0"');
   });
 
+  it('emits matching deliveryUnit blocks when compact config and shared build agree', async () => {
+    const workspaceRoot = await createTempDir();
+    const appDirectory = path.join(workspaceRoot, 'verticals/explore');
+    const distDirectory = path.join(appDirectory, 'dist');
+
+    await fs.mkdir(path.join(appDirectory, 'api'), { recursive: true });
+    await fs.writeFile(
+      path.join(appDirectory, 'api/effect-api.ts'),
+      'export const backendFederationContract = {};\n',
+    );
+    await fs.mkdir(path.join(appDirectory, 'shared'), { recursive: true });
+    await fs.writeFile(
+      path.join(appDirectory, 'shared/ultramodern-build.ts'),
+      [
+        'export const ultramodernDeliveryUnit = {',
+        "  appId: 'explore',",
+        "  build: 'tractor-explore-build-1234',",
+        "  packageName: '@tractor-store-vertical-demo/explore',",
+        "  version: '0.1.0',",
+        "  sourceRevision: 'workspace',",
+        "  unitId: 'tractor-store-vertical-demo/explore',",
+        '} as const;',
+        '',
+      ].join('\n'),
+    );
+    await fs.writeFile(
+      path.join(appDirectory, 'backend-federation.config.ts'),
+      'export default {};\n',
+    );
+    await writeJson(path.join(workspaceRoot, '.modernjs/ultramodern.json'), {
+      topology: {
+        apps: [
+          {
+            id: 'explore',
+            kind: 'vertical',
+            package: '@tractor-store-vertical-demo/explore',
+            path: 'verticals/explore',
+            port: 3021,
+            api: {
+              prefix: '/explore-api',
+              stem: 'explore',
+            },
+            moduleFederation: {
+              name: 'verticalExplore',
+              manifestUrl: 'http://localhost:3021/mf-manifest.json',
+            },
+            backendFederation: {
+              name: 'verticalExploreBackend',
+              versionBoundary: {
+                ui: {
+                  manifestUrl: 'http://localhost:3021/mf-manifest.json',
+                },
+              },
+              executionSurfaces: {
+                node: {
+                  remoteName: 'verticalExploreBackend',
+                  manifestUrl: 'http://localhost:3021/backend-mf-manifest.json',
+                  containerEntry:
+                    'http://localhost:3021/backendRemoteEntry.mjs',
+                  remoteType: 'module',
+                },
+              },
+            },
+            deliveryUnit: {
+              unitId: 'tractor-store-vertical-demo/explore',
+              buildMarker: 'tractor-explore-build-1234',
+              sourceRevision: 'workspace',
+              packageName: '@tractor-store-vertical-demo/explore',
+              version: '0.1.0',
+            },
+          },
+        ],
+      },
+    });
+
+    await emitBackendFederationArtifacts(appDirectory, distDirectory);
+
+    const manifest = JSON.parse(
+      await fs.readFile(path.join(distDirectory, 'backend-mf-manifest.json'), {
+        encoding: 'utf8',
+      }),
+    );
+    const remoteEntry = await fs.readFile(
+      path.join(distDirectory, 'backendRemoteEntry.mjs'),
+      'utf8',
+    );
+
+    expect(manifest.backendFederation.deliveryUnit).toEqual({
+      schemaVersion: 1,
+      kind: 'microvertical-delivery-unit',
+      unitId: 'tractor-store-vertical-demo/explore',
+      packageName: '@tractor-store-vertical-demo/explore',
+      version: '0.1.0',
+      buildMarker: 'tractor-explore-build-1234',
+      sourceRevision: 'workspace',
+    });
+    expect(manifest.backendFederation.versionBoundary.deliveryUnit).toEqual({
+      unitId: 'tractor-store-vertical-demo/explore',
+      buildMarker: 'tractor-explore-build-1234',
+    });
+    expect(
+      manifest.backendFederation.versionBoundary.deliveryUnit.buildMarker,
+    ).toBe(manifest.backendFederation.versionBoundary.buildVersion);
+    expect(remoteEntry).toContain(
+      '"unitId": "tractor-store-vertical-demo/explore"',
+    );
+    expect(remoteEntry).toContain('"sourceRevision": "workspace"');
+  });
+
+  it('throws when compact deliveryUnit and shared/ultramodern-build.ts disagree', async () => {
+    const workspaceRoot = await createTempDir();
+    const appDirectory = path.join(workspaceRoot, 'verticals/explore');
+    const distDirectory = path.join(appDirectory, 'dist');
+
+    await fs.mkdir(path.join(appDirectory, 'api'), { recursive: true });
+    await fs.writeFile(
+      path.join(appDirectory, 'api/effect-api.ts'),
+      'export const backendFederationContract = {};\n',
+    );
+    await fs.mkdir(path.join(appDirectory, 'shared'), { recursive: true });
+    await fs.writeFile(
+      path.join(appDirectory, 'shared/ultramodern-build.ts'),
+      [
+        'export const ultramodernDeliveryUnit = {',
+        "  appId: 'explore',",
+        "  build: 'tractor-explore-build-DRIFTED',",
+        "  packageName: '@tractor-store-vertical-demo/explore',",
+        "  version: '0.1.0',",
+        "  sourceRevision: 'workspace',",
+        "  unitId: 'tractor-store-vertical-demo/explore',",
+        '} as const;',
+        '',
+      ].join('\n'),
+    );
+    await fs.writeFile(
+      path.join(appDirectory, 'backend-federation.config.ts'),
+      'export default {};\n',
+    );
+    await writeJson(path.join(workspaceRoot, '.modernjs/ultramodern.json'), {
+      topology: {
+        apps: [
+          {
+            id: 'explore',
+            kind: 'vertical',
+            package: '@tractor-store-vertical-demo/explore',
+            path: 'verticals/explore',
+            port: 3021,
+            api: {
+              prefix: '/explore-api',
+              stem: 'explore',
+            },
+            moduleFederation: {
+              name: 'verticalExplore',
+              manifestUrl: 'http://localhost:3021/mf-manifest.json',
+            },
+            backendFederation: {
+              name: 'verticalExploreBackend',
+              executionSurfaces: {
+                node: {
+                  remoteName: 'verticalExploreBackend',
+                  manifestUrl: 'http://localhost:3021/backend-mf-manifest.json',
+                  containerEntry:
+                    'http://localhost:3021/backendRemoteEntry.mjs',
+                  remoteType: 'module',
+                },
+              },
+            },
+            deliveryUnit: {
+              unitId: 'tractor-store-vertical-demo/explore',
+              buildMarker: 'tractor-explore-build-1234',
+              sourceRevision: 'workspace',
+              packageName: '@tractor-store-vertical-demo/explore',
+              version: '0.1.0',
+            },
+          },
+        ],
+      },
+    });
+
+    await expect(
+      emitBackendFederationArtifacts(appDirectory, distDirectory),
+    ).rejects.toThrow(/Delivery-unit identity drift/);
+  });
+
   it('skips apps without generated backend federation metadata', async () => {
     const workspaceRoot = await createTempDir();
     const appDirectory = path.join(workspaceRoot, 'apps/shell-super-app');

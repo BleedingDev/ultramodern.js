@@ -12,6 +12,8 @@ export const backendFederationContract = {
     contractVersion: 'microvertical-server-effect-v1',
     nodeAdapterVersion: 'backend-mf-effect-v1',
     packageName: ultramodernApiMarker.packageName,
+    sourceRevision: ultramodernApiMarker.sourceRevision,
+    unitId: ultramodernApiMarker.unitId,
   },
   contractVersion: 'microvertical-server-effect-v1',
   executionSurfaces: ['node-mf-runtime'],

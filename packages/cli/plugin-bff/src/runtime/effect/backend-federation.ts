@@ -43,6 +43,13 @@ export type BackendFederatedEffectApiModule = EffectApiModule & {
       contractVersion?: unknown;
       nodeAdapterVersion?: unknown;
       packageName?: unknown;
+      /**
+       * ADR-0019 delivery-unit identity root, generator-emitted alongside
+       * the manifest's `versionBoundary.deliveryUnit`. Additive/optional.
+       */
+      unitId?: unknown;
+      /** ADR-0019 delivery-unit source revision. Additive/optional. */
+      sourceRevision?: unknown;
     };
     name?: unknown;
     role?: unknown;

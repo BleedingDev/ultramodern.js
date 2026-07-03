@@ -917,6 +917,152 @@ const readRouteSpec = async (outputDirectory: string) => {
   };
 };
 
+const COMPACT_CONFIG_PATH = '.modernjs/ultramodern.json';
+const ULTRAMODERN_BUILD_MODULE = 'shared/ultramodern-build.ts';
+
+type DeliveryUnitIdentity = {
+  unitId: string;
+  buildMarker: string;
+  sourceRevision: string;
+};
+
+type DeliveryUnitStamp = DeliveryUnitIdentity & {
+  surfaces: {
+    ui: DeliveryUnitIdentity & { surface: 'ui' };
+    api: DeliveryUnitIdentity & { surface: 'api' };
+  };
+};
+
+const nonEmptyString = (value: unknown): string | undefined =>
+  typeof value === 'string' && value.length > 0 ? value : undefined;
+
+const toDeliveryUnitIdentity = (
+  value: unknown,
+): DeliveryUnitIdentity | undefined => {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const unitId = nonEmptyString(value.unitId);
+  const buildMarker = nonEmptyString(value.buildMarker);
+  const sourceRevision = nonEmptyString(value.sourceRevision);
+
+  if (!unitId || !buildMarker || !sourceRevision) {
+    return undefined;
+  }
+
+  return { unitId, buildMarker, sourceRevision };
+};
+
+const findWorkspaceRoot = async (
+  appDirectory: string,
+): Promise<string | undefined> => {
+  let current = path.resolve(appDirectory);
+
+  for (;;) {
+    if (await fse.pathExists(path.join(current, COMPACT_CONFIG_PATH))) {
+      return current;
+    }
+
+    const parent = path.dirname(current);
+    if (parent === current) {
+      return undefined;
+    }
+
+    current = parent;
+  }
+};
+
+/**
+ * Resolve the delivery-unit record declared for this app by the workspace
+ * compact config (`.modernjs/ultramodern.json`). This is the topology source
+ * of truth the Cloudflare worker snapshot is verified against.
+ */
+const resolveTopologyDeliveryUnit = async (
+  appDirectory: string,
+): Promise<DeliveryUnitIdentity | undefined> => {
+  const workspaceRoot = await findWorkspaceRoot(appDirectory);
+  if (!workspaceRoot) {
+    return undefined;
+  }
+
+  let compactConfig: unknown;
+  try {
+    compactConfig = await fse.readJSON(
+      path.join(workspaceRoot, COMPACT_CONFIG_PATH),
+    );
+  } catch {
+    return undefined;
+  }
+
+  if (!isRecord(compactConfig)) {
+    return undefined;
+  }
+
+  const topology = isRecord(compactConfig.topology)
+    ? compactConfig.topology
+    : undefined;
+  const apps = Array.isArray(topology?.apps) ? topology.apps : [];
+  const resolvedAppDirectory = path.resolve(appDirectory);
+
+  for (const app of apps) {
+    if (!isRecord(app)) {
+      continue;
+    }
+
+    const appPath = nonEmptyString(app.path);
+    if (
+      appPath &&
+      path.resolve(workspaceRoot, appPath.replace(/^\.\/+/u, '')) ===
+        resolvedAppDirectory
+    ) {
+      return toDeliveryUnitIdentity(app.deliveryUnit);
+    }
+  }
+
+  // Single-app compact config: fall back to a top-level declaration.
+  return toDeliveryUnitIdentity(compactConfig.deliveryUnit);
+};
+
+/**
+ * Resolve the delivery-unit identity actually bundled into the worker by
+ * parsing the generated `shared/ultramodern-build.ts` module. This is the
+ * worker snapshot / UI+API surface source that gets stamped into the manifest.
+ */
+const resolveWorkerDeliveryUnitStamp = async (
+  appDirectory: string,
+): Promise<DeliveryUnitStamp | undefined> => {
+  const buildModulePath = path.join(appDirectory, ULTRAMODERN_BUILD_MODULE);
+  if (!(await fse.pathExists(buildModulePath))) {
+    return undefined;
+  }
+
+  const source = await fse.readFile(buildModulePath, 'utf8');
+  const buildMarker = source.match(/\bbuild:\s*['"]([^'"]+)['"]/u)?.[1];
+  const unitId = source.match(/\bunitId:\s*['"]([^'"]+)['"]/u)?.[1];
+  const sourceRevision = source.match(
+    /\bsourceRevision:\s*['"]([^'"]+)['"]/u,
+  )?.[1];
+
+  if (!buildMarker || !unitId || !sourceRevision) {
+    return undefined;
+  }
+
+  const identity: DeliveryUnitIdentity = {
+    unitId,
+    buildMarker,
+    sourceRevision,
+  };
+
+  return {
+    ...identity,
+    surfaces: {
+      ui: { ...identity, surface: 'ui' },
+      api: { ...identity, surface: 'api' },
+    },
+  };
+};
+
 const createMissingEffectBffWorkerError = (
   outputDirectory: string,
   worker: string,
@@ -932,6 +1078,7 @@ const createWorkerManifest = async (
   outputDirectory: string,
   modernConfig: Parameters<CreatePreset>[0]['modernConfig'],
   appContext: Parameters<CreatePreset>[0]['appContext'],
+  deliveryUnitStamp: DeliveryUnitStamp | undefined,
 ) => {
   const routeSpec = await readRouteSpec(outputDirectory);
   const routes = await Promise.all(
@@ -998,6 +1145,7 @@ const createWorkerManifest = async (
       routeManifest: ROUTE_MANIFEST_FILE,
     },
     security: createCloudflareWorkerSecurityPolicy(modernConfig),
+    ...(deliveryUnitStamp ? { deliveryUnit: deliveryUnitStamp } : {}),
     i18n: createI18nWorkerManifest(routeSpec, appContext),
     bff:
       isEffectApi && primaryBffPrefix && effectApiWorkerExists
@@ -1186,9 +1334,16 @@ export const createCloudflarePreset: CreatePreset = ({
         },
       );
 
+      const deliveryUnitStamp =
+        await resolveWorkerDeliveryUnitStamp(appDirectory);
       await fse.writeJSON(
         workerManifestPath,
-        await createWorkerManifest(outputDirectory, modernConfig, appContext),
+        await createWorkerManifest(
+          outputDirectory,
+          modernConfig,
+          appContext,
+          deliveryUnitStamp,
+        ),
         {
           spaces: 2,
         },
@@ -1211,9 +1366,12 @@ export const createCloudflarePreset: CreatePreset = ({
             createWorkerModuleLoaders(manifest),
           ),
       );
+      const topologyDeliveryUnit =
+        await resolveTopologyDeliveryUnit(appDirectory);
       await assertCloudflareOutput({
         outputDirectory,
         importWorker: false,
+        ...(topologyDeliveryUnit ? { deliveryUnit: topologyDeliveryUnit } : {}),
       });
     },
   };

@@ -1026,6 +1026,28 @@ test('generated MicroVertical self-check names corrupted contracts and fix areas
         /Fix area: restore generated string SSR Module Federation settings\./,
     },
     {
+      workspaceName: 'delivery-unit-drift',
+      mutate: (workspaceDir: string) => {
+        const ultramodernConfig = readJson(
+          workspaceDir,
+          '.modernjs/ultramodern.json',
+        );
+        appById(
+          ultramodernConfig.topology.apps,
+          'catalog',
+        ).deliveryUnit.buildMarker = 'deadbeefdeadbeef';
+        writeJson(
+          workspaceDir,
+          '.modernjs/ultramodern.json',
+          ultramodernConfig,
+        );
+      },
+      expectedContract:
+        /MicroVertical contract self-check failed: \.modernjs\/ultramodern\.json topology\.apps\.catalog\.deliveryUnit\./,
+      expectedFixArea:
+        /Fix area: regenerate vertical identity from delivery-unit record; do not hand-edit surface markers\./,
+    },
+    {
       workspaceName: 'vertical-ssr-corrupt',
       mutate: (workspaceDir: string) => {
         const ultramodernConfig = readJson(

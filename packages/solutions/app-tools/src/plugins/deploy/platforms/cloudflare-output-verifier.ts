@@ -20,6 +20,8 @@ export type CloudflareOutputVerifierIssueCode =
   | 'missing-worker-bundle'
   | 'invalid-worker-bundle'
   | 'worker-import-failed'
+  | 'delivery-unit-drift'
+  | 'missing-delivery-unit'
   | 'forbidden-mutation-pattern';
 
 export interface CloudflareOutputVerifierIssue {
@@ -28,9 +30,22 @@ export interface CloudflareOutputVerifierIssue {
   path?: string;
 }
 
+export interface CloudflareDeliveryUnitIdentity {
+  unitId: string;
+  buildMarker: string;
+  sourceRevision: string;
+}
+
 export interface VerifyCloudflareOutputOptions {
   outputDirectory: string;
   importWorker?: boolean;
+  /**
+   * Topology-declared delivery-unit record (from the workspace compact config).
+   * When provided, the Cloudflare worker manifest must carry a matching
+   * `deliveryUnit` stamp so the deployed worker snapshot is proven to derive
+   * from the same delivery unit as the Node/API surfaces (ADR-0019 lane D).
+   */
+  deliveryUnit?: CloudflareDeliveryUnitIdentity;
 }
 
 export interface VerifyCloudflareOutputMutationPolicyOptions {
@@ -234,6 +249,69 @@ const missingWorkerBundleMessage = (reference: WorkerBundleReference) =>
     ? 'Cloudflare Effect BFF manifest points to a missing worker bundle.'
     : 'Cloudflare route worker manifest points to a missing worker bundle.';
 
+const DELIVERY_UNIT_IDENTITY_FIELDS: Array<
+  keyof CloudflareDeliveryUnitIdentity
+> = ['unitId', 'buildMarker', 'sourceRevision'];
+
+const verifyDeliveryUnitIdentity = (
+  issues: CloudflareOutputVerifierIssue[],
+  manifest: JsonObject,
+  manifestPath: string,
+  declared: CloudflareDeliveryUnitIdentity | undefined,
+) => {
+  const stamped = manifest?.deliveryUnit;
+  const hasStamp = Boolean(stamped) && typeof stamped === 'object';
+
+  // Legacy outputs (no topology declaration and no stamp) are unchanged.
+  if (declared) {
+    if (!hasStamp) {
+      addIssue(issues, {
+        code: 'missing-delivery-unit',
+        message: `Cloudflare worker manifest is missing the delivery-unit identity declared by the workspace topology (expected unitId ${declared.unitId}, buildMarker ${declared.buildMarker}).`,
+        path: manifestPath,
+      });
+      return;
+    }
+
+    for (const field of DELIVERY_UNIT_IDENTITY_FIELDS) {
+      assertEqual(issues, stamped[field], declared[field], {
+        code: 'delivery-unit-drift',
+        message: `Cloudflare worker manifest deliveryUnit.${field} must match the topology delivery-unit record (expected ${declared[field]}, received ${
+          stamped[field] ?? 'undefined'
+        }).`,
+        path: manifestPath,
+      });
+    }
+  }
+
+  // UI and API surface markers must both derive from the one stamped record,
+  // proving Cloudflare and Node are surfaces of the same delivery unit.
+  if (hasStamp && stamped.surfaces && typeof stamped.surfaces === 'object') {
+    for (const surface of ['ui', 'api'] as const) {
+      const marker = stamped.surfaces[surface];
+
+      if (!marker || typeof marker !== 'object') {
+        addIssue(issues, {
+          code: 'missing-delivery-unit',
+          message: `Cloudflare worker manifest is missing the ${surface} delivery-unit surface marker.`,
+          path: manifestPath,
+        });
+        continue;
+      }
+
+      for (const field of DELIVERY_UNIT_IDENTITY_FIELDS) {
+        assertEqual(issues, marker[field], stamped[field], {
+          code: 'delivery-unit-drift',
+          message: `Cloudflare worker manifest ${surface} surface deliveryUnit.${field} must derive from one delivery-unit record (expected ${
+            stamped[field] ?? 'undefined'
+          }, received ${marker[field] ?? 'undefined'}).`,
+          path: manifestPath,
+        });
+      }
+    }
+  }
+};
+
 const verifyManifestShape = (
   issues: CloudflareOutputVerifierIssue[],
   manifest: JsonObject,
@@ -404,6 +482,12 @@ export const verifyCloudflareOutput = async (
 
   if (manifest) {
     verifyManifestShape(issues, manifest, manifestPath);
+    verifyDeliveryUnitIdentity(
+      issues,
+      manifest,
+      manifestPath,
+      options.deliveryUnit,
+    );
 
     const workerReferences = getWorkerBundleReferences(manifest);
     if (workerReferences.length > 0 && !(await pathExists(workerPackagePath))) {

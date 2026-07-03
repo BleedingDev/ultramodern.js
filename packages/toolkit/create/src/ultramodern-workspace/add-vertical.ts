@@ -15,6 +15,10 @@ import {
 } from './backend-federation';
 import type { UltramodernBridgeConfig } from './bridge-config';
 import {
+  createDeliveryUnitRecord,
+  deliveryUnitContractBlock,
+} from './delivery-unit';
+import {
   createShellPage,
   createShellRemoteComponents,
 } from './demo-components';
@@ -385,6 +389,13 @@ export function verticalTopologyEntry(
     },
     ...(createBackendFederationContract(scope, vertical)
       ? { backendFederation: createBackendFederationContract(scope, vertical) }
+      : {}),
+    ...(vertical.api
+      ? {
+          deliveryUnit: deliveryUnitContractBlock(
+            createDeliveryUnitRecord(scope, vertical),
+          ),
+        }
       : {}),
     ...(apiTopologyMetadata(vertical)
       ? { api: apiTopologyMetadata(vertical) }

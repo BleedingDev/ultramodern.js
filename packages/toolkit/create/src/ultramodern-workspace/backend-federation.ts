@@ -1,5 +1,9 @@
 import { verticalApiExport, verticalApiGroupName } from './api';
 import {
+  createDeliveryUnitRecord,
+  deliveryUnitContractBlock,
+} from './delivery-unit';
+import {
   appHasApi,
   createBackendFederationContainerEntry,
   createBackendFederationManifestEnv,
@@ -106,9 +110,15 @@ export function createServerExecutionOverlay(
     return undefined;
   }
 
+  const deliveryUnit = createDeliveryUnitRecord(scope, app);
+
   return {
     apiBaseUrl: `http://localhost:${app.port}${resolveApiPrefix(app)}`,
     versionBoundary: 'web-and-api-same-build',
+    deliveryUnit: {
+      unitId: deliveryUnit.unitId,
+      buildMarker: deliveryUnit.buildMarker,
+    },
     cloudflare: createCloudflareExecutionSurface(scope, app),
     node: createNodeExecutionSurface(app),
   };
@@ -123,17 +133,20 @@ export function createBackendFederationContract(
   }
 
   const readiness = `${app.api.prefix}/${resolveApiStem(app)}/readiness`;
+  const deliveryUnit = createDeliveryUnitRecord(scope, app);
 
   return {
     role: 'microvertical-server',
     name: createBackendFederationName(app),
     runtimeFramework: 'effect',
     strictEffectApproach: true,
+    deliveryUnit: deliveryUnitContractBlock(deliveryUnit),
     exposes: {
       './effect-api': createEffectExpose(app),
     },
     versionBoundary: {
       invariant: 'web-and-api-same-build',
+      identityRoot: 'deliveryUnit',
       packageName: packageName(scope, app.packageSuffix),
       ui: {
         manifestEnv: createRemoteManifestEnv(app),
@@ -171,6 +184,7 @@ export function createBackendFederationContract(
 }
 
 export function createBackendFederationMetadata(
+  scope: string,
   app: WorkspaceApp,
 ): JsonValue | undefined {
   if (!appHasApi(app)) {
@@ -179,6 +193,9 @@ export function createBackendFederationMetadata(
 
   return {
     contractVersion: BACKEND_FEDERATION_CONTRACT_VERSION,
+    deliveryUnit: deliveryUnitContractBlock(
+      createDeliveryUnitRecord(scope, app),
+    ),
     executionSurfaces: ['node-mf-runtime'],
     exposes: ['./effect-api'],
     name: createBackendFederationName(app),
@@ -214,6 +231,8 @@ export const backendFederationContract = {
     contractVersion: '${BACKEND_FEDERATION_CONTRACT_VERSION}',
     nodeAdapterVersion: '${BACKEND_FEDERATION_NODE_ADAPTER_VERSION}',
     packageName: ultramodernApiMarker.packageName,
+    sourceRevision: ultramodernApiMarker.sourceRevision,
+    unitId: ultramodernApiMarker.unitId,
   },
   contractVersion: '${BACKEND_FEDERATION_CONTRACT_VERSION}',
   executionSurfaces: ['node-mf-runtime'],
@@ -249,6 +268,9 @@ export function createBackendFederationSummary(
     runtimeFramework: 'effect',
     strictEffectApproach: true,
     contractVersion: BACKEND_FEDERATION_CONTRACT_VERSION,
+    deliveryUnit: deliveryUnitContractBlock(
+      createDeliveryUnitRecord(scope, app),
+    ),
     executionSurfaces: {
       cloudflare: createCloudflareExecutionSurface(scope, app),
       node: createNodeExecutionSurface(app),

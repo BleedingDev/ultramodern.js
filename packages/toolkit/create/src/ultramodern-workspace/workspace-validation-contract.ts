@@ -1,5 +1,6 @@
 import { verticalApiGroupName } from './api';
 import { createBackendFederationMetadata } from './backend-federation';
+import { createDeliveryUnitRecord } from './delivery-unit';
 import { remoteComponentOutputPath } from './demo-components';
 import {
   appHasApi,
@@ -50,7 +51,8 @@ export function createWorkspaceValidationContract(
     tailwindPrefix: tailwindPrefixForApp(remote),
     zephyrAlias: remoteDependencyAlias(remote),
     packageName: packageName(scope, remote.packageSuffix),
-    backendFederation: createBackendFederationMetadata(remote),
+    backendFederation: createBackendFederationMetadata(scope, remote),
+    deliveryUnit: createDeliveryUnitRecord(scope, remote),
     exposes: Object.keys(remote.exposes ?? {}),
     componentPaths: Object.keys(remote.exposes ?? {})
       .map(expose => remoteComponentOutputPath(remote, expose))

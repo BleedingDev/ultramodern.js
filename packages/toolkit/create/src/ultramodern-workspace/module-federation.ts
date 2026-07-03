@@ -1,9 +1,9 @@
-import crypto from 'node:crypto';
 import {
   createDispatchWorkerNameEnv,
   createWorkerBindingEnv,
   createWorkerBindingName,
 } from './backend-federation';
+import { createBuildMarker, createDeliveryUnitRecord } from './delivery-unit';
 import {
   appHasApi,
   createBackendFederationName,
@@ -18,7 +18,6 @@ import {
 import {
   createRspackChunkLoadingGlobal,
   createRspackUniqueName,
-  packageName,
 } from './naming';
 import { createCloudflareSecurityContract, formatTsJsonValue } from './policy';
 import type { WorkspaceApp } from './types';
@@ -103,6 +102,13 @@ const zephyrEnabled = process.env['ULTRAMODERN_ZEPHYR'] !== 'false';
 const cloudflareDeployEnabled =
   process.env['MODERNJS_DEPLOY'] === 'cloudflare';
 
+const zephyrWarn = (error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error);
+  console.warn(
+    \`[ultramodern] zephyr-rspack-plugin failed; continuing without Zephyr (set ULTRAMODERN_ZEPHYR=false to disable it): \${message}\`,
+  );
+};
+
 const zephyrRspackPlugin = () => ({
   name: 'ultramodern-zephyr-rspack-plugin',
   pre: ['@modern-js/plugin-module-federation-config'],
@@ -116,7 +122,17 @@ const zephyrRspackPlugin = () => ({
     if (!zephyrEnabled) {
       return;
     }
-    api.modifyRspackConfig(config => withZephyrRspack()(config));
+    api.modifyRspackConfig(config => {
+      try {
+        return Promise.resolve(withZephyrRspack()(config)).catch(error => {
+          zephyrWarn(error);
+          return config;
+        });
+      } catch (error) {
+        zephyrWarn(error);
+        return config;
+      }
+    });
   },
 });
 
@@ -433,6 +449,22 @@ ${remoteEntries}
 `;
 }
 
+function createModuleFederationDtsConfig(hasExposes: boolean): string {
+  return hasExposes
+    ? `  dts: {
+    displayErrorInTerminal: true,
+    generateTypes: {
+      compilerInstance: 'tsgo',
+    },
+    tsConfigPath: './tsconfig.mf-types.json',
+  },`
+    : `  dts: {
+    consumeTypes: true,
+    generateTypes: false,
+    tsConfigPath: './tsconfig.mf-types.json',
+  },`;
+}
+
 export function createShellModuleFederationConfig(
   scope: string,
   remotes: WorkspaceApp[] = [],
@@ -465,13 +497,7 @@ const moduleFederationConfig: Parameters<
   dev: {
     disableDynamicRemoteTypeHints: true,
   },
-  dts: {
-    displayErrorInTerminal: true,
-    generateTypes: {
-      compilerInstance: 'tsgo',
-    },
-    tsConfigPath: './tsconfig.mf-types.json',
-  },
+${createModuleFederationDtsConfig(false)}
   filename: 'remoteEntry.js',
   name: '${shellApp.mfName}',
 ${createModuleFederationRemotesConfig(scope, shellHost, remotes)}${createSharedModuleFederationConfig()},
@@ -529,36 +555,34 @@ export default moduleFederationConfig;
 `;
 }
 
-export function createBuildMarker(
-  scope: string,
-  app: { id: string; packageSuffix: string },
-) {
-  return crypto
-    .createHash('sha256')
-    .update(`${scope}:${app.packageSuffix}:${app.id}:0.1.0`)
-    .digest('hex')
-    .slice(0, 16);
-}
+export { createBuildMarker } from './delivery-unit';
 
 export function createUltramodernBuildModule(
   scope: string,
-  app: { id: string; packageSuffix: string },
+  app: WorkspaceApp,
 ): string {
-  return `export const ultramodernVerticalIdentity = {
-  appId: '${app.id}',
-  build: '${createBuildMarker(scope, app)}',
-  deployProfile: 'cloudflare-ssr-mf-effect-v1',
-  packageName: '${packageName(scope, app.packageSuffix)}',
-  version: '0.1.0',
+  const record = createDeliveryUnitRecord(scope, app);
+  return `export const ultramodernDeliveryUnit = {
+  appId: '${record.appId}',
+  build: '${record.buildMarker}',
+  deployProfile: '${record.deployProfile}',
+  kind: '${record.kind}',
+  packageName: '${record.packageName}',
+  schemaVersion: ${record.schemaVersion},
+  sourceRevision: '${record.sourceRevision}',
+  unitId: '${record.unitId}',
+  version: '${record.version}',
 } as const;
 
+export const ultramodernVerticalIdentity = ultramodernDeliveryUnit;
+
 export const ultramodernUiMarker = {
-  ...ultramodernVerticalIdentity,
+  ...ultramodernDeliveryUnit,
   surface: 'ui',
 } as const;
 
 export const ultramodernApiMarker = {
-  ...ultramodernVerticalIdentity,
+  ...ultramodernDeliveryUnit,
   surface: 'api',
 } as const;
 `;
@@ -567,6 +591,7 @@ export const ultramodernApiMarker = {
 export function createUltramodernBuildReexportModule(): string {
   return `export {
   ultramodernApiMarker,
+  ultramodernDeliveryUnit,
   ultramodernUiMarker,
   ultramodernVerticalIdentity,
 } from '../shared/ultramodern-build';
@@ -579,7 +604,9 @@ export function createRemoteModuleFederationConfig(
   remotes: WorkspaceApp[] = [],
 ): string {
   const exposes = formatTsObjectLiteral(app.exposes ?? {});
-  return `// @effect-diagnostics nodeBuiltinImport:off
+  const hasExposes = Object.keys(app.exposes ?? {}).length > 0;
+  const hostOnlyMarker = hasExposes ? '' : '\n// ultramodern-mf: no-exposes';
+  return `// @effect-diagnostics nodeBuiltinImport:off${hostOnlyMarker}
 import { createRequire } from 'node:module';
 import { createModuleFederationConfig } from '@module-federation/modern-js-v3';
 import { dependencies } from './package.json';
@@ -601,13 +628,7 @@ const moduleFederationConfig: Parameters<
   dev: {
     disableDynamicRemoteTypeHints: true,
   },
-  dts: {
-    displayErrorInTerminal: true,
-    generateTypes: {
-      compilerInstance: 'tsgo',
-    },
-    tsConfigPath: './tsconfig.mf-types.json',
-  },
+${createModuleFederationDtsConfig(hasExposes)}
   exposes: ${exposes},
   filename: 'remoteEntry.js',
   name: '${app.mfName}',

@@ -306,6 +306,21 @@ test('rendered contents of the highest-risk generated files match the checked-in
       /tsConfigPath: '\.\/tsconfig\.mf-types\.json'/,
       'generated Module Federation config must use the dedicated DTS tsconfig',
     );
+    assert.match(
+      shellModuleFederationConfig,
+      /consumeTypes: true,\s*generateTypes: false,/,
+      'generated host-only shell Module Federation config must consume remote types instead of generating its own',
+    );
+    assert.match(
+      shellModernConfig,
+      /zephyrWarn/,
+      'generated Modern config must guard Zephyr plugin failures',
+    );
+    assert.match(
+      shellModernConfig,
+      /ULTRAMODERN_ZEPHYR=false/,
+      'generated Modern config must document the Zephyr disable escape hatch',
+    );
     assert.deepEqual(
       readJson(
         path.join(workspaceDir, 'apps/shell-super-app/tsconfig.mf-types.json'),
@@ -440,6 +455,20 @@ test('rendered contents of the highest-risk generated files match the checked-in
     for (const relativePath of catalogVerticalSnapshots) {
       assertContentSnapshot(workspaceDir, 'catalog-vertical', relativePath);
     }
+    const catalogModuleFederationConfig = fs.readFileSync(
+      path.join(workspaceDir, 'verticals/catalog/module-federation.config.ts'),
+      'utf-8',
+    );
+    assert.match(
+      catalogModuleFederationConfig,
+      /generateTypes: {/,
+      'exposing vertical Module Federation config must still generate DTS',
+    );
+    assert.match(
+      catalogModuleFederationConfig,
+      /compilerInstance: 'tsgo'/,
+      'exposing vertical Module Federation DTS generation must use the tsgo compiler instance',
+    );
     const validationWrapper = fs.readFileSync(
       path.join(workspaceDir, 'scripts/validate-ultramodern-workspace.mts'),
       'utf-8',
@@ -756,6 +785,21 @@ test('backend federation proof template resolves monorepo local plugin-bff runti
     /'cli\/plugin-bff\/dist\/esm-node\/runtime\/effect\/index\.mjs'/,
   );
   assert.match(proofTemplate, /function findLocalRuntimePath\(createBin\)/);
+  assert.match(
+    proofTemplate,
+    /unitId: source\.match\(\/\\bunitId:\\s\*\['"\]\(\[\^'"\]\+\)\['"\]\/u\)\?\.\[1\]/,
+  );
+  assert.match(
+    proofTemplate,
+    /sourceRevision: source\.match\(\/\\bsourceRevision:\\s\*\['"\]\(\[\^'"\]\+\)\['"\]\/u\)\?\.\[1\]/,
+  );
+  assert.match(proofTemplate, /manifestDeliveryUnit/);
+  assert.match(proofTemplate, /versionBoundaryDeliveryUnit/);
+  assert.match(proofTemplate, /assertCompactDeliveryUnitMatchesBuild/);
+  assert.match(
+    proofTemplate,
+    /backendContract\.compatibility\.unitId,[\s\S]*?manifest\.backendFederation\?\.deliveryUnit\?\.unitId,/,
+  );
 });
 
 test('backend federation generator accepts migrated app-level metadata', () => {
@@ -772,4 +816,6 @@ test('backend federation generator accepts migrated app-level metadata', () => {
     /return app\.backendFederation \?\? app\.api\?\.backendFederation;/,
   );
   assert.match(generatorTemplate, /Object\.keys\(backend\.exposes\)/);
+  assert.match(generatorTemplate, /compactDeliveryUnit/);
+  assert.match(generatorTemplate, /kind: 'microvertical-delivery-unit'/);
 });

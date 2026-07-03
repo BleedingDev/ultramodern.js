@@ -788,6 +788,8 @@ export const backendFederationContract = {
     contractVersion: '${BACKEND_FEDERATION_CONTRACT_VERSION}',
     nodeAdapterVersion: '${BACKEND_FEDERATION_NODE_ADAPTER_VERSION}',
     packageName: '${packageName(scope, service.packageSuffix)}',
+    sourceRevision: ultramodernApiMarker.sourceRevision,
+    unitId: ultramodernApiMarker.unitId,
   },
   executionSurfaces: ['node-mf-runtime'],
   exposes: ['./effect-api'],

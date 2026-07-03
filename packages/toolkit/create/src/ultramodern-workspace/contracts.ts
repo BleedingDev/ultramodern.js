@@ -6,6 +6,10 @@ import {
 } from './backend-federation';
 import type { UltramodernBridgeConfig } from './bridge-config';
 import {
+  createDeliveryUnitRecord,
+  deliveryUnitContractBlock,
+} from './delivery-unit';
+import {
   createModuleFederationRemoteContracts,
   createShellHost,
   resolveApiPrefix,
@@ -73,6 +77,13 @@ export function createTopology(
       ...(createBackendFederationContract(scope, vertical)
         ? {
             backendFederation: createBackendFederationContract(scope, vertical),
+          }
+        : {}),
+      ...(vertical.api
+        ? {
+            deliveryUnit: deliveryUnitContractBlock(
+              createDeliveryUnitRecord(scope, vertical),
+            ),
           }
         : {}),
       ...(apiTopologyMetadata(vertical)
@@ -252,6 +263,13 @@ export function createUltramodernConfig(
           : {}),
         ...(app.api
           ? {
+              deliveryUnit: deliveryUnitContractBlock(
+                createDeliveryUnitRecord(scope, app),
+              ),
+            }
+          : {}),
+        ...(app.api
+          ? {
               api: {
                 stem: app.api.stem,
                 prefix: app.api.prefix,
@@ -300,6 +318,8 @@ export function createUltramodernConfig(
     },
     agentSkills: {
       target: 'codex',
+      // Fresh scaffolds default to .codex/; the generated bootstrap script and
+      // validator also accept .agents/skills-lock.json for agents-standard layouts.
       lockfile: './.codex/skills-lock.json',
       installDir: './.codex/skills',
       mode: 'repo-owned-default-on',
