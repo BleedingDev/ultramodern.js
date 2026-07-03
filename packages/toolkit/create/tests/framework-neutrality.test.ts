@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -23,6 +24,20 @@ const scannedRoots = [
 ];
 
 const skippedDirectories = new Set(['node_modules', 'dist', '.output', '.git']);
+
+function collectTrackedFiles(root: string): string[] {
+  try {
+    return execFileSync('git', ['ls-files', root], {
+      cwd: repoRoot,
+      encoding: 'utf-8',
+    })
+      .split('\n')
+      .filter(Boolean)
+      .map(file => path.join(repoRoot, file));
+  } catch {
+    return collectFiles(path.join(repoRoot, root));
+  }
+}
 
 function collectFiles(root: string): string[] {
   if (!fs.existsSync(root)) {
@@ -49,7 +64,7 @@ test('UltraModern framework source stays reference-app neutral', () => {
   const matches: string[] = [];
 
   for (const root of scannedRoots) {
-    for (const file of collectFiles(path.join(repoRoot, root))) {
+    for (const file of collectTrackedFiles(root)) {
       const relativePath = path
         .relative(repoRoot, file)
         .split(path.sep)

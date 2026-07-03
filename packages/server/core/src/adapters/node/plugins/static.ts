@@ -283,7 +283,7 @@ export function createStaticMiddleware(
     const isModuleFederationAsset =
       moduleFederationAssetMeta.assets.has(requestPath);
     const isModuleFederationRemoteEntry =
-      moduleFederationAssetMeta.remoteEntry === requestPath;
+      moduleFederationAssetMeta.remoteEntries.has(requestPath);
 
     const serveByPath = async (
       filepath: string,

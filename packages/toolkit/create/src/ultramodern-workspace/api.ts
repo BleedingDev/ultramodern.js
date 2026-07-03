@@ -1,5 +1,10 @@
 import {
+  BACKEND_FEDERATION_CONTRACT_VERSION,
+  BACKEND_FEDERATION_NODE_ADAPTER_VERSION,
+} from './backend-federation';
+import {
   appHasApi,
+  createBackendFederationName,
   resolveApiPrefix,
   resolveApiStem,
   verticalApiApps,
@@ -755,6 +760,49 @@ const apiRuntime: EffectBffDefinition<typeof ${apiExport}, EffectRuntimeLayer> &
   api: ${apiExport},
   layer,
 });
+
+export default apiRuntime;
+`;
+}
+
+export function createBackendEffectApiExpose(
+  scope: string,
+  service: WorkspaceApp,
+): string {
+  const apiExport = verticalApiExport(service);
+  const groupName = verticalApiGroupName(service);
+  const apiPrefix = resolveApiPrefix(service);
+  const stem = resolveApiStem(service);
+
+  return `import apiRuntime from './index.ts';
+import { ultramodernApiMarker } from '../shared/ultramodern-build.ts';
+import {
+  ${apiExport},
+  ${groupName}ApiContract,
+  ${groupName}OperationContexts,
+} from '../shared/api.ts';
+
+export const backendFederationContract = {
+  compatibility: {
+    build: ultramodernApiMarker.build,
+    contractVersion: '${BACKEND_FEDERATION_CONTRACT_VERSION}',
+    nodeAdapterVersion: '${BACKEND_FEDERATION_NODE_ADAPTER_VERSION}',
+    packageName: '${packageName(scope, service.packageSuffix)}',
+  },
+  executionSurfaces: ['node-mf-runtime'],
+  exposes: ['./effect-api'],
+  name: '${createBackendFederationName(service)}',
+  openapiPath: '${apiPrefix}/openapi.json',
+  readinessPath: '${apiPrefix}/${stem}/readiness',
+  role: 'microvertical-server',
+  runtimeFramework: 'effect',
+  strictEffectApproach: true,
+} as const;
+
+export const api: unknown = ${apiExport};
+export const contract = ${groupName}ApiContract;
+export const operationContexts = ${groupName}OperationContexts;
+export const runtime = apiRuntime;
 
 export default apiRuntime;
 `;

@@ -10,6 +10,10 @@ const workspaceRoot = path.resolve(
     path.join(path.dirname(fileURLToPath(import.meta.url)), '..'),
 );
 const compactConfigPath = path.join(workspaceRoot, '.modernjs/ultramodern.json');
+const localOverlayPath = path.join(
+  workspaceRoot,
+  'topology/local-overlays/development.json',
+);
 const defaultOut = path.join(
   workspaceRoot,
   '.codex/reports/cloudflare-version-proof/public-url-proof.json',
@@ -17,6 +21,10 @@ const defaultOut = path.join(
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+}
+
+function readOptionalJson(filePath) {
+  return fs.existsSync(filePath) ? readJson(filePath) : {};
 }
 
 function toKebabCase(value) {
@@ -50,7 +58,7 @@ function appNamespace(app) {
   return app.kind === 'shell' ? 'shell' : (app.domain ?? app.id);
 }
 
-function normalizeCompactApp(rawApp) {
+function normalizeCompactApp(rawApp, localOverlay = {}) {
   const id = String(rawApp.id);
   const kind = rawApp.kind === 'vertical' ? 'vertical' : 'shell';
   const appPath =
@@ -86,6 +94,19 @@ function normalizeCompactApp(rawApp) {
               : `/${domain ?? id}-api`,
         }
       : undefined;
+  const cloudflare =
+    rawApp.deploy?.cloudflare && typeof rawApp.deploy.cloudflare === 'object'
+      ? rawApp.deploy.cloudflare
+      : {};
+  const jsonSmokeChecks = Array.isArray(cloudflare.jsonSmokeChecks)
+    ? cloudflare.jsonSmokeChecks
+    : undefined;
+  const port =
+    typeof rawApp.port === 'number'
+      ? rawApp.port
+      : typeof localOverlay.ports?.[id] === 'number'
+        ? localOverlay.ports[id]
+        : undefined;
 
   return {
     id,
@@ -93,6 +114,7 @@ function normalizeCompactApp(rawApp) {
     path: appPath,
     packageSuffix,
     domain,
+    port,
     mfName:
       typeof moduleFederation.name === 'string'
         ? moduleFederation.name
@@ -100,6 +122,7 @@ function normalizeCompactApp(rawApp) {
           ? 'shellSuperApp'
           : `vertical${toPascalCase(domain ?? id)}`,
     api,
+    jsonSmokeChecks,
   };
 }
 
@@ -217,11 +240,137 @@ function createCloudflareRoutes(app) {
       ? {
           apiReadiness: `${app.api.prefix}/${app.api.stem}/readiness`,
         }
-      : {}),
+    : {}),
   };
 }
 
-function createContractApp(config, app) {
+function createApiReadinessRoute(app) {
+  return app.api ? `${app.api.prefix}/${app.api.stem}/readiness` : undefined;
+}
+
+function createCloudflareWorkerName(packageScope, app) {
+  return `${toKebabCase(packageScope)}-${app.packageSuffix}`.slice(0, 63);
+}
+
+function createWorkerBindingName(app) {
+  return `VERTICAL_${toEnvSegment(app.domain ?? app.id)}_WORKER`;
+}
+
+function createBackendRemoteName(app) {
+  return `${app.mfName ?? `vertical${toPascalCase(app.id)}`}Backend`;
+}
+
+function createServerExecutionProof(packageScope, app) {
+  if (!app.api) {
+    return undefined;
+  }
+  return {
+    apiBaseUrl: `http://localhost:${app.port}${app.api.prefix}`,
+    versionBoundary: 'web-and-api-same-build',
+    cloudflare: {
+      kind: 'cloudflare-worker-snapshot',
+      workerName: createCloudflareWorkerName(packageScope, app),
+      publicUrlEnv: `ULTRAMODERN_PUBLIC_URL_${toEnvSegment(app.id)}`,
+      apiReadiness: createApiReadinessRoute(app),
+      zephyrRuntime: 'ssr-worker',
+    },
+    node: {
+      kind: 'node-mf-runtime',
+      remoteName: createBackendRemoteName(app),
+      manifestUrl: `http://localhost:${app.port}/backend-mf-manifest.json`,
+      containerEntry: `http://localhost:${app.port}/backendRemoteEntry.mjs`,
+      expose: './effect-api',
+    },
+  };
+}
+
+function createBackendFederationProof(packageScope, app) {
+  if (!app.api) {
+    return undefined;
+  }
+  const apiReadiness = createApiReadinessRoute(app);
+  const remoteName = createBackendRemoteName(app);
+  return {
+    role: 'microvertical-server',
+    name: remoteName,
+    runtimeFramework: 'effect',
+    strictEffectApproach: true,
+    exposes: {
+      './effect-api': {
+        runtime: `${app.path}/api/index.ts`,
+        readiness: apiReadiness,
+      },
+    },
+    versionBoundary: {
+      invariant: 'web-and-api-same-build',
+      ui: {
+        manifestUrl: `http://localhost:${app.port}/mf-manifest.json`,
+        marker: createBuildMarker(packageScope, app),
+      },
+      api: {
+        readiness: apiReadiness,
+        marker: createBuildMarker(packageScope, app),
+      },
+    },
+    executionSurfaces: {
+      cloudflare: {
+        kind: 'cloudflare-worker-snapshot',
+        workerName: createCloudflareWorkerName(packageScope, app),
+        publicUrlEnv: `ULTRAMODERN_PUBLIC_URL_${toEnvSegment(app.id)}`,
+      },
+      node: {
+        kind: 'node-mf-runtime',
+        remoteName,
+        manifestUrl: `http://localhost:${app.port}/backend-mf-manifest.json`,
+        containerEntry: `http://localhost:${app.port}/backendRemoteEntry.mjs`,
+        expose: './effect-api',
+      },
+    },
+    compatibility: {
+      contractVersion: 'microvertical-server-effect-v1',
+    },
+  };
+}
+
+function createProofTarget(app) {
+  const cloudflare = app.deploy?.cloudflare;
+  return {
+    appId: app.id,
+    marker: app.marker,
+    cloudflare: {
+      workerName: cloudflare?.workerName,
+      publicUrlEnv: cloudflare?.publicUrlEnv,
+      routes: cloudflare?.routes,
+      serviceBindings: cloudflare?.serviceBindings,
+      jsonSmokeChecks: cloudflare?.jsonSmokeChecks,
+    },
+    ...(app.backendFederation
+      ? { backendFederation: app.backendFederation }
+      : {}),
+    ...(app.serverExecution ? { serverExecution: app.serverExecution } : {}),
+  };
+}
+
+function createShellServiceBindingProof(packageScope, app, apps) {
+  if (app.kind !== 'shell') {
+    return undefined;
+  }
+
+  const bindings = apps
+    .filter(candidate => candidate.kind !== 'shell' && candidate.api)
+    .map(candidate => ({
+      appId: candidate.id,
+      binding: createWorkerBindingName(candidate),
+      route: `${candidate.api.prefix}/${candidate.api.stem}/readiness`,
+      service: createCloudflareWorkerName(packageScope, candidate),
+      expectedMarker: createBuildMarker(packageScope, candidate),
+      interface: 'fetch',
+    }));
+
+  return bindings.length > 0 ? bindings : undefined;
+}
+
+function createContractApp(config, app, apps) {
   const packageScope =
     typeof config.workspace?.packageScope === 'string'
       ? config.workspace.packageScope
@@ -230,19 +379,26 @@ function createContractApp(config, app) {
     typeof config.deploy?.worker?.compatibilityDate === 'string'
       ? config.deploy.worker.compatibilityDate
       : '2026-06-02';
+  const workerName = createCloudflareWorkerName(packageScope, app);
+  const backendFederation = createBackendFederationProof(packageScope, app);
+  const serverExecution = createServerExecutionProof(packageScope, app);
+  const serviceBindings = createShellServiceBindingProof(
+    packageScope,
+    app,
+    apps,
+  );
 
   return {
     id: app.id,
     deploy: {
       cloudflare: {
-        workerName: `${toKebabCase(packageScope)}-${app.packageSuffix}`.slice(
-          0,
-          63,
-        ),
+        workerName,
         publicUrlEnv: `ULTRAMODERN_PUBLIC_URL_${toEnvSegment(app.id)}`,
         compatibilityDate,
         compatibilityFlags: ['nodejs_compat', 'global_fetch_strictly_public'],
         routes: createCloudflareRoutes(app),
+        ...(serviceBindings ? { serviceBindings } : {}),
+        ...(app.jsonSmokeChecks ? { jsonSmokeChecks: app.jsonSmokeChecks } : {}),
         security: createCloudflareSecurity(),
         qualityGates: createQualityGates(),
       },
@@ -254,6 +410,8 @@ function createContractApp(config, app) {
       appId: app.id,
       build: createBuildMarker(packageScope, app),
     },
+    ...(backendFederation ? { backendFederation } : {}),
+    ...(serverExecution ? { serverExecution } : {}),
     routes: {
       publicHead: createPublicHead(),
       publicSurface: createPublicSurface(),
@@ -267,13 +425,14 @@ function createContractApp(config, app) {
 }
 
 function synthesizeContractFromCompactConfig(config) {
+  const localOverlay = readOptionalJson(localOverlayPath);
   const apps = Array.isArray(config.topology?.apps)
-    ? config.topology.apps.map(normalizeCompactApp)
+    ? config.topology.apps.map(app => normalizeCompactApp(app, localOverlay))
     : [];
 
   return {
     sourcePath: compactConfigPath,
-    apps: apps.map(app => createContractApp(config, app)),
+    apps: apps.map(app => createContractApp(config, app, apps)),
   };
 }
 
@@ -372,6 +531,7 @@ async function main(argv = process.argv.slice(2)) {
     generatedAt: new Date().toISOString(),
     status: results.length > 0 ? 'pass' : 'skipped',
     contractPath: contract.sourcePath ?? compactConfigPath,
+    proofTargets: apps.map(createProofTarget),
     results,
     skipped,
   };

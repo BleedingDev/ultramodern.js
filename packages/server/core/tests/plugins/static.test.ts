@@ -155,3 +155,61 @@ describe('static plugin precompressed assets', () => {
     );
   });
 });
+
+describe('static plugin Module Federation backend assets', () => {
+  it('serves backend manifests and remote entries from dist root', async () => {
+    const pwd = await createTempDir();
+    const manifestFile = path.join(pwd, 'backend-mf-manifest.json');
+    const remoteEntryFile = path.join(pwd, 'backendRemoteEntry.mjs');
+
+    await writeFile(
+      manifestFile,
+      JSON.stringify({
+        metaData: {
+          name: 'verticalExploreBackend',
+          publicPath: '/',
+          remoteEntry: {
+            path: '',
+            name: 'backendRemoteEntry.mjs',
+            type: 'module',
+          },
+        },
+        exposes: [
+          {
+            name: './effect-api',
+          },
+        ],
+      }),
+    );
+    await writeFile(remoteEntryFile, 'export function init() {}');
+
+    const server = await createStaticServer(pwd);
+    const manifestResponse = await server.request(
+      '/backend-mf-manifest.json',
+      {},
+    );
+    const remoteEntryResponse = await server.request(
+      '/backendRemoteEntry.mjs',
+      {},
+    );
+
+    expect(manifestResponse.status).toBe(200);
+    expect(manifestResponse.headers.get('access-control-allow-origin')).toBe(
+      '*',
+    );
+    expect(await manifestResponse.json()).toEqual(
+      expect.objectContaining({
+        metaData: expect.objectContaining({
+          publicPath: 'http://localhost/',
+        }),
+      }),
+    );
+    expect(remoteEntryResponse.status).toBe(200);
+    expect(remoteEntryResponse.headers.get('access-control-allow-origin')).toBe(
+      '*',
+    );
+    expect(await remoteEntryResponse.text()).toContain(
+      'export function init() {}',
+    );
+  });
+});

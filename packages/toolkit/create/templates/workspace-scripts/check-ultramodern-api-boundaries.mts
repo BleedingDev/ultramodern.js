@@ -189,6 +189,7 @@ if (exists('apps/shell-super-app') && verticalDirectories.length > 0) {
 
 function assertApiSurface(appPath) {
   const apiEntry = `${appPath}/api/index.ts`;
+  const backendEffectExpose = `${appPath}/api/effect-api.ts`;
   const sharedApi = `${appPath}/shared/api.ts`;
   const srcApiDirectory = `${appPath}/src/api`;
   const modernConfig = `${appPath}/modern.config.ts`;
@@ -235,8 +236,45 @@ function assertApiSurface(appPath) {
       'must import the contract from ../shared/api.ts.',
     );
   }
+ if (exists(backendEffectExpose)) {
+ const backendExpose = readText(backendEffectExpose);
+ assertContains(
+ backendEffectExpose,
+ backendExpose,
+ /backendFederationContract/u,
+ 'must export backendFederationContract metadata.',
+ );
+ assertContains(
+ backendEffectExpose,
+ backendExpose,
+ /role:\s*['"]microvertical-server['"]/u,
+ 'must describe the MicroVertical server role.',
+ );
+ assertContains(
+ backendEffectExpose,
+ backendExpose,
+ /strictEffectApproach:\s*true/u,
+ 'must preserve strict Effect backend execution.',
+ );
+ assertContains(
+ backendEffectExpose,
+ backendExpose,
+ /contractVersion:\s*['"]microvertical-server-effect-v1['"]/u,
+ 'must preserve the MicroVertical server contract version.',
+ );
+ assertContains(
+ backendEffectExpose,
+ backendExpose,
+ /runtime\s*=\s*apiRuntime/u,
+ 'must export the generated Effect BFF runtime.',
+ );
+ assert(
+ !/\b(request|handler)\s*:\s*async\s*\(/u.test(backendExpose),
+ `${backendEffectExpose}: must not expose raw request handlers.`,
+ );
+ }
 
-  if (exists(sharedApi)) {
+ if (exists(sharedApi)) {
     const contract = readText(sharedApi);
     assertContains(
       sharedApi,

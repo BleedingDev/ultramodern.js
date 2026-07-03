@@ -15,7 +15,11 @@ import {
 } from '../ultramodern-package-source';
 import { createAppEnvDts } from '../ultramodern-workspace/app-files';
 import { validateModuleFederationTypes } from '../ultramodern-workspace/mf-validation';
-import { createAppModernConfig } from '../ultramodern-workspace/module-federation';
+import {
+  createAppModernConfig,
+  createUltramodernBuildModule,
+  createUltramodernBuildReexportModule,
+} from '../ultramodern-workspace/module-federation';
 import {
   createAppMfTypesTsConfig,
   createAppTsConfig,
@@ -35,7 +39,10 @@ import {
   ZEPHYR_AGENT_VERSION,
   ZEPHYR_RSPACK_PLUGIN_VERSION,
 } from '../ultramodern-workspace/versions';
-import { createWorkspaceValidationScript } from '../ultramodern-workspace/workspace-scripts';
+import {
+  createNodeBackendFederationProofScript,
+  createWorkspaceValidationScript,
+} from '../ultramodern-workspace/workspace-scripts';
 import {
   readUltramodernConfig,
   type UltramodernToolingConfig,
@@ -318,6 +325,13 @@ const cloudflareWranglerDeployCommand =
   'wrangler deploy --config .output/wrangler.json';
 const cloudflareWranglerDeployInvalidSkipBuildCommand = `${cloudflareWranglerDeployCommand} --skip-build`;
 
+function removeStaleBackendFederationCommandSegments(command: string) {
+  return command.replace(
+    /\s+&&\s+node\s+\S*scripts\/generate-node-backend-federation\.m[ct]s(?:\s+--app\s+\S+)?(?:\s+--target\s+\S+)?(?=\s+&&|$)/gu,
+    '',
+  );
+}
+
 function updateGeneratedPackageScripts(packageJson: Record<string, any>) {
   const scripts = packageJson.scripts;
   if (!scripts || typeof scripts !== 'object' || Array.isArray(scripts)) {
@@ -325,9 +339,20 @@ function updateGeneratedPackageScripts(packageJson: Record<string, any>) {
   }
 
   let changed = false;
+
+  const build = scripts.build;
+  if (typeof build === 'string') {
+    const nextBuild = removeStaleBackendFederationCommandSegments(build);
+    if (nextBuild !== build) {
+      scripts.build = nextBuild;
+      changed = true;
+    }
+  }
+
   const cloudflareBuild = scripts['cloudflare:build'];
   if (typeof cloudflareBuild === 'string') {
-    let nextCloudflareBuild = cloudflareBuild;
+    let nextCloudflareBuild =
+      removeStaleBackendFederationCommandSegments(cloudflareBuild);
     if (
       nextCloudflareBuild.includes(cloudflareModernDeployCommand) &&
       !nextCloudflareBuild.includes(cloudflareModernDeploySkipBuildCommand)
@@ -342,11 +367,39 @@ function updateGeneratedPackageScripts(packageJson: Record<string, any>) {
       / && node \S*scripts\/generate-public-surface-assets\.m[ct]s --app [^&]+ --target dist(?= && ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern deploy --skip-build)/u,
       '',
     );
+    nextCloudflareBuild = nextCloudflareBuild.replace(
+      / && node \S*scripts\/verify-cloudflare-output\.m[ct]s(?: --app [^&]+)?/u,
+      '',
+    );
+    nextCloudflareBuild = nextCloudflareBuild.replace(
+      / && pnpm cloudflare-output:verify/u,
+      '',
+    );
 
     if (nextCloudflareBuild !== cloudflareBuild) {
       scripts['cloudflare:build'] = nextCloudflareBuild;
       changed = true;
     }
+  }
+
+  if (Object.hasOwn(scripts, 'cloudflare-output:verify')) {
+    delete scripts['cloudflare-output:verify'];
+    changed = true;
+  }
+
+  if (Object.hasOwn(scripts, 'node:backend-federation:generate')) {
+    delete scripts['node:backend-federation:generate'];
+    changed = true;
+  }
+
+  const nodeProof = scripts['node:proof'];
+  if (
+    typeof nodeProof === 'string' &&
+    nodeProof.includes('proof-node-backend-federation.mts')
+  ) {
+    scripts['node:proof'] =
+      'node ./scripts/proof-node-backend-federation.mjs --out .codex/reports/node-backend-federation-proof/proof.json';
+    changed = true;
   }
 
   const cloudflareDeploy = scripts['cloudflare:deploy'];
@@ -365,12 +418,28 @@ function updateGeneratedPackageScripts(packageJson: Record<string, any>) {
 }
 
 function normalizeStrictEffectApiMetadata(value: Record<string, any>) {
-  const api = value.api;
-  if (!api || typeof api !== 'object' || Array.isArray(api)) {
-    return false;
+  let changed = false;
+  const backendFederation = value.backendFederation;
+  if (
+    backendFederation &&
+    typeof backendFederation === 'object' &&
+    !Array.isArray(backendFederation) &&
+    Object.hasOwn(backendFederation, 'entry')
+  ) {
+    delete backendFederation.entry;
+    changed = true;
   }
 
-  let changed = false;
+  const api = value.api;
+  if (!api || typeof api !== 'object' || Array.isArray(api)) {
+    return changed;
+  }
+
+  if (api.backendFederation !== undefined) {
+    delete api.backendFederation;
+    changed = true;
+  }
+
   const oldEffect = api.effect;
   if (oldEffect && typeof oldEffect === 'object' && !Array.isArray(oldEffect)) {
     if (api.stem === undefined && typeof oldEffect.stem === 'string') {
@@ -454,6 +523,71 @@ function normalizeStrictEffectApiMetadata(value: Record<string, any>) {
     }
   }
 
+  return changed;
+}
+
+function removeGeneratedFileIfExists(
+  workspaceRoot: string,
+  relativePath: string,
+) {
+  const filePath = path.join(workspaceRoot, relativePath);
+  if (!fs.existsSync(filePath)) {
+    return false;
+  }
+
+  fs.rmSync(filePath);
+  return true;
+}
+
+function removeStaleBackendFederationArtifacts(
+  workspaceRoot: string,
+  config: UltramodernToolingConfig,
+) {
+  let changed = false;
+  for (const relativePath of [
+    'scripts/generate-node-backend-federation.mts',
+    'scripts/proof-node-backend-federation.mts',
+    'scripts/verify-cloudflare-output.mts',
+  ]) {
+    changed =
+      removeGeneratedFileIfExists(workspaceRoot, relativePath) || changed;
+  }
+
+  for (const app of workspaceAppsFromToolingConfig(config)) {
+    changed =
+      removeGeneratedFileIfExists(
+        workspaceRoot,
+        path.join(app.directory, 'api/backend-federation.ts'),
+      ) || changed;
+  }
+
+  return changed;
+}
+
+function updateGeneratedBackendFederationProofScript(workspaceRoot: string) {
+  return writeTextIfChanged(
+    path.join(workspaceRoot, 'scripts/proof-node-backend-federation.mjs'),
+    createNodeBackendFederationProofScript(),
+  );
+}
+
+function updateGeneratedBuildIdentityModules(
+  workspaceRoot: string,
+  config: UltramodernToolingConfig,
+) {
+  let changed = false;
+  for (const app of workspaceAppsFromToolingConfig(config)) {
+    changed =
+      writeTextIfChanged(
+        path.join(workspaceRoot, app.directory, 'src/ultramodern-build.ts'),
+        createUltramodernBuildReexportModule(),
+      ) || changed;
+    changed =
+      writeTextIfChanged(
+        path.join(workspaceRoot, app.directory, 'shared/ultramodern-build.ts'),
+        createUltramodernBuildModule(config.workspace.packageScope, app),
+      ) || changed;
+  }
   return changed;
 }
 
@@ -982,12 +1116,13 @@ function updateGeneratedModernConfigs(
 ) {
   let changed = false;
   const apps = workspaceAppsFromToolingConfig(config);
+  const remotes = apps.filter(app => app.kind !== 'shell');
 
   for (const app of apps) {
     changed =
       writeTextIfChanged(
         path.join(workspaceRoot, app.directory, 'modern.config.ts'),
-        createAppModernConfig(config.workspace.packageScope, app),
+        createAppModernConfig(config.workspace.packageScope, app, remotes),
       ) || changed;
   }
 
@@ -1107,6 +1242,9 @@ and pnpm contract:check.
   updateUltramodernConfig(context.workspaceRoot, packageSource);
   updateReferenceTopology(context.workspaceRoot);
   const migrated = readUltramodernConfig(context.workspaceRoot);
+  removeStaleBackendFederationArtifacts(context.workspaceRoot, migrated);
+  updateGeneratedBackendFederationProofScript(context.workspaceRoot);
+  updateGeneratedBuildIdentityModules(context.workspaceRoot, migrated);
   updateGeneratedTypeScriptSurfaces(context.workspaceRoot, migrated);
   updateGeneratedModernConfigs(context.workspaceRoot, migrated);
 

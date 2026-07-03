@@ -22,6 +22,7 @@ import { compatPlugin } from './compat';
 import { DEFAULT_RUNTIME_CONFIG_FILE } from './constants';
 import { i18n } from './locale';
 import analyzePlugin from './plugins/analyze';
+import backendFederationBuildPlugin from './plugins/backendFederationBuild';
 import deployPlugin from './plugins/deploy';
 import initializePlugin from './plugins/initialize';
 import serverBuildPlugin from './plugins/serverBuild';
@@ -56,6 +57,7 @@ export const appTools = (): CliPlugin<AppTools> => ({
     initializePlugin(),
     analyzePlugin(),
     serverBuildPlugin(),
+    backendFederationBuildPlugin(),
     deployPlugin(),
   ],
   post: [

@@ -268,10 +268,7 @@ export function createRootPackageJson(
     packageManager: `pnpm@${PNPM_VERSION}`,
     scripts: {
       dev: `pnpm --parallel ${[shellFilter, ...remoteFilters].join(' ')} dev`,
-      'dev:shell': `pnpm --filter ${packageName(
-        scope,
-        shellApp.packageSuffix,
-      )} dev`,
+      'dev:shell': `pnpm --filter ${packageName(scope, shellApp.packageSuffix)} dev`,
       ...Object.fromEntries(
         remotes.map(remote => [
           `dev:${remote.packageSuffix}`,
@@ -288,6 +285,8 @@ export function createRootPackageJson(
       'cloudflare:deploy': `${remoteCloudflareDeployPrefix}pnpm --filter "./apps/shell-super-app" run cloudflare:deploy`,
       'cloudflare:proof':
         'node ./scripts/proof-cloudflare-version.mts --out .codex/reports/cloudflare-version-proof/public-url-proof.json',
+      'node:proof':
+        'node ./scripts/proof-node-backend-federation.mjs --out .codex/reports/node-backend-federation-proof/proof.json',
       'skills:install': 'node ./scripts/bootstrap-agent-skills.mts',
       'skills:check': 'node ./scripts/bootstrap-agent-skills.mts --check',
       'agents:refs:install': 'node ./scripts/setup-agent-reference-repos.mts',
@@ -303,7 +302,7 @@ export function createRootPackageJson(
       ...bridgeScripts,
       postinstall:
         "oxfmt . '!repos/**' && node ./scripts/bootstrap-agent-skills.mts --postinstall",
-      check: `pnpm format:check && pnpm lint && pnpm typecheck && pnpm skills:check && pnpm i18n:boundaries && pnpm api:check && pnpm contract:check && pnpm performance:readiness${bridgeCheck}`,
+      check: `pnpm format:check && pnpm lint && pnpm typecheck && pnpm skills:check && pnpm i18n:boundaries && pnpm api:check && pnpm contract:check && pnpm node:proof && pnpm performance:readiness${bridgeCheck}`,
     },
     engines: {
       node: '>=26',
@@ -328,6 +327,10 @@ export function createRootPackageJson(
       ),
       '@modern-js/create': modernPackageSpecifier(
         '@modern-js/create',
+        packageSource,
+      ),
+      '@modern-js/plugin-bff': modernPackageSpecifier(
+        '@modern-js/plugin-bff',
         packageSource,
       ),
       '@typescript/native-preview': TYPESCRIPT_NATIVE_PREVIEW_VERSION,

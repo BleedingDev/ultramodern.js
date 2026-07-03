@@ -219,26 +219,87 @@ test('UltraModern migrate-strict-effect updates package cohort and direct API me
       },
       serverEntry: 'verticals/catalog/api/effect/index.ts',
     };
+    catalog.api.backendFederation = {
+      entry: 'verticals/catalog/api/backend-federation.ts',
+    };
+    catalog.backendFederation.entry =
+      'verticals/catalog/api/backend-federation.ts';
     writeJson(workspaceDir, 'topology/reference-topology.json', topology);
+
+    const compactConfigBefore = readJson(
+      workspaceDir,
+      '.modernjs/ultramodern.json',
+    );
+    const compactCatalog = compactConfigBefore.topology.apps.find(
+      (app: Record<string, unknown>) => app.id === 'catalog',
+    );
+    compactCatalog.api.backendFederation = {
+      entry: 'verticals/catalog/api/backend-federation.ts',
+    };
+    compactCatalog.backendFederation.entry =
+      'verticals/catalog/api/backend-federation.ts';
+    writeJson(workspaceDir, '.modernjs/ultramodern.json', compactConfigBefore);
 
     const rootPackageBefore = readJson(workspaceDir, 'package.json');
     rootPackageBefore.devDependencies['@typescript/native-preview'] =
       '7.0.0-dev.20260620.1';
     rootPackageBefore.devDependencies['drizzle-orm'] = DRIZZLE_ORM_VERSION;
     rootPackageBefore.devDependencies.oxfmt = '0.55.0';
+    rootPackageBefore.scripts['cloudflare:build'] =
+      `${rootPackageBefore.scripts['cloudflare:build']} && pnpm cloudflare-output:verify`;
+    rootPackageBefore.scripts['node:proof'] =
+      'node ./scripts/proof-node-backend-federation.mts';
+    rootPackageBefore.scripts['cloudflare-output:verify'] =
+      'node ./scripts/verify-cloudflare-output.mts';
+    rootPackageBefore.scripts['node:backend-federation:generate'] =
+      'node ./scripts/generate-node-backend-federation.mts';
     writeJson(workspaceDir, 'package.json', rootPackageBefore);
+
+    for (const relativePath of [
+      'scripts/generate-node-backend-federation.mts',
+      'scripts/proof-node-backend-federation.mts',
+      'scripts/verify-cloudflare-output.mts',
+      'apps/shell-super-app/src/ultramodern-build.ts',
+      'apps/shell-super-app/shared/ultramodern-build.ts',
+      'verticals/catalog/api/backend-federation.ts',
+      'verticals/catalog/src/ultramodern-build.ts',
+      'verticals/catalog/shared/ultramodern-build.ts',
+    ]) {
+      fs.writeFileSync(path.join(workspaceDir, relativePath), 'stale\n');
+    }
+    fs.rmSync(
+      path.join(workspaceDir, 'scripts/proof-node-backend-federation.mjs'),
+      { force: true },
+    );
 
     for (const packageFile of [
       'apps/shell-super-app/package.json',
       'verticals/catalog/package.json',
     ]) {
+      const appId = packageFile.includes('shell-super-app')
+        ? 'shell-super-app'
+        : 'catalog';
       const packageJson = readJson(workspaceDir, packageFile);
+      if (appId === 'catalog') {
+        packageJson.scripts.build = packageJson.scripts.build.replace(
+          'ULTRAMODERN_ZEPHYR=false modern build',
+          'ULTRAMODERN_ZEPHYR=false modern build && node ../../scripts/generate-node-backend-federation.mts --app catalog',
+        );
+        packageJson.scripts['cloudflare:build'] = packageJson.scripts[
+          'cloudflare:build'
+        ].replace(
+          'ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern build',
+          'ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern build && node ../../scripts/generate-node-backend-federation.mts --app catalog --target dist-cloudflare',
+        );
+      }
       packageJson.scripts['cloudflare:build'] = packageJson.scripts[
         'cloudflare:build'
       ].replace(
         'MODERNJS_DEPLOY=cloudflare modern deploy --skip-build',
         'MODERNJS_DEPLOY=cloudflare modern deploy',
       );
+      packageJson.scripts['cloudflare:build'] =
+        `${packageJson.scripts['cloudflare:build']} && node ../../scripts/verify-cloudflare-output.mts --app ${appId}`;
       packageJson.scripts['cloudflare:deploy'] =
         `${packageJson.scripts['cloudflare:deploy']} --skip-build`;
       writeJson(workspaceDir, packageFile, packageJson);
@@ -407,6 +468,69 @@ declare module '*.css' {}
     );
     assert.equal(rootPackage.devDependencies.oxfmt, OXFMT_VERSION);
     assert.equal(rootPackage.modernjs.packageSource.strategy, 'install');
+    assert.doesNotMatch(
+      rootPackage.scripts['cloudflare:build'],
+      /cloudflare-output:verify/u,
+    );
+    assert.equal(
+      rootPackage.scripts['node:proof'],
+      'node ./scripts/proof-node-backend-federation.mjs --out .codex/reports/node-backend-federation-proof/proof.json',
+    );
+    assert.equal(rootPackage.scripts['cloudflare-output:verify'], undefined);
+    assert.equal(
+      rootPackage.scripts['node:backend-federation:generate'],
+      undefined,
+    );
+    for (const relativePath of [
+      'scripts/generate-node-backend-federation.mts',
+      'scripts/proof-node-backend-federation.mts',
+      'scripts/verify-cloudflare-output.mts',
+      'verticals/catalog/api/backend-federation.ts',
+    ]) {
+      assert.equal(fs.existsSync(path.join(workspaceDir, relativePath)), false);
+    }
+    assert.match(
+      fs.readFileSync(
+        path.join(workspaceDir, 'scripts/proof-node-backend-federation.mjs'),
+        'utf-8',
+      ),
+      /loadBackendFederatedEffectApi/,
+    );
+    assert.match(
+      readText(
+        workspaceDir,
+        'apps/shell-super-app/shared/ultramodern-build.ts',
+      ),
+      /appId: 'shell-super-app'/,
+    );
+    assert.match(
+      readText(workspaceDir, 'verticals/catalog/shared/ultramodern-build.ts'),
+      /packageName: '@tooling-migrate\/catalog'/,
+    );
+    assert.match(
+      readText(workspaceDir, 'verticals/catalog/src/ultramodern-build.ts'),
+      /from '\.\.\/shared\/ultramodern-build'/,
+    );
+    const migratedTopologyCatalog = readJson(
+      workspaceDir,
+      'topology/reference-topology.json',
+    ).verticals.find(
+      (vertical: Record<string, unknown>) => vertical.id === 'catalog',
+    );
+    assert.equal(migratedTopologyCatalog.backendFederation.entry, undefined);
+    assert.equal(migratedTopologyCatalog.api.backendFederation, undefined);
+    const migratedCompactCatalog = compactConfig.topology.apps.find(
+      (app: Record<string, unknown>) => app.id === 'catalog',
+    );
+    assert.equal(migratedCompactCatalog.backendFederation.entry, undefined);
+    assert.equal(migratedCompactCatalog.api.backendFederation, undefined);
+    const shellModernConfig = readText(
+      workspaceDir,
+      'apps/shell-super-app/modern.config.ts',
+    );
+    assert.match(shellModernConfig, /services:\s*\[/);
+    assert.match(shellModernConfig, /VERTICAL_CATALOG_WORKER_BINDING/);
+    assert.match(shellModernConfig, /VERTICAL_CATALOG_WORKER_NAME/);
 
     const pnpmWorkspace = fs.readFileSync(pnpmWorkspaceFile, 'utf-8');
     assert.match(
@@ -592,6 +716,10 @@ declare module '*.css' {}
       shellPackage.scripts['cloudflare:build'],
       /--target dist && ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern deploy/u,
     );
+    assert.doesNotMatch(
+      shellPackage.scripts['cloudflare:build'],
+      /verify-cloudflare-output/u,
+    );
     assert.equal(
       shellPackage.scripts['cloudflare:deploy'],
       'ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS=true pnpm run cloudflare:build && wrangler deploy --config .output/wrangler.json',
@@ -612,6 +740,18 @@ declare module '*.css' {}
     assert.doesNotMatch(
       catalogPackage.scripts['cloudflare:build'],
       /--target dist && ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern deploy/u,
+    );
+    assert.doesNotMatch(
+      catalogPackage.scripts.build,
+      /generate-node-backend-federation/u,
+    );
+    assert.doesNotMatch(
+      catalogPackage.scripts['cloudflare:build'],
+      /generate-node-backend-federation/u,
+    );
+    assert.doesNotMatch(
+      catalogPackage.scripts['cloudflare:build'],
+      /verify-cloudflare-output/u,
     );
     assert.equal(
       catalogPackage.scripts['cloudflare:deploy'],

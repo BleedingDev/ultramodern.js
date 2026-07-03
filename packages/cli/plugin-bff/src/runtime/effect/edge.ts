@@ -17,6 +17,17 @@ import {
 } from './operation-context';
 
 export {
+  BACKEND_FEDERATION_EFFECT_EXPOSE,
+  type BackendFederatedEffectApiModule,
+  type BackendFederationEntryExports,
+  type BackendFederationLoadEntryPluginOptions,
+  type BackendFederationRemote,
+  type BackendFederationRuntimeOptions,
+  createBackendFederationLoadEntryPlugin,
+  createBackendFederationRuntime,
+  loadBackendFederatedEffectApi,
+} from './backend-federation';
+export {
   runWithEffectContext,
   useEffectContext,
   useOperationContext,

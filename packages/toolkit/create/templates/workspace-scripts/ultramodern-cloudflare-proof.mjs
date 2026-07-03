@@ -20,8 +20,8 @@ function resolveModuleFederationPublicPath(publicPath, manifestUrl) {
   }
 }
 
-async function fetchText(url) {
-  const response = await fetch(url);
+async function fetchText(url, init) {
+  const response = await fetch(url, init);
   return {
     ok: response.ok,
     status: response.status,
@@ -46,6 +46,52 @@ function parseMaybeJson(body) {
   } catch {
     return undefined;
   }
+}
+
+function jsonPathValue(value, path) {
+  const segments = String(path ?? '')
+    .split('.')
+    .filter(Boolean);
+  let current = value;
+
+  for (const segment of segments) {
+    if (current === null || current === undefined) {
+      return undefined;
+    }
+
+    if (Array.isArray(current) && /^\d+$/u.test(segment)) {
+      current = current[Number(segment)];
+      continue;
+    }
+
+    if (typeof current === 'object' && Object.hasOwn(current, segment)) {
+      current = current[segment];
+      continue;
+    }
+
+    return undefined;
+  }
+
+  return current;
+}
+
+function jsonValuesEqual(left, right) {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function normalizeJsonSmokeExpectations(check) {
+  if (Array.isArray(check.expectations)) {
+    return check.expectations;
+  }
+
+  if (check.expect && typeof check.expect === 'object') {
+    return Object.entries(check.expect).map(([path, equals]) => ({
+      path,
+      equals,
+    }));
+  }
+
+  return [];
 }
 
 function markerFromJson(value) {
@@ -860,6 +906,104 @@ async function validateReadinessEvidence(evidence, app, publicUrl, routes) {
   }
 }
 
+async function validateServiceBindingEvidence(evidence, app, publicUrl) {
+  const serviceBindings = app.deploy?.cloudflare?.serviceBindings ?? [];
+
+  for (const binding of serviceBindings) {
+    const response = await fetchText(joinUrl(publicUrl, binding.route));
+    const responseJson = parseMaybeJson(response.body);
+    const apiMarker = markerFromJson(responseJson);
+    const passed = response.ok && apiMarker === binding.expectedMarker;
+
+    evidence.assertions.push({
+      type: 'service-binding-api-marker',
+      appId: binding.appId,
+      binding: binding.binding,
+      route: binding.route,
+      expected: binding.expectedMarker,
+      actual: apiMarker,
+      status: passed ? 'pass' : 'fail',
+      statusCode: response.status,
+    });
+    assert(
+      response.ok,
+      `${app.id} service binding ${binding.binding} returned HTTP ${response.status}`,
+    );
+    assert(
+      apiMarker === binding.expectedMarker,
+      `${app.id} service binding ${binding.binding} API marker mismatch`,
+    );
+  }
+}
+
+async function validateJsonSmokeEvidence(evidence, app, publicUrl) {
+  const checks = app.deploy?.cloudflare?.jsonSmokeChecks ?? [];
+
+  for (const check of checks) {
+    const route = check.route;
+    assert(
+      typeof route === 'string' && route.length > 0,
+      `${app.id} JSON smoke check is missing a route`,
+    );
+
+    const method = String(check.method ?? 'GET').toUpperCase();
+    const requestBody =
+      check.body ?? check.payload ?? check.requestBody ?? undefined;
+    const response = await fetchText(joinUrl(publicUrl, route), {
+      method,
+      headers: {
+        accept: 'application/json',
+        ...(requestBody === undefined
+          ? {}
+          : { 'content-type': 'application/json' }),
+      },
+      ...(requestBody === undefined
+        ? {}
+        : { body: JSON.stringify(requestBody) }),
+    });
+    const responseJson = parseMaybeJson(response.body);
+    const checkId = check.id ?? route;
+
+    evidence.assertions.push({
+      type: 'json-smoke-http',
+      id: checkId,
+      method,
+      route,
+      status: response.ok && responseJson !== undefined ? 'pass' : 'fail',
+      statusCode: response.status,
+    });
+    assert(
+      response.ok,
+      `${app.id} JSON smoke ${checkId} returned HTTP ${response.status}`,
+    );
+    assert(
+      responseJson !== undefined,
+      `${app.id} JSON smoke ${checkId} did not return JSON`,
+    );
+
+    for (const expectation of normalizeJsonSmokeExpectations(check)) {
+      const actual = jsonPathValue(responseJson, expectation.path);
+      const passed = jsonValuesEqual(actual, expectation.equals);
+
+      evidence.assertions.push({
+        type: 'json-smoke-value',
+        id: checkId,
+        route,
+        path: expectation.path,
+        expected: expectation.equals,
+        actual,
+        status: passed ? 'pass' : 'fail',
+      });
+      assert(
+        passed,
+        `${app.id} JSON smoke ${checkId} expected ${expectation.path} to equal ${JSON.stringify(
+          expectation.equals,
+        )}`,
+      );
+    }
+  }
+}
+
 async function validateApp(app, publicUrl) {
   const routes = app.deploy?.cloudflare?.routes ?? {};
   const evidence = createAppEvidence(app, publicUrl);
@@ -869,6 +1013,8 @@ async function validateApp(app, publicUrl) {
   await validateModuleFederationManifestEvidence(evidence, app, publicUrl, routes);
   await validateI18nEvidence(evidence, app, publicUrl, routes);
   await validateReadinessEvidence(evidence, app, publicUrl, routes);
+  await validateServiceBindingEvidence(evidence, app, publicUrl);
+  await validateJsonSmokeEvidence(evidence, app, publicUrl);
 
   return evidence;
 }

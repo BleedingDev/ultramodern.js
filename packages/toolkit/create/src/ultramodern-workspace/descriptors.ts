@@ -151,6 +151,28 @@ export function createRemoteManifestEnv(remote: WorkspaceApp): string {
   return `VERTICAL_${toEnvSegment(remote.domain ?? remote.id)}_MF_MANIFEST`;
 }
 
+export function createBackendFederationManifestEnv(
+  remote: WorkspaceApp,
+): string {
+  return `VERTICAL_${toEnvSegment(
+    remote.domain ?? remote.id,
+  )}_BACKEND_MF_MANIFEST`;
+}
+
+export function createBackendFederationName(app: WorkspaceApp): string {
+  return `${app.mfName}Backend`;
+}
+
+export function createBackendFederationManifestUrl(app: WorkspaceApp): string {
+  return `http://localhost:${app.port}/backend-mf-manifest.json`;
+}
+
+export function createBackendFederationContainerEntry(
+  app: WorkspaceApp,
+): string {
+  return `http://localhost:${app.port}/backendRemoteEntry.mjs`;
+}
+
 export function createModuleFederationRemoteContracts(
   app: WorkspaceApp,
   remotes: WorkspaceApp[] = [],

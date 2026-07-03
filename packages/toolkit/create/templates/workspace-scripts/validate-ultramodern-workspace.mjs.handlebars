@@ -772,6 +772,107 @@ const expectedManifestUrl = vertical =>
   `http://localhost:${vertical.port}/mf-manifest.json`;
 const expectedApiUrl = vertical =>
   `http://localhost:${vertical.port}${vertical.apiPrefix}`;
+const expectedBackendFederationName = vertical => `${vertical.mfName}Backend`;
+const expectedBackendManifestUrl = vertical =>
+  `http://localhost:${vertical.port}/backend-mf-manifest.json`;
+const expectedBackendContainerEntry = vertical =>
+  `http://localhost:${vertical.port}/backendRemoteEntry.mjs`;
+const expectedBackendManifestEnv = vertical =>
+  `VERTICAL_${toEnvSegment(vertical.domain ?? vertical.id)}_BACKEND_MF_MANIFEST`;
+const expectedPublicUrlEnv = vertical =>
+  `ULTRAMODERN_PUBLIC_URL_${toEnvSegment(vertical.id)}`;
+const expectedCloudflareWorkerName = vertical =>
+  toKebabCase(`${packageScope}-${vertical.packageSuffix ?? vertical.id}`).slice(
+    0,
+    63,
+  );
+const backendFederationSubset = backendFederation => ({
+  role: backendFederation?.role,
+  name: backendFederation?.name,
+  runtimeFramework: backendFederation?.runtimeFramework,
+  strictEffectApproach: backendFederation?.strictEffectApproach,
+  exposeRuntime: backendFederation?.exposes?.['./effect-api']?.runtime,
+  exposeReadiness: backendFederation?.exposes?.['./effect-api']?.readiness,
+  versionBoundary: {
+    invariant: backendFederation?.versionBoundary?.invariant,
+    uiManifestUrl: backendFederation?.versionBoundary?.ui?.manifestUrl,
+    apiReadiness: backendFederation?.versionBoundary?.api?.readiness,
+  },
+  cloudflare: {
+    kind: backendFederation?.executionSurfaces?.cloudflare?.kind,
+    workerName: backendFederation?.executionSurfaces?.cloudflare?.workerName,
+    publicUrlEnv:
+      backendFederation?.executionSurfaces?.cloudflare?.publicUrlEnv,
+    zephyrRuntime:
+      backendFederation?.executionSurfaces?.cloudflare?.zephyr?.runtime,
+  },
+  node: {
+    kind: backendFederation?.executionSurfaces?.node?.kind,
+    remoteName: backendFederation?.executionSurfaces?.node?.remoteName,
+    manifestEnv: backendFederation?.executionSurfaces?.node?.manifestEnv,
+    manifestUrl: backendFederation?.executionSurfaces?.node?.manifestUrl,
+    containerEntry:
+      backendFederation?.executionSurfaces?.node?.containerEntry,
+    remoteType: backendFederation?.executionSurfaces?.node?.remoteType,
+    expose: backendFederation?.executionSurfaces?.node?.expose,
+  },
+  compatibility: {
+    contractVersion: backendFederation?.compatibility?.contractVersion,
+  },
+  topLevelManifestUrl: backendFederation?.manifestUrl,
+  topLevelContainerEntry: backendFederation?.containerEntry,
+});
+const expectedBackendFederationSubset = vertical => ({
+  role: 'microvertical-server',
+  name: expectedBackendFederationName(vertical),
+  runtimeFramework: 'effect',
+  strictEffectApproach: true,
+  exposeRuntime: `${vertical.path}/api/index.ts`,
+  exposeReadiness: `${vertical.apiPrefix}/${vertical.stem}/readiness`,
+  versionBoundary: {
+    invariant: 'web-and-api-same-build',
+    uiManifestUrl: expectedManifestUrl(vertical),
+    apiReadiness: `${vertical.apiPrefix}/${vertical.stem}/readiness`,
+  },
+  cloudflare: {
+    kind: 'cloudflare-worker-snapshot',
+    workerName: expectedCloudflareWorkerName(vertical),
+    publicUrlEnv: expectedPublicUrlEnv(vertical),
+    zephyrRuntime: 'ssr-worker',
+  },
+  node: {
+    kind: 'node-mf-runtime',
+    remoteName: expectedBackendFederationName(vertical),
+    manifestEnv: expectedBackendManifestEnv(vertical),
+    manifestUrl: expectedBackendManifestUrl(vertical),
+    containerEntry: expectedBackendContainerEntry(vertical),
+    remoteType: 'module',
+    expose: './effect-api',
+  },
+  compatibility: {
+    contractVersion: 'microvertical-server-effect-v1',
+  },
+  topLevelManifestUrl: undefined,
+  topLevelContainerEntry: undefined,
+});
+const serverExecutionSubset = serverExecution => ({
+  apiBaseUrl: serverExecution?.apiBaseUrl,
+  versionBoundary: serverExecution?.versionBoundary,
+  cloudflareKind: serverExecution?.cloudflare?.kind,
+  cloudflareWorkerName: serverExecution?.cloudflare?.workerName,
+  nodeKind: serverExecution?.node?.kind,
+  nodeManifestUrl: serverExecution?.node?.manifestUrl,
+  nodeContainerEntry: serverExecution?.node?.containerEntry,
+});
+const expectedServerExecutionSubset = vertical => ({
+  apiBaseUrl: expectedApiUrl(vertical),
+  versionBoundary: 'web-and-api-same-build',
+  cloudflareKind: 'cloudflare-worker-snapshot',
+  cloudflareWorkerName: expectedCloudflareWorkerName(vertical),
+  nodeKind: 'node-mf-runtime',
+  nodeManifestUrl: expectedBackendManifestUrl(vertical),
+  nodeContainerEntry: expectedBackendContainerEntry(vertical),
+});
 const remoteContractSubset = remote => ({
   id: remote?.id,
   name: remote?.name,
@@ -791,9 +892,11 @@ const requiredMicroVerticalPaths = vertical => [
   `${vertical.path}/package.json`,
   `${vertical.path}/tsconfig.json`,
   `${vertical.path}/tsconfig.mf-types.json`,
-  `${vertical.path}/modern.config.ts`,
-  `${vertical.path}/module-federation.config.ts`,
-  `${vertical.path}/api/index.ts`,
+    `${vertical.path}/modern.config.ts`,
+    `${vertical.path}/module-federation.config.ts`,
+    `${vertical.path}/backend-federation.config.ts`,
+    `${vertical.path}/api/effect-api.ts`,
+    `${vertical.path}/api/index.ts`,
   `${vertical.path}/shared/api.ts`,
   `${vertical.path}/src/api/${vertical.stem}-client.ts`,
   `${vertical.path}/src/modern-app-env.d.ts`,
@@ -988,6 +1091,13 @@ const assertMicroVerticalContractGraph = ({
       `topology/reference-topology.json verticals.${vertical.id}`,
       'restore generated topology vertical entries',
     );
+ assertSameJson(
+ backendFederationSubset(topologyEntry.backendFederation),
+ expectedBackendFederationSubset(vertical),
+ `topology/reference-topology.json verticals.${vertical.id}.backendFederation`,
+ 'restore generated MicroVertical server execution contract',
+ );
+
 
     assertObject(
       ownershipEntry,
@@ -1025,6 +1135,13 @@ const assertMicroVerticalContractGraph = ({
       `topology/local-overlays/development.json apis.${vertical.id}`,
       'restore generated local API overlay',
     );
+ assertSameJson(
+ serverExecutionSubset(overlay.serverExecution?.[vertical.id]),
+ expectedServerExecutionSubset(vertical),
+ `topology/local-overlays/development.json serverExecution.${vertical.id}`,
+ 'restore generated local MicroVertical server execution overlay',
+ );
+
 
     assertSameJson(
       shellPackage.dependencies?.[vertical.packageName],
@@ -1524,6 +1641,7 @@ const requiredPaths = [
   'scripts/check-ultramodern-i18n-boundaries.mts',
   'scripts/generate-public-surface-assets.mts',
   'scripts/proof-cloudflare-version.mts',
+  'scripts/proof-node-backend-federation.mjs',
   'scripts/setup-agent-reference-repos.mts',
   'scripts/ultramodern-performance-readiness.config.mjs',
   'scripts/ultramodern-performance-readiness.mts',
@@ -1676,6 +1794,11 @@ assert(
     expectedModernPackageSpecifier('@modern-js/code-tools'),
   'Root must depend on @modern-js/code-tools through package source metadata',
 );
+assert(
+  rootPackage.devDependencies?.['@modern-js/plugin-bff'] ===
+    expectedModernPackageSpecifier('@modern-js/plugin-bff'),
+  'Root must depend on @modern-js/plugin-bff for Node backend federation proof',
+);
 if (packageSource.strategy === 'install') {
   const installSpecifier = packageSource.modernPackages?.specifier;
   assert(
@@ -1741,15 +1864,25 @@ assert(rootPackage.scripts?.['contract:check'] === 'node ./scripts/validate-ultr
 assert(rootPackage.scripts?.['api:check'] === 'node ./scripts/check-ultramodern-api-boundaries.mts', 'Root must expose api:check');
 assert(rootPackage.scripts?.['i18n:boundaries'] === 'node ./scripts/check-ultramodern-i18n-boundaries.mts', 'Root must expose i18n:boundaries');
 assert(rootPackage.scripts?.['performance:readiness'] === 'node ./scripts/ultramodern-performance-readiness.mts', 'Root must expose default-on performance readiness diagnostics');
+assert(!('node:backend-federation:generate' in rootPackage.scripts), 'Root must not expose local Node backend federation artifact generation');
+assertNotExists('scripts/generate-node-backend-federation.mjs');
+assert(
+  rootPackage.scripts?.['node:proof'] ===
+    'node ./scripts/proof-node-backend-federation.mjs --out .codex/reports/node-backend-federation-proof/proof.json',
+  'Root must expose node:proof for backend federation Effect modules',
+);
 assert(
   bridgeConfig
     ? rootPackage.scripts?.check?.includes('pnpm api:check') &&
+        rootPackage.scripts.check.includes('pnpm node:proof') &&
         rootPackage.scripts.check.endsWith('&& pnpm performance:readiness && pnpm bridge:check')
     : rootPackage.scripts?.check?.includes('pnpm api:check') &&
+        rootPackage.scripts.check.includes('pnpm node:proof') &&
         rootPackage.scripts.check.endsWith('&& pnpm performance:readiness'),
-  'Root check must run default-on performance readiness diagnostics and bridge gates when configured',
+  'Root check must run Node backend federation proof, default-on performance readiness diagnostics, and bridge gates when configured',
 );
 const performanceReadinessConfig = readText('scripts/ultramodern-performance-readiness.config.mjs');
+const nodeBackendFederationProof = readText('scripts/proof-node-backend-federation.mjs');
 const assertToolWrapper = (scriptPath, command) => {
   const source = readText(scriptPath);
   assert(source.includes('modern-js-create'), `${scriptPath} must delegate to modern-js-create`);
@@ -1760,6 +1893,15 @@ const assertToolWrapper = (scriptPath, command) => {
 assert(performanceReadinessConfig.includes('UltramodernPerformanceReadinessDiagnosticsConfig'), 'Performance readiness config must carry the typed opt-out surface');
 assert(performanceReadinessConfig.includes('enabled: true'), 'Performance readiness diagnostics must be default-on');
 assert(performanceReadinessConfig.includes("failOn: 'framework-invariant'"), 'Performance readiness diagnostics must only fail framework invariants by default');
+assert(
+  nodeBackendFederationProof.includes('@modern-js/plugin-bff/effect') &&
+    nodeBackendFederationProof.includes('loadBackendFederatedEffectApi') &&
+    nodeBackendFederationProof.includes('backend-mf-manifest.json') &&
+    nodeBackendFederationProof.includes('backendRemoteEntry.mjs') &&
+    nodeBackendFederationProof.includes('pathToFileURL(entryPath).href') &&
+    !nodeBackendFederationProof.includes('createBackendFederationLoadEntryPlugin'),
+  'Node backend federation proof must exercise native plugin-bff Module Federation entry loading',
+);
 assertToolWrapper('scripts/validate-ultramodern-workspace.mts', 'validate');
 assertToolWrapper('scripts/ultramodern-performance-readiness.mts', 'performance-readiness');
 const i18nBoundaryScript = readText('scripts/check-ultramodern-i18n-boundaries.mts');

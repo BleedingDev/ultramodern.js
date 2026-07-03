@@ -9,6 +9,10 @@ import {
   createAppRuntimeConfig,
   createShellFrameComponent,
 } from './app-files';
+import {
+  createBackendFederationContract,
+  createServerExecutionOverlay,
+} from './backend-federation';
 import type { UltramodernBridgeConfig } from './bridge-config';
 import {
   createShellPage,
@@ -40,7 +44,10 @@ import {
   diffFileSnapshots,
 } from './generation-result';
 import { createAppPublicLocaleMessages } from './locales';
-import { createShellModuleFederationConfig } from './module-federation';
+import {
+  createAppModernConfig,
+  createShellModuleFederationConfig,
+} from './module-federation';
 import {
   assertUniqueTailwindPrefixes,
   normalizePath,
@@ -225,6 +232,11 @@ export function rewriteShellAppFiles(
   );
   writeFileReplacing(
     workspaceRoot,
+    `${shellApp.directory}/modern.config.ts`,
+    createAppModernConfig(scope, shellHost, remotes),
+  );
+  writeFileReplacing(
+    workspaceRoot,
     publicWeb.jsonLdHelperFile.path,
     publicWeb.jsonLdHelperFile.content,
   );
@@ -370,6 +382,9 @@ export function verticalTopologyEntry(
       fallbackTelemetryEvent: 'modernjs:mv-runtime-parity',
       sharedContractVersion: 'mf-ssr-contract-v1',
     },
+    ...(createBackendFederationContract(scope, vertical)
+      ? { backendFederation: createBackendFederationContract(scope, vertical) }
+      : {}),
     ...(apiTopologyMetadata(vertical)
       ? { api: apiTopologyMetadata(vertical) }
       : {}),
@@ -739,6 +754,12 @@ function createDryRunJsonMutations(
           description: `Add local API URL for ${vertical.id}`,
           value: `http://localhost:${vertical.port}${resolveApiPrefix(vertical)}`,
         },
+        {
+          path: DEVELOPMENT_OVERLAY_PATH,
+          pointer: `/serverExecution/${vertical.id}`,
+          description: `Add local MicroVertical server execution metadata for ${vertical.id}`,
+          value: createServerExecutionOverlay(scope, vertical),
+        },
       ]
     : [];
 
@@ -887,6 +908,11 @@ export function addUltramodernVertical(
   overlay.manifests ??= {};
   overlay.manifests[vertical.id] =
     `http://localhost:${vertical.port}/mf-manifest.json`;
+  overlay.serverExecution ??= {};
+  overlay.serverExecution[vertical.id] = createServerExecutionOverlay(
+    scope,
+    vertical,
+  );
   overlay.apis ??= {};
   overlay.apis[vertical.id] =
     `http://localhost:${vertical.port}${resolveApiPrefix(vertical)}`;

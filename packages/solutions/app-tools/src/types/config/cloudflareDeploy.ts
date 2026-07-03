@@ -67,6 +67,18 @@ export interface CloudflareWorkerD1DatabaseConfig {
   remote?: boolean;
 }
 
+export interface CloudflareWorkerServiceBindingConfig {
+  /** Worker binding name exposed on the module worker `env` object. */
+  binding: string;
+  /** Target Cloudflare Worker service name. */
+  service: string;
+  /**
+   * Optional application path prefix that Modern.js should dispatch to this
+   * service binding with `env[binding].fetch(request)`.
+   */
+  prefix?: string;
+}
+
 export interface CloudflareWorkerSecurityCspConfig {
   mode?: CloudflareWorkerSecurityCspMode;
   directives?: Record<string, string[] | string | false>;

@@ -22,6 +22,9 @@ describe('plugin-bff regressions', () => {
     expect(packageJson.exports['./server']).toEqual(
       packageJson.exports['./effect-server'],
     );
+    expect(packageJson.exports['./effect']).toEqual(
+      packageJson.exports['./effect-server'],
+    );
     expect(packageJson.exports['./hono-server']).toEqual({
       types: './dist/types/runtime/hono/index.d.ts',
       node: {
@@ -31,6 +34,9 @@ describe('plugin-bff regressions', () => {
       default: './dist/cjs/runtime/hono/index.js',
     });
     expect(packageJson.typesVersions['*'].server).toEqual(
+      packageJson.typesVersions['*']['effect-server'],
+    );
+    expect(packageJson.typesVersions['*'].effect).toEqual(
       packageJson.typesVersions['*']['effect-server'],
     );
     expect(packageJson.typesVersions['*']['hono-server']).toEqual([

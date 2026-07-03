@@ -5,6 +5,7 @@ import type {
   CloudflareWorkerD1DatabaseConfig,
   CloudflareWorkerPublicAssetConfig,
   CloudflareWorkerSecurityConfig,
+  CloudflareWorkerServiceBindingConfig,
   JsonValue,
 } from '../../../types/config/deploy';
 import { readTemplate } from '../utils';
@@ -618,6 +619,109 @@ const createWranglerD1Databases = (
   return d1Databases.map(normalizeD1Database);
 };
 
+const normalizeServiceBinding = (
+  service: CloudflareWorkerServiceBindingConfig,
+  index: number,
+) => {
+  const binding = assertNonEmptyString(
+    service.binding,
+    `deploy.worker.services[${index}].binding`,
+  );
+  const serviceName = assertNonEmptyString(
+    service.service,
+    `deploy.worker.services[${index}].service`,
+  );
+  const prefix =
+    service.prefix === undefined
+      ? undefined
+      : assertNonEmptyString(
+          service.prefix,
+          `deploy.worker.services[${index}].prefix`,
+        );
+
+  return {
+    binding,
+    service: serviceName,
+    ...(prefix === undefined ? {} : { prefix }),
+  };
+};
+
+const createWorkerServiceBindings = (
+  modernConfig: Parameters<CreatePreset>[0]['modernConfig'],
+  configuredWranglerServices: JsonValue | undefined,
+) => {
+  const services = modernConfig.deploy?.worker?.services;
+
+  if (services === undefined) {
+    return configuredWranglerServices;
+  }
+
+  if (configuredWranglerServices !== undefined) {
+    throw new Error(
+      'Use deploy.worker.services or deploy.worker.wrangler.services, not both.',
+    );
+  }
+
+  if (!Array.isArray(services)) {
+    throw new Error('deploy.worker.services must be an array.');
+  }
+
+  return services.map(normalizeServiceBinding);
+};
+
+const createWranglerServices = (
+  serviceBindings: ReturnType<typeof createWorkerServiceBindings>,
+) => {
+  if (!Array.isArray(serviceBindings)) {
+    return serviceBindings;
+  }
+
+  if (!serviceBindings.every(isJsonRecord)) {
+    return serviceBindings;
+  }
+
+  return serviceBindings.map(service => {
+    const { prefix, ...wranglerService } = service as {
+      binding: string;
+      service: string;
+      prefix?: string;
+    };
+
+    return wranglerService;
+  });
+};
+
+const createWorkerManifestServiceBindings = (
+  serviceBindings: ReturnType<typeof createWorkerServiceBindings>,
+) => {
+  if (!Array.isArray(serviceBindings)) {
+    return undefined;
+  }
+
+  const dispatchBindings = serviceBindings
+    .filter(
+      (
+        service,
+      ): service is {
+        binding: string;
+        service: string;
+        prefix: string;
+      } =>
+        isJsonRecord(service) &&
+        typeof service.binding === 'string' &&
+        typeof service.service === 'string' &&
+        typeof service.prefix === 'string',
+    )
+    .map(service => ({
+      binding: service.binding,
+      service: service.service,
+      prefix: service.prefix,
+      interface: 'fetch',
+    }));
+
+  return dispatchBindings.length > 0 ? dispatchBindings : undefined;
+};
+
 const createWranglerConfig = (
   appDirectory: string,
   modernConfig: Parameters<CreatePreset>[0]['modernConfig'],
@@ -627,6 +731,11 @@ const createWranglerConfig = (
     modernConfig,
     wrangler.d1_databases,
   );
+  const serviceBindings = createWorkerServiceBindings(
+    modernConfig,
+    wrangler.services,
+  );
+  const wranglerServices = createWranglerServices(serviceBindings);
 
   return {
     $schema: 'node_modules/wrangler/config-schema.json',
@@ -639,6 +748,7 @@ const createWranglerConfig = (
     ),
     assets: createWranglerAssetsConfig(wrangler.assets),
     ...(d1Databases === undefined ? {} : { d1_databases: d1Databases }),
+    ...(wranglerServices === undefined ? {} : { services: wranglerServices }),
   };
 };
 
@@ -838,6 +948,9 @@ const createWorkerManifest = async (
   const effectApiWorkerExists = await fse.pathExists(
     path.join(outputDirectory, BFF_EFFECT_WORKER_ENTRY),
   );
+  const serviceBindings = createWorkerManifestServiceBindings(
+    createWorkerServiceBindings(modernConfig, undefined),
+  );
 
   if (isEffectApi && primaryBffPrefix && !effectApiWorkerExists) {
     throw createMissingEffectBffWorkerError(
@@ -883,6 +996,7 @@ const createWorkerManifest = async (
             worker: BFF_EFFECT_WORKER_ENTRY,
           }
         : undefined,
+    ...(serviceBindings === undefined ? {} : { serviceBindings }),
   };
 };
 

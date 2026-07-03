@@ -1567,6 +1567,45 @@ async function dispatchBffRequest(request, env) {
   return handler(mountedRequest, effectContext);
 }
 
+async function dispatchServiceBindingRequest(request, env) {
+  const serviceBindings = MODERN_WORKER_MANIFEST.serviceBindings;
+
+  if (!Array.isArray(serviceBindings) || serviceBindings.length === 0) {
+    return null;
+  }
+
+  const pathname = new URL(request.url).pathname;
+
+  for (const binding of serviceBindings) {
+    if (!binding?.binding || !binding?.prefix) {
+      continue;
+    }
+
+    if (!matchesPrefix(pathname, binding.prefix)) {
+      continue;
+    }
+
+    const service = env?.[binding.binding];
+
+    if (!service || typeof service.fetch !== 'function') {
+      return new Response(
+        `Cloudflare service binding not available: ${binding.binding}`,
+        {
+          status: 502,
+          headers: {
+            'content-type': 'text/plain; charset=utf-8',
+            'x-modern-js-service-binding': binding.binding,
+          },
+        },
+      );
+    }
+
+    return service.fetch(request);
+  }
+
+  return null;
+}
+
 export default {
   async fetch(request, env, ctx) {
     const corsPreflightResponse = await createCorsPreflightResponse(
@@ -1583,6 +1622,18 @@ export default {
     if (bffResponse) {
       return finalizeResponseForRequest(
         withAppCorsHeaders(bffResponse, request),
+        request,
+      );
+    }
+
+    const serviceBindingResponse = await dispatchServiceBindingRequest(
+      request,
+      env,
+    );
+
+    if (serviceBindingResponse) {
+      return finalizeResponseForRequest(
+        withAppCorsHeaders(serviceBindingResponse, request),
         request,
       );
     }

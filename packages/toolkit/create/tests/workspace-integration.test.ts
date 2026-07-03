@@ -70,6 +70,18 @@ function runGeneratedApiCheck(workspaceDir: string) {
   );
 }
 
+function runGeneratedCloudflareProof(workspaceDir: string, outPath: string) {
+  return spawnSync(
+    process.execPath,
+    ['scripts/proof-cloudflare-version.mts', '--out', outPath],
+    {
+      cwd: workspaceDir,
+      encoding: 'utf8',
+      env: hermeticEnv,
+    },
+  );
+}
+
 function commandOutput(result: ReturnType<typeof runGeneratedWorkspaceCheck>) {
   return `${result.stdout}\n${result.stderr}`;
 }
@@ -180,7 +192,9 @@ function assertModuleFederationWarningHygiene(
 
 function assertGeneratedVerticalFiles(workspaceDir: string, id: string) {
   for (const relativePath of [
+    `verticals/${id}/api/effect-api.ts`,
     `verticals/${id}/api/index.ts`,
+    `verticals/${id}/backend-federation.config.ts`,
     `verticals/${id}/locales/cs/${id}.json`,
     `verticals/${id}/locales/cs/translation.json`,
     `verticals/${id}/locales/en/${id}.json`,
@@ -205,6 +219,9 @@ function assertIntegratedVertical(
   const packageName = `@${scope}/${id}`;
   const mfName = `vertical${id[0].toUpperCase()}${id.slice(1)}`;
   const manifestUrl = `http://localhost:${port}/mf-manifest.json`;
+  const backendFederationName = `${mfName}Backend`;
+  const backendManifestUrl = `http://localhost:${port}/backend-mf-manifest.json`;
+  const backendContainerEntry = `http://localhost:${port}/backendRemoteEntry.mjs`;
   const apiUrl = `http://localhost:${port}/${id}-api`;
   const topology = readJson(workspaceDir, 'topology/reference-topology.json');
   const ownership = readJson(workspaceDir, 'topology/ownership.json');
@@ -231,6 +248,10 @@ function assertIntegratedVertical(
     ultramodernConfig.moduleFederation.apps,
     id,
   );
+  const backendFederationEntry = appById(
+    ultramodernConfig.backendFederation.apps,
+    id,
+  );
 
   assertGeneratedVerticalFiles(workspaceDir, id);
   assert.deepEqual(topologyEntry.moduleFederation.exposes, [
@@ -239,6 +260,79 @@ function assertIntegratedVertical(
   ]);
   assert.equal(topologyEntry.moduleFederation.name, mfName);
   assert.equal(topologyEntry.moduleFederation.manifestUrl, manifestUrl);
+  assert.equal(topologyEntry.backendFederation.role, 'microvertical-server');
+  assert.equal(topologyEntry.backendFederation.name, backendFederationName);
+  assert.equal(
+    topologyEntry.backendFederation.versionBoundary.ui.manifestEnv,
+    `VERTICAL_${id.replace(/-/g, '_').toUpperCase()}_MF_MANIFEST`,
+  );
+  assert.equal(
+    topologyEntry.backendFederation.versionBoundary.ui.manifestUrl,
+    manifestUrl,
+  );
+  assert.equal(
+    topologyEntry.backendFederation.versionBoundary.api.readiness,
+    `/${id}-api/${id}/readiness`,
+  );
+  assert.equal(
+    topologyEntry.backendFederation.executionSurfaces.node.manifestEnv,
+    `VERTICAL_${id.replace(/-/g, '_').toUpperCase()}_BACKEND_MF_MANIFEST`,
+  );
+  assert.equal(
+    topologyEntry.backendFederation.executionSurfaces.node.manifestUrl,
+    backendManifestUrl,
+  );
+  assert.equal(
+    topologyEntry.backendFederation.executionSurfaces.node.containerEntry,
+    backendContainerEntry,
+  );
+  assert.equal(
+    topologyEntry.backendFederation.executionSurfaces.node.kind,
+    'node-mf-runtime',
+  );
+  assert.equal(
+    topologyEntry.backendFederation.executionSurfaces.node.remoteType,
+    'module',
+  );
+  assert.equal(
+    topologyEntry.backendFederation.executionSurfaces.cloudflare.kind,
+    'cloudflare-worker-snapshot',
+  );
+  assert.equal(
+    topologyEntry.backendFederation.executionSurfaces.cloudflare.publicUrlEnv,
+    `ULTRAMODERN_PUBLIC_URL_${id.replace(/-/g, '_').toUpperCase()}`,
+  );
+  assert.equal(
+    topologyEntry.backendFederation.executionSurfaces.cloudflare.workerDispatch
+      .serviceBinding,
+    `VERTICAL_${id.replace(/-/g, '_').toUpperCase()}_WORKER`,
+  );
+  assert.equal(
+    topologyEntry.backendFederation.executionSurfaces.cloudflare.workerDispatch
+      .serviceBindingEnv,
+    `VERTICAL_${id.replace(/-/g, '_').toUpperCase()}_WORKER_BINDING`,
+  );
+  assert.equal(
+    topologyEntry.backendFederation.executionSurfaces.cloudflare.workerDispatch
+      .dispatchWorkerNameEnv,
+    `VERTICAL_${id.replace(/-/g, '_').toUpperCase()}_WORKER_NAME`,
+  );
+  assert.equal(topologyEntry.backendFederation.runtimeFramework, 'effect');
+  assert.equal(topologyEntry.backendFederation.strictEffectApproach, true);
+  assert.equal(
+    topologyEntry.backendFederation.exposes['./effect-api'].runtime,
+    `verticals/${id}/api/index.ts`,
+  );
+  assert.equal(
+    topologyEntry.backendFederation.exposes['./effect-api'].readiness,
+    `/${id}-api/${id}/readiness`,
+  );
+  assert.equal(
+    topologyEntry.backendFederation.compatibility.contractVersion,
+    'microvertical-server-effect-v1',
+  );
+  assert.equal(topologyEntry.backendFederation.manifestUrl, undefined);
+  assert.equal(topologyEntry.backendFederation.containerEntry, undefined);
   assert.equal(topologyEntry.package, packageName);
   assert.equal(topologyEntry.path, `verticals/${id}`);
   assert.equal(topologyEntry.api.bff.prefix, `/${id}-api`);
@@ -248,6 +342,23 @@ function assertIntegratedVertical(
   assert.equal(ownershipEntry.ownership.team, 'super-app-platform');
   assert.equal(overlay.ports[id], port);
   assert.equal(overlay.manifests[id], manifestUrl);
+  assert.equal(overlay.serverExecution[id].apiBaseUrl, apiUrl);
+  assert.equal(
+    overlay.serverExecution[id].node.manifestUrl,
+    backendManifestUrl,
+  );
+  assert.equal(
+    overlay.serverExecution[id].node.containerEntry,
+    backendContainerEntry,
+  );
+  assert.equal(
+    overlay.serverExecution[id].cloudflare.kind,
+    'cloudflare-worker-snapshot',
+  );
+  assert.equal(
+    overlay.serverExecution[id].cloudflare.workerDispatch.serviceBinding,
+    `VERTICAL_${id.replace(/-/g, '_').toUpperCase()}_WORKER`,
+  );
   assert.equal(overlay.apis[id], apiUrl);
 
   assert.equal(configEntry.package, packageName);
@@ -259,10 +370,54 @@ function assertIntegratedVertical(
     './Widget',
   ]);
   assert.equal(configEntry.moduleFederation.name, mfName);
+  assert.equal(configEntry.backendFederation.role, 'microvertical-server');
+  assert.equal(configEntry.backendFederation.name, backendFederationName);
+  assert.equal(
+    configEntry.backendFederation.executionSurfaces.node.manifestUrl,
+    backendManifestUrl,
+  );
+  assert.equal(
+    configEntry.backendFederation.executionSurfaces.node.containerEntry,
+    backendContainerEntry,
+  );
+  assert.equal(
+    configEntry.backendFederation.executionSurfaces.node.remoteType,
+    'module',
+  );
+  assert.equal(
+    configEntry.backendFederation.executionSurfaces.cloudflare.kind,
+    'cloudflare-worker-snapshot',
+  );
+  assert.equal(configEntry.backendFederation.runtimeFramework, 'effect');
+  assert.equal(configEntry.backendFederation.strictEffectApproach, true);
   assert.equal(configEntry.api.prefix, `/${id}-api`);
   assert.equal(moduleFederationEntry.role, 'remote');
   assert.equal(moduleFederationEntry.name, mfName);
   assert.deepEqual(moduleFederationEntry.exposes, ['./Route', './Widget']);
+  assert.equal(backendFederationEntry.role, 'microvertical-server');
+  assert.equal(backendFederationEntry.name, backendFederationName);
+  assert.equal(
+    backendFederationEntry.executionSurfaces.node.manifestUrl,
+    backendManifestUrl,
+  );
+  assert.equal(
+    backendFederationEntry.executionSurfaces.node.containerEntry,
+    backendContainerEntry,
+  );
+  assert.equal(
+    backendFederationEntry.executionSurfaces.node.remoteType,
+    'module',
+  );
+  assert.equal(
+    backendFederationEntry.executionSurfaces.cloudflare.kind,
+    'cloudflare-worker-snapshot',
+  );
+  assert.equal(backendFederationEntry.runtimeFramework, 'effect');
+  assert.equal(backendFederationEntry.strictEffectApproach, true);
+  assert.equal(
+    backendFederationEntry.contractVersion,
+    'microvertical-server-effect-v1',
+  );
 
   assert.equal(verticalPackage.name, packageName);
   assert.equal(
@@ -279,6 +434,36 @@ function assertIntegratedVertical(
     `./src/components/${id}-widget.tsx`,
   );
   assert.equal(verticalPackage.exports['./api'], './shared/api.ts');
+  const backendFederationConfig = read(
+    workspaceDir,
+    `verticals/${id}/backend-federation.config.ts`,
+  );
+  assert.match(
+    backendFederationConfig,
+    /filename:\s*'backendRemoteEntry\.mjs'/,
+  );
+  assert.match(backendFederationConfig, /name:\s*'vertical[A-Z][a-z]+Backend'/);
+  assert.match(
+    backendFederationConfig,
+    /'\.\/effect-api':\s*'\.\/api\/effect-api\.ts'/,
+  );
+  assert.match(backendFederationConfig, /'@module-federation\/runtime':\s*\{/);
+  const backendEffectApi = read(
+    workspaceDir,
+    `verticals/${id}/api/effect-api.ts`,
+  );
+  assert.match(backendEffectApi, /import apiRuntime from '\.\/index\.ts'/);
+  assert.match(backendEffectApi, /strictEffectApproach:\s*true/);
+  assert.match(
+    backendEffectApi,
+    /contractVersion:\s*'microvertical-server-effect-v1'/,
+  );
+  assert.match(
+    backendEffectApi,
+    /nodeAdapterVersion:\s*'backend-mf-effect-v1'/,
+  );
+  assert.match(backendEffectApi, /export const runtime = apiRuntime/);
+  assert.match(backendEffectApi, /export default apiRuntime/);
   assert.equal(
     verticalPackage.dependencies['@modern-js/plugin-bff'],
     'npm:@bleedingdev/modern-js-plugin-bff@3.2.0-ultramodern.108',
@@ -357,6 +542,27 @@ test('workspace and MicroVertical integration stays coherent across public API a
     );
     assert.match(shellModernConfig, /mode:\s*'string'/);
     assert.match(shellModernConfig, /moduleFederationAppSSR:\s*true/);
+    assert.match(shellModernConfig, /services:\s*\[/);
+    assert.match(
+      shellModernConfig,
+      /envValue\('VERTICAL_CATALOG_WORKER_BINDING'\)\s*\?\?\s*'VERTICAL_CATALOG_WORKER'/,
+    );
+    assert.match(shellModernConfig, /prefix:\s*'\/catalog-api'/);
+    assert.match(
+      shellModernConfig,
+      /envValue\('VERTICAL_CATALOG_WORKER_NAME'\)\s*\?\?\s*'integration-workspace-catalog'/,
+    );
+    assert.match(
+      shellModernConfig,
+      /envValue\('VERTICAL_CHECKOUT_WORKER_BINDING'\)\s*\?\?\s*'VERTICAL_CHECKOUT_WORKER'/,
+    );
+    assert.match(shellModernConfig, /prefix:\s*'\/checkout-api'/);
+    assert.match(
+      shellModernConfig,
+      /envValue\('VERTICAL_CHECKOUT_WORKER_NAME'\)\s*\?\?\s*'integration-workspace-checkout'/,
+    );
+    assert.doesNotMatch(catalogModernConfig, /services:\s*\[/);
+    assert.doesNotMatch(checkoutModernConfig, /services:\s*\[/);
     assertModuleFederationWarningHygiene(
       shellModernConfig,
       'generated shell Modern config',
@@ -426,6 +632,76 @@ test('workspace and MicroVertical integration stays coherent across public API a
     assert.match(rootPackage.scripts.dev, /@integration-workspace\/checkout/);
     assert.match(rootPackage.scripts.build, /verticals\/\*/);
     assert.match(rootPackage.scripts.check, /contract:check/);
+    assert.match(rootPackage.scripts.check, /node:proof/);
+    assert.equal(
+      rootPackage.scripts['node:proof'],
+      'node ./scripts/proof-node-backend-federation.mjs --out .codex/reports/node-backend-federation-proof/proof.json',
+    );
+    assert.equal(
+      rootPackage.scripts['node:backend-federation:generate'],
+      undefined,
+    );
+    assert.equal(
+      rootPackage.devDependencies['@modern-js/plugin-bff'],
+      'npm:@bleedingdev/modern-js-plugin-bff@3.2.0-ultramodern.108',
+    );
+    assert.throws(() =>
+      read(workspaceDir, 'scripts/generate-node-backend-federation.mjs'),
+    );
+    assert.match(
+      read(workspaceDir, 'scripts/proof-node-backend-federation.mjs'),
+      /loadBackendFederatedEffectApi/,
+    );
+    assert.match(
+      read(workspaceDir, 'scripts/proof-node-backend-federation.mjs'),
+      /createEffectBffTestHandler/,
+    );
+    assert.match(
+      read(workspaceDir, 'scripts/proof-node-backend-federation.mjs'),
+      /smokeChecks: collectJsonSmokeChecks/,
+    );
+    assert.match(
+      read(workspaceDir, 'scripts/proof-node-backend-federation.mjs'),
+      /jsonPathValue/,
+    );
+    assert.match(
+      read(workspaceDir, 'scripts/proof-node-backend-federation.mjs'),
+      /readBuildIdentity/,
+    );
+    assert.match(
+      read(workspaceDir, 'scripts/proof-node-backend-federation.mjs'),
+      /backend manifest\/expose build coupling/,
+    );
+    const shellModernConfigSource = read(
+      workspaceDir,
+      'apps/shell-super-app/modern.config.ts',
+    );
+    assert.match(shellModernConfigSource, /services:\s*\[/);
+    assert.match(shellModernConfigSource, /VERTICAL_CATALOG_WORKER_BINDING/);
+    assert.match(shellModernConfigSource, /VERTICAL_CHECKOUT_WORKER_BINDING/);
+    const generatedBackendFederationContractText = [
+      'package.json',
+      '.modernjs/ultramodern.json',
+      'topology/reference-topology.json',
+      'apps/shell-super-app/package.json',
+      'verticals/catalog/package.json',
+      'verticals/checkout/package.json',
+      'scripts/proof-node-backend-federation.mjs',
+    ]
+      .map(relativePath => read(workspaceDir, relativePath))
+      .join('\n');
+    for (const staleText of [
+      'api/backend-federation.ts',
+      'verify-cloudflare-output',
+      'cloudflare-output:verify',
+      'generate-node-backend-federation',
+      'proof-node-backend-federation.mts',
+    ]) {
+      assert.equal(
+        generatedBackendFederationContractText.includes(staleText),
+        false,
+      );
+    }
     assert.equal(packageSource.strategy, 'install');
     assert.equal(packageSource.modernPackageVersion, '3.2.0-ultramodern.108');
     assert.equal(packageSource.aliasScope, 'bleedingdev');
@@ -460,6 +736,163 @@ test('workspace and MicroVertical integration stays coherent across public API a
       /Refusing to overwrite existing path: verticals\/catalog/,
     );
     assert.deepEqual(snapshotWorkspace(workspaceDir), afterTwoVerticals);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('generated Cloudflare proof records backend server execution metadata offline', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-proof-'));
+  const workspaceDir = path.join(tempRoot, 'proof-workspace');
+  const proofOut = '.codex/reports/cloudflare-version-proof/test-proof.json';
+
+  try {
+    generateUltramodernWorkspace({
+      targetDir: workspaceDir,
+      packageName: 'proof-workspace',
+      modernVersion: '3.2.1',
+      enableTailwind: true,
+      packageSource: {
+        strategy: 'install',
+        modernPackageVersion: '3.2.0-ultramodern.108',
+      },
+    });
+    addUltramodernVertical({
+      workspaceRoot: workspaceDir,
+      name: 'catalog',
+      modernVersion: '3.2.1',
+    });
+    const ultramodernConfig = readJson(
+      workspaceDir,
+      '.modernjs/ultramodern.json',
+    );
+    const shellConfig = appById(
+      ultramodernConfig.topology.apps,
+      'shell-super-app',
+    );
+    shellConfig.deploy ??= {};
+    shellConfig.deploy.cloudflare ??= {};
+    shellConfig.deploy.cloudflare.jsonSmokeChecks = [
+      {
+        id: 'catalog-domain-smoke',
+        route: '/catalog-api/catalog/CL-08-GR',
+        expect: {
+          name: 'Holland Hamster',
+          price: 7750,
+          sku: 'CL-08-GR',
+        },
+      },
+      {
+        body: {
+          quantity: 2,
+          sku: 'CL-08-GR',
+        },
+        expect: {
+          'item.lineTotal': 15500,
+          'item.quantity': 2,
+          'item.sku': 'CL-08-GR',
+        },
+        id: 'checkout-post-smoke',
+        method: 'POST',
+        route: '/checkout-api/checkout',
+      },
+    ];
+    writeJson(workspaceDir, '.modernjs/ultramodern.json', ultramodernConfig);
+
+    const proofResult = runGeneratedCloudflareProof(workspaceDir, proofOut);
+    assert.equal(proofResult.status, 0, commandOutput(proofResult));
+
+    const proof = readJson(workspaceDir, proofOut);
+    assert.equal(proof.status, 'skipped');
+    const catalogTarget = proof.proofTargets.find(
+      (target: any) => target.appId === 'catalog',
+    );
+    assert.ok(catalogTarget, 'catalog proof target must be present');
+    assert.equal(
+      catalogTarget.cloudflare.routes.apiReadiness,
+      '/catalog-api/catalog/readiness',
+    );
+    assert.equal(catalogTarget.backendFederation.role, 'microvertical-server');
+    assert.equal(
+      catalogTarget.backendFederation.versionBoundary.invariant,
+      'web-and-api-same-build',
+    );
+    assert.equal(
+      catalogTarget.backendFederation.versionBoundary.ui.marker,
+      catalogTarget.backendFederation.versionBoundary.api.marker,
+    );
+    assert.equal(
+      catalogTarget.backendFederation.executionSurfaces.cloudflare.kind,
+      'cloudflare-worker-snapshot',
+    );
+    assert.equal(
+      catalogTarget.backendFederation.executionSurfaces.node.kind,
+      'node-mf-runtime',
+    );
+    assert.equal(catalogTarget.backendFederation.manifestUrl, undefined);
+    assert.equal(catalogTarget.backendFederation.containerEntry, undefined);
+    assert.equal(
+      catalogTarget.serverExecution.versionBoundary,
+      'web-and-api-same-build',
+    );
+    assert.equal(
+      catalogTarget.serverExecution.cloudflare.apiReadiness,
+      '/catalog-api/catalog/readiness',
+    );
+    assert.equal(
+      catalogTarget.serverExecution.node.manifestUrl,
+      'http://localhost:4101/backend-mf-manifest.json',
+    );
+
+    const shellTarget = proof.proofTargets.find(
+      (target: any) => target.appId === 'shell-super-app',
+    );
+    assert.ok(shellTarget, 'shell proof target must be present');
+    assert.deepEqual(
+      shellTarget.cloudflare.serviceBindings.map((binding: any) => ({
+        appId: binding.appId,
+        binding: binding.binding,
+        interface: binding.interface,
+        route: binding.route,
+        service: binding.service,
+      })),
+      [
+        {
+          appId: 'catalog',
+          binding: 'VERTICAL_CATALOG_WORKER',
+          interface: 'fetch',
+          route: '/catalog-api/catalog/readiness',
+          service: 'proof-workspace-catalog',
+        },
+      ],
+    );
+    assert.deepEqual(shellTarget.cloudflare.jsonSmokeChecks, [
+      {
+        id: 'catalog-domain-smoke',
+        route: '/catalog-api/catalog/CL-08-GR',
+        expect: {
+          name: 'Holland Hamster',
+          price: 7750,
+          sku: 'CL-08-GR',
+        },
+      },
+      {
+        body: {
+          quantity: 2,
+          sku: 'CL-08-GR',
+        },
+        expect: {
+          'item.lineTotal': 15500,
+          'item.quantity': 2,
+          'item.sku': 'CL-08-GR',
+        },
+        id: 'checkout-post-smoke',
+        method: 'POST',
+        route: '/checkout-api/checkout',
+      },
+    ]);
+    assert.equal(shellTarget.backendFederation, undefined);
+    assert.equal(shellTarget.serverExecution, undefined);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
@@ -502,6 +935,22 @@ test('generated MicroVertical self-check names corrupted contracts and fix areas
       expectedContract:
         /MicroVertical contract self-check failed: topology\/local-overlays\/development\.json apis\.catalog\./,
       expectedFixArea: /Fix area: restore generated local API overlay\./,
+    },
+    {
+      workspaceName: 'backend-federation-corrupt',
+      mutate: (workspaceDir: string) => {
+        const topology = readJson(
+          workspaceDir,
+          'topology/reference-topology.json',
+        );
+        appById(topology.verticals, 'catalog').backendFederation.manifestUrl =
+          'http://localhost:4101/backend-mf-manifest.json';
+        writeJson(workspaceDir, 'topology/reference-topology.json', topology);
+      },
+      expectedContract:
+        /MicroVertical contract self-check failed: topology\/reference-topology\.json verticals\.catalog\.backendFederation\./,
+      expectedFixArea:
+        /Fix area: restore generated MicroVertical server execution contract\./,
     },
     {
       workspaceName: 'vertical-file-missing',
@@ -637,6 +1086,19 @@ const strictEffectApproach = false;
       'utf-8',
     );
 
+    fs.writeFileSync(
+      path.join(workspaceDir, 'verticals/catalog/api/effect-api.ts'),
+      `
+export const backendFederationContract = {
+ role: 'backend-remote',
+ strictEffectApproach: false,
+};
+
+export const handler = async (request: Request) => Response.json(await request.json());
+`,
+      'utf-8',
+    );
+
     const failingResult = runGeneratedApiCheck(workspaceDir);
     const output = commandOutput(failingResult);
     assert.notEqual(failingResult.status, 0, output);
@@ -645,6 +1107,12 @@ const strictEffectApproach = false;
     assert.match(output, /must not manually parse request bodies/);
     assert.match(output, /must not export raw request handlers/);
     assert.match(output, /must keep strictEffectApproach enabled/);
+    assert.match(output, /must describe the MicroVertical server role/);
+    assert.match(output, /must preserve strict Effect backend execution/);
+    assert.match(
+      output,
+      /must preserve the MicroVertical server contract version/,
+    );
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }

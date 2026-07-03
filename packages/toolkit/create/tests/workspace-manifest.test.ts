@@ -90,6 +90,7 @@ const expectedWorkspaceManifest = [
   'scripts/generate-public-surface-assets.mts',
   'scripts/migrate-strict-effect.mts',
   'scripts/proof-cloudflare-version.mts',
+  'scripts/proof-node-backend-federation.mjs',
   'scripts/setup-agent-reference-repos.mts',
   'scripts/ultramodern-performance-readiness.config.mjs',
   'scripts/ultramodern-performance-readiness.mts',
@@ -107,7 +108,9 @@ const expectedWorkspaceManifest = [
  * "catalog" joins the workspace.
  */
 const expectedVerticalManifest = [
+  'verticals/catalog/api/effect-api.ts',
   'verticals/catalog/api/index.ts',
+  'verticals/catalog/backend-federation.config.ts',
   'verticals/catalog/locales/cs/catalog.json',
   'verticals/catalog/locales/cs/translation.json',
   'verticals/catalog/locales/en/catalog.json',

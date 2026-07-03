@@ -236,6 +236,12 @@ export function createPerformanceReadinessConfigScript(): string {
   );
 }
 
+export function createNodeBackendFederationProofScript(): string {
+  return readFileTemplate(
+    'workspace-scripts/proof-node-backend-federation.mjs',
+  );
+}
+
 export function writeGeneratedWorkspaceScripts(
   targetDir: string,
   _scope: string,
@@ -271,6 +277,11 @@ export function writeGeneratedWorkspaceScripts(
     targetDir,
     'proof-cloudflare-version',
     createToolWrapperScript('cloudflare-proof'),
+  );
+  writeFileReplacing(
+    targetDir,
+    'scripts/proof-node-backend-federation.mjs',
+    createNodeBackendFederationProofScript(),
   );
   writeFileReplacing(
     targetDir,

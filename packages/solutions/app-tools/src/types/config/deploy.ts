@@ -3,6 +3,7 @@ import type {
   CloudflareWorkerD1DatabaseConfig,
   CloudflareWorkerPublicAssetConfig,
   CloudflareWorkerSecurityConfig,
+  CloudflareWorkerServiceBindingConfig,
   DeployTarget,
   JsonValue,
 } from './cloudflareDeploy';
@@ -16,6 +17,7 @@ export type {
   CloudflareWorkerSecurityCspConfig,
   CloudflareWorkerSecurityCspMode,
   CloudflareWorkerSecurityNoindexConfig,
+  CloudflareWorkerServiceBindingConfig,
   DeployTarget,
   JsonValue,
 } from './cloudflareDeploy';
@@ -80,6 +82,13 @@ export interface DeployUserConfig {
      * directories into `.output`.
      */
     d1Databases?: CloudflareWorkerD1DatabaseConfig[];
+    /**
+     * First-class Cloudflare service bindings. Modern.js writes these to
+     * `wrangler.json` as `services`; when a binding also has `prefix`,
+     * the generated Worker dispatches matching requests through
+     * `env[binding].fetch(request)`.
+     */
+    services?: CloudflareWorkerServiceBindingConfig[];
     /**
      * Dist output paths that must not be copied into Cloudflare public assets.
      * Entries are slash-normalized path prefixes relative to the app dist root.

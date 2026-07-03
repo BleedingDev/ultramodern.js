@@ -47,6 +47,7 @@ This folder contains planning artifacts for building a super-app-ready Modern.js
 - `ADR-0015-mv-ownership-and-blast-radius-gates.md` (Retired 2026-06-12)
 - `ADR-0016-ultramodern-opinionated-defaults-contract.md`
 - `ADR-0017-superapp-composition-router-framework-coordination.md`
+- `ADR-0018-backend-federation-contract.md`
 - `contracts/ai-capabilities.json` (spec-only since 2026-06-12; no code consumers)
 - `contracts/mv-runtime-parity-contract.json`
 - `contracts/mv-topology-manifest.schema.json` (no in-repo validator since 2026-06-12)

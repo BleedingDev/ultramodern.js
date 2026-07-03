@@ -4,6 +4,13 @@ import path from 'path';
 import type { Middleware } from '../../../types';
 
 export const MODULE_FEDERATION_MANIFEST_FILE = 'mf-manifest.json';
+export const BACKEND_MODULE_FEDERATION_MANIFEST_FILE =
+  'backend-mf-manifest.json';
+
+const MODULE_FEDERATION_MANIFEST_FILES = [
+  MODULE_FEDERATION_MANIFEST_FILE,
+  BACKEND_MODULE_FEDERATION_MANIFEST_FILE,
+];
 const MODULE_FEDERATION_OPTIONAL_FILES = ['mf-stats.json'];
 
 type ModuleFederationManifest = {
@@ -43,7 +50,7 @@ type ModuleFederationAssets = {
 
 export type ModuleFederationServeAssets = {
   assets: Set<string>;
-  remoteEntry: string | null;
+  remoteEntries: Set<string>;
 };
 
 export const trimLeadingSlash = (value: string) => value.replace(/^\/+/, '');
@@ -54,7 +61,7 @@ export const getModuleFederationRequestPath = (
 ) => trimLeadingSlash(pathname.replace(pathPrefix, () => ''));
 
 export const isModuleFederationManifestRequest = (requestPath: string) =>
-  requestPath === MODULE_FEDERATION_MANIFEST_FILE;
+  MODULE_FEDERATION_MANIFEST_FILES.includes(requestPath);
 
 export const applyModuleFederationAssetHeaders = (
   c: Parameters<Middleware>[0],
@@ -76,11 +83,9 @@ const joinModuleFederationAssetPath = (
 };
 
 const appendModuleFederationAsset = (set: Set<string>, assetPath?: string) => {
-  if (!assetPath) {
-    return;
+  if (assetPath) {
+    set.add(trimLeadingSlash(assetPath));
   }
-
-  set.add(trimLeadingSlash(assetPath));
 };
 
 const appendModuleFederationAssets = (
@@ -166,76 +171,70 @@ export const getModuleFederationAssetList = async (
   pwd: string,
 ): Promise<ModuleFederationServeAssets> => {
   const assets = new Set<string>();
-  const manifestPath = path.join(pwd, MODULE_FEDERATION_MANIFEST_FILE);
+  const remoteEntries = new Set<string>();
+  let manifestFound = false;
 
-  if (!(await fs.pathExists(manifestPath))) {
-    return {
-      assets,
-      remoteEntry: null,
-    };
+  for (const manifestFile of MODULE_FEDERATION_MANIFEST_FILES) {
+    const manifestPath = path.join(pwd, manifestFile);
+    if (!(await fs.pathExists(manifestPath))) {
+      continue;
+    }
+
+    manifestFound = true;
+    assets.add(manifestFile);
+    const manifestBuffer = await fileReader.readFileFromSystem(
+      manifestPath,
+      'buffer',
+    );
+    if (manifestBuffer === null) {
+      continue;
+    }
+
+    try {
+      const manifest = JSON.parse(
+        manifestBuffer.toString('utf-8'),
+      ) as ModuleFederationManifest;
+      const remoteEntry = joinModuleFederationAssetPath(
+        manifest.metaData?.remoteEntry?.path,
+        manifest.metaData?.remoteEntry?.name,
+      );
+      const dtsZip = joinModuleFederationAssetPath(
+        manifest.metaData?.types?.path,
+        manifest.metaData?.types?.zip,
+      );
+      const dtsApi = joinModuleFederationAssetPath(
+        manifest.metaData?.types?.path,
+        manifest.metaData?.types?.api,
+      );
+
+      if (remoteEntry) {
+        assets.add(remoteEntry);
+        remoteEntries.add(remoteEntry);
+      }
+      appendModuleFederationAsset(assets, dtsZip);
+      appendModuleFederationAsset(assets, dtsApi);
+      manifest.shared?.forEach(item =>
+        appendModuleFederationAssets(assets, item.assets),
+      );
+      manifest.remotes?.forEach(item =>
+        appendModuleFederationAssets(assets, item.assets),
+      );
+      manifest.exposes?.forEach(item =>
+        appendModuleFederationAssets(assets, item.assets),
+      );
+    } catch {}
   }
 
-  assets.add(MODULE_FEDERATION_MANIFEST_FILE);
-  const manifestBuffer = await fileReader.readFileFromSystem(
-    manifestPath,
-    'buffer',
-  );
-
-  if (manifestBuffer === null) {
-    return {
-      assets,
-      remoteEntry: null,
-    };
-  }
-
-  for (const filename of MODULE_FEDERATION_OPTIONAL_FILES) {
-    if (await fs.pathExists(path.join(pwd, filename))) {
-      assets.add(filename);
+  if (manifestFound) {
+    for (const filename of MODULE_FEDERATION_OPTIONAL_FILES) {
+      if (await fs.pathExists(path.join(pwd, filename))) {
+        assets.add(filename);
+      }
     }
   }
-
-  let remoteEntryFile: string | null = null;
-  try {
-    const manifest = JSON.parse(
-      manifestBuffer.toString('utf-8'),
-    ) as ModuleFederationManifest;
-    const remoteEntry = joinModuleFederationAssetPath(
-      manifest.metaData?.remoteEntry?.path,
-      manifest.metaData?.remoteEntry?.name,
-    );
-    const dtsZip = joinModuleFederationAssetPath(
-      manifest.metaData?.types?.path,
-      manifest.metaData?.types?.zip,
-    );
-    const dtsApi = joinModuleFederationAssetPath(
-      manifest.metaData?.types?.path,
-      manifest.metaData?.types?.api,
-    );
-
-    if (remoteEntry) {
-      assets.add(remoteEntry);
-      remoteEntryFile = remoteEntry;
-    }
-    if (dtsZip) {
-      assets.add(dtsZip);
-    }
-    if (dtsApi) {
-      assets.add(dtsApi);
-    }
-
-    manifest.shared?.forEach(item =>
-      appendModuleFederationAssets(assets, item.assets),
-    );
-    manifest.remotes?.forEach(item =>
-      appendModuleFederationAssets(assets, item.assets),
-    );
-    manifest.exposes?.forEach(item =>
-      appendModuleFederationAssets(assets, item.assets),
-    );
-  } catch {}
 
   return {
     assets,
-    remoteEntry: remoteEntryFile,
+    remoteEntries,
   };
 };

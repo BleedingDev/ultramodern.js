@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import {
   createApiClient,
   createApiServiceEntry,
+  createBackendEffectApiExpose,
   createSharedApi,
   createShellApiClient,
 } from './api';
@@ -54,6 +55,7 @@ import {
 import { createAppPublicLocaleMessages } from './locales';
 import {
   createAppModernConfig,
+  createBackendModuleFederationConfig,
   createRemoteModuleFederationConfig,
   createShellModuleFederationConfig,
   createUltramodernBuildModule,
@@ -165,7 +167,7 @@ export function writeApp(
   writeFile(
     targetDir,
     `${resolvedApp.directory}/modern.config.ts`,
-    createAppModernConfig(scope, resolvedApp),
+    createAppModernConfig(scope, resolvedApp, remotes),
   );
   writeFile(
     targetDir,
@@ -216,6 +218,13 @@ export function writeApp(
       ? createShellModuleFederationConfig(scope, remotes)
       : createRemoteModuleFederationConfig(scope, resolvedApp, remotes),
   );
+  if (appHasApi(resolvedApp)) {
+    writeFile(
+      targetDir,
+      `${resolvedApp.directory}/backend-federation.config.ts`,
+      createBackendModuleFederationConfig(resolvedApp),
+    );
+  }
   writeAppFile('src/routes/layout.tsx', createLayout(resolvedApp.id));
   writeAppFile(
     'src/routes/[lang]/page.tsx',
@@ -253,6 +262,11 @@ export function writeApp(
       targetDir,
       `${resolvedApp.directory}/api/index.ts`,
       createApiServiceEntry(resolvedApp, '../shared/api.ts'),
+    );
+    writeFile(
+      targetDir,
+      `${resolvedApp.directory}/api/effect-api.ts`,
+      createBackendEffectApiExpose(scope, resolvedApp),
     );
     writeFile(
       targetDir,
@@ -452,7 +466,7 @@ export function generateUltramodernWorkspace(
   writeJson(
     options.targetDir,
     'topology/local-overlays/development.json',
-    createDevelopmentOverlay(initialVerticals),
+    createDevelopmentOverlay(scope, initialVerticals),
   );
   writeJson(
     options.targetDir,

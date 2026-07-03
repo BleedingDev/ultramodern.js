@@ -1,6 +1,12 @@
 import crypto from 'node:crypto';
 import {
+  createDispatchWorkerNameEnv,
+  createWorkerBindingEnv,
+  createWorkerBindingName,
+} from './backend-federation';
+import {
   appHasApi,
+  createBackendFederationName,
   createCloudflarePublicUrlEnv,
   createCloudflareWorkerName,
   createRemoteManifestEnv,
@@ -22,6 +28,7 @@ import { CLOUDFLARE_COMPATIBILITY_DATE } from './versions';
 export function createAppModernConfig(
   scope: string,
   app: WorkspaceApp,
+  remotes: WorkspaceApp[] = [],
 ): string {
   const bffImport = appHasApi(app)
     ? "import { bffPlugin } from '@modern-js/plugin-bff';\n"
@@ -41,6 +48,26 @@ export function createAppModernConfig(
 `
     : '';
   const bffPluginEntry = appHasApi(app) ? '        bffPlugin(),\n' : '';
+  const serviceBindings = app.kind === 'shell' ? remotes.filter(appHasApi) : [];
+  const serviceBindingsConfig =
+    serviceBindings.length > 0
+      ? `          services: [
+${serviceBindings
+  .map(
+    service => `            {
+              binding:
+                envValue('${createWorkerBindingEnv(service)}') ??
+                '${createWorkerBindingName(service)}',
+              prefix: '${resolveApiPrefix(service)}',
+              service:
+                envValue('${createDispatchWorkerNameEnv(service)}') ??
+                '${createCloudflareWorkerName(scope, service)}',
+            },`,
+  )
+  .join('\n')}
+          ],
+`
+      : '';
   const defaultAssetPrefixSource =
     app.kind === 'shell'
       ? "const defaultAssetPrefix = '/';"
@@ -152,12 +179,12 @@ ${bffConfig}      ...(cloudflareDeployEnabled
         ? {
             deploy: {
               worker: {
-                compatibilityDate: '${CLOUDFLARE_COMPATIBILITY_DATE}',
-                name: cloudflareWorkerName,
-                security: ${formatTsJsonValue(sortJsonValue(createCloudflareSecurityContract()), 16)},
-                ssr: true,
-              },
+              compatibilityDate: '${CLOUDFLARE_COMPATIBILITY_DATE}',
+              name: cloudflareWorkerName,
+              security: ${formatTsJsonValue(sortJsonValue(createCloudflareSecurityContract()), 16)},
+${serviceBindingsConfig}              ssr: true,
             },
+          },
           }
         : {}),
       dev: {
@@ -448,6 +475,53 @@ const moduleFederationConfig: Parameters<
   filename: 'remoteEntry.js',
   name: '${shellApp.mfName}',
 ${createModuleFederationRemotesConfig(scope, shellHost, remotes)}${createSharedModuleFederationConfig()},
+  treeShakingSharedExcludePlugins: ['RspackModuleFederationPlugin'],
+});
+
+export default moduleFederationConfig;
+`;
+}
+
+export function createBackendModuleFederationConfig(app: WorkspaceApp): string {
+  return `// @effect-diagnostics nodeBuiltinImport:off
+import { createRequire } from 'node:module';
+import { createModuleFederationConfig } from '@module-federation/modern-js-v3';
+import { dependencies } from './package.json';
+
+const require = createRequire(import.meta.url);
+const bffVersion = (
+  require('@modern-js/plugin-bff/package.json') as { version: string }
+).version;
+const effectVersion = (
+  require('effect/package.json') as { version: string }
+).version;
+
+const moduleFederationConfig: Parameters<
+  typeof createModuleFederationConfig
+>[0] = createModuleFederationConfig({
+  dts: false,
+  exposes: {
+    './effect-api': './api/effect-api.ts',
+  },
+  filename: 'backendRemoteEntry.mjs',
+  name: '${createBackendFederationName(app)}',
+  shared: {
+    '@modern-js/plugin-bff': {
+      requiredVersion: bffVersion,
+      singleton: true,
+      treeShaking: false,
+    },
+    '@module-federation/runtime': {
+      requiredVersion: dependencies['@module-federation/runtime'],
+      singleton: true,
+      treeShaking: false,
+    },
+    effect: {
+      requiredVersion: effectVersion,
+      singleton: true,
+      treeShaking: false,
+    },
+  },
   treeShakingSharedExcludePlugins: ['RspackModuleFederationPlugin'],
 });
 

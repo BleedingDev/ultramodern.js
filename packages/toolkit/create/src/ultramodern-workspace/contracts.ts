@@ -1,4 +1,9 @@
 import { apiTopologyMetadata } from './api';
+import {
+  createBackendFederationContract,
+  createBackendFederationSummary,
+  createServerExecutionOverlay,
+} from './backend-federation';
 import type { UltramodernBridgeConfig } from './bridge-config';
 import {
   createModuleFederationRemoteContracts,
@@ -64,6 +69,11 @@ export function createTopology(
         fallbackTelemetryEvent: 'modernjs:mv-runtime-parity',
         sharedContractVersion: 'mf-ssr-contract-v1',
       },
+      ...(createBackendFederationContract(scope, vertical)
+        ? {
+            backendFederation: createBackendFederationContract(scope, vertical),
+          }
+        : {}),
       ...(apiTopologyMetadata(vertical)
         ? { api: apiTopologyMetadata(vertical) }
         : {}),
@@ -126,6 +136,7 @@ export function createOwnership(
 }
 
 export function createDevelopmentOverlay(
+  scope: string,
   remotes: WorkspaceApp[] = [],
 ): JsonValue {
   return {
@@ -139,6 +150,12 @@ export function createDevelopmentOverlay(
       remotes.map(remote => [
         remote.id,
         `http://localhost:${remote.port}/mf-manifest.json`,
+      ]),
+    ),
+    serverExecution: Object.fromEntries(
+      verticalApiApps(remotes).map(app => [
+        app.id,
+        createServerExecutionOverlay(scope, app),
       ]),
     ),
     apis: Object.fromEntries(
@@ -229,6 +246,9 @@ export function createUltramodernConfig(
             tsConfigPath: './tsconfig.mf-types.json',
           },
         },
+        ...(createBackendFederationContract(scope, app)
+          ? { backendFederation: createBackendFederationContract(scope, app) }
+          : {}),
         ...(app.api
           ? {
               api: {
@@ -271,6 +291,11 @@ export function createUltramodernConfig(
         hostOnly:
           app.kind === 'shell' && Object.keys(app.exposes ?? {}).length === 0,
       })),
+    },
+    backendFederation: {
+      apps: verticalApiApps(remotes).map(app =>
+        createBackendFederationSummary(scope, app),
+      ),
     },
     agentSkills: {
       target: 'codex',
