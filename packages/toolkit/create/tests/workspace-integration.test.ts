@@ -650,7 +650,7 @@ test('workspace and MicroVertical integration stays coherent across public API a
     );
     assert.match(
       read(workspaceDir, 'scripts/proof-node-backend-federation.mjs'),
-      /loadBackendFederatedEffectApi/,
+      /loadBackendFederatedEffectApiFromManifest/,
     );
     assert.match(
       read(workspaceDir, 'scripts/proof-node-backend-federation.mjs'),

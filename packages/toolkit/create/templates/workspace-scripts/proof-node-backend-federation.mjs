@@ -36,25 +36,44 @@ function readBuildIdentity(app) {
   };
 }
 
+function hasBackendFederationManifestAdapter(runtime) {
+  return typeof runtime?.loadBackendFederatedEffectApiFromManifest === 'function';
+}
+
 async function importBackendFederationRuntime() {
+  let importError;
   try {
-    return await import('@modern-js/plugin-bff/effect');
-  } catch (error) {
-    const createBin = process.env.ULTRAMODERN_CREATE_BIN;
-    if (!createBin) {
-      throw error;
+    const runtime = await import('@modern-js/plugin-bff/effect');
+    if (hasBackendFederationManifestAdapter(runtime)) {
+      return runtime;
     }
 
-    const localRuntimePath = path.resolve(
-      path.dirname(fileURLToPath(pathToFileURL(createBin))),
-      '../../../cli/plugin-bff/dist/esm-node/runtime/effect/index.mjs',
+    importError = new Error(
+      '@modern-js/plugin-bff/effect does not export loadBackendFederatedEffectApiFromManifest',
     );
-    if (!fs.existsSync(localRuntimePath)) {
-      throw error;
-    }
-
-    return import(pathToFileURL(localRuntimePath).href);
+  } catch (error) {
+    importError = error;
   }
+
+  const createBin = process.env.ULTRAMODERN_CREATE_BIN;
+  if (!createBin) {
+    throw importError;
+  }
+
+  const localRuntimePath = path.resolve(
+    path.dirname(fileURLToPath(pathToFileURL(createBin))),
+    '../../../cli/plugin-bff/dist/esm-node/runtime/effect/index.mjs',
+  );
+  if (!fs.existsSync(localRuntimePath)) {
+    throw importError;
+  }
+
+  const localRuntime = await import(pathToFileURL(localRuntimePath).href);
+  if (!hasBackendFederationManifestAdapter(localRuntime)) {
+    throw importError;
+  }
+
+  return localRuntime;
 }
 
 function normalizeRelativePath(value) {
@@ -412,9 +431,8 @@ async function importBackendEntry(entryPath) {
 
 async function proveBackend(app, backendRuntime, target) {
   const {
-    createBackendFederationRuntime,
     createEffectBffTestHandler,
-    loadBackendFederatedEffectApi,
+    loadBackendFederatedEffectApiFromManifest,
   } = backendRuntime;
   const { manifestPath, entryPath } = resolveArtifacts(app, target);
 
@@ -425,17 +443,23 @@ async function proveBackend(app, backendRuntime, target) {
   const manifest = readJson(manifestPath);
   validateManifest(app, manifest, buildIdentity);
 
-  const remote = {
-    name: app.backendName,
-    entry: pathToFileURL(entryPath).href,
-    type: app.remoteType,
-    expose: backendExpose,
-  };
-  const runtime = createBackendFederationRuntime({
+  const localRuntimeEntry = pathToFileURL(entryPath).href;
+  const loaded = await loadBackendFederatedEffectApiFromManifest({
     hostName: 'ultramodernNodeBackendProof',
-    remote,
+    manifest,
+    manifestPath,
+    remote: {
+      entry: localRuntimeEntry,
+    },
+    expected: {
+      buildVersion: buildIdentity.buildVersion,
+      contractVersion,
+      nodeAdapterVersion,
+      packageName: buildIdentity.packageName,
+      remoteName: app.backendName,
+      version: buildIdentity.version,
+    },
   });
-  const loaded = await loadBackendFederatedEffectApi({ remote, runtime });
   const backendContract = loaded.backendFederationContract;
 
   assertEqual(
@@ -489,7 +513,7 @@ async function proveBackend(app, backendRuntime, target) {
     containerPath: normalizeRelativePath(path.relative(workspaceRoot, entryPath)),
     manifestUrl: app.manifestUrl,
     containerEntry: app.containerEntry,
-    runtimeEntry: remote.entry,
+    runtimeEntry: localRuntimeEntry,
     remoteName: app.backendName,
     remoteType: app.remoteType,
     versionBoundary: {

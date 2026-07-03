@@ -7,6 +7,10 @@ import {
 import type { EffectApiModule } from './module';
 
 export const BACKEND_FEDERATION_EFFECT_EXPOSE = './effect-api';
+export const BACKEND_FEDERATION_MANIFEST_FILE = 'backend-mf-manifest.json';
+export const BACKEND_FEDERATION_CONTRACT_VERSION =
+  'microvertical-server-effect-v1';
+export const BACKEND_FEDERATION_NODE_ADAPTER_VERSION = 'backend-mf-effect-v1';
 
 export type BackendFederationRemote = {
   name: string;
@@ -30,6 +34,14 @@ export type BackendFederationEntryExports = {
 
 export type BackendFederatedEffectApiModule = EffectApiModule & {
   backendFederationContract?: {
+    compatibility?: {
+      build?: unknown;
+      contractVersion?: unknown;
+      nodeAdapterVersion?: unknown;
+      packageName?: unknown;
+    };
+    name?: unknown;
+    role?: unknown;
     runtimeFramework?: unknown;
     strictEffectApproach?: unknown;
   };

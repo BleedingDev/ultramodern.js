@@ -3,6 +3,12 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
+  BACKEND_FEDERATION_CONTRACT_VERSION,
+  BACKEND_FEDERATION_NODE_ADAPTER_VERSION,
+  BackendFederationManifestAdapterError,
+  loadBackendFederatedEffectApiFromManifest,
+} from '../src/runtime/effect';
+import {
   type BackendFederationEntryExports,
   type BackendFederationRemote,
   createBackendFederationLoadEntryPlugin,
@@ -26,6 +32,60 @@ function createEffectApiEntryExports(
 
       return async () => effectApiModule;
     },
+  };
+}
+
+function createBackendManifest() {
+  return {
+    schemaVersion: 1,
+    id: 'verticalCatalogBackend',
+    name: 'verticalCatalogBackend',
+    version: '1.2.3',
+    buildVersion: 'catalog-build-123',
+    entry: {
+      url: 'https://catalog.example.test/backendRemoteEntry.mjs',
+      type: 'module',
+    },
+    backendFederation: {
+      role: 'microvertical-server',
+      name: 'verticalCatalogBackend',
+      runtimeFramework: 'effect',
+      strictEffectApproach: true,
+      contractVersion: BACKEND_FEDERATION_CONTRACT_VERSION,
+      nodeAdapterVersion: BACKEND_FEDERATION_NODE_ADAPTER_VERSION,
+      remoteType: 'module',
+      expose: './effect-api',
+      manifestUrl: 'https://catalog.example.test/backend-mf-manifest.json',
+      containerEntry: 'https://catalog.example.test/backendRemoteEntry.mjs',
+      versionBoundary: {
+        invariant: 'web-and-api-same-build',
+        packageName: '@tractor-store-vertical-demo/catalog',
+        version: '1.2.3',
+        buildVersion: 'catalog-build-123',
+      },
+    },
+  };
+}
+
+function createManifestEffectApiModule(
+  overrides: Record<string, unknown> = {},
+) {
+  return {
+    backendFederationContract: {
+      compatibility: {
+        build: 'catalog-build-123',
+        contractVersion: BACKEND_FEDERATION_CONTRACT_VERSION,
+        nodeAdapterVersion: BACKEND_FEDERATION_NODE_ADAPTER_VERSION,
+        packageName: '@tractor-store-vertical-demo/catalog',
+      },
+      name: 'verticalCatalogBackend',
+      role: 'microvertical-server',
+      runtimeFramework: 'effect',
+      strictEffectApproach: true,
+    },
+    contract: { servicePrefix: '/catalog-api' },
+    runtime: { brand: 'defineEffectBff-runtime' },
+    ...overrides,
   };
 }
 
@@ -184,6 +244,160 @@ module.exports = {
       }),
     ]);
     expect(loaded.runtime).toEqual({ brand: 'defineEffectBff-runtime' });
+  });
+
+  test('loads a strict Effect backend expose through the Node manifest adapter', async () => {
+    const manifest = createBackendManifest();
+    const resolvedRemotes: BackendFederationRemote[] = [];
+
+    const loaded = await loadBackendFederatedEffectApiFromManifest({
+      hostName: 'nodeManifestBackendHost',
+      manifest,
+      remote: {
+        entry: 'https://local-node.example.test/backendRemoteEntry.mjs',
+      },
+      expected: {
+        buildVersion: 'catalog-build-123',
+        packageName: '@tractor-store-vertical-demo/catalog',
+        version: '1.2.3',
+      },
+      plugins: [
+        createBackendFederationLoadEntryPlugin({
+          resolveEntry(resolvedRemote) {
+            resolvedRemotes.push(resolvedRemote);
+            return createEffectApiEntryExports(createManifestEffectApiModule());
+          },
+        }),
+      ],
+    });
+
+    expect(resolvedRemotes).toEqual([
+      expect.objectContaining({
+        entry: 'https://local-node.example.test/backendRemoteEntry.mjs',
+        name: 'verticalCatalogBackend',
+        type: 'module',
+      }),
+    ]);
+    expect(loaded.backendFederationContract?.compatibility).toEqual({
+      build: 'catalog-build-123',
+      contractVersion: BACKEND_FEDERATION_CONTRACT_VERSION,
+      nodeAdapterVersion: BACKEND_FEDERATION_NODE_ADAPTER_VERSION,
+      packageName: '@tractor-store-vertical-demo/catalog',
+    });
+  });
+
+  test('resolves backend federation manifest URLs from generated env metadata', async () => {
+    const manifest = createBackendManifest();
+    const fetchedUrls: string[] = [];
+
+    const loaded = await loadBackendFederatedEffectApiFromManifest({
+      hostName: 'nodeManifestEnvBackendHost',
+      manifestEnv: 'CATALOG_BACKEND_MANIFEST_URL',
+      env: {
+        CATALOG_BACKEND_MANIFEST_URL:
+          'https://catalog.example.test/backend-mf-manifest.json',
+      },
+      fetch: async url => {
+        fetchedUrls.push(url);
+        return new Response(JSON.stringify(manifest));
+      },
+      remote: {
+        entry: 'https://catalog.example.test/backendRemoteEntry.mjs',
+      },
+      plugins: [
+        createBackendFederationLoadEntryPlugin({
+          resolveEntry() {
+            return createEffectApiEntryExports(createManifestEffectApiModule());
+          },
+        }),
+      ],
+    });
+
+    expect(fetchedUrls).toEqual([
+      'https://catalog.example.test/backend-mf-manifest.json',
+    ]);
+    expect(loaded.contract).toEqual({ servicePrefix: '/catalog-api' });
+  });
+
+  test('rejects backend federation manifests that do not preserve strict Effect metadata', async () => {
+    const manifest = createBackendManifest();
+
+    await expect(
+      loadBackendFederatedEffectApiFromManifest({
+        hostName: 'unsafeManifestBackendHost',
+        manifest: {
+          ...manifest,
+          backendFederation: {
+            ...manifest.backendFederation,
+            strictEffectApproach: false,
+          },
+        },
+        plugins: [
+          createBackendFederationLoadEntryPlugin({
+            resolveEntry() {
+              return createEffectApiEntryExports(
+                createManifestEffectApiModule(),
+              );
+            },
+          }),
+        ],
+      }),
+    ).rejects.toThrow(/strictEffectApproach: true/u);
+  });
+
+  test('reports unavailable remotes through the Node manifest adapter', async () => {
+    const manifest = createBackendManifest();
+    manifest.id = 'verticalOfflineBackend';
+    manifest.name = 'verticalOfflineBackend';
+    manifest.backendFederation.name = 'verticalOfflineBackend';
+    manifest.backendFederation.containerEntry =
+      'https://offline.example.test/backendRemoteEntry.mjs';
+
+    await expect(
+      loadBackendFederatedEffectApiFromManifest({
+        hostName: 'unavailableManifestBackendHost',
+        manifest,
+        plugins: [
+          createBackendFederationLoadEntryPlugin({
+            resolveEntry() {
+              throw new Error('backend is offline');
+            },
+          }),
+        ],
+      }),
+    ).rejects.toThrow(/could not load \.\/effect-api/u);
+  });
+
+  test('supports typed fallback when manifest version boundary mismatches', async () => {
+    const fallbackErrors: BackendFederationManifestAdapterError[] = [];
+
+    const loaded = await loadBackendFederatedEffectApiFromManifest({
+      hostName: 'fallbackManifestBackendHost',
+      manifest: createBackendManifest(),
+      expected: {
+        buildVersion: 'catalog-build-456',
+      },
+      fallback(error) {
+        fallbackErrors.push(error);
+        return createManifestEffectApiModule({
+          runtime: { brand: 'typed-effect-fallback' },
+        });
+      },
+      plugins: [
+        createBackendFederationLoadEntryPlugin({
+          resolveEntry() {
+            return createEffectApiEntryExports(createManifestEffectApiModule());
+          },
+        }),
+      ],
+    });
+
+    expect(fallbackErrors).toHaveLength(1);
+    expect(fallbackErrors[0]).toBeInstanceOf(
+      BackendFederationManifestAdapterError,
+    );
+    expect(fallbackErrors[0].code).toBe('version_mismatch');
+    expect(loaded.runtime).toEqual({ brand: 'typed-effect-fallback' });
   });
 
   test('rejects backend exposes that do not preserve strict Effect contract metadata', async () => {

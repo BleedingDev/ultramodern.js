@@ -494,7 +494,7 @@ declare module '*.css' {}
         path.join(workspaceDir, 'scripts/proof-node-backend-federation.mjs'),
         'utf-8',
       ),
-      /loadBackendFederatedEffectApi/,
+      /loadBackendFederatedEffectApiFromManifest/,
     );
     assert.match(
       readText(

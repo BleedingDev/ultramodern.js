@@ -1895,12 +1895,14 @@ assert(performanceReadinessConfig.includes('enabled: true'), 'Performance readin
 assert(performanceReadinessConfig.includes("failOn: 'framework-invariant'"), 'Performance readiness diagnostics must only fail framework invariants by default');
 assert(
   nodeBackendFederationProof.includes('@modern-js/plugin-bff/effect') &&
-    nodeBackendFederationProof.includes('loadBackendFederatedEffectApi') &&
+    nodeBackendFederationProof.includes(
+      'loadBackendFederatedEffectApiFromManifest',
+    ) &&
     nodeBackendFederationProof.includes('backend-mf-manifest.json') &&
     nodeBackendFederationProof.includes('backendRemoteEntry.mjs') &&
     nodeBackendFederationProof.includes('pathToFileURL(entryPath).href') &&
     !nodeBackendFederationProof.includes('createBackendFederationLoadEntryPlugin'),
-  'Node backend federation proof must exercise native plugin-bff Module Federation entry loading',
+  'Node backend federation proof must exercise the plugin-bff manifest adapter',
 );
 assertToolWrapper('scripts/validate-ultramodern-workspace.mts', 'validate');
 assertToolWrapper('scripts/ultramodern-performance-readiness.mts', 'performance-readiness');
