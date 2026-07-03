@@ -15,6 +15,7 @@ import {
 } from '../ultramodern-package-source';
 import { createAppEnvDts } from '../ultramodern-workspace/app-files';
 import { createBackendFederationContractFile } from '../ultramodern-workspace/backend-federation';
+import { runSyncDeliveryUnit } from '../ultramodern-workspace/delivery-unit-sync';
 import { validateModuleFederationTypes } from '../ultramodern-workspace/mf-validation';
 import {
   createAppModernConfig,
@@ -1537,6 +1538,8 @@ export async function runUltramodernToolingCli(
         return runMigrateStrictEffect(rest, context);
       case GENERATED_TOOLING_COMMANDS.cloudflareOutputVerify.command:
         return runCloudflareOutputVerify(rest, context);
+      case 'sync-delivery-unit':
+        return runSyncDeliveryUnit(rest, context);
       case 'skills':
         return runSkills(rest, context);
       default:
