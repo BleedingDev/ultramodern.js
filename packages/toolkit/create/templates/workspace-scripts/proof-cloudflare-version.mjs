@@ -256,8 +256,64 @@ function createWorkerBindingName(app) {
   return `VERTICAL_${toEnvSegment(app.domain ?? app.id)}_WORKER`;
 }
 
+function createWorkerBindingEnv(app) {
+  return `VERTICAL_${toEnvSegment(app.domain ?? app.id)}_WORKER_BINDING`;
+}
+
+function createDispatchNamespaceEnv(app) {
+  return `VERTICAL_${toEnvSegment(app.domain ?? app.id)}_DISPATCH_NAMESPACE`;
+}
+
+function createDispatchWorkerNameEnv(app) {
+  return `VERTICAL_${toEnvSegment(app.domain ?? app.id)}_WORKER_NAME`;
+}
+
 function createBackendRemoteName(app) {
   return `${app.mfName ?? `vertical${toPascalCase(app.id)}`}Backend`;
+}
+
+function createCloudflareExecutionSurface(packageScope, app) {
+  return {
+    kind: 'cloudflare-worker-snapshot',
+    workerName: createCloudflareWorkerName(packageScope, app),
+    publicUrlEnv: `ULTRAMODERN_PUBLIC_URL_${toEnvSegment(app.id)}`,
+    ssr: {
+      workerEntry: '.output/server/index.mjs',
+      workerManifest: '.output/server/modern-worker-manifest.json',
+      routeManifest: '.output/server/route.json',
+      ssrBundle: '.output/worker/index.js',
+      effectBffBundle: '.output/worker/__modern_bff_effect.js',
+      assetsBinding: 'ASSETS',
+    },
+    zephyr: {
+      runtime: 'ssr-worker',
+      integration: 'managed-cloudflare',
+      snapshotIdEnv: `ZEPHYR_${toEnvSegment(app.domain ?? app.id)}_SNAPSHOT_ID`,
+      versionIdEnv: `ZEPHYR_${toEnvSegment(app.domain ?? app.id)}_VERSION_ID`,
+      applicationUidEnv: `ZEPHYR_${toEnvSegment(app.domain ?? app.id)}_APPLICATION_UID`,
+    },
+    workerDispatch: {
+      preferred: 'service-binding',
+      serviceBinding: createWorkerBindingName(app),
+      serviceBindingEnv: createWorkerBindingEnv(app),
+      dispatchNamespaceEnv: createDispatchNamespaceEnv(app),
+      dispatchWorkerNameEnv: createDispatchWorkerNameEnv(app),
+      requestInterface: 'fetch',
+    },
+  };
+}
+
+function createNodeExecutionSurface(app) {
+  return {
+    kind: 'node-mf-runtime',
+    adapterVersion: 'backend-mf-effect-v1',
+    remoteName: createBackendRemoteName(app),
+    manifestUrl: `http://localhost:${app.port}/backend-mf-manifest.json`,
+    containerEntry: `http://localhost:${app.port}/backendRemoteEntry.mjs`,
+    remoteType: 'module',
+    expose: './effect-api',
+    runtimePackage: '@modern-js/plugin-bff/effect',
+  };
 }
 
 function createServerExecutionProof(packageScope, app) {
@@ -268,19 +324,10 @@ function createServerExecutionProof(packageScope, app) {
     apiBaseUrl: `http://localhost:${app.port}${app.api.prefix}`,
     versionBoundary: 'web-and-api-same-build',
     cloudflare: {
-      kind: 'cloudflare-worker-snapshot',
-      workerName: createCloudflareWorkerName(packageScope, app),
-      publicUrlEnv: `ULTRAMODERN_PUBLIC_URL_${toEnvSegment(app.id)}`,
+      ...createCloudflareExecutionSurface(packageScope, app),
       apiReadiness: createApiReadinessRoute(app),
-      zephyrRuntime: 'ssr-worker',
     },
-    node: {
-      kind: 'node-mf-runtime',
-      remoteName: createBackendRemoteName(app),
-      manifestUrl: `http://localhost:${app.port}/backend-mf-manifest.json`,
-      containerEntry: `http://localhost:${app.port}/backendRemoteEntry.mjs`,
-      expose: './effect-api',
-    },
+    node: createNodeExecutionSurface(app),
   };
 }
 
@@ -313,18 +360,8 @@ function createBackendFederationProof(packageScope, app) {
       },
     },
     executionSurfaces: {
-      cloudflare: {
-        kind: 'cloudflare-worker-snapshot',
-        workerName: createCloudflareWorkerName(packageScope, app),
-        publicUrlEnv: `ULTRAMODERN_PUBLIC_URL_${toEnvSegment(app.id)}`,
-      },
-      node: {
-        kind: 'node-mf-runtime',
-        remoteName,
-        manifestUrl: `http://localhost:${app.port}/backend-mf-manifest.json`,
-        containerEntry: `http://localhost:${app.port}/backendRemoteEntry.mjs`,
-        expose: './effect-api',
-      },
+      cloudflare: createCloudflareExecutionSurface(packageScope, app),
+      node: createNodeExecutionSurface(app),
     },
     compatibility: {
       contractVersion: 'microvertical-server-effect-v1',

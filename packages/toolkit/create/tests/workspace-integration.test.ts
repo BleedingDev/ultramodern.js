@@ -826,8 +826,36 @@ test('generated Cloudflare proof records backend server execution metadata offli
       'cloudflare-worker-snapshot',
     );
     assert.equal(
+      catalogTarget.backendFederation.executionSurfaces.cloudflare.ssr
+        .effectBffBundle,
+      '.output/worker/__modern_bff_effect.js',
+    );
+    assert.equal(
+      catalogTarget.backendFederation.executionSurfaces.cloudflare.zephyr
+        .snapshotIdEnv,
+      'ZEPHYR_CATALOG_SNAPSHOT_ID',
+    );
+    assert.equal(
+      catalogTarget.backendFederation.executionSurfaces.cloudflare
+        .workerDispatch.serviceBinding,
+      'VERTICAL_CATALOG_WORKER',
+    );
+    assert.equal(
+      catalogTarget.backendFederation.executionSurfaces.cloudflare
+        .workerDispatch.serviceBindingEnv,
+      'VERTICAL_CATALOG_WORKER_BINDING',
+    );
+    assert.equal(
       catalogTarget.backendFederation.executionSurfaces.node.kind,
       'node-mf-runtime',
+    );
+    assert.equal(
+      catalogTarget.backendFederation.executionSurfaces.node.adapterVersion,
+      'backend-mf-effect-v1',
+    );
+    assert.equal(
+      catalogTarget.backendFederation.executionSurfaces.node.runtimePackage,
+      '@modern-js/plugin-bff/effect',
     );
     assert.equal(catalogTarget.backendFederation.manifestUrl, undefined);
     assert.equal(catalogTarget.backendFederation.containerEntry, undefined);
@@ -838,6 +866,15 @@ test('generated Cloudflare proof records backend server execution metadata offli
     assert.equal(
       catalogTarget.serverExecution.cloudflare.apiReadiness,
       '/catalog-api/catalog/readiness',
+    );
+    assert.equal(
+      catalogTarget.serverExecution.cloudflare.workerDispatch
+        .dispatchNamespaceEnv,
+      'VERTICAL_CATALOG_DISPATCH_NAMESPACE',
+    );
+    assert.equal(
+      catalogTarget.serverExecution.cloudflare.zephyr.versionIdEnv,
+      'ZEPHYR_CATALOG_VERSION_ID',
     );
     assert.equal(
       catalogTarget.serverExecution.node.manifestUrl,
