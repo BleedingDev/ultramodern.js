@@ -6,6 +6,7 @@ import type { Entrypoint } from '@modern-js/types';
 import { fs, NESTED_ROUTE_SPEC_FILE } from '@modern-js/utils';
 import {
   createTanstackRsbuildRouteSplittingProfile,
+  generateTanstackRouteArtifacts,
   tanstackRouterPlugin,
   writeTanstackRegisterFile,
   writeTanstackRouterTypesForEntries,
@@ -975,5 +976,11 @@ describe('tanstack router cli plugin', () => {
         },
       },
     });
+  });
+});
+
+describe('generateTanstackRouteArtifacts export', () => {
+  test('is exported as a function', () => {
+    expect(typeof generateTanstackRouteArtifacts).toBe('function');
   });
 });

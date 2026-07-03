@@ -25,6 +25,7 @@ export default {
       include: [
         'tests/router/cli.test.ts',
         'tests/router/fastDefaults.test.ts',
+        'tests/router/generateRouteArtifacts.test.ts',
         'tests/router/hooks.test.ts',
         'tests/router/loaderBridge.test.ts',
         'tests/router/packageSurface.test.ts',
@@ -44,6 +45,7 @@ export default {
         'tests/router/dataMutation.test.tsx',
         'tests/router/hydrationBoundary.test.tsx',
         'tests/router/prefetchLink.test.tsx',
+        'tests/router/prefetchLinkPreload.test.tsx',
       ],
       extends: commonConfig,
     }),
