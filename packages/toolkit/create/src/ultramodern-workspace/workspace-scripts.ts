@@ -242,6 +242,10 @@ export function createNodeBackendFederationProofScript(): string {
   );
 }
 
+export function createZeropsRuntimeMaterializationScript(): string {
+  return readFileTemplate('workspace-scripts/materialize-zerops-runtime.mjs');
+}
+
 export function writeGeneratedWorkspaceScripts(
   targetDir: string,
   _scope: string,
@@ -282,6 +286,11 @@ export function writeGeneratedWorkspaceScripts(
     targetDir,
     'scripts/proof-node-backend-federation.mjs',
     createNodeBackendFederationProofScript(),
+  );
+  writeFileReplacing(
+    targetDir,
+    'scripts/materialize-zerops-runtime.mjs',
+    createZeropsRuntimeMaterializationScript(),
   );
   writeFileReplacing(
     targetDir,

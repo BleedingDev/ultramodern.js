@@ -42,7 +42,9 @@ import {
 import {
   createNodeBackendFederationProofScript,
   createWorkspaceValidationScript,
+  createZeropsRuntimeMaterializationScript,
 } from '../ultramodern-workspace/workspace-scripts';
+import { createZeropsYaml } from '../ultramodern-workspace/zerops';
 import {
   readUltramodernConfig,
   type UltramodernToolingConfig,
@@ -326,10 +328,15 @@ const cloudflareWranglerDeployCommand =
 const cloudflareWranglerDeployInvalidSkipBuildCommand = `${cloudflareWranglerDeployCommand} --skip-build`;
 
 function removeStaleBackendFederationCommandSegments(command: string) {
-  return command.replace(
-    /\s+&&\s+node\s+\S*scripts\/generate-node-backend-federation\.m[ct]s(?:\s+--app\s+\S+)?(?:\s+--target\s+\S+)?(?=\s+&&|$)/gu,
-    '',
-  );
+  return command
+    .replace(
+      /\s+&&\s+node\s+\S*scripts\/generate-node-backend-federation\.m[ct]s(?:\s+--app\s+\S+)?(?:\s+--target\s+\S+)?(?=\s+&&|$)/gu,
+      '',
+    )
+    .replace(
+      /\s+&&\s+pnpm\s+node:backend-federation:generate(?=\s+&&|$)/gu,
+      '',
+    );
 }
 
 function updateGeneratedPackageScripts(packageJson: Record<string, any>) {
@@ -345,6 +352,15 @@ function updateGeneratedPackageScripts(packageJson: Record<string, any>) {
     const nextBuild = removeStaleBackendFederationCommandSegments(build);
     if (nextBuild !== build) {
       scripts.build = nextBuild;
+      changed = true;
+    }
+  }
+
+  const check = scripts.check;
+  if (typeof check === 'string') {
+    const nextCheck = removeStaleBackendFederationCommandSegments(check);
+    if (nextCheck !== check) {
+      scripts.check = nextCheck;
       changed = true;
     }
   }
@@ -415,6 +431,62 @@ function updateGeneratedPackageScripts(packageJson: Record<string, any>) {
   }
 
   return changed;
+}
+
+function updateGeneratedRootPackageScripts(
+  packageJson: Record<string, any>,
+  config: UltramodernToolingConfig,
+) {
+  const scripts = packageJson.scripts;
+  if (!scripts || typeof scripts !== 'object' || Array.isArray(scripts)) {
+    return false;
+  }
+
+  let changed = false;
+  if (
+    !config.bridge &&
+    scripts.typecheck !==
+      'node ./scripts/ultramodern-typecheck.mts --build tsconfig.json'
+  ) {
+    scripts.typecheck =
+      'node ./scripts/ultramodern-typecheck.mts --build tsconfig.json';
+    changed = true;
+  }
+
+  if (
+    scripts['zerops:materialize'] !==
+    'node ./scripts/materialize-zerops-runtime.mjs'
+  ) {
+    scripts['zerops:materialize'] =
+      'node ./scripts/materialize-zerops-runtime.mjs';
+    changed = true;
+  }
+
+  return changed;
+}
+
+function updateGeneratedAppPackageScripts(packageJson: Record<string, any>) {
+  const modernjs = packageJson.modernjs;
+  if (
+    !modernjs ||
+    typeof modernjs !== 'object' ||
+    Array.isArray(modernjs) ||
+    !['shell', 'module-federation-remote'].includes(modernjs.role)
+  ) {
+    return false;
+  }
+
+  const scripts = packageJson.scripts;
+  if (!scripts || typeof scripts !== 'object' || Array.isArray(scripts)) {
+    return false;
+  }
+
+  if (scripts.deploy === 'modern deploy') {
+    return false;
+  }
+
+  scripts.deploy = 'modern deploy';
+  return true;
 }
 
 function normalizeStrictEffectApiMetadata(value: Record<string, any>) {
@@ -569,6 +641,24 @@ function updateGeneratedBackendFederationProofScript(workspaceRoot: string) {
     path.join(workspaceRoot, 'scripts/proof-node-backend-federation.mjs'),
     createNodeBackendFederationProofScript(),
   );
+}
+
+function updateGeneratedZeropsArtifacts(
+  workspaceRoot: string,
+  config: UltramodernToolingConfig,
+) {
+  const apps = workspaceAppsFromToolingConfig(config);
+  let changed = writeTextIfChanged(
+    path.join(workspaceRoot, 'zerops.yaml'),
+    `${createZeropsYaml(config.workspace.packageScope, apps)}\n`,
+  );
+  changed =
+    writeTextIfChanged(
+      path.join(workspaceRoot, 'scripts/materialize-zerops-runtime.mjs'),
+      createZeropsRuntimeMaterializationScript(),
+    ) || changed;
+
+  return changed;
 }
 
 function updateGeneratedBuildIdentityModules(
@@ -1047,7 +1137,12 @@ function ensureGeneratedIgnoreRules(workspaceRoot: string) {
     existing.trimEnd().length === 0 ? [] : existing.trimEnd().split(/\r?\n/u);
   let changed = false;
 
-  for (const rule of ['.mf/', '**/.mf/', 'dist-cloudflare/']) {
+  for (const rule of [
+    '.mf/',
+    '**/.mf/',
+    'dist-cloudflare/',
+    '.zerops/runtime/',
+  ]) {
     if (!lines.includes(rule)) {
       lines.push(rule);
       changed = true;
@@ -1244,6 +1339,7 @@ and pnpm contract:check.
   const migrated = readUltramodernConfig(context.workspaceRoot);
   removeStaleBackendFederationArtifacts(context.workspaceRoot, migrated);
   updateGeneratedBackendFederationProofScript(context.workspaceRoot);
+  updateGeneratedZeropsArtifacts(context.workspaceRoot, migrated);
   updateGeneratedBuildIdentityModules(context.workspaceRoot, migrated);
   updateGeneratedTypeScriptSurfaces(context.workspaceRoot, migrated);
   updateGeneratedModernConfigs(context.workspaceRoot, migrated);
@@ -1269,10 +1365,20 @@ and pnpm contract:check.
     const toolingDependenciesChanged =
       updateGeneratedToolingDependencies(packageJson);
     const generatedScriptsChanged = updateGeneratedPackageScripts(packageJson);
+    const generatedRootScriptsChanged =
+      relativePackageFile === 'package.json'
+        ? updateGeneratedRootPackageScripts(packageJson, migrated)
+        : false;
+    const generatedAppScriptsChanged =
+      relativePackageFile === 'package.json'
+        ? false
+        : updateGeneratedAppPackageScripts(packageJson);
     const changed =
       modernDependenciesChanged ||
       toolingDependenciesChanged ||
-      generatedScriptsChanged;
+      generatedScriptsChanged ||
+      generatedRootScriptsChanged ||
+      generatedAppScriptsChanged;
 
     if (changed) {
       writeJsonFile(packageFile, packageJson);

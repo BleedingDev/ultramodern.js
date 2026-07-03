@@ -258,6 +258,11 @@ test('rendered contents of the highest-risk generated files match the checked-in
       'generated workspaces must ignore Cloudflare build output',
     );
     assert.match(
+      gitignore,
+      /^\.zerops\/runtime\/$/mu,
+      'generated workspaces must ignore Zerops materialized runtime artifacts',
+    );
+    assert.match(
       shellModernAppEnv,
       /import '@modern-js\/app-tools\/types';/,
       'generated app env must use the framework-owned app ambient type bundle',

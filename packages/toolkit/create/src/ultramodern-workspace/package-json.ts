@@ -287,6 +287,7 @@ export function createRootPackageJson(
         'node ./scripts/proof-cloudflare-version.mts --out .codex/reports/cloudflare-version-proof/public-url-proof.json',
       'node:proof':
         'node ./scripts/proof-node-backend-federation.mjs --out .codex/reports/node-backend-federation-proof/proof.json',
+      'zerops:materialize': 'node ./scripts/materialize-zerops-runtime.mjs',
       'skills:install': 'node ./scripts/bootstrap-agent-skills.mts',
       'skills:check': 'node ./scripts/bootstrap-agent-skills.mts --check',
       'agents:refs:install': 'node ./scripts/setup-agent-reference-repos.mts',
@@ -544,6 +545,7 @@ export function createAppPackage(
       build: app.exposes
         ? `ULTRAMODERN_ZEPHYR=false modern build && ${publicSurfaceBuildCommand} && node ${relativeRootFor(app.directory)}/scripts/assert-mf-types.mts`
         : `ULTRAMODERN_ZEPHYR=false modern build && ${publicSurfaceBuildCommand}`,
+      deploy: 'modern deploy',
       'cloudflare:build': `ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern build && ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern deploy --skip-build && ${publicSurfaceCloudflareOutputCommand}`,
       'cloudflare:deploy':
         'ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS=true pnpm run cloudflare:build && wrangler deploy --config .output/wrangler.json',

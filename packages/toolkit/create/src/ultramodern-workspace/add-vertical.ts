@@ -87,6 +87,7 @@ import type {
 import { isRecord } from './types';
 import { writeGeneratedWorkspaceScripts } from './workspace-scripts';
 import { createCompactUltramodernConfig, writeApp } from './write-workspace';
+import { createZeropsYaml } from './zerops';
 
 const FIRST_VERTICAL_PORT = 4101;
 const TOPOLOGY_PATH = 'topology/reference-topology.json';
@@ -935,6 +936,17 @@ export function addUltramodernVertical(
       enableTailwind,
       bridge,
     ),
+  );
+  writeFileReplacing(
+    options.workspaceRoot,
+    'zerops.yaml',
+    `${createZeropsYaml(scope, [
+      {
+        ...shellApp,
+        verticalRefs: updatedVerticals.map(vertical => vertical.id),
+      },
+      ...updatedVerticals,
+    ])}\n`,
   );
   rewriteShellAppFiles(
     options.workspaceRoot,

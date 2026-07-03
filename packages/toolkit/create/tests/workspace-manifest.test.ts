@@ -88,6 +88,7 @@ const expectedWorkspaceManifest = [
   'scripts/check-ultramodern-api-boundaries.mts',
   'scripts/check-ultramodern-i18n-boundaries.mts',
   'scripts/generate-public-surface-assets.mts',
+  'scripts/materialize-zerops-runtime.mjs',
   'scripts/migrate-strict-effect.mts',
   'scripts/proof-cloudflare-version.mts',
   'scripts/proof-node-backend-federation.mjs',
@@ -101,6 +102,7 @@ const expectedWorkspaceManifest = [
   'topology/reference-topology.json',
   'tsconfig.base.json',
   'tsconfig.json',
+  'zerops.yaml',
 ];
 
 /**
@@ -229,6 +231,7 @@ test('generated workspace file manifest matches the checked-in snapshot', () => 
         'topology/ownership.json',
         'topology/reference-topology.json',
         'tsconfig.json',
+        'zerops.yaml',
       ].every(relativePath =>
         verticalResult.rewrittenPaths.includes(relativePath),
       ),
@@ -265,8 +268,11 @@ test('generated workspace file manifest matches the checked-in snapshot', () => 
     );
     assert.deepEqual(verticalResult.warnings, []);
     assert.deepEqual(listFiles(workspaceDir), [
-      ...expectedWorkspaceManifest,
+      ...expectedWorkspaceManifest.filter(
+        relativePath => relativePath !== 'zerops.yaml',
+      ),
       ...expectedVerticalManifest,
+      'zerops.yaml',
     ]);
 
     const filesAfterCatalog = listFiles(workspaceDir);

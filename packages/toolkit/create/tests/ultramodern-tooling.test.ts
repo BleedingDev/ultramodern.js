@@ -247,6 +247,12 @@ test('UltraModern migrate-strict-effect updates package cohort and direct API me
     rootPackageBefore.devDependencies.oxfmt = '0.55.0';
     rootPackageBefore.scripts['cloudflare:build'] =
       `${rootPackageBefore.scripts['cloudflare:build']} && pnpm cloudflare-output:verify`;
+    rootPackageBefore.scripts.typecheck =
+      'node ./scripts/ultramodern-typecheck.mts --project tsconfig.json';
+    rootPackageBefore.scripts.check = rootPackageBefore.scripts.check.replace(
+      ' && pnpm node:proof',
+      ' && pnpm node:backend-federation:generate && pnpm node:proof',
+    );
     rootPackageBefore.scripts['node:proof'] =
       'node ./scripts/proof-node-backend-federation.mts';
     rootPackageBefore.scripts['cloudflare-output:verify'] =
@@ -378,7 +384,8 @@ test('UltraModern migrate-strict-effect updates package cohort and direct API me
         .readFileSync(gitignorePath, 'utf-8')
         .replace(/^\.mf\/\n/mu, '')
         .replace(/^\*\*\/\.mf\/\n/mu, '')
-        .replace(/^dist-cloudflare\/\n/mu, ''),
+        .replace(/^dist-cloudflare\/\n/mu, '')
+        .replace(/^\.zerops\/runtime\/\n/mu, ''),
       'utf-8',
     );
 
@@ -468,6 +475,14 @@ declare module '*.css' {}
     );
     assert.equal(rootPackage.devDependencies.oxfmt, OXFMT_VERSION);
     assert.equal(rootPackage.modernjs.packageSource.strategy, 'install');
+    assert.equal(
+      rootPackage.scripts.typecheck,
+      'node ./scripts/ultramodern-typecheck.mts --build tsconfig.json',
+    );
+    assert.doesNotMatch(
+      rootPackage.scripts.check,
+      /node:backend-federation:generate/u,
+    );
     assert.doesNotMatch(
       rootPackage.scripts['cloudflare:build'],
       /cloudflare-output:verify/u,
@@ -480,6 +495,42 @@ declare module '*.css' {}
     assert.equal(
       rootPackage.scripts['node:backend-federation:generate'],
       undefined,
+    );
+    assert.equal(
+      rootPackage.scripts['zerops:materialize'],
+      'node ./scripts/materialize-zerops-runtime.mjs',
+    );
+    assert.match(
+      readText(workspaceDir, 'scripts/materialize-zerops-runtime.mjs'),
+      /MODERNJS_DEPLOY: 'node'/,
+    );
+    assert.match(
+      readText(workspaceDir, 'scripts/materialize-zerops-runtime.mjs'),
+      /normalizeRuntimePackageDependencies/,
+    );
+    assert.match(
+      readText(workspaceDir, 'scripts/materialize-zerops-runtime.mjs'),
+      /officialPackageName/,
+    );
+    assert.match(
+      readText(workspaceDir, 'scripts/materialize-zerops-runtime.mjs'),
+      /installRuntimeDependencies/,
+    );
+    assert.match(
+      readText(workspaceDir, 'scripts/materialize-zerops-runtime.mjs'),
+      /snapshotWorkspaceSourceFiles/,
+    );
+    assert.match(
+      readText(workspaceDir, 'scripts/materialize-zerops-runtime.mjs'),
+      /restoreWorkspaceSourceFiles/,
+    );
+    assert.match(
+      readText(workspaceDir, 'scripts/materialize-zerops-runtime.mjs'),
+      /makeWorkspacePackageRuntimeSafe/,
+    );
+    assert.match(
+      readText(workspaceDir, 'scripts/materialize-zerops-runtime.mjs'),
+      /'--legacy-peer-deps'/,
     );
     for (const relativePath of [
       'scripts/generate-node-backend-federation.mts',
@@ -649,6 +700,11 @@ declare module '*.css' {}
       /^dist-cloudflare\/$/mu,
       'migrate-strict-effect must ignore Cloudflare build output',
     );
+    assert.match(
+      migratedGitignore,
+      /^\.zerops\/runtime\/$/mu,
+      'migrate-strict-effect must ignore Zerops materialized runtime artifacts',
+    );
 
     const shellTsConfig = readJson(
       workspaceDir,
@@ -724,6 +780,7 @@ declare module '*.css' {}
       shellPackage.scripts['cloudflare:deploy'],
       'ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS=true pnpm run cloudflare:build && wrangler deploy --config .output/wrangler.json',
     );
+    assert.equal(shellPackage.scripts.deploy, 'modern deploy');
     assertTargetIsolatedModernConfig(
       readText(workspaceDir, 'apps/shell-super-app/modern.config.ts'),
       'shell modern.config.ts',
@@ -757,6 +814,19 @@ declare module '*.css' {}
       catalogPackage.scripts['cloudflare:deploy'],
       'ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS=true pnpm run cloudflare:build && wrangler deploy --config .output/wrangler.json',
     );
+    assert.equal(catalogPackage.scripts.deploy, 'modern deploy');
+    assert.equal(
+      rootPackage.scripts['zerops:materialize'],
+      'node ./scripts/materialize-zerops-runtime.mjs',
+    );
+    const zeropsYaml = readText(workspaceDir, 'zerops.yaml');
+    assert.match(zeropsYaml, /setup: shell-super-app/);
+    assert.match(zeropsYaml, /setup: catalog/);
+    assert.match(
+      zeropsYaml,
+      /pnpm run zerops:materialize -- --app catalog --package @tooling-migrate\/catalog --package-dir verticals\/catalog/,
+    );
+    assert.match(zeropsYaml, /path: \/catalog-api\/catalog\/readiness/);
     assertTargetIsolatedModernConfig(
       readText(workspaceDir, 'verticals/catalog/modern.config.ts'),
       'catalog modern.config.ts',

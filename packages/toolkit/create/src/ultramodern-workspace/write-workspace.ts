@@ -96,6 +96,7 @@ import {
   TYPESCRIPT_VERSION,
 } from './versions';
 import { writeGeneratedWorkspaceScripts } from './workspace-scripts';
+import { createZeropsYaml } from './zerops';
 
 export function writeApp(
   targetDir: string,
@@ -446,6 +447,11 @@ export function generateUltramodernWorkspace(
       initialVerticals,
       bridge,
     ),
+  );
+  writeFile(
+    options.targetDir,
+    'zerops.yaml',
+    `${createZeropsYaml(scope, createdApps)}\n`,
   );
   writeJson(options.targetDir, 'tsconfig.base.json', createTsConfigBase());
   writeJson(

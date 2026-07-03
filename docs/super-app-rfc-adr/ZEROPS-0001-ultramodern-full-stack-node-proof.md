@@ -42,7 +42,7 @@ zerops:
           ~/.local/bin/mise install
           ~/.local/bin/mise exec -- pnpm install --frozen-lockfile
           ~/.local/bin/mise exec -- pnpm --filter @acme/shell-super-app build
-          ~/.local/bin/mise exec -- pnpm --filter @acme/shell-super-app deploy --prod .zerops/runtime/shell-super-app
+          ~/.local/bin/mise exec -- pnpm run zerops:materialize -- --app shell-super-app --package @acme/shell-super-app --package-dir apps/shell-super-app
           cp topology/zephyr-version-boundary.json .zerops/runtime/shell-super-app/topology.json
       deployFiles:
         - .zerops/runtime/shell-super-app
@@ -74,7 +74,7 @@ zerops:
           ~/.local/bin/mise install
           ~/.local/bin/mise exec -- pnpm install --frozen-lockfile
           ~/.local/bin/mise exec -- pnpm --filter @acme/remote-commerce build
-          ~/.local/bin/mise exec -- pnpm --filter @acme/remote-commerce deploy --prod .zerops/runtime/remote-commerce
+          ~/.local/bin/mise exec -- pnpm run zerops:materialize -- --app remote-commerce --package @acme/remote-commerce --package-dir apps/remotes/remote-commerce
           cp topology/zephyr-version-boundary.json .zerops/runtime/remote-commerce/version-boundary.json
       deployFiles:
         - .zerops/runtime/remote-commerce
@@ -100,7 +100,7 @@ zerops:
 
 Required generator semantics:
 
-1. `build.buildCommands` run the workspace install, package build, and a package-pruned runtime materialization step in one shell block.
+1. `build.buildCommands` run the workspace install, package build, and a package-pruned runtime materialization step in one shell block. The generated materializer runs the Modern.js Node deploy target, copies the app-local `.output` into `.zerops/runtime/<service>`, adds `npm run serve`, and installs production dependencies inside that runtime artifact.
 2. `build.deployFiles` includes only the runtime directory produced for the target package, not the entire monorepo checkout.
 3. `run.start` starts the generated Modern.js server from the deployed runtime directory.
 4. `run.ports` exposes the exact internal port used by the generated Modern.js server.
