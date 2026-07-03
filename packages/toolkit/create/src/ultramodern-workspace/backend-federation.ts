@@ -1,3 +1,4 @@
+import { verticalApiExport, verticalApiGroupName } from './api';
 import {
   appHasApi,
   createBackendFederationContainerEntry,
@@ -167,6 +168,69 @@ export function createBackendFederationContract(
       strategy: 'typed-effect-error',
     },
   };
+}
+
+export function createBackendFederationMetadata(
+  app: WorkspaceApp,
+): JsonValue | undefined {
+  if (!appHasApi(app)) {
+    return undefined;
+  }
+
+  return {
+    contractVersion: BACKEND_FEDERATION_CONTRACT_VERSION,
+    executionSurfaces: ['node-mf-runtime'],
+    exposes: ['./effect-api'],
+    name: createBackendFederationName(app),
+    nodeAdapterVersion: BACKEND_FEDERATION_NODE_ADAPTER_VERSION,
+    openapiPath: `${app.api.prefix}/openapi.json`,
+    readinessPath: `${app.api.prefix}/${resolveApiStem(app)}/readiness`,
+    role: 'microvertical-server',
+    runtimeFramework: 'effect',
+    strictEffectApproach: true,
+  };
+}
+
+export function createBackendFederationContractFile(app: WorkspaceApp) {
+  if (!app.api) {
+    throw new Error(`App ${app.id} does not define an Effect API.`);
+  }
+
+  const apiExport = verticalApiExport(app);
+  const groupName = verticalApiGroupName(app);
+  const readinessPath = `${app.api.prefix}/${resolveApiStem(app)}/readiness`;
+
+  return `import runtime from './index.ts';
+import { ultramodernApiMarker } from '../shared/ultramodern-build.ts';
+import {
+  ${apiExport} as api,
+  ${groupName}ApiContract as contract,
+  ${groupName}OperationContexts as operationContexts,
+} from '../shared/api.ts';
+
+export const backendFederationContract = {
+  compatibility: {
+    build: ultramodernApiMarker.build,
+    contractVersion: '${BACKEND_FEDERATION_CONTRACT_VERSION}',
+    nodeAdapterVersion: '${BACKEND_FEDERATION_NODE_ADAPTER_VERSION}',
+    packageName: ultramodernApiMarker.packageName,
+  },
+  contractVersion: '${BACKEND_FEDERATION_CONTRACT_VERSION}',
+  executionSurfaces: ['node-mf-runtime'],
+  exposes: ['./effect-api'],
+  name: '${createBackendFederationName(app)}',
+  nodeAdapterVersion: '${BACKEND_FEDERATION_NODE_ADAPTER_VERSION}',
+  openapiPath: '${app.api.prefix}/openapi.json',
+  readinessPath: '${readinessPath}',
+  role: 'microvertical-server',
+  runtimeFramework: 'effect',
+  strictEffectApproach: true,
+} as const;
+
+export { api, contract, operationContexts, runtime };
+
+export default runtime;
+`;
 }
 
 export function createBackendFederationSummary(

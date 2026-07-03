@@ -23,11 +23,12 @@ const createFixtureApp = async () => {
   await fs.promises.writeFile(
     resourcePath,
     `const {
-  HttpApi,
-  HttpApiEndpoint,
-  HttpApiGroup,
-  Schema,
-} = require('@modern-js/plugin-bff/effect-client');
+      HttpApi,
+      HttpApiEndpoint,
+      HttpApiGroup,
+      Layer,
+      Schema,
+    } = require('@modern-js/plugin-bff/effect-client');
 
 const api = HttpApi.make('CodegenTestApi').add(
   HttpApiGroup.make('greetings').add(
@@ -39,8 +40,8 @@ const api = HttpApi.make('CodegenTestApi').add(
   ),
 );
 
-module.exports = { api };
-`,
+    module.exports = { api, layer: Layer.empty };
+    `,
   );
 
   return { appDir, apiDir, resourcePath };

@@ -175,6 +175,15 @@ export async function createEffectBffEdgeHandler(options) {
   };
 }
 
+export async function createEffectBffEdgeDispatcher(options) {
+  const effectHandler = await createEffectBffEdgeHandler(options);
+
+  return {
+    dispatch: effectHandler.handler,
+    dispose: effectHandler.dispose,
+  };
+}
+
 export function useEffectContext() {
   if (!currentContext) {
     throw new Error("Can't call useEffectContext out of Effect runtime scope");
@@ -260,6 +269,7 @@ async function createFixture({
   bffWorkerSource = defaultEffectBffWorkerSource,
   compatibilityDate,
   d1Databases,
+  distFiles,
   includeBffWorker = true,
   includeRootRoute = false,
   includeServerOnlyDistSources = false,
@@ -277,6 +287,7 @@ async function createFixture({
   bffWorkerSource?: string;
   compatibilityDate?: string;
   d1Databases?: CloudflareWorkerD1DatabaseConfig[];
+  distFiles?: Record<string, string>;
   includeBffWorker?: boolean;
   includeRootRoute?: boolean;
   includeServerOnlyDistSources?: boolean;
@@ -345,7 +356,15 @@ async function createFixture({
     `
 export const entityKind = Symbol.for('drizzle:entityKind');
 
-export class SQLiteTable {
+export class Table {
+  static [entityKind] = 'Table';
+
+  constructor(name) {
+    this.name = name;
+  }
+}
+
+export class SQLiteTable extends Table {
   static [entityKind] = 'SQLiteTable';
 }
 
@@ -354,14 +373,14 @@ export function text(name) {
 }
 
 export function sqliteTable(name, columns) {
-class CatalogFixtureTable extends SQLiteTable {
+  class CatalogFixtureTable extends SQLiteTable {
     static [entityKind] = 'SQLiteTable';
   }
 
-    return Object.assign(new CatalogFixtureTable(), {
+  return Object.assign(new CatalogFixtureTable(), {
     columns,
     name,
-      [entityKind]: CatalogFixtureTable[entityKind],
+    [entityKind]: CatalogFixtureTable[entityKind],
   });
 }
 `,
@@ -610,6 +629,12 @@ class CatalogFixtureTable extends SQLiteTable {
       path.join(distDirectory, 'private-assets/data.json'),
       '{}',
     );
+  }
+
+  for (const [filename, content] of Object.entries(distFiles ?? {})) {
+    const filePath = path.join(distDirectory, filename);
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+    await fs.writeFile(filePath, content);
   }
 
   const preset = createCloudflarePreset({
@@ -1294,6 +1319,34 @@ describe('cloudflare deploy preset', () => {
     ).rejects.toThrow();
   });
 
+  it('stages backend federation artifacts into Cloudflare public assets', async () => {
+    const backendManifest = JSON.stringify({
+      name: 'commerce-backend',
+      remoteEntry: 'backendRemoteEntry.mjs',
+    });
+    const backendRemoteEntry = 'export const get = () => "commerce";\n';
+    const { outputDirectory } = await createFixture({
+      distFiles: {
+        'backend-mf-manifest.json': backendManifest,
+        'backendRemoteEntry.mjs': backendRemoteEntry,
+      },
+    });
+    const publicDirectory = path.join(outputDirectory, 'public');
+
+    await expect(
+      fs.readFile(
+        path.join(publicDirectory, 'backend-mf-manifest.json'),
+        'utf-8',
+      ),
+    ).resolves.toBe(backendManifest);
+    await expect(
+      fs.readFile(
+        path.join(publicDirectory, 'backendRemoteEntry.mjs'),
+        'utf-8',
+      ),
+    ).resolves.toBe(backendRemoteEntry);
+  });
+
   it('excludes server-only and configured paths from Cloudflare public assets', async () => {
     const { outputDirectory } = await createFixture({
       includeServerOnlyDistSources: true,
@@ -1393,8 +1446,12 @@ describe('cloudflare deploy preset', () => {
     );
     expect(effectBranchStart).toBeGreaterThan(-1);
     expect(directHandlerStart).toBeGreaterThan(effectBranchStart);
-    expect(effectBranch).toContain('createEffectBffEdgeHandler');
-    expect(effectBranch).toContain('effectHandler.handler(request, { env })');
+    expect(effectBranch).toContain('createEffectBffEdgeDispatcher');
+    expect(effectBranch).toContain(
+      'effectDispatcher.dispatch(request, { env })',
+    );
+    expect(effectBranch).not.toContain('createEffectBffEdgeHandler');
+    expect(effectBranch).not.toContain('effectHandler.handler');
     expect(effectBranch).not.toContain('handler.length');
     expect(entrySource).not.toContain('handler.length');
     expect(entrySource).not.toContain(
@@ -1668,12 +1725,13 @@ describe('cloudflare deploy preset', () => {
     await expect(response.text()).resolves.toBe('Not found');
   });
 
-  it('answers Cloudflare CORS preflight requests for federated assets', async () => {
+  it('does not route Cloudflare asset preflight requests through asset binding', async () => {
     const { outputDirectory } = await createFixture();
     const entryPath = path.join(outputDirectory, 'server/index.mjs');
     const worker = (
       await import(`${pathToFileURL(entryPath).href}?t=${Date.now()}`)
     ).default;
+    const assetRequests: string[] = [];
 
     const response = await worker.fetch(
       new Request('https://example.com/mf-manifest.json', {
@@ -1684,16 +1742,20 @@ describe('cloudflare deploy preset', () => {
         method: 'OPTIONS',
       }),
       {
-        ASSETS: createAssetBinding(path.join(outputDirectory, 'public')),
+        ASSETS: {
+          fetch: async (request: Request) => {
+            assetRequests.push(
+              `${request.method} ${new URL(request.url).pathname}`,
+            );
+            return new Response('asset preflight should not reach binding');
+          },
+        },
       },
     );
 
-    expect(response.status).toBe(204);
-    expect(response.headers.get('access-control-allow-origin')).toBe('*');
+    expect(assetRequests).toEqual([]);
+    expect(response.status).toBe(404);
     expect(response.headers.get('x-content-type-options')).toBe('nosniff');
-    expect(response.headers.get('access-control-allow-methods')).toContain(
-      'GET',
-    );
   });
 
   it('does not read route HTML assets for non-GET/HEAD requests', async () => {
@@ -2494,7 +2556,7 @@ describe('cloudflare deploy preset', () => {
     });
   });
 
-  it('executes generated Effect BFF workers that import Drizzle sqlite-core without post-build mutation', async () => {
+  it('executes generated Effect BFF workers with Drizzle sqlite-core entityKind class markers without post-build mutation', async () => {
     const { outputDirectory } = await createFixture({
       bffWorkerSource: effectDrizzleWorkerSource,
     });

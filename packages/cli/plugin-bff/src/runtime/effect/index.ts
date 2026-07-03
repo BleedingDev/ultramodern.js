@@ -1,4 +1,5 @@
 export * as OpenTelemetry from '@effect/opentelemetry';
+export * from './backend-federation';
 export {
   BACKEND_FEDERATION_CONTRACT_VERSION,
   BACKEND_FEDERATION_EFFECT_EXPOSE,

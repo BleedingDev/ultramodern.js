@@ -22,6 +22,7 @@ import {
   extractHttpApiFromModule,
   toOperationContractSources,
 } from '../src/runtime/effect/endpoint-contracts';
+import { classifyEffectBffEntryModule } from '../src/runtime/effect/entry-shape';
 import {
   type EffectApiModule,
   resolveEffectBffModuleHandler,
@@ -61,19 +62,160 @@ const reflect: Parameters<typeof collectEffectEndpoints>[0] = (
 const collectEndpoints = () => collectEffectEndpoints(reflect, pingApi, PREFIX);
 
 describe('effect endpoint contract module extraction', () => {
-  test('propagates zero-arg default factory failures', async () => {
-    const error = new Error('factory failed');
+  test('does not execute default factory functions during contract extraction', async () => {
+    let called = false;
 
     await expect(
       extractHttpApiFromModule(
         {
           default: () => {
-            throw error;
+            called = true;
+            return { api: pingApi };
           },
         },
         HttpApi.isHttpApi,
       ),
-    ).rejects.toThrow(error);
+    ).resolves.toBeNull();
+    expect(called).toBe(false);
+  });
+
+  test('extracts HttpApi from defineEffectBff entries without factory execution', async () => {
+    const module = defineEffectBff({
+      api: pingApi,
+      layer: pingLayer,
+    });
+
+    await expect(
+      extractHttpApiFromModule(module, HttpApi.isHttpApi),
+    ).resolves.toBe(pingApi);
+  });
+
+  test.each([
+    [
+      'defineEffectBff',
+      () =>
+        defineEffectBff({
+          api: pingApi,
+          layer: pingLayer,
+        }),
+    ],
+    ['api/layer', () => ({ api: pingApi, layer: pingLayer })],
+    [
+      'default api/layer',
+      () => ({
+        default: {
+          api: pingApi,
+          layer: pingLayer,
+        },
+      }),
+    ],
+  ])('accepts runtime-valid %s in resolver and extractor', async (_name, createModule) => {
+    const module = createModule();
+
+    await expect(
+      extractHttpApiFromModule(module, HttpApi.isHttpApi),
+    ).resolves.toBe(pingApi);
+
+    const resolved = await resolveEffectBffModuleHandler(
+      module as EffectApiModule,
+    );
+    expect(resolved).not.toBeNull();
+    await resolved?.dispose?.();
+  });
+
+  test.each([
+    ['bare api', { api: pingApi }],
+    ['default bare api', { default: { api: pingApi } }],
+    [
+      'default factory',
+      {
+        default: () => ({
+          api: pingApi,
+          layer: pingLayer,
+        }),
+      },
+    ],
+    [
+      'unbranded createHandler with api/layer',
+      {
+        api: pingApi,
+        layer: pingLayer,
+        createHandler: () => ({
+          handler: () => new Response('ok'),
+          dispose: async () => {},
+        }),
+      },
+    ],
+  ])('rejects runtime-invalid %s in resolver and extractor', async (_name, module) => {
+    await expect(
+      extractHttpApiFromModule(module, HttpApi.isHttpApi),
+    ).resolves.toBeNull();
+    await expect(
+      resolveEffectBffModuleHandler(module as EffectApiModule),
+    ).resolves.toBeNull();
+  });
+});
+
+describe('effect BFF entry shape policy', () => {
+  const requestHandler = () => new Response('ok');
+  const brandedFactory = () => ({
+    handler: requestHandler,
+    dispose: async () => {},
+  });
+  const unbrandedFactory = () => ({
+    handler: requestHandler,
+    dispose: async () => {},
+  });
+  const classify = (module: unknown) =>
+    classifyEffectBffEntryModule(module, {
+      isRequestHandler: value => typeof value === 'function',
+      isValidatorAwareHandlerFactory: value => value === brandedFactory,
+      isHttpApi: value => value === pingApi,
+    });
+
+  test.each([
+    ['top-level handler', { handler: requestHandler }, '`handler` export'],
+    ['default handler', { default: requestHandler }, 'default request handler'],
+    [
+      'default object handler',
+      { default: { handler: requestHandler } },
+      '`handler` export',
+    ],
+  ])('rejects legacy %s shape', (_name, module, legacyShape) => {
+    expect(classify(module)).toMatchObject({
+      legacyShape,
+    });
+  });
+
+  test('classifies branded and unbranded createHandler entries', () => {
+    expect(classify({ createHandler: brandedFactory })).toMatchObject({
+      createHandler: brandedFactory,
+      createHandlerValidatorAware: true,
+    });
+    expect(classify({ createHandler: unbrandedFactory })).toMatchObject({
+      createHandler: unbrandedFactory,
+      createHandlerValidatorAware: false,
+    });
+  });
+
+  test('classifies direct and default HttpApi entries', () => {
+    expect(classify({ api: pingApi, layer: pingLayer })).toMatchObject({
+      api: pingApi,
+      layer: pingLayer,
+      hasRuntimeLayer: true,
+    });
+    expect(
+      classify({
+        default: {
+          api: pingApi,
+          layer: pingLayer,
+        },
+      }),
+    ).toMatchObject({
+      api: pingApi,
+      layer: pingLayer,
+      hasRuntimeLayer: true,
+    });
   });
 });
 

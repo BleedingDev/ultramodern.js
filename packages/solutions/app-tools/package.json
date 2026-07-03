@@ -43,6 +43,12 @@
       "require": "./dist/cjs/run/index.js",
       "default": "./dist/cjs/run/index.js"
     },
+    "./cloudflare-output-verifier": {
+      "types": "./dist/types/plugins/deploy/platforms/cloudflare-output-verifier.d.ts",
+      "import": "./dist/esm-node/plugins/deploy/platforms/cloudflare-output-verifier.mjs",
+      "require": "./dist/cjs/plugins/deploy/platforms/cloudflare-output-verifier.js",
+      "default": "./dist/cjs/plugins/deploy/platforms/cloudflare-output-verifier.js"
+    },
     "./types": {
       "types": "./lib/types.d.ts",
       "default": "./lib/types.d.ts"

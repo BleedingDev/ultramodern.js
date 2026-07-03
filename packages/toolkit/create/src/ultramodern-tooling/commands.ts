@@ -14,6 +14,7 @@ import {
   WORKSPACE_PACKAGE_VERSION,
 } from '../ultramodern-package-source';
 import { createAppEnvDts } from '../ultramodern-workspace/app-files';
+import { createBackendFederationContractFile } from '../ultramodern-workspace/backend-federation';
 import { validateModuleFederationTypes } from '../ultramodern-workspace/mf-validation';
 import {
   createAppModernConfig,
@@ -26,6 +27,12 @@ import {
   createSharedPackageTsConfig,
   createTsConfigBase,
 } from '../ultramodern-workspace/package-json';
+import {
+  GENERATED_TOOLING_COMMANDS,
+  generatedToolingCommandList,
+  generatedToolingCommands,
+} from '../ultramodern-workspace/tooling-command-catalog';
+import type { WorkspaceApp } from '../ultramodern-workspace/types';
 import {
   DRIZZLE_ORM_VERSION,
   EFFECT_TSGO_VERSION,
@@ -40,9 +47,13 @@ import {
   ZEPHYR_RSPACK_PLUGIN_VERSION,
 } from '../ultramodern-workspace/versions';
 import {
-  createNodeBackendFederationProofScript,
+  createWorkspaceAppPackageScripts,
+  createWorkspaceRootPackageScripts,
+} from '../ultramodern-workspace/workspace-script-plan';
+import {
   createWorkspaceValidationScript,
   createZeropsRuntimeMaterializationScript,
+  writeGeneratedToolWrapperScripts,
 } from '../ultramodern-workspace/workspace-scripts';
 import { createZeropsYaml } from '../ultramodern-workspace/zerops';
 import {
@@ -60,19 +71,17 @@ type CommandContext = {
 };
 
 function printHelp() {
+  const commands = [
+    ...generatedToolingCommandList().map(command => `  ${command}`),
+    '  skills install',
+    '  skills check',
+  ].join('\n');
+
   process.stdout.write(`Usage:
   modern-js-create ultramodern <command> [args]
 
 Commands:
-  validate
-  typecheck
-  mf-types
-  migrate-strict-effect
-  public-surface
-  cloudflare-proof
-  performance-readiness
-  skills install
-  skills check
+${commands}
 `);
 }
 
@@ -97,6 +106,26 @@ function spawnNodeScript(
   }
 
   return result.status ?? 1;
+}
+
+function runTemplateBackedToolingCommand(
+  command: string,
+  args: string[],
+  context: CommandContext,
+) {
+  const toolingCommand = generatedToolingCommands.find(
+    candidate => candidate.command === command,
+  );
+  if (!toolingCommand?.templatePath) {
+    return undefined;
+  }
+
+  return spawnNodeScript(toolingCommand.templatePath, args, context, {
+    cwd:
+      toolingCommand.cwd === 'invocation'
+        ? context.invocationCwd
+        : context.workspaceRoot,
+  });
 }
 
 function runRenderedModule(source: string, context: CommandContext) {
@@ -328,39 +357,54 @@ const cloudflareWranglerDeployCommand =
 const cloudflareWranglerDeployInvalidSkipBuildCommand = `${cloudflareWranglerDeployCommand} --skip-build`;
 
 function removeStaleBackendFederationCommandSegments(command: string) {
-  return command
-    .replace(
-      /\s+&&\s+node\s+\S*scripts\/generate-node-backend-federation\.m[ct]s(?:\s+--app\s+\S+)?(?:\s+--target\s+\S+)?(?=\s+&&|$)/gu,
-      '',
-    )
-    .replace(
-      /\s+&&\s+pnpm\s+node:backend-federation:generate(?=\s+&&|$)/gu,
-      '',
-    );
+  return command.replace(
+    /\s+&&\s+node\s+\S*scripts\/generate-node-backend-federation\.m[ct]s(?:\s+--app\s+\S+)?(?:\s+--target\s+\S+)?(?=\s+&&|$)/gu,
+    '',
+  );
 }
 
-function updateGeneratedPackageScripts(packageJson: Record<string, any>) {
+function updateGeneratedPackageScripts(
+  packageJson: Record<string, any>,
+  options: {
+    relativePackageFile?: string;
+    apps?: WorkspaceApp[];
+  } = {},
+) {
   const scripts = packageJson.scripts;
   if (!scripts || typeof scripts !== 'object' || Array.isArray(scripts)) {
     return false;
   }
 
   let changed = false;
+  const apps = options.apps ?? [];
+  const app = apps.find(
+    candidate =>
+      `${candidate.directory}/package.json` === options.relativePackageFile,
+  );
+
+  const expectedScripts =
+    options.relativePackageFile === 'package.json'
+      ? createWorkspaceRootPackageScripts(
+          apps.filter(candidate => candidate.kind !== 'shell'),
+        )
+      : app
+        ? createWorkspaceAppPackageScripts(app)
+        : undefined;
+
+  if (expectedScripts) {
+    for (const [name, value] of Object.entries(expectedScripts)) {
+      if (scripts[name] !== value) {
+        scripts[name] = value;
+        changed = true;
+      }
+    }
+  }
 
   const build = scripts.build;
   if (typeof build === 'string') {
     const nextBuild = removeStaleBackendFederationCommandSegments(build);
     if (nextBuild !== build) {
       scripts.build = nextBuild;
-      changed = true;
-    }
-  }
-
-  const check = scripts.check;
-  if (typeof check === 'string') {
-    const nextCheck = removeStaleBackendFederationCommandSegments(check);
-    if (nextCheck !== check) {
-      scripts.check = nextCheck;
       changed = true;
     }
   }
@@ -387,35 +431,10 @@ function updateGeneratedPackageScripts(packageJson: Record<string, any>) {
       / && node \S*scripts\/verify-cloudflare-output\.m[ct]s(?: --app [^&]+)?/u,
       '',
     );
-    nextCloudflareBuild = nextCloudflareBuild.replace(
-      / && pnpm cloudflare-output:verify/u,
-      '',
-    );
-
     if (nextCloudflareBuild !== cloudflareBuild) {
       scripts['cloudflare:build'] = nextCloudflareBuild;
       changed = true;
     }
-  }
-
-  if (Object.hasOwn(scripts, 'cloudflare-output:verify')) {
-    delete scripts['cloudflare-output:verify'];
-    changed = true;
-  }
-
-  if (Object.hasOwn(scripts, 'node:backend-federation:generate')) {
-    delete scripts['node:backend-federation:generate'];
-    changed = true;
-  }
-
-  const nodeProof = scripts['node:proof'];
-  if (
-    typeof nodeProof === 'string' &&
-    nodeProof.includes('proof-node-backend-federation.mts')
-  ) {
-    scripts['node:proof'] =
-      'node ./scripts/proof-node-backend-federation.mjs --out .codex/reports/node-backend-federation-proof/proof.json';
-    changed = true;
   }
 
   const cloudflareDeploy = scripts['cloudflare:deploy'];
@@ -431,62 +450,6 @@ function updateGeneratedPackageScripts(packageJson: Record<string, any>) {
   }
 
   return changed;
-}
-
-function updateGeneratedRootPackageScripts(
-  packageJson: Record<string, any>,
-  config: UltramodernToolingConfig,
-) {
-  const scripts = packageJson.scripts;
-  if (!scripts || typeof scripts !== 'object' || Array.isArray(scripts)) {
-    return false;
-  }
-
-  let changed = false;
-  if (
-    !config.bridge &&
-    scripts.typecheck !==
-      'node ./scripts/ultramodern-typecheck.mts --build tsconfig.json'
-  ) {
-    scripts.typecheck =
-      'node ./scripts/ultramodern-typecheck.mts --build tsconfig.json';
-    changed = true;
-  }
-
-  if (
-    scripts['zerops:materialize'] !==
-    'node ./scripts/materialize-zerops-runtime.mjs'
-  ) {
-    scripts['zerops:materialize'] =
-      'node ./scripts/materialize-zerops-runtime.mjs';
-    changed = true;
-  }
-
-  return changed;
-}
-
-function updateGeneratedAppPackageScripts(packageJson: Record<string, any>) {
-  const modernjs = packageJson.modernjs;
-  if (
-    !modernjs ||
-    typeof modernjs !== 'object' ||
-    Array.isArray(modernjs) ||
-    !['shell', 'module-federation-remote'].includes(modernjs.role)
-  ) {
-    return false;
-  }
-
-  const scripts = packageJson.scripts;
-  if (!scripts || typeof scripts !== 'object' || Array.isArray(scripts)) {
-    return false;
-  }
-
-  if (scripts.deploy === 'modern deploy') {
-    return false;
-  }
-
-  scripts.deploy = 'modern deploy';
-  return true;
 }
 
 function normalizeStrictEffectApiMetadata(value: Record<string, any>) {
@@ -636,13 +599,6 @@ function removeStaleBackendFederationArtifacts(
   return changed;
 }
 
-function updateGeneratedBackendFederationProofScript(workspaceRoot: string) {
-  return writeTextIfChanged(
-    path.join(workspaceRoot, 'scripts/proof-node-backend-federation.mjs'),
-    createNodeBackendFederationProofScript(),
-  );
-}
-
 function updateGeneratedZeropsArtifacts(
   workspaceRoot: string,
   config: UltramodernToolingConfig,
@@ -657,7 +613,6 @@ function updateGeneratedZeropsArtifacts(
       path.join(workspaceRoot, 'scripts/materialize-zerops-runtime.mjs'),
       createZeropsRuntimeMaterializationScript(),
     ) || changed;
-
   return changed;
 }
 
@@ -676,6 +631,24 @@ function updateGeneratedBuildIdentityModules(
       writeTextIfChanged(
         path.join(workspaceRoot, app.directory, 'shared/ultramodern-build.ts'),
         createUltramodernBuildModule(config.workspace.packageScope, app),
+      ) || changed;
+  }
+  return changed;
+}
+
+function updateGeneratedBackendFederationContractFiles(
+  workspaceRoot: string,
+  config: UltramodernToolingConfig,
+) {
+  let changed = false;
+  for (const app of workspaceAppsFromToolingConfig(config)) {
+    if (!app.api) {
+      continue;
+    }
+    changed =
+      writeTextIfChanged(
+        path.join(workspaceRoot, app.directory, 'api/backend-federation.ts'),
+        createBackendFederationContractFile(app),
       ) || changed;
   }
   return changed;
@@ -1137,12 +1110,7 @@ function ensureGeneratedIgnoreRules(workspaceRoot: string) {
     existing.trimEnd().length === 0 ? [] : existing.trimEnd().split(/\r?\n/u);
   let changed = false;
 
-  for (const rule of [
-    '.mf/',
-    '**/.mf/',
-    'dist-cloudflare/',
-    '.zerops/runtime/',
-  ]) {
+  for (const rule of ['.mf/', '**/.mf/', 'dist-cloudflare/']) {
     if (!lines.includes(rule)) {
       lines.push(rule);
       changed = true;
@@ -1337,9 +1305,14 @@ and pnpm contract:check.
   updateUltramodernConfig(context.workspaceRoot, packageSource);
   updateReferenceTopology(context.workspaceRoot);
   const migrated = readUltramodernConfig(context.workspaceRoot);
+  const migratedApps = workspaceAppsFromToolingConfig(migrated);
   removeStaleBackendFederationArtifacts(context.workspaceRoot, migrated);
-  updateGeneratedBackendFederationProofScript(context.workspaceRoot);
+  writeGeneratedToolWrapperScripts(context.workspaceRoot);
   updateGeneratedZeropsArtifacts(context.workspaceRoot, migrated);
+  updateGeneratedBackendFederationContractFiles(
+    context.workspaceRoot,
+    migrated,
+  );
   updateGeneratedBuildIdentityModules(context.workspaceRoot, migrated);
   updateGeneratedTypeScriptSurfaces(context.workspaceRoot, migrated);
   updateGeneratedModernConfigs(context.workspaceRoot, migrated);
@@ -1364,21 +1337,14 @@ and pnpm contract:check.
     );
     const toolingDependenciesChanged =
       updateGeneratedToolingDependencies(packageJson);
-    const generatedScriptsChanged = updateGeneratedPackageScripts(packageJson);
-    const generatedRootScriptsChanged =
-      relativePackageFile === 'package.json'
-        ? updateGeneratedRootPackageScripts(packageJson, migrated)
-        : false;
-    const generatedAppScriptsChanged =
-      relativePackageFile === 'package.json'
-        ? false
-        : updateGeneratedAppPackageScripts(packageJson);
+    const generatedScriptsChanged = updateGeneratedPackageScripts(packageJson, {
+      relativePackageFile,
+      apps: migratedApps,
+    });
     const changed =
       modernDependenciesChanged ||
       toolingDependenciesChanged ||
-      generatedScriptsChanged ||
-      generatedRootScriptsChanged ||
-      generatedAppScriptsChanged;
+      generatedScriptsChanged;
 
     if (changed) {
       writeJsonFile(packageFile, packageJson);
@@ -1428,6 +1394,124 @@ function runSkills(args: string[], context: CommandContext) {
   throw new Error('Usage: modern-js-create ultramodern skills <install|check>');
 }
 
+interface CloudflareOutputVerifyTarget {
+  label: string;
+  outputDirectory: string;
+}
+
+const resolveCloudflareOutputVerifyTargets = (
+  args: string[],
+  context: CommandContext,
+): CloudflareOutputVerifyTarget[] => {
+  const outputDirectory = readOption(args, '--output');
+  const appId = readOption(args, '--app');
+
+  if (outputDirectory && appId) {
+    throw new Error('Use either --app or --output, not both.');
+  }
+
+  const targets = outputDirectory
+    ? [
+        {
+          label: outputDirectory,
+          outputDirectory: path.resolve(context.invocationCwd, outputDirectory),
+        },
+      ]
+    : workspaceAppsFromToolingConfig(
+        readUltramodernConfig(context.workspaceRoot),
+      )
+        .filter(app => !appId || app.id === appId)
+        .map(app => ({
+          label: app.id,
+          outputDirectory: path.join(
+            context.workspaceRoot,
+            app.directory,
+            '.output',
+          ),
+        }));
+
+  if (targets.length === 0) {
+    throw new Error(`No generated UltraModern app matched ${appId}.`);
+  }
+
+  return targets;
+};
+
+const renderCloudflareOutputVerifyModule = ({
+  workspaceRoot,
+  targets,
+  scanRoots,
+  importWorker,
+}: {
+  workspaceRoot: string;
+  targets: CloudflareOutputVerifyTarget[];
+  scanRoots: string[];
+  importWorker: boolean;
+}) => `
+import { createRequire } from 'node:module';
+import path from 'node:path';
+
+const workspaceRoot = ${JSON.stringify(workspaceRoot)};
+const targets = ${JSON.stringify(targets, null, 2)};
+const scanRoots = ${JSON.stringify(scanRoots)};
+const verifierRequire = createRequire(path.join(workspaceRoot, 'package.json'));
+const {
+  verifyCloudflareOutput,
+  verifyCloudflareOutputMutationPolicy,
+} = verifierRequire('@modern-js/app-tools/cloudflare-output-verifier');
+
+let failed = false;
+for (const target of targets) {
+  const result = await verifyCloudflareOutput({
+    outputDirectory: target.outputDirectory,
+    importWorker: ${JSON.stringify(importWorker)},
+  });
+  if (result.ok) {
+    console.log(\`[ultramodern] Cloudflare output verified: \${target.label}\`);
+  } else {
+    failed = true;
+    console.error(\`[ultramodern] Cloudflare output failed: \${target.label}\`);
+    for (const issue of result.issues) {
+      console.error(\`- \${issue.code}: \${issue.message}\${issue.path ? \` (\${issue.path})\` : ''}\`);
+    }
+  }
+}
+
+if (scanRoots.length > 0) {
+  const policyResult = await verifyCloudflareOutputMutationPolicy({ scanRoots });
+  if (!policyResult.ok) {
+    failed = true;
+    console.error('[ultramodern] generated-output mutation policy failed');
+    for (const issue of policyResult.issues) {
+      console.error(\`- \${issue.code}: \${issue.message}\${issue.path ? \` (\${issue.path})\` : ''}\`);
+    }
+  }
+}
+
+process.exit(failed ? 1 : 0);
+`;
+
+function runCloudflareOutputVerify(args: string[], context: CommandContext) {
+  if (args.includes('--help') || args.includes('-h')) {
+    process.stdout.write(`Usage:
+  modern-js-create ultramodern cloudflare-output-verify [--app <id> | --output <dir>] [--no-import-worker] [--no-source-scan]
+
+Verifies generated Cloudflare output against the UltraModern worker contract.
+Without --app or --output, every generated workspace app is verified.
+`);
+    return 0;
+  }
+
+  const source = renderCloudflareOutputVerifyModule({
+    workspaceRoot: context.workspaceRoot,
+    targets: resolveCloudflareOutputVerifyTargets(args, context),
+    scanRoots: hasFlag(args, '--no-source-scan') ? [] : [context.workspaceRoot],
+    importWorker: !hasFlag(args, '--no-import-worker'),
+  });
+
+  return runRenderedModule(source, context);
+}
+
 export async function runUltramodernToolingCli(
   args: string[],
   workspaceRoot = process.env.ULTRAMODERN_WORKSPACE_ROOT ?? process.cwd(),
@@ -1445,40 +1529,27 @@ export async function runUltramodernToolingCli(
       case '-h':
         printHelp();
         return 0;
-      case 'validate':
+      case GENERATED_TOOLING_COMMANDS.validate.command:
         return runValidate(context);
-      case 'typecheck':
-        return spawnNodeScript(
-          'templates/workspace-scripts/ultramodern-typecheck.mjs',
-          rest,
-          context,
-          { cwd: context.invocationCwd },
-        );
-      case 'mf-types':
+      case GENERATED_TOOLING_COMMANDS.mfTypes.command:
         return runMfTypes(rest, context);
-      case 'migrate-strict-effect':
+      case GENERATED_TOOLING_COMMANDS.migrateStrictEffect.command:
         return runMigrateStrictEffect(rest, context);
-      case 'public-surface':
-        return spawnNodeScript(
-          'templates/workspace-scripts/generate-public-surface-assets.mjs',
-          rest,
-          context,
-        );
-      case 'cloudflare-proof':
-        return spawnNodeScript(
-          'templates/workspace-scripts/proof-cloudflare-version.mjs',
-          rest,
-          context,
-        );
-      case 'performance-readiness':
-        return spawnNodeScript(
-          'templates/workspace-scripts/ultramodern-performance-readiness.mjs',
-          rest,
-          context,
-        );
+      case GENERATED_TOOLING_COMMANDS.cloudflareOutputVerify.command:
+        return runCloudflareOutputVerify(rest, context);
       case 'skills':
         return runSkills(rest, context);
       default:
+        {
+          const templateBackedStatus = runTemplateBackedToolingCommand(
+            command ?? '',
+            rest,
+            context,
+          );
+          if (templateBackedStatus !== undefined) {
+            return templateBackedStatus;
+          }
+        }
         throw new Error(`Unknown UltraModern command: ${command}`);
     }
   } catch (error) {

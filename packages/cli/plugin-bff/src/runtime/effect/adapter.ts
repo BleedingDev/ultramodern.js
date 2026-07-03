@@ -21,11 +21,8 @@ import {
   resolveAdapterCrossProjectPolicy,
 } from '../../utils/crossProjectServerPolicy';
 import { createSafeFailureResponse } from '../safe-failure';
-import {
-  createEffectOperationContext,
-  type EffectContext,
-  runWithEffectContext,
-} from './context';
+import { runWithEffectContext } from './context';
+import { dispatchEffectBffRequestWithContext } from './dispatch';
 import {
   collectEffectEndpoints,
   extractHttpApiFromModule,
@@ -73,39 +70,6 @@ type ContextWithJson = Context & {
 };
 
 type RequestHandler = EffectBffRequestHandler;
-
-function normalizePrefix(prefix: string) {
-  if (prefix === '/') {
-    return '';
-  }
-  return prefix.endsWith('/') ? prefix.slice(0, -1) : prefix;
-}
-
-function removePrefixFromPath(pathname: string, prefix: string) {
-  const normalized = normalizePrefix(prefix);
-  if (
-    !normalized ||
-    (pathname !== normalized && !pathname.startsWith(`${normalized}/`))
-  ) {
-    return pathname;
-  }
-  const sliced = pathname.slice(normalized.length);
-  return sliced.startsWith('/') ? sliced : `/${sliced}`;
-}
-
-function createRequestForMountedPrefix(req: Request, prefix: string) {
-  const url = new URL(req.url);
-  const nextPath = removePrefixFromPath(url.pathname, prefix);
-  if (nextPath === url.pathname) {
-    return req;
-  }
-  url.pathname = nextPath;
-  return new Request(url, req);
-}
-
-function maybeResponse(value: unknown): value is Response {
-  return value instanceof Response;
-}
 
 export class EffectAdapter {
   api: ServerPluginAPI;
@@ -156,41 +120,18 @@ export class EffectAdapter {
           );
         }
 
-        let response: Response;
-        try {
-          const effectRequest = createRequestForMountedPrefix(
-            c.req.raw,
+        const response = await dispatchEffectBffRequestWithContext(
+          this.handler,
+          c.req.raw,
+          {
             prefix,
-          );
-          const effectContext: EffectContext = {
-            request: effectRequest,
             env: c.env as Record<string, unknown>,
             path: c.req.path,
             method: c.req.method,
-            operationContext: createEffectOperationContext({
-              request: effectRequest,
-              env: c.env as Record<string, unknown>,
-              path: c.req.path,
-              method: c.req.method,
-            }),
-          };
-          response = await runWithEffectContext(effectContext, () =>
-            this.handler!.length > 1
-              ? this.handler!(effectRequest, effectContext)
-              : this.handler!(effectRequest),
-          );
-        } catch (error) {
-          return this.handleRuntimeError(error, c);
-        }
-
-        if (!maybeResponse(response)) {
-          return this.handleRuntimeError(
-            new Error(
-              '[BFF][Effect] Effect handler must return a Response instance.',
-            ),
-            c,
-          );
-        }
+            runWithEffectContext,
+            onError: error => this.handleRuntimeError(error, c),
+          },
+        );
 
         if (response.status === 404 && enableHandleWeb) {
           await next();

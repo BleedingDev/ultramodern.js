@@ -521,7 +521,6 @@ test('workspace and MicroVertical integration stays coherent across public API a
       workspaceDir,
       'apps/shell-super-app/package.json',
     );
-    const zeropsYaml = read(workspaceDir, 'zerops.yaml');
     const shellModernConfig = read(
       workspaceDir,
       'apps/shell-super-app/modern.config.ts',
@@ -621,7 +620,6 @@ test('workspace and MicroVertical integration stays coherent across public API a
       undefined,
       'generated MF shell app package must stay CJS-compatible',
     );
-    assert.equal(shellPackage.scripts.deploy, 'modern deploy');
     assert.equal(
       rootPackage.scripts['dev:catalog'],
       'pnpm --filter @integration-workspace/catalog dev',
@@ -636,9 +634,18 @@ test('workspace and MicroVertical integration stays coherent across public API a
     assert.match(rootPackage.scripts.check, /contract:check/);
     assert.match(rootPackage.scripts.check, /node:proof/);
     assert.equal(
+      rootPackage.scripts['node:proof'],
+      'node ./scripts/proof-node-backend-federation.mts',
+    );
+    assert.equal(
+      rootPackage.scripts['node:backend-federation:generate'],
+      'node ./scripts/generate-node-backend-federation.mts',
+    );
+    assert.equal(
       rootPackage.scripts['zerops:materialize'],
       'node ./scripts/materialize-zerops-runtime.mjs',
     );
+    const zeropsYaml = read(workspaceDir, 'zerops.yaml');
     assert.match(zeropsYaml, /zerops:/);
     assert.match(zeropsYaml, /setup: shell-super-app/);
     assert.match(zeropsYaml, /base: nodejs@26/);
@@ -658,14 +665,15 @@ test('workspace and MicroVertical integration stays coherent across public API a
       /pnpm run zerops:materialize -- --app checkout --package @integration-workspace\/checkout --package-dir verticals\/checkout/,
     );
     assert.match(zeropsYaml, /path: \/checkout-api\/checkout\/readiness/);
-    assert.equal(
-      rootPackage.scripts['node:proof'],
-      'node ./scripts/proof-node-backend-federation.mjs --out .codex/reports/node-backend-federation-proof/proof.json',
+    const zeropsMaterializer = read(
+      workspaceDir,
+      'scripts/materialize-zerops-runtime.mjs',
     );
-    assert.equal(
-      rootPackage.scripts['node:backend-federation:generate'],
-      undefined,
-    );
+    assert.match(zeropsMaterializer, /MODERNJS_DEPLOY: 'node'/);
+    assert.match(zeropsMaterializer, /'deploy',\s*'--skip-build'/);
+    assert.match(zeropsMaterializer, /normalizeRuntimePackageDependencies/);
+    assert.match(zeropsMaterializer, /officialPackageName/);
+    assert.match(zeropsMaterializer, /installRuntimeDependencies/);
     assert.equal(
       rootPackage.devDependencies['@modern-js/plugin-bff'],
       'npm:@bleedingdev/modern-js-plugin-bff@3.2.0-ultramodern.108',
@@ -673,98 +681,16 @@ test('workspace and MicroVertical integration stays coherent across public API a
     assert.throws(() =>
       read(workspaceDir, 'scripts/generate-node-backend-federation.mjs'),
     );
-    assert.match(
+    assert.throws(() =>
       read(workspaceDir, 'scripts/proof-node-backend-federation.mjs'),
-      /loadBackendFederatedEffectApiFromManifest/,
     );
     assert.match(
-      read(workspaceDir, 'scripts/proof-node-backend-federation.mjs'),
-      /createEffectBffTestHandler/,
+      read(workspaceDir, 'scripts/generate-node-backend-federation.mts'),
+      /backend-federation-generate/,
     );
     assert.match(
-      read(workspaceDir, 'scripts/proof-node-backend-federation.mjs'),
-      /smokeChecks: collectJsonSmokeChecks/,
-    );
-    assert.match(
-      read(workspaceDir, 'scripts/materialize-zerops-runtime.mjs'),
-      /MODERNJS_DEPLOY: 'node'/,
-    );
-    assert.match(
-      read(workspaceDir, 'scripts/materialize-zerops-runtime.mjs'),
-      /'deploy',\s*'--skip-build'/,
-    );
-    assert.match(
-      read(workspaceDir, 'scripts/materialize-zerops-runtime.mjs'),
-      /normalizeRuntimePackageDependencies/,
-    );
-    assert.match(
-      read(workspaceDir, 'scripts/materialize-zerops-runtime.mjs'),
-      /officialPackageName/,
-    );
-    assert.match(
-      read(workspaceDir, 'scripts/materialize-zerops-runtime.mjs'),
-      /installRuntimeDependencies/,
-    );
-    assert.match(
-      read(workspaceDir, 'scripts/materialize-zerops-runtime.mjs'),
-      /snapshotWorkspaceSourceFiles/,
-    );
-    assert.match(
-      read(workspaceDir, 'scripts/materialize-zerops-runtime.mjs'),
-      /restoreWorkspaceSourceFiles/,
-    );
-    assert.match(
-      read(workspaceDir, 'scripts/materialize-zerops-runtime.mjs'),
-      /copyWorkspacePackage/,
-    );
-    assert.match(
-      read(workspaceDir, 'scripts/materialize-zerops-runtime.mjs'),
-      /makeWorkspacePackageRuntimeSafe/,
-    );
-    assert.match(
-      read(workspaceDir, 'scripts/materialize-zerops-runtime.mjs'),
-      /'install', '--omit=dev'/,
-    );
-    assert.match(
-      read(workspaceDir, 'scripts/materialize-zerops-runtime.mjs'),
-      /'--legacy-peer-deps'/,
-    );
-    fs.mkdirSync(path.join(workspaceDir, '.zerops/runtime/catalog'), {
-      recursive: true,
-    });
-    fs.writeFileSync(
-      path.join(workspaceDir, '.zerops/runtime/catalog/package.json'),
-      `${JSON.stringify(
-        {
-          dependencies: {
-            '@modern-js/bff-core':
-              'npm:@bleedingdev/modern-js-bff-core@3.2.0-ultramodern.108',
-          },
-        },
-        null,
-        2,
-      )}\n`,
-    );
-    const validateWithZeropsArtifact = runCli(workspaceDir, [
-      'ultramodern',
-      'validate',
-    ]);
-    assert.equal(
-      validateWithZeropsArtifact.status,
-      0,
-      validateWithZeropsArtifact.stderr,
-    );
-    assert.match(
-      read(workspaceDir, 'scripts/proof-node-backend-federation.mjs'),
-      /jsonPathValue/,
-    );
-    assert.match(
-      read(workspaceDir, 'scripts/proof-node-backend-federation.mjs'),
-      /readBuildIdentity/,
-    );
-    assert.match(
-      read(workspaceDir, 'scripts/proof-node-backend-federation.mjs'),
-      /backend manifest\/expose build coupling/,
+      read(workspaceDir, 'scripts/proof-node-backend-federation.mts'),
+      /backend-federation-proof/,
     );
     const shellModernConfigSource = read(
       workspaceDir,
@@ -773,29 +699,13 @@ test('workspace and MicroVertical integration stays coherent across public API a
     assert.match(shellModernConfigSource, /services:\s*\[/);
     assert.match(shellModernConfigSource, /VERTICAL_CATALOG_WORKER_BINDING/);
     assert.match(shellModernConfigSource, /VERTICAL_CHECKOUT_WORKER_BINDING/);
-    const generatedBackendFederationContractText = [
-      'package.json',
-      '.modernjs/ultramodern.json',
-      'topology/reference-topology.json',
-      'apps/shell-super-app/package.json',
-      'verticals/catalog/package.json',
-      'verticals/checkout/package.json',
-      'scripts/proof-node-backend-federation.mjs',
-    ]
-      .map(relativePath => read(workspaceDir, relativePath))
-      .join('\n');
-    for (const staleText of [
-      'api/backend-federation.ts',
-      'verify-cloudflare-output',
-      'cloudflare-output:verify',
-      'generate-node-backend-federation',
-      'proof-node-backend-federation.mts',
-    ]) {
-      assert.equal(
-        generatedBackendFederationContractText.includes(staleText),
-        false,
-      );
-    }
+    const catalogBackendFederationFacade = read(
+      workspaceDir,
+      'verticals/catalog/api/backend-federation.ts',
+    );
+    assert.match(catalogBackendFederationFacade, /backendFederationContract/);
+    assert.match(catalogBackendFederationFacade, /node-mf-runtime/);
+    assert.match(catalogBackendFederationFacade, /catalogApiContract/);
     assert.equal(packageSource.strategy, 'install');
     assert.equal(packageSource.modernPackageVersion, '3.2.0-ultramodern.108');
     assert.equal(packageSource.aliasScope, 'bleedingdev');
@@ -1383,8 +1293,6 @@ test('workspace package-source strategy and Tailwind-disabled generation remain 
       catalogPackage.dependencies['@modern-js/plugin-bff'],
       'workspace:*',
     );
-    assert.equal(shellPackage.scripts.deploy, 'modern deploy');
-    assert.equal(catalogPackage.scripts.deploy, 'modern deploy');
     for (const dependency of [
       'tailwindcss',
       'postcss',

@@ -87,16 +87,18 @@ const expectedWorkspaceManifest = [
   'scripts/bootstrap-agent-skills.mts',
   'scripts/check-ultramodern-api-boundaries.mts',
   'scripts/check-ultramodern-i18n-boundaries.mts',
+  'scripts/generate-node-backend-federation.mts',
   'scripts/generate-public-surface-assets.mts',
   'scripts/materialize-zerops-runtime.mjs',
   'scripts/migrate-strict-effect.mts',
   'scripts/proof-cloudflare-version.mts',
-  'scripts/proof-node-backend-federation.mjs',
+  'scripts/proof-node-backend-federation.mts',
   'scripts/setup-agent-reference-repos.mts',
   'scripts/ultramodern-performance-readiness.config.mjs',
   'scripts/ultramodern-performance-readiness.mts',
   'scripts/ultramodern-typecheck.mts',
   'scripts/validate-ultramodern-workspace.mts',
+  'scripts/verify-cloudflare-output.mts',
   'topology/local-overlays/development.json',
   'topology/ownership.json',
   'topology/reference-topology.json',
@@ -110,6 +112,7 @@ const expectedWorkspaceManifest = [
  * "catalog" joins the workspace.
  */
 const expectedVerticalManifest = [
+  'verticals/catalog/api/backend-federation.ts',
   'verticals/catalog/api/effect-api.ts',
   'verticals/catalog/api/index.ts',
   'verticals/catalog/backend-federation.config.ts',

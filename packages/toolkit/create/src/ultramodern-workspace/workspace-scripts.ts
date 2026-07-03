@@ -1,35 +1,17 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { verticalApiGroupName } from './api';
-import { remoteComponentOutputPath } from './demo-components';
-import {
-  appHasApi,
-  appI18nNamespace,
-  remoteDependencyAlias,
-  shellApp,
-} from './descriptors';
 import {
   readFileTemplate,
   renderFileTemplate,
   writeFileReplacing,
 } from './fs-io';
-import { packageName, tailwindPrefixForApp } from './naming';
-import { createCloudflareSecurityContract } from './policy';
-import { publicSurfaceManagedSourceAssetPaths } from './public-surface';
 import {
-  createLocalisedUrlsMap,
-  createRouteMetaFilePath,
-  createRouteOwnedI18nPaths,
-  createRoutePageFilePath,
-} from './routes';
+  GENERATED_TOOLING_COMMANDS,
+  type GeneratedToolingCommandKey,
+  generatedToolingCommands,
+} from './tooling-command-catalog';
 import type { WorkspaceApp } from './types';
-import {
-  CLOUDFLARE_COMPATIBILITY_DATE,
-  EFFECT_VERSION,
-  MODULE_FEDERATION_VERSION,
-  NODE_VERSION,
-  PNPM_VERSION,
-} from './versions';
+import { createWorkspaceValidationContract } from './workspace-validation-contract';
 
 function createToolWrapperScript(command: string, extraArgs: string[] = []) {
   const commandJson = JSON.stringify(command);
@@ -64,6 +46,24 @@ if (result.error) {
 
 process.exit(result.status ?? 1);
 `;
+}
+
+function writeGeneratedToolWrapperScript(
+  targetDir: string,
+  key: GeneratedToolingCommandKey,
+) {
+  const command = GENERATED_TOOLING_COMMANDS[key];
+  writeWorkspaceOwnedMtsScript(
+    targetDir,
+    command.wrapperName,
+    createToolWrapperScript(command.command),
+  );
+}
+
+export function writeGeneratedToolWrapperScripts(targetDir: string) {
+  for (const command of generatedToolingCommands) {
+    writeGeneratedToolWrapperScript(targetDir, command.id);
+  }
 }
 
 function createSkillsToolWrapperScript() {
@@ -136,84 +136,52 @@ export function createWorkspaceValidationScript(
   enableTailwind: boolean,
   remotes: WorkspaceApp[] = [],
 ): string {
-  const verticals = remotes.filter(appHasApi).map(remote => ({
-    id: remote.id,
-    domain: remote.domain,
-    stem: remote.api.stem,
-    group: verticalApiGroupName(remote),
-    path: remote.directory,
-    port: remote.port,
-    mfName: remote.mfName,
-    apiPrefix: remote.api.prefix,
-    tailwindPrefix: tailwindPrefixForApp(remote),
-    zephyrAlias: remoteDependencyAlias(remote),
-    packageName: packageName(scope, remote.packageSuffix),
-    exposes: Object.keys(remote.exposes ?? {}),
-    componentPaths: Object.keys(remote.exposes ?? {})
-      .map(expose => remoteComponentOutputPath(remote, expose))
-      .filter((componentPath): componentPath is string =>
-        Boolean(componentPath),
-      ),
-    namespace: appI18nNamespace(remote),
-    routePagePaths: createRouteOwnedI18nPaths(remote)
-      .filter(route => route.canonicalPath !== '/')
-      .map(route => createRoutePageFilePath(remote, route.canonicalPath)),
-    routeMetaPaths: createRouteOwnedI18nPaths(remote).map(route =>
-      createRouteMetaFilePath(remote, route.canonicalPath),
-    ),
-    localisedUrls: createLocalisedUrlsMap(remote),
-    verticalRefs: remote.verticalRefs ?? [],
-  }));
-  const shellRouteMetaPaths = createRouteOwnedI18nPaths(shellApp).map(route =>
-    createRouteMetaFilePath(shellApp, route.canonicalPath),
+  const contract = createWorkspaceValidationContract(
+    scope,
+    enableTailwind,
+    remotes,
   );
-  const shellNamespace = appI18nNamespace(shellApp);
-  const oldRemotePaths = ['apps/remotes'];
-  const expectedBuildScript =
-    remotes.length > 0
-      ? 'ULTRAMODERN_ZEPHYR=false pnpm -r --filter "./verticals/*" run build && ULTRAMODERN_ZEPHYR=false pnpm --filter "./apps/shell-super-app" run build && pnpm mf:types && pnpm performance:readiness'
-      : 'ULTRAMODERN_ZEPHYR=false pnpm --filter "./apps/shell-super-app" run build && pnpm mf:types && pnpm performance:readiness';
-  const expectedCloudflareBuildScript =
-    remotes.length > 0
-      ? 'pnpm -r --filter "./verticals/*" run cloudflare:build && pnpm --filter "./apps/shell-super-app" run cloudflare:build && pnpm mf:types'
-      : 'pnpm --filter "./apps/shell-super-app" run cloudflare:build && pnpm mf:types';
-  const expectedCloudflareDeployScript =
-    remotes.length > 0
-      ? 'pnpm -r --filter "./verticals/*" run cloudflare:deploy && pnpm --filter "./apps/shell-super-app" run cloudflare:deploy'
-      : 'pnpm --filter "./apps/shell-super-app" run cloudflare:deploy';
-  const expectedCloudflareSecurity = createCloudflareSecurityContract();
 
   return renderFileTemplate(
     'workspace-scripts/validate-ultramodern-workspace.mjs',
     {
-      packageScope: scope,
-      effectVersion: EFFECT_VERSION,
-      moduleFederationVersion: MODULE_FEDERATION_VERSION,
-      nodeVersion: NODE_VERSION,
-      pnpmVersion: PNPM_VERSION,
-      tailwindEnabledJson: JSON.stringify(enableTailwind),
-      fullStackVerticalsJson: JSON.stringify(verticals, null, 2),
-      shellNamespaceJson: JSON.stringify(shellNamespace),
-      oldRemotePathsJson: JSON.stringify(oldRemotePaths, null, 2),
-      expectedBuildScriptJson: JSON.stringify(expectedBuildScript),
+      packageScope: contract.packageScope,
+      nodeVersion: contract.versions.node,
+      tailwindEnabledJson: JSON.stringify(contract.tailwindEnabled),
+      fullStackVerticalsJson: JSON.stringify(
+        contract.fullStackVerticals,
+        null,
+        2,
+      ),
+      shellNamespaceJson: JSON.stringify(contract.shellNamespace),
+      oldRemotePathsJson: JSON.stringify(contract.oldRemotePaths),
+      expectedBuildScriptJson: JSON.stringify(contract.scripts.build),
       expectedCloudflareBuildScriptJson: JSON.stringify(
-        expectedCloudflareBuildScript,
+        contract.scripts.cloudflareBuild,
       ),
       expectedCloudflareDeployScriptJson: JSON.stringify(
-        expectedCloudflareDeployScript,
+        contract.scripts.cloudflareDeploy,
       ),
       expectedCloudflareSecurityJson: JSON.stringify(
-        expectedCloudflareSecurity,
+        contract.cloudflareSecurity,
         null,
         2,
       ),
+      workspaceValidationContractJson: JSON.stringify(contract, null, 2),
       publicSurfaceManagedSourceAssetPathsJson: JSON.stringify(
-        [...publicSurfaceManagedSourceAssetPaths],
+        contract.publicSurfaceManagedSourceAssetPaths,
         null,
         2,
       ),
-      shellRouteMetaPathsJson: JSON.stringify(shellRouteMetaPaths, null, 2),
-      cloudflareCompatibilityDate: CLOUDFLARE_COMPATIBILITY_DATE,
+      shellRouteMetaPathsJson: JSON.stringify(
+        contract.shellRouteMetaPaths,
+        null,
+        2,
+      ),
+      effectVersion: contract.versions.effect,
+      moduleFederationVersion: contract.versions.moduleFederation,
+      cloudflareCompatibilityDate:
+        contract.versions.cloudflareCompatibilityDate,
     },
   );
 }
@@ -254,16 +222,6 @@ export function writeGeneratedWorkspaceScripts(
 ) {
   writeWorkspaceOwnedMtsScript(
     targetDir,
-    'assert-mf-types',
-    createToolWrapperScript('mf-types'),
-  );
-  writeWorkspaceOwnedMtsScript(
-    targetDir,
-    'validate-ultramodern-workspace',
-    createToolWrapperScript('validate'),
-  );
-  writeWorkspaceOwnedMtsScript(
-    targetDir,
     'check-ultramodern-i18n-boundaries',
     createWorkspaceI18nBoundaryValidationScript(),
   );
@@ -271,21 +229,6 @@ export function writeGeneratedWorkspaceScripts(
     targetDir,
     'check-ultramodern-api-boundaries',
     createWorkspaceApiBoundaryValidationScript(),
-  );
-  writeWorkspaceOwnedMtsScript(
-    targetDir,
-    'generate-public-surface-assets',
-    createToolWrapperScript('public-surface'),
-  );
-  writeWorkspaceOwnedMtsScript(
-    targetDir,
-    'proof-cloudflare-version',
-    createToolWrapperScript('cloudflare-proof'),
-  );
-  writeFileReplacing(
-    targetDir,
-    'scripts/proof-node-backend-federation.mjs',
-    createNodeBackendFederationProofScript(),
   );
   writeFileReplacing(
     targetDir,
@@ -297,21 +240,7 @@ export function writeGeneratedWorkspaceScripts(
     'scripts/ultramodern-performance-readiness.config.mjs',
     createPerformanceReadinessConfigScript(),
   );
-  writeWorkspaceOwnedMtsScript(
-    targetDir,
-    'ultramodern-performance-readiness',
-    createToolWrapperScript('performance-readiness'),
-  );
-  writeWorkspaceOwnedMtsScript(
-    targetDir,
-    'migrate-strict-effect',
-    createToolWrapperScript('migrate-strict-effect'),
-  );
-  writeWorkspaceOwnedMtsScript(
-    targetDir,
-    'ultramodern-typecheck',
-    createToolWrapperScript('typecheck'),
-  );
+  writeGeneratedToolWrapperScripts(targetDir);
   writeWorkspaceOwnedMtsScript(
     targetDir,
     'bootstrap-agent-skills',

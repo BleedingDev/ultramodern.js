@@ -15,6 +15,7 @@ import {
   createShellFrameComponent,
   createTailwindConfig,
 } from './app-files';
+import { createBackendFederationContractFile } from './backend-federation';
 import type { UltramodernBridgeConfig } from './bridge-config';
 import { normalizeUltramodernBridgeConfig } from './bridge-config';
 import {
@@ -263,6 +264,11 @@ export function writeApp(
       targetDir,
       `${resolvedApp.directory}/api/index.ts`,
       createApiServiceEntry(resolvedApp, '../shared/api.ts'),
+    );
+    writeFile(
+      targetDir,
+      `${resolvedApp.directory}/api/backend-federation.ts`,
+      createBackendFederationContractFile(resolvedApp),
     );
     writeFile(
       targetDir,

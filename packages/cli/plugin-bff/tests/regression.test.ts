@@ -2,6 +2,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { ServerPluginAPI } from '@modern-js/server-core';
+import {
+  createBackendFederationRuntime,
+  loadBackendFederatedEffectApi,
+} from '../src/runtime/effect';
 import { EffectAdapter } from '../src/runtime/effect/adapter';
 import {
   type EffectContext,
@@ -53,6 +57,351 @@ describe('plugin-bff regressions', () => {
     expect(packageJson.typesVersions['*']['effect-client']).toEqual([
       './dist/types/runtime/effect-client/index.d.ts',
     ]);
+  });
+
+  const backendEffectApiModuleUrl = (remoteName = 'verticalExploreBackend') =>
+    `data:text/javascript;charset=utf-8,${encodeURIComponent(`
+    export const backendFederationContract = {
+      name: '${remoteName}',
+      runtimeFramework: 'effect',
+      strictEffectApproach: true,
+    };
+    export const api = { id: 'api' };
+    export const runtime = { id: 'runtime' };
+  `)}`;
+
+  const commonjsBackendRemoteEntry = (source: string) =>
+    `data:text/javascript;charset=utf-8,${encodeURIComponent(source)}`;
+
+  test('backend federation runtime loads Tractor proof-shaped strict Effect API exposes', async () => {
+    const exposedModuleUrl = backendEffectApiModuleUrl();
+    const remote = {
+      name: 'verticalExploreBackend',
+      type: 'commonjs-module' as const,
+      entry: commonjsBackendRemoteEntry(`
+        module.exports = {
+          init(scope) {
+            globalThis.__modernBackendHostName = scope.hostName;
+          },
+          get(id) {
+            if (id !== './effect-api') {
+              throw new Error('unexpected expose ' + id);
+            }
+            return async () => import(${JSON.stringify(exposedModuleUrl)});
+          },
+        };
+      `),
+    };
+    const runtime = createBackendFederationRuntime({
+      hostName: 'proofHost',
+      remote,
+    });
+
+    const loaded = await loadBackendFederatedEffectApi({ runtime, remote });
+
+    expect(globalThis.__modernBackendHostName).toBe('proofHost');
+    expect(loaded.backendFederationContract?.name).toBe(
+      'verticalExploreBackend',
+    );
+    expect(loaded.api).toEqual({ id: 'api' });
+    expect(loaded.runtime).toEqual({ id: 'runtime' });
+  });
+
+  test('backend federation runtime supports CommonJS exports alias remotes', async () => {
+    const remote = {
+      name: 'verticalExploreBackend',
+      type: 'commonjs-module' as const,
+      entry: commonjsBackendRemoteEntry(`
+        exports.init = (scope) => {
+          globalThis.__modernBackendExportsAliasHostName = scope.hostName;
+        };
+        exports.get = (id) => {
+          if (id !== './effect-api') {
+            throw new Error('unexpected expose ' + id);
+          }
+          return async () => ({
+            backendFederationContract: {
+              name: 'verticalExploreBackend',
+              runtimeFramework: 'effect',
+              strictEffectApproach: true,
+            },
+            api: { id: 'api' },
+            runtime: { id: 'runtime' },
+          });
+        };
+      `),
+    };
+    const runtime = createBackendFederationRuntime({
+      hostName: 'proofHost',
+      remote,
+    });
+
+    const loaded = await loadBackendFederatedEffectApi({ runtime, remote });
+
+    expect(globalThis.__modernBackendExportsAliasHostName).toBe('proofHost');
+    expect(loaded.api).toEqual({ id: 'api' });
+  });
+
+  test('backend federation runtime loads fetched CommonJS remote entries', async () => {
+    const originalFetch = globalThis.fetch;
+    const fetchCalls: string[] = [];
+    globalThis.fetch = async input => {
+      fetchCalls.push(String(input));
+      return new Response(
+        `
+          module.exports = {
+            get(id) {
+              if (id !== './effect-api') {
+                throw new Error('unexpected expose ' + id);
+              }
+              return async () => ({
+                backendFederationContract: {
+                  name: 'verticalExploreBackend',
+                  runtimeFramework: 'effect',
+                  strictEffectApproach: true,
+                },
+                api: { id: 'api' },
+                runtime: { id: 'runtime' },
+              });
+            },
+          };
+        `,
+        { status: 200 },
+      );
+    };
+    try {
+      const remote = {
+        name: 'verticalExploreBackend',
+        type: 'commonjs-module' as const,
+        entry: 'https://cdn.example.test/backendRemoteEntry.js',
+      };
+      const runtime = createBackendFederationRuntime({
+        hostName: 'proofHost',
+        remote,
+      });
+
+      const loaded = await loadBackendFederatedEffectApi({ runtime, remote });
+
+      expect(fetchCalls).toEqual([
+        'https://cdn.example.test/backendRemoteEntry.js',
+      ]);
+      expect(loaded.runtime).toEqual({ id: 'runtime' });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  test('backend federation runtime rejects failed fetched remote entries with remote name and status', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => new Response('missing', { status: 503 });
+    try {
+      const remote = {
+        name: 'verticalExploreBackend',
+        type: 'commonjs-module' as const,
+        entry: 'https://cdn.example.test/backendRemoteEntry.js',
+      };
+      const runtime = createBackendFederationRuntime({
+        hostName: 'proofHost',
+        remote,
+      });
+
+      await expect(
+        loadBackendFederatedEffectApi({ runtime, remote }),
+      ).rejects.toThrow(
+        'Failed to load backend federation remote verticalExploreBackend: 503',
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  test('backend federation runtime loads ESM module remote entries', async () => {
+    const remote = {
+      name: 'verticalExploreBackend',
+      type: 'module' as const,
+      entry: `data:text/javascript;charset=utf-8,${encodeURIComponent(`
+        export function init(scope) {
+          globalThis.__modernBackendModuleHostName = scope.hostName;
+        }
+        export function get(id) {
+          if (id !== './effect-api') {
+            throw new Error('unexpected expose ' + id);
+          }
+          return async () => ({
+            backendFederationContract: {
+              name: 'verticalExploreBackend',
+              runtimeFramework: 'effect',
+              strictEffectApproach: true,
+            },
+            api: { id: 'api' },
+            runtime: { id: 'runtime' },
+          });
+        }
+      `)}`,
+    };
+    const runtime = createBackendFederationRuntime({
+      hostName: 'proofHost',
+      remote,
+    });
+
+    const loaded = await loadBackendFederatedEffectApi({ runtime, remote });
+
+    expect(globalThis.__modernBackendModuleHostName).toBe('proofHost');
+    expect(loaded.api).toEqual({ id: 'api' });
+  });
+
+  test('backend federation runtime rejects missing strict Effect metadata', async () => {
+    const remote = {
+      name: 'verticalExploreBackend',
+      type: 'commonjs-module' as const,
+      entry: commonjsBackendRemoteEntry(`
+        module.exports = {
+          get() {
+            return async () => ({
+              backendFederationContract: {
+                name: 'verticalExploreBackend',
+                runtimeFramework: 'hono',
+                strictEffectApproach: false,
+              },
+              api: {},
+              runtime: {},
+            });
+          },
+        };
+      `),
+    };
+    const runtime = createBackendFederationRuntime({
+      hostName: 'proofHost',
+      remote,
+    });
+
+    await expect(
+      loadBackendFederatedEffectApi({ runtime, remote }),
+    ).rejects.toThrow('must expose strict Effect metadata');
+  });
+
+  test('backend federation runtime rejects mismatched remote metadata names', async () => {
+    const remote = {
+      name: 'verticalExploreBackend',
+      type: 'commonjs-module' as const,
+      entry: commonjsBackendRemoteEntry(`
+        module.exports = {
+          get() {
+            return async () => ({
+              backendFederationContract: {
+                name: 'verticalDecideBackend',
+                runtimeFramework: 'effect',
+                strictEffectApproach: true,
+              },
+              api: {},
+              runtime: {},
+            });
+          },
+        };
+      `),
+    };
+    const runtime = createBackendFederationRuntime({
+      hostName: 'proofHost',
+      remote,
+    });
+
+    await expect(
+      loadBackendFederatedEffectApi({ runtime, remote }),
+    ).rejects.toThrow('metadata name mismatch');
+  });
+
+  test('backend federation runtime rejects exposes missing api or runtime', async () => {
+    const remote = {
+      name: 'verticalExploreBackend',
+      type: 'commonjs-module' as const,
+      entry: commonjsBackendRemoteEntry(`
+        module.exports = {
+          get() {
+            return async () => ({
+              backendFederationContract: {
+                name: 'verticalExploreBackend',
+                runtimeFramework: 'effect',
+                strictEffectApproach: true,
+              },
+              api: {},
+            });
+          },
+        };
+      `),
+    };
+    const runtime = createBackendFederationRuntime({
+      hostName: 'proofHost',
+      remote,
+    });
+
+    await expect(
+      loadBackendFederatedEffectApi({ runtime, remote }),
+    ).rejects.toThrow('must expose api and runtime');
+  });
+
+  test('backend federation runtime rejects exposes that load non-object modules', async () => {
+    const remote = {
+      name: 'verticalExploreBackend',
+      type: 'commonjs-module' as const,
+      entry: commonjsBackendRemoteEntry(`
+        module.exports = {
+          get() {
+            return async () => null;
+          },
+        };
+      `),
+    };
+    const runtime = createBackendFederationRuntime({
+      hostName: 'proofHost',
+      remote,
+    });
+
+    await expect(
+      loadBackendFederatedEffectApi({ runtime, remote }),
+    ).rejects.toThrow('must load an object module');
+  });
+
+  test('backend federation runtime rejects unknown remote names', async () => {
+    const runtime = createBackendFederationRuntime({
+      hostName: 'proofHost',
+      remotes: [],
+    });
+
+    await expect(
+      loadBackendFederatedEffectApi({
+        runtime,
+        remoteName: 'verticalExploreBackend',
+      }),
+    ).rejects.toThrow('Missing backend federation remote');
+  });
+
+  test('backend federation runtime propagates wrong expose errors', async () => {
+    const remote = {
+      name: 'verticalExploreBackend',
+      type: 'commonjs-module' as const,
+      entry: commonjsBackendRemoteEntry(`
+        module.exports = {
+          get(id) {
+            if (id !== './effect-api') {
+              throw new Error('unexpected expose ' + id);
+            }
+            return async () => ({});
+          },
+        };
+      `),
+    };
+    const runtime = createBackendFederationRuntime({
+      hostName: 'proofHost',
+      remote,
+    });
+
+    await expect(
+      loadBackendFederatedEffectApi({
+        runtime,
+        remote,
+        expose: './wrong',
+      }),
+    ).rejects.toThrow('unexpected expose ./wrong');
   });
 
   test('effect adapter strips API prefix in enableHandleWeb mode', async () => {
@@ -109,6 +458,153 @@ describe('plugin-bff regressions', () => {
     expect(seenPath).toBe('/hello');
     expect(response).toBeInstanceOf(Response);
     expect(response?.status).toBe(200);
+  });
+
+  test('effect adapter returns handler-thrown Response instances', async () => {
+    const middlewares: Array<{
+      handler: (ctx: unknown, next: () => Promise<void>) => Promise<unknown>;
+    }> = [];
+    const api = {
+      getServerContext() {
+        return {
+          bffRuntimeFramework: 'effect',
+          middlewares,
+        };
+      },
+    } as unknown;
+    const adapter = new EffectAdapter(api as ServerPluginAPI);
+    const adapterState = adapter as unknown as {
+      reloadHandler: () => Promise<void>;
+      handler: () => Promise<Response>;
+    };
+    adapterState.reloadHandler = async () => {
+      adapterState.handler = async () => {
+        throw new Response('missing from adapter handler', {
+          status: 404,
+          headers: {
+            'x-effect-adapter': 'thrown-response',
+          },
+        });
+      };
+    };
+
+    await adapter.registerMiddleware({
+      prefix: '/api',
+      enableHandleWeb: false,
+    });
+
+    const response = (await middlewares[0]!.handler(
+      {
+        req: {
+          raw: new Request('http://localhost/api/missing'),
+          path: '/api/missing',
+          method: 'GET',
+        },
+        env: {},
+      } as unknown,
+      async () => {},
+    )) as Response | undefined;
+
+    expect(response?.status).toBe(404);
+    expect(response?.headers.get('x-effect-adapter')).toBe('thrown-response');
+    await expect(response?.text()).resolves.toBe(
+      'missing from adapter handler',
+    );
+  });
+
+  test('effect adapter wraps non-Response handler returns', async () => {
+    const middlewares: Array<{
+      handler: (ctx: unknown, next: () => Promise<void>) => Promise<unknown>;
+    }> = [];
+    const api = {
+      getServerContext() {
+        return {
+          bffRuntimeFramework: 'effect',
+          middlewares,
+        };
+      },
+    } as unknown;
+    const adapter = new EffectAdapter(api as ServerPluginAPI);
+    const adapterState = adapter as unknown as {
+      reloadHandler: () => Promise<void>;
+      handler: () => Promise<Response>;
+    };
+    adapterState.reloadHandler = async () => {
+      adapterState.handler = async () => 'not response' as unknown as Response;
+    };
+
+    await adapter.registerMiddleware({
+      prefix: '/api',
+      enableHandleWeb: false,
+    });
+
+    const response = (await middlewares[0]!.handler(
+      {
+        req: {
+          raw: new Request('http://localhost/api/invalid'),
+          path: '/api/invalid',
+          method: 'GET',
+        },
+        env: {},
+      } as unknown,
+      async () => {},
+    )) as Response | undefined;
+
+    expect(response?.status).toBe(500);
+    await expect(response?.json()).resolves.toEqual({
+      success: false,
+      error: {
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Internal Server Error',
+        status: 500,
+      },
+    });
+  });
+
+  test('effect adapter passes 404 responses to next in enableHandleWeb mode', async () => {
+    const middlewares: Array<{
+      handler: (ctx: unknown, next: () => Promise<void>) => Promise<unknown>;
+    }> = [];
+    const api = {
+      getServerContext() {
+        return {
+          bffRuntimeFramework: 'effect',
+          middlewares,
+        };
+      },
+    } as unknown;
+    const adapter = new EffectAdapter(api as ServerPluginAPI);
+    const adapterState = adapter as unknown as {
+      reloadHandler: () => Promise<void>;
+      handler: () => Promise<Response>;
+    };
+    adapterState.reloadHandler = async () => {
+      adapterState.handler = async () =>
+        new Response('not found', { status: 404 });
+    };
+
+    await adapter.registerMiddleware({
+      prefix: '/api',
+      enableHandleWeb: true,
+    });
+
+    let nextCalls = 0;
+    const response = await middlewares[0]!.handler(
+      {
+        req: {
+          raw: new Request('http://localhost/api/not-found'),
+          path: '/api/not-found',
+          method: 'GET',
+        },
+        env: {},
+      } as unknown,
+      async () => {
+        nextCalls += 1;
+      },
+    );
+
+    expect(nextCalls).toBe(1);
+    expect(response).toBeUndefined();
   });
 
   test('effect adapter preserves onError before safe maintenance fallback', async () => {
@@ -492,11 +988,12 @@ describe('plugin-bff regressions', () => {
       await fs.promises.writeFile(
         path.join(apiDir, 'index.js'),
         `const {
-  HttpApi,
-  HttpApiEndpoint,
-  HttpApiGroup,
-  Schema,
-} = require('@modern-js/plugin-bff/effect-client');
+          HttpApi,
+          HttpApiEndpoint,
+          HttpApiGroup,
+          Layer,
+          Schema,
+        } = require('@modern-js/plugin-bff/effect-client');
 
 const api = HttpApi.make('ModuleApi').add(
   HttpApiGroup.make('greetings').add(
@@ -508,8 +1005,8 @@ const api = HttpApi.make('ModuleApi').add(
   ),
 );
 
-module.exports = { api };
-`,
+        module.exports = { api, layer: Layer.empty };
+        `,
       );
 
       process.chdir(appDir);

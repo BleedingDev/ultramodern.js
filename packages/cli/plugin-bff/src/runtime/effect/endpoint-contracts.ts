@@ -15,6 +15,10 @@ import {
   createOperationContractHash,
   type OperationContractSource,
 } from '@modern-js/bff-core';
+import {
+  classifyEffectBffEntryModule,
+  isValidatorAwareHandlerFactory,
+} from './entry-shape';
 
 export type EffectEndpointMeta = {
   apiId: string;
@@ -133,36 +137,26 @@ export function createEffectOperationContractSource(
   };
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
-
 /**
  * Extracts the HttpApi instance from a loaded effect entry module. Mirrors
- * the module shapes accepted by `resolveEffectBffModuleHandler`:
- * `{ api }`, `{ default: { api } }` and zero-arg default factories.
+ * the shared entry-shape policy accepted by `resolveEffectBffModuleHandler`,
+ * without executing factories during contract extraction.
  */
 export async function extractHttpApiFromModule(
   mod: unknown,
   isHttpApi: (value: unknown) => boolean,
 ): Promise<HttpApiLike | null> {
-  if (!isRecord(mod)) {
-    return null;
-  }
-  if (isHttpApi(mod.api)) {
-    return mod.api as HttpApiLike;
-  }
-  const entry = mod.default;
-  if (isRecord(entry) && isHttpApi(entry.api)) {
-    return entry.api as HttpApiLike;
-  }
-  if (typeof entry === 'function' && entry.length === 0) {
-    const output = await (entry as () => unknown | Promise<unknown>)();
-    if (isRecord(output) && isHttpApi(output.api)) {
-      return output.api as HttpApiLike;
-    }
-  }
-  return null;
+  const facts = classifyEffectBffEntryModule(mod, {
+    isRequestHandler: value => typeof value === 'function',
+    isValidatorAwareHandlerFactory,
+    isHttpApi,
+  });
+  return facts?.legacyShape ||
+    facts?.api === undefined ||
+    !facts.hasRuntimeLayer ||
+    (facts.createHandler !== undefined && !facts.createHandlerValidatorAware)
+    ? null
+    : (facts.api as HttpApiLike);
 }
 
 /**

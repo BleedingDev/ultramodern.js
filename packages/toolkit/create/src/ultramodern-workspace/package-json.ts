@@ -15,7 +15,6 @@ import {
 } from './descriptors';
 import { readFileTemplate } from './fs-io';
 import { packageName, relativeRootFor } from './naming';
-import { createPublicSurfaceGenerationCommand } from './public-surface';
 import type { JsonValue, ResolvedPackageSource, WorkspaceApp } from './types';
 import {
   EFFECT_TSGO_VERSION,
@@ -42,9 +41,11 @@ import {
   ZEPHYR_AGENT_VERSION,
   ZEPHYR_RSPACK_PLUGIN_VERSION,
 } from './versions';
-
-export const createStrictTsgoTypecheckCommand = (packageDir: string) =>
-  `node ${relativeRootFor(packageDir)}/scripts/ultramodern-typecheck.mts --project tsconfig.json`;
+import {
+  createStrictTsgoTypecheckCommand,
+  createWorkspaceAppPackageScripts,
+  createWorkspaceRootPackageScripts,
+} from './workspace-script-plan';
 
 export const effectDiagnostics = [
   'anyUnknownInErrorContext',
@@ -222,23 +223,6 @@ export function createRootPackageJson(
   const remoteFilters = remotes.map(
     remote => `--filter ${packageName(scope, remote.packageSuffix)}`,
   );
-  const remoteBuildPrefix =
-    remotes.length > 0
-      ? 'ULTRAMODERN_ZEPHYR=false pnpm -r --filter "./verticals/*" run build && '
-      : '';
-  const remoteCloudflareBuildPrefix =
-    remotes.length > 0
-      ? 'pnpm -r --filter "./verticals/*" run cloudflare:build && '
-      : '';
-  const remoteCloudflareDeployPrefix =
-    remotes.length > 0
-      ? 'pnpm -r --filter "./verticals/*" run cloudflare:deploy && '
-      : '';
-  const generatedPackageTypecheck =
-    'pnpm -r --filter "./apps/*" --filter "./verticals/*" --filter "./packages/*" run typecheck';
-  const typecheck = bridge
-    ? generatedPackageTypecheck
-    : 'node ./scripts/ultramodern-typecheck.mts --build tsconfig.json';
   const bridgeScripts = bridge
     ? {
         ...Object.fromEntries(
@@ -253,6 +237,13 @@ export function createRootPackageJson(
       }
     : {};
   const bridgeCheck = bridge ? ' && pnpm bridge:check' : '';
+  const bridgeTypecheck = bridge
+    ? 'pnpm -r --filter "./apps/*" --filter "./verticals/*" --filter "./packages/*" run typecheck'
+    : undefined;
+  const rootPackageScripts = createWorkspaceRootPackageScripts(remotes, {
+    bridgeCheck,
+    typecheck: bridgeTypecheck,
+  });
   const workspacePackages = [
     'apps/*',
     'verticals/*',
@@ -275,35 +266,21 @@ export function createRootPackageJson(
           `pnpm --filter ${packageName(scope, remote.packageSuffix)} dev`,
         ]),
       ),
-      build: `${remoteBuildPrefix}ULTRAMODERN_ZEPHYR=false pnpm --filter "./apps/shell-super-app" run build && pnpm mf:types && pnpm performance:readiness`,
+      ...rootPackageScripts,
       format: "oxfmt . '!repos/**'",
       'format:check': "oxfmt --check . '!repos/**'",
       lint: 'oxlint apps verticals packages',
       'lint:fix': 'oxlint apps verticals packages --fix',
-      typecheck,
-      'cloudflare:build': `${remoteCloudflareBuildPrefix}pnpm --filter "./apps/shell-super-app" run cloudflare:build && pnpm mf:types`,
-      'cloudflare:deploy': `${remoteCloudflareDeployPrefix}pnpm --filter "./apps/shell-super-app" run cloudflare:deploy`,
-      'cloudflare:proof':
-        'node ./scripts/proof-cloudflare-version.mts --out .codex/reports/cloudflare-version-proof/public-url-proof.json',
-      'node:proof':
-        'node ./scripts/proof-node-backend-federation.mjs --out .codex/reports/node-backend-federation-proof/proof.json',
-      'zerops:materialize': 'node ./scripts/materialize-zerops-runtime.mjs',
       'skills:install': 'node ./scripts/bootstrap-agent-skills.mts',
       'skills:check': 'node ./scripts/bootstrap-agent-skills.mts --check',
       'agents:refs:install': 'node ./scripts/setup-agent-reference-repos.mts',
       'agents:refs:check':
         'node ./scripts/setup-agent-reference-repos.mts --check',
-      'mf:types': 'node ./scripts/assert-mf-types.mts',
-      'performance:readiness':
-        'node ./scripts/ultramodern-performance-readiness.mts',
-      'migrate:strict-effect': 'node ./scripts/migrate-strict-effect.mts',
-      'contract:check': 'node ./scripts/validate-ultramodern-workspace.mts',
       'api:check': 'node ./scripts/check-ultramodern-api-boundaries.mts',
       'i18n:boundaries': 'node ./scripts/check-ultramodern-i18n-boundaries.mts',
       ...bridgeScripts,
       postinstall:
         "oxfmt . '!repos/**' && node ./scripts/bootstrap-agent-skills.mts --postinstall",
-      check: `pnpm format:check && pnpm lint && pnpm typecheck && pnpm skills:check && pnpm i18n:boundaries && pnpm api:check && pnpm contract:check && pnpm node:proof && pnpm performance:readiness${bridgeCheck}`,
     },
     engines: {
       node: '>=26',
@@ -524,12 +501,6 @@ export function createAppPackage(
   remotes: WorkspaceApp[] = [],
   bridge?: UltramodernBridgeConfig,
 ): JsonValue {
-  const publicSurfaceBuildCommand = createPublicSurfaceGenerationCommand(
-    app,
-    'dist',
-  );
-  const publicSurfaceCloudflareOutputCommand =
-    createPublicSurfaceGenerationCommand(app, 'cloudflare');
   const packageExports: Record<string, JsonValue> = Object.fromEntries(
     Object.entries(app.exposes ?? {}).map(([expose, source]) => [
       expose,
@@ -540,23 +511,7 @@ export function createAppPackage(
     private: true,
     name: packageName(scope, app.packageSuffix),
     version: '0.1.0',
-    scripts: {
-      dev: 'modern dev',
-      build: app.exposes
-        ? `ULTRAMODERN_ZEPHYR=false modern build && ${publicSurfaceBuildCommand} && node ${relativeRootFor(app.directory)}/scripts/assert-mf-types.mts`
-        : `ULTRAMODERN_ZEPHYR=false modern build && ${publicSurfaceBuildCommand}`,
-      deploy: 'modern deploy',
-      'cloudflare:build': `ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern build && ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern deploy --skip-build && ${publicSurfaceCloudflareOutputCommand}`,
-      'cloudflare:deploy':
-        'ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS=true pnpm run cloudflare:build && wrangler deploy --config .output/wrangler.json',
-      'cloudflare:preview':
-        'pnpm run cloudflare:build && wrangler dev --config .output/wrangler.json',
-      'cloudflare:proof': `node ${relativeRootFor(
-        app.directory,
-      )}/scripts/proof-cloudflare-version.mts --app ${app.id}`,
-      serve: 'modern serve',
-      typecheck: createStrictTsgoTypecheckCommand(app.directory),
-    },
+    scripts: createWorkspaceAppPackageScripts(app),
     modernjs: {
       preset: 'presetUltramodern',
       role: app.kind === 'shell' ? 'shell' : 'module-federation-remote',

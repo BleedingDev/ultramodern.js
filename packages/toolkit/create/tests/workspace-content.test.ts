@@ -6,6 +6,7 @@ import {
   addUltramodernVertical,
   generateUltramodernWorkspace,
 } from '../src/ultramodern-workspace';
+import { generatedToolingCommands } from '../src/ultramodern-workspace/tooling-command-catalog';
 
 const fixturesDir = path.join(__dirname, 'fixtures');
 
@@ -45,6 +46,7 @@ const defaultScaffoldSnapshots = [
 ];
 
 const catalogVerticalSnapshots = [
+  'verticals/catalog/api/backend-federation.ts',
   'verticals/catalog/shared/api.ts',
   'verticals/catalog/src/api/catalog-client.ts',
   'verticals/catalog/src/routes/[lang]/page.tsx',
@@ -412,6 +414,15 @@ test('rendered contents of the highest-risk generated files match the checked-in
       JSON.stringify(compactConfig),
       /ultramodern-(?:generated-contract|package-source|workspace-template-manifest)\.json/,
     );
+    assert.equal(
+      (
+        (compactConfig.tooling as Record<string, unknown>).wrappers as Record<
+          string,
+          unknown
+        >
+      ).cloudflareOutputVerify,
+      'scripts/verify-cloudflare-output.mts',
+    );
     const rootPackage = readJson(path.join(workspaceDir, 'package.json'));
     assert.equal(
       (
@@ -437,6 +448,21 @@ test('rendered contents of the highest-risk generated files match the checked-in
     assert.match(validationWrapper, /ULTRAMODERN_CREATE_BIN/);
     assert.match(validationWrapper, /'ultramodern'/);
     assert.match(validationWrapper, /'validate'/);
+    const cloudflareOutputWrapper = fs.readFileSync(
+      path.join(workspaceDir, 'scripts/verify-cloudflare-output.mts'),
+      'utf-8',
+    );
+    assert.match(cloudflareOutputWrapper, /modern-js-create/);
+    assert.match(cloudflareOutputWrapper, /ULTRAMODERN_CREATE_BIN/);
+    assert.match(cloudflareOutputWrapper, /'cloudflare-output-verify'/);
+    for (const command of generatedToolingCommands) {
+      const wrapper = fs.readFileSync(
+        path.join(workspaceDir, command.wrapperPath),
+        'utf-8',
+      );
+      assert.match(wrapper, /modern-js-create/);
+      assert.match(wrapper, new RegExp(`'${command.command}'`));
+    }
     assert.deepEqual(
       readJson(
         path.join(workspaceDir, 'verticals/catalog/tsconfig.mf-types.json'),
@@ -621,7 +647,129 @@ test('rendered contents of the highest-risk generated files match the checked-in
       /new CatalogNotFound/,
       'generated Effect entry must fail with structural errors rather than generated error classes',
     );
+    assert.doesNotMatch(
+      generatedEffectEntry,
+      /backendFederationContract/,
+      'generated Effect entry must keep backend federation metadata in the facade entry',
+    );
+    const generatedBackendFederationEntry = fs.readFileSync(
+      path.join(workspaceDir, 'verticals/catalog/api/backend-federation.ts'),
+      'utf-8',
+    );
+    assert.match(
+      generatedBackendFederationEntry,
+      /import \{ ultramodernApiMarker \} from '\.\.\/shared\/ultramodern-build\.ts'/,
+      'backend federation facade must bind compatibility to generated build identity',
+    );
+    assert.match(
+      generatedBackendFederationEntry,
+      /export const backendFederationContract = \{/,
+      'backend federation facade must export strict metadata',
+    );
+    assert.match(
+      generatedBackendFederationEntry,
+      /compatibility: \{/,
+      'backend federation facade must declare loader compatibility metadata',
+    );
+    assert.match(
+      generatedBackendFederationEntry,
+      /build: ultramodernApiMarker\.build/,
+      'backend federation facade must bind compatibility build to API marker',
+    );
+    assert.match(
+      generatedBackendFederationEntry,
+      /packageName: ultramodernApiMarker\.packageName/,
+      'backend federation facade must bind compatibility package to API marker',
+    );
+    assert.match(
+      generatedBackendFederationEntry,
+      /name: 'verticalCatalogBackend'/,
+      'backend federation facade must use stable generated backend name',
+    );
+    assert.match(
+      generatedBackendFederationEntry,
+      /runtimeFramework: 'effect'/,
+      'backend federation facade must declare Effect runtime',
+    );
+    assert.match(
+      generatedBackendFederationEntry,
+      /strictEffectApproach: true/,
+      'backend federation facade must require strict Effect runtime',
+    );
+    assert.match(
+      generatedBackendFederationEntry,
+      /export \{ api, contract, operationContexts, runtime \};/,
+      'backend federation facade must expose API, contract, contexts, and runtime',
+    );
+    assert.doesNotMatch(
+      generatedBackendFederationEntry,
+      /src\//,
+      'backend federation facade must stay inside API/shared seams',
+    );
+    assert.doesNotMatch(
+      generatedBackendFederationEntry,
+      /dispatchEffectBffRequest|handler\.length/,
+      'backend federation facade must not smuggle runtime dispatch helpers',
+    );
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
+});
+
+test('validator template excludes generated Zerops runtime package artifacts', () => {
+  const validatorTemplate = fs.readFileSync(
+    path.join(
+      __dirname,
+      '../templates/workspace-scripts/validate-ultramodern-workspace.mjs.handlebars',
+    ),
+    'utf-8',
+  );
+
+  assert.match(validatorTemplate, /'\.zerops'/);
+});
+
+test('backend federation proof template resolves monorepo local plugin-bff runtime', () => {
+  const proofTemplate = fs.readFileSync(
+    path.join(
+      __dirname,
+      '../templates/workspace-scripts/proof-node-backend-federation.mjs',
+    ),
+    'utf-8',
+  );
+
+  assert.match(proofTemplate, /createRequire\(path\.join\(workspaceRoot/);
+  assert.match(
+    proofTemplate,
+    /workspaceRequire\.resolve\('@modern-js\/plugin-bff\/effect'\)/,
+  );
+  assert.doesNotMatch(
+    proofTemplate,
+    /await import\('@modern-js\/plugin-bff\/effect'\)/,
+  );
+  assert.match(proofTemplate, /localRuntimeRelativePaths/);
+  assert.match(
+    proofTemplate,
+    /'packages\/cli\/plugin-bff\/dist\/esm-node\/runtime\/effect\/index\.mjs'/,
+  );
+  assert.match(
+    proofTemplate,
+    /'cli\/plugin-bff\/dist\/esm-node\/runtime\/effect\/index\.mjs'/,
+  );
+  assert.match(proofTemplate, /function findLocalRuntimePath\(createBin\)/);
+});
+
+test('backend federation generator accepts migrated app-level metadata', () => {
+  const generatorTemplate = fs.readFileSync(
+    path.join(
+      __dirname,
+      '../templates/workspace-scripts/generate-node-backend-federation.mjs',
+    ),
+    'utf-8',
+  );
+
+  assert.match(
+    generatorTemplate,
+    /return app\.backendFederation \?\? app\.api\?\.backendFederation;/,
+  );
+  assert.match(generatorTemplate, /Object\.keys\(backend\.exposes\)/);
 });

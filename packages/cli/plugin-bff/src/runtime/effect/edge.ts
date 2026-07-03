@@ -1,6 +1,8 @@
 // @effect-diagnostics anyUnknownInErrorContext:off asyncFunction:off strictBooleanExpressions:off
-
-import { createSafeFailureResponse } from '../safe-failure';
+import {
+  type DispatchEffectBffRequestOptions,
+  dispatchEffectBffRequestWithContext,
+} from './dispatch';
 import { runWithEffectContext } from './edge-context';
 import type {
   EffectBffOpenApiConfig,
@@ -11,10 +13,7 @@ import {
   type EffectBffRequestHandler,
   resolveEffectBffModuleHandler,
 } from './module';
-import {
-  createEffectOperationContext,
-  type EffectContext,
-} from './operation-context';
+import type { EffectContext } from './operation-context';
 
 export {
   BACKEND_FEDERATION_CONTRACT_VERSION,
@@ -42,16 +41,10 @@ export {
   type EffectContext,
 } from './operation-context';
 
-export type EffectBffEdgeDispatchOptions = {
-  prefix?: string;
-  env?: Record<string, unknown>;
-  path?: string;
-  method?: string;
-  onError?: (
-    error: unknown,
-    context: EffectContext,
-  ) => Promise<Response> | Response;
-};
+export type EffectBffEdgeDispatchOptions = Omit<
+  DispatchEffectBffRequestOptions,
+  'runWithEffectContext'
+>;
 
 export type EffectBffEdgeHandlerOptions = {
   module: EffectApiModule;
@@ -65,119 +58,23 @@ export type EffectBffEdgeHandlerOptions = {
   onWarning?: (message: string) => void;
 };
 
-function normalizePrefix(prefix: string | undefined) {
-  if (!prefix || prefix === '/') {
-    return '';
-  }
-  return prefix.endsWith('/') ? prefix.slice(0, -1) : prefix;
-}
-
-function removePrefixFromPath(pathname: string, prefix: string | undefined) {
-  const normalized = normalizePrefix(prefix);
-  if (
-    !normalized ||
-    (pathname !== normalized && !pathname.startsWith(`${normalized}/`))
-  ) {
-    return pathname;
-  }
-  const sliced = pathname.slice(normalized.length);
-  return sliced.startsWith('/') ? sliced : `/${sliced}`;
-}
-
-function matchesPrefix(pathname: string, prefix: string | undefined) {
-  const normalized = normalizePrefix(prefix);
-  return (
-    !normalized ||
-    pathname === normalized ||
-    pathname.startsWith(`${normalized}/`)
-  );
-}
-
-function createRequestForMountedPrefix(
-  req: Request,
-  prefix: string | undefined,
-) {
-  const url = new URL(req.url);
-  const nextPath = removePrefixFromPath(url.pathname, prefix);
-  if (nextPath === url.pathname) {
-    return req;
-  }
-  url.pathname = nextPath;
-  return new Request(url, req);
-}
-
-function createEdgeEffectContext(
-  originalRequest: Request,
-  effectRequest: Request,
-  options: EffectBffEdgeDispatchOptions,
-): EffectContext {
-  const originalPath = options.path || new URL(originalRequest.url).pathname;
-  const method = options.method || originalRequest.method;
-  return {
-    request: effectRequest,
-    env: options.env || {},
-    path: originalPath,
-    method,
-    operationContext: createEffectOperationContext({
-      request: effectRequest,
-      env: options.env || {},
-      path: originalPath,
-      method,
-    }),
-  };
-}
-
-function createRuntimeErrorResponse(error: unknown) {
-  return createSafeFailureResponse(error);
-}
+export type EffectBffEdgeRequestDispatcher = (
+  request: Request,
+  dispatchOptions?: Omit<EffectBffEdgeDispatchOptions, 'prefix' | 'onError'>,
+) => Promise<Response>;
 
 export async function dispatchEffectBffRequest(
   handler: EffectBffRequestHandler,
   request: Request,
   options: EffectBffEdgeDispatchOptions = {},
-) {
-  const requestPathname = new URL(request.url).pathname;
-  if (!matchesPrefix(requestPathname, options.prefix)) {
-    return new Response(null, { status: 404 });
-  }
-
-  const effectRequest = createRequestForMountedPrefix(request, options.prefix);
-  const effectContext = createEdgeEffectContext(
-    request,
-    effectRequest,
-    options,
-  );
-
-  try {
-    const response = await runWithEffectContext(effectContext, () =>
-      handler(effectRequest, effectContext),
-    );
-
-    if (!(response instanceof Response)) {
-      throw new Error(
-        '[BFF][Effect] Effect handler must return a Response instance.',
-      );
-    }
-
-    return new Response(response.body, response);
-  } catch (error) {
-    if (error instanceof Response) {
-      return new Response(error.body, error);
-    }
-
-    if (options.onError) {
-      const errorResponse = await options.onError(error, effectContext);
-      if (errorResponse instanceof Response) {
-        return errorResponse;
-      }
-    }
-    return createRuntimeErrorResponse(error);
-  }
+): Promise<Response> {
+  return dispatchEffectBffRequestWithContext(handler, request, {
+    ...options,
+    runWithEffectContext,
+  });
 }
 
-export const createEffectBffTestHandler = createEffectBffEdgeHandler;
-
-export async function createEffectBffEdgeHandler(
+export async function createEffectBffEdgeDispatcher(
   options: EffectBffEdgeHandlerOptions,
 ) {
   const loaded = await resolveEffectBffModuleHandler(options.module, {
@@ -185,7 +82,6 @@ export async function createEffectBffEdgeHandler(
     dataPlatform: options.dataPlatform,
     onWarning: options.onWarning,
   });
-
   if (!loaded) {
     throw new Error(
       '[BFF][Effect] Invalid Effect edge module. Export defineEffectBff(...) or a { api, layer } HttpApi module.',
@@ -193,7 +89,7 @@ export async function createEffectBffEdgeHandler(
   }
 
   return {
-    handler: (
+    dispatch: (
       request: Request,
       dispatchOptions: Omit<
         EffectBffEdgeDispatchOptions,
@@ -208,5 +104,18 @@ export async function createEffectBffEdgeHandler(
     dispose: async () => {
       await loaded.dispose?.();
     },
+  };
+}
+
+export const createEffectBffTestHandler = createEffectBffEdgeHandler;
+
+export async function createEffectBffEdgeHandler(
+  options: EffectBffEdgeHandlerOptions,
+) {
+  const dispatcher = await createEffectBffEdgeDispatcher(options);
+
+  return {
+    handler: dispatcher.dispatch,
+    dispose: dispatcher.dispose,
   };
 }

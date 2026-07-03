@@ -34,6 +34,7 @@ import {
   validateRequestEnvelope,
   validateSelectionPlan,
 } from '../data-platform';
+import { EFFECT_VALIDATOR_AWARE_FACTORY } from './entry-shape';
 
 export * as Config from 'effect/Config';
 export * as Effect from 'effect/Effect';
@@ -45,6 +46,10 @@ export { HttpTraceContext } from 'effect/unstable/http';
 export * from 'effect/unstable/httpapi';
 export { HttpApiBuilder } from 'effect/unstable/httpapi';
 export * from 'effect/unstable/rpc';
+export {
+  EFFECT_VALIDATOR_AWARE_FACTORY,
+  isValidatorAwareHandlerFactory,
+} from './entry-shape';
 
 export type EffectRuntimeRequirements =
   | Etag.Generator
@@ -247,34 +252,6 @@ export type EffectDataPlatformValidationOptions = {
 export type EffectRequestValidator = (
   request: Request,
 ) => Response | null | undefined;
-
-/**
- * Brand stamped on `createHandler` factories that are guaranteed to forward
- * `options.validateRequest` into `createHttpApiHandler` — i.e. the policy
- * seam runs inside the produced handler, including per batched item.
- *
- * `defineEffectBff` brands its factory automatically. Hand-written factories
- * are NOT assumed to honor `validateRequest`, so strict module resolution
- * rejects unbranded factories instead of silently skipping the policy.
- *
- * Registered via `Symbol.for` so independently loaded runtime copies agree.
- */
-export const EFFECT_VALIDATOR_AWARE_FACTORY: symbol = Symbol.for(
-  'modernjs.effect.validatorAware',
-);
-
-/**
- * True when `factory` is branded as validator-aware (see
- * {@link EFFECT_VALIDATOR_AWARE_FACTORY}).
- */
-export function isValidatorAwareHandlerFactory(factory: unknown): boolean {
-  return (
-    typeof factory === 'function' &&
-    (factory as unknown as Record<symbol, unknown>)[
-      EFFECT_VALIDATOR_AWARE_FACTORY
-    ] === true
-  );
-}
 
 export type EffectBffHandlerFactory<
   TApi extends HttpApi.AnyWithProps = HttpApi.AnyWithProps,

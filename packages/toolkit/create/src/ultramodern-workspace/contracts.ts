@@ -15,6 +15,7 @@ import {
 } from './descriptors';
 import { packageName } from './naming';
 import { createCloudflareDeployContract } from './policy';
+import { createGeneratedToolingWrapperMap } from './tooling-command-catalog';
 import type { JsonValue, ResolvedPackageSource, WorkspaceApp } from './types';
 import {
   CLOUDFLARE_COMPATIBILITY_DATE,
@@ -311,13 +312,7 @@ export function createUltramodernConfig(
     tooling: {
       command: 'modern-js-create ultramodern',
       wrappers: {
-        validate: 'scripts/validate-ultramodern-workspace.mts',
-        typecheck: 'scripts/ultramodern-typecheck.mts',
-        mfTypes: 'scripts/assert-mf-types.mts',
-        publicSurface: 'scripts/generate-public-surface-assets.mts',
-        cloudflareProof: 'scripts/proof-cloudflare-version.mts',
-        performanceReadiness: 'scripts/ultramodern-performance-readiness.mts',
-        migrateStrictEffect: 'scripts/migrate-strict-effect.mts',
+        ...createGeneratedToolingWrapperMap(),
         apiBoundaries: 'scripts/check-ultramodern-api-boundaries.mts',
         skills: 'scripts/bootstrap-agent-skills.mts',
       },

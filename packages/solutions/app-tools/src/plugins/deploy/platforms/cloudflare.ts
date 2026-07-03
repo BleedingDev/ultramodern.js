@@ -9,19 +9,33 @@ import type {
   JsonValue,
 } from '../../../types/config/deploy';
 import { readTemplate } from '../utils';
+import {
+  CLOUDFLARE_ASSETS_BINDING,
+  CLOUDFLARE_OUTPUT_PACKAGE_FILE,
+  CLOUDFLARE_PUBLIC_ASSETS_DIRECTORY,
+  CLOUDFLARE_REQUIRED_COMPATIBILITY_FLAGS,
+  CLOUDFLARE_RUNTIME_TYPE,
+  CLOUDFLARE_WORKER_BUNDLE_DIRECTORY,
+  CLOUDFLARE_WORKER_BUNDLE_FORMAT,
+  CLOUDFLARE_WORKER_ENTRY,
+  CLOUDFLARE_WORKER_MANIFEST,
+  CLOUDFLARE_WRANGLER_CONFIG_FILE,
+} from './cloudflare-output-contract';
+import { createCloudflareOutputPlan } from './cloudflare-output-plan';
+import { assertCloudflareOutput } from './cloudflare-output-verifier';
 import type { CreatePreset } from './platform';
 
-const WORKER_ENTRY = 'server/index.mjs';
-const WORKER_MANIFEST = 'server/modern-worker-manifest.json';
-const WRANGLER_CONFIG_FILE = 'wrangler.json';
-const OUTPUT_PACKAGE_FILE = 'package.json';
-const ASSETS_BINDING = 'ASSETS';
+const WORKER_ENTRY = CLOUDFLARE_WORKER_ENTRY;
+const WORKER_MANIFEST = CLOUDFLARE_WORKER_MANIFEST;
+const WRANGLER_CONFIG_FILE = CLOUDFLARE_WRANGLER_CONFIG_FILE;
+const OUTPUT_PACKAGE_FILE = CLOUDFLARE_OUTPUT_PACKAGE_FILE;
+const ASSETS_BINDING = CLOUDFLARE_ASSETS_BINDING;
 const ROUTE_SPEC_FILE = 'route.json';
 const ROUTE_SPEC_OUTPUT = `server/${ROUTE_SPEC_FILE}`;
 const LOADABLE_STATS_FILE = 'loadable-stats.json';
 const ROUTE_MANIFEST_FILE = 'routes-manifest.json';
-const PUBLIC_ASSETS_DIRECTORY = 'public';
-const WORKER_BUNDLE_DIRECTORY = 'worker';
+const PUBLIC_ASSETS_DIRECTORY = CLOUDFLARE_PUBLIC_ASSETS_DIRECTORY;
+const WORKER_BUNDLE_DIRECTORY = CLOUDFLARE_WORKER_BUNDLE_DIRECTORY;
 const SERVER_BUNDLE_DIRECTORY = 'bundles';
 const SERVER_OUTPUT_DIRECTORY = 'server';
 const DEFAULT_SERVER_ONLY_PUBLIC_ASSET_EXCLUDES = ['api', 'shared'] as const;
@@ -30,10 +44,7 @@ const EFFECT_BFF_CLOUDFLARE_IMPORT_GUIDANCE =
   'Ensure the Effect API entry exists at api/index.ts or bff.effect.entry, and import Cloudflare edge handlers from @modern-js/plugin-bff/effect-edge instead of lambda/Hono server helpers.';
 const DEFAULT_COMPATIBILITY_DATE = '2026-06-02';
 const COMPATIBILITY_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/u;
-const REQUIRED_COMPATIBILITY_FLAGS = [
-  'nodejs_compat',
-  'global_fetch_strictly_public',
-] as const;
+const REQUIRED_COMPATIBILITY_FLAGS = CLOUDFLARE_REQUIRED_COMPATIBILITY_FLAGS;
 const RESERVED_ARTIFACT_DESTINATION_FILES = new Set([
   WRANGLER_CONFIG_FILE,
   OUTPUT_PACKAGE_FILE,
@@ -962,7 +973,7 @@ const createWorkerManifest = async (
   return {
     version: 1,
     runtime: {
-      type: 'cloudflare-module-worker',
+      type: CLOUDFLARE_RUNTIME_TYPE,
       entry: WORKER_ENTRY,
       fetchExport: true,
       nodeListen: false,
@@ -978,7 +989,7 @@ const createWorkerManifest = async (
     },
     workerBundles: {
       directory: WORKER_BUNDLE_DIRECTORY,
-      format: 'commonjs',
+      format: CLOUDFLARE_WORKER_BUNDLE_FORMAT,
       importableFromModuleWorker: true,
       requestHandlerExport: 'requestHandler',
     },
@@ -1103,11 +1114,12 @@ export const createCloudflarePreset: CreatePreset = ({
   const { appDirectory, distDirectory } = appContext;
 
   const outputDirectory = path.join(appDirectory, '.output');
-  const publicDirectory = path.join(outputDirectory, PUBLIC_ASSETS_DIRECTORY);
-  const workerEntryPath = path.join(outputDirectory, WORKER_ENTRY);
-  const workerManifestPath = path.join(outputDirectory, WORKER_MANIFEST);
+  const outputPlan = createCloudflareOutputPlan(outputDirectory);
+  const publicDirectory = outputPlan.paths.publicAssets;
+  const workerEntryPath = outputPlan.paths.workerEntry;
+  const workerManifestPath = outputPlan.paths.workerManifest;
   const routeSpecOutputPath = path.join(outputDirectory, ROUTE_SPEC_OUTPUT);
-  const wranglerConfigPath = path.join(outputDirectory, WRANGLER_CONFIG_FILE);
+  const wranglerConfigPath = outputPlan.paths.wranglerConfig;
   const cloudflareArtifacts = getCloudflareArtifacts(modernConfig);
   const publicAssetExcludes = getPublicAssetExcludes(
     appDirectory,
@@ -1135,10 +1147,7 @@ export const createCloudflarePreset: CreatePreset = ({
         distDirectory,
         WORKER_BUNDLE_DIRECTORY,
       );
-      const workerBundleOutputDirectory = path.join(
-        outputDirectory,
-        WORKER_BUNDLE_DIRECTORY,
-      );
+      const workerBundleOutputDirectory = outputPlan.paths.workerBundle;
       if (await fse.pathExists(workerBundleSourceDirectory)) {
         await fse.copy(
           workerBundleSourceDirectory,
@@ -1149,10 +1158,8 @@ export const createCloudflarePreset: CreatePreset = ({
           },
         );
         await fse.writeJSON(
-          path.join(workerBundleOutputDirectory, 'package.json'),
-          {
-            type: 'commonjs',
-          },
+          outputPlan.paths.workerPackage,
+          outputPlan.packages.worker,
         );
       }
       await copyCloudflareArtifacts(
@@ -1186,9 +1193,10 @@ export const createCloudflarePreset: CreatePreset = ({
           spaces: 2,
         },
       );
-      await fse.writeJSON(path.join(outputDirectory, OUTPUT_PACKAGE_FILE), {
-        type: 'module',
-      });
+      await fse.writeJSON(
+        outputPlan.paths.outputPackage,
+        outputPlan.packages.output,
+      );
     },
     async genEntry() {
       const template = await readTemplate('cloudflare-entry.mjs');
@@ -1203,6 +1211,10 @@ export const createCloudflarePreset: CreatePreset = ({
             createWorkerModuleLoaders(manifest),
           ),
       );
+      await assertCloudflareOutput({
+        outputDirectory,
+        importWorker: false,
+      });
     },
   };
 };

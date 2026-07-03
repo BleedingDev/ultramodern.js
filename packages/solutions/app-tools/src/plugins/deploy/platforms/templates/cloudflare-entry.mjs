@@ -2,7 +2,7 @@ const ASSETS_BINDING = 'ASSETS';
 const MODERN_WORKER_MANIFEST = p_workerManifest;
 const WORKER_MODULE_LOADERS = p_workerModuleLoaders;
 const workerModulePromises = new Map();
-const effectBffHandlerPromises = new Map();
+const effectBffDispatcherPromises = new Map();
 let effectEdgeRuntimePromise;
 const remoteJsonPromises = new Map();
 const CORS_POLICY = MODERN_WORKER_MANIFEST.security?.cors || {};
@@ -296,28 +296,7 @@ async function createCorsPreflightResponse(request, env) {
     });
   }
 
-  if (!ASSET_CORS_ENABLED) {
-    return null;
-  }
-
-  const assets = env?.[ASSETS_BINDING];
-
-  if (!assets || typeof assets.fetch !== 'function') {
-    return null;
-  }
-
-  const assetResponse = await assets.fetch(
-    new Request(request.url, { method: 'HEAD' }),
-  );
-
-  if (!assetResponse || assetResponse.status === 404) {
-    return null;
-  }
-
-  return new Response(null, {
-    headers: ASSET_CORS_HEADERS,
-    status: 204,
-  });
+  return null;
 }
 
 async function fetchAsset(request, env) {
@@ -1513,20 +1492,20 @@ async function dispatchBffRequest(request, env) {
   const runtime = getRuntimeModule(workerModule);
 
   if (bff.runtimeFramework === 'effect') {
-    let effectHandlerPromise = effectBffHandlerPromises.get(bff.worker);
+    let effectDispatcherPromise = effectBffDispatcherPromises.get(bff.worker);
 
-    if (!effectHandlerPromise) {
-      const { createEffectBffEdgeHandler } = await loadEffectEdgeRuntime();
+    if (!effectDispatcherPromise) {
+      const { createEffectBffEdgeDispatcher } = await loadEffectEdgeRuntime();
 
-      effectHandlerPromise = createEffectBffEdgeHandler({
+      effectDispatcherPromise = createEffectBffEdgeDispatcher({
         module: runtime,
         prefix: bff.prefix,
       });
-      effectBffHandlerPromises.set(bff.worker, effectHandlerPromise);
+      effectBffDispatcherPromises.set(bff.worker, effectDispatcherPromise);
     }
 
-    const effectHandler = await effectHandlerPromise;
-    return effectHandler.handler(request, { env });
+    const effectDispatcher = await effectDispatcherPromise;
+    return effectDispatcher.dispatch(request, { env });
   }
 
   const directHandler =

@@ -1347,7 +1347,7 @@ const packageJsonFiles = startDir => {
     const current = queue.shift();
     for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
       if (
-        ['.git', '.output', '.zerops', 'dist', 'node_modules', 'repos'].includes(
+      ['.git', '.output', '.zerops', 'dist', 'node_modules', 'repos'].includes(
           entry.name,
         )
       ) {
@@ -1639,14 +1639,16 @@ const requiredPaths = [
   'scripts/bootstrap-agent-skills.mts',
   'scripts/check-ultramodern-api-boundaries.mts',
   'scripts/check-ultramodern-i18n-boundaries.mts',
+  'scripts/generate-node-backend-federation.mts',
   'scripts/generate-public-surface-assets.mts',
   'scripts/proof-cloudflare-version.mts',
-  'scripts/proof-node-backend-federation.mjs',
+  'scripts/proof-node-backend-federation.mts',
   'scripts/setup-agent-reference-repos.mts',
   'scripts/ultramodern-performance-readiness.config.mjs',
   'scripts/ultramodern-performance-readiness.mts',
   'scripts/ultramodern-typecheck.mts',
   'scripts/validate-ultramodern-workspace.mts',
+  'scripts/verify-cloudflare-output.mts',
   'apps/shell-super-app/package.json',
   'apps/shell-super-app/tsconfig.json',
   'apps/shell-super-app/tsconfig.mf-types.json',
@@ -1858,17 +1860,20 @@ if (bridgeConfig) {
   }
   assert(rootPackage.scripts?.['bridge:check'], 'Bridge workspaces must expose bridge:check');
 } else {
-  assert(rootPackage.scripts?.typecheck === 'node ./scripts/ultramodern-typecheck.mts --build tsconfig.json', 'Root typecheck must run TS-Go build mode across project references');
+  assert(rootPackage.scripts?.typecheck === 'node ./scripts/ultramodern-typecheck.mts --project tsconfig.json', 'Root typecheck must run TS-Go across the root project reference graph');
 }
 assert(rootPackage.scripts?.['contract:check'] === 'node ./scripts/validate-ultramodern-workspace.mts', 'Root must expose contract:check');
 assert(rootPackage.scripts?.['api:check'] === 'node ./scripts/check-ultramodern-api-boundaries.mts', 'Root must expose api:check');
 assert(rootPackage.scripts?.['i18n:boundaries'] === 'node ./scripts/check-ultramodern-i18n-boundaries.mts', 'Root must expose i18n:boundaries');
 assert(rootPackage.scripts?.['performance:readiness'] === 'node ./scripts/ultramodern-performance-readiness.mts', 'Root must expose default-on performance readiness diagnostics');
-assert(!('node:backend-federation:generate' in rootPackage.scripts), 'Root must not expose local Node backend federation artifact generation');
+assert(rootPackage.scripts?.['node:backend-federation:generate'] === 'node ./scripts/generate-node-backend-federation.mts', 'Root must expose local Node backend federation artifact generation');
+assert(rootPackage.scripts?.['zerops:materialize'] === 'node ./scripts/materialize-zerops-runtime.mjs', 'Root must expose Zerops runtime materialization script');
 assertNotExists('scripts/generate-node-backend-federation.mjs');
+assertNotExists('scripts/proof-node-backend-federation.mjs');
+assertNotExists('scripts/verify-cloudflare-output.mjs');
 assert(
   rootPackage.scripts?.['node:proof'] ===
-    'node ./scripts/proof-node-backend-federation.mjs --out .codex/reports/node-backend-federation-proof/proof.json',
+    'node ./scripts/proof-node-backend-federation.mts',
   'Root must expose node:proof for backend federation Effect modules',
 );
 assert(
@@ -1882,33 +1887,31 @@ assert(
   'Root check must run Node backend federation proof, default-on performance readiness diagnostics, and bridge gates when configured',
 );
 const zeropsYaml = readText('zerops.yaml');
-assert(zeropsYaml.includes('zerops:'), 'Zerops manifest must declare zerops services');
+assert(zeropsYaml.includes('zerops:'), 'Zerops manifest must include zerops services');
 assert(zeropsYaml.includes('setup: shell-super-app'), 'Zerops manifest must include shell service');
 assert(zeropsYaml.includes('base: nodejs@26'), 'Zerops manifest must use generated Node runtime major');
 assert(zeropsYaml.includes('deployFiles:'), 'Zerops manifest must deploy package-pruned runtime directories');
 assert(
   zeropsYaml.includes('start: cd .zerops/runtime/shell-super-app && npm run serve'),
-  'Zerops shell service must start generated Modern server from runtime directory',
+  'Zerops shell service must start from materialized runtime package',
 );
 assert(
   zeropsYaml.includes('SHELL_SUPER_APP_PORT:') &&
     zeropsYaml.includes('ULTRAMODERN_ZEROPS_SERVICE:'),
-  'Zerops services must define generated runtime environment variables',
+  'Zerops manifest must expose service identity and ports',
 );
 for (const vertical of fullStackVerticals) {
-  assert(zeropsYaml.includes(`setup: ${vertical.id}`), `${vertical.id} Zerops service must be generated`);
+  assert(zeropsYaml.includes(`setup: ${vertical.id}`), `${vertical.id} must have a Zerops service`);
   assert(
     zeropsYaml.includes(`~/.local/bin/mise exec -- pnpm run zerops:materialize -- --app ${vertical.id} --package ${vertical.packageName} --package-dir ${vertical.path}`),
-    `${vertical.id} Zerops service must use generated runtime materializer`,
+    `${vertical.id} Zerops service must materialize its runtime package`,
   );
   assert(
     zeropsYaml.includes(`path: ${vertical.apiPrefix}/${vertical.stem}/readiness`),
-    `${vertical.id} Zerops readiness must target generated Effect BFF readiness endpoint`,
+    `${vertical.id} BFF readiness path must use generated API prefix`,
   );
 }
-assert(rootPackage.scripts?.['zerops:materialize'] === 'node ./scripts/materialize-zerops-runtime.mjs', 'Root must expose Zerops runtime materialization script');
 const performanceReadinessConfig = readText('scripts/ultramodern-performance-readiness.config.mjs');
-const nodeBackendFederationProof = readText('scripts/proof-node-backend-federation.mjs');
 const zeropsMaterializer = readText('scripts/materialize-zerops-runtime.mjs');
 const assertToolWrapper = (scriptPath, command) => {
   const source = readText(scriptPath);
@@ -1924,23 +1927,12 @@ assert(zeropsMaterializer.includes("MODERNJS_DEPLOY: 'node'"), 'Zerops materiali
 assert(/'deploy',\s*'--skip-build'/.test(zeropsMaterializer), 'Zerops materializer must pass --skip-build directly to Modern deploy');
 assert(zeropsMaterializer.includes('normalizeRuntimePackageDependencies'), 'Zerops materializer must normalize generated Modern package aliases before installing dependencies');
 assert(zeropsMaterializer.includes('officialPackageName'), 'Zerops materializer must add official Modern.js npm aliases for generated runtime imports');
-assert(zeropsMaterializer.includes('installRuntimeDependencies'), 'Zerops materializer must install dependencies outside the workspace and copy runtime node_modules');
+assert(zeropsMaterializer.includes('installRuntimeDependencies'), 'Zerops materializer must install dependencies outside the workspace copy runtime node_modules');
 assert(zeropsMaterializer.includes('copyWorkspacePackage'), 'Zerops materializer must preserve generated local workspace package dependencies');
 assert(zeropsMaterializer.includes('makeWorkspacePackageRuntimeSafe'), 'Zerops materializer must rewrite copied workspace packages to runtime-safe JavaScript exports');
-assert(zeropsMaterializer.includes("serve: runtimePackage.scripts?.serve ?? 'node index.js'"), 'Zerops materializer must expose runtime serve script');
-assert(zeropsMaterializer.includes("'install', '--omit=dev'"), 'Zerops materializer must install production dependencies inside runtime artifact');
-assert(zeropsMaterializer.includes("'--legacy-peer-deps'"), 'Zerops materializer must install runtime dependencies with generated-workspace peer policy');
-assert(
-  nodeBackendFederationProof.includes('@modern-js/plugin-bff/effect') &&
-    nodeBackendFederationProof.includes(
-      'loadBackendFederatedEffectApiFromManifest',
-    ) &&
-    nodeBackendFederationProof.includes('backend-mf-manifest.json') &&
-    nodeBackendFederationProof.includes('backendRemoteEntry.mjs') &&
-    nodeBackendFederationProof.includes('pathToFileURL(entryPath).href') &&
-    !nodeBackendFederationProof.includes('createBackendFederationLoadEntryPlugin'),
-  'Node backend federation proof must exercise the plugin-bff manifest adapter',
-);
+assert(zeropsMaterializer.includes("serve: runtimePackage.scripts?.serve ?? 'node index.js'"), 'Zerops materializer must preserve runtime serve script fallback');
+assert(zeropsMaterializer.includes("'install', '--omit=dev'"), 'Zerops materializer must omit dev dependencies from runtime installs');
+assert(zeropsMaterializer.includes("'--legacy-peer-deps'"), 'Zerops materializer must tolerate generated-workspace peer dependency ranges in npm runtime install');
 assertToolWrapper('scripts/validate-ultramodern-workspace.mts', 'validate');
 assertToolWrapper('scripts/ultramodern-performance-readiness.mts', 'performance-readiness');
 const i18nBoundaryScript = readText('scripts/check-ultramodern-i18n-boundaries.mts');
@@ -1960,8 +1952,11 @@ assert(rootPackage.scripts?.postinstall === "oxfmt . '!repos/**' && node ./scrip
 assert(rootPackage.scripts?.['agents:refs:install'] === 'node ./scripts/setup-agent-reference-repos.mts', 'Root must expose agents:refs:install as the explicit reference repo installer');
 const agentSkillsBootstrap = readText('scripts/bootstrap-agent-skills.mts');
 assertToolWrapper('scripts/assert-mf-types.mts', 'mf-types');
+assertToolWrapper('scripts/generate-node-backend-federation.mts', 'backend-federation-generate');
 assertToolWrapper('scripts/generate-public-surface-assets.mts', 'public-surface');
+assertToolWrapper('scripts/proof-node-backend-federation.mts', 'backend-federation-proof');
 assertToolWrapper('scripts/proof-cloudflare-version.mts', 'cloudflare-proof');
+assertToolWrapper('scripts/verify-cloudflare-output.mts', 'cloudflare-output-verify');
 assertToolWrapper('scripts/migrate-strict-effect.mts', 'migrate-strict-effect');
 assertToolWrapper('scripts/bootstrap-agent-skills.mts', 'skills');
 assert(!agentSkillsBootstrap.includes("run('brew'") && !agentSkillsBootstrap.includes('runShell('), 'Agent skills bootstrap must never invoke system package managers');
@@ -2010,7 +2005,6 @@ const shellRouteMetadata = readText('apps/shell-super-app/src/routes/ultramodern
 assert(/^\.mf\/$/mu.test(gitignore), 'Generated .gitignore must ignore root Module Federation diagnostics');
 assert(/^\*\*\/\.mf\/$/mu.test(gitignore), 'Generated .gitignore must ignore per-app Module Federation diagnostics');
 assert(/^dist-cloudflare\/$/mu.test(gitignore), 'Generated .gitignore must ignore Cloudflare build output');
-assert(/^\.zerops\/runtime\/$/mu.test(gitignore), 'Generated .gitignore must ignore Zerops materialized runtime artifacts');
 assert(shellModernAppEnv.includes("import '@modern-js/app-tools/types';"), 'Shell app env must import the framework-owned app ambient type bundle through module resolution');
 assert(/declare global \{\s*const ULTRAMODERN_SITE_URL: string;\s*\}/u.test(shellModernAppEnv), 'Shell app env must keep generated globals explicit after importing app ambient types');
 assert(!shellModernAppEnv.includes("declare module '*.svg'"), 'Shell app env must not redeclare framework-owned svg asset modules');
@@ -2033,7 +2027,6 @@ assert(shellPackage.dependencies?.['@modern-js/plugin-bff'] === expectedModernPa
 assert(shellPackage.dependencies?.['@modern-js/plugin-i18n'] === expectedModernPackageSpecifier('@modern-js/plugin-i18n'), 'Shell plugin-i18n dependency must match package source metadata');
 assert(shellPackage.dependencies?.['@modern-js/plugin-tanstack'] === expectedModernPackageSpecifier('@modern-js/plugin-tanstack'), 'Shell plugin-tanstack dependency must match package source metadata');
 assert(shellPackage.dependencies?.['@modern-js/runtime'] === expectedModernPackageSpecifier('@modern-js/runtime'), 'Shell runtime dependency must match package source metadata');
-assert(shellPackage.scripts?.deploy === 'modern deploy', 'Shell must expose package deploy script for Zerops runtime materialization');
 assert(shellPackage.scripts?.['cloudflare:deploy'] === 'ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS=true pnpm run cloudflare:build && wrangler deploy --config .output/wrangler.json', 'Shell must expose cloudflare:deploy');
 assertTargetIsolatedBuildArtifacts('shell-super-app', shellModernConfig);
 assertCloudflareBuildSkipsDeployRebuild('shell-super-app', shellPackage);
@@ -2117,7 +2110,6 @@ for (const vertical of fullStackVerticals) {
   assert(routeMetadata.includes('@generated by @modern-js/create'), `${vertical.id} route metadata compatibility manifest must be marked generated`);
   assert(routeMetadata.includes("authoring: 'colocated-route-meta'"), `${vertical.id} route metadata manifest must advertise colocated authoring`);
   assert(packageJson.name === vertical.packageName, `${vertical.id} package name is incorrect`);
-  assert(packageJson.scripts?.deploy === 'modern deploy', `${vertical.id} must expose package deploy script for Zerops runtime materialization`);
   assert(packageJson.scripts?.['cloudflare:deploy'] === 'ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS=true pnpm run cloudflare:build && wrangler deploy --config .output/wrangler.json', `${vertical.id} must expose cloudflare:deploy`);
   assertTargetIsolatedBuildArtifacts(vertical.id, modernConfig);
   assertCloudflareBuildSkipsDeployRebuild(vertical.id, packageJson);

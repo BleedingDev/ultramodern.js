@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const workspaceRoot = path.resolve(process.env.ULTRAMODERN_WORKSPACE_ROOT ?? process.cwd());
+const workspaceRequire = createRequire(path.join(workspaceRoot, 'package.json'));
 const compactConfigPath = path.join(workspaceRoot, '.modernjs/ultramodern.json');
 const defaultOut = path.join(
   workspaceRoot,
@@ -13,6 +15,10 @@ const defaultOut = path.join(
 const contractVersion = 'microvertical-server-effect-v1';
 const nodeAdapterVersion = 'backend-mf-effect-v1';
 const backendExpose = './effect-api';
+const localRuntimeRelativePaths = [
+  'packages/cli/plugin-bff/dist/esm-node/runtime/effect/index.mjs',
+  'cli/plugin-bff/dist/esm-node/runtime/effect/index.mjs',
+];
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'));
@@ -40,16 +46,37 @@ function hasBackendFederationManifestAdapter(runtime) {
   return typeof runtime?.loadBackendFederatedEffectApiFromManifest === 'function';
 }
 
+function findLocalRuntimePath(createBin) {
+  let current = path.dirname(fileURLToPath(pathToFileURL(createBin)));
+  for (let depth = 0; depth < 8; depth += 1) {
+    for (const relativePath of localRuntimeRelativePaths) {
+      const candidate = path.join(current, relativePath);
+      if (fs.existsSync(candidate)) {
+        return candidate;
+      }
+    }
+
+    const parent = path.dirname(current);
+    if (parent === current) {
+      break;
+    }
+    current = parent;
+  }
+
+  return undefined;
+}
+
 async function importBackendFederationRuntime() {
   let importError;
   try {
-    const runtime = await import('@modern-js/plugin-bff/effect');
+    const runtimePath = workspaceRequire.resolve('@modern-js/plugin-bff/effect');
+    const runtime = await import(pathToFileURL(runtimePath).href);
     if (hasBackendFederationManifestAdapter(runtime)) {
       return runtime;
     }
 
     importError = new Error(
-      '@modern-js/plugin-bff/effect does not export loadBackendFederatedEffectApiFromManifest',
+      `${runtimePath} does not export loadBackendFederatedEffectApiFromManifest`,
     );
   } catch (error) {
     importError = error;
@@ -60,17 +87,16 @@ async function importBackendFederationRuntime() {
     throw importError;
   }
 
-  const localRuntimePath = path.resolve(
-    path.dirname(fileURLToPath(pathToFileURL(createBin))),
-    '../../../cli/plugin-bff/dist/esm-node/runtime/effect/index.mjs',
-  );
-  if (!fs.existsSync(localRuntimePath)) {
+  const localRuntimePath = findLocalRuntimePath(createBin);
+  if (!localRuntimePath) {
     throw importError;
   }
 
   const localRuntime = await import(pathToFileURL(localRuntimePath).href);
   if (!hasBackendFederationManifestAdapter(localRuntime)) {
-    throw importError;
+    throw new Error(
+      `${localRuntimePath} does not export loadBackendFederatedEffectApiFromManifest`,
+    );
   }
 
   return localRuntime;
@@ -571,8 +597,9 @@ async function main(argv = process.argv.slice(2)) {
 
   const config = readJson(compactConfigPath);
   const apps = compactApps(config, args.app);
-  const backendRuntime = await importBackendFederationRuntime();
   const results = [];
+  const backendRuntime =
+    apps.length > 0 ? await importBackendFederationRuntime() : undefined;
 
   for (const app of apps) {
     results.push(await proveBackend(app, backendRuntime, args.target));
