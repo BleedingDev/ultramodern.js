@@ -121,7 +121,7 @@ export const createI18nPlugin =
         return loadReactI18nextIntegration?.() ?? null;
       };
 
-      api.onBeforeRender(async context => {
+      api.onBeforeRender(async (context: RuntimeContextWithI18n) => {
         const {
           useI18nextBackend,
           changeI18nLanguage,
@@ -228,8 +228,8 @@ export const createI18nPlugin =
         };
       });
 
-      api.wrapRoot(App => {
-        return props => {
+      api.wrapRoot((App: React.ComponentType<any>) => {
+        return (props: Record<string, unknown>) => {
           const runtimeContext = useContext(
             RuntimeContext,
           ) as RuntimeContextWithI18n;
