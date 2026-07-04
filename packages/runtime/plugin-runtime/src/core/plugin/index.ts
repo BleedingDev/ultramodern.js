@@ -27,7 +27,11 @@ export function registerPlugin(
   });
   const internalRuntimeContext =
     runtimeContext as unknown as InternalRuntimeContext<RuntimeExtends>;
-  setGlobalInternalRuntimeContext(internalRuntimeContext);
+  setGlobalInternalRuntimeContext(
+    internalRuntimeContext as unknown as Parameters<
+      typeof setGlobalInternalRuntimeContext
+    >[0],
+  );
   return internalRuntimeContext;
 }
 

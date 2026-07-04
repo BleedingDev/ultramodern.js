@@ -1,3 +1,4 @@
+// @effect-diagnostics asyncFunction:off globalFetch:off strictBooleanExpressions:off
 import type {
   ModuleFederation,
   ModuleFederationRuntimePlugin,

@@ -1,3 +1,4 @@
+// @effect-diagnostics strictBooleanExpressions:off
 import type * as EffectServiceContext from 'effect/Context';
 import * as Context from 'effect/Context';
 import { HttpApi } from 'effect/unstable/httpapi';

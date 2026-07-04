@@ -9,7 +9,7 @@ import type {
 import { isbot as checkIsBot } from 'isbot';
 import type React from 'react';
 import { JSX_SHELL_STREAM_END_MARK } from '../../../common';
-import type { TRuntimeContext } from '../../context';
+import type { TInternalRuntimeContext } from '../../context';
 import { wrapRuntimeContextProvider } from '../../react/wrapper';
 import type { HandleRequestConfig } from '../requestHandler';
 import type { RenderStreaming, SSRConfig } from '../shared';
@@ -24,7 +24,7 @@ export type RscManifest = {
 };
 
 export type CreateReadableStreamFromElementOptions = {
-  runtimeContext: TRuntimeContext;
+  runtimeContext: TInternalRuntimeContext;
   config: HandleRequestConfig;
   ssrConfig: SSRConfig;
   htmlTemplate: string;

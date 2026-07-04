@@ -31,7 +31,7 @@ import {
 } from './lifecycle';
 import { routerProviderRegistryHooks } from './provider';
 import { createClientRouterFromPayload } from './rsc-router';
-import type { RouterConfig, Routes } from './types';
+import type { ModernRoute, RouterConfig, Routes } from './types';
 import {
   createRouteObjectsFromConfig,
   deserializeErrors,
@@ -82,7 +82,7 @@ export const routerPlugin = (
         current: [] as RouteObject[],
       };
 
-      api.onBeforeRender(context => {
+      api.onBeforeRender((context: TInternalRuntimeContext) => {
         // In some scenarios, the initial pathname and the current pathname do not match.
         // We add a configuration to support the page to reload.
         if (window._SSR_DATA && userConfig.unstable_reloadOnURLMismatch) {
@@ -116,7 +116,7 @@ export const routerPlugin = (
           enumerable: true,
         });
       });
-      api.wrapRoot(App => {
+      api.wrapRoot((App: React.ComponentType<any>) => {
         const mergedConfig = merge(
           api.getRuntimeConfig().router || {},
           userConfig,
@@ -130,7 +130,7 @@ export const routerPlugin = (
         } = mergedConfig;
 
         finalRouteConfig = {
-          routes: getGlobalRoutes(),
+          routes: getGlobalRoutes() as ModernRoute[] | undefined,
           globalApp: getGlobalLayoutApp(),
           ...routesConfig,
         };

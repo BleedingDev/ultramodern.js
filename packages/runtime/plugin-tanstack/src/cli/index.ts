@@ -1,4 +1,4 @@
-// @effect-diagnostics asyncFunction:off nodeBuiltinImport:off strictBooleanExpressions:off
+// @effect-diagnostics asyncFunction:off nodeBuiltinImport:off strictBooleanExpressions:off processEnv:off processEnvInEffect:off
 import path from 'node:path';
 import type {
   AppNormalizedConfig,

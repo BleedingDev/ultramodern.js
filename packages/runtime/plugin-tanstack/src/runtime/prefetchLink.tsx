@@ -76,7 +76,9 @@ const LinkComponentImpl = (props: LinkComponentImplProps) => {
     children,
     ...rest
   } = props as LinkComponentImplProps & {
-    children?: ReactNode | ((state: { isActive: boolean }) => ReactNode);
+    children?:
+      | ReactNode
+      | ((state: { isActive: boolean; isTransitioning: boolean }) => ReactNode);
   };
   const hasAriaCurrentOverride = 'aria-current' in props;
 
@@ -106,8 +108,8 @@ const LinkComponentImpl = (props: LinkComponentImplProps) => {
   // "suppress the attribute entirely") as the final word on the anchor we
   // render.
   const linkProps = useLinkProps(
-    linkOptions,
-    ref,
+    linkOptions as Parameters<typeof useLinkProps>[0],
+    ref as Parameters<typeof useLinkProps>[1],
   ) as AnchorHTMLAttributes<HTMLAnchorElement> & {
     disabled?: boolean;
     type?: string;
@@ -134,6 +136,9 @@ const LinkComponentImpl = (props: LinkComponentImplProps) => {
           isActive:
             (anchorProps as Record<string, unknown>)['data-status'] ===
             'active',
+          isTransitioning:
+            (anchorProps as Record<string, unknown>)['data-transitioning'] ===
+            'transitioning',
         })
       : children;
 
