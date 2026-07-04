@@ -218,7 +218,15 @@ export function createWorkspaceRootScriptPlan(
     typecheck:
       options.typecheck ??
       `${rootToolingWrapperCommand('typecheck')} --project tsconfig.json`,
-    check: `pnpm format:check && pnpm lint && pnpm typecheck && pnpm skills:check && pnpm i18n:boundaries && pnpm api:check && pnpm contract:check && pnpm ${backendFederationGenerateScript} && pnpm ${nodeProofScript} && pnpm performance:readiness${bridgeCheck}`,
+    // Backend-federation gates only apply when the workspace exposes
+    // API-bearing verticals. Shell-only workspaces omit them so migrate does
+    // not inject `node:proof`/`node:backend-federation:generate` into a
+    // workspace that has no backend surfaces (matches the validator contract).
+    check: `pnpm format:check && pnpm lint && pnpm typecheck && pnpm skills:check && pnpm i18n:boundaries && pnpm api:check && pnpm contract:check${
+      hasRemotes
+        ? ` && pnpm ${backendFederationGenerateScript} && pnpm ${nodeProofScript}`
+        : ''
+    } && pnpm performance:readiness${bridgeCheck}`,
   };
 }
 
