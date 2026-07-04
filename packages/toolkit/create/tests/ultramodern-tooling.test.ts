@@ -61,6 +61,260 @@ function scaffoldWorkspace(name: string) {
   return { tempRoot, workspaceDir };
 }
 
+function exists(workspaceDir: string, relativePath: string) {
+  return fs.existsSync(path.join(workspaceDir, relativePath));
+}
+
+function assertNoDanglingScriptReferences(workspaceDir: string) {
+  const rootPackage = readJson(workspaceDir, 'package.json');
+  const scripts = rootPackage.scripts ?? {};
+  const referencePattern = /(?:\.\/|(?:\.\.\/)+)?scripts\/[\w.-]+\.m[jt]s/gu;
+  for (const [name, value] of Object.entries(scripts)) {
+    if (typeof value !== 'string') {
+      continue;
+    }
+    for (const reference of value.match(referencePattern) ?? []) {
+      const relative = reference.replace(/^(?:\.\/|(?:\.\.\/)+)/u, '');
+      assert.equal(
+        exists(workspaceDir, relative),
+        true,
+        `script "${name}" references missing file ${reference}`,
+      );
+    }
+  }
+}
+
+test('generated tool wrapper scripts emit oxfmt-clean single-quoted source', () => {
+  const { tempRoot, workspaceDir } = scaffoldWorkspace(
+    'tooling-wrapper-quotes',
+  );
+
+  try {
+    const wrapper = readText(workspaceDir, 'scripts/assert-mf-types.mts');
+    assert.match(wrapper, /\['ultramodern', 'mf-types', \.\.\.\[\], /u);
+    assert.doesNotMatch(
+      wrapper,
+      /"ultramodern"|"mf-types"/u,
+      'wrappers must not emit double-quoted string literals',
+    );
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('migrate preserves consumer-owned check segments and rewrites migrated script refs', async () => {
+  const { tempRoot, workspaceDir } = scaffoldWorkspace('tooling-check-merge');
+
+  try {
+    addUltramodernVertical({
+      workspaceRoot: workspaceDir,
+      name: 'catalog',
+      modernVersion: '3.2.1',
+    });
+
+    const before = readJson(workspaceDir, 'package.json');
+    before.scripts['content:validate'] = 'node ./scripts/content-validate.mjs';
+    before.scripts.check = `${before.scripts.check} && pnpm content:validate && pnpm design-system:check`;
+    before.scripts['design-system:check'] = 'echo design-system';
+    before.scripts['ultramodern:assert-mf-types'] =
+      'node ./scripts/assert-mf-types.mjs';
+    writeJson(workspaceDir, 'package.json', before);
+    fs.writeFileSync(
+      path.join(workspaceDir, 'scripts/content-validate.mjs'),
+      'export {};\n',
+    );
+
+    assert.equal(
+      await runUltramodernToolingCli(
+        [
+          'migrate-strict-effect',
+          '--version',
+          '3.5.0-ultramodern.1',
+          '--skip-install',
+        ],
+        workspaceDir,
+      ),
+      0,
+    );
+
+    const after = readJson(workspaceDir, 'package.json');
+    assert.match(after.scripts.check, /pnpm node:proof/u);
+    assert.ok(
+      after.scripts.check.endsWith('&& pnpm performance:readiness'),
+      after.scripts.check,
+    );
+    assert.match(after.scripts.check, /pnpm content:validate/u);
+    assert.match(after.scripts.check, /pnpm design-system:check/u);
+    assert.equal(
+      after.scripts['content:validate'],
+      'node ./scripts/content-validate.mjs',
+    );
+    assert.equal(after.scripts['design-system:check'], 'echo design-system');
+    assert.equal(
+      after.scripts['ultramodern:assert-mf-types'],
+      'node ./scripts/assert-mf-types.mts',
+    );
+    assertNoDanglingScriptReferences(workspaceDir);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('migrate keeps version fields consistent across the compact config', async () => {
+  const { tempRoot, workspaceDir } = scaffoldWorkspace('tooling-version-sync');
+
+  try {
+    const before = readJson(workspaceDir, '.modernjs/ultramodern.json');
+    assert.equal(before.generator.version, '3.2.1');
+
+    assert.equal(
+      await runUltramodernToolingCli(
+        [
+          'migrate-strict-effect',
+          '--version',
+          '3.5.0-ultramodern.1',
+          '--skip-install',
+        ],
+        workspaceDir,
+      ),
+      0,
+    );
+
+    const after = readJson(workspaceDir, '.modernjs/ultramodern.json');
+    assert.equal(
+      after.packageSource.modernPackageVersion,
+      '3.5.0-ultramodern.1',
+    );
+    assert.equal(
+      after.generator.version,
+      '3.5.0-ultramodern.1',
+      'generator.version must track the migrated package version',
+    );
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('migrate does not inject backend-federation gates into a shell-only workspace', async () => {
+  const { tempRoot, workspaceDir } = scaffoldWorkspace('tooling-shell-only');
+
+  try {
+    assert.equal(
+      await runUltramodernToolingCli(
+        [
+          'migrate-strict-effect',
+          '--version',
+          '3.5.0-ultramodern.1',
+          '--skip-install',
+        ],
+        workspaceDir,
+      ),
+      0,
+    );
+
+    const rootPackage = readJson(workspaceDir, 'package.json');
+    assert.doesNotMatch(rootPackage.scripts.check, /node:proof/u);
+    assert.doesNotMatch(
+      rootPackage.scripts.check,
+      /node:backend-federation:generate/u,
+    );
+    assert.ok(
+      rootPackage.scripts.check.endsWith('&& pnpm performance:readiness'),
+    );
+    assert.equal(rootPackage.scripts['node:proof'], undefined);
+    assert.equal(
+      rootPackage.scripts['node:backend-federation:generate'],
+      undefined,
+    );
+    assert.equal(rootPackage.scripts['zerops:materialize'], undefined);
+    assert.equal(
+      exists(workspaceDir, 'scripts/generate-node-backend-federation.mts'),
+      false,
+    );
+    assert.equal(
+      exists(workspaceDir, 'scripts/proof-node-backend-federation.mts'),
+      false,
+    );
+    assertNoDanglingScriptReferences(workspaceDir);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('migrate materializes every validator-required wrapper and rewires legacy scripts', async () => {
+  const { tempRoot, workspaceDir } = scaffoldWorkspace(
+    'tooling-legacy-scripts',
+  );
+
+  try {
+    const legacyRenames = [
+      'bootstrap-agent-skills',
+      'setup-agent-reference-repos',
+      'check-ultramodern-i18n-boundaries',
+    ];
+    for (const name of legacyRenames) {
+      fs.renameSync(
+        path.join(workspaceDir, `scripts/${name}.mts`),
+        path.join(workspaceDir, `scripts/${name}.mjs`),
+      );
+    }
+    const before = readJson(workspaceDir, 'package.json');
+    before.scripts['skills:install'] =
+      'node ./scripts/bootstrap-agent-skills.mjs';
+    before.scripts['skills:check'] =
+      'node ./scripts/bootstrap-agent-skills.mjs --check';
+    before.scripts.postinstall =
+      "oxfmt . '!repos/**' && node ./scripts/bootstrap-agent-skills.mjs --postinstall";
+    before.scripts['agents:refs:install'] =
+      'node ./scripts/setup-agent-reference-repos.mjs';
+    before.scripts['i18n:boundaries'] =
+      'node ./scripts/check-ultramodern-i18n-boundaries.mjs';
+    writeJson(workspaceDir, 'package.json', before);
+
+    assert.equal(
+      await runUltramodernToolingCli(
+        [
+          'migrate-strict-effect',
+          '--version',
+          '3.5.0-ultramodern.1',
+          '--skip-install',
+        ],
+        workspaceDir,
+      ),
+      0,
+    );
+
+    for (const name of legacyRenames) {
+      assert.equal(exists(workspaceDir, `scripts/${name}.mts`), true, name);
+      assert.equal(exists(workspaceDir, `scripts/${name}.mjs`), false, name);
+    }
+    const after = readJson(workspaceDir, 'package.json');
+    assert.equal(
+      after.scripts['skills:install'],
+      'node ./scripts/bootstrap-agent-skills.mts',
+    );
+    assert.equal(
+      after.scripts['skills:check'],
+      'node ./scripts/bootstrap-agent-skills.mts --check',
+    );
+    assert.equal(
+      after.scripts.postinstall,
+      "oxfmt . '!repos/**' && node ./scripts/bootstrap-agent-skills.mts --postinstall",
+    );
+    assert.equal(
+      after.scripts['agents:refs:install'],
+      'node ./scripts/setup-agent-reference-repos.mts',
+    );
+    assert.equal(
+      after.scripts['i18n:boundaries'],
+      'node ./scripts/check-ultramodern-i18n-boundaries.mts',
+    );
+    assertNoDanglingScriptReferences(workspaceDir);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
 function assertTargetIsolatedModernConfig(source: string, label: string) {
   assert.match(
     source,
@@ -138,6 +392,14 @@ test('routes-generate command drives the plugin-tanstack headless export', () =>
     /generateTanstackRouteArtifacts\(\{ appDirectory: target\.appDirectory \}\)/u,
   );
   assert.match(source, /appRequire\.resolve\('@modern-js\/plugin-tanstack'\)/u);
+  // The failure path must surface the full stack and cause chain, not just
+  // error.message — the real route-generate crash is an opaque node error
+  // thrown deep inside app-tools/plugin.
+  assert.match(
+    source,
+    /current instanceof Error \? current\.cause : undefined/u,
+  );
+  assert.match(source, /current\.stack/u);
 });
 
 test('backend federation proof skips runtime loading when no backend apps exist', async () => {

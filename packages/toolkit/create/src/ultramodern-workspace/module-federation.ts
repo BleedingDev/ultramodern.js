@@ -102,6 +102,15 @@ const zephyrEnabled = process.env['ULTRAMODERN_ZEPHYR'] !== 'false';
 const cloudflareDeployEnabled =
   process.env['MODERNJS_DEPLOY'] === 'cloudflare';
 
+const parsedZephyrTimeoutMs = Number.parseInt(
+  process.env['ULTRAMODERN_ZEPHYR_TIMEOUT_MS'] ?? '',
+  10,
+);
+const zephyrTimeoutMs =
+  Number.isFinite(parsedZephyrTimeoutMs) && parsedZephyrTimeoutMs > 0
+    ? parsedZephyrTimeoutMs
+    : 45000;
+
 const zephyrWarn = (error: unknown) => {
   const message = error instanceof Error ? error.message : String(error);
   console.warn(
@@ -124,10 +133,27 @@ const zephyrRspackPlugin = () => ({
     }
     api.modifyRspackConfig(config => {
       try {
-        return Promise.resolve(withZephyrRspack()(config)).catch(error => {
-          zephyrWarn(error);
-          return config;
+        // Zephyr can not only throw/reject but also hang on a stalled network
+        // call, wedging the whole build. Race it against a watchdog so a hang
+        // degrades to an unmodified config instead of blocking indefinitely.
+        const zephyrConfig = Promise.resolve(withZephyrRspack()(config)).catch(
+          error => {
+            zephyrWarn(error);
+            return config;
+          },
+        );
+        const watchdog = new Promise<ZephyrRspackConfig>(resolve => {
+          const timer = setTimeout(() => {
+            zephyrWarn(
+              \`timed out after \${zephyrTimeoutMs}ms (override with ULTRAMODERN_ZEPHYR_TIMEOUT_MS)\`,
+            );
+            resolve(config);
+          }, zephyrTimeoutMs);
+          if (typeof timer.unref === 'function') {
+            timer.unref();
+          }
         });
+        return Promise.race([zephyrConfig, watchdog]);
       } catch (error) {
         zephyrWarn(error);
         return config;

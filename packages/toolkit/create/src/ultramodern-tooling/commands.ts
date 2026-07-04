@@ -54,7 +54,8 @@ import {
 import {
   createWorkspaceValidationScript,
   createZeropsRuntimeMaterializationScript,
-  writeGeneratedToolWrapperScripts,
+  migratedWorkspaceScriptArtifacts,
+  migratedWorkspaceScriptBasenames,
 } from '../ultramodern-workspace/workspace-scripts';
 import { createZeropsYaml } from '../ultramodern-workspace/zerops';
 import {
@@ -424,11 +425,89 @@ function removeStaleBackendFederationCommandSegments(command: string) {
   );
 }
 
+// Root package.json scripts that only apply to workspaces with API-bearing
+// verticals. On shell-only workspaces they are neither injected nor kept
+// (their wrappers/materializers are not generated), so leaving them would
+// dangle at deleted files.
+const SHELL_ONLY_OMITTED_ROOT_SCRIPTS: readonly string[] = [
+  'node:backend-federation:generate',
+  'node:proof',
+  'zerops:materialize',
+];
+
+// Split an aggregate script (`a && b && c`) into its `&&`-joined segments.
+const splitScriptSegments = (command: string): string[] =>
+  command
+    .split('&&')
+    .map(segment => segment.trim())
+    .filter(segment => segment.length > 0);
+
+// The pnpm script target a segment invokes (e.g. `pnpm api:check --foo` -> `api:check`).
+const scriptSegmentTarget = (segment: string): string =>
+  segment.replace(/^pnpm\s+/u, '').split(/\s+/u)[0] ?? segment;
+
+// Every check segment the framework manages, across both shell-only and
+// full-stack shapes. A segment whose target is in this set is framework-owned
+// even when the current shape omits it (e.g. `node:proof` on a shell-only
+// workspace); it must never be preserved as a "consumer extra", otherwise
+// migrate would reintroduce a gate pointing at a script it did not generate.
+const FRAMEWORK_CHECK_TARGETS: ReadonlySet<string> = new Set([
+  'format:check',
+  'lint',
+  'typecheck',
+  'skills:check',
+  'i18n:boundaries',
+  'api:check',
+  'contract:check',
+  'node:backend-federation:generate',
+  'node:proof',
+  'performance:readiness',
+  'bridge:check',
+]);
+
+// Merge a framework aggregate `check` into a consumer-curated one: framework
+// segments are updated/ordered as the framework dictates, while consumer-owned
+// segments (targets the framework does not manage) are preserved. Consumer
+// extras are kept ahead of the framework block so the framework tail
+// (`... && pnpm performance:readiness`) stays intact for the validator.
+function mergeAggregateCheckScript(
+  consumer: string,
+  framework: string,
+): string {
+  const frameworkSegments = splitScriptSegments(framework);
+  const consumerExtras = splitScriptSegments(consumer).filter(
+    segment => !FRAMEWORK_CHECK_TARGETS.has(scriptSegmentTarget(segment)),
+  );
+  return [...consumerExtras, ...frameworkSegments].join(' && ');
+}
+
+// Rewrite any script references to a workspace-owned .mjs script that migrate
+// renamed to .mts, so no package.json script points at a deleted file.
+function rewriteMigratedScriptReferences(scripts: Record<string, any>) {
+  let changed = false;
+  const pattern = new RegExp(
+    `(scripts/(?:${migratedWorkspaceScriptBasenames.join('|')}))\\.mjs`,
+    'gu',
+  );
+  for (const [name, value] of Object.entries(scripts)) {
+    if (typeof value !== 'string') {
+      continue;
+    }
+    const next = value.replace(pattern, '$1.mts');
+    if (next !== value) {
+      scripts[name] = next;
+      changed = true;
+    }
+  }
+  return changed;
+}
+
 function updateGeneratedPackageScripts(
   packageJson: Record<string, any>,
   options: {
     relativePackageFile?: string;
     apps?: WorkspaceApp[];
+    shellOnly?: boolean;
   } = {},
 ) {
   const scripts = packageJson.scripts;
@@ -438,27 +517,53 @@ function updateGeneratedPackageScripts(
 
   let changed = false;
   const apps = options.apps ?? [];
+  const shellOnly = options.shellOnly ?? false;
   const app = apps.find(
     candidate =>
       `${candidate.directory}/package.json` === options.relativePackageFile,
   );
+  const isRootPackage = options.relativePackageFile === 'package.json';
 
-  const expectedScripts =
-    options.relativePackageFile === 'package.json'
-      ? createWorkspaceRootPackageScripts(
-          apps.filter(candidate => candidate.kind !== 'shell'),
-        )
-      : app
-        ? createWorkspaceAppPackageScripts(app)
-        : undefined;
+  const expectedScripts = isRootPackage
+    ? createWorkspaceRootPackageScripts(
+        apps.filter(candidate => candidate.kind !== 'shell'),
+      )
+    : app
+      ? createWorkspaceAppPackageScripts(app)
+      : undefined;
 
   if (expectedScripts) {
     for (const [name, value] of Object.entries(expectedScripts)) {
-      if (scripts[name] !== value) {
-        scripts[name] = value;
+      // Shell-only workspaces never materialize backend-federation/Zerops
+      // wrappers, so their root scripts must not be injected either.
+      if (
+        isRootPackage &&
+        shellOnly &&
+        SHELL_ONLY_OMITTED_ROOT_SCRIPTS.includes(name)
+      ) {
+        if (name in scripts) {
+          delete scripts[name];
+          changed = true;
+        }
+        continue;
+      }
+
+      // `check` is a consumer-curated aggregate; framework segments must be
+      // present/updated but consumer-owned segments must never be dropped.
+      const nextValue =
+        name === 'check' && typeof scripts[name] === 'string'
+          ? mergeAggregateCheckScript(scripts[name], value)
+          : value;
+
+      if (scripts[name] !== nextValue) {
+        scripts[name] = nextValue;
         changed = true;
       }
     }
+  }
+
+  if (rewriteMigratedScriptReferences(scripts)) {
+    changed = true;
   }
 
   const build = scripts.build;
@@ -1130,6 +1235,19 @@ function updateUltramodernConfig(
       : {}),
   };
 
+  // Keep every version field in the compact config consistent with the
+  // migrated package version. `generator.version` sits next to
+  // `packageSource.modernPackageVersion`; leaving it stale produces a
+  // half-bumped config.
+  if (
+    config.generator &&
+    typeof config.generator === 'object' &&
+    !Array.isArray(config.generator) &&
+    typeof config.generator.version === 'string'
+  ) {
+    config.generator.version = packageSource.modernPackageVersion;
+  }
+
   for (const app of config.topology?.apps ?? []) {
     if (app && typeof app === 'object' && !Array.isArray(app)) {
       normalizeStrictEffectApiMetadata(app);
@@ -1522,16 +1640,40 @@ workspaces skip the backend-federation and Zerops runtime stages. Pass
     io.log(
       'Shell-only workspace: skipping backend-federation and Zerops runtime stages.',
     );
+    // Shell-only workspaces have no backend/Zerops surfaces, so strip any
+    // backend-federation wrappers and Zerops runtime artifacts a prior scaffold
+    // may have emitted. This keeps the end state coherent with the gated
+    // validator contract and prevents dangling script references.
+    for (const relativePath of [
+      'scripts/generate-node-backend-federation.mts',
+      'scripts/generate-node-backend-federation.mjs',
+      'scripts/proof-node-backend-federation.mts',
+      'scripts/proof-node-backend-federation.mjs',
+      'scripts/materialize-zerops-runtime.mjs',
+      'zerops.yaml',
+    ]) {
+      removeGeneratedFileIfExists(io, relativePath);
+    }
   } else {
     removeStaleBackendFederationArtifacts(io, migrated);
     updateGeneratedZeropsArtifacts(io, migrated);
     updateGeneratedBackendFederationContractFiles(io, migrated);
   }
 
-  if (dryRun) {
-    io.log('would refresh generated tool wrapper scripts under scripts/');
-  } else {
-    writeGeneratedToolWrapperScripts(io.workspaceRoot);
+  // Materialize the full workspace-owned script/wrapper set migrate must
+  // converge to (agent skills bootstrap, reference-repo installer, i18n/api
+  // boundary checks, performance-readiness config, and every tool wrapper),
+  // gated on shell-only just like fresh scaffolds and the validator contract.
+  // Previously migrate only refreshed tool wrappers, leaving legacy .mjs
+  // agent/i18n scripts un-migrated and the stock contract:check unsatisfiable.
+  for (const artifact of migratedWorkspaceScriptArtifacts({ shellOnly })) {
+    if (artifact.legacyPath) {
+      io.remove(path.join(io.workspaceRoot, artifact.legacyPath));
+    }
+    io.write(
+      path.join(io.workspaceRoot, artifact.relativePath),
+      artifact.content,
+    );
   }
 
   updateGeneratedBuildIdentityModules(io, migrated);
@@ -1557,6 +1699,7 @@ workspaces skip the backend-federation and Zerops runtime stages. Pass
     updateGeneratedPackageScripts(packageJson, {
       relativePackageFile,
       apps: migratedApps,
+      shellOnly,
     });
 
     writeJsonFile(io, packageFile, packageJson);
@@ -1788,9 +1931,23 @@ for (const target of targets) {
     console.log(\`[ultramodern] TanStack route artifacts generated: \${target.label}\`);
   } catch (error) {
     failed = true;
-    const message = error instanceof Error ? error.message : String(error);
     console.error(\`[ultramodern] TanStack route generation failed: \${target.label}\`);
-    console.error(\`- \${message}\`);
+    // Print the full underlying failure, including the cause chain. The
+    // route-generate crash is often an opaque node error thrown deep inside
+    // app-tools/plugin (e.g. a path TypeError), so surfacing only
+    // \`error.message\` swallows the stack that points at the real culprit.
+    let current = error;
+    let depth = 0;
+    while (current) {
+      const label = depth === 0 ? '-' : '  caused by:';
+      const detail =
+        current instanceof Error
+          ? current.stack ?? \`\${current.name}: \${current.message}\`
+          : String(current);
+      console.error(\`\${label} \${detail}\`);
+      current = current instanceof Error ? current.cause : undefined;
+      depth += 1;
+    }
   }
 }
 
