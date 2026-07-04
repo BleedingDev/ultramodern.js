@@ -408,7 +408,7 @@ function writePnpmWorkspacePackages(
     targetDir,
     'pnpm-workspace.yaml',
     pnpmWorkspace.replace(
-      /^packages:\n(?: {2}- .+\n)+/u,
+      /^packages:\r?\n(?: {2}- .+\r?\n)+/u,
       `packages:\n${renderedPackages}\n`,
     ),
   );

@@ -200,7 +200,9 @@ function createMigrationIo(
 ): MigrationIo {
   const plan: string[] = [];
   const rel = (p: string) =>
-    path.relative(workspaceRoot, p) || path.basename(p);
+    (path.relative(workspaceRoot, p) || path.basename(p))
+      .split(path.sep)
+      .join('/');
   return {
     workspaceRoot,
     dryRun,
@@ -291,7 +293,7 @@ function listWorkspacePackageFiles(workspaceRoot: string) {
       if (!entry.isDirectory()) {
         continue;
       }
-      const packageFile = path.join(directory, entry.name, 'package.json');
+      const packageFile = `${directory}/${entry.name}/package.json`;
       if (fs.existsSync(path.join(workspaceRoot, packageFile))) {
         packageFiles.push(packageFile);
       }

@@ -7,7 +7,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const runtimeRoot = resolve(__dirname, '../src/runtime');
 
 const readRuntimeSource = (file: string) =>
-  readFileSync(resolve(runtimeRoot, file), 'utf8');
+  readFileSync(resolve(runtimeRoot, file), 'utf8').replace(/\r\n/gu, '\n');
 
 describe('react-i18next runtime boundary', () => {
   test('keeps the disabled runtime entry free of the optional adapter edge', () => {
