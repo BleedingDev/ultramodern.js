@@ -12,6 +12,24 @@ const hashMap = new Map<string, string>();
 const md5 = (data: string) =>
   crypto.createHash('md5').update(data).digest('hex');
 
+/**
+ * Editor temp files (e.g. `page.tsx.tmp.<pid>.<hash>`) can be created and
+ * deleted within a few milliseconds. chokidar may still deliver a
+ * `change`/`add` event after the file is already gone, which would make
+ * `fs.readFileSync` throw ENOENT and crash the (unhandled) watcher callback.
+ * Treat a vanished file as "nothing to read" instead of rethrowing.
+ */
+export const safeReadFileSync = (filePath: string): string | undefined => {
+  try {
+    return fs.readFileSync(filePath, 'utf8');
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException)?.code === 'ENOENT') {
+      return undefined;
+    }
+    throw err;
+  }
+};
+
 export const createFileWatcher = async <Extends extends CLIPluginExtends>(
   appContext: InternalContext<Extends>,
 ) => {
@@ -53,9 +71,13 @@ export const createFileWatcher = async <Extends extends CLIPluginExtends>(
 
     watcher.on('change', changed => {
       const lastHash = hashMap.get(changed);
-      const currentHash = md5(
-        fs.readFileSync(path.join(appDirectory, changed), 'utf8'),
-      );
+      const content = safeReadFileSync(path.join(appDirectory, changed));
+      if (content === undefined) {
+        // File vanished between the watch event and the read (e.g. an
+        // editor temp file). The 'unlink' event will handle cleanup.
+        return;
+      }
+      const currentHash = md5(content);
       if (currentHash !== lastHash) {
         debug(`file change: %s`, changed);
         hashMap.set(changed, currentHash);
@@ -69,9 +91,13 @@ export const createFileWatcher = async <Extends extends CLIPluginExtends>(
 
     watcher.on('add', changed => {
       debug(`add file: %s`, changed);
-      const currentHash = md5(
-        fs.readFileSync(path.join(appDirectory, changed), 'utf8'),
-      );
+      const content = safeReadFileSync(path.join(appDirectory, changed));
+      if (content === undefined) {
+        // File vanished between the watch event and the read (e.g. an
+        // editor temp file). Nothing to hash or notify about.
+        return;
+      }
+      const currentHash = md5(content);
       hashMap.set(changed, currentHash);
       appContext.hooks.onFileChanged.call({
         filename: changed,
