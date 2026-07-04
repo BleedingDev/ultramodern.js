@@ -37,7 +37,7 @@ function snapshotAllFiles(root: string): Map<string, string> {
         walk(absolute);
       } else if (entry.isFile()) {
         files.set(
-          path.relative(root, absolute),
+          path.relative(root, absolute).split(path.sep).join('/'),
           fs.readFileSync(absolute, 'utf-8'),
         );
       }

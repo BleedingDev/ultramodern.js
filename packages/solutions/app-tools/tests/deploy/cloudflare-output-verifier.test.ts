@@ -1,6 +1,13 @@
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const packageRoot = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '../../',
+);
+
 import { createCloudflareOutputPlan } from '../../src/plugins/deploy/platforms/cloudflare-output-plan';
 import {
   assertCloudflareOutput,
@@ -164,7 +171,7 @@ describe('Cloudflare output verifier', () => {
 
   it('exports the Cloudflare output verifier package subpath', async () => {
     const packageJson = JSON.parse(
-      await fs.readFile(path.join(process.cwd(), 'package.json'), 'utf-8'),
+      await fs.readFile(path.join(packageRoot, 'package.json'), 'utf-8'),
     );
 
     expect(packageJson.exports['./cloudflare-output-verifier']).toEqual({
