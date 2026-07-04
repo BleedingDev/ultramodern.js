@@ -541,8 +541,37 @@ export async function generateTanstackRouteArtifacts(opts: {
   // not feed that check.
   process.env.MODERN_ARGV = 'node modern build';
   process.env.NODE_ENV = process.env.NODE_ENV || 'production';
+
+  // Resolve the app's Modern.js config file ourselves and pass it as an
+  // absolute base path. `createRunOptions` otherwise defaults its config lookup
+  // to `process.cwd()` (not `cwd`/appDirectory), so headless invocations that
+  // run from a different directory than the app — e.g. the create CLI spawning
+  // this from the workspace root — find no config, and `findExists` returns
+  // `false`. That `false` then flows into `cli.init` -> `getConfigFilePath` ->
+  // `path.isAbsolute(false)`, throwing the opaque
+  // `The "path" argument must be of type string. Received type boolean (false)`.
+  // Passing an absolute base is resolution-based: cwd no longer matters, and the
+  // downstream `getConfigFile` still appends the correct extension.
+  const { findExists, CONFIG_FILE_EXTENSIONS } = utils as {
+    findExists: (paths: string[]) => string | false;
+    CONFIG_FILE_EXTENSIONS: string[];
+  };
+  const configFileBase = path.resolve(opts.appDirectory, 'modern.config');
+  const resolvedConfigFile = findExists(
+    CONFIG_FILE_EXTENSIONS.map(extension => `${configFileBase}${extension}`),
+  );
+  if (!resolvedConfigFile) {
+    throw new Error(
+      `[plugin-tanstack] Unable to locate a Modern.js config file (modern.config.{${CONFIG_FILE_EXTENSIONS.map(
+        extension => extension.slice(1),
+      ).join(',')}}) in ${opts.appDirectory}. ` +
+        'TanStack route generation requires the app config to resolve its plugins.',
+    );
+  }
+
   const runOptions = await createRunOptions({
     cwd: opts.appDirectory,
+    configFile: configFileBase,
     version:
       opts.version || process.env.MODERN_JS_VERSION || '0.0.0-routes-generate',
     internalPlugins: (utils as { INTERNAL_RUNTIME_PLUGINS: unknown })
