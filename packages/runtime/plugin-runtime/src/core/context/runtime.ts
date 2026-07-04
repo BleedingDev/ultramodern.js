@@ -1,7 +1,12 @@
+import type {
+  RouteObject,
+  StaticHandlerContext,
+} from '@modern-js/runtime-utils/router';
+import type { BaseSSRServerContext } from '@modern-js/types';
 import { createContext } from 'react';
+import type { RouteManifest } from '../../router/runtime/types';
 import {
   ReactRuntimeContext,
-  type RequestContext,
   RuntimeContext,
   type TRuntimeContext,
   useRuntimeContext,
@@ -10,8 +15,8 @@ import {
 const ROUTE_MANIFEST = '_MODERNJS_ROUTE_MANIFEST';
 
 export type InternalSSRContext = {
-  request: RequestContext['request'] & { raw?: Request };
-  response: RequestContext['response'];
+  request: BaseSSRServerContext['request'] & { raw?: Request };
+  response: BaseSSRServerContext['response'];
   [key: string]: any;
 };
 
@@ -26,8 +31,9 @@ export {
  * InternalRuntimeContext used internally and by plugins
  */
 export interface TInternalRuntimeContext extends TRuntimeContext {
-  routeManifest?: Record<string, unknown>;
-  routerContext?: unknown;
+  routeManifest?: RouteManifest;
+  routes?: RouteObject[];
+  routerContext?: StaticHandlerContext;
   unstable_getBlockNavState?: () => boolean;
   ssrContext?: InternalSSRContext;
   _internalContext?: any;
@@ -40,7 +46,7 @@ export const InternalRuntimeContext = createContext<TInternalRuntimeContext>(
 
 export const getInitialContext = (
   isBrowser = true,
-  routeManifest?: Record<string, unknown>,
+  routeManifest?: RouteManifest,
 ): TInternalRuntimeContext => {
   const requestContext = {
     request: {},

@@ -177,7 +177,7 @@ export function createRouteObjectsFromConfig({
   if (!routes) {
     return null;
   }
-  return getRouteObjects(routes, {
+  return getRouteObjects(routes as (NestedRoute | PageRoute)[], {
     globalApp,
     ssrMode,
     props,
@@ -200,11 +200,14 @@ export function renderRoutes({
   if (!routes) {
     return null;
   }
-  const routeElements = getRouteComponents(routes, {
-    globalApp,
-    ssrMode,
-    props,
-  });
+  const routeElements = getRouteComponents(
+    routes as (NestedRoute | PageRoute)[],
+    {
+      globalApp,
+      ssrMode,
+      props,
+    },
+  );
   return routeElements;
 }
 

@@ -8,6 +8,7 @@ import { RenderLevel } from '../../constants';
 import type { TInternalRuntimeContext } from '../../context';
 import { getGlobalInternalRuntimeContext } from '../../context';
 import { wrapRuntimeContextProvider } from '../../react/wrapper';
+import type { SSRServerContext } from '../../types';
 import {
   CHUNK_CSS_PLACEHOLDER,
   HTML_PLACEHOLDER,
@@ -70,7 +71,7 @@ export const renderString: RenderString = async (
       runtimeContext,
       request,
       ssrConfig,
-      ssrContext: runtimeContext.ssrContext!,
+      ssrContext: runtimeContext.ssrContext! as SSRServerContext,
       chunkSet,
       routerContext,
       nonce: config.nonce,

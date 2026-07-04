@@ -16,7 +16,17 @@ import {
 } from './shared';
 import { getTemplates } from './template';
 
-const defaultExtender = {
+type StreamSSRExtender = {
+  init?: (options: {
+    rootElement: ReactElement;
+    forceStream2String: boolean;
+  }) => void;
+  modifyRootElement?: (rootElement: ReactElement) => ReactElement;
+  getStyleTags?: () => string;
+  processStream?: (stream: NodeJS.ReadWriteStream) => NodeJS.ReadWriteStream;
+};
+
+const defaultExtender: StreamSSRExtender = {
   modifyRootElement: (rootElement: ReactElement) => rootElement,
   getStyleTags: () => '',
   processStream: (stream: NodeJS.ReadWriteStream) => stream,
@@ -45,7 +55,7 @@ export const createReadableStreamFromElement: CreateReadableStreamFromElement =
     const internalRuntimeContext = getGlobalInternalRuntimeContext();
     const hooks = internalRuntimeContext.hooks;
 
-    const extenders = hooks.extendStreamSSR.call() || [];
+    const extenders: StreamSSRExtender[] = hooks.extendStreamSSR.call() || [];
 
     if (extenders.length === 0) {
       extenders.push(defaultExtender);

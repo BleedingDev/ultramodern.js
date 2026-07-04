@@ -357,18 +357,19 @@ export const tanstackRouterPlugin = (
         const _basename =
           baseUrl === '/' ? urlJoin(baseUrl, basename || '') : baseUrl;
 
-        const initialHref = createGetSsrHref(request.raw);
+        const rawRequest = request.raw as Request;
+        const initialHref = createGetSsrHref(rawRequest);
         const isRSCNavigation =
-          enableRsc && request.raw.headers.get('x-rsc-tree') === 'true';
+          enableRsc && rawRequest.headers.get('x-rsc-tree') === 'true';
 
         const requestContext = createRequestContext(
           context.ssrContext?.loaderContext,
         ) as RequestContext<Record<string, unknown>>;
 
         const controller = new AbortController();
-        const ssrRequest = new Request(request.raw.url, {
+        const ssrRequest = new Request(rawRequest.url, {
           method: 'GET',
-          headers: request.raw.headers,
+          headers: rawRequest.headers,
           signal: controller.signal,
         });
 
@@ -398,7 +399,7 @@ export const tanstackRouterPlugin = (
           history,
           basepath: '/',
           rewrite,
-          origin: new URL(request.raw.url).origin,
+          origin: new URL(rawRequest.url).origin,
           ssr: { nonce },
           context: routerContext as never,
           ...(serializationAdapters ? { serializationAdapters } : {}),
@@ -439,7 +440,11 @@ export const tanstackRouterPlugin = (
 
         const routerErrors = collectRouterErrors(tanstackRouter);
         if (routerErrors && loaderFailureMode === 'clientRender') {
-          context.ssrContext?.response.status(200);
+          (
+            context.ssrContext?.response as
+              | { status: (code: number) => void }
+              | undefined
+          )?.status(200);
           try {
             serverRouter.serverSsr?.cleanup?.();
           } catch {}
@@ -448,7 +453,11 @@ export const tanstackRouterPlugin = (
 
         await preloadMatchedRouteComponents(serverRouter);
 
-        context.ssrContext?.response.status(tanstackRouter.state.statusCode);
+        (
+          context.ssrContext?.response as
+            | { status: (code: number) => void }
+            | undefined
+        )?.status(tanstackRouter.state.statusCode);
 
         await serverRouter.serverSsr?.dehydrate?.();
 

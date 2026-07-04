@@ -1,3 +1,4 @@
+// @effect-diagnostics asyncFunction:off extendsNativeError:off globalTimers:off newPromise:off strictBooleanExpressions:off
 import type {
   ModuleFederation,
   ModuleFederationRuntimePlugin,
