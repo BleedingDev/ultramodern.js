@@ -21,6 +21,9 @@ import {
 
 interface RuntimeContextWithI18n extends TRuntimeContext {
   i18nInstance?: I18nInstance;
+  // Present when the context actually is the internal runtime context;
+  // getPathname only ever reads this on the server.
+  ssrContext?: { request?: { pathname?: string } };
 }
 
 function createMinimalI18nInstance(language: string): I18nInstance {

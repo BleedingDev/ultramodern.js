@@ -1,12 +1,14 @@
 import { isBrowser } from '@modern-js/runtime';
-import {
-  getGlobalBasename,
-  type TInternalRuntimeContext,
-} from '@modern-js/runtime/context';
+import { getGlobalBasename } from '@modern-js/runtime/context';
 import type { LocalisedUrlsOption } from '../shared/localisedUrls';
 import { localiseTargetPathname } from '../shared/localisedUrls';
 
-export const getPathname = (context: TInternalRuntimeContext): string => {
+// Structural parameter: hooks.ts passes a public-TRuntimeContext-based
+// context while core.tsx passes the internal one; both carry the request
+// pathname shape this helper needs.
+export const getPathname = (context: {
+  ssrContext?: { request?: { pathname?: string } };
+}): string => {
   if (isBrowser()) {
     return window.location.pathname;
   }
