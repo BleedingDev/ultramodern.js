@@ -313,6 +313,29 @@ describe('effect lane cross-project policy enforcement', () => {
     }
   });
 
+  test('denies requests when no operation contracts were reflected', async () => {
+    const policy = resolveCrossProjectPolicy({
+      crossProjectPolicy: { enabled: true },
+      handlers: [],
+      requestId: REQUEST_ID,
+      isCrossProjectServer: true,
+    })!;
+
+    const response = checkCrossProjectPolicyForRequest(
+      new Request('http://localhost/ping', {
+        headers: validPolicyHeaders(),
+      }),
+      policy,
+    );
+
+    expect(response).toBeInstanceOf(Response);
+    expect(response!.status).toBe(403);
+    await expect(response!.json()).resolves.toMatchObject({
+      code: 'BFF_CROSS_PROJECT_POLICY_DENIED',
+      reason: 'unknown_operation_contract',
+    });
+  });
+
   test('denies spoofed namespaces when bound to a verified identity', async () => {
     const handler = createPolicyHandler({
       allowedNamespaces: ['crm'],

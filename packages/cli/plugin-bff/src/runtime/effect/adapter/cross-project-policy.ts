@@ -48,7 +48,7 @@ export async function resolveEffectAdapterCrossProjectPolicy(
   const policy = resolveAdapterCrossProjectPolicy(api, contractSources);
   if (policy?.enabled && contractSources.length === 0) {
     logger.warn(
-      '[BFF][Effect] Cross-project policy enabled but no HttpApi endpoints could reflected; operation-contract matching disabled server (envelope operation-context checks still apply).',
+      '[BFF][Effect] Cross-project policy enabled but no HttpApi endpoints could be reflected; requests fail operation-contract matching unless allowUnknownOperations is enabled.',
     );
   }
   return policy;
