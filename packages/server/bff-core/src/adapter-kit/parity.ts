@@ -1,7 +1,28 @@
 import type { APIHandlerInfo } from '../router';
-import type { CrossProjectPolicyViolationReason } from '../security/crossProjectPolicy';
 import { buildOperationContractMap } from '../security/operationContracts';
 import { HttpMethod } from '../types';
+import { createCrossProjectDenialScenarios } from './parity-scenarios/cross-project-denial';
+import { createEnvelopeParityScenarios } from './parity-scenarios/envelope';
+import {
+  createOperationContextDenialScenarios,
+  createOperationContextSuccessScenarios,
+} from './parity-scenarios/operation-context';
+import { createSchemaParityScenarios } from './parity-scenarios/schema';
+import type { AdapterParityScenario } from './parity-scenarios/shared';
+import {
+  envelopeHeader,
+  PARITY_PRODUCER_REQUEST_ID,
+  PARITY_REQUEST_ID,
+} from './parity-scenarios/shared';
+
+export type {
+  AdapterParityScenario,
+  ParityExpectation,
+} from './parity-scenarios/shared';
+export {
+  PARITY_PRODUCER_REQUEST_ID,
+  PARITY_REQUEST_ID,
+} from './parity-scenarios/shared';
 
 /**
  * Adapter parity (conformance) kit.
@@ -23,9 +44,6 @@ import { HttpMethod } from '../types';
  * The table intentionally tracks current Hono behavior only; historical
  * adapter drift belongs in release notes, not executable conformance data.
  */
-
-export const PARITY_REQUEST_ID = 'crm';
-export const PARITY_PRODUCER_REQUEST_ID = 'crm.producer-a';
 const PARITY_FIXTURE_FILENAME = 'bff-core/adapter-kit/parity-fixture.ts';
 
 const HANDLER_WITH_SCHEMA = 'HANDLER_WITH_SCHEMA';
@@ -114,8 +132,8 @@ export const createParityApiHandlerInfos = (): APIHandlerInfo[] => [
 ];
 
 /**
- * `bff` config slice for the policy-enabled parity server. All `require*`
- * switches stay at their strict defaults.
+ * `bff` config slice for policy-enabled parity server. All `require*`
+ * switches stay at strict defaults.
  */
 export const createParityBffConfig = () => ({
   requestId: PARITY_REQUEST_ID,
@@ -131,323 +149,23 @@ const getParityContracts = () =>
     requestId: PARITY_REQUEST_ID,
   });
 
-const envelopeHeader = (requestId: unknown) =>
-  JSON.stringify(requestId === undefined ? {} : { requestId });
-
-const detailHeader = (details: Record<string, unknown>) =>
-  JSON.stringify(details);
-
-export type ParityExpectation =
-  | { kind: 'payload'; status: number; payload: unknown }
-  | {
-      kind: 'denied';
-      status: number;
-      reason: CrossProjectPolicyViolationReason;
-    };
-
-export type AdapterParityScenario = {
-  name: string;
-  /** Run against the policy-enabled server instead of the open one. */
-  policy: boolean;
-  request: {
-    method: 'get' | 'post' | 'patch';
-    path: string;
-    headers?: Record<string, string>;
-    body?: unknown;
-  };
-  expected: ParityExpectation;
-};
-
-const deniedScenario = (
-  name: string,
-  reason: CrossProjectPolicyViolationReason,
-  headers: Record<string, string>,
-): AdapterParityScenario => ({
-  name,
-  policy: true,
-  request: { method: 'get', path: '/hello', headers },
-  expected: { kind: 'denied', status: 403, reason },
-});
-
 export const createAdapterParityScenarios = (): AdapterParityScenario[] => {
   const contracts = getParityContracts();
   const helloContract = contracts['GET:/hello'];
   const validEnvelope = envelopeHeader(PARITY_PRODUCER_REQUEST_ID);
   const validOperationId = `${PARITY_PRODUCER_REQUEST_ID}:parity`;
+  const context = { helloContract, validEnvelope, validOperationId };
 
   return [
-    {
-      name: 'plain handler returns object payload',
-      policy: false,
-      request: { method: 'get', path: '/hello' },
-      expected: { kind: 'payload', status: 200, payload: { message: 'hello' } },
-    },
-    {
-      name: 'plain handler returns scalar payload',
-      policy: false,
-      request: { method: 'post', path: '/hello' },
-      expected: { kind: 'payload', status: 200, payload: 'hello' },
-    },
-    {
-      name: 'plain handler returning undefined',
-      policy: false,
-      request: { method: 'get', path: '/nothing' },
-      expected: {
-        kind: 'payload',
-        status: 404,
-        payload: '404 Not Found',
-      },
-    },
-    {
-      name: 'plain handler receives data, query and cookies',
-      policy: false,
-      request: {
-        method: 'post',
-        path: '/echo?q=z',
-        headers: {
-          'content-type': 'application/json',
-          cookie: 'id=666',
-        },
-        body: { a: 1 },
-      },
-      expected: {
-        kind: 'payload',
-        status: 200,
-        payload: { data: { a: 1 }, query: { q: 'z' }, cookie: 'id=666' },
-      },
-    },
-    {
-      name: 'plain handler receives positional route params',
-      policy: false,
-      request: { method: 'get', path: '/items/123?q=x' },
-      expected: {
-        kind: 'payload',
-        status: 200,
-        payload: { id: '123', query: { q: 'x' } },
-      },
-    },
-    {
-      name: 'schema handler success',
-      policy: false,
-      request: {
-        method: 'patch',
-        path: '/schema',
-        headers: { 'content-type': 'application/json' },
-        body: { id: 777 },
-      },
-      expected: {
-        kind: 'payload',
-        status: 200,
-        payload: { type: 'HandleSuccess', value: { id: 777 } },
-      },
-    },
-    {
-      name: 'schema handler input validation error',
-      policy: false,
-      request: {
-        method: 'patch',
-        path: '/schema',
-        headers: { 'content-type': 'application/json' },
-        body: { id: 'aaa' },
-      },
-      expected: {
-        kind: 'payload',
-        status: 200,
-        payload: { type: 'InputValidationError', message: 'invalid input' },
-      },
-    },
-    {
-      name: 'schema handler output validation error',
-      policy: false,
-      request: {
-        method: 'patch',
-        path: '/schema',
-        headers: { 'content-type': 'application/json' },
-        body: { id: 'boom' },
-      },
-      expected: {
-        kind: 'payload',
-        status: 200,
-        payload: {
-          type: 'OutputValidationError',
-          message: 'invalid output',
-        },
-      },
-    },
-    {
-      name: 'policy pass with full operation context',
-      policy: true,
-      request: {
-        method: 'get',
-        path: '/hello',
-        headers: {
-          'x-modernjs-bff-envelope': validEnvelope,
-          'x-operation-id': validOperationId,
-          'x-modernjs-bff-operation-context': detailHeader({
-            requestId: PARITY_PRODUCER_REQUEST_ID,
-            method: 'GET',
-            routePath: '/hello',
-            schemaHash: helloContract.schemaHash,
-            operationVersion: helloContract.operationVersion,
-          }),
-        },
-      },
-      expected: { kind: 'payload', status: 200, payload: { message: 'hello' } },
-    },
-    deniedScenario('policy denies missing envelope', 'missing_envelope', {}),
-    deniedScenario('policy denies invalid envelope', 'invalid_envelope', {
-      'x-modernjs-bff-envelope': 'not-json',
-    }),
-    deniedScenario(
-      'policy denies envelope that is valid JSON but not an object',
-      'invalid_envelope',
-      {
-        'x-modernjs-bff-envelope': '123',
-      },
-    ),
-    deniedScenario('policy denies missing requestId', 'missing_request_id', {
-      'x-modernjs-bff-envelope': envelopeHeader(undefined),
-    }),
-    deniedScenario(
-      'policy denies namespace outside allowlist',
-      'namespace_not_allowed',
-      {
-        'x-modernjs-bff-envelope': envelopeHeader('billing.producer-z'),
-      },
-    ),
-    deniedScenario(
-      'policy denies missing operation context',
-      'missing_operation_context',
-      {
-        'x-modernjs-bff-envelope': validEnvelope,
-      },
-    ),
-    deniedScenario(
-      'policy denies operation context mismatch',
-      'operation_context_mismatch',
-      {
-        'x-modernjs-bff-envelope': validEnvelope,
-        'x-operation-id': 'someone-else:parity',
-      },
-    ),
-    deniedScenario(
-      'policy denies missing operation context details',
-      'missing_operation_context_details',
-      {
-        'x-modernjs-bff-envelope': validEnvelope,
-        'x-operation-id': validOperationId,
-      },
-    ),
-    deniedScenario(
-      'policy denies JSON-array operation context details',
-      'invalid_operation_context_details',
-      {
-        'x-modernjs-bff-envelope': validEnvelope,
-        'x-operation-id': validOperationId,
-        'x-modernjs-bff-operation-context': '[]',
-      },
-    ),
-    deniedScenario(
-      'policy denies invalid operation context details',
-      'invalid_operation_context_details',
-      {
-        'x-modernjs-bff-envelope': validEnvelope,
-        'x-operation-id': validOperationId,
-        'x-modernjs-bff-operation-context': 'not-json',
-      },
-    ),
-    deniedScenario(
-      'policy denies detail requestId mismatch',
-      'operation_context_details_request_id_mismatch',
-      {
-        'x-modernjs-bff-envelope': validEnvelope,
-        'x-operation-id': validOperationId,
-        'x-modernjs-bff-operation-context': detailHeader({
-          requestId: 'crm.producer-b',
-          method: 'GET',
-          routePath: '/hello',
-          schemaHash: helloContract.schemaHash,
-          operationVersion: helloContract.operationVersion,
-        }),
-      },
-    ),
-    deniedScenario(
-      'policy denies missing operation schema hash',
-      'missing_operation_schema_hash',
-      {
-        'x-modernjs-bff-envelope': validEnvelope,
-        'x-operation-id': validOperationId,
-        'x-modernjs-bff-operation-context': detailHeader({
-          requestId: PARITY_PRODUCER_REQUEST_ID,
-          method: 'GET',
-          routePath: '/hello',
-          operationVersion: helloContract.operationVersion,
-        }),
-      },
-    ),
-    deniedScenario(
-      'policy denies missing operation version',
-      'missing_operation_version',
-      {
-        'x-modernjs-bff-envelope': validEnvelope,
-        'x-operation-id': validOperationId,
-        'x-modernjs-bff-operation-context': detailHeader({
-          requestId: PARITY_PRODUCER_REQUEST_ID,
-          method: 'GET',
-          routePath: '/hello',
-          schemaHash: helloContract.schemaHash,
-        }),
-      },
-    ),
-    deniedScenario(
-      'policy denies unknown operation contract',
-      'unknown_operation_contract',
-      {
-        'x-modernjs-bff-envelope': validEnvelope,
-        'x-operation-id': validOperationId,
-        'x-modernjs-bff-operation-context': detailHeader({
-          requestId: PARITY_PRODUCER_REQUEST_ID,
-          method: 'GET',
-          routePath: '/does-not-exist',
-          schemaHash: helloContract.schemaHash,
-          operationVersion: helloContract.operationVersion,
-        }),
-      },
-    ),
-    deniedScenario(
-      'policy denies operation schema hash mismatch',
-      'operation_schema_hash_mismatch',
-      {
-        'x-modernjs-bff-envelope': validEnvelope,
-        'x-operation-id': validOperationId,
-        'x-modernjs-bff-operation-context': detailHeader({
-          requestId: PARITY_PRODUCER_REQUEST_ID,
-          method: 'GET',
-          routePath: '/hello',
-          schemaHash: 'deadbeef',
-          operationVersion: helloContract.operationVersion,
-        }),
-      },
-    ),
-    deniedScenario(
-      'policy denies operation version mismatch',
-      'operation_version_mismatch',
-      {
-        'x-modernjs-bff-envelope': validEnvelope,
-        'x-operation-id': validOperationId,
-        'x-modernjs-bff-operation-context': detailHeader({
-          requestId: PARITY_PRODUCER_REQUEST_ID,
-          method: 'GET',
-          routePath: '/hello',
-          schemaHash: helloContract.schemaHash,
-          operationVersion: helloContract.operationVersion + 1,
-        }),
-      },
-    ),
+    ...createEnvelopeParityScenarios(),
+    ...createSchemaParityScenarios(),
+    ...createOperationContextSuccessScenarios(context),
+    ...createCrossProjectDenialScenarios(),
+    ...createOperationContextDenialScenarios(context),
   ];
 };
 
-/** Structural slice of a supertest response used for normalization. */
+/** Structural slice of supertest response used for normalization. */
 export type ParityHttpResponse = {
   status: number;
   /** Content-type mime, e.g. `application/json`. */
@@ -462,7 +180,7 @@ export type AdapterParityResult = {
 };
 
 /**
- * Normalizes a raw HTTP response to the observable payload value so JSON and
+ * Normalizes raw HTTP response into an observable payload value so JSON and
  * text encodings of the same scalar compare equal.
  */
 export const toParityResult = (
@@ -479,7 +197,7 @@ export const toParityResult = (
 const formatValue = (value: unknown) => JSON.stringify(value);
 
 /**
- * Framework-agnostic assertion: throws a descriptive error when the adapter
+ * Framework-agnostic assertion: throws a descriptive error when adapter
  * response deviates from the scenario expectation.
  */
 export const assertParityResult = (

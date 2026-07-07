@@ -80,7 +80,7 @@ export interface CrossProjectPolicyConfig {
   allowUnknownOperations?: boolean;
   denyStatus?: number;
   /**
-   * Server-side hook binding the producer namespace to a VERIFIED identity
+   * Server-side hook binding producer namespace to VERIFIED identity
    * channel (mTLS peer, gateway-authenticated JWT, mesh identity headers).
    *
    * When provided, the namespace asserted by the client envelope must match
@@ -158,67 +158,109 @@ const warnAdvisoryNamespaceAllowlist = () => {
   hasWarnedAdvisoryNamespaceAllowlist = true;
   console.warn(
     `[Modern.js BFF] ${NAMESPACE_ALLOWLIST_REQUIRES_VERIFIER_MESSAGE}. ` +
-      'Non-production requests will continue to evaluate the allowlist ' +
+      'Non-production requests will continue to evaluate allowlist ' +
       'against client-asserted requestId namespaces only.',
   );
 };
 
-export const evaluateCrossProjectPolicy = (
-  headers: Record<string, unknown>,
-  policy?: CrossProjectPolicyConfig,
-): CrossProjectPolicyViolation | null => {
-  if (!policy?.enabled) {
-    return null;
-  }
+type ProducerIdentityVerifier = NonNullable<
+  CrossProjectPolicyConfig['verifyProducerIdentity']
+>;
 
-  const status = normalizeStatusCode(policy.denyStatus);
-  const requireEnvelope = policy.requireEnvelope ?? true;
-  const requireOperationContext = policy.requireOperationContext ?? true;
-  const requireOperationContextDetails =
-    policy.requireOperationContextDetails ?? true;
-  const requireOperationSchemaHash = policy.requireOperationSchemaHash ?? true;
-  const requireOperationVersion = policy.requireOperationVersion ?? true;
-  const allowUnknownOperations = policy.allowUnknownOperations ?? false;
-  const verifyProducerIdentity =
+type CrossProjectPolicyEvaluationState = {
+  headers: Record<string, unknown>;
+  policy: CrossProjectPolicyConfig;
+  status: number;
+  requireEnvelope: boolean;
+  requireOperationContext: boolean;
+  requireOperationContextDetails: boolean;
+  requireOperationSchemaHash: boolean;
+  requireOperationVersion: boolean;
+  allowUnknownOperations: boolean;
+  verifyProducerIdentity?: ProducerIdentityVerifier;
+  allowedNamespaces: string[];
+  envelopeHeader: string;
+  operationContextHeader: string;
+  operationContextDetailHeader: string;
+  requestId: string;
+  claimedNamespace?: string;
+  effectiveNamespace?: string;
+  operationContextDetails?: Record<string, unknown>;
+  detailSchemaHash: string;
+  detailOperationVersion: unknown;
+  complete: boolean;
+};
+
+type CrossProjectPolicyCheck = (
+  state: CrossProjectPolicyEvaluationState,
+) => CrossProjectPolicyViolation | undefined;
+
+const createCrossProjectPolicyEvaluationState = (
+  headers: Record<string, unknown>,
+  policy: CrossProjectPolicyConfig,
+): CrossProjectPolicyEvaluationState => ({
+  headers,
+  policy,
+  status: normalizeStatusCode(policy.denyStatus),
+  requireEnvelope: policy.requireEnvelope ?? true,
+  requireOperationContext: policy.requireOperationContext ?? true,
+  requireOperationContextDetails: policy.requireOperationContextDetails ?? true,
+  requireOperationSchemaHash: policy.requireOperationSchemaHash ?? true,
+  requireOperationVersion: policy.requireOperationVersion ?? true,
+  allowUnknownOperations: policy.allowUnknownOperations ?? false,
+  verifyProducerIdentity:
     typeof policy.verifyProducerIdentity === 'function'
       ? policy.verifyProducerIdentity
-      : undefined;
-  const hasProducerIdentityVerifier = verifyProducerIdentity !== undefined;
-  const allowedNamespaces = (policy.allowedNamespaces || [])
+      : undefined,
+  allowedNamespaces: (policy.allowedNamespaces || [])
     .map(item => item.trim().toLowerCase())
-    .filter(Boolean);
-  if (allowedNamespaces.length > 0 && !hasProducerIdentityVerifier) {
+    .filter(Boolean),
+  envelopeHeader: normalizeHeaderName(
+    policy.envelopeHeader,
+    BFF_ENVELOPE_HEADER,
+  ),
+  operationContextHeader: normalizeHeaderName(
+    policy.operationContextHeader,
+    BFF_OPERATION_CONTEXT_HEADER,
+  ),
+  operationContextDetailHeader: normalizeHeaderName(
+    policy.operationContextDetailHeader,
+    BFF_OPERATION_CONTEXT_DETAIL_HEADER,
+  ),
+  requestId: '',
+  detailSchemaHash: '',
+  detailOperationVersion: undefined,
+  complete: false,
+});
+
+const checkNamespaceAllowlistVerifier: CrossProjectPolicyCheck = state => {
+  if (
+    state.allowedNamespaces.length > 0 &&
+    state.verifyProducerIdentity === undefined
+  ) {
     if (isProductionMode()) {
       return createViolation(
         'producer_identity_mismatch',
         NAMESPACE_ALLOWLIST_REQUIRES_VERIFIER_MESSAGE,
-        status,
+        state.status,
       );
     }
     warnAdvisoryNamespaceAllowlist();
   }
-  const envelopeHeader = normalizeHeaderName(
-    policy.envelopeHeader,
-    BFF_ENVELOPE_HEADER,
-  );
-  const operationContextHeader = normalizeHeaderName(
-    policy.operationContextHeader,
-    BFF_OPERATION_CONTEXT_HEADER,
-  );
-  const operationContextDetailHeader = normalizeHeaderName(
-    policy.operationContextDetailHeader,
-    BFF_OPERATION_CONTEXT_DETAIL_HEADER,
-  );
+  return undefined;
+};
 
-  const envelopeRaw = readHeader(headers, envelopeHeader);
+const checkEnvelopeHeader: CrossProjectPolicyCheck = state => {
+  const envelopeRaw = readHeader(state.headers, state.envelopeHeader);
   if (!envelopeRaw) {
-    if (!requireEnvelope) {
-      return null;
+    if (!state.requireEnvelope) {
+      state.complete = true;
+      return undefined;
     }
     return createViolation(
       'missing_envelope',
-      `Missing cross-project envelope header "${envelopeHeader}"`,
-      status,
+      `Missing cross-project envelope header "${state.envelopeHeader}"`,
+      state.status,
     );
   }
 
@@ -232,8 +274,8 @@ export const evaluateCrossProjectPolicy = (
   } catch (_error) {
     return createViolation(
       'invalid_envelope',
-      `Invalid cross-project envelope header "${envelopeHeader}"`,
-      status,
+      `Invalid cross-project envelope header "${state.envelopeHeader}"`,
+      state.status,
     );
   }
 
@@ -242,177 +284,247 @@ export const evaluateCrossProjectPolicy = (
     return createViolation(
       'missing_request_id',
       'Cross-project envelope does not include a valid requestId',
-      status,
+      state.status,
     );
   }
 
-  const claimedNamespace = extractNamespace(requestId);
-  let effectiveNamespace = claimedNamespace;
-  if (verifyProducerIdentity) {
-    const verifiedNamespaceRaw = verifyProducerIdentity(headers);
-    const verifiedNamespace =
-      typeof verifiedNamespaceRaw === 'string'
-        ? verifiedNamespaceRaw.trim().toLowerCase()
-        : undefined;
-    if (!verifiedNamespace) {
-      return createViolation(
-        'producer_identity_mismatch',
-        'Producer identity could not be verified for this request',
-        status,
-      );
-    }
-    if (verifiedNamespace !== claimedNamespace) {
-      return createViolation(
-        'producer_identity_mismatch',
-        `Envelope namespace "${claimedNamespace || 'unknown'}" does not match verified producer identity "${verifiedNamespace}"`,
-        status,
-      );
-    }
-    // From here on, authorization decisions use the verified namespace, not
-    // the client-asserted envelope value.
-    effectiveNamespace = verifiedNamespace;
+  state.requestId = requestId;
+  state.claimedNamespace = extractNamespace(requestId);
+  state.effectiveNamespace = state.claimedNamespace;
+  return undefined;
+};
+
+const checkProducerIdentity: CrossProjectPolicyCheck = state => {
+  if (!state.verifyProducerIdentity) {
+    return undefined;
   }
 
-  if (allowedNamespaces.length > 0) {
+  const verifiedNamespaceRaw = state.verifyProducerIdentity(state.headers);
+  const verifiedNamespace =
+    typeof verifiedNamespaceRaw === 'string'
+      ? verifiedNamespaceRaw.trim().toLowerCase()
+      : undefined;
+  if (!verifiedNamespace) {
+    return createViolation(
+      'producer_identity_mismatch',
+      'Producer identity could not be verified for request',
+      state.status,
+    );
+  }
+  if (verifiedNamespace !== state.claimedNamespace) {
+    return createViolation(
+      'producer_identity_mismatch',
+      `Envelope namespace "${state.claimedNamespace || 'unknown'}" does not match verified producer identity "${verifiedNamespace}"`,
+      state.status,
+    );
+  }
+
+  // From here on, authorization decisions use verified namespace, not
+  // the client-asserted envelope value.
+  state.effectiveNamespace = verifiedNamespace;
+  return undefined;
+};
+
+const checkNamespaceAllowlist: CrossProjectPolicyCheck = state => {
+  if (state.allowedNamespaces.length > 0) {
     if (
-      !effectiveNamespace ||
-      !allowedNamespaces.includes(effectiveNamespace)
+      !state.effectiveNamespace ||
+      !state.allowedNamespaces.includes(state.effectiveNamespace)
     ) {
       return createViolation(
         'namespace_not_allowed',
-        `Producer namespace "${effectiveNamespace || 'unknown'}" is not allowed`,
-        status,
+        `Producer namespace "${state.effectiveNamespace || 'unknown'}" not allowed`,
+        state.status,
       );
     }
   }
+  return undefined;
+};
 
-  if (requireOperationContext) {
-    const operationContext = readHeader(headers, operationContextHeader);
-    if (!operationContext) {
-      return createViolation(
-        'missing_operation_context',
-        `Missing operation context header "${operationContextHeader}"`,
-        status,
-      );
-    }
+const checkOperationContext: CrossProjectPolicyCheck = state => {
+  if (!state.requireOperationContext) {
+    state.complete = true;
+    return undefined;
+  }
 
-    if (!operationContext.startsWith(`${requestId}:`)) {
-      return createViolation(
-        'operation_context_mismatch',
-        `Operation context header "${operationContextHeader}" does not match requestId "${requestId}"`,
-        status,
-      );
-    }
-
-    const operationContextDetailsRaw = readHeader(
-      headers,
-      operationContextDetailHeader,
+  const operationContext = readHeader(
+    state.headers,
+    state.operationContextHeader,
+  );
+  if (!operationContext) {
+    return createViolation(
+      'missing_operation_context',
+      `Missing operation context header "${state.operationContextHeader}"`,
+      state.status,
     );
+  }
+  if (!operationContext.startsWith(`${state.requestId}:`)) {
+    return createViolation(
+      'operation_context_mismatch',
+      `Operation context header "${state.operationContextHeader}" does not match requestId "${state.requestId}"`,
+      state.status,
+    );
+  }
+  return undefined;
+};
 
-    if (!operationContextDetailsRaw) {
-      if (requireOperationContextDetails) {
+const checkOperationContextDetails: CrossProjectPolicyCheck = state => {
+  const operationContextDetailsRaw = readHeader(
+    state.headers,
+    state.operationContextDetailHeader,
+  );
+  if (!operationContextDetailsRaw) {
+    if (state.requireOperationContextDetails) {
+      return createViolation(
+        'missing_operation_context_details',
+        `Missing operation context details header "${state.operationContextDetailHeader}"`,
+        state.status,
+      );
+    }
+    state.complete = true;
+    return undefined;
+  }
+
+  let operationContextDetails: Record<string, unknown>;
+  try {
+    const parsed = JSON.parse(operationContextDetailsRaw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('invalid operation context details object');
+    }
+    operationContextDetails = parsed as Record<string, unknown>;
+  } catch (_error) {
+    return createViolation(
+      'invalid_operation_context_details',
+      `Invalid operation context details header "${state.operationContextDetailHeader}"`,
+      state.status,
+    );
+  }
+
+  const detailRequestId = String(
+    operationContextDetails.requestId || '',
+  ).trim();
+  if (detailRequestId && detailRequestId !== state.requestId) {
+    return createViolation(
+      'operation_context_details_request_id_mismatch',
+      `Operation context details requestId "${detailRequestId}" does not match envelope requestId "${state.requestId}"`,
+      state.status,
+    );
+  }
+
+  state.operationContextDetails = operationContextDetails;
+  state.detailSchemaHash = String(
+    operationContextDetails.schemaHash || '',
+  ).trim();
+  if (state.requireOperationSchemaHash && !state.detailSchemaHash) {
+    return createViolation(
+      'missing_operation_schema_hash',
+      `Operation context details header "${state.operationContextDetailHeader}" must include schemaHash`,
+      state.status,
+    );
+  }
+
+  state.detailOperationVersion = operationContextDetails.operationVersion;
+  if (
+    state.requireOperationVersion &&
+    typeof state.detailOperationVersion !== 'number'
+  ) {
+    return createViolation(
+      'missing_operation_version',
+      `Operation context details header "${state.operationContextDetailHeader}" must include operationVersion`,
+      state.status,
+    );
+  }
+
+  return undefined;
+};
+
+const checkOperationContract: CrossProjectPolicyCheck = state => {
+  if (!state.operationContextDetails) {
+    return undefined;
+  }
+
+  const expectedContracts = state.policy.expectedOperationContracts;
+  if (
+    expectedContracts &&
+    typeof expectedContracts === 'object' &&
+    Object.keys(expectedContracts).length > 0
+  ) {
+    const method = String(
+      state.operationContextDetails.method || '',
+    ).toUpperCase();
+    const routePath = String(
+      state.operationContextDetails.routePath || '',
+    ).trim();
+    const operationId = String(
+      state.operationContextDetails.operationId || '',
+    ).trim();
+    const expectedContract =
+      expectedContracts[`${method}:${routePath}`] ||
+      expectedContracts[`operation:${operationId}`];
+
+    if (!expectedContract) {
+      if (!state.allowUnknownOperations) {
         return createViolation(
-          'missing_operation_context_details',
-          `Missing operation context details header "${operationContextDetailHeader}"`,
-          status,
+          'unknown_operation_contract',
+          `No expected operation contract found for operation "${operationId || `${method}:${routePath}`}"`,
+          state.status,
         );
       }
+    } else {
+      if (
+        expectedContract.schemaHash &&
+        state.detailSchemaHash &&
+        expectedContract.schemaHash !== state.detailSchemaHash
+      ) {
+        return createViolation(
+          'operation_schema_hash_mismatch',
+          `Operation schema hash mismatch for "${operationId || `${method}:${routePath}`}"`,
+          state.status,
+        );
+      }
+      if (
+        typeof expectedContract.operationVersion === 'number' &&
+        typeof state.detailOperationVersion === 'number' &&
+        expectedContract.operationVersion !== state.detailOperationVersion
+      ) {
+        return createViolation(
+          'operation_version_mismatch',
+          `Operation version mismatch for "${operationId || `${method}:${routePath}`}"`,
+          state.status,
+        );
+      }
+    }
+  }
+
+  return undefined;
+};
+
+const CROSS_PROJECT_POLICY_CHECKS: CrossProjectPolicyCheck[] = [
+  checkNamespaceAllowlistVerifier,
+  checkEnvelopeHeader,
+  checkProducerIdentity,
+  checkNamespaceAllowlist,
+  checkOperationContext,
+  checkOperationContextDetails,
+  checkOperationContract,
+];
+
+export const evaluateCrossProjectPolicy = (
+  headers: Record<string, unknown>,
+  policy?: CrossProjectPolicyConfig,
+): CrossProjectPolicyViolation | null => {
+  if (!policy?.enabled) {
+    return null;
+  }
+
+  const state = createCrossProjectPolicyEvaluationState(headers, policy);
+  for (const check of CROSS_PROJECT_POLICY_CHECKS) {
+    const violation = check(state);
+    if (violation) {
+      return violation;
+    }
+    if (state.complete) {
       return null;
-    }
-
-    let operationContextDetails: Record<string, unknown>;
-    try {
-      const parsed = JSON.parse(operationContextDetailsRaw);
-      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-        throw new Error('invalid operation context details object');
-      }
-      operationContextDetails = parsed as Record<string, unknown>;
-    } catch (_error) {
-      return createViolation(
-        'invalid_operation_context_details',
-        `Invalid operation context details header "${operationContextDetailHeader}"`,
-        status,
-      );
-    }
-
-    const detailRequestId = String(
-      operationContextDetails.requestId || '',
-    ).trim();
-    if (detailRequestId && detailRequestId !== requestId) {
-      return createViolation(
-        'operation_context_details_request_id_mismatch',
-        `Operation context details requestId "${detailRequestId}" does not match envelope requestId "${requestId}"`,
-        status,
-      );
-    }
-
-    const detailSchemaHash = String(
-      operationContextDetails.schemaHash || '',
-    ).trim();
-    if (requireOperationSchemaHash && !detailSchemaHash) {
-      return createViolation(
-        'missing_operation_schema_hash',
-        `Operation context details header "${operationContextDetailHeader}" must include schemaHash`,
-        status,
-      );
-    }
-
-    const detailOperationVersion = operationContextDetails.operationVersion;
-    if (requireOperationVersion && typeof detailOperationVersion !== 'number') {
-      return createViolation(
-        'missing_operation_version',
-        `Operation context details header "${operationContextDetailHeader}" must include operationVersion`,
-        status,
-      );
-    }
-
-    const expectedContracts = policy.expectedOperationContracts;
-    if (
-      expectedContracts &&
-      typeof expectedContracts === 'object' &&
-      Object.keys(expectedContracts).length > 0
-    ) {
-      const method = String(operationContextDetails.method || '').toUpperCase();
-      const routePath = String(operationContextDetails.routePath || '').trim();
-      const operationId = String(
-        operationContextDetails.operationId || '',
-      ).trim();
-      const expectedContract =
-        expectedContracts[`${method}:${routePath}`] ||
-        expectedContracts[`operation:${operationId}`];
-
-      if (!expectedContract) {
-        if (!allowUnknownOperations) {
-          return createViolation(
-            'unknown_operation_contract',
-            `No expected operation contract found for operation "${operationId || `${method}:${routePath}`}"`,
-            status,
-          );
-        }
-      } else {
-        if (
-          expectedContract.schemaHash &&
-          detailSchemaHash &&
-          expectedContract.schemaHash !== detailSchemaHash
-        ) {
-          return createViolation(
-            'operation_schema_hash_mismatch',
-            `Operation schema hash mismatch for "${operationId || `${method}:${routePath}`}"`,
-            status,
-          );
-        }
-        if (
-          typeof expectedContract.operationVersion === 'number' &&
-          typeof detailOperationVersion === 'number' &&
-          expectedContract.operationVersion !== detailOperationVersion
-        ) {
-          return createViolation(
-            'operation_version_mismatch',
-            `Operation version mismatch for "${operationId || `${method}:${routePath}`}"`,
-            status,
-          );
-        }
-      }
     }
   }
 
