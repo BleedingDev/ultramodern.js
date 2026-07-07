@@ -177,30 +177,18 @@ export function createAppStyles(
 }
 
 export function createPostcssConfig(): string {
-  return `export default {
-  plugins: {
-    '@tailwindcss/postcss': {},
-  },
-};
-`;
+  return renderFileTemplate('workspace/postcss.config.mjs', {});
 }
 
 export function createTailwindConfig(): string {
-  return `import type { Config } from 'tailwindcss';
-
-export default {} satisfies Config;
-`;
+  return renderFileTemplate('workspace/tailwind.config.ts', {});
 }
 
 export function createSharedDesignTokensCss(): string {
-  return `@theme {
-  --color-um-accent: #2f8f68;
-  --color-um-canvas: #f1eadc;
-  --color-um-foreground: #133225;
-  --color-um-link: #166b4b;
-  --color-um-surface: #f6fbf7;
-}
-`;
+  return renderFileTemplate(
+    'workspace/packages/shared-design-tokens/tokens.css',
+    {},
+  );
 }
 
 export function createRouteHeadModule(app: WorkspaceApp): string {

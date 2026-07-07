@@ -9,6 +9,7 @@ import {
   resolveApiStem,
   verticalApiApps,
 } from './descriptors';
+import { renderFileTemplate } from './fs-io';
 import { packageName, toCamelCase, toPascalCase } from './naming';
 import type { JsonValue, WorkspaceApi, WorkspaceApp } from './types';
 
@@ -91,55 +92,10 @@ function createCheckoutCartSharedSchemas(service: {
     return '';
   }
 
-  return `
-export interface CheckoutCartLine {
-  readonly sku: string;
-  readonly name: string;
-  readonly quantity: number;
-  readonly unitPriceCents: number;
-}
-
-export interface CheckoutCart {
-  readonly lines: readonly CheckoutCartLine[];
-  readonly subtotalCents: number;
-  readonly totalQuantity: number;
-}
-
-export interface CheckoutAddCartItemPayload {
-  readonly sku: string;
-  readonly name?: string;
-  readonly quantity: number;
-  readonly unitPriceCents?: number;
-}
-
-export interface CheckoutRemoveCartItemPayload {
-  readonly sku: string;
-}
-
-export const checkoutCartLineSchema: Schema.Codec<CheckoutCartLine> = Schema.Struct({
-  sku: Schema.String,
-  name: Schema.String,
-  quantity: Schema.Finite,
-  unitPriceCents: Schema.Finite,
-});
-
-export const checkoutCartSchema: Schema.Codec<CheckoutCart> = Schema.Struct({
-  lines: Schema.Array(checkoutCartLineSchema),
-  subtotalCents: Schema.Finite,
-  totalQuantity: Schema.Finite,
-});
-
-export const checkoutAddCartItemPayloadSchema: Schema.Codec<CheckoutAddCartItemPayload> = Schema.Struct({
-  sku: Schema.String,
-  name: Schema.optional(Schema.String),
-  quantity: Schema.Finite,
-  unitPriceCents: Schema.optional(Schema.Finite),
-});
-
-export const checkoutRemoveCartItemPayloadSchema: Schema.Codec<CheckoutRemoveCartItemPayload> = Schema.Struct({
-  sku: Schema.String,
-});
-`;
+  return renderFileTemplate(
+    'workspace/verticals/shared/api.checkout-cart-schemas.ts',
+    {},
+  );
 }
 
 function createCheckoutCartEndpointDefinitions(service: {
@@ -150,29 +106,10 @@ function createCheckoutCartEndpointDefinitions(service: {
     return '';
   }
 
-  return `
-    .add(
-      HttpApiEndpoint.get('getCart', '/checkout/cart', {
-        success: checkoutCartSchema,
-      }),
-    )
-    .add(
-      HttpApiEndpoint.post('addCartItem', '/checkout/cart/items', {
-        payload: checkoutAddCartItemPayloadSchema,
-        success: checkoutCartSchema,
-      }),
-    )
-    .add(
-      HttpApiEndpoint.post('removeCartItem', '/checkout/cart/remove', {
-        payload: checkoutRemoveCartItemPayloadSchema,
-        success: checkoutCartSchema,
-      }),
-    )
-    .add(
-      HttpApiEndpoint.post('clearCart', '/checkout/cart/clear', {
-        success: checkoutCartSchema,
-      }),
-    )`;
+  return renderFileTemplate(
+    'workspace/verticals/shared/api.checkout-cart-endpoints.ts',
+    {},
+  );
 }
 
 function createCheckoutCartOperationContexts(service: {
@@ -186,31 +123,19 @@ function createCheckoutCartOperationContexts(service: {
     return '';
   }
 
-  return `
-  addCartItem: {
-    method: 'POST',
-    operationId: '${apiName}:${groupName}:addCartItem',
-    routePath: '/checkout/cart/items',
-    source: 'generated-client',
-  },
-  clearCart: {
-    method: 'POST',
-    operationId: '${apiName}:${groupName}:clearCart',
-    routePath: '/checkout/cart/clear',
-    source: 'generated-client',
-  },
-  getCart: {
-    method: 'GET',
-    operationId: '${apiName}:${groupName}:getCart',
-    routePath: '/checkout/cart',
-    source: 'generated-client',
-  },
-  removeCartItem: {
-    method: 'POST',
-    operationId: '${apiName}:${groupName}:removeCartItem',
-    routePath: '/checkout/cart/remove',
-    source: 'generated-client',
-  },`;
+  return renderFileTemplate(
+    'workspace/verticals/shared/api.checkout-cart-operation-contexts.ts',
+    {
+      value0: apiName,
+      value1: groupName,
+      value2: apiName,
+      value3: groupName,
+      value4: apiName,
+      value5: groupName,
+      value6: apiName,
+      value7: groupName,
+    },
+  );
 }
 
 function createCheckoutCartApiContractFields(service: {
@@ -221,8 +146,12 @@ function createCheckoutCartApiContractFields(service: {
     return '';
   }
 
-  return `  checkoutCartPath: '${resolveApiPrefix(service)}/checkout/cart',
-`;
+  return renderFileTemplate(
+    'workspace/verticals/shared/api.checkout-cart-contract-fields.ts',
+    {
+      value0: resolveApiPrefix(service),
+    },
+  );
 }
 
 function createCheckoutCartServerState(service: {
@@ -233,30 +162,10 @@ function createCheckoutCartServerState(service: {
     return '';
   }
 
-  return `
-type CheckoutCartLine = {
-  sku: string;
-  name: string;
-  quantity: number;
-  unitPriceCents: number;
-};
-
-const checkoutCartLines = new Map<string, CheckoutCartLine>();
-
-const createCheckoutCartSnapshot = () => {
-  const lines = [...checkoutCartLines.values()].sort((left, right) =>
-    left.sku.localeCompare(right.sku),
+  return renderFileTemplate(
+    'workspace/verticals/server/checkout-cart-state.ts',
+    {},
   );
-  return {
-    lines,
-    subtotalCents: lines.reduce(
-      (total, line) => total + line.quantity * line.unitPriceCents,
-      0,
-    ),
-    totalQuantity: lines.reduce((total, line) => total + line.quantity, 0),
-  };
-};
-`;
 }
 
 function createCheckoutCartServerHandlers(service: {
@@ -269,55 +178,19 @@ function createCheckoutCartServerHandlers(service: {
     return '';
   }
 
-  return `
-      .handle('getCart', () =>
-        Effect.sync(() => createCheckoutCartSnapshot()).pipe(
-          Effect.withSpan('ultramodern.api.${groupName}.checkout.getCart', {
-            attributes: operationAttributes(${groupName}OperationContexts.getCart),
-            kind: 'server',
-          }),
-        ),
-      )
-      .handle('addCartItem', ({ payload }) =>
-        Effect.sync(() => {
-          const existingLine = checkoutCartLines.get(payload.sku);
-          checkoutCartLines.set(payload.sku, {
-            sku: payload.sku,
-            name: payload.name ?? existingLine?.name ?? payload.sku,
-            quantity: (existingLine?.quantity ?? 0) + payload.quantity,
-            unitPriceCents:
-              payload.unitPriceCents ?? existingLine?.unitPriceCents ?? 0,
-          });
-          return createCheckoutCartSnapshot();
-        }).pipe(
-          Effect.withSpan('ultramodern.api.${groupName}.checkout.addCartItem', {
-            attributes: operationAttributes(${groupName}OperationContexts.addCartItem),
-            kind: 'server',
-          }),
-        ),
-      )
-      .handle('removeCartItem', ({ payload }) =>
-        Effect.sync(() => {
-          checkoutCartLines.delete(payload.sku);
-          return createCheckoutCartSnapshot();
-        }).pipe(
-          Effect.withSpan('ultramodern.api.${groupName}.checkout.removeCartItem', {
-            attributes: operationAttributes(${groupName}OperationContexts.removeCartItem),
-            kind: 'server',
-          }),
-        ),
-      )
-      .handle('clearCart', () =>
-        Effect.sync(() => {
-          checkoutCartLines.clear();
-          return createCheckoutCartSnapshot();
-        }).pipe(
-          Effect.withSpan('ultramodern.api.${groupName}.checkout.clearCart', {
-            attributes: operationAttributes(${groupName}OperationContexts.clearCart),
-            kind: 'server',
-          }),
-        ),
-      )`;
+  return renderFileTemplate(
+    'workspace/verticals/server/checkout-cart-handlers.ts',
+    {
+      value0: groupName,
+      value1: groupName,
+      value2: groupName,
+      value3: groupName,
+      value4: groupName,
+      value5: groupName,
+      value6: groupName,
+      value7: groupName,
+    },
+  );
 }
 
 function createCheckoutCartClientExports(service: {
@@ -335,77 +208,31 @@ function createCheckoutCartClientExports(service: {
   const createClientName = `create${pascalStem}Client`;
   const clientEffectTypeName = `${pascalStem}ClientEffect`;
 
-  return `
-export interface CheckoutCartLine {
-  sku: string;
-  name: string;
-  quantity: number;
-  unitPriceCents: number;
-}
-
-export interface CheckoutCart {
-  lines: readonly CheckoutCartLine[];
-  subtotalCents: number;
-  totalQuantity: number;
-}
-
-export interface CheckoutAddCartItemInput {
-  sku: string;
-  name?: string;
-  quantity: number;
-  unitPriceCents?: number;
-}
-
-export const getCheckoutCart = (
-  options: ${clientOptionsName} = {},
-): ${clientEffectTypeName}<CheckoutCart> =>
-  ${createClientName}({
-    ...options,
-    operationContext:
-      options.operationContext ?? ${groupName}OperationContexts.getCart,
-  }).pipe(
-    Effect.flatMap(client => client.${groupName}.getCart({})),
+  return renderFileTemplate(
+    'workspace/verticals/src/api/checkout-cart-client-exports.ts',
+    {
+      value0: clientOptionsName,
+      value1: clientEffectTypeName,
+      value2: createClientName,
+      value3: groupName,
+      value4: groupName,
+      value5: clientOptionsName,
+      value6: clientEffectTypeName,
+      value7: createClientName,
+      value8: groupName,
+      value9: groupName,
+      value10: clientOptionsName,
+      value11: clientEffectTypeName,
+      value12: createClientName,
+      value13: groupName,
+      value14: groupName,
+      value15: clientOptionsName,
+      value16: clientEffectTypeName,
+      value17: createClientName,
+      value18: groupName,
+      value19: groupName,
+    },
   );
-
-export const addCheckoutCartItem = (
-  payload: CheckoutAddCartItemInput,
-  options: ${clientOptionsName} = {},
-): ${clientEffectTypeName}<CheckoutCart> =>
-  ${createClientName}({
-    ...options,
-    operationContext:
-      options.operationContext ?? ${groupName}OperationContexts.addCartItem,
-  }).pipe(
-    Effect.flatMap(client =>
-      client.${groupName}.addCartItem({ payload }),
-    ),
-  );
-
-export const removeCheckoutCartItem = (
-  sku: string,
-  options: ${clientOptionsName} = {},
-): ${clientEffectTypeName}<CheckoutCart> =>
-  ${createClientName}({
-    ...options,
-    operationContext:
-      options.operationContext ?? ${groupName}OperationContexts.removeCartItem,
-  }).pipe(
-    Effect.flatMap(client =>
-      client.${groupName}.removeCartItem({ payload: { sku } }),
-    ),
-  );
-
-export const clearCheckoutCart = (
-  options: ${clientOptionsName} = {},
-): ${clientEffectTypeName}<CheckoutCart> =>
-  ${createClientName}({
-    ...options,
-    operationContext:
-      options.operationContext ?? ${groupName}OperationContexts.clearCart,
-  }).pipe(
-    Effect.flatMap(client => client.${groupName}.clearCart({})),
-  );
-`;
 }
 
 export function createSharedApiImports(): string {

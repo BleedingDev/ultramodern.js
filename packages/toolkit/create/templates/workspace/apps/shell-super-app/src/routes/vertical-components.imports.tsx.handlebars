@@ -1,0 +1,11 @@
+import {
+  classifyModuleFederationFallback,
+  createModuleFederationFallbackTelemetry,
+  emitModuleFederationFallbackTelemetry,
+  toModuleFederationFallbackAttributes,
+} from '@modern-js/runtime/module-federation';
+import { createLazyComponent } from '@module-federation/bridge-react';
+import { getInstance, loadRemote } from '@module-federation/modern-js-v3/runtime';
+import { Suspense, useEffect, useMemo, useState } from 'react';
+import type { ComponentType } from 'react';
+{{value0}}

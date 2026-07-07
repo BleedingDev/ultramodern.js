@@ -1,0 +1,23 @@
+
+type CheckoutCartLine = {
+  sku: string;
+  name: string;
+  quantity: number;
+  unitPriceCents: number;
+};
+
+const checkoutCartLines = new Map<string, CheckoutCartLine>();
+
+const createCheckoutCartSnapshot = () => {
+  const lines = [...checkoutCartLines.values()].sort((left, right) =>
+    left.sku.localeCompare(right.sku),
+  );
+  return {
+    lines,
+    subtotalCents: lines.reduce(
+      (total, line) => total + line.quantity * line.unitPriceCents,
+      0,
+    ),
+    totalQuantity: lines.reduce((total, line) => total + line.quantity, 0),
+  };
+};
