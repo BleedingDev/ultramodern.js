@@ -111,6 +111,9 @@ const decodePathParam = (value: string): string | null => {
   }
 };
 
+const encodeSplatParam = (value: string): string =>
+  value.split('/').map(encodeURIComponent).join('/');
+
 export const matchPathPattern = (
   pathname: string,
   pattern: string,
@@ -146,7 +149,7 @@ export const buildPathFromPattern = (
         return param ? encodeURIComponent(param) : '';
       }
       if (segment === '*') {
-        return params['*'] || '';
+        return encodeSplatParam(params['*'] || '');
       }
       return segment;
     })

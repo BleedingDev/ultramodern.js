@@ -4,6 +4,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { ModernI18nProvider } from '../src/runtime/context';
 import type { I18nInstance } from '../src/runtime/i18n';
+import { detectLanguageWithPriority } from '../src/runtime/i18n/detection';
 import { interpolateRouteParams, Link } from '../src/runtime/Link';
 import {
   canonicalPath,
@@ -270,6 +271,34 @@ describe('localization utilities', () => {
   });
 });
 
+describe('language detection priority', () => {
+  test('path locale overrides stale SSR data', async () => {
+    const previousSsrData = (window as any)._SSR_DATA;
+    (window as any)._SSR_DATA = { data: { i18nData: { lng: 'en' } } };
+
+    try {
+      await expect(
+        detectLanguageWithPriority(createI18nInstance('en'), {
+          languages,
+          fallbackLanguage: 'en',
+          localePathRedirect: true,
+          i18nextDetector: false,
+          detection: {},
+          userInitOptions: {},
+          pathname: '/cs/produkty',
+          ssrContext: undefined,
+        }),
+      ).resolves.toEqual({ detectedLanguage: 'cs', finalLanguage: 'cs' });
+    } finally {
+      if (previousSsrData === undefined) {
+        delete (window as any)._SSR_DATA;
+      } else {
+        (window as any)._SSR_DATA = previousSsrData;
+      }
+    }
+  });
+});
+
 describe('framework Link', () => {
   let rendered: { container: HTMLElement; root: Root } | undefined;
 
@@ -328,6 +357,26 @@ describe('framework Link', () => {
     expect(props.hash).toBe('list');
   });
 
+  test('preserves array search values natively', async () => {
+    const router = createTanstackRouter('/en/products', 'en');
+    rendered = await renderWithRuntime(
+      <ModernI18nProvider value={providerValue('en')}>
+        <Link
+          to="/products"
+          search={{ tag: ['boots', 'sale'], page: 2 }}
+          data-testid="q"
+        >
+          Products
+        </Link>
+      </ModernI18nProvider>,
+      createTanstackRuntimeContext(router),
+    );
+
+    const props = capturedLinkProps.at(-1);
+    expect(props.to).toBe('/en/products');
+    expect(props.search).toEqual({ tag: ['boots', 'sale'], page: '2' });
+  });
+
   test('renders a plain anchor for external targets', async () => {
     const router = createTanstackRouter('/en', 'en');
     rendered = await renderWithRuntime(
@@ -379,6 +428,26 @@ describe('framework Link', () => {
     const link = rendered.container.querySelector('[data-testid="f"]');
     expect(link?.getAttribute('href')).toBe('/cs/produkty/bota?tag=x#detail');
     expect(link?.hasAttribute('prefetch')).toBe(false);
+  });
+
+  test('serializes array search values for fallback anchors', async () => {
+    rendered = await renderWithRuntime(
+      <ModernI18nProvider value={providerValue('en')}>
+        <Link
+          to="/products"
+          search={{ tag: ['boots', 'sale'], page: 2 }}
+          data-testid="q"
+        >
+          Products
+        </Link>
+      </ModernI18nProvider>,
+      { isBrowser: true, requestContext, context: requestContext } as any,
+    );
+
+    const link = rendered.container.querySelector('[data-testid="q"]');
+    expect(link?.getAttribute('href')).toBe(
+      '/en/products?tag=boots&tag=sale&page=2',
+    );
   });
 
   test('maps prefetch to the TanStack preload prop', async () => {

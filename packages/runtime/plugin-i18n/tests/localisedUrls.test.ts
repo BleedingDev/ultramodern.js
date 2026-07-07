@@ -272,6 +272,31 @@ describe('localisedUrls', () => {
     ).toBe('/products/cervena-bota');
   });
 
+  test('encodes wildcard params while preserving path separators', () => {
+    const localisedUrls = {
+      '/docs/*': {
+        en: '/docs/*',
+        cs: '/dokumenty/*',
+      },
+    };
+
+    expect(
+      resolveLocalisedPath(
+        '/docs/a%20b/c%23d',
+        'cs',
+        ['en', 'cs'],
+        localisedUrls,
+      ),
+    ).toBe('/dokumenty/a%20b/c%23d');
+    expect(
+      resolveCanonicalLocalisedPath(
+        '/dokumenty/a%20b/c%23d',
+        ['en', 'cs'],
+        localisedUrls,
+      ),
+    ).toBe('/docs/a%20b/c%23d');
+  });
+
   test('resolves static patterns before param patterns', () => {
     const localisedUrls = {
       '/products/:slug': {

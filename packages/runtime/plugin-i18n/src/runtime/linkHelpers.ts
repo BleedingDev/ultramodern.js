@@ -9,6 +9,7 @@ export const warnOnce = (key: string, message: string) => {
 };
 
 export type LinkParams = Record<string, string | number | undefined>;
+type NormalizedSearchValue = string | string[];
 
 /**
  * Interpolate `$param`, `:param`, optional (`{-$param}` / `:param?`) and splat
@@ -88,20 +89,41 @@ export const normalizeSearch = (
   searchFromTo: string,
 ): {
   searchString: string;
-  searchObject: Record<string, string> | undefined;
+  searchObject: Record<string, NormalizedSearchValue> | undefined;
 } => {
   if (search && typeof search === 'object') {
-    const entries = Object.entries(search).filter(
-      ([, value]) => value !== undefined && value !== null,
-    );
-    const searchObject = Object.fromEntries(
-      entries.map(([key, value]) => [key, String(value)]),
-    );
-    const params = new URLSearchParams(searchObject);
+    const searchObject: Record<string, NormalizedSearchValue> = {};
+    const params = new URLSearchParams();
+
+    for (const [key, value] of Object.entries(search)) {
+      if (value === undefined || value === null) {
+        continue;
+      }
+
+      if (Array.isArray(value)) {
+        const values = value
+          .filter(item => item !== undefined && item !== null)
+          .map(String);
+        if (values.length === 0) {
+          continue;
+        }
+        searchObject[key] = values;
+        for (const item of values) {
+          params.append(key, item);
+        }
+        continue;
+      }
+
+      const stringValue = String(value);
+      searchObject[key] = stringValue;
+      params.append(key, stringValue);
+    }
+
     const serialized = params.toString();
     return {
       searchString: serialized ? `?${serialized}` : '',
-      searchObject,
+      searchObject:
+        Object.keys(searchObject).length > 0 ? searchObject : undefined,
     };
   }
 
@@ -111,9 +133,16 @@ export const normalizeSearch = (
   }
 
   const searchString = raw.startsWith('?') ? raw : `?${raw}`;
-  const searchObject: Record<string, string> = {};
+  const searchObject: Record<string, NormalizedSearchValue> = {};
   new URLSearchParams(searchString).forEach((value, key) => {
-    searchObject[key] = value;
+    const existing = searchObject[key];
+    if (existing === undefined) {
+      searchObject[key] = value;
+    } else if (Array.isArray(existing)) {
+      existing.push(value);
+    } else {
+      searchObject[key] = [existing, value];
+    }
   });
 
   return { searchString, searchObject };

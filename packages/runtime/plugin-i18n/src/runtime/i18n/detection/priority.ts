@@ -14,8 +14,8 @@ import type {
 
 /**
  * Detect language with priority:
- * Priority 1: SSR data (try window._SSR_DATA first, works for both SSR and CSR)
- * Priority 2: Path detection
+ * Priority 1: Path detection
+ * Priority 2: SSR data (try window._SSR_DATA first, works for both SSR and CSR)
  * Priority 3: i18next detector (reads from cookie/localStorage)
  * Priority 4: User config language or fallback
  */
@@ -36,17 +36,17 @@ export const detectLanguageWithPriority = async (
 
   let detectedLanguage: string | undefined;
 
-  // Priority 1: Try SSR data first (works for both SSR and CSR projects)
-  // For CSR projects, if SSR data exists in window, use it; otherwise continue to next priority
-  detectedLanguage = detectLanguageFromSSR(languages);
+  // Priority 1: Path detection. Explicit URL locale must win over stale
+  // hydration data after client-side navigation.
+  detectedLanguage = detectLanguageFromPathPriority(
+    pathname,
+    languages,
+    localePathRedirect,
+  );
 
-  // Priority 2: Path detection
+  // Priority 2: Try SSR data when the current path has no explicit locale.
   if (!detectedLanguage) {
-    detectedLanguage = detectLanguageFromPathPriority(
-      pathname,
-      languages,
-      localePathRedirect,
-    );
+    detectedLanguage = detectLanguageFromSSR(languages);
   }
 
   // Priority 3: i18next detector (reads from cookie/localStorage)
