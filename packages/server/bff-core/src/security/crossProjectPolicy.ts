@@ -444,11 +444,7 @@ const checkOperationContract: CrossProjectPolicyCheck = state => {
   }
 
   const expectedContracts = state.policy.expectedOperationContracts;
-  if (
-    expectedContracts &&
-    typeof expectedContracts === 'object' &&
-    Object.keys(expectedContracts).length > 0
-  ) {
+  if (expectedContracts && typeof expectedContracts === 'object') {
     const method = String(
       state.operationContextDetails.method || '',
     ).toUpperCase();

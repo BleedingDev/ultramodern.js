@@ -267,6 +267,31 @@ describe('cross-project policy', () => {
     expect(violation?.reason).toBe('unknown_operation_contract');
   });
 
+  test('should deny unknown operation contracts when the expected contract map is empty', () => {
+    const violation = evaluateCrossProjectPolicy(
+      {
+        'x-modernjs-bff-envelope': JSON.stringify({
+          requestId: 'crm.producer-a',
+        }),
+        'x-operation-id': 'crm.producer-a:GET:/api/customer',
+        'x-modernjs-bff-operation-context': JSON.stringify({
+          requestId: 'crm.producer-a',
+          operationId: 'crm.producer-a:GET:/api/customer',
+          method: 'GET',
+          routePath: '/api/customer',
+          schemaHash: 'schema-1',
+          operationVersion: 1,
+        }),
+      },
+      {
+        enabled: true,
+        expectedOperationContracts: {},
+      },
+    );
+
+    expect(violation?.reason).toBe('unknown_operation_contract');
+  });
+
   test('should allow unknown operation contracts when allowUnknownOperations is true', () => {
     const violation = evaluateCrossProjectPolicy(
       {
