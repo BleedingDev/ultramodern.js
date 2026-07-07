@@ -1,11 +1,6 @@
-import type React from 'react';
+import type { ReactI18nextIntegration } from '../reactI18next';
 
 type ReactI18nextModule = typeof import('react-i18next');
-
-interface ReactI18nextIntegration {
-  I18nextProvider: React.ComponentType<any> | null;
-  initReactI18next: any | null;
-}
 
 async function tryImportReactI18next(): Promise<ReactI18nextModule | null> {
   try {

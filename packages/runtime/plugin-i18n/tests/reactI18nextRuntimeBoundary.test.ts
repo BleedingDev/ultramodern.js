@@ -21,11 +21,14 @@ describe('react-i18next runtime boundary', () => {
 
   test('keeps the runtime plugin factory entry synchronous for federation', () => {
     const core = readRuntimeSource('core.tsx');
+    const pluginSetup = readRuntimeSource('pluginSetup.ts');
 
     expect(core).not.toContain("from './i18n/backend/middleware'");
     expect(core).not.toContain("from './i18n/utils'");
-    expect(core).toContain("import('./i18n/backend/middleware')");
-    expect(core).toContain("import('./i18n/utils')");
+    expect(pluginSetup).not.toContain("from './i18n/backend/middleware'");
+    expect(pluginSetup).not.toContain("from './i18n/utils'");
+    expect(pluginSetup).toContain("import('./i18n/backend/middleware')");
+    expect(pluginSetup).toContain("import('./i18n/utils')");
   });
 
   test('keeps the Modern i18n context stable across federated runtime copies', () => {

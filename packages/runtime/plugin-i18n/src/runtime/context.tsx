@@ -1,4 +1,3 @@
-import { isBrowser } from '@modern-js/runtime';
 import type { FC, ReactNode } from 'react';
 import {
   createContext,
@@ -8,16 +7,16 @@ import {
   useMemo,
 } from 'react';
 import type { LocalisedUrlsOption } from '../shared/localisedUrls';
-import type { I18nInstance } from './i18n';
-import type { SdkBackend } from './i18n/backend/sdk-backend';
-import { cacheUserLanguage } from './i18n/detection';
-import { useI18nRouterAdapter } from './routerAdapter';
 import {
-  buildLocalizedUrl,
-  detectLanguageFromPath,
-  getEntryPath,
-  shouldIgnoreRedirect,
-} from './utils';
+  cacheI18nLanguage,
+  changeModernI18nLanguage,
+  getPathLanguage,
+  isI18nLanguageSupported,
+  isI18nResourcesReady,
+  translateI18n,
+} from './contextHelpers';
+import type { I18nInstance } from './i18n';
+import { useI18nRouterAdapter } from './routerAdapter';
 
 export interface ModernI18nContextValue {
   language: string;
@@ -75,7 +74,7 @@ export interface UseModernI18nReturn {
   supportedLanguages: string[];
   localisedUrls?: LocalisedUrlsOption;
   isLanguageSupported: (lang: string) => boolean;
-  // Indicates if translation resources for current language are ready to use
+  // Indicates whether translation resources for current language are ready
   isResourcesReady: boolean;
 }
 
@@ -85,9 +84,9 @@ export interface UseModernI18nReturn {
  * This hook provides:
  * - Current language from URL params or i18n context
  * - changeLanguage function that updates both i18n instance and URL
- * - Direct access to the i18n instance
+ * - Direct access to i18n instance
  * - List of supported languages
- * - Helper function to check if a language is supported
+ * - Helper function to check if language is supported
  *
  * @param options - Optional configuration to override context settings
  * @returns Object containing i18n functionality and utilities
@@ -95,7 +94,7 @@ export interface UseModernI18nReturn {
 export const useModernI18n = (): UseModernI18nReturn => {
   const context = useContext(ModernI18nContext);
   if (!context) {
-    throw new Error('useModernI18n must be used within a ModernI18nProvider');
+    throw new Error('useModernI18n must be used within ModernI18nProvider');
   }
 
   const {
@@ -110,17 +109,10 @@ export const useModernI18n = (): UseModernI18nReturn => {
 
   const { navigate, location, hasRouter } = useI18nRouterAdapter();
 
-  const pathLanguage = useMemo(() => {
-    if (!localePathRedirect || !location?.pathname) {
-      return undefined;
-    }
-    const detected = detectLanguageFromPath(
-      location.pathname,
-      languages || [],
-      localePathRedirect,
-    );
-    return detected.detected ? detected.language : undefined;
-  }, [languages, localePathRedirect, location?.pathname]);
+  const pathLanguage = useMemo(
+    () => getPathLanguage(location?.pathname, languages, localePathRedirect),
+    [languages, localePathRedirect, location?.pathname],
+  );
 
   const currentLanguage = pathLanguage || contextLanguage;
 
@@ -132,129 +124,32 @@ export const useModernI18n = (): UseModernI18nReturn => {
     updateLanguage?.(pathLanguage);
     i18nInstance?.setLang?.(pathLanguage);
     void i18nInstance?.changeLanguage?.(pathLanguage);
-
-    if (isBrowser()) {
-      const detectionOptions = i18nInstance.options?.detection;
-      cacheUserLanguage(i18nInstance, pathLanguage, detectionOptions);
-    }
+    cacheI18nLanguage(i18nInstance, pathLanguage);
   }, [contextLanguage, i18nInstance, pathLanguage, updateLanguage]);
 
   /**
-   * Changes the current language and updates the URL accordingly.
+   * Changes the current language and updates URL accordingly.
    *
    * This function:
-   * 1. Updates the i18n instance language
-   * 2. Updates the URL by replacing the language prefix in the current path
-   * 3. Triggers a navigation to the new URL
+   * 1. Updates i18n instance language
+   * 2. Updates URL by replacing language prefix in the current path
+   * 3. Triggers navigation to the new URL
    *
    * @param newLang - The new language code to switch to
    */
   const changeLanguage = useCallback(
-    async (newLang: string) => {
-      try {
-        // Validate language
-        if (!newLang || typeof newLang !== 'string') {
-          throw new Error('Language must be a non-empty string');
-        }
-
-        await i18nInstance?.setLang?.(newLang);
-        await i18nInstance?.changeLanguage?.(newLang);
-
-        if (isBrowser()) {
-          const detectionOptions = i18nInstance.options?.detection;
-          cacheUserLanguage(i18nInstance, newLang, detectionOptions);
-        }
-
-        if (
-          localePathRedirect &&
-          isBrowser() &&
-          hasRouter &&
-          navigate &&
-          location
-        ) {
-          const currentPath = location.pathname;
-          const entryPath = getEntryPath();
-          const relativePath = currentPath.replace(entryPath, '');
-
-          // Check if the path already contains the target language
-          const pathLanguage = detectLanguageFromPath(
-            currentPath,
-            languages || [],
-            localePathRedirect,
-          );
-
-          // If path already has the target language, skip redirect
-          if (pathLanguage.detected && pathLanguage.language === newLang) {
-            return;
-          }
-
-          if (
-            !shouldIgnoreRedirect(
-              relativePath,
-              languages || [],
-              ignoreRedirectRoutes,
-            )
-          ) {
-            const newPath = buildLocalizedUrl(
-              relativePath,
-              newLang,
-              languages || [],
-              localisedUrls,
-            );
-            const newUrl =
-              entryPath + newPath + location.search + location.hash;
-
-            await navigate(newUrl, { replace: true });
-          }
-        } else if (localePathRedirect && isBrowser() && !hasRouter) {
-          const currentPath = window.location.pathname;
-          const entryPath = getEntryPath();
-          const relativePath = currentPath.replace(entryPath, '');
-
-          // Check if the path already contains the target language
-          const pathLanguage = detectLanguageFromPath(
-            currentPath,
-            languages || [],
-            localePathRedirect,
-          );
-
-          // If path already has the target language, skip redirect
-          if (pathLanguage.detected && pathLanguage.language === newLang) {
-            return;
-          }
-
-          if (
-            !shouldIgnoreRedirect(
-              relativePath,
-              languages || [],
-              ignoreRedirectRoutes,
-            )
-          ) {
-            const newPath = buildLocalizedUrl(
-              relativePath,
-              newLang,
-              languages || [],
-              localisedUrls,
-            );
-            const newUrl =
-              entryPath +
-              newPath +
-              window.location.search +
-              window.location.hash;
-
-            window.history.pushState(null, '', newUrl);
-          }
-        }
-
-        // Update language state after URL update
-        if (updateLanguage) {
-          updateLanguage(newLang);
-        }
-      } catch (error) {
-        console.error('Failed to change language:', error);
-        throw error;
-      }
-    },
+    (newLang: string) =>
+      changeModernI18nLanguage(newLang, {
+        i18nInstance,
+        updateLanguage,
+        localePathRedirect,
+        ignoreRedirectRoutes,
+        localisedUrls,
+        languages,
+        hasRouter,
+        navigate,
+        location,
+      }),
     [
       i18nInstance,
       updateLanguage,
@@ -269,72 +164,23 @@ export const useModernI18n = (): UseModernI18nReturn => {
   );
 
   const t = useCallback(
-    (key: string | string[], ...args: any[]) => {
-      if (typeof i18nInstance.t !== 'function') {
-        throw new Error('i18nInstance.t is required');
-      }
-
-      return i18nInstance.t(key, ...args) as string;
-    },
+    (key: string | string[], ...args: any[]) =>
+      translateI18n(i18nInstance, key, ...args),
     [currentLanguage, i18nInstance],
   );
 
-  // Helper function to check if a language is supported
+  // Helper function to check if language is supported
   const isLanguageSupported = useCallback(
-    (lang: string) => {
-      return languages?.includes(lang) || false;
-    },
+    (lang: string) => isI18nLanguageSupported(languages, lang),
     [languages],
   );
 
   // Check if current language resources are ready
-  // This checks if all required namespaces for the current language are loaded
-  const isResourcesReady = useMemo(() => {
-    if (!i18nInstance?.isInitialized) {
-      return false;
-    }
-
-    // Get backend instance
-    const backend = i18nInstance?.services?.backend as SdkBackend | undefined;
-
-    // If using SDK backend, check loading state
-    if (backend && typeof backend.isLoading === 'function') {
-      // Check if any resource for current language is loading
-      const loadingResources = backend.getLoadingResources();
-      const isCurrentLanguageLoading = loadingResources.some(
-        ({ language }) => language === currentLanguage,
-      );
-      if (isCurrentLanguageLoading) {
-        return false;
-      }
-    }
-
-    // Check if resources exist in store
-    const store = (i18nInstance as any).store;
-    if (!store?.data) {
-      return false;
-    }
-
-    const langData = store.data[currentLanguage];
-    if (!langData || typeof langData !== 'object') {
-      return false;
-    }
-
-    // Get required namespaces
-    const options = i18nInstance.options;
-    const namespaces = options?.ns || options?.defaultNS || ['translation'];
-    const requiredNamespaces = Array.isArray(namespaces)
-      ? namespaces
-      : [namespaces];
-
-    // Check if all required namespaces are loaded
-    return requiredNamespaces.every(ns => {
-      const nsData = langData[ns];
-      return (
-        nsData && typeof nsData === 'object' && Object.keys(nsData).length > 0
-      );
-    });
-  }, [currentLanguage, i18nInstance]);
+  // This checks if all required namespaces for current language are loaded
+  const isResourcesReady = useMemo(
+    () => isI18nResourcesReady(i18nInstance, currentLanguage),
+    [currentLanguage, i18nInstance],
+  );
 
   return {
     language: currentLanguage,
