@@ -1,14 +1,19 @@
-export { createBuildMarker } from './delivery-unit';
 export {
   createAppModernConfig,
   createBackendModuleFederationConfig,
-  createModuleFederationRemotesConfig,
-  createModuleFederationRemoteUrlHelpers,
   createRemoteModuleFederationConfig,
-  createSharedModuleFederationConfig,
   createShellModuleFederationConfig,
+} from './config';
+export {
   createUltramodernBuildArtifactJson,
   createUltramodernBuildModule,
   createUltramodernBuildReexportModule,
+} from './reexport-module';
+export {
+  createModuleFederationRemotesConfig,
+  createModuleFederationRemoteUrlHelpers,
+} from './remote-refs';
+export {
+  createSharedModuleFederationConfig,
   formatTsObjectLiteral,
-} from './module-federation/index';
+} from './shared-config';

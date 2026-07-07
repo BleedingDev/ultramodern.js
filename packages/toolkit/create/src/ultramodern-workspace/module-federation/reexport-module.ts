@@ -1,0 +1,38 @@
+import {
+  createUltramodernBuildArtifact,
+  ULTRAMODERN_BUILD_ARTIFACT_FILE,
+} from '@modern-js/utils/universal';
+import { createDeliveryUnitRecord } from '../delivery-unit';
+import type { WorkspaceApp } from '../types';
+
+export function createUltramodernBuildArtifactJson(
+  scope: string,
+  app: WorkspaceApp,
+): string {
+  const record = createDeliveryUnitRecord(scope, app);
+  return `${JSON.stringify(createUltramodernBuildArtifact(record), null, 2)}\n`;
+}
+
+export function createUltramodernBuildModule(): string {
+  return `import ultramodernBuildArtifact from './${ULTRAMODERN_BUILD_ARTIFACT_FILE}' with { type: 'json' };
+
+export { ultramodernBuildArtifact };
+
+export const ultramodernDeliveryUnit =
+  ultramodernBuildArtifact.deliveryUnit;
+export const ultramodernVerticalIdentity = ultramodernDeliveryUnit;
+export const ultramodernUiMarker = ultramodernBuildArtifact.surfaces.ui;
+export const ultramodernApiMarker = ultramodernBuildArtifact.surfaces.api;
+`;
+}
+
+export function createUltramodernBuildReexportModule(): string {
+  return `export {
+  ultramodernBuildArtifact,
+  ultramodernApiMarker,
+  ultramodernDeliveryUnit,
+  ultramodernUiMarker,
+  ultramodernVerticalIdentity,
+} from '../shared/ultramodern-build';
+`;
+}
