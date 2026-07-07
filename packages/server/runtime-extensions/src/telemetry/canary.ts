@@ -1,3 +1,7 @@
+import {
+  evaluateCanaryHealth,
+  type TelemetryCanaryHealthEvaluation,
+} from './canaryEvaluation';
 import { clamp } from './envelope';
 
 import type { TelemetryRegistry } from './registry';
@@ -158,66 +162,25 @@ export class TelemetryCanaryOrchestrator {
     this.consecutiveFailures = 0;
   }
 
-  private collectFailures(): {
-    failures: TelemetryCanaryFailure[];
-    queueStats: TelemetryQueueStats;
-    unhealthyExporterCount: number;
-  } {
-    const failures: TelemetryCanaryFailure[] = [];
+  private collectFailures(): TelemetryCanaryHealthEvaluation {
     const queueStats = this.registry.getQueueStats();
     const unhealthyExporterCount = this.registry
       .getExporterHealth()
       .filter(item => !item.healthy).length;
 
-    if (queueStats.utilization > this.maxQueueUtilization) {
-      failures.push({
-        reason: 'queue_utilization',
-        threshold: this.maxQueueUtilization,
-        value: queueStats.utilization,
-      });
-    }
-
-    if (queueStats.totalDropped > this.maxTotalDropped) {
-      failures.push({
-        reason: 'queue_dropped',
-        threshold: this.maxTotalDropped,
-        value: queueStats.totalDropped,
-      });
-    }
-
-    if (unhealthyExporterCount > this.maxUnhealthyExporters) {
-      failures.push({
-        reason: 'unhealthy_exporter',
-        threshold: this.maxUnhealthyExporters,
-        value: unhealthyExporterCount,
-      });
-    }
-
-    for (const gateName of this.requiredContractGates) {
-      const gate = this.contractGates.get(gateName);
-      if (!gate) {
-        failures.push({
-          reason: 'contract_gate_missing',
-          gate: gateName,
-          message: `Contract gate "${gateName}" is missing`,
-        });
-        continue;
-      }
-
-      if (!gate.passed) {
-        failures.push({
-          reason: 'contract_gate_failed',
-          gate: gateName,
-          message: gate.reason || `Contract gate "${gateName}" is not passing`,
-        });
-      }
-    }
-
-    return {
-      failures,
-      queueStats,
-      unhealthyExporterCount,
-    };
+    return evaluateCanaryHealth(
+      {
+        queueStats,
+        unhealthyExporterCount,
+        requiredContractGates: this.requiredContractGates,
+        contractGates: this.contractGates,
+      },
+      {
+        maxQueueUtilization: this.maxQueueUtilization,
+        maxTotalDropped: this.maxTotalDropped,
+        maxUnhealthyExporters: this.maxUnhealthyExporters,
+      },
+    );
   }
 
   evaluate(): TelemetryCanaryDecision {
