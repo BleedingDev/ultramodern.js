@@ -68,7 +68,7 @@ An independent service owns:
 
 Reference implementations:
 
-- cross-project producer/consumer apps: [tests/integration/bff-corss-project](/Users/satan/side/experiments/modernjs/tests/integration/bff-corss-project)
+- cross-project producer/consumer apps: [tests/integration/bff-cross-project](/Users/satan/side/experiments/modernjs/tests/integration/bff-cross-project)
 - build/serve parity and generated client proof: [tests/integration/bff-runtime-parity](/Users/satan/side/experiments/modernjs/tests/integration/bff-runtime-parity)
 
 ## 3. Extraction Workflow

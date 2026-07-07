@@ -164,7 +164,7 @@ const testEffectOpenApiWorked = async ({
   expect(text).toContain('/effect/hello');
 };
 
-describe.sequential('corss project bff', () => {
+describe.sequential('cross project bff', () => {
   describe('bff client-app in dev', () => {
     const expectedText = 'Hello get bff-api-app';
     let port = 0;

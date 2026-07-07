@@ -20,7 +20,7 @@ import {
 const projectRoot = path.resolve(__dirname, '../../..');
 const crossProjectApiApp = path.join(
   projectRoot,
-  'integration/bff-corss-project/bff-api-app',
+  'integration/bff-cross-project/bff-api-app',
 );
 const ensureWorkspacePackages = [
   '@modern-js/create-request',
@@ -33,7 +33,7 @@ const readFixture = (relativePath: string) =>
   fs.readFileSync(path.join(projectRoot, relativePath), 'utf8');
 
 const generatedEffectClientPath =
-  'integration/bff-corss-project/bff-api-app/dist-1/client/effect/index.js';
+  'integration/bff-cross-project/bff-api-app/dist-1/client/effect/index.js';
 
 const requireFromApiApp = createRequire(
   path.join(crossProjectApiApp, 'package.json'),
@@ -233,7 +233,7 @@ describe('effect-only cross-project BFF contracts', () => {
 
   test('generated runtime wrapper preserves producer requestId bootstrap contract', () => {
     const runtimeCode = readFixture(
-      'integration/bff-corss-project/bff-api-app/dist-1/runtime/index.js',
+      'integration/bff-cross-project/bff-api-app/dist-1/runtime/index.js',
     );
 
     expect(runtimeCode).toContain(

@@ -137,7 +137,7 @@ Service requirements:
 Reference proof:
 
 1. `tests/integration/bff-runtime-parity`
-2. `tests/integration/bff-corss-project`
+2. `tests/integration/bff-cross-project`
 
 ### 3.5 Shared package
 
@@ -199,7 +199,7 @@ A generated Micro Vertical workspace is scaffold-ready only when these checks ha
 | --- | --- |
 | Shell + remote route composition | `pnpm --dir tests exec rstest run integration/routes-tanstack-mf/test/index.test.ts` |
 | MF manifest and shared tree-shaking metadata | `tests/integration/routes-tanstack-mf/tests/tanstack-mf-contract.test.ts` |
-| Effect service propagation | `tests/integration/bff-runtime-parity` and `tests/integration/bff-corss-project` |
+| Effect service propagation | `tests/integration/bff-runtime-parity` and `tests/integration/bff-cross-project` |
 | Template manifest and supply-chain policy | `packages/toolkit/create/src/index.ts` manifest validation and `.modernjs/mv-template-manifest.json` output |
 | Release gate compatibility | `pnpm run validate:bun-smoke` |
 

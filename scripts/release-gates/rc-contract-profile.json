@@ -22,7 +22,7 @@
     "targets": [
       {
         "id": "effect-bff-operation-manifest",
-        "path": "tests/integration/bff-corss-project/bff-api-app/dist-1/client/effect/index.js",
+        "path": "tests/integration/bff-cross-project/bff-api-app/dist-1/client/effect/index.js",
         "requiresCommands": true,
         "includes": [
           "const operationManifest =",
