@@ -121,6 +121,18 @@ function matchPublicRoute(req: HonoRequest, routes: ServerRoute[]) {
   return undefined;
 }
 
+// Check whether `target` is located inside `root` (or is `root` itself), so
+// resolved static asset paths cannot escape the serving directory via `../`.
+const isPathInside = (target: string, root: string): boolean => {
+  const relative = path.relative(path.resolve(root), path.resolve(target));
+  return (
+    relative === '' ||
+    (!relative.startsWith(`..${path.sep}`) &&
+      relative !== '..' &&
+      !path.isAbsolute(relative))
+  );
+};
+
 // Remove domain name from assetPrefix if it exists
 const extractPathname = (url: string): string => {
   try {
@@ -290,6 +302,13 @@ export function createStaticMiddleware(
       moduleFederationAsset = false,
       moduleFederationRemoteEntry = false,
     ) => {
+      // Prevent path traversal: `pathname` is user-controlled and may contain
+      // `../` sequences (Hono decodes `%2e%2e` in `c.req.path`), which
+      // `path.join` resolves. Reject any resolved path that escapes `pwd`.
+      if (!isPathInside(filepath, pwd)) {
+        return null;
+      }
+
       if (!(await fs.pathExists(filepath))) {
         return null;
       }
