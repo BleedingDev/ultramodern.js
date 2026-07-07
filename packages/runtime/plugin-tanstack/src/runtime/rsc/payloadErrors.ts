@@ -41,6 +41,14 @@ export function serializePayloadError(error: unknown): unknown {
     };
   }
 
+  if (shouldRedactServerError()) {
+    return {
+      message: 'Unexpected Server Error',
+      stack: undefined,
+      __type: 'Error',
+    };
+  }
+
   return error;
 }
 

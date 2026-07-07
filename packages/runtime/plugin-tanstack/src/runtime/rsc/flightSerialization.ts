@@ -75,6 +75,7 @@ export function serializeTanstackRscFlightValues(
 
 export async function reviveTanstackRscFlightValues(
   value: unknown,
+  seen = new WeakMap<object, unknown>(),
 ): Promise<unknown> {
   let reviver:
     | ((serialized: SerializedTanstackRscFlightValue) => unknown)
@@ -92,14 +93,26 @@ export async function reviveTanstackRscFlightValues(
     if (isSerializedTanstackRscFlightValue(current)) {
       return (await getReviver())(current);
     }
+    if (!current || typeof current !== 'object') {
+      return current;
+    }
+    if (seen.has(current)) {
+      return seen.get(current);
+    }
     if (Array.isArray(current)) {
-      return Promise.all(current.map(item => visit(item)));
+      const result: unknown[] = [];
+      seen.set(current, result);
+      for (const item of current) {
+        result.push(await visit(item));
+      }
+      return result;
     }
     if (!isPlainObject(current)) {
       return current;
     }
 
     const result: Record<string, unknown> = {};
+    seen.set(current, result);
     for (const [key, item] of Object.entries(current)) {
       result[key] = await visit(item);
     }

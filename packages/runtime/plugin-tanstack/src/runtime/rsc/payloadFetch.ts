@@ -29,7 +29,12 @@ export function isServerPayload(value: unknown): value is ServerPayload {
 }
 
 export function createPayloadFetchKey(request: Request) {
-  return request.url;
+  return JSON.stringify([
+    request.url,
+    [...request.headers.entries()].sort(([left], [right]) =>
+      left.localeCompare(right),
+    ),
+  ]);
 }
 
 export function isAbsoluteUrl(value: string) {
@@ -55,9 +60,17 @@ export async function fetchTanstackRscPayload(request: Request) {
   const redirectLocation = response.headers.get('X-Modernjs-Redirect');
   if (redirectLocation) {
     if (isAbsoluteUrl(redirectLocation)) {
-      throw redirect({ href: redirectLocation });
+      throw redirect({
+        headers: response.headers,
+        href: redirectLocation,
+        statusCode: response.status,
+      });
     }
-    throw redirect({ to: redirectLocation || '/' });
+    throw redirect({
+      headers: response.headers,
+      statusCode: response.status,
+      to: redirectLocation || '/',
+    });
   }
 
   if (response.status === 404 && !response.body) {
