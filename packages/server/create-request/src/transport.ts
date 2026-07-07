@@ -10,6 +10,14 @@ const DEFAULT_RETRYABLE_STATUS_CODES = [408, 425, 429, 500, 502, 503, 504];
 const DEFAULT_BASE_DELAY_MS = 100;
 const DEFAULT_MAX_DELAY_MS = 1000;
 const DEFAULT_JITTER_RATIO = 0.1;
+const DEFAULT_RETRYABLE_METHODS = new Set([
+  'DELETE',
+  'GET',
+  'HEAD',
+  'OPTIONS',
+  'PUT',
+  'TRACE',
+]);
 
 const createTimeoutError = (timeoutMs: number) => {
   const error = new Error(`Request timed out after ${timeoutMs}ms`);
@@ -85,10 +93,15 @@ const normalizeJitterRatio = (value: unknown) => {
 };
 
 const shouldRetryWithDefaults = (
+  method: string,
   statusCode: number | undefined,
   error: unknown,
   retryableStatusCodes: number[],
 ) => {
+  if (!DEFAULT_RETRYABLE_METHODS.has(method.toUpperCase())) {
+    return false;
+  }
+
   if (typeof statusCode === 'number') {
     return retryableStatusCodes.includes(statusCode);
   }
@@ -109,6 +122,7 @@ const shouldRetry = (
   }
 
   return shouldRetryWithDefaults(
+    context.method,
     context.statusCode,
     context.error,
     retryableStatusCodes,

@@ -807,6 +807,48 @@ describe('configure', () => {
     }
   });
 
+  test('should not retry non-idempotent requests by default', async () => {
+    rs.useFakeTimers();
+    const onDegraded = rs.fn();
+    const customRequest = rs.fn(async () => {
+      const error: any = new Error('post failed');
+      error.status = 503;
+      throw error;
+    });
+
+    try {
+      configure({
+        request: customRequest as unknown as typeof fetch,
+        transport: {
+          retry: {
+            retries: 2,
+            baseDelayMs: 1,
+            maxDelayMs: 1,
+            jitterRatio: 0,
+          },
+          onDegraded,
+        },
+      });
+
+      const request = createRequest(path, 'POST', 8080);
+      const pending = request({ body: 'payload' });
+      const failure = expect(pending).rejects.toThrow('post failed');
+
+      await Promise.resolve();
+      await rs.advanceTimersByTimeAsync(1);
+      await Promise.resolve();
+      await rs.advanceTimersByTimeAsync(1);
+      await failure;
+
+      expect(customRequest).toHaveBeenCalledTimes(1);
+      expect(onDegraded).not.toHaveBeenCalledWith(
+        expect.objectContaining({ reason: 'retry' }),
+      );
+    } finally {
+      rs.useRealTimers();
+    }
+  });
+
   test('should emit retry_exhausted when retry budget is consumed', async () => {
     rs.useFakeTimers();
     const onDegraded = rs.fn();
