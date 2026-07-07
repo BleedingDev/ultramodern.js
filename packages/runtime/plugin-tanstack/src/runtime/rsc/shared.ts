@@ -1,5 +1,11 @@
 import type React from 'react';
-import type { RscSlotUsageEvent } from './symbols';
+import {
+  type AnyCompositeComponent,
+  type AnyRenderableServerComponent,
+  RSC_PROXY_GET_TREE,
+  RSC_PROXY_PATH,
+  type RscSlotUsageEvent,
+} from './symbols';
 
 export const TANSTACK_RSC_FLIGHT_VALUE = '__modernTanstackRsc';
 
@@ -38,4 +44,27 @@ export function selectTreePath(tree: unknown, path: string[]) {
     current = (current as Record<string, unknown>)[key];
   }
   return current as React.ReactNode;
+}
+
+type RenderSelectedTreeSource =
+  | AnyRenderableServerComponent
+  | AnyCompositeComponent;
+
+type RenderSelectedTreeOptions = {
+  getTree?: (() => unknown) | undefined;
+  missingTreeError: string;
+};
+
+export function renderSelectedTree(
+  src: RenderSelectedTreeSource,
+  {
+    getTree = src[RSC_PROXY_GET_TREE],
+    missingTreeError,
+  }: RenderSelectedTreeOptions,
+) {
+  if (!getTree) {
+    throw new Error(missingTreeError);
+  }
+
+  return selectTreePath(getTree(), src[RSC_PROXY_PATH] || []);
 }

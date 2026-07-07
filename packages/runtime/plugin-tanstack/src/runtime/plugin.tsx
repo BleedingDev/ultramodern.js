@@ -20,13 +20,20 @@ import {
 } from '@tanstack/react-router';
 import { useContext, useMemo } from 'react';
 import { createModernBasepathRewrite } from './basepathRewrite';
+import { wrapRouterSubscribeWithBlockState } from './blockingSubscribe';
+import { isSegmentPrefix } from './clientBasepath';
+import {
+  getTanstackSsrHydrationPromise,
+  hasTanstackSsrHydrationRecord,
+  ModernRouterClient,
+  type WindowWithTanstackSsr,
+} from './clientHydration';
 import { routerProviderRegistryHooks } from './hooks';
 import { wrapTanstackSsrHydrationBoundary } from './hydrationBoundary';
 import {
   applyRouterRuntimeState,
   type RouterLifecycleContext,
 } from './lifecycle';
-import { withModernRouteMatchContext } from './outlet';
 import {
   createTanstackRouteObjects,
   getMergedRouterConfig,
@@ -37,216 +44,12 @@ import {
 } from './pluginShared';
 import { Link } from './prefetchLink';
 import { useMatches } from './routeHooks';
-import {
-  createRouteTreeFromRouteObjects,
-  pickRouteModuleComponent,
-} from './routeTree';
+import { createRouteTreeFromRouteObjects } from './routeTree';
 import { getTanstackRscSerializationAdapters } from './rsc/client';
 import {
   getModernTanstackRouterFastDefaults,
   type RouterConfig,
 } from './types';
-
-const BLOCKING_SUBSCRIBE_SYMBOL = Symbol.for(
-  '@modern-js/plugin-tanstack:blocking-subscribe',
-);
-const BLOCKING_STATE_SYMBOL = Symbol.for(
-  '@modern-js/plugin-tanstack:blocking-state',
-);
-type TanstackRouterWithSubscribe = {
-  [BLOCKING_STATE_SYMBOL]?: () => boolean;
-  [BLOCKING_SUBSCRIBE_SYMBOL]?: boolean;
-  subscribe?: (
-    eventType: string,
-    listener: (...args: unknown[]) => void,
-  ) => () => void;
-};
-
-type WindowWithTanstackSsr = Window & {
-  $_TSR?: unknown;
-};
-
-type RouteComponentPreloadable = {
-  load?: () => Promise<unknown>;
-  preload?: () => Promise<unknown>;
-};
-
-type RouterWithPreloadableRoutes = AnyRouter & {
-  routesById?: Record<
-    string,
-    {
-      options?: {
-        component?: unknown;
-        staticData?: {
-          modernRouteId?: string;
-        };
-      };
-    }
-  >;
-};
-
-function normalizeBase(b: string) {
-  if (b.length > 1 && b.endsWith('/')) {
-    return b.slice(0, -1);
-  }
-  return b || '/';
-}
-
-function isSegmentPrefix(pathname: string, base: string) {
-  const b = normalizeBase(base);
-  const p = pathname || '/';
-  return p === b || p.startsWith(`${b}/`);
-}
-
-function wrapRouterSubscribeWithBlockState(
-  router: unknown,
-  getBlockNavState?: () => boolean,
-) {
-  if (!router || typeof router !== 'object') {
-    return;
-  }
-
-  const target = router as TanstackRouterWithSubscribe;
-  target[BLOCKING_STATE_SYMBOL] = getBlockNavState;
-  if (
-    target[BLOCKING_SUBSCRIBE_SYMBOL] ||
-    typeof target.subscribe !== 'function'
-  ) {
-    return;
-  }
-
-  const originSubscribe = target.subscribe.bind(target);
-  target.subscribe = (eventType, listener) => {
-    const wrappedListener = (...args: unknown[]) => {
-      const blockRoute = target[BLOCKING_STATE_SYMBOL]?.() || false;
-      if (blockRoute) {
-        return;
-      }
-      return listener(...args);
-    };
-    return originSubscribe(eventType, wrappedListener);
-  };
-  target[BLOCKING_SUBSCRIBE_SYMBOL] = true;
-}
-
-type RouterHydrationRecord = {
-  error?: unknown;
-  promise: Promise<unknown>;
-  status: 'pending' | 'fulfilled' | 'rejected';
-};
-
-const routerHydrationRecords = new WeakMap<AnyRouter, RouterHydrationRecord>();
-const routeModulesKey = '_routeModules';
-
-function getCachedRouteModule(routeId: string) {
-  if (typeof window === 'undefined') {
-    return undefined;
-  }
-
-  return (window as unknown as Record<string, Record<string, unknown>>)[
-    routeModulesKey
-  ]?.[routeId];
-}
-
-function preloadHydratedRouteComponents(router: AnyRouter): Promise<void> {
-  const preloadableRouter = router as RouterWithPreloadableRoutes;
-  const routesById = preloadableRouter.routesById || {};
-  const matches = preloadableRouter.stores.matches.get() as Array<{
-    routeId?: string;
-  }>;
-
-  return Promise.all(
-    matches.map(match => {
-      if (match.routeId === undefined || match.routeId === '') {
-        return undefined;
-      }
-
-      const route = routesById[match.routeId];
-      const component = route?.options?.component as RouteComponentPreloadable;
-      const preload = component?.load || component?.preload;
-      if (typeof preload !== 'function') {
-        return undefined;
-      }
-
-      return Promise.resolve(preload.call(component)).then(routeModule => {
-        const modernRouteId = route?.options?.staticData?.modernRouteId;
-        const cachedRouteModule =
-          typeof modernRouteId === 'string' && modernRouteId !== ''
-            ? getCachedRouteModule(modernRouteId)
-            : undefined;
-        const resolvedComponent = pickRouteModuleComponent(
-          cachedRouteModule ?? routeModule,
-        );
-        if (
-          resolvedComponent !== undefined &&
-          typeof modernRouteId === 'string' &&
-          modernRouteId !== ''
-        ) {
-          route.options.component = withModernRouteMatchContext(
-            resolvedComponent,
-            modernRouteId,
-          );
-        }
-      });
-    }),
-  ).then(() => undefined);
-}
-
-function hydrateTanstackRouter(router: AnyRouter) {
-  return import('@tanstack/react-router/ssr/client').then(({ hydrate }) =>
-    hydrate(router),
-  );
-}
-
-function getTanstackSsrHydrationRecord(router: AnyRouter) {
-  const existingHydrationRecord = routerHydrationRecords.get(router);
-  if (existingHydrationRecord !== undefined) {
-    return existingHydrationRecord;
-  }
-
-  const hydrationRecord: RouterHydrationRecord = {
-    promise: Promise.resolve(),
-    status: 'pending',
-  };
-  routerHydrationRecords.set(router, hydrationRecord);
-  try {
-    hydrationRecord.promise = hydrateTanstackRouter(router)
-      .then(value => preloadHydratedRouteComponents(router).then(() => value))
-      .then(
-        value => {
-          hydrationRecord.status = 'fulfilled';
-          return value;
-        },
-        error => {
-          hydrationRecord.status = 'rejected';
-          hydrationRecord.error = error;
-          throw error;
-        },
-      );
-  } catch (error) {
-    hydrationRecord.status = 'rejected';
-    hydrationRecord.error = error;
-    hydrationRecord.promise = Promise.reject(error);
-    hydrationRecord.promise.catch(() => {});
-  }
-  return hydrationRecord;
-}
-
-function getTanstackSsrHydrationPromise(router: AnyRouter) {
-  return getTanstackSsrHydrationRecord(router).promise;
-}
-
-function hasTanstackSsrHydrationRecord(router: AnyRouter) {
-  return routerHydrationRecords.has(router);
-}
-
-function ModernRouterClient({ router }: { router: AnyRouter }) {
-  const hydrationRecord = getTanstackSsrHydrationRecord(router);
-  if (hydrationRecord.status === 'rejected') {
-    throw hydrationRecord.error;
-  }
-  return <RouterProvider router={router} />;
-}
 
 export const tanstackRouterPlugin = (
   userConfig: Partial<RouterConfig> = {},

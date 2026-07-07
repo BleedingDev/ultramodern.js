@@ -15,6 +15,7 @@ import {
 } from '../rsc/payloadRouter';
 import type {
   ModernRouteObject,
+  ModernShouldRevalidate,
   RouteParams,
   RouteRevalidationState,
   RouteTreeOptions,

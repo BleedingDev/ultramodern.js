@@ -3,12 +3,11 @@
 
 import { Suspense } from 'react';
 import { SlotProvider } from './SlotContext';
-import { EmptyFallback, selectTreePath } from './shared';
+import { EmptyFallback, renderSelectedTree } from './shared';
 import {
   type AnyCompositeComponent,
   type CompositeComponentProps,
   RSC_PROXY_GET_TREE,
-  RSC_PROXY_PATH,
   SERVER_COMPONENT_STREAM,
 } from './symbols';
 import { createTreeGetterFromFlightStream } from './treeGetter';
@@ -48,14 +47,11 @@ function CompositeInner<TComp extends AnyCompositeComponent>({
   src: TComp;
   strict?: boolean;
 }) {
-  const getTree = src[RSC_PROXY_GET_TREE] || getRawServerTreeGetter(src);
-  if (!getTree) {
-    throw new Error(
+  const tree = renderSelectedTree(src, {
+    getTree: src[RSC_PROXY_GET_TREE] || getRawServerTreeGetter(src),
+    missingTreeError:
       'CompositeComponent src must come from createCompositeComponent().',
-    );
-  }
-
-  const tree = selectTreePath(getTree(), src[RSC_PROXY_PATH] || []);
+  });
   return (
     <SlotProvider implementations={slotProps} strict={strict}>
       {tree}
