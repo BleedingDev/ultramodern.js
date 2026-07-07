@@ -36,3 +36,12 @@ The delivery-unit record is the single identity root. It may point at multiple r
 Documentation and tooling should use "federated loading" for the mechanism and "delivery unit" for the release boundary. Existing references to independent release trains or version-skew rehearsal must be read as cross-delivery-unit compatibility, not as permission to mix frontend, API, and backend revisions inside one MicroVertical.
 
 In-flight promotion behavior remains a platform decision, but it must preserve the same invariant: either reload/fail the old UI when it reaches a new delivery unit, or keep whole old and new delivery units routable side by side. It must never route an old UI to a new backend as a successful MicroVertical state.
+
+## 2026-07-07 Status Note
+
+Current UltraModern generation emits per-generation delivery-unit build markers
+from the shared backend-federation contract, and runtime manifest loading now
+validates the expected delivery-unit identity before accepting backend federation
+metadata. The marker is still defense in depth; expected-identity enforcement is
+the guard that prevents mismatched UI/API/backend surfaces inside one
+MicroVertical delivery unit.

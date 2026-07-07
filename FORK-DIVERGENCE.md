@@ -24,7 +24,7 @@ Legend:
 - **[F]** permanent fork divergence — only meaningful with the ultramodern lanes (Effect BFF, TanStack, Module Federation SSR/topology evidence, telemetry, tsgo toolchain). Includes coupled dependency migrations where `package.json` and source must be taken from the same side.
 - **[M]** mechanical — biome import re-sorting, `@effect-diagnostics` pragma headers (~73 of the 537 modified package files), tsconfig `rootDir`/`ignoreDeprecations`, package.json script/dep churn for the tsgo + rstest toolchain. Safe to take either side on conflict; prefer upstream content and re-run biome/pragma tooling.
 
-Headline: **`packages/server/core/src/plugins/render/render.ts` — `matchRoute` undefined-narrowing is an upstreamable bug fix.** Upstream returns `[]` cast to `MatchedRoute` when nothing matches, so callers destructure `undefined` as a `ServerRoute`. The fork types the miss explicitly (`[ServerRoute | undefined, Params]`, `render.ts:82`, returns `[undefined, {}]`). PR this upstream; until then, always keep the fork side in merges.
+Headline: **`packages/server/core/src/plugins/render/render.ts` — `matchRoute` undefined-narrowing remains fork-local in the checked upstream ref.** As of 2026-07-07, local `origin/main` (`f1dc167e3bdb9a87e087c028197cbfd4de5c468e`) still returns `[]` cast to `MatchedRoute` when nothing matches, so callers can destructure `undefined` as a `ServerRoute`. The fork types the miss explicitly (`[ServerRoute | undefined, Params]`, returns `[undefined, {}]`). Keep the fork side in merges until the upstream ref actually carries the narrowing.
 
 Total at last audit (2026-06-13, post Phase A-C brutal-cleanup branch `ultracode/brutal-cleanup`):
 
@@ -64,6 +64,7 @@ Root/infra is intentionally not package-owned, but it is not optional during ups
 ### Tests, docs, changesets, and patches — mixed
 
 - `tests/**` has the largest non-package raw count because integration/e2e fixtures moved with fork defaults and generated-workspace proof coverage. Treat test changes as evidence for package/runtime behavior, not as standalone product features.
+- `tests/integration/bff-corss-project` was renamed to `tests/integration/bff-cross-project`; the removed `bff-effect-lambda-only` fixture should not be resurrected because Effect-only BFF coverage now lives under `tests/integration/bff-effect`.
 - `docs/super-app-rfc-adr/**`, `docs/research/**`, and `FORK-DIVERGENCE.md` are fork docs. Keep them truthful to live code after Phase A-C: Garfish runtime/trust lanes are historical, Module Federation is the live composition runtime, and generated-workspace proof scripts replace deleted repo-local proof lanes.
 - `.changeset/**` entries are fork release metadata. Keep or regenerate per release train; do not treat them as upstreamable source changes.
 - `patches/**` is external dependency patch policy. Keep it paired with `pnpm-workspace.yaml` and `pnpm-lock.yaml` patch hashes.
@@ -100,9 +101,9 @@ Import reordering/pragmas; storage import path swap; small strictness fixes.
 
 Import reordering + minor destructuring/strictness cleanups in prerender/server paths.
 
-### plugin-styled-components (2 files) — [U]
+### plugin-styled-components (2 files) — [F]
 
-Type fix for styled-components v6 (`StyledInterface` no longer exported; derive from `typeof styledComponents.default`).
+Styled-components v6-coupled type fix (`StyledInterface` no longer exported; derive from `typeof styledComponents.default`). Not in the current verified [U] queue because the dependency migration is fork-coupled.
 
 ## packages/document (118 files) — [F]
 
@@ -123,8 +124,8 @@ Type-cast strictness fix on ipx basename + toolchain configs.
 - `src/router/runtime/*` — [F] router runtime state machinery (`routerRuntime`/`routerServerSnapshot`/hydration script on the internal context) plus the fork-added router provider-registry (`provider.ts`) and state helpers (`lifecycle.ts`). The TanStack consolidation has landed: all TanStack code lives in `@modern-js/plugin-tanstack`, and `routerFramework` has been **removed** from the runtime context (no `src/` hits remain; `tests/core/react/wrapper.test.tsx:59,73` asserts its absence — see ADR-0017 §6).
 - `src/router/runtime/PrefetchLink.tsx` — [U] candidate: intent/render/viewport prefetch behaviors + webpack chunk preload.
 - `src/exports/head.ts` — [F] Helmet re-implemented over `react-helmet-async` with SSR `_helmetContext` plumbing.
-- `src/core/server/*` (stream/string/requestHandler) — [F] router server snapshot + `loaderFailureMode` + helmet integration in SSR rendering.
-- `src/core/context/*`, `src/core/browser/*`, `src/core/compat/*` — [F] `TInternalRuntimeContext` extensions.
+- `src/core/server/*` (stream/string/requestHandler) — [F] router server snapshot + `loaderFailureMode` + helmet integration in SSR rendering. Fork SSR helper logic is now concentrated in fork-owned `src/core/server/{requestResponse.ts,routerCleanup.ts,scriptOrder.ts}`; `requestHandler.tsx` keeps the orchestration surface and `string/loadable.ts` imports script-order helpers instead of carrying them inline.
+- `src/core/context/*`, `src/core/browser/*`, `src/core/compat/*` — [F] `TInternalRuntimeContext` extensions. `src/core/context/index.ts` now exports router runtime/provider types and lifecycle helpers used by `@modern-js/plugin-tanstack` through the public `@modern-js/runtime/context` seam.
 - `src/router/cli/*` — [F] routes owner metadata (`BUILT_IN_ROUTES_OWNER`), config-routes converter, template generation.
 - `src/document/*`, `src/exports/*`, `src/rsc/*`, `static/modern-inline.js` — [M]/[F] smaller adaptations.
 - `tsconfig.json` — [M] `rootDir`/`baseUrl` only (the `src/ssr` exclude hunk was reverted when the orphaned legacy `src/ssr` copies were deleted in the 2026-06-12 cleanup).
@@ -146,8 +147,8 @@ package.json bumps farrow-api/farrow-pipeline/farrow-schema `^1.12` → `^2.3` (
 
 ### core (35 files)
 
-- `src/plugins/render/render.ts` — **[U] `matchRoute` undefined-narrowing bug fix — see headline above.**
-- `src/adapters/node/plugins/static.ts` — [U] candidate: pre-compressed asset serving (`.br`/`.gz` with Accept-Encoding q-value parsing).
+- `src/plugins/render/render.ts` — **[U] `matchRoute` undefined-narrowing bug fix in this checkout — see headline above before dropping.**
+- `src/adapters/node/plugins/static.ts` — [F] fork asset-serving behavior for pre-compressed assets (`.br`/`.gz` with Accept-Encoding q-value parsing); not in the current verified [U] queue.
 - `src/types/config/server.ts` — [F] `server.telemetry` (exporters, SLO, canary, contract gates) + `ssr.moduleFederationAppSSR` + preload types.
 - `src/types/config/bff.ts` — [F] `bff.crossProjectPolicy`.
 - `src/plugins/{index,monitors,default}.ts`, `src/adapters/node/plugins/resource.ts` — [M] pure import/export re-sorting (the telemetry/contract-gate registration that used to live here was extracted to the fork-added `@modern-js/server-runtime-extensions` package, `packages/server/runtime-extensions/src/`; `grep -rn telemetry src/plugins/` in server-core returns zero hits).
@@ -195,6 +196,12 @@ TypeScript compiler path rebuilt around tsgo (spawned `tsgo`, tsconfig-paths mat
 escape hatch; `@bleedingdev` package-source resolution; public generator API
 subpaths (`./ultramodern-workspace`, `./ultramodern-workspace/codesmith`);
 MicroVertical dry-run/preflight validation; explicit CodeSmith overlay hook.
+UltraModern tooling commands are split under
+`src/ultramodern-tooling/commands/` instead of one monolithic command file.
+Workspace content that used to be emitted from TypeScript strings is moving to
+`templates/workspace/` shipped file templates. Shared workspace patches are
+gated by `tests/patch-sync.test.ts`; `patches/README.md` documents the
+repo-only / shared / template-only three-way split.
 Sync policy: do not restore private-path generator consumers or upstream
 single-app template entrypoints. Port upstream template fixes into the
 UltraModern workspace templates by hand, keep overlays post-generation only, and
@@ -206,7 +213,7 @@ keep `exports` plus `publishConfig.exports` mirrored with the runtime files.
 
 ### plugin (26 files) — [M]
 
-Mostly import/type re-export hygiene; plus duplicate-plugin detection across internal + config plugins ([U] candidate).
+Mostly import/type re-export hygiene; plus fork duplicate-plugin detection across internal + config plugins.
 
 ### runtime-utils (11 files) — [F]
 
@@ -224,6 +231,7 @@ Server/CLI type surface additions: tanstack route fields (`loaderDeps`, `validat
 
 - `compiled/pkg-up/*` — [F] vendored compiled blob replaced with a readable reimplementation (same API).
 - `src/cli/constants.ts` — [F] fork constants (`NESTED_ROUTE_SPEC_FILE`, etc.).
+- `src/universal/backend-federation-contract.ts` — [F] shared UltraModern delivery-unit/backend-federation contract consumed by create, app-tools, and plugin-bff.
 - rest (logger, version, require, is/get) — [M] reordering + strictness.
 
 ## packages/tsconfig (1 file) — [M]
@@ -276,6 +284,6 @@ Scripts and CI (fork-added; ~repo-tooling only):
 
 1. Resolve [M] conflicts toward upstream, then re-run `npx biome check --write` and restore `@effect-diagnostics` pragmas.
 2. Keep the fork side for everything [F]; diffs inside upstream-owned files are intentionally minimal — if a conflict looks large, check whether the logic should move to a fork-owned module instead. For the coupled dependency migrations (`bff-runtime`, `plugin-polyfill`) keep `package.json` + source together — never split sides within the package.
-3. [U] items shrink this ledger: PR them upstream (render.ts matchRoute first) and drop the entry once merged.
+3. Current verified [U] queue: builder `postcss.ts` app-root resolution, builder `environmentDefaults.ts` service-worker ESM output, runtime `PrefetchLink.tsx` intent/render/viewport prefetch, and toolkit `i18n-utils` `languageDetector` process guard. Re-check `render.ts` against `origin/main` before dropping it; this checkout still shows the old upstream shape.
 4. Deleted upstream files (Appendix A): keep them deleted; a merge that resurrects one is wrong even if it applies cleanly. Port the upstream change into the fork replacement listed per file.
 5. Renamed files (Appendix B): run the sync with rename detection on (`git merge`/`git diff -M`) and land upstream edits on the renamed path.
