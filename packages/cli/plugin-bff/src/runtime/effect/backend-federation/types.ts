@@ -1,0 +1,81 @@
+import type { BACKEND_FEDERATION_EFFECT_EXPOSE } from '@modern-js/utils/universal';
+import type {
+  ModuleFederation,
+  ModuleFederationRuntimePlugin,
+} from '@module-federation/runtime';
+
+import type { EffectApiModule } from '../module';
+
+export type BackendFederationRemote = {
+  name: string;
+  entry: string;
+  type?: 'commonjs-module' | 'module' | string;
+  entryGlobalName?: string;
+  shareScope?: string | string[];
+  expose?: typeof BACKEND_FEDERATION_EFFECT_EXPOSE;
+};
+
+export type BackendFederationRuntimeOptions = {
+  hostName: string;
+  remote?: BackendFederationRemote;
+  remotes?: BackendFederationRemote[];
+  plugins?: ModuleFederationRuntimePlugin[];
+};
+
+export type BackendFederationEntryExports = {
+  get: (
+    id: string,
+  ) =>
+    | (() => Promise<unknown> | unknown)
+    | Promise<() => Promise<unknown> | unknown>;
+  init?: (...args: unknown[]) => void | Promise<void>;
+};
+
+export type BackendFederatedEffectApiModule = EffectApiModule & {
+  backendFederationContract?: {
+    compatibility?: {
+      build?: unknown;
+      contractVersion?: unknown;
+      nodeAdapterVersion?: unknown;
+      packageName?: unknown;
+      /**
+       * ADR-0019 delivery-unit identity root, generator-emitted alongside
+       * manifest's `versionBoundary.deliveryUnit`. Additive/optional.
+       */
+      unitId?: unknown;
+      /** ADR-0019 delivery-unit source revision. Additive/optional. */
+      sourceRevision?: unknown;
+    };
+    name?: unknown;
+    role?: unknown;
+    runtimeFramework?: unknown;
+    strictEffectApproach?: unknown;
+  };
+  contract?: unknown;
+  operationContexts?: unknown;
+  runtime?: unknown;
+};
+
+export type BackendFederationLoadEntryPluginOptions = {
+  resolveEntry: (
+    remote: BackendFederationRemote,
+  ) =>
+    | BackendFederationEntryExports
+    | undefined
+    | Promise<BackendFederationEntryExports | undefined>;
+};
+
+export type BackendFederationLoadOptions = BackendFederationRuntimeOptions & {
+  runtime?: ModuleFederation;
+  remoteName?: string;
+  expose?: string;
+};
+
+export type BackendFederationLoadEntryPlugin = ModuleFederationRuntimePlugin & {
+  loadEntry?: (args: {
+    remoteInfo: BackendFederationRemote;
+  }) =>
+    | BackendFederationEntryExports
+    | undefined
+    | Promise<BackendFederationEntryExports | undefined>;
+};
