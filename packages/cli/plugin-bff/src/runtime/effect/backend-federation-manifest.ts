@@ -90,6 +90,7 @@ export type BackendFederationManifestAdapterFallback = (
 ) => BackendFederatedEffectApiModule | Promise<BackendFederatedEffectApiModule>;
 
 export type BackendFederationManifestAdapterOptions = {
+  allowLegacyManifest?: boolean;
   env?: Record<string, string | undefined>;
   expected?: BackendFederationVersionBoundaryExpectation;
   fallback?: BackendFederationManifestAdapterFallback;
@@ -173,6 +174,26 @@ function getProcessEnv() {
   return typeof process !== 'undefined' ? process.env : undefined;
 }
 
+type ManifestReferenceSource = 'env' | 'path' | 'url';
+
+function resolveManifestReferenceSource(
+  options: Pick<
+    BackendFederationManifestAdapterOptions,
+    'manifestEnv' | 'manifestPath' | 'manifestUrl'
+  >,
+): ManifestReferenceSource | undefined {
+  if (options.manifestPath) {
+    return 'path';
+  }
+  if (options.manifestUrl) {
+    return 'url';
+  }
+  if (options.manifestEnv) {
+    return 'env';
+  }
+  return undefined;
+}
+
 function resolveManifestReference(
   options: Pick<
     BackendFederationManifestAdapterOptions,
@@ -193,6 +214,38 @@ function resolveManifestReference(
 
   return (
     options.env?.[options.manifestEnv] ?? getProcessEnv()?.[options.manifestEnv]
+  );
+}
+
+function assertExpectedIdentityForReference(
+  options: Pick<
+    BackendFederationManifestAdapterOptions,
+    'allowLegacyManifest' | 'expected'
+  >,
+  source: ManifestReferenceSource | undefined,
+) {
+  if (
+    source === undefined ||
+    source === 'path' ||
+    options.allowLegacyManifest
+  ) {
+    return;
+  }
+
+  if (options.expected?.unitId && options.expected.buildMarker) {
+    return;
+  }
+
+  throw new BackendFederationManifestAdapterError(
+    'version_mismatch',
+    `[BFF][Effect] Backend federation ${source} manifest references require expected.unitId and expected.buildMarker. Pass allowLegacyManifest: true to load legacy manifest references.`,
+    undefined,
+    {
+      label: 'expected.deliveryUnit',
+      expected: 'unitId + buildMarker',
+      received: options.expected,
+      referenceSource: source,
+    },
   );
 }
 
@@ -494,7 +547,9 @@ function classifyLoadError(error: unknown) {
 export async function loadBackendFederationManifest(
   options: Pick<
     BackendFederationManifestAdapterOptions,
+    | 'allowLegacyManifest'
     | 'env'
+    | 'expected'
     | 'fetch'
     | 'manifest'
     | 'manifestEnv'
@@ -514,6 +569,10 @@ export async function loadBackendFederationManifest(
       `[BFF][Effect] Backend federation manifest reference is missing. Pass manifest, manifestPath, manifestUrl, or manifestEnv for ${BACKEND_FEDERATION_MANIFEST_FILE}.`,
     );
   }
+  assertExpectedIdentityForReference(
+    options,
+    resolveManifestReferenceSource(options),
+  );
 
   try {
     const source = isHttpUrl(reference)

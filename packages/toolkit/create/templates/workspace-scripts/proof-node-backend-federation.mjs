@@ -25,6 +25,23 @@ function readJson(filePath) {
 }
 
 function readBuildIdentity(app) {
+  const buildArtifactPath = path.join(
+    workspaceRoot,
+    app.directory,
+    'shared/ultramodern-build.json',
+  );
+  if (fs.existsSync(buildArtifactPath)) {
+    const artifact = readJson(buildArtifactPath);
+    const deliveryUnit = artifact.deliveryUnit ?? {};
+    return {
+      buildVersion: deliveryUnit.buildMarker ?? deliveryUnit.build,
+      packageName: deliveryUnit.packageName,
+      version: deliveryUnit.version,
+      unitId: deliveryUnit.unitId,
+      sourceRevision: deliveryUnit.sourceRevision,
+    };
+  }
+
   const buildModulePath = path.join(
     workspaceRoot,
     app.directory,
@@ -33,6 +50,15 @@ function readBuildIdentity(app) {
   if (!fs.existsSync(buildModulePath)) {
     return {};
   }
+  console.warn(
+    `[backend-federation-proof] ${path.relative(
+      workspaceRoot,
+      buildArtifactPath,
+    )} missing; falling back to legacy regex parsing of ${path.relative(
+      workspaceRoot,
+      buildModulePath,
+    )}.`,
+  );
 
   const source = fs.readFileSync(buildModulePath, 'utf8');
   return {
@@ -567,11 +593,13 @@ async function proveBackend(app, backendRuntime, target) {
       entry: localRuntimeEntry,
     },
     expected: {
+      buildMarker: buildIdentity.buildVersion,
       buildVersion: buildIdentity.buildVersion,
       contractVersion,
       nodeAdapterVersion,
       packageName: buildIdentity.packageName,
       remoteName: app.backendName,
+      unitId: buildIdentity.unitId,
     },
   });
   const backendContract = loaded.backendFederationContract;

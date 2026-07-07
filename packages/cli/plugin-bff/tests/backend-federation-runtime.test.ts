@@ -7,6 +7,7 @@ import {
   BACKEND_FEDERATION_NODE_ADAPTER_VERSION,
   BackendFederationManifestAdapterError,
   loadBackendFederatedEffectApiFromManifest,
+  loadBackendFederationManifest,
 } from '../src/runtime/effect';
 import {
   type BackendFederationEntryExports,
@@ -287,7 +288,15 @@ module.exports = {
   });
 
   test('resolves backend federation manifest URLs from generated env metadata', async () => {
-    const manifest = createBackendManifest();
+    const manifest: any = createBackendManifest();
+    manifest.backendFederation.deliveryUnit = {
+      unitId: 'catalog@21',
+      buildMarker: 'catalog-build-123',
+    };
+    manifest.backendFederation.versionBoundary.deliveryUnit = {
+      unitId: 'catalog@21',
+      buildMarker: 'catalog-build-123',
+    };
     const fetchedUrls: string[] = [];
 
     const loaded = await loadBackendFederatedEffectApiFromManifest({
@@ -304,6 +313,10 @@ module.exports = {
       remote: {
         entry: 'https://catalog.example.test/backendRemoteEntry.mjs',
       },
+      expected: {
+        buildMarker: 'catalog-build-123',
+        unitId: 'catalog@21',
+      },
       plugins: [
         createBackendFederationLoadEntryPlugin({
           resolveEntry() {
@@ -317,6 +330,51 @@ module.exports = {
       'https://catalog.example.test/backend-mf-manifest.json',
     ]);
     expect(loaded.contract).toEqual({ servicePrefix: '/catalog-api' });
+  });
+
+  test('requires expected delivery-unit identity for URL manifest references', async () => {
+    await expect(
+      loadBackendFederationManifest({
+        manifestUrl: 'https://catalog.example.test/backend-mf-manifest.json',
+        fetch: async () =>
+          new Response(JSON.stringify(createBackendManifest())),
+      }),
+    ).rejects.toMatchObject({
+      code: 'version_mismatch',
+      details: expect.objectContaining({
+        label: 'expected.deliveryUnit',
+        referenceSource: 'url',
+      }),
+    });
+  });
+
+  test('allows legacy URL manifest references only when explicitly requested', async () => {
+    const manifest = createBackendManifest();
+
+    await expect(
+      loadBackendFederationManifest({
+        allowLegacyManifest: true,
+        manifestUrl: 'https://catalog.example.test/backend-mf-manifest.json',
+        fetch: async () => new Response(JSON.stringify(manifest)),
+      }),
+    ).resolves.toEqual(manifest);
+  });
+
+  test('keeps file-path manifest loading compatible without expected identity', async () => {
+    const tempRoot = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'modern-backend-manifest-path-'),
+    );
+    try {
+      const manifestPath = path.join(tempRoot, 'backend-mf-manifest.json');
+      const manifest = createBackendManifest();
+      await fs.writeFile(manifestPath, `${JSON.stringify(manifest)}\n`);
+
+      await expect(
+        loadBackendFederationManifest({ manifestPath }),
+      ).resolves.toEqual(manifest);
+    } finally {
+      await fs.rm(tempRoot, { force: true, recursive: true });
+    }
   });
 
   test('rejects backend federation manifests that do not preserve strict Effect metadata', async () => {

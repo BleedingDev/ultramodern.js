@@ -11,6 +11,7 @@ import { runSyncDeliveryUnit } from '../src/ultramodern-workspace/delivery-unit-
 const TARGET_FILES = [
   '.modernjs/ultramodern.json',
   'topology/reference-topology.json',
+  'verticals/catalog/shared/ultramodern-build.json',
   'verticals/catalog/shared/ultramodern-build.ts',
 ];
 
@@ -142,19 +143,37 @@ test('sync-delivery-unit backfills identity blocks matching the generator', () =
     );
 
     // The framework-owned build module must carry the delivery-unit identity.
+    const buildArtifact = JSON.parse(
+      read(workspaceDir, 'verticals/catalog/shared/ultramodern-build.json'),
+    );
+    assert.equal(
+      buildArtifact.deliveryUnit.unitId,
+      'du-sync-workspace/catalog',
+    );
+    assert.equal(
+      buildArtifact.surfaces.ui.unitId,
+      buildArtifact.deliveryUnit.unitId,
+    );
+    assert.equal(
+      buildArtifact.surfaces.api.buildMarker,
+      buildArtifact.deliveryUnit.buildMarker,
+    );
+
     const build = read(
       workspaceDir,
       'verticals/catalog/shared/ultramodern-build.ts',
     );
-    assert.match(build, /export const ultramodernDeliveryUnit = \{/u);
-    assert.match(build, /unitId: 'du-sync-workspace\/catalog'/u);
     assert.match(
       build,
-      /export const ultramodernUiMarker = \{\s*\.\.\.ultramodernDeliveryUnit,/u,
+      /import ultramodernBuildArtifact from '\.\/ultramodern-build\.json' with \{ type: 'json' \}/u,
     );
     assert.match(
       build,
-      /export const ultramodernApiMarker = \{\s*\.\.\.ultramodernDeliveryUnit,/u,
+      /export const ultramodernDeliveryUnit =\s*ultramodernBuildArtifact\.deliveryUnit;/u,
+    );
+    assert.match(
+      build,
+      /export const ultramodernApiMarker = ultramodernBuildArtifact\.surfaces\.api;/u,
     );
 
     // Validator-shaped assertions on the restored compact config.
@@ -193,10 +212,18 @@ test('sync-delivery-unit is idempotent and only touches the three target sets', 
     const changed = [...afterFirst.keys()].filter(
       file => afterFirst.get(file) !== before.get(file),
     );
+    const expectedChanged = TARGET_FILES.filter(
+      file => file !== 'verticals/catalog/shared/ultramodern-build.json',
+    );
     assert.deepEqual(
       changed.sort(),
-      [...TARGET_FILES].sort(),
-      'sync must only rewrite the three target files',
+      expectedChanged.sort(),
+      'sync must rewrite stale metadata and leave an in-sync JSON artifact untouched',
+    );
+    assert.equal(
+      afterFirst.get('verticals/catalog/shared/ultramodern-build.json'),
+      before.get('verticals/catalog/shared/ultramodern-build.json'),
+      'canonical JSON artifact should already be in sync',
     );
 
     // Second run: no writes at all.

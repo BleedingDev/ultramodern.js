@@ -249,6 +249,31 @@ const missingWorkerBundleMessage = (reference: WorkerBundleReference) =>
     ? 'Cloudflare Effect BFF manifest points to a missing worker bundle.'
     : 'Cloudflare route worker manifest points to a missing worker bundle.';
 
+const FORBIDDEN_WORKER_BUNDLE_REFERENCE_PATTERNS = [
+  /\.\.\/server\//u,
+  /\.output\/server\//u,
+  /server\/index\.mjs/u,
+] as const;
+
+const verifyWorkerBundleReferences = (
+  issues: CloudflareOutputVerifierIssue[],
+  worker: ResolvedWorkerBundleReference,
+  source: string,
+) => {
+  if (
+    FORBIDDEN_WORKER_BUNDLE_REFERENCE_PATTERNS.some(pattern =>
+      pattern.test(source),
+    )
+  ) {
+    addIssue(issues, {
+      code: 'invalid-worker-bundle',
+      message:
+        'Cloudflare worker bundles must not reference framework-owned server output paths.',
+      path: worker.path,
+    });
+  }
+};
+
 const DELIVERY_UNIT_IDENTITY_FIELDS: Array<
   keyof CloudflareDeliveryUnitIdentity
 > = ['unitId', 'buildMarker', 'sourceRevision'];
@@ -530,11 +555,13 @@ export const verifyCloudflareOutput = async (
         });
       }
 
-      if (workerExists && resolvedWorker.kind === 'effect-bff') {
+      if (workerExists) {
         const workerSource = await fs.readFile(resolvedWorker.path, 'utf-8');
+        verifyWorkerBundleReferences(issues, resolvedWorker, workerSource);
         if (
-          workerSource.includes(';entityKind;') ||
-          workerSource.includes(';entityKind,entityKind;')
+          resolvedWorker.kind === 'effect-bff' &&
+          (workerSource.includes(';entityKind;') ||
+            workerSource.includes(';entityKind,entityKind;'))
         ) {
           addIssue(issues, {
             code: 'invalid-worker-bundle',

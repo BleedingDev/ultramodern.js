@@ -1,5 +1,13 @@
 import path from 'node:path';
 import { fs as fse } from '@modern-js/utils';
+import {
+  type DeliveryUnitIdentity,
+  isUltramodernBuildArtifact,
+  nonEmptyString,
+  toDeliveryUnitIdentity,
+  ULTRAMODERN_BUILD_ARTIFACT_PATH,
+  ULTRAMODERN_BUILD_MODULE_PATH,
+} from '@modern-js/utils/universal';
 import type {
   CloudflareWorkerArtifactConfig,
   CloudflareWorkerD1DatabaseConfig,
@@ -918,40 +926,12 @@ const readRouteSpec = async (outputDirectory: string) => {
 };
 
 const COMPACT_CONFIG_PATH = '.modernjs/ultramodern.json';
-const ULTRAMODERN_BUILD_MODULE = 'shared/ultramodern-build.ts';
-
-type DeliveryUnitIdentity = {
-  unitId: string;
-  buildMarker: string;
-  sourceRevision: string;
-};
 
 type DeliveryUnitStamp = DeliveryUnitIdentity & {
   surfaces: {
     ui: DeliveryUnitIdentity & { surface: 'ui' };
     api: DeliveryUnitIdentity & { surface: 'api' };
   };
-};
-
-const nonEmptyString = (value: unknown): string | undefined =>
-  typeof value === 'string' && value.length > 0 ? value : undefined;
-
-const toDeliveryUnitIdentity = (
-  value: unknown,
-): DeliveryUnitIdentity | undefined => {
-  if (!isRecord(value)) {
-    return undefined;
-  }
-
-  const unitId = nonEmptyString(value.unitId);
-  const buildMarker = nonEmptyString(value.buildMarker);
-  const sourceRevision = nonEmptyString(value.sourceRevision);
-
-  if (!unitId || !buildMarker || !sourceRevision) {
-    return undefined;
-  }
-
-  return { unitId, buildMarker, sourceRevision };
 };
 
 const findWorkspaceRoot = async (
@@ -1032,27 +1012,39 @@ const resolveTopologyDeliveryUnit = async (
 const resolveWorkerDeliveryUnitStamp = async (
   appDirectory: string,
 ): Promise<DeliveryUnitStamp | undefined> => {
-  const buildModulePath = path.join(appDirectory, ULTRAMODERN_BUILD_MODULE);
-  if (!(await fse.pathExists(buildModulePath))) {
-    return undefined;
+  const buildArtifactPath = path.join(
+    appDirectory,
+    ULTRAMODERN_BUILD_ARTIFACT_PATH,
+  );
+  const buildModulePath = path.join(
+    appDirectory,
+    ULTRAMODERN_BUILD_MODULE_PATH,
+  );
+  let identity: DeliveryUnitIdentity | undefined;
+
+  if (await fse.pathExists(buildArtifactPath)) {
+    const artifact = await fse.readJSON(buildArtifactPath);
+    if (!isUltramodernBuildArtifact(artifact)) {
+      return undefined;
+    }
+    identity = toDeliveryUnitIdentity(artifact.deliveryUnit);
+  } else if (await fse.pathExists(buildModulePath)) {
+    console.warn(
+      `[cloudflare] ${buildArtifactPath} missing; falling back to legacy regex parsing of ${buildModulePath}. Regenerate the workspace to emit ultramodern-build.json.`,
+    );
+    const source = await fse.readFile(buildModulePath, 'utf8');
+    identity = toDeliveryUnitIdentity({
+      buildMarker: source.match(/\bbuild:\s*['"]([^'"]+)['"]/u)?.[1],
+      unitId: source.match(/\bunitId:\s*['"]([^'"]+)['"]/u)?.[1],
+      sourceRevision: source.match(
+        /\bsourceRevision:\s*['"]([^'"]+)['"]/u,
+      )?.[1],
+    });
   }
 
-  const source = await fse.readFile(buildModulePath, 'utf8');
-  const buildMarker = source.match(/\bbuild:\s*['"]([^'"]+)['"]/u)?.[1];
-  const unitId = source.match(/\bunitId:\s*['"]([^'"]+)['"]/u)?.[1];
-  const sourceRevision = source.match(
-    /\bsourceRevision:\s*['"]([^'"]+)['"]/u,
-  )?.[1];
-
-  if (!buildMarker || !unitId || !sourceRevision) {
+  if (!identity) {
     return undefined;
   }
-
-  const identity: DeliveryUnitIdentity = {
-    unitId,
-    buildMarker,
-    sourceRevision,
-  };
 
   return {
     ...identity,

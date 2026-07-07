@@ -16,6 +16,23 @@ function readJson(filePath) {
 }
 
 function readBuildIdentity(app) {
+  const buildArtifactPath = path.join(
+    workspaceRoot,
+    app.path,
+    'shared/ultramodern-build.json',
+  );
+  if (fs.existsSync(buildArtifactPath)) {
+    const artifact = readJson(buildArtifactPath);
+    const deliveryUnit = artifact.deliveryUnit ?? {};
+    return {
+      buildVersion: deliveryUnit.buildMarker ?? deliveryUnit.build,
+      packageName: deliveryUnit.packageName,
+      version: deliveryUnit.version,
+      unitId: deliveryUnit.unitId,
+      sourceRevision: deliveryUnit.sourceRevision,
+    };
+  }
+
   const buildModulePath = path.join(
     workspaceRoot,
     app.path,
@@ -24,6 +41,15 @@ function readBuildIdentity(app) {
   if (!fs.existsSync(buildModulePath)) {
     return {};
   }
+  console.warn(
+    `[backend-federation] ${path.relative(
+      workspaceRoot,
+      buildArtifactPath,
+    )} missing; falling back to legacy regex parsing of ${path.relative(
+      workspaceRoot,
+      buildModulePath,
+    )}.`,
+  );
 
   const source = fs.readFileSync(buildModulePath, 'utf8');
   return {

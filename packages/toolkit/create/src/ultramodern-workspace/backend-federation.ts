@@ -1,3 +1,9 @@
+import {
+  BACKEND_FEDERATION_CONTRACT_VERSION,
+  BACKEND_FEDERATION_EFFECT_EXPOSE,
+  BACKEND_FEDERATION_NODE_ADAPTER_VERSION,
+  type DeliveryUnitRecord,
+} from '@modern-js/utils/universal';
 import { verticalApiExport, verticalApiGroupName } from './api';
 import {
   createDeliveryUnitRecord,
@@ -19,9 +25,10 @@ import { packageName, toEnvSegment } from './naming';
 import type { JsonValue, WorkspaceApp } from './types';
 import { EFFECT_VERSION, MODULE_FEDERATION_VERSION } from './versions';
 
-export const BACKEND_FEDERATION_CONTRACT_VERSION =
-  'microvertical-server-effect-v1';
-export const BACKEND_FEDERATION_NODE_ADAPTER_VERSION = 'backend-mf-effect-v1';
+export {
+  BACKEND_FEDERATION_CONTRACT_VERSION,
+  BACKEND_FEDERATION_NODE_ADAPTER_VERSION,
+};
 
 function createZephyrEnv(app: WorkspaceApp, suffix: string) {
   return `ZEPHYR_${toEnvSegment(app.domain ?? app.id)}_${suffix}`;
@@ -88,7 +95,10 @@ function createCloudflareExecutionSurface(scope: string, app: WorkspaceApp) {
   };
 }
 
-function createNodeExecutionSurface(app: WorkspaceApp) {
+function createNodeExecutionSurface(
+  app: WorkspaceApp,
+  deliveryUnit?: DeliveryUnitRecord,
+) {
   return {
     kind: 'node-mf-runtime',
     adapterVersion: BACKEND_FEDERATION_NODE_ADAPTER_VERSION,
@@ -97,8 +107,16 @@ function createNodeExecutionSurface(app: WorkspaceApp) {
     manifestUrl: createBackendFederationManifestUrl(app),
     containerEntry: createBackendFederationContainerEntry(app),
     remoteType: 'module',
-    expose: './effect-api',
+    expose: BACKEND_FEDERATION_EFFECT_EXPOSE,
     runtimePackage: '@modern-js/plugin-bff/effect',
+    ...(deliveryUnit
+      ? {
+          expected: {
+            unitId: deliveryUnit.unitId,
+            buildMarker: deliveryUnit.buildMarker,
+          },
+        }
+      : {}),
   };
 }
 
@@ -120,7 +138,7 @@ export function createServerExecutionOverlay(
       buildMarker: deliveryUnit.buildMarker,
     },
     cloudflare: createCloudflareExecutionSurface(scope, app),
-    node: createNodeExecutionSurface(app),
+    node: createNodeExecutionSurface(app, deliveryUnit),
   };
 }
 
@@ -142,7 +160,7 @@ export function createBackendFederationContract(
     strictEffectApproach: true,
     deliveryUnit: deliveryUnitContractBlock(deliveryUnit),
     exposes: {
-      './effect-api': createEffectExpose(app),
+      [BACKEND_FEDERATION_EFFECT_EXPOSE]: createEffectExpose(app),
     },
     versionBoundary: {
       invariant: 'web-and-api-same-build',
@@ -161,7 +179,7 @@ export function createBackendFederationContract(
     },
     executionSurfaces: {
       cloudflare: createCloudflareExecutionSurface(scope, app),
-      node: createNodeExecutionSurface(app),
+      node: createNodeExecutionSurface(app, deliveryUnit),
     },
     compatibility: {
       contractVersion: BACKEND_FEDERATION_CONTRACT_VERSION,
@@ -197,7 +215,7 @@ export function createBackendFederationMetadata(
       createDeliveryUnitRecord(scope, app),
     ),
     executionSurfaces: ['node-mf-runtime'],
-    exposes: ['./effect-api'],
+    exposes: [BACKEND_FEDERATION_EFFECT_EXPOSE],
     name: createBackendFederationName(app),
     nodeAdapterVersion: BACKEND_FEDERATION_NODE_ADAPTER_VERSION,
     openapiPath: `${app.api.prefix}/openapi.json`,
@@ -236,7 +254,7 @@ export const backendFederationContract = {
   },
   contractVersion: '${BACKEND_FEDERATION_CONTRACT_VERSION}',
   executionSurfaces: ['node-mf-runtime'],
-  exposes: ['./effect-api'],
+  exposes: ['${BACKEND_FEDERATION_EFFECT_EXPOSE}'],
   name: '${createBackendFederationName(app)}',
   nodeAdapterVersion: '${BACKEND_FEDERATION_NODE_ADAPTER_VERSION}',
   openapiPath: '${app.api.prefix}/openapi.json',
@@ -260,6 +278,8 @@ export function createBackendFederationSummary(
     return undefined;
   }
 
+  const deliveryUnit = createDeliveryUnitRecord(scope, app);
+
   return {
     id: app.id,
     path: app.directory,
@@ -268,12 +288,10 @@ export function createBackendFederationSummary(
     runtimeFramework: 'effect',
     strictEffectApproach: true,
     contractVersion: BACKEND_FEDERATION_CONTRACT_VERSION,
-    deliveryUnit: deliveryUnitContractBlock(
-      createDeliveryUnitRecord(scope, app),
-    ),
+    deliveryUnit: deliveryUnitContractBlock(deliveryUnit),
     executionSurfaces: {
       cloudflare: createCloudflareExecutionSurface(scope, app),
-      node: createNodeExecutionSurface(app),
+      node: createNodeExecutionSurface(app, deliveryUnit),
     },
   };
 }

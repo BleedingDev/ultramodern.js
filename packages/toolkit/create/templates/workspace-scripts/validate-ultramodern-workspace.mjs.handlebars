@@ -67,6 +67,8 @@ const assertAnyOf = relativePaths => {
 };
 const formatJson = value =>
   value === undefined ? 'undefined' : JSON.stringify(value);
+const quoteYamlString = value => `'${String(value).replace(/'/gu, "''")}'`;
+const quoteShellValue = value => `'${String(value).replace(/'/gu, "'\\''")}'`;
 const selfCheckFailure = (contract, message, fixArea) =>
   `MicroVertical contract self-check failed: ${contract}. ${message}. Fix area: ${fixArea}.`;
 const assertSelfCheck = (condition, contract, message, fixArea) => {
@@ -159,14 +161,27 @@ const deliveryUnitBlock = record => ({
   buildMarker: record?.buildMarker,
   sourceRevision: record?.sourceRevision,
 });
-const assertDeliveryUnitMarkerSpread = (source, exportName, contract) => {
-  const spreadPattern = new RegExp(
-    `export const ${exportName} = \\{\\s*\\.\\.\\.ultramodernDeliveryUnit,`,
+const compactDeliveryUnitFor = id => {
+  const compactApp = ultramodernConfig.topology?.apps?.find(
+    entry => entry?.id === id,
+  );
+  return (
+    compactApp?.backendFederation?.deliveryUnit ?? compactApp?.deliveryUnit
+  );
+};
+const expectedDeliveryUnitFor = (vertical, topologyEntry) =>
+  compactDeliveryUnitFor(vertical.id) ??
+  topologyEntry?.backendFederation?.deliveryUnit ??
+  topologyEntry?.deliveryUnit ??
+  vertical.deliveryUnit;
+const assertBuildFacadeExport = (source, exportName, sourcePath, contract) => {
+  const exportPattern = new RegExp(
+    `export const ${exportName} = ${sourcePath.replace(/\./gu, '\\.')};`,
   );
   assertSelfCheck(
-    spreadPattern.test(source),
+    exportPattern.test(source),
     contract,
-    `${exportName} must spread ...ultramodernDeliveryUnit rather than hand-forking per-surface fields`,
+    `${exportName} must re-export the canonical ultramodern-build.json artifact rather than hand-forking fields`,
     deliveryUnitIdentityFixArea,
   );
 };
@@ -244,6 +259,14 @@ const normalizeCompactApp = rawApp => {
     verticalRefs: Array.isArray(moduleFederation.verticalRefs)
       ? moduleFederation.verticalRefs.filter(ref => typeof ref === 'string')
       : [],
+    deliveryUnit:
+      rawApp.deliveryUnit && typeof rawApp.deliveryUnit === 'object'
+        ? rawApp.deliveryUnit
+        : undefined,
+    backendFederation:
+      rawApp.backendFederation && typeof rawApp.backendFederation === 'object'
+        ? rawApp.backendFederation
+        : undefined,
     api,
   };
 };
@@ -665,14 +688,14 @@ const createAppContract = (app, apps) => ({
     },
     browserSafeExposesOnly: true,
   },
-  marker: {
-    appId: app.id,
-    packageName: app.package ?? packageNameFor(packageScope, app.packageSuffix),
-    version: '0.1.0',
-    build: buildMarkerFor(app),
-    deployProfile: 'cloudflare-ssr-mf-effect-v1',
-    uiSurface: 'ui',
-    ...(app.api ? { apiSurface: 'api' } : {}),
+    marker: {
+      appId: app.id,
+      packageName: app.package ?? packageNameFor(packageScope, app.packageSuffix),
+      version: '0.1.0',
+      build: app.deliveryUnit?.buildMarker ?? buildMarkerFor(app),
+      deployProfile: 'cloudflare-ssr-mf-effect-v1',
+      uiSurface: 'ui',
+      ...(app.api ? { apiSurface: 'api' } : {}),
   },
   ...(app.api
     ? {
@@ -1133,7 +1156,9 @@ const assertMicroVerticalContractGraph = ({
  );
 
     if (vertical.deliveryUnit) {
-      const expectedDeliveryUnit = deliveryUnitBlock(vertical.deliveryUnit);
+ const expectedDeliveryUnit = deliveryUnitBlock(
+ expectedDeliveryUnitFor(vertical, topologyEntry),
+ );
       assertSameJson(
         deliveryUnitBlock(topologyEntry.deliveryUnit),
         expectedDeliveryUnit,
@@ -1932,7 +1957,7 @@ if (hasBackendSurfaces) {
   assert(rootPackage.scripts?.['zerops:materialize'] === 'node ./scripts/materialize-zerops-runtime.mjs', 'Root must expose Zerops runtime materialization script');
   assert(
     rootPackage.scripts?.['node:proof'] ===
-      'node ./scripts/proof-node-backend-federation.mts',
+      'pnpm node:backend-federation:generate && node ./scripts/proof-node-backend-federation.mts',
     'Root must expose node:proof for backend federation Effect modules',
   );
 }
@@ -1955,11 +1980,11 @@ assert(
 if (hasBackendSurfaces) {
   const zeropsYaml = readText('zerops.yaml');
   assert(zeropsYaml.includes('zerops:'), 'Zerops manifest must include zerops services');
-  assert(zeropsYaml.includes('setup: shell-super-app'), 'Zerops manifest must include shell service');
-  assert(zeropsYaml.includes('base: nodejs@26'), 'Zerops manifest must use generated Node runtime major');
+  assert(zeropsYaml.includes(`setup: ${quoteYamlString('shell-super-app')}`), 'Zerops manifest must include shell service');
+  assert(zeropsYaml.includes(`base: ${quoteYamlString('nodejs@26')}`), 'Zerops manifest must use generated Node runtime major');
   assert(zeropsYaml.includes('deployFiles:'), 'Zerops manifest must deploy package-pruned runtime directories');
   assert(
-    zeropsYaml.includes('start: cd .zerops/runtime/shell-super-app && npm run serve'),
+    zeropsYaml.includes(`start: cd ${quoteShellValue('.zerops/runtime/shell-super-app')} && npm run serve`),
     'Zerops shell service must start from materialized runtime package',
   );
   assert(
@@ -1968,13 +1993,13 @@ if (hasBackendSurfaces) {
     'Zerops manifest must expose service identity and ports',
   );
   for (const vertical of fullStackVerticals) {
-    assert(zeropsYaml.includes(`setup: ${vertical.id}`), `${vertical.id} must have a Zerops service`);
+    assert(zeropsYaml.includes(`setup: ${quoteYamlString(vertical.id)}`), `${vertical.id} must have a Zerops service`);
     assert(
-      zeropsYaml.includes(`~/.local/bin/mise exec -- pnpm run zerops:materialize -- --app ${vertical.id} --package ${vertical.packageName} --package-dir ${vertical.path}`),
+      zeropsYaml.includes(`~/.local/bin/mise exec -- pnpm run zerops:materialize -- --app ${quoteShellValue(vertical.id)} --package ${quoteShellValue(vertical.packageName)} --package-dir ${quoteShellValue(vertical.path)}`),
       `${vertical.id} Zerops service must materialize its runtime package`,
     );
     assert(
-      zeropsYaml.includes(`path: ${vertical.apiPrefix}/${vertical.stem}/readiness`),
+      zeropsYaml.includes(`path: ${quoteYamlString(`${vertical.apiPrefix}/${vertical.stem}/readiness`)}`),
       `${vertical.id} BFF readiness path must use generated API prefix`,
     );
   }
@@ -1987,7 +2012,7 @@ if (hasBackendSurfaces) {
   assert(zeropsMaterializer.includes('copyWorkspacePackage'), 'Zerops materializer must preserve generated local workspace package dependencies');
   assert(zeropsMaterializer.includes('makeWorkspacePackageRuntimeSafe'), 'Zerops materializer must rewrite copied workspace packages to runtime-safe JavaScript exports');
   assert(zeropsMaterializer.includes("serve: runtimePackage.scripts?.serve ?? 'node index.js'"), 'Zerops materializer must preserve runtime serve script fallback');
-  assert(zeropsMaterializer.includes("'install', '--omit=dev'"), 'Zerops materializer must omit dev dependencies from runtime installs');
+  assert(/'install',\s*'--omit=dev'/.test(zeropsMaterializer), 'Zerops materializer must omit dev dependencies from runtime installs');
   assert(zeropsMaterializer.includes("'--legacy-peer-deps'"), 'Zerops materializer must tolerate generated-workspace peer dependency ranges in npm runtime install');
 }
 const performanceReadinessConfig = readText('scripts/ultramodern-performance-readiness.config.mjs');
@@ -2175,50 +2200,54 @@ for (const vertical of fullStackVerticals) {
   const routeHead = readText(`${vertical.path}/src/routes/ultramodern-route-head.tsx`);
   const routeMetadata = readText(`${vertical.path}/src/routes/ultramodern-route-metadata.ts`);
   const ultramodernBuildSource = readText(`${vertical.path}/shared/ultramodern-build.ts`);
+  const ultramodernBuildArtifact = readJson(`${vertical.path}/shared/ultramodern-build.json`);
   if (vertical.deliveryUnit) {
-    const buildLabel = `${vertical.path}/shared/ultramodern-build.ts ultramodernDeliveryUnit`;
+    const topologyEntry = findById(topology.verticals, vertical.id);
+    const expectedDeliveryUnit = deliveryUnitBlock(
+      expectedDeliveryUnitFor(vertical, topologyEntry),
+    );
+    const buildLabel = `${vertical.path}/shared/ultramodern-build.json deliveryUnit`;
     assertSelfCheck(
       ultramodernBuildSource.includes('export const ultramodernDeliveryUnit'),
       buildLabel,
       'Missing ultramodernDeliveryUnit export',
       deliveryUnitIdentityFixArea,
     );
-    const buildMatch = /\bbuild:\s*'([^']+)'/u.exec(ultramodernBuildSource);
-    const unitIdMatch = /\bunitId:\s*'([^']+)'/u.exec(ultramodernBuildSource);
-    const packageNameMatch = /\bpackageName:\s*'([^']+)'/u.exec(ultramodernBuildSource);
-    const versionMatch = /\bversion:\s*'([^']+)'/u.exec(ultramodernBuildSource);
+    const buildIdentity = ultramodernBuildArtifact.deliveryUnit ?? {};
     assertSelfCheck(
-      buildMatch?.[1] === vertical.deliveryUnit.buildMarker,
+      buildIdentity.buildMarker === expectedDeliveryUnit.buildMarker,
       buildLabel,
-      `Expected build "${vertical.deliveryUnit.buildMarker}", found ${formatJson(buildMatch?.[1])}`,
+      `Expected build "${expectedDeliveryUnit.buildMarker}", found ${formatJson(buildIdentity.buildMarker)}`,
       deliveryUnitIdentityFixArea,
     );
     assertSelfCheck(
-      unitIdMatch?.[1] === vertical.deliveryUnit.unitId,
+      buildIdentity.unitId === expectedDeliveryUnit.unitId,
       buildLabel,
-      `Expected unitId "${vertical.deliveryUnit.unitId}", found ${formatJson(unitIdMatch?.[1])}`,
+      `Expected unitId "${expectedDeliveryUnit.unitId}", found ${formatJson(buildIdentity.unitId)}`,
       deliveryUnitIdentityFixArea,
     );
     assertSelfCheck(
-      packageNameMatch?.[1] === vertical.deliveryUnit.packageName,
+      buildIdentity.packageName === expectedDeliveryUnit.packageName,
       buildLabel,
-      `Expected packageName "${vertical.deliveryUnit.packageName}", found ${formatJson(packageNameMatch?.[1])}`,
+      `Expected packageName "${expectedDeliveryUnit.packageName}", found ${formatJson(buildIdentity.packageName)}`,
       deliveryUnitIdentityFixArea,
     );
     assertSelfCheck(
-      versionMatch?.[1] === vertical.deliveryUnit.version,
+      buildIdentity.version === expectedDeliveryUnit.version,
       buildLabel,
-      `Expected version "${vertical.deliveryUnit.version}", found ${formatJson(versionMatch?.[1])}`,
+      `Expected version "${expectedDeliveryUnit.version}", found ${formatJson(buildIdentity.version)}`,
       deliveryUnitIdentityFixArea,
     );
-    assertDeliveryUnitMarkerSpread(
+    assertBuildFacadeExport(
       ultramodernBuildSource,
       'ultramodernUiMarker',
+      'ultramodernBuildArtifact.surfaces.ui',
       `${vertical.path}/shared/ultramodern-build.ts ultramodernUiMarker`,
     );
-    assertDeliveryUnitMarkerSpread(
+    assertBuildFacadeExport(
       ultramodernBuildSource,
       'ultramodernApiMarker',
+      'ultramodernBuildArtifact.surfaces.api',
       `${vertical.path}/shared/ultramodern-build.ts ultramodernApiMarker`,
     );
   }
@@ -2353,18 +2382,23 @@ for (const vertical of fullStackVerticals) {
   assert(Object.keys(topologyEntry?.api?.domainOperations ?? {}).length >= 3, `${vertical.id} topology domain operations are missing`);
 
   if (vertical.deliveryUnit) {
-    const expectedDeliveryUnit = deliveryUnitBlock(vertical.deliveryUnit);
+    const expectedDeliveryUnit = deliveryUnitBlock(
+      expectedDeliveryUnitFor(vertical, topologyEntry),
+    );
     const compactAppEntry = ultramodernConfig.topology?.apps?.find(
       entry => entry?.id === vertical.id,
     );
+    const compactBackendDeliveryUnit = deliveryUnitBlock(
+      compactAppEntry?.backendFederation?.deliveryUnit,
+    );
     assertSameJson(
       deliveryUnitBlock(compactAppEntry?.deliveryUnit),
-      expectedDeliveryUnit,
+      compactBackendDeliveryUnit,
       `${compactConfigPath} topology.apps.${vertical.id}.deliveryUnit`,
       deliveryUnitIdentityFixArea,
     );
     assertSameJson(
-      deliveryUnitBlock(compactAppEntry?.backendFederation?.deliveryUnit),
+      compactBackendDeliveryUnit,
       expectedDeliveryUnit,
       `${compactConfigPath} topology.apps.${vertical.id}.backendFederation.deliveryUnit`,
       deliveryUnitIdentityFixArea,

@@ -1,4 +1,8 @@
 import {
+  createUltramodernBuildArtifact,
+  ULTRAMODERN_BUILD_ARTIFACT_FILE,
+} from '@modern-js/utils/universal';
+import {
   createDispatchWorkerNameEnv,
   createWorkerBindingEnv,
   createWorkerBindingName,
@@ -15,6 +19,7 @@ import {
   resolveRemoteRefs,
   shellApp,
 } from './descriptors';
+import { renderFileTemplate } from './fs-io';
 import {
   createRspackChunkLoadingGlobal,
   createRspackUniqueName,
@@ -84,302 +89,36 @@ const defaultAssetPrefix = defaultRemoteAssetPrefix;`;
       : `        // Remote dev manifests must publish an absolute publicPath so host
         // shells load remoteEntry.js and exposed chunks from this dev server.
         assetPrefix,`;
-  return `// @effect-diagnostics processEnv:off
-import {
-  appTools,
-  defineConfig,
-  presetUltramodern,
-} from '@modern-js/app-tools';
-${bffImport}import { i18nPlugin } from '@modern-js/plugin-i18n';
-import { tanstackRouterPlugin } from '@modern-js/plugin-tanstack';
-import { moduleFederationPlugin } from '@module-federation/modern-js-v3';
-import { withZephyr as withZephyrRspack } from 'zephyr-rspack-plugin';
-import { ultramodernLocalisedUrls } from './src/routes/ultramodern-route-metadata';
-
-type ZephyrRspackConfig = Parameters<ReturnType<typeof withZephyrRspack>>[0];
-
-const zephyrEnabled = process.env['ULTRAMODERN_ZEPHYR'] !== 'false';
-const cloudflareDeployEnabled =
-  process.env['MODERNJS_DEPLOY'] === 'cloudflare';
-
-const parsedZephyrTimeoutMs = Number.parseInt(
-  process.env['ULTRAMODERN_ZEPHYR_TIMEOUT_MS'] ?? '',
-  10,
-);
-const zephyrTimeoutMs =
-  Number.isFinite(parsedZephyrTimeoutMs) && parsedZephyrTimeoutMs > 0
-    ? parsedZephyrTimeoutMs
-    : 45000;
-
-const zephyrWarn = (error: unknown) => {
-  const message = error instanceof Error ? error.message : String(error);
-  console.warn(
-    \`[ultramodern] zephyr-rspack-plugin failed; continuing without Zephyr (set ULTRAMODERN_ZEPHYR=false to disable it): \${message}\`,
-  );
-};
-
-const zephyrRspackPlugin = () => ({
-  name: 'ultramodern-zephyr-rspack-plugin',
-  pre: ['@modern-js/plugin-module-federation-config'],
-  setup(api: {
-    modifyRspackConfig: (
-      handler: (
-        config: ZephyrRspackConfig,
-      ) => ZephyrRspackConfig | Promise<ZephyrRspackConfig>,
-    ) => void;
-  }) {
-    if (!zephyrEnabled) {
-      return;
-    }
-    api.modifyRspackConfig(config => {
-      try {
-        // Zephyr can not only throw/reject but also hang on a stalled network
-        // call, wedging the whole build. Race it against a watchdog so a hang
-        // degrades to an unmodified config instead of blocking indefinitely.
-        const zephyrConfig = Promise.resolve(withZephyrRspack()(config)).catch(
-          error => {
-            zephyrWarn(error);
-            return config;
-          },
-        );
-        const watchdog = new Promise<ZephyrRspackConfig>(resolve => {
-          const timer = setTimeout(() => {
-            zephyrWarn(
-              \`timed out after \${zephyrTimeoutMs}ms (override with ULTRAMODERN_ZEPHYR_TIMEOUT_MS)\`,
-            );
-            resolve(config);
-          }, zephyrTimeoutMs);
-          if (typeof timer.unref === 'function') {
-            timer.unref();
-          }
-        });
-        return Promise.race([zephyrConfig, watchdog]);
-      } catch (error) {
-        zephyrWarn(error);
-        return config;
-      }
-    });
-  },
-});
-
-const appId = '${app.id}';
-const cloudflareWorkerName = '${createCloudflareWorkerName(scope, app)}';
-const port = Number(process.env['${app.portEnv}'] ?? ${app.port});
-const envValue = (name: string) => {
-  const value = process.env[name]?.trim();
-  return value !== undefined && value.length > 0 ? value : undefined;
-};
-const configuredSiteUrl = envValue('MODERN_PUBLIC_SITE_URL');
-const configuredCloudflareUrl = envValue('${createCloudflarePublicUrlEnv(app)}');
-const configuredUltramodernAssetPrefix = envValue('ULTRAMODERN_ASSET_PREFIX');
-const configuredModernAssetPrefix = envValue('MODERN_ASSET_PREFIX');
-const moduleFederationDevServerOrigin =
-  envValue('ULTRAMODERN_MF_DEV_ORIGIN') || 'http://localhost:${shellApp.port}';
-const cloudflareWorkersDevSubdomain = envValue(
-  'ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN',
-);
-const inferredCloudflareUrl =
-  cloudflareDeployEnabled && cloudflareWorkersDevSubdomain !== undefined
-    ? \`https://\${cloudflareWorkerName}.\${cloudflareWorkersDevSubdomain}.workers.dev\`
-    : undefined;
-// Site origin (SEO: canonical/hreflang URLs) prefers the site-wide public URL;
-// the per-app deployment URL only fills in when no site origin is configured.
-const siteUrl =
-  configuredSiteUrl ||
-  configuredCloudflareUrl ||
-  inferredCloudflareUrl ||
-  \`http://localhost:\${port}\`;
-${defaultAssetPrefixSource}
-// Asset loading is intentionally independent from the canonical site URL.
-// Module Federation remotes must publish an absolute publicPath so browsers
-// load remoteEntry.js and exposed chunks from the remote origin, not the host.
-const assetPrefix =
-  configuredModernAssetPrefix || configuredUltramodernAssetPrefix || defaultAssetPrefix;
-const buildTarget = cloudflareDeployEnabled ? 'cloudflare' : 'web';
-const buildOutputRoot = cloudflareDeployEnabled ? 'dist-cloudflare' : 'dist';
-const buildTempDirectory = \`node_modules/.modern-js-\${appId}-\${buildTarget}\`;
-const buildCacheDirectory = \`node_modules/.cache/rspack-\${appId}-\${buildTarget}\`;
-
-if (
-  cloudflareDeployEnabled &&
-  process.env['ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS'] === 'true' &&
-  configuredCloudflareUrl === undefined &&
-  configuredSiteUrl === undefined &&
-  inferredCloudflareUrl === undefined
-) {
-  throw new Error(
-    \`Cloudflare deploy for \${appId} needs ${createCloudflarePublicUrlEnv(
-      app,
-    )}, MODERN_PUBLIC_SITE_URL, or ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN.\`,
-  );
-}
-
-export default defineConfig(
-  presetUltramodern(
-    {
-${bffConfig}      ...(cloudflareDeployEnabled
-        ? {
-            deploy: {
-              worker: {
-              compatibilityDate: '${CLOUDFLARE_COMPATIBILITY_DATE}',
-              name: cloudflareWorkerName,
-              security: ${formatTsJsonValue(sortJsonValue(createCloudflareSecurityContract()), 16)},
-${serviceBindingsConfig}              ssr: true,
-            },
-          },
-          }
-        : {}),
-      dev: {
-${devAssetPrefixSource}
-      },
-      html: {
-        outputStructure: 'flat',
-      },
-      output: {
-        assetPrefix,
-        disableTsChecker: false,
-        distPath: {
-          html: './',
-          root: buildOutputRoot,
-        },
-        polyfill: 'off',
-        splitRouteChunks: true,
-        tempDir: buildTempDirectory,
-      },
-      performance: {
-        buildCache: {
-          cacheDigest: [appId, buildTarget],
-          cacheDirectory: buildCacheDirectory,
-        },
-        rsdoctor: {
-          disableClientServer: true,
-          enabled: process.env['ULTRAMODERN_RSDOCTOR'] === 'true',
-        },
-      },
-      plugins: [
-        appTools(),
-        tanstackRouterPlugin(),
-        i18nPlugin({
-          backend: {
-            enabled: true,
-            loadPath: '/locales/{{lng}}/{{ns}}.json',
-          },
-          localeDetection: {
-            fallbackLanguage: 'en',
-            ignoreRedirectRoutes: [
-              '/@mf-types',
-              '/assets',
-              '/bundles',
-              '${resolveApiPrefix(app)}',
-              '/locales',
-              '/mf-manifest.json',
-              '/mf-stats.json',
-              '/remoteEntry.js',
-              '/robots.txt',
-              '/site.webmanifest',
-              '/sitemap.xml',
-              '/static',
-              '/zephyr-manifest.json',
-            ],
-            languages: ['en', 'cs'],
-            localePathRedirect: true,
-            localisedUrls: ultramodernLocalisedUrls as Record<string, Record<string, string>>,
-          },
-          reactI18next: false,
-        }),
-${bffPluginEntry}        moduleFederationPlugin(),
-        zephyrRspackPlugin(),
-      ],
-      server: {
-        port,
-        publicDir: ['./locales', './assets'],
-        ssr: {
-          mode: 'string',
-          moduleFederationAppSSR: true,
-        },
-      },
-      source: {
-        alias: {
-          '@modern-js/plugin-i18n/runtime':
-            '@modern-js/plugin-i18n/runtime/no-react-i18next',
-        },
-        globalVars: {
-          ULTRAMODERN_SITE_URL: siteUrl,
-        },
-        mainEntryName: 'index',
-      },
-      splitChunks: {
-        chunks: 'async',
-      },
-      tools: {
-        autoprefixer: {
-          overrideBrowserslist: ['defaults'],
-        },
-        bundlerChain: chain => {
-          chain.output
-            .uniqueName('${createRspackUniqueName(app)}')
-            .chunkLoadingGlobal('${createRspackChunkLoadingGlobal(app)}');
-        },
-        devServer: {
-          headers: {
-            'Access-Control-Allow-Headers':
-              'Accept, Authorization, Content-Type, X-Requested-With',
-            'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
-            'Access-Control-Allow-Origin': moduleFederationDevServerOrigin,
-          },
-        },
-      },
-    },
-    {
-      appId,
-      enableBffRequestId: true,
-      enableModuleFederationSSR: true,
-      enableTelemetryExporters: true,
-      telemetryFailLoudStartup: false,
-    },
-  ),
-);
-`;
+  return renderFileTemplate('workspace/apps/modern.config.ts', {
+    value0: bffImport,
+    value1: app.id,
+    value2: createCloudflareWorkerName(scope, app),
+    value3: app.portEnv,
+    value4: app.port,
+    value5: createCloudflarePublicUrlEnv(app),
+    value6: shellApp.port,
+    value7: defaultAssetPrefixSource,
+    value8: createCloudflarePublicUrlEnv(app),
+    value9: bffConfig,
+    value10: CLOUDFLARE_COMPATIBILITY_DATE,
+    value11: formatTsJsonValue(
+      sortJsonValue(createCloudflareSecurityContract()),
+      16,
+    ),
+    value12: serviceBindingsConfig,
+    value13: devAssetPrefixSource,
+    value14: resolveApiPrefix(app),
+    value15: bffPluginEntry,
+    value16: createRspackUniqueName(app),
+    value17: createRspackChunkLoadingGlobal(app),
+  });
 }
 
 export function createSharedModuleFederationConfig(): string {
-  return `  shared: {
-    '@modern-js/plugin-i18n/runtime/no-react-i18next': {
-      requiredVersion: pluginI18nVersion,
-      singleton: true,
-      treeShaking: false,
-    },
-    '@modern-js/plugin-tanstack/runtime': {
-      requiredVersion: pluginTanstackVersion,
-      singleton: true,
-      treeShaking: false,
-    },
-    '@modern-js/runtime': {
-      requiredVersion: runtimeVersion,
-      singleton: true,
-      treeShaking: false,
-    },
-    '@tanstack/react-router': {
-      requiredVersion: dependencies['@tanstack/react-router'],
-      singleton: true,
-      treeShaking: false,
-    },
-    react: {
-      requiredVersion: reactVersion,
-      singleton: true,
-      treeShaking: false,
-    },
-    'react-dom': {
-      requiredVersion: reactDomVersion,
-      singleton: true,
-      treeShaking: false,
-    },
-    'react-dom/client': {
-      requiredVersion: reactDomVersion,
-      singleton: true,
-      treeShaking: false,
-    },
-  }`;
+  return renderFileTemplate(
+    'workspace/apps/modern.config.shared-module-federation.ts',
+    {},
+  );
 }
 
 export function formatTsObjectLiteral(value: Record<string, string>): string {
@@ -583,39 +322,30 @@ export default moduleFederationConfig;
 
 export { createBuildMarker } from './delivery-unit';
 
-export function createUltramodernBuildModule(
+export function createUltramodernBuildArtifactJson(
   scope: string,
   app: WorkspaceApp,
 ): string {
   const record = createDeliveryUnitRecord(scope, app);
-  return `export const ultramodernDeliveryUnit = {
-  appId: '${record.appId}',
-  build: '${record.buildMarker}',
-  deployProfile: '${record.deployProfile}',
-  kind: '${record.kind}',
-  packageName: '${record.packageName}',
-  schemaVersion: ${record.schemaVersion},
-  sourceRevision: '${record.sourceRevision}',
-  unitId: '${record.unitId}',
-  version: '${record.version}',
-} as const;
+  return `${JSON.stringify(createUltramodernBuildArtifact(record), null, 2)}\n`;
+}
 
+export function createUltramodernBuildModule(): string {
+  return `import ultramodernBuildArtifact from './${ULTRAMODERN_BUILD_ARTIFACT_FILE}' with { type: 'json' };
+
+export { ultramodernBuildArtifact };
+
+export const ultramodernDeliveryUnit =
+  ultramodernBuildArtifact.deliveryUnit;
 export const ultramodernVerticalIdentity = ultramodernDeliveryUnit;
-
-export const ultramodernUiMarker = {
-  ...ultramodernDeliveryUnit,
-  surface: 'ui',
-} as const;
-
-export const ultramodernApiMarker = {
-  ...ultramodernDeliveryUnit,
-  surface: 'api',
-} as const;
+export const ultramodernUiMarker = ultramodernBuildArtifact.surfaces.ui;
+export const ultramodernApiMarker = ultramodernBuildArtifact.surfaces.api;
 `;
 }
 
 export function createUltramodernBuildReexportModule(): string {
   return `export {
+  ultramodernBuildArtifact,
   ultramodernApiMarker,
   ultramodernDeliveryUnit,
   ultramodernUiMarker,

@@ -1,14 +1,30 @@
+import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { promisify } from 'node:util';
+import {
+  BACKEND_FEDERATION_EFFECT_EXPOSE as BACKEND_EXPOSE,
+  BACKEND_FEDERATION_MANIFEST_FILE as BACKEND_MANIFEST_FILE,
+  BACKEND_FEDERATION_REMOTE_ENTRY_FILE as BACKEND_REMOTE_ENTRY_FILE,
+  BACKEND_FEDERATION_CONTRACT_VERSION as CONTRACT_VERSION,
+  DELIVERY_UNIT_DEPLOY_PROFILE,
+  DELIVERY_UNIT_KIND,
+  DELIVERY_UNIT_SCHEMA_VERSION,
+  type DeliveryUnitContractBlock,
+  deliveryUnitContractBlock,
+  isUltramodernBuildArtifact,
+  BACKEND_FEDERATION_NODE_ADAPTER_VERSION as NODE_ADAPTER_VERSION,
+  stampUltramodernBuildArtifactSourceRevision,
+  ULTRAMODERN_BUILD_ARTIFACT_FILE,
+  ULTRAMODERN_BUILD_ARTIFACT_PATH,
+  ULTRAMODERN_BUILD_MODULE_PATH,
+  type UltramodernBuildArtifact,
+} from '@modern-js/utils/universal';
 import type { AppTools, CliPlugin } from '../types';
 
 const COMPACT_CONFIG_PATH = '.modernjs/ultramodern.json';
-const BACKEND_MANIFEST_FILE = 'backend-mf-manifest.json';
-const BACKEND_REMOTE_ENTRY_FILE = 'backendRemoteEntry.mjs';
-const CONTRACT_VERSION = 'microvertical-server-effect-v1';
-const NODE_ADAPTER_VERSION = 'backend-mf-effect-v1';
-const BACKEND_EXPOSE = './effect-api';
+const execFileAsync = promisify(execFile);
 
 type CompactApp = {
   id?: unknown;
@@ -71,6 +87,7 @@ type BackendFederationApp = {
   buildVersion?: string;
   unitId?: string;
   sourceRevision?: string;
+  deliveryUnit?: DeliveryUnitContractBlock;
   port: number;
   apiPrefix: string;
   apiStem: string;
@@ -94,12 +111,14 @@ type BackendFederationBuildIdentity = {
   buildVersion?: string;
   unitId?: string;
   sourceRevision?: string;
+  artifact?: UltramodernBuildArtifact;
 };
 
 export type BackendFederationArtifactResult = {
   appId: string;
   manifestPath: string;
   containerPath: string;
+  deliveryUnitArtifactPath?: string;
   remoteName: string;
   remoteType: string;
 };
@@ -113,16 +132,43 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const readJsonFile = async <T>(filePath: string): Promise<T> =>
   JSON.parse(await fs.readFile(filePath, 'utf8')) as T;
 
+const buildArtifactPathFor = (appDirectory: string) =>
+  path.join(appDirectory, ULTRAMODERN_BUILD_ARTIFACT_PATH);
+
 const buildModulePathFor = (appDirectory: string) =>
-  path.join(appDirectory, 'shared/ultramodern-build.ts');
+  path.join(appDirectory, ULTRAMODERN_BUILD_MODULE_PATH);
 
 const readBuildIdentity = async (
   appDirectory: string,
 ): Promise<BackendFederationBuildIdentity> => {
+  const buildArtifactPath = buildArtifactPathFor(appDirectory);
+  if (existsSync(buildArtifactPath)) {
+    const artifact = await readJsonFile<unknown>(buildArtifactPath);
+    if (!isUltramodernBuildArtifact(artifact)) {
+      throw new Error(
+        `[backend-federation-build] Invalid delivery-unit build artifact at ${buildArtifactPath}.`,
+      );
+    }
+
+    const deliveryUnit = artifact.deliveryUnit;
+    return {
+      artifact,
+      buildVersion: deliveryUnit.buildMarker,
+      packageName: deliveryUnit.packageName,
+      version: deliveryUnit.version,
+      unitId: deliveryUnit.unitId,
+      sourceRevision: deliveryUnit.sourceRevision,
+    };
+  }
+
   const buildModulePath = buildModulePathFor(appDirectory);
   if (!existsSync(buildModulePath)) {
     return {};
   }
+
+  console.warn(
+    `[backend-federation-build] ${buildArtifactPath} missing; falling back to legacy regex parsing of ${buildModulePath}. Regenerate the workspace to emit ${ULTRAMODERN_BUILD_ARTIFACT_FILE}.`,
+  );
 
   const source = await fs.readFile(buildModulePath, 'utf8');
   return {
@@ -172,6 +218,63 @@ const findWorkspaceRoot = (appDirectory: string) => {
     }
     current = parent;
   }
+};
+
+const resolveWorkspaceSourceRevision = async (workspaceRoot: string) => {
+  try {
+    const { stdout } = await execFileAsync('git', [
+      '-C',
+      workspaceRoot,
+      'rev-parse',
+      'HEAD',
+    ]);
+    const revision = stdout.trim();
+    if (revision.length > 0) {
+      return revision;
+    }
+  } catch {
+    // Fall through to explicit environment override below.
+  }
+
+  const envRevision = process.env.ULTRAMODERN_SOURCE_REVISION?.trim();
+  if (envRevision) {
+    return envRevision;
+  }
+
+  console.warn(
+    '[backend-federation-build] Could not resolve git source revision; stamping sourceRevision as "workspace". Set ULTRAMODERN_SOURCE_REVISION to override.',
+  );
+  return 'workspace';
+};
+
+const createStampedDeliveryUnit = (input: {
+  appId: string;
+  unitId?: string;
+  buildMarker?: string;
+  packageName?: string;
+  version?: string;
+  sourceRevision: string;
+}): DeliveryUnitContractBlock | undefined => {
+  if (
+    !input.unitId ||
+    !input.buildMarker ||
+    !input.packageName ||
+    !input.version
+  ) {
+    return undefined;
+  }
+
+  return deliveryUnitContractBlock({
+    schemaVersion: DELIVERY_UNIT_SCHEMA_VERSION,
+    kind: DELIVERY_UNIT_KIND,
+    appId: input.appId,
+    unitId: input.unitId,
+    packageName: input.packageName,
+    version: input.version,
+    buildMarker: input.buildMarker,
+    sourceRevision: input.sourceRevision,
+    deployProfile: DELIVERY_UNIT_DEPLOY_PROFILE,
+  });
 };
 
 const createAppFromCompactMetadata = (
@@ -415,30 +518,18 @@ const createBackendManifest = (
       },
       readinessPath: `${app.apiPrefix}/${app.apiStem}/readiness`,
       openapiPath: `${app.apiPrefix}/openapi.json`,
-      ...(app.unitId && app.buildVersion
-        ? {
-            deliveryUnit: {
-              schemaVersion: 1,
-              kind: 'microvertical-delivery-unit',
-              unitId: app.unitId,
-              packageName: app.packageName,
-              version: app.version,
-              buildMarker: app.buildVersion,
-              sourceRevision: app.sourceRevision,
-            },
-          }
-        : {}),
+      ...(app.deliveryUnit ? { deliveryUnit: app.deliveryUnit } : {}),
       versionBoundary: {
         invariant: 'web-and-api-same-build',
         packageName: app.packageName,
         version: app.version,
         buildVersion: app.buildVersion,
         ...(app.uiManifestUrl ? { uiManifestUrl: app.uiManifestUrl } : {}),
-        ...(app.unitId && app.buildVersion
+        ...(app.deliveryUnit
           ? {
               deliveryUnit: {
-                unitId: app.unitId,
-                buildMarker: app.buildVersion,
+                unitId: app.deliveryUnit.unitId,
+                buildMarker: app.deliveryUnit.buildMarker,
               },
             }
           : {}),
@@ -485,7 +576,9 @@ export const emitBackendFederationArtifacts = async (
 
   if (hasCompactDeliveryUnit && hasBuildIdentity) {
     const compactConfigPath = path.join(workspaceRoot, COMPACT_CONFIG_PATH);
-    const buildModulePath = buildModulePathFor(appDirectory);
+    const buildIdentityPath = existsSync(buildArtifactPathFor(appDirectory))
+      ? buildArtifactPathFor(appDirectory)
+      : buildModulePathFor(appDirectory);
     const mismatches: string[] = [];
     const compare = (label: string, a?: string, b?: string) => {
       if (a !== undefined && b !== undefined && a !== b) {
@@ -509,7 +602,7 @@ export const emitBackendFederationArtifacts = async (
 
     if (mismatches.length > 0) {
       throw new Error(
-        `[backend-federation-build] Delivery-unit identity drift between ${compactConfigPath} (deliveryUnit) and ${buildModulePath}: ${mismatches.join('; ')}`,
+        `[backend-federation-build] Delivery-unit identity drift between ${compactConfigPath} (deliveryUnit) and ${buildIdentityPath}: ${mismatches.join('; ')}`,
       );
     }
   }
@@ -517,13 +610,26 @@ export const emitBackendFederationArtifacts = async (
   const unitId = compactDeliveryUnit?.unitId ?? buildIdentity.unitId;
   const buildVersion =
     compactDeliveryUnit?.buildMarker ?? buildIdentity.buildVersion;
-  const sourceRevision =
-    compactDeliveryUnit?.sourceRevision ?? buildIdentity.sourceRevision;
+  const sourceRevision = await resolveWorkspaceSourceRevision(workspaceRoot);
   const packageName =
     compactDeliveryUnit?.packageName ??
     buildIdentity.packageName ??
     app.packageName;
   const version = compactDeliveryUnit?.version ?? buildIdentity.version;
+  const deliveryUnit = createStampedDeliveryUnit({
+    appId: app.id,
+    unitId,
+    buildMarker: buildVersion,
+    packageName,
+    version,
+    sourceRevision,
+  });
+  const stampedBuildArtifact = buildIdentity.artifact
+    ? stampUltramodernBuildArtifactSourceRevision(
+        buildIdentity.artifact,
+        sourceRevision,
+      )
+    : undefined;
 
   const resolvedApp: BackendFederationApp = {
     ...app,
@@ -532,10 +638,14 @@ export const emitBackendFederationArtifacts = async (
     buildVersion,
     unitId,
     sourceRevision,
+    deliveryUnit,
   };
 
   const manifestPath = path.join(distDirectory, BACKEND_MANIFEST_FILE);
   const entryPath = path.join(distDirectory, BACKEND_REMOTE_ENTRY_FILE);
+  const deliveryUnitArtifactPath = stampedBuildArtifact
+    ? path.join(distDirectory, ULTRAMODERN_BUILD_ARTIFACT_FILE)
+    : undefined;
   await fs.mkdir(distDirectory, { recursive: true });
   await fs.writeFile(
     entryPath,
@@ -550,11 +660,18 @@ export const emitBackendFederationArtifacts = async (
     manifestPath,
     `${JSON.stringify(createBackendManifest(workspaceRoot, distDirectory, resolvedApp), null, 2)}\n`,
   );
+  if (stampedBuildArtifact && deliveryUnitArtifactPath) {
+    await fs.writeFile(
+      deliveryUnitArtifactPath,
+      `${JSON.stringify(stampedBuildArtifact, null, 2)}\n`,
+    );
+  }
 
   return {
     appId: resolvedApp.id,
     manifestPath,
     containerPath: entryPath,
+    ...(deliveryUnitArtifactPath ? { deliveryUnitArtifactPath } : {}),
     remoteName: resolvedApp.backendName,
     remoteType: resolvedApp.remoteType,
   };

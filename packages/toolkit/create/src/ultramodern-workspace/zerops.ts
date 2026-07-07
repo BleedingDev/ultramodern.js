@@ -9,6 +9,10 @@ function quoteYamlString(value: string) {
   return `'${value.replace(/'/gu, "''")}'`;
 }
 
+function quoteShellValue(value: string) {
+  return `'${value.replace(/'/gu, "'\\''")}'`;
+}
+
 function readinessPath(app: WorkspaceApp) {
   if (!appHasApi(app)) {
     return '/';
@@ -24,31 +28,31 @@ function createZeropsService(scope: string, app: WorkspaceApp) {
     'curl https://mise.run | sh',
     '~/.local/bin/mise install',
     '~/.local/bin/mise exec -- pnpm install --frozen-lockfile',
-    `~/.local/bin/mise exec -- pnpm --filter ${appPackageName} run build`,
-    `~/.local/bin/mise exec -- pnpm run zerops:materialize -- --app ${app.id} --package ${appPackageName} --package-dir ${app.directory}`,
-    `cp topology/reference-topology.json ${runtimeDirectory}/topology.json`,
-    `cp topology/local-overlays/development.json ${runtimeDirectory}/local-overlay.json`,
+    `~/.local/bin/mise exec -- pnpm --filter ${quoteShellValue(appPackageName)} run build`,
+    `~/.local/bin/mise exec -- pnpm run zerops:materialize -- --app ${quoteShellValue(app.id)} --package ${quoteShellValue(appPackageName)} --package-dir ${quoteShellValue(app.directory)}`,
+    `cp ${quoteShellValue('topology/reference-topology.json')} ${quoteShellValue(`${runtimeDirectory}/topology.json`)}`,
+    `cp ${quoteShellValue('topology/local-overlays/development.json')} ${quoteShellValue(`${runtimeDirectory}/local-overlay.json`)}`,
   ];
 
   return [
-    `  - setup: ${app.id}`,
+    `  - setup: ${quoteYamlString(app.id)}`,
     '    build:',
-    `      base: ${zeropsNodeRuntime}`,
+    `      base: ${quoteYamlString(zeropsNodeRuntime)}`,
     '      buildCommands:',
     '        - |',
     ...commands.map(command => `          ${command}`),
     '      deployFiles:',
-    `        - ${runtimeDirectory}`,
+    `        - ${quoteYamlString(runtimeDirectory)}`,
     '    deploy:',
     '      temporaryShutdown: false',
     '      readinessCheck:',
     '        httpGet:',
     `          port: ${app.port}`,
-    `          path: ${readinessPath(app)}`,
+    `          path: ${quoteYamlString(readinessPath(app))}`,
     '        failureTimeout: 120',
     '        retryPeriod: 10',
     '    run:',
-    `      base: ${zeropsNodeRuntime}`,
+    `      base: ${quoteYamlString(zeropsNodeRuntime)}`,
     '      ports:',
     `        - port: ${app.port}`,
     '          protocol: TCP',
@@ -57,7 +61,7 @@ function createZeropsService(scope: string, app: WorkspaceApp) {
     '        NODE_ENV: production',
     `        ${app.portEnv}: ${quoteYamlString(String(app.port))}`,
     `        ULTRAMODERN_ZEROPS_SERVICE: ${quoteYamlString(app.id)}`,
-    `      start: cd ${runtimeDirectory} && npm run serve`,
+    `      start: cd ${quoteShellValue(runtimeDirectory)} && npm run serve`,
   ].join('\n');
 }
 

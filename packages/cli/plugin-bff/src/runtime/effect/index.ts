@@ -22,6 +22,8 @@ export {
   type BackendFederationManifestAdapterOptions,
   type BackendFederationManifestFetchResponse,
   type BackendFederationVersionBoundaryExpectation,
+  // Generated UltraModern workspace proof scripts import the manifest adapter
+  // through this public barrel; keep these exports stable.
   loadBackendFederatedEffectApiFromManifest,
   loadBackendFederationManifest,
   resolveBackendFederationRemoteFromManifest,

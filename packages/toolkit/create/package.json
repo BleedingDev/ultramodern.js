@@ -83,6 +83,7 @@
   "dependencies": {
     "@modern-js/codesmith": "2.6.9",
     "@modern-js/i18n-utils": "workspace:*",
+    "@modern-js/utils": "workspace:*",
     "oxfmt": "0.56.0",
     "ultracite": "7.8.3"
   },

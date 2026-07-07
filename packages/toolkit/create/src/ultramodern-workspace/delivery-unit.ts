@@ -1,20 +1,15 @@
 import crypto from 'node:crypto';
+import {
+  DELIVERY_UNIT_DEPLOY_PROFILE,
+  DELIVERY_UNIT_KIND,
+  DELIVERY_UNIT_SCHEMA_VERSION,
+  type DeliveryUnitRecord,
+  deliveryUnitContractBlock,
+} from '@modern-js/utils/universal';
 import { packageName } from './naming';
 import type { WorkspaceApp } from './types';
 
-export const DELIVERY_UNIT_SCHEMA_VERSION = 1;
-
-export type DeliveryUnitRecord = {
-  schemaVersion: 1;
-  kind: 'microvertical-delivery-unit';
-  unitId: string;
-  appId: string;
-  packageName: string;
-  version: string;
-  sourceRevision: string;
-  buildMarker: string;
-  deployProfile: 'cloudflare-ssr-mf-effect-v1';
-};
+const deliveryUnitGenerationSeed = `${Date.now()}:${crypto.randomUUID()}`;
 
 export function createBuildMarker(
   scope: string,
@@ -22,22 +17,14 @@ export function createBuildMarker(
 ) {
   return crypto
     .createHash('sha256')
-    .update(`${scope}:${app.packageSuffix}:${app.id}:0.1.0`)
+    .update(
+      `${deliveryUnitGenerationSeed}:${scope}:${app.packageSuffix}:${app.id}:0.1.0`,
+    )
     .digest('hex')
     .slice(0, 16);
 }
 
-export function deliveryUnitContractBlock(record: DeliveryUnitRecord) {
-  return {
-    schemaVersion: record.schemaVersion,
-    kind: record.kind,
-    unitId: record.unitId,
-    packageName: record.packageName,
-    version: record.version,
-    buildMarker: record.buildMarker,
-    sourceRevision: record.sourceRevision,
-  };
-}
+export { deliveryUnitContractBlock };
 
 export function createDeliveryUnitRecord(
   scope: string,
@@ -45,13 +32,13 @@ export function createDeliveryUnitRecord(
 ): DeliveryUnitRecord {
   return {
     schemaVersion: DELIVERY_UNIT_SCHEMA_VERSION,
-    kind: 'microvertical-delivery-unit',
+    kind: DELIVERY_UNIT_KIND,
     unitId: `${scope}/${app.domain ?? app.id}`,
     appId: app.id,
     packageName: packageName(scope, app.packageSuffix),
     version: '0.1.0',
     sourceRevision: 'workspace',
     buildMarker: createBuildMarker(scope, app),
-    deployProfile: 'cloudflare-ssr-mf-effect-v1',
+    deployProfile: DELIVERY_UNIT_DEPLOY_PROFILE,
   };
 }

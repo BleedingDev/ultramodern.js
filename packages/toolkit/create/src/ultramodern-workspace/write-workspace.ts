@@ -59,6 +59,7 @@ import {
   createBackendModuleFederationConfig,
   createRemoteModuleFederationConfig,
   createShellModuleFederationConfig,
+  createUltramodernBuildArtifactJson,
   createUltramodernBuildModule,
   createUltramodernBuildReexportModule,
 } from './module-federation';
@@ -149,7 +150,12 @@ export function writeApp(
   writeFile(
     targetDir,
     `${resolvedApp.directory}/shared/ultramodern-build.ts`,
-    createUltramodernBuildModule(scope, resolvedApp),
+    createUltramodernBuildModule(),
+  );
+  writeFile(
+    targetDir,
+    `${resolvedApp.directory}/shared/ultramodern-build.json`,
+    createUltramodernBuildArtifactJson(scope, resolvedApp),
   );
   writeFile(
     targetDir,

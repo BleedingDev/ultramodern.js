@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { parseArgs } from 'node:util';
 import {
   readUltramodernConfig,
   workspaceAppsFromToolingConfig,
@@ -10,7 +11,10 @@ import {
   deliveryUnitContractBlock,
 } from './delivery-unit';
 import { ULTRAMODERN_CONFIG_PATH } from './descriptors';
-import { createUltramodernBuildModule } from './module-federation';
+import {
+  createUltramodernBuildArtifactJson,
+  createUltramodernBuildModule,
+} from './module-federation';
 import type { WorkspaceApp } from './types';
 
 const REFERENCE_TOPOLOGY_PATH = 'topology/reference-topology.json';
@@ -19,29 +23,6 @@ type SyncContext = {
   workspaceRoot: string;
   invocationCwd: string;
 };
-
-function readOption(args: string[], name: string): string | undefined {
-  const prefix = `${name}=`;
-  const inline = args.find(arg => arg.startsWith(prefix));
-  if (inline) {
-    const value = inline.slice(prefix.length);
-    if (!value) {
-      throw new Error(`${name} needs a value.`);
-    }
-    return value;
-  }
-
-  const index = args.indexOf(name);
-  if (index === -1) {
-    return undefined;
-  }
-
-  const value = args[index + 1];
-  if (!value || value.startsWith('--')) {
-    throw new Error(`${name} needs a value.`);
-  }
-  return value;
-}
 
 function isPlainObject(value: unknown): value is Record<string, any> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -99,7 +80,22 @@ export function runSyncDeliveryUnit(
   args: string[],
   context: SyncContext,
 ): number {
-  if (args.includes('--help') || args.includes('-h')) {
+  const parsed = parseArgs({
+    args,
+    options: {
+      help: {
+        type: 'boolean',
+        short: 'h',
+      },
+      workspace: {
+        type: 'string',
+      },
+    },
+    strict: true,
+    allowPositionals: false,
+  });
+
+  if (parsed.values.help) {
     process.stdout.write(`Usage:
   modern-js-create ultramodern sync-delivery-unit [--workspace <dir>]
 
@@ -109,13 +105,13 @@ through framework tooling only. For each full-stack vertical it writes the
 delivery-unit block into .modernjs/ultramodern.json topology.apps[] and
 topology/reference-topology.json verticals[] (plus backendFederation.deliveryUnit
 and backendFederation.versionBoundary.identityRoot) and regenerates
-verticals/<id>/shared/ultramodern-build.ts. Idempotent: a second run writes
+verticals/<id>/shared/ultramodern-build.{json,ts}. Idempotent: a second run writes
 nothing.
 `);
     return 0;
   }
 
-  const workspaceOverride = readOption(args, '--workspace');
+  const workspaceOverride = parsed.values.workspace;
   const workspaceRoot = workspaceOverride
     ? path.resolve(context.invocationCwd, workspaceOverride)
     : context.workspaceRoot;
@@ -175,17 +171,31 @@ nothing.
     track(REFERENCE_TOPOLOGY_PATH, writeJsonIfChanged(topologyPath, topology));
   }
 
-  // (3) verticals/<id>/shared/ultramodern-build.ts (framework-owned; regenerate)
+  // (3) verticals/<id>/shared/ultramodern-build.{json,ts}
+  // (framework-owned; regenerate from canonical descriptors)
   for (const app of apiApps) {
-    const relativePath = path.join(
+    const buildModulePath = path.join(
       app.directory,
       'shared/ultramodern-build.ts',
     );
-    const changed = writeTextIfChanged(
-      path.join(workspaceRoot, relativePath),
-      createUltramodernBuildModule(scope, app),
+    const buildArtifactPath = path.join(
+      app.directory,
+      'shared/ultramodern-build.json',
     );
-    track(relativePath, changed);
+    track(
+      buildModulePath,
+      writeTextIfChanged(
+        path.join(workspaceRoot, buildModulePath),
+        createUltramodernBuildModule(),
+      ),
+    );
+    track(
+      buildArtifactPath,
+      writeTextIfChanged(
+        path.join(workspaceRoot, buildArtifactPath),
+        createUltramodernBuildArtifactJson(scope, app),
+      ),
+    );
   }
 
   if (written.length === 0) {

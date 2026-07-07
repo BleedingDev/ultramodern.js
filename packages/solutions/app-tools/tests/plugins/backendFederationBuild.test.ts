@@ -16,6 +16,59 @@ const writeJson = async (filePath: string, value: unknown) => {
   await fs.writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`);
 };
 
+const createBuildArtifact = (overrides: Record<string, unknown> = {}) => {
+  const deliveryUnit = {
+    schemaVersion: 1,
+    kind: 'microvertical-delivery-unit',
+    appId: 'explore',
+    unitId: 'tractor-store-vertical-demo/explore',
+    packageName: '@tractor-store-vertical-demo/explore',
+    version: '0.1.0',
+    sourceRevision: 'workspace',
+    buildMarker: 'tractor-explore-build-1234',
+    deployProfile: 'cloudflare-ssr-mf-effect-v1',
+    build: 'tractor-explore-build-1234',
+    ...overrides,
+  };
+
+  return {
+    schemaVersion: 1,
+    kind: 'ultramodern-build-artifact',
+    deliveryUnit,
+    surfaces: {
+      ui: { ...deliveryUnit, surface: 'ui' },
+      api: { ...deliveryUnit, surface: 'api' },
+    },
+  };
+};
+
+const writeBuildArtifact = async (
+  appDirectory: string,
+  overrides: Record<string, unknown> = {},
+) => {
+  await writeJson(
+    path.join(appDirectory, 'shared/ultramodern-build.json'),
+    createBuildArtifact(overrides),
+  );
+};
+
+const withSourceRevision = async <T>(
+  revision: string,
+  callback: () => Promise<T>,
+) => {
+  const previous = process.env.ULTRAMODERN_SOURCE_REVISION;
+  process.env.ULTRAMODERN_SOURCE_REVISION = revision;
+  try {
+    return await callback();
+  } finally {
+    if (previous === undefined) {
+      delete process.env.ULTRAMODERN_SOURCE_REVISION;
+    } else {
+      process.env.ULTRAMODERN_SOURCE_REVISION = previous;
+    }
+  }
+};
+
 afterEach(async () => {
   await Promise.all(
     tempDirectories
@@ -36,6 +89,7 @@ describe('backend federation build artifacts', () => {
       'export const backendFederationContract = {};\n',
     );
     await fs.mkdir(path.join(appDirectory, 'shared'), { recursive: true });
+    await writeBuildArtifact(appDirectory);
     await fs.writeFile(
       path.join(appDirectory, 'shared/ultramodern-build.ts'),
       [
@@ -163,6 +217,7 @@ describe('backend federation build artifacts', () => {
       'export const backendFederationContract = {};\n',
     );
     await fs.mkdir(path.join(appDirectory, 'shared'), { recursive: true });
+    await writeBuildArtifact(appDirectory);
     await fs.writeFile(
       path.join(appDirectory, 'shared/ultramodern-build.ts'),
       [
@@ -261,6 +316,95 @@ describe('backend federation build artifacts', () => {
     expect(remoteEntry).toContain('"sourceRevision": "workspace"');
   });
 
+  it('stamps sourceRevision from build revision into manifest and delivery-unit artifact', async () => {
+    const workspaceRoot = await createTempDir();
+    const appDirectory = path.join(workspaceRoot, 'verticals/explore');
+    const distOne = path.join(appDirectory, 'dist-one');
+    const distTwo = path.join(appDirectory, 'dist-two');
+
+    await fs.mkdir(path.join(appDirectory, 'api'), { recursive: true });
+    await fs.writeFile(
+      path.join(appDirectory, 'api/effect-api.ts'),
+      'export const backendFederationContract = {};\n',
+    );
+    await fs.mkdir(path.join(appDirectory, 'shared'), { recursive: true });
+    await writeBuildArtifact(appDirectory);
+    await fs.writeFile(
+      path.join(appDirectory, 'backend-federation.config.ts'),
+      'export default {};\n',
+    );
+    await writeJson(path.join(workspaceRoot, '.modernjs/ultramodern.json'), {
+      topology: {
+        apps: [
+          {
+            id: 'explore',
+            kind: 'vertical',
+            package: '@tractor-store-vertical-demo/explore',
+            path: 'verticals/explore',
+            port: 3021,
+            api: {
+              prefix: '/explore-api',
+              stem: 'explore',
+            },
+            moduleFederation: {
+              name: 'verticalExplore',
+              manifestUrl: 'http://localhost:3021/mf-manifest.json',
+            },
+            backendFederation: {
+              name: 'verticalExploreBackend',
+              executionSurfaces: {
+                node: {
+                  remoteName: 'verticalExploreBackend',
+                  manifestUrl: 'http://localhost:3021/backend-mf-manifest.json',
+                  containerEntry:
+                    'http://localhost:3021/backendRemoteEntry.mjs',
+                  remoteType: 'module',
+                },
+              },
+            },
+          },
+        ],
+      },
+    });
+
+    const first = await withSourceRevision('revision-one', () =>
+      emitBackendFederationArtifacts(appDirectory, distOne),
+    );
+    const second = await withSourceRevision('revision-two', () =>
+      emitBackendFederationArtifacts(appDirectory, distTwo),
+    );
+
+    expect(first?.deliveryUnitArtifactPath).toBeDefined();
+    expect(second?.deliveryUnitArtifactPath).toBeDefined();
+
+    const firstManifest = JSON.parse(
+      await fs.readFile(path.join(distOne, 'backend-mf-manifest.json'), 'utf8'),
+    );
+    const secondManifest = JSON.parse(
+      await fs.readFile(path.join(distTwo, 'backend-mf-manifest.json'), 'utf8'),
+    );
+    const firstArtifact = JSON.parse(
+      await fs.readFile(first!.deliveryUnitArtifactPath!, 'utf8'),
+    );
+    const secondArtifact = JSON.parse(
+      await fs.readFile(second!.deliveryUnitArtifactPath!, 'utf8'),
+    );
+
+    expect(firstManifest.backendFederation.deliveryUnit.sourceRevision).toBe(
+      'revision-one',
+    );
+    expect(secondManifest.backendFederation.deliveryUnit.sourceRevision).toBe(
+      'revision-two',
+    );
+    expect(
+      firstManifest.backendFederation.deliveryUnit.sourceRevision,
+    ).not.toBe(secondManifest.backendFederation.deliveryUnit.sourceRevision);
+    expect(firstArtifact.deliveryUnit.sourceRevision).toBe('revision-one');
+    expect(firstArtifact.surfaces.ui.sourceRevision).toBe('revision-one');
+    expect(firstArtifact.surfaces.api.sourceRevision).toBe('revision-one');
+    expect(secondArtifact.deliveryUnit.sourceRevision).toBe('revision-two');
+  });
+
   it('throws when compact deliveryUnit and shared/ultramodern-build.ts disagree', async () => {
     const workspaceRoot = await createTempDir();
     const appDirectory = path.join(workspaceRoot, 'verticals/explore');
@@ -272,6 +416,10 @@ describe('backend federation build artifacts', () => {
       'export const backendFederationContract = {};\n',
     );
     await fs.mkdir(path.join(appDirectory, 'shared'), { recursive: true });
+    await writeBuildArtifact(appDirectory, {
+      build: 'tractor-explore-build-DRIFTED',
+      buildMarker: 'tractor-explore-build-DRIFTED',
+    });
     await fs.writeFile(
       path.join(appDirectory, 'shared/ultramodern-build.ts'),
       [

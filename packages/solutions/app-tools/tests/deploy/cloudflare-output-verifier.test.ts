@@ -431,6 +431,26 @@ describe('Cloudflare output verifier', () => {
     );
   });
 
+  it('rejects emitted worker bundles that reference server output paths', async () => {
+    const { outputDirectory } = await createOutputFixture({
+      bffWorkerSource: "import '../server/index.mjs';\n",
+    });
+
+    const result = await verifyCloudflareOutput({
+      outputDirectory,
+      importWorker: false,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        code: 'invalid-worker-bundle',
+        message:
+          'Cloudflare worker bundles must not reference framework-owned server output paths.',
+      }),
+    );
+  });
+
   it('does not treat documentation mentions as generated-output mutation attempts', async () => {
     const { directory, outputDirectory } = await createOutputFixture();
     await fs.writeFile(

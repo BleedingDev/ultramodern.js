@@ -209,7 +209,9 @@ export function createWorkspaceRootScriptPlan(
     backendFederationGenerate: rootToolingWrapperCommand(
       'backendFederationGenerate',
     ),
-    nodeProof: rootToolingWrapperCommand('backendFederationProof'),
+    nodeProof: `pnpm ${backendFederationGenerateScript} && ${rootToolingWrapperCommand(
+      'backendFederationProof',
+    )}`,
     mfTypes: rootToolingWrapperCommand('mfTypes'),
     performanceReadiness: rootToolingWrapperCommand('performanceReadiness'),
     migrateStrictEffect: rootToolingWrapperCommand('migrateStrictEffect'),
@@ -223,9 +225,7 @@ export function createWorkspaceRootScriptPlan(
     // not inject `node:proof`/`node:backend-federation:generate` into a
     // workspace that has no backend surfaces (matches the validator contract).
     check: `pnpm format:check && pnpm lint && pnpm typecheck && pnpm skills:check && pnpm i18n:boundaries && pnpm api:check && pnpm contract:check${
-      hasRemotes
-        ? ` && pnpm ${backendFederationGenerateScript} && pnpm ${nodeProofScript}`
-        : ''
+      hasRemotes ? ` && pnpm ${nodeProofScript}` : ''
     } && pnpm performance:readiness${bridgeCheck}`,
   };
 }

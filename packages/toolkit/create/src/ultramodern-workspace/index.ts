@@ -14,6 +14,7 @@ export type {
   UltramodernEnabledBridgeConfigInput,
 } from './bridge-config';
 export { normalizeUltramodernBridgeConfig } from './bridge-config';
+export { SHARED_ULTRAMODERN_WORKSPACE_PATCH_FILES } from './shared-patches';
 export type {
   AddUltramodernVerticalOptions,
   UltramodernCodeSmithOverlay,

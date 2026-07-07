@@ -63,7 +63,7 @@ importers:
         version: 2.31.0(@types/node@26.0.1)
       '@commitlint/cli':
         specifier: ^21.1.0
-        version: 21.1.0(@types/node@12.20.55)(conventional-commits-parser@6.4.0)(typescript@6.0.3)
+        version: 21.1.0(@types/node@26.0.1)(conventional-commits-parser@6.4.0)(typescript@6.0.3)
       '@commitlint/config-conventional':
         specifier: ^21.1.0
         version: 21.1.0
@@ -909,6 +909,9 @@ importers:
       '@tanstack/router-core':
         specifier: 1.171.13
         version: 1.171.13(patch_hash=0c6119dcaa6ad35a11e1ce4fd95179bf929d5b5a86e9cbee110f45bd07c5c8d3)
+      react-server-dom-rspack:
+        specifier: 0.0.2
+        version: 0.0.2(@rspack/core@2.1.1(@module-federation/runtime-tools@2.6.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.23))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
     devDependencies:
       '@modern-js/app-tools':
         specifier: workspace:*
@@ -1595,6 +1598,9 @@ importers:
       '@modern-js/i18n-utils':
         specifier: workspace:*
         version: link:../i18n-utils
+      '@modern-js/utils':
+        specifier: workspace:*
+        version: link:../utils
       oxfmt:
         specifier: 0.56.0
         version: 0.56.0
@@ -2513,7 +2519,7 @@ importers:
         specifier: ^6.0.3
         version: 6.0.3
 
-  tests/integration/bff-corss-project/bff-api-app:
+  tests/integration/bff-cross-project/bff-api-app:
     dependencies:
       '@modern-js/plugin-bff':
         specifier: workspace:*
@@ -2571,7 +2577,9 @@ importers:
         specifier: ^6.0.3
         version: 6.0.3
 
-  tests/integration/bff-corss-project/bff-client-app:
+  tests/integration/bff-cross-project/bff-api-app/dist-1/client: {}
+
+  tests/integration/bff-cross-project/bff-client-app:
     dependencies:
       '@modern-js/plugin-bff':
         specifier: workspace:*
@@ -2629,7 +2637,7 @@ importers:
         specifier: ^6.0.3
         version: 6.0.3
 
-  tests/integration/bff-corss-project/bff-indep-client-app:
+  tests/integration/bff-cross-project/bff-indep-client-app:
     dependencies:
       '@modern-js/plugin-bff':
         specifier: workspace:*
@@ -4097,6 +4105,8 @@ importers:
         specifier: ^6.0.3
         version: 6.0.3
 
+  tests/integration/routes-tanstack-mf/mf-host/dist/shared/effect: {}
+
   tests/integration/routes-tanstack-mf/mf-host/shared/effect: {}
 
   tests/integration/routes-tanstack-mf/mf-remote:
@@ -4173,9 +4183,56 @@ importers:
         specifier: ^6.0.3
         version: 6.0.3
 
+  tests/integration/routes-tanstack-mf/mf-remote-2/dist/shared/effect: {}
+
   tests/integration/routes-tanstack-mf/mf-remote-2/shared/effect: {}
 
+  tests/integration/routes-tanstack-mf/mf-remote/dist/shared/effect: {}
+
   tests/integration/routes-tanstack-mf/mf-remote/shared/effect: {}
+
+  tests/integration/routes-tanstack-rsc:
+    dependencies:
+      '@modern-js/plugin-tanstack':
+        specifier: workspace:*
+        version: link:../../../packages/runtime/plugin-tanstack
+      '@modern-js/runtime':
+        specifier: workspace:*
+        version: link:../../../packages/runtime/plugin-runtime
+      react:
+        specifier: ^19.2.7
+        version: 19.2.7
+      react-dom:
+        specifier: ^19.2.7
+        version: 19.2.7(react@19.2.7)
+      react-server-dom-rspack:
+        specifier: 0.0.2
+        version: 0.0.2(@rspack/core@2.1.1(@module-federation/runtime-tools@2.6.0(node-fetch@2.7.0(encoding@0.1.13)))(@swc/helpers@0.5.23))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      server-only:
+        specifier: ^0.0.1
+        version: 0.0.1
+    devDependencies:
+      '@modern-js/app-tools':
+        specifier: workspace:*
+        version: link:../../../packages/solutions/app-tools
+      '@types/jest':
+        specifier: ^30.0.0
+        version: 30.0.0
+      '@types/node':
+        specifier: ^26.0.1
+        version: 26.0.1
+      '@types/react':
+        specifier: ^19.2.17
+        version: 19.2.17
+      '@types/react-dom':
+        specifier: ^19.2.3
+        version: 19.2.3(@types/react@19.2.17)
+      '@typescript/native-preview':
+        specifier: 7.0.0-dev.20260628.1
+        version: 7.0.0-dev.20260628.1
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
 
   tests/integration/rsbuild-hook:
     dependencies:
@@ -17009,12 +17066,12 @@ snapshots:
 
   '@colordx/core@5.4.3': {}
 
-  '@commitlint/cli@21.1.0(@types/node@12.20.55)(conventional-commits-parser@6.4.0)(typescript@6.0.3)':
+  '@commitlint/cli@21.1.0(@types/node@26.0.1)(conventional-commits-parser@6.4.0)(typescript@6.0.3)':
     dependencies:
       '@commitlint/config-conventional': 21.1.0
       '@commitlint/format': 21.1.0
       '@commitlint/lint': 21.1.0
-      '@commitlint/load': 21.1.0(@types/node@12.20.55)(typescript@6.0.3)
+      '@commitlint/load': 21.1.0(@types/node@26.0.1)(typescript@6.0.3)
       '@commitlint/read': 21.1.0(conventional-commits-parser@6.4.0)
       '@commitlint/types': 21.1.0
       tinyexec: 1.2.4
@@ -17059,14 +17116,14 @@ snapshots:
       '@commitlint/rules': 21.1.0
       '@commitlint/types': 21.1.0
 
-  '@commitlint/load@21.1.0(@types/node@12.20.55)(typescript@6.0.3)':
+  '@commitlint/load@21.1.0(@types/node@26.0.1)(typescript@6.0.3)':
     dependencies:
       '@commitlint/config-validator': 21.1.0
       '@commitlint/execute-rule': 21.0.1
       '@commitlint/resolve-extends': 21.1.0
       '@commitlint/types': 21.1.0
       cosmiconfig: 9.0.2(typescript@6.0.3)
-      cosmiconfig-typescript-loader: 6.3.0(@types/node@12.20.55)(cosmiconfig@9.0.2(typescript@6.0.3))(typescript@6.0.3)
+      cosmiconfig-typescript-loader: 6.3.0(@types/node@26.0.1)(cosmiconfig@9.0.2(typescript@6.0.3))(typescript@6.0.3)
       es-toolkit: 1.48.1
       is-plain-obj: 4.1.0
       picocolors: 1.1.1
@@ -21919,9 +21976,9 @@ snapshots:
     dependencies:
       layout-base: 2.0.1
 
-  cosmiconfig-typescript-loader@6.3.0(@types/node@12.20.55)(cosmiconfig@9.0.2(typescript@6.0.3))(typescript@6.0.3):
+  cosmiconfig-typescript-loader@6.3.0(@types/node@26.0.1)(cosmiconfig@9.0.2(typescript@6.0.3))(typescript@6.0.3):
     dependencies:
-      '@types/node': 12.20.55
+      '@types/node': 26.0.1
       cosmiconfig: 9.0.2(typescript@6.0.3)
       jiti: 2.6.1
       typescript: 6.0.3

@@ -8,6 +8,7 @@ import {
   addUltramodernVertical,
   generateUltramodernWorkspace,
 } from '../src/ultramodern-workspace';
+import { snapshotWorkspace } from './helpers/workspace-kit';
 
 const packageRoot = path.resolve(__dirname, '..');
 const builtCliPath = path.join(packageRoot, 'dist/esm-node/index.js');
@@ -85,28 +86,6 @@ function runGeneratedCloudflareProof(workspaceDir: string, outPath: string) {
 
 function commandOutput(result: ReturnType<typeof runGeneratedWorkspaceCheck>) {
   return `${result.stdout}\n${result.stderr}`;
-}
-
-function listFiles(root: string, dir = root): string[] {
-  const files: string[] = [];
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    const entryPath = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      files.push(...listFiles(root, entryPath));
-    } else if (entry.isFile()) {
-      files.push(path.relative(root, entryPath).split(path.sep).join('/'));
-    }
-  }
-  return files.sort();
-}
-
-function snapshotWorkspace(workspaceDir: string): Record<string, string> {
-  return Object.fromEntries(
-    listFiles(workspaceDir).map(relativePath => [
-      relativePath,
-      read(workspaceDir, relativePath),
-    ]),
-  );
 }
 
 function appById(apps: any[], id: string): any {
@@ -636,7 +615,7 @@ test('workspace and MicroVertical integration stays coherent across public API a
     assert.match(rootPackage.scripts.check, /node:proof/);
     assert.equal(
       rootPackage.scripts['node:proof'],
-      'node ./scripts/proof-node-backend-federation.mts',
+      'pnpm node:backend-federation:generate && node ./scripts/proof-node-backend-federation.mts',
     );
     assert.equal(
       rootPackage.scripts['node:backend-federation:generate'],
@@ -648,24 +627,24 @@ test('workspace and MicroVertical integration stays coherent across public API a
     );
     const zeropsYaml = read(workspaceDir, 'zerops.yaml');
     assert.match(zeropsYaml, /zerops:/);
-    assert.match(zeropsYaml, /setup: shell-super-app/);
-    assert.match(zeropsYaml, /base: nodejs@26/);
+    assert.match(zeropsYaml, /setup: 'shell-super-app'/);
+    assert.match(zeropsYaml, /base: 'nodejs@26'/);
     assert.match(
       zeropsYaml,
-      /start: cd \.zerops\/runtime\/shell-super-app && npm run serve/,
+      /start: cd '\.zerops\/runtime\/shell-super-app' && npm run serve/,
     );
-    assert.match(zeropsYaml, /setup: catalog/);
-    assert.match(zeropsYaml, /setup: checkout/);
+    assert.match(zeropsYaml, /setup: 'catalog'/);
+    assert.match(zeropsYaml, /setup: 'checkout'/);
     assert.match(
       zeropsYaml,
-      /pnpm run zerops:materialize -- --app catalog --package @integration-workspace\/catalog --package-dir verticals\/catalog/,
+      /pnpm run zerops:materialize -- --app 'catalog' --package '@integration-workspace\/catalog' --package-dir 'verticals\/catalog'/,
     );
-    assert.match(zeropsYaml, /path: \/catalog-api\/catalog\/readiness/);
+    assert.match(zeropsYaml, /path: '\/catalog-api\/catalog\/readiness'/);
     assert.match(
       zeropsYaml,
-      /pnpm run zerops:materialize -- --app checkout --package @integration-workspace\/checkout --package-dir verticals\/checkout/,
+      /pnpm run zerops:materialize -- --app 'checkout' --package '@integration-workspace\/checkout' --package-dir 'verticals\/checkout'/,
     );
-    assert.match(zeropsYaml, /path: \/checkout-api\/checkout\/readiness/);
+    assert.match(zeropsYaml, /path: '\/checkout-api\/checkout\/readiness'/);
     const zeropsMaterializer = read(
       workspaceDir,
       'scripts/materialize-zerops-runtime.mjs',
@@ -1283,9 +1262,12 @@ test('emitted module federation config guards Zephyr against network hangs', () 
       'apps/shell-super-app/modern.config.ts',
     );
     assert.match(modernConfig, /ULTRAMODERN_ZEPHYR_TIMEOUT_MS/u);
-    assert.match(modernConfig, /Promise\.race\(\[zephyrConfig, watchdog\]\)/u);
+    assert.match(
+      modernConfig,
+      /Promise\.race\(\[zephyrConfig, watchdog\(\)\]\)/u,
+    );
     assert.match(modernConfig, /zephyrWarn\(\s*`timed out after/u);
-    assert.match(modernConfig, /timer\.unref/u);
+    assert.match(modernConfig, /ref:\s*false/u);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
