@@ -1,0 +1,18 @@
+// @effect-diagnostics asyncFunction:off nodeBuiltinImport:off processEnv:off strictBooleanExpressions:off
+
+export type { FileDetails } from './files';
+export {
+  copyFiles,
+  createFileDetails,
+  readDirectoryFiles,
+  writeTargetFile,
+} from './files';
+export type { APILoaderOptions } from './generate';
+export { clientGenerator, default } from './generate';
+export type { PackageJsonLike } from './package-json';
+export {
+  getClientPackageName,
+  getPackageName,
+  mergePackageJson,
+} from './package-json';
+export { setPackage, writeClientModuleBoundary } from './write-package';
