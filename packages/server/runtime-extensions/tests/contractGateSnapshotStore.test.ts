@@ -5,7 +5,7 @@ import path from 'path';
 import {
   type GateSnapshot,
   resolveContractGateSnapshotStore,
-} from '../src/contractGateSnapshotStore';
+} from '../src/contract-gate-snapshot-store';
 
 const makeTempAppDir = () =>
   fs.mkdtempSync(path.join(os.tmpdir(), 'modern-gate-store-app-'));

@@ -1,5 +1,5 @@
-import type { GateSnapshot } from '../contractGateSnapshotStore';
-import { CONTRACT_GATE_SNAPSHOT_SCHEMA_VERSION } from '../contractGateSnapshotStore';
+import type { GateSnapshot } from '../contract-gate-snapshot-store';
+import { CONTRACT_GATE_SNAPSHOT_SCHEMA_VERSION } from '../contract-gate-snapshot-store';
 import type {
   RuntimeFallbackSignalConfig,
   RuntimeFallbackSignalSource,

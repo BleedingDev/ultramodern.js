@@ -6,7 +6,7 @@ import {
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { injectModuleFederationCssPlugin } from '../src/moduleFederationCss';
+import { injectModuleFederationCssPlugin } from '../src/module-federation-css';
 import { getDefaultAppContext, getDefaultConfig } from './helpers';
 
 describe('plugin registration', () => {

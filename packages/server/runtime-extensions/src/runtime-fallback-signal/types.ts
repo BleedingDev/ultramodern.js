@@ -1,7 +1,7 @@
 import type {
   ContractGateSnapshotStore,
   GateSnapshot,
-} from '../contractGateSnapshotStore';
+} from '../contract-gate-snapshot-store';
 
 export type RuntimeSignalErrorCode =
   | 'PAYLOAD_TOO_LARGE'

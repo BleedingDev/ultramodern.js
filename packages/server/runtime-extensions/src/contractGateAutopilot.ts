@@ -3,7 +3,7 @@ import {
   createFileContractGateSnapshotStore,
   type GateSnapshot,
   type GateSnapshotGateValue,
-} from './contractGateSnapshotStore';
+} from './contract-gate-snapshot-store';
 import type { TelemetryCanaryOrchestrator } from './telemetryCore';
 
 const DEFAULT_POLL_INTERVAL_MS = 15_000;

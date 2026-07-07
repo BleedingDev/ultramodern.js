@@ -6,7 +6,7 @@ import {
   collectDirectRemoteModuleFederationCssWithMeta,
   collectModuleFederationManifestCss,
   createModuleFederationCssCollector,
-} from '../src/moduleFederationCss';
+} from '../src/module-federation-css';
 
 const tempDirs: string[] = [];
 

@@ -1,4 +1,7 @@
-import type { RuntimeFallbackSignalRuntimeState } from './types';
+import type {
+  RuntimeFallbackSignalRuntimeState,
+  RuntimeFallbackSignalTrustPolicy,
+} from './types';
 
 export function createRuntimeFallbackSignalRuntimeState(): RuntimeFallbackSignalRuntimeState {
   return {
