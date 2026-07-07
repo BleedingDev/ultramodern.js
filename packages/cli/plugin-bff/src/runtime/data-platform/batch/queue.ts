@@ -86,6 +86,7 @@ export function createBatchTransportQueue({
   const buckets = new Map<string, BatchBucket>();
   const pendingByKey = new Map<string, Promise<unknown>>();
   const disabledEndpoints = new Set<string>();
+  let nextItemId = 0;
 
   const runSingle = async (request: QueuedBatchRequest) => {
     const response = await baseFetch(request.requestUrl, request.requestInit);
@@ -139,6 +140,9 @@ export function createBatchTransportQueue({
       });
       await settleRequests(items, runSingle);
       bucket.flushing = false;
+      if (bucket.items.length > 0 && !bucket.timer) {
+        void flushBucket(endpoint);
+      }
       return;
     }
 
@@ -263,6 +267,9 @@ export function createBatchTransportQueue({
         clearTimeout(timeoutHandle);
       }
       bucket.flushing = false;
+      if (bucket.items.length > 0 && !bucket.timer) {
+        void flushBucket(endpoint);
+      }
     }
   };
 
@@ -300,8 +307,13 @@ export function createBatchTransportQueue({
       );
     }
 
+    const itemId = `${Date.now().toString(36)}_${nextItemId.toString(36)}_${Math.random()
+      .toString(16)
+      .slice(2, 8)}`;
+    nextItemId += 1;
+
     const item: DataBatchRequestItem = {
-      id: `${Date.now().toString(36)}_${Math.random().toString(16).slice(2, 8)}`,
+      id: itemId,
       path: `${requestUrl.pathname}${requestUrl.search}`,
       method,
       headers,
