@@ -1,6 +1,7 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import type { GateSnapshot } from '../src/contract-gate-snapshot-store';
 import { ContractGateAutopilot } from '../src/contractGateAutopilot';
 import {
   TelemetryCanaryOrchestrator,
@@ -146,6 +147,136 @@ describe('contract gate autopilot', () => {
       autopilot.stop();
       await registry.shutdown();
       fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('marks unchanged gate snapshots stale after the stale window elapses', async () => {
+    const dir = makeTempDir();
+    const snapshotPath = path.join(dir, 'contract-gates.json');
+    const originalDateNow = Date.now;
+    let now = 1_000_000;
+    Date.now = () => now;
+
+    const registry = new TelemetryRegistry({
+      service: 'svc',
+      module: 'server',
+      environment: 'test',
+      flushIntervalMs: 60_000,
+    });
+    const orchestrator = new TelemetryCanaryOrchestrator({
+      registry,
+      rollbackConsecutiveFailures: 1,
+    });
+    fs.writeFileSync(
+      snapshotPath,
+      JSON.stringify(
+        {
+          schemaVersion: 1,
+          updatedAt: now,
+          gates: {
+            'module-onboarding-certification-gates': {
+              passed: true,
+              updatedAt: now,
+            },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    const autopilot = new ContractGateAutopilot({
+      orchestrator,
+      gateSnapshotPath: snapshotPath,
+      gateStaleAfterMs: 1_000,
+    });
+
+    try {
+      await autopilot.syncOnce();
+      expect(orchestrator.evaluate().failures).toHaveLength(0);
+
+      now += 1_001;
+      await autopilot.syncOnce();
+
+      const decision = orchestrator.evaluate();
+      expect(decision.action).toBe('rollback');
+      expect(
+        decision.failures.some(
+          item =>
+            item.reason === 'contract_gate_failed' &&
+            item.gate === 'module-onboarding-certification-gates',
+        ),
+      ).toBe(true);
+    } finally {
+      Date.now = originalDateNow;
+      autopilot.stop();
+      await registry.shutdown();
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('ignores older snapshot reads that resolve after newer syncs', async () => {
+    const registry = new TelemetryRegistry({
+      service: 'svc',
+      module: 'server',
+      environment: 'test',
+      flushIntervalMs: 60_000,
+    });
+    const orchestrator = new TelemetryCanaryOrchestrator({
+      registry,
+      rollbackConsecutiveFailures: 1,
+    });
+    const snapshotResolvers: Array<
+      (snapshot: GateSnapshot | undefined) => void
+    > = [];
+    const autopilot = new ContractGateAutopilot({
+      orchestrator,
+      gateSnapshotStore: {
+        name: 'deferred',
+        readSnapshot: () =>
+          new Promise<GateSnapshot | undefined>(resolve => {
+            snapshotResolvers.push(resolve);
+          }),
+        writeSnapshot: async () => {},
+      },
+      gateStaleAfterMs: 0,
+    });
+
+    try {
+      const olderSync = autopilot.syncOnce();
+      const newerSync = autopilot.syncOnce();
+      expect(snapshotResolvers).toHaveLength(2);
+
+      snapshotResolvers[1]?.({
+        schemaVersion: 1,
+        updatedAt: 2_000,
+        gates: {
+          'module-onboarding-certification-gates': {
+            passed: true,
+            updatedAt: 2_000,
+          },
+        },
+      });
+      await newerSync;
+      expect(orchestrator.evaluate().failures).toHaveLength(0);
+
+      snapshotResolvers[0]?.({
+        schemaVersion: 1,
+        updatedAt: 1_000,
+        gates: {
+          'module-onboarding-certification-gates': {
+            passed: false,
+            reason: 'older snapshot resolved late',
+            updatedAt: 1_000,
+          },
+        },
+      });
+      await olderSync;
+
+      expect(orchestrator.evaluate().failures).toHaveLength(0);
+    } finally {
+      autopilot.stop();
+      await registry.shutdown();
     }
   });
 

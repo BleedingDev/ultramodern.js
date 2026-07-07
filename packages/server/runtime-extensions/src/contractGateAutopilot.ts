@@ -39,7 +39,7 @@ export class ContractGateAutopilot {
   private readonly gateStaleAfterMs: number;
   private readonly logger?: LoggerLike;
   private poller?: ReturnType<typeof setInterval>;
-  private lastSnapshotFingerprint?: string;
+  private syncGeneration = 0;
   private readonly appliedGateFingerprints = new Map<string, string>();
 
   constructor(options: ContractGateAutopilotOptions) {
@@ -87,7 +87,11 @@ export class ContractGateAutopilot {
   }
 
   async syncOnce() {
+    const syncGeneration = ++this.syncGeneration;
     const snapshot = await this.loadSnapshot();
+    if (syncGeneration !== this.syncGeneration) {
+      return 0;
+    }
     if (!snapshot) {
       return 0;
     }
@@ -118,12 +122,6 @@ export class ContractGateAutopilot {
       if (!snapshot) {
         return undefined;
       }
-
-      const fingerprint = JSON.stringify(snapshot);
-      if (fingerprint === this.lastSnapshotFingerprint) {
-        return undefined;
-      }
-      this.lastSnapshotFingerprint = fingerprint;
 
       return snapshot;
     } catch (error) {
