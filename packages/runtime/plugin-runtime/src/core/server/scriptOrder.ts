@@ -92,6 +92,20 @@ export function getMatchedRouteAssets(
   return matchedRouteIds.flatMap(routeId => routeAssets[routeId]?.assets ?? []);
 }
 
+export function getMatchedRouteChunks<T>(
+  runtimeContext: TInternalRuntimeContext,
+  routeManifest: RouteManifestLike | undefined,
+  routeAssetToChunk: (asset: string) => T,
+) {
+  if (!routeManifest) {
+    return [];
+  }
+
+  return getMatchedRouteAssets(runtimeContext, routeManifest).map(
+    routeAssetToChunk,
+  );
+}
+
 export const orderHydrationScriptChunks = <T extends ScriptChunkLike>({
   asyncEntryChunks,
   collectedChunks,
@@ -183,16 +197,12 @@ export function createRouteHydrationScriptTags(
     return '';
   }
 
-  const matchedRouteIds = getRouterMatchedRouteIds(runtimeContext) ?? [];
-  const assetEntries = [
-    ...matchedRouteIds.map(routeId => routeAssets[routeId]),
-    routeAssets[`async-${entryName}`],
-  ].filter((entry): entry is RouteAssetManifest => entry !== undefined);
   const jsAssets = Array.from(
     new Set(
-      assetEntries.flatMap(entry =>
-        (entry.assets ?? []).filter((asset: string) => asset.endsWith('.js')),
-      ),
+      [
+        ...getMatchedRouteAssets(runtimeContext),
+        ...(routeAssets[`async-${entryName}`]?.assets ?? []),
+      ].filter((asset: string) => asset.endsWith('.js')),
     ),
   );
   const nonceAttr =

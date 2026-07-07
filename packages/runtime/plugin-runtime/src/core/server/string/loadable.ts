@@ -4,13 +4,11 @@ import type { ReactElement } from 'react';
 import type { TInternalRuntimeContext } from '../../context';
 import { createFederatedCssLinks } from '../federatedCss';
 import {
-  getMatchedRouteAssets,
+  getMatchedRouteChunks,
   orderHydrationScriptChunks,
 } from '../scriptOrder';
 import { attributesToString, checkIsNode, hasStylesheetLink } from '../utils';
 import type { ChunkSet, Collector } from './types';
-
-export { orderHydrationScriptChunks } from '../scriptOrder';
 
 declare module '@loadable/server' {
   export interface ChunkExtractor {
@@ -99,17 +97,6 @@ export class LoadableCollector implements Collector {
     this.options = options;
   }
 
-  private getMatchedRouteChunks() {
-    const { routeManifest, runtimeContext } = this.options;
-    if (!routeManifest) {
-      return [];
-    }
-
-    return getMatchedRouteAssets(runtimeContext, routeManifest).map(
-      routeAssetToChunk,
-    );
-  }
-
   collect(comopnent: ReactElement): ReactElement {
     const { stats, entryName } = this.options;
 
@@ -140,7 +127,11 @@ export class LoadableCollector implements Collector {
     const collectedChunks = extractor
       ? extractor.getChunkAssets(extractor.chunks)
       : [];
-    const matchedRouteChunks = this.getMatchedRouteChunks();
+    const matchedRouteChunks = getMatchedRouteChunks(
+      options.runtimeContext,
+      options.routeManifest,
+      routeAssetToChunk,
+    );
     const orderedScriptChunks = orderHydrationScriptChunks({
       asyncEntryChunks: asyncChunks,
       collectedChunks,

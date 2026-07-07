@@ -12,8 +12,6 @@ import {
   parseQuery,
 } from '@modern-js/runtime-utils/universal/request';
 import React, { Fragment } from 'react';
-import { getRouterServerSnapshot } from '../../router/runtime/lifecycle';
-import { handleRSCRedirect } from '../../router/runtime/rsc-router';
 import {
   getGlobalInternalRuntimeContext,
   getGlobalRSCRoot,
@@ -24,8 +22,18 @@ import { getServerPayload } from '../context/serverPayload';
 import { createRoot } from '../react';
 import type { SSRServerContext } from '../types';
 import { CHUNK_CSS_PLACEHOLDER } from './constants';
-import { type RouterCleanup, withRouterCleanup } from './routerCleanup';
-import { SSRErrors } from './tracer';
+import {
+  applyRouterSnapshotResult,
+  createLoaderRedirectResponse,
+  finalizeRenderResponse,
+  type RedirectContext,
+  type ResponseProxy,
+} from './requestResponse';
+import {
+  createRouterCleanup,
+  finishWithRouterCleanup,
+  runWithRouterCleanupOnError,
+} from './routerCleanup';
 import { getSSRConfigByEntry, getSSRMode } from './utils';
 
 async function handleRSCRequest(
@@ -83,80 +91,6 @@ export type CreateRequestHandler = (
   },
 ) => Promise<RequestHandler>;
 
-type ResponseProxy = {
-  headers: Record<string, string>;
-  status: number;
-};
-
-type RedirectContext = {
-  enableRsc: boolean;
-  isRSCNavigation: boolean;
-  basename: string;
-};
-
-/**
- * Check if status code is a redirect (3xx)
- */
-const isRedirectStatus = (status: number): boolean =>
-  status >= 300 && status <= 399;
-
-/**
- * Process redirect response based on context
- * - For RSC navigation: convert to X-Modernjs-Redirect format
- * - For SSR/CSR: return standard HTTP redirect
- */
-const processRedirect = (
-  headers: Headers,
-  status: number,
-  ctx: RedirectContext,
-): Response => {
-  if (ctx.enableRsc && ctx.isRSCNavigation) {
-    return handleRSCRedirect(headers, ctx.basename, status);
-  }
-  return new Response(null, { status, headers });
-};
-
-const applyRouterSnapshotResult = (
-  context: TInternalRuntimeContext,
-  onError: RequestHandlerOptions['onError'],
-): void => {
-  const routerServerSnapshot = getRouterServerSnapshot(context);
-  const routerStatusCode =
-    routerServerSnapshot?.statusCode ?? context.routerContext?.statusCode;
-  if (routerStatusCode && routerStatusCode !== 200) {
-    context.ssrContext?.response.status(routerStatusCode);
-  }
-
-  const errors = Object.values(
-    (routerServerSnapshot?.errors ||
-      context.routerContext?.errors ||
-      {}) as Record<string, Error>,
-  );
-  if (errors.length > 0) {
-    onError(errors[0], SSRErrors.LOADER_ERROR);
-  }
-};
-
-const createLoaderRedirectResponse = (
-  beforeRenderResult: Response | undefined,
-  redirectCtx: RedirectContext,
-): Response | undefined => {
-  if (!beforeRenderResult || !isRedirectStatus(beforeRenderResult.status)) {
-    return;
-  }
-
-  if (beforeRenderResult.headers.has('X-Modernjs-Redirect')) {
-    return beforeRenderResult;
-  }
-
-  const redirectUrl = beforeRenderResult.headers.get('Location') || '/';
-  return processRedirect(
-    new Headers({ Location: redirectUrl }),
-    beforeRenderResult.status,
-    redirectCtx,
-  );
-};
-
 const renderRequest = async (
   request: Request,
   Root: React.ComponentType,
@@ -173,40 +107,6 @@ const renderRequest = async (
     ...options,
     runtimeContext: context,
   });
-};
-
-const finalizeRenderResponse = (
-  response: Response,
-  responseProxy: ResponseProxy,
-  redirectCtx: RedirectContext,
-  routerCleanup: RouterCleanup,
-): Response => {
-  if (
-    responseProxy.status !== -1 &&
-    isRedirectStatus(responseProxy.status) &&
-    responseProxy.headers.Location
-  ) {
-    return processRedirect(
-      new Headers(responseProxy.headers),
-      responseProxy.status,
-      redirectCtx,
-    );
-  }
-
-  Object.entries(responseProxy.headers).forEach(([key, value]) => {
-    response.headers.set(key, value);
-  });
-
-  if (responseProxy.status !== -1) {
-    return routerCleanup.deferUntilBodyDone(
-      new Response(response.body, {
-        status: responseProxy.status,
-        headers: response.headers,
-      }),
-    );
-  }
-
-  return routerCleanup.deferUntilBodyDone(response);
 };
 
 function createSSRContext(
@@ -380,48 +280,55 @@ export const createRequestHandler: CreateRequestHandler = async (
           basename: ssrContext.baseUrl || '/',
         };
 
-        return withRouterCleanup(
-          context,
-          options.onError,
-          async routerCleanup => {
-            const beforeRenderResult = await runBeforeRender(context);
+        const routerCleanup = createRouterCleanup(context, options.onError);
+        const beforeRenderResult = await runWithRouterCleanupOnError(
+          routerCleanup,
+          () => runBeforeRender(context),
+        );
 
-            applyRouterSnapshotResult(context, options.onError);
+        await runWithRouterCleanupOnError(routerCleanup, () => {
+          applyRouterSnapshotResult(context, options.onError);
+        });
 
-            if (typeof Response !== 'undefined') {
-              const redirectResponse = createLoaderRedirectResponse(
-                beforeRenderResult,
-                redirectCtx,
-              );
-              if (redirectResponse) {
-                return redirectResponse;
-              }
-            }
+        if (typeof Response !== 'undefined') {
+          const redirectResponse = await runWithRouterCleanupOnError(
+            routerCleanup,
+            () => createLoaderRedirectResponse(beforeRenderResult, redirectCtx),
+          );
+          if (redirectResponse) {
+            await routerCleanup.run();
+            return redirectResponse;
+          }
+        }
 
-            if (!createRequestOptions?.enableRsc) {
-              const { htmlTemplate } = options.resource;
-              options.resource.htmlTemplate = htmlTemplate.replace(
-                '</head>',
-                `${CHUNK_CSS_PLACEHOLDER}</head>`,
-              );
-            }
-
-            const response = await renderRequest(
-              request,
-              Root,
-              context,
-              options,
-              handleRequest,
-              !!createRequestOptions?.enableRsc,
+        await runWithRouterCleanupOnError(routerCleanup, () => {
+          if (!createRequestOptions?.enableRsc) {
+            const { htmlTemplate } = options.resource;
+            options.resource.htmlTemplate = htmlTemplate.replace(
+              '</head>',
+              `${CHUNK_CSS_PLACEHOLDER}</head>`,
             );
+          }
+        });
 
-            return finalizeRenderResponse(
-              response,
-              responseProxy,
-              redirectCtx,
-              routerCleanup,
-            );
-          },
+        const response = await runWithRouterCleanupOnError(routerCleanup, () =>
+          renderRequest(
+            request,
+            Root,
+            context,
+            options,
+            handleRequest,
+            !!createRequestOptions?.enableRsc,
+          ),
+        );
+
+        return finishWithRouterCleanup(routerCleanup, () =>
+          finalizeRenderResponse(
+            response,
+            responseProxy,
+            redirectCtx,
+            routerCleanup,
+          ),
         );
       },
     );

@@ -48,6 +48,31 @@ export async function withRouterCleanup<T>(
   }
 }
 
+export async function runWithRouterCleanupOnError<T>(
+  routerCleanup: RouterCleanup,
+  callback: () => Promise<T> | T,
+): Promise<T> {
+  try {
+    return await callback();
+  } catch (error) {
+    await routerCleanup.run();
+    throw error;
+  }
+}
+
+export async function finishWithRouterCleanup<T>(
+  routerCleanup: RouterCleanup,
+  callback: () => Promise<T> | T,
+): Promise<T> {
+  try {
+    return await callback();
+  } finally {
+    if (!routerCleanup.deferred) {
+      await routerCleanup.run();
+    }
+  }
+}
+
 export function createRouterCleanup(
   runtimeContext: TInternalRuntimeContext,
   onError: OnError,

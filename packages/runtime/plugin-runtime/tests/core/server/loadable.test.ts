@@ -1,9 +1,7 @@
 import React from 'react';
 import { RenderLevel } from '../../../src/core/constants';
-import {
-  LoadableCollector,
-  orderHydrationScriptChunks,
-} from '../../../src/core/server/string/loadable';
+import { orderHydrationScriptChunks } from '../../../src/core/server/scriptOrder';
+import { LoadableCollector } from '../../../src/core/server/string/loadable';
 import { applyRouterRuntimeState } from '../../../src/router/runtime/lifecycle';
 
 const createRuntimeContextWithMatchedRoutes = (matchedRouteIds: string[]) => {
