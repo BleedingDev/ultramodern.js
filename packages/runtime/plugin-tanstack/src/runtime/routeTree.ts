@@ -73,6 +73,7 @@ type ModernRouteObject = RouteObject & {
   HydrateFallback?: unknown;
   action?: unknown;
   clientData?: unknown;
+  component?: unknown;
   config?: { handle?: Record<string, unknown> } | unknown;
   file?: string;
   handle?: Record<string, unknown>;
@@ -206,7 +207,7 @@ function normalizeModernLoaderResponse(result: unknown): unknown {
   return normalizeModernLoaderResult(result);
 }
 
-function pickRouteModuleComponent(
+export function pickRouteModuleComponent(
   routeModule: unknown,
   seen: Set<unknown> = new Set(),
 ): ElementType<Record<string, unknown>> | undefined {
@@ -450,12 +451,16 @@ function wrapRouteObjectLoader(
   };
 }
 
-function toRouteComponent(routeObject: RouteObject): unknown {
+function toRouteComponent(
+  routeObject: RouteObject,
+  options: RouteTreeOptions = {},
+): unknown {
   const route = routeObject as ModernRouteObject;
   const lazyImport =
     typeof route.lazyImport === 'function' ? route.lazyImport : undefined;
-  const fallbackComponent = route.Component
-    ? route.Component
+  const routeComponent = route.Component || route.component;
+  const fallbackComponent = routeComponent
+    ? routeComponent
     : route.element
       ? () => route.element
       : undefined;
@@ -464,8 +469,8 @@ function toRouteComponent(routeObject: RouteObject): unknown {
     return createServerLazyImportComponent(lazyImport, fallbackComponent);
   }
 
-  if (route.Component) {
-    return route.Component;
+  if (routeComponent) {
+    return routeComponent;
   }
   const element = route.element;
   if (element) {
@@ -572,7 +577,7 @@ function createRouteFromRouteObject(opts: {
   const stableFallbackId =
     routeObject.id || modernRouteObject.file || routeObject.path || 'pathless';
 
-  const component = toRouteComponent(routeObject);
+  const component = toRouteComponent(routeObject, options);
   const base: TanstackRouteOptions = {
     getParentRoute: () => parent,
     component,

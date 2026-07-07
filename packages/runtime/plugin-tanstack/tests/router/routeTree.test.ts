@@ -15,7 +15,7 @@ import {
   getModernRouteIdsFromMatches,
 } from '../../src/runtime/routeTree';
 import { __setTanstackRscPayloadDecoderForTests } from '../../src/runtime/rsc/payloadRouter';
-import { createRouteObjectsFromConfig } from '../../src/runtime/utils';
+import { createTanstackRouteObjectsFromConfig } from '../../src/runtime/utils';
 
 type LoaderArgs = {
   params: Record<string, string>;
@@ -151,15 +151,15 @@ describe('tanstack runtime public exports', () => {
     };
 
     expect(packageJson.exports['./runtime/rsc']).toBeUndefined();
-    expect(packageJson.exports['./runtime/rsc/client']).toBeUndefined();
-    expect(packageJson.exports['./runtime/rsc/server']).toBeUndefined();
+    expect(packageJson.exports['./runtime/rsc/client']).toBeDefined();
+    expect(packageJson.exports['./runtime/rsc/server']).toBeDefined();
     expect(packageJson.typesVersions?.['*']?.['runtime/rsc']).toBeUndefined();
-    expect(
-      packageJson.typesVersions?.['*']?.['runtime/rsc/client'],
-    ).toBeUndefined();
-    expect(
-      packageJson.typesVersions?.['*']?.['runtime/rsc/server'],
-    ).toBeUndefined();
+    expect(packageJson.typesVersions?.['*']?.['runtime/rsc/client']).toEqual([
+      './dist/types/runtime/rsc/client.d.ts',
+    ]);
+    expect(packageJson.typesVersions?.['*']?.['runtime/rsc/server']).toEqual([
+      './dist/types/runtime/rsc/server.d.ts',
+    ]);
   });
 });
 
@@ -780,7 +780,7 @@ describe('tanstack route tree from RouteObject[]', () => {
         ],
       },
     ];
-    const routeObjects = createRouteObjectsFromConfig({
+    const routeObjects = createTanstackRouteObjectsFromConfig({
       routesConfig: { routes: modernRoutes },
     });
     const routeTree = createRouteTreeFromRouteObjects(routeObjects || []);
@@ -825,7 +825,7 @@ describe('tanstack route tree from RouteObject[]', () => {
       },
     ];
 
-    const routeObjects = createRouteObjectsFromConfig({
+    const routeObjects = createTanstackRouteObjectsFromConfig({
       routesConfig: { routes: modernRoutes },
     });
     const rootRoute = routeObjects?.[0];

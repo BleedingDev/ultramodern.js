@@ -348,7 +348,16 @@ export function pluginRscConfig(): RsbuildPlugin {
               `${RENDER_RSC_RUNTIME}$`,
               RENDER_RSC_WORKER_RUNTIME,
             );
-
+            let emptyModulePath: string;
+            try {
+              emptyModulePath = require.resolve('../shared/rsc/rscEmptyModule');
+            } catch {
+              emptyModulePath = path.resolve(
+                __dirname,
+                '../shared/rsc/rscEmptyModule',
+              );
+            }
+            chain.resolve.alias.set('server-only$', emptyModulePath);
             // Pattern 1: Match route files in routes directory (conventional routing)
             // Matches: layout.tsx, layout.ts, layout.jsx, layout.js
             //         page.tsx, page.ts, page.jsx, page.js
@@ -529,6 +538,8 @@ export async function getRscPlugins(
     const routesFileReg = new RegExp(
       `${internalDirectory.replace(/[/\\]/g, '[/\\\\]')}[/\\\\][^/\\\\]*[/\\\\]routes`,
     );
+    const routeDataFileReg =
+      /[/\\]routes[/\\](?:.*[/\\])?(?:layout|page|\$)\.(?:loader|data)\.[tj]sx?(?:\?.*)?$/;
     // Dynamically import pluginRSC to avoid CJS -> ESM require() issue(e2e test cases in CI)
     // rsbuild-plugin-rsc is a pure ESM module (type: "module")
     // Static import in CJS code causes issues in e2e test environments
@@ -542,7 +553,7 @@ export async function getRscPlugins(
             RENDER_RSC_SOURCE_PATTERN,
             RENDER_RSC_RSLIB_ENTRY_PATTERN,
             /AppProxy/,
-            routesFileReg,
+            routeDataFileReg,
           ],
         },
       }),

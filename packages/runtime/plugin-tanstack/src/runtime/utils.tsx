@@ -21,101 +21,91 @@ type GlobalAppProps = {
   [key: string]: unknown;
 };
 
-export type ModernRouteObject = RouteObject & {
-  isClientComponent?: boolean;
+type ModernRouteObject = RouteObject & {
+  Component?: React.ComponentType | string;
+  action?: unknown;
+  clientData?: unknown;
+  config?: { handle?: Record<string, unknown> } | unknown;
+  handle?: Record<string, unknown>;
+  hasAction?: boolean;
   hasClientLoader?: boolean;
   hasLoader?: boolean;
-  hasAction?: boolean;
   inValidSSRRoute?: boolean;
+  isClientComponent?: boolean;
   lazyImport?: () => Promise<{ default: React.ComponentType }>;
 };
 
-export function getRouteObjects(
-  routes: ModernRoute[],
-  {
-    globalApp,
-    ssrMode,
-    props,
-  }: {
-    globalApp?: React.ComponentType<GlobalAppProps>;
-    ssrMode?: SSRMode;
-    props?: Record<string, unknown>;
-  },
-) {
-  const createLayoutElement = (
-    Component: React.ComponentType,
-  ): React.ComponentType => {
-    const GlobalLayout = globalApp;
-    if (!GlobalLayout) {
-      return Component;
-    }
-
-    const LayoutWrapper = (props: LayoutWrapperProps) => {
-      const LayoutComponent = GlobalLayout;
-      return <LayoutComponent Component={Component} {...props} />;
-    };
-
-    return LayoutWrapper;
-  };
-
-  const routeObjects: RouteObject[] = [];
-
-  for (const route of routes) {
-    if (route.type === 'nested') {
-      const nestedRouteObject = {
-        path: route.path,
-        id: route.id,
-        loader: route.loader,
-        action: route.action,
-        shouldRevalidate: route.shouldRevalidate,
-        handle: {
-          ...route.handle,
-          ...(typeof route.config === 'object' ? route.config?.handle : {}),
-        },
-        index: route.index,
-        hasLoader: Boolean(route.loader),
-        hasClientLoader: Boolean(route.clientData),
-        hasAction: Boolean(route.action),
-        ...(route.isClientComponent ? { isClientComponent: true } : {}),
-        ...(route.inValidSSRRoute ? { inValidSSRRoute: true } : {}),
-        lazyImport: route.lazyImport,
-        Component: route.component ? route.component : undefined,
-        errorElement: route.error ? <route.error /> : undefined,
-        children: route.children
-          ? route.children.map(
-              child =>
-                getRouteObjects([child], { globalApp, ssrMode, props })[0],
-            )
-          : undefined,
-      } as ModernRouteObject;
-
-      routeObjects.push(nestedRouteObject);
-    } else if (
-      typeof route.component === 'function' ||
-      typeof route.component === 'object'
-    ) {
-      const LayoutComponent = createLayoutElement(
-        route.component as React.ComponentType,
-      );
-      const routeObject: RouteObject = {
-        path: route.path,
-        element: React.createElement(LayoutComponent),
-      };
-
-      routeObjects.push(routeObject);
-    }
+function withGlobalLayout(
+  Component: React.ComponentType,
+  globalApp?: React.ComponentType<GlobalAppProps>,
+): React.ComponentType {
+  if (!globalApp) {
+    return Component;
   }
 
-  // No synthetic `{ path: '*' }` 404 route here: TanStack Router handles
-  // not-found matches through the root route's `notFoundComponent`
-  // (see routeTree.ts), so the react-router style catch-all is unnecessary.
-  return routeObjects;
+  const GlobalLayout = globalApp;
+  return function LayoutWrapper(props: LayoutWrapperProps) {
+    return <GlobalLayout Component={Component} {...props} />;
+  };
 }
 
-export function createRouteObjectsFromConfig({
+function getRouteHandle(route: ModernRoute) {
+  return {
+    ...route.handle,
+    ...(typeof route.config === 'object' ? route.config?.handle : {}),
+  };
+}
+
+function toTanstackRouteObject(
+  route: ModernRoute,
+  globalApp?: React.ComponentType<GlobalAppProps>,
+): RouteObject | null {
+  if (route.type === 'nested') {
+    return {
+      path: route.path,
+      id: route.id,
+      loader: route.loader,
+      action: route.action,
+      shouldRevalidate: route.shouldRevalidate,
+      handle: getRouteHandle(route),
+      index: route.index,
+      hasLoader: Boolean(route.loader),
+      hasClientLoader: Boolean(route.clientData),
+      hasAction: Boolean(route.action),
+      ...(route.isClientComponent ? { isClientComponent: true } : {}),
+      ...(route.inValidSSRRoute ? { inValidSSRRoute: true } : {}),
+      lazyImport: route.lazyImport,
+      Component: route.component ? route.component : undefined,
+      errorElement: route.error
+        ? React.createElement(route.error as React.ComponentType)
+        : undefined,
+      children: route.children
+        ? route.children
+            .map(child => toTanstackRouteObject(child, globalApp))
+            .filter((child): child is RouteObject => child !== null)
+        : undefined,
+    } as ModernRouteObject;
+  }
+
+  if (
+    typeof route.component !== 'function' &&
+    typeof route.component !== 'object'
+  ) {
+    return null;
+  }
+
+  const LayoutComponent = withGlobalLayout(
+    route.component as React.ComponentType,
+    globalApp,
+  );
+  return {
+    path: route.path,
+    element: React.createElement(LayoutComponent),
+  };
+}
+
+export function createTanstackRouteObjectsFromConfig({
   routesConfig,
-  props,
-  ssrMode,
 }: {
   routesConfig: RouterConfig['routesConfig'];
   props?: Record<string, unknown>;
@@ -128,33 +118,7 @@ export function createRouteObjectsFromConfig({
   if (!routes) {
     return null;
   }
-  return getRouteObjects(routes, {
-    globalApp,
-    ssrMode,
-    props,
-  });
-}
-
-export const urlJoin = (...parts: string[]) => {
-  const separator = '/';
-  const replace = new RegExp(`${separator}{1,}`, 'g');
-  return standardSlash(parts.join(separator).replace(replace, separator));
-};
-
-export function standardSlash(str: string) {
-  let addr = str;
-  if (!addr || typeof addr !== 'string') {
-    return addr;
-  }
-  if (addr.startsWith('.')) {
-    addr = addr.slice(1);
-  }
-  if (!addr.startsWith('/')) {
-    addr = `/${addr}`;
-  }
-  if (addr.endsWith('/') && addr !== '/') {
-    addr = addr.slice(0, addr.length - 1);
-  }
-
-  return addr;
+  return routes
+    .map(route => toTanstackRouteObject(route, globalApp))
+    .filter((route): route is RouteObject => route !== null);
 }

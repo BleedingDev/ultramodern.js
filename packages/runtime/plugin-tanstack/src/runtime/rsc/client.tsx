@@ -1,14 +1,15 @@
 'use client';
 
 import { createSerializationAdapter } from '@tanstack/react-router';
-import { use } from 'react';
 import { CompositeComponent } from './CompositeComponent';
 import { createRscProxy } from './createRscProxy';
+import type { SerializedTanstackRscFlightValue } from './shared';
 import type {
   AnyCompositeComponent,
   RscSlotUsageEvent,
   ServerComponentStream,
 } from './symbols';
+import { createTreeGetterFromFlightStream } from './treeGetter';
 
 export type {
   AnyCompositeComponent,
@@ -23,53 +24,24 @@ type SerializedRsc = {
   slotUsagesStream?: ReadableStream<RscSlotUsageEvent>;
 };
 
-type ModernRscClientRuntime = typeof import('@modern-js/runtime/rsc/client');
-
-let modernRscClientRuntimePromise: Promise<ModernRscClientRuntime> | undefined;
-
-function loadModernRscClientRuntime() {
-  modernRscClientRuntimePromise ??= import(
-    '@modern-js/runtime/rsc/client'
-  ).then(runtime => {
-    runtime.setServerCallback(runtime.callServer);
-    return runtime;
-  });
-  return modernRscClientRuntimePromise;
-}
-
-function createTreeGetter(stream: ReadableStream<Uint8Array>) {
-  let ready = false;
-  let tree: unknown;
-  const treePromise = loadModernRscClientRuntime()
-    .then(runtime =>
-      runtime.createFromReadableStream(stream, {
-        callServer: runtime.callServer,
-      }),
-    )
-    .then(value => {
-      tree = value;
-      ready = true;
-      return value;
-    });
-
-  return () => {
-    if (ready) {
-      return tree;
-    }
-    return use(treePromise);
-  };
-}
-
-function createFromFlightStream(serialized: SerializedRsc) {
+function createFromFlightStream(
+  serialized: SerializedRsc | SerializedTanstackRscFlightValue,
+) {
   const streamWrapper: ServerComponentStream = {
     createReplayStream: () => serialized.stream,
   };
 
-  return createRscProxy(createTreeGetter(serialized.stream), {
+  return createRscProxy(createTreeGetterFromFlightStream(serialized.stream), {
     renderable: serialized.kind === 'renderable',
     slotUsagesStream: serialized.slotUsagesStream,
     stream: streamWrapper,
   });
+}
+
+export function createTanstackRscValueFromFlight(
+  serialized: SerializedTanstackRscFlightValue,
+): AnyCompositeComponent {
+  return createFromFlightStream(serialized) as AnyCompositeComponent;
 }
 
 const adapter = createSerializationAdapter({

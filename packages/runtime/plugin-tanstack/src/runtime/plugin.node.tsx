@@ -3,6 +3,7 @@
 
 import {
   getGlobalEnableRsc,
+  type InternalRouterServerSnapshot,
   InternalRuntimeContext,
   type ServerPayload,
   type TInternalRuntimeContext,
@@ -32,11 +33,12 @@ import {
   type RouterLifecycleContext,
 } from './lifecycle';
 import {
-  getFinalRouteConfig,
-  getMergedRouterConfig,
+  createTanstackRouteObjects,
+  getTanstackRouteConfig,
+  joinBasename,
   type TanstackRouterPluginAPI,
   type TanstackRouterRuntimePlugin,
-} from './pluginCore';
+} from './pluginShared';
 import {
   createRouteTreeFromRouteObjects,
   getModernRouteIdsFromMatches,
@@ -47,23 +49,42 @@ import {
 } from './rsc/payloadRouter';
 import {
   getModernTanstackRouterFastDefaults,
-  type InternalRouterServerSnapshot,
   type RouterConfig,
 } from './types';
-import { createRouteObjectsFromConfig, urlJoin } from './utils';
 
 type ModernTanstackRouterContext = {
   request: Request;
   requestContext: RequestContext<Record<string, unknown>>;
 };
 
+type TanstackRscStorageContext = {
+  serverPayload?: ServerPayload;
+  tanstackRscRouter?: TanstackRouterWithServerSsr;
+};
+
 const setTanstackRscServerPayload = (payload: ServerPayload) => {
   const storageContext = storage.useContext?.() as
-    | { serverPayload?: ServerPayload }
+    | TanstackRscStorageContext
     | undefined;
   if (storageContext) {
     storageContext.serverPayload = payload;
   }
+};
+
+const setTanstackRscRouter = (router: TanstackRouterWithServerSsr) => {
+  const storageContext = storage.useContext?.() as
+    | TanstackRscStorageContext
+    | undefined;
+  if (storageContext) {
+    storageContext.tanstackRscRouter = router;
+  }
+};
+
+const getTanstackRscRouter = () => {
+  const storageContext = storage.useContext?.() as
+    | TanstackRscStorageContext
+    | undefined;
+  return storageContext?.tanstackRscRouter;
 };
 
 type RouterManagedTag = {
@@ -318,30 +339,27 @@ export const tanstackRouterPlugin = (
     registryHooks: routerProviderRegistryHooks,
     setup: (api: TanstackRouterPluginAPI) => {
       api.onBeforeRender(async (context, interrupt) => {
-        const mergedConfig = getMergedRouterConfig(api, userConfig);
+        const routeConfig = getTanstackRouteConfig(api, userConfig);
+        const { mergedConfig } = routeConfig;
         const serializationAdapters = getGlobalEnableRsc()
           ? (await import('./rsc/server')).getTanstackRscSerializationAdapters()
           : undefined;
         const enableRsc = getGlobalEnableRsc();
 
-        const { basename = '', createRoutes } = mergedConfig;
+        const { basename = '' } = mergedConfig;
 
-        const finalRouteConfig = getFinalRouteConfig(mergedConfig);
-
-        if (!finalRouteConfig.routes && !createRoutes) {
+        if (!routeConfig.hasConfiguredRoutes) {
           return;
         }
 
         const hooks = api.getHooks();
         await hooks.onBeforeCreateRoutes.call(context);
 
-        const routeObjects = createRoutes
-          ? createRoutes()
-          : createRouteObjectsFromConfig({
-              routesConfig: finalRouteConfig,
-              ssrMode: context.ssrContext?.mode,
-            }) || [];
-        const modifiedRouteObjects = hooks.modifyRoutes.call(routeObjects);
+        const modifiedRouteObjects = createTanstackRouteObjects({
+          hooks,
+          routeConfig,
+          ssrMode: context.ssrContext?.mode,
+        });
 
         if (!modifiedRouteObjects.length) {
           return;
@@ -355,7 +373,7 @@ export const tanstackRouterPlugin = (
         } = context.ssrContext!;
 
         const _basename =
-          baseUrl === '/' ? urlJoin(baseUrl, basename || '') : baseUrl;
+          baseUrl === '/' ? joinBasename(baseUrl, basename || '') : baseUrl;
 
         const rawRequest = request.raw as Request;
         const initialHref = createGetSsrHref(rawRequest);
@@ -406,6 +424,9 @@ export const tanstackRouterPlugin = (
         });
         const serverRouter =
           tanstackRouter as unknown as TanstackRouterWithServerSsr;
+        if (enableRsc) {
+          setTanstackRscRouter(serverRouter);
+        }
 
         await attachServerSsrUtils(serverRouter);
 
@@ -461,14 +482,17 @@ export const tanstackRouterPlugin = (
 
         await serverRouter.serverSsr?.dehydrate?.();
 
-        if (isRSCNavigation) {
-          // RSC navigations consume the server payload directly. Normal HTML SSR
-          // emits the buffered bootstrap script below and must not wait here
-          // because Modern's non-streaming hook has not rendered the app yet.
-          await waitForRouterSerialization(serverRouter);
+        if (enableRsc) {
+          if (isRSCNavigation) {
+            // RSC navigations consume the server payload directly. Normal HTML SSR
+            // emits the buffered bootstrap script below and must not wait here
+            // because Modern's non-streaming hook has not rendered the app yet.
+            await waitForRouterSerialization(serverRouter);
+          }
+
           setTanstackRscServerPayload(
             createTanstackRscServerPayload(serverRouter, {
-              omitClientLoaderData: true,
+              omitClientLoaderData: isRSCNavigation,
             }),
           );
         }
@@ -510,6 +534,22 @@ export const tanstackRouterPlugin = (
 
       api.wrapRoot(App => {
         const getRouteApp = () => {
+          if (getGlobalEnableRsc()) {
+            return (props => {
+              const router = getTanstackRscRouter();
+              if (!router) {
+                return App ? <App {...props} /> : null;
+              }
+
+              const routerWrapper = wrapTanstackSsrHydrationBoundary(
+                <RouterProvider router={router as AnyRouter} />,
+                true,
+              );
+
+              return App ? <App>{routerWrapper}</App> : routerWrapper;
+            }) as React.FC<Record<string, unknown>>;
+          }
+
           return (props => {
             const context = useContext(
               InternalRuntimeContext,

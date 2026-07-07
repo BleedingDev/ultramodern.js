@@ -53,6 +53,20 @@
         "module": "./dist/esm/runtime/router.mjs"
       },
       "default": "./dist/esm/runtime/router.mjs"
+    },
+    "./runtime/rsc/client": {
+      "types": "./dist/types/runtime/rsc/client.d.ts",
+      "node": {
+        "module": "./dist/esm/runtime/rsc/client.mjs"
+      },
+      "default": "./dist/esm/runtime/rsc/client.mjs"
+    },
+    "./runtime/rsc/server": {
+      "types": "./dist/types/runtime/rsc/server.d.ts",
+      "node": {
+        "module": "./dist/esm/runtime/rsc/server.mjs"
+      },
+      "default": "./dist/esm/runtime/rsc/server.mjs"
     }
   },
   "typesVersions": {
@@ -68,6 +82,12 @@
       ],
       "runtime/router": [
         "./dist/types/runtime/router.d.ts"
+      ],
+      "runtime/rsc/client": [
+        "./dist/types/runtime/rsc/client.d.ts"
+      ],
+      "runtime/rsc/server": [
+        "./dist/types/runtime/rsc/server.d.ts"
       ]
     }
   },
@@ -84,7 +104,8 @@
     "@modern-js/utils": "workspace:*",
     "@swc/helpers": "^0.5.23",
     "@tanstack/react-router": "1.170.16",
-    "@tanstack/router-core": "1.171.13"
+    "@tanstack/router-core": "1.171.13",
+    "react-server-dom-rspack": "0.0.2"
   },
   "peerDependencies": {
     "@modern-js/app-tools": "workspace:^3.5.0",

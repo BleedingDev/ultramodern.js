@@ -386,7 +386,10 @@ export const fileSystemRoutes = async ({
         internalSrcAlias,
       ));
 
-    const shouldIncludeClientBundle = !isRscClientBundle || isClientComponent;
+    const shouldHydrateRscRoute =
+      isRscClientBundle && !isClientComponent && !route.loader && !route.data;
+    const shouldIncludeClientBundle =
+      !isRscClientBundle || isClientComponent || shouldHydrateRscRoute;
 
     const finalRoute: any = {
       ...route,
@@ -537,7 +540,7 @@ export const fileSystemRoutes = async ({
     ${importLazyCode}
     ${!isRscClientBundle ? importComponentsCode : ''}
     ${importRuntimeRouterCode}
-    ${!isRscClientBundle ? rootLayoutCode : ''}
+    ${rootLayoutCode}
     ${importLoadingCode}
     ${importErrorComponentsCode}
     ${importLoadersCode}

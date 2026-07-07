@@ -28,20 +28,24 @@ import {
 } from './lifecycle';
 import { withModernRouteMatchContext } from './outlet';
 import {
-  getFinalRouteConfig,
+  createTanstackRouteObjects,
   getMergedRouterConfig,
+  getTanstackRouteConfig,
+  joinBasename,
   type TanstackRouterPluginAPI,
   type TanstackRouterRuntimePlugin,
-} from './pluginCore';
+} from './pluginShared';
 import { Link } from './prefetchLink';
 import { useMatches } from './routeHooks';
-import { createRouteTreeFromRouteObjects } from './routeTree';
+import {
+  createRouteTreeFromRouteObjects,
+  pickRouteModuleComponent,
+} from './routeTree';
 import { getTanstackRscSerializationAdapters } from './rsc/client';
 import {
   getModernTanstackRouterFastDefaults,
   type RouterConfig,
 } from './types';
-import { createRouteObjectsFromConfig, urlJoin } from './utils';
 
 const BLOCKING_SUBSCRIBE_SYMBOL = Symbol.for(
   '@modern-js/plugin-tanstack:blocking-subscribe',
@@ -65,11 +69,6 @@ type WindowWithTanstackSsr = Window & {
 type RouteComponentPreloadable = {
   load?: () => Promise<unknown>;
   preload?: () => Promise<unknown>;
-};
-
-type ModernRouteModule = {
-  Component?: unknown;
-  default?: unknown;
 };
 
 type RouterWithPreloadableRoutes = AnyRouter & {
@@ -138,38 +137,6 @@ type RouterHydrationRecord = {
 
 const routerHydrationRecords = new WeakMap<AnyRouter, RouterHydrationRecord>();
 const routeModulesKey = '_routeModules';
-
-function pickRouteModuleComponent(
-  routeModule: unknown,
-  seen: Set<unknown> = new Set(),
-): unknown {
-  if (
-    typeof routeModule === 'function' ||
-    (routeModule &&
-      typeof routeModule === 'object' &&
-      '$$typeof' in routeModule)
-  ) {
-    return routeModule;
-  }
-
-  if (!routeModule || typeof routeModule !== 'object') {
-    return undefined;
-  }
-  if (seen.has(routeModule)) {
-    return undefined;
-  }
-  seen.add(routeModule);
-
-  const module = routeModule as ModernRouteModule;
-  for (const candidate of [module.default, module.Component]) {
-    const component = pickRouteModuleComponent(candidate, seen);
-    if (component) {
-      return component;
-    }
-  }
-
-  return undefined;
-}
 
 function getCachedRouteModule(routeId: string) {
   if (typeof window === 'undefined') {
@@ -303,19 +270,10 @@ export const tanstackRouterPlugin = (
           return cachedRouteObjects;
         }
 
-        const mergedConfig = getMergedConfig();
-        const { createRoutes } = mergedConfig;
-        const finalRouteConfig = getFinalRouteConfig(mergedConfig);
-
-        const routeObjects = createRoutes
-          ? createRoutes()
-          : createRouteObjectsFromConfig({
-              routesConfig: finalRouteConfig,
-            }) || [];
-
-        cachedRouteObjects = hooks.modifyRoutes.call(
-          routeObjects,
-        ) as RouteObject[];
+        cachedRouteObjects = createTanstackRouteObjects({
+          hooks,
+          routeConfig: getTanstackRouteConfig(api, userConfig),
+        });
         return cachedRouteObjects;
       };
 
@@ -347,7 +305,7 @@ export const tanstackRouterPlugin = (
         const { basename = '' } = getMergedConfig();
         const baseUrl = selectBasePath(location.pathname).replace(/^\/*/, '/');
         return baseUrl === '/'
-          ? urlJoin(
+          ? joinBasename(
               baseUrl,
               runtimeContext._internalRouterBaseName || basename || '',
             )
@@ -394,9 +352,12 @@ export const tanstackRouterPlugin = (
         const serializationAdapters = getGlobalEnableRsc()
           ? getTanstackRscSerializationAdapters()
           : undefined;
+        const routerFastDefaults =
+          getModernTanstackRouterFastDefaults(mergedConfig);
 
         cachedRouter = createRouter({
-          ...getModernTanstackRouterFastDefaults(mergedConfig),
+          ...routerFastDefaults,
+          ...(serializationAdapters ? { defaultStructuralSharing: false } : {}),
           routeTree,
           basepath: '/',
           rewrite,

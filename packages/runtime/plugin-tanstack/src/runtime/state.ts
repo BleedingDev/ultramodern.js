@@ -1,6 +1,8 @@
-import { getRouterRuntimeState } from '@modern-js/runtime/context';
+import {
+  getRouterRuntimeState,
+  type InternalRouterRuntimeState,
+} from '@modern-js/runtime/context';
 import type { AnyRouter } from '@tanstack/react-router';
-import type { InternalRouterRuntimeState } from './types';
 
 /**
  * Router runtime state as published by the TanStack router provider into the

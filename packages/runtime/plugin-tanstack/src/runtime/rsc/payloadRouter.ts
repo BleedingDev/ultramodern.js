@@ -2,6 +2,17 @@
 import type { PayloadRoute, ServerPayload } from '@modern-js/runtime/context';
 import { isRouteErrorResponse } from '@modern-js/runtime-utils/router';
 import { notFound, redirect } from '@tanstack/react-router';
+import {
+  isSerializedTanstackRscFlightValue,
+  type SerializedTanstackRscFlightValue,
+  TANSTACK_RSC_FLIGHT_VALUE,
+} from './shared';
+import {
+  isRenderableServerComponent,
+  isServerComponent,
+  RSC_SLOT_USAGES_STREAM,
+  SERVER_COMPONENT_STREAM,
+} from './symbols';
 
 type PayloadDecoder = (stream: ReadableStream<Uint8Array>) => Promise<unknown>;
 
@@ -12,6 +23,7 @@ type RouterStaticData = {
   modernRouteHasClientLoader?: unknown;
   modernRouteHasLoader?: unknown;
   modernRouteId?: unknown;
+  modernRouteIsClientComponent?: unknown;
 };
 
 type RouterRouteLike = {
@@ -53,6 +65,128 @@ type LoadRouteDataOptions = {
 const payloadFetchCache = new Map<string, Promise<ServerPayload>>();
 let payloadDecoder: PayloadDecoder | undefined;
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+function serializeTanstackRscFlightValues(
+  value: unknown,
+  seen = new WeakMap<object, unknown>(),
+): unknown {
+  if (isServerComponent(value)) {
+    const streamWrapper = value[SERVER_COMPONENT_STREAM];
+    if (!streamWrapper) {
+      throw new Error('Cannot serialize TanStack RSC without a Flight stream.');
+    }
+
+    const kind = isRenderableServerComponent(value)
+      ? 'renderable'
+      : 'composite';
+    const slotUsagesStream =
+      process.env.NODE_ENV === 'development' && kind === 'composite'
+        ? value[RSC_SLOT_USAGES_STREAM]
+        : undefined;
+
+    return {
+      [TANSTACK_RSC_FLIGHT_VALUE]: true,
+      kind,
+      stream: streamWrapper.createReplayStream(),
+      ...(slotUsagesStream ? { slotUsagesStream } : {}),
+    } satisfies SerializedTanstackRscFlightValue;
+  }
+
+  if (!value || typeof value !== 'object') {
+    return value;
+  }
+  if (seen.has(value)) {
+    return seen.get(value);
+  }
+  if (Array.isArray(value)) {
+    const result: unknown[] = [];
+    seen.set(value, result);
+    for (const item of value) {
+      result.push(serializeTanstackRscFlightValues(item, seen));
+    }
+    return result;
+  }
+  if (!isPlainObject(value)) {
+    return value;
+  }
+
+  const result: Record<string, unknown> = {};
+  seen.set(value, result);
+  for (const [key, item] of Object.entries(value)) {
+    result[key] = serializeTanstackRscFlightValues(item, seen);
+  }
+  return result;
+}
+
+async function reviveTanstackRscFlightValues(value: unknown): Promise<unknown> {
+  let reviver:
+    | ((serialized: SerializedTanstackRscFlightValue) => unknown)
+    | undefined;
+
+  const getReviver = async () => {
+    if (!reviver) {
+      const client = await import('./client');
+      reviver = client.createTanstackRscValueFromFlight;
+    }
+    return reviver;
+  };
+
+  const visit = async (current: unknown): Promise<unknown> => {
+    if (isSerializedTanstackRscFlightValue(current)) {
+      return (await getReviver())(current);
+    }
+    if (Array.isArray(current)) {
+      return Promise.all(current.map(item => visit(item)));
+    }
+    if (!isPlainObject(current)) {
+      return current;
+    }
+
+    const result: Record<string, unknown> = {};
+    for (const [key, item] of Object.entries(current)) {
+      result[key] = await visit(item);
+    }
+    return result;
+  };
+
+  return visit(value);
+}
+
+function toPlainRecord(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== 'object') {
+    return {};
+  }
+
+  return Object.fromEntries(Object.entries(value as Record<string, unknown>));
+}
+
+function toPlainLocation(location: unknown): ServerPayload['location'] {
+  if (!location || typeof location !== 'object') {
+    return location as ServerPayload['location'];
+  }
+
+  const plainLocation = toPlainRecord(location);
+
+  for (const key of ['search', 'state']) {
+    if (
+      plainLocation[key] &&
+      typeof plainLocation[key] === 'object' &&
+      !Array.isArray(plainLocation[key])
+    ) {
+      plainLocation[key] = toPlainRecord(plainLocation[key]);
+    }
+  }
+
+  return plainLocation as ServerPayload['location'];
+}
+
 function getRouteId(match: RouterMatchLike) {
   const routeId = match.routeId ?? match.route?.id ?? match.id;
   return typeof routeId === 'string' ? routeId : undefined;
@@ -81,7 +215,7 @@ function toPayloadRoute(match: RouterMatchLike): PayloadRoute | undefined {
   const staticData = getRouteStaticData(match);
   const params =
     match.params && typeof match.params === 'object'
-      ? (match.params as Record<string, string>)
+      ? (toPlainRecord(match.params) as Record<string, string>)
       : {};
   const pathname = typeof match.pathname === 'string' ? match.pathname : '';
 
@@ -172,7 +306,9 @@ export function createTanstackRscServerPayload(
       typeof match.loaderData !== 'undefined' &&
       !(options.omitClientLoaderData && payloadRoute.hasClientLoader)
     ) {
-      loaderData[payloadRoute.id] = match.loaderData;
+      loaderData[payloadRoute.id] = serializeTanstackRscFlightValues(
+        match.loaderData,
+      );
     }
 
     if (typeof match.error !== 'undefined') {
@@ -185,7 +321,7 @@ export function createTanstackRscServerPayload(
     actionData: null,
     errors: Object.keys(errors).length > 0 ? errors : null,
     loaderData,
-    location: router.state?.location as ServerPayload['location'],
+    location: toPlainLocation(router.state?.location),
     routes,
   };
 }
@@ -218,11 +354,13 @@ export function isTanstackRscPayloadNavigationEnabled() {
 
 async function decodePayload(stream: ReadableStream<Uint8Array>) {
   if (payloadDecoder) {
-    return payloadDecoder(stream);
+    return reviveTanstackRscFlightValues(await payloadDecoder(stream));
   }
 
   const runtime = await import('@modern-js/runtime/rsc/client');
-  return runtime.createFromReadableStream(stream);
+  return reviveTanstackRscFlightValues(
+    await runtime.createFromReadableStream(stream),
+  );
 }
 
 function isServerPayload(value: unknown): value is ServerPayload {

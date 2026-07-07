@@ -3,12 +3,30 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
+import { isRedirect } from '@tanstack/react-router';
 import {
   collectCanonicalRoutesForEntry,
   generateTanstackRouterTypesSourceForEntry,
 } from '../../src/cli/tanstackTypes';
+import { throwTanstackRedirect } from '../../src/runtime/loaderBridge';
 
 const execFileAsync = promisify(execFile);
+
+type RedirectLike = {
+  options?: {
+    href?: string;
+    to?: string;
+  };
+};
+
+function catchThrown(fn: () => unknown): unknown {
+  try {
+    fn();
+  } catch (err) {
+    return err;
+  }
+  throw new Error('expected function to throw');
+}
 
 describe('tanstack router type generation', () => {
   let tempDir: string | undefined;
@@ -77,6 +95,15 @@ describe('tanstack router type generation', () => {
     expect(routerGenTs).not.toContain('function modernLoaderToTanstack');
     expect(routerGenTs).not.toContain('function createRouteStaticData');
     expect(routerGenTs).not.toContain('function throwTanstackRedirect');
+    expect(routerGenTs).not.toContain('new URL(target)');
+    expect(routerGenTs).not.toContain('redirect({ to: target })');
+
+    const redirectError = catchThrown(() =>
+      throwTanstackRedirect('https://example.com/absolute'),
+    ) as RedirectLike;
+    expect(isRedirect(redirectError)).toBe(true);
+    expect(redirectError.options?.href).toBe('https://example.com/absolute');
+    expect(redirectError.options?.to).toBeUndefined();
   });
 
   test('emits resolvable relative component imports for routes carrying _component', async () => {

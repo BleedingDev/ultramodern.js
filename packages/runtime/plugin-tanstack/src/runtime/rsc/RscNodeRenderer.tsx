@@ -1,28 +1,13 @@
 // @effect-diagnostics strictBooleanExpressions:off
 'use client';
 
-import type React from 'react';
 import { Suspense } from 'react';
+import { EmptyFallback, selectTreePath } from './shared';
 import {
   type AnyRenderableServerComponent,
   RSC_PROXY_GET_TREE,
   RSC_PROXY_PATH,
 } from './symbols';
-
-function EmptyFallback() {
-  return null;
-}
-
-function selectTreePath(tree: unknown, path: string[]) {
-  let current = tree;
-  for (const key of path) {
-    if (current === null || typeof current !== 'object') {
-      return null;
-    }
-    current = (current as Record<string, unknown>)[key];
-  }
-  return current as React.ReactNode;
-}
 
 function RscNodeRenderInner({ data }: { data: AnyRenderableServerComponent }) {
   const getTree = data[RSC_PROXY_GET_TREE];

@@ -1,29 +1,42 @@
 // @effect-diagnostics strictBooleanExpressions:off
 'use client';
 
-import type React from 'react';
 import { Suspense } from 'react';
 import { SlotProvider } from './SlotContext';
+import { EmptyFallback, selectTreePath } from './shared';
 import {
   type AnyCompositeComponent,
   type CompositeComponentProps,
   RSC_PROXY_GET_TREE,
   RSC_PROXY_PATH,
+  SERVER_COMPONENT_STREAM,
 } from './symbols';
+import { createTreeGetterFromFlightStream } from './treeGetter';
 
-function EmptyFallback() {
-  return null;
-}
+const rawServerValueGetters = new WeakMap<object, () => unknown>();
 
-function selectTreePath(tree: unknown, path: string[]) {
-  let current = tree;
-  for (const key of path) {
-    if (current === null || typeof current !== 'object') {
-      return null;
-    }
-    current = (current as Record<string, unknown>)[key];
+function getRawServerTreeGetter(src: unknown) {
+  if (!src || (typeof src !== 'object' && typeof src !== 'function')) {
+    return;
   }
-  return current as React.ReactNode;
+
+  const source = src as {
+    [SERVER_COMPONENT_STREAM]?: {
+      createReplayStream?: () => ReadableStream<Uint8Array>;
+    };
+  };
+  const stream = source[SERVER_COMPONENT_STREAM];
+  if (typeof stream?.createReplayStream !== 'function') {
+    return;
+  }
+
+  let getTree = rawServerValueGetters.get(src);
+  if (!getTree) {
+    getTree = createTreeGetterFromFlightStream(stream.createReplayStream());
+    rawServerValueGetters.set(src, getTree);
+  }
+
+  return getTree;
 }
 
 function CompositeInner<TComp extends AnyCompositeComponent>({
@@ -35,7 +48,7 @@ function CompositeInner<TComp extends AnyCompositeComponent>({
   src: TComp;
   strict?: boolean;
 }) {
-  const getTree = src[RSC_PROXY_GET_TREE];
+  const getTree = src[RSC_PROXY_GET_TREE] || getRawServerTreeGetter(src);
   if (!getTree) {
     throw new Error(
       'CompositeComponent src must come from createCompositeComponent().',

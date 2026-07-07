@@ -1,13 +1,8 @@
 // @effect-diagnostics asyncFunction:off processEnv:off strictBooleanExpressions:off
-import {
-  createFromReadableStream,
-  renderRsc,
-} from '@modern-js/runtime/rsc/server';
-import { createSerializationAdapter } from '@tanstack/react-router';
-import { RawStream } from '@tanstack/router-core';
-import React, { createElement, use } from 'react';
+import { renderRsc } from '@modern-js/runtime/rsc/server';
+import { createSerializationAdapter, RawStream } from '@tanstack/router-core';
+import React, { createElement } from 'react';
 import { ClientSlot } from './ClientSlot';
-import { createRscProxy } from './createRscProxy';
 import { ReplayableStream } from './ReplayableStream';
 import { sanitizeSlotArgs } from './slotUsageSanitizer';
 import {
@@ -15,6 +10,7 @@ import {
   type AnyRenderableServerComponent,
   isRenderableServerComponent,
   isServerComponent,
+  RENDERABLE_RSC,
   RSC_SLOT_USAGES_STREAM,
   type RscSlotUsageEvent,
   SERVER_COMPONENT_STREAM,
@@ -33,25 +29,6 @@ type SlotEmitter<T> = {
   emit: (value: T) => void;
   stream: ReadableStream<T>;
 };
-
-function createTreeGetter(stream: ServerComponentStream) {
-  let ready = false;
-  let tree: unknown;
-  const treePromise = Promise.resolve(
-    createFromReadableStream(stream.createReplayStream()),
-  ).then(value => {
-    tree = value;
-    ready = true;
-    return value;
-  });
-
-  return () => {
-    if (ready) {
-      return tree;
-    }
-    return use(treePromise);
-  };
-}
 
 function createSlotProxy(options?: {
   onSlotCall?: (slot: string, args: unknown[]) => void;
@@ -79,6 +56,20 @@ function createSlotProxy(options?: {
   });
 }
 
+function createServerRscValue(options: {
+  renderable: boolean;
+  slotUsagesStream?: ReadableStream<RscSlotUsageEvent>;
+  stream: ServerComponentStream;
+}) {
+  return {
+    [SERVER_COMPONENT_STREAM]: options.stream,
+    ...(options.renderable ? { [RENDERABLE_RSC]: true } : {}),
+    ...(options.slotUsagesStream
+      ? { [RSC_SLOT_USAGES_STREAM]: options.slotUsagesStream }
+      : {}),
+  };
+}
+
 function toReplayableFlightStream(
   node: React.ReactElement,
   handlers?: {
@@ -103,7 +94,7 @@ export async function renderServerComponent<TNode extends React.ReactNode>(
     createReplayStream: () => stream.createReplayStream(),
   };
 
-  return createRscProxy(createTreeGetter(streamWrapper), {
+  return createServerRscValue({
     renderable: true,
     stream: streamWrapper,
   }) as TNode & AnyRenderableServerComponent<TNode>;
@@ -150,7 +141,7 @@ export async function createCompositeComponent<
     createReplayStream: () => flightStream.createReplayStream(),
   };
 
-  return createRscProxy(createTreeGetter(streamWrapper), {
+  return createServerRscValue({
     renderable: false,
     slotUsagesStream: slotUsagesEmitter?.stream,
     stream: streamWrapper,
