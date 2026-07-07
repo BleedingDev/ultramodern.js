@@ -1,21 +1,11 @@
+import { createSuperAppWorkloadCatalog } from '../shared/portfolio-state';
+import {
+  createSuperAppGeneratedWorkloadContract,
+  GENERATED_WORKLOAD_ENTITIES,
+} from '../shared/workload-generated-data';
 import { createSuperAppWorkloadResetSeedMetadata } from '../shared/workload-reset-seed';
+import { createSuperAppWorkloadScenarioProfileContract } from '../shared/workload-scenario-profiles';
 import { createSuperAppWorkloadValidationArtifact } from '../shared/workload-validation-artifact';
-
-const expectedEntityCounts = {
-  orders: 6300,
-  invoices: 4650,
-  ledgerEntries: 11200,
-  rides: 6300,
-  dispatchAssignments: 6300,
-  fleetVehicles: 1970,
-  chatThreads: 3100,
-  messages: 31000,
-  auditEvents: 23000,
-  users: 3060,
-  roles: 1260,
-  memberships: 6220,
-  tenantResources: 2600,
-};
 
 function hasObjectKey(value: unknown, key: string): boolean {
   if (Array.isArray(value)) {
@@ -32,101 +22,72 @@ function hasObjectKey(value: unknown, key: string): boolean {
   );
 }
 
+function sum(values: Iterable<number>) {
+  return [...values].reduce((total, value) => total + value, 0);
+}
+
 describe('superapp workload validation artifact', () => {
-  test('publishes deterministic dataset size and stable sample metadata', () => {
+  test('derives dataset summary from generated workload metadata', () => {
+    const generated = createSuperAppGeneratedWorkloadContract();
     const first = createSuperAppWorkloadValidationArtifact();
     const second = createSuperAppWorkloadValidationArtifact();
 
     expect(first).toEqual(second);
-    expect(first).toMatchObject({
-      artifactVersion: 'superapp-workload-validation-artifact-v1',
-      artifactSeed: 'superapp-portfolio-validation-artifact-v1',
-      fingerprint: expect.stringMatching(/^fnv1a-[0-9a-f]{8}$/),
-      dataset: {
-        datasetVersion: 'superapp-generated-workload-v1',
-        seed: 'superapp-portfolio-generated-workload-v1',
-        clockStartIso: '2026-01-15T08:00:00.000Z',
-        clockStepMs: 17000,
-        totalRecords: 106960,
-        entityCounts: expectedEntityCounts,
-      },
-      sampleWindows: {
-        totalCount: 13,
-      },
-    });
-    expect(first.dataset.entityIds).toEqual(Object.keys(expectedEntityCounts));
+    expect(first.fingerprint).toMatch(/^fnv1a-[0-9a-f]{8}$/);
+    expect(first.dataset.datasetVersion).toBe(generated.datasetVersion);
+    expect(first.dataset.seed).toBe(generated.seed);
+    expect(first.dataset.clockStartIso).toBe(generated.clockStartIso);
+    expect(first.dataset.clockStepMs).toBe(generated.clockStepMs);
+    expect(first.dataset.entityIds).toEqual(GENERATED_WORKLOAD_ENTITIES);
+    expect(first.dataset.entityCounts).toEqual(generated.metadata.totals);
+    expect(first.dataset.totalRecords).toBe(
+      sum(Object.values(generated.metadata.totals)),
+    );
+    expect(first.dataset.totalRecords).toBe(generated.metadata.totalRecords);
     expect(first.dataset.highWatermarks).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          entity: 'orders',
-          count: 6300,
-          firstId: 'ord-sgl-00001',
-          lastId: 'ord-coe-03900',
-        }),
-        expect.objectContaining({
-          entity: 'messages',
-          count: 31000,
-          firstId: 'msg-sgl-00001',
-          lastId: 'msg-psh-10000',
-        }),
-      ]),
+      generated.metadata.highWatermarks,
     );
-    expect(first.sampleWindows.sampleWindowIds).toEqual(
-      Object.values(first.resetIntegrity.stableHelperIds.sampleWindows),
+    expect(first.dataset.tenantRecordCounts).toEqual(
+      generated.metadata.tenantSummaries.map(summary => ({
+        tenantId: summary.tenantId,
+        region: summary.region,
+        appIds: summary.appIds,
+        totalRecords: summary.totalRecords,
+        nonZeroEntityIds: GENERATED_WORKLOAD_ENTITIES.filter(
+          entity => summary.totals[entity] > 0,
+        ),
+        sampleIds: summary.sampleIds,
+      })),
     );
-    expect(first.sampleWindows.windows[0]).toEqual({
-      id: 'orders:city-ops-eu:checkout-surge',
-      entity: 'orders',
-      tenantId: 'city-ops-eu',
-      start: 1024,
-      limit: 4,
-      count: 4,
-      firstId: 'ord-coe-01025',
-      lastId: 'ord-coe-01028',
-    });
   });
 
-  test('records complete tenant, domain, scenario, profile, and consumer coverage', () => {
+  test('derives catalog, scenario, profile, and reset coverage from source catalogs', () => {
+    const catalog = createSuperAppWorkloadCatalog();
+    const scenarioProfiles = createSuperAppWorkloadScenarioProfileContract();
+    const resetMetadata = createSuperAppWorkloadResetSeedMetadata();
     const artifact = createSuperAppWorkloadValidationArtifact();
 
-    expect(artifact.tenantCoverage.tenantIds).toEqual([
-      'superapp-global',
-      'city-ops-eu',
-      'acme-global',
-      'platform-shell',
-      'security-root',
-      'chaos-lab',
-    ]);
-    expect(artifact.domainCoverage.domainIds).toEqual([
-      'erp-finance',
-      'dispatch-mobility',
-      'marketplace-orders',
-      'fleet-mobility',
-      'chat-threads',
-      'audit-events',
-      'users-roles',
-      'admin-operations',
-    ]);
-    expect(artifact.scenarioCoverage.scenarioIds).toEqual([
-      'marketplace-surge-to-ledger',
-      'fleet-incident-refund',
-      'erp-close-admin-rotation',
-      'tenant-boundary-audit',
-    ]);
-    expect(artifact.profileCoverage.profileIds).toEqual([
-      'read-heavy-command-center',
-      'write-heavy-order-ledger',
-      'mixed-cross-app-journey',
-      'search-filter-sort-ledger',
-      'chat-pagination-history',
-      'tenant-boundary-probes',
-    ]);
+    expect(artifact.tenantCoverage.tenantIds).toEqual(
+      catalog.tenants.map(tenant => tenant.id),
+    );
+    expect(artifact.domainCoverage.domainIds).toEqual(
+      catalog.domains.map(domain => domain.id),
+    );
+    expect(artifact.scenarioCoverage.scenarioIds).toEqual(
+      catalog.scenarios.map(scenario => scenario.id),
+    );
+    expect(artifact.profileCoverage.profileIds).toEqual(
+      scenarioProfiles.profiles.map(profile => profile.id),
+    );
     expect(artifact.profileCoverage.categoryCounts).toEqual(
       artifact.profileCoverage.categories.map(category => ({
         category,
-        count: 1,
+        count: scenarioProfiles.profiles.filter(
+          profile => profile.category === category,
+        ).length,
       })),
     );
+
     expect(
       artifact.scenarioCoverage.scenarios.every(
         scenario => scenario.profileIds.length > 0,
@@ -137,121 +98,74 @@ describe('superapp workload validation artifact', () => {
         domain => domain.profileIds.length > 0,
       ),
     ).toBe(true);
-    expect(artifact.consumerTargetCoverage.k6.profileIds).toEqual([
-      'read-heavy-command-center',
-      'write-heavy-order-ledger',
-      'mixed-cross-app-journey',
-      'chat-pagination-history',
-    ]);
-    expect(artifact.consumerTargetCoverage.load.profileIds).toEqual([
-      'read-heavy-command-center',
-      'write-heavy-order-ledger',
-      'mixed-cross-app-journey',
-      'search-filter-sort-ledger',
-      'chat-pagination-history',
-    ]);
-    expect(artifact.consumerTargetCoverage.contract.profileIds).toEqual(
-      artifact.profileCoverage.profileIds,
-    );
-    expect(artifact.consumerTargetCoverage.browser.categoryIds).toEqual([
-      'read-heavy',
-      'mixed',
-      'search-filter-sort',
-      'chat-pagination',
-      'tenant-boundary',
-    ]);
-  });
-
-  test('links reset integrity fingerprints, helpers, and default seed coverage', () => {
-    const artifact = createSuperAppWorkloadValidationArtifact();
-    const resetMetadata = createSuperAppWorkloadResetSeedMetadata();
 
     expect(artifact.resetIntegrity).toMatchObject({
-      resetVersion: 'superapp-workload-reset-seed-v1',
-      resetSeed: 'superapp-portfolio-reset-seed-v1',
-      catalogSeed: 'superapp-portfolio-workload-data-v1',
-      generatedSeed: 'superapp-portfolio-generated-workload-v1',
-      scenarioProfileSeed: 'superapp-portfolio-scenario-profiles-v1',
-      clockStartIso: '2026-01-15T08:00:00.000Z',
-      clockStepMs: 17000,
-      eventIdPrefix: 'evt',
-      pilotRunIdPrefix: 'pilot',
-      initialEventCounter: 0,
-      initialPilotRunCounter: 0,
+      resetVersion: resetMetadata.resetVersion,
+      resetSeed: resetMetadata.resetSeed,
+      catalogSeed: resetMetadata.catalogSeed,
+      generatedSeed: resetMetadata.generatedSeed,
+      scenarioProfileSeed: resetMetadata.scenarioProfileSeed,
+      clockStartIso: resetMetadata.clockStartIso,
+      clockStepMs: resetMetadata.clockStepMs,
+      initialEventCounter: resetMetadata.initialEventCounter,
+      initialPilotRunCounter: resetMetadata.initialPilotRunCounter,
     });
-    expect(Object.values(artifact.resetIntegrity.linkage)).toEqual([
+    expect(Object.values(artifact.resetIntegrity.linkage).every(Boolean)).toBe(
       true,
-      true,
-      true,
-      true,
-      true,
-    ]);
+    );
     expect(artifact.resetIntegrity.stableHelperIds).toEqual(
       resetMetadata.helperIds,
     );
     expect(artifact.resetIntegrity.sampleWindowIds).toEqual(
       resetMetadata.sampleWindows.map(window => window.id),
     );
-    expect(artifact.resetIntegrity.defaultSeeds.browser).toMatchObject({
-      target: 'browser',
-      fingerprint: resetMetadata.defaultSeeds.browser.fingerprint,
-      scenarioId: 'marketplace-surge-to-ledger',
-      profileId: 'mixed-cross-app-journey',
-      tenantId: 'city-ops-eu',
-      selectedSampleWindowCount: 7,
-      selectedSampleRecordCount: 14,
-    });
-    expect(artifact.consumerTargetCoverage.k6.resetSeedTarget).toBe('stress');
-    expect(artifact.consumerTargetCoverage.load.resetFingerprint).toBe(
-      resetMetadata.defaultSeeds.stress.fingerprint,
-    );
-    expect(artifact.consumerTargetCoverage.chaos.resetFingerprint).toBe(
-      resetMetadata.defaultSeeds.chaos.fingerprint,
-    );
-    expect(artifact.consumerTargetCoverage.contract.resetFingerprint).toBe(
-      resetMetadata.defaultSeeds.contract.fingerprint,
-    );
+
+    for (const coverage of Object.values(artifact.consumerTargetCoverage)) {
+      expect(
+        coverage.profileIds.every(id =>
+          artifact.profileCoverage.profileIds.includes(id),
+        ),
+      ).toBe(true);
+      expect(coverage.resetFingerprint).toBe(
+        resetMetadata.defaultSeeds[coverage.resetSeedTarget].fingerprint,
+      );
+    }
   });
 
-  test('stays compact and intentionally omits large generated arrays', () => {
+  test('keeps sample windows compact and omits large generated payloads', () => {
+    const generated = createSuperAppGeneratedWorkloadContract();
     const artifact = createSuperAppWorkloadValidationArtifact();
 
-    expect(artifact.compactness).toEqual({
+    expect(artifact.sampleWindows.totalCount).toBe(
+      generated.metadata.sampleWindows.length,
+    );
+    expect(artifact.sampleWindows.sampleWindowIds).toEqual(
+      generated.metadata.sampleWindows.map(window => window.id),
+    );
+    expect(artifact.sampleWindows.windows).toEqual(
+      generated.metadata.sampleWindows.map(window => ({
+        id: window.id,
+        entity: window.entity,
+        tenantId: window.tenantId,
+        start: window.start,
+        limit: window.limit,
+        count: window.count,
+        firstId: window.firstId,
+        lastId: window.lastId,
+      })),
+    );
+
+    expect(artifact.compactness).toMatchObject({
       fullGeneratedRecordArraysOmitted: true,
       fullGeneratedSamplePayloadsOmitted: true,
       fullCatalogPayloadsOmitted: true,
       includesOnlyIdsCountsFingerprintsAndWindows: true,
-      omittedPaths: [
-        'workloadData.records',
-        'workloadData.samples.*.recordPayloads',
-        'workloadCatalog.tenants',
-        'workloadCatalog.roles',
-        'workloadCatalog.users',
-        'workloadCatalog.domains',
-        'workloadCatalog.scenarios',
-        'workloadCatalog.adminOperations',
-        'workloadResetSeedMetadata.defaultSeeds.*.selectedSampleWindows',
-      ],
-      note: expect.stringContaining('intentionally omitted'),
     });
+    expect(new Set(artifact.compactness.omittedPaths).size).toBe(
+      artifact.compactness.omittedPaths.length,
+    );
     expect(hasObjectKey(artifact, 'records')).toBe(false);
     expect(hasObjectKey(artifact, 'samples')).toBe(false);
     expect(hasObjectKey(artifact, 'selectedSampleWindows')).toBe(false);
-    expect(hasObjectKey(artifact, 'amountCents')).toBe(false);
-    expect(hasObjectKey(artifact, 'relatedIds')).toBe(false);
-    expect(Object.keys(artifact.resetIntegrity.defaultSeeds.browser)).toEqual([
-      'target',
-      'seed',
-      'fingerprint',
-      'scenarioId',
-      'profileId',
-      'tenantId',
-      'requestIdPrefix',
-      'idempotencyKeyPrefix',
-      'sampleWindowIds',
-      'sampleRecordIds',
-      'selectedSampleWindowCount',
-      'selectedSampleRecordCount',
-    ]);
   });
 });

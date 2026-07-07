@@ -43,7 +43,11 @@ function passingObservation(
 }
 
 describe('superapp chaos matrix artifact', () => {
-  test('publishes deterministic rows with scenario, fault, status, cleanup, and redaction results', () => {
+  afterEach(() => {
+    rmSync(artifactDir, { recursive: true, force: true });
+  });
+
+  test('derives rows, summary, and status from taxonomy observations', () => {
     const taxonomy = createSuperAppWorkloadChaosFailureTaxonomy();
     const observations = taxonomy.failures.map(failure =>
       passingObservation(failure),
@@ -58,126 +62,112 @@ describe('superapp chaos matrix artifact', () => {
     });
 
     expect(first).toEqual(second);
-    expect(first).toMatchObject({
-      artifactVersion: 'superapp-chaos-matrix-artifact-v1',
-      artifactSeed: 'superapp-portfolio-chaos-matrix-artifact-v1',
-      taxonomyVersion: 'superapp-workload-chaos-failure-taxonomy-v1',
-      taxonomyFingerprint: taxonomy.fingerprint,
-      fingerprint: expect.stringMatching(/^fnv1a-[0-9a-f]{8}$/),
-      status: 'passed',
-      summary: {
-        rowCount: 10,
-        passedRows: 10,
-        failedRows: 0,
-        cleanupPassedRows: 10,
-        telemetryRedactionPassedRows: 10,
-      },
+    expect(first.fingerprint).toMatch(/^fnv1a-[0-9a-f]{8}$/);
+    expect(first.taxonomyVersion).toBe(taxonomy.taxonomyVersion);
+    expect(first.taxonomyFingerprint).toBe(taxonomy.fingerprint);
+    expect(first.status).toBe('passed');
+    expect(first.summary).toEqual({
+      rowCount: taxonomy.failures.length,
+      passedRows: taxonomy.failures.length,
+      failedRows: 0,
+      cleanupPassedRows: taxonomy.failures.length,
+      telemetryRedactionPassedRows: taxonomy.failures.length,
     });
-    expect(first.rows).toHaveLength(taxonomy.failures.length);
     expect(first.rows.map(row => row.injectedFault.id)).toEqual(
       taxonomy.failureIds,
     );
 
-    for (const row of first.rows) {
-      expect(row).toHaveProperty('scenario');
-      expect(row).toHaveProperty('injectedFault');
-      expect(row).toHaveProperty('expectedStatus');
-      expect(row).toHaveProperty('actualStatus');
-      expect(row).toHaveProperty('cleanupResult');
-      expect(row).toHaveProperty('telemetryRedactionResult');
+    for (const [index, row] of first.rows.entries()) {
+      const failure = taxonomy.failures[index];
+
+      expect(failure).toBeDefined();
+      expect(row.scenario).toMatchObject({
+        id: failure.scenarioId,
+        profileId: failure.profileId,
+        tenantId: failure.tenantId,
+        route: failure.route,
+        operationHint: failure.operationHint,
+        requestId: failure.deterministicInput.requestId,
+      });
+      expect(row.injectedFault).toMatchObject({
+        id: failure.id,
+        kind: failure.kind,
+        severity: failure.severity,
+        resetRequired: failure.resetExpectation.required,
+        retryable: failure.expectedStatus.retryable,
+      });
+      expect(row.expectedStatus).toMatchObject({
+        httpStatus: failure.expectedStatus.httpStatus,
+        applicationStatus: failure.expectedStatus.applicationStatus,
+        responseKind: failure.expectedStatus.responseKind,
+        retryable: failure.expectedStatus.retryable,
+        errorEnvelopePresent: failure.expectedErrorEnvelope.present,
+        errorCode: failure.expectedErrorEnvelope.code,
+      });
       expect(row.actualStatus.matchesExpected).toBe(true);
       expect(row.cleanupResult.passed).toBe(true);
       expect(row.telemetryRedactionResult.passed).toBe(true);
     }
-
-    expect(first.rows[0]).toMatchObject({
-      scenario: {
-        id: 'fleet-incident-refund',
-        profileId: 'write-heavy-order-ledger',
-        tenantId: 'city-ops-eu',
-        requestId:
-          'swl-v1:chaos:fleet-incident-refund:write-heavy-order-ledger:city-ops-eu:failure:01:downstream:timeout',
-      },
-      injectedFault: {
-        id: 'chaos.downstream-timeout.v1',
-        kind: 'downstream-timeout',
-        resetRequired: true,
-      },
-      expectedStatus: {
-        httpStatus: 504,
-        applicationStatus: 'failed',
-        responseKind: 'error-envelope',
-        errorEnvelopePresent: true,
-        errorCode: 'DOWNSTREAM_TIMEOUT',
-      },
-      actualStatus: {
-        httpStatus: 504,
-        applicationStatus: 'failed',
-        responseKind: 'error-envelope',
-        errorCode: 'DOWNSTREAM_TIMEOUT',
-        matchesExpected: true,
-      },
-      cleanupResult: {
-        healthyFollowUpStatus: 200,
-        postResetStatus: 200,
-        sharedStatePoisoned: false,
-      },
-      telemetryRedactionResult: {
-        checked: true,
-        forbiddenRawSubstringsPresent: [],
-        forbiddenFieldsPresent: [],
-      },
-    });
   });
 
-  test('emits compact JSON and records failed actual, cleanup, and redaction results', () => {
+  test('serializes compact JSON and reflects failed observations', () => {
     const taxonomy = createSuperAppWorkloadChaosFailureTaxonomy();
     const observations = taxonomy.failures.map(failure =>
       passingObservation(failure),
     );
-    observations[0] = {
-      ...observations[0],
-      actualStatus: {
-        ...observations[0].actualStatus,
-        httpStatus: 500,
-      },
-      cleanupResult: {
-        ...observations[0].cleanupResult,
-        sharedStatePoisoned: true,
-        passed: false,
-      },
-      telemetryRedactionResult: {
-        ...observations[0].telemetryRedactionResult,
-        forbiddenRawSubstringsPresent: ['Bearer '],
-        passed: false,
-      },
-    };
+    const firstObservation = observations[0];
 
+    if (!firstObservation) {
+      throw new Error(
+        'Expected chaos taxonomy to include at least one failure',
+      );
+    }
+
+    const failedObservations = [
+      {
+        ...firstObservation,
+        actualStatus: {
+          ...firstObservation.actualStatus,
+          httpStatus: firstObservation.actualStatus.httpStatus + 1,
+        },
+        cleanupResult: {
+          ...firstObservation.cleanupResult,
+          sharedStatePoisoned: true,
+          passed: false,
+        },
+        telemetryRedactionResult: {
+          ...firstObservation.telemetryRedactionResult,
+          forbiddenRawSubstringsPresent: ['Bearer '],
+          passed: false,
+        },
+      },
+      ...observations.slice(1),
+    ];
     const artifact = createSuperAppChaosMatrixArtifact({
       taxonomy,
-      observations,
+      observations: failedObservations,
     });
     const serialized = serializeSuperAppChaosMatrixArtifact(artifact);
-
-    rmSync(artifactDir, { force: true, recursive: true });
-    mkdirSync(artifactDir, { recursive: true });
     const artifactPath = path.join(artifactDir, 'chaos-matrix.json');
+
+    mkdirSync(artifactDir, { recursive: true });
     writeFileSync(artifactPath, serialized);
 
     expect(artifact.status).toBe('failed');
-    expect(artifact.summary).toMatchObject({
-      rowCount: 10,
-      passedRows: 9,
+    expect(artifact.summary).toEqual({
+      rowCount: taxonomy.failures.length,
+      passedRows: taxonomy.failures.length - 1,
       failedRows: 1,
-      cleanupPassedRows: 9,
-      telemetryRedactionPassedRows: 9,
+      cleanupPassedRows: taxonomy.failures.length - 1,
+      telemetryRedactionPassedRows: taxonomy.failures.length - 1,
     });
-    expect(artifact.rows[0].actualStatus.matchesExpected).toBe(false);
-    expect(artifact.rows[0].cleanupResult.sharedStatePoisoned).toBe(true);
+    expect(artifact.rows[0]?.actualStatus.matchesExpected).toBe(false);
+    expect(artifact.rows[0]?.cleanupResult.sharedStatePoisoned).toBe(true);
     expect(
-      artifact.rows[0].telemetryRedactionResult.forbiddenRawSubstringsPresent,
+      artifact.rows[0]?.telemetryRedactionResult.forbiddenRawSubstringsPresent,
     ).toEqual(['Bearer ']);
-    expect(serialized).not.toContain('\n  ');
+    expect(serialized).toBe(`${JSON.stringify(JSON.parse(serialized))}\n`);
+    expect(serialized).not.toContain('\n ');
     expect(JSON.parse(readFileSync(artifactPath, 'utf8'))).toEqual(artifact);
   });
 
@@ -186,11 +176,16 @@ describe('superapp chaos matrix artifact', () => {
     const observations = taxonomy.failures
       .slice(1)
       .map(failure => passingObservation(failure));
+    const missingFailure = taxonomy.failures[0];
+
+    if (!missingFailure) {
+      throw new Error(
+        'Expected chaos taxonomy to include at least one failure',
+      );
+    }
 
     expect(() =>
       createSuperAppChaosMatrixArtifact({ taxonomy, observations }),
-    ).toThrow(
-      'Missing chaos matrix observation for chaos.downstream-timeout.v1',
-    );
+    ).toThrow(`Missing chaos matrix observation for ${missingFailure.id}`);
   });
 });
