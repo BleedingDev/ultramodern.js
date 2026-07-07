@@ -59,6 +59,7 @@ describe('backend federation contract validators', () => {
             deliveryUnit: {
               unitId: deliveryUnit.unitId,
               buildMarker: deliveryUnit.buildMarker,
+              sourceRevision: deliveryUnit.sourceRevision,
             },
           },
         },
@@ -71,6 +72,39 @@ describe('backend federation contract validators', () => {
     );
 
     expect(result).toEqual({ ok: true, errors: [] });
+
+    const missingSourceRevisionResult = validateBackendFederationManifest(
+      {
+        schemaVersion: DELIVERY_UNIT_SCHEMA_VERSION,
+        backendFederation: {
+          role: 'microvertical-server',
+          name: 'checkoutBackend',
+          runtimeFramework: 'effect',
+          strictEffectApproach: true,
+          contractVersion: BACKEND_FEDERATION_CONTRACT_VERSION,
+          nodeAdapterVersion: BACKEND_FEDERATION_NODE_ADAPTER_VERSION,
+          expose: BACKEND_FEDERATION_EFFECT_EXPOSE,
+          deliveryUnit: deliveryUnitContractBlock(deliveryUnit),
+          versionBoundary: {
+            deliveryUnit: {
+              unitId: deliveryUnit.unitId,
+              buildMarker: deliveryUnit.buildMarker,
+            },
+          },
+        },
+      },
+      {
+        requireEffectExpose: true,
+        requireEffectRuntime: true,
+        requireVersionFields: true,
+      },
+    );
+
+    expect(missingSourceRevisionResult.ok).toBe(false);
+    expect(missingSourceRevisionResult.errors).toContainEqual({
+      path: 'manifest.backendFederation.versionBoundary.deliveryUnit.sourceRevision',
+      message: 'must be a non-empty string.',
+    });
   });
 
   it('rejects ultramodern build artifact surface identity drift', () => {

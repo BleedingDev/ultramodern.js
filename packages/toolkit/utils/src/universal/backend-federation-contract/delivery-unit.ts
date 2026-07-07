@@ -129,11 +129,10 @@ export const validateDeliveryUnitBoundaryIdentity = (
     return errors;
   }
 
-  if (!nonEmptyString(value.unitId)) {
-    addError(errors, `${path}.unitId`, 'must be a non-empty string.');
-  }
-  if (!nonEmptyString(value.buildMarker)) {
-    addError(errors, `${path}.buildMarker`, 'must be a non-empty string.');
+  for (const field of DELIVERY_UNIT_IDENTITY_FIELDS) {
+    if (!deliveryUnitIdentityFieldValue(value, field)) {
+      addError(errors, `${path}.${field}`, 'must be a non-empty string.');
+    }
   }
 
   return errors;
