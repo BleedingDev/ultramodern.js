@@ -57,7 +57,7 @@ Root/infra is intentionally not package-owned, but it is not optional during ups
 
 ### Scripts and repo tooling — mixed
 
-- Added fork-owned script families that remain live: `scripts/boundary-guards`, `scripts/lib`, `scripts/module-sdk-contracts`, `scripts/mv-integration-pilot` smoke subset, `scripts/release-gates`, `scripts/security`, `scripts/superapp-certification`, `scripts/ultramodern-production-readiness`, `scripts/ultramodern-publish`, `scripts/ultramodern-zephyr-ssr-upload`, tsgo helper scripts, and `scripts/prepare-root.mjs`.
+- Added fork-owned script families that remain live: `scripts/boundary-guards`, `scripts/lib`, `scripts/mv-integration-pilot` smoke subset, `scripts/release-gates`, `scripts/security`, `scripts/superapp-certification`, `scripts/ultramodern-production-readiness`, `scripts/ultramodern-publish`, `scripts/ultramodern-zephyr-ssr-upload`, tsgo helper scripts, and `scripts/prepare-root.mjs`.
 - Modified upstream script packages mostly carry tsgo/rstest/toolchain/package-json churn. Prefer upstream bug fixes, but keep fork executable paths and script package manager policy coherent.
 - Deleted upstream script files: `scripts/build/bin/modern.js` and `scripts/build/src/cli_core_init.js`. This docs pass does not decide the docs-command binary cleanup; do not resurrect them while resolving unrelated docs or MF patch conflicts.
 

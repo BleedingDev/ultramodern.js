@@ -88,8 +88,7 @@ const ensurePositiveInteger = (value, context) => {
 };
 
 /**
- * Possibly-empty array whose items must all be non-empty strings
- * (module-sdk-contracts style).
+ * Possibly-empty array whose items must all be non-empty strings.
  */
 const ensureStringArray = (value, context) => {
   ensureArray(value, context);

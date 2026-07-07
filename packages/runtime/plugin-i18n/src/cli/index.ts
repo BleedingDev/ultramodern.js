@@ -126,9 +126,10 @@ export const i18nPlugin = (
         backend: backendOptions,
         ...extendedConfig,
       };
+      const { reactI18next } = extendedConfig as { reactI18next?: boolean };
       const runtimePluginPath =
         customPlugin?.runtime?.path ||
-        (config.reactI18next === false
+        (reactI18next === false
           ? `@${metaName}/plugin-i18n/runtime/no-react-i18next`
           : `@${metaName}/plugin-i18n/runtime`);
 
@@ -173,7 +174,7 @@ export const i18nPlugin = (
           routes as (NestedRouteForCli | PageRoute)[],
           languages,
           localisedUrlsConfig.map,
-        ),
+        ) as (NestedRouteForCli | PageRoute)[],
       };
     });
 

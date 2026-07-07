@@ -9,7 +9,7 @@ import {
 import { HttpMetadata, HttpMethod } from '../types';
 import { isInputParamsDeciderHandler, isWithMetaHandler } from '../utils';
 
-/** Lowercase route-registration method shared by express/koa/hono routers. */
+/** Lowercase route-registration method shared by supported adapter routers. */
 export type ApiRouteMethod = Lowercase<`${HttpMethod}`>;
 
 const API_ROUTE_METHODS: Record<HttpMethod, ApiRouteMethod> = {

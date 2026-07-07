@@ -149,6 +149,22 @@ test('builds Cloudflare proof args without a pnpm separator argument', async () 
   ]);
 });
 
+test('records skipped Cloudflare deploy proof evidence when deploy is disabled', async () => {
+  const { createCloudflareDeployProofEvidence } = await loadProof();
+
+  assert.deepEqual(createCloudflareDeployProofEvidence(), {
+    id: 'cloudflare-deploy-proof',
+    dimensions: ['integration', 'browser'],
+    status: 'skipped',
+    reason:
+      'Cloudflare deploy proof was skipped because --deploy-cloudflare was not provided.',
+    detail: {
+      deployCloudflare: false,
+      requiredFlag: '--deploy-cloudflare',
+    },
+  });
+});
+
 test('asserts generated cohorts from package source metadata and framework version', async () => {
   const { assertGeneratedCohort } = await loadProof();
   const root = fs.mkdtempSync(

@@ -1,0 +1,179 @@
+import path from 'node:path';
+import { fs as fse } from '@modern-js/utils';
+import { readTemplate } from '../../utils';
+import { createCloudflareOutputPlan } from '../cloudflare-output-plan';
+import { assertCloudflareOutput } from '../cloudflare-output-verifier';
+import type { CreatePreset } from '../platform';
+import {
+  copyCloudflareArtifacts,
+  copyCloudflareD1Migrations,
+  copyCloudflarePublicAssets,
+  getCloudflareArtifacts,
+  getCloudflarePublicAssets,
+} from './artifacts';
+import {
+  ROUTE_SPEC_FILE,
+  ROUTE_SPEC_OUTPUT,
+  WORKER_BUNDLE_DIRECTORY,
+  WORKER_ENTRY,
+  WORKER_MANIFEST,
+  WRANGLER_CONFIG_FILE,
+} from './constants';
+import {
+  resolveTopologyDeliveryUnit,
+  resolveWorkerDeliveryUnitStamp,
+} from './delivery-unit';
+import {
+  createWorkerManifest,
+  createWorkerModuleLoaders,
+  getPublicAssetExcludes,
+  shouldCopyToPublicAssets,
+  shouldCopyToWorkerBundle,
+} from './worker-manifest';
+import { createWranglerConfig } from './wrangler-config';
+
+const CLOUDFLARE_ENTRY_TEMPLATE_FRAGMENTS = [
+  'cloudflare-entry.001-bootstrap-security.mjs',
+  'cloudflare-entry.002-assets-routes.mjs',
+  'cloudflare-entry.003-i18n-locales.mjs',
+  'cloudflare-entry.004-rendering-css.mjs',
+  'cloudflare-entry.005-worker-dispatch.mjs',
+  'cloudflare-entry.006-fetch-handler.mjs',
+] as const;
+
+/**
+ * The Cloudflare entry is emitted as a raw module worker, not bundled by
+ * app-tools. Keep worker-runtime helpers inline unless the helper is emitted
+ * into `.output` or provided by a generated-worker dependency. Concatenate
+ * fragments without separators so existing generated output stays byte-identical.
+ */
+const readCloudflareEntryTemplate = async () =>
+  (
+    await Promise.all(
+      CLOUDFLARE_ENTRY_TEMPLATE_FRAGMENTS.map(fragment =>
+        readTemplate(fragment),
+      ),
+    )
+  ).join('');
+
+export const createCloudflarePreset: CreatePreset = ({
+  appContext,
+  modernConfig,
+}) => {
+  const { appDirectory, distDirectory } = appContext;
+
+  const outputDirectory = path.join(appDirectory, '.output');
+  const outputPlan = createCloudflareOutputPlan(outputDirectory);
+  const publicDirectory = outputPlan.paths.publicAssets;
+  const workerEntryPath = outputPlan.paths.workerEntry;
+  const workerManifestPath = outputPlan.paths.workerManifest;
+  const routeSpecOutputPath = path.join(outputDirectory, ROUTE_SPEC_OUTPUT);
+  const wranglerConfigPath = outputPlan.paths.wranglerConfig;
+  const cloudflareArtifacts = getCloudflareArtifacts(modernConfig);
+  const publicAssetExcludes = getPublicAssetExcludes(
+    appDirectory,
+    modernConfig,
+  );
+
+  return {
+    async prepare() {
+      await fse.remove(outputDirectory);
+    },
+    async writeOutput() {
+      await fse.copy(distDirectory, publicDirectory, {
+        filter: src =>
+          shouldCopyToPublicAssets(src, distDirectory, publicAssetExcludes),
+      });
+      await fse.ensureDir(path.dirname(workerEntryPath));
+      await fse.ensureDir(path.dirname(workerManifestPath));
+
+      const routeSpecSourcePath = path.join(distDirectory, ROUTE_SPEC_FILE);
+      if (await fse.pathExists(routeSpecSourcePath)) {
+        await fse.copy(routeSpecSourcePath, routeSpecOutputPath);
+      }
+
+      const workerBundleSourceDirectory = path.join(
+        distDirectory,
+        WORKER_BUNDLE_DIRECTORY,
+      );
+      const workerBundleOutputDirectory = outputPlan.paths.workerBundle;
+      if (await fse.pathExists(workerBundleSourceDirectory)) {
+        await fse.copy(
+          workerBundleSourceDirectory,
+          workerBundleOutputDirectory,
+          {
+            filter: src =>
+              shouldCopyToWorkerBundle(src, workerBundleSourceDirectory),
+          },
+        );
+        await fse.writeJSON(
+          outputPlan.paths.workerPackage,
+          outputPlan.packages.worker,
+        );
+      }
+      await copyCloudflareArtifacts(
+        appDirectory,
+        outputDirectory,
+        cloudflareArtifacts,
+      );
+      await copyCloudflarePublicAssets(
+        appDirectory,
+        publicDirectory,
+        getCloudflarePublicAssets(modernConfig),
+      );
+      await copyCloudflareD1Migrations(
+        appDirectory,
+        outputDirectory,
+        modernConfig,
+      );
+
+      await fse.writeJSON(
+        wranglerConfigPath,
+        createWranglerConfig(appDirectory, modernConfig),
+        {
+          spaces: 2,
+        },
+      );
+
+      const deliveryUnitStamp =
+        await resolveWorkerDeliveryUnitStamp(appDirectory);
+      await fse.writeJSON(
+        workerManifestPath,
+        await createWorkerManifest(
+          outputDirectory,
+          modernConfig,
+          appContext,
+          deliveryUnitStamp,
+        ),
+        {
+          spaces: 2,
+        },
+      );
+      await fse.writeJSON(
+        outputPlan.paths.outputPackage,
+        outputPlan.packages.output,
+      );
+    },
+    async genEntry() {
+      const template = await readCloudflareEntryTemplate();
+      const manifest = await fse.readJSON(workerManifestPath);
+
+      await fse.writeFile(
+        workerEntryPath,
+        template
+          .replace('p_workerManifest', JSON.stringify(manifest, null, 2))
+          .replace(
+            'p_workerModuleLoaders',
+            createWorkerModuleLoaders(manifest),
+          ),
+      );
+      const topologyDeliveryUnit =
+        await resolveTopologyDeliveryUnit(appDirectory);
+      await assertCloudflareOutput({
+        outputDirectory,
+        importWorker: false,
+        ...(topologyDeliveryUnit ? { deliveryUnit: topologyDeliveryUnit } : {}),
+      });
+    },
+  };
+};

@@ -2,6 +2,11 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
+  DELIVERY_UNIT_IDENTITY_FIELDS,
+  type DeliveryUnitIdentity,
+  deliveryUnitIdentityFieldValue,
+} from '@modern-js/utils/universal';
+import {
   CLOUDFLARE_ASSETS_BINDING,
   CLOUDFLARE_PUBLIC_ASSETS_DIRECTORY,
   CLOUDFLARE_RUNTIME_TYPE,
@@ -30,11 +35,7 @@ export interface CloudflareOutputVerifierIssue {
   path?: string;
 }
 
-export interface CloudflareDeliveryUnitIdentity {
-  unitId: string;
-  buildMarker: string;
-  sourceRevision: string;
-}
+export type CloudflareDeliveryUnitIdentity = DeliveryUnitIdentity;
 
 export interface VerifyCloudflareOutputOptions {
   outputDirectory: string;
@@ -274,10 +275,6 @@ const verifyWorkerBundleReferences = (
   }
 };
 
-const DELIVERY_UNIT_IDENTITY_FIELDS: Array<
-  keyof CloudflareDeliveryUnitIdentity
-> = ['unitId', 'buildMarker', 'sourceRevision'];
-
 const verifyDeliveryUnitIdentity = (
   issues: CloudflareOutputVerifierIssue[],
   manifest: JsonObject,
@@ -299,10 +296,11 @@ const verifyDeliveryUnitIdentity = (
     }
 
     for (const field of DELIVERY_UNIT_IDENTITY_FIELDS) {
-      assertEqual(issues, stamped[field], declared[field], {
+      const stampedValue = deliveryUnitIdentityFieldValue(stamped, field);
+      assertEqual(issues, stampedValue, declared[field], {
         code: 'delivery-unit-drift',
         message: `Cloudflare worker manifest deliveryUnit.${field} must match the topology delivery-unit record (expected ${declared[field]}, received ${
-          stamped[field] ?? 'undefined'
+          stampedValue ?? 'undefined'
         }).`,
         path: manifestPath,
       });
@@ -325,11 +323,13 @@ const verifyDeliveryUnitIdentity = (
       }
 
       for (const field of DELIVERY_UNIT_IDENTITY_FIELDS) {
-        assertEqual(issues, marker[field], stamped[field], {
+        const markerValue = deliveryUnitIdentityFieldValue(marker, field);
+        const stampedValue = deliveryUnitIdentityFieldValue(stamped, field);
+        assertEqual(issues, markerValue, stampedValue, {
           code: 'delivery-unit-drift',
           message: `Cloudflare worker manifest ${surface} surface deliveryUnit.${field} must derive from one delivery-unit record (expected ${
-            stamped[field] ?? 'undefined'
-          }, received ${marker[field] ?? 'undefined'}).`,
+            stampedValue ?? 'undefined'
+          }, received ${markerValue ?? 'undefined'}).`,
           path: manifestPath,
         });
       }

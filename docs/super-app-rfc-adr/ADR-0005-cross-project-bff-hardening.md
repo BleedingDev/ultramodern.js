@@ -161,6 +161,7 @@ Behavior change for producer clients:
    - `requireOperationContext`
    - `allowedNamespaces`
    - `denyStatus`
+   - 2026-07-07 amendment: production `allowedNamespaces` now fails closed unless `verifyProducerIdentity` binds the producer namespace to a verified channel; non-production keeps the old advisory warning path.
 4. Non-default producer request clients now auto-emit operation context headers:
    - `x-operation-id`
    - `x-modernjs-bff-operation-context`

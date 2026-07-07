@@ -31,6 +31,10 @@ Add a dedicated module certification profile and run it through the consolidated
 4. Repository script:
    - `pnpm run validate:module-certification-gates`
 
+Status note, 2026-07-07: the module SDK contract validation tooling was retired
+because no live code consumed the contract. The JSON remains retained as a
+design artifact; revisit the certification gate when a runtime consumer exists.
+
 ## 3. Gate Contract
 
 ### 3.1 Required evidence files
@@ -58,10 +62,8 @@ Under `docs/super-app-rfc-adr/evidence/module-certification/current`:
 
 ### 3.4 Command matrix
 
-1. `pnpm run validate:module-sdk-contracts`
-2. `pnpm run validate:boundary-guards`
-3. `node --test scripts/module-sdk-contracts/__tests__/validator.test.js`
-4. `node --test scripts/boundary-guards/__tests__/validator.test.js`
+1. `pnpm run validate:boundary-guards`
+2. `node --test scripts/boundary-guards/__tests__/validator.test.js`
 
 ## 4. Consequences
 

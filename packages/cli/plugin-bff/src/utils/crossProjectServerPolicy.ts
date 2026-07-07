@@ -12,8 +12,9 @@
  *
  * The envelope/operation-context headers are client-asserted; see the threat
  * model in `@modern-js/bff-core` `security/crossProjectPolicy.ts`. Operators
- * who need a real trust boundary must additionally configure
- * `verifyProducerIdentity` to bind the namespace to a verified channel.
+ * Production namespace allowlists require `verifyProducerIdentity` to bind
+ * the namespace to a verified channel; without it, only non-production keeps
+ * the advisory client-asserted allowlist path.
  */
 import {
   checkCrossProjectPolicy,

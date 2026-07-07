@@ -11,9 +11,6 @@ const path = require('node:path');
 const test = require('node:test');
 
 const repoRoot = path.resolve(__dirname, '../../..');
-const contractPath =
-  'docs/super-app-rfc-adr/contracts/module-sdk-contracts.json';
-
 const makeTempDir = () =>
   fs.mkdtempSync(path.join(os.tmpdir(), 'validator-cli-'));
 
@@ -29,42 +26,11 @@ const writeJson = (dir, name, value) => {
   return filePath;
 };
 
-test('module-sdk-contracts CLI passes on the repo contract', () => {
-  const result = runCli(
-    'scripts/module-sdk-contracts/validate-module-sdk-contracts.js',
-    ['--contract', contractPath, '--skip-manifest-validation'],
-  );
-  assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, /\[module-sdk-contracts\] validation passed/);
-});
-
-test('module-sdk-contracts CLI fails on an unsupported schemaVersion', () => {
-  const dir = makeTempDir();
-  try {
-    const brokenContract = writeJson(dir, 'contract.json', {
-      schemaVersion: 2,
-    });
-    const result = runCli(
-      'scripts/module-sdk-contracts/validate-module-sdk-contracts.js',
-      ['--contract', brokenContract, '--skip-manifest-validation'],
-    );
-    assert.equal(result.status, 1);
-    assert.match(
-      result.stderr,
-      /\[module-sdk-contracts\] validation failed: Unsupported contract schemaVersion: 2/,
-    );
-  } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
-});
-
 test('boundary-guards CLI passes on a minimal valid profile', () => {
   const dir = makeTempDir();
   try {
     const profilePath = writeJson(dir, 'profile.json', {
       schemaVersion: 1,
-      contractPath,
-      moduleManifests: [],
       importGuards: [],
       requiredSnippets: [],
     });
@@ -85,8 +51,6 @@ test('boundary-guards CLI fails on an unsupported profile schemaVersion', () => 
   try {
     const profilePath = writeJson(dir, 'profile.json', {
       schemaVersion: 2,
-      contractPath,
-      moduleManifests: [],
       importGuards: [],
       requiredSnippets: [],
     });

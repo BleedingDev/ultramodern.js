@@ -161,9 +161,12 @@ For the generated Tractor workspace, add these scaffold-specific gates:
 pnpm check
 pnpm build
 pnpm cloudflare:build
-# Cloudflare evidence comes from the generated workspace's own proof scripts
-# (scripts/ultramodern-cloudflare-proof.mjs + scripts/proof-cloudflare-version.mjs,
-# exercised by scripts/ultramodern-production-readiness/run-published-create-proof.mjs).
+# Cloudflare evidence comes from generated workspace proof scripts sourced from
+# packages/toolkit/create/templates/workspace-scripts/*.mjs.
+# Status (2026-07-07): Cloudflare deploy proof is opt-in. Scheduled
+# ultramodern-production-readiness runs do not deploy Cloudflare; the workflow
+# enables deploy only on workflow_dispatch with deploy_cloudflare=true, and
+# run-published-create-proof.mjs deploys only when passed --deploy-cloudflare.
 pnpm cloudflare:proof
 ```
 

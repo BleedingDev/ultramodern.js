@@ -23,15 +23,6 @@
   "migrationContracts": {
     "targets": [
       {
-        "id": "module-sdk-contract-shape",
-        "path": "docs/super-app-rfc-adr/contracts/module-sdk-contracts.json",
-        "includes": [
-          "\"schemaVersion\": 1",
-          "\"requiredComplianceFlags\"",
-          "\"requiredLifecycleHooks\""
-        ]
-      },
-      {
         "id": "module-manifest-example-shape",
         "path": "docs/super-app-rfc-adr/contracts/module-manifest.example.json",
         "includes": [
@@ -63,9 +54,7 @@
     ]
   },
   "gateCommands": [
-    "pnpm run validate:module-sdk-contracts",
     "pnpm run validate:boundary-guards",
-    "node --test scripts/module-sdk-contracts/__tests__/validator.test.js",
     "node --test scripts/boundary-guards/__tests__/validator.test.js"
   ]
 }

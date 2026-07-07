@@ -2,23 +2,6 @@ name: Contract Gates
 
 on:
   pull_request:
-    paths:
-      - 'docs/super-app-rfc-adr/evidence/module-certification/**'
-      - 'docs/super-app-rfc-adr/evidence/release-candidate/**'
-      - 'docs/super-app-rfc-adr/PUBLISH-SECURITY-RUNBOOK.md'
-      - 'packages/document/docs/**/guides/get-started/ultramodern.mdx'
-      - 'packages/document/docs/**/components/init-app.mdx'
-      - 'packages/document/docs/**/configure/app/bff/runtime-framework.mdx'
-      - 'packages/toolkit/create/README.md'
-      - 'packages/toolkit/create/template-workspace/**'
-      - 'packages/toolkit/sandpack-react/scripts/mwa-template/**'
-      - 'scripts/release-gates/**'
-      - 'scripts/security/**'
-      - 'scripts/ultramodern-publish/**'
-      - '.github/renovate.json'
-      - '.github/workflows/contract-gates.yml'
-      - '.github/workflows/publish-bleedingdev.yml'
-      - '.github/workflows/workflow-security.yml'
   workflow_dispatch:
     inputs:
       gate:
@@ -203,3 +186,25 @@ jobs:
           fi
 
           node scripts/release-gates/validate-release-candidate-gates.js "${ARGS[@]}"
+
+  contract-gates-summary:
+    name: Contract Gates Summary
+    runs-on: ubuntu-latest
+    if: always()
+    needs:
+      - contract-gates
+    timeout-minutes: 5
+    steps:
+      - name: Check contract gate result
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped')
+        env:
+          NEEDS_RESULTS: ${{ toJSON(needs.*.result) }}
+        run: |
+          echo "::error::contract-gates required jobs did not all succeed: $NEEDS_RESULTS"
+          exit 1
+
+      - name: Report contract gate success
+        env:
+          NEEDS_RESULTS: ${{ toJSON(needs.*.result) }}
+        run: |
+          echo "contract-gates required jobs succeeded: $NEEDS_RESULTS"

@@ -10,14 +10,16 @@
  * authorization boundary: any caller can echo an allowed `requestId` and a
  * matching operation context.
  *
- * To turn `allowedNamespaces` into a real control, supply
+ * To use `allowedNamespaces` in production, supply
  * {@link CrossProjectPolicyConfig.verifyProducerIdentity}: a server-side
  * hook that derives the producer namespace from a VERIFIED channel (mTLS
  * peer identity, gateway-authenticated JWT claims, service-mesh headers
- * stripped at the edge, ...). When the hook is present, the client-asserted
- * namespace must match the verified namespace and the allowlist is checked
- * against the verified value — the envelope is no longer trusted for the
- * authorization decision.
+ * stripped at the edge, ...). Production requests fail closed when a
+ * namespace allowlist is configured without this hook. In non-production,
+ * the evaluator logs a one-time warning and keeps the legacy advisory
+ * behavior: the client-asserted namespace must match the allowlist. When the
+ * hook is present, the client-asserted namespace must match the verified
+ * namespace and the allowlist is checked against the verified value.
  *
  * Client-side counterparts in `@modern-js/create-request` (identity binding,
  * operation contract validation) are developer-experience aids that fail
@@ -59,6 +61,9 @@ export type CrossProjectPolicyViolation = {
 };
 
 const DEFAULT_DENY_STATUS = 403;
+const NAMESPACE_ALLOWLIST_REQUIRES_VERIFIER_MESSAGE =
+  'cross-project namespace allowlist requires verifyProducerIdentity in production';
+let hasWarnedAdvisoryNamespaceAllowlist = false;
 
 export interface CrossProjectPolicyConfig {
   enabled?: boolean;
@@ -83,8 +88,9 @@ export interface CrossProjectPolicyConfig {
    * against the verified value instead of the client-asserted one. Returning
    * `undefined` (identity could not be verified) denies the request.
    *
-   * Without this hook the namespace checks are advisory only — see the
-   * module-level threat model.
+   * In production, `allowedNamespaces` requires this hook and fails closed
+   * without it. In non-production, namespace checks without this hook remain
+   * advisory only — see the module-level threat model.
    */
   verifyProducerIdentity?: (
     headers: Record<string, unknown>,
@@ -142,6 +148,21 @@ const createViolation = (
   status,
 });
 
+const isProductionMode = () =>
+  typeof process !== 'undefined' && process.env?.NODE_ENV === 'production';
+
+const warnAdvisoryNamespaceAllowlist = () => {
+  if (hasWarnedAdvisoryNamespaceAllowlist) {
+    return;
+  }
+  hasWarnedAdvisoryNamespaceAllowlist = true;
+  console.warn(
+    `[Modern.js BFF] ${NAMESPACE_ALLOWLIST_REQUIRES_VERIFIER_MESSAGE}. ` +
+      'Non-production requests will continue to evaluate the allowlist ' +
+      'against client-asserted requestId namespaces only.',
+  );
+};
+
 export const evaluateCrossProjectPolicy = (
   headers: Record<string, unknown>,
   policy?: CrossProjectPolicyConfig,
@@ -158,6 +179,24 @@ export const evaluateCrossProjectPolicy = (
   const requireOperationSchemaHash = policy.requireOperationSchemaHash ?? true;
   const requireOperationVersion = policy.requireOperationVersion ?? true;
   const allowUnknownOperations = policy.allowUnknownOperations ?? false;
+  const verifyProducerIdentity =
+    typeof policy.verifyProducerIdentity === 'function'
+      ? policy.verifyProducerIdentity
+      : undefined;
+  const hasProducerIdentityVerifier = verifyProducerIdentity !== undefined;
+  const allowedNamespaces = (policy.allowedNamespaces || [])
+    .map(item => item.trim().toLowerCase())
+    .filter(Boolean);
+  if (allowedNamespaces.length > 0 && !hasProducerIdentityVerifier) {
+    if (isProductionMode()) {
+      return createViolation(
+        'producer_identity_mismatch',
+        NAMESPACE_ALLOWLIST_REQUIRES_VERIFIER_MESSAGE,
+        status,
+      );
+    }
+    warnAdvisoryNamespaceAllowlist();
+  }
   const envelopeHeader = normalizeHeaderName(
     policy.envelopeHeader,
     BFF_ENVELOPE_HEADER,
@@ -209,8 +248,8 @@ export const evaluateCrossProjectPolicy = (
 
   const claimedNamespace = extractNamespace(requestId);
   let effectiveNamespace = claimedNamespace;
-  if (typeof policy.verifyProducerIdentity === 'function') {
-    const verifiedNamespaceRaw = policy.verifyProducerIdentity(headers);
+  if (verifyProducerIdentity) {
+    const verifiedNamespaceRaw = verifyProducerIdentity(headers);
     const verifiedNamespace =
       typeof verifiedNamespaceRaw === 'string'
         ? verifiedNamespaceRaw.trim().toLowerCase()
@@ -234,11 +273,11 @@ export const evaluateCrossProjectPolicy = (
     effectiveNamespace = verifiedNamespace;
   }
 
-  const namespaces = (policy.allowedNamespaces || [])
-    .map(item => item.trim().toLowerCase())
-    .filter(Boolean);
-  if (namespaces.length > 0) {
-    if (!effectiveNamespace || !namespaces.includes(effectiveNamespace)) {
+  if (allowedNamespaces.length > 0) {
+    if (
+      !effectiveNamespace ||
+      !allowedNamespaces.includes(effectiveNamespace)
+    ) {
       return createViolation(
         'namespace_not_allowed',
         `Producer namespace "${effectiveNamespace || 'unknown'}" is not allowed`,

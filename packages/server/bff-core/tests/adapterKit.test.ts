@@ -264,7 +264,7 @@ describe('adapter-kit parity table', () => {
     ).toEqual({ status: 200, payload: undefined });
   });
 
-  test('asserts payload, denial, and per-adapter drift expectations', () => {
+  test('asserts payload and denial expectations', () => {
     const [payloadScenario] = createAdapterParityScenarios();
     assertParityResult(payloadScenario!, {
       status: 200,
@@ -288,19 +288,13 @@ describe('adapter-kit parity table', () => {
     });
 
     const driftScenario = createAdapterParityScenarios().find(
-      scenario =>
-        scenario.name ===
-        'plain handler returning undefined (pinned adapter drift)',
+      scenario => scenario.name === 'plain handler returning undefined',
     )!;
-    assertParityResult(
-      driftScenario,
-      {
-        status: 404,
-        type: 'text/plain',
-        body: undefined,
-        text: '404 Not Found',
-      },
-      'hono',
-    );
+    assertParityResult(driftScenario, {
+      status: 404,
+      type: 'text/plain',
+      body: undefined,
+      text: '404 Not Found',
+    });
   });
 });

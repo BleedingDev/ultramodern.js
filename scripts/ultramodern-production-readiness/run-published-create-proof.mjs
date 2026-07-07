@@ -8,10 +8,12 @@ import { performance } from 'node:perf_hooks';
 import { fileURLToPath } from 'node:url';
 import cliKit from '../lib/cli-kit.js';
 import fsKit from '../lib/fs-kit.js';
+import processKit from '../lib/process-kit.js';
 
 const repoRoot = path.resolve(new URL('../..', import.meta.url).pathname);
 const { parseCliArgs, rejectInlineOptionValues } = cliKit;
 const { readJsonFile, writeJsonFile } = fsKit;
+const { createProcessEnv, writeStream } = processKit;
 const defaultCreatePackage = '@bleedingdev/modern-js-create';
 const defaultProjectName = 'ultramodern-ci-superapp';
 const defaultOut = '.modern/production-readiness/published-create-proof.json';
@@ -22,6 +24,9 @@ const browserSmokeScript = path.join(
 const browserSmokePlaywrightPackage =
   process.env.ULTRAMODERN_BROWSER_SMOKE_PLAYWRIGHT_PACKAGE ??
   'playwright@1.60.0';
+const cloudflareDeployProofEvidenceId = 'cloudflare-deploy-proof';
+const cloudflareDeployProofSkippedReason =
+  'Cloudflare deploy proof was skipped because --deploy-cloudflare was not provided.';
 const readableErpVerticalNames = [
   'inventory',
   'finance',
@@ -192,11 +197,7 @@ function packageNameFromSpecifier(specifier) {
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
     cwd: options.cwd || repoRoot,
-    env: {
-      ...process.env,
-      FORCE_COLOR: '0',
-      ...(options.env || {}),
-    },
+    env: createProcessEnv(options.env || {}),
     encoding: 'utf-8',
     stdio: options.stdio || 'inherit',
   });
@@ -514,6 +515,19 @@ function createCloudflareProofArgs({ requirePublicUrls = false } = {}) {
   return args;
 }
 
+function createCloudflareDeployProofEvidence() {
+  return {
+    id: cloudflareDeployProofEvidenceId,
+    dimensions: ['integration', 'browser'],
+    status: 'skipped',
+    reason: cloudflareDeployProofSkippedReason,
+    detail: {
+      deployCloudflare: false,
+      requiredFlag: '--deploy-cloudflare',
+    },
+  };
+}
+
 function createSharedContractVersionAssertion({ topology, generatedContract }) {
   const versions = [
     topology?.shell?.moduleFederation?.sharedContractVersion,
@@ -599,18 +613,6 @@ function readGeneratedTopologyEvidence(
   });
 }
 
-function writeStream(stream, message) {
-  return new Promise((resolve, reject) => {
-    stream.write(message, error => {
-      if (error) {
-        reject(error);
-        return;
-      }
-      resolve();
-    });
-  });
-}
-
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   const workDir = fs.mkdtempSync(
@@ -620,6 +622,9 @@ async function main() {
   const projectDir = path.join(workDir, options.projectName);
   const summary = {
     schemaVersion: 1,
+    suite: 'ultramodern-published-create-proof',
+    dimensions: ['integration', 'browser', 'module-federation'],
+    status: 'running',
     createPackage: undefined,
     createCommand: undefined,
     projectDir,
@@ -627,6 +632,7 @@ async function main() {
     verticals: options.verticals,
     verticalCount: options.verticalCount,
     checks: [],
+    evidence: [],
     timings: {},
   };
 
@@ -702,7 +708,11 @@ async function main() {
     summary.checks.push('workspace-published-cohort-alignment');
 
     if (options.commandContractOnly) {
+      if (!options.deployCloudflare) {
+        summary.evidence.push(createCloudflareDeployProofEvidence());
+      }
       summary.checks.push('command-contract-only');
+      summary.status = summary.evidence.length > 0 ? 'warning' : 'passed';
       summary.ok = true;
       writeJsonFile(options.out, summary, { atomic: false });
       await writeStream(
@@ -758,8 +768,11 @@ async function main() {
       );
       summary.checks.push('cloudflare-deploy-proof');
       summary.checks.push('browser-smoke-public');
+    } else {
+      summary.evidence.push(createCloudflareDeployProofEvidence());
     }
 
+    summary.status = summary.evidence.length > 0 ? 'warning' : 'passed';
     summary.ok = true;
     writeJsonFile(options.out, summary, { atomic: false });
     await writeStream(
@@ -770,6 +783,7 @@ async function main() {
   } catch (error) {
     summary.ok = false;
     summary.error = error instanceof Error ? error.message : String(error);
+    summary.status = 'failed';
     writeJsonFile(options.out, summary, { atomic: false });
     await writeStream(
       process.stderr,
@@ -802,6 +816,7 @@ if (
 export {
   assertGeneratedCohort,
   createCleanPnpmDlxEnv,
+  createCloudflareDeployProofEvidence,
   createCloudflareProofArgs,
   createPnpmDlxArgs,
   createTopologyEvidence,

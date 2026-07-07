@@ -1,8 +1,8 @@
 # scripts/lib
 
 Shared, dependency-free helpers for the current `scripts/` gate validators
-and script helper families (`module-sdk-contracts`, `boundary-guards`,
-`release-gates`, `superapp-certification`, `ultramodern-publish`,
+and script helper families (`boundary-guards`, `release-gates`,
+`superapp-certification`, `ultramodern-publish`,
 `ultramodern-production-readiness`, and friends).
 
 - `validation-kit.js` — JSON loading with path-aware parse errors, file

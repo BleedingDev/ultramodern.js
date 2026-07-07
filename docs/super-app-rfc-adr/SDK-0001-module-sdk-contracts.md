@@ -1,6 +1,6 @@
 # SDK-0001: Module SDK Core Contract and Optional Profiles
 
-- Status: Active
+- Status: Design artifact
 - Date: 2026-02-22
 - Related Beads: `modernjs-44t.6.2`
 - Depends on:
@@ -10,7 +10,9 @@
 
 Define a stable module SDK contract around domain-neutral module requirements, with optional profile overlays for downstream specializations.
 
-This contract is machine-readable and enforced through CI anti-pattern checks.
+This contract remains machine-readable as a design artifact. Validation tooling
+was retired on 2026-07-07 because no live code consumed the contract; revisit
+automation when a runtime consumer exists.
 
 ## 2. Canonical Contract Artifact
 
@@ -79,19 +81,6 @@ Intentionally excluded from framework core:
 
 ## 7. Validation
 
-Contract enforcement is performed by anti-pattern CI checks (ticket `modernjs-44t.6.3`), which consume this contract file as input.
-
-Local validation tooling:
-
-1. `scripts/module-sdk-contracts/validate-module-sdk-contracts.js`
-2. `scripts/module-sdk-contracts/validator.js`
-3. `scripts/module-sdk-contracts/__tests__/validator.test.js`
-
-Example commands:
-
-1. Contract-only validation:
-   - `node scripts/module-sdk-contracts/validate-module-sdk-contracts.js --contract docs/super-app-rfc-adr/contracts/module-sdk-contracts.json --skip-manifest-validation`
-2. Contract + example manifest validation:
-   - `node scripts/module-sdk-contracts/validate-module-sdk-contracts.js --contract docs/super-app-rfc-adr/contracts/module-sdk-contracts.json --manifest docs/super-app-rfc-adr/contracts/module-manifest.example.json`
-3. Unit tests:
-   - `node --test scripts/module-sdk-contracts/__tests__/validator.test.js`
+Validation tooling was retired on 2026-07-07 because no live runtime or package
+consumer used the contract. The JSON remains retained as a design artifact;
+restore validation only when a runtime consumer exists.

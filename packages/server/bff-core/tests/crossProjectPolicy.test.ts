@@ -1,6 +1,23 @@
 import { evaluateCrossProjectPolicy } from '../src/security/crossProjectPolicy';
 import { buildOperationContractMap } from '../src/security/operationContracts';
 
+const NAMESPACE_ALLOWLIST_REQUIRES_VERIFIER_MESSAGE =
+  'cross-project namespace allowlist requires verifyProducerIdentity in production';
+
+const withNodeEnv = <T>(nodeEnv: string, callback: () => T): T => {
+  const previousNodeEnv = process.env.NODE_ENV;
+  process.env.NODE_ENV = nodeEnv;
+  try {
+    return callback();
+  } finally {
+    if (typeof previousNodeEnv === 'undefined') {
+      delete process.env.NODE_ENV;
+    } else {
+      process.env.NODE_ENV = previousNodeEnv;
+    }
+  }
+};
+
 describe('cross-project policy', () => {
   test('should skip policy checks when disabled', () => {
     expect(evaluateCrossProjectPolicy({}, { enabled: false })).toBeNull();
@@ -50,6 +67,7 @@ describe('cross-project policy', () => {
       {
         enabled: true,
         allowedNamespaces: ['crm'],
+        verifyProducerIdentity: () => 'billing',
       },
     );
 
@@ -106,6 +124,7 @@ describe('cross-project policy', () => {
       {
         enabled: true,
         allowedNamespaces: ['crm', 'billing'],
+        verifyProducerIdentity: () => 'crm',
       },
     );
 
@@ -346,13 +365,50 @@ describe('cross-project policy producer identity binding', () => {
     expect(denied?.reason).toBe('namespace_not_allowed');
   });
 
-  test('without a verifier the namespace allowlist accepts client-asserted ids (documented limitation)', () => {
-    const result = evaluateCrossProjectPolicy(spoofableHeaders, {
-      enabled: true,
-      allowedNamespaces: ['crm'],
-      requireOperationContext: false,
-    });
+  test('in development, namespace allowlist without verifier warns and remains advisory', () => {
+    const warnSpy = rstest
+      .spyOn(console, 'warn')
+      .mockImplementation(() => undefined);
 
-    expect(result).toBeNull();
+    try {
+      const firstResult = withNodeEnv('development', () =>
+        evaluateCrossProjectPolicy(spoofableHeaders, {
+          enabled: true,
+          allowedNamespaces: ['crm'],
+          requireOperationContext: false,
+        }),
+      );
+      const secondResult = withNodeEnv('development', () =>
+        evaluateCrossProjectPolicy(spoofableHeaders, {
+          enabled: true,
+          allowedNamespaces: ['crm'],
+          requireOperationContext: false,
+        }),
+      );
+
+      expect(firstResult).toBeNull();
+      expect(secondResult).toBeNull();
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(warnSpy.mock.calls[0][0]).toContain(
+        NAMESPACE_ALLOWLIST_REQUIRES_VERIFIER_MESSAGE,
+      );
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  test('in production, namespace allowlist without verifier fails closed', () => {
+    const violation = withNodeEnv('production', () =>
+      evaluateCrossProjectPolicy(spoofableHeaders, {
+        enabled: true,
+        allowedNamespaces: ['crm'],
+        requireOperationContext: false,
+      }),
+    );
+
+    expect(violation?.reason).toBe('producer_identity_mismatch');
+    expect(violation?.message).toBe(
+      NAMESPACE_ALLOWLIST_REQUIRES_VERIFIER_MESSAGE,
+    );
   });
 });

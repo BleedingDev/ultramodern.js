@@ -1,9 +1,9 @@
 /**
- * Executes the bff-core adapter-parity scenario table against the hono lane:
+ * Executes the bff-core adapter-parity scenario table against the Hono lane:
  * `createHonoRoutes` plus the cross-project policy middleware (the same
  * check `HonoAdapter` installs). This is the live consumer of
- * bff-core's internal adapter parity table since the express/koa adapters
- * were removed, and the end-to-end proof for hono-lane policy enforcement
+ * bff-core's internal adapter parity table and the end-to-end proof for
+ * Hono-lane policy enforcement
  * (allowed + every denial reason).
  */
 
@@ -90,11 +90,7 @@ describe('hono adapter parity (bff-core scenario table)', () => {
         ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
       });
 
-      assertParityResult(
-        scenario,
-        await toParityHttpResponse(response),
-        'hono',
-      );
+      assertParityResult(scenario, await toParityHttpResponse(response));
     });
   }
 });

@@ -28,10 +28,15 @@ Implement profile-driven anti-pattern checks:
 3. CI workflow:
    - `.github/workflows/boundary-anti-patterns.yml`
 
-The checks consume module SDK contract artifacts:
+The checks originally consumed module SDK contract artifacts:
 
 1. `docs/super-app-rfc-adr/contracts/module-sdk-contracts.json`
 2. module manifests (example + real manifests in downstream repos)
+
+Status note, 2026-07-07: module SDK contract validation tooling was retired
+because no live code consumed the contract. The JSON remains retained as a
+design artifact; boundary anti-pattern checks now run without that contract
+validation facet.
 
 ## 3. Enforcement Model
 
@@ -71,8 +76,7 @@ Tradeoff:
 ## 5. Validation Commands
 
 1. `node --test scripts/boundary-guards/__tests__/validator.test.js`
-2. `pnpm run validate:module-sdk-contracts`
-3. `pnpm run validate:boundary-guards`
+2. `pnpm run validate:boundary-guards`
 
 ## 6. Subagent Review Constraint
 

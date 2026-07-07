@@ -1,11 +1,6 @@
 const fs = require('fs');
 const path = require('path');
 const { ensureSchemaVersion, readJsonFile } = require('../lib/validation-kit');
-const {
-  resolveManifestRequirementSet,
-  validateContractShape,
-  validateManifests,
-} = require('../module-sdk-contracts/validator');
 
 const SCHEMA_VERSION = 1;
 const DEFAULT_SCAN_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'];
@@ -97,24 +92,6 @@ const validateProfileShape = profile => {
     expected: SCHEMA_VERSION,
     label: 'boundary guard profile',
   });
-
-  if (
-    typeof profile.contractPath !== 'string' ||
-    profile.contractPath.trim() === ''
-  ) {
-    throw new Error(
-      'Boundary guard profile must include a non-empty contractPath',
-    );
-  }
-
-  if (
-    !Array.isArray(profile.moduleManifests) &&
-    typeof profile.moduleManifestDir !== 'string'
-  ) {
-    throw new Error(
-      'Boundary guard profile must include moduleManifests or moduleManifestDir',
-    );
-  }
 
   if (!Array.isArray(profile.importGuards)) {
     throw new Error('Boundary guard profile importGuards must be an array');
@@ -293,75 +270,6 @@ const validateRequiredSnippets = ({ requiredSnippets, rootDir }) => {
   };
 };
 
-const validateModuleForbiddenPatterns = ({
-  contract,
-  manifestPaths = [],
-  rootDir,
-  scanExtensions = DEFAULT_SCAN_EXTENSIONS,
-}) => {
-  const validations = [];
-  const violations = [];
-
-  manifestPaths.forEach(manifestPath => {
-    const resolvedManifestPath = path.resolve(manifestPath);
-    const manifest = readJsonFile(resolvedManifestPath);
-    let requirements;
-    try {
-      requirements = resolveManifestRequirementSet({
-        contract,
-        manifest,
-        manifestPath: resolvedManifestPath,
-      });
-    } catch (error) {
-      violations.push({
-        type: 'manifest-profile',
-        manifestPath: resolvedManifestPath,
-        message: error.message,
-      });
-      return;
-    }
-
-    const sourceDir = path.resolve(rootDir, manifest.sourceDir);
-    if (!fs.existsSync(sourceDir)) {
-      violations.push({
-        type: 'manifest-source',
-        manifestPath: resolvedManifestPath,
-        sourceDir,
-        message: `sourceDir does not exist: ${sourceDir}`,
-      });
-      return;
-    }
-
-    const files = walkFiles(sourceDir, scanExtensions);
-    const patterns = requirements.forbiddenCodePatterns.map(toRegex);
-    files.forEach(filePath => {
-      const content = fs.readFileSync(filePath, 'utf8');
-      patterns.forEach((pattern, index) => {
-        if (pattern.test(content)) {
-          violations.push({
-            type: 'forbidden-pattern',
-            manifestPath: resolvedManifestPath,
-            filePath,
-            pattern: requirements.forbiddenCodePatterns[index],
-            message: `Forbidden code pattern "${requirements.forbiddenCodePatterns[index]}" matched in ${filePath}`,
-          });
-        }
-      });
-    });
-
-    validations.push({
-      manifestPath: resolvedManifestPath,
-      sourceDir,
-      filesScanned: files.length,
-    });
-  });
-
-  return {
-    validations,
-    violations,
-  };
-};
-
 const flattenViolations = sections =>
   sections.flatMap(section =>
     section.violations.map(violation => ({
@@ -382,35 +290,10 @@ const formatViolations = violations =>
     })
     .join('\n');
 
-const runBoundaryGuardChecks = ({
-  profilePath,
-  rootDir = process.cwd(),
-  allowEmptyManifests = false,
-}) => {
+const runBoundaryGuardChecks = ({ profilePath, rootDir = process.cwd() }) => {
   const resolvedProfilePath = path.resolve(profilePath);
   const profile = readJsonFile(resolvedProfilePath);
   validateProfileShape(profile);
-
-  const contractPath = path.resolve(rootDir, profile.contractPath);
-  const contract = readJsonFile(contractPath);
-  validateContractShape(contract);
-
-  const moduleManifestPaths = Array.isArray(profile.moduleManifests)
-    ? profile.moduleManifests.map(filePath => path.resolve(rootDir, filePath))
-    : [];
-  const moduleManifestDir = profile.moduleManifestDir
-    ? path.resolve(rootDir, profile.moduleManifestDir)
-    : undefined;
-
-  const manifestValidationReport = validateManifests({
-    contract,
-    manifestPaths: moduleManifestPaths,
-    manifestsDir: moduleManifestDir,
-    allowEmpty: allowEmptyManifests,
-  });
-  const manifestPaths = manifestValidationReport.validated.map(
-    manifest => manifest.path,
-  );
 
   const scanExtensions = Array.isArray(profile.scanExtensions)
     ? profile.scanExtensions
@@ -425,22 +308,12 @@ const runBoundaryGuardChecks = ({
     requiredSnippets: profile.requiredSnippets,
     rootDir,
   });
-  const forbiddenPatternReport = validateModuleForbiddenPatterns({
-    contract,
-    manifestPaths,
-    rootDir,
-    scanExtensions,
-  });
 
   const allViolations = flattenViolations([
     { section: 'import-guards', violations: importGuardReport.violations },
     {
       section: 'required-snippets',
       violations: requiredSnippetReport.violations,
-    },
-    {
-      section: 'module-forbidden-patterns',
-      violations: forbiddenPatternReport.violations,
     },
   ]);
   if (allViolations.length > 0) {
@@ -453,11 +326,8 @@ const runBoundaryGuardChecks = ({
 
   return {
     profilePath: resolvedProfilePath,
-    contractPath,
-    validatedManifests: manifestValidationReport.validated.length,
     importGuardFilesScanned: importGuardReport.inspectedFiles,
     requiredSnippetChecks: requiredSnippetReport.validations.length,
-    moduleSourceValidations: forbiddenPatternReport.validations.length,
   };
 };
 
@@ -467,7 +337,6 @@ module.exports = {
   extractImportSpecifiers,
   runBoundaryGuardChecks,
   validateImportGuards,
-  validateModuleForbiddenPatterns,
   validateProfileShape,
   validateRequiredSnippets,
   walkFiles,

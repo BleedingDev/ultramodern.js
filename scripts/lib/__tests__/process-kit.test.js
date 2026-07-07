@@ -3,10 +3,12 @@ const http = require('node:http');
 const test = require('node:test');
 
 const {
+  createProcessEnv,
   reservePort,
   runCommandList,
   runShellCommand,
   waitForHttp,
+  writeStream,
 } = require('../process-kit');
 
 const nodeCommand = script =>
@@ -47,6 +49,25 @@ test('runShellCommand returns process results for shell commands', () => {
   assert.equal(result.processStatus, 3);
   assert.equal(result.exitCode, 3);
   assert.equal(typeof result.durationMs, 'number');
+});
+
+test('process helpers normalize env and stream writes', async () => {
+  const env = createProcessEnv({ EXAMPLE: '1', FORCE_COLOR: '1' });
+  assert.equal(env.PATH, process.env.PATH);
+  assert.equal(env.EXAMPLE, '1');
+  assert.equal(env.FORCE_COLOR, '1');
+  assert.equal(createProcessEnv().FORCE_COLOR, '0');
+
+  const messages = [];
+  const stream = {
+    write(message, callback) {
+      messages.push(message);
+      callback();
+    },
+  };
+
+  await writeStream(stream, 'hello\n');
+  assert.deepEqual(messages, ['hello\n']);
 });
 
 test('runCommandList supports dry-run planning', () => {

@@ -10,8 +10,10 @@ runtime_lane: effect-first
 
 ## Commands
 
-1. `node --test scripts/module-sdk-contracts/__tests__/validator.test.js`
-2. `node --test scripts/boundary-guards/__tests__/validator.test.js`
+1. `node --test scripts/boundary-guards/__tests__/validator.test.js`
+
+The module SDK contract validator evidence was retired on 2026-07-07 because no
+live code consumed the contract JSON.
 
 ## Result
 

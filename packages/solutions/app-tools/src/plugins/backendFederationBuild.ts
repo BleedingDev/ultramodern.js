@@ -12,14 +12,18 @@ import {
   DELIVERY_UNIT_KIND,
   DELIVERY_UNIT_SCHEMA_VERSION,
   type DeliveryUnitContractBlock,
+  type DeliveryUnitRecord,
   deliveryUnitContractBlock,
-  isUltramodernBuildArtifact,
+  formatBackendFederationValidationErrors,
   BACKEND_FEDERATION_NODE_ADAPTER_VERSION as NODE_ADAPTER_VERSION,
   stampUltramodernBuildArtifactSourceRevision,
   ULTRAMODERN_BUILD_ARTIFACT_FILE,
   ULTRAMODERN_BUILD_ARTIFACT_PATH,
   ULTRAMODERN_BUILD_MODULE_PATH,
   type UltramodernBuildArtifact,
+  validateBackendFederationManifest,
+  validateDeliveryUnitRecord,
+  validateUltramodernBuildArtifact,
 } from '@modern-js/utils/universal';
 import type { AppTools, CliPlugin } from '../types';
 
@@ -144,7 +148,11 @@ const readBuildIdentity = async (
   const buildArtifactPath = buildArtifactPathFor(appDirectory);
   if (existsSync(buildArtifactPath)) {
     const artifact = await readJsonFile<unknown>(buildArtifactPath);
-    if (!isUltramodernBuildArtifact(artifact)) {
+    const artifactValidation = validateUltramodernBuildArtifact(
+      artifact,
+      buildArtifactPath,
+    );
+    if (!artifactValidation.ok) {
       throw new Error(
         `[backend-federation-build] Invalid delivery-unit build artifact at ${buildArtifactPath}.`,
       );
@@ -264,7 +272,7 @@ const createStampedDeliveryUnit = (input: {
     return undefined;
   }
 
-  return deliveryUnitContractBlock({
+  const record = {
     schemaVersion: DELIVERY_UNIT_SCHEMA_VERSION,
     kind: DELIVERY_UNIT_KIND,
     appId: input.appId,
@@ -274,7 +282,14 @@ const createStampedDeliveryUnit = (input: {
     buildMarker: input.buildMarker,
     sourceRevision: input.sourceRevision,
     deployProfile: DELIVERY_UNIT_DEPLOY_PROFILE,
-  });
+  };
+  const validation = validateDeliveryUnitRecord(record);
+
+  if (!validation.ok) {
+    return undefined;
+  }
+
+  return deliveryUnitContractBlock(record as DeliveryUnitRecord);
 };
 
 const createAppFromCompactMetadata = (
@@ -446,7 +461,7 @@ const createBackendManifest = (
   const sourceModule = `${app.directory}/api/effect-api.ts`;
   const publicPath = `http://localhost:${app.port}/`;
 
-  return {
+  const manifest = {
     schemaVersion: 1,
     id: app.backendName,
     name: app.backendName,
@@ -536,6 +551,23 @@ const createBackendManifest = (
       },
     },
   };
+
+  const validation = validateBackendFederationManifest(manifest, {
+    path: 'backendFederationManifest',
+    requireEffectExpose: true,
+    requireEffectRuntime: true,
+    requireVersionFields: true,
+  });
+
+  if (!validation.ok) {
+    throw new Error(
+      `[backend-federation-build] Invalid backend federation manifest: ${formatBackendFederationValidationErrors(
+        validation.errors,
+      )}.`,
+    );
+  }
+
+  return manifest;
 };
 
 export const emitBackendFederationArtifacts = async (

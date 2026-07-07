@@ -3,6 +3,8 @@ import {
   BACKEND_FEDERATION_EFFECT_EXPOSE,
   BACKEND_FEDERATION_NODE_ADAPTER_VERSION,
   type DeliveryUnitRecord,
+  formatBackendFederationValidationErrors,
+  validateBackendFederationMetadata,
 } from '@modern-js/utils/universal';
 import { verticalApiExport, verticalApiGroupName } from './api';
 import {
@@ -153,7 +155,7 @@ export function createBackendFederationContract(
   const readiness = `${app.api.prefix}/${resolveApiStem(app)}/readiness`;
   const deliveryUnit = createDeliveryUnitRecord(scope, app);
 
-  return {
+  const contract = {
     role: 'microvertical-server',
     name: createBackendFederationName(app),
     runtimeFramework: 'effect',
@@ -199,6 +201,22 @@ export function createBackendFederationContract(
       strategy: 'typed-effect-error',
     },
   };
+  const validation = validateBackendFederationMetadata(contract, {
+    path: `${app.id}.backendFederation`,
+    requireEffectExpose: true,
+    requireEffectRuntime: true,
+    requireVersionFields: true,
+  });
+
+  if (!validation.ok) {
+    throw new Error(
+      `Backend federation contract invalid for ${app.id}: ${formatBackendFederationValidationErrors(
+        validation.errors,
+      )}.`,
+    );
+  }
+
+  return contract;
 }
 
 export function createBackendFederationMetadata(

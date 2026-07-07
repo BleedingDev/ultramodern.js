@@ -273,216 +273,121 @@ const OWNER_APPS: WorkloadAppId[] = [
 function counts(
   input: Partial<GeneratedWorkloadEntityCounts>,
 ): GeneratedWorkloadEntityCounts {
-  return {
-    orders: 0,
-    invoices: 0,
-    ledgerEntries: 0,
-    rides: 0,
-    dispatchAssignments: 0,
-    fleetVehicles: 0,
-    chatThreads: 0,
-    messages: 0,
-    auditEvents: 0,
-    users: 0,
-    roles: 0,
-    memberships: 0,
-    tenantResources: 0,
-    ...input,
-  };
+  const result = {} as GeneratedWorkloadEntityCounts;
+  for (const entity of GENERATED_WORKLOAD_ENTITIES) {
+    result[entity] = input[entity] ?? 0;
+  }
+  return result;
+}
+
+function tenantGenerationProfile(
+  tenantId: WorkloadTenantId,
+  input: Partial<GeneratedWorkloadEntityCounts>,
+): TenantGenerationProfile {
+  return { tenantId, counts: counts(input) };
 }
 
 export const SUPERAPP_GENERATED_WORKLOAD_TENANT_PROFILES: TenantGenerationProfile[] =
   [
-    {
-      tenantId: 'superapp-global',
-      counts: counts({
-        orders: 2400,
-        invoices: 1800,
-        ledgerEntries: 4300,
-        rides: 2200,
-        dispatchAssignments: 2200,
-        fleetVehicles: 700,
-        chatThreads: 900,
-        messages: 9000,
-        auditEvents: 5200,
-        users: 780,
-        roles: 260,
-        memberships: 1560,
-        tenantResources: 520,
-      }),
-    },
-    {
-      tenantId: 'city-ops-eu',
-      counts: counts({
-        orders: 3900,
-        rides: 4100,
-        dispatchAssignments: 4100,
-        fleetVehicles: 1270,
-        chatThreads: 1200,
-        messages: 12000,
-        auditEvents: 4400,
-        users: 980,
-        roles: 280,
-        memberships: 1900,
-        tenantResources: 760,
-      }),
-    },
-    {
-      tenantId: 'acme-global',
-      counts: counts({
-        invoices: 2850,
-        ledgerEntries: 6900,
-        auditEvents: 3900,
-        users: 720,
-        roles: 240,
-        memberships: 1350,
-        tenantResources: 480,
-      }),
-    },
-    {
-      tenantId: 'platform-shell',
-      counts: counts({
-        chatThreads: 1000,
-        messages: 10000,
-        auditEvents: 2600,
-        users: 240,
-        roles: 160,
-        memberships: 540,
-        tenantResources: 360,
-      }),
-    },
-    {
-      tenantId: 'security-root',
-      counts: counts({
-        auditEvents: 4100,
-        users: 180,
-        roles: 180,
-        memberships: 480,
-        tenantResources: 260,
-      }),
-    },
-    {
-      tenantId: 'chaos-lab',
-      counts: counts({
-        auditEvents: 2800,
-        users: 160,
-        roles: 140,
-        memberships: 390,
-        tenantResources: 220,
-      }),
-    },
+    tenantGenerationProfile('superapp-global', {
+      orders: 2400,
+      invoices: 1800,
+      ledgerEntries: 4300,
+      rides: 2200,
+      dispatchAssignments: 2200,
+      fleetVehicles: 700,
+      chatThreads: 900,
+      messages: 9000,
+      auditEvents: 5200,
+      users: 780,
+      roles: 260,
+      memberships: 1560,
+      tenantResources: 520,
+    }),
+    tenantGenerationProfile('city-ops-eu', {
+      orders: 3900,
+      rides: 4100,
+      dispatchAssignments: 4100,
+      fleetVehicles: 1270,
+      chatThreads: 1200,
+      messages: 12000,
+      auditEvents: 4400,
+      users: 980,
+      roles: 280,
+      memberships: 1900,
+      tenantResources: 760,
+    }),
+    tenantGenerationProfile('acme-global', {
+      invoices: 2850,
+      ledgerEntries: 6900,
+      auditEvents: 3900,
+      users: 720,
+      roles: 240,
+      memberships: 1350,
+      tenantResources: 480,
+    }),
+    tenantGenerationProfile('platform-shell', {
+      chatThreads: 1000,
+      messages: 10000,
+      auditEvents: 2600,
+      users: 240,
+      roles: 160,
+      memberships: 540,
+      tenantResources: 360,
+    }),
+    tenantGenerationProfile('security-root', {
+      auditEvents: 4100,
+      users: 180,
+      roles: 180,
+      memberships: 480,
+      tenantResources: 260,
+    }),
+    tenantGenerationProfile('chaos-lab', {
+      auditEvents: 2800,
+      users: 160,
+      roles: 140,
+      memberships: 390,
+      tenantResources: 220,
+    }),
   ];
 
+function sampleWindowSpec(
+  entity: GeneratedWorkloadEntity,
+  tenantId: WorkloadTenantId,
+  label: string,
+  start: number,
+): SampleWindowSpec {
+  return {
+    id: `${entity}:${tenantId}:${label}`,
+    entity,
+    tenantId,
+    start,
+    limit: 4,
+  };
+}
+
 const SAMPLE_WINDOW_SPECS: SampleWindowSpec[] = [
-  {
-    id: 'orders:city-ops-eu:checkout-surge',
-    entity: 'orders',
-    tenantId: 'city-ops-eu',
-    start: 1024,
-    limit: 4,
-  },
-  {
-    id: 'invoices:acme-global:month-close',
-    entity: 'invoices',
-    tenantId: 'acme-global',
-    start: 512,
-    limit: 4,
-  },
-  {
-    id: 'ledgerEntries:acme-global:reconciliation',
-    entity: 'ledgerEntries',
-    tenantId: 'acme-global',
-    start: 2048,
-    limit: 4,
-  },
-  {
-    id: 'rides:city-ops-eu:rush-hour',
-    entity: 'rides',
-    tenantId: 'city-ops-eu',
-    start: 1500,
-    limit: 4,
-  },
-  {
-    id: 'dispatchAssignments:city-ops-eu:retry-window',
-    entity: 'dispatchAssignments',
-    tenantId: 'city-ops-eu',
-    start: 1500,
-    limit: 4,
-  },
-  {
-    id: 'fleetVehicles:city-ops-eu:shift-change',
-    entity: 'fleetVehicles',
-    tenantId: 'city-ops-eu',
-    start: 128,
-    limit: 4,
-  },
-  {
-    id: 'chatThreads:platform-shell:remote-fallback',
-    entity: 'chatThreads',
-    tenantId: 'platform-shell',
-    start: 64,
-    limit: 4,
-  },
-  {
-    id: 'messages:platform-shell:pagination-window',
-    entity: 'messages',
-    tenantId: 'platform-shell',
-    start: 4096,
-    limit: 4,
-  },
-  {
-    id: 'auditEvents:security-root:policy-stream',
-    entity: 'auditEvents',
-    tenantId: 'security-root',
-    start: 2048,
-    limit: 4,
-  },
-  {
-    id: 'users:superapp-global:operator-page',
-    entity: 'users',
-    tenantId: 'superapp-global',
-    start: 128,
-    limit: 4,
-  },
-  {
-    id: 'roles:security-root:privileged-page',
-    entity: 'roles',
-    tenantId: 'security-root',
-    start: 32,
-    limit: 4,
-  },
-  {
-    id: 'memberships:acme-global:finance-page',
-    entity: 'memberships',
-    tenantId: 'acme-global',
-    start: 256,
-    limit: 4,
-  },
-  {
-    id: 'tenantResources:chaos-lab:drill-page',
-    entity: 'tenantResources',
-    tenantId: 'chaos-lab',
-    start: 80,
-    limit: 4,
-  },
+  sampleWindowSpec('orders', 'city-ops-eu', 'checkout-surge', 1024),
+  sampleWindowSpec('invoices', 'acme-global', 'month-close', 512),
+  sampleWindowSpec('ledgerEntries', 'acme-global', 'reconciliation', 2048),
+  sampleWindowSpec('rides', 'city-ops-eu', 'rush-hour', 1500),
+  sampleWindowSpec('dispatchAssignments', 'city-ops-eu', 'retry-window', 1500),
+  sampleWindowSpec('fleetVehicles', 'city-ops-eu', 'shift-change', 128),
+  sampleWindowSpec('chatThreads', 'platform-shell', 'remote-fallback', 64),
+  sampleWindowSpec('messages', 'platform-shell', 'pagination-window', 4096),
+  sampleWindowSpec('auditEvents', 'security-root', 'policy-stream', 2048),
+  sampleWindowSpec('users', 'superapp-global', 'operator-page', 128),
+  sampleWindowSpec('roles', 'security-root', 'privileged-page', 32),
+  sampleWindowSpec('memberships', 'acme-global', 'finance-page', 256),
+  sampleWindowSpec('tenantResources', 'chaos-lab', 'drill-page', 80),
 ];
 
 function createEmptySamples(): GeneratedWorkloadSamples {
-  return {
-    orders: [],
-    invoices: [],
-    ledgerEntries: [],
-    rides: [],
-    dispatchAssignments: [],
-    fleetVehicles: [],
-    chatThreads: [],
-    messages: [],
-    auditEvents: [],
-    users: [],
-    roles: [],
-    memberships: [],
-    tenantResources: [],
-  };
+  const samples = {} as GeneratedWorkloadSamples;
+  for (const entity of GENERATED_WORKLOAD_ENTITIES) {
+    samples[entity] = [];
+  }
+  return samples;
 }
 
 function getProfile(tenantId: WorkloadTenantId) {
@@ -794,44 +699,38 @@ function createMetadata(
 }
 
 function createHelperIds(): GeneratedWorkloadHelperIds {
+  const sampleWindows = {} as GeneratedWorkloadHelperIds['sampleWindows'];
+  for (const { entity, id } of SAMPLE_WINDOW_SPECS) {
+    sampleWindows[entity] = id;
+  }
+  const stableRecord = (entity: GeneratedWorkloadEntity) => {
+    const window = SAMPLE_WINDOW_SPECS.find(item => item.entity === entity);
+    if (!window) {
+      throw new Error(`Missing generated workload sample window: ${entity}`);
+    }
+    return localIdFor(entity, window.tenantId, window.start + 1);
+  };
+
   return {
     workloadRootTenantId: 'superapp-global',
     readHeavyTenantId: 'city-ops-eu',
     financeTenantId: 'acme-global',
     securityTenantId: 'security-root',
-    sampleWindows: {
-      orders: 'orders:city-ops-eu:checkout-surge',
-      invoices: 'invoices:acme-global:month-close',
-      ledgerEntries: 'ledgerEntries:acme-global:reconciliation',
-      rides: 'rides:city-ops-eu:rush-hour',
-      dispatchAssignments: 'dispatchAssignments:city-ops-eu:retry-window',
-      fleetVehicles: 'fleetVehicles:city-ops-eu:shift-change',
-      chatThreads: 'chatThreads:platform-shell:remote-fallback',
-      messages: 'messages:platform-shell:pagination-window',
-      auditEvents: 'auditEvents:security-root:policy-stream',
-      users: 'users:superapp-global:operator-page',
-      roles: 'roles:security-root:privileged-page',
-      memberships: 'memberships:acme-global:finance-page',
-      tenantResources: 'tenantResources:chaos-lab:drill-page',
-    },
+    sampleWindows,
     stableRecords: {
-      orderId: localIdFor('orders', 'city-ops-eu', 1025),
-      invoiceId: localIdFor('invoices', 'acme-global', 513),
-      ledgerEntryId: localIdFor('ledgerEntries', 'acme-global', 2049),
-      rideId: localIdFor('rides', 'city-ops-eu', 1501),
-      dispatchAssignmentId: localIdFor(
-        'dispatchAssignments',
-        'city-ops-eu',
-        1501,
-      ),
-      fleetVehicleId: localIdFor('fleetVehicles', 'city-ops-eu', 129),
-      chatThreadId: localIdFor('chatThreads', 'platform-shell', 65),
-      messageId: localIdFor('messages', 'platform-shell', 4097),
-      auditEventId: localIdFor('auditEvents', 'security-root', 2049),
-      userId: localIdFor('users', 'superapp-global', 129),
-      roleId: localIdFor('roles', 'security-root', 33),
-      membershipId: localIdFor('memberships', 'acme-global', 257),
-      tenantResourceId: localIdFor('tenantResources', 'chaos-lab', 81),
+      orderId: stableRecord('orders'),
+      invoiceId: stableRecord('invoices'),
+      ledgerEntryId: stableRecord('ledgerEntries'),
+      rideId: stableRecord('rides'),
+      dispatchAssignmentId: stableRecord('dispatchAssignments'),
+      fleetVehicleId: stableRecord('fleetVehicles'),
+      chatThreadId: stableRecord('chatThreads'),
+      messageId: stableRecord('messages'),
+      auditEventId: stableRecord('auditEvents'),
+      userId: stableRecord('users'),
+      roleId: stableRecord('roles'),
+      membershipId: stableRecord('memberships'),
+      tenantResourceId: stableRecord('tenantResources'),
     },
     tenantBoundaryProbe: {
       allowedTenantId: 'security-root',

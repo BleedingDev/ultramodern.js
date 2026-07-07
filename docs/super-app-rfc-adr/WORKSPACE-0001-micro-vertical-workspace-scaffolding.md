@@ -10,7 +10,8 @@
   - `ADR-0012-mv-topology-manifest-and-zephyr-profile.md`
   - `ADR-0014-mv-template-supply-chain-policy.md`
   - `packages/toolkit/create/README.md`
-  - `packages/toolkit/create/template/README.md`
+  - `packages/toolkit/create/template-workspace/`
+  - `packages/toolkit/create/templates/`
 
 ## 1. Purpose
 

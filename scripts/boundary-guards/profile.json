@@ -1,9 +1,5 @@
 {
   "schemaVersion": 1,
-  "contractPath": "docs/super-app-rfc-adr/contracts/module-sdk-contracts.json",
-  "moduleManifests": [
-    "docs/super-app-rfc-adr/contracts/module-manifest.example.json"
-  ],
   "importGuards": [
     {
       "id": "core-no-domain-or-vendor-connector-imports",

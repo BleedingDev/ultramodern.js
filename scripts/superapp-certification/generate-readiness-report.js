@@ -176,6 +176,76 @@ function normalizeDriftStatus(upstreamDrift) {
   return 'failed';
 }
 
+function normalizeNestedEvidenceStatus(entry) {
+  switch (entry?.status) {
+    case 'passed':
+    case 'warning':
+    case 'failed':
+    case 'planned':
+    case 'skipped':
+      return entry.status;
+    case 'pass':
+      return 'passed';
+    case 'fail':
+      return 'failed';
+    case 'unknown':
+      return 'skipped';
+    default:
+      return 'failed';
+  }
+}
+
+function nestedEvidenceDimensions(entry, summary) {
+  const explicitDimensions = Array.isArray(entry?.dimensions)
+    ? entry.dimensions.filter(dimension => dimensions.includes(dimension))
+    : [];
+  if (explicitDimensions.length > 0) {
+    return [...new Set(explicitDimensions)];
+  }
+  return summaryDimensions(summary);
+}
+
+function nestedEvidenceReason(entry) {
+  if (typeof entry?.reason === 'string' && entry.reason.length > 0) {
+    return entry.reason;
+  }
+  if (typeof entry?.message === 'string' && entry.message.length > 0) {
+    return entry.message;
+  }
+  return undefined;
+}
+
+function nestedEvidenceFromSummary(summary, relativeSource, parentId) {
+  if (!Array.isArray(summary?.evidence)) {
+    return [];
+  }
+  return summary.evidence
+    .filter(entry => entry && typeof entry === 'object')
+    .map((entry, index) => {
+      const status = normalizeNestedEvidenceStatus(entry);
+      const detail =
+        entry.detail && typeof entry.detail === 'object' ? entry.detail : {};
+      const item = {
+        id:
+          typeof entry.id === 'string' && entry.id.length > 0
+            ? entry.id
+            : `${parentId}:evidence:${index + 1}`,
+        dimensions: nestedEvidenceDimensions(entry, summary),
+        status,
+        source: relativeSource,
+        parentId,
+        detail,
+      };
+      const reason = nestedEvidenceReason(entry);
+      if (reason) {
+        item.reason = reason;
+      } else if (status === 'skipped') {
+        item.reason = 'Nested evidence skipped without a reason.';
+      }
+      return item;
+    });
+}
+
 function evidenceFromSummaries(summaries, inputDir) {
   const evidence = [];
   for (const item of summaries) {
@@ -214,11 +284,19 @@ function evidenceFromSummaries(summaries, inputDir) {
         source: relativeSource,
         detail: item.summary.upstreamDrift || {},
       });
+      evidence.push(
+        ...nestedEvidenceFromSummary(
+          item.summary,
+          relativeSource,
+          item.summary.suite,
+        ),
+      );
       continue;
     }
 
+    const summaryId = item.summary.suite || path.relative(inputDir, item.file);
     evidence.push({
-      id: item.summary.suite || path.relative(inputDir, item.file),
+      id: summaryId,
       dimensions: summaryDimensions(item.summary),
       status: normalizeSummaryStatus(item.summary),
       source: relativeSource,
@@ -229,6 +307,9 @@ function evidenceFromSummaries(summaries, inputDir) {
         unexpectedErrorCount: item.summary.unexpectedErrorCount,
       },
     });
+    evidence.push(
+      ...nestedEvidenceFromSummary(item.summary, relativeSource, summaryId),
+    );
   }
   return evidence;
 }
@@ -236,6 +317,9 @@ function evidenceFromSummaries(summaries, inputDir) {
 function dimensionStatus(items) {
   if (items.some(item => item.status === 'failed')) {
     return 'failed';
+  }
+  if (items.some(item => item.status === 'skipped')) {
+    return 'skipped';
   }
   if (items.some(item => item.status === 'warning')) {
     return 'warning';
@@ -245,9 +329,6 @@ function dimensionStatus(items) {
   }
   if (items.some(item => item.status === 'planned')) {
     return 'planned';
-  }
-  if (items.some(item => item.status === 'skipped')) {
-    return 'skipped';
   }
   return 'missing';
 }

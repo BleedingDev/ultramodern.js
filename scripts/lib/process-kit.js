@@ -7,6 +7,20 @@ const net = require('node:net');
 const DEFAULT_STARTUP_TIMEOUT_MS = 60_000;
 const DEFAULT_SHUTDOWN_TIMEOUT_MS = 10_000;
 
+function createProcessEnv(overrides = {}) {
+  return {
+    ...process.env,
+    FORCE_COLOR: '0',
+    ...overrides,
+  };
+}
+
+function writeStream(stream, message) {
+  return new Promise((resolve, reject) => {
+    stream.write(message, error => (error ? reject(error) : resolve()));
+  });
+}
+
 function reservePort(host = '127.0.0.1') {
   return new Promise((resolve, reject) => {
     const server = net.createServer();
@@ -311,6 +325,7 @@ function sleep(ms) {
 module.exports = {
   DEFAULT_SHUTDOWN_TIMEOUT_MS,
   DEFAULT_STARTUP_TIMEOUT_MS,
+  createProcessEnv,
   killChild,
   launchProductionServer,
   reservePort,
@@ -321,4 +336,5 @@ module.exports = {
   startServerProcess,
   stopProductionServer,
   waitForHttp,
+  writeStream,
 };

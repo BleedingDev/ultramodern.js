@@ -7,10 +7,12 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import cliKit from '../lib/cli-kit.js';
 import fsKit from '../lib/fs-kit.js';
+import processKit from '../lib/process-kit.js';
 
 const repoRoot = path.resolve(new URL('../..', import.meta.url).pathname);
 const { parseCliArgs, rejectInlineOptionValues } = cliKit;
 const { readJsonFile, writeJsonFile } = fsKit;
+const { createProcessEnv, writeStream } = processKit;
 const defaultArtifactDir = '.modern/production-readiness/browser-smoke/local';
 const defaultReportPath =
   '.modern/production-readiness/browser-smoke/summary.json';
@@ -1099,16 +1101,10 @@ function startServer(target, { artifactDir, projectDir }) {
   const logPath = path.join(artifactDir, `${target.app.id}-serve.log`);
   fs.mkdirSync(path.dirname(logPath), { recursive: true });
   const logStream = fs.createWriteStream(logPath, { flags: 'a' });
-  const env = {
-    ...process.env,
-    FORCE_COLOR: '0',
-  };
-  if (target.portEnv) {
-    env[target.portEnv] = String(target.port);
-  }
-  if (target.publicUrlEnv) {
-    env[target.publicUrlEnv] = target.baseUrl;
-  }
+  const env = createProcessEnv({
+    ...(target.portEnv ? { [target.portEnv]: String(target.port) } : {}),
+    ...(target.publicUrlEnv ? { [target.publicUrlEnv]: target.baseUrl } : {}),
+  });
   const child = spawn(
     'pnpm',
     ['--filter', target.app.package, 'run', 'serve'],
@@ -1280,12 +1276,10 @@ export async function runUltramodernBrowserSmoke(options) {
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   const report = await runUltramodernBrowserSmoke(options);
-  await new Promise(resolve => {
-    process.stdout.write(
-      `[ultramodern-browser-smoke] ${report.status}: ${options.out}\n`,
-      resolve,
-    );
-  });
+  await writeStream(
+    process.stdout,
+    `[ultramodern-browser-smoke] ${report.status}: ${options.out}\n`,
+  );
   process.exit(report.status === 'pass' || report.status === 'skipped' ? 0 : 1);
 }
 

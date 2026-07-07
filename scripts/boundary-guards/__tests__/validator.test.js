@@ -22,8 +22,6 @@ const removeDir = directory => {
 test('validateProfileShape accepts valid profile schema', () => {
   const profile = {
     schemaVersion: 1,
-    contractPath: 'contract.json',
-    moduleManifests: ['manifest.json'],
     importGuards: [
       {
         id: 'guard',
@@ -142,96 +140,10 @@ test('validateRequiredSnippets detects order violations', () => {
 test('runBoundaryGuardChecks validates happy path', () => {
   const dir = makeTempDir();
   try {
-    const contractPath = path.join(dir, 'contract.json');
-    const manifestPath = path.join(dir, 'manifest.json');
     const sourceDir = path.join(dir, 'module');
     const runtimeFile = path.join(dir, 'runtime.ts');
     const policyFile = path.join(dir, 'policy.ts');
     fs.mkdirSync(sourceDir, { recursive: true });
-
-    fs.writeFileSync(
-      contractPath,
-      JSON.stringify(
-        {
-          schemaVersion: 1,
-          compatibilityLanes: ['effect-first', 'tanstack-first'],
-          sharedRequirements: {
-            requiredManifestFields: [
-              'moduleId',
-              'version',
-              'runtime',
-              'sourceDir',
-              'lifecycleHooks',
-              'policyHooks',
-              'observability',
-              'compliance',
-            ],
-            requiredComplianceFlags: [
-              'usesSdkContracts',
-              'usesPolicyMiddleware',
-              'usesObservabilityHooks',
-            ],
-            requiredObservabilitySignals: ['metrics', 'audit', 'trace'],
-            requiredLifecycleHooks: [
-              'registerRoutes',
-              'registerCapabilities',
-              'registerMigrations',
-            ],
-            requiredPolicyHooks: [
-              'authorize',
-              'enforceTenantScope',
-              'validateOperationContext',
-            ],
-            requiredObservabilityHooks: [
-              'emitBusinessMetric',
-              'emitAuditEvent',
-              'emitTraceContext',
-            ],
-            forbiddenCodePatterns: [
-              'createRequest\\(',
-              'x-modernjs-bff-envelope',
-              'x-operation-id',
-            ],
-          },
-          profiles: {},
-        },
-        null,
-        2,
-      ),
-    );
-
-    fs.writeFileSync(
-      manifestPath,
-      JSON.stringify(
-        {
-          moduleId: 'example-module',
-          version: '1.0.0',
-          runtime: 'effect-first',
-          sourceDir: path.relative(dir, sourceDir),
-          lifecycleHooks: [
-            'registerRoutes',
-            'registerCapabilities',
-            'registerMigrations',
-          ],
-          policyHooks: [
-            'authorize',
-            'enforceTenantScope',
-            'validateOperationContext',
-          ],
-          observability: {
-            signals: ['metrics', 'audit', 'trace'],
-            hooks: ['emitBusinessMetric', 'emitAuditEvent', 'emitTraceContext'],
-          },
-          compliance: {
-            usesSdkContracts: true,
-            usesPolicyMiddleware: true,
-            usesObservabilityHooks: true,
-          },
-        },
-        null,
-        2,
-      ),
-    );
 
     fs.writeFileSync(
       path.join(sourceDir, 'index.ts'),
@@ -252,8 +164,6 @@ test('runBoundaryGuardChecks validates happy path', () => {
       JSON.stringify(
         {
           schemaVersion: 1,
-          contractPath: path.relative(dir, contractPath),
-          moduleManifests: [path.relative(dir, manifestPath)],
           importGuards: [
             {
               id: 'guard',
@@ -299,7 +209,6 @@ test('runBoundaryGuardChecks validates happy path', () => {
       allowEmptyManifests: false,
     });
 
-    assert.equal(report.validatedManifests, 1);
     assert.equal(report.requiredSnippetChecks, 2);
   } finally {
     removeDir(dir);
