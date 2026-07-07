@@ -1,0 +1,45 @@
+const { ensureSchemaVersion } = require('../../lib/validation-kit');
+const { SCHEMA_VERSION } = require('./schema');
+
+const validateProfileShape = profile => {
+  if (!profile || typeof profile !== 'object') {
+    throw new Error('Profile must be a JSON object');
+  }
+
+  ensureSchemaVersion({
+    actual: profile.schemaVersion,
+    expected: SCHEMA_VERSION,
+    label: 'profile',
+  });
+
+  if (!profile.evidence || typeof profile.evidence !== 'object') {
+    throw new Error('Profile is missing "evidence" section');
+  }
+
+  if (!Array.isArray(profile.evidence.requiredFiles)) {
+    throw new Error('Profile evidence.requiredFiles must be an array');
+  }
+
+  if (!Array.isArray(profile.evidence.requiredMetadataFields)) {
+    throw new Error('Profile evidence.requiredMetadataFields must be an array');
+  }
+
+  if (
+    !profile.migrationContracts ||
+    typeof profile.migrationContracts !== 'object'
+  ) {
+    throw new Error('Profile is missing "migrationContracts" section');
+  }
+
+  if (!Array.isArray(profile.migrationContracts.targets)) {
+    throw new Error('Profile migrationContracts.targets must be an array');
+  }
+
+  if (!Array.isArray(profile.gateCommands)) {
+    throw new Error('Profile gateCommands must be an array');
+  }
+};
+
+module.exports = {
+  validateProfileShape,
+};
