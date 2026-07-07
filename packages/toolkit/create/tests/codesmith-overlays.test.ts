@@ -7,6 +7,7 @@ import {
   addUltramodernVertical,
   generateUltramodernWorkspace,
 } from '../src/ultramodern-workspace';
+import { createWorkspace } from './helpers/workspace-kit';
 
 const packageRoot = path.resolve(__dirname, '..');
 const builtCliPath = path.join(packageRoot, 'dist/esm-node/index.js');
@@ -21,19 +22,6 @@ function runCli(cwd: string, args: string[]) {
     cwd,
     encoding: 'utf8',
     env: hermeticEnv,
-  });
-}
-
-function createWorkspace(workspaceDir: string) {
-  generateUltramodernWorkspace({
-    targetDir: workspaceDir,
-    packageName: path.basename(workspaceDir),
-    modernVersion: '3.2.1',
-    enableTailwind: true,
-    packageSource: {
-      strategy: 'install',
-      modernPackageVersion: '3.2.0-ultramodern.108',
-    },
   });
 }
 
@@ -197,7 +185,7 @@ test('CLI runs explicit CodeSmith overlay for a MicroVertical', () => {
   try {
     const overlayGenerator = createOverlayGenerator(tempRoot);
     const workspaceDir = path.join(tempRoot, 'cli-overlay-workspace');
-    createWorkspace(workspaceDir);
+    createWorkspace(path.basename(workspaceDir), { workspaceDir });
 
     const result = runCli(workspaceDir, [
       '--vertical=checkout',
@@ -222,7 +210,7 @@ test('CLI reports CodeSmith overlay failures without the success message', () =>
   try {
     const overlayGenerator = createOverlayGenerator(tempRoot, { fail: true });
     const workspaceDir = path.join(tempRoot, 'cli-overlay-failure-workspace');
-    createWorkspace(workspaceDir);
+    createWorkspace(path.basename(workspaceDir), { workspaceDir });
 
     const result = runCli(workspaceDir, [
       '--vertical=checkout',

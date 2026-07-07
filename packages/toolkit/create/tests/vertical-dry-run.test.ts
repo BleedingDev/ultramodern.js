@@ -5,9 +5,9 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   addUltramodernVertical,
-  generateUltramodernWorkspace,
   planUltramodernVertical,
 } from '../src/ultramodern-workspace';
+import { createWorkspace, snapshotWorkspace } from './helpers/workspace-kit';
 
 const packageRoot = path.resolve(__dirname, '..');
 const builtCliPath = path.join(packageRoot, 'dist/esm-node/index.js');
@@ -17,52 +17,12 @@ const hermeticEnv = {
   MODERN_CREATE_ULTRAMODERN_FRAMEWORK_VERSION: '3.2.0-ultramodern.108',
 };
 
-function createWorkspace() {
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-vertical-dry-'));
-  const workspaceDir = path.join(tempRoot, 'dry-run-workspace');
-
-  generateUltramodernWorkspace({
-    targetDir: workspaceDir,
-    packageName: 'dry-run-workspace',
-    modernVersion: '3.2.1',
-    enableTailwind: true,
-    packageSource: {
-      strategy: 'install',
-      modernPackageVersion: '3.2.0-ultramodern.108',
-    },
-  });
-
-  return { tempRoot, workspaceDir };
-}
-
 function runCli(cwd: string, args: string[]) {
   return spawnSync(process.execPath, [builtCliPath, ...args], {
     cwd,
     encoding: 'utf8',
     env: hermeticEnv,
   });
-}
-
-function listFiles(root: string, dir = root): string[] {
-  const files: string[] = [];
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    const entryPath = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      files.push(...listFiles(root, entryPath));
-    } else if (entry.isFile()) {
-      files.push(path.relative(root, entryPath).split(path.sep).join('/'));
-    }
-  }
-  return files.sort();
-}
-
-function snapshotWorkspace(workspaceDir: string): Record<string, string> {
-  return Object.fromEntries(
-    listFiles(workspaceDir).map(relativePath => [
-      relativePath,
-      fs.readFileSync(path.join(workspaceDir, relativePath), 'utf-8'),
-    ]),
-  );
 }
 
 function readJson(workspaceDir: string, relativePath: string): any {
@@ -117,7 +77,9 @@ function addSyntheticTopologyVertical(
 }
 
 test('public dry-run plan leaves workspace unchanged and matches normal run summary', () => {
-  const { tempRoot, workspaceDir } = createWorkspace();
+  const { tempRoot, workspaceDir } = createWorkspace('dry-run-workspace', {
+    tempPrefix: 'um-vertical-dry-',
+  });
 
   try {
     const before = snapshotWorkspace(workspaceDir);
@@ -192,9 +154,15 @@ test('public dry-run plan leaves workspace unchanged and matches normal run summ
 });
 
 test('dry-run reports validation failures without modifying the workspace', () => {
-  const duplicateName = createWorkspace();
-  const duplicateTopologyId = createWorkspace();
-  const duplicatePort = createWorkspace();
+  const duplicateName = createWorkspace('dry-run-workspace', {
+    tempPrefix: 'um-vertical-dry-',
+  });
+  const duplicateTopologyId = createWorkspace('dry-run-workspace', {
+    tempPrefix: 'um-vertical-dry-',
+  });
+  const duplicatePort = createWorkspace('dry-run-workspace', {
+    tempPrefix: 'um-vertical-dry-',
+  });
 
   try {
     addUltramodernVertical({

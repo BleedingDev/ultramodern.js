@@ -1,39 +1,18 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
-import {
-  addUltramodernVertical,
-  generateUltramodernWorkspace,
-} from '../src/ultramodern-workspace';
+import { addUltramodernVertical } from '../src/ultramodern-workspace';
+import { createWorkspace, snapshotWorkspace } from './helpers/workspace-kit';
 
 const ultramodernConfigPath = '.modernjs/ultramodern.json';
 const topologyPath = 'topology/reference-topology.json';
 const ownershipPath = 'topology/ownership.json';
 const overlayPath = 'topology/local-overlays/development.json';
 
-function createWorkspace() {
-  const tempRoot = fs.mkdtempSync(
-    path.join(os.tmpdir(), 'um-vertical-preflight-'),
-  );
-  const workspaceDir = path.join(tempRoot, 'preflight-workspace');
-
-  generateUltramodernWorkspace({
-    targetDir: workspaceDir,
-    packageName: 'preflight-workspace',
-    modernVersion: '3.2.1',
-    enableTailwind: true,
-    packageSource: {
-      strategy: 'install',
-      modernPackageVersion: '3.2.0-ultramodern.108',
-    },
-  });
-
-  return { tempRoot, workspaceDir };
-}
-
 function createWorkspaceWithCatalog() {
-  const workspace = createWorkspace();
+  const workspace = createWorkspace('preflight-workspace', {
+    tempPrefix: 'um-vertical-preflight-',
+  });
   addUltramodernVertical({
     workspaceRoot: workspace.workspaceDir,
     name: 'catalog',
@@ -53,28 +32,6 @@ function writeJson(workspaceDir: string, relativePath: string, value: unknown) {
     path.join(workspaceDir, relativePath),
     `${JSON.stringify(value, null, 2)}\n`,
     'utf-8',
-  );
-}
-
-function listFiles(root: string, dir = root): string[] {
-  const files: string[] = [];
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    const entryPath = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      files.push(...listFiles(root, entryPath));
-    } else if (entry.isFile()) {
-      files.push(path.relative(root, entryPath).split(path.sep).join('/'));
-    }
-  }
-  return files.sort();
-}
-
-function snapshotWorkspace(workspaceDir: string): Record<string, string> {
-  return Object.fromEntries(
-    listFiles(workspaceDir).map(relativePath => [
-      relativePath,
-      fs.readFileSync(path.join(workspaceDir, relativePath), 'utf-8'),
-    ]),
   );
 }
 
@@ -145,7 +102,9 @@ function addExistingTopologyVertical(
 }
 
 test('preflight rejects invalid fresh vertical input before writes', () => {
-  const { tempRoot, workspaceDir } = createWorkspace();
+  const { tempRoot, workspaceDir } = createWorkspace('preflight-workspace', {
+    tempPrefix: 'um-vertical-preflight-',
+  });
 
   try {
     const before = snapshotWorkspace(workspaceDir);
@@ -165,8 +124,12 @@ test('preflight rejects invalid fresh vertical input before writes', () => {
 });
 
 test('preflight requires compact config fixtures', () => {
-  const nonObject = createWorkspace();
-  const missingCompact = createWorkspace();
+  const nonObject = createWorkspace('preflight-workspace', {
+    tempPrefix: 'um-vertical-preflight-',
+  });
+  const missingCompact = createWorkspace('preflight-workspace', {
+    tempPrefix: 'um-vertical-preflight-',
+  });
 
   try {
     writeJson(nonObject.workspaceDir, ultramodernConfigPath, []);
@@ -297,10 +260,18 @@ test.each([
 });
 
 test('preflight verifies mutable contract collections are JSON objects or arrays', () => {
-  const topologyNotObject = createWorkspace();
-  const topologyVerticalsNotArray = createWorkspace();
-  const ownershipNotArray = createWorkspace();
-  const overlayPortsNotObject = createWorkspace();
+  const topologyNotObject = createWorkspace('preflight-workspace', {
+    tempPrefix: 'um-vertical-preflight-',
+  });
+  const topologyVerticalsNotArray = createWorkspace('preflight-workspace', {
+    tempPrefix: 'um-vertical-preflight-',
+  });
+  const ownershipNotArray = createWorkspace('preflight-workspace', {
+    tempPrefix: 'um-vertical-preflight-',
+  });
+  const overlayPortsNotObject = createWorkspace('preflight-workspace', {
+    tempPrefix: 'um-vertical-preflight-',
+  });
 
   try {
     writeJson(topologyNotObject.workspaceDir, topologyPath, []);

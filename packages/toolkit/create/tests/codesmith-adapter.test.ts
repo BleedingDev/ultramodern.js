@@ -4,8 +4,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { CodeSmith } from '@modern-js/codesmith';
-import { generateUltramodernWorkspace } from '../src/ultramodern-workspace';
 import ultramodernCodeSmithAdapter from '../src/ultramodern-workspace/codesmith';
+import { createWorkspace } from './helpers/workspace-kit';
 
 const packageRoot = path.resolve(__dirname, '..');
 const builtCliPath = path.join(packageRoot, 'dist/esm-node/index.js');
@@ -28,13 +28,32 @@ function readJson(workspaceDir: string, relativePath: string): any {
 }
 
 function comparableCompactConfig(config: any) {
-  return {
+  const scrub = (value: any): any => {
+    if (Array.isArray(value)) {
+      return value.map(scrub);
+    }
+
+    if (value && typeof value === 'object') {
+      return Object.fromEntries(
+        Object.entries(value).map(([key, nested]) => [
+          key,
+          key === 'buildMarker' || (key === 'build' && 'uiSurface' in value)
+            ? '<ignored>'
+            : scrub(nested),
+        ]),
+      );
+    }
+
+    return value;
+  };
+
+  return scrub({
     ...config,
     generator: {
       ...config.generator,
       version: '<ignored>',
     },
-  };
+  });
 }
 
 function runCli(cwd: string, args: string[]) {
@@ -66,19 +85,6 @@ function createAdapterPackage(tempRoot: string) {
     `module.exports = require(${JSON.stringify(builtCodeSmithAdapterPath)});\n`,
   );
   return generatorDir;
-}
-
-function createWorkspace(workspaceDir: string) {
-  generateUltramodernWorkspace({
-    targetDir: workspaceDir,
-    packageName: path.basename(workspaceDir),
-    modernVersion: '3.2.1',
-    enableTailwind: true,
-    packageSource: {
-      strategy: 'install',
-      modernPackageVersion: '3.2.0-ultramodern.108',
-    },
-  });
 }
 
 async function runCodeSmith(

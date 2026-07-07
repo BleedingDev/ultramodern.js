@@ -355,7 +355,10 @@ function assertTargetIsolatedModernConfig(source: string, label: string) {
 
 test('Cloudflare output verifier wrapper uses explicit options contract', () => {
   const source = fs.readFileSync(
-    path.join(__dirname, '../src/ultramodern-tooling/commands.ts'),
+    path.join(
+      __dirname,
+      '../src/ultramodern-tooling/commands/cloudflare-output-verify.ts',
+    ),
     'utf-8',
   );
 
@@ -378,13 +381,20 @@ test('Cloudflare output verifier wrapper uses explicit options contract', () => 
 });
 
 test('routes-generate command drives the plugin-tanstack headless export', () => {
-  const source = fs.readFileSync(
+  const registrySource = fs.readFileSync(
     path.join(__dirname, '../src/ultramodern-tooling/commands.ts'),
+    'utf-8',
+  );
+  const source = fs.readFileSync(
+    path.join(
+      __dirname,
+      '../src/ultramodern-tooling/commands/routes-generate.ts',
+    ),
     'utf-8',
   );
 
   assert.match(
-    source,
+    registrySource,
     /case GENERATED_TOOLING_COMMANDS\.routesGenerate\.command:/u,
   );
   assert.match(
@@ -760,9 +770,11 @@ test('UltraModern migrate-strict-effect updates package cohort and direct API me
       'scripts/proof-node-backend-federation.mts',
       'scripts/verify-cloudflare-output.mts',
       'apps/shell-super-app/src/ultramodern-build.ts',
+      'apps/shell-super-app/shared/ultramodern-build.json',
       'apps/shell-super-app/shared/ultramodern-build.ts',
       'verticals/catalog/api/backend-federation.ts',
       'verticals/catalog/src/ultramodern-build.ts',
+      'verticals/catalog/shared/ultramodern-build.json',
       'verticals/catalog/shared/ultramodern-build.ts',
     ]) {
       fs.writeFileSync(path.join(workspaceDir, relativePath), 'stale\n');
@@ -974,7 +986,7 @@ declare module '*.css' {}
     );
     assert.equal(
       rootPackage.scripts['node:proof'],
-      'node ./scripts/proof-node-backend-federation.mts',
+      'pnpm node:backend-federation:generate && node ./scripts/proof-node-backend-federation.mts',
     );
     assert.equal(
       rootPackage.scripts['cloudflare-output:verify'],
@@ -1024,16 +1036,21 @@ declare module '*.css' {}
       ),
       /backendFederationContract/,
     );
-    assert.match(
-      readText(
+    assert.equal(
+      readJson(
         workspaceDir,
-        'apps/shell-super-app/shared/ultramodern-build.ts',
-      ),
-      /appId: 'shell-super-app'/,
+        'apps/shell-super-app/shared/ultramodern-build.json',
+      ).deliveryUnit.appId,
+      'shell-super-app',
+    );
+    assert.equal(
+      readJson(workspaceDir, 'verticals/catalog/shared/ultramodern-build.json')
+        .deliveryUnit.packageName,
+      '@tooling-migrate/catalog',
     );
     assert.match(
       readText(workspaceDir, 'verticals/catalog/shared/ultramodern-build.ts'),
-      /packageName: '@tooling-migrate\/catalog'/,
+      /ultramodernBuildArtifact\.deliveryUnit/,
     );
     assert.match(
       readText(workspaceDir, 'verticals/catalog/src/ultramodern-build.ts'),

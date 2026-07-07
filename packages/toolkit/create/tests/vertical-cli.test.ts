@@ -1,9 +1,8 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
-import { generateUltramodernWorkspace } from '../src/ultramodern-workspace';
+import { createWorkspace, snapshotWorkspace } from './helpers/workspace-kit';
 
 const packageRoot = path.resolve(__dirname, '..');
 const builtCliPath = path.join(packageRoot, 'dist/esm-node/index.js');
@@ -13,52 +12,12 @@ const hermeticEnv = {
   MODERN_CREATE_ULTRAMODERN_FRAMEWORK_VERSION: '3.2.0-ultramodern.108',
 };
 
-function createWorkspace(packageName: string) {
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-vertical-cli-'));
-  const workspaceDir = path.join(tempRoot, packageName);
-
-  generateUltramodernWorkspace({
-    targetDir: workspaceDir,
-    packageName,
-    modernVersion: '3.2.1',
-    enableTailwind: true,
-    packageSource: {
-      strategy: 'install',
-      modernPackageVersion: '3.2.0-ultramodern.108',
-    },
-  });
-
-  return { tempRoot, workspaceDir };
-}
-
 function runCli(cwd: string, args: string[]) {
   return spawnSync(process.execPath, [builtCliPath, ...args], {
     cwd,
     encoding: 'utf8',
     env: hermeticEnv,
   });
-}
-
-function listFiles(root: string, dir = root): string[] {
-  const files: string[] = [];
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    const entryPath = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      files.push(...listFiles(root, entryPath));
-    } else if (entry.isFile()) {
-      files.push(path.relative(root, entryPath).split(path.sep).join('/'));
-    }
-  }
-  return files.sort();
-}
-
-function snapshotWorkspace(workspaceDir: string): Record<string, string> {
-  return Object.fromEntries(
-    listFiles(workspaceDir).map(relativePath => [
-      relativePath,
-      fs.readFileSync(path.join(workspaceDir, relativePath), 'utf-8'),
-    ]),
-  );
 }
 
 function readJson(workspaceDir: string, relativePath: string): any {
@@ -107,7 +66,9 @@ test('CLI MicroVertical flow supports positional and explicit vertical names', (
   ];
 
   for (const testCase of cases) {
-    const { tempRoot, workspaceDir } = createWorkspace(testCase.workspace);
+    const { tempRoot, workspaceDir } = createWorkspace(testCase.workspace, {
+      tempPrefix: 'um-vertical-cli-',
+    });
 
     try {
       const result = runCli(workspaceDir, testCase.args);
