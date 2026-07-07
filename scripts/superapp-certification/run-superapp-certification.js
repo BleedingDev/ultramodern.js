@@ -5,6 +5,7 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { parseCliArgs } = require('../lib/cli-kit');
 const { writeJsonFile } = require('../lib/fs-kit');
+const { runCommandList } = require('../lib/process-kit');
 
 const repoRoot = path.resolve(__dirname, '../..');
 const defaultRunId = new Date().toISOString().replace(/[:.]/g, '-');
@@ -223,57 +224,14 @@ function certificationCommands(profile, outDir) {
   return nightly;
 }
 
-function runShell(commandLine, options) {
-  const startedAt = Date.now();
-  const result = spawnSync(commandLine, {
-    cwd: options.cwd,
-    env: {
-      ...process.env,
-      ...options.env,
-    },
-    shell: true,
-    stdio: 'inherit',
-  });
-
-  return {
-    exitCode: result.status ?? 1,
-    signal: result.signal,
-    durationMs: Date.now() - startedAt,
-  };
-}
-
 function runCommands(commands, options) {
-  const results = [];
-  for (const item of commands) {
-    if (options.dryRun) {
-      results.push({
-        ...item,
-        status: 'planned',
-        exitCode: 0,
-        durationMs: 0,
-      });
-      continue;
-    }
-
-    console.log(`\n[superapp-certification] ${item.id}`);
-    const result = runShell(item.command, {
-      cwd: item.cwd,
-      env: item.env,
-    });
-    results.push({
-      ...item,
-      status: result.exitCode === 0 ? 'passed' : 'failed',
-      exitCode: result.exitCode,
-      signal: result.signal,
-      durationMs: result.durationMs,
-    });
-
-    if (result.exitCode !== 0 && !options.continueOnError) {
-      break;
-    }
-  }
-
-  return results;
+  return runCommandList(commands, {
+    continueOnError: options.continueOnError,
+    dryRun: options.dryRun,
+    onCommandStart: item => {
+      console.log(`\n[superapp-certification] ${item.id}`);
+    },
+  });
 }
 
 function runGit(args, options = {}) {

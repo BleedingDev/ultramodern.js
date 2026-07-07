@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
-const { parseCliArgs } = require('../cli-kit');
+const { parseCliArgs, rejectInlineOptionValues } = require('../cli-kit');
 
 const parseSample = (argv, overrides = {}) =>
   parseCliArgs(argv, {
@@ -98,4 +98,14 @@ test('parseCliArgs keeps bare terminator behavior explicit per caller', () => {
     optional: 'value',
     required: undefined,
   });
+});
+
+test('rejectInlineOptionValues rejects selected inline value options', () => {
+  assert.throws(
+    () => rejectInlineOptionValues(['--out=file.json'], ['--out']),
+    /^Error: Unknown argument: --out=file\.json$/,
+  );
+  assert.doesNotThrow(() =>
+    rejectInlineOptionValues(['--other=file.json'], ['--out']),
+  );
 });

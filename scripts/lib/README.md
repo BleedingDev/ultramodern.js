@@ -9,13 +9,14 @@ and script helper families (`module-sdk-contracts`, `boundary-guards`,
   existence checks, primitive shape guards (`ensureObject`, `ensureString`,
   `ensureStringArray`, ...), placeholder-value detection, schema-version
   checking, and path resolution.
-- `cli-kit.js` — `node:util parseArgs` wrapper for fork-owned scripts that
-  preserves each CLI family's historical unknown-argument and missing-value
-  behavior.
+- `cli-kit.js` — `node:util parseArgs` wrapper and inline-value rejection
+  helper for fork-owned scripts that preserve each CLI family's historical
+  unknown-argument and missing-value behavior.
 - `fs-kit.js` — pretty JSON file writes with parent-directory creation and an
   atomic default for release/publish artifacts.
-- `process-kit.js` — shared TCP port reservation, HTTP readiness, and
-  production-server process lifecycle helpers.
+- `process-kit.js` — shared shell command-list execution, TCP port
+  reservation, HTTP readiness, and production-server process lifecycle
+  helpers.
 - `artifact-schema.js` — SuperApp readiness artifact envelope helpers.
 
 Rules:

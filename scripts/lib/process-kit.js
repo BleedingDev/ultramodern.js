@@ -55,6 +55,85 @@ function runBuild(options) {
   };
 }
 
+function runShellCommand(command, options = {}) {
+  const startedAt = Date.now();
+  const result = spawnSync(command, {
+    cwd: options.cwd,
+    env: {
+      ...process.env,
+      ...(options.env || {}),
+    },
+    encoding: options.encoding || 'utf8',
+    shell: true,
+    stdio: options.stdio || 'inherit',
+  });
+
+  return {
+    processStatus: result.status,
+    exitCode: result.status ?? 1,
+    signal: result.signal,
+    error: result.error,
+    durationMs: Date.now() - startedAt,
+  };
+}
+
+function normalizeCommandEntry(entry, fallbackCwd) {
+  const item = typeof entry === 'string' ? { command: entry } : entry;
+  if (!item || typeof item.command !== 'string' || item.command.length === 0) {
+    throw new Error('Command entry must include a command string');
+  }
+  return {
+    ...item,
+    cwd: item.cwd || fallbackCwd || process.cwd(),
+  };
+}
+
+function runCommandList(commands, options = {}) {
+  const results = [];
+  for (const entry of commands) {
+    const item = normalizeCommandEntry(entry, options.cwd);
+    if (options.dryRun) {
+      results.push({
+        ...item,
+        status: 'planned',
+        exitCode: 0,
+        durationMs: 0,
+      });
+      continue;
+    }
+
+    if (typeof options.onCommandStart === 'function') {
+      options.onCommandStart(item);
+    }
+
+    const result = runShellCommand(item.command, {
+      cwd: item.cwd,
+      env: item.env,
+      stdio: options.stdio,
+    });
+    const passed = result.exitCode === 0 && !result.error;
+    const itemResult = {
+      ...item,
+      status: passed ? 'passed' : 'failed',
+      exitCode: result.exitCode,
+      signal: result.signal,
+      durationMs: result.durationMs,
+    };
+    if (options.includeProcessStatus) {
+      itemResult.processStatus = result.processStatus;
+    }
+    if (options.includeErrors && result.error) {
+      itemResult.error = result.error;
+    }
+    results.push(itemResult);
+
+    if (!passed && !options.continueOnError) {
+      break;
+    }
+  }
+  return results;
+}
+
 function startServerProcess(options) {
   const command = options.serveCommand || 'pnpm';
   const args = options.serveArgs || ['run', 'serve'];
@@ -236,6 +315,8 @@ module.exports = {
   launchProductionServer,
   reservePort,
   runBuild,
+  runCommandList,
+  runShellCommand,
   sleep,
   startServerProcess,
   stopProductionServer,

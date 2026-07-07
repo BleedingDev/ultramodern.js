@@ -136,6 +136,16 @@ const parseCliArgs = (
   return parsed;
 };
 
+const rejectInlineOptionValues = (argv, valueOptions) => {
+  const prefixes = valueOptions.map(option => `${option}=`);
+  for (const arg of argv) {
+    if (prefixes.some(prefix => arg.startsWith(prefix))) {
+      throw new Error(`Unknown argument: ${arg}`);
+    }
+  }
+};
+
 module.exports = {
   parseCliArgs,
+  rejectInlineOptionValues,
 };

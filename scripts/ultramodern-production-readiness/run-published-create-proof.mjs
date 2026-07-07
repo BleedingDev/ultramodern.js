@@ -10,7 +10,7 @@ import cliKit from '../lib/cli-kit.js';
 import fsKit from '../lib/fs-kit.js';
 
 const repoRoot = path.resolve(new URL('../..', import.meta.url).pathname);
-const { parseCliArgs } = cliKit;
+const { parseCliArgs, rejectInlineOptionValues } = cliKit;
 const { readJsonFile, writeJsonFile } = fsKit;
 const defaultCreatePackage = '@bleedingdev/modern-js-create';
 const defaultProjectName = 'ultramodern-ci-superapp';
@@ -129,15 +129,6 @@ function parseArgs(argv) {
     out: path.resolve(repoRoot, options.out),
     verticals: generateVerticalNames(selectedProfile.verticalCount),
   };
-}
-
-function rejectInlineOptionValues(argv, valueOptions) {
-  const prefixes = valueOptions.map(option => `${option}=`);
-  for (const arg of argv) {
-    if (prefixes.some(prefix => arg.startsWith(prefix))) {
-      throw new Error(`Unknown argument: ${arg}`);
-    }
-  }
 }
 
 function selectScaleProfile(options) {

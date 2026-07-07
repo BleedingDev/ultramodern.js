@@ -9,7 +9,7 @@ import cliKit from '../lib/cli-kit.js';
 import fsKit from '../lib/fs-kit.js';
 
 const repoRoot = path.resolve(new URL('../..', import.meta.url).pathname);
-const { parseCliArgs } = cliKit;
+const { parseCliArgs, rejectInlineOptionValues } = cliKit;
 const { readJsonFile, writeJsonFile } = fsKit;
 const defaultArtifactDir = '.modern/production-readiness/browser-smoke/local';
 const defaultReportPath =
@@ -107,15 +107,6 @@ export function parseArgs(argv) {
     publicUrls,
     projectDir: path.resolve(parsed.projectDir),
   };
-}
-
-function rejectInlineOptionValues(argv, valueOptions) {
-  const prefixes = valueOptions.map(option => `${option}=`);
-  for (const arg of argv) {
-    if (prefixes.some(prefix => arg.startsWith(prefix))) {
-      throw new Error(`Unknown argument: ${arg}`);
-    }
-  }
 }
 
 function appPort(app) {

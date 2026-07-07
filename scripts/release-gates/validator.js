@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
-const { spawnSync } = require('child_process');
 const { writeJsonFile } = require('../lib/fs-kit');
+const { runCommandList, runShellCommand } = require('../lib/process-kit');
 const {
   ensureFileExists,
   ensureSchemaVersion,
@@ -80,14 +80,14 @@ const executeCommand = ({ command, cwd, commandRunner, failureMessage }) => {
     return;
   }
 
-  const result = spawnSync(command, {
+  const result = runShellCommand(command, {
     cwd,
-    shell: true,
-    stdio: 'inherit',
   });
 
-  if (typeof result.status === 'number' && result.status !== 0) {
-    throw new Error(`${failureMessage} (exit code ${String(result.status)})`);
+  if (typeof result.processStatus === 'number' && result.processStatus !== 0) {
+    throw new Error(
+      `${failureMessage} (exit code ${String(result.processStatus)})`,
+    );
   }
 
   if (result.error) {
@@ -383,12 +383,31 @@ const validateMigrationContracts = ({
 
 const runGateCommands = ({ commands, cwd }) => {
   const executionDir = path.resolve(cwd || process.cwd());
-  for (const command of commands) {
-    executeCommand({
+  const results = runCommandList(
+    commands.map(command => ({
       command,
       cwd: executionDir,
-      failureMessage: `Gate command failed: ${command}`,
-    });
+    })),
+    {
+      includeErrors: true,
+      includeProcessStatus: true,
+    },
+  );
+  const failed = results.find(result => result.exitCode !== 0 || result.error);
+  if (failed) {
+    const failureMessage = `Gate command failed: ${failed.command}`;
+    if (
+      typeof failed.processStatus === 'number' &&
+      failed.processStatus !== 0
+    ) {
+      throw new Error(
+        `${failureMessage} (exit code ${String(failed.processStatus)})`,
+      );
+    }
+
+    if (failed.error) {
+      throw new Error(`${failureMessage}\n${failed.error.message}`);
+    }
   }
 };
 
