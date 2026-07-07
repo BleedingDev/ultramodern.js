@@ -1,7 +1,11 @@
+import { execFile } from 'node:child_process';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { promisify } from 'node:util';
 import { emitBackendFederationArtifacts } from '../../src/plugins/backendFederationBuild';
+
+const execFileAsync = promisify(execFile);
 
 const tempDirectories: string[] = [];
 
@@ -403,6 +407,100 @@ describe('backend federation build artifacts', () => {
     expect(firstArtifact.surfaces.ui.sourceRevision).toBe('revision-one');
     expect(firstArtifact.surfaces.api.sourceRevision).toBe('revision-one');
     expect(secondArtifact.deliveryUnit.sourceRevision).toBe('revision-two');
+  });
+
+  it('honors explicit sourceRevision override inside git workspaces', async () => {
+    const workspaceRoot = await createTempDir();
+    const appDirectory = path.join(workspaceRoot, 'verticals/explore');
+    const distDirectory = path.join(appDirectory, 'dist');
+
+    await execFileAsync('git', ['init'], { cwd: workspaceRoot });
+    await execFileAsync(
+      'git',
+      ['config', 'user.email', 'modern@example.test'],
+      {
+        cwd: workspaceRoot,
+      },
+    );
+    await execFileAsync('git', ['config', 'user.name', 'Modern Test'], {
+      cwd: workspaceRoot,
+    });
+    await execFileAsync('git', ['commit', '--allow-empty', '-m', 'initial'], {
+      cwd: workspaceRoot,
+    });
+    const { stdout: gitHead } = await execFileAsync(
+      'git',
+      ['rev-parse', 'HEAD'],
+      { cwd: workspaceRoot },
+    );
+
+    await fs.mkdir(path.join(appDirectory, 'api'), { recursive: true });
+    await fs.writeFile(
+      path.join(appDirectory, 'api/effect-api.ts'),
+      'export const backendFederationContract = {};\n',
+    );
+    await writeBuildArtifact(appDirectory);
+    await fs.writeFile(
+      path.join(appDirectory, 'backend-federation.config.ts'),
+      'export default {};\n',
+    );
+    await writeJson(path.join(workspaceRoot, '.modernjs/ultramodern.json'), {
+      topology: {
+        apps: [
+          {
+            id: 'explore',
+            kind: 'vertical',
+            package: '@tractor-store-vertical-demo/explore',
+            path: 'verticals/explore',
+            port: 3021,
+            api: {
+              prefix: '/explore-api',
+              stem: 'explore',
+            },
+            moduleFederation: {
+              name: 'verticalExplore',
+              manifestUrl: 'http://localhost:3021/mf-manifest.json',
+            },
+            backendFederation: {
+              name: 'verticalExploreBackend',
+              executionSurfaces: {
+                node: {
+                  remoteName: 'verticalExploreBackend',
+                  manifestUrl: 'http://localhost:3021/backend-mf-manifest.json',
+                  containerEntry:
+                    'http://localhost:3021/backendRemoteEntry.mjs',
+                  remoteType: 'module',
+                },
+              },
+            },
+          },
+        ],
+      },
+    });
+
+    const result = await withSourceRevision('explicit-build-revision', () =>
+      emitBackendFederationArtifacts(appDirectory, distDirectory),
+    );
+
+    expect(result?.deliveryUnitArtifactPath).toBeDefined();
+    const manifest = JSON.parse(
+      await fs.readFile(path.join(distDirectory, 'backend-mf-manifest.json'), {
+        encoding: 'utf8',
+      }),
+    );
+    const artifact = JSON.parse(
+      await fs.readFile(result!.deliveryUnitArtifactPath!, {
+        encoding: 'utf8',
+      }),
+    );
+
+    expect(manifest.backendFederation.deliveryUnit.sourceRevision).toBe(
+      'explicit-build-revision',
+    );
+    expect(artifact.deliveryUnit.sourceRevision).toBe(
+      'explicit-build-revision',
+    );
+    expect(artifact.deliveryUnit.sourceRevision).not.toBe(gitHead.trim());
   });
 
   it('throws when compact deliveryUnit and shared/ultramodern-build.ts disagree', async () => {

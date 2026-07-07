@@ -43,7 +43,7 @@ export const FORBIDDEN_MUTATION_PATTERNS: Array<{
     message:
       'Generated Cloudflare server worker output must not be rewritten by app scripts.',
     pattern:
-      /path\.join\(\s*['"`]\.output['"`]\s*,\s*['"`]server['"`]\s*,\s*['"`]index\.mjs['"`]\s*\)/u,
+      /path\.(?:join|resolve)\(\s*['"`]\.output['"`]\s*,\s*['"`]server['"`]\s*,\s*['"`]index\.mjs['"`]\s*\)/u,
   },
   {
     code: 'forbidden-mutation-pattern',
@@ -56,7 +56,7 @@ export const FORBIDDEN_MUTATION_PATTERNS: Array<{
     message:
       'Generated Cloudflare BFF worker bundles must not be rewritten by app scripts.',
     pattern:
-      /path\.join\(\s*['"`]\.output['"`]\s*,\s*['"`]worker['"`]\s*,\s*['"`][^'"`]+\.(?:mjs|cjs|js)['"`]\s*\)/u,
+      /path\.(?:join|resolve)\(\s*['"`]\.output['"`]\s*,\s*['"`]worker['"`]\s*,\s*['"`][^'"`]+\.(?:mjs|cjs|js)['"`]\s*\)/u,
   },
   {
     code: 'forbidden-mutation-pattern',

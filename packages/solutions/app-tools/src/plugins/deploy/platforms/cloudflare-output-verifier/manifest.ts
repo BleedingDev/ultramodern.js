@@ -5,7 +5,7 @@ import {
   CLOUDFLARE_WORKER_ENTRY,
 } from '../cloudflare-output-contract';
 import type { CloudflareOutputVerifierIssue, JsonObject } from './issues';
-import { assertEqual } from './issues';
+import { addIssue, assertEqual } from './issues';
 
 export const verifyManifestShape = (
   issues: CloudflareOutputVerifierIssue[],
@@ -53,4 +53,11 @@ export const verifyManifestShape = (
     message: 'Cloudflare output manifest assets.runWorkerFirst must be true.',
     path: manifestPath,
   });
+  if (!Array.isArray(manifest.routeSpec?.routes)) {
+    addIssue(issues, {
+      code: 'invalid-manifest',
+      message: 'Cloudflare output manifest routeSpec.routes must be array.',
+      path: manifestPath,
+    });
+  }
 };

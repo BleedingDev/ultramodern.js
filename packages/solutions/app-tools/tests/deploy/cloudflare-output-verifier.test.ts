@@ -209,6 +209,30 @@ describe('Cloudflare output verifier', () => {
     });
   });
 
+  it('rejects Cloudflare worker manifest with malformed routeSpec routes', async () => {
+    const { outputDirectory } = await createOutputFixture({
+      bffWorkerSource: false,
+    });
+    const manifestPath = path.join(
+      outputDirectory,
+      'server/modern-worker-manifest.json',
+    );
+    const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf-8'));
+    manifest.routeSpec.routes = { worker: 'worker/route.js' };
+    await writeJson(manifestPath, manifest);
+
+    await expect(verifyCloudflareOutput({ outputDirectory })).resolves.toEqual({
+      ok: false,
+      issues: [
+        {
+          code: 'invalid-manifest',
+          message: 'Cloudflare output manifest routeSpec.routes must be array.',
+          path: manifestPath,
+        },
+      ],
+    });
+  });
+
   const createDeliveryUnitStamp = (
     identity: {
       unitId: string;
@@ -540,6 +564,38 @@ describe('Cloudflare output verifier', () => {
       [
         "server = path.join('.output', 'server', 'index.mjs');",
         "bundle = path.join('.output', 'worker', '__modern_bff_effect.js');",
+      ].join('\n'),
+    );
+
+    const result = await verifyCloudflareOutputMutationPolicy({
+      scanRoots: [path.join(directory, 'scripts')],
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'forbidden-mutation-pattern',
+          message:
+            'Generated Cloudflare server worker output must not be rewritten by app scripts.',
+        }),
+        expect.objectContaining({
+          code: 'forbidden-mutation-pattern',
+          message:
+            'Generated Cloudflare BFF worker bundles must not be rewritten by app scripts.',
+        }),
+      ]),
+    );
+  });
+
+  it('reports generated output mutations hidden behind resolved paths', async () => {
+    const { directory } = await createOutputFixture();
+    await fs.mkdir(path.join(directory, 'scripts'), { recursive: true });
+    await fs.writeFile(
+      path.join(directory, 'scripts/patch-output.mjs'),
+      [
+        "server = path.resolve('.output', 'server', 'index.mjs');",
+        "bundle = path.resolve('.output', 'worker', '__modern_bff_effect.js');",
       ].join('\n'),
     );
 

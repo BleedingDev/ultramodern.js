@@ -213,6 +213,11 @@ export const findWorkspaceRoot = (appDirectory: string) => {
 };
 
 export const resolveWorkspaceSourceRevision = async (workspaceRoot: string) => {
+  const envRevision = process.env.ULTRAMODERN_SOURCE_REVISION?.trim();
+  if (envRevision) {
+    return envRevision;
+  }
+
   try {
     const { stdout } = await execFileAsync('git', [
       '-C',
@@ -225,12 +230,7 @@ export const resolveWorkspaceSourceRevision = async (workspaceRoot: string) => {
       return revision;
     }
   } catch {
-    // Fall through to explicit environment override below.
-  }
-
-  const envRevision = process.env.ULTRAMODERN_SOURCE_REVISION?.trim();
-  if (envRevision) {
-    return envRevision;
+    // Fall through to the deterministic workspace marker below.
   }
 
   console.warn(
