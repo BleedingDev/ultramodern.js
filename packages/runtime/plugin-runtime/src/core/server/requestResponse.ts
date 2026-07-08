@@ -19,6 +19,9 @@ export type RedirectContext = {
 const isRedirectStatus = (status: number): boolean =>
   status >= 300 && status <= 399;
 
+const isNullBodyStatus = (status: number): boolean =>
+  status === 204 || status === 205 || status === 304;
+
 const processRedirect = (
   headers: Headers,
   status: number,
@@ -96,10 +99,13 @@ export const finalizeRenderResponse = (
 
   if (responseProxy.status !== -1) {
     return routerCleanup.deferUntilBodyDone(
-      new Response(response.body, {
-        status: responseProxy.status,
-        headers: response.headers,
-      }),
+      new Response(
+        isNullBodyStatus(responseProxy.status) ? null : response.body,
+        {
+          status: responseProxy.status,
+          headers: response.headers,
+        },
+      ),
     );
   }
 
