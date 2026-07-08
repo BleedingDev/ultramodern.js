@@ -67,6 +67,66 @@ describe('data-platform batch transport', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  test('parses batched JSON responses with case-insensitive content types', async () => {
+    const fetchMock = rs.fn(
+      async (_input: string | URL, init?: RequestInit): Promise<Response> => {
+        const payload = JSON.parse(String(init?.body)) as {
+          batchId: string;
+          items: Array<{ id: string; path: string }>;
+        };
+        expect(payload.items).toHaveLength(2);
+
+        return new Response(
+          JSON.stringify({
+            protocolVersion: 1,
+            batchId: payload.batchId,
+            receivedAt: Date.now(),
+            items: payload.items.map(item => ({
+              id: item.id,
+              status: 200,
+              headers: {
+                'content-type': 'Application/JSON; Charset=UTF-8',
+              },
+              body: JSON.stringify({
+                path: item.path,
+                ok: true,
+              }),
+            })),
+          }),
+          {
+            status: 200,
+            headers: {
+              'content-type': 'application/json; charset=utf-8',
+            },
+          },
+        );
+      },
+    );
+
+    const request = createDataBatchTransport({
+      fetch: fetchMock,
+      flushIntervalMs: 1,
+    });
+
+    const [first, second] = await Promise.all([
+      request('http://localhost/api/cased-json', {
+        method: 'GET',
+      }),
+      request('http://localhost/api/cased-json-two', {
+        method: 'GET',
+      }),
+    ]);
+
+    expect(first).toEqual({
+      path: '/api/cased-json',
+      ok: true,
+    });
+    expect(second).toEqual({
+      path: '/api/cased-json-two',
+      ok: true,
+    });
+  });
+
   test('flushes requests queued while same endpoint batch is in flight', async () => {
     let releaseFirstBatch!: () => void;
     let holdFirstBatch = true;

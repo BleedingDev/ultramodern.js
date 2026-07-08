@@ -26,7 +26,9 @@ export function isBatchResponsePayload(
 }
 
 export async function parseResponseLikeCreateRequest(response: Response) {
-  const contentType = response.headers.get('content-type') || '';
+  const contentType = (
+    response.headers.get('content-type') || ''
+  ).toLowerCase();
 
   if (!response.ok) {
     let data: unknown = null;
