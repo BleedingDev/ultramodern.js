@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { createCloudflarePreset } from '../../src/plugins/deploy/platforms/cloudflare';
+import { createCloudflarePreset } from '../../src/plugins/deploy/platforms/cloudflare/index';
 
 const tempDirectories: string[] = [];
 

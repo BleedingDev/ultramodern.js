@@ -2,7 +2,7 @@ import path from 'node:path';
 import { fs as fse } from '@modern-js/utils';
 import { readTemplate } from '../../utils';
 import { createCloudflareOutputPlan } from '../cloudflare-output-plan';
-import { assertCloudflareOutput } from '../cloudflare-output-verifier';
+import { assertCloudflareOutput } from '../cloudflare-output-verifier/index';
 import type { CreatePreset } from '../platform';
 import {
   copyCloudflareArtifacts,

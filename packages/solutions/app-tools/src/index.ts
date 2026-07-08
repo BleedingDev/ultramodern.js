@@ -15,7 +15,6 @@ import {
   devCommand,
   infoCommand,
   inspectCommand,
-  runtimeCommand,
   serverCommand,
 } from './commands';
 import { compatPlugin } from './compat';
@@ -44,10 +43,8 @@ import { generateWatchFiles } from './utils/generateWatchFiles';
 import { initAppContext } from './utils/initAppContext';
 import { restart } from './utils/restart';
 
-export * from './baseline';
 export * from './defineConfig';
 export * from './presetUltramodern';
-export * from './ultramodern/designSystem';
 
 export const appTools = (): CliPlugin<AppTools> => ({
   name: '@modern-js/app-tools',
@@ -103,7 +100,6 @@ export const appTools = (): CliPlugin<AppTools> => ({
       deployCommand(program, api);
       inspectCommand(program, api);
       infoCommand(program, api);
-      await runtimeCommand(program, api);
       deprecatedCommands(program);
     });
 

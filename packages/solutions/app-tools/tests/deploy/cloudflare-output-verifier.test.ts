@@ -13,7 +13,7 @@ import {
   assertCloudflareOutput,
   verifyCloudflareOutput,
   verifyCloudflareOutputMutationPolicy,
-} from '../../src/plugins/deploy/platforms/cloudflare-output-verifier';
+} from '../../src/plugins/deploy/platforms/cloudflare-output-verifier/index';
 
 const tempDirectories: string[] = [];
 
@@ -176,13 +176,13 @@ describe('Cloudflare output verifier', () => {
 
     expect(packageJson.exports['./cloudflare-output-verifier']).toEqual({
       types:
-        './dist/types/plugins/deploy/platforms/cloudflare-output-verifier.d.ts',
+        './dist/types/plugins/deploy/platforms/cloudflare-output-verifier/index.d.ts',
       import:
-        './dist/esm-node/plugins/deploy/platforms/cloudflare-output-verifier.mjs',
+        './dist/esm-node/plugins/deploy/platforms/cloudflare-output-verifier/index.mjs',
       require:
-        './dist/cjs/plugins/deploy/platforms/cloudflare-output-verifier.js',
+        './dist/cjs/plugins/deploy/platforms/cloudflare-output-verifier/index.js',
       default:
-        './dist/cjs/plugins/deploy/platforms/cloudflare-output-verifier.js',
+        './dist/cjs/plugins/deploy/platforms/cloudflare-output-verifier/index.js',
     });
   });
 

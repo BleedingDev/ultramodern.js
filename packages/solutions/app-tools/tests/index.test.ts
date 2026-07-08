@@ -3,7 +3,6 @@ import appToolsDefault, {
   createPresetUltramodernConfig,
   mergeConfig,
   presetUltramodern,
-  withAppBaseline,
 } from '../src';
 
 describe('app-tools export', () => {
@@ -15,7 +14,6 @@ describe('app-tools export', () => {
     expect(appTools).toBeDefined();
     expect(createPresetUltramodernConfig).toBeDefined();
     expect(presetUltramodern).toBeDefined();
-    expect(withAppBaseline).toBeDefined();
   });
 });
 

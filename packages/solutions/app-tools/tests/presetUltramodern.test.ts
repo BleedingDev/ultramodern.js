@@ -1,7 +1,6 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { createAppBaselineConfig, withAppBaseline } from '../src/baseline';
 import {
   createPresetUltramodernConfig,
   presetUltramodern,
@@ -302,12 +301,5 @@ describe('presetUltramodern react-router bridge aliases', () => {
       process.chdir(previousCwd);
       fs.rmSync(appDirectory, { recursive: true, force: true });
     }
-  });
-});
-
-describe('deprecated baseline aliases', () => {
-  it('re-exports the presetUltramodern implementation', () => {
-    expect(createAppBaselineConfig).toBe(createPresetUltramodernConfig);
-    expect(withAppBaseline).toBe(presetUltramodern);
   });
 });

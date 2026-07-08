@@ -44,10 +44,10 @@
       "default": "./dist/cjs/run/index.js"
     },
     "./cloudflare-output-verifier": {
-      "types": "./dist/types/plugins/deploy/platforms/cloudflare-output-verifier.d.ts",
-      "import": "./dist/esm-node/plugins/deploy/platforms/cloudflare-output-verifier.mjs",
-      "require": "./dist/cjs/plugins/deploy/platforms/cloudflare-output-verifier.js",
-      "default": "./dist/cjs/plugins/deploy/platforms/cloudflare-output-verifier.js"
+      "types": "./dist/types/plugins/deploy/platforms/cloudflare-output-verifier/index.d.ts",
+      "import": "./dist/esm-node/plugins/deploy/platforms/cloudflare-output-verifier/index.mjs",
+      "require": "./dist/cjs/plugins/deploy/platforms/cloudflare-output-verifier/index.js",
+      "default": "./dist/cjs/plugins/deploy/platforms/cloudflare-output-verifier/index.js"
     },
     "./types": {
       "types": "./lib/types.d.ts",

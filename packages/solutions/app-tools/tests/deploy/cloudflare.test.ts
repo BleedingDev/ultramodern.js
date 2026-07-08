@@ -2,8 +2,8 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { createCloudflarePreset } from '../../src/plugins/deploy/platforms/cloudflare';
 import { resolveTopologyDeliveryUnit } from '../../src/plugins/deploy/platforms/cloudflare/delivery-unit';
+import { createCloudflarePreset } from '../../src/plugins/deploy/platforms/cloudflare/index';
 import type {
   CloudflareWorkerArtifactConfig,
   CloudflareWorkerD1DatabaseConfig,
