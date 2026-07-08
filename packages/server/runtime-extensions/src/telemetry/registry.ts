@@ -177,7 +177,7 @@ export class TelemetryRegistry {
       this.totalDroppedCount += 1;
       this.maybeEmitSloAlert(
         'queue.drop',
-        this.totalDroppedCount,
+        this.droppedCount,
         this.queueDroppedWarnThreshold,
       );
     }

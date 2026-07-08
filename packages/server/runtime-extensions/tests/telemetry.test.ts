@@ -241,6 +241,46 @@ describe('telemetry registry', () => {
     await registry.shutdown();
   });
 
+  test('drop SLO alerts use pending drop pressure instead of lifetime drops', async () => {
+    const dropAlerts: Array<{ value: number; totalDropped: number }> = [];
+    const registry = new TelemetryRegistry({
+      service: 'svc',
+      module: 'server',
+      environment: 'test',
+      maxQueueSize: 1,
+      flushIntervalMs: 60_000,
+      slo: {
+        queueDroppedWarnThreshold: 2,
+        alertCooldownMs: 0,
+        onAlert(alert) {
+          if (alert.type === 'queue.drop') {
+            dropAlerts.push({
+              value: alert.value,
+              totalDropped: alert.totalDropped,
+            });
+          }
+        },
+      },
+    });
+
+    registry.enqueue(createEnvelope({ name: 'first' }));
+    registry.enqueue(createEnvelope({ name: 'second' }));
+    expect(registry.getQueueStats().pendingDropped).toBe(1);
+    expect(dropAlerts).toEqual([]);
+
+    await registry.flush();
+    expect(registry.getQueueStats().pendingDropped).toBe(0);
+    expect(registry.getQueueStats().totalDropped).toBe(1);
+
+    registry.enqueue(createEnvelope({ name: 'third' }));
+    registry.enqueue(createEnvelope({ name: 'fourth' }));
+
+    expect(registry.getQueueStats().pendingDropped).toBe(1);
+    expect(registry.getQueueStats().totalDropped).toBe(2);
+    expect(dropAlerts).toEqual([]);
+    await registry.shutdown();
+  });
+
   test('startup health check fails loud by default when exporter is unhealthy', async () => {
     const registry = new TelemetryRegistry({
       service: 'svc',
