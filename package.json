@@ -47,6 +47,8 @@
     "build:docs": "pnpm --filter @modern-js/main-doc... build && npm run gen:docs && npm run docs:v2-link",
     "prebuild:main-doc-docs": "cross-env NX_DAEMON=false nx run @modern-js/main-doc:build",
     "validate:boundary-guards": "node scripts/boundary-guards/check-boundary-violations.js --profile scripts/boundary-guards/profile.json",
+    "validate:boundary-divergence": "node scripts/ultramodern-boundary-check/check-fork-import-boundary.js",
+    "validate:boundary-check": "node scripts/boundary-guards/check-boundary-violations.js --profile scripts/boundary-guards/profile.json; boundary_status=$?; node scripts/ultramodern-boundary-check/check-fork-import-boundary.js; divergence_status=$?; exit $((boundary_status || divergence_status))",
     "validate:module-certification-gates": "node scripts/release-gates/validate-release-candidate-gates.js --profile scripts/release-gates/module-certification-profile.json --evidence-dir docs/super-app-rfc-adr/evidence/module-certification/current",
     "validate:security-workflows": "node scripts/security/validate-github-workflows.mjs",
     "validate:mv-topology-smoke": "node --test scripts/mv-integration-pilot/__tests__/reference-topology.test.js scripts/mv-integration-pilot/__tests__/design-system-bad-release-drill.test.js && pnpm --dir tests exec rstest run -c rstest.superapp-contracts.config.mts integration/routes-tanstack-mf/tests/tanstack-mf-contract.test.ts integration/bff-runtime-parity/tests/effect-only-data-platform.test.ts",
@@ -64,7 +66,7 @@
     "validate:tsgo": "node scripts/tsgo-critical.mjs",
     "validate:bun-smoke": "bun scripts/release-gates/validate-release-candidate-gates.js --profile scripts/release-gates/module-certification-profile.json --evidence-dir docs/super-app-rfc-adr/evidence/module-certification/current --skip-commands",
     "validate:rc-gates": "node scripts/release-gates/validate-release-candidate-gates.js --profile scripts/release-gates/rc-contract-profile.json --evidence-dir docs/super-app-rfc-adr/evidence/release-candidate/current",
-    "test:scripts": "node --test scripts/__tests__/*.test.mjs scripts/lib/__tests__/*.test.js scripts/boundary-guards/__tests__/*.test.js scripts/release-gates/__tests__/*.test.js scripts/superapp-certification/__tests__/*.test.js"
+    "test:scripts": "node --test scripts/__tests__/*.test.mjs scripts/lib/__tests__/*.test.js scripts/boundary-guards/__tests__/*.test.js scripts/ultramodern-boundary-check/__tests__/*.test.js scripts/release-gates/__tests__/*.test.js scripts/superapp-certification/__tests__/*.test.js"
   },
   "engines": {
     "node": ">=20",

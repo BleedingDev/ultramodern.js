@@ -6,7 +6,9 @@ on:
     paths:
       - 'packages/**'
       - 'scripts/boundary-guards/**'
+      - 'scripts/ultramodern-boundary-check/**'
       - 'docs/super-app-rfc-adr/contracts/**'
+      - 'package.json'
       - '.github/workflows/boundary-anti-patterns.yml'
   push:
     branches:
@@ -15,7 +17,9 @@ on:
     paths:
       - 'packages/**'
       - 'scripts/boundary-guards/**'
+      - 'scripts/ultramodern-boundary-check/**'
       - 'docs/super-app-rfc-adr/contracts/**'
+      - 'package.json'
       - '.github/workflows/boundary-anti-patterns.yml'
 
 permissions:
@@ -30,7 +34,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          fetch-depth: 1
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Setup Node.js 20
@@ -40,3 +44,7 @@ jobs:
 
       - name: Run boundary anti-pattern guards
         run: node scripts/boundary-guards/check-boundary-violations.js --profile scripts/boundary-guards/profile.json
+
+      - name: Run UltraModern divergence boundary guard
+        if: ${{ !cancelled() }}
+        run: node scripts/ultramodern-boundary-check/check-fork-import-boundary.js
