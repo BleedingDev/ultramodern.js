@@ -55,21 +55,33 @@ export function normalizeRelativeImport(p: string) {
   return `./${normalized}`;
 }
 
+type RouteExtras = {
+  data?: unknown;
+  loader?: unknown;
+  validateSearch?: unknown;
+  loaderDeps?: unknown;
+  type?: unknown;
+  index?: unknown;
+  path?: unknown;
+};
+
 export function pickModernLoaderModule(route: NestedRouteForCli | PageRoute) {
-  const loaderPath = (route as any).data || (route as any).loader;
+  const extras = route as RouteExtras;
+  const loaderPath = extras.data || extras.loader;
   if (!loaderPath || typeof loaderPath !== 'string') {
     return null;
   }
 
-  const inline = Boolean((route as any).data);
+  const inline = Boolean(extras.data);
   return { loaderPath, inline };
 }
 
 export function pickRouteSearchContractModules(
   route: NestedRouteForCli | PageRoute,
 ) {
-  const validateSearchPath = (route as any).validateSearch;
-  const loaderDepsPath = (route as any).loaderDeps;
+  const extras = route as RouteExtras;
+  const validateSearchPath = extras.validateSearch;
+  const loaderDepsPath = extras.loaderDeps;
 
   return {
     validateSearchPath:
@@ -79,15 +91,17 @@ export function pickRouteSearchContractModules(
 }
 
 export function isPathlessLayout(route: NestedRouteForCli | PageRoute) {
+  const extras = route as RouteExtras;
   return (
-    (route as any).type === 'nested' &&
-    typeof (route as any).index !== 'boolean' &&
-    typeof (route as any).path === 'undefined'
+    extras.type === 'nested' &&
+    typeof extras.index !== 'boolean' &&
+    typeof extras.path === 'undefined'
   );
 }
 
 export function isIndexRoute(route: NestedRouteForCli | PageRoute) {
-  return (route as any).type === 'nested' && Boolean((route as any).index);
+  const extras = route as RouteExtras;
+  return extras.type === 'nested' && Boolean(extras.index);
 }
 
 export function createRouteStaticDataSnippet(opts: {

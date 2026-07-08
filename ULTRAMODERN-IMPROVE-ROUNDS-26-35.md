@@ -60,7 +60,53 @@ Findings (verified by reading source):
    file-store-only need; barrel re-export widens the module graph.
    → Import concrete `./contract-gate-snapshot-store/file-store` + `/types`.
 
-Status: IN PROGRESS (delegated to codex gpt-5.5, verifying).
+Status: **DONE ✅** — committed `7e5b17c613`. 5 fixes, net −99 lines.
+runtime-extensions (1401 tests) + plugin-tanstack (1441 tests) green.
+Verifier caught + reverted 1 codex wording-drift (`record missing` string).
+
+---
+
+## Round 27 — plugin-bff effect surface + deep-research sweep of create/scripts
+
+Deep-read findings first (leader, direct):
+- `plugin-bff/.../effect-client-generator/rendering.ts` (234L, biggest fork file
+  in plugin-bff): clean codegen renderer — **no defect**. `isAbsoluteUrl` copy
+  here is cross-package vs plugin-tanstack; a 5-line helper is NOT worth a new
+  shared-package dependency → left as-is (documented non-problem).
+- `plugin-i18n SdkBackend` (25 members): cohesive, behavior-critical i18next
+  backend; cache methods are a *nominal* separable concern but splitting a
+  well-tested runtime backend is churn-risk, not improvement → **excluded**.
+  Minor notes: `console.error` at read() error path (L71); `[key:string]:any`
+  in `I18nextServices` (L29) — both pragmatic, low value.
+
+Honest picture after deep-reading the god-class top-list: the effect/i18n/router
+surfaces are already clean (25 prior rounds). Remaining real yield is in the
+**large unexamined surface** — `toolkit/create` (230 files), `scripts/ultramodern-*`,
+`code-tools`, `create-request`. Ran a codex `$codebase-deep-research` pass over
+exactly those, fork-only, excluding dist/tests/templates, real defects only.
+Findings verified by leader before any edit.
+
+**Delegation reality:** two codex `$codebase-deep-research` / sweep runs both
+derailed (one exited before writing the report; one rambled into a hallucinated
+"beads" issue-tracker flow and touched zero source). Confirms the memory note
+"codex self-reports unreliable" — leader did R27 edits directly.
+
+**R27 shipped — type-safety hardening (partial, per user steer "don't reject
+sweeps; partial is fine, no huge overwrites"):**
+1. `plugin-i18n/.../utils.ts` — `assertI18nInstance(obj: any)` → `unknown`
+   (assertion body already handles unknown).
+2. `plugin-i18n/.../detection/cache.ts` — `stableStringify(value: any)` →
+   `unknown` + internal `Record<string,unknown>` narrow; `pickSafeDetectionOptions`
+   `Record<string, any>` → `Record<string, unknown>` (×2) + typed index access.
+3. `plugin-tanstack/.../tanstackTypes/shared.ts` — introduced typed `RouteExtras`,
+   removed 8 `(route as any)` casts across 5 route-predicate fns.
+   Deliberate tanstack-router / i18next interop `any` (submitAction location
+   casts, dynamic-import class refs) left as-is — tightening them needs upstream
+   type surgery = churn.
+~11 `any` removed, 3 files. Verify: plugin-i18n + plugin-tanstack **dts builds
+(tsgo typecheck) exit 0**, both test suites green.
+
+Status: **DONE ✅** (committing).
 
 ### Guardrail log (upstream-compat exclusions)
 - `packages/server/bff-core/src/router/index.ts` (`ApiRouter`, 30 members) —

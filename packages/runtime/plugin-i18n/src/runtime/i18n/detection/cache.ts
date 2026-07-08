@@ -38,7 +38,7 @@ const DETECTOR_SAFE_OPTION_KEYS: string[] = [
  * Stable stringify that sorts object keys to ensure consistent output
  * regardless of property order
  */
-const stableStringify = (value: any): string => {
+const stableStringify = (value: unknown): string => {
   if (value === null || value === undefined) {
     return JSON.stringify(value);
   }
@@ -53,9 +53,10 @@ const stableStringify = (value: any): string => {
   }
 
   // For objects, sort keys and recursively stringify values
-  const sortedKeys = Object.keys(value).sort();
+  const record = value as Record<string, unknown>;
+  const sortedKeys = Object.keys(record).sort();
   const sortedEntries = sortedKeys.map(key => {
-    const stringifiedValue = stableStringify(value[key]);
+    const stringifiedValue = stableStringify(record[key]);
     return `${JSON.stringify(key)}:${stringifiedValue}`;
   });
 
@@ -76,13 +77,13 @@ export const buildDetectorConfigKey = (
 
 export const pickSafeDetectionOptions = (
   userInitOptions?: I18nInitOptions,
-): Partial<I18nInitOptions> & Record<string, any> => {
+): Partial<I18nInitOptions> & Record<string, unknown> => {
   if (!userInitOptions) {
     return {};
   }
-  const safeOptions: Partial<I18nInitOptions> & Record<string, any> = {};
+  const safeOptions: Partial<I18nInitOptions> & Record<string, unknown> = {};
   for (const key of DETECTOR_SAFE_OPTION_KEYS) {
-    const value = (userInitOptions as any)[key];
+    const value = (userInitOptions as Record<string, unknown>)[key];
     if (value !== undefined) {
       safeOptions[key] = value;
     }
