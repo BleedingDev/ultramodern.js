@@ -36,6 +36,90 @@ export interface TelemetryExporter {
   shutdown?: () => void | Promise<void>;
 }
 
+export type TelemetryEnvelopeBuilderContext = {
+  service: string;
+  module: string;
+  environment: string;
+  maxQueueSize: number;
+};
+
+export function buildDroppedEnvelope(
+  context: TelemetryEnvelopeBuilderContext,
+  droppedCount: number,
+): TelemetryEnvelope {
+  return {
+    timestamp: Date.now(),
+    service: context.service,
+    module: context.module,
+    environment: context.environment,
+    signalType: 'metric',
+    name: 'telemetry.queue.dropped',
+    value: droppedCount,
+    unit: 'count',
+    tags: {
+      reason: 'queue_backpressure',
+    },
+  };
+}
+
+export function buildQueueDepthEnvelope(
+  context: TelemetryEnvelopeBuilderContext,
+  queueDepth: number,
+): TelemetryEnvelope {
+  return {
+    timestamp: Date.now(),
+    service: context.service,
+    module: context.module,
+    environment: context.environment,
+    signalType: 'metric',
+    name: 'telemetry.queue.depth',
+    value: queueDepth,
+    unit: 'count',
+    tags: {
+      capacity: String(context.maxQueueSize),
+    },
+  };
+}
+
+export function buildQueueUtilizationEnvelope(
+  context: TelemetryEnvelopeBuilderContext,
+  queueDepth: number,
+): TelemetryEnvelope {
+  return {
+    timestamp: Date.now(),
+    service: context.service,
+    module: context.module,
+    environment: context.environment,
+    signalType: 'metric',
+    name: 'telemetry.queue.utilization',
+    value: queueDepth / context.maxQueueSize,
+    unit: 'ratio',
+    tags: {
+      capacity: String(context.maxQueueSize),
+    },
+  };
+}
+
+export function buildStartupProbeEnvelope(
+  context: TelemetryEnvelopeBuilderContext,
+): TelemetryEnvelope {
+  return {
+    timestamp: Date.now(),
+    service: context.service,
+    module: context.module,
+    environment: context.environment,
+    signalType: 'log',
+    name: 'telemetry.exporter.startup_probe',
+    level: 'info',
+    tags: {
+      phase: 'startup',
+    },
+    attributes: {
+      source: 'TelemetryRegistry',
+    },
+  };
+}
+
 export function clamp(value: number, min: number, max: number) {
   if (Number.isNaN(value)) {
     return max;

@@ -1,7 +1,10 @@
 // @effect-diagnostics asyncFunction:off globalFetch:off processEnv:off strictBooleanExpressions:off
 import type { ServerPayload } from '@modern-js/runtime/context';
 import { notFound, redirect } from '@tanstack/react-router';
+import { isAbsoluteUrl } from '../shared/isAbsoluteUrl';
 import { reviveTanstackRscFlightValues } from './flightSerialization';
+
+export { isAbsoluteUrl };
 
 type PayloadDecoder = (stream: ReadableStream<Uint8Array>) => Promise<unknown>;
 
@@ -36,15 +39,6 @@ export function createPayloadFetchKey(request: Request) {
       left.localeCompare(right),
     ),
   ]);
-}
-
-export function isAbsoluteUrl(value: string) {
-  try {
-    void new URL(value);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 export async function fetchTanstackRscPayload(request: Request) {

@@ -1,7 +1,12 @@
 import {
+  buildDroppedEnvelope,
+  buildQueueDepthEnvelope,
+  buildQueueUtilizationEnvelope,
+  buildStartupProbeEnvelope,
   clamp,
   redactObject,
   type TelemetryEnvelope,
+  type TelemetryEnvelopeBuilderContext,
   type TelemetryExporter,
 } from './envelope';
 import {
@@ -205,10 +210,7 @@ export class TelemetryRegistry {
     attributes?: Record<string, unknown>;
   }) {
     this.enqueue({
-      timestamp: Date.now(),
-      service: this.service,
-      module: this.module,
-      environment: this.environment,
+      ...this.baseEnvelope(),
       signalType: 'metric',
       name: input.name,
       value: input.value,
@@ -232,10 +234,7 @@ export class TelemetryRegistry {
     error?: TelemetryEnvelope['error'];
   }) {
     this.enqueue({
-      timestamp: Date.now(),
-      service: this.service,
-      module: this.module,
-      environment: this.environment,
+      ...this.baseEnvelope(),
       signalType: 'log',
       name: input.name,
       level: input.level,
@@ -257,10 +256,7 @@ export class TelemetryRegistry {
     attributes?: Record<string, unknown>;
   }) {
     this.enqueue({
-      timestamp: Date.now(),
-      service: this.service,
-      module: this.module,
-      environment: this.environment,
+      ...this.baseEnvelope(),
       signalType: 'trace',
       name: input.name,
       traceId: input.traceId,
@@ -271,51 +267,15 @@ export class TelemetryRegistry {
     });
   }
 
-  private buildDroppedEnvelope(droppedCount: number): TelemetryEnvelope {
+  private baseEnvelope(): Pick<
+    TelemetryEnvelope,
+    'timestamp' | 'service' | 'module' | 'environment'
+  > {
     return {
       timestamp: Date.now(),
       service: this.service,
       module: this.module,
       environment: this.environment,
-      signalType: 'metric',
-      name: 'telemetry.queue.dropped',
-      value: droppedCount,
-      unit: 'count',
-      tags: {
-        reason: 'queue_backpressure',
-      },
-    };
-  }
-
-  private buildQueueDepthEnvelope(queueDepth: number): TelemetryEnvelope {
-    return {
-      timestamp: Date.now(),
-      service: this.service,
-      module: this.module,
-      environment: this.environment,
-      signalType: 'metric',
-      name: 'telemetry.queue.depth',
-      value: queueDepth,
-      unit: 'count',
-      tags: {
-        capacity: String(this.maxQueueSize),
-      },
-    };
-  }
-
-  private buildQueueUtilizationEnvelope(queueDepth: number): TelemetryEnvelope {
-    return {
-      timestamp: Date.now(),
-      service: this.service,
-      module: this.module,
-      environment: this.environment,
-      signalType: 'metric',
-      name: 'telemetry.queue.utilization',
-      value: queueDepth / this.maxQueueSize,
-      unit: 'ratio',
-      tags: {
-        capacity: String(this.maxQueueSize),
-      },
     };
   }
 
@@ -338,30 +298,19 @@ export class TelemetryRegistry {
     }
   }
 
-  private buildStartupProbeEnvelope(): TelemetryEnvelope {
-    return {
-      timestamp: Date.now(),
-      service: this.service,
-      module: this.module,
-      environment: this.environment,
-      signalType: 'log',
-      name: 'telemetry.exporter.startup_probe',
-      level: 'info',
-      tags: {
-        phase: 'startup',
-      },
-      attributes: {
-        source: 'TelemetryRegistry',
-      },
-    };
-  }
-
   async startupHealthCheck(options?: { failLoud?: boolean }) {
     if (this.exporters.length === 0) {
       return;
     }
 
-    const probeBatch = [this.buildStartupProbeEnvelope()];
+    const probeBatch = [
+      buildStartupProbeEnvelope({
+        service: this.service,
+        module: this.module,
+        environment: this.environment,
+        maxQueueSize: this.maxQueueSize,
+      }),
+    ];
     const failedExporters: TelemetryExporterHealthStatus[] = [];
 
     await Promise.all(
@@ -402,17 +351,25 @@ export class TelemetryRegistry {
 
   private async flushInternal() {
     const queueDepthBeforeFlush = this.queue.length;
+    const envelopeContext: TelemetryEnvelopeBuilderContext = {
+      service: this.service,
+      module: this.module,
+      environment: this.environment,
+      maxQueueSize: this.maxQueueSize,
+    };
     if (queueDepthBeforeFlush > 0) {
       this.queue.unshift(
-        this.buildQueueUtilizationEnvelope(queueDepthBeforeFlush),
+        buildQueueUtilizationEnvelope(envelopeContext, queueDepthBeforeFlush),
       );
-      this.queue.unshift(this.buildQueueDepthEnvelope(queueDepthBeforeFlush));
+      this.queue.unshift(
+        buildQueueDepthEnvelope(envelopeContext, queueDepthBeforeFlush),
+      );
     }
 
     if (this.droppedCount > 0) {
       const droppedCount = this.droppedCount;
       this.droppedCount = 0;
-      this.queue.unshift(this.buildDroppedEnvelope(droppedCount));
+      this.queue.unshift(buildDroppedEnvelope(envelopeContext, droppedCount));
     }
 
     if (this.queue.length === 0) {

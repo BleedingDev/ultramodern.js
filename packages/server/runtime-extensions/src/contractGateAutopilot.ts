@@ -1,9 +1,12 @@
 import {
-  type ContractGateSnapshotStore,
-  createFileContractGateSnapshotStore,
-  type GateSnapshot,
-  type GateSnapshotGateValue,
-} from './contract-gate-snapshot-store';
+  getSnapshotGateNames,
+  normalizeSnapshot,
+} from './contract-gate-snapshot-normalization';
+import { createFileContractGateSnapshotStore } from './contract-gate-snapshot-store/file-store';
+import type {
+  ContractGateSnapshotStore,
+  GateSnapshot,
+} from './contract-gate-snapshot-store/types';
 import type { TelemetryCanaryOrchestrator } from './telemetryCore';
 
 const DEFAULT_POLL_INTERVAL_MS = 15_000;
@@ -21,14 +24,6 @@ export type ContractGateAutopilotOptions = {
   pollIntervalMs?: number;
   gateStaleAfterMs?: number;
   logger?: LoggerLike;
-};
-
-type NormalizedGate = {
-  name: string;
-  passed: boolean;
-  reason?: string;
-  updatedAt: number;
-  expiresAt?: number;
 };
 
 export class ContractGateAutopilot {
@@ -96,8 +91,11 @@ export class ContractGateAutopilot {
       return 0;
     }
 
-    const snapshotGateNames = this.getSnapshotGateNames(snapshot);
-    const gates = this.normalizeSnapshot(snapshot);
+    const snapshotGateNames = getSnapshotGateNames(snapshot);
+    const gates = normalizeSnapshot(snapshot, {
+      now: Date.now(),
+      gateStaleAfterMs: this.gateStaleAfterMs,
+    });
     let updatedCount = snapshotGateNames
       ? this.clearOmittedGates(snapshotGateNames)
       : 0;
@@ -117,23 +115,6 @@ export class ContractGateAutopilot {
     }
 
     return updatedCount;
-  }
-
-  private getSnapshotGateNames(snapshot: GateSnapshot) {
-    const gates = snapshot.gates;
-    if (!gates || typeof gates !== 'object') {
-      return undefined;
-    }
-
-    const names = new Set<string>();
-    for (const name of Object.keys(gates)) {
-      const normalizedName = name.trim();
-      if (normalizedName) {
-        names.add(normalizedName);
-      }
-    }
-
-    return names;
   }
 
   private clearOmittedGates(snapshotGateNames: ReadonlySet<string>) {
@@ -170,114 +151,5 @@ export class ContractGateAutopilot {
       );
       return undefined;
     }
-  }
-
-  private normalizeSnapshot(snapshot: GateSnapshot) {
-    const now = Date.now();
-    const output: NormalizedGate[] = [];
-    const gates = snapshot.gates;
-    if (!gates || typeof gates !== 'object') {
-      return output;
-    }
-
-    for (const [name, value] of Object.entries(gates)) {
-      const normalizedName = name.trim();
-      if (!normalizedName) {
-        continue;
-      }
-
-      const gate = this.normalizeGateValue(value, snapshot.updatedAt, now);
-      if (!gate) {
-        continue;
-      }
-
-      if (
-        typeof gate.expiresAt === 'number' &&
-        Number.isFinite(gate.expiresAt) &&
-        gate.expiresAt > 0 &&
-        now >= gate.expiresAt
-      ) {
-        output.push({
-          name: normalizedName,
-          passed: true,
-          reason: undefined,
-          updatedAt: gate.updatedAt,
-          expiresAt: gate.expiresAt,
-        });
-        continue;
-      }
-
-      const isStale =
-        this.gateStaleAfterMs > 0 &&
-        now - gate.updatedAt > this.gateStaleAfterMs;
-      if (isStale) {
-        output.push({
-          name: normalizedName,
-          passed: false,
-          reason: gate.reason || 'Gate snapshot is stale',
-          updatedAt: gate.updatedAt,
-        });
-        continue;
-      }
-
-      output.push({
-        name: normalizedName,
-        passed: gate.passed,
-        reason: gate.reason,
-        updatedAt: gate.updatedAt,
-      });
-    }
-
-    return output;
-  }
-
-  private normalizeGateValue(
-    value: GateSnapshotGateValue,
-    snapshotUpdatedAt: number | undefined,
-    now: number,
-  ) {
-    if (typeof value === 'boolean') {
-      return {
-        passed: value,
-        updatedAt: this.normalizeUpdatedAt(snapshotUpdatedAt, now),
-      };
-    }
-
-    if (!value || typeof value !== 'object') {
-      return undefined;
-    }
-
-    const hasPassed = typeof value.passed === 'boolean';
-    const passed = value.passed === true;
-    let reason =
-      typeof value.reason === 'string' && value.reason.trim().length > 0
-        ? value.reason
-        : undefined;
-    if (!hasPassed) {
-      reason = reason || 'Gate snapshot record is missing "passed" boolean';
-    }
-    return {
-      passed,
-      reason,
-      updatedAt: this.normalizeUpdatedAt(
-        value.updatedAt ?? snapshotUpdatedAt,
-        now,
-      ),
-      expiresAt: this.normalizeExpiresAt(value.expiresAt),
-    };
-  }
-
-  private normalizeUpdatedAt(value: number | undefined, fallback: number) {
-    if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
-      return value;
-    }
-    return fallback;
-  }
-
-  private normalizeExpiresAt(value: number | undefined) {
-    if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
-      return value;
-    }
-    return undefined;
   }
 }

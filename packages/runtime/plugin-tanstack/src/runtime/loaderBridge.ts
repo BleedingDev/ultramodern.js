@@ -9,6 +9,9 @@
  * helpers for the same reason.
  */
 import { notFound, redirect } from '@tanstack/react-router';
+import { isAbsoluteUrl } from './shared/isAbsoluteUrl';
+
+export { isAbsoluteUrl };
 
 /** Router context shape used by the generated TanStack router types. */
 export type ModernRouterContext = {
@@ -42,15 +45,6 @@ export function isTanstackRedirect(value: unknown): boolean {
     isResponse(value) &&
     typeof (value as { options?: unknown }).options === 'object'
   );
-}
-
-export function isAbsoluteUrl(value: string): boolean {
-  try {
-    void new URL(value);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 /**
