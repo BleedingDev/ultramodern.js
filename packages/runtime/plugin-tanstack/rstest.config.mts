@@ -25,6 +25,7 @@ export default {
       include: [
         'tests/router/cli.test.ts',
         'tests/router/fastDefaults.test.ts',
+        'tests/router/flightSerialization.roundtrip.test.tsx',
         'tests/router/generateRouteArtifacts.test.ts',
         'tests/router/hooks.test.ts',
         'tests/router/loaderBridge.test.ts',
