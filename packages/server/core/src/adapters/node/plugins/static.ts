@@ -1,7 +1,4 @@
-import { fileReader } from '@modern-js/runtime-utils/fileReader';
 import type { ServerRoute } from '@modern-js/types';
-import { fs } from '@modern-js/utils';
-import { getMimeType } from 'hono/utils/mime';
 import path from 'path';
 import type {
   HonoRequest,
@@ -14,18 +11,9 @@ import type {
 import { sortRoutes } from '../../../utils';
 import { getPublicDirPatterns } from '../../../utils/publicDir';
 import {
-  applyModuleFederationAssetHeaders,
-  getModuleFederationAssetList,
-  getModuleFederationRequestPath,
-  isModuleFederationManifestRequest,
-  type ModuleFederationServeAssets,
-  patchModuleFederationManifestPublicPath,
-  patchModuleFederationRemoteEntryPublicPath,
-} from './staticModuleFederation';
-import {
-  applyPreCompressedAssetHeaders,
-  resolvePreCompressedAsset,
-} from './staticPrecompressed';
+  createModuleFederationStaticServing,
+  servePreCompressedPublicRouteAsset,
+} from './staticServing';
 
 export const serverStaticPlugin = (): ServerPlugin => ({
   name: '@modern-js/plugin-server-static',
@@ -70,37 +58,9 @@ export function createPublicMiddleware({
     const route = matchPublicRoute(c.req, routes);
 
     if (route) {
-      const { entryPath } = route;
-      const originFilename = path.join(pwd, entryPath);
-      const preCompressedAsset = await resolvePreCompressedAsset(
-        c,
-        originFilename,
-      );
-      const filename = preCompressedAsset.selected?.filepath ?? originFilename;
-      const data = await fileReader.readFile(filename, 'buffer');
-      const mimeType = getMimeType(originFilename);
-
-      if (data !== null) {
-        // Hono's `Data` type does not accept Node.js `Buffer<ArrayBufferLike>` directly.
-        // Convert Buffer to `Uint8Array<ArrayBuffer>` without copying.
-        const body = new Uint8Array(
-          data.buffer as ArrayBuffer,
-          data.byteOffset,
-          data.byteLength,
-        );
-        if (mimeType) {
-          c.header('Content-Type', mimeType);
-        }
-
-        Object.entries(route.responseHeaders || {}).forEach(([k, v]) => {
-          c.header(k, v as string);
-        });
-
-        applyPreCompressedAssetHeaders(c, preCompressedAsset);
-
-        c.header('Content-Length', String(data.byteLength));
-
-        return c.body(body, 200);
+      const response = await servePreCompressedPublicRouteAsset(c, pwd, route);
+      if (response !== null) {
+        return response;
       }
     }
 
@@ -120,18 +80,6 @@ function matchPublicRoute(req: HonoRequest, routes: ServerRoute[]) {
   }
   return undefined;
 }
-
-// Check whether `target` is located inside `root` (or is `root` itself), so
-// resolved static asset paths cannot escape the serving directory via `../`.
-const isPathInside = (target: string, root: string): boolean => {
-  const relative = path.relative(path.resolve(root), path.resolve(target));
-  return (
-    relative === '' ||
-    (!relative.startsWith(`..${path.sep}`) &&
-      relative !== '..' &&
-      !path.isAbsolute(relative))
-  );
-};
 
 // Remove domain name from assetPrefix if it exists
 const extractPathname = (url: string): string => {
@@ -203,70 +151,10 @@ export function createStaticMiddleware(
     pwd,
     routes: routes || [],
   });
-  let moduleFederationAssetsPromise: Promise<ModuleFederationServeAssets> | null =
-    null;
-
-  const getModuleFederationAssets = async () => {
-    if (!moduleFederationAssetsPromise) {
-      moduleFederationAssetsPromise = getModuleFederationAssetList(pwd);
-    }
-
-    return moduleFederationAssetsPromise;
-  };
-
-  const serveFile = async (
-    c: Parameters<Middleware>[0],
-    filepath: string,
-    moduleFederationAsset = false,
-    moduleFederationRemoteEntry = false,
-    requestPath = '',
-  ) => {
-    if (moduleFederationAsset) {
-      applyModuleFederationAssetHeaders(c);
-    }
-
-    const mimeType = getMimeType(filepath);
-    if (mimeType) {
-      c.header('Content-Type', mimeType);
-    }
-
-    const shouldPatchManifest =
-      moduleFederationAsset && isModuleFederationManifestRequest(requestPath);
-    const shouldPatchRemoteEntry = moduleFederationRemoteEntry;
-    const canUsePreCompressed = !shouldPatchManifest && !shouldPatchRemoteEntry;
-    const preCompressedAsset = canUsePreCompressed
-      ? await resolvePreCompressedAsset(c, filepath)
-      : {
-          selected: null,
-          hasVariant: false,
-        };
-    const targetFilepath = preCompressedAsset.selected?.filepath ?? filepath;
-
-    // serve static middleware always read file from real filesystem.
-    const chunk = await fileReader.readFileFromSystem(targetFilepath, 'buffer');
-
-    if (chunk === null) {
-      return null;
-    }
-
-    const responseChunk = shouldPatchManifest
-      ? patchModuleFederationManifestPublicPath(c, chunk, pathPrefix)
-      : shouldPatchRemoteEntry
-        ? patchModuleFederationRemoteEntryPublicPath(c, chunk, pathPrefix)
-        : chunk;
-
-    applyPreCompressedAssetHeaders(c, preCompressedAsset);
-
-    // TODO: handle http range
-    c.header('Content-Length', String(responseChunk.byteLength));
-    // See comment above: convert Buffer<ArrayBufferLike> to Uint8Array<ArrayBuffer>.
-    const body = new Uint8Array(
-      responseChunk.buffer as ArrayBuffer,
-      responseChunk.byteOffset,
-      responseChunk.byteLength,
-    );
-    return c.body(body, 200);
-  };
+  const moduleFederationStaticServing = createModuleFederationStaticServing({
+    pwd,
+    pathPrefix,
+  });
 
   /**
    * The function is modified based on
@@ -285,49 +173,18 @@ export function createStaticMiddleware(
 
     // Check if path matches static resource pattern
     const hit = staticPathRegExp.test(pathname);
-    const requestPath = getModuleFederationRequestPath(pathname, pathPrefix);
+    const staticServingRequest =
+      await moduleFederationStaticServing.resolveRequest(pathname);
 
-    if (requestPath.includes('..')) {
+    if (staticServingRequest === null) {
       return next();
     }
 
-    const moduleFederationAssetMeta = await getModuleFederationAssets();
-    const isModuleFederationAsset =
-      moduleFederationAssetMeta.assets.has(requestPath);
-    const isModuleFederationRemoteEntry =
-      moduleFederationAssetMeta.remoteEntries.has(requestPath);
-
-    const serveByPath = async (
-      filepath: string,
-      moduleFederationAsset = false,
-      moduleFederationRemoteEntry = false,
-    ) => {
-      // Prevent path traversal: `pathname` is user-controlled and may contain
-      // `../` sequences (Hono decodes `%2e%2e` in `c.req.path`), which
-      // `path.join` resolves. Reject any resolved path that escapes `pwd`.
-      if (!isPathInside(filepath, pwd)) {
-        return null;
-      }
-
-      if (!(await fs.pathExists(filepath))) {
-        return null;
-      }
-
-      return serveFile(
-        c,
-        filepath,
-        moduleFederationAsset,
-        moduleFederationRemoteEntry,
-        requestPath,
-      );
-    };
-
     // FIXME: shoudn't hit, when cssPath, jsPath, mediaPath as '.'
     if (hit) {
-      const response = await serveByPath(
-        path.join(pwd, requestPath),
-        isModuleFederationAsset,
-        isModuleFederationRemoteEntry,
+      const response = await moduleFederationStaticServing.serveStaticHit(
+        c,
+        staticServingRequest,
       );
       if (response !== null) {
         return response;
@@ -341,15 +198,13 @@ export function createStaticMiddleware(
       return next();
     }
 
-    if (isModuleFederationAsset) {
-      const response = await serveByPath(
-        path.join(pwd, requestPath),
-        true,
-        isModuleFederationRemoteEntry,
+    const moduleFederationResponse =
+      await moduleFederationStaticServing.serveModuleFederationAsset(
+        c,
+        staticServingRequest,
       );
-      if (response !== null) {
-        return response;
-      }
+    if (moduleFederationResponse !== null) {
+      return moduleFederationResponse;
     }
 
     return publicMiddleware(c, next);
