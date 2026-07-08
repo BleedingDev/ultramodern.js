@@ -1,5 +1,12 @@
 import { attributesToString } from './utils';
 
+const escapeHtmlAttribute = (value: string): string =>
+  value
+    .replaceAll('&', '&amp;')
+    .replaceAll('"', '&quot;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;');
+
 export const createFederatedCssLinks = (
   assets: string[] | undefined,
   options: {
@@ -17,12 +24,18 @@ export const createFederatedCssLinks = (
   const links: string[] = [];
 
   for (const asset of assets) {
-    if (asset === '' || seen.has(asset) || options.template.includes(asset)) {
+    const href = escapeHtmlAttribute(asset);
+    if (
+      asset === '' ||
+      seen.has(asset) ||
+      options.template.includes(asset) ||
+      options.template.includes(href)
+    ) {
       continue;
     }
 
     seen.add(asset);
-    links.push(`<link${attributes} href="${asset}" rel="stylesheet" />`);
+    links.push(`<link${attributes} href="${href}" rel="stylesheet" />`);
   }
 
   return links.join('');
