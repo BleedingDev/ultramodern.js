@@ -196,6 +196,10 @@ export function createRouteHydrationScriptTags(
   if (routeAssets === undefined) {
     return '';
   }
+  const existingScriptSrcs =
+    template === undefined
+      ? new Set<string>()
+      : new Set(getScriptTags(template).map(({ src }) => src));
 
   const jsAssets = Array.from(
     new Set(
@@ -209,7 +213,7 @@ export function createRouteHydrationScriptTags(
     nonce === undefined || nonce === '' ? '' : ` nonce="${nonce}"`;
 
   return jsAssets
-    .filter(asset => template?.includes(asset) !== true)
+    .filter(asset => !existingScriptSrcs.has(asset))
     .map(asset => `<script src=${asset}${nonceAttr}></script>`)
     .join(' ');
 }

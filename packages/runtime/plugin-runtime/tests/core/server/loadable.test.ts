@@ -1,6 +1,9 @@
 import React from 'react';
 import { RenderLevel } from '../../../src/core/constants';
-import { orderHydrationScriptChunks } from '../../../src/core/server/scriptOrder';
+import {
+  createRouteHydrationScriptTags,
+  orderHydrationScriptChunks,
+} from '../../../src/core/server/scriptOrder';
 import { LoadableCollector } from '../../../src/core/server/string/loadable';
 import { applyRouterRuntimeState } from '../../../src/router/runtime/lifecycle';
 
@@ -21,6 +24,26 @@ const chunk = (url: string, filename = url) => ({
 
 const scriptUrls = (chunks: Array<{ url?: string }>) =>
   chunks.map(item => item.url).filter(Boolean);
+
+describe('createRouteHydrationScriptTags', () => {
+  it('does not treat substring matches in the template as existing scripts', () => {
+    const runtimeContext = createRuntimeContextWithMatchedRoutes(['route-a']);
+    runtimeContext.routeManifest = {
+      routeAssets: {
+        'route-a': {
+          assets: ['/static/js/route-a.js'],
+        },
+      },
+    };
+
+    const scripts = createRouteHydrationScriptTags(runtimeContext, 'index', {
+      template:
+        '<html><head><link href="/static/js/route-a.js.map" rel="prefetch" /></head></html>',
+    });
+
+    expect(scripts).toBe('<script src=/static/js/route-a.js></script>');
+  });
+});
 
 describe('LoadableCollector federated css', () => {
   it('appends deduped module federation css after local route css', async () => {
