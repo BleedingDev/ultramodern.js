@@ -141,10 +141,23 @@ export function resolveRemoteRefs(
   remotes: WorkspaceApp[] = [],
 ): WorkspaceApp[] {
   const verticalRefs = app.verticalRefs ?? [];
+  const remotesById = new Map(remotes.map(remote => [remote.id, remote]));
 
-  return verticalRefs
-    .map(remoteRef => remotes.find(remote => remote.id === remoteRef))
-    .filter((remote): remote is WorkspaceApp => remote !== undefined);
+  return verticalRefs.map(remoteRef => {
+    const remote = remotesById.get(remoteRef);
+
+    if (remote === undefined) {
+      const availableRemotes = remotes.map(remote => remote.id).join(', ');
+
+      throw new Error(
+        `Unknown remote vertical reference ${remoteRef} for ${app.id}. Available remotes: ${
+          availableRemotes || 'none'
+        }.`,
+      );
+    }
+
+    return remote;
+  });
 }
 
 export function createRemoteManifestEnv(remote: WorkspaceApp): string {
