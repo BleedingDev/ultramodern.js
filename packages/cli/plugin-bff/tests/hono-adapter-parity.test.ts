@@ -8,7 +8,12 @@
  */
 
 import { resolveCrossProjectPolicy } from '@modern-js/bff-core';
-import { Hono, type MiddlewareHandler } from '@modern-js/server-core';
+import {
+  Hono,
+  type MiddlewareHandler,
+  type ServerMiddleware,
+  type ServerPluginAPI,
+} from '@modern-js/server-core';
 import {
   assertParityResult,
   createAdapterParityScenarios,
@@ -16,6 +21,7 @@ import {
   createParityBffConfig,
   type ParityHttpResponse,
 } from '../../../server/bff-core/src/adapter-kit/parity';
+import { HonoAdapter } from '../src/runtime/hono/adapter';
 import createHonoRoutes from '../src/utils/createHonoRoutes';
 import { checkCrossProjectPolicyResponse } from '../src/utils/crossProjectServerPolicy';
 
@@ -93,4 +99,66 @@ describe('hono adapter parity (bff-core scenario table)', () => {
       assertParityResult(scenario, await toParityHttpResponse(response));
     });
   }
+
+  test('returns safe failure when Retry-After value is invalid', async () => {
+    const middlewares: ServerMiddleware[] = [];
+    const maintenanceError = Object.assign(new Error('maintenance detail'), {
+      status: 503,
+      retryAfter: '120\r\nX-Injected: 1',
+    });
+    const api = {
+      getServerContext() {
+        return {
+          bffRuntimeFramework: 'hono',
+          middlewares,
+          apiHandlerInfos: [
+            {
+              routePath: '/api/maintenance',
+              httpMethod: 'GET',
+              handler: async () => {
+                throw maintenanceError;
+              },
+            },
+          ],
+        };
+      },
+      getServerConfig() {
+        return {
+          onError() {},
+        };
+      },
+    } as unknown as ServerPluginAPI;
+
+    const adapter = new HonoAdapter(api);
+    await adapter.registerMiddleware({
+      prefix: '/api',
+      enableHandleWeb: false,
+    });
+
+    const middleware = middlewares[0];
+    expect(middleware).toBeDefined();
+
+    const response = (await middleware!.handler(
+      {
+        req: {
+          raw: new Request('http://localhost/api/maintenance'),
+          path: '/api/maintenance',
+          method: 'GET',
+        },
+        env: {},
+      } as unknown,
+      async () => {},
+    )) as Response | undefined;
+
+    expect(response?.status).toBe(503);
+    expect(response?.headers.get('Retry-After')).toBeNull();
+    await expect(response?.json()).resolves.toEqual({
+      success: false,
+      error: {
+        code: 'SERVICE_UNAVAILABLE',
+        message: 'Service Unavailable',
+        status: 503,
+      },
+    });
+  });
 });

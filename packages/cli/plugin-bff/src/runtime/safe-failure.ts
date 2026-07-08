@@ -8,6 +8,8 @@ const SAFE_FAILURE_CODES: Record<number, string> = {
   503: 'SERVICE_UNAVAILABLE',
 };
 
+const INVALID_HTTP_HEADER_VALUE = /[\0-\x08\x0a-\x1f\x7f]/u;
+
 type SafeFailureEnvelope = {
   success: false;
   error: {
@@ -37,7 +39,9 @@ const normalizeRetryAfter = (value: unknown): string | undefined => {
   }
   if (typeof value === 'string') {
     const trimmed = value.trim();
-    return trimmed.length > 0 ? trimmed : undefined;
+    return trimmed.length > 0 && !INVALID_HTTP_HEADER_VALUE.test(trimmed)
+      ? trimmed
+      : undefined;
   }
   if (value instanceof Date) {
     return value.toUTCString();
