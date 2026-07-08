@@ -26,6 +26,14 @@ interface RuntimeContextWithI18n extends TRuntimeContext {
   ssrContext?: { request?: { pathname?: string } };
 }
 
+type WindowWithSSRData = Window & {
+  _SSR_DATA?: unknown;
+};
+
+type ResourceStoreWithEvents = NonNullable<I18nInstance['store']> & {
+  emit?: (event: string, ...args: unknown[]) => void;
+};
+
 function createMinimalI18nInstance(language: string): I18nInstance {
   const minimalInstance: I18nInstance = {
     language,
@@ -97,7 +105,7 @@ export function useSdkResourcesLoader(
       }
 
       const triggerUpdate = (retryCount = 0) => {
-        const store = (i18nInstance as any).store;
+        const store = i18nInstance.store as ResourceStoreWithEvents | undefined;
         const hasResource = store?.data?.[language]?.[namespace];
 
         if (hasResource || retryCount >= 10) {
@@ -182,7 +190,7 @@ export function useClientSideRedirect(
     }
 
     try {
-      const ssrData = (window as any)._SSR_DATA;
+      const ssrData = (window as WindowWithSSRData)._SSR_DATA;
       if (ssrData) {
         return;
       }

@@ -172,7 +172,7 @@ export async function changeModernI18nLanguage(
 export function translateI18n(
   i18nInstance: I18nInstance,
   key: string | string[],
-  ...args: any[]
+  ...args: unknown[]
 ): string {
   if (typeof i18nInstance.t !== 'function') {
     throw new Error('i18nInstance.t required');
@@ -207,7 +207,7 @@ export function isI18nResourcesReady(
     }
   }
 
-  const store = (i18nInstance as any).store;
+  const store = i18nInstance.store;
   if (!store?.data) {
     return false;
   }

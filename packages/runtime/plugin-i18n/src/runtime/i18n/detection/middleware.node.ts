@@ -1,10 +1,22 @@
 import { LanguageDetector } from 'i18next-http-middleware';
-import type { I18nInstance } from '../instance';
+import type { I18nInstance, LanguageDetectorOptions } from '../instance';
+
+type HttpDetectorInit = (
+  services: NonNullable<I18nInstance['services']>,
+  options?: unknown,
+  allOptions?: unknown,
+) => void;
+
+type HttpDetectorDetect = (
+  request: unknown,
+  response: unknown,
+  detectionOrder?: unknown,
+) => string | string[] | undefined;
 
 export const cacheUserLanguage = (
   _i18nInstance: I18nInstance,
   _language: string,
-  _detectionOptions?: any,
+  _detectionOptions?: unknown,
 ): void => {
   return;
 };
@@ -14,7 +26,7 @@ export const cacheUserLanguage = (
  * Not available in Node.js environment, returns undefined
  */
 export const readLanguageFromStorage = (
-  _detectionOptions?: any,
+  _detectionOptions?: LanguageDetectorOptions,
 ): string | undefined => {
   // In Node.js environment, storage-based detection is not available
   return undefined;
@@ -36,8 +48,8 @@ export const useI18nextLanguageDetector = (i18nInstance: I18nInstance) => {
  */
 export const detectLanguage = (
   i18nInstance: I18nInstance,
-  request?: any,
-  detectionOptions?: any,
+  request?: unknown,
+  detectionOptions?: LanguageDetectorOptions,
 ): string | undefined => {
   if (!request) {
     return undefined;
@@ -65,9 +77,16 @@ export const detectLanguage = (
       const optionsToUse = detectionOptions
         ? { ...i18nInstance.options, detection: detectionOptions }
         : i18nInstance.options;
-      manualDetector.init(i18nInstance.services, optionsToUse as any);
+      (manualDetector.init as unknown as HttpDetectorInit)(
+        i18nInstance.services,
+        optionsToUse,
+      );
 
-      const result = (manualDetector.detect as any)(request, {}, undefined);
+      const result = (manualDetector.detect as unknown as HttpDetectorDetect)(
+        request,
+        {},
+        undefined,
+      );
       if (typeof result === 'string') {
         return result;
       }

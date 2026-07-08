@@ -14,7 +14,10 @@ import { getSupportedLanguage, isLanguageSupported } from './language';
 
 import { detectLanguage, useI18nextLanguageDetector } from './middleware';
 
-import type { BaseLanguageDetectionOptions } from './types';
+import type {
+  BaseLanguageDetectionOptions,
+  LanguageDetectionSsrContext,
+} from './types';
 
 /**
  * Initialize i18n instance for detector if needed
@@ -23,6 +26,10 @@ interface DetectorInitResult {
   detectorInstance: I18nInstance;
   isTemporary: boolean;
 }
+
+type MutableDetectorInstanceState = Omit<I18nInstance, 'language'> & {
+  language?: string;
+};
 
 const initializeI18nForDetector = async (
   i18nInstance: I18nInstance,
@@ -48,7 +55,7 @@ const initializeI18nForDetector = async (
 
   const safeUserOptions = pickSafeDetectionOptions(options.userInitOptions);
 
-  // Only initialize detection capability, don't load any resources to avoid conflicts with subsequent backend initialization
+  // Only initialize detection capability, don't load resources to avoid conflicts with subsequent backend initialization
   const initOptions: I18nInitOptions = {
     ...safeUserOptions,
     fallbackLng: options.fallbackLanguage,
@@ -81,7 +88,9 @@ const initializeI18nForDetector = async (
  */
 export const detectLanguageFromI18nextDetector = async (
   i18nInstance: I18nInstance,
-  options: BaseLanguageDetectionOptions & { ssrContext?: any },
+  options: BaseLanguageDetectionOptions & {
+    ssrContext?: LanguageDetectionSsrContext;
+  },
 ): Promise<string | undefined> => {
   if (!options.i18nextDetector) {
     return undefined;
@@ -108,7 +117,7 @@ export const detectLanguageFromI18nextDetector = async (
 
     const detectorLang = detectLanguage(
       detectorInstance,
-      request as any,
+      request,
       mergedDetection,
     );
 
@@ -148,8 +157,8 @@ export const detectLanguageFromI18nextDetector = async (
       });
     } else if (detectorInstance === i18nInstance) {
       // As a fallback, prevent i18nInstance from being polluted by detector init
-      (i18nInstance as any).isInitialized = false;
-      delete (i18nInstance as any).language;
+      i18nInstance.isInitialized = false;
+      delete (i18nInstance as unknown as MutableDetectorInstanceState).language;
     }
   }
 

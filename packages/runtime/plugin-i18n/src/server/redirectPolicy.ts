@@ -7,6 +7,13 @@ import {
 } from '../shared/localisedUrls.js';
 import type { LocaleDetectionOptions } from '../shared/type';
 
+interface LocaleRedirectRequest {
+  url: string;
+  header: () => {
+    host?: string;
+  };
+}
+
 const stripUrlPathPrefix = (pathname: string, urlPath: string): string => {
   const basePath = urlPath.replace('/*', '');
 
@@ -67,7 +74,7 @@ export const isStaticResourceRequest = (
 };
 
 export const getLanguageFromPath = (
-  req: any,
+  req: LocaleRedirectRequest,
   urlPath: string,
   languages: string[],
 ): string | null => {
@@ -85,7 +92,7 @@ export const getLanguageFromPath = (
 };
 
 export const buildLocalizedUrl = (
-  req: any,
+  req: LocaleRedirectRequest,
   urlPath: string,
   language: string,
   languages: string[],

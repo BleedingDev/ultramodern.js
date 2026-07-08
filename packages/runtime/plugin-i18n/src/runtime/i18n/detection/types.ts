@@ -1,4 +1,12 @@
-import type { I18nInitOptions, LanguageDetectorOptions } from '../instance';
+import type {
+  BackendOptions,
+  I18nInitOptions,
+  LanguageDetectorOptions,
+} from '../instance';
+
+export interface LanguageDetectionSsrContext {
+  request?: unknown;
+}
 
 export interface BaseLanguageDetectionOptions {
   languages: string[];
@@ -7,12 +15,12 @@ export interface BaseLanguageDetectionOptions {
   i18nextDetector: boolean;
   detection?: LanguageDetectorOptions;
   userInitOptions?: I18nInitOptions;
-  mergedBackend?: any;
+  mergedBackend?: BackendOptions;
 }
 
 export interface LanguageDetectionOptions extends BaseLanguageDetectionOptions {
   pathname: string;
-  ssrContext?: any;
+  ssrContext?: LanguageDetectionSsrContext;
 }
 
 export interface LanguageDetectionResult {
@@ -28,6 +36,6 @@ export interface BuildInitOptionsParams {
   fallbackLanguage: string;
   languages: string[];
   userInitOptions?: I18nInitOptions;
-  mergedDetection?: any;
-  mergeBackend?: any;
+  mergedDetection?: LanguageDetectorOptions;
+  mergeBackend?: BackendOptions;
 }
