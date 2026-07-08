@@ -2,7 +2,6 @@ export * from './adapter-kit';
 export { Api } from './api';
 export * from './client';
 export type * from './compatible';
-export * from './contracts/eventContracts';
 export { HttpError, ValidationError } from './errors/http';
 export * from './operators/http';
 export * from './router';
