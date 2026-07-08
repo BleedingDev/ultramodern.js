@@ -169,9 +169,11 @@ export function resolveRouterProvider(
   const registry = getRegistry();
   // `||` on purpose: a falsy framework value (empty string from env
   // templating, `false`, `undefined`) falls back to the default provider
-  // instead of erroring on an unknown framework "".
+  // instead of erroring on an unknown framework "". Prefer the resolving
+  // module's local default before the realm-global registry default so
+  // app-level remotes do not inherit host runtime provider closures.
   const name =
-    framework || registry.defaultProvider || options.localDefault?.name;
+    framework || options.localDefault?.name || registry.defaultProvider;
 
   if (name === undefined) {
     throw new Error(

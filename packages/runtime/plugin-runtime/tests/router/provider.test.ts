@@ -203,6 +203,26 @@ describe('router provider registry', () => {
     expect(resolveRouterProvider(undefined)).toBe(hostCopy);
   });
 
+  it("resolves resolving module's default provider when a foreign default provider registered first", () => {
+    // Simulates an app-level Module Federation page where the host runtime
+    // registered a different default provider before the remote app resolves
+    // its own default router.
+    const foreignDefault = createFactory('foreign-default');
+    const localDefault = createFactory('react-router-local');
+
+    registerRouterProvider('foreign-router', foreignDefault, {
+      isDefault: true,
+    });
+
+    expect(
+      resolveRouterProvider(undefined, {
+        localDefault: { name: 'react-router', factory: localDefault },
+      }),
+    ).toBe(localDefault);
+    // Without a local default, the registry default is still observable.
+    expect(resolveRouterProvider(undefined)).toBe(foreignDefault);
+  });
+
   it('ignores the local default when a non-default framework is configured', () => {
     const reactRouter = createFactory('react-router');
     const tanstack = createFactory('tanstack');
