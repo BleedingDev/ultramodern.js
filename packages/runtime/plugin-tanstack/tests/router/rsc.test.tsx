@@ -85,6 +85,38 @@ describe('tanstack rsc runtime helpers', () => {
     expect(revived.left).toBe(revived.right);
   });
 
+  test('serializes TanStack RSC flight values nested in map and set containers', () => {
+    const stream: ServerComponentStream = {
+      createReplayStream: () => new ReadableStream<Uint8Array>(),
+    };
+    const proxy = createRscProxy(() => null, {
+      renderable: true,
+      stream,
+    }) as React.ReactElement & Record<PropertyKey, unknown>;
+
+    const serialized = serializeTanstackRscFlightValues({
+      map: new Map([['slot', proxy]]),
+      set: new Set([proxy]),
+    }) as {
+      map: Map<string, Record<string, unknown>>;
+      set: Set<Record<string, unknown>>;
+    };
+
+    const mapValue = serialized.map.get('slot');
+    const [setValue] = serialized.set;
+
+    expect(mapValue).not.toBe(proxy);
+    expect(setValue).not.toBe(proxy);
+    expect(mapValue).toMatchObject({
+      __modernTanstackRsc: true,
+      kind: 'renderable',
+    });
+    expect(setValue).toMatchObject({
+      __modernTanstackRsc: true,
+      kind: 'renderable',
+    });
+  });
+
   test('renderable RSC proxies preserve React element behavior and metadata', () => {
     const stream: ServerComponentStream = {
       createReplayStream: () => new ReadableStream<Uint8Array>(),

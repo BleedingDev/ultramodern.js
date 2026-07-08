@@ -53,6 +53,25 @@ export function serializeTanstackRscFlightValues(
   if (seen.has(value)) {
     return seen.get(value);
   }
+  if (value instanceof Map) {
+    const result = new Map<unknown, unknown>();
+    seen.set(value, result);
+    for (const [key, item] of value) {
+      result.set(
+        serializeTanstackRscFlightValues(key, seen),
+        serializeTanstackRscFlightValues(item, seen),
+      );
+    }
+    return result;
+  }
+  if (value instanceof Set) {
+    const result = new Set<unknown>();
+    seen.set(value, result);
+    for (const item of value) {
+      result.add(serializeTanstackRscFlightValues(item, seen));
+    }
+    return result;
+  }
   if (Array.isArray(value)) {
     const result: unknown[] = [];
     seen.set(value, result);
@@ -98,6 +117,22 @@ export async function reviveTanstackRscFlightValues(
     }
     if (seen.has(current)) {
       return seen.get(current);
+    }
+    if (current instanceof Map) {
+      const result = new Map<unknown, unknown>();
+      seen.set(current, result);
+      for (const [key, item] of current) {
+        result.set(await visit(key), await visit(item));
+      }
+      return result;
+    }
+    if (current instanceof Set) {
+      const result = new Set<unknown>();
+      seen.set(current, result);
+      for (const item of current) {
+        result.add(await visit(item));
+      }
+      return result;
     }
     if (Array.isArray(current)) {
       const result: unknown[] = [];
