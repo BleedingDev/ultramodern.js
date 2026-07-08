@@ -157,7 +157,11 @@ function applySelection(value: unknown, selection: unknown): unknown {
   const masked: Record<string, unknown> = {};
   for (const key of Object.keys(selection)) {
     const selected = selection[key];
-    if (selected === undefined || !(key in value)) {
+    if (
+      selected === undefined ||
+      !(key in value) ||
+      (selected !== true && !isRecord(selected))
+    ) {
       continue;
     }
     masked[key] = applySelection(value[key], selected);

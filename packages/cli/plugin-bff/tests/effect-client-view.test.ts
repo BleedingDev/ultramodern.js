@@ -1,4 +1,9 @@
-import { mask, runEffectView, view } from '../src/runtime/effect-client';
+import {
+  type EffectViewSelection,
+  mask,
+  runEffectView,
+  view,
+} from '../src/runtime/effect-client';
 
 type UserPayload = {
   id: string;
@@ -126,6 +131,18 @@ describe('effect-client view helpers', () => {
         profile: undefined,
       }),
     );
+
+    expect(selected).toEqual({
+      id: '42',
+    });
+  });
+
+  test('mask ignores invalid runtime selection values', () => {
+    const selected = mask(userPayload, {
+      id: true,
+      profile: null,
+      posts: false,
+    } as unknown as EffectViewSelection<UserPayload>);
 
     expect(selected).toEqual({
       id: '42',
