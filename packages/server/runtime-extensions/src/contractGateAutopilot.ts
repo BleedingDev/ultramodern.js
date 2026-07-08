@@ -96,8 +96,11 @@ export class ContractGateAutopilot {
       return 0;
     }
 
+    const snapshotGateNames = this.getSnapshotGateNames(snapshot);
     const gates = this.normalizeSnapshot(snapshot);
-    let updatedCount = 0;
+    let updatedCount = snapshotGateNames
+      ? this.clearOmittedGates(snapshotGateNames)
+      : 0;
     for (const gate of gates) {
       this.orchestrator.addRequiredContractGate(gate.name);
       const fingerprint = `${gate.passed ? '1' : '0'}:${gate.reason || ''}`;
@@ -110,6 +113,41 @@ export class ContractGateAutopilot {
       updatedCount += 1;
       this.logger?.info?.(
         `[telemetry.canary.autopilot] gate=${gate.name} passed=${String(gate.passed)} reason=${gate.reason || 'none'}`,
+      );
+    }
+
+    return updatedCount;
+  }
+
+  private getSnapshotGateNames(snapshot: GateSnapshot) {
+    const gates = snapshot.gates;
+    if (!gates || typeof gates !== 'object') {
+      return undefined;
+    }
+
+    const names = new Set<string>();
+    for (const name of Object.keys(gates)) {
+      const normalizedName = name.trim();
+      if (normalizedName) {
+        names.add(normalizedName);
+      }
+    }
+
+    return names;
+  }
+
+  private clearOmittedGates(snapshotGateNames: ReadonlySet<string>) {
+    let updatedCount = 0;
+    for (const gateName of Array.from(this.appliedGateFingerprints.keys())) {
+      if (snapshotGateNames.has(gateName)) {
+        continue;
+      }
+
+      this.orchestrator.setContractGate(gateName, true);
+      this.appliedGateFingerprints.delete(gateName);
+      updatedCount += 1;
+      this.logger?.info?.(
+        `[telemetry.canary.autopilot] gate=${gateName} passed=true reason=omitted`,
       );
     }
 

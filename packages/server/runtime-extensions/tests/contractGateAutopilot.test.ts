@@ -280,6 +280,80 @@ describe('contract gate autopilot', () => {
     }
   });
 
+  test('clears previously applied gate failures when snapshots omit them', async () => {
+    const dir = makeTempDir();
+    const snapshotPath = path.join(dir, 'contract-gates.json');
+
+    const registry = new TelemetryRegistry({
+      service: 'svc',
+      module: 'server',
+      environment: 'test',
+      flushIntervalMs: 60_000,
+    });
+    const orchestrator = new TelemetryCanaryOrchestrator({
+      registry,
+      rollbackConsecutiveFailures: 1,
+    });
+    const autopilot = new ContractGateAutopilot({
+      orchestrator,
+      gateSnapshotPath: snapshotPath,
+      gateStaleAfterMs: 60_000,
+    });
+
+    try {
+      const now = Date.now();
+      fs.writeFileSync(
+        snapshotPath,
+        JSON.stringify(
+          {
+            schemaVersion: 1,
+            updatedAt: now,
+            gates: {
+              'runtime-mf-fallback-health': {
+                passed: false,
+                reason: 'runtime_fallback:remote_load_failed',
+                updatedAt: now,
+              },
+            },
+          },
+          null,
+          2,
+        ),
+      );
+
+      await autopilot.syncOnce();
+      expect(
+        orchestrator
+          .evaluate()
+          .failures.some(
+            item =>
+              item.reason === 'contract_gate_failed' &&
+              item.gate === 'runtime-mf-fallback-health',
+          ),
+      ).toBe(true);
+
+      fs.writeFileSync(
+        snapshotPath,
+        JSON.stringify(
+          {
+            schemaVersion: 1,
+            updatedAt: Date.now(),
+            gates: {},
+          },
+          null,
+          2,
+        ),
+      );
+
+      await autopilot.syncOnce();
+      expect(orchestrator.evaluate().failures).toHaveLength(0);
+    } finally {
+      autopilot.stop();
+      await registry.shutdown();
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   test('auto-recovers runtime fallback gates after expiry window', async () => {
     const dir = makeTempDir();
     const snapshotPath = path.join(dir, 'contract-gates.json');
