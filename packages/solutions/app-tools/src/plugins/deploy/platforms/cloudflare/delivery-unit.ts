@@ -67,22 +67,26 @@ export const resolveTopologyDeliveryUnit = async (
   const topology = isRecord(compactConfig.topology)
     ? compactConfig.topology
     : undefined;
-  const apps = Array.isArray(topology?.apps) ? topology.apps : [];
+  const apps = Array.isArray(topology?.apps) ? topology.apps : undefined;
   const resolvedAppDirectory = path.resolve(appDirectory);
 
-  for (const app of apps) {
-    if (!isRecord(app)) {
-      continue;
+  if (apps) {
+    for (const app of apps) {
+      if (!isRecord(app)) {
+        continue;
+      }
+
+      const appPath = nonEmptyString(app.path);
+      if (
+        appPath &&
+        path.resolve(workspaceRoot, appPath.replace(/^\.\/+/u, '')) ===
+          resolvedAppDirectory
+      ) {
+        return toDeliveryUnitIdentity(app.deliveryUnit);
+      }
     }
 
-    const appPath = nonEmptyString(app.path);
-    if (
-      appPath &&
-      path.resolve(workspaceRoot, appPath.replace(/^\.\/+/u, '')) ===
-        resolvedAppDirectory
-    ) {
-      return toDeliveryUnitIdentity(app.deliveryUnit);
-    }
+    return undefined;
   }
 
   // Single-app compact config: fall back to a top-level declaration.

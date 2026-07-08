@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createCloudflarePreset } from '../../src/plugins/deploy/platforms/cloudflare';
+import { resolveTopologyDeliveryUnit } from '../../src/plugins/deploy/platforms/cloudflare/delivery-unit';
 import type {
   CloudflareWorkerArtifactConfig,
   CloudflareWorkerD1DatabaseConfig,
@@ -1544,6 +1545,49 @@ describe('cloudflare deploy preset', () => {
         },
       }),
     ).rejects.toThrow(/delivery-unit-drift/u);
+  });
+
+  it('does not use single-app delivery-unit fallback when topology apps omit current app', async () => {
+    const workspaceRoot = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'modern-cloudflare-delivery-unit-'),
+    );
+    tempDirectories.push(workspaceRoot);
+
+    const appDirectory = path.join(workspaceRoot, 'apps/checkout');
+    await fs.mkdir(appDirectory, { recursive: true });
+    await fs.mkdir(path.join(workspaceRoot, '.modernjs'), { recursive: true });
+    await fs.writeFile(
+      path.join(workspaceRoot, '.modernjs/ultramodern.json'),
+      `${JSON.stringify(
+        {
+          deliveryUnit: {
+            unitId: 'acme/root',
+            buildMarker: 'root-build',
+            sourceRevision: 'root-revision',
+          },
+          topology: {
+            apps: [
+              {
+                id: 'catalog',
+                kind: 'remote',
+                path: 'apps/catalog',
+                deliveryUnit: {
+                  unitId: 'acme/catalog',
+                  buildMarker: 'catalog-build',
+                  sourceRevision: 'catalog-revision',
+                },
+              },
+            ],
+          },
+        },
+        null,
+        2,
+      )}\n`,
+    );
+
+    await expect(resolveTopologyDeliveryUnit(appDirectory)).resolves.toBe(
+      undefined,
+    );
   });
 
   it('emits explicit Effect BFF dispatch without runtime duck-typing', async () => {
