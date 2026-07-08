@@ -37,6 +37,10 @@ export interface TelemetryExporter {
 }
 
 export function clamp(value: number, min: number, max: number) {
+  if (Number.isNaN(value)) {
+    return max;
+  }
+
   return Math.max(min, Math.min(max, value));
 }
 

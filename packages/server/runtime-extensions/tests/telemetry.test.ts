@@ -6,6 +6,7 @@ import {
   TelemetryRegistry,
   TelemetryStartupHealthError,
 } from '../src/telemetry';
+import { clamp } from '../src/telemetry/envelope';
 
 const createEnvelope = (partial: Record<string, unknown> = {}) => ({
   timestamp: Date.now(),
@@ -17,6 +18,16 @@ const createEnvelope = (partial: Record<string, unknown> = {}) => ({
   value: 10,
   unit: 'ms',
   ...partial,
+});
+
+describe('telemetry envelope helpers', () => {
+  test('clamps NaN input to a finite in-range value', () => {
+    const value = clamp(Number.NaN, 0, 1);
+
+    expect(Number.isFinite(value)).toBe(true);
+    expect(value).toBeGreaterThanOrEqual(0);
+    expect(value).toBeLessThanOrEqual(1);
+  });
 });
 
 describe('telemetry registry', () => {
