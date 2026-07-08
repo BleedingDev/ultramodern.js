@@ -44,7 +44,7 @@ function normalizeStrictEffectApiMetadata(value: Record<string, any>) {
     changed = true;
   }
 
-  if (api.runtime !== undefined && api.runtime !== 'effect') {
+  if (api.runtime !== 'effect') {
     api.runtime = 'effect';
     changed = true;
   }

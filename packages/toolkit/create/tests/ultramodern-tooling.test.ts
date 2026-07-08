@@ -766,6 +766,7 @@ test('UltraModern migrate-strict-effect updates package cohort and direct API me
       },
       serverEntry: 'verticals/catalog/api/effect/index.ts',
     };
+    delete catalog.api.runtime;
     catalog.api.backendFederation = {
       entry: 'verticals/catalog/api/backend-federation.ts',
     };
@@ -780,6 +781,7 @@ test('UltraModern migrate-strict-effect updates package cohort and direct API me
     const compactCatalog = compactConfigBefore.topology.apps.find(
       (app: Record<string, unknown>) => app.id === 'catalog',
     );
+    delete compactCatalog.api.runtime;
     compactCatalog.api.backendFederation = {
       entry: 'verticals/catalog/api/backend-federation.ts',
     };
@@ -1106,6 +1108,7 @@ declare module '*.css' {}
     );
     assert.equal(migratedCompactCatalog.backendFederation.entry, undefined);
     assert.equal(migratedCompactCatalog.api.backendFederation, undefined);
+    assert.equal(migratedCompactCatalog.api.runtime, 'effect');
     const shellModernConfig = readText(
       workspaceDir,
       'apps/shell-super-app/modern.config.ts',
@@ -1352,6 +1355,7 @@ declare module '*.css' {}
       (vertical: Record<string, unknown>) => vertical.id === 'catalog',
     );
     assert.equal(migratedCatalog.api.effect, undefined);
+    assert.equal(migratedCatalog.api.runtime, 'effect');
     assert.equal(migratedCatalog.api.bff.strictEffectApproach, true);
     assert.equal(
       migratedCatalog.api.serverEntry,
