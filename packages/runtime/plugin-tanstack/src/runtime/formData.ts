@@ -69,6 +69,33 @@ export function getSubmitter(event: React.FormEvent<HTMLFormElement>) {
   return null;
 }
 
+function appendSubmitterValue(
+  formData: FormData,
+  form: HTMLFormElement,
+  submitter: SubmitterElement,
+) {
+  if (submitter.form !== form || submitter.disabled) {
+    return;
+  }
+
+  if (submitter instanceof HTMLInputElement && submitter.type === 'image') {
+    const namePrefix = submitter.name ? `${submitter.name}.` : '';
+    formData.append(`${namePrefix}x`, '0');
+    formData.append(`${namePrefix}y`, '0');
+    return;
+  }
+
+  if (
+    !submitter.name ||
+    submitter.type === 'button' ||
+    submitter.type === 'reset'
+  ) {
+    return;
+  }
+
+  formData.append(submitter.name, submitter.value);
+}
+
 export function createFormDataFromSubmit({
   form,
   submitter,
@@ -81,7 +108,11 @@ export function createFormDataFromSubmit({
       return new FormData(form, submitter);
     } catch {}
   }
-  return new FormData(form);
+  const formData = new FormData(form);
+  if (submitter) {
+    appendSubmitterValue(formData, form, submitter);
+  }
+  return formData;
 }
 
 export function resolveSubmitOptionsFromForm({

@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import React, { act } from 'react';
 import type { Fetcher } from '../../src/runtime/dataMutation';
 import { Form, useFetcher } from '../../src/runtime/dataMutation';
+import { createFormDataFromSubmit } from '../../src/runtime/formData';
 
 type RouteHandler = (args: {
   request: Request;
@@ -359,6 +360,42 @@ describe('tanstack data mutation fetcher', () => {
 
     expect(screen.getByTestId('state').textContent).toBe('idle');
     expect(screen.getByTestId('data').textContent).toBe('{"count":3}');
+  });
+
+  test('preserves submitter name value when FormData submitter overload is unavailable', () => {
+    const NativeFormData = globalThis.FormData;
+
+    class SingleArgumentFormData extends NativeFormData {
+      constructor(form?: HTMLFormElement, submitter?: HTMLElement) {
+        if (submitter) {
+          throw new TypeError('FormData submitter overload unavailable');
+        }
+        super(form);
+      }
+    }
+
+    globalThis.FormData = SingleArgumentFormData as typeof FormData;
+
+    try {
+      const form = document.createElement('form');
+      form.innerHTML = `
+        <input name="amount" value="2" />
+        <button type="submit" name="intent" value="save">Save</button>
+      `;
+
+      const submitter = form.querySelector('button');
+      expect(submitter).toBeInstanceOf(HTMLButtonElement);
+
+      const formData = createFormDataFromSubmit({
+        form,
+        submitter,
+      });
+
+      expect(formData.get('amount')).toBe('2');
+      expect(formData.get('intent')).toBe('save');
+    } finally {
+      globalThis.FormData = NativeFormData;
+    }
   });
 
   test('does not throw for Form submit with non-2xx response and still invalidates', async () => {
