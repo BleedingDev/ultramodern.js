@@ -346,6 +346,31 @@ describe('localisedUrls', () => {
     ).toBe('/products/cervena-bota');
   });
 
+  test('strips case-insensitive locale prefixes before relocalising full pathnames', () => {
+    const localisedUrls = {
+      '/products/:slug': {
+        en: '/products/:slug',
+        cs: '/produkty/:slug',
+      },
+    };
+
+    expect(
+      localiseTargetPathname(
+        '/CS/produkty/cervena-bota',
+        'en',
+        ['en', 'cs'],
+        localisedUrls,
+      ),
+    ).toBe('/en/products/cervena-bota');
+    expect(
+      canonicalTargetPathname(
+        '/CS/produkty/cervena-bota',
+        ['en', 'cs'],
+        localisedUrls,
+      ),
+    ).toBe('/products/cervena-bota');
+  });
+
   test('resolves nested optional route params with translated ancestors', () => {
     const localisedUrls = {
       '/checkout': {

@@ -6,8 +6,12 @@ import type { LocalisedUrlsOption } from './types';
 
 const stripLanguagePrefix = (pathname: string, languages: string[]): string => {
   const segments = pathname.split('/').filter(Boolean);
+  const firstSegment = segments[0]?.toLowerCase();
 
-  if (segments.length > 0 && languages.includes(segments[0])) {
+  if (
+    firstSegment &&
+    languages.some(language => language.toLowerCase() === firstSegment)
+  ) {
     return `/${segments.slice(1).join('/')}`;
   }
 
