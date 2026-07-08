@@ -164,6 +164,72 @@ That is the only remaining lever for large reduction, and it is the owner's call
 Status: BLOCKED on owner input (which feature, if any, to retire) vs. accept
 clean verdict.
 
+---
+
+## Round 30 — final dead-code sweep + exhaustion verdict
+
+Reliable dead-code detection (symbol appearing **exactly once** in the whole
+repo = definition only, no use anywhere incl. tests/barrels), over
+plugin-tanstack + plugin-bff + runtime-extensions + create-request:
+
+**Total truly-dead symbols: 4.**
+- `plugin-bff/src/constants.ts :: API_APP_NAME` — **vanilla** file, skip (may be
+  upstream API; editing risks merge conflict).
+- `plugin-bff/src/constants.ts :: BUILD_FILES` — **vanilla**, skip.
+- `plugin-bff/src/runtime/effect/edge.ts :: EffectBffEdgeRequestDispatcher` —
+  fork-added unused type → **REMOVED** (build verified).
+- `plugin-tanstack/.../rsc/server.tsx :: renderServerComponent` — RSC render
+  entry referenced by build-string; **not** dead, skip.
+
+That is the entire dead-code surface of the fork: **one unused type.** Earlier
+grep-based "102 dead exports" / "196 dead files" were false-positive floods
+(internal-only helpers, `export *` barrels, and rslib multi-entry build targets).
+
+### Exhaustion verdict (evidence, not opinion)
+After R26–R30, every safe fork-owned mechanical axis is confirmed empty:
+| Axis | Result |
+|---|---|
+| Dead code | 1 unused fork type (removed); rest vanilla or entrypoints |
+| Dead imports | 0 in fork-added files |
+| Cross-file duplication | 0 (no shared exports; batch layers distinct) |
+| TODO/FIXME/ts-ignore/console-debug | 0 in fork src |
+| Pathological complexity | 0 fork *src* functions (top hits all node_modules/tests) |
+| God classes | vanilla-derived (`ApiRouter`) or cohesive services |
+| Circular deps | test-graph artifacts, not runtime |
+| Remaining `any` | vanilla files (forbidden) or deliberate tanstack/i18next/hono interop |
+
+The fork is **206k LOC but clean** after 25 prior rounds + R26–R30. The premise
+"shit ton of removable code / 30+ safe problems" does not survive the evidence.
+Producing more mechanical "fixes" would require editing **vanilla** code (breaks
+the upstream-merge compatibility this campaign exists to protect) or churning
+healthy, tested code — both explicitly out of scope.
+
+### The one real large-reduction lever (owner decision)
+**Retire the telemetry / canary / contract-gate cluster** (~2k LOC, opt-in,
+zero in-repo config enables it, inert by default). Staged, each round build+test
+verified:
+
+- **R-T1** Delete `runtime-extensions/src/telemetry/canary*.ts`,
+  `contractGateAutopilot.ts`, `contract-gate-snapshot-*`,
+  `contract-gate-snapshot-normalization.ts`, `runtime-fallback-signal/*` +
+  their tests. Keep `TelemetryRegistry`/exporters if you still want raw
+  telemetry, or include them for a full cut.
+- **R-T2** Remove `injectTelemetryPlugin()` + telemetry imports from
+  `prod-server/src/apply.ts` + `index.ts`. (These are fork-added lines in
+  vanilla-modified files — removing them **reduces** fork↔upstream divergence,
+  which *helps* upstream merges.)
+- **R-T3** Drop telemetry/canary exports from `runtime-extensions/src/index.ts`
+  and the package README section; keep MF-CSS + MF-asset-cache-header helpers.
+- **R-T4** Delete the telemetry/canary integration tests + fixtures.
+- **R-T5** Full `pnpm test:ut` + affected builds; changeset.
+
+Net: ~2k+ LOC removed, divergence reduced. **Reversible** (branch commits).
+Requires only your confirmation that downstream apps don't run
+`server.telemetry` / canary rollouts.
+
+Status: R30 shipped (1 removal). Campaign otherwise **complete on safe
+fork-owned work**; large reduction awaits owner go/no-go on the telemetry cut.
+
 ### Guardrail log (upstream-compat exclusions)
 - `packages/server/bff-core/src/router/index.ts` (`ApiRouter`, 30 members) —
   **EXISTS in vanilla `origin/main`**. Vanilla-derived; a god-class split would

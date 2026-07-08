@@ -58,11 +58,6 @@ export type EffectBffEdgeHandlerOptions = {
   onWarning?: (message: string) => void;
 };
 
-export type EffectBffEdgeRequestDispatcher = (
-  request: Request,
-  dispatchOptions?: Omit<EffectBffEdgeDispatchOptions, 'prefix' | 'onError'>,
-) => Promise<Response>;
-
 export async function dispatchEffectBffRequest(
   handler: EffectBffRequestHandler,
   request: Request,
