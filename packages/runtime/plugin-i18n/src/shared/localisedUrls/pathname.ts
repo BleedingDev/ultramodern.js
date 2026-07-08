@@ -4,7 +4,10 @@ import { resolveCanonicalLocalisedPath, resolveLocalisedPath } from './resolve';
 
 import type { LocalisedUrlsOption } from './types';
 
-const stripLanguagePrefix = (pathname: string, languages: string[]): string => {
+export const stripLanguagePrefix = (
+  pathname: string,
+  languages: string[],
+): string => {
   const segments = pathname.split('/').filter(Boolean);
   const firstSegment = segments[0]?.toLowerCase();
 

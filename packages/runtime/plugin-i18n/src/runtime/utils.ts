@@ -1,7 +1,10 @@
 import { isBrowser } from '@modern-js/runtime';
 import { getGlobalBasename } from '@modern-js/runtime/context';
 import type { LocalisedUrlsOption } from '../shared/localisedUrls';
-import { localiseTargetPathname } from '../shared/localisedUrls';
+import {
+  localiseTargetPathname,
+  shouldSkipLocaleRedirect,
+} from '../shared/localisedUrls';
 
 // Structural parameter: hooks.ts passes a public-TRuntimeContext-based
 // context while core.tsx passes the internal one; both carry the request
@@ -129,32 +132,5 @@ export const shouldIgnoreRedirect = (
   languages: string[],
   ignoreRedirectRoutes?: string[] | ((pathname: string) => boolean),
 ): boolean => {
-  if (!ignoreRedirectRoutes) {
-    return false;
-  }
-
-  // Remove language prefix if present (e.g., /en/api -> /api)
-  const segments = pathname.split('/').filter(Boolean);
-  let pathWithoutLang = pathname;
-  if (segments.length > 0 && languages.includes(segments[0])) {
-    // Remove language prefix
-    pathWithoutLang = `/${segments.slice(1).join('/')}`;
-  }
-
-  // Normalize path (ensure it starts with /)
-  const normalizedPath = pathWithoutLang.startsWith('/')
-    ? pathWithoutLang
-    : `/${pathWithoutLang}`;
-
-  if (typeof ignoreRedirectRoutes === 'function') {
-    return ignoreRedirectRoutes(normalizedPath);
-  }
-
-  // Check if pathname matches any of the ignore patterns
-  return ignoreRedirectRoutes.some(pattern => {
-    // Support both exact match and prefix match
-    return (
-      normalizedPath === pattern || normalizedPath.startsWith(`${pattern}/`)
-    );
-  });
+  return shouldSkipLocaleRedirect(pathname, languages, ignoreRedirectRoutes);
 };

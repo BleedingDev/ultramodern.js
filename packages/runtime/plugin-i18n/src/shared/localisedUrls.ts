@@ -1,4 +1,5 @@
 export type {
+  LocaleRedirectSkipRule,
   LocalisedRoute,
   LocalisedUrlPathMap,
   LocalisedUrlsMap,
@@ -9,12 +10,17 @@ export {
   applyLocalisedUrlsToRoutes,
   buildPathFromPattern,
   canonicalTargetPathname,
+  DEFAULT_LOCALE_REDIRECT_SKIP_RULES,
+  isDefaultLocaleRedirectSkipPath,
   localiseTargetPathname,
+  matchesPathPrefix,
   matchPathPattern,
   normalisePathname,
   normalisePathPattern,
   resolveCanonicalLocalisedPath,
   resolveLocalisedPath,
   resolveLocalisedUrlsConfig,
+  shouldSkipLocaleRedirect,
+  stripLanguagePrefix,
   validateLocalisedUrls,
 } from './localisedUrls/index';
