@@ -4,7 +4,7 @@ const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 
-const { readJsonFile, writeJsonFile } = require('../fs-kit');
+const { readJsonFile, repoRoot, writeJsonFile } = require('../fs-kit');
 
 const makeTempDir = () => fs.mkdtempSync(path.join(os.tmpdir(), 'fs-kit-'));
 
@@ -32,6 +32,26 @@ test('readJsonFile parses JSON using native JSON.parse behavior', () => {
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('readJsonFile reports the file path on parse errors', () => {
+  const dir = makeTempDir();
+  try {
+    const filePath = path.join(dir, 'broken.json');
+    fs.writeFileSync(filePath, '{"answer":');
+    assert.throws(
+      () => readJsonFile(filePath),
+      error =>
+        error.message.includes('Failed to parse JSON') &&
+        error.message.includes(filePath),
+    );
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('repoRoot points at the repository root', () => {
+  assert.equal(repoRoot, path.resolve(__dirname, '../../..'));
 });
 
 test('writeJsonFile supports direct writes for streaming-style artifacts', () => {

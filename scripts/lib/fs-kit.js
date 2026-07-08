@@ -4,7 +4,16 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const readJsonFile = filePath => JSON.parse(fs.readFileSync(filePath, 'utf8'));
+const repoRoot = path.resolve(__dirname, '../..');
+
+const readJsonFile = filePath => {
+  const raw = fs.readFileSync(filePath, 'utf8');
+  try {
+    return JSON.parse(raw);
+  } catch (error) {
+    throw new Error(`Failed to parse JSON in ${filePath}: ${error.message}`);
+  }
+};
 
 const writeJsonFile = (filePath, value, options = {}) => {
   const json = `${JSON.stringify(value, null, 2)}\n`;
@@ -23,5 +32,6 @@ const writeJsonFile = (filePath, value, options = {}) => {
 
 module.exports = {
   readJsonFile,
+  repoRoot,
   writeJsonFile,
 };

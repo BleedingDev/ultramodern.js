@@ -1,8 +1,8 @@
 const fs = require('fs');
 const path = require('path');
-const { spawnSync } = require('child_process');
 
 const { extractImportSpecifiers } = require('../boundary-guards/validator');
+const { runCommand } = require('../lib/process-kit');
 
 const DEFAULT_BASE_REF = '8a744c1b';
 const DEFAULT_ALLOWLIST_PATH = path.join(__dirname, 'allowlist.json');
@@ -26,18 +26,23 @@ const DEFAULT_DENYLIST = Object.freeze([
 const toPosixPath = value => value.split(path.sep).join('/');
 
 const runGit = ({ rootDir, args, allowFailure = false }) => {
-  const result = spawnSync('git', args, {
+  const result = runCommand('git', args, {
     cwd: rootDir,
     encoding: 'utf8',
+    stdio: 'pipe',
   });
+  const status = result.processStatus;
 
-  if (!allowFailure && result.status !== 0) {
+  if (!allowFailure && status !== 0) {
     const stderr = result.stderr.trim();
     const suffix = stderr ? `: ${stderr}` : '';
     throw new Error(`git ${args.join(' ')} failed${suffix}`);
   }
 
-  return result;
+  return {
+    ...result,
+    status,
+  };
 };
 
 const normalizeViolation = violation => ({

@@ -54,7 +54,13 @@
     ]
   },
   "gateCommands": [
-    "pnpm run validate:boundary-guards",
-    "node --test scripts/boundary-guards/__tests__/validator.test.js"
+    {
+      "command": "pnpm",
+      "args": ["run", "validate:boundary-guards"]
+    },
+    {
+      "command": "node",
+      "args": ["--test", "scripts/boundary-guards/__tests__/validator.test.js"]
+    }
   ]
 }

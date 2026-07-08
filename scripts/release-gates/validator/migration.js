@@ -81,15 +81,19 @@ const validateMigrationContracts = ({
           );
         }
 
-        const buildCommand = `pnpm --dir "${packageDir}" run build`;
+        const buildCommand = {
+          command: 'pnpm',
+          args: ['--dir', packageDir, 'run', 'build'],
+          label: `pnpm --dir "${packageDir}" run build`,
+        };
         console.log(
-          `[release-gates] Auto-building migration artifact for "${target.id}" via ${buildCommand}`,
+          `[release-gates] Auto-building migration artifact for "${target.id}" via ${buildCommand.label}`,
         );
         executeCommand({
           command: buildCommand,
           cwd: baseDir,
           commandRunner,
-          failureMessage: `Auto-build failed for migration contract "${target.id}" with command: ${buildCommand}`,
+          failureMessage: `Auto-build failed for migration contract "${target.id}" with command: ${buildCommand.label}`,
         });
         preparedPackages.add(packageDir);
       }

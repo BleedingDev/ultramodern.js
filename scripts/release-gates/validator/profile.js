@@ -38,6 +38,22 @@ const validateProfileShape = profile => {
   if (!Array.isArray(profile.gateCommands)) {
     throw new Error('Profile gateCommands must be an array');
   }
+
+  profile.gateCommands.forEach((command, index) => {
+    if (!command || typeof command !== 'object' || Array.isArray(command)) {
+      throw new Error(
+        `Profile gateCommands[${index}] must be a command object`,
+      );
+    }
+    if (typeof command.command !== 'string' || command.command.length === 0) {
+      throw new Error(
+        `Profile gateCommands[${index}].command must be a non-empty string`,
+      );
+    }
+    if (command.args !== undefined && !Array.isArray(command.args)) {
+      throw new Error(`Profile gateCommands[${index}].args must be an array`);
+    }
+  });
 };
 
 module.exports = {

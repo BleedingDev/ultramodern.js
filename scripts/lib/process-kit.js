@@ -69,35 +69,56 @@ function runBuild(options) {
   };
 }
 
-function runShellCommand(command, options = {}) {
+function runCommand(command, args = [], options = {}) {
+  if (typeof command !== 'string' || command.length === 0) {
+    throw new Error('Command must be a non-empty string');
+  }
+  if (!Array.isArray(args)) {
+    throw new Error('Command args must be an array');
+  }
+
   const startedAt = Date.now();
-  const result = spawnSync(command, {
+  const result = spawnSync(command, args, {
     cwd: options.cwd,
     env: {
       ...process.env,
       ...(options.env || {}),
     },
     encoding: options.encoding || 'utf8',
-    shell: true,
     stdio: options.stdio || 'inherit',
   });
 
   return {
+    command,
+    args,
     processStatus: result.status,
     exitCode: result.status ?? 1,
     signal: result.signal,
     error: result.error,
+    stdout: result.stdout || '',
+    stderr: result.stderr || '',
     durationMs: Date.now() - startedAt,
   };
 }
 
+function runShellCommand(command, options = {}) {
+  // Compatibility export name only: this intentionally does not invoke a shell.
+  return runCommand(command, [], options);
+}
+
 function normalizeCommandEntry(entry, fallbackCwd) {
-  const item = typeof entry === 'string' ? { command: entry } : entry;
+  const item = Array.isArray(entry)
+    ? { command: entry[0], args: entry.slice(1) }
+    : entry;
   if (!item || typeof item.command !== 'string' || item.command.length === 0) {
     throw new Error('Command entry must include a command string');
   }
+  if (item.args !== undefined && !Array.isArray(item.args)) {
+    throw new Error('Command entry args must be an array');
+  }
   return {
     ...item,
+    args: item.args || [],
     cwd: item.cwd || fallbackCwd || process.cwd(),
   };
 }
@@ -120,7 +141,7 @@ function runCommandList(commands, options = {}) {
       options.onCommandStart(item);
     }
 
-    const result = runShellCommand(item.command, {
+    const result = runCommand(item.command, item.args, {
       cwd: item.cwd,
       env: item.env,
       stdio: options.stdio,
@@ -330,6 +351,7 @@ module.exports = {
   launchProductionServer,
   reservePort,
   runBuild,
+  runCommand,
   runCommandList,
   runShellCommand,
   sleep,

@@ -2,12 +2,10 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { spawnSync } = require('node:child_process');
 const { parseCliArgs } = require('../lib/cli-kit');
-const { writeJsonFile } = require('../lib/fs-kit');
-const { runCommandList } = require('../lib/process-kit');
+const { repoRoot, writeJsonFile } = require('../lib/fs-kit');
+const { runCommand, runCommandList } = require('../lib/process-kit');
 
-const repoRoot = path.resolve(__dirname, '../..');
 const defaultRunId = new Date().toISOString().replace(/[:.]/g, '-');
 
 function parseArgs(argv) {
@@ -73,10 +71,12 @@ function parseArgs(argv) {
   return options;
 }
 
-function command(id, commandLine, options = {}) {
+function command(id, commandName, args, options = {}) {
   return {
     id,
-    command: commandLine,
+    command: commandName,
+    args,
+    label: options.label || [commandName, ...args].join(' '),
     cwd: options.cwd || repoRoot,
     env: options.env || {},
     profile: options.profile || 'smoke',
@@ -88,16 +88,18 @@ function artifactDir(outDir, name) {
 }
 
 function certificationCommands(profile, outDir) {
-  const rstest = 'pnpm exec rstest run -c rstest.config.mts';
+  const rstestArgs = ['exec', 'rstest', 'run', '-c', 'rstest.config.mts'];
   const smoke = [
     command(
       'superapp-portfolio-smoke',
-      `${rstest} integration/superapp-portfolio/tests/index.test.ts`,
+      'pnpm',
+      [...rstestArgs, 'integration/superapp-portfolio/tests/index.test.ts'],
       { cwd: path.join(repoRoot, 'tests') },
     ),
     command(
       'superapp-portfolio-security',
-      `${rstest} integration/superapp-portfolio/tests/security.test.ts`,
+      'pnpm',
+      [...rstestArgs, 'integration/superapp-portfolio/tests/security.test.ts'],
       {
         cwd: path.join(repoRoot, 'tests'),
         env: {
@@ -111,7 +113,11 @@ function certificationCommands(profile, outDir) {
     ),
     command(
       'superapp-mf-certification',
-      `${rstest} integration/routes-tanstack-mf/test/deploy-certification.test.ts`,
+      'pnpm',
+      [
+        ...rstestArgs,
+        'integration/routes-tanstack-mf/test/deploy-certification.test.ts',
+      ],
       {
         cwd: path.join(repoRoot, 'tests'),
         env: {
@@ -129,7 +135,11 @@ function certificationCommands(profile, outDir) {
     ...smoke,
     command(
       'superapp-browser-matrix-smoke',
-      `${rstest} integration/superapp-browser-matrix/tests/playwrightMatrix.test.ts`,
+      'pnpm',
+      [
+        ...rstestArgs,
+        'integration/superapp-browser-matrix/tests/playwrightMatrix.test.ts',
+      ],
       {
         cwd: path.join(repoRoot, 'tests'),
         env: {
@@ -143,7 +153,8 @@ function certificationCommands(profile, outDir) {
     ),
     command(
       'superapp-portfolio-stress',
-      `${rstest} integration/superapp-portfolio/tests/stress.test.ts`,
+      'pnpm',
+      [...rstestArgs, 'integration/superapp-portfolio/tests/stress.test.ts'],
       {
         cwd: path.join(repoRoot, 'tests'),
         env: {
@@ -159,7 +170,11 @@ function certificationCommands(profile, outDir) {
     ),
     command(
       'superapp-pilot-chaos',
-      `${rstest} integration/superapp-portfolio/tests/pilot-chaos.test.ts`,
+      'pnpm',
+      [
+        ...rstestArgs,
+        'integration/superapp-portfolio/tests/pilot-chaos.test.ts',
+      ],
       {
         cwd: path.join(repoRoot, 'tests'),
         env: {
@@ -175,7 +190,11 @@ function certificationCommands(profile, outDir) {
     ...release,
     command(
       'superapp-browser-matrix-full',
-      `${rstest} integration/superapp-browser-matrix/tests/playwrightMatrix.test.ts`,
+      'pnpm',
+      [
+        ...rstestArgs,
+        'integration/superapp-browser-matrix/tests/playwrightMatrix.test.ts',
+      ],
       {
         cwd: path.join(repoRoot, 'tests'),
         env: {
@@ -190,7 +209,8 @@ function certificationCommands(profile, outDir) {
     ),
     command(
       'superapp-portfolio-nightly',
-      `${rstest} integration/superapp-portfolio/tests/nightly.test.ts`,
+      'pnpm',
+      [...rstestArgs, 'integration/superapp-portfolio/tests/nightly.test.ts'],
       {
         cwd: path.join(repoRoot, 'tests'),
         env: {
@@ -226,11 +246,15 @@ function runCommands(commands, options) {
 }
 
 function runGit(args, options = {}) {
-  return spawnSync('git', args, {
+  const result = runCommand('git', args, {
     cwd: options.cwd || repoRoot,
     encoding: 'utf8',
     stdio: options.stdio || 'pipe',
   });
+  return {
+    ...result,
+    status: result.processStatus,
+  };
 }
 
 function cleanupWorktree(worktreeDir) {

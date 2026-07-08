@@ -5,14 +5,13 @@ const test = require('node:test');
 const {
   createProcessEnv,
   reservePort,
+  runCommand,
   runCommandList,
-  runShellCommand,
   waitForHttp,
   writeStream,
 } = require('../process-kit');
 
-const nodeCommand = script =>
-  `${JSON.stringify(process.execPath)} -e ${JSON.stringify(script)}`;
+const nodeArgs = script => ['-e', script];
 
 test('reservePort returns an available TCP port', async () => {
   const port = await reservePort();
@@ -41,14 +40,29 @@ test('waitForHttp accepts caller-provided readiness predicates', async () => {
   }
 });
 
-test('runShellCommand returns process results for shell commands', () => {
-  const result = runShellCommand(nodeCommand('process.exit(3)'), {
+test('runCommand returns process results for argv commands', () => {
+  const result = runCommand(process.execPath, nodeArgs('process.exit(3)'), {
     stdio: 'pipe',
   });
 
   assert.equal(result.processStatus, 3);
   assert.equal(result.exitCode, 3);
   assert.equal(typeof result.durationMs, 'number');
+});
+
+test('runCommand passes shell metacharacters as literal args', () => {
+  const result = runCommand(
+    process.execPath,
+    [
+      '-e',
+      'process.stdout.write(process.argv[1])',
+      'literal && not shell',
+    ],
+    { stdio: 'pipe' },
+  );
+
+  assert.equal(result.exitCode, 0);
+  assert.equal(result.stdout, 'literal && not shell');
 });
 
 test('process helpers normalize env and stream writes', async () => {
@@ -71,12 +85,14 @@ test('process helpers normalize env and stream writes', async () => {
 });
 
 test('runCommandList supports dry-run planning', () => {
-  const command = nodeCommand('process.exit(1)');
+  const command = process.execPath;
+  const args = nodeArgs('process.exit(1)');
   const results = runCommandList(
     [
       {
         id: 'planned',
         command,
+        args,
         env: { EXAMPLE: '1' },
       },
     ],
@@ -87,6 +103,7 @@ test('runCommandList supports dry-run planning', () => {
     {
       id: 'planned',
       command,
+      args,
       cwd: process.cwd(),
       env: { EXAMPLE: '1' },
       status: 'planned',
@@ -99,8 +116,8 @@ test('runCommandList supports dry-run planning', () => {
 test('runCommandList stops on first failure by default', () => {
   const results = runCommandList(
     [
-      { id: 'first', command: nodeCommand('process.exit(2)') },
-      { id: 'second', command: nodeCommand('process.exit(0)') },
+      { id: 'first', command: process.execPath, args: nodeArgs('process.exit(2)') },
+      { id: 'second', command: process.execPath, args: nodeArgs('process.exit(0)') },
     ],
     { stdio: 'pipe' },
   );

@@ -1,11 +1,12 @@
 #!/usr/bin/env node
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import fsKit from '../lib/fs-kit.js';
+import processKit from '../lib/process-kit.js';
 
-const repoRoot = path.resolve(new URL('../..', import.meta.url).pathname);
-const { readJsonFile } = fsKit;
+const { readJsonFile, repoRoot } = fsKit;
+const { runCommand } = processKit;
 const excludedPackages = new Set([
   '@modern-js/main-doc',
   '@modern-js/module-tools-docs',
@@ -51,7 +52,7 @@ function collectBuildProjects() {
 }
 
 function run(command, args) {
-  const result = spawnSync(command, args, {
+  const result = runCommand(command, args, {
     cwd: repoRoot,
     stdio: 'inherit',
     env: {
@@ -60,9 +61,9 @@ function run(command, args) {
     },
   });
 
-  if (result.status !== 0) {
+  if (result.exitCode !== 0) {
     throw new Error(
-      `${command} ${args.join(' ')} failed with ${result.status}`,
+      `${command} ${args.join(' ')} failed with ${result.exitCode}`,
     );
   }
 }

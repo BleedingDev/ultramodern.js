@@ -1,8 +1,11 @@
-import { execFileSync, spawn, spawnSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
+import processKit from '../../../../lib/process-kit.js';
 import { repoRoot } from './constants.mjs';
 
+const { runCommand } = processKit;
+
 function run(command, args, options = {}) {
-  const result = spawnSync(command, args, {
+  const result = runCommand(command, args, {
     cwd: options.cwd ?? repoRoot,
     stdio: options.stdio ?? 'inherit',
     env: {
@@ -11,9 +14,9 @@ function run(command, args, options = {}) {
     },
   });
 
-  if (result.status !== 0) {
+  if (result.exitCode !== 0) {
     throw new Error(
-      `${command} ${args.join(' ')} failed with ${result.status}`,
+      `${command} ${args.join(' ')} failed with ${result.exitCode}`,
     );
   }
 }

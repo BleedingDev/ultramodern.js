@@ -7,6 +7,7 @@
  */
 const fs = require('fs');
 const path = require('path');
+const { readJsonFile } = require('./fs-kit');
 
 /**
  * Placeholder tokens rejected by gate validators. Union of the historical
@@ -25,15 +26,6 @@ const PLACEHOLDER_VALUES = new Set([
   'changeme',
   'to-be-filled',
 ]);
-
-const readJsonFile = filePath => {
-  const raw = fs.readFileSync(filePath, 'utf8');
-  try {
-    return JSON.parse(raw);
-  } catch (error) {
-    throw new Error(`Failed to parse JSON in ${filePath}: ${error.message}`);
-  }
-};
 
 const ensureFileExists = (filePath, { label = 'Required file' } = {}) => {
   if (!fs.existsSync(filePath)) {

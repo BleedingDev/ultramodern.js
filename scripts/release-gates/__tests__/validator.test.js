@@ -30,10 +30,34 @@ test('validateProfileShape accepts valid schema', () => {
     migrationContracts: {
       targets: [],
     },
-    gateCommands: [],
+    gateCommands: [
+      {
+        command: process.execPath,
+        args: ['--version'],
+      },
+    ],
   };
 
   assert.doesNotThrow(() => validateProfileShape(profile));
+});
+
+test('validateProfileShape rejects shell-string gate commands', () => {
+  const profile = {
+    schemaVersion: 1,
+    evidence: {
+      requiredFiles: [],
+      requiredMetadataFields: [],
+    },
+    migrationContracts: {
+      targets: [],
+    },
+    gateCommands: ['pnpm test'],
+  };
+
+  assert.throws(
+    () => validateProfileShape(profile),
+    /gateCommands\[0\] must be a command object/,
+  );
 });
 
 test('validateEvidence checks metadata and reviewer count', () => {
@@ -238,8 +262,8 @@ test('validateMigrationContracts auto-builds missing dist artifacts when enabled
     const report = validateMigrationContracts({
       rootDir: dir,
       allowAutoBuildArtifacts: true,
-      commandRunner: ({ command }) => {
-        executed.push(command);
+      commandRunner: commandSpec => {
+        executed.push(commandSpec);
         fs.mkdirSync(path.dirname(artifactPath), { recursive: true });
         fs.writeFileSync(artifactPath, 'const operationManifest = true;');
       },
@@ -254,7 +278,9 @@ test('validateMigrationContracts auto-builds missing dist artifacts when enabled
 
     assert.equal(report.length, 1);
     assert.equal(executed.length, 1);
-    assert.match(executed[0], /pnpm --dir/);
+    assert.equal(executed[0].command, 'pnpm');
+    assert.deepEqual(executed[0].args, ['--dir', appDir, 'run', 'build']);
+    assert.match(executed[0].label, /pnpm --dir/);
   } finally {
     removeDir(dir);
   }
@@ -334,7 +360,12 @@ test('runGateCommands throws on failing command', () => {
   assert.throws(
     () =>
       runGateCommands({
-        commands: [`"${process.execPath}" -e "process.exit(2)"`],
+        commands: [
+          {
+            command: process.execPath,
+            args: ['-e', 'process.exit(2)'],
+          },
+        ],
       }),
     /exit code 2/,
   );

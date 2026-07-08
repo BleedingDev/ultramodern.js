@@ -1,6 +1,6 @@
-import path from 'node:path';
+import fsKit from '../../../../lib/fs-kit.js';
 
-const repoRoot = path.resolve(new URL('../../../..', import.meta.url).pathname);
+const { repoRoot } = fsKit;
 
 const npmPublishAttempts = 3;
 

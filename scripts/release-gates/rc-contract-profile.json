@@ -330,14 +330,88 @@
     ]
   },
   "gateCommands": [
-    "pnpm --dir packages/cli/builder exec rstest run tests/rsdoctor.test.ts --passWithNoTests",
-    "pnpm --dir packages/cli/plugin-bff exec rstest run tests/regression.test.ts --passWithNoTests",
-    "pnpm --filter @modern-js/create-request test",
-    "pnpm --filter @modern-js/bff-core test",
-    "pnpm --dir packages/solutions/app-tools exec rstest run tests/index.test.ts tests/presetUltramodern.test.ts --passWithNoTests",
-    "pnpm --filter @modern-js/runtime test -- tests/ssr/serverRender/renderToString/entry.test.ts tests/ssr/serverRender/renderToStream/buildTemplate.after.test.ts",
-    "pnpm --filter @modern-js/prod-server test -- applyPlugins.test.ts",
-    "pnpm --filter @modern-js/server-runtime-extensions test -- telemetry.test.ts telemetryCanaryOrchestrator.test.ts telemetryAutopilot.test.ts contractGateAutopilot.test.ts",
-    "pnpm --dir tests run test:superapp-contracts"
+    {
+      "command": "pnpm",
+      "args": [
+        "--dir",
+        "packages/cli/builder",
+        "exec",
+        "rstest",
+        "run",
+        "tests/rsdoctor.test.ts",
+        "--passWithNoTests"
+      ]
+    },
+    {
+      "command": "pnpm",
+      "args": [
+        "--dir",
+        "packages/cli/plugin-bff",
+        "exec",
+        "rstest",
+        "run",
+        "tests/regression.test.ts",
+        "--passWithNoTests"
+      ]
+    },
+    {
+      "command": "pnpm",
+      "args": ["--filter", "@modern-js/create-request", "test"]
+    },
+    {
+      "command": "pnpm",
+      "args": ["--filter", "@modern-js/bff-core", "test"]
+    },
+    {
+      "command": "pnpm",
+      "args": [
+        "--dir",
+        "packages/solutions/app-tools",
+        "exec",
+        "rstest",
+        "run",
+        "tests/index.test.ts",
+        "tests/presetUltramodern.test.ts",
+        "--passWithNoTests"
+      ]
+    },
+    {
+      "command": "pnpm",
+      "args": [
+        "--filter",
+        "@modern-js/runtime",
+        "test",
+        "--",
+        "tests/ssr/serverRender/renderToString/entry.test.ts",
+        "tests/ssr/serverRender/renderToStream/buildTemplate.after.test.ts"
+      ]
+    },
+    {
+      "command": "pnpm",
+      "args": [
+        "--filter",
+        "@modern-js/prod-server",
+        "test",
+        "--",
+        "applyPlugins.test.ts"
+      ]
+    },
+    {
+      "command": "pnpm",
+      "args": [
+        "--filter",
+        "@modern-js/server-runtime-extensions",
+        "test",
+        "--",
+        "telemetry.test.ts",
+        "telemetryCanaryOrchestrator.test.ts",
+        "telemetryAutopilot.test.ts",
+        "contractGateAutopilot.test.ts"
+      ]
+    },
+    {
+      "command": "pnpm",
+      "args": ["--dir", "tests", "run", "test:superapp-contracts"]
+    }
   ]
 }

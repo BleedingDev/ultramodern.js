@@ -1,11 +1,13 @@
 #!/usr/bin/env node
-import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import cliKit from '../lib/cli-kit.js';
+import fsKit from '../lib/fs-kit.js';
+import processKit from '../lib/process-kit.js';
 
-const repoRoot = path.resolve(new URL('../..', import.meta.url).pathname);
 const { parseCliArgs } = cliKit;
+const { readJsonFile, repoRoot } = fsKit;
+const { runCommand } = processKit;
 
 function rejectInlineOptionSyntax(argv) {
   for (const arg of argv) {
@@ -79,7 +81,7 @@ function readManifest(manifestPath) {
     );
   }
 
-  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  const manifest = readJsonFile(manifestPath);
   if (!Array.isArray(manifest.packages)) {
     throw new Error(`Invalid publish manifest: ${manifestPath}`);
   }
@@ -88,7 +90,7 @@ function readManifest(manifestPath) {
 }
 
 function run(command, args) {
-  const result = spawnSync(command, args, {
+  const result = runCommand(command, args, {
     cwd: repoRoot,
     stdio: 'inherit',
     env: {
@@ -97,9 +99,9 @@ function run(command, args) {
     },
   });
 
-  if (result.status !== 0) {
+  if (result.exitCode !== 0) {
     throw new Error(
-      `${command} ${args.join(' ')} failed with ${result.status}`,
+      `${command} ${args.join(' ')} failed with ${result.exitCode}`,
     );
   }
 }
@@ -109,9 +111,10 @@ function sleep(ms) {
 }
 
 function supportsTrustAllowPublishFlag() {
-  const result = spawnSync('npm', ['trust', 'github', '--help'], {
+  const result = runCommand('npm', ['trust', 'github', '--help'], {
     cwd: repoRoot,
     encoding: 'utf-8',
+    stdio: 'pipe',
     env: {
       ...process.env,
       FORCE_COLOR: '0',

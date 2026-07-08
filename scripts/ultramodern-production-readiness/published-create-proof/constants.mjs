@@ -3,12 +3,9 @@ import cliKit from '../../lib/cli-kit.js';
 import fsKit from '../../lib/fs-kit.js';
 import processKit from '../../lib/process-kit.js';
 
-export const repoRoot = path.resolve(
-  new URL('../../..', import.meta.url).pathname,
-);
 export const { parseCliArgs, rejectInlineOptionValues } = cliKit;
-export const { readJsonFile, writeJsonFile } = fsKit;
-export const { createProcessEnv, writeStream } = processKit;
+export const { readJsonFile, repoRoot, writeJsonFile } = fsKit;
+export const { createProcessEnv, runCommand, writeStream } = processKit;
 export const defaultCreatePackage = '@bleedingdev/modern-js-create';
 export const defaultProjectName = 'ultramodern-ci-superapp';
 export const defaultOut =

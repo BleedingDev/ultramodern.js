@@ -1,14 +1,16 @@
 #!/usr/bin/env node
-import { spawnSync } from 'node:child_process';
+import processKit from './lib/process-kit.js';
+
+const { runCommand } = processKit;
 
 function run(command, args) {
-  const result = spawnSync(command, args, {
+  const result = runCommand(command, args, {
     stdio: 'inherit',
     env: process.env,
   });
 
-  if (result.status !== 0) {
-    process.exit(result.status ?? 1);
+  if (result.exitCode !== 0) {
+    process.exit(result.exitCode);
   }
 }
 

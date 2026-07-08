@@ -271,7 +271,11 @@ function evidenceFromSummaries(summaries, inputDir) {
           status: normalizeCommandStatus(command),
           source: relativeSource,
           detail: {
-            command: command.command,
+            command:
+              command.label ||
+              [command.command, ...(command.args || [])]
+                .filter(Boolean)
+                .join(' '),
             durationMs: command.durationMs,
             profile: command.profile,
           },

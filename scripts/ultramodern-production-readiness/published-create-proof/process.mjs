@@ -1,17 +1,21 @@
-import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
-import { createProcessEnv, readJsonFile, repoRoot } from './constants.mjs';
+import {
+  createProcessEnv,
+  readJsonFile,
+  repoRoot,
+  runCommand,
+} from './constants.mjs';
 
 function run(command, args, options = {}) {
-  const result = spawnSync(command, args, {
+  const result = runCommand(command, args, {
     cwd: options.cwd || repoRoot,
     env: createProcessEnv(options.env || {}),
     encoding: 'utf-8',
     stdio: options.stdio || 'inherit',
   });
-  if (result.status !== 0) {
+  if (result.exitCode !== 0) {
     throw new Error(`Command failed: ${[command, ...args].join(' ')}`);
   }
   return result.stdout?.trim() ?? '';

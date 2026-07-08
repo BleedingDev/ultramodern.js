@@ -14,7 +14,7 @@ and script helper families (`boundary-guards`, `release-gates`,
   unknown-argument and missing-value behavior.
 - `fs-kit.js` — pretty JSON file writes with parent-directory creation and an
   atomic default for release/publish artifacts.
-- `process-kit.js` — shared shell command-list execution, TCP port
+- `process-kit.js` — shared argv command-list execution, TCP port
   reservation, HTTP readiness, and production-server process lifecycle
   helpers.
 - `artifact-schema.js` — SuperApp readiness artifact envelope helpers.
