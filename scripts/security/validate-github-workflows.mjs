@@ -7,6 +7,8 @@
  *   - actions pinned to a full 40-hex commit SHA (local `./` actions exempt)
  *   - a top-level `permissions:` block (least privilege by default)
  *   - no `pull_request_target` trigger
+ *   - no privileged trigger (`pull_request_target` / `workflow_run`) combined
+ *     with write permissions, secrets exposure, or checkout of untrusted refs
  *   - no npm token environment variables
  *   - no `${{ inputs.* }}` / `${{ github.event.inputs.* }}` interpolation
  *     inside `run:` blocks (shell-injection vector; route through `env:`)
@@ -49,7 +51,15 @@ const sensitiveWorkflowPaths = new Set([
  *
  * @type {Array<{ file: string, rule: string, match?: string, reason: string }>}
  */
-export const ALLOWLIST = [];
+export const ALLOWLIST = [
+  {
+    file: '.github/workflows/ultramodern-production-readiness.yml',
+    rule: 'privileged-trigger-secrets',
+    match: 'secrets.CLOUDFLARE',
+    reason:
+      "The Cloudflare deploy job that reads these secrets is guarded by `if: github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_cloudflare == 'true'`, so the secrets are never reachable under the workflow_run trigger. The workflow_run path runs read-only proof steps on default-branch code and performs no untrusted-ref checkout.",
+  },
+];
 
 const shaPattern = /^[a-f0-9]{40}$/;
 
@@ -93,6 +103,10 @@ export function collectUses(content) {
 const runInputPattern =
   /\$\{\{[^}]*\b(?:github\.event\.inputs|inputs)\s*\.[^}]*\}\}/;
 
+const privilegedTriggerNames = ['pull_request_target', 'workflow_run'];
+const untrustedCheckoutRefPattern =
+  /\$\{\{\s*(?:github\.head_ref|github\.event\.pull_request\.head\.(?:ref|sha)|github\.event\.workflow_run\.(?:head_branch|head_sha|pull_requests))/;
+
 /**
  * Find `${{ inputs.* }}` / `${{ github.event.inputs.* }}` interpolations
  * inside `run:` scalars (inline or block). `env:`-routed inputs and `if:`
@@ -131,6 +145,117 @@ export function collectRunBlockInputInterpolations(content) {
   return findings;
 }
 
+const collectPrivilegedTriggers = content =>
+  privilegedTriggerNames.filter(trigger =>
+    new RegExp(`\\b${trigger}\\b`, 'u').test(content),
+  );
+
+const collectElevatedPermissionLines = content => {
+  const findings = [];
+  const lines = content.split('\n');
+  let permissionsColumn = -1;
+
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index];
+    const trimmed = line.trim();
+
+    if (!trimmed || trimmed.startsWith('#')) {
+      continue;
+    }
+
+    if (permissionsColumn >= 0) {
+      const indent = line.length - line.trimStart().length;
+      if (indent <= permissionsColumn) {
+        permissionsColumn = -1;
+      } else {
+        const permission = trimmed.match(/^([a-z-]+):\s*([^#\s]+)/iu);
+        if (permission && /^write\b/iu.test(permission[2])) {
+          findings.push({ line: index + 1, text: trimmed });
+        }
+        continue;
+      }
+    }
+
+    const match = line.match(/^(\s*)permissions:\s*(.*)$/u);
+    if (!match) {
+      continue;
+    }
+
+    const rest = match[2].trim();
+    if (
+      /^write-all\b/iu.test(rest) ||
+      /\b[a-z-]+\s*:\s*write\b/iu.test(rest)
+    ) {
+      findings.push({ line: index + 1, text: trimmed });
+    }
+
+    if (rest === '') {
+      permissionsColumn = match[1].length;
+    }
+  }
+
+  return findings;
+};
+
+const collectSecretExposures = content =>
+  content
+    .split('\n')
+    .map((line, index) => ({ line: index + 1, text: line.trim() }))
+    .filter(
+      finding =>
+        finding.text &&
+        !finding.text.startsWith('#') &&
+        (/\$\{\{\s*secrets\./u.test(finding.text) ||
+          /^secrets:\s*inherit\b/iu.test(finding.text)),
+    );
+
+const collectUntrustedCheckoutRefs = content => {
+  const findings = [];
+  const lines = content.split('\n');
+  let inCheckoutStep = false;
+  let currentStepColumn = -1;
+
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index];
+    const trimmed = line.trim();
+    const stepStart = line.match(/^(\s*)-\s+/u);
+
+    if (stepStart) {
+      currentStepColumn = stepStart[1].length;
+      inCheckoutStep = /(?:^|\s)uses:\s*actions\/checkout@[^\s#]+/u.test(line);
+      if (inCheckoutStep) {
+        continue;
+      }
+    } else if (
+      currentStepColumn >= 0 &&
+      trimmed &&
+      line.length - line.trimStart().length <= currentStepColumn
+    ) {
+      inCheckoutStep = false;
+      currentStepColumn = -1;
+    }
+
+    if (
+      currentStepColumn >= 0 &&
+      /^\s*uses:\s*actions\/checkout@[^\s#]+/u.test(line)
+    ) {
+      inCheckoutStep = true;
+      continue;
+    }
+
+    if (!inCheckoutStep) {
+      continue;
+    }
+
+    const ref = line.match(/^\s*ref:\s*(.*)$/u);
+    if (ref && untrustedCheckoutRefPattern.test(ref[1])) {
+      findings.push({ line: index + 1, text: line.trim() });
+    }
+  }
+
+  return findings;
+};
+
 const requiredSensitiveChecks = [
   {
     label: 'permissions: contents: read',
@@ -156,6 +281,7 @@ export function validateWorkflowContent(relativePath, content, options = {}) {
   const allowlist = options.allowlist ?? ALLOWLIST;
   const sensitive =
     options.sensitive ?? sensitiveWorkflowPaths.has(relativePath);
+  const privilegedTriggers = collectPrivilegedTriggers(content);
   const errors = [];
   const push = (rule, message) => {
     if (!isAllowed(allowlist, relativePath, rule, message)) {
@@ -168,6 +294,27 @@ export function validateWorkflowContent(relativePath, content, options = {}) {
       'pull-request-target',
       `${relativePath} must not use pull_request_target`,
     );
+  }
+  if (privilegedTriggers.length > 0) {
+    const triggerList = privilegedTriggers.join(', ');
+    for (const finding of collectElevatedPermissionLines(content)) {
+      push(
+        'privileged-trigger-permissions',
+        `${relativePath}:${finding.line} must not grant write permissions with privileged trigger (${triggerList}): ${finding.text}`,
+      );
+    }
+    for (const finding of collectSecretExposures(content)) {
+      push(
+        'privileged-trigger-secrets',
+        `${relativePath}:${finding.line} must not expose secrets with privileged trigger (${triggerList}): ${finding.text}`,
+      );
+    }
+    for (const finding of collectUntrustedCheckoutRefs(content)) {
+      push(
+        'privileged-trigger-checkout-ref',
+        `${relativePath}:${finding.line} must not checkout untrusted event refs with privileged trigger (${triggerList}): ${finding.text}`,
+      );
+    }
   }
   if (/\b(?:NPM_TOKEN|NODE_AUTH_TOKEN)\b/.test(content)) {
     push(

@@ -140,6 +140,7 @@ export const createParityBffConfig = () => ({
   crossProjectPolicy: {
     enabled: true,
     allowedNamespaces: [PARITY_REQUEST_ID],
+    allowClientAssertedNamespace: true,
   },
 });
 

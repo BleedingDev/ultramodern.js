@@ -242,6 +242,7 @@ describe('adapter-kit parity table', () => {
       crossProjectPolicy: {
         enabled: true,
         allowedNamespaces: ['crm'],
+        allowClientAssertedNamespace: true,
       },
     });
     expect(createParityApiHandlerInfos().map(handler => handler.name)).toEqual([

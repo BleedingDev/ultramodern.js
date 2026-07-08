@@ -267,13 +267,12 @@ const policyMatrix = [
     },
   },
   {
-    name: 'deny: production allowlist without producer verifier fails closed',
+    name: 'deny: allowlist without producer verifier fails closed',
     config: {
       enabled: true,
       allowedNamespaces: ['crm'],
       requireOperationContext: false,
     },
-    nodeEnv: 'production',
     expected: {
       kind: 'deny',
       reason: 'producer_identity_mismatch',

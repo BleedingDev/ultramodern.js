@@ -2,11 +2,18 @@ import { evaluateCrossProjectPolicy } from '../src/security/crossProjectPolicy';
 import { buildOperationContractMap } from '../src/security/operationContracts';
 
 const NAMESPACE_ALLOWLIST_REQUIRES_VERIFIER_MESSAGE =
-  'cross-project namespace allowlist requires verifyProducerIdentity in production';
+  'cross-project namespace allowlist requires verifyProducerIdentity';
 
-const withNodeEnv = <T>(nodeEnv: string, callback: () => T): T => {
+const withNodeEnv = <T>(
+  nodeEnv: string | undefined,
+  callback: () => T,
+): T => {
   const previousNodeEnv = process.env.NODE_ENV;
-  process.env.NODE_ENV = nodeEnv;
+  if (typeof nodeEnv === 'undefined') {
+    delete process.env.NODE_ENV;
+  } else {
+    process.env.NODE_ENV = nodeEnv;
+  }
   try {
     return callback();
   } finally {
@@ -445,7 +452,24 @@ describe('cross-project policy producer identity binding', () => {
     expect(denied?.reason).toBe('namespace_not_allowed');
   });
 
-  test('in development, namespace allowlist without verifier warns and remains advisory', () => {
+  test('namespace allowlist without verifier fails closed outside production modes', () => {
+    for (const nodeEnv of [undefined, 'test']) {
+      const violation = withNodeEnv(nodeEnv, () =>
+        evaluateCrossProjectPolicy(spoofableHeaders, {
+          enabled: true,
+          allowedNamespaces: ['crm'],
+          requireOperationContext: false,
+        }),
+      );
+
+      expect(violation?.reason).toBe('producer_identity_mismatch');
+      expect(violation?.message).toBe(
+        NAMESPACE_ALLOWLIST_REQUIRES_VERIFIER_MESSAGE,
+      );
+    }
+  });
+
+  test('explicit client-asserted namespace opt-out warns and remains advisory', () => {
     const warnSpy = rstest
       .spyOn(console, 'warn')
       .mockImplementation(() => undefined);
@@ -455,6 +479,7 @@ describe('cross-project policy producer identity binding', () => {
         evaluateCrossProjectPolicy(spoofableHeaders, {
           enabled: true,
           allowedNamespaces: ['crm'],
+          allowClientAssertedNamespace: true,
           requireOperationContext: false,
         }),
       );
@@ -462,6 +487,7 @@ describe('cross-project policy producer identity binding', () => {
         evaluateCrossProjectPolicy(spoofableHeaders, {
           enabled: true,
           allowedNamespaces: ['crm'],
+          allowClientAssertedNamespace: true,
           requireOperationContext: false,
         }),
       );
