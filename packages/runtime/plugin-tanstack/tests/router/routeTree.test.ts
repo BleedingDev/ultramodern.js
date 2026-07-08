@@ -809,6 +809,9 @@ describe('tanstack route tree from RouteObject[]', () => {
             path: 'client',
             clientData: './client.data',
             data: './data',
+            hasAction: true,
+            hasClientLoader: true,
+            hasLoader: true,
             inValidSSRRoute: true,
             isClientComponent: true,
           },
@@ -830,7 +833,9 @@ describe('tanstack route tree from RouteObject[]', () => {
 
     expect(clientRoute.options.ssr).toBe(false);
     expect(clientRoute.options.staticData).toMatchObject({
+      modernRouteHasAction: true,
       modernRouteHasClientLoader: true,
+      modernRouteHasLoader: true,
       modernRouteIsClientComponent: true,
     });
   });
