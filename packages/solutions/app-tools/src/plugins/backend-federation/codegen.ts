@@ -149,6 +149,7 @@ export const createBackendManifest = (
     shared: [],
     backendFederation: {
       role: 'microvertical-server',
+      appId: app.id,
       name: app.backendName,
       runtimeFramework: 'effect',
       strictEffectApproach: true,
