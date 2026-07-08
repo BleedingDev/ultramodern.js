@@ -29,6 +29,29 @@ export const resolveContractGateSnapshotPath = (
   return path.resolve(appDirectory, rawPath);
 };
 
+const writeSnapshotFileAtomically = async (
+  resolvedPath: string,
+  contents: string,
+) => {
+  const directory = path.dirname(resolvedPath);
+  await nodeFs.mkdir(directory, { recursive: true });
+
+  const temporaryPath = path.join(
+    directory,
+    `.${path.basename(resolvedPath)}.${process.pid}.${Date.now()}.${Math.random()
+      .toString(36)
+      .slice(2)}.tmp`,
+  );
+
+  try {
+    await nodeFs.writeFile(temporaryPath, contents);
+    await nodeFs.rename(temporaryPath, resolvedPath);
+  } catch (error) {
+    await nodeFs.rm(temporaryPath, { force: true }).catch(() => {});
+    throw error;
+  }
+};
+
 export const createFileContractGateSnapshotStore = (
   gateSnapshotPath: string,
 ): ContractGateSnapshotStore => {
@@ -53,8 +76,7 @@ export const createFileContractGateSnapshotStore = (
         updatedAt: Date.now(),
         gates: {},
       };
-      await nodeFs.mkdir(path.dirname(resolvedPath), { recursive: true });
-      await nodeFs.writeFile(
+      await writeSnapshotFileAtomically(
         resolvedPath,
         `${JSON.stringify(normalized, null, 2)}\n`,
       );

@@ -3,6 +3,7 @@ import { createServer } from 'http';
 import os from 'os';
 import path from 'path';
 import {
+  createFileContractGateSnapshotStore,
   type GateSnapshot,
   resolveContractGateSnapshotStore,
 } from '../src/contract-gate-snapshot-store';
@@ -26,6 +27,58 @@ exports.createContractGateSnapshotStore = ({ gateSnapshotPath }) => {
 `;
 
 describe('contract gate snapshot store', () => {
+  test('preserves previous file snapshot when write fails mid-write', async () => {
+    const appDirectory = makeTempAppDir();
+    try {
+      const snapshotPath = path.join(
+        appDirectory,
+        '.modern/contract-gates.json',
+      );
+      const store = createFileContractGateSnapshotStore(snapshotPath);
+      const initialSnapshot: GateSnapshot = {
+        schemaVersion: 1,
+        updatedAt: 1,
+        gates: {
+          'runtime-mf-fallback-health': { passed: true },
+        },
+      };
+
+      await store.writeSnapshot(initialSnapshot);
+
+      const realWriteFile = fs.promises.writeFile.bind(fs.promises);
+      let sabotagedWrite = false;
+      const writeSpy = rs
+        .spyOn(fs.promises, 'writeFile')
+        .mockImplementation(async (file, _data, options) => {
+          if (!sabotagedWrite) {
+            sabotagedWrite = true;
+            await realWriteFile(file, '{broken', options);
+            throw new Error('simulated write interruption');
+          }
+
+          return realWriteFile(file, _data, options);
+        });
+
+      try {
+        await expect(
+          store.writeSnapshot({
+            schemaVersion: 1,
+            updatedAt: 2,
+            gates: {
+              'runtime-mf-fallback-health': { passed: false },
+            },
+          }),
+        ).rejects.toThrow('simulated write interruption');
+      } finally {
+        writeSpy.mockRestore();
+      }
+
+      await expect(store.readSnapshot()).resolves.toEqual(initialSnapshot);
+    } finally {
+      fs.rmSync(appDirectory, { recursive: true, force: true });
+    }
+  });
+
   test('supports built-in http stateStore adapter', async () => {
     let snapshot: GateSnapshot | undefined;
 
