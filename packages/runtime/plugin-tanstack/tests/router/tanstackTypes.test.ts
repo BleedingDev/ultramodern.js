@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -37,6 +37,11 @@ import {
 import { throwTanstackRedirect } from '../../src/runtime/loaderBridge';
 
 const execFileAsync = promisify(execFile);
+const routerGenGoldenPath = path.join(
+  __dirname,
+  'fixtures',
+  'router-gen.golden.txt',
+);
 
 type RedirectLike = {
   options?: {
@@ -63,6 +68,89 @@ function extractRouteGenerationOrder(source: string) {
       line.startsWith('export const routeTree')
     );
   });
+}
+
+async function writeGoldenRouterFixture(srcDirectory: string) {
+  const files = new Map([
+    [
+      'routes/(app)/layout.tsx',
+      'export default function AppLayout() { return null; }',
+    ],
+    [
+      'routes/(app)/users/(userId)/page.tsx',
+      'export default function UserPage() { return null; }',
+    ],
+    [
+      'routes/(app)/users/(userId)/page.data.ts',
+      [
+        'export const loader = () => ({ userId: "42" });',
+        'export const action = () => Response.json({ ok: true });',
+      ].join('\n'),
+    ],
+    [
+      'routes/(app)/docs/splat.tsx',
+      'export default function DocsSplatPage() { return null; }',
+    ],
+    [
+      'routes/search.contract.ts',
+      [
+        'export const validateSearch = (search: { tab?: string }) => ({ tab: search.tab ?? "overview" });',
+        'export const loaderDeps = ({ search }: { search: { tab: string } }) => ({ tab: search.tab });',
+      ].join('\n'),
+    ],
+  ]);
+
+  for (const [relativePath, contents] of files) {
+    const filePath = path.join(srcDirectory, relativePath);
+    await mkdir(path.dirname(filePath), { recursive: true });
+    await writeFile(filePath, contents);
+  }
+}
+
+async function generateGoldenRouterGen(srcDirectory: string) {
+  await writeGoldenRouterFixture(srcDirectory);
+
+  const { routerGenTs } = await generateTanstackRouterTypesSourceForEntry({
+    appContext: {
+      srcDirectory,
+      internalSrcAlias: '@/_',
+    } as any,
+    entryName: 'golden',
+    routes: [
+      {
+        type: 'nested',
+        id: 'layout',
+        isRoot: true,
+        children: [
+          {
+            type: 'nested',
+            id: '(app)/layout',
+            _component: '@/_/routes/(app)/layout',
+            children: [
+              {
+                type: 'nested',
+                id: '(app)/users/(userId)/page',
+                path: 'users/:userId',
+                _component: '@/_/routes/(app)/users/(userId)/page',
+                data: '@/_/routes/(app)/users/(userId)/page.data',
+                action: '@/_/routes/(app)/users/(userId)/page.data',
+                validateSearch: '@/_/routes/search.contract',
+                loaderDeps: '@/_/routes/search.contract',
+              },
+              {
+                type: 'nested',
+                id: '(app)/docs/splat/page',
+                path: 'docs/*',
+                _component: '@/_/routes/(app)/docs/splat',
+              },
+            ],
+          },
+        ],
+      },
+    ] as any,
+  });
+
+  return routerGenTs;
 }
 
 describe('tanstack router type generation', () => {
@@ -315,6 +403,21 @@ describe('tanstack router type generation', () => {
       extractRouteGenerationOrder(sequentialOutput),
     );
     expect(racedOutput).toBe(sequentialOutput);
+  });
+
+  test('matches checked-in router.gen golden output', async () => {
+    tempDir = await mkdtemp(path.join(tmpdir(), 'modern-tanstack-types-'));
+    const srcDirectory = path.join(tempDir, 'src');
+    const routerGenTs = await generateGoldenRouterGen(srcDirectory);
+
+    if (process.env.UPDATE_TANSTACK_ROUTER_GOLDEN === '1') {
+      await mkdir(path.dirname(routerGenGoldenPath), { recursive: true });
+      await writeFile(routerGenGoldenPath, routerGenTs);
+    }
+
+    await expect(readFile(routerGenGoldenPath, 'utf8')).resolves.toBe(
+      routerGenTs,
+    );
   });
 
   test('typechecks generated TanStack search contracts', async () => {
