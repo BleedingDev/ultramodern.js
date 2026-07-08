@@ -1,3 +1,5 @@
+import * as Context from 'effect/Context';
+
 import {
   createHttpApiHandler,
   Effect,
@@ -7,6 +9,7 @@ import {
   HttpApiGroup,
   HttpApiSchema,
   Layer,
+  RpcGroup,
   Schema,
 } from '../src/runtime/effect';
 
@@ -25,6 +28,12 @@ const recommendationItemSchema = Schema.Struct({
 const recommendationNotFoundSchema = RecommendationNotFound.pipe(
   HttpApiSchema.status(404),
 );
+
+type RequestScopedValue = {
+  value: string;
+};
+const RequestScopedValue =
+  Context.Service<RequestScopedValue>('RequestScopedValue');
 
 const recommendationsApi = HttpApi.make('RecommendationsContractTestApi').add(
   HttpApiGroup.make('recommendations')
@@ -121,6 +130,40 @@ function createRecommendationsHandler() {
       ),
     }),
   };
+}
+
+const requestScopedApi = HttpApi.make('RequestScopedContextMuxTestApi').add(
+  HttpApiGroup.make('context').add(
+    HttpApiEndpoint.get('read', '/context', {
+      success: Schema.Struct({
+        value: Schema.String,
+      }),
+    }),
+  ),
+);
+
+function createRequestScopedContextHandler() {
+  const groupLayer = HttpApiBuilder.group(
+    requestScopedApi,
+    'context',
+    handlers =>
+      handlers.handle('read', () =>
+        Effect.map(Effect.service(RequestScopedValue), service => ({
+          value: service.value,
+        })),
+      ),
+  );
+
+  return createHttpApiHandler({
+    api: requestScopedApi,
+    layer: HttpApiBuilder.layer(requestScopedApi).pipe(
+      Layer.provide(groupLayer),
+    ),
+    rpc: {
+      group: RpcGroup.make(),
+      layer: Layer.empty,
+    },
+  });
 }
 
 describe('effect HttpApi schema validation', () => {
@@ -274,6 +317,27 @@ describe('effect HttpApi schema validation', () => {
       );
 
       expect(response.status).toBe(404);
+    } finally {
+      await handler.dispose();
+    }
+  });
+
+  test('preserves Effect request context for HttpApi requests when RPC is enabled', async () => {
+    const handler = createRequestScopedContextHandler();
+    const requestContext = Context.make(RequestScopedValue, {
+      value: 'from-request-context',
+    });
+
+    try {
+      const response = await handler.handler(
+        new Request('http://localhost/context'),
+        requestContext,
+      );
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual({
+        value: 'from-request-context',
+      });
     } finally {
       await handler.dispose();
     }

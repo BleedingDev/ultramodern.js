@@ -97,7 +97,7 @@ export function createHttpApiHandler<
   return {
     handler: async (
       request: Request,
-      context?: Parameters<typeof rpcHandler.handler>[1],
+      context?: Parameters<typeof httpApiHandler.handler>[1],
     ) => {
       if (isRpcRequest(request, rpcPath)) {
         const policyDenial = options.validateRequest?.(request);
@@ -106,7 +106,7 @@ export function createHttpApiHandler<
         }
         return rpcHandler.handler(request, toEffectServiceContext(context));
       }
-      return handleHttpApiRequest(request);
+      return handleHttpApiRequest(request, context);
     },
     dispose: async () => {
       await Promise.all([httpApiHandler.dispose(), rpcHandler.dispose()]);
