@@ -89,8 +89,6 @@ export function buildRouteEagerLazyCompilationTest(
   };
 }
 
-export const buildSSRLazyCompilationTest = buildRouteEagerLazyCompilationTest;
-
 export type SSRLazyPlan =
   | { apply: false; unresolvedByEntry?: Map<string, string[]> }
   | { apply: true; lazyCompilation: Record<string, unknown> };
@@ -125,5 +123,3 @@ export function planRouteEagerLazyCompilation(
     },
   };
 }
-
-export const planSSRLazyCompilation = planRouteEagerLazyCompilation;

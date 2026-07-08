@@ -175,7 +175,7 @@ export type ParityHttpResponse = {
   text: string;
 };
 
-export type AdapterParityResult = {
+type AdapterParityResult = {
   status: number;
   payload: unknown;
 };
