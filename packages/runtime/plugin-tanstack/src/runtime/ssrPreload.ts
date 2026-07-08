@@ -61,8 +61,15 @@ async function preloadReactLazyRouteComponent(
   }
 }
 
-async function preloadRouteComponent(component: unknown) {
+async function preloadRouteComponent(
+  component: unknown,
+  preloadedComponents: Set<unknown>,
+) {
   if (isReactLazyRouteComponent(component)) {
+    if (preloadedComponents.has(component)) {
+      return;
+    }
+    preloadedComponents.add(component);
     await preloadReactLazyRouteComponent(component);
     return;
   }
@@ -70,6 +77,11 @@ async function preloadRouteComponent(component: unknown) {
   if (!isPreloadableRouteComponent(component)) {
     return;
   }
+
+  if (preloadedComponents.has(component)) {
+    return;
+  }
+  preloadedComponents.add(component);
 
   if (typeof component.load === 'function') {
     await component.load({});
@@ -86,6 +98,7 @@ export async function preloadMatchedRouteComponents(
     ? (tanstackRouter.state.matches as RouterMatchWithError[])
     : [];
   const routesById = tanstackRouter.routesById || {};
+  const preloadedComponents = new Set<unknown>();
 
   await Promise.all(
     matches.map(async match => {
@@ -102,10 +115,10 @@ export async function preloadMatchedRouteComponents(
       }
 
       await Promise.all([
-        preloadRouteComponent(options.component),
-        preloadRouteComponent(options.pendingComponent),
-        preloadRouteComponent(options.errorComponent),
-        preloadRouteComponent(options.notFoundComponent),
+        preloadRouteComponent(options.component, preloadedComponents),
+        preloadRouteComponent(options.pendingComponent, preloadedComponents),
+        preloadRouteComponent(options.errorComponent, preloadedComponents),
+        preloadRouteComponent(options.notFoundComponent, preloadedComponents),
       ]);
     }),
   );

@@ -33,6 +33,7 @@ export default {
         'tests/router/register.test.ts',
         'tests/router/routeHooks.test.ts',
         'tests/router/rsc.test.tsx',
+        'tests/router/ssrPreload.test.ts',
         'tests/router/tanstackTypes.test.ts',
         'tests/router/routeTree.test.ts',
       ],
