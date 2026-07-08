@@ -1,8 +1,6 @@
 export const EN_LOCALE = {
   prompt: {
     projectName: 'Please enter project name: ',
-    legacyModernJsConfirmation:
-      'Type "{confirmation}" to continue with the original Modern.js setup: ',
   },
   error: {
     projectNameEmpty: 'Error: Project name cannot be empty',
@@ -12,8 +10,6 @@ export const EN_LOCALE = {
       'Error: Missing MicroVertical name. Use <name> --vertical, --vertical=<name>, or --vertical-name <name>.',
     verticalNameAmbiguous:
       'Error: Ambiguous MicroVertical name: "{firstName}" from {firstSource} does not match "{secondName}" from {secondSource}.',
-    legacyModernJsNotConfirmed:
-      'Aborted. UltraModern.js remains the default unattended setup.',
     createFailed: 'Error creating project:',
   },
   message: {
@@ -23,15 +19,6 @@ export const EN_LOCALE = {
     step1: 'cd {projectName}',
     step2: 'pnpm install',
     step3: 'pnpm dev',
-    legacyModernJsWarning: [
-      '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!',
-      'BRUTAL WARNING: YOU ARE OPTING OUT OF ULTRAMODERN.JS DEFAULTS.',
-      'The unattended default is the best UltraModern.js configuration:',
-      'a structured SuperApp workspace, presetUltramodern, TanStack Router,',
-      'a strict Effect API runtime, Tailwind CSS v4, and the BleedingDev package cohort.',
-      'The original Modern.js setup is a dangerous opt-in path.',
-      '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!',
-    ].join('\n'),
   },
   help: {
     title: '🚀 UltraModern.js Project Creator',
@@ -90,8 +77,6 @@ export const EN_LOCALE = {
       '      --dry-run Preview a MicroVertical mutation plan without writing files (supported with --vertical)',
     optionCodeSmithOverlay:
       '      --codesmith-overlay <package-or-path> Run an explicit CodeSmith overlay after generation',
-    optionLegacyModernJs:
-      '      --legacy-modern-js Opt into the original Modern.js setup after a large warning and typed confirmation',
     examples: '💡 Examples:',
     example1: '  pnpm dlx @bleedingdev/modern-js-create my-workspace',
     example2: '  pnpm dlx @bleedingdev/modern-js-create my-workspace --lang zh',

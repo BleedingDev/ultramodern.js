@@ -1,7 +1,7 @@
 import path from 'node:path';
 import readline from 'node:readline';
 import { i18n, localeKeys } from '../locale';
-import { collectPositionalArgs, LEGACY_MODERN_JS_CONFIRMATION } from './flags';
+import { collectPositionalArgs } from './flags';
 import { isDirectoryEmpty } from './project-setup';
 
 export function promptInput(question: string): Promise<string> {
@@ -16,23 +16,6 @@ export function promptInput(question: string): Promise<string> {
       resolve(answer.trim());
     });
   });
-}
-
-export async function confirmLegacyModernJsSetup() {
-  console.error('');
-  console.error(i18n.t(localeKeys.message.legacyModernJsWarning));
-  console.error('');
-
-  const answer = await promptInput(
-    i18n.t(localeKeys.prompt.legacyModernJsConfirmation, {
-      confirmation: LEGACY_MODERN_JS_CONFIRMATION,
-    }),
-  );
-
-  if (answer !== LEGACY_MODERN_JS_CONFIRMATION) {
-    console.error(i18n.t(localeKeys.error.legacyModernJsNotConfirmed));
-    process.exit(1);
-  }
 }
 
 export async function getProjectName(): Promise<{

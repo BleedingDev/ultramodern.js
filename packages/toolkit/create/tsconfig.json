@@ -7,7 +7,8 @@
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "paths": {},
-    "rootDir": "./src"
+    "rootDir": "./src",
+    "types": ["node"]
   },
   "include": ["src"],
   "exclude": ["template", "dist", "node_modules"]

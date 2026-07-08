@@ -1,8 +1,6 @@
 export const ZH_LOCALE = {
   prompt: {
     projectName: '请输入项目名称: ',
-    legacyModernJsConfirmation:
-      '输入 "{confirmation}" 以继续使用原始 Modern.js 初始化: ',
   },
   error: {
     projectNameEmpty: '错误: 项目名称不能为空',
@@ -11,8 +9,6 @@ export const ZH_LOCALE = {
       '错误: 缺少 MicroVertical 名称。请使用 <名称> --vertical、--vertical=<名称> 或 --vertical-name <名称>。',
     verticalNameAmbiguous:
       '错误: MicroVertical 名称不明确：{firstSource} 的 "{firstName}" 与 {secondSource} 的 "{secondName}" 不一致。',
-    legacyModernJsNotConfirmed:
-      '已中止。UltraModern.js 仍是默认的免交互初始化方案。',
     createFailed: '创建项目时出错:',
   },
   message: {
@@ -22,15 +18,6 @@ export const ZH_LOCALE = {
     step1: 'cd {projectName}',
     step2: 'pnpm install',
     step3: 'pnpm dev',
-    legacyModernJsWarning: [
-      '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!',
-      '严重警告：你正在退出 ULTRAMODERN.JS 默认配置。',
-      '免交互默认值是最佳 UltraModern.js 配置：',
-      '结构化 SuperApp 工作区、presetUltramodern、TanStack Router、',
-      '严格 Effect API 运行时、Tailwind CSS v4，以及 BleedingDev 包版本队列。',
-      '原始 Modern.js 初始化是危险的显式选择路径。',
-      '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!',
-    ].join('\n'),
   },
   help: {
     title: '🚀 UltraModern.js 项目创建工具',
@@ -85,8 +72,6 @@ export const ZH_LOCALE = {
       '      --dry-run 预览 MicroVertical 修改计划但不写入文件（与 --vertical 一起使用）',
     optionCodeSmithOverlay:
       '      --codesmith-overlay <包或路径> 生成完成后运行显式配置的 CodeSmith overlay',
-    optionLegacyModernJs:
-      '      --legacy-modern-js 在大型警告和输入确认后，选择原始 Modern.js 初始化',
     examples: '💡 示例:',
     example1: '  pnpm dlx @bleedingdev/modern-js-create my-workspace',
     example2: '  pnpm dlx @bleedingdev/modern-js-create my-workspace --lang zh',

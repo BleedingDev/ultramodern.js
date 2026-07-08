@@ -250,11 +250,16 @@ export function updateGeneratedPackageScripts(
         continue;
       }
 
+      if (value === undefined) {
+        continue;
+      }
+
       // `check` is a consumer-curated aggregate; framework segments must be
       // present/updated but consumer-owned segments must never be dropped.
+      const existingScript = scripts[name];
       const nextValue =
-        name === 'check' && typeof scripts[name] === 'string'
-          ? mergeAggregateCheckScript(scripts[name], value)
+        name === 'check' && typeof existingScript === 'string'
+          ? mergeAggregateCheckScript(existingScript, value)
           : value;
 
       if (scripts[name] !== nextValue) {

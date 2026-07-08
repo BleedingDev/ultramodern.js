@@ -8,11 +8,9 @@ import {
   detectDryRunFlag,
   detectExplicitTailwindFlag,
   detectLanguage,
-  detectLegacyModernJsFlag,
   detectTailwindFlag,
   readBridgeCliOptions,
   resolveVerticalCliInput,
-  stripLegacyModernJsFlag,
   VERTICAL_FLAG,
 } from './cli/flags';
 import { showHelp, showVersion } from './cli/help';
@@ -23,11 +21,8 @@ import {
   readCreatePackageJson,
   resolveWorkspacePackageSource,
 } from './cli/package-source';
-import {
-  initializeGeneratedGitRepository,
-  runLegacyModernJsCreate,
-} from './cli/project-setup';
-import { confirmLegacyModernJsSetup, getProjectName } from './cli/prompts';
+import { initializeGeneratedGitRepository } from './cli/project-setup';
+import { getProjectName } from './cli/prompts';
 import { i18n, localeKeys } from './locale';
 import { runUltramodernToolingCli } from './ultramodern-tooling/commands';
 import {
@@ -54,12 +49,6 @@ async function main() {
 
   if (args.includes('--version') || args.includes('-v')) {
     showVersion();
-    return;
-  }
-
-  if (detectLegacyModernJsFlag(args)) {
-    await confirmLegacyModernJsSetup();
-    delegateLegacyModernJsSetup(args);
     return;
   }
 

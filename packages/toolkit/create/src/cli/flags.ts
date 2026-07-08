@@ -5,8 +5,6 @@ import {
   ultramodernBridgeCliValueFlags,
 } from '../ultramodern-workspace/bridge-config';
 
-export const LEGACY_MODERN_JS_FLAG = '--legacy-modern-js';
-export const LEGACY_MODERN_JS_CONFIRMATION = 'USE LEGACY MODERN.JS';
 export const WORKSPACE_PROTOCOL_FLAG = '--workspace';
 export const DRY_RUN_FLAG = '--dry-run';
 export const VERTICAL_FLAG = '--vertical';
@@ -46,19 +44,6 @@ export const detectLanguage = (): 'zh' | 'en' => {
 
   return 'en';
 };
-
-export function detectLegacyModernJsFlag(args: string[]): boolean {
-  if (args.some(arg => arg.startsWith(`${LEGACY_MODERN_JS_FLAG}=`))) {
-    console.error(`${LEGACY_MODERN_JS_FLAG} does not accept a value.`);
-    process.exit(1);
-  }
-
-  return args.includes(LEGACY_MODERN_JS_FLAG);
-}
-
-function stripLegacyModernJsArgs(args: string[]): string[] {
-  return args.filter(arg => arg !== LEGACY_MODERN_JS_FLAG);
-}
 
 // The UltraModern scaffold ships exactly one BFF shape: every MicroVertical
 // exposes a strict Effect API runtime (plugin-bff runtimeFramework 'effect').
@@ -155,7 +140,6 @@ export function collectPositionalArgs(args: string[]): string[] {
     WORKSPACE_PROTOCOL_FLAG,
     DRY_RUN_FLAG,
     VERTICAL_FLAG,
-    LEGACY_MODERN_JS_FLAG,
     ...ultramodernBridgeCliBooleanFlags,
   ]);
   const positionalArgs: string[] = [];

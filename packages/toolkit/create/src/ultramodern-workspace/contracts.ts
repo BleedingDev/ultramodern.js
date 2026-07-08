@@ -27,6 +27,31 @@ import {
   PNPM_VERSION,
 } from './versions';
 
+function isJsonValue(value: JsonValue | undefined): value is JsonValue {
+  return value !== undefined;
+}
+
+function optionalJsonEntry(
+  key: string,
+  value: JsonValue | undefined,
+): Record<string, JsonValue> {
+  return value === undefined ? {} : { [key]: value };
+}
+
+function jsonEntries(
+  entries: [string, JsonValue | undefined][],
+): Record<string, JsonValue> {
+  return Object.fromEntries(
+    entries.filter((entry): entry is [string, JsonValue] =>
+      isJsonValue(entry[1]),
+    ),
+  );
+}
+
+function presentJsonValues(values: (JsonValue | undefined)[]): JsonValue[] {
+  return values.filter(isJsonValue);
+}
+
 export function createTopology(
   scope: string,
   remotes: WorkspaceApp[] = [],
@@ -42,7 +67,7 @@ export function createTopology(
       id: shellApp.id,
       kind: 'shell',
       package: packageName(scope, shellApp.packageSuffix),
-      verticalRefs: shellHost.verticalRefs,
+      verticalRefs: shellHost.verticalRefs ?? [],
       moduleFederation: {
         role: 'host',
         name: shellApp.mfName,
@@ -56,7 +81,7 @@ export function createTopology(
     verticals: remotes.map(vertical => ({
       id: vertical.id,
       kind: vertical.kind,
-      domain: vertical.domain,
+      ...(vertical.domain ? { domain: vertical.domain } : {}),
       package: packageName(scope, vertical.packageSuffix),
       path: vertical.directory,
       moduleFederation: {
@@ -73,11 +98,10 @@ export function createTopology(
         ssr: true,
         sharedContractVersion: 'mf-ssr-contract-v1',
       },
-      ...(createBackendFederationContract(scope, vertical)
-        ? {
-            backendFederation: createBackendFederationContract(scope, vertical),
-          }
-        : {}),
+      ...optionalJsonEntry(
+        'backendFederation',
+        createBackendFederationContract(scope, vertical),
+      ),
       ...(vertical.api
         ? {
             deliveryUnit: deliveryUnitContractBlock(
@@ -85,9 +109,7 @@ export function createTopology(
             ),
           }
         : {}),
-      ...(apiTopologyMetadata(vertical)
-        ? { api: apiTopologyMetadata(vertical) }
-        : {}),
+      ...optionalJsonEntry('api', apiTopologyMetadata(vertical)),
       cloudflare: createCloudflareDeployContract(scope, vertical),
       ownership: vertical.ownership,
     })),
@@ -163,7 +185,7 @@ export function createDevelopmentOverlay(
         `http://localhost:${remote.port}/mf-manifest.json`,
       ]),
     ),
-    serverExecution: Object.fromEntries(
+    serverExecution: jsonEntries(
       verticalApiApps(remotes).map(app => [
         app.id,
         createServerExecutionOverlay(scope, app),
@@ -239,7 +261,7 @@ export function createUltramodernConfig(
           exposes: Object.keys(app.exposes ?? {}),
           ...(app.kind === 'shell'
             ? {
-                verticalRefs: shellHost.verticalRefs,
+                verticalRefs: shellHost.verticalRefs ?? [],
                 remotes: createModuleFederationRemoteContracts(
                   shellHost,
                   remotes,
@@ -257,9 +279,10 @@ export function createUltramodernConfig(
             tsConfigPath: './tsconfig.mf-types.json',
           },
         },
-        ...(createBackendFederationContract(scope, app)
-          ? { backendFederation: createBackendFederationContract(scope, app) }
-          : {}),
+        ...optionalJsonEntry(
+          'backendFederation',
+          createBackendFederationContract(scope, app),
+        ),
         ...(app.api
           ? {
               deliveryUnit: deliveryUnitContractBlock(
@@ -311,8 +334,10 @@ export function createUltramodernConfig(
       })),
     },
     backendFederation: {
-      apps: verticalApiApps(remotes).map(app =>
-        createBackendFederationSummary(scope, app),
+      apps: presentJsonValues(
+        verticalApiApps(remotes).map(app =>
+          createBackendFederationSummary(scope, app),
+        ),
       ),
     },
     agentSkills: {

@@ -24,10 +24,12 @@ export function verticalTopologyEntry(
   vertical: WorkspaceApp,
   remotes: WorkspaceApp[] = [],
 ): JsonValue {
+  const backendFederation = createBackendFederationContract(scope, vertical);
+
   return {
     id: vertical.id,
     kind: vertical.kind,
-    domain: vertical.domain,
+    ...(vertical.domain ? { domain: vertical.domain } : {}),
     package: packageName(scope, vertical.packageSuffix),
     path: vertical.directory,
     moduleFederation: {
@@ -44,9 +46,7 @@ export function verticalTopologyEntry(
       ssr: true,
       sharedContractVersion: 'mf-ssr-contract-v1',
     },
-    ...(createBackendFederationContract(scope, vertical)
-      ? { backendFederation: createBackendFederationContract(scope, vertical) }
-      : {}),
+    ...(backendFederation ? { backendFederation } : {}),
     ...(vertical.api
       ? {
           deliveryUnit: deliveryUnitContractBlock(

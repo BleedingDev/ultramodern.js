@@ -1,28 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 
-function delegateLegacyModernJsSetup(args: string[]) {
-  const forwardedArgs = stripLegacyModernJsArgs(args);
-
-  if (commandExists('pnpm')) {
-    runSetupCommand('pnpm', ['dlx', '@modern-js/create', ...forwardedArgs], {
-      stdio: 'inherit',
-    });
-    return;
-  }
-
-  if (commandExists('npx')) {
-    runSetupCommand('npx', ['@modern-js/create', ...forwardedArgs], {
-      stdio: 'inherit',
-    });
-    return;
-  }
-
-  throw new Error(
-    'Legacy Modern.js setup requires pnpm or npx to run @modern-js/create.',
-  );
-}
-
 export function runSetupCommand(
   command: string,
   args: string[],

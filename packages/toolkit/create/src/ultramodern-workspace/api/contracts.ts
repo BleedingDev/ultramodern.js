@@ -46,38 +46,39 @@ export function createApiDomainOperations(app: {
   const stem = resolveApiStem(app);
   const group = verticalApiGroupName(app);
   const basePath = `/${stem}`;
-  const checkoutCartOperations = serviceHasCheckoutCartState(app)
-    ? {
-        checkoutCartAddItem: {
-          client: 'addCheckoutCartItem',
-          method: 'POST',
-          path: '/checkout/cart/items',
-          resource: 'checkout-cart',
-          owner: app.id,
-        },
-        checkoutCartClear: {
-          client: 'clearCheckoutCart',
-          method: 'POST',
-          path: '/checkout/cart/clear',
-          resource: 'checkout-cart',
-          owner: app.id,
-        },
-        checkoutCartRead: {
-          client: 'getCheckoutCart',
-          method: 'GET',
-          path: '/checkout/cart',
-          resource: 'checkout-cart',
-          owner: app.id,
-        },
-        checkoutCartRemoveItem: {
-          client: 'removeCheckoutCartItem',
-          method: 'POST',
-          path: '/checkout/cart/remove',
-          resource: 'checkout-cart',
-          owner: app.id,
-        },
-      }
-    : {};
+  const checkoutCartOperations: Record<string, JsonValue> =
+    serviceHasCheckoutCartState(app)
+      ? {
+          checkoutCartAddItem: {
+            client: 'addCheckoutCartItem',
+            method: 'POST',
+            path: '/checkout/cart/items',
+            resource: 'checkout-cart',
+            owner: app.id,
+          },
+          checkoutCartClear: {
+            client: 'clearCheckoutCart',
+            method: 'POST',
+            path: '/checkout/cart/clear',
+            resource: 'checkout-cart',
+            owner: app.id,
+          },
+          checkoutCartRead: {
+            client: 'getCheckoutCart',
+            method: 'GET',
+            path: '/checkout/cart',
+            resource: 'checkout-cart',
+            owner: app.id,
+          },
+          checkoutCartRemoveItem: {
+            client: 'removeCheckoutCartItem',
+            method: 'POST',
+            path: '/checkout/cart/remove',
+            resource: 'checkout-cart',
+            owner: app.id,
+          },
+        }
+      : {};
 
   return {
     ...checkoutCartOperations,
@@ -139,30 +140,31 @@ export function createApiOperationContract(target: {
   api?: WorkspaceApi;
 }): JsonValue {
   const stem = resolveApiStem(target);
-  const checkoutCartOperations = serviceHasCheckoutCartState(target)
-    ? {
-        addCartItem: {
-          method: 'POST',
-          path: '/checkout/cart/items',
-          source: 'generated-client',
-        },
-        clearCart: {
-          method: 'POST',
-          path: '/checkout/cart/clear',
-          source: 'generated-client',
-        },
-        getCart: {
-          method: 'GET',
-          path: '/checkout/cart',
-          source: 'generated-client',
-        },
-        removeCartItem: {
-          method: 'POST',
-          path: '/checkout/cart/remove',
-          source: 'generated-client',
-        },
-      }
-    : {};
+  const checkoutCartOperations: Record<string, JsonValue> =
+    serviceHasCheckoutCartState(target)
+      ? {
+          addCartItem: {
+            method: 'POST',
+            path: '/checkout/cart/items',
+            source: 'generated-client',
+          },
+          clearCart: {
+            method: 'POST',
+            path: '/checkout/cart/clear',
+            source: 'generated-client',
+          },
+          getCart: {
+            method: 'GET',
+            path: '/checkout/cart',
+            source: 'generated-client',
+          },
+          removeCartItem: {
+            method: 'POST',
+            path: '/checkout/cart/remove',
+            source: 'generated-client',
+          },
+        }
+      : {};
   return {
     group: verticalApiGroupName(target),
     notFound: verticalApiNotFoundErrorExport(target),
