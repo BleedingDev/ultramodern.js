@@ -182,6 +182,7 @@ type CrossProjectPolicyEvaluationState = {
   envelopeHeader: string;
   operationContextHeader: string;
   operationContextDetailHeader: string;
+  operationContext?: string;
   requestId: string;
   claimedNamespace?: string;
   effectiveNamespace?: string;
@@ -365,6 +366,7 @@ const checkOperationContext: CrossProjectPolicyCheck = state => {
       state.status,
     );
   }
+  state.operationContext = operationContext;
   return undefined;
 };
 
@@ -407,6 +409,16 @@ const checkOperationContextDetails: CrossProjectPolicyCheck = state => {
     return createViolation(
       'operation_context_details_request_id_mismatch',
       `Operation context details requestId "${detailRequestId}" does not match envelope requestId "${state.requestId}"`,
+      state.status,
+    );
+  }
+  const detailOperationId = String(
+    operationContextDetails.operationId || '',
+  ).trim();
+  if (state.operationContext && detailOperationId !== state.operationContext) {
+    return createViolation(
+      'operation_context_mismatch',
+      `Operation context details operationId "${detailOperationId}" does not match operation context "${state.operationContext}"`,
       state.status,
     );
   }
