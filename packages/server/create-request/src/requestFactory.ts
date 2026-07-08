@@ -428,7 +428,7 @@ export const createRequestFactory = <F>(
       }
 
       if (!isServerTarget) {
-        headers.accept = `application/json,*/*;q=0.8`;
+        writeHeader(headers, 'accept', `application/json,*/*;q=0.8`);
       }
 
       if (isServerTarget) {
@@ -465,7 +465,7 @@ export const createRequestFactory = <F>(
       }
 
       if (isServerTarget) {
-        headers.accept = `application/json,*/*;q=0.8`;
+        writeHeader(headers, 'accept', `application/json,*/*;q=0.8`);
       }
 
       return executeWithResilience({
