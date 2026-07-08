@@ -7,7 +7,7 @@ export const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
 export const nonEmptyString = (value: unknown): string | undefined =>
-  typeof value === 'string' && value.length > 0 ? value : undefined;
+  typeof value === 'string' && value.trim().length > 0 ? value : undefined;
 
 export const validationResult = (
   errors: BackendFederationContractValidationError[],

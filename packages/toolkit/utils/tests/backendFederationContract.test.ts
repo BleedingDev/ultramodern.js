@@ -42,6 +42,19 @@ describe('backend federation contract validators', () => {
     ]);
   });
 
+  it('rejects blank delivery-unit identity strings', () => {
+    const result = validateDeliveryUnitIdentity({
+      unitId: '   ',
+      buildMarker: 'checkout-build',
+      sourceRevision: 'workspace',
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.errors.map(error => error.path)).toEqual([
+      'deliveryUnit.unitId',
+    ]);
+  });
+
   it('validates backend federation manifest metadata and effect expose', () => {
     const result = validateBackendFederationManifest(
       {
