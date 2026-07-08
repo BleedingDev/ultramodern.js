@@ -1,6 +1,5 @@
 #!/usr/bin/env node
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { isDirectRun } from './lib/direct-run.mjs';
 import { parseArgs } from './lib/prepare-bleedingdev-packages/options.mjs';
 import { prepareBleedingdevPackages } from './lib/prepare-bleedingdev-packages/workflow.mjs';
 
@@ -15,18 +14,12 @@ export {
   validateRegistryCohort,
 } from './lib/prepare-bleedingdev-packages/registry.mjs';
 
-function isDirectRun() {
-  return process.argv[1]
-    ? path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
-    : false;
-}
-
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   await prepareBleedingdevPackages(options);
 }
 
-if (isDirectRun()) {
+if (isDirectRun(import.meta.url)) {
   try {
     await main();
   } catch (error) {

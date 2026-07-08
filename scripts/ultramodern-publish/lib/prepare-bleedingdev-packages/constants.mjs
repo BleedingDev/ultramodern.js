@@ -1,4 +1,4 @@
-import fsKit from '../../../../lib/fs-kit.js';
+import fsKit from '../../../lib/fs-kit.js';
 
 const { repoRoot } = fsKit;
 

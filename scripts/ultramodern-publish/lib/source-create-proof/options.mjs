@@ -1,5 +1,6 @@
 import path from 'node:path';
 import cliKit from '../../../lib/cli-kit.js';
+import { rejectInlineOptionSyntax } from '../option-syntax.mjs';
 
 const { parseCliArgs } = cliKit;
 
@@ -23,28 +24,8 @@ const defaultOutPath = path.join(
 
 const cliValueOptions = new Set(['--root', '--manifest', '--out']);
 
-function rejectInlineOptionSyntax(argv) {
-  for (let index = 0; index < argv.length; index += 1) {
-    const arg = argv[index];
-    if (arg === '--') {
-      continue;
-    }
-    if (/^--[^=]+=/.test(arg)) {
-      throw new Error(`Unknown argument: ${arg}`);
-    }
-    if (cliValueOptions.has(arg)) {
-      const value = argv[index + 1];
-      if (value) {
-        index += 1;
-      }
-      continue;
-    }
-    return;
-  }
-}
-
 function parseArgs(argv) {
-  rejectInlineOptionSyntax(argv);
+  rejectInlineOptionSyntax(argv, { valueOptions: cliValueOptions });
 
   const options = parseCliArgs(argv, {
     defaults: {

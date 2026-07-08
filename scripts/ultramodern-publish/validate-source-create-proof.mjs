@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import fsKit from '../lib/fs-kit.js';
+import { isDirectRun } from './lib/direct-run.mjs';
 import { parseArgs } from './lib/source-create-proof/options.mjs';
 import {
   errorProof,
@@ -9,12 +9,6 @@ import {
 } from './lib/source-create-proof/proof.mjs';
 
 const { writeJsonFile } = fsKit;
-
-function isDirectRun() {
-  return process.argv[1]
-    ? path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
-    : false;
-}
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
@@ -33,7 +27,7 @@ async function main() {
   }
 }
 
-if (isDirectRun()) {
+if (isDirectRun(import.meta.url)) {
   await main();
 }
 
