@@ -1423,6 +1423,34 @@ describe('cloudflare deploy preset', () => {
     ).rejects.toThrow();
   });
 
+  it('does not expose dotenv files through Cloudflare public assets', async () => {
+    const { outputDirectory } = await createFixture({
+      distFiles: {
+        '.env': 'SECRET_TOKEN=public-leak',
+        '.env.production': 'SECRET_TOKEN=production-leak',
+        'static/.env.local': 'SECRET_TOKEN=static-leak',
+        '.well-known/security.txt': 'contact: security@example.com',
+      },
+    });
+    const publicDirectory = path.join(outputDirectory, 'public');
+
+    await expect(
+      fs.access(path.join(publicDirectory, '.env')),
+    ).rejects.toThrow();
+    await expect(
+      fs.access(path.join(publicDirectory, '.env.production')),
+    ).rejects.toThrow();
+    await expect(
+      fs.access(path.join(publicDirectory, 'static/.env.local')),
+    ).rejects.toThrow();
+    await expect(
+      fs.readFile(
+        path.join(publicDirectory, '.well-known/security.txt'),
+        'utf-8',
+      ),
+    ).resolves.toBe('contact: security@example.com');
+  });
+
   it('emits a structured route.worker manifest for module-worker dispatch', async () => {
     const { outputDirectory } = await createFixture();
     const workerManifest = JSON.parse(

@@ -182,11 +182,14 @@ export const shouldCopyToPublicAssets = (
 
   const normalizedRelativePath = relativePath.replace(/\\/g, '/');
   const [topLevelDirectory] = normalizedRelativePath.split('/');
+  const basename = normalizedRelativePath.split('/').pop() ?? '';
 
   return (
     normalizedRelativePath !== ROUTE_SPEC_FILE &&
     topLevelDirectory !== WORKER_BUNDLE_DIRECTORY &&
     topLevelDirectory !== SERVER_BUNDLE_DIRECTORY &&
+    basename !== '.env' &&
+    !basename.startsWith('.env.') &&
     !publicAssetExcludes.some(
       exclude =>
         normalizedRelativePath === exclude ||
