@@ -83,7 +83,11 @@ export function handleTanstackRscRedirect(
   let redirectUrl = headers.get('Location') || '/';
 
   if (basename !== '/') {
-    redirectUrl = redirectUrl.replace(basename, '') || '/';
+    if (redirectUrl === basename) {
+      redirectUrl = '/';
+    } else if (redirectUrl.startsWith(`${basename}/`)) {
+      redirectUrl = redirectUrl.slice(basename.length);
+    }
   }
 
   newHeaders.set('X-Modernjs-Redirect', redirectUrl);

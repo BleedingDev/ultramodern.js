@@ -282,6 +282,18 @@ describe('tanstack rsc runtime helpers', () => {
     expect(response.headers.get('X-Modernjs-BaseUrl')).toBe('/base');
   });
 
+  test('preserves TanStack RSC redirect paths that do not start with the basename', () => {
+    const response = handleTanstackRscRedirect(
+      new Headers({ Location: '/shop/base/login' }),
+      '/base',
+      302,
+    );
+
+    expect(response.headers.get('X-Modernjs-Redirect')).toBe(
+      '/shop/base/login',
+    );
+  });
+
   test('preserves RSC redirect response status and headers in TanStack redirects', async () => {
     rstest.stubGlobal(
       'fetch',
