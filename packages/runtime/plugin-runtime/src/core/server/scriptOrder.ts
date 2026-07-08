@@ -79,7 +79,7 @@ function getRouteAssets(
   return routeManifest?.routeAssets;
 }
 
-export function getMatchedRouteAssets(
+function getMatchedRouteAssets(
   runtimeContext: TInternalRuntimeContext,
   routeManifest?: RouteManifestLike,
 ) {

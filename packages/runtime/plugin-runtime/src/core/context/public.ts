@@ -1,8 +1,8 @@
 import { createContext, useContext } from 'react';
 
-export type RuntimeRequest = Record<string, unknown>;
+type RuntimeRequest = Record<string, unknown>;
 
-export type RuntimeResponse = Record<string, unknown>;
+type RuntimeResponse = Record<string, unknown>;
 
 export type RequestContext = {
   request: RuntimeRequest;

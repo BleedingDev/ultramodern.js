@@ -13,7 +13,7 @@ import {
   CLOUDFLARE_WRANGLER_CONFIG_FILE,
 } from './cloudflare-output-contract';
 
-export type CloudflareOutputPlan = {
+type CloudflareOutputPlan = {
   outputDirectory: string;
   requiredFiles: string[];
   publicLeakDirectories: string[];

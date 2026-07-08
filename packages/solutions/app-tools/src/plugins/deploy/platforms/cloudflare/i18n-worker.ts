@@ -23,14 +23,14 @@ type ServerPluginConfig = NonNullable<
   CloudflareAppContext['serverPlugins']
 >[number];
 
-export type WorkerI18nDetection = {
+type WorkerI18nDetection = {
   order: string[];
   lookupQuerystring: string;
   lookupCookie: string;
   lookupHeader: string;
 };
 
-export type WorkerI18nEntry = {
+type WorkerI18nEntry = {
   i18nextDetector: boolean;
   languages: string[];
   fallbackLanguage: string;

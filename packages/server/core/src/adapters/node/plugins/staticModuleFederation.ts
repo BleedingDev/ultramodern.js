@@ -4,8 +4,7 @@ import path from 'path';
 import type { Middleware } from '../../../types';
 
 export const MODULE_FEDERATION_MANIFEST_FILE = 'mf-manifest.json';
-export const BACKEND_MODULE_FEDERATION_MANIFEST_FILE =
-  'backend-mf-manifest.json';
+const BACKEND_MODULE_FEDERATION_MANIFEST_FILE = 'backend-mf-manifest.json';
 
 const MODULE_FEDERATION_MANIFEST_FILES = [
   MODULE_FEDERATION_MANIFEST_FILE,
@@ -53,7 +52,7 @@ export type ModuleFederationServeAssets = {
   remoteEntries: Set<string>;
 };
 
-export const trimLeadingSlash = (value: string) => value.replace(/^\/+/, '');
+const trimLeadingSlash = (value: string) => value.replace(/^\/+/, '');
 
 export const getModuleFederationRequestPath = (
   pathname: string,

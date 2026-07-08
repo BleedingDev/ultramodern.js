@@ -5,16 +5,16 @@ import { CLOUDFLARE_WORKER_BUNDLE_DIRECTORY } from '../cloudflare-output-contrac
 import type { CloudflareOutputVerifierIssue, JsonObject } from './issues';
 import { addIssue } from './issues';
 
-export interface WorkerBundleReference {
+interface WorkerBundleReference {
   kind: 'effect-bff' | 'route';
   reference: string;
 }
 
-export interface ResolvedWorkerBundleReference extends WorkerBundleReference {
+interface ResolvedWorkerBundleReference extends WorkerBundleReference {
   path: string;
 }
 
-export const getReferencedRouteWorkers = (manifest: JsonObject) =>
+const getReferencedRouteWorkers = (manifest: JsonObject) =>
   Array.isArray(manifest?.routeSpec?.routes)
     ? manifest.routeSpec.routes
         .map((route: any) =>
@@ -86,7 +86,7 @@ export const missingWorkerBundleMessage = (reference: WorkerBundleReference) =>
     ? 'Cloudflare Effect BFF manifest points to a missing worker bundle.'
     : 'Cloudflare route worker manifest points to a missing worker bundle.';
 
-export const FORBIDDEN_WORKER_BUNDLE_REFERENCE_PATTERNS = [
+const FORBIDDEN_WORKER_BUNDLE_REFERENCE_PATTERNS = [
   /\.\.\/server\//u,
   /\.output\/server\//u,
   /server\/index\.mjs/u,

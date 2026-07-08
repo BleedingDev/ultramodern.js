@@ -3,7 +3,7 @@ import type { Middleware } from '../../../types';
 
 type SupportedEncoding = 'br' | 'gzip';
 
-export type ResolvePreCompressedAssetResult = {
+type ResolvePreCompressedAssetResult = {
   selected: {
     filepath: string;
     encoding: SupportedEncoding;
@@ -82,7 +82,7 @@ const getAcceptedEncodings = (
     .map(item => item.encoding);
 };
 
-export const appendVaryHeader = (
+const appendVaryHeader = (
   c: Parameters<Middleware>[0],
   value: string,
 ): void => {

@@ -13,7 +13,7 @@
 // Property accesses such as `Array.from('x')` or `foo.require('x')` and
 // identifiers that merely end in `require` are not matched.
 
-export type SpecifierRewrite = (specifier: string) => string | undefined;
+type SpecifierRewrite = (specifier: string) => string | undefined;
 
 type SpecifierToken = {
   /** Index of the first character of the specifier (after the opening quote). */

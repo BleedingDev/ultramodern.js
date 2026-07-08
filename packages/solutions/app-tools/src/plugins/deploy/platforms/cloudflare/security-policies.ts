@@ -1,12 +1,12 @@
 import type { CloudflareWorkerSecurityConfig } from '../../../../types/config/deploy';
 
-export const DEFAULT_SECURITY_HEADERS = {
+const DEFAULT_SECURITY_HEADERS = {
   referrerPolicy: 'strict-origin-when-cross-origin',
   contentTypeOptions: 'nosniff',
   permissionsPolicy:
     'camera=(), geolocation=(), microphone=(), payment=(), usb=()',
 } as const;
-export const DEFAULT_CORS_ALLOWED_METHODS = [
+const DEFAULT_CORS_ALLOWED_METHODS = [
   'GET',
   'HEAD',
   'POST',
@@ -15,7 +15,7 @@ export const DEFAULT_CORS_ALLOWED_METHODS = [
   'DELETE',
   'OPTIONS',
 ];
-export const DEFAULT_CSP_DIRECTIVES: Record<string, string[]> = {
+const DEFAULT_CSP_DIRECTIVES: Record<string, string[]> = {
   'base-uri': [`'self'`],
   'connect-src': [`'self'`, 'https:', 'http:', 'wss:', 'ws:'],
   'default-src': [`'self'`],
@@ -58,7 +58,7 @@ const appendDirectiveValues = (
   ]);
 };
 
-export const createContentSecurityPolicy = (
+const createContentSecurityPolicy = (
   config?: CloudflareWorkerSecurityConfig['contentSecurityPolicy'],
 ) => {
   const mode = config?.mode ?? 'report-only';
@@ -114,7 +114,7 @@ export const createContentSecurityPolicy = (
   };
 };
 
-export const createNoindexPolicy = (
+const createNoindexPolicy = (
   noindex: CloudflareWorkerSecurityConfig['noindex'],
 ) => {
   if (noindex === false) {
@@ -141,7 +141,7 @@ export const createNoindexPolicy = (
   };
 };
 
-export const createCloudflareWorkerCorsPolicy = (
+const createCloudflareWorkerCorsPolicy = (
   cors: CloudflareWorkerSecurityConfig['cors'],
 ) => ({
   assets: cors?.assets ?? true,

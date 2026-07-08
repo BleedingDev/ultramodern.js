@@ -27,7 +27,7 @@ type LazyCompilationTestFn = (m: ModuleLike) => boolean;
 /** Matches Rspack's `LazyCompilationOptions['test']`. */
 type LazyCompilationTest = RegExp | LazyCompilationTestFn | undefined;
 
-export type EagerRouteComponentInfo = {
+type EagerRouteComponentInfo = {
   files: Set<string>;
   /** Specifiers that could not be resolved, keyed by entry name. */
   unresolvedByEntry: Map<string, string[]>;
@@ -89,7 +89,7 @@ export function buildRouteEagerLazyCompilationTest(
   };
 }
 
-export type SSRLazyPlan =
+type SSRLazyPlan =
   | { apply: false; unresolvedByEntry?: Map<string, string[]> }
   | { apply: true; lazyCompilation: Record<string, unknown> };
 

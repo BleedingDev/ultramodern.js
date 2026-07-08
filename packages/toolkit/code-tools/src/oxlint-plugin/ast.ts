@@ -60,9 +60,7 @@ export const getNodeName = (node: AstNode | undefined): string | undefined => {
   return undefined;
 };
 
-export const getJsxElementName = (
-  node: AstNode | undefined,
-): string | undefined => {
+const getJsxElementName = (node: AstNode | undefined): string | undefined => {
   if (node?.type !== 'JSXElement') {
     return undefined;
   }
@@ -87,7 +85,7 @@ export const hasAllowedElementAncestor = (
   return false;
 };
 
-export const getTemplateLiteralValue = (node: AstNode): string | undefined => {
+const getTemplateLiteralValue = (node: AstNode): string | undefined => {
   if (node.type !== 'TemplateLiteral' || (node.expressions?.length ?? 0) > 0) {
     return undefined;
   }

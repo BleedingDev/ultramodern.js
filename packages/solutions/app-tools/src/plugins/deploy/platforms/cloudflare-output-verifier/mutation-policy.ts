@@ -11,8 +11,8 @@ export interface VerifyCloudflareOutputMutationPolicyOptions {
   scanRoots: string[];
 }
 
-export const SOURCE_SCAN_FILE_PATTERN = /\.(?:[cm]?[jt]s|json)$/u;
-export const SOURCE_SCAN_IGNORED_DIRECTORY_NAMES = new Set([
+const SOURCE_SCAN_FILE_PATTERN = /\.(?:[cm]?[jt]s|json)$/u;
+const SOURCE_SCAN_IGNORED_DIRECTORY_NAMES = new Set([
   '.codex',
   '.fastcontext',
   '.git',
@@ -27,7 +27,7 @@ export const SOURCE_SCAN_IGNORED_DIRECTORY_NAMES = new Set([
   'topology',
 ]);
 
-export const FORBIDDEN_MUTATION_PATTERNS: Array<{
+const FORBIDDEN_MUTATION_PATTERNS: Array<{
   code: CloudflareOutputVerifierIssueCode;
   message: string;
   pattern: RegExp;

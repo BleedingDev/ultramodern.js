@@ -1,4 +1,4 @@
-export const DEFAULT_UNSAFE_SSR_HEADERS = [
+const DEFAULT_UNSAFE_SSR_HEADERS = [
   'authorization',
   'proxy-authorization',
   'cookie',
