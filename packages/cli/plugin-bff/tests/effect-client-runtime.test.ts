@@ -183,4 +183,40 @@ describe('effect-client runtime (createGeneratedEffectClient)', () => {
     expect(payload.headers['x-context']).toBe('yes');
     expect(payload.headers['x-modernjs-data-batch']).toBe('off');
   });
+
+  test('keeps generated request context headers when caller headers collide', async () => {
+    const { runtime, senderCalls } = createStubRuntime();
+    runtime.createRequestContextHeaders = requestContext => ({
+      traceparent: String(requestContext.traceparent),
+      'x-operation-id': String(requestContext.operationContext?.operationId),
+    });
+
+    const generated = createGeneratedEffectClient(
+      { endpoints: [PING_ENDPOINT] },
+      createConfig(),
+      runtime,
+    );
+
+    await generated.client.greetings!.ping({
+      headers: {
+        traceparent: '00-spoofedtrace000000000000000000000-spoofedspan0000-01',
+        'x-operation-id': 'spoofed-operation',
+        'x-caller': 'yes',
+      },
+      requestContext: {
+        traceparent: '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01',
+        operationContext: {
+          operationId: 'trusted-operation',
+        },
+      },
+      dataPlatform: { batch: false },
+    });
+
+    const payload = senderCalls[0]!.args[0] as Record<string, any>;
+    expect(payload.headers.traceparent).toBe(
+      '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01',
+    );
+    expect(payload.headers['x-operation-id']).toBe('trusted-operation');
+    expect(payload.headers['x-caller']).toBe('yes');
+  });
 });

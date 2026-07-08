@@ -47,8 +47,8 @@ export const applyRequestContext = (
   return {
     ...normalizedRequest,
     headers: {
-      ...requestHeaders,
       ...(isRecord(normalizedRequest.headers) ? normalizedRequest.headers : {}),
+      ...requestHeaders,
     },
   };
 };
