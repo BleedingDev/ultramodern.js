@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import type { AppTools, CliPlugin } from '@modern-js/app-tools';
 import { getPublicDirRoutePrefixes } from '@modern-js/server-core';
 import type {
@@ -5,8 +7,6 @@ import type {
   NestedRouteForCli,
   PageRoute,
 } from '@modern-js/types';
-import fs from 'fs';
-import path from 'path';
 import {
   applyLocalisedUrlsToRoutes,
   resolveLocalisedUrlsConfig,

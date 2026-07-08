@@ -1,8 +1,8 @@
 // @effect-diagnostics asyncFunction:off strictBooleanExpressions:off
 
+import path from 'node:path';
 import type { NestedRouteForCli, PageRoute } from '@modern-js/types';
 import { MAIN_ENTRY_NAME } from '@modern-js/utils';
-import path from 'path';
 
 import { toTanstackPath } from './shared';
 

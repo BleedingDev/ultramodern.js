@@ -1,9 +1,9 @@
 // @effect-diagnostics asyncFunction:off strictBooleanExpressions:off
 
+import path from 'node:path';
 import { getPathWithoutExt } from '@modern-js/runtime/cli';
 import type { NestedRouteForCli, PageRoute } from '@modern-js/types';
 import { findExists, formatImportPath, slash } from '@modern-js/utils';
-import path from 'path';
 
 const JS_OR_TS_EXTS = [
   '.js',
@@ -16,27 +16,7 @@ const JS_OR_TS_EXTS = [
   '.cts',
 ] as const;
 
-export function toTanstackPath(pathname: string): string {
-  return pathname
-    .split('/')
-    .map(segment => {
-      if (!segment) {
-        return segment;
-      }
-      if (segment === '*') {
-        return '$';
-      }
-      if (segment.startsWith(':')) {
-        const name = segment.slice(1);
-        if (name.endsWith('?')) {
-          return `{-$${name.slice(0, -1)}}`;
-        }
-        return `$${name}`;
-      }
-      return segment;
-    })
-    .join('/');
-}
+export { toTanstackPath } from '../../runtime/routeTree/paths';
 
 export async function resolveFileNoExt(inputNoExtPath: string) {
   const file = findExists(JS_OR_TS_EXTS.map(ext => `${inputNoExtPath}${ext}`));

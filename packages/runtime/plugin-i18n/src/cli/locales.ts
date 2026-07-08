@@ -1,10 +1,10 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import {
   getPublicDirRoutePrefixes,
   normalizePublicDir,
   normalizePublicDirPath,
 } from '@modern-js/server-core';
-import fs from 'fs';
-import path from 'path';
 import type { BackendOptions } from '../shared/type';
 
 interface NormalizedConfigForLocales {

@@ -1,5 +1,5 @@
-import fs from 'fs';
-import nodePath from 'path';
+import fs from 'node:fs';
+import nodePath from 'node:path';
 
 /**
  * Conventional locales roots, in the same priority order as the CLI plugin's

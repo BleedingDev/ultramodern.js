@@ -1,8 +1,6 @@
+import { promises as nodeFs } from 'node:fs';
+import path from 'node:path';
 import { fs } from '@modern-js/utils';
-
-import { promises as nodeFs } from 'fs';
-
-import path from 'path';
 
 import { parseServerRuntimeExtensionsEnv } from '../env';
 

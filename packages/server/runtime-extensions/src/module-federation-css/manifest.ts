@@ -1,10 +1,7 @@
+import path from 'node:path';
 import { fileReader } from '@modern-js/runtime-utils/fileReader';
-
 import type { Monitors } from '@modern-js/types';
-
 import { fs } from '@modern-js/utils';
-
-import path from 'path';
 
 const MODULE_FEDERATION_MANIFEST_FILE = 'mf-manifest.json';
 
