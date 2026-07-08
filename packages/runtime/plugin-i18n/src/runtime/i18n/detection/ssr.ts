@@ -1,5 +1,5 @@
 import { isBrowser, type TRuntimeContext } from '@modern-js/runtime';
-import { isLanguageSupported } from './language';
+import { getSupportedLanguage } from './language';
 
 export function exportServerLngToWindow(context: TRuntimeContext, lng: string) {
   context.__i18nData__ = { lng };
@@ -35,8 +35,9 @@ export const detectLanguageFromSSR = (
 
   try {
     const ssrLanguage = getLanguageFromSSRData(window);
-    if (ssrLanguage && isLanguageSupported(ssrLanguage, languages)) {
-      return ssrLanguage;
+    const supportedLanguage = getSupportedLanguage(ssrLanguage, languages);
+    if (supportedLanguage) {
+      return supportedLanguage;
     }
   } catch (error) {
     // Silently ignore errors

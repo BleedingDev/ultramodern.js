@@ -297,6 +297,32 @@ describe('language detection priority', () => {
       }
     }
   });
+
+  test('regional SSR language resolves to supported base language', async () => {
+    const previousSsrData = (window as any)._SSR_DATA;
+    (window as any)._SSR_DATA = { data: { i18nData: { lng: 'en-US' } } };
+
+    try {
+      await expect(
+        detectLanguageWithPriority(createI18nInstance('cs'), {
+          languages,
+          fallbackLanguage: 'cs',
+          localePathRedirect: true,
+          i18nextDetector: false,
+          detection: {},
+          userInitOptions: {},
+          pathname: '/products',
+          ssrContext: undefined,
+        }),
+      ).resolves.toEqual({ detectedLanguage: 'en', finalLanguage: 'en' });
+    } finally {
+      if (previousSsrData === undefined) {
+        delete (window as any)._SSR_DATA;
+      } else {
+        (window as any)._SSR_DATA = previousSsrData;
+      }
+    }
+  });
 });
 
 describe('framework Link', () => {
