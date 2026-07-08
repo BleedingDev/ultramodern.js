@@ -70,10 +70,13 @@ export const workspaceRootPackageScriptNames = {
 export type WorkspaceRootPackageScriptName =
   (typeof workspaceRootPackageScriptNames)[keyof typeof workspaceRootPackageScriptNames];
 
-export type WorkspaceRootPackageScripts = Record<
-  WorkspaceRootPackageScriptName,
-  string
+export type WorkspaceRootPackageScripts = Partial<
+  Record<WorkspaceRootPackageScriptName, string>
 >;
+
+const shellOnlyOmittedRootScriptPlanKeys = new Set<
+  keyof WorkspaceRootScriptPlan
+>(['backendFederationGenerate', 'nodeProof', 'zeropsMaterialize']);
 
 export interface WorkspaceAppScriptPlan {
   dev: string;
@@ -235,13 +238,22 @@ export function createWorkspaceRootPackageScripts(
   options: { bridgeCheck?: string; typecheck?: string } = {},
 ): WorkspaceRootPackageScripts {
   const plan = createWorkspaceRootScriptPlan(remotes, options);
+  const shellOnly = remotes.length === 0;
 
   return Object.fromEntries(
-    Object.entries(workspaceRootPackageScriptNames).map(
-      ([planKey, packageScriptName]) => [
+    Object.entries(workspaceRootPackageScriptNames)
+      .filter(
+        ([planKey]) =>
+          !(
+            shellOnly &&
+            shellOnlyOmittedRootScriptPlanKeys.has(
+              planKey as keyof WorkspaceRootScriptPlan,
+            )
+          ),
+      )
+      .map(([planKey, packageScriptName]) => [
         packageScriptName,
         plan[planKey as keyof WorkspaceRootScriptPlan],
-      ],
-    ),
+      ]),
   ) as WorkspaceRootPackageScripts;
 }

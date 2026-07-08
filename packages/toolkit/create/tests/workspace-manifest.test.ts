@@ -88,13 +88,10 @@ const expectedWorkspaceManifest = [
   'scripts/bootstrap-agent-skills.mts',
   'scripts/check-ultramodern-api-boundaries.mts',
   'scripts/check-ultramodern-i18n-boundaries.mts',
-  'scripts/generate-node-backend-federation.mts',
   'scripts/generate-public-surface-assets.mts',
   'scripts/generate-tanstack-routes.mts',
-  'scripts/materialize-zerops-runtime.mjs',
   'scripts/migrate-strict-effect.mts',
   'scripts/proof-cloudflare-version.mts',
-  'scripts/proof-node-backend-federation.mts',
   'scripts/setup-agent-reference-repos.mts',
   'scripts/ultramodern-performance-readiness.config.mjs',
   'scripts/ultramodern-performance-readiness.mts',
@@ -114,6 +111,9 @@ const expectedWorkspaceManifest = [
  * "catalog" joins the workspace.
  */
 const expectedVerticalManifest = [
+  'scripts/generate-node-backend-federation.mts',
+  'scripts/materialize-zerops-runtime.mjs',
+  'scripts/proof-node-backend-federation.mts',
   'verticals/catalog/api/backend-federation.ts',
   'verticals/catalog/api/effect-api.ts',
   'verticals/catalog/api/index.ts',
@@ -273,13 +273,14 @@ test('generated workspace file manifest matches the checked-in snapshot', () => 
       '.modernjs/ultramodern.json',
     );
     assert.deepEqual(verticalResult.warnings, []);
-    assert.deepEqual(listFiles(workspaceDir), [
+    const expectedWorkspaceWithCatalog = [
       ...expectedWorkspaceManifest.filter(
         relativePath => relativePath !== 'zerops.yaml',
       ),
       ...expectedVerticalManifest,
       'zerops.yaml',
-    ]);
+    ].sort();
+    assert.deepEqual(listFiles(workspaceDir), expectedWorkspaceWithCatalog);
 
     const filesAfterCatalog = listFiles(workspaceDir);
     assert.throws(

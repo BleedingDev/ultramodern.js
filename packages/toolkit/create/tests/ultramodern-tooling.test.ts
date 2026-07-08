@@ -195,6 +195,43 @@ test('migrate keeps version fields consistent across the compact config', async 
   }
 });
 
+test('fresh shell-only workspace omits backend-federation and Zerops runtime surfaces', () => {
+  const { tempRoot, workspaceDir } = scaffoldWorkspace(
+    'tooling-shell-only-fresh',
+  );
+
+  try {
+    const rootPackage = readJson(workspaceDir, 'package.json');
+
+    assert.doesNotMatch(rootPackage.scripts.check, /node:proof/u);
+    assert.doesNotMatch(
+      rootPackage.scripts.check,
+      /node:backend-federation:generate/u,
+    );
+    assert.equal(rootPackage.scripts['node:proof'], undefined);
+    assert.equal(
+      rootPackage.scripts['node:backend-federation:generate'],
+      undefined,
+    );
+    assert.equal(rootPackage.scripts['zerops:materialize'], undefined);
+    assert.equal(
+      exists(workspaceDir, 'scripts/generate-node-backend-federation.mts'),
+      false,
+    );
+    assert.equal(
+      exists(workspaceDir, 'scripts/proof-node-backend-federation.mts'),
+      false,
+    );
+    assert.equal(
+      exists(workspaceDir, 'scripts/materialize-zerops-runtime.mjs'),
+      false,
+    );
+    assertNoDanglingScriptReferences(workspaceDir);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test('migrate does not inject backend-federation gates into a shell-only workspace', async () => {
   const { tempRoot, workspaceDir } = scaffoldWorkspace('tooling-shell-only');
 

@@ -66,8 +66,14 @@ function writeGeneratedToolWrapperScript(
   );
 }
 
-export function writeGeneratedToolWrapperScripts(targetDir: string) {
+export function writeGeneratedToolWrapperScripts(
+  targetDir: string,
+  options: { shellOnly?: boolean } = {},
+) {
   for (const command of generatedToolingCommands) {
+    if (options.shellOnly && BACKEND_FEDERATION_WRAPPER_IDS.has(command.id)) {
+      continue;
+    }
     writeGeneratedToolWrapperScript(targetDir, command.id);
   }
 }
@@ -224,8 +230,10 @@ export function writeGeneratedWorkspaceScripts(
   targetDir: string,
   _scope: string,
   _enableTailwind: boolean,
-  _remotes: WorkspaceApp[] = [],
+  remotes: WorkspaceApp[] = [],
 ) {
+  const shellOnly = remotes.length === 0;
+
   writeWorkspaceOwnedMtsScript(
     targetDir,
     'check-ultramodern-i18n-boundaries',
@@ -236,17 +244,19 @@ export function writeGeneratedWorkspaceScripts(
     'check-ultramodern-api-boundaries',
     createWorkspaceApiBoundaryValidationScript(),
   );
-  writeFileReplacing(
-    targetDir,
-    'scripts/materialize-zerops-runtime.mjs',
-    createZeropsRuntimeMaterializationScript(),
-  );
+  if (!shellOnly) {
+    writeFileReplacing(
+      targetDir,
+      'scripts/materialize-zerops-runtime.mjs',
+      createZeropsRuntimeMaterializationScript(),
+    );
+  }
   writeFileReplacing(
     targetDir,
     'scripts/ultramodern-performance-readiness.config.mjs',
     createPerformanceReadinessConfigScript(),
   );
-  writeGeneratedToolWrapperScripts(targetDir);
+  writeGeneratedToolWrapperScripts(targetDir, { shellOnly });
   writeWorkspaceOwnedMtsScript(
     targetDir,
     'bootstrap-agent-skills',
