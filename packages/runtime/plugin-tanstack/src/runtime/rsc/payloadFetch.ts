@@ -31,6 +31,7 @@ export function isServerPayload(value: unknown): value is ServerPayload {
 export function createPayloadFetchKey(request: Request) {
   return JSON.stringify([
     request.url,
+    request.method,
     [...request.headers.entries()].sort(([left], [right]) =>
       left.localeCompare(right),
     ),
