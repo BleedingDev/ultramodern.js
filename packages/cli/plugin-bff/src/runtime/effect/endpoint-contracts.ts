@@ -32,11 +32,11 @@ export type HttpApiLike = {
   identifier?: unknown;
 };
 
-export type HttpApiGroupLike = {
+type HttpApiGroupLike = {
   identifier?: unknown;
 };
 
-export type HttpApiEndpointLike = {
+type HttpApiEndpointLike = {
   name?: unknown;
   method?: unknown;
   path?: unknown;
@@ -65,7 +65,7 @@ export function normalizeEffectPrefix(prefix: string) {
   return ensureLeadingSlash(prefix || '/api');
 }
 
-export function getEffectRoutePath(prefix: string, endpointPath: string) {
+function getEffectRoutePath(prefix: string, endpointPath: string) {
   const normalizedPrefix = normalizeEffectPrefix(prefix);
   const normalizedEndpointPath = ensureLeadingSlash(endpointPath);
   const finalEndpointPath = normalizedEndpointPath === '/' ? '' : endpointPath;
@@ -75,7 +75,7 @@ export function getEffectRoutePath(prefix: string, endpointPath: string) {
   return `${normalizedPrefix}${finalEndpointPath || ''}`;
 }
 
-export function resolveEffectApiId(api: HttpApiLike): string {
+function resolveEffectApiId(api: HttpApiLike): string {
   const fallback = 'EffectHttpApi';
   if (
     'identifier' in api &&
@@ -127,7 +127,7 @@ export function toOperationContractSources(
   return endpoints.map(createEffectOperationContractSource);
 }
 
-export function createEffectOperationContractSource(
+function createEffectOperationContractSource(
   endpoint: EffectEndpointMeta,
 ): OperationContractSource {
   return {

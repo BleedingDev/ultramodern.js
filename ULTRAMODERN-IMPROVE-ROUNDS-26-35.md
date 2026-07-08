@@ -249,9 +249,29 @@ dts build (tsgo) catches any exported-signature dependency → revert.
 (RSC/client entry points).
 Verify: **build (tsgo dts) exit 0, 923 tests pass.**
 
-This pattern repeats across every fork package (plugin-bff, runtime-extensions,
-create-request, plugin-i18n, create) → the mechanical "merciless" reduction the
-brief asks for, done safely. Continuing R32+.
+This pattern repeats across every fork package. Continuing R32+.
+
+Status: **DONE ✅** — committed `cf4385ed66`.
+
+---
+
+## Round 32 — public-API surface reduction (plugin-bff)
+
+Same sweep on plugin-bff, with two extra safety gates: **exclude vanilla files**
+(`constants.ts`, `hono/operators.ts`, `createHonoRoutes.ts`) and **exclude
+`export *`-chained files** (`edge.ts`, `backend-federation-manifest/metadata.ts`
+— reachable as public API invisibly to name-grep).
+
+**21 symbols de-exported across 6 fork files:** `data-platform/batch/queue`
+(3), `batch/response` (1), `effect/dispatch` (6), `effect/endpoint-contracts`
+(5), `effect/entry-shape` (4), `effect/module` (2).
+
+Build+test oracle caught a real mistake: my `^export` de-export regex also
+matched `export type GeneratedEffectOperationManifest` **inside a codegen
+template string** in `effect-client-generator/rendering.ts` — corrupting emitted
+output; the declaration-snapshot test failed. Reverted that one file; the sweep
+is codegen-aware now. Verify: **build (tsgo dts) exit 0; plugin-bff tests
+0 failed** (5349 tests).
 
 Status: **DONE ✅** (committing).
 

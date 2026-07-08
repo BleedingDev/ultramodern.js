@@ -39,12 +39,12 @@ export type EffectApiModule = {
   default?: unknown;
 };
 
-export type LoadedEffectBffHandler = {
+type LoadedEffectBffHandler = {
   handler: EffectBffRequestHandler;
   dispose?: () => Promise<void>;
 };
 
-export type ResolveEffectBffModuleHandlerOptions = {
+type ResolveEffectBffModuleHandlerOptions = {
   openapi?: EffectBffOpenApiConfig;
   dataPlatform?: EffectDataPlatformValidationOptions;
   /**

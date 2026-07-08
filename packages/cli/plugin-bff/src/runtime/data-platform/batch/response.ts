@@ -2,9 +2,7 @@
 import { isPlainObject } from '../codec';
 import type { DataBatchResponseItem, DataBatchResponsePayload } from '../types';
 
-export function isBatchResponseItem(
-  value: unknown,
-): value is DataBatchResponseItem {
+function isBatchResponseItem(value: unknown): value is DataBatchResponseItem {
   return (
     isPlainObject(value) &&
     typeof value.id === 'string' &&

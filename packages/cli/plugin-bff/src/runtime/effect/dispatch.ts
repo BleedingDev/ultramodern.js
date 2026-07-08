@@ -6,7 +6,7 @@ import {
   type EffectContext,
 } from './operation-context';
 
-export type EffectDispatchContextRunner = <T>(
+type EffectDispatchContextRunner = <T>(
   context: EffectContext,
   cb: () => T,
 ) => T;
@@ -23,14 +23,14 @@ export type DispatchEffectBffRequestOptions = {
   ) => Promise<Response> | Response;
 };
 
-export function normalizeEffectBffPrefix(prefix: string | undefined) {
+function normalizeEffectBffPrefix(prefix: string | undefined) {
   if (!prefix || prefix === '/') {
     return '';
   }
   return prefix.endsWith('/') ? prefix.slice(0, -1) : prefix;
 }
 
-export function removeEffectBffPrefixFromPath(
+function removeEffectBffPrefixFromPath(
   pathname: string,
   prefix: string | undefined,
 ) {
@@ -45,10 +45,7 @@ export function removeEffectBffPrefixFromPath(
   return sliced.startsWith('/') ? sliced : `/${sliced}`;
 }
 
-export function matchesEffectBffPrefix(
-  pathname: string,
-  prefix: string | undefined,
-) {
+function matchesEffectBffPrefix(pathname: string, prefix: string | undefined) {
   const normalized = normalizeEffectBffPrefix(prefix);
   return (
     !normalized ||
@@ -57,7 +54,7 @@ export function matchesEffectBffPrefix(
   );
 }
 
-export function createEffectBffMountedRequest(
+function createEffectBffMountedRequest(
   req: Request,
   prefix: string | undefined,
 ) {
@@ -70,7 +67,7 @@ export function createEffectBffMountedRequest(
   return req;
 }
 
-export function createEffectBffDispatchContext(
+function createEffectBffDispatchContext(
   originalRequest: Request,
   mountedRequest: Request,
   options: Omit<DispatchEffectBffRequestOptions, 'runWithEffectContext'>,

@@ -30,7 +30,7 @@ type CreateBatchTransportQueueOptions = {
   baseFetch: DataBatchFetch;
 };
 
-export type QueuedBatchRequest = {
+type QueuedBatchRequest = {
   key: string;
   endpoint: string;
   requestUrl: string;
@@ -41,14 +41,14 @@ export type QueuedBatchRequest = {
   reject: (reason: unknown) => void;
 };
 
-export type BatchBucket = {
+type BatchBucket = {
   items: QueuedBatchRequest[];
   bytes: number;
   timer: ReturnType<typeof setTimeout> | null;
   flushing: boolean;
 };
 
-export function ensureBucket(
+function ensureBucket(
   buckets: Map<string, BatchBucket>,
   endpoint: string,
 ): BatchBucket {

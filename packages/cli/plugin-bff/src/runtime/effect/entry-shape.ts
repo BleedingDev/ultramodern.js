@@ -1,4 +1,4 @@
-export type EffectBffEntryModule = {
+type EffectBffEntryModule = {
   api?: unknown;
   layer?: unknown;
   handler?: unknown;
@@ -6,9 +6,7 @@ export type EffectBffEntryModule = {
   default?: unknown;
 };
 
-export type LegacyEffectBffEntryShape =
-  | '`handler` export'
-  | 'default request handler';
+type LegacyEffectBffEntryShape = '`handler` export' | 'default request handler';
 
 export type EffectBffEntryShapeFacts = {
   module: EffectBffEntryModule;
@@ -20,7 +18,7 @@ export type EffectBffEntryShapeFacts = {
   hasRuntimeLayer: boolean;
 };
 
-export type EffectBffEntryShapePredicates = {
+type EffectBffEntryShapePredicates = {
   isRequestHandler: (value: unknown) => boolean;
   isValidatorAwareHandlerFactory: (value: unknown) => boolean;
   isHttpApi: (value: unknown) => boolean;
@@ -46,9 +44,7 @@ export function isValidatorAwareHandlerFactory(factory: unknown): boolean {
 export const strictEffectApproachMessage =
   '[BFF][Effect] strictEffectApproach is enforced: Effect API entries export defineEffectBff(...) or { api, layer } HttpApi module. Raw handler exports, default request handlers, unbranded custom createHandler factories not valid Effect API entries.';
 
-export function isEffectEntryRecord(
-  value: unknown,
-): value is Record<string, unknown> {
+function isEffectEntryRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
