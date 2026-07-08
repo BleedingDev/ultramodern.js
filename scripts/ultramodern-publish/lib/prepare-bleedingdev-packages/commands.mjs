@@ -1,4 +1,4 @@
-import { execFileSync, spawn } from 'node:child_process';
+import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { repoRoot } from './constants.mjs';
 
 function run(command, args, options = {}) {
