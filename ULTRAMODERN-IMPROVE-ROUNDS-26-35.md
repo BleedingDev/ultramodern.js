@@ -285,6 +285,19 @@ Status: **DONE ✅** — committed `9e4726ad8c`.
 All FORK-owned, no `export *` reach, 0 external refs. Verify: **build (tsgo dts)
 exit 0; runtime-extensions tests 0 failed.**
 
+Status: **DONE ✅** — committed `f6bfa243c8`.
+
+---
+
+## Round 34 — public-API surface reduction (create-request + code-tools)
+
+Export* audit excluded public-via-entry files (create-request
+`types`/`traceparent`/`requestContext`; code-tools `oxlint-plugin/*`).
+**5 symbols de-exported across 3 fork files:** `create-request/policyCore`
+(`isStrictDefaultRequestIdEnabled`, `OperationContextPayload`),
+`code-tools/cli/i18n-check` (2), `code-tools/cli/workspace-source-check` (1).
+Verify: **both packages build (tsgo dts) exit 0; tests 0 failed.**
+
 Status: **DONE ✅** (committing).
 
 ### Guardrail log (upstream-compat exclusions)

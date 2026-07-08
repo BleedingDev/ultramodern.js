@@ -38,7 +38,7 @@ const readProcessEnv = (key: string) => {
   return process.env[key];
 };
 
-export const isStrictDefaultRequestIdEnabled = () =>
+const isStrictDefaultRequestIdEnabled = () =>
   readProcessEnv('MODERN_BFF_STRICT_DEFAULT_REQUEST_ID') === 'true';
 
 export const isSecuredRequestId = (requestId: string) =>
@@ -159,7 +159,7 @@ export const buildOperationContext = ({
   };
 };
 
-export type OperationContextPayload = ReturnType<typeof buildOperationContext>;
+type OperationContextPayload = ReturnType<typeof buildOperationContext>;
 
 export class ProducerClientNotInitializedError extends Error {
   readonly code = 'BFF_PRODUCER_CLIENT_NOT_INITIALIZED';

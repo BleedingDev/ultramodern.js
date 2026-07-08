@@ -25,7 +25,7 @@ type LocaleJson = {
   readonly [key: string]: unknown;
 };
 
-export const WORKSPACE_SOURCE_SUCCESS =
+const WORKSPACE_SOURCE_SUCCESS =
   'UltraModern i18n and boundary guardrails validated';
 
 const DEFAULT_LOCALES = ['en', 'cs'] as const;

@@ -5,10 +5,9 @@ type SingleAppI18nCheckOptions = {
   readonly targets?: readonly string[];
 };
 
-export const SINGLE_APP_I18N_SUCCESS =
-  'No hardcoded user-visible JSX strings found.';
+const SINGLE_APP_I18N_SUCCESS = 'No hardcoded user-visible JSX strings found.';
 
-export const SINGLE_APP_I18N_FAILURE =
+const SINGLE_APP_I18N_FAILURE =
   'Hardcoded user-visible JSX strings found. Move copy to locale JSON files.';
 
 export const runSingleAppI18nCheck = ({
