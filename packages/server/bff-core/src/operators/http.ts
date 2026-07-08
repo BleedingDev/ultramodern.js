@@ -219,7 +219,7 @@ export const Upload = <Schema extends z.ZodType>(
   schema?: Schema,
 ): Operator<
   {
-    files: z.input<Schema>;
+    formData: z.input<Schema>;
   },
   {
     formData: z.output<Schema>;
@@ -242,12 +242,12 @@ export const Upload = <Schema extends z.ZodType>(
       }
 
       const {
-        inputs: { formData: files },
+        inputs: { formData },
       } = helper;
 
       (helper.inputs as any) = {
         ...helper.inputs,
-        files: await validateInput(schema, files as z.input<Schema>),
+        formData: await validateInput(schema, formData as z.input<Schema>),
       };
       return next();
     },

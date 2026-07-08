@@ -9,6 +9,7 @@ import {
   Redirect,
   ResponseMetaType,
   SetHeaders,
+  Upload,
   ValidationError,
 } from '../../src';
 
@@ -198,6 +199,27 @@ describe('test api function', () => {
         },
       }),
     ).rejects.toThrow(ValidationError);
+  });
+
+  test('should expose validated upload formData to handler', async () => {
+    const UploadSchema = z.object({
+      size: z.string().transform(value => Number(value)),
+    });
+
+    const handler = Api(
+      Upload('/api/upload', UploadSchema),
+      async ({ formData }) => {
+        return { formData };
+      },
+    );
+
+    const result = await handler({
+      formData: { size: '42' },
+    } as any);
+
+    type Case = Expect<Assert<typeof result.formData, { size: number }>>;
+
+    expect(result).toEqual({ formData: { size: 42 } });
   });
 
   test('should set response metadata correctly', async () => {
