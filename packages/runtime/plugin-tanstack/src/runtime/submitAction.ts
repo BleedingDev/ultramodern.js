@@ -129,7 +129,7 @@ export async function submitRouteAction({
     }
 
     await router.navigate({
-      href: search ? `${resolved.href}?${search}` : resolved.href,
+      href: `${requestUrl.pathname}${requestUrl.search}${requestUrl.hash}`,
     } as any);
     return;
   }

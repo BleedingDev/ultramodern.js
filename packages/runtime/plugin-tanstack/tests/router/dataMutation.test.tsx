@@ -277,6 +277,28 @@ describe('tanstack data mutation fetcher', () => {
     expect(states).toEqual(['idle', 'loading', 'idle']);
   });
 
+  test('GET Form navigation replaces action query before hash', async () => {
+    currentRouter = createRouter({});
+
+    render(
+      <Form method="get" action="/products?sort=old#results">
+        <input name="q" defaultValue="boots" />
+        <button type="submit">Search</button>
+      </Form>,
+    );
+
+    const form = document.querySelector('form');
+    expect(form).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.submit(form!);
+    });
+
+    expect(currentRouter.navigate).toHaveBeenCalledWith({
+      href: '/products?q=boots#results',
+    });
+  });
+
   test('keeps non-idle state while overlapping mutation submits are still active', async () => {
     const actionResults = [
       createDeferred<Response>(),
