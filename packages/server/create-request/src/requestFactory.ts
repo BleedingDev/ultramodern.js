@@ -225,6 +225,17 @@ export const createRequestFactory = <F>(
         if (resolvedHeaders && typeof resolvedHeaders === 'object') {
           for (const key of targetAllowedHeaders) {
             if (typeof resolvedHeaders[key] !== 'undefined') {
+              if (
+                identityBindingEnabled &&
+                protectedIdentityHeaders.includes(key.toLowerCase())
+              ) {
+                writeHeader(
+                  forwardedHeaders,
+                  key.toLowerCase(),
+                  resolvedHeaders[key],
+                );
+                continue;
+              }
               forwardedHeaders[key] = resolvedHeaders[key];
             }
           }
