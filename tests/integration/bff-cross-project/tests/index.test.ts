@@ -1,5 +1,6 @@
 import dns from 'node:dns';
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'path';
 import puppeteer, { type Browser, type Page } from 'puppeteer';
 import {
@@ -23,6 +24,7 @@ const conditionalTest = process.env.LOCAL_TEST === 'true' ? test : test.skip;
 dns.setDefaultResultOrder('ipv4first');
 
 const apiAppDir = path.resolve(__dirname, '../bff-api-app');
+const requireFromApiApp = createRequire(path.join(apiAppDir, 'package.json'));
 const appDir = path.resolve(__dirname, '../bff-client-app');
 const indepAppDir = path.resolve(__dirname, '../bff-indep-client-app');
 const buildDoneMarker = /(?:^|\n)File \((?:client|server)\)\s+/i;
@@ -165,6 +167,109 @@ const testEffectOpenApiWorked = async ({
 };
 
 describe.sequential('cross project bff', () => {
+  describe('producer effect runtime contracts', () => {
+    test('effect-client runtime preserves strict envelope fallback semantics', async () => {
+      const runtime = requireFromApiApp(
+        '@modern-js/plugin-bff/effect-client-runtime',
+      );
+      const dataPlatform = requireFromApiApp(
+        '@modern-js/plugin-bff/data-platform',
+      );
+      const manifest = {
+        endpoints: [
+          {
+            apiId: 'EffectHttpApi',
+            group: 'greetings',
+            endpoint: 'hello',
+            method: 'GET',
+            routePath: '/api-app/effect/hello',
+            schemaHash: 'a'.repeat(64),
+            operationVersion: 2,
+          },
+        ],
+      };
+      const config = {
+        appNamespace: PRODUCER_REQUEST_ID,
+        port: 3399,
+        defaultOrigin: 'http://localhost:3399',
+        httpMethodDecider: 'functionName',
+        batch: {
+          enabled: false,
+          endpoint: '/api-app/_data/batch',
+          flushIntervalMs: 8,
+          maxBatchSize: 16,
+          maxBatchBytes: 65536,
+          requestTimeoutMs: 10000,
+          allowedMethods: ['GET'],
+        },
+      };
+      const sentPayloads: Array<Record<string, any>> = [];
+      const createRequestCalls: Array<Record<string, any>> = [];
+      const requestRuntime = {
+        createRequest(options: Record<string, any>) {
+          createRequestCalls.push(options);
+          return (payload: Record<string, any>) => {
+            sentPayloads.push(payload);
+            return Promise.resolve({ ok: true });
+          };
+        },
+      };
+
+      const generated = runtime.createGeneratedEffectClient(
+        manifest,
+        config,
+        requestRuntime,
+      );
+
+      expect(createRequestCalls[0].operationContext).toMatchObject({
+        operationId: 'GET:/api-app/effect/hello',
+        routePath: '/api-app/effect/hello',
+        method: 'GET',
+        schemaHash: 'a'.repeat(64),
+        operationVersion: 2,
+      });
+
+      await expect(
+        Promise.resolve().then(() =>
+          generated.client.greetings.hello({
+            dataPlatform: { requireEnvelope: true, requireTraceContext: true },
+          }),
+        ),
+      ).rejects.toThrow(/Trace context (is )?required/);
+
+      sentPayloads.length = 0;
+      await expect(
+        generated.client.greetings.hello({
+          dataPlatform: { requireTraceContext: true },
+        }),
+      ).resolves.toEqual({ ok: true });
+      expect(sentPayloads).toHaveLength(1);
+      expect(
+        sentPayloads[0].headers?.[dataPlatform.DEFAULT_DATA_ENVELOPE_HEADER],
+      ).toBeUndefined();
+
+      sentPayloads.length = 0;
+      await expect(
+        generated.client.greetings.hello({
+          requestContext: {
+            traceparent:
+              '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01',
+          },
+          dataPlatform: { allowCrossOriginEnvelope: true, batch: false },
+        }),
+      ).resolves.toEqual({ ok: true });
+      expect(sentPayloads).toHaveLength(1);
+      const headers = sentPayloads[0].headers;
+      expect(headers[dataPlatform.DEFAULT_DATA_BATCH_HEADER]).toBe('off');
+      expect(typeof headers[dataPlatform.DEFAULT_DATA_ENVELOPE_HEADER]).toBe(
+        'string',
+      );
+      expect(
+        headers[dataPlatform.DEFAULT_DATA_ENVELOPE_HEADER].length,
+      ).toBeGreaterThan(0);
+    });
+  });
+
   describe('bff client-app in dev', () => {
     const expectedText = 'Hello get bff-api-app';
     let port = 0;
