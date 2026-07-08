@@ -72,9 +72,57 @@ export function assertSafeRelativePath(relativePath: string) {
   }
 }
 
-export function ensureInsideRoot(root: string, targetPath: string) {
+function isPathInsideRoot(root: string, targetPath: string): boolean {
   const relativePath = path.relative(root, targetPath);
-  if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+  return (
+    relativePath === '' ||
+    (!relativePath.startsWith('..') && !path.isAbsolute(relativePath))
+  );
+}
+
+function findExistingAncestor(targetPath: string): string | undefined {
+  let currentPath = targetPath;
+
+  while (!fs.existsSync(currentPath)) {
+    const parentPath = path.dirname(currentPath);
+    if (parentPath === currentPath) {
+      return undefined;
+    }
+    currentPath = parentPath;
+  }
+
+  return currentPath;
+}
+
+export function ensureInsideRoot(root: string, targetPath: string) {
+  const absoluteRoot = path.resolve(root);
+  const absoluteTargetPath = path.resolve(targetPath);
+
+  if (!isPathInsideRoot(absoluteRoot, absoluteTargetPath)) {
+    throw new Error(`Refusing to write outside workspace root: ${targetPath}`);
+  }
+
+  if (!fs.existsSync(absoluteRoot)) {
+    return;
+  }
+
+  const existingAncestor = findExistingAncestor(absoluteTargetPath);
+  if (!existingAncestor) {
+    return;
+  }
+
+  const rootRealPath = fs.realpathSync.native(absoluteRoot);
+  const ancestorRealPath = fs.realpathSync.native(existingAncestor);
+  const unresolvedRelativePath = path.relative(
+    existingAncestor,
+    absoluteTargetPath,
+  );
+  const resolvedTargetPath = path.resolve(
+    ancestorRealPath,
+    unresolvedRelativePath,
+  );
+
+  if (!isPathInsideRoot(rootRealPath, resolvedTargetPath)) {
     throw new Error(`Refusing to write outside workspace root: ${targetPath}`);
   }
 }
