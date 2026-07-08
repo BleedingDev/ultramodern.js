@@ -1,0 +1,156 @@
+[
+  {
+    "id": ":lang",
+    "path": ":lang",
+    "type": "nested",
+    "origin": "file-system",
+    "routeType": "layout",
+    "_component": ":lang.tsx",
+    "children": [
+      {
+        "id": "about",
+        "path": "about",
+        "type": "nested",
+        "origin": "file-system",
+        "routeType": "page",
+        "_component": "about.tsx",
+        "modernCanonicalPath": "/about"
+      },
+      {
+        "id": "about__localised_o-nas",
+        "path": "o-nas",
+        "type": "nested",
+        "origin": "file-system",
+        "routeType": "page",
+        "_component": "about.tsx",
+        "modernCanonicalPath": "/about"
+      },
+      {
+        "id": "about__localised_ueber-uns",
+        "path": "ueber-uns",
+        "type": "nested",
+        "origin": "file-system",
+        "routeType": "page",
+        "_component": "about.tsx",
+        "modernCanonicalPath": "/about"
+      },
+      {
+        "id": "products",
+        "path": "products",
+        "type": "nested",
+        "origin": "file-system",
+        "routeType": "layout",
+        "_component": "products.tsx",
+        "children": [
+          {
+            "id": ":slug",
+            "path": ":slug",
+            "type": "nested",
+            "origin": "file-system",
+            "routeType": "page",
+            "_component": ":slug.tsx",
+            "modernCanonicalPath": "/products/:slug"
+          }
+        ],
+        "modernCanonicalPath": "/products"
+      },
+      {
+        "id": "products__localised_produkty",
+        "path": "produkty",
+        "type": "nested",
+        "origin": "file-system",
+        "routeType": "layout",
+        "_component": "products.tsx",
+        "children": [
+          {
+            "id": ":slug__localised_produkty",
+            "path": ":slug",
+            "type": "nested",
+            "origin": "file-system",
+            "routeType": "page",
+            "_component": ":slug.tsx",
+            "modernCanonicalPath": "/products/:slug"
+          }
+        ],
+        "modernCanonicalPath": "/products"
+      },
+      {
+        "id": "products__localised_produkte",
+        "path": "produkte",
+        "type": "nested",
+        "origin": "file-system",
+        "routeType": "layout",
+        "_component": "products.tsx",
+        "children": [
+          {
+            "id": ":slug__localised_produkte",
+            "path": ":slug",
+            "type": "nested",
+            "origin": "file-system",
+            "routeType": "page",
+            "_component": ":slug.tsx",
+            "modernCanonicalPath": "/products/:slug"
+          }
+        ],
+        "modernCanonicalPath": "/products"
+      },
+      {
+        "id": "docs",
+        "path": "docs",
+        "type": "nested",
+        "origin": "file-system",
+        "routeType": "layout",
+        "_component": "docs.tsx",
+        "children": [
+          {
+            "id": "*",
+            "path": "*",
+            "type": "nested",
+            "origin": "file-system",
+            "routeType": "page",
+            "_component": "*.tsx"
+          }
+        ],
+        "modernCanonicalPath": "/docs"
+      },
+      {
+        "id": "docs__localised_dokumenty",
+        "path": "dokumenty",
+        "type": "nested",
+        "origin": "file-system",
+        "routeType": "layout",
+        "_component": "docs.tsx",
+        "children": [
+          {
+            "id": "*__localised_dokumenty",
+            "path": "*",
+            "type": "nested",
+            "origin": "file-system",
+            "routeType": "page",
+            "_component": "*.tsx"
+          }
+        ],
+        "modernCanonicalPath": "/docs"
+      },
+      {
+        "id": "docs__localised_dokumente",
+        "path": "dokumente",
+        "type": "nested",
+        "origin": "file-system",
+        "routeType": "layout",
+        "_component": "docs.tsx",
+        "children": [
+          {
+            "id": "*__localised_dokumente",
+            "path": "*",
+            "type": "nested",
+            "origin": "file-system",
+            "routeType": "page",
+            "_component": "*.tsx"
+          }
+        ],
+        "modernCanonicalPath": "/docs"
+      }
+    ]
+  }
+]

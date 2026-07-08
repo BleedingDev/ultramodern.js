@@ -1,3 +1,5 @@
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import path from 'node:path';
 import type { NestedRouteForCli } from '@modern-js/types';
 import { describe, expect, test } from '@rstest/core';
 import { i18nPlugin as i18nCliPlugin } from '../src/cli';
@@ -16,6 +18,12 @@ import {
   resolveLocalisedUrlsConfig,
   validateLocalisedUrls,
 } from '../src/shared/localisedUrls';
+
+const localisedRoutesGoldenPath = path.join(
+  __dirname,
+  'fixtures',
+  'localised-routes.golden.json',
+);
 
 const createRoute = (
   path: string,
@@ -36,6 +44,9 @@ const createRequestContext = (pathname: string) =>
       url: `http://localhost${pathname}`,
     },
   }) as any;
+
+const serializeRoutesForGolden = (routes: unknown): string =>
+  `${JSON.stringify(routes, null, 2)}\n`;
 
 describe('resolveLocalisedUrlsConfig', () => {
   test('is opt-in: only a non-empty map enables the feature', () => {
@@ -107,6 +118,70 @@ describe('cli modifyFileSystemRoutes', () => {
     expect(modifyRoutes).toBeDefined();
     return modifyRoutes!;
   };
+
+  const generateLocalisedRoutesGolden = (): string => {
+    const modifyRoutes = setupModifyRoutes({
+      localePathRedirect: true,
+      languages: ['en', 'cs', 'de'],
+      localisedUrls: {
+        '/about': {
+          en: '/about',
+          cs: '/o-nas',
+          de: '/ueber-uns',
+        },
+        '/products': {
+          en: '/products',
+          cs: '/produkty',
+          de: '/produkte',
+        },
+        '/products/:slug': {
+          en: '/products/:slug',
+          cs: '/produkty/:slug',
+          de: '/produkte/:slug',
+        },
+        '/docs': {
+          en: '/docs',
+          cs: '/dokumenty',
+          de: '/dokumente',
+        },
+        '/docs/*': {
+          en: '/docs/*',
+          cs: '/dokumenty/*',
+          de: '/dokumente/*',
+        },
+      },
+    });
+    const routes = [
+      createRoute(':lang', [
+        createRoute('about'),
+        createRoute('products', [createRoute(':slug')]),
+        createRoute('docs', [createRoute('*')]),
+      ]),
+    ];
+
+    const result = modifyRoutes({
+      entrypoint: { entryName: 'main' },
+      routes,
+    });
+
+    return serializeRoutesForGolden(result.routes);
+  };
+
+  test('matches checked-in localised routes golden output', async () => {
+    const localisedRoutes = generateLocalisedRoutesGolden();
+    const repeatedLocalisedRoutes = generateLocalisedRoutesGolden();
+
+    expect(repeatedLocalisedRoutes).toBe(localisedRoutes);
+
+    if (process.env.UPDATE_I18N_LOCALISED_ROUTES_GOLDEN === '1') {
+      await mkdir(path.dirname(localisedRoutesGoldenPath), { recursive: true });
+      await writeFile(localisedRoutesGoldenPath, localisedRoutes);
+    }
+
+    await expect(readFile(localisedRoutesGoldenPath, 'utf8')).resolves.toBe(
+      localisedRoutes,
+    );
+  });
 
   test('upstream-style configs without a map keep routes untouched', () => {
     const modifyRoutes = setupModifyRoutes({
