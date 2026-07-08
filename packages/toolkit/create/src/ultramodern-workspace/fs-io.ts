@@ -307,26 +307,6 @@ export function collectTemplateFiles(dir: string): string[] {
   return files;
 }
 
-export function hashFile(filePath: string): string {
-  return crypto
-    .createHash('sha256')
-    .update(fs.readFileSync(filePath))
-    .digest('hex');
-}
-
-export function hashTemplateTree(dir: string): string {
-  const hash = crypto.createHash('sha256');
-
-  for (const relativePath of collectTemplateFiles(dir)) {
-    hash.update(relativePath);
-    hash.update('\0');
-    hash.update(hashFile(path.join(dir, relativePath)));
-    hash.update('\0');
-  }
-
-  return hash.digest('hex');
-}
-
 export function copyRootTemplate(
   targetDir: string,
   data: Record<string, string>,

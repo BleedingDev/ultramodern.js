@@ -37,13 +37,6 @@ export type ResolvedUltramodernPackageSource = {
   aliasPackageNamePrefix?: string;
 };
 
-export type UltramodernModernPackagesMetadata = {
-  packages: string[];
-  specifier: string;
-  registry?: string;
-  aliases?: Record<string, string>;
-};
-
 export function modernPackageVersion(
   packageSource: ResolvedUltramodernPackageSource,
 ): string {
@@ -52,7 +45,7 @@ export function modernPackageVersion(
     : WORKSPACE_PACKAGE_VERSION;
 }
 
-export function modernAliasPackageName(
+function modernAliasPackageName(
   packageName: string,
   packageSource: ResolvedUltramodernPackageSource,
 ): string {
@@ -80,39 +73,4 @@ export function modernPackageSpecifier(
   return `npm:${modernAliasPackageName(packageName, packageSource)}@${
     packageSource.modernPackageVersion
   }`;
-}
-
-export function modernPackageAliases(
-  packageNames: readonly string[],
-  packageSource: ResolvedUltramodernPackageSource,
-): Record<string, string> | undefined {
-  if (!packageSource.aliasScope) {
-    return undefined;
-  }
-
-  return Object.fromEntries(
-    packageNames.map(packageName => [
-      packageName,
-      modernAliasPackageName(packageName, packageSource),
-    ]),
-  );
-}
-
-export function createModernPackagesMetadata(
-  packageNames: readonly string[],
-  packageSource: ResolvedUltramodernPackageSource,
-  options: { includeAliases?: boolean } = {},
-): UltramodernModernPackagesMetadata {
-  const includeAliases =
-    options.includeAliases ?? Boolean(packageSource.aliasScope);
-  const aliases = includeAliases
-    ? modernPackageAliases(packageNames, packageSource)
-    : undefined;
-
-  return {
-    packages: [...packageNames],
-    specifier: modernPackageVersion(packageSource),
-    ...(packageSource.registry ? { registry: packageSource.registry } : {}),
-    ...(aliases ? { aliases } : {}),
-  };
 }
