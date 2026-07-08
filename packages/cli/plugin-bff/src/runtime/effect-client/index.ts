@@ -156,10 +156,11 @@ function applySelection(value: unknown, selection: unknown): unknown {
 
   const masked: Record<string, unknown> = {};
   for (const key of Object.keys(selection)) {
-    if (!(key in value)) {
+    const selected = selection[key];
+    if (selected === undefined || !(key in value)) {
       continue;
     }
-    masked[key] = applySelection(value[key], selection[key]);
+    masked[key] = applySelection(value[key], selected);
   }
   return masked;
 }

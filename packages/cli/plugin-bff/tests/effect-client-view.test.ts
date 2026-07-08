@@ -118,6 +118,20 @@ describe('effect-client view helpers', () => {
     });
   });
 
+  test('mask ignores explicitly undefined selection entries', () => {
+    const selected = mask(
+      userPayload,
+      view<UserPayload>()({
+        id: true,
+        profile: undefined,
+      }),
+    );
+
+    expect(selected).toEqual({
+      id: '42',
+    });
+  });
+
   test('runEffectView maps promise result with selection', async () => {
     const selected = await runEffectView(
       Promise.resolve(userPayload),
