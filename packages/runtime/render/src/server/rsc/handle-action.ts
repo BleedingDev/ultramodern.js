@@ -64,7 +64,7 @@ export const createHandleAction =
       const response = new Response(stream, {
         status: 200,
         headers: {
-          'Content-Type': 'text/html',
+          'Content-Type': 'text/x-component',
         },
       });
 

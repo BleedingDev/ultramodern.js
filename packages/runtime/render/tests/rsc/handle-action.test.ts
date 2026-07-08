@@ -91,7 +91,7 @@ describe('createHandleAction', () => {
     );
 
     expect(res.status).toBe(200);
-    expect(res.headers.get('Content-Type')).toBe('text/html');
+    expect(res.headers.get('Content-Type')).toBe('text/x-component');
     expect(calls.loadServerAction).toEqual(['mod#myAction']);
     expect(calls.decodeReply).toEqual(['["raw"]']);
     // The action result is rendered as the flight stream body.
