@@ -2,6 +2,7 @@ import {
   expressionStringValue,
   getIgnorePattern,
   getNodeName,
+  hasAllowedElementAncestor,
   hasIgnoreComment,
   hasLetters,
   normalizeVisibleText,
@@ -31,6 +32,7 @@ export const createNoLiteralVisibleJsxAttributesRule = (): Rule => ({
       visibleAttributes: DEFAULT_VISIBLE_ATTRIBUTES,
     });
     const visibleAttributes = new Set(options.visibleAttributes);
+    const allowedElements = new Set(options.allowElements);
     const ignorePattern = getIgnorePattern(options);
 
     return {
@@ -46,6 +48,7 @@ export const createNoLiteralVisibleJsxAttributesRule = (): Rule => ({
         if (
           !text ||
           !hasLetters(text) ||
+          hasAllowedElementAncestor(node, allowedElements) ||
           hasIgnoreComment(node, context, ignorePattern)
         ) {
           return;

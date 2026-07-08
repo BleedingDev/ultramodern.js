@@ -111,7 +111,7 @@ export function Page() {
       <p>{t('home.copy')}</p>
       <p>{' '}</p>
       <p>{123}</p>
-      <code>pnpm dev</code>
+      <code title="pnpm dev">pnpm dev</code>
       <kbd>Enter</kbd>
       <samp>ERR_RUNTIME_001</samp>
       {/* i18n-ignore */}
