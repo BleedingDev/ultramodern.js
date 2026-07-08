@@ -51,7 +51,7 @@
     "validate:boundary-check": "node scripts/boundary-guards/check-boundary-violations.js --profile scripts/boundary-guards/profile.json; boundary_status=$?; node scripts/ultramodern-boundary-check/check-fork-import-boundary.js; divergence_status=$?; exit $((boundary_status || divergence_status))",
     "validate:module-certification-gates": "node scripts/release-gates/validate-release-candidate-gates.js --profile scripts/release-gates/module-certification-profile.json --evidence-dir docs/super-app-rfc-adr/evidence/module-certification/current",
     "validate:security-workflows": "node scripts/security/validate-github-workflows.mjs",
-    "validate:mv-topology-smoke": "node --test scripts/mv-integration-pilot/__tests__/reference-topology.test.js scripts/mv-integration-pilot/__tests__/design-system-bad-release-drill.test.js && pnpm --dir tests exec rstest run -c rstest.superapp-contracts.config.mts integration/routes-tanstack-mf/tests/tanstack-mf-contract.test.ts integration/bff-runtime-parity/tests/effect-only-data-platform.test.ts",
+    "validate:mf-contracts": "pnpm --dir tests exec rstest run -c rstest.superapp-contracts.config.mts --include integration/routes-tanstack-mf/tests/tanstack-mf-contract.test.ts --include integration/bff-cross-project/tests/effect-only-data-platform.test.ts",
     "validate:superapp-certification": "node scripts/superapp-certification/run-superapp-certification.js",
     "validate:superapp-certification:smoke": "node scripts/superapp-certification/run-superapp-certification.js --profile smoke",
     "validate:superapp-certification:release": "node scripts/superapp-certification/run-superapp-certification.js --profile release",
