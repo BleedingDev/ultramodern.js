@@ -1,3 +1,4 @@
+import { constants as zlibConstants } from 'node:zlib';
 import type CompressionPlugin from 'compression-webpack-plugin';
 import { builderPluginAdapterPrecompress } from '../../src/builder/shared/builderPlugins/adapterPrecompress';
 
@@ -72,6 +73,27 @@ describe('builderPluginAdapterPrecompress', () => {
     expect(plugins).toHaveLength(1);
     expect(plugins[0]?.name).toBe('modern-precompress-brotli');
     expect(plugins[0]?.options.threshold).toBe(2048);
+  });
+
+  it('merges brotli params with default quality', () => {
+    const plugins = applyPrecompressPlugins({
+      gzip: false,
+      brotli: {
+        compressionOptions: {
+          params: {
+            [zlibConstants.BROTLI_PARAM_MODE]: zlibConstants.BROTLI_MODE_TEXT,
+          },
+        },
+      },
+    });
+
+    expect(plugins).toHaveLength(1);
+    expect(plugins[0]?.options.compressionOptions).toEqual({
+      params: {
+        [zlibConstants.BROTLI_PARAM_QUALITY]: 9,
+        [zlibConstants.BROTLI_PARAM_MODE]: zlibConstants.BROTLI_MODE_TEXT,
+      },
+    });
   });
 
   it('stays disabled when explicitly set to false', () => {

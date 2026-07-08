@@ -47,10 +47,25 @@ const mergeCompressionOptions = (
   };
 
   if (base.compressionOptions || next.compressionOptions) {
-    merged.compressionOptions = {
-      ...(base.compressionOptions as Record<string, unknown>),
-      ...(next.compressionOptions as Record<string, unknown>),
+    const baseCompressionOptions = base.compressionOptions as
+      | Record<string, unknown>
+      | undefined;
+    const nextCompressionOptions = next.compressionOptions as
+      | Record<string, unknown>
+      | undefined;
+    const mergedCompressionOptions = {
+      ...baseCompressionOptions,
+      ...nextCompressionOptions,
     };
+
+    if (baseCompressionOptions?.params || nextCompressionOptions?.params) {
+      mergedCompressionOptions.params = {
+        ...(baseCompressionOptions?.params as Record<string, unknown>),
+        ...(nextCompressionOptions?.params as Record<string, unknown>),
+      };
+    }
+
+    merged.compressionOptions = mergedCompressionOptions;
   }
 
   return merged;
