@@ -4,7 +4,6 @@ import type {
   PilotScenario,
   PortfolioAppId,
 } from './portfolio-state';
-import type { WorkloadResetSeedTarget } from './workload-reset-seed';
 
 type HttpMethod = 'GET' | 'POST';
 type OperationKind = 'query' | 'mutation';
@@ -16,13 +15,6 @@ type ContractScope =
   | 'reset'
   | 'erp'
   | 'validation';
-
-type ArtifactLinkId =
-  | 'workloadCatalog'
-  | 'workloadData'
-  | 'workloadScenarioProfiles'
-  | 'workloadResetSeed'
-  | 'workloadValidationArtifact';
 
 type QueryKeyId =
   | 'portfolio.bootstrap'
@@ -109,7 +101,6 @@ type EffectEndpointContract = {
   readonly queryKeyIds: readonly QueryKeyId[];
   readonly mutationKeyId?: MutationKeyId;
   readonly invalidationBoundaryId?: InvalidationBoundaryId;
-  readonly artifactLinkIds: readonly ArtifactLinkId[];
 };
 
 type InvalidationBoundary = {
@@ -120,7 +111,6 @@ type InvalidationBoundary = {
   readonly invalidatesQueryKeyIds: readonly QueryKeyId[];
   readonly stateScopes: readonly string[];
   readonly currentRuntimeRefresh: readonly TanStackRouteId[];
-  readonly artifactLinkIds: readonly ArtifactLinkId[];
 };
 
 type TanStackRouteContract = {
@@ -152,35 +142,6 @@ type PortfolioDomainRouteContract = {
   readonly queryKeyIds: readonly QueryKeyId[];
 };
 
-type ArtifactLinks = {
-  readonly workloadCatalog: {
-    readonly catalogVersion: 'superapp-workload-data-v1';
-    readonly seed: 'superapp-portfolio-workload-data-v1';
-    readonly requestIdPrefix: 'swl-v1';
-  };
-  readonly workloadData: {
-    readonly datasetVersion: 'superapp-generated-workload-v1';
-    readonly seed: 'superapp-portfolio-generated-workload-v1';
-  };
-  readonly workloadScenarioProfiles: {
-    readonly profileVersion: 'superapp-workload-scenario-profiles-v1';
-    readonly seed: 'superapp-portfolio-scenario-profiles-v1';
-    readonly tenantBoundaryProfileId: 'tenant-boundary-probes';
-  };
-  readonly workloadResetSeed: {
-    readonly resetVersion: 'superapp-workload-reset-seed-v1';
-    readonly seed: 'superapp-portfolio-reset-seed-v1';
-    readonly defaultTarget: WorkloadResetSeedTarget;
-    readonly defaultScenarioId: 'tenant-boundary-audit';
-    readonly defaultProfileId: 'tenant-boundary-probes';
-    readonly defaultTenantId: 'security-root';
-  };
-  readonly workloadValidationArtifact: {
-    readonly artifactVersion: 'superapp-workload-validation-artifact-v1';
-    readonly artifactSeed: 'superapp-portfolio-validation-artifact-v1';
-  };
-};
-
 const endpointBase = '/bff-api';
 
 const field = (
@@ -192,35 +153,6 @@ const field = (
   source,
   required,
 });
-
-export const SUPERAPP_CONTRACT_ARTIFACT_LINKS: ArtifactLinks = {
-  workloadCatalog: {
-    catalogVersion: 'superapp-workload-data-v1',
-    seed: 'superapp-portfolio-workload-data-v1',
-    requestIdPrefix: 'swl-v1',
-  },
-  workloadData: {
-    datasetVersion: 'superapp-generated-workload-v1',
-    seed: 'superapp-portfolio-generated-workload-v1',
-  },
-  workloadScenarioProfiles: {
-    profileVersion: 'superapp-workload-scenario-profiles-v1',
-    seed: 'superapp-portfolio-scenario-profiles-v1',
-    tenantBoundaryProfileId: 'tenant-boundary-probes',
-  },
-  workloadResetSeed: {
-    resetVersion: 'superapp-workload-reset-seed-v1',
-    seed: 'superapp-portfolio-reset-seed-v1',
-    defaultTarget: 'contract',
-    defaultScenarioId: 'tenant-boundary-audit',
-    defaultProfileId: 'tenant-boundary-probes',
-    defaultTenantId: 'security-root',
-  },
-  workloadValidationArtifact: {
-    artifactVersion: 'superapp-workload-validation-artifact-v1',
-    artifactSeed: 'superapp-portfolio-validation-artifact-v1',
-  },
-} as const;
 
 export const SUPERAPP_TANSTACK_QUERY_KEY_TEMPLATES: readonly QueryKeyTemplate[] =
   [
@@ -450,13 +382,6 @@ export const SUPERAPP_EFFECT_BFF_ENDPOINT_CONTRACTS: readonly EffectEndpointCont
         'portfolio.workload.scenarioProfiles',
         'portfolio.workload.resetSeed',
       ],
-      artifactLinkIds: [
-        'workloadCatalog',
-        'workloadData',
-        'workloadScenarioProfiles',
-        'workloadResetSeed',
-        'workloadValidationArtifact',
-      ],
     },
     {
       id: 'effect.erpBootstrap',
@@ -475,7 +400,6 @@ export const SUPERAPP_EFFECT_BFF_ENDPOINT_CONTRACTS: readonly EffectEndpointCont
       successFields: ['tenant', 'modules', 'approvals', 'chat', 'summary'],
       requestContextFields: [],
       queryKeyIds: ['portfolio.app.detail'],
-      artifactLinkIds: ['workloadCatalog', 'workloadValidationArtifact'],
     },
     {
       id: 'effect.decideErpApproval',
@@ -496,7 +420,6 @@ export const SUPERAPP_EFFECT_BFF_ENDPOINT_CONTRACTS: readonly EffectEndpointCont
       queryKeyIds: [],
       mutationKeyId: 'portfolio.erp.approval.decide',
       invalidationBoundaryId: 'erp-approval-decided',
-      artifactLinkIds: ['workloadCatalog', 'workloadValidationArtifact'],
     },
     {
       id: 'effect.sendErpChat',
@@ -522,7 +445,6 @@ export const SUPERAPP_EFFECT_BFF_ENDPOINT_CONTRACTS: readonly EffectEndpointCont
       queryKeyIds: [],
       mutationKeyId: 'portfolio.erp.chat.send',
       invalidationBoundaryId: 'erp-chat-sent',
-      artifactLinkIds: ['workloadCatalog', 'workloadValidationArtifact'],
     },
     {
       id: 'effect.runWorkflow',
@@ -547,7 +469,6 @@ export const SUPERAPP_EFFECT_BFF_ENDPOINT_CONTRACTS: readonly EffectEndpointCont
       queryKeyIds: [],
       mutationKeyId: 'portfolio.workflow.run',
       invalidationBoundaryId: 'workflow-event-accepted',
-      artifactLinkIds: ['workloadCatalog', 'workloadValidationArtifact'],
     },
     {
       id: 'effect.runPilot',
@@ -581,11 +502,6 @@ export const SUPERAPP_EFFECT_BFF_ENDPOINT_CONTRACTS: readonly EffectEndpointCont
       queryKeyIds: [],
       mutationKeyId: 'portfolio.pilot.run',
       invalidationBoundaryId: 'pilot-run-accepted',
-      artifactLinkIds: [
-        'workloadCatalog',
-        'workloadScenarioProfiles',
-        'workloadValidationArtifact',
-      ],
     },
     {
       id: 'effect.securityProbe',
@@ -628,11 +544,6 @@ export const SUPERAPP_EFFECT_BFF_ENDPOINT_CONTRACTS: readonly EffectEndpointCont
       queryKeyIds: ['portfolio.security.decision'],
       mutationKeyId: 'portfolio.security.probe',
       invalidationBoundaryId: 'security-decision-readonly',
-      artifactLinkIds: [
-        'workloadCatalog',
-        'workloadScenarioProfiles',
-        'workloadValidationArtifact',
-      ],
     },
     {
       id: 'effect.injectFailure',
@@ -653,7 +564,6 @@ export const SUPERAPP_EFFECT_BFF_ENDPOINT_CONTRACTS: readonly EffectEndpointCont
       queryKeyIds: [],
       mutationKeyId: 'portfolio.failure.inject',
       invalidationBoundaryId: 'failure-mode-injected',
-      artifactLinkIds: ['workloadResetSeed', 'workloadValidationArtifact'],
     },
     {
       id: 'effect.reset',
@@ -673,13 +583,6 @@ export const SUPERAPP_EFFECT_BFF_ENDPOINT_CONTRACTS: readonly EffectEndpointCont
       queryKeyIds: [],
       mutationKeyId: 'portfolio.reset',
       invalidationBoundaryId: 'portfolio-reset',
-      artifactLinkIds: [
-        'workloadCatalog',
-        'workloadData',
-        'workloadScenarioProfiles',
-        'workloadResetSeed',
-        'workloadValidationArtifact',
-      ],
     },
   ] as const;
 
@@ -699,7 +602,6 @@ export const SUPERAPP_TANSTACK_INVALIDATION_BOUNDARIES: readonly InvalidationBou
       ],
       stateScopes: ['events', 'apps.openWork', 'summary.eventCount'],
       currentRuntimeRefresh: [],
-      artifactLinkIds: ['workloadCatalog', 'workloadValidationArtifact'],
     },
     {
       id: 'pilot-run-accepted',
@@ -723,11 +625,6 @@ export const SUPERAPP_TANSTACK_INVALIDATION_BOUNDARIES: readonly InvalidationBou
         'summary.eventCount',
       ],
       currentRuntimeRefresh: ['/'],
-      artifactLinkIds: [
-        'workloadCatalog',
-        'workloadScenarioProfiles',
-        'workloadValidationArtifact',
-      ],
     },
     {
       id: 'security-decision-readonly',
@@ -737,11 +634,6 @@ export const SUPERAPP_TANSTACK_INVALIDATION_BOUNDARIES: readonly InvalidationBou
       invalidatesQueryKeyIds: ['portfolio.security.decision'],
       stateScopes: [],
       currentRuntimeRefresh: [],
-      artifactLinkIds: [
-        'workloadCatalog',
-        'workloadScenarioProfiles',
-        'workloadValidationArtifact',
-      ],
     },
     {
       id: 'failure-mode-injected',
@@ -756,7 +648,6 @@ export const SUPERAPP_TANSTACK_INVALIDATION_BOUNDARIES: readonly InvalidationBou
       ],
       stateScopes: ['events', 'failureMode', 'summary.eventCount'],
       currentRuntimeRefresh: [],
-      artifactLinkIds: ['workloadResetSeed', 'workloadValidationArtifact'],
     },
     {
       id: 'erp-approval-decided',
@@ -766,7 +657,6 @@ export const SUPERAPP_TANSTACK_INVALIDATION_BOUNDARIES: readonly InvalidationBou
       invalidatesQueryKeyIds: ['portfolio.bootstrap', 'portfolio.app.detail'],
       stateScopes: ['erp.approvals', 'erp.summary.pendingApprovals'],
       currentRuntimeRefresh: ['/apps/$appId'],
-      artifactLinkIds: ['workloadCatalog', 'workloadValidationArtifact'],
     },
     {
       id: 'erp-chat-sent',
@@ -776,7 +666,6 @@ export const SUPERAPP_TANSTACK_INVALIDATION_BOUNDARIES: readonly InvalidationBou
       invalidatesQueryKeyIds: ['portfolio.bootstrap', 'portfolio.app.detail'],
       stateScopes: ['erp.chat', 'erp.summary.urgentMessages'],
       currentRuntimeRefresh: ['/apps/$appId'],
-      artifactLinkIds: ['workloadCatalog', 'workloadValidationArtifact'],
     },
     {
       id: 'portfolio-reset',
@@ -809,13 +698,6 @@ export const SUPERAPP_TANSTACK_INVALIDATION_BOUNDARIES: readonly InvalidationBou
         'workloadResetSeedMetadata',
       ],
       currentRuntimeRefresh: ['/'],
-      artifactLinkIds: [
-        'workloadCatalog',
-        'workloadData',
-        'workloadScenarioProfiles',
-        'workloadResetSeed',
-        'workloadValidationArtifact',
-      ],
     },
   ] as const;
 
