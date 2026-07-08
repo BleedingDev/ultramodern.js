@@ -339,7 +339,7 @@ export const buildEnvelopeHeaderValue = ({
             sourceOrigin,
             targetOrigin,
             target,
-          })
+          }) === true
         : allowCrossOriginEnvelope === true;
     if (!isAllowed) {
       throw new CrossOriginEnvelopePolicyError(

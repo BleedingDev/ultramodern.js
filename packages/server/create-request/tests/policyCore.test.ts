@@ -110,6 +110,22 @@ describe('policyCore (shared browser/node policy module)', () => {
     });
   });
 
+  test('buildEnvelopeHeaderValue requires cross-origin predicate to return true', () => {
+    const allowCrossOriginEnvelope = () => 'yes';
+
+    expect(() =>
+      buildEnvelopeHeaderValue({
+        requestId: 'crm',
+        target: 'server',
+        sourceOrigin: 'https://a.example',
+        targetOrigin: 'https://b.example',
+        traceContext: undefined,
+        allowCrossOriginEnvelope:
+          allowCrossOriginEnvelope as unknown as () => boolean,
+      }),
+    ).toThrow(CrossOriginEnvelopePolicyError);
+  });
+
   test('attachOperationContextHeaders writes id and detail headers without clobbering caller id', () => {
     const headers: Record<string, any> = {
       'x-operation-id': 'crm:custom-op',
