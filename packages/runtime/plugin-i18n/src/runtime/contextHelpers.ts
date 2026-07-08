@@ -104,6 +104,7 @@ export async function changeModernI18nLanguage(
       );
 
       if (pathLanguage.detected && pathLanguage.language === newLang) {
+        updateLanguage?.(newLang);
         return;
       }
 
@@ -135,6 +136,7 @@ export async function changeModernI18nLanguage(
       );
 
       if (pathLanguage.detected && pathLanguage.language === newLang) {
+        updateLanguage?.(newLang);
         return;
       }
 

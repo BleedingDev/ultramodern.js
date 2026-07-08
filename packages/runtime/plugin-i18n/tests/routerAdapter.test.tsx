@@ -399,6 +399,62 @@ describe('i18n router adapter', () => {
     });
   });
 
+  test('updates provider language when target locale is already in URL', async () => {
+    window.history.replaceState(null, '', '/cs/podminky-pouzivani');
+
+    const router = createTanstackRouter('/cs/podminky-pouzivani', 'cs');
+    const i18nInstance = createI18nInstance('en');
+    const updateLanguage = rstest.fn();
+    let changeLanguagePromise: Promise<void> | undefined;
+
+    const Harness = () => {
+      const { changeLanguage } = useModernI18n();
+      return (
+        <button
+          type="button"
+          onClick={() => {
+            changeLanguagePromise = changeLanguage('cs');
+          }}
+        >
+          Change language
+        </button>
+      );
+    };
+
+    rendered = await renderWithRuntime(
+      <ModernI18nProvider
+        value={{
+          language: 'en',
+          i18nInstance,
+          languages: ['en', 'cs'],
+          localePathRedirect: true,
+          localisedUrls,
+          updateLanguage,
+        }}
+      >
+        <Harness />
+      </ModernI18nProvider>,
+      createTanstackRuntimeContext(router),
+    );
+
+    const button = rendered.container.querySelector('button');
+    updateLanguage.mockClear();
+
+    await act(async () => {
+      button?.dispatchEvent(
+        new MouseEvent('click', {
+          bubbles: true,
+          cancelable: true,
+          button: 0,
+        }),
+      );
+      await changeLanguagePromise;
+    });
+
+    expect(updateLanguage).toHaveBeenCalledWith('cs');
+    expect(router.navigate).not.toHaveBeenCalled();
+  });
+
   test('keeps React Router positional replacement when changeLanguage updates the URL', async () => {
     window.history.replaceState(null, '', '/en/terms-of-service');
 
