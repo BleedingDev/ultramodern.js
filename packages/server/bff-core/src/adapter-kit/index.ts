@@ -164,7 +164,17 @@ export type ApiHandlerInput = {
  */
 export const buildPositionalHandlerArgs = (
   input: ApiHandlerInput,
-): unknown[] => [...Object.values(input.params), input];
+  routePath?: string,
+): unknown[] => {
+  const paramNames =
+    routePath?.match(/:(\w+)/g)?.map(param => param.slice(1)) ?? [];
+  const positionalParams =
+    paramNames.length > 0
+      ? paramNames.map(param => input.params[param])
+      : Object.values(input.params);
+
+  return [...positionalParams, input];
+};
 
 export type CrossProjectPolicyDenial = {
   status: number;

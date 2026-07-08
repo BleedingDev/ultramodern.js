@@ -164,6 +164,15 @@ describe('adapter-kit response meta and args', () => {
     const input = { params: { id: '1', tab: 'x' }, query: {} };
     expect(buildPositionalHandlerArgs(input)).toEqual(['1', 'x', input]);
   });
+
+  test('builds positional args in route declaration order when provided', () => {
+    const input = { params: { tab: 'x', id: '1' }, query: {} };
+    expect(buildPositionalHandlerArgs(input, '/route/:id/:tab')).toEqual([
+      '1',
+      'x',
+      input,
+    ]);
+  });
 });
 
 describe('adapter-kit policy check', () => {
