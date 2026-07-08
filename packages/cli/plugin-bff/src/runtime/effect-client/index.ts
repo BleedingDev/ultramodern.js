@@ -29,6 +29,8 @@ import {
   RpcSerialization,
 } from 'effect/unstable/rpc';
 
+import { getRpcSerializationLayer } from '../effect/rpcSerialization';
+
 export * as Effect from 'effect/Effect';
 export * as Layer from 'effect/Layer';
 export * as Schema from 'effect/Schema';
@@ -188,23 +190,6 @@ export function runEffectView<
       reason => reject(reason),
     );
   });
-}
-
-function getRpcSerializationLayer(
-  serialization: EffectRpcSerialization | undefined,
-) {
-  switch (serialization) {
-    case 'ndjson':
-      return RpcSerialization.layerNdjson;
-    case 'jsonRpc':
-      return RpcSerialization.layerJsonRpc();
-    case 'ndJsonRpc':
-      return RpcSerialization.layerNdJsonRpc();
-    case 'msgPack':
-      return RpcSerialization.layerMsgPack;
-    default:
-      return RpcSerialization.layerJsonRpc();
-  }
 }
 
 export function makeEffectHttpApiClient<

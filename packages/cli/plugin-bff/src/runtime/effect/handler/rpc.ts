@@ -1,9 +1,10 @@
 // @effect-diagnostics anyUnknownInErrorContext:off asyncFunction:off globalDate:off globalTimers:off newPromise:off strictBooleanExpressions:off
 import * as Layer from 'effect/Layer';
 import { HttpRouter } from 'effect/unstable/http';
-import { type Rpc, RpcSerialization, RpcServer } from 'effect/unstable/rpc';
+import { type Rpc, RpcServer } from 'effect/unstable/rpc';
 
-import type { EffectRpcBffDefinition, EffectRpcSerialization } from './types';
+import { getRpcSerializationLayer } from '../rpcSerialization';
+import type { EffectRpcBffDefinition } from './types';
 
 export function normalizeRpcPath(pathname: string | undefined) {
   if (!pathname || pathname === '/') {
@@ -13,23 +14,6 @@ export function normalizeRpcPath(pathname: string | undefined) {
     return `/${pathname}` as `/${string}`;
   }
   return pathname as `/${string}`;
-}
-
-function getRpcSerializationLayer(
-  serialization: EffectRpcSerialization | undefined,
-) {
-  switch (serialization) {
-    case 'ndjson':
-      return RpcSerialization.layerNdjson;
-    case 'jsonRpc':
-      return RpcSerialization.layerJsonRpc();
-    case 'ndJsonRpc':
-      return RpcSerialization.layerNdJsonRpc();
-    case 'msgPack':
-      return RpcSerialization.layerMsgPack;
-    default:
-      return RpcSerialization.layerJsonRpc();
-  }
 }
 
 export function createRpcApiHandler<TRpcs extends Rpc.Any = Rpc.Any>(
