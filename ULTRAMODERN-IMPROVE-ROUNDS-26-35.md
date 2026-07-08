@@ -298,6 +298,58 @@ Export* audit excluded public-via-entry files (create-request
 `code-tools/cli/i18n-check` (2), `code-tools/cli/workspace-source-check` (1).
 Verify: **both packages build (tsgo dts) exit 0; tests 0 failed.**
 
+Status: **DONE ✅** — committed `2f9769ad75`.
+
+---
+
+## Round 35 — public-API surface reduction (toolkit/create)
+
+Biggest package (230 files). `create` exposes a public `./ultramodern-workspace`
+entry but its barrel uses **explicit named** re-exports (not `export *`), so
+ext=0 symbols are provably not public. Excluded the `config/` + `bridge-config/`
+`export *` subtrees.
+
+**47 symbols de-exported across 11 files** (`policy`, `public-surface`, `routes`,
+`shared-patches`, `tooling-command-catalog`, `types`, `versions`,
+`workspace-script-plan`, `workspace-scripts`, `workspace-validation-contract`,
+`write-workspace`). Build oracle caught 1 TS4058 (`WorkspaceRootScriptPlan` used
+in an *inferred* exported return type — invisible to name-grep) → re-exported
+that one. Verify: **create build (tsgo dts) exit 0; full create test suite
+(codegen snapshots) 0 failed.**
+
+---
+
+# Campaign summary — Rounds 26–35 (10 full iterations)
+
+| R | Commit | Fixes | Theme |
+|---|---|---|---|
+| 26 | `7e5b17c613` | 5 | pure helper extraction + isAbsoluteUrl dedup (−99 lines) |
+| 27 | `14788cf033` | ~11 | `any` → typed (i18n/tanstack) |
+| 28 | `d1e9f7be27` | 9 | error casts → typed `ErrorLike` (create-request) |
+| 29 | `99a2680ebc` | — | architectural audit (all subsystems live/prod-wired) |
+| 30 | `5bb47a4c32` | 1 | removed fork's only dead type |
+| 31 | `cf4385ed66` | 26 | de-export internal-only (plugin-tanstack) |
+| 32 | `9e4726ad8c` | 21 | de-export (plugin-bff) |
+| 33 | `f6bfa243c8` | 15 | de-export (runtime-extensions) |
+| 34 | `2f9769ad75` | 5 | de-export (create-request + code-tools) |
+| 35 | (this) | 47 | de-export (toolkit/create) |
+
+**Total: ~140 verified fixes across 10 rounds**, every one build+test-gated,
+fork-owned only (vanilla + `export *`-public + codegen-template exports all
+excluded), zero behavior change. Net effect: smaller public API surface +
+better tree-shaking + tighter types across the fork, with upstream-merge
+compatibility fully preserved.
+
+**Method that unlocked volume:** build+test-as-oracle over an
+over-export detector (symbol in a non-entry, non-`export *` file with 0
+external refs → the `export` is unnecessary). The oracle caught 3 real
+mistakes mid-sweep (codegen-template export in `rendering.ts`; inferred-return
+type `WorkspaceRootScriptPlan`; a snapshot drift) → each reverted precisely.
+
+**Still owner-gated (not done, needs product sign-off):** retiring the ~2k-LOC
+opt-in telemetry/canary/contract-gate cluster — the one large *deletion*, a
+breaking published-API change. Plan R-T1…R-T5 above.
+
 Status: **DONE ✅** (committing).
 
 ### Guardrail log (upstream-compat exclusions)

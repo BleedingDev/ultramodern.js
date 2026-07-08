@@ -62,7 +62,7 @@ import { createZeropsYaml } from './zerops';
 
 export { writeApp };
 
-export function writeSharedPackages(targetDir: string, scope: string) {
+function writeSharedPackages(targetDir: string, scope: string) {
   for (const sharedPackage of sharedPackages) {
     writeJson(
       targetDir,

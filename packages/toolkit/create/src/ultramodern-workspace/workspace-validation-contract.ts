@@ -30,7 +30,7 @@ import {
   createWorkspaceRootScriptPlan,
 } from './workspace-script-plan';
 
-export type WorkspaceValidationContract = ReturnType<
+type WorkspaceValidationContract = ReturnType<
   typeof createWorkspaceValidationContract
 >;
 

@@ -32,13 +32,13 @@ export const publicSurfaceManagedSourceAssetPaths = [
   'config/public/sitemap.xml',
   'config/public/site.webmanifest',
 ] as const;
-export const publicSurfaceBaseOutputFiles = ['robots.txt'] as const;
-export const publicSurfacePublicRouteOutputFiles = [
+const publicSurfaceBaseOutputFiles = ['robots.txt'] as const;
+const publicSurfacePublicRouteOutputFiles = [
   'sitemap.xml',
   'site.webmanifest',
 ] as const;
 
-export type PublicSurfaceRouteEntry = PublicRouteMetadata & {
+type PublicSurfaceRouteEntry = PublicRouteMetadata & {
   canonicalUrlPath: string;
   localeUrlPaths: Record<SupportedWorkspaceLanguage, string>;
 } & PublicSurfaceSitemapFields;
@@ -57,7 +57,7 @@ export function uniqueSorted(values: string[]): string[] {
   );
 }
 
-export function createPublicSurfaceRouteEntries(
+function createPublicSurfaceRouteEntries(
   app: WorkspaceApp,
 ): PublicSurfaceRouteEntry[] {
   return createPublicRouteMetadata(app)
@@ -87,7 +87,7 @@ export function createPublicSurfaceRouteEntries(
     );
 }
 
-export function createPublicSurfaceUrlPaths(app: WorkspaceApp): string[] {
+function createPublicSurfaceUrlPaths(app: WorkspaceApp): string[] {
   return uniqueSorted(
     createPublicSurfaceRouteEntries(app).flatMap(route =>
       supportedWorkspaceLanguages.map(
@@ -97,7 +97,7 @@ export function createPublicSurfaceUrlPaths(app: WorkspaceApp): string[] {
   );
 }
 
-export function createPublicSurfaceOutputFiles(app: WorkspaceApp): string[] {
+function createPublicSurfaceOutputFiles(app: WorkspaceApp): string[] {
   return [
     ...publicSurfaceBaseOutputFiles,
     ...(createPublicRouteMetadata(app).length > 0
@@ -106,7 +106,7 @@ export function createPublicSurfaceOutputFiles(app: WorkspaceApp): string[] {
   ];
 }
 
-export type PublicSurfaceGenerationTarget = 'dist' | 'cloudflare';
+type PublicSurfaceGenerationTarget = 'dist' | 'cloudflare';
 
 export function createPublicSurfaceGenerationCommand(
   app: WorkspaceApp,
@@ -136,7 +136,7 @@ export function rewriteWorkspaceAssetsForApp(
   }
 }
 
-export function createPublicSurfaceContract(app: WorkspaceApp): JsonValue {
+function createPublicSurfaceContract(app: WorkspaceApp): JsonValue {
   const files = createPublicSurfaceOutputFiles(app);
   const contentExpansionPolicy = createPublicSurfaceContentExpansionPolicy();
 
@@ -172,7 +172,7 @@ export function createPublicSurfaceContract(app: WorkspaceApp): JsonValue {
   };
 }
 
-export function createPublicHeadContract(): JsonValue {
+function createPublicHeadContract(): JsonValue {
   const robotsPolicy = createPublicHeadRobotsPolicy();
 
   return {
@@ -224,12 +224,12 @@ export function createPublicHeadContract(): JsonValue {
   };
 }
 
-export type PublicWebGeneratedFile = {
+type PublicWebGeneratedFile = {
   path: string;
   content: string;
 };
 
-export type PublicWebAppArtifacts = {
+type PublicWebAppArtifacts = {
   jsonLdHelperFile: PublicWebGeneratedFile;
   routeMetadataFile: PublicWebGeneratedFile;
   routeHeadFile: PublicWebGeneratedFile;

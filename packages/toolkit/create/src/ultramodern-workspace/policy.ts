@@ -139,15 +139,15 @@ export function formatTsJsonValue(value: JsonValue, indent: number): string {
   );
 }
 
-export function formatIntegerCodeLiteral(value: number): string {
+function formatIntegerCodeLiteral(value: number): string {
   return String(value).replace(/\B(?=(\d{3})+(?!\d))/gu, '_');
 }
 
-export function createPublicWebsiteQualityGateContract(): JsonValue {
+function createPublicWebsiteQualityGateContract(): JsonValue {
   return PUBLIC_WEBSITE_POLICY.qualityGates;
 }
 
-export function createPublicWebsiteBudgetFallback(
+function createPublicWebsiteBudgetFallback(
   budgetName: keyof (typeof PUBLIC_WEBSITE_POLICY)['qualityGates']['budgets'],
 ): string {
   return formatIntegerCodeLiteral(

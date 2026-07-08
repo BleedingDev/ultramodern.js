@@ -13,7 +13,7 @@ export type GeneratedToolingCommandId =
 
 export type GeneratedToolingCommandKey = GeneratedToolingCommandId;
 
-export interface GeneratedToolingCommand {
+interface GeneratedToolingCommand {
   id: GeneratedToolingCommandId;
   command: string;
   wrapperName: string;
@@ -120,7 +120,7 @@ export const generatedToolingCommands = [
   }),
 ] as const satisfies readonly GeneratedToolingCommand[];
 
-export const toolingCommandById = Object.fromEntries(
+const toolingCommandById = Object.fromEntries(
   generatedToolingCommands.map(command => [command.id, command]),
 ) as Record<GeneratedToolingCommandId, GeneratedToolingCommand>;
 
@@ -129,7 +129,7 @@ export const GENERATED_TOOLING_COMMANDS = toolingCommandById;
 export const generatedToolingCommandList = () =>
   generatedToolingCommands.map(command => command.command);
 
-export const createToolingWrapperContract = () =>
+const createToolingWrapperContract = () =>
   Object.fromEntries(
     generatedToolingCommands.map(command => [
       command.contractKey,

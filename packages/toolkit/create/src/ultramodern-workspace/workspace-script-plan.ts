@@ -10,7 +10,7 @@ import type { WorkspaceApp } from './types';
 const toolingWrapperPath = (key: GeneratedToolingCommandKey) =>
   GENERATED_TOOLING_COMMANDS[key].wrapperPath;
 
-export const rootToolingScriptName = (key: GeneratedToolingCommandKey) => {
+const rootToolingScriptName = (key: GeneratedToolingCommandKey) => {
   const rootScript = GENERATED_TOOLING_COMMANDS[key].rootScript;
   if (!rootScript) {
     throw new Error(
@@ -20,7 +20,7 @@ export const rootToolingScriptName = (key: GeneratedToolingCommandKey) => {
   return rootScript;
 };
 
-export const rootToolingWrapperCommand = (key: GeneratedToolingCommandKey) =>
+const rootToolingWrapperCommand = (key: GeneratedToolingCommandKey) =>
   `node ./${toolingWrapperPath(key)}`;
 
 const relativeToolingWrapperPath = (
@@ -28,7 +28,7 @@ const relativeToolingWrapperPath = (
   key: GeneratedToolingCommandKey,
 ) => `${relativeRootFor(packageDir)}/${toolingWrapperPath(key)}`;
 
-export const packageToolingWrapperCommand = (
+const packageToolingWrapperCommand = (
   packageDir: string,
   key: GeneratedToolingCommandKey,
 ) => `node ${relativeToolingWrapperPath(packageDir, key)}`;
@@ -50,7 +50,7 @@ export interface WorkspaceRootScriptPlan {
   check: string;
 }
 
-export const workspaceRootPackageScriptNames = {
+const workspaceRootPackageScriptNames = {
   build: 'build',
   cloudflareBuild: 'cloudflare:build',
   cloudflareDeploy: 'cloudflare:deploy',
@@ -67,10 +67,10 @@ export const workspaceRootPackageScriptNames = {
   check: 'check',
 } as const satisfies Record<keyof WorkspaceRootScriptPlan, string>;
 
-export type WorkspaceRootPackageScriptName =
+type WorkspaceRootPackageScriptName =
   (typeof workspaceRootPackageScriptNames)[keyof typeof workspaceRootPackageScriptNames];
 
-export type WorkspaceRootPackageScripts = Partial<
+type WorkspaceRootPackageScripts = Partial<
   Record<WorkspaceRootPackageScriptName, string>
 >;
 
@@ -78,7 +78,7 @@ const shellOnlyOmittedRootScriptPlanKeys = new Set<
   keyof WorkspaceRootScriptPlan
 >(['backendFederationGenerate', 'nodeProof', 'zeropsMaterialize']);
 
-export interface WorkspaceAppScriptPlan {
+interface WorkspaceAppScriptPlan {
   dev: string;
   build: string;
   cloudflareBuild: string;
@@ -89,7 +89,7 @@ export interface WorkspaceAppScriptPlan {
   typecheck: string;
 }
 
-export const workspaceAppPackageScriptNames = {
+const workspaceAppPackageScriptNames = {
   dev: 'dev',
   build: 'build',
   cloudflareBuild: 'cloudflare:build',
@@ -100,18 +100,15 @@ export const workspaceAppPackageScriptNames = {
   typecheck: 'typecheck',
 } as const satisfies Record<keyof WorkspaceAppScriptPlan, string>;
 
-export type WorkspaceAppPackageScriptName =
+type WorkspaceAppPackageScriptName =
   (typeof workspaceAppPackageScriptNames)[keyof typeof workspaceAppPackageScriptNames];
 
-export type WorkspaceAppPackageScripts = Record<
-  WorkspaceAppPackageScriptName,
-  string
->;
+type WorkspaceAppPackageScripts = Record<WorkspaceAppPackageScriptName, string>;
 
 export const createStrictTsgoTypecheckCommand = (packageDir: string) =>
   `${packageToolingWrapperCommand(packageDir, 'typecheck')} --project tsconfig.json`;
 
-export function createWorkspaceAppScriptPlan(
+function createWorkspaceAppScriptPlan(
   app: WorkspaceApp,
 ): WorkspaceAppScriptPlan {
   const backendFederationBuildCommand = appHasApi(app)

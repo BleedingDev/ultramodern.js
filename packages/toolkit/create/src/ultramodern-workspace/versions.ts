@@ -33,9 +33,8 @@ export const TYPES_REACT_VERSION = '^19.2.17';
 export const TYPES_REACT_DOM_VERSION = '^19.2.3';
 export const NODE_VERSION = '26.3.0';
 export const PNPM_VERSION = '11.9.0';
-export const RSTACK_AGENT_SKILLS_COMMIT =
-  '61c948b42512e223bad44b83af4080eba48b2677';
-export const MODULE_FEDERATION_AGENT_SKILLS_COMMIT =
+const RSTACK_AGENT_SKILLS_COMMIT = '61c948b42512e223bad44b83af4080eba48b2677';
+const MODULE_FEDERATION_AGENT_SKILLS_COMMIT =
   '07bb5b6c43ad457609e00c081b72d4c42508ec76';
 
 export const ultramodernWorkspaceVersions = {

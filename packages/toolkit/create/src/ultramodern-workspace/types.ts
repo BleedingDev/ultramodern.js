@@ -71,7 +71,7 @@ export const supportedWorkspaceLanguages = ['en', 'cs'] as const;
 export type SupportedWorkspaceLanguage =
   (typeof supportedWorkspaceLanguages)[number];
 
-export type RoutePublicSurface =
+type RoutePublicSurface =
   | 'private-app-screen'
   | 'generated-public-surface'
   | 'explicit-public-input';
@@ -102,7 +102,7 @@ export type PublicRouteMetadata = {
   jsonLd?: RouteJsonLd;
 };
 
-export type PublicSitemapChangeFrequency =
+type PublicSitemapChangeFrequency =
   | 'always'
   | 'hourly'
   | 'daily'

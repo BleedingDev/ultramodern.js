@@ -8,7 +8,7 @@ import type {
 } from './types';
 import { sortJsonValue } from './types';
 
-export const privateAppRoutePublicness = {
+const privateAppRoutePublicness = {
   indexable: false,
   public: false,
   publicSurface: 'private-app-screen',
@@ -55,11 +55,11 @@ export function createRouteOwnedI18nPaths(
   ];
 }
 
-export function isPublicIndexableRoute(route: RouteOwnedI18nPath): boolean {
+function isPublicIndexableRoute(route: RouteOwnedI18nPath): boolean {
   return route.public && route.indexable;
 }
 
-export function createLocalisedUrlsMapFromRoutes(
+function createLocalisedUrlsMapFromRoutes(
   routes: RouteOwnedI18nPath[],
 ): Record<string, JsonValue> {
   return Object.fromEntries(
@@ -170,7 +170,7 @@ export function routePathParamName(segment: string): string | undefined {
   return undefined;
 }
 
-export function isDynamicPublicPathSegment(segment: string): boolean {
+function isDynamicPublicPathSegment(segment: string): boolean {
   return (
     routePathParamName(segment) !== undefined ||
     segment.includes('*') ||
@@ -190,7 +190,7 @@ export function routeSegmentToDirectory(segment: string): string {
   return segment;
 }
 
-export function routePathDirectorySegments(routePath: string): string[] {
+function routePathDirectorySegments(routePath: string): string[] {
   return splitPublicPathSegments(routePath).map(routeSegmentToDirectory);
 }
 

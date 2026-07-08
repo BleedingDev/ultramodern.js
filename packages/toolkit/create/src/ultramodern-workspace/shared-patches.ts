@@ -4,5 +4,5 @@ export const SHARED_ULTRAMODERN_WORKSPACE_PATCH_FILES = [
   '@tanstack__router-core@1.171.13.patch',
 ] as const;
 
-export type SharedUltramodernWorkspacePatchFile =
+type SharedUltramodernWorkspacePatchFile =
   (typeof SHARED_ULTRAMODERN_WORKSPACE_PATCH_FILES)[number];

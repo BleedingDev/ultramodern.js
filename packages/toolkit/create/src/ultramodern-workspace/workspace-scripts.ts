@@ -66,7 +66,7 @@ function writeGeneratedToolWrapperScript(
   );
 }
 
-export function writeGeneratedToolWrapperScripts(
+function writeGeneratedToolWrapperScripts(
   targetDir: string,
   options: { shellOnly?: boolean } = {},
 ) {
@@ -198,25 +198,25 @@ export function createWorkspaceValidationScript(
   );
 }
 
-export function createWorkspaceI18nBoundaryValidationScript(): string {
+function createWorkspaceI18nBoundaryValidationScript(): string {
   return readFileTemplate(
     'workspace-scripts/check-ultramodern-i18n-boundaries.mts',
   );
 }
 
-export function createWorkspaceApiBoundaryValidationScript(): string {
+function createWorkspaceApiBoundaryValidationScript(): string {
   return readFileTemplate(
     'workspace-scripts/check-ultramodern-api-boundaries.mts',
   );
 }
 
-export function createPerformanceReadinessConfigScript(): string {
+function createPerformanceReadinessConfigScript(): string {
   return readFileTemplate(
     'workspace-scripts/ultramodern-performance-readiness.config.mjs',
   );
 }
 
-export function createNodeBackendFederationProofScript(): string {
+function createNodeBackendFederationProofScript(): string {
   return readFileTemplate(
     'workspace-scripts/proof-node-backend-federation.mjs',
   );
@@ -268,7 +268,7 @@ export function writeGeneratedWorkspaceScripts(
 // The canonical `setup-agent-reference-repos` script is vendored under
 // template-workspace/ and copied (then renamed to .mts) during fresh scaffolds.
 // Migrate has no copy step, so it materializes the same canonical source here.
-export function createAgentReferenceReposSetupScript(): string {
+function createAgentReferenceReposSetupScript(): string {
   return fs.readFileSync(
     path.join(workspaceTemplateDir, 'scripts/setup-agent-reference-repos.mjs'),
     'utf-8',
@@ -283,7 +283,7 @@ export function createAgentReferenceReposSetupScript(): string {
 const BACKEND_FEDERATION_WRAPPER_IDS: ReadonlySet<GeneratedToolingCommandId> =
   new Set(['backendFederationGenerate', 'backendFederationProof']);
 
-export interface MigratedWorkspaceScriptArtifact {
+interface MigratedWorkspaceScriptArtifact {
   relativePath: string;
   content: string;
   legacyPath?: string;
