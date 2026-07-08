@@ -107,6 +107,14 @@ export const validateUltramodernBuildArtifact = (
       continue;
     }
 
+    const markerBuild = nonEmptyString(marker.build);
+    const markerBuildMarker = nonEmptyString(marker.buildMarker);
+    if (!markerBuild) {
+      addError(errors, `${markerPath}.build`, 'must be non-empty string.');
+    } else if (markerBuildMarker && markerBuild !== markerBuildMarker) {
+      addError(errors, `${markerPath}.build`, 'must match buildMarker.');
+    }
+
     if (marker.surface !== surface) {
       addError(errors, `${markerPath}.surface`, `must be "${surface}".`);
     }

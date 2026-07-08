@@ -144,4 +144,25 @@ describe('backend federation contract validators', () => {
     });
     expect(isUltramodernBuildArtifact(driftedArtifact)).toBe(false);
   });
+
+  it('rejects ultramodern build artifact surfaces without build aliases', () => {
+    const artifact = createUltramodernBuildArtifact(deliveryUnit);
+    const missingBuildArtifact = {
+      ...artifact,
+      surfaces: {
+        ...artifact.surfaces,
+        api: {
+          ...artifact.surfaces.api,
+          build: undefined,
+        },
+      },
+    };
+    const result = validateUltramodernBuildArtifact(missingBuildArtifact);
+
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContainEqual({
+      path: 'artifact.surfaces.api.build',
+      message: 'must be non-empty string.',
+    });
+  });
 });
