@@ -50,7 +50,7 @@ export function cacheI18nLanguage(
   }
 }
 
-export interface ChangeModernI18nLanguageOptions {
+interface ChangeModernI18nLanguageOptions {
   i18nInstance: I18nInstance;
   updateLanguage?: (newLang: string) => void;
   localePathRedirect?: boolean;

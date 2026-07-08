@@ -18,7 +18,7 @@ import {
 import type { I18nInstance } from './i18n';
 import { useI18nRouterAdapter } from './routerAdapter';
 
-export interface ModernI18nContextValue {
+interface ModernI18nContextValue {
   language: string;
   i18nInstance: I18nInstance;
   // Plugin configuration for useModernI18n hook
@@ -50,7 +50,7 @@ const getModernI18nContext = () => {
 
 const ModernI18nContext = getModernI18nContext();
 
-export interface ModernI18nProviderProps {
+interface ModernI18nProviderProps {
   children: ReactNode;
   value: ModernI18nContextValue;
 }
@@ -66,7 +66,7 @@ export const ModernI18nProvider: FC<ModernI18nProviderProps> = ({
   );
 };
 
-export interface UseModernI18nReturn {
+interface UseModernI18nReturn {
   language: string;
   changeLanguage: (newLang: string) => Promise<void>;
   t: (key: string | string[], ...args: any[]) => string;

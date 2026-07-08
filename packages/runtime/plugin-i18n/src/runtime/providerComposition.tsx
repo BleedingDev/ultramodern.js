@@ -14,7 +14,7 @@ import type { I18nInstance } from './i18n';
 import { getI18nextInstanceForProvider } from './i18n/instance';
 import type { RuntimeContextWithI18n } from './pluginSetup';
 
-export interface I18nRootWrapperOptions {
+interface I18nRootWrapperOptions {
   entryName?: string;
   htmlLangAttr: boolean;
   localePathRedirect: boolean;

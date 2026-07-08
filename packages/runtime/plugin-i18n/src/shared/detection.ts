@@ -8,7 +8,7 @@ import type { LanguageDetectorOptions } from '../runtime/i18n/instance';
  * Detect language from request using the same detection logic as i18next
  * This ensures consistency between server-side and client-side detection
  */
-export function detectLanguageFromRequest(
+function detectLanguageFromRequest(
   req: {
     url: string;
     headers:

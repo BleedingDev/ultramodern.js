@@ -1,6 +1,6 @@
 import type { BaseBackendOptions } from '../../shared/type';
 
-export interface I18nResourceStore {
+interface I18nResourceStore {
   data?: {
     [language: string]: {
       [namespace: string]: ResourceValue;
@@ -48,7 +48,7 @@ export function isI18nWrapperInstance(
   return true;
 }
 
-export function getI18nWrapperI18nextInstance(
+function getI18nWrapperI18nextInstance(
   wrapperInstance: unknown,
 ): I18nInstance | null {
   if (isI18nWrapperInstance(wrapperInstance)) {
@@ -128,7 +128,7 @@ export interface BackendOptions extends Omit<BaseBackendOptions, 'enabled'> {
   [key: string]: any;
 }
 
-export type ResourceValue = string | { [key: string]: ResourceValue };
+type ResourceValue = string | { [key: string]: ResourceValue };
 
 export interface Resources {
   [lng: string]: {

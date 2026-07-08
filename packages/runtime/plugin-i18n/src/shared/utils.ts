@@ -5,7 +5,7 @@ import type {
   LocaleDetectionOptions,
 } from './type';
 
-export function getEntryConfig<T extends Record<string, any>>(
+function getEntryConfig<T extends Record<string, any>>(
   entryName: string,
   config: T,
   entryKey: string,
@@ -16,7 +16,7 @@ export function getEntryConfig<T extends Record<string, any>>(
   return entryConfigMap?.[entryName];
 }
 
-export function removeEntryConfigKey<T extends Record<string, any>>(
+function removeEntryConfigKey<T extends Record<string, any>>(
   config: T,
   entryKey: string,
 ): Omit<T, typeof entryKey> {

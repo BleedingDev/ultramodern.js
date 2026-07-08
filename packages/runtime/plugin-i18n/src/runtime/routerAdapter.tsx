@@ -15,31 +15,31 @@ import {
 import type React from 'react';
 import { useCallback, useContext, useEffect, useState } from 'react';
 
-export type I18nRouterFramework = 'react-router' | 'tanstack' | string;
+type I18nRouterFramework = 'react-router' | 'tanstack' | string;
 
-export interface I18nRouterLocation {
+interface I18nRouterLocation {
   pathname: string;
   search: string;
   hash: string;
 }
 
-export interface I18nRouterNavigateOptions {
+interface I18nRouterNavigateOptions {
   replace?: boolean;
   state?: unknown;
 }
 
-export type I18nRouterNavigate = (
+type I18nRouterNavigate = (
   href: string,
   options?: I18nRouterNavigateOptions,
 ) => void | Promise<void>;
 
-export type I18nRouterLink = React.ComponentType<{
+type I18nRouterLink = React.ComponentType<{
   to: string;
   children?: React.ReactNode;
   [key: string]: unknown;
 }>;
 
-export interface I18nRouterAdapter {
+interface I18nRouterAdapter {
   framework?: I18nRouterFramework;
   hasRouter: boolean;
   location: I18nRouterLocation | null;

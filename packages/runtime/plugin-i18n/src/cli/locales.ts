@@ -13,7 +13,7 @@ interface NormalizedConfigForLocales {
   };
 }
 
-export interface DetectedLocalesDirectory {
+interface DetectedLocalesDirectory {
   loadPath: string;
   addPath: string;
   serverLoadPath: string;

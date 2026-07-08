@@ -57,7 +57,7 @@ export interface RuntimeContextWithI18n extends TInternalRuntimeContext {
   changeLanguage?: (lang: string) => Promise<void>;
 }
 
-export interface SetupI18nBeforeRenderOptions {
+interface SetupI18nBeforeRenderOptions {
   api: I18nRuntimeApi;
   userI18nInstance?: I18nInstance;
   initOptions?: I18nInitOptions;
