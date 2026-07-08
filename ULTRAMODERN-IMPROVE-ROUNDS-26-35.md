@@ -273,6 +273,18 @@ output; the declaration-snapshot test failed. Reverted that one file; the sweep
 is codegen-aware now. Verify: **build (tsgo dts) exit 0; plugin-bff tests
 0 failed** (5349 tests).
 
+Status: **DONE ✅** — committed `9e4726ad8c`.
+
+---
+
+## Round 33 — public-API surface reduction (runtime-extensions)
+
+**15 symbols de-exported across 4 fork files:**
+`contract-gate-snapshot-normalization` (5), `contract-gate-snapshot-store/http-store`
+(3), `module-federation-css/manifest` (5), `telemetry/canaryEvaluation` (2).
+All FORK-owned, no `export *` reach, 0 external refs. Verify: **build (tsgo dts)
+exit 0; runtime-extensions tests 0 failed.**
+
 Status: **DONE ✅** (committing).
 
 ### Guardrail log (upstream-compat exclusions)

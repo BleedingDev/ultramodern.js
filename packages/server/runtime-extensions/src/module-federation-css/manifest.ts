@@ -47,7 +47,7 @@ export const warn = (
 export const ensureTrailingSlash = (value: string) =>
   value.endsWith('/') ? value : `${value}/`;
 
-export const tryResolveUrl = (value: string, base: string) => {
+const tryResolveUrl = (value: string, base: string) => {
   try {
     return new URL(value, base).toString();
   } catch {
@@ -65,12 +65,12 @@ export const normalizeRemoteEntry = (entry: string) => {
   return atIndex >= 0 ? value.slice(atIndex + 1) : value;
 };
 
-export const getCssAssets = (assets?: ModuleFederationAssets) => [
+const getCssAssets = (assets?: ModuleFederationAssets) => [
   ...(assets?.css?.sync || []),
   ...(assets?.css?.async || []),
 ];
 
-export const getManifestFallbackBase = (manifestUrl: string) => {
+const getManifestFallbackBase = (manifestUrl: string) => {
   try {
     return new URL('.', manifestUrl).toString();
   } catch {
@@ -78,7 +78,7 @@ export const getManifestFallbackBase = (manifestUrl: string) => {
   }
 };
 
-export const getManifestPublicPathBase = (
+const getManifestPublicPathBase = (
   publicPath: string | undefined,
   manifestUrl: string,
 ) => {
@@ -90,7 +90,7 @@ export const getManifestPublicPathBase = (
   return base || getManifestFallbackBase(manifestUrl);
 };
 
-export const appendResolvedCssAssets = (
+const appendResolvedCssAssets = (
   result: string[],
   seen: Set<string>,
   assets: string[],

@@ -5,14 +5,14 @@ import type {
 
 import type { TelemetryQueueStats } from './registryTypes';
 
-export interface TelemetryCanaryHealthMetrics {
+interface TelemetryCanaryHealthMetrics {
   queueStats: TelemetryQueueStats;
   unhealthyExporterCount: number;
   requiredContractGates: readonly string[];
   contractGates: ReadonlyMap<string, TelemetryCanaryContractGateStatus>;
 }
 
-export interface TelemetryCanaryHealthThresholds {
+interface TelemetryCanaryHealthThresholds {
   maxQueueUtilization: number;
   maxTotalDropped: number;
   maxUnhealthyExporters: number;

@@ -3,7 +3,7 @@ import type {
   GateSnapshotGateValue,
 } from './contract-gate-snapshot-store/types';
 
-export type NormalizedGate = {
+type NormalizedGate = {
   name: string;
   passed: boolean;
   reason?: string;
@@ -11,7 +11,7 @@ export type NormalizedGate = {
   expiresAt?: number;
 };
 
-export type NormalizeSnapshotOptions = {
+type NormalizeSnapshotOptions = {
   now: number;
   gateStaleAfterMs: number;
 };
@@ -107,7 +107,7 @@ export const normalizeSnapshot = (
   return output;
 };
 
-export const normalizeGateValue = (
+const normalizeGateValue = (
   value: GateSnapshotGateValue,
   snapshotUpdatedAt: number | undefined,
   now: number,
@@ -140,17 +140,14 @@ export const normalizeGateValue = (
   };
 };
 
-export const normalizeUpdatedAt = (
-  value: number | undefined,
-  fallback: number,
-) => {
+const normalizeUpdatedAt = (value: number | undefined, fallback: number) => {
   if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
     return value;
   }
   return fallback;
 };
 
-export const normalizeExpiresAt = (value: number | undefined) => {
+const normalizeExpiresAt = (value: number | undefined) => {
   if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
     return value;
   }

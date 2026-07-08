@@ -8,7 +8,7 @@ import { CONTRACT_GATE_SNAPSHOT_SCHEMA_VERSION } from './types';
 
 const DEFAULT_HTTP_STORE_TIMEOUT_MS = 5_000;
 
-export const BUILTIN_HTTP_STATE_STORE_MODULES = new Set([
+const BUILTIN_HTTP_STATE_STORE_MODULES = new Set([
   'http',
   // historical aliases kept for config compatibility with the era when these
   // modules lived inside @modern-js/server-core.
@@ -18,7 +18,7 @@ export const BUILTIN_HTTP_STATE_STORE_MODULES = new Set([
   '@modern-js/server-runtime-extensions/contract-gate-http-store',
 ]);
 
-export const normalizeHttpStoreOptions = (
+const normalizeHttpStoreOptions = (
   options: Record<string, unknown> | undefined,
 ): ContractGateSnapshotHttpStoreOptions => {
   const endpoint =
@@ -67,7 +67,7 @@ export const normalizeHttpStoreOptions = (
   };
 };
 
-export const withTimeoutAbort = (timeoutMs: number) => {
+const withTimeoutAbort = (timeoutMs: number) => {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   return {
