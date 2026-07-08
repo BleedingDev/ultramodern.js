@@ -450,6 +450,22 @@ describe('framework Link', () => {
     );
   });
 
+  test('empty search prop clears query from target fallback anchors', async () => {
+    rendered = await renderWithRuntime(
+      <ModernI18nProvider value={providerValue('en')}>
+        <Link to="/products?tag=x" search="" data-testid="clear-query">
+          Products
+        </Link>
+      </ModernI18nProvider>,
+      { isBrowser: true, requestContext, context: requestContext } as any,
+    );
+
+    const link = rendered.container.querySelector(
+      '[data-testid="clear-query"]',
+    );
+    expect(link?.getAttribute('href')).toBe('/en/products');
+  });
+
   test('maps prefetch to the TanStack preload prop', async () => {
     const router = createTanstackRouter('/en/products', 'en');
     rendered = await renderWithRuntime(

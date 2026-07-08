@@ -127,7 +127,7 @@ export const normalizeSearch = (
     };
   }
 
-  const raw = typeof search === 'string' && search ? search : searchFromTo;
+  const raw = typeof search === 'string' ? search : searchFromTo;
   if (!raw) {
     return { searchString: '', searchObject: undefined };
   }
