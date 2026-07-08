@@ -64,9 +64,16 @@ export function addUltramodernVertical(
   );
   topology.shell ??= {};
   topology.shell.verticalRefs ??= [];
+  topology.shell.verticalRefs = topology.shell.verticalRefs.filter(
+    (id: unknown) => id !== vertical.id,
+  );
   topology.shell.verticalRefs.push(vertical.id);
   topology.shell.moduleFederation ??= {};
   topology.shell.moduleFederation.remotes ??= [];
+  topology.shell.moduleFederation.remotes =
+    topology.shell.moduleFederation.remotes.filter(
+      (remote: { id?: unknown } | null) => remote?.id !== vertical.id,
+    );
   topology.shell.moduleFederation.remotes.push({
     id: vertical.id,
     name: vertical.mfName,

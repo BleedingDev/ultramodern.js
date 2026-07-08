@@ -101,6 +101,41 @@ function addExistingTopologyVertical(
   writeJson(workspaceDir, overlayPath, overlay);
 }
 
+test('add-vertical normalizes stale shell refs for the new vertical', () => {
+  const { tempRoot, workspaceDir } = createWorkspace('preflight-workspace', {
+    tempPrefix: 'um-vertical-preflight-',
+  });
+
+  try {
+    const topology = readJson(workspaceDir, topologyPath);
+    topology.shell.verticalRefs.push('catalog');
+    topology.shell.moduleFederation.remotes.push({
+      id: 'catalog',
+      name: 'verticalCatalog',
+      manifestUrl: 'http://localhost:4101/mf-manifest.json',
+    });
+    writeJson(workspaceDir, topologyPath, topology);
+
+    addUltramodernVertical({
+      workspaceRoot: workspaceDir,
+      name: 'catalog',
+      modernVersion: '3.2.1',
+    });
+
+    const updatedTopology = readJson(workspaceDir, topologyPath);
+    assert.deepEqual(updatedTopology.shell.verticalRefs, ['catalog']);
+    assert.deepEqual(updatedTopology.shell.moduleFederation.remotes, [
+      {
+        id: 'catalog',
+        name: 'verticalCatalog',
+        manifestUrl: 'http://localhost:4101/mf-manifest.json',
+      },
+    ]);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test('preflight rejects invalid fresh vertical input before writes', () => {
   const { tempRoot, workspaceDir } = createWorkspace('preflight-workspace', {
     tempPrefix: 'um-vertical-preflight-',
