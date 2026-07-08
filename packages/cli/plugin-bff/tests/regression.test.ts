@@ -688,6 +688,85 @@ describe('plugin-bff regressions', () => {
     });
   });
 
+  test('effect adapter synthetic json context accepts response init in onError', async () => {
+    const middlewares: Array<{
+      handler: (ctx: unknown, next: () => Promise<void>) => Promise<unknown>;
+    }> = [];
+    const runtimeError = new Error('custom failure');
+    const api = {
+      getServerContext() {
+        return {
+          bffRuntimeFramework: 'effect',
+          middlewares,
+        };
+      },
+      getServerConfig() {
+        return {
+          onError: (
+            error: unknown,
+            context: {
+              json: (
+                data: unknown,
+                init?: { status?: number; headers?: HeadersInit },
+              ) => Response;
+            },
+          ) => {
+            expect(error).toBe(runtimeError);
+            return context.json(
+              {
+                handled: true,
+              },
+              {
+                status: 418,
+                headers: {
+                  'x-error-source': 'custom-on-error',
+                },
+              },
+            );
+          },
+        };
+      },
+    } as unknown;
+
+    const adapter = new EffectAdapter(api as ServerPluginAPI);
+    const adapterState = adapter as unknown as {
+      reloadHandler: () => Promise<void>;
+      handler: () => Promise<Response>;
+    };
+
+    adapterState.reloadHandler = async () => {
+      adapterState.handler = async () => {
+        throw runtimeError;
+      };
+    };
+
+    await adapter.registerMiddleware({
+      prefix: '/api',
+      enableHandleWeb: false,
+    });
+
+    const middleware = middlewares[0];
+    expect(middleware).toBeDefined();
+
+    const response = (await middleware.handler(
+      {
+        req: {
+          raw: new Request('http://localhost/api/custom-error'),
+          path: '/api/custom-error',
+          method: 'GET',
+        },
+        env: {},
+      } as unknown,
+      async () => {},
+    )) as Response | undefined;
+
+    expect(response?.status).toBe(418);
+    expect(response?.headers.get('x-error-source')).toBe('custom-on-error');
+    await expect(response?.json()).resolves.toEqual({
+      handled: true,
+    });
+  });
+
   test.each([
     {
       surface: 'dev mounted web middleware',

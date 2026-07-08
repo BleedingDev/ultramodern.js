@@ -5,7 +5,11 @@ import { logger } from '@modern-js/utils';
 import { createSafeFailureResponse } from '../../safe-failure';
 
 type ContextWithJson = Context & {
-  json?: (data: unknown, status?: number, headers?: HeadersInit) => Response;
+  json?: (
+    data: unknown,
+    statusOrInit?: number | ResponseInit,
+    headers?: HeadersInit,
+  ) => Response;
 };
 
 export async function createEffectAdapterRuntimeErrorResponse(
@@ -45,15 +49,23 @@ function ensureJsonContext(c: Context): Context {
     'content-type': 'application/json; charset=utf-8',
   };
   const withJson = Object.assign({}, c, {
-    json(data: unknown, status = 200, extraHeaders?: HeadersInit) {
+    json(
+      data: unknown,
+      statusOrInit: number | ResponseInit = 200,
+      extraHeaders?: HeadersInit,
+    ) {
+      const responseInit =
+        typeof statusOrInit === 'number'
+          ? { status: statusOrInit, headers: extraHeaders }
+          : statusOrInit;
       const responseHeaders = new Headers(headers);
-      if (extraHeaders) {
-        new Headers(extraHeaders).forEach((value, key) => {
+      if (responseInit.headers) {
+        new Headers(responseInit.headers).forEach((value, key) => {
           responseHeaders.set(key, value);
         });
       }
       return new Response(JSON.stringify(data), {
-        status,
+        ...responseInit,
         headers: responseHeaders,
       });
     },
