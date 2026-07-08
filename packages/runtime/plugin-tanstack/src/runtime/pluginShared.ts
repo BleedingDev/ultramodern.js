@@ -9,7 +9,7 @@ import type { RouterExtendsHooks } from './hooks';
 import type { RouterConfig } from './types';
 import { createTanstackRouteObjectsFromConfig, type SSRMode } from './utils';
 
-export type TanstackRouterRuntimeConfig = {
+type TanstackRouterRuntimeConfig = {
   plugins?: TanstackRouterRuntimePlugin[];
   router?: Partial<RouterConfig>;
   [key: string]: unknown;
@@ -37,7 +37,7 @@ export type TanstackRouterRuntimePlugin = {
   [key: string]: unknown;
 };
 
-export type TanstackRouteConfig = {
+type TanstackRouteConfig = {
   mergedConfig: RouterConfig;
   finalRouteConfig: RouterConfig['routesConfig'];
   hasConfiguredRoutes: boolean;
@@ -53,7 +53,7 @@ export function getMergedRouterConfig(
   return merge(pluginConfig.router || {}, userConfig) as RouterConfig;
 }
 
-export function getFinalRouteConfig(
+function getFinalRouteConfig(
   mergedConfig: RouterConfig,
 ): RouterConfig['routesConfig'] {
   return {

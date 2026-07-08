@@ -35,7 +35,7 @@ export function EmptyFallback() {
   return null;
 }
 
-export function selectTreePath(tree: unknown, path: string[]) {
+function selectTreePath(tree: unknown, path: string[]) {
   let current = tree;
   for (const key of path) {
     if (current === null || typeof current !== 'object') {

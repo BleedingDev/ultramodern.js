@@ -28,19 +28,16 @@ type RouterWithPreloadableRoutes = AnyRouter & {
   >;
 };
 
-export type RouterHydrationRecord = {
+type RouterHydrationRecord = {
   error?: unknown;
   promise: Promise<unknown>;
   status: 'pending' | 'fulfilled' | 'rejected';
 };
 
-export const routerHydrationRecords = new WeakMap<
-  AnyRouter,
-  RouterHydrationRecord
->();
+const routerHydrationRecords = new WeakMap<AnyRouter, RouterHydrationRecord>();
 const routeModulesKey = '_routeModules';
 
-export function getCachedRouteModule(routeId: string) {
+function getCachedRouteModule(routeId: string) {
   if (typeof window === 'undefined') {
     return undefined;
   }
@@ -50,9 +47,7 @@ export function getCachedRouteModule(routeId: string) {
   ]?.[routeId];
 }
 
-export function preloadHydratedRouteComponents(
-  router: AnyRouter,
-): Promise<void> {
+function preloadHydratedRouteComponents(router: AnyRouter): Promise<void> {
   const preloadableRouter = router as RouterWithPreloadableRoutes;
   const routesById = preloadableRouter.routesById || {};
   const matches = preloadableRouter.stores.matches.get() as Array<{
@@ -100,7 +95,7 @@ export function hydrateTanstackRouter(router: AnyRouter) {
   );
 }
 
-export function getTanstackSsrHydrationRecord(router: AnyRouter) {
+function getTanstackSsrHydrationRecord(router: AnyRouter) {
   const existingHydrationRecord = routerHydrationRecords.get(router);
   if (existingHydrationRecord !== undefined) {
     return existingHydrationRecord;

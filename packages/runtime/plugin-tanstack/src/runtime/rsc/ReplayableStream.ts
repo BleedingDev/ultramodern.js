@@ -1,5 +1,5 @@
 // @effect-diagnostics asyncFunction:off newPromise:off strictBooleanExpressions:off
-export interface ReplayableStreamOptions {
+interface ReplayableStreamOptions {
   signal?: AbortSignal;
 }
 
@@ -8,7 +8,7 @@ type Waiter = {
   resolve: () => void;
 };
 
-export const REPLAYABLE_STREAM_MARKER = Symbol.for(
+const REPLAYABLE_STREAM_MARKER = Symbol.for(
   'modern.tanstack.rsc.ReplayableStream',
 );
 

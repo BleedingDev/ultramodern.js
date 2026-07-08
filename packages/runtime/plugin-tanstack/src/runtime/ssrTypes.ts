@@ -23,14 +23,14 @@ export type RouterMatchWithError = {
   routeId?: unknown;
 };
 
-export type RouterRouteOptions = {
+type RouterRouteOptions = {
   component?: unknown;
   errorComponent?: unknown;
   notFoundComponent?: unknown;
   pendingComponent?: unknown;
 };
 
-export type RouterRouteWithOptions = {
+type RouterRouteWithOptions = {
   options?: RouterRouteOptions;
 };
 

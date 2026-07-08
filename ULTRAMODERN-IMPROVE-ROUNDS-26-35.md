@@ -227,8 +227,33 @@ Net: ~2k+ LOC removed, divergence reduced. **Reversible** (branch commits).
 Requires only your confirmation that downstream apps don't run
 `server.telemetry` / canary rollouts.
 
-Status: R30 shipped (1 removal). Campaign otherwise **complete on safe
-fork-owned work**; large reduction awaits owner go/no-go on the telemetry cut.
+Status: R30 shipped (1 removal).
+
+---
+
+## Round 31 — public-API surface reduction (plugin-tanstack)
+
+New safe, high-volume lever found via build+test-as-oracle: **over-exported
+internal-only symbols**. Detector: symbols in NON-entry files (not in
+package.json `exports`, not barrel-re-exported) with **0 external in-repo refs**
+but used internally → the `export` is unnecessary public-API bloat. De-exporting
+(file-private) improves encapsulation + tree-shaking, zero behavior change; the
+dts build (tsgo) catches any exported-signature dependency → revert.
+
+**26 symbols de-exported across 11 files** (plugin-tanstack runtime):
+`blockingSubscribe` (2 symbols), `clientHydration` (5), `formData` (1),
+`pluginShared` (3), `routeTree/types` (1), `rsc/ReplayableStream` (2),
+`rsc/SlotContext` (1), `rsc/payloadFetch` (2), `rsc/payloadRoutes` (6),
+`rsc/shared` (1), `ssrTypes` (2). Conservatively kept consumer-facing
+`hydrateTanstackRouter` / `loadTanstackRscPayload` / `renderServerComponent`
+(RSC/client entry points).
+Verify: **build (tsgo dts) exit 0, 923 tests pass.**
+
+This pattern repeats across every fork package (plugin-bff, runtime-extensions,
+create-request, plugin-i18n, create) → the mechanical "merciless" reduction the
+brief asks for, done safely. Continuing R32+.
+
+Status: **DONE ✅** (committing).
 
 ### Guardrail log (upstream-compat exclusions)
 - `packages/server/bff-core/src/router/index.ts` (`ApiRouter`, 30 members) —

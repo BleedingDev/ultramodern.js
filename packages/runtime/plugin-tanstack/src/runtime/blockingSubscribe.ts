@@ -1,9 +1,9 @@
 // @effect-diagnostics strictBooleanExpressions:off
 
-export const BLOCKING_SUBSCRIBE_SYMBOL = Symbol.for(
+const BLOCKING_SUBSCRIBE_SYMBOL = Symbol.for(
   '@modern-js/plugin-tanstack:blocking-subscribe',
 );
-export const BLOCKING_STATE_SYMBOL = Symbol.for(
+const BLOCKING_STATE_SYMBOL = Symbol.for(
   '@modern-js/plugin-tanstack:blocking-state',
 );
 

@@ -1,7 +1,7 @@
 // @effect-diagnostics asyncFunction:off globalFetch:off processEnv:off strictBooleanExpressions:off
 import type { PayloadRoute, ServerPayload } from '@modern-js/runtime/context';
 
-export type RouterStaticData = {
+type RouterStaticData = {
   modernRouteAction?: unknown;
   modernRouteHandle?: unknown;
   modernRouteHasAction?: unknown;
@@ -11,7 +11,7 @@ export type RouterStaticData = {
   modernRouteIsClientComponent?: unknown;
 };
 
-export type RouterRouteLike = {
+type RouterRouteLike = {
   id?: unknown;
   options?: {
     index?: unknown;
@@ -40,7 +40,7 @@ export type TanstackPayloadRouterLike = {
   };
 };
 
-export function toPlainRecord(value: unknown): Record<string, unknown> {
+function toPlainRecord(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object') {
     return {};
   }
@@ -73,16 +73,16 @@ export function getRouteId(match: RouterMatchLike) {
   return typeof routeId === 'string' ? routeId : undefined;
 }
 
-export function getRouteStaticData(match: RouterMatchLike) {
+function getRouteStaticData(match: RouterMatchLike) {
   return match.route?.options?.staticData || {};
 }
 
-export function getRouteParentId(match: RouterMatchLike) {
+function getRouteParentId(match: RouterMatchLike) {
   const parentId = match.route?.parentRoute?.id;
   return typeof parentId === 'string' ? parentId : undefined;
 }
 
-export function toRoutePath(match: RouterMatchLike) {
+function toRoutePath(match: RouterMatchLike) {
   const path = match.route?.options?.path;
   return typeof path === 'string' ? path : undefined;
 }

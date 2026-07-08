@@ -8,7 +8,7 @@ import type {
 
 export type RouteParams = Record<string, string>;
 
-export type ModernLoader = (args: {
+type ModernLoader = (args: {
   request: Request;
   params: RouteParams;
   context?: unknown;

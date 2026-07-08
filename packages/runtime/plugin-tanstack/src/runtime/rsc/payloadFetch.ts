@@ -11,7 +11,7 @@ type PayloadDecoder = (stream: ReadableStream<Uint8Array>) => Promise<unknown>;
 export const payloadFetchCache = new Map<string, Promise<ServerPayload>>();
 let payloadDecoder: PayloadDecoder | undefined;
 
-export async function decodePayload(stream: ReadableStream<Uint8Array>) {
+async function decodePayload(stream: ReadableStream<Uint8Array>) {
   if (payloadDecoder) {
     return reviveTanstackRscFlightValues(await payloadDecoder(stream));
   }
@@ -22,7 +22,7 @@ export async function decodePayload(stream: ReadableStream<Uint8Array>) {
   );
 }
 
-export function isServerPayload(value: unknown): value is ServerPayload {
+function isServerPayload(value: unknown): value is ServerPayload {
   return (
     Boolean(value) &&
     typeof value === 'object' &&

@@ -3,7 +3,7 @@
 import type React from 'react';
 import { createContext, use } from 'react';
 
-export type SlotImplementations = Record<string, unknown>;
+type SlotImplementations = Record<string, unknown>;
 
 const SlotContext = createContext<{
   implementations: SlotImplementations;

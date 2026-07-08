@@ -6,7 +6,7 @@ export type SubmitTarget =
   | FormData
   | URLSearchParams
   | Record<string, string | number | boolean | null | undefined>;
-export type SubmitterElement = HTMLButtonElement | HTMLInputElement;
+type SubmitterElement = HTMLButtonElement | HTMLInputElement;
 
 export type SubmitOptions = {
   action?: string;
