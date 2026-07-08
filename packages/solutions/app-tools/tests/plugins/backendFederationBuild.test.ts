@@ -582,6 +582,61 @@ describe('backend federation build artifacts', () => {
     ).rejects.toThrow(/Delivery-unit identity drift/);
   });
 
+  it('throws when build artifact appId belongs to another vertical', async () => {
+    const workspaceRoot = await createTempDir();
+    const appDirectory = path.join(workspaceRoot, 'verticals/explore');
+    const distDirectory = path.join(appDirectory, 'dist');
+
+    await fs.mkdir(path.join(appDirectory, 'api'), { recursive: true });
+    await fs.writeFile(
+      path.join(appDirectory, 'api/effect-api.ts'),
+      'export const backendFederationContract = {};\n',
+    );
+    await fs.mkdir(path.join(appDirectory, 'shared'), { recursive: true });
+    await writeBuildArtifact(appDirectory, { appId: 'inventory' });
+    await fs.writeFile(
+      path.join(appDirectory, 'backend-federation.config.ts'),
+      'export default {};\n',
+    );
+    await writeJson(path.join(workspaceRoot, '.modernjs/ultramodern.json'), {
+      topology: {
+        apps: [
+          {
+            id: 'explore',
+            kind: 'vertical',
+            package: '@tractor-store-vertical-demo/explore',
+            path: 'verticals/explore',
+            port: 3021,
+            api: {
+              prefix: '/explore-api',
+              stem: 'explore',
+            },
+            moduleFederation: {
+              name: 'verticalExplore',
+              manifestUrl: 'http://localhost:3021/mf-manifest.json',
+            },
+            backendFederation: {
+              name: 'verticalExploreBackend',
+              executionSurfaces: {
+                node: {
+                  remoteName: 'verticalExploreBackend',
+                  manifestUrl: 'http://localhost:3021/backend-mf-manifest.json',
+                  containerEntry:
+                    'http://localhost:3021/backendRemoteEntry.mjs',
+                  remoteType: 'module',
+                },
+              },
+            },
+          },
+        ],
+      },
+    });
+
+    await expect(
+      emitBackendFederationArtifacts(appDirectory, distDirectory),
+    ).rejects.toThrow(/appId: topology=explore vs ultramodern-build=inventory/);
+  });
+
   it('skips apps without generated backend federation metadata', async () => {
     const workspaceRoot = await createTempDir();
     const appDirectory = path.join(workspaceRoot, 'apps/shell-super-app');

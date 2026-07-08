@@ -103,6 +103,7 @@ export type BackendFederationApp = {
 };
 
 export type BackendFederationBuildIdentity = {
+  appId?: string;
   packageName?: string;
   version?: string;
   buildVersion?: string;
@@ -145,6 +146,7 @@ export const readBuildIdentity = async (
     const deliveryUnit = artifact.deliveryUnit;
     return {
       artifact,
+      appId: deliveryUnit.appId,
       buildVersion: deliveryUnit.buildMarker,
       packageName: deliveryUnit.packageName,
       version: deliveryUnit.version,
@@ -164,6 +166,7 @@ export const readBuildIdentity = async (
 
   const source = await fs.readFile(buildModulePath, 'utf8');
   return {
+    appId: source.match(/\bappId:\s*['"]([^'"]+)['"]/u)?.[1],
     buildVersion: source.match(/\bbuild:\s*['"]([^'"]+)['"]/u)?.[1],
     packageName: source.match(/\bpackageName:\s*['"]([^'"]+)['"]/u)?.[1],
     version: source.match(/\bversion:\s*['"]([^'"]+)['"]/u)?.[1],

@@ -71,35 +71,44 @@ export const emitBackendFederationArtifacts = async (
     buildIdentity.packageName !== undefined ||
     buildIdentity.version !== undefined;
 
-  if (hasCompactDeliveryUnit && hasBuildIdentity) {
+  if (hasBuildIdentity) {
     const compactConfigPath = path.join(workspaceRoot, COMPACT_CONFIG_PATH);
     const buildIdentityPath = existsSync(buildArtifactPathFor(appDirectory))
       ? buildArtifactPathFor(appDirectory)
       : buildModulePathFor(appDirectory);
     const mismatches: string[] = [];
-    const compare = (label: string, a?: string, b?: string) => {
+    const compare = (
+      label: string,
+      a?: string,
+      b?: string,
+      leftLabel = 'deliveryUnit',
+    ) => {
       if (a !== undefined && b !== undefined && a !== b) {
         mismatches.push(
-          `${label}: deliveryUnit=${a} vs ultramodern-build=${b}`,
+          `${label}: ${leftLabel}=${a} vs ultramodern-build=${b}`,
         );
       }
     };
-    compare('unitId', compactDeliveryUnit?.unitId, buildIdentity.unitId);
-    compare(
-      'buildMarker/build',
-      compactDeliveryUnit?.buildMarker,
-      buildIdentity.buildVersion,
-    );
-    compare(
-      'packageName',
-      compactDeliveryUnit?.packageName,
-      buildIdentity.packageName,
-    );
-    compare('version', compactDeliveryUnit?.version, buildIdentity.version);
+    compare('appId', app.id, buildIdentity.appId, 'topology');
+
+    if (hasCompactDeliveryUnit) {
+      compare('unitId', compactDeliveryUnit?.unitId, buildIdentity.unitId);
+      compare(
+        'buildMarker/build',
+        compactDeliveryUnit?.buildMarker,
+        buildIdentity.buildVersion,
+      );
+      compare(
+        'packageName',
+        compactDeliveryUnit?.packageName,
+        buildIdentity.packageName,
+      );
+      compare('version', compactDeliveryUnit?.version, buildIdentity.version);
+    }
 
     if (mismatches.length > 0) {
       throw new Error(
-        `[backend-federation-build] Delivery-unit identity drift between ${compactConfigPath} (deliveryUnit) and ${buildIdentityPath}: ${mismatches.join('; ')}`,
+        `[backend-federation-build] Delivery-unit identity drift between ${compactConfigPath} (topology) and ${buildIdentityPath}: ${mismatches.join('; ')}`,
       );
     }
   }
