@@ -32,9 +32,15 @@ import type {
 function createRouteFromRouteObject(opts: {
   options?: RouteTreeOptions;
   parent: AnyRoute;
+  pathlessFallbackId?: string;
   routeObject: RouteObject;
 }): AnyRoute {
-  const { options = {}, parent, routeObject } = opts;
+  const {
+    options = {},
+    parent,
+    pathlessFallbackId = 'pathless',
+    routeObject,
+  } = opts;
   const modernRouteObject = routeObject as ModernRouteObject;
   const revalidationState: RouteRevalidationState = {};
   const shouldRevalidate = modernRouteObject.shouldRevalidate;
@@ -44,7 +50,7 @@ function createRouteFromRouteObject(opts: {
   );
 
   const stableFallbackId =
-    routeObject.id || modernRouteObject.file || routeObject.path || 'pathless';
+    routeObject.id || modernRouteObject.file || pathlessFallbackId;
 
   const component = toRouteComponent(routeObject, options);
   const base: TanstackRouteOptions = {
@@ -92,10 +98,11 @@ function createRouteFromRouteObject(opts: {
 
   const children = routeObject.children;
   if (children && children.length > 0) {
-    const childRoutes = children.map((child: RouteObject) =>
+    const childRoutes = children.map((child: RouteObject, index) =>
       createRouteFromRouteObject({
         options,
         parent: route,
+        pathlessFallbackId: `pathless-${index}`,
         routeObject: child,
       }),
     );
@@ -178,8 +185,13 @@ export function createRouteTreeFromRouteObjects(
       ]
     : routes;
 
-  const childRoutes = topLevel.map(routeObject =>
-    createRouteFromRouteObject({ options, parent: rootRoute, routeObject }),
+  const childRoutes = topLevel.map((routeObject, index) =>
+    createRouteFromRouteObject({
+      options,
+      parent: rootRoute,
+      pathlessFallbackId: `pathless-${index}`,
+      routeObject,
+    }),
   );
 
   rootRoute.addChildren(childRoutes);

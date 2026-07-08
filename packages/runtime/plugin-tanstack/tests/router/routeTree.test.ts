@@ -201,6 +201,41 @@ describe('tanstack route tree from RouteObject[]', () => {
     expect(userMatch?.loaderData).toEqual({ id: '123' });
   });
 
+  test('keeps unnamed sibling pathless layouts distinct', async () => {
+    const routes: RouteObject[] = [
+      {
+        Component: () => null,
+        children: [
+          {
+            path: 'alpha',
+            loader: () => ({ value: 'alpha' }),
+            Component: () => null,
+          },
+        ],
+      },
+      {
+        Component: () => null,
+        children: [
+          {
+            path: 'beta',
+            loader: () => ({ value: 'beta' }),
+            Component: () => null,
+          },
+        ],
+      },
+    ];
+
+    const routeTree = createRouteTreeFromRouteObjects(routes);
+    const router = await loadRouteTree(routeTree, '/beta');
+
+    const matchedLoaderData = router.state.matches
+      .map(match => match.loaderData)
+      .filter(Boolean);
+
+    expect(matchedLoaderData).toContainEqual({ value: 'beta' });
+    expect(matchedLoaderData).not.toContainEqual({ value: 'alpha' });
+  });
+
   test('reports native TanStack unknown routes as HTTP 404', async () => {
     const routes: RouteObject[] = [
       {
