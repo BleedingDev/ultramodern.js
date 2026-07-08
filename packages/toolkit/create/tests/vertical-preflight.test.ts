@@ -86,7 +86,6 @@ function addExistingTopologyVertical(
       manifestUrl: `http://localhost:${port}/mf-manifest.json`,
       exposes: ['./Route', './Widget'],
       ssr: true,
-      fallbackTelemetryEvent: 'modernjs:mv-runtime-parity',
       sharedContractVersion: 'mf-ssr-contract-v1',
     },
     api: {

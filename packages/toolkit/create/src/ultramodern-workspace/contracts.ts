@@ -71,7 +71,6 @@ export function createTopology(
             }
           : {}),
         ssr: true,
-        fallbackTelemetryEvent: 'modernjs:mv-runtime-parity',
         sharedContractVersion: 'mf-ssr-contract-v1',
       },
       ...(createBackendFederationContract(scope, vertical)
