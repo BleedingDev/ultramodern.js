@@ -1,20 +1,4 @@
 export {
-  CONTRACT_GATE_SNAPSHOT_SCHEMA_VERSION,
-  type ContractGateSnapshotHttpStoreOptions,
-  type ContractGateSnapshotStore,
-  type ContractGateSnapshotStoreFactory,
-  type ContractGateSnapshotStoreFactoryContext,
-  type ContractGateSnapshotStoreModule,
-  type ContractGateSnapshotStoreUserConfig,
-  createFileContractGateSnapshotStore,
-  createHttpContractGateSnapshotStore,
-  DEFAULT_CONTRACT_GATE_SNAPSHOT_PATH,
-  type GateSnapshot,
-  type GateSnapshotGateValue,
-  resolveContractGateSnapshotPath,
-  resolveContractGateSnapshotStore,
-} from './contract-gate-snapshot-store';
-export {
   ContractGateAutopilot,
   type ContractGateAutopilotOptions,
 } from './contractGateAutopilot';

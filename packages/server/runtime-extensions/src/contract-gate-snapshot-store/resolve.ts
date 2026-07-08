@@ -1,4 +1,5 @@
 import { createRequire } from 'node:module';
+import { pathToFileURL } from 'node:url';
 
 import path from 'path';
 
@@ -123,6 +124,9 @@ const resolveStoreModulePath = (appDirectory: string, modulePath: string) => {
   }
 };
 
+const toStoreModuleImportSpecifier = (modulePath: string) =>
+  path.isAbsolute(modulePath) ? pathToFileURL(modulePath).href : modulePath;
+
 export const resolveContractGateSnapshotStore = async (input: {
   appDirectory: string;
   gateSnapshotPath: string;
@@ -146,8 +150,9 @@ export const resolveContractGateSnapshotStore = async (input: {
   const modulePath = resolveStoreModulePath(appDirectory, stateStore.module);
   let mod: ContractGateSnapshotStoreModule;
   try {
-    // eslint-disable-next-line import/no-dynamic-require,global-require
-    mod = require(modulePath) as ContractGateSnapshotStoreModule;
+    mod = (await import(
+      toStoreModuleImportSpecifier(modulePath)
+    )) as ContractGateSnapshotStoreModule;
   } catch (error) {
     throw new Error(
       `[telemetry.canary.autopilot] Failed to load stateStore.module "${stateStore.module}" (${modulePath}): ${error instanceof Error ? error.message : String(error)}`,

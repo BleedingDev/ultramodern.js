@@ -442,6 +442,147 @@ exports.createContractGateSnapshotStore = ({ gateSnapshotPath, options }) => {
     }
   });
 
+  test('autopilot path honors configured contract gate snapshot stateStore', async () => {
+    const tempDir = makeTempDir();
+    const defaultSnapshotPath = path.join(
+      tempDir,
+      '.modern/contract-gates.json',
+    );
+    const customSnapshotPath = path.join(tempDir, '.state-store/gates.json');
+    const stateStoreModulePath = path.join(
+      tempDir,
+      'autopilot-gate-state-store.js',
+    );
+    const readMarkerPath = path.join(tempDir, '.state-store/read-marker.txt');
+    const now = Date.now();
+
+    fs.mkdirSync(path.dirname(customSnapshotPath), { recursive: true });
+    fs.writeFileSync(
+      customSnapshotPath,
+      JSON.stringify(
+        {
+          schemaVersion: 1,
+          updatedAt: now,
+          gates: {
+            'state-store-autopilot-gate': {
+              passed: false,
+              reason: 'from configured stateStore',
+              updatedAt: now,
+            },
+          },
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    );
+    fs.writeFileSync(
+      stateStoreModulePath,
+      `'use strict';
+const fs = require('fs');
+const path = require('path');
+exports.createContractGateSnapshotStore = ({ gateSnapshotPath, options }) => {
+  const targetPath = options && typeof options.snapshotPath === 'string'
+    ? options.snapshotPath
+    : gateSnapshotPath;
+  const markerPath = options && typeof options.markerPath === 'string'
+    ? options.markerPath
+    : undefined;
+  return {
+    name: 'autopilot-test-state-store',
+    async readSnapshot() {
+      if (markerPath) {
+        fs.mkdirSync(path.dirname(markerPath), { recursive: true });
+        fs.appendFileSync(markerPath, targetPath + '\\n');
+      }
+      if (!fs.existsSync(targetPath)) {
+        return undefined;
+      }
+      return JSON.parse(fs.readFileSync(targetPath, 'utf8'));
+    },
+    async writeSnapshot(snapshot) {
+      fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+      fs.writeFileSync(targetPath, JSON.stringify(snapshot, null, 2));
+    },
+  };
+};
+`,
+      'utf8',
+    );
+
+    try {
+      const config = getDefaultConfig();
+      config.server = {
+        telemetry: {
+          enabled: true,
+          canary: {
+            enabled: true,
+            rollbackConsecutiveFailures: 1,
+            contractGates: {
+              'state-store-autopilot-gate': true,
+            },
+            autopilot: {
+              enabled: true,
+              gateSnapshotPath: defaultSnapshotPath,
+              pollIntervalMs: 20,
+              gateStaleAfterMs: 60_000,
+              stateStore: {
+                module: stateStoreModulePath,
+                options: {
+                  snapshotPath: customSnapshotPath,
+                  markerPath: readMarkerPath,
+                },
+              },
+              runtimeFallbackSignal: {
+                auth: {
+                  enabled: true,
+                  expectedValue: 'state-store-status-token',
+                },
+              },
+            },
+          },
+        },
+      } as any;
+
+      const server = createServerBase({
+        config,
+        pwd: tempDir,
+        appContext: getDefaultAppContext(),
+      });
+
+      server.addPlugins([
+        ...createDefaultPlugins({
+          logger: false,
+        }),
+        injectTelemetryPlugin(),
+      ]);
+
+      await server.init();
+
+      expect(fs.existsSync(readMarkerPath)).toBe(true);
+      expect(fs.readFileSync(readMarkerPath, 'utf8')).toContain(
+        customSnapshotPath,
+      );
+      expect(fs.existsSync(defaultSnapshotPath)).toBe(false);
+
+      const status = await server.request(
+        '/_modern/runtime/status',
+        {
+          method: 'GET',
+          headers: new Headers({
+            'x-modernjs-runtime-signal-token': 'state-store-status-token',
+          }),
+        },
+        {},
+      );
+      expect(status.status).toBe(200);
+      const statusBody = await status.json();
+      expect(statusBody.canary?.enabled).toBe(true);
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
   test('enforces runtime fallback trust policy before mutating gate snapshots', async () => {
     const tempDir = makeTempDir();
     const snapshotPath = path.join(tempDir, '.modern/contract-gates.json');
