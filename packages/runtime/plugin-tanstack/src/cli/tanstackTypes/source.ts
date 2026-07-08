@@ -291,11 +291,12 @@ export async function generateTanstackRouterTypesSourceForEntry(opts: {
     );
 
     if (children && children.length > 0) {
-      const childVars = await Promise.all(
-        children.map(child =>
-          buildRoute({ parentVar: routeCtorVarName, route: child }),
-        ),
-      );
+      const childVars: string[] = [];
+      for (const child of children) {
+        childVars.push(
+          await buildRoute({ parentVar: routeCtorVarName, route: child }),
+        );
+      }
       statements.push(
         `const ${varName} = ${routeCtorVarName}.addChildren([${childVars.join(', ')}]);`,
       );
@@ -333,9 +334,10 @@ export async function generateTanstackRouterTypesSourceForEntry(opts: {
       )
     : null;
 
-  const topLevelVars = await Promise.all(
-    topLevel.map(route => buildRoute({ parentVar: 'rootRoute', route })),
-  );
+  const topLevelVars: string[] = [];
+  for (const route of topLevel) {
+    topLevelVars.push(await buildRoute({ parentVar: 'rootRoute', route }));
+  }
 
   const rootOpts: string[] = [];
 

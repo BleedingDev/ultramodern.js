@@ -4,6 +4,32 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { isRedirect } from '@tanstack/react-router';
+
+const resolverDelays = new Map<string, number>();
+
+rstest.mock('../../src/cli/tanstackTypes/shared', () => {
+  const actual = rstest.requireActual(
+    '../../src/cli/tanstackTypes/shared',
+  ) as typeof import('../../src/cli/tanstackTypes/shared');
+
+  return {
+    ...actual,
+    resolveFileNoExt: async (inputNoExtPath: string) => {
+      const normalized = inputNoExtPath.replaceAll('\\', '/');
+      const delay =
+        [...resolverDelays.entries()].find(([suffix]) =>
+          normalized.endsWith(suffix),
+        )?.[1] ?? 0;
+
+      if (delay > 0) {
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+
+      return actual.resolveFileNoExt(inputNoExtPath);
+    },
+  };
+});
+
 import {
   collectCanonicalRoutesForEntry,
   generateTanstackRouterTypesSourceForEntry,
@@ -28,10 +54,22 @@ function catchThrown(fn: () => unknown): unknown {
   throw new Error('expected function to throw');
 }
 
+function extractRouteGenerationOrder(source: string) {
+  return source.split('\n').filter(line => {
+    return (
+      line.startsWith('import component_') ||
+      line.startsWith('const route_') ||
+      line.includes('component: component_') ||
+      line.startsWith('export const routeTree')
+    );
+  });
+}
+
 describe('tanstack router type generation', () => {
   let tempDir: string | undefined;
 
   afterEach(async () => {
+    resolverDelays.clear();
     if (tempDir) {
       await rm(tempDir, { recursive: true, force: true });
       tempDir = undefined;
@@ -192,6 +230,91 @@ describe('tanstack router type generation', () => {
       .find(block => block.includes('path: "data-only",'));
     expect(dataOnlyRoute).toBeDefined();
     expect(dataOnlyRoute).not.toContain('component:');
+  });
+
+  test('keeps generated source stable when route module resolution races', async () => {
+    tempDir = await mkdtemp(path.join(tmpdir(), 'modern-tanstack-types-'));
+    const srcDirectory = path.join(tempDir, 'src');
+
+    for (const componentFile of [
+      'routes/slow-page.tsx',
+      'routes/fast-page.tsx',
+      'routes/shared-page.tsx',
+    ]) {
+      const componentPath = path.join(srcDirectory, componentFile);
+      await mkdir(path.dirname(componentPath), { recursive: true });
+      await writeFile(
+        componentPath,
+        'export default function Page() { return null; }',
+      );
+    }
+
+    const routes = [
+      {
+        type: 'nested',
+        id: 'layout',
+        isRoot: true,
+        children: [
+          {
+            type: 'nested',
+            id: 'slow/page',
+            path: 'slow',
+            _component: '@/_/routes/slow-page',
+          },
+          {
+            type: 'nested',
+            id: 'fast/page',
+            path: 'fast',
+            _component: '@/_/routes/fast-page',
+          },
+          {
+            type: 'nested',
+            id: 'shared-a/page',
+            path: 'shared-a',
+            _component: '@/_/routes/shared-page',
+          },
+          {
+            type: 'nested',
+            id: 'shared-b/page',
+            path: 'shared-b',
+            _component: '@/_/routes/shared-page',
+          },
+        ],
+      },
+    ] as any;
+
+    const generateWithResolverDelays = async (
+      delays: Record<string, number>,
+    ) => {
+      resolverDelays.clear();
+      for (const [suffix, delay] of Object.entries(delays)) {
+        resolverDelays.set(suffix, delay);
+      }
+
+      const { routerGenTs } = await generateTanstackRouterTypesSourceForEntry({
+        appContext: {
+          srcDirectory,
+          internalSrcAlias: '@/_',
+        } as any,
+        entryName: 'index',
+        routes,
+      });
+
+      return routerGenTs;
+    };
+
+    const sequentialOutput = await generateWithResolverDelays({});
+    const racedOutput = await generateWithResolverDelays({
+      '/routes/slow-page': 25,
+    });
+
+    expect(
+      racedOutput.match(/from "\.\.\/\.\.\/routes\/shared-page";/g),
+    ).toHaveLength(1);
+    expect(extractRouteGenerationOrder(racedOutput)).toEqual(
+      extractRouteGenerationOrder(sequentialOutput),
+    );
+    expect(racedOutput).toBe(sequentialOutput);
   });
 
   test('typechecks generated TanStack search contracts', async () => {
