@@ -415,7 +415,11 @@ const checkOperationContextDetails: CrossProjectPolicyCheck = state => {
   const detailOperationId = String(
     operationContextDetails.operationId || '',
   ).trim();
-  if (state.operationContext && detailOperationId !== state.operationContext) {
+  if (
+    state.operationContext &&
+    detailOperationId &&
+    detailOperationId !== state.operationContext
+  ) {
     return createViolation(
       'operation_context_mismatch',
       `Operation context details operationId "${detailOperationId}" does not match operation context "${state.operationContext}"`,

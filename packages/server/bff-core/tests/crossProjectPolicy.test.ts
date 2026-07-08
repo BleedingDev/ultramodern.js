@@ -161,6 +161,31 @@ describe('cross-project policy', () => {
     expect(violation?.reason).toBe('operation_context_mismatch');
   });
 
+  test('should not flag an operation context mismatch when the detail omits operationId', () => {
+    const violation = evaluateCrossProjectPolicy(
+      {
+        'x-modernjs-bff-envelope': JSON.stringify({
+          requestId: 'crm.producer-a',
+        }),
+        'x-operation-id': 'crm.producer-a:GET:/api/customer',
+        'x-modernjs-bff-operation-context': JSON.stringify({
+          requestId: 'crm.producer-a',
+          method: 'GET',
+          routePath: '/api/customer',
+          schemaHash: 'schema-1',
+          operationVersion: 1,
+        }),
+      },
+      {
+        enabled: true,
+        allowedNamespaces: ['crm', 'billing'],
+        verifyProducerIdentity: () => 'crm',
+      },
+    );
+
+    expect(violation).toBeNull();
+  });
+
   test('should accept generated operation contract metadata for effect-first producer clients', () => {
     const contracts = buildOperationContractMap({
       handlers: [
