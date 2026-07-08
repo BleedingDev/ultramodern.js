@@ -162,6 +162,7 @@ export const createBackendManifest = (
               deliveryUnit: {
                 unitId: app.deliveryUnit.unitId,
                 buildMarker: app.deliveryUnit.buildMarker,
+                sourceRevision: app.deliveryUnit.sourceRevision,
               },
             }
           : {}),

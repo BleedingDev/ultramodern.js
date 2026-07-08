@@ -310,6 +310,7 @@ describe('backend federation build artifacts', () => {
     expect(manifest.backendFederation.versionBoundary.deliveryUnit).toEqual({
       unitId: 'tractor-store-vertical-demo/explore',
       buildMarker: 'tractor-explore-build-1234',
+      sourceRevision: 'workspace',
     });
     expect(
       manifest.backendFederation.versionBoundary.deliveryUnit.buildMarker,
