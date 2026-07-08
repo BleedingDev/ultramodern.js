@@ -40,7 +40,11 @@ const createRemoteManifestUrl = (options: {
     return \`\${options.mfName}@\${configuredPublicUrl.replace(/\\/+$/u, '')}/mf-manifest.json\`;
   }
 
-  if (cloudflareDeployEnabled && cloudflareWorkersDevSubdomain !== undefined) {
+  if (
+    cloudflareDeployEnabled &&
+    cloudflareWorkersDevSubdomain !== undefined &&
+    cloudflareWorkersDevSubdomain.length > 0
+  ) {
     return \`\${options.mfName}@https://\${options.workerName}.\${cloudflareWorkersDevSubdomain}.workers.dev/mf-manifest.json\`;
   }
 
