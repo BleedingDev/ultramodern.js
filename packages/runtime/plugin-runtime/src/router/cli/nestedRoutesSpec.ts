@@ -2,6 +2,7 @@
 import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { fs } from '@modern-js/utils';
+import { cloneDeep } from '@modern-js/utils/lodash';
 
 const lockPollIntervalMs = 25;
 const staleLockAgeMs = 2 * 60 * 1000;
@@ -70,6 +71,7 @@ export async function updateNestedRoutesSpec(
   nextRoutes: Record<string, unknown>,
 ) {
   const resolvedSpecPath = path.resolve(specPath);
+  const nextRoutesSnapshot = cloneDeep(nextRoutes);
   const previousUpdate =
     pendingUpdates.get(resolvedSpecPath) ?? Promise.resolve();
   const currentUpdate = previousUpdate
@@ -84,7 +86,7 @@ export async function updateNestedRoutesSpec(
 
         await writeJSONAtomically(resolvedSpecPath, {
           ...existingRoutes,
-          ...nextRoutes,
+          ...nextRoutesSnapshot,
         });
       } finally {
         await releaseLock();

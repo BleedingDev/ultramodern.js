@@ -445,4 +445,23 @@ describe('router cli extension points', () => {
     });
     expect(await fs.pathExists(`${specPath}.lock`)).toBe(false);
   });
+
+  test('snapshots nested route updates before the async write queue runs', async () => {
+    tempDir = await mkdtemp(path.join(tmpdir(), 'modern-router-cli-'));
+    const specPath = path.join(tempDir, 'dist', NESTED_ROUTE_SPEC_FILE);
+    const nextRoutes: Record<string, unknown> = {
+      main: [{ id: 'initial-route' }],
+    };
+
+    const update = updateNestedRoutesSpec(specPath, nextRoutes);
+
+    (nextRoutes.main as Array<{ id: string }>).push({ id: 'late-route' });
+    nextRoutes.late = [{ id: 'late-entry' }];
+
+    await update;
+
+    expect(await fs.readJSON(specPath)).toEqual({
+      main: [{ id: 'initial-route' }],
+    });
+  });
 });
