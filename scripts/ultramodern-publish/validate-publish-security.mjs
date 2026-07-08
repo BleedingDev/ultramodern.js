@@ -190,8 +190,25 @@ function validateWorkflowContract() {
   }
 }
 
+function readPublishScriptSources() {
+  // The publish script was split into ./lib/prepare-bleedingdev-packages/*.
+  // Read the entry file plus every module so the security-literal contract is
+  // checked wherever the code actually lives, not just in the entry file.
+  const libDir = path.join(
+    repoRoot,
+    'scripts/ultramodern-publish/lib/prepare-bleedingdev-packages',
+  );
+  const sources = [readText(publishScriptPath)];
+  for (const entry of fs.readdirSync(libDir)) {
+    if (entry.endsWith('.mjs')) {
+      sources.push(readText(path.join(libDir, entry)));
+    }
+  }
+  return sources.join('\n');
+}
+
 function validatePublishScriptContract() {
-  const publishScript = readText(publishScriptPath);
+  const publishScript = readPublishScriptSources();
   requireIncludes(publishScript, "args.push('--provenance')", 'publish script');
   requireIncludes(publishScript, "'--access',\n    'public'", 'publish script');
   requireIncludes(
