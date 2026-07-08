@@ -50,6 +50,10 @@ function sanitizeSlotArg(
     return String(value);
   }
 
+  if (typeof value === 'function') {
+    return '[Function]';
+  }
+
   if (seen.has(value)) {
     return '[Circular]';
   }
