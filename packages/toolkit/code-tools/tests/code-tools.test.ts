@@ -171,6 +171,27 @@ export function Page() {
     expect(output).toContain('aria-valuetext');
   });
 
+  test('single-app runner rejects conditional literal JSX expression text', () => {
+    const root = trackTempRoot();
+    writeFile(
+      root,
+      'src/page.tsx',
+      `
+const t = (key: string) => key;
+
+export function Page({ mode }: { mode: 'empty' | 'ready' }) {
+  return <p>{mode === 'empty' ? 'No projects yet' : t('projects.ready')}</p>;
+}
+`,
+    );
+
+    const result = captureConsole(() => runSingleAppI18nCheck({ cwd: root }));
+    const output = combinedOutput(result);
+
+    expect(result.exitCode).toBe(1);
+    expect(output).toContain('No projects yet');
+  });
+
   test('single-app runner does not flag TypeScript generic/effect helpers without JSX', () => {
     const root = trackTempRoot();
     writeFile(

@@ -15,6 +15,25 @@ import {
 } from '../options.ts';
 import type { AstNode, Rule } from '../types.ts';
 
+const expressionVisibleText = (
+  node: AstNode | undefined,
+): string | undefined => {
+  const text = expressionStringValue(node);
+  if (text !== undefined) {
+    const visibleText = normalizeVisibleText(text);
+    return visibleText && hasLetters(visibleText) ? text : undefined;
+  }
+
+  if (node?.type === 'ConditionalExpression') {
+    return (
+      expressionVisibleText(node.consequent) ??
+      expressionVisibleText(node.alternate)
+    );
+  }
+
+  return undefined;
+};
+
 export const createNoHardcodedJsxTextRule = (): Rule => ({
   meta: {
     type: 'problem',
@@ -52,7 +71,7 @@ export const createNoHardcodedJsxTextRule = (): Rule => ({
         }
 
         const text = normalizeVisibleText(
-          expressionStringValue(node.expression) ?? '',
+          expressionVisibleText(node.expression) ?? '',
         );
         if (!text || !hasLetters(text) || shouldSkipNode(node)) {
           return;
