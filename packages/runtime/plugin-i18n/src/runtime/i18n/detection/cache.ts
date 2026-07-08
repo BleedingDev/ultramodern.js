@@ -10,6 +10,19 @@ interface DetectorCacheEntry {
   configKey: string;
 }
 
+type DetectorCleanupInstance = I18nInstance & {
+  removeAllListeners?: () => void;
+  off?: (event: string) => void;
+  services?: I18nInstance['services'] & {
+    backendConnector?: {
+      backend?: {
+        stop?: () => void;
+        close?: () => void;
+      };
+    };
+  };
+};
+
 export const detectorInstanceCache = new WeakMap<
   I18nInstance,
   DetectorCacheEntry
@@ -88,8 +101,8 @@ export const pickSafeDetectionOptions = (
       safeOptions[key] = value;
     }
   }
-  if ((userInitOptions as any).interpolation) {
-    safeOptions.interpolation = { ...(userInitOptions as any).interpolation };
+  if (userInitOptions.interpolation) {
+    safeOptions.interpolation = { ...userInitOptions.interpolation };
   }
   return safeOptions;
 };
@@ -98,7 +111,7 @@ const cleanupDetectorCacheEntry = (entry?: DetectorCacheEntry) => {
   if (!entry || !entry.isTemporary) {
     return;
   }
-  const instance = entry.instance as any;
+  const instance = entry.instance as DetectorCleanupInstance;
   try {
     instance?.removeAllListeners?.();
   } catch (error) {

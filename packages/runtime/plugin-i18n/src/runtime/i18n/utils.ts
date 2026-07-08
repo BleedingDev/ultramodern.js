@@ -11,6 +11,15 @@ import {
   isI18nWrapperInstance,
 } from './instance';
 
+type MergedBackendOptions = NonNullable<I18nInitOptions['backend']> & {
+  _useChainedBackend?: boolean;
+  _chainedBackendConfig?: {
+    backendOptions: Array<Record<string, unknown>>;
+  };
+  backends?: unknown[];
+  backendOptions?: unknown;
+};
+
 export function assertI18nInstance(obj: unknown): asserts obj is I18nInstance {
   if (!isI18nInstance(obj)) {
     throw new Error('Object does not implement I18nInstance interface');
@@ -24,8 +33,8 @@ export const buildInitOptions = async (
   finalLanguage: string,
   fallbackLanguage: string,
   languages: string[],
-  mergedDetection: any,
-  mergedBackend: any,
+  mergedDetection: I18nInitOptions['detection'],
+  mergedBackend: MergedBackendOptions | undefined,
   userInitOptions?: I18nInitOptions,
   useSuspense?: boolean,
   i18nInstance?: I18nInstance,
@@ -84,8 +93,8 @@ export const buildInitOptions = async (
     if (isChainedBackend && mergedBackend._chainedBackendConfig) {
       // Try to get backend classes from i18nInstance.options.backend.backends first
       // This avoids importing fs-backend in browser environment
-      let HttpBackend: any;
-      let SdkBackendClass: any;
+      let HttpBackend: unknown;
+      let SdkBackendClass: unknown;
 
       if (
         i18nInstance?.options?.backend?.backends &&
@@ -148,7 +157,7 @@ export const changeI18nLanguage = async (
   i18nInstance: I18nInstance,
   newLang: string,
   options?: {
-    detectionOptions?: any;
+    detectionOptions?: I18nInitOptions['detection'];
   },
 ): Promise<void> => {
   if (!newLang || typeof newLang !== 'string') {
@@ -179,8 +188,8 @@ export const initializeI18nInstance = async (
   finalLanguage: string,
   fallbackLanguage: string,
   languages: string[],
-  mergedDetection: any,
-  mergedBackend: any,
+  mergedDetection: I18nInitOptions['detection'],
+  mergedBackend: MergedBackendOptions | undefined,
   userInitOptions?: I18nInitOptions,
   useSuspense?: boolean,
 ): Promise<void> => {
@@ -265,7 +274,7 @@ export const setupClonedInstance = async (
   backendEnabled: boolean,
   backend: BaseBackendOptions | undefined,
   i18nextDetector: boolean,
-  detection: any,
+  detection: I18nInitOptions['detection'],
   localePathRedirect: boolean,
   userInitOptions: I18nInitOptions | undefined,
 ): Promise<void> => {

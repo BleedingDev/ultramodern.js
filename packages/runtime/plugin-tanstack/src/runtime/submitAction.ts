@@ -31,14 +31,21 @@ type RouteLoader = (args: {
   context?: unknown;
 }) => Promise<unknown> | unknown;
 
+type RouterBuildLocationOptions = Parameters<AnyRouter['buildLocation']>[0];
+type RouterBuiltLocation = ReturnType<AnyRouter['buildLocation']> & {
+  pathname: string;
+};
+type RouterParsedLocation = Parameters<AnyRouter['getParsedLocationHref']>[0];
+type RouterNavigateOptions = Parameters<AnyRouter['navigate']>[0];
+
 function resolveRouteHandlers(router: AnyRouter, actionTo: string) {
   const builtLocation = router.buildLocation({
-    to: actionTo as any,
-  } as any);
-  const href = router.getParsedLocationHref(builtLocation as any);
-  const matchedRoutes = router.getMatchedRoutes(
-    (builtLocation as any).pathname,
+    to: actionTo,
+  } as RouterBuildLocationOptions) as RouterBuiltLocation;
+  const href = router.getParsedLocationHref(
+    builtLocation as RouterParsedLocation,
   );
+  const matchedRoutes = router.getMatchedRoutes(builtLocation.pathname);
   const routeStaticData = matchedRoutes.foundRoute?.options?.staticData as
     | Record<string, unknown>
     | undefined;
@@ -118,8 +125,8 @@ export async function submitRouteAction({
           result.headers.get('Location');
         if (redirectTo || isRedirectResponse(result)) {
           await router.navigate({
-            to: (redirectTo || '/') as any,
-          } as any);
+            to: redirectTo || '/',
+          } as RouterNavigateOptions);
           return parseResponseData(result);
         }
         return parseResponseResultOrThrow(result);
@@ -130,7 +137,7 @@ export async function submitRouteAction({
 
     await router.navigate({
       href: `${requestUrl.pathname}${requestUrl.search}${requestUrl.hash}`,
-    } as any);
+    } as RouterNavigateOptions);
     return;
   }
 
@@ -175,8 +182,8 @@ export async function submitRouteAction({
       result.headers.get('Location');
     if (redirectTo || isRedirectResponse(result)) {
       await router.navigate({
-        to: (redirectTo || '/') as any,
-      } as any);
+        to: redirectTo || '/',
+      } as RouterNavigateOptions);
       return parseResponseData(result);
     }
 

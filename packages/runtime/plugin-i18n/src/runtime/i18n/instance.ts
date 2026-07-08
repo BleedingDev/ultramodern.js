@@ -3,7 +3,7 @@ import type { BaseBackendOptions } from '../../shared/type';
 export interface I18nResourceStore {
   data?: {
     [language: string]: {
-      [namespace: string]: string | { [key: string]: any };
+      [namespace: string]: ResourceValue;
     };
   };
   addResourceBundle?: (
@@ -15,30 +15,49 @@ export interface I18nResourceStore {
   ) => void;
 }
 
-export function isI18nWrapperInstance(obj: any): boolean {
+type I18nWrapperInstance = I18nInstance & {
+  i18nInstance: {
+    instance: I18nInstance;
+  };
+};
+
+export function isI18nWrapperInstance(
+  obj: unknown,
+): obj is I18nWrapperInstance {
   if (!obj || typeof obj !== 'object') {
     return false;
   }
-  if (!obj.i18nInstance || typeof obj.i18nInstance !== 'object') {
+  const candidate = obj as {
+    i18nInstance?: unknown;
+    init?: unknown;
+    use?: unknown;
+  };
+  if (!candidate.i18nInstance || typeof candidate.i18nInstance !== 'object') {
     return false;
   }
-  if (!obj.i18nInstance.instance) {
+  const wrapper = candidate.i18nInstance as { instance?: unknown };
+  if (!wrapper.instance) {
     return false;
   }
-  if (typeof obj.init !== 'function' || typeof obj.use !== 'function') {
+  if (
+    typeof candidate.init !== 'function' ||
+    typeof candidate.use !== 'function'
+  ) {
     return false;
   }
   return true;
 }
 
-export function getI18nWrapperI18nextInstance(wrapperInstance: any): any {
+export function getI18nWrapperI18nextInstance(
+  wrapperInstance: unknown,
+): I18nInstance | null {
   if (isI18nWrapperInstance(wrapperInstance)) {
     return wrapperInstance.i18nInstance?.instance;
   }
   return null;
 }
 
-export function getActualI18nextInstance(instance: I18nInstance | any): any {
+export function getActualI18nextInstance(instance: I18nInstance): I18nInstance {
   if (isI18nWrapperInstance(instance)) {
     const i18nextInstance = getI18nWrapperI18nextInstance(instance);
     return i18nextInstance || instance;
@@ -50,39 +69,42 @@ export interface I18nInstance {
   language: string;
   isInitialized?: boolean;
   init: {
-    (callback?: (error: any, t: any) => void): Promise<any>;
+    (callback?: (error: unknown, t: unknown) => void): Promise<unknown>;
     (
       options: I18nInitOptions,
-      callback?: (error: any, t: any) => void,
-    ): Promise<any>;
+      callback?: (error: unknown, t: unknown) => void,
+    ): Promise<unknown>;
   };
   changeLanguage?: (
     lng?: string,
-    callback?: (error: any, t: any) => void,
-  ) => Promise<any>;
+    callback?: (error: unknown, t: unknown) => void,
+  ) => Promise<unknown>;
   setLang?: (lang: string) => void | Promise<void>;
-  use: (plugin: any) => void;
+  use: (plugin: unknown) => void;
   createInstance?: (options?: I18nInitOptions) => I18nInstance;
   cloneInstance?: () => I18nInstance; // ssr need
   // i18next store (may not be in type definition but exists at runtime)
   store?: I18nResourceStore;
-  emit?: (event: string, ...args: any[]) => void;
+  emit?: (event: string, ...args: unknown[]) => void;
   reloadResources?: (language?: string, namespace?: string) => Promise<void>;
   services?: {
     languageDetector?: {
-      detect: (request?: any, options?: any) => string | string[] | undefined;
-      [key: string]: any;
+      detect: (
+        request?: unknown,
+        options?: unknown,
+      ) => string | string[] | undefined;
+      [key: string]: unknown;
     };
     resourceStore?: I18nResourceStore;
-    backend?: any; // Backend instance (e.g., SdkBackend)
-    [key: string]: any;
+    backend?: unknown; // Backend instance (e.g., SdkBackend)
+    [key: string]: unknown;
   };
   // i18next instance options (available after initialization)
   options?: {
     backend?: BackendOptions;
-    [key: string]: any;
+    [key: string]: unknown;
   };
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 type LanguageDetectorOrder = string[];
@@ -101,8 +123,8 @@ export interface LanguageDetectorOptions {
 }
 
 export interface BackendOptions extends Omit<BaseBackendOptions, 'enabled'> {
-  parse?: (data: string) => any;
-  stringify?: (data: any) => string;
+  parse?: (data: string) => unknown;
+  stringify?: (data: unknown) => string;
   [key: string]: any;
 }
 
@@ -126,15 +148,15 @@ export type I18nInitOptions = {
   defaultNS?: string | string[];
   interpolation?: {
     escapeValue?: boolean;
-    [key: string]: any;
+    [key: string]: unknown;
   };
   react?: {
     useSuspense?: boolean;
-    [key: string]: any;
+    [key: string]: unknown;
   };
 };
 
-export function isI18nInstance(obj: any): obj is I18nInstance {
+export function isI18nInstance(obj: unknown): obj is I18nInstance {
   if (!obj || typeof obj !== 'object') {
     return false;
   }
@@ -143,7 +165,10 @@ export function isI18nInstance(obj: any): obj is I18nInstance {
     return true;
   }
 
-  return typeof obj.init === 'function' && typeof obj.use === 'function';
+  const candidate = obj as { init?: unknown; use?: unknown };
+  return (
+    typeof candidate.init === 'function' && typeof candidate.use === 'function'
+  );
 }
 
 async function tryImportI18next(): Promise<I18nInstance | null> {
@@ -170,8 +195,8 @@ async function createI18nextInstance(): Promise<I18nInstance | null> {
 }
 
 export function getI18nextInstanceForProvider(
-  instance: I18nInstance | any,
-): any {
+  instance: I18nInstance,
+): I18nInstance {
   if (isI18nWrapperInstance(instance)) {
     const i18nextInstance = getI18nWrapperI18nextInstance(instance);
     if (i18nextInstance) {
@@ -183,7 +208,7 @@ export function getI18nextInstanceForProvider(
 }
 
 export async function getI18nInstance(
-  userInstance?: I18nInstance | any,
+  userInstance?: unknown,
 ): Promise<I18nInstance> {
   if (userInstance) {
     if (isI18nWrapperInstance(userInstance)) {

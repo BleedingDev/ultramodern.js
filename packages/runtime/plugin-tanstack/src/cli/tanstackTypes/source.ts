@@ -21,11 +21,23 @@ import {
   toTanstackPath,
 } from './shared';
 
+type RouteForCli = NestedRouteForCli | PageRoute;
+
+type RouteExtras = {
+  id?: string;
+  type?: unknown;
+  isRoot?: unknown;
+  children?: RouteForCli[];
+  action?: unknown;
+  path?: string;
+  _component?: unknown;
+};
+
 export async function generateTanstackRouterTypesSourceForEntry(opts: {
   appContext: AppToolsContext;
   entryName: string;
   generatedDirName?: string;
-  routes: (NestedRouteForCli | PageRoute)[];
+  routes: RouteForCli[];
 }): Promise<{
   routerGenTs: string;
 }> {
@@ -41,14 +53,13 @@ export async function generateTanstackRouterTypesSourceForEntry(opts: {
     entryName,
   );
 
-  const rootModern = routes.find(
-    r => r && (r as any).type === 'nested' && (r as any).isRoot,
-  ) as NestedRouteForCli | undefined;
+  const rootModern = routes.find(r => {
+    const extras = r as RouteExtras;
+    return r && extras.type === 'nested' && extras.isRoot;
+  }) as NestedRouteForCli | undefined;
 
-  const topLevel = rootModern
-    ? ((rootModern as any).children as Array<NestedRouteForCli | PageRoute>) ||
-      []
-    : routes;
+  const rootExtras = rootModern as RouteExtras | undefined;
+  const topLevel = rootModern ? rootExtras?.children || [] : routes;
 
   const imports: string[] = [];
   const statements: string[] = [];
@@ -199,7 +210,7 @@ export async function generateTanstackRouterTypesSourceForEntry(opts: {
   };
 
   const createRouteVarName = (route: NestedRouteForCli | PageRoute) => {
-    const id = (route as any).id as string | undefined;
+    const id = (route as RouteExtras).id;
     const base = id ? makeLegalIdentifier(id) : `r_${routeIndex++}`;
     return reserveRouteVarName(`route_${base}`);
   };
@@ -211,9 +222,10 @@ export async function generateTanstackRouterTypesSourceForEntry(opts: {
     const { parentVar, route } = opts;
 
     const varName = createRouteVarName(route);
+    const routeExtras = route as RouteExtras;
 
     const loaderInfo = pickModernLoaderModule(route);
-    const routeAction = (route as any).action;
+    const routeAction = routeExtras.action;
     const loaderImports = loaderInfo
       ? await getImportNamesForLoader(
           loaderInfo.loaderPath,
@@ -237,20 +249,20 @@ export async function generateTanstackRouterTypesSourceForEntry(opts: {
         )
       : null;
 
-    const rawPath = (route as any).path as string | undefined;
+    const rawPath = routeExtras.path;
     const hasSplat = typeof rawPath === 'string' && rawPath.includes('*');
 
     const routeOpts: string[] = [`getParentRoute: () => ${parentVar},`];
 
     const componentName = await getImportNameForComponent(
-      (route as any)._component,
+      routeExtras._component,
     );
     if (componentName) {
       routeOpts.push(`component: ${componentName},`);
     }
 
     if (isPathlessLayout(route)) {
-      const id = (route as any).id as string | undefined;
+      const id = routeExtras.id;
       routeOpts.push(`id: ${quote(id || 'pathless')},`);
     } else {
       const p = isIndexRoute(route) ? '/' : toTanstackPath(rawPath || '');
@@ -270,7 +282,7 @@ export async function generateTanstackRouterTypesSourceForEntry(opts: {
     }
 
     const staticDataSnippet = createRouteStaticDataSnippet({
-      modernRouteId: (route as any).id as string | undefined,
+      modernRouteId: routeExtras.id,
       loaderName,
       actionName,
     });
@@ -278,9 +290,7 @@ export async function generateTanstackRouterTypesSourceForEntry(opts: {
       routeOpts.push(staticDataSnippet);
     }
 
-    const children = (route as any).children as
-      | Array<NestedRouteForCli | PageRoute>
-      | undefined;
+    const children = routeExtras.children;
     const hasChildren = Boolean(children && children.length > 0);
     const routeCtorVarName = hasChildren
       ? reserveRouteVarName(`${varName}__base`)
@@ -306,7 +316,7 @@ export async function generateTanstackRouterTypesSourceForEntry(opts: {
   };
 
   const rootLoaderInfo = rootModern ? pickModernLoaderModule(rootModern) : null;
-  const rootAction = (rootModern as any)?.action;
+  const rootAction = rootExtras?.action;
   const rootLoaderImports = rootLoaderInfo?.loaderPath
     ? await getImportNamesForLoader(
         rootLoaderInfo.loaderPath,
@@ -342,7 +352,7 @@ export async function generateTanstackRouterTypesSourceForEntry(opts: {
   const rootOpts: string[] = [];
 
   const rootComponentName = await getImportNameForComponent(
-    (rootModern as any)?._component,
+    rootExtras?._component,
   );
   if (rootComponentName) {
     rootOpts.push(`component: ${rootComponentName},`);
@@ -380,7 +390,7 @@ export const rootRoute = createRootRouteWithContext<ModernRouterContext>()({
   ${rootOpts.join('\n  ')}
   ${
     createRouteStaticDataSnippet({
-      modernRouteId: (rootModern as any)?.id as string | undefined,
+      modernRouteId: rootExtras?.id,
       loaderName: rootLoaderName,
       actionName: rootActionName,
     }) || ''
