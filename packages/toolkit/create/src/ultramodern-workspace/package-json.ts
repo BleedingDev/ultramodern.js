@@ -80,6 +80,12 @@ export function appDependencies(
   };
 
   for (const dependency of bridge?.dependencies ?? []) {
+    if (Object.hasOwn(dependencies, dependency)) {
+      throw new Error(
+        `Bridge mode dependency "${dependency}" conflicts with generated app dependency.`,
+      );
+    }
+
     dependencies[dependency] = WORKSPACE_PACKAGE_VERSION;
   }
 

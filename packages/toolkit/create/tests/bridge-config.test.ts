@@ -313,6 +313,46 @@ test('bridge CLI parser rejects partial or invalid bridge mode', () => {
   );
 });
 
+test('bridge mode rejects parent packages that collide with generated app dependencies', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-bridge-'));
+  const workspaceDir = path.join(tempRoot, 'bridge-app');
+
+  try {
+    assert.throws(
+      () =>
+        generateUltramodernWorkspace({
+          targetDir: workspaceDir,
+          packageName: 'bridge-app',
+          modernVersion: '3.2.1',
+          packageSource: {
+            strategy: 'install',
+            modernPackageVersion: '3.2.0-ultramodern.108',
+          },
+          bridge: {
+            parentRoot: '../..',
+            workspacePackages: [
+              {
+                pattern: '../../packages/react',
+                packageNames: ['react'],
+              },
+            ],
+            dependencies: ['react'],
+            gates: [
+              {
+                name: 'parent-rstest',
+                command: 'pnpm exec rstest packages/react/tests',
+                cwd: '../..',
+              },
+            ],
+          },
+        }),
+      /Bridge mode dependency "react" conflicts with generated app dependency/,
+    );
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test('bridge mode materializes workspace packages, app dependencies, compact config, and delegated gates', () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-bridge-'));
   const workspaceDir = path.join(tempRoot, 'bridge-app');
