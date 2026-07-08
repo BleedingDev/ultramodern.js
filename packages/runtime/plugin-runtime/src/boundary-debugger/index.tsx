@@ -224,9 +224,26 @@ function BoundaryDebugger({
       return;
     }
 
+    let resizeObserver: ResizeObserver | undefined;
+    const observedElements = new Set<HTMLElement>();
+    const observeBoundaryElements = (elements: HTMLElement[]) => {
+      if (resizeObserver === undefined) {
+        return;
+      }
+      for (const element of elements) {
+        if (observedElements.has(element)) {
+          continue;
+        }
+        observedElements.add(element);
+        resizeObserver.observe(element);
+      }
+    };
+
     const readBoxes = () => {
+      const elements = collectBoundaryElements(legacySelector);
+      observeBoundaryElements(elements);
       const seenBoxes = new Set<string>();
-      const nextBoxes = collectBoundaryElements(legacySelector)
+      const nextBoxes = elements
         .map((element): BoundaryBox | undefined => {
           const boundaryId = getBoundaryId(element);
           if (boundaryId === undefined || boundaryId === '') {
@@ -273,15 +290,11 @@ function BoundaryDebugger({
       setBoxes(nextBoxes);
     };
 
-    readBoxes();
-
-    const resizeObserver =
+    resizeObserver =
       typeof ResizeObserver === 'undefined'
         ? undefined
         : new ResizeObserver(readBoxes);
-    for (const element of collectBoundaryElements(legacySelector)) {
-      resizeObserver?.observe(element);
-    }
+    readBoxes();
 
     const mutationObserver = new MutationObserver(readBoxes);
     mutationObserver.observe(document.body, {
