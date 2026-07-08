@@ -449,7 +449,7 @@ export const createRequestFactory = <F>(
         operationContext,
       );
 
-      if (isServerTarget && method.toLowerCase() === 'get') {
+      if (method.toLowerCase() === 'get') {
         body = undefined;
       }
 
