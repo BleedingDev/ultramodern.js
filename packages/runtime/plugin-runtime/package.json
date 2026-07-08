@@ -97,10 +97,6 @@
       },
       "default": "./dist/esm/router/index.mjs"
     },
-    "./tanstack-router": {
-      "types": "./dist/types/exports/tanstack-router.d.ts",
-      "default": "./dist/esm/exports/tanstack-router.mjs"
-    },
     "./router/server": {
       "types": "./dist/types/router/runtime/server.d.ts",
       "default": "./dist/esm/router/runtime/server.mjs"
@@ -191,9 +187,6 @@
       ],
       "router": [
         "./dist/types/router/index.d.ts"
-      ],
-      "tanstack-router": [
-        "./dist/types/exports/tanstack-router.d.ts"
       ],
       "router/server": [
         "./dist/types/router/runtime/server.d.ts"

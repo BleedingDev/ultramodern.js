@@ -40,25 +40,6 @@ describe('tanstack create-routes contracts', () => {
     await releaseFixtureLock?.();
   });
 
-  test('publishes the tanstack router subpath export', () => {
-    const packageJson = JSON.parse(
-      fs.readFileSync(
-        path.join(repoRoot, 'packages/runtime/plugin-runtime/package.json'),
-        'utf8',
-      ),
-    );
-
-    expect(packageJson.exports['./tanstack-router']).toEqual(
-      expect.objectContaining({
-        types: './dist/types/exports/tanstack-router.d.ts',
-        default: './dist/esm/exports/tanstack-router.mjs',
-      }),
-    );
-    expect(packageJson.typesVersions['*']['tanstack-router']).toEqual([
-      './dist/types/exports/tanstack-router.d.ts',
-    ]);
-  });
-
   test('createRoutes apps register tanstack through the runtime router wrapper instead of generated files', () => {
     // createRoutes-style apps have no file-route entries, so the codegen must
     // not emit router.gen.ts/register.gen.d.ts mirrors for them — the router
