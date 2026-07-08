@@ -127,7 +127,42 @@ git-clobber hazard, R28 commits transport.ts only and leaves those in-progress
 files to their lane. `policyCore.ts` / `requestFactory.ts` header-map and
 variadic-forwarding `any` left as-is (tightening cascades / genuinely variadic).
 
-Status: **DONE ✅** (committing).
+Status: **DONE ✅** — committed `d1e9f7be27`.
+
+---
+
+## Round 29 — architectural simplification audit (confirm-before-delete)
+
+User steer: pursue bold architectural cuts of over-built fork subsystems,
+confirming each is not a live feature before deleting.
+
+Consumption audit (grep + tracedecay), fork subsystems ranked by size:
+
+| Subsystem | LOC | Live? | Evidence |
+|---|---|---|---|
+| `plugin-bff/runtime/data-platform` (batch) | 1454 | **LIVE** | consumed by `effect-client/envelope.ts`, `effect/handler/batch-handler.ts`; documented (`bff/data-platform.mdx`) + tested |
+| `plugin-bff/runtime/effect-client` | 912 | **LIVE** | package export `./effect-client-runtime` (`modern:source`); consumed by generated app code + create fixtures |
+| `plugin-bff/runtime/effect/backend-federation-manifest` | 858 | **LIVE** | consumed by `effect/index.ts` |
+| runtime-extensions telemetry + canary + contract-gate | ~2k | **LIVE** | `TelemetryRegistry` + `TelemetryCanaryOrchestrator` wired into **`prod-server/src/index.ts`** (production server entry); `ContractGateAutopilot` in telemetry lifecycle |
+
+**Verdict: no dead architectural scaffolding exists.** Every major fork
+subsystem is integrated into a real runtime path (several into the prod-server
+entry), documented, and test-covered. File-per-concern sizes (~40–150 LOC) are
+reasonable modularization, not over-splitting — merging would be churn. No
+cross-subsystem duplication (0 shared exports between the two batch layers).
+
+Deleting any of these would break live, documented, prod-wired features —
+exactly the upstream-compat / no-harm constraint this campaign enforces. The
+"shit ton of removable code" hypothesis does not hold against the evidence: the
+fork is large (206k LOC) but legitimately used and, after 25+2 prior cleanup
+rounds, structurally clean.
+
+**Open decision (needs product judgment, not derivable from code):** which — if
+any — of these live features is actually dispensable for the product direction?
+That is the only remaining lever for large reduction, and it is the owner's call.
+
+Status: BLOCKED on owner input (which feature, if any, to retire) vs. accept
+clean verdict.
 
 ### Guardrail log (upstream-compat exclusions)
 - `packages/server/bff-core/src/router/index.ts` (`ApiRouter`, 30 members) —
