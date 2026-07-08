@@ -113,30 +113,32 @@ export const createI18nRootWrapper =
       );
 
       const children = (props as React.PropsWithChildren).children;
-      const appContent = (
+      let appContent: React.ReactNode = App ? (
+        <App {...props}>{children}</App>
+      ) : (
+        children
+      );
+
+      if (i18nInstance) {
+        const I18nextProvider = getI18nextProvider();
+        if (I18nextProvider) {
+          const i18nextInstanceForProvider =
+            getI18nextInstanceForProvider(i18nInstance);
+          appContent = (
+            <I18nextProvider i18n={i18nextInstanceForProvider}>
+              {appContent}
+            </I18nextProvider>
+          );
+        }
+      }
+
+      return (
         <>
           {Boolean(htmlLangAttr) && <Helmet htmlAttributes={{ lang }} />}
           <ModernI18nProvider value={contextValue}>
-            {App ? <App {...props}>{children}</App> : children}
+            {appContent}
           </ModernI18nProvider>
         </>
       );
-
-      if (!i18nInstance) {
-        return appContent;
-      }
-
-      const I18nextProvider = getI18nextProvider();
-      if (I18nextProvider) {
-        const i18nextInstanceForProvider =
-          getI18nextInstanceForProvider(i18nInstance);
-        return (
-          <I18nextProvider i18n={i18nextInstanceForProvider}>
-            {appContent}
-          </I18nextProvider>
-        );
-      }
-
-      return appContent;
     };
   };

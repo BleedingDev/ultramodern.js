@@ -12,6 +12,7 @@ import { ModernI18nProvider, useModernI18n } from '../src/runtime/context';
 import { I18nLink } from '../src/runtime/I18nLink';
 import type { I18nInstance } from '../src/runtime/i18n';
 import { getReactI18nextIntegration } from '../src/runtime/i18n/react-i18next';
+import { createI18nRootWrapper } from '../src/runtime/providerComposition';
 
 (
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -226,6 +227,34 @@ describe('i18n runtime wrapRoot', () => {
     expect(
       rendered.container.querySelector('main')?.getAttribute('data-label'),
     ).toBe('root');
+    expect(rendered.container.textContent).toContain('router content');
+  });
+
+  test('keeps the optional i18next provider inside Modern i18n context', async () => {
+    const i18nInstance = createI18nInstance('cs');
+    const observedLanguages: string[] = [];
+    const I18nextProvider = ({
+      children,
+      i18n,
+    }: PropsWithChildren<{ i18n: I18nInstance }>) => {
+      const { language } = useModernI18n();
+      observedLanguages.push(`${language}:${i18n.language}`);
+
+      return <section data-testid="i18next-provider">{children}</section>;
+    };
+    const App = () => <main>router content</main>;
+    const I18nRoot = createI18nRootWrapper({
+      htmlLangAttr: false,
+      localePathRedirect: false,
+      languages: ['en', 'cs'],
+      fallbackLanguage: 'en',
+      getLatestI18nInstance: () => i18nInstance,
+      getI18nextProvider: () => I18nextProvider,
+    })(App);
+
+    rendered = await renderI18nRoot(<I18nRoot />);
+
+    expect(observedLanguages).toEqual(['cs:cs']);
     expect(rendered.container.textContent).toContain('router content');
   });
 });
