@@ -20,6 +20,19 @@ const createRelativeImportSpecifier = (
   return relativePath.startsWith('.') ? relativePath : `./${relativePath}`;
 };
 
+const createPublicPath = (containerEntry: string, fallbackPort: number) => {
+  try {
+    return new URL('.', containerEntry).href;
+  } catch {
+    const slashIndex = containerEntry.lastIndexOf('/');
+    if (slashIndex >= 0) {
+      return containerEntry.slice(0, slashIndex + 1);
+    }
+
+    return `http://localhost:${fallbackPort}/`;
+  }
+};
+
 export const createBackendRemoteEntrySource = (
   workspaceRoot: string,
   app: BackendFederationApp,
@@ -76,7 +89,7 @@ export const createBackendManifest = (
   app: BackendFederationApp,
 ) => {
   const sourceModule = `${app.directory}/api/effect-api.ts`;
-  const publicPath = `http://localhost:${app.port}/`;
+  const publicPath = createPublicPath(app.containerEntry, app.port);
 
   const manifest = {
     schemaVersion: 1,

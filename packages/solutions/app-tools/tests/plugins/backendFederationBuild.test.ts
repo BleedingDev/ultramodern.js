@@ -210,6 +210,72 @@ describe('backend federation build artifacts', () => {
     expect(remoteEntry).toContain('"version": "0.1.0"');
   });
 
+  it('uses configured container entry base as backend public path', async () => {
+    const workspaceRoot = await createTempDir();
+    const appDirectory = path.join(workspaceRoot, 'verticals/explore');
+    const distDirectory = path.join(appDirectory, 'dist');
+    const containerEntry =
+      'https://delivery.example.test/explore/assets/backendRemoteEntry.mjs';
+
+    await fs.mkdir(path.join(appDirectory, 'api'), { recursive: true });
+    await fs.writeFile(
+      path.join(appDirectory, 'api/effect-api.ts'),
+      'export const backendFederationContract = {};\n',
+    );
+    await fs.mkdir(path.join(appDirectory, 'shared'), { recursive: true });
+    await writeBuildArtifact(appDirectory);
+    await fs.writeFile(
+      path.join(appDirectory, 'backend-federation.config.ts'),
+      'export default {};\n',
+    );
+    await writeJson(path.join(workspaceRoot, '.modernjs/ultramodern.json'), {
+      topology: {
+        apps: [
+          {
+            id: 'explore',
+            kind: 'vertical',
+            package: '@tractor-store-vertical-demo/explore',
+            path: 'verticals/explore',
+            port: 3021,
+            api: {
+              prefix: '/explore-api',
+              stem: 'explore',
+            },
+            backendFederation: {
+              name: 'verticalExploreBackend',
+              executionSurfaces: {
+                node: {
+                  remoteName: 'verticalExploreBackend',
+                  manifestUrl:
+                    'https://delivery.example.test/explore/backend-mf-manifest.json',
+                  containerEntry,
+                  remoteType: 'module',
+                },
+              },
+            },
+          },
+        ],
+      },
+    });
+
+    await emitBackendFederationArtifacts(appDirectory, distDirectory);
+
+    const manifest = JSON.parse(
+      await fs.readFile(path.join(distDirectory, 'backend-mf-manifest.json'), {
+        encoding: 'utf8',
+      }),
+    );
+
+    expect(manifest.entry.url).toBe(containerEntry);
+    expect(manifest.backendFederation.containerEntry).toBe(containerEntry);
+    expect(manifest.metaData.publicPath).toBe(
+      'https://delivery.example.test/explore/assets/',
+    );
+    expect(manifest.metaData.ssrPublicPath).toBe(
+      'https://delivery.example.test/explore/assets/',
+    );
+  });
+
   it('emits matching deliveryUnit blocks when compact config and shared build agree', async () => {
     const workspaceRoot = await createTempDir();
     const appDirectory = path.join(workspaceRoot, 'verticals/explore');
