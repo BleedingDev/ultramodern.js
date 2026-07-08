@@ -1,6 +1,7 @@
 # ADR-0010: MV Wave 0 Contract-First Gates
 
 - Status: Retired (2026-06-12) — machinery removed in fork cleanup, see `docs/research/fork-audit-2026-06-12-findings.md`. The `scripts/wave0-mv-contracts` gate script and the `validate:wave0-mv-contracts` npm script were removed (wave 1 completed 2026-04; the token-grep mechanism is superseded by the release-gates `migrationContracts` engine).
+- Historical Note: Module Federation is the live composition runtime; Wave 0, Garfish, and parity-contract gates are historical (see `FORK-DIVERGENCE.md`).
 - Date: 2026-04-28
 - Decision Type: Program governance
 - Related Plan: `.codex/plans/ultramodern-wave0-contract-first-execution.plan.md`

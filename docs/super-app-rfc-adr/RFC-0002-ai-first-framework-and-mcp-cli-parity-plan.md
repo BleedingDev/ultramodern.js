@@ -1,6 +1,6 @@
 # RFC-0002: AI-First Framework and MCP/CLI Parity Plan
 
-- Status: In Progress (Phase D1)
+- Status: Retired (2026-06-12) — implementation was removed; Module Federation is the live composition runtime, while Garfish/trust-contract/Wave 0 lanes are historical (see `FORK-DIVERGENCE.md`).
 - Date: 2026-02-26
 - Scope: Modern.js framework-level AI-first operator and tooling contracts
 - Depends on:
