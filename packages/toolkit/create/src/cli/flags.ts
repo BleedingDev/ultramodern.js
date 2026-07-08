@@ -8,13 +8,13 @@ import {
 export const WORKSPACE_PROTOCOL_FLAG = '--workspace';
 export const DRY_RUN_FLAG = '--dry-run';
 export const VERTICAL_FLAG = '--vertical';
-export const VERTICAL_NAME_FLAG = '--vertical-name';
+const VERTICAL_NAME_FLAG = '--vertical-name';
 export const CODESMITH_OVERLAY_FLAG = '--codesmith-overlay';
-export const BFF_FLAG = '--bff';
-export const BFF_RUNTIME_OPTION = '--bff-runtime';
-export const SUPPORTED_BFF_RUNTIMES = ['effect'] as const;
+const BFF_FLAG = '--bff';
+const BFF_RUNTIME_OPTION = '--bff-runtime';
+const SUPPORTED_BFF_RUNTIMES = ['effect'] as const;
 
-export type SupportedBffRuntime = (typeof SUPPORTED_BFF_RUNTIMES)[number];
+type SupportedBffRuntime = (typeof SUPPORTED_BFF_RUNTIMES)[number];
 
 export function getOptionValue(
   args: string[],
@@ -101,7 +101,7 @@ export function detectExplicitTailwindFlag(): boolean | undefined {
   return undefined;
 }
 
-export type VerticalCliInput =
+type VerticalCliInput =
   | {
       addVertical: false;
     }

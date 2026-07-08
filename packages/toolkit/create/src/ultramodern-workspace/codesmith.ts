@@ -11,9 +11,9 @@ import {
   planUltramodernVertical,
 } from './public-api';
 
-export type UltramodernCodeSmithMode = 'workspace' | 'vertical';
+type UltramodernCodeSmithMode = 'workspace' | 'vertical';
 
-export type UltramodernCodeSmithConfig = {
+type UltramodernCodeSmithConfig = {
   mode?: UltramodernCodeSmithMode;
   name?: string;
   targetName?: string;
@@ -37,7 +37,7 @@ export type UltramodernCodeSmithConfig = {
   aliasPackageNamePrefix?: string;
 };
 
-export type UltramodernCodeSmithResult =
+type UltramodernCodeSmithResult =
   | UltramodernGenerationResult
   | UltramodernVerticalPlan;
 
@@ -56,7 +56,7 @@ type CodeSmithLogger = {
   info?: (...messages: unknown[]) => void;
 };
 
-export type UltramodernCodeSmithContext = {
+type UltramodernCodeSmithContext = {
   config?: UltramodernCodeSmithConfig;
   data?: Record<string, unknown>;
   materials?: {
@@ -71,7 +71,7 @@ export type UltramodernCodeSmithContext = {
   logger?: CodeSmithLogger;
 };
 
-export type UltramodernCodeSmithRuntime = {
+type UltramodernCodeSmithRuntime = {
   outputPath?: string;
   logger?: CodeSmithLogger;
 };

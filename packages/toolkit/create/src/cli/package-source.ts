@@ -16,8 +16,8 @@ import { runSetupCommand } from './project-setup';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const createPackageRoot = resolveCreatePackageRoot(__dirname);
 
-export type UltramodernPackageSource = ResolvedUltramodernPackageSource;
-export type CreatePackageJson = {
+type UltramodernPackageSource = ResolvedUltramodernPackageSource;
+type CreatePackageJson = {
   name?: string;
   version?: string;
   ultramodern?: {
@@ -145,7 +145,7 @@ function readBleedingDevFrameworkVersionFromRegistry(
   return fallbackVersion;
 }
 
-export function resolveInstallBackedPackageSource(
+function resolveInstallBackedPackageSource(
   args: string[],
   createPackage: CreatePackageJson,
   packageSource: UltramodernPackageSource,

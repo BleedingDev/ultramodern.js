@@ -54,7 +54,7 @@ export function planUltramodernVertical(
   }
 }
 
-export function copyWorkspaceForPlan(
+function copyWorkspaceForPlan(
   workspaceRoot: string,
   copiedWorkspaceRoot: string,
 ) {
@@ -73,7 +73,7 @@ export function copyWorkspaceForPlan(
   });
 }
 
-export function createVerticalPlan(
+function createVerticalPlan(
   preflight: AddUltramodernVerticalPreflight,
   result: UltramodernGenerationResult,
 ): UltramodernVerticalPlan {
@@ -102,7 +102,7 @@ export function createVerticalPlan(
   };
 }
 
-export function createDryRunJsonMutations(
+function createDryRunJsonMutations(
   preflight: AddUltramodernVerticalPreflight,
   manifestUrl: string,
 ): UltramodernJsonMutation[] {
@@ -199,7 +199,7 @@ export function createDryRunJsonMutations(
   ];
 }
 
-export function createShellDependencyChanges(
+function createShellDependencyChanges(
   scope: string,
   vertical: WorkspaceApp,
 ): UltramodernShellDependencyChange[] {

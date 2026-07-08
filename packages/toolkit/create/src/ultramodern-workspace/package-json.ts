@@ -115,7 +115,7 @@ export function appDependencies(
   return dependencies;
 }
 
-export function appDevDependencies(
+function appDevDependencies(
   packageSource: ResolvedPackageSource,
   enableTailwind: boolean,
 ): Record<string, string> {
@@ -251,7 +251,7 @@ export function createRootPackageJson(
   };
 }
 
-export function createZephyrDependencies(
+function createZephyrDependencies(
   scope: string,
   app: WorkspaceApp,
   remotes: WorkspaceApp[] = [],

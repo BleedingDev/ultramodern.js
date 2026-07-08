@@ -33,11 +33,7 @@ export function readJsonIfExists(filePath: string): unknown {
   return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
 }
 
-export function addMetadataAppDir(
-  value: unknown,
-  appDirs: Set<string>,
-  hint = '',
-) {
+function addMetadataAppDir(value: unknown, appDirs: Set<string>, hint = '') {
   if (!isRecord(value)) {
     return;
   }
@@ -88,7 +84,7 @@ export function collectMetadataAppDirs(
   }
 }
 
-export function literalRootFromPattern(pattern: string): string | undefined {
+function literalRootFromPattern(pattern: string): string | undefined {
   const normalized = normalizeRelativePath(pattern);
   if (
     normalized === '.' ||

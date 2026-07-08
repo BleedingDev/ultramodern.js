@@ -1,7 +1,7 @@
 import path from 'node:path';
 import type { WorkspaceApp } from './types';
 
-export const TAILWIND_PREFIX_DIGIT_WORDS = [
+const TAILWIND_PREFIX_DIGIT_WORDS = [
   'zero',
   'one',
   'two',
@@ -66,7 +66,7 @@ export function relativeRootFor(packageDir: string): string {
   return normalizePath(path.relative(packageDir, '.') || '.');
 }
 
-export function createTailwindPrefix(raw: string): string {
+function createTailwindPrefix(raw: string): string {
   const normalized = raw.toLowerCase().replace(/[^a-z0-9]/gu, '');
 
   if (!normalized) {

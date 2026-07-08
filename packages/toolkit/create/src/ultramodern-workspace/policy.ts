@@ -11,7 +11,7 @@ import type { JsonValue, WorkspaceApp } from './types';
 import { isRecord } from './types';
 import { CLOUDFLARE_COMPATIBILITY_DATE } from './versions';
 
-export function createCloudflareProofRoute(app: WorkspaceApp): JsonValue {
+function createCloudflareProofRoute(app: WorkspaceApp): JsonValue {
   if (app.kind === 'shell') {
     return {
       ssr: '/en',
@@ -87,7 +87,7 @@ export function createCloudflareSecurityContract(): JsonValue {
   };
 }
 
-export const PUBLIC_WEBSITE_POLICY = {
+const PUBLIC_WEBSITE_POLICY = {
   qualityGates: {
     publicRoutes: {
       requireSitemapWhenPresent: true,

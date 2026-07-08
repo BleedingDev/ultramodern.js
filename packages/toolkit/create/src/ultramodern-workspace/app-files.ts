@@ -8,7 +8,7 @@ import { readFileTemplate, renderFileTemplate } from './fs-io';
 import { packageName, tailwindPrefixForApp } from './naming';
 import type { JsonValue, WorkspaceApp } from './types';
 
-export function createBoundaryDebugMetadata(
+function createBoundaryDebugMetadata(
   scope: string,
   remotes: WorkspaceApp[] = [],
 ): JsonValue {
@@ -139,24 +139,21 @@ ${pluginsConfig}
 `;
 }
 
-export function createCssTokenImport(scope: string): string {
+function createCssTokenImport(scope: string): string {
   return `@import '${packageName(scope, 'shared-design-tokens')}/tokens.css';\n`;
 }
 
-export function createTailwindImport(prefix: string): string {
+function createTailwindImport(prefix: string): string {
   return `@import 'tailwindcss' prefix(${prefix}) source(none);\n@source '..';\n`;
 }
 
-export function createShellStyles(
-  enableTailwind: boolean,
-  scope: string,
-): string {
+function createShellStyles(enableTailwind: boolean, scope: string): string {
   return `${enableTailwind ? createTailwindImport(tailwindPrefixForApp(shellApp)) : ''}${createCssTokenImport(
     scope,
   )}`;
 }
 
-export function createRemoteStyles(
+function createRemoteStyles(
   enableTailwind: boolean,
   scope: string,
   app: WorkspaceApp,

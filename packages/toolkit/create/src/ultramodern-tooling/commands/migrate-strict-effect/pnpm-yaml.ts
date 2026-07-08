@@ -40,7 +40,7 @@ export function ensureYamlListItem(source: string, key: string, item: string) {
   };
 }
 
-export function yamlEntryPattern(entryKey: string, scalar = false): RegExp {
+function yamlEntryPattern(entryKey: string, scalar = false): RegExp {
   const bareKey = entryKey.replace(/^['"]|['"]$/gu, '');
   if (scalar) {
     const esc = bareKey.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
@@ -57,7 +57,7 @@ export function yamlEntryPattern(entryKey: string, scalar = false): RegExp {
   );
 }
 
-export function upsertYamlEntry(
+function upsertYamlEntry(
   source: string,
   key: string,
   entryLine: string,

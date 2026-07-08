@@ -123,7 +123,7 @@ export function prepareAddUltramodernVertical(
   };
 }
 
-export function readRequiredJsonObject(filePath: string): Record<string, any> {
+function readRequiredJsonObject(filePath: string): Record<string, any> {
   if (!fs.existsSync(filePath)) {
     throw new Error(`Missing UltraModern workspace file: ${filePath}`);
   }
@@ -138,12 +138,12 @@ export function readRequiredJsonObject(filePath: string): Record<string, any> {
   return value;
 }
 
-export function readRequiredWorkspaceConfig(workspaceRoot: string) {
+function readRequiredWorkspaceConfig(workspaceRoot: string) {
   const compactPath = path.join(workspaceRoot, ULTRAMODERN_CONFIG_PATH);
   readRequiredJsonObject(compactPath);
 }
 
-export function assertOptionalJsonObject(
+function assertOptionalJsonObject(
   value: JsonValue | undefined,
   label: string,
   filePath: string,
@@ -153,7 +153,7 @@ export function assertOptionalJsonObject(
   }
 }
 
-export function assertOptionalJsonArray(
+function assertOptionalJsonArray(
   value: JsonValue | undefined,
   label: string,
   filePath: string,
@@ -163,7 +163,7 @@ export function assertOptionalJsonArray(
   }
 }
 
-export function validateWorkspaceAppDescriptors(apps: WorkspaceApp[]) {
+function validateWorkspaceAppDescriptors(apps: WorkspaceApp[]) {
   for (const app of apps) {
     const appLabel =
       typeof app.id === 'string' && app.id ? app.id : '<unknown>';
@@ -193,7 +193,7 @@ export function validateWorkspaceAppDescriptors(apps: WorkspaceApp[]) {
   }
 }
 
-export function validateUniqueWorkspaceAppDescriptors(apps: WorkspaceApp[]) {
+function validateUniqueWorkspaceAppDescriptors(apps: WorkspaceApp[]) {
   assertUniqueAppField(apps, 'app id', app => app.id);
   assertUniqueAppField(apps, 'package suffix', app => app.packageSuffix);
   assertUniqueAppField(apps, 'output path', app =>
@@ -207,7 +207,7 @@ export function validateUniqueWorkspaceAppDescriptors(apps: WorkspaceApp[]) {
   );
 }
 
-export function assertUniqueAppField(
+function assertUniqueAppField(
   apps: WorkspaceApp[],
   label: string,
   readValue: (app: WorkspaceApp) => string | undefined,
@@ -236,7 +236,7 @@ export function assertNonEmptyString(value: unknown, label: string) {
   }
 }
 
-export function assertSafeOutputPath(relativePath: string, appId: string) {
+function assertSafeOutputPath(relativePath: string, appId: string) {
   if (
     path.isAbsolute(relativePath) ||
     relativePath.split(/[\\/]+/u).includes('..')

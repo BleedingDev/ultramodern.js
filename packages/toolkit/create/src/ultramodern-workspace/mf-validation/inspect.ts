@@ -9,7 +9,7 @@ import {
 } from './syntax';
 import type { ModuleFederationConfigInspection } from './types';
 
-export function extractExposes(
+function extractExposes(
   configPath: string,
   value: string | undefined,
 ): string[] {
@@ -37,7 +37,7 @@ export function extractExposes(
   );
 }
 
-export function extractDtsSettings(
+function extractDtsSettings(
   configPath: string,
   value: string | undefined,
 ): ModuleFederationConfigInspection['dts'] {
@@ -67,7 +67,7 @@ export function extractDtsSettings(
   };
 }
 
-export function hasHostOnlyNoExposesDeclaration(source: string): boolean {
+function hasHostOnlyNoExposesDeclaration(source: string): boolean {
   return /@?ultramodern-mf\s*:?\s*(?:host-only|no-exposes)\b/iu.test(source);
 }
 

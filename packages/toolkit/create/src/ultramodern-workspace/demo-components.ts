@@ -255,7 +255,7 @@ export default function ${toPascalCase(domain)}Route() {
 `;
 }
 
-export function createRemoteWidget(app: WorkspaceApp): string {
+function createRemoteWidget(app: WorkspaceApp): string {
   const tw = createTw(tailwindPrefixForApp(app));
   const domain = app.domain ?? app.id;
   const componentName = `${toPascalCase(domain)}Widget`;

@@ -1,6 +1,6 @@
 import type { JsonValue, WorkspaceApp } from './types';
 
-export const commonLocaleMessages = {
+const commonLocaleMessages = {
   cs: {
     language: {
       cs: 'Čeština',
@@ -31,7 +31,7 @@ export const commonLocaleMessages = {
   },
 } satisfies Record<'en' | 'cs', Record<string, JsonValue>>;
 
-export const generatedLocaleResources = {
+const generatedLocaleResources = {
   cs: {
     shell: {
       boundaries: {
@@ -111,7 +111,7 @@ const verticalLocaleCopy = {
   },
 } as const;
 
-export const createFallbackLocaleMessages = (
+const createFallbackLocaleMessages = (
   app: WorkspaceApp,
   language: 'en' | 'cs',
 ) => ({
@@ -124,10 +124,7 @@ export const createFallbackLocaleMessages = (
   widgetBody: verticalLocaleCopy[language].widgetBody,
 });
 
-export function createAppLocaleMessages(
-  app: WorkspaceApp,
-  language: 'en' | 'cs',
-) {
+function createAppLocaleMessages(app: WorkspaceApp, language: 'en' | 'cs') {
   const domain = app.domain ?? app.id;
   const messageKey = app.kind === 'shell' ? 'shell' : domain;
   // Only the shell ships generated copy; every vertical gets the same

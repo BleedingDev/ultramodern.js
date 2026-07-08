@@ -1,7 +1,7 @@
 import { getOuterBlock, skipSyntax } from './syntax';
 import type { ParsedObjectLiteral } from './types';
 
-export function splitTopLevelEntries(source: string): string[] {
+function splitTopLevelEntries(source: string): string[] {
   const entries: string[] = [];
   let start = 0;
   let braceDepth = 0;
@@ -50,7 +50,7 @@ export function splitTopLevelEntries(source: string): string[] {
   return entries;
 }
 
-export function findTopLevelColon(source: string): number {
+function findTopLevelColon(source: string): number {
   let braceDepth = 0;
   let bracketDepth = 0;
   let parenDepth = 0;
@@ -88,14 +88,14 @@ export function findTopLevelColon(source: string): number {
   return -1;
 }
 
-export function stripConstAssertion(source: string): string {
+function stripConstAssertion(source: string): string {
   return source
     .trim()
     .replace(/\s+as\s+const\s*$/u, '')
     .trim();
 }
 
-export function unescapeSingleQuotedString(value: string): string {
+function unescapeSingleQuotedString(value: string): string {
   return value.replace(/\\(['"\\nrtbfv0])/gu, (_, sequence: string) => {
     switch (sequence) {
       case 'n':
@@ -158,7 +158,7 @@ export function parseLiteralString(
   return unescapeSingleQuotedString(content);
 }
 
-export function parseObjectKey(source: string): string | undefined {
+function parseObjectKey(source: string): string | undefined {
   const trimmed = source.trim();
   const literal = parseLiteralString(trimmed);
   if (literal !== undefined) {

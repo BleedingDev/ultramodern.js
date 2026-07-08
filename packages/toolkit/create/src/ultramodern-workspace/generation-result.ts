@@ -21,7 +21,7 @@ const ignoredSnapshotDirectories = new Set([
   'node_modules',
 ]);
 
-export type FileSnapshot = Map<string, string>;
+type FileSnapshot = Map<string, string>;
 
 export function createFileSnapshot(root: string): FileSnapshot {
   const files: FileSnapshot = new Map();

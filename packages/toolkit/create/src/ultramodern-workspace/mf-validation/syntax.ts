@@ -1,6 +1,6 @@
 import type { BalancedBlock } from './types';
 
-export function isEscaped(source: string, index: number): boolean {
+function isEscaped(source: string, index: number): boolean {
   let slashCount = 0;
   for (
     let cursor = index - 1;
@@ -12,11 +12,7 @@ export function isEscaped(source: string, index: number): boolean {
   return slashCount % 2 === 1;
 }
 
-export function skipQuoted(
-  source: string,
-  start: number,
-  quote: "'" | '"',
-): number {
+function skipQuoted(source: string, start: number, quote: "'" | '"'): number {
   for (let index = start + 1; index < source.length; index += 1) {
     if (source[index] === quote && !isEscaped(source, index)) {
       return index + 1;
@@ -26,17 +22,17 @@ export function skipQuoted(
   return source.length;
 }
 
-export function skipLineComment(source: string, start: number): number {
+function skipLineComment(source: string, start: number): number {
   const newline = source.indexOf('\n', start + 2);
   return newline === -1 ? source.length : newline + 1;
 }
 
-export function skipBlockComment(source: string, start: number): number {
+function skipBlockComment(source: string, start: number): number {
   const close = source.indexOf('*/', start + 2);
   return close === -1 ? source.length : close + 2;
 }
 
-export function skipTemplateExpression(source: string, start: number): number {
+function skipTemplateExpression(source: string, start: number): number {
   let depth = 1;
 
   for (let index = start + 1; index < source.length; index += 1) {
@@ -78,7 +74,7 @@ export function skipTemplateExpression(source: string, start: number): number {
   return source.length;
 }
 
-export function skipTemplate(source: string, start: number): number {
+function skipTemplate(source: string, start: number): number {
   for (let index = start + 1; index < source.length; index += 1) {
     const char = source[index];
     const next = source[index + 1];
@@ -117,7 +113,7 @@ export function skipSyntax(source: string, index: number): number {
   return index;
 }
 
-export function findBalanced(
+function findBalanced(
   source: string,
   start: number,
   open: '{' | '[' | '(',
@@ -148,10 +144,7 @@ export function findBalanced(
   return undefined;
 }
 
-export function skipWhitespaceAndComments(
-  source: string,
-  start: number,
-): number {
+function skipWhitespaceAndComments(source: string, start: number): number {
   let index = start;
 
   while (index < source.length) {
@@ -177,11 +170,7 @@ export function skipWhitespaceAndComments(
   return index;
 }
 
-export function hasIdentifierBoundary(
-  source: string,
-  start: number,
-  end: number,
-) {
+function hasIdentifierBoundary(source: string, start: number, end: number) {
   return (
     !/[$\w]/u.test(source[start - 1] ?? '') && !/[$\w]/u.test(source[end] ?? '')
   );

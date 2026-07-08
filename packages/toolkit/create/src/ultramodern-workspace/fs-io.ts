@@ -15,7 +15,7 @@ export const workspaceTemplateDir = path.join(
   createPackageRoot,
   'template-workspace',
 );
-export const fileTemplatesDir = path.join(createPackageRoot, 'templates');
+const fileTemplatesDir = path.join(createPackageRoot, 'templates');
 const preformatConfigDir = '.modern-js';
 const preformatConfigPath = path.join(
   preformatConfigDir,
@@ -62,7 +62,7 @@ export function renderFileTemplate(
   return renderTemplate(readFileTemplate(`${relativePath}.handlebars`), data);
 }
 
-export function assertSafeRelativePath(relativePath: string) {
+function assertSafeRelativePath(relativePath: string) {
   if (
     relativePath.length === 0 ||
     path.isAbsolute(relativePath) ||
@@ -94,7 +94,7 @@ function findExistingAncestor(targetPath: string): string | undefined {
   return currentPath;
 }
 
-export function ensureInsideRoot(root: string, targetPath: string) {
+function ensureInsideRoot(root: string, targetPath: string) {
   const absoluteRoot = path.resolve(root);
   const absoluteTargetPath = path.resolve(targetPath);
 
@@ -287,7 +287,7 @@ export function renderTemplate(
   return template.replace(/\{\{(\w+)\}\}/g, (match, key) => data[key] ?? match);
 }
 
-export function collectTemplateFiles(dir: string): string[] {
+function collectTemplateFiles(dir: string): string[] {
   const files: string[] = [];
 
   function collect(currentDir: string) {

@@ -4,7 +4,7 @@ import { i18n, localeKeys } from '../locale';
 import { collectPositionalArgs } from './flags';
 import { isDirectoryEmpty } from './project-setup';
 
-export function promptInput(question: string): Promise<string> {
+function promptInput(question: string): Promise<string> {
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
