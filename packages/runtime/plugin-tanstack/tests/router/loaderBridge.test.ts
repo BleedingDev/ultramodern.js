@@ -117,6 +117,27 @@ describe('modernLoaderToTanstack', () => {
     expect(seen.context).toEqual({ user: 'u1' });
   });
 
+  test('uses current location when context carries a previous request', async () => {
+    const seen: { request?: Request } = {};
+    const loader = modernLoaderToTanstack({ hasSplat: false }, (args: any) => {
+      seen.request = args.request;
+      return { ok: true };
+    });
+
+    await expect(
+      loader({
+        ...baseCtx,
+        location: { href: 'http://localhost/products/2?sort=price' },
+        context: {
+          request: new Request('http://localhost/products/1?sort=name'),
+        },
+      }),
+    ).resolves.toEqual({ ok: true });
+
+    expect(seen.request).toBeInstanceOf(Request);
+    expect(seen.request?.url).toBe('http://localhost/products/2?sort=price');
+  });
+
   test('translates an absolute-URL redirect Response into redirect({ href })', async () => {
     const loader = modernLoaderToTanstack({ hasSplat: false }, () =>
       Response.redirect('https://example.com/away', 302),

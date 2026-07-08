@@ -232,9 +232,14 @@ export function modernLoaderToTanstack<TLoader extends (args: any) => any>(
       const href = getLoaderHref(ctx);
 
       const request =
-        baseRequest !== undefined
-          ? new Request(baseRequest, { signal })
-          : new Request(href, { signal });
+        baseRequest !== undefined && href !== ''
+          ? new Request(new URL(href, baseRequest.url).href, {
+              headers: baseRequest.headers,
+              signal,
+            })
+          : baseRequest !== undefined
+            ? new Request(baseRequest, { signal })
+            : new Request(href, { signal });
 
       const params = mapSplatParamsForModernLoader(
         getLoaderParams(ctx),
