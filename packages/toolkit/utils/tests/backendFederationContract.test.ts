@@ -120,6 +120,42 @@ describe('backend federation contract validators', () => {
     });
   });
 
+  it('rejects backend federation delivery-unit identity drift', () => {
+    const result = validateBackendFederationManifest(
+      {
+        schemaVersion: DELIVERY_UNIT_SCHEMA_VERSION,
+        backendFederation: {
+          role: 'microvertical-server',
+          name: 'checkoutBackend',
+          runtimeFramework: 'effect',
+          strictEffectApproach: true,
+          contractVersion: BACKEND_FEDERATION_CONTRACT_VERSION,
+          nodeAdapterVersion: BACKEND_FEDERATION_NODE_ADAPTER_VERSION,
+          expose: BACKEND_FEDERATION_EFFECT_EXPOSE,
+          deliveryUnit: deliveryUnitContractBlock(deliveryUnit),
+          versionBoundary: {
+            deliveryUnit: {
+              unitId: 'acme/checkout-api',
+              buildMarker: deliveryUnit.buildMarker,
+              sourceRevision: deliveryUnit.sourceRevision,
+            },
+          },
+        },
+      },
+      {
+        requireEffectExpose: true,
+        requireEffectRuntime: true,
+        requireVersionFields: true,
+      },
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContainEqual({
+      path: 'manifest.backendFederation.versionBoundary.deliveryUnit.unitId',
+      message: 'must match manifest.backendFederation.deliveryUnit.unitId.',
+    });
+  });
+
   it('rejects ultramodern build artifact surface identity drift', () => {
     const artifact = createUltramodernBuildArtifact(deliveryUnit);
     expect(validateUltramodernBuildArtifact(artifact).ok).toBe(true);

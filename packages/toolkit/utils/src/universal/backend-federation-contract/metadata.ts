@@ -2,9 +2,11 @@ import {
   BACKEND_FEDERATION_CONTRACT_VERSION,
   BACKEND_FEDERATION_EFFECT_EXPOSE,
   BACKEND_FEDERATION_NODE_ADAPTER_VERSION,
+  DELIVERY_UNIT_IDENTITY_FIELDS,
   DELIVERY_UNIT_SCHEMA_VERSION,
 } from './constants';
 import {
+  deliveryUnitIdentityFieldValue,
   validateDeliveryUnitBoundaryIdentity,
   validateDeliveryUnitContractBlock,
 } from './delivery-unit';
@@ -134,6 +136,31 @@ export const validateBackendFederationMetadata = (
           `${path}.versionBoundary.deliveryUnit`,
         ),
       );
+    }
+
+    if (deliveryUnit && versionBoundaryDeliveryUnit) {
+      for (const field of DELIVERY_UNIT_IDENTITY_FIELDS) {
+        const deliveryUnitValue = deliveryUnitIdentityFieldValue(
+          deliveryUnit,
+          field,
+        );
+        const versionBoundaryDeliveryUnitValue = deliveryUnitIdentityFieldValue(
+          versionBoundaryDeliveryUnit,
+          field,
+        );
+
+        if (
+          deliveryUnitValue &&
+          versionBoundaryDeliveryUnitValue &&
+          deliveryUnitValue !== versionBoundaryDeliveryUnitValue
+        ) {
+          addError(
+            errors,
+            `${path}.versionBoundary.deliveryUnit.${field}`,
+            `must match ${path}.deliveryUnit.${field}.`,
+          );
+        }
+      }
     }
   }
 
