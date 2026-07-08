@@ -29,11 +29,16 @@ export function injectRSCPayload(
   function flushBufferedChunks(
     controller: TransformStreamDefaultController<Uint8Array>,
   ) {
+    let buf = '';
     for (const chunk of buffered) {
-      let buf = decoder.decode(chunk);
-      if (closingTagsPattern.test(buf)) {
-        buf = buf.replace(closingTagsPattern, '');
-      }
+      buf += decoder.decode(chunk, { stream: true });
+    }
+
+    if (closingTagsPattern.test(buf)) {
+      buf = buf.replace(closingTagsPattern, '');
+    }
+
+    if (buf) {
       controller.enqueue(encoder.encode(buf));
     }
 
@@ -66,6 +71,10 @@ export function injectRSCPayload(
       if (timeout) {
         clearTimeout(timeout);
         flushBufferedChunks(controller);
+      }
+      const remaining = decoder.decode();
+      if (remaining) {
+        controller.enqueue(encoder.encode(remaining));
       }
       if (injectClosingTags) {
         controller.enqueue(encoder.encode('</body></html>'));

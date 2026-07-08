@@ -56,4 +56,27 @@ describe('injectRSCPayload', () => {
     ).toBeLessThan(text.lastIndexOf('</html>'));
     expect(text.trimEnd().endsWith('</html>')).toBe(true);
   });
+
+  test('does not duplicate closing tags when html trailer is split across chunks', async () => {
+    const htmlStream = createStreamFromChunks([
+      '<body><div>app</div></bo',
+      'dy></html>',
+    ]);
+    const rscStream = createStreamFromChunks(['payload']);
+
+    const text = await readStreamAsText(
+      htmlStream.pipeThrough(
+        injectRSCPayload(rscStream, {
+          injectClosingTags: true,
+        }),
+      ),
+    );
+
+    expect(text.match(/<\/body>/g)).toHaveLength(1);
+    expect(text.match(/<\/html>/g)).toHaveLength(1);
+    expect(
+      text.lastIndexOf('<script>(self.__FLIGHT_DATA||=[]).push('),
+    ).toBeLessThan(text.lastIndexOf('</body>'));
+    expect(text.endsWith('</body></html>')).toBe(true);
+  });
 });
