@@ -19,9 +19,16 @@ const DEFAULT_RETRYABLE_METHODS = new Set([
   'TRACE',
 ]);
 
+type ErrorLike = {
+  name?: unknown;
+  code?: unknown;
+  status?: unknown;
+  response?: { status?: unknown };
+};
+
 const createTimeoutError = (timeoutMs: number) => {
   const error = new Error(`Request timed out after ${timeoutMs}ms`);
-  (error as any).name = 'TimeoutError';
+  error.name = 'TimeoutError';
   return error;
 };
 
@@ -38,12 +45,12 @@ const toStatusCode = (error: unknown): number | undefined => {
     return undefined;
   }
 
-  const status = (error as any).status;
+  const status = (error as ErrorLike).status;
   if (typeof status === 'number') {
     return status;
   }
 
-  const responseStatus = (error as any).response?.status;
+  const responseStatus = (error as ErrorLike).response?.status;
   if (typeof responseStatus === 'number') {
     return responseStatus;
   }
@@ -56,7 +63,7 @@ const isRetryableNetworkError = (error: unknown) => {
     return false;
   }
 
-  const name = (error as any).name;
+  const name = (error as ErrorLike).name;
   if (
     name === 'FetchError' ||
     name === 'TimeoutError' ||
@@ -65,7 +72,7 @@ const isRetryableNetworkError = (error: unknown) => {
     return true;
   }
 
-  const code = (error as any).code;
+  const code = (error as ErrorLike).code;
   return (
     code === 'ECONNRESET' ||
     code === 'ETIMEDOUT' ||
@@ -198,7 +205,7 @@ const withTimeout = async <T>(
     const result = await Promise.race([promise, timeoutPromise]);
     return { result, timeoutTriggered };
   } catch (error) {
-    if (timeoutTriggered && (error as any)?.name === 'AbortError') {
+    if (timeoutTriggered && (error as ErrorLike)?.name === 'AbortError') {
       throw createTimeoutError(timeoutMs);
     }
     throw error;
@@ -273,7 +280,7 @@ export const executeWithResilience = async ({
         statusCode,
       };
 
-      if ((error as any)?.name === 'TimeoutError') {
+      if ((error as ErrorLike)?.name === 'TimeoutError') {
         emitDegradedEvent(transport, {
           requestId,
           target,
@@ -292,7 +299,7 @@ export const executeWithResilience = async ({
         attempt < maxAttempts &&
         shouldRetry(transport?.retry, decisionContext, retryableStatusCodes);
       if (!canRetry) {
-        if (retries > 0 || (error as any)?.name === 'TimeoutError') {
+        if (retries > 0 || (error as ErrorLike)?.name === 'TimeoutError') {
           emitDegradedEvent(transport, {
             requestId,
             target,

@@ -106,6 +106,27 @@ sweeps; partial is fine, no huge overwrites"):**
 ~11 `any` removed, 3 files. Verify: plugin-i18n + plugin-tanstack **dts builds
 (tsgo typecheck) exit 0**, both test suites green.
 
+Status: **DONE ✅** — committed `14788cf033`.
+
+---
+
+## Round 28 — create-request error-introspection typing
+
+`packages/server/create-request/src/transport.ts` (fork-added BFF client
+transport). Error handling introspected `error` via 9× `(error as any).X`
+(`.name/.status/.code/.response`). Introduced a typed `ErrorLike` shape; all 9
+casts now typed, existing `typeof`/equality narrows unchanged. Also dropped an
+unnecessary cast on `error.name = 'TimeoutError'` (Error.name is writable).
+0 `as any` left in transport.ts. Verify: create-request dts build (tsgo) exit 0,
+tests green.
+
+Note — **parallel hardening lane observed**: the user/linter is concurrently
+de-`any`-ing the i18n runtime (utils.ts `MergedBackendOptions`, cache.ts
+`DetectorCleanupInstance`) and tanstack files. To avoid the parallel-lane
+git-clobber hazard, R28 commits transport.ts only and leaves those in-progress
+files to their lane. `policyCore.ts` / `requestFactory.ts` header-map and
+variadic-forwarding `any` left as-is (tightening cascades / genuinely variadic).
+
 Status: **DONE ✅** (committing).
 
 ### Guardrail log (upstream-compat exclusions)
