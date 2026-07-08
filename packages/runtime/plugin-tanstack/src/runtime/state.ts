@@ -23,7 +23,11 @@ export function getTanstackRouterState(
   context: object,
 ): TanstackRouterState | undefined {
   const state = getRouterRuntimeState(context);
-  if (state === undefined || state.framework !== 'tanstack') {
+  if (
+    state === undefined ||
+    state.framework !== 'tanstack' ||
+    state.instance === undefined
+  ) {
     return undefined;
   }
 
