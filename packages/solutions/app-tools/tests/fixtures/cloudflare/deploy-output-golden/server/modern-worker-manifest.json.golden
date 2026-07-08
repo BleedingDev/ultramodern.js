@@ -1,0 +1,142 @@
+{
+  "version": 1,
+  "runtime": {
+    "type": "cloudflare-module-worker",
+    "entry": "server/index.mjs",
+    "fetchExport": true,
+    "nodeListen": false
+  },
+  "assets": {
+    "binding": "ASSETS",
+    "directory": "./public",
+    "runWorkerFirst": true
+  },
+  "routeSpec": {
+    "file": "server/route.json",
+    "routes": [
+      {
+        "urlPath": "/",
+        "entryName": "main",
+        "entryPath": "html/main/index.html",
+        "isSSR": true,
+        "worker": "worker/main.js",
+        "workerExists": true
+      },
+      {
+        "urlPath": "/plain",
+        "entryName": "plain",
+        "entryPath": "html/plain/index.html",
+        "isSSR": false,
+        "workerExists": false
+      }
+    ]
+  },
+  "workerBundles": {
+    "directory": "worker",
+    "format": "commonjs",
+    "importableFromModuleWorker": true,
+    "requestHandlerExport": "requestHandler"
+  },
+  "resources": {
+    "loadableStats": "loadable-stats.json",
+    "routeManifest": "routes-manifest.json"
+  },
+  "security": {
+    "enabled": true,
+    "headers": {
+      "referrerPolicy": "strict-origin-when-cross-origin",
+      "contentTypeOptions": "nosniff",
+      "permissionsPolicy": "camera=(), geolocation=()"
+    },
+    "contentSecurityPolicy": {
+      "mode": "enforce",
+      "directives": {
+        "base-uri": [
+          "'self'"
+        ],
+        "connect-src": [
+          "'self'",
+          "https:",
+          "http:",
+          "wss:",
+          "ws:",
+          "https://api.example.com"
+        ],
+        "default-src": [
+          "'self'"
+        ],
+        "font-src": [
+          "'self'",
+          "data:",
+          "https:",
+          "http:"
+        ],
+        "form-action": [
+          "'self'"
+        ],
+        "frame-ancestors": [
+          "'self'",
+          "https://portal.example.com"
+        ],
+        "img-src": [
+          "'self'",
+          "data:",
+          "blob:",
+          "https:",
+          "http:"
+        ],
+        "manifest-src": [
+          "'self'",
+          "https:",
+          "http:"
+        ],
+        "object-src": [
+          "'none'"
+        ],
+        "script-src": [
+          "'self'",
+          "'unsafe-inline'",
+          "'unsafe-eval'",
+          "https:",
+          "http:",
+          "blob:"
+        ],
+        "style-src": [
+          "'self'",
+          "'unsafe-inline'",
+          "https:",
+          "http:"
+        ],
+        "worker-src": [
+          "'self'",
+          "blob:"
+        ]
+      },
+      "reason": "golden fixture exercises security header output"
+    },
+    "noindex": {
+      "workersDev": false,
+      "localhost": false,
+      "previewHostnames": [
+        "preview.example.com"
+      ],
+      "reason": "golden fixture exercises x-robots-tag output"
+    },
+    "cors": {
+      "assets": true,
+      "allowedOrigins": [],
+      "allowedMethods": [
+        "GET",
+        "HEAD",
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE",
+        "OPTIONS"
+      ],
+      "allowedHeaders": [
+        "*"
+      ]
+    }
+  }
+}
