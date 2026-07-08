@@ -5,7 +5,7 @@ const looksLikeLocaleTest = (context: RuleContext, node: AstNode): boolean => {
   const text = getSourceText(context, node);
   return (
     /\b(?:language|locale|lng|currentLanguage)\b/u.test(text) &&
-    /(?:={2,3}|!==?)/u.test(text) &&
+    /(?:={2,3}|!==?|\.\s*startsWith\s*\()/u.test(text) &&
     /['"][a-z]{2}(?:-[A-Za-z0-9]+)?['"]/u.test(text)
   );
 };

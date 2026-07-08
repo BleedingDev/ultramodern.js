@@ -270,6 +270,30 @@ export default {
     expect(result.errors).toEqual([]);
   });
 
+  test('workspace runner rejects startsWith locale copy branching', () => {
+    const root = trackTempRoot();
+    writeFile(
+      root,
+      'apps/shell/src/App.tsx',
+      `
+export function App({ language }: { language: string }) {
+  const copy = language.startsWith('fr') ? 'Bonjour' : 'Hello';
+  return <p>{copy}</p>;
+}
+`,
+    );
+
+    const result = captureConsole(() =>
+      runWorkspaceSourceCheck({
+        cwd: root,
+        sourceRoots: ['apps'],
+        locales: [],
+      }),
+    );
+
+    expect(result.exitCode).toBe(1);
+  });
+
   test('workspace runner rejects legacy Module Federation boundary attributes', () => {
     const root = trackTempRoot();
     writeFile(
