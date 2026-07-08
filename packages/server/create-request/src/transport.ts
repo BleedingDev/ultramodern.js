@@ -58,7 +58,6 @@ const isRetryableNetworkError = (error: unknown) => {
 
   const name = (error as any).name;
   if (
-    name === 'AbortError' ||
     name === 'FetchError' ||
     name === 'TimeoutError' ||
     name === 'TypeError'
