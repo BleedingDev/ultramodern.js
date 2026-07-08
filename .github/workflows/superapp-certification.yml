@@ -20,15 +20,6 @@ on:
         options:
           - 'true'
           - 'false'
-      run_drift_gates:
-        description: 'Run root gates inside the disposable upstream-drift worktree'
-        required: true
-        default: 'false'
-        type: choice
-        options:
-          - 'true'
-          - 'false'
-
 permissions:
   contents: read
 
@@ -37,6 +28,11 @@ jobs:
     runs-on: ${{ fromJSON(vars.SELF_LINUX_LABELS || '"ubuntu-latest"') }}
     timeout-minutes: 180
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        with:
+          egress-policy: audit
+
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -79,7 +75,6 @@ jobs:
         env:
           PROFILE_INPUT: ${{ github.event.inputs.profile || 'release' }}
           RUN_UPSTREAM_DRIFT: ${{ github.event.inputs.run_upstream_drift || 'true' }}
-          RUN_DRIFT_GATES: ${{ github.event.inputs.run_drift_gates || 'false' }}
         run: |
           ARGS=(
             --profile "$PROFILE_INPUT"
@@ -88,10 +83,6 @@ jobs:
 
           if [ "$RUN_UPSTREAM_DRIFT" = "false" ]; then
             ARGS+=(--skip-upstream-drift)
-          fi
-
-          if [ "$RUN_DRIFT_GATES" = "true" ]; then
-            ARGS+=(--drift-gates)
           fi
 
           node scripts/superapp-certification/run-superapp-certification.js "${ARGS[@]}"

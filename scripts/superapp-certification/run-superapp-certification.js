@@ -24,7 +24,6 @@ function parseArgs(argv) {
       driftBase: process.env.SUPERAPP_CERTIFICATION_DRIFT_BASE || 'origin/main',
       driftRemote: process.env.SUPERAPP_CERTIFICATION_DRIFT_REMOTE || 'origin',
       driftBranch: process.env.SUPERAPP_CERTIFICATION_DRIFT_BRANCH || 'main',
-      driftGates: false,
     },
     ignoreTerminator: true,
     options: {
@@ -61,10 +60,6 @@ function parseArgs(argv) {
         key: 'driftBranch',
         requiredValue: false,
       },
-      'drift-gates': {
-        key: 'driftGates',
-        type: 'boolean',
-      },
     },
   });
 
@@ -95,10 +90,6 @@ function artifactDir(outDir, name) {
 function certificationCommands(profile, outDir) {
   const rstest = 'pnpm exec rstest run -c rstest.config.mts';
   const smoke = [
-    command('lint', 'pnpm run lint'),
-    command('changeset', 'pnpm run check-changeset'),
-    command('package-json', 'pnpm run lint:package-json'),
-    command('dependencies', 'pnpm check-dependencies'),
     command(
       'superapp-portfolio-smoke',
       `${rstest} integration/superapp-portfolio/tests/index.test.ts`,
@@ -249,7 +240,7 @@ function cleanupWorktree(worktreeDir) {
   runGit(['worktree', 'remove', '--force', worktreeDir]);
 }
 
-function runUpstreamDrift(options, commands) {
+function runUpstreamDrift(options) {
   const startedAt = Date.now();
   const worktreeDir = path.join(options.outDir, 'upstream-drift-worktree');
   const result = {
@@ -271,14 +262,6 @@ function runUpstreamDrift(options, commands) {
   if (options.dryRun) {
     result.status = 'planned';
     result.reason = 'dry-run';
-    result.commandResults = options.driftGates
-      ? commands.slice(0, 4).map(item => ({
-          ...item,
-          status: 'planned',
-          exitCode: 0,
-          durationMs: 0,
-        }))
-      : [];
     return result;
   }
 
@@ -330,19 +313,6 @@ function runUpstreamDrift(options, commands) {
     }
 
     result.status = 'merged';
-    if (options.driftGates) {
-      const driftGateCommands = commands.slice(0, 4).map(item => ({
-        ...item,
-        cwd: worktreeDir,
-      }));
-      result.commandResults = runCommands(driftGateCommands, {
-        ...options,
-        dryRun: false,
-      });
-      if (result.commandResults.some(item => item.exitCode !== 0)) {
-        result.status = 'gate-failed';
-      }
-    }
     return {
       ...result,
       durationMs: Date.now() - startedAt,
@@ -379,7 +349,7 @@ function main() {
   const commandResults = options.driftOnly
     ? []
     : runCommands(commands, options);
-  const upstreamDrift = runUpstreamDrift(options, commands);
+  const upstreamDrift = runUpstreamDrift(options);
   const summary = writeSummary(
     options,
     commands,

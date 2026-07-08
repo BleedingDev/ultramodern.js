@@ -37,6 +37,7 @@ const sensitiveWorkflowPaths = new Set([
   '.github/workflows/ultramodern-nightly.yml',
   '.github/workflows/ultramodern-production-readiness.yml',
   '.github/workflows/workflow-security.yml',
+  '.github/workflows/superapp-certification.yml',
   'packages/toolkit/create/template-workspace/.github/workflows/ultramodern-workspace-gates.yml.handlebars',
 ]);
 
