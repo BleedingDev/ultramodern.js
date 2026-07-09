@@ -42,10 +42,10 @@
   },
   "devDependencies": {
     "@modern-js/rslib": "workspace:*",
-    "@rslib/core": "0.23.1",
-    "@types/node": "^26.0.1",
-    "@typescript/native-preview": "7.0.0-dev.20260628.1",
-    "typescript": "^6.0.3"
+    "@rslib/core": "0.23.2",
+    "@types/node": "^26.1.1",
+    "@typescript/native-preview": "7.0.0-dev.20260707.2",
+    "typescript": "^7.0.2"
   },
   "publishConfig": {
     "registry": "https://registry.npmjs.org/",

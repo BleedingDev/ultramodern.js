@@ -50,15 +50,15 @@
     "@modern-js/codesmith-utils": "2.6.9",
     "@modern-js/create": "workspace:*",
     "@modern-js/rslib": "workspace:*",
-    "@rslib/core": "0.23.1",
-    "@types/node": "^26.0.1",
+    "@rslib/core": "0.23.2",
+    "@types/node": "^26.1.1",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@types/recursive-readdir": "^2.2.4",
-    "@typescript/native-preview": "7.0.0-dev.20260628.1",
+    "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "recursive-readdir": "^2.2.3",
     "ts-node": "^10.9.2",
-    "typescript": "^6.0.3"
+    "typescript": "^7.0.2"
   },
   "sideEffects": false,
   "publishConfig": {

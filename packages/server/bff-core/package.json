@@ -40,17 +40,17 @@
     "@swc/helpers": "^0.5.23",
     "koa-compose": "^4.1.0",
     "reflect-metadata": "^0.2.2",
-    "type-fest": "5.7.0"
+    "type-fest": "5.8.0"
   },
   "devDependencies": {
     "@modern-js/bff-runtime": "workspace:*",
     "@modern-js/rslib": "workspace:*",
     "@modern-js/types": "workspace:*",
-    "@rslib/core": "0.23.1",
+    "@rslib/core": "0.23.2",
     "@scripts/rstest-config": "workspace:*",
     "@types/koa-compose": "^3.2.9",
-    "@types/node": "^26.0.1",
-    "@typescript/native-preview": "7.0.0-dev.20260628.1",
+    "@types/node": "^26.1.1",
+    "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "tsconfig-paths": "^4.2.0",
     "zod": "^4.4.3"
   },

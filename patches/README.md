@@ -8,17 +8,18 @@ source files; the monorepo applies them through `pnpm-workspace.yaml`.
 Repo-only patches are used by the Modern.js monorepo build and are not copied
 into generated UltraModern workspaces:
 
-- `@module-federation/manifest@2.6.0` -> `patches/@module-federation__manifest@2.6.0.patch`
-- `@module-federation/rspack@2.6.0` -> `patches/@module-federation__rspack@2.6.0.patch`
+- `@module-federation/manifest@2.7.0` -> `patches/@module-federation__manifest@2.7.0.patch`
+- `@module-federation/rspack@2.7.0` -> `patches/@module-federation__rspack@2.7.0.patch`
 
 Shared patches exist in both this directory and
 `packages/toolkit/create/template-workspace/patches/`. They must stay
 byte-identical because generated workspaces rely on the template copy at
 runtime:
 
-- `@module-federation/bridge-react@2.6.0` -> `@module-federation__bridge-react@2.6.0.patch`
-- `@module-federation/modern-js-v3@2.6.0` -> `@module-federation__modern-js-v3@2.6.0.patch`
-- `@tanstack/router-core@1.171.13` -> `@tanstack__router-core@1.171.13.patch`
+- `@module-federation/bridge-react@2.7.0` -> `@module-federation__bridge-react@2.7.0.patch`
+- `@module-federation/dts-plugin@2.7.0` -> `@module-federation__dts-plugin@2.7.0.patch`
+- `@module-federation/modern-js-v3@2.7.0` -> `@module-federation__modern-js-v3@2.7.0.patch`
+- `@tanstack/router-core@1.171.14` -> `@tanstack__router-core@1.171.14.patch`
 
 The shared list is defined in
 `packages/toolkit/create/src/ultramodern-workspace/shared-patches.ts` and gated

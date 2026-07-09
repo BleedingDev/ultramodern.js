@@ -21,7 +21,7 @@
     "@modern-js/runtime": "workspace:*",
     "@modern-js/server-runtime": "workspace:*",
     "antd": "^6.5.0",
-    "hono": "^4.12.27",
+    "hono": "^4.12.28",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "ts-node": "^10.9.2",
@@ -31,22 +31,22 @@
   "devDependencies": {
     "@modern-js/app-tools": "workspace:*",
     "@modern-js/plugin": "workspace:*",
-    "@rsbuild/core": "2.1.1",
+    "@rsbuild/core": "2.1.5",
     "@rsbuild/plugin-node-polyfill": "^1.4.6",
     "@storybook/addon-docs": "^10.4.6",
     "@storybook/addon-onboarding": "^10.4.6",
     "@storybook/react": "^10.4.6",
-    "@types/node": "^26.0.1",
+    "@types/node": "^26.1.1",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
-    "@typescript/native-preview": "7.0.0-dev.20260628.1",
+    "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "http-proxy": "^1.18.1",
     "storybook": "^10.4.6",
     "storybook-addon-modernjs": "3.3.4",
     "storybook-react-rsbuild": "3.3.4",
     "tsconfig-paths": "4.2.0",
     "tslib": "2.8.1",
-    "typescript": "^6.0.3"
+    "typescript": "^7.0.2"
   },
   "exports": {
     "./context/index": {

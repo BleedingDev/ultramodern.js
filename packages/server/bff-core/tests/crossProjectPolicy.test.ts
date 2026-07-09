@@ -4,10 +4,7 @@ import { buildOperationContractMap } from '../src/security/operationContracts';
 const NAMESPACE_ALLOWLIST_REQUIRES_VERIFIER_MESSAGE =
   'cross-project namespace allowlist requires verifyProducerIdentity';
 
-const withNodeEnv = <T>(
-  nodeEnv: string | undefined,
-  callback: () => T,
-): T => {
+const withNodeEnv = <T>(nodeEnv: string | undefined, callback: () => T): T => {
   const previousNodeEnv = process.env.NODE_ENV;
   if (typeof nodeEnv === 'undefined') {
     delete process.env.NODE_ENV;

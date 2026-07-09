@@ -1,77 +1,7 @@
-diff --git a/dist/lazy-load-component-plugin-BYI941I2.mjs b/dist/lazy-load-component-plugin-BYI941I2.mjs
-index dfba15be1e9753e0f164b53cfb22feda13f39ea4..6be1b47903b9f6807bb0111df6c588f0d54ebf53 100644
---- a/dist/lazy-load-component-plugin-BYI941I2.mjs
-+++ b/dist/lazy-load-component-plugin-BYI941I2.mjs
-@@ -235,6 +235,41 @@ function getTargetModuleInfo(id, instance) {
-     remoteEntry
-   };
- }
-+function normalizeHref(href) {
-+  if (typeof document === "undefined") {
-+    return href;
-+  }
-+  try {
-+    return new URL(href, document.baseURI).href;
-+  } catch {
-+    return href;
-+  }
-+}
-+function isStylesheetLink(link) {
-+  return link.relList.contains("stylesheet") || link.rel.toLowerCase().split(/\s+/u).includes("stylesheet");
-+}
-+function hasStylesheetLinkInHead(href, ignoredLink) {
-+  if (typeof document === "undefined" || !document.head) {
-+    return false;
-+  }
-+  const normalizedHref = normalizeHref(href);
-+  return Array.from(
-+    document.head.querySelectorAll("link[href]")
-+  ).some(
-+    (link) => link !== ignoredLink && isStylesheetLink(link) && normalizeHref(link.href) === normalizedHref
-+  );
-+}
-+function StylesheetAsset({ href }) {
-+  const [shouldRender, setShouldRender] = useState(true);
-+  const linkRef = useRef(null);
-+  useEffect(() => {
-+    setShouldRender(!hasStylesheetLinkInHead(href, linkRef.current));
-+  }, [href]);
-+  if (!shouldRender) {
-+    return null;
-+  }
-+  return /* @__PURE__ */ React__default.createElement("link", { ref: linkRef, href, rel: "stylesheet", type: "text/css" });
-+}
- function collectSSRAssets(options) {
-   const {
-     id,
-@@ -253,15 +288,19 @@ function collectSSRAssets(options) {
-   }
-   const { module: targetModule, publicPath, remoteEntry } = moduleAndPublicPath;
-   if (injectLink) {
-+    const stylesheetHrefs = /* @__PURE__ */ new Set();
-     [...targetModule.assets.css.sync, ...targetModule.assets.css.async].sort().forEach((file, index) => {
-+      const href = `${publicPath}${file}`;
-+      if (stylesheetHrefs.has(href)) {
-+        return;
-+      }
-+      stylesheetHrefs.add(href);
-       links.push(
-         /* @__PURE__ */ React__default.createElement(
--          "link",
-+          StylesheetAsset,
-           {
-             key: `${file.split(".")[0]}_${index}`,
--            href: `${publicPath}${file}`,
--            rel: "stylesheet",
--            type: "text/css"
-+            href
-           }
-         )
-       );
-diff --git a/dist/lazy-load-component-plugin-DG4e3Tib.js b/dist/lazy-load-component-plugin-DG4e3Tib.js
-index 321c9c3cd55bf9d62a6825c9186267dfe28e5e93..867e7237d5a2ea613130c7e1710cdd998924d9db 100644
---- a/dist/lazy-load-component-plugin-DG4e3Tib.js
-+++ b/dist/lazy-load-component-plugin-DG4e3Tib.js
+diff --git a/dist/lazy-load-component-plugin-BjMVNoep.js b/dist/lazy-load-component-plugin-BjMVNoep.js
+index 9f16c3f..bde8e11 100644
+--- a/dist/lazy-load-component-plugin-BjMVNoep.js
++++ b/dist/lazy-load-component-plugin-BjMVNoep.js
 @@ -236,6 +236,41 @@ function getTargetModuleInfo(id, instance) {
      remoteEntry
    };
@@ -127,6 +57,76 @@ index 321c9c3cd55bf9d62a6825c9186267dfe28e5e93..867e7237d5a2ea613130c7e1710cdd99
 +      stylesheetHrefs.add(href);
        links.push(
          /* @__PURE__ */ React.createElement(
+-          "link",
++          StylesheetAsset,
+           {
+             key: `${file.split(".")[0]}_${index}`,
+-            href: `${publicPath}${file}`,
+-            rel: "stylesheet",
+-            type: "text/css"
++            href
+           }
+         )
+       );
+diff --git a/dist/lazy-load-component-plugin-aj97Vt-4.mjs b/dist/lazy-load-component-plugin-aj97Vt-4.mjs
+index ed1dc8f..fd603ab 100644
+--- a/dist/lazy-load-component-plugin-aj97Vt-4.mjs
++++ b/dist/lazy-load-component-plugin-aj97Vt-4.mjs
+@@ -235,6 +235,41 @@ function getTargetModuleInfo(id, instance) {
+     remoteEntry
+   };
+ }
++function normalizeHref(href) {
++  if (typeof document === "undefined") {
++    return href;
++  }
++  try {
++    return new URL(href, document.baseURI).href;
++  } catch {
++    return href;
++  }
++}
++function isStylesheetLink(link) {
++  return link.relList.contains("stylesheet") || link.rel.toLowerCase().split(/\s+/u).includes("stylesheet");
++}
++function hasStylesheetLinkInHead(href, ignoredLink) {
++  if (typeof document === "undefined" || !document.head) {
++    return false;
++  }
++  const normalizedHref = normalizeHref(href);
++  return Array.from(
++    document.head.querySelectorAll("link[href]")
++  ).some(
++    (link) => link !== ignoredLink && isStylesheetLink(link) && normalizeHref(link.href) === normalizedHref
++  );
++}
++function StylesheetAsset({ href }) {
++  const [shouldRender, setShouldRender] = useState(true);
++  const linkRef = useRef(null);
++  useEffect(() => {
++    setShouldRender(!hasStylesheetLinkInHead(href, linkRef.current));
++  }, [href]);
++  if (!shouldRender) {
++    return null;
++  }
++  return /* @__PURE__ */ React__default.createElement("link", { ref: linkRef, href, rel: "stylesheet", type: "text/css" });
++}
+ function collectSSRAssets(options) {
+   const {
+     id,
+@@ -253,15 +288,19 @@ function collectSSRAssets(options) {
+   }
+   const { module: targetModule, publicPath, remoteEntry } = moduleAndPublicPath;
+   if (injectLink) {
++    const stylesheetHrefs = /* @__PURE__ */ new Set();
+     [...targetModule.assets.css.sync, ...targetModule.assets.css.async].sort().forEach((file, index) => {
++      const href = `${publicPath}${file}`;
++      if (stylesheetHrefs.has(href)) {
++        return;
++      }
++      stylesheetHrefs.add(href);
+       links.push(
+         /* @__PURE__ */ React__default.createElement(
 -          "link",
 +          StylesheetAsset,
            {

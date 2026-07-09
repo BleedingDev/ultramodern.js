@@ -109,7 +109,7 @@ test('compiler API tests use TypeScript 6 compatibility API and never native-pre
 
   assert.equal(
     packageJson.devDependencies?.typescript,
-    '^6.0.3',
+    '^7.0.2',
     'create package keeps the repo-consistent TypeScript tooling line',
   );
   assert.equal(

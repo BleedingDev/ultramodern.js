@@ -7,7 +7,7 @@ import { createGeneratedEffectClient } from \\"@modern-js/plugin-bff/effect-clie
 const __manifest = {
   \\"endpoints\\": [
     {
-      \\"apiId\\": \\"EffectHttpApi\\",
+      \\"apiId\\": \\"CodegenTestApi\\",
       \\"group\\": \\"greetings\\",
       \\"endpoint\\": \\"ping\\",
       \\"method\\": \\"GET\\",

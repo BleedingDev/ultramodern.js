@@ -1,7 +1,8 @@
 diff --git a/dist/ModuleFederationPlugin.js b/dist/ModuleFederationPlugin.js
+index 2818028..c20ab1f 100644
 --- a/dist/ModuleFederationPlugin.js
 +++ b/dist/ModuleFederationPlugin.js
-@@ -67,8 +67,6 @@ const sdk_namespaceObject = require("@module-federation/sdk");
+@@ -69,8 +69,6 @@ const sdk_namespaceObject = require("@module-federation/sdk");
  const manifest_namespaceObject = require("@module-federation/manifest");
  ;// CONCATENATED MODULE: external "@module-federation/managers"
  const managers_namespaceObject = require("@module-federation/managers");
@@ -21,9 +22,10 @@ diff --git a/dist/ModuleFederationPlugin.js b/dist/ModuleFederationPlugin.js
              dtsPlugin.apply(compiler);
              dtsPlugin.addRuntimePlugins();
 diff --git a/dist/ModuleFederationPlugin.mjs b/dist/ModuleFederationPlugin.mjs
+index 2daf1a6..65b2c88 100644
 --- a/dist/ModuleFederationPlugin.mjs
 +++ b/dist/ModuleFederationPlugin.mjs
-@@ -1,7 +1,7 @@
+@@ -1,12 +1,13 @@
  import { bindLoggerToCompiler, composeKeyWithSeparator } from "@module-federation/sdk";
  import { StatsPlugin } from "@module-federation/manifest";
  import { ContainerManager, utils } from "@module-federation/managers";
@@ -32,16 +34,13 @@ diff --git a/dist/ModuleFederationPlugin.mjs b/dist/ModuleFederationPlugin.mjs
  import bridge_react_webpack_plugin from "@module-federation/bridge-react-webpack-plugin";
  import node_path from "node:path";
  import node_fs from "node:fs";
-@@ -15,7 +15,7 @@ import { TreeShakingSharedPlugin } from "./TreeShakingSharedPlugin.mjs";
- 
- ;// CONCATENATED MODULE: external "@module-federation/managers"
- 
--;// CONCATENATED MODULE: external "@module-federation/dts-plugin"
+ import { RemoteEntryPlugin } from "./RemoteEntryPlugin.mjs";
+ import logger from "./logger.mjs";
 +const require = createRequire(import.meta.url);
  
- ;// CONCATENATED MODULE: external "@module-federation/bridge-react-webpack-plugin"
  
-@@ -145,6 +145,7 @@ class ModuleFederationPlugin {
+ 
+@@ -131,6 +132,7 @@ class ModuleFederationPlugin {
          let disableManifest = options.manifest === false;
          let disableDts = options.dts === false;
          if (!disableDts) {

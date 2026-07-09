@@ -147,9 +147,9 @@ describe('create-bff-runtime', () => {
       expectedBleedingDevSpecifier('@modern-js/plugin-bff'),
     );
     expect(verticalPackage.dependencies['@tanstack/react-router']).toBe(
-      '1.170.16',
+      '1.170.17',
     );
-    expect(verticalPackage.devDependencies.tailwindcss).toBe('^4.3.1');
+    expect(verticalPackage.devDependencies.tailwindcss).toBe('^4.3.2');
     expect(verticalPackage.devDependencies['@rsbuild/plugin-tailwindcss']).toBe(
       '^2.0.3',
     );

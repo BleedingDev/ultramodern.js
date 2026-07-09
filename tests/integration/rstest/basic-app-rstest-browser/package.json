@@ -18,14 +18,14 @@
   "devDependencies": {
     "@modern-js/adapter-rstest": "workspace:*",
     "@modern-js/app-tools": "workspace:*",
-    "@rstest/browser": "0.10.6",
-    "@rstest/browser-react": "0.10.6",
-    "@rstest/core": "0.10.6",
-    "@types/node": "^26.0.1",
+    "@rstest/browser": "0.11.0",
+    "@rstest/browser-react": "0.11.0",
+    "@rstest/core": "0.11.0",
+    "@types/node": "^26.1.1",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
-    "@typescript/native-preview": "7.0.0-dev.20260628.1",
+    "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "playwright": "^1.61.1",
-    "typescript": "^6.0.3"
+    "typescript": "^7.0.2"
   }
 }

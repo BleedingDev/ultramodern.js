@@ -10,12 +10,12 @@
     "@modern-js/plugin-bff": "workspace:*",
     "@modern-js/plugin-i18n": "workspace:*",
     "@modern-js/runtime": "workspace:*",
-    "i18next": "26.3.3",
+    "i18next": "26.3.6",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },
   "devDependencies": {
     "@modern-js/app-tools": "workspace:*",
-    "@typescript/native-preview": "7.0.0-dev.20260628.1"
+    "@typescript/native-preview": "7.0.0-dev.20260707.2"
   }
 }

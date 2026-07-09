@@ -1,8 +1,8 @@
 diff --git a/dist/cjs/cli/configPlugin.js b/dist/cjs/cli/configPlugin.js
-index 0d01ad0..e5485a2 100644
+index 3f1af86..a038365 100644
 --- a/dist/cjs/cli/configPlugin.js
 +++ b/dist/cjs/cli/configPlugin.js
-@@ -212,9 +212,12 @@ var __webpack_exports__ = {};
+@@ -216,9 +216,12 @@ var __webpack_exports__ = {};
          if (!chain.output.get('uniqueName')) chain.output.uniqueName(mfConfig.name);
          const splitChunkConfig = chain.optimization.splitChunks.entries();
          if (!isServer) (0, utils_namespaceObject.autoDeleteSplitChunkCacheGroups)(mfConfig, splitChunkConfig);
@@ -17,30 +17,11 @@ index 0d01ad0..e5485a2 100644
          }
          if ((0, external_utils_js_namespaceObject.isDev)() && 'auto' === chain.output.get('publicPath')) {
              var _modernjsConfig_server;
-diff --git a/dist/esm/cli/configPlugin.mjs b/dist/esm/cli/configPlugin.mjs
-index 3e880c8..93e4290 100644
---- a/dist/esm/cli/configPlugin.mjs
-+++ b/dist/esm/cli/configPlugin.mjs
-@@ -194,9 +194,12 @@ function patchBundlerConfig(options) {
-     if (!chain.output.get('uniqueName')) chain.output.uniqueName(mfConfig.name);
-     var splitChunkConfig = chain.optimization.splitChunks.entries();
-     if (!isServer) autoDeleteSplitChunkCacheGroups(mfConfig, splitChunkConfig);
--    if (!isServer && enableSSR && splitChunkConfig && (void 0 === splitChunkConfig ? "undefined" : _type_of__(splitChunkConfig)) === 'object' && splitChunkConfig.cacheGroups) {
-+    if (!isServer && enableSSR && splitChunkConfig && (void 0 === splitChunkConfig ? "undefined" : _type_of__(splitChunkConfig)) === 'object' && splitChunkConfig.cacheGroups && void 0 !== splitChunkConfig.chunks && splitChunkConfig.chunks !== 'async') {
-+        var previousChunks = splitChunkConfig.chunks;
-         splitChunkConfig.chunks = 'async';
--        logger.warn('splitChunks.chunks = async is not allowed with stream SSR mode, it will auto changed to "async"');
-+        if (void 0 !== previousChunks) {
-+            logger.warn("splitChunks.chunks = ".concat(previousChunks, " is not allowed with stream SSR mode, it will auto changed to \"async\""));
-+        }
-     }
-     if (isDev() && 'auto' === chain.output.get('publicPath')) {
-         var _modernjsConfig_server;
 diff --git a/dist/esm-node/cli/configPlugin.mjs b/dist/esm-node/cli/configPlugin.mjs
-index 722f1bb..dcac7ec 100644
+index c238b85..7350973 100644
 --- a/dist/esm-node/cli/configPlugin.mjs
 +++ b/dist/esm-node/cli/configPlugin.mjs
-@@ -165,9 +165,12 @@ function patchBundlerConfig(options) {
+@@ -156,9 +156,12 @@ function patchBundlerConfig(options) {
      if (!chain.output.get('uniqueName')) chain.output.uniqueName(mfConfig.name);
      const splitChunkConfig = chain.optimization.splitChunks.entries();
      if (!isServer) autoDeleteSplitChunkCacheGroups(mfConfig, splitChunkConfig);
@@ -51,6 +32,25 @@ index 722f1bb..dcac7ec 100644
 -        logger.warn('splitChunks.chunks = async is not allowed with stream SSR mode, it will auto changed to "async"');
 +        if (void 0 !== previousChunks) {
 +            logger.warn(`splitChunks.chunks = ${previousChunks} is not allowed with stream SSR mode, it will auto changed to "async"`);
++        }
+     }
+     if (isDev() && 'auto' === chain.output.get('publicPath')) {
+         var _modernjsConfig_server;
+diff --git a/dist/esm/cli/configPlugin.mjs b/dist/esm/cli/configPlugin.mjs
+index c8c2ace..fee11da 100644
+--- a/dist/esm/cli/configPlugin.mjs
++++ b/dist/esm/cli/configPlugin.mjs
+@@ -185,9 +185,12 @@ function patchBundlerConfig(options) {
+     if (!chain.output.get('uniqueName')) chain.output.uniqueName(mfConfig.name);
+     var splitChunkConfig = chain.optimization.splitChunks.entries();
+     if (!isServer) autoDeleteSplitChunkCacheGroups(mfConfig, splitChunkConfig);
+-    if (!isServer && enableSSR && splitChunkConfig && (void 0 === splitChunkConfig ? "undefined" : _type_of__(splitChunkConfig)) === 'object' && splitChunkConfig.cacheGroups) {
++    if (!isServer && enableSSR && splitChunkConfig && (void 0 === splitChunkConfig ? "undefined" : _type_of__(splitChunkConfig)) === 'object' && splitChunkConfig.cacheGroups && void 0 !== splitChunkConfig.chunks && splitChunkConfig.chunks !== 'async') {
++        var previousChunks = splitChunkConfig.chunks;
+         splitChunkConfig.chunks = 'async';
+-        logger.warn('splitChunks.chunks = async is not allowed with stream SSR mode, it will auto changed to "async"');
++        if (void 0 !== previousChunks) {
++            logger.warn("splitChunks.chunks = ".concat(previousChunks, " is not allowed with stream SSR mode, it will auto changed to \"async\""));
 +        }
      }
      if (isDev() && 'auto' === chain.output.get('publicPath')) {

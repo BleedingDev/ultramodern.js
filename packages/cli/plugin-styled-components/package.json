@@ -37,13 +37,13 @@
     "@modern-js/app-tools": "workspace:*",
     "@modern-js/rslib": "workspace:*",
     "@modern-js/runtime": "workspace:*",
-    "@rslib/core": "0.23.1",
+    "@rslib/core": "0.23.2",
     "@types/jest": "^30.0.0",
-    "@types/node": "^26.0.1",
+    "@types/node": "^26.1.1",
     "@types/styled-components": "^5.1.36",
-    "@typescript/native-preview": "7.0.0-dev.20260628.1",
+    "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "styled-components": "^6.4.3",
-    "typescript": "^6.0.3"
+    "typescript": "^7.0.2"
   },
   "peerDependencies": {
     "styled-components": "^6.4.2"

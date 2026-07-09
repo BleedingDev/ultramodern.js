@@ -72,7 +72,7 @@
     "node": ">=20",
     "pnpm": ">=11"
   },
-  "packageManager": "pnpm@11.9.0",
+  "packageManager": "pnpm@11.10.0",
   "lint-staged": {
     "*.{js,ts,cjs,mjs,d.cts,d.mts,jsx,tsx,json,jsonc}": [
       "biome check --files-ignore-unknown=true --no-errors-on-unmatched"
@@ -84,23 +84,23 @@
   "devDependencies": {
     "@babel/core": "^8.0.1",
     "@babel/plugin-transform-modules-commonjs": "^8.0.1",
-    "@biomejs/biome": "2.5.1",
+    "@biomejs/biome": "2.5.3",
     "@changesets/cli": "^2.31.0",
-    "@commitlint/cli": "^21.1.0",
-    "@commitlint/config-conventional": "^21.1.0",
-    "@effect/tsgo": "0.14.6",
+    "@commitlint/cli": "^21.2.1",
+    "@commitlint/config-conventional": "^21.2.0",
+    "@effect/tsgo": "0.16.3",
     "@modern-js/tsconfig": "workspace:*",
-    "@rstest/core": "0.10.6",
+    "@rstest/core": "0.11.0",
     "@scripts/build": "workspace:*",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
-    "@typescript/native-preview": "7.0.0-dev.20260628.1",
+    "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "check-dependency-version-consistency": "6.0.0",
     "cross-env": "^10.1.0",
     "husky": "^9.1.7",
     "lint-staged": "~17.0.8",
     "nx": "^23.0.1",
-    "oxfmt": "0.56.0",
+    "oxfmt": "0.58.0",
     "rimraf": "^6.1.3"
   },
   "commitlint": {

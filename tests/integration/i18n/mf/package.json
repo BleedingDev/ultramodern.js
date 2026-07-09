@@ -3,6 +3,6 @@
   "name": "i18n-mf-test",
   "version": "2.66.0",
   "devDependencies": {
-    "@typescript/native-preview": "7.0.0-dev.20260628.1"
+    "@typescript/native-preview": "7.0.0-dev.20260707.2"
   }
 }

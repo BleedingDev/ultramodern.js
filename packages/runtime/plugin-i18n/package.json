@@ -112,7 +112,7 @@
     "i18next": ">=26.3.1",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "react-i18next": "^17.0.8"
+    "react-i18next": "^17.0.9"
   },
   "peerDependenciesMeta": {
     "i18next": {
@@ -126,14 +126,14 @@
     "@modern-js/app-tools": "workspace:*",
     "@modern-js/rslib": "workspace:*",
     "@modern-js/runtime": "workspace:*",
-    "@rslib/core": "0.23.1",
-    "@types/node": "^26.0.1",
-    "@typescript/native-preview": "7.0.0-dev.20260628.1",
-    "i18next": "26.3.3",
+    "@rslib/core": "0.23.2",
+    "@types/node": "^26.1.1",
+    "@typescript/native-preview": "7.0.0-dev.20260707.2",
+    "i18next": "26.3.6",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "react-i18next": "17.0.8",
-    "typescript": "^6.0.3"
+    "react-i18next": "17.0.9",
+    "typescript": "^7.0.2"
   },
   "sideEffects": false,
   "publishConfig": {

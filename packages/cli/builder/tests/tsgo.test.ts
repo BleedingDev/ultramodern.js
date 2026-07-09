@@ -14,10 +14,9 @@ let fixtureTsconfigPath = '';
 const projectTypescriptPath = testRequire.resolve('typescript', {
   paths: [rootPath],
 });
-const tsgoPath = testRequire.resolve(
-  '@typescript/native-preview/package.json',
-  { paths: [rootPath] },
-);
+const tsgoPath = testRequire.resolve('typescript/package.json', {
+  paths: [rootPath],
+});
 const normalizePath = (value: string | undefined) =>
   value?.replace(/\\/gu, '/');
 
@@ -72,7 +71,7 @@ afterAll(() => {
 });
 
 describe('withTsgoDefaults', () => {
-  it('should use native-preview fallback when project TypeScript is not TS7', () => {
+  it('should use stable TypeScript 7 fallback when project TypeScript is not TS7', () => {
     const result = reduceChain(withTsgoDefaults(undefined, rootPath));
     expect(result.typescript?.tsgo).toBe(true);
     expect(result.typescript?.typescriptPath).toBe(tsgoPath);

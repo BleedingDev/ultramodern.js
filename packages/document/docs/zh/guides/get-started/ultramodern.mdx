@@ -128,10 +128,10 @@ pnpm overrides/trust policy 和 pnpm lockfile。剩余失败就是源码迁移�
 `api/lambda`、`shared/effect` 和 `src/effect`。
 
 严格 Effect 生成 workspace 会通过 pnpm overrides 固定兼容版本组：
-`effect@4.0.0-beta.92`、`@effect/opentelemetry@4.0.0-beta.92` 和
-`@effect/vitest@4.0.0-beta.92`。不要添加与这些 overrides 冲突的 app 本地直接
-Effect 版本。生成的 pnpm policy 还会为 `effect@4.0.0-beta.92` 和
-`@effect/opentelemetry@4.0.0-beta.92` 添加例外，避免框架选定的 Effect beta
+`effect@4.0.0-beta.94`、`@effect/opentelemetry@4.0.0-beta.94` 和
+`@effect/vitest@4.0.0-beta.94`。不要添加与这些 overrides 冲突的 app 本地直接
+Effect 版本。生成的 pnpm policy 还会为 `effect@4.0.0-beta.94` 和
+`@effect/opentelemetry@4.0.0-beta.94` 添加例外，避免框架选定的 Effect beta
 版本组被 24 小时成熟期检查，或从 trusted-publisher metadata 迁移到 provenance
 attestation 时被 no-downgrade 检查误拦截。
 

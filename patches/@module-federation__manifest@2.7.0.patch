@@ -1,7 +1,8 @@
 diff --git a/dist/utils.js b/dist/utils.js
+index 0d3c0a8..c3ccfe6 100644
 --- a/dist/utils.js
 +++ b/dist/utils.js
-@@ -69,8 +69,6 @@ const external_path_namespaceObject = require("path");
+@@ -71,8 +71,6 @@ const external_path_namespaceObject = require("path");
  var external_path_default = /*#__PURE__*/__webpack_require__.n(external_path_namespaceObject);
  ;// CONCATENATED MODULE: external "@module-federation/sdk"
  const sdk_namespaceObject = require("@module-federation/sdk");
@@ -10,7 +11,7 @@ diff --git a/dist/utils.js b/dist/utils.js
  ;// CONCATENATED MODULE: external "./constants.js"
  const external_constants_js_namespaceObject = require("./constants.js");
  ;// CONCATENATED MODULE: external "./logger.js"
-@@ -251,7 +249,11 @@ function getTypesMetaInfo(pluginOptions, context) {
+@@ -252,7 +250,11 @@ function getTypesMetaInfo(pluginOptions, context) {
          api: ''
      };
      try {
@@ -23,7 +24,7 @@ diff --git a/dist/utils.js b/dist/utils.js
              generateTypes: defaultRemoteOptions,
              consumeTypes: {}
          }, 'mfOptions.dts')(pluginOptions.dts);
-@@ -262,7 +264,7 @@ function getTypesMetaInfo(pluginOptions, context) {
+@@ -263,7 +265,7 @@ function getTypesMetaInfo(pluginOptions, context) {
          if (normalizedRemote === false) {
              return defaultTypesMetaInfo;
          }
@@ -33,9 +34,10 @@ diff --git a/dist/utils.js b/dist/utils.js
              context,
              moduleFederationConfig: pluginOptions
 diff --git a/dist/utils.mjs b/dist/utils.mjs
+index 3f4e0d9..f2aed76 100644
 --- a/dist/utils.mjs
 +++ b/dist/utils.mjs
-@@ -1,14 +1,14 @@
+@@ -1,8 +1,9 @@
  import path from "path";
  import { normalizeOptions } from "@module-federation/sdk";
 -import { isTSProject, retrieveTypesAssetsInfo } from "@module-federation/dts-plugin/core";
@@ -44,15 +46,9 @@ diff --git a/dist/utils.mjs b/dist/utils.mjs
  import logger from "./logger.mjs";
 +const require = createRequire(import.meta.url);
  
- ;// CONCATENATED MODULE: external "path"
  
- ;// CONCATENATED MODULE: external "@module-federation/sdk"
  
--;// CONCATENATED MODULE: external "@module-federation/dts-plugin/core"
- 
- ;// CONCATENATED MODULE: external "./constants.mjs"
- 
-@@ -189,6 +189,10 @@ function getTypesMetaInfo(pluginOptions, context) {
+@@ -182,6 +183,10 @@ function getTypesMetaInfo(pluginOptions, context) {
          api: ''
      };
      try {

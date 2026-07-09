@@ -52,6 +52,12 @@ exports[`builder environment compat > should generator environment config correc
           },
           "oneOf": [
             {
+              "type": "asset/source",
+              "with": {
+                "type": "text",
+              },
+            },
+            {
               "resolve": {
                 "preferRelative": true,
               },
@@ -315,6 +321,12 @@ exports[`builder environment compat > should generator environment config correc
               ],
             },
             {
+              "type": "asset/source",
+              "with": {
+                "type": "text",
+              },
+            },
+            {
               "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
               "type": "asset/source",
             },
@@ -451,6 +463,12 @@ exports[`builder environment compat > should generator environment config correc
               "type": "asset/inline",
             },
             {
+              "type": "asset/source",
+              "with": {
+                "type": "text",
+              },
+            },
+            {
               "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
               "type": "asset/source",
             },
@@ -466,7 +484,7 @@ exports[`builder environment compat > should generator environment config correc
               "type": "asset",
             },
           ],
-          "test": /\\\\\\.\\(\\?:png\\|jpg\\|jpeg\\|pjpeg\\|pjp\\|gif\\|bmp\\|webp\\|ico\\|apng\\|avif\\|tif\\|tiff\\|jfif\\|cur\\)\\$/i,
+          "test": /\\\\\\.\\(\\?:png\\|jpg\\|jpeg\\|pjpeg\\|pjp\\|gif\\|bmp\\|webp\\|ico\\|apng\\|avif\\|tif\\|tiff\\|jfif\\|cur\\|jxl\\)\\$/i,
         },
         {
           "oneOf": [
@@ -480,6 +498,12 @@ exports[`builder environment compat > should generator environment config correc
             {
               "resourceQuery": /\\[\\?&\\]inline\\(\\?:&\\|=\\|\\$\\)/,
               "type": "asset/inline",
+            },
+            {
+              "type": "asset/source",
+              "with": {
+                "type": "text",
+              },
             },
             {
               "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
@@ -497,7 +521,7 @@ exports[`builder environment compat > should generator environment config correc
               "type": "asset",
             },
           ],
-          "test": /\\\\\\.\\(\\?:mp4\\|webm\\|ogg\\|mov\\|mp3\\|wav\\|flac\\|aac\\|m4a\\|opus\\)\\$/i,
+          "test": /\\\\\\.\\(\\?:mp4\\|webm\\|ogg\\|mov\\|mp3\\|wav\\|flac\\|aac\\|m4a\\|opus\\|vtt\\)\\$/i,
         },
         {
           "oneOf": [
@@ -511,6 +535,12 @@ exports[`builder environment compat > should generator environment config correc
             {
               "resourceQuery": /\\[\\?&\\]inline\\(\\?:&\\|=\\|\\$\\)/,
               "type": "asset/inline",
+            },
+            {
+              "type": "asset/source",
+              "with": {
+                "type": "text",
+              },
             },
             {
               "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
@@ -532,6 +562,49 @@ exports[`builder environment compat > should generator environment config correc
         },
         {
           "oneOf": [
+            {
+              "generator": {
+                "filename": "static/assets/[name].[contenthash:10][ext]",
+              },
+              "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
+              "type": "asset/resource",
+            },
+            {
+              "resourceQuery": /\\[\\?&\\]inline\\(\\?:&\\|=\\|\\$\\)/,
+              "type": "asset/inline",
+            },
+            {
+              "type": "asset/source",
+              "with": {
+                "type": "text",
+              },
+            },
+            {
+              "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
+              "type": "asset/source",
+            },
+            {
+              "generator": {
+                "filename": "static/assets/[name].[contenthash:10][ext]",
+              },
+              "parser": {
+                "dataUrlCondition": {
+                  "maxSize": 10000,
+                },
+              },
+              "type": "asset",
+            },
+          ],
+          "test": /\\\\\\.\\(\\?:webmanifest\\|pdf\\|txt\\)\\$/i,
+        },
+        {
+          "oneOf": [
+            {
+              "type": "asset/source",
+              "with": {
+                "type": "text",
+              },
+            },
             {
               "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
               "type": "asset/source",
@@ -743,6 +816,12 @@ exports[`builder environment compat > should generator environment config correc
                   },
                 },
               ],
+            },
+            {
+              "type": "asset/source",
+              "with": {
+                "type": "text",
+              },
             },
             {
               "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
@@ -1031,6 +1110,12 @@ exports[`builder environment compat > should generator environment config correc
               ],
             },
             {
+              "type": "asset/source",
+              "with": {
+                "type": "text",
+              },
+            },
+            {
               "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
               "type": "asset/source",
             },
@@ -1140,6 +1225,12 @@ exports[`builder environment compat > should generator environment config correc
             {
               "resourceQuery": /\\^\\\\\\?inline\\$/,
               "type": "asset/inline",
+            },
+            {
+              "type": "asset/source",
+              "with": {
+                "type": "text",
+              },
             },
             {
               "resourceQuery": /\\^\\\\\\?raw\\$/,
@@ -1347,6 +1438,9 @@ exports[`builder environment compat > should generator environment config correc
       "chunkFilename": "static/js/async/[name].js",
       "devtoolFallbackModuleFilenameTemplate": [Function],
       "devtoolModuleFilenameTemplate": [Function],
+      "environment": {
+        "const": false,
+      },
       "filename": "static/js/[name].js",
       "path": "<WORKSPACE>/packages/cli/builder/dist",
       "publicPath": "/",
@@ -1458,7 +1552,7 @@ exports[`builder environment compat > should generator environment config correc
             "mode": "readonly",
             "resolveRoot": "<WORKSPACE>/packages/cli/builder",
             "tsgo": true,
-            "typescriptPath": "<WORKSPACE>/node_modules/<PNPM_INNER>/@typescript/native-preview/package.json",
+            "typescriptPath": "<WORKSPACE>/node_modules/<PNPM_INNER>/typescript/package.json",
           },
         },
       },
@@ -1578,6 +1672,12 @@ exports[`builder environment compat > should generator environment config correc
           },
           "oneOf": [
             {
+              "type": "asset/source",
+              "with": {
+                "type": "text",
+              },
+            },
+            {
               "resolve": {
                 "preferRelative": true,
               },
@@ -1688,6 +1788,12 @@ exports[`builder environment compat > should generator environment config correc
                   "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/dist/workerLoader.mjs",
                 },
               ],
+            },
+            {
+              "type": "asset/source",
+              "with": {
+                "type": "text",
+              },
             },
             {
               "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
@@ -1809,6 +1915,12 @@ exports[`builder environment compat > should generator environment config correc
               "type": "asset/inline",
             },
             {
+              "type": "asset/source",
+              "with": {
+                "type": "text",
+              },
+            },
+            {
               "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
               "type": "asset/source",
             },
@@ -1825,7 +1937,7 @@ exports[`builder environment compat > should generator environment config correc
               "type": "asset",
             },
           ],
-          "test": /\\\\\\.\\(\\?:png\\|jpg\\|jpeg\\|pjpeg\\|pjp\\|gif\\|bmp\\|webp\\|ico\\|apng\\|avif\\|tif\\|tiff\\|jfif\\|cur\\)\\$/i,
+          "test": /\\\\\\.\\(\\?:png\\|jpg\\|jpeg\\|pjpeg\\|pjp\\|gif\\|bmp\\|webp\\|ico\\|apng\\|avif\\|tif\\|tiff\\|jfif\\|cur\\|jxl\\)\\$/i,
         },
         {
           "oneOf": [
@@ -1840,6 +1952,12 @@ exports[`builder environment compat > should generator environment config correc
             {
               "resourceQuery": /\\[\\?&\\]inline\\(\\?:&\\|=\\|\\$\\)/,
               "type": "asset/inline",
+            },
+            {
+              "type": "asset/source",
+              "with": {
+                "type": "text",
+              },
             },
             {
               "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
@@ -1858,7 +1976,7 @@ exports[`builder environment compat > should generator environment config correc
               "type": "asset",
             },
           ],
-          "test": /\\\\\\.\\(\\?:mp4\\|webm\\|ogg\\|mov\\|mp3\\|wav\\|flac\\|aac\\|m4a\\|opus\\)\\$/i,
+          "test": /\\\\\\.\\(\\?:mp4\\|webm\\|ogg\\|mov\\|mp3\\|wav\\|flac\\|aac\\|m4a\\|opus\\|vtt\\)\\$/i,
         },
         {
           "oneOf": [
@@ -1873,6 +1991,12 @@ exports[`builder environment compat > should generator environment config correc
             {
               "resourceQuery": /\\[\\?&\\]inline\\(\\?:&\\|=\\|\\$\\)/,
               "type": "asset/inline",
+            },
+            {
+              "type": "asset/source",
+              "with": {
+                "type": "text",
+              },
             },
             {
               "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
@@ -1895,6 +2019,51 @@ exports[`builder environment compat > should generator environment config correc
         },
         {
           "oneOf": [
+            {
+              "generator": {
+                "emit": false,
+                "filename": "static/assets/[name].[contenthash:10][ext]",
+              },
+              "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
+              "type": "asset/resource",
+            },
+            {
+              "resourceQuery": /\\[\\?&\\]inline\\(\\?:&\\|=\\|\\$\\)/,
+              "type": "asset/inline",
+            },
+            {
+              "type": "asset/source",
+              "with": {
+                "type": "text",
+              },
+            },
+            {
+              "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
+              "type": "asset/source",
+            },
+            {
+              "generator": {
+                "emit": false,
+                "filename": "static/assets/[name].[contenthash:10][ext]",
+              },
+              "parser": {
+                "dataUrlCondition": {
+                  "maxSize": 10000,
+                },
+              },
+              "type": "asset",
+            },
+          ],
+          "test": /\\\\\\.\\(\\?:webmanifest\\|pdf\\|txt\\)\\$/i,
+        },
+        {
+          "oneOf": [
+            {
+              "type": "asset/source",
+              "with": {
+                "type": "text",
+              },
+            },
             {
               "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
               "type": "asset/source",
@@ -2011,6 +2180,12 @@ exports[`builder environment compat > should generator environment config correc
                   },
                 },
               ],
+            },
+            {
+              "type": "asset/source",
+              "with": {
+                "type": "text",
+              },
             },
             {
               "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
@@ -2149,6 +2324,12 @@ exports[`builder environment compat > should generator environment config correc
               ],
             },
             {
+              "type": "asset/source",
+              "with": {
+                "type": "text",
+              },
+            },
+            {
               "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
               "type": "asset/source",
             },
@@ -2216,6 +2397,12 @@ exports[`builder environment compat > should generator environment config correc
             {
               "resourceQuery": /\\^\\\\\\?inline\\$/,
               "type": "asset/inline",
+            },
+            {
+              "type": "asset/source",
+              "with": {
+                "type": "text",
+              },
             },
             {
               "resourceQuery": /\\^\\\\\\?raw\\$/,
@@ -2521,6 +2708,12 @@ exports[`builder environment compat > should generator environment config correc
           },
           "oneOf": [
             {
+              "type": "asset/source",
+              "with": {
+                "type": "text",
+              },
+            },
+            {
               "resolve": {
                 "preferRelative": true,
               },
@@ -2631,6 +2824,12 @@ exports[`builder environment compat > should generator environment config correc
                   "loader": "<WORKSPACE>/node_modules/<PNPM_INNER>/@rsbuild/core/dist/workerLoader.mjs",
                 },
               ],
+            },
+            {
+              "type": "asset/source",
+              "with": {
+                "type": "text",
+              },
             },
             {
               "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
@@ -2751,6 +2950,12 @@ exports[`builder environment compat > should generator environment config correc
               "type": "asset/inline",
             },
             {
+              "type": "asset/source",
+              "with": {
+                "type": "text",
+              },
+            },
+            {
               "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
               "type": "asset/source",
             },
@@ -2766,7 +2971,7 @@ exports[`builder environment compat > should generator environment config correc
               "type": "asset",
             },
           ],
-          "test": /\\\\\\.\\(\\?:png\\|jpg\\|jpeg\\|pjpeg\\|pjp\\|gif\\|bmp\\|webp\\|ico\\|apng\\|avif\\|tif\\|tiff\\|jfif\\|cur\\)\\$/i,
+          "test": /\\\\\\.\\(\\?:png\\|jpg\\|jpeg\\|pjpeg\\|pjp\\|gif\\|bmp\\|webp\\|ico\\|apng\\|avif\\|tif\\|tiff\\|jfif\\|cur\\|jxl\\)\\$/i,
         },
         {
           "oneOf": [
@@ -2780,6 +2985,12 @@ exports[`builder environment compat > should generator environment config correc
             {
               "resourceQuery": /\\[\\?&\\]inline\\(\\?:&\\|=\\|\\$\\)/,
               "type": "asset/inline",
+            },
+            {
+              "type": "asset/source",
+              "with": {
+                "type": "text",
+              },
             },
             {
               "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
@@ -2797,7 +3008,7 @@ exports[`builder environment compat > should generator environment config correc
               "type": "asset",
             },
           ],
-          "test": /\\\\\\.\\(\\?:mp4\\|webm\\|ogg\\|mov\\|mp3\\|wav\\|flac\\|aac\\|m4a\\|opus\\)\\$/i,
+          "test": /\\\\\\.\\(\\?:mp4\\|webm\\|ogg\\|mov\\|mp3\\|wav\\|flac\\|aac\\|m4a\\|opus\\|vtt\\)\\$/i,
         },
         {
           "oneOf": [
@@ -2811,6 +3022,12 @@ exports[`builder environment compat > should generator environment config correc
             {
               "resourceQuery": /\\[\\?&\\]inline\\(\\?:&\\|=\\|\\$\\)/,
               "type": "asset/inline",
+            },
+            {
+              "type": "asset/source",
+              "with": {
+                "type": "text",
+              },
             },
             {
               "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
@@ -2832,6 +3049,49 @@ exports[`builder environment compat > should generator environment config correc
         },
         {
           "oneOf": [
+            {
+              "generator": {
+                "filename": "static/assets/[name].[contenthash:10][ext]",
+              },
+              "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
+              "type": "asset/resource",
+            },
+            {
+              "resourceQuery": /\\[\\?&\\]inline\\(\\?:&\\|=\\|\\$\\)/,
+              "type": "asset/inline",
+            },
+            {
+              "type": "asset/source",
+              "with": {
+                "type": "text",
+              },
+            },
+            {
+              "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
+              "type": "asset/source",
+            },
+            {
+              "generator": {
+                "filename": "static/assets/[name].[contenthash:10][ext]",
+              },
+              "parser": {
+                "dataUrlCondition": {
+                  "maxSize": 10000,
+                },
+              },
+              "type": "asset",
+            },
+          ],
+          "test": /\\\\\\.\\(\\?:webmanifest\\|pdf\\|txt\\)\\$/i,
+        },
+        {
+          "oneOf": [
+            {
+              "type": "asset/source",
+              "with": {
+                "type": "text",
+              },
+            },
             {
               "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
               "type": "asset/source",
@@ -2936,6 +3196,12 @@ exports[`builder environment compat > should generator environment config correc
                   },
                 },
               ],
+            },
+            {
+              "type": "asset/source",
+              "with": {
+                "type": "text",
+              },
             },
             {
               "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
@@ -3074,6 +3340,12 @@ exports[`builder environment compat > should generator environment config correc
               ],
             },
             {
+              "type": "asset/source",
+              "with": {
+                "type": "text",
+              },
+            },
+            {
               "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
               "type": "asset/source",
             },
@@ -3140,6 +3412,12 @@ exports[`builder environment compat > should generator environment config correc
             {
               "resourceQuery": /\\^\\\\\\?inline\\$/,
               "type": "asset/inline",
+            },
+            {
+              "type": "asset/source",
+              "with": {
+                "type": "text",
+              },
             },
             {
               "resourceQuery": /\\^\\\\\\?raw\\$/,
@@ -3315,6 +3593,9 @@ exports[`builder environment compat > should generator environment config correc
       "chunkFilename": "[name].js",
       "devtoolFallbackModuleFilenameTemplate": "[relative-resource-path]?[hash]",
       "devtoolModuleFilenameTemplate": "[relative-resource-path]",
+      "environment": {
+        "const": false,
+      },
       "filename": "[name].js",
       "library": {
         "type": "commonjs2",

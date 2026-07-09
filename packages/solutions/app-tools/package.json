@@ -98,29 +98,29 @@
     "@modern-js/server-utils": "workspace:*",
     "@modern-js/types": "workspace:*",
     "@modern-js/utils": "workspace:*",
-    "@rsbuild/core": "2.1.1",
+    "@rsbuild/core": "2.1.5",
     "@swc/core": "1.15.43",
     "@swc/helpers": "^0.5.23",
     "compression-webpack-plugin": "^12.0.0",
-    "es-module-lexer": "^2.1.0",
+    "es-module-lexer": "^2.3.0",
     "esbuild": "^0.28.1",
     "flatted": "^3.4.2",
     "import-meta-resolve": "^4.2.0",
     "mlly": "^1.8.2",
     "ndepe": "^0.1.13",
     "pkg-types": "^2.3.1",
-    "std-env": "4.1.0"
+    "std-env": "4.2.0"
   },
   "devDependencies": {
     "@modern-js/rslib": "workspace:*",
-    "@rslib/core": "0.23.1",
+    "@rslib/core": "0.23.2",
     "@scripts/rstest-config": "workspace:*",
     "@types/babel__traverse": "7.28.0",
-    "@types/node": "^26.0.1",
-    "@typescript/native-preview": "7.0.0-dev.20260628.1",
+    "@types/node": "^26.1.1",
+    "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
-    "typescript": "^6.0.3"
+    "typescript": "^7.0.2"
   },
   "peerDependencies": {
     "ts-node": "^10.9.2",

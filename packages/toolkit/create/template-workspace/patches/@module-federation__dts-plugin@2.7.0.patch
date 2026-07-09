@@ -1,26 +1,31 @@
-diff --git a/dist/DtsWorker-Dtem3-FM.d.ts b/dist/DtsWorker-Dtem3-FM.d.ts
---- a/dist/DtsWorker-Dtem3-FM.d.ts
-+++ b/dist/DtsWorker-Dtem3-FM.d.ts
-@@ -1,3 +1,3 @@
+diff --git a/dist/DtsWorker-Bt7-_SGH.d.ts b/dist/DtsWorker-Bt7-_SGH.d.ts
+index 3d82f9d..2f82c65 100644
+--- a/dist/DtsWorker-Bt7-_SGH.d.ts
++++ b/dist/DtsWorker-Bt7-_SGH.d.ts
+@@ -1,5 +1,5 @@
  import { moduleFederationPlugin } from "@module-federation/sdk";
 -import ts from "typescript";
 +import ts from "@typescript/typescript6";
  import { ChildProcess } from "child_process";
-diff --git a/dist/esm/expose-rpc-BiwGpqZ3.mjs b/dist/esm/expose-rpc-BiwGpqZ3.mjs
---- a/dist/esm/expose-rpc-BiwGpqZ3.mjs
-+++ b/dist/esm/expose-rpc-BiwGpqZ3.mjs
+ 
+ //#region \0rolldown/runtime.js
+diff --git a/dist/esm/expose-rpc-CDdqA9PX.mjs b/dist/esm/expose-rpc-CDdqA9PX.mjs
+index 9eae3ff..071b45d 100644
+--- a/dist/esm/expose-rpc-CDdqA9PX.mjs
++++ b/dist/esm/expose-rpc-CDdqA9PX.mjs
 @@ -6,7 +6,7 @@ import { fileURLToPath } from "url";
  import path, { dirname, extname, isAbsolute, join, normalize, relative, resolve, sep } from "path";
  import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from "fs/promises";
  import { utils } from "@module-federation/managers";
 -import typescript from "typescript";
 +import typescript from "@typescript/typescript6";
+ import { styleText } from "node:util";
  import { ENCODE_NAME_PREFIX, MANIFEST_EXT, TEMP_DIR, decodeName, getProcessEnv, inferAutoPublicPath, parseEntry } from "@module-federation/sdk";
- import ansiColors from "ansi-colors";
  import { Agent } from "undici";
-diff --git a/dist/expose-rpc-BNzQqY2X.js b/dist/expose-rpc-BNzQqY2X.js
---- a/dist/expose-rpc-BNzQqY2X.js
-+++ b/dist/expose-rpc-BNzQqY2X.js
+diff --git a/dist/expose-rpc-BpRiu3VK.js b/dist/expose-rpc-BpRiu3VK.js
+index 2e81fb9..7688d8b 100644
+--- a/dist/expose-rpc-BpRiu3VK.js
++++ b/dist/expose-rpc-BpRiu3VK.js
 @@ -7,7 +7,7 @@ let path = require("path");
  path = require_Action.__toESM(path);
  let fs_promises = require("fs/promises");
@@ -28,5 +33,5 @@ diff --git a/dist/expose-rpc-BNzQqY2X.js b/dist/expose-rpc-BNzQqY2X.js
 -let typescript = require("typescript");
 +let typescript = require("@typescript/typescript6");
  typescript = require_Action.__toESM(typescript);
+ let node_util = require("node:util");
  let _module_federation_sdk = require("@module-federation/sdk");
- let ansi_colors = require("ansi-colors");

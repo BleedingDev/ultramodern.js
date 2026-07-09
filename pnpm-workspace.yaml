@@ -42,15 +42,15 @@ allowBuilds:
 patchedDependencies:
   # Lazy-load Module Federation DTS helpers so apps with `dts: false` do not
   # import the DTS plugin in the TS 7 native-preview lane.
-  '@module-federation/modern-js-v3@2.6.0': patches/@module-federation__modern-js-v3@2.6.0.patch
-  '@module-federation/manifest@2.6.0': patches/@module-federation__manifest@2.6.0.patch
-  '@module-federation/rspack@2.6.0': patches/@module-federation__rspack@2.6.0.patch
+  '@module-federation/modern-js-v3@2.7.0': patches/@module-federation__modern-js-v3@2.7.0.patch
+  '@module-federation/manifest@2.7.0': patches/@module-federation__manifest@2.7.0.patch
+  '@module-federation/rspack@2.7.0': patches/@module-federation__rspack@2.7.0.patch
   # Keep bridge-react SSR stylesheet assets hydration-stable while avoiding
   # duplicate stylesheet links after the client has mounted.
-  '@module-federation/bridge-react@2.6.0': patches/@module-federation__bridge-react@2.6.0.patch
+  '@module-federation/bridge-react@2.7.0': patches/@module-federation__bridge-react@2.7.0.patch
   # Stop TanStack loadMatches from dereferencing cached preload matches after
   # RouterCore.updateMatch deletes them on redirect.
-  '@tanstack/router-core@1.171.13': patches/@tanstack__router-core@1.171.13.patch
+  '@tanstack/router-core@1.171.14': patches/@tanstack__router-core@1.171.14.patch
 
 overrides:
   micromatch: ^4.0.8
@@ -118,48 +118,64 @@ allowedDeprecatedVersions:
 minimumReleaseAgeExclude:
   - '@typescript/native-preview'
   - '@typescript/native-preview-*'
-  - '@rsbuild/core@2.1.1'
+  - '@rsbuild/core@2.1.5'
   - '@rsbuild/plugin-type-check@1.5.0'
-  - '@rspack/binding-darwin-arm64@2.1.1'
-  - '@rspack/binding-darwin-x64@2.1.1'
-  - '@rspack/binding-linux-arm64-gnu@2.1.1'
-  - '@rspack/binding-linux-arm64-musl@2.1.1'
-  - '@rspack/binding-linux-riscv64-gnu@2.1.1'
-  - '@rspack/binding-linux-riscv64-musl@2.1.1'
-  - '@rspack/binding-linux-x64-gnu@2.1.1'
-  - '@rspack/binding-linux-x64-musl@2.1.1'
-  - '@rspack/binding-wasm32-wasi@2.1.1'
-  - '@rspack/binding-win32-arm64-msvc@2.1.1'
-  - '@rspack/binding-win32-ia32-msvc@2.1.1'
-  - '@rspack/binding-win32-x64-msvc@2.1.1'
-  - '@rspack/binding@2.1.1'
-  - '@rspack/core@2.1.1'
+  - '@rspack/binding-darwin-arm64@2.1.3'
+  - '@rspack/binding-darwin-x64@2.1.3'
+  - '@rspack/binding-linux-arm64-gnu@2.1.3'
+  - '@rspack/binding-linux-arm64-musl@2.1.3'
+  - '@rspack/binding-linux-riscv64-gnu@2.1.3'
+  - '@rspack/binding-linux-riscv64-musl@2.1.3'
+  - '@rspack/binding-linux-x64-gnu@2.1.3'
+  - '@rspack/binding-linux-x64-musl@2.1.3'
+  - '@rspack/binding-wasm32-wasi@2.1.3'
+  - '@rspack/binding-win32-arm64-msvc@2.1.3'
+  - '@rspack/binding-win32-ia32-msvc@2.1.3'
+  - '@rspack/binding-win32-x64-msvc@2.1.3'
+  - '@rspack/binding@2.1.3'
+  - '@rspack/core@2.1.3'
   - pure-rand@8.4.1
   - ts-checker-rspack-plugin@1.5.1
   - '@types/react@19.2.17'
-  - '@tanstack/react-router@1.170.16'
-  - '@tanstack/router-core@1.171.13'
-  - '@effect/tsgo-darwin-arm64@0.14.6'
-  - '@effect/tsgo-darwin-x64@0.14.6'
-  - '@effect/tsgo-linux-arm64@0.14.6'
-  - '@effect/tsgo-linux-arm@0.14.6'
-  - '@effect/tsgo-linux-x64@0.14.6'
-  - '@effect/tsgo-win32-arm64@0.14.6'
-  - '@effect/tsgo-win32-x64@0.14.6'
-  - '@effect/tsgo@0.14.6'
-  - '@jsonjoy.com/fs-core@4.57.8'
-  - '@jsonjoy.com/fs-fsa@4.57.8'
-  - '@jsonjoy.com/fs-node-builtins@4.57.8'
-  - '@jsonjoy.com/fs-node-to-fsa@4.57.8'
-  - '@jsonjoy.com/fs-node-utils@4.57.8'
-  - '@jsonjoy.com/fs-node@4.57.8'
-  - '@jsonjoy.com/fs-print@4.57.8'
-  - '@jsonjoy.com/fs-snapshot@4.57.8'
-  - '@types/node@26.0.0'
-  - memfs@4.57.8
-  - '@img/sharp-darwin-arm64@0.35.2'
-  - '@img/sharp-darwin-x64@0.35.2'
-  - '@img/sharp-freebsd-wasm32@0.35.2'
+  - '@types/node@26.1.1'
+  - i18next@26.3.6
+  - react-i18next@17.0.9
+  - typescript@7.0.2
+  - '@tanstack/react-router@1.170.17'
+  - '@tanstack/router-core@1.171.14'
+  - '@effect/tsgo-darwin-arm64@0.16.3'
+  - '@effect/tsgo-darwin-x64@0.16.3'
+  - '@effect/tsgo-linux-arm64@0.16.3'
+  - '@effect/tsgo-linux-arm@0.16.3'
+  - '@effect/tsgo-linux-x64@0.16.3'
+  - '@effect/tsgo-win32-arm64@0.16.3'
+  - '@effect/tsgo-win32-x64@0.16.3'
+  - '@effect/tsgo@0.16.3'
+  - '@jsonjoy.com/fs-core@4.64.0'
+  - '@jsonjoy.com/fs-fsa@4.64.0'
+  - '@jsonjoy.com/fs-node-builtins@4.64.0'
+  - '@jsonjoy.com/fs-node-to-fsa@4.64.0'
+  - '@jsonjoy.com/fs-node-utils@4.64.0'
+  - '@jsonjoy.com/fs-node@4.64.0'
+  - '@jsonjoy.com/fs-print@4.64.0'
+  - '@jsonjoy.com/fs-snapshot@4.64.0'
+  - memfs@4.64.0
+  - '@img/sharp-darwin-arm64@0.35.3'
+  - '@img/sharp-darwin-x64@0.35.3'
+  - '@img/sharp-freebsd-wasm32@0.35.3'
+  - '@img/sharp-linux-arm64@0.35.3'
+  - '@img/sharp-linux-arm@0.35.3'
+  - '@img/sharp-linux-ppc64@0.35.3'
+  - '@img/sharp-linux-riscv64@0.35.3'
+  - '@img/sharp-linux-s390x@0.35.3'
+  - '@img/sharp-linux-x64@0.35.3'
+  - '@img/sharp-linuxmusl-arm64@0.35.3'
+  - '@img/sharp-linuxmusl-x64@0.35.3'
+  - '@img/sharp-wasm32@0.35.3'
+  - '@img/sharp-webcontainers-wasm32@0.35.3'
+  - '@img/sharp-win32-arm64@0.35.3'
+  - '@img/sharp-win32-ia32@0.35.3'
+  - '@img/sharp-win32-x64@0.35.3'
   - '@img/sharp-libvips-darwin-arm64@1.3.1'
   - '@img/sharp-libvips-darwin-x64@1.3.1'
   - '@img/sharp-libvips-linux-arm64@1.3.1'
@@ -170,22 +186,10 @@ minimumReleaseAgeExclude:
   - '@img/sharp-libvips-linux-x64@1.3.1'
   - '@img/sharp-libvips-linuxmusl-arm64@1.3.1'
   - '@img/sharp-libvips-linuxmusl-x64@1.3.1'
-  - '@img/sharp-linux-arm64@0.35.2'
-  - '@img/sharp-linux-arm@0.35.2'
-  - '@img/sharp-linux-ppc64@0.35.2'
-  - '@img/sharp-linux-riscv64@0.35.2'
-  - '@img/sharp-linux-s390x@0.35.2'
-  - '@img/sharp-linux-x64@0.35.2'
-  - '@img/sharp-linuxmusl-arm64@0.35.2'
-  - '@img/sharp-linuxmusl-x64@0.35.2'
-  - '@img/sharp-wasm32@0.35.2'
-  - '@img/sharp-webcontainers-wasm32@0.35.2'
-  - '@img/sharp-win32-arm64@0.35.2'
-  - '@img/sharp-win32-ia32@0.35.2'
-  - '@img/sharp-win32-x64@0.35.2'
-  - sharp@0.35.2
-  - '@effect/opentelemetry@4.0.0-beta.92'
-  - effect@4.0.0-beta.92
+  - sharp@0.35.3
+  - '@effect/opentelemetry@4.0.0-beta.94'
+  - effect@4.0.0-beta.94
+  - '@opentelemetry/semantic-conventions@1.42.0'
   - '@typescript/typescript-aix-ppc64@7.0.2'
   - '@typescript/typescript-darwin-arm64@7.0.2'
   - '@typescript/typescript-darwin-x64@7.0.2'
@@ -206,4 +210,3 @@ minimumReleaseAgeExclude:
   - '@typescript/typescript-sunos-x64@7.0.2'
   - '@typescript/typescript-win32-arm64@7.0.2'
   - '@typescript/typescript-win32-x64@7.0.2'
-  - typescript@7.0.2

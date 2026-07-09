@@ -182,10 +182,7 @@ const collectElevatedPermissionLines = content => {
     }
 
     const rest = match[2].trim();
-    if (
-      /^write-all\b/iu.test(rest) ||
-      /\b[a-z-]+\s*:\s*write\b/iu.test(rest)
-    ) {
+    if (/^write-all\b/iu.test(rest) || /\b[a-z-]+\s*:\s*write\b/iu.test(rest)) {
       findings.push({ line: index + 1, text: trimmed });
     }
 

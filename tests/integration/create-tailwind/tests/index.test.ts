@@ -7,7 +7,7 @@ import { rstest } from '@rstest/core';
 const repoRoot = path.resolve(__dirname, '../../../../');
 const createBin = path.resolve(repoRoot, 'packages/toolkit/create/bin/run.js');
 const expectedBleedingDevFrameworkVersion = '3.2.0-ultramodern.108';
-const expectedEffectVersion = '4.0.0-beta.92';
+const expectedEffectVersion = '4.0.0-beta.94';
 const expectedTypeScriptVersion = '7.0.2';
 const shellAppPath = 'apps/shell-super-app';
 
@@ -150,7 +150,7 @@ describe('create-tailwind', () => {
     ).toBe(true);
 
     const shellPackage = readJson(shellDir, 'package.json');
-    expect(shellPackage.devDependencies.tailwindcss).toBe('^4.3.1');
+    expect(shellPackage.devDependencies.tailwindcss).toBe('^4.3.2');
     expect(shellPackage.devDependencies['@rsbuild/plugin-tailwindcss']).toBe(
       '^2.0.3',
     );
@@ -180,7 +180,7 @@ describe('create-tailwind', () => {
       true,
     );
     const verticalPackage = readJson(verticalDir, 'package.json');
-    expect(verticalPackage.devDependencies.tailwindcss).toBe('^4.3.1');
+    expect(verticalPackage.devDependencies.tailwindcss).toBe('^4.3.2');
   });
 
   test('vertical inherits --no-tailwind workspace setting', () => {

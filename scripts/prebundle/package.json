@@ -11,13 +11,13 @@
   "dependencies": {
     "@babel/core": "^8.0.1",
     "@modern-js/tsconfig": "workspace:*",
-    "@types/node": "^26.0.1",
-    "@typescript/native-preview": "7.0.0-dev.20260628.1",
-    "@vercel/ncc": "0.44.0",
+    "@types/node": "^26.1.1",
+    "@typescript/native-preview": "7.0.0-dev.20260707.2",
+    "@vercel/ncc": "0.44.1",
     "dts-packer": "0.0.3",
     "import-meta-resolve": "^4.2.0",
-    "postcss": "^8.5.15",
-    "typescript": "^6.0.3"
+    "postcss": "^8.5.16",
+    "typescript": "^7.0.2"
   },
   "devDependencies": {
     "@rollup/plugin-json": "6.1.0",
@@ -36,7 +36,7 @@
     "@types/semver": "7.7.1",
     "@types/signale": "1.4.7",
     "address": "2.0.3",
-    "browserslist": "4.28.4",
+    "browserslist": "4.28.5",
     "chalk": "5.6.2",
     "chokidar": "5.0.0",
     "commander": "15.0.0",
@@ -47,13 +47,13 @@
     "fast-glob": "3.3.3",
     "filesize": "11.0.19",
     "find-up": "8.0.0",
-    "fs-extra": "11.3.5",
+    "fs-extra": "11.3.6",
     "glob": "13.0.6",
-    "globby": "16.2.0",
+    "globby": "16.2.1",
     "gzip-size": "7.0.0",
     "import-lazy": "4.0.0",
     "inquirer": "14.0.2",
-    "js-yaml": "5.2.0",
+    "js-yaml": "5.2.1",
     "json5": "2.2.3",
     "less": "4.6.7",
     "mime-types": "3.0.2",
@@ -61,7 +61,7 @@
     "nanoid": "5.1.16",
     "normalize-path": "3.0.0",
     "ora": "9.4.1",
-    "p-map": "7.0.4",
+    "p-map": "7.0.5",
     "postcss-custom-properties": "15.0.1",
     "postcss-flexbugs-fixes": "5.0.2",
     "postcss-font-variant": "5.0.0",
@@ -83,7 +83,7 @@
     "strip-ansi": "7.2.0",
     "styled-components": "^6.4.3",
     "tsconfig-paths": "4.2.0",
-    "upath": "3.0.7",
+    "upath": "3.0.8",
     "url-join": "5.0.0"
   }
 }

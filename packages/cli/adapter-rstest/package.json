@@ -27,19 +27,19 @@
   },
   "dependencies": {
     "@modern-js/app-tools": "workspace:*",
-    "@rstest/adapter-rsbuild": "0.10.6"
+    "@rstest/adapter-rsbuild": "0.11.0"
   },
   "devDependencies": {
     "@modern-js/rslib": "workspace:*",
     "@modern-js/tsconfig": "workspace:*",
     "@modern-js/types": "workspace:*",
-    "@rsbuild/core": "2.1.1",
-    "@rslib/core": "0.23.1",
-    "@rstest/core": "0.10.6",
+    "@rsbuild/core": "2.1.5",
+    "@rslib/core": "0.23.2",
+    "@rstest/core": "0.11.0",
     "@scripts/rstest-config": "workspace:*",
-    "@types/node": "^26.0.1",
-    "@typescript/native-preview": "7.0.0-dev.20260628.1",
-    "typescript": "^6.0.3"
+    "@types/node": "^26.1.1",
+    "@typescript/native-preview": "7.0.0-dev.20260707.2",
+    "typescript": "^7.0.2"
   },
   "sideEffects": false,
   "publishConfig": {

@@ -42,15 +42,15 @@
     "@rsbuild-image/core": "0.0.1-next.36",
     "@rsbuild-image/react": "0.0.1-next.36",
     "ipx": "^3.1.1",
-    "sharp": "^0.35.2"
+    "sharp": "^0.35.3"
   },
   "devDependencies": {
     "@modern-js/app-tools": "workspace:*",
-    "@rslib/core": "0.23.1",
-    "@types/node": "^26.0.1",
-    "@typescript/native-preview": "7.0.0-dev.20260628.1",
+    "@rslib/core": "0.23.2",
+    "@types/node": "^26.1.1",
+    "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "typescript": "^6.0.3"
+    "typescript": "^7.0.2"
   }
 }
