@@ -2,6 +2,7 @@ import path from 'node:path';
 import {
   DRIZZLE_ORM_VERSION,
   EFFECT_VERSION,
+  I18NEXT_VERSION,
   MODULE_FEDERATION_VERSION,
   WRANGLER_VERSION,
 } from '../../../ultramodern-workspace/versions';
@@ -55,6 +56,7 @@ export const moduleFederationPackageVersionPolicyExclusions = [
 ] as const;
 
 export const transitivePackageVersionPolicyExclusions = [
+  `i18next@${I18NEXT_VERSION}`,
   '@typescript/native-preview',
   '@typescript/native-preview@7.0.0-dev.20260707.2',
   'wrangler',

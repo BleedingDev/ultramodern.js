@@ -20,6 +20,7 @@ import {
   DRIZZLE_ORM_VERSION,
   EFFECT_VERSION,
   EFFECT_VITEST_VERSION,
+  I18NEXT_VERSION,
   MODULE_FEDERATION_VERSION,
   NODE_VERSION,
   OXFMT_VERSION,
@@ -1221,6 +1222,13 @@ declare module '*.css' {}
       pnpmWorkspace,
       new RegExp(
         `minimumReleaseAgeExclude:\\n(?:  - .+\\n)*  - '@effect/opentelemetry@${EFFECT_VERSION}'`,
+        'u',
+      ),
+    );
+    assert.match(
+      pnpmWorkspace,
+      new RegExp(
+        `minimumReleaseAgeExclude:\\n(?:  - .+\\n)*  - 'i18next@${I18NEXT_VERSION}'`,
         'u',
       ),
     );

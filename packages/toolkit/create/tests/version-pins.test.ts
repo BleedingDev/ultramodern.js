@@ -6,6 +6,7 @@ import { generateUltramodernWorkspace } from '../src/ultramodern-workspace';
 import {
   EFFECT_VERSION,
   EFFECT_VITEST_VERSION,
+  I18NEXT_VERSION,
   MODULE_FEDERATION_VERSION,
   NODE_FETCH_VERSION,
   PNPM_VERSION,
@@ -90,6 +91,7 @@ test('static templates read version pins from versions.ts placeholders', () => {
     '@rsbuild/core',
     '@rsbuild/plugin-react',
     '@rsbuild/plugin-type-check',
+    'i18next@{{i18nextVersion}}',
     '@module-federation/runtime',
     '@module-federation/runtime@{{moduleFederationVersion}}',
     '@typescript/native-preview',
@@ -303,6 +305,7 @@ test('generated workspace renders the pins from versions.ts', () => {
       '@rspack/binding-*',
       '@rspack/core',
       '@rspack/plugin-react-refresh',
+      `i18next@${I18NEXT_VERSION}`,
       'ts-checker-rspack-plugin',
     ]) {
       assert.ok(
