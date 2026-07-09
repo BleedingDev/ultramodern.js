@@ -72,6 +72,10 @@ export function createWorkspaceValidationContract(
 
   return {
     packageScope: scope,
+    node: {
+      version: NODE_VERSION,
+      engineRange: '>=26',
+    },
     versions: {
       cloudflareCompatibilityDate: CLOUDFLARE_COMPATIBILITY_DATE,
       effect: EFFECT_VERSION,

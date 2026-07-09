@@ -7,6 +7,7 @@ import {
   generateUltramodernWorkspace,
 } from '../src/ultramodern-workspace';
 import { generatedToolingCommands } from '../src/ultramodern-workspace/tooling-command-catalog';
+import { createWorkspaceValidationContract } from '../src/ultramodern-workspace/workspace-validation-contract';
 
 const fixturesDir = path.join(__dirname, 'fixtures');
 
@@ -764,6 +765,15 @@ test('validator template excludes generated Zerops runtime package artifacts', (
   );
 
   assert.match(validatorTemplate, /'\.zerops'/);
+});
+
+test('workspace validation contract records Node toolchain metadata', () => {
+  const contract = createWorkspaceValidationContract('tractor-store', true);
+
+  assert.deepEqual(contract.node, {
+    version: contract.versions.node,
+    engineRange: '>=26',
+  });
 });
 
 test('backend federation proof template resolves monorepo local plugin-bff runtime', () => {
