@@ -1175,6 +1175,10 @@ declare module '*.css' {}
     );
     assert.match(
       pnpmWorkspace,
+      /minimumReleaseAgeExclude:\n(?: {2}- .+\n)* {2}- '@module-federation\/runtime'/u,
+    );
+    assert.match(
+      pnpmWorkspace,
       new RegExp(
         `trustPolicyExclude:\\n(?:  - .+\\n)*  - 'effect@${EFFECT_VERSION}'`,
         'u',

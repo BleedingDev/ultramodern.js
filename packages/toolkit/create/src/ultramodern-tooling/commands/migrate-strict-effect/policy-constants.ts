@@ -13,6 +13,25 @@ export const strictEffectPackageVersionPolicyExclusions = [
 
 export const moduleFederationPackageVersionPolicyExclusions = [
   '@module-federation/*',
+  '@module-federation/bridge-react',
+  '@module-federation/bridge-react-webpack-plugin',
+  '@module-federation/cli',
+  '@module-federation/dts-plugin',
+  '@module-federation/enhanced',
+  '@module-federation/error-codes',
+  '@module-federation/inject-external-runtime-core-plugin',
+  '@module-federation/managers',
+  '@module-federation/manifest',
+  '@module-federation/modern-js-v3',
+  '@module-federation/node',
+  '@module-federation/rsbuild-plugin',
+  '@module-federation/rspack',
+  '@module-federation/runtime',
+  '@module-federation/runtime-core',
+  '@module-federation/runtime-tools',
+  '@module-federation/sdk',
+  '@module-federation/third-party-dts-extractor',
+  '@module-federation/webpack-bundler-runtime',
 ] as const;
 
 export const moduleFederationModernJsPatchPath = `patches/@module-federation__modern-js-v3@${MODULE_FEDERATION_VERSION}.patch`;
