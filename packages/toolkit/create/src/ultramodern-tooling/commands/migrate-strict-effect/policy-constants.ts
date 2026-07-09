@@ -11,6 +11,10 @@ export const strictEffectPackageVersionPolicyExclusions = [
   `@effect/opentelemetry@${EFFECT_VERSION}`,
 ];
 
+export const moduleFederationPackageVersionPolicyExclusions = [
+  '@module-federation/*',
+] as const;
+
 export const moduleFederationModernJsPatchPath = `patches/@module-federation__modern-js-v3@${MODULE_FEDERATION_VERSION}.patch`;
 
 export const moduleFederationModernJsPatchSourcePath = path.join(

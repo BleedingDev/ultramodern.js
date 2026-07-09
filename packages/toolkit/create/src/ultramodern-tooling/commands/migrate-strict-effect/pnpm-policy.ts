@@ -22,6 +22,7 @@ import {
   moduleFederationBridgeReactPatchPath,
   moduleFederationDtsPluginPatchPath,
   moduleFederationModernJsPatchPath,
+  moduleFederationPackageVersionPolicyExclusions,
   strictEffectPackageVersionPolicyExclusions,
 } from './policy-constants';
 
@@ -100,6 +101,16 @@ export function updateGeneratedPnpmWorkspacePolicy(io: MigrationIo) {
       source = policyExclude.source;
       changed = policyExclude.changed || changed;
     }
+  }
+
+  for (const item of moduleFederationPackageVersionPolicyExclusions) {
+    const policyExclude = ensureYamlListItem(
+      source,
+      'minimumReleaseAgeExclude',
+      item,
+    );
+    source = policyExclude.source;
+    changed = policyExclude.changed || changed;
   }
 
   const effectPatch = ensureYamlMapEntry(

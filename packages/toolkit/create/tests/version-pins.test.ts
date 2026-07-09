@@ -263,6 +263,7 @@ test('generated workspace renders the pins from versions.ts', () => {
       '@rsbuild/core',
       '@rsbuild/plugin-react',
       '@rsbuild/plugin-type-check',
+      '@module-federation/*',
       '@rspack/binding',
       '@rspack/binding-*',
       '@rspack/core',
