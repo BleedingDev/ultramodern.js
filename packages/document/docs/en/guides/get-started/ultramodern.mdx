@@ -210,8 +210,8 @@ Older repos with nested Effect entries and `verbatimModuleSyntax` should update 
 the latest BleedingDev cohort instead of adding app-level `"type": "module"`
 metadata, Module Federation shims, or custom server wrappers. The framework BFF
 compiler normalizes CommonJS server output while generated app packages keep
-stable `typescript` for Module Federation DTS generation and use the pinned
-`@typescript/native-preview` toolchain for TS-Go checks.
+stable TypeScript 7 so Module Federation DTS generation and TS-Go checks use
+the same modern compiler lane.
 
 Cloudflare SSR deploys are also split by runtime responsibility: `.output` is an
 ESM module-worker package, while `.output/worker` remains a CommonJS package
@@ -351,10 +351,9 @@ Overlays are explicit CodeSmith generators that run after base workspace or
 MicroVertical generation. They extend generated output; they do not replace,
 inherit, or shadow the base templates. The generator and CodeSmith adapter are
 plain Node generator surfaces. The package build emits declaration files through
-the TS-Go toolchain. Generated app packages keep stable `typescript` for classic
-compiler consumers such as Module Federation DTS generation, while TS-Go uses
-the pinned `@typescript/native-preview` toolchain; runtime code does not depend
-on native-preview compiler internals.
+the TS-Go toolchain. Generated app packages keep stable `typescript` on TS7 so
+Module Federation DTS generation and TS-Go use the same compiler lane; runtime
+code does not depend on compiler internals.
 
 ### Runtime Contracts
 
@@ -381,7 +380,7 @@ The generated contract writes `.modernjs/ultramodern.json` with a
 - `packages/shared-design-tokens` owns the shared token layer and exports `./tokens.css`.
 - Shell CSS owns only shell base and overlay layers under `[data-app-id="shell-super-app"]`.
 - Each vertical owns one CSS layer, for example `[data-app-id="vertical-transportation"]` with app-local class prefixes.
-- Tailwind CSS v4 is local to each generated app through `@tailwindcss/postcss`; shared base styles must not be duplicated by verticals.
+- Tailwind CSS v4 is local to each generated app through `@rsbuild/plugin-tailwindcss`; shared base styles must not be duplicated by verticals.
 - SSR first paint requires shared token CSS and app-owned CSS to be emitted by Modern/Rspack assets. Vertical CSS is loaded through manifest ownership, not copied into shell source.
 
 Version switching must select UI, API, CSS, i18n JSON, and MF manifest evidence from the same vertical build marker. A shell render that only changes the UI marker is not enough.

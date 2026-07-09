@@ -19,7 +19,12 @@ export function updateGeneratedModernConfigs(
       writeTextIfChanged(
         io,
         path.join(io.workspaceRoot, app.directory, 'modern.config.ts'),
-        createAppModernConfig(config.workspace.packageScope, app, remotes),
+        createAppModernConfig(
+          config.workspace.packageScope,
+          app,
+          remotes,
+          config.features.tailwind,
+        ),
       ) || changed;
   }
 

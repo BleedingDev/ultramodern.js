@@ -186,7 +186,7 @@ nothing.
       buildModulePath,
       writeTextIfChanged(
         path.join(workspaceRoot, buildModulePath),
-        createUltramodernBuildModule(),
+        createUltramodernBuildModule(scope, app),
       ),
     );
     track(

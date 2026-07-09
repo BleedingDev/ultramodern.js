@@ -19,6 +19,14 @@ export const moduleFederationModernJsPatchSourcePath = path.join(
   moduleFederationModernJsPatchPath,
 );
 
+export const moduleFederationDtsPluginPatchPath = `patches/@module-federation__dts-plugin@${MODULE_FEDERATION_VERSION}.patch`;
+
+export const moduleFederationDtsPluginPatchSourcePath = path.join(
+  createPackageRoot,
+  'template-workspace',
+  moduleFederationDtsPluginPatchPath,
+);
+
 export const moduleFederationBridgeReactPatchPath = `patches/@module-federation__bridge-react@${MODULE_FEDERATION_VERSION}.patch`;
 
 export const moduleFederationBridgeReactPatchSourcePath = path.join(

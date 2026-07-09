@@ -20,6 +20,7 @@ import {
   drizzleOrmDeclarationPatchPath,
   effectDeclarationPatchPath,
   moduleFederationBridgeReactPatchPath,
+  moduleFederationDtsPluginPatchPath,
   moduleFederationModernJsPatchPath,
   strictEffectPackageVersionPolicyExclusions,
 } from './policy-constants';
@@ -118,6 +119,15 @@ export function updateGeneratedPnpmWorkspacePolicy(io: MigrationIo) {
   );
   source = moduleFederationModernJsPatch.source;
   changed = moduleFederationModernJsPatch.changed || changed;
+
+  const moduleFederationDtsPluginPatch = ensureYamlMapEntry(
+    source,
+    'patchedDependencies',
+    `@module-federation/dts-plugin@${MODULE_FEDERATION_VERSION}`,
+    moduleFederationDtsPluginPatchPath,
+  );
+  source = moduleFederationDtsPluginPatch.source;
+  changed = moduleFederationDtsPluginPatch.changed || changed;
 
   const moduleFederationBridgeReactPatch = ensureYamlMapEntry(
     source,

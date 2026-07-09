@@ -94,6 +94,7 @@
     "@scripts/rstest-config": "workspace:*",
     "@types/node": "^26.0.1",
     "@typescript/native-preview": "7.0.0-dev.20260628.1",
+    "@typescript/typescript6": "6.0.2",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3"
   },

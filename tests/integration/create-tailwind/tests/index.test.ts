@@ -8,6 +8,7 @@ const repoRoot = path.resolve(__dirname, '../../../../');
 const createBin = path.resolve(repoRoot, 'packages/toolkit/create/bin/run.js');
 const expectedBleedingDevFrameworkVersion = '3.2.0-ultramodern.108';
 const expectedEffectVersion = '4.0.0-beta.92';
+const expectedTypeScriptVersion = '7.0.2';
 const shellAppPath = 'apps/shell-super-app';
 
 function readJson<T = any>(baseDir: string, relativePath: string): T {
@@ -54,8 +55,29 @@ function expectPnpm11Policy(projectDir: string) {
     '@tanstack/react-router',
     '@tanstack/router-core',
     'typescript',
-    '@typescript/native-preview',
-    '@typescript/native-preview-*',
+    `typescript@${expectedTypeScriptVersion}`,
+    '@typescript/typescript6@6.0.2',
+    `@typescript/typescript-aix-ppc64@${expectedTypeScriptVersion}`,
+    `@typescript/typescript-darwin-arm64@${expectedTypeScriptVersion}`,
+    `@typescript/typescript-darwin-x64@${expectedTypeScriptVersion}`,
+    `@typescript/typescript-freebsd-arm64@${expectedTypeScriptVersion}`,
+    `@typescript/typescript-freebsd-x64@${expectedTypeScriptVersion}`,
+    `@typescript/typescript-linux-arm64@${expectedTypeScriptVersion}`,
+    `@typescript/typescript-linux-arm@${expectedTypeScriptVersion}`,
+    `@typescript/typescript-linux-loong64@${expectedTypeScriptVersion}`,
+    `@typescript/typescript-linux-mips64el@${expectedTypeScriptVersion}`,
+    `@typescript/typescript-linux-ppc64@${expectedTypeScriptVersion}`,
+    `@typescript/typescript-linux-riscv64@${expectedTypeScriptVersion}`,
+    `@typescript/typescript-linux-s390x@${expectedTypeScriptVersion}`,
+    `@typescript/typescript-linux-x64@${expectedTypeScriptVersion}`,
+    `@typescript/typescript-netbsd-arm64@${expectedTypeScriptVersion}`,
+    `@typescript/typescript-netbsd-x64@${expectedTypeScriptVersion}`,
+    `@typescript/typescript-openbsd-arm64@${expectedTypeScriptVersion}`,
+    `@typescript/typescript-openbsd-x64@${expectedTypeScriptVersion}`,
+    `@typescript/typescript-sunos-x64@${expectedTypeScriptVersion}`,
+    `@typescript/typescript-win32-arm64@${expectedTypeScriptVersion}`,
+    `@typescript/typescript-win32-x64@${expectedTypeScriptVersion}`,
+    '@rsbuild/plugin-tailwindcss',
     '@types/react',
     '@rsbuild/core',
     '@rsbuild/plugin-react',
@@ -120,14 +142,18 @@ describe('create-tailwind', () => {
   test('scaffolds Tailwind v4 in the generated workspace by default', () => {
     const shellDir = path.join(withTailwindDir, shellAppPath);
     expect(fs.existsSync(path.join(shellDir, 'tailwind.config.ts'))).toBe(true);
-    expect(fs.existsSync(path.join(shellDir, 'postcss.config.mjs'))).toBe(true);
+    expect(fs.existsSync(path.join(shellDir, 'postcss.config.mjs'))).toBe(
+      false,
+    );
     expect(
       fs.existsSync(path.join(shellDir, 'src/routes/[lang]/page.tsx')),
     ).toBe(true);
 
     const shellPackage = readJson(shellDir, 'package.json');
     expect(shellPackage.devDependencies.tailwindcss).toBe('^4.3.1');
-    expect(shellPackage.devDependencies['@tailwindcss/postcss']).toBe('^4.3.1');
+    expect(shellPackage.devDependencies['@rsbuild/plugin-tailwindcss']).toBe(
+      '^2.0.3',
+    );
   });
 
   test('supports --no-tailwind opt-out', () => {
@@ -142,7 +168,7 @@ describe('create-tailwind', () => {
     const shellPackage = readJson(shellDir, 'package.json');
     expect(shellPackage.devDependencies.tailwindcss).toBeUndefined();
     expect(
-      shellPackage.devDependencies['@tailwindcss/postcss'],
+      shellPackage.devDependencies['@rsbuild/plugin-tailwindcss'],
     ).toBeUndefined();
   });
 

@@ -33,9 +33,13 @@ export function createAppModernConfig(
   scope: string,
   app: WorkspaceApp,
   remotes: WorkspaceApp[] = [],
+  enableTailwind = true,
 ): string {
   const bffImport = appHasApi(app)
     ? "import { bffPlugin } from '@modern-js/plugin-bff';\n"
+    : '';
+  const tailwindImport = enableTailwind
+    ? "import { pluginTailwindcss } from '@rsbuild/plugin-tailwindcss';\n"
     : '';
   const bffConfig = appHasApi(app)
     ? `      bff: {
@@ -50,6 +54,9 @@ export function createAppModernConfig(
         runtimeFramework: 'effect',
       },
 `
+    : '';
+  const tailwindBuilderPluginsConfig = enableTailwind
+    ? '  builderPlugins: [pluginTailwindcss()],\n'
     : '';
   const bffPluginEntry = appHasApi(app) ? '        bffPlugin(),\n' : '';
   const serviceBindings = app.kind === 'shell' ? remotes.filter(appHasApi) : [];
@@ -90,7 +97,7 @@ const defaultAssetPrefix = defaultRemoteAssetPrefix;`;
         // shells load remoteEntry.js and exposed chunks from this dev server.
         assetPrefix,`;
   return renderFileTemplate('workspace/apps/modern.config.ts', {
-    value0: bffImport,
+    value0: `${bffImport}${tailwindImport}`,
     value1: app.id,
     value2: createCloudflareWorkerName(scope, app),
     value3: app.portEnv,
@@ -111,6 +118,7 @@ const defaultAssetPrefix = defaultRemoteAssetPrefix;`;
     value15: bffPluginEntry,
     value16: createRspackUniqueName(app),
     value17: createRspackChunkLoadingGlobal(app),
+    value18: tailwindBuilderPluginsConfig,
   });
 }
 
@@ -119,7 +127,7 @@ function createModuleFederationDtsConfig(hasExposes: boolean): string {
     ? `  dts: {
     displayErrorInTerminal: true,
     generateTypes: {
-      compilerInstance: 'tsgo',
+      compilerInstance: tsgoCompilerInstance,
     },
     tsConfigPath: './tsconfig.mf-types.json',
   },`
@@ -228,8 +236,20 @@ export function createRemoteModuleFederationConfig(
   const exposes = formatTsObjectLiteral(app.exposes ?? {});
   const hasExposes = Object.keys(app.exposes ?? {}).length > 0;
   const hostOnlyMarker = hasExposes ? '' : '\n// ultramodern-mf: no-exposes';
+  const tsgoCompilerImport = hasExposes
+    ? "import { execFileSync } from 'node:child_process';\n"
+    : '';
+  const tsgoCompilerInstance = hasExposes
+    ? `
+const tsgoCompilerInstance =
+  process.env.EFFECT_TSGO_BIN?.trim() ||
+  execFileSync('npx', ['effect-tsgo', 'get-exe-path'], {
+    encoding: 'utf8',
+  }).trim();
+`
+    : '';
   return `// @effect-diagnostics nodeBuiltinImport:off${hostOnlyMarker}
-import { createRequire } from 'node:module';
+${tsgoCompilerImport}import { createRequire } from 'node:module';
 import { createModuleFederationConfig } from '@module-federation/modern-js-v3';
 import { dependencies } from './package.json';
 
@@ -239,7 +259,7 @@ const pluginTanstackVersion = (require('@modern-js/plugin-tanstack/package.json'
 const runtimeVersion = (require('@modern-js/runtime/package.json') as { version: string }).version;
 const reactVersion = (require('react/package.json') as { version: string }).version;
 const reactDomVersion = (require('react-dom/package.json') as { version: string }).version;
-
+${tsgoCompilerInstance}
 ${createModuleFederationRemoteUrlHelpers(app, remotes)}
 const moduleFederationConfig: Parameters<
   typeof createModuleFederationConfig

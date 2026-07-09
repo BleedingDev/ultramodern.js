@@ -170,7 +170,7 @@ test('root package json pins workspace package versions and bridge workspace glo
     '@modern-js/code-tools': packageVersion,
     '@modern-js/create': packageVersion,
     '@modern-js/plugin-bff': packageVersion,
-    '@typescript/native-preview': '7.0.0-dev.20260628.1',
+    '@typescript/typescript6': '6.0.2',
     lefthook: '^2.1.9',
     oxlint: '1.71.0',
     oxfmt: '0.56.0',

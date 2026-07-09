@@ -33,6 +33,7 @@ function collectTrackedFiles(root: string): string[] {
     })
       .split('\n')
       .filter(Boolean)
+      .filter(file => fs.existsSync(path.join(repoRoot, file)))
       .map(file => path.join(repoRoot, file));
   } catch {
     return collectFiles(path.join(repoRoot, root));

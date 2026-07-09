@@ -13,8 +13,29 @@ minimumReleaseAgeExclude:
   - '@tanstack/react-router'
   - '@tanstack/router-core'
   - 'typescript'
-  - '@typescript/native-preview'
-  - '@typescript/native-preview-*'
+  - 'typescript@{{typescriptVersion}}'
+  - '@typescript/typescript6@{{typescriptCompilerApiVersion}}'
+  - '@typescript/typescript-aix-ppc64@{{typescriptVersion}}'
+  - '@typescript/typescript-darwin-arm64@{{typescriptVersion}}'
+  - '@typescript/typescript-darwin-x64@{{typescriptVersion}}'
+  - '@typescript/typescript-freebsd-arm64@{{typescriptVersion}}'
+  - '@typescript/typescript-freebsd-x64@{{typescriptVersion}}'
+  - '@typescript/typescript-linux-arm64@{{typescriptVersion}}'
+  - '@typescript/typescript-linux-arm@{{typescriptVersion}}'
+  - '@typescript/typescript-linux-loong64@{{typescriptVersion}}'
+  - '@typescript/typescript-linux-mips64el@{{typescriptVersion}}'
+  - '@typescript/typescript-linux-ppc64@{{typescriptVersion}}'
+  - '@typescript/typescript-linux-riscv64@{{typescriptVersion}}'
+  - '@typescript/typescript-linux-s390x@{{typescriptVersion}}'
+  - '@typescript/typescript-linux-x64@{{typescriptVersion}}'
+  - '@typescript/typescript-netbsd-arm64@{{typescriptVersion}}'
+  - '@typescript/typescript-netbsd-x64@{{typescriptVersion}}'
+  - '@typescript/typescript-openbsd-arm64@{{typescriptVersion}}'
+  - '@typescript/typescript-openbsd-x64@{{typescriptVersion}}'
+  - '@typescript/typescript-sunos-x64@{{typescriptVersion}}'
+  - '@typescript/typescript-win32-arm64@{{typescriptVersion}}'
+  - '@typescript/typescript-win32-x64@{{typescriptVersion}}'
+  - '@rsbuild/plugin-tailwindcss'
   - '@types/react'
   - '@rsbuild/core'
   - '@rsbuild/plugin-react'
@@ -64,6 +85,7 @@ allowBuilds:
   workerd: true
 
 patchedDependencies:
+  '@module-federation/dts-plugin@{{moduleFederationVersion}}': patches/@module-federation__dts-plugin@{{moduleFederationVersion}}.patch
   '@module-federation/modern-js-v3@{{moduleFederationVersion}}': patches/@module-federation__modern-js-v3@{{moduleFederationVersion}}.patch
   '@module-federation/bridge-react@{{moduleFederationVersion}}': patches/@module-federation__bridge-react@{{moduleFederationVersion}}.patch
   '@tanstack/router-core@{{tanstackRouterCoreVersion}}': patches/@tanstack__router-core@{{tanstackRouterCoreVersion}}.patch

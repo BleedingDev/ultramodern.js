@@ -13,8 +13,16 @@ export function createUltramodernBuildArtifactJson(
   return `${JSON.stringify(createUltramodernBuildArtifact(record), null, 2)}\n`;
 }
 
-export function createUltramodernBuildModule(): string {
-  return `import ultramodernBuildArtifact from './${ULTRAMODERN_BUILD_ARTIFACT_FILE}' with { type: 'json' };
+export function createUltramodernBuildModule(
+  scope: string,
+  app: WorkspaceApp,
+): string {
+  const record = createDeliveryUnitRecord(scope, app);
+  return `const ultramodernBuildArtifact = ${JSON.stringify(
+    createUltramodernBuildArtifact(record),
+    null,
+    2,
+  )} as const;
 
 export { ultramodernBuildArtifact };
 

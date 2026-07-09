@@ -72,13 +72,33 @@ afterAll(() => {
 });
 
 describe('withTsgoDefaults', () => {
-  it('should enable tsgo with the native-preview package by default', () => {
+  it('should use native-preview fallback when project TypeScript is not TS7', () => {
     const result = reduceChain(withTsgoDefaults(undefined, rootPath));
     expect(result.typescript?.tsgo).toBe(true);
     expect(result.typescript?.typescriptPath).toBe(tsgoPath);
     expect(result.typescript?.configOverwrite?.compilerOptions).toMatchObject({
       baseUrl: null,
     });
+  });
+
+  it('should prefer project stable TypeScript 7 package', () => {
+    const stableTypeScriptPackagePath = path.join(
+      fixtureRoot,
+      'node_modules/typescript/package.json',
+    );
+    fs.mkdirSync(path.dirname(stableTypeScriptPackagePath), {
+      recursive: true,
+    });
+    fs.writeFileSync(
+      stableTypeScriptPackagePath,
+      `${JSON.stringify({ version: '7.0.2' }, null, 2)}\n`,
+    );
+
+    const result = reduceChain(withTsgoDefaults(undefined, fixtureRoot));
+    expect(result.typescript?.tsgo).toBe(true);
+    expect(result.typescript?.typescriptPath).toBe(
+      fs.realpathSync(stableTypeScriptPackagePath),
+    );
   });
 
   it('should point tsgo at a sanitized checker tsconfig', () => {

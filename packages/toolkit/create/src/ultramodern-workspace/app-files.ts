@@ -173,10 +173,6 @@ export function createAppStyles(
     : createRemoteStyles(enableTailwind, scope, app);
 }
 
-export function createPostcssConfig(): string {
-  return renderFileTemplate('workspace/postcss.config.mjs', {});
-}
-
 export function createTailwindConfig(): string {
   return renderFileTemplate('workspace/tailwind.config.ts', {});
 }

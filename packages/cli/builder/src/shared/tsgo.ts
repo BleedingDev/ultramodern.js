@@ -15,7 +15,8 @@ type TsConfigJson = {
 
 const builderRequire = createRequire(import.meta.url);
 
-const TSGO_PACKAGE = '@typescript/native-preview/package.json';
+const STABLE_TSGO_PACKAGE = 'typescript/package.json';
+const NATIVE_PREVIEW_TSGO_PACKAGE = '@typescript/native-preview/package.json';
 const TSGO_CHECKER_DIR = path.join('.modern-js', 'tsgo');
 
 const tryResolve = (request: string, rootPath: string): string | undefined => {
@@ -24,6 +25,40 @@ const tryResolve = (request: string, rootPath: string): string | undefined => {
   } catch {
     return undefined;
   }
+};
+
+const readPackageMajorVersion = (
+  packageJsonPath: string,
+): number | undefined => {
+  try {
+    const packageJson = JSON.parse(
+      fs.readFileSync(packageJsonPath, 'utf8'),
+    ) as {
+      version?: unknown;
+    };
+    const major = Number.parseInt(
+      String(packageJson.version).split('.')[0],
+      10,
+    );
+    return Number.isFinite(major) ? major : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+const resolveTsgoPackagePath = (rootPath: string): string => {
+  const stableTypeScriptPath = tryResolve(STABLE_TSGO_PACKAGE, rootPath);
+  if (
+    stableTypeScriptPath &&
+    (readPackageMajorVersion(stableTypeScriptPath) ?? 0) >= 7
+  ) {
+    return stableTypeScriptPath;
+  }
+
+  return (
+    tryResolve(NATIVE_PREVIEW_TSGO_PACKAGE, rootPath) ??
+    builderRequire.resolve(NATIVE_PREVIEW_TSGO_PACKAGE)
+  );
 };
 
 const toPosixPath = (input: string): string => input.replaceAll(path.sep, '/');
@@ -195,16 +230,15 @@ const normalizeTsgoConfig = (config: TsCheckerOptions, rootPath: string) => {
 
 /**
  * Type checking runs on TypeScript Go (`tsgo`) by default. The checker
- * prefers the project's own `@typescript/native-preview` and falls back to
- * the copy bundled with the builder, so it works without an extra install.
+ * prefers the project's stable TypeScript 7 package, then falls back to
+ * `@typescript/native-preview` for projects still on the preview lane.
  * Set `tools.tsChecker.typescript.tsgo: false` to use the classic checker.
  */
 export const withTsgoDefaults = (
   userOptions: TsCheckerChain | undefined,
   rootPath: string,
 ): TsCheckerChain => {
-  const tsgoPath =
-    tryResolve(TSGO_PACKAGE, rootPath) ?? builderRequire.resolve(TSGO_PACKAGE);
+  const tsgoPath = resolveTsgoPackagePath(rootPath);
   const userChain = userOptions
     ? Array.isArray(userOptions)
       ? userOptions

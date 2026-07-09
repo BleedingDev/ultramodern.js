@@ -24,16 +24,15 @@ import {
   OXFMT_VERSION,
   OXLINT_VERSION,
   PNPM_VERSION,
-  POSTCSS_VERSION,
   REACT_DOM_VERSION,
   REACT_ROUTER_VERSION,
   REACT_VERSION,
-  TAILWIND_POSTCSS_VERSION,
+  RSBUILD_PLUGIN_TAILWINDCSS_VERSION,
   TAILWIND_VERSION,
   TANSTACK_ROUTER_VERSION,
   TYPES_REACT_DOM_VERSION,
   TYPES_REACT_VERSION,
-  TYPESCRIPT_NATIVE_PREVIEW_VERSION,
+  TYPESCRIPT_COMPILER_API_VERSION,
   TYPESCRIPT_VERSION,
   ULTRACITE_VERSION,
   WRANGLER_VERSION,
@@ -127,12 +126,10 @@ function appDevDependencies(
     '@effect/tsgo': EFFECT_TSGO_VERSION,
     ...(enableTailwind
       ? {
-          '@tailwindcss/postcss': `^${TAILWIND_POSTCSS_VERSION}`,
-          postcss: `^${POSTCSS_VERSION}`,
+          '@rsbuild/plugin-tailwindcss': `^${RSBUILD_PLUGIN_TAILWINDCSS_VERSION}`,
           tailwindcss: `^${TAILWIND_VERSION}`,
         }
       : {}),
-    '@typescript/native-preview': TYPESCRIPT_NATIVE_PREVIEW_VERSION,
     '@types/node': '^20',
     '@types/react': TYPES_REACT_VERSION,
     '@types/react-dom': TYPES_REACT_DOM_VERSION,
@@ -240,7 +237,7 @@ export function createRootPackageJson(
         '@modern-js/plugin-bff',
         packageSource,
       ),
-      '@typescript/native-preview': TYPESCRIPT_NATIVE_PREVIEW_VERSION,
+      '@typescript/typescript6': TYPESCRIPT_COMPILER_API_VERSION,
       lefthook: LEFTHOOK_VERSION,
       oxlint: OXLINT_VERSION,
       oxfmt: OXFMT_VERSION,
@@ -344,7 +341,6 @@ export function createSharedPackage(
     },
     devDependencies: {
       '@effect/tsgo': EFFECT_TSGO_VERSION,
-      '@typescript/native-preview': TYPESCRIPT_NATIVE_PREVIEW_VERSION,
     },
   };
 

@@ -59,10 +59,14 @@ function extractDtsSettings(
     );
   }
 
+  const compilerInstanceSource =
+    generateTypes?.properties.get('compilerInstance');
   return {
-    compilerInstance: parseLiteralString(
-      generateTypes?.properties.get('compilerInstance'),
-    ),
+    compilerInstance:
+      parseLiteralString(compilerInstanceSource) ??
+      (compilerInstanceSource === 'tsgoCompilerInstance'
+        ? 'effect-tsgo'
+        : undefined),
     tsConfigPath: parseLiteralString(dts.properties.get('tsConfigPath')),
   };
 }

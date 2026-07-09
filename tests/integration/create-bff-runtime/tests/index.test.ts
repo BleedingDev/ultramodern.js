@@ -150,8 +150,8 @@ describe('create-bff-runtime', () => {
       '1.170.16',
     );
     expect(verticalPackage.devDependencies.tailwindcss).toBe('^4.3.1');
-    expect(verticalPackage.devDependencies['@tailwindcss/postcss']).toBe(
-      '^4.3.1',
+    expect(verticalPackage.devDependencies['@rsbuild/plugin-tailwindcss']).toBe(
+      '^2.0.3',
     );
 
     const modernConfig = readText(
@@ -171,7 +171,7 @@ describe('create-bff-runtime', () => {
     expectNoPath(workspaceDir, 'verticals/greetings/api/lambda');
     expectPath(workspaceDir, 'verticals/greetings/api/index.ts');
     expectPath(workspaceDir, 'verticals/greetings/shared/api.ts');
-    expectPath(workspaceDir, 'verticals/greetings/postcss.config.mjs');
+    expectNoPath(workspaceDir, 'verticals/greetings/postcss.config.mjs');
     expectPath(workspaceDir, 'verticals/greetings/tailwind.config.ts');
     expect(
       readText(workspaceDir, 'verticals/greetings/src/routes/index.css'),

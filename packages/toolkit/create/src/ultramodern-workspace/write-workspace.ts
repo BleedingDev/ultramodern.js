@@ -54,6 +54,7 @@ import {
   PNPM_VERSION,
   TANSTACK_ROUTER_CORE_VERSION,
   TANSTACK_ROUTER_VERSION,
+  TYPESCRIPT_COMPILER_API_VERSION,
   TYPESCRIPT_VERSION,
 } from './versions';
 import { writeGeneratedWorkspaceScripts } from './workspace-scripts';
@@ -204,6 +205,7 @@ export function generateUltramodernWorkspace(
     moduleFederationVersion: MODULE_FEDERATION_VERSION,
     tanstackRouterCoreVersion: TANSTACK_ROUTER_CORE_VERSION,
     tanstackRouterVersion: TANSTACK_ROUTER_VERSION,
+    typescriptCompilerApiVersion: TYPESCRIPT_COMPILER_API_VERSION,
     typescriptVersion: TYPESCRIPT_VERSION,
     tailwindEnabled: String(enableTailwind),
   });

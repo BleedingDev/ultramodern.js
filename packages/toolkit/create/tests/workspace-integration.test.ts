@@ -1403,18 +1403,12 @@ test('workspace package-source strategy and Tailwind-disabled generation remain 
       catalogPackage.dependencies['@modern-js/plugin-bff'],
       'workspace:*',
     );
-    for (const dependency of [
-      'tailwindcss',
-      'postcss',
-      '@tailwindcss/postcss',
-    ]) {
+    for (const dependency of ['tailwindcss', '@rsbuild/plugin-tailwindcss']) {
       assert.equal(shellPackage.devDependencies[dependency], undefined);
       assert.equal(catalogPackage.devDependencies[dependency], undefined);
     }
     for (const relativePath of [
-      'apps/shell-super-app/postcss.config.mjs',
       'apps/shell-super-app/tailwind.config.ts',
-      'verticals/catalog/postcss.config.mjs',
       'verticals/catalog/tailwind.config.ts',
     ]) {
       assert.equal(exists(workspaceDir, relativePath), false, relativePath);

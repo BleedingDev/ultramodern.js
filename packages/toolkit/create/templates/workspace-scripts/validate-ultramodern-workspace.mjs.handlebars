@@ -682,7 +682,7 @@ const createAppContract = (app, apps) => ({
       : {}),
     exposes: app.exposes,
     dts: {
-      compilerInstance: 'tsgo',
+      compilerInstance: 'effect-tsgo',
       displayErrorInTerminal: true,
       tsConfigPath: './tsconfig.mf-types.json',
     },
@@ -1761,10 +1761,8 @@ for (const vertical of fullStackVerticals) {
 
 if (tailwindEnabled) {
   requiredPaths.push(
-    'apps/shell-super-app/postcss.config.mjs',
     'apps/shell-super-app/tailwind.config.ts',
     ...fullStackVerticals.flatMap(vertical => [
-      `${vertical.path}/postcss.config.mjs`,
       `${vertical.path}/tailwind.config.ts`,
     ]),
   );
@@ -2158,7 +2156,7 @@ assert(shellContract?.config?.performance?.readinessDiagnostics?.optOut?.env ===
 assert(JSON.stringify(shellContract?.config?.source?.siteUrl?.envFallbackOrder) === JSON.stringify(['MODERN_PUBLIC_SITE_URL', 'ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP', 'ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN', 'SHELL_SUPER_APP_PORT']), 'Shell site URL env fallback order is incorrect');
 assert(shellContract?.config?.rspack?.output?.uniqueName === 'shellSuperApp', 'Shell Rspack uniqueName is incorrect');
 assert(shellContract?.config?.rspack?.output?.chunkLoadingGlobal === expectedChunkLoadingGlobal('shellSuperApp'), 'Shell Rspack chunkLoadingGlobal is incorrect');
-assert(shellContract?.moduleFederation?.dts?.compilerInstance === 'tsgo', 'Shell must keep mandatory DTS compiler');
+assert(shellContract?.moduleFederation?.dts?.compilerInstance === 'effect-tsgo', 'Shell must keep mandatory DTS compiler');
 assert(shellContract?.moduleFederation?.dts?.tsConfigPath === './tsconfig.mf-types.json', 'Shell must keep dedicated Module Federation DTS tsconfig');
 assert(shellModuleFederationConfig.includes("tsConfigPath: './tsconfig.mf-types.json'"), 'Shell Module Federation config must use the dedicated DTS tsconfig');
 assert(topology.shell?.cloudflare?.workerName === expectedWorkerName('shell-super-app'), 'Shell topology Cloudflare workerName is incorrect');
@@ -2320,7 +2318,7 @@ for (const vertical of fullStackVerticals) {
   assert(contractEntry?.config?.rspack?.output?.chunkLoadingGlobal === expectedChunkLoadingGlobal(vertical.mfName), `${vertical.id} Rspack chunkLoadingGlobal is incorrect`);
   assert(contractEntry?.moduleFederation?.name === vertical.mfName, `${vertical.id} MF name is incorrect`);
   assert(JSON.stringify(contractEntry?.moduleFederation?.exposes) === JSON.stringify(vertical.exposes), `${vertical.id} MF exposes are incorrect`);
-  assert(contractEntry?.moduleFederation?.dts?.compilerInstance === 'tsgo', `${vertical.id} must keep mandatory DTS compiler`);
+  assert(contractEntry?.moduleFederation?.dts?.compilerInstance === 'effect-tsgo', `${vertical.id} must keep mandatory DTS compiler`);
   assert(contractEntry?.moduleFederation?.dts?.tsConfigPath === './tsconfig.mf-types.json', `${vertical.id} must keep dedicated Module Federation DTS tsconfig`);
   assert(moduleFederationConfig.includes("tsConfigPath: './tsconfig.mf-types.json'"), `${vertical.id} Module Federation config must use the dedicated DTS tsconfig`);
   assert(JSON.stringify(contractEntry?.moduleFederation?.verticalRefs ?? []) === JSON.stringify(vertical.verticalRefs), `${vertical.id} MF verticalRefs are incorrect`);

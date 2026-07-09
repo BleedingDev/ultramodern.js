@@ -122,7 +122,7 @@ function resolveTsgoBinary() {
 
   if (result.error) {
     fail(
-      `Unable to run ${cli}. Run pnpm install or set EFFECT_TSGO_BIN to the native-preview tsgo binary.`,
+      `Unable to run ${cli}. Run pnpm install or set EFFECT_TSGO_BIN to a TS-Go binary.`,
     );
   }
   if (result.status !== 0) {

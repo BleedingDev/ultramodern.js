@@ -7,7 +7,6 @@ import {
   generateUltramodernWorkspace,
 } from '../src/ultramodern-workspace';
 import {
-  TYPESCRIPT_NATIVE_PREVIEW_VERSION,
   TYPESCRIPT_STABLE_VERSION,
   TYPESCRIPT_VERSION,
 } from '../src/ultramodern-workspace/versions';
@@ -25,11 +24,11 @@ const sourceExtensions = new Set([
 ]);
 
 const compilerApiImportPattern =
-  /\b(?:import(?:\s+type)?[\s\S]*?\sfrom\s*|require\()\s*['"](?:typescript|@typescript\/native-preview(?:\/[^'"]*)?)['"]/u;
+  /\b(?:import(?:\s+type)?[\s\S]*?\sfrom\s*|require\()\s*['"](?:typescript|@typescript\/typescript6|@typescript\/native-preview(?:\/[^'"]*)?)['"]/u;
 const nativePreviewImportPattern =
   /\b(?:import(?:\s+type)?[\s\S]*?\sfrom\s*|require\()\s*['"]@typescript\/native-preview(?:\/[^'"]*)?['"]/u;
-const stableTypeScriptImportPattern =
-  /\b(?:import(?:\s+type)?[\s\S]*?\sfrom\s*|require\()\s*['"]typescript['"]/u;
+const typescript6ImportPattern =
+  /\b(?:import(?:\s+type)?[\s\S]*?\sfrom\s*|require\()\s*['"]@typescript\/typescript6['"]/u;
 
 function listSourceFiles(root: string, dir = root): string[] {
   const files: string[] = [];
@@ -105,13 +104,18 @@ test('UltraModern generator runtime sources do not import TypeScript compiler AP
   }
 });
 
-test('compiler API tests use stable TypeScript and never native-preview internals', () => {
+test('compiler API tests use TypeScript 6 compatibility API and never native-preview internals', () => {
   const packageJson = readPackageJson();
 
-  assert.match(
+  assert.equal(
     packageJson.devDependencies?.typescript,
-    new RegExp(`\\b${TYPESCRIPT_STABLE_VERSION.replaceAll('.', '\\.')}\\b`),
-    'create compiler API tests must keep the stable TypeScript package line',
+    '^6.0.3',
+    'create package keeps the repo-consistent TypeScript tooling line',
+  );
+  assert.equal(
+    typeof packageJson.devDependencies?.['@typescript/typescript6'],
+    'string',
+    'compiler API tests use the TypeScript 6 compatibility package',
   );
 
   const compilerApiTests: string[] = [];
@@ -128,14 +132,14 @@ test('compiler API tests use stable TypeScript and never native-preview internal
       `tests/${relativePath} must not import @typescript/native-preview`,
     );
 
-    if (stableTypeScriptImportPattern.test(source)) {
+    if (typescript6ImportPattern.test(source)) {
       compilerApiTests.push(relativePath);
     }
   }
 
   assert.ok(
     compilerApiTests.length > 0,
-    'at least one compiler API test should exercise the stable typescript package boundary',
+    'at least one compiler API test should exercise the TypeScript 6 compatibility boundary',
   );
 });
 
@@ -193,17 +197,17 @@ test('generated package module scopes keep MF apps compatible with classic compi
     assert.equal(
       shellPackageJson.devDependencies?.typescript,
       TYPESCRIPT_VERSION,
-      'generated apps must install latest TS6 only as the classic TypeScript compatibility package',
+      'generated apps must install stable TypeScript 7 by default',
     );
     assert.equal(
       shellPackageJson.devDependencies?.['@typescript/native-preview'],
-      TYPESCRIPT_NATIVE_PREVIEW_VERSION,
-      'generated apps must install the latest TS7 native-preview dev checker',
+      undefined,
+      'generated apps must not install native-preview when stable TypeScript 7 is available',
     );
     assert.equal(
       shellConfig?.moduleFederation?.dts?.compilerInstance,
-      'tsgo',
-      'compact metadata should keep MF DTS generation on the TS-Go lane',
+      'effect-tsgo',
+      'compact metadata should keep MF DTS generation on the effect-tsgo lane',
     );
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });

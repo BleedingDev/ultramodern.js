@@ -186,8 +186,8 @@ API group layer 一起提供。
 带有 Effect BFF 入口和 `verbatimModuleSyntax` 的旧仓库，应升级到最新的
 BleedingDev cohort，而不是给 app package 增加 `"type": "module"`、Module
 Federation shim 或自定义 server wrapper。框架 BFF compiler 会把服务端输出规范化为
-CommonJS，同时生成的 app package 继续为 Module Federation DTS 保留稳定的
-`typescript`，并使用固定的 `@typescript/native-preview` 工具链执行 TS-Go 检查。
+CommonJS，同时生成的 app package 会使用稳定版 TypeScript 7，让 Module Federation
+DTS 与 TS-Go 检查走同一条现代 compiler 通道。
 
 安装新 cohort 后，先运行生成的 `pnpm api:check` 与
 `scripts/validate-ultramodern-workspace.mts` 契约校验，再接受人工改动。topology、
@@ -308,9 +308,8 @@ JSON 契约缺失或不是对象、Tailwind 前缀冲突，都会报告归属契
 Overlays 是显式配置的 CodeSmith 生成器，会在基础 workspace 或 MicroVertical
 生成之后运行。它们只扩展生成结果，不替换、不继承、也不遮蔽基础模板。公开生成器与
 CodeSmith adapter 都是普通 Node 生成器入口。包构建通过 TS-Go 工具链产出声明文件；
-生成出来的 app package 为 Module Federation DTS 等传统 compiler consumer 保留稳定的
-`typescript`，TS-Go 则使用固定的 `@typescript/native-preview` 工具链；运行时代码不依赖
-native-preview compiler 内部实现。
+生成出来的 app package 会把稳定版 `typescript` 固定在 TS7，让 Module Federation
+DTS 与 TS-Go 使用同一条 compiler 通道；运行时代码不依赖 compiler 内部实现。
 
 ### 运行时契约
 
@@ -334,7 +333,7 @@ JSON-LD。公开路由 owner 可以在本地化路径旁显式添加 `jsonLd`，
 - `packages/shared-design-tokens` 拥有共享 token layer，并导出 `./tokens.css`。
 - Shell CSS 只拥有 `[data-app-id="shell-super-app"]` 下的 shell base 和 overlay layer。
 - 每个 vertical 拥有自己的 CSS layer，例如 `[data-app-id="vertical-transportation"]` 和应用本地 class 前缀。
-- Tailwind CSS v4 通过 `@tailwindcss/postcss` 保持在每个生成应用内部；共享 base style 不应由 vertical 重复定义。
+- Tailwind CSS v4 通过 `@rsbuild/plugin-tailwindcss` 保持在每个生成应用内部；共享 base style 不应由 vertical 重复定义。
 - SSR 首屏依赖 Modern/Rspack 产出共享 token CSS 和应用自己的 CSS。Vertical CSS 通过 manifest 归属加载，不复制到 shell 源码中。
 
 版本切换必须从同一个 vertical build marker 选择 UI、API、CSS、i18n JSON 与 MF manifest 证据。只切换 shell 渲染里的 UI marker 不足以证明完整版本切换。

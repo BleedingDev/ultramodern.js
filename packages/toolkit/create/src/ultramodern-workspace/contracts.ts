@@ -275,7 +275,7 @@ export function createUltramodernConfig(
               : {}),
           ssr: true,
           dts: {
-            compilerInstance: 'tsgo',
+            compilerInstance: 'effect-tsgo',
             tsConfigPath: './tsconfig.mf-types.json',
           },
         },

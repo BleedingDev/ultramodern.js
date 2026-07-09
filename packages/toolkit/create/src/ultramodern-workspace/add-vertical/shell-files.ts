@@ -94,7 +94,7 @@ export function rewriteShellAppFiles(
   writeFileReplacing(
     workspaceRoot,
     `${shellApp.directory}/modern.config.ts`,
-    createAppModernConfig(scope, shellHost, remotes),
+    createAppModernConfig(scope, shellHost, remotes, enableTailwind),
   );
   writeFileReplacing(
     workspaceRoot,

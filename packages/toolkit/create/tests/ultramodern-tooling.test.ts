@@ -22,7 +22,7 @@ import {
   EFFECT_VITEST_VERSION,
   MODULE_FEDERATION_VERSION,
   OXFMT_VERSION,
-  TYPESCRIPT_NATIVE_PREVIEW_VERSION,
+  TYPESCRIPT_VERSION,
 } from '../src/ultramodern-workspace/versions';
 
 const retiredContractPath = '.modernjs/ultramodern-generated-contract.json';
@@ -790,8 +790,7 @@ test('UltraModern migrate-strict-effect updates package cohort and direct API me
     writeJson(workspaceDir, '.modernjs/ultramodern.json', compactConfigBefore);
 
     const rootPackageBefore = readJson(workspaceDir, 'package.json');
-    rootPackageBefore.devDependencies['@typescript/native-preview'] =
-      '7.0.0-dev.20260620.1';
+    rootPackageBefore.devDependencies.typescript = '6.0.0';
     rootPackageBefore.devDependencies['drizzle-orm'] = DRIZZLE_ORM_VERSION;
     rootPackageBefore.devDependencies.oxfmt = '0.55.0';
     rootPackageBefore.scripts['cloudflare:build'] =
@@ -1013,10 +1012,7 @@ declare module '*.css' {}
       rootPackage.devDependencies['@modern-js/create'],
       'npm:@bleedingdev/modern-js-create@3.5.0-ultramodern.1',
     );
-    assert.equal(
-      rootPackage.devDependencies['@typescript/native-preview'],
-      TYPESCRIPT_NATIVE_PREVIEW_VERSION,
-    );
+    assert.equal(rootPackage.devDependencies.typescript, TYPESCRIPT_VERSION);
     assert.equal(rootPackage.devDependencies.oxfmt, OXFMT_VERSION);
     assert.equal(rootPackage.modernjs.packageSource.strategy, 'install');
     assert.match(

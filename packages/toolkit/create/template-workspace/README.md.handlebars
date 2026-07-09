@@ -70,10 +70,9 @@ separate matrix jobs so failures are isolated and parallelizable.
 
 Type checking is TS7-first. `pnpm typecheck` runs
 `scripts/ultramodern-typecheck.mts` in TS-Go build mode over
-`tsconfig.json` project references, with native-preview `--checkers` and
-`--builders` enabled by default. `@typescript/native-preview` is the TS7 latest
-dev compiler lane. The classic `typescript` package is pinned to latest TS6
-only where compatibility peers or tooling still require it.
+`tsconfig.json` project references, with `--checkers` and `--builders`
+enabled by default. The stable `typescript` package is pinned to TS7 so
+Modern/Rspack type checking uses TS-Go by default.
 
 Read-only agent reference repositories under `repos/` (Effect and
 UltraModern.js source lookup using squashed git subtrees) are an explicit

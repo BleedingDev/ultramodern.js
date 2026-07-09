@@ -11,15 +11,14 @@ export const ZEPHYR_AGENT_VERSION = '1.1.1';
 export const WRANGLER_VERSION = '4.102.0';
 export const CLOUDFLARE_COMPATIBILITY_DATE = '2026-06-02';
 export const TAILWIND_VERSION = '4.3.1';
-export const TAILWIND_POSTCSS_VERSION = '4.3.1';
-export const POSTCSS_VERSION = '8.5.15';
+export const RSBUILD_PLUGIN_TAILWINDCSS_VERSION = '2.0.3';
 export const EFFECT_VERSION = '4.0.0-beta.92';
 export const EFFECT_VITEST_VERSION = '4.0.0-beta.92';
 export const EFFECT_TSGO_VERSION = '0.14.6';
 export const DRIZZLE_ORM_VERSION = '1.0.0-rc.4';
-export const TYPESCRIPT_STABLE_VERSION = '6.0.3';
-export const TYPESCRIPT_NATIVE_PREVIEW_VERSION = '7.0.0-dev.20260628.1';
+export const TYPESCRIPT_STABLE_VERSION = '7.0.2';
 export const TYPESCRIPT_VERSION = TYPESCRIPT_STABLE_VERSION;
+export const TYPESCRIPT_COMPILER_API_VERSION = '6.0.2';
 export const OXLINT_VERSION = '1.71.0';
 export const OXFMT_VERSION = '0.56.0';
 export const ULTRACITE_VERSION = '7.8.3';
@@ -45,5 +44,5 @@ export const ultramodernWorkspaceVersions = {
   effectVitest: EFFECT_VITEST_VERSION,
   drizzleOrm: DRIZZLE_ORM_VERSION,
   tailwind: TAILWIND_VERSION,
-  tailwindPostcss: TAILWIND_POSTCSS_VERSION,
+  rsbuildPluginTailwindcss: RSBUILD_PLUGIN_TAILWINDCSS_VERSION,
 };

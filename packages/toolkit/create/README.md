@@ -64,8 +64,8 @@ The supported generator runtime surfaces are:
 - The `@bleedingdev/modern-js-create` CLI that delegates to those APIs.
 
 These surfaces are plain Node generator code. They must not import
-`typescript`, `@typescript/native-preview`, or TypeScript compiler internals at
-runtime. The package build is the local validation command for this boundary:
+`typescript` or TypeScript compiler internals at runtime. The package build is
+the local validation command for this boundary:
 
 ```bash
 pnpm --filter @modern-js/create build
@@ -76,13 +76,10 @@ the repo `tsgo:dts` flow. Run `pnpm --filter @modern-js/create test` when
 changing generator behavior; it includes a boundary test that scans generator
 sources, templates, and generated workspace output for compiler API imports.
 
-Generated app packages keep stable `typescript` for classic compiler consumers
-such as Module Federation DTS generation, and use `@effect/tsgo` plus
-`@typescript/native-preview` as tooling for `pnpm typecheck`. Generated
-app/package source must not depend on compiler API internals. Existing compiler
-API tests in this package use the stable TypeScript 6 package. If a future AST
-utility is needed, keep it behind a dedicated stable-TypeScript adapter and test
-it against stable `typescript`, not native-preview internals.
+Generated app packages keep stable `typescript` on TS7 so Modern/Rspack and
+`@effect/tsgo` use TS-Go by default. Generated app/package source must not
+depend on compiler API internals. If a future AST utility is needed, keep it
+behind a dedicated TypeScript adapter and test it against stable `typescript`.
 
 Generated CI does not call the local aggregate. It runs format, lint,
 typecheck, skills, i18n boundary validation, contract validation, and build as
@@ -363,7 +360,7 @@ CSS federation is explicit:
 - The shell owns shell base and overlay CSS only.
 - Verticals own their vertical CSS layer and `[data-app-id="<vertical>"]`
   root marker.
-- Tailwind CSS v4 is configured per app through `@tailwindcss/postcss`.
+- Tailwind CSS v4 is configured per app through `@rsbuild/plugin-tailwindcss`.
 - Duplicate base styles are forbidden; SSR first paint depends on shared token
   CSS plus Modern/Rspack-emitted app CSS.
 

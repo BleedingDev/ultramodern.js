@@ -42,7 +42,7 @@ function writeMfTypesArchive(
 }
 
 function mfConfig({
-  compilerInstance = "'tsgo'",
+  compilerInstance = 'tsgoCompilerInstance',
   exposes = "{ './Widget': './src/widget.tsx' }",
   hostOnly = false,
   includeExposes = true,
@@ -113,7 +113,7 @@ test('validates real exposes even when the generated contract exposes are stale'
           id: 'custom',
           moduleFederation: {
             dts: {
-              compilerInstance: 'tsgo',
+              compilerInstance: 'effect-tsgo',
               tsConfigPath: './tsconfig.mf-types.json',
             },
             exposes: [],
@@ -153,7 +153,7 @@ test('rejects exposed apps with the wrong DTS compiler instance', () => {
 
   assertThrowsWithMessage(
     () => validateModuleFederationTypes({ workspaceRoot }),
-    /compilerInstance must be "tsgo" for apps\/remote/u,
+    /compilerInstance must resolve "@effect\/tsgo" for apps\/remote/u,
   );
 });
 
@@ -208,7 +208,7 @@ test('allows an explicit host-only config with no exposes', () => {
         appDir: 'apps/host',
         configPath: 'apps/host/module-federation.config.ts',
         dts: {
-          compilerInstance: 'tsgo',
+          compilerInstance: 'effect-tsgo',
           tsConfigPath: './tsconfig.mf-types.json',
         },
         exposes: [],
@@ -276,7 +276,7 @@ export default createModuleFederationConfig({
 
   assertThrowsWithMessage(
     () => validateModuleFederationTypes({ workspaceRoot }),
-    /compilerInstance must be "tsgo"/,
+    /compilerInstance must resolve "@effect\/tsgo"/,
   );
 });
 
@@ -293,7 +293,7 @@ function getExposes() {
 export default createModuleFederationConfig({
   dts: {
     generateTypes: {
-      compilerInstance: 'tsgo',
+      compilerInstance: tsgoCompilerInstance,
     },
     tsConfigPath: './tsconfig.mf-types.json',
   },

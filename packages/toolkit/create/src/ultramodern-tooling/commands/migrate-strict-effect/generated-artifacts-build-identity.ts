@@ -30,7 +30,7 @@ export function updateGeneratedBuildIdentityModules(
           app.directory,
           'shared/ultramodern-build.ts',
         ),
-        createUltramodernBuildModule(),
+        createUltramodernBuildModule(config.workspace.packageScope, app),
       ) || changed;
     changed =
       writeTextIfChanged(

@@ -12,7 +12,7 @@ baseline; do not reintroduce Corepack or older pnpm aliases.
 
 - `pnpm lint` runs Oxlint with the Ultracite preset.
 - `pnpm format` runs oxfmt.
-- `pnpm typecheck` runs TS7 native-preview through effect-tsgo in project-reference build mode with parallel `--checkers` and `--builders`.
+- `pnpm typecheck` runs stable TS7 through effect-tsgo in project-reference build mode with parallel `--checkers` and `--builders`.
 - `pnpm i18n:boundaries` verifies workspace source boundaries through `@modern-js/code-tools`.
 - `pnpm contract:check` verifies the generated workspace contract.
 - `pnpm mf:types` verifies Module Federation type outputs after builds.
@@ -78,7 +78,7 @@ Agents may read files under `repos/` to understand upstream patterns, APIs, and 
 ## Project Priorities
 
 - Keep `presetUltramodern` as the single preset.
-- Maximize TS7 latest dev usage through `@typescript/native-preview` and TS-Go. Keep classic `typescript` on latest TS6 only for compatibility peers and tooling that cannot consume native-preview yet.
+- Keep stable `typescript` on TS7 so Modern/Rspack and effect-tsgo use TS-Go by default.
 - Keep the initial workspace shell-only unless a user explicitly asks for a
   starter vertical.
 - Use `create <domain> --vertical` as the growth path for real business

@@ -9,7 +9,6 @@ import {
   createAppEnvDts,
   createAppRuntimeConfig,
   createAppStyles,
-  createPostcssConfig,
   createShellFrameComponent,
   createTailwindConfig,
 } from './app-files';
@@ -132,7 +131,7 @@ function writeAppConfigFiles({
   writeFile(
     targetDir,
     `${resolvedApp.directory}/shared/ultramodern-build.ts`,
-    createUltramodernBuildModule(),
+    createUltramodernBuildModule(scope, resolvedApp),
   );
   writeFile(
     targetDir,
@@ -157,7 +156,7 @@ function writeAppConfigFiles({
   writeFile(
     targetDir,
     `${resolvedApp.directory}/modern.config.ts`,
-    createAppModernConfig(scope, resolvedApp, remotes),
+    createAppModernConfig(scope, resolvedApp, remotes, enableTailwind),
   );
   writeFile(
     targetDir,
@@ -199,11 +198,6 @@ function writeAppLocaleAndStyleFiles({
     createAppStyles(enableTailwind, scope, resolvedApp),
   );
   if (enableTailwind) {
-    writeFile(
-      targetDir,
-      `${resolvedApp.directory}/postcss.config.mjs`,
-      createPostcssConfig(),
-    );
     writeFile(
       targetDir,
       `${resolvedApp.directory}/tailwind.config.ts`,

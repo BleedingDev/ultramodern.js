@@ -19,7 +19,7 @@ const defaultOptions = {
     // use TypeScript Go checker by default
     tsgo: true,
     // use TS-Go native preview of user project
-    typescriptPath: require.resolve('@typescript/native-preview/package.json'),
+    typescriptPath: require.resolve('typescript/package.json'),
   },
   issue: {
     exclude: [
@@ -80,11 +80,11 @@ export default {
 
 Type checking runs on [TypeScript Go](https://github.com/microsoft/typescript-go) (`tsgo`) by default in this fork. The capability is provided by [`ts-checker-rspack-plugin`](https://github.com/rstackjs/ts-checker-rspack-plugin), which is integrated by [`@rsbuild/plugin-type-check`](https://github.com/rstackjs/rsbuild-plugin-type-check), and reduces type-checking time by about 5-10x.
 
-`@typescript/native-preview` ships with the builder, so no extra install is needed. To pin your own version, install it in your project:
+Modern.js prefers the project's stable `typescript` package when it is TypeScript 7 or newer, and falls back to `@typescript/native-preview` for projects still on the preview lane. To pin stable TypeScript 7, install it in your project:
 
-<PackageManagerTabs command="install @typescript/native-preview -D" />
+<PackageManagerTabs command="install typescript -D" />
 
-When `tsgo` is enabled, the default `typescript.typescriptPath` resolves to `@typescript/native-preview/package.json`. If you manually set `typescript.typescriptPath`, it must be an absolute path to `@typescript/native-preview/package.json`.
+When `tsgo` is enabled, the default `typescript.typescriptPath` resolves to `typescript/package.json` for TypeScript 7 projects. If you manually set `typescript.typescriptPath`, it must be an absolute path to `typescript/package.json` or `@typescript/native-preview/package.json`.
 
 To fall back to the classic TypeScript checker, set `typescript.tsgo` to `false` and make sure `typescript` is installed in your project:
 

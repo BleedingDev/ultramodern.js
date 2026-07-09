@@ -163,10 +163,8 @@ test('sync-delivery-unit backfills identity blocks matching the generator', () =
       workspaceDir,
       'verticals/catalog/shared/ultramodern-build.ts',
     );
-    assert.match(
-      build,
-      /import ultramodernBuildArtifact from '\.\/ultramodern-build\.json' with \{ type: 'json' \}/u,
-    );
+    assert.doesNotMatch(build, /with \{ type: 'json' \}/u);
+    assert.match(build, /const ultramodernBuildArtifact = \{/u);
     assert.match(
       build,
       /export const ultramodernDeliveryUnit =\s*ultramodernBuildArtifact\.deliveryUnit;/u,

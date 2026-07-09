@@ -475,8 +475,8 @@ test('rendered contents of the highest-risk generated files match the checked-in
     );
     assert.match(
       catalogModuleFederationConfig,
-      /compilerInstance: 'tsgo'/,
-      'exposing vertical Module Federation DTS generation must use the tsgo compiler instance',
+      /compilerInstance: tsgoCompilerInstance/,
+      'exposing vertical Module Federation DTS generation must resolve the effect-tsgo compiler instance',
     );
     const validationWrapper = fs.readFileSync(
       path.join(workspaceDir, 'scripts/validate-ultramodern-workspace.mts'),

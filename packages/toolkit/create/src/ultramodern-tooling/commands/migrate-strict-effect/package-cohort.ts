@@ -9,7 +9,7 @@ import {
   EFFECT_TSGO_VERSION,
   OXFMT_VERSION,
   OXLINT_VERSION,
-  TYPESCRIPT_NATIVE_PREVIEW_VERSION,
+  TYPESCRIPT_VERSION,
   WRANGLER_VERSION,
   ZEPHYR_AGENT_VERSION,
   ZEPHYR_RSPACK_PLUGIN_VERSION,
@@ -63,7 +63,7 @@ export function updateModernDependencies(
 
 const generatedToolingDependencyPins = new Map<string, string>([
   ['@effect/tsgo', EFFECT_TSGO_VERSION],
-  ['@typescript/native-preview', TYPESCRIPT_NATIVE_PREVIEW_VERSION],
+  ['typescript', TYPESCRIPT_VERSION],
   ['oxfmt', OXFMT_VERSION],
   ['oxlint', OXLINT_VERSION],
   ['wrangler', WRANGLER_VERSION],

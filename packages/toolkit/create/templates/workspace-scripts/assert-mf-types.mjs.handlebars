@@ -38,7 +38,7 @@ function readGeneratedContractView() {
                   : [],
                 dts: {
                   compilerInstance:
-                    moduleFederation.dts?.compilerInstance ?? 'tsgo',
+                    moduleFederation.dts?.compilerInstance ?? 'effect-tsgo',
                   tsConfigPath:
                     moduleFederation.dts?.tsConfigPath ??
                     './tsconfig.mf-types.json',
@@ -59,7 +59,7 @@ if (args.includes('--help') || args.includes('-h')) {
   process.stdout.write(`Usage:
   node scripts/assert-mf-types.mts [app-dir...]
 
-Checks that every Module Federation remote with exposed modules emitted a non-empty dist/@mf-types.zip archive and uses the workspace TypeScript compiler.
+Checks that every Module Federation remote with exposed modules emitted a non-empty dist/@mf-types.zip archive and uses the @effect/tsgo compiler.
 `);
   process.exit(0);
 }
@@ -85,10 +85,10 @@ for (const appDir of appDirs) {
   if (
     contractEntry &&
     contractEntry.moduleFederation?.dts?.compilerInstance !==
-      'tsgo'
+      'effect-tsgo'
   ) {
     throw new Error(
-      `Module Federation DTS must use the workspace TypeScript compiler: ${appDir}`,
+      `Module Federation DTS must resolve @effect/tsgo compiler: ${appDir}`,
     );
   }
   if (

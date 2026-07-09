@@ -13,9 +13,9 @@ import type {
 export function assertExposedAppDtsSettings(
   app: ModuleFederationConfigInspection,
 ) {
-  if (app.dts.compilerInstance !== 'tsgo') {
+  if (app.dts.compilerInstance !== 'effect-tsgo') {
     throw new Error(
-      `Module Federation DTS compilerInstance must be "tsgo" for ${app.appDir}.`,
+      `Module Federation DTS compilerInstance must resolve "@effect/tsgo" for ${app.appDir}.`,
     );
   }
 

@@ -48,7 +48,6 @@ const expectedWorkspaceManifest = [
   'apps/shell-super-app/modern.config.ts',
   'apps/shell-super-app/module-federation.config.ts',
   'apps/shell-super-app/package.json',
-  'apps/shell-super-app/postcss.config.mjs',
   'apps/shell-super-app/shared/ultramodern-build.json',
   'apps/shell-super-app/shared/ultramodern-build.ts',
   'apps/shell-super-app/src/api/vertical-clients.ts',
@@ -79,6 +78,7 @@ const expectedWorkspaceManifest = [
   'packages/shared-design-tokens/src/tokens.css',
   'packages/shared-design-tokens/tsconfig.json',
   'patches/@module-federation__bridge-react@2.6.0.patch',
+  'patches/@module-federation__dts-plugin@2.6.0.patch',
   'patches/@module-federation__modern-js-v3@2.6.0.patch',
   'patches/@tanstack__router-core@1.171.13.patch',
   'patches/drizzle-orm-ts7-strict-declarations.patch',
@@ -125,7 +125,6 @@ const expectedVerticalManifest = [
   'verticals/catalog/modern.config.ts',
   'verticals/catalog/module-federation.config.ts',
   'verticals/catalog/package.json',
-  'verticals/catalog/postcss.config.mjs',
   'verticals/catalog/shared/api.ts',
   'verticals/catalog/shared/ultramodern-build.json',
   'verticals/catalog/shared/ultramodern-build.ts',
@@ -319,7 +318,6 @@ test('scaffold without tailwind drops only the tailwind config files', () => {
       listFiles(workspaceDir),
       expectedWorkspaceManifest.filter(
         relativePath =>
-          relativePath !== 'apps/shell-super-app/postcss.config.mjs' &&
           relativePath !== 'apps/shell-super-app/tailwind.config.ts',
       ),
     );
