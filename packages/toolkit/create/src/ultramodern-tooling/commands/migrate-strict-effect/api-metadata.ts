@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { ResolvedUltramodernPackageSource } from '../../../ultramodern-package-source';
 import { type MigrationIo, readJsonFile, writeJsonFile } from './io';
+import { updateUltramodernConfigToolchain } from './toolchain-pins';
 
 function normalizeStrictEffectApiMetadata(value: Record<string, any>) {
   let changed = false;
@@ -142,6 +143,8 @@ export function updateUltramodernConfig(
   ) {
     config.generator.version = packageSource.modernPackageVersion;
   }
+
+  updateUltramodernConfigToolchain(config);
 
   for (const app of config.topology?.apps ?? []) {
     if (app && typeof app === 'object' && !Array.isArray(app)) {

@@ -21,7 +21,9 @@ import {
   EFFECT_VERSION,
   EFFECT_VITEST_VERSION,
   MODULE_FEDERATION_VERSION,
+  NODE_VERSION,
   OXFMT_VERSION,
+  PNPM_VERSION,
   TYPESCRIPT_VERSION,
 } from '../src/ultramodern-workspace/versions';
 
@@ -166,6 +168,35 @@ test('migrate keeps version fields consistent across the compact config', async 
   try {
     const before = readJson(workspaceDir, '.modernjs/ultramodern.json');
     assert.equal(before.generator.version, '3.2.1');
+    before.workspace.node.version = '26.3.0';
+    before.workspace.node.engineRange = '>=24';
+    before.workspace.packageManager.version = '11.9.0';
+    writeJson(workspaceDir, '.modernjs/ultramodern.json', before);
+
+    const rootPackageBefore = readJson(workspaceDir, 'package.json');
+    rootPackageBefore.packageManager = 'pnpm@11.9.0';
+    rootPackageBefore.engines = {
+      node: '>=24',
+      pnpm: '>=10',
+    };
+    writeJson(workspaceDir, 'package.json', rootPackageBefore);
+
+    fs.writeFileSync(
+      path.join(workspaceDir, '.mise.toml'),
+      '[tools]\nnode = "26.3.0"\npnpm = "11.9.0"\n',
+      'utf-8',
+    );
+    const workflowPath = path.join(
+      workspaceDir,
+      '.github/workflows/ultramodern-workspace-gates.yml',
+    );
+    fs.writeFileSync(
+      workflowPath,
+      fs
+        .readFileSync(workflowPath, 'utf-8')
+        .replace(/^(\s*)node-version\s*:\s*.*$/mu, "$1node-version: '26.3.0'"),
+      'utf-8',
+    );
 
     assert.equal(
       await runUltramodernToolingCli(
@@ -189,6 +220,30 @@ test('migrate keeps version fields consistent across the compact config', async 
       after.generator.version,
       '3.5.0-ultramodern.1',
       'generator.version must track the migrated package version',
+    );
+    assert.equal(after.workspace.node.version, NODE_VERSION);
+    assert.equal(after.workspace.node.engineRange, '>=26');
+    assert.equal(after.workspace.packageManager.name, 'pnpm');
+    assert.equal(after.workspace.packageManager.version, PNPM_VERSION);
+
+    const rootPackageAfter = readJson(workspaceDir, 'package.json');
+    assert.equal(rootPackageAfter.packageManager, `pnpm@${PNPM_VERSION}`);
+    assert.equal(rootPackageAfter.engines.node, '>=26');
+    assert.equal(rootPackageAfter.engines.pnpm, '>=11');
+    assert.match(
+      readText(workspaceDir, '.mise.toml'),
+      new RegExp(`node = "${NODE_VERSION}"`, 'u'),
+    );
+    assert.match(
+      readText(workspaceDir, '.mise.toml'),
+      new RegExp(`pnpm = "${PNPM_VERSION}"`, 'u'),
+    );
+    assert.match(
+      readText(
+        workspaceDir,
+        '.github/workflows/ultramodern-workspace-gates.yml',
+      ),
+      new RegExp(`node-version: '${NODE_VERSION}'`, 'u'),
     );
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });

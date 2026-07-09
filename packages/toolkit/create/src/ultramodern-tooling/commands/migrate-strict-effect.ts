@@ -40,6 +40,10 @@ import {
   updateGeneratedPnpmWorkspacePolicy,
   workspaceUsesDependency,
 } from './migrate-strict-effect/pnpm-policy';
+import {
+  updateGeneratedToolchainFiles,
+  updateRootPackageToolchain,
+} from './migrate-strict-effect/toolchain-pins';
 import { hasFlag } from './options';
 
 export function runMigrateStrictEffect(
@@ -144,6 +148,7 @@ export function runMigrateStrictEffect(
         strategy: packageSource.strategy,
         config: './.modernjs/ultramodern.json',
       };
+      updateRootPackageToolchain(packageJson);
     }
 
     updateModernDependencies(packageJson, packageSource);
@@ -158,6 +163,7 @@ export function runMigrateStrictEffect(
   }
 
   updateGeneratedPnpmWorkspacePolicy(io);
+  updateGeneratedToolchainFiles(io);
   ensureGeneratedDeclarationPatches(io, {
     includeDrizzleOrmPatch: workspaceUsesDependency(
       io.workspaceRoot,
