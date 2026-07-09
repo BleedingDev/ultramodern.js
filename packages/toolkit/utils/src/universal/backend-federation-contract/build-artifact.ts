@@ -24,17 +24,51 @@ export const createUltramodernBuildArtifact = (
   record: DeliveryUnitRecord,
 ): UltramodernBuildArtifact => {
   const deliveryUnit = {
-    ...record,
+    appId: record.appId,
     build: record.buildMarker,
+    buildMarker: record.buildMarker,
+    deployProfile: record.deployProfile,
+    kind: record.kind,
+    packageName: record.packageName,
+    schemaVersion: record.schemaVersion,
+    sourceRevision: record.sourceRevision,
+    unitId: record.unitId,
+    version: record.version,
+  };
+  const api = {
+    appId: deliveryUnit.appId,
+    build: deliveryUnit.build,
+    buildMarker: deliveryUnit.buildMarker,
+    deployProfile: deliveryUnit.deployProfile,
+    kind: deliveryUnit.kind,
+    packageName: deliveryUnit.packageName,
+    schemaVersion: deliveryUnit.schemaVersion,
+    sourceRevision: deliveryUnit.sourceRevision,
+    surface: 'api' as const,
+    unitId: deliveryUnit.unitId,
+    version: deliveryUnit.version,
+  };
+  const ui = {
+    appId: deliveryUnit.appId,
+    build: deliveryUnit.build,
+    buildMarker: deliveryUnit.buildMarker,
+    deployProfile: deliveryUnit.deployProfile,
+    kind: deliveryUnit.kind,
+    packageName: deliveryUnit.packageName,
+    schemaVersion: deliveryUnit.schemaVersion,
+    sourceRevision: deliveryUnit.sourceRevision,
+    surface: 'ui' as const,
+    unitId: deliveryUnit.unitId,
+    version: deliveryUnit.version,
   };
 
   return {
-    schemaVersion: DELIVERY_UNIT_SCHEMA_VERSION,
-    kind: 'ultramodern-build-artifact',
     deliveryUnit,
+    kind: 'ultramodern-build-artifact',
+    schemaVersion: DELIVERY_UNIT_SCHEMA_VERSION,
     surfaces: {
-      ui: { ...deliveryUnit, surface: 'ui' },
-      api: { ...deliveryUnit, surface: 'api' },
+      api,
+      ui,
     },
   };
 };

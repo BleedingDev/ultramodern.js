@@ -31,14 +31,14 @@ export function createDeliveryUnitRecord(
   app: WorkspaceApp,
 ): DeliveryUnitRecord {
   return {
-    schemaVersion: DELIVERY_UNIT_SCHEMA_VERSION,
-    kind: DELIVERY_UNIT_KIND,
-    unitId: `${scope}/${app.domain ?? app.id}`,
     appId: app.id,
-    packageName: packageName(scope, app.packageSuffix),
-    version: '0.1.0',
-    sourceRevision: 'workspace',
     buildMarker: createBuildMarker(scope, app),
     deployProfile: DELIVERY_UNIT_DEPLOY_PROFILE,
+    kind: DELIVERY_UNIT_KIND,
+    packageName: packageName(scope, app.packageSuffix),
+    schemaVersion: DELIVERY_UNIT_SCHEMA_VERSION,
+    sourceRevision: 'workspace',
+    unitId: `${scope}/${app.domain ?? app.id}`,
+    version: '0.1.0',
   };
 }
