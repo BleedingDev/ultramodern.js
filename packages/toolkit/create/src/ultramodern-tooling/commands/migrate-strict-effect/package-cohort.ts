@@ -7,8 +7,12 @@ import {
 import type { WorkspaceApp } from '../../../ultramodern-workspace/types';
 import {
   EFFECT_TSGO_VERSION,
+  MODULE_FEDERATION_VERSION,
   OXFMT_VERSION,
   OXLINT_VERSION,
+  RSBUILD_PLUGIN_TAILWINDCSS_VERSION,
+  TAILWIND_VERSION,
+  TANSTACK_ROUTER_VERSION,
   TYPESCRIPT_VERSION,
   WRANGLER_VERSION,
   ZEPHYR_AGENT_VERSION,
@@ -63,7 +67,13 @@ export function updateModernDependencies(
 
 const generatedToolingDependencyPins = new Map<string, string>([
   ['@effect/tsgo', EFFECT_TSGO_VERSION],
+  ['@module-federation/bridge-react', MODULE_FEDERATION_VERSION],
+  ['@module-federation/modern-js-v3', MODULE_FEDERATION_VERSION],
+  ['@module-federation/runtime', MODULE_FEDERATION_VERSION],
+  ['@rsbuild/plugin-tailwindcss', RSBUILD_PLUGIN_TAILWINDCSS_VERSION],
+  ['@tanstack/react-router', TANSTACK_ROUTER_VERSION],
   ['typescript', TYPESCRIPT_VERSION],
+  ['tailwindcss', TAILWIND_VERSION],
   ['oxfmt', OXFMT_VERSION],
   ['oxlint', OXLINT_VERSION],
   ['wrangler', WRANGLER_VERSION],

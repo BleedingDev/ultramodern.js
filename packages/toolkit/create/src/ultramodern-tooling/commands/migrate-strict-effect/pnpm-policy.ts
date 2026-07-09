@@ -24,6 +24,7 @@ import {
   moduleFederationModernJsPatchPath,
   moduleFederationPackageVersionPolicyExclusions,
   strictEffectPackageVersionPolicyExclusions,
+  transitivePackageVersionPolicyExclusions,
 } from './policy-constants';
 
 export { ensureGeneratedDeclarationPatches } from './declaration-patches';
@@ -103,7 +104,10 @@ export function updateGeneratedPnpmWorkspacePolicy(io: MigrationIo) {
     }
   }
 
-  for (const item of moduleFederationPackageVersionPolicyExclusions) {
+  for (const item of [
+    ...moduleFederationPackageVersionPolicyExclusions,
+    ...transitivePackageVersionPolicyExclusions,
+  ]) {
     const policyExclude = ensureYamlListItem(
       source,
       'minimumReleaseAgeExclude',

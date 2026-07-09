@@ -1179,6 +1179,18 @@ declare module '*.css' {}
     );
     assert.match(
       pnpmWorkspace,
+      /minimumReleaseAgeExclude:\n(?: {2}- .+\n)* {2}- '@module-federation\/runtime@2\.7\.0'/u,
+    );
+    assert.match(
+      pnpmWorkspace,
+      /minimumReleaseAgeExclude:\n(?: {2}- .+\n)* {2}- '@typescript\/native-preview@7\.0\.0-dev\.20260707\.2'/u,
+    );
+    assert.match(
+      pnpmWorkspace,
+      /minimumReleaseAgeExclude:\n(?: {2}- .+\n)* {2}- 'wrangler@4\.109\.0'/u,
+    );
+    assert.match(
+      pnpmWorkspace,
       new RegExp(
         `trustPolicyExclude:\\n(?:  - .+\\n)*  - 'effect@${EFFECT_VERSION}'`,
         'u',
