@@ -52,6 +52,12 @@ function bleedingdevAlias(modernPackageName) {
   return `@bleedingdev/modern-js-${modernPackageName.split('/').at(-1)}`;
 }
 
+function modernPackageAlias(modernPackageName, packageSource) {
+  const scope = (packageSource.aliasScope ?? 'bleedingdev').replace(/^@/u, '');
+  const prefix = packageSource.aliasPackageNamePrefix ?? 'modern-js-';
+  return `@${scope}/${prefix}${modernPackageName.split('/').at(-1)}`;
+}
+
 function expectedSpecifier(modernPackageName, version) {
   return `npm:${bleedingdevAlias(modernPackageName)}@${version}`;
 }
@@ -111,6 +117,57 @@ function packageJsonFiles(root) {
   return files.sort();
 }
 
+function readOptionalJsonFile(filePath) {
+  if (!fs.existsSync(filePath)) {
+    return undefined;
+  }
+  return readJsonFile(filePath);
+}
+
+function compactPackageSource(projectDir, compactMetadata) {
+  const source = compactMetadata?.packageSource;
+  if (!source) {
+    return undefined;
+  }
+  const packageNames = [
+    ...new Set(
+      packageJsonFiles(projectDir).flatMap(packageJsonPath =>
+        modernDependencyNames(readJsonFile(packageJsonPath)),
+      ),
+    ),
+  ].sort();
+  return {
+    modernPackages: {
+      aliases: Object.fromEntries(
+        packageNames.map(packageName => [
+          packageName,
+          modernPackageAlias(packageName, source),
+        ]),
+      ),
+      packages: packageNames,
+      specifier: source.modernPackageVersion,
+    },
+    strategy: source.strategy,
+  };
+}
+
+function generatedMetadata(projectDir, manifestPath) {
+  const compactMetadata = readOptionalJsonFile(
+    path.join(projectDir, '.modernjs/ultramodern.json'),
+  );
+  const legacyPackageSource = readOptionalJsonFile(
+    path.join(projectDir, '.modernjs/ultramodern-package-source.json'),
+  );
+  const legacyManifest = readOptionalJsonFile(
+    path.join(projectDir, manifestPath),
+  );
+  return {
+    manifest: legacyManifest ?? compactMetadata,
+    packageSource:
+      legacyPackageSource ?? compactPackageSource(projectDir, compactMetadata),
+  };
+}
+
 function assertGeneratedCohort(
   projectDir,
   expectedFrameworkVersion,
@@ -121,10 +178,19 @@ function assertGeneratedCohort(
   } = {},
 ) {
   const errors = [];
-  const packageSource = readJsonFile(
-    path.join(projectDir, '.modernjs/ultramodern-package-source.json'),
+  const { manifest, packageSource } = generatedMetadata(
+    projectDir,
+    manifestPath,
   );
-  const manifest = readJsonFile(path.join(projectDir, manifestPath));
+  if (!packageSource) {
+    errors.push('package source metadata is missing');
+  }
+  if (!manifest) {
+    errors.push(`manifest metadata is missing: ${manifestPath}`);
+  }
+  if (errors.length > 0) {
+    throw new Error(errors.map(error => `- ${error}`).join('\n'));
+  }
   const modernPackageNames = generatedModernPackages(packageSource, errors);
   const modernPackageNameSet = new Set(modernPackageNames);
 
@@ -136,15 +202,20 @@ function assertGeneratedCohort(
       `package source specifier is ${packageSource.modernPackages?.specifier}`,
     );
   }
-  if (manifest.template?.version !== expectedTemplateVersion) {
-    errors.push(`template version is ${manifest.template?.version}`);
+  const templateVersion =
+    manifest.template?.version ?? manifest.generator?.version;
+  if (templateVersion !== expectedTemplateVersion) {
+    errors.push(`template version is ${templateVersion}`);
   }
+  const manifestModernPackageSpecifier =
+    manifest.packageSource?.modernPackageSpecifier ??
+    manifest.packageSource?.modernPackageVersion;
   if (
     workspaceManifest &&
-    manifest.packageSource?.modernPackageSpecifier !== expectedFrameworkVersion
+    manifestModernPackageSpecifier !== expectedFrameworkVersion
   ) {
     errors.push(
-      `manifest package specifier is ${manifest.packageSource?.modernPackageSpecifier}`,
+      `manifest package specifier is ${manifestModernPackageSpecifier}`,
     );
   }
 
@@ -190,11 +261,15 @@ function assertGeneratedCohort(
 export {
   assertGeneratedCohort,
   bleedingdevAlias,
+  compactPackageSource,
   createPnpmDlxArgs,
   expectedSpecifier,
+  generatedMetadata,
   generatedModernPackages,
   modernDependencyNames,
+  modernPackageAlias,
   packageJsonFiles,
   packageNameFromSpecifier,
+  readOptionalJsonFile,
   resolveCreatePackage,
 };
