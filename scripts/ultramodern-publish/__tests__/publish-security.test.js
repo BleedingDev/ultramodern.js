@@ -543,6 +543,10 @@ test('workflow security gates every receipt implementation change', () => {
     tests,
     /scripts\/ultramodern-production-readiness\/__tests__\/\*\.test\.js/,
   );
+  assert.match(
+    tests,
+    /scripts\/ultramodern-publish\/__tests__\/build-bleedingdev-packages\.test\.js/,
+  );
 });
 
 test('trusted publisher configuration is strict and always passes npm-publish', async () => {
