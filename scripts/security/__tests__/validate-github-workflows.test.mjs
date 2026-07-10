@@ -23,6 +23,28 @@ jobs:
         run: echo ok
 `;
 
+const githubExpression = expression => ['${{', expression, '}}'].join(' ');
+
+const workflowRunCheckoutWorkflow = ({
+  branchPolicy = '    branches:\n      - main-ultramodern\n',
+  ref = githubExpression('github.event.workflow_run.head_sha'),
+  permissions = '  contents: read\n  actions: read\n',
+} = {}) => `name: Workflow Run Example
+on:
+  workflow_run:
+    workflows:
+      - Build
+${branchPolicy}permissions:
+${permissions}jobs:
+  example:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${ref}
+`;
+
 test('compliant workflow produces no errors', () => {
   assert.deepEqual(
     validateWorkflowContent('.github/workflows/example.yml', compliantWorkflow),
@@ -84,6 +106,64 @@ test('pull_request_target is rejected', () => {
   );
   assert.equal(errors.length, 1);
   assert.match(errors[0], /must not use pull_request_target/);
+});
+
+test('workflow_run may checkout its exact head SHA from literal restricted branches', () => {
+  assert.deepEqual(
+    validateWorkflowContent(
+      '.github/workflows/workflow-run-example.yml',
+      workflowRunCheckoutWorkflow(),
+    ),
+    [],
+  );
+});
+
+test('workflow_run exact head SHA checkout requires a literal branch restriction', () => {
+  for (const branchPolicy of ['', "    branches:\n      - '*'\n"]) {
+    const errors = validateWorkflowContent(
+      '.github/workflows/workflow-run-example.yml',
+      workflowRunCheckoutWorkflow({ branchPolicy }),
+    );
+    assert.ok(
+      errors.some(error =>
+        error.includes('must not checkout untrusted event refs'),
+      ),
+    );
+  }
+});
+
+test('workflow_run mutable and pull request refs remain rejected', () => {
+  for (const ref of [
+    githubExpression('github.event.workflow_run.head_branch'),
+    githubExpression('github.event.pull_request.head.sha'),
+  ]) {
+    const errors = validateWorkflowContent(
+      '.github/workflows/workflow-run-example.yml',
+      workflowRunCheckoutWorkflow({ ref }),
+    );
+    assert.ok(
+      errors.some(error =>
+        error.includes('must not checkout untrusted event refs'),
+      ),
+    );
+  }
+});
+
+test('workflow_run exact head SHA checkout rejects workflows with write permissions', () => {
+  const errors = validateWorkflowContent(
+    '.github/workflows/workflow-run-example.yml',
+    workflowRunCheckoutWorkflow({
+      permissions: '  contents: write\n  actions: read\n',
+    }),
+  );
+  assert.ok(
+    errors.some(error => error.includes('must not grant write permissions')),
+  );
+  assert.ok(
+    errors.some(error =>
+      error.includes('must not checkout untrusted event refs'),
+    ),
+  );
 });
 
 test('npm token references are rejected', () => {

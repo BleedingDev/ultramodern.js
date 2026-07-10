@@ -106,6 +106,8 @@ const runInputPattern =
 const privilegedTriggerNames = ['pull_request_target', 'workflow_run'];
 const untrustedCheckoutRefPattern =
   /\$\{\{\s*(?:github\.head_ref|github\.event\.pull_request\.head\.(?:ref|sha)|github\.event\.workflow_run\.(?:head_branch|head_sha|pull_requests))/;
+const exactWorkflowRunHeadShaRefPattern =
+  /^\s*\$\{\{\s*github\.event\.workflow_run\.head_sha\s*\}\}\s*(?:#.*)?$/u;
 
 /**
  * Find `${{ inputs.* }}` / `${{ github.event.inputs.* }}` interpolations
@@ -194,6 +196,97 @@ const collectElevatedPermissionLines = content => {
   return findings;
 };
 
+const isLiteralWorkflowRunBranch = value => {
+  const literal = value.trim();
+  const quote = literal.at(0);
+  const quoted = quote === '"' || quote === "'";
+  if (quoted && !literal.endsWith(quote)) {
+    return false;
+  }
+  const branch = quoted ? literal.slice(1, -1) : literal;
+
+  return branch.length > 0 && !/[\s#!$*?[\]{}\\]/u.test(branch);
+};
+
+/**
+ * Check only the literal `on.workflow_run.branches` form that can bind an
+ * event SHA to a reviewed branch. Unsupported YAML shapes fail closed.
+ */
+const hasLiteralWorkflowRunBranchRestriction = content => {
+  const lines = content.split('\n');
+  const onIndex = lines.findIndex(line => /^on:\s*(?:#.*)?$/u.test(line));
+  if (onIndex === -1) {
+    return false;
+  }
+
+  const onColumn = lines[onIndex].length - lines[onIndex].trimStart().length;
+  let triggerColumn = -1;
+
+  for (let index = onIndex + 1; index < lines.length; index++) {
+    const line = lines[index];
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) {
+      continue;
+    }
+
+    const column = line.length - line.trimStart().length;
+    if (column <= onColumn) {
+      break;
+    }
+    if (triggerColumn === -1) {
+      triggerColumn = column;
+    }
+    if (
+      column !== triggerColumn ||
+      !/^workflow_run:\s*(?:#.*)?$/u.test(trimmed)
+    ) {
+      continue;
+    }
+
+    for (index += 1; index < lines.length; index++) {
+      const branchLine = lines[index];
+      const branchTrimmed = branchLine.trim();
+      if (!branchTrimmed || branchTrimmed.startsWith('#')) {
+        continue;
+      }
+
+      const branchColumn = branchLine.length - branchLine.trimStart().length;
+      if (branchColumn <= column) {
+        return false;
+      }
+      if (!/^branches:\s*$/u.test(branchTrimmed)) {
+        continue;
+      }
+
+      const branches = [];
+      let branchItemColumn = -1;
+      for (index += 1; index < lines.length; index++) {
+        const itemLine = lines[index];
+        const itemTrimmed = itemLine.trim();
+        if (!itemTrimmed || itemTrimmed.startsWith('#')) {
+          continue;
+        }
+
+        const itemColumn = itemLine.length - itemLine.trimStart().length;
+        if (itemColumn <= branchColumn) {
+          break;
+        }
+        if (branchItemColumn === -1) {
+          branchItemColumn = itemColumn;
+        }
+        const item = itemTrimmed.match(/^-\s+(.+)$/u);
+        if (itemColumn !== branchItemColumn || !item) {
+          return false;
+        }
+        branches.push(item[1]);
+      }
+      return branches.length > 0 && branches.every(isLiteralWorkflowRunBranch);
+    }
+  }
+
+  return false;
+};
+
 const collectSecretExposures = content =>
   content
     .split('\n')
@@ -211,6 +304,9 @@ const collectUntrustedCheckoutRefs = content => {
   const lines = content.split('\n');
   let inCheckoutStep = false;
   let currentStepColumn = -1;
+  const allowsExactWorkflowRunHeadSha =
+    hasLiteralWorkflowRunBranchRestriction(content) &&
+    collectElevatedPermissionLines(content).length === 0;
 
   for (let index = 0; index < lines.length; index++) {
     const line = lines[index];
@@ -245,7 +341,14 @@ const collectUntrustedCheckoutRefs = content => {
     }
 
     const ref = line.match(/^\s*ref:\s*(.*)$/u);
-    if (ref && untrustedCheckoutRefPattern.test(ref[1])) {
+    if (
+      ref &&
+      untrustedCheckoutRefPattern.test(ref[1]) &&
+      !(
+        allowsExactWorkflowRunHeadSha &&
+        exactWorkflowRunHeadShaRefPattern.test(ref[1])
+      )
+    ) {
       findings.push({ line: index + 1, text: line.trim() });
     }
   }
