@@ -24,15 +24,17 @@ import {
   type ModuleFederationFallbackTelemetryPayload,
 } from './index';
 import {
+  createDiscoveryError,
   type DiscoveryError,
   type DiscoveryErrorCode,
+  type DiscoveryResult,
   type EnvironmentId,
   formatSurfaceRef,
-  isDiscoveryError,
+  type ParsedSurfaceRef,
+  parseSurfaceRef,
   type ResolvedDeliveryUnit,
-  type SurfaceProvider,
-  type SurfaceRef,
-  toSurfaceRef,
+  type SurfaceResolutionProvider,
+  validateSurfaceRef,
 } from './surface-resolution-types';
 
 /** Where in the consumption lifecycle a failure was raised. */
@@ -44,7 +46,7 @@ export type SurfaceConsumptionPhase = 'discovery' | 'load' | 'mount';
  * `error` (something threw) is populated for a given failure.
  */
 export type SurfaceConsumptionFailure = {
-  ref: SurfaceRef;
+  ref: ParsedSurfaceRef;
   env: EnvironmentId;
   phase: SurfaceConsumptionPhase;
   classification: ModuleFederationFallbackClassification;
@@ -60,16 +62,16 @@ export type SurfaceConsumptionFailure = {
 
 export type SurfaceLoadInput = {
   resolved: ResolvedDeliveryUnit;
-  ref: SurfaceRef;
+  ref: ParsedSurfaceRef;
   env: EnvironmentId;
 };
 
 export type SurfaceConsumerOptions<T> = {
   /** The logical surface to consume (object or canonical string form). */
-  ref: SurfaceRef | string;
+  ref: ParsedSurfaceRef | string;
   env: EnvironmentId;
   /** The pluggable resolution seam (RESOLUTION-0001 §2.2). */
-  provider: SurfaceProvider;
+  provider: SurfaceResolutionProvider;
   /** Consumer app name, used for telemetry attribution. */
   appName: string;
   /**
@@ -111,9 +113,20 @@ function classifyDiscoveryError(
   }
 }
 
+/**
+ * Canonical string form of a ref, without the never-throws guarantee of
+ * consumeSurface depending on the caller having passed a grammatically valid
+ * object ref (canonical formatSurfaceRef throws on invalid refs).
+ */
+function toRemoteString(ref: ParsedSurfaceRef): string {
+  return validateSurfaceRef(ref) === undefined
+    ? formatSurfaceRef(ref)
+    : `${ref.unitId}#${ref.surfaceId}`;
+}
+
 async function reportFailure<T>(
   options: SurfaceConsumerOptions<T>,
-  ref: SurfaceRef,
+  ref: ParsedSurfaceRef,
   base: {
     phase: SurfaceConsumptionPhase;
     classification: ModuleFederationFallbackClassification;
@@ -122,7 +135,7 @@ async function reportFailure<T>(
     resolved?: ResolvedDeliveryUnit;
   },
 ): Promise<T> {
-  const remote = formatSurfaceRef(ref);
+  const remote = toRemoteString(ref);
   const telemetry = createModuleFederationFallbackTelemetry({
     appName: options.appName,
     classification: base.classification,
@@ -188,9 +201,37 @@ async function reportFailure<T>(
 export async function consumeSurface<T>(
   options: SurfaceConsumerOptions<T>,
 ): Promise<T> {
-  const ref = toSurfaceRef(options.ref);
+  let ref: ParsedSurfaceRef;
+  if (typeof options.ref === 'string') {
+    const parsed = parseSurfaceRef(options.ref);
+    if (!parsed.ok) {
+      // A malformed ref can never resolve; degrade without calling the
+      // provider (providers only accept grammatically valid refs).
+      const hashIndex = options.ref.indexOf('#');
+      const echoed: ParsedSurfaceRef =
+        hashIndex === -1
+          ? { unitId: options.ref, surfaceId: '' }
+          : {
+              unitId: options.ref.slice(0, hashIndex),
+              surfaceId: options.ref.slice(hashIndex + 1),
+            };
+      return reportFailure(options, echoed, {
+        phase: 'discovery',
+        classification: 'remote-unavailable',
+        discoveryError: createDiscoveryError(
+          'unknown-surface',
+          options.ref,
+          `SurfaceRef "${options.ref}" is not a valid canonical reference (${parsed.error.code}).`,
+          { parseError: parsed.error, env: options.env },
+        ),
+      });
+    }
+    ref = parsed.ref;
+  } else {
+    ref = options.ref;
+  }
 
-  let resolution;
+  let resolution: DiscoveryResult;
   try {
     resolution = await options.provider.resolve(ref, options.env);
   } catch (error) {
@@ -201,15 +242,15 @@ export async function consumeSurface<T>(
     });
   }
 
-  if (isDiscoveryError(resolution)) {
+  if (!resolution.ok) {
     return reportFailure(options, ref, {
       phase: 'discovery',
-      classification: classifyDiscoveryError(resolution.code),
-      discoveryError: resolution,
+      classification: classifyDiscoveryError(resolution.error.code),
+      discoveryError: resolution.error,
     });
   }
 
-  const resolved = resolution;
+  const resolved = resolution.unit;
 
   // A resolver may hand back a record it already judged incompatible; treat it
   // as a degraded consumption rather than loading against a bad contract.

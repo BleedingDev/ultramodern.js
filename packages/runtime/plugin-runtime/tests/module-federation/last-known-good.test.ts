@@ -1,10 +1,9 @@
 import {
   createLastKnownGoodProvider,
-  isDiscoveryError,
+  type DiscoveryResult,
   type LkgStorage,
   type ResolvedDeliveryUnit,
-  type SurfaceProvider,
-  type SurfaceResolution,
+  type SurfaceResolutionProvider,
 } from '../../src/module-federation';
 
 const record = (buildMarker: string): ResolvedDeliveryUnit => ({
@@ -18,7 +17,7 @@ const record = (buildMarker: string): ResolvedDeliveryUnit => ({
       kind: 'component',
       locations: [
         {
-          platform: 'browser-mf',
+          platform: 'browser-mf-manifest',
           manifestUrl: `https://cdn/${buildMarker}.json`,
         },
       ],
@@ -27,14 +26,28 @@ const record = (buildMarker: string): ResolvedDeliveryUnit => ({
   compatibility: { status: 'compatible', baselineCohortId: 'cohort-1' },
 });
 
+const okResult = (buildMarker: string): DiscoveryResult => ({
+  ok: true,
+  unit: record(buildMarker),
+});
+
 const ref = { unitId: 'acme/checkout', surfaceId: 'cart' };
+
+/** Unwrap a successful result or fail the test with the typed error. */
+const unitOf = (result: DiscoveryResult): ResolvedDeliveryUnit => {
+  if (!result.ok) {
+    throw new Error(`expected ok result, got ${result.error.code}`);
+  }
+  return result.unit;
+};
 
 /** A provider whose per-call result is scripted. */
 const scriptedProvider = (
-  script: Array<SurfaceResolution | (() => never)>,
-): SurfaceProvider => {
+  script: Array<DiscoveryResult | (() => never)>,
+): SurfaceResolutionProvider => {
   let i = 0;
   return {
+    name: 'scripted',
     resolve() {
       const next = script[Math.min(i, script.length - 1)];
       i += 1;
@@ -49,23 +62,24 @@ const scriptedProvider = (
 describe('G24a/b last-known-good provider wrapper', () => {
   test('serves the last complete record marked degraded on provider failure', async () => {
     const provider = scriptedProvider([
-      record('bm-1'),
+      okResult('bm-1'),
       {
-        kind: 'discovery-error',
-        code: 'provider-unavailable',
-        message: 'offline',
-        ref,
-        env: 'prod',
+        ok: false,
+        error: {
+          code: 'provider-unavailable',
+          ref: 'acme/checkout#cart',
+          message: 'offline',
+        },
       },
     ]);
     const lkg = createLastKnownGoodProvider({ provider });
 
     const first = await lkg.resolve(ref, 'prod');
-    expect(isDiscoveryError(first)).toBe(false);
+    expect(first.ok).toBe(true);
 
     const second = await lkg.resolve(ref, 'prod');
-    expect(isDiscoveryError(second)).toBe(false);
-    const served = second as ResolvedDeliveryUnit;
+    expect(second.ok).toBe(true);
+    const served = unitOf(second);
     // Whole prior record, only the verdict flipped.
     expect(served.buildMarker).toBe('bm-1');
     expect(served.sourceRevision).toBe('rev-bm-1');
@@ -75,7 +89,7 @@ describe('G24a/b last-known-good provider wrapper', () => {
 
   test('serves LKG when the wrapped provider throws', async () => {
     const provider = scriptedProvider([
-      record('bm-1'),
+      okResult('bm-1'),
       () => {
         throw new Error('boom');
       },
@@ -84,22 +98,21 @@ describe('G24a/b last-known-good provider wrapper', () => {
 
     await lkg.resolve(ref, 'prod');
     const served = await lkg.resolve(ref, 'prod');
-    expect(isDiscoveryError(served)).toBe(false);
-    expect((served as ResolvedDeliveryUnit).compatibility.status).toBe(
-      'degraded',
-    );
+    expect(served.ok).toBe(true);
+    expect(unitOf(served).compatibility.status).toBe('degraded');
   });
 
   test('expiry yields a typed stale-record error, never a partial record', async () => {
     let clock = 1_000;
     const provider = scriptedProvider([
-      record('bm-1'),
+      okResult('bm-1'),
       {
-        kind: 'discovery-error',
-        code: 'provider-unavailable',
-        message: 'offline',
-        ref,
-        env: 'prod',
+        ok: false,
+        error: {
+          code: 'provider-unavailable',
+          ref: 'acme/checkout#cart',
+          message: 'offline',
+        },
       },
     ]);
     const lkg = createLastKnownGoodProvider({
@@ -112,43 +125,45 @@ describe('G24a/b last-known-good provider wrapper', () => {
     clock = 10_000; // age 9000ms > 5000ms
     const served = await lkg.resolve(ref, 'prod');
 
-    expect(isDiscoveryError(served)).toBe(true);
-    expect(isDiscoveryError(served) && served.code).toBe('stale-record');
+    expect(served.ok).toBe(false);
+    expect(!served.ok && served.error.code).toBe('stale-record');
   });
 
   test('passes through the resolver failure when nothing is cached', async () => {
     const provider = scriptedProvider([
       {
-        kind: 'discovery-error',
-        code: 'unknown-unit',
-        message: 'no such unit',
-        ref,
-        env: 'prod',
+        ok: false,
+        error: {
+          code: 'unknown-unit',
+          ref: 'acme/checkout#cart',
+          message: 'no such unit',
+        },
       },
     ]);
     const lkg = createLastKnownGoodProvider({ provider });
 
     const served = await lkg.resolve(ref, 'prod');
-    expect(isDiscoveryError(served) && served.code).toBe('unknown-unit');
+    expect(!served.ok && served.error.code).toBe('unknown-unit');
   });
 
   test('rollback = atomic whole-record swap; the latest success is what is served', async () => {
     const provider = scriptedProvider([
-      record('bm-1'),
-      record('bm-2'),
+      okResult('bm-1'),
+      okResult('bm-2'),
       {
-        kind: 'discovery-error',
-        code: 'provider-unavailable',
-        message: 'offline',
-        ref,
-        env: 'prod',
+        ok: false,
+        error: {
+          code: 'provider-unavailable',
+          ref: 'acme/checkout#cart',
+          message: 'offline',
+        },
       },
     ]);
     const lkg = createLastKnownGoodProvider({ provider });
 
     await lkg.resolve(ref, 'prod'); // caches bm-1
     await lkg.resolve(ref, 'prod'); // swaps whole record to bm-2
-    const served = (await lkg.resolve(ref, 'prod')) as ResolvedDeliveryUnit;
+    const served = unitOf(await lkg.resolve(ref, 'prod'));
     expect(served.buildMarker).toBe('bm-2');
     expect(served.compatibility.status).toBe('degraded');
   });
@@ -162,13 +177,14 @@ describe('G24a/b last-known-good provider wrapper', () => {
       },
     };
     const provider = scriptedProvider([
-      record('bm-1'),
+      okResult('bm-1'),
       {
-        kind: 'discovery-error',
-        code: 'provider-unavailable',
-        message: 'offline',
-        ref,
-        env: 'prod',
+        ok: false,
+        error: {
+          code: 'provider-unavailable',
+          ref: 'acme/checkout#cart',
+          message: 'offline',
+        },
       },
     ]);
     const lkg = createLastKnownGoodProvider({ provider, storage });
@@ -176,8 +192,6 @@ describe('G24a/b last-known-good provider wrapper', () => {
     await lkg.resolve(ref, 'prod');
     expect(backing.size).toBe(1);
     const served = await lkg.resolve(ref, 'prod');
-    expect((served as ResolvedDeliveryUnit).compatibility.status).toBe(
-      'degraded',
-    );
+    expect(unitOf(served).compatibility.status).toBe('degraded');
   });
 });

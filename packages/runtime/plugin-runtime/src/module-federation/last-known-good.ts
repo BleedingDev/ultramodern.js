@@ -12,18 +12,19 @@
  * per (ref, env) key and swaps it atomically on each fresh success. It never
  * stores or serves a partial record, and it never mixes locations across build
  * markers — a served degraded record is a byte-for-byte prior success with only
- * its {@link CompatibilityVerdict} flipped to `degraded`.
+ * its compatibility verdict flipped to `degraded`.
  */
 import {
-  type DiscoveryError,
+  createDiscoveryError,
+  type DiscoveryResult,
   type EnvironmentId,
-  isDiscoveryError,
+  type ParsedSurfaceRef,
   type ResolvedDeliveryUnit,
-  type SurfaceProvider,
-  type SurfaceRef,
-  type SurfaceResolution,
+  type SurfaceResolutionProvider,
   surfaceResolutionKey,
 } from './surface-resolution-types';
+
+export const LAST_KNOWN_GOOD_PROVIDER_NAME = 'last-known-good';
 
 /** One cached complete record plus the time it was stored. */
 export type LkgRecord = {
@@ -45,14 +46,14 @@ export type LkgFreshnessPolicy = {
   /**
    * Maximum age, in ms, a stored record may be served after a provider
    * failure. When omitted, a served record never expires by age. A record
-   * older than this yields a typed `stale-record` {@link DiscoveryError}.
+   * older than this yields a typed `stale-record` discovery error.
    */
   maxStaleMs?: number;
 };
 
 export type LastKnownGoodOptions = {
   /** The wrapped provider (env/static, Zephyr, or any other). */
-  provider: SurfaceProvider;
+  provider: SurfaceResolutionProvider;
   /** Pluggable storage; defaults to a process-local in-memory Map. */
   storage?: LkgStorage;
   freshness?: LkgFreshnessPolicy;
@@ -88,42 +89,44 @@ function markDegraded(
   };
 }
 
-function staleRecordError(
-  ref: SurfaceRef,
+function staleRecordResult(
+  ref: ParsedSurfaceRef,
   env: EnvironmentId,
   ageMs: number,
   maxStaleMs: number,
-): DiscoveryError {
+): DiscoveryResult {
   return {
-    kind: 'discovery-error',
-    code: 'stale-record',
-    message: `Last-known-good record for surface is stale: age ${ageMs}ms exceeds maxStaleMs ${maxStaleMs}ms`,
-    ref,
-    env,
+    ok: false,
+    error: createDiscoveryError(
+      'stale-record',
+      ref,
+      `Last-known-good record for surface is stale: age ${ageMs}ms exceeds maxStaleMs ${maxStaleMs}ms`,
+      { env, ageMs, maxStaleMs },
+    ),
   };
 }
 
 /**
  * Wrap a provider with a last-known-good cache. On success the whole record is
- * cached (atomic swap). On provider failure (typed {@link DiscoveryError} or a
- * thrown error) the last complete record is served, marked degraded — unless it
- * has expired per {@link LkgFreshnessPolicy}, in which case a typed
- * `stale-record` error is returned. If there is no cached record, the original
- * failure is passed through (a thrown error becomes a `provider-unavailable`
- * {@link DiscoveryError}).
+ * cached (atomic swap). On provider failure (typed discovery error or a thrown
+ * error) the last complete record is served, marked degraded — unless it has
+ * expired per {@link LkgFreshnessPolicy}, in which case a typed `stale-record`
+ * error is returned. If there is no cached record, the original failure is
+ * passed through (a thrown error becomes a `provider-unavailable` discovery
+ * error).
  */
 export function createLastKnownGoodProvider(
   options: LastKnownGoodOptions,
-): SurfaceProvider {
+): SurfaceResolutionProvider {
   const storage = options.storage ?? createInMemoryLkgStorage();
   const now = options.now ?? (() => Date.now());
   const maxStaleMs = options.freshness?.maxStaleMs;
 
   async function serveFromCache(
-    ref: SurfaceRef,
+    ref: ParsedSurfaceRef,
     env: EnvironmentId,
-    fallback: () => SurfaceResolution,
-  ): Promise<SurfaceResolution> {
+    fallback: () => DiscoveryResult,
+  ): Promise<DiscoveryResult> {
     const key = surfaceResolutionKey(ref, env);
     const cached = await storage.read(key);
     if (!cached) {
@@ -132,46 +135,51 @@ export function createLastKnownGoodProvider(
 
     const ageMs = now() - cached.storedAt;
     if (maxStaleMs !== undefined && ageMs > maxStaleMs) {
-      return staleRecordError(ref, env, ageMs, maxStaleMs);
+      return staleRecordResult(ref, env, ageMs, maxStaleMs);
     }
 
-    return markDegraded(
-      cached.resolved,
-      `served last-known-good record (age ${ageMs}ms) after provider failure`,
-    );
+    return {
+      ok: true,
+      unit: markDegraded(
+        cached.resolved,
+        `served last-known-good record (age ${ageMs}ms) after provider failure`,
+      ),
+    };
   }
 
   return {
+    name: LAST_KNOWN_GOOD_PROVIDER_NAME,
     async resolve(
-      ref: SurfaceRef,
+      ref: ParsedSurfaceRef,
       env: EnvironmentId,
-    ): Promise<SurfaceResolution> {
+    ): Promise<DiscoveryResult> {
       const key = surfaceResolutionKey(ref, env);
 
-      let resolution: SurfaceResolution;
+      let resolution: DiscoveryResult;
       try {
         resolution = await options.provider.resolve(ref, env);
       } catch (error) {
         return serveFromCache(ref, env, () => ({
-          kind: 'discovery-error',
-          code: 'provider-unavailable',
-          message:
+          ok: false,
+          error: createDiscoveryError(
+            'provider-unavailable',
+            ref,
             error instanceof Error
               ? error.message
               : 'provider threw a non-error value',
-          ref,
-          env,
+            { env, provider: options.provider.name },
+          ),
         }));
       }
 
-      if (isDiscoveryError(resolution)) {
+      if (!resolution.ok) {
         // Preserve the resolver's own typed failure when no LKG record exists.
         const failure = resolution;
         return serveFromCache(ref, env, () => failure);
       }
 
       // Fresh complete success: swap the whole record atomically.
-      await storage.write(key, { resolved: resolution, storedAt: now() });
+      await storage.write(key, { resolved: resolution.unit, storedAt: now() });
       return resolution;
     },
   };

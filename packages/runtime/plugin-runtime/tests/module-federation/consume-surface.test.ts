@@ -3,7 +3,7 @@ import {
   createSurfaceConsumer,
   type ResolvedDeliveryUnit,
   type SurfaceConsumptionFailure,
-  type SurfaceProvider,
+  type SurfaceResolutionProvider,
 } from '../../src/module-federation';
 
 const okRecord = (): ResolvedDeliveryUnit => ({
@@ -16,25 +16,32 @@ const okRecord = (): ResolvedDeliveryUnit => ({
       surfaceId: 'cart',
       kind: 'component',
       locations: [
-        { platform: 'browser-mf', manifestUrl: 'https://cdn/mf-manifest.json' },
+        {
+          platform: 'browser-mf-manifest',
+          manifestUrl: 'https://cdn/mf-manifest.json',
+        },
       ],
     },
   ],
   compatibility: { status: 'compatible', baselineCohortId: 'cohort-1' },
 });
 
-const providerOf = (resolve: SurfaceProvider['resolve']): SurfaceProvider => ({
+const providerOf = (
+  resolve: SurfaceResolutionProvider['resolve'],
+): SurfaceResolutionProvider => ({
+  name: 'test-provider',
   resolve,
 });
 
 describe('G22 consumeSurface — mandatory degraded consumption', () => {
   test('unavailable remote invokes the required degraded handler (never throws)', async () => {
     const provider = providerOf(() => ({
-      kind: 'discovery-error',
-      code: 'provider-unavailable',
-      message: 'env provider offline',
-      ref: { unitId: 'acme/checkout', surfaceId: 'cart' },
-      env: 'prod',
+      ok: false,
+      error: {
+        code: 'provider-unavailable',
+        ref: 'acme/checkout#cart',
+        message: 'env provider offline',
+      },
     }));
 
     let seen: SurfaceConsumptionFailure | undefined;
@@ -59,7 +66,7 @@ describe('G22 consumeSurface — mandatory degraded consumption', () => {
   });
 
   test('load failure is caught, classified, and degraded with the resolved record', async () => {
-    const provider = providerOf(() => okRecord());
+    const provider = providerOf(() => ({ ok: true, unit: okRecord() }));
 
     let seen: SurfaceConsumptionFailure | undefined;
     const value = await consumeSurface<string>({
@@ -85,11 +92,14 @@ describe('G22 consumeSurface — mandatory degraded consumption', () => {
 
   test('incompatible verdict degrades before loading against a bad contract', async () => {
     const provider = providerOf(() => ({
-      ...okRecord(),
-      compatibility: {
-        status: 'incompatible' as const,
-        baselineCohortId: 'cohort-9',
-        reason: 'baseline skew',
+      ok: true,
+      unit: {
+        ...okRecord(),
+        compatibility: {
+          status: 'incompatible' as const,
+          baselineCohortId: 'cohort-9',
+          reason: 'baseline skew',
+        },
       },
     }));
 
@@ -112,13 +122,14 @@ describe('G22 consumeSurface — mandatory degraded consumption', () => {
 
   test('sibling isolation: one failing consumption never affects another', async () => {
     const failing = providerOf(() => ({
-      kind: 'discovery-error',
-      code: 'unknown-unit',
-      message: 'no such unit',
-      ref: { unitId: 'acme/broken', surfaceId: 'x' },
-      env: 'prod',
+      ok: false,
+      error: {
+        code: 'unknown-unit',
+        ref: 'acme/broken#x',
+        message: 'no such unit',
+      },
     }));
-    const healthy = providerOf(() => okRecord());
+    const healthy = providerOf(() => ({ ok: true, unit: okRecord() }));
 
     const [a, b] = await Promise.all([
       consumeSurface<string>({
@@ -145,7 +156,7 @@ describe('G22 consumeSurface — mandatory degraded consumption', () => {
 
   test('createSurfaceConsumer binds provider/env/app and still requires degraded', async () => {
     const consume = createSurfaceConsumer({
-      provider: providerOf(() => okRecord()),
+      provider: providerOf(() => ({ ok: true, unit: okRecord() })),
       env: 'prod',
       appName: 'shell',
     });
@@ -157,5 +168,32 @@ describe('G22 consumeSurface — mandatory degraded consumption', () => {
     });
 
     expect(value).toBe('live:bm-1');
+  });
+
+  test('a malformed string ref degrades without calling the provider', async () => {
+    let resolved = false;
+    const provider = providerOf(() => {
+      resolved = true;
+      return { ok: true, unit: okRecord() };
+    });
+
+    let seen: SurfaceConsumptionFailure | undefined;
+    const value = await consumeSurface<string>({
+      ref: 'not-a-surface-ref',
+      env: 'prod',
+      provider,
+      appName: 'shell',
+      load: () => 'live',
+      degraded: failure => {
+        seen = failure;
+        return 'fallback-ui';
+      },
+    });
+
+    expect(value).toBe('fallback-ui');
+    expect(resolved).toBe(false);
+    expect(seen?.phase).toBe('discovery');
+    expect(seen?.classification).toBe('remote-unavailable');
+    expect(seen?.discoveryError?.code).toBe('unknown-surface');
   });
 });
