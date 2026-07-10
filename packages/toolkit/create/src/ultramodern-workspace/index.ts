@@ -14,6 +14,11 @@ export type {
   UltramodernEnabledBridgeConfigInput,
 } from './bridge-config';
 export { normalizeUltramodernBridgeConfig } from './bridge-config';
+export {
+  BASELINE_DEPENDENCY_PINS,
+  OverlayBaselineRelaxationError,
+} from './overlay-baseline-guard';
+export type { OverlayBaselineViolation } from './overlay-baseline-guard';
 export { SHARED_ULTRAMODERN_WORKSPACE_PATCH_FILES } from './shared-patches';
 export type {
   AddUltramodernVerticalOptions,
