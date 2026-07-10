@@ -27,5 +27,7 @@ export type {
   UltramodernShellDependencyChange,
   UltramodernVerticalPlan,
   UltramodernWorkspaceOptions,
+  VerticalApiProtocol,
+  VerticalPreset,
 } from './types';
 export { generateUltramodernWorkspace } from './write-workspace';

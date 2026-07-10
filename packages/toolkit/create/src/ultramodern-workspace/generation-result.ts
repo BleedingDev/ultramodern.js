@@ -155,14 +155,17 @@ function createGeneratedDeliveryUnitDescriptor(
     surfaces.push({
       kind: 'api',
       surfaceId: app.api.stem,
-      protocol: 'rest',
+      protocol: app.api.protocol ?? 'rest',
       locations: [{ platform: 'http', address: app.api.prefix }],
     });
   }
 
+  const canonicalKind: DeliveryUnitDescriptor['kind'] =
+    app.kind === 'shell' ? 'shell' : (app.deliveryUnitKind ?? 'microvertical');
+
   return {
     unitId: record.unitId,
-    kind: app.kind === 'shell' ? 'shell' : 'microvertical',
+    kind: canonicalKind,
     owner: resolveOwnerAttribution(app.ownership),
     sourceRevision: record.sourceRevision,
     buildMarker: record.buildMarker,

@@ -32,6 +32,34 @@ export function sortJsonValue(value: JsonValue): JsonValue {
   return value;
 }
 
+/**
+ * Vertical generation preset (G2a). `full-stack` is the legacy default and
+ * produces byte-identical output. `api-only` omits every browser/UI artifact
+ * (routes, components, MF browser exposes, Tailwind) and keeps the API + BFF +
+ * backend-federation surfaces (a headless delivery unit). `ui-only` omits every
+ * API/BFF/backend artifact and keeps routes/components/exposes.
+ */
+export type VerticalPreset = 'full-stack' | 'api-only' | 'ui-only';
+
+/**
+ * API protocol SPI (G7a). `rest` is the legacy default (Effect HttpApi output,
+ * byte-identical). `rpc` generates an Effect RPC contract/handlers/client on
+ * plugin-bff's RPC runtime primitives. GraphQL is intentionally not implemented
+ * (the SPI shape leaves room to add it later).
+ */
+export type VerticalApiProtocol = 'rest' | 'rpc';
+
+/**
+ * The canonical kind of the generated delivery unit. `microvertical` is the
+ * default. `horizontal-remote` (G2H) is a components-only cross-vertical
+ * delivery unit that is not the frontend/backend half of a MicroVertical
+ * (CONTEXT.md: Horizontal Remote). It is unrepresentable in strict v1, so the
+ * on-disk v1 `WorkspaceApp.kind` stays `vertical` (lossy down-projection) while
+ * the true kind is carried additively on the topology entry and the canonical
+ * schemaVersion-2 delivery-unit descriptor.
+ */
+export type WorkspaceDeliveryUnitKind = 'microvertical' | 'horizontal-remote';
+
 export type WorkspaceApp = {
   id: string;
   directory: string;
@@ -46,12 +74,29 @@ export type WorkspaceApp = {
   api?: WorkspaceApi;
   verticalRefs?: string[];
   ownership: Ownership;
+  /**
+   * Generation preset (G2a). Omitted for the legacy `full-stack` default so
+   * default descriptors and their serialized output stay byte-identical; only
+   * `api-only` / `ui-only` set it, gating the UI/API writers respectively.
+   */
+  surfaceProfile?: VerticalPreset;
+  /**
+   * Canonical delivery-unit kind (G2H). Omitted for the `microvertical`
+   * default. `horizontal-remote` marks a components-only unit; it never changes
+   * the v1 `kind` field (which stays `vertical`).
+   */
+  deliveryUnitKind?: WorkspaceDeliveryUnitKind;
 };
 
 export type WorkspaceApi = {
   stem: string;
   prefix: string;
   consumedBy: string[];
+  /**
+   * API protocol (G7a). Omitted for the legacy `rest` default so default API
+   * output stays byte-identical; only `rpc` sets it.
+   */
+  protocol?: VerticalApiProtocol;
 };
 
 export type ResolvedPackageSource = ResolvedUltramodernPackageSource;
@@ -174,6 +219,22 @@ export type AddUltramodernVerticalOptions = {
   enableTailwind?: boolean;
   overlays?: UltramodernCodeSmithOverlay[];
   packageSource?: UltramodernWorkspaceOptions['packageSource'];
+  /**
+   * Vertical generation preset (G2a). Defaults to `full-stack` (byte-identical
+   * legacy output). `api-only` / `ui-only` restrict the generated surfaces.
+   */
+  preset?: VerticalPreset;
+  /**
+   * API protocol (G7a). Defaults to `rest` (byte-identical Effect HttpApi
+   * output). `rpc` emits an Effect RPC contract/handlers/client. Ignored for a
+   * `ui-only` preset (no API surface) and for a horizontal remote.
+   */
+  apiProtocol?: VerticalApiProtocol;
+  /**
+   * Generate a components-only Horizontal Remote delivery unit (G2H) instead of
+   * a MicroVertical. Implies a UI-only surface set with no API.
+   */
+  horizontalRemote?: boolean;
 };
 
 export type UltramodernGenerationOperation = 'workspace' | 'vertical';

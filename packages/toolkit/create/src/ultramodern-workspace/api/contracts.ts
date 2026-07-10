@@ -113,6 +113,11 @@ export function apiTopologyMetadata(app: WorkspaceApp): JsonValue | undefined {
 
   return {
     runtime: 'effect',
+    // Record a non-default API protocol (G7a/G7c). Omitted for the legacy REST
+    // default so byte-identical topology output is preserved.
+    ...(app.api.protocol && app.api.protocol !== 'rest'
+      ? { protocol: app.api.protocol }
+      : {}),
     bff: {
       prefix: app.api.prefix,
       openapi: '/openapi.json',

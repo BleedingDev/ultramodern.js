@@ -72,6 +72,12 @@ export const ZH_LOCALE = {
       '      --dry-run 预览 MicroVertical 修改计划但不写入文件（与 --vertical 一起使用）',
     optionCodeSmithOverlay:
       '      --codesmith-overlay <包或路径> 生成完成后运行显式配置的 CodeSmith overlay',
+    optionPreset:
+      '      --preset=<full-stack|api-only|ui-only> 将 MicroVertical 限定为仅 API 或仅 UI 表面（默认 full-stack）',
+    optionApiProtocol:
+      '      --api-protocol=<rest|rpc> 选择 MicroVertical API 协议（默认 rest）',
+    optionHorizontalRemote:
+      '      --horizontal-remote 生成仅包含组件的 Horizontal Remote 交付单元',
     examples: '💡 示例:',
     example1: '  pnpm dlx @bleedingdev/modern-js-create my-workspace',
     example2: '  pnpm dlx @bleedingdev/modern-js-create my-workspace --lang zh',

@@ -77,6 +77,12 @@ export const EN_LOCALE = {
       '      --dry-run Preview a MicroVertical mutation plan without writing files (supported with --vertical)',
     optionCodeSmithOverlay:
       '      --codesmith-overlay <package-or-path> Run an explicit CodeSmith overlay after generation',
+    optionPreset:
+      '      --preset=<full-stack|api-only|ui-only> Restrict a MicroVertical to API-only or UI-only surfaces (default full-stack)',
+    optionApiProtocol:
+      '      --api-protocol=<rest|rpc> Select the MicroVertical API protocol (default rest)',
+    optionHorizontalRemote:
+      '      --horizontal-remote Generate a components-only Horizontal Remote delivery unit',
     examples: '💡 Examples:',
     example1: '  pnpm dlx @bleedingdev/modern-js-create my-workspace',
     example2: '  pnpm dlx @bleedingdev/modern-js-create my-workspace --lang zh',

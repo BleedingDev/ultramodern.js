@@ -43,6 +43,9 @@ export function showHelp() {
   console.log(i18n.t(localeKeys.help.optionVerticalName));
   console.log(i18n.t(localeKeys.help.optionDryRun));
   console.log(i18n.t(localeKeys.help.optionCodeSmithOverlay));
+  console.log(i18n.t(localeKeys.help.optionPreset));
+  console.log(i18n.t(localeKeys.help.optionApiProtocol));
+  console.log(i18n.t(localeKeys.help.optionHorizontalRemote));
   console.log('');
   console.log(i18n.t(localeKeys.help.examples));
   console.log(i18n.t(localeKeys.help.example1));

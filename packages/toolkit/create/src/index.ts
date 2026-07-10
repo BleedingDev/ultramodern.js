@@ -3,11 +3,14 @@ import path from 'node:path';
 import {
   CODESMITH_OVERLAY_FLAG,
   DRY_RUN_FLAG,
+  detectApiProtocolFlag,
   detectBffRuntime,
   detectCodeSmithOverlays,
   detectDryRunFlag,
   detectExplicitTailwindFlag,
+  detectHorizontalRemoteFlag,
   detectLanguage,
+  detectPresetFlag,
   detectTailwindFlag,
   readBridgeCliOptions,
   resolveVerticalCliInput,
@@ -98,6 +101,9 @@ async function main() {
           createPackage,
         )
       : undefined;
+    const preset = detectPresetFlag(args);
+    const apiProtocol = detectApiProtocolFlag(args);
+    const horizontalRemote = detectHorizontalRemoteFlag(args);
     const verticalOptions = {
       workspaceRoot: process.cwd(),
       name: verticalInput.name,
@@ -105,6 +111,9 @@ async function main() {
       enableTailwind: detectExplicitTailwindFlag(),
       overlays,
       packageSource: overridePackageSource,
+      ...(preset ? { preset } : {}),
+      ...(apiProtocol ? { apiProtocol } : {}),
+      ...(horizontalRemote ? { horizontalRemote: true } : {}),
     };
 
     if (dryRun) {

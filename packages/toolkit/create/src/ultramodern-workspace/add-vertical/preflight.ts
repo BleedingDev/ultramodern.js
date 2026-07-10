@@ -97,7 +97,11 @@ export function prepareAddUltramodernVertical(
   const bridge = existingBridgeConfig(options.workspaceRoot);
   const existingVerticals = verticalsFromTopology(topology, overlay.ports);
   const port = nextAvailablePort(overlay.ports);
-  const vertical = createVerticalDescriptor(name, port);
+  const vertical = createVerticalDescriptor(name, port, {
+    preset: options.preset,
+    apiProtocol: options.apiProtocol,
+    horizontalRemote: options.horizontalRemote,
+  });
   const updatedVerticals = [...existingVerticals, vertical];
   const allApps = [shellApp, ...updatedVerticals];
 

@@ -29,6 +29,13 @@ export function verticalTopologyEntry(
   return {
     id: vertical.id,
     kind: vertical.kind,
+    // Additive v1 extension (G2H): the canonical `horizontal-remote` delivery
+    // kind is unrepresentable in strict v1, so the v1 `kind` stays `vertical`
+    // and the true kind rides alongside it. Omitted for the `microvertical`
+    // default to preserve byte-identical topology output.
+    ...(vertical.deliveryUnitKind === 'horizontal-remote'
+      ? { deliveryUnitKind: 'horizontal-remote' }
+      : {}),
     ...(vertical.domain ? { domain: vertical.domain } : {}),
     package: packageName(scope, vertical.packageSuffix),
     path: vertical.directory,

@@ -4,6 +4,8 @@ import type {
   UltramodernGenerationResult,
   UltramodernVerticalPlan,
   UltramodernWorkspaceOptions,
+  VerticalApiProtocol,
+  VerticalPreset,
 } from './public-api';
 import {
   addUltramodernVertical,
@@ -28,6 +30,12 @@ type UltramodernCodeSmithConfig = {
   bridge?: UltramodernWorkspaceOptions['bridge'];
   overlays?: UltramodernWorkspaceOptions['overlays'];
   packageSource?: UltramodernWorkspaceOptions['packageSource'];
+  /** Vertical generation preset (G2a). Vertical mode only. */
+  preset?: VerticalPreset;
+  /** API protocol (G7a). Vertical mode only. */
+  apiProtocol?: VerticalApiProtocol;
+  /** Generate a components-only Horizontal Remote unit (G2H). Vertical mode. */
+  horizontalRemote?: boolean;
   packageSourceStrategy?: NonNullable<
     UltramodernWorkspaceOptions['packageSource']
   >['strategy'];
@@ -117,6 +125,9 @@ export default async function ultramodernCodeSmithAdapter(
             enableTailwind,
             overlays: config.overlays,
             packageSource,
+            ...(config.preset ? { preset: config.preset } : {}),
+            ...(config.apiProtocol ? { apiProtocol: config.apiProtocol } : {}),
+            ...(config.horizontalRemote ? { horizontalRemote: true } : {}),
           },
           Boolean(config.dryRun),
         );

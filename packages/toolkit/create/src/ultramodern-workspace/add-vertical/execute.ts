@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { createServerExecutionOverlay } from '../backend-federation';
 import {
+  appHasApi,
   resolveApiPrefix,
   shellApp,
   ULTRAMODERN_CONFIG_PATH,
@@ -103,14 +104,18 @@ function executeAddUltramodernVertical(
   overlay.manifests ??= {};
   overlay.manifests[vertical.id] =
     `http://localhost:${vertical.port}/mf-manifest.json`;
-  overlay.serverExecution ??= {};
-  overlay.serverExecution[vertical.id] = createServerExecutionOverlay(
-    scope,
-    vertical,
-  );
-  overlay.apis ??= {};
-  overlay.apis[vertical.id] =
-    `http://localhost:${vertical.port}${resolveApiPrefix(vertical)}`;
+  // API-scoped overlay entries only exist for units that ship an API surface
+  // (skipped for `ui-only` and horizontal-remote units — G2a/G2H).
+  if (appHasApi(vertical)) {
+    overlay.serverExecution ??= {};
+    overlay.serverExecution[vertical.id] = createServerExecutionOverlay(
+      scope,
+      vertical,
+    );
+    overlay.apis ??= {};
+    overlay.apis[vertical.id] =
+      `http://localhost:${vertical.port}${resolveApiPrefix(vertical)}`;
+  }
   writeJsonFile(topologyPath, topology as JsonValue);
   writeJsonFile(ownershipPath, ownership as JsonValue);
   writeJsonFile(overlayPath, overlay as JsonValue);

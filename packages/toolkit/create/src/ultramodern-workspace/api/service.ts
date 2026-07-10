@@ -18,6 +18,7 @@ import {
   verticalApiGroupName,
   verticalApiNotFoundErrorExport,
 } from './names';
+import { rpcServiceEntryWiring } from './rpc';
 
 export function createApiServiceEntry(
   service: { id: string; api?: WorkspaceApi },
@@ -27,6 +28,10 @@ export function createApiServiceEntry(
   const groupName = verticalApiGroupName(service);
   const notFoundErrorExport = verticalApiNotFoundErrorExport(service);
   const stem = resolveApiStem(service);
+  // G7c: for `rpc` services, splice an RPC group + handler layer + the `rpc`
+  // field of `defineEffectBff`. Empty strings for the REST default so output
+  // stays byte-identical.
+  const rpc = rpcServiceEntryWiring(service);
 
   return `import {
   defineEffectBff,
@@ -34,7 +39,7 @@ export function createApiServiceEntry(
   HttpApiBuilder,
   Layer,
 } from '@modern-js/plugin-bff/effect-edge';
-import type {
+${rpc.imports}import type {
   EffectBffDefinition,
   EffectBffRuntime,
   EffectRuntimeLayer,
@@ -146,11 +151,11 @@ const ${groupName}Layer = HttpApiBuilder.group(
 const layer = HttpApiBuilder.layer(${apiExport}).pipe(
   Layer.provide(${groupName}Layer),
 ) satisfies EffectRuntimeLayer;
-
+${rpc.layer}
 const apiRuntime: EffectBffDefinition<typeof ${apiExport}, EffectRuntimeLayer> &
   EffectBffRuntime<typeof ${apiExport}, EffectRuntimeLayer> = defineEffectBff({
   api: ${apiExport},
-  layer,
+  layer,${rpc.field}
 });
 
 export default apiRuntime;

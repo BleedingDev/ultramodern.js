@@ -162,3 +162,102 @@ test('CLI help documents MicroVertical positional and explicit forms', () => {
   assert.match(result.stdout, /catalog --vertical/);
   assert.match(result.stdout, /--vertical=catalog/);
 });
+
+test('CLI help documents preset, api-protocol and horizontal-remote flags', () => {
+  const result = runCli(packageRoot, ['--help']);
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /--preset=<full-stack\|api-only\|ui-only>/);
+  assert.match(result.stdout, /--api-protocol=<rest\|rpc>/);
+  assert.match(result.stdout, /--horizontal-remote/);
+});
+
+test('CLI --preset=api-only generates a headless MicroVertical', () => {
+  const { tempRoot, workspaceDir } = createWorkspace('vertical-cli-api-only', {
+    tempPrefix: 'um-vertical-cli-',
+  });
+
+  try {
+    const result = runCli(workspaceDir, [
+      'catalog',
+      '--vertical',
+      '--preset=api-only',
+    ]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(
+      fs.existsSync(path.join(workspaceDir, 'verticals/catalog/api/index.ts')),
+      true,
+    );
+    assert.equal(
+      fs.existsSync(
+        path.join(workspaceDir, 'verticals/catalog/src/routes/layout.tsx'),
+      ),
+      false,
+    );
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('CLI --horizontal-remote generates a components-only unit', () => {
+  const { tempRoot, workspaceDir } = createWorkspace(
+    'vertical-cli-horizontal',
+    {
+      tempPrefix: 'um-vertical-cli-',
+    },
+  );
+
+  try {
+    const result = runCli(workspaceDir, [
+      'design-system',
+      '--vertical',
+      '--horizontal-remote',
+    ]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(
+      fs.existsSync(
+        path.join(
+          workspaceDir,
+          'verticals/design-system/src/federation-entry.tsx',
+        ),
+      ),
+      true,
+    );
+    assert.equal(
+      fs.existsSync(
+        path.join(workspaceDir, 'verticals/design-system/api/index.ts'),
+      ),
+      false,
+    );
+    const topology = readJson(workspaceDir, 'topology/reference-topology.json');
+    const entry = topology.verticals.find(
+      (vertical: { id?: string }) => vertical.id === 'design-system',
+    );
+    assert.equal(entry.deliveryUnitKind, 'horizontal-remote');
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('CLI rejects an unsupported --preset without writing files', () => {
+  const { tempRoot, workspaceDir } = createWorkspace(
+    'vertical-cli-bad-preset',
+    {
+      tempPrefix: 'um-vertical-cli-',
+    },
+  );
+
+  try {
+    const before = snapshotWorkspace(workspaceDir);
+    const result = runCli(workspaceDir, [
+      'catalog',
+      '--vertical',
+      '--preset=bogus',
+    ]);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /Unsupported --preset "bogus"/);
+    assert.deepEqual(snapshotWorkspace(workspaceDir), before);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});

@@ -10,6 +10,15 @@ export const DRY_RUN_FLAG = '--dry-run';
 export const VERTICAL_FLAG = '--vertical';
 const VERTICAL_NAME_FLAG = '--vertical-name';
 export const CODESMITH_OVERLAY_FLAG = '--codesmith-overlay';
+export const PRESET_FLAG = '--preset';
+export const API_PROTOCOL_FLAG = '--api-protocol';
+export const HORIZONTAL_REMOTE_FLAG = '--horizontal-remote';
+const SUPPORTED_PRESETS = ['full-stack', 'api-only', 'ui-only'] as const;
+const SUPPORTED_API_PROTOCOLS = ['rest', 'rpc'] as const;
+
+export type VerticalPresetFlag = (typeof SUPPORTED_PRESETS)[number];
+export type ApiProtocolFlag = (typeof SUPPORTED_API_PROTOCOLS)[number];
+
 const BFF_FLAG = '--bff';
 const BFF_RUNTIME_OPTION = '--bff-runtime';
 const SUPPORTED_BFF_RUNTIMES = ['effect'] as const;
@@ -127,6 +136,8 @@ export function collectPositionalArgs(args: string[]): string[] {
     '--ultramodern-package-name-prefix',
     VERTICAL_NAME_FLAG,
     CODESMITH_OVERLAY_FLAG,
+    PRESET_FLAG,
+    API_PROTOCOL_FLAG,
     ...ultramodernBridgeCliValueFlags,
   ]);
   const optionWithoutValue = new Set([
@@ -140,6 +151,7 @@ export function collectPositionalArgs(args: string[]): string[] {
     WORKSPACE_PROTOCOL_FLAG,
     DRY_RUN_FLAG,
     VERTICAL_FLAG,
+    HORIZONTAL_REMOTE_FLAG,
     ...ultramodernBridgeCliBooleanFlags,
   ]);
   const positionalArgs: string[] = [];
@@ -167,6 +179,8 @@ export function collectPositionalArgs(args: string[]): string[] {
       arg.startsWith(`${VERTICAL_FLAG}=`) ||
       arg.startsWith(`${VERTICAL_NAME_FLAG}=`) ||
       arg.startsWith(`${CODESMITH_OVERLAY_FLAG}=`) ||
+      arg.startsWith(`${PRESET_FLAG}=`) ||
+      arg.startsWith(`${API_PROTOCOL_FLAG}=`) ||
       ultramodernBridgeCliBooleanFlags.some(flag =>
         arg.startsWith(`${flag}=`),
       ) ||
@@ -312,6 +326,46 @@ export function detectCodeSmithOverlays(args: string[]) {
   }
 
   return overlays.length > 0 ? overlays : undefined;
+}
+
+export function detectHorizontalRemoteFlag(args: string[]): boolean {
+  if (args.some(arg => arg.startsWith(`${HORIZONTAL_REMOTE_FLAG}=`))) {
+    console.error(`${HORIZONTAL_REMOTE_FLAG} does not accept a value.`);
+    process.exit(1);
+  }
+  return args.includes(HORIZONTAL_REMOTE_FLAG);
+}
+
+export function detectPresetFlag(
+  args: string[],
+): VerticalPresetFlag | undefined {
+  const value = getOptionValue(args, [PRESET_FLAG]);
+  if (value === undefined) {
+    return undefined;
+  }
+  if (!(SUPPORTED_PRESETS as readonly string[]).includes(value)) {
+    console.error(
+      `Unsupported ${PRESET_FLAG} "${value}" (supported: ${SUPPORTED_PRESETS.join(', ')}).`,
+    );
+    process.exit(1);
+  }
+  return value as VerticalPresetFlag;
+}
+
+export function detectApiProtocolFlag(
+  args: string[],
+): ApiProtocolFlag | undefined {
+  const value = getOptionValue(args, [API_PROTOCOL_FLAG]);
+  if (value === undefined) {
+    return undefined;
+  }
+  if (!(SUPPORTED_API_PROTOCOLS as readonly string[]).includes(value)) {
+    console.error(
+      `Unsupported ${API_PROTOCOL_FLAG} "${value}" (supported: ${SUPPORTED_API_PROTOCOLS.join(', ')}).`,
+    );
+    process.exit(1);
+  }
+  return value as ApiProtocolFlag;
 }
 
 export function readBridgeCliOptions(args: string[]) {

@@ -6,7 +6,13 @@ import {
   toKebabCase,
   toPascalCase,
 } from './naming';
-import type { Ownership, WorkspaceApi, WorkspaceApp } from './types';
+import type {
+  Ownership,
+  VerticalApiProtocol,
+  VerticalPreset,
+  WorkspaceApi,
+  WorkspaceApp,
+} from './types';
 
 export const ULTRAMODERN_CONFIG_PATH = '.modernjs/ultramodern.json';
 
@@ -74,10 +80,30 @@ export function createNeutralOwnership(
   };
 }
 
+export type CreateVerticalDescriptorOptions = {
+  /** Generation preset (G2a). Defaults to `full-stack`. */
+  preset?: VerticalPreset;
+  /** API protocol (G7a). Defaults to `rest`. */
+  apiProtocol?: VerticalApiProtocol;
+  /** Generate a Horizontal Remote delivery unit (G2H) instead of a vertical. */
+  horizontalRemote?: boolean;
+};
+
 export function createVerticalDescriptor(
   name: string,
   port: number,
+  options: CreateVerticalDescriptorOptions = {},
 ): WorkspaceApp {
+  const horizontalRemote = options.horizontalRemote ?? false;
+  // A Horizontal Remote is a components-only delivery unit: it forces a UI-only
+  // surface set (no API) regardless of any requested preset.
+  const preset: VerticalPreset = horizontalRemote
+    ? 'ui-only'
+    : (options.preset ?? 'full-stack');
+  const apiProtocol: VerticalApiProtocol = options.apiProtocol ?? 'rest';
+  const emitsUi = preset !== 'api-only';
+  const emitsApi = preset !== 'ui-only';
+
   const domain = toKebabCase(name);
   const id = domain;
   const displayPrefix = toPascalCase(domain).replace(
@@ -94,15 +120,32 @@ export function createVerticalDescriptor(
     portEnv: `VERTICAL_${toEnvSegment(domain)}_PORT`,
     port,
     mfName: `vertical${toPascalCase(domain)}`,
-    exposes: {
-      './Route': './src/federation-entry.tsx',
-      './Widget': `./src/components/${domain}-widget.tsx`,
-    },
-    api: {
-      stem: domain,
-      prefix: `/${domain}-api`,
-      consumedBy: [shellApp.id, id],
-    },
+    ...(emitsUi
+      ? {
+          exposes: {
+            './Route': './src/federation-entry.tsx',
+            './Widget': `./src/components/${domain}-widget.tsx`,
+          },
+        }
+      : {}),
+    ...(emitsApi
+      ? {
+          api: {
+            stem: domain,
+            prefix: `/${domain}-api`,
+            consumedBy: [shellApp.id, id],
+            // Omit `protocol` for the legacy REST default so byte-identical
+            // output is preserved; only `rpc` is recorded.
+            ...(apiProtocol !== 'rest' ? { protocol: apiProtocol } : {}),
+          },
+        }
+      : {}),
+    // Omit `surfaceProfile` for `full-stack` so default descriptors are
+    // byte-identical to the legacy shape.
+    ...(preset !== 'full-stack' ? { surfaceProfile: preset } : {}),
+    ...(horizontalRemote
+      ? { deliveryUnitKind: 'horizontal-remote' as const }
+      : {}),
     ownership: createNeutralOwnership(id),
   };
 }
@@ -111,6 +154,21 @@ export function appHasApi(app: WorkspaceApp): app is WorkspaceApp & {
   api: WorkspaceApi;
 } {
   return app.api !== undefined;
+}
+
+/**
+ * Whether an app emits browser/UI artifacts (routes, page/layout, public-web
+ * surfaces, Tailwind, browser Module Federation). True for the shell and for
+ * `full-stack` / `ui-only` verticals; false only for an `api-only` (headless)
+ * vertical (G2a).
+ */
+export function appEmitsBrowserUi(app: WorkspaceApp): boolean {
+  return app.surfaceProfile !== 'api-only';
+}
+
+/** The API protocol for an app's API surface (G7a). Defaults to `rest`. */
+export function resolveApiProtocol(app: WorkspaceApp): VerticalApiProtocol {
+  return app.api?.protocol ?? 'rest';
 }
 
 export function resolveApiPrefix(target: { id: string; api?: WorkspaceApi }) {

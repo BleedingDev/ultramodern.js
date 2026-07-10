@@ -5,6 +5,7 @@ import {
   createSharedApi,
   createShellApiClient,
 } from './api';
+import { createRpcClientFile, createRpcContractFile } from './api/rpc';
 import {
   createAppEnvDts,
   createAppRuntimeConfig,
@@ -23,7 +24,13 @@ import {
   createShellRemoteComponents,
   remoteComponentOutputPath,
 } from './demo-components';
-import { appHasApi, appI18nNamespace, createShellHost } from './descriptors';
+import {
+  appEmitsBrowserUi,
+  appHasApi,
+  appI18nNamespace,
+  createShellHost,
+  resolveApiProtocol,
+} from './descriptors';
 import { writeFile, writeJson } from './fs-io';
 import { createAppPublicLocaleMessages } from './locales';
 import {
@@ -49,6 +56,8 @@ type WriteAppContext = {
   resolvedApp: WorkspaceApp;
   packageSource: ResolvedPackageSource;
   enableTailwind: boolean;
+  /** Whether this app emits browser/UI artifacts (false for `api-only`). */
+  emitsUi: boolean;
   remotes: WorkspaceApp[];
   bridge: UltramodernBridgeConfig | undefined;
   publicWeb: ReturnType<typeof createPublicWebAppArtifacts>;
@@ -64,6 +73,9 @@ export function writeApp(
   bridge?: UltramodernBridgeConfig,
 ) {
   const resolvedApp = app.kind === 'shell' ? createShellHost(remotes) : app;
+  const emitsUi = appEmitsBrowserUi(resolvedApp);
+  // A headless (api-only) unit never emits Tailwind CSS (G2a).
+  const appTailwind = enableTailwind && emitsUi;
   const publicWeb = createPublicWebAppArtifacts(resolvedApp);
   const writeAppFile = (relativePath: string, content: string) => {
     writeFile(targetDir, `${resolvedApp.directory}/${relativePath}`, content);
@@ -73,7 +85,8 @@ export function writeApp(
     scope,
     resolvedApp,
     packageSource,
-    enableTailwind,
+    enableTailwind: appTailwind,
+    emitsUi,
     remotes,
     bridge,
     publicWeb,
@@ -92,6 +105,7 @@ function writeAppConfigFiles({
   resolvedApp,
   packageSource,
   enableTailwind,
+  emitsUi,
   remotes,
   bridge,
   publicWeb,
@@ -138,21 +152,23 @@ function writeAppConfigFiles({
     `${resolvedApp.directory}/shared/ultramodern-build.json`,
     createUltramodernBuildArtifactJson(scope, resolvedApp),
   );
-  writeFile(
-    targetDir,
-    publicWeb.jsonLdHelperFile.path,
-    publicWeb.jsonLdHelperFile.content,
-  );
-  writeFile(
-    targetDir,
-    publicWeb.routeMetadataFile.path,
-    publicWeb.routeMetadataFile.content,
-  );
-  writeFile(
-    targetDir,
-    publicWeb.routeHeadFile.path,
-    publicWeb.routeHeadFile.content,
-  );
+  if (emitsUi) {
+    writeFile(
+      targetDir,
+      publicWeb.jsonLdHelperFile.path,
+      publicWeb.jsonLdHelperFile.content,
+    );
+    writeFile(
+      targetDir,
+      publicWeb.routeMetadataFile.path,
+      publicWeb.routeMetadataFile.content,
+    );
+    writeFile(
+      targetDir,
+      publicWeb.routeHeadFile.path,
+      publicWeb.routeHeadFile.content,
+    );
+  }
   writeFile(
     targetDir,
     `${resolvedApp.directory}/modern.config.ts`,
@@ -170,6 +186,7 @@ function writeAppLocaleAndStyleFiles({
   scope,
   resolvedApp,
   enableTailwind,
+  emitsUi,
   remotes,
 }: WriteAppContext) {
   writeJson(
@@ -192,11 +209,13 @@ function writeAppLocaleAndStyleFiles({
     `${resolvedApp.directory}/locales/cs/${appI18nNamespace(resolvedApp)}.json`,
     createAppPublicLocaleMessages(resolvedApp, 'cs', remotes),
   );
-  writeFile(
-    targetDir,
-    `${resolvedApp.directory}/src/routes/index.css`,
-    createAppStyles(enableTailwind, scope, resolvedApp),
-  );
+  if (emitsUi) {
+    writeFile(
+      targetDir,
+      `${resolvedApp.directory}/src/routes/index.css`,
+      createAppStyles(enableTailwind, scope, resolvedApp),
+    );
+  }
   if (enableTailwind) {
     writeFile(
       targetDir,
@@ -210,15 +229,21 @@ function writeAppFederationConfigFiles({
   targetDir,
   scope,
   resolvedApp,
+  emitsUi,
   remotes,
 }: WriteAppContext) {
-  writeFile(
-    targetDir,
-    `${resolvedApp.directory}/module-federation.config.ts`,
-    resolvedApp.kind === 'shell'
-      ? createShellModuleFederationConfig(scope, remotes)
-      : createRemoteModuleFederationConfig(scope, resolvedApp, remotes),
-  );
+  // A headless (api-only) unit exposes no browser Module Federation surface, so
+  // it emits no browser `module-federation.config.ts` (G2a). It still exposes
+  // its backend federation container below.
+  if (emitsUi) {
+    writeFile(
+      targetDir,
+      `${resolvedApp.directory}/module-federation.config.ts`,
+      resolvedApp.kind === 'shell'
+        ? createShellModuleFederationConfig(scope, remotes)
+        : createRemoteModuleFederationConfig(scope, resolvedApp, remotes),
+    );
+  }
   if (appHasApi(resolvedApp)) {
     writeFile(
       targetDir,
@@ -232,10 +257,15 @@ function writeAppRouteAndShellFiles({
   targetDir,
   scope,
   resolvedApp,
+  emitsUi,
   remotes,
   publicWeb,
   writeAppFile,
 }: WriteAppContext) {
+  // A headless (api-only) unit emits no UI routes/pages/public surfaces (G2a).
+  if (!emitsUi) {
+    return;
+  }
   writeAppFile('src/routes/layout.tsx', createLayout(resolvedApp.id));
   writeAppFile(
     'src/routes/[lang]/page.tsx',
@@ -268,6 +298,7 @@ function writeAppApiAndRemoteExposeFiles({
   targetDir,
   scope,
   resolvedApp,
+  emitsUi,
   writeAppFile,
 }: WriteAppContext) {
   if (appHasApi(resolvedApp)) {
@@ -296,9 +327,24 @@ function writeAppApiAndRemoteExposeFiles({
       `${resolvedApp.directory}/src/api/${resolvedApp.api.stem}-client.ts`,
       createApiClient(resolvedApp, '../../shared/api'),
     );
+    // G7c: emit the Effect RPC contract + client alongside the REST surface
+    // when the API protocol is `rpc`. The service entry (createApiServiceEntry)
+    // mounts the RPC handler layer through `defineEffectBff({ ..., rpc })`.
+    if (resolveApiProtocol(resolvedApp) === 'rpc') {
+      writeFile(
+        targetDir,
+        `${resolvedApp.directory}/shared/rpc.ts`,
+        createRpcContractFile(resolvedApp),
+      );
+      writeFile(
+        targetDir,
+        `${resolvedApp.directory}/src/api/${resolvedApp.api.stem}-rpc-client.ts`,
+        createRpcClientFile(resolvedApp),
+      );
+    }
   }
 
-  if (resolvedApp.kind === 'vertical') {
+  if (resolvedApp.kind === 'vertical' && emitsUi) {
     writeAppFile('src/federation-entry.tsx', createRemoteEntry(resolvedApp));
     for (const expose of Object.keys(resolvedApp.exposes ?? {})) {
       const outputPath = remoteComponentOutputPath(resolvedApp, expose);
