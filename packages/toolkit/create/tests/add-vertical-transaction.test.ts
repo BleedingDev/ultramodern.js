@@ -6,6 +6,20 @@ import {
   addUltramodernVertical,
   generateUltramodernWorkspace,
 } from '../src/ultramodern-workspace';
+import {
+  runWorkspaceTransaction,
+  ULTRAMODERN_LOCK_DIRECTORY,
+  ULTRAMODERN_LOCK_FILE,
+  WorkspaceLockedError,
+} from '../src/ultramodern-workspace/add-vertical/transaction';
+
+function lockPath(workspaceDir: string): string {
+  return path.join(
+    workspaceDir,
+    ULTRAMODERN_LOCK_DIRECTORY,
+    ULTRAMODERN_LOCK_FILE,
+  );
+}
 
 function snapshotAllFiles(root: string): Map<string, Buffer> {
   const files = new Map<string, Buffer>();
@@ -115,6 +129,100 @@ test('add-vertical rolls back byte-identical when a mid-set write fails (G1c)', 
     );
 
     assertByteIdentical(before, snapshotAllFiles(workspaceDir));
+  } finally {
+    fs.rmSync(tempRoot, { force: true, recursive: true });
+  }
+});
+
+/* -------------------------------------------------------------------------- */
+/* Exclusive mutation lock (G1c concurrency)                                   */
+/* -------------------------------------------------------------------------- */
+
+test('a second mutation is rejected while the first holds the lock (G1c)', () => {
+  const { tempRoot, workspaceDir } = scaffoldWorkspace();
+  try {
+    let observed: unknown;
+    // While the outer transaction holds the lock, a nested attempt on the same
+    // workspace must fail immediately with a typed lock error (no queueing).
+    runWorkspaceTransaction(workspaceDir, () => {
+      assert.ok(fs.existsSync(lockPath(workspaceDir)), 'lock is held');
+      try {
+        runWorkspaceTransaction(workspaceDir, () => 'should not run');
+      } catch (error) {
+        observed = error;
+      }
+    });
+
+    assert.ok(
+      observed instanceof WorkspaceLockedError &&
+        observed.code === 'workspace-locked',
+      'concurrent attempt rejects with WorkspaceLockedError',
+    );
+    // Lock released after the outer transaction completes.
+    assert.ok(
+      !fs.existsSync(lockPath(workspaceDir)),
+      'lock released on success',
+    );
+  } finally {
+    fs.rmSync(tempRoot, { force: true, recursive: true });
+  }
+});
+
+test('a stale lock is taken over (G1c)', () => {
+  const { tempRoot, workspaceDir } = scaffoldWorkspace();
+  try {
+    // Plant a lock with a long-past timestamp: a crashed mutation that never
+    // released. With a tiny stale threshold it must be taken over, not blocked.
+    fs.mkdirSync(path.dirname(lockPath(workspaceDir)), { recursive: true });
+    fs.writeFileSync(
+      lockPath(workspaceDir),
+      JSON.stringify({ pid: 999999, timestamp: 0 }),
+    );
+
+    const result = runWorkspaceTransaction(workspaceDir, () => 'ran', {
+      staleLockMs: 1,
+    });
+    assert.equal(result, 'ran', 'transaction runs after stale-lock takeover');
+    assert.ok(
+      !fs.existsSync(lockPath(workspaceDir)),
+      'lock released after takeover',
+    );
+  } finally {
+    fs.rmSync(tempRoot, { force: true, recursive: true });
+  }
+});
+
+test('the lock is released after a failed transaction, leaving the tree byte-identical (G1c)', () => {
+  const { tempRoot, workspaceDir } = scaffoldWorkspace();
+  try {
+    const before = snapshotAllFiles(workspaceDir);
+
+    assert.throws(
+      () =>
+        runWorkspaceTransaction(workspaceDir, () => {
+          fs.writeFileSync(
+            path.join(workspaceDir, 'scratch-file.txt'),
+            'partial mutation',
+          );
+          throw new Error('boom');
+        }),
+      /boom/,
+    );
+
+    // Restore is byte-identical AND the lock is gone, so the workspace is
+    // immediately usable by the next mutation.
+    assert.ok(
+      !fs.existsSync(lockPath(workspaceDir)),
+      'lock released on the failure/restore path',
+    );
+    assertByteIdentical(before, snapshotAllFiles(workspaceDir));
+
+    const result = addUltramodernVertical({
+      workspaceRoot: workspaceDir,
+      name: 'payments',
+      modernVersion: '3.2.1',
+    });
+    assert.equal(result.createdApps[0]?.id, 'payments');
   } finally {
     fs.rmSync(tempRoot, { force: true, recursive: true });
   }

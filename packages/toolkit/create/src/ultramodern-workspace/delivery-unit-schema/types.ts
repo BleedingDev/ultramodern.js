@@ -272,46 +272,69 @@ export function parseSurfaceRef(input: string): SurfaceRefParseResult {
   const unitPart = input.slice(0, hashIndex);
   const rest = input.slice(hashIndex + 1);
 
-  if (unitPart === '') {
-    return { ok: false, error: { code: 'empty-unit-id' } };
+  const atIndex = rest.indexOf('@');
+  const surfaceId = atIndex === -1 ? rest : rest.slice(0, atIndex);
+  const ref: ParsedSurfaceRef = { unitId: unitPart, surfaceId };
+
+  if (atIndex !== -1) {
+    const majorPart = rest.slice(atIndex + 1);
+    if (majorPart === '') {
+      return { ok: false, error: { code: 'empty-major' } };
+    }
+    if (!MAJOR_PATTERN.test(majorPart)) {
+      return { ok: false, error: { code: 'invalid-major', value: majorPart } };
+    }
+    ref.major = Number(majorPart.slice(1));
   }
-  for (const segment of unitPart.split('/')) {
+
+  const error = validateSurfaceRef(ref);
+  return error === undefined ? { ok: true, ref } : { ok: false, error };
+}
+
+/**
+ * Render a {@link ParsedSurfaceRef} back to its canonical string form.
+ *
+ * Direct inputs are checked against the same invariant as parsed references,
+ * so this formatter cannot emit a string that {@link parseSurfaceRef} rejects.
+ */
+export function formatSurfaceRef(ref: ParsedSurfaceRef): string {
+  const error = validateSurfaceRef(ref);
+  if (error !== undefined) {
+    throw new TypeError(`Cannot format invalid SurfaceRef: ${error.code}.`);
+  }
+
+  const base = `${ref.unitId}#${ref.surfaceId}`;
+  return ref.major === undefined ? base : `${base}@v${ref.major}`;
+}
+
+/** The shared semantic invariant for parsed and directly formatted references. */
+function validateSurfaceRef(
+  ref: ParsedSurfaceRef,
+): SurfaceRefParseError | undefined {
+  if (ref.unitId === '') {
+    return { code: 'empty-unit-id' };
+  }
+  for (const segment of ref.unitId.split('/')) {
     if (!SEGMENT_PATTERN.test(segment)) {
-      return { ok: false, error: { code: 'invalid-unit-id', segment } };
+      return { code: 'invalid-unit-id', segment };
     }
   }
 
-  const atIndex = rest.indexOf('@');
-  const surfaceId = atIndex === -1 ? rest : rest.slice(0, atIndex);
-  if (surfaceId === '') {
-    return { ok: false, error: { code: 'empty-surface-id' } };
+  if (ref.surfaceId === '') {
+    return { code: 'empty-surface-id' };
   }
-  if (!SEGMENT_PATTERN.test(surfaceId)) {
-    return { ok: false, error: { code: 'invalid-surface-id' } };
+  if (!SEGMENT_PATTERN.test(ref.surfaceId)) {
+    return { code: 'invalid-surface-id' };
   }
 
-  if (atIndex === -1) {
-    return { ok: true, ref: { unitId: unitPart, surfaceId } };
+  if (
+    ref.major !== undefined &&
+    (!Number.isSafeInteger(ref.major) || ref.major < 1)
+  ) {
+    return { code: 'invalid-major', value: String(ref.major) };
   }
 
-  const majorPart = rest.slice(atIndex + 1);
-  if (majorPart === '') {
-    return { ok: false, error: { code: 'empty-major' } };
-  }
-  if (!MAJOR_PATTERN.test(majorPart)) {
-    return { ok: false, error: { code: 'invalid-major', value: majorPart } };
-  }
-
-  return {
-    ok: true,
-    ref: { unitId: unitPart, surfaceId, major: Number(majorPart.slice(1)) },
-  };
-}
-
-/** Render a {@link ParsedSurfaceRef} back to its canonical string form. */
-export function formatSurfaceRef(ref: ParsedSurfaceRef): string {
-  const base = `${ref.unitId}#${ref.surfaceId}`;
-  return ref.major === undefined ? base : `${base}@v${ref.major}`;
+  return undefined;
 }
 
 function countChar(input: string, char: string): number {
@@ -520,6 +543,16 @@ export function projectDeliveryUnitToV1(
   const appId = lastSegment(descriptor.unitId);
   const api = projectApi(descriptor.surfaces);
 
+  // Owner round-trip (G3): a `team` owner is v1-native (its id/contact live in
+  // `ownership.team`/`ownership.slack`), so the neutral context ownership is
+  // left byte-identical. A non-team (`agent` / `agent-team`) owner has no
+  // v1-native home, so it is carried back explicitly in `ownership.owner`,
+  // where the up-projection reads it again — faithful through the pair.
+  const ownership: Ownership =
+    descriptor.owner.kind === 'team'
+      ? context.ownership
+      : { ...context.ownership, owner: { ...descriptor.owner } };
+
   const app: WorkspaceApp = {
     id: appId,
     directory: context.directory,
@@ -529,7 +562,7 @@ export function projectDeliveryUnitToV1(
     portEnv: context.portEnv,
     port: context.port,
     mfName: context.mfName,
-    ownership: context.ownership,
+    ownership,
     ...(api === undefined ? {} : { api }),
   };
 

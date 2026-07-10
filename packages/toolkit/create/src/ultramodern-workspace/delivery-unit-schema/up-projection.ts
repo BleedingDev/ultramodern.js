@@ -82,14 +82,20 @@ export type V1UpProjectionContext = {
  * Map a v1 {@link Ownership} block onto the canonical single {@link
  * DeliveryUnitOwner}.
  *
- * Kind heuristic: v1 ownership always names a human on-call team (a Slack
- * channel + PagerDuty rotation), so this always yields `kind: 'team'`. v1
- * cannot express `agent` / `agent-team` ownership; those canonical owner kinds
- * are simply unreachable from a v1 app (they only appear on descriptors
- * authored canonically). `id` comes from `ownership.team`; `contact` from
- * `ownership.slack`.
+ * Owner honouring (G3): when the v1 `Ownership` carries an explicit `owner`
+ * attribution (opt-in — the way v1 records an `agent` / `agent-team` owner),
+ * that attribution IS the canonical owner and is passed through verbatim
+ * (`kind` + `id` + optional `contact`). Only when no explicit owner was set
+ * does this fall back to the neutral human-team default: `kind: 'team'`, `id`
+ * from `ownership.team`, `contact` from `ownership.slack`. The down-projection
+ * writes a non-team owner back into `ownership.owner`, so agent / agent-team
+ * owners round-trip faithfully through the projection pair.
  */
 export function ownershipToOwner(ownership: Ownership): DeliveryUnitOwner {
+  if (ownership.owner !== undefined) {
+    const { kind, id, contact } = ownership.owner;
+    return contact === undefined ? { kind, id } : { kind, id, contact };
+  }
   return {
     kind: 'team',
     id: ownership.team,
@@ -122,7 +128,7 @@ const SEGMENT_UNSAFE = /[^A-Za-z0-9._-]+/g;
 const SEGMENT_TRIM = /^-+|-+$/g;
 
 /** Derive a canonical, SurfaceRef-valid `surfaceId` from an MF expose key. */
-function exposeSurfaceId(key: string): string {
+export function exposeSurfaceId(key: string): string {
   const trimmed = key.replace(/^\.\//, '');
   const cleaned = trimmed
     .replace(SEGMENT_UNSAFE, '-')
@@ -140,7 +146,7 @@ function exposeSurfaceId(key: string): string {
  * `browser-mf` location points at the app's MF manifest (derived from
  * `app.port`, the only address a v1 app exposes for its browser bundle).
  */
-function exposeSurface(
+export function exposeSurface(
   app: WorkspaceApp,
   key: string,
   value: string,
@@ -255,6 +261,15 @@ export function projectV1ToDeliveryUnit(
  * - `unsupported-surface-shape`: an api surface whose shape v1 cannot carry —
  *   anything other than exactly one `http` location, or per-surface
  *   `externallyPublished` / `unknownFields` metadata.
+ * - `unknown-fields`: the descriptor carries top-level `unknownFields`. v1 has
+ *   nowhere to store them in-band — the down-projection returns them
+ *   out-of-band (`preservedUnknownFields`), so a v1 shape cannot reproduce the
+ *   descriptor byte-for-byte in a single canonical value.
+ * - `non-canonical-zone`: the descriptor's `publicationZone` is not exactly the
+ *   canonical `{ zone: 'coordinated' }` the up-projection always re-emits. A
+ *   descriptor with NO `publicationZone` (down drops the field, up re-adds an
+ *   explicit coordinated zone) or a `coordinated` zone carrying extra fields is
+ *   therefore not round-trip-faithful.
  */
 export type V1UnrepresentableReason =
   | 'horizontal-remote-kind'
@@ -264,7 +279,9 @@ export type V1UnrepresentableReason =
   | 'backend-surface'
   | 'multiple-api-surfaces'
   | 'non-rest-protocol'
-  | 'unsupported-surface-shape';
+  | 'unsupported-surface-shape'
+  | 'unknown-fields'
+  | 'non-canonical-zone';
 
 export type V1RepresentabilityResult =
   | { representable: true }
@@ -321,7 +338,8 @@ function checkSurfaceRepresentable(
  * Returns a typed result rather than throwing. Exhaustive over the loss set
  * of `projectDeliveryUnitToV1` (see {@link V1UnrepresentableReason}); the
  * first detected reason is reported, in a deterministic order (unit-level
- * kind/zone/owner first, then surfaces in declaration order).
+ * kind, unknown-fields, zone, owner first, then surfaces in declaration
+ * order).
  *
  * The round-trip law rests on this guard: for descriptors this function
  * accepts, canonical -> v1 -> canonical is lossless on every
@@ -341,8 +359,18 @@ export function checkV1Representable(
   if (descriptor.kind === 'horizontal-remote') {
     return unrepresentable('horizontal-remote-kind');
   }
-  if (descriptor.publicationZone?.zone === 'external') {
+  if (descriptor.unknownFields !== undefined) {
+    return unrepresentable('unknown-fields');
+  }
+  const zone = descriptor.publicationZone;
+  if (zone === undefined) {
+    return unrepresentable('non-canonical-zone');
+  }
+  if (zone.zone === 'external') {
     return unrepresentable('external-zone');
+  }
+  if (zone.zone !== 'coordinated' || Object.keys(zone).length !== 1) {
+    return unrepresentable('non-canonical-zone');
   }
   if (descriptor.owner.kind !== 'team') {
     return unrepresentable('non-team-owner');

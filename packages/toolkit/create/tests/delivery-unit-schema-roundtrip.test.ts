@@ -407,6 +407,61 @@ test('canonical -> v1 -> canonical is lossless for descriptors passing checkV1Re
 });
 
 /* -------------------------------------------------------------------------- */
+/* Owner round-trip (G3): agent / agent-team owners carried via ownership.owner */
+/* -------------------------------------------------------------------------- */
+
+test('canonical agent / agent-team owner round-trips through the projection pair (G3)', () => {
+  const owners = [
+    { kind: 'agent', id: 'bot-7', contact: '#bot-7' },
+    { kind: 'agent-team', id: 'swarm-3' },
+  ] as const;
+
+  for (const owner of owners) {
+    const descriptor: DeliveryUnitDescriptor = {
+      unitId: 'acme/checkout',
+      kind: 'microvertical',
+      owner,
+      sourceRevision: 'rev-a',
+      buildMarker: 'marker-a',
+      baselineCohort,
+      publicationZone: { zone: 'coordinated' },
+      surfaces: [],
+    };
+
+    const { app } = projectDeliveryUnitToV1(descriptor, {
+      directory: 'apps/checkout',
+      packageSuffix: 'checkout',
+      displayName: 'Checkout',
+      portEnv: 'CHECKOUT_PORT',
+      port: 8500,
+      mfName: 'checkout',
+      ownership: {
+        team: 'human-fallback',
+        slack: '#human-fallback',
+        pagerDuty: 'pd',
+        runbookRef: 'runbooks/checkout.md',
+        adrRef: 'ADR-0019',
+        blastRadius: { tier: 'tier-2-vertical', references: [] },
+      },
+      packageName: '@acme/checkout',
+      version: '0.1.0',
+    });
+
+    // Down-projection carries the non-team owner into ownership.owner...
+    assert.deepEqual(app.ownership.owner, owner, owner.kind);
+
+    // ...and the up-projection reads it straight back, faithfully.
+    const back = projectV1ToDeliveryUnit(app, {
+      scope: 'acme',
+      sourceRevision: descriptor.sourceRevision,
+      buildMarker: descriptor.buildMarker,
+      baselineCohort,
+    });
+    assert.deepEqual(back.owner, owner, owner.kind);
+  }
+});
+
+/* -------------------------------------------------------------------------- */
 /* Unrepresentable-in-v1 cases: typed rejection, never silent degradation      */
 /* -------------------------------------------------------------------------- */
 
@@ -476,6 +531,7 @@ test('the guard exhaustively detects every construct the v1 shape cannot carry',
     sourceRevision: 'rev-x',
     buildMarker: 'marker-x',
     baselineCohort,
+    publicationZone: { zone: 'coordinated' },
     surfaces: [],
     ...overrides,
   });
@@ -489,6 +545,10 @@ test('the guard exhaustively detects every construct the v1 shape cannot carry',
 
   const cases: Array<[string, DeliveryUnitDescriptor]> = [
     ['non-team-owner', base({ owner: { kind: 'agent', id: 'bot-7' } })],
+    ['unknown-fields', base({ unknownFields: { forwardCompat: 'x' } })],
+    // No publicationZone: down drops the field, up re-adds an explicit
+    // coordinated zone, so the absence is not round-trippable.
+    ['non-canonical-zone', base({ publicationZone: undefined })],
     [
       'component-or-route-surface',
       base({

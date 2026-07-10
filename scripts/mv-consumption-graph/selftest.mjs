@@ -47,6 +47,23 @@ test('extract: dynamic-consumption warning for loadRemote(non-literal)', () => {
   assert.equal(w[0].consumer, 'shell');
 });
 
+test('extract: dynamic-consumption warning for consumeSurface(non-literal ref)', () => {
+  const g = extractObservedGraph(FIX);
+  const consumeWarn = g.warnings.filter(
+    w => w.kind === 'dynamic-consumption' && /consumeSurface/.test(w.reason),
+  );
+  assert.ok(
+    consumeWarn.length >= 1,
+    'consumeSurface with a non-literal ref surfaces a warning, not silence',
+  );
+  assert.equal(consumeWarn[0].consumer, 'shell');
+  // The literal consumeSurface (AlphaCart) must NOT be flagged as dynamic.
+  assert.ok(
+    g.edges.some(e => /G4-consume-surface/.test(e.grammar)),
+    'literal consumeSurface still produces an edge',
+  );
+});
+
 test('cycles: synthetic alpha<->beta cycle detected', () => {
   const g = extractObservedGraph(FIX);
   const cycles = detectUnitCycles(g.edges);

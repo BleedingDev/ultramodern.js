@@ -6,6 +6,7 @@ import type {
   DeliveryUnitDescriptor,
   SurfaceDescriptor,
 } from './delivery-unit-schema/types';
+import { exposeSurface } from './delivery-unit-schema/up-projection';
 import { appHasApi, ULTRAMODERN_CONFIG_PATH } from './descriptors';
 import { normalizePath, packageName } from './naming';
 import type {
@@ -143,13 +144,12 @@ function createGeneratedDeliveryUnitDescriptor(
   app: WorkspaceApp,
 ): DeliveryUnitDescriptor {
   const record = createDeliveryUnitRecord(scope, app);
-  const manifestUrl = `http://localhost:${app.port}/mf-manifest.json`;
-  const surfaces: SurfaceDescriptor[] = Object.keys(app.exposes ?? {}).map(
-    exposeName => ({
-      kind: 'component',
-      surfaceId: exposeName,
-      locations: [{ platform: 'browser-mf', manifestUrl }],
-    }),
+  // Expose keys (e.g. `./Cart`) are MF module specifiers, not grammar-valid
+  // SurfaceRef segments. Reuse the up-projection's expose mapper so the
+  // exposed surfaceId is sanitized to the SurfaceRef grammar AND classified
+  // (route vs component) by the same rule the canonical up-projection uses.
+  const surfaces: SurfaceDescriptor[] = Object.entries(app.exposes ?? {}).map(
+    ([key, value]) => exposeSurface(app, key, value),
   );
   if (appHasApi(app)) {
     surfaces.push({

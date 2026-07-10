@@ -17,4 +17,10 @@ export async function loadDynamic(specifier: string) {
   return loadRemote<RemoteModule>(specifier);
 }
 
+// dynamic-consumption: consumeSurface with a computed (non-literal) ref is
+// invisible to static edge extraction and must surface as a warning, not silence.
+export function consumeDynamic(dynamicRef: string) {
+  return consumeSurface({ ref: dynamicRef, degraded: () => null });
+}
+
 export { AlphaCart, AlphaWidget, alphaApi, BetaRoute, BetaWidget };

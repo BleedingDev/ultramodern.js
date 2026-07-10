@@ -104,6 +104,7 @@ test('SurfaceRef rejects invalid forms with typed errors', () => {
     ['checkout#cart@v0', 'invalid-major'],
     ['checkout#cart@v01', 'invalid-major'],
     ['checkout#cart@vx', 'invalid-major'],
+    ['checkout#cart@v9007199254740992', 'invalid-major'],
   ];
   for (const [input, code] of cases) {
     const result = parseSurfaceRef(input);
@@ -111,6 +112,36 @@ test('SurfaceRef rejects invalid forms with typed errors', () => {
     if (!result.ok) {
       assert.equal(result.error.code, code, `wrong error code for ${input}`);
     }
+  }
+});
+
+test('SurfaceRef formatter rejects direct inputs outside the canonical invariant', () => {
+  const cases: Array<[ParsedSurfaceRef, SurfaceRefParseError['code']]> = [
+    [{ unitId: 'acme//checkout', surfaceId: 'cart' }, 'invalid-unit-id'],
+    [
+      { unitId: 'acme/checkout', surfaceId: 'cart route' },
+      'invalid-surface-id',
+    ],
+    [{ unitId: 'acme/checkout', surfaceId: 'cart', major: 0 }, 'invalid-major'],
+    [
+      { unitId: 'acme/checkout', surfaceId: 'cart', major: 1.5 },
+      'invalid-major',
+    ],
+    [
+      {
+        unitId: 'acme/checkout',
+        surfaceId: 'cart',
+        major: Number.MAX_SAFE_INTEGER + 1,
+      },
+      'invalid-major',
+    ],
+  ];
+
+  for (const [ref, code] of cases) {
+    assert.throws(
+      () => formatSurfaceRef(ref),
+      new RegExp(`Cannot format invalid SurfaceRef: ${code}`),
+    );
   }
 });
 

@@ -31,6 +31,18 @@ const LOAD_REMOTE_NONLITERAL_RE = /\bloadRemote\s*(?:<[^>]*>)?\s*\(\s*(?!['"])([
 // The ref uses the canonical SurfaceRef string form (surface-ref.ts EBNF).
 const CONSUME_SURFACE_RE =
   /consumeSurface\s*(?:<[^>]*>)?\s*\(\s*\{[\s\S]*?\bref\s*:\s*['"]([^'"]+)['"]/g;
+// consumeSurface with a NON-literal ref — a dynamic consumption, invisible to
+// static edge extraction (same class as loadRemote(<non-literal>)). Two shapes:
+//   (a) object form whose `ref:` value is not a string literal:
+//         consumeSurface({ ref: dynamicRef })
+//   (b) non-object argument (a bare computed value):
+//         consumeSurface(dynamicRef)
+// Both surface as a 'dynamic-consumption' warning (G12a policy input, gated
+// under --enforce), never an edge (spike §8.1).
+const CONSUME_SURFACE_OBJ_DYNAMIC_RE =
+  /consumeSurface\s*(?:<[^>]*>)?\s*\(\s*\{[\s\S]*?\bref\s*:\s*(?!['"])([^,}]+)/g;
+const CONSUME_SURFACE_ARG_DYNAMIC_RE =
+  /consumeSurface\s*(?:<[^>]*>)?\s*\(\s*(?!\{)(?!['"])([A-Za-z_$][\w$.]*(?:\s*\([^)]*\))?)/g;
 
 export function collectLiteralSpecifiers(code) {
   const specs = [];
@@ -135,6 +147,19 @@ export function extractFromFile({ ws, consumer, rel, code, emit, warn }) {
     const arg = l[1].trim();
     if (arg === '') continue;
     warn({ consumer, site: rel, argument: arg, reason: 'loadRemote called with a non-literal specifier' });
+  }
+
+  // dynamic-consumption warnings: consumeSurface with a non-literal ref. Same
+  // policy class as loadRemote(<non-literal>): not statically resolvable, so it
+  // produces neither an edge nor silence — it must surface as a warning.
+  for (const re of [CONSUME_SURFACE_OBJ_DYNAMIC_RE, CONSUME_SURFACE_ARG_DYNAMIC_RE]) {
+    re.lastIndex = 0;
+    let cd;
+    while ((cd = re.exec(code))) {
+      const arg = cd[1].trim();
+      if (arg === '') continue;
+      warn({ consumer, site: rel, argument: arg, reason: 'consumeSurface called with a non-literal ref' });
+    }
   }
 
   return { loadRemoteLiteralHits };
