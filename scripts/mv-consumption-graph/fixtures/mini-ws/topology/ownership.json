@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "owners": [
+    { "id": "shell", "package": "@fx/shell", "path": "apps/shell" },
+    { "id": "alpha", "package": "@fx/alpha", "path": "verticals/alpha" },
+    { "id": "beta", "package": "@fx/beta", "path": "verticals/beta" }
+  ]
+}
