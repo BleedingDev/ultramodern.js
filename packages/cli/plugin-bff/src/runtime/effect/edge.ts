@@ -22,12 +22,16 @@ export {
   BACKEND_FEDERATION_NODE_ADAPTER_VERSION,
   type BackendFederatedEffectApiModule,
   type BackendFederationEntryExports,
+  type BackendFederationExpectedIdentity,
+  type BackendFederationIdentityIssue,
+  type BackendFederationIdentityLoadOptions,
   type BackendFederationLoadEntryPluginOptions,
   type BackendFederationRemote,
   type BackendFederationRuntimeOptions,
   createBackendFederationLoadEntryPlugin,
   createBackendFederationRuntime,
   loadBackendFederatedEffectApi,
+  validateExpectedBackendFederationIdentity,
 } from './backend-federation';
 export {
   runWithEffectContext,

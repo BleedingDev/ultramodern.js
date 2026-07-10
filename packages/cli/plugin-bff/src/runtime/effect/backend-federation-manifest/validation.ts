@@ -231,6 +231,10 @@ export function validateLoadedBackendFederationContract(
 export function classifyLoadError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
 
+  if (message.includes('delivery-unit identity mismatch')) {
+    return 'version_mismatch' as const;
+  }
+
   if (
     message.includes('strictEffectApproach') ||
     message.includes('runtimeFramework')
