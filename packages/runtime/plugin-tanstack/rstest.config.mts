@@ -23,6 +23,7 @@ export default {
       name: 'plugin-tanstack-node',
       testEnvironment: 'node',
       include: [
+        'tests/realm-isolation.test.ts',
         'tests/router/cli.test.ts',
         'tests/router/fastDefaults.test.ts',
         'tests/router/flightSerialization.roundtrip.test.tsx',
