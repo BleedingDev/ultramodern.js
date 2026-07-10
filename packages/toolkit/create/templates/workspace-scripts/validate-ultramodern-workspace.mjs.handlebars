@@ -3044,4 +3044,61 @@ for (const vertical of fullStackVerticals) {
   assert(overlay.apis?.[vertical.id]?.endsWith(vertical.apiPrefix), `${vertical.id} development API URL is missing`);
 }
 
+// Delivery-unit identity for ALL unit kinds (G29). Every workspace app —
+// shell, UI-only vertical, and API-bearing vertical — is an indivisible
+// delivery unit and must carry one consistent identity record across the
+// compact config, the reference topology, and its generated build artifact
+// (ADR-0019: one delivery-unit record, one build marker).
+for (const expectedApp of workspaceValidationContract.topology.compactConfig?.apps ?? []) {
+  const unitLabel = `delivery-unit identity for ${expectedApp.id}`;
+  const expectedDeliveryUnit = deliveryUnitBlock(expectedApp.deliveryUnit);
+  assertSelfCheck(
+    typeof expectedDeliveryUnit.unitId === 'string' && expectedDeliveryUnit.unitId.length > 0 &&
+      typeof expectedDeliveryUnit.buildMarker === 'string' && expectedDeliveryUnit.buildMarker.length > 0,
+    unitLabel,
+    `Every unit kind must declare a delivery-unit record; found ${formatJson(expectedApp.deliveryUnit)}`,
+    deliveryUnitIdentityFixArea,
+  );
+
+  const compactAppEntry = ultramodernConfig.topology?.apps?.find(
+    entry => entry?.id === expectedApp.id,
+  );
+  assertSameJson(
+    deliveryUnitBlock(compactAppEntry?.deliveryUnit),
+    expectedDeliveryUnit,
+    `${compactConfigPath} topology.apps.${expectedApp.id}.deliveryUnit`,
+    deliveryUnitIdentityFixArea,
+  );
+
+  const topologyUnitEntry =
+    expectedApp.kind === 'shell'
+      ? topology.shell
+      : topology.verticals?.find(entry => entry?.id === expectedApp.id);
+  assertSameJson(
+    deliveryUnitBlock(topologyUnitEntry?.deliveryUnit),
+    expectedDeliveryUnit,
+    `topology/reference-topology.json ${expectedApp.kind === 'shell' ? 'shell' : `verticals.${expectedApp.id}`}.deliveryUnit`,
+    deliveryUnitIdentityFixArea,
+  );
+
+  const appPath = expectedApp.path;
+  const buildArtifactPath = `${appPath}/shared/ultramodern-build.json`;
+  assertExists(buildArtifactPath);
+  const buildIdentity = readJson(buildArtifactPath).deliveryUnit ?? {};
+  assertSelfCheck(
+    buildIdentity.unitId === expectedDeliveryUnit.unitId &&
+      buildIdentity.buildMarker === expectedDeliveryUnit.buildMarker,
+    `${buildArtifactPath} deliveryUnit`,
+    `Expected ${formatJson({ unitId: expectedDeliveryUnit.unitId, buildMarker: expectedDeliveryUnit.buildMarker })}, found ${formatJson({ unitId: buildIdentity.unitId, buildMarker: buildIdentity.buildMarker })}`,
+    deliveryUnitIdentityFixArea,
+  );
+  const buildModuleSource = readText(`${appPath}/shared/ultramodern-build.ts`);
+  assertSelfCheck(
+    buildModuleSource.includes('export const ultramodernDeliveryUnit'),
+    `${appPath}/shared/ultramodern-build.ts`,
+    'Missing ultramodernDeliveryUnit export',
+    deliveryUnitIdentityFixArea,
+  );
+}
+
 console.log('UltraModern workspace scaffold validated');

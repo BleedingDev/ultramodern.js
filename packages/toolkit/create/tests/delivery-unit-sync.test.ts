@@ -11,6 +11,11 @@ import { runSyncDeliveryUnit } from '../src/ultramodern-workspace/delivery-unit-
 const TARGET_FILES = [
   '.modernjs/ultramodern.json',
   'topology/reference-topology.json',
+  // Every unit kind carries delivery-unit identity (G29): the shell's build
+  // module is framework-owned and regenerated too. Its on-disk .ts is the
+  // formatter-processed generator output, so sync's raw regeneration rewrites
+  // it once; the .json artifact is byte-stable and stays in sync.
+  'apps/shell-super-app/shared/ultramodern-build.ts',
   'verticals/catalog/shared/ultramodern-build.json',
   'verticals/catalog/shared/ultramodern-build.ts',
 ];

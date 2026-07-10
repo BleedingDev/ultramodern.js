@@ -72,7 +72,12 @@ function stampDeliveryUnitIdentity(
   } else {
     // No backend-federation block present at all: materialise the canonical
     // one, which already carries the delivery-unit identity + identityRoot.
-    entry.backendFederation = createBackendFederationContract(scope, app);
+    // Shell / UI-only units have no backend surface (the contract is
+    // undefined); they carry only the top-level delivery-unit identity (G29).
+    const contract = createBackendFederationContract(scope, app);
+    if (contract !== undefined) {
+      entry.backendFederation = contract;
+    }
   }
 }
 
@@ -126,9 +131,9 @@ nothing.
 
   const config = readUltramodernConfig(workspaceRoot);
   const scope = config.workspace.packageScope;
-  const apiApps = workspaceAppsFromToolingConfig(config).filter(app =>
-    Boolean(app.api),
-  );
+  // Delivery-unit identity applies to ALL unit kinds (G29): shell, UI-only
+  // verticals, and API-bearing verticals each carry a record.
+  const workspaceApps = workspaceAppsFromToolingConfig(config);
 
   const written: string[] = [];
   const unchanged: string[] = [];
@@ -136,7 +141,7 @@ nothing.
     (changed ? written : unchanged).push(relativePath);
   };
 
-  const appById = new Map(apiApps.map(app => [app.id, app]));
+  const appById = new Map(workspaceApps.map(app => [app.id, app]));
 
   // (1) .modernjs/ultramodern.json topology.apps[]
   const compact = JSON.parse(fs.readFileSync(compactPath, 'utf-8'));
@@ -168,12 +173,19 @@ nothing.
         }
       }
     }
+    // The shell is its own delivery unit (G29): stamp its identity block too.
+    if (isPlainObject(topology) && isPlainObject(topology.shell)) {
+      const shell = appById.get(String(topology.shell.id));
+      if (shell) {
+        stampDeliveryUnitIdentity(topology.shell, scope, shell);
+      }
+    }
     track(REFERENCE_TOPOLOGY_PATH, writeJsonIfChanged(topologyPath, topology));
   }
 
-  // (3) verticals/<id>/shared/ultramodern-build.{json,ts}
+  // (3) <app>/shared/ultramodern-build.{json,ts} for every unit kind
   // (framework-owned; regenerate from canonical descriptors)
-  for (const app of apiApps) {
+  for (const app of workspaceApps) {
     const buildModulePath = path.join(
       app.directory,
       'shared/ultramodern-build.ts',

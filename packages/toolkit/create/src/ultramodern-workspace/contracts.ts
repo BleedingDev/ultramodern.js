@@ -75,6 +75,11 @@ export function createTopology(
         ssr: true,
         sharedContractVersion: 'mf-ssr-contract-v1',
       },
+      // Every unit kind carries a delivery-unit identity (G29): the shell is
+      // its own delivery unit even though it has no API surface.
+      deliveryUnit: deliveryUnitContractBlock(
+        createDeliveryUnitRecord(scope, shellApp),
+      ),
       cloudflare: createCloudflareDeployContract(scope, shellApp),
       ownership: shellApp.ownership,
     },
@@ -102,13 +107,12 @@ export function createTopology(
         'backendFederation',
         createBackendFederationContract(scope, vertical),
       ),
-      ...(vertical.api
-        ? {
-            deliveryUnit: deliveryUnitContractBlock(
-              createDeliveryUnitRecord(scope, vertical),
-            ),
-          }
-        : {}),
+      // Delivery-unit identity for ALL unit kinds (G29): UI-only verticals
+      // are delivery units too, not just API-bearing ones. The key keeps the
+      // exact position it had for API-bearing verticals.
+      deliveryUnit: deliveryUnitContractBlock(
+        createDeliveryUnitRecord(scope, vertical),
+      ),
       ...optionalJsonEntry('api', apiTopologyMetadata(vertical)),
       cloudflare: createCloudflareDeployContract(scope, vertical),
       ownership: vertical.ownership,
@@ -283,13 +287,12 @@ export function createUltramodernConfig(
           'backendFederation',
           createBackendFederationContract(scope, app),
         ),
-        ...(app.api
-          ? {
-              deliveryUnit: deliveryUnitContractBlock(
-                createDeliveryUnitRecord(scope, app),
-              ),
-            }
-          : {}),
+        // Delivery-unit identity for ALL unit kinds (G29): shell and UI-only
+        // verticals carry the record too; API-bearing apps keep the same key
+        // position, so their output is unchanged.
+        deliveryUnit: deliveryUnitContractBlock(
+          createDeliveryUnitRecord(scope, app),
+        ),
         ...(app.api
           ? {
               api: {
