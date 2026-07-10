@@ -1,4 +1,13 @@
 export {
+  createEnvStaticSurfaceResolutionProvider,
+  ENV_STATIC_PROVIDER_NAME,
+  type EnvRecord,
+  type EnvStaticProviderOptions,
+  type EnvStaticSurfaceConfig,
+  type EnvStaticSurfacePlatforms,
+  type EnvStaticUnitConfig,
+} from './env-static-provider';
+export {
   formatSurfaceRef,
   type ParsedSurfaceRef,
   parseSurfaceRef,
