@@ -1,6 +1,7 @@
 // @effect-diagnostics asyncFunction:off extendsNativeError:off globalFetch:off strictBooleanExpressions:off
 
 export * from './consume-surface';
+export * from './last-known-good';
 export * from './surface-resolution-types';
 
 export const MODULE_FEDERATION_FALLBACK_SIGNAL_EVENT =
