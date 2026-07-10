@@ -6,10 +6,13 @@
 //   G1  package-subpath (static import/export-from, side-effect, dynamic
 //       import(), require):  '@<scope>/<suffix>/<sub>'
 //         sub Widget->#Widget, Route->#Route, api/client(s)->#api
-//   G2  MF runtime literal, two shapes both resolving alias->unit via remotes[]:
+//   G2  MF runtime literal, three shapes all resolving alias->unit via remotes[]:
 //         (a) createHydratedRemote(Ident, '<alias>/<Expose>')      [spike shape]
 //         (b) import('<alias>/<Expose>') bare literal               [current gen]
 //             (e.g. createRemoteComponent(() => import('catalog/Widget')))
+//         (c) loadRemote('<alias>/<Expose>') string literal
+//   G4  consume-surface literal: consumeSurface({ ref: 'unitId#surfaceId[@vN]' })
+//       — unitId is the canonical `${scope}/${domain ?? id}` form.
 //   warn  loadRemote(<non-literal>)  — dynamic-consumption, G12a policy input.
 
 // --- literal specifier collection -------------------------------------------
@@ -18,9 +21,16 @@ const SIDE_EFFECT_RE = /\bimport\s*['"]([^'"]+)['"]/g;
 const DYNAMIC_IMPORT_RE = /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
 const REQUIRE_RE = /\brequire\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
 const HYDRATED_RE = /createHydratedRemote\s*\(\s*[A-Za-z0-9_$]+\s*,\s*['"]([^'"]+)['"]/g;
+// loadRemote('<alias>/<Expose>') — a STRING-LITERAL MF load. Statically
+// resolvable to an edge (G2), unlike the non-literal form below.
+const LOAD_REMOTE_LITERAL_RE = /\bloadRemote\s*(?:<[^>]*>)?\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
 // loadRemote( ... ) where the first non-space char is NOT a quote or `<` (a
 // generic type arg) followed by a quote — i.e. a non-string-literal argument.
 const LOAD_REMOTE_NONLITERAL_RE = /\bloadRemote\s*(?:<[^>]*>)?\s*\(\s*(?!['"])([^)]*?)\)/g;
+// G4-consume-surface: consumeSurface({ ref: '<unitId>#<surfaceId>[@vN]', ... }).
+// The ref uses the canonical SurfaceRef string form (surface-ref.ts EBNF).
+const CONSUME_SURFACE_RE =
+  /consumeSurface\s*(?:<[^>]*>)?\s*\(\s*\{[\s\S]*?\bref\s*:\s*['"]([^'"]+)['"]/g;
 
 export function collectLiteralSpecifiers(code) {
   const specs = [];
@@ -82,6 +92,39 @@ export function extractFromFile({ ws, consumer, rel, code, emit, warn }) {
     const provider = ws.aliasToUnit.get(alias);
     if (provider && expose) {
       emit(consumer, provider, expose, 'G2-mf-literal', `${rel}: '${h[1]}'`);
+    }
+  }
+
+  // G2 via loadRemote('<alias>/<Expose>') string literal (statically resolvable).
+  LOAD_REMOTE_LITERAL_RE.lastIndex = 0;
+  let lr;
+  while ((lr = LOAD_REMOTE_LITERAL_RE.exec(code))) {
+    const spec = lr[1];
+    const slash = spec.indexOf('/');
+    if (slash === -1 || spec.startsWith('.')) continue;
+    const alias = spec.slice(0, slash);
+    const expose = spec.slice(slash + 1).replace(/^\.\//, '');
+    const provider = ws.aliasToUnit.get(alias);
+    if (provider && expose) {
+      loadRemoteLiteralHits += 1;
+      emit(consumer, provider, expose, 'G2-mf-literal', `${rel}: loadRemote('${spec}')`);
+    }
+  }
+
+  // G4-consume-surface: consumeSurface({ ref: 'unitId#surfaceId[@vN]' }). The
+  // unitId is the canonical `${scope}/${domain ?? id}` form; resolve it back to
+  // the owning delivery unit. surfaceId is the consumed surface.
+  CONSUME_SURFACE_RE.lastIndex = 0;
+  let cs;
+  while ((cs = CONSUME_SURFACE_RE.exec(code))) {
+    const raw = cs[1];
+    const hash = raw.indexOf('#');
+    if (hash === -1) continue;
+    const unitId = raw.slice(0, hash);
+    const surface = raw.slice(hash + 1).replace(/@v[1-9]\d*$/, '');
+    const provider = ws.unitByCanonical.get(unitId);
+    if (provider && surface) {
+      emit(consumer, provider, surface, 'G4-consume-surface', `${rel}: consumeSurface('${raw}')`);
     }
   }
 

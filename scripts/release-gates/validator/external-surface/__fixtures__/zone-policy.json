@@ -80,5 +80,22 @@
       }
     },
     "expect": { "verdict": "pass-with-note" }
+  },
+  "unknownZoneErrors": {
+    "diff": {
+      "surfaceId": "checkout",
+      "classification": "additive",
+      "sideBySide": { "satisfied": false }
+    },
+    "publication": { "zone": "coordnated" },
+    "expect": { "verdict": "error" }
+  },
+  "malformedDiffErrors": {
+    "diff": {
+      "surfaceId": "checkout",
+      "sideBySide": { "satisfied": false }
+    },
+    "publication": { "zone": "external" },
+    "expect": { "verdict": "error" }
   }
 }

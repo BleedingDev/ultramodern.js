@@ -39,10 +39,13 @@ function routeMajor(route) {
 }
 
 function routeSignature(route) {
-  return (
-    route.responseHash ??
-    stableHash({ params: route.params ?? [], response: route.response ?? null })
-  );
+  // Request params ALWAYS participate in the comparison. A precomputed
+  // `responseHash` (when present) substitutes only for the response body; it
+  // never replaces the params, so a params-only change is never masked.
+  return stableHash({
+    params: route.params ?? [],
+    response: route.responseHash ?? route.response ?? null,
+  });
 }
 
 function indexRoutes(contract) {
@@ -104,13 +107,22 @@ export function compareRestSurface(oldContract, newContract, options = {}) {
       .filter(r => !oldByKey.has(routeKey(r)) && routeMajor(r) > 1)
       .map(logicalId);
     const retained = [...oldByKey.keys()].every(k => newByKey.has(k));
+    // Old-major surface must be UNCHANGED, not merely present: mutating a v1
+    // route while adding v2 must NOT satisfy side-by-side (immutable major).
+    const oldUnchanged = [...oldByKey].every(
+      ([k, r]) =>
+        newByKey.has(k) &&
+        routeSignature(r) === routeSignature(newByKey.get(k)),
+    );
     const coversOld = addedLogicals.some(id => oldLogicals.has(id));
-    sideBySideSatisfied = retained && coversOld;
+    sideBySideSatisfied = retained && oldUnchanged && coversOld;
     details = sideBySideSatisfied
-      ? 'new major route prefix served side by side with retained previous prefix'
-      : retained
-        ? 'new major prefix added but does not correspond to a retained route'
-        : 'previous-major routes not retained alongside new prefix';
+      ? 'new major route prefix served side by side with retained, unchanged previous prefix'
+      : !retained
+        ? 'previous-major routes not retained alongside new prefix'
+        : !oldUnchanged
+          ? 'previous-major route(s) mutated in place; a published major is immutable'
+          : 'new major prefix added but does not correspond to a retained route';
   }
 
   let verdict = 'pass';

@@ -33,13 +33,19 @@ imports), ADR-0019/0020, `packages/toolkit/create/delivery-unit-schema-SPEC.md`
   `import`, dynamic `import()`, `require`): `'@<scope>/<suffix>/<sub>'`. Surface
   from subpath: `Widget`→`#Widget`, `Route`→`#Route`, `api/client(s)`→`#api`.
   Provider unit resolved via `topology/ownership.json` + contract `packageSuffix`.
-- **G2 — MF runtime literal**, two shapes, both resolving the MF **alias**→unit
+- **G2 — MF runtime literal**, three shapes, all resolving the MF **alias**→unit
   via the host's `remotes[]` registration:
-  - `createHydratedRemote(Ident, '<alias>/<Expose>')` (spike shape), and
+  - `createHydratedRemote(Ident, '<alias>/<Expose>')` (spike shape),
   - `import('<alias>/<Expose>')` bare literal — what the **current** generator
-    emits (`createRemoteComponent(() => import('catalog/Widget'))`). *This is a
-    drift from the spike, which documented `createHydratedRemote`; both are
-    handled.*
+    emits (`createRemoteComponent(() => import('catalog/Widget'))`), and
+  - `loadRemote('<alias>/<Expose>')` string literal (counted under
+    `counts.loadRemoteLiteralHits`).
+- **G4 — consume-surface literal**: `consumeSurface({ ref: 'unitId#surfaceId[@vN]' })`
+  (`packages/runtime/plugin-runtime/src/module-federation/consume-surface.ts`).
+  The `ref` uses the canonical `SurfaceRef` string form
+  (`unitId#surfaceId[@vN]`, EBNF in `surface-ref.ts`); the `unitId` is the
+  canonical `${scope}/${domain ?? id}` delivery-unit id, resolved back to the
+  owning unit.
 
 Self-consumption edges (`X→X`) are dropped (not cross-unit dependencies).
 
@@ -57,17 +63,31 @@ local slice).
 
 ## Flags & exit codes
 
-All tools: `<workspaceDir> [--json]`. `report`, `cycles`, `isolation` and
-`run-all` also accept `--enforce`.
+All tools: `<workspaceDir> [--json]`. `cycles`, `isolation` and `run-all`
+accept `--enforce`. `report` accepts `--enforce` too, but it is a **no-op**.
+
+**Enforcement semantics (as shipped).** Per CONTEXT.md "Vertical Dependency"
+— dependencies are emergent/OBSERVED, never manifest-declared — an
+observed-not-declared edge is *legitimate* emergent consumption, not a
+violation. So the declared-vs-observed `report` is **purely informational and
+NEVER gates** (`report --enforce` still exits `0`). Enforcement gates only on
+genuine invalid states:
 
 - **report-only default:** exit `0` regardless of findings.
-- **`--enforce`:** exit `1` when findings exist —
+- **`--enforce`:** exit `1` when —
   - `cycles`: any unit cycle,
-  - `isolation`: any cross-unit source import,
-  - `report`: any observed-not-declared edge (undeclared real consumption),
-  - `run-all`: any of the above.
+  - `isolation`: any cross-unit source import OR package-form deep import into a
+    non-published subpath,
+  - `run-all`: any cycle, any isolation violation, OR any dynamic-consumption
+    warning (`loadRemote(<non-literal>)` — the literal-lint policy: authors must
+    use statically-resolvable literal refs / `consumeSurface({ ref })`).
 - exit `2`: target is not an ultramodern workspace / generation failed.
-- exit `3`: `run-all --selftest` had failing assertions.
+- exit `3`: `run-all --selftest` had failing assertions **or a crashed
+  subprocess** (a self-test import error fails, never reports success).
+
+Isolation violations and observed edges are keyed by the **canonical**
+delivery-unit id `${scope}/${domain ?? id}` (mirroring
+`packages/toolkit/create/src/ultramodern-workspace/delivery-unit.ts`).
 
 `run-all.mjs` flags: `--out <dir>` (default `$TMPDIR/mv-consumption-graph`),
 `--ws <existingWorkspace>` (skip generation), `--json`, `--enforce`,

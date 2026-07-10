@@ -22,14 +22,25 @@ Every comparator returns a common **diff result**:
   "exposes": [ { "path": "./cart", "signature": "<opaque type-signature hash|string>", "major": 1 } ] }
 ```
 
-- `signature` — opaque per-expose type-signature hash/string the owner emits. If
-  absent, a stable structural hash of the expose object is used.
+- `signature` — opaque per-expose type-signature hash/string the owner emits.
+  **Signature-less path-only contracts are never signature-verified.** When
+  either side lacks an owner-emitted `signature` string, the expose is
+  **unverifiable**: there is NO structural-hash fallback (an earlier version
+  silently manufactured a "signature" from the whole object, hiding real
+  mutations). An unverifiable expose is **additive-on-add** and
+  **breaking-on-removal** only; an in-place change cannot be detected, so it is
+  reported as `type: 'unverifiable'` with a note, never as a breaking signature
+  change.
 - `major` — the externally published semver major the expose materialises
   (ADR-0020: a new exposed MF path such as `./checkout/v2`). Derived from a
   trailing `/vN` path segment when omitted.
-- **Breaking** = a previously published expose path removed or its signature
-  mutated in place. A published external major is immutable → a breaking change
-  ships as a new `/vN` path exposed **side by side** with the retained old path.
+- **Breaking** = a previously published expose path removed or its (verified)
+  signature mutated in place. A published external major is immutable → a
+  breaking change ships as a new `/vN` path exposed **side by side** with the
+  retained old path. **Side-by-side is satisfied only when the old-major surface
+  is UNCHANGED** (retained AND signatures equal): mutating v1 while adding v2
+  does not satisfy it and fails. REST applies the identical old-prefix
+  immutability rule.
 
 ## G14-REST — `compare-rest.mjs`
 
@@ -44,22 +55,29 @@ Aligned with the operation records emitted by
 `packages/toolkit/create/src/ultramodern-workspace/api/contracts.ts`
 (`method` + `path` per op). Route key = `METHOD path`. A REST major
 materialises as a new route **prefix** (`/v2/orders`). Same immutable-major
-rule as MF.
+rule as MF (side-by-side requires the old prefix retained **and unchanged**).
+`params` **always** participate in the route signature; a precomputed
+`responseHash` substitutes only for the response body, so a params-only change
+is never masked.
 
 ## G14-RPC — `compare-rpc.mjs`
 
 ```jsonc
 { "kind": "rpc", "surfaceId": "checkoutRpc",
-  "contractVersion": 2, "servedVersions": [1, 2],
+  "contractVersion": 2, "servedVersions": [1, 2], "retiredMajors": [],
   "operations": [ { "name": "addItem", "contractHash": "<per-op contract hash>" } ] }
 ```
 
 Mirrors the plugin-bff cross-project contract model
 (`packages/cli/plugin-bff/src/runtime/effect/endpoint-contracts.ts`:
 per-endpoint `createOperationContractHash`). `contractVersion` is the published
-major. **Breaking** = op removed or `contractHash` changed. Side-by-side is
-satisfied when `contractVersion` is bumped past the old major **and** the old
-major stays in `servedVersions`.
+major. **Breaking** = op removed, `contractHash` changed, **or a
+previously-served major dropped from `servedVersions` without being listed in
+`retiredMajors`** (silently un-serving a major breaks external consumers even
+when the operations are unchanged). `retiredMajors` is the explicit opt-in that
+reclassifies such a drop as additive. Side-by-side is satisfied when
+`contractVersion` is bumped past the old major **and** the old major stays in
+`servedVersions`.
 
 ## G15/G18 — `baseline-compat.mjs`
 
@@ -89,6 +107,9 @@ Input: a comparator diff + publication metadata
     "retirement": { "supersededBy": "acme/checkout#cart@v2", "sunsetAfter": "2027-01" } } }
 ```
 
+- unknown/misspelled `zone`, or a malformed diff (`classification` not
+  `additive`|`breaking`) → **error** verdict (fail-closed; never silently
+  defaults to coordinated/additive).
 - coordinated → breaking allowed, report-only note.
 - external, incomplete metadata (missing any of `owner`, `kind`, `major`,
   `baselineCompatibility`, `retirement`) → **error**.

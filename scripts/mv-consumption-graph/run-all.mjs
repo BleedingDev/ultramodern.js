@@ -11,11 +11,19 @@ import { spawnSync } from 'node:child_process';
 //   node run-all.mjs [--out <dir>] [--ws <existingWorkspace>] [--enforce] [--json]
 //   node run-all.mjs --selftest       # run fixture assertions only
 //
+// Enforcement semantics (--enforce): gates ONLY on
+//   - cross-unit cycles (cycles.mjs), and
+//   - isolation-boundary violations (isolation.mjs), and
+//   - dynamic-consumption warnings (loadRemote(<non-literal>)): the literal-lint
+//     policy — authors must use statically-resolvable literal refs.
+// The declared-vs-observed report is PURELY INFORMATIONAL and never gates
+// (observed-not-declared is legitimate emergent consumption per CONTEXT.md).
+//
 // Exit codes:
-//   0  success (report-only, or --enforce with no findings)
-//   1  --enforce and a cycle or isolation violation (or observed-not-declared) found
+//   0  success (report-only, or --enforce with no gating findings)
+//   1  --enforce and a cycle, isolation violation, or dynamic-consumption warning
 //   2  workspace generation / discovery failed
-//   3  --selftest failures
+//   3  --selftest failures (including a crashed subprocess)
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -131,7 +139,9 @@ function main() {
   const argv = process.argv.slice(2);
   if (argv.includes('--selftest')) {
     const r = runSelftest();
-    process.exit(r.fail > 0 ? 3 : 0);
+    // Propagate subprocess crashes (e.g. an import error yields a nonzero exit
+    // with no parsed fail count) as a failure — never report success on a crash.
+    process.exit(r.fail > 0 || r.exit !== 0 ? 3 : 0);
   }
 
   const enforce = argv.includes('--enforce');
@@ -205,10 +215,22 @@ function main() {
     console.log(`wrote: ${mdPath}`);
   }
 
+  // Enforcement gates on cycles + isolation + dynamic-consumption warnings only.
+  // observed-not-declared is informational (emergent consumption), never a gate.
+  const dynamicWarnings = extract.warnings.filter(
+    w => w.kind === 'dynamic-consumption',
+  ).length;
+  if (enforce && dynamicWarnings > 0) {
+    console.error(
+      `\nenforce: ${dynamicWarnings} dynamic-consumption warning(s) — loadRemote(<non-literal>) ` +
+        'is not statically resolvable. Use a literal ref (literal loadRemote/import ' +
+        "specifier or consumeSurface({ ref: 'unitId#surfaceId' })).",
+    );
+  }
   const findings =
     cycles.cycleCount > 0 ||
     isolation.violationCount > 0 ||
-    report.counts.observedNotDeclared > 0;
+    dynamicWarnings > 0;
   process.exit(enforce && findings ? 1 : 0);
 }
 

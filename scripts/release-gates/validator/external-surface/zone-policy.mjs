@@ -5,6 +5,8 @@
 // publication metadata, decide whether the change is allowed under ADR-0020's
 // zoned policy:
 //
+//   - unknown/misspelled zone, or a malformed diff (classification not
+//                additive|breaking) -> error (fail-closed; never defaults).
 //   - coordinated  -> breaking changes are allowed; emit a report-only note.
 //   - external, incomplete metadata (missing any of owner / kind / major /
 //                baselineCompatibility / retirement) -> error.
@@ -59,10 +61,46 @@ function checkCompleteMetadata(publication) {
  *   notes: string[], errors: string[]
  * }}
  */
+const KNOWN_ZONES = new Set(['coordinated', 'external']);
+const KNOWN_CLASSIFICATIONS = new Set(['additive', 'breaking']);
+
 export function evaluateZonePolicy({ diff, publication }) {
   const zone = publication?.zone ?? 'coordinated';
   const surfaceId = diff?.surfaceId ?? '';
-  const classification = diff?.classification ?? 'additive';
+
+  // Fail-CLOSED on unrecognised input. An unknown/misspelled zone or a malformed
+  // diff must NOT silently default to coordinated/additive (that would wave a
+  // typo'd external surface through). Both are an 'error' verdict.
+  if (!KNOWN_ZONES.has(zone)) {
+    return {
+      zone,
+      surfaceId,
+      classification: diff?.classification ?? 'unknown',
+      verdict: 'error',
+      notes: [],
+      errors: [
+        `unknown publication zone "${zone}" (expected one of: ${[...KNOWN_ZONES].join(', ')})`,
+      ],
+    };
+  }
+  if (
+    diff == null ||
+    typeof diff !== 'object' ||
+    !KNOWN_CLASSIFICATIONS.has(diff.classification)
+  ) {
+    return {
+      zone,
+      surfaceId,
+      classification: 'unknown',
+      verdict: 'error',
+      notes: [],
+      errors: [
+        `malformed surface diff: classification must be one of ${[...KNOWN_CLASSIFICATIONS].join(', ')} (got ${JSON.stringify(diff?.classification)})`,
+      ],
+    };
+  }
+
+  const classification = diff.classification;
   const breaking = classification === 'breaking';
   const sideBySide = Boolean(diff?.sideBySide?.satisfied);
   const notes = [];

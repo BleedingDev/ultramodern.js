@@ -24,12 +24,37 @@ function writeJson(workspaceDir: string, relativePath: string, value: unknown) {
 
 const configRejectionCases = [
   {
-    label: 'unsupported schemaVersion',
+    label: 'missing schemaVersion',
+    mutate: (config: Record<string, any>) => {
+      delete config.schemaVersion;
+    },
+    error:
+      /schemaVersion is required.*Versionless v1 configs are not supported/,
+    issue: { field: 'schemaVersion', value: undefined, reason: 'missing' },
+  },
+  {
+    label: 'non-integer schemaVersion',
+    mutate: (config: Record<string, any>) => {
+      config.schemaVersion = 1.5;
+    },
+    error: /schemaVersion 1\.5.*must be the integer 1/,
+    issue: { field: 'schemaVersion', value: 1.5, reason: 'non-integer' },
+  },
+  {
+    label: 'string schemaVersion',
+    mutate: (config: Record<string, any>) => {
+      config.schemaVersion = '1';
+    },
+    error: /schemaVersion "1".*must be the integer 1/,
+    issue: { field: 'schemaVersion', value: '1', reason: 'non-integer' },
+  },
+  {
+    label: 'unsupported integer schemaVersion',
     mutate: (config: Record<string, any>) => {
       config.schemaVersion = 2;
     },
-    error: /Unsupported UltraModern config schemaVersion 2/,
-    issue: { field: 'schemaVersion', value: 2 },
+    error: /(Unsupported|Invalid) UltraModern config schemaVersion 2/,
+    issue: { field: 'schemaVersion', value: 2, reason: 'unsupported' },
   },
   {
     label: 'unsupported app kind',
@@ -89,7 +114,14 @@ test.each(
       error => {
         const typedError = error as UnsupportedUltramodernConfigError;
         assert.equal(typedError.name, 'UnsupportedUltramodernConfigError');
-        assert.deepEqual(typedError.issue, rejection.issue);
+        // Subset match: the issue may carry additional diagnostic fields
+        // (e.g. reason) beyond the identity asserted here.
+        for (const [key, value] of Object.entries(rejection.issue)) {
+          assert.deepEqual(
+            (typedError.issue as Record<string, unknown>)[key],
+            value,
+          );
+        }
         assert.match(typedError.message, rejection.error);
         return true;
       },

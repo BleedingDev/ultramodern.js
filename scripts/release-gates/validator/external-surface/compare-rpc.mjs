@@ -13,9 +13,14 @@
 //     surfaceId: string,
 //     contractVersion: number,             // the major
 //     servedVersions?: number[],           // majors served side by side now
+//     retiredMajors?: number[],            // previously-served majors whose
+//                                          //   retirement is explicitly declared
 //     operations: [ { name: string, contractHash: string } ]
 //   }
-// A breaking change is any removed op or op whose contractHash mutated. Under
+// A breaking change is any removed op or op whose contractHash mutated, OR the
+// removal of a previously-served major (servedVersions shrank) that is NOT
+// explicitly listed in `retiredMajors` — silently dropping a served major is
+// breaking for external consumers. Under
 // ADR-0020 a published RPC major is immutable: a breaking change bumps
 // `contractVersion` and keeps the previous version served (present in the new
 // contract's `servedVersions`).
@@ -46,6 +51,8 @@ export function compareRpcSurface(oldContract, newContract, options = {}) {
   const oldVersion = oldContract?.contractVersion ?? 1;
   const newVersion = newContract?.contractVersion ?? 1;
   const servedVersions = newContract?.servedVersions ?? [newVersion];
+  const oldServedVersions = oldContract?.servedVersions ?? [oldVersion];
+  const retiredMajors = newContract?.retiredMajors ?? [];
 
   const oldByName = indexOps(oldContract);
   const newByName = indexOps(newContract);
@@ -67,6 +74,17 @@ export function compareRpcSurface(oldContract, newContract, options = {}) {
   }
   for (const [name] of newByName) {
     if (!oldByName.has(name)) changes.push({ name, type: 'added' });
+  }
+
+  // Removing a previously-served major without explicit retirement is breaking.
+  const droppedMajors = oldServedVersions.filter(
+    v => !servedVersions.includes(v) && !retiredMajors.includes(v),
+  );
+  for (const v of droppedMajors) {
+    breakingChanges.push({
+      name: `v${v}`,
+      reason: 'previously-served major removed without explicit retirement',
+    });
   }
 
   const classification = breakingChanges.length > 0 ? 'breaking' : 'additive';
@@ -117,6 +135,8 @@ export function compareRpcSurface(oldContract, newContract, options = {}) {
     oldVersion,
     newVersion,
     servedVersions,
+    retiredMajors,
+    droppedMajors,
     changes,
     classification,
     breakingChanges,

@@ -58,14 +58,43 @@ test('cycles: synthetic alpha<->beta cycle detected', () => {
   );
 });
 
-test('isolation: cross-unit relative source import flagged', () => {
+test('isolation: cross-unit relative source import flagged (canonical ids)', () => {
   const r = checkIsolation(FIX);
   assert.ok(r.violationCount >= 1, 'at least one violation');
   const v = r.violations.find(
-    v => v.deliveryUnitId === 'alpha' && v.foreignUnitId === 'beta',
+    v => v.deliveryUnitId === 'fx/alpha' && v.foreignUnitId === 'fx/beta',
   );
-  assert.ok(v, 'alpha->beta source leak keyed by deliveryUnitId');
+  assert.ok(v, 'alpha->beta source leak keyed by canonical deliveryUnitId');
   assert.match(v.from, /leak\.ts$/);
+});
+
+test('isolation: cross-unit package-form deep import flagged', () => {
+  const r = checkIsolation(FIX);
+  const v = r.violations.find(
+    v =>
+      v.deliveryUnitId === 'fx/alpha' &&
+      v.foreignUnitId === 'fx/beta' &&
+      /pkgleak\.ts$/.test(v.from),
+  );
+  assert.ok(v, 'package-form deep import into beta internals is a violation');
+  assert.equal(v.specifier, '@fx/beta/src/internal');
+});
+
+test('isolation: published-surface package subpath is NOT flagged', () => {
+  const r = checkIsolation(FIX);
+  // beta/src/page.tsx imports '@fx/alpha/Widget' — a published surface.
+  const bad = r.violations.find(v => v.specifier === '@fx/alpha/Widget');
+  assert.equal(bad, undefined, 'published Widget subpath must be allowed');
+});
+
+test('extract: G4-consume-surface + loadRemote literal edges', () => {
+  const g = extractObservedGraph(FIX);
+  const g4 = g.edges.find(e => /G4-consume-surface/.test(e.grammar));
+  assert.ok(g4, 'a G4-consume-surface edge is detected');
+  assert.ok(
+    g.counts.loadRemoteLiteralHits >= 1,
+    'loadRemote literal hits counted',
+  );
 });
 
 test('report: undeclared cross-unit consumption surfaces as observed-not-declared', () => {

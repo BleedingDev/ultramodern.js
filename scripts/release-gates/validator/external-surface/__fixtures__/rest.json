@@ -118,5 +118,69 @@
       "verdict": "pass-with-note",
       "sideBySide": true
     }
+  },
+  "breakingParamsChangeWithResponseHash": {
+    "zone": "coordinated",
+    "old": {
+      "kind": "rest",
+      "surfaceId": "orders",
+      "routes": [
+        {
+          "method": "GET",
+          "path": "/orders",
+          "params": [{ "name": "page", "in": "query" }],
+          "responseHash": "resp-h-1"
+        }
+      ]
+    },
+    "new": {
+      "kind": "rest",
+      "surfaceId": "orders",
+      "routes": [
+        {
+          "method": "GET",
+          "path": "/orders",
+          "params": [{ "name": "cursor", "in": "query" }],
+          "responseHash": "resp-h-1"
+        }
+      ]
+    },
+    "expect": { "classification": "breaking", "verdict": "pass-with-note" }
+  },
+  "breakingExternalMutateOldWithMajor": {
+    "zone": "external",
+    "old": {
+      "kind": "rest",
+      "surfaceId": "orders",
+      "routes": [
+        {
+          "method": "GET",
+          "path": "/orders/:id",
+          "response": { "id": "string", "total": "number" }
+        }
+      ]
+    },
+    "new": {
+      "kind": "rest",
+      "surfaceId": "orders",
+      "routes": [
+        {
+          "method": "GET",
+          "path": "/orders/:id",
+          "response": { "id": "string" }
+        },
+        {
+          "method": "GET",
+          "path": "/v2/orders/:id",
+          "response": { "id": "string" },
+          "major": 2
+        }
+      ]
+    },
+    "expect": {
+      "classification": "breaking",
+      "verdict": "fail",
+      "sideBySide": false
+    }
   }
 }

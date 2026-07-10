@@ -4,11 +4,18 @@
 // Compares the OBSERVED consumption graph (extract.mjs) against the DECLARED
 // topology (contract verticalRefs+exposes / api.consumedBy), classifying every
 // edge as matched / declared-not-observed / observed-not-declared with source
-// attribution. Report-only: exits 0 always UNLESS --enforce is passed, in which
-// case any observed-not-declared edge (undeclared real consumption) exits 1.
+// attribution.
+//
+// PURELY INFORMATIONAL — exits 0 ALWAYS, even with --enforce. Per CONTEXT.md
+// ("Vertical Dependency": dependencies are emergent/OBSERVED, never
+// manifest-declared), an observed-not-declared edge is legitimate emergent
+// consumption, NOT a violation, so this report never gates. `--enforce` is
+// accepted (for symmetry with the other tools) but does not change the exit
+// code here; enforcement lives in run-all (cycles + isolation + dynamic
+// literal-lint). See README "Enforcement semantics".
 //
 // Usage:
-//   node report.mjs <workspaceDir> [--json] [--enforce]
+//   node report.mjs <workspaceDir> [--json] [--enforce]  (--enforce is a no-op)
 import path from 'node:path';
 import { extractObservedGraph } from './extract.mjs';
 import {
@@ -62,7 +69,6 @@ export function buildDualReport(wsRoot) {
 
 function main() {
   const argv = process.argv.slice(2);
-  const enforce = argv.includes('--enforce');
   const wsRoot = path.resolve(argv.find(a => !a.startsWith('--')) ?? '');
   if (!isUltramodernWorkspace(wsRoot)) {
     console.error(`Not an ultramodern workspace: ${wsRoot}`);
@@ -88,8 +94,9 @@ function main() {
     for (const o of report.observedNotDeclared)
       console.log(`  + ${o.key}  [${o.grammar}]`);
   }
-  const violated = enforce && report.counts.observedNotDeclared > 0;
-  process.exit(violated ? 1 : 0);
+  // Informational only: observed-not-declared is emergent consumption, never a
+  // gate. Always exit 0 (see module header / README).
+  process.exit(0);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) main();

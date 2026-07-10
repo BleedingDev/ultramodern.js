@@ -67,7 +67,56 @@ export function loadWorkspace(wsRoot) {
     }
   }
 
-  return { wsRoot, scope, contract, apps, owners, unitByPath, unitIds, suffixToUnit, aliasToUnit };
+  // Canonical unit identity, mirroring (not importing) the unitId derivation in
+  // packages/toolkit/create/src/ultramodern-workspace/delivery-unit.ts:
+  //   unitId = `${scope}/${app.domain ?? app.id}`.
+  // ownership.json carries no domain, so we cross-reference the contract app by
+  // id for an optional `domain`, falling back to the owner/app id.
+  const appById = new Map(apps.map(a => [a.id, a]));
+  const canonicalById = new Map(); // owner.id -> `${scope}/${domain ?? id}`
+  const unitByCanonical = new Map(); // canonical -> owner.id
+  for (const o of owners) {
+    const domain = appById.get(o.id)?.domain ?? o.id;
+    const canonical = `${scope}/${domain}`;
+    canonicalById.set(o.id, canonical);
+    unitByCanonical.set(canonical, o.id);
+  }
+
+  return {
+    wsRoot,
+    scope,
+    contract,
+    apps,
+    owners,
+    unitByPath,
+    unitIds,
+    suffixToUnit,
+    aliasToUnit,
+    appById,
+    canonicalById,
+    unitByCanonical,
+  };
+}
+
+// Canonical delivery-unit id for an owner/app id (`${scope}/${domain ?? id}`).
+export function canonicalUnitId(ws, unitId) {
+  return ws.canonicalById.get(unitId) ?? `${ws.scope}/${unitId}`;
+}
+
+// Published-surface subpaths a provider unit legitimately exposes: its MF
+// exposes (with the leading `./` stripped, e.g. `Route`, `Widget`) plus the
+// published API-client subpaths when the unit declares an `api`. Deep imports of
+// any OTHER subpath cross-unit bypass the Isolation Boundary.
+export function publishedSubpaths(ws, unitId) {
+  const app = ws.appById.get(unitId);
+  const allowed = new Set();
+  const exposes = app?.moduleFederation?.exposes ?? ['./Route', './Widget'];
+  for (const exp of exposes) allowed.add(exp.replace(/^\.\//, ''));
+  if (app?.api) {
+    allowed.add('api/client');
+    allowed.add('api/clients');
+  }
+  return allowed;
 }
 
 // Attribute a workspace-relative POSIX path to its owning delivery unit id,

@@ -19,8 +19,10 @@ import path from 'node:path';
 import { resolveRelative, walkSourceFiles } from './lib/graph.mjs';
 import {
   attributeUnit,
+  canonicalUnitId,
   isUltramodernWorkspace,
   loadWorkspace,
+  publishedSubpaths,
 } from './lib/workspace.mjs';
 
 const REL_IMPORT_RE =
@@ -28,6 +30,13 @@ const REL_IMPORT_RE =
 const REL_SIDE_EFFECT_RE = /\bimport\s*['"](\.[^'"]+)['"]/g;
 const REL_REQUIRE_RE = /\brequire\s*\(\s*['"](\.[^'"]+)['"]\s*\)/g;
 const REL_DYNAMIC_RE = /\bimport\s*\(\s*['"](\.[^'"]+)['"]\s*\)/g;
+
+// Any specifier (relative OR package-form) — we discriminate below.
+const ANY_IMPORT_RE =
+  /\b(?:import|export)\b[^'"`;]*?\bfrom\s*['"]([^'"]+)['"]/g;
+const ANY_SIDE_EFFECT_RE = /\bimport\s*['"]([^'"]+)['"]/g;
+const ANY_REQUIRE_RE = /\brequire\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
+const ANY_DYNAMIC_RE = /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
 
 function relSpecifiers(code) {
   const specs = [];
@@ -44,14 +53,32 @@ function relSpecifiers(code) {
   return specs;
 }
 
+function allSpecifiers(code) {
+  const specs = [];
+  for (const re of [
+    ANY_IMPORT_RE,
+    ANY_SIDE_EFFECT_RE,
+    ANY_REQUIRE_RE,
+    ANY_DYNAMIC_RE,
+  ]) {
+    re.lastIndex = 0;
+    let m;
+    while ((m = re.exec(code))) specs.push(m[1]);
+  }
+  return specs;
+}
+
 export function checkIsolation(wsRoot) {
   const ws = loadWorkspace(wsRoot);
+  const scopePrefix = `@${ws.scope}/`;
   const violations = [];
   for (const abs of walkSourceFiles(wsRoot)) {
     const rel = path.relative(wsRoot, abs).split(path.sep).join('/');
     const owner = attributeUnit(ws, rel);
     if (!owner) continue;
     const code = fs.readFileSync(abs, 'utf-8');
+
+    // (a) cross-unit RELATIVE/source imports into another unit's source tree.
     for (const spec of relSpecifiers(code)) {
       const targetAbs = resolveRelative(abs, spec);
       if (!targetAbs) continue; // unresolved (e.g. asset) — skip
@@ -62,14 +89,38 @@ export function checkIsolation(wsRoot) {
       const targetOwner = attributeUnit(ws, targetRel);
       if (targetOwner && targetOwner !== owner) {
         violations.push({
-          deliveryUnitId: owner,
-          foreignUnitId: targetOwner,
+          deliveryUnitId: canonicalUnitId(ws, owner),
+          foreignUnitId: canonicalUnitId(ws, targetOwner),
           from: rel,
           to: targetRel,
           specifier: spec,
           rule: 'cross-unit relative/source import bypasses the published surface boundary',
         });
       }
+    }
+
+    // (b) cross-unit PACKAGE-FORM deep imports ('@scope/<suffix>/<sub>') into a
+    // subpath that is NOT a published surface (exposes / api-client). A bare
+    // package import ('@scope/<suffix>') and published-surface subpaths are
+    // legitimate; any other subpath reaches into a provider's internals.
+    for (const spec of allSpecifiers(code)) {
+      if (!spec.startsWith(scopePrefix)) continue;
+      const rest = spec.slice(scopePrefix.length);
+      const slash = rest.indexOf('/');
+      if (slash === -1) continue; // bare package entry — allowed
+      const suffix = rest.slice(0, slash);
+      const sub = rest.slice(slash + 1);
+      const provider = ws.suffixToUnit.get(suffix);
+      if (!provider || provider === owner) continue; // unknown or self
+      if (publishedSubpaths(ws, provider).has(sub)) continue; // published surface
+      violations.push({
+        deliveryUnitId: canonicalUnitId(ws, owner),
+        foreignUnitId: canonicalUnitId(ws, provider),
+        from: rel,
+        to: spec,
+        specifier: spec,
+        rule: 'cross-unit package-form deep import into a non-published subpath bypasses the published surface boundary',
+      });
     }
   }
   violations.sort((a, b) =>

@@ -77,5 +77,46 @@
       "verdict": "pass-with-note",
       "sideBySide": true
     }
+  },
+  "breakingServedMajorRemoved": {
+    "zone": "external",
+    "old": {
+      "kind": "rpc",
+      "surfaceId": "checkoutRpc",
+      "contractVersion": 2,
+      "servedVersions": [1, 2],
+      "operations": [{ "name": "addItem", "contractHash": "h-add-1" }]
+    },
+    "new": {
+      "kind": "rpc",
+      "surfaceId": "checkoutRpc",
+      "contractVersion": 2,
+      "servedVersions": [2],
+      "operations": [{ "name": "addItem", "contractHash": "h-add-1" }]
+    },
+    "expect": {
+      "classification": "breaking",
+      "verdict": "fail",
+      "sideBySide": false
+    }
+  },
+  "retiredServedMajorAllowed": {
+    "zone": "external",
+    "old": {
+      "kind": "rpc",
+      "surfaceId": "checkoutRpc",
+      "contractVersion": 2,
+      "servedVersions": [1, 2],
+      "operations": [{ "name": "addItem", "contractHash": "h-add-1" }]
+    },
+    "new": {
+      "kind": "rpc",
+      "surfaceId": "checkoutRpc",
+      "contractVersion": 2,
+      "servedVersions": [2],
+      "retiredMajors": [1],
+      "operations": [{ "name": "addItem", "contractHash": "h-add-1" }]
+    },
+    "expect": { "classification": "additive", "verdict": "pass" }
   }
 }

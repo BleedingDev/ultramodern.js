@@ -342,7 +342,7 @@ test.each([
     mutate: (config: Record<string, any>) => {
       config.schemaVersion = 2;
     },
-    error: /Unsupported UltraModern config schemaVersion 2/,
+    error: /(Unsupported|Invalid) UltraModern config schemaVersion 2/,
     issue: { field: 'schemaVersion', value: 2 },
   },
   {
@@ -350,7 +350,7 @@ test.each([
     mutate: (config: Record<string, any>) => {
       config.schemaVersion = 'next';
     },
-    error: /Unsupported UltraModern config schemaVersion "next"/,
+    error: /(Unsupported|Invalid) UltraModern config schemaVersion "next"/,
     issue: { field: 'schemaVersion', value: 'next' },
   },
   {
@@ -386,7 +386,14 @@ test.each([
       error => {
         const typedError = error as UnsupportedUltramodernConfigError;
         assert.equal(typedError.name, 'UnsupportedUltramodernConfigError');
-        assert.deepEqual(typedError.issue, entry.issue);
+        // Subset match: the issue may carry additional diagnostic fields
+        // (e.g. reason) beyond the identity asserted here.
+        for (const [key, value] of Object.entries(entry.issue)) {
+          assert.deepEqual(
+            (typedError.issue as Record<string, unknown>)[key],
+            value,
+          );
+        }
         assert.match(typedError.message, entry.error);
         return true;
       },
