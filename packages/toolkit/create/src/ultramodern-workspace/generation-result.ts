@@ -1,6 +1,11 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { createDeliveryUnitRecord } from './delivery-unit';
+import type {
+  DeliveryUnitDescriptor,
+  SurfaceDescriptor,
+} from './delivery-unit-schema/types';
 import { appHasApi, ULTRAMODERN_CONFIG_PATH } from './descriptors';
 import { normalizePath, packageName } from './naming';
 import type {
@@ -11,6 +16,16 @@ import type {
   UltramodernGenerationWarning,
   WorkspaceApp,
 } from './types';
+import { resolveOwnerAttribution } from './types';
+import {
+  EFFECT_VERSION,
+  REACT_VERSION,
+  TAILWIND_VERSION,
+  TANSTACK_ROUTER_VERSION,
+} from './versions';
+
+/** Opaque, stable id for the current platform baseline cohort (G1d). */
+const BASELINE_COHORT_ID = 'ultramodern-platform-baseline-v1';
 
 const ignoredSnapshotDirectories = new Set([
   '.git',
@@ -109,6 +124,58 @@ export function createGenerationResult(options: {
     ),
     generatedContractPath: ULTRAMODERN_CONFIG_PATH,
     warnings: options.warnings ?? [],
+    deliveryUnits: options.createdApps.map(app =>
+      createGeneratedDeliveryUnitDescriptor(options.packageScope, app),
+    ),
+  };
+}
+
+/**
+ * Build the canonical {@link DeliveryUnitDescriptor} for a generated app (G1d).
+ * Identity (`unitId` / `buildMarker` / `sourceRevision`) is taken straight from
+ * {@link createDeliveryUnitRecord} — the same function the emitted delivery-unit
+ * records use in the same process — so the exposed descriptor matches the
+ * records on disk. Every app kind (shell, UI-only vertical, api vertical)
+ * carries a descriptor; down-projecting one reproduces the v1 identity.
+ */
+function createGeneratedDeliveryUnitDescriptor(
+  scope: string,
+  app: WorkspaceApp,
+): DeliveryUnitDescriptor {
+  const record = createDeliveryUnitRecord(scope, app);
+  const manifestUrl = `http://localhost:${app.port}/mf-manifest.json`;
+  const surfaces: SurfaceDescriptor[] = Object.keys(app.exposes ?? {}).map(
+    exposeName => ({
+      kind: 'component',
+      surfaceId: exposeName,
+      locations: [{ platform: 'browser-mf', manifestUrl }],
+    }),
+  );
+  if (appHasApi(app)) {
+    surfaces.push({
+      kind: 'api',
+      surfaceId: app.api.stem,
+      protocol: 'rest',
+      locations: [{ platform: 'http', address: app.api.prefix }],
+    });
+  }
+
+  return {
+    unitId: record.unitId,
+    kind: app.kind === 'shell' ? 'shell' : 'microvertical',
+    owner: resolveOwnerAttribution(app.ownership),
+    sourceRevision: record.sourceRevision,
+    buildMarker: record.buildMarker,
+    baselineCohort: {
+      cohortId: BASELINE_COHORT_ID,
+      resolved: {
+        react: REACT_VERSION,
+        tanstackRouter: TANSTACK_ROUTER_VERSION,
+        effect: EFFECT_VERSION,
+        tailwind: TAILWIND_VERSION,
+      },
+    },
+    surfaces,
   };
 }
 

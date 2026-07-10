@@ -3,6 +3,7 @@ import type {
   UltramodernPackageSourceStrategy,
 } from '../ultramodern-package-source';
 import type { UltramodernBridgeConfigInput } from './bridge-config';
+import type { DeliveryUnitDescriptor } from './delivery-unit-schema/types';
 
 export type JsonValue =
   | string
@@ -223,6 +224,16 @@ export type UltramodernGenerationResult = {
   apiPrefixes: Record<string, string>;
   generatedContractPath: string;
   warnings: UltramodernGenerationWarning[];
+  /**
+   * Canonical delivery-unit descriptor per generated app (G1d). Additive and
+   * optional: existing fields are unchanged. Each descriptor's `unitId`,
+   * `buildMarker`, and `sourceRevision` match the emitted delivery-unit records
+   * (built from the same generator functions in the same process), so
+   * automation can consume the canonical shape without re-reading the
+   * workspace. Down-projecting a descriptor reproduces the v1 `WorkspaceApp`
+   * identity (see `projectDeliveryUnitToV1`).
+   */
+  deliveryUnits?: DeliveryUnitDescriptor[];
 };
 
 export type UltramodernCodeSmithOverlay = {
