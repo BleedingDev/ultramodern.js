@@ -55,6 +55,19 @@ export type WorkspaceApi = {
 
 export type ResolvedPackageSource = ResolvedUltramodernPackageSource;
 
+/**
+ * Attribution of the single accountable owner of a delivery unit (G3). Kind +
+ * id mirror the canonical `DeliveryUnitOwner` (delivery-unit-schema) so an
+ * attribution is structurally assignable to it. CONTEXT.md: a MicroVertical
+ * never has more than one owner, and one owner may own many verticals — the
+ * attribution is keyed to the delivery unit, not the team org chart.
+ */
+export type OwnerAttribution = {
+  kind: 'team' | 'agent' | 'agent-team';
+  id: string;
+  contact?: string;
+};
+
 export type Ownership = {
   team: string;
   slack: string;
@@ -65,7 +78,27 @@ export type Ownership = {
     tier: string;
     references: string[];
   };
+  /**
+   * Optional explicit owner attribution (G3). Omitted by default so generated
+   * ownership metadata stays byte-identical; callers opt in to record an
+   * `agent` / `agent-team` owner. When absent, {@link resolveOwnerAttribution}
+   * defaults to the neutral `team` owner derived from `team`.
+   */
+  owner?: OwnerAttribution;
 };
+
+/**
+ * Resolve the single owner attribution for an ownership record (G3). Returns
+ * the explicit `owner` when a caller opted in, otherwise the neutral default
+ * `{ kind: 'team', id: ownership.team }`. Pure; does not mutate or emit —
+ * legacy generation stays byte-identical because nothing serializes this
+ * unless `ownership.owner` was set.
+ */
+export function resolveOwnerAttribution(
+  ownership: Ownership,
+): OwnerAttribution {
+  return ownership.owner ?? { kind: 'team', id: ownership.team };
+}
 
 export const supportedWorkspaceLanguages = ['en', 'cs'] as const;
 export type SupportedWorkspaceLanguage =
