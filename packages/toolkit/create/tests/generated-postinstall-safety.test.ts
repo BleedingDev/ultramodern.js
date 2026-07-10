@@ -25,8 +25,7 @@ function scaffoldWorkspace(): { tempRoot: string; workspaceDir: string } {
     modernVersion: '3.2.1',
     enableTailwind: true,
     packageSource: {
-      strategy: 'install',
-      modernPackageVersion: '3.2.0-ultramodern.108',
+      strategy: 'workspace',
     },
   });
   return { tempRoot, workspaceDir };

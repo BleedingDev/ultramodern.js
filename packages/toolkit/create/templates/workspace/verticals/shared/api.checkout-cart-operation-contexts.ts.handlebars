@@ -11,12 +11,16 @@
     routePath: '/checkout/cart/clear',
     source: 'generated-client',
   },
+{{createOperationContext}}
+{{getOperationContext}}
   getCart: {
     method: 'GET',
     operationId: '{{value4}}:{{value5}}:getCart',
     routePath: '/checkout/cart',
     source: 'generated-client',
   },
+{{listOperationContext}}
+{{readinessOperationContext}}
   removeCartItem: {
     method: 'POST',
     operationId: '{{value6}}:{{value7}}:removeCartItem',

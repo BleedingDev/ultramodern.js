@@ -23,11 +23,12 @@ function run(command, args, options = {}) {
 
 function runAsync(command, args, options = {}) {
   return new Promise((resolve, reject) => {
+    const stdio = options.captureOutput
+      ? ['ignore', 'pipe', 'pipe']
+      : (options.stdio ?? 'inherit');
     const child = spawn(command, args, {
       cwd: options.cwd ?? repoRoot,
-      stdio: options.captureOutput
-        ? ['ignore', 'pipe', 'pipe']
-        : (options.stdio ?? 'inherit'),
+      stdio,
       env: {
         ...process.env,
         FORCE_COLOR: '0',

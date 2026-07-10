@@ -8,15 +8,25 @@ function packageScriptExists(projectDir, scriptName) {
   return typeof packageJson.scripts?.[scriptName] === 'string';
 }
 
-function createWorkspace(workDir, projectName, createPackage, env) {
-  run('pnpm', createPnpmDlxArgs(createPackage, [projectName, '--lang', 'en']), {
-    cwd: workDir,
-    env,
-  });
+function createWorkspace(
+  workDir,
+  projectName,
+  createPackage,
+  env,
+  runImpl = run,
+) {
+  runImpl(
+    'pnpm',
+    createPnpmDlxArgs(createPackage, [projectName, '--lang', 'en']),
+    {
+      cwd: workDir,
+      env,
+    },
+  );
 }
 
-function addVertical(projectDir, vertical, createPackage, env) {
-  run(
+function addVertical(projectDir, vertical, createPackage, env, runImpl = run) {
+  runImpl(
     'pnpm',
     createPnpmDlxArgs(createPackage, [vertical, '--vertical', '--lang', 'en']),
     { cwd: projectDir, env },

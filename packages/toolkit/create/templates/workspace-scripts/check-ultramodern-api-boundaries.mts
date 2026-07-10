@@ -265,8 +265,8 @@ function assertApiSurface(appPath) {
  assertContains(
  backendEffectExpose,
  backendExpose,
- /runtime\s*=\s*apiRuntime/u,
- 'must export the generated Effect BFF runtime.',
+ /export\s*\{\s*default\s*,\s*default\s+as\s+runtime\s*\}\s+from\s+['"]\.\/index\.ts['"]/u,
+ 'must re-export the generated Effect BFF runtime as both default and runtime.',
  );
  assert(
  !/\b(request|handler)\s*:\s*async\s*\(/u.test(backendExpose),

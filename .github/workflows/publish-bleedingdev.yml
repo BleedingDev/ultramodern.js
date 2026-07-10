@@ -7,7 +7,7 @@ on:
         description: "Package version to publish, for example 3.2.0-ultramodern.1"
         required: true
       dry_run:
-        description: "Run npm publish --dry-run"
+        description: "Validate the exact release without authorizing publication"
         required: true
         type: boolean
         default: false
@@ -24,17 +24,31 @@ defaults:
 env:
   BLEEDINGDEV_PUBLISH_CONCURRENCY: "8"
   BLEEDINGDEV_PUBLISH_TAG: latest
+  BLEEDINGDEV_RELEASE_BUNDLE_ARTIFACT: bleedingdev-release-bundle
+  BLEEDINGDEV_RELEASE_ACCEPTANCE_ARTIFACT: bleedingdev-release-acceptance
+  BLEEDINGDEV_RELEASE_IDENTITY_ARTIFACT: bleedingdev-release-identity
+  BLEEDINGDEV_RELEASE_DIR: .modern/bleedingdev-publish
+  BLEEDINGDEV_RELEASE_MANIFEST: .modern/bleedingdev-publish/manifest.json
+  BLEEDINGDEV_RELEASE_MANIFEST_DIGEST: .modern/bleedingdev-publish/manifest.json.sha256
+  BLEEDINGDEV_RELEASE_COHORT_DIGEST: .modern/bleedingdev-publish/cohort.sha256
+  BLEEDINGDEV_RELEASE_ACCEPTANCE_RECEIPT: .modern/bleedingdev-publish/acceptance-receipt.json
+  BLEEDINGDEV_RELEASE_IDENTITY: .modern/bleedingdev-publish/release-identity.json
 
+# Every version and dry run shares this lock. A newer dispatch queues behind an
+# active release instead of cancelling or racing it.
 concurrency:
-  group: publish-bleedingdev-${{ inputs.version }}
+  group: publish-bleedingdev
   cancel-in-progress: false
 
 jobs:
   publish-security:
     name: Validate publish security
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    if: github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern')
+    timeout-minutes: 20
+    if: >-
+      github.actor == github.repository_owner &&
+      github.triggering_actor == github.repository_owner &&
+      github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern')
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
@@ -55,6 +69,9 @@ jobs:
       - name: Setup mise
         uses: jdx/mise-action@5ac50f778e26fac95da98d50503682459e86d566 # v3.2.0
 
+      - name: Install workflow parser
+        run: mise exec -- pnpm install --frozen-lockfile --ignore-scripts --filter @scripts/prebundle
+
       - name: Validate publish security posture
         env:
           PUBLISH_VERSION: ${{ inputs.version }}
@@ -71,11 +88,14 @@ jobs:
           node -e "const version = process.versions.node.split('.').map(Number); if (version[0] < 22 || (version[0] === 22 && version[1] < 14)) throw new Error('npm trusted publishing requires Node.js 22.14.0 or newer');"
           node -e "const { execFileSync } = require('node:child_process'); const version = execFileSync('npm', ['--version'], { encoding: 'utf8' }).trim().split('.').map(Number); if (version[0] < 11 || (version[0] === 11 && version[1] < 5) || (version[0] === 11 && version[1] === 5 && version[2] < 1)) throw new Error('npm trusted publishing requires npm 11.5.1 or newer');"
 
-  prepare-packages:
-    name: Build and stage @bleedingdev packages
+  prepare-release:
+    name: Build the immutable @bleedingdev release bundle
     runs-on: ubuntu-latest
     timeout-minutes: 90
-    if: github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern')
+    if: >-
+      github.actor == github.repository_owner &&
+      github.triggering_actor == github.repository_owner &&
+      github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern')
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
@@ -99,58 +119,75 @@ jobs:
       - name: Install Dependencies
         run: mise exec -- pnpm install --frozen-lockfile
 
+      - name: Qualify release source
+        run: |
+          mise exec -- pnpm test:scripts
+          mise exec -- pnpm --filter @modern-js/create test
+
       - name: Build Packages
         run: mise exec -- pnpm ultramodern:build-bleedingdev-publish
 
-      - name: Prepare pre-publish package manifest
+      - name: Prepare exact release tarballs and manifest
         env:
           PUBLISH_VERSION: ${{ inputs.version }}
           PUBLISH_TAG: ${{ env.BLEEDINGDEV_PUBLISH_TAG }}
         run: |
-          args=(
-            --version "$PUBLISH_VERSION"
+          mise exec -- pnpm ultramodern:prepare-bleedingdev-publish -- \
+            --version "$PUBLISH_VERSION" \
             --tag "$PUBLISH_TAG"
-          )
 
-          mise exec -- pnpm ultramodern:prepare-bleedingdev-publish -- "${args[@]}"
+      - name: Verify release bundle output shape
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
 
-      - name: Validate pre-publish source proof
-        run: mise exec -- pnpm ultramodern:source-create-proof
+          for (const file of [
+            process.env.BLEEDINGDEV_RELEASE_MANIFEST,
+            process.env.BLEEDINGDEV_RELEASE_MANIFEST_DIGEST,
+            process.env.BLEEDINGDEV_RELEASE_COHORT_DIGEST,
+          ]) {
+            if (!fs.statSync(file, { throwIfNoEntry: false })?.isFile()) {
+              throw new Error(`Missing release bundle file: ${file}`);
+            }
+          }
 
-      - name: Upload staged publish package tree
+          const tarballDir = path.join(process.env.BLEEDINGDEV_RELEASE_DIR, 'tarballs');
+          const tarballs = fs.readdirSync(tarballDir, { withFileTypes: true });
+          if (tarballs.length === 0 || tarballs.some(entry => !entry.isFile() || !entry.name.endsWith('.tgz'))) {
+            throw new Error('Release bundle tarballs/ must contain only final .tgz files');
+          }
+          NODE
+
+      - name: Upload immutable release bundle
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: bleedingdev-publish-staged-packages
-          path: .modern/bleedingdev-publish/
+          name: bleedingdev-release-bundle
+          path: |
+            .modern/bleedingdev-publish/manifest.json
+            .modern/bleedingdev-publish/manifest.json.sha256
+            .modern/bleedingdev-publish/cohort.sha256
+            .modern/bleedingdev-publish/tarballs/*.tgz
           if-no-files-found: error
           include-hidden-files: true
 
-      - name: Upload pre-publish source proof
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: prepublish-source-create-proof
-          path: .modern/prepublish-release-gates/source-create-proof.json
-          if-no-files-found: error
-
-  publish:
-    name: Publish @bleedingdev packages
+  accept-release:
+    name: Clean-room acceptance of the immutable release bundle
     runs-on: ubuntu-latest
-    environment: npm-publish
-    permissions:
-      contents: read
-      id-token: write
-    timeout-minutes: 45
-    if: github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern')
+    timeout-minutes: 120
+    if: >-
+      github.actor == github.repository_owner &&
+      github.triggering_actor == github.repository_owner &&
+      github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern')
     needs:
-      - publish-security
-      - prepare-packages
+      - prepare-release
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
         with:
           egress-policy: audit
 
-      - name: Checkout
+      - name: Checkout acceptance runner
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 1
@@ -161,36 +198,276 @@ jobs:
         with:
           node-version: "24"
 
-      - name: Download staged publish package tree
+      - name: Setup mise
+        uses: jdx/mise-action@5ac50f778e26fac95da98d50503682459e86d566 # v3.2.0
+
+      - name: Download immutable release bundle
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v7.0.0
         with:
-          name: bleedingdev-publish-staged-packages
+          name: bleedingdev-release-bundle
           path: .modern/bleedingdev-publish
 
-      - name: Publish Packages
+      - name: Install browser smoke runtime
+        run: npx --yes playwright@1.60.0 install --with-deps chromium
+
+      - name: Run exact-artifact ERP-10 acceptance
+        run: |
+          node scripts/ultramodern-publish/run-release-acceptance.mjs \
+            --manifest "$BLEEDINGDEV_RELEASE_MANIFEST" \
+            --scale-profile erp-10 \
+            --receipt "$BLEEDINGDEV_RELEASE_ACCEPTANCE_RECEIPT"
+
+      - name: Upload release acceptance receipt
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: bleedingdev-release-acceptance
+          path: .modern/bleedingdev-publish/acceptance-receipt.json
+          if-no-files-found: error
+          include-hidden-files: true
+
+  validate-release:
+    name: Validate accepted @bleedingdev tarballs without publish authority
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    if: >-
+      github.actor == github.repository_owner &&
+      github.triggering_actor == github.repository_owner &&
+      github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern') &&
+      inputs.dry_run == true
+    needs:
+      - publish-security
+      - accept-release
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        with:
+          egress-policy: audit
+
+      - name: Checkout exact-artifact validation CLI
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "24"
+
+      - name: Download accepted release bundle
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v7.0.0
+        with:
+          name: bleedingdev-release-bundle
+          path: .modern/bleedingdev-publish
+
+      - name: Download release acceptance receipt
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v7.0.0
+        with:
+          name: bleedingdev-release-acceptance
+          path: .modern/bleedingdev-publish
+
+      - name: Verify exact release acceptance receipt
+        run: |
+          node scripts/ultramodern-publish/run-release-acceptance.mjs \
+            --verify-receipt \
+            --manifest "$BLEEDINGDEV_RELEASE_MANIFEST" \
+            --scale-profile erp-10 \
+            --receipt "$BLEEDINGDEV_RELEASE_ACCEPTANCE_RECEIPT"
+
+          node scripts/ultramodern-production-readiness/published-create-proof/acceptance-receipt.mjs \
+            --verify \
+            --manifest "$BLEEDINGDEV_RELEASE_MANIFEST" \
+            --receipt "$BLEEDINGDEV_RELEASE_ACCEPTANCE_RECEIPT" \
+            --run-identity "github:${GITHUB_REPOSITORY}:run:${GITHUB_RUN_ID}:attempt:${GITHUB_RUN_ATTEMPT}"
+
+      - name: Validate only the accepted tarballs
         env:
           PUBLISH_VERSION: ${{ inputs.version }}
           PUBLISH_TAG: ${{ env.BLEEDINGDEV_PUBLISH_TAG }}
-          DRY_RUN: ${{ inputs.dry_run }}
           PUBLISH_CONCURRENCY: ${{ env.BLEEDINGDEV_PUBLISH_CONCURRENCY }}
         run: |
-          args=(
-            --version "$PUBLISH_VERSION"
-            --tag "$PUBLISH_TAG"
-          )
+          node scripts/ultramodern-publish/prepare-bleedingdev-packages.mjs \
+            --publish-existing \
+            --dry-run \
+            --out "$BLEEDINGDEV_RELEASE_DIR" \
+            --version "$PUBLISH_VERSION" \
+            --tag "$PUBLISH_TAG" \
+            --publish-concurrency "$PUBLISH_CONCURRENCY"
 
-          if [ "$DRY_RUN" = "true" ]; then
-            args+=(--dry-run)
-          fi
+  publish:
+    name: Publish accepted @bleedingdev tarballs
+    runs-on: ubuntu-latest
+    environment: npm-publish
+    permissions:
+      contents: read
+      id-token: write
+    timeout-minutes: 45
+    if: >-
+      github.actor == github.repository_owner &&
+      github.triggering_actor == github.repository_owner &&
+      github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern') &&
+      inputs.dry_run == false
+    needs:
+      - publish-security
+      - accept-release
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        with:
+          egress-policy: audit
 
-          args+=(--publish-concurrency "$PUBLISH_CONCURRENCY")
+      - name: Checkout exact-artifact publish CLI
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 1
+          persist-credentials: false
 
-          node scripts/ultramodern-publish/prepare-bleedingdev-packages.mjs --publish-existing "${args[@]}"
+      - name: Setup Node.js 24
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "24"
 
-      - name: Upload publish manifest
-        if: always()
+      - name: Download accepted release bundle
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v7.0.0
+        with:
+          name: bleedingdev-release-bundle
+          path: .modern/bleedingdev-publish
+
+      - name: Download release acceptance receipt
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v7.0.0
+        with:
+          name: bleedingdev-release-acceptance
+          path: .modern/bleedingdev-publish
+
+      - name: Verify exact release acceptance receipt
+        run: |
+          node scripts/ultramodern-publish/run-release-acceptance.mjs \
+            --verify-receipt \
+            --manifest "$BLEEDINGDEV_RELEASE_MANIFEST" \
+            --scale-profile erp-10 \
+            --receipt "$BLEEDINGDEV_RELEASE_ACCEPTANCE_RECEIPT"
+
+          node scripts/ultramodern-production-readiness/published-create-proof/acceptance-receipt.mjs \
+            --verify \
+            --manifest "$BLEEDINGDEV_RELEASE_MANIFEST" \
+            --receipt "$BLEEDINGDEV_RELEASE_ACCEPTANCE_RECEIPT" \
+            --run-identity "github:${GITHUB_REPOSITORY}:run:${GITHUB_RUN_ID}:attempt:${GITHUB_RUN_ATTEMPT}"
+
+      - name: Prepare non-dry-run release identity
+        env:
+          PUBLISH_VERSION: ${{ inputs.version }}
+          SOURCE_COMMIT: ${{ github.sha }}
+        run: |
+          node <<'NODE'
+          const crypto = require('node:crypto');
+          const fs = require('node:fs');
+
+          const readJson = file => JSON.parse(fs.readFileSync(file, 'utf8'));
+          const sha256 = file => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+          const hasExactKeys = (value, expected) =>
+            value !== null &&
+            typeof value === 'object' &&
+            !Array.isArray(value) &&
+            JSON.stringify(Object.keys(value).sort()) === JSON.stringify([...expected].sort());
+          const manifest = readJson(process.env.BLEEDINGDEV_RELEASE_MANIFEST);
+          const manifestSha256 = sha256(process.env.BLEEDINGDEV_RELEASE_MANIFEST);
+          const detachedManifestSha256 = fs.readFileSync(
+            process.env.BLEEDINGDEV_RELEASE_MANIFEST_DIGEST,
+            'utf8',
+          );
+          const detachedCohortSha256 = fs.readFileSync(
+            process.env.BLEEDINGDEV_RELEASE_COHORT_DIGEST,
+            'utf8',
+          );
+          const runId = process.env.GITHUB_RUN_ID;
+          const runIdentity = `github:${manifest.source.repository}:run:${runId}:attempt:${process.env.GITHUB_RUN_ATTEMPT}`;
+
+          if (
+            manifest.schema !== 'bleedingdev.ultramodern.release-manifest' ||
+            manifest.schemaVersion !== 2
+          ) {
+            throw new Error(`Unknown release manifest schema ${manifest.schema}@${manifest.schemaVersion}`);
+          }
+          if (
+            !hasExactKeys(manifest, [
+              'aliases',
+              'cohortDigest',
+              'cohortProjection',
+              'dependencyGraph',
+              'packages',
+              'publishOrder',
+              'release',
+              'schema',
+              'schemaVersion',
+              'source',
+              'tools',
+            ]) ||
+            !hasExactKeys(manifest.source, ['commit', 'repository']) ||
+            !hasExactKeys(manifest.release, ['tag', 'version']) ||
+            !hasExactKeys(manifest.tools, ['node', 'npm', 'pnpm']) ||
+            !Array.isArray(manifest.packages) ||
+            manifest.packages.length === 0 ||
+            !Array.isArray(manifest.publishOrder)
+          ) {
+            throw new Error('Release manifest does not match the strict v2 shape');
+          }
+          if (
+            detachedManifestSha256 !== `${manifestSha256}  manifest.json\n` ||
+            detachedCohortSha256 !== `${manifest.cohortDigest}\n`
+          ) {
+            throw new Error('Detached release manifest or cohort digest is invalid');
+          }
+
+          if (manifest.release.version !== process.env.PUBLISH_VERSION) {
+            throw new Error(`Release manifest version ${manifest.release.version} does not match ${process.env.PUBLISH_VERSION}`);
+          }
+          if (
+            manifest.release.tag !== process.env.BLEEDINGDEV_PUBLISH_TAG ||
+            manifest.source.commit !== process.env.SOURCE_COMMIT ||
+            manifest.source.repository !== process.env.GITHUB_REPOSITORY
+          ) {
+            throw new Error('Release manifest source or release identity does not match this publish');
+          }
+          const identity = {
+            schema: 'bleedingdev.ultramodern.published-release-identity',
+            schemaVersion: 1,
+            releaseRunId: runId,
+            source: manifest.source,
+            release: manifest.release,
+            cohortDigest: manifest.cohortDigest,
+            manifestSha256,
+            acceptanceReceiptSha256: sha256(process.env.BLEEDINGDEV_RELEASE_ACCEPTANCE_RECEIPT),
+            dryRun: false,
+          };
+          fs.writeFileSync(
+            process.env.BLEEDINGDEV_RELEASE_IDENTITY,
+            `${JSON.stringify(identity, null, 2)}\n`,
+          );
+          NODE
+
+      - name: Publish only the accepted tarballs
+        env:
+          PUBLISH_VERSION: ${{ inputs.version }}
+          PUBLISH_TAG: ${{ env.BLEEDINGDEV_PUBLISH_TAG }}
+          PUBLISH_CONCURRENCY: ${{ env.BLEEDINGDEV_PUBLISH_CONCURRENCY }}
+        run: |
+          node scripts/ultramodern-publish/prepare-bleedingdev-packages.mjs \
+            --publish-existing \
+            --out "$BLEEDINGDEV_RELEASE_DIR" \
+            --version "$PUBLISH_VERSION" \
+            --tag "$PUBLISH_TAG" \
+            --publish-concurrency "$PUBLISH_CONCURRENCY"
+
+      - name: Upload published release identity
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: bleedingdev-publish-manifest
-          path: .modern/bleedingdev-publish/manifest.json
-          if-no-files-found: ignore
+          name: bleedingdev-release-identity
+          path: |
+            .modern/bleedingdev-publish/manifest.json
+            .modern/bleedingdev-publish/manifest.json.sha256
+            .modern/bleedingdev-publish/cohort.sha256
+            .modern/bleedingdev-publish/tarballs/*.tgz
+            .modern/bleedingdev-publish/acceptance-receipt.json
+            .modern/bleedingdev-publish/release-identity.json
+          if-no-files-found: error
+          include-hidden-files: true

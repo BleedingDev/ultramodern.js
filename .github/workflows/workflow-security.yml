@@ -7,6 +7,8 @@ on:
       - '.github/renovate.json'
       - 'packages/toolkit/create/template-workspace/.github/**'
       - 'scripts/security/**'
+      - 'scripts/ultramodern-publish/**'
+      - 'scripts/ultramodern-production-readiness/**'
       - 'package.json'
   push:
     branches:
@@ -16,6 +18,8 @@ on:
       - '.github/renovate.json'
       - 'packages/toolkit/create/template-workspace/.github/**'
       - 'scripts/security/**'
+      - 'scripts/ultramodern-publish/**'
+      - 'scripts/ultramodern-production-readiness/**'
       - 'package.json'
   workflow_dispatch:
 
@@ -29,7 +33,7 @@ defaults:
 jobs:
   workflow-security:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
@@ -47,8 +51,17 @@ jobs:
         with:
           node-version: 24
 
+      - name: Setup mise
+        uses: jdx/mise-action@5ac50f778e26fac95da98d50503682459e86d566 # v3.2.0
+
+      - name: Install workflow parser
+        run: mise exec -- pnpm install --frozen-lockfile --ignore-scripts --filter @scripts/prebundle
+
       - name: Run validator unit tests
-        run: node --test scripts/security/__tests__/*.test.mjs
+        run: |
+          node --test scripts/security/__tests__/*.test.mjs
+          node --test scripts/ultramodern-publish/__tests__/publish-security.test.js
+          node --test scripts/ultramodern-production-readiness/__tests__/*.test.js
 
       - name: Validate workflow security
         run: node scripts/security/validate-github-workflows.mjs

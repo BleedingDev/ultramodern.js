@@ -35,7 +35,7 @@ export async function runUltramodernToolingCli(
       case GENERATED_TOOLING_COMMANDS.mfTypes.command:
         return runMfTypes(rest, context);
       case GENERATED_TOOLING_COMMANDS.migrateStrictEffect.command:
-        return runMigrateStrictEffect(rest, context);
+        return await runMigrateStrictEffect(rest, context);
       case GENERATED_TOOLING_COMMANDS.cloudflareOutputVerify.command:
         return runCloudflareOutputVerify(rest, context);
       case GENERATED_TOOLING_COMMANDS.routesGenerate.command:

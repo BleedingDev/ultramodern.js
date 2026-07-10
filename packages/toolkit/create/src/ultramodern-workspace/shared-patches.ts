@@ -1,9 +1,13 @@
-export const SHARED_ULTRAMODERN_WORKSPACE_PATCH_FILES = [
-  '@module-federation__bridge-react@2.7.0.patch',
-  '@module-federation__dts-plugin@2.7.0.patch',
-  '@module-federation__modern-js-v3@2.7.0.patch',
-  '@tanstack__router-core@1.171.14.patch',
-] as const;
+import { ULTRAMODERN_WORKSPACE_POLICY } from './policy';
+
+export const SHARED_ULTRAMODERN_WORKSPACE_PATCH_FILES =
+  ULTRAMODERN_WORKSPACE_POLICY.pnpm.patchedDependencies.required
+    .map(patch => patch.path.replace(/^patches\//u, ''))
+    .filter(
+      patchFile =>
+        patchFile.startsWith('@module-federation__') ||
+        patchFile.startsWith('@tanstack__'),
+    );
 
 type SharedUltramodernWorkspacePatchFile =
   (typeof SHARED_ULTRAMODERN_WORKSPACE_PATCH_FILES)[number];

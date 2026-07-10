@@ -63,7 +63,7 @@ function assertNoCompilerApiImports(root: string, label: string) {
   }
 }
 
-test('create package build keeps UltraModern generator declarations on tsgo:dts', () => {
+test('create package build and test keep declarations on tsgo:dts', () => {
   const packageJson = readPackageJson();
 
   assert.match(
@@ -75,6 +75,16 @@ test('create package build keeps UltraModern generator declarations on tsgo:dts'
     packageJson.scripts.build,
     /pnpm -w tsgo:dts "\$PWD"/u,
     'package build must emit declarations through the repo tsgo:dts flow',
+  );
+  assert.match(
+    packageJson.scripts.test,
+    /rslib build/u,
+    'package tests must build runtime artifacts before executing tests',
+  );
+  assert.match(
+    packageJson.scripts.test,
+    /pnpm -w tsgo:dts "\$PWD"/u,
+    'package tests must emit declarations before validating the public surface',
   );
   assert.equal(
     packageJson.dependencies?.typescript,
@@ -154,8 +164,7 @@ test('generated package module scopes keep MF apps compatible with classic compi
       modernVersion: '3.2.1',
       enableTailwind: true,
       packageSource: {
-        strategy: 'install',
-        modernPackageVersion: '3.2.0-ultramodern.108',
+        strategy: 'workspace',
       },
     });
     const rootPackageJson = JSON.parse(
@@ -225,8 +234,7 @@ test('generated workspaces do not import TypeScript compiler APIs', () => {
       modernVersion: '3.2.1',
       enableTailwind: true,
       packageSource: {
-        strategy: 'install',
-        modernPackageVersion: '3.2.0-ultramodern.108',
+        strategy: 'workspace',
       },
     });
     addUltramodernVertical({

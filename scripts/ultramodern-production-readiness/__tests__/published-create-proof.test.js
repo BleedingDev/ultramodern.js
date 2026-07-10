@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -11,6 +12,31 @@ async function loadProof() {
 
 function writeJson(root, relativePath, value) {
   writeJsonFile(path.join(root, relativePath), value, { atomic: false });
+}
+
+function canonicalValue(value) {
+  if (Array.isArray(value)) {
+    return value.map(canonicalValue);
+  }
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.keys(value)
+        .sort()
+        .map(key => [key, canonicalValue(value[key])]),
+    );
+  }
+  return value;
+}
+
+function writeCanonicalJson(root, relativePath, value) {
+  const bytes = Buffer.from(
+    `${JSON.stringify(canonicalValue(value), null, 2)}\n`,
+    'utf8',
+  );
+  const filePath = path.join(root, relativePath);
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, bytes);
+  return crypto.createHash('sha256').update(bytes).digest('hex');
 }
 
 test('defines generated workspace scale profiles for 10, 25, and 50 verticals', async () => {
@@ -139,6 +165,31 @@ test('builds the supported pnpm dlx package command contract', async () => {
   });
 });
 
+test('shared ERP-10 profile requires frozen install, checks, both builds, and no framework override', async () => {
+  const { createAcceptancePackageManagerEnv, requiredPnpmCommands } =
+    await import('../published-create-proof/acceptance-profile.mjs');
+  const { requiredAcceptanceResultIds } = await import(
+    '../published-create-proof/acceptance-receipt.mjs'
+  );
+
+  assert.deepEqual(requiredPnpmCommands, {
+    install: ['install', '--frozen-lockfile'],
+    check: ['check'],
+    build: ['build'],
+    cloudflareBuild: ['cloudflare:build'],
+  });
+  assert.equal(requiredAcceptanceResultIds.includes('cloudflare-build'), true);
+  assert.equal(
+    Object.hasOwn(
+      createAcceptancePackageManagerEnv('/tmp/acceptance', {
+        MODERN_CREATE_ULTRAMODERN_FRAMEWORK_VERSION: 'forbidden',
+      }),
+      'MODERN_CREATE_ULTRAMODERN_FRAMEWORK_VERSION',
+    ),
+    false,
+  );
+});
+
 test('builds Cloudflare proof args without a pnpm separator argument', async () => {
   const { createCloudflareProofArgs } = await loadProof();
 
@@ -165,60 +216,93 @@ test('records skipped Cloudflare deploy proof evidence when deploy is disabled',
   });
 });
 
-test('asserts generated cohorts from package source metadata and framework version', async () => {
+test('asserts generated cohorts only from strict manifest expectations and compact observations', async () => {
   const { assertGeneratedCohort } = await loadProof();
   const root = fs.mkdtempSync(
     path.join(os.tmpdir(), 'published-create-cohort-'),
   );
+  const version = '3.2.0-framework.1';
+  const release = {
+    aliases: {
+      '@modern-js/create': '@bleedingdev/modern-js-create',
+      '@modern-js/runtime': '@bleedingdev/modern-js-runtime',
+    },
+    createPackage: {
+      sourceName: '@modern-js/create',
+      targetName: '@bleedingdev/modern-js-create',
+      version,
+    },
+    packages: [
+      {
+        sourceName: '@modern-js/create',
+        targetName: '@bleedingdev/modern-js-create',
+      },
+      {
+        sourceName: '@modern-js/runtime',
+        targetName: '@bleedingdev/modern-js-runtime',
+      },
+    ],
+    publishOrder: [
+      '@bleedingdev/modern-js-runtime',
+      '@bleedingdev/modern-js-create',
+    ],
+    release: { version },
+  };
+  const cohortProjection = {
+    aliases: release.aliases,
+    packages: release.packages.map(item => ({ ...item, version })),
+    release: { tag: 'latest', version },
+    schema: 'bleedingdev.ultramodern.release-cohort',
+    schemaVersion: 1,
+    source: {
+      commit: 'a'.repeat(40),
+      repository: 'BleedingDev/ultramodern.js',
+    },
+  };
 
   try {
-    writeJson(root, '.modernjs/ultramodern-package-source.json', {
+    writeJson(root, '.modernjs/ultramodern.json', {
       schemaVersion: 1,
-      strategy: 'install',
-      modernPackages: {
-        packages: ['@modern-js/runtime'],
-        specifier: '3.2.0-framework.1',
-        aliases: {
-          '@modern-js/runtime': '@bleedingdev/modern-js-runtime',
-        },
+      generator: {
+        package: '@modern-js/create',
+        version,
       },
-    });
-    writeJson(root, '.modernjs/ultramodern-workspace-template-manifest.json', {
       packageSource: {
-        modernPackageSpecifier: '3.2.0-framework.1',
-      },
-      template: {
-        version: '3.2.0-create.1',
+        strategy: 'install',
+        modernPackageVersion: version,
+        aliasScope: 'bleedingdev',
+        aliasPackageNamePrefix: 'modern-js-',
       },
     });
     writeJson(root, 'package.json', {
       dependencies: {
-        '@modern-js/runtime':
-          'npm:@bleedingdev/modern-js-runtime@3.2.0-framework.1',
+        '@modern-js/runtime': `npm:@bleedingdev/modern-js-runtime@${version}`,
       },
     });
+    release.cohortProjection = {
+      sha256: writeCanonicalJson(
+        root,
+        '.modernjs/release-cohort.json',
+        cohortProjection,
+      ),
+      value: cohortProjection,
+    };
 
-    assert.doesNotThrow(() =>
-      assertGeneratedCohort(root, '3.2.0-framework.1', {
-        expectedTemplateVersion: '3.2.0-create.1',
-      }),
-    );
+    assert.equal(assertGeneratedCohort(root, release).observedPackageCount, 1);
 
-    writeJson(root, 'package.json', {
-      dependencies: {
-        '@modern-js/runtime':
-          'npm:@bleedingdev/modern-js-runtime@3.2.0-framework.1',
-        '@modern-js/app-tools':
-          'npm:@bleedingdev/modern-js-app-tools@3.2.0-framework.1',
-      },
-    });
-
+    fs.rmSync(path.join(root, '.modernjs/release-cohort.json'));
     assert.throws(
-      () =>
-        assertGeneratedCohort(root, '3.2.0-framework.1', {
-          expectedTemplateVersion: '3.2.0-create.1',
-        }),
-      /declares @modern-js\/app-tools outside package source metadata/,
+      () => assertGeneratedCohort(root, release),
+      /authenticated release cohort is missing or unsafe/,
+    );
+    writeCanonicalJson(root, '.modernjs/release-cohort.json', cohortProjection);
+
+    writeJson(root, '.modernjs/ultramodern-package-source.json', {
+      strategy: 'install',
+    });
+    assert.throws(
+      () => assertGeneratedCohort(root, release),
+      /retired package-cohort metadata/,
     );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });

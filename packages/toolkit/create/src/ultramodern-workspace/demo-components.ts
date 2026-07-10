@@ -109,6 +109,13 @@ export function createShellRemoteComponents(
       return `          <${componentName} key="${remote.id}" />`;
     })
     .join('\n');
+  const showcaseGridClassName = tw('grid gap-4 md:grid-cols-2');
+  const showcaseGrid =
+    widgetRemotes.length === 0
+      ? `<div className="${showcaseGridClassName}" />`
+      : `<div className="${showcaseGridClassName}">
+${showcaseItems}
+      </div>`;
   const remoteCount = String(widgetRemotes.length);
 
   return renderFileTemplate(
@@ -134,8 +141,7 @@ export function createShellRemoteComponents(
       value9: tw('text-lg font-bold text-stone-700'),
       value10: tw('mx-auto mt-12 max-w-7xl'),
       value11: shellApp.mfName,
-      value12: tw('grid gap-4 md:grid-cols-2'),
-      value13: showcaseItems,
+      value12: showcaseGrid,
     },
   );
 }

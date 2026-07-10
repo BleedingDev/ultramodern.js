@@ -23,7 +23,7 @@ const baselineCohort: BaselineCohort = {
   resolved: {
     react: '^19.2.7',
     tanstackRouter: '1.170.17',
-    effect: '4.0.0-beta.94',
+    effect: '4.0.0-beta.97',
     tailwind: '4.3.2',
   },
 };

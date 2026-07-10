@@ -6,9 +6,7 @@ import { rstest } from '@rstest/core';
 
 const repoRoot = path.resolve(__dirname, '../../../../');
 const createBin = path.resolve(repoRoot, 'packages/toolkit/create/bin/run.js');
-const expectedBleedingDevFrameworkVersion = '3.2.0-ultramodern.108';
-const expectedEffectVersion = '4.0.0-beta.94';
-const expectedTypeScriptVersion = '7.0.2';
+const expectedEffectVersion = '4.0.0-beta.97';
 const shellAppPath = 'apps/shell-super-app';
 
 function readJson<T = any>(baseDir: string, relativePath: string): T {
@@ -48,52 +46,35 @@ function expectPnpm11Policy(projectDir: string) {
   expect(readPnpmConfig(projectDir, 'minimumReleaseAgeIgnoreMissingTime')).toBe(
     false,
   );
-  expect(readPnpmConfig(projectDir, 'minimumReleaseAgeExclude')).toEqual([
-    '@bleedingdev/modern-js-*',
-    `effect@${expectedEffectVersion}`,
-    `@effect/opentelemetry@${expectedEffectVersion}`,
-    '@tanstack/react-router',
-    '@tanstack/router-core',
-    'typescript',
-    `typescript@${expectedTypeScriptVersion}`,
-    '@typescript/typescript6@6.0.2',
-    `@typescript/typescript-aix-ppc64@${expectedTypeScriptVersion}`,
-    `@typescript/typescript-darwin-arm64@${expectedTypeScriptVersion}`,
-    `@typescript/typescript-darwin-x64@${expectedTypeScriptVersion}`,
-    `@typescript/typescript-freebsd-arm64@${expectedTypeScriptVersion}`,
-    `@typescript/typescript-freebsd-x64@${expectedTypeScriptVersion}`,
-    `@typescript/typescript-linux-arm64@${expectedTypeScriptVersion}`,
-    `@typescript/typescript-linux-arm@${expectedTypeScriptVersion}`,
-    `@typescript/typescript-linux-loong64@${expectedTypeScriptVersion}`,
-    `@typescript/typescript-linux-mips64el@${expectedTypeScriptVersion}`,
-    `@typescript/typescript-linux-ppc64@${expectedTypeScriptVersion}`,
-    `@typescript/typescript-linux-riscv64@${expectedTypeScriptVersion}`,
-    `@typescript/typescript-linux-s390x@${expectedTypeScriptVersion}`,
-    `@typescript/typescript-linux-x64@${expectedTypeScriptVersion}`,
-    `@typescript/typescript-netbsd-arm64@${expectedTypeScriptVersion}`,
-    `@typescript/typescript-netbsd-x64@${expectedTypeScriptVersion}`,
-    `@typescript/typescript-openbsd-arm64@${expectedTypeScriptVersion}`,
-    `@typescript/typescript-openbsd-x64@${expectedTypeScriptVersion}`,
-    `@typescript/typescript-sunos-x64@${expectedTypeScriptVersion}`,
-    `@typescript/typescript-win32-arm64@${expectedTypeScriptVersion}`,
-    `@typescript/typescript-win32-x64@${expectedTypeScriptVersion}`,
-    '@rsbuild/plugin-tailwindcss',
-    '@types/react',
-    '@rsbuild/core',
-    '@rsbuild/plugin-react',
-    '@rsbuild/plugin-type-check',
-    '@rspack/binding',
-    '@rspack/binding-*',
-    '@rspack/core',
-    '@rspack/plugin-react-refresh',
-    'ts-checker-rspack-plugin',
+  const minimumReleaseAgeExclude = readPnpmConfig<string[]>(
+    projectDir,
+    'minimumReleaseAgeExclude',
+  );
+  expect(Array.isArray(minimumReleaseAgeExclude)).toBe(true);
+  expect(minimumReleaseAgeExclude).toEqual([
+    ...new Set(minimumReleaseAgeExclude),
   ]);
+  expect(
+    minimumReleaseAgeExclude?.every(selector => selector.lastIndexOf('@') > 0),
+  ).toBe(true);
+  expect(
+    minimumReleaseAgeExclude?.some(selector => selector.includes('*')),
+  ).toBe(false);
+  expect(
+    minimumReleaseAgeExclude?.some(selector =>
+      selector.startsWith('@bleedingdev/modern-js-'),
+    ),
+  ).toBe(false);
   expect(readPnpmConfig(projectDir, 'trustPolicy')).toBe('no-downgrade');
   expect(readPnpmConfig(projectDir, 'trustPolicyIgnoreAfter')).toBe(1440);
-  expect(readPnpmConfig(projectDir, 'trustPolicyExclude')).toEqual([
-    `effect@${expectedEffectVersion}`,
-    `@effect/opentelemetry@${expectedEffectVersion}`,
-  ]);
+  expect(
+    new Set(readPnpmConfig<string[]>(projectDir, 'trustPolicyExclude')),
+  ).toEqual(
+    new Set([
+      `effect@${expectedEffectVersion}`,
+      `@effect/opentelemetry@${expectedEffectVersion}`,
+    ]),
+  );
   expect(readPnpmConfig(projectDir, 'blockExoticSubdeps')).toBe(true);
   expect(readPnpmConfig(projectDir, 'engineStrict')).toBe(true);
   expect(readPnpmConfig(projectDir, 'pmOnFail')).toBe('error');
@@ -107,8 +88,6 @@ function runCreate(cwd: string, args: string[]) {
     env: {
       ...process.env,
       FORCE_COLOR: '0',
-      MODERN_CREATE_ULTRAMODERN_FRAMEWORK_VERSION:
-        expectedBleedingDevFrameworkVersion,
     },
     stdio: 'pipe',
   });
@@ -195,10 +174,15 @@ describe('create-tailwind', () => {
     expect(verticalPackage.devDependencies.tailwindcss).toBeUndefined();
   });
 
-  test('uses BleedingDev npm aliases for UltraModern package installs', () => {
+  test('uses workspace links for a local source checkout', () => {
     expect(
       fs.existsSync(
         path.join(withTailwindDir, '.modernjs/ultramodern-package-source.json'),
+      ),
+    ).toBe(false);
+    expect(
+      fs.existsSync(
+        path.join(withTailwindDir, '.modernjs/release-cohort.json'),
       ),
     ).toBe(false);
 
@@ -206,24 +190,18 @@ describe('create-tailwind', () => {
       withTailwindDir,
       '.modernjs/ultramodern.json',
     );
-    expect(ultramodernConfig.packageSource.strategy).toBe('install');
-    expect(ultramodernConfig.packageSource.modernPackageVersion).toBe(
-      expectedBleedingDevFrameworkVersion,
-    );
-    expect(ultramodernConfig.packageSource.aliasScope).toBe('bleedingdev');
-    expect(ultramodernConfig.packageSource.aliasPackageNamePrefix).toBe(
-      'modern-js-',
-    );
+    expect(ultramodernConfig.packageSource).toEqual({
+      strategy: 'workspace',
+      modernPackageVersion: 'workspace:*',
+    });
 
     const shellPackage = readJson(
       path.join(withTailwindDir, shellAppPath),
       'package.json',
     );
-    expect(shellPackage.dependencies['@modern-js/runtime']).toBe(
-      `npm:@bleedingdev/modern-js-runtime@${expectedBleedingDevFrameworkVersion}`,
-    );
+    expect(shellPackage.dependencies['@modern-js/runtime']).toBe('workspace:*');
     expect(shellPackage.devDependencies['@modern-js/app-tools']).toBe(
-      `npm:@bleedingdev/modern-js-app-tools@${expectedBleedingDevFrameworkVersion}`,
+      'workspace:*',
     );
   });
 

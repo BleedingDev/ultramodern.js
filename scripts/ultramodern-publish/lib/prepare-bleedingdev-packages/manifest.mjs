@@ -94,12 +94,11 @@ function dependencyTargetForSpecifier(dependencyName, specifier, manifest) {
   return packageName && targetNames.has(packageName) ? packageName : undefined;
 }
 
-function publishDependenciesForItem(item, manifest) {
-  const packageJsonPath = path.join(repoRoot, item.packageDir, 'package.json');
-  if (!fs.existsSync(packageJsonPath)) {
-    return [];
-  }
-  const packageJson = readJsonFile(packageJsonPath);
+function packageDependenciesFromPackageJson(
+  packageJson,
+  targetName,
+  manifest,
+) {
   const dependencies = ['dependencies', 'optionalDependencies'].flatMap(
     blockName => Object.entries(packageJson[blockName] ?? {}),
   );
@@ -112,11 +111,41 @@ function publishDependenciesForItem(item, manifest) {
         )
         .filter(
           dependencyTarget =>
-            dependencyTarget !== undefined &&
-            dependencyTarget !== item.targetName,
+            dependencyTarget !== undefined && dependencyTarget !== targetName,
         ),
     ),
   ].sort((left, right) => left.localeCompare(right));
+}
+
+function publishDependenciesForItem(item, manifest) {
+  if (manifest.dependencyGraph) {
+    return manifest.dependencyGraph[item.targetName] ?? [];
+  }
+
+  const packageJsonPath = path.join(repoRoot, item.packageDir, 'package.json');
+  if (!fs.existsSync(packageJsonPath)) {
+    return [];
+  }
+  const packageJson = readJsonFile(packageJsonPath);
+  return packageDependenciesFromPackageJson(
+    packageJson,
+    item.targetName,
+    manifest,
+  );
+}
+
+function createPackageDependencyGraph(packages, manifest) {
+  return Object.fromEntries(
+    [...packages]
+      .sort((left, right) => left.targetName.localeCompare(right.targetName))
+      .map(item => [
+        item.targetName,
+        publishDependenciesForItem(item, {
+          ...manifest,
+          dependencyGraph: undefined,
+        }),
+      ]),
+  );
 }
 
 function orderPublishItems(packages, manifest = { aliases: {}, packages }) {
@@ -162,7 +191,22 @@ function orderPublishItems(packages, manifest = { aliases: {}, packages }) {
     visit(item);
   }
 
+  const createItem = byTargetName.get(
+    manifest.aliases?.['@modern-js/create'] ?? '@modern-js/create',
+  );
+  if (createItem && ordered.at(-1) !== createItem) {
+    throw new Error(
+      `${createItem.targetName} must publish last, but another cohort package depends on it`,
+    );
+  }
+
   return ordered;
 }
 
-export { orderPublishItems, validateFullCohortManifest, validatePublishManifest };
+export {
+  createPackageDependencyGraph,
+  orderPublishItems,
+  packageDependenciesFromPackageJson,
+  validateFullCohortManifest,
+  validatePublishManifest,
+};

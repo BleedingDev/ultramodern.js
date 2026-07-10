@@ -6,9 +6,6 @@ import path from 'node:path';
 
 const packageRoot = path.resolve(__dirname, '..');
 const builtCliPath = path.join(packageRoot, 'dist/esm-node/index.js');
-const packagedVersion: string = JSON.parse(
-  fs.readFileSync(path.join(packageRoot, 'package.json'), 'utf8'),
-).version;
 
 // Keeps every spawned CLI hermetic: no test may dial the npm registry for
 // the @bleedingdev/modern-js-create framework cohort.
@@ -185,10 +182,7 @@ test('built public UltraModern subpath imports from an ESM consumer and generate
             packageName: 'public-api-workspace',
             modernVersion: '3.2.1',
             enableTailwind: true,
-            packageSource: {
-              strategy: 'install',
-              modernPackageVersion: '3.2.0-ultramodern.108',
-            },
+            packageSource: { strategy: 'workspace' },
           });
           const verticalResult = addUltramodernVertical({
             workspaceRoot,
@@ -515,7 +509,7 @@ test('--workspace conflicts with an explicit install package source', () => {
   }
 });
 
-test('registry lookup failure falls back to the packaged framework version', () => {
+test('local source defaults to workspace dependencies without registry lookup', () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'modern-create-cli-'));
   const fakeBinDir = path.join(tmpDir, 'fake-bin');
   fs.mkdirSync(fakeBinDir);
@@ -537,21 +531,61 @@ test('registry lookup failure falls back to the packaged framework version', () 
     );
 
     assert.equal(result.status, 0, result.stderr);
-    assert.match(
-      result.stderr,
-      /Falling back to the packaged framework version/,
-    );
+    assert.equal(result.stderr, '');
     const ultramodernConfig = JSON.parse(
       readGeneratedFile(
         path.join(tmpDir, 'offline-fallback-smoke'),
         '.modernjs/ultramodern.json',
       ),
     );
-    assert.equal(ultramodernConfig.packageSource.strategy, 'install');
+    assert.equal(ultramodernConfig.packageSource.strategy, 'workspace');
     assert.equal(
       ultramodernConfig.packageSource.modernPackageVersion,
-      packagedVersion,
+      'workspace:*',
     );
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('local source rejects explicit install before cohort environment validation or registry lookup', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'modern-create-cli-'));
+  const fakeBinDir = path.join(tmpDir, 'fake-bin');
+  const registryLookupMarker = path.join(tmpDir, 'registry-lookup');
+  fs.mkdirSync(fakeBinDir);
+  writeExecutable(
+    path.join(fakeBinDir, 'npm'),
+    '#!/bin/sh\n: > "$MODERN_CREATE_REGISTRY_LOOKUP_MARKER"\nexit 1\n',
+  );
+
+  try {
+    for (const frameworkVersion of ['not-a-semver', undefined]) {
+      const result = spawnSync(
+        process.execPath,
+        [
+          builtCliPath,
+          'local-install-source-smoke',
+          '--ultramodern-package-source=install',
+        ],
+        {
+          cwd: tmpDir,
+          encoding: 'utf8',
+          env: {
+            ...process.env,
+            MODERN_CREATE_REGISTRY_LOOKUP_MARKER: registryLookupMarker,
+            MODERN_CREATE_ULTRAMODERN_FRAMEWORK_VERSION: frameworkVersion,
+            PATH: `${fakeBinDir}${path.delimiter}${process.env.PATH ?? ''}`,
+          },
+        },
+      );
+
+      assert.notEqual(result.status, 0);
+      assert.match(
+        result.stderr,
+        /local @modern-js\/create source checkout cannot satisfy an explicit install/u,
+      );
+      assert.equal(fs.existsSync(registryLookupMarker), false);
+    }
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }

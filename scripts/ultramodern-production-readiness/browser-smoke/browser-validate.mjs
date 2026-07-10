@@ -87,11 +87,13 @@ export async function collectStylesheetLinks(page) {
 }
 
 export async function maybeScreenshot(page, filePath) {
-  try {
-    await page.screenshot({ fullPage: true, path: filePath });
-  } catch {
-    // Screenshots are diagnostic best-effort artifacts.
-  }
+  await page.screenshot({ fullPage: true, path: filePath });
+  const stat = fs.lstatSync(filePath, { throwIfNoEntry: false });
+  assertPass(
+    stat?.isFile() && !stat.isSymbolicLink() && stat.size > 0,
+    `Required browser screenshot is missing or empty: ${filePath}`,
+  );
+  return { bytes: stat.size, path: filePath };
 }
 
 export async function validateNoJavaScriptSsrTarget(
@@ -177,7 +179,11 @@ export async function validateNoJavaScriptSsrTarget(
       { failedResponses },
     );
 
-    await maybeScreenshot(page, path.join(appArtifactDir, 'no-js-ssr.png'));
+    const screenshot = await maybeScreenshot(
+      page,
+      path.join(appArtifactDir, 'no-js-ssr.png'),
+    );
+    assertions.push(assertion('no-js-screenshot', 'pass', screenshot));
     return assertions;
   } finally {
     writeJsonFile(
@@ -297,16 +303,17 @@ export async function validateBrowserTarget(target, browser, { artifactDir }) {
       assertions.push(
         assertion(
           'shell-composition-boundary',
-          matchedRemoteBoundaries.length > 0 ? 'pass' : 'fail',
+          matchedRemoteBoundaries.length === remotes.length ? 'pass' : 'fail',
           {
+            declaredRemoteIds: remotes.map(remote => remote.id),
             matchedRemoteBoundaries,
             triedRemoteBoundaries,
           },
         ),
       );
       assertPass(
-        matchedRemoteBoundaries.length > 0,
-        `${app.id} shell route did not render any declared remote boundary`,
+        matchedRemoteBoundaries.length === remotes.length,
+        `${app.id} shell route did not render every declared remote boundary`,
         { triedRemoteBoundaries },
       );
     }
@@ -315,6 +322,17 @@ export async function validateBrowserTarget(target, browser, { artifactDir }) {
     stylesheetLinks = await collectStylesheetLinks(page);
     const duplicateStylesheetHrefs = findDuplicateStylesheetHrefs(
       stylesheetLinks.map(link => link.href),
+    );
+    assertions.push(
+      assertion(
+        'stylesheet-evidence',
+        stylesheetLinks.length > 0 ? 'pass' : 'fail',
+        { stylesheetCount: stylesheetLinks.length },
+      ),
+    );
+    assertPass(
+      stylesheetLinks.length > 0,
+      `${app.id} rendered no stylesheet evidence after hydration`,
     );
     assertions.push(
       assertion(
@@ -375,7 +393,11 @@ export async function validateBrowserTarget(target, browser, { artifactDir }) {
       { failedResponses },
     );
 
-    await maybeScreenshot(page, path.join(appArtifactDir, 'screenshot.png'));
+    const screenshot = await maybeScreenshot(
+      page,
+      path.join(appArtifactDir, 'screenshot.png'),
+    );
+    assertions.push(assertion('browser-screenshot', 'pass', screenshot));
     assertions.push(
       ...(await validateNoJavaScriptSsrTarget(target, browser, {
         appArtifactDir,

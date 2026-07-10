@@ -244,7 +244,7 @@ export function createRemoteModuleFederationConfig(
 const tsgoCompilerInstance =
   process.env.EFFECT_TSGO_BIN?.trim() ||
   execFileSync('npx', ['effect-tsgo', 'get-exe-path'], {
-    encoding: 'utf8',
+    encoding: 'utf-8',
   }).trim();
 `
     : '';

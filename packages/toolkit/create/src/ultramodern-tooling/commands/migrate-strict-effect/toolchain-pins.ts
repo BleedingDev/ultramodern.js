@@ -1,42 +1,48 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import {
-  NODE_VERSION,
-  PNPM_VERSION,
-} from '../../../ultramodern-workspace/versions';
+import { ULTRAMODERN_WORKSPACE_POLICY } from '../../../ultramodern-workspace/policy';
 import type { MigrationIo } from './io';
 
-const NODE_ENGINE_RANGE = '>=26';
-const PNPM_ENGINE_RANGE = '>=11';
+const { toolchain } = ULTRAMODERN_WORKSPACE_POLICY;
 
 function isRecord(value: unknown): value is Record<string, any> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
+function ensureRecord(parent: Record<string, any>, key: string, label: string) {
+  const value = parent[key];
+  if (value === undefined) {
+    const created: Record<string, any> = {};
+    parent[key] = created;
+    return created;
+  }
+  if (!isRecord(value)) {
+    throw new Error(`${label} must be an object.`);
+  }
+  return value;
+}
+
 export function updateUltramodernConfigToolchain(config: Record<string, any>) {
-  const workspace = isRecord(config.workspace) ? config.workspace : {};
-  config.workspace = workspace;
+  const workspace = ensureRecord(config, 'workspace', 'workspace');
+  const packageManager = ensureRecord(
+    workspace,
+    'packageManager',
+    'workspace.packageManager',
+  );
+  packageManager.name = toolchain.packageManager.name;
+  packageManager.version = toolchain.packageManager.version;
 
-  const packageManager = isRecord(workspace.packageManager)
-    ? workspace.packageManager
-    : {};
-  workspace.packageManager = packageManager;
-  packageManager.name = 'pnpm';
-  packageManager.version = PNPM_VERSION;
-
-  const node = isRecord(workspace.node) ? workspace.node : {};
-  workspace.node = node;
-  node.version = NODE_VERSION;
-  node.engineRange = NODE_ENGINE_RANGE;
+  const node = ensureRecord(workspace, 'node', 'workspace.node');
+  node.version = toolchain.node.version;
+  node.engineRange = toolchain.node.engineRange;
 }
 
 export function updateRootPackageToolchain(packageJson: Record<string, any>) {
-  packageJson.packageManager = `pnpm@${PNPM_VERSION}`;
+  packageJson.packageManager = `${toolchain.packageManager.name}@${toolchain.packageManager.version}`;
 
-  const engines = isRecord(packageJson.engines) ? packageJson.engines : {};
-  packageJson.engines = engines;
-  engines.node = NODE_ENGINE_RANGE;
-  engines.pnpm = PNPM_ENGINE_RANGE;
+  const engines = ensureRecord(packageJson, 'engines', 'package.json engines');
+  engines.node = toolchain.node.engineRange;
+  engines.pnpm = toolchain.packageManager.engineRange;
 }
 
 function updateMiseTools(content: string) {
@@ -64,13 +70,18 @@ function updateMiseTools(content: string) {
   const upsertTool = (name: 'node' | 'pnpm', version: string) => {
     const pattern = new RegExp(`^\\s*${name}\\s*=`, 'u');
     const line = `${name} = "${version}"`;
-    const index = lines.findIndex(
-      (candidate, candidateIndex) =>
-        candidateIndex > toolsStart &&
-        candidateIndex < toolsEnd &&
-        pattern.test(candidate),
+    const indexes = lines.flatMap((candidate, candidateIndex) =>
+      candidateIndex > toolsStart &&
+      candidateIndex < toolsEnd &&
+      pattern.test(candidate)
+        ? [candidateIndex]
+        : [],
     );
-    if (index === -1) {
+    if (indexes.length > 1) {
+      throw new Error(`.mise.toml [tools] contains duplicate ${name} pins.`);
+    }
+    const index = indexes[0];
+    if (index === undefined) {
       lines.splice(toolsEnd, 0, line);
       toolsEnd += 1;
       return;
@@ -78,8 +89,8 @@ function updateMiseTools(content: string) {
     lines[index] = line;
   };
 
-  upsertTool('node', NODE_VERSION);
-  upsertTool('pnpm', PNPM_VERSION);
+  upsertTool('node', toolchain.node.version);
+  upsertTool('pnpm', toolchain.packageManager.version);
 
   return `${lines.join('\n')}\n`;
 }
@@ -102,7 +113,7 @@ export function updateGeneratedToolchainFiles(io: MigrationIo) {
   const workflow = fs.readFileSync(workflowPath, 'utf-8');
   const updatedWorkflow = workflow.replace(
     /^(\s*)node-version\s*:\s*.*$/mu,
-    `$1node-version: '${NODE_VERSION}'`,
+    `$1node-version: '${toolchain.node.version}'`,
   );
   io.write(workflowPath, updatedWorkflow);
 }

@@ -432,7 +432,6 @@ function assertIntegratedVertical(
     workspaceDir,
     `verticals/${id}/api/effect-api.ts`,
   );
-  assert.match(backendEffectApi, /import apiRuntime from '\.\/index\.ts'/);
   assert.match(backendEffectApi, /strictEffectApproach:\s*true/);
   assert.match(
     backendEffectApi,
@@ -442,11 +441,13 @@ function assertIntegratedVertical(
     backendEffectApi,
     /nodeAdapterVersion:\s*'backend-mf-effect-v1'/,
   );
-  assert.match(backendEffectApi, /export const runtime = apiRuntime/);
-  assert.match(backendEffectApi, /export default apiRuntime/);
+  assert.match(
+    backendEffectApi,
+    /export \{ default, default as runtime \} from '\.\/index\.ts'/,
+  );
   assert.equal(
     verticalPackage.dependencies['@modern-js/plugin-bff'],
-    'npm:@bleedingdev/modern-js-plugin-bff@3.2.0-ultramodern.108',
+    'workspace:*',
   );
   assert.equal(shellPackage.dependencies['react-router'], '7.18.1');
   assert.equal(verticalPackage.dependencies['react-router'], '7.18.1');
@@ -469,13 +470,10 @@ test('workspace and MicroVertical integration stays coherent across public API a
       packageName: 'integration-workspace',
       modernVersion: '3.2.1',
       enableTailwind: true,
-      packageSource: {
-        strategy: 'install',
-        modernPackageVersion: '3.2.0-ultramodern.108',
-      },
+      packageSource: { strategy: 'workspace' },
     });
     assert.equal(workspaceResult.operation, 'workspace');
-    assert.equal(workspaceResult.packageSource.strategy, 'install');
+    assert.equal(workspaceResult.packageSource.strategy, 'workspace');
 
     const publicApiResult = addUltramodernVertical({
       workspaceRoot: workspaceDir,
@@ -589,7 +587,7 @@ test('workspace and MicroVertical integration stays coherent across public API a
       ).moduleFederation.remotes.map((remote: any) => remote.id),
       ['catalog', 'checkout'],
     );
-    assert.equal(rootPackage.modernjs.packageSource.strategy, 'install');
+    assert.equal(rootPackage.modernjs.packageSource.strategy, 'workspace');
     assert.equal(
       rootPackage.modernjs.packageSource.config,
       './.modernjs/ultramodern.json',
@@ -656,7 +654,7 @@ test('workspace and MicroVertical integration stays coherent across public API a
     assert.match(zeropsMaterializer, /installRuntimeDependencies/);
     assert.equal(
       rootPackage.devDependencies['@modern-js/plugin-bff'],
-      'npm:@bleedingdev/modern-js-plugin-bff@3.2.0-ultramodern.108',
+      'workspace:*',
     );
     assert.throws(() =>
       read(workspaceDir, 'scripts/generate-node-backend-federation.mjs'),
@@ -686,13 +684,13 @@ test('workspace and MicroVertical integration stays coherent across public API a
     assert.match(catalogBackendFederationFacade, /backendFederationContract/);
     assert.match(catalogBackendFederationFacade, /node-mf-runtime/);
     assert.match(catalogBackendFederationFacade, /catalogApiContract/);
-    assert.equal(packageSource.strategy, 'install');
-    assert.equal(packageSource.modernPackageVersion, '3.2.0-ultramodern.108');
-    assert.equal(packageSource.aliasScope, 'bleedingdev');
-    assert.equal(packageSource.aliasPackageNamePrefix, 'modern-js-');
+    assert.equal(packageSource.strategy, 'workspace');
+    assert.equal(packageSource.modernPackageVersion, 'workspace:*');
+    assert.equal(packageSource.aliasScope, undefined);
+    assert.equal(packageSource.aliasPackageNamePrefix, undefined);
     assert.equal(
       shellPackage.dependencies['@modern-js/runtime'],
-      'npm:@bleedingdev/modern-js-runtime@3.2.0-ultramodern.108',
+      'workspace:*',
     );
 
     assertIntegratedVertical(workspaceDir, 'catalog', 4101);
@@ -736,10 +734,7 @@ test('generated Cloudflare proof records backend server execution metadata offli
       packageName: 'proof-workspace',
       modernVersion: '3.2.1',
       enableTailwind: true,
-      packageSource: {
-        strategy: 'install',
-        modernPackageVersion: '3.2.0-ultramodern.108',
-      },
+      packageSource: { strategy: 'workspace' },
     });
     addUltramodernVertical({
       workspaceRoot: workspaceDir,
@@ -1059,10 +1054,7 @@ test('generated MicroVertical self-check names corrupted contracts and fix areas
         packageName: scenario.workspaceName,
         modernVersion: '3.2.1',
         enableTailwind: true,
-        packageSource: {
-          strategy: 'install',
-          modernPackageVersion: '3.2.0-ultramodern.108',
-        },
+        packageSource: { strategy: 'workspace' },
       });
       addUltramodernVertical({
         workspaceRoot: workspaceDir,
@@ -1095,10 +1087,7 @@ test('generated API boundary check rejects raw handler drift through Oxlint', ()
       packageName: 'api-check-workspace',
       modernVersion: '3.2.1',
       enableTailwind: true,
-      packageSource: {
-        strategy: 'install',
-        modernPackageVersion: '3.2.0-ultramodern.108',
-      },
+      packageSource: { strategy: 'workspace' },
     });
     addUltramodernVertical({
       workspaceRoot: workspaceDir,
@@ -1171,10 +1160,7 @@ test('generated workspace self-check accepts stable formatting but rejects wrong
       packageName: 'validator-workspace',
       modernVersion: '3.2.1',
       enableTailwind: true,
-      packageSource: {
-        strategy: 'install',
-        modernPackageVersion: '3.2.0-ultramodern.108',
-      },
+      packageSource: { strategy: 'workspace' },
     });
 
     const ultramodernConfig = readJson(
@@ -1241,7 +1227,7 @@ test('generated workspace self-check accepts stable formatting but rejects wrong
   }
 });
 
-test('emitted module federation config guards Zephyr against network hangs', () => {
+test('emitted module federation config uses native fail-closed Zephyr composition', () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-zephyr-'));
   const workspaceDir = path.join(tempRoot, 'zephyr-workspace');
 
@@ -1251,23 +1237,26 @@ test('emitted module federation config guards Zephyr against network hangs', () 
       packageName: 'zephyr-workspace',
       modernVersion: '3.2.1',
       enableTailwind: true,
-      packageSource: {
-        strategy: 'install',
-        modernPackageVersion: '3.2.0-ultramodern.108',
-      },
+      packageSource: { strategy: 'workspace' },
     });
 
     const modernConfig = read(
       workspaceDir,
       'apps/shell-super-app/modern.config.ts',
     );
-    assert.match(modernConfig, /ULTRAMODERN_ZEPHYR_TIMEOUT_MS/u);
+    assert.match(modernConfig, /process\.env\['ZE_FAIL_BUILD'\] = 'true';/u);
     assert.match(
       modernConfig,
-      /Promise\.race\(\[zephyrConfig, watchdog\(\)\]\)/u,
+      /api\.modifyRspackConfig\(withZephyrRspack\(\)\);/u,
     );
-    assert.match(modernConfig, /zephyrWarn\(\s*`timed out after/u);
-    assert.match(modernConfig, /ref:\s*false/u);
+    assert.match(
+      modernConfig,
+      /\.\.\.\(zephyrEnabled \? \[zephyrRspackPlugin\(\)\] : \[\]\),/u,
+    );
+    assert.doesNotMatch(
+      modernConfig,
+      /ULTRAMODERN_ZEPHYR_TIMEOUT_MS|zephyrWarn|Promise\.race|modifyRspackConfig\(\s*(?:async\s+)?(?:config|\(config\))\s*=>|console\.warn/u,
+    );
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
@@ -1283,10 +1272,7 @@ test('migrate converges a legacy shell-only workspace to a validator-clean state
       packageName: 'shell-only-workspace',
       modernVersion: '3.2.1',
       enableTailwind: true,
-      packageSource: {
-        strategy: 'install',
-        modernPackageVersion: '3.2.0-ultramodern.108',
-      },
+      packageSource: { strategy: 'workspace' },
     });
 
     // Fresh shell-only workspace already satisfies the (backend-surface-gated)
@@ -1320,12 +1306,7 @@ test('migrate converges a legacy shell-only workspace to a validator-clean state
     writeJson(workspaceDir, 'package.json', legacyPackage);
 
     const migrateStatus = await runUltramodernToolingCli(
-      [
-        'migrate-strict-effect',
-        '--version',
-        '3.2.0-ultramodern.108',
-        '--skip-install',
-      ],
+      ['migrate-strict-effect', '--skip-install'],
       workspaceDir,
     );
     assert.equal(migrateStatus, 0);

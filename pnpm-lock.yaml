@@ -68,8 +68,8 @@ importers:
         specifier: ^21.2.0
         version: 21.2.0
       '@effect/tsgo':
-        specifier: 0.16.3
-        version: 0.16.3
+        specifier: 0.18.1
+        version: 0.18.1
       '@modern-js/tsconfig':
         specifier: workspace:*
         version: link:packages/tsconfig
@@ -335,8 +335,8 @@ importers:
   packages/cli/plugin-bff:
     dependencies:
       '@effect/opentelemetry':
-        specifier: 4.0.0-beta.94
-        version: 4.0.0-beta.94(@opentelemetry/api@1.9.1)(@opentelemetry/semantic-conventions@1.42.0)(effect@4.0.0-beta.94)
+        specifier: 4.0.0-beta.97
+        version: 4.0.0-beta.97(@opentelemetry/api@1.9.1)(@opentelemetry/semantic-conventions@1.42.0)(effect@4.0.0-beta.97)
       '@modern-js/bff-core':
         specifier: workspace:*
         version: link:../../server/bff-core
@@ -371,8 +371,8 @@ importers:
         specifier: ^0.5.23
         version: 0.5.23
       effect:
-        specifier: 4.0.0-beta.94
-        version: 4.0.0-beta.94
+        specifier: 4.0.0-beta.97
+        version: 4.0.0-beta.97
       qs:
         specifier: '>=6.15.3'
         version: 6.15.3
@@ -6305,8 +6305,8 @@ packages:
     peerDependencies:
       postcss: ^8.4
 
-  '@effect/opentelemetry@4.0.0-beta.94':
-    resolution: {integrity: sha512-meYZqPxsHqz+spQncPTIPbC/V1GIVgvjCofFxxfaP8Dna/UKWC5xbixXQidfgu9uj39rEYvOdonOLUlLsw2fnQ==}
+  '@effect/opentelemetry@4.0.0-beta.97':
+    resolution: {integrity: sha512-x9yPmb8K8D0GLlGogz28VpKN6q5va9Zvti8kA3Mq1DgTIQf2641Tt6UbhlYfvHxjtwE/mVgztuuapjN8qlDLBw==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       '@opentelemetry/api': ^1.9
@@ -6318,7 +6318,7 @@ packages:
       '@opentelemetry/sdk-trace-node': ^2.0.0
       '@opentelemetry/sdk-trace-web': ^2.0.0
       '@opentelemetry/semantic-conventions': ^1.33.0
-      effect: ^4.0.0-beta.94
+      effect: ^4.0.0-beta.97
     peerDependenciesMeta:
       '@opentelemetry/api':
         optional: true
@@ -6337,43 +6337,43 @@ packages:
       '@opentelemetry/sdk-trace-web':
         optional: true
 
-  '@effect/tsgo-darwin-arm64@0.16.3':
-    resolution: {integrity: sha512-k3f8LzSDzPMGveMuChvWjlOxgfCsr+b/Lzo8NkUqIiIyDM2Rmi3vSGk8xgSxLzqoS/Z5dl9Y4CS6LGZlEr6Ssg==}
+  '@effect/tsgo-darwin-arm64@0.18.1':
+    resolution: {integrity: sha512-iv8rC7nNou2m5+mCF6C2CHf18JkrvHvs0JtdXZlJT8s2DSrUxZg5Ln+ygLh8Ojj+dB4TLlUxDJj1IwZdEm6iFQ==}
     cpu: [arm64]
     os: [darwin]
 
-  '@effect/tsgo-darwin-x64@0.16.3':
-    resolution: {integrity: sha512-fbqrNoDSRGolimV2aU0Ix/qsj/RADTyTUTWtucPJCzKt/zT6VAZkcGJYwGVshvacdektxBHMB7Cy0YZIh5s9ng==}
+  '@effect/tsgo-darwin-x64@0.18.1':
+    resolution: {integrity: sha512-w58NsBPQNeo5WNFhS44IzvFPtrwpl69uepehC0bXlIM4APQk8PFXyJz0flliiNm+xfqL5/xdVKSK3DyFQAqSYg==}
     cpu: [x64]
     os: [darwin]
 
-  '@effect/tsgo-linux-arm64@0.16.3':
-    resolution: {integrity: sha512-GbtT278MB84GorsGar3yv8EdjEJIqEPmYr0kKsr8J0rTx3pL0MA0NDN2CcOcC4Ijxjo6f0tdmNIBuTclz37XGQ==}
+  '@effect/tsgo-linux-arm64@0.18.1':
+    resolution: {integrity: sha512-FjOZAWgTaFWqg66GJGrsKOniPa41noKT4oR6GWfdpoIjmSepf7UgZ95nmZBkv5YnFzSVJn9i7hvNklh6Kvm8Ug==}
     cpu: [arm64]
     os: [linux]
 
-  '@effect/tsgo-linux-arm@0.16.3':
-    resolution: {integrity: sha512-uTROMiIX33USQjB6qLYSxZfCmEwpD5vG9PfQk61e/ehCbfLDNI3XcaGgzuc2UeATyphpbpCa+kqgceumsxCZRg==}
+  '@effect/tsgo-linux-arm@0.18.1':
+    resolution: {integrity: sha512-F/DjtTdczej17+fj2Kf9/kE7K7FNx5CfNctvd5Mpi0HOho3LlORReTlb2d0JDVbUSqueHYVML+pxwgsnqfdXfg==}
     cpu: [arm]
     os: [linux]
 
-  '@effect/tsgo-linux-x64@0.16.3':
-    resolution: {integrity: sha512-IsGBQVY8CPynmtCpFH6WcydNN7rMtFi4eWn6npZnYnzGYUHXiES0G/w8V1QKC+7uvxmLfLsivxD3E9sAOmDDGA==}
+  '@effect/tsgo-linux-x64@0.18.1':
+    resolution: {integrity: sha512-vKQBX0zNOJfgZSm2EXPjPn6EyigswGwQeR2mXQExBJN8gV7UEIjBFkRFQVKD8EkyZRGxZRkSb6IqTDeZbfXR6w==}
     cpu: [x64]
     os: [linux]
 
-  '@effect/tsgo-win32-arm64@0.16.3':
-    resolution: {integrity: sha512-YrNgXA/zmv65VfNPSDiKDOSd6INy8sAtpoX+uVN315ssEqcbHUmnuUcAFDSf2I7bjmU52Jg975M7M+AK2YMrVA==}
+  '@effect/tsgo-win32-arm64@0.18.1':
+    resolution: {integrity: sha512-hTPY071Vqk9fY34uTyI/FBW/b1eeXxFdMDLE6j+4IkcmNaUuu58ZZE3vmHg1Mabz+cFVs6hWpFAVqekdAgfrxQ==}
     cpu: [arm64]
     os: [win32]
 
-  '@effect/tsgo-win32-x64@0.16.3':
-    resolution: {integrity: sha512-UvNmGT3Dt0mfJ372SHZbRKM07q286iKpX9VeF1qI1HM6+gaONwfysmewYLv14HXRsJEN089OPe9xJee/Saxbhw==}
+  '@effect/tsgo-win32-x64@0.18.1':
+    resolution: {integrity: sha512-5mfPlupGP/cyTkcWR5J2ZdyaxdU6zMHX4oyHy18EjXLdFoJOdjr9C/VNY6iZLbLHkTsQ3xYMFzVt0ruFdI8kNQ==}
     cpu: [x64]
     os: [win32]
 
-  '@effect/tsgo@0.16.3':
-    resolution: {integrity: sha512-tCmYzU9E6VPXSNKTrMNPkmLWG6UYWkNcfWLNt5qW+HuP7RNWnprbXuHdhTM5nwAyL8nA137g8X6+0rPzaBJX+g==}
+  '@effect/tsgo@0.18.1':
+    resolution: {integrity: sha512-oYyxUVzzc9YJwnu/g1G4gFnrpsDgYtH/APR1Ud0txoJ/QQIDs2u+BriWFhfoSF2J0nO5U0SRTTNjMf8DbIcOug==}
     hasBin: true
 
   '@emnapi/core@1.11.1':
@@ -11573,8 +11573,8 @@ packages:
   ee-first@1.1.1:
     resolution: {integrity: sha512-WMwm9LhRUo+WUaRN+vRuETqG89IgZphVSNkdFgeb6sS/E4OrDIN7t48CAewSHXc6C8lefD8KKfr5vY61brQlow==}
 
-  effect@4.0.0-beta.94:
-    resolution: {integrity: sha512-Q8BrCNbp/3Uh+7xQYHphZBkNfm2SJnl1frQ+8yWfd/j3SU3cL13D38cBMLcnULupwza2Nt4DrjZoMzHWL3CoxQ==}
+  effect@4.0.0-beta.97:
+    resolution: {integrity: sha512-pK03HpQVxGZOWdwDAy/iwvV8u3KYcUf2mOWyWqaut2zau8V2u6ejWP7b4BELjyUIiZWW1fl/s/VJpgZUcTjThg==}
 
   ejs@5.0.1:
     resolution: {integrity: sha512-COqBPFMxuPTPspXl2DkVYaDS3HtrD1GpzOGkNTJ1IYkifq/r9h8SVEFrjA3D9/VJGOEoMQcrlhpntcSUrM8k6A==}
@@ -11874,8 +11874,8 @@ packages:
   farrow-schema@2.3.3:
     resolution: {integrity: sha512-yjaxioZAJTkHORfBNoyDLTH56o/S1SBmxZHJz6ddYv419mHMc1Lk1Gws5RFIxkI6lBKwPv9IDklJqAl0bJAl2w==}
 
-  fast-check@4.8.0:
-    resolution: {integrity: sha512-GOJ158CUMnN6cSahsv4+ExARvIDuzzinFjkp0E9WtiBa5zcVeLozVkWaE4IzFcc+Y48Wp1EDlUZsXRyAztQcSg==}
+  fast-check@4.9.0:
+    resolution: {integrity: sha512-7ms6T7SybUev/PQITciI0yLM2pOSFy5zpG8Ty7tQofcVaQUvrMXp6CBwqF6fThLCLOrfBtuHAtwq6Yu4XPCllg==}
     engines: {node: '>=12.17.0'}
 
   fast-deep-equal@3.1.3:
@@ -17152,43 +17152,43 @@ snapshots:
     dependencies:
       postcss: 8.5.16
 
-  '@effect/opentelemetry@4.0.0-beta.94(@opentelemetry/api@1.9.1)(@opentelemetry/semantic-conventions@1.42.0)(effect@4.0.0-beta.94)':
+  '@effect/opentelemetry@4.0.0-beta.97(@opentelemetry/api@1.9.1)(@opentelemetry/semantic-conventions@1.42.0)(effect@4.0.0-beta.97)':
     dependencies:
       '@opentelemetry/semantic-conventions': 1.42.0
-      effect: 4.0.0-beta.94
+      effect: 4.0.0-beta.97
     optionalDependencies:
       '@opentelemetry/api': 1.9.1
 
-  '@effect/tsgo-darwin-arm64@0.16.3':
+  '@effect/tsgo-darwin-arm64@0.18.1':
     optional: true
 
-  '@effect/tsgo-darwin-x64@0.16.3':
+  '@effect/tsgo-darwin-x64@0.18.1':
     optional: true
 
-  '@effect/tsgo-linux-arm64@0.16.3':
+  '@effect/tsgo-linux-arm64@0.18.1':
     optional: true
 
-  '@effect/tsgo-linux-arm@0.16.3':
+  '@effect/tsgo-linux-arm@0.18.1':
     optional: true
 
-  '@effect/tsgo-linux-x64@0.16.3':
+  '@effect/tsgo-linux-x64@0.18.1':
     optional: true
 
-  '@effect/tsgo-win32-arm64@0.16.3':
+  '@effect/tsgo-win32-arm64@0.18.1':
     optional: true
 
-  '@effect/tsgo-win32-x64@0.16.3':
+  '@effect/tsgo-win32-x64@0.18.1':
     optional: true
 
-  '@effect/tsgo@0.16.3':
+  '@effect/tsgo@0.18.1':
     optionalDependencies:
-      '@effect/tsgo-darwin-arm64': 0.16.3
-      '@effect/tsgo-darwin-x64': 0.16.3
-      '@effect/tsgo-linux-arm': 0.16.3
-      '@effect/tsgo-linux-arm64': 0.16.3
-      '@effect/tsgo-linux-x64': 0.16.3
-      '@effect/tsgo-win32-arm64': 0.16.3
-      '@effect/tsgo-win32-x64': 0.16.3
+      '@effect/tsgo-darwin-arm64': 0.18.1
+      '@effect/tsgo-darwin-x64': 0.18.1
+      '@effect/tsgo-linux-arm': 0.18.1
+      '@effect/tsgo-linux-arm64': 0.18.1
+      '@effect/tsgo-linux-x64': 0.18.1
+      '@effect/tsgo-win32-arm64': 0.18.1
+      '@effect/tsgo-win32-x64': 0.18.1
 
   '@emnapi/core@1.11.1':
     dependencies:
@@ -22371,10 +22371,10 @@ snapshots:
 
   ee-first@1.1.1: {}
 
-  effect@4.0.0-beta.94:
+  effect@4.0.0-beta.97:
     dependencies:
       '@standard-schema/spec': 1.1.0
-      fast-check: 4.8.0
+      fast-check: 4.9.0
       find-my-way-ts: 0.1.6
       ini: 7.0.0
       kubernetes-types: 1.30.0
@@ -22756,7 +22756,7 @@ snapshots:
     dependencies:
       tslib: 2.8.1
 
-  fast-check@4.8.0:
+  fast-check@4.9.0:
     dependencies:
       pure-rand: 8.4.1
 

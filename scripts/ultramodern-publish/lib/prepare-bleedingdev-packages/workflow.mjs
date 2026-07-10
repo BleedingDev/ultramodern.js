@@ -1,7 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import fsKit from '../../../lib/fs-kit.js';
-import { repoRoot } from './constants.mjs';
+import {
+  repoRoot,
+  trustedPublishRef,
+  trustedPublishRepository,
+} from './constants.mjs';
 import {
   collectModernPackages,
   enforceSingleVersionPolicy,
@@ -13,8 +17,17 @@ import {
   normalizeDeclaredTypePaths,
   validateStagedTypeFiles,
 } from './types.mjs';
-import { extractTarball, packSourcePackage, publishManifestPackages } from './registry.mjs';
 import { validatePublishManifest } from './manifest.mjs';
+import {
+  createReleaseArtifacts,
+  resolveSourceIdentity,
+  verifyReleaseArtifacts,
+} from './release-artifacts.mjs';
+import {
+  extractTarball,
+  packSourcePackage,
+  publishManifestPackages,
+} from './registry.mjs';
 
 const { readJsonFile, writeJsonFile } = fsKit;
 
@@ -25,31 +38,32 @@ function assertTrustedPublishContext() {
     );
   }
 
-  if (process.env.GITHUB_REPOSITORY !== 'BleedingDev/ultramodern.js') {
+  if (process.env.GITHUB_REPOSITORY !== trustedPublishRepository) {
     throw new Error(
-      'Publishing is only allowed from BleedingDev/ultramodern.js.',
+      `Publishing is only allowed from ${trustedPublishRepository}.`,
     );
   }
 
-  if (process.env.GITHUB_REF !== 'refs/heads/main-ultramodern') {
+  if (process.env.GITHUB_REF !== trustedPublishRef) {
     throw new Error(
-      'Publishing is only allowed from refs/heads/main-ultramodern.',
+      `Publishing is only allowed from ${trustedPublishRef}.`,
     );
   }
 }
 
 async function prepareBleedingdevPackages(options) {
-
   if (options.publishExisting) {
-    const manifest = readJsonFile(path.join(options.out, 'manifest.json'));
-    if (manifest.version !== options.version) {
-      throw new Error(
-        `Publish manifest version ${manifest.version} does not match --version ${options.version}`,
-      );
-    }
-    validatePublishManifest(manifest);
+    const { allPackages, aliases } = collectModernPackages(options);
+    const source = resolveSourceIdentity();
+    const releaseArtifacts = verifyReleaseArtifacts(options.out, {
+      aliases,
+      source,
+      sourceNames: allPackages.map(item => item.packageJson.name),
+      tag: options.tag,
+      version: options.version,
+    });
     assertTrustedPublishContext();
-    await publishManifestPackages(manifest, options);
+    await publishManifestPackages(releaseArtifacts, options);
     return;
   }
 
@@ -63,14 +77,7 @@ async function prepareBleedingdevPackages(options) {
   fs.mkdirSync(packDir, { recursive: true });
   fs.mkdirSync(stageDir, { recursive: true });
 
-  const manifest = {
-    schemaVersion: 1,
-    generatedAt: new Date().toISOString(),
-    scope: options.scope,
-    prefix: options.prefix,
-    version: options.version,
-    dependencyVersion: options.dependencyVersion,
-    tag: options.tag,
+  const stagingManifest = {
     aliases,
     packages: [],
   };
@@ -91,7 +98,7 @@ async function prepareBleedingdevPackages(options) {
     writeJsonFile(packageJsonPath, packageJson);
     validateStagedTypeFiles(packageDir, packageJson);
 
-    manifest.packages.push({
+    stagingManifest.packages.push({
       sourceName,
       targetName,
       version: options.version,
@@ -99,14 +106,18 @@ async function prepareBleedingdevPackages(options) {
     });
   }
 
-  writeJsonFile(path.join(options.out, 'manifest.json'), manifest);
-  validatePublishManifest(manifest);
+  validatePublishManifest(stagingManifest);
+  const releaseArtifacts = createReleaseArtifacts({
+    aliases,
+    outDir: options.out,
+    packages: stagingManifest.packages,
+    source: resolveSourceIdentity(),
+    tag: options.tag,
+    version: options.version,
+  });
 
   console.log(
-    `Prepared ${manifest.packages.length} package(s) under ${path.relative(
-      repoRoot,
-      options.out,
-    )}`,
+    `Prepared ${releaseArtifacts.manifest.packages.length} immutable package artifact(s) under ${path.relative(repoRoot, options.out)}`,
   );
 
   if (!options.publish) {
@@ -117,8 +128,7 @@ async function prepareBleedingdevPackages(options) {
   }
 
   assertTrustedPublishContext();
-  await publishManifestPackages(manifest, options);
-
+  await publishManifestPackages(releaseArtifacts, options);
 }
 
 export { prepareBleedingdevPackages };

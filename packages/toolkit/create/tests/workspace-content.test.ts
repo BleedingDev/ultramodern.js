@@ -210,10 +210,7 @@ test('rendered contents of the highest-risk generated files match the checked-in
       packageName: 'manifest-workspace',
       modernVersion: '3.2.1',
       enableTailwind: true,
-      packageSource: {
-        strategy: 'install',
-        modernPackageVersion: '3.2.0-ultramodern.108',
-      },
+      packageSource: { strategy: 'workspace' },
     });
     for (const relativePath of defaultScaffoldSnapshots) {
       assertContentSnapshot(workspaceDir, 'default-scaffold', relativePath);
@@ -314,13 +311,23 @@ test('rendered contents of the highest-risk generated files match the checked-in
     );
     assert.match(
       shellModernConfig,
-      /zephyrWarn/,
-      'generated Modern config must guard Zephyr plugin failures',
+      /api\.modifyRspackConfig\(withZephyrRspack\(\)\);/,
+      'generated Modern config must register the native Zephyr Rspack modifier directly',
     );
     assert.match(
       shellModernConfig,
-      /ULTRAMODERN_ZEPHYR=false/,
-      'generated Modern config must document the Zephyr disable escape hatch',
+      /process\.env\['ZE_FAIL_BUILD'\] = 'true';/,
+      'generated Modern config must use Zephyr native fail-closed configuration',
+    );
+    assert.doesNotMatch(
+      shellModernConfig,
+      /ULTRAMODERN_ZEPHYR_TIMEOUT_MS|zephyrWarn|Promise\.race|modifyRspackConfig\(\s*(?:async\s+)?(?:config|\(config\))\s*=>/,
+      'generated Modern config must not intercept Zephyr failures',
+    );
+    assert.match(
+      shellModernConfig,
+      /const zephyrEnabled = process\.env\['ULTRAMODERN_ZEPHYR'\] !== 'false';/,
+      'generated Modern config must preserve the explicit local Zephyr disable mode',
     );
     assert.deepEqual(
       readJson(
@@ -416,7 +423,7 @@ test('rendered contents of the highest-risk generated files match the checked-in
     assert.equal(
       (compactConfig.packageSource as Record<string, unknown>)
         .modernPackageVersion,
-      '3.2.0-ultramodern.108',
+      'workspace:*',
     );
     assert.equal(
       (compactConfig.packageSource as Record<string, unknown>).metadata,
@@ -486,7 +493,11 @@ test('rendered contents of the highest-risk generated files match the checked-in
     assert.match(validationWrapper, /modern-js-create/);
     assert.match(validationWrapper, /ULTRAMODERN_CREATE_BIN/);
     assert.match(validationWrapper, /'ultramodern'/);
-    assert.match(validationWrapper, /'validate'/);
+    assert.match(
+      validationWrapper,
+      /workspaceValidationContract/,
+      'workspace validation must embed the generated structured validation contract',
+    );
     const cloudflareOutputWrapper = fs.readFileSync(
       path.join(workspaceDir, 'scripts/verify-cloudflare-output.mts'),
       'utf-8',
@@ -494,7 +505,9 @@ test('rendered contents of the highest-risk generated files match the checked-in
     assert.match(cloudflareOutputWrapper, /modern-js-create/);
     assert.match(cloudflareOutputWrapper, /ULTRAMODERN_CREATE_BIN/);
     assert.match(cloudflareOutputWrapper, /'cloudflare-output-verify'/);
-    for (const command of generatedToolingCommands) {
+    for (const command of generatedToolingCommands.filter(
+      command => command.id !== 'validate',
+    )) {
       const wrapper = fs.readFileSync(
         path.join(workspaceDir, command.wrapperPath),
         'utf-8',
@@ -737,8 +750,13 @@ test('rendered contents of the highest-risk generated files match the checked-in
     );
     assert.match(
       generatedBackendFederationEntry,
-      /export \{ api, contract, operationContexts, runtime \};/,
-      'backend federation facade must expose API, contract, contexts, and runtime',
+      /export \{ default, default as runtime \} from '\.\/index\.ts';/,
+      'backend federation facade must directly re-export the runtime',
+    );
+    assert.match(
+      generatedBackendFederationEntry,
+      /export \{[\s\S]*catalogApi as api,[\s\S]*catalogApiContract as contract,[\s\S]*catalogOperationContexts as operationContexts,[\s\S]*\} from '\.\.\/shared\/api\.ts';/,
+      'backend federation facade must directly re-export the API contract surface',
     );
     assert.doesNotMatch(
       generatedBackendFederationEntry,

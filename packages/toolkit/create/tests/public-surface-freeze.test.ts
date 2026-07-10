@@ -212,8 +212,7 @@ test('generation-result and plan objects carry every frozen public field', () =>
       modernVersion: '3.2.1',
       enableTailwind: true,
       packageSource: {
-        strategy: 'install',
-        modernPackageVersion: '3.2.0-ultramodern.108',
+        strategy: 'workspace',
       },
     });
 

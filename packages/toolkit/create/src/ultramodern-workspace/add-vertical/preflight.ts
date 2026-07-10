@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { normalizeCompactConfig } from '../../ultramodern-tooling/config';
 import type { UltramodernBridgeConfig } from '../bridge-config';
 import {
   createRemoteManifestEnv,
@@ -140,7 +141,11 @@ function readRequiredJsonObject(filePath: string): Record<string, any> {
 
 function readRequiredWorkspaceConfig(workspaceRoot: string) {
   const compactPath = path.join(workspaceRoot, ULTRAMODERN_CONFIG_PATH);
-  readRequiredJsonObject(compactPath);
+  normalizeCompactConfig(
+    workspaceRoot,
+    compactPath,
+    readRequiredJsonObject(compactPath),
+  );
 }
 
 function assertOptionalJsonObject(

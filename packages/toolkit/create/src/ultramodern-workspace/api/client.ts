@@ -40,7 +40,6 @@ export function createApiClient(
   return `import {
   Effect,
   makeEffectHttpApiClient,
-  runEffectRequest,
 } from '@modern-js/plugin-bff/effect-client';
 import type {
   HttpClientError,
@@ -63,7 +62,7 @@ import type {
   ${readinessType},
 } from '${contractImportPath}';
 
-export { Effect, runEffectRequest };
+export { Effect, runEffectRequest } from '@modern-js/plugin-bff/effect-client';
 
 type ${pascalStem}ApiGroups = typeof ${apiExport} extends HttpApi.HttpApi<
   infer _ApiId,

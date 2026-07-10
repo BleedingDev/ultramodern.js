@@ -1,172 +1,656 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
+import type { ResolvedUltramodernPackageSource } from '../../../ultramodern-package-source';
 import {
-  DRIZZLE_ORM_VERSION,
-  EFFECT_VERSION,
-  EFFECT_VITEST_VERSION,
-  MODULE_FEDERATION_VERSION,
-} from '../../../ultramodern-workspace/versions';
+  readWorkspaceReleaseCohort,
+  releaseCohortSelectors,
+  type UltramodernReleaseCohort,
+} from '../../../ultramodern-release-cohort';
+import {
+  renderMinimumReleaseAgeExclude,
+  resolveReleaseAgeApprovals,
+  ULTRAMODERN_PACKAGE_PINS,
+  ULTRAMODERN_WORKSPACE_POLICY,
+  type UltramodernPatchPolicy,
+} from '../../../ultramodern-workspace/policy';
 import { workspaceUsesDependency } from './dependency-usage';
 import type { MigrationIo } from './io';
 import {
-  ensureYamlListItem,
-  ensureYamlMapEntry,
-  ensureYamlScalarMapEntry,
-  removeYamlMapEntry,
-  replaceYamlLine,
+  discoverReachablePnpmLockReleaseAgeClosure,
+  isYamlRecord,
+  type PnpmWorkspaceYaml,
+  parsePnpmWorkspaceYaml,
+  stringifyPnpmWorkspaceYaml,
 } from './pnpm-yaml';
-import {
-  drizzleOrmDeclarationPatchPath,
-  effectDeclarationPatchPath,
-  moduleFederationBridgeReactPatchPath,
-  moduleFederationDtsPluginPatchPath,
-  moduleFederationModernJsPatchPath,
-  moduleFederationPackageVersionPolicyExclusions,
-  strictEffectPackageVersionPolicyExclusions,
-  transitivePackageVersionPolicyExclusions,
-} from './policy-constants';
 
 export { ensureGeneratedDeclarationPatches } from './declaration-patches';
 export { workspaceUsesDependency } from './dependency-usage';
 
-export function updateGeneratedPnpmWorkspacePolicy(io: MigrationIo) {
+const exactVersionPattern =
+  /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/u;
+
+const legacyBareReleaseAgePackages = new Set([
+  ...Object.keys(ULTRAMODERN_PACKAGE_PINS.appDependencies),
+  ...Object.keys(ULTRAMODERN_PACKAGE_PINS.appDevDependencies),
+  ...Object.keys(ULTRAMODERN_PACKAGE_PINS.transitiveDependencies),
+  '@module-federation/bridge-react-webpack-plugin',
+  '@module-federation/cli',
+  '@module-federation/dts-plugin',
+  '@module-federation/enhanced',
+  '@module-federation/error-codes',
+  '@module-federation/inject-external-runtime-core-plugin',
+  '@module-federation/managers',
+  '@module-federation/manifest',
+  '@module-federation/rsbuild-plugin',
+  '@module-federation/rspack',
+  '@module-federation/runtime-core',
+  '@module-federation/runtime-tools',
+  '@module-federation/sdk',
+  '@module-federation/third-party-dts-extractor',
+  '@module-federation/webpack-bundler-runtime',
+  '@rsbuild/core',
+  '@rsbuild/plugin-react',
+  '@rsbuild/plugin-type-check',
+  '@rspack/binding',
+  '@rspack/core',
+  '@rspack/plugin-react-refresh',
+  'ts-checker-rspack-plugin',
+]);
+
+const knownStaleReleaseAgeEntries = new Set([
+  '@effect/opentelemetry@4.0.0-beta.92',
+  '@effect/opentelemetry@4.0.0-beta.94',
+  '@typescript/native-preview@7.0.0-dev.20260628.1',
+  '@cloudflare/workers-types@5.20260708.1',
+  'effect@4.0.0-beta.92',
+  'effect@4.0.0-beta.94',
+  'i18next@26.3.1',
+  'miniflare@4.20260708.0',
+  'workerd@1.20260708.1',
+  'wrangler@4.109.0',
+  ...ULTRAMODERN_WORKSPACE_POLICY.pnpm.releaseAge.approvals
+    .filter(approval => approval.packageName.startsWith('@module-federation/'))
+    .map(approval => `${approval.packageName}@2.6.0`),
+]);
+
+const canonicalReleaseAgeEntries = new Set(
+  ULTRAMODERN_WORKSPACE_POLICY.pnpm.releaseAge.approvals.map(
+    approval => `${approval.packageName}@${approval.version}`,
+  ),
+);
+
+type RegistryResponse = {
+  ok: boolean;
+  status: number;
+  json: () => Promise<unknown>;
+};
+
+export type ReleaseAgeRegistryFetch = (
+  url: URL,
+  init: { headers: Record<string, string>; redirect: 'error' },
+) => Promise<RegistryResponse>;
+
+function ensureMap(document: PnpmWorkspaceYaml, key: string) {
+  const current = document[key];
+  if (current === undefined) {
+    const created: PnpmWorkspaceYaml = {};
+    document[key] = created;
+    return created;
+  }
+  if (!isYamlRecord(current)) {
+    throw new Error(`pnpm-workspace.yaml ${key} must be a mapping.`);
+  }
+  return current;
+}
+
+function setOwnedScalar(
+  document: PnpmWorkspaceYaml,
+  key: string,
+  value: string | number | boolean,
+) {
+  const current = document[key];
+  if (current !== undefined && typeof current === 'object') {
+    throw new Error(`pnpm-workspace.yaml ${key} must be a scalar.`);
+  }
+  document[key] = value;
+}
+
+function reconcileOwnedMap(
+  target: PnpmWorkspaceYaml,
+  expected: Readonly<Record<string, string | boolean>>,
+) {
+  for (const [key, value] of Object.entries(expected)) {
+    target[key] = value;
+  }
+}
+
+function assertUniqueStringList(value: unknown, key: string) {
+  if (!Array.isArray(value) || value.some(item => typeof item !== 'string')) {
+    throw new Error(`pnpm-workspace.yaml ${key} must be a string list.`);
+  }
+  const entries = value as string[];
+  if (new Set(entries).size !== entries.length) {
+    throw new Error(`pnpm-workspace.yaml ${key} contains duplicate entries.`);
+  }
+  return entries;
+}
+
+function packageVersionParts(selector: string) {
+  const separator = selector.lastIndexOf('@');
+  if (separator <= 0) {
+    return undefined;
+  }
+  return {
+    packageName: selector.slice(0, separator),
+    version: selector.slice(separator + 1),
+  };
+}
+
+function assertOwnedReleaseAgeList(
+  current: unknown,
+  expected: readonly string[],
+) {
+  const entries = assertUniqueStringList(current, 'minimumReleaseAgeExclude');
+  const expectedSet = new Set(expected);
+
+  for (const entry of entries) {
+    if (
+      expectedSet.has(entry) ||
+      canonicalReleaseAgeEntries.has(entry) ||
+      knownStaleReleaseAgeEntries.has(entry)
+    ) {
+      continue;
+    }
+    if (
+      entry === '@bleedingdev/modern-js-*' ||
+      entry === '@module-federation/*' ||
+      entry === '@rspack/binding-*' ||
+      legacyBareReleaseAgePackages.has(entry)
+    ) {
+      continue;
+    }
+    if (/^@bleedingdev\/modern-js-[^@]+@[^@]+$/u.test(entry)) {
+      continue;
+    }
+
+    const parts = packageVersionParts(entry);
+    if (!parts || !exactVersionPattern.test(parts.version)) {
+      throw new Error(
+        `Unapproved release-age exclusion "${entry}" is not an exact package@version.`,
+      );
+    }
+    throw new Error(
+      `Unapproved release-age exclusion "${entry}" has no canonical review evidence.`,
+    );
+  }
+}
+
+function assertOwnedTrustPolicyList(
+  current: unknown,
+  expected: readonly string[],
+) {
+  const entries = assertUniqueStringList(current, 'trustPolicyExclude');
+  const expectedSet = new Set(expected);
+  for (const entry of entries) {
+    if (
+      expectedSet.has(entry) ||
+      entry === 'effect@4.0.0-beta.92' ||
+      entry === '@effect/opentelemetry@4.0.0-beta.92'
+    ) {
+      continue;
+    }
+    throw new Error(
+      `Unmatched trust-policy exclusion "${entry}" cannot be migrated safely.`,
+    );
+  }
+}
+
+function patchKey(patch: UltramodernPatchPolicy) {
+  return `${patch.packageName}@${patch.version}`;
+}
+
+function reconcilePatchedDependencies(
+  document: PnpmWorkspaceYaml,
+  includeDrizzleOrmPatch: boolean,
+) {
+  const policy = ULTRAMODERN_WORKSPACE_POLICY.pnpm.patchedDependencies;
+  const expectedPatches = [
+    ...policy.required,
+    ...(includeDrizzleOrmPatch ? policy.conditional : []),
+  ];
+  const expected = new Map(
+    expectedPatches.map(patch => [patchKey(patch), patch.path]),
+  );
+  const stale = new Map(policy.stale.map(patch => [patchKey(patch), patch]));
+  const ownedPackageNames = new Set(
+    [...policy.required, ...policy.conditional, ...policy.stale].map(
+      patch => patch.packageName,
+    ),
+  );
+  const patchedDependencies = ensureMap(document, 'patchedDependencies');
+
+  for (const [selector, patchPath] of Object.entries(patchedDependencies)) {
+    const stalePatch = stale.get(selector);
+    if (stalePatch) {
+      if (patchPath !== stalePatch.path) {
+        throw new Error(
+          `Stale framework patch ${selector} uses an unrecognized path and cannot be removed safely.`,
+        );
+      }
+      delete patchedDependencies[selector];
+      continue;
+    }
+
+    const parts = packageVersionParts(selector);
+    if (
+      parts &&
+      ownedPackageNames.has(parts.packageName) &&
+      !expected.has(selector)
+    ) {
+      const conditionalPatch = policy.conditional.find(
+        patch => patchKey(patch) === selector,
+      );
+      if (
+        conditionalPatch &&
+        !includeDrizzleOrmPatch &&
+        patchPath === conditionalPatch.path
+      ) {
+        delete patchedDependencies[selector];
+        continue;
+      }
+      throw new Error(
+        `Framework-owned patch selector ${selector} has unknown provenance.`,
+      );
+    }
+  }
+
+  for (const [selector, patchPath] of expected) {
+    patchedDependencies[selector] = patchPath;
+  }
+}
+
+function reconcilePnpmPolicy(
+  document: PnpmWorkspaceYaml,
+  includeDrizzleOrmPatch: boolean,
+  packageSource: ResolvedUltramodernPackageSource,
+  releaseCohort: UltramodernReleaseCohort | undefined,
+  now?: Date,
+) {
+  const policy = ULTRAMODERN_WORKSPACE_POLICY.pnpm;
+  const minimumReleaseAgeExclude = renderMinimumReleaseAgeExclude({
+    now,
+    packageSource,
+    releaseCohort,
+  });
+
+  if (document.minimumReleaseAgeExclude !== undefined) {
+    assertOwnedReleaseAgeList(
+      document.minimumReleaseAgeExclude,
+      minimumReleaseAgeExclude,
+    );
+  }
+  if (document.trustPolicyExclude !== undefined) {
+    assertOwnedTrustPolicyList(
+      document.trustPolicyExclude,
+      policy.trustPolicyExclude,
+    );
+  }
+
+  for (const [key, value] of [
+    ['minimumReleaseAge', policy.minimumReleaseAge],
+    ['minimumReleaseAgeStrict', policy.minimumReleaseAgeStrict],
+    [
+      'minimumReleaseAgeIgnoreMissingTime',
+      policy.minimumReleaseAgeIgnoreMissingTime,
+    ],
+    ['trustPolicy', policy.trustPolicy],
+    ['trustPolicyIgnoreAfter', policy.trustPolicyIgnoreAfter],
+    ['blockExoticSubdeps', policy.blockExoticSubdeps],
+    ['engineStrict', policy.engineStrict],
+    ['pmOnFail', policy.pmOnFail],
+    ['verifyDepsBeforeRun', policy.verifyDepsBeforeRun],
+    ['strictDepBuilds', policy.strictDepBuilds],
+  ] as const) {
+    setOwnedScalar(document, key, value);
+  }
+
+  document.minimumReleaseAgeExclude = minimumReleaseAgeExclude;
+  document.trustPolicyExclude = [...policy.trustPolicyExclude];
+
+  const peerDependencyRules = ensureMap(document, 'peerDependencyRules');
+  const allowedVersions = ensureMap(peerDependencyRules, 'allowedVersions');
+  reconcileOwnedMap(
+    allowedVersions,
+    policy.peerDependencyRules.allowedVersions,
+  );
+
+  const overrides = ensureMap(document, 'overrides');
+  const ownedOverrideNames = new Set(Object.keys(policy.overrides));
+  for (const selector of Object.keys(overrides)) {
+    const parts = packageVersionParts(selector);
+    if (parts && ownedOverrideNames.has(parts.packageName)) {
+      delete overrides[selector];
+    }
+  }
+  reconcileOwnedMap(overrides, policy.overrides);
+  reconcileOwnedMap(ensureMap(document, 'allowBuilds'), policy.allowBuilds);
+  reconcilePatchedDependencies(document, includeDrizzleOrmPatch);
+}
+
+function stalePatchFilesToRemove(workspaceRoot: string) {
+  const staleFiles: string[] = [];
+  for (const patch of ULTRAMODERN_WORKSPACE_POLICY.pnpm.patchedDependencies
+    .stale) {
+    const patchPath = path.join(workspaceRoot, patch.path);
+    if (!fs.existsSync(patchPath)) {
+      continue;
+    }
+    const digest = crypto
+      .createHash('sha256')
+      .update(fs.readFileSync(patchPath))
+      .digest('hex');
+    if (digest !== patch.sha256) {
+      throw new Error(
+        `Stale framework patch ${patch.path} was modified (expected sha256 ${patch.sha256}, found ${digest}); refusing to delete it.`,
+      );
+    }
+    staleFiles.push(patchPath);
+  }
+  return staleFiles;
+}
+
+export function updateGeneratedPnpmWorkspacePolicy(
+  io: MigrationIo,
+  packageSource: ResolvedUltramodernPackageSource,
+  options: { now?: Date; releaseCohort?: UltramodernReleaseCohort } = {},
+) {
   const workspaceFile = path.join(io.workspaceRoot, 'pnpm-workspace.yaml');
   if (!fs.existsSync(workspaceFile)) {
     return false;
   }
 
-  let source = fs.readFileSync(workspaceFile, 'utf-8');
+  const source = fs.readFileSync(workspaceFile, 'utf-8');
+  const { document, lineEnding } = parsePnpmWorkspaceYaml(
+    source,
+    workspaceFile,
+  );
+  const before = JSON.stringify(document);
+  reconcilePnpmPolicy(
+    document,
+    workspaceUsesDependency(io.workspaceRoot, 'drizzle-orm'),
+    packageSource,
+    options.releaseCohort,
+    options.now,
+  );
+  const stalePatchFiles = stalePatchFilesToRemove(io.workspaceRoot);
+
   let changed = false;
-  const usesDrizzleOrm = workspaceUsesDependency(
-    io.workspaceRoot,
-    'drizzle-orm',
-  );
-
-  const replacements: Array<[RegExp, string]> = [
-    [
-      /^ {4}'@effect\/vitest>effect': .+$/mu,
-      `    '@effect/vitest>effect': '${EFFECT_VERSION}'`,
-    ],
-  ];
-
-  for (const [pattern, replacement] of replacements) {
-    const result = replaceYamlLine(source, pattern, replacement);
-    source = result.source;
-    changed = result.changed || changed;
+  if (JSON.stringify(document) !== before) {
+    changed =
+      io.write(
+        workspaceFile,
+        stringifyPnpmWorkspaceYaml(document, lineEnding),
+      ) || changed;
   }
-
-  for (const [entryKey, version] of [
-    [`'@effect/opentelemetry'`, EFFECT_VERSION],
-    [`'@effect/vitest'`, EFFECT_VITEST_VERSION],
-    ['effect', EFFECT_VERSION],
-  ]) {
-    const result = ensureYamlScalarMapEntry(
-      source,
-      'overrides',
-      entryKey,
-      version,
-    );
-    source = result.source;
-    changed = result.changed || changed;
+  for (const stalePatchFile of stalePatchFiles) {
+    changed = io.remove(stalePatchFile) || changed;
   }
-
-  const parcelWatcherBuildPolicy = ensureYamlScalarMapEntry(
-    source,
-    'allowBuilds',
-    "'@parcel/watcher'",
-    'true',
-  );
-  source = parcelWatcherBuildPolicy.source;
-  changed = parcelWatcherBuildPolicy.changed || changed;
-
-  for (const item of strictEffectPackageVersionPolicyExclusions) {
-    const packageName = item.slice(0, item.lastIndexOf('@'));
-    const escapedPackageName = packageName.replace(
-      /[.*+?^${}()|[\]\\]/gu,
-      '\\$&',
-    );
-    const currentVersion = replaceYamlLine(
-      source,
-      new RegExp(`^ {2}- '${escapedPackageName}@[^']+'$`, 'gmu'),
-      `  - '${item}'`,
-    );
-    source = currentVersion.source;
-    changed = currentVersion.changed || changed;
-
-    for (const policyKey of [
-      'minimumReleaseAgeExclude',
-      'trustPolicyExclude',
-    ]) {
-      const policyExclude = ensureYamlListItem(source, policyKey, item);
-      source = policyExclude.source;
-      changed = policyExclude.changed || changed;
-    }
-  }
-
-  for (const item of [
-    ...moduleFederationPackageVersionPolicyExclusions,
-    ...transitivePackageVersionPolicyExclusions,
-  ]) {
-    const policyExclude = ensureYamlListItem(
-      source,
-      'minimumReleaseAgeExclude',
-      item,
-    );
-    source = policyExclude.source;
-    changed = policyExclude.changed || changed;
-  }
-
-  const effectPatch = ensureYamlMapEntry(
-    source,
-    'patchedDependencies',
-    `effect@${EFFECT_VERSION}`,
-    effectDeclarationPatchPath,
-  );
-  source = effectPatch.source;
-  changed = effectPatch.changed || changed;
-
-  const moduleFederationModernJsPatch = ensureYamlMapEntry(
-    source,
-    'patchedDependencies',
-    `@module-federation/modern-js-v3@${MODULE_FEDERATION_VERSION}`,
-    moduleFederationModernJsPatchPath,
-  );
-  source = moduleFederationModernJsPatch.source;
-  changed = moduleFederationModernJsPatch.changed || changed;
-
-  const moduleFederationDtsPluginPatch = ensureYamlMapEntry(
-    source,
-    'patchedDependencies',
-    `@module-federation/dts-plugin@${MODULE_FEDERATION_VERSION}`,
-    moduleFederationDtsPluginPatchPath,
-  );
-  source = moduleFederationDtsPluginPatch.source;
-  changed = moduleFederationDtsPluginPatch.changed || changed;
-
-  const moduleFederationBridgeReactPatch = ensureYamlMapEntry(
-    source,
-    'patchedDependencies',
-    `@module-federation/bridge-react@${MODULE_FEDERATION_VERSION}`,
-    moduleFederationBridgeReactPatchPath,
-  );
-  source = moduleFederationBridgeReactPatch.source;
-  changed = moduleFederationBridgeReactPatch.changed || changed;
-
-  const drizzleOrmPatch = usesDrizzleOrm
-    ? ensureYamlMapEntry(
-        source,
-        'patchedDependencies',
-        `drizzle-orm@${DRIZZLE_ORM_VERSION}`,
-        drizzleOrmDeclarationPatchPath,
-      )
-    : removeYamlMapEntry(source, `drizzle-orm@${DRIZZLE_ORM_VERSION}`);
-  source = drizzleOrmPatch.source;
-  changed = drizzleOrmPatch.changed || changed;
-
-  if (changed) {
-    io.write(workspaceFile, source);
-  }
-
   return changed;
+}
+
+function packageRegistryUrl(registryUrl: string, packageName: string) {
+  let base: URL;
+  try {
+    base = new URL(registryUrl);
+  } catch {
+    throw new Error(`Registry URL is invalid: ${registryUrl}`);
+  }
+  if (base.protocol !== 'https:') {
+    throw new Error(`Registry URL must use HTTPS: ${registryUrl}`);
+  }
+  const encodedName = packageName.startsWith('@')
+    ? packageName.replace('/', '%2f')
+    : encodeURIComponent(packageName);
+  return new URL(encodedName, base);
+}
+
+function packageVersionKey(packageName: string, version: string) {
+  return `${packageName}@${version}`;
+}
+
+function isRegistryRecord(value: unknown): value is Record<string, any> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+async function resolveRegistryCandidates(
+  candidates: ReturnType<
+    typeof discoverReachablePnpmLockReleaseAgeClosure
+  >['candidates'],
+  options: {
+    fetchImpl: ReleaseAgeRegistryFetch;
+    now: Date;
+    registryUrl: string;
+  },
+) {
+  const nowTimestamp = options.now.getTime();
+  if (!Number.isFinite(nowTimestamp)) {
+    throw new Error('Release-age validation requires a valid current time.');
+  }
+
+  return Promise.all(
+    candidates.map(async candidate => {
+      const key = packageVersionKey(candidate.packageName, candidate.version);
+      let response: RegistryResponse;
+      try {
+        response = await options.fetchImpl(
+          packageRegistryUrl(options.registryUrl, candidate.packageName),
+          {
+            headers: { accept: 'application/json' },
+            redirect: 'error',
+          },
+        );
+      } catch (error) {
+        throw new Error(
+          `Registry metadata is uncertain for ${key} (${candidate.path.join(
+            ' -> ',
+          )}): ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+      if (!response.ok) {
+        throw new Error(
+          `Registry metadata is uncertain for ${key} (${candidate.path.join(
+            ' -> ',
+          )}): HTTP ${response.status}`,
+        );
+      }
+
+      let packument: unknown;
+      try {
+        packument = await response.json();
+      } catch (error) {
+        throw new Error(
+          `Registry metadata is invalid JSON for ${key}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+      if (!isRegistryRecord(packument)) {
+        throw new Error(`Registry metadata is invalid for ${key}.`);
+      }
+      const versions = packument.versions;
+      const time = packument.time;
+      const versionMetadata = isRegistryRecord(versions)
+        ? versions[candidate.version]
+        : undefined;
+      const dist = isRegistryRecord(versionMetadata)
+        ? versionMetadata.dist
+        : undefined;
+      const integrity = isRegistryRecord(dist) ? dist.integrity : undefined;
+      if (integrity !== candidate.registry.dist.integrity) {
+        throw new Error(
+          `Registry metadata integrity mismatch for ${key}: lock has ${candidate.registry.dist.integrity}, registry has ${String(
+            integrity,
+          )}`,
+        );
+      }
+      const publishedAt = isRegistryRecord(time)
+        ? time[candidate.version]
+        : undefined;
+      const publishedAtTimestamp =
+        typeof publishedAt === 'string' ? Date.parse(publishedAt) : Number.NaN;
+      if (
+        typeof publishedAt !== 'string' ||
+        !Number.isFinite(publishedAtTimestamp) ||
+        publishedAtTimestamp > nowTimestamp
+      ) {
+        throw new Error(
+          `Registry publication time is missing, invalid, or in the future for ${key}.`,
+        );
+      }
+      return {
+        ...candidate,
+        registry: {
+          ...candidate.registry,
+          publishedAt: new Date(publishedAtTimestamp).toISOString(),
+        },
+      };
+    }),
+  );
+}
+
+export async function validateGeneratedPnpmLockReleaseAgePolicy(
+  workspaceRoot: string,
+  packageSource: ResolvedUltramodernPackageSource,
+  options: {
+    fetchImpl?: ReleaseAgeRegistryFetch;
+    now?: Date;
+    registryUrl?: string;
+    releaseCohort?: UltramodernReleaseCohort;
+  } = {},
+) {
+  const lockfilePath = path.join(workspaceRoot, 'pnpm-lock.yaml');
+  if (!fs.existsSync(lockfilePath)) {
+    throw new Error(
+      'Cannot validate release-age approvals without pnpm-lock.yaml.',
+    );
+  }
+
+  const now = options.now ?? new Date();
+  const releaseCohort =
+    options.releaseCohort ??
+    (packageSource.strategy === 'install'
+      ? readWorkspaceReleaseCohort(workspaceRoot)
+      : undefined);
+  const activeSelectors = renderMinimumReleaseAgeExclude({
+    now,
+    packageSource,
+    releaseCohort,
+  });
+  const workspacePolicyPath = path.join(workspaceRoot, 'pnpm-workspace.yaml');
+  const { document: workspacePolicy } = parsePnpmWorkspaceYaml(
+    fs.readFileSync(workspacePolicyPath, 'utf-8'),
+    workspacePolicyPath,
+  );
+  const renderedSelectors = assertUniqueStringList(
+    workspacePolicy.minimumReleaseAgeExclude,
+    'minimumReleaseAgeExclude',
+  );
+  if (JSON.stringify(renderedSelectors) !== JSON.stringify(activeSelectors)) {
+    throw new Error(
+      'pnpm-workspace.yaml release-age exclusions do not match canonical policy.',
+    );
+  }
+
+  const firstPartySelectors = new Set(
+    releaseCohort ? releaseCohortSelectors(releaseCohort) : [],
+  );
+  const firstPartyTargetNames = new Set(
+    releaseCohort?.packages.map(item => item.targetName) ?? [],
+  );
+  const { document: lockfile } = parsePnpmWorkspaceYaml(
+    fs.readFileSync(lockfilePath, 'utf-8'),
+    lockfilePath,
+  );
+  const closure = discoverReachablePnpmLockReleaseAgeClosure(lockfile);
+  if (closure.unresolved.length > 0) {
+    const unresolved = closure.unresolved
+      .slice(0, 20)
+      .map(candidate => {
+        const packageName = candidate.package ?? 'unknown package';
+        return `- ${packageName}: ${candidate.reason}; path ${candidate.path.join(
+          ' -> ',
+        )}`;
+      })
+      .join('\n');
+    throw new Error(
+      `Dependency closure has unresolved candidates:\n${unresolved}`,
+    );
+  }
+
+  const closureKeys = new Set(
+    closure.candidates.map(candidate =>
+      packageVersionKey(candidate.packageName, candidate.version),
+    ),
+  );
+  const approvals =
+    ULTRAMODERN_WORKSPACE_POLICY.pnpm.releaseAge.approvals.filter(approval =>
+      closureKeys.has(`${approval.packageName}@${approval.version}`),
+    );
+  const isFirstPartyCandidate = (packageName: string, version: string) => {
+    if (!firstPartyTargetNames.has(packageName)) {
+      return false;
+    }
+    const key = `${packageName}@${version}`;
+    if (!firstPartySelectors.has(key)) {
+      throw new Error(
+        `First-party lock candidate ${key} is absent from the authenticated release cohort.`,
+      );
+    }
+    return true;
+  };
+  const thirdPartyCandidates = closure.candidates.filter(
+    candidate =>
+      !isFirstPartyCandidate(candidate.packageName, candidate.version),
+  );
+  const activeCandidates = await resolveRegistryCandidates(
+    thirdPartyCandidates,
+    {
+      fetchImpl: options.fetchImpl ?? (fetch as ReleaseAgeRegistryFetch),
+      now,
+      registryUrl:
+        options.registryUrl ??
+        packageSource.registry ??
+        'https://registry.npmjs.org/',
+    },
+  );
+  const resolved = resolveReleaseAgeApprovals(activeCandidates, {
+    approvals,
+    now,
+  });
+  if (resolved.reviewCandidates.length > 0) {
+    const pathsByKey = new Map(
+      thirdPartyCandidates.map(candidate => [
+        packageVersionKey(candidate.packageName, candidate.version),
+        candidate.path,
+      ]),
+    );
+    throw new Error(
+      [
+        `Dependency closure contains ${resolved.reviewCandidates.length} immature package(s) without an exact, unexpired approval:`,
+        ...resolved.reviewCandidates.slice(0, 20).map(candidate => {
+          const key = packageVersionKey(
+            candidate.packageName,
+            candidate.version,
+          );
+          return `- ${key}; path ${pathsByKey.get(key)?.join(' -> ') ?? 'unknown'}`;
+        }),
+      ].join('\n'),
+    );
+  }
+  return {
+    ...resolved,
+    minimumReleaseAgeExclude: activeSelectors,
+  };
 }

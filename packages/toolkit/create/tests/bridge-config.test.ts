@@ -325,8 +325,7 @@ test('bridge mode rejects parent packages that collide with generated app depend
           packageName: 'bridge-app',
           modernVersion: '3.2.1',
           packageSource: {
-            strategy: 'install',
-            modernPackageVersion: '3.2.0-ultramodern.108',
+            strategy: 'workspace',
           },
           bridge: {
             parentRoot: '../..',
@@ -363,8 +362,7 @@ test('bridge mode materializes workspace packages, app dependencies, compact con
       packageName: 'bridge-app',
       modernVersion: '3.2.1',
       packageSource: {
-        strategy: 'install',
-        modernPackageVersion: '3.2.0-ultramodern.108',
+        strategy: 'workspace',
       },
       bridge: {
         parentRoot: '../..',

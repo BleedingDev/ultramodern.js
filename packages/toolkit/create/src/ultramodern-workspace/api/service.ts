@@ -166,13 +166,8 @@ export function createBackendEffectApiExpose(
   const apiPrefix = resolveApiPrefix(service);
   const stem = resolveApiStem(service);
 
-  return `import apiRuntime from './index.ts';
-import { ultramodernApiMarker } from '../shared/ultramodern-build.ts';
-import {
-  ${apiExport},
-  ${groupName}ApiContract,
-  ${groupName}OperationContexts,
-} from '../shared/api.ts';
+  return `import { ultramodernApiMarker } from '../shared/ultramodern-build.ts';
+import { ${apiExport} } from '../shared/api.ts';
 
 export const backendFederationContract = {
   compatibility: {
@@ -193,11 +188,11 @@ export const backendFederationContract = {
   strictEffectApproach: true,
 } as const;
 
+export { default, default as runtime } from './index.ts';
+export {
+  ${groupName}ApiContract as contract,
+  ${groupName}OperationContexts as operationContexts,
+} from '../shared/api.ts';
 export const api: unknown = ${apiExport};
-export const contract = ${groupName}ApiContract;
-export const operationContexts = ${groupName}OperationContexts;
-export const runtime = apiRuntime;
-
-export default apiRuntime;
 `;
 }

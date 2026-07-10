@@ -172,18 +172,15 @@ test('generated workspace file manifest matches the checked-in snapshot', () => 
       packageName: 'manifest-workspace',
       modernVersion: '3.2.1',
       enableTailwind: true,
-      packageSource: {
-        strategy: 'install',
-        modernPackageVersion: '3.2.0-ultramodern.108',
-      },
+      packageSource: { strategy: 'workspace' },
     });
     assert.equal(workspaceResult.operation, 'workspace');
     assert.equal(workspaceResult.workspaceRoot, workspaceDir);
     assert.equal(workspaceResult.packageScope, 'manifest-workspace');
-    assert.equal(workspaceResult.packageSource.strategy, 'install');
+    assert.equal(workspaceResult.packageSource.strategy, 'workspace');
     assert.equal(
       workspaceResult.packageSource.modernPackageVersion,
-      '3.2.0-ultramodern.108',
+      'workspace:*',
     );
     assert.deepEqual(workspaceResult.createdPaths, expectedWorkspaceManifest);
     assert.deepEqual(workspaceResult.rewrittenPaths, []);
@@ -222,7 +219,7 @@ test('generated workspace file manifest matches the checked-in snapshot', () => 
     assert.equal(verticalResult.operation, 'vertical');
     assert.equal(verticalResult.workspaceRoot, workspaceDir);
     assert.equal(verticalResult.packageScope, 'manifest-workspace');
-    assert.equal(verticalResult.packageSource.strategy, 'install');
+    assert.equal(verticalResult.packageSource.strategy, 'workspace');
     assert.deepEqual(verticalResult.createdPaths, expectedVerticalManifest);
     assert.ok(
       [
@@ -309,10 +306,7 @@ test('scaffold without tailwind drops only the tailwind config files', () => {
       packageName: 'manifest-workspace',
       modernVersion: '3.2.1',
       enableTailwind: false,
-      packageSource: {
-        strategy: 'install',
-        modernPackageVersion: '3.2.0-ultramodern.108',
-      },
+      packageSource: { strategy: 'workspace' },
     });
     assert.deepEqual(
       listFiles(workspaceDir),

@@ -1,6 +1,10 @@
 import { rslibConfig } from '@modern-js/rslib';
 import { defineConfig } from '@rslib/core';
-import path from 'path';
+
+const APP_TOOLS_CODE_ENTRY_GLOBS = [
+  './src/**/*.{js,jsx,ts,tsx,mts,cts}',
+  './src/esm/*.mjs',
+];
 
 export default defineConfig({
   ...rslibConfig,
@@ -10,11 +14,8 @@ export default defineConfig({
       source: {
         ...libConfig.source,
         entry: {
-          index: [
-            './src/**',
-            '!src/plugins/deploy/platforms/templates/*.mjs',
-            '!src/plugins/deploy/platforms/templates/*.cjs',
-          ],
+          // Deploy templates are copy-only; `src/esm` still needs compiled CJS.
+          index: APP_TOOLS_CODE_ENTRY_GLOBS,
         },
       },
       output: {
@@ -25,12 +26,10 @@ export default defineConfig({
             to: './esm',
           },
           {
-            from: 'plugins/deploy/platforms/templates/*.cjs',
-            context: path.join(__dirname, 'src'),
-          },
-          {
-            from: 'plugins/deploy/platforms/templates/*.mjs',
-            context: path.join(__dirname, 'src'),
+            from: './src/plugins/deploy/platforms/templates',
+            to: './plugins/deploy/platforms/templates',
+            // These JavaScript-named assets must bypass Rspack's minimizer.
+            info: { minimized: true },
           },
         ],
       },

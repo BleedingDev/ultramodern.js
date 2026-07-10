@@ -1,4 +1,5 @@
 import { resolveApiPrefix, resolveApiStem } from '../descriptors';
+import { renderTemplate } from '../fs-io';
 import { packageName, toPascalCase } from '../naming';
 import type { WorkspaceApi } from '../types';
 import {
@@ -56,12 +57,46 @@ export function createSharedApiContract(service: {
   const checkoutCartSharedSchemas = createCheckoutCartSharedSchemas(service);
   const checkoutCartSharedSchemaSection =
     checkoutCartSharedSchemas === '' ? '' : `${checkoutCartSharedSchemas}\n`;
-  const checkoutCartOperationContexts =
-    createCheckoutCartOperationContexts(service).trimStart();
-  const checkoutCartOperationContextEntries =
-    checkoutCartOperationContexts === ''
-      ? ''
-      : `${checkoutCartOperationContexts}\n`;
+  const createOperationContext = `  create: {
+    method: 'POST',
+    operationId: '${apiName}:${groupName}:create',
+    routePath: '/${stem}',
+    source: 'generated-client',
+  },`;
+  const getOperationContext = `  get: {
+    method: 'GET',
+    operationId: '${apiName}:${groupName}:get',
+    routePath: '/${stem}/:id',
+    source: 'generated-client',
+  },`;
+  const listOperationContext = `  list: {
+    method: 'GET',
+    operationId: '${apiName}:${groupName}:list',
+    routePath: '/${stem}',
+    source: 'generated-client',
+  },`;
+  const readinessOperationContext = `  readiness: {
+    method: 'GET',
+    operationId: '${apiName}:${groupName}:readiness',
+    routePath: '/${stem}/readiness',
+    source: 'generated-client',
+  },`;
+  const checkoutCartOperationContextTemplate =
+    createCheckoutCartOperationContexts(service);
+  const operationContextEntries =
+    checkoutCartOperationContextTemplate === ''
+      ? [
+          createOperationContext,
+          getOperationContext,
+          listOperationContext,
+          readinessOperationContext,
+        ].join('\n')
+      : renderTemplate(checkoutCartOperationContextTemplate, {
+          createOperationContext,
+          getOperationContext,
+          listOperationContext,
+          readinessOperationContext,
+        }).trim();
 
   return `export interface ${markerType} {
   readonly appId: string;
@@ -195,30 +230,7 @@ export const ${apiExport} = HttpApi.make('${apiName}').add(
 );
 
 export const ${groupName}OperationContexts = {
-${checkoutCartOperationContextEntries}  create: {
-    method: 'POST',
-    operationId: '${apiName}:${groupName}:create',
-    routePath: '/${stem}',
-    source: 'generated-client',
-  },
-  get: {
-    method: 'GET',
-    operationId: '${apiName}:${groupName}:get',
-    routePath: '/${stem}/:id',
-    source: 'generated-client',
-  },
-  list: {
-    method: 'GET',
-    operationId: '${apiName}:${groupName}:list',
-    routePath: '/${stem}',
-    source: 'generated-client',
-  },
-  readiness: {
-    method: 'GET',
-    operationId: '${apiName}:${groupName}:readiness',
-    routePath: '/${stem}/readiness',
-    source: 'generated-client',
-  },
+${operationContextEntries}
 } satisfies Record<string, OperationContext>;
 
 export const ${groupName}ApiContract = {

@@ -10,6 +10,7 @@ import {
   type ResolvedUltramodernPackageSource,
   WORKSPACE_PACKAGE_VERSION,
 } from '../ultramodern-package-source';
+import { isCreatePackageSourceCheckout } from '../ultramodern-release-cohort';
 import { getOptionValue, WORKSPACE_PROTOCOL_FLAG } from './flags';
 import { runSetupCommand } from './project-setup';
 
@@ -196,8 +197,19 @@ export function resolveWorkspacePackageSource(
   }
 
   if (
+    isCreatePackageSourceCheckout() &&
+    hasExplicitUltramodernPackageSource(args, 'install')
+  ) {
+    console.error(
+      'A local @modern-js/create source checkout cannot satisfy an explicit install package source. Use workspace mode locally or run the packed published package with its authenticated release cohort projection.',
+    );
+    process.exit(1);
+  }
+
+  if (
     workspaceProtocolRequested ||
-    hasExplicitUltramodernPackageSource(args, 'workspace')
+    hasExplicitUltramodernPackageSource(args, 'workspace') ||
+    (isCreatePackageSourceCheckout() && packageSource.strategy === 'workspace')
   ) {
     return {
       ...packageSource,

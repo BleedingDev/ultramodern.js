@@ -1,13 +1,15 @@
 #!/usr/bin/env node
-import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import cliKit from '../lib/cli-kit.js';
 import fsKit from '../lib/fs-kit.js';
 import processKit from '../lib/process-kit.js';
+import { verifyReleaseArtifacts } from './lib/prepare-bleedingdev-packages/release-artifacts.mjs';
 
 const { parseCliArgs } = cliKit;
-const { readJsonFile, repoRoot } = fsKit;
+const { repoRoot } = fsKit;
 const { runCommand } = processKit;
+const trustedPublisherEnvironment = 'npm-publish';
 
 function rejectInlineOptionSyntax(argv) {
   for (const arg of argv) {
@@ -30,7 +32,7 @@ function parseArgs(argv) {
       ),
       repository: 'BleedingDev/ultramodern.js',
       file: 'publish-bleedingdev.yml',
-      environment: undefined,
+      environment: trustedPublisherEnvironment,
       delayMs: '2000',
       dryRun: false,
       yes: true,
@@ -70,23 +72,23 @@ function parseArgs(argv) {
   if (!Number.isFinite(options.delayMs) || options.delayMs < 0) {
     throw new Error('--delay-ms must be a non-negative number');
   }
+  if (options.environment !== trustedPublisherEnvironment) {
+    throw new Error(
+      `Trusted publishing environment must be ${trustedPublisherEnvironment}`,
+    );
+  }
 
   return options;
 }
 
 function readManifest(manifestPath) {
-  if (!fs.existsSync(manifestPath)) {
+  const verified = verifyReleaseArtifacts(path.dirname(manifestPath));
+  if (verified.manifestPath !== manifestPath) {
     throw new Error(
-      `Missing publish manifest at ${manifestPath}. Run ultramodern:prepare-bleedingdev-publish first.`,
+      `Verified release manifest path mismatch: expected ${manifestPath}, found ${verified.manifestPath}`,
     );
   }
-
-  const manifest = readJsonFile(manifestPath);
-  if (!Array.isArray(manifest.packages)) {
-    throw new Error(`Invalid publish manifest: ${manifestPath}`);
-  }
-
-  return manifest;
+  return verified.manifest;
 }
 
 function run(command, args) {
@@ -126,6 +128,30 @@ function supportsTrustAllowPublishFlag() {
   );
 }
 
+function trustedPublisherArgs(packageName, options, includeAllowPublish) {
+  const args = [
+    'trust',
+    'github',
+    packageName,
+    '--repo',
+    options.repository,
+    '--file',
+    options.file,
+  ];
+
+  if (includeAllowPublish) {
+    args.push('--allow-publish');
+  }
+  args.push('--env', trustedPublisherEnvironment);
+  if (options.dryRun) {
+    args.push('--dry-run');
+  }
+  if (options.yes) {
+    args.push('--yes');
+  }
+  return args;
+}
+
 function main() {
   const options = parseArgs(process.argv.slice(2));
   const manifest = readManifest(options.manifest);
@@ -140,30 +166,14 @@ function main() {
   );
   console.log(`Repository: ${options.repository}`);
   console.log(`Workflow: ${options.file}`);
+  console.log(`Environment: ${trustedPublisherEnvironment}`);
 
   for (const packageName of packages) {
-    const args = [
-      'trust',
-      'github',
+    const args = trustedPublisherArgs(
       packageName,
-      '--repo',
-      options.repository,
-      '--file',
-      options.file,
-    ];
-
-    if (includeAllowPublish) {
-      args.push('--allow-publish');
-    }
-    if (options.environment) {
-      args.push('--env', options.environment);
-    }
-    if (options.dryRun) {
-      args.push('--dry-run');
-    }
-    if (options.yes) {
-      args.push('--yes');
-    }
+      options,
+      includeAllowPublish,
+    );
 
     console.log(`Configuring ${packageName}`);
     run('npm', args);
@@ -174,9 +184,16 @@ function main() {
   }
 }
 
-try {
-  main();
-} catch (error) {
-  console.error(error instanceof Error ? error.message : error);
-  process.exit(1);
+if (
+  process.argv[1] &&
+  fileURLToPath(import.meta.url) === path.resolve(process.argv[1])
+) {
+  try {
+    main();
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : error);
+    process.exitCode = 1;
+  }
 }
+
+export { main, parseArgs, readManifest, trustedPublisherArgs };

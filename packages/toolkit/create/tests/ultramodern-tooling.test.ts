@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { yaml } from '@modern-js/utils';
 import { runUltramodernToolingCli } from '../src/ultramodern-tooling/commands';
 import {
   readUltramodernConfig,
@@ -17,10 +18,13 @@ import {
   createSharedPackageTsConfig,
 } from '../src/ultramodern-workspace/package-json';
 import {
+  renderMinimumReleaseAgeExclude,
+  ULTRAMODERN_WORKSPACE_POLICY,
+} from '../src/ultramodern-workspace/policy';
+import {
   DRIZZLE_ORM_VERSION,
   EFFECT_VERSION,
   EFFECT_VITEST_VERSION,
-  I18NEXT_VERSION,
   MODULE_FEDERATION_VERSION,
   NODE_VERSION,
   OXFMT_VERSION,
@@ -56,10 +60,7 @@ function scaffoldWorkspace(name: string) {
     packageName: name,
     modernVersion: '3.2.1',
     enableTailwind: true,
-    packageSource: {
-      strategy: 'install',
-      modernPackageVersion: '3.2.0-ultramodern.108',
-    },
+    packageSource: { strategy: 'workspace' },
   });
   return { tempRoot, workspaceDir };
 }
@@ -129,12 +130,7 @@ test('migrate preserves consumer-owned check segments and rewrites migrated scri
 
     assert.equal(
       await runUltramodernToolingCli(
-        [
-          'migrate-strict-effect',
-          '--version',
-          '3.5.0-ultramodern.1',
-          '--skip-install',
-        ],
+        ['migrate-strict-effect', '--skip-install'],
         workspaceDir,
       ),
       0,
@@ -201,26 +197,18 @@ test('migrate keeps version fields consistent across the compact config', async 
 
     assert.equal(
       await runUltramodernToolingCli(
-        [
-          'migrate-strict-effect',
-          '--version',
-          '3.5.0-ultramodern.1',
-          '--skip-install',
-        ],
+        ['migrate-strict-effect', '--skip-install'],
         workspaceDir,
       ),
       0,
     );
 
     const after = readJson(workspaceDir, '.modernjs/ultramodern.json');
-    assert.equal(
-      after.packageSource.modernPackageVersion,
-      '3.5.0-ultramodern.1',
-    );
+    assert.equal(after.packageSource.modernPackageVersion, 'workspace:*');
     assert.equal(
       after.generator.version,
-      '3.5.0-ultramodern.1',
-      'generator.version must track the migrated package version',
+      'workspace:*',
+      'generator.version must track the migrated package source',
     );
     assert.equal(after.workspace.node.version, NODE_VERSION);
     assert.equal(after.workspace.node.engineRange, '>=26');
@@ -294,12 +282,7 @@ test('migrate does not inject backend-federation gates into a shell-only workspa
   try {
     assert.equal(
       await runUltramodernToolingCli(
-        [
-          'migrate-strict-effect',
-          '--version',
-          '3.5.0-ultramodern.1',
-          '--skip-install',
-        ],
+        ['migrate-strict-effect', '--skip-install'],
         workspaceDir,
       ),
       0,
@@ -366,12 +349,7 @@ test('migrate materializes every validator-required wrapper and rewires legacy s
 
     assert.equal(
       await runUltramodernToolingCli(
-        [
-          'migrate-strict-effect',
-          '--version',
-          '3.5.0-ultramodern.1',
-          '--skip-install',
-        ],
+        ['migrate-strict-effect', '--skip-install'],
         workspaceDir,
       ),
       0,
@@ -540,12 +518,7 @@ test('backend federation generator reads migrated app-level metadata', async () 
 
     assert.equal(
       await runUltramodernToolingCli(
-        [
-          'migrate-strict-effect',
-          '--version',
-          '3.5.0-ultramodern.1',
-          '--skip-install',
-        ],
+        ['migrate-strict-effect', '--skip-install'],
         workspaceDir,
       ),
       0,
@@ -649,12 +622,7 @@ test('backend federation proof rejects drifted delivery-unit stamps in the manif
 
     assert.equal(
       await runUltramodernToolingCli(
-        [
-          'migrate-strict-effect',
-          '--version',
-          '3.5.0-ultramodern.1',
-          '--skip-install',
-        ],
+        ['migrate-strict-effect', '--skip-install'],
         workspaceDir,
       ),
       0,
@@ -709,11 +677,8 @@ test('UltraModern tooling config reads compact config and rejects retired metada
     const compact = readUltramodernConfig(workspaceDir);
     assert.equal(compact.source, 'compact');
     assert.equal(compact.workspace.packageScope, 'tooling-config');
-    assert.equal(compact.packageSource?.strategy, 'install');
-    assert.equal(
-      compact.packageSource?.modernPackageVersion,
-      '3.2.0-ultramodern.108',
-    );
+    assert.equal(compact.packageSource?.strategy, 'workspace');
+    assert.equal(compact.packageSource?.modernPackageVersion, 'workspace:*');
     assert.deepEqual(
       compact.topology.apps.map(app => app.id),
       ['shell-super-app'],
@@ -912,40 +877,34 @@ test('UltraModern migrate-strict-effect updates package cohort and direct API me
     }
 
     const pnpmWorkspaceFile = path.join(workspaceDir, 'pnpm-workspace.yaml');
+    const pnpmPolicy = yaml.load(
+      fs.readFileSync(pnpmWorkspaceFile, 'utf-8'),
+    ) as Record<string, any>;
+    pnpmPolicy.peerDependencyRules.allowedVersions['@effect/vitest>effect'] =
+      '4.0.0-beta.89';
+    pnpmPolicy.overrides['@effect/vitest'] = '4.0.0-beta.89';
+    pnpmPolicy.overrides.effect = '4.0.0-beta.89';
+    delete pnpmPolicy.overrides['@effect/opentelemetry'];
+    delete pnpmPolicy.patchedDependencies[`effect@${EFFECT_VERSION}`];
+    delete pnpmPolicy.patchedDependencies[
+      `@module-federation/bridge-react@${MODULE_FEDERATION_VERSION}`
+    ];
+    delete pnpmPolicy.patchedDependencies[`drizzle-orm@${DRIZZLE_ORM_VERSION}`];
+    pnpmPolicy.minimumReleaseAgeExclude = [
+      ...pnpmPolicy.minimumReleaseAgeExclude,
+      '@bleedingdev/modern-js-*',
+      '@module-federation/*',
+      'i18next@26.3.1',
+    ];
+    delete pnpmPolicy.trustPolicyExclude;
     fs.writeFileSync(
       pnpmWorkspaceFile,
-      fs
-        .readFileSync(pnpmWorkspaceFile, 'utf-8')
-        .replace(
-          `'@effect/vitest>effect': '${EFFECT_VERSION}'`,
-          "'@effect/vitest>effect': '4.0.0-beta.89'",
-        )
-        .replace(
-          `'@effect/vitest': ${EFFECT_VITEST_VERSION}`,
-          "'@effect/vitest': 4.0.0-beta.89",
-        )
-        .replace(`effect: ${EFFECT_VERSION}`, 'effect: 4.0.0-beta.89')
-        .replace(`  '@effect/opentelemetry': ${EFFECT_VERSION}\n`, '')
-        .replace(
-          `  'effect@${EFFECT_VERSION}': patches/effect-schema-error-type-id.patch\n`,
-          '',
-        )
-        .replace(
-          `  '@module-federation/bridge-react@${MODULE_FEDERATION_VERSION}': patches/@module-federation__bridge-react@${MODULE_FEDERATION_VERSION}.patch\n`,
-          '',
-        )
-        .replace(
-          `  'drizzle-orm@${DRIZZLE_ORM_VERSION}': patches/drizzle-orm-ts7-strict-declarations.patch\n`,
-          '',
-        )
-        .replace(
-          `  - 'effect@${EFFECT_VERSION}'\n  - '@effect/opentelemetry@${EFFECT_VERSION}'\n`,
-          '',
-        )
-        .replace(
-          `trustPolicyExclude:\n  - 'effect@${EFFECT_VERSION}'\n  - '@effect/opentelemetry@${EFFECT_VERSION}'\n`,
-          '',
-        ),
+      yaml.dump(pnpmPolicy, {
+        lineWidth: -1,
+        noCompatMode: true,
+        noRefs: true,
+        quotingType: "'",
+      }),
       'utf-8',
     );
     fs.rmSync(
@@ -1041,12 +1000,7 @@ declare module '*.css' {}
 
     assert.equal(
       await runUltramodernToolingCli(
-        [
-          'migrate-strict-effect',
-          '--version',
-          '3.5.0-ultramodern.1',
-          '--skip-install',
-        ],
+        ['migrate-strict-effect', '--skip-install'],
         workspaceDir,
       ),
       0,
@@ -1055,22 +1009,19 @@ declare module '*.css' {}
     const compactConfig = readJson(workspaceDir, '.modernjs/ultramodern.json');
     assert.equal(
       compactConfig.packageSource.modernPackageVersion,
-      '3.5.0-ultramodern.1',
+      'workspace:*',
     );
-    assert.equal(compactConfig.packageSource.aliasScope, 'bleedingdev');
-    assert.equal(
-      compactConfig.packageSource.aliasPackageNamePrefix,
-      'modern-js-',
-    );
+    assert.equal(compactConfig.packageSource.aliasScope, undefined);
+    assert.equal(compactConfig.packageSource.aliasPackageNamePrefix, undefined);
 
     const rootPackage = readJson(workspaceDir, 'package.json');
     assert.equal(
       rootPackage.devDependencies['@modern-js/create'],
-      'npm:@bleedingdev/modern-js-create@3.5.0-ultramodern.1',
+      'workspace:*',
     );
     assert.equal(rootPackage.devDependencies.typescript, TYPESCRIPT_VERSION);
     assert.equal(rootPackage.devDependencies.oxfmt, OXFMT_VERSION);
-    assert.equal(rootPackage.modernjs.packageSource.strategy, 'install');
+    assert.equal(rootPackage.modernjs.packageSource.strategy, 'workspace');
     assert.match(
       rootPackage.scripts['cloudflare:build'],
       /cloudflare-output:verify/u,
@@ -1170,101 +1121,68 @@ declare module '*.css' {}
     assert.match(shellModernConfig, /VERTICAL_CATALOG_WORKER_NAME/);
 
     const pnpmWorkspace = fs.readFileSync(pnpmWorkspaceFile, 'utf-8');
-    assert.match(
-      pnpmWorkspace,
-      new RegExp(`'@effect/vitest>effect': '${EFFECT_VERSION}'`, 'u'),
+    const migratedPnpmPolicy = yaml.load(pnpmWorkspace) as Record<string, any>;
+    assert.equal(
+      migratedPnpmPolicy.peerDependencyRules.allowedVersions[
+        '@effect/vitest>effect'
+      ],
+      EFFECT_VERSION,
     );
-    assert.match(
-      pnpmWorkspace,
-      new RegExp(`'@effect/vitest': ${EFFECT_VITEST_VERSION}`, 'u'),
+    assert.equal(
+      migratedPnpmPolicy.overrides['@effect/vitest'],
+      EFFECT_VITEST_VERSION,
     );
-    assert.match(pnpmWorkspace, new RegExp(`effect: ${EFFECT_VERSION}`, 'u'));
-    assert.match(
-      pnpmWorkspace,
-      new RegExp(`'@effect/opentelemetry': ${EFFECT_VERSION}`, 'u'),
+    assert.equal(migratedPnpmPolicy.overrides.effect, EFFECT_VERSION);
+    assert.equal(
+      migratedPnpmPolicy.overrides['@effect/opentelemetry'],
+      EFFECT_VERSION,
     );
-    assert.match(
-      pnpmWorkspace,
-      new RegExp(
-        `'@module-federation/modern-js-v3@${MODULE_FEDERATION_VERSION}': patches/@module-federation__modern-js-v3@${MODULE_FEDERATION_VERSION}\\.patch`,
-        'u',
+    assert.equal(
+      migratedPnpmPolicy.patchedDependencies[
+        `@module-federation/modern-js-v3@${MODULE_FEDERATION_VERSION}`
+      ],
+      `patches/@module-federation__modern-js-v3@${MODULE_FEDERATION_VERSION}.patch`,
+    );
+    assert.equal(
+      migratedPnpmPolicy.patchedDependencies[
+        `@module-federation/bridge-react@${MODULE_FEDERATION_VERSION}`
+      ],
+      `patches/@module-federation__bridge-react@${MODULE_FEDERATION_VERSION}.patch`,
+    );
+    assert.equal(
+      migratedPnpmPolicy.patchedDependencies[`effect@${EFFECT_VERSION}`],
+      'patches/effect-schema-error-type-id.patch',
+    );
+    assert.equal(
+      migratedPnpmPolicy.patchedDependencies[
+        `drizzle-orm@${DRIZZLE_ORM_VERSION}`
+      ],
+      'patches/drizzle-orm-ts7-strict-declarations.patch',
+    );
+    assert.deepEqual(
+      migratedPnpmPolicy.minimumReleaseAgeExclude,
+      renderMinimumReleaseAgeExclude({
+        packageSource: {
+          strategy: 'workspace',
+          modernPackageVersion: 'workspace:*',
+        },
+      }),
+    );
+    assert.equal(
+      migratedPnpmPolicy.minimumReleaseAgeExclude.some((selector: string) =>
+        selector.startsWith('@bleedingdev/modern-js-'),
       ),
+      false,
     );
-    assert.match(
-      pnpmWorkspace,
-      new RegExp(
-        `'@module-federation/bridge-react@${MODULE_FEDERATION_VERSION}': patches/@module-federation__bridge-react@${MODULE_FEDERATION_VERSION}\\.patch`,
-        'u',
+    assert.equal(
+      migratedPnpmPolicy.minimumReleaseAgeExclude.some((selector: string) =>
+        selector.includes('*'),
       ),
+      false,
     );
-    assert.match(
-      pnpmWorkspace,
-      new RegExp(
-        `'effect@${EFFECT_VERSION}': patches/effect-schema-error-type-id\\.patch`,
-        'u',
-      ),
-    );
-    assert.match(
-      pnpmWorkspace,
-      new RegExp(
-        `'drizzle-orm@${DRIZZLE_ORM_VERSION}': patches/drizzle-orm-ts7-strict-declarations\\.patch`,
-        'u',
-      ),
-    );
-    assert.match(
-      pnpmWorkspace,
-      new RegExp(
-        `minimumReleaseAgeExclude:\\n(?:  - .+\\n)*  - 'effect@${EFFECT_VERSION}'`,
-        'u',
-      ),
-    );
-    assert.match(
-      pnpmWorkspace,
-      new RegExp(
-        `minimumReleaseAgeExclude:\\n(?:  - .+\\n)*  - '@effect/opentelemetry@${EFFECT_VERSION}'`,
-        'u',
-      ),
-    );
-    assert.match(
-      pnpmWorkspace,
-      new RegExp(
-        `minimumReleaseAgeExclude:\\n(?:  - .+\\n)*  - 'i18next@${I18NEXT_VERSION}'`,
-        'u',
-      ),
-    );
-    assert.match(
-      pnpmWorkspace,
-      /minimumReleaseAgeExclude:\n(?: {2}- .+\n)* {2}- '@module-federation\/\*'/u,
-    );
-    assert.match(
-      pnpmWorkspace,
-      /minimumReleaseAgeExclude:\n(?: {2}- .+\n)* {2}- '@module-federation\/runtime'/u,
-    );
-    assert.match(
-      pnpmWorkspace,
-      /minimumReleaseAgeExclude:\n(?: {2}- .+\n)* {2}- '@module-federation\/runtime@2\.7\.0'/u,
-    );
-    assert.match(
-      pnpmWorkspace,
-      /minimumReleaseAgeExclude:\n(?: {2}- .+\n)* {2}- '@typescript\/native-preview@7\.0\.0-dev\.20260707\.2'/u,
-    );
-    assert.match(
-      pnpmWorkspace,
-      /minimumReleaseAgeExclude:\n(?: {2}- .+\n)* {2}- 'wrangler@4\.109\.0'/u,
-    );
-    assert.match(
-      pnpmWorkspace,
-      new RegExp(
-        `trustPolicyExclude:\\n(?:  - .+\\n)*  - 'effect@${EFFECT_VERSION}'`,
-        'u',
-      ),
-    );
-    assert.match(
-      pnpmWorkspace,
-      new RegExp(
-        `trustPolicyExclude:\\n(?:  - .+\\n)*  - '@effect/opentelemetry@${EFFECT_VERSION}'`,
-        'u',
-      ),
+    assert.deepEqual(
+      migratedPnpmPolicy.trustPolicyExclude,
+      ULTRAMODERN_WORKSPACE_POLICY.pnpm.trustPolicyExclude,
     );
     assert.ok(
       fs.existsSync(
@@ -1370,7 +1288,7 @@ declare module '*.css' {}
     );
     assert.equal(
       shellPackage.dependencies['@modern-js/plugin-bff'],
-      'npm:@bleedingdev/modern-js-plugin-bff@3.5.0-ultramodern.1',
+      'workspace:*',
     );
     assert.match(
       shellPackage.scripts['cloudflare:build'],
@@ -1473,12 +1391,7 @@ test('UltraModern migrate-strict-effect removes unused Drizzle declaration patch
 
     assert.equal(
       await runUltramodernToolingCli(
-        [
-          'migrate-strict-effect',
-          '--version',
-          '3.5.0-ultramodern.1',
-          '--skip-install',
-        ],
+        ['migrate-strict-effect', '--skip-install'],
         workspaceDir,
       ),
       0,
@@ -1751,13 +1664,9 @@ test('UltraModern migrate synthesizes the compact config from legacy 3.2 metadat
     });
     writeJson(workspaceDir, retiredPackageSourcePath, {
       schemaVersion: 1,
-      strategy: 'install',
+      strategy: 'workspace',
       modernPackages: {
-        specifier: '3.2.0-ultramodern.108',
-        registry: 'https://registry.npmjs.org/',
-        aliases: {
-          '@modern-js/app-tools': '@bleedingdev/modern-js-app-tools',
-        },
+        specifier: 'workspace:*',
       },
     });
     writeJson(workspaceDir, 'topology/local-overlays/development.json', {
@@ -1766,12 +1675,7 @@ test('UltraModern migrate synthesizes the compact config from legacy 3.2 metadat
 
     assert.equal(
       await runUltramodernToolingCli(
-        [
-          'migrate-strict-effect',
-          '--version',
-          '3.5.0-ultramodern.1',
-          '--skip-install',
-        ],
+        ['migrate-strict-effect', '--skip-install'],
         workspaceDir,
       ),
       0,
@@ -1784,19 +1688,13 @@ test('UltraModern migrate synthesizes the compact config from legacy 3.2 metadat
 
     const config = readUltramodernConfig(workspaceDir);
     assert.equal(config.source, 'compact');
-    assert.equal(config.packageSource?.aliasScope, 'bleedingdev');
-    assert.equal(config.packageSource?.aliasPackageNamePrefix, 'modern-js-');
-    assert.equal(
-      config.packageSource?.modernPackageVersion,
-      '3.5.0-ultramodern.1',
-    );
+    assert.equal(config.packageSource?.aliasScope, undefined);
+    assert.equal(config.packageSource?.aliasPackageNamePrefix, undefined);
+    assert.equal(config.packageSource?.modernPackageVersion, 'workspace:*');
 
     const compactConfig = readJson(workspaceDir, '.modernjs/ultramodern.json');
-    assert.equal(compactConfig.packageSource.aliasScope, 'bleedingdev');
-    assert.equal(
-      compactConfig.packageSource.aliasPackageNamePrefix,
-      'modern-js-',
-    );
+    assert.equal(compactConfig.packageSource.aliasScope, undefined);
+    assert.equal(compactConfig.packageSource.aliasPackageNamePrefix, undefined);
     assert.equal(compactConfig.topology.apps[0].moduleFederation.role, 'host');
     assert.equal(compactConfig.topology.apps[0].port, 8080);
   } finally {
@@ -1812,12 +1710,7 @@ test('UltraModern migrate --dry-run leaves the workspace byte-identical', async 
 
     const { result, output } = captureStdout(() =>
       runUltramodernToolingCli(
-        [
-          'migrate-strict-effect',
-          '--dry-run',
-          '--version',
-          '3.5.0-ultramodern.1',
-        ],
+        ['migrate-strict-effect', '--dry-run'],
         workspaceDir,
       ),
     );
@@ -1838,12 +1731,7 @@ test('UltraModern migrate keeps generated gitignore rules idempotent', async () 
     for (let run = 0; run < 2; run += 1) {
       assert.equal(
         await runUltramodernToolingCli(
-          [
-            'migrate-strict-effect',
-            '--version',
-            '3.5.0-ultramodern.1',
-            '--skip-install',
-          ],
+          ['migrate-strict-effect', '--skip-install'],
           workspaceDir,
         ),
         0,
@@ -1867,7 +1755,7 @@ test('UltraModern migrate keeps generated gitignore rules idempotent', async () 
   }
 });
 
-test('UltraModern migrate dedupes unquoted pnpm patchedDependencies keys', async () => {
+test('UltraModern migrate rejects duplicate pnpm mappings without writes', async () => {
   const { tempRoot, workspaceDir } = scaffoldWorkspace('tooling-yaml-dedupe');
 
   try {
@@ -1883,29 +1771,19 @@ test('UltraModern migrate dedupes unquoted pnpm patchedDependencies keys', async
         ),
       'utf-8',
     );
+    const duplicatePolicy = fs.readFileSync(pnpmWorkspaceFile, 'utf-8');
+    const rootPackageBefore = readText(workspaceDir, 'package.json');
 
     assert.equal(
       await runUltramodernToolingCli(
-        [
-          'migrate-strict-effect',
-          '--version',
-          '3.5.0-ultramodern.1',
-          '--skip-install',
-        ],
+        ['migrate-strict-effect', '--skip-install'],
         workspaceDir,
       ),
-      0,
+      1,
     );
 
-    const pnpmWorkspace = fs.readFileSync(pnpmWorkspaceFile, 'utf-8');
-    const effectPatchLines = pnpmWorkspace
-      .split(/\r?\n/u)
-      .filter(line =>
-        /effect@.*effect-schema-error-type-id\.patch/u.test(line),
-      );
-    assert.deepEqual(effectPatchLines, [
-      `  'effect@${EFFECT_VERSION}': patches/effect-schema-error-type-id.patch`,
-    ]);
+    assert.equal(fs.readFileSync(pnpmWorkspaceFile, 'utf-8'), duplicatePolicy);
+    assert.equal(readText(workspaceDir, 'package.json'), rootPackageBefore);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
@@ -1933,12 +1811,7 @@ export default defineConfig({
 
     assert.equal(
       await runUltramodernToolingCli(
-        [
-          'migrate-strict-effect',
-          '--version',
-          '3.5.0-ultramodern.1',
-          '--skip-install',
-        ],
+        ['migrate-strict-effect', '--skip-install'],
         workspaceDir,
       ),
       0,
@@ -1960,12 +1833,7 @@ export default defineConfig({
     const afterFirst = patched;
     assert.equal(
       await runUltramodernToolingCli(
-        [
-          'migrate-strict-effect',
-          '--version',
-          '3.5.0-ultramodern.1',
-          '--skip-install',
-        ],
+        ['migrate-strict-effect', '--skip-install'],
         workspaceDir,
       ),
       0,
@@ -1987,12 +1855,7 @@ export default defineConfig({
     fs.writeFileSync(oxfmtPath, unparseable, 'utf-8');
     assert.equal(
       await runUltramodernToolingCli(
-        [
-          'migrate-strict-effect',
-          '--version',
-          '3.5.0-ultramodern.1',
-          '--skip-install',
-        ],
+        ['migrate-strict-effect', '--skip-install'],
         workspaceDir,
       ),
       0,

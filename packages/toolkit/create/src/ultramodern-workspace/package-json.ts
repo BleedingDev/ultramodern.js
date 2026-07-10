@@ -14,31 +14,11 @@ import {
 } from './descriptors';
 import { readFileTemplate } from './fs-io';
 import { packageName, relativeRootFor } from './naming';
-import type { JsonValue, ResolvedPackageSource, WorkspaceApp } from './types';
 import {
-  EFFECT_TSGO_VERSION,
-  I18NEXT_VERSION,
-  LEFTHOOK_VERSION,
-  MODULE_FEDERATION_VERSION,
-  NODE_FETCH_VERSION,
-  OXFMT_VERSION,
-  OXLINT_VERSION,
-  PNPM_VERSION,
-  REACT_DOM_VERSION,
-  REACT_ROUTER_VERSION,
-  REACT_VERSION,
-  RSBUILD_PLUGIN_TAILWINDCSS_VERSION,
-  TAILWIND_VERSION,
-  TANSTACK_ROUTER_VERSION,
-  TYPES_REACT_DOM_VERSION,
-  TYPES_REACT_VERSION,
-  TYPESCRIPT_COMPILER_API_VERSION,
-  TYPESCRIPT_VERSION,
-  ULTRACITE_VERSION,
-  WRANGLER_VERSION,
-  ZEPHYR_AGENT_VERSION,
-  ZEPHYR_RSPACK_PLUGIN_VERSION,
-} from './versions';
+  ULTRAMODERN_PACKAGE_PINS,
+  ULTRAMODERN_WORKSPACE_POLICY,
+} from './policy';
+import type { JsonValue, ResolvedPackageSource, WorkspaceApp } from './types';
 import {
   createStrictTsgoTypecheckCommand,
   createWorkspaceAppPackageScripts,
@@ -65,17 +45,9 @@ export function appDependencies(
       '@modern-js/runtime',
       packageSource,
     ),
-    '@module-federation/bridge-react': MODULE_FEDERATION_VERSION,
-    '@module-federation/modern-js-v3': MODULE_FEDERATION_VERSION,
-    '@module-federation/runtime': MODULE_FEDERATION_VERSION,
-    '@tanstack/react-router': TANSTACK_ROUTER_VERSION,
-    i18next: I18NEXT_VERSION,
-    'node-fetch': NODE_FETCH_VERSION,
+    ...ULTRAMODERN_PACKAGE_PINS.appDependencies,
     [packageName(scope, 'shared-contracts')]: WORKSPACE_PACKAGE_VERSION,
     [packageName(scope, 'shared-design-tokens')]: WORKSPACE_PACKAGE_VERSION,
-    react: REACT_VERSION,
-    'react-dom': REACT_DOM_VERSION,
-    'react-router': REACT_ROUTER_VERSION,
   };
 
   for (const dependency of bridge?.dependencies ?? []) {
@@ -118,24 +90,24 @@ function appDevDependencies(
   packageSource: ResolvedPackageSource,
   enableTailwind: boolean,
 ): Record<string, string> {
+  const {
+    '@rsbuild/plugin-tailwindcss': tailwindPluginVersion,
+    tailwindcss: tailwindVersion,
+    ...always
+  } = ULTRAMODERN_PACKAGE_PINS.appDevDependencies;
+
   return {
     '@modern-js/app-tools': modernPackageSpecifier(
       '@modern-js/app-tools',
       packageSource,
     ),
-    '@effect/tsgo': EFFECT_TSGO_VERSION,
+    ...always,
     ...(enableTailwind
       ? {
-          '@rsbuild/plugin-tailwindcss': `^${RSBUILD_PLUGIN_TAILWINDCSS_VERSION}`,
-          tailwindcss: `^${TAILWIND_VERSION}`,
+          '@rsbuild/plugin-tailwindcss': tailwindPluginVersion,
+          tailwindcss: tailwindVersion,
         }
       : {}),
-    '@types/node': '^20',
-    '@types/react': TYPES_REACT_VERSION,
-    '@types/react-dom': TYPES_REACT_DOM_VERSION,
-    typescript: TYPESCRIPT_VERSION,
-    'zephyr-rspack-plugin': ZEPHYR_RSPACK_PLUGIN_VERSION,
-    wrangler: WRANGLER_VERSION,
   };
 }
 
@@ -182,7 +154,7 @@ export function createRootPackageJson(
     name: scope,
     version: '0.1.0',
     type: 'module',
-    packageManager: `pnpm@${PNPM_VERSION}`,
+    packageManager: `pnpm@${ULTRAMODERN_WORKSPACE_POLICY.toolchain.packageManager.version}`,
     scripts: {
       dev: `pnpm --parallel ${[shellFilter, ...remoteFilters].join(' ')} dev`,
       'dev:shell': `pnpm --filter ${packageName(scope, shellApp.packageSuffix)} dev`,
@@ -209,8 +181,8 @@ export function createRootPackageJson(
         "oxfmt . '!repos/**' && node ./scripts/bootstrap-agent-skills.mts --postinstall",
     },
     engines: {
-      node: '>=26',
-      pnpm: '>=11',
+      node: ULTRAMODERN_WORKSPACE_POLICY.toolchain.node.engineRange,
+      pnpm: ULTRAMODERN_WORKSPACE_POLICY.toolchain.packageManager.engineRange,
     },
     workspaces: workspacePackages,
     modernjs: {
@@ -224,7 +196,7 @@ export function createRootPackageJson(
       },
     },
     devDependencies: {
-      '@effect/tsgo': EFFECT_TSGO_VERSION,
+      ...ULTRAMODERN_PACKAGE_PINS.rootDevDependencies,
       '@modern-js/code-tools': modernPackageSpecifier(
         '@modern-js/code-tools',
         packageSource,
@@ -237,13 +209,6 @@ export function createRootPackageJson(
         '@modern-js/plugin-bff',
         packageSource,
       ),
-      '@typescript/typescript6': TYPESCRIPT_COMPILER_API_VERSION,
-      lefthook: LEFTHOOK_VERSION,
-      oxlint: OXLINT_VERSION,
-      oxfmt: OXFMT_VERSION,
-      ultracite: ULTRACITE_VERSION,
-      wrangler: WRANGLER_VERSION,
-      'zephyr-agent': ZEPHYR_AGENT_VERSION,
     },
   };
 }
@@ -340,7 +305,8 @@ export function createSharedPackage(
       typecheck: createStrictTsgoTypecheckCommand(`packages/${id}`),
     },
     devDependencies: {
-      '@effect/tsgo': EFFECT_TSGO_VERSION,
+      '@effect/tsgo':
+        ULTRAMODERN_PACKAGE_PINS.appDevDependencies['@effect/tsgo'],
     },
   };
 

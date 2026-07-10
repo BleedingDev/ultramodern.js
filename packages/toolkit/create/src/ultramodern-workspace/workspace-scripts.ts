@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import type { UltramodernReleaseCohort } from '../ultramodern-release-cohort';
 import {
   readFileTemplate,
   renderFileTemplate,
@@ -147,53 +148,19 @@ export function createWorkspaceValidationScript(
   scope: string,
   enableTailwind: boolean,
   remotes: WorkspaceApp[] = [],
+  releaseCohort?: UltramodernReleaseCohort,
 ): string {
   const contract = createWorkspaceValidationContract(
     scope,
     enableTailwind,
     remotes,
+    releaseCohort,
   );
 
   return renderFileTemplate(
     'workspace-scripts/validate-ultramodern-workspace.mjs',
     {
-      packageScope: contract.packageScope,
-      nodeVersion: contract.versions.node,
-      tailwindEnabledJson: JSON.stringify(contract.tailwindEnabled),
-      fullStackVerticalsJson: JSON.stringify(
-        contract.fullStackVerticals,
-        null,
-        2,
-      ),
-      shellNamespaceJson: JSON.stringify(contract.shellNamespace),
-      oldRemotePathsJson: JSON.stringify(contract.oldRemotePaths),
-      expectedBuildScriptJson: JSON.stringify(contract.scripts.build),
-      expectedCloudflareBuildScriptJson: JSON.stringify(
-        contract.scripts.cloudflareBuild,
-      ),
-      expectedCloudflareDeployScriptJson: JSON.stringify(
-        contract.scripts.cloudflareDeploy,
-      ),
-      expectedCloudflareSecurityJson: JSON.stringify(
-        contract.cloudflareSecurity,
-        null,
-        2,
-      ),
       workspaceValidationContractJson: JSON.stringify(contract, null, 2),
-      publicSurfaceManagedSourceAssetPathsJson: JSON.stringify(
-        contract.publicSurfaceManagedSourceAssetPaths,
-        null,
-        2,
-      ),
-      shellRouteMetaPathsJson: JSON.stringify(
-        contract.shellRouteMetaPaths,
-        null,
-        2,
-      ),
-      effectVersion: contract.versions.effect,
-      moduleFederationVersion: contract.versions.moduleFederation,
-      cloudflareCompatibilityDate:
-        contract.versions.cloudflareCompatibilityDate,
     },
   );
 }
@@ -228,9 +195,10 @@ export function createZeropsRuntimeMaterializationScript(): string {
 
 export function writeGeneratedWorkspaceScripts(
   targetDir: string,
-  _scope: string,
-  _enableTailwind: boolean,
+  scope: string,
+  enableTailwind: boolean,
   remotes: WorkspaceApp[] = [],
+  releaseCohort?: UltramodernReleaseCohort,
 ) {
   const shellOnly = remotes.length === 0;
 
@@ -257,6 +225,16 @@ export function writeGeneratedWorkspaceScripts(
     createPerformanceReadinessConfigScript(),
   );
   writeGeneratedToolWrapperScripts(targetDir, { shellOnly });
+  writeWorkspaceOwnedMtsScript(
+    targetDir,
+    'validate-ultramodern-workspace',
+    createWorkspaceValidationScript(
+      scope,
+      enableTailwind,
+      remotes,
+      releaseCohort,
+    ),
+  );
   writeWorkspaceOwnedMtsScript(
     targetDir,
     'bootstrap-agent-skills',

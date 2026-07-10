@@ -1,15 +1,15 @@
 
-type CheckoutCartLine = {
-  sku: string;
+interface CheckoutCartLine {
   name: string;
   quantity: number;
+  sku: string;
   unitPriceCents: number;
-};
+}
 
 const checkoutCartLines = new Map<string, CheckoutCartLine>();
 
 const createCheckoutCartSnapshot = () => {
-  const lines = [...checkoutCartLines.values()].sort((left, right) =>
+  const lines = [...checkoutCartLines.values()].toSorted((left, right) =>
     left.sku.localeCompare(right.sku),
   );
   return {

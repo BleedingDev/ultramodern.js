@@ -106,97 +106,101 @@ function normalizeCompactConfigV1(
     bridge: normalizeUltramodernBridgeConfig(config.bridge as any),
     topology: {
       apps: Array.isArray(config.topology?.apps)
-        ? config.topology.apps.map((app: Record<string, any>, index) => {
-            if (app.kind !== 'shell' && app.kind !== 'vertical') {
-              throw new UnsupportedUltramodernConfigError(sourcePath, {
-                field: 'topology.apps.kind',
-                index,
-                value: app.kind,
-              });
-            }
+        ? config.topology.apps.map(
+            (app: Record<string, any>, index: number) => {
+              if (app.kind !== 'shell' && app.kind !== 'vertical') {
+                throw new UnsupportedUltramodernConfigError(sourcePath, {
+                  field: 'topology.apps.kind',
+                  index,
+                  value: app.kind,
+                });
+              }
 
-            return {
-              id: String(app.id),
-              kind: app.kind,
-              path: typeof app.path === 'string' ? app.path : '.',
-              package:
-                typeof app.package === 'string' ? app.package : undefined,
-              packageSuffix:
-                typeof app.packageSuffix === 'string'
-                  ? app.packageSuffix
-                  : undefined,
-              displayName:
-                typeof app.displayName === 'string'
-                  ? app.displayName
-                  : undefined,
-              domain: typeof app.domain === 'string' ? app.domain : undefined,
-              port: typeof app.port === 'number' ? app.port : undefined,
-              portEnv:
-                typeof app.portEnv === 'string' ? app.portEnv : undefined,
-              moduleFederation:
-                app.moduleFederation && typeof app.moduleFederation === 'object'
-                  ? {
-                      role:
-                        app.moduleFederation.role === 'remote'
-                          ? 'remote'
-                          : 'host',
-                      name:
-                        typeof app.moduleFederation.name === 'string'
-                          ? app.moduleFederation.name
-                          : undefined,
-                      exposes: Array.isArray(app.moduleFederation.exposes)
-                        ? app.moduleFederation.exposes.filter(
-                            (expose: unknown): expose is string =>
-                              typeof expose === 'string',
-                          )
-                        : undefined,
-                      exposePaths:
-                        app.moduleFederation.exposePaths !== null &&
-                        typeof app.moduleFederation.exposePaths === 'object' &&
-                        !Array.isArray(app.moduleFederation.exposePaths)
-                          ? Object.fromEntries(
-                              Object.entries(
-                                app.moduleFederation.exposePaths,
-                              ).filter(
-                                (entry): entry is [string, string] =>
-                                  typeof entry[0] === 'string' &&
-                                  typeof entry[1] === 'string',
-                              ),
+              return {
+                id: String(app.id),
+                kind: app.kind,
+                path: typeof app.path === 'string' ? app.path : '.',
+                package:
+                  typeof app.package === 'string' ? app.package : undefined,
+                packageSuffix:
+                  typeof app.packageSuffix === 'string'
+                    ? app.packageSuffix
+                    : undefined,
+                displayName:
+                  typeof app.displayName === 'string'
+                    ? app.displayName
+                    : undefined,
+                domain: typeof app.domain === 'string' ? app.domain : undefined,
+                port: typeof app.port === 'number' ? app.port : undefined,
+                portEnv:
+                  typeof app.portEnv === 'string' ? app.portEnv : undefined,
+                moduleFederation:
+                  app.moduleFederation &&
+                  typeof app.moduleFederation === 'object'
+                    ? {
+                        role:
+                          app.moduleFederation.role === 'remote'
+                            ? 'remote'
+                            : 'host',
+                        name:
+                          typeof app.moduleFederation.name === 'string'
+                            ? app.moduleFederation.name
+                            : undefined,
+                        exposes: Array.isArray(app.moduleFederation.exposes)
+                          ? app.moduleFederation.exposes.filter(
+                              (expose: unknown): expose is string =>
+                                typeof expose === 'string',
                             )
                           : undefined,
-                      verticalRefs: Array.isArray(
-                        app.moduleFederation.verticalRefs,
-                      )
-                        ? app.moduleFederation.verticalRefs.filter(
-                            (ref: unknown): ref is string =>
-                              typeof ref === 'string',
-                          )
-                        : undefined,
-                      hostOnly: app.moduleFederation.hostOnly === true,
-                      noExposes: app.moduleFederation.noExposes === true,
-                    }
-                  : undefined,
-              api:
-                app.api && typeof app.api === 'object'
-                  ? {
-                      stem:
-                        typeof app.api.stem === 'string'
-                          ? app.api.stem
-                          : String(app.id),
-                      prefix:
-                        typeof app.api.prefix === 'string'
-                          ? app.api.prefix
-                          : `/${String(app.id)}-api`,
-                      consumedBy: Array.isArray(app.api.consumedBy)
-                        ? app.api.consumedBy.filter(
-                            (consumer: unknown): consumer is string =>
-                              typeof consumer === 'string',
-                          )
-                        : [shellApp.id, String(app.id)],
-                    }
-                  : undefined,
-            };
-          })
+                        exposePaths:
+                          app.moduleFederation.exposePaths !== null &&
+                          typeof app.moduleFederation.exposePaths ===
+                            'object' &&
+                          !Array.isArray(app.moduleFederation.exposePaths)
+                            ? Object.fromEntries(
+                                Object.entries(
+                                  app.moduleFederation.exposePaths,
+                                ).filter(
+                                  (entry): entry is [string, string] =>
+                                    typeof entry[0] === 'string' &&
+                                    typeof entry[1] === 'string',
+                                ),
+                              )
+                            : undefined,
+                        verticalRefs: Array.isArray(
+                          app.moduleFederation.verticalRefs,
+                        )
+                          ? app.moduleFederation.verticalRefs.filter(
+                              (ref: unknown): ref is string =>
+                                typeof ref === 'string',
+                            )
+                          : undefined,
+                        hostOnly: app.moduleFederation.hostOnly === true,
+                        noExposes: app.moduleFederation.noExposes === true,
+                      }
+                    : undefined,
+                api:
+                  app.api && typeof app.api === 'object'
+                    ? {
+                        stem:
+                          typeof app.api.stem === 'string'
+                            ? app.api.stem
+                            : String(app.id),
+                        prefix:
+                          typeof app.api.prefix === 'string'
+                            ? app.api.prefix
+                            : `/${String(app.id)}-api`,
+                        consumedBy: Array.isArray(app.api.consumedBy)
+                          ? app.api.consumedBy.filter(
+                              (consumer: unknown): consumer is string =>
+                                typeof consumer === 'string',
+                            )
+                          : [shellApp.id, String(app.id)],
+                      }
+                    : undefined,
+              };
+            },
+          )
         : [],
     },
   };

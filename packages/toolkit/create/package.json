@@ -78,7 +78,7 @@
     "build": "rm -rf dist && rslib build -c rslibconfig.mts && pnpm -w tsgo:dts \"$PWD\"",
     "dev": "rslib build -c rslibconfig.mts -w",
     "start": "node ./dist/esm-node/index.js",
-    "test": "rm -rf dist && rslib build -c rslibconfig.mts && rstest --passWithNoTests",
+    "test": "rm -rf dist && rslib build -c rslibconfig.mts && pnpm -w tsgo:dts \"$PWD\" && rstest --passWithNoTests",
     "type-check": "tsgo --noEmit -p tsconfig.json"
   },
   "dependencies": {

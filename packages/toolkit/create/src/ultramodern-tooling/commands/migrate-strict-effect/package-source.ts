@@ -4,6 +4,7 @@ import {
   type ResolvedUltramodernPackageSource,
   WORKSPACE_PACKAGE_VERSION,
 } from '../../../ultramodern-package-source';
+import { isCreatePackageSourceCheckout } from '../../../ultramodern-release-cohort';
 import { readUltramodernConfig } from '../../config';
 import { hasFlag, readOption } from '../options';
 
@@ -11,7 +12,29 @@ export function createMigrationPackageSource(
   args: string[],
   current: ReturnType<typeof readUltramodernConfig>,
 ): ResolvedUltramodernPackageSource {
-  const strategy = hasFlag(args, '--workspace') ? 'workspace' : 'install';
+  const workspaceRequested = hasFlag(args, '--workspace');
+  const explicitInstallRequested =
+    !workspaceRequested &&
+    (current.packageSource?.strategy === 'install' ||
+      [
+        '--version',
+        '--ultramodern-package-version',
+        '--registry',
+        '--ultramodern-package-registry',
+        '--alias-scope',
+        '--ultramodern-package-scope',
+        '--alias-package-name-prefix',
+        '--ultramodern-package-name-prefix',
+      ].some(option => readOption(args, option) !== undefined));
+  if (isCreatePackageSourceCheckout() && explicitInstallRequested) {
+    throw new Error(
+      'A local @modern-js/create source checkout cannot migrate an explicit install package source. Use --workspace locally or run the packed published package with its authenticated release cohort projection.',
+    );
+  }
+  const strategy =
+    workspaceRequested || isCreatePackageSourceCheckout()
+      ? 'workspace'
+      : 'install';
   const registry =
     readOption(args, '--registry') ??
     readOption(args, '--ultramodern-package-registry');

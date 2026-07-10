@@ -541,7 +541,10 @@ function createFakeBrowser({
         });
       }
     },
-    async screenshot() {},
+    async screenshot({ path: screenshotPath }) {
+      fs.mkdirSync(path.dirname(screenshotPath), { recursive: true });
+      fs.writeFileSync(screenshotPath, 'non-empty-screenshot');
+    },
     async waitForLoadState() {},
     async waitForSelector() {},
     async waitForTimeout() {},
@@ -586,6 +589,30 @@ test('prefers generated app ids for shell composition boundaries', async () => {
     }),
     ['explore', 'verticalExplore'],
   );
+});
+
+test('fails unless the shell renders every declared remote boundary', async () => {
+  const { createSmokeTargets, validateBrowserTarget } = await loadSmoke();
+  const root = tempRoot();
+  const [target] = createSmokeTargets(createContract()).targets;
+  target.app.moduleFederation = {
+    verticalRefs: ['inventory', 'finance'],
+    remotes: [{ id: 'inventory' }, { id: 'finance' }],
+  };
+
+  try {
+    await assert.rejects(
+      () =>
+        validateBrowserTarget(
+          target,
+          createFakeBrowser({ boundaryIds: ['inventory'] }),
+          { artifactDir: root },
+        ),
+      /did not render every declared remote boundary/,
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test('fails when the browser emits a console error', async () => {

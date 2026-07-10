@@ -1,8 +1,8 @@
 
 export interface CheckoutCartLine {
-  readonly sku: string;
   readonly name: string;
   readonly quantity: number;
+  readonly sku: string;
   readonly unitPriceCents: number;
 }
 
@@ -13,9 +13,9 @@ export interface CheckoutCart {
 }
 
 export interface CheckoutAddCartItemPayload {
-  readonly sku: string;
   readonly name?: string;
   readonly quantity: number;
+  readonly sku: string;
   readonly unitPriceCents?: number;
 }
 
@@ -24,9 +24,9 @@ export interface CheckoutRemoveCartItemPayload {
 }
 
 export const checkoutCartLineSchema: Schema.Codec<CheckoutCartLine> = Schema.Struct({
-  sku: Schema.String,
   name: Schema.String,
   quantity: Schema.Finite,
+  sku: Schema.String,
   unitPriceCents: Schema.Finite,
 });
 
@@ -37,9 +37,9 @@ export const checkoutCartSchema: Schema.Codec<CheckoutCart> = Schema.Struct({
 });
 
 export const checkoutAddCartItemPayloadSchema: Schema.Codec<CheckoutAddCartItemPayload> = Schema.Struct({
-  sku: Schema.String,
   name: Schema.optional(Schema.String),
   quantity: Schema.Finite,
+  sku: Schema.String,
   unitPriceCents: Schema.optional(Schema.Finite),
 });
 

@@ -310,8 +310,12 @@ function collectTemplateFiles(dir: string): string[] {
 export function copyRootTemplate(
   targetDir: string,
   data: Record<string, string>,
+  excludedRelativePaths: ReadonlySet<string> = new Set(),
 ) {
   for (const relativePath of collectTemplateFiles(workspaceTemplateDir)) {
+    if (excludedRelativePaths.has(relativePath)) {
+      continue;
+    }
     const sourcePath = path.join(workspaceTemplateDir, relativePath);
     const outputPath = relativePath.replace(/\.handlebars$/, '');
     const content = relativePath.endsWith('.handlebars')

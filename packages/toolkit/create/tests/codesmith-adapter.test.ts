@@ -115,10 +115,7 @@ test('CodeSmith adapter creates a workspace with non-interactive config', async 
       name: 'codesmith-workspace',
       modernVersion: '3.2.1',
       enableTailwind: false,
-      packageSourceStrategy: 'install',
-      modernPackageVersion: '3.2.0-ultramodern.108',
-      registry: 'https://registry.npmjs.org/',
-      aliasScope: 'bleedingdev',
+      packageSourceStrategy: 'workspace',
     });
     const workspaceDir = path.join(tempRoot, 'codesmith-workspace');
     const ultramodernConfig = readJson(
@@ -131,20 +128,11 @@ test('CodeSmith adapter creates a workspace with non-interactive config', async 
     );
 
     assert.equal(result.operation, 'workspace');
-    assert.equal(result.packageSource.strategy, 'install');
-    assert.equal(ultramodernConfig.packageSource.strategy, 'install');
-    assert.equal(
-      ultramodernConfig.packageSource.registry,
-      'https://registry.npmjs.org/',
-    );
-    assert.equal(ultramodernConfig.packageSource.aliasScope, 'bleedingdev');
-    assert.equal(
-      ultramodernConfig.packageSource.aliasPackageNamePrefix,
-      'modern-js-',
-    );
+    assert.equal(result.packageSource.strategy, 'workspace');
+    assert.equal(ultramodernConfig.packageSource.strategy, 'workspace');
     assert.equal(
       shellPackage.dependencies['@modern-js/runtime'],
-      'npm:@bleedingdev/modern-js-runtime@3.2.0-ultramodern.108',
+      'workspace:*',
     );
     assert.equal(shellPackage.devDependencies.tailwindcss, undefined);
     assert.equal(

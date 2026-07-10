@@ -6,6 +6,18 @@ const npmPublishAttempts = 3;
 
 const npmPublishRetryDelayMs = 15_000;
 
+const npmRegistryOrigin = 'https://registry.npmjs.org';
+
+const trustedPublishRepository = 'BleedingDev/ultramodern.js';
+
+const trustedPublishRef = 'refs/heads/main-ultramodern';
+
+const trustedPublishWorkflowPath =
+  '.github/workflows/publish-bleedingdev.yml';
+
+const trustedPublishOidcIssuer =
+  'https://token.actions.githubusercontent.com';
+
 const transientNpmPublishErrorPatterns = [
   /TLOG_CREATE_ENTRY_ERROR/u,
   /error creating tlog entry/u,
@@ -32,6 +44,11 @@ export {
   createTemplateRequiredFiles,
   npmPublishAttempts,
   npmPublishRetryDelayMs,
+  npmRegistryOrigin,
   repoRoot,
+  trustedPublishOidcIssuer,
+  trustedPublishRef,
+  trustedPublishRepository,
+  trustedPublishWorkflowPath,
   transientNpmPublishErrorPatterns,
 };

@@ -13,9 +13,8 @@ on:
   workflow_dispatch:
     inputs:
       create_package:
-        description: 'Published create package to prove'
+        description: 'Exact published create package, for example @bleedingdev/modern-js-create@3.5.0-ultramodern.45'
         required: true
-        default: '@bleedingdev/modern-js-create@latest'
       scale_profile:
         description: 'Generated SuperApp portfolio scale profile'
         required: true
@@ -39,21 +38,286 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 defaults:
   run:
     shell: bash
 
+env:
+  BLEEDINGDEV_RELEASE_IDENTITY_ARTIFACT: bleedingdev-release-identity
+  BLEEDINGDEV_RELEASE_IDENTITY_DIR: .modern/triggering-release-identity
+  BLEEDINGDEV_POSTPUBLISH_ACCEPTANCE_RECEIPT: .modern/production-readiness/postpublish-acceptance-receipt.json
+
 concurrency:
-  group: ultramodern-production-readiness-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ultramodern-production-readiness-${{ github.event.workflow_run.id || github.run_id }}
+  cancel-in-progress: false
 
 jobs:
-  published-create-superapp:
-    name: Published create package proves a generated SuperApp
+  resolve-release-identity:
+    name: Resolve the triggering publication identity
     runs-on: ubuntu-latest
-    timeout-minutes: 60
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    timeout-minutes: 15
+    if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'
+    outputs:
+      publication_signal: ${{ steps.publication-signal.outputs.exists }}
+      authorized: ${{ steps.release-identity.outputs.authorized }}
+      manifest_sha256: ${{ steps.release-identity.outputs.manifest_sha256 }}
+      run_identity: ${{ steps.release-identity.outputs.run_identity }}
+      version: ${{ steps.release-identity.outputs.version }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        with:
+          egress-policy: audit
+
+      - name: Find non-dry-run publication signal
+        id: publication-signal
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TRIGGER_RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          artifact_count="$(gh api \
+            "repos/$GITHUB_REPOSITORY/actions/runs/$TRIGGER_RUN_ID/artifacts?per_page=100" \
+            --jq '[.artifacts[] | select(.name == "bleedingdev-release-identity" and .expired == false)] | length')"
+
+          if [ "$artifact_count" = "0" ]; then
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "The triggering run emitted no publication identity; skipping release readiness."
+          elif [ "$artifact_count" = "1" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Expected one publication identity artifact, found $artifact_count" >&2
+            exit 1
+          fi
+
+      - name: Checkout trusted receipt verifier
+        if: steps.publication-signal.outputs.exists == 'true'
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Download triggering release identity
+        if: steps.publication-signal.outputs.exists == 'true'
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v7.0.0
+        with:
+          name: bleedingdev-release-identity
+          path: .modern/triggering-release-identity
+          github-token: ${{ github.token }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: Verify triggering release acceptance receipt
+        if: steps.publication-signal.outputs.exists == 'true'
+        env:
+          TRIGGER_RUN_ID: ${{ github.event.workflow_run.id }}
+          TRIGGER_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+        run: |
+          node scripts/ultramodern-production-readiness/published-create-proof/acceptance-receipt.mjs \
+            --verify \
+            --manifest "$BLEEDINGDEV_RELEASE_IDENTITY_DIR/manifest.json" \
+            --receipt "$BLEEDINGDEV_RELEASE_IDENTITY_DIR/acceptance-receipt.json" \
+            --run-identity "github:${GITHUB_REPOSITORY}:run:${TRIGGER_RUN_ID}:attempt:${TRIGGER_RUN_ATTEMPT}"
+
+      - name: Verify triggering release identity
+        id: release-identity
+        if: steps.publication-signal.outputs.exists == 'true'
+        env:
+          TRIGGER_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          TRIGGER_RUN_ID: ${{ github.event.workflow_run.id }}
+          TRIGGER_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+        run: |
+          node <<'NODE'
+          const crypto = require('node:crypto');
+          const fs = require('node:fs');
+          const path = require('node:path');
+
+          const root = process.env.BLEEDINGDEV_RELEASE_IDENTITY_DIR;
+          const readJson = file => JSON.parse(fs.readFileSync(path.join(root, file), 'utf8'));
+          const sha256 = file => crypto.createHash('sha256').update(fs.readFileSync(path.join(root, file))).digest('hex');
+          const hasExactKeys = (value, expected) =>
+            value !== null &&
+            typeof value === 'object' &&
+            !Array.isArray(value) &&
+            JSON.stringify(Object.keys(value).sort()) === JSON.stringify([...expected].sort());
+          const identity = readJson('release-identity.json');
+          const manifest = readJson('manifest.json');
+          const receipt = readJson('acceptance-receipt.json');
+          const manifestSha256 = sha256('manifest.json');
+          const receiptSha256 = sha256('acceptance-receipt.json');
+          const detachedManifestSha256 = fs.readFileSync(
+            path.join(root, 'manifest.json.sha256'),
+            'utf8',
+          );
+          const detachedCohortSha256 = fs.readFileSync(
+            path.join(root, 'cohort.sha256'),
+            'utf8',
+          );
+          const semver = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+          const runIdentity = `github:${manifest.source.repository}:run:${process.env.TRIGGER_RUN_ID}:attempt:${process.env.TRIGGER_RUN_ATTEMPT}`;
+
+          if (
+            !hasExactKeys(identity, [
+              'acceptanceReceiptSha256',
+              'cohortDigest',
+              'dryRun',
+              'manifestSha256',
+              'release',
+              'releaseRunId',
+              'schema',
+              'schemaVersion',
+              'source',
+            ]) ||
+            identity.schema !== 'bleedingdev.ultramodern.published-release-identity' ||
+            identity.schemaVersion !== 1 ||
+            !hasExactKeys(identity.source, ['commit', 'repository']) ||
+            !hasExactKeys(identity.release, ['tag', 'version']) ||
+            String(identity.releaseRunId) !== process.env.TRIGGER_RUN_ID ||
+            identity.source.commit !== process.env.TRIGGER_HEAD_SHA ||
+            identity.source.repository !== process.env.GITHUB_REPOSITORY ||
+            identity.dryRun !== false ||
+            identity.manifestSha256 !== manifestSha256 ||
+            identity.acceptanceReceiptSha256 !== receiptSha256
+          ) {
+            throw new Error('Publication identity does not match the triggering workflow run');
+          }
+          if (
+            !hasExactKeys(manifest, [
+              'aliases',
+              'cohortDigest',
+              'cohortProjection',
+              'dependencyGraph',
+              'packages',
+              'publishOrder',
+              'release',
+              'schema',
+              'schemaVersion',
+              'source',
+              'tools',
+            ]) ||
+            manifest.schema !== 'bleedingdev.ultramodern.release-manifest' ||
+            manifest.schemaVersion !== 2 ||
+            !hasExactKeys(manifest.source, ['commit', 'repository']) ||
+            !hasExactKeys(manifest.release, ['tag', 'version']) ||
+            !hasExactKeys(manifest.tools, ['node', 'npm', 'pnpm']) ||
+            !Array.isArray(manifest.packages) ||
+            manifest.packages.length === 0 ||
+            !Array.isArray(manifest.publishOrder) ||
+            !semver.test(manifest.release.version) ||
+            manifest.release.version !== identity.release.version ||
+            manifest.release.tag !== identity.release.tag ||
+            manifest.source.commit !== identity.source.commit ||
+            manifest.source.repository !== identity.source.repository ||
+            manifest.cohortDigest !== identity.cohortDigest ||
+            detachedManifestSha256 !== `${manifestSha256}  manifest.json\n` ||
+            detachedCohortSha256 !== `${manifest.cohortDigest}\n`
+          ) {
+            throw new Error('Release manifest does not match the publication identity');
+          }
+          const output = process.env.GITHUB_OUTPUT;
+          fs.appendFileSync(output, 'authorized=true\n');
+          fs.appendFileSync(output, `manifest_sha256=${identity.manifestSha256}\n`);
+          fs.appendFileSync(output, `run_identity=${runIdentity}\n`);
+          fs.appendFileSync(output, `version=${manifest.release.version}\n`);
+          NODE
+
+  published-create-superapp:
+    name: Triggering release passes post-publish ERP-10 acceptance
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    needs:
+      - resolve-release-identity
+    if: >-
+      github.event_name == 'workflow_run' &&
+      needs.resolve-release-identity.outputs.publication_signal == 'true' &&
+      needs.resolve-release-identity.outputs.authorized == 'true'
+    env:
+      RELEASE_MANIFEST_SHA256: ${{ needs.resolve-release-identity.outputs.manifest_sha256 }}
+      RELEASE_VERSION: ${{ needs.resolve-release-identity.outputs.version }}
+      TRIGGER_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+      TRIGGER_RUN_IDENTITY: ${{ needs.resolve-release-identity.outputs.run_identity }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        with:
+          egress-policy: audit
+
+      - name: Checkout triggering release commit
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ env.TRIGGER_HEAD_SHA }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Node.js 26.x
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 26.x
+
+      - name: Setup mise
+        uses: jdx/mise-action@5ac50f778e26fac95da98d50503682459e86d566 # v3.2.0
+
+      - name: Download triggering release identity
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v7.0.0
+        with:
+          name: bleedingdev-release-identity
+          path: .modern/triggering-release-identity
+          github-token: ${{ github.token }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: Bind downloaded manifest to publication identity
+        run: |
+          node <<'NODE'
+          const crypto = require('node:crypto');
+          const fs = require('node:fs');
+          const path = require('node:path');
+
+          const manifestPath = path.join(
+            process.env.BLEEDINGDEV_RELEASE_IDENTITY_DIR,
+            'manifest.json',
+          );
+          const actual = crypto
+            .createHash('sha256')
+            .update(fs.readFileSync(manifestPath))
+            .digest('hex');
+          if (actual !== process.env.RELEASE_MANIFEST_SHA256) {
+            throw new Error('Downloaded manifest does not match the publication identity');
+          }
+          NODE
+
+      - name: Install browser smoke runtime
+        run: npx --yes playwright@1.60.0 install --with-deps chromium
+
+      - name: Run post-publish ERP-10 acceptance
+        run: |
+          node scripts/ultramodern-publish/run-release-acceptance.mjs \
+            --mode published \
+            --manifest "$BLEEDINGDEV_RELEASE_IDENTITY_DIR/manifest.json" \
+            --expected-source-revision "$TRIGGER_HEAD_SHA" \
+            --expected-version "$RELEASE_VERSION" \
+            --run-identity "$TRIGGER_RUN_IDENTITY" \
+            --scale-profile erp-10 \
+            --registry-url https://registry.npmjs.org/ \
+            --receipt "$BLEEDINGDEV_POSTPUBLISH_ACCEPTANCE_RECEIPT"
+
+      - name: Upload production-readiness evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ultramodern-production-readiness-release-${{ github.event.workflow_run.id }}
+          path: .modern/production-readiness/
+          if-no-files-found: warn
+          include-hidden-files: true
+
+  manual-published-create-superapp:
+    name: Explicit create package proves a generated SuperApp
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    env:
+      CREATE_PACKAGE_INPUT: ${{ github.event_name == 'schedule' && vars.ULTRAMODERN_PRODUCTION_READINESS_CREATE_PACKAGE || inputs.create_package }}
+      SCALE_PROFILE_INPUT: ${{ inputs.scale_profile }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
@@ -74,16 +338,21 @@ jobs:
       - name: Setup mise
         uses: jdx/mise-action@5ac50f778e26fac95da98d50503682459e86d566 # v3.2.0
 
+      - name: Validate exact create package input
+        run: |
+          node <<'NODE'
+          const exactCreate = /^@bleedingdev\/modern-js-create@(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+          if (!exactCreate.test(process.env.CREATE_PACKAGE_INPUT || '')) {
+            throw new Error('create_package must be an explicit @bleedingdev/modern-js-create@<exact-semver> specifier');
+          }
+          NODE
+
       - name: Install browser smoke runtime
         run: npx --yes playwright@1.60.0 install --with-deps chromium
 
-      - name: Prove published UltraModern SuperApp scaffold
-        env:
-          CREATE_PACKAGE_INPUT: ${{ github.event.inputs.create_package || '@bleedingdev/modern-js-create@latest' }}
-          SCALE_PROFILE_INPUT: ${{ github.event.inputs.scale_profile }}
-          EVENT_NAME: ${{ github.event_name }}
+      - name: Prove explicit published UltraModern SuperApp scaffold
         run: |
-          if [[ "$EVENT_NAME" == "schedule" ]]; then
+          if [[ "$GITHUB_EVENT_NAME" == "schedule" ]]; then
             SCALE_PROFILE="${SCALE_PROFILE_INPUT:-erp-25}"
           else
             SCALE_PROFILE="${SCALE_PROFILE_INPUT:-erp-10}"
@@ -94,20 +363,23 @@ jobs:
             --scale-profile "$SCALE_PROFILE" \
             --out .modern/production-readiness/published-create-proof.json
 
-      - name: Upload production-readiness evidence
+      - name: Upload manual production-readiness evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: ultramodern-production-readiness-${{ github.run_id }}
+          name: ultramodern-production-readiness-manual-${{ github.run_id }}
           path: .modern/production-readiness/
           if-no-files-found: warn
+          include-hidden-files: true
 
   cloudflare-generated-deploy:
     name: Generated SuperApp Cloudflare deploy proof
     runs-on: ubuntu-latest
     timeout-minutes: 90
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_cloudflare == 'true'
+    if: github.event_name == 'workflow_dispatch' && inputs.deploy_cloudflare == 'true'
     environment: cloudflare-production-readiness
+    env:
+      CREATE_PACKAGE_INPUT: ${{ inputs.create_package }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
@@ -128,6 +400,15 @@ jobs:
       - name: Setup mise
         uses: jdx/mise-action@5ac50f778e26fac95da98d50503682459e86d566 # v3.2.0
 
+      - name: Validate exact create package input
+        run: |
+          node <<'NODE'
+          const exactCreate = /^@bleedingdev\/modern-js-create@(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+          if (!exactCreate.test(process.env.CREATE_PACKAGE_INPUT || '')) {
+            throw new Error('create_package must be an explicit @bleedingdev/modern-js-create@<exact-semver> specifier');
+          }
+          NODE
+
       - name: Install browser smoke runtime
         run: npx --yes playwright@1.60.0 install --with-deps chromium
 
@@ -135,11 +416,8 @@ jobs:
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN: ${{ github.event.inputs.workers_dev_subdomain }}
-          # Route dispatch inputs through env (never inline into the shell):
-          # create_package is free text and this job holds live credentials.
-          CREATE_PACKAGE_INPUT: ${{ github.event.inputs.create_package || '@bleedingdev/modern-js-create@latest' }}
-          SCALE_PROFILE_INPUT: ${{ github.event.inputs.scale_profile || 'erp-10' }}
+          ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN: ${{ inputs.workers_dev_subdomain }}
+          SCALE_PROFILE_INPUT: ${{ inputs.scale_profile }}
         run: |
           node scripts/ultramodern-production-readiness/run-published-create-proof.mjs \
             --create-package "$CREATE_PACKAGE_INPUT" \
@@ -155,3 +433,4 @@ jobs:
           name: ultramodern-cloudflare-production-readiness-${{ github.run_id }}
           path: .modern/production-readiness/
           if-no-files-found: warn
+          include-hidden-files: true

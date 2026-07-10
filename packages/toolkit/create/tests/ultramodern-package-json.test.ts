@@ -166,7 +166,7 @@ test('root package json pins workspace package versions and bridge workspace glo
     '../tractor-store/packages/*',
   ]);
   assert.deepEqual(rootPackageJson.devDependencies, {
-    '@effect/tsgo': '0.16.3',
+    '@effect/tsgo': '0.18.1',
     '@modern-js/code-tools': packageVersion,
     '@modern-js/create': packageVersion,
     '@modern-js/plugin-bff': packageVersion,
@@ -175,7 +175,7 @@ test('root package json pins workspace package versions and bridge workspace glo
     oxlint: '1.73.0',
     oxfmt: '0.58.0',
     ultracite: '7.9.3',
-    wrangler: '4.109.0',
+    wrangler: '4.110.0',
     'zephyr-agent': '1.1.1',
   });
 });

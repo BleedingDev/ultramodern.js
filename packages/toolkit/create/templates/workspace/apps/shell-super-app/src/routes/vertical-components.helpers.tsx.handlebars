@@ -6,7 +6,7 @@ const loadRemoteComponent = (specifier: string) =>
   loadRemote<RemoteComponentModule>(specifier) as Promise<RemoteComponentModule>;
 
 const createRemoteFallback = (specifier: string) =>
-  ({ error }: { error: Error }) => {
+  function RemoteFallback({ error }: { error: Error }) {
     const { t } = useModernI18n();
     const classification = classifyModuleFederationFallback(error);
     const telemetryEntry =
@@ -39,7 +39,7 @@ const createRemoteFallback = (specifier: string) =>
     }, [classification, error, telemetry]);
 
     return <div className="{{value1}}" data-remote-error={error.name} {...toModuleFederationFallbackAttributes(telemetry)}>{t('shell.remoteUnavailable')}</div>;
-  };
+  }
 
 const createHydratedRemote =
   (ServerComponent: ComponentType, specifier: string) =>

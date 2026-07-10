@@ -253,13 +253,7 @@ export function createBackendFederationContractFile(app: WorkspaceApp) {
   const groupName = verticalApiGroupName(app);
   const readinessPath = `${app.api.prefix}/${resolveApiStem(app)}/readiness`;
 
-  return `import runtime from './index.ts';
-import { ultramodernApiMarker } from '../shared/ultramodern-build.ts';
-import {
-  ${apiExport} as api,
-  ${groupName}ApiContract as contract,
-  ${groupName}OperationContexts as operationContexts,
-} from '../shared/api.ts';
+  return `import { ultramodernApiMarker } from '../shared/ultramodern-build.ts';
 
 export const backendFederationContract = {
   compatibility: {
@@ -282,9 +276,12 @@ export const backendFederationContract = {
   strictEffectApproach: true,
 } as const;
 
-export { api, contract, operationContexts, runtime };
-
-export default runtime;
+export { default, default as runtime } from './index.ts';
+export {
+  ${apiExport} as api,
+  ${groupName}ApiContract as contract,
+  ${groupName}OperationContexts as operationContexts,
+} from '../shared/api.ts';
 `;
 }
 

@@ -1,4 +1,10 @@
 import fs from 'node:fs';
+import {
+  copyCreateReleaseCohort,
+  isCreatePackageSourceCheckout,
+  RELEASE_COHORT_PROJECTION_PATH,
+  readCreateReleaseCohort,
+} from '../ultramodern-release-cohort';
 import { createSharedDesignTokensCss } from './app-files';
 import type { UltramodernBridgeConfig } from './bridge-config';
 import { normalizeUltramodernBridgeConfig } from './bridge-config';
@@ -37,6 +43,7 @@ import {
   createTsConfigBase,
 } from './package-json';
 import { resolvePackageSource } from './package-source';
+import { renderMinimumReleaseAgeExclude } from './policy';
 import type {
   JsonValue,
   ResolvedPackageSource,
@@ -64,6 +71,13 @@ import { writeApp } from './write-app';
 import { createZeropsYaml } from './zerops';
 
 export { writeApp };
+
+function hasExplicitInstallRequest(options: UltramodernWorkspaceOptions) {
+  return (
+    options.packageSource !== undefined &&
+    options.packageSource.strategy !== 'workspace'
+  );
+}
 
 function writeSharedPackages(targetDir: string, scope: string) {
   for (const sharedPackage of sharedPackages) {
@@ -187,7 +201,26 @@ export function generateUltramodernWorkspace(
 ): UltramodernGenerationResult {
   const beforeFiles = createFileSnapshot(options.targetDir);
   const scope = toPackageScope(options.packageName);
-  const packageSource = resolvePackageSource(options);
+  let packageSource: ResolvedPackageSource;
+  let releaseCohort;
+  if (isCreatePackageSourceCheckout()) {
+    if (hasExplicitInstallRequest(options)) {
+      throw new Error(
+        'A local @modern-js/create source checkout cannot satisfy an explicit install package source. Use workspace mode locally or run the packed published package with its authenticated release cohort projection.',
+      );
+    }
+    // A source checkout has no shipped release identity. Do this before any
+    // projection lookup so an untracked asset cannot authorize registry policy.
+    packageSource = resolvePackageSource({
+      ...options,
+      packageSource: { strategy: 'workspace' },
+    });
+  } else {
+    packageSource = resolvePackageSource(options);
+    if (packageSource.strategy === 'install') {
+      releaseCohort = readCreateReleaseCohort();
+    }
+  }
   const bridge = normalizeUltramodernBridgeConfig(options.bridge);
   const enableTailwind = options.enableTailwind !== false;
   const initialVerticals: WorkspaceApp[] = [];
@@ -195,24 +228,42 @@ export function generateUltramodernWorkspace(
   assertUniqueTailwindPrefixes([shellApp, ...initialVerticals]);
   fs.mkdirSync(options.targetDir, { recursive: true });
 
-  copyRootTemplate(options.targetDir, {
-    packageName: options.packageName,
-    packageScope: scope,
-    nodeVersion: NODE_VERSION,
-    pnpmVersion: PNPM_VERSION,
-    nodeFetchVersion: NODE_FETCH_VERSION,
-    drizzleOrmVersion: DRIZZLE_ORM_VERSION,
-    effectVersion: EFFECT_VERSION,
-    effectVitestVersion: EFFECT_VITEST_VERSION,
-    i18nextVersion: I18NEXT_VERSION,
-    moduleFederationVersion: MODULE_FEDERATION_VERSION,
-    tanstackRouterCoreVersion: TANSTACK_ROUTER_CORE_VERSION,
-    tanstackRouterVersion: TANSTACK_ROUTER_VERSION,
-    typescriptCompilerApiVersion: TYPESCRIPT_COMPILER_API_VERSION,
-    typescriptVersion: TYPESCRIPT_VERSION,
-    wranglerVersion: WRANGLER_VERSION,
-    tailwindEnabled: String(enableTailwind),
+  const minimumReleaseAgeExclude = renderMinimumReleaseAgeExclude({
+    packageSource,
+    releaseCohort,
   });
+
+  copyRootTemplate(
+    options.targetDir,
+    {
+      packageName: options.packageName,
+      packageScope: scope,
+      nodeVersion: NODE_VERSION,
+      pnpmVersion: PNPM_VERSION,
+      nodeFetchVersion: NODE_FETCH_VERSION,
+      drizzleOrmVersion: DRIZZLE_ORM_VERSION,
+      effectVersion: EFFECT_VERSION,
+      effectVitestVersion: EFFECT_VITEST_VERSION,
+      i18nextVersion: I18NEXT_VERSION,
+      moduleFederationVersion: MODULE_FEDERATION_VERSION,
+      tanstackRouterCoreVersion: TANSTACK_ROUTER_CORE_VERSION,
+      tanstackRouterVersion: TANSTACK_ROUTER_VERSION,
+      typescriptCompilerApiVersion: TYPESCRIPT_COMPILER_API_VERSION,
+      typescriptVersion: TYPESCRIPT_VERSION,
+      wranglerVersion: WRANGLER_VERSION,
+      minimumReleaseAgeExcludeYaml:
+        minimumReleaseAgeExclude.length === 0
+          ? ' []'
+          : `\n${minimumReleaseAgeExclude
+              .map(selector => `  - '${selector}'`)
+              .join('\n')}`,
+      tailwindEnabled: String(enableTailwind),
+    },
+    new Set([RELEASE_COHORT_PROJECTION_PATH]),
+  );
+  if (releaseCohort) {
+    copyCreateReleaseCohort(options.targetDir);
+  }
   writePnpmWorkspacePackages(options.targetDir, bridge);
 
   writeJson(
@@ -290,6 +341,7 @@ export function generateUltramodernWorkspace(
     scope,
     enableTailwind,
     initialVerticals,
+    releaseCohort,
   );
 
   const preliminaryAfterFiles = createFileSnapshot(options.targetDir);

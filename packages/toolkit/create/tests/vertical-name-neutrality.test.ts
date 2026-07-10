@@ -27,8 +27,7 @@ test('verticals named after the old demo trio scaffold exactly like any other ve
       modernVersion: '3.2.1',
       enableTailwind: true,
       packageSource: {
-        strategy: 'install',
-        modernPackageVersion: '3.2.0-ultramodern.108',
+        strategy: 'workspace',
       },
     });
 

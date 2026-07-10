@@ -110,10 +110,7 @@ test('public API runs explicit CodeSmith overlays and leaves base generation unc
           config: { custom: 'workspace-overlay' },
         },
       ],
-      packageSource: {
-        strategy: 'install',
-        modernPackageVersion: '3.2.0-ultramodern.108',
-      },
+      packageSource: { strategy: 'workspace' },
     });
     assert.deepEqual(
       readJson(
@@ -130,7 +127,7 @@ test('public API runs explicit CodeSmith overlays and leaves base generation unc
         assignedPort: 3020,
         moduleFederationName: 'shellSuperApp',
         apiPrefix: null,
-        packageSourceStrategy: 'install',
+        packageSourceStrategy: 'workspace',
         generationResultOperation: 'workspace',
       },
     );
@@ -170,7 +167,7 @@ test('public API runs explicit CodeSmith overlays and leaves base generation unc
         assignedPort: 4102,
         moduleFederationName: 'verticalCheckout',
         apiPrefix: '/checkout-api',
-        packageSourceStrategy: 'install',
+        packageSourceStrategy: 'workspace',
         generationResultOperation: 'vertical',
       },
     );

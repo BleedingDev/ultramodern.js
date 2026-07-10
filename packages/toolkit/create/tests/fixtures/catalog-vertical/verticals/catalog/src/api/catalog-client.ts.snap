@@ -1,8 +1,4 @@
-import {
-  Effect,
-  makeEffectHttpApiClient,
-  runEffectRequest,
-} from '@modern-js/plugin-bff/effect-client';
+import { Effect, makeEffectHttpApiClient } from '@modern-js/plugin-bff/effect-client';
 import type {
   HttpClientError,
   HttpApi,
@@ -20,7 +16,7 @@ import type {
   CatalogReadiness,
 } from '../../shared/api';
 
-export { Effect, runEffectRequest };
+export { Effect, runEffectRequest } from '@modern-js/plugin-bff/effect-client';
 
 type CatalogApiGroups =
   typeof catalogApi extends HttpApi.HttpApi<infer _ApiId, infer Groups> ? Groups : never;

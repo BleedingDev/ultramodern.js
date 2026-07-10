@@ -1,9 +1,12 @@
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
 const fs = require('node:fs');
+const http = require('node:http');
 const os = require('node:os');
 const path = require('node:path');
-const { spawnSync } = require('node:child_process');
+const { execFileSync, spawnSync } = require('node:child_process');
 const test = require('node:test');
+const { pathToFileURL } = require('node:url');
 
 const repoRoot = path.resolve(__dirname, '../../..');
 const scriptPath = path.join(
@@ -34,9 +37,9 @@ const writeJson = (filePath, value) => {
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`);
 };
 
-const writeFile = filePath => {
+const writeFile = (filePath, contents = 'fixture\n') => {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, 'fixture\n');
+  fs.writeFileSync(filePath, contents);
 };
 
 const makeCreateFixture = ({ includeTemplateDotFiles }) => {
@@ -97,29 +100,37 @@ const runPublishExisting = outDir =>
   );
 
 const makeManifest = () => ({
-  schemaVersion: 1,
-  generatedAt: '2026-06-04T00:00:00.000Z',
-  scope: 'bleedingdev',
-  prefix: 'modern-js-',
-  version: '3.2.0-ultramodern.1',
-  dependencyVersion: '3.2.0-ultramodern.1',
-  tag: 'latest',
+  source: releaseSource,
+  release: {
+    tag: 'latest',
+    version: '3.2.0-ultramodern.1',
+  },
   aliases: {
     '@modern-js/create': '@bleedingdev/modern-js-create',
     '@modern-js/runtime': '@bleedingdev/modern-js-runtime',
   },
+  dependencyGraph: {
+    '@bleedingdev/modern-js-create': [],
+    '@bleedingdev/modern-js-runtime': [],
+  },
+  publishOrder: [
+    '@bleedingdev/modern-js-runtime',
+    '@bleedingdev/modern-js-create',
+  ],
   packages: [
     {
       sourceName: '@modern-js/create',
       targetName: '@bleedingdev/modern-js-create',
       version: '3.2.0-ultramodern.1',
-      packageDir: '.modern/bleedingdev-publish/packages/create',
+      integrity: `sha512-${Buffer.alloc(64).toString('base64')}`,
+      shasum: 'a'.repeat(40),
     },
     {
       sourceName: '@modern-js/runtime',
       targetName: '@bleedingdev/modern-js-runtime',
       version: '3.2.0-ultramodern.1',
-      packageDir: '.modern/bleedingdev-publish/packages/runtime',
+      integrity: `sha512-${Buffer.alloc(64).toString('base64')}`,
+      shasum: 'b'.repeat(40),
     },
   ],
 });
@@ -180,6 +191,7 @@ const makePublishOrderFixture = () => {
     root,
     manifest: {
       ...makeManifest(),
+      dependencyGraph: undefined,
       aliases: {
         '@modern-js/create': '@bleedingdev/modern-js-create',
         '@modern-js/i18n-utils': '@bleedingdev/modern-js-i18n-utils',
@@ -191,8 +203,231 @@ const makePublishOrderFixture = () => {
   };
 };
 
-test('publish-existing rejects create packages missing hidden workspace template files', () => {
-  const outDir = makeCreateFixture({ includeTemplateDotFiles: false });
+const releaseSource = {
+  commit: 'a'.repeat(40),
+  repository: 'BleedingDev/ultramodern.js',
+};
+
+const releaseTools = {
+  node: process.version,
+  npm: 'fixture-npm',
+  pnpm: 'fixture-pnpm',
+};
+
+const dsseInTotoPayloadType = 'application/vnd.in-toto+json';
+const githubActionsBuildType =
+  'https://slsa-framework.github.io/github-actions-buildtypes/workflow/v1';
+const inTotoStatementV1 = 'https://in-toto.io/Statement/v1';
+const slsaProvenanceV1 = 'https://slsa.dev/provenance/v1';
+const trustedOidcIssuer = 'https://token.actions.githubusercontent.com';
+const trustedWorkflow = {
+  path: '.github/workflows/publish-bleedingdev.yml',
+  ref: 'refs/heads/main-ultramodern',
+  repository: 'https://github.com/BleedingDev/ultramodern.js',
+};
+
+const npmPurl = item => {
+  const [scope, name] = item.targetName.slice(1).split('/');
+  return `pkg:npm/%40${scope}/${name}@${item.version}`;
+};
+
+const provenanceStatement = item => ({
+  _type: inTotoStatementV1,
+  predicateType: slsaProvenanceV1,
+  subject: [
+    {
+      name: npmPurl(item),
+      digest: {
+        sha512: Buffer.from(
+          item.integrity.slice('sha512-'.length),
+          'base64',
+        ).toString('hex'),
+      },
+    },
+  ],
+  predicate: {
+    buildDefinition: {
+      buildType: githubActionsBuildType,
+      externalParameters: {
+        workflow: structuredClone(trustedWorkflow),
+      },
+      resolvedDependencies: [
+        {
+          uri: `git+https://github.com/BleedingDev/ultramodern.js@${trustedWorkflow.ref}`,
+          digest: {
+            gitCommit: releaseSource.commit,
+          },
+        },
+      ],
+    },
+  },
+});
+
+const provenanceDocument = statement => ({
+  attestations: [
+    {
+      predicateType: slsaProvenanceV1,
+      bundle: {
+        mediaType: 'application/vnd.dev.sigstore.bundle.v0.3+json',
+        dsseEnvelope: {
+          payloadType: dsseInTotoPayloadType,
+          payload: Buffer.from(JSON.stringify(statement)).toString('base64'),
+          signatures: [{ keyid: '', sig: 'fixture-signature' }],
+        },
+        verificationMaterial: {},
+      },
+    },
+  ],
+});
+
+const provenanceResponse = document => ({
+  ok: true,
+  status: 200,
+  json: async () => document,
+});
+
+const provenanceDist = {
+  attestations: {
+    provenance: { predicateType: slsaProvenanceV1 },
+    url: 'https://registry.npmjs.org/-/npm/v1/attestations/@bleedingdev%2fmodern-js-runtime@3.2.0-ultramodern.1',
+  },
+};
+
+const sigstoreVerificationResult = expectation => ({
+  certificateIdentity: expectation.certificateIdentity,
+  issuer: expectation.issuer,
+  verifierVersion: 'fixture-sigstore',
+});
+
+const acceptSigstoreBundle = async (_bundle, expectation) =>
+  sigstoreVerificationResult(expectation);
+
+const registryTarballUrl = item => {
+  const packageBaseName = item.targetName.slice(
+    item.targetName.lastIndexOf('/') + 1,
+  );
+  return `https://registry.npmjs.org/${item.targetName}/-/${packageBaseName}-${item.version}.tgz`;
+};
+
+const registryDistFor = item => ({
+  ...structuredClone(provenanceDist),
+  integrity: item.integrity,
+  shasum: item.shasum,
+  tarball: registryTarballUrl(item),
+});
+
+const tarballResponse = bytes => ({
+  arrayBuffer: async () =>
+    bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
+  ok: true,
+  status: 200,
+});
+
+const artifactExpectations = aliases => ({
+  aliases,
+  source: releaseSource,
+  sourceNames: Object.keys(aliases),
+  tag: 'latest',
+  version: '3.2.0-ultramodern.1',
+});
+
+const createArtifactFixture = async ({ scripts } = {}) => {
+  const { createReleaseArtifacts } = await import(
+    '../prepare-bleedingdev-packages.mjs'
+  );
+  const root = makeTempDir();
+  const outDir = path.join(root, 'release');
+  const markerPath = path.join(root, 'lifecycle-ran');
+  const aliases = {
+    '@modern-js/create': '@bleedingdev/modern-js-create',
+    '@modern-js/runtime': '@bleedingdev/modern-js-runtime',
+    '@modern-js/utils': '@bleedingdev/modern-js-utils',
+  };
+  const definitions = [
+    {
+      sourceName: '@modern-js/runtime',
+      targetName: aliases['@modern-js/runtime'],
+      dependencies: {
+        '@modern-js/utils':
+          'npm:@bleedingdev/modern-js-utils@3.2.0-ultramodern.1',
+      },
+      scripts: typeof scripts === 'function' ? scripts(markerPath) : scripts,
+    },
+    {
+      sourceName: '@modern-js/utils',
+      targetName: aliases['@modern-js/utils'],
+      dependencies: {},
+    },
+    {
+      sourceName: '@modern-js/create',
+      targetName: aliases['@modern-js/create'],
+      dependencies: {},
+    },
+  ];
+  const packages = definitions.map(definition => {
+    const packageDir = path.join(
+      root,
+      'staged',
+      definition.targetName.replaceAll('/', '__'),
+    );
+    writeJson(path.join(packageDir, 'package.json'), {
+      name: definition.targetName,
+      version: '3.2.0-ultramodern.1',
+      dependencies: definition.dependencies,
+      publishConfig: { access: 'public' },
+      scripts: definition.scripts,
+    });
+    writeFile(
+      path.join(packageDir, 'index.js'),
+      `module.exports = ${JSON.stringify(definition.sourceName)};\n`,
+    );
+    writeFile(
+      path.join(
+        packageDir,
+        'nested',
+        `${'long-path-segment-'.repeat(7)}fixture.txt`,
+      ),
+    );
+    if (definition.sourceName === '@modern-js/create') {
+      for (const relativePath of createTemplateRequiredFiles) {
+        writeFile(path.join(packageDir, relativePath));
+      }
+    }
+    return {
+      packageDir: path.relative(repoRoot, packageDir),
+      sourceName: definition.sourceName,
+      targetName: definition.targetName,
+      version: '3.2.0-ultramodern.1',
+    };
+  });
+  const packCalls = [];
+  const releaseArtifacts = createReleaseArtifacts({
+    aliases,
+    command(command, args, options) {
+      packCalls.push({ args: [...args], command, options });
+      return execFileSync(command, args, options);
+    },
+    outDir,
+    packages,
+    source: releaseSource,
+    tag: 'latest',
+    tools: releaseTools,
+    version: '3.2.0-ultramodern.1',
+  });
+
+  return {
+    aliases,
+    markerPath,
+    outDir,
+    packCalls,
+    packages,
+    releaseArtifacts,
+    root,
+  };
+};
+
+test('publish-existing rejects legacy directory manifests before trusted publishing', () => {
+  const outDir = makeCreateFixture({ includeTemplateDotFiles: true });
 
   try {
     const result = runPublishExisting(outDir);
@@ -200,12 +435,9 @@ test('publish-existing rejects create packages missing hidden workspace template
     assert.notEqual(result.status, 0);
     assert.match(
       result.stderr,
-      /@bleedingdev\/modern-js-create staged package is missing required create template file\(s\):/,
+      /Detached release manifest SHA-256 is missing or is not a regular file/,
     );
-    assert.match(
-      result.stderr,
-      /template-workspace\/\.codex\/skills-lock\.json/,
-    );
+    assert.doesNotMatch(result.stderr, /trusted publishing workflow/);
   } finally {
     removeDir(outDir);
   }
@@ -237,6 +469,16 @@ test('parseArgs rejects partial publish controls', async () => {
   assert.throws(
     () => parseArgs(['--version', '3.2.0-ultramodern.1', '--no-skip-existing']),
     /--no-skip-existing is forbidden/,
+  );
+  assert.throws(
+    () =>
+      parseArgs([
+        '--version',
+        '3.2.0-ultramodern.1',
+        '--acceptance-receipt',
+        'acceptance-receipt.json',
+      ]),
+    /Unknown argument: --acceptance-receipt/,
   );
 });
 
@@ -306,8 +548,8 @@ test('validateRegistryCohort blocks success when any package is absent', async (
         { dryRun: false, tag: 'latest' },
         {
           verifyRegistryDistTag: async () => {},
-          verifyRegistryPackage: async packageName => {
-            if (packageName === '@bleedingdev/modern-js-runtime') {
+          verifyRegistryPackage: async item => {
+            if (item.targetName === '@bleedingdev/modern-js-runtime') {
               throw new Error('not found');
             }
           },
@@ -350,7 +592,7 @@ test('orderPublishItems publishes create last so users do not see an incomplete 
   const manifest = makeManifest();
 
   assert.deepEqual(
-    orderPublishItems(manifest.packages).map(item => item.sourceName),
+    orderPublishItems(manifest.packages, manifest).map(item => item.sourceName),
     ['@modern-js/runtime', '@modern-js/create'],
   );
 });
@@ -384,45 +626,477 @@ test('orderPublishItems publishes hard dependencies before consumers', async () 
   }
 });
 
-test('assertRegistryTarballReachable rejects missing npm tarballs', async () => {
-  const { assertRegistryTarballReachable } = await import(
+test('verifyRegistryTarball downloads the pinned body and recomputes every accepted hash', async () => {
+  const { verifyRegistryTarball } = await import(
     '../prepare-bleedingdev-packages.mjs'
   );
-
-  await assert.rejects(
-    () =>
-      assertRegistryTarballReachable(
-        '@bleedingdev/modern-js-utils',
-        '3.2.0-ultramodern.1',
-        {
-          tarball:
-            'https://registry.npmjs.org/@bleedingdev/modern-js-utils/-/modern-js-utils-3.2.0-ultramodern.1.tgz',
-        },
-        async () => ({ ok: false, status: 404 }),
-      ),
-    /returned HTTP 404/,
+  const fixture = await createArtifactFixture();
+  const artifact = fixture.releaseArtifacts.packages.find(
+    item => item.sourceName === '@modern-js/utils',
   );
+  const bytes = fs.readFileSync(artifact.artifactPath);
+  const calls = [];
+
+  try {
+    const result = await verifyRegistryTarball(
+      artifact,
+      registryDistFor(artifact),
+      async (url, options) => {
+        calls.push({ options, url });
+        return tarballResponse(bytes);
+      },
+    );
+    assert.deepEqual(result, {
+      integrity: artifact.integrity,
+      sha256: artifact.sha256,
+      shasum: artifact.shasum,
+      size: artifact.size,
+      tarballUrl: registryTarballUrl(artifact),
+    });
+    assert.deepEqual(calls, [
+      {
+        options: {
+          headers: { accept: 'application/octet-stream' },
+          method: 'GET',
+          redirect: 'error',
+        },
+        url: registryTarballUrl(artifact),
+      },
+    ]);
+  } finally {
+    removeDir(fixture.root);
+  }
 });
 
-test('assertRegistryTarballReachable accepts reachable npm tarballs', async () => {
-  const { assertRegistryTarballReachable } = await import(
+test('verifyRegistryTarball rejects missing, unpinned, and byte-mismatched registry bodies', async () => {
+  const { verifyRegistryTarball } = await import(
     '../prepare-bleedingdev-packages.mjs'
   );
+  const fixture = await createArtifactFixture();
+  const artifact = fixture.releaseArtifacts.packages[0];
+  const bytes = fs.readFileSync(artifact.artifactPath);
+  const tampered = Buffer.from(bytes);
+  tampered[0] ^= 0xff;
 
-  await assert.doesNotReject(() =>
-    assertRegistryTarballReachable(
-      '@bleedingdev/modern-js-utils',
-      '3.2.0-ultramodern.1',
-      {
-        tarball:
-          'https://registry.npmjs.org/@bleedingdev/modern-js-utils/-/modern-js-utils-3.2.0-ultramodern.1.tgz',
-      },
-      async (_url, init) => {
-        assert.equal(init.method, 'HEAD');
-        return { ok: true, status: 200 };
-      },
-    ),
+  try {
+    await assert.rejects(
+      () =>
+        verifyRegistryTarball(
+          artifact,
+          registryDistFor(artifact),
+          async () => ({ ok: false, status: 404 }),
+        ),
+      /returned HTTP 404/,
+    );
+    await assert.rejects(
+      () =>
+        verifyRegistryTarball(
+          artifact,
+          {
+            ...registryDistFor(artifact),
+            tarball: `https://evil.example/${path.basename(
+              artifact.artifactPath,
+            )}`,
+          },
+          async () => {
+            throw new Error('must not fetch an unpinned registry URL');
+          },
+        ),
+      /not the pinned npm endpoint/,
+    );
+    await assert.rejects(
+      () =>
+        verifyRegistryTarball(artifact, registryDistFor(artifact), async () =>
+          tarballResponse(tampered),
+        ),
+      /Registry tarball byte mismatch.*sha256.*shasum.*integrity/,
+    );
+  } finally {
+    removeDir(fixture.root);
+  }
+});
+
+test('verifyRegistryProvenance validates npm DSSE SLSA subject bytes and trusted source', async () => {
+  const {
+    createRegistryProvenanceExpectation,
+    verifyRegistryPackageDist,
+    verifyRegistryProvenance,
+  } = await import('../prepare-bleedingdev-packages.mjs');
+  const fixture = await createArtifactFixture();
+  const artifact = fixture.releaseArtifacts.packages.find(
+    item => item.sourceName === '@modern-js/runtime',
   );
+  const expectation = createRegistryProvenanceExpectation(
+    fixture.releaseArtifacts.manifest,
+    {
+      GITHUB_REF: trustedWorkflow.ref,
+      GITHUB_REPOSITORY: 'BleedingDev/ultramodern.js',
+    },
+  );
+  const document = provenanceDocument(provenanceStatement(artifact));
+  const fetchCalls = [];
+  const sigstoreCalls = [];
+
+  try {
+    const result = await verifyRegistryProvenance(
+      artifact,
+      provenanceDist,
+      expectation,
+      async (url, options) => {
+        fetchCalls.push({ options, url });
+        return provenanceResponse(document);
+      },
+      async (bundle, verifiedExpectation) => {
+        sigstoreCalls.push({ bundle, expectation: verifiedExpectation });
+        return sigstoreVerificationResult(verifiedExpectation);
+      },
+    );
+
+    assert.equal(result.subject, npmPurl(artifact));
+    assert.equal(
+      result.subjectSha512,
+      provenanceStatement(artifact).subject[0].digest.sha512,
+    );
+    assert.deepEqual(fetchCalls, [
+      {
+        options: {
+          headers: { accept: 'application/json' },
+          method: 'GET',
+          redirect: 'error',
+        },
+        url: provenanceDist.attestations.url,
+      },
+    ]);
+    assert.equal(sigstoreCalls.length, 1);
+    assert.equal(sigstoreCalls[0].bundle, document.attestations[0].bundle);
+    assert.equal(sigstoreCalls[0].expectation, expectation);
+    assert.deepEqual(expectation, {
+      certificateIdentity:
+        'https://github.com/BleedingDev/ultramodern.js/.github/workflows/publish-bleedingdev.yml@refs/heads/main-ultramodern',
+      issuer: trustedOidcIssuer,
+      source: releaseSource,
+      workflow: {
+        path: trustedWorkflow.path,
+        ref: trustedWorkflow.ref,
+        repository: 'BleedingDev/ultramodern.js',
+      },
+    });
+
+    let provenanceChecks = 0;
+    let tarballChecks = 0;
+    await verifyRegistryPackageDist(artifact, provenanceDist, expectation, {
+      assertRegistryDistMatches: () => {},
+      verifyRegistryTarball: async (verifiedItem, dist) => {
+        tarballChecks += 1;
+        assert.equal(verifiedItem, artifact);
+        assert.equal(dist, provenanceDist);
+      },
+      verifyRegistryProvenance: async (
+        verifiedItem,
+        dist,
+        verifiedExpectation,
+      ) => {
+        provenanceChecks += 1;
+        assert.equal(verifiedItem, artifact);
+        assert.equal(dist, provenanceDist);
+        assert.equal(verifiedExpectation, expectation);
+      },
+    });
+    assert.equal(tarballChecks, 1);
+    assert.equal(provenanceChecks, 1);
+  } finally {
+    removeDir(fixture.root);
+  }
+});
+
+test('verifyRegistryProvenance rejects missing, malformed, or mismatched npm provenance', async () => {
+  const { createRegistryProvenanceExpectation, verifyRegistryProvenance } =
+    await import('../prepare-bleedingdev-packages.mjs');
+  const fixture = await createArtifactFixture();
+  const artifact = fixture.releaseArtifacts.packages.find(
+    item => item.sourceName === '@modern-js/runtime',
+  );
+  const expectation = createRegistryProvenanceExpectation(
+    fixture.releaseArtifacts.manifest,
+    {
+      GITHUB_REF: trustedWorkflow.ref,
+      GITHUB_REPOSITORY: 'BleedingDev/ultramodern.js',
+    },
+  );
+
+  const rejectsProvenance = async (
+    { mutateDocument = () => {}, mutateStatement = () => {} },
+    pattern,
+  ) => {
+    const statement = provenanceStatement(artifact);
+    mutateStatement(statement);
+    const document = provenanceDocument(statement);
+    mutateDocument(document);
+    await assert.rejects(
+      () =>
+        verifyRegistryProvenance(
+          artifact,
+          provenanceDist,
+          expectation,
+          async () => provenanceResponse(document),
+          acceptSigstoreBundle,
+        ),
+      pattern,
+    );
+  };
+
+  try {
+    await assert.rejects(
+      () =>
+        verifyRegistryProvenance(artifact, {}, expectation, async () => {
+          throw new Error('must not fetch without an attestations URL');
+        }),
+      /dist\.attestations/,
+    );
+    await assert.rejects(
+      () =>
+        verifyRegistryProvenance(
+          artifact,
+          {
+            ...structuredClone(provenanceDist),
+            attestations: {
+              ...structuredClone(provenanceDist.attestations),
+              url: 'https://evil.example/-/npm/v1/attestations/package@version',
+            },
+          },
+          expectation,
+          async () => {
+            throw new Error('must not fetch an unpinned endpoint');
+          },
+          acceptSigstoreBundle,
+        ),
+      /not the pinned npm endpoint/,
+    );
+    await rejectsProvenance(
+      {
+        mutateDocument(document) {
+          document.attestations = [];
+        },
+      },
+      /exactly one SLSA v1 attestation/,
+    );
+    await rejectsProvenance(
+      {
+        mutateDocument(document) {
+          document.attestations[0].bundle.dsseEnvelope.payload = 'not-base64';
+        },
+      },
+      /canonical base64/,
+    );
+    await rejectsProvenance(
+      {
+        mutateStatement(statement) {
+          statement.subject[0].name = statement.subject[0].name.replace(
+            artifact.version,
+            '3.2.0-ultramodern.2',
+          );
+        },
+      },
+      /does not match pkg:npm/,
+    );
+    await rejectsProvenance(
+      {
+        mutateStatement(statement) {
+          statement.subject[0].digest.sha512 = '0'.repeat(128);
+        },
+      },
+      /does not match the accepted tarball integrity/,
+    );
+    await rejectsProvenance(
+      {
+        mutateStatement(statement) {
+          delete statement.predicate.buildDefinition.buildType;
+        },
+      },
+      /SLSA buildType must be/,
+    );
+    await rejectsProvenance(
+      {
+        mutateStatement(statement) {
+          delete statement.predicate.buildDefinition.resolvedDependencies;
+        },
+      },
+      /resolvedDependencies must be a non-empty array/,
+    );
+    await rejectsProvenance(
+      {
+        mutateStatement(statement) {
+          statement.predicate.buildDefinition.resolvedDependencies[0].digest.gitCommit =
+            'b'.repeat(40);
+        },
+      },
+      /does not match accepted commit/,
+    );
+    await rejectsProvenance(
+      {
+        mutateStatement(statement) {
+          statement.predicate.buildDefinition.resolvedDependencies[0].uri = `git+https://github.com/Other/repository@${trustedWorkflow.ref}`;
+        },
+      },
+      /accepted source repository exactly once; found 0/,
+    );
+    await rejectsProvenance(
+      {
+        mutateStatement(statement) {
+          statement.predicate.buildDefinition.externalParameters.workflow.repository =
+            'https://github.com/Other/repository';
+        },
+      },
+      /does not match trusted repository/,
+    );
+    await rejectsProvenance(
+      {
+        mutateStatement(statement) {
+          delete statement.predicate.buildDefinition.externalParameters
+            .workflow;
+        },
+      },
+      /SLSA workflow must be a JSON object/,
+    );
+    await rejectsProvenance(
+      {
+        mutateStatement(statement) {
+          delete statement.predicate.buildDefinition.externalParameters.workflow
+            .repository;
+        },
+      },
+      /workflow\.repository must be a non-empty trimmed string/,
+    );
+    await rejectsProvenance(
+      {
+        mutateStatement(statement) {
+          statement.predicate.buildDefinition.externalParameters.workflow.path =
+            '.github/workflows/other.yml';
+        },
+      },
+      /does not match trusted path/,
+    );
+    await rejectsProvenance(
+      {
+        mutateStatement(statement) {
+          statement.predicate.buildDefinition.externalParameters.workflow.ref =
+            'refs/heads/other';
+        },
+      },
+      /does not match trusted ref/,
+    );
+    await rejectsProvenance(
+      {
+        mutateStatement(statement) {
+          delete statement.predicate.buildDefinition.externalParameters.workflow
+            .path;
+        },
+      },
+      /workflow\.path must be a non-empty trimmed string/,
+    );
+    await rejectsProvenance(
+      {
+        mutateStatement(statement) {
+          delete statement.predicate.buildDefinition.externalParameters.workflow
+            .ref;
+        },
+      },
+      /workflow\.ref must be a non-empty trimmed string/,
+    );
+  } finally {
+    removeDir(fixture.root);
+  }
+});
+
+test('Sigstore verification pins Fulcio identity, source OIDs, CT log, and Rekor before policy checks', async () => {
+  const {
+    createRegistryProvenanceExpectation,
+    loadNpmSigstoreVerifier,
+    verifyRegistryProvenance,
+    verifySigstoreBundle,
+  } = await import('../prepare-bleedingdev-packages.mjs');
+  const fixture = await createArtifactFixture();
+  const artifact = fixture.releaseArtifacts.packages.find(
+    item => item.sourceName === '@modern-js/runtime',
+  );
+  const expectation = createRegistryProvenanceExpectation(
+    fixture.releaseArtifacts.manifest,
+  );
+  const bundle = provenanceDocument(provenanceStatement(artifact))
+    .attestations[0].bundle;
+  const calls = [];
+
+  try {
+    const result = await verifySigstoreBundle(bundle, expectation, () => ({
+      verify: async (verifiedBundle, options) => {
+        calls.push({ bundle: verifiedBundle, options });
+        return {
+          identity: {
+            extensions: { issuer: expectation.issuer },
+            subjectAlternativeName: expectation.certificateIdentity,
+          },
+        };
+      },
+      version: 'fixture-sigstore',
+    }));
+    assert.deepEqual(result, sigstoreVerificationResult(expectation));
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].bundle, bundle);
+    assert.deepEqual(calls[0].options, {
+      certificateIdentityURI:
+        '^https://github\\.com/BleedingDev/ultramodern\\.js/\\.github/workflows/publish-bleedingdev\\.yml@refs/heads/main-ultramodern$',
+      certificateIssuer: trustedOidcIssuer,
+      certificateOIDs: {
+        '1.3.6.1.4.1.57264.1.3': releaseSource.commit,
+        '1.3.6.1.4.1.57264.1.5': releaseSource.repository,
+        '1.3.6.1.4.1.57264.1.6': trustedWorkflow.ref,
+      },
+      ctLogThreshold: 1,
+      tlogThreshold: 1,
+    });
+
+    await assert.rejects(
+      () =>
+        verifySigstoreBundle(bundle, expectation, () => ({
+          verify: async () => {
+            throw new Error('fixture signature rejection');
+          },
+          version: 'fixture-sigstore',
+        })),
+      /Sigstore\/Fulcio\/Rekor verification failed: fixture signature rejection/,
+    );
+    await assert.rejects(
+      () =>
+        verifySigstoreBundle(bundle, expectation, () => ({
+          verify: async () => ({ identity: {} }),
+          version: 'fixture-sigstore',
+        })),
+      /did not return the required Fulcio issuer and certificate identity/,
+    );
+
+    const invalidPolicyStatement = provenanceStatement(artifact);
+    invalidPolicyStatement.subject[0].name = 'pkg:npm/attacker@1.0.0';
+    await assert.rejects(
+      () =>
+        verifyRegistryProvenance(
+          artifact,
+          provenanceDist,
+          expectation,
+          async () =>
+            provenanceResponse(provenanceDocument(invalidPolicyStatement)),
+          async () => {
+            throw new Error('cryptographic verification ran first');
+          },
+        ),
+      /cryptographic verification ran first/,
+    );
+
+    const npmSigstore = loadNpmSigstoreVerifier();
+    assert.equal(typeof npmSigstore.verify, 'function');
+    assert.match(npmSigstore.version, /^\d+\.\d+\.\d+/u);
+  } finally {
+    removeDir(fixture.root);
+  }
 });
 
 test('validateRegistryCohort accepts a coherent latest-tagged full cohort', async () => {
@@ -469,55 +1143,1205 @@ test('publishPackage retries transient provenance failures', async () => {
   const { publishPackage } = await import(
     '../prepare-bleedingdev-packages.mjs'
   );
-  const root = makeTempDir();
-  const packageDir = path.join(root, 'package');
-  writeJson(path.join(packageDir, 'package.json'), {
-    name: '@bleedingdev/modern-js-server-core',
-    version: '0.0.0-ultramodern-test-retry',
-  });
+  const fixture = await createArtifactFixture();
+  const artifact = fixture.releaseArtifacts.packages[0];
+  artifact.packageJson = {
+    ...artifact.packageJson,
+    publishCachePoison: true,
+  };
   const calls = [];
 
   try {
     const publishedName = await publishPackage(
-      packageDir,
+      artifact,
       { dryRun: false, tag: 'latest' },
-      async (command, args, options) => {
-        calls.push({ command, args, options });
-        if (calls.length === 1) {
-          const error = new Error('npm publish failed with 1');
-          error.stderr =
-            'npm error code TLOG_CREATE_ENTRY_ERROR\nnpm error error creating tlog entry';
-          throw error;
-        }
+      {
+        publishAcceptedPackage: async (item, acceptedBytes, options) => {
+          calls.push({
+            acceptedBytes: Buffer.from(acceptedBytes),
+            item,
+            options,
+          });
+          if (calls.length === 1) {
+            const error = new Error('npm publish failed with 1');
+            error.stderr =
+              'npm error code TLOG_CREATE_ENTRY_ERROR\nnpm error error creating tlog entry';
+            throw error;
+          }
+        },
+        wait: async () => {},
       },
-      async () => {},
-      { packageExists: async () => false },
     );
 
-    assert.equal(publishedName, '@bleedingdev/modern-js-server-core');
+    assert.equal(publishedName, artifact.targetName);
     assert.equal(calls.length, 2);
-    assert.equal(calls[0].command, 'npm');
-    assert.deepEqual(calls[0].options, { captureOutput: true });
-    assert.deepEqual(calls[1].options, { captureOutput: true });
-    assert(calls[0].args.includes('--provenance'));
+    assert.notEqual(calls[0].item, artifact);
+    assert.notEqual(calls[1].item, artifact);
+    assert.equal(calls[0].item.packageJson.publishCachePoison, undefined);
+    assert.deepEqual(calls[1].item.packageJson, calls[0].item.packageJson);
+    assert.deepEqual(
+      calls[0].acceptedBytes,
+      fs.readFileSync(artifact.artifactPath),
+    );
+    assert.deepEqual(calls[1].acceptedBytes, calls[0].acceptedBytes);
+    assert.equal(calls[0].options.tag, 'latest');
   } finally {
-    removeDir(root);
+    removeDir(fixture.root);
   }
 });
 
-test('publish-existing accepts create packages with hidden template files before trusted publish check', () => {
-  const outDir = makeCreateFixture({ includeTemplateDotFiles: true });
+test('buffer publisher exchanges GitHub OIDC and sends only accepted bytes to libnpmpublish', async () => {
+  const { publishAcceptedPackage } = await import(
+    '../prepare-bleedingdev-packages.mjs'
+  );
+  const fixture = await createArtifactFixture();
+  const artifact = fixture.releaseArtifacts.packages[0];
+  const acceptedBytes = fs.readFileSync(artifact.artifactPath);
+  const requests = [];
+  let published;
 
   try {
-    const result = runPublishExisting(outDir);
-
-    assert.notEqual(result.status, 0);
-    assert.match(
-      result.stderr,
-      /Publishing is only allowed from the GitHub Actions trusted publishing workflow/,
+    const result = await publishAcceptedPackage(
+      artifact,
+      acceptedBytes,
+      {
+        acceptedTools: {
+          node: process.version,
+          npm: '11.17.0',
+          pnpm: '10.28.2',
+        },
+        tag: 'latest',
+      },
+      {
+        env: {
+          ACTIONS_ID_TOKEN_REQUEST_TOKEN: 'github-request-token',
+          ACTIONS_ID_TOKEN_REQUEST_URL:
+            'https://pipelines.actions.githubusercontent.com/example/oidc?api-version=2.0',
+          GITHUB_ACTIONS: 'true',
+        },
+        fetchImpl: async (url, options) => {
+          requests.push({ options, url: new URL(url).href });
+          return requests.length === 1
+            ? {
+                ok: true,
+                json: async () => ({ value: 'github.oidc.token' }),
+              }
+            : {
+                ok: true,
+                json: async () => ({ token: 'npm-publish-token' }),
+              };
+        },
+        loadRuntime: () => ({
+          libnpmpublishVersion: '11.2.0',
+          npmVersion: '11.17.0',
+          publish: async (manifest, bytes, options) => {
+            published = {
+              bytes: Buffer.from(bytes),
+              manifest,
+              options,
+            };
+          },
+        }),
+      },
     );
-    assert.doesNotMatch(result.stderr, /missing required create template/);
+
+    assert.equal(requests.length, 2);
+    assert.match(requests[0].url, /audience=npm%3Aregistry\.npmjs\.org/u);
+    assert.equal(
+      requests[0].options.headers.authorization,
+      'Bearer github-request-token',
+    );
+    assert.equal(requests[1].options.method, 'POST');
+    assert.equal(
+      new URL(requests[1].url).pathname,
+      `/-/npm/v1/oidc/token/exchange/package/${artifact.targetName.replace('/', '%2f')}`,
+    );
+    assert.equal(
+      requests[1].options.headers.authorization,
+      'Bearer github.oidc.token',
+    );
+    assert.deepEqual(published.bytes, acceptedBytes);
+    assert.notEqual(published.bytes, acceptedBytes);
+    assert.equal(published.manifest.name, artifact.targetName);
+    assert.equal(published.manifest.version, artifact.version);
+    assert.equal(published.options.access, 'public');
+    assert.equal(published.options.defaultTag, 'latest');
+    assert.equal(published.options.provenance, true);
+    assert.equal(
+      published.options['//registry.npmjs.org/:_authToken'],
+      'npm-publish-token',
+    );
+    assert.deepEqual(result, {
+      libnpmpublishVersion: '11.2.0',
+      npmVersion: '11.17.0',
+    });
   } finally {
-    removeDir(outDir);
+    removeDir(fixture.root);
+  }
+});
+
+test('installed libnpmpublish binds buffer, tag, auth, and provenance mode', async () => {
+  const { loadNpmPublishingRuntime, publishPackageBuffer } = await import(
+    '../prepare-bleedingdev-packages.mjs'
+  );
+  const fixture = await createArtifactFixture();
+  const artifact = fixture.releaseArtifacts.packages[0];
+  const acceptedBytes = fs.readFileSync(artifact.artifactPath);
+  const runtime = loadNpmPublishingRuntime();
+  const requests = [];
+  const server = http.createServer((request, response) => {
+    const chunks = [];
+    request.on('data', chunk => chunks.push(Buffer.from(chunk)));
+    request.on('end', () => {
+      requests.push({
+        body: Buffer.concat(chunks),
+        headers: request.headers,
+        method: request.method,
+        url: request.url,
+      });
+      response.writeHead(201, { 'content-type': 'application/json' });
+      response.end('{"ok":true}');
+    });
+  });
+
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  const address = server.address();
+  assert(address && typeof address === 'object');
+  const registryUrl = `http://127.0.0.1:${address.port}/`;
+  const acceptedTools = {
+    node: process.version,
+    npm: runtime.npmVersion,
+    pnpm: 'fixture-pnpm',
+  };
+
+  try {
+    await publishPackageBuffer(
+      artifact,
+      acceptedBytes,
+      {
+        acceptedTools,
+        authToken: 'offline-registry-token',
+        provenance: false,
+        registryUrl,
+        tag: 'requested-tag',
+      },
+      { runtime },
+    );
+
+    assert.equal(requests.length, 1);
+    const request = requests[0];
+    assert.equal(request.method, 'PUT');
+    assert.equal(decodeURIComponent(request.url.slice(1)), artifact.targetName);
+    assert.equal(
+      request.headers.authorization,
+      'Bearer offline-registry-token',
+    );
+    const body = JSON.parse(request.body.toString('utf8'));
+    assert.equal(body['dist-tags']['requested-tag'], artifact.version);
+    const attachmentName = `${artifact.targetName}-${artifact.version}.tgz`;
+    assert.deepEqual(
+      Buffer.from(body._attachments[attachmentName].data, 'base64'),
+      acceptedBytes,
+    );
+    assert.equal(
+      Object.keys(body._attachments).some(name => name.endsWith('.sigstore')),
+      false,
+    );
+
+    const publisherUrl = pathToFileURL(
+      path.join(
+        repoRoot,
+        'scripts/ultramodern-publish/lib/prepare-bleedingdev-packages/npm-buffer-publisher.mjs',
+      ),
+    ).href;
+    const childScript = `
+      import fs from 'node:fs';
+      const { loadNpmPublishingRuntime, publishPackageBuffer } = await import(${JSON.stringify(
+        publisherUrl,
+      )});
+      const item = JSON.parse(process.env.PUBLISH_ITEM);
+      const childRuntime = loadNpmPublishingRuntime();
+      try {
+        await publishPackageBuffer(
+          item,
+          fs.readFileSync(item.artifactPath),
+          {
+            acceptedTools: {
+              node: process.version,
+              npm: childRuntime.npmVersion,
+              pnpm: 'fixture-pnpm',
+            },
+            authToken: 'offline-registry-token',
+            provenance: true,
+            registryUrl: process.env.PUBLISH_REGISTRY,
+            tag: 'requested-tag',
+          },
+          { runtime: childRuntime },
+        );
+        process.exitCode = 2;
+      } catch (error) {
+        console.error(error instanceof Error ? error.message : String(error));
+        process.exitCode = 42;
+      }
+    `;
+    const provenanceResult = spawnSync(
+      process.execPath,
+      ['--input-type=module', '--eval', childScript],
+      {
+        encoding: 'utf8',
+        env: {
+          HOME: process.env.HOME,
+          PATH: process.env.PATH,
+          PUBLISH_ITEM: JSON.stringify(artifact),
+          PUBLISH_REGISTRY: registryUrl,
+          TMPDIR: process.env.TMPDIR ?? os.tmpdir(),
+        },
+        timeout: 5_000,
+      },
+    );
+    assert.equal(
+      provenanceResult.status,
+      42,
+      provenanceResult.stderr || provenanceResult.stdout,
+    );
+    assert.match(
+      provenanceResult.stderr,
+      /Automatic provenance generation not supported/u,
+    );
+    assert.equal(
+      requests.length,
+      1,
+      'failed provenance must not reach registry',
+    );
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+    removeDir(fixture.root);
+  }
+});
+
+test('buffer publisher rejects accepted toolchain drift before OIDC', async () => {
+  const { publishAcceptedPackage } = await import(
+    '../prepare-bleedingdev-packages.mjs'
+  );
+  const fixture = await createArtifactFixture();
+  const artifact = fixture.releaseArtifacts.packages[0];
+  const acceptedBytes = fs.readFileSync(artifact.artifactPath);
+  let tokenRequests = 0;
+  const overrides = {
+    loadRuntime: () => ({
+      libnpmpublishVersion: '11.2.0',
+      npmVersion: '11.17.0',
+      publish: async () => {
+        throw new Error('must not publish');
+      },
+    }),
+    requestToken: async () => {
+      tokenRequests += 1;
+      return 'must-not-be-requested';
+    },
+  };
+
+  try {
+    await assert.rejects(
+      () =>
+        publishAcceptedPackage(
+          artifact,
+          acceptedBytes,
+          {
+            acceptedTools: {
+              node: 'v0.0.0',
+              npm: '11.17.0',
+              pnpm: '10.28.2',
+            },
+            tag: 'latest',
+          },
+          overrides,
+        ),
+      /Node\.js drift/u,
+    );
+    await assert.rejects(
+      () =>
+        publishAcceptedPackage(
+          artifact,
+          acceptedBytes,
+          {
+            acceptedTools: {
+              node: process.version,
+              npm: '0.0.0',
+              pnpm: '10.28.2',
+            },
+            tag: 'latest',
+          },
+          overrides,
+        ),
+      /npm drift/u,
+    );
+    await assert.rejects(
+      () =>
+        publishAcceptedPackage(
+          artifact,
+          acceptedBytes,
+          {
+            acceptedTools: {
+              node: process.version,
+              npm: '11.17.0',
+              pnpm: '10.28.2',
+            },
+            tag: '',
+          },
+          overrides,
+        ),
+      /Publish dist-tag/u,
+    );
+    assert.equal(tokenRequests, 0);
+  } finally {
+    removeDir(fixture.root);
+  }
+});
+
+test('release artifacts reject package manifests with publish authority', async () => {
+  const { createReleaseArtifacts } = await import(
+    '../prepare-bleedingdev-packages.mjs'
+  );
+  const fixture = await createArtifactFixture();
+  const packagePath = path.resolve(
+    repoRoot,
+    fixture.packages[0].packageDir,
+    'package.json',
+  );
+  const originalPackageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+  const cases = [
+    {
+      mutate: packageJson => {
+        packageJson.tag = 'attacker-tag';
+      },
+      pattern: /must not declare top-level tag/u,
+    },
+    {
+      mutate: packageJson => {
+        packageJson.publishConfig.tag = 'attacker-tag';
+      },
+      pattern: /publishConfig must not declare tag/u,
+    },
+    {
+      mutate: packageJson => {
+        packageJson.publishConfig.registry = 'https://attacker.example/';
+      },
+      pattern: /publishConfig must not declare registry/u,
+    },
+  ];
+
+  try {
+    for (const [index, testCase] of cases.entries()) {
+      const packageJson = structuredClone(originalPackageJson);
+      testCase.mutate(packageJson);
+      writeJson(packagePath, packageJson);
+      assert.throws(
+        () =>
+          createReleaseArtifacts({
+            aliases: fixture.aliases,
+            outDir: path.join(fixture.root, `rejected-release-${index}`),
+            packages: fixture.packages,
+            source: releaseSource,
+            tag: 'latest',
+            tools: releaseTools,
+            version: '3.2.0-ultramodern.1',
+          }),
+        testCase.pattern,
+      );
+    }
+  } finally {
+    writeJson(packagePath, originalPackageJson);
+    removeDir(fixture.root);
+  }
+});
+
+test('buffer publisher fails closed without trusted GitHub OIDC inputs', async () => {
+  const { requestTrustedPublishingToken } = await import(
+    '../prepare-bleedingdev-packages.mjs'
+  );
+
+  await assert.rejects(
+    () =>
+      requestTrustedPublishingToken('@bleedingdev/modern-js-create', {
+        env: {},
+        fetchImpl: async () => {
+          throw new Error('must not fetch');
+        },
+      }),
+    /requires GitHub Actions/u,
+  );
+  await assert.rejects(
+    () =>
+      requestTrustedPublishingToken('@bleedingdev/modern-js-create', {
+        env: {
+          ACTIONS_ID_TOKEN_REQUEST_TOKEN: 'token',
+          ACTIONS_ID_TOKEN_REQUEST_URL: 'https://attacker.example/oidc',
+          GITHUB_ACTIONS: 'true',
+        },
+        fetchImpl: async () => ({ ok: true, json: async () => ({}) }),
+      }),
+    /GitHub Actions HTTPS endpoint/u,
+  );
+});
+
+test('dry-run validation cannot publish or request credentials', async () => {
+  const { validateAcceptedPackageDryRun } = await import(
+    '../prepare-bleedingdev-packages.mjs'
+  );
+  const fixture = await createArtifactFixture();
+  const artifact = fixture.releaseArtifacts.packages[0];
+  const acceptedBytes = fs.readFileSync(artifact.artifactPath);
+  let credentialRequests = 0;
+  let publishCalls = 0;
+
+  try {
+    const result = validateAcceptedPackageDryRun(
+      artifact,
+      acceptedBytes,
+      {
+        acceptedTools: releaseTools,
+        tag: 'latest',
+      },
+      {
+        loadRuntime: () => ({
+          libnpmpublishVersion: 'fixture-libnpmpublish',
+          npmVersion: releaseTools.npm,
+          publish: async () => {
+            publishCalls += 1;
+          },
+        }),
+        requestToken: async () => {
+          credentialRequests += 1;
+          throw new Error('dry-run must not request credentials');
+        },
+      },
+    );
+
+    assert.deepEqual(result, {
+      bytes: acceptedBytes.length,
+      libnpmpublishVersion: 'fixture-libnpmpublish',
+      manifest: {
+        name: artifact.targetName,
+        version: artifact.version,
+      },
+      npmVersion: releaseTools.npm,
+      registry: 'https://registry.npmjs.org/',
+      tag: 'latest',
+    });
+    assert.equal(credentialRequests, 0);
+    assert.equal(publishCalls, 0);
+  } finally {
+    removeDir(fixture.root);
+  }
+});
+
+test('final pack runs once and dry-run consumes accepted bytes without lifecycle scripts', async () => {
+  const { publishPackage, verifyReleaseArtifacts } = await import(
+    '../prepare-bleedingdev-packages.mjs'
+  );
+  const fixture = await createArtifactFixture({
+    scripts: markerPath => {
+      const mutation = `require('node:fs').writeFileSync(${JSON.stringify(
+        markerPath,
+      )}, 'ran')`;
+      return {
+        prepack: `node -e ${JSON.stringify(mutation)}`,
+        prepublishOnly: `node -e ${JSON.stringify(mutation)}`,
+      };
+    },
+  });
+
+  try {
+    assert.equal(fixture.packCalls.length, 3);
+    for (const call of fixture.packCalls) {
+      assert.equal(call.command, 'npm');
+      assert.equal(call.args[0], 'pack');
+      assert(call.args.includes('--ignore-scripts'));
+      assert(call.args.includes('--json'));
+      assert(call.args.includes('--pack-destination'));
+    }
+    assert.equal(fs.existsSync(fixture.markerPath), false);
+    assert.equal(
+      fs.existsSync(path.join(fixture.outDir, 'manifest.json.sha256')),
+      true,
+    );
+    assert.equal(
+      fs.existsSync(path.join(fixture.outDir, 'cohort.sha256')),
+      true,
+    );
+    const manifest = fixture.releaseArtifacts.manifest;
+    assert.equal(manifest.schema, 'bleedingdev.ultramodern.release-manifest');
+    assert.equal(manifest.schemaVersion, 2);
+    assert.deepEqual(Object.keys(manifest).sort(), [
+      'aliases',
+      'cohortDigest',
+      'cohortProjection',
+      'dependencyGraph',
+      'packages',
+      'publishOrder',
+      'release',
+      'schema',
+      'schemaVersion',
+      'source',
+      'tools',
+    ]);
+    assert.deepEqual(manifest.source, releaseSource);
+    assert.deepEqual(manifest.release, {
+      tag: 'latest',
+      version: '3.2.0-ultramodern.1',
+    });
+    assert.deepEqual(manifest.tools, releaseTools);
+    for (const item of manifest.packages) {
+      assert.deepEqual(Object.keys(item).sort(), [
+        'fileCount',
+        'fileListSha256',
+        'integrity',
+        'packageJsonSha256',
+        'sha256',
+        'shasum',
+        'size',
+        'sourceName',
+        'tarballPath',
+        'targetName',
+        'unpackedSize',
+        'version',
+      ]);
+      assert.match(item.tarballPath, /^tarballs\/[^/]+\.tgz$/u);
+      assert.equal(path.isAbsolute(item.tarballPath), false);
+    }
+    const manifestBytes = fs.readFileSync(
+      path.join(fixture.outDir, 'manifest.json'),
+    );
+    const manifestSha256 = crypto
+      .createHash('sha256')
+      .update(manifestBytes)
+      .digest('hex');
+    assert.equal(
+      fs.readFileSync(
+        path.join(fixture.outDir, 'manifest.json.sha256'),
+        'utf8',
+      ),
+      `${manifestSha256}  manifest.json\n`,
+    );
+    assert.equal(
+      fs.readFileSync(path.join(fixture.outDir, 'cohort.sha256'), 'utf8'),
+      `${manifest.cohortDigest}\n`,
+    );
+    assert.deepEqual(fixture.releaseArtifacts.manifest.publishOrder, [
+      '@bleedingdev/modern-js-utils',
+      '@bleedingdev/modern-js-runtime',
+      '@bleedingdev/modern-js-create',
+    ]);
+
+    const artifact = fixture.releaseArtifacts.packages.find(
+      item => item.sourceName === '@modern-js/runtime',
+    );
+    const before = crypto
+      .createHash('sha256')
+      .update(fs.readFileSync(artifact.artifactPath))
+      .digest('hex');
+    const acceptedBytes = fs.readFileSync(artifact.artifactPath);
+    const publishCalls = [];
+    await publishPackage(
+      artifact,
+      { dryRun: true, tag: 'latest' },
+      {
+        validateAcceptedPackageDryRun: async (item, bytes, options) => {
+          publishCalls.push({ bytes: Buffer.from(bytes), item, options });
+          fs.writeFileSync(artifact.artifactPath, 'mutated source path');
+          assert.deepEqual(bytes, acceptedBytes);
+        },
+      },
+    );
+
+    assert.equal(publishCalls.length, 1);
+    assert.notEqual(publishCalls[0].item, artifact);
+    assert.deepEqual(publishCalls[0].item, artifact);
+    assert.equal(publishCalls[0].options.dryRun, true);
+    assert.deepEqual(publishCalls[0].bytes, acceptedBytes);
+    assert.equal(fs.existsSync(fixture.markerPath), false);
+    fs.writeFileSync(artifact.artifactPath, acceptedBytes);
+    assert.equal(
+      crypto
+        .createHash('sha256')
+        .update(fs.readFileSync(artifact.artifactPath))
+        .digest('hex'),
+      before,
+    );
+    assert.doesNotThrow(() =>
+      verifyReleaseArtifacts(
+        fixture.outDir,
+        artifactExpectations(fixture.aliases),
+      ),
+    );
+  } finally {
+    removeDir(fixture.root);
+  }
+});
+
+test('local acceptance publishes verified buffers even when source paths mutate', async () => {
+  const { publishReleaseTarballs } = await import(
+    '../lib/source-create-proof/runtime-proof/registry.mjs'
+  );
+  const fixture = await createArtifactFixture();
+  const artifact = fixture.releaseArtifacts.packages[0];
+  const acceptedBytes = fs.readFileSync(artifact.artifactPath);
+  const publishCalls = [];
+
+  try {
+    const published = await publishReleaseTarballs(
+      {
+        packages: [artifact],
+        publishOrder: [artifact.targetName],
+        release: fixture.releaseArtifacts.manifest.release,
+        tools: fixture.releaseArtifacts.manifest.tools,
+      },
+      {
+        registryUrl: 'http://127.0.0.1:4873/',
+        userConfigPath: path.join(fixture.root, '.npmrc'),
+      },
+      'ephemeral-registry-token',
+      {
+        publishPackageBufferImpl: async (item, bytes, options) => {
+          publishCalls.push({
+            bytes: Buffer.from(bytes),
+            item,
+            options,
+          });
+          fs.writeFileSync(item.artifactPath, 'mutated source path');
+        },
+        readRegistryDistImpl: () => ({
+          integrity: artifact.integrity,
+          shasum: artifact.shasum,
+        }),
+      },
+    );
+
+    assert.equal(publishCalls.length, 1);
+    assert.deepEqual(publishCalls[0].bytes, acceptedBytes);
+    assert.notDeepEqual(fs.readFileSync(artifact.artifactPath), acceptedBytes);
+    assert.deepEqual(
+      publishCalls[0].options.acceptedTools,
+      fixture.releaseArtifacts.manifest.tools,
+    );
+    assert.equal(publishCalls[0].options.authToken, 'ephemeral-registry-token');
+    assert.equal(publishCalls[0].options.provenance, false);
+    assert.equal(publishCalls[0].options.tag, 'latest');
+    assert.deepEqual(published, [
+      {
+        integrity: artifact.integrity,
+        shasum: artifact.shasum,
+        sourceName: artifact.sourceName,
+        targetName: artifact.targetName,
+        version: artifact.version,
+      },
+    ]);
+    assert.equal(
+      JSON.stringify(published).includes('ephemeral-registry-token'),
+      false,
+    );
+  } finally {
+    removeDir(fixture.root);
+  }
+});
+
+test('dry-run preflights absent versions and publishes every exact snapshot without claiming provenance', async () => {
+  const { publishManifestPackages, publishPackage, verifyPackageArtifact } =
+    await import('../prepare-bleedingdev-packages.mjs');
+  const fixture = await createArtifactFixture();
+  const npmCalls = [];
+  const packageLookups = [];
+  const tagLookups = [];
+  const logs = [];
+  let cohortValidationCalls = 0;
+  let localVerificationCalls = 0;
+  const originalLog = console.log;
+  console.log = (...args) => logs.push(args.join(' '));
+
+  try {
+    await publishManifestPackages(
+      fixture.releaseArtifacts,
+      {
+        dryRun: true,
+        publishConcurrency: 1,
+        tag: 'latest',
+        version: '3.2.0-ultramodern.1',
+      },
+      {
+        lookupRegistryDistTag: async (packageName, tag) => {
+          tagLookups.push({ packageName, tag });
+          return '3.5.0-ultramodern.44';
+        },
+        lookupRegistryPackageDist: async (packageName, version) => {
+          packageLookups.push({ packageName, version });
+          return null;
+        },
+        publishPackage: (artifact, options) =>
+          publishPackage(artifact, options, {
+            validateAcceptedPackageDryRun: async (
+              item,
+              bytes,
+              publishOptions,
+            ) => {
+              npmCalls.push({
+                acceptedTools: publishOptions.acceptedTools,
+                bytes: Buffer.from(bytes),
+                targetName: item.targetName,
+              });
+            },
+          }),
+        validateRegistryCohort: async () => {
+          cohortValidationCalls += 1;
+        },
+        verifyPackageArtifact: (artifact, artifactPath) => {
+          localVerificationCalls += 1;
+          return verifyPackageArtifact(artifact, artifactPath);
+        },
+        verifyRegistryDistTag: async () => {
+          throw new Error('dry-run must not perform final tag assertion');
+        },
+        verifyRegistryPackage: async () => {
+          throw new Error('absent dry-run cannot perform post-publish checks');
+        },
+        verifyRegistryPackageDist: async () => {
+          throw new Error('absent versions have no registry bytes to verify');
+        },
+      },
+    );
+
+    assert.equal(cohortValidationCalls, 0);
+    assert.equal(
+      localVerificationCalls,
+      fixture.releaseArtifacts.packages.length * 2,
+    );
+    assert.equal(
+      packageLookups.length,
+      fixture.releaseArtifacts.packages.length,
+    );
+    assert.equal(tagLookups.length, fixture.releaseArtifacts.packages.length);
+    assert.equal(npmCalls.length, fixture.releaseArtifacts.packages.length);
+    assert.deepEqual(
+      npmCalls.map(call => call.targetName),
+      fixture.releaseArtifacts.manifest.publishOrder,
+    );
+    for (const call of npmCalls) {
+      const artifact = fixture.releaseArtifacts.packages.find(
+        item => item.targetName === call.targetName,
+      );
+      assert.deepEqual(
+        call.acceptedTools,
+        fixture.releaseArtifacts.manifest.tools,
+      );
+      assert.deepEqual(call.bytes, fs.readFileSync(artifact.artifactPath));
+    }
+    assert.equal(
+      logs.filter(message =>
+        message.includes('provenance equivalence cannot be asserted'),
+      ).length,
+      fixture.releaseArtifacts.packages.length,
+    );
+  } finally {
+    console.log = originalLog;
+    removeDir(fixture.root);
+  }
+});
+
+test('dry-run fully verifies existing registry versions and tags before invoking npm for every tarball', async () => {
+  const { publishManifestPackages } = await import(
+    '../prepare-bleedingdev-packages.mjs'
+  );
+  const fixture = await createArtifactFixture();
+  const preflightChecks = [];
+  const npmCalls = [];
+
+  try {
+    await publishManifestPackages(
+      fixture.releaseArtifacts,
+      {
+        dryRun: true,
+        publishConcurrency: 1,
+        tag: 'latest',
+        version: '3.2.0-ultramodern.1',
+      },
+      {
+        lookupRegistryDistTag: async (_packageName, _tag) =>
+          '3.2.0-ultramodern.1',
+        lookupRegistryPackageDist: async packageName => {
+          const artifact = fixture.releaseArtifacts.packages.find(
+            item => item.targetName === packageName,
+          );
+          return registryDistFor(artifact);
+        },
+        publishPackage: async (artifact, options) => {
+          npmCalls.push({ artifact, options });
+          return artifact.targetName;
+        },
+        verifyRegistryPackageDist: async (artifact, dist, expectation) => {
+          preflightChecks.push({ artifact, dist, expectation });
+        },
+      },
+    );
+
+    assert.equal(
+      preflightChecks.length,
+      fixture.releaseArtifacts.packages.length,
+    );
+    assert.equal(npmCalls.length, fixture.releaseArtifacts.packages.length);
+    for (const check of preflightChecks) {
+      assert.equal(check.dist.integrity, check.artifact.integrity);
+      assert.equal(check.dist.shasum, check.artifact.shasum);
+      assert.equal(check.expectation.issuer, trustedOidcIssuer);
+      assert.equal(
+        check.expectation.certificateIdentity,
+        'https://github.com/BleedingDev/ultramodern.js/.github/workflows/publish-bleedingdev.yml@refs/heads/main-ultramodern',
+      );
+    }
+    assert(npmCalls.every(call => call.options.dryRun));
+  } finally {
+    removeDir(fixture.root);
+  }
+});
+
+test('real publish verifies registry provenance after each accepted tarball before cohort validation', async () => {
+  const { publishManifestPackages, verifyPackageArtifact } = await import(
+    '../prepare-bleedingdev-packages.mjs'
+  );
+  const fixture = await createArtifactFixture();
+  const events = [];
+
+  try {
+    await publishManifestPackages(
+      fixture.releaseArtifacts,
+      {
+        dryRun: false,
+        publishConcurrency: 1,
+        tag: 'latest',
+        version: '3.2.0-ultramodern.1',
+      },
+      {
+        assertRegistryDistMatches: () => {},
+        lookupRegistryDistTag: async () => '3.5.0-ultramodern.44',
+        lookupRegistryPackageDist: async () => null,
+        publishPackage: async artifact => {
+          events.push({
+            artifactPath: artifact.artifactPath,
+            kind: 'publish',
+            targetName: artifact.targetName,
+          });
+          return artifact.targetName;
+        },
+        validateRegistryCohort: async (_manifest, options) => {
+          assert.equal(options.dryRun, false);
+          events.push({ kind: 'cohort' });
+        },
+        verifyPackageArtifact,
+        verifyRegistryDistTag: async () => {},
+        verifyRegistryPackage: async (artifact, expectation) => {
+          assert.deepEqual(expectation.source, releaseSource);
+          assert.equal(
+            expectation.workflow.path,
+            '.github/workflows/publish-bleedingdev.yml',
+          );
+          events.push({ kind: 'provenance', targetName: artifact.targetName });
+        },
+      },
+    );
+
+    const artifactsByTarget = new Map(
+      fixture.releaseArtifacts.packages.map(item => [item.targetName, item]),
+    );
+    assert.deepEqual(
+      events,
+      fixture.releaseArtifacts.manifest.publishOrder
+        .flatMap(targetName => [
+          {
+            artifactPath: artifactsByTarget.get(targetName).artifactPath,
+            kind: 'publish',
+            targetName,
+          },
+          { kind: 'provenance', targetName },
+        ])
+        .concat({ kind: 'cohort' }),
+    );
+  } finally {
+    removeDir(fixture.root);
+  }
+});
+
+test('release verifier rejects schema, cohort, path, detached digest, and tarball tampering', async () => {
+  const {
+    computeCohortDigest,
+    validateReleaseManifest,
+    verifyReleaseArtifacts,
+  } = await import('../prepare-bleedingdev-packages.mjs');
+  const { validateReleaseCohortProjection } = await import(
+    '../lib/prepare-bleedingdev-packages/release-artifacts.mjs'
+  );
+  const fixture = await createArtifactFixture();
+  const expected = artifactExpectations(fixture.aliases);
+  const manifest = fixture.releaseArtifacts.manifest;
+  const projection = fixture.releaseArtifacts.cohortProjection.value;
+
+  try {
+    assert.doesNotThrow(() => verifyReleaseArtifacts(fixture.outDir, expected));
+    assert.doesNotThrow(() =>
+      validateReleaseCohortProjection(projection, manifest),
+    );
+
+    const projectionOmission = structuredClone(projection);
+    projectionOmission.packages.pop();
+    assert.throws(
+      () => validateReleaseCohortProjection(projectionOmission, manifest),
+      /Release cohort projection does not match the accepted release identity/u,
+    );
+    const projectionAddition = structuredClone(projection);
+    projectionAddition.packages.push(structuredClone(projection.packages[0]));
+    assert.throws(
+      () => validateReleaseCohortProjection(projectionAddition, manifest),
+      /Release cohort projection does not match the accepted release identity/u,
+    );
+    const projectionVersionDrift = structuredClone(projection);
+    projectionVersionDrift.packages[0].version = '3.2.0-ultramodern.2';
+    assert.throws(
+      () => validateReleaseCohortProjection(projectionVersionDrift, manifest),
+      /Release cohort projection does not match the accepted release identity/u,
+    );
+    const projectionAliasDrift = structuredClone(projection);
+    projectionAliasDrift.aliases['@modern-js/create'] =
+      '@bleedingdev/modern-js-attacker';
+    assert.throws(
+      () => validateReleaseCohortProjection(projectionAliasDrift, manifest),
+      /Release cohort projection does not match the accepted release identity/u,
+    );
+    const projectionSourceDrift = structuredClone(projection);
+    projectionSourceDrift.source.commit = 'b'.repeat(40);
+    assert.throws(
+      () => validateReleaseCohortProjection(projectionSourceDrift, manifest),
+      /Release cohort projection does not match the accepted release identity/u,
+    );
+    const unknownProjectionSchema = structuredClone(projection);
+    unknownProjectionSchema.schemaVersion = 2;
+    assert.throws(
+      () => validateReleaseCohortProjection(unknownProjectionSchema, manifest),
+      /Unknown release cohort projection schema/u,
+    );
+
+    const mixedSchema = structuredClone(manifest);
+    mixedSchema.generatedAt = '2026-07-10T00:00:00.000Z';
+    assert.throws(
+      () => validateReleaseManifest(mixedSchema, expected),
+      /unknown or missing fields/,
+    );
+
+    const duplicate = structuredClone(manifest);
+    duplicate.packages.push(structuredClone(duplicate.packages[0]));
+    assert.throws(
+      () => validateReleaseManifest(duplicate, expected),
+      /duplicates/,
+    );
+
+    const omitted = structuredClone(manifest);
+    omitted.packages = omitted.packages.slice(0, 1);
+    assert.throws(
+      () => validateReleaseManifest(omitted, expected),
+      /accepted release identity/,
+    );
+
+    const escaped = structuredClone(manifest);
+    escaped.packages[0].tarballPath = '../outside.tgz';
+    assert.throws(
+      () => validateReleaseManifest(escaped, expected),
+      /tarballPath/,
+    );
+
+    const wrongVersion = structuredClone(manifest);
+    wrongVersion.packages[0].version = '3.2.0-ultramodern.2';
+    assert.throws(
+      () => validateReleaseManifest(wrongVersion, expected),
+      /does not match release/,
+    );
+    const changedTools = structuredClone(manifest);
+    changedTools.tools.npm = 'different-npm-version';
+    assert.notEqual(computeCohortDigest(changedTools), manifest.cohortDigest);
+    assert.throws(
+      () => validateReleaseManifest(changedTools, expected),
+      /Release cohort digest mismatch/,
+    );
+    assert.throws(
+      () =>
+        validateReleaseManifest(manifest, {
+          ...expected,
+          source: { ...releaseSource, commit: 'b'.repeat(40) },
+        }),
+      /Release source does not match/,
+    );
+
+    const extraTarball = path.join(fixture.outDir, 'tarballs', 'extra.tgz');
+    writeFile(extraTarball);
+    assert.throws(
+      () => verifyReleaseArtifacts(fixture.outDir, expected),
+      /Release tarball set mismatch/,
+    );
+    fs.rmSync(extraTarball);
+
+    const artifact = fixture.releaseArtifacts.packages[0];
+    const acceptedBytes = fs.readFileSync(artifact.artifactPath);
+    fs.rmSync(artifact.artifactPath);
+    assert.throws(
+      () => verifyReleaseArtifacts(fixture.outDir, expected),
+      /Release tarball set mismatch/,
+    );
+    fs.writeFileSync(artifact.artifactPath, acceptedBytes);
+
+    const manifestPath = path.join(fixture.outDir, 'manifest.json');
+    const manifestBytes = fs.readFileSync(manifestPath);
+    fs.appendFileSync(manifestPath, ' ');
+    assert.throws(
+      () => verifyReleaseArtifacts(fixture.outDir, expected),
+      /Detached release manifest SHA-256 mismatch/,
+    );
+    fs.writeFileSync(manifestPath, manifestBytes);
+
+    const cohortDigestPath = path.join(fixture.outDir, 'cohort.sha256');
+    const cohortDigestBytes = fs.readFileSync(cohortDigestPath);
+    fs.rmSync(cohortDigestPath);
+    assert.throws(
+      () => verifyReleaseArtifacts(fixture.outDir, expected),
+      /Detached release cohort digest is missing/,
+    );
+    fs.writeFileSync(cohortDigestPath, cohortDigestBytes);
+
+    fs.appendFileSync(artifact.artifactPath, 'tampered');
+    assert.throws(
+      () => verifyReleaseArtifacts(fixture.outDir, expected),
+      /tarball size mismatch/,
+    );
+  } finally {
+    removeDir(fixture.root);
+  }
+});
+
+test('existing-version reuse rejects metadata, body, provenance, and registry uncertainty before publish', async () => {
+  const {
+    assertRegistryDistMatches,
+    createRegistryProvenanceExpectation,
+    publishManifestPackages,
+    publishPackage,
+  } = await import('../prepare-bleedingdev-packages.mjs');
+  const fixture = await createArtifactFixture();
+  const artifact = fixture.releaseArtifacts.packages[0];
+  const expectation = createRegistryProvenanceExpectation(
+    fixture.releaseArtifacts.manifest,
+  );
+  const publishError = new Error('npm publish failed with E403');
+  publishError.stderr = 'npm error code E403';
+  let attemptedPublishes = 0;
+  const publishOptions = {
+    dryRun: false,
+    publishConcurrency: 1,
+    tag: 'latest',
+    version: '3.2.0-ultramodern.1',
+  };
+  const baseOverrides = {
+    lookupRegistryDistTag: async () => publishOptions.version,
+    lookupRegistryPackageDist: async packageName => {
+      const existingArtifact = fixture.releaseArtifacts.packages.find(
+        item => item.targetName === packageName,
+      );
+      return registryDistFor(existingArtifact);
+    },
+    publishPackage: async () => {
+      attemptedPublishes += 1;
+    },
+  };
+
+  try {
+    await assert.rejects(
+      () =>
+        publishManifestPackages(fixture.releaseArtifacts, publishOptions, {
+          ...baseOverrides,
+          lookupRegistryPackageDist: async packageName => {
+            const existingArtifact = fixture.releaseArtifacts.packages.find(
+              item => item.targetName === packageName,
+            );
+            return {
+              ...registryDistFor(existingArtifact),
+              shasum: '0'.repeat(40),
+            };
+          },
+          verifyRegistryPackageDist: async (item, dist) =>
+            assertRegistryDistMatches(item, dist),
+        }),
+      /Registry artifact identity mismatch/,
+    );
+    assert.equal(attemptedPublishes, 0);
+
+    await assert.rejects(
+      () =>
+        publishManifestPackages(fixture.releaseArtifacts, publishOptions, {
+          ...baseOverrides,
+          verifyRegistryPackageDist: async () => {
+            throw new Error('registry tarball byte mismatch');
+          },
+        }),
+      /registry tarball byte mismatch/,
+    );
+    assert.equal(attemptedPublishes, 0);
+
+    await assert.rejects(
+      () =>
+        publishManifestPackages(fixture.releaseArtifacts, publishOptions, {
+          ...baseOverrides,
+          verifyRegistryPackageDist: async () => {
+            throw new Error('registry provenance mismatch');
+          },
+        }),
+      /registry provenance mismatch/,
+    );
+    assert.equal(attemptedPublishes, 0);
+
+    await assert.rejects(
+      () =>
+        publishManifestPackages(fixture.releaseArtifacts, publishOptions, {
+          ...baseOverrides,
+          lookupRegistryPackageDist: async () => {
+            throw new Error('registry state is uncertain');
+          },
+        }),
+      /registry state is uncertain/,
+    );
+    assert.equal(attemptedPublishes, 0);
+
+    await assert.rejects(
+      () =>
+        publishPackage(
+          artifact,
+          {
+            dryRun: false,
+            provenanceExpectation: expectation,
+            tag: 'latest',
+          },
+          {
+            publishAcceptedPackage: async () => {
+              throw publishError;
+            },
+            wait: async () => {},
+            registry: {
+              assertRegistryDistMatches: () => {},
+              lookupRegistryPackageDist: async () => {
+                throw new Error('registry state is uncertain');
+              },
+              verifyRegistryPackageDist: async () => {},
+            },
+          },
+        ),
+      /registry state is uncertain/,
+    );
+  } finally {
+    removeDir(fixture.root);
   }
 });
