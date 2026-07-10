@@ -2648,6 +2648,76 @@ describe('cloudflare deploy preset', () => {
     );
   });
 
+  it('emits the typed microvertical degraded event when a service binding is unavailable', async () => {
+    const { outputDirectory } = await createFixture({
+      services: [
+        {
+          binding: 'VERTICAL_CATALOG_WORKER',
+          prefix: '/catalog-api',
+          service: 'tractor-catalog-worker',
+        },
+      ],
+    });
+    const entryPath = path.join(outputDirectory, 'server/index.mjs');
+    const worker = (
+      await import(`${pathToFileURL(entryPath).href}?t=${Date.now()}`)
+    ).default;
+
+    const errorLogs: string[] = [];
+    const originalConsoleError = console.error;
+    console.error = (...args: unknown[]) => {
+      errorLogs.push(args.map(String).join(' '));
+    };
+
+    let response: Response;
+    try {
+      response = await worker.fetch(
+        new Request('https://example.com/catalog-api/catalog/readiness'),
+        {
+          ASSETS: createSpaFallbackAssetBinding(
+            path.join(outputDirectory, 'public'),
+          ),
+        },
+      );
+    } finally {
+      console.error = originalConsoleError;
+    }
+
+    // HTTP failure response stays correct.
+    expect(response.status).toBe(502);
+    expect(response.headers.get('x-modern-js-service-binding')).toBe(
+      'VERTICAL_CATALOG_WORKER',
+    );
+    // Typed degraded markers on the response.
+    expect(response.headers.get('x-modern-js-degraded')).toBe(
+      'remote-unavailable',
+    );
+    expect(response.headers.get('x-modern-js-telemetry-event')).toBe(
+      'modernjs:microvertical-server-fallback',
+    );
+
+    // Structured telemetry event with the framework's degraded shape.
+    const eventLog = errorLogs.find(entry =>
+      entry.includes('modernjs:microvertical-server-fallback'),
+    );
+    expect(eventLog).toBeDefined();
+    expect(JSON.parse(eventLog as string)).toMatchObject({
+      eventName: 'modernjs:microvertical-server-fallback',
+      phase: 'discovery',
+      reason: 'remote-unavailable',
+      schemaVersion: 1,
+      metadata: {
+        classification: 'remote-unavailable',
+        pathname: '/catalog-api/catalog/readiness',
+        platform: 'cloudflare-service-binding',
+        prefix: '/catalog-api',
+        remote: 'VERTICAL_CATALOG_WORKER',
+        serviceBinding: 'VERTICAL_CATALOG_WORKER',
+        status: 'degraded',
+      },
+    });
+  });
+
   it('dispatches Effect BFF worker modules before SSR route fallback', async () => {
     const { outputDirectory } = await createFixture({ bffPrefix: '/api' });
     const entryPath = path.join(outputDirectory, 'server/index.mjs');

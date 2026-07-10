@@ -1685,6 +1685,32 @@ async function dispatchBffRequest(request, env) {
   return handler(mountedRequest, effectContext);
 }
 
+const MICROVERTICAL_SERVER_FALLBACK_EVENT =
+  'modernjs:microvertical-server-fallback';
+
+// Typed degraded event for an unavailable service binding. Mirrors the shape
+// of the runtime MF fallback telemetry payload (schemaVersion 1) under the
+// server-side event name, so shell-level consumers see one degraded contract
+// across platforms.
+function createServiceBindingDegradedEvent(binding, pathname) {
+  return {
+    appName: 'modern-js-cloudflare-worker',
+    eventName: MICROVERTICAL_SERVER_FALLBACK_EVENT,
+    phase: 'discovery',
+    reason: 'remote-unavailable',
+    schemaVersion: 1,
+    metadata: {
+      classification: 'remote-unavailable',
+      pathname,
+      platform: 'cloudflare-service-binding',
+      prefix: binding.prefix,
+      remote: binding.binding,
+      serviceBinding: binding.binding,
+      status: 'degraded',
+    },
+  };
+}
+
 async function dispatchServiceBindingRequest(request, env) {
   const serviceBindings = MODERN_WORKER_MANIFEST.serviceBindings;
 
@@ -1706,6 +1732,17 @@ async function dispatchServiceBindingRequest(request, env) {
     const service = env?.[binding.binding];
 
     if (!service || typeof service.fetch !== 'function') {
+      const degradedEvent = createServiceBindingDegradedEvent(
+        binding,
+        pathname,
+      );
+
+      // Telemetry emission: workers surface structured logs via tail/analytics.
+      // The degraded path must never fail because a log sink did.
+      try {
+        console.error(JSON.stringify(degradedEvent));
+      } catch {}
+
       return new Response(
         `Cloudflare service binding not available: ${binding.binding}`,
         {
@@ -1713,6 +1750,8 @@ async function dispatchServiceBindingRequest(request, env) {
           headers: {
             'content-type': 'text/plain; charset=utf-8',
             'x-modern-js-service-binding': binding.binding,
+            'x-modern-js-degraded': degradedEvent.metadata.classification,
+            'x-modern-js-telemetry-event': degradedEvent.eventName,
           },
         },
       );
