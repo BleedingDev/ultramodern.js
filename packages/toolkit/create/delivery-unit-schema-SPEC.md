@@ -53,16 +53,27 @@ Canonical form: `unitId#surfaceId` with optional `@vN` external-major suffix
 - `UnitId` allows `/` (scope/name, matching v1 `${scope}/${id}`); each segment
   is non-empty and drawn from `SegmentChar`.
 - `SurfaceId` is a single `Segment` (no `/`).
-- `Major` is `v` + a positive integer with no leading zero. Absent major means
-  "the coordinated-zone surface"; a present major selects an externally
-  published major (ADR-0020).
+- `Major` is `v` + a positive safe integer with no leading zero. Absent major
+  means "the coordinated-zone surface"; a present major selects an externally
+  published major (ADR-0020). Values outside JavaScript's safe-integer range
+  are rejected so parsing and direct object formatting preserve the exact same
+  identity.
+
+> **Note (Major upper bound).** The EBNF production for `Major` admits any
+> digit sequence, but the grammar is bounded: a major MUST be a positive safe
+> integer, i.e. `1 ≤ major ≤ Number.MAX_SAFE_INTEGER` (2^53 − 1). A
+> syntactically digit-only major above that bound is invalid (`invalid-major`),
+> matching `parseSurfaceRef` / `validateSurfaceRef`, which reject non-safe
+> integers so a ref's numeric identity survives parse/format round-trips
+> exactly.
 
 `parseSurfaceRef` is total (never throws) and returns one of these typed
 errors, exhaustively: `empty`, `missing-surface-separator`,
 `multiple-surface-separators`, `empty-unit-id`, `invalid-unit-id` (+`segment`),
 `empty-surface-id`, `invalid-surface-id`, `empty-major`, `invalid-major`
-(+`value`). Round-trip: `formatSurfaceRef(parse(x).ref) === x` for every valid
-`x`.
+(+`value`). `formatSurfaceRef` validates direct `ParsedSurfaceRef` inputs
+against the same invariant and throws for invalid values. Round-trip:
+`formatSurfaceRef(parse(x).ref) === x` for every valid `x`.
 
 ## 3. `ResolvedDeliveryUnit` — atomic resolution
 

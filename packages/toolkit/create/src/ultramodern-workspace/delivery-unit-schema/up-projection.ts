@@ -235,14 +235,36 @@ export function projectV1ToDeliveryUnit(
 
 /**
  * The reasons a canonical descriptor cannot be faithfully represented in v1.
- * The down-projection in `./types.ts` degrades both cases silently
- * (`horizontal-remote` collapses to `vertical`; an `external` zone is dropped
- * because v1 has no zone field). This guard lets callers detect the loss and
- * fail loudly INSTEAD of degrading silently.
+ * The down-projection in `./types.ts` degrades ALL of these silently, so this
+ * guard exhaustively detects every canonical construct the v1 shape cannot
+ * carry and lets callers fail loudly INSTEAD of degrading silently:
+ *
+ * - `horizontal-remote-kind`: v1 collapses `horizontal-remote` to `vertical`.
+ * - `external-zone`: v1 has no publication-zone field (ADR-0020).
+ * - `non-team-owner`: v1 `Ownership` always names a human team; `agent` /
+ *   `agent-team` owners have no v1 home (the up-projection always emits
+ *   `team`).
+ * - `component-or-route-surface`: the down-projection reconstructs no
+ *   `exposes`, so every component/route surface is dropped.
+ * - `backend-surface`: v1 has no backend-surface vocabulary at all.
+ * - `multiple-api-surfaces`: v1 carries at most ONE `WorkspaceApi`; the
+ *   down-projection keeps the first api surface and drops the rest.
+ * - `non-rest-protocol`: v1 `WorkspaceApi` is an HTTP REST prefix; `rpc` /
+ *   `graphql` protocols are dropped (the up-projection re-defaults to
+ *   `rest`).
+ * - `unsupported-surface-shape`: an api surface whose shape v1 cannot carry —
+ *   anything other than exactly one `http` location, or per-surface
+ *   `externallyPublished` / `unknownFields` metadata.
  */
 export type V1UnrepresentableReason =
   | 'horizontal-remote-kind'
-  | 'external-zone';
+  | 'external-zone'
+  | 'non-team-owner'
+  | 'component-or-route-surface'
+  | 'backend-surface'
+  | 'multiple-api-surfaces'
+  | 'non-rest-protocol'
+  | 'unsupported-surface-shape';
 
 export type V1RepresentabilityResult =
   | { representable: true }
@@ -253,7 +275,7 @@ export type V1RepresentabilityResult =
     };
 
 /**
- * A typed error for the v1-unrepresentable cases. `code` is always
+ * A typed error for v1-unrepresentable cases. `code` is always
  * `'unrepresentable-in-v1'`; `reason` narrows which invariant was violated.
  */
 export class V1UnrepresentableError extends Error {
@@ -261,41 +283,92 @@ export class V1UnrepresentableError extends Error {
   readonly reason: V1UnrepresentableReason;
 
   constructor(reason: V1UnrepresentableReason) {
-    super(`Descriptor is unrepresentable in v1: ${reason}.`);
+    super(`Descriptor unrepresentable in v1: ${reason}.`);
     this.name = 'V1UnrepresentableError';
     this.reason = reason;
   }
 }
 
+/** First unrepresentable construct within one surface, if any. */
+function checkSurfaceRepresentable(
+  surface: SurfaceDescriptor,
+): V1UnrepresentableReason | undefined {
+  if (surface.kind === 'component' || surface.kind === 'route') {
+    return 'component-or-route-surface';
+  }
+  if (surface.kind === 'backend') {
+    return 'backend-surface';
+  }
+  // api surface.
+  if (surface.protocol !== 'rest') {
+    return 'non-rest-protocol';
+  }
+  const [first, ...rest] = surface.locations;
+  if (first === undefined || rest.length > 0 || first.platform !== 'http') {
+    return 'unsupported-surface-shape';
+  }
+  if (
+    surface.externallyPublished !== undefined ||
+    surface.unknownFields !== undefined
+  ) {
+    return 'unsupported-surface-shape';
+  }
+  return undefined;
+}
+
 /**
- * Total check: is this canonical descriptor faithfully representable in v1?
- * Returns a typed result rather than throwing. A `horizontal-remote` kind or
- * an `external` publication zone is unrepresentable; everything else is fine.
+ * Total check: is a canonical descriptor faithfully representable in v1?
+ * Returns a typed result rather than throwing. Exhaustive over the loss set
+ * of `projectDeliveryUnitToV1` (see {@link V1UnrepresentableReason}); the
+ * first detected reason is reported, in a deterministic order (unit-level
+ * kind/zone/owner first, then surfaces in declaration order).
+ *
+ * The round-trip law rests on this guard: for descriptors this function
+ * accepts, canonical -> v1 -> canonical is lossless on every
+ * representability-covered field.
  */
 export function checkV1Representable(
   descriptor: DeliveryUnitDescriptor,
 ): V1RepresentabilityResult {
+  const unrepresentable = (
+    reason: V1UnrepresentableReason,
+  ): V1RepresentabilityResult => ({
+    representable: false,
+    code: 'unrepresentable-in-v1',
+    reason,
+  });
+
   if (descriptor.kind === 'horizontal-remote') {
-    return {
-      representable: false,
-      code: 'unrepresentable-in-v1',
-      reason: 'horizontal-remote-kind',
-    };
+    return unrepresentable('horizontal-remote-kind');
   }
   if (descriptor.publicationZone?.zone === 'external') {
-    return {
-      representable: false,
-      code: 'unrepresentable-in-v1',
-      reason: 'external-zone',
-    };
+    return unrepresentable('external-zone');
   }
+  if (descriptor.owner.kind !== 'team') {
+    return unrepresentable('non-team-owner');
+  }
+
+  let apiSurfaceCount = 0;
+  for (const surface of descriptor.surfaces) {
+    if (surface.kind === 'api') {
+      apiSurfaceCount += 1;
+      if (apiSurfaceCount > 1) {
+        return unrepresentable('multiple-api-surfaces');
+      }
+    }
+    const reason = checkSurfaceRepresentable(surface);
+    if (reason !== undefined) {
+      return unrepresentable(reason);
+    }
+  }
+
   return { representable: true };
 }
 
 /**
  * Assert v1 representability, throwing a typed {@link V1UnrepresentableError}
- * for `horizontal-remote` / `external` descriptors rather than letting the
- * down-projection degrade them silently.
+ * for any descriptor carrying a construct the v1 shape cannot represent,
+ * rather than letting the down-projection degrade it silently.
  */
 export function assertV1Representable(
   descriptor: DeliveryUnitDescriptor,

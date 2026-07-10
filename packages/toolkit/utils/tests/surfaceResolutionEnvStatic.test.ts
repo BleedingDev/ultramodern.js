@@ -111,6 +111,7 @@ describe('createEnvStaticSurfaceResolutionProvider', () => {
         compatibility: {
           status: 'compatible',
           baselineCohortId: 'cohort-2026-07',
+          reason: 'static-identity-unverified',
         },
       },
     });
@@ -118,6 +119,7 @@ describe('createEnvStaticSurfaceResolutionProvider', () => {
 
   it('prefers configured manifest env values and strips the mfName@ remote-ref prefix', async () => {
     const result = await createProvider({
+      ULTRAMODERN_PUBLIC_URL_CHECKOUT: 'https://checkout.example.test',
       VERTICAL_CHECKOUT_MF_MANIFEST:
         'verticalCheckout@https://checkout.example.test/mf-manifest.json',
       VERTICAL_CHECKOUT_BACKEND_MF_MANIFEST:
@@ -154,6 +156,8 @@ describe('createEnvStaticSurfaceResolutionProvider', () => {
   it('derives browser manifest and http base from the public URL env, trimming trailing slashes', async () => {
     const result = await createProvider({
       ULTRAMODERN_PUBLIC_URL_CHECKOUT: 'https://checkout.example.test//',
+      VERTICAL_CHECKOUT_BACKEND_MF_MANIFEST:
+        'https://checkout.example.test/backend-mf-manifest.json',
     }).resolve(ref('acme/checkout#cart'), 'production');
 
     expect(result).toMatchObject({
@@ -183,6 +187,8 @@ describe('createEnvStaticSurfaceResolutionProvider', () => {
     const result = await createProvider({
       MODERNJS_DEPLOY: 'cloudflare',
       ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN: 'acme-team',
+      VERTICAL_CHECKOUT_BACKEND_MF_MANIFEST:
+        'https://checkout.example.test/backend-mf-manifest.json',
     }).resolve(ref('acme/checkout#cart'), 'production');
 
     expect(result).toMatchObject({
@@ -238,8 +244,8 @@ describe('createEnvStaticSurfaceResolutionProvider', () => {
     });
   });
 
-  it('returns major-not-published for unpublished external majors', async () => {
-    const provider = createProvider({}, { publishedMajors: [1] });
+  it('returns major-not-published for majors with no configured materialization', async () => {
+    const provider = createProvider({}, { majors: [{ major: 1 }] });
     expect(
       await provider.resolve(ref('acme/checkout#cart@v2'), 'production'),
     ).toMatchObject({
@@ -250,9 +256,153 @@ describe('createEnvStaticSurfaceResolutionProvider', () => {
         details: { publishedMajors: [1] },
       },
     });
+  });
+
+  it('serves a versioned ref ONLY from the major-specific materialization and stamps servedMajor', async () => {
+    const provider = createProvider(
+      {
+        // Unversioned addresses exist but must never answer @v2.
+        ULTRAMODERN_PUBLIC_URL_CHECKOUT: 'https://checkout.example.test',
+        VERTICAL_CHECKOUT_BACKEND_MF_MANIFEST:
+          'https://checkout.example.test/backend-mf-manifest.json',
+        // Major-specific materialization under the default `_V2` segment.
+        ULTRAMODERN_PUBLIC_URL_CHECKOUT_V2: 'https://checkout-v2.example.test',
+        VERTICAL_CHECKOUT_V2_BACKEND_MF_MANIFEST:
+          'https://checkout-v2.example.test/backend-mf-manifest.json',
+      },
+      { majors: [{ major: 2 }] },
+    );
+
+    const result = await provider.resolve(
+      ref('acme/checkout#cart@v2'),
+      'production',
+    );
+    expect(result).toMatchObject({
+      ok: true,
+      unit: {
+        surfaces: [
+          {
+            surfaceId: 'cart',
+            servedMajor: 2,
+            locations: [
+              {
+                manifestUrl:
+                  'https://checkout-v2.example.test/mf-manifest.json',
+              },
+            ],
+          },
+          {
+            surfaceId: 'checkout-api',
+            servedMajor: 2,
+            locations: [
+              {
+                manifestRef:
+                  'https://checkout-v2.example.test/backend-mf-manifest.json',
+              },
+              { baseUrl: 'https://checkout-v2.example.test' },
+              expect.anything(),
+            ],
+          },
+        ],
+      },
+    });
+  });
+
+  it('fails closed instead of serving unversioned locations when the configured major has no materialization inputs', async () => {
+    const provider = createProvider(
+      {
+        ULTRAMODERN_PUBLIC_URL_CHECKOUT: 'https://checkout.example.test',
+        VERTICAL_CHECKOUT_BACKEND_MF_MANIFEST:
+          'https://checkout.example.test/backend-mf-manifest.json',
+      },
+      { majors: [{ major: 2 }] },
+    );
+
+    // The unit-level port must NOT leak into the major materialization, even
+    // in a local environment.
     expect(
-      await provider.resolve(ref('acme/checkout#cart@v1'), 'production'),
+      await provider.resolve(ref('acme/checkout#cart@v2'), 'development'),
+    ).toMatchObject({
+      ok: false,
+      error: { code: 'provider-unavailable' },
+    });
+  });
+
+  it('honours per-major envSegment and port overrides in local environments', async () => {
+    const provider = createProvider(
+      {},
+      { majors: [{ major: 3, envSegment: 'CHECKOUT_LEGACY', port: 3999 }] },
+    );
+
+    const result = await provider.resolve(
+      ref('acme/checkout#cart@v3'),
+      'development',
+    );
+    expect(result).toMatchObject({
+      ok: true,
+      unit: {
+        surfaces: [
+          {
+            servedMajor: 3,
+            locations: [
+              { manifestUrl: 'http://localhost:3999/mf-manifest.json' },
+            ],
+          },
+          expect.anything(),
+        ],
+      },
+    });
+  });
+
+  it('fails closed in non-local environments instead of falling back to localhost', async () => {
+    const result = await createProvider().resolve(
+      ref('acme/checkout#cart'),
+      'production',
+    );
+    expect(result).toMatchObject({
+      ok: false,
+      error: { code: 'provider-unavailable' },
+    });
+  });
+
+  it('applies localhost fallbacks in both default local environments and honours localEnvironments overrides', async () => {
+    const local = await createProvider().resolve(
+      ref('acme/checkout#cart'),
+      'local',
+    );
+    expect(local).toMatchObject({ ok: true });
+
+    const custom = createEnvStaticSurfaceResolutionProvider({
+      env: {},
+      units: [createUnitConfig()],
+      localEnvironments: ['sandbox'],
+    });
+    expect(
+      await custom.resolve(ref('acme/checkout#cart'), 'sandbox'),
     ).toMatchObject({ ok: true });
+    // 'development' is no longer designated local once overridden.
+    expect(
+      await custom.resolve(ref('acme/checkout#cart'), 'development'),
+    ).toMatchObject({
+      ok: false,
+      error: { code: 'provider-unavailable' },
+    });
+  });
+
+  it('marks the compatibility verdict static-identity-unverified under static-trust (identity asserted, not verified)', async () => {
+    const result = await createProvider().resolve(
+      ref('acme/checkout#cart'),
+      'development',
+    );
+    expect(result).toMatchObject({
+      ok: true,
+      unit: {
+        compatibility: {
+          status: 'compatible',
+          reason: 'static-identity-unverified',
+        },
+      },
+    });
   });
 
   it('fails the WHOLE record when any surface location is unassemblable (missing env, no port)', async () => {

@@ -15,13 +15,20 @@
  * `buildMarker` / `sourceRevision` / `unitId` survive untouched (marker
  * preservation, SPEC invariant 5).
  *
- * Law as implemented (canonical -> v1 -> canonical): for descriptors in the
- * v1-representable subset (kind `shell` | `microvertical`, explicit
- * coordinated zone, `team` owner with contact, surfaces at most one `rest`
- * api with a single http location), the reverse composition deep-equals the
- * original descriptor. `horizontal-remote` and the `external` zone are
- * unrepresentable in v1 and are rejected with typed errors instead of
- * degrading silently.
+ * Law as implemented (canonical -> v1 -> canonical): for descriptors PASSING
+ * `checkV1Representable` (kind `shell` | `microvertical`, coordinated zone,
+ * `team` owner, at most one `rest` api surface with a single http location,
+ * no component/route/backend surfaces), the reverse composition deep-equals
+ * the original descriptor — the round-trip is lossless on every
+ * representability-covered field. Every construct outside that subset
+ * (`horizontal-remote`, `external` zone, non-team owner, component/route or
+ * backend surfaces, multiple api surfaces, non-rest protocols, unsupported
+ * api shapes) is detected by the guard and rejected with a typed error
+ * instead of degrading silently. Where the v1 -> canonical -> v1 direction
+ * still strips fields (`exposes`), the loss is asserted to be
+ * representability-covered: the up-projected descriptor is checked first and
+ * the guard must have flagged exactly the descriptors whose apps carried
+ * exposes.
  */
 import assert from 'node:assert/strict';
 import type { DeliveryUnitRecord } from '@modern-js/utils/universal';
@@ -121,10 +128,13 @@ function downContext(
 }
 
 /**
- * The v1 fields the projection pair owns. SPEC section 5 marks `exposes`,
- * `verticalRefs`, and `domain` as not projected (emergent/underivable), and
- * `api.consumedBy` is re-zeroed by the down-projection. Everything else must
- * round-trip exactly.
+ * The v1 fields the projection pair owns. `verticalRefs` (emergent-resolution
+ * metadata) and `api.consumedBy` (an emergent v1 graph fact re-zeroed by the
+ * down-projection) are genuinely v1-generator-owned; `domain` is reconstructed
+ * into `unitId` but not restored as a field. `exposes` is a
+ * representability-covered loss: `roundTrip` asserts `checkV1Representable`
+ * flagged the descriptor before this stripping is allowed to hide it.
+ * Everything else must round-trip exactly.
  */
 function v1ProjectedView(app: WorkspaceApp): WorkspaceApp {
   const {
@@ -143,11 +153,28 @@ function v1ProjectedView(app: WorkspaceApp): WorkspaceApp {
 function roundTrip(app: WorkspaceApp) {
   const record = createDeliveryUnitRecord(SCOPE, app);
   const descriptor = projectV1ToDeliveryUnit(app, upContext(record));
+
+  // The loss below (v1ProjectedView) must be representability-covered, never
+  // silent: descriptors are checked BEFORE down-projecting, and the guard
+  // must flag exactly the apps whose exposes become component/route surfaces
+  // that v1 cannot carry back.
+  const check = checkV1Representable(descriptor);
+  const hasExposes = Object.keys(app.exposes ?? {}).length > 0;
+  if (hasExposes) {
+    assert.deepEqual(check, {
+      representable: false,
+      code: 'unrepresentable-in-v1',
+      reason: 'component-or-route-surface',
+    });
+  } else {
+    assert.deepEqual(check, { representable: true });
+  }
+
   const projected = projectDeliveryUnitToV1(
     descriptor,
     downContext(app, record),
   );
-  return { record, descriptor, projected };
+  return { record, descriptor, projected, check };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -341,7 +368,7 @@ function canonicalRoundTrip(
   });
 }
 
-test('canonical -> v1 -> canonical round-trips v1-representable descriptors', () => {
+test('canonical -> v1 -> canonical is lossless for descriptors passing checkV1Representable', () => {
   const apiBearing: DeliveryUnitDescriptor = {
     unitId: 'acme/checkout',
     kind: 'microvertical',
@@ -359,6 +386,8 @@ test('canonical -> v1 -> canonical round-trips v1-representable descriptors', ()
       },
     ],
   };
+  // The law's precondition: the descriptor is representability-checked first.
+  assert.deepEqual(checkV1Representable(apiBearing), { representable: true });
   assert.deepEqual(canonicalRoundTrip(apiBearing), apiBearing);
 
   const surfacelessShell: DeliveryUnitDescriptor = {
@@ -371,6 +400,9 @@ test('canonical -> v1 -> canonical round-trips v1-representable descriptors', ()
     publicationZone: { zone: 'coordinated' },
     surfaces: [],
   };
+  assert.deepEqual(checkV1Representable(surfacelessShell), {
+    representable: true,
+  });
   assert.deepEqual(canonicalRoundTrip(surfacelessShell), surfacelessShell);
 });
 
@@ -434,14 +466,127 @@ test('external publication zone is unrepresentable in v1 (typed, not silent)', (
   );
 });
 
-test('up-projection never produces v1-unrepresentable descriptors', () => {
+test('the guard exhaustively detects every construct the v1 shape cannot carry', () => {
+  const base = (
+    overrides: Partial<DeliveryUnitDescriptor>,
+  ): DeliveryUnitDescriptor => ({
+    unitId: 'acme/checkout',
+    kind: 'microvertical',
+    owner: { kind: 'team', id: 'checkout' },
+    sourceRevision: 'rev-x',
+    buildMarker: 'marker-x',
+    baselineCohort,
+    surfaces: [],
+    ...overrides,
+  });
+  const restApi = (surfaceId: string) =>
+    ({
+      kind: 'api',
+      surfaceId,
+      protocol: 'rest',
+      locations: [{ platform: 'http', address: `/${surfaceId}` }],
+    }) as const;
+
+  const cases: Array<[string, DeliveryUnitDescriptor]> = [
+    ['non-team-owner', base({ owner: { kind: 'agent', id: 'bot-7' } })],
+    [
+      'component-or-route-surface',
+      base({
+        surfaces: [
+          {
+            kind: 'component',
+            surfaceId: 'Widget',
+            locations: [
+              { platform: 'browser-mf', manifestUrl: 'http://x/mf.json' },
+            ],
+          },
+        ],
+      }),
+    ],
+    [
+      'backend-surface',
+      base({
+        surfaces: [
+          {
+            kind: 'backend',
+            surfaceId: 'worker',
+            locations: [
+              { platform: 'cloudflare-binding', serviceBinding: 'W' },
+            ],
+          },
+        ],
+      }),
+    ],
+    [
+      'multiple-api-surfaces',
+      base({ surfaces: [restApi('one'), restApi('two')] }),
+    ],
+    [
+      'non-rest-protocol',
+      base({ surfaces: [{ ...restApi('rpc-api'), protocol: 'rpc' }] }),
+    ],
+    [
+      'unsupported-surface-shape',
+      base({
+        surfaces: [
+          {
+            ...restApi('multi'),
+            locations: [
+              { platform: 'http', address: '/a' },
+              { platform: 'node-mf', manifestUrl: 'http://x/mf.json' },
+            ],
+          },
+        ],
+      }),
+    ],
+    [
+      'unsupported-surface-shape',
+      base({
+        surfaces: [{ ...restApi('flagged'), externallyPublished: true }],
+      }),
+    ],
+  ];
+
+  for (const [reason, descriptor] of cases) {
+    assert.deepEqual(
+      checkV1Representable(descriptor),
+      { representable: false, code: 'unrepresentable-in-v1', reason },
+      reason,
+    );
+    assert.throws(
+      () => assertV1Representable(descriptor),
+      (error: unknown) =>
+        error instanceof V1UnrepresentableError &&
+        error.code === 'unrepresentable-in-v1' &&
+        error.reason === reason,
+      reason,
+    );
+  }
+});
+
+test('up-projected descriptors are representable exactly when the app has no exposes', () => {
   for (const [name, app] of fixtures) {
-    const { descriptor } = roundTrip(app);
+    const { descriptor, check } = roundTrip(app);
     assert.notEqual(descriptor.kind, 'horizontal-remote', name);
     assert.deepEqual(descriptor.publicationZone, { zone: 'coordinated' }, name);
-    assert.deepEqual(checkV1Representable(descriptor), {
-      representable: true,
-    });
-    assert.doesNotThrow(() => assertV1Representable(descriptor), name);
+
+    const hasExposes = Object.keys(app.exposes ?? {}).length > 0;
+    if (hasExposes) {
+      // v1 cannot carry component/route surfaces back (its down-projection
+      // reconstructs no exposes): the documented loss is detected, not silent.
+      assert.deepEqual(
+        check,
+        {
+          representable: false,
+          code: 'unrepresentable-in-v1',
+          reason: 'component-or-route-surface',
+        },
+        name,
+      );
+      assert.throws(() => assertV1Representable(descriptor), name);
+    } else {
+      assert.deepEqual(check, { representable: true }, name);
+      assert.doesNotThrow(() => assertV1Representable(descriptor), name);
+    }
   }
 });

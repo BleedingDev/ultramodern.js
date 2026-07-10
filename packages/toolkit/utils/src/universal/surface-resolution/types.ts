@@ -57,6 +57,12 @@ export type ResolvedSurface = {
   surfaceId: string;
   kind: ResolvedSurfaceKind;
   locations: ResolvedSurfaceLocation[];
+  /**
+   * The external major (ADR-0020) this materialization serves. Present exactly
+   * when the record answers a versioned SurfaceRef (`…@vN`): the locations are
+   * the major-specific materialization, never the unversioned addresses.
+   */
+  servedMajor?: number;
 };
 
 export type CompatibilityStatus = 'compatible' | 'incompatible' | 'degraded';

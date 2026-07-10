@@ -18,6 +18,31 @@
  * Failure semantics: partial is an error. If any declared platform location
  * for any surface cannot be assembled, the provider returns one typed
  * {@link DiscoveryError} and no record.
+ *
+ * Fail-closed environment semantics: localhost dev fallbacks (the `port`
+ * chains) apply ONLY when the requested {@link EnvironmentId} is a designated
+ * local environment ({@link EnvStaticProviderOptions.localEnvironments},
+ * default `['development', 'local']`). Any other environment with missing
+ * explicit configuration yields a typed `provider-unavailable` error.
+ *
+ * External majors (ADR-0020): a versioned SurfaceRef (`…@vN`) is served only
+ * from a major-specific materialization declared in
+ * {@link EnvStaticUnitConfig.majors}; each configured major resolves through
+ * the same env chains under its own env segment (default
+ * `${envSegment}_V${major}`) and never inherits the unversioned localhost
+ * port or worker name. A requested major with no configured materialization
+ * is the typed `major-not-published` error — unversioned locations are never
+ * served for a versioned request. Served records stamp `servedMajor` on every
+ * surface.
+ *
+ * Identity honesty (ADR-0019): this provider stamps STATIC identity
+ * (`buildMarker` / `sourceRevision` / `baselineCohortId`) onto independently
+ * resolved URLs; it never fetches the artifacts to verify them. Under the
+ * default `identityVerification: 'static-trust'`, the compatibility verdict is
+ * `{ status: 'compatible', reason: 'static-identity-unverified' }` — an
+ * explicit machine-readable marker that identity was asserted, not verified.
+ * Runtime identity validation (ADR-0019, `matchDeliveryUnitIdentity`) remains
+ * the enforcement point.
  */
 import { formatSurfaceRef, type ParsedSurfaceRef } from './surface-ref';
 import type {
@@ -78,10 +103,46 @@ export type EnvStaticUnitConfig = {
   port?: number;
   /** Cloudflare worker name for the workers.dev fallback. */
   workerName?: string;
-  /** Externally published majors (ADR-0020). A requested `@vN` must be listed. */
-  publishedMajors?: number[];
+  /**
+   * Externally published majors (ADR-0020), each with its own materialization.
+   * A requested `@vN` resolves ONLY through the matching entry; a major that
+   * is not configured here is the typed `major-not-published` error.
+   */
+  majors?: EnvStaticMajorConfig[];
   surfaces: EnvStaticSurfaceConfig[];
 };
+
+/**
+ * Per-major materialization (ADR-0020): where the externally published major
+ * `vN` of a unit lives. Address inputs are deliberately NOT inherited from the
+ * unversioned unit — a versioned request must never be answered with
+ * unversioned locations — so each major carries its own env segment (default
+ * `${unit.envSegment}_V${major}`) and, optionally, its own localhost port /
+ * worker name.
+ */
+export type EnvStaticMajorConfig = {
+  major: number;
+  /** Env-var segment for this major. Default: `${unit.envSegment}_V${major}`. */
+  envSegment?: string;
+  /** Localhost dev fallback port for this major (local environments only). */
+  port?: number;
+  /** Cloudflare worker name for this major's workers.dev fallback. */
+  workerName?: string;
+};
+
+/**
+ * How the provider's stamped identity is to be interpreted. `static-trust`
+ * (the only mode, and the default) means identity is asserted from static
+ * config, not verified against the artifacts; the compatibility verdict then
+ * carries `reason: 'static-identity-unverified'`.
+ */
+export type EnvStaticIdentityVerification = 'static-trust';
+
+/** Environments in which localhost dev fallbacks are allowed by default. */
+export const DEFAULT_LOCAL_ENVIRONMENTS: readonly string[] = [
+  'development',
+  'local',
+];
 
 export type EnvStaticProviderOptions = {
   units: EnvStaticUnitConfig[];
@@ -90,6 +151,19 @@ export type EnvStaticProviderOptions = {
    * read implicitly; pass it explicitly in Node hosts.
    */
   env?: EnvRecord;
+  /**
+   * Environments in which localhost dev fallbacks apply. Any environment NOT
+   * listed here fails closed: missing explicit configuration is the typed
+   * `provider-unavailable` error, never a localhost URL.
+   * Default: `['development', 'local']`.
+   */
+  localEnvironments?: EnvironmentId[];
+  /**
+   * Identity-honesty mode (ADR-0019). Default `'static-trust'`: the verdict
+   * is marked `static-identity-unverified` because this provider asserts
+   * identity from static config without verifying the resolved artifacts.
+   */
+  identityVerification?: EnvStaticIdentityVerification;
 };
 
 export const ENV_STATIC_PROVIDER_NAME = 'env-static';
@@ -119,11 +193,20 @@ type EnvContext = {
   cloudflareDeployEnabled: boolean;
   workersDevSubdomain: string | undefined;
   requireCloudflarePublicUrls: boolean;
+  /**
+   * Whether localhost dev fallbacks may be used. True only in designated
+   * local environments; everywhere else missing config fails closed.
+   */
+  allowLocalFallback: boolean;
 };
 
-function createEnvContext(env: EnvRecord): EnvContext {
+function createEnvContext(
+  env: EnvRecord,
+  allowLocalFallback: boolean,
+): EnvContext {
   return {
     env,
+    allowLocalFallback,
     cloudflareDeployEnabled: env.MODERNJS_DEPLOY === 'cloudflare',
     workersDevSubdomain: envValue(
       env,
@@ -167,8 +250,16 @@ function resolveBaseUrl(
     };
   }
 
-  if (unit.port !== undefined) {
+  if (unit.port !== undefined && context.allowLocalFallback) {
     return { ok: true, baseUrl: `http://localhost:${unit.port}` };
+  }
+
+  if (unit.port !== undefined) {
+    return {
+      ok: false,
+      reason: `No base URL available: set ${publicUrlEnv} (localhost fallback is disabled outside designated local environments)`,
+      details: { publicUrlEnv },
+    };
   }
 
   return {
@@ -232,13 +323,21 @@ function resolveNodeMfManifest(
     };
   }
 
-  if (unit.port !== undefined) {
+  if (unit.port !== undefined && context.allowLocalFallback) {
     return {
       ok: true,
       location: {
         platform: 'node-mf-manifest',
         manifestRef: `http://localhost:${unit.port}/backend-mf-manifest.json`,
       },
+    };
+  }
+
+  if (unit.port !== undefined) {
+    return {
+      ok: false,
+      reason: `node-mf-manifest unavailable: set ${manifestEnv} (localhost fallback is disabled outside designated local environments)`,
+      details: { manifestEnv },
     };
   }
 
@@ -354,6 +453,13 @@ export function createEnvStaticSurfaceResolutionProvider(
   options: EnvStaticProviderOptions,
 ): SurfaceResolutionProvider {
   const env = options.env ?? {};
+  const localEnvironments = new Set(
+    options.localEnvironments ?? DEFAULT_LOCAL_ENVIRONMENTS,
+  );
+  // 'static-trust' is currently the only mode; keeping it explicit makes the
+  // identity-honesty marker below auditable at the call site.
+  const identityVerification: EnvStaticIdentityVerification =
+    options.identityVerification ?? 'static-trust';
   const unitsById = new Map(options.units.map(unit => [unit.unitId, unit]));
 
   return {
@@ -393,25 +499,48 @@ export function createEnvStaticSurfaceResolutionProvider(
         };
       }
 
-      if (
-        ref.major !== undefined &&
-        !(unit.publishedMajors ?? []).includes(ref.major)
-      ) {
-        return {
-          ok: false,
-          error: createDiscoveryError(
-            'major-not-published',
-            refString,
-            `Unit ${unit.unitId} does not publish external major v${ref.major}.`,
-            { environment, publishedMajors: unit.publishedMajors ?? [] },
-          ),
+      // A versioned request is served ONLY from the matching major-specific
+      // materialization; unversioned locations are never substituted.
+      let effectiveUnit = unit;
+      if (ref.major !== undefined) {
+        const majorConfig = (unit.majors ?? []).find(
+          candidate => candidate.major === ref.major,
+        );
+        if (majorConfig === undefined) {
+          return {
+            ok: false,
+            error: createDiscoveryError(
+              'major-not-published',
+              refString,
+              `Unit ${unit.unitId} has no materialization for external major v${ref.major}.`,
+              {
+                environment,
+                publishedMajors: (unit.majors ?? []).map(
+                  candidate => candidate.major,
+                ),
+              },
+            ),
+          };
+        }
+        effectiveUnit = {
+          ...unit,
+          envSegment:
+            majorConfig.envSegment ??
+            `${unit.envSegment}_V${majorConfig.major}`,
+          // Deliberately NOT inherited from the unversioned unit (fail closed).
+          port: majorConfig.port,
+          workerName: majorConfig.workerName,
         };
       }
 
-      const context = createEnvContext(env);
+      const context = createEnvContext(env, localEnvironments.has(environment));
       const surfaces: ResolvedSurface[] = [];
       for (const surfaceConfig of unit.surfaces) {
-        const resolved = resolveSurfaceLocations(context, unit, surfaceConfig);
+        const resolved = resolveSurfaceLocations(
+          context,
+          effectiveUnit,
+          surfaceConfig,
+        );
         if (!resolved.ok) {
           // Partial is an error: one unassemblable location fails the record.
           return {
@@ -424,7 +553,11 @@ export function createEnvStaticSurfaceResolutionProvider(
             ),
           };
         }
-        surfaces.push(resolved.surface);
+        surfaces.push(
+          ref.major === undefined
+            ? resolved.surface
+            : { ...resolved.surface, servedMajor: ref.major },
+        );
       }
 
       const record: ResolvedDeliveryUnit = {
@@ -436,6 +569,11 @@ export function createEnvStaticSurfaceResolutionProvider(
         compatibility: {
           status: 'compatible',
           baselineCohortId: unit.baselineCohortId,
+          // Identity honesty (ADR-0019): under static-trust the verdict marks
+          // that identity was asserted from static config, not verified.
+          ...(identityVerification === 'static-trust'
+            ? { reason: 'static-identity-unverified' }
+            : {}),
         },
       };
 

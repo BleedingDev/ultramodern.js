@@ -1,7 +1,10 @@
 export {
   createEnvStaticSurfaceResolutionProvider,
+  DEFAULT_LOCAL_ENVIRONMENTS,
   ENV_STATIC_PROVIDER_NAME,
   type EnvRecord,
+  type EnvStaticIdentityVerification,
+  type EnvStaticMajorConfig,
   type EnvStaticProviderOptions,
   type EnvStaticSurfaceConfig,
   type EnvStaticSurfacePlatforms,

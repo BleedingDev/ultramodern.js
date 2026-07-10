@@ -3,8 +3,8 @@ import {
   matchDeliveryUnitIdentity,
   parseSurfaceRef,
   type ResolvedDeliveryUnit,
-  selectResolvedSurface,
   type SurfaceResolutionProvider,
+  selectResolvedSurface,
   validateResolvedDeliveryUnit,
 } from '../src/universal/surface-resolution';
 
@@ -143,6 +143,118 @@ describe('validateResolvedDeliveryUnit', () => {
     expect(duplicatePlatforms.issues.map(issue => issue.path)).toEqual([
       'surfaces[0].locations[1].platform',
     ]);
+  });
+
+  it('rejects invalid compatibility status and surface kind enums', () => {
+    const result = validateResolvedDeliveryUnit(
+      createRecord({
+        compatibility: {
+          status: 'maybe' as never,
+          baselineCohortId: 'cohort-2026-07',
+        },
+        surfaces: [
+          {
+            surfaceId: 'cart',
+            kind: 'widget' as never,
+            locations: [
+              { platform: 'http-api', baseUrl: 'https://a', prefix: '/a' },
+            ],
+          },
+        ],
+      }),
+    );
+    expect(result.ok).toBe(false);
+    expect(result.issues.map(issue => issue.path)).toEqual([
+      'compatibility.status',
+      'surfaces[0].kind',
+    ]);
+  });
+
+  it('rejects missing required address fields per location platform', () => {
+    const result = validateResolvedDeliveryUnit(
+      createRecord({
+        surfaces: [
+          {
+            surfaceId: 'cart',
+            kind: 'component',
+            locations: [
+              { platform: 'browser-mf-manifest', manifestUrl: '' },
+              { platform: 'node-mf-manifest' } as never,
+              { platform: 'http-api', baseUrl: 'https://a' } as never,
+              {
+                platform: 'cloudflare-service-binding',
+                serviceBinding: '',
+                dispatchNamespace: '',
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    expect(result.issues.map(issue => issue.path)).toEqual([
+      'surfaces[0].locations[0].manifestUrl',
+      'surfaces[0].locations[1].manifestRef',
+      'surfaces[0].locations[2].prefix',
+      'surfaces[0].locations[3].serviceBinding',
+      'surfaces[0].locations[3].dispatchNamespace',
+    ]);
+  });
+
+  it('rejects unknown location platforms and invalid servedMajor', () => {
+    const result = validateResolvedDeliveryUnit(
+      createRecord({
+        surfaces: [
+          {
+            surfaceId: 'cart',
+            kind: 'component',
+            servedMajor: 0,
+            locations: [{ platform: 'ftp' } as never],
+          },
+        ],
+      }),
+    );
+    expect(result.issues.map(issue => issue.path)).toEqual([
+      'surfaces[0].servedMajor',
+      'surfaces[0].locations[0].platform',
+    ]);
+  });
+
+  it('is total on malformed nested objects (never throws)', () => {
+    const cases: Array<[unknown, string]> = [
+      [null, ''],
+      [undefined, ''],
+      ['record', ''],
+      [{ ...createRecord(), compatibility: null }, 'compatibility'],
+      [{ ...createRecord(), compatibility: 'compatible' }, 'compatibility'],
+      [{ ...createRecord(), surfaces: null }, 'surfaces'],
+      [{ ...createRecord(), surfaces: {} }, 'surfaces'],
+      [{ ...createRecord(), surfaces: [null] }, 'surfaces[0]'],
+      [
+        { ...createRecord(), surfaces: [{ surfaceId: 'x', kind: 'api' }] },
+        'surfaces[0].locations',
+      ],
+      [
+        {
+          ...createRecord(),
+          surfaces: [{ surfaceId: 'x', kind: 'api', locations: [null] }],
+        },
+        'surfaces[0].locations[0]',
+      ],
+    ];
+    for (const [input, path] of cases) {
+      const result = validateResolvedDeliveryUnit(input as never);
+      expect(result.ok).toBe(false);
+      expect(result.issues.map(issue => issue.path)).toContain(path);
+    }
+  });
+
+  it('accepts a record with a valid servedMajor', () => {
+    const record = createRecord();
+    record.surfaces[0].servedMajor = 2;
+    expect(validateResolvedDeliveryUnit(record)).toEqual({
+      ok: true,
+      issues: [],
+    });
   });
 });
 

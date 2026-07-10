@@ -44,78 +44,218 @@ function isValidUnitId(unitId: string): boolean {
   return unitId.split('/').every(segment => SEGMENT_PATTERN.test(segment));
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+const COMPATIBILITY_STATUSES: readonly string[] = [
+  'compatible',
+  'incompatible',
+  'degraded',
+];
+
+const SURFACE_KINDS: readonly string[] = [
+  'component',
+  'route',
+  'api',
+  'backend',
+];
+
+const LOCATION_PLATFORMS: readonly string[] = [
+  'browser-mf-manifest',
+  'node-mf-manifest',
+  'http-api',
+  'cloudflare-service-binding',
+];
+
+/** Required non-empty string address fields per location platform. */
+const LOCATION_REQUIRED_FIELDS: Record<string, readonly string[]> = {
+  'browser-mf-manifest': ['manifestUrl'],
+  'node-mf-manifest': ['manifestRef'],
+  'http-api': ['baseUrl', 'prefix'],
+  'cloudflare-service-binding': ['serviceBinding'],
+};
+
+type IssuePush = (path: string, message: string) => void;
+
+function validateLocation(
+  location: unknown,
+  path: string,
+  seenPlatforms: Set<string>,
+  push: IssuePush,
+): void {
+  if (!isRecord(location)) {
+    push(path, 'must be an object');
+    return;
+  }
+
+  const platform = location.platform;
+  if (typeof platform !== 'string' || !LOCATION_PLATFORMS.includes(platform)) {
+    push(`${path}.platform`, `must be one of ${LOCATION_PLATFORMS.join(', ')}`);
+    return;
+  }
+
+  if (seenPlatforms.has(platform)) {
+    push(
+      `${path}.platform`,
+      `duplicate platform ${platform} within one surface`,
+    );
+  }
+  seenPlatforms.add(platform);
+
+  for (const field of LOCATION_REQUIRED_FIELDS[platform] ?? []) {
+    if (!isNonEmptyString(location[field])) {
+      push(`${path}.${field}`, 'must be a non-empty string');
+    }
+  }
+  if (
+    platform === 'cloudflare-service-binding' &&
+    location.dispatchNamespace !== undefined &&
+    !isNonEmptyString(location.dispatchNamespace)
+  ) {
+    push(
+      `${path}.dispatchNamespace`,
+      'must be a non-empty string when present',
+    );
+  }
+}
+
+function validateSurface(
+  surface: unknown,
+  path: string,
+  seenSurfaceIds: Set<string>,
+  push: IssuePush,
+): void {
+  if (!isRecord(surface)) {
+    push(path, 'must be an object');
+    return;
+  }
+
+  if (!isNonEmptyString(surface.surfaceId)) {
+    push(`${path}.surfaceId`, 'must be a non-empty string');
+  } else if (!SEGMENT_PATTERN.test(surface.surfaceId)) {
+    push(`${path}.surfaceId`, 'must match the SurfaceRef SurfaceId grammar');
+  } else if (seenSurfaceIds.has(surface.surfaceId)) {
+    push(`${path}.surfaceId`, 'must be unique within the record');
+  } else {
+    seenSurfaceIds.add(surface.surfaceId);
+  }
+
+  if (
+    typeof surface.kind !== 'string' ||
+    !SURFACE_KINDS.includes(surface.kind)
+  ) {
+    push(`${path}.kind`, `must be one of ${SURFACE_KINDS.join(', ')}`);
+  }
+
+  if (
+    surface.servedMajor !== undefined &&
+    (!Number.isSafeInteger(surface.servedMajor) ||
+      (surface.servedMajor as number) < 1)
+  ) {
+    push(`${path}.servedMajor`, 'must be a positive safe integer when present');
+  }
+
+  if (!Array.isArray(surface.locations)) {
+    push(`${path}.locations`, 'must be an array of locations');
+    return;
+  }
+  if (surface.locations.length === 0) {
+    push(
+      `${path}.locations`,
+      'must contain at least one location (no partial records)',
+    );
+  }
+  const seenPlatforms = new Set<string>();
+  surface.locations.forEach((location, locationIndex) => {
+    validateLocation(
+      location,
+      `${path}.locations[${locationIndex}]`,
+      seenPlatforms,
+      push,
+    );
+  });
+}
+
 /**
  * Validate the structural invariants of a {@link ResolvedDeliveryUnit}:
- * non-empty identity root, one record-level baseline cohort that the
- * compatibility verdict was computed against, and per-surface completeness
- * (valid unique surface ids, at least one location, no duplicate platform
- * entries). There is no partial-success shape: any issue means the record is
- * not a valid resolution.
+ * non-empty identity root, a well-formed compatibility verdict (valid status,
+ * computed against the record-level baseline cohort), and per-surface
+ * completeness (valid unique surface ids, valid kind, at least one location,
+ * no duplicate platform entries, and every discriminant + required address
+ * field per location platform). There is no partial-success shape: any issue
+ * means the record is not a valid resolution.
+ *
+ * Total: never throws, even for records that crossed a serialization boundary
+ * with missing or malformed nested objects — every defect is a typed issue.
  */
 export function validateResolvedDeliveryUnit(
   unit: ResolvedDeliveryUnit,
 ): ResolvedDeliveryUnitValidationResult {
   const issues: ResolvedDeliveryUnitIssue[] = [];
-  const push = (path: string, message: string) => {
+  const push: IssuePush = (path, message) => {
     issues.push({ path, message });
   };
 
-  if (!isNonEmptyString(unit.unitId)) {
+  if (!isRecord(unit)) {
+    push('', 'must be an object');
+    return { ok: false, issues };
+  }
+  // From here on treat the input as untrusted wire data.
+  const raw = unit as unknown as Record<string, unknown>;
+
+  if (!isNonEmptyString(raw.unitId)) {
     push('unitId', 'must be a non-empty string');
-  } else if (!isValidUnitId(unit.unitId)) {
+  } else if (!isValidUnitId(raw.unitId)) {
     push('unitId', 'must match the SurfaceRef UnitId grammar');
   }
-  if (!isNonEmptyString(unit.buildMarker)) {
+  if (!isNonEmptyString(raw.buildMarker)) {
     push('buildMarker', 'must be a non-empty string');
   }
-  if (!isNonEmptyString(unit.sourceRevision)) {
+  if (!isNonEmptyString(raw.sourceRevision)) {
     push('sourceRevision', 'must be a non-empty string');
   }
-  if (!isNonEmptyString(unit.baselineCohortId)) {
+  if (!isNonEmptyString(raw.baselineCohortId)) {
     push('baselineCohortId', 'must be a non-empty string');
   }
-  if (unit.compatibility.baselineCohortId !== unit.baselineCohortId) {
-    push(
-      'compatibility.baselineCohortId',
-      'must equal the record-level baselineCohortId (one verdict per record)',
-    );
+
+  const compatibility = raw.compatibility;
+  if (!isRecord(compatibility)) {
+    push('compatibility', 'must be an object');
+  } else {
+    if (
+      typeof compatibility.status !== 'string' ||
+      !COMPATIBILITY_STATUSES.includes(compatibility.status)
+    ) {
+      push(
+        'compatibility.status',
+        `must be one of ${COMPATIBILITY_STATUSES.join(', ')}`,
+      );
+    }
+    if (compatibility.baselineCohortId !== raw.baselineCohortId) {
+      push(
+        'compatibility.baselineCohortId',
+        'must equal the record-level baselineCohortId (one verdict per record)',
+      );
+    }
+    if (
+      compatibility.reason !== undefined &&
+      !isNonEmptyString(compatibility.reason)
+    ) {
+      push('compatibility.reason', 'must be a non-empty string when present');
+    }
   }
 
-  if (unit.surfaces.length === 0) {
+  if (!Array.isArray(raw.surfaces)) {
+    push('surfaces', 'must be an array of surfaces');
+    return { ok: false, issues };
+  }
+  if (raw.surfaces.length === 0) {
     push('surfaces', 'must contain at least one surface');
   }
   const seenSurfaceIds = new Set<string>();
-  unit.surfaces.forEach((surface, surfaceIndex) => {
-    const surfacePath = `surfaces[${surfaceIndex}]`;
-    if (!isNonEmptyString(surface.surfaceId)) {
-      push(`${surfacePath}.surfaceId`, 'must be a non-empty string');
-    } else if (!SEGMENT_PATTERN.test(surface.surfaceId)) {
-      push(
-        `${surfacePath}.surfaceId`,
-        'must match the SurfaceRef SurfaceId grammar',
-      );
-    } else if (seenSurfaceIds.has(surface.surfaceId)) {
-      push(`${surfacePath}.surfaceId`, 'must be unique within the record');
-    } else {
-      seenSurfaceIds.add(surface.surfaceId);
-    }
-
-    if (surface.locations.length === 0) {
-      push(
-        `${surfacePath}.locations`,
-        'must contain at least one location (no partial records)',
-      );
-    }
-    const seenPlatforms = new Set<string>();
-    surface.locations.forEach((location, locationIndex) => {
-      if (seenPlatforms.has(location.platform)) {
-        push(
-          `${surfacePath}.locations[${locationIndex}].platform`,
-          `duplicate platform ${location.platform} within one surface`,
-        );
-      }
-      seenPlatforms.add(location.platform);
-    });
+  raw.surfaces.forEach((surface, surfaceIndex) => {
+    validateSurface(surface, `surfaces[${surfaceIndex}]`, seenSurfaceIds, push);
   });
 
   return { ok: issues.length === 0, issues };
