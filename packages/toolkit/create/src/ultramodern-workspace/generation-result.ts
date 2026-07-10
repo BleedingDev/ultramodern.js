@@ -27,7 +27,7 @@ import {
 /** Opaque, stable id for the current platform baseline cohort (G1d). */
 const BASELINE_COHORT_ID = 'ultramodern-platform-baseline-v1';
 
-const ignoredSnapshotDirectories = new Set([
+export const ignoredSnapshotDirectories = new Set([
   '.git',
   '.nx',
   '.output',

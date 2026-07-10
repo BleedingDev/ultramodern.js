@@ -33,8 +33,24 @@ import {
   updateRootWorkspaceScripts,
 } from './shell-files';
 import { ownershipEntry, verticalTopologyEntry } from './topology';
+import { runWorkspaceTransaction } from './transaction';
 
+/**
+ * Add a MicroVertical to an existing workspace. Transactional (G1c): the
+ * whole write-set is applied inside {@link runWorkspaceTransaction}; if any
+ * step throws (preflight rejection, write failure, overlay failure,
+ * formatting failure) the workspace is restored byte-identical to its
+ * pre-call state and the error is rethrown.
+ */
 export function addUltramodernVertical(
+  options: AddUltramodernVerticalOptions,
+): UltramodernGenerationResult {
+  return runWorkspaceTransaction(options.workspaceRoot, () =>
+    executeAddUltramodernVertical(options),
+  );
+}
+
+function executeAddUltramodernVertical(
   options: AddUltramodernVerticalOptions,
 ): UltramodernGenerationResult {
   const beforeFiles = createFileSnapshot(options.workspaceRoot);
