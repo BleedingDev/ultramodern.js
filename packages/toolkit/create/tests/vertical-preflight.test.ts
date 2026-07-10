@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import {
+  normalizeCompactConfig,
+  UnsupportedUltramodernConfigError,
+} from '../src/ultramodern-tooling/config';
 import { addUltramodernVertical } from '../src/ultramodern-workspace';
 import { createWorkspace, snapshotWorkspace } from './helpers/workspace-kit';
 
@@ -99,6 +103,134 @@ function addExistingTopologyVertical(
   writeJson(workspaceDir, topologyPath, topology);
   writeJson(workspaceDir, overlayPath, overlay);
 }
+
+test('schemaVersion 1 compact config retains its normalization contract', () => {
+  const sourcePath = '/workspace/.modernjs/ultramodern.json';
+
+  assert.deepEqual(
+    normalizeCompactConfig('/workspace', sourcePath, {
+      schemaVersion: 1,
+      profile: 'strict-effect',
+      workspace: { packageScope: 'fixture' },
+      packageSource: {
+        strategy: 'install',
+        modernPackageVersion: '3.2.1',
+        registry: 'https://registry.npmjs.org/',
+        aliasScope: '@fixture',
+        aliasPackageNamePrefix: 'modern-js-',
+      },
+      features: { tailwind: false },
+      topology: {
+        apps: [
+          {
+            id: 'shell',
+            kind: 'shell',
+            path: 'apps/shell',
+            package: '@fixture/shell',
+            packageSuffix: 'shell',
+            displayName: 'Shell',
+            domain: 'shell',
+            port: 4100,
+            portEnv: 'SHELL_PORT',
+            moduleFederation: {
+              role: 'host',
+              name: 'shellHost',
+              verticalRefs: ['catalog'],
+            },
+          },
+          {
+            id: 'catalog',
+            kind: 'vertical',
+            path: 'verticals/catalog',
+            package: '@fixture/catalog',
+            packageSuffix: 'catalog',
+            displayName: 'Catalog Vertical',
+            domain: 'catalog',
+            port: 4101,
+            portEnv: 'CATALOG_PORT',
+            moduleFederation: {
+              role: 'remote',
+              name: 'verticalCatalog',
+              exposes: ['./Route'],
+              exposePaths: { './Route': './src/route.tsx' },
+            },
+            api: {
+              stem: 'catalog',
+              prefix: '/catalog-api',
+              consumedBy: ['shell', 'catalog'],
+            },
+          },
+        ],
+      },
+    }),
+    {
+      schemaVersion: 1,
+      profile: 'strict-effect',
+      source: 'compact',
+      sourcePath,
+      workspace: { packageScope: 'fixture' },
+      packageSource: {
+        strategy: 'install',
+        modernPackageVersion: '3.2.1',
+        registry: 'https://registry.npmjs.org/',
+        aliasScope: '@fixture',
+        aliasPackageNamePrefix: 'modern-js-',
+      },
+      features: { tailwind: false },
+      bridge: undefined,
+      topology: {
+        apps: [
+          {
+            id: 'shell',
+            kind: 'shell',
+            path: 'apps/shell',
+            package: '@fixture/shell',
+            packageSuffix: 'shell',
+            displayName: 'Shell',
+            domain: 'shell',
+            port: 4100,
+            portEnv: 'SHELL_PORT',
+            moduleFederation: {
+              role: 'host',
+              name: 'shellHost',
+              exposes: undefined,
+              exposePaths: undefined,
+              verticalRefs: ['catalog'],
+              hostOnly: false,
+              noExposes: false,
+            },
+            api: undefined,
+          },
+          {
+            id: 'catalog',
+            kind: 'vertical',
+            path: 'verticals/catalog',
+            package: '@fixture/catalog',
+            packageSuffix: 'catalog',
+            displayName: 'Catalog Vertical',
+            domain: 'catalog',
+            port: 4101,
+            portEnv: 'CATALOG_PORT',
+            moduleFederation: {
+              role: 'remote',
+              name: 'verticalCatalog',
+              exposes: ['./Route'],
+              exposePaths: { './Route': './src/route.tsx' },
+              verticalRefs: undefined,
+              hostOnly: false,
+              noExposes: false,
+            },
+            api: {
+              stem: 'catalog',
+              prefix: '/catalog-api',
+              consumedBy: ['shell', 'catalog'],
+            },
+          },
+        ],
+      },
+    },
+  );
+});
 
 test('add-vertical normalizes stale shell refs for the new vertical', () => {
   const { tempRoot, workspaceDir } = createWorkspace('preflight-workspace', {
@@ -201,6 +333,67 @@ test('preflight requires compact config fixtures', () => {
   } finally {
     fs.rmSync(nonObject.tempRoot, { recursive: true, force: true });
     fs.rmSync(missingCompact.tempRoot, { recursive: true, force: true });
+  }
+});
+
+test.each([
+  {
+    label: 'unsupported schemaVersion',
+    mutate: (config: Record<string, any>) => {
+      config.schemaVersion = 2;
+    },
+    error: /Unsupported UltraModern config schemaVersion 2/,
+    issue: { field: 'schemaVersion', value: 2 },
+  },
+  {
+    label: 'nonnumeric schemaVersion',
+    mutate: (config: Record<string, any>) => {
+      config.schemaVersion = 'next';
+    },
+    error: /Unsupported UltraModern config schemaVersion "next"/,
+    issue: { field: 'schemaVersion', value: 'next' },
+  },
+  {
+    label: 'unsupported app kind',
+    mutate: (config: Record<string, any>) => {
+      config.topology.apps[0].kind = 'horizontal-remote';
+    },
+    error: /Unsupported UltraModern config app kind "horizontal-remote"/,
+    issue: {
+      field: 'topology.apps.kind',
+      index: 0,
+      value: 'horizontal-remote',
+    },
+  },
+])('preflight rejects $label before writes', entry => {
+  const { tempRoot, workspaceDir } = createWorkspace('preflight-workspace', {
+    tempPrefix: 'um-vertical-preflight-',
+  });
+
+  try {
+    const config = readJson(workspaceDir, ultramodernConfigPath);
+    entry.mutate(config);
+    writeJson(workspaceDir, ultramodernConfigPath, config);
+    const before = snapshotWorkspace(workspaceDir);
+
+    assert.throws(
+      () =>
+        addUltramodernVertical({
+          workspaceRoot: workspaceDir,
+          name: 'checkout',
+          modernVersion: '3.2.1',
+        }),
+      error => {
+        const typedError = error as UnsupportedUltramodernConfigError;
+        assert.equal(typedError.name, 'UnsupportedUltramodernConfigError');
+        assert.deepEqual(typedError.issue, entry.issue);
+        assert.match(typedError.message, entry.error);
+        return true;
+      },
+    );
+    assert.deepEqual(snapshotWorkspace(workspaceDir), before);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
   }
 });
 

@@ -14,7 +14,50 @@ import type {
 import { packageScopeFromRoot } from './metadata';
 import type { UltramodernToolingConfig } from './types';
 
+type UnsupportedUltramodernConfigIssue =
+  | {
+      field: 'schemaVersion';
+      value: unknown;
+    }
+  | {
+      field: 'topology.apps.kind';
+      index: number;
+      value: unknown;
+    };
+
+export class UnsupportedUltramodernConfigError extends Error {
+  constructor(
+    readonly sourcePath: string,
+    readonly issue: UnsupportedUltramodernConfigIssue,
+  ) {
+    const value = formatUnsupportedConfigValue(issue.value);
+    const message =
+      issue.field === 'schemaVersion'
+        ? `Unsupported UltraModern config schemaVersion ${value} in ${sourcePath}. Supported schema versions: 1.`
+        : `Unsupported UltraModern config app kind ${value} at ${sourcePath} topology.apps[${issue.index}].kind. Supported kinds: shell, vertical.`;
+
+    super(message);
+    this.name = 'UnsupportedUltramodernConfigError';
+  }
+}
+
 export function normalizeCompactConfig(
+  workspaceRoot: string,
+  sourcePath: string,
+  config: Record<string, any>,
+): UltramodernToolingConfig {
+  switch (config.schemaVersion) {
+    case 1:
+      return normalizeCompactConfigV1(workspaceRoot, sourcePath, config);
+    default:
+      throw new UnsupportedUltramodernConfigError(sourcePath, {
+        field: 'schemaVersion',
+        value: config.schemaVersion,
+      });
+  }
+}
+
+function normalizeCompactConfigV1(
   workspaceRoot: string,
   sourcePath: string,
   config: Record<string, any>,
@@ -46,8 +89,7 @@ export function normalizeCompactConfig(
       : undefined;
 
   return {
-    schemaVersion:
-      typeof config.schemaVersion === 'number' ? config.schemaVersion : 1,
+    schemaVersion: 1,
     profile: typeof config.profile === 'string' ? config.profile : undefined,
     source: 'compact',
     sourcePath,
@@ -64,86 +106,108 @@ export function normalizeCompactConfig(
     bridge: normalizeUltramodernBridgeConfig(config.bridge as any),
     topology: {
       apps: Array.isArray(config.topology?.apps)
-        ? config.topology.apps.map((app: Record<string, any>) => ({
-            id: String(app.id),
-            kind: app.kind === 'vertical' ? 'vertical' : 'shell',
-            path: typeof app.path === 'string' ? app.path : '.',
-            package: typeof app.package === 'string' ? app.package : undefined,
-            packageSuffix:
-              typeof app.packageSuffix === 'string'
-                ? app.packageSuffix
-                : undefined,
-            displayName:
-              typeof app.displayName === 'string' ? app.displayName : undefined,
-            domain: typeof app.domain === 'string' ? app.domain : undefined,
-            port: typeof app.port === 'number' ? app.port : undefined,
-            portEnv: typeof app.portEnv === 'string' ? app.portEnv : undefined,
-            moduleFederation:
-              app.moduleFederation && typeof app.moduleFederation === 'object'
-                ? {
-                    role:
-                      app.moduleFederation.role === 'remote'
-                        ? 'remote'
-                        : 'host',
-                    name:
-                      typeof app.moduleFederation.name === 'string'
-                        ? app.moduleFederation.name
-                        : undefined,
-                    exposes: Array.isArray(app.moduleFederation.exposes)
-                      ? app.moduleFederation.exposes.filter(
-                          (expose: unknown): expose is string =>
-                            typeof expose === 'string',
-                        )
-                      : undefined,
-                    exposePaths:
-                      app.moduleFederation.exposePaths !== null &&
-                      typeof app.moduleFederation.exposePaths === 'object' &&
-                      !Array.isArray(app.moduleFederation.exposePaths)
-                        ? Object.fromEntries(
-                            Object.entries(
-                              app.moduleFederation.exposePaths,
-                            ).filter(
-                              (entry): entry is [string, string] =>
-                                typeof entry[0] === 'string' &&
-                                typeof entry[1] === 'string',
-                            ),
+        ? config.topology.apps.map((app: Record<string, any>, index) => {
+            if (app.kind !== 'shell' && app.kind !== 'vertical') {
+              throw new UnsupportedUltramodernConfigError(sourcePath, {
+                field: 'topology.apps.kind',
+                index,
+                value: app.kind,
+              });
+            }
+
+            return {
+              id: String(app.id),
+              kind: app.kind,
+              path: typeof app.path === 'string' ? app.path : '.',
+              package:
+                typeof app.package === 'string' ? app.package : undefined,
+              packageSuffix:
+                typeof app.packageSuffix === 'string'
+                  ? app.packageSuffix
+                  : undefined,
+              displayName:
+                typeof app.displayName === 'string'
+                  ? app.displayName
+                  : undefined,
+              domain: typeof app.domain === 'string' ? app.domain : undefined,
+              port: typeof app.port === 'number' ? app.port : undefined,
+              portEnv:
+                typeof app.portEnv === 'string' ? app.portEnv : undefined,
+              moduleFederation:
+                app.moduleFederation && typeof app.moduleFederation === 'object'
+                  ? {
+                      role:
+                        app.moduleFederation.role === 'remote'
+                          ? 'remote'
+                          : 'host',
+                      name:
+                        typeof app.moduleFederation.name === 'string'
+                          ? app.moduleFederation.name
+                          : undefined,
+                      exposes: Array.isArray(app.moduleFederation.exposes)
+                        ? app.moduleFederation.exposes.filter(
+                            (expose: unknown): expose is string =>
+                              typeof expose === 'string',
                           )
                         : undefined,
-                    verticalRefs: Array.isArray(
-                      app.moduleFederation.verticalRefs,
-                    )
-                      ? app.moduleFederation.verticalRefs.filter(
-                          (ref: unknown): ref is string =>
-                            typeof ref === 'string',
-                        )
-                      : undefined,
-                    hostOnly: app.moduleFederation.hostOnly === true,
-                    noExposes: app.moduleFederation.noExposes === true,
-                  }
-                : undefined,
-            api:
-              app.api && typeof app.api === 'object'
-                ? {
-                    stem:
-                      typeof app.api.stem === 'string'
-                        ? app.api.stem
-                        : String(app.id),
-                    prefix:
-                      typeof app.api.prefix === 'string'
-                        ? app.api.prefix
-                        : `/${String(app.id)}-api`,
-                    consumedBy: Array.isArray(app.api.consumedBy)
-                      ? app.api.consumedBy.filter(
-                          (consumer: unknown): consumer is string =>
-                            typeof consumer === 'string',
-                        )
-                      : [shellApp.id, String(app.id)],
-                  }
-                : undefined,
-          }))
+                      exposePaths:
+                        app.moduleFederation.exposePaths !== null &&
+                        typeof app.moduleFederation.exposePaths === 'object' &&
+                        !Array.isArray(app.moduleFederation.exposePaths)
+                          ? Object.fromEntries(
+                              Object.entries(
+                                app.moduleFederation.exposePaths,
+                              ).filter(
+                                (entry): entry is [string, string] =>
+                                  typeof entry[0] === 'string' &&
+                                  typeof entry[1] === 'string',
+                              ),
+                            )
+                          : undefined,
+                      verticalRefs: Array.isArray(
+                        app.moduleFederation.verticalRefs,
+                      )
+                        ? app.moduleFederation.verticalRefs.filter(
+                            (ref: unknown): ref is string =>
+                              typeof ref === 'string',
+                          )
+                        : undefined,
+                      hostOnly: app.moduleFederation.hostOnly === true,
+                      noExposes: app.moduleFederation.noExposes === true,
+                    }
+                  : undefined,
+              api:
+                app.api && typeof app.api === 'object'
+                  ? {
+                      stem:
+                        typeof app.api.stem === 'string'
+                          ? app.api.stem
+                          : String(app.id),
+                      prefix:
+                        typeof app.api.prefix === 'string'
+                          ? app.api.prefix
+                          : `/${String(app.id)}-api`,
+                      consumedBy: Array.isArray(app.api.consumedBy)
+                        ? app.api.consumedBy.filter(
+                            (consumer: unknown): consumer is string =>
+                              typeof consumer === 'string',
+                          )
+                        : [shellApp.id, String(app.id)],
+                    }
+                  : undefined,
+            };
+          })
         : [],
     },
   };
+}
+
+function formatUnsupportedConfigValue(value: unknown) {
+  if (value === undefined) {
+    return 'missing';
+  }
+
+  return JSON.stringify(value) ?? String(value);
 }
 
 export function normalizeCompactUltramodernConfig(
