@@ -16,12 +16,14 @@ export function createModuleFederationRemoteUrlHelpers(
     return '';
   }
 
-  return `const cloudflareDeployEnabled =
-  process.env['MODERNJS_DEPLOY'] === 'cloudflare';
+  return `import { getBuildConfigEnvironment } from '@modern-js/app-tools/config';
+
+const cloudflareDeployEnabled =
+  getBuildConfigEnvironment('MODERNJS_DEPLOY') === 'cloudflare';
 const cloudflareWorkersDevSubdomain =
-  process.env['ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN']?.trim();
+  getBuildConfigEnvironment('ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN')?.trim();
 const requireCloudflarePublicUrls =
-  process.env['ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS'] === 'true';
+  getBuildConfigEnvironment('ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS') === 'true';
 
 const createRemoteManifestUrl = (options: {
   manifestEnv: string;
@@ -30,12 +32,12 @@ const createRemoteManifestUrl = (options: {
   publicUrlEnv: string;
   workerName: string;
 }) => {
-  const configuredManifest = process.env[options.manifestEnv]?.trim();
+  const configuredManifest = getBuildConfigEnvironment(options.manifestEnv)?.trim();
   if (configuredManifest !== undefined && configuredManifest.length > 0) {
     return configuredManifest;
   }
 
-  const configuredPublicUrl = process.env[options.publicUrlEnv]?.trim();
+  const configuredPublicUrl = getBuildConfigEnvironment(options.publicUrlEnv)?.trim();
   if (configuredPublicUrl !== undefined && configuredPublicUrl.length > 0) {
     return \`\${options.mfName}@\${configuredPublicUrl.replace(/\\/+$/u, '')}/mf-manifest.json\`;
   }

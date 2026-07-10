@@ -12,10 +12,20 @@ function evaluateGeneratedRemoteManifestUrl(
   helpers: string,
   env: Record<string, string | undefined>,
 ) {
-  const executableHelpers = helpers.replace(
-    /const createRemoteManifestUrl = \(options: \{[\s\S]*?\}\) => \{/u,
-    'const createRemoteManifestUrl = (options) => {',
+  assert.match(
+    helpers,
+    /^import \{ getBuildConfigEnvironment \} from '@modern-js\/app-tools\/config';$/mu,
+    'generated remote URL helpers must import the build-config environment accessor',
   );
+  const executableHelpers = helpers
+    .replace(
+      /^import \{ getBuildConfigEnvironment \} from '@modern-js\/app-tools\/config';\n\n/u,
+      '',
+    )
+    .replace(
+      /const createRemoteManifestUrl = \(options: \{[\s\S]*?\}\) => \{/u,
+      'const createRemoteManifestUrl = (options) => {',
+    );
   assert.notEqual(
     executableHelpers,
     helpers,
@@ -23,7 +33,7 @@ function evaluateGeneratedRemoteManifestUrl(
   );
 
   const evaluate = new Function(
-    'process',
+    'getBuildConfigEnvironment',
     `${executableHelpers}
 return createRemoteManifestUrl({
   manifestEnv: 'VERTICAL_CATALOG_MF_MANIFEST',
@@ -32,9 +42,11 @@ return createRemoteManifestUrl({
   publicUrlEnv: 'VERTICAL_CATALOG_PUBLIC_URL',
   workerName: 'tractor-store-catalog',
 });`,
-  ) as (processLike: { env: Record<string, string | undefined> }) => string;
+  ) as (
+    getBuildConfigEnvironment: (name: string) => string | undefined,
+  ) => string;
 
-  return evaluate({ env });
+  return evaluate(name => env[name]);
 }
 
 test('module federation remote refs fail closed when a configured vertical is missing', () => {

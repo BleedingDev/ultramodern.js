@@ -153,6 +153,7 @@ import { createRequire } from 'node:module';
 import { createModuleFederationConfig } from '@module-federation/modern-js-v3';
 import { dependencies } from './package.json';
 
+${createModuleFederationRemoteUrlHelpers(shellHost, remotes)}
 const require = createRequire(import.meta.url);
 const pluginI18nVersion = (require('@modern-js/plugin-i18n/package.json') as { version: string }).version;
 const pluginTanstackVersion = (require('@modern-js/plugin-tanstack/package.json') as { version: string }).version;
@@ -160,7 +161,6 @@ const runtimeVersion = (require('@modern-js/runtime/package.json') as { version:
 const reactVersion = (require('react/package.json') as { version: string }).version;
 const reactDomVersion = (require('react-dom/package.json') as { version: string }).version;
 
-${createModuleFederationRemoteUrlHelpers(shellHost, remotes)}
 const moduleFederationConfig: Parameters<
   typeof createModuleFederationConfig
 >[0] = createModuleFederationConfig({
@@ -253,6 +253,7 @@ ${tsgoCompilerImport}import { createRequire } from 'node:module';
 import { createModuleFederationConfig } from '@module-federation/modern-js-v3';
 import { dependencies } from './package.json';
 
+${createModuleFederationRemoteUrlHelpers(app, remotes)}
 const require = createRequire(import.meta.url);
 const pluginI18nVersion = (require('@modern-js/plugin-i18n/package.json') as { version: string }).version;
 const pluginTanstackVersion = (require('@modern-js/plugin-tanstack/package.json') as { version: string }).version;
@@ -260,7 +261,6 @@ const runtimeVersion = (require('@modern-js/runtime/package.json') as { version:
 const reactVersion = (require('react/package.json') as { version: string }).version;
 const reactDomVersion = (require('react-dom/package.json') as { version: string }).version;
 ${tsgoCompilerInstance}
-${createModuleFederationRemoteUrlHelpers(app, remotes)}
 const moduleFederationConfig: Parameters<
   typeof createModuleFederationConfig
 >[0] = createModuleFederationConfig({
