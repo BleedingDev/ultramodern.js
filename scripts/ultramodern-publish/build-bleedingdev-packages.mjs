@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import fsKit from '../lib/fs-kit.js';
 import processKit from '../lib/process-kit.js';
 import { collectPackageJsonFiles } from './lib/fs-utils.mjs';
@@ -53,6 +54,21 @@ function run(command, args) {
   }
 }
 
+export function createReleaseBuildArgs(packages) {
+  return [
+    'exec',
+    'nx',
+    'run-many',
+    '-t',
+    'build',
+    '-p',
+    packages.join(','),
+    '--maxParallel=8',
+    '--skipNxCache',
+    '--skipRemoteCache',
+  ];
+}
+
 function main() {
   const buildProjects = collectBuildProjects();
   const packages = collectPublicModernPackages().filter(packageName =>
@@ -66,21 +82,17 @@ function main() {
   }
 
   console.log(`Building ${packages.length} publishable @modern-js package(s).`);
-  run('pnpm', [
-    'exec',
-    'nx',
-    'run-many',
-    '-t',
-    'build',
-    '-p',
-    packages.join(','),
-    '--maxParallel=8',
-  ]);
+  run('pnpm', createReleaseBuildArgs(packages));
 }
 
-try {
-  main();
-} catch (error) {
-  console.error(error instanceof Error ? error.message : error);
-  process.exit(1);
+if (
+  process.argv[1] &&
+  fileURLToPath(import.meta.url) === path.resolve(process.argv[1])
+) {
+  try {
+    main();
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : error);
+    process.exit(1);
+  }
 }
