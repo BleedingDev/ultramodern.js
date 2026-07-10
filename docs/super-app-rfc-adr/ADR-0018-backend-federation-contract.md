@@ -229,3 +229,78 @@ Server execution work is not complete until all true:
 7. Existing browser MF SSR behavior remains intact.
 8. Tractor Store downstream acceptance remains valid when generator/runtime/tooling
    changes land.
+
+## Amendment 2026-07-10 — reconciliation with MicroVertical model v2
+
+This amendment preserves the July 3 decision record. It supersedes only the
+statements identified below, so that this ADR is read with the binding
+vocabulary in `CONTEXT.md` and the evolution policy in ADR-0020.
+
+### Superseded model statements
+
+1. Section 1, lines 17-20, and Decision items 1-2 (lines 48-49) are
+   superseded insofar as they require every vertical to have browser UI and a
+   strict Effect API, or make `shell | vertical` the complete public model. A
+   MicroVertical may be headless. Its published API Surface chooses one binding
+   protocol — GraphQL, REST, or RPC — and the chosen protocol defines that
+   surface's contract. A Shell and a Horizontal Remote are each their own
+   Delivery Unit kind; a Horizontal Remote is not a frontend or backend half of
+   a MicroVertical. `shell | vertical` may remain a legacy serialization during
+   migration, but is not the canonical delivery-unit vocabulary.
+
+2. Sections 3 and 6 are superseded wherever they make the strict Effect expose
+   or Effect-specific metadata a universal requirement for every
+   MicroVertical. They remain the contract for an Effect API Surface that opts
+   into this server-execution adapter. Equivalent contract, readiness, client,
+   observability, and validation requirements must be defined by the selected
+   API protocol rather than inferred from Effect.
+
+3. Section 5's `remoteType: 'commonjs-module'` example (line 175), and its
+   statements that the current proof is CommonJS and ESM containers remain
+   unproven (lines 181-185), are superseded. The current generator emits the
+   Node execution-surface metadata with `remoteType: 'module'`
+   (`packages/toolkit/create/src/ultramodern-workspace/backend-federation.ts:99-122`).
+   That source evidence proves the generated contract selects an ESM remote; it
+   does not prove that a generated Node adapter successfully loads that remote
+   at runtime. The required missing proof is an executed Node adapter test that
+   loads the generated ESM container and its declared expose. The historical
+   CommonJS proof does not satisfy that ESM acceptance.
+
+### Acceptance criteria after reconciliation
+
+The following parts of Section 7 remain binding:
+
+1. Criteria 1 and 2 remain binding as a shape rule whenever
+   `backendFederation` is emitted: Cloudflare fields belong under
+   `executionSurfaces.cloudflare`, Node Module Federation fields belong under
+   `executionSurfaces.node`, and Node manifest/container fields must not leak
+   into the Cloudflare/top-level contract.
+2. Criterion 3 remains binding for the Cloudflare platform adapter: Worker SSR,
+   asset and manifest behavior, and shell-to-vertical service-binding
+   reachability require proof. Criterion 4 remains binding for the separate
+   Node Module Federation platform adapter, including the ESM loading proof
+   above. These are separate adapters and must not be collapsed into one shared
+   URL loader.
+3. Criterion 5 remains binding for typed, observable failure outcomes, and
+   Criterion 7 remains binding for existing browser Module Federation SSR where
+   a Delivery Unit publishes a UI surface. Criterion 8 remains binding for
+   generator, runtime, or tooling changes.
+
+The following parts are superseded or narrowed by `CONTEXT.md` and ADR-0020:
+
+1. Criterion 1 no longer requires every MicroVertical to emit this contract;
+   headless units and units without server execution are valid. Criterion 3's
+   strict Effect readiness and UI/API-marker wording, Criterion 4's universal
+   Effect expose wording, and Criterion 6's universal strict-Effect/raw-handler
+   prohibition apply only to Effect API Surfaces. Other protocols require
+   protocol-appropriate equivalents.
+2. Criterion 5's unavailable-UI and strict-Effect-validation cases apply only
+   to the corresponding published surface. Its version-mismatch requirement is
+   superseded by the delivery-unit identity invariant: all applicable surfaces
+   of one MicroVertical resolve from the same Delivery Unit, while a consumer
+   supplies degraded-state handling during normal rollout skew.
+3. No criterion creates a universal backward-compatibility obligation. Inside
+   the Coordinated Zone, breaking changes update in-repository consumers in the
+   same change; an Externally Published Surface follows semantic versioning and
+   ships a breaking change as a new major alongside the previous major until
+   known external consumers migrate, as ADR-0020 specifies.
