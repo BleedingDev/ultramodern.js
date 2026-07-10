@@ -11,9 +11,17 @@
  * provider, then load the execution artifact from the resolved record) and
  * guarantees isolation: any discovery/load failure is caught, classified,
  * reported through the existing MF fallback telemetry, and handed to the
- * required degraded handler — it never throws, so one failing consumption can
- * never propagate to a sibling consumption (CONTEXT.md: faults isolate at the
- * vertical boundary).
+ * required degraded handler.
+ *
+ * Criticality (owner-default 5: unclassified consumption is `critical`). For a
+ * `noncritical` consumption the degraded handler's result is returned and the
+ * failure is swallowed, so one failing consumption can never propagate to a
+ * sibling (CONTEXT.md: faults isolate at the vertical boundary). For a
+ * `critical` consumption the degraded handler still runs — telemetry and
+ * fallback-UI obligations hold — but the returned promise then REJECTS with the
+ * typed failure so callers and rollout machinery observe it. Critical
+ * consumption during a rollout window should be driven by expand/contract, not
+ * by silent degrade.
  */
 import {
   classifyModuleFederationFallback,
@@ -87,6 +95,18 @@ export type SurfaceConsumerOptions<T> = {
    * or incompatible.
    */
   degraded: (failure: SurfaceConsumptionFailure) => T | Promise<T>;
+  /**
+   * Consumption criticality (owner-default 5). Defaults to `'critical'` when
+   * omitted.
+   *
+   * - `'noncritical'`: the degraded handler's result is returned and the
+   *   failure is swallowed — the promise never rejects.
+   * - `'critical'`: the degraded handler still runs (telemetry + fallback-UI
+   *   obligations hold), but the returned promise then REJECTS with the typed
+   *   failure so callers / rollout machinery observe it. Prefer expand/contract
+   *   over silent degrade for critical surfaces during rollout windows.
+   */
+  classification?: 'critical' | 'noncritical';
   /** Optional telemetry emission options (endpoint/auth/fetch overrides). */
   telemetry?: ModuleFederationFallbackTelemetryEmitOptions;
 };
@@ -189,14 +209,67 @@ async function reportFailure<T>(
     failure.resolved = base.resolved;
   }
 
-  return options.degraded(failure);
+  const critical = (options.classification ?? 'critical') === 'critical';
+
+  // The ORIGINAL typed failure a critical consumption rejects with: the typed
+  // discovery error, else the thrown error, else a synthesized discovery error
+  // for the incompatible-verdict path (which carries neither).
+  const reason: unknown =
+    base.discoveryError ??
+    (base.error !== undefined
+      ? base.error
+      : createDiscoveryError(
+          'identity-mismatch',
+          remote,
+          `resolved record for "${remote}" is incompatible`,
+          { env: options.env },
+        ));
+
+  let degradedValue: T;
+  try {
+    degradedValue = await options.degraded(failure);
+  } catch (handlerError) {
+    // Degraded-handler rejection containment: a throwing/rejecting degraded
+    // handler must not propagate unconditionally. Emit handler-failure
+    // telemetry, then for noncritical resolve undefined; for critical reject
+    // with the ORIGINAL typed error (never the handler's).
+    try {
+      await emitModuleFederationFallbackTelemetry(
+        {
+          appName: options.appName,
+          classification: base.classification,
+          error: handlerError,
+          metadata: { ...telemetry.metadata, degradedHandlerFailed: true },
+          phase: base.phase,
+          remote,
+          status: 'failed',
+        },
+        options.telemetry ?? {},
+      );
+    } catch {
+      // Telemetry sink failure must never mask the containment path.
+    }
+    if (critical) {
+      throw reason;
+    }
+    return undefined as T;
+  }
+
+  if (critical) {
+    throw reason;
+  }
+  return degradedValue;
 }
 
 /**
- * Consume one surface with a mandatory degraded fallback. Always resolves to a
- * value of `T`: on any discovery or load failure the required degraded handler
- * supplies the value. This function never rejects, so a failing consumption is
- * isolated from any sibling consumption.
+ * Consume one surface with a mandatory degraded fallback. On any discovery or
+ * load failure the required degraded handler runs (telemetry + fallback UI).
+ *
+ * For a `noncritical` consumption (see {@link SurfaceConsumerOptions.classification})
+ * this resolves to the degraded value and never rejects, so a failing
+ * consumption is isolated from any sibling. For a `critical` consumption (the
+ * default) it rejects with the typed failure AFTER the degraded handler has
+ * run, so callers / rollout machinery observe the failure.
  */
 export async function consumeSurface<T>(
   options: SurfaceConsumerOptions<T>,

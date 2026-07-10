@@ -50,6 +50,7 @@ describe('G22 consumeSurface — mandatory degraded consumption', () => {
       env: 'prod',
       provider,
       appName: 'crm-shell',
+      classification: 'noncritical',
       load: () => 'live',
       degraded: failure => {
         seen = failure;
@@ -74,6 +75,7 @@ describe('G22 consumeSurface — mandatory degraded consumption', () => {
       env: 'prod',
       provider,
       appName: 'crm-shell',
+      classification: 'noncritical',
       load: () => {
         throw new Error('failed to fetch chunk');
       },
@@ -109,6 +111,7 @@ describe('G22 consumeSurface — mandatory degraded consumption', () => {
       env: 'prod',
       provider,
       appName: 'crm-shell',
+      classification: 'noncritical',
       load: () => {
         loaded = true;
         return 'live';
@@ -137,6 +140,7 @@ describe('G22 consumeSurface — mandatory degraded consumption', () => {
         env: 'prod',
         provider: failing,
         appName: 'shell',
+        classification: 'noncritical',
         load: () => 'never',
         degraded: () => 'A-degraded',
       }),
@@ -183,6 +187,7 @@ describe('G22 consumeSurface — mandatory degraded consumption', () => {
       env: 'prod',
       provider,
       appName: 'shell',
+      classification: 'noncritical',
       load: () => 'live',
       degraded: failure => {
         seen = failure;
@@ -195,5 +200,121 @@ describe('G22 consumeSurface — mandatory degraded consumption', () => {
     expect(seen?.phase).toBe('discovery');
     expect(seen?.classification).toBe('remote-unavailable');
     expect(seen?.discoveryError?.code).toBe('unknown-surface');
+  });
+
+  test('unclassified consumption defaults to critical and rejects after the degraded handler ran', async () => {
+    const provider = providerOf(() => ({
+      ok: false,
+      error: {
+        code: 'unknown-unit',
+        ref: 'acme/checkout#cart',
+        message: 'no such unit',
+      },
+    }));
+
+    let degradedRan = false;
+    const rejection = await consumeSurface<string>({
+      ref: 'acme/checkout#cart',
+      env: 'prod',
+      provider,
+      appName: 'shell',
+      // no classification → defaults to 'critical'
+      load: () => 'live',
+      degraded: () => {
+        degradedRan = true;
+        return 'fallback-ui';
+      },
+    }).then(
+      () => undefined,
+      error => error,
+    );
+
+    // Degraded handler still ran (telemetry + fallback-UI obligations hold)...
+    expect(degradedRan).toBe(true);
+    // ...but the promise rejected with the typed discovery error.
+    expect((rejection as { code?: string } | undefined)?.code).toBe(
+      'unknown-unit',
+    );
+  });
+
+  test('explicit critical classification rejects with the typed error', async () => {
+    const provider = providerOf(() => ({
+      ok: false,
+      error: {
+        code: 'provider-unavailable',
+        ref: 'acme/checkout#cart',
+        message: 'offline',
+      },
+    }));
+
+    await expect(
+      consumeSurface<string>({
+        ref: 'acme/checkout#cart',
+        env: 'prod',
+        provider,
+        appName: 'shell',
+        classification: 'critical',
+        load: () => 'live',
+        degraded: () => 'fallback-ui',
+      }),
+    ).rejects.toMatchObject({ code: 'provider-unavailable' });
+  });
+
+  test('noncritical: a throwing degraded handler is contained and resolves undefined', async () => {
+    const provider = providerOf(() => ({
+      ok: false,
+      error: {
+        code: 'provider-unavailable',
+        ref: 'acme/checkout#cart',
+        message: 'offline',
+      },
+    }));
+
+    const value = await consumeSurface<string>({
+      ref: 'acme/checkout#cart',
+      env: 'prod',
+      provider,
+      appName: 'shell',
+      classification: 'noncritical',
+      load: () => 'live',
+      degraded: () => {
+        throw new Error('handler blew up');
+      },
+    });
+
+    expect(value).toBeUndefined();
+  });
+
+  test('critical: a throwing degraded handler rejects with the ORIGINAL typed error, not the handler error', async () => {
+    const provider = providerOf(() => ({
+      ok: false,
+      error: {
+        code: 'provider-unavailable',
+        ref: 'acme/checkout#cart',
+        message: 'offline',
+      },
+    }));
+
+    const rejection = await consumeSurface<string>({
+      ref: 'acme/checkout#cart',
+      env: 'prod',
+      provider,
+      appName: 'shell',
+      classification: 'critical',
+      load: () => 'live',
+      degraded: () => {
+        throw new Error('handler blew up');
+      },
+    }).then(
+      () => undefined,
+      error => error,
+    );
+
+    expect((rejection as { code?: string } | undefined)?.code).toBe(
+      'provider-unavailable',
+    );
+    expect((rejection as { message?: string } | undefined)?.message).not.toBe(
+      'handler blew up',
+    );
   });
 });

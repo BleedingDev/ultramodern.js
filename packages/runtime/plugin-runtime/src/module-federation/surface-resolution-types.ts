@@ -43,3 +43,18 @@ export function surfaceResolutionKey(
 ): string {
   return `${env}::${formatSurfaceRef(ref)}`;
 }
+
+/**
+ * Stable cache key for a (deliveryUnit, env) pair — ONE record per unit per
+ * env (ADR-0019 atomicity). All surfaces of a unit share this key so a refresh
+ * replaces the whole unit snapshot atomically for every surface, and two
+ * surfaces of the same unit can never be served from different cached
+ * snapshots. The ref's external-major participates in lookup validation (see
+ * the LKG provider), not in this key.
+ */
+export function deliveryUnitResolutionKey(
+  unitId: string,
+  env: EnvironmentId,
+): string {
+  return `${env}::${unitId}`;
+}

@@ -7,21 +7,26 @@
  * is universal — no DOM/fetch/framework coupling — so the same wrapper works in
  * the browser, Node, and Cloudflare.
  *
- * Rollback semantics (ADR-0019 / CONTEXT.md Rollback): the record is the unit
- * of rollback. The cache stores exactly ONE whole {@link ResolvedDeliveryUnit}
- * per (ref, env) key and swaps it atomically on each fresh success. It never
- * stores or serves a partial record, and it never mixes locations across build
- * markers — a served degraded record is a byte-for-byte prior success with only
- * its compatibility verdict flipped to `degraded`.
+ * Rollback semantics (ADR-0019 / CONTEXT.md Rollback): the delivery UNIT is
+ * the unit of rollback. The cache stores exactly ONE whole
+ * {@link ResolvedDeliveryUnit} per (unitId, env) key — never per (ref, env) —
+ * so every surface of a unit shares one snapshot and a fresh success swaps that
+ * snapshot atomically for all of them (two surfaces can never be served from
+ * different cached build markers). It never stores or serves a partial record,
+ * and it never mixes locations across build markers — a served degraded record
+ * is a byte-for-byte prior success with only its compatibility verdict flipped
+ * to `degraded`. An `incompatible` record is never good: it is neither cached
+ * as the last-known-good snapshot nor ever served. The ref's external-major
+ * participates in lookup validation but not in the storage key.
  */
 import {
   createDiscoveryError,
   type DiscoveryResult,
+  deliveryUnitResolutionKey,
   type EnvironmentId,
   type ParsedSurfaceRef,
   type ResolvedDeliveryUnit,
   type SurfaceResolutionProvider,
-  surfaceResolutionKey,
 } from './surface-resolution-types';
 
 export const LAST_KNOWN_GOOD_PROVIDER_NAME = 'last-known-good';
@@ -30,6 +35,13 @@ export const LAST_KNOWN_GOOD_PROVIDER_NAME = 'last-known-good';
 export type LkgRecord = {
   resolved: ResolvedDeliveryUnit;
   storedAt: number;
+  /**
+   * External-major selector the record was resolved against. Participates in
+   * lookup validation — a cached record is only served for a matching major —
+   * but never in the storage key, which is (unitId, env) so all surfaces of a
+   * unit share one atomically-swapped record.
+   */
+  major?: number;
 };
 
 /**
@@ -127,9 +139,23 @@ export function createLastKnownGoodProvider(
     env: EnvironmentId,
     fallback: () => DiscoveryResult,
   ): Promise<DiscoveryResult> {
-    const key = surfaceResolutionKey(ref, env);
+    const key = deliveryUnitResolutionKey(ref.unitId, env);
     const cached = await storage.read(key);
     if (!cached) {
+      return fallback();
+    }
+
+    // The external-major participates in lookup validation: a record resolved
+    // against a different major is not a valid last-known-good for this ref.
+    if (cached.major !== ref.major) {
+      return fallback();
+    }
+
+    // Never serve an incompatible record as last-known-good. Only a previously
+    // compatible record is served, flipped to degraded (defensive: the write
+    // path already refuses to cache incompatible records, but a pluggable
+    // store could hold one).
+    if (cached.resolved.compatibility.status === 'incompatible') {
       return fallback();
     }
 
@@ -153,7 +179,7 @@ export function createLastKnownGoodProvider(
       ref: ParsedSurfaceRef,
       env: EnvironmentId,
     ): Promise<DiscoveryResult> {
-      const key = surfaceResolutionKey(ref, env);
+      const key = deliveryUnitResolutionKey(ref.unitId, env);
 
       let resolution: DiscoveryResult;
       try {
@@ -178,8 +204,17 @@ export function createLastKnownGoodProvider(
         return serveFromCache(ref, env, () => failure);
       }
 
-      // Fresh complete success: swap the whole record atomically.
-      await storage.write(key, { resolved: resolution.unit, storedAt: now() });
+      // Fresh complete success: swap the whole record atomically — but never
+      // cache an incompatible verdict. LKG must retain the last *good* record,
+      // so an incompatible refresh is returned live yet leaves the prior good
+      // snapshot in place.
+      if (resolution.unit.compatibility.status !== 'incompatible') {
+        await storage.write(key, {
+          resolved: resolution.unit,
+          storedAt: now(),
+          major: ref.major,
+        });
+      }
       return resolution;
     },
   };

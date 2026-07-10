@@ -168,6 +168,101 @@ describe('G24a/b last-known-good provider wrapper', () => {
     expect(served.compatibility.status).toBe('degraded');
   });
 
+  test('two surfaces of one unit share a single atomically-swapped snapshot', async () => {
+    const provider = scriptedProvider([
+      okResult('bm-1'),
+      {
+        ok: false,
+        error: {
+          code: 'provider-unavailable',
+          ref: 'acme/checkout#banner',
+          message: 'offline',
+        },
+      },
+    ]);
+    const lkg = createLastKnownGoodProvider({ provider });
+
+    const cartRef = { unitId: 'acme/checkout', surfaceId: 'cart' };
+    const bannerRef = { unitId: 'acme/checkout', surfaceId: 'banner' };
+
+    // Resolving one surface caches the whole unit snapshot under (unitId, env).
+    await lkg.resolve(cartRef, 'prod');
+    // A different surface of the SAME unit, while the provider is down, is
+    // served from that one shared snapshot — no mixed build markers.
+    const served = await lkg.resolve(bannerRef, 'prod');
+    expect(served.ok).toBe(true);
+    expect(unitOf(served).buildMarker).toBe('bm-1');
+    expect(unitOf(served).compatibility.status).toBe('degraded');
+  });
+
+  test('an incompatible record is never cached nor served as last-known-good', async () => {
+    const incompatible: DiscoveryResult = {
+      ok: true,
+      unit: {
+        ...record('bm-9'),
+        compatibility: {
+          status: 'incompatible',
+          baselineCohortId: 'cohort-9',
+          reason: 'baseline skew',
+        },
+      },
+    };
+    const provider = scriptedProvider([
+      incompatible,
+      {
+        ok: false,
+        error: {
+          code: 'provider-unavailable',
+          ref: 'acme/checkout#cart',
+          message: 'offline',
+        },
+      },
+    ]);
+    const lkg = createLastKnownGoodProvider({ provider });
+
+    // The incompatible success is returned live but never cached.
+    const first = await lkg.resolve(ref, 'prod');
+    expect(unitOf(first).compatibility.status).toBe('incompatible');
+    // With nothing good cached, the provider failure passes through — the
+    // incompatible record is never resurrected as a degraded LKG.
+    const served = await lkg.resolve(ref, 'prod');
+    expect(served.ok).toBe(false);
+    expect(!served.ok && served.error.code).toBe('provider-unavailable');
+  });
+
+  test('an incompatible refresh does not clobber the last good record', async () => {
+    const incompatibleBm2: DiscoveryResult = {
+      ok: true,
+      unit: {
+        ...record('bm-2'),
+        compatibility: {
+          status: 'incompatible',
+          baselineCohortId: 'cohort-9',
+          reason: 'baseline skew',
+        },
+      },
+    };
+    const provider = scriptedProvider([
+      okResult('bm-1'),
+      incompatibleBm2,
+      {
+        ok: false,
+        error: {
+          code: 'provider-unavailable',
+          ref: 'acme/checkout#cart',
+          message: 'offline',
+        },
+      },
+    ]);
+    const lkg = createLastKnownGoodProvider({ provider });
+
+    await lkg.resolve(ref, 'prod'); // caches bm-1 (compatible)
+    await lkg.resolve(ref, 'prod'); // incompatible bm-2 returned, NOT cached
+    const served = unitOf(await lkg.resolve(ref, 'prod')); // provider fails
+    expect(served.buildMarker).toBe('bm-1');
+    expect(served.compatibility.status).toBe('degraded');
+  });
+
   test('honours a pluggable storage hook', async () => {
     const backing = new Map<string, unknown>();
     const storage: LkgStorage = {
