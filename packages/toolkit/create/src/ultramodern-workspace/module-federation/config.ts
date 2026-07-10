@@ -147,8 +147,7 @@ export function createShellModuleFederationConfig(
     verticalRefs: remotes.map(remote => remote.id),
   };
 
-  return `// @effect-diagnostics nodeBuiltinImport:off processEnv:off
-// ultramodern-mf: host-only
+  return `// ultramodern-mf: host-only
 import { createRequire } from 'node:module';
 import { createModuleFederationConfig } from '@module-federation/modern-js-v3';
 import { dependencies } from './package.json';
@@ -164,17 +163,10 @@ const reactDomVersion = (require('react-dom/package.json') as { version: string 
 const moduleFederationConfig: Parameters<
   typeof createModuleFederationConfig
 >[0] = createModuleFederationConfig({
-  bridge: {
-    enableBridgeRouter: false,
-  },
-  dev: {
-    disableDynamicRemoteTypeHints: true,
-  },
 ${createModuleFederationDtsConfig(false)}
   filename: 'remoteEntry.js',
   name: '${shellApp.mfName}',
 ${createModuleFederationRemotesConfig(scope, shellHost, remotes)}${createSharedModuleFederationConfig()},
-  treeShakingSharedExcludePlugins: ['RspackModuleFederationPlugin'],
 });
 
 export default moduleFederationConfig;
@@ -182,8 +174,7 @@ export default moduleFederationConfig;
 }
 
 export function createBackendModuleFederationConfig(app: WorkspaceApp): string {
-  return `// @effect-diagnostics nodeBuiltinImport:off
-import { createRequire } from 'node:module';
+  return `import { createRequire } from 'node:module';
 import { createModuleFederationConfig } from '@module-federation/modern-js-v3';
 import { dependencies } from './package.json';
 
@@ -221,7 +212,6 @@ const moduleFederationConfig: Parameters<
       treeShaking: false,
     },
   },
-  treeShakingSharedExcludePlugins: ['RspackModuleFederationPlugin'],
 });
 
 export default moduleFederationConfig;
@@ -237,18 +227,15 @@ export function createRemoteModuleFederationConfig(
   const hasExposes = Object.keys(app.exposes ?? {}).length > 0;
   const hostOnlyMarker = hasExposes ? '' : '\n// ultramodern-mf: no-exposes';
   const tsgoCompilerImport = hasExposes
-    ? "import { execFileSync } from 'node:child_process';\n"
+    ? "import { resolveEffectTsgoCompiler } from '@modern-js/app-tools/config';\n"
     : '';
   const tsgoCompilerInstance = hasExposes
     ? `
 const tsgoCompilerInstance =
-  process.env.EFFECT_TSGO_BIN?.trim() ||
-  execFileSync('npx', ['effect-tsgo', 'get-exe-path'], {
-    encoding: 'utf-8',
-  }).trim();
+  resolveEffectTsgoCompiler();
 `
     : '';
-  return `// @effect-diagnostics nodeBuiltinImport:off${hostOnlyMarker}
+  return `${hostOnlyMarker}
 ${tsgoCompilerImport}import { createRequire } from 'node:module';
 import { createModuleFederationConfig } from '@module-federation/modern-js-v3';
 import { dependencies } from './package.json';
@@ -264,18 +251,11 @@ ${tsgoCompilerInstance}
 const moduleFederationConfig: Parameters<
   typeof createModuleFederationConfig
 >[0] = createModuleFederationConfig({
-  bridge: {
-    enableBridgeRouter: false,
-  },
-  dev: {
-    disableDynamicRemoteTypeHints: true,
-  },
 ${createModuleFederationDtsConfig(hasExposes)}
   exposes: ${exposes},
   filename: 'remoteEntry.js',
   name: '${app.mfName}',
 ${createModuleFederationRemotesConfig(scope, app, remotes)}${createSharedModuleFederationConfig()},
-  treeShakingSharedExcludePlugins: ['RspackModuleFederationPlugin'],
 });
 
 export default moduleFederationConfig;
