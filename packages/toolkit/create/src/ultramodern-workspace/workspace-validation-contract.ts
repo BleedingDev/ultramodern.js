@@ -295,6 +295,71 @@ type WorkspaceValidationContract = ReturnType<
   typeof createWorkspaceValidationContract
 >;
 
+/**
+ * Structural thin-shell gate (G30a). A Shell is a thin composition host: it
+ * owns top-level routing, provisions the Platform Baseline, and composes
+ * MicroVertical surfaces — it has no business capability. These rules are
+ * purely structural (forbidden file classes + forbidden import patterns), not
+ * semantic intent detection:
+ *
+ *  - a shell package must not contain an api/ or server/ surface, or
+ *    backend-federation artifacts (forbidden path classes, relative to the
+ *    shell package root — the shell's own `src/api/` client is unaffected);
+ *  - shell source must not deep-import a vertical's internals — only published
+ *    surfaces (package roots / Module Federation) are allowed.
+ *
+ * The generated validator enforces this block; a violating shell fails the
+ * generated `validate` script. Emitted for every configured shell (G28).
+ */
+function createStructuralShellPolicy(workspaceApps: WorkspaceApp[]) {
+  return {
+    schemaVersion: 1,
+    shells: workspaceApps
+      .filter(app => app.kind === 'shell')
+      .map(app => ({
+        id: app.id,
+        packageDir: app.directory,
+        srcDir: `${app.directory}/src`,
+      })),
+    forbiddenPathClasses: [
+      {
+        id: 'shell-api-surface',
+        path: 'api',
+        diagnostic:
+          'A thin Shell must not own an API surface (api/); business APIs belong to a MicroVertical.',
+      },
+      {
+        id: 'shell-server-surface',
+        path: 'server',
+        diagnostic:
+          'A thin Shell must not own a server surface (server/); server capability belongs to a MicroVertical.',
+      },
+      {
+        id: 'shell-backend-federation',
+        path: 'backend-federation.config.ts',
+        diagnostic:
+          'A thin Shell must not own backend-federation artifacts; backend federation belongs to a MicroVertical delivery unit.',
+      },
+    ],
+    forbiddenImportPatterns: [
+      {
+        id: 'vertical-directory-deep-import',
+        expression: "from\\s+['\"][^'\"]*verticals/[^'\"/]+/",
+        flags: 'u',
+        diagnostic:
+          'A thin Shell must consume only published vertical surfaces (package root or Module Federation), never deep-import a vertical directory.',
+      },
+      {
+        id: 'workspace-package-source-import',
+        expression: "from\\s+['\"]@[^'\"/]+/[^'\"/]+/src/",
+        flags: 'u',
+        diagnostic:
+          'A thin Shell must consume only published package surfaces, never deep-import another package’s raw src/ internals (published subpath exports are allowed).',
+      },
+    ],
+  };
+}
+
 export function createWorkspaceValidationContract(
   scope: string,
   enableTailwind: boolean,
@@ -458,6 +523,7 @@ export function createWorkspaceValidationContract(
       typescriptCompilerApi: TYPESCRIPT_COMPILER_API_VERSION,
     },
     tailwindEnabled: enableTailwind,
+    structuralShellPolicy: createStructuralShellPolicy(workspaceApps),
     fullStackVerticals,
     shellNamespace: appI18nNamespace(shellApp),
     oldRemotePaths: ['apps/remotes'],

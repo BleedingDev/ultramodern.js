@@ -2579,6 +2579,66 @@ assert(rootPackage.modernjs?.packageSource?.strategy === packageSource.strategy,
 assert(packageSource.strategy === 'workspace' || packageSource.strategy === 'install', 'Package source strategy must be workspace or install');
 assert(packageSource.strategy === 'install' || packageSource.modernPackages?.specifier === 'workspace:*', 'Workspace package source must be explicitly backed by workspace:*');
 assertModernPackageCohort();
+const assertStructuralShellPolicy = () => {
+  const policy = workspaceValidationContract.structuralShellPolicy;
+  if (!policy) {
+    return;
+  }
+  const collectSourceFiles = absoluteDir => {
+    const files = [];
+    const queue = [absoluteDir];
+    while (queue.length > 0) {
+      const current = queue.shift();
+      let entries;
+      try {
+        entries = fs.readdirSync(current, { withFileTypes: true });
+      } catch {
+        continue;
+      }
+      for (const entry of entries) {
+        const absoluteEntry = path.join(current, entry.name);
+        if (entry.isDirectory()) {
+          queue.push(absoluteEntry);
+        } else if (/\.(?:ts|tsx)$/u.test(entry.name)) {
+          files.push(absoluteEntry);
+        }
+      }
+    }
+    return files.toSorted();
+  };
+  for (const shell of policy.shells) {
+    for (const forbidden of policy.forbiddenPathClasses) {
+      assert(
+        !fs.existsSync(path.join(root, shell.packageDir, forbidden.path)),
+        selfCheckFailure(
+          `structural thin-shell ${forbidden.id}`,
+          `${forbidden.diagnostic} Forbidden artifact ${shell.packageDir}/${forbidden.path} exists`,
+          `remove forbidden thin-shell artifact ${shell.packageDir}/${forbidden.path}`,
+        ),
+      );
+    }
+    const srcAbsolute = path.join(root, shell.srcDir);
+    if (!fs.existsSync(srcAbsolute)) {
+      continue;
+    }
+    for (const file of collectSourceFiles(srcAbsolute)) {
+      const source = fs.readFileSync(file, 'utf-8');
+      const relative = path.relative(root, file).split(path.sep).join('/');
+      for (const pattern of policy.forbiddenImportPatterns) {
+        const match = new RegExp(pattern.expression, pattern.flags).exec(source);
+        assert(
+          match === null,
+          selfCheckFailure(
+            `structural thin-shell ${pattern.id}`,
+            `${pattern.diagnostic} Found forbidden import at ${relative}:${match?.index ?? 0}`,
+            'consume only published surfaces from the thin shell',
+          ),
+        );
+      }
+    }
+  }
+};
+assertStructuralShellPolicy();
 assert(
   rootPackage.devDependencies?.['@modern-js/create'] ===
     expectedModernPackageSpecifier('@modern-js/create'),
