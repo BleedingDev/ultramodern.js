@@ -30,8 +30,11 @@ export const MINIFLARE_VERSION = '4.20260708.1';
 export const WORKERD_VERSION = '1.20260708.1';
 export const CLOUDFLARE_WORKERS_TYPES_VERSION = '5.20260710.1';
 export const NODE_FETCH_VERSION = '^3.3.2';
-export const REACT_VERSION = '^19.2.7';
-export const REACT_DOM_VERSION = '^19.2.7';
+// Platform Baseline producer pins are exact (CONTEXT.md: "pinned platform-wide";
+// baseline reclassification MV-G16-R). Composition-time singletons like React
+// never float; the cohort advances centrally as an exact bump.
+export const REACT_VERSION = '19.2.7';
+export const REACT_DOM_VERSION = '19.2.7';
 export const REACT_ROUTER_VERSION = '7.18.1';
 export const TYPES_REACT_VERSION = '^19.2.17';
 export const TYPES_REACT_DOM_VERSION = '^19.2.3';

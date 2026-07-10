@@ -51,8 +51,8 @@ const installAppDependencies = {
   'node-fetch': '^3.3.2',
   '@tractor-store/shared-contracts': 'workspace:*',
   '@tractor-store/shared-design-tokens': 'workspace:*',
-  react: '^19.2.7',
-  'react-dom': '^19.2.7',
+  react: '19.2.7',
+  'react-dom': '19.2.7',
   'react-router': '7.18.1',
 };
 
@@ -140,8 +140,8 @@ test('workspace package source uses workspace versions for generated framework d
     'node-fetch': '^3.3.2',
     '@tractor-store/shared-contracts': 'workspace:*',
     '@tractor-store/shared-design-tokens': 'workspace:*',
-    react: '^19.2.7',
-    'react-dom': '^19.2.7',
+    react: '19.2.7',
+    'react-dom': '19.2.7',
     'react-router': '7.18.1',
     '@modern-js/plugin-bff': 'workspace:*',
   });
