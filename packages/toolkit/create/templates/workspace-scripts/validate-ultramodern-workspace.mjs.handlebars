@@ -1002,7 +1002,10 @@ const createCloudflareRoutes = app => ({
   ssr: '/en',
   mfManifest: '/mf-manifest.json',
   locale: `/locales/en/${appNamespace(app)}.json`,
-  ...(app.api
+  // Mirrors policy.ts:76 — the Cloudflare proof carries a REST readiness route
+  // only for `rest` units. An `rpc` unit exposes its `/rpc` route instead and
+  // must not emit (or require) a REST readiness path.
+  ...(app.api && app.api.protocol === 'rest'
     ? {
         apiReadiness: `${app.api.prefix}/${app.api.stem}/readiness`,
       }
@@ -1575,10 +1578,16 @@ const forbiddenMicroVerticalPaths = vertical => [
     : [
         `${vertical.path}/module-federation.config.ts`,
         `${vertical.path}/src/federation-entry.tsx`,
+        // The federated demo `./Widget` component (descriptors.ts:127 ->
+        // remoteComponentOutputPath) is a UI-only artifact; a headless api-only
+        // unit exposes no browser component and must not ship it.
+        `${vertical.path}/src/components/${vertical.domain ?? vertical.id}-widget.tsx`,
         `${vertical.path}/src/routes/layout.tsx`,
         `${vertical.path}/src/routes/[lang]/page.tsx`,
         // A headless api-only unit renders no browser surface, so it must not
-        // ship route components or the colocated route-metadata/head modules.
+        // ship route components, the colocated route-metadata/head modules, or
+        // the colocated `[lang]/route.meta.ts` route-meta file.
+        `${vertical.path}/src/routes/[lang]/route.meta.ts`,
         `${vertical.path}/src/routes/ultramodern-route-head.tsx`,
         `${vertical.path}/src/routes/ultramodern-route-metadata.ts`,
         `${vertical.path}/src/routes/index.css`,
@@ -3009,7 +3018,15 @@ for (const vertical of fullStackVerticals) {
   assert(contractEntry?.config?.performance?.readinessDiagnostics?.default === 'enabled', `${vertical.id} performance readiness diagnostics must be default-on`);
   assert(contractEntry?.config?.performance?.readinessDiagnostics?.failOn === 'framework-invariant', `${vertical.id} performance readiness diagnostics must only fail framework invariants by default`);
   assert(contractEntry?.config?.performance?.readinessDiagnostics?.optOut?.config === 'scripts/ultramodern-performance-readiness.config.mjs', `${vertical.id} performance readiness opt-out config is incorrect`);
-  assert(contractEntry?.deploy?.cloudflare?.routes?.apiReadiness === `${vertical.apiPrefix}/${vertical.stem}/readiness`, `${vertical.id} Cloudflare proof readiness route is incorrect`);
+  if (vertical.emitsApi) {
+    // Per policy.ts:76 the Cloudflare proof advertises a REST readiness route
+    // only for `rest` units; an `rpc` unit must not carry one.
+    if (vertical.apiProtocol === 'rpc') {
+      assert(contractEntry?.deploy?.cloudflare?.routes?.apiReadiness === undefined, `${vertical.id} rpc unit must not carry a REST Cloudflare readiness route`);
+    } else {
+      assert(contractEntry?.deploy?.cloudflare?.routes?.apiReadiness === `${vertical.apiPrefix}/${vertical.stem}/readiness`, `${vertical.id} Cloudflare proof readiness route is incorrect`);
+    }
+  }
   assert(contractEntry?.config?.rspack?.output?.uniqueName === vertical.mfName, `${vertical.id} Rspack uniqueName is incorrect`);
   assert(contractEntry?.config?.rspack?.output?.chunkLoadingGlobal === expectedChunkLoadingGlobal(vertical.mfName), `${vertical.id} Rspack chunkLoadingGlobal is incorrect`);
   assert(contractEntry?.moduleFederation?.name === vertical.mfName, `${vertical.id} MF name is incorrect`);

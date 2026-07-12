@@ -1511,6 +1511,66 @@ test('generated validator accepts an api-only (headless) workspace and rejects p
       ),
     );
 
+    // Planting the federated `./Widget` demo component (a UI-only artifact:
+    // descriptors.ts:127 -> src/components/${domain}-widget.tsx) into a headless
+    // unit must be rejected.
+    fs.mkdirSync(path.join(workspaceDir, 'verticals/headless/src/components'), {
+      recursive: true,
+    });
+    fs.writeFileSync(
+      path.join(
+        workspaceDir,
+        'verticals/headless/src/components/headless-widget.tsx',
+      ),
+      'export const Widget = () => null;\n',
+      'utf-8',
+    );
+    const failingWidget = runGeneratedWorkspaceCheck(workspaceDir);
+    const widgetOutput = commandOutput(failingWidget);
+    assert.notEqual(failingWidget.status, 0, widgetOutput);
+    assert.match(
+      widgetOutput,
+      /Unexpected .*src\/components\/headless-widget\.tsx for a api-only unit/,
+    );
+    fs.rmSync(
+      path.join(
+        workspaceDir,
+        'verticals/headless/src/components/headless-widget.tsx',
+      ),
+    );
+
+    // Planting a colocated `[lang]/route.meta.ts` (a UI/browser route-meta
+    // artifact) into a headless unit must be rejected too.
+    fs.mkdirSync(
+      path.join(workspaceDir, 'verticals/headless/src/routes/[lang]'),
+      { recursive: true },
+    );
+    fs.writeFileSync(
+      path.join(
+        workspaceDir,
+        'verticals/headless/src/routes/[lang]/route.meta.ts',
+      ),
+      'export const meta = {};\n',
+      'utf-8',
+    );
+    const failingRouteMetaColocated = runGeneratedWorkspaceCheck(workspaceDir);
+    const routeMetaColocatedOutput = commandOutput(failingRouteMetaColocated);
+    assert.notEqual(
+      failingRouteMetaColocated.status,
+      0,
+      routeMetaColocatedOutput,
+    );
+    assert.match(
+      routeMetaColocatedOutput,
+      /Unexpected .*\[lang\]\/route\.meta\.ts for a api-only unit/,
+    );
+    fs.rmSync(
+      path.join(
+        workspaceDir,
+        'verticals/headless/src/routes/[lang]/route.meta.ts',
+      ),
+    );
+
     // Widening the headless unit's Module Federation DTS boundary to a browser
     // federation entry it does not ship must be rejected (the api-only mf-types
     // boundary only covers the app ambient types).
@@ -1620,6 +1680,17 @@ test('generated validator accepts an rpc-protocol workspace and rejects a missin
     assert.ok(
       !exists(workspaceDir, 'verticals/catalog/src/api/catalog-client.ts'),
     );
+
+    // The compact config records the `rpc` protocol, so the generated
+    // validator synthesizes a REST-less Cloudflare proof route (mirroring
+    // policy.ts:76) and, per its readiness assertions, must NOT require a REST
+    // `apiReadiness` route for this unit. The exit-0 check below is the
+    // end-to-end proof that no REST readiness is required for an rpc unit.
+    const rpcConfig = readJson(workspaceDir, '.modernjs/ultramodern.json');
+    const rpcAppEntry = rpcConfig.topology.apps.find(
+      (app: { id: string }) => app.id === 'catalog',
+    );
+    assert.equal(rpcAppEntry?.api?.protocol, 'rpc');
 
     const passing = runGeneratedWorkspaceCheck(workspaceDir);
     assert.equal(passing.status, 0, commandOutput(passing));
