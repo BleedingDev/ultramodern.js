@@ -109,6 +109,50 @@ test('G2a: api-only omits every UI artifact and keeps API + backend federation',
     assert.ok(unit, 'api-only unit carries a canonical descriptor');
     assert.deepEqual(unit?.surfaces.map(s => s.kind).sort(), ['api']);
     assert.equal(unit?.kind, 'microvertical');
+
+    const topology = JSON.parse(
+      fs.readFileSync(
+        path.join(dir, 'topology/reference-topology.json'),
+        'utf-8',
+      ),
+    );
+    assert.deepEqual(topology.shell.verticalRefs, []);
+    assert.deepEqual(topology.shell.moduleFederation.remotes, []);
+
+    const overlay = JSON.parse(
+      fs.readFileSync(
+        path.join(dir, 'topology/local-overlays/development.json'),
+        'utf-8',
+      ),
+    );
+    assert.equal(overlay.manifests.catalog, undefined);
+    assert.equal(
+      overlay.apis.catalog,
+      `http://localhost:${result.assignedPorts.catalog}/catalog-api`,
+    );
+
+    const shellPackage = JSON.parse(
+      fs.readFileSync(
+        path.join(dir, 'apps/shell-super-app/package.json'),
+        'utf-8',
+      ),
+    );
+    assert.equal(shellPackage['zephyr:dependencies'].catalog, undefined);
+    assert.equal(
+      Object.entries(shellPackage.dependencies).find(([name]) =>
+        name.endsWith('/catalog'),
+      )?.[1],
+      'workspace:*',
+    );
+
+    const compact = JSON.parse(
+      fs.readFileSync(path.join(dir, '.modernjs/ultramodern.json'), 'utf-8'),
+    );
+    assert.deepEqual(
+      compact.topology.apps.find((app: any) => app.id === 'shell-super-app')
+        .moduleFederation.verticalRefs,
+      [],
+    );
   });
 });
 

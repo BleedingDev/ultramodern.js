@@ -46,7 +46,7 @@ export const shellApp: WorkspaceApp = {
 export function createShellHost(remotes: WorkspaceApp[] = []): WorkspaceApp {
   return {
     ...shellApp,
-    verticalRefs: remotes.map(remote => remote.id),
+    verticalRefs: remotes.filter(appEmitsBrowserUi).map(remote => remote.id),
   };
 }
 

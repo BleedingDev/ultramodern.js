@@ -1,4 +1,5 @@
 import {
+  appEmitsBrowserUi,
   appI18nNamespace,
   remoteDependencyAlias,
   resolveRemoteRefs,
@@ -68,6 +69,7 @@ export function createAppRuntimeConfig(
   app: WorkspaceApp,
   scope: string,
   remotes: WorkspaceApp[] = [],
+  emitsUi = appEmitsBrowserUi(app),
 ): string {
   const pluginsConfig =
     app.kind === 'shell'
@@ -85,11 +87,16 @@ export function createAppRuntimeConfig(
 `
       : '';
 
+  const routeMetadataImport = emitsUi
+    ? "import { ultramodernRouteNamespace } from './routes/ultramodern-route-metadata';\n"
+    : '';
+  const routeNamespace = emitsUi ? 'ultramodernRouteNamespace' : "'api'";
+
   return `import { defineRuntimeConfig } from '@modern-js/runtime';
 ${app.kind === 'shell' ? "import { ultramodernBoundaryDebuggerPlugin } from '@modern-js/runtime/boundary-debugger';\n" : ''}import { createInstance } from 'i18next';
 import csResource from '../locales/cs/${appI18nNamespace(app)}.json';
 import enResource from '../locales/en/${appI18nNamespace(app)}.json';
-import { ultramodernRouteNamespace } from './routes/ultramodern-route-metadata';
+${routeMetadataImport}
 
 type LocaleResource = string | { readonly [key: string]: LocaleResource };
 
@@ -113,15 +120,15 @@ const flattenLocaleResource = (
 
 const i18nInstance = createInstance();
 const resources = {
-  cs: { [ultramodernRouteNamespace]: flattenLocaleResource(csResource) },
-  en: { [ultramodernRouteNamespace]: flattenLocaleResource(enResource) },
+  cs: { [${routeNamespace}]: flattenLocaleResource(csResource) },
+  en: { [${routeNamespace}]: flattenLocaleResource(enResource) },
 } as const;
 
 export default defineRuntimeConfig({
   i18n: {
     i18nInstance,
     initOptions: {
-      defaultNS: ultramodernRouteNamespace,
+      defaultNS: ${routeNamespace},
       fallbackLng: 'en',
       interpolation: {
         escapeValue: false,

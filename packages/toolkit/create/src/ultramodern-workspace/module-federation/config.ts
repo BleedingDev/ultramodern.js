@@ -8,6 +8,7 @@ import {
   createBackendFederationName,
   createCloudflarePublicUrlEnv,
   createCloudflareWorkerName,
+  createShellHost,
   resolveApiPrefix,
   shellApp,
 } from '../descriptors';
@@ -142,10 +143,7 @@ export function createShellModuleFederationConfig(
   scope: string,
   remotes: WorkspaceApp[] = [],
 ): string {
-  const shellHost = {
-    ...shellApp,
-    verticalRefs: remotes.map(remote => remote.id),
-  };
+  const shellHost = createShellHost(remotes);
 
   return `// ultramodern-mf: host-only
 import { createRequire } from 'node:module';

@@ -1,7 +1,9 @@
 import path from 'node:path';
 import { createServerExecutionOverlay } from '../backend-federation';
 import {
+  appEmitsBrowserUi,
   appHasApi,
+  createShellHost,
   resolveApiPrefix,
   shellApp,
   ULTRAMODERN_CONFIG_PATH,
@@ -69,6 +71,7 @@ function executeAddUltramodernVertical(
     vertical,
     updatedVerticals,
   } = prepareAddUltramodernVertical(options);
+  const shellHost = createShellHost(updatedVerticals);
 
   writeApp(
     options.workspaceRoot,
@@ -84,26 +87,34 @@ function executeAddUltramodernVertical(
   topology.shell.verticalRefs = topology.shell.verticalRefs.filter(
     (id: unknown) => id !== vertical.id,
   );
-  topology.shell.verticalRefs.push(vertical.id);
+  if (appEmitsBrowserUi(vertical)) {
+    topology.shell.verticalRefs.push(vertical.id);
+  }
   topology.shell.moduleFederation ??= {};
   topology.shell.moduleFederation.remotes ??= [];
   topology.shell.moduleFederation.remotes =
     topology.shell.moduleFederation.remotes.filter(
       (remote: { id?: unknown } | null) => remote?.id !== vertical.id,
     );
-  topology.shell.moduleFederation.remotes.push({
-    id: vertical.id,
-    name: vertical.mfName,
-    manifestUrl: `http://localhost:${vertical.port}/mf-manifest.json`,
-  });
+  if (appEmitsBrowserUi(vertical)) {
+    topology.shell.moduleFederation.remotes.push({
+      id: vertical.id,
+      name: vertical.mfName,
+      manifestUrl: `http://localhost:${vertical.port}/mf-manifest.json`,
+    });
+  }
   topology.verticals ??= [];
   topology.verticals.push(verticalTopologyEntry(scope, vertical));
   ownership.owners ??= [];
   ownership.owners.push(ownershipEntry(scope, vertical));
   overlay.ports[vertical.id] = vertical.port;
   overlay.manifests ??= {};
-  overlay.manifests[vertical.id] =
-    `http://localhost:${vertical.port}/mf-manifest.json`;
+  if (appEmitsBrowserUi(vertical)) {
+    overlay.manifests[vertical.id] =
+      `http://localhost:${vertical.port}/mf-manifest.json`;
+  } else {
+    delete overlay.manifests[vertical.id];
+  }
   // API-scoped overlay entries only exist for units that ship an API surface
   // (skipped for `ui-only` and horizontal-remote units — G2a/G2H).
   if (appHasApi(vertical)) {
@@ -128,7 +139,7 @@ function executeAddUltramodernVertical(
       [
         {
           ...shellApp,
-          verticalRefs: updatedVerticals.map(vertical => vertical.id),
+          verticalRefs: shellHost.verticalRefs,
         },
         ...updatedVerticals,
       ],
@@ -142,7 +153,7 @@ function executeAddUltramodernVertical(
     `${createZeropsYaml(scope, [
       {
         ...shellApp,
-        verticalRefs: updatedVerticals.map(vertical => vertical.id),
+        verticalRefs: shellHost.verticalRefs,
       },
       ...updatedVerticals,
     ])}\n`,
@@ -161,7 +172,9 @@ function executeAddUltramodernVertical(
     enableTailwind,
     updatedVerticals,
   );
-  addShellZephyrDependency(options.workspaceRoot, scope, vertical);
+  if (appEmitsBrowserUi(vertical)) {
+    addShellZephyrDependency(options.workspaceRoot, scope, vertical);
+  }
   addShellWorkspaceDependency(options.workspaceRoot, scope, vertical);
   updateRootWorkspaceScripts(
     options.workspaceRoot,
@@ -175,7 +188,7 @@ function executeAddUltramodernVertical(
     createRootTsConfig([
       {
         ...shellApp,
-        verticalRefs: updatedVerticals.map(vertical => vertical.id),
+        verticalRefs: shellHost.verticalRefs,
       },
       ...updatedVerticals,
     ]),

@@ -4,6 +4,7 @@ import path from 'node:path';
 import { WORKSPACE_PACKAGE_VERSION } from '../../ultramodern-package-source';
 import { createServerExecutionOverlay } from '../backend-federation';
 import {
+  appEmitsBrowserUi,
   appHasApi,
   remoteDependencyAlias,
   resolveApiPrefix,
@@ -96,7 +97,9 @@ function createVerticalPlan(
       {
         path: ULTRAMODERN_CONFIG_PATH,
         addedAppIds: [vertical.id],
-        shellVerticalRefs: updatedVerticals.map(vertical => vertical.id),
+        shellVerticalRefs: updatedVerticals
+          .filter(appEmitsBrowserUi)
+          .map(vertical => vertical.id),
       },
     ],
   };
@@ -125,22 +128,26 @@ function createDryRunJsonMutations(
     : [];
 
   return [
-    {
-      path: TOPOLOGY_PATH,
-      pointer: '/shell/verticalRefs/-',
-      description: `Add ${vertical.id} to the shell vertical references`,
-      value: vertical.id,
-    },
-    {
-      path: TOPOLOGY_PATH,
-      pointer: '/shell/moduleFederation/remotes/-',
-      description: `Register ${vertical.id} as a Module Federation remote`,
-      value: {
-        id: vertical.id,
-        name: vertical.mfName,
-        manifestUrl,
-      },
-    },
+    ...(appEmitsBrowserUi(vertical)
+      ? [
+          {
+            path: TOPOLOGY_PATH,
+            pointer: '/shell/verticalRefs/-',
+            description: `Add ${vertical.id} to the shell vertical references`,
+            value: vertical.id,
+          },
+          {
+            path: TOPOLOGY_PATH,
+            pointer: '/shell/moduleFederation/remotes/-',
+            description: `Register ${vertical.id} as a Module Federation remote`,
+            value: {
+              id: vertical.id,
+              name: vertical.mfName,
+              manifestUrl,
+            },
+          },
+        ]
+      : []),
     {
       path: TOPOLOGY_PATH,
       pointer: '/verticals/-',
@@ -159,12 +166,16 @@ function createDryRunJsonMutations(
       description: `Reserve development port ${vertical.port}`,
       value: vertical.port,
     },
-    {
-      path: DEVELOPMENT_OVERLAY_PATH,
-      pointer: `/manifests/${vertical.id}`,
-      description: `Add local Module Federation manifest URL for ${vertical.id}`,
-      value: manifestUrl,
-    },
+    ...(appEmitsBrowserUi(vertical)
+      ? [
+          {
+            path: DEVELOPMENT_OVERLAY_PATH,
+            pointer: `/manifests/${vertical.id}`,
+            description: `Add local Module Federation manifest URL for ${vertical.id}`,
+            value: manifestUrl,
+          },
+        ]
+      : []),
     ...apiMutation,
     {
       path: 'package.json',
@@ -204,12 +215,16 @@ function createShellDependencyChanges(
   vertical: WorkspaceApp,
 ): UltramodernShellDependencyChange[] {
   return [
-    {
-      path: `${shellApp.directory}/package.json`,
-      section: 'zephyr:dependencies',
-      packageName: remoteDependencyAlias(vertical),
-      version: zephyrRemoteDependency(scope, vertical),
-    },
+    ...(appEmitsBrowserUi(vertical)
+      ? [
+          {
+            path: `${shellApp.directory}/package.json`,
+            section: 'zephyr:dependencies' as const,
+            packageName: remoteDependencyAlias(vertical),
+            version: zephyrRemoteDependency(scope, vertical),
+          },
+        ]
+      : []),
     ...(appHasApi(vertical)
       ? [
           {

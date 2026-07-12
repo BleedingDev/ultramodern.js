@@ -12,6 +12,7 @@ import {
   createShellRemoteComponents,
 } from '../demo-components';
 import {
+  appEmitsBrowserUi,
   appHasApi,
   appI18nNamespace,
   createShellHost,
@@ -66,6 +67,7 @@ export function rewriteShellAppFiles(
   bridge?: UltramodernBridgeConfig,
 ) {
   const shellHost = createShellHost(remotes);
+  const uiRemotes = remotes.filter(appEmitsBrowserUi);
   const publicWeb = createPublicWebAppArtifacts(shellHost);
   writeJsonFile(
     path.join(workspaceRoot, `${shellApp.directory}/package.json`),
@@ -160,12 +162,12 @@ export function rewriteShellAppFiles(
   writeFileReplacing(
     workspaceRoot,
     `${shellApp.directory}/src/routes/[lang]/page.tsx`,
-    createShellPage(remotes),
+    createShellPage(uiRemotes),
   );
   writeFileReplacing(
     workspaceRoot,
     `${shellApp.directory}/src/routes/vertical-components.tsx`,
-    createShellRemoteComponents(remotes),
+    createShellRemoteComponents(uiRemotes),
   );
   writeFileReplacing(
     workspaceRoot,
