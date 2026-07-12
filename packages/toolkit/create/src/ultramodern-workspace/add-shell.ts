@@ -123,9 +123,18 @@ function prepareAddUltramodernShell(
     throw new Error(`Refusing to overwrite existing path: apps/${shellId}`);
   }
 
+  // Feed the primary shell's ACTUAL development port into the unified
+  // allocation set. Never clobber a customized overlay port with the hardcoded
+  // default (3020) — doing so would let a newly allocated additional shell
+  // collide with a primary shell that operators moved (e.g. to 3120). Fall back
+  // to the descriptor default only when the overlay does not record it.
+  const overlayPorts = overlay.ports ?? {};
   const portsWithPrimary = {
-    ...overlay.ports,
-    [shellApp.id]: shellApp.port,
+    ...overlayPorts,
+    [shellApp.id]:
+      typeof overlayPorts[shellApp.id] === 'number'
+        ? overlayPorts[shellApp.id]
+        : shellApp.port,
   };
   assertGlobalPortUniqueness(portsWithPrimary, existingAdditionalShells);
   const shell = createShellDescriptor(

@@ -404,6 +404,47 @@ test('workspace-wide port allocation avoids customized shell and overlay ports',
   }
 });
 
+test('add-shell honors a customized primary-shell overlay port during allocation', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-add-shell-'));
+  const workspaceDir = path.join(tempRoot, 'workspace');
+  try {
+    createBaseWorkspace(workspaceDir);
+
+    const overlayPath = path.join(
+      workspaceDir,
+      'topology/local-overlays/development.json',
+    );
+    const overlay = readJson(
+      workspaceDir,
+      'topology/local-overlays/development.json',
+    );
+    // Operator moved the primary shell onto the first additional-shell slot.
+    overlay.ports['shell-super-app'] = 3120;
+    fs.writeFileSync(overlayPath, `${JSON.stringify(overlay, null, 2)}\n`);
+
+    addUltramodernShell({
+      workspaceRoot: workspaceDir,
+      name: 'admin',
+      modernVersion: '3.2.1',
+    });
+
+    // The newly allocated additional shell must skip the customized primary
+    // port (3120) instead of colliding with it.
+    const config = readJson(workspaceDir, '.modernjs/ultramodern.json');
+    assert.equal(config.shells[0].port, 3121);
+
+    // add-shell must not mutate the development overlay (G28): the primary
+    // shell keeps its customized port untouched.
+    const overlayAfter = readJson(
+      workspaceDir,
+      'topology/local-overlays/development.json',
+    );
+    assert.equal(overlayAfter.ports['shell-super-app'], 3120);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test('the structural thin-shell gate rejects a business surface in an additional shell', () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-add-shell-'));
   const workspaceDir = path.join(tempRoot, 'workspace');
