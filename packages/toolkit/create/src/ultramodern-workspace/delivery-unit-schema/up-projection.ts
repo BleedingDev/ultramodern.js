@@ -9,8 +9,9 @@
  * "every current fixture round-trips v1 -> canonical -> v1" (MicroVertical
  * Phase-1 exit criterion).
  *
- * Like `./types.ts`, this module is intentionally UNWIRED: no generator,
- * normalizer, or runtime path imports it and it changes no emitted output.
+ * Generator paths consume the projection helpers for grammar-safe surface
+ * identity and owner/representability checks; the schema functions themselves
+ * remain pure and side-effect free.
  *
  * Binding vocabulary: root `CONTEXT.md`, ADR-0019 (Federated Loading, Unified
  * Delivery), ADR-0020 (Zoned Surface Versioning). See the SPEC §5 mapping
@@ -216,7 +217,8 @@ function projectSurfaces(
  * (identical to `createDeliveryUnitRecord`), and `buildMarker` /
  * `sourceRevision` are threaded straight from `context`, never regenerated.
  *
- * NOT wired into any generator path.
+ * Generator paths may consume this projection for canonical surface metadata;
+ * the projection remains pure and does not mutate the v1 app.
  */
 export function projectV1ToDeliveryUnit(
   app: WorkspaceApp,
@@ -247,9 +249,6 @@ export function projectV1ToDeliveryUnit(
  *
  * - `horizontal-remote-kind`: v1 collapses `horizontal-remote` to `vertical`.
  * - `external-zone`: v1 has no publication-zone field (ADR-0020).
- * - `non-team-owner`: v1 `Ownership` always names a human team; `agent` /
- *   `agent-team` owners have no v1 home (the up-projection always emits
- *   `team`).
  * - `component-or-route-surface`: the down-projection reconstructs no
  *   `exposes`, so every component/route surface is dropped.
  * - `backend-surface`: v1 has no backend-surface vocabulary at all.
@@ -274,7 +273,6 @@ export function projectV1ToDeliveryUnit(
 export type V1UnrepresentableReason =
   | 'horizontal-remote-kind'
   | 'external-zone'
-  | 'non-team-owner'
   | 'component-or-route-surface'
   | 'backend-surface'
   | 'multiple-api-surfaces'
@@ -338,8 +336,7 @@ function checkSurfaceRepresentable(
  * Returns a typed result rather than throwing. Exhaustive over the loss set
  * of `projectDeliveryUnitToV1` (see {@link V1UnrepresentableReason}); the
  * first detected reason is reported, in a deterministic order (unit-level
- * kind, unknown-fields, zone, owner first, then surfaces in declaration
- * order).
+ * kind, unknown-fields, zone, then surfaces in declaration order).
  *
  * The round-trip law rests on this guard: for descriptors this function
  * accepts, canonical -> v1 -> canonical is lossless on every
@@ -372,10 +369,6 @@ export function checkV1Representable(
   if (zone.zone !== 'coordinated' || Object.keys(zone).length !== 1) {
     return unrepresentable('non-canonical-zone');
   }
-  if (descriptor.owner.kind !== 'team') {
-    return unrepresentable('non-team-owner');
-  }
-
   let apiSurfaceCount = 0;
   for (const surface of descriptor.surfaces) {
     if (surface.kind === 'api') {

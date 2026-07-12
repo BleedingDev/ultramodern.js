@@ -17,14 +17,14 @@
  *
  * Law as implemented (canonical -> v1 -> canonical): for descriptors PASSING
  * `checkV1Representable` (kind `shell` | `microvertical`, coordinated zone,
- * `team` owner, at most one `rest` api surface with a single http location,
+ * any owner kind, at most one `rest` api surface with a single http location,
  * no component/route/backend surfaces), the reverse composition deep-equals
  * the original descriptor — the round-trip is lossless on every
  * representability-covered field. Every construct outside that subset
- * (`horizontal-remote`, `external` zone, non-team owner, component/route or
- * backend surfaces, multiple api surfaces, non-rest protocols, unsupported
- * api shapes) is detected by the guard and rejected with a typed error
- * instead of degrading silently. Where the v1 -> canonical -> v1 direction
+ * (`horizontal-remote`, `external` zone, component/route or backend surfaces,
+ * multiple api surfaces, non-rest protocols, unsupported api shapes) is
+ * detected by the guard and rejected with a typed error instead of degrading
+ * silently. Where the v1 -> canonical -> v1 direction
  * still strips fields (`exposes`), the loss is asserted to be
  * representability-covered: the up-projected descriptor is checked first and
  * the guard must have flagged exactly the descriptors whose apps carried
@@ -449,6 +449,8 @@ test('canonical agent / agent-team owner round-trips through the projection pair
 
     // Down-projection carries the non-team owner into ownership.owner...
     assert.deepEqual(app.ownership.owner, owner, owner.kind);
+    assert.deepEqual(checkV1Representable(descriptor), { representable: true });
+    assert.doesNotThrow(() => assertV1Representable(descriptor), owner.kind);
 
     // ...and the up-projection reads it straight back, faithfully.
     const back = projectV1ToDeliveryUnit(app, {
@@ -544,7 +546,6 @@ test('the guard exhaustively detects every construct the v1 shape cannot carry',
     }) as const;
 
   const cases: Array<[string, DeliveryUnitDescriptor]> = [
-    ['non-team-owner', base({ owner: { kind: 'agent', id: 'bot-7' } })],
     ['unknown-fields', base({ unknownFields: { forwardCompat: 'x' } })],
     // No publicationZone: down drops the field, up re-adds an explicit
     // coordinated zone, so the absence is not round-trippable.
