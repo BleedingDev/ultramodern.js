@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { rpcPath } from '../api/rpc';
 import { createServerExecutionOverlay } from '../backend-federation';
 import {
   createDeliveryUnitRecord,
@@ -9,6 +10,7 @@ import {
   appHasApi,
   createShellHost,
   resolveApiPrefix,
+  resolveApiProtocol,
   shellApp,
   ULTRAMODERN_CONFIG_PATH,
 } from '../descriptors';
@@ -131,8 +133,11 @@ function executeAddUltramodernVertical(
       vertical,
     );
     overlay.apis ??= {};
-    overlay.apis[vertical.id] =
-      `http://localhost:${vertical.port}${resolveApiPrefix(vertical)}`;
+    overlay.apis[vertical.id] = `http://localhost:${vertical.port}${
+      resolveApiProtocol(vertical) === 'rpc'
+        ? rpcPath(vertical)
+        : resolveApiPrefix(vertical)
+    }`;
   }
   writeJsonFile(topologyPath, topology as JsonValue);
   writeJsonFile(ownershipPath, ownership as JsonValue);

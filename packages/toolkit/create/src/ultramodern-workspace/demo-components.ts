@@ -1,6 +1,7 @@
 import {
   appHasApi,
   remoteDependencyAlias,
+  resolveApiProtocol,
   resolveApiStem,
   shellApp,
 } from './descriptors';
@@ -139,8 +140,20 @@ ${showcaseItems}
 export function createRemotePage(app: WorkspaceApp): string {
   const tw = createTw(tailwindPrefixForApp(app));
   const listApiItems = `list${toPascalCase(resolveApiStem(app))}`;
+  const rpcApi = resolveApiProtocol(app) === 'rpc';
   const apiImport = appHasApi(app)
-    ? `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
+    ? rpcApi
+      ? `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
+import { Link } from '@modern-js/plugin-tanstack/runtime';
+import { useEffect, useState } from 'react';
+import {
+  Effect,
+  ${listApiItems}Rpc,
+} from '../../api/${resolveApiStem(app)}-rpc-client';
+import { UltramodernRouteHead } from '../ultramodern-route-head';
+import { ultramodernUiMarker } from '../../ultramodern-build';
+`
+      : `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
 import { Link } from '@modern-js/plugin-tanstack/runtime';
 import { useEffect, useState } from 'react';
 import {
@@ -157,8 +170,8 @@ import { ultramodernUiMarker } from '../../ultramodern-build';
 
   useEffect(() => {
     let cancelled = false;
-    void runEffectRequest(
-      ${listApiItems}({ limit: 1 }).pipe(
+    void ${rpcApi ? 'Effect.runPromise' : 'runEffectRequest'}(
+      ${rpcApi ? `${listApiItems}Rpc(1)` : `${listApiItems}({ limit: 1 })`}.pipe(
         Effect.match({
           onFailure: () => {
             if (cancelled) {

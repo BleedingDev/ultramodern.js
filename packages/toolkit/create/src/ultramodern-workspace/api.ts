@@ -19,6 +19,14 @@ export {
   verticalApiSchemaExport,
 } from './api/names';
 export {
+  createRpcApiServiceEntry,
+  createRpcClientFile,
+  createRpcContractFile,
+  rpcPath,
+  verticalRpcContractExport,
+  verticalRpcGroupExport,
+} from './api/rpc';
+export {
   createApiServiceEntry,
   createBackendEffectApiExpose,
 } from './api/service';

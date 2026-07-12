@@ -6,6 +6,7 @@ import type { UltramodernBridgeConfig } from './bridge-config';
 import {
   appHasApi,
   remoteDependencyAlias,
+  resolveApiProtocol,
   resolveRemoteRefs,
   sharedPackages,
   shellApp,
@@ -270,10 +271,17 @@ export function createAppPackage(
   };
 
   if (appHasApi(app)) {
-    Object.assign(packageExports, {
-      './api': './shared/api.ts',
-      './api/client': `./src/api/${app.api.stem}-client.ts`,
-    });
+    if (resolveApiProtocol(app) === 'rpc') {
+      Object.assign(packageExports, {
+        './api': './shared/rpc.ts',
+        './api/rpc-client': `./src/api/${app.api.stem}-rpc-client.ts`,
+      });
+    } else {
+      Object.assign(packageExports, {
+        './api': './shared/api.ts',
+        './api/client': `./src/api/${app.api.stem}-client.ts`,
+      });
+    }
   } else if (app.kind === 'shell') {
     Object.assign(packageExports, {
       './api/clients': './src/api/vertical-clients.ts',

@@ -112,10 +112,12 @@ export function verticalsFromTopology(
       apiTopology?.runtime === 'effect'
         ? ({
             stem:
-              typeof apiTopology.basePath === 'string'
-                ? (apiTopology.basePath.split('/').filter(Boolean).at(-1) ??
-                  domain)
-                : domain,
+              typeof apiTopology.stem === 'string'
+                ? apiTopology.stem
+                : typeof apiTopology.basePath === 'string'
+                  ? (apiTopology.basePath.split('/').filter(Boolean).at(-1) ??
+                    domain)
+                  : domain,
             prefix: apiTopology.bff?.prefix ?? `/${domain}-api`,
             consumedBy: Array.isArray(apiTopology.consumedBy)
               ? apiTopology.consumedBy

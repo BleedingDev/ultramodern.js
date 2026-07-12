@@ -213,6 +213,88 @@ test('G2a: dry-run/add parity for every preset', () => {
   }
 });
 
+test('extended-v1 topology rehydration preserves discriminators and identity', () => {
+  withWorkspace(dir => {
+    add(dir, 'catalog', { apiProtocol: 'rpc' });
+    add(dir, 'design-system', { horizontalRemote: true });
+    add(dir, 'headless', { preset: 'api-only' });
+    add(dir, 'presentational', { preset: 'ui-only' });
+
+    const topology = JSON.parse(
+      fs.readFileSync(
+        path.join(dir, 'topology/reference-topology.json'),
+        'utf-8',
+      ),
+    );
+    const compact = JSON.parse(
+      fs.readFileSync(path.join(dir, '.modernjs/ultramodern.json'), 'utf-8'),
+    );
+
+    const topologyEntry = (id: string) =>
+      topology.verticals.find((entry: any) => entry.id === id);
+    const compactEntry = (id: string) =>
+      compact.topology.apps.find((entry: any) => entry.id === id);
+
+    assert.equal(topologyEntry('catalog').api.protocol, 'rpc');
+    assert.equal(compactEntry('catalog').api.protocol, 'rpc');
+    assert.equal(
+      topologyEntry('design-system').deliveryUnitKind,
+      'horizontal-remote',
+    );
+    assert.equal(
+      compactEntry('design-system').deliveryUnitKind,
+      'horizontal-remote',
+    );
+
+    for (const id of [
+      'catalog',
+      'design-system',
+      'headless',
+      'presentational',
+    ]) {
+      assert.ok(topologyEntry(id).deliveryUnit, `${id} topology identity`);
+      assert.ok(compactEntry(id).deliveryUnit, `${id} compact identity`);
+    }
+    assert.equal(topologyEntry('headless').surfaceProfile, 'api-only');
+    assert.equal(topologyEntry('presentational').surfaceProfile, 'ui-only');
+
+    // An explicit REST discriminator is also additive: a later mutation must
+    // not collapse it back to the strict-legacy omission.
+    topologyEntry('catalog').api.protocol = 'rest';
+    compactEntry('catalog').api.protocol = 'rest';
+    fs.writeFileSync(
+      path.join(dir, 'topology/reference-topology.json'),
+      `${JSON.stringify(topology, null, 2)}\n`,
+    );
+    fs.writeFileSync(
+      path.join(dir, '.modernjs/ultramodern.json'),
+      `${JSON.stringify(compact, null, 2)}\n`,
+    );
+    add(dir, 'rest-preserved');
+
+    const rehydratedTopology = JSON.parse(
+      fs.readFileSync(
+        path.join(dir, 'topology/reference-topology.json'),
+        'utf-8',
+      ),
+    );
+    const rehydratedCompact = JSON.parse(
+      fs.readFileSync(path.join(dir, '.modernjs/ultramodern.json'), 'utf-8'),
+    );
+    assert.equal(
+      rehydratedTopology.verticals.find((entry: any) => entry.id === 'catalog')
+        .api.protocol,
+      'rest',
+    );
+    assert.equal(
+      rehydratedCompact.topology.apps.find(
+        (entry: any) => entry.id === 'catalog',
+      ).api.protocol,
+      'rest',
+    );
+  });
+});
+
 test('G2a: CodeSmith adapter passthrough honours the preset', async () => {
   const { tempRoot, workspaceDir } = createWorkspace('preset-workspace', {
     tempPrefix: 'um-preset-cs-',
@@ -272,7 +354,38 @@ test('G7c: rpc protocol emits an Effect RPC contract/handlers/client', () => {
       path.join(dir, 'verticals/catalog/api/index.ts'),
       'utf-8',
     );
-    assert.match(serviceEntry, /RpcGroup|RpcLayer|rpc:/);
+    assert.match(serviceEntry, /catalogRpcGroup\.of\(/);
+    assert.doesNotMatch(serviceEntry, /HttpApiBuilder|shared\/api/);
+
+    const rpcClient = fs.readFileSync(
+      path.join(dir, 'verticals/catalog/src/api/catalog-rpc-client.ts'),
+      'utf-8',
+    );
+    assert.match(rpcClient, /makeEffectRpcClient/);
+    assert.match(
+      rpcClient,
+      /url: String\(options\.url \?\? catalogRpcContract\.path\)/,
+    );
+    assert.match(rpcClient, /serialization: 'json'/);
+    assert.ok(!files.has('shared/api.ts'));
+    assert.ok(!files.has('src/api/catalog-client.ts'));
+
+    const rpcPage = fs.readFileSync(
+      path.join(dir, 'verticals/catalog/src/routes/[lang]/page.tsx'),
+      'utf-8',
+    );
+    assert.match(rpcPage, /listCatalogRpc/);
+    assert.doesNotMatch(rpcPage, /catalog-client/);
+
+    const overlay = JSON.parse(
+      fs.readFileSync(
+        path.join(dir, 'topology/local-overlays/development.json'),
+        'utf-8',
+      ),
+    );
+    const expectedRpcUrl = `http://localhost:${result.assignedPorts.catalog}/catalog-api/rpc`;
+    assert.equal(overlay.apis.catalog, expectedRpcUrl);
+    assert.equal(overlay.serverExecution.catalog.apiBaseUrl, expectedRpcUrl);
 
     // Topology api metadata records the protocol.
     const topology = JSON.parse(
@@ -283,6 +396,8 @@ test('G7c: rpc protocol emits an Effect RPC contract/handlers/client', () => {
     );
     const entry = topology.verticals.find((v: any) => v.id === 'catalog');
     assert.equal(entry.api.protocol, 'rpc');
+    assert.equal(entry.api.bff.openapi, undefined);
+    assert.equal(entry.api.basePath, undefined);
 
     // Canonical descriptor api surface carries protocol 'rpc'.
     const unit = (result.deliveryUnits ?? []).find(u =>
@@ -292,6 +407,12 @@ test('G7c: rpc protocol emits an Effect RPC contract/handlers/client', () => {
     assert.equal(
       (apiSurface as { protocol?: string } | undefined)?.protocol,
       'rpc',
+    );
+    assert.equal(
+      apiSurface?.locations[0]?.platform === 'http'
+        ? apiSurface.locations[0].address
+        : undefined,
+      '/catalog-api/rpc',
     );
   });
 });

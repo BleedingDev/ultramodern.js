@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { rpcPath } from './api/rpc';
 import { createDeliveryUnitRecord } from './delivery-unit';
 import type {
   DeliveryUnitDescriptor,
@@ -10,7 +11,11 @@ import {
   apiSurface,
   exposeSurface,
 } from './delivery-unit-schema/up-projection';
-import { appHasApi, ULTRAMODERN_CONFIG_PATH } from './descriptors';
+import {
+  appHasApi,
+  resolveApiProtocol,
+  ULTRAMODERN_CONFIG_PATH,
+} from './descriptors';
 import { normalizePath, packageName } from './naming';
 import type {
   ResolvedPackageSource,
@@ -155,7 +160,13 @@ function createGeneratedDeliveryUnitDescriptor(
     ([key, value]) => exposeSurface(app, key, value),
   );
   if (appHasApi(app)) {
-    surfaces.push(apiSurface(app.api, app.api.protocol ?? 'rest'));
+    surfaces.push(
+      apiSurface(
+        app.api,
+        resolveApiProtocol(app),
+        resolveApiProtocol(app) === 'rpc' ? rpcPath(app) : app.api.prefix,
+      ),
+    );
   }
 
   const canonicalKind: DeliveryUnitDescriptor['kind'] =

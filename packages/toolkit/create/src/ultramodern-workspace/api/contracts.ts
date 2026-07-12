@@ -1,4 +1,4 @@
-import { appHasApi, resolveApiStem } from '../descriptors';
+import { appHasApi, resolveApiProtocol, resolveApiStem } from '../descriptors';
 import { toPascalCase } from '../naming';
 import type { JsonValue, WorkspaceApi, WorkspaceApp } from '../types';
 import { serviceHasCheckoutCartState } from './checkout-cart';
@@ -7,6 +7,7 @@ import {
   verticalApiGroupName,
   verticalApiNotFoundErrorExport,
 } from './names';
+import { RPC_ROUTE_PATH, rpcPath } from './rpc';
 
 export function createApiReadinessContract(app: {
   id: string;
@@ -111,13 +112,40 @@ export function apiTopologyMetadata(app: WorkspaceApp): JsonValue | undefined {
     return undefined;
   }
 
+  if (resolveApiProtocol(app) === 'rpc') {
+    return {
+      runtime: 'effect',
+      protocol: 'rpc',
+      bff: {
+        prefix: app.api.prefix,
+        rpc: {
+          path: RPC_ROUTE_PATH,
+          serialization: 'json',
+        },
+        strictEffectApproach: true,
+      },
+      stem: app.api.stem,
+      contract: {
+        export: './api',
+        path: `${app.directory}/shared/rpc.ts`,
+      },
+      client: {
+        export: './api/rpc-client',
+        path: `${app.directory}/src/api/${app.api.stem}-rpc-client.ts`,
+      },
+      serverEntry: `${app.directory}/api/index.ts`,
+      rpcPath: rpcPath(app),
+      rpcSerialization: 'json',
+      consumedBy: app.api.consumedBy,
+    };
+  }
+
   return {
     runtime: 'effect',
-    // Record a non-default API protocol (G7a/G7c). Omitted for the legacy REST
-    // default so byte-identical topology output is preserved.
-    ...(app.api.protocol && app.api.protocol !== 'rest'
-      ? { protocol: app.api.protocol }
-      : {}),
+    // A missing protocol is the strict-legacy REST default. If a reader found
+    // an explicit `rest` value in extended-v1 metadata, preserve that value on
+    // re-emission instead of silently collapsing it to the legacy shape.
+    ...(app.api.protocol === undefined ? {} : { protocol: app.api.protocol }),
     bff: {
       prefix: app.api.prefix,
       openapi: '/openapi.json',

@@ -18,28 +18,32 @@ import {
   verticalApiGroupName,
   verticalApiNotFoundErrorExport,
 } from './names';
-import { rpcServiceEntryWiring } from './rpc';
+import {
+  createRpcApiServiceEntry,
+  rpcPath,
+  verticalRpcContractExport,
+  verticalRpcGroupExport,
+} from './rpc';
 
 export function createApiServiceEntry(
   service: { id: string; api?: WorkspaceApi },
   contractImportPath: string,
 ): string {
+  if ((service.api?.protocol ?? 'rest') === 'rpc') {
+    return createRpcApiServiceEntry(service);
+  }
+
   const apiExport = verticalApiExport(service);
   const groupName = verticalApiGroupName(service);
   const notFoundErrorExport = verticalApiNotFoundErrorExport(service);
   const stem = resolveApiStem(service);
-  // G7c: for `rpc` services, splice an RPC group + handler layer + the `rpc`
-  // field of `defineEffectBff`. Empty strings for the REST default so output
-  // stays byte-identical.
-  const rpc = rpcServiceEntryWiring(service);
-
   return `import {
   defineEffectBff,
   Effect,
   HttpApiBuilder,
   Layer,
 } from '@modern-js/plugin-bff/effect-edge';
-${rpc.imports}import type {
+import type {
   EffectBffDefinition,
   EffectBffRuntime,
   EffectRuntimeLayer,
@@ -151,11 +155,10 @@ const ${groupName}Layer = HttpApiBuilder.group(
 const layer = HttpApiBuilder.layer(${apiExport}).pipe(
   Layer.provide(${groupName}Layer),
 ) satisfies EffectRuntimeLayer;
-${rpc.layer}
 const apiRuntime: EffectBffDefinition<typeof ${apiExport}, EffectRuntimeLayer> &
   EffectBffRuntime<typeof ${apiExport}, EffectRuntimeLayer> = defineEffectBff({
   api: ${apiExport},
-  layer,${rpc.field}
+  layer,
 });
 
 export default apiRuntime;
@@ -166,6 +169,44 @@ export function createBackendEffectApiExpose(
   scope: string,
   service: WorkspaceApp,
 ): string {
+  if ((service.api?.protocol ?? 'rest') === 'rpc') {
+    const groupExport = verticalRpcGroupExport(service);
+    const contractExport = verticalRpcContractExport(service);
+
+    return `import { ultramodernApiMarker } from '../shared/ultramodern-build.ts';
+import {
+  ${contractExport},
+  ${groupExport},
+} from '../shared/rpc.ts';
+
+export const backendFederationContract = {
+  compatibility: {
+    build: ultramodernApiMarker.build,
+    contractVersion: '${BACKEND_FEDERATION_CONTRACT_VERSION}',
+    nodeAdapterVersion: '${BACKEND_FEDERATION_NODE_ADAPTER_VERSION}',
+    packageName: '${packageName(scope, service.packageSuffix)}',
+    sourceRevision: ultramodernApiMarker.sourceRevision,
+    unitId: ultramodernApiMarker.unitId,
+  },
+  executionSurfaces: ['node-mf-runtime'],
+  exposes: ['./effect-api'],
+  name: '${createBackendFederationName(service)}',
+  rpcPath: '${rpcPath(service)}',
+  rpcSerialization: 'json',
+  role: 'microvertical-server',
+  runtimeFramework: 'effect',
+  strictEffectApproach: true,
+} as const;
+
+export { default, default as runtime } from './index.ts';
+export {
+  ${contractExport} as contract,
+  ${groupExport} as rpc,
+} from '../shared/rpc.ts';
+export const api: unknown = ${groupExport};
+`;
+  }
+
   const apiExport = verticalApiExport(service);
   const groupName = verticalApiGroupName(service);
   const apiPrefix = resolveApiPrefix(service);

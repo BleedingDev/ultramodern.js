@@ -1,4 +1,8 @@
-import { resolveApiStem, verticalApiApps } from '../descriptors';
+import {
+  resolveApiProtocol,
+  resolveApiStem,
+  verticalApiApps,
+} from '../descriptors';
 import { packageName, toPascalCase } from '../naming';
 import type { WorkspaceApi, WorkspaceApp } from '../types';
 import {
@@ -171,9 +175,11 @@ export function createShellApiClient(
     .map(remote => {
       const stem = resolveApiStem(remote);
       const pascalStem = toPascalCase(stem);
+      const rpc = resolveApiProtocol(remote) === 'rpc';
       const pascalSingular = toPascalCase(verticalApiErrorStem(remote));
-      const checkoutCartExports = serviceHasCheckoutCartState(remote)
-        ? `  addCheckoutCartItem,
+      const checkoutCartExports =
+        !rpc && serviceHasCheckoutCartState(remote)
+          ? `  addCheckoutCartItem,
   clearCheckoutCart,
   getCheckoutCart,
   removeCheckoutCartItem,
@@ -181,7 +187,15 @@ export function createShellApiClient(
   type CheckoutCart,
   type CheckoutCartLine,
 `
-        : '';
+          : '';
+      if (rpc) {
+        return `export {
+  get${pascalStem}Rpc,
+  list${pascalStem}Rpc,
+  make${pascalStem}RpcClient,
+  type ${pascalStem}RpcClientOptions,
+} from '${packageName(scope, remote.packageSuffix)}/api/rpc-client';`;
+      }
       return `export {
 ${checkoutCartExports}  create${pascalSingular},
   create${pascalStem}Client,

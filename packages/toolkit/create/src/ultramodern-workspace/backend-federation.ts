@@ -8,6 +8,11 @@ import {
 } from '@modern-js/utils/universal';
 import { verticalApiExport, verticalApiGroupName } from './api';
 import {
+  rpcPath,
+  verticalRpcContractExport,
+  verticalRpcGroupExport,
+} from './api/rpc';
+import {
   createDeliveryUnitRecord,
   deliveryUnitContractBlock,
 } from './delivery-unit';
@@ -21,6 +26,7 @@ import {
   createCloudflareWorkerName,
   createRemoteManifestEnv,
   resolveApiPrefix,
+  resolveApiProtocol,
   resolveApiStem,
 } from './descriptors';
 import { packageName, toEnvSegment } from './naming';
@@ -56,6 +62,16 @@ function createEffectExpose(
   app: WorkspaceApp & { api: NonNullable<WorkspaceApp['api']> },
 ) {
   const apiStem = resolveApiStem(app);
+
+  if (resolveApiProtocol(app) === 'rpc') {
+    return {
+      contract: `${app.directory}/shared/rpc.ts`,
+      runtime: `${app.directory}/api/index.ts`,
+      client: `${app.directory}/src/api/${app.api.stem}-rpc-client.ts`,
+      rpc: rpcPath(app),
+      serialization: 'json',
+    };
+  }
 
   return {
     contract: `${app.directory}/shared/api.ts`,
@@ -133,7 +149,9 @@ export function createServerExecutionOverlay(
   const deliveryUnit = createDeliveryUnitRecord(scope, app);
 
   return {
-    apiBaseUrl: `http://localhost:${app.port}${resolveApiPrefix(app)}`,
+    apiBaseUrl: `http://localhost:${app.port}${
+      resolveApiProtocol(app) === 'rpc' ? rpcPath(app) : resolveApiPrefix(app)
+    }`,
     versionBoundary: 'web-and-api-same-build',
     deliveryUnit: {
       unitId: deliveryUnit.unitId,
@@ -153,6 +171,7 @@ export function createBackendFederationContract(
   }
 
   const readiness = `${app.api.prefix}/${resolveApiStem(app)}/readiness`;
+  const rpc = resolveApiProtocol(app) === 'rpc';
   const deliveryUnit = createDeliveryUnitRecord(scope, app);
 
   const contract = {
@@ -174,7 +193,12 @@ export function createBackendFederationContract(
         buildMarker: `${app.directory}/src/routes/ultramodern-route-metadata.ts`,
       },
       api: {
-        readiness,
+        ...(rpc
+          ? {
+              rpc: rpcPath(app),
+              serialization: 'json',
+            }
+          : { readiness }),
         buildMarker: `${app.directory}/shared/ultramodern-build.ts`,
         publicUrlEnv: createCloudflarePublicUrlEnv(app),
       },
@@ -227,6 +251,7 @@ export function createBackendFederationMetadata(
     return undefined;
   }
 
+  const rpc = resolveApiProtocol(app) === 'rpc';
   return {
     contractVersion: BACKEND_FEDERATION_CONTRACT_VERSION,
     deliveryUnit: deliveryUnitContractBlock(
@@ -236,8 +261,15 @@ export function createBackendFederationMetadata(
     exposes: [BACKEND_FEDERATION_EFFECT_EXPOSE],
     name: createBackendFederationName(app),
     nodeAdapterVersion: BACKEND_FEDERATION_NODE_ADAPTER_VERSION,
-    openapiPath: `${app.api.prefix}/openapi.json`,
-    readinessPath: `${app.api.prefix}/${resolveApiStem(app)}/readiness`,
+    ...(rpc
+      ? {
+          rpcPath: rpcPath(app),
+          rpcSerialization: 'json',
+        }
+      : {
+          openapiPath: `${app.api.prefix}/openapi.json`,
+          readinessPath: `${app.api.prefix}/${resolveApiStem(app)}/readiness`,
+        }),
     role: 'microvertical-server',
     runtimeFramework: 'effect',
     strictEffectApproach: true,
@@ -247,6 +279,41 @@ export function createBackendFederationMetadata(
 export function createBackendFederationContractFile(app: WorkspaceApp) {
   if (!app.api) {
     throw new Error(`App ${app.id} does not define an Effect API.`);
+  }
+
+  if (resolveApiProtocol(app) === 'rpc') {
+    const groupExport = verticalRpcGroupExport(app);
+    const contractExport = verticalRpcContractExport(app);
+
+    return `import { ultramodernApiMarker } from '../shared/ultramodern-build.ts';
+
+export const backendFederationContract = {
+  compatibility: {
+    build: ultramodernApiMarker.build,
+    contractVersion: '${BACKEND_FEDERATION_CONTRACT_VERSION}',
+    nodeAdapterVersion: '${BACKEND_FEDERATION_NODE_ADAPTER_VERSION}',
+    packageName: ultramodernApiMarker.packageName,
+    sourceRevision: ultramodernApiMarker.sourceRevision,
+    unitId: ultramodernApiMarker.unitId,
+  },
+  contractVersion: '${BACKEND_FEDERATION_CONTRACT_VERSION}',
+  executionSurfaces: ['node-mf-runtime'],
+  exposes: ['${BACKEND_FEDERATION_EFFECT_EXPOSE}'],
+  name: '${createBackendFederationName(app)}',
+  nodeAdapterVersion: '${BACKEND_FEDERATION_NODE_ADAPTER_VERSION}',
+  rpcPath: '${rpcPath(app)}',
+  rpcSerialization: 'json',
+  role: 'microvertical-server',
+  runtimeFramework: 'effect',
+  strictEffectApproach: true,
+} as const;
+
+export { default, default as runtime } from './index.ts';
+export {
+  ${groupExport} as api,
+  ${contractExport} as contract,
+} from '../shared/rpc.ts';
+`;
   }
 
   const apiExport = verticalApiExport(app);

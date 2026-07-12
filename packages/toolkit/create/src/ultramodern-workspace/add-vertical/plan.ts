@@ -2,12 +2,14 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { WORKSPACE_PACKAGE_VERSION } from '../../ultramodern-package-source';
+import { rpcPath } from '../api/rpc';
 import { createServerExecutionOverlay } from '../backend-federation';
 import {
   appEmitsBrowserUi,
   appHasApi,
   remoteDependencyAlias,
   resolveApiPrefix,
+  resolveApiProtocol,
   shellApp,
   ULTRAMODERN_CONFIG_PATH,
   zephyrRemoteDependency,
@@ -116,7 +118,11 @@ function createDryRunJsonMutations(
           path: DEVELOPMENT_OVERLAY_PATH,
           pointer: `/apis/${vertical.id}`,
           description: `Add local API URL for ${vertical.id}`,
-          value: `http://localhost:${vertical.port}${resolveApiPrefix(vertical)}`,
+          value: `http://localhost:${vertical.port}${
+            resolveApiProtocol(vertical) === 'rpc'
+              ? rpcPath(vertical)
+              : resolveApiPrefix(vertical)
+          }`,
         },
         {
           path: DEVELOPMENT_OVERLAY_PATH,

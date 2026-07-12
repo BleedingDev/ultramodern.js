@@ -1,4 +1,9 @@
-import { appHasApi, resolveApiPrefix, resolveApiStem } from './descriptors';
+import {
+  appHasApi,
+  resolveApiPrefix,
+  resolveApiProtocol,
+  resolveApiStem,
+} from './descriptors';
 import { packageName } from './naming';
 import type { WorkspaceApp } from './types';
 import { NODE_VERSION } from './versions';
@@ -19,6 +24,10 @@ function readinessPath(app: WorkspaceApp) {
   }
 
   return `${resolveApiPrefix(app)}/${resolveApiStem(app)}/readiness`;
+}
+
+function hasHttpReadiness(app: WorkspaceApp) {
+  return !appHasApi(app) || resolveApiProtocol(app) === 'rest';
 }
 
 function createZeropsService(scope: string, app: WorkspaceApp) {
@@ -45,12 +54,16 @@ function createZeropsService(scope: string, app: WorkspaceApp) {
     `        - ${quoteYamlString(runtimeDirectory)}`,
     '    deploy:',
     '      temporaryShutdown: false',
-    '      readinessCheck:',
-    '        httpGet:',
-    `          port: ${app.port}`,
-    `          path: ${quoteYamlString(readinessPath(app))}`,
-    '        failureTimeout: 120',
-    '        retryPeriod: 10',
+    ...(hasHttpReadiness(app)
+      ? [
+          '      readinessCheck:',
+          '        httpGet:',
+          `          port: ${app.port}`,
+          `          path: ${quoteYamlString(readinessPath(app))}`,
+          '        failureTimeout: 120',
+          '        retryPeriod: 10',
+        ]
+      : []),
     '    run:',
     `      base: ${quoteYamlString(zeropsNodeRuntime)}`,
     '      ports:',

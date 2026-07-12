@@ -302,15 +302,27 @@ function writeAppApiAndRemoteExposeFiles({
   writeAppFile,
 }: WriteAppContext) {
   if (appHasApi(resolvedApp)) {
-    writeFile(
-      targetDir,
-      `${resolvedApp.directory}/shared/api.ts`,
-      createSharedApi(resolvedApp),
-    );
+    const rpcProtocol = resolveApiProtocol(resolvedApp) === 'rpc';
+    if (rpcProtocol) {
+      writeFile(
+        targetDir,
+        `${resolvedApp.directory}/shared/rpc.ts`,
+        createRpcContractFile(resolvedApp),
+      );
+    } else {
+      writeFile(
+        targetDir,
+        `${resolvedApp.directory}/shared/api.ts`,
+        createSharedApi(resolvedApp),
+      );
+    }
     writeFile(
       targetDir,
       `${resolvedApp.directory}/api/index.ts`,
-      createApiServiceEntry(resolvedApp, '../shared/api.ts'),
+      createApiServiceEntry(
+        resolvedApp,
+        rpcProtocol ? '../shared/rpc.ts' : '../shared/api.ts',
+      ),
     );
     writeFile(
       targetDir,
@@ -322,24 +334,17 @@ function writeAppApiAndRemoteExposeFiles({
       `${resolvedApp.directory}/api/effect-api.ts`,
       createBackendEffectApiExpose(scope, resolvedApp),
     );
-    writeFile(
-      targetDir,
-      `${resolvedApp.directory}/src/api/${resolvedApp.api.stem}-client.ts`,
-      createApiClient(resolvedApp, '../../shared/api'),
-    );
-    // G7c: emit the Effect RPC contract + client alongside the REST surface
-    // when the API protocol is `rpc`. The service entry (createApiServiceEntry)
-    // mounts the RPC handler layer through `defineEffectBff({ ..., rpc })`.
-    if (resolveApiProtocol(resolvedApp) === 'rpc') {
-      writeFile(
-        targetDir,
-        `${resolvedApp.directory}/shared/rpc.ts`,
-        createRpcContractFile(resolvedApp),
-      );
+    if (rpcProtocol) {
       writeFile(
         targetDir,
         `${resolvedApp.directory}/src/api/${resolvedApp.api.stem}-rpc-client.ts`,
         createRpcClientFile(resolvedApp),
+      );
+    } else {
+      writeFile(
+        targetDir,
+        `${resolvedApp.directory}/src/api/${resolvedApp.api.stem}-client.ts`,
+        createApiClient(resolvedApp, '../../shared/api'),
       );
     }
   }

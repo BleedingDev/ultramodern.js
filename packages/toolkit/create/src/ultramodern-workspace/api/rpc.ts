@@ -1,14 +1,16 @@
 /**
  * Effect RPC API generation (G7c). When a vertical's API protocol is `rpc`
- * (see {@link resolveApiProtocol}), the generator emits an Effect RPC
- * contract/handlers/client ALONGSIDE the base HttpApi surface, mirroring the
- * shapes that plugin-bff's RPC runtime accepts
+ * (see {@link resolveApiProtocol}), the generator emits one Effect RPC
+ * contract/handler/client surface, mirroring the shapes that plugin-bff's RPC
+ * runtime accepts
  * (`packages/cli/plugin-bff/src/runtime/effect/handler/rpc.ts` + `types.ts`):
  * an `RpcGroup` contract, a handler `Layer` provided through the `rpc` field of
- * `defineEffectBff` ({@link EffectRpcBffDefinition}), and an `RpcClient`.
+ * `defineEffectBff` ({@link EffectRpcBffDefinition}), and the public
+ * `makeEffectRpcClient` primitive.
  *
- * REST output is untouched (byte-identical). GraphQL is intentionally NOT
- * implemented; the protocol SPI shape leaves room to add it later.
+ * REST output is untouched (byte-identical) and is generated only for `rest`
+ * apps. GraphQL is intentionally NOT implemented; the protocol SPI shape
+ * leaves room to add it later.
  */
 import { resolveApiPrefix, resolveApiStem } from '../descriptors';
 import { toPascalCase } from '../naming';
@@ -35,6 +37,9 @@ function rpcItemSchemaExport(service: ApiService): string {
 export function rpcPath(service: ApiService): string {
   return `${resolveApiPrefix(service)}/rpc`;
 }
+
+/** Path after the BFF prefix has been stripped by the Effect adapter. */
+export const RPC_ROUTE_PATH = '/rpc' as const;
 
 /**
  * Generate the `shared/rpc.ts` RPC contract: an `RpcGroup` of `list` / `get`
@@ -93,10 +98,9 @@ export const ${contractExport} = {
 }
 
 /**
- * Service-entry wiring for an RPC service. Returns snippets the HttpApi service
- * entry splices in so the emitted `defineEffectBff(...)` call carries an `rpc`
- * definition (group + handler layer + path + serialization), exactly the shape
- * {@link EffectRpcBffDefinition} accepts. Empty strings for REST services.
+ * Service-entry wiring for an RPC service. Returns snippets the RPC-only
+ * service entry splices into `defineEffectBff(...)`. Empty strings for REST
+ * services.
  */
 export function rpcServiceEntryWiring(service: ApiService): {
   imports: string;
@@ -114,30 +118,35 @@ export function rpcServiceEntryWiring(service: ApiService): {
   const imports = `import { ${groupExport}, ${notFound} } from '../shared/rpc.ts';
 `;
   const layer = `
-const ${groupName}RpcLayer = ${groupExport}.toLayer({
-  list: ({ limit }) =>
-    Effect.succeed({
-      items:
-        typeof limit === 'number'
-          ? ${groupName}Items.slice(0, limit).map(item => ({
-              id: item.id,
-              title: item.title,
-            }))
-          : ${groupName}Items.map(item => ({ id: item.id, title: item.title })),
-    }),
-  get: ({ id }) => {
-    const matched = ${groupName}Items.find(candidate => candidate.id === id);
-    return matched === undefined
-      ? Effect.fail(new ${notFound}({ id }))
-      : Effect.succeed({ id: matched.id, title: matched.title });
-  },
-});
+const ${groupName}RpcLayer = ${groupExport}.toLayer(
+  ${groupExport}.of({
+    list: ({ limit }) =>
+      Effect.succeed({
+        items:
+          typeof limit === 'number'
+            ? ${groupName}Items.slice(0, limit).map(item => ({
+                id: item.id,
+                title: item.title,
+              }))
+            : ${groupName}Items.map(item => ({
+                id: item.id,
+                title: item.title,
+              })),
+      }),
+    get: ({ id }) => {
+      const matched = ${groupName}Items.find(candidate => candidate.id === id);
+      return matched === undefined
+        ? Effect.fail(new ${notFound}({ id }))
+        : Effect.succeed({ id: matched.id, title: matched.title });
+    },
+  }),
+);
 `;
   const field = `
   rpc: {
     group: ${groupExport},
     layer: ${groupName}RpcLayer,
-    path: '${rpcPath(service)}',
+    path: '${RPC_ROUTE_PATH}',
     serialization: 'json',
   },`;
 
@@ -145,8 +154,54 @@ const ${groupName}RpcLayer = ${groupExport}.toLayer({
 }
 
 /**
+ * Generate the RPC-only BFF entry. `defineEffectBff` is retained as the outer
+ * public entry shape so the strict Effect adapter applies its validator and
+ * lifecycle handling. The transport HttpApi has no endpoints; all callable
+ * surface is mounted by the `rpc` definition.
+ */
+export function createRpcApiServiceEntry(service: ApiService): string {
+  const groupName = verticalApiGroupName(service);
+  const groupExport = verticalRpcGroupExport(service);
+  const rpc = rpcServiceEntryWiring(service);
+  const stem = resolveApiStem(service);
+
+  return `import {
+  defineEffectBff,
+  Effect,
+  HttpApi,
+  Layer,
+} from '@modern-js/plugin-bff/effect-edge';
+${rpc.imports}import { ultramodernApiMarker } from '../shared/ultramodern-build.ts';
+
+const ${groupName}Items = [
+  {
+    id: 'starter-${stem}',
+    marker: ultramodernApiMarker,
+    title: 'Wire a real ${stem} source here',
+  },
+];
+
+${rpc.layer}
+
+// Strict Effect uses this empty transport marker to discover the BFF entry.
+// It has no REST groups/endpoints; the canonical network surface is RPC.
+const rpcTransport = HttpApi.make('${groupName}RpcTransport');
+const layer = Layer.empty;
+
+const apiRuntime = defineEffectBff({
+  api: rpcTransport,
+  layer,
+${rpc.field}
+});
+
+export { ${groupExport} };
+export default apiRuntime;
+`;
+}
+
+/**
  * Generate the RPC client file (`src/api/${stem}-rpc-client.ts`) built from the
- * shared `RpcGroup` (mirrors plugin-bff's `RpcClient` usage).
+ * shared `RpcGroup` through plugin-bff's public HTTP RPC client primitive.
  */
 export function createRpcClientFile(service: ApiService): string {
   const groupExport = verticalRpcGroupExport(service);
@@ -154,8 +209,10 @@ export function createRpcClientFile(service: ApiService): string {
   const stem = resolveApiStem(service);
   const pascalStem = toPascalCase(stem);
 
-  return `import { RpcClient } from 'effect/unstable/rpc';
-import { Effect } from '@modern-js/plugin-bff/effect-client';
+  return `import {
+  Effect,
+  makeEffectRpcClient,
+} from '@modern-js/plugin-bff/effect-client';
 import {
   ${contractExport},
   ${groupExport},
@@ -165,17 +222,36 @@ export { Effect } from '@modern-js/plugin-bff/effect-client';
 
 export const ${pascalStem}RpcContract = ${contractExport};
 
-export const make${pascalStem}RpcClient = () =>
-  RpcClient.make(${groupExport});
+export interface ${pascalStem}RpcClientOptions {
+  url?: string | URL;
+}
 
-export const list${pascalStem}Rpc = (limit?: number) =>
-  make${pascalStem}RpcClient().pipe(
-    Effect.flatMap(client => client.list({ limit })),
+export const make${pascalStem}RpcClient = (
+  options: ${pascalStem}RpcClientOptions = {},
+) =>
+  makeEffectRpcClient(${groupExport}, {
+    url: String(options.url ?? ${contractExport}.path),
+    serialization: 'json',
+  });
+
+export const list${pascalStem}Rpc = (
+  limit?: number,
+  options: ${pascalStem}RpcClientOptions = {},
+) =>
+  Effect.acquireUseRelease(
+    make${pascalStem}RpcClient(options),
+    client => client.list({ limit }),
+    client => Effect.promise(() => client.dispose()),
   );
 
-export const get${pascalStem}Rpc = (id: string) =>
-  make${pascalStem}RpcClient().pipe(
-    Effect.flatMap(client => client.get({ id })),
+export const get${pascalStem}Rpc = (
+  id: string,
+  options: ${pascalStem}RpcClientOptions = {},
+) =>
+  Effect.acquireUseRelease(
+    make${pascalStem}RpcClient(options),
+    client => client.get({ id }),
+    client => Effect.promise(() => client.dispose()),
   );
 `;
 }

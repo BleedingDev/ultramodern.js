@@ -10,6 +10,7 @@ import {
   createCloudflareWorkerName,
   createShellHost,
   resolveApiPrefix,
+  resolveApiProtocol,
   shellApp,
 } from '../descriptors';
 import { renderFileTemplate } from '../fs-io';
@@ -46,9 +47,7 @@ export function createAppModernConfig(
     ? `      bff: {
         effect: {
           entry: './api/index',
-          openapi: {
-            path: '/openapi.json',
-          },
+${resolveApiProtocol(app) === 'rest' ? "          openapi: {\n            path: '/openapi.json',\n          },\n" : ''}
           strictEffectApproach: true,
         },
         prefix: '${resolveApiPrefix(app)}',

@@ -11,6 +11,7 @@ import {
   createCloudflarePublicUrlEnv,
   createCloudflareWorkerName,
   resolveApiPrefix,
+  resolveApiProtocol,
   resolveApiStem,
 } from './descriptors';
 import { createLocalisedUrlsMap } from './routes';
@@ -72,7 +73,7 @@ function createCloudflareProofRoute(app: WorkspaceApp): JsonValue {
     ssr: localizedPath ?? '/en',
     mfManifest: '/mf-manifest.json',
     locale: `/locales/en/${appI18nNamespace(app)}.json`,
-    ...(appHasApi(app)
+    ...(appHasApi(app) && resolveApiProtocol(app) === 'rest'
       ? {
           apiReadiness: `${resolveApiPrefix(app)}/${resolveApiStem(
             app,
