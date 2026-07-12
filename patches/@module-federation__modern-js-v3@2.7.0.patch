@@ -1,5 +1,5 @@
 diff --git a/dist/cjs/cli/configPlugin.js b/dist/cjs/cli/configPlugin.js
-index 3f1af86..a038365 100644
+index 3f1af86afed3d4a2005f3ab6320a13e366594ab5..1f67bf03323bc246e79a2fa43373a39ce96ae1b8 100644
 --- a/dist/cjs/cli/configPlugin.js
 +++ b/dist/cjs/cli/configPlugin.js
 @@ -216,9 +216,12 @@ var __webpack_exports__ = {};
@@ -17,27 +17,32 @@ index 3f1af86..a038365 100644
          }
          if ((0, external_utils_js_namespaceObject.isDev)() && 'auto' === chain.output.get('publicPath')) {
              var _modernjsConfig_server;
-diff --git a/dist/esm-node/cli/configPlugin.mjs b/dist/esm-node/cli/configPlugin.mjs
-index c238b85..7350973 100644
---- a/dist/esm-node/cli/configPlugin.mjs
-+++ b/dist/esm-node/cli/configPlugin.mjs
-@@ -156,9 +156,12 @@ function patchBundlerConfig(options) {
-     if (!chain.output.get('uniqueName')) chain.output.uniqueName(mfConfig.name);
-     const splitChunkConfig = chain.optimization.splitChunks.entries();
-     if (!isServer) autoDeleteSplitChunkCacheGroups(mfConfig, splitChunkConfig);
--    if (!isServer && enableSSR && splitChunkConfig && 'object' == typeof splitChunkConfig && splitChunkConfig.cacheGroups) {
-+    if (!isServer && enableSSR && splitChunkConfig && 'object' == typeof splitChunkConfig && splitChunkConfig.cacheGroups && splitChunkConfig.chunks !== undefined && splitChunkConfig.chunks !== 'async') {
-+        const previousChunks = splitChunkConfig.chunks;
-         splitChunkConfig.chunks = 'async';
--        logger.warn('splitChunks.chunks = async is not allowed with stream SSR mode, it will auto changed to "async"');
-+        if (void 0 !== previousChunks) {
-+            logger.warn(`splitChunks.chunks = ${previousChunks} is not allowed with stream SSR mode, it will auto changed to "async"`);
-+        }
-     }
-     if (isDev() && 'auto' === chain.output.get('publicPath')) {
-         var _modernjsConfig_server;
+@@ -294,9 +297,12 @@ var __webpack_exports__ = {};
+                     if ('object' != typeof devServerConfig || !('headers' in devServerConfig)) corsWarnMsgs.unshift('Detect devServer.headers is empty, mf modern plugin will add default cors header: devServer.headers["Access-Control-Allow-Headers"] = "*". It is recommended to specify an allowlist of trusted origins instead.');
+                     const exposes = null == (_userConfig_csrConfig = userConfig.csrConfig) ? void 0 : _userConfig_csrConfig.exposes;
+                     const hasExposes = exposes && Array.isArray(exposes) ? exposes.length > 0 : Object.keys(null != exposes ? exposes : {}).length > 0;
+-                    const lazyCompilationDisabledByPlugin = hasExposes && (null == modernjsConfig ? void 0 : null == (_modernjsConfig_dev = modernjsConfig.dev) ? void 0 : _modernjsConfig_dev.lazyCompilation) !== false;
++                    const remotes = null == userConfig.csrConfig ? void 0 : userConfig.csrConfig.remotes;
++                    const hasRemotes = remotes && Array.isArray(remotes) ? remotes.length > 0 : Object.keys(null != remotes ? remotes : {}).length > 0;
++                    const hasFederationEntries = hasExposes || hasRemotes;
++                    const lazyCompilationDisabledByPlugin = hasFederationEntries && (null == modernjsConfig ? void 0 : null == (_modernjsConfig_dev = modernjsConfig.dev) ? void 0 : _modernjsConfig_dev.lazyCompilation) !== false;
+                     if (corsWarnMsgs.length > 1 && hasExposes) external_logger_js_default().warn(corsWarnMsgs.join('\n'));
+-                    if (lazyCompilationDisabledByPlugin) external_logger_js_default().warn('Detected exposes in the Module Federation config. The Modern.js v3 Module Federation plugin will set dev.lazyCompilation to false for producer apps.');
++                    if (lazyCompilationDisabledByPlugin) external_logger_js_default().warn('Detected exposes or remotes in the Module Federation config. The Modern.js v3 Module Federation plugin will set dev.lazyCompilation to false for producer and consumer apps.');
+                     const corsHeaders = hasExposes ? {
+                         'Access-Control-Allow-Origin': '*',
+                         'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
+@@ -318,7 +324,7 @@ var __webpack_exports__ = {};
+                         },
+                         dev: {
+                             assetPrefix: (null == modernjsConfig ? void 0 : null == (_modernjsConfig_dev1 = modernjsConfig.dev) ? void 0 : _modernjsConfig_dev1.assetPrefix) ? modernjsConfig.dev.assetPrefix : 'auto',
+-                            lazyCompilation: hasExposes ? false : null == modernjsConfig ? void 0 : null == (_modernjsConfig_dev2 = modernjsConfig.dev) ? void 0 : _modernjsConfig_dev2.lazyCompilation
++                            lazyCompilation: hasFederationEntries ? false : null == modernjsConfig ? void 0 : null == (_modernjsConfig_dev2 = modernjsConfig.dev) ? void 0 : _modernjsConfig_dev2.lazyCompilation
+                         }
+                     };
+                 });
 diff --git a/dist/esm/cli/configPlugin.mjs b/dist/esm/cli/configPlugin.mjs
-index c8c2ace..fee11da 100644
+index c8c2ace490c17d42755cc798b438a3ddaa83760c..026ecbcae72b0b215e64a5ec6be4e54ea8d22d47 100644
 --- a/dist/esm/cli/configPlugin.mjs
 +++ b/dist/esm/cli/configPlugin.mjs
 @@ -185,9 +185,12 @@ function patchBundlerConfig(options) {
@@ -55,3 +60,70 @@ index c8c2ace..fee11da 100644
      }
      if (isDev() && 'auto' === chain.output.get('publicPath')) {
          var _modernjsConfig_server;
+@@ -272,9 +275,12 @@ var configPlugin_moduleFederationConfigPlugin = function(userConfig) {
+                                 if ((void 0 === devServerConfig ? "undefined" : _type_of__(devServerConfig)) !== 'object' || !('headers' in devServerConfig)) corsWarnMsgs.unshift('Detect devServer.headers is empty, mf modern plugin will add default cors header: devServer.headers["Access-Control-Allow-Headers"] = "*". It is recommended to specify an allowlist of trusted origins instead.');
+                                 var exposes = null == (_userConfig_csrConfig = userConfig.csrConfig) ? void 0 : _userConfig_csrConfig.exposes;
+                                 var hasExposes = exposes && Array.isArray(exposes) ? exposes.length > 0 : Object.keys(null != exposes ? exposes : {}).length > 0;
+-                                var lazyCompilationDisabledByPlugin = hasExposes && (null == modernjsConfig ? void 0 : null == (_modernjsConfig_dev = modernjsConfig.dev) ? void 0 : _modernjsConfig_dev.lazyCompilation) !== false;
++                                var remotes = null == userConfig.csrConfig ? void 0 : userConfig.csrConfig.remotes;
++                                var hasRemotes = remotes && Array.isArray(remotes) ? remotes.length > 0 : Object.keys(null != remotes ? remotes : {}).length > 0;
++                                var hasFederationEntries = hasExposes || hasRemotes;
++                                var lazyCompilationDisabledByPlugin = hasFederationEntries && (null == modernjsConfig ? void 0 : null == (_modernjsConfig_dev = modernjsConfig.dev) ? void 0 : _modernjsConfig_dev.lazyCompilation) !== false;
+                                 if (corsWarnMsgs.length > 1 && hasExposes) logger.warn(corsWarnMsgs.join('\n'));
+-                                if (lazyCompilationDisabledByPlugin) logger.warn('Detected exposes in the Module Federation config. The Modern.js v3 Module Federation plugin will set dev.lazyCompilation to false for producer apps.');
++                                if (lazyCompilationDisabledByPlugin) logger.warn('Detected exposes or remotes in the Module Federation config. The Modern.js v3 Module Federation plugin will set dev.lazyCompilation to false for producer and consumer apps.');
+                                 var corsHeaders = hasExposes ? {
+                                     'Access-Control-Allow-Origin': '*',
+                                     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
+@@ -296,7 +302,7 @@ var configPlugin_moduleFederationConfigPlugin = function(userConfig) {
+                                     },
+                                     dev: {
+                                         assetPrefix: (null == modernjsConfig ? void 0 : null == (_modernjsConfig_dev1 = modernjsConfig.dev) ? void 0 : _modernjsConfig_dev1.assetPrefix) ? modernjsConfig.dev.assetPrefix : 'auto',
+-                                        lazyCompilation: hasExposes ? false : null == modernjsConfig ? void 0 : null == (_modernjsConfig_dev2 = modernjsConfig.dev) ? void 0 : _modernjsConfig_dev2.lazyCompilation
++                                        lazyCompilation: hasFederationEntries ? false : null == modernjsConfig ? void 0 : null == (_modernjsConfig_dev2 = modernjsConfig.dev) ? void 0 : _modernjsConfig_dev2.lazyCompilation
+                                     }
+                                 };
+                             });
+diff --git a/dist/esm-node/cli/configPlugin.mjs b/dist/esm-node/cli/configPlugin.mjs
+index c238b85c2c34107ca2c544500f1bc5457010d1ad..74b481cafc285fbe9bf3f4ba09c3151e5f1c29a6 100644
+--- a/dist/esm-node/cli/configPlugin.mjs
++++ b/dist/esm-node/cli/configPlugin.mjs
+@@ -156,9 +156,12 @@ function patchBundlerConfig(options) {
+     if (!chain.output.get('uniqueName')) chain.output.uniqueName(mfConfig.name);
+     const splitChunkConfig = chain.optimization.splitChunks.entries();
+     if (!isServer) autoDeleteSplitChunkCacheGroups(mfConfig, splitChunkConfig);
+-    if (!isServer && enableSSR && splitChunkConfig && 'object' == typeof splitChunkConfig && splitChunkConfig.cacheGroups) {
++    if (!isServer && enableSSR && splitChunkConfig && 'object' == typeof splitChunkConfig && splitChunkConfig.cacheGroups && splitChunkConfig.chunks !== undefined && splitChunkConfig.chunks !== 'async') {
++        const previousChunks = splitChunkConfig.chunks;
+         splitChunkConfig.chunks = 'async';
+-        logger.warn('splitChunks.chunks = async is not allowed with stream SSR mode, it will auto changed to "async"');
++        if (void 0 !== previousChunks) {
++            logger.warn(`splitChunks.chunks = ${previousChunks} is not allowed with stream SSR mode, it will auto changed to "async"`);
++        }
+     }
+     if (isDev() && 'auto' === chain.output.get('publicPath')) {
+         var _modernjsConfig_server;
+@@ -234,9 +237,12 @@ const moduleFederationConfigPlugin = (userConfig)=>({
+                 if ('object' != typeof devServerConfig || !('headers' in devServerConfig)) corsWarnMsgs.unshift('Detect devServer.headers is empty, mf modern plugin will add default cors header: devServer.headers["Access-Control-Allow-Headers"] = "*". It is recommended to specify an allowlist of trusted origins instead.');
+                 const exposes = null == (_userConfig_csrConfig = userConfig.csrConfig) ? void 0 : _userConfig_csrConfig.exposes;
+                 const hasExposes = exposes && Array.isArray(exposes) ? exposes.length > 0 : Object.keys(null != exposes ? exposes : {}).length > 0;
+-                const lazyCompilationDisabledByPlugin = hasExposes && (null == modernjsConfig ? void 0 : null == (_modernjsConfig_dev = modernjsConfig.dev) ? void 0 : _modernjsConfig_dev.lazyCompilation) !== false;
++                const remotes = null == userConfig.csrConfig ? void 0 : userConfig.csrConfig.remotes;
++                const hasRemotes = remotes && Array.isArray(remotes) ? remotes.length > 0 : Object.keys(null != remotes ? remotes : {}).length > 0;
++                const hasFederationEntries = hasExposes || hasRemotes;
++                const lazyCompilationDisabledByPlugin = hasFederationEntries && (null == modernjsConfig ? void 0 : null == (_modernjsConfig_dev = modernjsConfig.dev) ? void 0 : _modernjsConfig_dev.lazyCompilation) !== false;
+                 if (corsWarnMsgs.length > 1 && hasExposes) logger.warn(corsWarnMsgs.join('\n'));
+-                if (lazyCompilationDisabledByPlugin) logger.warn('Detected exposes in the Module Federation config. The Modern.js v3 Module Federation plugin will set dev.lazyCompilation to false for producer apps.');
++                if (lazyCompilationDisabledByPlugin) logger.warn('Detected exposes or remotes in the Module Federation config. The Modern.js v3 Module Federation plugin will set dev.lazyCompilation to false for producer and consumer apps.');
+                 const corsHeaders = hasExposes ? {
+                     'Access-Control-Allow-Origin': '*',
+                     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
+@@ -258,7 +264,7 @@ const moduleFederationConfigPlugin = (userConfig)=>({
+                     },
+                     dev: {
+                         assetPrefix: (null == modernjsConfig ? void 0 : null == (_modernjsConfig_dev1 = modernjsConfig.dev) ? void 0 : _modernjsConfig_dev1.assetPrefix) ? modernjsConfig.dev.assetPrefix : 'auto',
+-                        lazyCompilation: hasExposes ? false : null == modernjsConfig ? void 0 : null == (_modernjsConfig_dev2 = modernjsConfig.dev) ? void 0 : _modernjsConfig_dev2.lazyCompilation
++                        lazyCompilation: hasFederationEntries ? false : null == modernjsConfig ? void 0 : null == (_modernjsConfig_dev2 = modernjsConfig.dev) ? void 0 : _modernjsConfig_dev2.lazyCompilation
+                     }
+                 };
+             });

@@ -22,6 +22,9 @@ packages:
 autoInstallPeers: false
 linkWorkspacePackages: false
 strictPeerDependencies: false
+# Installs are explicit serialized stages; test/build commands must not relink
+# the shared dependency graph as a side effect.
+verifyDepsBeforeRun: error
 
 allowBuilds:
   '@biomejs/biome': true
@@ -51,6 +54,14 @@ patchedDependencies:
   # Stop TanStack loadMatches from dereferencing cached preload matches after
   # RouterCore.updateMatch deletes them on redirect.
   '@tanstack/router-core@1.171.14': patches/@tanstack__router-core@1.171.14.patch
+
+packageExtensions:
+  # The DTS worker consumes the JavaScript compiler API, which the TS 7 native
+  # package intentionally does not expose. Keep that legacy API private to the
+  # worker while the rest of the repository resolves `typescript` to TS 7.
+  '@module-federation/dts-plugin@2.7.0':
+    dependencies:
+      typescript: npm:typescript@6.0.3
 
 overrides:
   micromatch: ^4.0.8
@@ -94,7 +105,7 @@ peerDependencyRules:
     # Prefer the TS 7 native-preview lane for Module Federation work.
     # TS 6 remains allowed only where MF tooling still needs the real
     # `typescript` package for CJS-based DTS generation.
-    '@module-federation/dts-plugin>typescript': '>=6 <8'
+    '@module-federation/dts-plugin>typescript': '6.0.3'
     '@module-federation/enhanced>typescript': '>=6 <8'
     '@module-federation/modern-js-v3>typescript': '>=6 <8'
     '@module-federation/rspack>typescript': '>=6 <8'
@@ -145,14 +156,6 @@ minimumReleaseAgeExclude:
   - typescript@7.0.2
   - '@tanstack/react-router@1.170.17'
   - '@tanstack/router-core@1.171.14'
-  - '@effect/tsgo-darwin-arm64@0.18.1'
-  - '@effect/tsgo-darwin-x64@0.18.1'
-  - '@effect/tsgo-linux-arm64@0.18.1'
-  - '@effect/tsgo-linux-arm@0.18.1'
-  - '@effect/tsgo-linux-x64@0.18.1'
-  - '@effect/tsgo-win32-arm64@0.18.1'
-  - '@effect/tsgo-win32-x64@0.18.1'
-  - '@effect/tsgo@0.18.1'
   - '@jsonjoy.com/fs-core@4.64.0'
   - '@jsonjoy.com/fs-fsa@4.64.0'
   - '@jsonjoy.com/fs-node-builtins@4.64.0'
@@ -191,7 +194,7 @@ minimumReleaseAgeExclude:
   - sharp@0.35.3
   - '@effect/opentelemetry@4.0.0-beta.97'
   - effect@4.0.0-beta.97
-  - '@opentelemetry/semantic-conventions@1.42.0'
+  - '@opentelemetry/semantic-conventions@1.42.0 || 1.43.0'
   - '@typescript/typescript-aix-ppc64@7.0.2'
   - '@typescript/typescript-darwin-arm64@7.0.2'
   - '@typescript/typescript-darwin-x64@7.0.2'

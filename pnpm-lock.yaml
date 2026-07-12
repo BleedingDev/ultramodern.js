@@ -36,12 +36,14 @@ overrides:
   svgo@>=3.0.0 <3.3.3: 4.0.1
   svgo@4.0.0: 4.0.1
 
+packageExtensionsChecksum: sha256-WRrNhtaGzg0sXiK1NZg6Xsn98YQn2A9Zm/y1eVRzcbY=
+
 pnpmfileChecksum: sha256-e7fv4++EEy5D/4pBzV1yGYuIWnXfQwaMHH7OMxyEZx4=
 
 patchedDependencies:
   '@module-federation/bridge-react@2.7.0': 570db78204f3db2a61c3637ee89c8847e767581e7cc666e0a100ae06e5bcb2c5
   '@module-federation/manifest@2.7.0': d4e1ba0882ca057905f6f52a3df901a9d54dbd14e6f57ae90b12d970e030b79d
-  '@module-federation/modern-js-v3@2.7.0': a905a0b27b48fa1410aab619eda0357b1794254fe28ea5ec36ae60f8fe8bd271
+  '@module-federation/modern-js-v3@2.7.0': f51adf0aa6c6e2daa5b7d2978a7716c0d4fb05b29af449b2f16257b957fb7923
   '@module-federation/rspack@2.7.0': d7c0d858ad909a5dc474eb8fa58626fd525d3bc2a9a1b8ff9d852c4ab82c3c25
   '@tanstack/router-core@1.171.14': 1e1572940e00d6327c75bb8457c108e32e75a2292e4d90d764208d5b6f330155
 
@@ -68,14 +70,17 @@ importers:
         specifier: ^21.2.0
         version: 21.2.0
       '@effect/tsgo':
-        specifier: 0.18.1
-        version: 0.18.1
+        specifier: 0.19.0
+        version: 0.19.0
+      '@modern-js/app-tools':
+        specifier: workspace:*
+        version: link:packages/solutions/app-tools
       '@modern-js/tsconfig':
         specifier: workspace:*
         version: link:packages/tsconfig
       '@rstest/core':
-        specifier: 0.11.0
-        version: 0.11.0(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0)(happy-dom@20.10.6(bufferutil@4.1.0)(utf-8-validate@5.0.10))
+        specifier: 0.11.1
+        version: 0.11.1(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0)(happy-dom@20.10.6(bufferutil@4.1.0)(utf-8-validate@5.0.10))
       '@scripts/build':
         specifier: workspace:*
         version: link:scripts/build
@@ -101,14 +106,17 @@ importers:
         specifier: ~17.0.8
         version: 17.0.8
       nx:
-        specifier: ^23.0.1
-        version: 23.0.1(@swc/core@1.15.43(@swc/helpers@0.5.23))(debug@4.4.3)
+        specifier: ^23.0.2
+        version: 23.0.2(@swc/core@1.15.43(@swc/helpers@0.5.23))
       oxfmt:
         specifier: 0.58.0
         version: 0.58.0
       rimraf:
         specifier: ^6.1.3
         version: 6.1.3
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
 
   benchmark/bundle-diff:
     dependencies:
@@ -136,7 +144,7 @@ importers:
         version: 2.1.5(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0)
       '@rsdoctor/rspack-plugin':
         specifier: ^1.5.17
-        version: 1.5.17(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(@rsbuild/core@2.1.5(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0))(@rspack/core@2.1.3(@module-federation/runtime-tools@2.7.0)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+        version: 1.5.17(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(@rsbuild/core@2.1.5(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0))(@rspack/core@2.1.3(@module-federation/runtime-tools@2.7.0)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(supports-color@7.2.0)(utf-8-validate@5.0.10)
       '@types/node':
         specifier: ^26.1.1
         version: 26.1.1
@@ -165,8 +173,8 @@ importers:
         specifier: workspace:*
         version: link:../../solutions/app-tools
       '@rstest/adapter-rsbuild':
-        specifier: 0.11.0
-        version: 0.11.0(@rsbuild/core@2.1.5(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0))(@rstest/core@0.11.0(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0)(happy-dom@20.10.6(bufferutil@4.1.0)(utf-8-validate@5.0.10)))
+        specifier: 0.11.1
+        version: 0.11.1(@rsbuild/core@2.1.5(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0))(@rstest/core@0.11.1(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0)(happy-dom@20.10.6(bufferutil@4.1.0)(utf-8-validate@5.0.10)))
     devDependencies:
       '@modern-js/rslib':
         specifier: workspace:*
@@ -184,8 +192,8 @@ importers:
         specifier: 0.23.2
         version: 0.23.2(@module-federation/runtime-tools@2.7.0)(@typescript/native-preview@7.0.0-dev.20260707.2)(core-js@3.49.0)(typescript@7.0.2)
       '@rstest/core':
-        specifier: 0.11.0
-        version: 0.11.0(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0)(happy-dom@20.10.6(bufferutil@4.1.0)(utf-8-validate@5.0.10))
+        specifier: 0.11.1
+        version: 0.11.1(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0)(happy-dom@20.10.6(bufferutil@4.1.0)(utf-8-validate@5.0.10))
       '@scripts/rstest-config':
         specifier: workspace:*
         version: link:../../../scripts/rstest-config
@@ -336,7 +344,7 @@ importers:
     dependencies:
       '@effect/opentelemetry':
         specifier: 4.0.0-beta.97
-        version: 4.0.0-beta.97(@opentelemetry/api@1.9.1)(@opentelemetry/semantic-conventions@1.42.0)(effect@4.0.0-beta.97)
+        version: 4.0.0-beta.97(@opentelemetry/api-logs@0.220.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.220.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-node@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-beta.97)
       '@modern-js/bff-core':
         specifier: workspace:*
         version: link:../../server/bff-core
@@ -361,9 +369,30 @@ importers:
       '@opentelemetry/api':
         specifier: 1.9.1
         version: 1.9.1
+      '@opentelemetry/api-logs':
+        specifier: 0.220.0
+        version: 0.220.0
+      '@opentelemetry/resources':
+        specifier: 2.9.0
+        version: 2.9.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/sdk-logs':
+        specifier: 0.220.0
+        version: 0.220.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/sdk-metrics':
+        specifier: 2.9.0
+        version: 2.9.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/sdk-trace-base':
+        specifier: 2.9.0
+        version: 2.9.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/sdk-trace-node':
+        specifier: 2.9.0
+        version: 2.9.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/sdk-trace-web':
+        specifier: 2.9.0
+        version: 2.9.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/semantic-conventions':
-        specifier: ^1.42.0
-        version: 1.42.0
+        specifier: 1.43.0
+        version: 1.43.0
       '@swc/core':
         specifier: 1.15.43
         version: 1.15.43(@swc/helpers@0.5.23)
@@ -373,6 +402,9 @@ importers:
       effect:
         specifier: 4.0.0-beta.97
         version: 4.0.0-beta.97
+      esbuild:
+        specifier: '>=0.28.1'
+        version: 0.28.1
       qs:
         specifier: '>=6.15.3'
         version: 6.15.3
@@ -482,7 +514,7 @@ importers:
         version: 19.2.7(react@19.2.7)
       supertest:
         specifier: ^7.2.2
-        version: 7.2.2
+        version: 7.2.2(supports-color@7.2.0)
       typescript:
         specifier: ^7.0.2
         version: 7.0.2
@@ -711,7 +743,7 @@ importers:
         version: 0.0.1-next.36(ipx@3.1.1(ioredis@5.11.1))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(sharp@0.35.3(@types/node@26.1.1))
       '@rsbuild-image/react':
         specifier: 0.0.1-next.36
-        version: 0.0.1-next.36(@rsbuild-image/core@0.0.1-next.36(ipx@3.1.1(ioredis@5.11.1))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(sharp@0.35.3(@types/node@26.1.1)))(ipx@3.1.1(ioredis@5.11.1))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(sharp@0.35.3(@types/node@26.1.1))
+        version: 0.0.1-next.36(@rsbuild-image/core@0.0.1-next.36(ipx@3.1.1(ioredis@5.11.1))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(sharp@0.35.3(@types/node@26.1.1)))(ipx@3.1.1(ioredis@5.11.1))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(sharp@0.35.3(@types/node@26.1.1))(supports-color@7.2.0)
       ipx:
         specifier: ^3.1.1
         version: 3.1.1(ioredis@5.11.1)
@@ -1117,7 +1149,7 @@ importers:
         version: 7.0.0-dev.20260707.2
       http-proxy-middleware:
         specifier: ^4.2.0
-        version: 4.2.0
+        version: 4.2.0(supports-color@7.2.0)
 
   packages/server/create-request:
     dependencies:
@@ -1172,7 +1204,7 @@ importers:
     dependencies:
       '@modern-js/polyfill-lib':
         specifier: ^1.0.2
-        version: 1.0.2
+        version: 1.0.2(supports-color@7.2.0)
       '@modern-js/utils':
         specifier: workspace:*
         version: link:../../toolkit/utils
@@ -1365,7 +1397,7 @@ importers:
         version: 4.2.0
       websocket:
         specifier: ^1.0.35
-        version: 1.0.35
+        version: 1.0.35(supports-color@7.2.0)
 
   packages/server/server-runtime:
     dependencies:
@@ -1499,7 +1531,7 @@ importers:
         version: 1.8.2
       ndepe:
         specifier: ^0.1.13
-        version: 0.1.13(encoding@0.1.13)(rollup@4.62.2)
+        version: 0.1.13(encoding@0.1.13)(rollup@4.62.2)(supports-color@7.2.0)
       pkg-types:
         specifier: ^2.3.1
         version: 2.3.1
@@ -1561,7 +1593,7 @@ importers:
     dependencies:
       '@modern-js/codesmith':
         specifier: 2.6.9
-        version: 2.6.9
+        version: 2.6.9(supports-color@7.2.0)
       '@modern-js/i18n-utils':
         specifier: workspace:*
         version: link:../i18n-utils
@@ -1573,7 +1605,7 @@ importers:
         version: 0.58.0
       ultracite:
         specifier: 7.9.3
-        version: 7.9.3(oxfmt@0.58.0)(oxlint@1.73.0)(typescript@7.0.2)
+        version: 7.9.3(oxfmt@0.58.0)(oxlint@1.73.0)(supports-color@7.2.0)(typescript@7.0.2)
     devDependencies:
       '@modern-js/rslib':
         specifier: workspace:*
@@ -1590,9 +1622,6 @@ importers:
       '@typescript/native-preview':
         specifier: 7.0.0-dev.20260707.2
         version: 7.0.0-dev.20260707.2
-      '@typescript/typescript6':
-        specifier: 6.0.2
-        version: 6.0.2
       tsx:
         specifier: ^4.23.0
         version: 4.23.0
@@ -1801,7 +1830,7 @@ importers:
         version: 26.1.1
       http-proxy-middleware:
         specifier: ^4.2.0
-        version: 4.2.0
+        version: 4.2.0(supports-color@7.2.0)
       type-fest:
         specifier: 5.8.0
         version: 5.8.0
@@ -1993,7 +2022,7 @@ importers:
         version: 15.0.0
       debug:
         specifier: '>=4.4.3'
-        version: 4.4.3
+        version: 4.4.3(supports-color@7.2.0)
       dotenv:
         specifier: 17.4.2
         version: 17.4.2
@@ -2308,10 +2337,10 @@ importers:
         version: 7.0.0-dev.20260707.2
       connect:
         specifier: ^3.7.0
-        version: 3.7.0
+        version: 3.7.0(supports-color@7.2.0)
       serve-static:
         specifier: ^2.2.1
-        version: 2.2.1
+        version: 2.2.1(supports-color@7.2.0)
       tailwindcss:
         specifier: ^4.3.2
         version: 4.3.2
@@ -2502,7 +2531,7 @@ importers:
         version: link:../../../../packages/server/server-runtime
       express:
         specifier: ^5.2.1
-        version: 5.2.1
+        version: 5.2.1(supports-color@7.2.0)
       hono:
         specifier: ^4.12.28
         version: 4.12.28
@@ -2565,7 +2594,7 @@ importers:
         version: link:../bff-api-app
       express:
         specifier: ^5.2.1
-        version: 5.2.1
+        version: 5.2.1(supports-color@7.2.0)
       react:
         specifier: ^19.2.7
         version: 19.2.7
@@ -2626,7 +2655,7 @@ importers:
         version: link:../bff-api-app
       express:
         specifier: ^5.2.1
-        version: 5.2.1
+        version: 5.2.1(supports-color@7.2.0)
       react:
         specifier: ^19.2.7
         version: 19.2.7
@@ -3407,7 +3436,7 @@ importers:
         version: link:../../../../../packages/runtime/plugin-runtime
       '@module-federation/modern-js-v3':
         specifier: 2.7.0
-        version: 2.7.0(patch_hash=a905a0b27b48fa1410aab619eda0357b1794254fe28ea5ec36ae60f8fe8bd271)(@rsbuild/core@2.1.5(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0))(@rspack/core@2.1.3(@module-federation/runtime-tools@2.7.0)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.2.7(react@19.2.7))(react-router-dom@7.18.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-router@8.1.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(typescript@7.0.2)(utf-8-validate@5.0.10)
+        version: 2.7.0(patch_hash=f51adf0aa6c6e2daa5b7d2978a7716c0d4fb05b29af449b2f16257b957fb7923)(@rsbuild/core@2.1.5(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0))(@rspack/core@2.1.3(@module-federation/runtime-tools@2.7.0)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.2.7(react@19.2.7))(react-router-dom@7.18.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-router@8.1.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(typescript@7.0.2)(utf-8-validate@5.0.10)
       i18next:
         specifier: 26.3.6
         version: 26.3.6(typescript@7.0.2)
@@ -3441,7 +3470,7 @@ importers:
         version: link:../../../../../packages/runtime/plugin-runtime
       '@module-federation/modern-js-v3':
         specifier: 2.7.0
-        version: 2.7.0(patch_hash=a905a0b27b48fa1410aab619eda0357b1794254fe28ea5ec36ae60f8fe8bd271)(@rsbuild/core@2.1.5(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0))(@rspack/core@2.1.3(@module-federation/runtime-tools@2.7.0)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.2.7(react@19.2.7))(react-router-dom@7.18.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-router@8.1.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(typescript@7.0.2)(utf-8-validate@5.0.10)
+        version: 2.7.0(patch_hash=f51adf0aa6c6e2daa5b7d2978a7716c0d4fb05b29af449b2f16257b957fb7923)(@rsbuild/core@2.1.5(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0))(@rspack/core@2.1.3(@module-federation/runtime-tools@2.7.0)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.2.7(react@19.2.7))(react-router-dom@7.18.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-router@8.1.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(typescript@7.0.2)(utf-8-validate@5.0.10)
       i18next:
         specifier: 26.3.6
         version: 26.3.6(typescript@7.0.2)
@@ -3475,7 +3504,7 @@ importers:
         version: link:../../../../../packages/runtime/plugin-runtime
       '@module-federation/modern-js-v3':
         specifier: 2.7.0
-        version: 2.7.0(patch_hash=a905a0b27b48fa1410aab619eda0357b1794254fe28ea5ec36ae60f8fe8bd271)(@rsbuild/core@2.1.5(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0))(@rspack/core@2.1.3(@module-federation/runtime-tools@2.7.0)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.2.7(react@19.2.7))(react-router-dom@7.18.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-router@8.1.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(typescript@7.0.2)(utf-8-validate@5.0.10)
+        version: 2.7.0(patch_hash=f51adf0aa6c6e2daa5b7d2978a7716c0d4fb05b29af449b2f16257b957fb7923)(@rsbuild/core@2.1.5(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0))(@rspack/core@2.1.3(@module-federation/runtime-tools@2.7.0)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.2.7(react@19.2.7))(react-router-dom@7.18.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-router@8.1.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(typescript@7.0.2)(utf-8-validate@5.0.10)
       '@module-federation/runtime':
         specifier: 2.7.0
         version: 2.7.0
@@ -4005,7 +4034,7 @@ importers:
         version: link:../../../../packages/runtime/plugin-runtime
       '@module-federation/modern-js-v3':
         specifier: 2.7.0
-        version: 2.7.0(patch_hash=a905a0b27b48fa1410aab619eda0357b1794254fe28ea5ec36ae60f8fe8bd271)(@rsbuild/core@2.1.5(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0))(@rspack/core@2.1.3(@module-federation/runtime-tools@2.7.0)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.2.7(react@19.2.7))(react-router-dom@7.18.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-router@8.1.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(typescript@7.0.2)(utf-8-validate@5.0.10)
+        version: 2.7.0(patch_hash=f51adf0aa6c6e2daa5b7d2978a7716c0d4fb05b29af449b2f16257b957fb7923)(@rsbuild/core@2.1.5(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0))(@rspack/core@2.1.3(@module-federation/runtime-tools@2.7.0)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.2.7(react@19.2.7))(react-router-dom@7.18.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-router@8.1.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(typescript@7.0.2)(utf-8-validate@5.0.10)
       '@module-federation/runtime':
         specifier: 2.7.0
         version: 2.7.0
@@ -4046,7 +4075,7 @@ importers:
         version: link:../../../../packages/runtime/plugin-runtime
       '@module-federation/modern-js-v3':
         specifier: 2.7.0
-        version: 2.7.0(patch_hash=a905a0b27b48fa1410aab619eda0357b1794254fe28ea5ec36ae60f8fe8bd271)(@rsbuild/core@2.1.5(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0))(@rspack/core@2.1.3(@module-federation/runtime-tools@2.7.0)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.2.7(react@19.2.7))(react-router-dom@7.18.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-router@8.1.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(typescript@7.0.2)(utf-8-validate@5.0.10)
+        version: 2.7.0(patch_hash=f51adf0aa6c6e2daa5b7d2978a7716c0d4fb05b29af449b2f16257b957fb7923)(@rsbuild/core@2.1.5(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0))(@rspack/core@2.1.3(@module-federation/runtime-tools@2.7.0)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.2.7(react@19.2.7))(react-router-dom@7.18.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-router@8.1.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(typescript@7.0.2)(utf-8-validate@5.0.10)
       '@module-federation/runtime':
         specifier: 2.7.0
         version: 2.7.0
@@ -4083,7 +4112,7 @@ importers:
         version: link:../../../../packages/runtime/plugin-runtime
       '@module-federation/modern-js-v3':
         specifier: 2.7.0
-        version: 2.7.0(patch_hash=a905a0b27b48fa1410aab619eda0357b1794254fe28ea5ec36ae60f8fe8bd271)(@rsbuild/core@2.1.5(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0))(@rspack/core@2.1.3(@module-federation/runtime-tools@2.7.0)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.2.7(react@19.2.7))(react-router-dom@7.18.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-router@8.1.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(typescript@7.0.2)(utf-8-validate@5.0.10)
+        version: 2.7.0(patch_hash=f51adf0aa6c6e2daa5b7d2978a7716c0d4fb05b29af449b2f16257b957fb7923)(@rsbuild/core@2.1.5(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0))(@rspack/core@2.1.3(@module-federation/runtime-tools@2.7.0)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.2.7(react@19.2.7))(react-router-dom@7.18.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-router@8.1.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(typescript@7.0.2)(utf-8-validate@5.0.10)
       '@module-federation/runtime':
         specifier: 2.7.0
         version: 2.7.0
@@ -4388,8 +4417,8 @@ importers:
         specifier: workspace:*
         version: link:../../../../packages/cli/plugin-bff
       '@rstest/core':
-        specifier: 0.11.0
-        version: 0.11.0(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0)(happy-dom@20.10.6(bufferutil@4.1.0)(utf-8-validate@5.0.10))
+        specifier: 0.11.1
+        version: 0.11.1(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0)(happy-dom@20.10.6(bufferutil@4.1.0)(utf-8-validate@5.0.10))
       '@testing-library/jest-dom':
         specifier: ^6.9.1
         version: 6.9.1
@@ -4435,13 +4464,13 @@ importers:
         version: link:../../../../packages/solutions/app-tools
       '@rstest/browser':
         specifier: 0.11.0
-        version: 0.11.0(@rstest/core@0.11.0(core-js@3.49.0)(happy-dom@20.10.6(bufferutil@4.1.0)(utf-8-validate@5.0.10)))(bufferutil@4.1.0)(playwright@1.61.1)(utf-8-validate@5.0.10)
+        version: 0.11.0(@rstest/core@0.11.1(core-js@3.49.0)(happy-dom@20.10.6(bufferutil@4.1.0)(utf-8-validate@5.0.10)))(bufferutil@4.1.0)(playwright@1.61.1)(utf-8-validate@5.0.10)
       '@rstest/browser-react':
         specifier: 0.11.0
-        version: 0.11.0(@rstest/core@0.11.0(core-js@3.49.0)(happy-dom@20.10.6(bufferutil@4.1.0)(utf-8-validate@5.0.10)))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        version: 0.11.0(@rstest/core@0.11.1(core-js@3.49.0)(happy-dom@20.10.6(bufferutil@4.1.0)(utf-8-validate@5.0.10)))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@rstest/core':
-        specifier: 0.11.0
-        version: 0.11.0(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0)(happy-dom@20.10.6(bufferutil@4.1.0)(utf-8-validate@5.0.10))
+        specifier: 0.11.1
+        version: 0.11.1(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0)(happy-dom@20.10.6(bufferutil@4.1.0)(utf-8-validate@5.0.10))
       '@types/node':
         specifier: ^26.1.1
         version: 26.1.1
@@ -4627,7 +4656,7 @@ importers:
         version: 1.18.1(debug@4.4.3)
       express:
         specifier: ^5.2.1
-        version: 5.2.1
+        version: 5.2.1(supports-color@7.2.0)
       react:
         specifier: ^19.2.7
         version: 19.2.7
@@ -4689,7 +4718,7 @@ importers:
         version: 1.18.1(debug@4.4.3)
       express:
         specifier: ^5.2.1
-        version: 5.2.1
+        version: 5.2.1(supports-color@7.2.0)
       react:
         specifier: ^19.2.7
         version: 19.2.7
@@ -4714,7 +4743,7 @@ importers:
         version: 1.18.1(debug@4.4.3)
       express:
         specifier: ^5.2.1
-        version: 5.2.1
+        version: 5.2.1(supports-color@7.2.0)
       react:
         specifier: ^19.2.7
         version: 19.2.7
@@ -5325,7 +5354,7 @@ importers:
         version: 7.0.0-dev.20260707.2
       http-proxy:
         specifier: ^1.18.1
-        version: 1.18.1(debug@4.4.3)
+        version: 1.18.1
       storybook:
         specifier: ^10.4.6
         version: 10.4.6(@testing-library/dom@10.4.1)(@types/react@19.2.17)(bufferutil@4.1.0)(prettier@3.9.4)(react@19.2.7)(utf-8-validate@5.0.10)
@@ -5334,7 +5363,7 @@ importers:
         version: 3.3.4(@modern-js/app-tools@packages+solutions+app-tools)(@modern-js/plugin@packages+toolkit+plugin)(@rsbuild/core@2.1.5(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0))(storybook-builder-rsbuild@3.3.4(@rsbuild/core@2.1.5(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0))(@typescript/native-preview@7.0.0-dev.20260707.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(storybook@10.4.6(@testing-library/dom@10.4.1)(@types/react@19.2.17)(bufferutil@4.1.0)(prettier@3.9.4)(react@19.2.7)(utf-8-validate@5.0.10))(typescript@7.0.2))(typescript@7.0.2)
       storybook-react-rsbuild:
         specifier: 3.3.4
-        version: 3.3.4(@rsbuild/core@2.1.5(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0))(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(@typescript/native-preview@7.0.0-dev.20260707.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(rollup@4.62.2)(storybook@10.4.6(@testing-library/dom@10.4.1)(@types/react@19.2.17)(bufferutil@4.1.0)(prettier@3.9.4)(react@19.2.7)(utf-8-validate@5.0.10))(typescript@7.0.2)
+        version: 3.3.4(@rsbuild/core@2.1.5(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0))(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(@typescript/native-preview@7.0.0-dev.20260707.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(rollup@4.62.2)(storybook@10.4.6(@testing-library/dom@10.4.1)(@types/react@19.2.17)(bufferutil@4.1.0)(prettier@3.9.4)(react@19.2.7)(utf-8-validate@5.0.10))(supports-color@7.2.0)(typescript@7.0.2)
       tslib:
         specifier: 2.8.1
         version: 2.8.1
@@ -6337,43 +6366,43 @@ packages:
       '@opentelemetry/sdk-trace-web':
         optional: true
 
-  '@effect/tsgo-darwin-arm64@0.18.1':
-    resolution: {integrity: sha512-iv8rC7nNou2m5+mCF6C2CHf18JkrvHvs0JtdXZlJT8s2DSrUxZg5Ln+ygLh8Ojj+dB4TLlUxDJj1IwZdEm6iFQ==}
+  '@effect/tsgo-darwin-arm64@0.19.0':
+    resolution: {integrity: sha512-tieZTHXZlqOtm3YbGxclXNsyxILFtZqMC1fZEy2PAoEGKBHfwNc+r0gR3k3SU9dsSNj3KV8wLsXxfQr/VH1pAA==}
     cpu: [arm64]
     os: [darwin]
 
-  '@effect/tsgo-darwin-x64@0.18.1':
-    resolution: {integrity: sha512-w58NsBPQNeo5WNFhS44IzvFPtrwpl69uepehC0bXlIM4APQk8PFXyJz0flliiNm+xfqL5/xdVKSK3DyFQAqSYg==}
+  '@effect/tsgo-darwin-x64@0.19.0':
+    resolution: {integrity: sha512-gTxeWR5xkL+UIdrTDcnGDj0dFPnk2AxvHzrA8j3U9OQZ5yHaFK4DA8W2hVxbu2lvGoHeRlyrArBf8YomKnNRdQ==}
     cpu: [x64]
     os: [darwin]
 
-  '@effect/tsgo-linux-arm64@0.18.1':
-    resolution: {integrity: sha512-FjOZAWgTaFWqg66GJGrsKOniPa41noKT4oR6GWfdpoIjmSepf7UgZ95nmZBkv5YnFzSVJn9i7hvNklh6Kvm8Ug==}
+  '@effect/tsgo-linux-arm64@0.19.0':
+    resolution: {integrity: sha512-XEMv3PA8hNkSXAwAXYA5/FPYqV7eVrZS032P/3AuZTHr1jJTcesTK2ANfBHwwEKekmb7y3yBC7f73yhpXah4sg==}
     cpu: [arm64]
     os: [linux]
 
-  '@effect/tsgo-linux-arm@0.18.1':
-    resolution: {integrity: sha512-F/DjtTdczej17+fj2Kf9/kE7K7FNx5CfNctvd5Mpi0HOho3LlORReTlb2d0JDVbUSqueHYVML+pxwgsnqfdXfg==}
+  '@effect/tsgo-linux-arm@0.19.0':
+    resolution: {integrity: sha512-SZlUqv74YZkBDd2czXmeOTPtWPOppWNFmwCN4k11s1K4Y/BfIpHmmv0TUHU5DcPe3IoHIJV1kxXrxhfxO1nQsQ==}
     cpu: [arm]
     os: [linux]
 
-  '@effect/tsgo-linux-x64@0.18.1':
-    resolution: {integrity: sha512-vKQBX0zNOJfgZSm2EXPjPn6EyigswGwQeR2mXQExBJN8gV7UEIjBFkRFQVKD8EkyZRGxZRkSb6IqTDeZbfXR6w==}
+  '@effect/tsgo-linux-x64@0.19.0':
+    resolution: {integrity: sha512-T3KDEWgWuS3XAuJ5eUkEgeOVgC7pYK/8/hxASEtHJR1NDGPPk6gjg+jfcc0Y5O9P6mG4GL9LQmBIw/G1+GFRHA==}
     cpu: [x64]
     os: [linux]
 
-  '@effect/tsgo-win32-arm64@0.18.1':
-    resolution: {integrity: sha512-hTPY071Vqk9fY34uTyI/FBW/b1eeXxFdMDLE6j+4IkcmNaUuu58ZZE3vmHg1Mabz+cFVs6hWpFAVqekdAgfrxQ==}
+  '@effect/tsgo-win32-arm64@0.19.0':
+    resolution: {integrity: sha512-raoGQr2lNm0qO8sH3v4TlyUlTePm6c6y2FBIZQrUw8B4N/srHS5aVOUgWqnJ/WjuQKl1xCM5SoehuhRkGnoFzw==}
     cpu: [arm64]
     os: [win32]
 
-  '@effect/tsgo-win32-x64@0.18.1':
-    resolution: {integrity: sha512-5mfPlupGP/cyTkcWR5J2ZdyaxdU6zMHX4oyHy18EjXLdFoJOdjr9C/VNY6iZLbLHkTsQ3xYMFzVt0ruFdI8kNQ==}
+  '@effect/tsgo-win32-x64@0.19.0':
+    resolution: {integrity: sha512-KRWaWLXWIEm5mR/qPi9UJIRQdNs7uPfstiEv3bNR3qMVhgwndL2e5XYUoQOOYEK4MTjLM0GO+uknlHHRfI5K8A==}
     cpu: [x64]
     os: [win32]
 
-  '@effect/tsgo@0.18.1':
-    resolution: {integrity: sha512-oYyxUVzzc9YJwnu/g1G4gFnrpsDgYtH/APR1Ud0txoJ/QQIDs2u+BriWFhfoSF2J0nO5U0SRTTNjMf8DbIcOug==}
+  '@effect/tsgo@0.19.0':
+    resolution: {integrity: sha512-NDyG/RufHigI0bdvyggbr53J6c1GWcnNkm7rUwQbBDuRI1KRThFh2WtugMLL+i6wrRiMXJtgLHzh9lIMqy9gGA==}
     hasBin: true
 
   '@emnapi/core@1.11.1':
@@ -7380,7 +7409,6 @@ packages:
   '@module-federation/dts-plugin@2.7.0':
     resolution: {integrity: sha512-mVKeGUf/7iqRMAFfikhsr2zXtA70WuzJdS1bPqqoeLQNRGXBLDjedcDG26RpIlsvuZcmIOqgN5Z6qw7Bh/HZUg==}
     peerDependencies:
-      typescript: ^4.9.0 || ^5.0.0 || ^6.0.0
       vue-tsc: '>=1.0.24'
     peerDependenciesMeta:
       vue-tsc:
@@ -7540,57 +7568,57 @@ packages:
     resolution: {integrity: sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg==}
     engines: {node: '>= 8'}
 
-  '@nx/nx-darwin-arm64@23.0.1':
-    resolution: {integrity: sha512-gQJvgPnbI91DBe23Th2CqD9R/S54cPS3C1f0DhyQ8YEf9rR7EEc+sVGjhgVxlhfOk2W7I1Gy6EkXwpN4aDoW4w==}
+  '@nx/nx-darwin-arm64@23.0.2':
+    resolution: {integrity: sha512-9sqhZMVFpF+qM7hq6y2xA4gVK+6RdxRioAwHxorhOZRSXdW7Y7NESs5fm8vOmdddlG07QB7sMefOKLrqCV3zGg==}
     cpu: [arm64]
     os: [darwin]
 
-  '@nx/nx-darwin-x64@23.0.1':
-    resolution: {integrity: sha512-e/lvzHKN6gpuD7MqEtfH1fOfnR75E55ytYNt8jaRxKI6EvpCq+Q3MunDuh9GQYAkqDrUqE7AhHrHc+eKATVEHw==}
+  '@nx/nx-darwin-x64@23.0.2':
+    resolution: {integrity: sha512-p6L3AvRhRRaR8Bl3jr76/9H04RdWUQbSgB7agK7GB7vqaLI8RifP2lqeaXcAngzjDAjw2EAf0TjOBP+T67hhcg==}
     cpu: [x64]
     os: [darwin]
 
-  '@nx/nx-freebsd-x64@23.0.1':
-    resolution: {integrity: sha512-f582OhSYN9qHpA9Ox9qnr3kZSZ7gQHs7crmBUutmbXmZQB2TDS/TlhvYSNnxudpwHR/tuWGi2IOQqa7zGOZj1Q==}
+  '@nx/nx-freebsd-x64@23.0.2':
+    resolution: {integrity: sha512-/py4I8Rp2UURses9H/+SQmgPVnHVSJgPimJLhXIfsRavKGu4RS7Ddu1OyNqSkCT3Otic6ImMTtkufURW22KiEQ==}
     cpu: [x64]
     os: [freebsd]
 
-  '@nx/nx-linux-arm-gnueabihf@23.0.1':
-    resolution: {integrity: sha512-VjhqPc6E7aiI0e+lowrkVbdyulsmP9fgMdcX1mCzXCEu/XZDcUbZ5qveR964cMhvm5qKn0ILJtJOUqZgmOT3Xg==}
+  '@nx/nx-linux-arm-gnueabihf@23.0.2':
+    resolution: {integrity: sha512-xv2IzeiWJFWi4WjK0ocMkP+ze1lDeoPVCg0xOTqVs40gM66V1wVw3EK077gTqU4m0Bq1wUxe6/I8WaIGlkLgug==}
     cpu: [arm]
     os: [linux]
 
-  '@nx/nx-linux-arm64-gnu@23.0.1':
-    resolution: {integrity: sha512-zX2JdHQejZWB3DRgNsh77qOVYaSSjSLuBP2qIqc7EWVlCUnR7Aj3e65PTIps4LxMMmUp4twZA2ezS0rtyK2A4w==}
+  '@nx/nx-linux-arm64-gnu@23.0.2':
+    resolution: {integrity: sha512-ckA6hTXST+agxt/HzPGqMss9qFCZhO9b07o8usygb7QFBYQRXFgcYzhTblq4yiTL5ibJmXAGGh98011fLA2MVw==}
     cpu: [arm64]
     os: [linux]
     libc: [glibc]
 
-  '@nx/nx-linux-arm64-musl@23.0.1':
-    resolution: {integrity: sha512-9lyhxRNBgNYwHt6paq0OLzoKNoEGF5LnNW2YYrgFY8Cjtsg/Q4pcfZ1vB5o9FX9OmUgUQs3t2d4tU8YDukRUWg==}
+  '@nx/nx-linux-arm64-musl@23.0.2':
+    resolution: {integrity: sha512-PAxBxy7m//cKxUeIb6Sk2X5MJ/wjcJcqCx7/L0p8omTt/y/+q1TGpVy6qmJMPUWzNgAULXtsVRSOK4rmiBcrQQ==}
     cpu: [arm64]
     os: [linux]
     libc: [musl]
 
-  '@nx/nx-linux-x64-gnu@23.0.1':
-    resolution: {integrity: sha512-kVszY2xRyyrCXgdCdM1qG1WUhDjNPZxtdWq86a0TyIRJjfJTP9NHqpyhmvj9c2RdZxKVWHotx6fBJzY6Vn2ZrA==}
+  '@nx/nx-linux-x64-gnu@23.0.2':
+    resolution: {integrity: sha512-gR146Mo+BjhrIU2fNOJeVjX8HEAHrtmc7IyrD0qD9yqyq0l9Mdx92JnMW3yVQaYIMpPJIqsOvHTDIUbTLFrmTA==}
     cpu: [x64]
     os: [linux]
     libc: [glibc]
 
-  '@nx/nx-linux-x64-musl@23.0.1':
-    resolution: {integrity: sha512-co71K2n4zcS1SYR8EBRlCvIko7M1YycO2tZL0nrCrga87AF5dzCwx+wEclpyCR/4tNOY3FrACk4gIkVskh3CdA==}
+  '@nx/nx-linux-x64-musl@23.0.2':
+    resolution: {integrity: sha512-L7JkaoAI0p+DpAi2CNCqPq8nHWkApQw2td0Cyt+stOx/OJlmEteyc/MXyTHBoMPoopNj1wWANJJQm/G1anOLhQ==}
     cpu: [x64]
     os: [linux]
     libc: [musl]
 
-  '@nx/nx-win32-arm64-msvc@23.0.1':
-    resolution: {integrity: sha512-7oma7iy5fbnn+x5AP7SFGMuleAA2R5RZm26dn+faikyQ4PXjoRAikWJJNiOWAeCA0BaMAeVedI6fJeAsVeDUKg==}
+  '@nx/nx-win32-arm64-msvc@23.0.2':
+    resolution: {integrity: sha512-B3ePaYeu31ivP3i72Vou5RBYFVrDKCMZgz7Jsax+RvEJa8dNfI+Ynh/PSoXzHudN0YsrekkKbjlxNvp/D6fWFA==}
     cpu: [arm64]
     os: [win32]
 
-  '@nx/nx-win32-x64-msvc@23.0.1':
-    resolution: {integrity: sha512-TE/wvBa2cpkVXmk/AXUQAneong4JReS2hyNpAUONKG1yXU7TDKe0wvn1xQXxAbyspudT9NuCnVtpVuEkRz8S+Q==}
+  '@nx/nx-win32-x64-msvc@23.0.2':
+    resolution: {integrity: sha512-/NiB9w8nYrw7LUkcmwAJ9wis5O+kh3ahSZXMDHVYgFnD8yN7kLql39MNJD+/DGstjNSDvWh45ftqr7mZMi6wpQ==}
     cpu: [x64]
     os: [win32]
 
@@ -7603,12 +7631,74 @@ packages:
   '@open-draft/until@2.1.0':
     resolution: {integrity: sha512-U69T3ItWHvLwGg5eJ0n3I62nWuE6ilHlmz7zM0npLBRvPRd7e6NYmg54vvRtP5mZG7kZqZCFVdsTWo7BPtBujg==}
 
+  '@opentelemetry/api-logs@0.220.0':
+    resolution: {integrity: sha512-CmVa4ImJ+ynfrPMNaAXHET6Bhb44SwzmfyVJFq9ni2jgXJR/l7C6gfVFddNmHP+ZOkP9cf4f9DBe68qVLTHc9w==}
+    engines: {node: '>=8.0.0'}
+
   '@opentelemetry/api@1.9.1':
     resolution: {integrity: sha512-gLyJlPHPZYdAk1JENA9LeHejZe1Ti77/pTeFm/nMXmQH/HFZlcS/O2XJB+L8fkbrNSqhdtlvjBVjxwUYanNH5Q==}
     engines: {node: '>=8.0.0'}
 
+  '@opentelemetry/context-async-hooks@2.9.0':
+    resolution: {integrity: sha512-OQ0vzvbZBiUhjqLnUaoNfYmP8553Crr3aggB4y0ZUi815mZ7idpdJXQmoKdeBKJelYttoBlLSSHubmyw3wvX4w==}
+    engines: {node: ^18.19.0 || >=20.6.0}
+    peerDependencies:
+      '@opentelemetry/api': '>=1.0.0 <1.10.0'
+
+  '@opentelemetry/core@2.9.0':
+    resolution: {integrity: sha512-m2nckMT80NnmjTYSPjJQObBJ+8dgkoajEOUbznL8AHZ3T3yHRk2P7gI1PhEBc1+lOnrYE9UWrWHqJDsmqjmNbw==}
+    engines: {node: ^18.19.0 || >=20.6.0}
+    peerDependencies:
+      '@opentelemetry/api': '>=1.0.0 <1.10.0'
+
+  '@opentelemetry/resources@2.9.0':
+    resolution: {integrity: sha512-jyA5MBLQ+Dkl3+JsZkUoUvL7yHvU64kLsvpXKarWm6347Sl1t1bXFTFykUePNpT5WH5pm9a2Qtt03iIYQhZ1Fg==}
+    engines: {node: ^18.19.0 || >=20.6.0}
+    peerDependencies:
+      '@opentelemetry/api': '>=1.3.0 <1.10.0'
+
+  '@opentelemetry/sdk-logs@0.220.0':
+    resolution: {integrity: sha512-WywcTkQtv2iNmt+6y5Kcd4rzvx9bLVsBa2Nwcmg01IUaBTkTow3W4d9KE5vNBpEDtb9tp21WcRBY/lANRrApYA==}
+    engines: {node: ^18.19.0 || >=20.6.0}
+    peerDependencies:
+      '@opentelemetry/api': '>=1.4.0 <1.10.0'
+
+  '@opentelemetry/sdk-metrics@2.9.0':
+    resolution: {integrity: sha512-Xx8RGS4H5XEBl01WuCreMIpiah9cCXMbSkeuIePPdD2cUpq/vUzYmj8E/MK1OsbOc93FuAD4jfn2WOacKwLn7Q==}
+    engines: {node: ^18.19.0 || >=20.6.0}
+    peerDependencies:
+      '@opentelemetry/api': '>=1.9.0 <1.10.0'
+
+  '@opentelemetry/sdk-trace-base@2.9.0':
+    resolution: {integrity: sha512-cp9zmTl62R8PJrpvFcmc8N2JQU/xfa0S+61q511Nji+QxCfZ8Ifvg7H27G8cANe4crg4RTrWsVvanHiXjSp6ag==}
+    engines: {node: ^18.19.0 || >=20.6.0}
+    peerDependencies:
+      '@opentelemetry/api': '>=1.3.0 <1.10.0'
+
+  '@opentelemetry/sdk-trace-node@2.9.0':
+    resolution: {integrity: sha512-ec9a7ps37huy5itYk0MalaZdSLlM6AXWp/FhtEjgMpp5leEGojBDvAl/UWttQnkMZOvFHKzRESn8TD3yKTF5nQ==}
+    engines: {node: ^18.19.0 || >=20.6.0}
+    peerDependencies:
+      '@opentelemetry/api': '>=1.0.0 <1.10.0'
+
+  '@opentelemetry/sdk-trace-web@2.9.0':
+    resolution: {integrity: sha512-LS4XlzOK3e6YYdt84m15AmRR04121rKipmifi4XFZToH1h75f7F2bzHLbB1NMgIEYJ0jSKYm4VsK5mws/5kfTQ==}
+    engines: {node: ^18.19.0 || >=20.6.0}
+    peerDependencies:
+      '@opentelemetry/api': '>=1.0.0 <1.10.0'
+
+  '@opentelemetry/sdk-trace@2.9.0':
+    resolution: {integrity: sha512-sGA19HvtrrSKYsseHphluH6j3p6Xa3fqc7c7y8f/7mYWejc1lyDFcpSdD1kYa50HCLUeEo4zA5bW0pniaPszuw==}
+    engines: {node: ^18.19.0 || >=20.6.0}
+    peerDependencies:
+      '@opentelemetry/api': '>=1.3.0 <1.10.0'
+
   '@opentelemetry/semantic-conventions@1.42.0':
     resolution: {integrity: sha512-icc5xCzndZfhuJMy5oqk5AvloWquR7jtae74qzpkKkhGp8BivK+oCcEXgGnjCdTfp8hA44l+w8gE8yYJbocJJw==}
+    engines: {node: '>=14'}
+
+  '@opentelemetry/semantic-conventions@1.43.0':
+    resolution: {integrity: sha512-eSYWTm620tTk45EKSedaUL8MFYI8hW164hIXsgIHyxu3VobUB3fFCu5t0hQby6OoWRPsG1KkKUG2M5UadiLiVg==}
     engines: {node: '>=14'}
 
   '@oxc-parser/binding-android-arm-eabi@0.127.0':
@@ -9039,11 +9129,11 @@ packages:
   '@rspress/shared@2.0.17':
     resolution: {integrity: sha512-ZzpZ4hm5svgwU0w5CpTLZy4vFD3uPo8+gXtWMOREYMzwfzJeHqwOyXwxHf6byGpx85mVK5DQqMDi61meAS7ZUw==}
 
-  '@rstest/adapter-rsbuild@0.11.0':
-    resolution: {integrity: sha512-otrR3yqQ5Uyskm0hu8c0fjP1eFk6bMJALnYhUl6V1CKp/monoowFMa6XEqdY2d4aHv6oa8XWGLfU4LWne1Vg9A==}
+  '@rstest/adapter-rsbuild@0.11.1':
+    resolution: {integrity: sha512-LaS/Ziq6mesdZL1ApxAPcRh46TZ8rtmR/+dBjlNYrSrgoYCOqi3gfz6FbEBobZdm35TMGquDhQhQHUKrMbRUGQ==}
     peerDependencies:
-      '@rsbuild/core': '*'
-      '@rstest/core': ^0.11.0
+      '@rsbuild/core': ^1.0.0 || ^2.0.0
+      '@rstest/core': ^0.11.1
 
   '@rstest/browser-react@0.11.0':
     resolution: {integrity: sha512-NGqMKLgBfIKJ9iwFP0L3jUykczyjyzSGM38wlLPywXDA68AEeJuc62a6iHW+X7sdmrPLGeFxdihKfKMc2C5BGw==}
@@ -9063,8 +9153,8 @@ packages:
       playwright:
         optional: true
 
-  '@rstest/core@0.11.0':
-    resolution: {integrity: sha512-buy6EV9R6d0O9WMOSG0C91jwMcNYDw4Q0uFQNuwPpQLH85rTlVyuUM7EnEnvVGv5lG6dpgGwNTdRWx6mvWybag==}
+  '@rstest/core@0.11.1':
+    resolution: {integrity: sha512-9iJnDrM/zYuHyk1//CMr/Jer2XughgN3fYagGb1YWpMLUke+E+WXlUPgACwf7OkmIB47/TttbLFK+4zwGDNOFg==}
     engines: {node: ^20.19.0 || >=22.12.0}
     hasBin: true
     peerDependencies:
@@ -10154,10 +10244,6 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@typescript/typescript6@6.0.2':
-    resolution: {integrity: sha512-mbCddXd+jm7hfx7w2YU64/Av4/NqqeG3GoRZgxPcgoTxYjhrcfJRw9ULch71SS4G+Q3bOXFhRvPqjguN0Hyp5w==}
-    hasBin: true
-
   '@ungap/structured-clone@1.3.2':
     resolution: {integrity: sha512-5jsZFwgR5rTdKwidH9Qmat75RKwqfpKlWWB1frDkljN127mwqBu8K0PYo7/hFpF03IEJpfVPpCQDY/eDx3iHvA==}
 
@@ -10448,8 +10534,8 @@ packages:
     resolution: {integrity: sha512-wvUjBtSGN7+7SjNpq/9M2Tg350UZD3q62IFZLbRAR1bSMlCo1ZaeW+BJ+D090e4hIIZLBcTDWe4Mh4jvUDajzQ==}
     engines: {node: '>= 0.4'}
 
-  axios@1.16.0:
-    resolution: {integrity: sha512-6hp5CwvTPlN2A31g5dxnwAX0orzM7pmCRDLnZSX772mv8WDqICwFjowHuPs04Mc8deIld1+ejhtaMn5vp6b+1w==}
+  axios@1.16.1:
+    resolution: {integrity: sha512-caYkukvroVPO8KrzuJEb50Hm07KwfBZPEC3VeFHTsqWHvKTsy54hjJz9BS/cdaypROE2rH6xvm9mHX4fgWkr3A==}
 
   axios@1.18.1:
     resolution: {integrity: sha512-3nTvFlvpn9Zu/RkHUqtc7/+al4UpRW5az71ap5zccp6e8RAYEzhMTecX8Dz1wWDYrPpUoB1HAQEGEAEvUr7S9g==}
@@ -13687,8 +13773,8 @@ packages:
   nth-check@2.1.1:
     resolution: {integrity: sha512-lqjrjmaOoAnWfMmBPL+XNnynZh2+swxiX3WUE0s4yEHI6m+AwrK2UZOimIRl3X/4QctVqS8AiZjFqyOGrMXb/w==}
 
-  nx@23.0.1:
-    resolution: {integrity: sha512-HnK0Ke8FcPeVQffYm1oyzkLNn7khrI8SeDeC3iyLhw/UEMCB24hjI5JSs6Amlyeb0/GaeiuQuts8NkQKd/NpGA==}
+  nx@23.0.2:
+    resolution: {integrity: sha512-e5H6ceqj0Z8ovAmtsiHXswwpiNPrr1DRhvJMTpc2AW8G1za9PKxk3bP5josShsIrmGEsOlBNZZsxszXA2+Q2dw==}
     hasBin: true
     peerDependencies:
       '@swc-node/register': ^1.11.1
@@ -16415,7 +16501,7 @@ snapshots:
       '@babel/types': 7.29.7
       '@jridgewell/remapping': 2.3.5
       convert-source-map: 2.0.0
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       gensync: 1.0.0-beta.2
       json5: 2.2.3
       semver: 6.3.1
@@ -16676,7 +16762,7 @@ snapshots:
       '@babel/parser': 7.29.7
       '@babel/template': 7.29.7
       '@babel/types': 7.29.7
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
 
@@ -17152,43 +17238,50 @@ snapshots:
     dependencies:
       postcss: 8.5.16
 
-  '@effect/opentelemetry@4.0.0-beta.97(@opentelemetry/api@1.9.1)(@opentelemetry/semantic-conventions@1.42.0)(effect@4.0.0-beta.97)':
+  '@effect/opentelemetry@4.0.0-beta.97(@opentelemetry/api-logs@0.220.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.220.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-node@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-beta.97)':
     dependencies:
-      '@opentelemetry/semantic-conventions': 1.42.0
+      '@opentelemetry/semantic-conventions': 1.43.0
       effect: 4.0.0-beta.97
     optionalDependencies:
       '@opentelemetry/api': 1.9.1
+      '@opentelemetry/api-logs': 0.220.0
+      '@opentelemetry/resources': 2.9.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/sdk-logs': 0.220.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/sdk-metrics': 2.9.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/sdk-trace-base': 2.9.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/sdk-trace-node': 2.9.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/sdk-trace-web': 2.9.0(@opentelemetry/api@1.9.1)
 
-  '@effect/tsgo-darwin-arm64@0.18.1':
+  '@effect/tsgo-darwin-arm64@0.19.0':
     optional: true
 
-  '@effect/tsgo-darwin-x64@0.18.1':
+  '@effect/tsgo-darwin-x64@0.19.0':
     optional: true
 
-  '@effect/tsgo-linux-arm64@0.18.1':
+  '@effect/tsgo-linux-arm64@0.19.0':
     optional: true
 
-  '@effect/tsgo-linux-arm@0.18.1':
+  '@effect/tsgo-linux-arm@0.19.0':
     optional: true
 
-  '@effect/tsgo-linux-x64@0.18.1':
+  '@effect/tsgo-linux-x64@0.19.0':
     optional: true
 
-  '@effect/tsgo-win32-arm64@0.18.1':
+  '@effect/tsgo-win32-arm64@0.19.0':
     optional: true
 
-  '@effect/tsgo-win32-x64@0.18.1':
+  '@effect/tsgo-win32-x64@0.19.0':
     optional: true
 
-  '@effect/tsgo@0.18.1':
+  '@effect/tsgo@0.19.0':
     optionalDependencies:
-      '@effect/tsgo-darwin-arm64': 0.18.1
-      '@effect/tsgo-darwin-x64': 0.18.1
-      '@effect/tsgo-linux-arm': 0.18.1
-      '@effect/tsgo-linux-arm64': 0.18.1
-      '@effect/tsgo-linux-x64': 0.18.1
-      '@effect/tsgo-win32-arm64': 0.18.1
-      '@effect/tsgo-win32-x64': 0.18.1
+      '@effect/tsgo-darwin-arm64': 0.19.0
+      '@effect/tsgo-darwin-x64': 0.19.0
+      '@effect/tsgo-linux-arm': 0.19.0
+      '@effect/tsgo-linux-arm64': 0.19.0
+      '@effect/tsgo-linux-x64': 0.19.0
+      '@effect/tsgo-win32-arm64': 0.19.0
+      '@effect/tsgo-win32-x64': 0.19.0
 
   '@emnapi/core@1.11.1':
     dependencies:
@@ -17997,11 +18090,11 @@ snapshots:
       tinyglobby: 0.2.17
       yaml: 2.9.0
 
-  '@mapbox/node-pre-gyp@2.0.3(encoding@0.1.13)':
+  '@mapbox/node-pre-gyp@2.0.3(encoding@0.1.13)(supports-color@7.2.0)':
     dependencies:
       consola: 3.4.2
       detect-libc: 2.1.2
-      https-proxy-agent: 7.0.6
+      https-proxy-agent: 7.0.6(supports-color@7.2.0)
       node-fetch: 2.7.0(encoding@0.1.13)
       nopt: 8.1.0
       semver: 7.8.5
@@ -18079,12 +18172,22 @@ snapshots:
       '@modern-js/codesmith-utils': 2.6.9
       '@swc/helpers': 0.5.1
       axios: 1.18.1(debug@4.4.3)
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       tar: 7.5.19
     transitivePeerDependencies:
       - supports-color
 
-  '@modern-js/polyfill-lib@1.0.2':
+  '@modern-js/codesmith@2.6.9(supports-color@7.2.0)':
+    dependencies:
+      '@modern-js/codesmith-utils': 2.6.9
+      '@swc/helpers': 0.5.1
+      axios: 1.18.1(debug@4.4.3(supports-color@7.2.0))
+      debug: 4.4.3(supports-color@7.2.0)
+      tar: 7.5.19
+    transitivePeerDependencies:
+      - supports-color
+
+  '@modern-js/polyfill-lib@1.0.2(supports-color@7.2.0)':
     dependencies:
       '@financial-times/polyfill-useragent-normaliser': 1.10.2
       '@formatjs/intl-datetimeformat': 2.8.4
@@ -18117,7 +18220,7 @@ snapshots:
       picturefill: 3.0.3
       rimraf: 3.0.2
       seamless-scroll-polyfill: 1.2.4
-      spdx-licenses: 1.0.0
+      spdx-licenses: 1.0.0(supports-color@7.2.0)
       stream-cache: 0.0.2
       stream-from-promise: 1.0.0
       stream-to-string: 1.2.1
@@ -18148,19 +18251,18 @@ snapshots:
       react-router: 8.1.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       react-router-dom: 7.18.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
 
-  '@module-federation/cli@2.7.0(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)':
+  '@module-federation/cli@2.7.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)':
     dependencies:
-      '@module-federation/dts-plugin': 2.7.0(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
+      '@module-federation/dts-plugin': 2.7.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
       '@module-federation/sdk': 2.7.0
       commander: 11.1.0
       jiti: 2.4.2
     transitivePeerDependencies:
       - bufferutil
-      - typescript
       - utf-8-validate
       - vue-tsc
 
-  '@module-federation/dts-plugin@2.7.0(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)':
+  '@module-federation/dts-plugin@2.7.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)':
     dependencies:
       '@module-federation/error-codes': 2.7.0
       '@module-federation/managers': 2.7.0
@@ -18169,7 +18271,7 @@ snapshots:
       adm-zip: 0.5.10
       isomorphic-ws: 5.0.0(ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))
       node-schedule: 2.1.1
-      typescript: 7.0.2
+      typescript: 6.0.3
       undici: 7.28.0
       ws: 8.21.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
     transitivePeerDependencies:
@@ -18179,12 +18281,12 @@ snapshots:
   '@module-federation/enhanced@2.7.0(@rspack/core@2.1.3(@module-federation/runtime-tools@2.7.0)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)':
     dependencies:
       '@module-federation/bridge-react-webpack-plugin': 2.7.0
-      '@module-federation/cli': 2.7.0(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
-      '@module-federation/dts-plugin': 2.7.0(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
+      '@module-federation/cli': 2.7.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      '@module-federation/dts-plugin': 2.7.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
       '@module-federation/error-codes': 2.7.0
       '@module-federation/inject-external-runtime-core-plugin': 2.7.0(@module-federation/runtime-tools@2.7.0)
       '@module-federation/managers': 2.7.0
-      '@module-federation/manifest': 2.7.0(patch_hash=d4e1ba0882ca057905f6f52a3df901a9d54dbd14e6f57ae90b12d970e030b79d)(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
+      '@module-federation/manifest': 2.7.0(patch_hash=d4e1ba0882ca057905f6f52a3df901a9d54dbd14e6f57ae90b12d970e030b79d)(bufferutil@4.1.0)(utf-8-validate@5.0.10)
       '@module-federation/rspack': 2.7.0(patch_hash=d7c0d858ad909a5dc474eb8fa58626fd525d3bc2a9a1b8ff9d852c4ab82c3c25)(@rspack/core@2.1.3(@module-federation/runtime-tools@2.7.0)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
       '@module-federation/runtime-tools': 2.7.0
       '@module-federation/sdk': 2.7.0
@@ -18210,21 +18312,20 @@ snapshots:
       '@module-federation/sdk': 2.7.0
       empathic: 2.0.0
 
-  '@module-federation/manifest@2.7.0(patch_hash=d4e1ba0882ca057905f6f52a3df901a9d54dbd14e6f57ae90b12d970e030b79d)(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)':
+  '@module-federation/manifest@2.7.0(patch_hash=d4e1ba0882ca057905f6f52a3df901a9d54dbd14e6f57ae90b12d970e030b79d)(bufferutil@4.1.0)(utf-8-validate@5.0.10)':
     dependencies:
-      '@module-federation/dts-plugin': 2.7.0(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
+      '@module-federation/dts-plugin': 2.7.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
       '@module-federation/managers': 2.7.0
       '@module-federation/sdk': 2.7.0
     transitivePeerDependencies:
       - bufferutil
-      - typescript
       - utf-8-validate
       - vue-tsc
 
-  '@module-federation/modern-js-v3@2.7.0(patch_hash=a905a0b27b48fa1410aab619eda0357b1794254fe28ea5ec36ae60f8fe8bd271)(@rsbuild/core@2.1.5(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0))(@rspack/core@2.1.3(@module-federation/runtime-tools@2.7.0)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.2.7(react@19.2.7))(react-router-dom@7.18.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-router@8.1.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(typescript@7.0.2)(utf-8-validate@5.0.10)':
+  '@module-federation/modern-js-v3@2.7.0(patch_hash=f51adf0aa6c6e2daa5b7d2978a7716c0d4fb05b29af449b2f16257b957fb7923)(@rsbuild/core@2.1.5(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0))(@rspack/core@2.1.3(@module-federation/runtime-tools@2.7.0)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.2.7(react@19.2.7))(react-router-dom@7.18.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-router@8.1.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(typescript@7.0.2)(utf-8-validate@5.0.10)':
     dependencies:
       '@module-federation/bridge-react': 2.7.0(patch_hash=570db78204f3db2a61c3637ee89c8847e767581e7cc666e0a100ae06e5bcb2c5)(react-dom@19.2.7(react@19.2.7))(react-router-dom@7.18.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-router@8.1.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)
-      '@module-federation/cli': 2.7.0(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
+      '@module-federation/cli': 2.7.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
       '@module-federation/enhanced': 2.7.0(@rspack/core@2.1.3(@module-federation/runtime-tools@2.7.0)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
       '@module-federation/node': 2.7.46(@rspack/core@2.1.3(@module-federation/runtime-tools@2.7.0)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
       '@module-federation/rsbuild-plugin': 2.7.0(@rsbuild/core@2.1.5(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0))(@rspack/core@2.1.3(@module-federation/runtime-tools@2.7.0)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
@@ -18281,10 +18382,10 @@ snapshots:
   '@module-federation/rspack@2.7.0(patch_hash=d7c0d858ad909a5dc474eb8fa58626fd525d3bc2a9a1b8ff9d852c4ab82c3c25)(@rspack/core@2.1.3(@module-federation/runtime-tools@2.7.0)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)':
     dependencies:
       '@module-federation/bridge-react-webpack-plugin': 2.7.0
-      '@module-federation/dts-plugin': 2.7.0(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
+      '@module-federation/dts-plugin': 2.7.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
       '@module-federation/inject-external-runtime-core-plugin': 2.7.0(@module-federation/runtime-tools@2.7.0)
       '@module-federation/managers': 2.7.0
-      '@module-federation/manifest': 2.7.0(patch_hash=d4e1ba0882ca057905f6f52a3df901a9d54dbd14e6f57ae90b12d970e030b79d)(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
+      '@module-federation/manifest': 2.7.0(patch_hash=d4e1ba0882ca057905f6f52a3df901a9d54dbd14e6f57ae90b12d970e030b79d)(bufferutil@4.1.0)(utf-8-validate@5.0.10)
       '@module-federation/runtime-tools': 2.7.0
       '@module-federation/sdk': 2.7.0
       '@rspack/core': 2.1.3(@module-federation/runtime-tools@2.7.0)(@swc/helpers@0.5.23)
@@ -18391,34 +18492,34 @@ snapshots:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.20.1
 
-  '@nx/nx-darwin-arm64@23.0.1':
+  '@nx/nx-darwin-arm64@23.0.2':
     optional: true
 
-  '@nx/nx-darwin-x64@23.0.1':
+  '@nx/nx-darwin-x64@23.0.2':
     optional: true
 
-  '@nx/nx-freebsd-x64@23.0.1':
+  '@nx/nx-freebsd-x64@23.0.2':
     optional: true
 
-  '@nx/nx-linux-arm-gnueabihf@23.0.1':
+  '@nx/nx-linux-arm-gnueabihf@23.0.2':
     optional: true
 
-  '@nx/nx-linux-arm64-gnu@23.0.1':
+  '@nx/nx-linux-arm64-gnu@23.0.2':
     optional: true
 
-  '@nx/nx-linux-arm64-musl@23.0.1':
+  '@nx/nx-linux-arm64-musl@23.0.2':
     optional: true
 
-  '@nx/nx-linux-x64-gnu@23.0.1':
+  '@nx/nx-linux-x64-gnu@23.0.2':
     optional: true
 
-  '@nx/nx-linux-x64-musl@23.0.1':
+  '@nx/nx-linux-x64-musl@23.0.2':
     optional: true
 
-  '@nx/nx-win32-arm64-msvc@23.0.1':
+  '@nx/nx-win32-arm64-msvc@23.0.2':
     optional: true
 
-  '@nx/nx-win32-x64-msvc@23.0.1':
+  '@nx/nx-win32-x64-msvc@23.0.2':
     optional: true
 
   '@open-draft/deferred-promise@2.2.0': {}
@@ -18430,9 +18531,72 @@ snapshots:
 
   '@open-draft/until@2.1.0': {}
 
+  '@opentelemetry/api-logs@0.220.0':
+    dependencies:
+      '@opentelemetry/api': 1.9.1
+
   '@opentelemetry/api@1.9.1': {}
 
+  '@opentelemetry/context-async-hooks@2.9.0(@opentelemetry/api@1.9.1)':
+    dependencies:
+      '@opentelemetry/api': 1.9.1
+
+  '@opentelemetry/core@2.9.0(@opentelemetry/api@1.9.1)':
+    dependencies:
+      '@opentelemetry/api': 1.9.1
+      '@opentelemetry/semantic-conventions': 1.42.0
+
+  '@opentelemetry/resources@2.9.0(@opentelemetry/api@1.9.1)':
+    dependencies:
+      '@opentelemetry/api': 1.9.1
+      '@opentelemetry/core': 2.9.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/semantic-conventions': 1.42.0
+
+  '@opentelemetry/sdk-logs@0.220.0(@opentelemetry/api@1.9.1)':
+    dependencies:
+      '@opentelemetry/api': 1.9.1
+      '@opentelemetry/api-logs': 0.220.0
+      '@opentelemetry/core': 2.9.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/resources': 2.9.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/semantic-conventions': 1.42.0
+
+  '@opentelemetry/sdk-metrics@2.9.0(@opentelemetry/api@1.9.1)':
+    dependencies:
+      '@opentelemetry/api': 1.9.1
+      '@opentelemetry/core': 2.9.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/resources': 2.9.0(@opentelemetry/api@1.9.1)
+
+  '@opentelemetry/sdk-trace-base@2.9.0(@opentelemetry/api@1.9.1)':
+    dependencies:
+      '@opentelemetry/api': 1.9.1
+      '@opentelemetry/core': 2.9.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/resources': 2.9.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/sdk-trace': 2.9.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/semantic-conventions': 1.42.0
+
+  '@opentelemetry/sdk-trace-node@2.9.0(@opentelemetry/api@1.9.1)':
+    dependencies:
+      '@opentelemetry/api': 1.9.1
+      '@opentelemetry/context-async-hooks': 2.9.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/core': 2.9.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/sdk-trace-base': 2.9.0(@opentelemetry/api@1.9.1)
+
+  '@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.1)':
+    dependencies:
+      '@opentelemetry/api': 1.9.1
+      '@opentelemetry/core': 2.9.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/sdk-trace-base': 2.9.0(@opentelemetry/api@1.9.1)
+
+  '@opentelemetry/sdk-trace@2.9.0(@opentelemetry/api@1.9.1)':
+    dependencies:
+      '@opentelemetry/api': 1.9.1
+      '@opentelemetry/core': 2.9.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/resources': 2.9.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/semantic-conventions': 1.42.0
+
   '@opentelemetry/semantic-conventions@1.42.0': {}
+
+  '@opentelemetry/semantic-conventions@1.43.0': {}
 
   '@oxc-parser/binding-android-arm-eabi@0.127.0':
     optional: true
@@ -19236,10 +19400,10 @@ snapshots:
       ipx: 3.1.1(ioredis@5.11.1)
       sharp: 0.35.3(@types/node@26.1.1)
 
-  '@rsbuild-image/react@0.0.1-next.36(@rsbuild-image/core@0.0.1-next.36(ipx@3.1.1(ioredis@5.11.1))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(sharp@0.35.3(@types/node@26.1.1)))(ipx@3.1.1(ioredis@5.11.1))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(sharp@0.35.3(@types/node@26.1.1))':
+  '@rsbuild-image/react@0.0.1-next.36(@rsbuild-image/core@0.0.1-next.36(ipx@3.1.1(ioredis@5.11.1))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(sharp@0.35.3(@types/node@26.1.1)))(ipx@3.1.1(ioredis@5.11.1))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(sharp@0.35.3(@types/node@26.1.1))(supports-color@7.2.0)':
     dependencies:
       '@rsbuild-image/core': 0.0.1-next.36(ipx@3.1.1(ioredis@5.11.1))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(sharp@0.35.3(@types/node@26.1.1))
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       react: 19.2.7
       react-dom: 19.2.7(react@19.2.7)
       type-fest: 4.41.0
@@ -19433,7 +19597,7 @@ snapshots:
     dependencies:
       '@rsbuild/plugin-check-syntax': 1.6.1(@rsbuild/core@2.1.5(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0))
       '@rsdoctor/graph': 1.5.17(@rspack/core@2.1.3(@module-federation/runtime-tools@2.7.0)(@swc/helpers@0.5.23))
-      '@rsdoctor/sdk': 1.5.17(@rspack/core@2.1.3(@module-federation/runtime-tools@2.7.0)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      '@rsdoctor/sdk': 1.5.17(@rspack/core@2.1.3(@module-federation/runtime-tools@2.7.0)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(supports-color@7.2.0)(utf-8-validate@5.0.10)
       '@rsdoctor/types': 1.5.17(@rspack/core@2.1.3(@module-federation/runtime-tools@2.7.0)(@swc/helpers@0.5.23))
       '@rsdoctor/utils': 1.5.17(@rspack/core@2.1.3(@module-federation/runtime-tools@2.7.0)(@swc/helpers@0.5.23))
       '@rspack/resolver': 0.2.8(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)
@@ -19464,11 +19628,11 @@ snapshots:
       - '@rspack/core'
       - webpack
 
-  '@rsdoctor/rspack-plugin@1.5.17(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(@rsbuild/core@2.1.5(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0))(@rspack/core@2.1.3(@module-federation/runtime-tools@2.7.0)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(utf-8-validate@5.0.10)':
+  '@rsdoctor/rspack-plugin@1.5.17(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(@rsbuild/core@2.1.5(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0))(@rspack/core@2.1.3(@module-federation/runtime-tools@2.7.0)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(supports-color@7.2.0)(utf-8-validate@5.0.10)':
     dependencies:
       '@rsdoctor/core': 1.5.17(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(@rsbuild/core@2.1.5(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0))(@rspack/core@2.1.3(@module-federation/runtime-tools@2.7.0)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(utf-8-validate@5.0.10)
       '@rsdoctor/graph': 1.5.17(@rspack/core@2.1.3(@module-federation/runtime-tools@2.7.0)(@swc/helpers@0.5.23))
-      '@rsdoctor/sdk': 1.5.17(@rspack/core@2.1.3(@module-federation/runtime-tools@2.7.0)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      '@rsdoctor/sdk': 1.5.17(@rspack/core@2.1.3(@module-federation/runtime-tools@2.7.0)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(supports-color@7.2.0)(utf-8-validate@5.0.10)
       '@rsdoctor/types': 1.5.17(@rspack/core@2.1.3(@module-federation/runtime-tools@2.7.0)(@swc/helpers@0.5.23))
       '@rsdoctor/utils': 1.5.17(@rspack/core@2.1.3(@module-federation/runtime-tools@2.7.0)(@swc/helpers@0.5.23))
     optionalDependencies:
@@ -19482,7 +19646,25 @@ snapshots:
       - utf-8-validate
       - webpack
 
-  '@rsdoctor/sdk@1.5.17(@rspack/core@2.1.3(@module-federation/runtime-tools@2.7.0)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(utf-8-validate@5.0.10)':
+  '@rsdoctor/rspack-plugin@1.5.17(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(@rsbuild/core@2.1.5(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0))(@rspack/core@2.1.3(@module-federation/runtime-tools@2.7.0)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(utf-8-validate@5.0.10)':
+    dependencies:
+      '@rsdoctor/core': 1.5.17(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(@rsbuild/core@2.1.5(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0))(@rspack/core@2.1.3(@module-federation/runtime-tools@2.7.0)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      '@rsdoctor/graph': 1.5.17(@rspack/core@2.1.3(@module-federation/runtime-tools@2.7.0)(@swc/helpers@0.5.23))
+      '@rsdoctor/sdk': 1.5.17(@rspack/core@2.1.3(@module-federation/runtime-tools@2.7.0)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(supports-color@7.2.0)(utf-8-validate@5.0.10)
+      '@rsdoctor/types': 1.5.17(@rspack/core@2.1.3(@module-federation/runtime-tools@2.7.0)(@swc/helpers@0.5.23))
+      '@rsdoctor/utils': 1.5.17(@rspack/core@2.1.3(@module-federation/runtime-tools@2.7.0)(@swc/helpers@0.5.23))
+    optionalDependencies:
+      '@rspack/core': 2.1.3(@module-federation/runtime-tools@2.7.0)(@swc/helpers@0.5.23)
+    transitivePeerDependencies:
+      - '@emnapi/core'
+      - '@emnapi/runtime'
+      - '@rsbuild/core'
+      - bufferutil
+      - supports-color
+      - utf-8-validate
+      - webpack
+
+  '@rsdoctor/sdk@1.5.17(@rspack/core@2.1.3(@module-federation/runtime-tools@2.7.0)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(supports-color@7.2.0)(utf-8-validate@5.0.10)':
     dependencies:
       '@rsdoctor/client': 1.5.17
       '@rsdoctor/graph': 1.5.17(@rspack/core@2.1.3(@module-federation/runtime-tools@2.7.0)(@swc/helpers@0.5.23))
@@ -19490,7 +19672,7 @@ snapshots:
       '@rsdoctor/utils': 1.5.17(@rspack/core@2.1.3(@module-federation/runtime-tools@2.7.0)(@swc/helpers@0.5.23))
       launch-editor: 2.14.1
       safer-buffer: 2.1.2
-      socket.io: 4.8.1(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      socket.io: 4.8.1(bufferutil@4.1.0)(supports-color@7.2.0)(utf-8-validate@5.0.10)
       tapable: 2.3.3
     transitivePeerDependencies:
       - '@rspack/core'
@@ -19731,21 +19913,21 @@ snapshots:
       - '@module-federation/runtime-tools'
       - core-js
 
-  '@rstest/adapter-rsbuild@0.11.0(@rsbuild/core@2.1.5(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0))(@rstest/core@0.11.0(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0)(happy-dom@20.10.6(bufferutil@4.1.0)(utf-8-validate@5.0.10)))':
+  '@rstest/adapter-rsbuild@0.11.1(@rsbuild/core@2.1.5(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0))(@rstest/core@0.11.1(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0)(happy-dom@20.10.6(bufferutil@4.1.0)(utf-8-validate@5.0.10)))':
     dependencies:
       '@rsbuild/core': 2.1.5(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0)
-      '@rstest/core': 0.11.0(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0)(happy-dom@20.10.6(bufferutil@4.1.0)(utf-8-validate@5.0.10))
+      '@rstest/core': 0.11.1(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0)(happy-dom@20.10.6(bufferutil@4.1.0)(utf-8-validate@5.0.10))
 
-  '@rstest/browser-react@0.11.0(@rstest/core@0.11.0(core-js@3.49.0)(happy-dom@20.10.6(bufferutil@4.1.0)(utf-8-validate@5.0.10)))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
+  '@rstest/browser-react@0.11.0(@rstest/core@0.11.1(core-js@3.49.0)(happy-dom@20.10.6(bufferutil@4.1.0)(utf-8-validate@5.0.10)))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
     dependencies:
-      '@rstest/core': 0.11.0(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0)(happy-dom@20.10.6(bufferutil@4.1.0)(utf-8-validate@5.0.10))
+      '@rstest/core': 0.11.1(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0)(happy-dom@20.10.6(bufferutil@4.1.0)(utf-8-validate@5.0.10))
       react: 19.2.7
       react-dom: 19.2.7(react@19.2.7)
 
-  '@rstest/browser@0.11.0(@rstest/core@0.11.0(core-js@3.49.0)(happy-dom@20.10.6(bufferutil@4.1.0)(utf-8-validate@5.0.10)))(bufferutil@4.1.0)(playwright@1.61.1)(utf-8-validate@5.0.10)':
+  '@rstest/browser@0.11.0(@rstest/core@0.11.1(core-js@3.49.0)(happy-dom@20.10.6(bufferutil@4.1.0)(utf-8-validate@5.0.10)))(bufferutil@4.1.0)(playwright@1.61.1)(utf-8-validate@5.0.10)':
     dependencies:
       '@jridgewell/trace-mapping': 0.3.31
-      '@rstest/core': 0.11.0(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0)(happy-dom@20.10.6(bufferutil@4.1.0)(utf-8-validate@5.0.10))
+      '@rstest/core': 0.11.1(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0)(happy-dom@20.10.6(bufferutil@4.1.0)(utf-8-validate@5.0.10))
       convert-source-map: 2.0.0
       open-editor: 6.0.0
       pathe: 2.0.3
@@ -19757,7 +19939,7 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
-  '@rstest/core@0.11.0(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0)(happy-dom@20.10.6(bufferutil@4.1.0)(utf-8-validate@5.0.10))':
+  '@rstest/core@0.11.1(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0)(happy-dom@20.10.6(bufferutil@4.1.0)(utf-8-validate@5.0.10))':
     dependencies:
       '@rsbuild/core': 2.1.5(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0)
       '@types/chai': 5.2.3
@@ -19878,9 +20060,9 @@ snapshots:
     dependencies:
       react: 19.2.7
 
-  '@storybook/react-docgen-typescript-plugin@1.0.1(typescript@7.0.2)':
+  '@storybook/react-docgen-typescript-plugin@1.0.1(supports-color@7.2.0)(typescript@7.0.2)':
     dependencies:
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       endent: 2.1.0
       find-cache-dir: 3.3.2
       flat-cache: 3.2.0
@@ -20668,11 +20850,11 @@ snapshots:
     dependencies:
       '@types/yargs-parser': 21.0.3
 
-  '@typescript-eslint/project-service@8.63.0(typescript@7.0.2)':
+  '@typescript-eslint/project-service@8.63.0(supports-color@7.2.0)(typescript@7.0.2)':
     dependencies:
       '@typescript-eslint/tsconfig-utils': 8.63.0(typescript@7.0.2)
       '@typescript-eslint/types': 8.63.0
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       typescript: 7.0.2
     transitivePeerDependencies:
       - supports-color
@@ -20688,13 +20870,13 @@ snapshots:
 
   '@typescript-eslint/types@8.63.0': {}
 
-  '@typescript-eslint/typescript-estree@8.63.0(typescript@7.0.2)':
+  '@typescript-eslint/typescript-estree@8.63.0(supports-color@7.2.0)(typescript@7.0.2)':
     dependencies:
-      '@typescript-eslint/project-service': 8.63.0(typescript@7.0.2)
+      '@typescript-eslint/project-service': 8.63.0(supports-color@7.2.0)(typescript@7.0.2)
       '@typescript-eslint/tsconfig-utils': 8.63.0(typescript@7.0.2)
       '@typescript-eslint/types': 8.63.0
       '@typescript-eslint/visitor-keys': 8.63.0
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       minimatch: 10.2.5
       semver: 7.8.5
       tinyglobby: 0.2.17
@@ -20703,12 +20885,12 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@typescript-eslint/utils@8.63.0(typescript@7.0.2)':
+  '@typescript-eslint/utils@8.63.0(supports-color@7.2.0)(typescript@7.0.2)':
     dependencies:
       '@eslint-community/eslint-utils': 4.9.1
       '@typescript-eslint/scope-manager': 8.63.0
       '@typescript-eslint/types': 8.63.0
-      '@typescript-eslint/typescript-estree': 8.63.0(typescript@7.0.2)
+      '@typescript-eslint/typescript-estree': 8.63.0(supports-color@7.2.0)(typescript@7.0.2)
       typescript: 7.0.2
     transitivePeerDependencies:
       - supports-color
@@ -20809,10 +20991,6 @@ snapshots:
   '@typescript/typescript-win32-x64@7.0.2':
     optional: true
 
-  '@typescript/typescript6@6.0.2':
-    dependencies:
-      '@typescript/old': typescript@6.0.3
-
   '@ungap/structured-clone@1.3.2': {}
 
   '@unhead/react@2.1.15(react@19.2.7)':
@@ -20827,9 +21005,9 @@ snapshots:
 
   '@vercel/ncc@0.44.1': {}
 
-  '@vercel/nft@0.29.2(encoding@0.1.13)(rollup@4.62.2)':
+  '@vercel/nft@0.29.2(encoding@0.1.13)(rollup@4.62.2)(supports-color@7.2.0)':
     dependencies:
-      '@mapbox/node-pre-gyp': 2.0.3(encoding@0.1.13)
+      '@mapbox/node-pre-gyp': 2.0.3(encoding@0.1.13)(supports-color@7.2.0)
       '@rollup/pluginutils': 5.4.0(rollup@4.62.2)
       acorn: 8.17.0
       acorn-import-attributes: 1.9.5(acorn@8.17.0)
@@ -21011,9 +21189,9 @@ snapshots:
 
   adm-zip@0.5.10: {}
 
-  agent-base@6.0.2:
+  agent-base@6.0.2(supports-color@7.2.0):
     dependencies:
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
 
@@ -21187,19 +21365,31 @@ snapshots:
     dependencies:
       possible-typed-array-names: 1.1.0
 
-  axios@1.16.0(debug@4.4.3):
+  axios@1.16.1(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0):
     dependencies:
-      follow-redirects: 1.16.0(debug@4.4.3)
+      follow-redirects: 1.16.0(debug@4.4.3(supports-color@7.2.0))
       form-data: 4.0.6
+      https-proxy-agent: 5.0.1(supports-color@7.2.0)
       proxy-from-env: 2.1.0
     transitivePeerDependencies:
       - debug
+      - supports-color
+
+  axios@1.18.1(debug@4.4.3(supports-color@7.2.0)):
+    dependencies:
+      follow-redirects: 1.16.0(debug@4.4.3(supports-color@7.2.0))
+      form-data: 4.0.6
+      https-proxy-agent: 5.0.1(supports-color@7.2.0)
+      proxy-from-env: 2.1.0
+    transitivePeerDependencies:
+      - debug
+      - supports-color
 
   axios@1.18.1(debug@4.4.3):
     dependencies:
       follow-redirects: 1.16.0(debug@4.4.3)
       form-data: 4.0.6
-      https-proxy-agent: 5.0.1
+      https-proxy-agent: 5.0.1(supports-color@7.2.0)
       proxy-from-env: 2.1.0
     transitivePeerDependencies:
       - debug
@@ -21252,11 +21442,11 @@ snapshots:
 
   bn.js@5.2.4: {}
 
-  body-parser@2.3.0:
+  body-parser@2.3.0(supports-color@7.2.0):
     dependencies:
       bytes: 3.1.2
       content-type: 2.0.0
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       http-errors: 2.0.1
       iconv-lite: 0.7.3
       on-finished: 2.4.1
@@ -21643,10 +21833,10 @@ snapshots:
 
   connect-history-api-fallback@2.0.0: {}
 
-  connect@3.7.0:
+  connect@3.7.0(supports-color@7.2.0):
     dependencies:
-      debug: 4.4.3
-      finalhandler: 1.1.2
+      debug: 4.4.3(supports-color@7.2.0)
+      finalhandler: 1.1.2(supports-color@7.2.0)
       parseurl: 1.3.3
       utils-merge: 1.0.1
     transitivePeerDependencies:
@@ -22159,9 +22349,11 @@ snapshots:
 
   dayjs@1.11.21: {}
 
-  debug@4.4.3:
+  debug@4.4.3(supports-color@7.2.0):
     dependencies:
       ms: 2.1.3
+    optionalDependencies:
+      supports-color: 7.2.0
 
   decamelize@1.2.0: {}
 
@@ -22430,7 +22622,7 @@ snapshots:
 
   engine.io-parser@5.2.3: {}
 
-  engine.io@6.6.9(bufferutil@4.1.0)(utf-8-validate@5.0.10):
+  engine.io@6.6.9(bufferutil@4.1.0)(supports-color@7.2.0)(utf-8-validate@5.0.10):
     dependencies:
       '@types/cors': 2.8.19
       '@types/node': 26.1.1
@@ -22439,7 +22631,7 @@ snapshots:
       base64id: 2.0.0
       cookie: 0.7.2
       cors: 2.8.6
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       engine.io-parser: 5.2.3
       ws: 8.21.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
     transitivePeerDependencies:
@@ -22697,20 +22889,20 @@ snapshots:
       jest-mock: 30.4.1
       jest-util: 30.4.1
 
-  express@5.2.1:
+  express@5.2.1(supports-color@7.2.0):
     dependencies:
       accepts: 2.0.0
-      body-parser: 2.3.0
+      body-parser: 2.3.0(supports-color@7.2.0)
       content-disposition: 1.1.0
       content-type: 1.0.5
       cookie: 0.7.2
       cookie-signature: 1.2.2
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       depd: 2.0.0
       encodeurl: 2.0.0
       escape-html: 1.0.3
       etag: 1.8.1
-      finalhandler: 2.1.1
+      finalhandler: 2.1.1(supports-color@7.2.0)
       fresh: 2.0.0
       http-errors: 2.0.1
       merge-descriptors: 2.0.0
@@ -22721,9 +22913,9 @@ snapshots:
       proxy-addr: 2.0.7
       qs: 6.15.3
       range-parser: 1.3.0
-      router: 2.2.0
-      send: 1.2.1
-      serve-static: 2.2.1
+      router: 2.2.0(supports-color@7.2.0)
+      send: 1.2.1(supports-color@7.2.0)
+      serve-static: 2.2.1(supports-color@7.2.0)
       statuses: 2.0.2
       type-is: 2.1.0
       vary: 1.1.2
@@ -22831,9 +23023,9 @@ snapshots:
     dependencies:
       to-regex-range: 5.0.1
 
-  finalhandler@1.1.2:
+  finalhandler@1.1.2(supports-color@7.2.0):
     dependencies:
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       encodeurl: 1.0.2
       escape-html: 1.0.3
       on-finished: 2.3.0
@@ -22843,9 +23035,9 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  finalhandler@2.1.1:
+  finalhandler@2.1.1(supports-color@7.2.0):
     dependencies:
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       encodeurl: 2.0.0
       escape-html: 1.0.3
       on-finished: 2.4.1
@@ -22899,9 +23091,13 @@ snapshots:
 
   flexsearch@0.8.212: {}
 
+  follow-redirects@1.16.0(debug@4.4.3(supports-color@7.2.0)):
+    optionalDependencies:
+      debug: 4.4.3(supports-color@7.2.0)
+
   follow-redirects@1.16.0(debug@4.4.3):
     optionalDependencies:
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
 
   for-each@0.3.5:
     dependencies:
@@ -23390,9 +23586,9 @@ snapshots:
       statuses: 2.0.2
       toidentifier: 1.0.1
 
-  http-proxy-middleware@4.2.0:
+  http-proxy-middleware@4.2.0(supports-color@7.2.0):
     dependencies:
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       httpxy: 0.5.4
       is-glob: 4.0.3
       is-plain-obj: 4.1.0
@@ -23400,7 +23596,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  http-proxy@1.18.1(debug@4.4.3):
+  http-proxy@1.18.1:
     dependencies:
       eventemitter3: 4.0.7
       follow-redirects: 1.16.0(debug@4.4.3)
@@ -23417,17 +23613,17 @@ snapshots:
 
   https-browserify@1.0.0: {}
 
-  https-proxy-agent@5.0.1:
+  https-proxy-agent@5.0.1(supports-color@7.2.0):
     dependencies:
-      agent-base: 6.0.2
-      debug: 4.4.3
+      agent-base: 6.0.2(supports-color@7.2.0)
+      debug: 4.4.3(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
 
-  https-proxy-agent@7.0.6:
+  https-proxy-agent@7.0.6(supports-color@7.2.0):
     dependencies:
       agent-base: 7.1.4
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
 
@@ -23545,7 +23741,7 @@ snapshots:
     dependencies:
       '@ioredis/commands': 1.10.0
       cluster-key-slot: 1.1.1
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       denque: 2.1.0
       redis-errors: 1.2.0
       redis-parser: 3.0.0
@@ -24714,7 +24910,7 @@ snapshots:
   micromark@4.0.2:
     dependencies:
       '@types/debug': 4.1.13
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       decode-named-character-reference: 1.3.0
       devlop: 1.1.0
       micromark-core-commonmark: 2.0.3
@@ -24855,10 +25051,10 @@ snapshots:
 
   nanoid@5.1.16: {}
 
-  ndepe@0.1.13(encoding@0.1.13)(rollup@4.62.2):
+  ndepe@0.1.13(encoding@0.1.13)(rollup@4.62.2)(supports-color@7.2.0):
     dependencies:
-      '@vercel/nft': 0.29.2(encoding@0.1.13)(rollup@4.62.2)
-      debug: 4.4.3
+      '@vercel/nft': 0.29.2(encoding@0.1.13)(rollup@4.62.2)(supports-color@7.2.0)
+      debug: 4.4.3(supports-color@7.2.0)
       fs-extra: 11.3.5
       mlly: 1.6.1
       pkg-types: 1.3.1
@@ -24969,7 +25165,7 @@ snapshots:
     dependencies:
       boolbase: 1.0.0
 
-  nx@23.0.1(@swc/core@1.15.43(@swc/helpers@0.5.23))(debug@4.4.3):
+  nx@23.0.2(@swc/core@1.15.43(@swc/helpers@0.5.23)):
     dependencies:
       '@emnapi/core': 1.4.5
       '@emnapi/runtime': 1.4.5
@@ -24979,12 +25175,13 @@ snapshots:
       '@tybys/wasm-util': 0.9.0
       '@yarnpkg/lockfile': 1.1.0
       '@zkochan/js-yaml': 0.0.7
+      agent-base: 6.0.2(supports-color@7.2.0)
       ansi-colors: 4.1.3
       ansi-regex: 5.0.1
       ansi-styles: 4.3.0
       argparse: 2.0.1
       asynckit: 0.4.0
-      axios: 1.16.0(debug@4.4.3)
+      axios: 1.16.1(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)
       balanced-match: 4.0.3
       base64-js: 1.5.1
       bl: 4.1.0
@@ -24999,6 +25196,7 @@ snapshots:
       color-convert: 2.0.1
       color-name: 1.1.4
       combined-stream: 1.0.8
+      debug: 4.4.3(supports-color@7.2.0)
       defaults: 1.0.4
       define-lazy-prop: 2.0.0
       delayed-stream: 1.0.0
@@ -25017,7 +25215,7 @@ snapshots:
       escape-string-regexp: 1.0.5
       figures: 3.2.0
       flat: 5.0.2
-      follow-redirects: 1.16.0(debug@4.4.3)
+      follow-redirects: 1.16.0(debug@4.4.3(supports-color@7.2.0))
       form-data: 4.0.6
       fs-constants: 1.0.0
       function-bind: 1.1.2
@@ -25029,6 +25227,7 @@ snapshots:
       has-symbols: 1.1.0
       has-tostringtag: 1.0.2
       hasown: 2.0.4
+      https-proxy-agent: 5.0.1(supports-color@7.2.0)
       ieee754: 1.2.1
       ignore: 7.0.5
       inherits: 2.0.4
@@ -25048,6 +25247,7 @@ snapshots:
       mimic-fn: 2.1.0
       minimatch: 10.2.5
       minimist: 1.2.8
+      ms: 2.1.3
       npm-run-path: 4.0.1
       once: 1.4.0
       onetime: 5.1.2
@@ -25083,19 +25283,17 @@ snapshots:
       yargs: 17.7.2
       yargs-parser: 21.1.1
     optionalDependencies:
-      '@nx/nx-darwin-arm64': 23.0.1
-      '@nx/nx-darwin-x64': 23.0.1
-      '@nx/nx-freebsd-x64': 23.0.1
-      '@nx/nx-linux-arm-gnueabihf': 23.0.1
-      '@nx/nx-linux-arm64-gnu': 23.0.1
-      '@nx/nx-linux-arm64-musl': 23.0.1
-      '@nx/nx-linux-x64-gnu': 23.0.1
-      '@nx/nx-linux-x64-musl': 23.0.1
-      '@nx/nx-win32-arm64-msvc': 23.0.1
-      '@nx/nx-win32-x64-msvc': 23.0.1
+      '@nx/nx-darwin-arm64': 23.0.2
+      '@nx/nx-darwin-x64': 23.0.2
+      '@nx/nx-freebsd-x64': 23.0.2
+      '@nx/nx-linux-arm-gnueabihf': 23.0.2
+      '@nx/nx-linux-arm64-gnu': 23.0.2
+      '@nx/nx-linux-arm64-musl': 23.0.2
+      '@nx/nx-linux-x64-gnu': 23.0.2
+      '@nx/nx-linux-x64-musl': 23.0.2
+      '@nx/nx-win32-arm64-msvc': 23.0.2
+      '@nx/nx-win32-x64-msvc': 23.0.2
       '@swc/core': 1.15.43(@swc/helpers@0.5.23)
-    transitivePeerDependencies:
-      - debug
 
   nypm@0.6.8:
     dependencies:
@@ -26436,9 +26634,9 @@ snapshots:
       points-on-curve: 0.2.0
       points-on-path: 0.2.1
 
-  router@2.2.0:
+  router@2.2.0(supports-color@7.2.0):
     dependencies:
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       depd: 2.0.0
       is-promise: 4.0.0
       parseurl: 1.3.3
@@ -26642,9 +26840,9 @@ snapshots:
 
   semver@7.8.5: {}
 
-  send@1.2.1:
+  send@1.2.1(supports-color@7.2.0):
     dependencies:
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       encodeurl: 2.0.0
       escape-html: 1.0.3
       etag: 1.8.1
@@ -26666,12 +26864,12 @@ snapshots:
 
   seroval@1.5.4: {}
 
-  serve-static@2.2.1:
+  serve-static@2.2.1(supports-color@7.2.0):
     dependencies:
       encodeurl: 2.0.0
       escape-html: 1.0.3
       parseurl: 1.3.3
-      send: 1.2.1
+      send: 1.2.1(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
 
@@ -26867,31 +27065,31 @@ snapshots:
       dot-case: 3.0.4
       tslib: 2.8.1
 
-  socket.io-adapter@2.5.8(bufferutil@4.1.0)(utf-8-validate@5.0.10):
+  socket.io-adapter@2.5.8(bufferutil@4.1.0)(supports-color@7.2.0)(utf-8-validate@5.0.10):
     dependencies:
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       ws: 8.21.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
     transitivePeerDependencies:
       - bufferutil
       - supports-color
       - utf-8-validate
 
-  socket.io-parser@4.2.6:
+  socket.io-parser@4.2.6(supports-color@7.2.0):
     dependencies:
       '@socket.io/component-emitter': 3.1.2
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
 
-  socket.io@4.8.1(bufferutil@4.1.0)(utf-8-validate@5.0.10):
+  socket.io@4.8.1(bufferutil@4.1.0)(supports-color@7.2.0)(utf-8-validate@5.0.10):
     dependencies:
       accepts: 1.3.8
       base64id: 2.0.0
       cors: 2.8.6
-      debug: 4.4.3
-      engine.io: 6.6.9(bufferutil@4.1.0)(utf-8-validate@5.0.10)
-      socket.io-adapter: 2.5.8(bufferutil@4.1.0)(utf-8-validate@5.0.10)
-      socket.io-parser: 4.2.6
+      debug: 4.4.3(supports-color@7.2.0)
+      engine.io: 6.6.9(bufferutil@4.1.0)(supports-color@7.2.0)(utf-8-validate@5.0.10)
+      socket.io-adapter: 2.5.8(bufferutil@4.1.0)(supports-color@7.2.0)(utf-8-validate@5.0.10)
+      socket.io-parser: 4.2.6(supports-color@7.2.0)
     transitivePeerDependencies:
       - bufferutil
       - supports-color
@@ -26919,9 +27117,9 @@ snapshots:
       cross-spawn: 7.0.6
       signal-exit: 4.1.0
 
-  spdx-licenses@1.0.0:
+  spdx-licenses@1.0.0(supports-color@7.2.0):
     dependencies:
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       is2: 2.0.1
     transitivePeerDependencies:
       - supports-color
@@ -26996,12 +27194,12 @@ snapshots:
       - msw
       - vite
 
-  storybook-react-rsbuild@3.3.4(@rsbuild/core@2.1.5(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0))(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(@typescript/native-preview@7.0.0-dev.20260707.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(rollup@4.62.2)(storybook@10.4.6(@testing-library/dom@10.4.1)(@types/react@19.2.17)(bufferutil@4.1.0)(prettier@3.9.4)(react@19.2.7)(utf-8-validate@5.0.10))(typescript@7.0.2):
+  storybook-react-rsbuild@3.3.4(@rsbuild/core@2.1.5(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0))(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(@typescript/native-preview@7.0.0-dev.20260707.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(rollup@4.62.2)(storybook@10.4.6(@testing-library/dom@10.4.1)(@types/react@19.2.17)(bufferutil@4.1.0)(prettier@3.9.4)(react@19.2.7)(utf-8-validate@5.0.10))(supports-color@7.2.0)(typescript@7.0.2):
     dependencies:
       '@rollup/pluginutils': 5.4.0(rollup@4.62.2)
       '@rsbuild/core': 2.1.5(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0)
       '@storybook/react': 10.4.6(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(storybook@10.4.6(@testing-library/dom@10.4.1)(@types/react@19.2.17)(bufferutil@4.1.0)(prettier@3.9.4)(react@19.2.7)(utf-8-validate@5.0.10))(typescript@7.0.2)
-      '@storybook/react-docgen-typescript-plugin': 1.0.1(typescript@7.0.2)
+      '@storybook/react-docgen-typescript-plugin': 1.0.1(supports-color@7.2.0)(typescript@7.0.2)
       find-up: 5.0.0
       magic-string: 0.30.21
       react: 19.2.7
@@ -27171,11 +27369,11 @@ snapshots:
 
   stylis@4.4.0: {}
 
-  superagent@10.3.0:
+  superagent@10.3.0(supports-color@7.2.0):
     dependencies:
       component-emitter: 1.3.1
       cookiejar: 2.1.4
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       fast-safe-stringify: 2.1.1
       form-data: 4.0.6
       formidable: 3.5.4
@@ -27185,11 +27383,11 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  supertest@7.2.2:
+  supertest@7.2.2(supports-color@7.2.0):
     dependencies:
       cookie-signature: 1.2.2
       methods: 1.1.2
-      superagent: 10.3.0
+      superagent: 10.3.0(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
 
@@ -27483,10 +27681,10 @@ snapshots:
   uglify-to-browserify@1.0.2:
     optional: true
 
-  ultracite@7.9.3(oxfmt@0.58.0)(oxlint@1.73.0)(typescript@7.0.2):
+  ultracite@7.9.3(oxfmt@0.58.0)(oxlint@1.73.0)(supports-color@7.2.0)(typescript@7.0.2):
     dependencies:
       '@clack/prompts': 1.7.0
-      '@typescript-eslint/utils': 8.63.0(typescript@7.0.2)
+      '@typescript-eslint/utils': 8.63.0(supports-color@7.2.0)(typescript@7.0.2)
       commander: 15.0.0
       cross-spawn: 7.0.6
       deepmerge: 4.3.1
@@ -27710,10 +27908,10 @@ snapshots:
 
   webpack-virtual-modules@0.6.2: {}
 
-  websocket@1.0.35:
+  websocket@1.0.35(supports-color@7.2.0):
     dependencies:
       bufferutil: 4.1.0
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       es5-ext: 0.10.64
       typedarray-to-buffer: 3.1.5
       utf-8-validate: 5.0.10
