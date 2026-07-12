@@ -100,6 +100,7 @@ async function loader(
       requestCreator: draftOptions.requestCreator,
       httpMethodDecider: draftOptions.httpMethodDecider,
       dataPlatformBatch: draftOptions.effectDataPlatformBatch,
+      onDependency: dependency => this.addDependency(dependency),
     });
 
     if (code) {

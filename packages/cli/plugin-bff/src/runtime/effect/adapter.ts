@@ -5,9 +5,11 @@ import type {
   ServerMiddleware,
   ServerPluginAPI,
 } from '@modern-js/server-core';
-import { compatibleRequire, fs, isProd, logger } from '@modern-js/utils';
+import { fs, isProd, logger } from '@modern-js/utils';
+import path from 'path';
 
 import type { ResolvedCrossProjectPolicy } from '../../utils/crossProjectServerPolicy';
+import { loadEffectSourceModule } from '../../utils/effectSourceLoader';
 import { before } from './adapter/constants';
 import { resolveEffectAdapterCrossProjectPolicy } from './adapter/cross-project-policy';
 import { resolveEffectAdapterEntryFile } from './adapter/entry';
@@ -131,14 +133,13 @@ export class EffectAdapter {
 
     await this.disposeCurrentHandler();
 
-    const resolvedEntryFile = require.resolve(entryFile);
-    if (Object.hasOwn(require.cache, resolvedEntryFile)) {
-      delete require.cache[resolvedEntryFile];
-    }
-
     let mod: EffectApiModule;
     try {
-      mod = (await compatibleRequire(entryFile, false)) as EffectApiModule;
+      const { appDirectory } = this.api.getServerContext();
+      mod = (await loadEffectSourceModule({
+        resourcePath: entryFile,
+        appDir: appDirectory || path.dirname(entryFile),
+      })) as EffectApiModule;
     } catch (error) {
       logger.error(
         `[BFF][Effect] Failed to load Effect entry: ${entryFile}\n${String(error)}`,

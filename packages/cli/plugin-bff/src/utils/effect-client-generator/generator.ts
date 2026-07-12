@@ -20,7 +20,11 @@ import type {
 export async function generateEffectClient(
   options: EffectClientCodegenOptions,
 ): Promise<GeneratedEffectClientArtifacts | null> {
-  const api = await loadEffectApi(options.resourcePath);
+  const api = await loadEffectApi({
+    appDir: options.appDir,
+    resourcePath: options.resourcePath,
+    onDependency: options.onDependency,
+  });
   if (!api) {
     logger.warn(
       `[BFF][Effect] Failed to generate client for ${options.resourcePath}: unable to resolve exported HttpApi.`,

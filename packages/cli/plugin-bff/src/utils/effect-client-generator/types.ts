@@ -10,6 +10,7 @@ export type EffectClientCodegenOptions = {
   target?: string;
   requestCreator?: string;
   httpMethodDecider?: HttpMethodDecider;
+  onDependency?: (dependency: string) => void;
   dataPlatformBatch?: {
     enabled?: boolean;
     endpoint?: string;

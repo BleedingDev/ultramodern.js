@@ -1,7 +1,9 @@
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import type { ServerPluginAPI } from '@modern-js/server-core';
+import { semver } from '@modern-js/utils';
 import {
   createBackendFederationRuntime,
   loadBackendFederatedEffectApi,
@@ -16,6 +18,8 @@ import clientGenerator, {
   type APILoaderOptions,
 } from '../src/utils/clientGenerator';
 import runtimeGenerator from '../src/utils/runtimeGenerator';
+
+const require = createRequire(import.meta.url);
 
 describe('plugin-bff regressions', () => {
   test('package server export is Effect-first and Hono remains explicit compatibility', () => {
@@ -58,6 +62,31 @@ describe('plugin-bff regressions', () => {
     expect(packageJson.typesVersions['*']['effect-client']).toEqual([
       './dist/types/runtime/effect-client/index.d.ts',
     ]);
+
+    const openTelemetryPackage = JSON.parse(
+      fs.readFileSync(
+        require.resolve('@effect/opentelemetry/package.json'),
+        'utf8',
+      ),
+    );
+    for (const [peerName, peerRange] of Object.entries(
+      openTelemetryPackage.peerDependencies ?? {},
+    )) {
+      const dependencyRange = packageJson.dependencies[peerName];
+      expect({
+        compatible: semver.subset(dependencyRange, peerRange as string, {
+          includePrerelease: true,
+        }),
+        dependencyRange,
+        peerName,
+        peerRange,
+      }).toEqual({
+        compatible: true,
+        dependencyRange: expect.any(String),
+        peerName,
+        peerRange,
+      });
+    }
   });
 
   const backendEffectApiModuleUrl = (remoteName = 'verticalExploreBackend') =>
@@ -1015,6 +1044,62 @@ describe('plugin-bff regressions', () => {
 
       expect(adapterState.resolveEntryFile()).toBe(entryFile);
     } finally {
+      await fs.promises.rm(appDir, { recursive: true, force: true });
+    }
+  });
+
+  test.each([
+    'api/custom.ts',
+    'api/custom',
+  ])('production Effect entry %s resolves only from the built artifact root', async configuredEntry => {
+    const appDir = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), 'modern-plugin-bff-effect-built-entry-'),
+    );
+    const previousNodeEnv = process.env.NODE_ENV;
+
+    try {
+      process.env.NODE_ENV = 'production';
+      const apiDir = path.join(appDir, 'api');
+      const distDirectory = path.join(appDir, 'dist');
+      const sourceEntry = path.join(apiDir, 'custom.ts');
+      const builtEntry = path.join(distDirectory, 'api', 'custom.js');
+      await fs.promises.mkdir(path.dirname(sourceEntry), { recursive: true });
+      await fs.promises.mkdir(path.dirname(builtEntry), { recursive: true });
+      await fs.promises.writeFile(sourceEntry, 'source');
+      await fs.promises.writeFile(builtEntry, 'built');
+
+      const api = {
+        getServerContext() {
+          return {
+            appDirectory: appDir,
+            apiDirectory: apiDir,
+            distDirectory,
+          };
+        },
+        getServerConfig() {
+          return {
+            bff: {
+              effect: {
+                entry: configuredEntry,
+              },
+            },
+          };
+        },
+      } as unknown;
+      const adapter = new EffectAdapter(api as ServerPluginAPI);
+      const adapterState = adapter as unknown as {
+        resolveEntryFile: () => string | undefined;
+      };
+
+      expect(adapterState.resolveEntryFile()).toBe(builtEntry);
+      await fs.promises.rm(builtEntry);
+      expect(adapterState.resolveEntryFile()).toBeUndefined();
+    } finally {
+      if (previousNodeEnv === undefined) {
+        delete process.env.NODE_ENV;
+      } else {
+        process.env.NODE_ENV = previousNodeEnv;
+      }
       await fs.promises.rm(appDir, { recursive: true, force: true });
     }
   });

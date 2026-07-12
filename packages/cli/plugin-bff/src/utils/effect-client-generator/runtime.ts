@@ -5,6 +5,7 @@ import {
   type HttpApiLike,
   type HttpApiReflect,
 } from '../../runtime/effect/endpoint-contracts';
+import { loadEffectSourceModule } from '../effectSourceLoader';
 
 type HttpApiRuntime = {
   isHttpApi: (value: unknown) => boolean;
@@ -58,10 +59,12 @@ export async function getHttpApiRuntime(): Promise<HttpApiRuntime> {
   return httpApiRuntimePromise;
 }
 
-export async function loadEffectApi(
-  resourcePath: string,
-): Promise<HttpApiLike | null> {
+export async function loadEffectApi(options: {
+  appDir: string;
+  resourcePath: string;
+  onDependency?: (dependency: string) => void;
+}): Promise<HttpApiLike | null> {
   const httpApiRuntime = await getHttpApiRuntime();
-  const mod = (await compatibleRequire(resourcePath, false)) as unknown;
+  const mod = await loadEffectSourceModule(options);
   return extractHttpApiFromModule(mod, httpApiRuntime.isHttpApi);
 }
