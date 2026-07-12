@@ -15,6 +15,7 @@ const TARGET_FILES = [
   // module is framework-owned and regenerated too. Its on-disk .ts is the
   // formatter-processed generator output, so sync's raw regeneration rewrites
   // it once; the .json artifact is byte-stable and stays in sync.
+  'apps/shell-super-app/shared/ultramodern-build.json',
   'apps/shell-super-app/shared/ultramodern-build.ts',
   'verticals/catalog/shared/ultramodern-build.json',
   'verticals/catalog/shared/ultramodern-build.ts',
@@ -89,6 +90,15 @@ function stripDeliveryUnitIdentity(workspaceDir: string) {
 
   const topologyPath = 'topology/reference-topology.json';
   const topology = JSON.parse(read(workspaceDir, topologyPath));
+  if (topology.shell) {
+    delete topology.shell.deliveryUnit;
+    if (topology.shell.backendFederation) {
+      delete topology.shell.backendFederation.deliveryUnit;
+      if (topology.shell.backendFederation.versionBoundary) {
+        delete topology.shell.backendFederation.versionBoundary.identityRoot;
+      }
+    }
+  }
   for (const vertical of topology.verticals) {
     delete vertical.deliveryUnit;
     if (vertical.backendFederation) {
@@ -100,7 +110,11 @@ function stripDeliveryUnitIdentity(workspaceDir: string) {
   }
   writeJson(workspaceDir, topologyPath, topology);
 
-  // Simulate a legacy build module without the delivery-unit identity export.
+  // Simulate legacy build modules without the delivery-unit identity export.
+  fs.writeFileSync(
+    path.join(workspaceDir, 'apps/shell-super-app/shared/ultramodern-build.ts'),
+    "export const ultramodernVerticalIdentity = { appId: 'shell-super-app' } as const;\n",
+  );
   fs.writeFileSync(
     path.join(workspaceDir, 'verticals/catalog/shared/ultramodern-build.ts'),
     "export const ultramodernVerticalIdentity = { appId: 'catalog' } as const;\n",
@@ -144,6 +158,13 @@ test('sync-delivery-unit backfills identity blocks matching the generator', () =
       JSON.parse(read(workspaceDir, 'topology/reference-topology.json')),
       expectedTopology,
       'reference-topology.json should match the generator semantics',
+    );
+    const shell = JSON.parse(
+      read(workspaceDir, '.modernjs/ultramodern.json'),
+    ).topology.apps.find((app: any) => app.id === 'shell-super-app');
+    assert.equal(
+      shell.deliveryUnit.unitId,
+      'du-sync-workspace/shell-super-app',
     );
 
     // The framework-owned build module must carry the delivery-unit identity.
@@ -215,7 +236,9 @@ test('sync-delivery-unit is idempotent and only touches the three target sets', 
       file => afterFirst.get(file) !== before.get(file),
     );
     const expectedChanged = TARGET_FILES.filter(
-      file => file !== 'verticals/catalog/shared/ultramodern-build.json',
+      file =>
+        file !== 'apps/shell-super-app/shared/ultramodern-build.json' &&
+        file !== 'verticals/catalog/shared/ultramodern-build.json',
     );
     assert.deepEqual(
       changed.sort(),
@@ -226,6 +249,11 @@ test('sync-delivery-unit is idempotent and only touches the three target sets', 
       afterFirst.get('verticals/catalog/shared/ultramodern-build.json'),
       before.get('verticals/catalog/shared/ultramodern-build.json'),
       'canonical JSON artifact should already be in sync',
+    );
+    assert.equal(
+      afterFirst.get('apps/shell-super-app/shared/ultramodern-build.json'),
+      before.get('apps/shell-super-app/shared/ultramodern-build.json'),
+      'shell JSON artifact should already be in sync',
     );
 
     // Second run: no writes at all.

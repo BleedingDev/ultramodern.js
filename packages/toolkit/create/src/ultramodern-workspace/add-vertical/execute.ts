@@ -1,6 +1,10 @@
 import path from 'node:path';
 import { createServerExecutionOverlay } from '../backend-federation';
 import {
+  createDeliveryUnitRecord,
+  deliveryUnitContractBlock,
+} from '../delivery-unit';
+import {
   appEmitsBrowserUi,
   appHasApi,
   createShellHost,
@@ -83,6 +87,9 @@ function executeAddUltramodernVertical(
     bridge,
   );
   topology.shell ??= {};
+  topology.shell.deliveryUnit = deliveryUnitContractBlock(
+    createDeliveryUnitRecord(scope, shellApp),
+  );
   topology.shell.verticalRefs ??= [];
   topology.shell.verticalRefs = topology.shell.verticalRefs.filter(
     (id: unknown) => id !== vertical.id,

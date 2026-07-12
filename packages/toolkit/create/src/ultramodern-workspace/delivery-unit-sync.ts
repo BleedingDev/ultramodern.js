@@ -104,13 +104,13 @@ export function runSyncDeliveryUnit(
     process.stdout.write(`Usage:
   modern-js-create ultramodern sync-delivery-unit [--workspace <dir>]
 
-Backfills the per-vertical delivery-unit identity blocks required by
+Backfills the per-delivery-unit identity blocks required by
 \`ultramodern validate\` onto an existing generated workspace, in place and
-through framework tooling only. For each full-stack vertical it writes the
+through framework tooling only. For each delivery unit it writes the
 delivery-unit block into .modernjs/ultramodern.json topology.apps[] and
 topology/reference-topology.json verticals[] (plus backendFederation.deliveryUnit
 and backendFederation.versionBoundary.identityRoot) and regenerates
-verticals/<id>/shared/ultramodern-build.{json,ts}. Idempotent: a second run writes
+<app>/shared/ultramodern-build.{json,ts}. Idempotent: a second run writes
 nothing.
 `);
     return 0;
