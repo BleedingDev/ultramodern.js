@@ -771,6 +771,10 @@ const normalizeCompactApp = rawApp => {
                 consumer => typeof consumer === 'string',
               )
             : ['shell-super-app', id],
+          // Preserve the API protocol so the synthesized generated contract can
+          // branch between the REST (`shared/api.ts` + `./api/client`) and RPC
+          // (`shared/rpc.ts` + `./api/rpc-client`) surfaces.
+          protocol: rawApp.api.protocol === 'rpc' ? 'rpc' : 'rest',
         }
       : undefined;
 
@@ -1246,20 +1250,38 @@ const createAppContract = (app, apps) => ({
   },
   ...(app.api
     ? {
-        api: {
-          runtime: 'effect',
-          import: '@modern-js/plugin-bff/effect-edge',
-          prefix: app.api.prefix,
-          openapi: '/openapi.json',
-          strictEffectApproach: true,
-          workerEntry: 'worker/__modern_bff_effect.js',
-          contract: './api',
-          client: './api/client',
-          readiness: createEffectReadiness(app),
-          requestContext: createEffectRequestContext(),
-          domainOperations: createEffectDomainOperations(app),
-          ...createEffectOperationContract(app),
-        },
+        // An `rpc` unit exposes the Effect RpcGroup contract/client and the
+        // `/rpc` route instead of the REST `shared/api.ts` + `./api/client`
+        // surface, so it carries no OpenAPI/readiness/domain-operation metadata.
+        api:
+          (app.api.protocol ?? 'rest') === 'rpc'
+            ? {
+                runtime: 'effect',
+                import: '@modern-js/plugin-bff/effect-edge',
+                prefix: app.api.prefix,
+                protocol: 'rpc',
+                strictEffectApproach: true,
+                workerEntry: 'worker/__modern_bff_effect.js',
+                contract: './api',
+                client: './api/rpc-client',
+                group: toCamelCase(app.api.stem),
+                rpc: { path: '/rpc', serialization: 'json' },
+                rpcPath: `${app.api.prefix}/rpc`,
+              }
+            : {
+                runtime: 'effect',
+                import: '@modern-js/plugin-bff/effect-edge',
+                prefix: app.api.prefix,
+                openapi: '/openapi.json',
+                strictEffectApproach: true,
+                workerEntry: 'worker/__modern_bff_effect.js',
+                contract: './api',
+                client: './api/client',
+                readiness: createEffectReadiness(app),
+                requestContext: createEffectRequestContext(),
+                domainOperations: createEffectDomainOperations(app),
+                ...createEffectOperationContract(app),
+              },
       }
     : {}),
 });
@@ -1521,13 +1543,60 @@ const requiredMicroVerticalPaths = vertical => [
   `${vertical.path}/locales/en/${vertical.namespace}.json`,
   `${vertical.path}/locales/cs/translation.json`,
   `${vertical.path}/locales/cs/${vertical.namespace}.json`,
-  `${vertical.path}/src/routes/index.css`,
-  `${vertical.path}/src/routes/layout.tsx`,
-  `${vertical.path}/src/routes/ultramodern-route-head.tsx`,
-  `${vertical.path}/src/routes/ultramodern-route-metadata.ts`,
-  `${vertical.path}/src/routes/[lang]/page.tsx`,
-  ...vertical.routePagePaths,
-  ...vertical.routeMetaPaths,
+  ...(vertical.emitsUi
+    ? [
+        `${vertical.path}/module-federation.config.ts`,
+        `${vertical.path}/src/federation-entry.tsx`,
+        ...vertical.componentPaths,
+        `${vertical.path}/src/routes/index.css`,
+        `${vertical.path}/src/routes/layout.tsx`,
+        `${vertical.path}/src/routes/ultramodern-route-head.tsx`,
+        `${vertical.path}/src/routes/ultramodern-route-metadata.ts`,
+        `${vertical.path}/src/routes/[lang]/page.tsx`,
+        ...vertical.routePagePaths,
+        ...vertical.routeMetaPaths,
+      ]
+    : []),
+  ...(vertical.emitsApi
+    ? [
+        `${vertical.path}/backend-federation.config.ts`,
+        `${vertical.path}/api/effect-api.ts`,
+        `${vertical.path}/api/index.ts`,
+        `${vertical.path}/${vertical.apiContractPath}`,
+        `${vertical.path}/${vertical.apiClientPath}`,
+      ]
+    : []),
+];
+// UI/MF artifacts an `api-only` unit must NOT emit (headless invariant), and
+// API/BFF artifacts a `ui-only`/Horizontal Remote unit must NOT emit.
+const forbiddenMicroVerticalPaths = vertical => [
+  ...(vertical.emitsUi
+    ? []
+    : [
+        `${vertical.path}/module-federation.config.ts`,
+        `${vertical.path}/src/federation-entry.tsx`,
+        `${vertical.path}/src/routes/layout.tsx`,
+        `${vertical.path}/src/routes/[lang]/page.tsx`,
+        // A headless api-only unit renders no browser surface, so it must not
+        // ship route components or the colocated route-metadata/head modules.
+        `${vertical.path}/src/routes/ultramodern-route-head.tsx`,
+        `${vertical.path}/src/routes/ultramodern-route-metadata.ts`,
+        `${vertical.path}/src/routes/index.css`,
+      ]),
+  ...(vertical.emitsApi
+    ? []
+    : [
+        `${vertical.path}/shared/api.ts`,
+        // A ui-only/Horizontal Remote unit carries no API contract in either
+        // protocol (neither the REST `shared/api.ts` nor the RPC `shared/rpc.ts`)
+        // and no generated API client.
+        `${vertical.path}/shared/rpc.ts`,
+        `${vertical.path}/backend-federation.config.ts`,
+        `${vertical.path}/api/index.ts`,
+        `${vertical.path}/api/effect-api.ts`,
+        `${vertical.path}/src/api/${vertical.domain ?? vertical.id}-client.ts`,
+        `${vertical.path}/src/api/${vertical.domain ?? vertical.id}-rpc-client.ts`,
+      ]),
 ];
 const assertRequiredVerticalFile = vertical => relativePath => {
   assertSelfCheck(
@@ -1844,11 +1913,17 @@ const assertMicroVerticalContractGraph = ({
           verticalRefs: expectedRefs,
           remotes: expectedRemoteSubsetsForRefs(expectedRefs),
         },
-        api: {
-          prefix: vertical.apiPrefix,
-          contract: './api',
-          client: './api/client',
-        },
+        ...(vertical.emitsApi
+          ? {
+              api: {
+                prefix: vertical.apiPrefix,
+                // Protocol-aware exports: `rest` -> `./api`/`./api/client`,
+                // `rpc` -> `./api`/`./api/rpc-client`.
+                contract: vertical.apiContractExport,
+                client: vertical.apiClientExport,
+              },
+            }
+          : {}),
         ssr: {
           mode: 'string',
           moduleFederationAppSSR: true,
@@ -2939,9 +3014,13 @@ for (const vertical of fullStackVerticals) {
   assert(contractEntry?.config?.rspack?.output?.chunkLoadingGlobal === expectedChunkLoadingGlobal(vertical.mfName), `${vertical.id} Rspack chunkLoadingGlobal is incorrect`);
   assert(contractEntry?.moduleFederation?.name === vertical.mfName, `${vertical.id} MF name is incorrect`);
   assert(sameJson(contractEntry?.moduleFederation?.exposes, vertical.exposes), `${vertical.id} MF exposes are incorrect`);
-  assert(contractEntry?.moduleFederation?.dts?.compilerInstance === 'effect-tsgo', `${vertical.id} must keep mandatory DTS compiler`);
-  assert(contractEntry?.moduleFederation?.dts?.tsConfigPath === './tsconfig.mf-types.json', `${vertical.id} must keep dedicated Module Federation DTS tsconfig`);
-  assert(moduleFederationConfig.includes("tsConfigPath: './tsconfig.mf-types.json'"), `${vertical.id} Module Federation config must use the dedicated DTS tsconfig`);
+  // The browser Module Federation DTS surface and its config file only exist
+  // for UI-emitting units; a headless api-only unit federates no browser types.
+  if (vertical.emitsUi) {
+    assert(contractEntry?.moduleFederation?.dts?.compilerInstance === 'effect-tsgo', `${vertical.id} must keep mandatory DTS compiler`);
+    assert(contractEntry?.moduleFederation?.dts?.tsConfigPath === './tsconfig.mf-types.json', `${vertical.id} must keep dedicated Module Federation DTS tsconfig`);
+    assert(moduleFederationConfig.includes("tsConfigPath: './tsconfig.mf-types.json'"), `${vertical.id} Module Federation config must use the dedicated DTS tsconfig`);
+  }
   assert(sameJson(contractEntry?.moduleFederation?.verticalRefs ?? [], vertical.verticalRefs), `${vertical.id} MF verticalRefs are incorrect`);
   assert(
     sameJson(
@@ -2950,14 +3029,27 @@ for (const vertical of fullStackVerticals) {
     ),
     `${vertical.id} MF consumed verticals are incorrect`,
   );
-  assert(contractEntry?.api?.prefix === vertical.apiPrefix, `${vertical.id} API prefix is incorrect`);
-  assert(contractEntry?.api?.group === vertical.group, `${vertical.id} API group is incorrect`);
-  assert(contractEntry?.api?.runtime === 'effect', `${vertical.id} API runtime must be Effect`);
-  assert(contractEntry?.api?.strictEffectApproach === true, `${vertical.id} strictEffectApproach must be enabled`);
-  assert(contractEntry?.api?.readiness?.endpoint === `/${vertical.stem}/readiness`, `${vertical.id} readiness endpoint is incorrect`);
-  assert(contractEntry?.api?.operations?.readiness?.path === `/${vertical.stem}/readiness`, `${vertical.id} readiness operation is missing`);
-  assert(contractEntry?.api?.requestContext?.propagatedHeaders?.includes('traceparent'), `${vertical.id} trace context propagation is missing`);
-  assert(Object.keys(contractEntry?.api?.domainOperations ?? {}).length >= 3, `${vertical.id} domain operations are missing`);
+  // API contract surface is only present for API-bearing units.
+  if (vertical.emitsApi) {
+    assert(contractEntry?.api?.prefix === vertical.apiPrefix, `${vertical.id} API prefix is incorrect`);
+    assert(contractEntry?.api?.group === vertical.group, `${vertical.id} API group is incorrect`);
+    assert(contractEntry?.api?.runtime === 'effect', `${vertical.id} API runtime must be Effect`);
+    assert(contractEntry?.api?.strictEffectApproach === true, `${vertical.id} strictEffectApproach must be enabled`);
+    assert(contractEntry?.api?.contract === vertical.apiContractExport, `${vertical.id} API contract export is incorrect`);
+    assert(contractEntry?.api?.client === vertical.apiClientExport, `${vertical.id} API client export is incorrect`);
+    if (vertical.apiProtocol === 'rpc') {
+      // An `rpc` unit records the `/rpc` route/serialization; it must not carry
+      // REST readiness or domain-operation semantics.
+      assert(contractEntry?.api?.protocol === 'rpc', `${vertical.id} generated contract API protocol must be rpc`);
+      assert(contractEntry?.api?.rpc?.path === '/rpc', `${vertical.id} generated contract RPC route path is incorrect`);
+      assert(contractEntry?.api?.rpcPath === vertical.apiUrlPath, `${vertical.id} generated contract RPC path is incorrect`);
+    } else {
+      assert(contractEntry?.api?.readiness?.endpoint === `/${vertical.stem}/readiness`, `${vertical.id} readiness endpoint is incorrect`);
+      assert(contractEntry?.api?.operations?.readiness?.path === `/${vertical.stem}/readiness`, `${vertical.id} readiness operation is missing`);
+      assert(contractEntry?.api?.requestContext?.propagatedHeaders?.includes('traceparent'), `${vertical.id} trace context propagation is missing`);
+      assert(Object.keys(contractEntry?.api?.domainOperations ?? {}).length >= 3, `${vertical.id} domain operations are missing`);
+    }
+  }
   assert(contractEntry?.i18n?.languages?.includes('en') && contractEntry?.i18n?.languages?.includes('cs'), `${vertical.id} must declare i18n languages`);
   assert(contractEntry?.i18n?.namespace === vertical.namespace, `${vertical.id} i18n namespace is incorrect`);
   assert(
@@ -2978,16 +3070,21 @@ for (const vertical of fullStackVerticals) {
     `${vertical.id} owned routes must be non-indexable private app screens by default and include description keys`,
   );
   assertPublicSurfaceAssets(vertical.path, contractEntry?.routes?.publicRoutes ?? []);
-  assert(contractEntry?.styling?.federation?.owner?.id === vertical.id, `${vertical.id} CSS federation owner is missing`);
-  assert(contractEntry?.styling?.federation?.role === 'vertical-css', `${vertical.id} must own only vertical CSS`);
-  assert(contractEntry?.styling?.federation?.rootSelector === `[data-app-id="${vertical.id}"]`, `${vertical.id} CSS root selector is incorrect`);
-  assert(contractEntry?.styling?.federation?.classPrefix === `${vertical.tailwindPrefix}:`, `${vertical.id} CSS class prefix is incorrect`);
-  assert(contractEntry?.styling?.federation?.layers?.owned?.includes(`ultramodern-vertical-${vertical.domain}`), `${vertical.id} vertical CSS layer is missing`);
-  assert(!contractEntry?.styling?.federation?.layers?.owned?.includes('ultramodern-shell-base'), `${vertical.id} must not own shell base CSS`);
-  assert(contractEntry?.styling?.federation?.entrypoints?.federationEntry === 'src/federation-entry.tsx', `${vertical.id} CSS contract must include federation entry`);
-  assert(contractEntry?.styling?.federation?.assets?.shared?.some(asset => asset.endsWith('/shared-design-tokens/tokens.css')), `${vertical.id} must import shared design token CSS`);
-  assert(contractEntry?.styling?.federation?.dedupe?.runtimeLoad === 'once-per-content-hash', `${vertical.id} CSS dedupe strategy is incorrect`);
-  assert(contractEntry?.styling?.federation?.ssr?.verticalCss === 'federated-manifest-owned-css', `${vertical.id} SSR CSS loading contract is incorrect`);
+  // CSS federation (a federated browser stylesheet keyed off the federation
+  // entry) only applies to UI-emitting units; a headless api-only unit owns no
+  // vertical CSS surface.
+  if (vertical.emitsUi) {
+    assert(contractEntry?.styling?.federation?.owner?.id === vertical.id, `${vertical.id} CSS federation owner is missing`);
+    assert(contractEntry?.styling?.federation?.role === 'vertical-css', `${vertical.id} must own only vertical CSS`);
+    assert(contractEntry?.styling?.federation?.rootSelector === `[data-app-id="${vertical.id}"]`, `${vertical.id} CSS root selector is incorrect`);
+    assert(contractEntry?.styling?.federation?.classPrefix === `${vertical.tailwindPrefix}:`, `${vertical.id} CSS class prefix is incorrect`);
+    assert(contractEntry?.styling?.federation?.layers?.owned?.includes(`ultramodern-vertical-${vertical.domain}`), `${vertical.id} vertical CSS layer is missing`);
+    assert(!contractEntry?.styling?.federation?.layers?.owned?.includes('ultramodern-shell-base'), `${vertical.id} must not own shell base CSS`);
+    assert(contractEntry?.styling?.federation?.entrypoints?.federationEntry === 'src/federation-entry.tsx', `${vertical.id} CSS contract must include federation entry`);
+    assert(contractEntry?.styling?.federation?.assets?.shared?.some(asset => asset.endsWith('/shared-design-tokens/tokens.css')), `${vertical.id} must import shared design token CSS`);
+    assert(contractEntry?.styling?.federation?.dedupe?.runtimeLoad === 'once-per-content-hash', `${vertical.id} CSS dedupe strategy is incorrect`);
+    assert(contractEntry?.styling?.federation?.ssr?.verticalCss === 'federated-manifest-owned-css', `${vertical.id} SSR CSS loading contract is incorrect`);
+  }
 
   const topologyEntry = topology.verticals?.find(verticalEntry => verticalEntry.id === vertical.id);
   assert(topologyEntry?.kind === 'vertical', `${vertical.id} topology kind is incorrect`);

@@ -1414,3 +1414,264 @@ test('workspace package-source strategy and Tailwind-disabled generation remain 
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
 });
+
+/* -------------------------------------------------------------------------- */
+/* Surface-profile-aware generated validator (Sol batch-3 verify #5 / #9)     */
+/* -------------------------------------------------------------------------- */
+
+function generateProfileWorkspace(
+  workspaceDir: string,
+  vertical: {
+    name: string;
+    preset?: 'full-stack' | 'api-only' | 'ui-only';
+    apiProtocol?: 'rest' | 'rpc';
+    horizontalRemote?: boolean;
+  },
+) {
+  generateUltramodernWorkspace({
+    targetDir: workspaceDir,
+    packageName: path.basename(workspaceDir),
+    modernVersion: '3.2.1',
+    enableTailwind: true,
+    packageSource: { strategy: 'workspace' },
+  });
+  addUltramodernVertical({
+    workspaceRoot: workspaceDir,
+    modernVersion: '3.2.1',
+    name: vertical.name,
+    preset: vertical.preset,
+    apiProtocol: vertical.apiProtocol,
+    horizontalRemote: vertical.horizontalRemote,
+  });
+}
+
+test('generated validator accepts an api-only (headless) workspace and rejects planted UI/MF artifacts', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-profile-api-'));
+  const workspaceDir = path.join(tempRoot, 'api-only-workspace');
+  try {
+    generateProfileWorkspace(workspaceDir, {
+      name: 'headless',
+      preset: 'api-only',
+    });
+
+    // The headless unit ships API artifacts but no UI/MF files.
+    assert.ok(exists(workspaceDir, 'verticals/headless/shared/api.ts'));
+    assert.ok(exists(workspaceDir, 'verticals/headless/api/index.ts'));
+    assert.ok(
+      !exists(workspaceDir, 'verticals/headless/module-federation.config.ts'),
+    );
+    assert.ok(
+      !exists(workspaceDir, 'verticals/headless/src/federation-entry.tsx'),
+    );
+
+    const passing = runGeneratedWorkspaceCheck(workspaceDir);
+    assert.equal(passing.status, 0, commandOutput(passing));
+
+    // Planting a UI/MF artifact into a headless unit must be rejected.
+    fs.writeFileSync(
+      path.join(workspaceDir, 'verticals/headless/module-federation.config.ts'),
+      'export default {};\n',
+      'utf-8',
+    );
+    const failing = runGeneratedWorkspaceCheck(workspaceDir);
+    const output = commandOutput(failing);
+    assert.notEqual(failing.status, 0, output);
+    assert.match(
+      output,
+      /Unexpected .*module-federation\.config\.ts for a api-only unit/,
+    );
+    fs.rmSync(
+      path.join(workspaceDir, 'verticals/headless/module-federation.config.ts'),
+    );
+
+    // Planting colocated route metadata (a UI/browser-surface artifact) into a
+    // headless unit must also be rejected.
+    fs.mkdirSync(path.join(workspaceDir, 'verticals/headless/src/routes'), {
+      recursive: true,
+    });
+    fs.writeFileSync(
+      path.join(
+        workspaceDir,
+        'verticals/headless/src/routes/ultramodern-route-metadata.ts',
+      ),
+      'export const metadata = {};\n',
+      'utf-8',
+    );
+    const failingRouteMeta = runGeneratedWorkspaceCheck(workspaceDir);
+    const routeMetaOutput = commandOutput(failingRouteMeta);
+    assert.notEqual(failingRouteMeta.status, 0, routeMetaOutput);
+    assert.match(
+      routeMetaOutput,
+      /Unexpected .*ultramodern-route-metadata\.ts for a api-only unit/,
+    );
+    fs.rmSync(
+      path.join(
+        workspaceDir,
+        'verticals/headless/src/routes/ultramodern-route-metadata.ts',
+      ),
+    );
+
+    // Widening the headless unit's Module Federation DTS boundary to a browser
+    // federation entry it does not ship must be rejected (the api-only mf-types
+    // boundary only covers the app ambient types).
+    const mfTypes = readJson(
+      workspaceDir,
+      'verticals/headless/tsconfig.mf-types.json',
+    );
+    mfTypes.include = ['src/federation-entry.tsx', 'src/modern-app-env.d.ts'];
+    writeJson(
+      workspaceDir,
+      'verticals/headless/tsconfig.mf-types.json',
+      mfTypes,
+    );
+    const failingDts = runGeneratedWorkspaceCheck(workspaceDir);
+    const dtsOutput = commandOutput(failingDts);
+    assert.notEqual(failingDts.status, 0, dtsOutput);
+    assert.match(
+      dtsOutput,
+      /restore the generated MicroVertical Module Federation DTS boundary/,
+    );
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('generated validator accepts a ui-only workspace and rejects planted API artifacts', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-profile-ui-'));
+  const workspaceDir = path.join(tempRoot, 'ui-only-workspace');
+  try {
+    generateProfileWorkspace(workspaceDir, {
+      name: 'surface',
+      preset: 'ui-only',
+    });
+
+    assert.ok(
+      exists(workspaceDir, 'verticals/surface/src/federation-entry.tsx'),
+    );
+    assert.ok(!exists(workspaceDir, 'verticals/surface/shared/api.ts'));
+
+    const passing = runGeneratedWorkspaceCheck(workspaceDir);
+    assert.equal(passing.status, 0, commandOutput(passing));
+
+    // Planting an API contract into a ui-only unit must be rejected.
+    fs.writeFileSync(
+      path.join(workspaceDir, 'verticals/surface/shared/api.ts'),
+      'export const api = {};\n',
+      'utf-8',
+    );
+    const failing = runGeneratedWorkspaceCheck(workspaceDir);
+    const output = commandOutput(failing);
+    assert.notEqual(failing.status, 0, output);
+    assert.match(output, /Unexpected .*shared\/api\.ts for a ui-only unit/);
+    fs.rmSync(path.join(workspaceDir, 'verticals/surface/shared/api.ts'));
+
+    // Planting an RPC contract into a ui-only unit must be rejected too: a
+    // ui-only unit carries no API contract in either protocol.
+    fs.writeFileSync(
+      path.join(workspaceDir, 'verticals/surface/shared/rpc.ts'),
+      'export const rpc = {};\n',
+      'utf-8',
+    );
+    const failingRpc = runGeneratedWorkspaceCheck(workspaceDir);
+    const rpcOutput = commandOutput(failingRpc);
+    assert.notEqual(failingRpc.status, 0, rpcOutput);
+    assert.match(rpcOutput, /Unexpected .*shared\/rpc\.ts for a ui-only unit/);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('generated validator validates a Horizontal Remote (components-only) workspace', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-profile-hr-'));
+  const workspaceDir = path.join(tempRoot, 'horizontal-remote-workspace');
+  try {
+    generateProfileWorkspace(workspaceDir, {
+      name: 'design-system',
+      horizontalRemote: true,
+    });
+
+    assert.ok(
+      exists(workspaceDir, 'verticals/design-system/src/federation-entry.tsx'),
+    );
+    assert.ok(!exists(workspaceDir, 'verticals/design-system/shared/api.ts'));
+
+    const passing = runGeneratedWorkspaceCheck(workspaceDir);
+    assert.equal(passing.status, 0, commandOutput(passing));
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('generated validator accepts an rpc-protocol workspace and rejects a missing RPC client', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-profile-rpc-'));
+  const workspaceDir = path.join(tempRoot, 'rpc-workspace');
+  try {
+    generateProfileWorkspace(workspaceDir, {
+      name: 'catalog',
+      apiProtocol: 'rpc',
+    });
+
+    // RPC generation emits the RPC contract/client, not the REST surface.
+    assert.ok(exists(workspaceDir, 'verticals/catalog/shared/rpc.ts'));
+    assert.ok(
+      exists(workspaceDir, 'verticals/catalog/src/api/catalog-rpc-client.ts'),
+    );
+    assert.ok(!exists(workspaceDir, 'verticals/catalog/shared/api.ts'));
+    assert.ok(
+      !exists(workspaceDir, 'verticals/catalog/src/api/catalog-client.ts'),
+    );
+
+    const passing = runGeneratedWorkspaceCheck(workspaceDir);
+    assert.equal(passing.status, 0, commandOutput(passing));
+
+    // Planting the REST API client into an RPC unit must be rejected: an RPC
+    // unit ships only the `${stem}-rpc-client`, never the REST `${stem}-client`.
+    fs.writeFileSync(
+      path.join(workspaceDir, 'verticals/catalog/src/api/catalog-client.ts'),
+      'export const client = {};\n',
+      'utf-8',
+    );
+    const failingRestClient = runGeneratedWorkspaceCheck(workspaceDir);
+    const restClientOutput = commandOutput(failingRestClient);
+    assert.notEqual(failingRestClient.status, 0, restClientOutput);
+    assert.match(
+      restClientOutput,
+      /catalog RPC unit must not emit the REST API client/,
+    );
+    fs.rmSync(
+      path.join(workspaceDir, 'verticals/catalog/src/api/catalog-client.ts'),
+    );
+
+    // Removing the RPC client must be rejected by the generated validator.
+    fs.rmSync(
+      path.join(
+        workspaceDir,
+        'verticals/catalog/src/api/catalog-rpc-client.ts',
+      ),
+    );
+    const failing = runGeneratedWorkspaceCheck(workspaceDir);
+    const output = commandOutput(failing);
+    assert.notEqual(failing.status, 0, output);
+    assert.match(
+      output,
+      /Missing verticals\/catalog\/src\/api\/catalog-rpc-client\.ts/,
+    );
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('generated validator still accepts a rest full-stack workspace', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-profile-rest-'));
+  const workspaceDir = path.join(tempRoot, 'rest-workspace');
+  try {
+    generateProfileWorkspace(workspaceDir, {
+      name: 'catalog',
+      apiProtocol: 'rest',
+    });
+    const passing = runGeneratedWorkspaceCheck(workspaceDir);
+    assert.equal(passing.status, 0, commandOutput(passing));
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
