@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {
+  addUltramodernShell,
   addUltramodernVertical,
   generateUltramodernWorkspace,
 } from '../src/ultramodern-workspace';
@@ -42,6 +43,15 @@ function mutateJson(
   const value = readJson(workspaceDir, relativePath);
   mutate(value);
   writeJson(workspaceDir, relativePath, value);
+}
+
+function generateMultiShellWorkspace(workspaceDir: string) {
+  generateWorkspace(workspaceDir);
+  addUltramodernShell({
+    workspaceRoot: workspaceDir,
+    name: 'admin',
+    modernVersion: '3.2.1',
+  });
 }
 
 function reverseObjectKeys(value: unknown): unknown {
@@ -536,6 +546,98 @@ test('generated validator rejects schema, cohort, topology, policy, and legacy d
       fs.cpSync(baselineDir, workspaceDir, { recursive: true });
       scenario.mutate(workspaceDir);
 
+      const result = runValidation(workspaceDir);
+      const output = commandOutput(result);
+      assert.notEqual(result.status, 0, `${scenario.name}\n${output}`);
+      assert.match(output, scenario.expected, scenario.name);
+    }
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('generated validator enforces additional-shell ownership, build, degraded, and Zerops cohorts', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-shell-cohort-'));
+  const baselineDir = path.join(tempRoot, 'baseline');
+  const scenarios: Array<{
+    name: string;
+    mutate: (workspaceDir: string) => void;
+    expected: RegExp;
+  }> = [
+    {
+      name: 'missing-owner',
+      mutate: workspaceDir => {
+        mutateJson(workspaceDir, '.modernjs/ultramodern.json', value => {
+          delete value.shells[0].owner;
+        });
+      },
+      expected: /complete additional-shell config record/,
+    },
+    {
+      name: 'wrong-app-id',
+      mutate: workspaceDir => {
+        mutateJson(workspaceDir, 'apps/shell-admin/package.json', value => {
+          value.modernjs.appId = 'wrong-shell';
+        });
+      },
+      expected:
+        /generated app package manifest cohort|shell-admin package modernjs\.appId is incorrect/,
+    },
+    {
+      name: 'wrong-build-marker',
+      mutate: workspaceDir => {
+        mutateJson(
+          workspaceDir,
+          'apps/shell-admin/shared/ultramodern-build.json',
+          value => {
+            value.deliveryUnit.buildMarker = 'wrong-marker';
+          },
+        );
+      },
+      expected: /shell-admin build marker is not participating/,
+    },
+    {
+      name: 'wrong-degraded-identity',
+      mutate: workspaceDir => {
+        const sourcePath = path.join(
+          workspaceDir,
+          'apps/shell-admin/src/routes/vertical-components.tsx',
+        );
+        fs.writeFileSync(
+          sourcePath,
+          fs
+            .readFileSync(sourcePath, 'utf-8')
+            .replaceAll('shelladmin:text-red-900', 'shellsuperapp:text-red-900'),
+          'utf-8',
+        );
+      },
+      expected: /degraded fallback must report its own shell identity/,
+    },
+    {
+      name: 'missing-zerops-service',
+      mutate: workspaceDir => {
+        const zeropsPath = path.join(workspaceDir, 'zerops.yaml');
+        fs.writeFileSync(
+          zeropsPath,
+          fs
+            .readFileSync(zeropsPath, 'utf-8')
+            .replace("setup: 'shell-admin'", "setup: 'missing-shell'"),
+          'utf-8',
+        );
+      },
+      expected: /shell-admin must have a Zerops service/,
+    },
+  ];
+
+  try {
+    generateMultiShellWorkspace(baselineDir);
+    const baseline = runValidation(baselineDir);
+    assert.equal(baseline.status, 0, commandOutput(baseline));
+
+    for (const scenario of scenarios) {
+      const workspaceDir = path.join(tempRoot, scenario.name);
+      fs.cpSync(baselineDir, workspaceDir, { recursive: true });
+      scenario.mutate(workspaceDir);
       const result = runValidation(workspaceDir);
       const output = commandOutput(result);
       assert.notEqual(result.status, 0, `${scenario.name}\n${output}`);

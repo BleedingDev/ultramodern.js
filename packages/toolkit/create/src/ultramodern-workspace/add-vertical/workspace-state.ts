@@ -8,6 +8,7 @@ import { resolvePackageSource } from '../package-source';
 import type {
   ResolvedPackageSource,
   UltramodernWorkspaceOptions,
+  WorkspaceApp,
 } from '../types';
 import { FIRST_VERTICAL_PORT } from './constants';
 
@@ -64,12 +65,67 @@ export function assertValidVerticalName(name: string): string {
   return normalized;
 }
 
-export function nextAvailablePort(ports: Record<string, unknown>): number {
-  const numericPorts = Object.values(ports).filter(
-    (value): value is number =>
-      typeof value === 'number' && Number.isFinite(value),
-  );
-  return Math.max(FIRST_VERTICAL_PORT - 1, ...numericPorts) + 1;
+export function configuredDevelopmentPorts(
+  ports: Record<string, unknown>,
+  additionalShells: WorkspaceApp[] = [],
+): number[] {
+  return [
+    ...new Set(
+      [
+        ...Object.values(ports),
+        ...additionalShells.map(shell => shell.port),
+      ].filter(
+        (value): value is number =>
+          typeof value === 'number' && Number.isFinite(value),
+      ),
+    ),
+  ];
+}
+
+export function assertGlobalPortUniqueness(
+  ports: Record<string, unknown>,
+  additionalShells: WorkspaceApp[] = [],
+) {
+  const owners = new Map<number, string>();
+  for (const [id, value] of Object.entries(ports)) {
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      continue;
+    }
+    const previous = owners.get(value);
+    if (previous) {
+      throw new Error(
+        `Duplicate development port "${value}" for ${previous} and ${id}.`,
+      );
+    }
+    owners.set(value, id);
+  }
+  for (const shell of additionalShells) {
+    const previous = owners.get(shell.port);
+    if (previous) {
+      throw new Error(
+        `Duplicate development port "${shell.port}" for ${previous} and ${shell.id}.`,
+      );
+    }
+    owners.set(shell.port, shell.id);
+  }
+}
+
+/**
+ * Allocate from the one workspace-wide port set. The caller supplies the
+ * lower bound for its app class (verticals start at 4101; additional shells at
+ * 3120), while existing overlay and shell ports always participate.
+ */
+export function nextAvailablePort(
+  ports: Record<string, unknown>,
+  additionalShells: WorkspaceApp[] = [],
+  minimumPort = FIRST_VERTICAL_PORT,
+): number {
+  const used = new Set(configuredDevelopmentPorts(ports, additionalShells));
+  let candidate = minimumPort;
+  while (used.has(candidate)) {
+    candidate += 1;
+  }
+  return candidate;
 }
 
 export function assertCanCreate(workspaceRoot: string, relativePath: string) {

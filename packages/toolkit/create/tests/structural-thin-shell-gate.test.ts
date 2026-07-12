@@ -27,11 +27,7 @@ function commandOutput(result: ReturnType<typeof runValidation>) {
   return `${result.stdout}\n${result.stderr}`;
 }
 
-function appendText(
-  workspaceDir: string,
-  relativePath: string,
-  text: string,
-) {
+function appendText(workspaceDir: string, relativePath: string, text: string) {
   fs.appendFileSync(path.join(workspaceDir, relativePath), text, 'utf-8');
 }
 
@@ -120,6 +116,79 @@ test('generated validator enforces the structural thin-shell gate', () => {
       const output = commandOutput(result);
       assert.notEqual(result.status, 0, `${scenario.name}\n${output}`);
       assert.match(output, scenario.expected, scenario.name);
+    }
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('generated validator scans every JavaScript/TypeScript extension and import form', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-thin-shell-'));
+  const baselineDir = path.join(tempRoot, 'baseline');
+  const importForms = [
+    {
+      name: 'static-from',
+      source:
+        "import { internal } from '../../../verticals/catalog/src/internal';\n",
+      expected: /vertical-directory-deep-import/,
+    },
+    {
+      name: 'side-effect',
+      source: "import '../../../verticals/catalog/src/register';\n",
+      expected: /vertical-directory-side-effect-import/,
+    },
+    {
+      name: 'dynamic',
+      source: "void import('../../../verticals/catalog/src/lazy');\n",
+      expected: /vertical-directory-dynamic-import/,
+    },
+    {
+      name: 'require',
+      source:
+        "const internal = require('../../../verticals/catalog/src/runtime');\n",
+      expected: /vertical-directory-require/,
+    },
+  ] as const;
+  const extensions = [
+    'ts',
+    'tsx',
+    'mts',
+    'cts',
+    'js',
+    'jsx',
+    'mjs',
+    'cjs',
+  ] as const;
+
+  try {
+    generateWorkspace(baselineDir);
+    const baseline = runValidation(baselineDir);
+    assert.equal(baseline.status, 0, commandOutput(baseline));
+
+    let scenarioIndex = 0;
+    for (const extension of extensions) {
+      for (const importForm of importForms) {
+        const workspaceDir = path.join(
+          tempRoot,
+          `${scenarioIndex}-${importForm.name}-${extension}`,
+        );
+        scenarioIndex += 1;
+        fs.cpSync(baselineDir, workspaceDir, { recursive: true });
+        const sourcePath = path.join(
+          workspaceDir,
+          `apps/shell-super-app/src/routes/thin-shell-${importForm.name}.${extension}`,
+        );
+        fs.writeFileSync(sourcePath, importForm.source, 'utf-8');
+
+        const result = runValidation(workspaceDir);
+        const output = commandOutput(result);
+        assert.notEqual(
+          result.status,
+          0,
+          `${importForm.name}/${extension}\n${output}`,
+        );
+        assert.match(output, importForm.expected, importForm.name);
+      }
     }
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });

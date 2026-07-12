@@ -119,11 +119,12 @@ export function createAppTsConfig(
   app: WorkspaceApp,
   remotes: WorkspaceApp[] = [],
 ): JsonValue {
+  const appRemotes = resolveRemoteRefs(app, remotes);
   const references = [
     ...sharedPackages.map(sharedPackage => sharedPackage.directory),
     ...(app.kind === 'shell'
-      ? verticalApiApps(remotes).map(remote => remote.directory)
-      : resolveRemoteRefs(app, remotes).map(remote => remote.directory)),
+      ? verticalApiApps(appRemotes).map(remote => remote.directory)
+      : appRemotes.map(remote => remote.directory)),
   ];
   return createPackageTsConfig(app.directory, {
     includeApi: appHasApi(app),

@@ -43,10 +43,15 @@ export const shellApp: WorkspaceApp = {
   },
 };
 
-export function createShellHost(remotes: WorkspaceApp[] = []): WorkspaceApp {
+export function createShellHost(
+  remotes: WorkspaceApp[] = [],
+  // The shell composes only UI-emitting remotes by default (G2a); an explicit
+  // verticalRefs list (G28 multi-shell) overrides it verbatim.
+  verticalRefs = remotes.filter(appEmitsBrowserUi).map(remote => remote.id),
+): WorkspaceApp {
   return {
     ...shellApp,
-    verticalRefs: remotes.filter(appEmitsBrowserUi).map(remote => remote.id),
+    verticalRefs,
   };
 }
 

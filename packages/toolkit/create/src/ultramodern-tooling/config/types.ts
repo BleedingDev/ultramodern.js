@@ -49,4 +49,6 @@ export type UltramodernToolingConfig = {
   topology: {
     apps: UltramodernToolingConfigApp[];
   };
+  /** Additional shells live in the additive compact-config collection. */
+  shells?: Array<Record<string, unknown>>;
 };

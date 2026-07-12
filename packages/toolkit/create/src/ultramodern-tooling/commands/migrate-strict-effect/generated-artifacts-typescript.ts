@@ -12,8 +12,8 @@ import {
   createTsConfigBase,
 } from '../../../ultramodern-workspace/package-json';
 import {
+  allWorkspaceAppsFromToolingConfig,
   type UltramodernToolingConfig,
-  workspaceAppsFromToolingConfig,
 } from '../../config';
 import { type MigrationIo, writeJsonIfChanged, writeTextIfChanged } from './io';
 
@@ -56,7 +56,7 @@ function packageManifest(io: MigrationIo, appDirectory: string) {
 
 function shellSurfaceIsOwned(
   io: MigrationIo,
-  app: ReturnType<typeof workspaceAppsFromToolingConfig>[number],
+  app: ReturnType<typeof allWorkspaceAppsFromToolingConfig>[number],
   manifestApp: JsonObject,
 ) {
   const packageJson = packageManifest(io, app.directory);
@@ -73,7 +73,7 @@ function shellSurfaceIsOwned(
 function deliveryUnitSurfaceIsOwned(
   io: MigrationIo,
   config: UltramodernToolingConfig,
-  app: ReturnType<typeof workspaceAppsFromToolingConfig>[number],
+  app: ReturnType<typeof allWorkspaceAppsFromToolingConfig>[number],
   manifestApp: JsonObject,
   expose: string,
   sourcePath: string,
@@ -108,7 +108,7 @@ function updateGeneratedNavigationSurfaces(
     return false;
   }
 
-  const apps = workspaceAppsFromToolingConfig(config);
+  const apps = allWorkspaceAppsFromToolingConfig(config);
   const appsById = new Map(
     manifestApps(manifest).map(app => [String(app.id ?? ''), app]),
   );
@@ -220,7 +220,7 @@ export function updateGeneratedTypeScriptSurfaces(
   config: UltramodernToolingConfig,
 ) {
   let changed = false;
-  const apps = workspaceAppsFromToolingConfig(config);
+  const apps = allWorkspaceAppsFromToolingConfig(config);
   const remotes = apps.filter(app => app.kind !== 'shell');
 
   changed =

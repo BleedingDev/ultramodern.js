@@ -3,7 +3,6 @@ import {
   appI18nNamespace,
   remoteDependencyAlias,
   resolveRemoteRefs,
-  shellApp,
 } from './descriptors';
 import { readFileTemplate, renderFileTemplate } from './fs-io';
 import { packageName, tailwindPrefixForApp } from './naming';
@@ -11,11 +10,12 @@ import type { JsonValue, WorkspaceApp } from './types';
 
 function createBoundaryDebugMetadata(
   scope: string,
+  shell: WorkspaceApp,
   remotes: WorkspaceApp[] = [],
 ): JsonValue {
   return {
-    appId: shellApp.id,
-    boundaries: [shellApp, ...remotes].map(app => ({
+    appId: shell.id,
+    boundaries: [shell, ...remotes].map(app => ({
       appId: app.id,
       label: app.displayName,
       mfName: app.mfName,
@@ -76,7 +76,7 @@ export function createAppRuntimeConfig(
       ? `  plugins: [
     ultramodernBoundaryDebuggerPlugin({
       metadata: ${JSON.stringify(
-        createBoundaryDebugMetadata(scope, remotes),
+        createBoundaryDebugMetadata(scope, app, remotes),
         null,
         6,
       )
@@ -154,8 +154,12 @@ function createTailwindImport(prefix: string): string {
   return `@import 'tailwindcss' prefix(${prefix}) source(none);\n@source '..';\n`;
 }
 
-function createShellStyles(enableTailwind: boolean, scope: string): string {
-  return `${enableTailwind ? createTailwindImport(tailwindPrefixForApp(shellApp)) : ''}${createCssTokenImport(
+function createShellStyles(
+  enableTailwind: boolean,
+  scope: string,
+  shell: WorkspaceApp,
+): string {
+  return `${enableTailwind ? createTailwindImport(tailwindPrefixForApp(shell)) : ''}${createCssTokenImport(
     scope,
   )}`;
 }
@@ -176,7 +180,7 @@ export function createAppStyles(
   app: WorkspaceApp,
 ): string {
   return app.kind === 'shell'
-    ? createShellStyles(enableTailwind, scope)
+    ? createShellStyles(enableTailwind, scope, app)
     : createRemoteStyles(enableTailwind, scope, app);
 }
 
@@ -197,6 +201,30 @@ export function createRouteHeadModule(app: WorkspaceApp): string {
   });
 }
 
-export function createShellFrameComponent(): string {
-  return readFileTemplate('app/shell-frame.tsx');
+export function createShellFrameComponent(shell?: WorkspaceApp): string {
+  const source = readFileTemplate('app/shell-frame.tsx');
+  const prefix = tailwindPrefixForApp(
+    shell ?? {
+      kind: 'shell',
+      id: 'shell-super-app',
+      directory: 'apps/shell-super-app',
+      packageSuffix: 'shell-super-app',
+      displayName: 'Shell Super App',
+      portEnv: 'SHELL_SUPER_APP_PORT',
+      port: 3020,
+      mfName: 'shellSuperApp',
+      ownership: {
+        team: 'super-app-platform',
+        slack: '#super-app-platform',
+        pagerDuty: 'pd-super-app-platform',
+        runbookRef: 'runbooks/wave2/shell-super-app.md',
+        adrRef:
+          'docs/super-app-rfc-adr/wave2/reference-topology.md#shell-super-app',
+        blastRadius: { tier: 'tier-0-shell', references: [] },
+      },
+    },
+  );
+  return prefix === 'shell'
+    ? source
+    : source.replace(/\bshell:/gu, `${prefix}:`);
 }

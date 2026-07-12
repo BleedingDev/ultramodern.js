@@ -147,6 +147,8 @@ export function createCompactUltramodernConfig(
   apps: WorkspaceApp[] = [createShellHost()],
   enableTailwind = true,
   bridge?: UltramodernBridgeConfig,
+  additionalShells: WorkspaceApp[] = [],
+  primaryShell?: WorkspaceApp,
 ): JsonValue {
   const config = createUltramodernConfig(
     scope,
@@ -155,6 +157,8 @@ export function createCompactUltramodernConfig(
     apps,
     enableTailwind,
     bridge,
+    additionalShells,
+    primaryShell,
   ) as Record<string, any>;
 
   if (

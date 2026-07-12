@@ -5,8 +5,8 @@ import {
   createUltramodernBuildReexportModule,
 } from '../../../ultramodern-workspace/module-federation';
 import {
+  allWorkspaceAppsFromToolingConfig,
   type UltramodernToolingConfig,
-  workspaceAppsFromToolingConfig,
 } from '../../config';
 import { type MigrationIo, writeTextIfChanged } from './io';
 
@@ -15,7 +15,7 @@ export function updateGeneratedBuildIdentityModules(
   config: UltramodernToolingConfig,
 ) {
   let changed = false;
-  for (const app of workspaceAppsFromToolingConfig(config)) {
+  for (const app of allWorkspaceAppsFromToolingConfig(config)) {
     changed =
       writeTextIfChanged(
         io,

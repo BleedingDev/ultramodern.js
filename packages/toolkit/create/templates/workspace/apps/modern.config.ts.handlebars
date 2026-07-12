@@ -45,8 +45,7 @@ const configuredSiteUrl = envValue('MODERN_PUBLIC_SITE_URL');
 const configuredCloudflareUrl = envValue('{{value5}}');
 const configuredUltramodernAssetPrefix = envValue('ULTRAMODERN_ASSET_PREFIX');
 const configuredModernAssetPrefix = envValue('MODERN_ASSET_PREFIX');
-const moduleFederationDevServerOrigin =
-  envValue('ULTRAMODERN_MF_DEV_ORIGIN') || 'http://localhost:{{value6}}';
+{{value19}}
 const cloudflareWorkersDevSubdomain = envValue(
   'ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN',
 );
@@ -100,7 +99,7 @@ export default defineConfig(
           }
         : {}),
       dev: {
-{{value13}}
+{{value13}}{{value20}}
       },
       html: {
         outputStructure: 'flat',
@@ -195,7 +194,7 @@ export default defineConfig(
             'Access-Control-Allow-Headers':
               'Accept, Authorization, Content-Type, X-Requested-With',
             'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
-            'Access-Control-Allow-Origin': moduleFederationDevServerOrigin,
+            {{value21}}
           },
         },
       },

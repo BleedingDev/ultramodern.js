@@ -8,14 +8,18 @@ import {
 import { verticalsFromTopology } from './add-vertical/topology';
 import { runWorkspaceTransaction } from './add-vertical/transaction';
 import {
+  assertGlobalPortUniqueness,
+  configuredDevelopmentPorts,
   existingBridgeConfig,
   existingPackageSource,
   existingTailwindEnabled,
+  nextAvailablePort,
 } from './add-vertical/workspace-state';
 import { shellApp, ULTRAMODERN_CONFIG_PATH } from './descriptors';
 import {
   formatGeneratedWorkspaceFiles,
   readJsonFile,
+  writeFileReplacing,
   writeJsonFile,
 } from './fs-io';
 import {
@@ -27,11 +31,11 @@ import { assertUniqueTailwindPrefixes, toPackageScope } from './naming';
 import { createRootPackageJson } from './package-json';
 import {
   assertValidShellName,
+  createAdditionalShellConfigEntry,
   createShellDescriptor,
   FIRST_ADDITIONAL_SHELL_PORT,
   PRIMARY_SHELL_ID,
   resolveConfiguredAdditionalShells,
-  shellDeliveryUnitBlock,
 } from './shells';
 import { createRootTsConfig } from './tsconfigs';
 import type {
@@ -43,7 +47,8 @@ import type {
 } from './types';
 import { isRecord } from './types';
 import { writeGeneratedWorkspaceScripts } from './workspace-scripts';
-import { writeApp } from './write-app';
+import { rewriteAppModernConfig, writeApp } from './write-app';
+import { createZeropsYaml } from './zerops';
 
 type AddUltramodernShellPreflight = {
   scope: string;
@@ -71,16 +76,6 @@ function readRequiredJsonObject(filePath: string): Record<string, any> {
     );
   }
   return value;
-}
-
-function nextShellPort(existingShellPorts: number[]): number {
-  return (
-    Math.max(
-      FIRST_ADDITIONAL_SHELL_PORT - 1,
-      shellApp.port,
-      ...existingShellPorts,
-    ) + 1
-  );
 }
 
 function prepareAddUltramodernShell(
@@ -128,8 +123,19 @@ function prepareAddUltramodernShell(
     throw new Error(`Refusing to overwrite existing path: apps/${shellId}`);
   }
 
-  const existingShellPorts = existingAdditionalShells.map(shell => shell.port);
-  const shell = createShellDescriptor(name, nextShellPort(existingShellPorts));
+  const portsWithPrimary = {
+    ...overlay.ports,
+    [shellApp.id]: shellApp.port,
+  };
+  assertGlobalPortUniqueness(portsWithPrimary, existingAdditionalShells);
+  const shell = createShellDescriptor(
+    name,
+    nextAvailablePort(
+      portsWithPrimary,
+      existingAdditionalShells,
+      FIRST_ADDITIONAL_SHELL_PORT,
+    ),
+  );
 
   const requestedVerticalIds =
     options.verticals ?? existingVerticals.map(vertical => vertical.id);
@@ -203,6 +209,16 @@ function executeAddUltramodernShell(
     composedVerticals,
   } = preflight;
 
+  const primaryShell = {
+    ...shellApp,
+    verticalRefs: existingVerticals.map(vertical => vertical.id),
+  };
+  const allAdditionalShells = [...existingAdditionalShells, shell];
+  const configuredDevPorts = configuredDevelopmentPorts(
+    { ...preflight.overlay.ports, [shell.id]: shell.port },
+    allAdditionalShells,
+  ).toSorted((left, right) => left - right);
+
   writeApp(
     options.workspaceRoot,
     scope,
@@ -211,9 +227,8 @@ function executeAddUltramodernShell(
     enableTailwind,
     composedVerticals,
     bridge,
+    configuredDevPorts,
   );
-
-  const allAdditionalShells = [...existingAdditionalShells, shell];
 
   // Register the additional shell in the additive `shells` collection of the
   // compact config. It is deliberately kept out of the strict topology.apps /
@@ -221,20 +236,26 @@ function executeAddUltramodernShell(
   const shellsCollection = Array.isArray(config.shells)
     ? config.shells.filter((entry: { id?: unknown }) => entry?.id !== shell.id)
     : [];
-  shellsCollection.push({
-    id: shell.id,
-    name: options.name,
-    kind: 'shell',
-    package: `@${scope}/${shell.packageSuffix}`,
-    path: shell.directory,
-    port: shell.port,
-    portEnv: shell.portEnv,
-    mfName: shell.mfName,
-    verticalRefs: shell.verticalRefs ?? [],
-    deliveryUnit: shellDeliveryUnitBlock(scope, shell),
-  });
+  shellsCollection.push(
+    createAdditionalShellConfigEntry(scope, shell, existingVerticals),
+  );
   config.shells = shellsCollection;
   writeJsonFile(configPath, config as JsonValue);
+
+  for (const app of [
+    primaryShell,
+    ...existingVerticals,
+    ...existingAdditionalShells,
+  ]) {
+    rewriteAppModernConfig(
+      options.workspaceRoot,
+      scope,
+      app,
+      existingVerticals,
+      enableTailwind,
+      configuredDevPorts,
+    );
+  }
 
   const rootPackagePath = path.join(options.workspaceRoot, 'package.json');
   const rootPackage = readJsonFile(rootPackagePath);
@@ -251,7 +272,7 @@ function executeAddUltramodernShell(
   writeJsonFile(
     path.join(options.workspaceRoot, 'tsconfig.json'),
     createRootTsConfig([
-      { ...shellApp, verticalRefs: existingVerticals.map(v => v.id) },
+      primaryShell,
       ...existingVerticals,
       ...allAdditionalShells,
     ]),
@@ -264,6 +285,17 @@ function executeAddUltramodernShell(
     existingVerticals,
     undefined,
     allAdditionalShells,
+    primaryShell,
+  );
+
+  writeFileReplacing(
+    options.workspaceRoot,
+    'zerops.yaml',
+    `${createZeropsYaml(scope, [
+      primaryShell,
+      ...existingVerticals,
+      ...allAdditionalShells,
+    ])}\n`,
   );
 
   const afterOverlaysFiles = createFileSnapshot(options.workspaceRoot);

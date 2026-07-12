@@ -1,8 +1,8 @@
 import path from 'node:path';
 import { createBackendFederationContractFile } from '../../../ultramodern-workspace/backend-federation';
 import {
+  allWorkspaceAppsFromToolingConfig,
   type UltramodernToolingConfig,
-  workspaceAppsFromToolingConfig,
 } from '../../config';
 import { type MigrationIo, writeTextIfChanged } from './io';
 
@@ -11,7 +11,7 @@ export function updateGeneratedBackendFederationContractFiles(
   config: UltramodernToolingConfig,
 ) {
   let changed = false;
-  for (const app of workspaceAppsFromToolingConfig(config)) {
+  for (const app of allWorkspaceAppsFromToolingConfig(config)) {
     if (!app.api) {
       continue;
     }

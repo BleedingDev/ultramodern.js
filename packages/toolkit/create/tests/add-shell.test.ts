@@ -9,6 +9,7 @@ import {
   generateUltramodernWorkspace,
   planUltramodernShell,
 } from '../src/ultramodern-workspace';
+import { UnknownUltramodernShellError } from '../src/ultramodern-workspace/add-vertical/preflight';
 
 function readJson(workspaceDir: string, relativePath: string): any {
   return JSON.parse(
@@ -78,6 +79,12 @@ test('addUltramodernShell scaffolds an additional shell delivery unit and keeps 
       registered.deliveryUnit,
       'additional shell has delivery-unit identity',
     );
+    assert.deepEqual(registered.owner, {
+      kind: 'team',
+      id: 'super-app-platform',
+    });
+    assert.equal(registered.deliveryUnit.unitId, 'workspace/shell-admin');
+    assert.equal(typeof registered.deliveryUnit.buildMarker, 'string');
     assert.deepEqual(registered.verticalRefs, ['catalog']);
 
     // The additional shell's dev port is recorded only in config.shells — the
@@ -110,6 +117,64 @@ test('addUltramodernShell scaffolds an additional shell delivery unit and keeps 
     assert.match(rootPackage.scripts.build, /apps\/shell-super-app.*run build/);
     assert.match(rootPackage.scripts.build, /apps\/shell-admin.*run build/);
 
+    const shellPackageModern = readJson(
+      workspaceDir,
+      'apps/shell-admin/package.json',
+    );
+    assert.equal(shellPackageModern.modernjs.appId, 'shell-admin');
+    const buildArtifact = readJson(
+      workspaceDir,
+      'apps/shell-admin/shared/ultramodern-build.json',
+    );
+    assert.equal(buildArtifact.deliveryUnit.appId, 'shell-admin');
+    assert.equal(
+      buildArtifact.deliveryUnit.buildMarker,
+      registered.deliveryUnit.buildMarker,
+    );
+
+    const shellModernConfig = fs.readFileSync(
+      path.join(workspaceDir, 'apps/shell-admin/modern.config.ts'),
+      'utf-8',
+    );
+    for (const port of [3020, 3120, 4101]) {
+      assert.match(shellModernConfig, new RegExp(`http://localhost:${port}`));
+    }
+    assert.match(shellModernConfig, /credentials: false/);
+    assert.doesNotMatch(shellModernConfig, /origin:\s*true|origin:\s*'\*'/u);
+    const shellMfConfig = fs.readFileSync(
+      path.join(workspaceDir, 'apps/shell-admin/module-federation.config.ts'),
+      'utf-8',
+    );
+    assert.match(shellMfConfig, /name: 'shellAdmin'/);
+    assert.doesNotMatch(shellMfConfig, /name: 'shellSuperApp'/);
+    assert.match(
+      fs.readFileSync(
+        path.join(workspaceDir, 'apps/shell-admin/src/routes/index.css'),
+        'utf-8',
+      ),
+      /prefix\(shelladmin\)/,
+    );
+    const shellComponents = fs.readFileSync(
+      path.join(
+        workspaceDir,
+        'apps/shell-admin/src/routes/vertical-components.tsx',
+      ),
+      'utf-8',
+    );
+    assert.match(shellComponents, /data-modern-boundary-id="shellAdmin"/);
+    assert.match(shellComponents, /shelladmin:text-red-900/);
+    assert.doesNotMatch(shellComponents, /data-modern-boundary-id="shellSuperApp"/);
+
+    const zeropsYaml = fs.readFileSync(
+      path.join(workspaceDir, 'zerops.yaml'),
+      'utf-8',
+    );
+    assert.match(zeropsYaml, /setup: 'shell-admin'/);
+    assert.match(
+      zeropsYaml,
+      /start: cd '\.zerops\/runtime\/shell-admin' && npm run serve/,
+    );
+
     // The generated validator still passes with the additional shell present —
     // both shells clear the structural thin-shell gate (G30a x G28).
     const validation = runValidation(workspaceDir);
@@ -118,6 +183,222 @@ test('addUltramodernShell scaffolds an additional shell delivery unit and keeps 
       0,
       `${validation.stdout}\n${validation.stderr}`,
     );
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('add-vertical targets an additional shell and rejects unknown shell ids during preflight', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-add-shell-'));
+  const workspaceDir = path.join(tempRoot, 'workspace');
+  try {
+    createBaseWorkspace(workspaceDir);
+    addUltramodernShell({
+      workspaceRoot: workspaceDir,
+      name: 'admin',
+      modernVersion: '3.2.1',
+    });
+
+    addUltramodernVertical({
+      workspaceRoot: workspaceDir,
+      name: 'orders',
+      modernVersion: '3.2.1',
+      shell: 'shell-admin',
+    });
+
+    const config = readJson(workspaceDir, '.modernjs/ultramodern.json');
+    const primary = config.topology.apps.find(
+      (app: { id?: string }) => app.id === 'shell-super-app',
+    );
+    const additional = config.shells.find(
+      (shell: { id?: string }) => shell.id === 'shell-admin',
+    );
+    assert.deepEqual(primary.moduleFederation.verticalRefs, ['catalog']);
+    assert.deepEqual(additional.verticalRefs, ['catalog', 'orders']);
+    assert.ok(
+      additional.moduleFederation.remotes.some(
+        (remote: { id?: string }) => remote.id === 'orders',
+      ),
+    );
+
+    const primaryPackage = readJson(
+      workspaceDir,
+      'apps/shell-super-app/package.json',
+    );
+    const additionalPackage = readJson(
+      workspaceDir,
+      'apps/shell-admin/package.json',
+    );
+    assert.equal(primaryPackage.dependencies['@workspace/orders'], undefined);
+    assert.equal(
+      additionalPackage.dependencies['@workspace/orders'],
+      'workspace:*',
+    );
+    assert.equal(
+      additionalPackage['zephyr:dependencies'].orders,
+      '@workspace/orders@workspace:*',
+    );
+
+    const topology = readJson(workspaceDir, 'topology/reference-topology.json');
+    assert.deepEqual(topology.shell.verticalRefs, ['catalog']);
+    assert.deepEqual(
+      topology.shell.moduleFederation.remotes.map(
+        (remote: { id: string }) => remote.id,
+      ),
+      ['catalog'],
+    );
+    assert.match(
+      fs.readFileSync(
+        path.join(workspaceDir, 'apps/shell-admin/module-federation.config.ts'),
+        'utf-8',
+      ),
+      /name: 'shellAdmin'[\s\S]*catalog:[\s\S]*orders:/u,
+    );
+    assert.match(
+      fs.readFileSync(
+        path.join(workspaceDir, 'apps/shell-admin/src/routes/index.css'),
+        'utf-8',
+      ),
+      /prefix\(shelladmin\)/,
+    );
+    assert.match(
+      fs.readFileSync(
+        path.join(
+          workspaceDir,
+          'apps/shell-admin/src/routes/vertical-components.tsx',
+        ),
+        'utf-8',
+      ),
+      /data-modern-boundary-id="shellAdmin"/,
+    );
+
+    const validation = runValidation(workspaceDir);
+    assert.equal(
+      validation.status,
+      0,
+      `${validation.stdout}\n${validation.stderr}`,
+    );
+
+    assert.throws(
+      () =>
+        addUltramodernVertical({
+          workspaceRoot: workspaceDir,
+          name: 'payments',
+          modernVersion: '3.2.1',
+          shell: 'shell-missing',
+        }),
+      error => {
+        assert.ok(error instanceof UnknownUltramodernShellError);
+        assert.equal(error.code, 'ULTRAMODERN_UNKNOWN_TARGET_SHELL');
+        assert.deepEqual(error.issue, {
+          field: 'shell',
+          value: 'shell-missing',
+          reason: 'unknown',
+          available: ['shell-super-app', 'shell-admin'],
+        });
+        return true;
+      },
+    );
+    assert.equal(
+      fs.existsSync(path.join(workspaceDir, 'verticals/payments')),
+      false,
+    );
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('add-shell followed by add-vertical preserves every shell-derived artifact', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-add-shell-'));
+  const workspaceDir = path.join(tempRoot, 'workspace');
+  try {
+    createBaseWorkspace(workspaceDir);
+    addUltramodernShell({
+      workspaceRoot: workspaceDir,
+      name: 'admin',
+      modernVersion: '3.2.1',
+    });
+    addUltramodernVertical({
+      workspaceRoot: workspaceDir,
+      name: 'orders',
+      modernVersion: '3.2.1',
+    });
+
+    const config = readJson(workspaceDir, '.modernjs/ultramodern.json');
+    assert.equal(config.shells.length, 1);
+    assert.equal(config.shells[0].id, 'shell-admin');
+    assert.deepEqual(config.shells[0].verticalRefs, ['catalog']);
+    assert.ok(
+      readJson(workspaceDir, 'tsconfig.json').references.some(
+        (reference: { path?: string }) => reference.path === 'apps/shell-admin',
+      ),
+    );
+    assert.match(
+      readJson(workspaceDir, 'package.json').scripts.build,
+      /apps\/shell-admin.*run build/,
+    );
+    assert.match(
+      fs.readFileSync(path.join(workspaceDir, 'zerops.yaml'), 'utf-8'),
+      /setup: 'shell-admin'/,
+    );
+
+    const validation = runValidation(workspaceDir);
+    assert.equal(
+      validation.status,
+      0,
+      `${validation.stdout}\n${validation.stderr}`,
+    );
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('workspace-wide port allocation avoids customized shell and overlay ports', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-add-shell-'));
+  const workspaceDir = path.join(tempRoot, 'workspace');
+  try {
+    createBaseWorkspace(workspaceDir);
+
+    const overlayPath = path.join(
+      workspaceDir,
+      'topology/local-overlays/development.json',
+    );
+    const overlay = readJson(
+      workspaceDir,
+      'topology/local-overlays/development.json',
+    );
+    overlay.ports.catalog = 3120;
+    fs.writeFileSync(overlayPath, `${JSON.stringify(overlay, null, 2)}\n`);
+
+    addUltramodernShell({
+      workspaceRoot: workspaceDir,
+      name: 'admin',
+      modernVersion: '3.2.1',
+    });
+    const configAfterShell = readJson(
+      workspaceDir,
+      '.modernjs/ultramodern.json',
+    );
+    assert.equal(configAfterShell.shells[0].port, 3121);
+
+    configAfterShell.shells[0].port = 4101;
+    fs.writeFileSync(
+      path.join(workspaceDir, '.modernjs/ultramodern.json'),
+      `${JSON.stringify(configAfterShell, null, 2)}\n`,
+    );
+    addUltramodernVertical({
+      workspaceRoot: workspaceDir,
+      name: 'orders',
+      modernVersion: '3.2.1',
+    });
+    const configAfterVertical = readJson(
+      workspaceDir,
+      '.modernjs/ultramodern.json',
+    );
+    const orders = configAfterVertical.topology.apps.find(
+      (app: { id?: string }) => app.id === 'orders',
+    );
+    assert.equal(orders.port, 4102);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }

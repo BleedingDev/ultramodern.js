@@ -118,6 +118,17 @@ test('generates byte-identical workspaces for a fixed shell and MicroVertical sp
     );
 
     assert.equal(difference, undefined, difference);
+    const compactConfig = JSON.parse(
+      fs.readFileSync(
+        path.join(firstWorkspaceDir, '.modernjs/ultramodern.json'),
+        'utf-8',
+      ),
+    );
+    assert.equal(
+      compactConfig.shells,
+      undefined,
+      'single-shell config must not gain an additional shells collection',
+    );
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }

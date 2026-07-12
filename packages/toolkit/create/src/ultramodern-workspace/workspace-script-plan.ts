@@ -188,7 +188,7 @@ export function createWorkspaceRootScriptPlan(
   const shellBuild = shells
     .map(
       shell =>
-        `ULTRAMODERN_ZEPHYR=false pnpm --filter "./${shell.directory}" run build`,
+        `pnpm --filter "./${shell.directory}" run build`,
     )
     .join(' && ');
   const shellCloudflareBuild = shells

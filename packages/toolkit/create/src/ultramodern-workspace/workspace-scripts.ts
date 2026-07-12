@@ -150,6 +150,7 @@ export function createWorkspaceValidationScript(
   remotes: WorkspaceApp[] = [],
   releaseCohort?: UltramodernReleaseCohort,
   additionalShells: WorkspaceApp[] = [],
+  primaryShell?: WorkspaceApp,
 ): string {
   const contract = createWorkspaceValidationContract(
     scope,
@@ -157,6 +158,7 @@ export function createWorkspaceValidationScript(
     remotes,
     releaseCohort,
     additionalShells,
+    primaryShell,
   );
 
   return renderFileTemplate(
@@ -202,6 +204,7 @@ export function writeGeneratedWorkspaceScripts(
   remotes: WorkspaceApp[] = [],
   releaseCohort?: UltramodernReleaseCohort,
   additionalShells: WorkspaceApp[] = [],
+  primaryShell?: WorkspaceApp,
 ) {
   const shellOnly = remotes.length === 0;
 
@@ -237,6 +240,7 @@ export function writeGeneratedWorkspaceScripts(
       remotes,
       releaseCohort,
       additionalShells,
+      primaryShell,
     ),
   );
   writeWorkspaceOwnedMtsScript(

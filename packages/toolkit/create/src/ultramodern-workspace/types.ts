@@ -102,6 +102,13 @@ export type WorkspaceApp = {
    * the v1 `kind` field (which stays `vertical`).
    */
   deliveryUnitKind?: WorkspaceDeliveryUnitKind;
+  /**
+   * Existing additional shells carry their stamped delivery-unit contract
+   * through regeneration (G28). Keeping this on the descriptor prevents a later
+   * add-vertical/migrate pass from minting a new build marker for an already
+   * generated shell.
+   */
+  deliveryUnit?: JsonObject;
 };
 
 export type WorkspaceApi = {

@@ -219,6 +219,9 @@ export function updateGeneratedPackageScripts(
   const expectedScripts = isRootPackage
     ? createWorkspaceRootPackageScripts(
         apps.filter(candidate => candidate.kind !== 'shell'),
+        {
+          shells: apps.filter(candidate => candidate.kind === 'shell'),
+        },
       )
     : app
       ? createWorkspaceAppPackageScripts(app)

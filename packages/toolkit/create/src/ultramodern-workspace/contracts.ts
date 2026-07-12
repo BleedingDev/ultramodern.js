@@ -11,6 +11,7 @@ import {
   deliveryUnitContractBlock,
 } from './delivery-unit';
 import {
+  appEmitsBrowserUi,
   createModuleFederationRemoteContracts,
   createShellHost,
   resolveApiPrefix,
@@ -21,6 +22,7 @@ import {
 } from './descriptors';
 import { packageName } from './naming';
 import { createCloudflareDeployContract } from './policy';
+import { createAdditionalShellConfigEntry } from './shells';
 import { createGeneratedToolingWrapperMap } from './tooling-command-catalog';
 import type { JsonValue, ResolvedPackageSource, WorkspaceApp } from './types';
 import {
@@ -57,8 +59,9 @@ function presentJsonValues(values: (JsonValue | undefined)[]): JsonValue[] {
 export function createTopology(
   scope: string,
   remotes: WorkspaceApp[] = [],
+  primaryShell?: WorkspaceApp,
 ): JsonValue {
-  const shellHost = createShellHost(remotes);
+  const shellHost = primaryShell ?? createShellHost(remotes);
   return {
     schemaVersion: 1,
     id: 'ultramodern-superapp-workspace-reference-topology',
@@ -195,10 +198,12 @@ export function createDevelopmentOverlay(
       [shellApp, ...remotes].map(app => [app.id, app.port]),
     ),
     manifests: Object.fromEntries(
-      remotes.map(remote => [
-        remote.id,
-        `http://localhost:${remote.port}/mf-manifest.json`,
-      ]),
+      remotes
+        .filter(appEmitsBrowserUi)
+        .map(remote => [
+          remote.id,
+          `http://localhost:${remote.port}/mf-manifest.json`,
+        ]),
     ),
     serverExecution: jsonEntries(
       verticalApiApps(remotes).map(app => [
@@ -226,9 +231,11 @@ export function createUltramodernConfig(
   apps: WorkspaceApp[] = [createShellHost()],
   enableTailwind = true,
   bridge?: UltramodernBridgeConfig,
+  additionalShells: WorkspaceApp[] = [],
+  primaryShell?: WorkspaceApp,
 ): JsonValue {
   const remotes = apps.filter(app => app.kind !== 'shell');
-  const shellHost = createShellHost(remotes);
+  const shellHost = primaryShell ?? createShellHost(remotes);
 
   return {
     schemaVersion: 1,
@@ -326,6 +333,13 @@ export function createUltramodernConfig(
           : {}),
       })),
     },
+    ...(additionalShells.length > 0
+      ? {
+          shells: additionalShells.map(shell =>
+            createAdditionalShellConfigEntry(scope, shell, remotes),
+          ),
+        }
+      : {}),
     bridge: bridge ?? {
       enabled: false,
       workspacePackages: [],

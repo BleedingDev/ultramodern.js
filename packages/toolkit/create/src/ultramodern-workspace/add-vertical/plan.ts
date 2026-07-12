@@ -80,7 +80,7 @@ function createVerticalPlan(
   preflight: AddUltramodernVerticalPreflight,
   result: UltramodernGenerationResult,
 ): UltramodernVerticalPlan {
-  const { scope, vertical, updatedVerticals } = preflight;
+  const { scope, vertical, targetShell, targetVerticals } = preflight;
   const manifestUrl = `http://localhost:${vertical.port}/mf-manifest.json`;
 
   return {
@@ -94,12 +94,16 @@ function createVerticalPlan(
     },
     ...(vertical.api ? { apiPrefix: resolveApiPrefix(vertical) } : {}),
     jsonMutations: createDryRunJsonMutations(preflight, manifestUrl),
-    shellDependencyChanges: createShellDependencyChanges(scope, vertical),
+    shellDependencyChanges: createShellDependencyChanges(
+      scope,
+      vertical,
+      targetShell,
+    ),
     generatedContractChanges: [
       {
         path: ULTRAMODERN_CONFIG_PATH,
         addedAppIds: [vertical.id],
-        shellVerticalRefs: updatedVerticals
+        shellVerticalRefs: targetVerticals
           .filter(appEmitsBrowserUi)
           .map(vertical => vertical.id),
       },
@@ -111,7 +115,10 @@ function createDryRunJsonMutations(
   preflight: AddUltramodernVerticalPreflight,
   manifestUrl: string,
 ): UltramodernJsonMutation[] {
-  const { scope, vertical } = preflight;
+  const { scope, vertical, targetShell, additionalShells } = preflight;
+  const additionalShellIndex = additionalShells.findIndex(
+    shell => shell.id === targetShell.id,
+  );
   const apiMutation: UltramodernJsonMutation[] = appHasApi(vertical)
     ? [
         {
@@ -133,13 +140,13 @@ function createDryRunJsonMutations(
       ]
     : [];
 
-  return [
-    ...(appEmitsBrowserUi(vertical)
+  const shellMutations: UltramodernJsonMutation[] =
+    targetShell.id === shellApp.id
       ? [
           {
             path: TOPOLOGY_PATH,
             pointer: '/shell/verticalRefs/-',
-            description: `Add ${vertical.id} to the shell vertical references`,
+            description: `Add ${vertical.id} to the ${targetShell.id} vertical references`,
             value: vertical.id,
           },
           {
@@ -153,7 +160,24 @@ function createDryRunJsonMutations(
             },
           },
         ]
-      : []),
+      : [
+          {
+            path: ULTRAMODERN_CONFIG_PATH,
+            pointer: `/shells/${additionalShellIndex}/verticalRefs/-`,
+            description: `Add ${vertical.id} to the ${targetShell.id} vertical references`,
+            value: vertical.id,
+          },
+          {
+            path: ULTRAMODERN_CONFIG_PATH,
+            pointer: `/shells/${additionalShellIndex}/moduleFederation/remotes`,
+            description: `Regenerate ${targetShell.id} Module Federation remotes for ${vertical.id}`,
+          },
+        ];
+
+  return [
+    // A headless (api-only) unit joins no shell UI composition (G2a); UI
+    // units register into the TARGET shell only (G28).
+    ...(appEmitsBrowserUi(vertical) ? shellMutations : []),
     {
       path: TOPOLOGY_PATH,
       pointer: '/verticals/-',
@@ -189,7 +213,7 @@ function createDryRunJsonMutations(
       description: 'Regenerate workspace scripts for the new vertical set',
     },
     {
-      path: `${shellApp.directory}/package.json`,
+      path: `${targetShell.directory}/package.json`,
       pointer: '/dependencies',
       description: `Wire shell dependencies for ${vertical.id}`,
     },
@@ -199,12 +223,12 @@ function createDryRunJsonMutations(
       description: `Add ${vertical.id} to the root TS-Go build graph`,
     },
     {
-      path: `${shellApp.directory}/tsconfig.json`,
+      path: `${targetShell.directory}/tsconfig.json`,
       pointer: '/references',
       description: `Add ${vertical.id} to the shell TS-Go project references`,
     },
     {
-      path: `${shellApp.directory}/tsconfig.mf-types.json`,
+      path: `${targetShell.directory}/tsconfig.mf-types.json`,
       pointer: '/include',
       description: 'Keep shell Module Federation DTS compilation scoped',
     },
@@ -219,12 +243,13 @@ function createDryRunJsonMutations(
 function createShellDependencyChanges(
   scope: string,
   vertical: WorkspaceApp,
+  shell: WorkspaceApp,
 ): UltramodernShellDependencyChange[] {
   return [
     ...(appEmitsBrowserUi(vertical)
       ? [
           {
-            path: `${shellApp.directory}/package.json`,
+            path: `${shell.directory}/package.json`,
             section: 'zephyr:dependencies' as const,
             packageName: remoteDependencyAlias(vertical),
             version: zephyrRemoteDependency(scope, vertical),
@@ -234,7 +259,7 @@ function createShellDependencyChanges(
     ...(appHasApi(vertical)
       ? [
           {
-            path: `${shellApp.directory}/package.json`,
+            path: `${shell.directory}/package.json`,
             section: 'dependencies' as const,
             packageName: packageName(scope, vertical.packageSuffix),
             version: WORKSPACE_PACKAGE_VERSION,

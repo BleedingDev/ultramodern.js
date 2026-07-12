@@ -17,6 +17,7 @@ import {
   appI18nNamespace,
   createShellHost,
   remoteDependencyAlias,
+  resolveRemoteRefs,
   shellApp,
   zephyrRemoteDependency,
 } from '../descriptors';
@@ -45,6 +46,7 @@ export function updateRootWorkspaceScripts(
   packageSource: ResolvedPackageSource,
   remotes: WorkspaceApp[],
   bridge?: UltramodernBridgeConfig,
+  additionalShells: WorkspaceApp[] = [],
 ) {
   const packagePath = path.join(workspaceRoot, 'package.json');
   const rootPackage = readJsonFile(packagePath);
@@ -53,6 +55,7 @@ export function updateRootWorkspaceScripts(
     packageSource,
     remotes,
     bridge,
+    additionalShells,
   ) as Record<string, any>;
   rootPackage.scripts = generatedRootPackage.scripts;
   writeJsonFile(packagePath, rootPackage as JsonValue);
@@ -65,38 +68,55 @@ export function rewriteShellAppFiles(
   enableTailwind: boolean,
   remotes: WorkspaceApp[],
   bridge?: UltramodernBridgeConfig,
+  shell: WorkspaceApp = shellApp,
+  devPorts?: number[],
 ) {
-  const shellHost = createShellHost(remotes);
-  const uiRemotes = remotes.filter(appEmitsBrowserUi);
+  const shellHost =
+    shell.id === shellApp.id
+      ? createShellHost(remotes, shell.verticalRefs)
+      : shell;
+  const shellRemotes = resolveRemoteRefs(shellHost, remotes);
+  // Only UI-emitting remotes appear in the shell's visible page/components
+  // surface (G2a): headless api-only units are composed via API clients only.
+  const uiRemotes = shellRemotes.filter(appEmitsBrowserUi);
   const publicWeb = createPublicWebAppArtifacts(shellHost);
   writeJsonFile(
-    path.join(workspaceRoot, `${shellApp.directory}/package.json`),
+    path.join(workspaceRoot, `${shellHost.directory}/package.json`),
     createAppPackage(
       scope,
       shellHost,
       packageSource,
       enableTailwind,
+      // Pass the full vertical set so the shell declares plain workspace deps on
+      // headless api-only verticals (their API is re-exported by the shell's
+      // vertical-clients.ts) while MF/zephyr wiring stays verticalRefs-gated.
       remotes,
       bridge,
     ),
   );
   writeJsonFile(
-    path.join(workspaceRoot, `${shellApp.directory}/tsconfig.json`),
-    createAppTsConfig(shellHost, remotes),
+    path.join(workspaceRoot, `${shellHost.directory}/tsconfig.json`),
+    createAppTsConfig(shellHost, shellRemotes),
   );
   writeJsonFile(
-    path.join(workspaceRoot, `${shellApp.directory}/tsconfig.mf-types.json`),
+    path.join(workspaceRoot, `${shellHost.directory}/tsconfig.mf-types.json`),
     createAppMfTypesTsConfig(shellHost),
   );
   writeFileReplacing(
     workspaceRoot,
-    `${shellApp.directory}/src/modern-app-env.d.ts`,
-    createAppEnvDts(shellHost, remotes),
+    `${shellHost.directory}/src/modern-app-env.d.ts`,
+    createAppEnvDts(shellHost, shellRemotes),
   );
   writeFileReplacing(
     workspaceRoot,
-    `${shellApp.directory}/modern.config.ts`,
-    createAppModernConfig(scope, shellHost, remotes, enableTailwind),
+    `${shellHost.directory}/modern.config.ts`,
+    createAppModernConfig(
+      scope,
+      shellHost,
+      shellRemotes,
+      enableTailwind,
+      devPorts,
+    ),
   );
   writeFileReplacing(
     workspaceRoot,
@@ -123,60 +143,60 @@ export function rewriteShellAppFiles(
   rewriteWorkspaceAssetsForApp(workspaceRoot, shellHost);
   writeFileReplacing(
     workspaceRoot,
-    `${shellApp.directory}/src/modern.runtime.ts`,
-    createAppRuntimeConfig(shellHost, scope, remotes),
+    `${shellHost.directory}/src/modern.runtime.ts`,
+    createAppRuntimeConfig(shellHost, scope, shellRemotes),
   );
   writeJsonFile(
     path.join(
       workspaceRoot,
-      `${shellApp.directory}/locales/en/translation.json`,
+      `${shellHost.directory}/locales/en/translation.json`,
     ),
-    createAppPublicLocaleMessages(shellHost, 'en', remotes),
+    createAppPublicLocaleMessages(shellHost, 'en', shellRemotes),
   );
   writeJsonFile(
     path.join(
       workspaceRoot,
-      `${shellApp.directory}/locales/en/${appI18nNamespace(shellHost)}.json`,
+      `${shellHost.directory}/locales/en/${appI18nNamespace(shellHost)}.json`,
     ),
-    createAppPublicLocaleMessages(shellHost, 'en', remotes),
+    createAppPublicLocaleMessages(shellHost, 'en', shellRemotes),
   );
   writeJsonFile(
     path.join(
       workspaceRoot,
-      `${shellApp.directory}/locales/cs/translation.json`,
+      `${shellHost.directory}/locales/cs/translation.json`,
     ),
-    createAppPublicLocaleMessages(shellHost, 'cs', remotes),
+    createAppPublicLocaleMessages(shellHost, 'cs', shellRemotes),
   );
   writeJsonFile(
     path.join(
       workspaceRoot,
-      `${shellApp.directory}/locales/cs/${appI18nNamespace(shellHost)}.json`,
+      `${shellHost.directory}/locales/cs/${appI18nNamespace(shellHost)}.json`,
     ),
-    createAppPublicLocaleMessages(shellHost, 'cs', remotes),
+    createAppPublicLocaleMessages(shellHost, 'cs', shellRemotes),
   );
   writeFileReplacing(
     workspaceRoot,
-    `${shellApp.directory}/module-federation.config.ts`,
-    createShellModuleFederationConfig(scope, remotes),
+    `${shellHost.directory}/module-federation.config.ts`,
+    createShellModuleFederationConfig(scope, shellHost, shellRemotes),
   );
   writeFileReplacing(
     workspaceRoot,
-    `${shellApp.directory}/src/routes/[lang]/page.tsx`,
-    createShellPage(uiRemotes),
+    `${shellHost.directory}/src/routes/[lang]/page.tsx`,
+    createShellPage(shellHost, uiRemotes),
   );
   writeFileReplacing(
     workspaceRoot,
-    `${shellApp.directory}/src/routes/vertical-components.tsx`,
-    createShellRemoteComponents(uiRemotes),
+    `${shellHost.directory}/src/routes/vertical-components.tsx`,
+    createShellRemoteComponents(shellHost, uiRemotes),
   );
   writeFileReplacing(
     workspaceRoot,
-    `${shellApp.directory}/src/routes/shell-frame.tsx`,
-    createShellFrameComponent(),
+    `${shellHost.directory}/src/routes/shell-frame.tsx`,
+    createShellFrameComponent(shellHost),
   );
   writeFileReplacing(
     workspaceRoot,
-    `${shellApp.directory}/src/api/vertical-clients.ts`,
+    `${shellHost.directory}/src/api/vertical-clients.ts`,
     createShellApiClient(scope, remotes),
   );
 }
@@ -185,12 +205,9 @@ export function addShellZephyrDependency(
   workspaceRoot: string,
   scope: string,
   remote: WorkspaceApp,
+  shell: WorkspaceApp = shellApp,
 ) {
-  const packagePath = path.join(
-    workspaceRoot,
-    shellApp.directory,
-    'package.json',
-  );
+  const packagePath = path.join(workspaceRoot, shell.directory, 'package.json');
   const shellPackage = readJsonFile(packagePath);
   shellPackage['zephyr:dependencies'] ??= {};
   shellPackage['zephyr:dependencies'][remoteDependencyAlias(remote)] =
@@ -202,16 +219,13 @@ export function addShellWorkspaceDependency(
   workspaceRoot: string,
   scope: string,
   remote: WorkspaceApp,
+  shell: WorkspaceApp = shellApp,
 ) {
   if (!appHasApi(remote)) {
     return;
   }
 
-  const packagePath = path.join(
-    workspaceRoot,
-    shellApp.directory,
-    'package.json',
-  );
+  const packagePath = path.join(workspaceRoot, shell.directory, 'package.json');
   const shellPackage = readJsonFile(packagePath);
   shellPackage.dependencies ??= {};
   shellPackage.dependencies[packageName(scope, remote.packageSuffix)] =

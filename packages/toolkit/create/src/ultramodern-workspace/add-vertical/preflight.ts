@@ -14,6 +14,7 @@ import {
   normalizePath,
   toPackageScope,
 } from '../naming';
+import { resolveConfiguredAdditionalShells } from '../shells';
 import type {
   AddUltramodernVerticalOptions,
   JsonValue,
@@ -29,6 +30,7 @@ import {
 import { verticalsFromTopology } from './topology';
 import {
   assertCanCreate,
+  assertGlobalPortUniqueness,
   assertValidVerticalName,
   existingBridgeConfig,
   existingPackageSource,
@@ -49,9 +51,48 @@ export type AddUltramodernVerticalPreflight = {
   packageSource: ResolvedPackageSource;
   enableTailwind: boolean;
   bridge?: UltramodernBridgeConfig;
+  config: Record<string, any>;
+  primaryShell: WorkspaceApp;
+  additionalShells: WorkspaceApp[];
+  targetShell: WorkspaceApp;
+  targetVerticals: WorkspaceApp[];
   vertical: WorkspaceApp;
   updatedVerticals: WorkspaceApp[];
 };
+
+export type UnknownUltramodernShellIssue = {
+  field: 'shell';
+  value: string;
+  reason: 'unknown';
+  available: string[];
+};
+
+/**
+ * Typed preflight rejection for an add-vertical request whose shell target is
+ * not present in the workspace's additive config.shells collection.
+ */
+export class UnknownUltramodernShellError extends Error {
+  readonly code = 'ULTRAMODERN_UNKNOWN_TARGET_SHELL';
+  readonly issue: UnknownUltramodernShellIssue;
+
+  constructor(
+    readonly sourcePath: string,
+    requestedShellId: string,
+    available: string[],
+  ) {
+    const issue: UnknownUltramodernShellIssue = {
+      field: 'shell',
+      value: requestedShellId,
+      reason: 'unknown',
+      available,
+    };
+    super(
+      `Unknown target shell "${requestedShellId}" in ${sourcePath}. Available shells: ${available.join(', ') || 'none'}.`,
+    );
+    this.name = 'UnknownUltramodernShellError';
+    this.issue = issue;
+  }
+}
 
 export function prepareAddUltramodernVertical(
   options: AddUltramodernVerticalOptions,
@@ -70,7 +111,7 @@ export function prepareAddUltramodernVertical(
   const topology = readRequiredJsonObject(topologyPath);
   const ownership = readRequiredJsonObject(ownershipPath);
   const overlay = readRequiredJsonObject(overlayPath);
-  readRequiredWorkspaceConfig(options.workspaceRoot);
+  const config = readRequiredWorkspaceConfig(options.workspaceRoot);
 
   assertOptionalJsonObject(topology.shell, 'topology.shell', topologyPath);
   assertOptionalJsonArray(
@@ -96,14 +137,33 @@ export function prepareAddUltramodernVertical(
     options.enableTailwind ?? existingTailwindEnabled(options.workspaceRoot);
   const bridge = existingBridgeConfig(options.workspaceRoot);
   const existingVerticals = verticalsFromTopology(topology, overlay.ports);
-  const port = nextAvailablePort(overlay.ports);
+  const additionalShells = resolveConfiguredAdditionalShells(config);
+  const primaryShell = createPrimaryShellDescriptor(topology, config);
+  const targetShell = resolveTargetShell(
+    options.shell,
+    primaryShell,
+    additionalShells,
+    path.join(options.workspaceRoot, ULTRAMODERN_CONFIG_PATH),
+  );
+  const portsWithPrimary = {
+    ...overlay.ports,
+    [primaryShell.id]: primaryShell.port,
+  };
+  assertGlobalPortUniqueness(portsWithPrimary, additionalShells);
+  const port = nextAvailablePort(portsWithPrimary, additionalShells);
   const vertical = createVerticalDescriptor(name, port, {
     preset: options.preset,
     apiProtocol: options.apiProtocol,
     horizontalRemote: options.horizontalRemote,
   });
   const updatedVerticals = [...existingVerticals, vertical];
-  const allApps = [shellApp, ...updatedVerticals];
+  const targetVerticals = [
+    ...existingVerticals.filter(id =>
+      (targetShell.verticalRefs ?? []).includes(id.id),
+    ),
+    vertical,
+  ];
+  const allApps = [primaryShell, ...updatedVerticals, ...additionalShells];
 
   assertCanCreate(options.workspaceRoot, vertical.directory);
   validateWorkspaceAppDescriptors(allApps);
@@ -117,12 +177,17 @@ export function prepareAddUltramodernVertical(
     ownershipPath,
     overlayPath,
     rootPackage,
+    config,
     topology,
     ownership,
     overlay,
     packageSource,
     enableTailwind,
     bridge,
+    primaryShell,
+    additionalShells,
+    targetShell,
+    targetVerticals,
     vertical,
     updatedVerticals,
   };
@@ -145,11 +210,68 @@ function readRequiredJsonObject(filePath: string): Record<string, any> {
 
 function readRequiredWorkspaceConfig(workspaceRoot: string) {
   const compactPath = path.join(workspaceRoot, ULTRAMODERN_CONFIG_PATH);
-  normalizeCompactConfig(
-    workspaceRoot,
-    compactPath,
-    readRequiredJsonObject(compactPath),
+  const config = readRequiredJsonObject(compactPath);
+  normalizeCompactConfig(workspaceRoot, compactPath, config);
+  return config;
+}
+
+function createPrimaryShellDescriptor(
+  topology: Record<string, any>,
+  config: Record<string, any>,
+): WorkspaceApp {
+  const compactShell = config.topology?.apps?.find(
+    (app: { id?: unknown }) => app?.id === shellApp.id,
   );
+  const verticalRefs = Array.isArray(topology.shell?.verticalRefs)
+    ? topology.shell.verticalRefs.filter(
+        (id: unknown): id is string => typeof id === 'string',
+      )
+    : Array.isArray(compactShell?.moduleFederation?.verticalRefs)
+      ? compactShell.moduleFederation.verticalRefs.filter(
+          (id: unknown): id is string => typeof id === 'string',
+        )
+      : [];
+  return {
+    ...shellApp,
+    verticalRefs,
+    ...(typeof compactShell?.path === 'string'
+      ? { directory: compactShell.path }
+      : {}),
+    ...(typeof compactShell?.port === 'number'
+      ? { port: compactShell.port }
+      : {}),
+    ...(typeof compactShell?.portEnv === 'string'
+      ? { portEnv: compactShell.portEnv }
+      : {}),
+    ...(typeof compactShell?.moduleFederation?.name === 'string'
+      ? { mfName: compactShell.moduleFederation.name }
+      : {}),
+  };
+}
+
+function resolveTargetShell(
+  requestedShellId: string | undefined,
+  primaryShell: WorkspaceApp,
+  additionalShells: WorkspaceApp[],
+  sourcePath: string,
+): WorkspaceApp {
+  if (requestedShellId === undefined || requestedShellId === primaryShell.id) {
+    return primaryShell;
+  }
+  const targetShell = additionalShells.find(
+    shell => shell.id === requestedShellId,
+  );
+  if (!targetShell) {
+    const available = [primaryShell, ...additionalShells].map(
+      shell => shell.id,
+    );
+    throw new UnknownUltramodernShellError(
+      sourcePath,
+      requestedShellId,
+      available,
+    );
+  }
+  return targetShell;
 }
 
 function assertOptionalJsonObject(

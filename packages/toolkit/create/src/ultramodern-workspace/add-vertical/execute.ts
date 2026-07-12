@@ -8,7 +8,7 @@ import {
 import {
   appEmitsBrowserUi,
   appHasApi,
-  createShellHost,
+  createModuleFederationRemoteContracts,
   resolveApiPrefix,
   resolveApiProtocol,
   shellApp,
@@ -32,17 +32,17 @@ import type {
   UltramodernGenerationResult,
 } from '../types';
 import { writeGeneratedWorkspaceScripts } from '../workspace-scripts';
+import { rewriteAppModernConfig } from '../write-app';
 import { createCompactUltramodernConfig, writeApp } from '../write-workspace';
 import { createZeropsYaml } from '../zerops';
 import { prepareAddUltramodernVertical } from './preflight';
 import {
-  addShellWorkspaceDependency,
-  addShellZephyrDependency,
   rewriteShellAppFiles,
   updateRootWorkspaceScripts,
 } from './shell-files';
 import { ownershipEntry, verticalTopologyEntry } from './topology';
 import { runWorkspaceTransaction } from './transaction';
+import { configuredDevelopmentPorts } from './workspace-state';
 
 /**
  * Add a MicroVertical to an existing workspace. Transactional (G1c): the
@@ -74,10 +74,40 @@ function executeAddUltramodernVertical(
     packageSource,
     enableTailwind,
     bridge,
+    primaryShell,
+    additionalShells,
+    targetShell,
+    targetVerticals,
     vertical,
     updatedVerticals,
   } = prepareAddUltramodernVertical(options);
-  const shellHost = createShellHost(updatedVerticals);
+
+  const nextTargetShell = {
+    ...targetShell,
+    // Only UI-emitting units join a shell's composition refs (G2a): headless
+    // api-only units are consumed via API clients, never as MF remotes.
+    verticalRefs: targetVerticals
+      .filter(appEmitsBrowserUi)
+      .map(remote => remote.id),
+  };
+  const nextPrimaryShell =
+    targetShell.id === primaryShell.id
+      ? { ...primaryShell, verticalRefs: nextTargetShell.verticalRefs }
+      : primaryShell;
+  const nextAdditionalShells = additionalShells.map(shell =>
+    shell.id === nextTargetShell.id ? nextTargetShell : shell,
+  );
+  const configuredDevPorts =
+    nextAdditionalShells.length > 0
+      ? configuredDevelopmentPorts(
+          {
+            ...overlay.ports,
+            [primaryShell.id]: primaryShell.port,
+            [vertical.id]: vertical.port,
+          },
+          nextAdditionalShells,
+        ).toSorted((left, right) => left - right)
+      : undefined;
 
   writeApp(
     options.workspaceRoot,
@@ -87,30 +117,25 @@ function executeAddUltramodernVertical(
     enableTailwind,
     updatedVerticals,
     bridge,
+    configuredDevPorts,
   );
-  topology.shell ??= {};
-  topology.shell.deliveryUnit = deliveryUnitContractBlock(
-    createDeliveryUnitRecord(scope, shellApp),
-  );
-  topology.shell.verticalRefs ??= [];
-  topology.shell.verticalRefs = topology.shell.verticalRefs.filter(
-    (id: unknown) => id !== vertical.id,
-  );
-  if (appEmitsBrowserUi(vertical)) {
-    topology.shell.verticalRefs.push(vertical.id);
-  }
-  topology.shell.moduleFederation ??= {};
-  topology.shell.moduleFederation.remotes ??= [];
-  topology.shell.moduleFederation.remotes =
-    topology.shell.moduleFederation.remotes.filter(
-      (remote: { id?: unknown } | null) => remote?.id !== vertical.id,
+  if (targetShell.id === primaryShell.id) {
+    topology.shell ??= {};
+    // The primary shell is its own delivery unit (G29): stamp identity too.
+    topology.shell.deliveryUnit = deliveryUnitContractBlock(
+      createDeliveryUnitRecord(scope, shellApp),
     );
-  if (appEmitsBrowserUi(vertical)) {
-    topology.shell.moduleFederation.remotes.push({
-      id: vertical.id,
-      name: vertical.mfName,
-      manifestUrl: `http://localhost:${vertical.port}/mf-manifest.json`,
-    });
+    topology.shell.verticalRefs = nextTargetShell.verticalRefs;
+    topology.shell.moduleFederation ??= {};
+    topology.shell.moduleFederation.remotes =
+      createModuleFederationRemoteContracts(
+        nextPrimaryShell,
+        updatedVerticals,
+      ).map(remote => ({
+        id: remote.id,
+        name: remote.name,
+        manifestUrl: remote.manifestUrl,
+      }));
   }
   topology.verticals ??= [];
   topology.verticals.push(verticalTopologyEntry(scope, vertical));
@@ -150,24 +175,23 @@ function executeAddUltramodernVertical(
       packageSource,
       [
         {
-          ...shellApp,
-          verticalRefs: shellHost.verticalRefs,
+          ...nextPrimaryShell,
         },
         ...updatedVerticals,
       ],
       enableTailwind,
       bridge,
+      nextAdditionalShells,
+      nextPrimaryShell,
     ),
   );
   writeFileReplacing(
     options.workspaceRoot,
     'zerops.yaml',
     `${createZeropsYaml(scope, [
-      {
-        ...shellApp,
-        verticalRefs: shellHost.verticalRefs,
-      },
+      nextPrimaryShell,
       ...updatedVerticals,
+      ...nextAdditionalShells,
     ])}\n`,
   );
   rewriteShellAppFiles(
@@ -177,34 +201,53 @@ function executeAddUltramodernVertical(
     enableTailwind,
     updatedVerticals,
     bridge,
+    nextTargetShell,
+    configuredDevPorts,
   );
   writeGeneratedWorkspaceScripts(
     options.workspaceRoot,
     scope,
     enableTailwind,
     updatedVerticals,
+    undefined,
+    nextAdditionalShells,
+    nextPrimaryShell,
   );
-  if (appEmitsBrowserUi(vertical)) {
-    addShellZephyrDependency(options.workspaceRoot, scope, vertical);
-  }
-  addShellWorkspaceDependency(options.workspaceRoot, scope, vertical);
   updateRootWorkspaceScripts(
     options.workspaceRoot,
     scope,
     packageSource,
     updatedVerticals,
     bridge,
+    nextAdditionalShells,
   );
   writeJsonFile(
     path.join(options.workspaceRoot, 'tsconfig.json'),
     createRootTsConfig([
-      {
-        ...shellApp,
-        verticalRefs: shellHost.verticalRefs,
-      },
+      nextPrimaryShell,
       ...updatedVerticals,
+      ...nextAdditionalShells,
     ]),
   );
+  if (configuredDevPorts) {
+    for (const app of [
+      nextPrimaryShell,
+      ...updatedVerticals,
+      ...nextAdditionalShells,
+    ]) {
+      if (app.id === vertical.id || app.id === nextTargetShell.id) {
+        continue;
+      }
+      rewriteAppModernConfig(
+        options.workspaceRoot,
+        scope,
+        app,
+        updatedVerticals,
+        enableTailwind,
+        configuredDevPorts,
+      );
+    }
+  }
   const preliminaryAfterFiles = createFileSnapshot(options.workspaceRoot);
   const preliminaryDiff = diffFileSnapshots(beforeFiles, preliminaryAfterFiles);
 

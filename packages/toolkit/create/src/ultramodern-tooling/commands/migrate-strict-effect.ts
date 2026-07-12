@@ -5,12 +5,15 @@ import {
   readCreateReleaseCohort,
 } from '../../ultramodern-release-cohort';
 import { ULTRAMODERN_WORKSPACE_POLICY } from '../../ultramodern-workspace/policy';
+import { createAdditionalShellConfigEntry } from '../../ultramodern-workspace/shells';
 import type { WorkspaceApp } from '../../ultramodern-workspace/types';
 import {
   createWorkspaceValidationScript,
   migratedWorkspaceScriptArtifacts,
 } from '../../ultramodern-workspace/workspace-scripts';
 import {
+  additionalShellsFromToolingConfig,
+  allWorkspaceAppsFromToolingConfig,
   normalizeCompactUltramodernConfig,
   synthesizeCompactUltramodernConfig,
   workspaceAppsFromToolingConfig,
@@ -271,7 +274,56 @@ function deriveValidationContractInputs(
     scope,
     enableTailwind,
     remotes: migratedApps.filter(app => app.kind !== 'shell'),
+    primaryShell: migratedApps.find(app => app.kind === 'shell'),
+    additionalShells: additionalShellsFromToolingConfig(migrated),
   };
+}
+
+/**
+ * G28 shell records were initially emitted without the owner and complete
+ * Module Federation projections. Reconcile those additive records before the
+ * rest of migration derives artifacts, while retaining unknown consumer-owned
+ * fields on each record. This also keeps an existing Delivery Unit marker
+ * stable when it is already stamped.
+ */
+function reconcileAdditionalShellConfig(
+  raw: Record<string, any>,
+  migrated: ReturnType<typeof normalizeCompactUltramodernConfig>,
+  migratedApps: WorkspaceApp[],
+  io: ReturnType<typeof createMigrationIo>,
+) {
+  const additionalShells = additionalShellsFromToolingConfig(migrated);
+  if (additionalShells.length === 0) {
+    return migrated;
+  }
+
+  const existingShells = new Map(
+    (Array.isArray(raw.shells) ? raw.shells : [])
+      .filter(
+        (entry: unknown): entry is Record<string, any> =>
+          entry !== null &&
+          typeof entry === 'object' &&
+          !Array.isArray(entry) &&
+          typeof entry.id === 'string',
+      )
+      .map((entry: Record<string, any>) => [entry.id, entry] as const),
+  );
+  const remotes = migratedApps.filter(app => app.kind !== 'shell');
+  raw.shells = additionalShells.map(shell => ({
+    ...existingShells.get(shell.id),
+    ...createAdditionalShellConfigEntry(
+      migrated.workspace.packageScope,
+      shell,
+      remotes,
+    ),
+  }));
+  writeJsonFile(
+    io,
+    path.join(io.workspaceRoot, '.modernjs/ultramodern.json'),
+    raw,
+  );
+
+  return normalizeCompactUltramodernConfig(io.workspaceRoot, raw);
 }
 
 function migrateStrictEffect(
@@ -340,8 +392,11 @@ function migrateStrictEffect(
     );
   }
   updateReferenceTopology(io);
-  const migrated = normalizeCompactUltramodernConfig(io.workspaceRoot, raw);
-  const migratedApps = workspaceAppsFromToolingConfig(migrated);
+  let migrated = normalizeCompactUltramodernConfig(io.workspaceRoot, raw);
+  let migratedApps = workspaceAppsFromToolingConfig(migrated);
+  migrated = reconcileAdditionalShellConfig(raw, migrated, migratedApps, io);
+  migratedApps = workspaceAppsFromToolingConfig(migrated);
+  const allMigratedApps = allWorkspaceAppsFromToolingConfig(migrated);
   const validationContractInputs = deriveValidationContractInputs(
     io.workspaceRoot,
     migrated,
@@ -400,6 +455,8 @@ function migrateStrictEffect(
       validationContractInputs.enableTailwind,
       validationContractInputs.remotes,
       releaseCohort,
+      validationContractInputs.additionalShells,
+      validationContractInputs.primaryShell,
     ),
   );
 
@@ -426,7 +483,7 @@ function migrateStrictEffect(
     updateGeneratedToolingDependencies(packageJson);
     updateGeneratedPackageScripts(packageJson, {
       relativePackageFile,
-      apps: migratedApps,
+      apps: allMigratedApps,
       shellOnly,
     });
 

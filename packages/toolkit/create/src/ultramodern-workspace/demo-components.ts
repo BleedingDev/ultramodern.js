@@ -3,7 +3,6 @@ import {
   remoteDependencyAlias,
   resolveApiProtocol,
   resolveApiStem,
-  shellApp,
 } from './descriptors';
 import { renderFileTemplate } from './fs-io';
 import {
@@ -14,8 +13,11 @@ import {
 } from './naming';
 import type { WorkspaceApp } from './types';
 
-export function createShellPage(remotes: WorkspaceApp[] = []): string {
-  const tw = createTw(tailwindPrefixForApp(shellApp));
+export function createShellPage(
+  shell: WorkspaceApp,
+  remotes: WorkspaceApp[] = [],
+): string {
+  const tw = createTw(tailwindPrefixForApp(shell));
   const remoteCount = String(remotes.length);
 
   return renderFileTemplate(
@@ -61,9 +63,10 @@ export function createShellPage(remotes: WorkspaceApp[] = []): string {
 }
 
 export function createShellRemoteComponents(
+  shell: WorkspaceApp,
   remotes: WorkspaceApp[] = [],
 ): string {
-  const tw = createTw(tailwindPrefixForApp(shellApp));
+  const tw = createTw(tailwindPrefixForApp(shell));
   const widgetRemotes = remotes.filter(remote =>
     Object.hasOwn(remote.exposes ?? {}, './Widget'),
   );
@@ -87,7 +90,7 @@ export function createShellRemoteComponents(
       ? renderFileTemplate(
           'workspace/apps/shell-super-app/src/routes/vertical-components.helpers.tsx',
           {
-            value0: shellApp.id,
+            value0: shell.id,
             value1: tw(
               'rounded-xl border border-red-900/20 bg-red-50 px-4 py-3 text-sm font-semibold text-red-900',
             ),
@@ -119,7 +122,7 @@ ${showcaseItems}
       value4: tw(
         'flex min-w-0 flex-wrap items-center gap-x-8 gap-y-2 md:flex-1',
       ),
-      value5: shellApp.mfName,
+      value5: shell.mfName,
       value6: tw(
         'whitespace-nowrap text-xl font-black tracking-normal text-stone-950 no-underline',
       ),
@@ -131,7 +134,7 @@ ${showcaseItems}
       ),
       value9: tw('text-lg font-bold text-stone-700'),
       value10: tw('mx-auto mt-12 max-w-7xl'),
-      value11: shellApp.mfName,
+      value11: shell.mfName,
       value12: showcaseGrid,
     },
   );

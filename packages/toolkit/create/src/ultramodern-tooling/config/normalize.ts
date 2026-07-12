@@ -7,6 +7,7 @@ import {
   ULTRAMODERN_CONFIG_PATH,
 } from '../../ultramodern-workspace/descriptors';
 import { toKebabCase } from '../../ultramodern-workspace/naming';
+import { resolveConfiguredAdditionalShells } from '../../ultramodern-workspace/shells';
 import type {
   ResolvedPackageSource,
   WorkspaceApp,
@@ -224,6 +225,16 @@ function normalizeCompactConfigV1(
           )
         : [],
     },
+    ...(Array.isArray(config.shells) && config.shells.length > 0
+      ? {
+          shells: config.shells.filter(
+            (shell: unknown): shell is Record<string, unknown> =>
+              shell !== null &&
+              typeof shell === 'object' &&
+              !Array.isArray(shell),
+          ),
+        }
+      : {}),
   };
 }
 
@@ -323,4 +334,21 @@ export function workspaceAppsFromToolingConfig(
       ownership: createNeutralOwnership(app.id),
     };
   });
+}
+
+export function additionalShellsFromToolingConfig(
+  config: UltramodernToolingConfig,
+): WorkspaceApp[] {
+  return resolveConfiguredAdditionalShells(
+    config as unknown as Record<string, unknown>,
+  );
+}
+
+export function allWorkspaceAppsFromToolingConfig(
+  config: UltramodernToolingConfig,
+): WorkspaceApp[] {
+  return [
+    ...workspaceAppsFromToolingConfig(config),
+    ...additionalShellsFromToolingConfig(config),
+  ];
 }

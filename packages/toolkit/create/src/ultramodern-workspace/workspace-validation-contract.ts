@@ -10,10 +10,13 @@ import {
 import { createDeliveryUnitRecord } from './delivery-unit';
 import { remoteComponentOutputPath } from './demo-components';
 import {
+  appEmitsBrowserUi,
   appHasApi,
   appI18nNamespace,
   createShellHost,
   remoteDependencyAlias,
+  resolveApiProtocol,
+  resolveApiStem,
   sharedPackages,
   shellApp,
 } from './descriptors';
@@ -26,7 +29,12 @@ import {
   createRouteOwnedI18nPaths,
   createRoutePageFilePath,
 } from './routes';
+import {
+  createAdditionalShellConfigEntry,
+  shellDeliveryUnitBlock,
+} from './shells';
 import type { WorkspaceApp } from './types';
+import { resolveOwnerAttribution } from './types';
 import {
   CLOUDFLARE_COMPATIBILITY_DATE,
   EFFECT_VERSION,
@@ -82,8 +90,9 @@ function projectModuleFederationMetadata(value: unknown) {
 function createReferenceTopologyExpectation(
   scope: string,
   remotes: WorkspaceApp[],
+  primaryShell?: WorkspaceApp,
 ) {
-  const topology = asJsonRecord(createTopology(scope, remotes));
+  const topology = asJsonRecord(createTopology(scope, remotes, primaryShell));
   const shell = asJsonRecord(topology.shell);
 
   return {
@@ -110,9 +119,9 @@ function createGeneratedSurfacePolicy(workspaceApps: WorkspaceApp[]) {
   const appConfigPaths = workspaceApps.map(
     app => `${app.directory}/modern.config.ts`,
   );
-  const moduleFederationConfigPaths = workspaceApps.map(
-    app => `${app.directory}/module-federation.config.ts`,
-  );
+  const moduleFederationConfigPaths = workspaceApps
+    .filter(appEmitsBrowserUi)
+    .map(app => `${app.directory}/module-federation.config.ts`);
   const appPackagePaths = workspaceApps.map(
     app => `${app.directory}/package.json`,
   );
@@ -350,11 +359,53 @@ function createStructuralShellPolicy(workspaceApps: WorkspaceApp[]) {
           'A thin Shell must consume only published vertical surfaces (package root or Module Federation), never deep-import a vertical directory.',
       },
       {
+        id: 'vertical-directory-side-effect-import',
+        expression: String.raw`import\s+['"][^'"]*verticals/[^'"/]+/`,
+        flags: 'u',
+        diagnostic:
+          'A thin Shell must consume only published vertical surfaces; side-effect imports of vertical directories are forbidden.',
+      },
+      {
+        id: 'vertical-directory-dynamic-import',
+        expression: String.raw`import\s*\(\s*['"][^'"]*verticals/[^'"/]+/`,
+        flags: 'u',
+        diagnostic:
+          'A thin Shell must consume only published vertical surfaces; dynamic imports of vertical directories are forbidden.',
+      },
+      {
+        id: 'vertical-directory-require',
+        expression: String.raw`require\s*\(\s*['"][^'"]*verticals/[^'"/]+/`,
+        flags: 'u',
+        diagnostic:
+          'A thin Shell must consume only published vertical surfaces; require() of vertical directories is forbidden.',
+      },
+      {
         id: 'workspace-package-source-import',
         expression: 'from\\s+[\'"]@[^\'"/]+/[^\'"/]+/src/',
         flags: 'u',
         diagnostic:
           'A thin Shell must consume only published package surfaces, never deep-import another package’s raw src/ internals (published subpath exports are allowed).',
+      },
+      {
+        id: 'workspace-package-side-effect-import',
+        expression: String.raw`import\s+['"]@[^/'"]+/[^/'"]+/src/`,
+        flags: 'u',
+        diagnostic:
+          'A thin Shell must consume only published package surfaces; side-effect imports of raw package src/ are forbidden.',
+      },
+      {
+        id: 'workspace-package-dynamic-import',
+        expression: String.raw`import\s*\(\s*['"]@[^/'"]+/[^/'"]+/src/`,
+        flags: 'u',
+        diagnostic:
+          'A thin Shell must consume only published package surfaces; dynamic imports of raw package src/ are forbidden.',
+      },
+      {
+        id: 'workspace-package-require',
+        expression: String.raw`require\s*\(\s*['"]@[^/'"]+/[^/'"]+/src/`,
+        flags: 'u',
+        diagnostic:
+          'A thin Shell must consume only published package surfaces; require() of raw package src/ is forbidden.',
       },
     ],
   };
@@ -366,14 +417,16 @@ export function createWorkspaceValidationContract(
   remotes: WorkspaceApp[] = [],
   releaseCohort?: UltramodernReleaseCohort,
   additionalShells: WorkspaceApp[] = [],
+  primaryShell?: WorkspaceApp,
 ) {
-  const workspaceApps = [createShellHost(remotes), ...remotes];
+  const resolvedPrimaryShell = primaryShell ?? createShellHost(remotes);
+  const workspaceApps = [resolvedPrimaryShell, ...remotes];
   // All configured shells (primary + additional, G28) are enumerated by the
   // root scripts and gated by the structural thin-shell rules. Additional
   // shells are deliberately kept out of the strict app/manifest cohort so the
   // primary topology.apps cohort stays byte-identical for a single-shell
   // workspace.
-  const configuredShells = [createShellHost(remotes), ...additionalShells];
+  const configuredShells = [resolvedPrimaryShell, ...additionalShells];
   const compactConfig = asJsonRecord(
     createUltramodernConfig(
       scope,
@@ -384,21 +437,48 @@ export function createWorkspaceValidationContract(
       },
       workspaceApps,
       enableTailwind,
+      undefined,
+      additionalShells,
+      resolvedPrimaryShell,
     ),
   );
-  const fullStackVerticals = remotes.filter(appHasApi).map(remote => ({
+  const fullStackVerticals = remotes.map(remote => ({
     id: remote.id,
     domain: remote.domain,
-    stem: remote.api.stem,
-    group: verticalApiGroupName(remote),
     path: remote.directory,
     port: remote.port,
     mfName: remote.mfName,
-    apiPrefix: remote.api.prefix,
+    // Profile + protocol markers consumed by the generated validator's
+    // required/forbidden-file gates and generated-contract api assertions.
+    // UI-only verticals (Horizontal Remote) carry no API surface (G2a/P4), so
+    // their api-specific fields are omitted; api-bearing verticals keep them.
+    emitsApi: appHasApi(remote),
+    emitsUi: appEmitsBrowserUi(remote),
+    surfaceProfile: remote.surfaceProfile ?? 'full-stack',
+    ...(appHasApi(remote)
+      ? {
+          stem: remote.api.stem,
+          group: verticalApiGroupName(remote),
+          apiPrefix: remote.api.prefix,
+          apiProtocol: resolveApiProtocol(remote),
+          apiContractExport: './api',
+          apiClientExport:
+            resolveApiProtocol(remote) === 'rpc'
+              ? './api/rpc-client'
+              : './api/client',
+          apiContractPath:
+            resolveApiProtocol(remote) === 'rpc'
+              ? 'shared/rpc.ts'
+              : 'shared/api.ts',
+          apiClientPath: `src/api/${resolveApiStem(remote)}-${
+            resolveApiProtocol(remote) === 'rpc' ? 'rpc-client' : 'client'
+          }.ts`,
+          backendFederation: createBackendFederationMetadata(scope, remote),
+        }
+      : {}),
     tailwindPrefix: tailwindPrefixForApp(remote),
     zephyrAlias: remoteDependencyAlias(remote),
     packageName: packageName(scope, remote.packageSuffix),
-    backendFederation: createBackendFederationMetadata(scope, remote),
     deliveryUnit: createDeliveryUnitRecord(scope, remote),
     exposes: Object.keys(remote.exposes ?? {}),
     componentPaths: Object.keys(remote.exposes ?? {})
@@ -416,6 +496,27 @@ export function createWorkspaceValidationContract(
     localisedUrls: createLocalisedUrlsMap(remote),
     verticalRefs: remote.verticalRefs ?? [],
   }));
+  const additionalShellRecords = additionalShells.map(shell => {
+    const configEntry = createAdditionalShellConfigEntry(scope, shell, remotes);
+    return {
+      id: shell.id,
+      path: shell.directory,
+      packageName: packageName(scope, shell.packageSuffix),
+      port: shell.port,
+      portEnv: shell.portEnv,
+      mfName: shell.mfName,
+      tailwindPrefix: tailwindPrefixForApp(shell),
+      verticalRefs: shell.verticalRefs ?? [],
+      owner: resolveOwnerAttribution(shell.ownership),
+      deliveryUnit: shellDeliveryUnitBlock(scope, shell),
+      degradedState: {
+        required: (shell.verticalRefs ?? []).length > 0,
+        appId: shell.id,
+        status: 'degraded',
+      },
+      moduleFederation: configEntry.moduleFederation,
+    };
+  });
 
   return {
     schemaVersion: WORKSPACE_VALIDATION_CONTRACT_SCHEMA_VERSION,
@@ -450,7 +551,20 @@ export function createWorkspaceValidationContract(
       modernPackages: [...modernPackageCohort],
       ...(releaseCohort ? { releaseCohort } : {}),
       appIds: workspaceApps.map(app => app.id),
-      backendAppIds: fullStackVerticals.map(app => app.id),
+      ...(additionalShells.length > 0
+        ? {
+            additionalShellIds: additionalShells.map(app => app.id),
+            additionalShellOwnerIds: additionalShells.map(app => app.id),
+            additionalShellDeliveryUnitIds: additionalShells.map(app => app.id),
+            additionalShellDegradedStateIds: additionalShells.map(
+              app => app.id,
+            ),
+            additionalShellBuildMarkerIds: additionalShells.map(app => app.id),
+          }
+        : {}),
+      backendAppIds: fullStackVerticals
+        .filter(app => app.emitsApi)
+        .map(app => app.id),
       verticalIds: remotes.map(app => app.id),
       sharedPackageIds: sharedPackages.map(sharedPackage => sharedPackage.id),
       ownerIds: [
@@ -477,10 +591,24 @@ export function createWorkspaceValidationContract(
           role: 'shared-package',
         })),
       ],
+      ...(additionalShells.length > 0
+        ? {
+            additionalShellManifests: additionalShells.map(app => ({
+              id: app.id,
+              packageName: packageName(scope, app.packageSuffix),
+              path: `${app.directory}/package.json`,
+              role: 'shell',
+            })),
+          }
+        : {}),
     },
     topology: {
       compactConfig: compactConfig.topology,
-      referenceTopology: createReferenceTopologyExpectation(scope, remotes),
+      referenceTopology: createReferenceTopologyExpectation(
+        scope,
+        remotes,
+        resolvedPrimaryShell,
+      ),
       ownership: createOwnership(scope, remotes),
       developmentOverlay: createDevelopmentOverlay(scope, remotes),
     },
@@ -531,6 +659,11 @@ export function createWorkspaceValidationContract(
     },
     tailwindEnabled: enableTailwind,
     structuralShellPolicy: createStructuralShellPolicy(configuredShells),
+    ...(additionalShellRecords.length > 0
+      ? {
+          additionalShells: additionalShellRecords,
+        }
+      : {}),
     fullStackVerticals,
     shellNamespace: appI18nNamespace(shellApp),
     oldRemotePaths: ['apps/remotes'],

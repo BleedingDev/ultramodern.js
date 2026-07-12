@@ -30,8 +30,9 @@ import {
   appI18nNamespace,
   createShellHost,
   resolveApiProtocol,
+  resolveRemoteRefs,
 } from './descriptors';
-import { writeFile, writeJson } from './fs-io';
+import { writeFile, writeFileReplacing, writeJson } from './fs-io';
 import { createAppPublicLocaleMessages } from './locales';
 import {
   createAppModernConfig,
@@ -60,6 +61,7 @@ type WriteAppContext = {
   emitsUi: boolean;
   remotes: WorkspaceApp[];
   bridge: UltramodernBridgeConfig | undefined;
+  devPorts: number[] | undefined;
   publicWeb: ReturnType<typeof createPublicWebAppArtifacts>;
   writeAppFile: (relativePath: string, content: string) => void;
 };
@@ -71,6 +73,7 @@ export function writeApp(
   enableTailwind: boolean,
   remotes: WorkspaceApp[] = [],
   bridge?: UltramodernBridgeConfig,
+  devPorts?: number[],
 ) {
   // The primary shell derives its host identity (and merged verticalRefs) from
   // createShellHost. Additional shells (G28) keep their own descriptor identity
@@ -83,6 +86,12 @@ export function writeApp(
   const emitsUi = appEmitsBrowserUi(resolvedApp);
   // A headless (api-only) unit never emits Tailwind CSS (G2a).
   const appTailwind = enableTailwind && emitsUi;
+  // A shell composes only the remotes its verticalRefs name (G28); other
+  // unit kinds receive the caller-provided remote set unchanged.
+  const resolvedRemotes =
+    resolvedApp.kind === 'shell'
+      ? resolveRemoteRefs(resolvedApp, remotes)
+      : remotes;
   const publicWeb = createPublicWebAppArtifacts(resolvedApp);
   const writeAppFile = (relativePath: string, content: string) => {
     writeFile(targetDir, `${resolvedApp.directory}/${relativePath}`, content);
@@ -94,8 +103,9 @@ export function writeApp(
     packageSource,
     enableTailwind: appTailwind,
     emitsUi,
-    remotes,
+    remotes: resolvedRemotes,
     bridge,
+    devPorts,
     publicWeb,
     writeAppFile,
   };
@@ -106,6 +116,21 @@ export function writeApp(
   writeAppRouteAndShellFiles(context);
   writeAppApiAndRemoteExposeFiles(context);
 }
+
+export function rewriteAppModernConfig(
+  targetDir: string,
+  scope: string,
+  app: WorkspaceApp,
+  remotes: WorkspaceApp[],
+  enableTailwind: boolean,
+  devPorts?: number[],
+) {
+  writeFileReplacing(
+    targetDir,
+    `${app.directory}/modern.config.ts`,
+    createAppModernConfig(scope, app, remotes, enableTailwind, devPorts),
+  );
+}
 function writeAppConfigFiles({
   targetDir,
   scope,
@@ -115,6 +140,7 @@ function writeAppConfigFiles({
   emitsUi,
   remotes,
   bridge,
+  devPorts,
   publicWeb,
 }: WriteAppContext) {
   writeJson(
@@ -179,7 +205,13 @@ function writeAppConfigFiles({
   writeFile(
     targetDir,
     `${resolvedApp.directory}/modern.config.ts`,
-    createAppModernConfig(scope, resolvedApp, remotes, enableTailwind),
+    createAppModernConfig(
+      scope,
+      resolvedApp,
+      remotes,
+      enableTailwind,
+      devPorts,
+    ),
   );
   writeFile(
     targetDir,
@@ -247,7 +279,7 @@ function writeAppFederationConfigFiles({
       targetDir,
       `${resolvedApp.directory}/module-federation.config.ts`,
       resolvedApp.kind === 'shell'
-        ? createShellModuleFederationConfig(scope, remotes)
+        ? createShellModuleFederationConfig(scope, resolvedApp, remotes)
         : createRemoteModuleFederationConfig(scope, resolvedApp, remotes),
     );
   }
@@ -277,7 +309,7 @@ function writeAppRouteAndShellFiles({
   writeAppFile(
     'src/routes/[lang]/page.tsx',
     resolvedApp.kind === 'shell'
-      ? createShellPage(remotes)
+      ? createShellPage(resolvedApp, remotes.filter(appEmitsBrowserUi))
       : createRemotePage(resolvedApp),
   );
   for (const generatedFile of publicWeb.routeMetaFiles) {
@@ -290,9 +322,15 @@ function writeAppRouteAndShellFiles({
   if (resolvedApp.kind === 'shell') {
     writeAppFile(
       'src/routes/vertical-components.tsx',
-      createShellRemoteComponents(remotes),
+      createShellRemoteComponents(
+        resolvedApp,
+        remotes.filter(appEmitsBrowserUi),
+      ),
     );
-    writeAppFile('src/routes/shell-frame.tsx', createShellFrameComponent());
+    writeAppFile(
+      'src/routes/shell-frame.tsx',
+      createShellFrameComponent(resolvedApp),
+    );
     writeFile(
       targetDir,
       `${resolvedApp.directory}/src/api/vertical-clients.ts`,

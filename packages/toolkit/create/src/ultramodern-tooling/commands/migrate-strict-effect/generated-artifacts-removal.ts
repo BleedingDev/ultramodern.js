@@ -1,7 +1,7 @@
 import path from 'node:path';
 import {
+  allWorkspaceAppsFromToolingConfig,
   type UltramodernToolingConfig,
-  workspaceAppsFromToolingConfig,
 } from '../../config';
 import { type MigrationIo } from './io';
 
@@ -25,7 +25,7 @@ export function removeStaleBackendFederationArtifacts(
     changed = removeGeneratedFileIfExists(io, relativePath) || changed;
   }
 
-  for (const app of workspaceAppsFromToolingConfig(config)) {
+  for (const app of allWorkspaceAppsFromToolingConfig(config)) {
     changed =
       removeGeneratedFileIfExists(
         io,

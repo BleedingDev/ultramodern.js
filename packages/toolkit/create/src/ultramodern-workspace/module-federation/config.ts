@@ -11,6 +11,7 @@ import {
   createShellHost,
   resolveApiPrefix,
   resolveApiProtocol,
+  resolveRemoteRefs,
   shellApp,
 } from '../descriptors';
 import { renderFileTemplate } from '../fs-io';
@@ -36,6 +37,7 @@ export function createAppModernConfig(
   app: WorkspaceApp,
   remotes: WorkspaceApp[] = [],
   enableTailwind = true,
+  configuredDevPorts?: number[],
 ): string {
   const bffImport = appHasApi(app)
     ? "import { bffPlugin } from '@modern-js/plugin-bff';\n"
@@ -59,7 +61,10 @@ ${resolveApiProtocol(app) === 'rest' ? "          openapi: {\n            path: 
     ? '  builderPlugins: [pluginTailwindcss()],\n'
     : '';
   const bffPluginEntry = appHasApi(app) ? '        bffPlugin(),\n' : '';
-  const serviceBindings = app.kind === 'shell' ? remotes.filter(appHasApi) : [];
+  const serviceBindings =
+    app.kind === 'shell'
+      ? resolveRemoteRefs(app, remotes).filter(appHasApi)
+      : [];
   const serviceBindingsConfig =
     serviceBindings.length > 0
       ? `          services: [
@@ -96,6 +101,35 @@ const defaultAssetPrefix = defaultRemoteAssetPrefix;`;
       : `        // Remote dev manifests must publish an absolute publicPath so host
         // shells load remoteEntry.js and exposed chunks from this dev server.
         assetPrefix,`;
+  const developmentPorts = [
+    ...new Set(
+      (
+        configuredDevPorts ?? [
+          shellApp.port,
+          app.port,
+          ...remotes.map(remote => remote.port),
+        ]
+      ).filter(port => typeof port === 'number' && Number.isFinite(port)),
+    ),
+  ].toSorted((left, right) => left - right);
+  const legacyCorsSource = `const moduleFederationDevServerOrigin =
+  envValue('ULTRAMODERN_MF_DEV_ORIGIN') || 'http://localhost:${shellApp.port}';`;
+  const configuredCorsSource = `const moduleFederationDevServerAllowedOrigins = [
+${developmentPorts.map(port => `  'http://localhost:${port}',`).join('\n')}
+];`;
+  const configuredCorsDevServer = `        // MF assets are non-credentialed and only permit configured local app origins.
+        server: {
+          cors: {
+            credentials: false,
+            origin: moduleFederationDevServerAllowedOrigins,
+          },
+        },`;
+  const useConfiguredCorsAllowlist = configuredDevPorts !== undefined;
+  const configuredCorsHeader = useConfiguredCorsAllowlist
+    ? developmentPorts.length === 1
+      ? "'Access-Control-Allow-Origin': moduleFederationDevServerAllowedOrigins[0],"
+      : ''
+    : "'Access-Control-Allow-Origin': moduleFederationDevServerOrigin,";
   return renderFileTemplate('workspace/apps/modern.config.ts', {
     value0: `${bffImport}${tailwindImport}`,
     value1: app.id,
@@ -119,6 +153,11 @@ const defaultAssetPrefix = defaultRemoteAssetPrefix;`;
     value16: createRspackUniqueName(app),
     value17: createRspackChunkLoadingGlobal(app),
     value18: tailwindBuilderPluginsConfig,
+    value19: useConfiguredCorsAllowlist
+      ? configuredCorsSource
+      : legacyCorsSource,
+    value20: useConfiguredCorsAllowlist ? configuredCorsDevServer : '',
+    value21: configuredCorsHeader,
   });
 }
 
@@ -140,9 +179,13 @@ function createModuleFederationDtsConfig(hasExposes: boolean): string {
 
 export function createShellModuleFederationConfig(
   scope: string,
+  shell: WorkspaceApp,
   remotes: WorkspaceApp[] = [],
 ): string {
-  const shellHost = createShellHost(remotes);
+  const shellHost = {
+    ...shell,
+    verticalRefs: shell.verticalRefs ?? remotes.map(remote => remote.id),
+  };
 
   return `// ultramodern-mf: host-only
 import { createRequire } from 'node:module';
@@ -162,7 +205,7 @@ const moduleFederationConfig: Parameters<
 >[0] = createModuleFederationConfig({
 ${createModuleFederationDtsConfig(false)}
   filename: 'remoteEntry.js',
-  name: '${shellApp.mfName}',
+  name: '${shell.mfName}',
 ${createModuleFederationRemotesConfig(scope, shellHost, remotes)}${createSharedModuleFederationConfig()},
 });
 

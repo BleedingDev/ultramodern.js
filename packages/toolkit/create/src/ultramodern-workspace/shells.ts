@@ -2,9 +2,14 @@ import {
   createDeliveryUnitRecord,
   deliveryUnitContractBlock,
 } from './delivery-unit';
-import { createNeutralOwnership, shellApp } from './descriptors';
-import { toEnvSegment, toKebabCase, toPascalCase } from './naming';
-import type { JsonValue, WorkspaceApp } from './types';
+import {
+  createModuleFederationRemoteContracts,
+  createNeutralOwnership,
+  shellApp,
+} from './descriptors';
+import { packageName, toEnvSegment, toKebabCase, toPascalCase } from './naming';
+import type { JsonObject, JsonValue, WorkspaceApp } from './types';
+import { resolveOwnerAttribution } from './types';
 
 /**
  * Multi-shell model (G28). A workspace models N Shells, each its own Delivery
@@ -87,7 +92,44 @@ export function shellDeliveryUnitBlock(
   scope: string,
   shell: WorkspaceApp,
 ): JsonValue {
-  return deliveryUnitContractBlock(createDeliveryUnitRecord(scope, shell));
+  return (
+    shell.deliveryUnit ??
+    deliveryUnitContractBlock(createDeliveryUnitRecord(scope, shell))
+  );
+}
+
+/**
+ * Serialize one additional shell into the additive compact-config collection.
+ * The primary shell remains projected through topology.apps; this record is
+ * the durable source for every non-primary shell's identity and composition.
+ */
+export function createAdditionalShellConfigEntry(
+  scope: string,
+  shell: WorkspaceApp,
+  remotes: WorkspaceApp[] = [],
+): JsonObject {
+  const verticalRefs = shell.verticalRefs ?? [];
+  return {
+    id: shell.id,
+    name: shell.id.replace(/^shell-/u, ''),
+    kind: 'shell',
+    package: packageName(scope, shell.packageSuffix),
+    path: shell.directory,
+    port: shell.port,
+    portEnv: shell.portEnv,
+    mfName: shell.mfName,
+    verticalRefs,
+    owner: resolveOwnerAttribution(shell.ownership),
+    deliveryUnit: shellDeliveryUnitBlock(scope, shell),
+    moduleFederation: {
+      role: 'host',
+      name: shell.mfName,
+      verticalRefs,
+      remotes: createModuleFederationRemoteContracts(shell, remotes),
+      ssr: true,
+      sharedContractVersion: 'mf-ssr-contract-v1',
+    },
+  };
 }
 
 /**
@@ -110,7 +152,10 @@ export function resolveConfiguredAdditionalShells(
     )
     .map(entry => {
       const id = String(entry.id ?? '');
-      const suffix = id;
+      const suffix =
+        typeof entry.package === 'string'
+          ? (entry.package.split('/').at(-1) ?? id)
+          : id;
       const name =
         typeof entry.name === 'string' ? entry.name : id.replace(/^shell-/, '');
       const port =
@@ -118,17 +163,59 @@ export function resolveConfiguredAdditionalShells(
           ? entry.port
           : FIRST_ADDITIONAL_SHELL_PORT;
       const descriptor = createShellDescriptor(name, port);
+      const moduleFederation =
+        entry.moduleFederation &&
+        typeof entry.moduleFederation === 'object' &&
+        !Array.isArray(entry.moduleFederation)
+          ? (entry.moduleFederation as Record<string, unknown>)
+          : undefined;
+      const owner = entry.owner;
+      const deliveryUnit = entry.deliveryUnit;
+      const ownership =
+        owner &&
+        typeof owner === 'object' &&
+        !Array.isArray(owner) &&
+        (owner.kind === 'team' ||
+          owner.kind === 'agent' ||
+          owner.kind === 'agent-team') &&
+        typeof owner.id === 'string'
+          ? { ...descriptor.ownership, owner }
+          : descriptor.ownership;
       return {
         ...descriptor,
         id,
         packageSuffix: suffix,
+        ownership,
+        displayName:
+          typeof entry.displayName === 'string'
+            ? entry.displayName
+            : descriptor.displayName,
         directory:
           typeof entry.path === 'string' ? entry.path : descriptor.directory,
+        portEnv:
+          typeof entry.portEnv === 'string'
+            ? entry.portEnv
+            : descriptor.portEnv,
+        mfName:
+          typeof entry.mfName === 'string'
+            ? entry.mfName
+            : typeof moduleFederation?.name === 'string'
+              ? moduleFederation.name
+              : descriptor.mfName,
         verticalRefs: Array.isArray(entry.verticalRefs)
           ? entry.verticalRefs.filter(
               (ref): ref is string => typeof ref === 'string',
             )
-          : [],
+          : Array.isArray(moduleFederation?.verticalRefs)
+            ? moduleFederation.verticalRefs.filter(
+                (ref): ref is string => typeof ref === 'string',
+              )
+            : [],
+        ...(deliveryUnit &&
+        typeof deliveryUnit === 'object' &&
+        !Array.isArray(deliveryUnit)
+          ? { deliveryUnit: deliveryUnit as JsonObject }
+          : {}),
       } satisfies WorkspaceApp;
     });
 }

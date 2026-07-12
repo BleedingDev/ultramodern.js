@@ -51,6 +51,8 @@ export function appDependencies(
     [packageName(scope, 'shared-design-tokens')]: WORKSPACE_PACKAGE_VERSION,
   };
 
+  const appRemotes = resolveRemoteRefs(app, remotes);
+
   for (const dependency of bridge?.dependencies ?? []) {
     if (Object.hasOwn(dependencies, dependency)) {
       throw new Error(
@@ -72,7 +74,7 @@ export function appDependencies(
     }
   }
 
-  for (const remote of resolveRemoteRefs(app, remotes)) {
+  for (const remote of appRemotes) {
     dependencies[packageName(scope, remote.packageSuffix)] =
       WORKSPACE_PACKAGE_VERSION;
   }
