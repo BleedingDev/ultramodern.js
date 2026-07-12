@@ -33,6 +33,50 @@ function generateWithOverlay(targetDir: string, generatorDir: string) {
   });
 }
 
+function assertRelaxationOverlay(name: string, mutation: string) {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-overlay-guard-'));
+  try {
+    const generatorDir = writeOverlayGenerator(
+      tempRoot,
+      `${name}-overlay`,
+      `
+const fs = require('node:fs');
+const path = require('node:path');
+module.exports = async context => {
+  const shellPkgPath = path.join(
+    context.config.workspaceRoot,
+    'apps/shell-super-app/package.json',
+  );
+  const shellPkg = JSON.parse(fs.readFileSync(shellPkgPath, 'utf-8'));
+  ${mutation}
+  fs.writeFileSync(shellPkgPath, JSON.stringify(shellPkg, null, 2));
+};
+`,
+    );
+    const targetDir = path.join(tempRoot, name);
+    assert.throws(
+      () => generateWithOverlay(targetDir, generatorDir),
+      (error: unknown) => {
+        assert.ok(
+          error instanceof OverlayBaselineRelaxationError,
+          String(error),
+        );
+        assert.ok(
+          error.violations.some(
+            violation =>
+              violation.kind === 'baseline-version-relaxation' &&
+              violation.detail.includes('react'),
+          ),
+          error.message,
+        );
+        return true;
+      },
+    );
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+}
+
 test('overlay that downgrades a Platform Baseline pin fails with a typed error before acceptance', () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-overlay-guard-'));
   try {
@@ -79,6 +123,48 @@ module.exports = async context => {
   }
 });
 
+test('overlay that removes a baseline-pinned dependency fails closed', () => {
+  assertRelaxationOverlay(
+    'remove-baseline',
+    'delete shellPkg.dependencies.react;',
+  );
+});
+
+test('overlay npm aliases that resolve to a baseline package are checked', () => {
+  assertRelaxationOverlay(
+    'npm-alias-baseline',
+    "shellPkg.dependencies['react-alias'] = 'npm:react@18.0.0';",
+  );
+});
+
+test('overlay overrides are checked through nested keys', () => {
+  assertRelaxationOverlay(
+    'overrides-baseline',
+    "shellPkg.overrides = { tooling: { react: '18.0.0' } };",
+  );
+});
+
+test('overlay resolutions are checked', () => {
+  assertRelaxationOverlay(
+    'resolutions-baseline',
+    "shellPkg.resolutions = { react: '18.0.0' };",
+  );
+});
+
+test('overlay pnpm.overrides are checked', () => {
+  assertRelaxationOverlay(
+    'pnpm-overrides-baseline',
+    "shellPkg.pnpm = { overrides: { react: '18.0.0' } };",
+  );
+});
+
+test('overlay catalog entries are checked', () => {
+  assertRelaxationOverlay(
+    'catalog-baseline',
+    "shellPkg.catalog = { react: '18.0.0' };",
+  );
+});
+
 test('overlay that reintroduces a forbidden thin-shell artifact fails with a typed error', () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-overlay-guard-'));
   try {
@@ -102,7 +188,10 @@ module.exports = async context => {
     assert.throws(
       () => generateWithOverlay(targetDir, generatorDir),
       (error: unknown) => {
-        assert.ok(error instanceof OverlayBaselineRelaxationError, String(error));
+        assert.ok(
+          error instanceof OverlayBaselineRelaxationError,
+          String(error),
+        );
         assert.ok(
           error.violations.some(
             violation => violation.kind === 'forbidden-shell-artifact',

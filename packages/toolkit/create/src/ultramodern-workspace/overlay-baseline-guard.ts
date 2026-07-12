@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import type { JsonValue } from './types';
 import { isRecord } from './types';
 import {
   EFFECT_VERSION,
@@ -126,26 +127,164 @@ function isPackageManifest(relativePath: string): boolean {
   );
 }
 
-function readBaselinePins(
+const DEPENDENCY_SECTIONS = [
+  'dependencies',
+  'devDependencies',
+  'peerDependencies',
+  'optionalDependencies',
+] as const;
+
+type DependencyEntry = {
+  section: string;
+  name: string;
+  value: string;
+};
+
+type PolicyEntry = {
+  path: string;
+  dependency: string;
+  value: string;
+};
+
+function readPackageJson(
   workspaceRoot: string,
   packageJsonRelativePath: string,
-): Record<string, string> {
-  const raw = fs.readFileSync(
-    path.join(workspaceRoot, packageJsonRelativePath),
-    'utf-8',
+): Record<string, JsonValue> {
+  const parsed: unknown = JSON.parse(
+    fs.readFileSync(path.join(workspaceRoot, packageJsonRelativePath), 'utf-8'),
   );
-  const parsed: unknown = JSON.parse(raw);
-  const pins: Record<string, string> = {};
-  if (!isRecord(parsed)) {
-    return pins;
-  }
+  return isRecord(parsed) ? parsed : {};
+}
 
-  for (const section of [
-    'dependencies',
-    'devDependencies',
-    'peerDependencies',
-    'optionalDependencies',
-  ]) {
+function dependencyEntries(
+  parsed: Record<string, JsonValue>,
+): DependencyEntry[] {
+  const entries: DependencyEntry[] = [];
+  for (const section of DEPENDENCY_SECTIONS) {
+    const group = parsed[section];
+    if (!isRecord(group)) continue;
+    for (const [name, value] of Object.entries(group)) {
+      if (typeof value === 'string') {
+        entries.push({ section, name, value });
+      }
+    }
+  }
+  return entries;
+}
+
+function baselineDependencyFromKey(key: string): string | undefined {
+  const candidate = key.trim().split('>').at(-1) ?? '';
+  return Object.keys(BASELINE_DEPENDENCY_PINS).find(
+    dependency =>
+      candidate === dependency || candidate.startsWith(`${dependency}@`),
+  );
+}
+
+function collectPolicyEntries(
+  value: JsonValue,
+  prefix: string,
+  entries: PolicyEntry[],
+): void {
+  if (!isRecord(value)) return;
+  for (const [key, child] of Object.entries(value)) {
+    const childPath = prefix === '' ? key : `${prefix}.${key}`;
+    const dependency = baselineDependencyFromKey(key);
+    if (dependency !== undefined && typeof child === 'string') {
+      entries.push({ path: childPath, dependency, value: child });
+    }
+    if (isRecord(child)) {
+      collectPolicyEntries(child, childPath, entries);
+    }
+  }
+}
+
+function policyRoots(
+  parsed: Record<string, JsonValue>,
+): Array<[string, JsonValue | undefined]> {
+  const pnpm = isRecord(parsed.pnpm) ? parsed.pnpm : undefined;
+  return [
+    ['overrides', parsed.overrides],
+    ['resolutions', parsed.resolutions],
+    ['pnpm.overrides', pnpm?.overrides],
+    ['catalog', parsed.catalog],
+    ['catalogs', parsed.catalogs],
+    ['pnpm.catalog', pnpm?.catalog],
+    ['pnpm.catalogs', pnpm?.catalogs],
+  ];
+}
+
+function baselinePolicyEntries(
+  parsed: Record<string, JsonValue>,
+): PolicyEntry[] {
+  const entries: PolicyEntry[] = [];
+  for (const [prefix, value] of policyRoots(parsed)) {
+    if (value !== undefined) {
+      collectPolicyEntries(value, prefix, entries);
+    }
+  }
+  return entries;
+}
+
+function collectCatalogValues(
+  parsed: Record<string, JsonValue>,
+): Map<string, string> {
+  const values = new Map<string, string>();
+  const collect = (value: JsonValue, prefix: string) => {
+    if (!isRecord(value)) return;
+    for (const [key, child] of Object.entries(value)) {
+      const childPath = prefix === '' ? key : `${prefix}.${key}`;
+      if (typeof child === 'string') {
+        values.set(key, child);
+        values.set(childPath, child);
+      } else {
+        collect(child, childPath);
+      }
+    }
+  };
+  for (const [prefix, value] of policyRoots(parsed).filter(([prefix]) =>
+    /catalog/u.test(prefix),
+  )) {
+    collect(value ?? {}, prefix);
+  }
+  return values;
+}
+
+function resolveCatalogReference(
+  value: string,
+  catalogValues: Map<string, string>,
+): string {
+  if (!value.startsWith('catalog:')) return value;
+  return catalogValues.get(value.slice('catalog:'.length)) ?? value;
+}
+
+function parseNpmAlias(
+  value: string,
+): { name: string; range: string | undefined } | undefined {
+  if (!value.startsWith('npm:')) return undefined;
+  const target = value.slice('npm:'.length);
+  const separator = target.startsWith('@')
+    ? target.indexOf('@', 1)
+    : target.indexOf('@');
+  if (separator === -1) return { name: target, range: undefined };
+  return {
+    name: target.slice(0, separator),
+    range: target.slice(separator + 1),
+  };
+}
+
+function baselineSpecMatches(value: string, dependency: string): boolean {
+  const expected = BASELINE_DEPENDENCY_PINS[dependency];
+  if (value === expected) return true;
+  const alias = parseNpmAlias(value);
+  return alias?.name === dependency && alias.range === expected;
+}
+
+function baselinePinsFromParsed(
+  parsed: Record<string, JsonValue>,
+): Record<string, string> {
+  const pins: Record<string, string> = {};
+
+  for (const section of DEPENDENCY_SECTIONS) {
     const group = parsed[section];
     if (!isRecord(group)) {
       continue;
@@ -161,12 +300,22 @@ function readBaselinePins(
   return pins;
 }
 
+function readBaselinePins(
+  workspaceRoot: string,
+  packageJsonRelativePath: string,
+): Record<string, string> {
+  return baselinePinsFromParsed(
+    readPackageJson(workspaceRoot, packageJsonRelativePath),
+  );
+}
+
 /**
  * Snapshot of the baseline-relevant workspace state taken BEFORE an overlay
  * runs. Compared against the post-overlay state to prove non-relaxation.
  */
 export type OverlayBaselineSnapshot = {
   baselinePinsByManifest: Record<string, Record<string, string>>;
+  baselinePolicyPinsByManifest?: Record<string, Record<string, string>>;
   shellPackageDirectories: string[];
   shellFiles: Set<string>;
 };
@@ -176,10 +325,18 @@ export function captureOverlayBaselineSnapshot(
   shellPackageDirectories: string[],
 ): OverlayBaselineSnapshot {
   const baselinePinsByManifest: Record<string, Record<string, string>> = {};
+  const baselinePolicyPinsByManifest: Record<
+    string,
+    Record<string, string>
+  > = {};
   for (const manifest of walkFiles(workspaceRoot, isPackageManifest)) {
+    const parsed = readPackageJson(workspaceRoot, manifest);
     baselinePinsByManifest[manifest] = readBaselinePins(
       workspaceRoot,
       manifest,
+    );
+    baselinePolicyPinsByManifest[manifest] = Object.fromEntries(
+      baselinePolicyEntries(parsed).map(entry => [entry.path, entry.value]),
     );
   }
 
@@ -194,7 +351,12 @@ export function captureOverlayBaselineSnapshot(
     }
   }
 
-  return { baselinePinsByManifest, shellPackageDirectories, shellFiles };
+  return {
+    baselinePinsByManifest,
+    baselinePolicyPinsByManifest,
+    shellPackageDirectories,
+    shellFiles,
+  };
 }
 
 function collectVersionViolations(
@@ -203,38 +365,99 @@ function collectVersionViolations(
 ): OverlayBaselineViolation[] {
   const violations: OverlayBaselineViolation[] = [];
 
-  for (const manifest of walkFiles(workspaceRoot, isPackageManifest)) {
-    let pins: Record<string, string>;
+  const manifests = new Set([
+    ...walkFiles(workspaceRoot, isPackageManifest),
+    ...Object.keys(snapshot.baselinePinsByManifest),
+  ]);
+
+  for (const manifest of manifests) {
+    let parsed: Record<string, JsonValue>;
     try {
-      pins = readBaselinePins(workspaceRoot, manifest);
+      parsed = readPackageJson(workspaceRoot, manifest);
     } catch {
-      continue;
+      parsed = {};
     }
+    const pins = baselinePinsFromParsed(parsed);
     const before = snapshot.baselinePinsByManifest[manifest] ?? {};
+
+    for (const key of Object.keys(before)) {
+      if (Object.hasOwn(pins, key)) continue;
+      const separator = key.indexOf('.');
+      const section = key.slice(0, separator);
+      const dependency = key.slice(separator + 1);
+      const expected = BASELINE_DEPENDENCY_PINS[dependency];
+      violations.push({
+        kind: 'baseline-version-relaxation',
+        path: manifest,
+        detail: `overlay removed baseline dependency "${dependency}" from ${section}; Platform Baseline pin is "${expected}"`,
+      });
+    }
+
+    const catalogValues = collectCatalogValues(parsed);
     for (const [key, version] of Object.entries(pins)) {
       const dependency = key.slice(key.indexOf('.') + 1);
       const expected = BASELINE_DEPENDENCY_PINS[dependency];
       const previous = before[key];
-      // An overlay relaxes the baseline when it (a) changes an existing
-      // baseline pin away from what the framework wrote, or (b) newly adds a
-      // baseline dependency at a version other than the platform pin.
-      if (previous === undefined) {
-        if (version !== expected) {
-          violations.push({
-            kind: 'baseline-version-relaxation',
-            path: manifest,
-            detail: `overlay added baseline dependency "${dependency}" at "${version}"; Platform Baseline pin is "${expected}"`,
-          });
-        }
-        continue;
-      }
-      if (version !== previous) {
+      const resolvedVersion = resolveCatalogReference(version, catalogValues);
+      const matches = baselineSpecMatches(resolvedVersion, dependency);
+      if (previous === undefined && !matches) {
+        violations.push({
+          kind: 'baseline-version-relaxation',
+          path: manifest,
+          detail: `overlay added baseline dependency "${dependency}" at "${version}"; Platform Baseline pin is "${expected}"`,
+        });
+      } else if (previous !== undefined && version !== previous && !matches) {
         violations.push({
           kind: 'baseline-version-relaxation',
           path: manifest,
           detail: `overlay changed baseline dependency "${dependency}" from "${previous}" to "${version}"; Platform Baseline pin is "${expected}"`,
         });
       }
+    }
+
+    for (const entry of dependencyEntries(parsed)) {
+      const alias = parseNpmAlias(entry.value);
+      if (alias === undefined) continue;
+      const expected = BASELINE_DEPENDENCY_PINS[alias.name];
+      if (expected === undefined || alias.range === expected) continue;
+      violations.push({
+        kind: 'baseline-version-relaxation',
+        path: manifest,
+        detail: `overlay alias "${entry.name}" resolves to baseline dependency "${alias.name}" at "${entry.value}"; Platform Baseline pin is "${expected}"`,
+      });
+    }
+
+    const currentPolicyPins = Object.fromEntries(
+      baselinePolicyEntries(parsed).map(entry => [entry.path, entry.value]),
+    );
+    const beforePolicyPins =
+      snapshot.baselinePolicyPinsByManifest?.[manifest] ?? {};
+    for (const [policyPath, previous] of Object.entries(beforePolicyPins)) {
+      if (Object.hasOwn(currentPolicyPins, policyPath)) continue;
+      const dependency =
+        baselineDependencyFromKey(policyPath.split('.').at(-1) ?? '') ??
+        policyPath.split('.').at(-1) ??
+        policyPath;
+      const expected = BASELINE_DEPENDENCY_PINS[dependency];
+      if (expected === undefined) continue;
+      violations.push({
+        kind: 'baseline-version-relaxation',
+        path: `${manifest}#${policyPath}`,
+        detail: `overlay removed baseline policy "${policyPath}" from "${previous}"; Platform Baseline pin is "${expected}"`,
+      });
+    }
+    for (const entry of baselinePolicyEntries(parsed)) {
+      const resolvedVersion = resolveCatalogReference(
+        entry.value,
+        catalogValues,
+      );
+      const expected = BASELINE_DEPENDENCY_PINS[entry.dependency];
+      if (baselineSpecMatches(resolvedVersion, entry.dependency)) continue;
+      violations.push({
+        kind: 'baseline-version-relaxation',
+        path: `${manifest}#${entry.path}`,
+        detail: `overlay policy "${entry.path}" pins baseline dependency "${entry.dependency}" at "${entry.value}"; Platform Baseline pin is "${expected}"`,
+      });
     }
   }
 
