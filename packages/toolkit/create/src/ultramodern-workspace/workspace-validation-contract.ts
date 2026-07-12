@@ -317,6 +317,13 @@ type WorkspaceValidationContract = ReturnType<
  *  - shell source must not deep-import a vertical's internals — only published
  *    surfaces (package roots / Module Federation) are allowed.
  *
+ * The `forbiddenImportPatterns` below are matched by the generated validator
+ * against comment-stripped source: it removes line and block comments (in a
+ * string-literal-aware pass, so a `//` inside a string such as `'http://x'` is
+ * preserved) before running these matchers. A specifier that only appears in a
+ * comment therefore never trips the gate, while a real import carrying a magic
+ * comment (`import(/* … *\/ '…')`) is still detected once the comment is gone.
+ *
  * The generated validator enforces this block; a violating shell fails the
  * generated `validate` script. Emitted for every configured shell (G28).
  */

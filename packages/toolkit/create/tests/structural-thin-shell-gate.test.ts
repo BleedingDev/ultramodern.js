@@ -194,3 +194,84 @@ test('generated validator scans every JavaScript/TypeScript extension and import
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
 });
+
+test('generated validator strips comments before scanning thin-shell imports', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-thin-shell-'));
+  const baselineDir = path.join(tempRoot, 'baseline');
+  const shellFile = 'apps/shell-super-app/src/routes/comment-cases.tsx';
+
+  // Sources the gate must NOT flag: the forbidden specifier only ever appears
+  // inside a comment or a string literal, never in an executable import.
+  const benignSources = [
+    {
+      name: 'line-comment-import',
+      source:
+        "// import x from '../../../verticals/catalog/src/lazy';\nexport const a = 1;\n",
+    },
+    {
+      name: 'block-comment-import',
+      source:
+        "/* import '../../../verticals/catalog/src/register'; */\nexport const b = 2;\n",
+    },
+    {
+      name: 'string-with-double-slash',
+      source:
+        "export const url = 'http://example.com/verticals/catalog/src/lazy';\n",
+    },
+  ] as const;
+
+  // Sources the gate MUST flag: a real import that merely carries a magic
+  // comment. Stripping the comment must still expose the forbidden specifier.
+  const violatingSources = [
+    {
+      name: 'dynamic-magic-comment',
+      source:
+        "void import(/* webpackChunkName: 'catalog' */ '../../../verticals/catalog/src/lazy');\n",
+      expected: /vertical-directory-dynamic-import/,
+    },
+    {
+      name: 'static-with-block-comment',
+      source:
+        "import /* keep */ { internal } from '../../../verticals/catalog/src/internal';\n",
+      expected: /vertical-directory-deep-import/,
+    },
+  ] as const;
+
+  try {
+    generateWorkspace(baselineDir);
+    const baseline = runValidation(baselineDir);
+    assert.equal(baseline.status, 0, commandOutput(baseline));
+
+    for (const scenario of benignSources) {
+      const workspaceDir = path.join(tempRoot, `benign-${scenario.name}`);
+      fs.cpSync(baselineDir, workspaceDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(workspaceDir, shellFile),
+        scenario.source,
+        'utf-8',
+      );
+      const result = runValidation(workspaceDir);
+      assert.equal(
+        result.status,
+        0,
+        `${scenario.name}\n${commandOutput(result)}`,
+      );
+    }
+
+    for (const scenario of violatingSources) {
+      const workspaceDir = path.join(tempRoot, `violation-${scenario.name}`);
+      fs.cpSync(baselineDir, workspaceDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(workspaceDir, shellFile),
+        scenario.source,
+        'utf-8',
+      );
+      const result = runValidation(workspaceDir);
+      const output = commandOutput(result);
+      assert.notEqual(result.status, 0, `${scenario.name}\n${output}`);
+      assert.match(output, scenario.expected, scenario.name);
+    }
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});

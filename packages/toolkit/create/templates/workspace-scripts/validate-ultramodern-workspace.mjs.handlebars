@@ -2836,6 +2836,76 @@ const assertStructuralShellPolicy = () => {
     }
     return files.toSorted();
   };
+  // Strip comments before scanning imports so the structural gate reasons
+  // about executable source only. A specifier that lives inside a comment
+  // (`// import x from '../../../verticals/catalog/src/internal'` or a /* */
+  // block) must not trip the gate, and — conversely — a real import carrying a
+  // magic comment (`import(/* webpackChunkName */ '...')`) must still be
+  // detected once the comment is removed. The scanner is string-literal aware,
+  // so a `//` inside a string (e.g. `'http://example.com'`) is preserved and
+  // never mistaken for a comment start. Dependency-free by construction.
+  const stripSourceComments = code => {
+    let result = '';
+    let state = 'code';
+    for (let index = 0; index < code.length; index += 1) {
+      const char = code[index];
+      const next = index + 1 < code.length ? code[index + 1] : '';
+      if (state === 'code') {
+        if (char === '/' && next === '/') {
+          state = 'line';
+          index += 1;
+        } else if (char === '/' && next === '*') {
+          state = 'block';
+          result += ' ';
+          index += 1;
+        } else if (char === "'") {
+          state = 'single';
+          result += char;
+        } else if (char === '"') {
+          state = 'double';
+          result += char;
+        } else if (char === '`') {
+          state = 'template';
+          result += char;
+        } else {
+          result += char;
+        }
+        continue;
+      }
+      if (state === 'line') {
+        if (char === '\n') {
+          state = 'code';
+          result += char;
+        }
+        continue;
+      }
+      if (state === 'block') {
+        if (char === '*' && next === '/') {
+          state = 'code';
+          index += 1;
+        } else if (char === '\n') {
+          result += char;
+        }
+        continue;
+      }
+      // Inside a string literal: preserve every character, honor escapes so a
+      // closing quote is not misread, and never treat `//` or `/*` as comments.
+      if (char === '\\') {
+        result += char + next;
+        index += 1;
+        continue;
+      }
+      if (
+        (state === 'single' && char === "'") ||
+        (state === 'double' && char === '"') ||
+        (state === 'template' && char === '`')
+      ) {
+        state = 'code';
+      }
+      result += char;
+    }
+    return result;
+  };
   for (const shell of policy.shells) {
     for (const forbidden of policy.forbiddenPathClasses) {
       assert(
@@ -2852,7 +2922,7 @@ const assertStructuralShellPolicy = () => {
       continue;
     }
     for (const file of collectSourceFiles(srcAbsolute)) {
-      const source = fs.readFileSync(file, 'utf-8');
+      const source = stripSourceComments(fs.readFileSync(file, 'utf-8'));
       const relative = path.relative(root, file).split(path.sep).join('/');
       for (const pattern of policy.forbiddenImportPatterns) {
         const match = new RegExp(pattern.expression, pattern.flags).exec(source);
