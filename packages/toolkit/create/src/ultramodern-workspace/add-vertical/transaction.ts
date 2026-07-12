@@ -46,7 +46,23 @@ function walkWorkspaceFiles(
 export function captureWorkspaceBackup(root: string): WorkspaceBackup {
   const files = new Map<string, Buffer>();
   walkWorkspaceFiles(root, (relativePath, absolutePath) => {
-    files.set(relativePath, fs.readFileSync(absolutePath));
+    let content: Buffer;
+    try {
+      content = fs.readFileSync(absolutePath);
+    } catch (error) {
+      // A file that vanishes between the directory listing and this read was
+      // never stable workspace content to back up. Under the mutation lock the
+      // only concurrently-vanishing files are the lock machinery's own
+      // transient temporaries (`.takeover.*` / `.release.*`), which a contending
+      // process creates and removes while being locked out and which live in the
+      // walked `.modernjs` directory. Skip them rather than crashing the
+      // lock-holding mutation on a benign race.
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        return;
+      }
+      throw error;
+    }
+    files.set(relativePath, content);
   });
   return { root, files };
 }
@@ -125,6 +141,27 @@ export class WorkspaceLockedError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'WorkspaceLockedError';
+  }
+}
+
+/**
+ * Raised when release or takeover detects that the on-disk lock state can no
+ * longer be reconciled without discarding a lock some other live holder may
+ * still own — e.g. a newer claimant seized the pathname during the restore
+ * window. This is deliberately never swallowed: surfacing the corruption is
+ * strictly safer than silently double-granting the workspace, and the moved
+ * lock bytes are left in place for recovery. `code` is always
+ * `'workspace-lock-integrity'`.
+ */
+export class WorkspaceLockIntegrityError extends Error {
+  readonly code = 'workspace-lock-integrity' as const;
+
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message);
+    this.name = 'WorkspaceLockIntegrityError';
+    if (options?.cause !== undefined) {
+      (this as { cause?: unknown }).cause = options.cause;
+    }
   }
 }
 
@@ -226,28 +263,42 @@ function unlinkIfPresent(filePath: string): void {
  * the gap. Hard-link creation is exclusive on the destination; the copy
  * fallback preserves that no-clobber property on filesystems that reject
  * hard-links.
+ *
+ * If the destination cannot be re-created without clobbering — a newer claimant
+ * seized the pathname (`EEXIST`) or any other filesystem error — this throws
+ * {@link WorkspaceLockIntegrityError} and leaves the moved bytes intact. It
+ * MUST NOT discard the moved lock: doing so would vacate a lock a live holder
+ * may still own. Only when the bytes are safely re-linked (or copied) back is
+ * the moved temporary removed.
  */
 function restoreMovedLock(movedLockPath: string, lockPath: string): void {
   try {
     fs.linkSync(movedLockPath, lockPath);
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
-    if (code === 'EEXIST') {
+    if (code === 'EPERM' || code === 'EOPNOTSUPP' || code === 'ENOTSUP') {
+      // Filesystem rejects hard-links; fall back to an exclusive copy that
+      // keeps the same no-clobber guarantee.
+      try {
+        fs.copyFileSync(movedLockPath, lockPath, fs.constants.COPYFILE_EXCL);
+      } catch (copyError) {
+        throw new WorkspaceLockIntegrityError(
+          `Failed to restore moved workspace lock ${movedLockPath} -> ${lockPath}; ` +
+            'moved lock bytes left in place for recovery.',
+          { cause: copyError },
+        );
+      }
       unlinkIfPresent(movedLockPath);
       return;
     }
-    if (code !== 'EPERM' && code !== 'EOPNOTSUPP' && code !== 'ENOTSUP') {
-      throw error;
-    }
-    try {
-      fs.copyFileSync(movedLockPath, lockPath, fs.constants.COPYFILE_EXCL);
-    } catch (copyError) {
-      if ((copyError as NodeJS.ErrnoException).code === 'EEXIST') {
-        unlinkIfPresent(movedLockPath);
-        return;
-      }
-      throw copyError;
-    }
+    // EEXIST (a newer claimant already holds the pathname) or any other error:
+    // we cannot restore without clobbering, and must never discard the moved
+    // lock. Surface it loudly with the moved bytes preserved.
+    throw new WorkspaceLockIntegrityError(
+      `Failed to restore moved workspace lock ${movedLockPath} -> ${lockPath}; ` +
+        'moved lock bytes left in place for recovery.',
+      { cause: error },
+    );
   }
   unlinkIfPresent(movedLockPath);
 }
@@ -289,21 +340,33 @@ function takeOverLock(
     throw error;
   }
 
+  const claimed = readLockObservation(takeoverPath);
+  // Only claim when the bytes we moved are exactly the ones we observed AND they
+  // are non-empty. `writeLock` creates the lockfile with `wx` and then writes
+  // its payload non-atomically, so a concurrent reader can momentarily observe a
+  // freshly created lock as empty bytes. Treating an empty observation as a
+  // takeover target would let two claimants match "" against "" and both win;
+  // requiring non-empty bytes rejects that torn read (the claimant falls back to
+  // WorkspaceLockedError) while still recovering a genuinely corrupt (non-empty)
+  // lock. Any mismatch means a successor won the race, so we restore *their*
+  // bytes no-clobber; restoreMovedLock throws {@link WorkspaceLockIntegrityError}
+  // (leaving the moved bytes intact) if a newer claimant already holds the
+  // pathname — we never discard a live lock and never continue past the failure.
+  if (
+    claimed === undefined ||
+    claimed.raw === '' ||
+    claimed.raw !== observed.raw
+  ) {
+    restoreMovedLock(takeoverPath, lockPath);
+    return false;
+  }
+
+  // The moved bytes are exactly the stale observation we set out to evict, so
+  // discarding them once we (try to) claim the pathname is always safe.
   try {
-    const claimed = readLockObservation(takeoverPath);
-    if (claimed?.raw !== observed.raw) {
-      restoreMovedLock(takeoverPath, lockPath);
-      return false;
-    }
     return writeLock(lockPath, replacement);
   } finally {
-    // The moved file is the exact stale observation or a successor that we
-    // have already restored. It is never the pathname of a live successor.
-    try {
-      unlinkIfPresent(takeoverPath);
-    } catch {
-      // A best-effort cleanup failure must not mask the lock decision.
-    }
+    unlinkIfPresent(takeoverPath);
   }
 }
 
@@ -350,25 +413,68 @@ function acquireWorkspaceLock(root: string, staleLockMs: number): LockHandle {
   throw workspaceLockedError(root);
 }
 
+/**
+ * Test-only seam. `releaseWorkspaceLock` invokes these hooks between its
+ * in-place ownership read and the rename (`afterOwnershipRead`) and between the
+ * rename and a mismatch restore (`beforeRestore`), letting a test deterministically
+ * inject a successor lock or a competing claimant into the release windows
+ * without timing races. Never set in production code.
+ */
+export const __releaseTestHooks: {
+  afterOwnershipRead?: (handle: { lockPath: string; token: string }) => void;
+  beforeRestore?: (handle: { lockPath: string; token: string }) => void;
+} = {};
+
+/**
+ * Release the lock we hold. Correctness hinges on never vacating or discarding
+ * a lock that is not ours.
+ *
+ * Residual by design: a stale takeover (see {@link acquireWorkspaceLock}) can
+ * hand our lock to a successor while we are still running. Release cannot undo
+ * that hand-off — it must simply never make it worse.
+ *
+ * So we read the lock bytes in place FIRST. If the token is not ours, a
+ * successor already owns the pathname and we return without touching it. Only
+ * when the bytes are ours do we rename to a private release path and re-verify:
+ * if a successor slipped into the read->rename window we restore *their* bytes
+ * no-clobber, and if that restore cannot succeed we throw
+ * {@link WorkspaceLockIntegrityError} rather than silently discarding a live
+ * lock or leaving the pathname vacated.
+ */
 function releaseWorkspaceLock(handle: LockHandle): void {
-  const releasePath = `${handle.lockPath}.release.${handle.token}`;
-  try {
-    fs.renameSync(handle.lockPath, releasePath);
-  } catch {
+  const inPlace = readLockObservation(handle.lockPath);
+  if (inPlace?.record?.token !== handle.token) {
+    // Not ours (a successor already took over, or it is already gone). Leave
+    // it exactly as-is — this is the old safe token-mismatch behavior.
     return;
   }
 
+  __releaseTestHooks.afterOwnershipRead?.(handle);
+
+  const releasePath = `${handle.lockPath}.release.${handle.token}`;
   try {
-    const moved = readLockObservation(releasePath);
-    if (moved?.record?.token === handle.token) {
-      unlinkIfPresent(releasePath);
+    fs.renameSync(handle.lockPath, releasePath);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      // The lock vanished between our read and the rename (taken over). Nothing
+      // of ours remains to release.
       return;
     }
-    restoreMovedLock(releasePath, handle.lockPath);
-  } catch {
-    // Best-effort release: a missing lock (already taken over) is not an
-    // error, and an unexpected filesystem race must not mask the mutation.
+    throw error;
   }
+
+  const moved = readLockObservation(releasePath);
+  if (moved?.record?.token === handle.token) {
+    // Still ours after the move: the normal release path.
+    unlinkIfPresent(releasePath);
+    return;
+  }
+
+  // A successor slipped into the read->rename window and we moved *their* bytes.
+  // Put them back without clobbering any newer claimant; any failure is an
+  // integrity violation that restoreMovedLock surfaces loudly (bytes preserved).
+  __releaseTestHooks.beforeRestore?.(handle);
+  restoreMovedLock(releasePath, handle.lockPath);
 }
 
 /**

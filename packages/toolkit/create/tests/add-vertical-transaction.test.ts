@@ -8,10 +8,12 @@ import {
   generateUltramodernWorkspace,
 } from '../src/ultramodern-workspace';
 import {
+  __releaseTestHooks,
   runWorkspaceTransaction,
   ULTRAMODERN_LOCK_DIRECTORY,
   ULTRAMODERN_LOCK_FILE,
   WorkspaceLockedError,
+  WorkspaceLockIntegrityError,
 } from '../src/ultramodern-workspace/add-vertical/transaction';
 
 function lockPath(workspaceDir: string): string {
@@ -264,46 +266,51 @@ test('a stale lock is taken over (G1c)', () => {
 
 test('concurrent stale-lock takeovers have exactly one winner (G1c)', async () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-add-txn-'));
-  const workspaceDir = path.join(tempRoot, 'race-workspace');
-  const readyOne = path.join(tempRoot, 'claimant-one.ready');
-  const readyTwo = path.join(tempRoot, 'claimant-two.ready');
-  const winnerOne = path.join(tempRoot, 'claimant-one.winner');
-  const winnerTwo = path.join(tempRoot, 'claimant-two.winner');
-  fs.mkdirSync(path.dirname(lockPath(workspaceDir)), { recursive: true });
-  fs.writeFileSync(
-    lockPath(workspaceDir),
-    JSON.stringify({
-      token: 'stale-race-token',
-      pid: 999999999,
-      createdAt: 0,
-    }),
-  );
-
+  const ITERATIONS = 25;
   try {
-    const results = await Promise.all([
-      runConcurrentClaimant({
-        workspaceDir,
-        readyPath: readyOne,
-        otherReadyPath: readyTwo,
-        winnerPath: winnerOne,
-      }),
-      runConcurrentClaimant({
-        workspaceDir,
-        readyPath: readyTwo,
-        otherReadyPath: readyOne,
-        winnerPath: winnerTwo,
-      }),
-    ]);
-    assert.equal(
-      results.filter(result => result.status === 0).length,
-      1,
-      `exactly one claimant must win: ${JSON.stringify(results)}`,
-    );
-    assert.equal(
-      results.filter(result => result.status === 2).length,
-      1,
-      `the losing claimant must receive WorkspaceLockedError: ${JSON.stringify(results)}`,
-    );
+    // Loop the two-process race so a rare interleaving that double-grants (or
+    // starves) the lock is caught rather than passing on a lucky schedule.
+    for (let iteration = 0; iteration < ITERATIONS; iteration += 1) {
+      const workspaceDir = path.join(tempRoot, `race-workspace-${iteration}`);
+      const readyOne = path.join(tempRoot, `claimant-one-${iteration}.ready`);
+      const readyTwo = path.join(tempRoot, `claimant-two-${iteration}.ready`);
+      const winnerOne = path.join(tempRoot, `claimant-one-${iteration}.winner`);
+      const winnerTwo = path.join(tempRoot, `claimant-two-${iteration}.winner`);
+      fs.mkdirSync(path.dirname(lockPath(workspaceDir)), { recursive: true });
+      fs.writeFileSync(
+        lockPath(workspaceDir),
+        JSON.stringify({
+          token: 'stale-race-token',
+          pid: 999999999,
+          createdAt: 0,
+        }),
+      );
+
+      const results = await Promise.all([
+        runConcurrentClaimant({
+          workspaceDir,
+          readyPath: readyOne,
+          otherReadyPath: readyTwo,
+          winnerPath: winnerOne,
+        }),
+        runConcurrentClaimant({
+          workspaceDir,
+          readyPath: readyTwo,
+          otherReadyPath: readyOne,
+          winnerPath: winnerTwo,
+        }),
+      ]);
+      assert.equal(
+        results.filter(result => result.status === 0).length,
+        1,
+        `iteration ${iteration}: exactly one claimant must win: ${JSON.stringify(results)}`,
+      );
+      assert.equal(
+        results.filter(result => result.status === 2).length,
+        1,
+        `iteration ${iteration}: the losing claimant must receive WorkspaceLockedError: ${JSON.stringify(results)}`,
+      );
+    }
   } finally {
     fs.rmSync(tempRoot, { force: true, recursive: true });
   }
@@ -352,6 +359,94 @@ test('release leaves a successor lock when its ownership token changed (G1c)', (
       'a transaction must not release a successor-owned lock',
     );
   } finally {
+    fs.rmSync(tempRoot, { force: true, recursive: true });
+  }
+});
+
+test('release restores a successor that slips into the read->rename window intact (G1c)', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-add-txn-'));
+  const workspaceDir = path.join(tempRoot, 'window-workspace');
+  fs.mkdirSync(workspaceDir, { recursive: true });
+  const successorRaw = JSON.stringify({
+    token: 'window-successor',
+    pid: process.pid + 1,
+    createdAt: Date.now(),
+  });
+  try {
+    // Ownership reads as ours in place, but a successor takes over the pathname
+    // *after* that read and *before* the rename. Release must move the
+    // successor's bytes back out no-clobber and leave them intact — never
+    // discard a live lock.
+    __releaseTestHooks.afterOwnershipRead = handle => {
+      fs.writeFileSync(handle.lockPath, successorRaw);
+    };
+    runWorkspaceTransaction(workspaceDir, () => 'ran');
+
+    assert.deepEqual(
+      JSON.parse(fs.readFileSync(lockPath(workspaceDir), 'utf-8')),
+      JSON.parse(successorRaw),
+      'the successor lock must survive release byte-identical',
+    );
+    assert.ok(
+      !fs.existsSync(`${lockPath(workspaceDir)}.release.${'window-successor'}`),
+      'no orphaned .release temp is left behind',
+    );
+  } finally {
+    __releaseTestHooks.afterOwnershipRead = undefined;
+    __releaseTestHooks.beforeRestore = undefined;
+    fs.rmSync(tempRoot, { force: true, recursive: true });
+  }
+});
+
+test('release throws WorkspaceLockIntegrityError rather than discarding a lock when restore cannot succeed (G1c)', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-add-txn-'));
+  const workspaceDir = path.join(tempRoot, 'integrity-workspace');
+  fs.mkdirSync(workspaceDir, { recursive: true });
+  const successorRaw = JSON.stringify({
+    token: 'integrity-successor',
+    pid: process.pid + 1,
+    createdAt: Date.now(),
+  });
+  const claimantRaw = JSON.stringify({
+    token: 'integrity-claimant',
+    pid: process.pid + 2,
+    createdAt: Date.now(),
+  });
+  let releasePath: string | undefined;
+  try {
+    // Successor slips into the read->rename window (so release moves *their*
+    // bytes), then a brand-new claimant seizes the vacated pathname before the
+    // restore. Restore must fail closed: throw loudly and keep the moved bytes.
+    __releaseTestHooks.afterOwnershipRead = handle => {
+      fs.writeFileSync(handle.lockPath, successorRaw);
+    };
+    __releaseTestHooks.beforeRestore = handle => {
+      releasePath = `${handle.lockPath}.release.${handle.token}`;
+      fs.writeFileSync(handle.lockPath, claimantRaw);
+    };
+
+    assert.throws(
+      () => runWorkspaceTransaction(workspaceDir, () => 'ran'),
+      (error: unknown) =>
+        error instanceof WorkspaceLockIntegrityError &&
+        error.code === 'workspace-lock-integrity',
+      'release must surface an integrity error, not swallow it',
+    );
+
+    assert.ok(releasePath, 'restore window was reached');
+    assert.deepEqual(
+      JSON.parse(fs.readFileSync(releasePath as string, 'utf-8')),
+      JSON.parse(successorRaw),
+      'the moved successor lock must be preserved, never discarded',
+    );
+    assert.deepEqual(
+      JSON.parse(fs.readFileSync(lockPath(workspaceDir), 'utf-8')),
+      JSON.parse(claimantRaw),
+      'the newer claimant that seized the pathname is left untouched',
+    );
+  } finally {
+    __releaseTestHooks.afterOwnershipRead = undefined;
+    __releaseTestHooks.beforeRestore = undefined;
     fs.rmSync(tempRoot, { force: true, recursive: true });
   }
 });
