@@ -80,7 +80,7 @@ export async function createRunOptions({
   }
 
   const appDirectory = await initAppDir(cwd);
-  const finalConfigFile: string = customConfigFile || getConfigFile(configFile);
+  const finalConfigFile = customConfigFile || getConfigFile(configFile);
 
   const plugins = await loadInternalPlugins(appDirectory, internalPlugins);
 

@@ -31,6 +31,12 @@
       "require": "./dist/cjs/builder/index.js",
       "default": "./dist/cjs/builder/index.js"
     },
+    "./config": {
+      "types": "./dist/types/config/public.d.ts",
+      "import": "./dist/esm-node/config/public.mjs",
+      "require": "./dist/cjs/config/public.js",
+      "default": "./dist/cjs/config/public.js"
+    },
     "./cli": {
       "types": "./dist/types/index.d.ts",
       "import": "./dist/esm-node/index.mjs",
@@ -70,6 +76,9 @@
       ],
       "builder": [
         "./dist/types/builder/index.d.ts"
+      ],
+      "config": [
+        "./dist/types/config/public.d.ts"
       ]
     }
   },
@@ -80,7 +89,8 @@
   "scripts": {
     "prepublishOnly": "only-allow-pnpm",
     "dev": "rslib build --watch",
-    "build": "rslib build && pnpm -w tsgo:dts \"$PWD\"",
+    "build": "rslib build && pnpm -w tsgo:dts \"$PWD\" && pnpm run verify:public-surface",
+    "verify:public-surface": "node ./tests/config/verify-public-surface.mjs",
     "test": "rstest"
   },
   "dependencies": {

@@ -54,7 +54,7 @@ export default (): CliPlugin<AppTools> => ({
         appContext.apiDirectory,
       );
 
-      const [{ getProdServerRoutes }] = await Promise.all([
+      const [{ getProdEntrypoints, getProdServerRoutes }] = await Promise.all([
         import('./getServerRoutes.js'),
       ]);
 
@@ -79,6 +79,22 @@ export default (): CliPlugin<AppTools> => ({
         return;
       }
 
+      if (checkIsServeCommand()) {
+        const routes = getProdServerRoutes(appContext.distDirectory);
+        const entrypoints = getProdEntrypoints(
+          appContext.distDirectory,
+          routes,
+          resolvedConfig.source.mainEntryName,
+        );
+        api.updateAppContext({
+          apiOnly,
+          checkedEntries: entrypoints.map(entrypoint => entrypoint.entryName),
+          entrypoints,
+          serverRoutes: routes,
+        });
+        return;
+      }
+
       const [{ getBundleEntry }, { getServerRoutes }, { getHtmlTemplate }] =
         await Promise.all([
           import('./getBundleEntry.js'),
@@ -94,19 +110,15 @@ export default (): CliPlugin<AppTools> => ({
       debug(`entrypoints: %o`, entrypoints);
 
       const routes: ServerRoute[] = [];
-      if (checkIsServeCommand()) {
-        routes.push(...getProdServerRoutes(appContext.distDirectory));
-      } else {
-        const initialRoutes = getServerRoutes(entrypoints, {
-          appContext,
-          config: resolvedConfig,
-        });
+      const initialRoutes = getServerRoutes(entrypoints, {
+        appContext,
+        config: resolvedConfig,
+      });
 
-        const { routes: modifiedRoutes } = await hooks.modifyServerRoutes.call({
-          routes: initialRoutes,
-        });
-        routes.push(...modifiedRoutes);
-      }
+      const { routes: modifiedRoutes } = await hooks.modifyServerRoutes.call({
+        routes: initialRoutes,
+      });
+      routes.push(...modifiedRoutes);
 
       debug(`server routes: %o`, routes);
 

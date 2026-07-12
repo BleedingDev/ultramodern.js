@@ -266,3 +266,24 @@ export const getProdServerRoutes = (distDirectory: string) => {
     );
   }
 };
+
+export const getProdEntrypoints = (
+  distDirectory: string,
+  routes: ServerRoute[],
+  mainEntryName = MAIN_ENTRY_NAME,
+): Entrypoint[] => {
+  const byEntryName = new Map<string, Entrypoint>();
+  for (const route of routes) {
+    if (!route.entryName || byEntryName.has(route.entryName)) {
+      continue;
+    }
+    const builtEntry = route.bundle || route.entryPath;
+    byEntryName.set(route.entryName, {
+      entryName: route.entryName,
+      entry: path.resolve(distDirectory, builtEntry),
+      isAutoMount: true,
+      isMainEntry: route.entryName === mainEntryName,
+    });
+  }
+  return [...byEntryName.values()];
+};

@@ -1,7 +1,11 @@
+import type { ServerRoute } from '@modern-js/types';
 import { MAIN_ENTRY_NAME } from '@modern-js/utils';
 import path from 'path';
 import type { Entrypoint } from '../../src/plugins/analyze/getFileSystemEntry';
-import { getServerRoutes } from '../../src/plugins/analyze/getServerRoutes';
+import {
+  getProdEntrypoints,
+  getServerRoutes,
+} from '../../src/plugins/analyze/getServerRoutes';
 import type { AppNormalizedConfig, AppToolsContext } from '../../src/types';
 
 describe('get server routes', () => {
@@ -324,6 +328,47 @@ describe('get server routes', () => {
         entryPath: 'html/page-a',
         isSPA: false,
         isSSR: false,
+      },
+    ]);
+  });
+});
+
+describe('get production entrypoints', () => {
+  test('reconstructs unique built entries without source directories', () => {
+    expect(
+      getProdEntrypoints(
+        '/app/dist',
+        [
+          {
+            entryName: 'index',
+            entryPath: 'html/index/index.html',
+            bundle: 'bundles/index.js',
+          },
+          {
+            entryName: 'index',
+            entryPath: 'html/index/index.html',
+            bundle: 'bundles/index.js',
+            urlPath: '/alternate',
+          },
+          {
+            entryName: 'admin',
+            entryPath: 'html/admin/index.html',
+          },
+        ] as ServerRoute[],
+        'index',
+      ),
+    ).toEqual([
+      {
+        entryName: 'index',
+        entry: path.resolve('/app/dist/bundles/index.js'),
+        isAutoMount: true,
+        isMainEntry: true,
+      },
+      {
+        entryName: 'admin',
+        entry: path.resolve('/app/dist/html/admin/index.html'),
+        isAutoMount: true,
+        isMainEntry: false,
       },
     ]);
   });

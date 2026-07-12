@@ -5,7 +5,6 @@
     "esModuleInterop": true,
     "allowJs": true,
     "jsx": "preserve",
-    "baseUrl": "./",
     "skipLibCheck": true,
     "isolatedModules": true,
     "rootDir": "./src"

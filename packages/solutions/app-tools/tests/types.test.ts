@@ -5,6 +5,7 @@ import { join } from 'node:path';
 // the scaffolder actually writes to `src/modern-app-env.d.ts`.
 import { createAppEnvDts } from '../../../toolkit/create/src/ultramodern-workspace/app-files';
 import { shellApp } from '../../../toolkit/create/src/ultramodern-workspace/descriptors';
+import * as buildConfigApi from '../src/config/public';
 
 const repoRoot = join(__dirname, '../../../..');
 
@@ -52,5 +53,30 @@ describe('app-tools types', () => {
       default: './dist/cjs/index.js',
     });
     expect(appToolsPackage.exports['.']?.node).toBeUndefined();
+  });
+
+  it('declares the config export and exposes its source API', () => {
+    const packageRoot = join(repoRoot, 'packages/solutions/app-tools');
+    const appToolsPackage = JSON.parse(
+      readFileSync(join(packageRoot, 'package.json'), 'utf-8'),
+    ) as {
+      exports: Record<
+        string,
+        { import: string; require: string; types: string }
+      >;
+    };
+    const configExport = appToolsPackage.exports['./config'];
+
+    expect(configExport).toEqual({
+      types: './dist/types/config/public.d.ts',
+      import: './dist/esm-node/config/public.mjs',
+      require: './dist/cjs/config/public.js',
+      default: './dist/cjs/config/public.js',
+    });
+    expect(Object.keys(buildConfigApi).sort()).toEqual([
+      'getBuildConfigEnvironment',
+      'resolveEffectTsgoCompiler',
+      'withBuildConfigEnvironment',
+    ]);
   });
 });
