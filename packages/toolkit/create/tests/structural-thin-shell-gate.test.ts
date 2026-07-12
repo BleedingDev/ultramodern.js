@@ -122,6 +122,89 @@ test('generated validator enforces the structural thin-shell gate', () => {
   }
 });
 
+test('generated validator is regex- and interpolation-aware when stripping comments', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-thin-shell-'));
+  const baselineDir = path.join(tempRoot, 'baseline');
+  const shellFile = 'apps/shell-super-app/src/routes/regex-cases.tsx';
+
+  // Sources the gate must NOT flag: the forbidden specifier only appears inside
+  // a comment, but a preceding regex literal (whose body contains quotes) or a
+  // `${ … }` interpolation previously derailed the comment stripper.
+  const benignSources = [
+    {
+      // A regex literal containing quotes must not open a phantom string that
+      // swallows the following line comment (leaving its specifier scannable).
+      name: 'regex-with-quote-then-comment',
+      source:
+        "const q = /['\"]/;\n// import x from '../../../verticals/catalog/src/lazy';\nexport const a = 1;\n",
+    },
+    {
+      // A comment inside an interpolation is code and must be stripped.
+      name: 'interpolation-comment',
+      source:
+        // biome-ignore lint/suspicious/noTemplateCurlyInString: literal source fixture, not a JS template
+        "export const t = `${ /* import '../../../verticals/catalog/src/register' */ 1 }`;\n",
+    },
+    {
+      // Nested `${ … }` interpolations must be tracked so an inner comment is
+      // still stripped.
+      name: 'nested-interpolation-comment',
+      source:
+        // biome-ignore lint/suspicious/noTemplateCurlyInString: literal source fixture, not a JS template
+        "export const t = `o${ `i${ 1 /* import '../../../verticals/catalog/src/private' */ }e` }d`;\n",
+    },
+  ] as const;
+
+  // Sources the gate MUST still flag: a real forbidden import that follows a
+  // regex literal on the same line must be exposed, not hidden by the regex.
+  const violatingSources = [
+    {
+      name: 'forbidden-import-after-regex',
+      source:
+        "const re = /['\"]/;\nvoid import('../../../verticals/catalog/src/lazy');\n",
+      expected: /vertical-directory-dynamic-import/,
+    },
+  ] as const;
+
+  try {
+    generateWorkspace(baselineDir);
+    const baseline = runValidation(baselineDir);
+    assert.equal(baseline.status, 0, commandOutput(baseline));
+
+    for (const scenario of benignSources) {
+      const workspaceDir = path.join(tempRoot, `benign-${scenario.name}`);
+      fs.cpSync(baselineDir, workspaceDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(workspaceDir, shellFile),
+        scenario.source,
+        'utf-8',
+      );
+      const result = runValidation(workspaceDir);
+      assert.equal(
+        result.status,
+        0,
+        `${scenario.name}\n${commandOutput(result)}`,
+      );
+    }
+
+    for (const scenario of violatingSources) {
+      const workspaceDir = path.join(tempRoot, `violation-${scenario.name}`);
+      fs.cpSync(baselineDir, workspaceDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(workspaceDir, shellFile),
+        scenario.source,
+        'utf-8',
+      );
+      const result = runValidation(workspaceDir);
+      const output = commandOutput(result);
+      assert.notEqual(result.status, 0, `${scenario.name}\n${output}`);
+      assert.match(output, scenario.expected, scenario.name);
+    }
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test('generated validator scans every JavaScript/TypeScript extension and import form', () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-thin-shell-'));
   const baselineDir = path.join(tempRoot, 'baseline');

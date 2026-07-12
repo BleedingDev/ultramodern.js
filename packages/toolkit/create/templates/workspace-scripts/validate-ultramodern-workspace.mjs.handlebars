@@ -2843,10 +2843,62 @@ const assertStructuralShellPolicy = () => {
   // magic comment (`import(/* webpackChunkName */ '...')`) must still be
   // detected once the comment is removed. The scanner is string-literal aware,
   // so a `//` inside a string (e.g. `'http://example.com'`) is preserved and
-  // never mistaken for a comment start. Dependency-free by construction.
+  // never mistaken for a comment start. It is also regex-literal aware, so a
+  // quote inside a regex (`const q = /['"]/;`) never opens a phantom string
+  // that would swallow a later real comment, and template-interpolation aware,
+  // so a comment inside `${ … }` is stripped like any other code. Regex-vs-
+  // division is resolved from the previous significant token; `<`/`>` are
+  // deliberately excluded so JSX closing tags (`</div>`) are never mistaken for
+  // regex literals. Dependency-free by construction.
   const stripSourceComments = code => {
+    const isIdentifierChar = ch => ch !== '' && /[A-Za-z0-9_$]/u.test(ch);
+    // Punctuation after which a `/` opens a regex literal (not a division op).
+    // `<`/`>` are intentionally omitted to keep JSX closing/self-closing tags
+    // (`</div>`, `<br/>`) parsing as code rather than as regex.
+    const regexPrecedingPunct = new Set([
+      '(', ',', '=', '[', '{', ';', ':', '!', '&', '|', '?', '+', '-', '*',
+      '%', '^', '~',
+    ]);
+    // Keywords after which a `/` opens a regex literal.
+    const regexPrecedingKeywords = new Set([
+      'return', 'typeof', 'instanceof', 'in', 'of', 'new', 'delete', 'void',
+      'do', 'else', 'yield', 'await', 'case',
+    ]);
     let result = '';
     let state = 'code';
+    // Last significant (non-whitespace) code character emitted and the trailing
+    // identifier word — together they decide regex-vs-division for a `/`.
+    let lastSignificant = '';
+    let currentWord = '';
+    let regexInClass = false;
+    // Stack of open `${ … }` interpolations; each entry is the `{ }` nesting
+    // depth reached inside that interpolation so the matching close brace pops
+    // back to template text. Comments inside an interpolation are code.
+    const interpolations = [];
+    const regexCanFollow = () => {
+      if (lastSignificant === '') {
+        return true;
+      }
+      if (regexPrecedingPunct.has(lastSignificant)) {
+        return true;
+      }
+      if (isIdentifierChar(lastSignificant)) {
+        return regexPrecedingKeywords.has(currentWord);
+      }
+      return false;
+    };
+    const emitCodeChar = ch => {
+      result += ch;
+      if (/\s/u.test(ch)) {
+        return;
+      }
+      if (isIdentifierChar(ch)) {
+        currentWord += ch;
+      } else {
+        currentWord = '';
+      }
+      lastSignificant = ch;
+    };
     for (let index = 0; index < code.length; index += 1) {
       const char = code[index];
       const next = index + 1 < code.length ? code[index + 1] : '';
@@ -2858,6 +2910,10 @@ const assertStructuralShellPolicy = () => {
           state = 'block';
           result += ' ';
           index += 1;
+        } else if (char === '/' && regexCanFollow()) {
+          state = 'regex';
+          regexInClass = false;
+          emitCodeChar(char);
         } else if (char === "'") {
           state = 'single';
           result += char;
@@ -2867,8 +2923,27 @@ const assertStructuralShellPolicy = () => {
         } else if (char === '`') {
           state = 'template';
           result += char;
-        } else {
+        } else if (
+          char === '}' &&
+          interpolations.length > 0 &&
+          interpolations[interpolations.length - 1] === 0
+        ) {
+          // The closing brace of the current `${ … }` interpolation: resume the
+          // enclosing template literal text.
+          interpolations.pop();
+          state = 'template';
           result += char;
+          lastSignificant = char;
+          currentWord = '';
+        } else {
+          if (interpolations.length > 0) {
+            if (char === '{') {
+              interpolations[interpolations.length - 1] += 1;
+            } else if (char === '}') {
+              interpolations[interpolations.length - 1] -= 1;
+            }
+          }
+          emitCodeChar(char);
         }
         continue;
       }
@@ -2888,8 +2963,59 @@ const assertStructuralShellPolicy = () => {
         }
         continue;
       }
-      // Inside a string literal: preserve every character, honor escapes so a
-      // closing quote is not misread, and never treat `//` or `/*` as comments.
+      if (state === 'regex') {
+        // Regex body passes through as code. Honor escapes and character
+        // classes (`[...]`), where `/` need not be escaped, so the literal ends
+        // only at the true closing `/`.
+        if (char === '\\') {
+          result += char + next;
+          index += 1;
+          continue;
+        }
+        if (char === '[') {
+          regexInClass = true;
+        } else if (char === ']') {
+          regexInClass = false;
+        } else if (char === '/' && !regexInClass) {
+          state = 'code';
+          result += char;
+          lastSignificant = char;
+          currentWord = '';
+          continue;
+        }
+        result += char;
+        continue;
+      }
+      if (state === 'template') {
+        if (char === '\\') {
+          result += char + next;
+          index += 1;
+          continue;
+        }
+        if (char === '`') {
+          state = 'code';
+          result += char;
+          lastSignificant = char;
+          currentWord = '';
+          continue;
+        }
+        if (char === '$' && next === '{') {
+          // Enter a `${ … }` interpolation: its body is code, so re-enter the
+          // full scanner (nesting-aware) to strip comments inside it.
+          interpolations.push(0);
+          state = 'code';
+          result += '${';
+          index += 1;
+          lastSignificant = '{';
+          currentWord = '';
+          continue;
+        }
+        result += char;
+        continue;
+      }
+      // Inside a single- or double-quoted string literal: preserve every
+      // character, honor escapes so a closing quote is not misread, and never
+      // treat `//` or `/*` as comments.
       if (char === '\\') {
         result += char + next;
         index += 1;
@@ -2897,10 +3023,13 @@ const assertStructuralShellPolicy = () => {
       }
       if (
         (state === 'single' && char === "'") ||
-        (state === 'double' && char === '"') ||
-        (state === 'template' && char === '`')
+        (state === 'double' && char === '"')
       ) {
         state = 'code';
+        result += char;
+        lastSignificant = char;
+        currentWord = '';
+        continue;
       }
       result += char;
     }
