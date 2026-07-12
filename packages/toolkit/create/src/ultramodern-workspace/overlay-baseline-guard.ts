@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { yaml } from '@modern-js/utils';
 import type { JsonValue } from './types';
 import { isRecord } from './types';
 import {
@@ -225,6 +226,19 @@ function baselinePolicyEntries(
   return entries;
 }
 
+function readPnpmWorkspaceYaml(
+  workspaceRoot: string,
+): Record<string, JsonValue> {
+  try {
+    const parsed: unknown = yaml.load(
+      fs.readFileSync(path.join(workspaceRoot, 'pnpm-workspace.yaml'), 'utf-8'),
+    );
+    return isRecord(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
 function collectCatalogValues(
   parsed: Record<string, JsonValue>,
 ): Map<string, string> {
@@ -316,6 +330,7 @@ function readBaselinePins(
 export type OverlayBaselineSnapshot = {
   baselinePinsByManifest: Record<string, Record<string, string>>;
   baselinePolicyPinsByManifest?: Record<string, Record<string, string>>;
+  baselineWorkspacePolicyPins?: Record<string, string>;
   shellPackageDirectories: string[];
   shellFiles: Set<string>;
 };
@@ -354,9 +369,56 @@ export function captureOverlayBaselineSnapshot(
   return {
     baselinePinsByManifest,
     baselinePolicyPinsByManifest,
+    baselineWorkspacePolicyPins: Object.fromEntries(
+      baselinePolicyEntries(readPnpmWorkspaceYaml(workspaceRoot)).map(entry => [
+        entry.path,
+        entry.value,
+      ]),
+    ),
     shellPackageDirectories,
     shellFiles,
   };
+}
+
+function collectPolicyViolations(
+  parsed: Record<string, JsonValue>,
+  beforePolicyPins: Record<string, string>,
+  displayPath: string,
+): OverlayBaselineViolation[] {
+  const violations: OverlayBaselineViolation[] = [];
+  const currentPolicyEntries = baselinePolicyEntries(parsed);
+  const currentPolicyPins = Object.fromEntries(
+    currentPolicyEntries.map(entry => [entry.path, entry.value]),
+  );
+
+  for (const [policyPath, previous] of Object.entries(beforePolicyPins)) {
+    if (Object.hasOwn(currentPolicyPins, policyPath)) continue;
+    const dependency =
+      baselineDependencyFromKey(policyPath.split('.').at(-1) ?? '') ??
+      policyPath.split('.').at(-1) ??
+      policyPath;
+    const expected = BASELINE_DEPENDENCY_PINS[dependency];
+    if (expected === undefined) continue;
+    violations.push({
+      kind: 'baseline-version-relaxation',
+      path: `${displayPath}#${policyPath}`,
+      detail: `overlay removed baseline policy "${policyPath}" from "${previous}"; Platform Baseline pin is "${expected}"`,
+    });
+  }
+
+  const catalogValues = collectCatalogValues(parsed);
+  for (const entry of currentPolicyEntries) {
+    const resolvedVersion = resolveCatalogReference(entry.value, catalogValues);
+    const expected = BASELINE_DEPENDENCY_PINS[entry.dependency];
+    if (baselineSpecMatches(resolvedVersion, entry.dependency)) continue;
+    violations.push({
+      kind: 'baseline-version-relaxation',
+      path: `${displayPath}#${entry.path}`,
+      detail: `overlay policy "${entry.path}" pins baseline dependency "${entry.dependency}" at "${entry.value}"; Platform Baseline pin is "${expected}"`,
+    });
+  }
+
+  return violations;
 }
 
 function collectVersionViolations(
@@ -427,39 +489,22 @@ function collectVersionViolations(
       });
     }
 
-    const currentPolicyPins = Object.fromEntries(
-      baselinePolicyEntries(parsed).map(entry => [entry.path, entry.value]),
+    violations.push(
+      ...collectPolicyViolations(
+        parsed,
+        snapshot.baselinePolicyPinsByManifest?.[manifest] ?? {},
+        manifest,
+      ),
     );
-    const beforePolicyPins =
-      snapshot.baselinePolicyPinsByManifest?.[manifest] ?? {};
-    for (const [policyPath, previous] of Object.entries(beforePolicyPins)) {
-      if (Object.hasOwn(currentPolicyPins, policyPath)) continue;
-      const dependency =
-        baselineDependencyFromKey(policyPath.split('.').at(-1) ?? '') ??
-        policyPath.split('.').at(-1) ??
-        policyPath;
-      const expected = BASELINE_DEPENDENCY_PINS[dependency];
-      if (expected === undefined) continue;
-      violations.push({
-        kind: 'baseline-version-relaxation',
-        path: `${manifest}#${policyPath}`,
-        detail: `overlay removed baseline policy "${policyPath}" from "${previous}"; Platform Baseline pin is "${expected}"`,
-      });
-    }
-    for (const entry of baselinePolicyEntries(parsed)) {
-      const resolvedVersion = resolveCatalogReference(
-        entry.value,
-        catalogValues,
-      );
-      const expected = BASELINE_DEPENDENCY_PINS[entry.dependency];
-      if (baselineSpecMatches(resolvedVersion, entry.dependency)) continue;
-      violations.push({
-        kind: 'baseline-version-relaxation',
-        path: `${manifest}#${entry.path}`,
-        detail: `overlay policy "${entry.path}" pins baseline dependency "${entry.dependency}" at "${entry.value}"; Platform Baseline pin is "${expected}"`,
-      });
-    }
   }
+
+  violations.push(
+    ...collectPolicyViolations(
+      readPnpmWorkspaceYaml(workspaceRoot),
+      snapshot.baselineWorkspacePolicyPins ?? {},
+      'pnpm-workspace.yaml',
+    ),
+  );
 
   return violations;
 }
