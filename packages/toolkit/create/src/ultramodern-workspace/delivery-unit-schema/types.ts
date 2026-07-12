@@ -472,6 +472,13 @@ export function serializeDeliveryUnitDescriptor(
  * reconstruct today's `WorkspaceApp` / `DeliveryUnitRecord`.
  */
 export type V1ProjectionContext = {
+  /**
+   * Which v1 wire vocabulary is being projected onto. Strict legacy v1 only
+   * carries the historical WorkspaceApp fields; extended-v1 also carries the
+   * additive delivery-unit discriminators introduced by the workspace
+   * topology format.
+   */
+  mode?: V1ProjectionMode;
   directory: string;
   packageSuffix: string;
   displayName: string;
@@ -482,6 +489,16 @@ export type V1ProjectionContext = {
   packageName: string;
   version: string;
 };
+
+/**
+ * The two v1 wire vocabularies understood by the projection pair.
+ *
+ * `strict-legacy` is the original v1 shape and intentionally rejects values
+ * that would be silently collapsed by it. `extended-v1` is still schema
+ * version 1, but permits the additive `deliveryUnitKind` and `api.protocol`
+ * fields used by the UltraModern topology/config readers.
+ */
+export type V1ProjectionMode = 'strict-legacy' | 'extended-v1';
 
 export type DeliveryUnitV1Projection = {
   app: WorkspaceApp;
@@ -508,7 +525,10 @@ function lastSegment(unitId: string): string {
   return segments[segments.length - 1] ?? unitId;
 }
 
-function projectApi(surfaces: SurfaceDescriptor[]): WorkspaceApi | undefined {
+function projectApi(
+  surfaces: SurfaceDescriptor[],
+  mode: V1ProjectionMode,
+): WorkspaceApi | undefined {
   const apiSurface = surfaces.find(
     (surface): surface is ApiSurfaceDescriptor => surface.kind === 'api',
   );
@@ -523,6 +543,7 @@ function projectApi(surfaces: SurfaceDescriptor[]): WorkspaceApi | undefined {
     stem: apiSurface.surfaceId,
     prefix: http?.address ?? `/${apiSurface.surfaceId}`,
     consumedBy: [],
+    ...(mode === 'extended-v1' ? { protocol: apiSurface.protocol } : {}),
   };
 }
 
@@ -541,7 +562,8 @@ export function projectDeliveryUnitToV1(
   context: V1ProjectionContext,
 ): DeliveryUnitV1Projection {
   const appId = lastSegment(descriptor.unitId);
-  const api = projectApi(descriptor.surfaces);
+  const mode = context.mode ?? 'strict-legacy';
+  const api = projectApi(descriptor.surfaces, mode);
 
   // Owner round-trip (G3): a `team` owner is v1-native (its id/contact live in
   // `ownership.team`/`ownership.slack`), so the neutral context ownership is
@@ -563,6 +585,9 @@ export function projectDeliveryUnitToV1(
     port: context.port,
     mfName: context.mfName,
     ownership,
+    ...(mode === 'extended-v1' && descriptor.kind === 'horizontal-remote'
+      ? { deliveryUnitKind: 'horizontal-remote' as const }
+      : {}),
     ...(api === undefined ? {} : { api }),
   };
 

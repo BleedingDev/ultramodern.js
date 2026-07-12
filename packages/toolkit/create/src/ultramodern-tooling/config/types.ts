@@ -1,8 +1,10 @@
 import type { UltramodernBridgeConfig } from '../../ultramodern-workspace/bridge-config';
 import type {
   ResolvedPackageSource,
+  VerticalPreset,
   WorkspaceApi,
   WorkspaceApp,
+  WorkspaceDeliveryUnitKind,
 } from '../../ultramodern-workspace/types';
 
 export type UltramodernToolingConfigSource = 'compact';
@@ -15,6 +17,8 @@ export type UltramodernToolingConfigApp = {
   packageSuffix?: string;
   displayName?: string;
   domain?: string;
+  surfaceProfile?: VerticalPreset;
+  deliveryUnitKind?: WorkspaceDeliveryUnitKind;
   port?: number;
   portEnv?: string;
   moduleFederation?: {

@@ -49,6 +49,16 @@ export type VerticalPreset = 'full-stack' | 'api-only' | 'ui-only';
  */
 export type VerticalApiProtocol = 'rest' | 'rpc';
 
+export function isVerticalPreset(value: unknown): value is VerticalPreset {
+  return value === 'full-stack' || value === 'api-only' || value === 'ui-only';
+}
+
+export function isVerticalApiProtocol(
+  value: unknown,
+): value is VerticalApiProtocol {
+  return value === 'rest' || value === 'rpc';
+}
+
 /**
  * The canonical kind of the generated delivery unit. `microvertical` is the
  * default. `horizontal-remote` (G2H) is a components-only cross-vertical
@@ -59,6 +69,12 @@ export type VerticalApiProtocol = 'rest' | 'rpc';
  * schemaVersion-2 delivery-unit descriptor.
  */
 export type WorkspaceDeliveryUnitKind = 'microvertical' | 'horizontal-remote';
+
+export function isWorkspaceDeliveryUnitKind(
+  value: unknown,
+): value is WorkspaceDeliveryUnitKind {
+  return value === 'microvertical' || value === 'horizontal-remote';
+}
 
 export type WorkspaceApp = {
   id: string;

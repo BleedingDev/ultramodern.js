@@ -1,4 +1,5 @@
 import { apiTopologyMetadata } from './api';
+import { rpcPath } from './api/rpc';
 import {
   createBackendFederationContract,
   createBackendFederationSummary,
@@ -13,6 +14,7 @@ import {
   createModuleFederationRemoteContracts,
   createShellHost,
   resolveApiPrefix,
+  resolveApiProtocol,
   sharedPackages,
   shellApp,
   verticalApiApps,
@@ -81,11 +83,20 @@ export function createTopology(
         createDeliveryUnitRecord(scope, shellApp),
       ),
       cloudflare: createCloudflareDeployContract(scope, shellApp),
+      deliveryUnit: deliveryUnitContractBlock(
+        createDeliveryUnitRecord(scope, shellApp),
+      ),
       ownership: shellApp.ownership,
     },
     verticals: remotes.map(vertical => ({
       id: vertical.id,
       kind: vertical.kind,
+      ...(vertical.surfaceProfile
+        ? { surfaceProfile: vertical.surfaceProfile }
+        : {}),
+      ...(vertical.deliveryUnitKind
+        ? { deliveryUnitKind: vertical.deliveryUnitKind }
+        : {}),
       ...(vertical.domain ? { domain: vertical.domain } : {}),
       package: packageName(scope, vertical.packageSuffix),
       path: vertical.directory,
@@ -198,7 +209,11 @@ export function createDevelopmentOverlay(
     apis: Object.fromEntries(
       verticalApiApps(remotes).map(app => [
         app.id,
-        `http://localhost:${app.port}${resolveApiPrefix(app)}`,
+        `http://localhost:${app.port}${
+          resolveApiProtocol(app) === 'rpc'
+            ? rpcPath(app)
+            : resolveApiPrefix(app)
+        }`,
       ]),
     ),
   };
@@ -257,6 +272,10 @@ export function createUltramodernConfig(
         displayName: app.displayName,
         path: app.directory,
         ...(app.domain ? { domain: app.domain } : {}),
+        ...(app.surfaceProfile ? { surfaceProfile: app.surfaceProfile } : {}),
+        ...(app.deliveryUnitKind
+          ? { deliveryUnitKind: app.deliveryUnitKind }
+          : {}),
         port: app.port,
         portEnv: app.portEnv,
         moduleFederation: {
@@ -299,6 +318,9 @@ export function createUltramodernConfig(
                 stem: app.api.stem,
                 prefix: app.api.prefix,
                 consumedBy: app.api.consumedBy,
+                ...(app.api.protocol === undefined
+                  ? {}
+                  : { protocol: app.api.protocol }),
               },
             }
           : {}),

@@ -32,6 +32,7 @@ import type {
   RouteSurfaceDescriptor,
   SurfaceDescriptor,
   SurfaceLocation,
+  V1ProjectionMode,
 } from './types';
 
 /* -------------------------------------------------------------------------- */
@@ -54,6 +55,13 @@ import type {
  * pass untouched (SPEC §5 invariant 5, marker preservation).
  */
 export type V1UpProjectionContext = {
+  /**
+   * The v1 vocabulary being read. In `extended-v1`, additive fields already
+   * present on the WorkspaceApp are authoritative for kind/protocol; strict
+   * legacy mode deliberately ignores them and exposes their loss through the
+   * representability guard.
+   */
+  mode?: V1ProjectionMode;
   /** Package/topology scope. `unitId` = `${scope}/${app.domain ?? app.id}`. */
   scope: string;
   /** Identity root: exact source revision, threaded, never regenerated. */
@@ -117,8 +125,16 @@ export function ownershipToOwner(ownership: Ownership): DeliveryUnitOwner {
  * information is already gone by the time an app exists). See {@link
  * checkV1Representable} for the reverse guard.
  */
-function projectKindUp(kind: WorkspaceApp['kind']): DeliveryUnitKind {
-  return kind === 'shell' ? 'shell' : 'microvertical';
+function projectKindUp(
+  app: WorkspaceApp,
+  mode: V1ProjectionMode,
+): DeliveryUnitKind {
+  if (app.kind === 'shell') {
+    return 'shell';
+  }
+  return mode === 'extended-v1' && app.deliveryUnitKind === 'horizontal-remote'
+    ? 'horizontal-remote'
+    : 'microvertical';
 }
 
 /* -------------------------------------------------------------------------- */
@@ -224,10 +240,14 @@ export function projectV1ToDeliveryUnit(
   app: WorkspaceApp,
   context: V1UpProjectionContext,
 ): DeliveryUnitDescriptor {
-  const protocol = context.apiProtocol ?? 'rest';
+  const mode = context.mode ?? 'strict-legacy';
+  const protocol =
+    context.apiProtocol ??
+    (mode === 'extended-v1' ? app.api?.protocol : undefined) ??
+    'rest';
   return {
     unitId: `${context.scope}/${app.domain ?? app.id}`,
-    kind: projectKindUp(app.kind),
+    kind: projectKindUp(app, mode),
     owner: ownershipToOwner(app.ownership),
     sourceRevision: context.sourceRevision,
     buildMarker: context.buildMarker,
@@ -307,6 +327,7 @@ export class V1UnrepresentableError extends Error {
 /** First unrepresentable construct within one surface, if any. */
 function checkSurfaceRepresentable(
   surface: SurfaceDescriptor,
+  mode: V1ProjectionMode,
 ): V1UnrepresentableReason | undefined {
   if (surface.kind === 'component' || surface.kind === 'route') {
     return 'component-or-route-surface';
@@ -315,7 +336,10 @@ function checkSurfaceRepresentable(
     return 'backend-surface';
   }
   // api surface.
-  if (surface.protocol !== 'rest') {
+  if (
+    surface.protocol !== 'rest' &&
+    !(mode === 'extended-v1' && surface.protocol === 'rpc')
+  ) {
     return 'non-rest-protocol';
   }
   const [first, ...rest] = surface.locations;
@@ -344,6 +368,7 @@ function checkSurfaceRepresentable(
  */
 export function checkV1Representable(
   descriptor: DeliveryUnitDescriptor,
+  mode: V1ProjectionMode = 'strict-legacy',
 ): V1RepresentabilityResult {
   const unrepresentable = (
     reason: V1UnrepresentableReason,
@@ -353,7 +378,7 @@ export function checkV1Representable(
     reason,
   });
 
-  if (descriptor.kind === 'horizontal-remote') {
+  if (mode === 'strict-legacy' && descriptor.kind === 'horizontal-remote') {
     return unrepresentable('horizontal-remote-kind');
   }
   if (descriptor.unknownFields !== undefined) {
@@ -377,7 +402,7 @@ export function checkV1Representable(
         return unrepresentable('multiple-api-surfaces');
       }
     }
-    const reason = checkSurfaceRepresentable(surface);
+    const reason = checkSurfaceRepresentable(surface, mode);
     if (reason !== undefined) {
       return unrepresentable(reason);
     }
@@ -393,8 +418,9 @@ export function checkV1Representable(
  */
 export function assertV1Representable(
   descriptor: DeliveryUnitDescriptor,
+  mode: V1ProjectionMode = 'strict-legacy',
 ): void {
-  const result = checkV1Representable(descriptor);
+  const result = checkV1Representable(descriptor, mode);
   if (!result.representable) {
     throw new V1UnrepresentableError(result.reason);
   }

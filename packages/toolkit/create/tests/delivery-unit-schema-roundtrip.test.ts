@@ -470,7 +470,7 @@ test('canonical agent / agent-team owner round-trips through the projection pair
 const horizontalRemote: DeliveryUnitDescriptor = {
   unitId: 'acme/design-system',
   kind: 'horizontal-remote',
-  owner: { kind: 'team', id: 'design-system' },
+  owner: { kind: 'team', id: 'design-system', contact: '#design-system' },
   sourceRevision: 'rev-ds',
   buildMarker: 'marker-ds',
   baselineCohort,
@@ -504,6 +504,119 @@ test('horizontal-remote is unrepresentable in v1 (typed, not silent)', () => {
       error instanceof V1UnrepresentableError &&
       error.code === 'unrepresentable-in-v1' &&
       error.reason === 'horizontal-remote-kind',
+  );
+});
+
+test('extended-v1 preserves horizontal kind and RPC protocol', () => {
+  const extendedHorizontalRemote: DeliveryUnitDescriptor = {
+    ...horizontalRemote,
+    publicationZone: { zone: 'coordinated' },
+  };
+  const horizontalProjection = projectDeliveryUnitToV1(
+    extendedHorizontalRemote,
+    {
+      mode: 'extended-v1',
+      directory: 'verticals/design-system',
+      packageSuffix: 'design-system',
+      displayName: 'Design System',
+      portEnv: 'DESIGN_SYSTEM_PORT',
+      port: 8600,
+      mfName: 'verticalDesignSystem',
+      ownership: {
+        team: 'design-system',
+        slack: '#design-system',
+        pagerDuty: 'pd-design-system',
+        runbookRef: 'runbooks/design-system.md',
+        adrRef: 'ADR-0019',
+        blastRadius: { tier: 'tier-2-vertical', references: [] },
+      },
+      packageName: '@acme/design-system',
+      version: '0.1.0',
+    },
+  );
+
+  assert.equal(horizontalProjection.app.kind, 'vertical');
+  assert.equal(horizontalProjection.app.deliveryUnitKind, 'horizontal-remote');
+  assert.deepEqual(
+    checkV1Representable(extendedHorizontalRemote, 'extended-v1'),
+    {
+      representable: true,
+    },
+  );
+  assert.deepEqual(
+    projectV1ToDeliveryUnit(horizontalProjection.app, {
+      mode: 'extended-v1',
+      scope: SCOPE,
+      sourceRevision: extendedHorizontalRemote.sourceRevision,
+      buildMarker: extendedHorizontalRemote.buildMarker,
+      baselineCohort,
+    }),
+    extendedHorizontalRemote,
+  );
+
+  const rpcDescriptor: DeliveryUnitDescriptor = {
+    ...externallyPublished,
+    kind: 'microvertical',
+    unitId: 'acme/catalog',
+    sourceRevision: 'rev-rpc',
+    buildMarker: 'marker-rpc',
+    publicationZone: { zone: 'coordinated' },
+    surfaces: [
+      {
+        kind: 'api',
+        surfaceId: 'catalog',
+        protocol: 'rpc',
+        locations: [{ platform: 'http', address: '/catalog-api/rpc' }],
+      },
+    ],
+  };
+  assert.deepEqual(checkV1Representable(rpcDescriptor), {
+    representable: false,
+    code: 'unrepresentable-in-v1',
+    reason: 'non-rest-protocol',
+  });
+  assert.deepEqual(checkV1Representable(rpcDescriptor, 'extended-v1'), {
+    representable: true,
+  });
+  const rpcApp = projectDeliveryUnitToV1(rpcDescriptor, {
+    mode: 'extended-v1',
+    directory: 'verticals/catalog',
+    packageSuffix: 'catalog',
+    displayName: 'Catalog',
+    portEnv: 'CATALOG_PORT',
+    port: 8601,
+    mfName: 'verticalCatalog',
+    ownership: {
+      team: 'catalog',
+      slack: '#catalog',
+      pagerDuty: 'pd-catalog',
+      runbookRef: 'runbooks/catalog.md',
+      adrRef: 'ADR-0019',
+      blastRadius: { tier: 'tier-2-vertical', references: [] },
+    },
+    packageName: '@acme/catalog',
+    version: '0.1.0',
+  }).app;
+  assert.equal(rpcApp.api?.protocol, 'rpc');
+  assert.equal(
+    projectV1ToDeliveryUnit(rpcApp, {
+      mode: 'extended-v1',
+      scope: SCOPE,
+      sourceRevision: rpcDescriptor.sourceRevision,
+      buildMarker: rpcDescriptor.buildMarker,
+      baselineCohort,
+    }).surfaces[0]?.kind,
+    'api',
+  );
+  assert.equal(
+    projectV1ToDeliveryUnit(rpcApp, {
+      mode: 'extended-v1',
+      scope: SCOPE,
+      sourceRevision: rpcDescriptor.sourceRevision,
+      buildMarker: rpcDescriptor.buildMarker,
+      baselineCohort,
+    }).surfaces[0]?.protocol,
+    'rpc',
   );
 });
 

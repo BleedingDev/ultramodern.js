@@ -18,6 +18,11 @@ import type {
   WorkspaceApi,
   WorkspaceApp,
 } from '../types';
+import {
+  isVerticalApiProtocol,
+  isVerticalPreset,
+  isWorkspaceDeliveryUnitKind,
+} from '../types';
 
 export function verticalTopologyEntry(
   scope: string,
@@ -29,12 +34,14 @@ export function verticalTopologyEntry(
   return {
     id: vertical.id,
     kind: vertical.kind,
-    // Additive v1 extension (G2H): the canonical `horizontal-remote` delivery
-    // kind is unrepresentable in strict v1, so the v1 `kind` stays `vertical`
-    // and the true kind rides alongside it. Omitted for the `microvertical`
-    // default to preserve byte-identical topology output.
-    ...(vertical.deliveryUnitKind === 'horizontal-remote'
-      ? { deliveryUnitKind: 'horizontal-remote' }
+    // Additive v1 extensions are emitted only when present on the descriptor.
+    // This keeps strict-legacy output byte-identical while allowing an
+    // extended-v1 value to survive a read/mutate/re-emit cycle.
+    ...(vertical.surfaceProfile
+      ? { surfaceProfile: vertical.surfaceProfile }
+      : {}),
+    ...(vertical.deliveryUnitKind
+      ? { deliveryUnitKind: vertical.deliveryUnitKind }
       : {}),
     ...(vertical.domain ? { domain: vertical.domain } : {}),
     package: packageName(scope, vertical.packageSuffix),
@@ -54,13 +61,9 @@ export function verticalTopologyEntry(
       sharedContractVersion: 'mf-ssr-contract-v1',
     },
     ...(backendFederation ? { backendFederation } : {}),
-    ...(vertical.api
-      ? {
-          deliveryUnit: deliveryUnitContractBlock(
-            createDeliveryUnitRecord(scope, vertical),
-          ),
-        }
-      : {}),
+    deliveryUnit: deliveryUnitContractBlock(
+      createDeliveryUnitRecord(scope, vertical),
+    ),
     ...(apiTopologyMetadata(vertical)
       ? { api: apiTopologyMetadata(vertical) }
       : {}),
@@ -94,6 +97,17 @@ export function verticalsFromTopology(
     const domain = vertical.domain ?? String(vertical.id);
     const packageSuffix = vertical.package?.split('/').at(-1) ?? domain;
     const apiTopology = vertical.api;
+    const apiProtocol = isVerticalApiProtocol(apiTopology?.protocol)
+      ? apiTopology.protocol
+      : undefined;
+    const surfaceProfile = isVerticalPreset(vertical.surfaceProfile)
+      ? vertical.surfaceProfile
+      : undefined;
+    const deliveryUnitKind = isWorkspaceDeliveryUnitKind(
+      vertical.deliveryUnitKind,
+    )
+      ? vertical.deliveryUnitKind
+      : undefined;
     const api =
       apiTopology?.runtime === 'effect'
         ? ({
@@ -106,6 +120,7 @@ export function verticalsFromTopology(
             consumedBy: Array.isArray(apiTopology.consumedBy)
               ? apiTopology.consumedBy
               : [shellApp.id, vertical.id],
+            ...(apiProtocol === undefined ? {} : { protocol: apiProtocol }),
           } satisfies WorkspaceApi)
         : undefined;
 
@@ -123,6 +138,8 @@ export function verticalsFromTopology(
       port: typeof ports[vertical.id] === 'number' ? ports[vertical.id] : 0,
       mfName:
         vertical.moduleFederation?.name ?? `vertical${toPascalCase(domain)}`,
+      ...(surfaceProfile === undefined ? {} : { surfaceProfile }),
+      ...(deliveryUnitKind === undefined ? {} : { deliveryUnitKind }),
       ...(Array.isArray(vertical.moduleFederation?.exposes)
         ? {
             exposes: Object.fromEntries(

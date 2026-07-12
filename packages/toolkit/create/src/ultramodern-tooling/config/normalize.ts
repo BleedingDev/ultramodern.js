@@ -11,6 +11,11 @@ import type {
   ResolvedPackageSource,
   WorkspaceApp,
 } from '../../ultramodern-workspace/types';
+import {
+  isVerticalApiProtocol,
+  isVerticalPreset,
+  isWorkspaceDeliveryUnitKind,
+} from '../../ultramodern-workspace/types';
 import { packageScopeFromRoot } from './metadata';
 import type { UltramodernToolingConfig } from './types';
 
@@ -138,6 +143,12 @@ function normalizeCompactConfigV1(
                     ? app.displayName
                     : undefined,
                 domain: typeof app.domain === 'string' ? app.domain : undefined,
+                ...(isVerticalPreset(app.surfaceProfile)
+                  ? { surfaceProfile: app.surfaceProfile }
+                  : {}),
+                ...(isWorkspaceDeliveryUnitKind(app.deliveryUnitKind)
+                  ? { deliveryUnitKind: app.deliveryUnitKind }
+                  : {}),
                 port: typeof app.port === 'number' ? app.port : undefined,
                 portEnv:
                   typeof app.portEnv === 'string' ? app.portEnv : undefined,
@@ -203,6 +214,9 @@ function normalizeCompactConfigV1(
                                 typeof consumer === 'string',
                             )
                           : [shellApp.id, String(app.id)],
+                        ...(isVerticalApiProtocol(app.api.protocol)
+                          ? { protocol: app.api.protocol }
+                          : {}),
                       }
                     : undefined,
               };
@@ -299,6 +313,12 @@ export function workspaceAppsFromToolingConfig(
       ...(app.moduleFederation?.verticalRefs
         ? { verticalRefs: app.moduleFederation.verticalRefs }
         : {}),
+      ...(app.surfaceProfile === undefined
+        ? {}
+        : { surfaceProfile: app.surfaceProfile }),
+      ...(app.deliveryUnitKind === undefined
+        ? {}
+        : { deliveryUnitKind: app.deliveryUnitKind }),
       ...(app.api ? { api: app.api } : {}),
       ownership: createNeutralOwnership(app.id),
     };
