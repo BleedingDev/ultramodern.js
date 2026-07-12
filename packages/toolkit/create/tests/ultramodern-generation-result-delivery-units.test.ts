@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import { createDeliveryUnitRecord } from '../src/ultramodern-workspace/delivery-unit';
-import { projectDeliveryUnitToV1 } from '../src/ultramodern-workspace/delivery-unit-schema/types';
+import {
+  parseSurfaceRef,
+  projectDeliveryUnitToV1,
+} from '../src/ultramodern-workspace/delivery-unit-schema/types';
 import { createNeutralOwnership } from '../src/ultramodern-workspace/descriptors';
 import { createGenerationResult } from '../src/ultramodern-workspace/generation-result';
 import type { WorkspaceApp } from '../src/ultramodern-workspace/types';
@@ -127,6 +130,61 @@ test('descriptor owner defaults to the neutral team owner (G1d + G3)', () => {
       kind: 'team',
       id: 'super-app-platform',
     });
+  }
+});
+
+test('expose keys are sanitized to grammar-valid surfaceIds and classified (G1d)', () => {
+  const orders: WorkspaceApp = {
+    ...apiVertical,
+    id: 'orders',
+    directory: 'verticals/orders',
+    packageSuffix: 'orders',
+    displayName: 'Orders Vertical',
+    domain: 'orders',
+    portEnv: 'VERTICAL_ORDERS_PORT',
+    port: 3040,
+    mfName: 'verticalOrders',
+    // Raw MF expose keys: '/' violates the SurfaceRef segment grammar; the
+    // route key must classify as a 'route' surface.
+    exposes: {
+      './Cart': 'src/expose/Cart.tsx',
+      './routes/Checkout': 'src/expose/routes/Checkout.tsx',
+    },
+  };
+  const result = createGenerationResult({
+    operation: 'workspace',
+    workspaceRoot: '/tmp/ws',
+    packageScope: scope,
+    packageSource: {
+      strategy: 'workspace',
+      modernPackageVersion: 'workspace:*',
+    },
+    createdApps: [orders],
+    createdPaths: [],
+    rewrittenPaths: [],
+  });
+
+  const unit = result.deliveryUnits?.find(u => u.unitId === 'acme/orders');
+  assert.ok(unit);
+  const nonApi = unit.surfaces.filter(surface => surface.kind !== 'api');
+  assert.deepEqual(
+    nonApi.map(surface => ({
+      kind: surface.kind,
+      surfaceId: surface.surfaceId,
+    })),
+    [
+      { kind: 'component', surfaceId: 'Cart' },
+      { kind: 'route', surfaceId: 'routes-Checkout' },
+    ],
+  );
+
+  // Every surfaceId is now a grammar-valid SurfaceRef segment (no '/').
+  for (const surface of unit.surfaces) {
+    assert.equal(
+      parseSurfaceRef(`${unit.unitId}#${surface.surfaceId}`).ok,
+      true,
+      surface.surfaceId,
+    );
   }
 });
 

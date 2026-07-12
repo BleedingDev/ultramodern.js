@@ -1,4 +1,5 @@
 import { useLocalizedLocation, useModernI18n } from '@modern-js/plugin-i18n/runtime';
+import { useNavigate } from '@modern-js/plugin-tanstack/runtime';
 import type { ReactNode } from 'react';
 import { Header, StatusBadge } from './vertical-components';
 
@@ -9,6 +10,7 @@ interface ShellFrameProps {
 export default function ShellFrame({ children }: ShellFrameProps) {
   const { language, t } = useModernI18n();
   const { alternates } = useLocalizedLocation();
+  const navigate = useNavigate();
 
   return (
     <main className="shell:min-h-screen shell:bg-um-canvas shell:px-4 shell:py-5 shell:text-um-foreground shell:sm:px-6 shell:lg:px-12">
@@ -24,10 +26,9 @@ export default function ShellFrame({ children }: ShellFrameProps) {
             id="ultramodern-language"
             name="language"
             onChange={(event) => {
-              const nextLanguage = event.currentTarget.value;
-              const targetHref = alternates[nextLanguage];
-              if (targetHref !== undefined) {
-                window.location.assign(targetHref);
+              const target = alternates[event.currentTarget.value];
+              if (target !== undefined) {
+                void navigate({ to: target });
               }
             }}
             value={language}

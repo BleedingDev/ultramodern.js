@@ -27,16 +27,6 @@ export const moduleFederationModernJsPatchSourcePath = path.join(
   moduleFederationModernJsPatchPath,
 );
 
-export const moduleFederationDtsPluginPatchPath = requiredPatchPath(
-  '@module-federation/dts-plugin',
-);
-
-export const moduleFederationDtsPluginPatchSourcePath = path.join(
-  createPackageRoot,
-  'template-workspace',
-  moduleFederationDtsPluginPatchPath,
-);
-
 export const moduleFederationBridgeReactPatchPath = requiredPatchPath(
   '@module-federation/bridge-react',
 );

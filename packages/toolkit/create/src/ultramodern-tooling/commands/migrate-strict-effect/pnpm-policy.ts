@@ -335,6 +335,16 @@ function reconcilePnpmPolicy(
     }
   }
   reconcileOwnedMap(overrides, policy.overrides);
+  const packageExtensions = ensureMap(document, 'packageExtensions');
+  for (const [selector, extensionPolicy] of Object.entries(
+    policy.packageExtensions,
+  )) {
+    const extension = ensureMap(packageExtensions, selector);
+    reconcileOwnedMap(
+      ensureMap(extension, 'dependencies'),
+      extensionPolicy.dependencies,
+    );
+  }
   reconcileOwnedMap(ensureMap(document, 'allowBuilds'), policy.allowBuilds);
   reconcilePatchedDependencies(document, includeDrizzleOrmPatch);
 }

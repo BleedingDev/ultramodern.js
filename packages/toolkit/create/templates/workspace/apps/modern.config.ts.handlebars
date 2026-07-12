@@ -1,18 +1,20 @@
-// @effect-diagnostics processEnv:off
 import {
   appTools,
   defineConfig,
   presetUltramodern,
 } from '@modern-js/app-tools';
+import {
+  getBuildConfigEnvironment,
+  withBuildConfigEnvironment,
+} from '@modern-js/app-tools/config';
 {{value0}}import { i18nPlugin } from '@modern-js/plugin-i18n';
 import { tanstackRouterPlugin } from '@modern-js/plugin-tanstack';
 import { moduleFederationPlugin } from '@module-federation/modern-js-v3';
 import { withZephyr as withZephyrRspack } from 'zephyr-rspack-plugin';
 import { ultramodernLocalisedUrls } from './src/routes/ultramodern-route-metadata';
 
-const zephyrEnabled = process.env['ULTRAMODERN_ZEPHYR'] !== 'false';
 const cloudflareDeployEnabled =
-  process.env['MODERNJS_DEPLOY'] === 'cloudflare';
+  getBuildConfigEnvironment('MODERNJS_DEPLOY') === 'cloudflare';
 
 const zephyrRspackPlugin = () => ({
   name: 'ultramodern-zephyr-rspack-plugin',
@@ -22,16 +24,21 @@ const zephyrRspackPlugin = () => ({
       handler: ReturnType<typeof withZephyrRspack>,
     ) => void;
   }) {
-    process.env['ZE_FAIL_BUILD'] = 'true';
-    api.modifyRspackConfig(withZephyrRspack());
+    api.modifyRspackConfig(
+      withBuildConfigEnvironment(
+        'ZE_FAIL_BUILD',
+        'true',
+        withZephyrRspack(),
+      ),
+    );
   },
 });
 
 const appId = '{{value1}}';
 const cloudflareWorkerName = '{{value2}}';
-const port = Number(process.env['{{value3}}'] ?? {{value4}});
+const port = Number(getBuildConfigEnvironment('{{value3}}') ?? {{value4}});
 const envValue = (name: string) => {
-  const value = process.env[name]?.trim();
+  const value = getBuildConfigEnvironment(name)?.trim();
   return value !== undefined && value.length > 0 ? value : undefined;
 };
 const configuredSiteUrl = envValue('MODERN_PUBLIC_SITE_URL');
@@ -67,7 +74,7 @@ const buildCacheDirectory = `node_modules/.cache/rspack-${appId}-${buildTarget}`
 
 if (
   cloudflareDeployEnabled &&
-  process.env['ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS'] === 'true' &&
+  getBuildConfigEnvironment('ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS') === 'true' &&
   configuredCloudflareUrl === undefined &&
   configuredSiteUrl === undefined &&
   inferredCloudflareUrl === undefined
@@ -116,7 +123,7 @@ export default defineConfig(
         },
         rsdoctor: {
           disableClientServer: true,
-          enabled: process.env['ULTRAMODERN_RSDOCTOR'] === 'true',
+          enabled: getBuildConfigEnvironment('ULTRAMODERN_RSDOCTOR') === 'true',
         },
       },
       plugins: [
@@ -151,7 +158,7 @@ export default defineConfig(
           reactI18next: false,
         }),
 {{value15}}        moduleFederationPlugin(),
-        ...(zephyrEnabled ? [zephyrRspackPlugin()] : []),
+        zephyrRspackPlugin(),
       ],
       server: {
         port,

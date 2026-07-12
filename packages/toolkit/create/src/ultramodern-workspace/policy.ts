@@ -384,7 +384,6 @@ export const ULTRAMODERN_PACKAGE_PINS = {
   },
   rootDevDependencies: {
     '@effect/tsgo': EFFECT_TSGO_VERSION,
-    '@typescript/typescript6': TYPESCRIPT_COMPILER_API_VERSION,
     lefthook: LEFTHOOK_VERSION,
     oxlint: OXLINT_VERSION,
     oxfmt: OXFMT_VERSION,
@@ -407,11 +406,6 @@ const requiredPatchPolicies: readonly UltramodernPatchPolicy[] = [
     packageName: '@module-federation/bridge-react',
     version: MODULE_FEDERATION_VERSION,
     path: `patches/@module-federation__bridge-react@${MODULE_FEDERATION_VERSION}.patch`,
-  },
-  {
-    packageName: '@module-federation/dts-plugin',
-    version: MODULE_FEDERATION_VERSION,
-    path: `patches/@module-federation__dts-plugin@${MODULE_FEDERATION_VERSION}.patch`,
   },
   {
     packageName: '@module-federation/modern-js-v3',
@@ -439,6 +433,12 @@ const conditionalPatchPolicies: readonly UltramodernPatchPolicy[] = [
 ];
 
 const stalePatchPolicies: readonly UltramodernStalePatchPolicy[] = [
+  {
+    packageName: '@module-federation/dts-plugin',
+    version: '2.7.0',
+    path: 'patches/@module-federation__dts-plugin@2.7.0.patch',
+    sha256: '768cc3bb22e2dede264515f141fdc8af937c8f53d4f8ef8f83469bb0cec1c9a0',
+  },
   {
     packageName: '@module-federation/bridge-react',
     version: '2.6.0',
@@ -661,49 +661,6 @@ const typescriptPlatformRegistryReleases = [
   ],
 ] as const;
 
-const effectTsgoRegistryReleases = [
-  [
-    '@effect/tsgo',
-    '2026-07-09T17:16:58.972Z',
-    'sha512-oYyxUVzzc9YJwnu/g1G4gFnrpsDgYtH/APR1Ud0txoJ/QQIDs2u+BriWFhfoSF2J0nO5U0SRTTNjMf8DbIcOug==',
-  ],
-  [
-    '@effect/tsgo-darwin-arm64',
-    '2026-07-09T17:17:03.994Z',
-    'sha512-iv8rC7nNou2m5+mCF6C2CHf18JkrvHvs0JtdXZlJT8s2DSrUxZg5Ln+ygLh8Ojj+dB4TLlUxDJj1IwZdEm6iFQ==',
-  ],
-  [
-    '@effect/tsgo-darwin-x64',
-    '2026-07-09T17:17:04.563Z',
-    'sha512-w58NsBPQNeo5WNFhS44IzvFPtrwpl69uepehC0bXlIM4APQk8PFXyJz0flliiNm+xfqL5/xdVKSK3DyFQAqSYg==',
-  ],
-  [
-    '@effect/tsgo-linux-arm64',
-    '2026-07-09T17:17:03.733Z',
-    'sha512-FjOZAWgTaFWqg66GJGrsKOniPa41noKT4oR6GWfdpoIjmSepf7UgZ95nmZBkv5YnFzSVJn9i7hvNklh6Kvm8Ug==',
-  ],
-  [
-    '@effect/tsgo-linux-arm',
-    '2026-07-09T17:17:04.104Z',
-    'sha512-F/DjtTdczej17+fj2Kf9/kE7K7FNx5CfNctvd5Mpi0HOho3LlORReTlb2d0JDVbUSqueHYVML+pxwgsnqfdXfg==',
-  ],
-  [
-    '@effect/tsgo-linux-x64',
-    '2026-07-09T17:17:04.900Z',
-    'sha512-vKQBX0zNOJfgZSm2EXPjPn6EyigswGwQeR2mXQExBJN8gV7UEIjBFkRFQVKD8EkyZRGxZRkSb6IqTDeZbfXR6w==',
-  ],
-  [
-    '@effect/tsgo-win32-arm64',
-    '2026-07-09T17:17:03.955Z',
-    'sha512-hTPY071Vqk9fY34uTyI/FBW/b1eeXxFdMDLE6j+4IkcmNaUuu58ZZE3vmHg1Mabz+cFVs6hWpFAVqekdAgfrxQ==',
-  ],
-  [
-    '@effect/tsgo-win32-x64',
-    '2026-07-09T17:17:04.664Z',
-    'sha512-5mfPlupGP/cyTkcWR5J2ZdyaxdU6zMHX4oyHy18EjXLdFoJOdjr9C/VNY6iZLbLHkTsQ3xYMFzVt0ruFdI8kNQ==',
-  ],
-] as const;
-
 const releaseAgeApprovals: readonly UltramodernReleaseAgeApproval[] = [
   createReleaseAgeApproval({
     packageName: '@effect/opentelemetry',
@@ -723,16 +680,6 @@ const releaseAgeApprovals: readonly UltramodernReleaseAgeApproval[] = [
       'sha512-1dH6LBWSZyqnTV7ZO+yIpPGPf/xd7RtFfvQ4ZpTy9elzFN+wr1YBFpHSCr8+BfXOml6b8g9Mtj5eDy1qjbizUA==',
     review: releaseAgeReviewEvidence.dependencyCohort,
   }),
-  ...effectTsgoRegistryReleases.map(([packageName, publishedAt, integrity]) =>
-    createReleaseAgeApproval({
-      packageName,
-      version: EFFECT_TSGO_VERSION,
-      reason: releaseAgeReasons.effect,
-      publishedAt,
-      integrity,
-      review: releaseAgeReviewEvidence.dependencyCohort,
-    }),
-  ),
   ...moduleFederationRegistryReleases.map(
     ([packageSuffix, publishedAt, integrity]) =>
       createReleaseAgeApproval({
@@ -774,12 +721,12 @@ const releaseAgeApprovals: readonly UltramodernReleaseAgeApproval[] = [
       }),
   ),
   createReleaseAgeApproval({
-    packageName: '@typescript/typescript6',
+    packageName: 'typescript',
     version: TYPESCRIPT_COMPILER_API_VERSION,
     reason: releaseAgeReasons.typescript,
-    publishedAt: '2026-07-06T18:06:47.459Z',
+    publishedAt: '2026-04-16T23:38:27.905Z',
     integrity:
-      'sha512-mbCddXd+jm7hfx7w2YU64/Av4/NqqeG3GoRZgxPcgoTxYjhrcfJRw9ULch71SS4G+Q3bOXFhRvPqjguN0Hyp5w==',
+      'sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw==',
     review: releaseAgeReviewEvidence.typescript,
   }),
   createReleaseAgeApproval({
@@ -870,7 +817,8 @@ export const ULTRAMODERN_WORKSPACE_POLICY = {
     peerDependencyRules: {
       allowedVersions: {
         react: '>=19.0.0',
-        '@module-federation/dts-plugin>typescript': TYPESCRIPT_VERSION,
+        '@module-federation/dts-plugin>typescript':
+          TYPESCRIPT_COMPILER_API_VERSION,
         '@module-federation/enhanced>typescript': TYPESCRIPT_VERSION,
         '@module-federation/modern-js-v3>typescript': TYPESCRIPT_VERSION,
         '@module-federation/rspack>typescript': TYPESCRIPT_VERSION,
@@ -885,6 +833,13 @@ export const ULTRAMODERN_WORKSPACE_POLICY = {
       '@tanstack/router-core': TANSTACK_ROUTER_CORE_VERSION,
       effect: EFFECT_VERSION,
       'node-fetch': NODE_FETCH_VERSION,
+    },
+    packageExtensions: {
+      [`@module-federation/dts-plugin@${MODULE_FEDERATION_VERSION}`]: {
+        dependencies: {
+          typescript: `npm:typescript@${TYPESCRIPT_COMPILER_API_VERSION}`,
+        },
+      },
     },
     allowBuilds: {
       '@parcel/watcher': true,

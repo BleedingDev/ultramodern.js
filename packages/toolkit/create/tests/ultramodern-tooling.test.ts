@@ -12,6 +12,7 @@ import {
   addUltramodernVertical,
   generateUltramodernWorkspace,
 } from '../src/ultramodern-workspace';
+import { createBackendModuleFederationConfig } from '../src/ultramodern-workspace/module-federation';
 import {
   createAppMfTypesTsConfig,
   createAppTsConfig,
@@ -312,6 +313,78 @@ test('migrate does not inject backend-federation gates into a shell-only workspa
       false,
     );
     assertNoDanglingScriptReferences(workspaceDir);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('migrate reconciles backend federation config files with API metadata', async () => {
+  const { tempRoot, workspaceDir } = scaffoldWorkspace('tooling-api-cleanup');
+
+  try {
+    for (const name of ['catalog', 'checkout']) {
+      addUltramodernVertical({
+        workspaceRoot: workspaceDir,
+        name,
+        modernVersion: '3.2.1',
+      });
+    }
+
+    const compactConfig = readJson(workspaceDir, '.modernjs/ultramodern.json');
+    const catalog = compactConfig.topology.apps.find(
+      (app: Record<string, unknown>) => app.id === 'catalog',
+    );
+    delete catalog.api;
+    writeJson(workspaceDir, '.modernjs/ultramodern.json', compactConfig);
+
+    const referenceTopology = readJson(
+      workspaceDir,
+      'topology/reference-topology.json',
+    );
+    const referenceCatalog = referenceTopology.verticals.find(
+      (vertical: Record<string, unknown>) => vertical.id === 'catalog',
+    );
+    delete referenceCatalog.api;
+    writeJson(
+      workspaceDir,
+      'topology/reference-topology.json',
+      referenceTopology,
+    );
+
+    for (const app of ['catalog', 'checkout']) {
+      fs.writeFileSync(
+        path.join(
+          workspaceDir,
+          'verticals',
+          app,
+          'backend-federation.config.ts',
+        ),
+        'stale\n',
+      );
+    }
+
+    assert.equal(
+      await runUltramodernToolingCli(
+        ['migrate-strict-effect', '--skip-install'],
+        workspaceDir,
+      ),
+      0,
+    );
+
+    assert.equal(
+      exists(workspaceDir, 'verticals/catalog/backend-federation.config.ts'),
+      false,
+    );
+
+    const checkout = workspaceAppsFromToolingConfig(
+      readUltramodernConfig(workspaceDir),
+    ).find(app => app.id === 'checkout');
+    assert.ok(checkout);
+    assert.ok(checkout.api);
+    assert.equal(
+      readText(workspaceDir, 'verticals/checkout/backend-federation.config.ts'),
+      createBackendModuleFederationConfig(checkout),
+    );
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
@@ -853,14 +926,14 @@ test('UltraModern migrate-strict-effect updates package cohort and direct API me
       const packageJson = readJson(workspaceDir, packageFile);
       if (appId === 'catalog') {
         packageJson.scripts.build = packageJson.scripts.build.replace(
-          'ULTRAMODERN_ZEPHYR=false modern build',
-          'ULTRAMODERN_ZEPHYR=false modern build && node ../../scripts/generate-node-backend-federation.mts --app catalog',
+          'modern build',
+          'modern build && node ../../scripts/generate-node-backend-federation.mts --app catalog',
         );
         packageJson.scripts['cloudflare:build'] = packageJson.scripts[
           'cloudflare:build'
         ].replace(
-          'ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern build',
-          'ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern build && node ../../scripts/generate-node-backend-federation.mts --app catalog --target dist-cloudflare',
+          'MODERNJS_DEPLOY=cloudflare modern build',
+          'MODERNJS_DEPLOY=cloudflare modern build && node ../../scripts/generate-node-backend-federation.mts --app catalog --target dist-cloudflare',
         );
       }
       packageJson.scripts['cloudflare:build'] = packageJson.scripts[
@@ -1025,6 +1098,10 @@ declare module '*.css' {}
     assert.match(
       rootPackage.scripts['cloudflare:build'],
       /cloudflare-output:verify/u,
+    );
+    assert.doesNotMatch(
+      JSON.stringify(rootPackage.scripts),
+      /ULTRAMODERN_ZEPHYR/u,
     );
     assert.equal(
       rootPackage.scripts['node:proof'],
@@ -1296,7 +1373,7 @@ declare module '*.css' {}
     );
     assert.doesNotMatch(
       shellPackage.scripts['cloudflare:build'],
-      /--target dist && ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern deploy/u,
+      /--target dist && MODERNJS_DEPLOY=cloudflare modern deploy/u,
     );
     assert.doesNotMatch(
       shellPackage.scripts['cloudflare:build'],
@@ -1321,7 +1398,7 @@ declare module '*.css' {}
     );
     assert.doesNotMatch(
       catalogPackage.scripts['cloudflare:build'],
-      /--target dist && ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern deploy/u,
+      /--target dist && MODERNJS_DEPLOY=cloudflare modern deploy/u,
     );
     assert.doesNotMatch(
       catalogPackage.scripts.build,

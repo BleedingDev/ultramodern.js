@@ -166,11 +166,10 @@ test('root package json pins workspace package versions and bridge workspace glo
     '../tractor-store/packages/*',
   ]);
   assert.deepEqual(rootPackageJson.devDependencies, {
-    '@effect/tsgo': '0.18.1',
+    '@effect/tsgo': '0.19.0',
     '@modern-js/code-tools': packageVersion,
     '@modern-js/create': packageVersion,
     '@modern-js/plugin-bff': packageVersion,
-    '@typescript/typescript6': '6.0.2',
     lefthook: '^2.1.10',
     oxlint: '1.73.0',
     oxfmt: '0.58.0',

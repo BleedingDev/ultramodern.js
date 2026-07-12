@@ -4,6 +4,7 @@ import { ULTRAMODERN_WORKSPACE_POLICY } from '../../../ultramodern-workspace/pol
 import type { MigrationIo } from './io';
 
 const { toolchain } = ULTRAMODERN_WORKSPACE_POLICY;
+const retiredRootToolingDependencies = ['@typescript/typescript6'] as const;
 
 function isRecord(value: unknown): value is Record<string, any> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -43,6 +44,13 @@ export function updateRootPackageToolchain(packageJson: Record<string, any>) {
   const engines = ensureRecord(packageJson, 'engines', 'package.json engines');
   engines.node = toolchain.node.engineRange;
   engines.pnpm = toolchain.packageManager.engineRange;
+
+  const devDependencies = packageJson.devDependencies;
+  if (isRecord(devDependencies)) {
+    for (const packageName of retiredRootToolingDependencies) {
+      delete devDependencies[packageName];
+    }
+  }
 }
 
 function updateMiseTools(content: string) {

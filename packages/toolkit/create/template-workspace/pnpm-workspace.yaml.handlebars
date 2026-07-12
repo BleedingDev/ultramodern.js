@@ -21,7 +21,7 @@ strictDepBuilds: true
 peerDependencyRules:
   allowedVersions:
     react: '>=19.0.0'
-    '@module-federation/dts-plugin>typescript': '{{typescriptVersion}}'
+    '@module-federation/dts-plugin>typescript': '{{typescriptCompilerApiVersion}}'
     '@module-federation/enhanced>typescript': '{{typescriptVersion}}'
     '@module-federation/modern-js-v3>typescript': '{{typescriptVersion}}'
     '@module-federation/rspack>typescript': '{{typescriptVersion}}'
@@ -36,6 +36,11 @@ overrides:
   effect: {{effectVersion}}
   node-fetch: '{{nodeFetchVersion}}'
 
+packageExtensions:
+  '@module-federation/dts-plugin@{{moduleFederationVersion}}':
+    dependencies:
+      typescript: npm:typescript@{{typescriptCompilerApiVersion}}
+
 allowBuilds:
   '@parcel/watcher': true
   '@swc/core': true
@@ -47,7 +52,6 @@ allowBuilds:
   workerd: true
 
 patchedDependencies:
-  '@module-federation/dts-plugin@{{moduleFederationVersion}}': patches/@module-federation__dts-plugin@{{moduleFederationVersion}}.patch
   '@module-federation/modern-js-v3@{{moduleFederationVersion}}': patches/@module-federation__modern-js-v3@{{moduleFederationVersion}}.patch
   '@module-federation/bridge-react@{{moduleFederationVersion}}': patches/@module-federation__bridge-react@{{moduleFederationVersion}}.patch
   '@tanstack/router-core@{{tanstackRouterCoreVersion}}': patches/@tanstack__router-core@{{tanstackRouterCoreVersion}}.patch

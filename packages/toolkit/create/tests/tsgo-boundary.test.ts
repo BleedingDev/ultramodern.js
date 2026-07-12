@@ -27,8 +27,6 @@ const compilerApiImportPattern =
   /\b(?:import(?:\s+type)?[\s\S]*?\sfrom\s*|require\()\s*['"](?:typescript|@typescript\/typescript6|@typescript\/native-preview(?:\/[^'"]*)?)['"]/u;
 const nativePreviewImportPattern =
   /\b(?:import(?:\s+type)?[\s\S]*?\sfrom\s*|require\()\s*['"]@typescript\/native-preview(?:\/[^'"]*)?['"]/u;
-const typescript6ImportPattern =
-  /\b(?:import(?:\s+type)?[\s\S]*?\sfrom\s*|require\()\s*['"]@typescript\/typescript6['"]/u;
 
 function listSourceFiles(root: string, dir = root): string[] {
   const files: string[] = [];
@@ -114,7 +112,28 @@ test('UltraModern generator runtime sources do not import TypeScript compiler AP
   }
 });
 
-test('compiler API tests use TypeScript 6 compatibility API and never native-preview internals', () => {
+test('generated typechecking uses the immutable framework TS-Go resolver', () => {
+  const source = fs.readFileSync(
+    path.join(
+      packageRoot,
+      'templates/workspace-scripts/ultramodern-typecheck.mjs',
+    ),
+    'utf-8',
+  );
+
+  assert.match(
+    source,
+    /import \{ resolveEffectTsgoCompiler \} from '@modern-js\/app-tools\/config';/u,
+  );
+  assert.match(
+    source,
+    /resolveEffectTsgoCompiler\(\{ from: import\.meta\.url \}\)/u,
+  );
+  assert.doesNotMatch(source, /\bchmod(?:Sync)?\b/u);
+  assert.doesNotMatch(source, /\bEFFECT_TSGO_CLI\b/u);
+});
+
+test('create tests use stable TypeScript 7 without compiler API imports', () => {
   const packageJson = readPackageJson();
 
   assert.equal(
@@ -123,12 +142,10 @@ test('compiler API tests use TypeScript 6 compatibility API and never native-pre
     'create package keeps the repo-consistent TypeScript tooling line',
   );
   assert.equal(
-    typeof packageJson.devDependencies?.['@typescript/typescript6'],
-    'string',
-    'compiler API tests use the TypeScript 6 compatibility package',
+    packageJson.devDependencies?.['@typescript/typescript6'],
+    undefined,
+    'repository-owned create tests must not retain the legacy TypeScript API',
   );
-
-  const compilerApiTests: string[] = [];
 
   for (const relativePath of listSourceFiles(path.join(packageRoot, 'tests'))) {
     const source = fs.readFileSync(
@@ -142,15 +159,12 @@ test('compiler API tests use TypeScript 6 compatibility API and never native-pre
       `tests/${relativePath} must not import @typescript/native-preview`,
     );
 
-    if (typescript6ImportPattern.test(source)) {
-      compilerApiTests.push(relativePath);
-    }
+    assert.doesNotMatch(
+      source,
+      compilerApiImportPattern,
+      `tests/${relativePath} must use the stable TypeScript CLI instead of compiler APIs`,
+    );
   }
-
-  assert.ok(
-    compilerApiTests.length > 0,
-    'at least one compiler API test should exercise the TypeScript 6 compatibility boundary',
-  );
 });
 
 test('generated package module scopes keep MF apps compatible with classic compiler consumers', () => {

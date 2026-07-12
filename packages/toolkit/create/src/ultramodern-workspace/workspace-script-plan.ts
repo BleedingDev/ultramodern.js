@@ -121,7 +121,7 @@ function createWorkspaceAppScriptPlan(
     ? `${backendFederationBuildCommand} --target dist-cloudflare`
     : undefined;
   const buildSteps = [
-    'ULTRAMODERN_ZEPHYR=false modern build',
+    'modern build',
     backendFederationBuildCommand,
     createPublicSurfaceGenerationCommand(app, 'dist'),
     app.exposes
@@ -129,9 +129,9 @@ function createWorkspaceAppScriptPlan(
       : undefined,
   ].filter((step): step is string => Boolean(step));
   const cloudflareBuildSteps = [
-    'ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern build',
+    'MODERNJS_DEPLOY=cloudflare modern build',
     backendFederationCloudflareBuildCommand,
-    'ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern deploy --skip-build',
+    'MODERNJS_DEPLOY=cloudflare modern deploy --skip-build',
     createPublicSurfaceGenerationCommand(app, 'cloudflare'),
     `${packageToolingWrapperCommand(
       app.directory,
@@ -189,7 +189,7 @@ export function createWorkspaceRootScriptPlan(
   const nodeProofScript = rootToolingScriptName('backendFederationProof');
   const bridgeCheck = options.bridgeCheck ?? '';
   const remoteBuildPrefix = hasRemotes
-    ? 'ULTRAMODERN_ZEPHYR=false pnpm -r --filter "./verticals/*" run build && '
+    ? 'pnpm -r --filter "./verticals/*" run build && '
     : '';
   const remoteCloudflareBuildPrefix = hasRemotes
     ? 'pnpm -r --filter "./verticals/*" run cloudflare:build && '
@@ -199,7 +199,7 @@ export function createWorkspaceRootScriptPlan(
     : '';
 
   return {
-    build: `${remoteBuildPrefix}ULTRAMODERN_ZEPHYR=false pnpm --filter "./apps/shell-super-app" run build && pnpm ${mfTypesScript} && pnpm ${performanceReadinessScript}`,
+    build: `${remoteBuildPrefix}pnpm --filter "./apps/shell-super-app" run build && pnpm ${mfTypesScript} && pnpm ${performanceReadinessScript}`,
     cloudflareBuild: `${remoteCloudflareBuildPrefix}pnpm --filter "./apps/shell-super-app" run cloudflare:build && pnpm ${mfTypesScript} && pnpm ${cloudflareOutputVerifyScript}`,
     cloudflareDeploy: `${remoteCloudflareDeployPrefix}pnpm --filter "./apps/shell-super-app" run cloudflare:deploy`,
     cloudflareProof: `${rootToolingWrapperCommand(

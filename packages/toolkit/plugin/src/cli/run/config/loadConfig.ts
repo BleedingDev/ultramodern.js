@@ -5,8 +5,11 @@ import path from 'path';
 
 export const getConfigFilePath = (
   appDirectory: string,
-  configFilePath: string,
+  configFilePath: string | false,
 ) => {
+  if (configFilePath === false) {
+    return false;
+  }
   if (path.isAbsolute(configFilePath)) {
     return configFilePath;
   }
@@ -118,10 +121,10 @@ export const loadTypeScriptFile = (filePath: string): any => {
 
 export const loadConfig = async <T>(
   appDirectory: string,
-  configFile: string,
+  configFile: string | false,
 ): Promise<{
   packageName: string;
-  configFile: string;
+  configFile: string | false;
   config?: T;
   pkgConfig?: T;
 }> => {

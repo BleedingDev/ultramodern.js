@@ -53,4 +53,24 @@ module.exports = {
       'user-plugin',
     ]);
   });
+
+  it('supports commands that intentionally run without a config file', async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), 'modern-plugin-configless-'));
+    tempDirs.push(cwd);
+
+    await writeFile(
+      path.join(cwd, 'package.json'),
+      JSON.stringify({ name: 'create-config-options-configless-test' }),
+    );
+
+    const result = await createConfigOptions({
+      command: 'serve',
+      configFile: false,
+      config: {},
+      cwd,
+    });
+
+    expect(result.getAppContext().configFile).toBe(false);
+    expect(result.config).toEqual({});
+  });
 });

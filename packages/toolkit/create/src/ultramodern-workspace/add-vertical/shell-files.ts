@@ -165,7 +165,7 @@ export function rewriteShellAppFiles(
   writeFileReplacing(
     workspaceRoot,
     `${shellApp.directory}/src/routes/vertical-components.tsx`,
-    createShellRemoteComponents(scope, remotes),
+    createShellRemoteComponents(remotes),
   );
   writeFileReplacing(
     workspaceRoot,

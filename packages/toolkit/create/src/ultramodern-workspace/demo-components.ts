@@ -60,35 +60,25 @@ export function createShellPage(remotes: WorkspaceApp[] = []): string {
 }
 
 export function createShellRemoteComponents(
-  scope: string,
   remotes: WorkspaceApp[] = [],
 ): string {
   const tw = createTw(tailwindPrefixForApp(shellApp));
   const widgetRemotes = remotes.filter(remote =>
     Object.hasOwn(remote.exposes ?? {}, './Widget'),
   );
-  const serverImports = widgetRemotes
-    .map(
-      remote =>
-        `import ${toPascalCase(remote.id)}WidgetServer from '${packageName(
-          scope,
-          remote.packageSuffix,
-        )}/Widget';`,
-    )
-    .join('\n');
-  const hydratedExports = widgetRemotes
+  const remoteComponentExports = widgetRemotes
     .map(remote => {
       const componentName = `${toPascalCase(remote.id)}Widget`;
-      return `const ${componentName} = createHydratedRemote(${componentName}Server, '${remoteDependencyAlias(remote)}/Widget');`;
+      return `const ${componentName} = createRemoteComponent(
+  () => import('${remoteDependencyAlias(remote)}/Widget'),
+);`;
     })
     .join('\n');
   const federationImports =
     widgetRemotes.length > 0
       ? renderFileTemplate(
           'workspace/apps/shell-super-app/src/routes/vertical-components.imports.tsx',
-          {
-            value0: serverImports,
-          },
+          {},
         )
       : '';
   const federationHelpers =
@@ -124,7 +114,7 @@ ${showcaseItems}
       value0: federationImports,
       value1: remoteCount,
       value2: federationHelpers,
-      value3: hydratedExports,
+      value3: remoteComponentExports,
       value4: tw(
         'flex min-w-0 flex-wrap items-center gap-x-8 gap-y-2 md:flex-1',
       ),
@@ -319,4 +309,303 @@ export function remoteComponentOutputPath(app: WorkspaceApp, expose: string) {
   }
 
   return `${app.directory}/${exposePath.replace(/^\.\//u, '')}`;
+}
+
+export type GeneratedNavigationSurfaceKind = 'demo-component' | 'shell-frame';
+
+const tanstackRuntimeModule = '@modern-js/plugin-tanstack/runtime';
+
+function ensureNamedImport(
+  source: string,
+  moduleName: string,
+  names: string[],
+) {
+  const importEndMarker = `from '${moduleName}';`;
+  const importEnd = source.indexOf(importEndMarker);
+
+  if (importEnd >= 0) {
+    const importStart = source.lastIndexOf('import ', importEnd);
+    const openBrace = source.indexOf('{', importStart);
+    const closeBrace = source.indexOf('}', openBrace);
+    if (openBrace >= 0 && closeBrace >= 0 && closeBrace < importEnd) {
+      const existingNames = source
+        .slice(openBrace + 1, closeBrace)
+        .split(',')
+        .map(name => name.trim())
+        .filter(Boolean);
+      const missingNames = names.filter(name => !existingNames.includes(name));
+      if (missingNames.length === 0) {
+        return source;
+      }
+      const importedNames = [...existingNames, ...missingNames].toSorted(
+        (left, right) => left.localeCompare(right),
+      );
+      return `${source.slice(0, openBrace + 1)} ${importedNames.join(', ')} ${source.slice(closeBrace)}`;
+    }
+  }
+
+  const firstImportEnd = source.indexOf('\n');
+  const importLine = `import { ${names.join(', ')} } from '${moduleName}';\n`;
+  return firstImportEnd < 0
+    ? `${importLine}${source}`
+    : `${source.slice(0, firstImportEnd + 1)}${importLine}${source.slice(firstImportEnd + 1)}`;
+}
+
+function ensureNavigateHook(source: string) {
+  if (source.includes('const navigate = useNavigate();')) {
+    return source;
+  }
+
+  const functionStart = source.indexOf('export default function ');
+  const parametersEnd = source.indexOf(')', functionStart);
+  const bodyStart = source.indexOf('{', parametersEnd);
+  if (functionStart < 0 || parametersEnd < 0 || bodyStart < 0) {
+    return source;
+  }
+
+  return `${source.slice(0, bodyStart + 1)}\n  const navigate = useNavigate();${source.slice(bodyStart + 1)}`;
+}
+
+function closingParenthesis(source: string, openingParenthesis: number) {
+  let depth = 0;
+  let quote = '';
+  let escaped = false;
+
+  for (let index = openingParenthesis; index < source.length; index += 1) {
+    const character = source[index] ?? '';
+    if (quote !== '') {
+      if (escaped) {
+        escaped = false;
+      } else if (character === '\\') {
+        escaped = true;
+      } else if (character === quote) {
+        quote = '';
+      }
+      continue;
+    }
+
+    if (character === "'" || character === '"' || character === '`') {
+      quote = character;
+    } else if (character === '(') {
+      depth += 1;
+    } else if (character === ')') {
+      depth -= 1;
+      if (depth === 0) {
+        return index;
+      }
+    }
+  }
+
+  return -1;
+}
+
+function rewriteWindowLocationAssignments(source: string) {
+  const callMarker = 'window.location.assign';
+  let next = source;
+  let searchFrom = 0;
+  let changed = false;
+
+  while (true) {
+    const callStart = next.indexOf(callMarker, searchFrom);
+    if (callStart < 0) {
+      break;
+    }
+    const openingParenthesis = next.indexOf('(', callStart + callMarker.length);
+    if (openingParenthesis < 0) {
+      break;
+    }
+    const callEnd = closingParenthesis(next, openingParenthesis);
+    if (callEnd < 0) {
+      break;
+    }
+
+    let destination = next.slice(openingParenthesis + 1, callEnd).trim();
+    if (destination.endsWith(',')) {
+      destination = destination.slice(0, -1).trimEnd();
+    }
+    const lineStart = next.lastIndexOf('\n', callStart) + 1;
+    const indentation = next.slice(lineStart, callStart);
+    const replacement = `void navigate({\n${indentation}  to: ${destination},\n${indentation}})`;
+    next = `${next.slice(0, callStart)}${replacement}${next.slice(callEnd + 1)}`;
+    searchFrom = callStart + replacement.length;
+    changed = true;
+  }
+
+  return { changed, source: next };
+}
+
+function closingJsxTag(source: string, openingTagStart: number) {
+  let braces = 0;
+  let quote = '';
+  let escaped = false;
+
+  for (let index = openingTagStart; index < source.length; index += 1) {
+    const character = source[index] ?? '';
+    if (quote !== '') {
+      if (escaped) {
+        escaped = false;
+      } else if (character === '\\') {
+        escaped = true;
+      } else if (character === quote) {
+        quote = '';
+      }
+      continue;
+    }
+    if (character === "'" || character === '"' || character === '`') {
+      quote = character;
+    } else if (character === '{') {
+      braces += 1;
+    } else if (character === '}') {
+      braces -= 1;
+    } else if (character === '>' && braces === 0) {
+      return index;
+    }
+  }
+
+  return -1;
+}
+
+function isInternalHref(openingTag: string) {
+  return (
+    openingTag.includes('href="/') ||
+    openingTag.includes("href='/") ||
+    openingTag.includes('href={`/')
+  );
+}
+
+function removeSyntheticClickHandler(openingTag: string) {
+  const onClickStart = openingTag.indexOf(' onClick=');
+  if (onClickStart < 0) {
+    return openingTag;
+  }
+  const valueStart = openingTag.indexOf('{', onClickStart);
+  if (valueStart < 0) {
+    return openingTag;
+  }
+
+  let depth = 0;
+  for (let index = valueStart; index < openingTag.length; index += 1) {
+    const character = openingTag[index] ?? '';
+    if (character === '{') {
+      depth += 1;
+    } else if (character === '}') {
+      depth -= 1;
+      if (depth === 0) {
+        const handler = openingTag.slice(valueStart, index + 1);
+        return handler.includes('preventDefault')
+          ? `${openingTag.slice(0, onClickStart)}${openingTag.slice(index + 1)}`
+          : openingTag;
+      }
+    }
+  }
+
+  return openingTag;
+}
+
+function rewriteInternalAnchors(source: string) {
+  let next = source;
+  let searchFrom = 0;
+  let changed = false;
+
+  while (true) {
+    const openingTagStart = next.indexOf('<a', searchFrom);
+    if (openingTagStart < 0) {
+      break;
+    }
+    const boundary = next[openingTagStart + 2];
+    if (boundary !== ' ' && boundary !== '\n' && boundary !== '\t') {
+      searchFrom = openingTagStart + 2;
+      continue;
+    }
+    const openingTagEnd = closingJsxTag(next, openingTagStart);
+    if (openingTagEnd < 0) {
+      break;
+    }
+    const openingTag = next.slice(openingTagStart, openingTagEnd + 1);
+    if (!isInternalHref(openingTag)) {
+      searchFrom = openingTagEnd + 1;
+      continue;
+    }
+    const closingTagStart = next.indexOf('</a>', openingTagEnd + 1);
+    if (closingTagStart < 0) {
+      break;
+    }
+
+    const nativeOpeningTag = removeSyntheticClickHandler(openingTag)
+      .replace('<a', '<Link')
+      .replace('href=', 'to=');
+    next = `${next.slice(0, openingTagStart)}${nativeOpeningTag}${next.slice(
+      openingTagEnd + 1,
+      closingTagStart,
+    )}</Link>${next.slice(closingTagStart + '</a>'.length)}`;
+    searchFrom = openingTagStart + nativeOpeningTag.length;
+    changed = true;
+  }
+
+  return { changed, source: next };
+}
+
+function rewriteJsxElementName(
+  source: string,
+  elementName: string,
+  componentName: string,
+) {
+  const openingMarker = `<${elementName}`;
+  const closingMarker = `</${elementName}>`;
+  let next = source;
+  let searchFrom = 0;
+  let changed = false;
+
+  while (true) {
+    const openingTagStart = next.indexOf(openingMarker, searchFrom);
+    if (openingTagStart < 0) {
+      break;
+    }
+    const boundary = next[openingTagStart + openingMarker.length];
+    if (boundary !== ' ' && boundary !== '\n' && boundary !== '\t') {
+      searchFrom = openingTagStart + openingMarker.length;
+      continue;
+    }
+    const openingTagEnd = closingJsxTag(next, openingTagStart);
+    const closingTagStart = next.indexOf(closingMarker, openingTagEnd + 1);
+    if (openingTagEnd < 0 || closingTagStart < 0) {
+      break;
+    }
+
+    next = `${next.slice(0, openingTagStart)}<${componentName}${next.slice(
+      openingTagStart + openingMarker.length,
+      closingTagStart,
+    )}</${componentName}>${next.slice(closingTagStart + closingMarker.length)}`;
+    searchFrom = openingTagStart + componentName.length + 1;
+    changed = true;
+  }
+
+  return { changed, source: next };
+}
+
+export function regenerateGeneratedNavigationSurface(
+  source: string,
+  kind: GeneratedNavigationSurfaceKind,
+) {
+  const anchors = rewriteInternalAnchors(source);
+  const locationAssignments = rewriteWindowLocationAssignments(anchors.source);
+  const forms =
+    kind === 'demo-component'
+      ? rewriteJsxElementName(locationAssignments.source, 'form', 'Form')
+      : { changed: false, source: locationAssignments.source };
+  let next = forms.source;
+
+  if (anchors.changed || locationAssignments.changed || forms.changed) {
+    const imports = [
+      ...(forms.changed ? ['Form'] : []),
+      ...(anchors.changed ? ['Link'] : []),
+      ...(locationAssignments.changed ? ['useNavigate'] : []),
+    ];
+    next = ensureNamedImport(next, tanstackRuntimeModule, imports);
+  }
+  if (locationAssignments.changed) {
+    next = ensureNavigateHook(next);
+  }
+
+  return next;
 }

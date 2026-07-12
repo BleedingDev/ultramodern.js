@@ -1244,18 +1244,25 @@ test('emitted module federation config uses native fail-closed Zephyr compositio
       workspaceDir,
       'apps/shell-super-app/modern.config.ts',
     );
-    assert.match(modernConfig, /process\.env\['ZE_FAIL_BUILD'\] = 'true';/u);
     assert.match(
       modernConfig,
-      /api\.modifyRspackConfig\(withZephyrRspack\(\)\);/u,
+      /import \{\s*getBuildConfigEnvironment,\s*withBuildConfigEnvironment,?\s*\} from '@modern-js\/app-tools\/config';/u,
+      'generated Modern config must import the public config environment API',
     );
     assert.match(
       modernConfig,
-      /\.\.\.\(zephyrEnabled \? \[zephyrRspackPlugin\(\)\] : \[\]\),/u,
+      /api\.modifyRspackConfig\(\s*withBuildConfigEnvironment\(\s*'ZE_FAIL_BUILD',\s*'true',\s*withZephyrRspack\(\),?\s*\),?\s*\);/u,
+      'generated Modern config must lease Zephyr fail-closed behavior through the public config API',
     );
     assert.doesNotMatch(
       modernConfig,
-      /ULTRAMODERN_ZEPHYR_TIMEOUT_MS|zephyrWarn|Promise\.race|modifyRspackConfig\(\s*(?:async\s+)?(?:config|\(config\))\s*=>|console\.warn/u,
+      /\bprocess\s*\.\s*env\b/u,
+      'generated Modern config must not bypass the public config API with direct process.env access',
+    );
+    assert.match(modernConfig, /\n\s*zephyrRspackPlugin\(\),/u);
+    assert.doesNotMatch(
+      modernConfig,
+      /@effect-diagnostics|ULTRAMODERN_ZEPHYR|zephyrWarn|Promise\.race|modifyRspackConfig\(\s*(?:async\s+)?(?:config|\(config\))\s*=>|console\.warn/u,
     );
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });

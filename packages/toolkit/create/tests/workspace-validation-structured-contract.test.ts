@@ -90,6 +90,17 @@ function commandOutput(result: ReturnType<typeof runValidation>) {
   return `${result.stdout}\n${result.stderr}`;
 }
 
+function appendText(workspaceDir: string, relativePath: string, text: string) {
+  fs.appendFileSync(path.join(workspaceDir, relativePath), text, 'utf-8');
+}
+
+function removeText(workspaceDir: string, relativePath: string, text: string) {
+  const absolutePath = path.join(workspaceDir, relativePath);
+  const source = fs.readFileSync(absolutePath, 'utf-8');
+  assert.ok(source.includes(text), `${relativePath} must contain ${text}`);
+  fs.writeFileSync(absolutePath, source.replace(text, ''), 'utf-8');
+}
+
 test('generated validator embeds one structured contract and ignores JSON representation', () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-contract-json-'));
   const workspaceDir = path.join(tempRoot, 'structured-contract');
@@ -108,6 +119,10 @@ test('generated validator embeds one structured contract and ignores JSON repres
     assert.match(
       validatorSource,
       /kind: 'modernjs\.ultramodern-workspace-validation-contract'/,
+    );
+    assert.match(
+      validatorSource,
+      /generatedSurfacePolicy: \{\s*schemaVersion: 1,/,
     );
     assert.doesNotMatch(
       validatorSource,
@@ -137,6 +152,239 @@ test('generated validator embeds one structured contract and ignores JSON repres
 
     const reordered = runValidation(workspaceDir);
     assert.equal(reordered.status, 0, commandOutput(reordered));
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('generated validator rejects every structured generated-surface anti-shim rule', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-surface-policy-'));
+  const baselineDir = path.join(tempRoot, 'baseline');
+  const scenarios: Array<{
+    name: string;
+    mutate: (workspaceDir: string) => void;
+    expected: RegExp;
+  }> = [
+    {
+      name: 'effect-diagnostics-suppression',
+      mutate: workspaceDir => {
+        appendText(
+          workspaceDir,
+          'apps/shell-super-app/src/routes/shell-frame.tsx',
+          '\n// @effect-diagnostics suppress-next-line\n',
+        );
+      },
+      expected:
+        /generated surface policy effect-diagnostics-suppressions\.effect-diagnostics-directive/,
+    },
+    {
+      name: 'zephyr-environment-gate',
+      mutate: workspaceDir => {
+        mutateJson(workspaceDir, 'apps/shell-super-app/package.json', value => {
+          value.scripts['zephyr:build'] =
+            'ULTRAMODERN_ZEPHYR = false pnpm build';
+        });
+      },
+      expected:
+        /generated surface policy zephyr-gating\.ultramodern-zephyr-environment-gate/,
+    },
+    {
+      name: 'bridge-router-disabled',
+      mutate: workspaceDir => {
+        appendText(
+          workspaceDir,
+          'apps/shell-super-app/module-federation.config.ts',
+          '\nconst bridgeEscape = { enableBridgeRouter : false };\n',
+        );
+      },
+      expected:
+        /generated surface policy module-federation-bridge-escapes\.bridge-router-disabled/,
+    },
+    {
+      name: 'dynamic-remote-type-hints-disabled',
+      mutate: workspaceDir => {
+        appendText(
+          workspaceDir,
+          'apps/shell-super-app/module-federation.config.ts',
+          '\nconst typeHintsEscape = { disableDynamicRemoteTypeHints\n: true };\n',
+        );
+      },
+      expected:
+        /generated surface policy module-federation-bridge-escapes\.dynamic-remote-type-hints-disabled/,
+    },
+    {
+      name: 'shared-exclude-plugin-tree-shaking',
+      mutate: workspaceDir => {
+        appendText(
+          workspaceDir,
+          'apps/shell-super-app/module-federation.config.ts',
+          '\nconst treeShakingEscape = { treeShakingSharedExcludePlugins: [] };\n',
+        );
+      },
+      expected:
+        /generated surface policy module-federation-bridge-escapes\.shared-exclude-plugin-tree-shaking/,
+    },
+    {
+      name: 'window-location-navigation',
+      mutate: workspaceDir => {
+        appendText(
+          workspaceDir,
+          'apps/shell-super-app/src/routes/shell-frame.tsx',
+          "\nwindow . location . assign('/catalog');\n",
+        );
+      },
+      expected:
+        /generated surface policy shell-routing-native-navigation\.window-location-navigation/,
+    },
+    {
+      name: 'synthetic-anchor-click-interception',
+      mutate: workspaceDir => {
+        appendText(
+          workspaceDir,
+          'apps/shell-super-app/src/routes/shell-frame.tsx',
+          '\nconst intercepted = <a onClick={(event: Event) => event . preventDefault ()} />;\n',
+        );
+      },
+      expected:
+        /generated surface policy shell-routing-native-navigation\.synthetic-anchor-click-interception/,
+    },
+    {
+      name: 'named-anchor-click-interception',
+      mutate: workspaceDir => {
+        appendText(
+          workspaceDir,
+          'apps/shell-super-app/src/routes/shell-frame.tsx',
+          `
+function interceptCatalogAnchor(event: Event) {
+  event.preventDefault();
+}
+const namedIntercepted = (
+  <a href="/catalog" onClick={interceptCatalogAnchor}>Catalog</a>
+);
+`,
+        );
+      },
+      expected:
+        /generated surface policy shell-routing-native-navigation\.synthetic-anchor-click-interception/,
+    },
+    {
+      name: 'extracted-anchor-click-interception',
+      mutate: workspaceDir => {
+        appendText(
+          workspaceDir,
+          'apps/shell-super-app/src/routes/shell-frame.tsx',
+          `
+const generatedNavigation = { openCatalog: () => undefined };
+const extractedIntercepted = (
+  <a href="/catalog" onClick={generatedNavigation.openCatalog}>Catalog</a>
+);
+`,
+        );
+      },
+      expected:
+        /generated surface policy shell-routing-native-navigation\.synthetic-anchor-click-interception/,
+    },
+    {
+      name: 'manual-module-federation-loading-wrapper',
+      mutate: workspaceDir => {
+        appendText(
+          workspaceDir,
+          'apps/shell-super-app/src/routes/vertical-components.imports.tsx',
+          "\nloadRemote('@catalog/Panel');\n",
+        );
+      },
+      expected:
+        /generated surface policy module-federation-native-loading\.manual-module-federation-loading-wrapper/,
+    },
+    {
+      name: 'direct-process-env-access',
+      mutate: workspaceDir => {
+        appendText(
+          workspaceDir,
+          'apps/shell-super-app/modern.config.ts',
+          "\nconst legacyEnv = process . env ['LEGACY_VALUE'];\n",
+        );
+      },
+      expected:
+        /generated surface policy framework-config-api\.direct-process-env-access/,
+    },
+    {
+      name: 'node-child-process-access',
+      mutate: workspaceDir => {
+        appendText(
+          workspaceDir,
+          'apps/shell-super-app/module-federation.config.ts',
+          "\nimport { execFileSync } from 'node:child_process';\n",
+        );
+      },
+      expected:
+        /generated surface policy framework-config-api\.node-child-process-access/,
+    },
+  ];
+
+  try {
+    generateWorkspace(baselineDir);
+    const baseline = runValidation(baselineDir);
+    assert.equal(baseline.status, 0, commandOutput(baseline));
+
+    for (const scenario of scenarios) {
+      const workspaceDir = path.join(tempRoot, scenario.name);
+      fs.cpSync(baselineDir, workspaceDir, { recursive: true });
+      scenario.mutate(workspaceDir);
+
+      const result = runValidation(workspaceDir);
+      const output = commandOutput(result);
+      assert.notEqual(result.status, 0, `${scenario.name}\n${output}`);
+      assert.match(output, scenario.expected, scenario.name);
+    }
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('generated contract:check requires the isolated Module Federation DTS compiler API', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-dts-compiler-'));
+  const baselineDir = path.join(tempRoot, 'baseline');
+  const packageExtension = "  '@module-federation/dts-plugin@2.7.0':\n";
+  const compilerDependency = '      typescript: npm:typescript@6.0.3\n';
+  const scenarios: Array<{
+    name: string;
+    mutate: (workspaceDir: string) => void;
+    expected: RegExp;
+  }> = [
+    {
+      name: 'missing-package-extension',
+      mutate: workspaceDir => {
+        removeText(workspaceDir, 'pnpm-workspace.yaml', packageExtension);
+      },
+      expected:
+        /must isolate the Module Federation DTS plugin on the supported TypeScript compiler API/,
+    },
+    {
+      name: 'missing-compiler-dependency',
+      mutate: workspaceDir => {
+        removeText(workspaceDir, 'pnpm-workspace.yaml', compilerDependency);
+      },
+      expected:
+        /must isolate the Module Federation DTS plugin on the supported TypeScript compiler API/,
+    },
+  ];
+
+  try {
+    generateWorkspace(baselineDir);
+    const baseline = runValidation(baselineDir);
+    assert.equal(baseline.status, 0, commandOutput(baseline));
+
+    for (const scenario of scenarios) {
+      const workspaceDir = path.join(tempRoot, scenario.name);
+      fs.cpSync(baselineDir, workspaceDir, { recursive: true });
+      scenario.mutate(workspaceDir);
+
+      const result = runValidation(workspaceDir);
+      const output = commandOutput(result);
+      assert.notEqual(result.status, 0, `${scenario.name}\n${output}`);
+      assert.match(output, scenario.expected, scenario.name);
+    }
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }

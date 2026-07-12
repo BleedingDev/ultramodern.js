@@ -311,23 +311,23 @@ test('rendered contents of the highest-risk generated files match the checked-in
     );
     assert.match(
       shellModernConfig,
-      /api\.modifyRspackConfig\(withZephyrRspack\(\)\);/,
-      'generated Modern config must register the native Zephyr Rspack modifier directly',
+      /api\.modifyRspackConfig\(\s*withBuildConfigEnvironment\(\s*'ZE_FAIL_BUILD',\s*'true',\s*withZephyrRspack\(\),?\s*\),?\s*\);/,
+      'generated Modern config must lease the native Zephyr fail-closed setting for the compiler lifecycle',
     );
     assert.match(
       shellModernConfig,
-      /process\.env\['ZE_FAIL_BUILD'\] = 'true';/,
-      'generated Modern config must use Zephyr native fail-closed configuration',
+      /\bwithBuildConfigEnvironment\b/,
+      'generated Modern config must use the public scoped environment API',
     );
     assert.doesNotMatch(
       shellModernConfig,
       /ULTRAMODERN_ZEPHYR_TIMEOUT_MS|zephyrWarn|Promise\.race|modifyRspackConfig\(\s*(?:async\s+)?(?:config|\(config\))\s*=>/,
       'generated Modern config must not intercept Zephyr failures',
     );
-    assert.match(
+    assert.doesNotMatch(
       shellModernConfig,
-      /const zephyrEnabled = process\.env\['ULTRAMODERN_ZEPHYR'\] !== 'false';/,
-      'generated Modern config must preserve the explicit local Zephyr disable mode',
+      /ULTRAMODERN_ZEPHYR/,
+      'generated Modern config must not provide an opt-out from Zephyr native fail-closed configuration',
     );
     assert.deepEqual(
       readJson(
@@ -591,18 +591,23 @@ test('rendered contents of the highest-risk generated files match the checked-in
     );
     assert.match(
       verticalComponents,
-      /\.\.\.\(telemetryEntry === undefined \? \{\} : \{ entry: telemetryEntry \}\)/,
-      'generated Module Federation telemetry must omit entry on SSR instead of passing explicit undefined',
+      /import\s*\{\s*createLazyComponent\s*\}\s*from '@module-federation\/modern-js-v3\/react';/,
+      'generated shell remotes must use the framework-owned Module Federation React primitive',
     );
     assert.match(
       verticalComponents,
-      /\.\.\.\(telemetry\.entry === undefined \? \{\} : \{ entry: telemetry\.entry \}\)/,
-      'generated Module Federation telemetry emit must omit entry when the payload has no browser URL',
+      /const createRemoteComponent = [\s\S]*?=>\s*createLazyComponent\(\{\s*export: 'default',\s*fallback: <RemoteUnavailable \/>,\s*instance: getInstance\(\),\s*loader,\s*loading: null,\s*\}\);/,
+      'generated shell remotes must delegate loading and fallback rendering to the Module Federation primitive',
+    );
+    assert.match(
+      verticalComponents,
+      /const CatalogWidget = createRemoteComponent\(\s*\(\) => import\('catalog\/Widget'\),?\s*\);/,
+      'generated shell remotes must pass native dynamic imports directly to the Module Federation primitive',
     );
     assert.doesNotMatch(
       verticalComponents,
-      /entry: .*undefined/,
-      'generated Module Federation telemetry must stay compatible with exactOptionalPropertyTypes',
+      /@modern-js\/runtime\/module-federation|@module-federation\/bridge-react|classifyModuleFederationFallback|createModuleFederationFallbackTelemetry|emitModuleFederationFallbackTelemetry|toModuleFederationFallbackAttributes|createRemoteFallback|createHydratedRemote|loadRemote|telemetryEntry|telemetry\.entry|data-remote-error|typeof window|window\.location/,
+      'generated app code must not recreate Module Federation fallback interception, telemetry, or hydration behavior',
     );
 
     // Regression: the generated API client once accepted

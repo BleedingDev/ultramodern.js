@@ -37,6 +37,7 @@ import { runPnpmLockfileRefresh } from './migrate-strict-effect/install';
 import {
   createMigrationIo,
   listWorkspacePackageFiles,
+  type MigrationIo,
   readJsonFile,
   writeJsonFile,
 } from './migrate-strict-effect/io';
@@ -273,19 +274,13 @@ function deriveValidationContractInputs(
   };
 }
 
-export function runMigrateStrictEffect(
+function migrateStrictEffect(
   args: string[],
   context: CommandContext,
+  io: MigrationIo,
+  dryRun: boolean,
+  skipInstall: boolean,
 ) {
-  if (args.includes('--help') || args.includes('-h')) {
-    process.stdout.write(migrateStrictEffectHelp);
-    return 0;
-  }
-
-  const dryRun = hasFlag(args, '--dry-run');
-  const skipInstall = dryRun || hasFlag(args, '--skip-install');
-  const io = createMigrationIo(context.workspaceRoot, dryRun);
-
   const compactPath = path.join(io.workspaceRoot, '.modernjs/ultramodern.json');
   let raw: Record<string, any>;
   if (fs.existsSync(compactPath)) {
@@ -311,6 +306,10 @@ export function runMigrateStrictEffect(
 
   const current = normalizeCompactUltramodernConfig(io.workspaceRoot, raw);
   const packageSource = createMigrationPackageSource(args, current);
+  const result = (status: number) => ({
+    status,
+    version: packageSource.modernPackageVersion,
+  });
   const releaseCohort =
     packageSource.strategy === 'install'
       ? readCreateReleaseCohort()
@@ -445,19 +444,28 @@ export function runMigrateStrictEffect(
   ensureGeneratedOxfmtIgnorePatterns(io);
 
   if (!skipInstall) {
-    const status = runPnpmLockfileRefresh(context);
-    if (status !== 0) {
-      return status;
-    }
-    return validateGeneratedPnpmLockReleaseAgePolicy(
-      io.workspaceRoot,
-      packageSource,
-      { releaseCohort },
-    ).then(() => {
-      process.stdout.write(
-        `UltraModern strict Effect metadata migrated to ${packageSource.modernPackageVersion}. Run pnpm api:check && pnpm contract:check next.\n`,
-      );
-      return 0;
+    return io.withStagedWorkspace(stagedWorkspaceRoot => {
+      const status = runPnpmLockfileRefresh({
+        ...context,
+        workspaceRoot: stagedWorkspaceRoot,
+      });
+      if (status !== 0) {
+        return result(status);
+      }
+      return validateGeneratedPnpmLockReleaseAgePolicy(
+        stagedWorkspaceRoot,
+        packageSource,
+        { releaseCohort },
+      ).then(() => {
+        io.write(
+          path.join(io.workspaceRoot, 'pnpm-lock.yaml'),
+          fs.readFileSync(
+            path.join(stagedWorkspaceRoot, 'pnpm-lock.yaml'),
+            'utf-8',
+          ),
+        );
+        return result(0);
+      });
     });
   }
 
@@ -468,11 +476,40 @@ export function runMigrateStrictEffect(
     process.stdout.write(
       `[dry-run] migrate-strict-effect would migrate UltraModern strict Effect metadata to ${packageSource.modernPackageVersion}.\n`,
     );
+  }
+
+  return result(0);
+}
+
+export function runMigrateStrictEffect(
+  args: string[],
+  context: CommandContext,
+) {
+  if (args.includes('--help') || args.includes('-h')) {
+    process.stdout.write(migrateStrictEffectHelp);
     return 0;
   }
 
-  process.stdout.write(
-    `UltraModern strict Effect metadata migrated to ${packageSource.modernPackageVersion}. Run pnpm api:check && pnpm contract:check next.\n`,
+  const dryRun = hasFlag(args, '--dry-run');
+  const skipInstall = dryRun || hasFlag(args, '--skip-install');
+  const io = createMigrationIo(context.workspaceRoot, dryRun);
+  const migration = io.transaction(
+    () => migrateStrictEffect(args, context, io, dryRun, skipInstall),
+    { commitWhen: migrationResult => migrationResult.status === 0 },
   );
-  return 0;
+
+  const report = (migrationResult: Awaited<typeof migration>) => {
+    if (migrationResult.status === 0 && !dryRun) {
+      process.stdout.write(
+        `UltraModern strict Effect metadata migrated to ${migrationResult.version}. ` +
+          'Run pnpm api:check && pnpm contract:check next.\n',
+      );
+    }
+    return migrationResult.status;
+  };
+
+  if (migration instanceof Promise) {
+    return migration.then(report);
+  }
+  return report(migration);
 }

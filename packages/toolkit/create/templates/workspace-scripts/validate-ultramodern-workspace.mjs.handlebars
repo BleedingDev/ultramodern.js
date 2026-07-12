@@ -11,6 +11,8 @@ const expectedNodeVersion = workspaceValidationContract.versions.node;
 const expectedEffectVersion = workspaceValidationContract.versions.effect;
 const expectedModuleFederationVersion =
   workspaceValidationContract.versions.moduleFederation;
+const expectedTypescriptCompilerApiVersion =
+  workspaceValidationContract.versions.typescriptCompilerApi;
 const expectedCloudflareCompatibilityDate =
   workspaceValidationContract.versions.cloudflareCompatibilityDate;
 const tailwindEnabled = workspaceValidationContract.tailwindEnabled;
@@ -231,6 +233,217 @@ const assertWorkspaceValidationContract = contract => {
     (contract.cohort?.packageManifests ?? []).map(manifest => manifest.path),
     'workspace validation contract package manifest paths',
   );
+
+  const generatedSurfacePolicy = contract.generatedSurfacePolicy;
+  assert(
+    generatedSurfacePolicy?.schemaVersion === 1,
+    `Unsupported generated surface policy schemaVersion ${formatJson(generatedSurfacePolicy?.schemaVersion)}; expected 1`,
+  );
+  assertUniqueIdEntries(
+    generatedSurfacePolicy?.rules,
+    'workspace validation contract generated surface policy rules',
+  );
+  for (const rule of generatedSurfacePolicy.rules) {
+    assertUniqueStrings(
+      (rule.paths ?? []).map(entry => entry.path),
+      `generated surface policy ${rule.id} paths`,
+    );
+    assert(
+      Array.isArray(rule.paths) && rule.paths.length > 0,
+      `generated surface policy ${rule.id} must target generated paths`,
+    );
+    for (const target of rule.paths) {
+      assert(
+        target?.kind === 'file' || target?.kind === 'directory',
+        `generated surface policy ${rule.id} has an invalid target kind`,
+      );
+      assert(
+        typeof target.path === 'string' && target.path.length > 0,
+        `generated surface policy ${rule.id} target path is required`,
+      );
+      if (target.kind === 'directory') {
+        assertUniqueStrings(
+          target.extensions,
+          `generated surface policy ${rule.id} directory extensions`,
+        );
+        assertUniqueStrings(
+          target.excludePaths ?? [],
+          `generated surface policy ${rule.id} directory exclusions`,
+        );
+      }
+    }
+    assertUniqueIdEntries(
+      rule.patterns,
+      `generated surface policy ${rule.id} patterns`,
+    );
+    for (const pattern of rule.patterns) {
+      if (pattern.structuralMatcher !== undefined) {
+        assert(
+          pattern.expression === undefined && pattern.flags === undefined,
+          `generated surface policy ${rule.id}.${pattern.id} must use exactly one matcher`,
+        );
+        assert(
+          pattern.structuralMatcher?.kind === 'jsx-attribute',
+          `generated surface policy ${rule.id}.${pattern.id} has an unsupported structural matcher`,
+        );
+        assert(
+          typeof pattern.structuralMatcher.elementName === 'string' &&
+            pattern.structuralMatcher.elementName.length > 0,
+          `generated surface policy ${rule.id}.${pattern.id} structural elementName is required`,
+        );
+        assert(
+          typeof pattern.structuralMatcher.attributeName === 'string' &&
+            pattern.structuralMatcher.attributeName.length > 0,
+          `generated surface policy ${rule.id}.${pattern.id} structural attributeName is required`,
+        );
+      } else {
+        assert(
+          typeof pattern.expression === 'string' && pattern.expression.length > 0,
+          `generated surface policy ${rule.id}.${pattern.id} expression is required`,
+        );
+        assert(
+          pattern.flags === 'u',
+          `generated surface policy ${rule.id}.${pattern.id} must use deterministic Unicode matching`,
+        );
+        new RegExp(pattern.expression, pattern.flags);
+      }
+      assert(
+        typeof pattern.diagnostic === 'string' && pattern.diagnostic.length > 0,
+        `generated surface policy ${rule.id}.${pattern.id} diagnostic is required`,
+      );
+      assert(
+        typeof pattern.fixArea === 'string' && pattern.fixArea.length > 0,
+        `generated surface policy ${rule.id}.${pattern.id} fixArea is required`,
+      );
+    }
+  }
+};
+const generatedSurfacePolicyFiles = target => {
+  const absolutePath = path.join(root, target.path);
+  if (target.kind === 'file') {
+    assert(fs.existsSync(absolutePath), `Missing generated surface policy file ${target.path}`);
+    return [target.path];
+  }
+
+  assert(fs.existsSync(absolutePath), `Missing generated surface policy directory ${target.path}`);
+  const files = [];
+  const queue = [absolutePath];
+  while (queue.length > 0) {
+    const current = queue.shift();
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      const absoluteEntryPath = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        queue.push(absoluteEntryPath);
+      } else if (target.extensions.includes(path.extname(entry.name))) {
+        files.push(path.relative(root, absoluteEntryPath).split(path.sep).join('/'));
+      }
+    }
+  }
+  const excludedPaths = new Set(target.excludePaths ?? []);
+  return files.filter(file => !excludedPaths.has(file)).toSorted();
+};
+const isJsxNameCharacter = character =>
+  typeof character === 'string' && /[\w:.-]/u.test(character);
+const skipQuotedSource = (source, start) => {
+  const quote = source[start];
+  let cursor = start + 1;
+  while (cursor < source.length) {
+    if (source[cursor] === '\\') {
+      cursor += 2;
+    } else if (source[cursor] === quote) {
+      return cursor + 1;
+    } else {
+      cursor += 1;
+    }
+  }
+  return cursor;
+};
+const skipSourceComment = (source, start) => {
+  if (source[start + 1] === '/') {
+    const lineEnd = source.indexOf('\n', start + 2);
+    return lineEnd === -1 ? source.length : lineEnd + 1;
+  }
+  if (source[start + 1] === '*') {
+    const commentEnd = source.indexOf('*/', start + 2);
+    return commentEnd === -1 ? source.length : commentEnd + 2;
+  }
+  return start;
+};
+const findJsxAttribute = (source, matcher) => {
+  const opening = `<${matcher.elementName}`;
+  let elementIndex = source.indexOf(opening);
+  while (elementIndex !== -1) {
+    const elementBoundary = source[elementIndex + opening.length];
+    if (!isJsxNameCharacter(elementBoundary)) {
+      let cursor = elementIndex + opening.length;
+      let expressionDepth = 0;
+      while (cursor < source.length) {
+        const character = source[cursor];
+        if (character === "'" || character === '"' || character === '`') {
+          cursor = skipQuotedSource(source, cursor);
+          continue;
+        }
+        if (character === '/') {
+          const afterComment = skipSourceComment(source, cursor);
+          if (afterComment !== cursor) {
+            cursor = afterComment;
+            continue;
+          }
+        }
+        if (character === '{') {
+          expressionDepth += 1;
+          cursor += 1;
+          continue;
+        }
+        if (character === '}') {
+          expressionDepth = Math.max(0, expressionDepth - 1);
+          cursor += 1;
+          continue;
+        }
+        if (character === '>' && expressionDepth === 0) {
+          break;
+        }
+        if (
+          expressionDepth === 0 &&
+          source.startsWith(matcher.attributeName, cursor) &&
+          !isJsxNameCharacter(source[cursor - 1]) &&
+          !isJsxNameCharacter(source[cursor + matcher.attributeName.length])
+        ) {
+          let equalsIndex = cursor + matcher.attributeName.length;
+          while (/\s/u.test(source[equalsIndex] ?? '')) {
+            equalsIndex += 1;
+          }
+          if (source[equalsIndex] === '=') {
+            return { index: cursor };
+          }
+        }
+        cursor += 1;
+      }
+    }
+    elementIndex = source.indexOf(opening, elementIndex + opening.length);
+  }
+  return null;
+};
+const findGeneratedSurfacePolicyMatch = (source, pattern) =>
+  pattern.structuralMatcher?.kind === 'jsx-attribute'
+    ? findJsxAttribute(source, pattern.structuralMatcher)
+    : new RegExp(pattern.expression, pattern.flags).exec(source);
+const assertGeneratedSurfacePolicy = () => {
+  for (const rule of workspaceValidationContract.generatedSurfacePolicy.rules) {
+    const files = rule.paths.flatMap(generatedSurfacePolicyFiles).toSorted();
+    for (const relativePath of files) {
+      const source = readText(relativePath);
+      for (const pattern of rule.patterns) {
+        const match = findGeneratedSurfacePolicyMatch(source, pattern);
+        assertSelfCheck(
+          match === null,
+          `generated surface policy ${rule.id}.${pattern.id}`,
+          `${pattern.diagnostic} Found forbidden source at ${relativePath}:${match?.index ?? 0}`,
+          pattern.fixArea,
+        );
+      }
+    }
+  }
 };
 const compactConfigPolicyView = config => ({
   schemaVersion: config.schemaVersion,
@@ -1955,13 +2168,13 @@ const assertTargetIsolatedBuildArtifacts = (appId, modernConfig) => {
 const assertCloudflareBuildSkipsDeployRebuild = (appId, packageJson) => {
   assert(
     packageJson.scripts?.['cloudflare:build']?.includes(
-      'ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern deploy --skip-build',
+      'MODERNJS_DEPLOY=cloudflare modern deploy --skip-build',
     ),
     `${appId} cloudflare:build must deploy with --skip-build after the explicit Cloudflare build`,
   );
   assert(
     !packageJson.scripts?.['cloudflare:build']?.includes(
-      '--target dist && ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern deploy',
+      '--target dist && MODERNJS_DEPLOY=cloudflare modern deploy',
     ),
     `${appId} cloudflare:build must not write public-surface assets into the normal web dist before deploy`,
   );
@@ -2187,11 +2400,27 @@ assert(
 );
 assert(
   pnpmWorkspace.includes(
+    `'@module-federation/dts-plugin@${expectedModuleFederationVersion}':`,
+  ) &&
+    pnpmWorkspace.includes(
+      `typescript: npm:typescript@${expectedTypescriptCompilerApiVersion}`,
+    ),
+  'pnpm-workspace.yaml must isolate the Module Federation DTS plugin on the supported TypeScript compiler API',
+);
+assert(
+  pnpmWorkspace.includes(
+    `'@module-federation/dts-plugin>typescript': '${expectedTypescriptCompilerApiVersion}'`,
+  ),
+  'pnpm-workspace.yaml must declare the Module Federation DTS compiler peer version',
+);
+assert(
+  pnpmWorkspace.includes(
     `'effect@${expectedEffectVersion}': patches/effect-schema-error-type-id.patch`,
   ),
   'pnpm-workspace.yaml must patch the generated Effect declaration cohort',
 );
 assertWorkspaceValidationContract(workspaceValidationContract);
+assertGeneratedSurfacePolicy();
 for (const oldRemotePath of oldRemotePaths) {
   assertNotExists(oldRemotePath);
 }

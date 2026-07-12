@@ -2,78 +2,18 @@ interface RemoteComponentModule {
   default: ComponentType;
 }
 
-const loadRemoteComponent = (specifier: string) =>
-  loadRemote<RemoteComponentModule>(specifier) as Promise<RemoteComponentModule>;
+const RemoteUnavailable = () => {
+  const { t } = useModernI18n();
+  return <div className="{{value1}}">{t('shell.remoteUnavailable')}</div>;
+};
 
-const createRemoteFallback = (specifier: string) =>
-  function RemoteFallback({ error }: { error: Error }) {
-    const { t } = useModernI18n();
-    const classification = classifyModuleFederationFallback(error);
-    const telemetryEntry =
-      typeof window === 'undefined' ? undefined : window.location.href;
-    const telemetry = createModuleFederationFallbackTelemetry({
-      appName: '{{value0}}',
-      classification,
-      ...(telemetryEntry === undefined ? {} : { entry: telemetryEntry }),
-      error,
-      eventName: 'mf.client.remote.fallback',
-      exportName: 'default',
-      phase: 'load',
-      remote: specifier,
-      status: 'degraded',
-    });
-
-    useEffect(() => {
-      void emitModuleFederationFallbackTelemetry({
-        appName: telemetry.appName,
-        classification,
-        ...(telemetry.entry === undefined ? {} : { entry: telemetry.entry }),
-        error,
-        eventName: telemetry.eventName,
-        exportName: 'default',
-        metadata: telemetry.metadata,
-        phase: telemetry.phase,
-        remote: specifier,
-        status: 'degraded',
-      });
-    }, [classification, error, telemetry]);
-
-    return <div className="{{value1}}" data-remote-error={error.name} {...toModuleFederationFallbackAttributes(telemetry)}>{t('shell.remoteUnavailable')}</div>;
-  }
-
-const createHydratedRemote =
-  (ServerComponent: ComponentType, specifier: string) =>
-  function HydratedRemote() {
-    const [hydrated, setHydrated] = useState(false);
-
-    useEffect(() => {
-      setHydrated(true);
-    }, []);
-
-    const FederatedComponent = useMemo(() => {
-      if (!hydrated) {
-        return null;
-      }
-      const instance = getInstance();
-      if (instance === null || instance === undefined) {
-        return null;
-      }
-      return createLazyComponent({
-        export: 'default',
-        fallback: createRemoteFallback(specifier),
-        instance,
-        loader: () => loadRemoteComponent(specifier),
-        loading: <ServerComponent />,
-      });
-    }, [hydrated]);
-
-    if (FederatedComponent === null) {
-      return <ServerComponent />;
-    }
-
-    return (
-      <Suspense fallback={<ServerComponent />}>
-        <FederatedComponent />
-      </Suspense>
-    );
-  };
+const createRemoteComponent = (
+  loader: () => Promise<RemoteComponentModule>,
+) =>
+  createLazyComponent({
+    export: 'default',
+    fallback: <RemoteUnavailable />,
+    instance: getInstance(),
+    loader,
+    loading: null,
+  });

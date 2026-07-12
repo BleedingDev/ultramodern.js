@@ -1,16 +1,11 @@
 #!/usr/bin/env node
 
 import { spawnSync } from 'node:child_process';
-import {
-  accessSync,
-  chmodSync,
-  constants,
-  existsSync,
-  mkdirSync,
-} from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import os from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { resolveEffectTsgoCompiler } from '@modern-js/app-tools/config';
 
 const args = process.argv.slice(2);
 const workspaceRoot = process.env.ULTRAMODERN_WORKSPACE_ROOT
@@ -108,33 +103,6 @@ function readArgs() {
   };
 }
 
-function resolveTsgoBinary() {
-  const explicitBinary = process.env.EFFECT_TSGO_BIN || process.env.TSGO_BIN;
-  if (explicitBinary) {
-    return explicitBinary;
-  }
-
-  const cli = process.env.EFFECT_TSGO_CLI || 'effect-tsgo';
-  const result = spawnSync(cli, ['get-exe-path'], {
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-
-  if (result.error) {
-    fail(
-      `Unable to run ${cli}. Run pnpm install or set EFFECT_TSGO_BIN to a TS-Go binary.`,
-    );
-  }
-  if (result.status !== 0) {
-    fail(
-      result.stderr?.trim() ||
-        `${cli} get-exe-path exited with status ${result.status}.`,
-    );
-  }
-
-  return result.stdout.trim() || cli;
-}
-
 const parsed = readArgs();
 const defaultBuilders = Math.min(8, Math.max(1, Math.floor(cpuCount / 2)));
 const builders =
@@ -147,17 +115,7 @@ const defaultCheckers =
 const checkers =
   parsed.checkers ??
   envPositiveInt('ULTRAMODERN_TSGO_CHECKERS', defaultCheckers);
-const tsgoBin = resolveTsgoBinary();
-
-if (!existsSync(tsgoBin)) {
-  fail(`TS-Go binary not found at ${tsgoBin}. Run pnpm install.`);
-}
-
-try {
-  accessSync(tsgoBin, constants.X_OK);
-} catch {
-  chmodSync(tsgoBin, 0o755);
-}
+const tsgoBin = resolveEffectTsgoCompiler({ from: import.meta.url });
 
 mkdirSync(join(workspaceRoot, 'node_modules/.cache/tsgo'), {
   recursive: true,

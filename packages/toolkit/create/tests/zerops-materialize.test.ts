@@ -9,7 +9,6 @@ type CommandRecord = {
   cwd: string;
   env: {
     MODERNJS_DEPLOY?: string;
-    ULTRAMODERN_ZEPHYR?: string;
   };
 };
 
@@ -155,7 +154,6 @@ fs.writeFileSync(
 		cwd: process.cwd(),
 		env: {
 			MODERNJS_DEPLOY: process.env.MODERNJS_DEPLOY,
-			ULTRAMODERN_ZEPHYR: process.env.ULTRAMODERN_ZEPHYR,
 		},
 	}, null, 2),
 );
@@ -179,7 +177,6 @@ fs.writeFileSync(
 		cwd: process.cwd(),
 		env: {
 			MODERNJS_DEPLOY: process.env.MODERNJS_DEPLOY,
-			ULTRAMODERN_ZEPHYR: process.env.ULTRAMODERN_ZEPHYR,
 		},
 	}, null, 2),
 );
@@ -250,7 +247,6 @@ fs.writeFileSync(
     ]);
     assert.equal(pnpmRecord.cwd, workspaceRealPath);
     assert.equal(pnpmRecord.env.MODERNJS_DEPLOY, 'node');
-    assert.equal(pnpmRecord.env.ULTRAMODERN_ZEPHYR, 'false');
 
     const npmRecord = readJson<CommandRecord>(path.join(recordDir, 'npm.json'));
     assert.deepEqual(npmRecord.argv, [
@@ -262,7 +258,6 @@ fs.writeFileSync(
     ]);
     assert.match(npmRecord.cwd, /ultramodern-zerops-catalog-/u);
     assert.equal(npmRecord.env.MODERNJS_DEPLOY, 'node');
-    assert.equal(npmRecord.env.ULTRAMODERN_ZEPHYR, 'false');
 
     const runtimeRoot = path.join(workspaceRoot, '.zerops/runtime/catalog');
     assert.equal(

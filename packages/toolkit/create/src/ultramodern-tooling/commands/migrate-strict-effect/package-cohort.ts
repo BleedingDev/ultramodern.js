@@ -95,7 +95,7 @@ export function updateGeneratedToolingDependencies(
 }
 
 const cloudflareModernDeployCommand =
-  'ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern deploy';
+  'MODERNJS_DEPLOY=cloudflare modern deploy';
 
 const cloudflareModernDeploySkipBuildCommand = `${cloudflareModernDeployCommand} --skip-build`;
 
@@ -287,7 +287,7 @@ export function updateGeneratedPackageScripts(
     }
 
     nextCloudflareBuild = nextCloudflareBuild.replace(
-      / && node \S*scripts\/generate-public-surface-assets\.m[ct]s --app [^&]+ --target dist(?= && ULTRAMODERN_ZEPHYR=false MODERNJS_DEPLOY=cloudflare modern deploy --skip-build)/u,
+      / && node \S*scripts\/generate-public-surface-assets\.m[ct]s --app [^&]+ --target dist(?= && MODERNJS_DEPLOY=cloudflare modern deploy --skip-build)/u,
       '',
     );
     nextCloudflareBuild = nextCloudflareBuild.replace(

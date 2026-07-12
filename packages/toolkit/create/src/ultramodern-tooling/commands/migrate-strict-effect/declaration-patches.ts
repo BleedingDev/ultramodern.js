@@ -10,8 +10,6 @@ import {
   effectDeclarationPatchSourcePath,
   moduleFederationBridgeReactPatchPath,
   moduleFederationBridgeReactPatchSourcePath,
-  moduleFederationDtsPluginPatchPath,
-  moduleFederationDtsPluginPatchSourcePath,
   moduleFederationModernJsPatchPath,
   moduleFederationModernJsPatchSourcePath,
 } from './policy-constants';
@@ -26,12 +24,6 @@ export function ensureGeneratedDeclarationPatches(
       io,
       moduleFederationModernJsPatchPath,
       moduleFederationModernJsPatchSourcePath,
-    ) || changed;
-  changed =
-    ensureGeneratedPatchFile(
-      io,
-      moduleFederationDtsPluginPatchPath,
-      moduleFederationDtsPluginPatchSourcePath,
     ) || changed;
   changed =
     ensureGeneratedPatchFile(

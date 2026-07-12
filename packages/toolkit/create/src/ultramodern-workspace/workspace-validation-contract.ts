@@ -33,6 +33,7 @@ import {
   MODULE_FEDERATION_VERSION,
   NODE_VERSION,
   PNPM_VERSION,
+  TYPESCRIPT_COMPILER_API_VERSION,
 } from './versions';
 import {
   createWorkspaceRootPackageScripts,
@@ -102,6 +103,191 @@ function createReferenceTopologyExpectation(
           };
         })
       : topology.verticals,
+  };
+}
+
+function createGeneratedSurfacePolicy(workspaceApps: WorkspaceApp[]) {
+  const appConfigPaths = workspaceApps.map(
+    app => `${app.directory}/modern.config.ts`,
+  );
+  const moduleFederationConfigPaths = workspaceApps.map(
+    app => `${app.directory}/module-federation.config.ts`,
+  );
+  const appPackagePaths = workspaceApps.map(
+    app => `${app.directory}/package.json`,
+  );
+  const sourceDirectories = workspaceApps.flatMap(app => [
+    `${app.directory}/src`,
+    ...(appHasApi(app) ? [`${app.directory}/api`] : []),
+  ]);
+
+  return {
+    schemaVersion: 1,
+    rules: [
+      {
+        id: 'effect-diagnostics-suppressions',
+        paths: [
+          ...sourceDirectories.map(path => ({
+            kind: 'directory',
+            path,
+            extensions: ['.ts', '.tsx'],
+          })),
+          {
+            kind: 'directory',
+            path: 'scripts',
+            extensions: ['.mts', '.ts'],
+            excludePaths: ['scripts/validate-ultramodern-workspace.mts'],
+          },
+          ...appConfigPaths.map(path => ({ kind: 'file', path })),
+          ...moduleFederationConfigPaths.map(path => ({ kind: 'file', path })),
+        ],
+        patterns: [
+          {
+            id: 'effect-diagnostics-directive',
+            expression: '@effect-diagnostics\\b',
+            flags: 'u',
+            diagnostic:
+              'Generated sources must not suppress Effect diagnostics.',
+            fixArea: 'remove the @effect-diagnostics suppression directive',
+          },
+        ],
+      },
+      {
+        id: 'zephyr-gating',
+        paths: [
+          { kind: 'file', path: 'package.json' },
+          ...appPackagePaths.map(path => ({ kind: 'file', path })),
+          ...appConfigPaths.map(path => ({ kind: 'file', path })),
+          ...moduleFederationConfigPaths.map(path => ({ kind: 'file', path })),
+        ],
+        patterns: [
+          {
+            id: 'ultramodern-zephyr-environment-gate',
+            expression: '\\bULTRAMODERN_ZEPHYR\\b',
+            flags: 'u',
+            diagnostic:
+              'Generated Zephyr integration must not be gated or disabled through ULTRAMODERN_ZEPHYR.',
+            fixArea:
+              'use the framework-owned Zephyr integration without a gate',
+          },
+        ],
+      },
+      {
+        id: 'module-federation-bridge-escapes',
+        paths: moduleFederationConfigPaths.map(path => ({
+          kind: 'file',
+          path,
+        })),
+        patterns: [
+          {
+            id: 'bridge-router-disabled',
+            expression: '\\benableBridgeRouter\\s*:\\s*false\\b',
+            flags: 'u',
+            diagnostic:
+              'Generated Module Federation must keep bridge routing enabled.',
+            fixArea: 'remove enableBridgeRouter: false',
+          },
+          {
+            id: 'dynamic-remote-type-hints-disabled',
+            expression: '\\bdisableDynamicRemoteTypeHints\\s*:\\s*true\\b',
+            flags: 'u',
+            diagnostic:
+              'Generated Module Federation must keep dynamic remote type hints enabled.',
+            fixArea: 'remove disableDynamicRemoteTypeHints: true',
+          },
+          {
+            id: 'shared-exclude-plugin-tree-shaking',
+            expression: '\\btreeShakingSharedExcludePlugins\\b',
+            flags: 'u',
+            diagnostic:
+              'Generated Module Federation must not exclude shared plugins from tree shaking.',
+            fixArea: 'remove treeShakingSharedExcludePlugins',
+          },
+        ],
+      },
+      {
+        id: 'shell-routing-native-navigation',
+        paths: [
+          {
+            kind: 'directory',
+            path: 'apps/shell-super-app/src/routes',
+            extensions: ['.ts', '.tsx'],
+          },
+        ],
+        patterns: [
+          {
+            id: 'window-location-navigation',
+            expression:
+              '\\bwindow\\s*\\.\\s*location(?:\\s*\\.\\s*(?:assign|replace|reload)\\s*\\(|\\s*\\.\\s*href\\s*=|\\s*=)',
+            flags: 'u',
+            diagnostic:
+              'Generated shell routing must use native router navigation instead of window.location.',
+            fixArea:
+              'replace manual window.location navigation with the router primitive',
+          },
+          {
+            id: 'synthetic-anchor-click-interception',
+            structuralMatcher: {
+              kind: 'jsx-attribute',
+              elementName: 'a',
+              attributeName: 'onClick',
+            },
+            diagnostic:
+              'Generated shell routing must not intercept anchor clicks synthetically.',
+            fixArea:
+              'use the router Link primitive without preventDefault interception',
+          },
+        ],
+      },
+      {
+        id: 'module-federation-native-loading',
+        paths: [
+          {
+            kind: 'directory',
+            path: 'apps/shell-super-app/src/routes',
+            extensions: ['.ts', '.tsx'],
+          },
+        ],
+        patterns: [
+          {
+            id: 'manual-module-federation-loading-wrapper',
+            expression: '\\b(?:hydrateRoot|loadRemote|loadShare)\\s*\\(',
+            flags: 'u',
+            diagnostic:
+              'Generated shell routing must use native Module Federation loading primitives.',
+            fixArea:
+              'remove the manual Module Federation hydration or loading wrapper',
+          },
+        ],
+      },
+      {
+        id: 'framework-config-api',
+        paths: [
+          ...appConfigPaths.map(path => ({ kind: 'file', path })),
+          ...moduleFederationConfigPaths.map(path => ({ kind: 'file', path })),
+        ],
+        patterns: [
+          {
+            id: 'direct-process-env-access',
+            expression: '\\bprocess\\s*\\.\\s*env\\b',
+            flags: 'u',
+            diagnostic:
+              'Generated config must use the framework config environment API instead of direct process.env access.',
+            fixArea:
+              'replace direct process.env access with the framework config API',
+          },
+          {
+            id: 'node-child-process-access',
+            expression: '[\'"]node:child_process[\'"]',
+            flags: 'u',
+            diagnostic:
+              'Generated config must not invoke node:child_process directly.',
+            fixArea:
+              'use the framework config API instead of node:child_process',
+          },
+        ],
+      },
+    ],
   };
 }
 
@@ -257,6 +443,7 @@ export function createWorkspaceValidationContract(
       ],
       forbiddenTopologyFields: ['effectServices', 'remotes'],
     },
+    generatedSurfacePolicy: createGeneratedSurfacePolicy(workspaceApps),
     packageScope: scope,
     node: {
       version: NODE_VERSION,
@@ -268,6 +455,7 @@ export function createWorkspaceValidationContract(
       moduleFederation: MODULE_FEDERATION_VERSION,
       node: NODE_VERSION,
       pnpm: PNPM_VERSION,
+      typescriptCompilerApi: TYPESCRIPT_COMPILER_API_VERSION,
     },
     tailwindEnabled: enableTailwind,
     fullStackVerticals,

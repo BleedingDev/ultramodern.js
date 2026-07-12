@@ -18,6 +18,7 @@ type UnsupportedUltramodernConfigIssue =
   | {
       field: 'schemaVersion';
       value: unknown;
+      reason: 'missing' | 'non-integer' | 'unsupported';
     }
   | {
       field: 'topology.apps.kind';
@@ -33,7 +34,7 @@ export class UnsupportedUltramodernConfigError extends Error {
     const value = formatUnsupportedConfigValue(issue.value);
     const message =
       issue.field === 'schemaVersion'
-        ? `Unsupported UltraModern config schemaVersion ${value} in ${sourcePath}. Supported schema versions: 1.`
+        ? formatSchemaVersionError(sourcePath, issue.reason, value)
         : `Unsupported UltraModern config app kind ${value} at ${sourcePath} topology.apps[${issue.index}].kind. Supported kinds: shell, vertical.`;
 
     super(message);
@@ -46,15 +47,21 @@ export function normalizeCompactConfig(
   sourcePath: string,
   config: Record<string, any>,
 ): UltramodernToolingConfig {
-  switch (config.schemaVersion) {
-    case 1:
-      return normalizeCompactConfigV1(workspaceRoot, sourcePath, config);
-    default:
-      throw new UnsupportedUltramodernConfigError(sourcePath, {
-        field: 'schemaVersion',
-        value: config.schemaVersion,
-      });
+  const schemaVersion = config.schemaVersion;
+  if (schemaVersion !== 1) {
+    throw new UnsupportedUltramodernConfigError(sourcePath, {
+      field: 'schemaVersion',
+      value: schemaVersion,
+      reason:
+        schemaVersion === undefined
+          ? 'missing'
+          : Number.isInteger(schemaVersion)
+            ? 'unsupported'
+            : 'non-integer',
+    });
   }
+
+  return normalizeCompactConfigV1(workspaceRoot, sourcePath, config);
 }
 
 function normalizeCompactConfigV1(
@@ -212,6 +219,21 @@ function formatUnsupportedConfigValue(value: unknown) {
   }
 
   return JSON.stringify(value) ?? String(value);
+}
+
+function formatSchemaVersionError(
+  sourcePath: string,
+  reason: 'missing' | 'non-integer' | 'unsupported',
+  value: string,
+) {
+  switch (reason) {
+    case 'missing':
+      return `UltraModern config schemaVersion is required in ${sourcePath}. Versionless v1 configs are not supported; set schemaVersion to the integer 1.`;
+    case 'non-integer':
+      return `Invalid UltraModern config schemaVersion ${value} in ${sourcePath}. schemaVersion must be the integer 1; versionless v1 configs are not supported.`;
+    case 'unsupported':
+      return `Unsupported UltraModern config schemaVersion ${value} in ${sourcePath}. Supported schema versions: 1. Versionless v1 configs are not supported.`;
+  }
 }
 
 export function normalizeCompactUltramodernConfig(

@@ -3,11 +3,11 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import vm from 'node:vm';
-import ts from '@typescript/typescript6';
 import {
   addUltramodernVertical,
   generateUltramodernWorkspace,
 } from '../src/ultramodern-workspace';
+import { runStableTypeScript } from './helpers/stable-typescript';
 
 function scaffoldSharedContractsWorkspace() {
   const tempRoot = fs.mkdtempSync(
@@ -43,12 +43,32 @@ function loadGeneratedSharedContracts(workspaceDir: string) {
     path.join(workspaceDir, 'packages/shared-contracts/src/index.ts'),
     'utf-8',
   );
-  const { outputText } = ts.transpileModule(source, {
-    compilerOptions: {
-      module: ts.ModuleKind.CommonJS,
-      target: ts.ScriptTarget.ES2022,
-    },
-  });
+  const compilerRoot = path.join(workspaceDir, '.test-compiled-contracts');
+  const sourcePath = path.join(compilerRoot, 'generated-shared-contracts.ts');
+  const outputDirectory = path.join(compilerRoot, 'dist');
+  fs.mkdirSync(compilerRoot, { recursive: true });
+  fs.writeFileSync(sourcePath, source);
+  const result = runStableTypeScript(
+    [
+      sourcePath,
+      '--ignoreConfig',
+      '--module',
+      'commonjs',
+      '--outDir',
+      outputDirectory,
+      '--pretty',
+      'false',
+      '--skipLibCheck',
+      '--target',
+      'es2022',
+    ],
+    compilerRoot,
+  );
+  assert.equal(result.status, 0, result.output);
+  const outputText = fs.readFileSync(
+    path.join(outputDirectory, 'generated-shared-contracts.js'),
+    'utf-8',
+  );
   const module = { exports: {} as Record<string, any> };
   const context = vm.createContext({
     CustomEvent,

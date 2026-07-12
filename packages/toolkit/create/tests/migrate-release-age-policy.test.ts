@@ -81,78 +81,6 @@ test('pins exact approval evidence for every fresh Effect and Cloudflare depende
       ],
     ],
     [
-      '@effect/tsgo',
-      [
-        '0.18.1',
-        '2026-07-09T17:16:58.972Z',
-        'sha512-oYyxUVzzc9YJwnu/g1G4gFnrpsDgYtH/APR1Ud0txoJ/QQIDs2u+BriWFhfoSF2J0nO5U0SRTTNjMf8DbIcOug==',
-        effectReviewReason,
-      ],
-    ],
-    [
-      '@effect/tsgo-darwin-arm64',
-      [
-        '0.18.1',
-        '2026-07-09T17:17:03.994Z',
-        'sha512-iv8rC7nNou2m5+mCF6C2CHf18JkrvHvs0JtdXZlJT8s2DSrUxZg5Ln+ygLh8Ojj+dB4TLlUxDJj1IwZdEm6iFQ==',
-        effectReviewReason,
-      ],
-    ],
-    [
-      '@effect/tsgo-darwin-x64',
-      [
-        '0.18.1',
-        '2026-07-09T17:17:04.563Z',
-        'sha512-w58NsBPQNeo5WNFhS44IzvFPtrwpl69uepehC0bXlIM4APQk8PFXyJz0flliiNm+xfqL5/xdVKSK3DyFQAqSYg==',
-        effectReviewReason,
-      ],
-    ],
-    [
-      '@effect/tsgo-linux-arm64',
-      [
-        '0.18.1',
-        '2026-07-09T17:17:03.733Z',
-        'sha512-FjOZAWgTaFWqg66GJGrsKOniPa41noKT4oR6GWfdpoIjmSepf7UgZ95nmZBkv5YnFzSVJn9i7hvNklh6Kvm8Ug==',
-        effectReviewReason,
-      ],
-    ],
-    [
-      '@effect/tsgo-linux-arm',
-      [
-        '0.18.1',
-        '2026-07-09T17:17:04.104Z',
-        'sha512-F/DjtTdczej17+fj2Kf9/kE7K7FNx5CfNctvd5Mpi0HOho3LlORReTlb2d0JDVbUSqueHYVML+pxwgsnqfdXfg==',
-        effectReviewReason,
-      ],
-    ],
-    [
-      '@effect/tsgo-linux-x64',
-      [
-        '0.18.1',
-        '2026-07-09T17:17:04.900Z',
-        'sha512-vKQBX0zNOJfgZSm2EXPjPn6EyigswGwQeR2mXQExBJN8gV7UEIjBFkRFQVKD8EkyZRGxZRkSb6IqTDeZbfXR6w==',
-        effectReviewReason,
-      ],
-    ],
-    [
-      '@effect/tsgo-win32-arm64',
-      [
-        '0.18.1',
-        '2026-07-09T17:17:03.955Z',
-        'sha512-hTPY071Vqk9fY34uTyI/FBW/b1eeXxFdMDLE6j+4IkcmNaUuu58ZZE3vmHg1Mabz+cFVs6hWpFAVqekdAgfrxQ==',
-        effectReviewReason,
-      ],
-    ],
-    [
-      '@effect/tsgo-win32-x64',
-      [
-        '0.18.1',
-        '2026-07-09T17:17:04.664Z',
-        'sha512-5mfPlupGP/cyTkcWR5J2ZdyaxdU6zMHX4oyHy18EjXLdFoJOdjr9C/VNY6iZLbLHkTsQ3xYMFzVt0ruFdI8kNQ==',
-        effectReviewReason,
-      ],
-    ],
-    [
       '@cloudflare/workers-types',
       [
         '5.20260710.1',
@@ -182,7 +110,7 @@ test('pins exact approval evidence for every fresh Effect and Cloudflare depende
   ]);
   const approvals = ULTRAMODERN_WORKSPACE_POLICY.pnpm.releaseAge.approvals;
 
-  assert.equal(expected.size, 14);
+  assert.equal(expected.size, 6);
   for (const [
     packageName,
     [version, publishedAt, integrity, reason],

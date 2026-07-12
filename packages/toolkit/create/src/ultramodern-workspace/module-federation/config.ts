@@ -232,7 +232,7 @@ export function createRemoteModuleFederationConfig(
   const tsgoCompilerInstance = hasExposes
     ? `
 const tsgoCompilerInstance =
-  resolveEffectTsgoCompiler();
+  resolveEffectTsgoCompiler({ from: import.meta.url });
 `
     : '';
   return `${hostOnlyMarker}

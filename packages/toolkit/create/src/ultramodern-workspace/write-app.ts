@@ -253,7 +253,7 @@ function writeAppRouteAndShellFiles({
   if (resolvedApp.kind === 'shell') {
     writeAppFile(
       'src/routes/vertical-components.tsx',
-      createShellRemoteComponents(scope, remotes),
+      createShellRemoteComponents(remotes),
     );
     writeAppFile('src/routes/shell-frame.tsx', createShellFrameComponent());
     writeFile(

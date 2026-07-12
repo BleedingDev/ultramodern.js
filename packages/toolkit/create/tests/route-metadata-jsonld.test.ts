@@ -2,12 +2,12 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import ts from '@typescript/typescript6';
 import {
   createJsonLdHelperModule,
   createPublicRouteMetadataFromRoutes,
 } from '../src/ultramodern-workspace/routes';
 import type { RouteOwnedI18nPath } from '../src/ultramodern-workspace/types';
+import { runStableTypeScript } from './helpers/stable-typescript';
 
 const baseRoute: RouteOwnedI18nPath = {
   canonicalPath: '/',
@@ -151,22 +151,25 @@ void scalarArrayRoute;
 `,
     );
 
-    const program = ts.createProgram([usagePath], {
-      module: ts.ModuleKind.NodeNext,
-      moduleResolution: ts.ModuleResolutionKind.NodeNext,
-      noEmit: true,
-      skipLibCheck: true,
-      strict: true,
-      target: ts.ScriptTarget.ES2022,
-    });
-    const diagnostics = ts.getPreEmitDiagnostics(program);
-
-    assert.deepEqual(
-      diagnostics.map(diagnostic =>
-        ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n'),
-      ),
-      [],
+    const result = runStableTypeScript(
+      [
+        usagePath,
+        '--ignoreConfig',
+        '--module',
+        'nodenext',
+        '--moduleResolution',
+        'nodenext',
+        '--noEmit',
+        '--pretty',
+        'false',
+        '--skipLibCheck',
+        '--strict',
+        '--target',
+        'es2022',
+      ],
+      tempRoot,
     );
+    assert.equal(result.status, 0, result.output);
   } finally {
     fs.rmSync(tempRoot, { force: true, recursive: true });
   }

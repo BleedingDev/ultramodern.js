@@ -95,6 +95,7 @@ importers: {}
 packages: {}
 snapshots: {}
 `,
+  options: { beforeExit?: string; exitCode?: number } = {},
 ) {
   const binDir = path.join(tempRoot, 'bin');
   const invocationLog = path.join(tempRoot, 'pnpm-invocations.log');
@@ -107,6 +108,8 @@ set -eu
 printf '%s\\n' "$*" >> "$ULTRAMODERN_TEST_PNPM_LOG"
 cat > pnpm-lock.yaml <<'LOCKFILE'
 ${lockfile}LOCKFILE
+${options.beforeExit ?? ''}
+exit ${options.exitCode ?? 0}
 `,
   );
   fs.chmodSync(executable, 0o755);
@@ -279,6 +282,47 @@ test('migrate fails before writes for malformed root package-source metadata', (
   }
 });
 
+test('migrate restores the byte-identical tree when lock refresh exits nonzero', async () => {
+  const { tempRoot, workspaceDir } = createWorkspace(
+    'migration-lock-refresh-failure',
+    { tempPrefix: 'um-migration-lock-refresh-failure-' },
+  );
+  const previousPath = process.env.PATH;
+  const previousInvocationLog = process.env.ULTRAMODERN_TEST_PNPM_LOG;
+
+  try {
+    seedRetiredMetadata(workspaceDir);
+    const { binDir, invocationLog } = installFakePnpm(tempRoot, undefined, {
+      beforeExit: `rm package.json
+chmod 600 consumer-tool.sh
+mkdir -p .modernjs/failed-lock-refresh
+printf 'created by failed refresh\\n' > .modernjs/failed-lock-refresh/artifact.txt`,
+      exitCode: 23,
+    });
+    process.env.PATH = `${binDir}${path.delimiter}${previousPath ?? ''}`;
+    process.env.ULTRAMODERN_TEST_PNPM_LOG = invocationLog;
+    const before = snapshotWorkspaceTree(workspaceDir);
+
+    assert.equal(
+      await runUltramodernToolingCli(['migrate-strict-effect'], workspaceDir),
+      23,
+    );
+    assert.deepEqual(snapshotWorkspaceTree(workspaceDir), before);
+  } finally {
+    if (previousPath === undefined) {
+      delete process.env.PATH;
+    } else {
+      process.env.PATH = previousPath;
+    }
+    if (previousInvocationLog === undefined) {
+      delete process.env.ULTRAMODERN_TEST_PNPM_LOG;
+    } else {
+      process.env.ULTRAMODERN_TEST_PNPM_LOG = previousInvocationLog;
+    }
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test('migrate CLI returns status 1 when async release-age validation rejects', async () => {
   const { tempRoot, workspaceDir } = createWorkspace(
     'migration-async-release-age-failure',
@@ -303,11 +347,13 @@ snapshots: {}
     );
     process.env.PATH = `${binDir}${path.delimiter}${previousPath ?? ''}`;
     process.env.ULTRAMODERN_TEST_PNPM_LOG = invocationLog;
+    const before = snapshotWorkspaceTree(workspaceDir);
 
     assert.equal(
       await runUltramodernToolingCli(['migrate-strict-effect'], workspaceDir),
       1,
     );
+    assert.deepEqual(snapshotWorkspaceTree(workspaceDir), before);
   } finally {
     if (previousPath === undefined) {
       delete process.env.PATH;

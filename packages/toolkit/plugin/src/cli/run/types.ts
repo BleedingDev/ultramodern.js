@@ -12,7 +12,7 @@ export interface CLIOptions<Extends extends CLIPluginExtends = { config: {} }> {
    * other config, overrides config file content
    */
   config?: Extends['config'];
-  configFile: string;
+  configFile: string | false;
   internalPlugins?: Plugin[];
   handleSetupResult?: (
     params: any,
@@ -22,7 +22,7 @@ export interface CLIOptions<Extends extends CLIPluginExtends = { config: {} }> {
 
 export type LoadedConfig<T> = {
   packageName: string;
-  configFile: string;
+  configFile: string | false;
   config: T;
   pkgConfig?: T;
   jsConfig?: T;

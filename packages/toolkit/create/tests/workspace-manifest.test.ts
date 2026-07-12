@@ -78,7 +78,6 @@ const expectedWorkspaceManifest = [
   'packages/shared-design-tokens/src/tokens.css',
   'packages/shared-design-tokens/tsconfig.json',
   'patches/@module-federation__bridge-react@2.7.0.patch',
-  'patches/@module-federation__dts-plugin@2.7.0.patch',
   'patches/@module-federation__modern-js-v3@2.7.0.patch',
   'patches/@tanstack__router-core@1.171.14.patch',
   'patches/drizzle-orm-ts7-strict-declarations.patch',
