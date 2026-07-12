@@ -20,11 +20,13 @@
  *
  * Intentional exceptions go into ALLOWLIST below with a written reason.
  *
- * Zero dependencies (node builtins only) so it runs before any install.
+ * It uses the repository's bundled js-yaml copy, so it remains runnable
+ * without a root-level dependency install.
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import yaml from '../../packages/toolkit/utils/compiled/js-yaml/index.js';
 
 export const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
 
@@ -51,15 +53,7 @@ const sensitiveWorkflowPaths = new Set([
  *
  * @type {Array<{ file: string, rule: string, match?: string, reason: string }>}
  */
-export const ALLOWLIST = [
-  {
-    file: '.github/workflows/ultramodern-production-readiness.yml',
-    rule: 'privileged-trigger-secrets',
-    match: 'secrets.CLOUDFLARE',
-    reason:
-      "The Cloudflare deploy job that reads these secrets is guarded by `if: github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_cloudflare == 'true'`, so the secrets are never reachable under the workflow_run trigger. The workflow_run path runs read-only proof steps on default-branch code and performs no untrusted-ref checkout.",
-  },
-];
+export const ALLOWLIST = [];
 
 const shaPattern = /^[a-f0-9]{40}$/;
 
@@ -92,22 +86,338 @@ export function collectWorkflowFiles(rootDir = repoRoot) {
 }
 
 export function collectUses(content) {
-  return Array.from(
-    content.matchAll(/^\s*(?:-\s+)?uses:\s*([^@\s]+)@([^\s#]+)/gmu),
-  ).map(match => ({
-    action: match[1],
-    ref: match[2],
-  }));
+  const { value } = parseYaml(content);
+  return value === undefined ? [] : collectActionUses(value);
 }
 
 const runInputPattern =
   /\$\{\{[^}]*\b(?:github\.event\.inputs|inputs)\s*\.[^}]*\}\}/;
 
 const privilegedTriggerNames = ['pull_request_target', 'workflow_run'];
-const untrustedCheckoutRefPattern =
-  /\$\{\{\s*(?:github\.head_ref|github\.event\.pull_request\.head\.(?:ref|sha)|github\.event\.workflow_run\.(?:head_branch|head_sha|pull_requests))/;
 const exactWorkflowRunHeadShaRefPattern =
   /^\s*\$\{\{\s*github\.event\.workflow_run\.head_sha\s*\}\}\s*(?:#.*)?$/u;
+
+const isObject = value =>
+  value !== null && typeof value === 'object' && !Array.isArray(value);
+
+const escapeRegExp = value => value.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+
+function parseYaml(content) {
+  try {
+    return { value: yaml.load(content) };
+  } catch (error) {
+    return { error };
+  }
+}
+
+function parseWorkflow(content) {
+  const parsed = parseYaml(content);
+  if (!isObject(parsed.value)) {
+    return {
+      error: parsed.error ?? new Error('workflow root must be a mapping'),
+    };
+  }
+  return { workflow: parsed.value };
+}
+
+const sourceLines = content => content.split('\n');
+
+const sourceFinding = (content, matcher, fallback = '') => {
+  const lines = sourceLines(content);
+  const index = lines.findIndex(line => matcher.test(line));
+  return {
+    line: index === -1 ? 1 : index + 1,
+    text: (lines[index] ?? fallback).trim(),
+  };
+};
+
+const sourceFindingForValue = (content, value, fallback) => {
+  const fragments = String(value)
+    .split('\n')
+    .map(fragment => fragment.trim())
+    .filter(Boolean);
+  const fragment = fragments.find(part => part.includes('${{')) ?? fragments[0];
+  return sourceFinding(
+    content,
+    fragment
+      ? new RegExp(escapeRegExp(fragment), 'u')
+      : new RegExp(escapeRegExp(fallback), 'u'),
+    fallback,
+  );
+};
+
+function walkValues(value, visit, valuePath = []) {
+  visit(value, valuePath);
+  if (Array.isArray(value)) {
+    value.forEach((item, index) =>
+      walkValues(item, visit, [...valuePath, index]),
+    );
+  } else if (isObject(value)) {
+    Object.entries(value).forEach(([key, item]) =>
+      walkValues(item, visit, [...valuePath, key]),
+    );
+  }
+}
+
+const collectActionUses = workflow => {
+  const uses = [];
+  walkValues(workflow, (value, valuePath) => {
+    if (valuePath.at(-1) !== 'uses' || typeof value !== 'string') {
+      return;
+    }
+    const separator = value.lastIndexOf('@');
+    if (separator <= 0 || separator === value.length - 1) {
+      return;
+    }
+    uses.push({
+      action: value.slice(0, separator).trim(),
+      ref: value.slice(separator + 1).trim(),
+    });
+  });
+  return uses;
+};
+
+const normalizeNeeds = job =>
+  typeof job?.needs === 'string'
+    ? [job.needs]
+    : Array.isArray(job?.needs)
+      ? job.needs
+      : [];
+
+const workflowSteps = workflow =>
+  isObject(workflow.jobs)
+    ? Object.entries(workflow.jobs).flatMap(([jobId, job]) =>
+        isObject(job) && Array.isArray(job.steps)
+          ? job.steps
+              .filter(isObject)
+              .map((step, stepIndex) => ({ job, jobId, step, stepIndex }))
+          : [],
+      )
+    : [];
+
+const actionMatches = (step, action) =>
+  typeof step.uses === 'string' &&
+  step.uses.toLowerCase().startsWith(`${action.toLowerCase()}@`);
+
+const runIncludes = (step, value) =>
+  typeof step.run === 'string' && step.run.includes(value);
+
+const hasDryRunPublishBranches = workflow => {
+  const input = workflow.on?.workflow_dispatch?.inputs?.dry_run;
+  const validation = workflow.jobs?.['validate-release'];
+  const publication = workflow.jobs?.publish;
+  return (
+    isObject(input) &&
+    isObject(validation) &&
+    isObject(publication) &&
+    typeof validation.if === 'string' &&
+    validation.if.includes('inputs.dry_run == true') &&
+    typeof publication.if === 'string' &&
+    publication.if.includes('inputs.dry_run == false')
+  );
+};
+
+const followsPublishWorkflow = workflow => {
+  const watched = workflowRunConfig(workflow)?.workflows;
+  return (
+    Array.isArray(watched) && watched.includes('Publish BleedingDev Packages')
+  );
+};
+
+function collectReceiptRunIdentityErrors(workflow, relativePath) {
+  return workflowSteps(workflow).flatMap(({ jobId, step }) =>
+    runIncludes(
+      step,
+      'scripts/ultramodern-publish/run-release-acceptance.mjs',
+    ) &&
+    runIncludes(step, '--verify-receipt') &&
+    !runIncludes(step, '--run-identity')
+      ? [
+          `${relativePath} job ${jobId} receipt verification must pass an authenticated --run-identity`,
+        ]
+      : [],
+  );
+}
+
+function collectPublishOutcomeErrors(workflow, relativePath) {
+  if (!hasDryRunPublishBranches(workflow)) {
+    return [];
+  }
+  const errors = [];
+  const outcomeJob = workflow.jobs?.['record-publish-outcome'];
+  if (!isObject(outcomeJob)) {
+    return [
+      `${relativePath} dry-run and publish branches must converge on record-publish-outcome`,
+    ];
+  }
+  const needs = new Set(normalizeNeeds(outcomeJob));
+  for (const requiredJob of ['accept-release', 'publish', 'validate-release']) {
+    if (!needs.has(requiredJob)) {
+      errors.push(
+        `${relativePath} record-publish-outcome must depend on ${requiredJob}`,
+      );
+    }
+  }
+  const condition = typeof outcomeJob.if === 'string' ? outcomeJob.if : '';
+  for (const requiredCondition of [
+    'always()',
+    "needs.validate-release.result == 'success'",
+    "needs.publish.result == 'success'",
+    "needs.validate-release.result == 'skipped'",
+    "needs.publish.result == 'skipped'",
+  ]) {
+    if (!condition.includes(requiredCondition)) {
+      errors.push(
+        `${relativePath} record-publish-outcome must gate both exclusive successful branch results`,
+      );
+      break;
+    }
+  }
+  const steps = Array.isArray(outcomeJob.steps)
+    ? outcomeJob.steps.filter(isObject)
+    : [];
+  const createSteps = steps.filter(step =>
+    runIncludes(step, 'publish-outcome.mjs create'),
+  );
+  const uploads = steps.filter(step =>
+    actionMatches(step, 'actions/upload-artifact'),
+  );
+  if (createSteps.length !== 1) {
+    errors.push(
+      `${relativePath} record-publish-outcome must create exactly one structured outcome`,
+    );
+  } else if (
+    !runIncludes(createSteps[0], '--dry-run') ||
+    !runIncludes(createSteps[0], '--producer-run-identity') ||
+    !runIncludes(createSteps[0], '--source-commit') ||
+    !runIncludes(createSteps[0], '--version') ||
+    !runIncludes(createSteps[0], '--run-id') ||
+    !runIncludes(createSteps[0], '--run-attempt')
+  ) {
+    errors.push(
+      `${relativePath} publish outcome must bind dry-run, source, version, producer, and workflow run identity`,
+    );
+  }
+  if (
+    uploads.length !== 1 ||
+    uploads[0].with?.name !==
+      ['${{', 'steps.publish-outcome.outputs.artifact_name', '}}'].join(' ') ||
+    typeof uploads[0].with?.path !== 'string' ||
+    !uploads[0].with.path
+      .split('\n')
+      .map(value => value.trim())
+      .includes('.modern/bleedingdev-publish/publish-outcome.json')
+  ) {
+    errors.push(
+      `${relativePath} record-publish-outcome must upload exactly one deterministically named outcome artifact`,
+    );
+  }
+  return errors;
+}
+
+function collectReadinessOutcomeErrors(workflow, relativePath) {
+  if (!followsPublishWorkflow(workflow)) {
+    return [];
+  }
+  const steps = workflowSteps(workflow);
+  const selectors = steps.filter(({ step }) =>
+    runIncludes(step, 'publish-outcome.mjs select-artifact'),
+  );
+  const verifiers = steps.filter(({ step }) =>
+    runIncludes(step, 'publish-outcome.mjs verify'),
+  );
+  const paginatedListings = steps.filter(
+    ({ step }) =>
+      runIncludes(step, 'gh api') &&
+      runIncludes(step, '--paginate') &&
+      runIncludes(step, '--slurp') &&
+      !runIncludes(step, '--jq'),
+  );
+  const errors = [];
+  if (
+    selectors.length !== 1 ||
+    verifiers.length !== 1 ||
+    paginatedListings.length !== 1
+  ) {
+    errors.push(
+      `${relativePath} publish readiness must list every artifact page and select and verify exactly one structured outcome`,
+    );
+    return errors;
+  }
+  const selector = selectors[0];
+  const verifier = verifiers[0];
+  const listing = paginatedListings[0];
+  if (
+    selector.jobId !== verifier.jobId ||
+    listing.jobId !== selector.jobId ||
+    listing.stepIndex >= selector.stepIndex ||
+    selector.stepIndex >= verifier.stepIndex ||
+    !runIncludes(selector.step, '--completed-at') ||
+    !runIncludes(verifier.step, '--artifact-name') ||
+    !runIncludes(verifier.step, '--source-commit') ||
+    !runIncludes(verifier.step, '--run-id') ||
+    !runIncludes(verifier.step, '--run-attempt')
+  ) {
+    errors.push(
+      `${relativePath} publish readiness must authenticate paginated outcome evidence before use`,
+    );
+  }
+  const resolverOutput = verifier.job.outputs?.dry_run;
+  if (
+    typeof resolverOutput !== 'string' ||
+    !resolverOutput.includes('steps.publish-outcome.outputs.dry_run')
+  ) {
+    errors.push(
+      `${relativePath} publish readiness must expose dry_run only from the verified outcome`,
+    );
+  }
+  const downstreamProofs = Object.values(workflow.jobs ?? {}).filter(
+    job =>
+      isObject(job) &&
+      normalizeNeeds(job).includes(verifier.jobId) &&
+      Array.isArray(job.steps) &&
+      job.steps.some(
+        step => isObject(step) && runIncludes(step, '--mode published'),
+      ),
+  );
+  if (
+    downstreamProofs.length !== 1 ||
+    typeof downstreamProofs[0].if !== 'string' ||
+    !downstreamProofs[0].if.includes("outputs.dry_run == 'false'")
+  ) {
+    errors.push(
+      `${relativePath} post-publish readiness may skip only for an authenticated dry-run outcome`,
+    );
+  }
+  if (
+    steps.some(
+      ({ step }) =>
+        typeof step.run === 'string' &&
+        /exists=false|skipping release readiness/iu.test(step.run),
+    )
+  ) {
+    errors.push(
+      `${relativePath} publish readiness must fail rather than skip when outcome evidence is missing`,
+    );
+  }
+  return errors;
+}
+
+const getTriggers = workflow => {
+  const triggers = workflow.on;
+  if (typeof triggers === 'string') {
+    return [triggers];
+  }
+  if (Array.isArray(triggers)) {
+    return triggers.filter(trigger => typeof trigger === 'string');
+  }
+  return isObject(triggers) ? Object.keys(triggers) : [];
+};
+
+const workflowRunConfig = workflow =>
+  isObject(workflow.on) && isObject(workflow.on.workflow_run)
+    ? workflow.on.workflow_run
+    : undefined;
 
 /**
  * Find `${{ inputs.* }}` / `${{ github.event.inputs.* }}` interpolations
@@ -115,244 +425,266 @@ const exactWorkflowRunHeadShaRefPattern =
  * expressions are fine — only shell text is an injection vector.
  */
 export function collectRunBlockInputInterpolations(content) {
-  const findings = [];
-  const lines = content.split('\n');
-  let runKeyColumn = -1;
-  for (let index = 0; index < lines.length; index++) {
-    const line = lines[index];
-    if (runKeyColumn >= 0) {
-      if (line.trim() === '') {
-        continue;
-      }
-      const indent = line.length - line.trimStart().length;
-      if (indent > runKeyColumn) {
-        if (runInputPattern.test(line)) {
-          findings.push({ line: index + 1, text: line.trim() });
-        }
-        continue;
-      }
-      runKeyColumn = -1;
-    }
-    const match = line.match(/^(\s*)(?:-\s+)?run:\s*(.*)$/);
-    if (!match) {
-      continue;
-    }
-    const rest = match[2].trim();
-    if (/^[|>][+-]?\d*$/.test(rest) || rest === '') {
-      runKeyColumn = line.indexOf('run:');
-    } else if (runInputPattern.test(rest)) {
-      findings.push({ line: index + 1, text: rest });
-    }
+  const { value } = parseYaml(content);
+  if (value === undefined) {
+    return [];
   }
+  const findings = [];
+  walkValues(value, (item, valuePath) => {
+    if (
+      valuePath.at(-1) === 'run' &&
+      typeof item === 'string' &&
+      runInputPattern.test(item)
+    ) {
+      findings.push(sourceFindingForValue(content, item, 'run:'));
+    }
+  });
   return findings;
 }
 
-const collectPrivilegedTriggers = content =>
-  privilegedTriggerNames.filter(trigger =>
-    new RegExp(`\\b${trigger}\\b`, 'u').test(content),
+const collectPrivilegedTriggers = workflow =>
+  getTriggers(workflow).filter(trigger =>
+    privilegedTriggerNames.includes(trigger),
   );
 
-const collectElevatedPermissionLines = content => {
+const permissionIsWrite = permission =>
+  typeof permission === 'string' &&
+  /^(?:write|write-all)$/iu.test(permission.trim());
+
+const collectElevatedPermissionLines = (workflow, content) => {
   const findings = [];
-  const lines = content.split('\n');
-  let permissionsColumn = -1;
-
-  for (let index = 0; index < lines.length; index++) {
-    const line = lines[index];
-    const trimmed = line.trim();
-
-    if (!trimmed || trimmed.startsWith('#')) {
-      continue;
+  const collect = permissions => {
+    if (permissionIsWrite(permissions)) {
+      findings.push(
+        sourceFindingForValue(content, permissions, 'permissions:'),
+      );
+      return;
     }
-
-    if (permissionsColumn >= 0) {
-      const indent = line.length - line.trimStart().length;
-      if (indent <= permissionsColumn) {
-        permissionsColumn = -1;
-      } else {
-        const permission = trimmed.match(/^([a-z-]+):\s*([^#\s]+)/iu);
-        if (permission && /^write\b/iu.test(permission[2])) {
-          findings.push({ line: index + 1, text: trimmed });
-        }
-        continue;
+    if (!isObject(permissions)) {
+      return;
+    }
+    for (const [scope, value] of Object.entries(permissions)) {
+      if (permissionIsWrite(value)) {
+        findings.push(
+          sourceFinding(
+            content,
+            new RegExp(`${escapeRegExp(scope)}\\s*:.*(?:write)`, 'iu'),
+            'permissions:',
+          ),
+        );
       }
     }
-
-    const match = line.match(/^(\s*)permissions:\s*(.*)$/u);
-    if (!match) {
-      continue;
-    }
-
-    const rest = match[2].trim();
-    if (/^write-all\b/iu.test(rest) || /\b[a-z-]+\s*:\s*write\b/iu.test(rest)) {
-      findings.push({ line: index + 1, text: trimmed });
-    }
-
-    if (rest === '') {
-      permissionsColumn = match[1].length;
-    }
+  };
+  collect(workflow.permissions);
+  if (isObject(workflow.jobs)) {
+    Object.values(workflow.jobs).forEach(job => {
+      if (isObject(job)) {
+        collect(job.permissions);
+      }
+    });
   }
-
   return findings;
 };
 
-const isLiteralWorkflowRunBranch = value => {
-  const literal = value.trim();
-  const quote = literal.at(0);
-  const quoted = quote === '"' || quote === "'";
-  if (quoted && !literal.endsWith(quote)) {
-    return false;
-  }
-  const branch = quoted ? literal.slice(1, -1) : literal;
+const isLiteralWorkflowRunBranch = value =>
+  typeof value === 'string' &&
+  value.length > 0 &&
+  !/[\s#!$*?[\]{}\\]/u.test(value);
 
-  return branch.length > 0 && !/[\s#!$*?[\]{}\\]/u.test(branch);
+const hasLiteralWorkflowRunBranchRestriction = workflow => {
+  const config = workflowRunConfig(workflow);
+  return (
+    isObject(config) &&
+    Array.isArray(config.branches) &&
+    config.branches.length > 0 &&
+    config.branches.every(isLiteralWorkflowRunBranch)
+  );
 };
 
-/**
- * Check only the literal `on.workflow_run.branches` form that can bind an
- * event SHA to a reviewed branch. Unsupported YAML shapes fail closed.
- */
-const hasLiteralWorkflowRunBranchRestriction = content => {
-  const lines = content.split('\n');
-  const onIndex = lines.findIndex(line => /^on:\s*(?:#.*)?$/u.test(line));
-  if (onIndex === -1) {
-    return false;
-  }
+const secretExpressionPattern = /\$\{\{[^}]*\bsecrets\b[^}]*\}\}/u;
 
-  const onColumn = lines[onIndex].length - lines[onIndex].trimStart().length;
-  let triggerColumn = -1;
-
-  for (let index = onIndex + 1; index < lines.length; index++) {
-    const line = lines[index];
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#')) {
-      continue;
-    }
-
-    const column = line.length - line.trimStart().length;
-    if (column <= onColumn) {
-      break;
-    }
-    if (triggerColumn === -1) {
-      triggerColumn = column;
-    }
-    if (
-      column !== triggerColumn ||
-      !/^workflow_run:\s*(?:#.*)?$/u.test(trimmed)
-    ) {
-      continue;
-    }
-
-    for (index += 1; index < lines.length; index++) {
-      const branchLine = lines[index];
-      const branchTrimmed = branchLine.trim();
-      if (!branchTrimmed || branchTrimmed.startsWith('#')) {
-        continue;
-      }
-
-      const branchColumn = branchLine.length - branchLine.trimStart().length;
-      if (branchColumn <= column) {
-        return false;
-      }
-      if (!/^branches:\s*$/u.test(branchTrimmed)) {
-        continue;
-      }
-
-      const branches = [];
-      let branchItemColumn = -1;
-      for (index += 1; index < lines.length; index++) {
-        const itemLine = lines[index];
-        const itemTrimmed = itemLine.trim();
-        if (!itemTrimmed || itemTrimmed.startsWith('#')) {
-          continue;
-        }
-
-        const itemColumn = itemLine.length - itemLine.trimStart().length;
-        if (itemColumn <= branchColumn) {
-          break;
-        }
-        if (branchItemColumn === -1) {
-          branchItemColumn = itemColumn;
-        }
-        const item = itemTrimmed.match(/^-\s+(.+)$/u);
-        if (itemColumn !== branchItemColumn || !item) {
-          return false;
-        }
-        branches.push(item[1]);
-      }
-      return branches.length > 0 && branches.every(isLiteralWorkflowRunBranch);
-    }
-  }
-
-  return false;
-};
-
-const collectSecretExposures = content =>
-  content
-    .split('\n')
-    .map((line, index) => ({ line: index + 1, text: line.trim() }))
-    .filter(
-      finding =>
-        finding.text &&
-        !finding.text.startsWith('#') &&
-        (/\$\{\{\s*secrets\./u.test(finding.text) ||
-          /^secrets:\s*inherit\b/iu.test(finding.text)),
-    );
-
-const collectUntrustedCheckoutRefs = content => {
+const collectSecretExposures = (workflow, content) => {
   const findings = [];
-  const lines = content.split('\n');
-  let inCheckoutStep = false;
-  let currentStepColumn = -1;
-  const allowsExactWorkflowRunHeadSha =
-    hasLiteralWorkflowRunBranchRestriction(content) &&
-    collectElevatedPermissionLines(content).length === 0;
-
-  for (let index = 0; index < lines.length; index++) {
-    const line = lines[index];
-    const trimmed = line.trim();
-    const stepStart = line.match(/^(\s*)-\s+/u);
-
-    if (stepStart) {
-      currentStepColumn = stepStart[1].length;
-      inCheckoutStep = /(?:^|\s)uses:\s*actions\/checkout@[^\s#]+/u.test(line);
-      if (inCheckoutStep) {
-        continue;
-      }
-    } else if (
-      currentStepColumn >= 0 &&
-      trimmed &&
-      line.length - line.trimStart().length <= currentStepColumn
-    ) {
-      inCheckoutStep = false;
-      currentStepColumn = -1;
-    }
-
+  walkValues(workflow, (value, valuePath) => {
     if (
-      currentStepColumn >= 0 &&
-      /^\s*uses:\s*actions\/checkout@[^\s#]+/u.test(line)
+      (valuePath.at(-1) === 'secrets' && value === 'inherit') ||
+      (typeof value === 'string' && secretExpressionPattern.test(value))
     ) {
-      inCheckoutStep = true;
-      continue;
+      findings.push({
+        ...sourceFindingForValue(content, value, 'secrets:'),
+        jobName:
+          valuePath[0] === 'jobs' && typeof valuePath[1] === 'string'
+            ? valuePath[1]
+            : undefined,
+      });
     }
+  });
+  return findings;
+};
 
-    if (!inCheckoutStep) {
-      continue;
-    }
+const unwrapIfExpression = value => {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+  const expression = value.trim();
+  const wrapped = expression.match(/^\$\{\{\s*(.*?)\s*\}\}$/u);
+  return wrapped ? wrapped[1] : expression;
+};
 
-    const ref = line.match(/^\s*ref:\s*(.*)$/u);
+const workflowRunSameRepositoryGuardPatterns = [
+  /^github\s*\.\s*event\s*\.\s*workflow_run\s*\.\s*head_repository\s*\.\s*full_name\s*==\s*github\s*\.\s*repository$/u,
+  /^github\s*\.\s*repository\s*==\s*github\s*\.\s*event\s*\.\s*workflow_run\s*\.\s*head_repository\s*\.\s*full_name$/u,
+];
+
+const hasWorkflowRunSameRepositoryGuard = job => {
+  const condition = unwrapIfExpression(job.if);
+  if (!condition || condition.includes('||')) {
+    return false;
+  }
+  return condition
+    .split('&&')
+    .map(conjunct => conjunct.trim())
+    .some(conjunct =>
+      workflowRunSameRepositoryGuardPatterns.some(pattern =>
+        pattern.test(conjunct),
+      ),
+    );
+};
+
+const isJobLimitedToNonPrivilegedEvent = job => {
+  const condition = unwrapIfExpression(job.if);
+  if (!condition || condition.includes('||')) {
+    return false;
+  }
+  const conjuncts = condition.split('&&').map(conjunct => conjunct.trim());
+  if (conjuncts.some(conjunct => conjunct === '')) {
+    return false;
+  }
+  const eventNameConjuncts = conjuncts.filter(conjunct =>
+    /\bgithub\s*\.\s*event_name\b/u.test(conjunct),
+  );
+  if (eventNameConjuncts.length === 0) {
+    return false;
+  }
+  const eventNames = eventNameConjuncts.map(conjunct => {
+    const match = conjunct.match(
+      /^github\s*\.\s*event_name\s*==\s*(['"])([A-Za-z_][\w-]*)\1$/u,
+    );
+    return match?.[2];
+  });
+  return (
+    eventNames.every(Boolean) &&
+    new Set(eventNames).size === 1 &&
+    !privilegedTriggerNames.includes(eventNames[0])
+  );
+};
+
+const isSecretReachableOnPrivilegedPath = (exposure, workflow) => {
+  if (!exposure.jobName || !isObject(workflow.jobs?.[exposure.jobName])) {
+    return true;
+  }
+  return !isJobLimitedToNonPrivilegedEvent(workflow.jobs[exposure.jobName]);
+};
+
+const getExpression = value => {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+  const match = value.match(/^\s*\$\{\{\s*([^}]+?)\s*\}\}\s*$/u);
+  return match?.[1];
+};
+
+const getEnvironmentReference = value => {
+  const expression = getExpression(value);
+  return expression?.match(/^env\s*\.\s*([A-Za-z_][\w-]*)$/u)?.[1];
+};
+
+const envValue = (name, step, job, workflow) => {
+  for (const env of [step.env, job.env, workflow.env]) {
     if (
-      ref &&
-      untrustedCheckoutRefPattern.test(ref[1]) &&
-      !(
-        allowsExactWorkflowRunHeadSha &&
-        exactWorkflowRunHeadShaRefPattern.test(ref[1])
-      )
+      isObject(env) &&
+      Object.hasOwn(env, name) &&
+      typeof env[name] === 'string'
     ) {
-      findings.push({ line: index + 1, text: line.trim() });
+      return env[name];
     }
   }
+  return undefined;
+};
 
+const resolveCheckoutRef = (ref, step, job, workflow) => {
+  const name = getEnvironmentReference(ref);
+  if (!name) {
+    return { value: ref, viaEnvironment: false };
+  }
+  const value = envValue(name, step, job, workflow);
+  return { value, viaEnvironment: true };
+};
+
+const isFullSha = value =>
+  typeof value === 'string' && shaPattern.test(value.trim());
+
+const isExactWorkflowRunHeadSha = value =>
+  typeof value === 'string' && exactWorkflowRunHeadShaRefPattern.test(value);
+
+const isCheckoutAction = uses =>
+  typeof uses === 'string' &&
+  uses.toLowerCase().startsWith('actions/checkout@');
+
+const isLocalReusableWorkflow = uses =>
+  typeof uses === 'string' &&
+  /^\.\/\.github\/workflows\/[^\s]+\.ya?ml$/iu.test(uses.trim());
+
+const collectLocalReusableWorkflowDelegations = (workflow, content) => {
+  if (!isObject(workflow.jobs)) {
+    return [];
+  }
+  return Object.values(workflow.jobs).flatMap(job =>
+    isObject(job) && isLocalReusableWorkflow(job.uses)
+      ? [sourceFindingForValue(content, job.uses, 'uses:')]
+      : [],
+  );
+};
+
+const collectUntrustedCheckoutRefs = (
+  workflow,
+  content,
+  hasTrustedWorkflowRunHeadShaPolicy,
+) => {
+  const findings = [];
+  if (!isObject(workflow.jobs)) {
+    return findings;
+  }
+  for (const job of Object.values(workflow.jobs)) {
+    if (!isObject(job) || !Array.isArray(job.steps)) {
+      continue;
+    }
+    for (const step of job.steps) {
+      if (
+        !isObject(step) ||
+        typeof step.uses !== 'string' ||
+        !isCheckoutAction(step.uses) ||
+        !isObject(step.with) ||
+        !Object.hasOwn(step.with, 'ref')
+      ) {
+        continue;
+      }
+      if (typeof step.with.ref !== 'string') {
+        findings.push(sourceFindingForValue(content, step.with.ref, 'ref:'));
+        continue;
+      }
+      const resolved = resolveCheckoutRef(step.with.ref, step, job, workflow);
+      if (
+        isFullSha(resolved.value) ||
+        (hasTrustedWorkflowRunHeadShaPolicy &&
+          hasWorkflowRunSameRepositoryGuard(job) &&
+          isExactWorkflowRunHeadSha(resolved.value))
+      ) {
+        continue;
+      }
+      findings.push(sourceFindingForValue(content, step.with.ref, 'ref:'));
+    }
+  }
   return findings;
 };
 
@@ -381,7 +713,16 @@ export function validateWorkflowContent(relativePath, content, options = {}) {
   const allowlist = options.allowlist ?? ALLOWLIST;
   const sensitive =
     options.sensitive ?? sensitiveWorkflowPaths.has(relativePath);
-  const privilegedTriggers = collectPrivilegedTriggers(content);
+  const parsed = parseWorkflow(content);
+  if (!parsed.workflow) {
+    const line = parsed.error?.mark?.line;
+    const location = Number.isInteger(line) ? `:${line + 1}` : '';
+    return [
+      `${relativePath}${location} must contain valid workflow YAML: ${parsed.error.message}`,
+    ];
+  }
+  const workflow = parsed.workflow;
+  const privilegedTriggers = collectPrivilegedTriggers(workflow);
   const errors = [];
   const push = (rule, message) => {
     if (!isAllowed(allowlist, relativePath, rule, message)) {
@@ -389,7 +730,7 @@ export function validateWorkflowContent(relativePath, content, options = {}) {
     }
   };
 
-  if (content.includes('pull_request_target')) {
+  if (getTriggers(workflow).includes('pull_request_target')) {
     push(
       'pull-request-target',
       `${relativePath} must not use pull_request_target`,
@@ -397,19 +738,46 @@ export function validateWorkflowContent(relativePath, content, options = {}) {
   }
   if (privilegedTriggers.length > 0) {
     const triggerList = privilegedTriggers.join(', ');
-    for (const finding of collectElevatedPermissionLines(content)) {
+    const elevatedPermissions = collectElevatedPermissionLines(
+      workflow,
+      content,
+    );
+    const reachableSecretExposures = collectSecretExposures(
+      workflow,
+      content,
+    ).filter(exposure => isSecretReachableOnPrivilegedPath(exposure, workflow));
+    for (const finding of elevatedPermissions) {
       push(
         'privileged-trigger-permissions',
         `${relativePath}:${finding.line} must not grant write permissions with privileged trigger (${triggerList}): ${finding.text}`,
       );
     }
-    for (const finding of collectSecretExposures(content)) {
+    for (const finding of reachableSecretExposures) {
       push(
         'privileged-trigger-secrets',
         `${relativePath}:${finding.line} must not expose secrets with privileged trigger (${triggerList}): ${finding.text}`,
       );
     }
-    for (const finding of collectUntrustedCheckoutRefs(content)) {
+    const hasTrustedWorkflowRunHeadShaPolicy =
+      privilegedTriggers.length === 1 &&
+      privilegedTriggers[0] === 'workflow_run' &&
+      hasLiteralWorkflowRunBranchRestriction(workflow) &&
+      elevatedPermissions.length === 0 &&
+      reachableSecretExposures.length === 0;
+    for (const finding of collectLocalReusableWorkflowDelegations(
+      workflow,
+      content,
+    )) {
+      push(
+        'privileged-trigger-local-reusable-workflow',
+        `${relativePath}:${finding.line} must not delegate a privileged workflow to a local reusable workflow: ${finding.text}`,
+      );
+    }
+    for (const finding of collectUntrustedCheckoutRefs(
+      workflow,
+      content,
+      hasTrustedWorkflowRunHeadShaPolicy,
+    )) {
       push(
         'privileged-trigger-checkout-ref',
         `${relativePath}:${finding.line} must not checkout untrusted event refs with privileged trigger (${triggerList}): ${finding.text}`,
@@ -423,7 +791,7 @@ export function validateWorkflowContent(relativePath, content, options = {}) {
     );
   }
 
-  for (const { action, ref } of collectUses(content)) {
+  for (const { action, ref } of collectActionUses(workflow)) {
     if (action.startsWith('./')) {
       continue;
     }
@@ -435,7 +803,7 @@ export function validateWorkflowContent(relativePath, content, options = {}) {
     }
   }
 
-  if (!/^permissions:/m.test(content)) {
+  if (!Object.hasOwn(workflow, 'permissions')) {
     push(
       'permissions-block',
       `${relativePath} must declare a top-level permissions block`,
@@ -447,6 +815,19 @@ export function validateWorkflowContent(relativePath, content, options = {}) {
       'run-input-interpolation',
       `${relativePath}:${finding.line} must not interpolate workflow inputs into run blocks (route through env): ${finding.text}`,
     );
+  }
+
+  for (const message of collectReceiptRunIdentityErrors(
+    workflow,
+    relativePath,
+  )) {
+    push('receipt-run-identity', message);
+  }
+  for (const message of collectPublishOutcomeErrors(workflow, relativePath)) {
+    push('publish-outcome-contract', message);
+  }
+  for (const message of collectReadinessOutcomeErrors(workflow, relativePath)) {
+    push('publish-outcome-readiness', message);
   }
 
   if (sensitive) {

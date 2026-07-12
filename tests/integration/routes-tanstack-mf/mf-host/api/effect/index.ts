@@ -1,4 +1,3 @@
-import { randomBytes } from 'node:crypto';
 import { createRequestContextHeaders } from '@modern-js/plugin-bff/client';
 import {
   defineEffectBff,
@@ -26,11 +25,6 @@ type TraceSpanSnapshot = {
   parentSpanId?: string;
 };
 
-type ParsedTraceparent = {
-  traceId: string;
-  spanId: string;
-};
-
 type TraceHeaders = Record<string, string | undefined>;
 type TraceHandlerArgs = {
   headers: TraceHeaders;
@@ -56,32 +50,6 @@ function toSpanSnapshot(span: FinishedSpan): TraceSpanSnapshot {
     spanId: spanContext.spanId,
     ...(parentSpanId ? { parentSpanId } : {}),
   };
-}
-
-function parseTraceparent(
-  traceparent: string | undefined,
-): ParsedTraceparent | undefined {
-  if (!traceparent) {
-    return undefined;
-  }
-  const match = /^00-([a-f0-9]{32})-([a-f0-9]{16})-[a-f0-9]{2}$/i.exec(
-    traceparent,
-  );
-  if (!match) {
-    return undefined;
-  }
-  const [, traceId, spanId] = match;
-  if (!traceId || !spanId) {
-    return undefined;
-  }
-  return {
-    traceId: traceId.toLowerCase(),
-    spanId: spanId.toLowerCase(),
-  };
-}
-
-function createSpanId() {
-  return randomBytes(8).toString('hex');
 }
 
 function getTraceSpans(traceId?: string) {
@@ -125,8 +93,7 @@ const greetingsLayer = HttpApiBuilder.group(
 
     const handledTraceRun = handledHello.handle(
       'traceRun',
-      ({ headers, request }: TraceHandlerArgs) => {
-        const incomingTrace = parseTraceparent(headers.traceparent);
+      ({ request }: TraceHandlerArgs) => {
         const locale = request.headers['accept-language'] ?? undefined;
         const parentSpan = Option.match(
           HttpTraceContext.w3c(Headers.fromInput(request.headers)),
@@ -137,39 +104,11 @@ const greetingsLayer = HttpApiBuilder.group(
         );
 
         return Effect.gen(function* () {
-          const syntheticHostRunSpanId = createSpanId();
-          const syntheticHostRemoteCallSpanId = createSpanId();
-          if (incomingTrace) {
-            traceSpans.push({
-              name: 'mf.host.trace.run',
-              traceId: incomingTrace.traceId,
-              spanId: syntheticHostRunSpanId,
-              parentSpanId: incomingTrace.spanId,
-            });
-            traceSpans.push({
-              name: 'mf.host.trace.remote.call',
-              traceId: incomingTrace.traceId,
-              spanId: syntheticHostRemoteCallSpanId,
-              parentSpanId: syntheticHostRunSpanId,
-            });
-          }
-
           const remoteResponse = yield* Effect.gen(function* () {
-            const currentSpan = yield* Effect.option(Effect.currentSpan);
-            const traceparent = Option.match(currentSpan, {
-              onNone: () => headers.traceparent,
-              onSome: (span: {
-                traceId: string;
-                spanId: string;
-                sampled: boolean;
-              }) => toTraceparentHeader(span),
-            });
-            const syntheticTraceparent = incomingTrace
-              ? `00-${incomingTrace.traceId}-${syntheticHostRemoteCallSpanId}-01`
-              : undefined;
+            const currentSpan = yield* Effect.currentSpan.pipe(Effect.orDie);
             const requestHeaders = createRequestContextHeaders({
               locale,
-              traceparent: syntheticTraceparent || traceparent,
+              traceparent: toTraceparentHeader(currentSpan),
             });
 
             return yield* Effect.tryPromise(() =>
@@ -197,6 +136,7 @@ const greetingsLayer = HttpApiBuilder.group(
               remoteResponse.json() as Promise<{
                 status?: 'ok';
                 locale?: string;
+                traceparent?: string;
               }>,
           ).pipe(Effect.orDie);
           const remoteStatus = remoteBody.status ?? 'ok';
@@ -204,7 +144,7 @@ const greetingsLayer = HttpApiBuilder.group(
 
           return {
             status: 'ok' as const,
-            traceparent: headers.traceparent,
+            traceparent: remoteBody.traceparent,
             remoteStatus,
             ...(locale ? { locale } : {}),
             ...(remoteLocale ? { remoteLocale } : {}),

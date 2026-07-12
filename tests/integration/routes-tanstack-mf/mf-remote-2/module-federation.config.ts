@@ -21,6 +21,7 @@ export default createModuleFederationConfig({
   dts: true,
   filename: 'remoteEntry.js',
   exposes: {
+    './App': './src/components/RuntimeApp.tsx',
     './Panel': './src/components/Panel.tsx',
   },
   shared: {

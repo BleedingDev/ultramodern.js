@@ -2,6 +2,7 @@ import hostEffectBff from '@api/effect/index';
 import { useMatch } from '@modern-js/plugin-tanstack/runtime';
 import * as React from 'react';
 import { lazyRemoteComponent, RemoteErrorBoundary } from './remoteLoader';
+import { RemoteOneRuntimeApp, RemoteTwoRuntimeApp } from './remoteRuntimeApps';
 import {
   REMOTE_SSR_FALLBACK_CONTRACT,
   REMOTE_SSR_FALLBACK_METADATA,
@@ -19,9 +20,11 @@ export default function MfPage() {
   const count = match.loaderData!.count;
   const [clientReady, setClientReady] = React.useState(false);
   const [effectMessage, setEffectMessage] = React.useState('pending');
+  const hostBootIdentity = React.useRef('');
 
   React.useEffect(() => {
     let canceled = false;
+    hostBootIdentity.current ||= crypto.randomUUID();
     setClientReady(true);
 
     hostEffectBff.client.greetings
@@ -47,6 +50,9 @@ export default function MfPage() {
       <div id="host-loader">{msg}</div>
       <div id="host-mf-count">host-mf-count:{count}</div>
       <div id="host-effect-message">host-effect:{effectMessage}</div>
+      <div id="host-boot-identity">
+        {clientReady ? hostBootIdentity.current : 'pending'}
+      </div>
       {!clientReady ? (
         <>
           <div
@@ -115,6 +121,10 @@ export default function MfPage() {
               <RemotePanel />
             </React.Suspense>
           </RemoteErrorBoundary>
+          <div id="remote-runtime-realms">
+            <RemoteOneRuntimeApp basename="/mf" />
+            <RemoteTwoRuntimeApp basename="/mf" />
+          </div>
         </>
       )}
     </div>

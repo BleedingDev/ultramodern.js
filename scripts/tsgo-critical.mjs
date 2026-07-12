@@ -1,29 +1,16 @@
 #!/usr/bin/env node
 
-import { spawn, spawnSync } from 'node:child_process';
-import {
-  accessSync,
-  chmodSync,
-  constants,
-  existsSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
+import { spawn } from 'node:child_process';
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { fileURLToPath } from 'node:url';
+import { resolveEffectTsgoCompiler } from '@modern-js/app-tools/config';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const configListPath = join(repoRoot, 'scripts/tsgo-critical.txt');
-const effectTsgoCli =
-  process.env.EFFECT_TSGO_CLI ||
-  join(repoRoot, 'node_modules/.bin/effect-tsgo');
-const tsgoBin =
-  process.env.EFFECT_TSGO_BIN ||
-  process.env.TSGO_BIN ||
-  resolveEffectTsgoBinary(effectTsgoCli);
+const tsgoBin = resolveEffectTsgoCompiler({ from: import.meta.url });
 
 const effectDiagnostics = [
   'anyUnknownInErrorContext',
@@ -105,32 +92,11 @@ const diagnosticSeverity = Object.fromEntries(
   effectDiagnostics.map(name => [name, 'error']),
 );
 
-function resolveEffectTsgoBinary(cliPath) {
-  if (!existsSync(cliPath)) {
-    return cliPath;
-  }
-
-  const result = spawnSync(cliPath, ['get-exe-path'], {
-    cwd: repoRoot,
-    encoding: 'utf8',
-  });
-  if (result.status !== 0) {
-    return cliPath;
-  }
-  return result.stdout.trim() || cliPath;
-}
-
 if (!existsSync(tsgoBin)) {
   console.error(
     `effect-tsgo compiler not found at ${tsgoBin}. Run pnpm install or set EFFECT_TSGO_BIN.`,
   );
   process.exit(1);
-}
-
-try {
-  accessSync(tsgoBin, constants.X_OK);
-} catch {
-  chmodSync(tsgoBin, 0o755);
 }
 
 const configs = readFileSync(configListPath, 'utf8')

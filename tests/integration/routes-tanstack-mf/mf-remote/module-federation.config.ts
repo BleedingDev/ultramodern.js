@@ -21,6 +21,7 @@ export default createModuleFederationConfig({
   dts: true,
   filename: 'remoteEntry.js',
   exposes: {
+    './App': './src/components/RuntimeApp.tsx',
     './Widget': './src/components/Widget.tsx',
     './Mutator': './src/components/Mutator.tsx',
   },

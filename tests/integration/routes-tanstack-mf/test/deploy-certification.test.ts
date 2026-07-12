@@ -1,4 +1,11 @@
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import path from 'node:path';
 import puppeteer, { type Browser, type Page } from 'puppeteer';
 import {
@@ -22,6 +29,7 @@ const fixtureRoot = path.resolve(__dirname, '..');
 const remoteDir = path.resolve(fixtureRoot, 'mf-remote');
 const remoteTwoDir = path.resolve(fixtureRoot, 'mf-remote-2');
 const hostDir = path.resolve(fixtureRoot, 'mf-host');
+const stagedArtifactsRoot = path.join(fixtureRoot, '.deploy-artifacts');
 const artifactDir =
   process.env.SUPERAPP_MF_CERTIFICATION_ARTIFACT_DIR ??
   '/tmp/modernjs-superapp-mf-certification';
@@ -105,6 +113,44 @@ async function buildApp(appDir: string, env: Record<string, string>) {
       }`,
     );
   }
+}
+
+function stageBuiltApp(appDir: string) {
+  const stagedAppRoot = path.join(stagedArtifactsRoot, path.basename(appDir));
+  const builtEffectEntry = path.join(
+    appDir,
+    'dist',
+    'api',
+    'effect',
+    'index.js',
+  );
+  expect(existsSync(builtEffectEntry)).toBe(true);
+  rmSync(stagedAppRoot, { recursive: true, force: true });
+  mkdirSync(stagedAppRoot, { recursive: true });
+  cpSync(path.join(appDir, 'dist'), path.join(stagedAppRoot, 'dist'), {
+    recursive: true,
+  });
+  cpSync(
+    path.join(appDir, 'package.json'),
+    path.join(stagedAppRoot, 'package.json'),
+  );
+  for (const configFile of [
+    'modern.config.ts',
+    'module-federation.config.ts',
+  ]) {
+    cpSync(path.join(appDir, configFile), path.join(stagedAppRoot, configFile));
+  }
+  symlinkSync(
+    path.join(appDir, 'node_modules'),
+    path.join(stagedAppRoot, 'node_modules'),
+    'junction',
+  );
+  expect(existsSync(path.join(stagedAppRoot, 'api'))).toBe(false);
+  expect(existsSync(path.join(stagedAppRoot, 'src'))).toBe(false);
+  expect(
+    existsSync(path.join(stagedAppRoot, 'dist', 'api', 'effect', 'index.ts')),
+  ).toBe(false);
+  return stagedAppRoot;
 }
 
 async function fetchJson(url: string) {
@@ -233,6 +279,94 @@ async function certifyRedirectAndNotFound(hostPort: number) {
   };
 }
 
+async function certifyNativeRouterRealmNavigation(
+  page: Page,
+  hostPort: number,
+) {
+  await page.goto(`http://localhost:${hostPort}/mf`, {
+    waitUntil: ['networkidle0'],
+    timeout: 50000,
+  });
+  await page.waitForSelector('[data-testid="remote-one-native-link"]', {
+    timeout: 50000,
+  });
+  await page.waitForSelector('[data-testid="remote-two-native-link"]', {
+    timeout: 50000,
+  });
+  await page.waitForFunction(
+    () =>
+      document.querySelector('#host-boot-identity')?.textContent !== 'pending',
+    { timeout: 50000 },
+  );
+
+  const readRouterState = () =>
+    page.evaluate(() => ({
+      hostBootIdentity: document.querySelector('#host-boot-identity')
+        ?.textContent,
+      navigationCount: performance.getEntriesByType('navigation').length,
+      remoteOneIdentity: document
+        .querySelector('#remote-one-runtime-realm')
+        ?.getAttribute('data-router-realm'),
+      remoteOneLocation: document.querySelector('#remote-one-router-location')
+        ?.textContent,
+      remoteTwoIdentity: document
+        .querySelector('#remote-two-runtime-realm')
+        ?.getAttribute('data-router-realm'),
+      remoteTwoLocation: document.querySelector('#remote-two-router-location')
+        ?.textContent,
+      url: window.location.href,
+    }));
+
+  const initial = await readRouterState();
+  expect(initial.hostBootIdentity).toEqual(expect.any(String));
+  expect(initial.hostBootIdentity).not.toBe('');
+  expect(initial.remoteOneIdentity).toEqual(expect.any(String));
+  expect(initial.remoteTwoIdentity).toEqual(expect.any(String));
+  expect(initial.remoteOneIdentity).not.toBe(initial.remoteTwoIdentity);
+  expect(initial.navigationCount).toBe(1);
+
+  await page.click('[data-testid="remote-one-native-link"]');
+  await page.waitForFunction(
+    () => new URL(window.location.href).searchParams.get('remote') === 'one',
+    { timeout: 50000 },
+  );
+  const afterRemoteOne = await readRouterState();
+  expect(afterRemoteOne.url).toBe(`http://localhost:${hostPort}/mf?remote=one`);
+  expect(afterRemoteOne.remoteOneLocation).toContain('remote=one');
+  expect(afterRemoteOne.remoteTwoLocation).toContain('remote=one');
+  expect(afterRemoteOne.hostBootIdentity).toBe(initial.hostBootIdentity);
+  expect(afterRemoteOne.remoteOneIdentity).toBe(initial.remoteOneIdentity);
+  expect(afterRemoteOne.remoteTwoIdentity).toBe(initial.remoteTwoIdentity);
+  expect(afterRemoteOne.navigationCount).toBe(initial.navigationCount);
+
+  await page.click('[data-testid="remote-two-native-link"]');
+  await page.waitForFunction(
+    () => new URL(window.location.href).searchParams.get('remote') === 'two',
+    { timeout: 50000 },
+  );
+  const afterRemoteTwo = await readRouterState();
+  expect(afterRemoteTwo.url).toBe(`http://localhost:${hostPort}/mf?remote=two`);
+  expect(afterRemoteTwo.remoteTwoLocation).toContain('remote=two');
+  expect(afterRemoteTwo.remoteOneLocation).toContain('remote=two');
+  expect(afterRemoteTwo.hostBootIdentity).toBe(initial.hostBootIdentity);
+  expect(afterRemoteTwo.remoteOneIdentity).toBe(initial.remoteOneIdentity);
+  expect(afterRemoteTwo.remoteTwoIdentity).toBe(initial.remoteTwoIdentity);
+  expect(afterRemoteTwo.navigationCount).toBe(initial.navigationCount);
+
+  return {
+    id: 'native-tanstack-navigation:isolated-remote-runtime-realms',
+    ok: true,
+    detail: {
+      hostBootIdentity: initial.hostBootIdentity,
+      navigationCount: initial.navigationCount,
+      remoteOneIdentity: initial.remoteOneIdentity,
+      remoteOneUrl: afterRemoteOne.url,
+      remoteTwoIdentity: initial.remoteTwoIdentity,
+      remoteTwoUrl: afterRemoteTwo.url,
+    },
+  };
+}
+
 async function certifyFallback(input: {
   page: Page;
   hostPort: number;
@@ -309,13 +443,19 @@ function writeSummary(checks: Check[]) {
       await buildApp(remoteTwoDir, env);
       await buildApp(hostDir, env);
 
-      remoteApp = await modernServe(remoteDir, ports.remote, { env });
+      const remoteArtifactRoot = stageBuiltApp(remoteDir);
+      const remoteTwoArtifactRoot = stageBuiltApp(remoteTwoDir);
+      const hostArtifactRoot = stageBuiltApp(hostDir);
+
+      remoteApp = await modernServe(remoteArtifactRoot, ports.remote, { env });
       await waitForReady(`http://localhost:${ports.remote}/mf-manifest.json`);
-      remoteTwoApp = await modernServe(remoteTwoDir, ports.remoteTwo, { env });
+      remoteTwoApp = await modernServe(remoteTwoArtifactRoot, ports.remoteTwo, {
+        env,
+      });
       await waitForReady(
         `http://localhost:${ports.remoteTwo}/mf-manifest.json`,
       );
-      hostApp = await modernServe(hostDir, ports.host, { env });
+      hostApp = await modernServe(hostArtifactRoot, ports.host, { env });
       await waitForReady(`http://localhost:${ports.host}/`);
 
       browser = await puppeteer.launch(launchOptions as any);
@@ -339,6 +479,7 @@ function writeSummary(checks: Check[]) {
         }
         await Promise.all([hostApp, remoteTwoApp, remoteApp].map(killApp));
       } finally {
+        rmSync(stagedArtifactsRoot, { recursive: true, force: true });
         await releaseFixtureLock?.();
       }
     });
@@ -352,6 +493,7 @@ function writeSummary(checks: Check[]) {
       checks.push(await certifyRemoteAssets(ports.remoteTwo, 'remote2'));
       checks.push(await certifySsrBoundary(ports.host));
       checks.push(await certifyRedirectAndNotFound(ports.host));
+      checks.push(await certifyNativeRouterRealmNavigation(page, ports.host));
       checks.push(
         await certifyFallback({
           page,

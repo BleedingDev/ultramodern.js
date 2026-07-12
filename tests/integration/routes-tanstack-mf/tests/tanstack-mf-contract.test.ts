@@ -196,6 +196,9 @@ describe('tanstack + module federation contracts', () => {
     const tanstackDataMutationRuntime = readFixture(
       '../packages/runtime/plugin-tanstack/src/runtime/dataMutation.tsx',
     );
+    const tanstackSubmitActionRuntime = readFixture(
+      '../packages/runtime/plugin-tanstack/src/runtime/submitAction.ts',
+    );
     const loaderBridgeRuntime = readFixture(
       '../packages/runtime/plugin-tanstack/src/runtime/loaderBridge.ts',
     );
@@ -295,7 +298,7 @@ describe('tanstack + module federation contracts', () => {
         status: 'covered-runtime-surface',
         assert: () => {
           expect(tanstackServerRuntime).toContain(
-            'attachRouterServerSsrUtils({',
+            'await attachServerSsrUtils(serverRouter);',
           );
           expect(tanstackServerRuntime).toContain(
             'await serverRouter.serverSsr?.dehydrate?.();',
@@ -340,7 +343,12 @@ describe('tanstack + module federation contracts', () => {
         status: 'covered-generated-bridge',
         assert: () => {
           expect(hostPageData).toContain('export const action');
-          expect(tanstackDataMutationRuntime).toContain('modernRouteAction');
+          expect(tanstackDataMutationRuntime).toContain(
+            "import { submitRouteAction } from './submitAction';",
+          );
+          expect(tanstackSubmitActionRuntime).toContain(
+            'routeStaticData?.modernRouteAction',
+          );
           expect(generatedRouter).toContain(
             'import { loader as loader_1, action as action_1 }',
           );
@@ -491,12 +499,14 @@ describe('tanstack + module federation contracts', () => {
 
     expect(remoteManifest.exposes).toEqual(
       expect.arrayContaining([
+        expect.objectContaining({ name: 'App', path: './App' }),
         expect.objectContaining({ name: 'Widget', path: './Widget' }),
         expect.objectContaining({ name: 'Mutator', path: './Mutator' }),
       ]),
     );
     expect(remote2Manifest.exposes).toEqual(
       expect.arrayContaining([
+        expect.objectContaining({ name: 'App', path: './App' }),
         expect.objectContaining({ name: 'Panel', path: './Panel' }),
       ]),
     );
@@ -511,6 +521,60 @@ describe('tanstack + module federation contracts', () => {
     expect(remote2Shared).toContain('@tanstack/react-router');
     expect(remoteManifest.remotes).toEqual([]);
     expect(remote2Manifest.remotes).toEqual([]);
+  });
+
+  test('remotes keep native router primitives in their own runtime modules', () => {
+    const remoteRoute = readFixture(
+      'integration/routes-tanstack-mf/mf-remote/src/routes/layout.tsx',
+    );
+    const remoteTwoRoute = readFixture(
+      'integration/routes-tanstack-mf/mf-remote-2/src/routes/layout.tsx',
+    );
+    const remoteBridge = readFixture(
+      'integration/routes-tanstack-mf/mf-remote/src/components/RuntimeApp.tsx',
+    );
+    const remoteTwoBridge = readFixture(
+      'integration/routes-tanstack-mf/mf-remote-2/src/components/RuntimeApp.tsx',
+    );
+    const hostRemoteApps = readFixture(
+      'integration/routes-tanstack-mf/mf-host/src/routes/mf/remoteRuntimeApps.tsx',
+    );
+    const remoteMfConfig = readFixture(
+      'integration/routes-tanstack-mf/mf-remote/module-federation.config.ts',
+    );
+    const remoteTwoMfConfig = readFixture(
+      'integration/routes-tanstack-mf/mf-remote-2/module-federation.config.ts',
+    );
+
+    for (const remoteRouteModule of [remoteRoute, remoteTwoRoute]) {
+      expect(remoteRouteModule).toContain(
+        "'@modern-js/plugin-tanstack/runtime'",
+      );
+      expect(remoteRouteModule).toContain('useRouterState');
+      expect(remoteRouteModule).toContain('<Link');
+      expect(remoteRouteModule).toContain('data-router-realm=');
+    }
+    for (const remoteAppBridge of [remoteBridge, remoteTwoBridge]) {
+      expect(remoteAppBridge).toContain("import '@modern-js/runtime/registry'");
+      expect(remoteAppBridge).toContain('createBridgeComponent');
+      expect(remoteAppBridge).toContain('createNestedAppRenderer');
+      expect(remoteAppBridge).toContain(
+        'const renderNestedApp = createNestedAppRenderer()',
+      );
+      expect(remoteAppBridge).toContain('const ModernRoot = createRoot()');
+    }
+    expect(hostRemoteApps).toContain('createRemoteAppComponent');
+    expect(hostRemoteApps).toContain("'remote/App'");
+    expect(hostRemoteApps).toContain("'remote2/App'");
+
+    // The router core remains the MF bridge, while each remote keeps its
+    // entry-owned Modern TanStack runtime wrapper instead of sharing it.
+    expect(remoteMfConfig).not.toContain(
+      "'@modern-js/plugin-tanstack/runtime'",
+    );
+    expect(remoteTwoMfConfig).not.toContain(
+      "'@modern-js/plugin-tanstack/runtime'",
+    );
   });
 
   test('committed host federation types are explicit goldens for exposed remotes', () => {
@@ -535,8 +599,11 @@ describe('tanstack + module federation contracts', () => {
     expect(rootTypes).toContain(
       'declare module "@module-federation/modern-js-v3/runtime"',
     );
+    expect(remoteApis).toContain("'remote/App'");
+    expect(remoteApis).toContain("'remote/Widget'");
+    expect(remoteApis).toContain("'remote/Mutator'");
     expect(remoteApis).toContain(
-      "export type RemoteKeys = 'remote/Widget' | 'remote/Mutator';",
+      "T extends 'remote/App' ? typeof import('remote/App')",
     );
     expect(remoteApis).toContain(
       "T extends 'remote/Mutator' ? typeof import('remote/Mutator')",
@@ -544,14 +611,20 @@ describe('tanstack + module federation contracts', () => {
     expect(remoteApis).toContain(
       "T extends 'remote/Widget' ? typeof import('remote/Widget')",
     );
-    expect(remote2Apis).toContain("export type RemoteKeys = 'remote2/Panel';");
+    expect(remote2Apis).toContain("'remote2/App'");
+    expect(remote2Apis).toContain("'remote2/Panel'");
+    expect(remote2Apis).toContain(
+      "T extends 'remote2/App' ? typeof import('remote2/App')",
+    );
     expect(remote2Apis).toContain(
       "T extends 'remote2/Panel' ? typeof import('remote2/Panel')",
     );
 
     for (const [publicModule, compiledType] of [
+      ['remote/App.d.ts', './compiled-types/src/components/RuntimeApp'],
       ['remote/Widget.d.ts', './compiled-types/src/components/Widget'],
       ['remote/Mutator.d.ts', './compiled-types/src/components/Mutator'],
+      ['remote2/App.d.ts', './compiled-types/src/components/RuntimeApp'],
       ['remote2/Panel.d.ts', './compiled-types/src/components/Panel'],
     ]) {
       const moduleTypes = readMfType(publicModule);
@@ -604,9 +677,31 @@ describe('tanstack + module federation contracts', () => {
     expect(loaderBridge).toContain('throw notFound();');
   });
 
-  test('host effect boundary uses shared request-context propagation helper', () => {
+  test('effect entries consume typed shared API contracts without JavaScript substitutes', () => {
+    for (const appName of ['mf-host', 'mf-remote', 'mf-remote-2']) {
+      const sharedFixtureRoot = path.join(
+        tanstackMfRoot,
+        appName,
+        'shared/effect',
+      );
+      const effectEntry = readFixture(
+        `integration/routes-tanstack-mf/${appName}/api/effect/index.ts`,
+      );
+
+      expect(fs.existsSync(path.join(sharedFixtureRoot, 'api.ts'))).toBe(true);
+      expect(fs.existsSync(path.join(sharedFixtureRoot, 'api.mjs'))).toBe(
+        false,
+      );
+      expect(effectEntry).toContain("from '../../shared/effect/api';");
+    }
+  });
+
+  test('host effect boundary propagates the active OpenTelemetry span', () => {
     const code = readFixture(
       'integration/routes-tanstack-mf/mf-host/api/effect/index.ts',
+    );
+    const integrationTest = readFixture(
+      'integration/routes-tanstack-mf/test/index.test.ts',
     );
 
     expect(code).toContain(
@@ -616,6 +711,22 @@ describe('tanstack + module federation contracts', () => {
       'const requestHeaders = createRequestContextHeaders({',
     );
     expect(code).toContain('locale,');
-    expect(code).toContain('traceparent: syntheticTraceparent || traceparent,');
+    expect(code).toContain(
+      'const currentSpan = yield* Effect.currentSpan.pipe(Effect.orDie);',
+    );
+    expect(code).toContain('traceparent: toTraceparentHeader(currentSpan),');
+    expect(code).toContain('traceparent: remoteBody.traceparent,');
+    expect(code.match(/traceSpans\.push\(/g)).toHaveLength(1);
+    expect(code).not.toContain('synthetic');
+    expect(code).not.toContain("from 'node:crypto'");
+
+    expect(integrationTest).not.toContain('waitForTraceSpansWithFallback');
+    expect(integrationTest).not.toContain('strictTracePropagation');
+    expect(integrationTest).toContain(
+      'expect(remoteRunSpan.parentSpanId).toBe(hostRemoteCallSpan.spanId);',
+    );
+    expect(integrationTest).toContain(
+      `\`00-\${trace.traceId}-\${hostRemoteCallSpan.spanId}-01\``,
+    );
   });
 });

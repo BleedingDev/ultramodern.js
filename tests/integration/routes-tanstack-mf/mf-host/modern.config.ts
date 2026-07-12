@@ -36,6 +36,7 @@ export default defineConfig({
     prefix: '/host-api',
     runtimeFramework: 'effect',
     effect: {
+      entry: './api/effect/index',
       openapi: {
         path: '/openapi.json',
       },

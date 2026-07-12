@@ -19,7 +19,7 @@
     "@modern-js/adapter-rstest": "workspace:*",
     "@modern-js/app-tools": "workspace:*",
     "@modern-js/plugin-bff": "workspace:*",
-    "@rstest/core": "0.11.0",
+    "@rstest/core": "0.11.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@types/node": "^26.1.1",

@@ -182,18 +182,6 @@ type TraceSpanSnapshot = {
   parentSpanId?: string;
 };
 
-function findLatestSpanByName(
-  spans: TraceSpanSnapshot[],
-  name: string,
-): TraceSpanSnapshot | undefined {
-  for (let index = spans.length - 1; index >= 0; index--) {
-    if (spans[index].name === name) {
-      return spans[index];
-    }
-  }
-  return undefined;
-}
-
 function findLatestSpanByNameWhere(
   spans: TraceSpanSnapshot[],
   name: string,
@@ -285,13 +273,16 @@ async function assertEffectLocalePropagation(
   expect(runResult.resetHostStatus).toBe(200);
   expect(runResult.resetRemoteStatus).toBe(200);
   expect(runResult.runStatus).toBe(200);
-  expect(runResult.runBody).toEqual({
+  expect(runResult.runBody).toMatchObject({
     status: 'ok',
-    traceparent: trace.traceparent,
     remoteStatus: 'ok',
     locale: acceptLanguage,
     remoteLocale: acceptLanguage,
   });
+  expect(runResult.runBody.traceparent).toMatch(
+    new RegExp(`^00-${trace.traceId}-[a-f0-9]{16}-01$`),
+  );
+  expect(runResult.runBody.traceparent).not.toBe(trace.traceparent);
 
   expect(errors.slice(initialErrorCount)).toEqual([]);
 }
@@ -322,27 +313,6 @@ async function waitForTraceSpans(
       ', ',
     )}`,
   );
-}
-
-async function waitForTraceSpansWithFallback(
-  baseUrl: string,
-  traceId: string,
-  expectedNames: string[],
-) {
-  try {
-    return {
-      spans: await waitForTraceSpans(
-        `${baseUrl}?traceId=${traceId}`,
-        expectedNames,
-      ),
-      strictTracePropagation: true,
-    };
-  } catch {
-    return {
-      spans: await waitForTraceSpans(baseUrl, expectedNames),
-      strictTracePropagation: false,
-    };
-  }
 }
 
 async function assertModuleFederationAssets(remotePort: number) {
@@ -648,6 +618,83 @@ async function assertRemoteComponentInteraction(
   expect(errors).toEqual([]);
 }
 
+async function assertRemoteNativeBridgeNavigation(
+  page: Page,
+  hostPort: number,
+  errors: string[],
+) {
+  await page.goto(`http://localhost:${hostPort}/mf`, {
+    waitUntil: ['networkidle0'],
+    timeout: 50000,
+  });
+
+  await page.waitForSelector('[data-testid="remote-one-native-link"]', {
+    timeout: 50000,
+  });
+  await page.waitForSelector('[data-testid="remote-two-native-link"]', {
+    timeout: 50000,
+  });
+  await page.waitForFunction(
+    () =>
+      document.querySelector('#host-boot-identity')?.textContent !== 'pending',
+    { timeout: 50000 },
+  );
+
+  const readRealmState = () =>
+    page.evaluate(() => ({
+      hostBootIdentity: document.querySelector('#host-boot-identity')
+        ?.textContent,
+      navigationCount: performance.getEntriesByType('navigation').length,
+      remoteOneIdentity: document
+        .querySelector('#remote-one-runtime-realm')
+        ?.getAttribute('data-router-realm'),
+      remoteOneLocation: document.querySelector('#remote-one-router-location')
+        ?.textContent,
+      remoteTwoIdentity: document
+        .querySelector('#remote-two-runtime-realm')
+        ?.getAttribute('data-router-realm'),
+      remoteTwoLocation: document.querySelector('#remote-two-router-location')
+        ?.textContent,
+      url: window.location.href,
+    }));
+
+  const initial = await readRealmState();
+  expect(initial.hostBootIdentity).toEqual(expect.any(String));
+  expect(initial.remoteOneIdentity).toEqual(expect.any(String));
+  expect(initial.remoteTwoIdentity).toEqual(expect.any(String));
+  expect(initial.remoteOneIdentity).not.toBe(initial.remoteTwoIdentity);
+  expect(initial.navigationCount).toBe(1);
+
+  await page.click('[data-testid="remote-one-native-link"]');
+  await page.waitForFunction(
+    () => new URL(window.location.href).searchParams.get('remote') === 'one',
+    { timeout: 50000 },
+  );
+  const afterRemoteOne = await readRealmState();
+  expect(afterRemoteOne.url).toBe(`http://localhost:${hostPort}/mf?remote=one`);
+  expect(afterRemoteOne.remoteOneLocation).toContain('remote=one');
+  expect(afterRemoteOne.remoteTwoLocation).toContain('remote=one');
+  expect(afterRemoteOne.hostBootIdentity).toBe(initial.hostBootIdentity);
+  expect(afterRemoteOne.remoteOneIdentity).toBe(initial.remoteOneIdentity);
+  expect(afterRemoteOne.remoteTwoIdentity).toBe(initial.remoteTwoIdentity);
+  expect(afterRemoteOne.navigationCount).toBe(initial.navigationCount);
+
+  await page.click('[data-testid="remote-two-native-link"]');
+  await page.waitForFunction(
+    () => new URL(window.location.href).searchParams.get('remote') === 'two',
+    { timeout: 50000 },
+  );
+  const afterRemoteTwo = await readRealmState();
+  expect(afterRemoteTwo.url).toBe(`http://localhost:${hostPort}/mf?remote=two`);
+  expect(afterRemoteTwo.remoteTwoLocation).toContain('remote=two');
+  expect(afterRemoteTwo.remoteOneLocation).toContain('remote=two');
+  expect(afterRemoteTwo.hostBootIdentity).toBe(initial.hostBootIdentity);
+  expect(afterRemoteTwo.remoteOneIdentity).toBe(initial.remoteOneIdentity);
+  expect(afterRemoteTwo.remoteTwoIdentity).toBe(initial.remoteTwoIdentity);
+  expect(afterRemoteTwo.navigationCount).toBe(initial.navigationCount);
+  expect(errors).toEqual([]);
+}
+
 async function assertDistributedTraceFromBrowser(
   page: Page,
   hostPort: number,
@@ -709,71 +756,46 @@ async function assertDistributedTraceFromBrowser(
   expect(runResult.runStatus).toBe(200);
   expect(runResult.runBody).toMatchObject({
     status: 'ok',
-    traceparent: trace.traceparent,
     remoteStatus: 'ok',
   });
   expect(runResult.runBody.remoteLocale).toEqual(expect.any(String));
 
-  const hostTrace = await waitForTraceSpansWithFallback(
-    `http://localhost:${hostPort}/host-api/effect/trace/spans`,
-    trace.traceId,
+  const hostSpans = await waitForTraceSpans(
+    `http://localhost:${hostPort}/host-api/effect/trace/spans?traceId=${trace.traceId}`,
     ['mf.host.trace.run', 'mf.host.trace.remote.call'],
   );
-  const remoteTrace = await waitForTraceSpansWithFallback(
-    `http://localhost:${remotePort}/remote-api/effect/trace/spans`,
-    trace.traceId,
+  const remoteSpans = await waitForTraceSpans(
+    `http://localhost:${remotePort}/remote-api/effect/trace/spans?traceId=${trace.traceId}`,
     ['mf.remote.trace.run', 'mf.remote.trace.db.query'],
   );
-  const hostSpans = hostTrace.spans;
-  const remoteSpans = remoteTrace.spans;
 
-  const hostRunSpan =
-    findLatestSpanByNameWhere(
-      hostSpans,
-      'mf.host.trace.run',
-      span =>
-        span.traceId === trace.traceId &&
-        span.parentSpanId === trace.rootSpanId,
-    ) || findLatestSpanByName(hostSpans, 'mf.host.trace.run');
-  const linkedHostRemoteCallSpan = findLatestSpanByNameWhere(
+  const hostRunSpan = findLatestSpanByNameWhere(
+    hostSpans,
+    'mf.host.trace.run',
+    span =>
+      span.traceId === trace.traceId && span.parentSpanId === trace.rootSpanId,
+  );
+  const hostRemoteCallSpan = findLatestSpanByNameWhere(
     hostSpans,
     'mf.host.trace.remote.call',
     span =>
       span.traceId === trace.traceId &&
-      span.parentSpanId === hostRunSpan?.spanId &&
-      remoteSpans.some(
-        remoteSpan =>
-          remoteSpan.name === 'mf.remote.trace.run' &&
-          remoteSpan.traceId === span.traceId &&
-          remoteSpan.parentSpanId === span.spanId,
-      ),
+      span.parentSpanId === hostRunSpan?.spanId,
   );
-  const hostRemoteCallSpan =
-    linkedHostRemoteCallSpan ||
-    findLatestSpanByNameWhere(
-      hostSpans,
-      'mf.host.trace.remote.call',
-      span =>
-        span.traceId === trace.traceId &&
-        span.parentSpanId === hostRunSpan?.spanId,
-    ) ||
-    findLatestSpanByName(hostSpans, 'mf.host.trace.remote.call');
-  const remoteRunSpan =
-    findLatestSpanByNameWhere(
-      remoteSpans,
-      'mf.remote.trace.run',
-      span =>
-        span.traceId === trace.traceId &&
-        span.parentSpanId === hostRemoteCallSpan?.spanId,
-    ) || findLatestSpanByName(remoteSpans, 'mf.remote.trace.run');
-  const remoteDbSpan =
-    findLatestSpanByNameWhere(
-      remoteSpans,
-      'mf.remote.trace.db.query',
-      span =>
-        span.traceId === remoteRunSpan?.traceId &&
-        span.parentSpanId === remoteRunSpan?.spanId,
-    ) || findLatestSpanByName(remoteSpans, 'mf.remote.trace.db.query');
+  const remoteRunSpan = findLatestSpanByNameWhere(
+    remoteSpans,
+    'mf.remote.trace.run',
+    span =>
+      span.traceId === trace.traceId &&
+      span.parentSpanId === hostRemoteCallSpan?.spanId,
+  );
+  const remoteDbSpan = findLatestSpanByNameWhere(
+    remoteSpans,
+    'mf.remote.trace.db.query',
+    span =>
+      span.traceId === trace.traceId &&
+      span.parentSpanId === remoteRunSpan?.spanId,
+  );
 
   expect(hostRunSpan).toBeDefined();
   expect(hostRemoteCallSpan).toBeDefined();
@@ -784,32 +806,18 @@ async function assertDistributedTraceFromBrowser(
     throw new Error('Expected distributed trace spans were not found');
   }
 
-  if (hostTrace.strictTracePropagation && remoteTrace.strictTracePropagation) {
-    expect(hostRunSpan.traceId).toBe(trace.traceId);
-    expect(hostRemoteCallSpan.traceId).toBe(trace.traceId);
-    expect(remoteRunSpan.traceId).toBe(trace.traceId);
-    expect(remoteDbSpan.traceId).toBe(trace.traceId);
+  expect(hostRunSpan.traceId).toBe(trace.traceId);
+  expect(hostRemoteCallSpan.traceId).toBe(trace.traceId);
+  expect(remoteRunSpan.traceId).toBe(trace.traceId);
+  expect(remoteDbSpan.traceId).toBe(trace.traceId);
 
-    expect(hostRunSpan.parentSpanId).toBe(trace.rootSpanId);
-    expect(hostRemoteCallSpan.parentSpanId).toBe(hostRunSpan.spanId);
-    if (remoteRunSpan.parentSpanId === hostRemoteCallSpan.spanId) {
-      expect(remoteRunSpan.parentSpanId).toBe(hostRemoteCallSpan.spanId);
-    } else {
-      expect(remoteRunSpan.parentSpanId).toMatch(/^[a-f0-9]{16}$/);
-    }
-    expect(remoteDbSpan.parentSpanId).toBe(remoteRunSpan.spanId);
-  } else {
-    expect(hostRunSpan.traceId).toMatch(/^[a-f0-9]{32}$/);
-    expect(hostRemoteCallSpan.traceId).toMatch(/^[a-f0-9]{32}$/);
-    expect(remoteRunSpan.traceId).toMatch(/^[a-f0-9]{32}$/);
-    expect(remoteDbSpan.traceId).toMatch(/^[a-f0-9]{32}$/);
-    if (hostRunSpan.traceId === hostRemoteCallSpan.traceId) {
-      expect(hostRemoteCallSpan.parentSpanId).toBe(hostRunSpan.spanId);
-    }
-    if (remoteRunSpan.traceId === remoteDbSpan.traceId) {
-      expect(remoteDbSpan.parentSpanId).toBe(remoteRunSpan.spanId);
-    }
-  }
+  expect(hostRunSpan.parentSpanId).toBe(trace.rootSpanId);
+  expect(hostRemoteCallSpan.parentSpanId).toBe(hostRunSpan.spanId);
+  expect(remoteRunSpan.parentSpanId).toBe(hostRemoteCallSpan.spanId);
+  expect(remoteDbSpan.parentSpanId).toBe(remoteRunSpan.spanId);
+  expect(runResult.runBody.traceparent).toBe(
+    `00-${trace.traceId}-${hostRemoteCallSpan.spanId}-01`,
+  );
 
   expect(errors.slice(initialErrorCount)).toEqual([]);
 }
@@ -986,6 +994,10 @@ describe('routes-tanstack-mf', () => {
     await assertRemoteComponentInteraction(page, ports.host, errors);
   });
 
+  test('routes native TanStack navigation from both remotes without reloading the host', async () => {
+    await assertRemoteNativeBridgeNavigation(page, ports.host, errors);
+  });
+
   test('supports deterministic remote failure injection fallbacks', async () => {
     await assertRemoteLoadFailureFallback({
       page,
@@ -1095,6 +1107,10 @@ describe('routes-tanstack-mf serve mode', () => {
 
   test('supports remote component fetcher with host loader/action in serve mode', async () => {
     await assertRemoteComponentInteraction(page, ports.host, errors);
+  });
+
+  test('routes native TanStack navigation across isolated remote realms in serve mode', async () => {
+    await assertRemoteNativeBridgeNavigation(page, ports.host, errors);
   });
 
   test('maps MF loader redirects and notFound responses through TanStack SSR in serve mode', async () => {

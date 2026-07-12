@@ -17,6 +17,4 @@ merged rather than replaced. Emitted tool wrappers are single-quoted so they
 pass the scaffold's `singleQuote` oxfmt config, every renamed `.mjs` script has
 its `package.json` references rewritten to the successor `.mts`, the compact
 config's `generator.version` is kept consistent with the migrated package
-version, and the emitted Module Federation config races Zephyr against a
-watchdog (`ULTRAMODERN_ZEPHYR_TIMEOUT_MS`, default 45s) so a network hang no
-longer wedges the build.
+version.
