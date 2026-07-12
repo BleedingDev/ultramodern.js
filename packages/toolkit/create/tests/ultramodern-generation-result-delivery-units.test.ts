@@ -32,7 +32,10 @@ const apiVertical: WorkspaceApp = {
   portEnv: 'VERTICAL_CHECKOUT_PORT',
   port: 3030,
   mfName: 'verticalCheckout',
-  exposes: { './Cart': 'src/expose/Cart.tsx' },
+  exposes: {
+    './Route': 'src/routes/checkout-route.tsx',
+    './Cart Widget': 'src/expose/Cart.tsx',
+  },
   api: {
     stem: 'checkout',
     prefix: '/checkout-api',
@@ -186,6 +189,24 @@ test('expose keys are sanitized to grammar-valid surfaceIds and classified (G1d)
       surface.surfaceId,
     );
   }
+});
+
+test('generated surfaces use the canonical expose mapper for ids and kind', () => {
+  const result = buildResult();
+  const descriptor = result.deliveryUnits?.find(
+    unit => unit.unitId === 'acme/checkout',
+  );
+  assert.ok(descriptor);
+  assert.deepEqual(
+    descriptor?.surfaces.slice(0, 2).map(surface => ({
+      kind: surface.kind,
+      surfaceId: surface.surfaceId,
+    })),
+    [
+      { kind: 'route', surfaceId: 'Route' },
+      { kind: 'component', surfaceId: 'Cart-Widget' },
+    ],
+  );
 });
 
 test('additive: existing result fields are preserved (G1d)', () => {

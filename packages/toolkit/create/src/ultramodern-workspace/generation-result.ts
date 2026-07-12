@@ -6,7 +6,10 @@ import type {
   DeliveryUnitDescriptor,
   SurfaceDescriptor,
 } from './delivery-unit-schema/types';
-import { exposeSurface } from './delivery-unit-schema/up-projection';
+import {
+  apiSurface,
+  exposeSurface,
+} from './delivery-unit-schema/up-projection';
 import { appHasApi, ULTRAMODERN_CONFIG_PATH } from './descriptors';
 import { normalizePath, packageName } from './naming';
 import type {
@@ -152,12 +155,7 @@ function createGeneratedDeliveryUnitDescriptor(
     ([key, value]) => exposeSurface(app, key, value),
   );
   if (appHasApi(app)) {
-    surfaces.push({
-      kind: 'api',
-      surfaceId: app.api.stem,
-      protocol: app.api.protocol ?? 'rest',
-      locations: [{ platform: 'http', address: app.api.prefix }],
-    });
+    surfaces.push(apiSurface(app.api, app.api.protocol ?? 'rest'));
   }
 
   const canonicalKind: DeliveryUnitDescriptor['kind'] =

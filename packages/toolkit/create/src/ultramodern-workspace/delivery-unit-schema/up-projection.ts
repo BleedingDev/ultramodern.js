@@ -183,22 +183,28 @@ export function exposeSurface(
 }
 
 /**
- * Map a v1 `WorkspaceApp.api` onto a canonical `api` surface.
+ * Map a v1 API descriptor onto the canonical API surface vocabulary.
  *
  * `stem` -> `surfaceId`; `prefix` -> a single `http` location `address`;
  * `protocol` from context (default `rest`). `consumedBy` has no canonical
  * home: it is a v1 emergent graph fact (SPEC §5 marks it non-projected), so it
  * is dropped here and the down-projection re-zeroes it to `[]`.
+ *
+ * Callers that know the concrete transport mount (for example RPC, which is
+ * mounted below the API prefix) may provide its address explicitly. Keeping
+ * the surface id/protocol/location construction here prevents generator
+ * paths from re-deriving a second canonical API surface shape.
  */
-function apiSurface(
+export function apiSurface(
   api: WorkspaceApi,
   protocol: ApiProtocol,
+  address = api.prefix,
 ): ApiSurfaceDescriptor {
   return {
     kind: 'api',
     surfaceId: api.stem,
     protocol,
-    locations: [{ platform: 'http', address: api.prefix }],
+    locations: [{ platform: 'http', address }],
   };
 }
 
