@@ -72,38 +72,115 @@ export type RouterProviderFactory = (
   userConfig: Partial<RouterConfig>,
 ) => RouterProviderPlugin;
 
+export type RouterProviderRegistration = {
+  name: string;
+  factory: RouterProviderFactory;
+  isDefault?: boolean;
+};
+
+/**
+ * App-owned provider catalog. Provider factories close over their module graph,
+ * so they must be resolved from the runtime wrapper that owns the app instead
+ * of from a page-global first-registration winner.
+ */
+export type RouterProviderRealm = Readonly<{
+  defaultProvider?: string;
+  get: (name: string) => RouterProviderFactory | undefined;
+  names: () => readonly string[];
+}>;
+
+export function createRouterProviderRealm(
+  registrations: readonly RouterProviderRegistration[],
+): RouterProviderRealm {
+  const providers = new Map<string, RouterProviderFactory>();
+  let defaultProvider: string | undefined;
+
+  for (const registration of registrations) {
+    if (!registration.name) {
+      throw new Error(
+        '[@modern-js/runtime] A router provider realm cannot contain an unnamed provider.',
+      );
+    }
+    if (providers.has(registration.name)) {
+      throw new Error(
+        `[@modern-js/runtime] Router provider "${registration.name}" is declared more than once in the same runtime realm.`,
+      );
+    }
+    if (
+      registration.isDefault === true &&
+      defaultProvider !== undefined &&
+      defaultProvider !== registration.name
+    ) {
+      throw new Error(
+        `[@modern-js/runtime] Router provider realm declares both "${defaultProvider}" and "${registration.name}" as defaults.`,
+      );
+    }
+
+    providers.set(registration.name, registration.factory);
+    if (registration.isDefault === true) {
+      defaultProvider = registration.name;
+    }
+  }
+
+  const providerNames = Object.freeze([...providers.keys()]);
+  return Object.freeze({
+    ...(defaultProvider ? { defaultProvider } : {}),
+    get: (name: string) => providers.get(name),
+    names: () => providerNames,
+  });
+}
+
 type RouterProviderRegistry = {
   providers: Map<string, RouterProviderFactory>;
   defaultProvider?: string;
-  nonDefaultProvider?: string;
-  /** Names that already produced a duplicate-registration warning. */
+  /** Names that were registered by more than one module instance. */
+  duplicateProviders: Set<string>;
+  /** Duplicate names already reported when the compatibility fallback won. */
   warnedDuplicates: Set<string>;
 };
 
 /**
- * Versioned registry key. The unsuffixed key
+ * Versioned compatibility-registry key. The unsuffixed key
  * ('@modern-js/runtime:router-providers') is owned by older published copies
  * of this module whose `registerRouterProvider` *throws* on a same-name
- * re-registration. Sharing a registry object with such a copy (e.g. a Module
- * Federation remote bundling an old @modern-js/runtime) would crash the old
- * copy as soon as it sees a name taken by a different factory. The ':v2'
- * suffix isolates keep-first-generation copies in their own registry: old and
- * new copies each register and resolve against their own slot, and neither
- * side throws. Bump the suffix again if registration semantics ever change
- * incompatibly.
+ * re-registration. `:v2` added keep-first registration but also enforced one
+ * non-default provider across the whole JavaScript realm. `:v3` removes that
+ * page-global app invariant: explicit runtime realms own provider selection,
+ * while this registry remains only a mixed-version fallback. New copies read
+ * but never mutate the v2 slot so older published copies remain compatible.
  */
 const REGISTRY_SLOT: unique symbol = Symbol.for(
+  '@modern-js/runtime:router-providers:v3',
+);
+const LEGACY_V2_REGISTRY_SLOT: unique symbol = Symbol.for(
   '@modern-js/runtime:router-providers:v2',
 );
 
 function getRegistry(): RouterProviderRegistry {
   const host = globalThis as { [REGISTRY_SLOT]?: RouterProviderRegistry };
-  host[REGISTRY_SLOT] ??= { providers: new Map(), warnedDuplicates: new Set() };
-  // Defense in depth within the v2 key: if a future v2-keyed copy of this
-  // module ever predates a later-added field (mixed v2 minors in a Module
+  host[REGISTRY_SLOT] ??= {
+    providers: new Map(),
+    duplicateProviders: new Set(),
+    warnedDuplicates: new Set(),
+  };
+  // Defense in depth within the v3 key: if a future v3-keyed copy of this
+  // module ever predates a later-added field (mixed v3 minors in a Module
   // Federation setup), heal the shape instead of crashing on `undefined`.
+  host[REGISTRY_SLOT].duplicateProviders ??= new Set();
   host[REGISTRY_SLOT].warnedDuplicates ??= new Set();
   return host[REGISTRY_SLOT];
+}
+
+function getLegacyV2Registry():
+  | Pick<RouterProviderRegistry, 'providers' | 'defaultProvider'>
+  | undefined {
+  const host = globalThis as {
+    [LEGACY_V2_REGISTRY_SLOT]?: Pick<
+      RouterProviderRegistry,
+      'providers' | 'defaultProvider'
+    >;
+  };
+  return host[LEGACY_V2_REGISTRY_SLOT];
 }
 
 export function registerRouterProvider(
@@ -120,30 +197,16 @@ export function registerRouterProvider(
     // module — e.g. a Module Federation remote that does not share
     // '@modern-js/plugin-tanstack/runtime' evaluates its own copy, which
     // creates a fresh factory function per evaluation. That must not crash
-    // the app; the first registration wins and we warn once per name.
-    if (existing !== factory && !registry.warnedDuplicates.has(name)) {
-      registry.warnedDuplicates.add(name);
-      console.warn(
-        `[@modern-js/runtime] The router provider "${name}" was registered more than once with different module instances; keeping the first registration. ` +
-          'This usually means two copies of the providing plugin were bundled — for Module Federation, add the provider runtime ' +
-          "(e.g. '@modern-js/plugin-tanstack/runtime') to the shared modules of both the host and the remote to deduplicate it.",
-      );
+    // the app; the first registration remains available for compatibility.
+    // Merely loading independent app-owned realms is valid, so defer the
+    // warning until a caller actually consumes this ambiguous fallback.
+    if (existing !== factory) {
+      registry.duplicateProviders.add(name);
     }
     return;
   }
 
-  if (options.isDefault !== true) {
-    if (
-      registry.nonDefaultProvider !== undefined &&
-      registry.nonDefaultProvider !== name
-    ) {
-      throw new Error(
-        `[@modern-js/runtime] Cannot register router provider "${name}": the competing router provider "${registry.nonDefaultProvider}" is already registered. ` +
-          'Only one non-default router provider may be installed at a time — remove one of the router plugins.',
-      );
-    }
-    registry.nonDefaultProvider = name;
-  } else {
+  if (options.isDefault === true) {
     registry.defaultProvider = name;
   }
 
@@ -154,26 +217,55 @@ export function resolveRouterProvider(
   framework?: RouterConfig['framework'],
   options: {
     /**
-     * The resolving module's own copy of a provider. The registry is
-     * realm-global with keep-first semantics, so in a page hosting several
-     * independent Modern.js apps (Module Federation app-level remotes) the
-     * first-loaded copy of a provider would otherwise win for *every* app —
-     * a foreign factory closes over the foreign app's global context (routes,
-     * App, runtime hooks) and renders the wrong app inside the resolving one.
-     * When the resolved name matches `localDefault.name`, the local factory
-     * is returned instead of whatever copy registered first.
+     * Provider factories owned by the resolving app/runtime wrapper. A realm
+     * is the exclusive provider source when supplied because its factories
+     * close over the correct app module graph.
+     */
+    realm?: RouterProviderRealm;
+    /**
+     * Legacy single-provider override retained for published wrappers. New
+     * integrations should pass an app-owned `realm`, which supports every
+     * provider rather than only the default.
      */
     localDefault?: { name: string; factory: RouterProviderFactory };
   } = {},
 ): RouterProviderFactory {
+  if (options.realm !== undefined) {
+    const name = framework || options.realm.defaultProvider;
+    const realmProviderNames = options.realm.names();
+
+    if (name === undefined) {
+      throw new Error(
+        `[@modern-js/runtime] The app-owned router provider realm does not declare a default provider. Available realm providers: ${
+          realmProviderNames.join(', ') || '(none)'
+        }.`,
+      );
+    }
+
+    const factory = options.realm.get(name);
+    if (factory === undefined) {
+      throw new Error(
+        `[@modern-js/runtime] Router provider "${name}" is not registered in the app-owned router provider realm. ` +
+          `Available realm providers: ${
+            realmProviderNames.join(', ') || '(none)'
+          }. Compatibility registry fallback is disabled for app-owned realms.`,
+      );
+    }
+
+    return factory;
+  }
+
   const registry = getRegistry();
+  const legacyV2Registry = getLegacyV2Registry();
   // `||` on purpose: a falsy framework value (empty string from env
   // templating, `false`, `undefined`) falls back to the default provider
-  // instead of erroring on an unknown framework "". Prefer the resolving
-  // module's local default before the realm-global registry default so
-  // app-level remotes do not inherit host runtime provider closures.
+  // instead of erroring on an unknown framework "". Prefer the older
+  // localDefault contract before compatibility slots.
   const name =
-    framework || options.localDefault?.name || registry.defaultProvider;
+    framework ||
+    options.localDefault?.name ||
+    registry.defaultProvider ||
+    legacyV2Registry?.defaultProvider;
 
   if (name === undefined) {
     throw new Error(
@@ -190,7 +282,23 @@ export function resolveRouterProvider(
 
   const factory = registry.providers.get(name);
   if (factory !== undefined) {
+    if (
+      registry.duplicateProviders.has(name) &&
+      !registry.warnedDuplicates.has(name)
+    ) {
+      registry.warnedDuplicates.add(name);
+      console.warn(
+        `[@modern-js/runtime] The router provider "${name}" was registered more than once with different module instances, and a router wrapper without an app-owned provider realm is resolving the mixed-version compatibility fallback. The fallback is keeping the first registration. ` +
+          'Modern router wrappers isolate app-owned realms automatically. ' +
+          'For an older wrapper, share the provider runtime between Module Federation host and remotes or upgrade every app to a realm-aware runtime.',
+      );
+    }
     return factory;
+  }
+
+  const legacyV2Factory = legacyV2Registry?.providers.get(name);
+  if (legacyV2Factory !== undefined) {
+    return legacyV2Factory;
   }
 
   if (name === 'tanstack') {
@@ -204,16 +312,25 @@ export function resolveRouterProvider(
   throw new Error(
     `[@modern-js/runtime] Unknown router framework "${name}". ` +
       `Registered providers: ${
-        [...registry.providers.keys()].join(', ') || '(none)'
+        [
+          ...new Set([
+            ...registry.providers.keys(),
+            ...(legacyV2Registry?.providers.keys() ?? []),
+          ]),
+        ].join(', ') || '(none)'
       }. Install and register the plugin that provides this router framework.`,
   );
 }
 
 /**
- * Test-only escape hatch: the registry lives on `globalThis`, so unit tests
- * need a way to restore a pristine state between cases.
+ * Test-only escape hatch: compatibility registries live on `globalThis`, so
+ * unit tests need a way to restore a pristine state between cases.
  */
 export function unsafe_resetRouterProvidersForTesting(): void {
-  const host = globalThis as { [REGISTRY_SLOT]?: RouterProviderRegistry };
+  const host = globalThis as {
+    [REGISTRY_SLOT]?: RouterProviderRegistry;
+    [LEGACY_V2_REGISTRY_SLOT]?: unknown;
+  };
   delete host[REGISTRY_SLOT];
+  delete host[LEGACY_V2_REGISTRY_SLOT];
 }

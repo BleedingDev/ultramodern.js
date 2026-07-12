@@ -42,6 +42,15 @@ const routerGenGoldenPath = path.join(
   'fixtures',
   'router-gen.golden.txt',
 );
+const routerGenOxlintConfigPath = path.join(
+  __dirname,
+  'fixtures',
+  'router-gen.oxlint.json',
+);
+const oxlintCliPath = path.resolve(
+  __dirname,
+  '../../../../toolkit/code-tools/node_modules/oxlint/bin/oxlint',
+);
 
 type RedirectLike = {
   options?: {
@@ -418,6 +427,41 @@ describe('tanstack router type generation', () => {
     await expect(readFile(routerGenGoldenPath, 'utf8')).resolves.toBe(
       routerGenTs,
     );
+  });
+
+  test('emits suppression-free router source that passes the generated-artifact lint fixture', async () => {
+    tempDir = await mkdtemp(path.join(tmpdir(), 'modern-tanstack-types-'));
+    const srcDirectory = path.join(tempDir, 'src');
+    const routerGenTs = await generateGoldenRouterGen(srcDirectory);
+    const routerGenPath = path.join(
+      srcDirectory,
+      'modern-tanstack',
+      'golden',
+      'router.gen.ts',
+    );
+
+    await mkdir(path.dirname(routerGenPath), { recursive: true });
+    await writeFile(routerGenPath, routerGenTs);
+
+    expect(routerGenTs).not.toContain('eslint-disable');
+
+    const { stderr, stdout } = await execFileAsync(
+      process.execPath,
+      [
+        oxlintCliPath,
+        routerGenPath,
+        '--config',
+        routerGenOxlintConfigPath,
+        '--no-ignore',
+        '--report-unused-disable-directives-severity',
+        'error',
+        '--format',
+        'unix',
+      ],
+      { cwd: tempDir },
+    );
+
+    expect(`${stdout}${stderr}`).toBe('');
   });
 
   test('typechecks generated TanStack search contracts', async () => {

@@ -53,6 +53,12 @@
       "types": "./dist/types/core/browser/index.d.ts",
       "default": "./dist/esm/core/browser/index.mjs"
     },
+    "./registry": {
+      "types": "./dist/types/cli/registry.d.ts"
+    },
+    "./registry/*": {
+      "types": "./dist/types/cli/registry.d.ts"
+    },
     "./loadable": {
       "types": "./dist/types/exports/loadable.d.ts",
       "default": "./dist/esm/exports/loadable.mjs"
@@ -166,6 +172,12 @@
       ],
       "browser": [
         "./dist/types/core/browser/index.d.ts"
+      ],
+      "registry": [
+        "./dist/types/cli/registry.d.ts"
+      ],
+      "registry/*": [
+        "./dist/types/cli/registry.d.ts"
       ],
       "head": [
         "./dist/types/exports/head.d.ts"

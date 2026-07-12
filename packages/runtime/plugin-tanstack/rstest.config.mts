@@ -1,3 +1,4 @@
+import path from 'node:path';
 import type { ProjectConfig } from '@rstest/core';
 import { withTestPreset } from '@scripts/rstest-config';
 
@@ -41,6 +42,20 @@ export default {
         'tests/router/tanstackTypes.test.ts',
         'tests/router/routeTree.test.ts',
       ],
+      extends: commonConfig,
+    }),
+    withTestPreset({
+      name: 'plugin-tanstack-router-compatibility',
+      testEnvironment: 'node',
+      include: ['tests/router/routerCompatibility.test.ts'],
+      resolve: {
+        alias: {
+          '@modern-js/runtime/router/internal': path.resolve(
+            __dirname,
+            'tests/router/fixtures/legacyRuntimeRouter.ts',
+          ),
+        },
+      },
       extends: commonConfig,
     }),
     withTestPreset({

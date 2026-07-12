@@ -4,12 +4,40 @@
  * `router: { framework: 'tanstack', createRoutes }` in modern.runtime.ts).
  *
  * The CLI plugin injects `{ name: 'router', path: '<pkg>/runtime/router' }`
- * for those entries, so the generated entry code value-imports `routerPlugin`
- * from here. That single import both installs the framework-resolving router
- * plugin of @modern-js/runtime AND registers the TanStack router provider
- * (the './register' side effect) — the registration can therefore never be
- * tree-shaken away from the entry that needs it.
+ * for those entries. This module creates a framework-resolving wrapper whose
+ * app-owned provider realm contains this module graph's TanStack factory.
  */
-import './register';
+import * as runtimeRouter from '@modern-js/runtime/router/internal';
+import { tanstackRouterProviderFactory } from './register';
 
-export { routerPlugin } from '@modern-js/runtime/router/internal';
+type LegacyRouterPlugin = (typeof runtimeRouter)['routerPlugin'];
+type CurrentRouterPluginCreator = (
+  localProviders: readonly {
+    name: string;
+    factory: typeof tanstackRouterProviderFactory;
+  }[],
+) => LegacyRouterPlugin;
+
+function getRouterPlugin(): LegacyRouterPlugin {
+  const createRouterPlugin = Reflect.get(runtimeRouter, 'createRouterPlugin') as
+    | CurrentRouterPluginCreator
+    | undefined;
+
+  if (typeof createRouterPlugin === 'function') {
+    return createRouterPlugin([
+      { name: 'tanstack', factory: tanstackRouterProviderFactory },
+    ]);
+  }
+
+  const legacyRouterPlugin = Reflect.get(runtimeRouter, 'routerPlugin');
+
+  if (typeof legacyRouterPlugin === 'function') {
+    return tanstackRouterProviderFactory as unknown as LegacyRouterPlugin;
+  }
+
+  throw new Error(
+    '[@modern-js/plugin-tanstack] The installed @modern-js/runtime/router/internal exports neither createRouterPlugin nor routerPlugin. Install a compatible @modern-js/runtime version.',
+  );
+}
+
+export const routerPlugin: LegacyRouterPlugin = getRouterPlugin();

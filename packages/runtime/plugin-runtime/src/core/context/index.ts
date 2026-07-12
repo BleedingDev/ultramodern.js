@@ -53,8 +53,11 @@ export {
   type RouterLifecyclePhase,
 } from '../../router/runtime/lifecycle';
 export {
+  createRouterProviderRealm,
   type RouterProviderFactory,
   type RouterProviderPlugin,
+  type RouterProviderRealm,
+  type RouterProviderRegistration,
   registerRouterProvider,
   resolveRouterProvider,
   routerProviderRegistryHooks,

@@ -76,13 +76,14 @@ function isClientArgs(id: unknown): id is HTMLElement | string {
 
 export type RenderFunc = typeof render;
 
-export async function render(
+async function renderApp(
   App: React.ReactElement<{ basename: string }>,
-  id?: HTMLElement | string,
+  id: HTMLElement | string | undefined,
+  hydrateFromSsrData: boolean,
+  internalRuntimeContext: ReturnType<typeof getGlobalInternalRuntimeContext>,
 ) {
   const context: TRuntimeContext = getInitialContext();
   const runBeforeRender = async (context: TRuntimeContext) => {
-    const internalRuntimeContext = getGlobalInternalRuntimeContext();
     const api = internalRuntimeContext!.pluginAPI;
     api!.updateRuntimeContext!(context);
     const hooks = internalRuntimeContext!.hooks;
@@ -120,7 +121,7 @@ export async function render(
     }
 
     // we should hydateRoot only when ssr
-    if (window._SSR_DATA) {
+    if (hydrateFromSsrData && window._SSR_DATA) {
       return hydrateRoot(App, context, ModernRender, ModernHydrate);
     }
     return ModernRender(wrapRuntimeContextProvider(App, context));
@@ -128,6 +129,19 @@ export async function render(
   throw Error(
     '`render` function needs id in browser environment, it needs to be string or element',
   );
+}
+
+export async function render(
+  App: React.ReactElement<{ basename: string }>,
+  id?: HTMLElement | string,
+) {
+  return renderApp(App, id, true, getGlobalInternalRuntimeContext());
+}
+
+/** Bind a client renderer to the runtime context that owns a nested app root. */
+export function createNestedAppRenderer(): RenderFunc {
+  const internalRuntimeContext = getGlobalInternalRuntimeContext();
+  return (App, id) => renderApp(App, id, false, internalRuntimeContext);
 }
 
 export async function renderWithReact18(

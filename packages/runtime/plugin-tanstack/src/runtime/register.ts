@@ -1,8 +1,7 @@
 /**
- * Registers TanStack router provider with the @modern-js/runtime router
- * provider registry. Importing '@modern-js/plugin-tanstack/runtime' is enough
- * to make `runtime.router.framework: 'tanstack'` resolvable by the built-in
- * router runtime plugin.
+ * Registers TanStack in the @modern-js/runtime compatibility registry.
+ * Runtime entries bind the exported local factory into their own provider
+ * realm; registration remains for older runtime wrappers and mixed cohorts.
  *
  * This module is intentionally side-effectful (see `sideEffects` in
  * package.json).
@@ -20,7 +19,8 @@ import { tanstackRouterPlugin } from './plugin';
 // built-in router plugin registers the hooks and forwards its API to the
 // resolved provider), but nominally distinct, so keep an explicit adapter
 // cast as the single boundary.
-const tanstackRouterProviderFactory: RouterProviderFactory = userConfig =>
-  tanstackRouterPlugin(userConfig) as unknown as RouterProviderPlugin;
+export const tanstackRouterProviderFactory: RouterProviderFactory =
+  userConfig =>
+    tanstackRouterPlugin(userConfig) as unknown as RouterProviderPlugin;
 
 registerRouterProvider('tanstack', tanstackRouterProviderFactory);

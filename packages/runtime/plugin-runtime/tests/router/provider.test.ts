@@ -4,6 +4,7 @@ import * as contextSeam from '../../src/core/context';
 import type { RouterExtendsHooks } from '../../src/router/runtime/hooks';
 import * as routerHooks from '../../src/router/runtime/hooks';
 import {
+  createRouterProviderRealm,
   type RouterProviderFactory,
   registerRouterProvider,
   reportUnsupportedProviderRegistryHooks,
@@ -132,7 +133,7 @@ describe('router provider registry', () => {
     }
   });
 
-  it('keeps the first registration and warns once when a duplicate module copy re-registers a name', () => {
+  it('keeps the first registration and warns only when a duplicate compatibility fallback is consumed', () => {
     // Simulates a Module Federation remote that bundles its own copy of
     // '@modern-js/plugin-tanstack/runtime': the second copy evaluates the
     // registration side effect again with a fresh factory function.
@@ -145,15 +146,17 @@ describe('router provider registry', () => {
       expect(() =>
         registerRouterProvider('tanstack', remoteCopy),
       ).not.toThrow();
+      expect(warnSpy).not.toHaveBeenCalled();
 
-      // First registration wins.
+      // First registration wins for compatibility-only callers, which are
+      // warned because they did not supply an app-owned provider realm.
       expect(resolveRouterProvider('tanstack')).toBe(hostCopy);
       expect(warnSpy).toHaveBeenCalledTimes(1);
       expect(warnSpy).toHaveBeenCalledWith(
         expect.stringMatching(/keeping the first registration/),
       );
       expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringMatching(/@modern-js\/plugin-tanstack\/runtime/),
+        expect.stringMatching(/without an app-owned provider realm/),
       );
 
       // A third evaluation does not warn again for the same name.
@@ -236,6 +239,76 @@ describe('router provider registry', () => {
     ).toBe(tanstack);
   });
 
+  it('resolves app-owned realm providers before compatibility registrations', () => {
+    const hostTanstack = createFactory('host-tanstack');
+    const localReactRouter = createFactory('local-react-router');
+    const localTanstack = createFactory('local-tanstack');
+    registerRouterProvider('tanstack', hostTanstack);
+
+    const realm = createRouterProviderRealm([
+      {
+        name: 'react-router',
+        factory: localReactRouter,
+        isDefault: true,
+      },
+      { name: 'tanstack', factory: localTanstack },
+    ]);
+
+    expect(resolveRouterProvider(undefined, { realm })).toBe(localReactRouter);
+    expect(resolveRouterProvider('tanstack', { realm })).toBe(localTanstack);
+    expect(resolveRouterProvider('tanstack')).toBe(hostTanstack);
+    expect(realm.names()).toEqual(['react-router', 'tanstack']);
+  });
+
+  it('does not use the legacy local default for a provider missing from an app-owned realm', () => {
+    const legacyLocalDefault = rstest.fn(() => ({
+      name: 'legacy-local-default',
+    })) as RouterProviderFactory;
+    const realm = createRouterProviderRealm([
+      {
+        name: 'tanstack',
+        factory: createFactory('local-tanstack'),
+        isDefault: true,
+      },
+    ]);
+
+    expect(() =>
+      resolveRouterProvider('react-router', {
+        realm,
+        localDefault: {
+          name: 'react-router',
+          factory: legacyLocalDefault,
+        },
+      })({}),
+    ).toThrow(/not registered in the app-owned router provider realm/);
+    expect(legacyLocalDefault).not.toHaveBeenCalled();
+  });
+
+  it('rejects ambiguous provider declarations inside one runtime realm', () => {
+    const tanstack = createFactory('tanstack');
+    expect(() =>
+      createRouterProviderRealm([
+        { name: 'tanstack', factory: tanstack },
+        { name: 'tanstack', factory: tanstack },
+      ]),
+    ).toThrow(/declared more than once/);
+
+    expect(() =>
+      createRouterProviderRealm([
+        {
+          name: 'react-router',
+          factory: createFactory('react-router'),
+          isDefault: true,
+        },
+        {
+          name: 'tanstack',
+          factory: tanstack,
+          isDefault: true,
+        },
+      ]),
+    ).toThrow(/declares both .* as defaults/);
+  });
+
   it('falls back to the local default when nothing is registered yet', () => {
     const reactRouter = createFactory('react-router');
 
@@ -246,11 +319,15 @@ describe('router provider registry', () => {
     ).toBe(reactRouter);
   });
 
-  it('throws loudly when two competing non-default providers are registered', () => {
-    registerRouterProvider('tanstack', createFactory('tanstack'));
+  it('keeps distinct compatibility providers addressable by explicit name', () => {
+    const tanstack = createFactory('tanstack');
+    const solidRouter = createFactory('solid-router');
+    registerRouterProvider('tanstack', tanstack);
     expect(() =>
-      registerRouterProvider('solid-router', createFactory('solid-router')),
-    ).toThrow(/competing router provider "tanstack"/);
+      registerRouterProvider('solid-router', solidRouter),
+    ).not.toThrow();
+    expect(resolveRouterProvider('tanstack')).toBe(tanstack);
+    expect(resolveRouterProvider('solid-router')).toBe(solidRouter);
   });
 
   it('points users at @modern-js/plugin-tanstack for an unregistered tanstack framework', () => {
@@ -276,12 +353,15 @@ describe('router provider registry', () => {
   describe('mixed-version registry isolation (Module Federation)', () => {
     // Old published copies of @modern-js/runtime own the unversioned key and
     // THROW on duplicate-name registration; the current module must use the
-    // ':v2' key so the two generations never share a registry object.
+    // versioned key so incompatible generations never share a registry object.
     const OLD_REGISTRY_SLOT: unique symbol = Symbol.for(
       '@modern-js/runtime:router-providers',
     );
     const V2_REGISTRY_SLOT: unique symbol = Symbol.for(
       '@modern-js/runtime:router-providers:v2',
+    );
+    const V3_REGISTRY_SLOT: unique symbol = Symbol.for(
+      '@modern-js/runtime:router-providers:v3',
     );
 
     /** Registry shape written by old published copies (no warnedDuplicates). */
@@ -291,13 +371,14 @@ describe('router provider registry', () => {
       nonDefaultProvider?: string;
     };
 
-    type V2RegistryShape = OldRegistryShape & {
+    type V3RegistryShape = OldRegistryShape & {
       warnedDuplicates?: Set<string>;
     };
 
     const host = globalThis as {
       [OLD_REGISTRY_SLOT]?: OldRegistryShape;
-      [V2_REGISTRY_SLOT]?: V2RegistryShape;
+      [V2_REGISTRY_SLOT]?: V3RegistryShape;
+      [V3_REGISTRY_SLOT]?: V3RegistryShape;
     };
 
     afterEach(() => {
@@ -324,13 +405,13 @@ describe('router provider registry', () => {
         expect(() =>
           registerRouterProvider('tanstack', newCopyFactory),
         ).not.toThrow();
-        // ...because it registers into its own v2 registry and resolves
+        // ...because it registers into its own v3 registry and resolves
         // itself there.
         expect(resolveRouterProvider('tanstack')).toBe(newCopyFactory);
-        expect(host[V2_REGISTRY_SLOT]?.providers.get('tanstack')).toBe(
+        expect(host[V3_REGISTRY_SLOT]?.providers.get('tanstack')).toBe(
           newCopyFactory,
         );
-        // Fresh registration in an empty v2 registry, not a dedup: no warn.
+        // Fresh registration in an empty v3 registry, not a dedup: no warn.
         expect(warnSpy).not.toHaveBeenCalled();
         // The old copy's registry is untouched, so the old copy's throwing
         // duplicate check never observes the new copy's registration either.
@@ -344,12 +425,35 @@ describe('router provider registry', () => {
       }
     });
 
-    it('heals a v2-keyed registry that lacks later-added fields', () => {
-      // A v2-keyed copy from an earlier minor could have created the registry
+    it('reads a v2 compatibility registry without mutating it', () => {
+      const v2Factory = createFactory('tanstack-v2-runtime-copy');
+      host[V2_REGISTRY_SLOT] = {
+        providers: new Map([['tanstack', v2Factory]]),
+        nonDefaultProvider: 'tanstack',
+        warnedDuplicates: new Set(),
+      };
+
+      expect(resolveRouterProvider('tanstack')).toBe(v2Factory);
+
+      const v3Factory = createFactory('tanstack-v3-runtime-copy');
+      registerRouterProvider('tanstack', v3Factory);
+      expect(resolveRouterProvider('tanstack')).toBe(v3Factory);
+
+      const realmFactory = createFactory('tanstack-app-realm');
+      const realm = createRouterProviderRealm([
+        { name: 'tanstack', factory: realmFactory },
+      ]);
+      expect(resolveRouterProvider('tanstack', { realm })).toBe(realmFactory);
+      expect(host[V2_REGISTRY_SLOT]?.providers.get('tanstack')).toBe(v2Factory);
+      expect(host[V2_REGISTRY_SLOT]?.warnedDuplicates).toEqual(new Set());
+    });
+
+    it('heals a v3-keyed registry that lacks later-added fields', () => {
+      // A v3-keyed copy from an earlier minor could have created the registry
       // without `warnedDuplicates`; the current copy must heal the shape
       // instead of crashing in the duplicate-warning path.
       const existing = createFactory('tanstack-existing');
-      host[V2_REGISTRY_SLOT] = {
+      host[V3_REGISTRY_SLOT] = {
         providers: new Map([['tanstack', existing]]),
       };
       const warnSpy = rstest
@@ -362,7 +466,7 @@ describe('router provider registry', () => {
         // Keep-first semantics still hold against the pre-seeded registry.
         expect(resolveRouterProvider('tanstack')).toBe(existing);
         expect(warnSpy).toHaveBeenCalledTimes(1);
-        expect(host[V2_REGISTRY_SLOT]?.warnedDuplicates?.has('tanstack')).toBe(
+        expect(host[V3_REGISTRY_SLOT]?.warnedDuplicates?.has('tanstack')).toBe(
           true,
         );
       } finally {
