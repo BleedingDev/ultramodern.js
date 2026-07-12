@@ -344,14 +344,14 @@ function createStructuralShellPolicy(workspaceApps: WorkspaceApp[]) {
     forbiddenImportPatterns: [
       {
         id: 'vertical-directory-deep-import',
-        expression: "from\\s+['\"][^'\"]*verticals/[^'\"/]+/",
+        expression: 'from\\s+[\'"][^\'"]*verticals/[^\'"/]+/',
         flags: 'u',
         diagnostic:
           'A thin Shell must consume only published vertical surfaces (package root or Module Federation), never deep-import a vertical directory.',
       },
       {
         id: 'workspace-package-source-import',
-        expression: "from\\s+['\"]@[^'\"/]+/[^'\"/]+/src/",
+        expression: 'from\\s+[\'"]@[^\'"/]+/[^\'"/]+/src/',
         flags: 'u',
         diagnostic:
           'A thin Shell must consume only published package surfaces, never deep-import another package’s raw src/ internals (published subpath exports are allowed).',
@@ -365,8 +365,15 @@ export function createWorkspaceValidationContract(
   enableTailwind: boolean,
   remotes: WorkspaceApp[] = [],
   releaseCohort?: UltramodernReleaseCohort,
+  additionalShells: WorkspaceApp[] = [],
 ) {
   const workspaceApps = [createShellHost(remotes), ...remotes];
+  // All configured shells (primary + additional, G28) are enumerated by the
+  // root scripts and gated by the structural thin-shell rules. Additional
+  // shells are deliberately kept out of the strict app/manifest cohort so the
+  // primary topology.apps cohort stays byte-identical for a single-shell
+  // workspace.
+  const configuredShells = [createShellHost(remotes), ...additionalShells];
   const compactConfig = asJsonRecord(
     createUltramodernConfig(
       scope,
@@ -523,12 +530,16 @@ export function createWorkspaceValidationContract(
       typescriptCompilerApi: TYPESCRIPT_COMPILER_API_VERSION,
     },
     tailwindEnabled: enableTailwind,
-    structuralShellPolicy: createStructuralShellPolicy(workspaceApps),
+    structuralShellPolicy: createStructuralShellPolicy(configuredShells),
     fullStackVerticals,
     shellNamespace: appI18nNamespace(shellApp),
     oldRemotePaths: ['apps/remotes'],
-    scripts: createWorkspaceRootScriptPlan(remotes),
-    packageScripts: createWorkspaceRootPackageScripts(remotes),
+    scripts: createWorkspaceRootScriptPlan(remotes, {
+      shells: configuredShells,
+    }),
+    packageScripts: createWorkspaceRootPackageScripts(remotes, {
+      shells: configuredShells,
+    }),
     cloudflareSecurity: createCloudflareSecurityContract(),
     publicSurfaceManagedSourceAssetPaths: [
       ...publicSurfaceManagedSourceAssetPaths,

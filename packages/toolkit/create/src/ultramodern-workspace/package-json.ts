@@ -117,8 +117,12 @@ export function createRootPackageJson(
   packageSource: ResolvedPackageSource,
   remotes: WorkspaceApp[] = [],
   bridge?: UltramodernBridgeConfig,
+  additionalShells: WorkspaceApp[] = [],
 ): JsonValue {
   const shellFilter = `--filter ${packageName(scope, shellApp.packageSuffix)}`;
+  const additionalShellFilters = additionalShells.map(
+    shell => `--filter ${packageName(scope, shell.packageSuffix)}`,
+  );
   const remoteFilters = remotes.map(
     remote => `--filter ${packageName(scope, remote.packageSuffix)}`,
   );
@@ -142,6 +146,7 @@ export function createRootPackageJson(
   const rootPackageScripts = createWorkspaceRootPackageScripts(remotes, {
     bridgeCheck,
     typecheck: bridgeTypecheck,
+    shells: [shellApp, ...additionalShells],
   });
   const workspacePackages = [
     'apps/*',
@@ -157,8 +162,14 @@ export function createRootPackageJson(
     type: 'module',
     packageManager: `pnpm@${ULTRAMODERN_WORKSPACE_POLICY.toolchain.packageManager.version}`,
     scripts: {
-      dev: `pnpm --parallel ${[shellFilter, ...remoteFilters].join(' ')} dev`,
+      dev: `pnpm --parallel ${[shellFilter, ...additionalShellFilters, ...remoteFilters].join(' ')} dev`,
       'dev:shell': `pnpm --filter ${packageName(scope, shellApp.packageSuffix)} dev`,
+      ...Object.fromEntries(
+        additionalShells.map(shell => [
+          `dev:${shell.packageSuffix}`,
+          `pnpm --filter ${packageName(scope, shell.packageSuffix)} dev`,
+        ]),
+      ),
       ...Object.fromEntries(
         remotes.map(remote => [
           `dev:${remote.packageSuffix}`,

@@ -1,4 +1,4 @@
-import { appHasApi } from './descriptors';
+import { appHasApi, shellApp } from './descriptors';
 import { relativeRootFor } from './naming';
 import { createPublicSurfaceGenerationCommand } from './public-surface';
 import {
@@ -173,9 +173,30 @@ export function createWorkspaceAppPackageScripts(
 
 export function createWorkspaceRootScriptPlan(
   remotes: WorkspaceApp[] = [],
-  options: { bridgeCheck?: string; typecheck?: string } = {},
+  options: {
+    bridgeCheck?: string;
+    typecheck?: string;
+    shells?: WorkspaceApp[];
+  } = {},
 ): WorkspaceRootScriptPlan {
   const hasRemotes = remotes.length > 0;
+  // Enumerate configured shells (G28) instead of hard-coding the single
+  // ./apps/shell-super-app. The default is the primary shell alone, so a
+  // single-shell workspace produces byte-identical legacy scripts.
+  const shells =
+    options.shells && options.shells.length > 0 ? options.shells : [shellApp];
+  const shellBuild = shells
+    .map(
+      shell =>
+        `ULTRAMODERN_ZEPHYR=false pnpm --filter "./${shell.directory}" run build`,
+    )
+    .join(' && ');
+  const shellCloudflareBuild = shells
+    .map(shell => `pnpm --filter "./${shell.directory}" run cloudflare:build`)
+    .join(' && ');
+  const shellCloudflareDeploy = shells
+    .map(shell => `pnpm --filter "./${shell.directory}" run cloudflare:deploy`)
+    .join(' && ');
   const mfTypesScript = rootToolingScriptName('mfTypes');
   const performanceReadinessScript = rootToolingScriptName(
     'performanceReadiness',
@@ -199,9 +220,9 @@ export function createWorkspaceRootScriptPlan(
     : '';
 
   return {
-    build: `${remoteBuildPrefix}pnpm --filter "./apps/shell-super-app" run build && pnpm ${mfTypesScript} && pnpm ${performanceReadinessScript}`,
-    cloudflareBuild: `${remoteCloudflareBuildPrefix}pnpm --filter "./apps/shell-super-app" run cloudflare:build && pnpm ${mfTypesScript} && pnpm ${cloudflareOutputVerifyScript}`,
-    cloudflareDeploy: `${remoteCloudflareDeployPrefix}pnpm --filter "./apps/shell-super-app" run cloudflare:deploy`,
+    build: `${remoteBuildPrefix}${shellBuild} && pnpm ${mfTypesScript} && pnpm ${performanceReadinessScript}`,
+    cloudflareBuild: `${remoteCloudflareBuildPrefix}${shellCloudflareBuild} && pnpm ${mfTypesScript} && pnpm ${cloudflareOutputVerifyScript}`,
+    cloudflareDeploy: `${remoteCloudflareDeployPrefix}${shellCloudflareDeploy}`,
     cloudflareProof: `${rootToolingWrapperCommand(
       'cloudflareProof',
     )} --out .codex/reports/cloudflare-version-proof/public-url-proof.json`,
@@ -232,7 +253,11 @@ export function createWorkspaceRootScriptPlan(
 
 export function createWorkspaceRootPackageScripts(
   remotes: WorkspaceApp[] = [],
-  options: { bridgeCheck?: string; typecheck?: string } = {},
+  options: {
+    bridgeCheck?: string;
+    typecheck?: string;
+    shells?: WorkspaceApp[];
+  } = {},
 ): WorkspaceRootPackageScripts {
   const plan = createWorkspaceRootScriptPlan(remotes, options);
   const shellOnly = remotes.length === 0;

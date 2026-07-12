@@ -81,7 +81,12 @@ function createTailwindPrefix(raw: string): string {
 
 export function tailwindPrefixForApp(app: WorkspaceApp): string {
   if (app.kind === 'shell') {
-    return 'shell';
+    // The primary shell keeps the bare `shell` prefix (byte-identical legacy
+    // output). Additional shells (G28) derive a distinct prefix from their id
+    // so multiple shells never collide on one Tailwind class prefix.
+    return app.id === 'shell-super-app'
+      ? 'shell'
+      : createTailwindPrefix(app.id);
   }
 
   return createTailwindPrefix(app.domain ?? app.id);

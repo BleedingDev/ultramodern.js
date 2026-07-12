@@ -149,12 +149,14 @@ export function createWorkspaceValidationScript(
   enableTailwind: boolean,
   remotes: WorkspaceApp[] = [],
   releaseCohort?: UltramodernReleaseCohort,
+  additionalShells: WorkspaceApp[] = [],
 ): string {
   const contract = createWorkspaceValidationContract(
     scope,
     enableTailwind,
     remotes,
     releaseCohort,
+    additionalShells,
   );
 
   return renderFileTemplate(
@@ -199,6 +201,7 @@ export function writeGeneratedWorkspaceScripts(
   enableTailwind: boolean,
   remotes: WorkspaceApp[] = [],
   releaseCohort?: UltramodernReleaseCohort,
+  additionalShells: WorkspaceApp[] = [],
 ) {
   const shellOnly = remotes.length === 0;
 
@@ -233,6 +236,7 @@ export function writeGeneratedWorkspaceScripts(
       enableTailwind,
       remotes,
       releaseCohort,
+      additionalShells,
     ),
   );
   writeWorkspaceOwnedMtsScript(

@@ -251,9 +251,34 @@ export type AddUltramodernVerticalOptions = {
    * a MicroVertical. Implies a UI-only surface set with no API.
    */
   horizontalRemote?: boolean;
+  /**
+   * Target shell id that should compose the new MicroVertical (G28). Defaults
+   * to the primary shell (`shell-super-app`) — the default keeps legacy
+   * single-shell behaviour byte-identical. An explicit id targets an additional
+   * shell; targeting an unknown shell is rejected in preflight.
+   */
+  shell?: string;
 };
 
-export type UltramodernGenerationOperation = 'workspace' | 'vertical';
+/**
+ * Options for adding an additional thin shell to an existing workspace (G28).
+ * The new shell is its own Delivery Unit that composes a chosen subset of the
+ * workspace's existing verticals.
+ */
+export type AddUltramodernShellOptions = {
+  workspaceRoot: string;
+  name: string;
+  modernVersion: string;
+  /**
+   * Ids of existing verticals the new shell should compose. Defaults to every
+   * vertical currently in the workspace.
+   */
+  verticals?: string[];
+  enableTailwind?: boolean;
+  packageSource?: UltramodernWorkspaceOptions['packageSource'];
+};
+
+export type UltramodernGenerationOperation = 'workspace' | 'vertical' | 'shell';
 
 /**
  * Stable public descriptor for an app created by the UltraModern generator.

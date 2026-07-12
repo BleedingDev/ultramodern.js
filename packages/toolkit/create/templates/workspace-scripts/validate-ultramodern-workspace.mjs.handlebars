@@ -1976,10 +1976,16 @@ const assertTsConfigReferenceGraph = () => {
   const shellMfTypesTsConfig = readJson(
     'apps/shell-super-app/tsconfig.mf-types.json',
   );
+  const additionalShellPaths = (
+    workspaceValidationContract.structuralShellPolicy?.shells ?? []
+  )
+    .filter(shell => shell.id !== 'shell-super-app')
+    .map(shell => shell.packageDir);
   const expectedRootReferences = [
     ...sharedPackagePaths,
     'apps/shell-super-app',
     ...fullStackVerticals.map(vertical => vertical.path),
+    ...additionalShellPaths,
   ].map(referencePath => ({ path: referencePath }));
   const expectedShellReferences = [
     ...sharedPackagePaths,
@@ -2118,10 +2124,22 @@ const assertModernPackageCohort = () => {
   const modernPackageNameSet = new Set(modernPackageNames);
   const observedModernPackageNames = new Set();
   const observedAppIds = [];
+  // Additional shells (G28) are their own Delivery Units registered in the
+  // additive `config.shells` collection and gated by the structural thin-shell
+  // policy; they are deliberately kept out of the strict topology.apps cohort,
+  // so their package manifests are excluded from the app-id cohort walk here.
+  const additionalShellAppIds = new Set(
+    (workspaceValidationContract.structuralShellPolicy?.shells ?? [])
+      .map(shell => shell.id)
+      .filter(id => id !== 'shell-super-app'),
+  );
   for (const packageJsonPath of packageJsonFiles(root)) {
     const relativePath = path.relative(root, packageJsonPath).split(path.sep).join('/');
     const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
-    if (typeof packageJson.modernjs?.appId === 'string') {
+    if (
+      typeof packageJson.modernjs?.appId === 'string' &&
+      !additionalShellAppIds.has(packageJson.modernjs.appId)
+    ) {
       observedAppIds.push(packageJson.modernjs.appId);
     }
     for (const packageName of modernDependencyNames(packageJson)) {

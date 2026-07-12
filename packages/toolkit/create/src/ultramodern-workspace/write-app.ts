@@ -72,7 +72,14 @@ export function writeApp(
   remotes: WorkspaceApp[] = [],
   bridge?: UltramodernBridgeConfig,
 ) {
-  const resolvedApp = app.kind === 'shell' ? createShellHost(remotes) : app;
+  // The primary shell derives its host identity (and merged verticalRefs) from
+  // createShellHost. Additional shells (G28) keep their own descriptor identity
+  // — id / directory / mfName / port / verticalRefs — so multiple shells never
+  // collapse onto the primary shell's identity.
+  const resolvedApp =
+    app.kind === 'shell' && app.id === createShellHost(remotes).id
+      ? createShellHost(remotes)
+      : app;
   const emitsUi = appEmitsBrowserUi(resolvedApp);
   // A headless (api-only) unit never emits Tailwind CSS (G2a).
   const appTailwind = enableTailwind && emitsUi;
