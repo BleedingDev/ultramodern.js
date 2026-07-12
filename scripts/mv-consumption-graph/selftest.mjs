@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { detectUnitCycles } from './cycles.mjs';
 import { extractObservedGraph } from './extract.mjs';
 import { checkIsolation } from './isolation.mjs';
+import { extractFromFile } from './lib/grammars.mjs';
 import { buildDualReport } from './report.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -62,6 +63,56 @@ test('extract: dynamic-consumption warning for consumeSurface(non-literal ref)',
     g.edges.some(e => /G4-consume-surface/.test(e.grammar)),
     'literal consumeSurface still produces an edge',
   );
+});
+
+test('extract: consumeSurface classifies every bounded argument exactly once', () => {
+  const ws = {
+    scope: 'fx',
+    suffixToUnit: new Map(),
+    aliasToUnit: new Map(),
+    unitByCanonical: new Map([['fx/alpha', 'alpha']]),
+  };
+  const cases = [
+    [
+      'formatter-multiline literal',
+      `consumeSurface(
+        {
+          ref:
+            'fx/alpha#Cart@v2',
+          degraded: () => null,
+        },
+      );`,
+      true,
+    ],
+    ['spread argument', 'consumeSurface(...args);', false],
+    ['object-shorthand argument', 'consumeSurface({ ref });', false],
+    [
+      'template interpolation',
+      ['consumeSurface({ ref: `fx/alpha#Cart', '$', '{suffix}` });'].join(''),
+      false,
+    ],
+    ['plain literal', "consumeSurface({ ref: 'fx/alpha#Cart' });", true],
+  ];
+
+  for (const [name, code, isLiteral] of cases) {
+    const edges = [];
+    const warnings = [];
+    extractFromFile({
+      ws,
+      consumer: 'shell',
+      rel: `${name}.tsx`,
+      code,
+      emit: (...edge) => edges.push(edge),
+      warn: warning => warnings.push(warning),
+    });
+    assert.equal(
+      edges.length + warnings.length,
+      1,
+      `${name} must have exactly one classification`,
+    );
+    assert.equal(edges.length, isLiteral ? 1 : 0, `${name} edge count`);
+    assert.equal(warnings.length, isLiteral ? 0 : 1, `${name} warning count`);
+  }
 });
 
 test('cycles: synthetic alpha<->beta cycle detected', () => {
