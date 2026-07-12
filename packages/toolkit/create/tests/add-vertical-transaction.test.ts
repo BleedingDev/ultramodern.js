@@ -138,7 +138,7 @@ test('add-vertical rolls back byte-identical when a mid-set write fails (G1c)', 
 /* Exclusive mutation lock (G1c concurrency)                                   */
 /* -------------------------------------------------------------------------- */
 
-test('a second mutation is rejected while the first holds the lock (G1c)', () => {
+test('a second mutation is rejected while the first holds a fresh lock (G1c)', () => {
   const { tempRoot, workspaceDir } = scaffoldWorkspace();
   try {
     let observed: unknown;
@@ -147,7 +147,9 @@ test('a second mutation is rejected while the first holds the lock (G1c)', () =>
     runWorkspaceTransaction(workspaceDir, () => {
       assert.ok(fs.existsSync(lockPath(workspaceDir)), 'lock is held');
       try {
-        runWorkspaceTransaction(workspaceDir, () => 'should not run');
+        runWorkspaceTransaction(workspaceDir, () => 'should not run', {
+          staleLockMs: 60_000,
+        });
       } catch (error) {
         observed = error;
       }
@@ -176,16 +178,50 @@ test('a stale lock is taken over (G1c)', () => {
     fs.mkdirSync(path.dirname(lockPath(workspaceDir)), { recursive: true });
     fs.writeFileSync(
       lockPath(workspaceDir),
-      JSON.stringify({ pid: 999999, timestamp: 0 }),
+      JSON.stringify({ token: 'stale-token', pid: 999999, createdAt: 0 }),
     );
 
-    const result = runWorkspaceTransaction(workspaceDir, () => 'ran', {
-      staleLockMs: 1,
-    });
+    let acquiredToken: string | undefined;
+    const result = runWorkspaceTransaction(
+      workspaceDir,
+      () => {
+        acquiredToken = JSON.parse(
+          fs.readFileSync(lockPath(workspaceDir), 'utf-8'),
+        ).token;
+        return 'ran';
+      },
+      { staleLockMs: 1 },
+    );
     assert.equal(result, 'ran', 'transaction runs after stale-lock takeover');
+    assert.notEqual(acquiredToken, 'stale-token', 'takeover gets a new token');
+    assert.match(acquiredToken ?? '', /^[0-9a-f-]{36}$/u);
     assert.ok(
       !fs.existsSync(lockPath(workspaceDir)),
       'lock released after takeover',
+    );
+  } finally {
+    fs.rmSync(tempRoot, { force: true, recursive: true });
+  }
+});
+
+test('release leaves a successor lock when its ownership token changed (G1c)', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-add-txn-'));
+  const workspaceDir = path.join(tempRoot, 'successor-workspace');
+  fs.mkdirSync(workspaceDir, { recursive: true });
+  try {
+    const successor = {
+      token: 'successor-token',
+      pid: process.pid + 1,
+      createdAt: Date.now(),
+    };
+    runWorkspaceTransaction(workspaceDir, () => {
+      fs.writeFileSync(lockPath(workspaceDir), JSON.stringify(successor));
+    });
+
+    assert.deepEqual(
+      JSON.parse(fs.readFileSync(lockPath(workspaceDir), 'utf-8')),
+      successor,
+      'a transaction must not release a successor-owned lock',
     );
   } finally {
     fs.rmSync(tempRoot, { force: true, recursive: true });

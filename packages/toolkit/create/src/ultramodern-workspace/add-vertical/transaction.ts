@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { ignoredSnapshotDirectories } from '../generation-result';
@@ -127,34 +128,56 @@ export class WorkspaceLockedError extends Error {
   }
 }
 
-type LockHandle = { lockPath: string };
+type LockRecord = {
+  token: string;
+  pid: number;
+  createdAt: number;
+};
+
+type LockHandle = { lockPath: string; token: string };
+
+const MAX_LOCK_ACQUIRE_ATTEMPTS = 4;
 
 function lockFilePath(root: string): string {
   return path.join(root, ULTRAMODERN_LOCK_DIRECTORY, ULTRAMODERN_LOCK_FILE);
 }
 
-/** Age of the lock at `lockPath` in ms, or `undefined` if it can't be read. */
-function lockAgeMs(lockPath: string): number | undefined {
+/** Read a well-formed lock record, or `undefined` for a stale/malformed file. */
+function readLock(lockPath: string): LockRecord | undefined {
   try {
-    const parsed = JSON.parse(fs.readFileSync(lockPath, 'utf-8')) as {
-      timestamp?: unknown;
-    };
-    if (typeof parsed.timestamp !== 'number') {
+    const parsed: unknown = JSON.parse(fs.readFileSync(lockPath, 'utf-8'));
+    if (parsed === null || typeof parsed !== 'object') {
       return undefined;
     }
-    return Date.now() - parsed.timestamp;
+    const record = parsed as Record<string, unknown>;
+    if (
+      typeof record.token !== 'string' ||
+      typeof record.pid !== 'number' ||
+      !Number.isFinite(record.pid) ||
+      typeof record.createdAt !== 'number' ||
+      !Number.isFinite(record.createdAt)
+    ) {
+      return undefined;
+    }
+    return {
+      token: record.token,
+      pid: record.pid,
+      createdAt: record.createdAt,
+    };
   } catch {
     return undefined;
   }
 }
 
-function writeLock(lockPath: string): boolean {
-  const payload = JSON.stringify({
-    pid: process.pid,
-    timestamp: Date.now(),
-  });
+/** Age of the lock at `lockPath` in ms, or `undefined` if it can't be read. */
+function lockAgeMs(lockPath: string): number | undefined {
+  const record = readLock(lockPath);
+  return record === undefined ? undefined : Date.now() - record.createdAt;
+}
+
+function writeLock(lockPath: string, record: LockRecord): boolean {
   try {
-    fs.writeFileSync(lockPath, payload, { flag: 'wx' });
+    fs.writeFileSync(lockPath, JSON.stringify(record), { flag: 'wx' });
     return true;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
@@ -175,20 +198,35 @@ function acquireWorkspaceLock(root: string, staleLockMs: number): LockHandle {
   const lockPath = lockFilePath(root);
   fs.mkdirSync(path.dirname(lockPath), { recursive: true });
 
-  if (writeLock(lockPath)) {
-    return { lockPath };
-  }
-
-  const age = lockAgeMs(lockPath);
-  if (age === undefined || age > staleLockMs) {
-    process.emitWarning(
-      `Taking over stale ultramodern workspace lock at ${lockPath} ` +
-        `(age ${age ?? 'unknown'}ms).`,
-    );
-    fs.rmSync(lockPath, { force: true });
-    if (writeLock(lockPath)) {
-      return { lockPath };
+  for (let attempt = 0; attempt < MAX_LOCK_ACQUIRE_ATTEMPTS; attempt += 1) {
+    const record: LockRecord = {
+      token: randomUUID(),
+      pid: process.pid,
+      createdAt: Date.now(),
+    };
+    if (writeLock(lockPath, record)) {
+      return { lockPath, token: record.token };
     }
+
+    const age = lockAgeMs(lockPath);
+    if (age === undefined || age > staleLockMs) {
+      process.emitWarning(
+        `Taking over stale ultramodern workspace lock at ${lockPath} ` +
+          `(age ${age ?? 'unknown'}ms).`,
+      );
+      try {
+        fs.unlinkSync(lockPath);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+          throw error;
+        }
+      }
+      continue;
+    }
+
+    throw new WorkspaceLockedError(
+      `Workspace at ${root} is locked by another ultramodern mutation.`,
+    );
   }
 
   throw new WorkspaceLockedError(
@@ -197,6 +235,10 @@ function acquireWorkspaceLock(root: string, staleLockMs: number): LockHandle {
 }
 
 function releaseWorkspaceLock(handle: LockHandle): void {
+  const record = readLock(handle.lockPath);
+  if (record?.token !== handle.token) {
+    return;
+  }
   try {
     fs.rmSync(handle.lockPath, { force: true });
   } catch {
