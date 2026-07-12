@@ -231,37 +231,46 @@ const npmPurl = item => {
   return `pkg:npm/%40${scope}/${name}@${item.version}`;
 };
 
-const provenanceStatement = item => ({
-  _type: inTotoStatementV1,
-  predicateType: slsaProvenanceV1,
-  subject: [
-    {
-      name: npmPurl(item),
-      digest: {
-        sha512: Buffer.from(
-          item.integrity.slice('sha512-'.length),
-          'base64',
-        ).toString('hex'),
-      },
-    },
-  ],
-  predicate: {
-    buildDefinition: {
-      buildType: githubActionsBuildType,
-      externalParameters: {
-        workflow: structuredClone(trustedWorkflow),
-      },
-      resolvedDependencies: [
-        {
-          uri: `git+https://github.com/BleedingDev/ultramodern.js@${trustedWorkflow.ref}`,
-          digest: {
-            gitCommit: releaseSource.commit,
-          },
+const provenanceStatement = (
+  item,
+  { invocationId, sourceCommit = releaseSource.commit } = {},
+) => {
+  const statement = {
+    _type: inTotoStatementV1,
+    predicateType: slsaProvenanceV1,
+    subject: [
+      {
+        name: npmPurl(item),
+        digest: {
+          sha512: Buffer.from(
+            item.integrity.slice('sha512-'.length),
+            'base64',
+          ).toString('hex'),
         },
-      ],
+      },
+    ],
+    predicate: {
+      buildDefinition: {
+        buildType: githubActionsBuildType,
+        externalParameters: {
+          workflow: structuredClone(trustedWorkflow),
+        },
+        resolvedDependencies: [
+          {
+            uri: `git+https://github.com/BleedingDev/ultramodern.js@${trustedWorkflow.ref}`,
+            digest: {
+              gitCommit: sourceCommit,
+            },
+          },
+        ],
+      },
     },
-  },
-});
+  };
+  if (invocationId !== undefined) {
+    statement.predicate.runDetails = { metadata: { invocationId } };
+  }
+  return statement;
+};
 
 const provenanceDocument = statement => ({
   attestations: [
@@ -314,6 +323,113 @@ const registryDistFor = item => ({
   integrity: item.integrity,
   shasum: item.shasum,
   tarball: registryTarballUrl(item),
+});
+
+const ledgerPackageName = '@bleedingdev/modern-js-create';
+const ledgerGrandfatheredVersion = Object.freeze({
+  integrity:
+    'sha512-+ZyvnxrZouvlF5yqdw6rbtEB/+X8GJJLrBNzKVZhN7aSjYbBI1nVgugRE0IogCNtyQzibOfakbeWNKwKtEI62Q==',
+  provenance: false,
+  publishedAt: '2026-05-16T14:50:19.166Z',
+  version: '3.2.0-ultramodern.0',
+});
+const ledgerCutoverAnchor = Object.freeze({
+  integrity:
+    'sha512-fK3mRQR/eyTRdgvuRb+Scg8lWS2ijqhAPy/d97SoRJ+12yFZHD/e4JWTQZcm9zxkOJn0kp4BJypVjwtlI63L6Q==',
+  publishedAt: '2026-05-16T21:22:57.171Z',
+  sourceCommit: '846d489312f17f48c5bfbf88d1d16164ffd6f465',
+  version: '3.2.0-ultramodern.1',
+});
+const knownRegistryHistory = Object.freeze([
+  ledgerGrandfatheredVersion,
+  ledgerCutoverAnchor,
+]);
+const registryMetadataUrl = packageName =>
+  `https://registry.npmjs.org/${encodeURIComponent(packageName)}`;
+const registryAttestationsUrl = (packageName, version) => {
+  const encodedName = encodeURIComponent(packageName)
+    .replace(/^%40/u, '@')
+    .replace(/%2F/giu, '%2f');
+  return `https://registry.npmjs.org/-/npm/v1/attestations/${encodedName}@${encodeURIComponent(
+    version,
+  )}`;
+};
+
+const createRegistryLedger = entries => {
+  const chronologicalEntries = [...entries].sort(
+    (left, right) =>
+      Date.parse(left.publishedAt) - Date.parse(right.publishedAt),
+  );
+  const metadata = {
+    name: ledgerPackageName,
+    time: {
+      created: chronologicalEntries[0].publishedAt,
+      modified: chronologicalEntries.at(-1).publishedAt,
+    },
+    versions: {},
+  };
+  const documents = new Map();
+  for (const entry of entries) {
+    const item = {
+      integrity:
+        entry.integrity ??
+        `sha512-${crypto
+          .createHash('sha512')
+          .update(`${ledgerPackageName}@${entry.version}`)
+          .digest('base64')}`,
+      targetName: ledgerPackageName,
+      version: entry.version,
+    };
+    const dist = { integrity: item.integrity };
+    if (entry.provenance !== false) {
+      dist.attestations = {
+        provenance: { predicateType: slsaProvenanceV1 },
+        url:
+          entry.attestationsUrl ??
+          registryAttestationsUrl(ledgerPackageName, entry.version),
+      };
+      documents.set(
+        registryAttestationsUrl(ledgerPackageName, entry.version),
+        provenanceDocument(
+          provenanceStatement(item, {
+            invocationId: entry.invocationId,
+            sourceCommit: entry.sourceCommit,
+          }),
+        ),
+      );
+    }
+    metadata.time[entry.version] = entry.publishedAt;
+    metadata.versions[entry.version] = {
+      dist,
+      name: ledgerPackageName,
+      version: entry.version,
+    };
+  }
+  return { documents, metadata };
+};
+
+const createRegistryLedgerFetch = (ledger, calls) => async (url, options) => {
+  calls.push({ options, url });
+  if (url === registryMetadataUrl(ledgerPackageName)) {
+    return provenanceResponse(ledger.metadata);
+  }
+  const document = ledger.documents.get(url);
+  return document
+    ? provenanceResponse(document)
+    : { ok: false, status: 404, json: async () => ({}) };
+};
+
+const registryLedgerRequest = ({ env, ...overrides } = {}) => ({
+  env: {
+    GITHUB_REF: trustedWorkflow.ref,
+    GITHUB_REPOSITORY: releaseSource.repository,
+    ...env,
+  },
+  packageName: ledgerPackageName,
+  requestedVersion: '9.0.0-ultramodern.1',
+  sourceCommit: releaseSource.commit,
+  sourceRepository: releaseSource.repository,
+  ...overrides,
 });
 
 const tarballResponse = bytes => ({
@@ -753,6 +869,7 @@ test('verifyRegistryProvenance validates npm DSSE SLSA subject bytes and trusted
     );
 
     assert.equal(result.subject, npmPurl(artifact));
+    assert.equal(result.sourceCommit, releaseSource.commit);
     assert.equal(
       result.subjectSha512,
       provenanceStatement(artifact).subject[0].digest.sha512,
@@ -853,25 +970,27 @@ test('verifyRegistryProvenance rejects missing, malformed, or mismatched npm pro
         }),
       /dist\.attestations/,
     );
-    await assert.rejects(
-      () =>
-        verifyRegistryProvenance(
-          artifact,
-          {
-            ...structuredClone(provenanceDist),
-            attestations: {
-              ...structuredClone(provenanceDist.attestations),
-              url: 'https://evil.example/-/npm/v1/attestations/package@version',
-            },
-          },
-          expectation,
-          async () => {
-            throw new Error('must not fetch an unpinned endpoint');
-          },
-          acceptSigstoreBundle,
-        ),
-      /not the pinned npm endpoint/,
+    const ignoredUrlFetches = [];
+    await verifyRegistryProvenance(
+      artifact,
+      {
+        ...structuredClone(provenanceDist),
+        attestations: {
+          ...structuredClone(provenanceDist.attestations),
+          url: 'https://evil.example/-/npm/v1/attestations/package@version',
+        },
+      },
+      expectation,
+      async (url, options) => {
+        ignoredUrlFetches.push({ options, url });
+        return provenanceResponse(
+          provenanceDocument(provenanceStatement(artifact)),
+        );
+      },
+      acceptSigstoreBundle,
     );
+    assert.equal(ignoredUrlFetches.length, 1);
+    assert.equal(ignoredUrlFetches[0].url, provenanceDist.attestations.url);
     await rejectsProvenance(
       {
         mutateDocument(document) {
@@ -1021,6 +1140,10 @@ test('Sigstore verification pins Fulcio identity, source OIDs, CT log, and Rekor
   );
   const expectation = createRegistryProvenanceExpectation(
     fixture.releaseArtifacts.manifest,
+    {
+      GITHUB_REF: trustedWorkflow.ref,
+      GITHUB_REPOSITORY: 'BleedingDev/ultramodern.js',
+    },
   );
   const bundle = provenanceDocument(provenanceStatement(artifact))
     .attestations[0].bundle;
@@ -1097,6 +1220,396 @@ test('Sigstore verification pins Fulcio identity, source OIDs, CT log, and Rekor
   } finally {
     removeDir(fixture.root);
   }
+});
+
+test('registry source ledger accepts known history and grandfathers only independently authorized versions', async () => {
+  const { assertRegistrySourceCommitUnpublished } = await import(
+    '../prepare-bleedingdev-packages.mjs'
+  );
+  const ledger = createRegistryLedger([
+    {
+      attestationsUrl: 'https://evil.example/untrusted-attestation',
+      publishedAt: '2026-05-17T00:00:00.000Z',
+      sourceCommit: 'c'.repeat(40),
+      version: '3.2.0-ultramodern.2',
+    },
+    ...knownRegistryHistory,
+  ]);
+  const calls = [];
+  const authenticatedCommits = [];
+
+  const result = await assertRegistrySourceCommitUnpublished(
+    registryLedgerRequest(),
+    {
+      bundleVerifier: async (_bundle, expectation) => {
+        authenticatedCommits.push(expectation.source.commit);
+        return sigstoreVerificationResult(expectation);
+      },
+      fetchImpl: createRegistryLedgerFetch(ledger, calls),
+    },
+  );
+
+  assert.deepEqual(result, {
+    cutover: {
+      publishedAt: ledgerCutoverAnchor.publishedAt,
+      version: ledgerCutoverAnchor.version,
+    },
+    exactVersionAuthenticated: false,
+    grandfatheredCount: 1,
+    inspectedCount: 2,
+    packageName: ledgerPackageName,
+    requestedVersion: '9.0.0-ultramodern.1',
+    sourceCommit: releaseSource.commit,
+    versionCount: 3,
+  });
+  assert.deepEqual(authenticatedCommits, [
+    ledgerCutoverAnchor.sourceCommit,
+    'c'.repeat(40),
+  ]);
+  assert.deepEqual(
+    calls.map(call => call.url),
+    [
+      registryMetadataUrl(ledgerPackageName),
+      registryAttestationsUrl(ledgerPackageName, ledgerCutoverAnchor.version),
+      registryAttestationsUrl(ledgerPackageName, '3.2.0-ultramodern.2'),
+    ],
+  );
+  for (const call of calls) {
+    assert.deepEqual(call.options, {
+      headers: { accept: 'application/json' },
+      method: 'GET',
+      redirect: 'error',
+    });
+  }
+});
+
+test('registry source ledger fails closed when all provenance declarations disappear', async () => {
+  const { assertRegistrySourceCommitUnpublished } = await import(
+    '../prepare-bleedingdev-packages.mjs'
+  );
+  const ledger = createRegistryLedger(knownRegistryHistory);
+  for (const published of Object.values(ledger.metadata.versions)) {
+    delete published.dist.attestations;
+  }
+  const calls = [];
+
+  await assert.rejects(
+    () =>
+      assertRegistrySourceCommitUnpublished(registryLedgerRequest(), {
+        bundleVerifier: acceptSigstoreBundle,
+        fetchImpl: createRegistryLedgerFetch(ledger, calls),
+      }),
+    /authenticated provenance cutover anchor is missing its SLSA v1 declaration/,
+  );
+  assert.deepEqual(
+    calls.map(call => call.url),
+    [registryMetadataUrl(ledgerPackageName)],
+  );
+});
+
+test('registry source ledger rejects a response that omits the independent cutover anchor', async () => {
+  const { assertRegistrySourceCommitUnpublished } = await import(
+    '../prepare-bleedingdev-packages.mjs'
+  );
+  const ledger = createRegistryLedger(knownRegistryHistory);
+  delete ledger.metadata.versions[ledgerCutoverAnchor.version];
+  delete ledger.metadata.time[ledgerCutoverAnchor.version];
+
+  await assert.rejects(
+    () =>
+      assertRegistrySourceCommitUnpublished(registryLedgerRequest(), {
+        bundleVerifier: acceptSigstoreBundle,
+        fetchImpl: createRegistryLedgerFetch(ledger, []),
+      }),
+    /registry chronology is missing independently maintained provenance cutover anchor 3\.2\.0-ultramodern\.1/,
+  );
+});
+
+test('registry source ledger requires exact versions and time chronology agreement', async () => {
+  const { assertRegistrySourceCommitUnpublished } = await import(
+    '../prepare-bleedingdev-packages.mjs'
+  );
+  const trailingVersion = {
+    publishedAt: '2026-05-17T00:00:00.000Z',
+    sourceCommit: 'c'.repeat(40),
+    version: '3.2.0-ultramodern.2',
+  };
+  const cases = [
+    {
+      mutate(metadata) {
+        delete metadata.time[trailingVersion.version];
+      },
+      pattern:
+        /versions missing from time \[3\.2\.0-ultramodern\.2\]; time versions missing from versions \[\]/,
+    },
+    {
+      mutate(metadata) {
+        delete metadata.versions[trailingVersion.version];
+      },
+      pattern:
+        /versions missing from time \[\]; time versions missing from versions \[3\.2\.0-ultramodern\.2\]/,
+    },
+  ];
+
+  for (const { mutate, pattern } of cases) {
+    const ledger = createRegistryLedger([
+      ...knownRegistryHistory,
+      trailingVersion,
+    ]);
+    mutate(ledger.metadata);
+    await assert.rejects(
+      () =>
+        assertRegistrySourceCommitUnpublished(registryLedgerRequest(), {
+          bundleVerifier: acceptSigstoreBundle,
+          fetchImpl: createRegistryLedgerFetch(ledger, []),
+        }),
+      pattern,
+    );
+  }
+});
+
+test('registry source ledger rejects invalid or ambiguous publication chronology', async () => {
+  const { assertRegistrySourceCommitUnpublished } = await import(
+    '../prepare-bleedingdev-packages.mjs'
+  );
+  const entries = [
+    ...knownRegistryHistory,
+    {
+      publishedAt: '2026-05-17T00:00:00.000Z',
+      sourceCommit: 'c'.repeat(40),
+      version: '3.2.0-ultramodern.2',
+    },
+  ];
+  const invalid = createRegistryLedger(entries);
+  invalid.metadata.time[ledgerGrandfatheredVersion.version] = 'not-a-timestamp';
+  await assert.rejects(
+    () =>
+      assertRegistrySourceCommitUnpublished(registryLedgerRequest(), {
+        bundleVerifier: acceptSigstoreBundle,
+        fetchImpl: createRegistryLedgerFetch(invalid, []),
+      }),
+    /canonical ISO-8601 timestamp/,
+  );
+
+  const ambiguous = createRegistryLedger(entries);
+  ambiguous.metadata.time['3.2.0-ultramodern.2'] =
+    ambiguous.metadata.time[ledgerCutoverAnchor.version];
+  await assert.rejects(
+    () =>
+      assertRegistrySourceCommitUnpublished(registryLedgerRequest(), {
+        bundleVerifier: acceptSigstoreBundle,
+        fetchImpl: createRegistryLedgerFetch(ambiguous, []),
+      }),
+    /version chronology is ambiguous/,
+  );
+});
+
+test('registry source ledger fails closed when provenance is missing after cutover', async () => {
+  const { assertRegistrySourceCommitUnpublished } = await import(
+    '../prepare-bleedingdev-packages.mjs'
+  );
+  const ledger = createRegistryLedger([
+    ...knownRegistryHistory,
+    {
+      provenance: false,
+      publishedAt: '2026-05-17T00:00:00.000Z',
+      version: '3.2.0-ultramodern.2',
+    },
+  ]);
+  const calls = [];
+
+  await assert.rejects(
+    () =>
+      assertRegistrySourceCommitUnpublished(registryLedgerRequest(), {
+        bundleVerifier: acceptSigstoreBundle,
+        fetchImpl: createRegistryLedgerFetch(ledger, calls),
+      }),
+    /3\.2\.0-ultramodern\.2 is missing SLSA v1 provenance after the 3\.2\.0-ultramodern\.1 cutover/,
+  );
+  assert.deepEqual(
+    calls.map(call => call.url),
+    [
+      registryMetadataUrl(ledgerPackageName),
+      registryAttestationsUrl(ledgerPackageName, ledgerCutoverAnchor.version),
+    ],
+  );
+});
+
+test('registry source ledger rejects a source commit authenticated under another version', async () => {
+  const { assertRegistrySourceCommitUnpublished } = await import(
+    '../prepare-bleedingdev-packages.mjs'
+  );
+  const ledger = createRegistryLedger([
+    ...knownRegistryHistory,
+    {
+      publishedAt: '2026-05-17T00:00:00.000Z',
+      sourceCommit: releaseSource.commit,
+      version: '3.2.0-ultramodern.2',
+    },
+  ]);
+
+  await assert.rejects(
+    () =>
+      assertRegistrySourceCommitUnpublished(registryLedgerRequest(), {
+        bundleVerifier: acceptSigstoreBundle,
+        fetchImpl: createRegistryLedgerFetch(ledger, []),
+      }),
+    new RegExp(
+      `Source commit ${releaseSource.commit} is already authenticated and published as @bleedingdev/modern-js-create@3\\.2\\.0-ultramodern\\.2`,
+      'u',
+    ),
+  );
+});
+
+test('registry source ledger fetches each pinned attestation once and rejects redirects', async () => {
+  const { assertRegistrySourceCommitUnpublished } = await import(
+    '../prepare-bleedingdev-packages.mjs'
+  );
+  const version = ledgerCutoverAnchor.version;
+  const ledger = createRegistryLedger([
+    ledgerGrandfatheredVersion,
+    {
+      ...ledgerCutoverAnchor,
+      attestationsUrl: 'https://evil.example/redirect-me',
+    },
+  ]);
+  const calls = [];
+  const fetchImpl = async (url, options) => {
+    calls.push({ options, url });
+    if (url === registryMetadataUrl(ledgerPackageName)) {
+      return provenanceResponse(ledger.metadata);
+    }
+    return { ok: false, status: 302, json: async () => ({}) };
+  };
+
+  await assert.rejects(
+    () =>
+      assertRegistrySourceCommitUnpublished(registryLedgerRequest(), {
+        bundleVerifier: acceptSigstoreBundle,
+        fetchImpl,
+      }),
+    /registry provenance returned HTTP 302/,
+  );
+  assert.deepEqual(
+    calls.map(call => call.url),
+    [
+      registryMetadataUrl(ledgerPackageName),
+      registryAttestationsUrl(ledgerPackageName, version),
+    ],
+  );
+  assert.equal(
+    calls.filter(
+      call => call.url === registryAttestationsUrl(ledgerPackageName, version),
+    ).length,
+    1,
+  );
+  for (const call of calls) {
+    assert.equal(call.options.redirect, 'error');
+  }
+});
+
+test('registry source ledger accepts an exact-version retry from an older attempt in the same run', async () => {
+  const { assertRegistrySourceCommitUnpublished } = await import(
+    '../prepare-bleedingdev-packages.mjs'
+  );
+  const requestedVersion = '3.2.0-ultramodern.2';
+  const ledger = createRegistryLedger([
+    ...knownRegistryHistory,
+    {
+      invocationId:
+        'https://github.com/BleedingDev/ultramodern.js/actions/runs/123/attempts/1',
+      publishedAt: '2026-05-17T00:00:00.000Z',
+      sourceCommit: releaseSource.commit,
+      version: requestedVersion,
+    },
+  ]);
+
+  const result = await assertRegistrySourceCommitUnpublished(
+    registryLedgerRequest({
+      env: { GITHUB_RUN_ATTEMPT: '2', GITHUB_RUN_ID: '123' },
+      requestedVersion,
+    }),
+    {
+      bundleVerifier: acceptSigstoreBundle,
+      fetchImpl: createRegistryLedgerFetch(ledger, []),
+    },
+  );
+
+  assert.equal(result.exactVersionAuthenticated, true);
+  assert.equal(result.inspectedCount, 2);
+  assert.deepEqual(result.cutover, {
+    publishedAt: ledgerCutoverAnchor.publishedAt,
+    version: ledgerCutoverAnchor.version,
+  });
+});
+
+test('registry source ledger rejects cross-run, future-attempt, and malformed exact-version provenance', async () => {
+  const { assertRegistrySourceCommitUnpublished } = await import(
+    '../prepare-bleedingdev-packages.mjs'
+  );
+  const requestedVersion = '3.2.0-ultramodern.2';
+  const cases = [
+    {
+      invocationId:
+        'https://github.com/BleedingDev/ultramodern.js/actions/runs/999/attempts/1',
+      pattern: /belongs to workflow run 999, expected 123/,
+    },
+    {
+      invocationId:
+        'https://github.com/BleedingDev/ultramodern.js/actions/runs/123/attempts/3',
+      pattern: /attempt 3 is newer than current run attempt 2/,
+    },
+    {
+      invocationId: 'not-a-github-invocation',
+      pattern: /invocationId must be a GitHub Actions invocation URL/,
+    },
+    {
+      invocationId:
+        'https://github.com/Other/repository/actions/runs/123/attempts/1',
+      pattern:
+        /invocation repository Other\/repository does not match trusted repository/,
+    },
+  ];
+
+  for (const { invocationId, pattern } of cases) {
+    const ledger = createRegistryLedger([
+      ...knownRegistryHistory,
+      {
+        invocationId,
+        publishedAt: '2026-05-17T00:00:00.000Z',
+        sourceCommit: releaseSource.commit,
+        version: requestedVersion,
+      },
+    ]);
+    await assert.rejects(
+      () =>
+        assertRegistrySourceCommitUnpublished(
+          registryLedgerRequest({
+            env: { GITHUB_RUN_ATTEMPT: '2', GITHUB_RUN_ID: '123' },
+            requestedVersion,
+          }),
+          {
+            bundleVerifier: acceptSigstoreBundle,
+            fetchImpl: createRegistryLedgerFetch(ledger, []),
+          },
+        ),
+      pattern,
+    );
+  }
+
+  await assert.rejects(
+    () =>
+      assertRegistrySourceCommitUnpublished(
+        registryLedgerRequest({ env: { GITHUB_RUN_ID: '123' } }),
+        {
+          bundleVerifier: acceptSigstoreBundle,
+          fetchImpl: async () => {
+            throw new Error('must reject incomplete invocation before fetch');
+          },
+        },
+      ),
+    /GITHUB_RUN_ID and GITHUB_RUN_ATTEMPT must be supplied together/,
+  );
 });
 
 test('validateRegistryCohort accepts a coherent latest-tagged full cohort', async () => {
@@ -2236,6 +2749,10 @@ test('existing-version reuse rejects metadata, body, provenance, and registry un
   const artifact = fixture.releaseArtifacts.packages[0];
   const expectation = createRegistryProvenanceExpectation(
     fixture.releaseArtifacts.manifest,
+    {
+      GITHUB_REF: trustedWorkflow.ref,
+      GITHUB_REPOSITORY: 'BleedingDev/ultramodern.js',
+    },
   );
   const publishError = new Error('npm publish failed with E403');
   publishError.stderr = 'npm error code E403';

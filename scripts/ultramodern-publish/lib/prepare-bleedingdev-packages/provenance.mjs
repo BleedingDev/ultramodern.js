@@ -147,7 +147,61 @@ function trustedCertificateIdentity(repository, workflowPath, ref) {
   return `https://github.com/${repository}/${workflowPath}@${ref}`;
 }
 
-function assertProvenanceExpectation(expectation) {
+function assertCanonicalPositiveDecimal(value, label) {
+  assertNonEmptyString(value, label);
+  if (!/^[1-9][0-9]*$/u.test(value)) {
+    throw new Error(`${label} must be a canonical positive decimal integer`);
+  }
+  return value;
+}
+
+function parseGithubInvocationId(value, label) {
+  assertNonEmptyString(value, label);
+  let url;
+  try {
+    url = new URL(value);
+  } catch (error) {
+    throw new Error(`${label} must be a GitHub Actions invocation URL`, {
+      cause: error,
+    });
+  }
+  const segments = url.pathname.split('/');
+  if (
+    url.origin !== 'https://github.com' ||
+    url.username !== '' ||
+    url.password !== '' ||
+    url.port !== '' ||
+    url.search !== '' ||
+    url.hash !== '' ||
+    segments.length !== 8 ||
+    segments[0] !== '' ||
+    segments[3] !== 'actions' ||
+    segments[4] !== 'runs' ||
+    segments[6] !== 'attempts'
+  ) {
+    throw new Error(`${label} must be a canonical GitHub Actions invocation URL`);
+  }
+  if (segments.slice(1).some(segment => segment.includes('%'))) {
+    throw new Error(`${label} must not contain encoded path segments`);
+  }
+  const repository = normalizedRepository(
+    `https://github.com/${segments[1]}/${segments[2]}`,
+    `${label} repository`,
+  );
+  return {
+    attempt: assertCanonicalPositiveDecimal(
+      segments[7],
+      `${label} attempt`,
+    ),
+    repository,
+    runId: assertCanonicalPositiveDecimal(segments[5], `${label} run ID`),
+  };
+}
+
+function assertProvenanceExpectation(
+  expectation,
+  { allowMissingSourceCommit = false } = {},
+) {
   assertPlainObject(expectation, 'Registry provenance expectation');
   assertPlainObject(
     expectation.source,
@@ -170,7 +224,15 @@ function assertProvenanceExpectation(expectation) {
       'Registry provenance source and workflow repositories must match',
     );
   }
-  if (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(expectation.source.commit)) {
+  if (
+    expectation.source.commit === undefined &&
+    allowMissingSourceCommit
+  ) {
+    // The source commit is discovered from the signed statement and then
+    // rebound into Fulcio OID verification before evidence is accepted.
+  } else if (
+    !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(expectation.source.commit)
+  ) {
     throw new Error(
       'Registry provenance expected source commit must be a full Git object ID',
     );
@@ -201,24 +263,42 @@ function assertProvenanceExpectation(expectation) {
       `Registry provenance certificate identity must be ${expectedIdentity}`,
     );
   }
+  if (expectation.invocation !== undefined) {
+    assertPlainObject(
+      expectation.invocation,
+      'Registry provenance invocation expectation',
+    );
+    const invocationRepository = normalizedRepository(
+      expectation.invocation.repository,
+      'Registry provenance expected invocation repository',
+    );
+    if (!repositoriesMatch(invocationRepository, workflowRepository)) {
+      throw new Error(
+        'Registry provenance invocation and workflow repositories must match',
+      );
+    }
+    assertCanonicalPositiveDecimal(
+      expectation.invocation.runId,
+      'Registry provenance expected invocation run ID',
+    );
+    assertCanonicalPositiveDecimal(
+      expectation.invocation.runAttempt,
+      'Registry provenance expected invocation run attempt',
+    );
+  }
   return { sourceRepository, workflowRepository };
 }
 
-function assertSourceBinding(statement, expectation, packageLabel) {
-  const { sourceRepository, workflowRepository } =
-    assertProvenanceExpectation(expectation);
+function sourceBindingCandidate(statement, expectation, packageLabel) {
+  const { sourceRepository } = assertProvenanceExpectation(expectation, {
+    allowMissingSourceCommit: true,
+  });
   assertPlainObject(statement.predicate, `${packageLabel} SLSA predicate`);
   const buildDefinition = statement.predicate.buildDefinition;
   assertPlainObject(
     buildDefinition,
     `${packageLabel} SLSA predicate.buildDefinition`,
   );
-  if (buildDefinition.buildType !== githubActionsBuildType) {
-    throw new Error(
-      `${packageLabel} SLSA buildType must be ${githubActionsBuildType}`,
-    );
-  }
-
   const dependencies = buildDefinition.resolvedDependencies;
   if (!Array.isArray(dependencies) || dependencies.length === 0) {
     throw new Error(
@@ -260,7 +340,62 @@ function assertSourceBinding(statement, expectation, packageLabel) {
       `${packageLabel} SLSA source gitCommit must be a full Git object ID`,
     );
   }
-  if (actualCommit.toLowerCase() !== expectation.source.commit) {
+  return {
+    actualCommit,
+    buildDefinition,
+    reference,
+    sourceCommit: actualCommit.toLowerCase(),
+  };
+}
+
+function assertInvocationBinding(statement, expectation, packageLabel) {
+  if (expectation.invocation === undefined) {
+    return;
+  }
+  const runDetails = statement.predicate.runDetails;
+  assertPlainObject(runDetails, `${packageLabel} SLSA predicate.runDetails`);
+  assertPlainObject(
+    runDetails.metadata,
+    `${packageLabel} SLSA runDetails.metadata`,
+  );
+  const invocation = parseGithubInvocationId(
+    runDetails.metadata.invocationId,
+    `${packageLabel} SLSA runDetails.metadata.invocationId`,
+  );
+  if (
+    !repositoriesMatch(
+      invocation.repository,
+      expectation.invocation.repository,
+    )
+  ) {
+    throw new Error(
+      `${packageLabel} SLSA invocation repository ${invocation.repository} does not match trusted repository ${expectation.invocation.repository}`,
+    );
+  }
+  if (invocation.runId !== expectation.invocation.runId) {
+    throw new Error(
+      `${packageLabel} SLSA invocation belongs to workflow run ${invocation.runId}, expected ${expectation.invocation.runId}`,
+    );
+  }
+  if (
+    BigInt(invocation.attempt) > BigInt(expectation.invocation.runAttempt)
+  ) {
+    throw new Error(
+      `${packageLabel} SLSA invocation attempt ${invocation.attempt} is newer than current run attempt ${expectation.invocation.runAttempt}`,
+    );
+  }
+}
+
+function assertSourceBinding(statement, expectation, packageLabel) {
+  const { workflowRepository } = assertProvenanceExpectation(expectation);
+  const { actualCommit, buildDefinition, reference, sourceCommit } =
+    sourceBindingCandidate(statement, expectation, packageLabel);
+  if (buildDefinition.buildType !== githubActionsBuildType) {
+    throw new Error(
+      `${packageLabel} SLSA buildType must be ${githubActionsBuildType}`,
+    );
+  }
+  if (sourceCommit !== expectation.source.commit) {
     throw new Error(
       `${packageLabel} SLSA source commit ${actualCommit} does not match accepted commit ${expectation.source.commit}`,
     );
@@ -303,6 +438,8 @@ function assertSourceBinding(statement, expectation, packageLabel) {
       `${packageLabel} SLSA workflow ref ${workflow.ref} does not match trusted ref ${expectation.workflow.ref}`,
     );
   }
+  assertInvocationBinding(statement, expectation, packageLabel);
+  return sourceCommit;
 }
 
 function createRegistryProvenanceExpectation(manifest, env = process.env) {
@@ -335,6 +472,13 @@ function createRegistryProvenanceExpectation(manifest, env = process.env) {
       `Trusted publish ref ${env.GITHUB_REF} does not match ${trustedPublishRef}`,
     );
   }
+  const hasRunId = env.GITHUB_RUN_ID !== undefined;
+  const hasRunAttempt = env.GITHUB_RUN_ATTEMPT !== undefined;
+  if (hasRunId !== hasRunAttempt) {
+    throw new Error(
+      'GITHUB_RUN_ID and GITHUB_RUN_ATTEMPT must be supplied together for registry provenance',
+    );
+  }
 
   const expectation = {
     certificateIdentity: trustedCertificateIdentity(
@@ -353,6 +497,16 @@ function createRegistryProvenanceExpectation(manifest, env = process.env) {
       repository: trustedPublishRepository,
     },
   };
+  if (hasRunId) {
+    expectation.invocation = {
+      repository: trustedPublishRepository,
+      runAttempt: assertCanonicalPositiveDecimal(
+        env.GITHUB_RUN_ATTEMPT,
+        'GITHUB_RUN_ATTEMPT',
+      ),
+      runId: assertCanonicalPositiveDecimal(env.GITHUB_RUN_ID, 'GITHUB_RUN_ID'),
+    };
+  }
   assertProvenanceExpectation(expectation);
   return expectation;
 }
@@ -459,44 +613,14 @@ async function verifySigstoreBundle(
   };
 }
 
-function pinnedNpmAttestationsUrl(item, value) {
-  assertNonEmptyString(
-    value,
-    `${item.targetName}@${item.version} registry dist.attestations.url`,
-  );
-  let url;
-  try {
-    url = new URL(value);
-  } catch (error) {
-    throw new Error(
-      `${item.targetName}@${item.version} registry attestations URL is invalid`,
-      { cause: error },
-    );
-  }
-  const expectedPath = `/-/npm/v1/attestations/${item.targetName}@${item.version}`;
-  let decodedPath;
-  try {
-    decodedPath = decodeURIComponent(url.pathname);
-  } catch (error) {
-    throw new Error(
-      `${item.targetName}@${item.version} registry attestations URL has invalid encoding`,
-      { cause: error },
-    );
-  }
-  if (
-    url.origin !== npmRegistryOrigin ||
-    url.username !== '' ||
-    url.password !== '' ||
-    url.port !== '' ||
-    url.search !== '' ||
-    url.hash !== '' ||
-    decodedPath !== expectedPath
-  ) {
-    throw new Error(
-      `${item.targetName}@${item.version} registry attestations URL is not the pinned npm endpoint ${npmRegistryOrigin}${expectedPath}`,
-    );
-  }
-  return url.href;
+function pinnedNpmAttestationsUrl(item) {
+  npmPackagePurl(item.targetName, item.version);
+  const encodedName = encodeURIComponent(item.targetName)
+    .replace(/^%40/u, '@')
+    .replace(/%2F/giu, '%2f');
+  return `${npmRegistryOrigin}/-/npm/v1/attestations/${encodedName}@${encodeURIComponent(
+    item.version,
+  )}`;
 }
 
 async function verifyRegistryProvenance(
@@ -507,7 +631,9 @@ async function verifyRegistryProvenance(
   bundleVerifier = verifySigstoreBundle,
 ) {
   const packageLabel = `${item.targetName}@${item.version}`;
-  assertProvenanceExpectation(expectation);
+  assertProvenanceExpectation(expectation, {
+    allowMissingSourceCommit: true,
+  });
   const attestations = dist?.attestations;
   assertPlainObject(attestations, `${packageLabel} registry dist.attestations`);
   assertPlainObject(
@@ -519,7 +645,7 @@ async function verifyRegistryProvenance(
       `${packageLabel} registry metadata does not declare SLSA v1 provenance`,
     );
   }
-  const attestationsUrl = pinnedNpmAttestationsUrl(item, attestations.url);
+  const attestationsUrl = pinnedNpmAttestationsUrl(item);
   if (typeof fetchImpl !== 'function') {
     throw new Error(`${packageLabel} registry provenance fetch is unavailable`);
   }
@@ -577,8 +703,6 @@ async function verifyRegistryProvenance(
 
   const [attestation] = slsaAttestations;
   assertPlainObject(attestation.bundle, `${packageLabel} SLSA bundle`);
-  const verification = await bundleVerifier(attestation.bundle, expectation);
-
   const envelope = attestation.bundle.dsseEnvelope;
   assertPlainObject(envelope, `${packageLabel} SLSA DSSE envelope`);
   if (envelope.payloadType !== dsseInTotoPayloadType) {
@@ -610,6 +734,25 @@ async function verifyRegistryProvenance(
   if (statement.predicateType !== slsaProvenanceV1) {
     throw new Error(`${packageLabel} provenance is not SLSA v1`);
   }
+  const candidate = sourceBindingCandidate(
+    statement,
+    expectation,
+    packageLabel,
+  );
+  const authenticatedExpectation =
+    expectation.source.commit === undefined
+      ? {
+          ...expectation,
+          source: {
+            ...expectation.source,
+            commit: candidate.sourceCommit,
+          },
+        }
+      : expectation;
+  const verification = await bundleVerifier(
+    attestation.bundle,
+    authenticatedExpectation,
+  );
   if (!Array.isArray(statement.subject) || statement.subject.length !== 1) {
     throw new Error(
       `${packageLabel} SLSA statement must contain exactly one package subject`,
@@ -643,12 +786,17 @@ async function verifyRegistryProvenance(
     );
   }
 
-  assertSourceBinding(statement, expectation, packageLabel);
+  const sourceCommit = assertSourceBinding(
+    statement,
+    authenticatedExpectation,
+    packageLabel,
+  );
   return {
     attestationsUrl,
     certificateIdentity: verification.certificateIdentity,
     issuer: verification.issuer,
     predicateType: slsaProvenanceV1,
+    sourceCommit,
     subject: expectedSubject,
     subjectSha512: expectedSha512,
     verifierVersion: verification.verifierVersion,

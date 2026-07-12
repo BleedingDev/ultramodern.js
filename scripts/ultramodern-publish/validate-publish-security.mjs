@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   createTemplateRequiredFiles,
   trustedPublishRepository,
@@ -56,6 +57,27 @@ const postpublishAcceptanceReceiptPath =
   '.modern/production-readiness/postpublish-acceptance-receipt.json';
 const githubExpression = expression => `\${{ ${expression} }}`;
 const shellInterpolation = expression => `\${${expression}}`;
+const releaseArtifactEnvironmentNames = new Map([
+  [releaseBundleArtifact, 'BLEEDINGDEV_RELEASE_BUNDLE_ARTIFACT'],
+  [releaseAcceptanceArtifact, 'BLEEDINGDEV_RELEASE_ACCEPTANCE_ARTIFACT'],
+  [releaseIdentityArtifact, 'BLEEDINGDEV_RELEASE_IDENTITY_ARTIFACT'],
+]);
+const qualifiedReleaseArtifactName = (artifactName, identityExpression) => {
+  const environmentName = releaseArtifactEnvironmentNames.get(artifactName);
+  requireCondition(
+    Boolean(environmentName),
+    `release artifact ${artifactName} must have a canonical environment name`,
+  );
+  return `${githubExpression(`env.${environmentName}`)}-${githubExpression(identityExpression)}`;
+};
+const qualifiedPublicationIdentityArtifactName = (
+  producerIdentityExpression,
+  publicationAttemptExpression,
+) =>
+  `${qualifiedReleaseArtifactName(
+    releaseIdentityArtifact,
+    producerIdentityExpression,
+  )}-publication-attempt-${githubExpression(publicationAttemptExpression)}`;
 const readinessConcurrencyGroup = `ultramodern-production-readiness-${githubExpression(
   'github.event.workflow_run.id || github.run_id',
 )}`;
@@ -65,6 +87,10 @@ const readinessConcurrencyGroup = `ultramodern-production-readiness-${githubExpr
 // where packages can be published from. Changing the publish branch requires
 // editing this constant in a reviewed commit.
 const enforcedPublishBranch = 'main-ultramodern';
+const registrySourceCohortStepName =
+  'Reject an already published source cohort';
+const authoritativeRegistrySourceCohortModule =
+  './scripts/ultramodern-publish/prepare-bleedingdev-packages.mjs';
 
 function fail(message) {
   throw new Error(`Publish security validation failed: ${message}`);
@@ -189,6 +215,70 @@ function requireHiddenArtifactUpload(step, context) {
   requireCondition(
     withOptions['include-hidden-files'] === true,
     `${context} must explicitly include hidden .modern files`,
+  );
+}
+
+export function validateRegistrySourceCohortGate(step) {
+  const context = 'prepare-release registry source-cohort gate';
+  const environment = requireRecord(step.env ?? {}, `${context} environment`);
+  assertSameMembers(
+    Object.keys(environment).sort((left, right) => left.localeCompare(right)),
+    ['PUBLISH_VERSION'],
+    `${context} environment`,
+  );
+  requireCondition(
+    environment.PUBLISH_VERSION === githubExpression('inputs.version'),
+    `${context} must bind the requested version through PUBLISH_VERSION`,
+  );
+  requireCondition(
+    typeof step.run === 'string',
+    `${context} must be an inline module invocation`,
+  );
+
+  const run = step.run;
+  requireCondition(
+    /^\s*node\s+--input-type=module\s+<<'NODE'\n[\s\S]*\nNODE\s*$/u.test(run),
+    `${context} must execute a quoted Node module heredoc`,
+  );
+  const requiredPatterns = [
+    new RegExp(
+      `import\\s*\\{\\s*assertRegistrySourceCommitUnpublished\\s*,?\\s*\\}\\s*from\\s*['"]${authoritativeRegistrySourceCohortModule.replaceAll(
+        '.',
+        '\\.',
+      )}['"]\\s*;`,
+      'u',
+    ),
+    /const\s+packageName\s*=\s*['"]@bleedingdev\/modern-js-create['"]\s*;/u,
+    /const\s+requestedVersion\s*=\s*process\.env\.PUBLISH_VERSION\s*;/u,
+    /const\s+sourceCommit\s*=\s*process\.env\.GITHUB_SHA\s*;/u,
+    /const\s+sourceRepository\s*=\s*process\.env\.GITHUB_REPOSITORY\s*;/u,
+    /await\s+assertRegistrySourceCommitUnpublished\s*\(\s*\{\s*packageName\s*,\s*requestedVersion\s*,\s*sourceCommit\s*,\s*sourceRepository\s*,?\s*\}\s*\)\s*;/u,
+  ];
+  requireCondition(
+    requiredPatterns.every(pattern => pattern.test(run)),
+    `${context} must invoke the authoritative API with the exact package, version, commit, and repository bindings`,
+  );
+  requireCondition(
+    (run.match(/\bassertRegistrySourceCommitUnpublished\b/gu) ?? []).length ===
+      2,
+    `${context} must import and invoke the authoritative API exactly once`,
+  );
+  requireCondition(
+    !run.includes('${{'),
+    `${context} must route workflow inputs through its environment`,
+  );
+
+  const forbiddenInlineRegistryPatterns = [
+    /\bfetch\s*\(/u,
+    /\bmetadata\s*\.\s*versions\b/u,
+    /\b(?:createRegistryProvenanceExpectation|verifyRegistryProvenance|verifySigstoreBundle)\b/u,
+    /\bBuffer\s*\.\s*from\s*\(/u,
+    /registry\.npmjs\.org/iu,
+    /\battestations?\b/iu,
+  ];
+  requireCondition(
+    !forbiddenInlineRegistryPatterns.some(pattern => pattern.test(run)),
+    `${context} must not scan npm metadata or parse registry provenance inline`,
   );
 }
 
@@ -429,7 +519,10 @@ function validatePublishWorkflow(workflow) {
   const bundleUpload = artifactStep(
     prepareJob,
     'actions/upload-artifact',
-    releaseBundleArtifact,
+    qualifiedReleaseArtifactName(
+      releaseBundleArtifact,
+      'steps.producer-identity.outputs.artifact_identity',
+    ),
     'prepare-release job',
   );
   assertSameMembers(
@@ -455,6 +548,11 @@ function validatePublishWorkflow(workflow) {
     'Qualify release source',
     'prepare-release job',
   );
+  const registrySourceCohortStep = namedStep(
+    prepareJob,
+    registrySourceCohortStepName,
+    'prepare-release job',
+  );
   const buildStep = namedStep(
     prepareJob,
     'Build Packages',
@@ -475,50 +573,71 @@ function validatePublishWorkflow(workflow) {
       qualificationStep.run.includes('pnpm --filter @modern-js/create test'),
     'prepare-release must run the canonical release and create test suites',
   );
+  validateRegistrySourceCohortGate(registrySourceCohortStep);
   requireCondition(
     prepareSteps.indexOf(installStep) <
       prepareSteps.indexOf(qualificationStep) &&
       prepareSteps.indexOf(qualificationStep) <
+        prepareSteps.indexOf(registrySourceCohortStep) &&
+      prepareSteps.indexOf(registrySourceCohortStep) <
         prepareSteps.indexOf(buildStep) &&
       prepareSteps.indexOf(buildStep) < prepareSteps.indexOf(packStep) &&
       prepareSteps.indexOf(packStep) < prepareSteps.indexOf(bundleUpload),
-    'prepare-release source qualification must run after frozen install and before build, pack, and upload',
+    'prepare-release source qualification and registry source-cohort gate must run after frozen install and before build, pack, and upload',
   );
 
   const acceptanceBundleDownload = artifactStep(
     acceptanceJob,
     'actions/download-artifact',
-    releaseBundleArtifact,
+    qualifiedReleaseArtifactName(
+      releaseBundleArtifact,
+      'needs.prepare-release.outputs.producer_artifact_identity',
+    ),
     'accept-release job',
   );
   const publishBundleDownload = artifactStep(
     publishJob,
     'actions/download-artifact',
-    releaseBundleArtifact,
+    qualifiedReleaseArtifactName(
+      releaseBundleArtifact,
+      'needs.accept-release.outputs.producer_artifact_identity',
+    ),
     'publish job',
   );
   const validationBundleDownload = artifactStep(
     validationJob,
     'actions/download-artifact',
-    releaseBundleArtifact,
+    qualifiedReleaseArtifactName(
+      releaseBundleArtifact,
+      'needs.accept-release.outputs.producer_artifact_identity',
+    ),
     'validate-release job',
   );
   const acceptanceUpload = artifactStep(
     acceptanceJob,
     'actions/upload-artifact',
-    releaseAcceptanceArtifact,
+    qualifiedReleaseArtifactName(
+      releaseAcceptanceArtifact,
+      'needs.prepare-release.outputs.producer_artifact_identity',
+    ),
     'accept-release job',
   );
   const publishAcceptanceDownload = artifactStep(
     publishJob,
     'actions/download-artifact',
-    releaseAcceptanceArtifact,
+    qualifiedReleaseArtifactName(
+      releaseAcceptanceArtifact,
+      'needs.accept-release.outputs.producer_artifact_identity',
+    ),
     'publish job',
   );
   const validationAcceptanceDownload = artifactStep(
     validationJob,
     'actions/download-artifact',
-    releaseAcceptanceArtifact,
+    qualifiedReleaseArtifactName(
+      releaseAcceptanceArtifact,
+      'needs.accept-release.outputs.producer_artifact_identity',
+    ),
     'validate-release job',
   );
   assertSameMembers(
@@ -705,7 +824,10 @@ function validatePublishWorkflow(workflow) {
   const identityUpload = artifactStep(
     publishJob,
     'actions/upload-artifact',
-    releaseIdentityArtifact,
+    qualifiedPublicationIdentityArtifactName(
+      'needs.accept-release.outputs.producer_artifact_identity',
+      'github.run_attempt',
+    ),
     'publish job',
   );
   requireCondition(
@@ -854,8 +976,27 @@ function validateReadinessWorkflow(workflow) {
   );
   requireCondition(
     signalStep.run.includes('gh api') &&
-      signalStep.run.includes(releaseIdentityArtifact),
-    'release identity resolution must detect the non-dry-run publication signal',
+      signalStep.run.includes(releaseIdentityArtifact) &&
+      signalStep.run.includes('env.TRIGGER_RUN_ATTEMPT') &&
+      signalStep.run.includes('publication-attempt-') &&
+      signalStep.run.includes('multiple publication identity artifacts'),
+    'release identity resolution must select the non-dry-run artifact from the completed publication attempt',
+  );
+  const identityOutputs = requireRecord(
+    identityJob.outputs,
+    'resolve-release-identity outputs',
+  );
+  requireCondition(
+    !Object.hasOwn(identityOutputs, 'artifact_name') &&
+      identityOutputs.publication_artifact_name ===
+        githubExpression(
+          'steps.release-identity.outputs.publication_artifact_name',
+        ) &&
+      identityOutputs.producer_artifact_identity ===
+        githubExpression(
+          'steps.release-identity.outputs.producer_artifact_identity',
+        ),
+    'release identity resolution must expose only the verified producer and publication artifact identities',
   );
 
   const identityCheckouts = actionSteps(
@@ -885,7 +1026,7 @@ function validateReadinessWorkflow(workflow) {
   const identityDownload = artifactStep(
     identityJob,
     'actions/download-artifact',
-    releaseIdentityArtifact,
+    githubExpression('steps.publication-signal.outputs.artifact_name'),
     'resolve-release-identity job',
   );
   requireTriggerRunArtifactDownload(
@@ -905,6 +1046,9 @@ function validateReadinessWorkflow(workflow) {
     ) &&
       proofJob.if.includes(
         "needs.resolve-release-identity.outputs.authorized == 'true'",
+      ) &&
+      proofJob.if.includes(
+        'github.event.workflow_run.head_repository.full_name == github.repository',
       ),
     'every cross-run proof step must be gated by the verified publication identity',
   );
@@ -954,16 +1098,13 @@ function validateReadinessWorkflow(workflow) {
     'resolve-release-identity job',
   );
   const receiptVerificationEnv = requireRecord(
-    receiptVerification.env,
+    receiptVerification.env ?? {},
     'triggering release acceptance receipt environment',
   );
   requireCondition(
     receiptVerification.if ===
       "steps.publication-signal.outputs.exists == 'true'" &&
-      receiptVerificationEnv.TRIGGER_RUN_ID ===
-        githubExpression('github.event.workflow_run.id') &&
-      receiptVerificationEnv.TRIGGER_RUN_ATTEMPT ===
-        githubExpression('github.event.workflow_run.run_attempt') &&
+      Object.keys(receiptVerificationEnv).length === 0 &&
       typeof receiptVerification.run === 'string' &&
       receiptVerification.run.includes('acceptance-receipt.mjs') &&
       receiptVerification.run.includes('--verify') &&
@@ -974,12 +1115,11 @@ function validateReadinessWorkflow(workflow) {
         '--receipt "$BLEEDINGDEV_RELEASE_IDENTITY_DIR/acceptance-receipt.json"',
       ) &&
       receiptVerification.run.includes(
-        `--run-identity "github:${shellInterpolation(
-          'GITHUB_REPOSITORY',
-        )}:run:${shellInterpolation('TRIGGER_RUN_ID')}:attempt:${shellInterpolation(
-          'TRIGGER_RUN_ATTEMPT',
-        )}"`,
-      ),
+        'process.env.BLEEDINGDEV_RELEASE_IDENTITY_DIR',
+      ) &&
+      receiptVerification.run.includes('release-identity.json') &&
+      receiptVerification.run.includes('identity.producerRunIdentity') &&
+      !receiptVerification.run.includes('GITHUB_RUN_ATTEMPT'),
     'readiness must delegate the triggering receipt contract to its authoritative validator',
   );
 
@@ -997,12 +1137,27 @@ function validateReadinessWorkflow(workflow) {
         "manifest.schema !== 'bleedingdev.ultramodern.release-manifest'",
       ) &&
       identityVerification.includes('manifest.source.commit') &&
+      identityVerification.includes('identity.producerArtifactIdentity') &&
+      identityVerification.includes('identity.producerRunAttempt') &&
+      identityVerification.includes('identity.producerRunIdentity') &&
+      identityVerification.includes('identity.publicationRunAttempt') &&
+      identityVerification.includes('TRIGGER_ARTIFACT_NAME') &&
       identityVerification.includes('manifest.json.sha256') &&
       identityVerification.includes('cohort.sha256') &&
       identityVerification.includes('path.join(root, file)') &&
       identityVerification.includes('TRIGGER_RUN_ATTEMPT') &&
       identityVerification.includes(
-        `run_identity=${shellInterpolation('runIdentity')}`,
+        `publication_artifact_name=${shellInterpolation(
+          'process.env.TRIGGER_ARTIFACT_NAME',
+        )}`,
+      ) &&
+      identityVerification.includes(
+        `run_identity=${shellInterpolation('identity.producerRunIdentity')}`,
+      ) &&
+      identityVerification.includes(
+        `producer_artifact_identity=${shellInterpolation(
+          'identity.producerArtifactIdentity',
+        )}`,
       ) &&
       !identityVerification.includes('receipt.schema') &&
       !identityVerification.includes('receipt.receiptType') &&
@@ -1025,7 +1180,9 @@ function validateReadinessWorkflow(workflow) {
   const postpublishIdentityDownload = artifactStep(
     proofJob,
     'actions/download-artifact',
-    releaseIdentityArtifact,
+    githubExpression(
+      'needs.resolve-release-identity.outputs.publication_artifact_name',
+    ),
     'published-create-superapp job',
   );
   requireTriggerRunArtifactDownload(
@@ -1256,7 +1413,7 @@ async function validateBufferPublisherContract() {
   const item = releaseArtifacts.packages[0];
   const acceptedBytes = fs.readFileSync(item.artifactPath);
   let observedPublish;
-  let observedTokenRequest;
+  const observedTokenRequests = [];
 
   try {
     await publishAcceptedPackage(
@@ -1267,8 +1424,29 @@ async function validateBufferPublisherContract() {
         tag: enforcedPublishTag,
       },
       {
-        env: {},
-        fetchImpl: undefined,
+        env: {
+          ACTIONS_ID_TOKEN_REQUEST_TOKEN: 'security-github-request-token',
+          ACTIONS_ID_TOKEN_REQUEST_URL:
+            'https://pipelines.actions.githubusercontent.com/security-contract/oidc?api-version=2.0',
+          GITHUB_ACTIONS: 'true',
+        },
+        fetchImpl: async (url, options) => {
+          observedTokenRequests.push({
+            options,
+            url: new URL(url).href,
+          });
+          return observedTokenRequests.length === 1
+            ? {
+                ok: true,
+                status: 200,
+                json: async () => ({ value: 'security-github-oidc-token' }),
+              }
+            : {
+                ok: true,
+                status: 200,
+                json: async () => ({ token: 'security-contract-token' }),
+              };
+        },
         loadRuntime: () => ({
           libnpmpublishVersion: 'security-contract',
           npmVersion: 'security-contract',
@@ -1276,18 +1454,28 @@ async function validateBufferPublisherContract() {
             observedPublish = { bytes, manifest, options };
           },
         }),
-        requestToken: async (packageName, options) => {
-          observedTokenRequest = { options, packageName };
-          return 'security-contract-token';
-        },
       },
     );
 
     requireCondition(
-      observedTokenRequest?.packageName === item.targetName &&
-        observedTokenRequest.options.registryUrl ===
-          'https://registry.npmjs.org/',
-      'buffer publisher must exchange OIDC for the exact package and npm registry',
+      observedTokenRequests.length === 2 &&
+        new URL(observedTokenRequests[0].url).hostname ===
+          'pipelines.actions.githubusercontent.com' &&
+        new URL(observedTokenRequests[0].url).searchParams.get('audience') ===
+          'npm:registry.npmjs.org' &&
+        observedTokenRequests[0].options.method === 'GET' &&
+        observedTokenRequests[0].options.redirect === 'error' &&
+        observedTokenRequests[0].options.headers.authorization ===
+          'Bearer security-github-request-token' &&
+        new URL(observedTokenRequests[1].url).origin ===
+          'https://registry.npmjs.org' &&
+        decodeURIComponent(new URL(observedTokenRequests[1].url).pathname) ===
+          `/-/npm/v1/oidc/token/exchange/package/${item.targetName}` &&
+        observedTokenRequests[1].options.method === 'POST' &&
+        observedTokenRequests[1].options.redirect === 'error' &&
+        observedTokenRequests[1].options.headers.authorization ===
+          'Bearer security-github-oidc-token',
+      'buffer publisher must execute the pinned GitHub-to-npm OIDC exchange for the exact package',
     );
     requireCondition(
       observedPublish?.bytes === acceptedBytes,
@@ -1404,9 +1592,14 @@ async function main() {
   console.log('Publish security validation passed');
 }
 
-try {
-  await main();
-} catch (error) {
-  console.error(error.message);
-  process.exitCode = 1;
+if (
+  process.argv[1] &&
+  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+) {
+  try {
+    await main();
+  } catch (error) {
+    console.error(error.message);
+    process.exitCode = 1;
+  }
 }

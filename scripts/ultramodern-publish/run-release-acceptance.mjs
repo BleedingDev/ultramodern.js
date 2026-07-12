@@ -236,6 +236,11 @@ async function main(argv = process.argv.slice(2), env = process.env) {
   const options = parseArgs(argv);
   const release = readReleaseManifest({ manifestPath: options.manifestPath });
   assertExpectedRelease(release, options);
+  if (options.mode === 'verify' && !options.runIdentity) {
+    throw new Error(
+      '--run-identity is required for receipt verification and must identify the accepted producer run',
+    );
+  }
   const runIdentity = resolveRunIdentity(release, options.runIdentity, env);
   if (options.mode === 'verify') {
     verifyReceipt({ release, options, runIdentity });

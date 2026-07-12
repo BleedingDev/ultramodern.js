@@ -27,12 +27,14 @@ env:
   BLEEDINGDEV_RELEASE_BUNDLE_ARTIFACT: bleedingdev-release-bundle
   BLEEDINGDEV_RELEASE_ACCEPTANCE_ARTIFACT: bleedingdev-release-acceptance
   BLEEDINGDEV_RELEASE_IDENTITY_ARTIFACT: bleedingdev-release-identity
+  BLEEDINGDEV_PUBLISH_OUTCOME_ARTIFACT: bleedingdev-publish-outcome
   BLEEDINGDEV_RELEASE_DIR: .modern/bleedingdev-publish
   BLEEDINGDEV_RELEASE_MANIFEST: .modern/bleedingdev-publish/manifest.json
   BLEEDINGDEV_RELEASE_MANIFEST_DIGEST: .modern/bleedingdev-publish/manifest.json.sha256
   BLEEDINGDEV_RELEASE_COHORT_DIGEST: .modern/bleedingdev-publish/cohort.sha256
   BLEEDINGDEV_RELEASE_ACCEPTANCE_RECEIPT: .modern/bleedingdev-publish/acceptance-receipt.json
   BLEEDINGDEV_RELEASE_IDENTITY: .modern/bleedingdev-publish/release-identity.json
+  BLEEDINGDEV_PUBLISH_OUTCOME: .modern/bleedingdev-publish/publish-outcome.json
 
 # Every version and dry run shares this lock. A newer dispatch queues behind an
 # active release instead of cancelling or racing it.
@@ -56,7 +58,7 @@ jobs:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
         with:
           fetch-depth: 1
           persist-credentials: false
@@ -96,6 +98,10 @@ jobs:
       github.actor == github.repository_owner &&
       github.triggering_actor == github.repository_owner &&
       github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern')
+    outputs:
+      producer_artifact_identity: ${{ steps.producer-identity.outputs.artifact_identity }}
+      producer_run_attempt: ${{ steps.producer-identity.outputs.run_attempt }}
+      producer_run_identity: ${{ steps.producer-identity.outputs.run_identity }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
@@ -103,7 +109,7 @@ jobs:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
         with:
           fetch-depth: 1
           persist-credentials: false
@@ -123,6 +129,26 @@ jobs:
         run: |
           mise exec -- pnpm test:scripts
           mise exec -- pnpm --filter @modern-js/create test
+
+      - name: Reject an already published source cohort
+        env:
+          PUBLISH_VERSION: ${{ inputs.version }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { assertRegistrySourceCommitUnpublished } from './scripts/ultramodern-publish/prepare-bleedingdev-packages.mjs';
+
+          const packageName = '@bleedingdev/modern-js-create';
+          const requestedVersion = process.env.PUBLISH_VERSION;
+          const sourceCommit = process.env.GITHUB_SHA;
+          const sourceRepository = process.env.GITHUB_REPOSITORY;
+
+          await assertRegistrySourceCommitUnpublished({
+            packageName,
+            requestedVersion,
+            sourceCommit,
+            sourceRepository,
+          });
+          NODE
 
       - name: Build Packages
         run: mise exec -- pnpm ultramodern:build-bleedingdev-publish
@@ -159,10 +185,22 @@ jobs:
           }
           NODE
 
+      - name: Bind immutable producer identity
+        id: producer-identity
+        run: |
+          run_attempt="$GITHUB_RUN_ATTEMPT"
+          artifact_identity="run-${GITHUB_RUN_ID}-attempt-${run_attempt}"
+          run_identity="github:${GITHUB_REPOSITORY}:run:${GITHUB_RUN_ID}:attempt:${run_attempt}"
+          {
+            printf 'artifact_identity=%s\n' "$artifact_identity"
+            printf 'run_attempt=%s\n' "$run_attempt"
+            printf 'run_identity=%s\n' "$run_identity"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Upload immutable release bundle
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: bleedingdev-release-bundle
+          name: ${{ env.BLEEDINGDEV_RELEASE_BUNDLE_ARTIFACT }}-${{ steps.producer-identity.outputs.artifact_identity }}
           path: |
             .modern/bleedingdev-publish/manifest.json
             .modern/bleedingdev-publish/manifest.json.sha256
@@ -181,6 +219,10 @@ jobs:
       github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern')
     needs:
       - prepare-release
+    outputs:
+      producer_artifact_identity: ${{ needs.prepare-release.outputs.producer_artifact_identity }}
+      producer_run_attempt: ${{ needs.prepare-release.outputs.producer_run_attempt }}
+      producer_run_identity: ${{ needs.prepare-release.outputs.producer_run_identity }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
@@ -188,7 +230,7 @@ jobs:
           egress-policy: audit
 
       - name: Checkout acceptance runner
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
         with:
           fetch-depth: 1
           persist-credentials: false
@@ -204,7 +246,7 @@ jobs:
       - name: Download immutable release bundle
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v7.0.0
         with:
-          name: bleedingdev-release-bundle
+          name: ${{ env.BLEEDINGDEV_RELEASE_BUNDLE_ARTIFACT }}-${{ needs.prepare-release.outputs.producer_artifact_identity }}
           path: .modern/bleedingdev-publish
 
       - name: Install browser smoke runtime
@@ -215,12 +257,13 @@ jobs:
           node scripts/ultramodern-publish/run-release-acceptance.mjs \
             --manifest "$BLEEDINGDEV_RELEASE_MANIFEST" \
             --scale-profile erp-10 \
-            --receipt "$BLEEDINGDEV_RELEASE_ACCEPTANCE_RECEIPT"
+            --receipt "$BLEEDINGDEV_RELEASE_ACCEPTANCE_RECEIPT" \
+            --run-identity "${{ needs.prepare-release.outputs.producer_run_identity }}"
 
       - name: Upload release acceptance receipt
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: bleedingdev-release-acceptance
+          name: ${{ env.BLEEDINGDEV_RELEASE_ACCEPTANCE_ARTIFACT }}-${{ needs.prepare-release.outputs.producer_artifact_identity }}
           path: .modern/bleedingdev-publish/acceptance-receipt.json
           if-no-files-found: error
           include-hidden-files: true
@@ -244,7 +287,7 @@ jobs:
           egress-policy: audit
 
       - name: Checkout exact-artifact validation CLI
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
         with:
           fetch-depth: 1
           persist-credentials: false
@@ -257,13 +300,13 @@ jobs:
       - name: Download accepted release bundle
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v7.0.0
         with:
-          name: bleedingdev-release-bundle
+          name: ${{ env.BLEEDINGDEV_RELEASE_BUNDLE_ARTIFACT }}-${{ needs.accept-release.outputs.producer_artifact_identity }}
           path: .modern/bleedingdev-publish
 
       - name: Download release acceptance receipt
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v7.0.0
         with:
-          name: bleedingdev-release-acceptance
+          name: ${{ env.BLEEDINGDEV_RELEASE_ACCEPTANCE_ARTIFACT }}-${{ needs.accept-release.outputs.producer_artifact_identity }}
           path: .modern/bleedingdev-publish
 
       - name: Verify exact release acceptance receipt
@@ -272,13 +315,14 @@ jobs:
             --verify-receipt \
             --manifest "$BLEEDINGDEV_RELEASE_MANIFEST" \
             --scale-profile erp-10 \
-            --receipt "$BLEEDINGDEV_RELEASE_ACCEPTANCE_RECEIPT"
+            --receipt "$BLEEDINGDEV_RELEASE_ACCEPTANCE_RECEIPT" \
+            --run-identity "${{ needs.accept-release.outputs.producer_run_identity }}"
 
           node scripts/ultramodern-production-readiness/published-create-proof/acceptance-receipt.mjs \
             --verify \
             --manifest "$BLEEDINGDEV_RELEASE_MANIFEST" \
             --receipt "$BLEEDINGDEV_RELEASE_ACCEPTANCE_RECEIPT" \
-            --run-identity "github:${GITHUB_REPOSITORY}:run:${GITHUB_RUN_ID}:attempt:${GITHUB_RUN_ATTEMPT}"
+            --run-identity "${{ needs.accept-release.outputs.producer_run_identity }}"
 
       - name: Validate only the accepted tarballs
         env:
@@ -317,7 +361,7 @@ jobs:
           egress-policy: audit
 
       - name: Checkout exact-artifact publish CLI
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
         with:
           fetch-depth: 1
           persist-credentials: false
@@ -330,13 +374,13 @@ jobs:
       - name: Download accepted release bundle
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v7.0.0
         with:
-          name: bleedingdev-release-bundle
+          name: ${{ env.BLEEDINGDEV_RELEASE_BUNDLE_ARTIFACT }}-${{ needs.accept-release.outputs.producer_artifact_identity }}
           path: .modern/bleedingdev-publish
 
       - name: Download release acceptance receipt
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v7.0.0
         with:
-          name: bleedingdev-release-acceptance
+          name: ${{ env.BLEEDINGDEV_RELEASE_ACCEPTANCE_ARTIFACT }}-${{ needs.accept-release.outputs.producer_artifact_identity }}
           path: .modern/bleedingdev-publish
 
       - name: Verify exact release acceptance receipt
@@ -345,18 +389,23 @@ jobs:
             --verify-receipt \
             --manifest "$BLEEDINGDEV_RELEASE_MANIFEST" \
             --scale-profile erp-10 \
-            --receipt "$BLEEDINGDEV_RELEASE_ACCEPTANCE_RECEIPT"
+            --receipt "$BLEEDINGDEV_RELEASE_ACCEPTANCE_RECEIPT" \
+            --run-identity "${{ needs.accept-release.outputs.producer_run_identity }}"
 
           node scripts/ultramodern-production-readiness/published-create-proof/acceptance-receipt.mjs \
             --verify \
             --manifest "$BLEEDINGDEV_RELEASE_MANIFEST" \
             --receipt "$BLEEDINGDEV_RELEASE_ACCEPTANCE_RECEIPT" \
-            --run-identity "github:${GITHUB_REPOSITORY}:run:${GITHUB_RUN_ID}:attempt:${GITHUB_RUN_ATTEMPT}"
+            --run-identity "${{ needs.accept-release.outputs.producer_run_identity }}"
 
       - name: Prepare non-dry-run release identity
         env:
           PUBLISH_VERSION: ${{ inputs.version }}
           SOURCE_COMMIT: ${{ github.sha }}
+          PRODUCER_ARTIFACT_IDENTITY: ${{ needs.accept-release.outputs.producer_artifact_identity }}
+          PRODUCER_RUN_ATTEMPT: ${{ needs.accept-release.outputs.producer_run_attempt }}
+          PRODUCER_RUN_IDENTITY: ${{ needs.accept-release.outputs.producer_run_identity }}
+          PUBLICATION_RUN_ATTEMPT: ${{ github.run_attempt }}
         run: |
           node <<'NODE'
           const crypto = require('node:crypto');
@@ -380,7 +429,6 @@ jobs:
             'utf8',
           );
           const runId = process.env.GITHUB_RUN_ID;
-          const runIdentity = `github:${manifest.source.repository}:run:${runId}:attempt:${process.env.GITHUB_RUN_ATTEMPT}`;
 
           if (
             manifest.schema !== 'bleedingdev.ultramodern.release-manifest' ||
@@ -430,8 +478,12 @@ jobs:
           }
           const identity = {
             schema: 'bleedingdev.ultramodern.published-release-identity',
-            schemaVersion: 1,
+            schemaVersion: 2,
             releaseRunId: runId,
+            producerArtifactIdentity: process.env.PRODUCER_ARTIFACT_IDENTITY,
+            producerRunAttempt: process.env.PRODUCER_RUN_ATTEMPT,
+            producerRunIdentity: process.env.PRODUCER_RUN_IDENTITY,
+            publicationRunAttempt: process.env.PUBLICATION_RUN_ATTEMPT,
             source: manifest.source,
             release: manifest.release,
             cohortDigest: manifest.cohortDigest,
@@ -461,7 +513,7 @@ jobs:
       - name: Upload published release identity
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: bleedingdev-release-identity
+          name: ${{ env.BLEEDINGDEV_RELEASE_IDENTITY_ARTIFACT }}-${{ needs.accept-release.outputs.producer_artifact_identity }}-publication-attempt-${{ github.run_attempt }}
           path: |
             .modern/bleedingdev-publish/manifest.json
             .modern/bleedingdev-publish/manifest.json.sha256
@@ -469,5 +521,108 @@ jobs:
             .modern/bleedingdev-publish/tarballs/*.tgz
             .modern/bleedingdev-publish/acceptance-receipt.json
             .modern/bleedingdev-publish/release-identity.json
+          if-no-files-found: error
+          include-hidden-files: true
+
+  record-publish-outcome:
+    name: Record the authenticated publish outcome
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs:
+      - publish-security
+      - accept-release
+      - validate-release
+      - publish
+    if: >-
+      always() &&
+      github.actor == github.repository_owner &&
+      github.triggering_actor == github.repository_owner &&
+      github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern') &&
+      (
+        (inputs.dry_run == true && needs.validate-release.result == 'success' && needs.publish.result == 'skipped') ||
+        (inputs.dry_run == false && needs.publish.result == 'success' && needs.validate-release.result == 'skipped')
+      )
+    env:
+      DRY_RUN: ${{ inputs.dry_run }}
+      PRODUCER_ARTIFACT_IDENTITY: ${{ needs.accept-release.outputs.producer_artifact_identity }}
+      PRODUCER_RUN_ATTEMPT: ${{ needs.accept-release.outputs.producer_run_attempt }}
+      PRODUCER_RUN_IDENTITY: ${{ needs.accept-release.outputs.producer_run_identity }}
+      PUBLISH_VERSION: ${{ inputs.version }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        with:
+          egress-policy: audit
+
+      - name: Checkout exact-outcome recorder
+        uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "24"
+
+      - name: Download accepted release bundle
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v7.0.0
+        with:
+          name: ${{ env.BLEEDINGDEV_RELEASE_BUNDLE_ARTIFACT }}-${{ needs.accept-release.outputs.producer_artifact_identity }}
+          path: .modern/bleedingdev-publish
+
+      - name: Download release acceptance receipt
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v7.0.0
+        with:
+          name: ${{ env.BLEEDINGDEV_RELEASE_ACCEPTANCE_ARTIFACT }}-${{ needs.accept-release.outputs.producer_artifact_identity }}
+          path: .modern/bleedingdev-publish
+
+      - name: Verify accepted producer receipt for the outcome
+        run: |
+          node scripts/ultramodern-publish/run-release-acceptance.mjs \
+            --verify-receipt \
+            --manifest "$BLEEDINGDEV_RELEASE_MANIFEST" \
+            --scale-profile erp-10 \
+            --receipt "$BLEEDINGDEV_RELEASE_ACCEPTANCE_RECEIPT" \
+            --run-identity "$PRODUCER_RUN_IDENTITY"
+
+          node scripts/ultramodern-production-readiness/published-create-proof/acceptance-receipt.mjs \
+            --verify \
+            --manifest "$BLEEDINGDEV_RELEASE_MANIFEST" \
+            --receipt "$BLEEDINGDEV_RELEASE_ACCEPTANCE_RECEIPT" \
+            --run-identity "$PRODUCER_RUN_IDENTITY"
+
+      - name: Create publish outcome
+        id: publish-outcome
+        run: |
+          node scripts/ultramodern-publish/publish-outcome.mjs create \
+            --manifest "$BLEEDINGDEV_RELEASE_MANIFEST" \
+            --manifest-digest "$BLEEDINGDEV_RELEASE_MANIFEST_DIGEST" \
+            --cohort-digest "$BLEEDINGDEV_RELEASE_COHORT_DIGEST" \
+            --receipt "$BLEEDINGDEV_RELEASE_ACCEPTANCE_RECEIPT" \
+            --out "$BLEEDINGDEV_PUBLISH_OUTCOME" \
+            --repository "$GITHUB_REPOSITORY" \
+            --source-commit "$GITHUB_SHA" \
+            --version "$PUBLISH_VERSION" \
+            --tag "$BLEEDINGDEV_PUBLISH_TAG" \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --producer-artifact-identity "$PRODUCER_ARTIFACT_IDENTITY" \
+            --producer-run-attempt "$PRODUCER_RUN_ATTEMPT" \
+            --producer-run-identity "$PRODUCER_RUN_IDENTITY" \
+            --dry-run "$DRY_RUN" \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Upload publish outcome
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ steps.publish-outcome.outputs.artifact_name }}
+          path: |
+            .modern/bleedingdev-publish/manifest.json
+            .modern/bleedingdev-publish/manifest.json.sha256
+            .modern/bleedingdev-publish/cohort.sha256
+            .modern/bleedingdev-publish/tarballs/*.tgz
+            .modern/bleedingdev-publish/acceptance-receipt.json
+            .modern/bleedingdev-publish/publish-outcome.json
           if-no-files-found: error
           include-hidden-files: true

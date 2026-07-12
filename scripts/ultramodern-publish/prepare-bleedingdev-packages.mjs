@@ -20,6 +20,7 @@ export {
 } from './lib/prepare-bleedingdev-packages/provenance.mjs';
 export {
   assertRegistryDistMatches,
+  assertRegistrySourceCommitUnpublished,
   createRegistryProvenanceExpectation,
   isTransientNpmPublishError,
   preflightRegistryPackages,

@@ -47,6 +47,10 @@ defaults:
 env:
   BLEEDINGDEV_RELEASE_IDENTITY_ARTIFACT: bleedingdev-release-identity
   BLEEDINGDEV_RELEASE_IDENTITY_DIR: .modern/triggering-release-identity
+  BLEEDINGDEV_PUBLISH_OUTCOME_ARTIFACT: bleedingdev-publish-outcome
+  BLEEDINGDEV_PUBLISH_OUTCOME_DIR: .modern/triggering-publish-outcome
+  BLEEDINGDEV_PUBLISH_OUTCOME: .modern/triggering-publish-outcome/publish-outcome.json
+  BLEEDINGDEV_PUBLISH_OUTCOME_ARTIFACTS: .modern/triggering-publish-outcome/artifact-pages.json
   BLEEDINGDEV_POSTPUBLISH_ACCEPTANCE_RECEIPT: .modern/production-readiness/postpublish-acceptance-receipt.json
 
 concurrency:
@@ -58,11 +62,21 @@ jobs:
     name: Resolve the triggering publication identity
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'
+    if: >-
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'workflow_dispatch' &&
+      github.event.workflow_run.repository.full_name == github.repository &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      github.event.workflow_run.actor.login == github.repository_owner &&
+      github.event.workflow_run.triggering_actor.login == github.repository_owner
     outputs:
       publication_signal: ${{ steps.publication-signal.outputs.exists }}
       authorized: ${{ steps.release-identity.outputs.authorized }}
+      dry_run: ${{ steps.publish-outcome.outputs.dry_run }}
       manifest_sha256: ${{ steps.release-identity.outputs.manifest_sha256 }}
+      publication_artifact_name: ${{ steps.release-identity.outputs.publication_artifact_name }}
+      producer_artifact_identity: ${{ steps.release-identity.outputs.producer_artifact_identity }}
       run_identity: ${{ steps.release-identity.outputs.run_identity }}
       version: ${{ steps.release-identity.outputs.version }}
     steps:
@@ -76,58 +90,150 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TRIGGER_RUN_ID: ${{ github.event.workflow_run.id }}
+          TRIGGER_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
         run: |
-          artifact_count="$(gh api \
+          mkdir -p "$BLEEDINGDEV_PUBLISH_OUTCOME_DIR"
+          gh api --paginate --slurp \
             "repos/$GITHUB_REPOSITORY/actions/runs/$TRIGGER_RUN_ID/artifacts?per_page=100" \
-            --jq '[.artifacts[] | select(.name == "bleedingdev-release-identity" and .expired == false)] | length')"
+            > "$BLEEDINGDEV_PUBLISH_OUTCOME_ARTIFACTS"
 
-          if [ "$artifact_count" = "0" ]; then
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-            echo "The triggering run emitted no publication identity; skipping release readiness."
-          elif [ "$artifact_count" = "1" ]; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "Expected one publication identity artifact, found $artifact_count" >&2
-            exit 1
-          fi
+          node <<'NODE'
+          const fs = require('node:fs');
+          const pages = JSON.parse(
+            fs.readFileSync(process.env.BLEEDINGDEV_PUBLISH_OUTCOME_ARTIFACTS, 'utf8'),
+          );
+          if (!Array.isArray(pages) || pages.some(page => !Array.isArray(page?.artifacts))) {
+            throw new Error('Artifact API response must be a paginated artifact listing');
+          }
+          const identityArtifact = 'bleedingdev-release-identity';
+          if (process.env.BLEEDINGDEV_RELEASE_IDENTITY_ARTIFACT !== identityArtifact) {
+            throw new Error('Publication identity artifact name drift');
+          }
+          const suffix = `-publication-attempt-${process.env.TRIGGER_RUN_ATTEMPT}`;
+          const matches = pages
+            .flatMap(page => page.artifacts)
+            .filter(artifact =>
+              typeof artifact?.name === 'string' &&
+              artifact.name.startsWith(`${identityArtifact}-run-`) &&
+              artifact.name.endsWith(suffix) &&
+              artifact.expired === false,
+            );
+          if (matches.length > 1) {
+            throw new Error('multiple publication identity artifacts for the completed attempt');
+          }
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, 'exists=true\n');
+          if (matches.length === 1) {
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `artifact_name=${matches[0].name}\n`);
+          }
+          NODE
 
       - name: Checkout trusted receipt verifier
         if: steps.publication-signal.outputs.exists == 'true'
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Download triggering release identity
+      - name: Select the triggering publish outcome
+        id: publish-outcome-artifact
+        if: steps.publication-signal.outputs.exists == 'true'
+        env:
+          TRIGGER_COMPLETED_AT: ${{ github.event.workflow_run.updated_at }}
+          TRIGGER_RUN_ID: ${{ github.event.workflow_run.id }}
+          TRIGGER_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+        run: |
+          node scripts/ultramodern-publish/publish-outcome.mjs select-artifact \
+            --artifacts "$BLEEDINGDEV_PUBLISH_OUTCOME_ARTIFACTS" \
+            --run-id "$TRIGGER_RUN_ID" \
+            --run-attempt "$TRIGGER_RUN_ATTEMPT" \
+            --completed-at "$TRIGGER_COMPLETED_AT" \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Download triggering publish outcome
         if: steps.publication-signal.outputs.exists == 'true'
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v7.0.0
         with:
-          name: bleedingdev-release-identity
+          name: ${{ steps.publish-outcome-artifact.outputs.artifact_name }}
+          path: .modern/triggering-publish-outcome
+          github-token: ${{ github.token }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: Verify triggering publish outcome
+        id: publish-outcome
+        if: steps.publication-signal.outputs.exists == 'true'
+        env:
+          OUTCOME_ARTIFACT_NAME: ${{ steps.publish-outcome-artifact.outputs.artifact_name }}
+          TRIGGER_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          TRIGGER_RUN_ID: ${{ github.event.workflow_run.id }}
+          TRIGGER_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+        run: |
+          node scripts/ultramodern-publish/publish-outcome.mjs verify \
+            --outcome "$BLEEDINGDEV_PUBLISH_OUTCOME" \
+            --artifact-name "$OUTCOME_ARTIFACT_NAME" \
+            --manifest "$BLEEDINGDEV_PUBLISH_OUTCOME_DIR/manifest.json" \
+            --manifest-digest "$BLEEDINGDEV_PUBLISH_OUTCOME_DIR/manifest.json.sha256" \
+            --cohort-digest "$BLEEDINGDEV_PUBLISH_OUTCOME_DIR/cohort.sha256" \
+            --receipt "$BLEEDINGDEV_PUBLISH_OUTCOME_DIR/acceptance-receipt.json" \
+            --repository "$GITHUB_REPOSITORY" \
+            --source-commit "$TRIGGER_HEAD_SHA" \
+            --run-id "$TRIGGER_RUN_ID" \
+            --run-attempt "$TRIGGER_RUN_ATTEMPT" \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Download triggering release identity
+        if: steps.publish-outcome.outputs.dry_run == 'false'
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v7.0.0
+        with:
+          name: ${{ steps.publication-signal.outputs.artifact_name }}
           path: .modern/triggering-release-identity
           github-token: ${{ github.token }}
           run-id: ${{ github.event.workflow_run.id }}
 
       - name: Verify triggering release acceptance receipt
         if: steps.publication-signal.outputs.exists == 'true'
-        env:
-          TRIGGER_RUN_ID: ${{ github.event.workflow_run.id }}
-          TRIGGER_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
         run: |
+          if [[ "${{ steps.publish-outcome.outputs.dry_run }}" == "true" ]]; then
+            exit 0
+          fi
+
+          node - "${{ steps.publish-outcome.outputs.producer_run_identity }}" <<'NODE'
+          const fs = require('node:fs');
+          const identity = JSON.parse(
+            fs.readFileSync(
+              process.env.BLEEDINGDEV_RELEASE_IDENTITY_DIR + '/release-identity.json',
+              'utf8',
+            ),
+          );
+          if (identity.producerRunIdentity !== process.argv[2]) {
+            throw new Error('Publication identity producer does not match the authenticated outcome');
+          }
+          NODE
+
           node scripts/ultramodern-production-readiness/published-create-proof/acceptance-receipt.mjs \
             --verify \
             --manifest "$BLEEDINGDEV_RELEASE_IDENTITY_DIR/manifest.json" \
             --receipt "$BLEEDINGDEV_RELEASE_IDENTITY_DIR/acceptance-receipt.json" \
-            --run-identity "github:${GITHUB_REPOSITORY}:run:${TRIGGER_RUN_ID}:attempt:${TRIGGER_RUN_ATTEMPT}"
+            --run-identity "${{ steps.publish-outcome.outputs.producer_run_identity }}"
 
       - name: Verify triggering release identity
         id: release-identity
         if: steps.publication-signal.outputs.exists == 'true'
         env:
+          AUTHENTICATED_DRY_RUN: ${{ steps.publish-outcome.outputs.dry_run }}
+          AUTHENTICATED_MANIFEST_SHA256: ${{ steps.publish-outcome.outputs.manifest_sha256 }}
+          AUTHENTICATED_PRODUCER_ARTIFACT_IDENTITY: ${{ steps.publish-outcome.outputs.producer_artifact_identity }}
+          AUTHENTICATED_PRODUCER_RUN_IDENTITY: ${{ steps.publish-outcome.outputs.producer_run_identity }}
+          AUTHENTICATED_VERSION: ${{ steps.publish-outcome.outputs.version }}
+          TRIGGER_ARTIFACT_NAME: ${{ steps.publication-signal.outputs.artifact_name }}
           TRIGGER_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
           TRIGGER_RUN_ID: ${{ github.event.workflow_run.id }}
           TRIGGER_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
         run: |
+          if [[ "$AUTHENTICATED_DRY_RUN" == "true" ]]; then
+            exit 0
+          fi
+
           node <<'NODE'
           const crypto = require('node:crypto');
           const fs = require('node:fs');
@@ -155,14 +261,16 @@ jobs:
             'utf8',
           );
           const semver = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
-          const runIdentity = `github:${manifest.source.repository}:run:${process.env.TRIGGER_RUN_ID}:attempt:${process.env.TRIGGER_RUN_ATTEMPT}`;
-
           if (
             !hasExactKeys(identity, [
               'acceptanceReceiptSha256',
               'cohortDigest',
               'dryRun',
               'manifestSha256',
+              'producerRunAttempt',
+              'producerRunIdentity',
+              'producerArtifactIdentity',
+              'publicationRunAttempt',
               'release',
               'releaseRunId',
               'schema',
@@ -170,14 +278,25 @@ jobs:
               'source',
             ]) ||
             identity.schema !== 'bleedingdev.ultramodern.published-release-identity' ||
-            identity.schemaVersion !== 1 ||
+            identity.schemaVersion !== 2 ||
             !hasExactKeys(identity.source, ['commit', 'repository']) ||
             !hasExactKeys(identity.release, ['tag', 'version']) ||
             String(identity.releaseRunId) !== process.env.TRIGGER_RUN_ID ||
+            !/^[1-9]\d*$/u.test(String(identity.producerRunAttempt)) ||
+            !/^[1-9]\d*$/u.test(String(identity.publicationRunAttempt)) ||
+            String(identity.publicationRunAttempt) !== process.env.TRIGGER_RUN_ATTEMPT ||
+            Number(identity.producerRunAttempt) > Number(identity.publicationRunAttempt) ||
+            identity.producerRunIdentity !== `github:${manifest.source.repository}:run:${process.env.TRIGGER_RUN_ID}:attempt:${identity.producerRunAttempt}` ||
+            identity.producerArtifactIdentity !== `run-${process.env.TRIGGER_RUN_ID}-attempt-${identity.producerRunAttempt}` ||
+            identity.producerRunIdentity !== process.env.AUTHENTICATED_PRODUCER_RUN_IDENTITY ||
+            identity.producerArtifactIdentity !== process.env.AUTHENTICATED_PRODUCER_ARTIFACT_IDENTITY ||
+            process.env.TRIGGER_ARTIFACT_NAME !== `${process.env.BLEEDINGDEV_RELEASE_IDENTITY_ARTIFACT}-${identity.producerArtifactIdentity}-publication-attempt-${identity.publicationRunAttempt}` ||
             identity.source.commit !== process.env.TRIGGER_HEAD_SHA ||
             identity.source.repository !== process.env.GITHUB_REPOSITORY ||
             identity.dryRun !== false ||
             identity.manifestSha256 !== manifestSha256 ||
+            identity.manifestSha256 !== process.env.AUTHENTICATED_MANIFEST_SHA256 ||
+            identity.release.version !== process.env.AUTHENTICATED_VERSION ||
             identity.acceptanceReceiptSha256 !== receiptSha256
           ) {
             throw new Error('Publication identity does not match the triggering workflow run');
@@ -218,7 +337,9 @@ jobs:
           const output = process.env.GITHUB_OUTPUT;
           fs.appendFileSync(output, 'authorized=true\n');
           fs.appendFileSync(output, `manifest_sha256=${identity.manifestSha256}\n`);
-          fs.appendFileSync(output, `run_identity=${runIdentity}\n`);
+          fs.appendFileSync(output, `publication_artifact_name=${process.env.TRIGGER_ARTIFACT_NAME}\n`);
+          fs.appendFileSync(output, `run_identity=${identity.producerRunIdentity}\n`);
+          fs.appendFileSync(output, `producer_artifact_identity=${identity.producerArtifactIdentity}\n`);
           fs.appendFileSync(output, `version=${manifest.release.version}\n`);
           NODE
 
@@ -230,7 +351,9 @@ jobs:
       - resolve-release-identity
     if: >-
       github.event_name == 'workflow_run' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
       needs.resolve-release-identity.outputs.publication_signal == 'true' &&
+      needs.resolve-release-identity.outputs.dry_run == 'false' &&
       needs.resolve-release-identity.outputs.authorized == 'true'
     env:
       RELEASE_MANIFEST_SHA256: ${{ needs.resolve-release-identity.outputs.manifest_sha256 }}
@@ -244,7 +367,7 @@ jobs:
           egress-policy: audit
 
       - name: Checkout triggering release commit
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
         with:
           ref: ${{ env.TRIGGER_HEAD_SHA }}
           fetch-depth: 1
@@ -261,7 +384,7 @@ jobs:
       - name: Download triggering release identity
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v7.0.0
         with:
-          name: bleedingdev-release-identity
+          name: ${{ needs.resolve-release-identity.outputs.publication_artifact_name }}
           path: .modern/triggering-release-identity
           github-token: ${{ github.token }}
           run-id: ${{ github.event.workflow_run.id }}
@@ -325,7 +448,7 @@ jobs:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
         with:
           fetch-depth: 1
           persist-credentials: false
@@ -387,7 +510,7 @@ jobs:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
         with:
           fetch-depth: 1
           persist-credentials: false

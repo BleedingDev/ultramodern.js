@@ -69,7 +69,11 @@ export function createReleaseBuildArgs(packages) {
   ];
 }
 
-function main() {
+function main(args) {
+  if (args.length > 0) {
+    throw new Error(`Unexpected argument(s): ${args.join(' ')}`);
+  }
+
   const buildProjects = collectBuildProjects();
   const packages = collectPublicModernPackages().filter(packageName =>
     buildProjects.has(packageName),
@@ -90,7 +94,7 @@ if (
   fileURLToPath(import.meta.url) === path.resolve(process.argv[1])
 ) {
   try {
-    main();
+    main(process.argv.slice(2));
   } catch (error) {
     console.error(error instanceof Error ? error.message : error);
     process.exit(1);

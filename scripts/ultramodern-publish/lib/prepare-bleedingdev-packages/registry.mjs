@@ -23,10 +23,53 @@ import {
 } from './release-artifacts.mjs';
 import {
   createRegistryProvenanceExpectation,
+  slsaProvenanceV1,
   verifyRegistryProvenance,
 } from './provenance.mjs';
 
 const execFileAsync = promisify(execFile);
+
+// This code-reviewed checkpoint is deliberately independent of mutable npm
+// packuments; only the listed legacy identities may bypass provenance.
+const registrySourceChronologyPolicies = Object.freeze({
+  '@bleedingdev/modern-js-create': Object.freeze({
+    cutoverAnchor: Object.freeze({
+      integrity:
+        'sha512-fK3mRQR/eyTRdgvuRb+Scg8lWS2ijqhAPy/d97SoRJ+12yFZHD/e4JWTQZcm9zxkOJn0kp4BJypVjwtlI63L6Q==',
+      publishedAt: '2026-05-16T21:22:57.171Z',
+      sourceCommit: '846d489312f17f48c5bfbf88d1d16164ffd6f465',
+      version: '3.2.0-ultramodern.1',
+    }),
+    grandfatheredVersions: Object.freeze([
+      Object.freeze({
+        integrity:
+          'sha512-+ZyvnxrZouvlF5yqdw6rbtEB/+X8GJJLrBNzKVZhN7aSjYbBI1nVgugRE0IogCNtyQzibOfakbeWNKwKtEI62Q==',
+        publishedAt: '2026-05-16T14:50:19.166Z',
+        version: '3.2.0-ultramodern.0',
+      }),
+    ]),
+  }),
+});
+
+function isPlainObject(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return false;
+  }
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+function assertPlainObject(value, label) {
+  if (!isPlainObject(value)) {
+    throw new Error(`${label} must be a JSON object`);
+  }
+}
+
+function assertNonEmptyString(value, label) {
+  if (typeof value !== 'string' || value.trim() !== value || value === '') {
+    throw new Error(`${label} must be a non-empty trimmed string`);
+  }
+}
 
 function isTransientNpmPublishError(error) {
   const output = [
@@ -147,6 +190,339 @@ async function lookupRegistryPackageDist(packageName, version) {
       { cause: error },
     );
   }
+}
+
+function pinnedRegistryPackageMetadataUrl(packageName) {
+  assertNonEmptyString(packageName, 'Registry package name');
+  return `${npmRegistryOrigin}/${encodeURIComponent(packageName)}`;
+}
+
+async function fetchRegistryPackageMetadata(
+  packageName,
+  fetchImpl = globalThis.fetch,
+) {
+  const metadataUrl = pinnedRegistryPackageMetadataUrl(packageName);
+  if (typeof fetchImpl !== 'function') {
+    throw new Error(`${packageName} registry metadata fetch is unavailable`);
+  }
+  let response;
+  try {
+    response = await fetchImpl(metadataUrl, {
+      headers: { accept: 'application/json' },
+      method: 'GET',
+      redirect: 'error',
+    });
+  } catch (error) {
+    throw new Error(
+      `${packageName} registry metadata request failed: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+      { cause: error },
+    );
+  }
+  if (!response?.ok) {
+    throw new Error(
+      `${packageName} registry metadata returned HTTP ${String(
+        response?.status ?? '<unknown>',
+      )}`,
+    );
+  }
+  if (typeof response.json !== 'function') {
+    throw new Error(`${packageName} registry metadata response is malformed`);
+  }
+  try {
+    return await response.json();
+  } catch (error) {
+    throw new Error(`${packageName} registry metadata is not valid JSON`, {
+      cause: error,
+    });
+  }
+}
+
+function parseRegistryTimestamp(value, label) {
+  assertNonEmptyString(value, label);
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp) || new Date(timestamp).toISOString() !== value) {
+    throw new Error(`${label} must be a canonical ISO-8601 timestamp`);
+  }
+  return timestamp;
+}
+
+function registrySourceChronologyPolicy(packageName) {
+  const policy = registrySourceChronologyPolicies[packageName];
+  if (!policy) {
+    throw new Error(
+      `${packageName} has no independently maintained registry provenance chronology policy`,
+    );
+  }
+  return policy;
+}
+
+function assertPinnedRegistryChronologyEntry(
+  entry,
+  expected,
+  packageName,
+  label,
+) {
+  if (entry.version !== expected.version) {
+    throw new Error(
+      `${packageName} registry ${label} expected version ${expected.version}, found ${entry.version}`,
+    );
+  }
+  if (entry.publishedAt !== expected.publishedAt) {
+    throw new Error(
+      `${packageName}@${entry.version} registry ${label} publication time must be ${expected.publishedAt}`,
+    );
+  }
+  assertPlainObject(
+    entry.published.dist,
+    `${packageName}@${entry.version} registry dist metadata`,
+  );
+  if (entry.published.dist.integrity !== expected.integrity) {
+    throw new Error(
+      `${packageName}@${entry.version} registry ${label} integrity does not match the independently maintained chronology`,
+    );
+  }
+}
+
+function registryVersionChronology(metadata, packageName) {
+  assertPlainObject(metadata, `${packageName} registry metadata`);
+  if (metadata.name !== packageName) {
+    throw new Error(
+      `${packageName} registry metadata identifies package ${String(metadata.name)}`,
+    );
+  }
+  assertPlainObject(metadata.versions, `${packageName} registry versions`);
+  assertPlainObject(metadata.time, `${packageName} registry time metadata`);
+  const versionNames = Object.keys(metadata.versions).sort();
+  const timeVersionNames = Object.keys(metadata.time)
+    .filter(name => name !== 'created' && name !== 'modified')
+    .sort();
+  const versionNameSet = new Set(versionNames);
+  const timeVersionNameSet = new Set(timeVersionNames);
+  const versionsMissingTime = versionNames.filter(
+    version => !timeVersionNameSet.has(version),
+  );
+  const timesMissingVersion = timeVersionNames.filter(
+    version => !versionNameSet.has(version),
+  );
+  if (versionsMissingTime.length > 0 || timesMissingVersion.length > 0) {
+    throw new Error(
+      `${packageName} registry versions/time metadata disagree: versions missing from time [${versionsMissingTime.join(
+        ', ',
+      )}]; time versions missing from versions [${timesMissingVersion.join(', ')}]`,
+    );
+  }
+  const created = parseRegistryTimestamp(
+    metadata.time.created,
+    `${packageName} registry creation time`,
+  );
+  const modified = parseRegistryTimestamp(
+    metadata.time.modified,
+    `${packageName} registry modification time`,
+  );
+  if (created > modified) {
+    throw new Error(`${packageName} registry time metadata is out of order`);
+  }
+
+  const entries = Object.entries(metadata.versions).map(
+    ([version, published], originalIndex) => {
+      assertNonEmptyString(version, `${packageName} registry version`);
+      assertPlainObject(
+        published,
+        `${packageName}@${version} registry version metadata`,
+      );
+      if (published.name !== packageName || published.version !== version) {
+        throw new Error(
+          `${packageName}@${version} registry version identity is inconsistent`,
+        );
+      }
+      const publishedAt = metadata.time[version];
+      const timestamp = parseRegistryTimestamp(
+        publishedAt,
+        `${packageName}@${version} registry publication time`,
+      );
+      if (timestamp < created || timestamp > modified) {
+        throw new Error(
+          `${packageName}@${version} registry publication time is outside the package lifetime`,
+        );
+      }
+      return { originalIndex, published, publishedAt, timestamp, version };
+    },
+  );
+  if (entries.length === 0) {
+    throw new Error(`${packageName} registry metadata has no version ledger`);
+  }
+  entries.sort(
+    (left, right) =>
+      left.timestamp - right.timestamp || left.originalIndex - right.originalIndex,
+  );
+  for (let index = 1; index < entries.length; index += 1) {
+    if (entries[index - 1].timestamp === entries[index].timestamp) {
+      throw new Error(
+        `${packageName} registry version chronology is ambiguous at ${entries[index].publishedAt}`,
+      );
+    }
+  }
+  return entries;
+}
+
+function declaresSlsaV1Provenance(published) {
+  return (
+    published?.dist?.attestations?.provenance?.predicateType ===
+    slsaProvenanceV1
+  );
+}
+
+function historicalProvenanceExpectation(expectation) {
+  return {
+    certificateIdentity: expectation.certificateIdentity,
+    issuer: expectation.issuer,
+    source: { repository: expectation.source.repository },
+    workflow: { ...expectation.workflow },
+  };
+}
+
+async function assertRegistrySourceCommitUnpublished(
+  request,
+  dependencies = {},
+) {
+  assertPlainObject(request, 'Registry source-cohort request');
+  const {
+    env = process.env,
+    packageName,
+    requestedVersion,
+    sourceCommit,
+    sourceRepository,
+  } = request;
+  assertNonEmptyString(packageName, 'Registry source-cohort package name');
+  assertNonEmptyString(
+    requestedVersion,
+    'Registry source-cohort requested version',
+  );
+  const chronologyPolicy = registrySourceChronologyPolicy(packageName);
+  const expectation = createRegistryProvenanceExpectation(
+    {
+      source: { commit: sourceCommit, repository: sourceRepository },
+    },
+    env,
+  );
+  const fetchImpl = dependencies.fetchImpl ?? globalThis.fetch;
+  const provenanceVerifier =
+    dependencies.verifyRegistryProvenance ?? verifyRegistryProvenance;
+  const metadata = await fetchRegistryPackageMetadata(packageName, fetchImpl);
+  const chronology = registryVersionChronology(metadata, packageName);
+  const { cutoverAnchor, grandfatheredVersions } = chronologyPolicy;
+  const cutoverIndex = chronology.findIndex(
+    entry => entry.version === cutoverAnchor.version,
+  );
+  if (cutoverIndex === -1) {
+    throw new Error(
+      `${packageName} registry chronology is missing independently maintained provenance cutover anchor ${cutoverAnchor.version}`,
+    );
+  }
+  if (cutoverIndex !== grandfatheredVersions.length) {
+    throw new Error(
+      `${packageName} registry chronology before ${cutoverAnchor.version} is not independently authorized`,
+    );
+  }
+  for (const [index, grandfatheredVersion] of
+    grandfatheredVersions.entries()) {
+    assertPinnedRegistryChronologyEntry(
+      chronology[index],
+      grandfatheredVersion,
+      packageName,
+      'grandfathered version',
+    );
+  }
+  const cutoverEntry = chronology[cutoverIndex];
+  assertPinnedRegistryChronologyEntry(
+    cutoverEntry,
+    cutoverAnchor,
+    packageName,
+    'provenance cutover anchor',
+  );
+  if (!declaresSlsaV1Provenance(cutoverEntry.published)) {
+    throw new Error(
+      `${packageName}@${cutoverAnchor.version} authenticated provenance cutover anchor is missing its SLSA v1 declaration`,
+    );
+  }
+  const requestedIndex = chronology.findIndex(
+    entry => entry.version === requestedVersion,
+  );
+  if (requestedIndex !== -1 && requestedIndex < cutoverIndex) {
+    throw new Error(
+      `${packageName}@${requestedVersion} predates authenticated registry provenance and cannot be safely reused`,
+    );
+  }
+
+  const discoveryExpectation = historicalProvenanceExpectation(expectation);
+  const cutoverExpectation = {
+    ...discoveryExpectation,
+    source: {
+      ...discoveryExpectation.source,
+      commit: cutoverAnchor.sourceCommit,
+    },
+  };
+  let inspectedCount = 0;
+  for (let index = cutoverIndex; index < chronology.length; index += 1) {
+    const entry = chronology[index];
+    if (!declaresSlsaV1Provenance(entry.published)) {
+      throw new Error(
+        `${packageName}@${entry.version} is missing SLSA v1 provenance after the ${cutoverAnchor.version} cutover`,
+      );
+    }
+    assertPlainObject(
+      entry.published.dist,
+      `${packageName}@${entry.version} registry dist metadata`,
+    );
+    const evidence = await provenanceVerifier(
+      {
+        integrity: entry.published.dist.integrity,
+        targetName: packageName,
+        version: entry.version,
+      },
+      entry.published.dist,
+      entry.version === requestedVersion
+        ? expectation
+        : entry.version === cutoverAnchor.version
+          ? cutoverExpectation
+          : discoveryExpectation,
+      fetchImpl,
+      dependencies.bundleVerifier,
+    );
+    inspectedCount += 1;
+    if (
+      entry.version === cutoverAnchor.version &&
+      evidence.sourceCommit !== cutoverAnchor.sourceCommit
+    ) {
+      throw new Error(
+        `${packageName}@${cutoverAnchor.version} provenance cutover anchor authenticated unexpected source commit ${String(evidence.sourceCommit)}`,
+      );
+    }
+    if (
+      entry.version !== requestedVersion &&
+      evidence.sourceCommit === expectation.source.commit
+    ) {
+      throw new Error(
+        `Source commit ${expectation.source.commit} is already authenticated and published as ${packageName}@${entry.version}; refusing requested version ${requestedVersion}`,
+      );
+    }
+  }
+
+  return {
+    cutover: {
+      publishedAt: cutoverEntry.publishedAt,
+      version: cutoverEntry.version,
+    },
+    exactVersionAuthenticated: requestedIndex !== -1,
+    grandfatheredCount: cutoverIndex,
+    inspectedCount,
+    packageName,
+    requestedVersion,
+    sourceCommit: expectation.source.commit,
+    versionCount: chronology.length,
+  };
 }
 
 function assertRegistryDistMatches(item, dist) {
@@ -660,6 +1036,7 @@ async function publishManifestPackages(
 }
 
 export {
+  assertRegistrySourceCommitUnpublished,
   assertRegistryDistMatches,
   createRegistryProvenanceExpectation,
   extractTarball,
