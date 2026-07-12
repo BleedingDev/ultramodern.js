@@ -134,18 +134,20 @@ type LockRecord = {
   createdAt: number;
 };
 
-type LockHandle = { lockPath: string; token: string };
+type LockObservation = {
+  raw: string;
+  record: LockRecord | undefined;
+};
 
-const MAX_LOCK_ACQUIRE_ATTEMPTS = 4;
+type LockHandle = { lockPath: string; token: string };
 
 function lockFilePath(root: string): string {
   return path.join(root, ULTRAMODERN_LOCK_DIRECTORY, ULTRAMODERN_LOCK_FILE);
 }
 
-/** Read a well-formed lock record, or `undefined` for a stale/malformed file. */
-function readLock(lockPath: string): LockRecord | undefined {
+function parseLock(raw: string): LockRecord | undefined {
   try {
-    const parsed: unknown = JSON.parse(fs.readFileSync(lockPath, 'utf-8'));
+    const parsed: unknown = JSON.parse(raw);
     if (parsed === null || typeof parsed !== 'object') {
       return undefined;
     }
@@ -169,10 +171,32 @@ function readLock(lockPath: string): LockRecord | undefined {
   }
 }
 
-/** Age of the lock at `lockPath` in ms, or `undefined` if it can't be read. */
-function lockAgeMs(lockPath: string): number | undefined {
-  const record = readLock(lockPath);
-  return record === undefined ? undefined : Date.now() - record.createdAt;
+function readLockObservation(lockPath: string): LockObservation | undefined {
+  try {
+    const raw = fs.readFileSync(lockPath, 'utf-8');
+    return { raw, record: parseLock(raw) };
+  } catch {
+    return undefined;
+  }
+}
+
+function isProcessAlive(pid: number): boolean | undefined {
+  if (!Number.isInteger(pid) || pid <= 0) {
+    return false;
+  }
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === 'ESRCH') {
+      return false;
+    }
+    if (code === 'EPERM') {
+      return true;
+    }
+    return undefined;
+  }
 }
 
 function writeLock(lockPath: string, record: LockRecord): boolean {
@@ -187,6 +211,102 @@ function writeLock(lockPath: string, record: LockRecord): boolean {
   }
 }
 
+function unlinkIfPresent(filePath: string): void {
+  try {
+    fs.unlinkSync(filePath);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+      throw error;
+    }
+  }
+}
+
+/**
+ * Restore a moved lock without replacing a lock another claimant created in
+ * the gap. Hard-link creation is exclusive on the destination; the copy
+ * fallback preserves that no-clobber property on filesystems that reject
+ * hard-links.
+ */
+function restoreMovedLock(movedLockPath: string, lockPath: string): void {
+  try {
+    fs.linkSync(movedLockPath, lockPath);
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === 'EEXIST') {
+      unlinkIfPresent(movedLockPath);
+      return;
+    }
+    if (code !== 'EPERM' && code !== 'EOPNOTSUPP' && code !== 'ENOTSUP') {
+      throw error;
+    }
+    try {
+      fs.copyFileSync(movedLockPath, lockPath, fs.constants.COPYFILE_EXCL);
+    } catch (copyError) {
+      if ((copyError as NodeJS.ErrnoException).code === 'EEXIST') {
+        unlinkIfPresent(movedLockPath);
+        return;
+      }
+      throw copyError;
+    }
+  }
+  unlinkIfPresent(movedLockPath);
+}
+
+function workspaceLockedError(root: string): WorkspaceLockedError {
+  return new WorkspaceLockedError(
+    `Workspace at ${root} is locked by another ultramodern mutation.`,
+  );
+}
+
+function isStaleLock(
+  observation: LockObservation,
+  staleLockMs: number,
+): boolean {
+  if (observation.record === undefined) {
+    return true;
+  }
+  const age = Date.now() - observation.record.createdAt;
+  return age > staleLockMs || isProcessAlive(observation.record.pid) === false;
+}
+
+/**
+ * Atomically claim the pathname, then verify that the bytes we moved are the
+ * stale bytes observed before the claim. A mismatch means a successor won the
+ * race; its lock is restored without overwriting any newer claimant.
+ */
+function takeOverLock(
+  lockPath: string,
+  observed: LockObservation,
+  replacement: LockRecord,
+): boolean {
+  const takeoverPath = `${lockPath}.takeover.${replacement.token}`;
+  try {
+    fs.renameSync(lockPath, takeoverPath);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return false;
+    }
+    throw error;
+  }
+
+  try {
+    const claimed = readLockObservation(takeoverPath);
+    if (claimed?.raw !== observed.raw) {
+      restoreMovedLock(takeoverPath, lockPath);
+      return false;
+    }
+    return writeLock(lockPath, replacement);
+  } finally {
+    // The moved file is the exact stale observation or a successor that we
+    // have already restored. It is never the pathname of a live successor.
+    try {
+      unlinkIfPresent(takeoverPath);
+    } catch {
+      // A best-effort cleanup failure must not mask the lock decision.
+    }
+  }
+}
+
 /**
  * Acquire the workspace-wide exclusive mutation lock. Atomic via an exclusive
  * (`wx`) create. If the lock already exists, its age is inspected: a lock older
@@ -198,51 +318,56 @@ function acquireWorkspaceLock(root: string, staleLockMs: number): LockHandle {
   const lockPath = lockFilePath(root);
   fs.mkdirSync(path.dirname(lockPath), { recursive: true });
 
-  for (let attempt = 0; attempt < MAX_LOCK_ACQUIRE_ATTEMPTS; attempt += 1) {
-    const record: LockRecord = {
-      token: randomUUID(),
-      pid: process.pid,
-      createdAt: Date.now(),
-    };
-    if (writeLock(lockPath, record)) {
-      return { lockPath, token: record.token };
-    }
-
-    const age = lockAgeMs(lockPath);
-    if (age === undefined || age > staleLockMs) {
-      process.emitWarning(
-        `Taking over stale ultramodern workspace lock at ${lockPath} ` +
-          `(age ${age ?? 'unknown'}ms).`,
-      );
-      try {
-        fs.unlinkSync(lockPath);
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-          throw error;
-        }
-      }
-      continue;
-    }
-
-    throw new WorkspaceLockedError(
-      `Workspace at ${root} is locked by another ultramodern mutation.`,
-    );
+  const record: LockRecord = {
+    token: randomUUID(),
+    pid: process.pid,
+    createdAt: Date.now(),
+  };
+  if (writeLock(lockPath, record)) {
+    return { lockPath, token: record.token };
   }
 
-  throw new WorkspaceLockedError(
-    `Workspace at ${root} is locked by another ultramodern mutation.`,
+  const observed = readLockObservation(lockPath);
+  if (observed === undefined) {
+    throw workspaceLockedError(root);
+  }
+
+  const age =
+    observed.record === undefined
+      ? undefined
+      : Date.now() - observed.record.createdAt;
+  if (!isStaleLock(observed, staleLockMs)) {
+    throw workspaceLockedError(root);
+  }
+
+  process.emitWarning(
+    `Taking over stale ultramodern workspace lock at ${lockPath} ` +
+      `(age ${age ?? 'unknown'}ms).`,
   );
+  if (takeOverLock(lockPath, observed, record)) {
+    return { lockPath, token: record.token };
+  }
+  throw workspaceLockedError(root);
 }
 
 function releaseWorkspaceLock(handle: LockHandle): void {
-  const record = readLock(handle.lockPath);
-  if (record?.token !== handle.token) {
+  const releasePath = `${handle.lockPath}.release.${handle.token}`;
+  try {
+    fs.renameSync(handle.lockPath, releasePath);
+  } catch {
     return;
   }
+
   try {
-    fs.rmSync(handle.lockPath, { force: true });
+    const moved = readLockObservation(releasePath);
+    if (moved?.record?.token === handle.token) {
+      unlinkIfPresent(releasePath);
+      return;
+    }
+    restoreMovedLock(releasePath, handle.lockPath);
   } catch {
-    // Best-effort release: a missing lock (already taken over) is not an error.
+    // Best-effort release: a missing lock (already taken over) is not an
+    // error, and an unexpected filesystem race must not mask the mutation.
   }
 }
 

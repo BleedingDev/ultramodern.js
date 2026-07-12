@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -19,6 +20,63 @@ function lockPath(workspaceDir: string): string {
     ULTRAMODERN_LOCK_DIRECTORY,
     ULTRAMODERN_LOCK_FILE,
   );
+}
+
+function runConcurrentClaimant(options: {
+  workspaceDir: string;
+  readyPath: string;
+  otherReadyPath: string;
+  winnerPath: string;
+}): Promise<{ status: number | null; stderr: string }> {
+  const transactionModulePath = path.resolve(
+    __dirname,
+    '../dist/cjs/ultramodern-workspace/add-vertical/transaction.cjs',
+  );
+  const script = `
+const fs = require('node:fs');
+const { runWorkspaceTransaction } = require(${JSON.stringify(transactionModulePath)});
+const [workspaceDir, readyPath, otherReadyPath, winnerPath] = process.argv.slice(1);
+const waitBuffer = new Int32Array(new SharedArrayBuffer(4));
+
+try {
+  fs.writeFileSync(readyPath, 'ready');
+  const deadline = Date.now() + 5000;
+  while (!fs.existsSync(otherReadyPath) && Date.now() < deadline) {
+    Atomics.wait(waitBuffer, 0, 0, 10);
+  }
+  if (!fs.existsSync(otherReadyPath)) {
+    throw new Error('concurrent claimant barrier timed out');
+  }
+  runWorkspaceTransaction(
+    workspaceDir,
+    () => {
+      fs.writeFileSync(winnerPath, String(process.pid));
+      Atomics.wait(waitBuffer, 0, 0, 750);
+    },
+    { staleLockMs: 10000 },
+  );
+  process.stdout.write('won');
+} catch (error) {
+  process.stderr.write(error?.code || String(error));
+  process.exitCode = error?.code === 'workspace-locked' ? 2 : 1;
+}
+`;
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [
+      '-e',
+      script,
+      options.workspaceDir,
+      options.readyPath,
+      options.otherReadyPath,
+      options.winnerPath,
+    ]);
+    let stderr = '';
+    child.stderr?.on('data', chunk => {
+      stderr += chunk.toString();
+    });
+    child.once('error', reject);
+    child.once('close', status => resolve({ status, stderr }));
+  });
 }
 
 function snapshotAllFiles(root: string): Map<string, Buffer> {
@@ -199,6 +257,76 @@ test('a stale lock is taken over (G1c)', () => {
       !fs.existsSync(lockPath(workspaceDir)),
       'lock released after takeover',
     );
+  } finally {
+    fs.rmSync(tempRoot, { force: true, recursive: true });
+  }
+});
+
+test('concurrent stale-lock takeovers have exactly one winner (G1c)', async () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-add-txn-'));
+  const workspaceDir = path.join(tempRoot, 'race-workspace');
+  const readyOne = path.join(tempRoot, 'claimant-one.ready');
+  const readyTwo = path.join(tempRoot, 'claimant-two.ready');
+  const winnerOne = path.join(tempRoot, 'claimant-one.winner');
+  const winnerTwo = path.join(tempRoot, 'claimant-two.winner');
+  fs.mkdirSync(path.dirname(lockPath(workspaceDir)), { recursive: true });
+  fs.writeFileSync(
+    lockPath(workspaceDir),
+    JSON.stringify({
+      token: 'stale-race-token',
+      pid: 999999999,
+      createdAt: 0,
+    }),
+  );
+
+  try {
+    const results = await Promise.all([
+      runConcurrentClaimant({
+        workspaceDir,
+        readyPath: readyOne,
+        otherReadyPath: readyTwo,
+        winnerPath: winnerOne,
+      }),
+      runConcurrentClaimant({
+        workspaceDir,
+        readyPath: readyTwo,
+        otherReadyPath: readyOne,
+        winnerPath: winnerTwo,
+      }),
+    ]);
+    assert.equal(
+      results.filter(result => result.status === 0).length,
+      1,
+      `exactly one claimant must win: ${JSON.stringify(results)}`,
+    );
+    assert.equal(
+      results.filter(result => result.status === 2).length,
+      1,
+      `the losing claimant must receive WorkspaceLockedError: ${JSON.stringify(results)}`,
+    );
+  } finally {
+    fs.rmSync(tempRoot, { force: true, recursive: true });
+  }
+});
+
+test('a fresh lock with a dead PID is taken over before staleLockMs (G1c)', () => {
+  const { tempRoot, workspaceDir } = scaffoldWorkspace();
+  try {
+    fs.mkdirSync(path.dirname(lockPath(workspaceDir)), { recursive: true });
+    fs.writeFileSync(
+      lockPath(workspaceDir),
+      JSON.stringify({
+        token: 'dead-pid-token',
+        pid: 999999999,
+        createdAt: Date.now(),
+      }),
+    );
+
+    const result = runWorkspaceTransaction(workspaceDir, () => 'ran', {
+      staleLockMs: 60_000,
+    });
+    assert.equal(result, 'ran');
+    assert.ok(!fs.existsSync(lockPath(workspaceDir)));
   } finally {
     fs.rmSync(tempRoot, { force: true, recursive: true });
   }
