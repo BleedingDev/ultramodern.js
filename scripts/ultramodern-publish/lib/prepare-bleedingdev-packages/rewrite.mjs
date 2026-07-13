@@ -152,6 +152,23 @@ function rewriteDependencyBlock(
   }
 }
 
+function stripModernSourceConditions(exportsValue) {
+  if (Array.isArray(exportsValue)) {
+    return exportsValue.map(entry => stripModernSourceConditions(entry));
+  }
+  if (exportsValue && typeof exportsValue === 'object') {
+    const next = {};
+    for (const [condition, target] of Object.entries(exportsValue)) {
+      if (condition === 'modern:source') {
+        continue;
+      }
+      next[condition] = stripModernSourceConditions(target);
+    }
+    return next;
+  }
+  return exportsValue;
+}
+
 function rewritePackageJson(packageJson, sourceName, options, sourceNames) {
   packageJson.name = targetPackageName(sourceName, options);
   packageJson.version = options.version;
@@ -165,6 +182,15 @@ function rewritePackageJson(packageJson, sourceName, options, sourceNames) {
   // pins either would bypass the workflow's authority (policy: forbidden).
   delete packageJson.publishConfig.registry;
   delete packageJson.publishConfig.tag;
+  // The in-repo `modern:source` export condition points at src/ files that
+  // are not shipped; a published manifest must not advertise them and the
+  // exports maps must stay deep-equal for acceptance.
+  packageJson.exports = stripModernSourceConditions(packageJson.exports);
+  if (packageJson.publishConfig.exports !== undefined) {
+    packageJson.publishConfig.exports = stripModernSourceConditions(
+      packageJson.publishConfig.exports,
+    );
+  }
   if (sourceName === '@modern-js/create') {
     packageJson.ultramodern = {
       ...(packageJson.ultramodern ?? {}),
