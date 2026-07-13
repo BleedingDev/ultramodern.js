@@ -3327,6 +3327,12 @@ const assertAdditionalShellCohort = () => {
     assert(!/origin:\s*(?:true|\*|['"]\*['"])/u.test(modernConfig), `${appPath} MF dev CORS must not reflect arbitrary origins`);
   }
 
+  // Zerops artifacts exist whenever the workspace has delivery units at all
+  // (ui-only and horizontal-remote units deploy too); a shell-only workspace
+  // must not carry one.
+  if (!hasDeliveryUnits) {
+    assertNotExists('zerops.yaml');
+  } else {
   assertExists('zerops.yaml');
   const zeropsYaml = readText('zerops.yaml');
   assert(
@@ -3337,6 +3343,7 @@ const assertAdditionalShellCohort = () => {
     assert(zeropsYaml.includes(`setup: ${quoteYamlString(shell.id)}`), `${shell.id} must have a Zerops service`);
     assert(zeropsYaml.includes(`start: cd ${quoteShellValue(`.zerops/runtime/${shell.id}`)} && npm run serve`), `${shell.id} Zerops service start command is missing`);
     assert(zeropsYaml.includes(`        ${shell.portEnv}: ${quoteYamlString(String(shell.port))}`), `${shell.id} Zerops service port environment is missing`);
+  }
   }
 };
 assertAdditionalShellCohort();
