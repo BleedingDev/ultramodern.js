@@ -311,8 +311,8 @@ test('rendered contents of the highest-risk generated files match the checked-in
     );
     assert.match(
       shellModernConfig,
-      /api\.modifyRspackConfig\(\s*withBuildConfigEnvironment\(\s*'ZE_FAIL_BUILD',\s*'true',\s*withZephyrRspack\(\),?\s*\),?\s*\);/,
-      'generated Modern config must lease the native Zephyr fail-closed setting for the compiler lifecycle',
+      /withBuildConfigEnvironment\(\s*'ZE_FAIL_BUILD',\s*'true',\s*withZephyrRspack\(\),?\s*\)\s*:\s*withZephyrRspack\(\)/,
+      'generated Modern config must lease the native Zephyr fail-closed setting for the compiler lifecycle only when authenticated (ZE_SECRET_TOKEN), registering Zephyr unconditionally otherwise',
     );
     assert.match(
       shellModernConfig,

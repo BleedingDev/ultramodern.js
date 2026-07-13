@@ -61,12 +61,22 @@ import { ultramodernLocalisedUrls } from './src/routes/ultramodern-route-metadat
       handler: ReturnType<typeof withZephyrRspack>,
     ) => void;
   }) {
+    // Zephyr is always registered (never gated), but it only UPLOADS and treats
+    // failures as fatal when authenticated. Zephyr authenticates via its own
+    // ZE_SECRET_TOKEN. With a token, ZE_FAIL_BUILD=true makes an upload failure
+    // a hard build failure (deploy authority). Without a token, ZE_FAIL_BUILD is
+    // left unset so Zephyr logs the missing-auth notice and the build continues
+    // — the framework "works with or without a Zephyr Cloud account".
+    const zephyrAuthenticated =
+      (getBuildConfigEnvironment('ZE_SECRET_TOKEN') ?? '').length > 0;
     api.modifyRspackConfig(
-      withBuildConfigEnvironment(
-        'ZE_FAIL_BUILD',
-        'true',
-        withZephyrRspack(),
-      ),
+      zephyrAuthenticated
+        ? withBuildConfigEnvironment(
+            'ZE_FAIL_BUILD',
+            'true',
+            withZephyrRspack(),
+          )
+        : withZephyrRspack(),
     );
   },
 });

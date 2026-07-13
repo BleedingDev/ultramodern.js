@@ -197,6 +197,34 @@ async function runAcceptanceProfile({
           packageManagerEnv,
           runImpl,
         );
+        // The generated project is always-Zephyr by design (the zephyr-gating
+        // policy forbids disabling it), and zephyr-agent requires git identity
+        // and a remote origin to initialize a build — a hard requirement in CI.
+        // A real consumer project has both; the create CLI already stamps an
+        // initial commit, so the clean-room only needs to record a remote
+        // origin (never fetched — Zephyr just parses the URL) to reproduce a
+        // realistic, buildable repository. No Zephyr token is set, so nothing
+        // is uploaded: this exercises "builds with Zephyr present, without a
+        // Zephyr account".
+        runImpl('git', ['config', 'user.name', 'UltraModern Acceptance'], {
+          cwd: projectDir,
+          env: packageManagerEnv,
+        });
+        runImpl(
+          'git',
+          ['config', 'user.email', 'acceptance@ultramodern.local'],
+          { cwd: projectDir, env: packageManagerEnv },
+        );
+        runImpl(
+          'git',
+          [
+            'remote',
+            'add',
+            'origin',
+            'https://github.com/ultramodern-ci/acceptance-superapp.git',
+          ],
+          { cwd: projectDir, env: packageManagerEnv },
+        );
         return {
           runner: 'pnpm dlx',
           exactSpecifier: createPackage.exactSpecifier,

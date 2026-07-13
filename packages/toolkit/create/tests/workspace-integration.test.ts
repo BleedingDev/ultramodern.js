@@ -1227,7 +1227,7 @@ test('generated workspace self-check accepts stable formatting but rejects wrong
   }
 });
 
-test('emitted module federation config uses native fail-closed Zephyr composition', () => {
+test('emitted module federation config leases Zephyr fail-closed behavior only when authenticated', () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-zephyr-'));
   const workspaceDir = path.join(tempRoot, 'zephyr-workspace');
 
@@ -1249,10 +1249,18 @@ test('emitted module federation config uses native fail-closed Zephyr compositio
       /import \{\s*getBuildConfigEnvironment,\s*withBuildConfigEnvironment,?\s*\} from '@modern-js\/app-tools\/config';/u,
       'generated Modern config must import the public config environment API',
     );
+    // Zephyr is always registered (no gate), but fail-closed behavior is leased
+    // only when authenticated via Zephyr's own ZE_SECRET_TOKEN; without a token
+    // the build degrades gracefully (works without a Zephyr Cloud account).
     assert.match(
       modernConfig,
-      /api\.modifyRspackConfig\(\s*withBuildConfigEnvironment\(\s*'ZE_FAIL_BUILD',\s*'true',\s*withZephyrRspack\(\),?\s*\),?\s*\);/u,
-      'generated Modern config must lease Zephyr fail-closed behavior through the public config API',
+      /getBuildConfigEnvironment\(\s*'ZE_SECRET_TOKEN'\s*\)/u,
+      'generated Modern config must key Zephyr fail-closed behavior off the Zephyr auth token',
+    );
+    assert.match(
+      modernConfig,
+      /withBuildConfigEnvironment\(\s*'ZE_FAIL_BUILD',\s*'true',\s*withZephyrRspack\(\),?\s*\)\s*:\s*withZephyrRspack\(\)/u,
+      'generated Modern config must lease Zephyr fail-closed behavior through the public config API only when authenticated, and register Zephyr unconditionally otherwise',
     );
     assert.doesNotMatch(
       modernConfig,
