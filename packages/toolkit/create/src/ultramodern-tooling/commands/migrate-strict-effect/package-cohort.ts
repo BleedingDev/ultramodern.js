@@ -116,7 +116,11 @@ function removeStaleBackendFederationCommandSegments(command: string) {
 // (their wrappers/materializers are not generated), so leaving them would
 // dangle at deleted files.
 
-const SHELL_ONLY_OMITTED_ROOT_SCRIPTS: readonly string[] = [
+// Framework-owned root scripts that are CONDITIONAL on workspace shape: any
+// of them present in package.json but absent from the freshly derived
+// expected set is stale (e.g. backend wrappers after the last API unit was
+// removed, or on a ui-only migration) and must be deleted, not kept.
+const CONDITIONAL_FRAMEWORK_ROOT_SCRIPTS: readonly string[] = [
   'node:backend-federation:generate',
   'node:proof',
   'zerops:materialize',
@@ -209,7 +213,6 @@ export function updateGeneratedPackageScripts(
 
   let changed = false;
   const apps = options.apps ?? [];
-  const shellOnly = options.shellOnly ?? false;
   const app = apps.find(
     candidate =>
       `${candidate.directory}/package.json` === options.relativePackageFile,
@@ -228,20 +231,19 @@ export function updateGeneratedPackageScripts(
       : undefined;
 
   if (expectedScripts) {
-    for (const [name, value] of Object.entries(expectedScripts)) {
-      // Shell-only workspaces never materialize backend-federation/Zerops
-      // wrappers, so their root scripts must not be injected either.
-      if (
-        isRootPackage &&
-        shellOnly &&
-        SHELL_ONLY_OMITTED_ROOT_SCRIPTS.includes(name)
-      ) {
-        if (name in scripts) {
+    // Remove stale conditional framework scripts the current workspace shape
+    // no longer derives (split backend vs Zerops gating upstream decides).
+    if (isRootPackage) {
+      for (const name of CONDITIONAL_FRAMEWORK_ROOT_SCRIPTS) {
+        if (!(name in expectedScripts) && name in scripts) {
           delete scripts[name];
           changed = true;
         }
-        continue;
       }
+    }
+    for (const [name, value] of Object.entries(expectedScripts)) {
+      // Shell-only workspaces never materialize backend-federation/Zerops
+      // wrappers, so their root scripts must not be injected either.
 
       if (value === undefined) {
         continue;

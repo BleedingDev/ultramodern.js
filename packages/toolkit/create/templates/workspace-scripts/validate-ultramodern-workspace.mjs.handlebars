@@ -23,6 +23,10 @@ const fullStackVerticals = workspaceValidationContract.fullStackVerticals;
 const hasBackendSurfaces = fullStackVerticals.some(
   vertical => vertical.emitsApi,
 );
+// Every vertical (ui-only and horizontal-remote included) is a delivery unit
+// and deploys via Zerops; only the BACKEND proof/generation surfaces depend on
+// an API-bearing unit existing (split gating).
+const hasDeliveryUnits = fullStackVerticals.length > 0;
 const shellNamespace = workspaceValidationContract.shellNamespace;
 const oldRemotePaths = workspaceValidationContract.oldRemotePaths;
 const expectedBuildScript = workspaceValidationContract.scripts.build;
@@ -3418,12 +3422,19 @@ assert(rootPackage.scripts?.['i18n:boundaries'] === 'node ./scripts/check-ultram
 assert(rootPackage.scripts?.['performance:readiness'] === 'node ./scripts/ultramodern-performance-readiness.mts', 'Root must expose default-on performance readiness diagnostics');
 if (hasBackendSurfaces) {
   assert(rootPackage.scripts?.['node:backend-federation:generate'] === 'node ./scripts/generate-node-backend-federation.mts', 'Root must expose local Node backend federation artifact generation');
-  assert(rootPackage.scripts?.['zerops:materialize'] === 'node ./scripts/materialize-zerops-runtime.mjs', 'Root must expose Zerops runtime materialization script');
   assert(
     rootPackage.scripts?.['node:proof'] ===
       'pnpm node:backend-federation:generate && node ./scripts/proof-node-backend-federation.mts',
     'Root must expose node:proof for backend federation Effect modules',
   );
+} else {
+  assert(rootPackage.scripts?.['node:backend-federation:generate'] === undefined, 'Root must not expose backend federation generation without an API surface');
+  assert(rootPackage.scripts?.['node:proof'] === undefined, 'Root must not expose node:proof without an API surface');
+}
+if (hasDeliveryUnits) {
+  assert(rootPackage.scripts?.['zerops:materialize'] === 'node ./scripts/materialize-zerops-runtime.mjs', 'Root must expose Zerops runtime materialization script');
+} else {
+  assert(rootPackage.scripts?.['zerops:materialize'] === undefined, 'Root must not expose Zerops materialization in a shell-only workspace');
 }
 assertNotExists('scripts/generate-node-backend-federation.mjs');
 assertNotExists('scripts/proof-node-backend-federation.mjs');
@@ -3441,7 +3452,7 @@ assert(
     ),
   'Root check must run Node backend federation proof when backend surfaces exist, default-on performance readiness diagnostics, and bridge gates when configured',
 );
-if (hasBackendSurfaces) {
+if (hasDeliveryUnits) {
   const zeropsYaml = readText('zerops.yaml');
   assert(zeropsYaml.includes('zerops:'), 'Zerops manifest must include zerops services');
   assert(zeropsYaml.includes(`setup: ${quoteYamlString('shell-super-app')}`), 'Zerops manifest must include shell service');
