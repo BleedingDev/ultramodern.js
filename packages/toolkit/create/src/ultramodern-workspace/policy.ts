@@ -834,15 +834,6 @@ export const ULTRAMODERN_WORKSPACE_POLICY = {
       '@tanstack/router-core': TANSTACK_ROUTER_CORE_VERSION,
       effect: EFFECT_VERSION,
       'node-fetch': NODE_FETCH_VERSION,
-      // The Module Federation DTS plugin loads the CLASSIC TypeScript compiler
-      // API (typescript.sys.readFile) which the TS7/tsgo package does not
-      // expose — with typescript@7 it crashes ("Cannot read properties of
-      // undefined (reading 'readFile')") and silently emits no @mf-types
-      // archive. peerDependencyRules only allow the classic version; a scoped
-      // override actually FORCES it, beating the peer that otherwise resolves
-      // to the workspace's TS7. This keeps tsgo as the app compiler while the
-      // DTS plugin gets the classic compiler it requires.
-      '@module-federation/dts-plugin>typescript': `npm:typescript@${TYPESCRIPT_COMPILER_API_VERSION}`,
     },
     packageExtensions: {
       [`@module-federation/dts-plugin@${MODULE_FEDERATION_VERSION}`]: {
