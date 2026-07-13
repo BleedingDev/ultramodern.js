@@ -161,6 +161,10 @@ function rewritePackageJson(packageJson, sourceName, options, sourceNames) {
     ...(packageJson.publishConfig ?? {}),
     access: 'public',
   };
+  // Trusted publishing supplies the registry and dist-tag; a tarball that
+  // pins either would bypass the workflow's authority (policy: forbidden).
+  delete packageJson.publishConfig.registry;
+  delete packageJson.publishConfig.tag;
   if (sourceName === '@modern-js/create') {
     packageJson.ultramodern = {
       ...(packageJson.ultramodern ?? {}),
