@@ -828,6 +828,15 @@ export const ULTRAMODERN_WORKSPACE_POLICY = {
       },
     },
     overrides: {
+      // The `typescript` npm package is the CLASSIC compiler; in this fork TS7
+      // typechecking is done by tsgo (@effect/tsgo / @typescript/native-preview),
+      // separate packages unaffected by this pin. The Module Federation DTS
+      // plugin EXECUTES the classic compiler API (typescript.sys.readFile) at
+      // build time, which TS7 does not expose — with typescript@7 it crashes and
+      // emits no @mf-types archive. Pin the classic package to the supported
+      // compiler-API version workspace-wide (the only pnpm mechanism that beats
+      // the hoisted TS7 peer; scoped parent>child overrides do not force peers).
+      typescript: TYPESCRIPT_COMPILER_API_VERSION,
       '@effect/opentelemetry': EFFECT_VERSION,
       '@effect/vitest': EFFECT_VITEST_VERSION,
       '@tanstack/react-router': TANSTACK_ROUTER_VERSION,
