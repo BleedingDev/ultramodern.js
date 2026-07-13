@@ -70,10 +70,13 @@ function validateCreatePackage(createPackage, manifest) {
   ];
   const packageExports = packageJson.exports;
   const publishExports = packageJson.publishConfig?.exports;
+  // pnpm pack promotes publishConfig.exports into exports and drops the
+  // override from the packed manifest; when the override survives (older
+  // toolchains), it must still match exports exactly.
   if (
     !packageExports ||
-    !publishExports ||
-    !isDeepStrictEqual(packageExports, publishExports) ||
+    (publishExports !== undefined &&
+      !isDeepStrictEqual(packageExports, publishExports)) ||
     requiredExports.some(subpath => packageExports[subpath] === undefined)
   ) {
     throw new Error(
