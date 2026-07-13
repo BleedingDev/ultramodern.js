@@ -9,7 +9,15 @@ import {
 import { packageName } from './naming';
 import type { WorkspaceApp } from './types';
 
-const deliveryUnitGenerationSeed = `${Date.now()}:${crypto.randomUUID()}`;
+// The build marker is a DETERMINISTIC identity hash of a delivery unit
+// (scope + package + id + version). It must be reproducible across processes:
+// the CLI stamps it when generating/adding a unit, and the generated workspace
+// validator recomputes it in a separate `pnpm check` process and asserts they
+// match. A per-process nonce (Date.now()/randomUUID) made the marker
+// un-round-trippable — it only agreed within a single process (e.g. in-process
+// unit tests), and always diverged in real CLI→validator usage. Keep this seed
+// a stable, versioned namespace constant.
+const deliveryUnitGenerationSeed = 'ultramodern-delivery-unit-build-marker:v1';
 
 export function createBuildMarker(
   scope: string,

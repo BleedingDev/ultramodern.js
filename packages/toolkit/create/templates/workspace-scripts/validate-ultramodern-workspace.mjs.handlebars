@@ -2381,9 +2381,14 @@ const assertModernPackageCohort = () => {
     );
   }
   assertUniqueStrings(observedAppIds, 'generated app package manifests');
+  // The app-id cohort is a SET: observedAppIds is discovered by a
+  // filesystem-ordered package.json walk, while cohort.appIds is in generation
+  // insertion order. Compare order-insensitively (every other cohort check uses
+  // the same sorted comparison via assertSameIdCohort) so a multi-vertical
+  // workspace whose insertion order differs from filesystem order still passes.
   assertSameJson(
-    observedAppIds,
-    workspaceValidationContract.cohort.appIds,
+    [...observedAppIds].toSorted(),
+    [...workspaceValidationContract.cohort.appIds].toSorted(),
     'generated app package manifest cohort',
     'restore every generated app package manifest',
   );

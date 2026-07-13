@@ -11,6 +11,7 @@ const requiredAcceptanceResultIds = Object.freeze([
   'registry-cohort-integrity',
   'native-create',
   'vertical-additions',
+  'generate-lockfile',
   'dependency-closure-audit',
   'install',
   'pnpm-check',

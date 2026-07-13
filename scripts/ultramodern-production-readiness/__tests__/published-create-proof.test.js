@@ -173,11 +173,18 @@ test('shared ERP-10 profile requires frozen install, checks, both builds, and no
   );
 
   assert.deepEqual(requiredPnpmCommands, {
+    lockfileOnly: ['install', '--lockfile-only', '--ignore-scripts'],
     install: ['install', '--frozen-lockfile'],
     check: ['check'],
     build: ['build'],
     cloudflareBuild: ['cloudflare:build'],
   });
+  assert.equal(requiredAcceptanceResultIds.includes('generate-lockfile'), true);
+  assert.equal(
+    requiredAcceptanceResultIds.indexOf('generate-lockfile') <
+      requiredAcceptanceResultIds.indexOf('dependency-closure-audit'),
+    true,
+  );
   assert.equal(requiredAcceptanceResultIds.includes('cloudflare-build'), true);
   assert.equal(
     Object.hasOwn(

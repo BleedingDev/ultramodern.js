@@ -35,6 +35,16 @@ import {
 import { addVertical, createWorkspace } from './workspace.mjs';
 
 const requiredPnpmCommands = Object.freeze({
+  // Resolve the dependency closure into a native lockfile without installing
+  // node_modules. `@modern-js/create` intentionally does not install (it tells
+  // the user to run pnpm install), so acceptance materializes the lock here —
+  // against the controlled release registry — before the release-age audit
+  // reads it and before the frozen install re-verifies it.
+  lockfileOnly: Object.freeze([
+    'install',
+    '--lockfile-only',
+    '--ignore-scripts',
+  ]),
   install: Object.freeze(['install', '--frozen-lockfile']),
   check: Object.freeze(['check']),
   build: Object.freeze(['build']),
@@ -214,6 +224,19 @@ async function runAcceptanceProfile({
           verticals: options.verticals,
           frameworkVersion: createPackage.frameworkVersion,
           cohort,
+        };
+      }),
+    );
+
+    await recordAcceptanceResult(receipt, 'generate-lockfile', () =>
+      withDuration(() => {
+        runImpl('pnpm', requiredPnpmCommands.lockfileOnly, {
+          cwd: projectDir,
+          env: packageManagerEnv,
+        });
+        return {
+          command: 'pnpm install --lockfile-only --ignore-scripts',
+          lockfile: 'pnpm-lock.yaml',
         };
       }),
     );

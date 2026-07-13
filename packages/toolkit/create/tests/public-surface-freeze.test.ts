@@ -331,13 +331,13 @@ function markerFromChildProcess(): string {
   return child.stdout.trim();
 }
 
-test('build markers differ across processes (module-load seed rotates)', () => {
+test('build markers are deterministic across processes (identity hash)', () => {
   const first = markerFromChildProcess();
   const second = markerFromChildProcess();
-  assert.notEqual(
+  assert.equal(
     first,
     second,
-    'each process seeds the marker from Date.now()+randomUUID(), so markers must rotate across processes',
+    'the build marker is a stable identity hash of the delivery unit; the CLI stamps it in one process and the generated validator recomputes it in another (pnpm check), so it MUST agree across processes',
   );
 });
 

@@ -1445,6 +1445,36 @@ function generateProfileWorkspace(
   });
 }
 
+test('generated validator accepts multiple verticals added in non-alphabetical order (cross-process identity + set-cohort)', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-multi-vertical-'));
+  const workspaceDir = path.join(tempRoot, 'multi-vertical-workspace');
+  try {
+    generateUltramodernWorkspace({
+      targetDir: workspaceDir,
+      packageName: path.basename(workspaceDir),
+      modernVersion: '3.2.1',
+      enableTailwind: true,
+      packageSource: { strategy: 'workspace' },
+    });
+    // Insertion order deliberately differs from filesystem-sorted order so the
+    // app-id cohort check (set semantics) and the delivery-unit build marker
+    // (deterministic identity hash, recomputed in the spawned validator
+    // process) are both exercised end to end.
+    for (const name of ['inventory', 'finance', 'people', 'analytics']) {
+      addUltramodernVertical({
+        workspaceRoot: workspaceDir,
+        modernVersion: '3.2.1',
+        name,
+      });
+    }
+
+    const passing = runGeneratedWorkspaceCheck(workspaceDir);
+    assert.equal(passing.status, 0, commandOutput(passing));
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test('generated validator accepts an api-only (headless) workspace and rejects planted UI/MF artifacts', () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-profile-api-'));
   const workspaceDir = path.join(tempRoot, 'api-only-workspace');

@@ -954,18 +954,44 @@ async function auditReleaseAgePolicy({
     fetchImpl,
     now,
   });
-  const { approvals, exactExclusions } = approveImmaturePackages({
-    metadata,
-    policy,
-    release,
-  });
-  assertCondition(
-    JSON.stringify(workspace.exactExclusions) ===
-      JSON.stringify(exactExclusions),
-    `Generated minimumReleaseAgeExclude is stale, missing, or unapproved: expected ${
-      exactExclusions.join(', ') || '(empty)'
-    }, found ${workspace.exactExclusions.join(', ') || '(empty)'}`,
+  const { approvals, exactExclusions: requiredExclusions } =
+    approveImmaturePackages({
+      metadata,
+      policy,
+      release,
+    });
+  // The generated workspace deterministically exempts the whole authenticated
+  // release cohort (it cannot predict which of those first-party packages a
+  // given app + its future verticals will actually resolve). The audit enforces
+  // the two properties that matter for supply-chain safety instead of exact
+  // equality: (1) every immature package actually in the closure IS exempted
+  // (no under-exclusion — the real hazard), and (2) every declared exemption is
+  // a member of the integrity-verified release cohort (no phantom exemption
+  // outside the proven release). A tamper check across audit -> frozen install
+  // (verifyStrictInstallInputs) still pins the exact declared set + its digest.
+  const declaredExclusions = new Set(workspace.exactExclusions);
+  const authenticatedCohort = new Set(
+    release.packages.map(item => `${item.targetName}@${item.version}`),
   );
+  const missingExclusions = requiredExclusions.filter(
+    key => !declaredExclusions.has(key),
+  );
+  assertCondition(
+    missingExclusions.length === 0,
+    `Generated minimumReleaseAgeExclude is missing required immature dependencies: ${
+      missingExclusions.join(', ') || '(empty)'
+    }`,
+  );
+  const phantomExclusions = workspace.exactExclusions.filter(
+    key => !authenticatedCohort.has(key),
+  );
+  assertCondition(
+    phantomExclusions.length === 0,
+    `Generated minimumReleaseAgeExclude declares exemptions outside the authenticated release cohort: ${
+      phantomExclusions.join(', ') || '(empty)'
+    }`,
+  );
+  const exactExclusions = workspace.exactExclusions;
 
   const metadataIdentity = metadata.map(item => ({
     name: item.name,
