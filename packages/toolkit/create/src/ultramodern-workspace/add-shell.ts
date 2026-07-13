@@ -229,15 +229,20 @@ function executeAddUltramodernShell(
 
   // Preserve the CONFIGURED primary descriptor (customized port/directory and
   // its own composition refs) instead of rebuilding from static identity +
-  // every vertical: refs fall back to UI-emitting units only (G2a).
+  // every vertical. An EXPLICIT refs list is honored verbatim — including an
+  // intentionally empty one; only an unconfigured primary falls back to the
+  // UI-emitting default (G2a).
   const configuredPrimary = createPrimaryShellDescriptor({}, config);
+  const primaryRefsConfigured = Array.isArray(
+    config.topology?.apps?.find(
+      (app: { id?: unknown }) => app?.id === shellApp.id,
+    )?.moduleFederation?.verticalRefs,
+  );
   const primaryShell = {
     ...configuredPrimary,
-    verticalRefs:
-      configuredPrimary.verticalRefs &&
-      configuredPrimary.verticalRefs.length > 0
-        ? configuredPrimary.verticalRefs
-        : existingVerticals.filter(appEmitsBrowserUi).map(v => v.id),
+    verticalRefs: primaryRefsConfigured
+      ? configuredPrimary.verticalRefs
+      : existingVerticals.filter(appEmitsBrowserUi).map(v => v.id),
   };
   const allAdditionalShells = [...existingAdditionalShells, shell];
   const configuredDevPorts = configuredDevelopmentPorts(

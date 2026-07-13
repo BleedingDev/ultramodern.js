@@ -71,10 +71,15 @@ export function rewriteShellAppFiles(
   shell: WorkspaceApp = shellApp,
   devPorts?: number[],
 ) {
-  const shellHost =
-    shell.id === shellApp.id
-      ? createShellHost(remotes, shell.verticalRefs)
-      : shell;
+  // Preserve the CALLER-RESOLVED descriptor (overlay port, directory) for
+  // every shell — including the primary. Only the composition refs default is
+  // derived here (UI-emitting units) when the descriptor carries none.
+  const shellHost = {
+    ...shell,
+    verticalRefs:
+      shell.verticalRefs ??
+      remotes.filter(appEmitsBrowserUi).map(remote => remote.id),
+  };
   const shellRemotes = resolveRemoteRefs(shellHost, remotes);
   // Only UI-emitting remotes appear in the shell's visible page/components
   // surface (G2a): headless api-only units are composed via API clients only.

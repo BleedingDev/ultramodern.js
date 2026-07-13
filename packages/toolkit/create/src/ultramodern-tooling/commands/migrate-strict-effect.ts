@@ -454,7 +454,10 @@ function migrateStrictEffect(
   // gated on shell-only just like fresh scaffolds and the validator contract.
   // Previously migrate only refreshed tool wrappers, leaving legacy .mjs
   // agent/i18n scripts un-migrated and the stock contract:check unsatisfiable.
-  for (const artifact of migratedWorkspaceScriptArtifacts({ shellOnly })) {
+  for (const artifact of migratedWorkspaceScriptArtifacts({
+    shellOnly,
+    hasBackendSurface,
+  })) {
     if (
       artifact.relativePath === 'scripts/validate-ultramodern-workspace.mts'
     ) {

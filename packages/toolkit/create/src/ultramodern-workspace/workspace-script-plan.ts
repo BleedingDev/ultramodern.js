@@ -76,7 +76,12 @@ type WorkspaceRootPackageScripts = Partial<
 
 const shellOnlyOmittedRootScriptPlanKeys = new Set<
   keyof WorkspaceRootScriptPlan
->(['backendFederationGenerate', 'nodeProof', 'zeropsMaterialize']);
+>(['zeropsMaterialize']);
+// Backend-federation scripts require an API surface — omitted independently
+// of the shell-only gate (split gating; ALL units deploy via Zerops).
+const backendSurfaceOmittedRootScriptPlanKeys = new Set<
+  keyof WorkspaceRootScriptPlan
+>(['backendFederationGenerate', 'nodeProof']);
 
 interface WorkspaceAppScriptPlan {
   dev: string;
@@ -180,6 +185,9 @@ export function createWorkspaceRootScriptPlan(
   } = {},
 ): WorkspaceRootScriptPlan {
   const hasRemotes = remotes.length > 0;
+  // Backend gates key off API surfaces, not vertical count (ui-only /
+  // horizontal-remote workspaces deploy without a backend proof).
+  const hasBackendSurface = remotes.some(appHasApi);
   // Enumerate configured shells (G28) instead of hard-coding the single
   // ./apps/shell-super-app. The default is the primary shell alone, so a
   // single-shell workspace produces byte-identical legacy scripts.
@@ -243,7 +251,7 @@ export function createWorkspaceRootScriptPlan(
     // not inject `node:proof`/`node:backend-federation:generate` into a
     // workspace that has no backend surfaces (matches the validator contract).
     check: `pnpm format:check && pnpm lint && pnpm typecheck && pnpm skills:check && pnpm i18n:boundaries && pnpm api:check && pnpm contract:check${
-      hasRemotes ? ` && pnpm ${nodeProofScript}` : ''
+      hasBackendSurface ? ` && pnpm ${nodeProofScript}` : ''
     } && pnpm performance:readiness${bridgeCheck}`,
   };
 }
@@ -258,11 +266,18 @@ export function createWorkspaceRootPackageScripts(
 ): WorkspaceRootPackageScripts {
   const plan = createWorkspaceRootScriptPlan(remotes, options);
   const shellOnly = remotes.length === 0;
+  const hasBackendSurface = remotes.some(appHasApi);
 
   return Object.fromEntries(
     Object.entries(workspaceRootPackageScriptNames)
       .filter(
         ([planKey]) =>
+          !(
+            !hasBackendSurface &&
+            backendSurfaceOmittedRootScriptPlanKeys.has(
+              planKey as keyof WorkspaceRootScriptPlan,
+            )
+          ) &&
           !(
             shellOnly &&
             shellOnlyOmittedRootScriptPlanKeys.has(

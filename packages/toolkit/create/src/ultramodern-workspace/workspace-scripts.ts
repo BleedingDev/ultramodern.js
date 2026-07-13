@@ -13,6 +13,7 @@ import {
   type GeneratedToolingCommandKey,
   generatedToolingCommands,
 } from './tooling-command-catalog';
+import { appHasApi } from './descriptors';
 import type { WorkspaceApp } from './types';
 import { createWorkspaceValidationContract } from './workspace-validation-contract';
 
@@ -69,10 +70,13 @@ function writeGeneratedToolWrapperScript(
 
 function writeGeneratedToolWrapperScripts(
   targetDir: string,
-  options: { shellOnly?: boolean } = {},
+  options: { shellOnly?: boolean; hasBackendSurface?: boolean } = {},
 ) {
+  // Backend-federation wrappers exist only for API-bearing workspaces —
+  // ui-only/horizontal-remote workspaces deploy but expose no backend surface.
+  const backendSurface = options.hasBackendSurface ?? !options.shellOnly;
   for (const command of generatedToolingCommands) {
-    if (options.shellOnly && BACKEND_FEDERATION_WRAPPER_IDS.has(command.id)) {
+    if (!backendSurface && BACKEND_FEDERATION_WRAPPER_IDS.has(command.id)) {
       continue;
     }
     writeGeneratedToolWrapperScript(targetDir, command.id);
@@ -207,6 +211,7 @@ export function writeGeneratedWorkspaceScripts(
   primaryShell?: WorkspaceApp,
 ) {
   const shellOnly = remotes.length === 0;
+  const hasBackendSurface = remotes.some(appHasApi);
 
   writeWorkspaceOwnedMtsScript(
     targetDir,
@@ -230,7 +235,7 @@ export function writeGeneratedWorkspaceScripts(
     'scripts/ultramodern-performance-readiness.config.mjs',
     createPerformanceReadinessConfigScript(),
   );
-  writeGeneratedToolWrapperScripts(targetDir, { shellOnly });
+  writeGeneratedToolWrapperScripts(targetDir, { shellOnly, hasBackendSurface });
   writeWorkspaceOwnedMtsScript(
     targetDir,
     'validate-ultramodern-workspace',
@@ -281,6 +286,7 @@ interface MigratedWorkspaceScriptArtifact {
 // requires (validate-ultramodern-workspace.mjs.handlebars).
 export function migratedWorkspaceScriptArtifacts(options: {
   shellOnly: boolean;
+  hasBackendSurface?: boolean;
 }): MigratedWorkspaceScriptArtifact[] {
   const artifacts: MigratedWorkspaceScriptArtifact[] = [
     {
@@ -309,8 +315,9 @@ export function migratedWorkspaceScriptArtifacts(options: {
     },
   ];
 
+  const backendSurface = options.hasBackendSurface ?? !options.shellOnly;
   for (const command of generatedToolingCommands) {
-    if (options.shellOnly && BACKEND_FEDERATION_WRAPPER_IDS.has(command.id)) {
+    if (!backendSurface && BACKEND_FEDERATION_WRAPPER_IDS.has(command.id)) {
       continue;
     }
     artifacts.push({

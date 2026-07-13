@@ -20,7 +20,9 @@ const fullStackVerticals = workspaceValidationContract.fullStackVerticals;
 // Backend-federation and Zerops runtime surfaces only exist when the workspace
 // exposes API-bearing verticals. Shell-only workspaces skip their
 // materialization during migrate, so the contract must not require them.
-const hasBackendSurfaces = fullStackVerticals.length > 0;
+const hasBackendSurfaces = fullStackVerticals.some(
+  vertical => vertical.emitsApi,
+);
 const shellNamespace = workspaceValidationContract.shellNamespace;
 const oldRemotePaths = workspaceValidationContract.oldRemotePaths;
 const expectedBuildScript = workspaceValidationContract.scripts.build;
