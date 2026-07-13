@@ -2,7 +2,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { configuredDevelopmentPorts } from '../../../ultramodern-workspace/add-vertical/workspace-state';
 import { createShellRemoteComponents } from '../../../ultramodern-workspace/demo-components';
-import { appHasApi } from '../../../ultramodern-workspace/descriptors';
+import {
+  appEmitsBrowserUi,
+  appHasApi,
+  resolveRemoteRefs,
+} from '../../../ultramodern-workspace/descriptors';
 import {
   createAppModernConfig,
   createBackendModuleFederationConfig,
@@ -57,25 +61,39 @@ export function updateGeneratedModernConfigs(
           configuredDevPorts,
         ),
       ) || changed;
-    changed =
-      writeTextIfChanged(
-        io,
-        path.join(
-          io.workspaceRoot,
-          app.directory,
-          'module-federation.config.ts',
-        ),
-        app.kind === 'shell'
-          ? createShellModuleFederationConfig(
-              config.workspace.packageScope,
-              remotes,
-            )
-          : createRemoteModuleFederationConfig(
-              config.workspace.packageScope,
-              app,
-              remotes,
-            ),
-      ) || changed;
+    // A headless (api-only) unit exposes no browser MF surface: migrate must
+    // not write a browser config for it — and must remove a stale one.
+    if (appEmitsBrowserUi(app)) {
+      changed =
+        writeTextIfChanged(
+          io,
+          path.join(
+            io.workspaceRoot,
+            app.directory,
+            'module-federation.config.ts',
+          ),
+          app.kind === 'shell'
+            ? createShellModuleFederationConfig(
+                config.workspace.packageScope,
+                app,
+                remotes,
+              )
+            : createRemoteModuleFederationConfig(
+                config.workspace.packageScope,
+                app,
+                remotes,
+              ),
+        ) || changed;
+    } else {
+      changed =
+        io.remove(
+          path.join(
+            io.workspaceRoot,
+            app.directory,
+            'module-federation.config.ts',
+          ),
+        ) || changed;
+    }
 
     if (appHasApi(app)) {
       changed =
@@ -100,6 +118,11 @@ export function updateGeneratedModernConfigs(
     }
 
     if (app.kind === 'shell') {
+      // Each shell renders only the UI-emitting remotes named by its own
+      // verticalRefs (G28 + G2a) — never the whole workspace remote set.
+      const shellUiRemotes = resolveRemoteRefs(app, remotes).filter(
+        appEmitsBrowserUi,
+      );
       changed =
         writeTextIfChanged(
           io,
@@ -108,7 +131,7 @@ export function updateGeneratedModernConfigs(
             app.directory,
             'src/routes/vertical-components.tsx',
           ),
-          createShellRemoteComponents(app, remotes),
+          createShellRemoteComponents(app, shellUiRemotes),
         ) || changed;
     }
   }

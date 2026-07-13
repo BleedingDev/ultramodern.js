@@ -9,32 +9,11 @@ import {
 } from '@modern-js/app-tools/config';
 {{value0}}import { i18nPlugin } from '@modern-js/plugin-i18n';
 import { tanstackRouterPlugin } from '@modern-js/plugin-tanstack';
-import { moduleFederationPlugin } from '@module-federation/modern-js-v3';
-import { withZephyr as withZephyrRspack } from 'zephyr-rspack-plugin';
-import { ultramodernLocalisedUrls } from './src/routes/ultramodern-route-metadata';
-
+{{value22}}
 const cloudflareDeployEnabled =
   getBuildConfigEnvironment('MODERNJS_DEPLOY') === 'cloudflare';
 
-const zephyrRspackPlugin = () => ({
-  name: 'ultramodern-zephyr-rspack-plugin',
-  pre: ['@modern-js/plugin-module-federation-config'],
-  setup(api: {
-    modifyRspackConfig: (
-      handler: ReturnType<typeof withZephyrRspack>,
-    ) => void;
-  }) {
-    api.modifyRspackConfig(
-      withBuildConfigEnvironment(
-        'ZE_FAIL_BUILD',
-        'true',
-        withZephyrRspack(),
-      ),
-    );
-  },
-});
-
-const appId = '{{value1}}';
+{{value23}}const appId = '{{value1}}';
 const cloudflareWorkerName = '{{value2}}';
 const port = Number(getBuildConfigEnvironment('{{value3}}') ?? {{value4}});
 const envValue = (name: string) => {
@@ -152,13 +131,10 @@ export default defineConfig(
             ],
             languages: ['en', 'cs'],
             localePathRedirect: true,
-            localisedUrls: ultramodernLocalisedUrls as Record<string, Record<string, string>>,
-          },
+{{value24}}          },
           reactI18next: false,
         }),
-{{value15}}        moduleFederationPlugin(),
-        zephyrRspackPlugin(),
-      ],
+{{value15}}{{value25}}      ],
       server: {
         port,
         publicDir: ['./locales', './assets'],

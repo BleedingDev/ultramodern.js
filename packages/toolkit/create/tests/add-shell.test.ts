@@ -163,7 +163,10 @@ test('addUltramodernShell scaffolds an additional shell delivery unit and keeps 
     );
     assert.match(shellComponents, /data-modern-boundary-id="shellAdmin"/);
     assert.match(shellComponents, /shelladmin:text-red-900/);
-    assert.doesNotMatch(shellComponents, /data-modern-boundary-id="shellSuperApp"/);
+    assert.doesNotMatch(
+      shellComponents,
+      /data-modern-boundary-id="shellSuperApp"/,
+    );
 
     const zeropsYaml = fs.readFileSync(
       path.join(workspaceDir, 'zerops.yaml'),
@@ -229,7 +232,14 @@ test('add-vertical targets an additional shell and rejects unknown shell ids dur
       workspaceDir,
       'apps/shell-admin/package.json',
     );
-    assert.equal(primaryPackage.dependencies['@workspace/orders'], undefined);
+    // API surface is full mesh: every shell re-exports each API unit's client
+    // (plain workspace dep), even when the unit composes into another shell.
+    assert.equal(
+      primaryPackage.dependencies['@workspace/orders'],
+      'workspace:*',
+    );
+    // Composition stays target-scoped: no Zephyr/MF wiring on the primary.
+    assert.equal(primaryPackage['zephyr:dependencies']?.orders, undefined);
     assert.equal(
       additionalPackage.dependencies['@workspace/orders'],
       'workspace:*',

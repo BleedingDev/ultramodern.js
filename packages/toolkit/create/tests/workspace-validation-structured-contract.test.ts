@@ -607,7 +607,10 @@ test('generated validator enforces additional-shell ownership, build, degraded, 
           sourcePath,
           fs
             .readFileSync(sourcePath, 'utf-8')
-            .replaceAll('shelladmin:text-red-900', 'shellsuperapp:text-red-900'),
+            .replaceAll(
+              'shelladmin:text-red-900',
+              'shellsuperapp:text-red-900',
+            ),
           'utf-8',
         );
       },

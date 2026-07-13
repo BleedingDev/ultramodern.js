@@ -5,6 +5,7 @@ import {
   DEVELOPMENT_OVERLAY_PATH,
   TOPOLOGY_PATH,
 } from './add-vertical/constants';
+import { createPrimaryShellDescriptor } from './add-vertical/preflight';
 import { verticalsFromTopology } from './add-vertical/topology';
 import { runWorkspaceTransaction } from './add-vertical/transaction';
 import {
@@ -15,7 +16,11 @@ import {
   existingTailwindEnabled,
   nextAvailablePort,
 } from './add-vertical/workspace-state';
-import { shellApp, ULTRAMODERN_CONFIG_PATH } from './descriptors';
+import {
+  appEmitsBrowserUi,
+  shellApp,
+  ULTRAMODERN_CONFIG_PATH,
+} from './descriptors';
 import {
   formatGeneratedWorkspaceFiles,
   readJsonFile,
@@ -146,8 +151,12 @@ function prepareAddUltramodernShell(
     ),
   );
 
+  // A shell composes only UI-emitting units by default (G2a): headless
+  // api-only verticals never join composition refs. An explicit list is
+  // still validated below but keeps the caller's intent.
   const requestedVerticalIds =
-    options.verticals ?? existingVerticals.map(vertical => vertical.id);
+    options.verticals ??
+    existingVerticals.filter(appEmitsBrowserUi).map(vertical => vertical.id);
   const verticalsById = new Map(
     existingVerticals.map(vertical => [vertical.id, vertical]),
   );
@@ -218,9 +227,17 @@ function executeAddUltramodernShell(
     composedVerticals,
   } = preflight;
 
+  // Preserve the CONFIGURED primary descriptor (customized port/directory and
+  // its own composition refs) instead of rebuilding from static identity +
+  // every vertical: refs fall back to UI-emitting units only (G2a).
+  const configuredPrimary = createPrimaryShellDescriptor({}, config);
   const primaryShell = {
-    ...shellApp,
-    verticalRefs: existingVerticals.map(vertical => vertical.id),
+    ...configuredPrimary,
+    verticalRefs:
+      configuredPrimary.verticalRefs &&
+      configuredPrimary.verticalRefs.length > 0
+        ? configuredPrimary.verticalRefs
+        : existingVerticals.filter(appEmitsBrowserUi).map(v => v.id),
   };
   const allAdditionalShells = [...existingAdditionalShells, shell];
   const configuredDevPorts = configuredDevelopmentPorts(

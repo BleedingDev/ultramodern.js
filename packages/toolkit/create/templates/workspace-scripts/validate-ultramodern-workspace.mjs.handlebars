@@ -1990,19 +1990,42 @@ const assertMicroVerticalContractGraph = ({
     }
 
 
-    if (expectedShellVerticalIds.includes(vertical.id)) {
-      assertSameJson(
-        shellPackage.dependencies?.[vertical.packageName],
-        'workspace:*',
-        `apps/shell-super-app/package.json dependencies.${vertical.packageName}`,
-        'restore shell dependency for the MicroVertical API consumer',
-      );
-      assertSameJson(
-        shellPackage['zephyr:dependencies']?.[vertical.zephyrAlias],
-        `${vertical.packageName}@workspace:*`,
-        `apps/shell-super-app/package.json zephyr:dependencies.${vertical.zephyrAlias}`,
-        'restore shell Zephyr dependency metadata for the MicroVertical',
-      );
+    // Plain workspace dependencies and Zephyr metadata are gated
+    // INDEPENDENTLY (G2a/G28): every shell depends on each API-emitting
+    // vertical (its vertical-clients.ts re-exports the client) regardless of
+    // UI composition, while Zephyr metadata follows UI composition refs only.
+    const shellPackagesForDependencyChecks = [
+      {
+        id: 'shell-super-app',
+        path: 'apps/shell-super-app',
+        pkg: shellPackage,
+        uiRefs: expectedShellVerticalIds,
+      },
+      ...expectedAdditionalShells.map(additionalShell => ({
+        id: additionalShell.id,
+        path: additionalShell.path,
+        pkg: readJson(`${additionalShell.path}/package.json`),
+        uiRefs: additionalShell.verticalRefs ?? [],
+      })),
+    ];
+    for (const shellEntry of shellPackagesForDependencyChecks) {
+      const composed = shellEntry.uiRefs.includes(vertical.id);
+      if (vertical.emitsApi || composed) {
+        assertSameJson(
+          shellEntry.pkg.dependencies?.[vertical.packageName],
+          'workspace:*',
+          `${shellEntry.path}/package.json dependencies.${vertical.packageName}`,
+          'restore shell dependency for the MicroVertical consumer',
+        );
+      }
+      if (composed) {
+        assertSameJson(
+          shellEntry.pkg['zephyr:dependencies']?.[vertical.zephyrAlias],
+          `${vertical.packageName}@workspace:*`,
+          `${shellEntry.path}/package.json zephyr:dependencies.${vertical.zephyrAlias}`,
+          'restore shell Zephyr dependency metadata for the MicroVertical',
+        );
+      }
     }
 
     assertObject(

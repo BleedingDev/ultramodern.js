@@ -139,15 +139,23 @@ export function prepareAddUltramodernVertical(
   const existingVerticals = verticalsFromTopology(topology, overlay.ports);
   const additionalShells = resolveConfiguredAdditionalShells(config);
   const primaryShell = createPrimaryShellDescriptor(topology, config);
+  // Prefer the LIVE overlay port for the primary shell: operators may have
+  // moved it (e.g. to 3120), and the compact/default descriptor port would
+  // silently reintroduce a collision window.
+  const primaryShellPort =
+    typeof overlay.ports[primaryShell.id] === 'number'
+      ? (overlay.ports[primaryShell.id] as number)
+      : primaryShell.port;
+  const resolvedPrimaryShell = { ...primaryShell, port: primaryShellPort };
   const targetShell = resolveTargetShell(
     options.shell,
-    primaryShell,
+    resolvedPrimaryShell,
     additionalShells,
     path.join(options.workspaceRoot, ULTRAMODERN_CONFIG_PATH),
   );
   const portsWithPrimary = {
     ...overlay.ports,
-    [primaryShell.id]: primaryShell.port,
+    [primaryShell.id]: primaryShellPort,
   };
   assertGlobalPortUniqueness(portsWithPrimary, additionalShells);
   const port = nextAvailablePort(portsWithPrimary, additionalShells);
@@ -163,7 +171,11 @@ export function prepareAddUltramodernVertical(
     ),
     vertical,
   ];
-  const allApps = [primaryShell, ...updatedVerticals, ...additionalShells];
+  const allApps = [
+    resolvedPrimaryShell,
+    ...updatedVerticals,
+    ...additionalShells,
+  ];
 
   assertCanCreate(options.workspaceRoot, vertical.directory);
   validateWorkspaceAppDescriptors(allApps);
@@ -184,7 +196,7 @@ export function prepareAddUltramodernVertical(
     packageSource,
     enableTailwind,
     bridge,
-    primaryShell,
+    primaryShell: resolvedPrimaryShell,
     additionalShells,
     targetShell,
     targetVerticals,
@@ -215,7 +227,7 @@ function readRequiredWorkspaceConfig(workspaceRoot: string) {
   return config;
 }
 
-function createPrimaryShellDescriptor(
+export function createPrimaryShellDescriptor(
   topology: Record<string, any>,
   config: Record<string, any>,
 ): WorkspaceApp {

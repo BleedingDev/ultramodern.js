@@ -402,7 +402,15 @@ function migrateStrictEffect(
     migrated,
     migratedApps,
   );
-  const shellOnly = !migrated.topology.apps.some(app => app.api);
+  // Two independent gates (never conflate them): a BACKEND surface exists
+  // only when some unit ships an API; DELIVERY UNITS exist whenever any
+  // vertical exists at all — ui-only and horizontal-remote units still deploy
+  // through Zerops even though they have no backend-federation surface.
+  const verticalApps = migrated.topology.apps.filter(
+    app => app.kind !== 'shell',
+  );
+  const hasBackendSurface = verticalApps.some(app => app.api);
+  const shellOnly = verticalApps.length === 0;
 
   if (shellOnly) {
     io.log(
@@ -423,9 +431,21 @@ function migrateStrictEffect(
       removeGeneratedFileIfExists(io, relativePath);
     }
   } else {
-    removeStaleBackendFederationArtifacts(io, migrated);
+    if (hasBackendSurface) {
+      removeStaleBackendFederationArtifacts(io, migrated);
+      updateGeneratedBackendFederationContractFiles(io, migrated);
+    } else {
+      // No backend surface: strip backend-federation wrappers, keep deploys.
+      for (const relativePath of [
+        'scripts/generate-node-backend-federation.mts',
+        'scripts/generate-node-backend-federation.mjs',
+        'scripts/proof-node-backend-federation.mts',
+        'scripts/proof-node-backend-federation.mjs',
+      ]) {
+        removeGeneratedFileIfExists(io, relativePath);
+      }
+    }
     updateGeneratedZeropsArtifacts(io, migrated);
-    updateGeneratedBackendFederationContractFiles(io, migrated);
   }
 
   // Materialize the full workspace-owned script/wrapper set migrate must

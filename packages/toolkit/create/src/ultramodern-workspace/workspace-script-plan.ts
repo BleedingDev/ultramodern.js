@@ -186,10 +186,7 @@ export function createWorkspaceRootScriptPlan(
   const shells =
     options.shells && options.shells.length > 0 ? options.shells : [shellApp];
   const shellBuild = shells
-    .map(
-      shell =>
-        `pnpm --filter "./${shell.directory}" run build`,
-    )
+    .map(shell => `pnpm --filter "./${shell.directory}" run build`)
     .join(' && ');
   const shellCloudflareBuild = shells
     .map(shell => `pnpm --filter "./${shell.directory}" run cloudflare:build`)

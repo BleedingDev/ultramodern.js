@@ -86,9 +86,6 @@ export function createTopology(
         createDeliveryUnitRecord(scope, shellApp),
       ),
       cloudflare: createCloudflareDeployContract(scope, shellApp),
-      deliveryUnit: deliveryUnitContractBlock(
-        createDeliveryUnitRecord(scope, shellApp),
-      ),
       ownership: shellApp.ownership,
     },
     verticals: remotes.map(vertical => ({

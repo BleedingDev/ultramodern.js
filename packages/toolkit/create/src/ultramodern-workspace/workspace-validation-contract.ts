@@ -116,6 +116,15 @@ function createReferenceTopologyExpectation(
 }
 
 function createGeneratedSurfacePolicy(workspaceApps: WorkspaceApp[]) {
+  // Native-navigation / native-MF-loading rules apply to EVERY shell's route
+  // tree (G28) — additional shells included, not only the primary.
+  const shellRouteDirectories = workspaceApps
+    .filter(app => app.kind === 'shell')
+    .map(app => ({
+      kind: 'directory' as const,
+      path: `${app.directory}/src/routes`,
+      extensions: ['.ts', '.tsx'],
+    }));
   const appConfigPaths = workspaceApps.map(
     app => `${app.directory}/modern.config.ts`,
   );
@@ -216,13 +225,7 @@ function createGeneratedSurfacePolicy(workspaceApps: WorkspaceApp[]) {
       },
       {
         id: 'shell-routing-native-navigation',
-        paths: [
-          {
-            kind: 'directory',
-            path: 'apps/shell-super-app/src/routes',
-            extensions: ['.ts', '.tsx'],
-          },
-        ],
+        paths: shellRouteDirectories,
         patterns: [
           {
             id: 'window-location-navigation',
@@ -250,13 +253,7 @@ function createGeneratedSurfacePolicy(workspaceApps: WorkspaceApp[]) {
       },
       {
         id: 'module-federation-native-loading',
-        paths: [
-          {
-            kind: 'directory',
-            path: 'apps/shell-super-app/src/routes',
-            extensions: ['.ts', '.tsx'],
-          },
-        ],
+        paths: shellRouteDirectories,
         patterns: [
           {
             id: 'manual-module-federation-loading-wrapper',
@@ -650,7 +647,10 @@ export function createWorkspaceValidationContract(
       ],
       forbiddenTopologyFields: ['effectServices', 'remotes'],
     },
-    generatedSurfacePolicy: createGeneratedSurfacePolicy(workspaceApps),
+    generatedSurfacePolicy: createGeneratedSurfacePolicy([
+      ...workspaceApps,
+      ...additionalShells,
+    ]),
     packageScope: scope,
     node: {
       version: NODE_VERSION,

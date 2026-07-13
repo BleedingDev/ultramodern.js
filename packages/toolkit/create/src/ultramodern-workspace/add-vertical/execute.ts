@@ -194,16 +194,25 @@ function executeAddUltramodernVertical(
       ...nextAdditionalShells,
     ])}\n`,
   );
-  rewriteShellAppFiles(
-    options.workspaceRoot,
-    scope,
-    packageSource,
-    enableTailwind,
-    updatedVerticals,
-    bridge,
-    nextTargetShell,
-    configuredDevPorts,
-  );
+  // Regenerate EVERY shell, not only the target: the API surface is full
+  // mesh (CONTEXT.md), so each shell's vertical-clients re-exports and its
+  // plain workspace deps must include the new API unit even when the unit
+  // composes into a different shell. Non-target shells keep their own
+  // verticalRefs, so their UI composition output is byte-stable.
+  for (const shellToRefresh of [nextPrimaryShell, ...nextAdditionalShells]) {
+    rewriteShellAppFiles(
+      options.workspaceRoot,
+      scope,
+      packageSource,
+      enableTailwind,
+      updatedVerticals,
+      bridge,
+      shellToRefresh.id === nextTargetShell.id
+        ? nextTargetShell
+        : shellToRefresh,
+      configuredDevPorts,
+    );
+  }
   writeGeneratedWorkspaceScripts(
     options.workspaceRoot,
     scope,

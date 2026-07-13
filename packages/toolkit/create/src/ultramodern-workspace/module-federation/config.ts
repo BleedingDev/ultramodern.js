@@ -4,6 +4,7 @@ import {
   createWorkerBindingName,
 } from '../backend-federation';
 import {
+  appEmitsBrowserUi,
   appHasApi,
   createBackendFederationName,
   createCloudflarePublicUrlEnv,
@@ -39,8 +40,44 @@ export function createAppModernConfig(
   enableTailwind = true,
   configuredDevPorts?: number[],
 ): string {
+  const emitsUi = appEmitsBrowserUi(app);
   const bffImport = appHasApi(app)
     ? "import { bffPlugin } from '@modern-js/plugin-bff';\n"
+    : '';
+  // A headless (api-only) unit has no browser MF surface, no Zephyr build and
+  // no generated route metadata — its config must not import or register them.
+  const uiImports = emitsUi
+    ? `import { moduleFederationPlugin } from '@module-federation/modern-js-v3';
+import { withZephyr as withZephyrRspack } from 'zephyr-rspack-plugin';
+import { ultramodernLocalisedUrls } from './src/routes/ultramodern-route-metadata';
+`
+    : '';
+  const zephyrPluginSource = emitsUi
+    ? `const zephyrRspackPlugin = () => ({
+  name: 'ultramodern-zephyr-rspack-plugin',
+  pre: ['@modern-js/plugin-module-federation-config'],
+  setup(api: {
+    modifyRspackConfig: (
+      handler: ReturnType<typeof withZephyrRspack>,
+    ) => void;
+  }) {
+    api.modifyRspackConfig(
+      withBuildConfigEnvironment(
+        'ZE_FAIL_BUILD',
+        'true',
+        withZephyrRspack(),
+      ),
+    );
+  },
+});
+
+`
+    : '';
+  const localisedUrlsEntry = emitsUi
+    ? '            localisedUrls: ultramodernLocalisedUrls as Record<string, Record<string, string>>,\n'
+    : '';
+  const uiPluginEntries = emitsUi
+    ? '        moduleFederationPlugin(),\n        zephyrRspackPlugin(),\n'
     : '';
   const tailwindImport = enableTailwind
     ? "import { pluginTailwindcss } from '@rsbuild/plugin-tailwindcss';\n"
@@ -158,6 +195,10 @@ ${developmentPorts.map(port => `  'http://localhost:${port}',`).join('\n')}
       : legacyCorsSource,
     value20: useConfiguredCorsAllowlist ? configuredCorsDevServer : '',
     value21: configuredCorsHeader,
+    value22: uiImports,
+    value23: zephyrPluginSource,
+    value24: localisedUrlsEntry,
+    value25: uiPluginEntries,
   });
 }
 

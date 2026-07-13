@@ -133,7 +133,7 @@ export default defineRuntimeConfig({
       interpolation: {
         escapeValue: false,
       },
-      ns: [ultramodernRouteNamespace, 'translation'],
+      ns: [${routeNamespace}, 'translation'],
       resources,
       supportedLngs: ['en', 'cs'],
     },
