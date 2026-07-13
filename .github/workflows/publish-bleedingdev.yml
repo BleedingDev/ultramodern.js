@@ -128,6 +128,9 @@ jobs:
       - name: Qualify release source
         run: |
           mise exec -- pnpm test:scripts
+          # @modern-js/create's own test script rebuilds only itself; its
+          # workspace deps (e.g. @modern-js/rslib) must be built first.
+          mise exec -- pnpm --filter "@modern-js/create^..." build
           mise exec -- pnpm --filter @modern-js/create test
 
       - name: Reject an already published source cohort
