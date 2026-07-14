@@ -215,10 +215,19 @@ export function normalizeCompactApp(rawApp) {
   };
 }
 
+// Must stay in sync with packages/toolkit/create delivery-unit.ts
+// createBuildMarker, which seeds the hash with the delivery-unit generation
+// seed. Without this prefix the expected marker drifts from what generated apps
+// actually emit (data-build-marker), failing the browser-smoke SSR marker check.
+const DELIVERY_UNIT_GENERATION_SEED =
+  'ultramodern-delivery-unit-build-marker:v1';
+
 export function createBuildMarker(scope, app) {
   return crypto
     .createHash('sha256')
-    .update(`${scope}:${app.packageSuffix}:${app.id}:0.1.0`)
+    .update(
+      `${DELIVERY_UNIT_GENERATION_SEED}:${scope}:${app.packageSuffix}:${app.id}:0.1.0`,
+    )
     .digest('hex')
     .slice(0, 16);
 }
