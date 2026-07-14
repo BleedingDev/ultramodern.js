@@ -129,9 +129,11 @@ function createWorkspaceAppScriptPlan(
     'modern build',
     backendFederationBuildCommand,
     createPublicSurfaceGenerationCommand(app, 'dist'),
-    app.exposes
-      ? packageToolingWrapperCommand(app.directory, 'mfTypes')
-      : undefined,
+    // NOTE: the Module Federation DTS archive is emitted by `modern build`
+    // above; verifying it (assert-mf-types) is done ONCE at the workspace root
+    // (`pnpm mf:types`) AFTER every app has built. A per-app verify here races
+    // under parallel `pnpm -r build` — an early app would assert a sibling's
+    // not-yet-emitted archive — so it is intentionally omitted.
   ].filter((step): step is string => Boolean(step));
   const cloudflareBuildSteps = [
     'MODERNJS_DEPLOY=cloudflare modern build',
