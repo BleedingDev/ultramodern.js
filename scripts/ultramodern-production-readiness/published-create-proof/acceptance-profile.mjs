@@ -60,6 +60,17 @@ function createAcceptancePackageManagerEnv(workDir, registryEnv = {}) {
     ...createCleanPnpmDlxEnv(path.join(workDir, 'package-manager')),
     ...registryEnv,
     CI: 'true',
+    // The generated app always registers the Zephyr plugin (never gated), and
+    // Zephyr blocks each build up to its 5-minute interactive auth timeout when
+    // no token is present — with 11 apps that alone exceeds the acceptance
+    // budget. The clean room has no Zephyr Cloud account and uploads nothing;
+    // a placeholder token makes Zephyr skip the auth wait, and its upload then
+    // fails fast and non-fatally (ZE_FAIL_BUILD is unset without a real token).
+    // Point Zephyr at a black-hole endpoint so the failed upload cannot reach
+    // the network. This tests "builds with Zephyr present, without an account".
+    ZE_SECRET_TOKEN:
+      registryEnv.ZE_SECRET_TOKEN ?? 'ultramodern-acceptance-no-upload',
+    ZE_API_ENDPOINT: registryEnv.ZE_API_ENDPOINT ?? 'http://127.0.0.1:1',
   };
   delete env.MODERN_CREATE_ULTRAMODERN_FRAMEWORK_VERSION;
   return env;
