@@ -138,8 +138,15 @@ ${serviceBindings
       : `const remoteAssetOrigin =
   configuredCloudflareUrl ||
   inferredCloudflareUrl ||
-  (cloudflareDeployEnabled ? '/' : \`http://localhost:\${port}\`);
-const defaultRemoteAssetPrefix = \`\${remoteAssetOrigin.replace(/\\/+$/u, '')}/\`;
+  (cloudflareDeployEnabled ? '' : \`http://localhost:\${port}\`);
+// When deploying to Cloudflare without a configured public URL, publish an
+// 'auto' publicPath so the remote resolves its chunks from the origin its
+// remoteEntry.js was loaded from (the vertical's Worker), not the host shell's
+// origin — otherwise cross-origin chunk loading 404s and MF reports an empty
+// moduleId. A configured/inferred URL still wins as an absolute prefix.
+const defaultRemoteAssetPrefix = remoteAssetOrigin
+  ? \`\${remoteAssetOrigin.replace(/\\/+$/u, '')}/\`
+  : 'auto';
 const defaultAssetPrefix = defaultRemoteAssetPrefix;`;
   const devAssetPrefixSource =
     app.kind === 'shell'
