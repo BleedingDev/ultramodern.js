@@ -53,11 +53,13 @@ const renderCloudflareOutputVerifyModule = ({
   workspaceRoot,
   targets,
   scanRoots,
+  excludePaths,
   importWorker,
 }: {
   workspaceRoot: string;
   targets: CloudflareOutputVerifyTarget[];
   scanRoots: string[];
+  excludePaths: string[];
   importWorker: boolean;
 }) => `
 import { createRequire } from 'node:module';
@@ -66,6 +68,7 @@ import path from 'node:path';
 const workspaceRoot = ${JSON.stringify(workspaceRoot)};
 const targets = ${JSON.stringify(targets, null, 2)};
 const scanRoots = ${JSON.stringify(scanRoots)};
+const excludePaths = ${JSON.stringify(excludePaths)};
 const verifierRequire = createRequire(path.join(workspaceRoot, 'package.json'));
 const {
   verifyCloudflareOutput,
@@ -90,7 +93,7 @@ for (const target of targets) {
 }
 
 if (scanRoots.length > 0) {
-  const policyResult = await verifyCloudflareOutputMutationPolicy({ scanRoots });
+  const policyResult = await verifyCloudflareOutputMutationPolicy({ scanRoots, excludePaths });
   if (!policyResult.ok) {
     failed = true;
     console.error('[ultramodern] generated-output mutation policy failed');
@@ -121,6 +124,16 @@ Without --app or --output, every generated workspace app is verified.
     workspaceRoot: context.workspaceRoot,
     targets: resolveCloudflareOutputVerifyTargets(args, context),
     scanRoots: hasFlag(args, '--no-source-scan') ? [] : [context.workspaceRoot],
+    // The generated validation-contract validator is a read-only proof artifact
+    // whose embedded contract records generated-output paths as data; exclude it
+    // from the mutation scan so those literals are not misread as a rewrite.
+    excludePaths: [
+      path.join(
+        context.workspaceRoot,
+        'scripts',
+        'validate-ultramodern-workspace.mts',
+      ),
+    ],
     importWorker: !hasFlag(args, '--no-import-worker'),
   });
 

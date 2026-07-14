@@ -648,4 +648,43 @@ describe('Cloudflare output verifier', () => {
       ]),
     );
   });
+
+  it('exempts framework proof artifacts named in excludePaths while still scanning app scripts', async () => {
+    const { directory } = await createOutputFixture();
+    await fs.mkdir(path.join(directory, 'scripts'), { recursive: true });
+    const proofArtifact = path.join(
+      directory,
+      'scripts/validate-ultramodern-workspace.mts',
+    );
+    await fs.writeFile(
+      proofArtifact,
+      "const contract = { ssrBundle: '.output/worker/index.js', workerEntry: '.output/server/index.mjs' };\n",
+    );
+    await fs.writeFile(
+      path.join(directory, 'scripts/patch-output.mjs'),
+      "fs.writeFileSync('.output/worker/index.js', source.replaceAll(';entityKind;', ';'));\n",
+    );
+
+    const scannedResult = await verifyCloudflareOutputMutationPolicy({
+      scanRoots: [path.join(directory, 'scripts')],
+    });
+    expect(scannedResult.ok).toBe(false);
+    expect(
+      scannedResult.issues.some(issue => issue.path === proofArtifact),
+    ).toBe(true);
+
+    const excludedResult = await verifyCloudflareOutputMutationPolicy({
+      scanRoots: [path.join(directory, 'scripts')],
+      excludePaths: [proofArtifact],
+    });
+    expect(excludedResult.ok).toBe(false);
+    expect(
+      excludedResult.issues.some(issue => issue.path === proofArtifact),
+    ).toBe(false);
+    expect(excludedResult.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: 'forbidden-mutation-pattern' }),
+      ]),
+    );
+  });
 });

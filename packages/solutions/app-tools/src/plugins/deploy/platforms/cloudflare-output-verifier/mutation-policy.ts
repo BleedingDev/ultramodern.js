@@ -9,6 +9,14 @@ import { addIssue } from './issues';
 
 export interface VerifyCloudflareOutputMutationPolicyOptions {
   scanRoots: string[];
+  /**
+   * Absolute paths of framework-generated proof artifacts (e.g. the immutable
+   * workspace validation contract) that record generated-output path literals
+   * as contract data and never rewrite build output. These are exempt from the
+   * app-script mutation scan; every app-author script under the scan roots is
+   * still checked.
+   */
+  excludePaths?: string[];
 }
 
 const SOURCE_SCAN_FILE_PATTERN = /\.(?:[cm]?[jt]s|json)$/u;
@@ -119,6 +127,9 @@ export const verifyCloudflareOutputMutationPolicy = async (
   options: VerifyCloudflareOutputMutationPolicyOptions,
 ): Promise<CloudflareOutputVerifierResult> => {
   const issues: CloudflareOutputVerifierIssue[] = [];
+  const excludedFiles = new Set(
+    (options.excludePaths ?? []).map(entry => path.resolve(entry)),
+  );
   const files = (
     await Promise.all(
       options.scanRoots.map(scanRoot => walkFiles(path.resolve(scanRoot))),
@@ -126,6 +137,9 @@ export const verifyCloudflareOutputMutationPolicy = async (
   ).flat();
 
   for (const file of files) {
+    if (excludedFiles.has(file)) {
+      continue;
+    }
     const source = await fs.readFile(file, 'utf-8');
     for (const forbidden of FORBIDDEN_MUTATION_PATTERNS) {
       if (forbidden.pattern.test(source)) {

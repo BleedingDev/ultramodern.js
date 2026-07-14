@@ -517,7 +517,7 @@ test('Cloudflare output verifier wrapper uses explicit options contract', () => 
   );
   assert.match(
     source,
-    /verifyCloudflareOutputMutationPolicy\(\{\s+scanRoots\s+\}\)/u,
+    /verifyCloudflareOutputMutationPolicy\(\{\s+scanRoots,\s+excludePaths\s+\}\)/u,
   );
   assert.doesNotMatch(
     source,
