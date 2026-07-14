@@ -435,7 +435,11 @@ export function getBuilderEnvironments(
                   .providedExports(true)
                   .innerGraph(false)
                   .sideEffects(false);
-                chain.plugins.delete('plugin-module-federation');
+                // ADR-0021: keep the Module Federation transform on the worker
+                // SSR chain so an MF host shell's remote imports still resolve
+                // (client-only hydration path). Remote code is never executed in
+                // the Worker; SSR composes remotes as HTML fragments fetched over
+                // service bindings. Deleting the plugin here breaks host shells.
                 if (tanstackRouterSsrServerFile) {
                   chain.resolve.alias.set(
                     '@tanstack/router-core/ssr/server$',
