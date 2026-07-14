@@ -319,6 +319,12 @@ const ssrBuilderPlugin = (
               ? JSON.stringify('node')
               : JSON.stringify('browser'),
             'process.env.MODERN_SSR_ENV': JSON.stringify(ssrEnv),
+            'process.env.MODERN_ENABLE_HYDRATION': JSON.stringify(
+              isUseSSRBundle(userConfig),
+            ),
+            'process.env.MODERN_ENABLE_RSC': JSON.stringify(
+              Boolean(userConfig.server?.rsc),
+            ),
             'process.env.MODERN_MF_APP_SSR': JSON.stringify(
               isModuleFederationAppSSR,
             ),

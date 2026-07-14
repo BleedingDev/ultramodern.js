@@ -6,7 +6,9 @@ import { getGlobalInternalRuntimeContext } from '../context';
 import { getInitialContext, type TRuntimeContext } from '../context/runtime';
 import { wrapRuntimeContextProvider } from '../react/wrapper';
 import type { SSRContainer } from '../types';
-import { hydrateRoot } from './hydrate';
+import { hydrateRoot, hydrateWithReact } from './hydrate';
+
+export { hydrateWithReact };
 
 const IS_REACT18 = process.env.IS_REACT18 === 'true';
 
@@ -120,8 +122,12 @@ async function renderApp(
       return hydrateFunc(App, rootElement, callback);
     }
 
-    // we should hydateRoot only when ssr
-    if (hydrateFromSsrData && window._SSR_DATA) {
+    // we should hydrateRoot only when SSR or SSG is enabled
+    if (
+      hydrateFromSsrData &&
+      process.env.MODERN_ENABLE_HYDRATION &&
+      window._SSR_DATA
+    ) {
       return hydrateRoot(App, context, ModernRender, ModernHydrate);
     }
     return ModernRender(wrapRuntimeContextProvider(App, context));
