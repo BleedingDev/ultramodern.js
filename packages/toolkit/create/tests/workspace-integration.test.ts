@@ -1250,12 +1250,13 @@ test('emitted module federation config leases Zephyr fail-closed behavior only w
       'generated Modern config must import the public config environment API',
     );
     // Zephyr is always registered (no gate), but fail-closed behavior is leased
-    // only when authenticated via Zephyr's own ZE_SECRET_TOKEN; without a token
-    // the build degrades gracefully (works without a Zephyr Cloud account).
+    // only for an authoritative CI deploy, signalled by Zephyr's own
+    // ZE_CI_TOKEN; a plain build degrades gracefully (works without a Zephyr
+    // Cloud account, and a build may set ZE_SECRET_TOKEN only to skip auth).
     assert.match(
       modernConfig,
-      /getBuildConfigEnvironment\(\s*'ZE_SECRET_TOKEN'\s*\)/u,
-      'generated Modern config must key Zephyr fail-closed behavior off the Zephyr auth token',
+      /getBuildConfigEnvironment\(\s*'ZE_CI_TOKEN'\s*\)/u,
+      'generated Modern config must key Zephyr fail-closed behavior off the Zephyr CI deploy token',
     );
     assert.match(
       modernConfig,

@@ -61,16 +61,18 @@ import { ultramodernLocalisedUrls } from './src/routes/ultramodern-route-metadat
       handler: ReturnType<typeof withZephyrRspack>,
     ) => void;
   }) {
-    // Zephyr is always registered (never gated), but it only UPLOADS and treats
-    // failures as fatal when authenticated. Zephyr authenticates via its own
-    // ZE_SECRET_TOKEN. With a token, ZE_FAIL_BUILD=true makes an upload failure
-    // a hard build failure (deploy authority). Without a token, ZE_FAIL_BUILD is
-    // left unset so Zephyr logs the missing-auth notice and the build continues
-    // — the framework "works with or without a Zephyr Cloud account".
-    const zephyrAuthenticated =
-      (getBuildConfigEnvironment('ZE_SECRET_TOKEN') ?? '').length > 0;
+    // Zephyr is always registered (never gated). It treats an upload failure
+    // as FATAL only during an authoritative CI deploy, signalled by Zephyr's
+    // own ZE_CI_TOKEN. A plain build — including a local build with a personal
+    // ZE_SECRET_TOKEN, and any build without a Zephyr Cloud account — leaves
+    // ZE_FAIL_BUILD unset, so Zephyr logs and the build continues: the
+    // framework "works with or without Zephyr". (Gating fatality on the deploy
+    // token, not mere authentication, also lets a build supply ZE_SECRET_TOKEN
+    // purely to skip Zephyr's interactive auth without making uploads fatal.)
+    const zephyrCiDeploy =
+      (getBuildConfigEnvironment('ZE_CI_TOKEN') ?? '').length > 0;
     api.modifyRspackConfig(
-      zephyrAuthenticated
+      zephyrCiDeploy
         ? withBuildConfigEnvironment(
             'ZE_FAIL_BUILD',
             'true',
