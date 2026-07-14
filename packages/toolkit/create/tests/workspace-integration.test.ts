@@ -1260,8 +1260,8 @@ test('emitted module federation config leases Zephyr fail-closed behavior only w
     );
     assert.match(
       modernConfig,
-      /withBuildConfigEnvironment\(\s*'ZE_FAIL_BUILD',\s*'true',\s*withZephyrRspack\(\),?\s*\)\s*:\s*withZephyrRspack\(\)/u,
-      'generated Modern config must lease Zephyr fail-closed behavior through the public config API only when authenticated, and register Zephyr unconditionally otherwise',
+      /withBuildConfigEnvironment\(\s*'ZE_FAIL_BUILD',\s*'true',\s*withZephyrRspack\(\),?\s*\)/u,
+      'generated Modern config must lease Zephyr fail-closed behavior through the public config API when it does deploy',
     );
     assert.doesNotMatch(
       modernConfig,

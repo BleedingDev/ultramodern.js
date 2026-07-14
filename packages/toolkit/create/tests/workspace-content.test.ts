@@ -311,8 +311,13 @@ test('rendered contents of the highest-risk generated files match the checked-in
     );
     assert.match(
       shellModernConfig,
-      /withBuildConfigEnvironment\(\s*'ZE_FAIL_BUILD',\s*'true',\s*withZephyrRspack\(\),?\s*\)\s*:\s*withZephyrRspack\(\)/,
-      'generated Modern config must lease the native Zephyr fail-closed setting for the compiler lifecycle only for a CI deploy (ZE_CI_TOKEN), registering Zephyr unconditionally otherwise',
+      /getBuildConfigEnvironment\(\s*'ZE_CI_TOKEN'\s*\)/,
+      'generated Modern config must engage Zephyr only for a CI deploy (ZE_CI_TOKEN)',
+    );
+    assert.match(
+      shellModernConfig,
+      /withBuildConfigEnvironment\(\s*'ZE_FAIL_BUILD',\s*'true',\s*withZephyrRspack\(\),?\s*\)/,
+      'generated Modern config must lease the native Zephyr fail-closed setting through the public config API when it does deploy',
     );
     assert.match(
       shellModernConfig,

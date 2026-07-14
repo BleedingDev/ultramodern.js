@@ -61,24 +61,23 @@ import { ultramodernLocalisedUrls } from './src/routes/ultramodern-route-metadat
       handler: ReturnType<typeof withZephyrRspack>,
     ) => void;
   }) {
-    // Zephyr is always registered (never gated). It treats an upload failure
-    // as FATAL only during an authoritative CI deploy, signalled by Zephyr's
-    // own ZE_CI_TOKEN. A plain build — including a local build with a personal
-    // ZE_SECRET_TOKEN, and any build without a Zephyr Cloud account — leaves
-    // ZE_FAIL_BUILD unset, so Zephyr logs and the build continues: the
-    // framework "works with or without Zephyr". (Gating fatality on the deploy
-    // token, not mere authentication, also lets a build supply ZE_SECRET_TOKEN
-    // purely to skip Zephyr's interactive auth without making uploads fatal.)
+    // Zephyr uploads federated build artifacts to Zephyr Cloud (the fast
+    // rollback path). Uploading REQUIRES a Zephyr Cloud account and, in CI, a
+    // deploy-scoped ZE_CI_TOKEN; without it Zephyr fatally fails to load its
+    // application configuration. Zephyr therefore engages ONLY for such an
+    // authoritative deploy — a plain build never contacts Zephyr Cloud, needs
+    // no account, and is never blocked. This is the framework's "works with or
+    // without Zephyr" contract. The plugin stays registered unconditionally
+    // (this gate keys on Zephyr's native deploy token, not any UltraModern
+    // opt-out). When deploying, ZE_FAIL_BUILD=true makes an upload failure a
+    // hard build failure.
     const zephyrCiDeploy =
       (getBuildConfigEnvironment('ZE_CI_TOKEN') ?? '').length > 0;
+    if (!zephyrCiDeploy) {
+      return;
+    }
     api.modifyRspackConfig(
-      zephyrCiDeploy
-        ? withBuildConfigEnvironment(
-            'ZE_FAIL_BUILD',
-            'true',
-            withZephyrRspack(),
-          )
-        : withZephyrRspack(),
+      withBuildConfigEnvironment('ZE_FAIL_BUILD', 'true', withZephyrRspack()),
     );
   },
 });
