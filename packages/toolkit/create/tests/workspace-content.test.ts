@@ -845,6 +845,17 @@ test('backend federation proof template resolves monorepo local plugin-bff runti
   assert.match(proofTemplate, /assertCompactDeliveryUnitMatchesBuild/);
   assert.match(
     proofTemplate,
+    /targetApp\.backendFederation\?\.exposes\?\.\[backendExpose\]\?\.readiness/,
+  );
+  assert.match(proofTemplate, /id: `\$\{targetApp\.id\}-backend-readiness`/);
+  assert.match(proofTemplate, /'checks\.api': 'ready'/);
+  assert.match(proofTemplate, /backend runtime has no smoke checks/);
+  assert.match(
+    proofTemplate,
+    /loaded\.contract\?\.servicePrefix \?\? loaded\.contract\?\.apiPrefix/,
+  );
+  assert.match(
+    proofTemplate,
     /backendContract\.compatibility\.unitId,[\s\S]*?manifest\.backendFederation\?\.deliveryUnit\?\.unitId,/,
   );
 });

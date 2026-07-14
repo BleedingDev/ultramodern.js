@@ -193,7 +193,7 @@ function normalizeRoutePath(value) {
 function collectJsonSmokeChecks(apps, targetApp) {
   const apiPrefix = normalizeRoutePath(targetApp.api?.prefix ?? `/${targetApp.id}-api`);
 
-  return apps
+  const configuredChecks = apps
     .flatMap((app) =>
       Array.isArray(app?.deploy?.cloudflare?.jsonSmokeChecks)
         ? app.deploy.cloudflare.jsonSmokeChecks
@@ -206,6 +206,31 @@ function collectJsonSmokeChecks(apps, targetApp) {
       const route = normalizeRoutePath(check.route);
       return route === apiPrefix || route.startsWith(`${apiPrefix}/`);
     });
+
+  if (configuredChecks.length > 0) {
+    return configuredChecks;
+  }
+
+  const readinessRoute =
+    targetApp.backendFederation?.exposes?.[backendExpose]?.readiness ??
+    targetApp.backendFederation?.versionBoundary?.api?.readiness ??
+    targetApp.serverExecution?.cloudflare?.apiReadiness;
+  if (typeof readinessRoute !== 'string' || readinessRoute.length === 0) {
+    return [];
+  }
+
+  return [
+    {
+      id: `${targetApp.id}-backend-readiness`,
+      method: 'GET',
+      route: readinessRoute,
+      expect: {
+        'checks.api': 'ready',
+        status: 'ready',
+        versionSkew: 'none',
+      },
+    },
+  ];
 }
 
 function compactApps(config, appFilter) {
@@ -300,15 +325,19 @@ function assertJsonEqual(actual, expected, message) {
 
 async function runSmokeChecks(app, loaded, createEffectBffTestHandler) {
   if (!Array.isArray(app.smokeChecks) || app.smokeChecks.length === 0) {
-    return [];
+    throw new Error(
+      `${app.id} backend runtime has no smoke checks; configure a JSON smoke check or expose an API readiness route`,
+    );
   }
   if (typeof createEffectBffTestHandler !== 'function') {
     throw new Error(`${app.id} backend runtime cannot create Effect test handler`);
   }
 
-  const servicePrefix = loaded.contract?.servicePrefix;
+  const servicePrefix = loaded.contract?.servicePrefix ?? loaded.contract?.apiPrefix;
   if (typeof servicePrefix !== 'string' || servicePrefix.length === 0) {
-    throw new Error(`${app.id} backend expose missing contract.servicePrefix`);
+    throw new Error(
+      `${app.id} backend expose missing contract.servicePrefix/apiPrefix`,
+    );
   }
 
   const edge = await createEffectBffTestHandler({

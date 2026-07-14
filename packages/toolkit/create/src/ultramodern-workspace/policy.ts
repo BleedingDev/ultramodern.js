@@ -224,6 +224,25 @@ export function createCloudflareDeployContract(
       reportDefault:
         '.codex/reports/cloudflare-version-proof/public-url-proof.json',
     },
+    // Backend-federation runtime smoke checks: every API vertical exposes a
+    // deterministic readiness endpoint, so emit a smoke check the node backend
+    // federation proof can run against the deployed Effect BFF handler.
+    ...(app.api
+      ? {
+          jsonSmokeChecks: [
+            {
+              id: `${app.id}-readiness-smoke`,
+              route: `${app.api.prefix}/${resolveApiStem(app)}/readiness`,
+              expect: {
+                status: 'ready',
+                'checks.api': 'ready',
+                'checks.moduleFederation': 'ready',
+                'checks.ssr': 'ready',
+              },
+            },
+          ],
+        }
+      : {}),
   };
 }
 
@@ -830,7 +849,8 @@ export const ULTRAMODERN_WORKSPACE_POLICY = {
         // resolve to it (their warnings are silenced here).
         '@module-federation/dts-plugin>typescript':
           TYPESCRIPT_COMPILER_API_VERSION,
-        '@module-federation/enhanced>typescript': TYPESCRIPT_COMPILER_API_VERSION,
+        '@module-federation/enhanced>typescript':
+          TYPESCRIPT_COMPILER_API_VERSION,
         '@module-federation/modern-js-v3>typescript':
           TYPESCRIPT_COMPILER_API_VERSION,
         '@module-federation/rspack>typescript': TYPESCRIPT_COMPILER_API_VERSION,
