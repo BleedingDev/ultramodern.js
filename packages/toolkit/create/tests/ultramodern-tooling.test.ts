@@ -30,6 +30,7 @@ import {
   NODE_VERSION,
   OXFMT_VERSION,
   PNPM_VERSION,
+  TYPESCRIPT_COMPILER_API_VERSION,
   TYPESCRIPT_VERSION,
 } from '../src/ultramodern-workspace/versions';
 
@@ -1092,7 +1093,10 @@ declare module '*.css' {}
       rootPackage.devDependencies['@modern-js/create'],
       'workspace:*',
     );
-    assert.equal(rootPackage.devDependencies.typescript, TYPESCRIPT_VERSION);
+    assert.equal(
+      rootPackage.devDependencies.typescript,
+      TYPESCRIPT_COMPILER_API_VERSION,
+    );
     assert.equal(rootPackage.devDependencies.oxfmt, OXFMT_VERSION);
     assert.equal(rootPackage.modernjs.packageSource.strategy, 'workspace');
     assert.match(

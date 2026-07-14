@@ -7,6 +7,7 @@ import {
   generateUltramodernWorkspace,
 } from '../src/ultramodern-workspace';
 import {
+  TYPESCRIPT_COMPILER_API_VERSION,
   TYPESCRIPT_STABLE_VERSION,
   TYPESCRIPT_VERSION,
 } from '../src/ultramodern-workspace/versions';
@@ -217,10 +218,19 @@ test('generated package module scopes keep MF apps compatible with classic compi
       undefined,
       'generated MF app packages should not opt into package-level ESM',
     );
+    // TS7 (tsgo's native backend) is installed under the `@typescript/native`
+    // alias so the plain `typescript` package can be the CLASSIC compiler that
+    // the Module Federation DTS plugin executes (typescript.sys), which TS7
+    // does not expose.
+    assert.equal(
+      shellPackageJson.devDependencies?.['@typescript/native'],
+      `npm:typescript@${TYPESCRIPT_VERSION}`,
+      "generated apps must install stable TypeScript 7 as tsgo's @typescript/native backend",
+    );
     assert.equal(
       shellPackageJson.devDependencies?.typescript,
-      TYPESCRIPT_VERSION,
-      'generated apps must install stable TypeScript 7 by default',
+      TYPESCRIPT_COMPILER_API_VERSION,
+      'generated apps must install the classic TypeScript compiler API for the MF DTS plugin',
     );
     assert.equal(
       shellPackageJson.devDependencies?.['@typescript/native-preview'],

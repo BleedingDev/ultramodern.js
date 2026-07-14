@@ -375,11 +375,18 @@ export const ULTRAMODERN_PACKAGE_PINS = {
   appDevDependencies: {
     '@effect/tsgo': EFFECT_TSGO_VERSION,
     '@rsbuild/plugin-tailwindcss': `^${RSBUILD_PLUGIN_TAILWINDCSS_VERSION}`,
+    // tsgo's native TS7 backend lives under the `@typescript/native` alias
+    // (the name @effect/tsgo resolves), so the plain `typescript` package can be
+    // the classic compiler the Module Federation DTS plugin executes.
+    '@typescript/native': `npm:typescript@${TYPESCRIPT_VERSION}`,
     '@types/node': '^20',
     '@types/react': TYPES_REACT_VERSION,
     '@types/react-dom': TYPES_REACT_DOM_VERSION,
     tailwindcss: `^${TAILWIND_VERSION}`,
-    typescript: TYPESCRIPT_VERSION,
+    // Classic TypeScript compiler API (`typescript.sys`) — the MF DTS plugin
+    // executes it at build time and TS7/tsgo does not expose it. TS7
+    // typechecking runs through @effect/tsgo + @typescript/native above.
+    typescript: TYPESCRIPT_COMPILER_API_VERSION,
     wrangler: WRANGLER_VERSION,
     'zephyr-rspack-plugin': ZEPHYR_RSPACK_PLUGIN_VERSION,
   },
@@ -818,13 +825,17 @@ export const ULTRAMODERN_WORKSPACE_POLICY = {
     peerDependencyRules: {
       allowedVersions: {
         react: '>=19.0.0',
+        // The classic `typescript` package is the compiler-API version; every
+        // MF plugin and i18next declare classic-TypeScript peers, so they all
+        // resolve to it (their warnings are silenced here).
         '@module-federation/dts-plugin>typescript':
           TYPESCRIPT_COMPILER_API_VERSION,
-        '@module-federation/enhanced>typescript': TYPESCRIPT_VERSION,
-        '@module-federation/modern-js-v3>typescript': TYPESCRIPT_VERSION,
-        '@module-federation/rspack>typescript': TYPESCRIPT_VERSION,
+        '@module-federation/enhanced>typescript': TYPESCRIPT_COMPILER_API_VERSION,
+        '@module-federation/modern-js-v3>typescript':
+          TYPESCRIPT_COMPILER_API_VERSION,
+        '@module-federation/rspack>typescript': TYPESCRIPT_COMPILER_API_VERSION,
         '@effect/vitest>effect': EFFECT_VERSION,
-        'i18next>typescript': TYPESCRIPT_VERSION,
+        'i18next>typescript': TYPESCRIPT_COMPILER_API_VERSION,
       },
     },
     overrides: {
@@ -839,6 +850,14 @@ export const ULTRAMODERN_WORKSPACE_POLICY = {
       [`@module-federation/dts-plugin@${MODULE_FEDERATION_VERSION}`]: {
         dependencies: {
           typescript: `npm:typescript@${TYPESCRIPT_COMPILER_API_VERSION}`,
+        },
+        // Narrow the plugin's typescript PEER to the exact classic version so a
+        // hoisted TS7 cannot satisfy it (the plugin's own range `^4.9||^5||^6`
+        // technically excludes 7, but pnpm otherwise resolves the hoisted 7 to
+        // it). This exact pin is the load-bearing isolation: the plugin gets
+        // classic TS6 while tsgo keeps TS7 via @typescript/native.
+        peerDependencies: {
+          typescript: TYPESCRIPT_COMPILER_API_VERSION,
         },
       },
     },
