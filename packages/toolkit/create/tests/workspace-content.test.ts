@@ -601,13 +601,8 @@ test('rendered contents of the highest-risk generated files match the checked-in
     );
     assert.match(
       verticalComponents,
-      /const RemoteWidget = createLazyComponent\(\{\s*export: 'default',\s*fallback: <RemoteUnavailable \/>,\s*instance: getInstance\(\),\s*loader,\s*loading: null,\s*\}\);/,
-      'generated shell remotes must delegate loading and fallback rendering to the Module Federation primitive',
-    );
-    assert.match(
-      verticalComponents,
-      /import \{ NoSSR \} from '@modern-js\/runtime\/ssr';[\s\S]*<NoSSR fallback=\{<RemoteUnavailable \/>\}>\s*<RemoteWidget \/>\s*<\/NoSSR>/,
-      'generated shell remotes must mount client-only through the framework NoSSR primitive because a Cloudflare Worker cannot SSR a Module Federation remote',
+      /const createRemoteComponent = [\s\S]*?=>\s*createLazyComponent\(\{\s*export: 'default',\s*fallback: <RemoteUnavailable \/>,\s*instance: getInstance\(\),\s*loader,\s*loading: null,\s*noSSR: true,\s*\}\);/,
+      'generated shell remotes must delegate loading/fallback to the Module Federation primitive and load client-only (noSSR: true) because a Cloudflare Worker cannot SSR an MF remote',
     );
     assert.match(
       verticalComponents,
