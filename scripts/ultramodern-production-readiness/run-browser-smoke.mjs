@@ -81,7 +81,11 @@ export async function runUltramodernBrowserSmoke(options) {
     if (localStartupOrder) {
       const preflightLocalPortsImpl =
         options.preflightLocalPortsImpl ?? assertLocalPortsAvailable;
-      await preflightLocalPortsImpl(localStartupOrder.validation);
+      await preflightLocalPortsImpl(
+        report.shellRuntime === 'workerd'
+          ? localStartupOrder.remotes
+          : localStartupOrder.validation,
+      );
       for (const target of localStartupOrder.remotes) {
         servers.push(startServerImpl(target, options));
       }

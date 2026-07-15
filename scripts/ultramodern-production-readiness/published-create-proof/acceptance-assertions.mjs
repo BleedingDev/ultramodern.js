@@ -246,6 +246,10 @@ function assertBackendAcceptance(artifacts, verticalNames) {
 
 function assertBrowserRuntimeAcceptance(report, verticalNames) {
   assertCondition(
+    report.shellRuntime === 'workerd',
+    'Browser shell runtime must be workerd',
+  );
+  assertCondition(
     report.status !== 'skipped',
     'Browser/runtime proof must not be skipped',
   );

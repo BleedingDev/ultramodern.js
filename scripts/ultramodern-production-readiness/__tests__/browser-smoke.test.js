@@ -9,9 +9,31 @@ async function loadSmoke() {
   return import('../run-browser-smoke.mjs');
 }
 
+async function loadAcceptanceAssertions() {
+  return import('../published-create-proof/acceptance-assertions.mjs');
+}
+
 function tempRoot() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'ultramodern-browser-smoke-'));
 }
+
+test('release acceptance requires the browser shell to run in workerd', async () => {
+  const { assertBrowserRuntimeAcceptance } = await loadAcceptanceAssertions();
+
+  assert.throws(
+    () =>
+      assertBrowserRuntimeAcceptance(
+        {
+          results: [],
+          shellRuntime: 'node',
+          skipped: [],
+          status: 'pass',
+        },
+        [],
+      ),
+    /browser shell runtime must be workerd/i,
+  );
+});
 
 function response(status, body, headers = {}) {
   return {
@@ -492,6 +514,7 @@ test('uses the generated workerd proof as the local shell browser target', async
     },
   });
   const events = [];
+  const preflightIds = [];
   const browser = createFakeBrowser({ boundaryIds: ['inventory'] });
 
   try {
@@ -519,7 +542,9 @@ test('uses the generated workerd proof as the local shell browser target', async
       generatedAt: '2026-07-01T00:00:00.000Z',
       mode: 'local',
       out: path.join(root, 'summary.json'),
-      preflightLocalPortsImpl() {},
+      preflightLocalPortsImpl(targets) {
+        preflightIds.push(...targets.map(target => target.app.id));
+      },
       projectDir: root,
       retryDelayMs: 0,
       shellRuntime: 'workerd',
@@ -544,6 +569,7 @@ test('uses the generated workerd proof as the local shell browser target', async
     );
     assert.equal(events.includes('start:shell-super-app'), false);
     assert.equal(events.includes('start:workerd'), true);
+    assert.deepEqual(preflightIds, ['inventory']);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
