@@ -427,6 +427,7 @@ export function getBuilderEnvironments(
                 chain.output
                   .module(true)
                   .library({ type: 'module' })
+                  .publicPath('/')
                   .chunkFormat('module')
                   .chunkLoading('import')
                   .workerChunkLoading('import');

@@ -108,8 +108,15 @@ const createWorkerOptions = (app, extra = {}) => {
     modulesRoot: app.outputRoot,
     compatibilityDate: app.wrangler.compatibility_date,
     compatibilityFlags: app.wrangler.compatibility_flags,
-    binding: typeof assets.binding === "string" ? assets.binding : "ASSETS",
-    directory: path.resolve(app.outputRoot, directory),
+    assets: {
+      workerName: workerName(app),
+      binding: typeof assets.binding === "string" ? assets.binding : "ASSETS",
+      directory: path.resolve(app.outputRoot, directory),
+      routerConfig: {
+        has_user_worker: true,
+        invoke_user_worker_ahead_of_assets: assets.run_worker_first !== false,
+      },
+    },
     ...extra,
   };
 };

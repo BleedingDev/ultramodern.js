@@ -194,6 +194,7 @@ describe('create builder Options', () => {
       const deletedPlugins = new Set<string>();
       const module = rstest.fn().mockReturnThis();
       const library = rstest.fn().mockReturnThis();
+      const publicPath = rstest.fn().mockReturnThis();
       const chunkFormat = rstest.fn().mockReturnThis();
       const chunkLoading = rstest.fn().mockReturnThis();
       const workerChunkLoading = rstest.fn().mockReturnThis();
@@ -207,6 +208,7 @@ describe('create builder Options', () => {
         output: {
           module,
           library,
+          publicPath,
           chunkFormat,
           chunkLoading,
           workerChunkLoading,
@@ -278,6 +280,7 @@ describe('create builder Options', () => {
       expect(chain.target).not.toHaveBeenCalled();
       expect(module).toHaveBeenCalledWith(true);
       expect(library).toHaveBeenCalledWith({ type: 'module' });
+      expect(publicPath).toHaveBeenCalledWith('/');
       expect(chunkFormat).toHaveBeenCalledWith('module');
       expect(chunkLoading).toHaveBeenCalledWith('import');
       expect(workerChunkLoading).toHaveBeenCalledWith('import');
