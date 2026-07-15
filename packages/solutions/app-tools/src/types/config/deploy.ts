@@ -18,6 +18,7 @@ export type {
   CloudflareWorkerSecurityCspMode,
   CloudflareWorkerSecurityNoindexConfig,
   CloudflareWorkerServiceBindingConfig,
+  CloudflareWorkerServiceBindingFragmentConfig,
   DeployTarget,
   JsonValue,
 } from './cloudflareDeploy';

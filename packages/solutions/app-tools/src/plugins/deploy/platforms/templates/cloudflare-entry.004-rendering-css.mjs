@@ -9,11 +9,199 @@ function createNoopMonitors() {
   };
 }
 
+const DISTRIBUTED_SSR_FRAGMENTS_LOCALS_KEY = '__modernDistributedSsrFragments';
+
+function distributedSsrFragmentKey(remote, expose) {
+  return `${remote}::${expose}`;
+}
+
+function escapeFragmentRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function openingTagHasAttribute(openingTag, name, value) {
+  const pattern = new RegExp(
+    `\\s${escapeFragmentRegExp(name)}=(?:"${escapeFragmentRegExp(value)}"|'${escapeFragmentRegExp(value)}')`,
+    'u',
+  );
+
+  return pattern.test(openingTag);
+}
+
+function extractRenderedBoundaryElement(html, boundaryId, expose) {
+  const boundaryPattern = new RegExp(
+    `\\sdata-modern-boundary-id=(?:"${escapeFragmentRegExp(boundaryId)}"|'${escapeFragmentRegExp(boundaryId)}')`,
+    'u',
+  );
+  const boundaryMatch = boundaryPattern.exec(html);
+  if (!boundaryMatch) {
+    return undefined;
+  }
+
+  const openingStart = html.lastIndexOf('<', boundaryMatch.index);
+  const openingEnd = html.indexOf('>', boundaryMatch.index);
+  if (openingStart < 0 || openingEnd < 0) {
+    return undefined;
+  }
+
+  const openingTag = html.slice(openingStart, openingEnd + 1);
+  const tagName = /^<([a-z][\w:-]*)\b/iu.exec(openingTag)?.[1];
+  if (
+    !tagName ||
+    !openingTagHasAttribute(openingTag, 'data-modern-mf-expose', expose)
+  ) {
+    return undefined;
+  }
+
+  const tagPattern = new RegExp(
+    `<\\/?${escapeFragmentRegExp(tagName)}\\b[^>]*>`,
+    'giu',
+  );
+  let depth = 0;
+
+  for (const tagMatch of html.slice(openingStart).matchAll(tagPattern)) {
+    const tag = tagMatch[0];
+    const absoluteStart = openingStart + (tagMatch.index ?? 0);
+    if (tag.startsWith('</')) {
+      depth -= 1;
+      if (depth === 0) {
+        return html.slice(openingStart, absoluteStart + tag.length);
+      }
+    } else if (!tag.endsWith('/>')) {
+      depth += 1;
+    }
+  }
+
+  return undefined;
+}
+
+function fragmentLocale(request) {
+  const segment = new URL(request.url).pathname.split('/').filter(Boolean)[0];
+
+  return segment && /^[a-z\d-]+$/iu.test(segment) ? segment : 'en';
+}
+
+function createFragmentFailure(fragment, reason) {
+  return {
+    boundaryId: fragment.boundaryId,
+    expose: fragment.expose,
+    reason,
+    remote: fragment.remote,
+    status: 'degraded',
+  };
+}
+
+function emitFragmentFailure(binding, fragment, reason) {
+  try {
+    console.error(
+      JSON.stringify({
+        appName: 'modern-js-cloudflare-worker',
+        eventName: 'modernjs:microvertical-server-fallback',
+        metadata: {
+          classification: 'remote-unavailable',
+          expose: fragment.expose,
+          platform: 'cloudflare-service-binding',
+          reason,
+          remote: fragment.remote,
+          serviceBinding: binding.binding,
+          status: 'degraded',
+        },
+        phase: 'discovery',
+        reason: 'remote-unavailable',
+        schemaVersion: 1,
+      }),
+    );
+  } catch {}
+}
+
+async function fetchDistributedSsrFragment(binding, fragment, request, env) {
+  const key = distributedSsrFragmentKey(fragment.remote, fragment.expose);
+  const service = env?.[binding.binding];
+  if (!service || typeof service.fetch !== 'function') {
+    emitFragmentFailure(binding, fragment, 'binding-unavailable');
+    return [key, createFragmentFailure(fragment, 'binding-unavailable')];
+  }
+
+  const fragmentPath = fragment.path.replaceAll(
+    '{locale}',
+    encodeURIComponent(fragmentLocale(request)),
+  );
+  const fragmentUrl = new URL(fragmentPath, request.url);
+  const headers = new Headers(request.headers);
+  headers.delete('host');
+  headers.set('x-modern-js-fragment-request', '1');
+
+  try {
+    const response = await service.fetch(
+      new Request(fragmentUrl, {
+        headers,
+        method: 'GET',
+      }),
+    );
+    if (!response.ok) {
+      const reason = `fragment-http-${response.status}`;
+      emitFragmentFailure(binding, fragment, reason);
+      return [key, createFragmentFailure(fragment, reason)];
+    }
+
+    const html = await response.text();
+    const fragmentHtml = extractRenderedBoundaryElement(
+      html,
+      fragment.boundaryId,
+      fragment.expose,
+    );
+    if (!fragmentHtml) {
+      emitFragmentFailure(binding, fragment, 'fragment-contract-mismatch');
+      return [
+        key,
+        createFragmentFailure(fragment, 'fragment-contract-mismatch'),
+      ];
+    }
+
+    return [
+      key,
+      {
+        boundaryId: fragment.boundaryId,
+        expose: fragment.expose,
+        html: fragmentHtml,
+        remote: fragment.remote,
+        status: 'ready',
+      },
+    ];
+  } catch {
+    emitFragmentFailure(binding, fragment, 'fragment-request-failed');
+    return [key, createFragmentFailure(fragment, 'fragment-request-failed')];
+  }
+}
+
+async function collectDistributedSsrFragments(request, env) {
+  const bindings = Array.isArray(MODERN_WORKER_MANIFEST.serviceBindings)
+    ? MODERN_WORKER_MANIFEST.serviceBindings
+    : [];
+  const requests = bindings.flatMap(binding =>
+    Array.isArray(binding.fragments)
+      ? binding.fragments.map(fragment =>
+          fetchDistributedSsrFragment(binding, fragment, request, env),
+        )
+      : [],
+  );
+
+  if (requests.length === 0) {
+    return undefined;
+  }
+
+  return {
+    fragments: Object.fromEntries(await Promise.all(requests)),
+    required: true,
+  };
+}
+
 function createRequestHandlerOptions({
   route,
   htmlTemplate,
   routeManifest,
   loadableStats,
+  distributedSsrFragments,
 }) {
   const monitors = createNoopMonitors();
 
@@ -28,7 +216,12 @@ function createRequestHandlerOptions({
     params: {},
     loaderContext: {},
     config: {},
-    locals: {},
+    locals:
+      distributedSsrFragments === undefined
+        ? {}
+        : {
+            [DISTRIBUTED_SSR_FRAGMENTS_LOCALS_KEY]: distributedSsrFragments,
+          },
     staticGenerate: false,
     monitors,
     onError(error) {
@@ -345,16 +538,27 @@ async function withRouteCssLinks(response, route, routeManifest, request, env) {
 }
 
 async function getRequestHandlerOptions(route, request, env) {
-  const [htmlTemplate, routeManifest, loadableStats] = await Promise.all([
-    readAssetText(route.entryPath, request, env),
-    readAssetJson(MODERN_WORKER_MANIFEST.resources.routeManifest, request, env),
-    readAssetJson(MODERN_WORKER_MANIFEST.resources.loadableStats, request, env),
-  ]);
+  const [htmlTemplate, routeManifest, loadableStats, distributedSsrFragments] =
+    await Promise.all([
+      readAssetText(route.entryPath, request, env),
+      readAssetJson(
+        MODERN_WORKER_MANIFEST.resources.routeManifest,
+        request,
+        env,
+      ),
+      readAssetJson(
+        MODERN_WORKER_MANIFEST.resources.loadableStats,
+        request,
+        env,
+      ),
+      collectDistributedSsrFragments(request, env),
+    ]);
 
   return createRequestHandlerOptions({
     route,
     htmlTemplate: htmlTemplate || '',
     routeManifest,
     loadableStats,
+    distributedSsrFragments,
   });
 }

@@ -601,19 +601,42 @@ test('rendered contents of the highest-risk generated files match the checked-in
     );
     assert.match(
       verticalComponents,
-      /const createRemoteComponent = [\s\S]*?=>\s*createLazyComponent\(\{\s*export: 'default',\s*fallback: <RemoteUnavailable \/>,\s*instance: getInstance\(\),\s*loader,\s*loading: null,\s*noSSR: true,\s*\}\);/,
-      'generated shell remotes must delegate loading/fallback to the Module Federation primitive and load client-only (noSSR: true) because a Cloudflare Worker cannot SSR an MF remote',
+      /import\s*\{\s*DistributedSsrBoundary\s*\}\s*from '@modern-js\/runtime\/module-federation';/,
+      'generated shell remotes must use the framework-owned distributed SSR boundary',
     );
     assert.match(
       verticalComponents,
-      /const CatalogWidget = createRemoteComponent\(\s*\(\) => import\('catalog\/Widget'\),?\s*\);/,
+      /const RemoteComponent = createLazyComponent\(\{\s*export: 'default',\s*fallback: <RemoteUnavailable \/>,\s*instance: getInstance\(\),\s*loader,\s*loading: null,\s*\}\);[\s\S]*?<DistributedSsrBoundary[\s\S]*?expose=\{expose\}[\s\S]*?remote=\{remote\}[\s\S]*?<RemoteComponent \/>/,
+      'generated shell remotes must keep native Node/browser MF rendering and delegate workerd SSR to distributed fragments',
+    );
+    assert.doesNotMatch(
+      verticalComponents,
+      /noSSR:\s*true/,
+      'generated shell remotes must not disable server rendering',
+    );
+    assert.match(
+      verticalComponents,
+      /const CatalogWidget = createRemoteComponent\(\s*'catalog',\s*'\.\/Widget',\s*\(\) => import\('catalog\/Widget'\),?\s*\);/,
       'generated shell remotes must pass native dynamic imports directly to the Module Federation primitive',
     );
     assert.doesNotMatch(
       verticalComponents,
-      /@modern-js\/runtime\/module-federation|@module-federation\/bridge-react|classifyModuleFederationFallback|createModuleFederationFallbackTelemetry|emitModuleFederationFallbackTelemetry|toModuleFederationFallbackAttributes|createRemoteFallback|createHydratedRemote|loadRemote|telemetryEntry|telemetry\.entry|data-remote-error|typeof window|window\.location/,
+      /@module-federation\/bridge-react|classifyModuleFederationFallback|createModuleFederationFallbackTelemetry|emitModuleFederationFallbackTelemetry|toModuleFederationFallbackAttributes|createRemoteFallback|createHydratedRemote|loadRemote|telemetryEntry|telemetry\.entry|data-remote-error|typeof window|window\.location/,
       'generated app code must not recreate Module Federation fallback interception, telemetry, or hydration behavior',
     );
+    const fragmentPage = fs.readFileSync(
+      path.join(
+        workspaceDir,
+        'verticals/catalog/src/routes/[lang]/_mf/fragment/widget/page.tsx',
+      ),
+      'utf-8',
+    );
+    assert.match(
+      fragmentPage,
+      /import Widget from '\.\.\/\.\.\/\.\.\/\.\.\/\.\.\/components\/catalog-widget';/,
+      'generated verticals must expose a same-worker SSR route for their Widget',
+    );
+    assert.match(fragmentPage, /return <Widget \/>/);
 
     // Regression: the generated API client once accepted
     // locale/operationContext/traceparent options and then passed only

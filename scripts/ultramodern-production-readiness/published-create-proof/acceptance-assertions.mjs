@@ -347,6 +347,25 @@ function assertBrowserRuntimeAcceptance(report, verticalNames) {
     verticalNames,
     'Shell rendered browser boundary ids',
   );
+  const noJavaScriptShellBoundary = shellResults[0].assertions.find(
+    assertion => assertion.type === 'no-js-shell-composition-boundary',
+  );
+  assertCondition(
+    noJavaScriptShellBoundary?.status === 'pass',
+    `${shellResults[0].appId} browser/runtime proof lacks a passing no-JS shell composition boundary assertion`,
+  );
+  assertSameIds(
+    noJavaScriptShellBoundary.declaredRemoteIds ?? [],
+    verticalNames,
+    'Shell declared no-JS SSR boundary ids',
+  );
+  assertSameIds(
+    (noJavaScriptShellBoundary.matchedRemoteBoundaries ?? []).map(
+      item => item.remoteId,
+    ),
+    verticalNames,
+    'Shell rendered no-JS SSR boundary ids',
+  );
   return {
     appCount: report.results.length,
     assertionCount: report.results.reduce(

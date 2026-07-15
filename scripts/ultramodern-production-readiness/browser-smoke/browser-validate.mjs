@@ -61,6 +61,39 @@ export function remoteBoundaryCandidates(remote) {
     .filter((value, index, values) => values.indexOf(value) === index);
 }
 
+async function collectShellRemoteBoundaries(page, app) {
+  const remotes =
+    app.moduleFederation.remotes?.length > 0
+      ? app.moduleFederation.remotes
+      : app.moduleFederation.verticalRefs.map(id => ({ id }));
+  const matchedRemoteBoundaries = [];
+  const triedRemoteBoundaries = [];
+
+  for (const remote of remotes) {
+    const boundaryCandidates = remoteBoundaryCandidates(remote);
+    const boundaryCounts = await Promise.all(
+      boundaryCandidates.map(async boundaryId => [
+        boundaryId,
+        await page.locator(`[data-modern-boundary-id="${boundaryId}"]`).count(),
+      ]),
+    );
+    const matchedBoundary = boundaryCounts.find(([, count]) => count > 0);
+    triedRemoteBoundaries.push({
+      matchedBoundaryId: matchedBoundary?.[0],
+      remoteId: remote.id,
+      triedBoundaryIds: boundaryCandidates,
+    });
+    if (matchedBoundary) {
+      matchedRemoteBoundaries.push({
+        boundaryId: matchedBoundary[0],
+        remoteId: remote.id,
+      });
+    }
+  }
+
+  return { matchedRemoteBoundaries, remotes, triedRemoteBoundaries };
+}
+
 export async function waitForHydrationStyles(page) {
   if (typeof page.waitForLoadState === 'function') {
     await page
@@ -161,6 +194,30 @@ export async function validateNoJavaScriptSsrTarget(
       assertPass(
         rootCount > 0,
         `${app.id} no-JS SSR CSS root marker is missing`,
+      );
+    }
+
+    if (
+      app.kind === 'shell' &&
+      app.moduleFederation?.verticalRefs?.length > 0
+    ) {
+      const { matchedRemoteBoundaries, remotes, triedRemoteBoundaries } =
+        await collectShellRemoteBoundaries(page, app);
+      assertions.push(
+        assertion(
+          'no-js-shell-composition-boundary',
+          matchedRemoteBoundaries.length === remotes.length ? 'pass' : 'fail',
+          {
+            declaredRemoteIds: remotes.map(remote => remote.id),
+            matchedRemoteBoundaries,
+            triedRemoteBoundaries,
+          },
+        ),
+      );
+      assertPass(
+        matchedRemoteBoundaries.length === remotes.length,
+        `${app.id} no-JS SSR did not render every declared remote boundary`,
+        { triedRemoteBoundaries },
       );
     }
 
@@ -273,35 +330,8 @@ export async function validateBrowserTarget(target, browser, { artifactDir }) {
       app.kind === 'shell' &&
       app.moduleFederation?.verticalRefs?.length > 0
     ) {
-      const remotes =
-        app.moduleFederation.remotes?.length > 0
-          ? app.moduleFederation.remotes
-          : app.moduleFederation.verticalRefs.map(id => ({ id }));
-      const matchedRemoteBoundaries = [];
-      const triedRemoteBoundaries = [];
-      for (const remote of remotes) {
-        const boundaryCandidates = remoteBoundaryCandidates(remote);
-        const boundaryCounts = await Promise.all(
-          boundaryCandidates.map(async boundaryId => [
-            boundaryId,
-            await page
-              .locator(`[data-modern-boundary-id="${boundaryId}"]`)
-              .count(),
-          ]),
-        );
-        const matchedBoundary = boundaryCounts.find(([, count]) => count > 0);
-        triedRemoteBoundaries.push({
-          matchedBoundaryId: matchedBoundary?.[0],
-          remoteId: remote.id,
-          triedBoundaryIds: boundaryCandidates,
-        });
-        if (matchedBoundary) {
-          matchedRemoteBoundaries.push({
-            boundaryId: matchedBoundary[0],
-            remoteId: remote.id,
-          });
-        }
-      }
+      const { matchedRemoteBoundaries, remotes, triedRemoteBoundaries } =
+        await collectShellRemoteBoundaries(page, app);
       assertions.push(
         assertion(
           'shell-composition-boundary',

@@ -7,22 +7,28 @@ const RemoteUnavailable = () => {
   return <div className="{{value1}}">{t('shell.remoteUnavailable')}</div>;
 };
 
-// A Cloudflare Worker cannot execute a Module Federation remote at SSR time
-// (Workers forbid dynamic remote-code evaluation and MF 2.7.0 has no edge
-// runtime), so remote widgets load client-only via createLazyComponent's native
-// noSSR option: the shell SSRs the fallback without eagerly fetching remote
-// manifests, and the browser MF runtime loads and renders the remote after
-// hydration. This keeps the shell's SSR independent of remote availability and
-// avoids the "Failed to get manifest" #RUNTIME-003 crash. True remote SSR
-// requires distributed SSR over service bindings — see ADR-0021.
 const createRemoteComponent = (
+  remote: string,
+  expose: string,
   loader: () => Promise<RemoteComponentModule>,
-) =>
-  createLazyComponent({
+) => {
+  const RemoteComponent = createLazyComponent({
     export: 'default',
     fallback: <RemoteUnavailable />,
     instance: getInstance(),
     loader,
     loading: null,
-    noSSR: true,
   });
+
+  return function DistributedRemoteComponent() {
+    return (
+      <DistributedSsrBoundary
+        expose={expose}
+        fallback={<RemoteUnavailable />}
+        remote={remote}
+      >
+        <RemoteComponent />
+      </DistributedSsrBoundary>
+    );
+  };
+};

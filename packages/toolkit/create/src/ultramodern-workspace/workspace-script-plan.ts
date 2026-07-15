@@ -38,6 +38,7 @@ export interface WorkspaceRootScriptPlan {
   cloudflareBuild: string;
   cloudflareDeploy: string;
   cloudflareProof: string;
+  cloudflareSsrProof: string;
   cloudflareOutputVerify: string;
   backendFederationGenerate: string;
   nodeProof: string;
@@ -55,6 +56,7 @@ const workspaceRootPackageScriptNames = {
   cloudflareBuild: 'cloudflare:build',
   cloudflareDeploy: 'cloudflare:deploy',
   cloudflareProof: rootToolingScriptName('cloudflareProof'),
+  cloudflareSsrProof: 'cloudflare:ssr-proof',
   cloudflareOutputVerify: rootToolingScriptName('cloudflareOutputVerify'),
   backendFederationGenerate: rootToolingScriptName('backendFederationGenerate'),
   nodeProof: rootToolingScriptName('backendFederationProof'),
@@ -76,7 +78,7 @@ type WorkspaceRootPackageScripts = Partial<
 
 const shellOnlyOmittedRootScriptPlanKeys = new Set<
   keyof WorkspaceRootScriptPlan
->(['zeropsMaterialize']);
+>(['cloudflareSsrProof', 'zeropsMaterialize']);
 // Backend-federation scripts require an API surface — omitted independently
 // of the shell-only gate (split gating; ALL units deploy via Zerops).
 const backendSurfaceOmittedRootScriptPlanKeys = new Set<
@@ -228,11 +230,12 @@ export function createWorkspaceRootScriptPlan(
 
   return {
     build: `${remoteBuildPrefix}${shellBuild} && pnpm ${mfTypesScript} && pnpm ${performanceReadinessScript}`,
-    cloudflareBuild: `${remoteCloudflareBuildPrefix}${shellCloudflareBuild} && pnpm ${mfTypesScript} && pnpm ${cloudflareOutputVerifyScript}`,
+    cloudflareBuild: `${remoteCloudflareBuildPrefix}${shellCloudflareBuild} && pnpm ${mfTypesScript} && pnpm ${cloudflareOutputVerifyScript} && pnpm cloudflare:ssr-proof`,
     cloudflareDeploy: `${remoteCloudflareDeployPrefix}${shellCloudflareDeploy}`,
     cloudflareProof: `${rootToolingWrapperCommand(
       'cloudflareProof',
     )} --out .codex/reports/cloudflare-version-proof/public-url-proof.json`,
+    cloudflareSsrProof: 'node ./scripts/proof-workerd-ssr.mts',
     cloudflareOutputVerify: rootToolingWrapperCommand('cloudflareOutputVerify'),
     backendFederationGenerate: rootToolingWrapperCommand(
       'backendFederationGenerate',

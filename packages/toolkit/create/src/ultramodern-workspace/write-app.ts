@@ -20,6 +20,7 @@ import {
   createRemoteEntry,
   createRemoteExposeComponent,
   createRemotePage,
+  createRemoteWidgetFragmentPage,
   createShellPage,
   createShellRemoteComponents,
   remoteComponentOutputPath,
@@ -335,6 +336,11 @@ function writeAppRouteAndShellFiles({
       targetDir,
       `${resolvedApp.directory}/src/api/vertical-clients.ts`,
       createShellApiClient(scope, remotes),
+    );
+  } else if (Object.hasOwn(resolvedApp.exposes ?? {}, './Widget')) {
+    writeAppFile(
+      'src/routes/[lang]/_mf/fragment/widget/page.tsx',
+      createRemoteWidgetFragmentPage(resolvedApp),
     );
   }
 }

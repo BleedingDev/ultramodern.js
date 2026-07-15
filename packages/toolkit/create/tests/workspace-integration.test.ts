@@ -526,6 +526,13 @@ test('workspace and MicroVertical integration stays coherent across public API a
       /envValue\('VERTICAL_CATALOG_WORKER_BINDING'\)\s*\?\?\s*'VERTICAL_CATALOG_WORKER'/,
     );
     assert.match(shellModernConfig, /prefix:\s*'\/catalog-api'/);
+    assert.match(shellModernConfig, /boundaryId:\s*'verticalCatalog'/);
+    assert.match(shellModernConfig, /expose:\s*'\.\/Widget'/);
+    assert.match(
+      shellModernConfig,
+      /path:\s*'\/\{locale\}\/_mf\/fragment\/widget'/,
+    );
+    assert.match(shellModernConfig, /remote:\s*'catalog'/);
     assert.match(
       shellModernConfig,
       /envValue\('VERTICAL_CATALOG_WORKER_NAME'\)\s*\?\?\s*'integration-workspace-catalog'/,
@@ -535,6 +542,8 @@ test('workspace and MicroVertical integration stays coherent across public API a
       /envValue\('VERTICAL_CHECKOUT_WORKER_BINDING'\)\s*\?\?\s*'VERTICAL_CHECKOUT_WORKER'/,
     );
     assert.match(shellModernConfig, /prefix:\s*'\/checkout-api'/);
+    assert.match(shellModernConfig, /boundaryId:\s*'verticalCheckout'/);
+    assert.match(shellModernConfig, /remote:\s*'checkout'/);
     assert.match(
       shellModernConfig,
       /envValue\('VERTICAL_CHECKOUT_WORKER_NAME'\)\s*\?\?\s*'integration-workspace-checkout'/,
@@ -623,6 +632,15 @@ test('workspace and MicroVertical integration stays coherent across public API a
       rootPackage.scripts['zerops:materialize'],
       'node ./scripts/materialize-zerops-runtime.mjs',
     );
+    assert.equal(
+      rootPackage.scripts['cloudflare:ssr-proof'],
+      'node ./scripts/proof-workerd-ssr.mts',
+    );
+    assert.match(
+      rootPackage.scripts['cloudflare:build'],
+      /&& pnpm cloudflare:ssr-proof$/u,
+    );
+    assert.equal(exists(workspaceDir, 'scripts/proof-workerd-ssr.mts'), true);
     const zeropsYaml = read(workspaceDir, 'zerops.yaml');
     assert.match(zeropsYaml, /zerops:/);
     assert.match(zeropsYaml, /setup: 'shell-super-app'/);

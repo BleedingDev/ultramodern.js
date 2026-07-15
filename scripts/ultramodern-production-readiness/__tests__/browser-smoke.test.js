@@ -529,6 +529,7 @@ test('fails when the MF manifest is missing', async () => {
 function createFakeBrowser({
   boundaryIds = [],
   boundaryIdsAfterHydration = [],
+  boundaryIdsNoJs = boundaryIds,
   consoleError = false,
   consoleMessages = [],
   stylesheetHrefs,
@@ -539,6 +540,7 @@ function createFakeBrowser({
     'http://localhost:3020/static/css/app.css',
   ];
   let hydrationSettled = false;
+  let javaScriptEnabled = true;
   const page = {
     async $$eval(selector, mapper) {
       if (selector !== 'link[rel~="stylesheet"]') {
@@ -561,9 +563,11 @@ function createFakeBrowser({
           if (selector.includes('[data-app-id="shell-super-app"]')) {
             return 1;
           }
-          const renderedBoundaryIds = hydrationSettled
-            ? [...boundaryIds, ...boundaryIdsAfterHydration]
-            : boundaryIds;
+          const renderedBoundaryIds = javaScriptEnabled
+            ? hydrationSettled
+              ? [...boundaryIds, ...boundaryIdsAfterHydration]
+              : boundaryIds
+            : boundaryIdsNoJs;
           return renderedBoundaryIds.some(boundaryId =>
             selector.includes(`[data-modern-boundary-id="${boundaryId}"]`),
           )
@@ -613,6 +617,7 @@ function createFakeBrowser({
     async close() {},
     async newContext(options = {}) {
       contextOptions.push(options);
+      javaScriptEnabled = options.javaScriptEnabled !== false;
       return {
         async close() {},
         async newPage() {
@@ -674,6 +679,33 @@ test('fails unless the shell renders every declared remote boundary', async () =
   }
 });
 
+test('fails unless no-JS shell SSR contains every declared remote boundary', async () => {
+  const { createSmokeTargets, validateBrowserTarget } = await loadSmoke();
+  const root = tempRoot();
+  const [target] = createSmokeTargets(createContract()).targets;
+  target.app.moduleFederation = {
+    verticalRefs: ['inventory', 'finance'],
+    remotes: [{ id: 'inventory' }, { id: 'finance' }],
+  };
+
+  try {
+    await assert.rejects(
+      () =>
+        validateBrowserTarget(
+          target,
+          createFakeBrowser({
+            boundaryIdsAfterHydration: ['inventory', 'finance'],
+            boundaryIdsNoJs: ['inventory'],
+          }),
+          { artifactDir: root },
+        ),
+      /no-JS SSR did not render every declared remote boundary/,
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('waits for hydration before checking shell remote boundaries', async () => {
   const { createSmokeTargets, validateBrowserTarget } = await loadSmoke();
   const root = tempRoot();
@@ -686,12 +718,20 @@ test('waits for hydration before checking shell remote boundaries', async () => 
   try {
     const assertions = await validateBrowserTarget(
       target,
-      createFakeBrowser({ boundaryIdsAfterHydration: ['inventory'] }),
+      createFakeBrowser({
+        boundaryIdsAfterHydration: ['inventory'],
+        boundaryIdsNoJs: ['inventory'],
+      }),
       { artifactDir: root },
     );
 
     assert.equal(
       assertions.find(item => item.type === 'shell-composition-boundary')
+        ?.status,
+      'pass',
+    );
+    assert.equal(
+      assertions.find(item => item.type === 'no-js-shell-composition-boundary')
         ?.status,
       'pass',
     );

@@ -412,6 +412,7 @@ export const ULTRAMODERN_PACKAGE_PINS = {
   rootDevDependencies: {
     '@effect/tsgo': EFFECT_TSGO_VERSION,
     lefthook: LEFTHOOK_VERSION,
+    miniflare: MINIFLARE_VERSION,
     oxlint: OXLINT_VERSION,
     oxfmt: OXFMT_VERSION,
     ultracite: ULTRACITE_VERSION,

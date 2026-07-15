@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { UltramodernReleaseCohort } from '../ultramodern-release-cohort';
+import { appHasApi } from './descriptors';
 import {
   readFileTemplate,
   renderFileTemplate,
@@ -13,7 +14,6 @@ import {
   type GeneratedToolingCommandKey,
   generatedToolingCommands,
 } from './tooling-command-catalog';
-import { appHasApi } from './descriptors';
 import type { WorkspaceApp } from './types';
 import { createWorkspaceValidationContract } from './workspace-validation-contract';
 
@@ -197,6 +197,10 @@ function createNodeBackendFederationProofScript(): string {
   );
 }
 
+function createWorkerdSsrProofScript(): string {
+  return readFileTemplate('workspace-scripts/proof-workerd-ssr.mts');
+}
+
 export function createZeropsRuntimeMaterializationScript(): string {
   return readFileTemplate('workspace-scripts/materialize-zerops-runtime.mjs');
 }
@@ -228,6 +232,11 @@ export function writeGeneratedWorkspaceScripts(
       targetDir,
       'scripts/materialize-zerops-runtime.mjs',
       createZeropsRuntimeMaterializationScript(),
+    );
+    writeWorkspaceOwnedMtsScript(
+      targetDir,
+      'proof-workerd-ssr',
+      createWorkerdSsrProofScript(),
     );
   }
   writeFileReplacing(
@@ -315,6 +324,14 @@ export function migratedWorkspaceScriptArtifacts(options: {
     },
   ];
 
+  if (!options.shellOnly) {
+    artifacts.push({
+      relativePath: 'scripts/proof-workerd-ssr.mts',
+      content: createWorkerdSsrProofScript(),
+      legacyPath: 'scripts/proof-workerd-ssr.mjs',
+    });
+  }
+
   const backendSurface = options.hasBackendSurface ?? !options.shellOnly;
   for (const command of generatedToolingCommands) {
     if (!backendSurface && BACKEND_FEDERATION_WRAPPER_IDS.has(command.id)) {
@@ -338,5 +355,6 @@ export const migratedWorkspaceScriptBasenames: readonly string[] = [
   'check-ultramodern-api-boundaries',
   'bootstrap-agent-skills',
   'setup-agent-reference-repos',
+  'proof-workerd-ssr',
   ...generatedToolingCommands.map(command => command.wrapperName),
 ];

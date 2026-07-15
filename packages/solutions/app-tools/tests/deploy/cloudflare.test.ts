@@ -1179,6 +1179,56 @@ describe('cloudflare deploy preset', () => {
     ]);
   });
 
+  it('keeps distributed SSR fragment metadata in the worker manifest only', async () => {
+    const { outputDirectory } = await createFixture({
+      services: [
+        {
+          binding: 'VERTICAL_INVENTORY_WORKER',
+          fragments: [
+            {
+              boundaryId: 'verticalInventory',
+              expose: './Widget',
+              path: '/{locale}/_mf/fragment/widget',
+              remote: 'inventory',
+            },
+          ],
+          service: 'tractor-inventory-worker',
+        },
+      ],
+    });
+    const wranglerConfig = JSON.parse(
+      await fs.readFile(path.join(outputDirectory, 'wrangler.json'), 'utf-8'),
+    );
+    const workerManifest = JSON.parse(
+      await fs.readFile(
+        path.join(outputDirectory, 'server/modern-worker-manifest.json'),
+        'utf-8',
+      ),
+    );
+
+    expect(wranglerConfig.services).toEqual([
+      {
+        binding: 'VERTICAL_INVENTORY_WORKER',
+        service: 'tractor-inventory-worker',
+      },
+    ]);
+    expect(workerManifest.serviceBindings).toEqual([
+      {
+        binding: 'VERTICAL_INVENTORY_WORKER',
+        fragments: [
+          {
+            boundaryId: 'verticalInventory',
+            expose: './Widget',
+            path: '/{locale}/_mf/fragment/widget',
+            remote: 'inventory',
+          },
+        ],
+        interface: 'fetch',
+        service: 'tractor-inventory-worker',
+      },
+    ]);
+  });
+
   it('rejects mixed typed and raw wrangler service bindings', async () => {
     await expect(
       createFixture({
@@ -2612,6 +2662,68 @@ describe('cloudflare deploy preset', () => {
     await expect(response.json()).resolves.toEqual({
       pathname: '/catalog-api/catalog/readiness',
       source: 'catalog-worker',
+    });
+  });
+
+  it('composes verified SSR fragments through service bindings before rendering the shell', async () => {
+    const { outputDirectory } = await createFixture({
+      distFiles: {
+        'worker/main.js': `module.exports = { requestHandler: async (_request, options) =>
+          Response.json(options.locals.__modernDistributedSsrFragments) };`,
+      },
+      services: [
+        {
+          binding: 'VERTICAL_INVENTORY_WORKER',
+          fragments: [
+            {
+              boundaryId: 'verticalInventory',
+              expose: './Widget',
+              path: '/en/_mf/fragment/widget',
+              remote: 'inventory',
+            },
+          ],
+          service: 'tractor-inventory-worker',
+        },
+      ],
+    });
+    const entryPath = path.join(outputDirectory, 'server/index.mjs');
+    const worker = (
+      await import(`${pathToFileURL(entryPath).href}?t=${Date.now()}`)
+    ).default;
+    const calls: string[] = [];
+
+    const response = await worker.fetch(
+      new Request('https://example.com/dashboard'),
+      {
+        ASSETS: createSpaFallbackAssetBinding(
+          path.join(outputDirectory, 'public'),
+        ),
+        VERTICAL_INVENTORY_WORKER: {
+          fetch: async (request: Request) => {
+            calls.push(request.url);
+            return new Response(
+              '<!doctype html><html><body><section data-modern-boundary-id="verticalInventory" data-modern-mf-expose="./Widget"><div>Inventory SSR</div></section></body></html>',
+              {
+                headers: { 'content-type': 'text/html; charset=utf-8' },
+              },
+            );
+          },
+        },
+      },
+    );
+
+    expect(calls).toEqual(['https://example.com/en/_mf/fragment/widget']);
+    await expect(response.json()).resolves.toEqual({
+      fragments: {
+        'inventory::./Widget': {
+          boundaryId: 'verticalInventory',
+          expose: './Widget',
+          html: '<section data-modern-boundary-id="verticalInventory" data-modern-mf-expose="./Widget"><div>Inventory SSR</div></section>',
+          remote: 'inventory',
+          status: 'ready',
+        },
+      },
+      required: true,
     });
   });
 

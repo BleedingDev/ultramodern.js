@@ -184,11 +184,38 @@ const normalizeServiceBinding = (
           service.prefix,
           `deploy.worker.services[${index}].prefix`,
         );
+  if (service.fragments !== undefined && !Array.isArray(service.fragments)) {
+    throw new Error(
+      `deploy.worker.services[${index}].fragments must be an array.`,
+    );
+  }
+  const fragments =
+    service.fragments === undefined
+      ? undefined
+      : service.fragments.map((fragment, fragmentIndex) => ({
+          remote: assertNonEmptyString(
+            fragment.remote,
+            `deploy.worker.services[${index}].fragments[${fragmentIndex}].remote`,
+          ),
+          expose: assertNonEmptyString(
+            fragment.expose,
+            `deploy.worker.services[${index}].fragments[${fragmentIndex}].expose`,
+          ),
+          boundaryId: assertNonEmptyString(
+            fragment.boundaryId,
+            `deploy.worker.services[${index}].fragments[${fragmentIndex}].boundaryId`,
+          ),
+          path: assertNonEmptyString(
+            fragment.path,
+            `deploy.worker.services[${index}].fragments[${fragmentIndex}].path`,
+          ),
+        }));
 
   return {
     binding,
     service: serviceName,
     ...(prefix === undefined ? {} : { prefix }),
+    ...(fragments === undefined ? {} : { fragments }),
   };
 };
 
@@ -227,10 +254,11 @@ const createWranglerServices = (
   }
 
   return serviceBindings.map(service => {
-    const { prefix, ...wranglerService } = service as {
+    const { prefix, fragments, ...wranglerService } = service as {
       binding: string;
       service: string;
       prefix?: string;
+      fragments?: unknown;
     };
 
     return wranglerService;
@@ -244,28 +272,38 @@ export const createWorkerManifestServiceBindings = (
     return undefined;
   }
 
-  const dispatchBindings = serviceBindings
+  const manifestBindings = serviceBindings
     .filter(
       (
         service,
       ): service is {
         binding: string;
         service: string;
-        prefix: string;
+        prefix?: string;
+        fragments?: Array<{
+          remote: string;
+          expose: string;
+          boundaryId: string;
+          path: string;
+        }>;
       } =>
         isJsonRecord(service) &&
         typeof service.binding === 'string' &&
         typeof service.service === 'string' &&
-        typeof service.prefix === 'string',
+        (typeof service.prefix === 'string' ||
+          (Array.isArray(service.fragments) && service.fragments.length > 0)),
     )
     .map(service => ({
       binding: service.binding,
       service: service.service,
-      prefix: service.prefix,
       interface: 'fetch',
+      ...(service.prefix === undefined ? {} : { prefix: service.prefix }),
+      ...(service.fragments === undefined
+        ? {}
+        : { fragments: service.fragments }),
     }));
 
-  return dispatchBindings.length > 0 ? dispatchBindings : undefined;
+  return manifestBindings.length > 0 ? manifestBindings : undefined;
 };
 
 export const createWranglerConfig = (

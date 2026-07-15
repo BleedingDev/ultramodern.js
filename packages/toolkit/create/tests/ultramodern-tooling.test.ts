@@ -260,6 +260,7 @@ test('fresh shell-only workspace omits backend-federation and Zerops runtime sur
       undefined,
     );
     assert.equal(rootPackage.scripts['zerops:materialize'], undefined);
+    assert.equal(rootPackage.scripts['cloudflare:ssr-proof'], undefined);
     assert.equal(
       exists(workspaceDir, 'scripts/generate-node-backend-federation.mts'),
       false,
@@ -272,6 +273,7 @@ test('fresh shell-only workspace omits backend-federation and Zerops runtime sur
       exists(workspaceDir, 'scripts/materialize-zerops-runtime.mjs'),
       false,
     );
+    assert.equal(exists(workspaceDir, 'scripts/proof-workerd-ssr.mts'), false);
     assertNoDanglingScriptReferences(workspaceDir);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
@@ -305,6 +307,7 @@ test('migrate does not inject backend-federation gates into a shell-only workspa
       undefined,
     );
     assert.equal(rootPackage.scripts['zerops:materialize'], undefined);
+    assert.equal(rootPackage.scripts['cloudflare:ssr-proof'], undefined);
     assert.equal(
       exists(workspaceDir, 'scripts/generate-node-backend-federation.mts'),
       false,
@@ -1123,11 +1126,20 @@ declare module '*.css' {}
       rootPackage.scripts['zerops:materialize'],
       'node ./scripts/materialize-zerops-runtime.mjs',
     );
+    assert.equal(
+      rootPackage.scripts['cloudflare:ssr-proof'],
+      'node ./scripts/proof-workerd-ssr.mts',
+    );
+    assert.match(
+      rootPackage.scripts['cloudflare:build'],
+      /&& pnpm cloudflare:ssr-proof$/u,
+    );
     for (const relativePath of [
       'scripts/generate-node-backend-federation.mts',
       'scripts/proof-node-backend-federation.mts',
       'scripts/verify-cloudflare-output.mts',
       'scripts/materialize-zerops-runtime.mjs',
+      'scripts/proof-workerd-ssr.mts',
       'verticals/catalog/api/backend-federation.ts',
     ]) {
       assert.equal(fs.existsSync(path.join(workspaceDir, relativePath)), true);

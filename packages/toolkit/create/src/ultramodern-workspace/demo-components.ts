@@ -74,6 +74,8 @@ export function createShellRemoteComponents(
     .map(remote => {
       const componentName = `${toPascalCase(remote.id)}Widget`;
       return `const ${componentName} = createRemoteComponent(
+  '${remote.id}',
+  './Widget',
   () => import('${remoteDependencyAlias(remote)}/Widget'),
 );`;
     })
@@ -283,6 +285,26 @@ export default function ${componentName}() {
       <p className="${tw('mt-2 text-stone-600')}">{t('${domain}.widgetBody')}</p>
     </section>
   );
+}
+`;
+}
+
+export function createRemoteWidgetFragmentPage(app: WorkspaceApp): string {
+  const widgetPath = app.exposes?.['./Widget'];
+  if (!widgetPath?.startsWith('./src/')) {
+    throw new Error(
+      `Cannot generate a Widget SSR fragment route for ${app.id}: invalid expose path`,
+    );
+  }
+
+  const importPath = `../../../../../${widgetPath
+    .replace(/^\.\/src\//u, '')
+    .replace(/\.[cm]?[jt]sx?$/u, '')}`;
+
+  return `import Widget from '${importPath}';
+
+export default function WidgetFragmentPage() {
+  return <Widget />;
 }
 `;
 }

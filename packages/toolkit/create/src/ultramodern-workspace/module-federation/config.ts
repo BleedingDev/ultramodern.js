@@ -111,7 +111,11 @@ ${resolveApiProtocol(app) === 'rest' ? "          openapi: {\n            path: 
   const bffPluginEntry = appHasApi(app) ? '        bffPlugin(),\n' : '';
   const serviceBindings =
     app.kind === 'shell'
-      ? resolveRemoteRefs(app, remotes).filter(appHasApi)
+      ? resolveRemoteRefs(app, remotes).filter(
+          remote =>
+            appHasApi(remote) ||
+            Object.hasOwn(remote.exposes ?? {}, './Widget'),
+        )
       : [];
   const serviceBindingsConfig =
     serviceBindings.length > 0
@@ -122,8 +126,19 @@ ${serviceBindings
               binding:
                 envValue('${createWorkerBindingEnv(service)}') ??
                 '${createWorkerBindingName(service)}',
-              prefix: '${resolveApiPrefix(service)}',
-              service:
+${
+  Object.hasOwn(service.exposes ?? {}, './Widget')
+    ? `              fragments: [
+                {
+                  boundaryId: '${service.mfName}',
+                  expose: './Widget',
+                  path: '/{locale}/_mf/fragment/widget',
+                  remote: '${service.id}',
+                },
+              ],
+`
+    : ''
+}${appHasApi(service) ? `              prefix: '${resolveApiPrefix(service)}',\n` : ''}              service:
                 envValue('${createDispatchWorkerNameEnv(service)}') ??
                 '${createCloudflareWorkerName(scope, service)}',
             },`,

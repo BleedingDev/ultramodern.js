@@ -1644,6 +1644,11 @@ const requiredMicroVerticalPaths = vertical => [
         `${vertical.path}/src/routes/ultramodern-route-head.tsx`,
         `${vertical.path}/src/routes/ultramodern-route-metadata.ts`,
         `${vertical.path}/src/routes/[lang]/page.tsx`,
+        ...(vertical.exposes.includes('./Widget')
+          ? [
+              `${vertical.path}/src/routes/[lang]/_mf/fragment/widget/page.tsx`,
+            ]
+          : []),
         ...vertical.routePagePaths,
         ...vertical.routeMetaPaths,
       ]
@@ -1672,6 +1677,7 @@ const forbiddenMicroVerticalPaths = vertical => [
         `${vertical.path}/src/components/${vertical.domain ?? vertical.id}-widget.tsx`,
         `${vertical.path}/src/routes/layout.tsx`,
         `${vertical.path}/src/routes/[lang]/page.tsx`,
+        `${vertical.path}/src/routes/[lang]/_mf/fragment/widget/page.tsx`,
         // A headless api-only unit renders no browser surface, so it must not
         // ship route components, the colocated route-metadata/head modules, or
         // the colocated `[lang]/route.meta.ts` route-meta file.
@@ -2627,6 +2633,7 @@ const requiredPaths = [
   'scripts/generate-public-surface-assets.mts',
   'scripts/generate-tanstack-routes.mts',
   'scripts/proof-cloudflare-version.mts',
+  ...(hasDeliveryUnits ? ['scripts/proof-workerd-ssr.mts'] : []),
   ...(hasBackendSurfaces ? ['scripts/proof-node-backend-federation.mts'] : []),
   'scripts/setup-agent-reference-repos.mts',
   'scripts/ultramodern-performance-readiness.config.mjs',
@@ -3445,8 +3452,11 @@ if (hasBackendSurfaces) {
 }
 if (hasDeliveryUnits) {
   assert(rootPackage.scripts?.['zerops:materialize'] === 'node ./scripts/materialize-zerops-runtime.mjs', 'Root must expose Zerops runtime materialization script');
+  assert(rootPackage.scripts?.['cloudflare:ssr-proof'] === 'node ./scripts/proof-workerd-ssr.mts', 'Root must expose workerd distributed SSR composition proof');
+  assert(rootPackage.scripts?.['cloudflare:build']?.endsWith('&& pnpm cloudflare:ssr-proof'), 'Root Cloudflare build must finish with workerd distributed SSR composition proof');
 } else {
   assert(rootPackage.scripts?.['zerops:materialize'] === undefined, 'Root must not expose Zerops materialization in a shell-only workspace');
+  assert(rootPackage.scripts?.['cloudflare:ssr-proof'] === undefined, 'Root must not expose workerd SSR proof in a shell-only workspace');
 }
 assertNotExists('scripts/generate-node-backend-federation.mjs');
 assertNotExists('scripts/proof-node-backend-federation.mjs');

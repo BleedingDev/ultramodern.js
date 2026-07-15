@@ -77,6 +77,26 @@ export interface CloudflareWorkerServiceBindingConfig {
    * service binding with `env[binding].fetch(request)`.
    */
   prefix?: string;
+  /**
+   * Server-rendered Module Federation fragments exposed by this Worker.
+   * These fields are written to the Modern.js worker manifest, but stripped
+   * from Wrangler's `services` entries.
+   */
+  fragments?: CloudflareWorkerServiceBindingFragmentConfig[];
+}
+
+export interface CloudflareWorkerServiceBindingFragmentConfig {
+  /** Stable remote id used by the shell's composition contract. */
+  remote: string;
+  /** Module Federation expose rendered by the fragment route. */
+  expose: string;
+  /** Expected boundary marker in the rendered fragment HTML. */
+  boundaryId: string;
+  /**
+   * Route path on the bound Worker. `{locale}` is replaced with the first
+   * locale segment from the incoming shell request.
+   */
+  path: string;
 }
 
 export interface CloudflareWorkerSecurityCspConfig {

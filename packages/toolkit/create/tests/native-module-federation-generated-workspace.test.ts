@@ -51,8 +51,10 @@ function assertNativeModuleFederationWorkspace(workspaceDir: string) {
   );
   assert.match(
     remoteComponents,
-    /createRemoteComponent\(\s*\(\) => import\('[^']+\/Widget'\)/u,
+    /createRemoteComponent\(\s*'catalog',\s*'\.\/Widget',\s*\(\) => import\('[^']+\/Widget'\)/u,
   );
+  assert.match(remoteComponents, /<DistributedSsrBoundary/u);
+  assert.doesNotMatch(remoteComponents, /noSSR/u);
   assert.match(remoteComponents, /fallback: <RemoteUnavailable \/>/u);
   for (const fallback of [
     '@module-federation/bridge-react',

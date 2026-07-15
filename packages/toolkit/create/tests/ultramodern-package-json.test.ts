@@ -15,6 +15,7 @@ import type {
   ResolvedPackageSource,
   WorkspaceApp,
 } from '../src/ultramodern-workspace/types';
+import { MINIFLARE_VERSION } from '../src/ultramodern-workspace/versions';
 
 const scope = 'tractor-store';
 const packageVersion = '3.5.0-ultramodern.9';
@@ -171,6 +172,7 @@ test('root package json pins workspace package versions and bridge workspace glo
     '@modern-js/create': packageVersion,
     '@modern-js/plugin-bff': packageVersion,
     lefthook: '^2.1.10',
+    miniflare: MINIFLARE_VERSION,
     oxlint: '1.73.0',
     oxfmt: '0.58.0',
     ultracite: '7.9.3',
