@@ -42,3 +42,21 @@ test('shared UltraModern workspace patches stay byte-identical', () => {
     );
   }
 });
+
+test('Module Federation patch keeps distributed Worker SSR startup lazy', () => {
+  const patch = fs.readFileSync(
+    path.join(repoPatchDir, '@module-federation__modern-js-v3@2.7.0.patch'),
+    'utf8',
+  );
+
+  assert.equal(
+    patch.match(/hasDistributedSsrFragments/g)?.length,
+    7,
+    'all three published plugin formats must detect distributed SSR fragments',
+  );
+  assert.equal(
+    patch.match(/asyncStartup: false/g)?.length,
+    3,
+    'all three published plugin formats must disable eager server remote startup',
+  );
+});
