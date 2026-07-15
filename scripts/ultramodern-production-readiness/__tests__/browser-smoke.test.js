@@ -528,6 +528,7 @@ test('fails when the MF manifest is missing', async () => {
 
 function createFakeBrowser({
   boundaryIds = [],
+  boundaryIdsAfterHydration = [],
   consoleError = false,
   consoleMessages = [],
   stylesheetHrefs,
@@ -537,6 +538,7 @@ function createFakeBrowser({
   const resolvedStylesheetHrefs = stylesheetHrefs ?? [
     'http://localhost:3020/static/css/app.css',
   ];
+  let hydrationSettled = false;
   const page = {
     async $$eval(selector, mapper) {
       if (selector !== 'link[rel~="stylesheet"]') {
@@ -559,7 +561,10 @@ function createFakeBrowser({
           if (selector.includes('[data-app-id="shell-super-app"]')) {
             return 1;
           }
-          return boundaryIds.some(boundaryId =>
+          const renderedBoundaryIds = hydrationSettled
+            ? [...boundaryIds, ...boundaryIdsAfterHydration]
+            : boundaryIds;
+          return renderedBoundaryIds.some(boundaryId =>
             selector.includes(`[data-modern-boundary-id="${boundaryId}"]`),
           )
             ? 1
@@ -597,7 +602,9 @@ function createFakeBrowser({
       fs.mkdirSync(path.dirname(screenshotPath), { recursive: true });
       fs.writeFileSync(screenshotPath, 'non-empty-screenshot');
     },
-    async waitForLoadState() {},
+    async waitForLoadState() {
+      hydrationSettled = true;
+    },
     async waitForSelector() {},
     async waitForTimeout() {},
   };
@@ -661,6 +668,32 @@ test('fails unless the shell renders every declared remote boundary', async () =
           { artifactDir: root },
         ),
       /did not render every declared remote boundary/,
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('waits for hydration before checking shell remote boundaries', async () => {
+  const { createSmokeTargets, validateBrowserTarget } = await loadSmoke();
+  const root = tempRoot();
+  const [target] = createSmokeTargets(createContract()).targets;
+  target.app.moduleFederation = {
+    verticalRefs: ['inventory'],
+    remotes: [{ id: 'inventory' }],
+  };
+
+  try {
+    const assertions = await validateBrowserTarget(
+      target,
+      createFakeBrowser({ boundaryIdsAfterHydration: ['inventory'] }),
+      { artifactDir: root },
+    );
+
+    assert.equal(
+      assertions.find(item => item.type === 'shell-composition-boundary')
+        ?.status,
+      'pass',
     );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });

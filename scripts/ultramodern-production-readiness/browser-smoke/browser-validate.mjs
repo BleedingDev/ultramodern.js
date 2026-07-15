@@ -267,6 +267,8 @@ export async function validateBrowserTarget(target, browser, { artifactDir }) {
       assertPass(rootCount > 0, `${app.id} browser CSS root marker is missing`);
     }
 
+    await waitForHydrationStyles(page);
+
     if (
       app.kind === 'shell' &&
       app.moduleFederation?.verticalRefs?.length > 0
@@ -318,7 +320,6 @@ export async function validateBrowserTarget(target, browser, { artifactDir }) {
       );
     }
 
-    await waitForHydrationStyles(page);
     stylesheetLinks = await collectStylesheetLinks(page);
     const duplicateStylesheetHrefs = findDuplicateStylesheetHrefs(
       stylesheetLinks.map(link => link.href),
