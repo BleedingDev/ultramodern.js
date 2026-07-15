@@ -17,22 +17,7 @@ index 3f1af86afed3d4a2005f3ab6320a13e366594ab5..1f67bf03323bc246e79a2fa43373a39c
          }
          if ((0, external_utils_js_namespaceObject.isDev)() && 'auto' === chain.output.get('publicPath')) {
              var _modernjsConfig_server;
-@@ -254,6 +257,14 @@ var __webpack_exports__ = {};
-                 const modernjsConfig = api.getConfig();
-                 const mfConfig = await getMFConfig(userConfig.originPluginOptions);
-                 const csrConfig = userConfig.csrConfig || JSON.parse(JSON.stringify(mfConfig));
-                 const ssrConfig = userConfig.ssrConfig || JSON.parse(JSON.stringify(mfConfig));
-+                const workerServices = modernjsConfig && modernjsConfig.deploy && modernjsConfig.deploy.worker && modernjsConfig.deploy.worker.services;
-+                const hasDistributedSsrFragments = Array.isArray(workerServices) && workerServices.some((service)=>Array.isArray(service && service.fragments) && service.fragments.length > 0);
-+                if (hasDistributedSsrFragments) {
-+                    ssrConfig.experiments = {
-+                        ...ssrConfig.experiments,
-+                        asyncStartup: false
-+                    };
-+                }
-                 userConfig.ssrConfig = ssrConfig;
-                 userConfig.csrConfig = csrConfig;
-@@ -294,9 +305,12 @@ var __webpack_exports__ = {};
+@@ -294,9 +297,12 @@ var __webpack_exports__ = {};
                      if ('object' != typeof devServerConfig || !('headers' in devServerConfig)) corsWarnMsgs.unshift('Detect devServer.headers is empty, mf modern plugin will add default cors header: devServer.headers["Access-Control-Allow-Headers"] = "*". It is recommended to specify an allowlist of trusted origins instead.');
                      const exposes = null == (_userConfig_csrConfig = userConfig.csrConfig) ? void 0 : _userConfig_csrConfig.exposes;
                      const hasExposes = exposes && Array.isArray(exposes) ? exposes.length > 0 : Object.keys(null != exposes ? exposes : {}).length > 0;
@@ -47,7 +32,7 @@ index 3f1af86afed3d4a2005f3ab6320a13e366594ab5..1f67bf03323bc246e79a2fa43373a39c
                      const corsHeaders = hasExposes ? {
                          'Access-Control-Allow-Origin': '*',
                          'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
-@@ -318,7 +332,7 @@ var __webpack_exports__ = {};
+@@ -318,7 +324,7 @@ var __webpack_exports__ = {};
                          },
                          dev: {
                              assetPrefix: (null == modernjsConfig ? void 0 : null == (_modernjsConfig_dev1 = modernjsConfig.dev) ? void 0 : _modernjsConfig_dev1.assetPrefix) ? modernjsConfig.dev.assetPrefix : 'auto',
@@ -75,30 +60,7 @@ index c8c2ace490c17d42755cc798b438a3ddaa83760c..026ecbcae72b0b215e64a5ec6be4e54e
      }
      if (isDev() && 'auto' === chain.output.get('publicPath')) {
          var _modernjsConfig_server;
-@@ -218,6 +221,6 @@ var configPlugin_moduleFederationConfigPlugin = function(userConfig) {
-         setup: function(api) {
-             return _(function() {
--                var _ref, _userConfig_userConfig, _modernjsConfig_server, modernjsConfig, mfConfig, csrConfig, ssrConfig, enableSSR;
-+                var _ref, _userConfig_userConfig, _modernjsConfig_server, modernjsConfig, mfConfig, csrConfig, ssrConfig, workerServices, hasDistributedSsrFragments, enableSSR;
-                 return _ts_generator__(this, function(_state) {
-                     switch(_state.label){
-                         case 0:
-@@ -229,7 +232,14 @@ var configPlugin_moduleFederationConfigPlugin = function(userConfig) {
-                         case 1:
-                             mfConfig = _state.sent();
-                             csrConfig = userConfig.csrConfig || JSON.parse(JSON.stringify(mfConfig));
-                             ssrConfig = userConfig.ssrConfig || JSON.parse(JSON.stringify(mfConfig));
-+                            workerServices = modernjsConfig && modernjsConfig.deploy && modernjsConfig.deploy.worker && modernjsConfig.deploy.worker.services;
-+                            hasDistributedSsrFragments = Array.isArray(workerServices) && workerServices.some(function(service) {
-+                                return Array.isArray(service && service.fragments) && service.fragments.length > 0;
-+                            });
-+                            if (hasDistributedSsrFragments) ssrConfig.experiments = Object.assign({}, ssrConfig.experiments, {
-+                                asyncStartup: false
-+                            });
-                             userConfig.ssrConfig = ssrConfig;
-                             userConfig.csrConfig = csrConfig;
-                             enableSSR = Boolean(null != (_ref = null == (_userConfig_userConfig = userConfig.userConfig) ? void 0 : _userConfig_userConfig.ssr) ? _ref : Boolean(null == modernjsConfig ? void 0 : null == (_modernjsConfig_server = modernjsConfig.server) ? void 0 : _modernjsConfig_server.ssr));
-@@ -272,9 +282,12 @@ var configPlugin_moduleFederationConfigPlugin = function(userConfig) {
+@@ -272,9 +275,12 @@ var configPlugin_moduleFederationConfigPlugin = function(userConfig) {
                                  if ((void 0 === devServerConfig ? "undefined" : _type_of__(devServerConfig)) !== 'object' || !('headers' in devServerConfig)) corsWarnMsgs.unshift('Detect devServer.headers is empty, mf modern plugin will add default cors header: devServer.headers["Access-Control-Allow-Headers"] = "*". It is recommended to specify an allowlist of trusted origins instead.');
                                  var exposes = null == (_userConfig_csrConfig = userConfig.csrConfig) ? void 0 : _userConfig_csrConfig.exposes;
                                  var hasExposes = exposes && Array.isArray(exposes) ? exposes.length > 0 : Object.keys(null != exposes ? exposes : {}).length > 0;
@@ -113,7 +75,7 @@ index c8c2ace490c17d42755cc798b438a3ddaa83760c..026ecbcae72b0b215e64a5ec6be4e54e
                                  var corsHeaders = hasExposes ? {
                                      'Access-Control-Allow-Origin': '*',
                                      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
-@@ -296,7 +309,7 @@ var configPlugin_moduleFederationConfigPlugin = function(userConfig) {
+@@ -296,7 +302,7 @@ var configPlugin_moduleFederationConfigPlugin = function(userConfig) {
                                      },
                                      dev: {
                                          assetPrefix: (null == modernjsConfig ? void 0 : null == (_modernjsConfig_dev1 = modernjsConfig.dev) ? void 0 : _modernjsConfig_dev1.assetPrefix) ? modernjsConfig.dev.assetPrefix : 'auto',
@@ -141,23 +103,7 @@ index c238b85c2c34107ca2c544500f1bc5457010d1ad..74b481cafc285fbe9bf3f4ba09c3151e
      }
      if (isDev() && 'auto' === chain.output.get('publicPath')) {
          var _modernjsConfig_server;
-@@ -194,7 +197,15 @@ const moduleFederationConfigPlugin = (userConfig)=>({
-             const modernjsConfig = api.getConfig();
-             const mfConfig = await getMFConfig(userConfig.originPluginOptions);
-             const csrConfig = userConfig.csrConfig || JSON.parse(JSON.stringify(mfConfig));
-             const ssrConfig = userConfig.ssrConfig || JSON.parse(JSON.stringify(mfConfig));
-+            const workerServices = modernjsConfig && modernjsConfig.deploy && modernjsConfig.deploy.worker && modernjsConfig.deploy.worker.services;
-+            const hasDistributedSsrFragments = Array.isArray(workerServices) && workerServices.some((service)=>Array.isArray(service && service.fragments) && service.fragments.length > 0);
-+            if (hasDistributedSsrFragments) {
-+                ssrConfig.experiments = {
-+                    ...ssrConfig.experiments,
-+                    asyncStartup: false
-+                };
-+            }
-             userConfig.ssrConfig = ssrConfig;
-             userConfig.csrConfig = csrConfig;
-             const enableSSR = Boolean(null != (_ref = null == (_userConfig_userConfig = userConfig.userConfig) ? void 0 : _userConfig_userConfig.ssr) ? _ref : Boolean(null == modernjsConfig ? void 0 : null == (_modernjsConfig_server = modernjsConfig.server) ? void 0 : _modernjsConfig_server.ssr));
-@@ -234,9 +245,12 @@ const moduleFederationConfigPlugin = (userConfig)=>({
+@@ -234,9 +237,12 @@ const moduleFederationConfigPlugin = (userConfig)=>({
                  if ('object' != typeof devServerConfig || !('headers' in devServerConfig)) corsWarnMsgs.unshift('Detect devServer.headers is empty, mf modern plugin will add default cors header: devServer.headers["Access-Control-Allow-Headers"] = "*". It is recommended to specify an allowlist of trusted origins instead.');
                  const exposes = null == (_userConfig_csrConfig = userConfig.csrConfig) ? void 0 : _userConfig_csrConfig.exposes;
                  const hasExposes = exposes && Array.isArray(exposes) ? exposes.length > 0 : Object.keys(null != exposes ? exposes : {}).length > 0;
@@ -172,7 +118,7 @@ index c238b85c2c34107ca2c544500f1bc5457010d1ad..74b481cafc285fbe9bf3f4ba09c3151e
                  const corsHeaders = hasExposes ? {
                      'Access-Control-Allow-Origin': '*',
                      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
-@@ -258,7 +272,7 @@ const moduleFederationConfigPlugin = (userConfig)=>({
+@@ -258,7 +264,7 @@ const moduleFederationConfigPlugin = (userConfig)=>({
                      },
                      dev: {
                          assetPrefix: (null == modernjsConfig ? void 0 : null == (_modernjsConfig_dev1 = modernjsConfig.dev) ? void 0 : _modernjsConfig_dev1.assetPrefix) ? modernjsConfig.dev.assetPrefix : 'auto',

@@ -56,6 +56,15 @@ function assertNativeModuleFederationWorkspace(workspaceDir: string) {
   assert.match(remoteComponents, /createDistributedSsrComponent/u);
   assert.doesNotMatch(remoteComponents, /noSSR/u);
   assert.match(remoteComponents, /fallback: <RemoteUnavailable \/>/u);
+  const workerRemoteComponents = fs.readFileSync(
+    path.join(
+      workspaceDir,
+      'apps/shell-super-app/src/routes/vertical-components.worker.tsx',
+    ),
+    'utf-8',
+  );
+  assert.match(workerRemoteComponents, /DistributedSsrBoundary/u);
+  assert.doesNotMatch(workerRemoteComponents, /@module-federation|import\(/u);
   for (const fallback of [
     '@module-federation/bridge-react',
     'createHydratedRemote',

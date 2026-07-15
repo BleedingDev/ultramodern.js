@@ -62,9 +62,10 @@ export function createShellPage(
   );
 }
 
-export function createShellRemoteComponents(
+function createShellRemoteComponentsSource(
   shell: WorkspaceApp,
   remotes: WorkspaceApp[] = [],
+  worker = false,
 ): string {
   const tw = createTw(tailwindPrefixForApp(shell));
   const widgetRemotes = remotes.filter(remote =>
@@ -73,7 +74,12 @@ export function createShellRemoteComponents(
   const remoteComponentExports = widgetRemotes
     .map(remote => {
       const componentName = `${toPascalCase(remote.id)}Widget`;
-      return `const ${componentName} = createRemoteComponent(
+      return worker
+        ? `const ${componentName} = createRemoteComponent(
+  '${remote.id}',
+  './Widget',
+);`
+        : `const ${componentName} = createRemoteComponent(
   '${remote.id}',
   './Widget',
   () => import('${remoteDependencyAlias(remote)}/Widget'),
@@ -83,14 +89,18 @@ export function createShellRemoteComponents(
   const federationImports =
     widgetRemotes.length > 0
       ? renderFileTemplate(
-          'workspace/apps/shell-super-app/src/routes/vertical-components.imports.tsx',
+          worker
+            ? 'workspace/apps/shell-super-app/src/routes/vertical-components.worker.imports.tsx'
+            : 'workspace/apps/shell-super-app/src/routes/vertical-components.imports.tsx',
           {},
         )
       : '';
   const federationHelpers =
     widgetRemotes.length > 0
       ? renderFileTemplate(
-          'workspace/apps/shell-super-app/src/routes/vertical-components.helpers.tsx',
+          worker
+            ? 'workspace/apps/shell-super-app/src/routes/vertical-components.worker.helpers.tsx'
+            : 'workspace/apps/shell-super-app/src/routes/vertical-components.helpers.tsx',
           {
             value0: shell.id,
             value1: tw(
@@ -140,6 +150,20 @@ ${showcaseItems}
       value12: showcaseGrid,
     },
   );
+}
+
+export function createShellRemoteComponents(
+  shell: WorkspaceApp,
+  remotes: WorkspaceApp[] = [],
+): string {
+  return createShellRemoteComponentsSource(shell, remotes);
+}
+
+export function createShellWorkerRemoteComponents(
+  shell: WorkspaceApp,
+  remotes: WorkspaceApp[] = [],
+): string {
+  return createShellRemoteComponentsSource(shell, remotes, true);
 }
 
 export function createRemotePage(app: WorkspaceApp): string {

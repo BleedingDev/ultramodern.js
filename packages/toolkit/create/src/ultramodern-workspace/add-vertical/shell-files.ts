@@ -10,6 +10,7 @@ import type { UltramodernBridgeConfig } from '../bridge-config';
 import {
   createShellPage,
   createShellRemoteComponents,
+  createShellWorkerRemoteComponents,
 } from '../demo-components';
 import {
   appEmitsBrowserUi,
@@ -193,6 +194,11 @@ export function rewriteShellAppFiles(
     workspaceRoot,
     `${shellHost.directory}/src/routes/vertical-components.tsx`,
     createShellRemoteComponents(shellHost, uiRemotes),
+  );
+  writeFileReplacing(
+    workspaceRoot,
+    `${shellHost.directory}/src/routes/vertical-components.worker.tsx`,
+    createShellWorkerRemoteComponents(shellHost, uiRemotes),
   );
   writeFileReplacing(
     workspaceRoot,

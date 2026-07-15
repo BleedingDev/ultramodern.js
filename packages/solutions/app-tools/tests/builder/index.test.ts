@@ -285,9 +285,10 @@ describe('create builder Options', () => {
       expect(providedExports).toHaveBeenCalledWith(true);
       expect(innerGraph).toHaveBeenCalledWith(false);
       expect(sideEffects).toHaveBeenCalledWith(false);
-      // ADR-0021: the MF transform is kept on the worker SSR chain so an MF
-      // host shell's remote imports resolve; remotes are composed as fragments.
-      expect(deletedPlugins.has('plugin-module-federation')).toBe(false);
+      // ADR-0021: Worker SSR resolves generated `.worker.tsx` boundaries that
+      // contain no native remote imports. Keeping the MF transform here would
+      // initialize its Node runtime at module scope and perform forbidden I/O.
+      expect(deletedPlugins.has('plugin-module-federation')).toBe(true);
       expect(aliases.get('@modern-js/runtime/rsc/server$')).toMatch(
         /runtime[/\\]plugin-runtime[/\\]dist[/\\]esm[/\\]rsc[/\\]server\.worker\.mjs$/,
       );

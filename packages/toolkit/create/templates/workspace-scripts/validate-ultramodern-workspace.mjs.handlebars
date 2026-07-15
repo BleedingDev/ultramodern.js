@@ -2655,8 +2655,11 @@ const requiredPaths = [
   `apps/shell-super-app/locales/cs/${shellNamespace}.json`,
   'apps/shell-super-app/src/routes/index.css',
   'apps/shell-super-app/src/routes/layout.tsx',
+  'apps/shell-super-app/src/routes/shell-frame.tsx',
   'apps/shell-super-app/src/routes/ultramodern-route-head.tsx',
   'apps/shell-super-app/src/routes/ultramodern-route-metadata.ts',
+  'apps/shell-super-app/src/routes/vertical-components.tsx',
+  'apps/shell-super-app/src/routes/vertical-components.worker.tsx',
   'apps/shell-super-app/src/routes/[lang]/page.tsx',
   ...shellRouteMetaPaths,
   'packages/shared-contracts/package.json',
@@ -2711,6 +2714,7 @@ for (const shell of expectedAdditionalShells) {
     `${shell.path}/src/routes/layout.tsx`,
     `${shell.path}/src/routes/shell-frame.tsx`,
     `${shell.path}/src/routes/vertical-components.tsx`,
+    `${shell.path}/src/routes/vertical-components.worker.tsx`,
     `${shell.path}/src/routes/ultramodern-route-head.tsx`,
     `${shell.path}/src/routes/ultramodern-route-metadata.ts`,
     `${shell.path}/src/routes/[lang]/page.tsx`,
@@ -3300,6 +3304,9 @@ const assertAdditionalShellCohort = () => {
     const remoteComponents = readText(
       `${shell.path}/src/routes/vertical-components.tsx`,
     );
+    const workerRemoteComponents = readText(
+      `${shell.path}/src/routes/vertical-components.worker.tsx`,
+    );
     assert(modernConfig.includes(`const appId = '${shell.id}';`), `${shell.id} modern.config.ts appId is incorrect`);
     assert(modernConfig.includes(`const port = Number(getBuildConfigEnvironment('${shell.portEnv}') ?? ${shell.port});`), `${shell.id} modern.config.ts port is incorrect`);
     assert(modernConfig.includes(`uniqueName('${shell.mfName}')`), `${shell.id} modern.config.ts Rspack identity is incorrect`);
@@ -3307,6 +3314,8 @@ const assertAdditionalShellCohort = () => {
     assert(new RegExp(`appId:\\s*['"]${shell.id}['"]`, 'u').test(runtimeConfig), `${shell.id} runtime boundary metadata must identify its own shell`);
     assert(routePage.includes('ShellFrame') && routePage.includes('VerticalShowcase'), `${shell.id} route page must use its own shell composition host`);
     assert(remoteComponents.includes(`data-modern-boundary-id="${shell.mfName}"`), `${shell.id} remote composition boundary must use its own MF identity`);
+    assert(workerRemoteComponents.includes('DistributedSsrBoundary'), `${shell.id} Worker SSR must use distributed fragment boundaries`);
+    assert(!workerRemoteComponents.includes('@module-federation') && !workerRemoteComponents.includes('import('), `${shell.id} Worker SSR must not include native Module Federation runtime or remote imports`);
     if (tailwindEnabled) {
       assert(styles.includes(`prefix(${shell.tailwindPrefix})`), `${shell.id} styles must use its shell-specific Tailwind prefix`);
     }

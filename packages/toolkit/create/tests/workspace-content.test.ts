@@ -624,6 +624,28 @@ test('rendered contents of the highest-risk generated files match the checked-in
       /@module-federation\/bridge-react|classifyModuleFederationFallback|createModuleFederationFallbackTelemetry|emitModuleFederationFallbackTelemetry|toModuleFederationFallbackAttributes|createRemoteFallback|createHydratedRemote|loadRemote|telemetryEntry|telemetry\.entry|data-remote-error|typeof window|window\.location/,
       'generated app code must not recreate Module Federation fallback interception, telemetry, or hydration behavior',
     );
+    const workerVerticalComponents = fs.readFileSync(
+      path.join(
+        workspaceDir,
+        'apps/shell-super-app/src/routes/vertical-components.worker.tsx',
+      ),
+      'utf-8',
+    );
+    assert.match(
+      workerVerticalComponents,
+      /import\s*\{\s*DistributedSsrBoundary\s*\}\s*from '@modern-js\/runtime\/module-federation';/,
+      'generated Worker SSR must use distributed fragment boundaries',
+    );
+    assert.match(
+      workerVerticalComponents,
+      /const CatalogWidget = createRemoteComponent\(\s*'catalog',\s*'\.\/Widget',?\s*\);/,
+      'generated Worker SSR must declare the same remote boundary identity',
+    );
+    assert.doesNotMatch(
+      workerVerticalComponents,
+      /@module-federation|import\('catalog\/Widget'\)|createLazyComponent|getInstance/,
+      'generated Worker SSR must not include native Module Federation runtime or remote imports',
+    );
     const fragmentPage = fs.readFileSync(
       path.join(
         workspaceDir,

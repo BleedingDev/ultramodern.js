@@ -1,7 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { configuredDevelopmentPorts } from '../../../ultramodern-workspace/add-vertical/workspace-state';
-import { createShellRemoteComponents } from '../../../ultramodern-workspace/demo-components';
+import {
+  createShellRemoteComponents,
+  createShellWorkerRemoteComponents,
+} from '../../../ultramodern-workspace/demo-components';
 import {
   appEmitsBrowserUi,
   appHasApi,
@@ -132,6 +135,16 @@ export function updateGeneratedModernConfigs(
             'src/routes/vertical-components.tsx',
           ),
           createShellRemoteComponents(app, shellUiRemotes),
+        ) || changed;
+      changed =
+        writeTextIfChanged(
+          io,
+          path.join(
+            io.workspaceRoot,
+            app.directory,
+            'src/routes/vertical-components.worker.tsx',
+          ),
+          createShellWorkerRemoteComponents(app, shellUiRemotes),
         ) || changed;
     }
   }

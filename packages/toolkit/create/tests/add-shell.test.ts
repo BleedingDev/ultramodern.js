@@ -167,6 +167,15 @@ test('addUltramodernShell scaffolds an additional shell delivery unit and keeps 
       shellComponents,
       /data-modern-boundary-id="shellSuperApp"/,
     );
+    const shellWorkerComponents = fs.readFileSync(
+      path.join(
+        workspaceDir,
+        'apps/shell-admin/src/routes/vertical-components.worker.tsx',
+      ),
+      'utf-8',
+    );
+    assert.match(shellWorkerComponents, /DistributedSsrBoundary/);
+    assert.doesNotMatch(shellWorkerComponents, /@module-federation/);
 
     const zeropsYaml = fs.readFileSync(
       path.join(workspaceDir, 'zerops.yaml'),
@@ -280,6 +289,16 @@ test('add-vertical targets an additional shell and rejects unknown shell ids dur
         'utf-8',
       ),
       /data-modern-boundary-id="shellAdmin"/,
+    );
+    assert.doesNotMatch(
+      fs.readFileSync(
+        path.join(
+          workspaceDir,
+          'apps/shell-admin/src/routes/vertical-components.worker.tsx',
+        ),
+        'utf-8',
+      ),
+      /@module-federation/,
     );
 
     const validation = runValidation(workspaceDir);

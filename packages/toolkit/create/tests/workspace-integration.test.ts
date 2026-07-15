@@ -728,6 +728,13 @@ test('workspace and MicroVertical integration stays coherent across public API a
       ),
       /checkout\/Widget/,
     );
+    assert.match(
+      read(
+        workspaceDir,
+        'apps/shell-super-app/src/routes/vertical-components.worker.tsx',
+      ),
+      /'checkout'[\s\S]*'\.\/Widget'/u,
+    );
 
     const afterTwoVerticals = snapshotWorkspace(workspaceDir);
     assert.throws(

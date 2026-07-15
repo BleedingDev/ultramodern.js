@@ -23,6 +23,7 @@ import {
   createRemoteWidgetFragmentPage,
   createShellPage,
   createShellRemoteComponents,
+  createShellWorkerRemoteComponents,
   remoteComponentOutputPath,
 } from './demo-components';
 import {
@@ -324,6 +325,13 @@ function writeAppRouteAndShellFiles({
     writeAppFile(
       'src/routes/vertical-components.tsx',
       createShellRemoteComponents(
+        resolvedApp,
+        remotes.filter(appEmitsBrowserUi),
+      ),
+    );
+    writeAppFile(
+      'src/routes/vertical-components.worker.tsx',
+      createShellWorkerRemoteComponents(
         resolvedApp,
         remotes.filter(appEmitsBrowserUi),
       ),
