@@ -142,12 +142,40 @@ export async function waitForTarget(
     fetchImpl,
     requireManifest = false,
     retryDelayMs = 500,
+    serverExit,
+    serverLogPath,
     timeoutMs = 60_000,
   },
 ) {
-  await waitForTargetSsr(target, { fetchImpl, retryDelayMs, timeoutMs });
-  if (requireManifest) {
-    await waitForTargetManifest(target, { fetchImpl, retryDelayMs, timeoutMs });
+  const readiness = async () => {
+    await waitForTargetSsr(target, { fetchImpl, retryDelayMs, timeoutMs });
+    if (requireManifest) {
+      await waitForTargetManifest(target, {
+        fetchImpl,
+        retryDelayMs,
+        timeoutMs,
+      });
+    }
+  };
+
+  if (!serverExit) {
+    await readiness();
+    return;
+  }
+
+  const result = await Promise.race([
+    readiness().then(() => ({ status: 'ready' })),
+    serverExit.then(exit => ({ exit, status: 'exited' })),
+  ]);
+  if (result.status === 'exited') {
+    throw new BrowserSmokeError(
+      `${target.app.id} serve process exited before readiness`,
+      {
+        ...result.exit,
+        baseUrl: target.baseUrl,
+        logPath: serverLogPath,
+      },
+    );
   }
 }
 

@@ -1,11 +1,82 @@
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
+import net from 'node:net';
 import path from 'node:path';
 import processKit from '../../lib/process-kit.js';
 import { BrowserSmokeError } from './contract.mjs';
 
-const { createProcessEnv } = processKit;
+const { createProcessEnv, killChild, sleep } = processKit;
+
+function isProcessGroupAlive(pid) {
+  if (process.platform === 'win32' || !pid) {
+    return false;
+  }
+  try {
+    process.kill(-pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function stopServerProcess(child, exited) {
+  if (!child.pid) {
+    return;
+  }
+
+  killChild(child, 'SIGTERM');
+  if (process.platform === 'win32') {
+    await Promise.race([exited, sleep(5_000)]);
+    if (child.exitCode === null && child.signalCode === null) {
+      killChild(child, 'SIGKILL');
+    }
+    return;
+  }
+
+  const deadline = Date.now() + 5_000;
+  while (isProcessGroupAlive(child.pid) && Date.now() < deadline) {
+    await sleep(50);
+  }
+  if (isProcessGroupAlive(child.pid)) {
+    killChild(child, 'SIGKILL');
+  }
+  await Promise.race([exited, sleep(1_000)]);
+}
+
+export async function assertLocalPortsAvailable(targets) {
+  const seenPorts = new Set();
+  for (const target of targets) {
+    const port = target.port || Number(new URL(target.baseUrl).port);
+    if (!Number.isInteger(port) || port <= 0 || seenPorts.has(port)) {
+      throw new BrowserSmokeError(
+        `${target.app.id} has an invalid or duplicate local smoke port`,
+        { baseUrl: target.baseUrl, port },
+      );
+    }
+    seenPorts.add(port);
+
+    await new Promise((resolve, reject) => {
+      const server = net.createServer();
+      server.unref();
+      server.once('error', error => {
+        reject(
+          new BrowserSmokeError(
+            `${target.app.id} local smoke port ${port} is already in use`,
+            {
+              baseUrl: target.baseUrl,
+              cause: error instanceof Error ? error.message : String(error),
+              port,
+            },
+          ),
+        );
+      });
+      server.listen({ port }, () => {
+        server.close(error => (error ? reject(error) : resolve()));
+      });
+    });
+  }
+}
 
 export function startServer(target, { artifactDir, projectDir }) {
   const logPath = path.join(artifactDir, `${target.app.id}-serve.log`);
@@ -20,29 +91,28 @@ export function startServer(target, { artifactDir, projectDir }) {
     ['--filter', target.app.package, 'run', 'serve'],
     {
       cwd: projectDir,
+      detached: process.platform !== 'win32',
       env,
       stdio: ['ignore', 'pipe', 'pipe'],
     },
   );
   child.stdout.pipe(logStream);
   child.stderr.pipe(logStream);
+  const exited = new Promise(resolve => {
+    child.once('error', error => {
+      resolve({
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
+    child.once('exit', (exitCode, signal) => {
+      resolve({ exitCode, signal });
+    });
+  });
   return {
     child,
+    exited,
     logPath,
-    stop: () =>
-      new Promise(resolve => {
-        if (child.exitCode !== null || child.signalCode !== null) {
-          resolve();
-          return;
-        }
-        child.once('exit', () => resolve());
-        child.kill('SIGTERM');
-        setTimeout(() => {
-          if (child.exitCode === null && child.signalCode === null) {
-            child.kill('SIGKILL');
-          }
-        }, 5_000).unref();
-      }).finally(() => logStream.end()),
+    stop: () => stopServerProcess(child, exited).finally(() => logStream.end()),
   };
 }
 

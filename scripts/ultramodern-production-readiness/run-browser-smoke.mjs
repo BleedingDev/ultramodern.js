@@ -2,7 +2,11 @@
 import { fileURLToPath } from 'node:url';
 import fsKit from '../lib/fs-kit.js';
 import processKit from '../lib/process-kit.js';
-import { launchBrowser, startServer } from './browser-smoke/bootstrap.mjs';
+import {
+  assertLocalPortsAvailable,
+  launchBrowser,
+  startServer,
+} from './browser-smoke/bootstrap.mjs';
 import { validateBrowserTarget } from './browser-smoke/browser-validate.mjs';
 import {
   BrowserSmokeError,
@@ -39,6 +43,7 @@ export {
   createSmokeTargets,
   orderTargetsForLocalStartup,
 } from './browser-smoke/targets.mjs';
+export { assertLocalPortsAvailable };
 
 const { writeJsonFile } = fsKit;
 const { writeStream } = processKit;
@@ -72,24 +77,34 @@ export async function runUltramodernBrowserSmoke(options) {
 
   try {
     if (localStartupOrder) {
+      const preflightLocalPortsImpl =
+        options.preflightLocalPortsImpl ?? assertLocalPortsAvailable;
+      await preflightLocalPortsImpl(localStartupOrder.validation);
       for (const target of localStartupOrder.remotes) {
         servers.push(startServerImpl(target, options));
       }
-      for (const target of localStartupOrder.remotes) {
+      for (const [index, target] of localStartupOrder.remotes.entries()) {
+        const server = servers[index];
         await waitForTarget(target, {
           fetchImpl: options.fetchImpl ?? fetch,
           requireManifest: true,
           retryDelayMs: options.retryDelayMs,
+          serverExit: server.exited,
+          serverLogPath: server.logPath,
           timeoutMs: options.timeoutMs,
         });
       }
       for (const target of localStartupOrder.shells) {
         servers.push(startServerImpl(target, options));
       }
-      for (const target of localStartupOrder.shells) {
+      const shellServerOffset = localStartupOrder.remotes.length;
+      for (const [index, target] of localStartupOrder.shells.entries()) {
+        const server = servers[shellServerOffset + index];
         await waitForTarget(target, {
           fetchImpl: options.fetchImpl ?? fetch,
           retryDelayMs: options.retryDelayMs,
+          serverExit: server.exited,
+          serverLogPath: server.logPath,
           timeoutMs: options.timeoutMs,
         });
       }

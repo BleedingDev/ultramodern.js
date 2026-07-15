@@ -1,5 +1,6 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const net = require('node:net');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
@@ -200,7 +201,7 @@ test('creates smoke targets from the compact UltraModern config', async () => {
     targets[0].app.styling.federation.rootSelector,
     '[data-app-id="shell-super-app"]',
   );
-  assert.equal(targets[0].app.marker.build, 'c5a63bfde2bb14b6');
+  assert.equal(targets[0].app.marker.build, '6fa0ccad57ed2cba');
 
   const ordered = orderTargetsForLocalStartup(targets);
   assert.deepEqual(
@@ -347,6 +348,51 @@ test('fails readiness when required MF manifest never becomes valid JSON', async
   );
 });
 
+test('fails readiness immediately when the owned serve process exits', async () => {
+  const { createSmokeTargets, waitForTarget } = await loadSmoke();
+  const [target] = createSmokeTargets(createContract()).targets;
+
+  await assert.rejects(
+    () =>
+      waitForTarget(target, {
+        fetchImpl: async () => new Promise(() => {}),
+        retryDelayMs: 1,
+        serverExit: Promise.resolve({ exitCode: 1, signal: null }),
+        serverLogPath: '/tmp/shell-serve.log',
+        timeoutMs: 1_000,
+      }),
+    error => {
+      assert.match(error.message, /serve process exited before readiness/);
+      assert.equal(error.details.exitCode, 1);
+      assert.equal(error.details.logPath, '/tmp/shell-serve.log');
+      return true;
+    },
+  );
+});
+
+test('rejects occupied local smoke ports before startup', async () => {
+  const { assertLocalPortsAvailable } = await loadSmoke();
+  const server = net.createServer();
+  await new Promise(resolve => server.listen(0, resolve));
+  const { port } = server.address();
+
+  try {
+    await assert.rejects(
+      () =>
+        assertLocalPortsAvailable([
+          {
+            app: { id: 'shell-super-app' },
+            baseUrl: `http://localhost:${port}`,
+            port,
+          },
+        ]),
+      /local smoke port .* is already in use/,
+    );
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+  }
+});
+
 test('starts shell only after local remotes publish MF manifests', async () => {
   const { runUltramodernBrowserSmoke } = await loadSmoke();
   const root = tempRoot();
@@ -395,6 +441,11 @@ test('starts shell only after local remotes publish MF manifests', async () => {
       generatedAt: '2026-07-01T00:00:00.000Z',
       mode: 'local',
       out: path.join(root, 'summary.json'),
+      preflightLocalPortsImpl(targets) {
+        events.push(
+          `preflight:${targets.map(target => target.app.id).join(',')}`,
+        );
+      },
       projectDir: root,
       retryDelayMs: 0,
       startServerImpl(target) {
@@ -406,7 +457,8 @@ test('starts shell only after local remotes publish MF manifests', async () => {
       timeoutMs: 1_000,
     });
 
-    assert.deepEqual(events.slice(0, 4), [
+    assert.deepEqual(events.slice(0, 5), [
+      'preflight:inventory,shell-super-app',
       'start:inventory',
       'fetch:3021:/en',
       'fetch:3021:/mf-manifest.json',
