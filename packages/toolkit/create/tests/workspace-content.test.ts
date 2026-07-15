@@ -601,13 +601,13 @@ test('rendered contents of the highest-risk generated files match the checked-in
     );
     assert.match(
       verticalComponents,
-      /import\s*\{\s*DistributedSsrBoundary\s*\}\s*from '@modern-js\/runtime\/module-federation';/,
-      'generated shell remotes must use the framework-owned distributed SSR boundary',
+      /import\s*\{\s*createDistributedSsrComponent\s*\}\s*from '@modern-js\/runtime\/module-federation';/,
+      'generated shell remotes must use the framework-owned deferred distributed SSR component',
     );
     assert.match(
       verticalComponents,
-      /const RemoteComponent = createLazyComponent\(\{\s*export: 'default',\s*fallback: <RemoteUnavailable \/>,\s*instance: getInstance\(\),\s*loader,\s*loading: null,\s*\}\);[\s\S]*?<DistributedSsrBoundary[\s\S]*?expose=\{expose\}[\s\S]*?remote=\{remote\}[\s\S]*?<RemoteComponent \/>/,
-      'generated shell remotes must keep native Node/browser MF rendering and delegate workerd SSR to distributed fragments',
+      /createDistributedSsrComponent\(\{\s*createComponent: \(\) =>\s*createLazyComponent\(\{\s*export: 'default',\s*fallback: <RemoteUnavailable \/>,\s*instance: getInstance\(\),\s*loader,\s*loading: null,\s*\}\),\s*expose,\s*fallback: <RemoteUnavailable \/>,\s*remote,\s*\}\)/,
+      'generated shell remotes must defer native Node/browser MF construction and delegate workerd SSR to distributed fragments',
     );
     assert.doesNotMatch(
       verticalComponents,

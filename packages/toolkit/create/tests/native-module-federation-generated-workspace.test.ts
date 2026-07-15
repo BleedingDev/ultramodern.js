@@ -53,7 +53,7 @@ function assertNativeModuleFederationWorkspace(workspaceDir: string) {
     remoteComponents,
     /createRemoteComponent\(\s*'catalog',\s*'\.\/Widget',\s*\(\) => import\('[^']+\/Widget'\)/u,
   );
-  assert.match(remoteComponents, /<DistributedSsrBoundary/u);
+  assert.match(remoteComponents, /createDistributedSsrComponent/u);
   assert.doesNotMatch(remoteComponents, /noSSR/u);
   assert.match(remoteComponents, /fallback: <RemoteUnavailable \/>/u);
   for (const fallback of [

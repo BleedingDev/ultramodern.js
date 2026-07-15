@@ -20,6 +20,37 @@ const readJson = (absolutePath) => JSON.parse(fs.readFileSync(absolutePath, "utf
 const count = (source, value) => source.split(value).length - 1;
 const normalizePath = (value) => String(value).replace(/\\/gu, "/");
 
+const collectJavaScriptFiles = (absoluteDirectory) => {
+  if (!fs.existsSync(absoluteDirectory)) {
+    return [];
+  }
+
+  return fs
+    .readdirSync(absoluteDirectory, { withFileTypes: true })
+    .flatMap((entry) => {
+      const absolutePath = path.join(absoluteDirectory, entry.name);
+      if (entry.isDirectory()) {
+        return collectJavaScriptFiles(absolutePath);
+      }
+      return entry.isFile() && /\.(?:c|m)?js$/u.test(entry.name) ? [absolutePath] : [];
+    })
+    .sort();
+};
+
+const createWorkerModules = (outputRoot, main) => {
+  const entryPath = path.resolve(outputRoot, main);
+  const modulePaths = [
+    entryPath,
+    ...collectJavaScriptFiles(path.join(outputRoot, "server")),
+    ...collectJavaScriptFiles(path.join(outputRoot, "worker")),
+  ].filter((modulePath, index, paths) => paths.indexOf(modulePath) === index);
+
+  return modulePaths.map((modulePath) => ({
+    type: modulePath.endsWith(".cjs") ? "CommonJS" : "ESModule",
+    path: modulePath,
+  }));
+};
+
 const compactConfig = readJson(path.join(workspaceRoot, ".modernjs/ultramodern.json"));
 const apps = (compactConfig.topology?.apps ?? []).map((rawApp) => {
   const kind = rawApp.kind === "vertical" ? "vertical" : "shell";
@@ -73,8 +104,8 @@ const createWorkerOptions = (app, extra = {}) => {
 
   return {
     name: workerName(app),
-    modules: true,
-    scriptPath: path.resolve(app.outputRoot, main),
+    modules: createWorkerModules(app.outputRoot, main),
+    modulesRoot: app.outputRoot,
     compatibilityDate: app.wrangler.compatibility_date,
     compatibilityFlags: app.wrangler.compatibility_flags,
     binding: typeof assets.binding === "string" ? assets.binding : "ASSETS",

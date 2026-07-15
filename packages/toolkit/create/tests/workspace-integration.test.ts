@@ -641,6 +641,10 @@ test('workspace and MicroVertical integration stays coherent across public API a
       /&& pnpm cloudflare:ssr-proof$/u,
     );
     assert.equal(exists(workspaceDir, 'scripts/proof-workerd-ssr.mts'), true);
+    assert.match(
+      read(workspaceDir, 'scripts/proof-workerd-ssr.mts'),
+      /modules: createWorkerModules\(app\.outputRoot, main\)/u,
+    );
     const zeropsYaml = read(workspaceDir, 'zerops.yaml');
     assert.match(zeropsYaml, /zerops:/);
     assert.match(zeropsYaml, /setup: 'shell-super-app'/);

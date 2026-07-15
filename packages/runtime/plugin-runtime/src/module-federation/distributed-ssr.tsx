@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { ComponentType, ReactNode } from 'react';
 import { useRuntimeContext } from '../core/context/runtime';
 
 export const DISTRIBUTED_SSR_FRAGMENTS_LOCALS_KEY =
@@ -30,6 +30,13 @@ export type DistributedSsrFragmentContext = {
 
 export type DistributedSsrBoundaryProps = {
   children: ReactNode;
+  expose: string;
+  fallback: ReactNode;
+  remote: string;
+};
+
+export type CreateDistributedSsrComponentOptions<Props extends object> = {
+  createComponent: () => ComponentType<Props>;
   expose: string;
   fallback: ReactNode;
   remote: string;
@@ -114,4 +121,37 @@ export function DistributedSsrBoundary({
       {fallback}
     </div>
   );
+}
+
+/**
+ * Defers creation of the native Module Federation component until React
+ * actually renders that child. A workerd request with a verified distributed
+ * fragment never constructs the native remote, so its module cannot perform
+ * forbidden global-scope network I/O. Browser and Node rendering keep using
+ * the native Module Federation component unchanged.
+ */
+export function createDistributedSsrComponent<Props extends object>({
+  createComponent,
+  expose,
+  fallback,
+  remote,
+}: CreateDistributedSsrComponentOptions<Props>) {
+  let RemoteComponent: ComponentType<Props> | undefined;
+
+  function DeferredRemoteComponent(props: Props) {
+    RemoteComponent ??= createComponent();
+    return <RemoteComponent {...props} />;
+  }
+
+  return function DistributedSsrComponent(props: Props) {
+    return (
+      <DistributedSsrBoundary
+        expose={expose}
+        fallback={fallback}
+        remote={remote}
+      >
+        <DeferredRemoteComponent {...props} />
+      </DistributedSsrBoundary>
+    );
+  };
 }

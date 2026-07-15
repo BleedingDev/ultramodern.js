@@ -11,24 +11,17 @@ const createRemoteComponent = (
   remote: string,
   expose: string,
   loader: () => Promise<RemoteComponentModule>,
-) => {
-  const RemoteComponent = createLazyComponent({
-    export: 'default',
+) =>
+  createDistributedSsrComponent({
+    createComponent: () =>
+      createLazyComponent({
+        export: 'default',
+        fallback: <RemoteUnavailable />,
+        instance: getInstance(),
+        loader,
+        loading: null,
+      }),
+    expose,
     fallback: <RemoteUnavailable />,
-    instance: getInstance(),
-    loader,
-    loading: null,
+    remote,
   });
-
-  return function DistributedRemoteComponent() {
-    return (
-      <DistributedSsrBoundary
-        expose={expose}
-        fallback={<RemoteUnavailable />}
-        remote={remote}
-      >
-        <RemoteComponent />
-      </DistributedSsrBoundary>
-    );
-  };
-};

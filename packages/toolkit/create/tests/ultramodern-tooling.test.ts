@@ -1144,6 +1144,13 @@ declare module '*.css' {}
     ]) {
       assert.equal(fs.existsSync(path.join(workspaceDir, relativePath)), true);
     }
+    assert.match(
+      fs.readFileSync(
+        path.join(workspaceDir, 'scripts/proof-workerd-ssr.mts'),
+        'utf-8',
+      ),
+      /modules: createWorkerModules\(app\.outputRoot, main\)/u,
+    );
     assert.throws(() =>
       fs.readFileSync(
         path.join(workspaceDir, 'scripts/proof-node-backend-federation.mjs'),
