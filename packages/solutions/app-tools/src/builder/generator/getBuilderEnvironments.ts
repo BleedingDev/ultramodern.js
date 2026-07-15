@@ -436,6 +436,21 @@ export function getBuilderEnvironments(
                   .providedExports(true)
                   .innerGraph(false)
                   .sideEffects(false);
+                // A Cloudflare module worker uses ESM output, but it is still
+                // a server runtime. Keeping Rspack's target-web `browser`
+                // condition makes packages such as TanStack Router resolve
+                // client-only branches and changes the SSR React tree.
+                for (const condition of [
+                  'workerd',
+                  'worker',
+                  'webpack',
+                  isProd() ? 'production' : 'development',
+                  'import',
+                  'require',
+                  'module',
+                ]) {
+                  chain.resolve.conditionNames.add(condition);
+                }
                 // ADR-0021: generated hosts resolve a `.worker.tsx` boundary
                 // module with no native remote imports. Exclude the Node Module
                 // Federation runtime entirely: even initializing it would fetch

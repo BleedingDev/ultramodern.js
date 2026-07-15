@@ -2692,9 +2692,76 @@ describe('cloudflare deploy preset', () => {
     });
   });
 
+  it('describes expose-specific CSS on distributed SSR fragment responses', async () => {
+    const { outputDirectory } = await createFixture({
+      distFiles: {
+        'mf-manifest.json': JSON.stringify({
+          name: 'verticalInventory',
+          exposes: [
+            {
+              assets: {
+                css: {
+                  async: ['static/css/inventory.css'],
+                  sync: [],
+                },
+              },
+              path: './Widget',
+            },
+          ],
+        }),
+        'worker/main.js': `module.exports = { requestHandler: async () =>
+          new Response('<!doctype html><html><head></head><body><section data-modern-boundary-id="verticalInventory" data-modern-mf-expose="./Widget">Inventory SSR</section></body></html>', { headers: { 'content-type': 'text/html; charset=utf-8' } }) };`,
+      },
+    });
+    const entryPath = path.join(outputDirectory, 'server/index.mjs');
+    const workerManifest = JSON.parse(
+      await fs.readFile(
+        path.join(outputDirectory, 'server/modern-worker-manifest.json'),
+        'utf-8',
+      ),
+    );
+    const worker = (
+      await import(`${pathToFileURL(entryPath).href}?t=${Date.now()}`)
+    ).default;
+
+    expect(workerManifest.moduleFederation).toEqual({
+      exposes: [
+        {
+          css: ['static/css/inventory.css'],
+          path: './Widget',
+        },
+      ],
+      name: 'verticalInventory',
+    });
+
+    const response = await worker.fetch(
+      new Request('https://inventory.example.com/dashboard', {
+        headers: { 'x-modern-js-fragment-request': '1' },
+      }),
+      {
+        ASSETS: createSpaFallbackAssetBinding(
+          path.join(outputDirectory, 'public'),
+        ),
+      },
+    );
+
+    expect(response.headers.get('x-modern-distributed-ssr-css')).toBe(
+      JSON.stringify(['static/css/inventory.css']),
+    );
+  });
+
   it('composes verified SSR fragments through service bindings before rendering the shell', async () => {
     const { outputDirectory } = await createFixture({
       distFiles: {
+        'mf-manifest.json': JSON.stringify({
+          remotes: [
+            {
+              alias: 'inventory',
+              entry: 'https://inventory.example.com/mf-manifest.json',
+              federationContainerName: 'verticalInventory',
+            },
+          ],
+        }),
         'worker/main.js': `module.exports = { requestHandler: async (_request, options) =>
           Response.json(options.locals.__modernDistributedSsrFragments) };`,
       },
@@ -2729,9 +2796,14 @@ describe('cloudflare deploy preset', () => {
           fetch: async (request: Request) => {
             calls.push(request.url);
             return new Response(
-              '<!doctype html><html><body><section data-modern-boundary-id="verticalInventory" data-modern-mf-expose="./Widget"><div>Inventory SSR</div></section></body></html>',
+              '<!doctype html><html><head><link href="/static/css/route.css" rel="stylesheet"><link href="/static/css/inventory.css" rel="stylesheet"></head><body><!--$--><section data-modern-boundary-id="verticalInventory" data-modern-mf-expose="./Widget"><div>Inventory SSR</div></section><!--/$--></body></html>',
               {
-                headers: { 'content-type': 'text/html; charset=utf-8' },
+                headers: {
+                  'content-type': 'text/html; charset=utf-8',
+                  'x-modern-distributed-ssr-css': JSON.stringify([
+                    'static/css/inventory.css',
+                  ]),
+                },
               },
             );
           },
@@ -2745,13 +2817,100 @@ describe('cloudflare deploy preset', () => {
         'inventory::./Widget': {
           boundaryId: 'verticalInventory',
           expose: './Widget',
-          html: '<section data-modern-boundary-id="verticalInventory" data-modern-mf-expose="./Widget"><div>Inventory SSR</div></section>',
+          html: '<!--$--><link href="https://inventory.example.com/static/css/inventory.css" rel="stylesheet" type="text/css"><section data-modern-boundary-id="verticalInventory" data-modern-mf-expose="./Widget"><div>Inventory SSR</div></section><!--/$-->',
           remote: 'inventory',
           status: 'ready',
         },
       },
       required: true,
     });
+  });
+
+  it('preloads service-composed fragment CSS without duplication or remote network fetches', async () => {
+    const { outputDirectory } = await createFixture({
+      distFiles: {
+        'mf-manifest.json': JSON.stringify({
+          remotes: [
+            {
+              alias: 'inventory',
+              entry: 'https://inventory.example.com/mf-manifest.json',
+              federationContainerName: 'verticalInventory',
+            },
+          ],
+        }),
+        'worker/main.js': `module.exports = { requestHandler: async (_request, options) =>
+          new Response('<!doctype html><html><head></head><body>' + options.locals.__modernDistributedSsrFragments.fragments['inventory::./Widget'].html + '</body></html>', { headers: { 'content-type': 'text/html; charset=utf-8' } }) };`,
+      },
+      services: [
+        {
+          binding: 'VERTICAL_INVENTORY_WORKER',
+          fragments: [
+            {
+              boundaryId: 'verticalInventory',
+              expose: './Widget',
+              path: '/en/_mf/fragment/widget',
+              remote: 'inventory',
+            },
+          ],
+          service: 'tractor-inventory-worker',
+        },
+      ],
+    });
+    const entryPath = path.join(outputDirectory, 'server/index.mjs');
+    const worker = (
+      await import(`${pathToFileURL(entryPath).href}?t=${Date.now()}`)
+    ).default;
+    const outboundRequests: string[] = [];
+    const originalFetch = globalThis.fetch;
+
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      outboundRequests.push(
+        input instanceof Request ? input.url : String(input),
+      );
+      return new Response('network disabled', { status: 502 });
+    }) as typeof fetch;
+
+    try {
+      const response = await worker.fetch(
+        new Request('https://example.com/dashboard'),
+        {
+          ASSETS: createSpaFallbackAssetBinding(
+            path.join(outputDirectory, 'public'),
+          ),
+          VERTICAL_INVENTORY_WORKER: {
+            fetch: async () =>
+              new Response(
+                '<!doctype html><html><head><link href="/static/css/route.css" rel="stylesheet"><link href="/static/css/inventory.css" rel="stylesheet"></head><body><section data-modern-boundary-id="verticalInventory" data-modern-mf-expose="./Widget"><div>Inventory SSR</div></section></body></html>',
+                {
+                  headers: {
+                    'content-type': 'text/html; charset=utf-8',
+                    'x-modern-distributed-ssr-css': JSON.stringify([
+                      'static/css/inventory.css',
+                    ]),
+                  },
+                },
+              ),
+          },
+        },
+      );
+      const html = await response.text();
+
+      expect(outboundRequests).toEqual([]);
+      expect(response.headers.get('link')).toContain(
+        '<https://inventory.example.com/static/css/inventory.css>; rel=preload; as=style',
+      );
+      expect(html.slice(0, html.indexOf('</head>'))).not.toContain(
+        'https://inventory.example.com/static/css/inventory.css',
+      );
+      expect(html).toContain(
+        '<!--$--><link href="https://inventory.example.com/static/css/inventory.css" rel="stylesheet" type="text/css"><section data-modern-boundary-id="verticalInventory"',
+      );
+      expect(
+        html.split('https://inventory.example.com/static/css/inventory.css'),
+      ).toHaveLength(2);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 
   it('fails clearly when configured service binding is unavailable', async () => {

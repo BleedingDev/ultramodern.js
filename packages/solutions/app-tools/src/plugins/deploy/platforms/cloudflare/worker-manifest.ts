@@ -38,6 +38,38 @@ const createMissingEffectBffWorkerError = (
     )}. ${EFFECT_BFF_CLOUDFLARE_IMPORT_GUIDANCE}`,
   );
 
+const createModuleFederationWorkerManifest = async (
+  outputDirectory: string,
+) => {
+  const manifestPath = path.join(
+    outputDirectory,
+    PUBLIC_ASSETS_DIRECTORY,
+    'mf-manifest.json',
+  );
+
+  if (!(await fse.pathExists(manifestPath))) {
+    return undefined;
+  }
+
+  const manifest = await fse.readJson(manifestPath);
+  const name = typeof manifest?.name === 'string' ? manifest.name : undefined;
+  const exposes = (Array.isArray(manifest?.exposes) ? manifest.exposes : [])
+    .filter(expose => typeof expose?.path === 'string')
+    .map(expose => ({
+      path: expose.path,
+      css: [
+        ...(Array.isArray(expose.assets?.css?.sync)
+          ? expose.assets.css.sync
+          : []),
+        ...(Array.isArray(expose.assets?.css?.async)
+          ? expose.assets.css.async
+          : []),
+      ].filter(asset => typeof asset === 'string' && asset.endsWith('.css')),
+    }));
+
+  return name && exposes.length > 0 ? { name, exposes } : undefined;
+};
+
 export const createWorkerManifest = async (
   outputDirectory: string,
   modernConfig: CloudflareModernConfig,
@@ -73,6 +105,8 @@ export const createWorkerManifest = async (
   const serviceBindings = createWorkerManifestServiceBindings(
     createWorkerServiceBindings(modernConfig, undefined),
   );
+  const moduleFederation =
+    await createModuleFederationWorkerManifest(outputDirectory);
 
   if (isEffectApi && primaryBffPrefix && !effectApiWorkerExists) {
     throw createMissingEffectBffWorkerError(
@@ -109,6 +143,7 @@ export const createWorkerManifest = async (
       routeManifest: ROUTE_MANIFEST_FILE,
     },
     security: createCloudflareWorkerSecurityPolicy(modernConfig),
+    ...(moduleFederation === undefined ? {} : { moduleFederation }),
     ...(deliveryUnitStamp ? { deliveryUnit: deliveryUnitStamp } : {}),
     i18n: createI18nWorkerManifest(routeSpec, appContext),
     bff:

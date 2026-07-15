@@ -1109,6 +1109,7 @@ function createNoopMonitors() {
 }
 
 const DISTRIBUTED_SSR_FRAGMENTS_LOCALS_KEY = '__modernDistributedSsrFragments';
+const DISTRIBUTED_SSR_CSS_HEADER = 'x-modern-distributed-ssr-css';
 
 function distributedSsrFragmentKey(remote, expose) {
   return `${remote}::${expose}`;
@@ -1172,6 +1173,99 @@ function extractRenderedBoundaryElement(html, boundaryId, expose) {
   }
 
   return undefined;
+}
+
+function readOpeningTagAttribute(openingTag, name) {
+  const pattern = new RegExp(
+    `\\s${escapeFragmentRegExp(name)}=(?:"([^"]*)"|'([^']*)')`,
+    'iu',
+  );
+  const match = pattern.exec(openingTag);
+
+  return match?.[1] ?? match?.[2];
+}
+
+function collectStylesheetHrefs(html) {
+  const hrefs = [];
+
+  for (const match of html.matchAll(/<link\b[^>]*>/giu)) {
+    const link = match[0];
+    const rel = readOpeningTagAttribute(link, 'rel');
+    const href = readOpeningTagAttribute(link, 'href');
+
+    if (href && rel?.split(/\s+/u).includes('stylesheet')) {
+      hrefs.push(href);
+    }
+  }
+
+  return hrefs;
+}
+
+function readFragmentStylesheetAssets(response) {
+  const value = response.headers.get(DISTRIBUTED_SSR_CSS_HEADER);
+
+  if (value === null) {
+    return undefined;
+  }
+
+  try {
+    const assets = JSON.parse(value);
+
+    return Array.isArray(assets) &&
+      assets.every(asset => typeof asset === 'string' && asset.endsWith('.css'))
+      ? assets
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function collectFragmentStylesheetHrefs(
+  stylesheetAssets,
+  fragment,
+  fragmentUrl,
+  request,
+  env,
+) {
+  const hostManifest = await readAssetJson('mf-manifest.json', request, env);
+  const remote = (
+    Array.isArray(hostManifest?.remotes) ? hostManifest.remotes : []
+  ).find(
+    candidate =>
+      candidate?.alias === fragment.remote ||
+      candidate?.federationContainerName === fragment.boundaryId,
+  );
+  const manifestUrl = remote
+    ? getRemoteManifestUrl(remote, request)
+    : undefined;
+  const publicBase = manifestUrl
+    ? new URL('.', manifestUrl).toString()
+    : undefined;
+  const hrefs = stylesheetAssets.map(href => {
+    const resolved = new URL(href, fragmentUrl);
+
+    if (
+      publicBase &&
+      (!isAbsoluteUrl(href) || resolved.origin === fragmentUrl.origin)
+    ) {
+      return new URL(href.replace(/^\/+/u, ''), publicBase).toString();
+    }
+
+    return resolved.toString();
+  });
+
+  return [...new Set(hrefs)];
+}
+
+function createHydratableFragmentHtml(fragmentHtml, stylesheetHrefs) {
+  const links = stylesheetHrefs
+    .map(
+      href =>
+        `<link href="${escapeAttribute(href)}" rel="stylesheet" type="text/css">`,
+    )
+    .join('');
+
+  return `<!--$-->${links}${fragmentHtml}<!--/$-->`;
 }
 
 function fragmentLocale(request) {
@@ -1244,18 +1338,30 @@ async function fetchDistributedSsrFragment(binding, fragment, request, env) {
     }
 
     const html = await response.text();
-    const fragmentHtml = extractRenderedBoundaryElement(
+    const stylesheetAssets = readFragmentStylesheetAssets(response);
+    const renderedBoundaryHtml = extractRenderedBoundaryElement(
       html,
       fragment.boundaryId,
       fragment.expose,
     );
-    if (!fragmentHtml) {
+    if (!renderedBoundaryHtml || stylesheetAssets === undefined) {
       emitFragmentFailure(binding, fragment, 'fragment-contract-mismatch');
       return [
         key,
         createFragmentFailure(fragment, 'fragment-contract-mismatch'),
       ];
     }
+    const stylesheetHrefs = await collectFragmentStylesheetHrefs(
+      stylesheetAssets,
+      fragment,
+      fragmentUrl,
+      request,
+      env,
+    );
+    const fragmentHtml = createHydratableFragmentHtml(
+      renderedBoundaryHtml,
+      stylesheetHrefs,
+    );
 
     return [
       key,
@@ -1473,6 +1579,36 @@ function collectCssAssetEntries(assets) {
   ].filter(asset => typeof asset === 'string' && asset.endsWith('.css'));
 }
 
+function collectLocalFragmentCssAssets(html, request) {
+  if (request.headers.get('x-modern-js-fragment-request') !== '1') {
+    return undefined;
+  }
+
+  const renderedExposes = collectRenderedFederatedExposes(html);
+  const localManifest = MODERN_WORKER_MANIFEST.moduleFederation;
+  if (!localManifest) {
+    return undefined;
+  }
+  const containerName = localManifest?.name;
+  const assets = new Set();
+
+  for (const { boundaryId, expose } of renderedExposes) {
+    if (containerName && boundaryId !== containerName) {
+      continue;
+    }
+
+    const localExpose = findRemoteExpose(localManifest, expose);
+
+    for (const asset of Array.isArray(localExpose?.css)
+      ? localExpose.css
+      : []) {
+      assets.add(asset);
+    }
+  }
+
+  return [...assets];
+}
+
 function collectRouteManifestCssAssets(routeManifest) {
   const routeAssets = routeManifest?.routeAssets || {};
   const assets = new Set();
@@ -1496,6 +1632,15 @@ function collectRouteManifestCssAssets(routeManifest) {
 }
 
 async function collectRenderedRemoteCssHrefs(html, request, env) {
+  const bodyStart = html.indexOf('</head>');
+  const composedFragmentHrefs = collectStylesheetHrefs(
+    bodyStart >= 0 ? html.slice(bodyStart + '</head>'.length) : html,
+  );
+
+  if (composedFragmentHrefs.length > 0) {
+    return [...new Set(composedFragmentHrefs)];
+  }
+
   const renderedExposes = collectRenderedFederatedExposes(html);
 
   if (renderedExposes.length === 0) {
@@ -1578,6 +1723,16 @@ async function withRouteCssLinks(response, route, routeManifest, request, env) {
   }
 
   const html = await response.text();
+  const headers = new Headers(response.headers);
+  const localFragmentCssAssets = collectLocalFragmentCssAssets(html, request);
+
+  if (localFragmentCssAssets !== undefined) {
+    headers.set(
+      DISTRIBUTED_SSR_CSS_HEADER,
+      JSON.stringify(localFragmentCssAssets),
+    );
+  }
+
   const cssEntries = [
     ...collectRouteCssAssets(route, routeManifest).map(asset => {
       const href = toRouteCssHtmlHref(asset);
@@ -1595,7 +1750,7 @@ async function withRouteCssLinks(response, route, routeManifest, request, env) {
 
   if (cssEntries.length === 0) {
     return new Response(html, {
-      headers: response.headers,
+      headers,
       status: response.status,
       statusText: response.statusText,
     });
@@ -1610,8 +1765,6 @@ async function withRouteCssLinks(response, route, routeManifest, request, env) {
     seenCssHrefs.add(entry.preloadHref);
     return true;
   });
-  const headers = new Headers(response.headers);
-
   for (const { preloadHref } of uniqueCssEntries) {
     headers.append('link', `<${preloadHref}>; rel=preload; as=style`);
   }

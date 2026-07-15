@@ -202,6 +202,10 @@ describe('create builder Options', () => {
       const providedExports = rstest.fn().mockReturnThis();
       const innerGraph = rstest.fn().mockReturnThis();
       const sideEffects = rstest.fn().mockReturnThis();
+      const conditionNames = {
+        add: rstest.fn().mockReturnThis(),
+        delete: rstest.fn().mockReturnThis(),
+      };
       const chain = {
         merge: rstest.fn(),
         externalsPresets: rstest.fn(),
@@ -225,6 +229,7 @@ describe('create builder Options', () => {
           },
         },
         resolve: {
+          conditionNames,
           alias: {
             set: (name: string, value: string) => {
               aliases.set(name, value);
@@ -288,6 +293,13 @@ describe('create builder Options', () => {
       expect(providedExports).toHaveBeenCalledWith(true);
       expect(innerGraph).toHaveBeenCalledWith(false);
       expect(sideEffects).toHaveBeenCalledWith(false);
+      expect(conditionNames.add).toHaveBeenCalledWith('workerd');
+      expect(conditionNames.add).toHaveBeenCalledWith('worker');
+      expect(conditionNames.add).toHaveBeenCalledWith('webpack');
+      expect(conditionNames.add).toHaveBeenCalledWith('development');
+      expect(conditionNames.add).toHaveBeenCalledWith('import');
+      expect(conditionNames.add).toHaveBeenCalledWith('require');
+      expect(conditionNames.add).toHaveBeenCalledWith('module');
       // ADR-0021: Worker SSR resolves generated `.worker.tsx` boundaries that
       // contain no native remote imports. Keeping the MF transform here would
       // initialize its Node runtime at module scope and perform forbidden I/O.
