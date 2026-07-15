@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { configuredDevelopmentPorts } from '../../../ultramodern-workspace/add-vertical/workspace-state';
 import {
+  createRemoteWidgetFragmentPage,
   createShellRemoteComponents,
   createShellWorkerRemoteComponents,
 } from '../../../ultramodern-workspace/demo-components';
@@ -145,6 +146,17 @@ export function updateGeneratedModernConfigs(
             'src/routes/vertical-components.worker.tsx',
           ),
           createShellWorkerRemoteComponents(app, shellUiRemotes),
+        ) || changed;
+    } else if (Object.hasOwn(app.exposes ?? {}, './Widget')) {
+      changed =
+        writeTextIfChanged(
+          io,
+          path.join(
+            io.workspaceRoot,
+            app.directory,
+            'src/routes/[lang]/_mf/fragment/widget/page.tsx',
+          ),
+          createRemoteWidgetFragmentPage(app),
         ) || changed;
     }
   }

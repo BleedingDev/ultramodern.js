@@ -919,6 +919,13 @@ test('UltraModern migrate-strict-effect updates package cohort and direct API me
       path.join(workspaceDir, 'scripts/proof-node-backend-federation.mjs'),
       { force: true },
     );
+    fs.rmSync(
+      path.join(
+        workspaceDir,
+        'verticals/catalog/src/routes/[lang]/_mf/fragment/widget/page.tsx',
+      ),
+      { force: true },
+    );
 
     for (const packageFile of [
       'apps/shell-super-app/package.json',
@@ -1141,6 +1148,7 @@ declare module '*.css' {}
       'scripts/materialize-zerops-runtime.mjs',
       'scripts/proof-workerd-ssr.mts',
       'verticals/catalog/api/backend-federation.ts',
+      'verticals/catalog/src/routes/[lang]/_mf/fragment/widget/page.tsx',
     ]) {
       assert.equal(fs.existsSync(path.join(workspaceDir, relativePath)), true);
     }
