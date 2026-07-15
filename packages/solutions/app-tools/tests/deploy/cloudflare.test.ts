@@ -2172,6 +2172,33 @@ describe('cloudflare deploy preset', () => {
     );
   });
 
+  it('preserves Cloudflare SSR HTML responses when no CSS links are discovered', async () => {
+    const html =
+      '<!doctype html><html><head><title>unstyled</title></head><body>SSR content</body></html>';
+    const { outputDirectory } = await createFixture({
+      distFiles: {
+        'routes-manifest.json': JSON.stringify({ routeAssets: {} }),
+        'worker/html.js': `module.exports = { requestHandler: async () => new Response(${JSON.stringify(
+          html,
+        )}, { headers: { 'content-type': 'text/html; charset=utf-8' } }) };`,
+      },
+    });
+    const entryPath = path.join(outputDirectory, 'server/index.mjs');
+    const worker = (
+      await import(`${pathToFileURL(entryPath).href}?t=${Date.now()}`)
+    ).default;
+
+    const response = await worker.fetch(
+      new Request('https://example.com/styled'),
+      {
+        ASSETS: createAssetBinding(path.join(outputDirectory, 'public')),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.text()).resolves.toBe(html);
+  });
+
   it('injects rendered federated remote CSS links into Cloudflare SSR HTML responses', async () => {
     const { outputDirectory } = await createFixture();
     const entryPath = path.join(outputDirectory, 'server/index.mjs');

@@ -495,7 +495,11 @@ async function withRouteCssLinks(response, route, routeManifest, request, env) {
   ];
 
   if (cssEntries.length === 0) {
-    return response;
+    return new Response(html, {
+      headers: response.headers,
+      status: response.status,
+      statusText: response.statusText,
+    });
   }
 
   const seenCssHrefs = new Set();
