@@ -31,6 +31,8 @@ type Compilation = Rspack.Compilation;
 const normalizeChunkId = (id: string | number | null | undefined) =>
   typeof id === 'string' && /^\d+$/.test(id) ? Number(id) : id;
 
+const DEFAULT_CHUNK_LOADING_GLOBAL = '__LOADABLE_LOADED_CHUNKS__';
+
 const normalizeChunkGroup = (
   group: Record<string, any>,
 ): Record<string, any> => ({
@@ -49,11 +51,10 @@ class LoadablePlugin {
       path,
       writeToDisk,
       outputAsset = true,
-      chunkLoadingGlobal = '__LOADABLE_LOADED_CHUNKS__',
+      chunkLoadingGlobal,
     }: LoadablePluginOptions = {
       filename: 'loadable-stats.json',
       outputAsset: true,
-      chunkLoadingGlobal: '__LOADABLE_LOADED_CHUNKS__',
     },
   ) {
     this.opts = {
@@ -70,7 +71,16 @@ class LoadablePlugin {
   apply(compiler: Compiler) {
     this.compiler = compiler;
 
-    compiler.options.output.chunkLoadingGlobal = this.opts.chunkLoadingGlobal;
+    const chunkLoadingGlobal =
+      this.opts.chunkLoadingGlobal ??
+      compiler.options.output.chunkLoadingGlobal ??
+      DEFAULT_CHUNK_LOADING_GLOBAL;
+
+    compiler.options.output.chunkLoadingGlobal = chunkLoadingGlobal;
+    new compiler.webpack.DefinePlugin({
+      'process.env.MODERN_CHUNK_LOADING_GLOBAL':
+        JSON.stringify(chunkLoadingGlobal),
+    }).apply(compiler);
 
     if (this.opts.outputAsset || this.opts.writeToDisk) {
       compiler.hooks.make.tap(

@@ -2,13 +2,18 @@
 import { loadableReady } from '@loadable/component';
 import { SSR_HYDRATION_ID_PREFIX } from '@modern-js/utils/universal/constants';
 import type React from 'react';
-import { type Root, hydrateRoot as hydrateReactRoot } from 'react-dom/client';
+import { hydrateRoot as hydrateReactRoot, type Root } from 'react-dom/client';
 import { RenderLevel } from '../constants';
 import type { TRuntimeContext } from '../context/runtime';
 import { wrapRuntimeContextProvider } from '../react/wrapper';
 import { WithCallback } from './withCallback';
 
 export const isReact18 = () => process.env.IS_REACT18 === 'true';
+
+const loadableReadyOptions = {
+  chunkLoadingGlobal:
+    process.env.MODERN_CHUNK_LOADING_GLOBAL || '__LOADABLE_LOADED_CHUNKS__',
+};
 
 export async function hydrateWithReact(
   App: React.ReactElement,
@@ -84,7 +89,7 @@ export function hydrateRoot(
             ).then(root => {
               resolve(root);
             });
-          });
+          }, loadableReadyOptions);
         } else {
           loadableReady(() => {
             ModernHydrate(
@@ -93,7 +98,7 @@ export function hydrateRoot(
             ).then(root => {
               resolve(root);
             });
-          });
+          }, loadableReadyOptions);
         }
       });
     } else {
