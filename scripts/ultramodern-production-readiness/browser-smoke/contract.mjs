@@ -29,6 +29,7 @@ export function parseArgs(argv) {
     '--out',
     '--mode',
     '--public-url',
+    '--shell-runtime',
     '--timeout-ms',
   ]);
 
@@ -39,6 +40,7 @@ export function parseArgs(argv) {
       out: defaultReportPath,
       publicUrlEntries: [],
       requirePublicUrls: false,
+      shellRuntime: 'node',
       timeoutMs: '60000',
     },
     options: {
@@ -65,6 +67,10 @@ export function parseArgs(argv) {
         key: 'requirePublicUrls',
         type: 'boolean',
       },
+      'shell-runtime': {
+        key: 'shellRuntime',
+        requiredValue: false,
+      },
       'timeout-ms': {
         key: 'timeoutMs',
         requiredValue: false,
@@ -90,6 +96,9 @@ export function parseArgs(argv) {
   }
   if (!['local', 'public'].includes(parsed.mode)) {
     throw new Error('--mode must be local or public');
+  }
+  if (!['node', 'workerd'].includes(parsed.shellRuntime)) {
+    throw new Error('--shell-runtime must be node or workerd');
   }
   if (!Number.isInteger(parsed.timeoutMs) || parsed.timeoutMs <= 0) {
     throw new Error('--timeout-ms must be a positive integer');

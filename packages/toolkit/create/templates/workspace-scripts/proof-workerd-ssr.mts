@@ -87,6 +87,9 @@ const apps = (compactConfig.topology?.apps ?? []).map((rawApp) => {
 
 const shells = apps.filter((app) => app.kind === "shell");
 assert(shells.length > 0, "Workerd SSR proof requires at least one shell");
+if (process.env.ULTRAMODERN_KEEP_WORKERD === "1") {
+  assert(shells.length === 1, "Browser workerd proof requires exactly one shell");
+}
 
 const workerName = (app) => {
   assert(
@@ -222,6 +225,13 @@ for (const shell of shells) {
       outboundRequests,
       degradedBoundaryCount: count(html, 'data-modern-distributed-ssr-status="degraded"'),
     });
+    if (process.env.ULTRAMODERN_KEEP_WORKERD === "1") {
+      console.log(`WORKERD_URL=${await miniflare.ready}`);
+      await new Promise((resolve) => {
+        process.once("SIGINT", resolve);
+        process.once("SIGTERM", resolve);
+      });
+    }
   } finally {
     await miniflare.dispose();
   }

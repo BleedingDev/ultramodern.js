@@ -6,6 +6,7 @@ import {
   assertLocalPortsAvailable,
   launchBrowser,
   startServer,
+  startWorkerdProof,
 } from './browser-smoke/bootstrap.mjs';
 import { validateBrowserTarget } from './browser-smoke/browser-validate.mjs';
 import {
@@ -65,6 +66,7 @@ export async function runUltramodernBrowserSmoke(options) {
     generatedAt: options.generatedAt ?? new Date().toISOString(),
     mode: options.mode,
     projectDir: options.projectDir,
+    shellRuntime: options.shellRuntime ?? 'node',
     results: [],
     skipped,
     status: 'running',
@@ -95,11 +97,22 @@ export async function runUltramodernBrowserSmoke(options) {
         });
       }
       for (const target of localStartupOrder.shells) {
-        servers.push(startServerImpl(target, options));
-      }
-      const shellServerOffset = localStartupOrder.remotes.length;
-      for (const [index, target] of localStartupOrder.shells.entries()) {
-        const server = servers[shellServerOffset + index];
+        let server;
+        if (report.shellRuntime === 'workerd') {
+          if (localStartupOrder.shells.length !== 1) {
+            throw new BrowserSmokeError(
+              'workerd browser smoke requires exactly one shell target',
+            );
+          }
+          const startWorkerdProofImpl =
+            options.startWorkerdProofImpl ?? startWorkerdProof;
+          server = await startWorkerdProofImpl(options);
+          target.baseUrl = server.baseUrl;
+          target.port = Number(new URL(server.baseUrl).port);
+        } else {
+          server = startServerImpl(target, options);
+        }
+        servers.push(server);
         await waitForTarget(target, {
           fetchImpl: options.fetchImpl ?? fetch,
           retryDelayMs: options.retryDelayMs,

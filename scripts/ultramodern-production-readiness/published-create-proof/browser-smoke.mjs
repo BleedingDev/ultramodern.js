@@ -66,6 +66,10 @@ function runBrowserSmoke(projectDir, { mode, requirePublicUrls = false }) {
     mode,
   ];
 
+  if (mode === 'local') {
+    args.push('--shell-runtime', 'workerd');
+  }
+
   if (requirePublicUrls) {
     args.push('--require-public-urls');
   }

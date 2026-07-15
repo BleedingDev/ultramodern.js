@@ -116,6 +116,76 @@ export function startServer(target, { artifactDir, projectDir }) {
   };
 }
 
+export async function startWorkerdProof({
+  artifactDir,
+  projectDir,
+  timeoutMs = 60_000,
+}) {
+  const logPath = path.join(artifactDir, 'shell-workerd-proof.log');
+  fs.mkdirSync(path.dirname(logPath), { recursive: true });
+  const logStream = fs.createWriteStream(logPath, { flags: 'a' });
+  const child = spawn('pnpm', ['run', 'cloudflare:ssr-proof'], {
+    cwd: projectDir,
+    detached: process.platform !== 'win32',
+    env: createProcessEnv({ ULTRAMODERN_KEEP_WORKERD: '1' }),
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  child.stdout.pipe(logStream);
+  child.stderr.pipe(logStream);
+  const exited = new Promise(resolve => {
+    child.once('error', error => {
+      resolve({
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
+    child.once('exit', (exitCode, signal) => resolve({ exitCode, signal }));
+  });
+  let stdout = '';
+  const ready = new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(
+        new BrowserSmokeError(
+          `workerd SSR proof did not publish a browser URL within ${timeoutMs}ms`,
+          { logPath },
+        ),
+      );
+    }, timeoutMs);
+    child.stdout.on('data', chunk => {
+      stdout += String(chunk);
+      const match = /(?:^|\n)WORKERD_URL=(https?:\/\/[^\s]+)/u.exec(stdout);
+      if (match) {
+        clearTimeout(timer);
+        resolve(match[1].replace(/\/$/u, ''));
+      }
+    });
+    exited.then(result => {
+      clearTimeout(timer);
+      reject(
+        new BrowserSmokeError(
+          'workerd SSR proof exited before publishing a browser URL',
+          { ...result, logPath },
+        ),
+      );
+    });
+  });
+
+  try {
+    const baseUrl = await ready;
+    return {
+      baseUrl,
+      child,
+      exited,
+      logPath,
+      stop: () =>
+        stopServerProcess(child, exited).finally(() => logStream.end()),
+    };
+  } catch (error) {
+    await stopServerProcess(child, exited);
+    logStream.end();
+    throw error;
+  }
+}
+
 export async function importPlaywright() {
   const configuredRoot = process.env.ULTRAMODERN_BROWSER_SMOKE_PLAYWRIGHT_ROOT;
   if (configuredRoot) {

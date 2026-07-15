@@ -649,6 +649,8 @@ test('workspace and MicroVertical integration stays coherent across public API a
     assert.match(workerdProof, /assets: \{/u);
     assert.match(workerdProof, /workerName: workerName\(app\)/u);
     assert.match(workerdProof, /has_user_worker: true/u);
+    assert.match(workerdProof, /ULTRAMODERN_KEEP_WORKERD/u);
+    assert.match(workerdProof, /WORKERD_URL=/u);
     const zeropsYaml = read(workspaceDir, 'zerops.yaml');
     assert.match(zeropsYaml, /zerops:/);
     assert.match(zeropsYaml, /setup: 'shell-super-app'/);

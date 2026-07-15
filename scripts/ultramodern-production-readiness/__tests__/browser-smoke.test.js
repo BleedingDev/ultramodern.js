@@ -243,6 +243,8 @@ test('parses browser smoke CLI options with stable validation behavior', async (
     '.modern/browser-summary.json',
     '--mode',
     'public',
+    '--shell-runtime',
+    'workerd',
     '--public-url',
     'shell-super-app=https://shell.example.test/',
     '--require-public-urls',
@@ -254,6 +256,7 @@ test('parses browser smoke CLI options with stable validation behavior', async (
   assert.equal(path.isAbsolute(parsed.artifactDir), true);
   assert.equal(path.isAbsolute(parsed.out), true);
   assert.equal(parsed.mode, 'public');
+  assert.equal(parsed.shellRuntime, 'workerd');
   assert.equal(
     parsed.publicUrls['shell-super-app'],
     'https://shell.example.test/',
@@ -464,6 +467,83 @@ test('starts shell only after local remotes publish MF manifests', async () => {
       'fetch:3021:/mf-manifest.json',
       'start:shell-super-app',
     ]);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('uses the generated workerd proof as the local shell browser target', async () => {
+  const { runUltramodernBrowserSmoke } = await loadSmoke();
+  const root = tempRoot();
+  const contract = createContract();
+  contract.apps[0].moduleFederation.verticalRefs = ['inventory'];
+  contract.apps.push({
+    ...contract.apps[0],
+    id: 'inventory',
+    kind: 'vertical',
+    package: '@demo/inventory',
+    config: {
+      source: {
+        siteUrl: {
+          defaultLocalhostPort: 3021,
+          envFallbackOrder: ['VERTICAL_INVENTORY_PORT'],
+        },
+      },
+    },
+  });
+  const events = [];
+  const browser = createFakeBrowser({ boundaryIds: ['inventory'] });
+
+  try {
+    const report = await runUltramodernBrowserSmoke({
+      artifactDir: root,
+      browserProvider: {
+        chromium: {
+          async launch() {
+            return browser;
+          },
+        },
+      },
+      contract,
+      fetchImpl: async url => {
+        const parsed = new URL(url);
+        events.push(`fetch:${parsed.port}:${parsed.pathname}`);
+        if (parsed.pathname === '/locales/en/shell.json') {
+          return response(200, JSON.stringify({ shell: { title: 'Shell' } }));
+        }
+        if (parsed.pathname === '/mf-manifest.json') {
+          return response(200, JSON.stringify({ metaData: { name: 'app' } }));
+        }
+        return response(200, html());
+      },
+      generatedAt: '2026-07-01T00:00:00.000Z',
+      mode: 'local',
+      out: path.join(root, 'summary.json'),
+      preflightLocalPortsImpl() {},
+      projectDir: root,
+      retryDelayMs: 0,
+      shellRuntime: 'workerd',
+      startServerImpl(target) {
+        events.push(`start:${target.app.id}`);
+        return { async stop() {} };
+      },
+      startWorkerdProofImpl() {
+        events.push('start:workerd');
+        return {
+          baseUrl: 'http://127.0.0.1:3999',
+          async stop() {},
+        };
+      },
+      timeoutMs: 1_000,
+    });
+
+    assert.equal(report.shellRuntime, 'workerd');
+    assert.equal(
+      report.results.find(result => result.appId === 'shell-super-app').baseUrl,
+      'http://127.0.0.1:3999',
+    );
+    assert.equal(events.includes('start:shell-super-app'), false);
+    assert.equal(events.includes('start:workerd'), true);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
