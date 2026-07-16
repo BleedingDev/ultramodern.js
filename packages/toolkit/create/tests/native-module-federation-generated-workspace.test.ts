@@ -151,3 +151,55 @@ test('migration converges Module Federation configs and vertical loaders', async
     fs.rmSync(tempRoot, { force: true, recursive: true });
   }
 });
+
+test('migration preserves custom native federation composition and removes its generated worker shadow', async () => {
+  const { tempRoot, workspaceDir } = createWorkspaceWithVertical(
+    'native-mf-custom-host',
+    'um-native-mf-custom-host-',
+  );
+  const remoteComponentsPath = path.join(
+    workspaceDir,
+    'apps/shell-super-app/src/routes/vertical-components.tsx',
+  );
+  const workerComponentsPath = path.join(
+    workspaceDir,
+    'apps/shell-super-app/src/routes/vertical-components.worker.tsx',
+  );
+  const customComposition = `import { createFederatedComponents } from '../federated-components';
+
+export const { Widget } = createFederatedComponents(<p>Unavailable</p>);
+`;
+
+  try {
+    fs.writeFileSync(remoteComponentsPath, customComposition);
+    assert.equal(fs.existsSync(workerComponentsPath), true);
+
+    assert.equal(
+      await runUltramodernToolingCli(
+        ['migrate-strict-effect', '--skip-install'],
+        workspaceDir,
+      ),
+      0,
+    );
+
+    assert.equal(
+      fs.readFileSync(remoteComponentsPath, 'utf-8'),
+      customComposition,
+    );
+    assert.equal(fs.existsSync(workerComponentsPath), false);
+    const validator = fs.readFileSync(
+      path.join(workspaceDir, 'scripts/validate-ultramodern-workspace.mts'),
+      'utf-8',
+    );
+    assert.match(
+      validator,
+      /requiredShellWorkerCompositionPath\('apps\/shell-super-app'\)/u,
+    );
+    assert.match(
+      validator,
+      /: `\$\{shellPath\}\/src\/federated-components\.worker\.tsx`/u,
+    );
+  } finally {
+    fs.rmSync(tempRoot, { force: true, recursive: true });
+  }
+});

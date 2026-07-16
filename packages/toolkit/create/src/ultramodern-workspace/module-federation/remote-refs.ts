@@ -11,14 +11,17 @@ import { formatTsObjectLiteral } from './shared-config';
 export function createModuleFederationRemoteUrlHelpers(
   app: WorkspaceApp,
   remotes: WorkspaceApp[] = [],
+  includeAppToolsImport = true,
 ): string {
   if (resolveRemoteRefs(app, remotes).length === 0) {
     return '';
   }
 
-  return `import { getBuildConfigEnvironment } from '@modern-js/app-tools/config';
+  const appToolsImport = includeAppToolsImport
+    ? "import { getBuildConfigEnvironment } from '@modern-js/app-tools/config';\n\n"
+    : '';
 
-const cloudflareDeployEnabled =
+  return `${appToolsImport}const cloudflareDeployEnabled =
   getBuildConfigEnvironment('MODERNJS_DEPLOY') === 'cloudflare';
 const cloudflareWorkersDevSubdomain =
   getBuildConfigEnvironment('ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN')?.trim();

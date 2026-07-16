@@ -6,6 +6,11 @@ import {
   addUltramodernVertical,
   generateUltramodernWorkspace,
 } from '../src/ultramodern-workspace';
+import { createAppEnvDts } from '../src/ultramodern-workspace/app-files';
+import {
+  createShellHost,
+  createVerticalDescriptor,
+} from '../src/ultramodern-workspace/descriptors';
 import { generatedToolingCommands } from '../src/ultramodern-workspace/tooling-command-catalog';
 import { createWorkspaceValidationContract } from '../src/ultramodern-workspace/workspace-validation-contract';
 
@@ -264,13 +269,13 @@ test('rendered contents of the highest-risk generated files match the checked-in
     );
     assert.match(
       shellModernAppEnv,
-      /import '@modern-js\/app-tools\/types';/,
-      'generated app env must use the framework-owned app ambient type bundle',
+      /\/\/\/ <reference types="@modern-js\/app-tools\/types" \/>/,
+      'generated app env must reference the framework-owned app ambient type bundle without turning remote declarations into augmentations',
     );
     assert.match(
       shellModernAppEnv,
-      /declare global \{\s*const ULTRAMODERN_SITE_URL: string;\s*\}/,
-      'generated app env must keep generated globals explicit after importing app ambient types',
+      /declare const ULTRAMODERN_SITE_URL: string;/,
+      'generated app env must keep generated globals explicit in ambient scope',
     );
     assert.doesNotMatch(
       shellModernAppEnv,
@@ -552,13 +557,13 @@ test('rendered contents of the highest-risk generated files match the checked-in
     );
     assert.match(
       verticalModernAppEnv,
-      /import '@modern-js\/app-tools\/types';/,
-      'generated vertical env must use the framework-owned app ambient type bundle',
+      /\/\/\/ <reference types="@modern-js\/app-tools\/types" \/>/,
+      'generated vertical env must reference the framework-owned app ambient type bundle',
     );
     assert.match(
       verticalModernAppEnv,
-      /declare global \{\s*const ULTRAMODERN_SITE_URL: string;\s*\}/,
-      'generated vertical env must keep generated globals explicit after importing app ambient types',
+      /declare const ULTRAMODERN_SITE_URL: string;/,
+      'generated vertical env must keep generated globals explicit in ambient scope',
     );
     assert.doesNotMatch(
       verticalModernAppEnv,
@@ -658,7 +663,19 @@ test('rendered contents of the highest-risk generated files match the checked-in
       /import Widget from '\.\.\/\.\.\/\.\.\/\.\.\/\.\.\/components\/catalog-widget';/,
       'generated verticals must expose a same-worker SSR route for their Widget',
     );
-    assert.match(fragmentPage, /return <Widget \/>/);
+    assert.match(
+      fragmentPage,
+      /useDistributedSsrFragmentProps<ComponentProps<typeof Widget>>/,
+      'generated fragment routes must recover typed props from the verified service request',
+    );
+    assert.match(
+      fragmentPage,
+      /from '@modern-js\/runtime\/module-federation\/distributed-ssr';/,
+      'generated fragment routes must import the direct distributed SSR runtime entry',
+    );
+    assert.match(fragmentPage, /data-modern-distributed-ssr-marker="start"/);
+    assert.match(fragmentPage, /data-modern-distributed-ssr-marker="end"/);
+    assert.match(fragmentPage, /<Widget \{\.\.\.props\} \/>/);
 
     // Regression: the generated API client once accepted
     // locale/operationContext/traceparent options and then passed only
@@ -828,6 +845,21 @@ test('rendered contents of the highest-risk generated files match the checked-in
   }
 });
 
+test('remote app env declarations remain ambient and preserve workspace expose props', () => {
+  const catalog = createVerticalDescriptor('catalog', 3031);
+  const source = createAppEnvDts(
+    createShellHost([catalog]),
+    [catalog],
+    'manifest-workspace',
+  );
+
+  assert.match(
+    source,
+    /declare module 'catalog\/Widget' \{\s*export \{ default \} from '@manifest-workspace\/catalog\/Widget';/u,
+  );
+  assert.doesNotMatch(source, /^import /mu);
+});
+
 test('validator template excludes generated Zerops runtime package artifacts', () => {
   const validatorTemplate = fs.readFileSync(
     path.join(
@@ -847,6 +879,36 @@ test('workspace validation contract records Node toolchain metadata', () => {
     version: contract.versions.node,
     engineRange: '>=26',
   });
+});
+
+test('workspace validation contract scans nested federated hosts', () => {
+  const explore = createVerticalDescriptor('explore', 3021);
+  const checkout = createVerticalDescriptor('checkout', 3022);
+  const decide = {
+    ...createVerticalDescriptor('decide', 3023),
+    verticalRefs: ['explore', 'checkout'],
+  };
+  const remotes = [explore, checkout, decide];
+  const shell = createShellHost(remotes, ['decide']);
+  const contract = createWorkspaceValidationContract(
+    'tractor-store',
+    true,
+    remotes,
+    undefined,
+    [],
+    shell,
+  );
+
+  assert.deepEqual(
+    contract.federatedCompositionSourcePolicy.hosts.map(host => host.id),
+    ['shell-super-app', 'decide'],
+  );
+  assert.deepEqual(
+    contract.federatedCompositionSourcePolicy.hosts
+      .find(host => host.id === 'decide')
+      ?.remotes.map(remote => remote.packageName),
+    ['@tractor-store/explore', '@tractor-store/checkout'],
+  );
 });
 
 test('backend federation proof template resolves monorepo local plugin-bff runtime', () => {

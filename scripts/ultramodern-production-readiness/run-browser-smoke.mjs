@@ -86,19 +86,25 @@ export async function runUltramodernBrowserSmoke(options) {
           ? localStartupOrder.remotes
           : localStartupOrder.validation,
       );
-      for (const target of localStartupOrder.remotes) {
-        servers.push(startServerImpl(target, options));
-      }
-      for (const [index, target] of localStartupOrder.remotes.entries()) {
-        const server = servers[index];
-        await waitForTarget(target, {
-          fetchImpl: options.fetchImpl ?? fetch,
-          requireManifest: true,
-          retryDelayMs: options.retryDelayMs,
-          serverExit: server.exited,
-          serverLogPath: server.logPath,
-          timeoutMs: options.timeoutMs,
+      for (const layer of localStartupOrder.remoteLayers) {
+        const layerServers = layer.map(target => {
+          const server = startServerImpl(target, options);
+          servers.push(server);
+          return server;
         });
+        await Promise.all(
+          layer.map((target, index) => {
+            const server = layerServers[index];
+            return waitForTarget(target, {
+              fetchImpl: options.fetchImpl ?? fetch,
+              requireManifest: true,
+              retryDelayMs: options.retryDelayMs,
+              serverExit: server.exited,
+              serverLogPath: server.logPath,
+              timeoutMs: options.timeoutMs,
+            });
+          }),
+        );
       }
       for (const target of localStartupOrder.shells) {
         let server;

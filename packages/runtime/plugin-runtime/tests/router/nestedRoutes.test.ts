@@ -1,3 +1,5 @@
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import type { NestedRouteForCli } from '@modern-js/types';
 import path from 'path';
 import { optimizeRoute, walk } from '../../src/router/cli/code/nestedRoutes';
@@ -209,5 +211,39 @@ describe('nested routes', () => {
       isMainEntry: true,
     });
     expect(route).toMatchSnapshot();
+  });
+
+  test('walk attaches a page.search contract to the generated route', async () => {
+    const rootDir = await mkdtemp(path.join(tmpdir(), 'modern-route-search-'));
+    const productDir = path.join(rootDir, 'products', '[slug]');
+    try {
+      await mkdir(productDir, { recursive: true });
+      await writeFile(
+        path.join(rootDir, 'layout.tsx'),
+        'export default () => null;',
+      );
+      await writeFile(
+        path.join(productDir, 'page.tsx'),
+        'export default () => null;',
+      );
+      await writeFile(
+        path.join(productDir, 'page.search.ts'),
+        'export const validateSearch = (search: unknown) => search;',
+      );
+
+      const route = await walk({
+        dirname: rootDir,
+        rootDir,
+        alias: { name: '@_modern_js_src', basename: rootDir },
+        entryName: 'main',
+        isMainEntry: true,
+      });
+
+      expect(JSON.stringify(route)).toContain(
+        '"validateSearch":"@_modern_js_src/products/[slug]/page.search"',
+      );
+    } finally {
+      await rm(rootDir, { force: true, recursive: true });
+    }
   });
 });

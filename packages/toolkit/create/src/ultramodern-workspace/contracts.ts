@@ -56,6 +56,17 @@ function presentJsonValues(values: (JsonValue | undefined)[]): JsonValue[] {
   return values.filter(isJsonValue);
 }
 
+function createReferenceRemoteContracts(
+  app: WorkspaceApp,
+  remotes: WorkspaceApp[],
+) {
+  return createModuleFederationRemoteContracts(app, remotes).map(remote => ({
+    id: remote.id,
+    name: remote.name,
+    manifestUrl: remote.manifestUrl,
+  }));
+}
+
 export function createTopology(
   scope: string,
   remotes: WorkspaceApp[] = [],
@@ -76,7 +87,7 @@ export function createTopology(
       moduleFederation: {
         role: 'host',
         name: shellApp.mfName,
-        remotes: createModuleFederationRemoteContracts(shellHost, remotes),
+        remotes: createReferenceRemoteContracts(shellHost, remotes),
         ssr: true,
         sharedContractVersion: 'mf-ssr-contract-v1',
       },
@@ -108,7 +119,7 @@ export function createTopology(
         ...(vertical.verticalRefs?.length
           ? {
               verticalRefs: vertical.verticalRefs,
-              remotes: createModuleFederationRemoteContracts(vertical),
+              remotes: createReferenceRemoteContracts(vertical, remotes),
             }
           : {}),
         ssr: true,
@@ -319,9 +330,11 @@ export function createUltramodernConfig(
         ...(app.api
           ? {
               api: {
+                runtime: 'effect',
                 stem: app.api.stem,
                 prefix: app.api.prefix,
                 consumedBy: app.api.consumedBy,
+                serverEntry: `${app.directory}/api/index.ts`,
                 ...(app.api.protocol === undefined
                   ? {}
                   : { protocol: app.api.protocol }),

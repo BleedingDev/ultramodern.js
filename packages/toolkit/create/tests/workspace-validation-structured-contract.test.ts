@@ -111,6 +111,21 @@ function removeText(workspaceDir: string, relativePath: string, text: string) {
   fs.writeFileSync(absolutePath, source.replace(text, ''), 'utf-8');
 }
 
+function replaceText(
+  workspaceDir: string,
+  relativePath: string,
+  current: string,
+  replacement: string,
+) {
+  const absolutePath = path.join(workspaceDir, relativePath);
+  const source = fs.readFileSync(absolutePath, 'utf-8');
+  assert.ok(
+    source.includes(current),
+    `${relativePath} must contain ${current}`,
+  );
+  fs.writeFileSync(absolutePath, source.replace(current, replacement), 'utf-8');
+}
+
 test('generated validator embeds one structured contract and ignores JSON representation', () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-contract-json-'));
   const workspaceDir = path.join(tempRoot, 'structured-contract');
@@ -336,6 +351,23 @@ const extractedIntercepted = (
     generateWorkspace(baselineDir);
     const baseline = runValidation(baselineDir);
     assert.equal(baseline.status, 0, commandOutput(baseline));
+
+    const plainScalarDir = path.join(tempRoot, 'plain-version-scalar');
+    fs.cpSync(baselineDir, plainScalarDir, { recursive: true });
+    replaceText(
+      plainScalarDir,
+      'pnpm-workspace.yaml',
+      "'@module-federation/dts-plugin>typescript': '6.0.3'",
+      "'@module-federation/dts-plugin>typescript': 6.0.3",
+    );
+    replaceText(
+      plainScalarDir,
+      'pnpm-workspace.yaml',
+      "'effect@4.0.0-beta.97': patches/effect-schema-error-type-id.patch",
+      'effect@4.0.0-beta.97: patches/effect-schema-error-type-id.patch',
+    );
+    const plainScalar = runValidation(plainScalarDir);
+    assert.equal(plainScalar.status, 0, commandOutput(plainScalar));
 
     for (const scenario of scenarios) {
       const workspaceDir = path.join(tempRoot, scenario.name);

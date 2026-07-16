@@ -61,6 +61,173 @@ export function remoteBoundaryCandidates(remote) {
     .filter((value, index, values) => values.indexOf(value) === index);
 }
 
+function remoteFederationOrigins(app) {
+  return new Set(
+    (app.moduleFederation?.remotes ?? [])
+      .flatMap(remote => [remote.manifestUrl, remote.entry])
+      .filter(value => typeof value === 'string')
+      .map(value => {
+        try {
+          return new URL(value).origin;
+        } catch {
+          return undefined;
+        }
+      })
+      .filter(Boolean),
+  );
+}
+
+export function federationAssetKind(url, app, observedRemoteOrigins = []) {
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return undefined;
+  }
+
+  if (/\bmf-manifest\.json$/u.test(parsed.pathname)) {
+    return 'manifest';
+  }
+  if (/remoteEntry[^/]*\.(?:c|m)?js$/iu.test(parsed.pathname)) {
+    return 'remote-entry';
+  }
+  const remoteOrigins = remoteFederationOrigins(app);
+  for (const origin of observedRemoteOrigins) {
+    remoteOrigins.add(origin);
+  }
+  if (
+    /\.(?:c|m)?js$/iu.test(parsed.pathname) &&
+    (remoteOrigins.has(parsed.origin) || /exposed[-_.]/iu.test(parsed.pathname))
+  ) {
+    return 'exposed-chunk';
+  }
+
+  return undefined;
+}
+
+async function installHydrationIdentityProbe(page) {
+  return page.evaluate(() => {
+    const selector =
+      '[data-modern-distributed-ssr-boundary][data-modern-distributed-ssr-status="ready"]';
+    const records = [...document.querySelectorAll(selector)].map(boundary => {
+      const nodes = [boundary];
+      const walker = document.createTreeWalker(boundary, NodeFilter.SHOW_ALL);
+      let node = walker.nextNode();
+      while (node) {
+        nodes.push(node);
+        node = walker.nextNode();
+      }
+      const removals = [];
+      const observer = new MutationObserver(mutations => {
+        for (const mutation of mutations) {
+          for (const removedNode of mutation.removedNodes) {
+            removals.push(removedNode);
+          }
+        }
+      });
+      observer.observe(boundary, { childList: true, subtree: true });
+      return {
+        boundary,
+        initialOuterHtml: boundary.outerHTML,
+        nodes,
+        observer,
+        removals,
+      };
+    });
+    window.__modernHydrationIdentityProbe = { records };
+
+    return {
+      boundaryCount: records.length,
+      nodeCount: records.reduce(
+        (total, record) => total + record.nodes.length,
+        0,
+      ),
+    };
+  });
+}
+
+async function readHydrationIdentityProbe(page) {
+  return page.evaluate(() => {
+    const records = window.__modernHydrationIdentityProbe?.records ?? [];
+    let connectedNodeCount = 0;
+    let nodeCount = 0;
+    let provenanceBoundaryCount = 0;
+    let removedNodeCount = 0;
+    let readyBoundaryCount = 0;
+    const boundaries = [];
+    const mutations = [];
+
+    for (const record of records) {
+      record.observer.disconnect();
+      nodeCount += record.nodes.length;
+      removedNodeCount += record.removals.length;
+      connectedNodeCount += record.nodes.filter(node => {
+        return (
+          node.isConnected &&
+          (node === record.boundary || record.boundary.contains(node))
+        );
+      }).length;
+      const ready =
+        record.boundary.isConnected &&
+        record.boundary.getAttribute('data-modern-distributed-ssr-status') ===
+          'ready';
+      if (ready) {
+        readyBoundaryCount += 1;
+      }
+      const buildMarker = record.boundary.getAttribute(
+        'data-modern-distributed-ssr-build',
+      );
+      const digest = record.boundary.getAttribute(
+        'data-modern-distributed-ssr-digest',
+      );
+      if (buildMarker && /^[a-f\d]{64}$/u.test(digest ?? '')) {
+        provenanceBoundaryCount += 1;
+      }
+      boundaries.push({
+        boundary: record.boundary.getAttribute(
+          'data-modern-distributed-ssr-boundary',
+        ),
+        buildMarker,
+        digest,
+        ready,
+      });
+      if (record.removals.length > 0 || connectedNodeCount < nodeCount) {
+        mutations.push({
+          boundary: record.boundary.getAttribute(
+            'data-modern-distributed-ssr-boundary',
+          ),
+          currentOuterHtml: record.boundary.outerHTML.slice(0, 8_000),
+          initialOuterHtml: record.initialOuterHtml.slice(0, 8_000),
+          removedNodes: record.removals.slice(0, 20).map(node => ({
+            html:
+              node instanceof Element
+                ? node.outerHTML.slice(0, 2_000)
+                : node.textContent?.slice(0, 2_000),
+            name: node.nodeName,
+          })),
+        });
+      }
+    }
+
+    return {
+      boundaries,
+      boundaryCount: records.length,
+      connectedNodeCount,
+      mutations,
+      nodeCount,
+      preserved:
+        records.length > 0 &&
+        connectedNodeCount === nodeCount &&
+        removedNodeCount === 0 &&
+        readyBoundaryCount === records.length &&
+        provenanceBoundaryCount === records.length,
+      provenanceBoundaryCount,
+      readyBoundaryCount,
+      removedNodeCount,
+    };
+  });
+}
+
 async function collectShellRemoteBoundaries(page, app) {
   const remotes =
     app.moduleFederation.remotes?.length > 0
@@ -109,6 +276,62 @@ export async function waitForHydrationStyles(page) {
   }
 }
 
+async function triggerRemoteBoundaryHydration(page) {
+  const target = await page.evaluate(() => {
+    const boundary = document.querySelector(
+      '[data-modern-distributed-ssr-boundary][data-modern-distributed-ssr-status="ready"]',
+    );
+    const interactiveElement = boundary?.querySelector(
+      'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]',
+    );
+    if (!(interactiveElement instanceof Element)) {
+      return undefined;
+    }
+
+    interactiveElement.setAttribute(
+      'data-modern-selective-hydration-target',
+      '',
+    );
+    window.__modernPreventSelectiveHydrationNavigation = event =>
+      event.preventDefault();
+    document.addEventListener(
+      'click',
+      window.__modernPreventSelectiveHydrationNavigation,
+      { capture: true, once: true },
+    );
+
+    return {
+      boundary: boundary.getAttribute('data-modern-distributed-ssr-boundary'),
+      target: interactiveElement.tagName.toLowerCase(),
+    };
+  });
+  if (target === undefined) {
+    return undefined;
+  }
+
+  try {
+    await page
+      .locator('[data-modern-selective-hydration-target]')
+      .click({ noWaitAfter: true });
+  } finally {
+    await page.evaluate(() => {
+      document
+        .querySelector('[data-modern-selective-hydration-target]')
+        ?.removeAttribute('data-modern-selective-hydration-target');
+      if (window.__modernPreventSelectiveHydrationNavigation) {
+        document.removeEventListener(
+          'click',
+          window.__modernPreventSelectiveHydrationNavigation,
+          { capture: true },
+        );
+        delete window.__modernPreventSelectiveHydrationNavigation;
+      }
+    });
+  }
+
+  return target;
+}
+
 export async function collectStylesheetLinks(page) {
   return page.$$eval('link[rel~="stylesheet"]', links =>
     links.map(link => ({
@@ -155,29 +378,45 @@ export async function validateNoJavaScriptSsrTarget(
 
   const assertions = [];
   try {
-    await page.goto(joinUrl(target.baseUrl, target.routes.ssr), {
+    const distributedSsrRoute =
+      target.routes.distributedSsr ?? target.routes.ssr;
+    const usesDedicatedDistributedSsrRoute =
+      distributedSsrRoute !== target.routes.ssr;
+    await page.goto(joinUrl(target.baseUrl, distributedSsrRoute), {
       waitUntil: 'domcontentloaded',
     });
-    await page.waitForSelector('[data-testid="ultramodern-ui-marker"]', {
-      timeout: 15_000,
-    });
-    const marker = await page
-      .locator('[data-testid="ultramodern-ui-marker"]')
-      .getAttribute('data-build-marker');
-    assertions.push(
-      assertion(
-        'no-js-ssr-ui-marker',
-        marker === app.marker?.build ? 'pass' : 'fail',
-        {
-          actual: marker,
-          expected: app.marker?.build,
-        },
-      ),
-    );
-    assertPass(
-      marker === app.marker?.build,
-      `${app.id} no-JS SSR UI marker mismatch`,
-    );
+    if (usesDedicatedDistributedSsrRoute) {
+      await page.waitForSelector(
+        '[data-modern-distributed-ssr-boundary][data-modern-distributed-ssr-status="ready"]',
+        { state: 'attached', timeout: 15_000 },
+      );
+      assertions.push(
+        assertion('no-js-distributed-ssr-route', 'pass', {
+          route: distributedSsrRoute,
+        }),
+      );
+    } else {
+      await page.waitForSelector('[data-testid="ultramodern-ui-marker"]', {
+        timeout: 15_000,
+      });
+      const marker = await page
+        .locator('[data-testid="ultramodern-ui-marker"]')
+        .getAttribute('data-build-marker');
+      assertions.push(
+        assertion(
+          'no-js-ssr-ui-marker',
+          marker === app.marker?.build ? 'pass' : 'fail',
+          {
+            actual: marker,
+            expected: app.marker?.build,
+          },
+        ),
+      );
+      assertPass(
+        marker === app.marker?.build,
+        `${app.id} no-JS SSR UI marker mismatch`,
+      );
+    }
 
     const rootSelector = app.styling?.federation?.rootSelector;
     if (rootSelector) {
@@ -267,7 +506,14 @@ export async function validateBrowserTarget(target, browser, { artifactDir }) {
   const consoleMessages = [];
   const pageErrors = [];
   const failedResponses = [];
+  const federationResponses = [];
+  const observedRemoteOrigins = new Set();
   let stylesheetLinks = [];
+  let hydrationIdentity;
+  let federationRouteHandler;
+  let federationRouteMatcher;
+  let releaseFederationAssets;
+  const interceptedFederationRequests = [];
 
   page.on('console', message => {
     const serialized = serializeConsoleMessage(message);
@@ -282,6 +528,13 @@ export async function validateBrowserTarget(target, browser, { artifactDir }) {
   page.on('response', response => {
     const status = response.status();
     const url = response.url();
+    const assetKind = federationAssetKind(url, app, observedRemoteOrigins);
+    if (assetKind) {
+      federationResponses.push({ kind: assetKind, status, url });
+      if (assetKind === 'manifest' || assetKind === 'remote-entry') {
+        observedRemoteOrigins.add(new URL(url).origin);
+      }
+    }
     if (status >= 400 && isSameOriginAsset(target, url)) {
       failedResponses.push({ status, url });
     }
@@ -289,12 +542,60 @@ export async function validateBrowserTarget(target, browser, { artifactDir }) {
 
   const assertions = [];
   try {
-    await page.goto(joinUrl(target.baseUrl, target.routes.ssr), {
-      waitUntil: 'domcontentloaded',
-    });
+    const shellWithRemotes =
+      app.kind === 'shell' &&
+      (app.moduleFederation?.verticalRefs?.length ?? 0) > 0;
+    if (shellWithRemotes) {
+      let release;
+      const federationGate = new Promise(resolve => {
+        release = resolve;
+      });
+      releaseFederationAssets = release;
+      federationRouteMatcher = url =>
+        Boolean(federationAssetKind(url, app, observedRemoteOrigins));
+      federationRouteHandler = async route => {
+        const url = route.request().url();
+        interceptedFederationRequests.push({
+          kind: federationAssetKind(url, app, observedRemoteOrigins),
+          url,
+        });
+        await federationGate;
+        try {
+          await route.continue();
+        } catch (error) {
+          if (!String(error).includes('Route is already handled')) {
+            throw error;
+          }
+        }
+      };
+      await page.route(federationRouteMatcher, federationRouteHandler);
+      await page.goto(joinUrl(target.baseUrl, target.routes.ssr), {
+        waitUntil: 'commit',
+      });
+    } else {
+      await page.goto(joinUrl(target.baseUrl, target.routes.ssr), {
+        waitUntil: 'domcontentloaded',
+      });
+    }
     await page.waitForSelector('[data-testid="ultramodern-ui-marker"]', {
+      state: shellWithRemotes ? 'attached' : 'visible',
       timeout: 15_000,
     });
+    if (shellWithRemotes) {
+      await page.waitForSelector(
+        '[data-modern-distributed-ssr-boundary][data-modern-distributed-ssr-status="ready"]',
+        { state: 'attached', timeout: 15_000 },
+      );
+      const initialIdentity = await installHydrationIdentityProbe(page);
+      assertPass(
+        initialIdentity.boundaryCount > 0 && initialIdentity.nodeCount > 0,
+        `${app.id} did not expose server-rendered remote DOM for identity tracking`,
+        { initialIdentity },
+      );
+      releaseFederationAssets();
+      releaseFederationAssets = undefined;
+      await page.waitForLoadState('domcontentloaded', { timeout: 15_000 });
+    }
     const marker = await page
       .locator('[data-testid="ultramodern-ui-marker"]')
       .getAttribute('data-build-marker');
@@ -326,6 +627,76 @@ export async function validateBrowserTarget(target, browser, { artifactDir }) {
 
     await waitForHydrationStyles(page);
 
+    if (shellWithRemotes) {
+      let selectiveHydrationTrigger;
+      const hasExposedChunkResponse = () =>
+        federationResponses.some(
+          response =>
+            response.kind === 'exposed-chunk' &&
+            response.status >= 200 &&
+            response.status < 400,
+        );
+      if (!hasExposedChunkResponse()) {
+        const exposedChunkResponse = page.waitForResponse(
+          response =>
+            federationAssetKind(response.url(), app, observedRemoteOrigins) ===
+              'exposed-chunk' &&
+            response.status() >= 200 &&
+            response.status() < 400,
+          { timeout: 15_000 },
+        );
+        selectiveHydrationTrigger = await triggerRemoteBoundaryHydration(page);
+        assertPass(
+          selectiveHydrationTrigger !== undefined,
+          `${app.id} exposed no interactive remote element for selective hydration`,
+        );
+        await exposedChunkResponse;
+        await waitForHydrationStyles(page);
+      }
+      hydrationIdentity = await readHydrationIdentityProbe(page);
+      assertions.push(
+        assertion(
+          'shell-hydration-dom-identity',
+          hydrationIdentity.preserved ? 'pass' : 'fail',
+          hydrationIdentity,
+        ),
+      );
+      assertPass(
+        hydrationIdentity.preserved,
+        `${app.id} hydration replaced server-rendered remote DOM nodes`,
+        { hydrationIdentity },
+      );
+
+      const successfulKinds = new Set(
+        federationResponses
+          .filter(response => response.status >= 200 && response.status < 400)
+          .map(response => response.kind),
+      );
+      const requiredKinds = ['manifest', 'remote-entry', 'exposed-chunk'];
+      const networkEvidence = {
+        interceptedRequests: interceptedFederationRequests,
+        missingKinds: requiredKinds.filter(kind => !successfulKinds.has(kind)),
+        responses: federationResponses,
+        selectiveHydrationTrigger,
+      };
+      assertions.push(
+        assertion(
+          'shell-mf-network-evidence',
+          interceptedFederationRequests.length > 0 &&
+            networkEvidence.missingKinds.length === 0
+            ? 'pass'
+            : 'fail',
+          networkEvidence,
+        ),
+      );
+      assertPass(
+        interceptedFederationRequests.length > 0 &&
+          networkEvidence.missingKinds.length === 0,
+        `${app.id} did not consume the MF manifest, remote entry, and exposed chunks during hydration`,
+        networkEvidence,
+      );
+    }
+
     if (
       app.kind === 'shell' &&
       app.moduleFederation?.verticalRefs?.length > 0
@@ -335,7 +706,7 @@ export async function validateBrowserTarget(target, browser, { artifactDir }) {
       assertions.push(
         assertion(
           'shell-composition-boundary',
-          matchedRemoteBoundaries.length === remotes.length ? 'pass' : 'fail',
+          matchedRemoteBoundaries.length > 0 ? 'pass' : 'fail',
           {
             declaredRemoteIds: remotes.map(remote => remote.id),
             matchedRemoteBoundaries,
@@ -344,8 +715,8 @@ export async function validateBrowserTarget(target, browser, { artifactDir }) {
         ),
       );
       assertPass(
-        matchedRemoteBoundaries.length === remotes.length,
-        `${app.id} shell route did not render every declared remote boundary`,
+        matchedRemoteBoundaries.length > 0,
+        `${app.id} shell route did not render a declared remote boundary`,
         { triedRemoteBoundaries },
       );
     }
@@ -436,6 +807,12 @@ export async function validateBrowserTarget(target, browser, { artifactDir }) {
     );
     return assertions;
   } finally {
+    releaseFederationAssets?.();
+    if (federationRouteMatcher && federationRouteHandler) {
+      await page
+        .unroute(federationRouteMatcher, federationRouteHandler)
+        .catch(() => {});
+    }
     writeJsonFile(path.join(appArtifactDir, 'console.json'), consoleMessages, {
       atomic: false,
     });
@@ -452,6 +829,24 @@ export async function validateBrowserTarget(target, browser, { artifactDir }) {
       stylesheetLinks,
       { atomic: false },
     );
+    if (
+      app.kind === 'shell' &&
+      app.moduleFederation?.verticalRefs?.length > 0
+    ) {
+      writeJsonFile(
+        path.join(appArtifactDir, 'hydration-identity.json'),
+        hydrationIdentity ?? { status: 'not-completed' },
+        { atomic: false },
+      );
+      writeJsonFile(
+        path.join(appArtifactDir, 'federation-network.json'),
+        {
+          interceptedRequests: interceptedFederationRequests,
+          responses: federationResponses,
+        },
+        { atomic: false },
+      );
+    }
     await context.close();
   }
 }

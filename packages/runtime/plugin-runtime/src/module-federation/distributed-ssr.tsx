@@ -3,9 +3,21 @@ import { useRuntimeContext } from '../core/context/runtime';
 
 export const DISTRIBUTED_SSR_FRAGMENTS_LOCALS_KEY =
   '__modernDistributedSsrFragments';
+export const DISTRIBUTED_SSR_FRAGMENT_REQUEST_LOCALS_KEY =
+  '__modernDistributedSsrFragmentRequest';
+
+type DistributedSsrFragmentRequest = {
+  boundaryId: string;
+  expose: string;
+  props: Record<string, unknown>;
+  remote: string;
+  sourceUrl: string;
+};
 
 export type DistributedSsrFragment = {
   boundaryId: string;
+  buildMarker?: string;
+  digest?: string;
   expose: string;
   html: string;
   remote: string;
@@ -20,18 +32,28 @@ export type DistributedSsrFragmentFailure = {
   status: 'degraded';
 };
 
+type DistributedSsrFragmentResult =
+  | DistributedSsrFragment
+  | DistributedSsrFragmentFailure;
+
 export type DistributedSsrFragmentContext = {
-  fragments: Record<
+  fragments?: Record<
     string,
     DistributedSsrFragment | DistributedSsrFragmentFailure
   >;
   required: true;
+  resolve?: (
+    remote: string,
+    expose: string,
+    props: Record<string, unknown>,
+  ) => DistributedSsrFragmentResult | PromiseLike<DistributedSsrFragmentResult>;
 };
 
 export type DistributedSsrBoundaryProps = {
   children: ReactNode;
   expose: string;
   fallback: ReactNode;
+  fragmentProps?: Record<string, unknown>;
   remote: string;
 };
 
@@ -65,6 +87,54 @@ function getDistributedSsrFragmentContext(
   return context as DistributedSsrFragmentContext;
 }
 
+export function useDistributedSsrFragmentProps<Props extends object>({
+  boundaryId,
+  expose,
+}: {
+  boundaryId: string;
+  expose: string;
+}): Props {
+  const runtimeContext = useRuntimeContext();
+  const locals = runtimeContext.requestContext?.response?.locals;
+  const request =
+    locals && typeof locals === 'object'
+      ? (locals as Record<string, unknown>)[
+          DISTRIBUTED_SSR_FRAGMENT_REQUEST_LOCALS_KEY
+        ]
+      : undefined;
+
+  if (
+    !request ||
+    typeof request !== 'object' ||
+    (request as DistributedSsrFragmentRequest).boundaryId !== boundaryId ||
+    (request as DistributedSsrFragmentRequest).expose !== expose
+  ) {
+    throw new Error(
+      `Distributed SSR fragment request contract mismatch for ${boundaryId} ${expose}.`,
+    );
+  }
+
+  const props = (request as DistributedSsrFragmentRequest).props;
+  if (!props || typeof props !== 'object' || Array.isArray(props)) {
+    throw new Error(
+      `Distributed SSR fragment request props must be an object for ${boundaryId} ${expose}.`,
+    );
+  }
+
+  return props as Props;
+}
+
+function isThenable(
+  value:
+    | DistributedSsrFragmentResult
+    | PromiseLike<DistributedSsrFragmentResult>,
+): value is PromiseLike<DistributedSsrFragmentResult> {
+  return (
+    typeof (value as PromiseLike<DistributedSsrFragmentResult>).then ===
+    'function'
+  );
+}
+
 /**
  * Keeps the browser on the native Module Federation component while allowing
  * servers that cannot execute remote code (notably workerd) to render a
@@ -77,6 +147,7 @@ export function DistributedSsrBoundary({
   children,
   expose,
   fallback,
+  fragmentProps = {},
   remote,
 }: DistributedSsrBoundaryProps) {
   const runtimeContext = useRuntimeContext();
@@ -99,11 +170,19 @@ export function DistributedSsrBoundary({
     return <div {...attributes}>{children}</div>;
   }
 
-  const fragment = fragmentContext.fragments[key];
+  const fragmentOrPromise =
+    fragmentContext.resolve?.(remote, expose, fragmentProps) ??
+    fragmentContext.fragments?.[key];
+  if (fragmentOrPromise && isThenable(fragmentOrPromise)) {
+    throw fragmentOrPromise;
+  }
+  const fragment = fragmentOrPromise;
   if (fragment?.status === 'ready') {
     return (
       <div
         {...attributes}
+        data-modern-distributed-ssr-build={fragment.buildMarker}
+        data-modern-distributed-ssr-digest={fragment.digest}
         data-modern-distributed-ssr-status="ready"
         // The fragment is accepted only after the Worker adapter verifies its
         // declared boundary id and expose marker.
@@ -148,6 +227,7 @@ export function createDistributedSsrComponent<Props extends object>({
       <DistributedSsrBoundary
         expose={expose}
         fallback={fallback}
+        fragmentProps={props}
         remote={remote}
       >
         <DeferredRemoteComponent {...props} />

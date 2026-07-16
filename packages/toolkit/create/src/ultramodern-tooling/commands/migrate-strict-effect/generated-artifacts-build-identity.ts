@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import {
   createUltramodernBuildArtifactJson,
@@ -10,12 +11,40 @@ import {
 } from '../../config';
 import { type MigrationIo, writeTextIfChanged } from './io';
 
+const legacyApiMarkerPattern =
+  /export const ultramodernApiMarker\s*=\s*\{[\s\S]*?\}\s+as const;\n?/u;
+
+export function rewriteLegacyApiMarkerBinding(source: string): string {
+  if (!legacyApiMarkerPattern.test(source)) {
+    return source;
+  }
+  return source.replace(
+    legacyApiMarkerPattern,
+    "export { ultramodernApiMarker } from './ultramodern-build.ts';\n",
+  );
+}
+
 export function updateGeneratedBuildIdentityModules(
   io: MigrationIo,
   config: UltramodernToolingConfig,
 ) {
   let changed = false;
   for (const app of allWorkspaceAppsFromToolingConfig(config)) {
+    const sharedApiPath = path.join(
+      io.workspaceRoot,
+      app.directory,
+      'shared/api.ts',
+    );
+    if (app.api && fs.existsSync(sharedApiPath)) {
+      changed =
+        writeTextIfChanged(
+          io,
+          sharedApiPath,
+          rewriteLegacyApiMarkerBinding(
+            fs.readFileSync(sharedApiPath, 'utf-8'),
+          ),
+        ) || changed;
+    }
     changed =
       writeTextIfChanged(
         io,

@@ -5,17 +5,12 @@ import {
   readUltramodernConfig,
   workspaceAppsFromToolingConfig,
 } from '../ultramodern-tooling/config';
-import { createBackendFederationContract } from './backend-federation';
-import {
-  createDeliveryUnitRecord,
-  deliveryUnitContractBlock,
-} from './delivery-unit';
+import { stampDeliveryUnitIdentity } from './delivery-unit-stamp';
 import { ULTRAMODERN_CONFIG_PATH } from './descriptors';
 import {
   createUltramodernBuildArtifactJson,
   createUltramodernBuildModule,
 } from './module-federation';
-import type { WorkspaceApp } from './types';
 
 const REFERENCE_TOPOLOGY_PATH = 'topology/reference-topology.json';
 
@@ -45,40 +40,6 @@ function writeJsonIfChanged(absolutePath: string, value: unknown): boolean {
     absolutePath,
     `${JSON.stringify(value, null, 2)}\n`,
   );
-}
-
-/**
- * Stamp the delivery-unit identity blocks onto a single topology entry
- * (either a compact-config `topology.apps[]` app or a
- * `reference-topology.json` `verticals[]` vertical). The mutation is
- * surgical: existing backend-federation fields are preserved and only the
- * delivery-unit identity is (re)written, so a second run is a no-op.
- */
-function stampDeliveryUnitIdentity(
-  entry: Record<string, any>,
-  scope: string,
-  app: WorkspaceApp,
-): void {
-  const block = deliveryUnitContractBlock(createDeliveryUnitRecord(scope, app));
-
-  entry.deliveryUnit = block;
-
-  if (isPlainObject(entry.backendFederation)) {
-    entry.backendFederation.deliveryUnit = block;
-    if (!isPlainObject(entry.backendFederation.versionBoundary)) {
-      entry.backendFederation.versionBoundary = {};
-    }
-    entry.backendFederation.versionBoundary.identityRoot = 'deliveryUnit';
-  } else {
-    // No backend-federation block present at all: materialise the canonical
-    // one, which already carries the delivery-unit identity + identityRoot.
-    // Shell / UI-only units have no backend surface (the contract is
-    // undefined); they carry only the top-level delivery-unit identity (G29).
-    const contract = createBackendFederationContract(scope, app);
-    if (contract !== undefined) {
-      entry.backendFederation = contract;
-    }
-  }
 }
 
 export function runSyncDeliveryUnit(

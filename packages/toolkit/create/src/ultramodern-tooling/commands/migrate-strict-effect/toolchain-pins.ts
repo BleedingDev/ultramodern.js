@@ -1,6 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { ULTRAMODERN_WORKSPACE_POLICY } from '../../../ultramodern-workspace/policy';
+import {
+  ULTRAMODERN_PACKAGE_PINS,
+  ULTRAMODERN_WORKSPACE_POLICY,
+} from '../../../ultramodern-workspace/policy';
 import type { MigrationIo } from './io';
 
 const { toolchain } = ULTRAMODERN_WORKSPACE_POLICY;
@@ -45,12 +48,18 @@ export function updateRootPackageToolchain(packageJson: Record<string, any>) {
   engines.node = toolchain.node.engineRange;
   engines.pnpm = toolchain.packageManager.engineRange;
 
-  const devDependencies = packageJson.devDependencies;
-  if (isRecord(devDependencies)) {
-    for (const packageName of retiredRootToolingDependencies) {
-      delete devDependencies[packageName];
-    }
+  const devDependencies = ensureRecord(
+    packageJson,
+    'devDependencies',
+    'package.json devDependencies',
+  );
+  for (const packageName of retiredRootToolingDependencies) {
+    delete devDependencies[packageName];
   }
+  devDependencies['@typescript/native'] =
+    ULTRAMODERN_PACKAGE_PINS.rootDevDependencies['@typescript/native'];
+  devDependencies.miniflare =
+    ULTRAMODERN_PACKAGE_PINS.rootDevDependencies.miniflare;
 }
 
 function updateMiseTools(content: string) {

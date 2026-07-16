@@ -139,7 +139,7 @@ export default defineConfig(
         port,
         publicDir: ['./locales', './assets'],
         ssr: {
-          mode: 'string',
+          mode: 'stream',
           moduleFederationAppSSR: true,
         },
       },

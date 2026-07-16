@@ -10,7 +10,10 @@ function createNoopMonitors() {
 }
 
 const DISTRIBUTED_SSR_FRAGMENTS_LOCALS_KEY = '__modernDistributedSsrFragments';
+const DISTRIBUTED_SSR_FRAGMENT_REQUEST_LOCALS_KEY =
+  '__modernDistributedSsrFragmentRequest';
 const DISTRIBUTED_SSR_CSS_HEADER = 'x-modern-distributed-ssr-css';
+const DISTRIBUTED_SSR_PROVENANCE_HEADER = 'x-modern-distributed-ssr-provenance';
 
 function distributedSsrFragmentKey(remote, expose) {
   return `${remote}::${expose}`;
@@ -76,6 +79,49 @@ function extractRenderedBoundaryElement(html, boundaryId, expose) {
   return undefined;
 }
 
+function findFragmentMarker(html, boundaryId, expose, marker, fromIndex = 0) {
+  const tagPattern = /<template\b[^>]*>/giu;
+  tagPattern.lastIndex = fromIndex;
+
+  for (const match of html.matchAll(tagPattern)) {
+    const tag = match[0];
+    if (
+      openingTagHasAttribute(tag, 'data-modern-boundary-id', boundaryId) &&
+      openingTagHasAttribute(tag, 'data-modern-mf-expose', expose) &&
+      openingTagHasAttribute(tag, 'data-modern-distributed-ssr-marker', marker)
+    ) {
+      return {
+        end: (match.index ?? 0) + tag.length,
+        start: match.index ?? 0,
+      };
+    }
+  }
+
+  return undefined;
+}
+
+function extractRenderedFragmentHtml(html, boundaryId, expose) {
+  const start = findFragmentMarker(html, boundaryId, expose, 'start');
+  if (start) {
+    const startClose = html.indexOf('</template>', start.end);
+    const contentStart =
+      startClose === -1 ? start.end : startClose + '</template>'.length;
+    const end = findFragmentMarker(
+      html,
+      boundaryId,
+      expose,
+      'end',
+      contentStart,
+    );
+
+    if (end && end.start >= contentStart) {
+      return html.slice(contentStart, end.start);
+    }
+  }
+
+  return extractRenderedBoundaryElement(html, boundaryId, expose);
+}
+
 function readOpeningTagAttribute(openingTag, name) {
   const pattern = new RegExp(
     `\\s${escapeFragmentRegExp(name)}=(?:"([^"]*)"|'([^']*)')`,
@@ -102,6 +148,25 @@ function collectStylesheetHrefs(html) {
   return hrefs;
 }
 
+function dedupeStylesheetLinks(html) {
+  const seenHrefs = new Set();
+
+  return html.replace(/<link\b[^>]*>/giu, link => {
+    const rel = readOpeningTagAttribute(link, 'rel');
+    const href = readOpeningTagAttribute(link, 'href');
+
+    if (!href || !rel?.split(/\s+/u).includes('stylesheet')) {
+      return link;
+    }
+    if (seenHrefs.has(href)) {
+      return '';
+    }
+
+    seenHrefs.add(href);
+    return link;
+  });
+}
+
 function readFragmentStylesheetAssets(response) {
   const value = response.headers.get(DISTRIBUTED_SSR_CSS_HEADER);
 
@@ -121,7 +186,7 @@ function readFragmentStylesheetAssets(response) {
   }
 }
 
-async function collectFragmentStylesheetHrefs(
+async function resolveFragmentStylesheetHrefs(
   stylesheetAssets,
   fragment,
   fragmentUrl,
@@ -158,15 +223,61 @@ async function collectFragmentStylesheetHrefs(
   return [...new Set(hrefs)];
 }
 
-function createHydratableFragmentHtml(fragmentHtml, stylesheetHrefs) {
-  const links = stylesheetHrefs
-    .map(
-      href =>
-        `<link href="${escapeAttribute(href)}" rel="stylesheet" type="text/css">`,
-    )
-    .join('');
+function createHydratableFragmentHtml(fragmentHtml) {
+  return `<!--$-->${fragmentHtml}<!--/$-->`;
+}
 
-  return `<!--$-->${links}${fragmentHtml}<!--/$-->`;
+async function sha256Hex(value) {
+  const bytes = new Uint8Array(
+    await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)),
+  );
+
+  return [...bytes].map(byte => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function serializeDistributedSsrProps(props) {
+  const seen = new WeakSet();
+  const serialized = JSON.stringify(props, (_key, value) => {
+    if (
+      typeof value === 'bigint' ||
+      typeof value === 'function' ||
+      typeof value === 'symbol'
+    ) {
+      throw new TypeError('Distributed SSR props must be JSON serializable.');
+    }
+    if (typeof value === 'number' && !Number.isFinite(value)) {
+      throw new TypeError('Distributed SSR props must contain finite numbers.');
+    }
+    if (value && typeof value === 'object') {
+      if (seen.has(value)) {
+        throw new TypeError('Distributed SSR props must not contain cycles.');
+      }
+      seen.add(value);
+    }
+    return value;
+  });
+
+  if (typeof serialized !== 'string') {
+    throw new TypeError('Distributed SSR props must serialize to JSON.');
+  }
+
+  return serialized;
+}
+
+function readFragmentProvenance(response) {
+  const value = response.headers.get(DISTRIBUTED_SSR_PROVENANCE_HEADER);
+  if (value === null) {
+    return undefined;
+  }
+
+  try {
+    const provenance = JSON.parse(decodeURIComponent(value));
+    return provenance && typeof provenance === 'object'
+      ? provenance
+      : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function fragmentLocale(request) {
@@ -208,12 +319,17 @@ function emitFragmentFailure(binding, fragment, reason) {
   } catch {}
 }
 
-async function fetchDistributedSsrFragment(binding, fragment, request, env) {
-  const key = distributedSsrFragmentKey(fragment.remote, fragment.expose);
+async function fetchDistributedSsrFragment(
+  binding,
+  fragment,
+  propsJson,
+  request,
+  env,
+) {
   const service = env?.[binding.binding];
   if (!service || typeof service.fetch !== 'function') {
     emitFragmentFailure(binding, fragment, 'binding-unavailable');
-    return [key, createFragmentFailure(fragment, 'binding-unavailable')];
+    return createFragmentFailure(fragment, 'binding-unavailable');
   }
 
   const fragmentPath = fragment.path.replaceAll(
@@ -224,6 +340,11 @@ async function fetchDistributedSsrFragment(binding, fragment, request, env) {
   const headers = new Headers(request.headers);
   headers.delete('host');
   headers.set('x-modern-js-fragment-request', '1');
+  headers.set('x-modern-distributed-ssr-boundary-id', fragment.boundaryId);
+  headers.set('x-modern-distributed-ssr-expose', fragment.expose);
+  headers.set('x-modern-distributed-ssr-props', encodeURIComponent(propsJson));
+  headers.set('x-modern-distributed-ssr-remote', fragment.remote);
+  headers.set('x-modern-distributed-ssr-source-url', request.url);
 
   try {
     const response = await service.fetch(
@@ -235,71 +356,164 @@ async function fetchDistributedSsrFragment(binding, fragment, request, env) {
     if (!response.ok) {
       const reason = `fragment-http-${response.status}`;
       emitFragmentFailure(binding, fragment, reason);
-      return [key, createFragmentFailure(fragment, reason)];
+      return createFragmentFailure(fragment, reason);
     }
 
     const html = await response.text();
     const stylesheetAssets = readFragmentStylesheetAssets(response);
-    const renderedBoundaryHtml = extractRenderedBoundaryElement(
+    const renderedBoundaryHtml = extractRenderedFragmentHtml(
       html,
       fragment.boundaryId,
       fragment.expose,
     );
-    if (!renderedBoundaryHtml || stylesheetAssets === undefined) {
+    const provenance = readFragmentProvenance(response);
+    if (
+      !renderedBoundaryHtml ||
+      stylesheetAssets === undefined ||
+      provenance?.boundaryId !== fragment.boundaryId ||
+      provenance?.expose !== fragment.expose ||
+      provenance?.remote !== fragment.remote ||
+      typeof provenance?.buildMarker !== 'string' ||
+      typeof provenance?.digest !== 'string' ||
+      typeof provenance?.sourceRevision !== 'string' ||
+      typeof provenance?.unitId !== 'string' ||
+      provenance.digest !== (await sha256Hex(renderedBoundaryHtml))
+    ) {
       emitFragmentFailure(binding, fragment, 'fragment-contract-mismatch');
-      return [
-        key,
-        createFragmentFailure(fragment, 'fragment-contract-mismatch'),
-      ];
+      return createFragmentFailure(fragment, 'fragment-contract-mismatch');
     }
-    const stylesheetHrefs = await collectFragmentStylesheetHrefs(
+    const stylesheetHrefs = await resolveFragmentStylesheetHrefs(
       stylesheetAssets,
       fragment,
       fragmentUrl,
       request,
       env,
     );
-    const fragmentHtml = createHydratableFragmentHtml(
-      renderedBoundaryHtml,
-      stylesheetHrefs,
-    );
+    const fragmentHtml = createHydratableFragmentHtml(renderedBoundaryHtml);
 
-    return [
-      key,
-      {
-        boundaryId: fragment.boundaryId,
-        expose: fragment.expose,
-        html: fragmentHtml,
-        remote: fragment.remote,
-        status: 'ready',
-      },
-    ];
+    return {
+      boundaryId: fragment.boundaryId,
+      buildMarker: provenance.buildMarker,
+      digest: provenance.digest,
+      expose: fragment.expose,
+      html: fragmentHtml,
+      provenance,
+      remote: fragment.remote,
+      status: 'ready',
+      stylesheetHrefs,
+    };
   } catch {
     emitFragmentFailure(binding, fragment, 'fragment-request-failed');
-    return [key, createFragmentFailure(fragment, 'fragment-request-failed')];
+    return createFragmentFailure(fragment, 'fragment-request-failed');
   }
 }
 
-async function collectDistributedSsrFragments(request, env) {
+function createDistributedSsrFragmentContext(request, env) {
   const bindings = Array.isArray(MODERN_WORKER_MANIFEST.serviceBindings)
     ? MODERN_WORKER_MANIFEST.serviceBindings
     : [];
-  const requests = bindings.flatMap(binding =>
+  const configuredFragments = bindings.flatMap(binding =>
     Array.isArray(binding.fragments)
-      ? binding.fragments.map(fragment =>
-          fetchDistributedSsrFragment(binding, fragment, request, env),
-        )
+      ? binding.fragments.map(fragment => ({ binding, fragment }))
       : [],
   );
+  if (configuredFragments.length === 0) {
+    return undefined;
+  }
+  const cache = new Map();
+  const stylesheetHrefs = new Set();
 
-  if (requests.length === 0) {
+  return {
+    required: true,
+    getStylesheetHrefs() {
+      return [...stylesheetHrefs];
+    },
+    resolve(remote, expose, props) {
+      const configured = configuredFragments.find(
+        candidate =>
+          candidate.fragment.remote === remote &&
+          candidate.fragment.expose === expose,
+      );
+      if (!configured) {
+        return {
+          boundaryId: remote,
+          expose,
+          reason: 'fragment-not-configured',
+          remote,
+          status: 'degraded',
+        };
+      }
+
+      let propsJson;
+      try {
+        propsJson = serializeDistributedSsrProps(props);
+      } catch {
+        return createFragmentFailure(
+          configured.fragment,
+          'fragment-props-not-serializable',
+        );
+      }
+      const key = `${distributedSsrFragmentKey(remote, expose)}::${propsJson}`;
+      if (!cache.has(key)) {
+        cache.set(
+          key,
+          fetchDistributedSsrFragment(
+            configured.binding,
+            configured.fragment,
+            propsJson,
+            request,
+            env,
+          ).then(result => {
+            if (result.status === 'ready') {
+              for (const href of result.stylesheetHrefs) {
+                stylesheetHrefs.add(href);
+              }
+            }
+            const { stylesheetHrefs: _stylesheetHrefs, ...publicResult } =
+              result;
+            cache.set(key, publicResult);
+            return publicResult;
+          }),
+        );
+      }
+
+      return cache.get(key);
+    },
+  };
+}
+
+function readDistributedSsrFragmentRequest(request) {
+  if (request.headers.get('x-modern-js-fragment-request') !== '1') {
     return undefined;
   }
 
-  return {
-    fragments: Object.fromEntries(await Promise.all(requests)),
-    required: true,
-  };
+  try {
+    const boundaryId = request.headers.get(
+      'x-modern-distributed-ssr-boundary-id',
+    );
+    const expose = request.headers.get('x-modern-distributed-ssr-expose');
+    const propsValue = request.headers.get('x-modern-distributed-ssr-props');
+    const remote = request.headers.get('x-modern-distributed-ssr-remote');
+    const sourceUrl = request.headers.get(
+      'x-modern-distributed-ssr-source-url',
+    );
+    const props = JSON.parse(decodeURIComponent(propsValue ?? ''));
+    if (
+      !boundaryId ||
+      !expose ||
+      !remote ||
+      !sourceUrl ||
+      !props ||
+      typeof props !== 'object' ||
+      Array.isArray(props)
+    ) {
+      return undefined;
+    }
+
+    return { boundaryId, expose, props, remote, sourceUrl };
+  } catch {
+    return undefined;
+  }
 }
 
 function createRequestHandlerOptions({
@@ -308,6 +522,7 @@ function createRequestHandlerOptions({
   routeManifest,
   loadableStats,
   distributedSsrFragments,
+  distributedSsrFragmentRequest,
 }) {
   const monitors = createNoopMonitors();
 
@@ -322,12 +537,19 @@ function createRequestHandlerOptions({
     params: {},
     loaderContext: {},
     config: {},
-    locals:
-      distributedSsrFragments === undefined
+    locals: {
+      ...(distributedSsrFragments === undefined
         ? {}
         : {
             [DISTRIBUTED_SSR_FRAGMENTS_LOCALS_KEY]: distributedSsrFragments,
-          },
+          }),
+      ...(distributedSsrFragmentRequest === undefined
+        ? {}
+        : {
+            [DISTRIBUTED_SSR_FRAGMENT_REQUEST_LOCALS_KEY]:
+              distributedSsrFragmentRequest,
+          }),
+    },
     staticGenerate: false,
     monitors,
     onError(error) {
@@ -510,6 +732,43 @@ function collectLocalFragmentCssAssets(html, request) {
   return [...assets];
 }
 
+async function createLocalFragmentProvenance(html, request) {
+  const fragmentRequest = readDistributedSsrFragmentRequest(request);
+  if (!fragmentRequest) {
+    return undefined;
+  }
+  const localManifest = MODERN_WORKER_MANIFEST.moduleFederation;
+  const deliveryUnit = MODERN_WORKER_MANIFEST.deliveryUnit;
+  if (
+    !localManifest ||
+    localManifest.name !== fragmentRequest.boundaryId ||
+    !findRemoteExpose(localManifest, fragmentRequest.expose) ||
+    typeof deliveryUnit?.buildMarker !== 'string' ||
+    typeof deliveryUnit?.sourceRevision !== 'string' ||
+    typeof deliveryUnit?.unitId !== 'string'
+  ) {
+    return undefined;
+  }
+  const fragmentHtml = extractRenderedFragmentHtml(
+    html,
+    fragmentRequest.boundaryId,
+    fragmentRequest.expose,
+  );
+  if (!fragmentHtml) {
+    return undefined;
+  }
+
+  return {
+    boundaryId: fragmentRequest.boundaryId,
+    buildMarker: deliveryUnit.buildMarker,
+    digest: await sha256Hex(fragmentHtml),
+    expose: fragmentRequest.expose,
+    remote: fragmentRequest.remote,
+    sourceRevision: deliveryUnit.sourceRevision,
+    unitId: deliveryUnit.unitId,
+  };
+}
+
 function collectRouteManifestCssAssets(routeManifest) {
   const routeAssets = routeManifest?.routeAssets || {};
   const assets = new Set();
@@ -616,21 +875,38 @@ function toRouteCssHtmlHref(asset) {
   return `/${asset.replace(/^\/+/u, '')}`;
 }
 
-async function withRouteCssLinks(response, route, routeManifest, request, env) {
+async function withRouteCssLinks(
+  response,
+  route,
+  routeManifest,
+  request,
+  env,
+  distributedSsrFragmentCssHrefs = [],
+) {
   const contentType = response.headers.get('content-type') || '';
 
   if (!contentType.includes('text/html')) {
     return response;
   }
 
-  const html = await response.text();
+  const html = dedupeStylesheetLinks(await response.text());
   const headers = new Headers(response.headers);
   const localFragmentCssAssets = collectLocalFragmentCssAssets(html, request);
+  const localFragmentProvenance = await createLocalFragmentProvenance(
+    html,
+    request,
+  );
 
   if (localFragmentCssAssets !== undefined) {
     headers.set(
       DISTRIBUTED_SSR_CSS_HEADER,
       JSON.stringify(localFragmentCssAssets),
+    );
+  }
+  if (localFragmentProvenance !== undefined) {
+    headers.set(
+      DISTRIBUTED_SSR_PROVENANCE_HEADER,
+      encodeURIComponent(JSON.stringify(localFragmentProvenance)),
     );
   }
 
@@ -641,11 +917,16 @@ async function withRouteCssLinks(response, route, routeManifest, request, env) {
       return {
         href,
         preloadHref: new URL(href, request.url).toString(),
+        reactResource: false,
       };
     }),
-    ...(await collectRenderedRemoteCssHrefs(html, request, env)).map(href => ({
+    ...(distributedSsrFragmentCssHrefs.length > 0
+      ? distributedSsrFragmentCssHrefs
+      : await collectRenderedRemoteCssHrefs(html, request, env)
+    ).map(href => ({
       href,
       preloadHref: new URL(href, request.url).toString(),
+      reactResource: true,
     })),
   ];
 
@@ -675,8 +956,10 @@ async function withRouteCssLinks(response, route, routeManifest, request, env) {
       ({ href, preloadHref }) =>
         !html.includes(href) && !html.includes(preloadHref),
     )
-    .map(
-      ({ href }) => `<link rel="stylesheet" href="${escapeAttribute(href)}">`,
+    .map(({ href, reactResource }) =>
+      reactResource
+        ? `<link href="${escapeAttribute(href)}" rel="stylesheet" type="text/css" data-precedence="default">`
+        : `<link rel="stylesheet" href="${escapeAttribute(href)}">`,
     );
 
   if (links.length === 0 || !html.includes('</head>')) {
@@ -695,21 +978,17 @@ async function withRouteCssLinks(response, route, routeManifest, request, env) {
 }
 
 async function getRequestHandlerOptions(route, request, env) {
-  const [htmlTemplate, routeManifest, loadableStats, distributedSsrFragments] =
-    await Promise.all([
-      readAssetText(route.entryPath, request, env),
-      readAssetJson(
-        MODERN_WORKER_MANIFEST.resources.routeManifest,
-        request,
-        env,
-      ),
-      readAssetJson(
-        MODERN_WORKER_MANIFEST.resources.loadableStats,
-        request,
-        env,
-      ),
-      collectDistributedSsrFragments(request, env),
-    ]);
+  const [htmlTemplate, routeManifest, loadableStats] = await Promise.all([
+    readAssetText(route.entryPath, request, env),
+    readAssetJson(MODERN_WORKER_MANIFEST.resources.routeManifest, request, env),
+    readAssetJson(MODERN_WORKER_MANIFEST.resources.loadableStats, request, env),
+  ]);
+  const distributedSsrFragments = createDistributedSsrFragmentContext(
+    request,
+    env,
+  );
+  const distributedSsrFragmentRequest =
+    readDistributedSsrFragmentRequest(request);
 
   return createRequestHandlerOptions({
     route,
@@ -717,5 +996,6 @@ async function getRequestHandlerOptions(route, request, env) {
     routeManifest,
     loadableStats,
     distributedSsrFragments,
+    distributedSsrFragmentRequest,
   });
 }

@@ -155,7 +155,7 @@ test('generated postinstall owns Codex skills without system packages or referen
     );
     assert.equal(
       rootPackage.scripts.postinstall,
-      "oxfmt . '!repos/**' && node ./scripts/bootstrap-agent-skills.mts --postinstall",
+      "node ./scripts/bootstrap-agent-skills.mts --postinstall && oxfmt . '!repos/**'",
       'postinstall must not chain the reference-repo installer',
     );
     // The explicit opt-in entry points must remain available.

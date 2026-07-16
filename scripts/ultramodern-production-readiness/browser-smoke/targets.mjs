@@ -39,10 +39,13 @@ export function createSmokeTargets(
   const skipped = [];
 
   for (const app of normalizedContract.apps ?? []) {
+    const portEnv = appPortEnv(app);
+    const configuredPort = portEnv ? env[portEnv] : undefined;
+    const port =
+      configuredPort === undefined ? appPort(app) : Number(configuredPort);
     let baseUrl;
     if (mode === 'local') {
-      const port = appPort(app);
-      if (!Number.isInteger(port)) {
+      if (!Number.isInteger(port) || port <= 0) {
         throw new BrowserSmokeError(`${app.id} is missing a local port`);
       }
       baseUrl = `http://localhost:${port}`;
@@ -69,8 +72,8 @@ export function createSmokeTargets(
     targets.push({
       app,
       baseUrl: normalizeBaseUrl(baseUrl),
-      port: appPort(app),
-      portEnv: appPortEnv(app),
+      port,
+      portEnv,
       publicUrlEnv: appPublicUrlEnv(app),
       routes: routesForApp(app),
     });
@@ -82,5 +85,31 @@ export function createSmokeTargets(
 export function orderTargetsForLocalStartup(targets) {
   const remotes = targets.filter(target => target.app.kind !== 'shell');
   const shells = targets.filter(target => target.app.kind === 'shell');
-  return { remotes, shells, validation: [...remotes, ...shells] };
+  const pending = new Map(remotes.map(target => [target.app.id, target]));
+  const remoteLayers = [];
+
+  while (pending.size > 0) {
+    const layer = [...pending.values()].filter(target =>
+      (target.app.moduleFederation?.remotes ?? []).every(
+        remote => !pending.has(remote.id),
+      ),
+    );
+    if (layer.length === 0) {
+      throw new BrowserSmokeError(
+        `local smoke remote dependency cycle: ${[...pending.keys()].join(', ')}`,
+      );
+    }
+    remoteLayers.push(layer);
+    for (const target of layer) {
+      pending.delete(target.app.id);
+    }
+  }
+
+  const orderedRemotes = remoteLayers.flat();
+  return {
+    remoteLayers,
+    remotes: orderedRemotes,
+    shells,
+    validation: [...orderedRemotes, ...shells],
+  };
 }

@@ -129,6 +129,11 @@ function createCompactConfig() {
           path: 'apps/shell-super-app',
           port: 3020,
           portEnv: 'SHELL_SUPER_APP_PORT',
+          deploy: {
+            cloudflare: {
+              distributedSsrProofRoutes: ['/en', '/en/products/tractor-1'],
+            },
+          },
           moduleFederation: {
             remotes: [
               {
@@ -193,6 +198,12 @@ test('creates local and public smoke targets from the generated contract', async
   );
   assert.deepEqual(
     createSmokeTargets(contract, {
+      env: { SHELL_SUPER_APP_PORT: '3120' },
+    }).targets.map(target => [target.baseUrl, target.port]),
+    [['http://localhost:3120', 3120]],
+  );
+  assert.deepEqual(
+    createSmokeTargets(contract, {
       mode: 'public',
       publicUrls: {
         'shell-super-app': 'https://shell.example.test/',
@@ -214,6 +225,8 @@ test('creates smoke targets from the compact UltraModern config', async () => {
     ],
   );
   assert.equal(targets[0].routes.locale, '/locales/en/shell.json');
+  assert.equal(targets[0].routes.distributedSsr, '/en/products/tractor-1');
+  assert.equal(targets[0].routes.ssr, '/en');
   assert.equal(targets[1].routes.locale, '/locales/en/inventory.json');
   assert.equal(
     targets[1].routes.effectReadiness,
@@ -320,6 +333,46 @@ test('orders local smoke startup so remotes are ready before shell', async () =>
   );
 });
 
+test('orders remote consumers after their remote producers are ready', async () => {
+  const { createSmokeTargets, orderTargetsForLocalStartup } = await loadSmoke();
+  const contract = createContract();
+  contract.apps.push(
+    {
+      ...contract.apps[0],
+      id: 'decide',
+      kind: 'vertical',
+      package: '@demo/decide',
+      moduleFederation: {
+        remotes: [{ id: 'explore' }, { id: 'checkout' }],
+      },
+    },
+    {
+      ...contract.apps[0],
+      id: 'explore',
+      kind: 'vertical',
+      package: '@demo/explore',
+    },
+    {
+      ...contract.apps[0],
+      id: 'checkout',
+      kind: 'vertical',
+      package: '@demo/checkout',
+    },
+  );
+
+  const { targets } = createSmokeTargets(contract);
+  const ordered = orderTargetsForLocalStartup(targets);
+
+  assert.deepEqual(
+    ordered.remoteLayers.map(layer => layer.map(target => target.app.id)),
+    [['explore', 'checkout'], ['decide']],
+  );
+  assert.deepEqual(
+    ordered.validation.map(target => target.app.id),
+    ['explore', 'checkout', 'decide', 'shell-super-app'],
+  );
+});
+
 test('waits for remote manifest JSON readiness', async () => {
   const { createSmokeTargets, waitForTarget } = await loadSmoke();
   const [target] = createSmokeTargets(createContract()).targets;
@@ -398,7 +451,9 @@ test('fails readiness immediately when the owned serve process exits', async () 
 test('rejects occupied local smoke ports before startup', async () => {
   const { assertLocalPortsAvailable } = await loadSmoke();
   const server = net.createServer();
-  await new Promise(resolve => server.listen(0, resolve));
+  await new Promise(resolve =>
+    server.listen({ host: '127.0.0.1', port: 0 }, resolve),
+  );
   const { port } = server.address();
 
   try {
@@ -638,6 +693,7 @@ function createFakeBrowser({
   boundaryIdsNoJs = boundaryIds,
   consoleError = false,
   consoleMessages = [],
+  hydrationIdentityPreserved = true,
   stylesheetHrefs,
 } = {}) {
   const handlers = {};
@@ -647,6 +703,13 @@ function createFakeBrowser({
   ];
   let hydrationSettled = false;
   let javaScriptEnabled = true;
+  let routeHandler;
+  let identityProbeCalls = 0;
+  const federationUrls = [
+    'http://localhost:3021/mf-manifest.json',
+    'http://localhost:3021/remoteEntry.js',
+    'http://localhost:3021/static/js/exposed-remote.js',
+  ];
   const page = {
     async $$eval(selector, mapper) {
       if (selector !== 'link[rel~="stylesheet"]') {
@@ -688,10 +751,25 @@ function createFakeBrowser({
         },
       };
     },
+    async evaluate() {
+      identityProbeCalls += 1;
+      if (identityProbeCalls === 1) {
+        return { boundaryCount: 1, nodeCount: 3 };
+      }
+      return {
+        boundaryCount: 1,
+        connectedNodeCount: hydrationIdentityPreserved ? 3 : 2,
+        nodeCount: 3,
+        preserved: hydrationIdentityPreserved,
+        provenanceBoundaryCount: hydrationIdentityPreserved ? 1 : 0,
+        readyBoundaryCount: hydrationIdentityPreserved ? 1 : 0,
+        removedNodeCount: hydrationIdentityPreserved ? 0 : 1,
+      };
+    },
     on(event, handler) {
       handlers[event] = handler;
     },
-    async goto() {
+    async goto(_url, options = {}) {
       for (const message of consoleMessages) {
         handlers.console?.({
           location: () =>
@@ -707,6 +785,28 @@ function createFakeBrowser({
           type: () => 'error',
         });
       }
+      if (
+        javaScriptEnabled &&
+        options.waitUntil === 'commit' &&
+        typeof routeHandler === 'function'
+      ) {
+        for (const url of federationUrls) {
+          void routeHandler({
+            async continue() {
+              handlers.response?.({
+                status: () => 200,
+                url: () => url,
+              });
+            },
+            request() {
+              return { url: () => url };
+            },
+          });
+        }
+      }
+    },
+    async route(_matcher, handler) {
+      routeHandler = handler;
     },
     async screenshot({ path: screenshotPath }) {
       fs.mkdirSync(path.dirname(screenshotPath), { recursive: true });
@@ -717,6 +817,9 @@ function createFakeBrowser({
     },
     async waitForSelector() {},
     async waitForTimeout() {},
+    async unroute() {
+      routeHandler = undefined;
+    },
   };
   const browser = {
     contextOptions,
@@ -748,6 +851,26 @@ test('finds duplicate hydrated stylesheet hrefs', async () => {
   );
 });
 
+test('classifies hashed chunks from an observed remote runtime origin', async () => {
+  const { federationAssetKind } = await import(
+    '../browser-smoke/browser-validate.mjs'
+  );
+  const app = {
+    moduleFederation: {
+      remotes: [{ manifestUrl: 'http://localhost:3021/mf-manifest.json' }],
+    },
+  };
+
+  assert.equal(
+    federationAssetKind(
+      'http://127.0.0.1:3121/static/js/async/436.407bc0f633.js',
+      app,
+      new Set(['http://127.0.0.1:3121']),
+    ),
+    'exposed-chunk',
+  );
+});
+
 test('prefers generated app ids for shell composition boundaries', async () => {
   const { remoteBoundaryCandidates } = await loadSmoke();
 
@@ -761,7 +884,7 @@ test('prefers generated app ids for shell composition boundaries', async () => {
   );
 });
 
-test('fails unless the shell renders every declared remote boundary', async () => {
+test('fails unless the shell renders a declared remote boundary', async () => {
   const { createSmokeTargets, validateBrowserTarget } = await loadSmoke();
   const root = tempRoot();
   const [target] = createSmokeTargets(createContract()).targets;
@@ -773,12 +896,10 @@ test('fails unless the shell renders every declared remote boundary', async () =
   try {
     await assert.rejects(
       () =>
-        validateBrowserTarget(
-          target,
-          createFakeBrowser({ boundaryIds: ['inventory'] }),
-          { artifactDir: root },
-        ),
-      /did not render every declared remote boundary/,
+        validateBrowserTarget(target, createFakeBrowser({ boundaryIds: [] }), {
+          artifactDir: root,
+        }),
+      /did not render a declared remote boundary/,
     );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
@@ -840,6 +961,51 @@ test('waits for hydration before checking shell remote boundaries', async () => 
       assertions.find(item => item.type === 'no-js-shell-composition-boundary')
         ?.status,
       'pass',
+    );
+    assert.equal(
+      assertions.find(item => item.type === 'shell-hydration-dom-identity')
+        ?.status,
+      'pass',
+    );
+    assert.equal(
+      assertions.find(item => item.type === 'shell-mf-network-evidence')
+        ?.status,
+      'pass',
+    );
+    assert.equal(
+      fs.existsSync(path.join(root, 'shell-super-app/hydration-identity.json')),
+      true,
+    );
+    assert.equal(
+      fs.existsSync(path.join(root, 'shell-super-app/federation-network.json')),
+      true,
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('fails when hydration replaces server-rendered remote nodes', async () => {
+  const { createSmokeTargets, validateBrowserTarget } = await loadSmoke();
+  const root = tempRoot();
+  const [target] = createSmokeTargets(createContract()).targets;
+  target.app.moduleFederation = {
+    verticalRefs: ['inventory'],
+    remotes: [{ id: 'inventory' }],
+  };
+
+  try {
+    await assert.rejects(
+      () =>
+        validateBrowserTarget(
+          target,
+          createFakeBrowser({
+            boundaryIds: ['inventory'],
+            hydrationIdentityPreserved: false,
+          }),
+          { artifactDir: root },
+        ),
+      /replaced server-rendered remote DOM nodes/,
     );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });

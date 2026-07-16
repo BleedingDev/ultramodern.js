@@ -1,10 +1,20 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { createAppEnvDts } from '../../../ultramodern-workspace/app-files';
 import {
+  createAppEnvDts,
+  createAppRuntimeConfig,
+} from '../../../ultramodern-workspace/app-files';
+import {
+  createRemoteExposeFragmentPage,
   regenerateGeneratedNavigationSurface,
   remoteComponentOutputPath,
 } from '../../../ultramodern-workspace/demo-components';
+import {
+  appI18nNamespace,
+  distributedSsrExposes,
+  distributedSsrFragmentSlug,
+  resolveRemoteRefs,
+} from '../../../ultramodern-workspace/descriptors';
 import {
   createAppMfTypesTsConfig,
   createAppTsConfig,
@@ -215,6 +225,99 @@ function ensureGeneratedIgnoreRules(io: MigrationIo) {
   return io.write(gitignorePath, `${lines.join('\n')}\n`);
 }
 
+function updateGeneratedShellRuntimeSurfaces(
+  io: MigrationIo,
+  config: UltramodernToolingConfig,
+) {
+  const manifest = generatedManifest(io, config);
+  if (manifest === undefined) {
+    return false;
+  }
+
+  const apps = allWorkspaceAppsFromToolingConfig(config);
+  const remotes = apps.filter(app => app.kind !== 'shell');
+  const appsById = new Map(
+    manifestApps(manifest).map(app => [String(app.id ?? ''), app]),
+  );
+  let changed = false;
+
+  for (const app of apps.filter(app => app.kind === 'shell')) {
+    const manifestApp = appsById.get(app.id);
+    if (
+      manifestApp === undefined ||
+      !shellSurfaceIsOwned(io, app, manifestApp)
+    ) {
+      continue;
+    }
+
+    const runtimePath = path.join(
+      io.workspaceRoot,
+      app.directory,
+      'src/modern.runtime.ts',
+    );
+    if (!fs.existsSync(runtimePath)) {
+      continue;
+    }
+    const runtimeSource = fs.readFileSync(runtimePath, 'utf-8');
+    if (
+      !runtimeSource.includes('/verticals/') ||
+      !runtimeSource.includes('/locales/')
+    ) {
+      continue;
+    }
+
+    const shellRemotes = resolveRemoteRefs(app, remotes);
+    for (const language of ['en', 'cs'] as const) {
+      const shellLocaleDirectory = path.join(
+        io.workspaceRoot,
+        app.directory,
+        'locales',
+        language,
+      );
+      const shellLocale =
+        readJsonObject(
+          path.join(shellLocaleDirectory, `${appI18nNamespace(app)}.json`),
+        ) ?? {};
+      const mergedLocale = Object.assign(
+        {},
+        shellLocale,
+        ...shellRemotes.map(remote =>
+          readJsonObject(
+            path.join(
+              io.workspaceRoot,
+              remote.directory,
+              'locales',
+              language,
+              `${appI18nNamespace(remote)}.json`,
+            ),
+          ),
+        ),
+      );
+      changed =
+        writeJsonIfChanged(
+          io,
+          path.join(shellLocaleDirectory, `${appI18nNamespace(app)}.json`),
+          mergedLocale,
+        ) || changed;
+      changed =
+        writeJsonIfChanged(
+          io,
+          path.join(shellLocaleDirectory, 'translation.json'),
+          mergedLocale,
+        ) || changed;
+    }
+
+    changed =
+      writeTextIfChanged(
+        io,
+        runtimePath,
+        createAppRuntimeConfig(app, config.workspace.packageScope, remotes),
+      ) || changed;
+  }
+
+  return changed;
+}
+
 export function updateGeneratedTypeScriptSurfaces(
   io: MigrationIo,
   config: UltramodernToolingConfig,
@@ -260,10 +363,43 @@ export function updateGeneratedTypeScriptSurfaces(
       writeTextIfChanged(
         io,
         path.join(io.workspaceRoot, app.directory, 'src/modern-app-env.d.ts'),
-        createAppEnvDts(app, remotes),
+        createAppEnvDts(app, remotes, config.workspace.packageScope),
       ) || changed;
+
+    if (app.kind !== 'shell') {
+      for (const expose of distributedSsrExposes(app)) {
+        const fragmentPagePath = path.join(
+          io.workspaceRoot,
+          app.directory,
+          'src/routes/[lang]/_mf/fragment',
+          distributedSsrFragmentSlug(expose),
+          'page.tsx',
+        );
+        if (!fs.existsSync(fragmentPagePath)) {
+          continue;
+        }
+        const fragmentPageSource = fs.readFileSync(fragmentPagePath, 'utf-8');
+        if (
+          !fragmentPageSource.includes(
+            "from '@modern-js/runtime/module-federation';",
+          ) ||
+          !fragmentPageSource.includes(
+            'data-modern-distributed-ssr-marker="start"',
+          )
+        ) {
+          continue;
+        }
+        changed =
+          writeTextIfChanged(
+            io,
+            fragmentPagePath,
+            createRemoteExposeFragmentPage(app, expose),
+          ) || changed;
+      }
+    }
   }
 
+  changed = updateGeneratedShellRuntimeSurfaces(io, config) || changed;
   changed = updateGeneratedNavigationSurfaces(io, config) || changed;
 
   return changed;

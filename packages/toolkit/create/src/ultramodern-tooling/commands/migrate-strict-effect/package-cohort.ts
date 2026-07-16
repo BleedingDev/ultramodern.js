@@ -9,6 +9,7 @@ import type { WorkspaceApp } from '../../../ultramodern-workspace/types';
 import {
   createWorkspaceAppPackageScripts,
   createWorkspaceRootPackageScripts,
+  GENERATED_POSTINSTALL_SCRIPT,
 } from '../../../ultramodern-workspace/workspace-script-plan';
 import { migratedWorkspaceScriptBasenames } from '../../../ultramodern-workspace/workspace-scripts';
 
@@ -218,6 +219,11 @@ export function updateGeneratedPackageScripts(
       `${candidate.directory}/package.json` === options.relativePackageFile,
   );
   const isRootPackage = options.relativePackageFile === 'package.json';
+
+  if (isRootPackage && scripts.postinstall !== GENERATED_POSTINSTALL_SCRIPT) {
+    scripts.postinstall = GENERATED_POSTINSTALL_SCRIPT;
+    changed = true;
+  }
 
   const expectedScripts = isRootPackage
     ? createWorkspaceRootPackageScripts(

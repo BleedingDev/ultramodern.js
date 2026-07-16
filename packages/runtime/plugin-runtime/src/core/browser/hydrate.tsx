@@ -10,9 +10,14 @@ import { WithCallback } from './withCallback';
 
 export const isReact18 = () => process.env.IS_REACT18 === 'true';
 
+const runtimeProcess = Reflect.get(globalThis, 'process') as
+  | { env?: { MODERN_CHUNK_LOADING_GLOBAL?: string } }
+  | undefined;
+
 const loadableReadyOptions = {
   chunkLoadingGlobal:
-    process.env.MODERN_CHUNK_LOADING_GLOBAL || '__LOADABLE_LOADED_CHUNKS__',
+    runtimeProcess?.env?.MODERN_CHUNK_LOADING_GLOBAL ||
+    '__LOADABLE_LOADED_CHUNKS__',
 };
 
 export async function hydrateWithReact(

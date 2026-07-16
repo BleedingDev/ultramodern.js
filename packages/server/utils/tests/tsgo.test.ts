@@ -233,6 +233,7 @@ describe('createResolvedTsgoConfig', () => {
         tsBuildInfoFile: './node_modules/.cache/app.tsbuildinfo',
       },
       include: ['api', 'shared', 'modern-app-env.d.ts'],
+      references: [{ path: '../shared-contracts' }],
     });
 
     const { config, resolvedConfigPath } = await createResolvedTsgoConfig(
@@ -254,6 +255,7 @@ describe('createResolvedTsgoConfig', () => {
         noEmit: false,
       });
       expect(config.compilerOptions).not.toHaveProperty('tsBuildInfoFile');
+      expect(config).not.toHaveProperty('references');
       await expect(fs.readJSON(resolvedConfigPath)).resolves.toMatchObject({
         compilerOptions: {
           composite: false,
@@ -264,6 +266,9 @@ describe('createResolvedTsgoConfig', () => {
           noEmit: false,
         },
       });
+      await expect(fs.readJSON(resolvedConfigPath)).resolves.not.toHaveProperty(
+        'references',
+      );
     } finally {
       await fs.remove(resolvedConfigPath);
       await fs.remove(tempRoot);

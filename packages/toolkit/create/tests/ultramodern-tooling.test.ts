@@ -12,7 +12,15 @@ import {
   addUltramodernVertical,
   generateUltramodernWorkspace,
 } from '../src/ultramodern-workspace';
-import { createBackendModuleFederationConfig } from '../src/ultramodern-workspace/module-federation';
+import {
+  createFederatedComponentsRegistry,
+  createRemoteExposeFragmentPage,
+} from '../src/ultramodern-workspace/demo-components';
+import {
+  createAppModernConfig,
+  createBackendModuleFederationConfig,
+  createRemoteModuleFederationConfig,
+} from '../src/ultramodern-workspace/module-federation';
 import {
   createAppMfTypesTsConfig,
   createAppTsConfig,
@@ -30,6 +38,7 @@ import {
   NODE_VERSION,
   OXFMT_VERSION,
   PNPM_VERSION,
+  TANSTACK_ROUTER_CORE_VERSION,
   TYPESCRIPT_COMPILER_API_VERSION,
   TYPESCRIPT_VERSION,
 } from '../src/ultramodern-workspace/versions';
@@ -447,7 +456,7 @@ test('migrate materializes every validator-required wrapper and rewires legacy s
     );
     assert.equal(
       after.scripts.postinstall,
-      "oxfmt . '!repos/**' && node ./scripts/bootstrap-agent-skills.mts --postinstall",
+      "node ./scripts/bootstrap-agent-skills.mts --postinstall && oxfmt . '!repos/**'",
     );
     assert.equal(
       after.scripts['agents:refs:install'],
@@ -839,10 +848,52 @@ test('UltraModern migrate-strict-effect updates package cohort and direct API me
       modernVersion: '3.2.1',
     });
 
+    const catalogEnglishLocale = readJson(
+      workspaceDir,
+      'verticals/catalog/locales/en/catalog.json',
+    );
+    catalogEnglishLocale.catalog.migrationPreserved = 'Preserved catalog copy';
+    writeJson(
+      workspaceDir,
+      'verticals/catalog/locales/en/catalog.json',
+      catalogEnglishLocale,
+    );
+    fs.writeFileSync(
+      path.join(workspaceDir, 'apps/shell-super-app/src/modern.runtime.ts'),
+      `import catalogResource from '../../../verticals/catalog/locales/en/catalog.json';
+
+export default catalogResource;
+`,
+      'utf-8',
+    );
+    const catalogFragmentPagePath = path.join(
+      workspaceDir,
+      'verticals/catalog/src/routes/[lang]/_mf/fragment/widget/page.tsx',
+    );
+    fs.writeFileSync(
+      catalogFragmentPagePath,
+      fs
+        .readFileSync(catalogFragmentPagePath, 'utf-8')
+        .replace(
+          '@modern-js/runtime/module-federation/distributed-ssr',
+          '@modern-js/runtime/module-federation',
+        ),
+      'utf-8',
+    );
+
     const topology = readJson(workspaceDir, 'topology/reference-topology.json');
+    topology.description = 'Stale generated workspace description.';
+    topology.sharedPackages[0].description =
+      'Stale generated shared package description.';
+    topology.shell.moduleFederation.remotes[0].alias = 'catalog';
+    topology.shell.moduleFederation.remotes[0].manifestEnv =
+      'VERTICAL_CATALOG_MF_MANIFEST';
     const catalog = topology.verticals.find(
       (vertical: Record<string, unknown>) => vertical.id === 'catalog',
     );
+    catalog.deliveryUnit.buildMarker = 'stale-reference-marker';
+    catalog.backendFederation.deliveryUnit.buildMarker =
+      'stale-reference-marker';
     catalog.api = {
       ...catalog.api,
       effect: {
@@ -879,6 +930,11 @@ test('UltraModern migrate-strict-effect updates package cohort and direct API me
     const compactCatalog = compactConfigBefore.topology.apps.find(
       (app: Record<string, unknown>) => app.id === 'catalog',
     );
+    compactCatalog.deliveryUnit.buildMarker = 'stale-compact-marker';
+    compactCatalog.backendFederation.deliveryUnit.buildMarker =
+      'stale-compact-marker';
+    delete compactConfigBefore.tooling.wrappers.backendFederationProof;
+    delete compactConfigBefore.backendFederation.apps[0].deliveryUnit;
     delete compactCatalog.api.runtime;
     compactCatalog.api.backendFederation = {
       entry: 'verticals/catalog/api/backend-federation.ts',
@@ -887,7 +943,16 @@ test('UltraModern migrate-strict-effect updates package cohort and direct API me
       'verticals/catalog/api/backend-federation.ts';
     writeJson(workspaceDir, '.modernjs/ultramodern.json', compactConfigBefore);
 
+    const ownershipBefore = readJson(workspaceDir, 'topology/ownership.json');
+    const catalogOwner = ownershipBefore.owners.find(
+      (owner: Record<string, unknown>) => owner.id === 'catalog',
+    );
+    catalogOwner.ownership.team = 'catalog-domain-team';
+    catalogOwner.ownership.pagerDuty = 'pd-catalog-domain';
+    writeJson(workspaceDir, 'topology/ownership.json', ownershipBefore);
+
     const rootPackageBefore = readJson(workspaceDir, 'package.json');
+    delete rootPackageBefore.devDependencies['@typescript/native'];
     rootPackageBefore.devDependencies.typescript = '6.0.0';
     rootPackageBefore.devDependencies['drizzle-orm'] = DRIZZLE_ORM_VERSION;
     rootPackageBefore.devDependencies.oxfmt = '0.55.0';
@@ -970,6 +1035,8 @@ test('UltraModern migrate-strict-effect updates package cohort and direct API me
     pnpmPolicy.overrides.effect = '4.0.0-beta.89';
     delete pnpmPolicy.overrides['@effect/opentelemetry'];
     delete pnpmPolicy.patchedDependencies[`effect@${EFFECT_VERSION}`];
+    pnpmPolicy.patchedDependencies['effect@4.0.0-beta.94'] =
+      'patches/effect-schema-error-type-id.patch';
     delete pnpmPolicy.patchedDependencies[
       `@module-federation/bridge-react@${MODULE_FEDERATION_VERSION}`
     ];
@@ -978,9 +1045,13 @@ test('UltraModern migrate-strict-effect updates package cohort and direct API me
       ...pnpmPolicy.minimumReleaseAgeExclude,
       '@bleedingdev/modern-js-*',
       '@module-federation/*',
+      '@typescript/typescript6@6.0.2',
       'i18next@26.3.1',
     ];
-    delete pnpmPolicy.trustPolicyExclude;
+    pnpmPolicy.trustPolicyExclude = [
+      'effect@4.0.0-beta.94',
+      '@effect/opentelemetry@4.0.0-beta.94',
+    ];
     fs.writeFileSync(
       pnpmWorkspaceFile,
       yaml.dump(pnpmPolicy, {
@@ -1097,6 +1168,84 @@ declare module '*.css' {}
     );
     assert.equal(compactConfig.packageSource.aliasScope, undefined);
     assert.equal(compactConfig.packageSource.aliasPackageNamePrefix, undefined);
+    const migratedIdentityCatalog = compactConfig.topology.apps.find(
+      (app: Record<string, unknown>) => app.id === 'catalog',
+    );
+    const migratedIdentityTopology = readJson(
+      workspaceDir,
+      'topology/reference-topology.json',
+    );
+    const migratedTopologyIdentityCatalog =
+      migratedIdentityTopology.verticals.find(
+        (app: Record<string, unknown>) => app.id === 'catalog',
+      );
+    assert.equal(
+      migratedIdentityTopology.description,
+      'Generated UltraModern SuperApp shell that can grow by adding full-stack verticals.',
+    );
+    assert.equal(
+      migratedIdentityTopology.sharedPackages[0].description,
+      'Generated route, ownership, and topology contracts.',
+    );
+    assert.equal(
+      migratedIdentityTopology.shell.moduleFederation.remotes[0].alias,
+      undefined,
+    );
+    assert.equal(
+      migratedIdentityTopology.shell.moduleFederation.remotes[0].manifestEnv,
+      undefined,
+    );
+    const migratedOwnership = readJson(workspaceDir, 'topology/ownership.json');
+    const migratedCatalogOwner = migratedOwnership.owners.find(
+      (owner: Record<string, unknown>) => owner.id === 'catalog',
+    );
+    assert.equal(migratedCatalogOwner.ownership.team, 'catalog-domain-team');
+    assert.equal(migratedCatalogOwner.ownership.pagerDuty, 'pd-catalog-domain');
+    assert.match(
+      fs.readFileSync(
+        path.join(workspaceDir, 'scripts/validate-ultramodern-workspace.mts'),
+        'utf-8',
+      ),
+      /catalog-domain-team/,
+    );
+    const migratedShellRuntime = fs.readFileSync(
+      path.join(workspaceDir, 'apps/shell-super-app/src/modern.runtime.ts'),
+      'utf-8',
+    );
+    assert.doesNotMatch(migratedShellRuntime, /verticals\/catalog\/locales/);
+    assert.match(migratedShellRuntime, /flattenLocaleResource/);
+    const migratedShellLocale = readJson(
+      workspaceDir,
+      'apps/shell-super-app/locales/en/shell.json',
+    );
+    assert.equal(
+      migratedShellLocale.catalog.migrationPreserved,
+      'Preserved catalog copy',
+    );
+    assert.match(
+      fs.readFileSync(catalogFragmentPagePath, 'utf-8'),
+      /@modern-js\/runtime\/module-federation\/distributed-ssr/,
+    );
+    const migratedBuildArtifact = readJson(
+      workspaceDir,
+      'verticals/catalog/shared/ultramodern-build.json',
+    );
+    assert.equal(
+      migratedIdentityCatalog.deliveryUnit.buildMarker,
+      migratedBuildArtifact.deliveryUnit.buildMarker,
+    );
+    assert.equal(
+      migratedTopologyIdentityCatalog.deliveryUnit.buildMarker,
+      migratedBuildArtifact.deliveryUnit.buildMarker,
+    );
+    assert.equal(
+      compactConfig.tooling.wrappers.backendFederationProof,
+      'scripts/proof-node-backend-federation.mts',
+    );
+    assert.equal(
+      compactConfig.backendFederation.apps[0].deliveryUnit.buildMarker,
+      migratedBuildArtifact.deliveryUnit.buildMarker,
+    );
 
     const rootPackage = readJson(workspaceDir, 'package.json');
     assert.equal(
@@ -1106,6 +1255,10 @@ declare module '*.css' {}
     assert.equal(
       rootPackage.devDependencies.typescript,
       TYPESCRIPT_COMPILER_API_VERSION,
+    );
+    assert.equal(
+      rootPackage.devDependencies['@typescript/native'],
+      `npm:typescript@${TYPESCRIPT_VERSION}`,
     );
     assert.equal(rootPackage.devDependencies.oxfmt, OXFMT_VERSION);
     assert.equal(rootPackage.modernjs.packageSource.strategy, 'workspace');
@@ -1302,6 +1455,15 @@ declare module '*.css' {}
       fs.existsSync(
         path.join(
           workspaceDir,
+          `patches/@tanstack__router-core@${TANSTACK_ROUTER_CORE_VERSION}.patch`,
+        ),
+      ),
+      'migrate-strict-effect must restore the generated TanStack Router patch',
+    );
+    assert.ok(
+      fs.existsSync(
+        path.join(
+          workspaceDir,
           `patches/@module-federation__bridge-react@${MODULE_FEDERATION_VERSION}.patch`,
         ),
       ),
@@ -1384,8 +1546,10 @@ declare module '*.css' {}
         path.join(workspaceDir, appDir, 'src/modern-app-env.d.ts'),
         'utf-8',
       );
-      assert.match(appEnv, /^import '@modern-js\/app-tools\/types';/u);
-      assert.doesNotMatch(appEnv, /<reference types=/u);
+      assert.match(
+        appEnv,
+        /^\/\/\/ <reference types="@modern-js\/app-tools\/types" \/>/u,
+      );
       assert.doesNotMatch(appEnv, /declare module '\*\.svg'/u);
       assert.doesNotMatch(appEnv, /declare module '\*\.css'/u);
     }
@@ -1640,6 +1804,172 @@ test('compact UltraModern config maps component exposes to concrete DTS source f
       'src/modern-app-env.d.ts',
     ],
     'custom expose order must keep the route entry first for MF DTS validation',
+  );
+});
+
+test('multi-expose nested hosts emit distributed SSR service and fragment contracts', () => {
+  const apps = workspaceAppsFromToolingConfig({
+    schemaVersion: 1,
+    source: 'compact',
+    sourcePath: '.modernjs/ultramodern.json',
+    workspace: { packageScope: 'tractor-store' },
+    features: { tailwind: true },
+    topology: {
+      apps: [
+        {
+          id: 'shell-super-app',
+          kind: 'shell',
+          path: 'apps/shell-super-app',
+          moduleFederation: {
+            role: 'host',
+            name: 'shellSuperApp',
+            exposes: [],
+            verticalRefs: ['explore', 'decide', 'checkout'],
+          },
+        },
+        {
+          id: 'explore',
+          kind: 'vertical',
+          path: 'verticals/explore',
+          domain: 'explore',
+          moduleFederation: {
+            role: 'remote',
+            name: 'verticalExplore',
+            exposes: ['./Header', './Recommendations', './Route'],
+          },
+        },
+        {
+          id: 'decide',
+          kind: 'vertical',
+          path: 'verticals/decide',
+          domain: 'decide',
+          moduleFederation: {
+            role: 'remote',
+            name: 'verticalDecide',
+            exposes: ['./ProductPage', './Route'],
+            verticalRefs: ['explore', 'checkout'],
+          },
+        },
+        {
+          id: 'checkout',
+          kind: 'vertical',
+          path: 'verticals/checkout',
+          domain: 'checkout',
+          moduleFederation: {
+            role: 'remote',
+            name: 'verticalCheckout',
+            exposes: ['./AddToCart', './MiniCart', './Route'],
+          },
+        },
+      ],
+    },
+  });
+  const shell = apps.find(app => app.id === 'shell-super-app')!;
+  const decide = apps.find(app => app.id === 'decide')!;
+  const checkout = apps.find(app => app.id === 'checkout')!;
+  const remotes = apps.filter(app => app.kind === 'vertical');
+  const shellModernConfig = createAppModernConfig(
+    'tractor-store',
+    shell,
+    remotes,
+  );
+  const decideModernConfig = createAppModernConfig(
+    'tractor-store',
+    decide,
+    remotes,
+  );
+
+  for (const contract of [
+    ["boundaryId: 'verticalExplore'", "expose: './Header'"],
+    ["boundaryId: 'verticalExplore'", "expose: './Recommendations'"],
+    ["boundaryId: 'verticalDecide'", "expose: './ProductPage'"],
+    ["boundaryId: 'verticalCheckout'", "expose: './AddToCart'"],
+    ["boundaryId: 'verticalCheckout'", "expose: './MiniCart'"],
+  ]) {
+    for (const marker of contract) {
+      assert.match(shellModernConfig, new RegExp(marker.replace('.', '\\.')));
+    }
+  }
+  assert.doesNotMatch(shellModernConfig, /expose: '\.\/Route'/u);
+  assert.match(decideModernConfig, /VERTICAL_EXPLORE_WORKER/u);
+  assert.match(decideModernConfig, /VERTICAL_CHECKOUT_WORKER/u);
+  assert.match(decideModernConfig, /expose: '\.\/Recommendations'/u);
+  assert.match(decideModernConfig, /expose: '\.\/AddToCart'/u);
+  assert.doesNotMatch(decideModernConfig, /VERTICAL_DECIDE_WORKER/u);
+
+  const addToCartFragment = createRemoteExposeFragmentPage(
+    checkout,
+    './AddToCart',
+  );
+  assert.match(
+    addToCartFragment,
+    /useDistributedSsrFragmentProps<ComponentProps<typeof AddToCart>>/u,
+  );
+  assert.match(
+    addToCartFragment,
+    /data-modern-distributed-ssr-marker="start"/u,
+  );
+  assert.match(addToCartFragment, /data-modern-distributed-ssr-marker="end"/u);
+  assert.match(addToCartFragment, /<AddToCart \{\.\.\.props\} \/>/u);
+
+  const browserRegistry = createFederatedComponentsRegistry(
+    'tractor-store',
+    decide,
+    remotes,
+  );
+  const workerRegistry = createFederatedComponentsRegistry(
+    'tractor-store',
+    decide,
+    remotes,
+    true,
+  );
+  assert.match(browserRegistry, /import\('explore\/Recommendations'\)/u);
+  assert.match(browserRegistry, /import\('checkout\/AddToCart'\)/u);
+  assert.match(
+    browserRegistry,
+    /type AddToCartProps = RemoteComponentProps<typeof AddToCartComponent>/u,
+  );
+  assert.match(
+    browserRegistry,
+    /createLazyComponent<\s*RemoteComponentModule<AddToCartProps>,\s*'default'\s*>/u,
+  );
+  assert.match(
+    browserRegistry,
+    /interface RemoteComponentModule<Props extends object> \{\s*default: FunctionComponent<Props>;/u,
+  );
+  assert.match(
+    browserRegistry,
+    /Component extends ComponentType<infer Props>[\s\S]*Record<string, never>/u,
+  );
+  assert.ok(
+    browserRegistry.indexOf('AddToCart:') <
+      browserRegistry.indexOf('Recommendations:'),
+    'browser registry component keys must be sorted',
+  );
+  assert.match(workerRegistry, /fragmentProps=\{props\}/u);
+  assert.match(workerRegistry, /remote="checkout"/u);
+  assert.ok(
+    workerRegistry.indexOf('AddToCart:') <
+      workerRegistry.indexOf('Recommendations:'),
+    'worker registry component keys must be sorted',
+  );
+  assert.doesNotMatch(workerRegistry, /@module-federation|import\('checkout/u);
+
+  const decideModuleFederationConfig = createRemoteModuleFederationConfig(
+    'tractor-store',
+    decide,
+    remotes,
+  );
+  assert.equal(
+    decideModuleFederationConfig.match(
+      /from '@modern-js\/app-tools\/config';/gu,
+    )?.length,
+    1,
+    'nested remotes must consolidate app-tools config imports',
+  );
+  assert.match(
+    decideModuleFederationConfig,
+    /import \{ getBuildConfigEnvironment, resolveEffectTsgoCompiler \} from '@modern-js\/app-tools\/config';/u,
   );
 });
 

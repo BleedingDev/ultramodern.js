@@ -2,13 +2,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { configuredDevelopmentPorts } from '../../../ultramodern-workspace/add-vertical/workspace-state';
 import {
-  createRemoteWidgetFragmentPage,
+  createFederatedComponentsRegistry,
+  createRemoteExposeFragmentPage,
   createShellRemoteComponents,
   createShellWorkerRemoteComponents,
 } from '../../../ultramodern-workspace/demo-components';
 import {
   appEmitsBrowserUi,
   appHasApi,
+  distributedSsrExposes,
+  distributedSsrFragmentSlug,
   resolveRemoteRefs,
 } from '../../../ultramodern-workspace/descriptors';
 import {
@@ -23,6 +26,13 @@ import {
   type UltramodernToolingConfig,
 } from '../../config';
 import { type MigrationIo, readJsonFile, writeTextIfChanged } from './io';
+
+function isGeneratedShellComposition(source: string) {
+  return (
+    source.includes('const createRemoteComponent =') &&
+    source.includes('export const VerticalShowcase =')
+  );
+}
 
 export function updateGeneratedModernConfigs(
   io: MigrationIo,
@@ -127,15 +137,74 @@ export function updateGeneratedModernConfigs(
       const shellUiRemotes = resolveRemoteRefs(app, remotes).filter(
         appEmitsBrowserUi,
       );
+      const componentsPath = path.join(
+        io.workspaceRoot,
+        app.directory,
+        'src/routes/vertical-components.tsx',
+      );
+      const workerComponentsPath = path.join(
+        io.workspaceRoot,
+        app.directory,
+        'src/routes/vertical-components.worker.tsx',
+      );
+      const existingComponents = fs.existsSync(componentsPath)
+        ? fs.readFileSync(componentsPath, 'utf-8')
+        : undefined;
+      if (
+        existingComponents === undefined ||
+        isGeneratedShellComposition(existingComponents)
+      ) {
+        changed =
+          writeTextIfChanged(
+            io,
+            componentsPath,
+            createShellRemoteComponents(app, shellUiRemotes),
+          ) || changed;
+        changed =
+          writeTextIfChanged(
+            io,
+            workerComponentsPath,
+            createShellWorkerRemoteComponents(app, shellUiRemotes),
+          ) || changed;
+      } else if (
+        fs.existsSync(workerComponentsPath) &&
+        isGeneratedShellComposition(
+          fs.readFileSync(workerComponentsPath, 'utf-8'),
+        )
+      ) {
+        // A custom host composition is environment-neutral and obtains its
+        // workerd behavior from federated-components.worker.tsx. A stale
+        // generated route sibling would shadow that custom composition.
+        changed = io.remove(workerComponentsPath) || changed;
+      }
+    } else {
+      for (const expose of distributedSsrExposes(app)) {
+        changed =
+          writeTextIfChanged(
+            io,
+            path.join(
+              io.workspaceRoot,
+              app.directory,
+              `src/routes/[lang]/_mf/fragment/${distributedSsrFragmentSlug(expose)}/page.tsx`,
+            ),
+            createRemoteExposeFragmentPage(app, expose),
+          ) || changed;
+      }
+    }
+    if ((app.verticalRefs?.length ?? 0) > 0) {
       changed =
         writeTextIfChanged(
           io,
           path.join(
             io.workspaceRoot,
             app.directory,
-            'src/routes/vertical-components.tsx',
+            'src/federated-components.tsx',
           ),
-          createShellRemoteComponents(app, shellUiRemotes),
+          createFederatedComponentsRegistry(
+            config.workspace.packageScope,
+            app,
+            remotes,
+          ),
         ) || changed;
       changed =
         writeTextIfChanged(
@@ -143,20 +212,14 @@ export function updateGeneratedModernConfigs(
           path.join(
             io.workspaceRoot,
             app.directory,
-            'src/routes/vertical-components.worker.tsx',
+            'src/federated-components.worker.tsx',
           ),
-          createShellWorkerRemoteComponents(app, shellUiRemotes),
-        ) || changed;
-    } else if (Object.hasOwn(app.exposes ?? {}, './Widget')) {
-      changed =
-        writeTextIfChanged(
-          io,
-          path.join(
-            io.workspaceRoot,
-            app.directory,
-            'src/routes/[lang]/_mf/fragment/widget/page.tsx',
+          createFederatedComponentsRegistry(
+            config.workspace.packageScope,
+            app,
+            remotes,
+            true,
           ),
-          createRemoteWidgetFragmentPage(app),
         ) || changed;
     }
   }

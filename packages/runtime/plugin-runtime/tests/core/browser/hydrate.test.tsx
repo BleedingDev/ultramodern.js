@@ -77,4 +77,15 @@ describe('hydrateRoot loadable chunk loading global', () => {
       chunkLoadingGlobal: expected,
     });
   });
+
+  test('loads in a browser runtime without a process global', async () => {
+    const nodeProcess = globalThis.process;
+    rstest.stubGlobal('process', undefined);
+
+    await expect(
+      import('../../../src/core/browser/hydrate'),
+    ).resolves.toBeDefined();
+
+    rstest.stubGlobal('process', nodeProcess);
+  });
 });

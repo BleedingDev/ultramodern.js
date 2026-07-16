@@ -155,6 +155,9 @@ export function createWorkspaceValidationScript(
   releaseCohort?: UltramodernReleaseCohort,
   additionalShells: WorkspaceApp[] = [],
   primaryShell?: WorkspaceApp,
+  compactConfigOverride?: Record<string, unknown>,
+  ownershipOverride?: Record<string, unknown>,
+  developmentOverlayOverride?: Record<string, unknown>,
 ): string {
   const contract = createWorkspaceValidationContract(
     scope,
@@ -163,6 +166,9 @@ export function createWorkspaceValidationScript(
     releaseCohort,
     additionalShells,
     primaryShell,
+    compactConfigOverride,
+    ownershipOverride,
+    developmentOverlayOverride,
   );
 
   return renderFileTemplate(

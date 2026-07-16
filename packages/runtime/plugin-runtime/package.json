@@ -75,6 +75,10 @@
       "types": "./dist/types/module-federation/index.d.ts",
       "default": "./dist/esm/module-federation/index.mjs"
     },
+    "./module-federation/distributed-ssr": {
+      "types": "./dist/types/module-federation/distributed-ssr.d.ts",
+      "default": "./dist/esm/module-federation/distributed-ssr.mjs"
+    },
     "./ssr": {
       "types": "./dist/types/core/server/index.d.ts",
       "default": "./dist/esm/core/server/index.mjs"

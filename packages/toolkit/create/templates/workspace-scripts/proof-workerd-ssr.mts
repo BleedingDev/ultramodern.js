@@ -4,8 +4,7 @@ import path from "node:path";
 import { Log, LogLevel, Miniflare } from "miniflare";
 
 const workspaceRoot = process.cwd();
-const route = "/en";
-const fragmentPath = `${route}/_mf/fragment/widget`;
+const defaultProofRoutes = ["/en"];
 const reportPath = path.join(
   workspaceRoot,
   ".codex/reports/cloudflare-workerd-ssr/composition-proof.json",
@@ -64,6 +63,12 @@ const apps = (compactConfig.topology?.apps ?? []).map((rawApp) => {
     rawApp.moduleFederation && typeof rawApp.moduleFederation === "object"
       ? rawApp.moduleFederation
       : {};
+  const configuredProofRoutes = rawApp.deploy?.cloudflare?.distributedSsrProofRoutes;
+  const proofRoutes = Array.isArray(configuredProofRoutes)
+    ? [...new Set(configuredProofRoutes.filter(
+        (route) => typeof route === "string" && route.startsWith("/"),
+      ))]
+    : [];
   const outputRoot = path.join(workspaceRoot, appPath, ".output");
   const wranglerPath = path.join(outputRoot, "wrangler.json");
   assert(
@@ -80,6 +85,7 @@ const apps = (compactConfig.topology?.apps ?? []).map((rawApp) => {
     verticalRefs: Array.isArray(moduleFederation.verticalRefs)
       ? moduleFederation.verticalRefs.filter((ref) => typeof ref === "string")
       : [],
+    proofRoutes: proofRoutes.length > 0 ? proofRoutes : defaultProofRoutes,
     outputRoot,
     wrangler,
   };
@@ -124,6 +130,75 @@ const createWorkerOptions = (app, extra = {}) => {
   };
 };
 
+const readAttribute = (tag, name) => {
+  const escapedName = name.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  const match = new RegExp(`\\s${escapedName}=(?:"([^"]*)"|'([^']*)')`, "u").exec(tag);
+  return match?.[1] ?? match?.[2];
+};
+
+const collectDistributedBoundaries = (html) =>
+  [...html.matchAll(/<[a-z][^>]*data-modern-distributed-ssr-boundary=(?:"[^"]+"|'[^']+')[^>]*>/giu)].map(
+    (match) => {
+      const tag = match[0];
+      const key = readAttribute(tag, "data-modern-distributed-ssr-boundary");
+      const separator = key?.indexOf("::") ?? -1;
+      assert(separator > 0, `Invalid distributed SSR boundary key ${key}`);
+      return {
+        buildMarker: readAttribute(tag, "data-modern-distributed-ssr-build"),
+        digest: readAttribute(tag, "data-modern-distributed-ssr-digest"),
+        expose: key.slice(separator + 2),
+        key,
+        remote: key.slice(0, separator),
+        status: readAttribute(tag, "data-modern-distributed-ssr-status"),
+      };
+    },
+  );
+
+const collectStylesheetHrefs = (html) =>
+  [...html.matchAll(/<link\b[^>]*>/giu)]
+    .filter((match) => readAttribute(match[0], "rel")?.split(/\s+/u).includes("stylesheet"))
+    .map((match) => readAttribute(match[0], "href"))
+    .filter(Boolean);
+
+const decodeFragmentProps = (request) => {
+  const encoded = request.headers.get("x-modern-distributed-ssr-props");
+  assert(encoded !== null, "Distributed SSR service request is missing serialized props");
+  const props = JSON.parse(decodeURIComponent(encoded));
+  assert(props && typeof props === "object" && !Array.isArray(props), "Fragment props must be an object");
+  return props;
+};
+
+const createServiceBindings = (caller, bindingRequests) => {
+  const services = Array.isArray(caller.wrangler.services) ? caller.wrangler.services : [];
+  return Object.fromEntries(
+    services.map((service) => {
+      assert(
+        typeof service.binding === "string" && typeof service.service === "string",
+        `${caller.id} has an invalid service binding`,
+      );
+      return [
+        service.binding,
+        async (request, miniflare) => {
+          const requestUrl = new URL(request.url);
+          bindingRequests.push({
+            binding: service.binding,
+            boundaryId: request.headers.get("x-modern-distributed-ssr-boundary-id"),
+            callerId: caller.id,
+            expose: request.headers.get("x-modern-distributed-ssr-expose"),
+            pathname: requestUrl.pathname,
+            props: decodeFragmentProps(request),
+            remote: request.headers.get("x-modern-distributed-ssr-remote"),
+            service: service.service,
+            sourceUrl: request.headers.get("x-modern-distributed-ssr-source-url"),
+          });
+          const target = await miniflare.getWorker(service.service);
+          return target.fetch(request);
+        },
+      ];
+    }),
+  );
+};
+
 const proofs = [];
 
 for (const shell of shells) {
@@ -136,95 +211,110 @@ for (const shell of shells) {
 
   const bindingRequests = [];
   const outboundRequests = [];
-  const services = Array.isArray(shell.wrangler.services) ? shell.wrangler.services : [];
-  const serviceBindings = Object.fromEntries(
-    services.map((service) => {
-      assert(
-        typeof service.binding === "string" && typeof service.service === "string",
-        `${shell.id} has an invalid service binding`,
-      );
-      return [
-        service.binding,
-        async (request, miniflare) => {
-          const requestUrl = new URL(request.url);
-          bindingRequests.push({
-            binding: service.binding,
-            service: service.service,
-            pathname: requestUrl.pathname,
-          });
-          const target = await miniflare.getWorker(service.service);
-          return target.fetch(request);
-        },
-      ];
+  const workers = apps.map((app) =>
+    createWorkerOptions(app, {
+      serviceBindings: createServiceBindings(app, bindingRequests),
+      async outboundService(request) {
+        const requestUrl = new URL(request.url);
+        outboundRequests.push({ callerId: app.id, url: requestUrl.href });
+        return new Response("External network disabled by SSR proof", {
+          status: 502,
+        });
+      },
     }),
   );
-
-  const shellWorker = createWorkerOptions(shell, {
-    serviceBindings,
-    async outboundService(request) {
-      const requestUrl = new URL(request.url);
-      outboundRequests.push(requestUrl.href);
-      return new Response("External network disabled by SSR proof", {
-        status: 502,
-      });
-    },
-  });
-  const otherWorkers = apps.filter((app) => app !== shell).map((app) => createWorkerOptions(app));
   const miniflare = new Miniflare({
     log: new Log(LogLevel.ERROR),
-    workers: [shellWorker, ...otherWorkers],
+    workers,
   });
+  const renderedRemoteIds = new Set();
 
   try {
-    const response = await miniflare.dispatchFetch(`https://${workerName(shell)}.invalid${route}`, {
-      headers: { accept: "text/html" },
-    });
-    const html = await response.text();
-    assert(response.status === 200, `${shell.id} returned HTTP ${response.status} in workerd`);
-    assert(
-      !html.includes('data-modern-distributed-ssr-status="degraded"'),
-      `${shell.id} rendered a degraded MicroVertical fallback in workerd`,
-    );
-
-    for (const remote of expectedRemotes) {
-      const boundary = `data-modern-boundary-id="${remote.mfName}"`;
+    for (const route of shell.proofRoutes) {
+      const bindingRequestStart = bindingRequests.length;
+      const outboundRequestStart = outboundRequests.length;
+      const response = await miniflare.dispatchFetch(
+        `https://${workerName(shell)}.invalid${route}`,
+        { headers: { accept: "text/html" } },
+      );
+      const html = await response.text();
       assert(
-        count(html, boundary) === 1,
-        `${shell.id} must SSR exactly one real ${remote.id} boundary in its raw HTML`,
+        response.status === 200,
+        `${shell.id} returned HTTP ${response.status} for ${route} in workerd`,
       );
       assert(
-        html.includes('data-modern-mf-expose="./Widget"'),
-        `${shell.id} SSR output must contain the MicroVertical Widget expose`,
-      );
-      assert(
-        html.includes(`data-modern-distributed-ssr-boundary="${remote.id}::./Widget"`) &&
-          html.includes('data-modern-distributed-ssr-status="ready"'),
-        `${shell.id} must mark ${remote.id} as a ready server-composed fragment`,
+        !html.includes('data-modern-distributed-ssr-status="degraded"'),
+        `${shell.id} rendered a degraded MicroVertical fallback for ${route} in workerd`,
       );
 
-      const serviceName = workerName(remote);
-      const requests = bindingRequests.filter((request) => request.service === serviceName);
+      const boundaries = collectDistributedBoundaries(html);
       assert(
-        requests.length === 1 && requests[0].pathname === fragmentPath,
-        `${shell.id} must compose ${remote.id} exactly once through its SSR fragment service binding`,
+        boundaries.length > 0,
+        `${shell.id} rendered no distributed SSR boundaries for ${route}`,
       );
+      const routeBindingRequests = bindingRequests.slice(bindingRequestStart);
+      const routeOutboundRequests = outboundRequests.slice(outboundRequestStart);
+      for (const boundary of boundaries) {
+        renderedRemoteIds.add(boundary.remote);
+        assert(
+          boundary.status === "ready",
+          `${shell.id} did not mark ${boundary.key} as ready for ${route}`,
+        );
+        assert(
+          typeof boundary.buildMarker === "string" && boundary.buildMarker.length > 0,
+          `${shell.id} ${boundary.key} is missing immutable build provenance`,
+        );
+        assert(
+          /^[a-f\d]{64}$/u.test(boundary.digest ?? ""),
+          `${shell.id} ${boundary.key} is missing a verified SHA-256 digest`,
+        );
+        const remote = apps.find((app) => app.id === boundary.remote);
+        assert(remote, `${shell.id} rendered unknown remote ${boundary.remote}`);
+        const requests = routeBindingRequests.filter(
+          (request) =>
+            request.service === workerName(remote) &&
+            request.remote === boundary.remote &&
+            request.expose === boundary.expose,
+        );
+        const renderedCount = boundaries.filter(
+          (candidate) => candidate.key === boundary.key,
+        ).length;
+        assert(
+          requests.length === renderedCount &&
+            requests.every((request) => request.pathname.includes("/_mf/fragment/")),
+          `${shell.id} must compose each ${boundary.key} occurrence through its remote service binding`,
+        );
+      }
+
+      const stylesheetHrefs = collectStylesheetHrefs(html);
+      assert(
+        new Set(stylesheetHrefs).size === stylesheetHrefs.length,
+        `${shell.id} rendered duplicate distributed SSR stylesheets for ${route}`,
+      );
+      assert(
+        !routeOutboundRequests.some(({ url }) => /(?:remoteEntry|\.m?js(?:\?|$))/u.test(url)),
+        `${shell.id} attempted to fetch remote JavaScript during ${route} server composition`,
+      );
+
+      proofs.push({
+        shellId: shell.id,
+        worker: workerName(shell),
+        route,
+        status: response.status,
+        boundaries,
+        bindingRequests: routeBindingRequests,
+        outboundRequests: routeOutboundRequests,
+        stylesheetHrefs,
+        degradedBoundaryCount: count(html, 'data-modern-distributed-ssr-status="degraded"'),
+      });
     }
 
-    assert(
-      !outboundRequests.some((url) => /(?:remoteEntry|\.m?js(?:\?|$))/u.test(url)),
-      `${shell.id} attempted to fetch remote JavaScript during server composition`,
-    );
-
-    proofs.push({
-      shellId: shell.id,
-      worker: workerName(shell),
-      route,
-      status: response.status,
-      expectedBoundaryIds: expectedRemotes.map((remote) => remote.mfName),
-      bindingRequests,
-      outboundRequests,
-      degradedBoundaryCount: count(html, 'data-modern-distributed-ssr-status="degraded"'),
-    });
+    for (const remote of expectedRemotes) {
+      assert(
+        renderedRemoteIds.has(remote.id),
+        `${shell.id} proof routes are missing independently rendered ${remote.id} content`,
+      );
+    }
     if (process.env.ULTRAMODERN_KEEP_WORKERD === "1") {
       console.log(`WORKERD_URL=${await miniflare.ready}`);
       await new Promise((resolve) => {
@@ -244,11 +334,11 @@ fs.writeFileSync(
     {
       schemaVersion: 1,
       runtime: "workerd",
-      route,
+      routes: [...new Set(proofs.map((proof) => proof.route))],
       proofs,
     },
     null,
     2,
   )}\n`,
 );
-console.log(`Workerd SSR composition proof passed for ${proofs.length} shell(s): ${reportPath}`);
+console.log(`Workerd SSR composition proof passed for ${shells.length} shell(s): ${reportPath}`);

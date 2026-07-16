@@ -128,8 +128,9 @@ test('migrate regenerates the manifest-owned Tractor shell navigation only', asy
     assert.match(migrated, /const navigate = useNavigate\(\);/u);
     assert.match(
       migrated,
-      /void navigate\(\{\s*to: `\$\{localizedPath\(location\.pathname, nextLanguage\)\}\$\{suffix\}`,\s*\}\);/u,
+      /void navigate\(\{\s*hash: true,\s*search: true,\s*to: localizedPath\(location\.pathname, nextLanguage\),\s*\}\);/u,
     );
+    assert.doesNotMatch(migrated, /locationSuffix|searchStr|\bsuffix\b/u);
     assert.doesNotMatch(migrated, /window\s*\.\s*location/u);
     assert.match(
       migrated,
@@ -278,4 +279,27 @@ test('generated and migrated Tractor add-to-cart navigation converge idempotentl
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
+});
+
+test('migrate removes legacy query suffix reconstruction from existing router navigation', () => {
+  const source = `const locationSuffix = (location: { hash?: unknown; search?: unknown; searchStr?: unknown }) => {
+  const locationSearch = typeof location.searchStr === 'string' ? location.searchStr : '';
+  return locationSearch;
+};
+
+export default function Route() {
+  const location = useLocation();
+  const suffix = locationSuffix(location);
+  void navigate({
+    to: \`\${localizedPath(location.pathname, nextLanguage)}\${suffix}\`,
+  });
+}`;
+
+  const migrated = regenerateGeneratedNavigationSurface(source, 'shell-frame');
+
+  assert.match(
+    migrated,
+    /void navigate\(\{\s*hash: true,\s*search: true,\s*to: localizedPath\(location\.pathname, nextLanguage\),/u,
+  );
+  assert.doesNotMatch(migrated, /locationSuffix|searchStr|\bsuffix\b/u);
 });

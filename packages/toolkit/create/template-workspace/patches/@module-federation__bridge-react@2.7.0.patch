@@ -39,7 +39,7 @@ index 9f16c3f..bde8e11 100644
 +  if (!shouldRender) {
 +    return null;
 +  }
-+  return /* @__PURE__ */ React.createElement("link", { ref: linkRef, href, rel: "stylesheet", type: "text/css" });
++  return /* @__PURE__ */ React.createElement("link", { ref: linkRef, href, precedence: "default", rel: "stylesheet", type: "text/css" });
 +}
  function collectSSRAssets(options) {
    const {
@@ -109,7 +109,7 @@ index ed1dc8f..fd603ab 100644
 +  if (!shouldRender) {
 +    return null;
 +  }
-+  return /* @__PURE__ */ React__default.createElement("link", { ref: linkRef, href, rel: "stylesheet", type: "text/css" });
++  return /* @__PURE__ */ React__default.createElement("link", { ref: linkRef, href, precedence: "default", rel: "stylesheet", type: "text/css" });
 +}
  function collectSSRAssets(options) {
    const {

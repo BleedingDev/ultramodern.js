@@ -111,7 +111,7 @@ export function rewriteShellAppFiles(
   writeFileReplacing(
     workspaceRoot,
     `${shellHost.directory}/src/modern-app-env.d.ts`,
-    createAppEnvDts(shellHost, shellRemotes),
+    createAppEnvDts(shellHost, shellRemotes, scope),
   );
   writeFileReplacing(
     workspaceRoot,

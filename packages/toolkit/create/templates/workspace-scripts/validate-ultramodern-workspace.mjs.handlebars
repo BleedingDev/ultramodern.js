@@ -85,6 +85,22 @@ const assertAnyOf = relativePaths => {
     `Missing one of: ${relativePaths.join(', ')}`,
   );
 };
+const requiredShellWorkerCompositionPath = shellPath => {
+  const workerCompositionPath = `${shellPath}/src/routes/vertical-components.worker.tsx`;
+  if (fs.existsSync(path.join(root, workerCompositionPath))) {
+    return workerCompositionPath;
+  }
+
+  const browserComposition = readText(
+    `${shellPath}/src/routes/vertical-components.tsx`,
+  );
+  const frameworkGeneratedComposition =
+    browserComposition.includes('const createRemoteComponent =') &&
+    browserComposition.includes('export const VerticalShowcase =');
+  return frameworkGeneratedComposition
+    ? workerCompositionPath
+    : `${shellPath}/src/federated-components.worker.tsx`;
+};
 const canonicalizeJson = value => {
   if (Array.isArray(value)) {
     const entries = value.map(canonicalizeJson);
@@ -1290,7 +1306,7 @@ const createAppContract = (app, apps) => ({
   },
   ssr: app.moduleFederationSsr
     ? {
-        mode: 'string',
+        mode: 'stream',
         moduleFederationAppSSR: true,
       }
     : undefined,
@@ -1830,11 +1846,11 @@ const assertMicroVerticalContractGraph = ({
   assertSameJson(
     shellContract.ssr,
     {
-      mode: 'string',
+      mode: 'stream',
       moduleFederationAppSSR: true,
     },
     `${generatedContractLabel} shell SSR contract`,
-    'restore generated string SSR Module Federation settings',
+    'restore generated streaming SSR Module Federation settings',
   );
 
   for (const vertical of fullStackVerticals) {
@@ -2091,7 +2107,7 @@ const assertMicroVerticalContractGraph = ({
             }
           : {}),
         ssr: {
-          mode: 'string',
+          mode: 'stream',
           moduleFederationAppSSR: true,
         },
       },
@@ -2659,7 +2675,7 @@ const requiredPaths = [
   'apps/shell-super-app/src/routes/ultramodern-route-head.tsx',
   'apps/shell-super-app/src/routes/ultramodern-route-metadata.ts',
   'apps/shell-super-app/src/routes/vertical-components.tsx',
-  'apps/shell-super-app/src/routes/vertical-components.worker.tsx',
+  requiredShellWorkerCompositionPath('apps/shell-super-app'),
   'apps/shell-super-app/src/routes/[lang]/page.tsx',
   ...shellRouteMetaPaths,
   'packages/shared-contracts/package.json',
@@ -2714,7 +2730,7 @@ for (const shell of expectedAdditionalShells) {
     `${shell.path}/src/routes/layout.tsx`,
     `${shell.path}/src/routes/shell-frame.tsx`,
     `${shell.path}/src/routes/vertical-components.tsx`,
-    `${shell.path}/src/routes/vertical-components.worker.tsx`,
+    requiredShellWorkerCompositionPath(shell.path),
     `${shell.path}/src/routes/ultramodern-route-head.tsx`,
     `${shell.path}/src/routes/ultramodern-route-metadata.ts`,
     `${shell.path}/src/routes/[lang]/page.tsx`,
@@ -2767,14 +2783,24 @@ assert(
   'pnpm-workspace.yaml must isolate the Module Federation DTS plugin on the supported TypeScript compiler API',
 );
 assert(
-  pnpmWorkspace.includes(
-    `'@module-federation/dts-plugin>typescript': '${expectedTypescriptCompilerApiVersion}'`,
+  [
+    `'${expectedTypescriptCompilerApiVersion}'`,
+    expectedTypescriptCompilerApiVersion,
+  ].some(version =>
+    pnpmWorkspace.includes(
+      `'@module-federation/dts-plugin>typescript': ${version}`,
+    ),
   ),
   'pnpm-workspace.yaml must declare the Module Federation DTS compiler peer version',
 );
 assert(
-  pnpmWorkspace.includes(
-    `'effect@${expectedEffectVersion}': patches/effect-schema-error-type-id.patch`,
+  [
+    `'effect@${expectedEffectVersion}'`,
+    `effect@${expectedEffectVersion}`,
+  ].some(effectPatchKey =>
+    pnpmWorkspace.includes(
+      `${effectPatchKey}: patches/effect-schema-error-type-id.patch`,
+    ),
   ),
   'pnpm-workspace.yaml must patch the generated Effect declaration cohort',
 );
@@ -2856,7 +2882,9 @@ assert(packageSource.strategy === 'install' || packageSource.modernPackages?.spe
 assertModernPackageCohort();
 const assertStructuralShellPolicy = () => {
   const policy = workspaceValidationContract.structuralShellPolicy;
-  if (!policy) {
+  const compositionPolicy =
+    workspaceValidationContract.federatedCompositionSourcePolicy;
+  if (!policy && !compositionPolicy) {
     return;
   }
   const collectSourceFiles = absoluteDir => {
@@ -3080,8 +3108,8 @@ const assertStructuralShellPolicy = () => {
     }
     return result;
   };
-  for (const shell of policy.shells) {
-    for (const forbidden of policy.forbiddenPathClasses) {
+  for (const shell of policy?.shells ?? []) {
+    for (const forbidden of policy?.forbiddenPathClasses ?? []) {
       assert(
         !fs.existsSync(path.join(root, shell.packageDir, forbidden.path)),
         selfCheckFailure(
@@ -3098,7 +3126,7 @@ const assertStructuralShellPolicy = () => {
     for (const file of collectSourceFiles(srcAbsolute)) {
       const source = stripSourceComments(fs.readFileSync(file, 'utf-8'));
       const relative = path.relative(root, file).split(path.sep).join('/');
-      for (const pattern of policy.forbiddenImportPatterns) {
+      for (const pattern of policy?.forbiddenImportPatterns ?? []) {
         const match = new RegExp(pattern.expression, pattern.flags).exec(source);
         assert(
           match === null,
@@ -3106,6 +3134,78 @@ const assertStructuralShellPolicy = () => {
             `structural thin-shell ${pattern.id}`,
             `${pattern.diagnostic} Found forbidden import at ${relative}:${match?.index ?? 0}`,
             'consume only published surfaces from the thin shell',
+          ),
+        );
+      }
+    }
+  }
+
+  const runtimeModuleSpecifiers = source => {
+    const specifiers = [];
+    const matchAll = expression => {
+      for (const match of source.matchAll(expression)) {
+        specifiers.push(match.at(-1));
+      }
+    };
+    for (const match of source.matchAll(/\b(?:import|export)\s+([^;'"`]+?)\s+from\s*['"]([^'"]+)['"]/gu)) {
+      if (!match[1].trimStart().startsWith('type ')) {
+        specifiers.push(match[2]);
+      }
+    }
+    matchAll(/\bimport\s*['"]([^'"]+)['"]/gu);
+    matchAll(/\bimport\s*\(\s*['"]([^'"]+)['"]/gu);
+    matchAll(/\brequire\s*\(\s*['"]([^'"]+)['"]/gu);
+    return specifiers;
+  };
+  const remoteImplementationFor = (specifier, remotes) =>
+    remotes.find(remote => {
+      const packageSubpath = specifier.startsWith(`${remote.packageName}/`)
+        ? specifier.slice(remote.packageName.length + 1)
+        : undefined;
+      if (
+        specifier === remote.packageName ||
+        (packageSubpath !== undefined && !packageSubpath.startsWith('api'))
+      ) {
+        return true;
+      }
+      const normalizedSpecifier = specifier.replaceAll('\\', '/');
+      return normalizedSpecifier.includes(`${remote.directory}/`);
+    });
+
+  for (const host of compositionPolicy?.hosts ?? []) {
+    const srcAbsolute = path.join(root, host.srcDir);
+    if (!fs.existsSync(srcAbsolute)) {
+      continue;
+    }
+    for (const file of collectSourceFiles(srcAbsolute)) {
+      const source = stripSourceComments(fs.readFileSync(file, 'utf-8'));
+      const relative = path.relative(root, file).split(path.sep).join('/');
+      for (const pattern of compositionPolicy.forbiddenSourcePatterns ?? []) {
+        const match = new RegExp(pattern.expression, pattern.flags).exec(source);
+        assert(
+          match === null,
+          selfCheckFailure(
+            `federated composition ${pattern.id}`,
+            `${pattern.diagnostic} Found forbidden source at ${relative}:${match?.index ?? 0}`,
+            'compose remote rendering through framework Module Federation primitives',
+          ),
+        );
+      }
+      // Declaration files cannot execute. Ambient federation declarations may
+      // re-export a workspace component solely to preserve its public prop
+      // type, so treating their specifiers as runtime implementation imports
+      // produces a false positive.
+      if (/\.d\.(?:ts|mts|cts)$/u.test(relative)) {
+        continue;
+      }
+      for (const specifier of runtimeModuleSpecifiers(source)) {
+        const remote = remoteImplementationFor(specifier, host.remotes ?? []);
+        assert(
+          remote === undefined,
+          selfCheckFailure(
+            'federated composition remote-runtime-package-import',
+            `Host ${host.id} imports remote render implementation ${specifier} from ${remote?.id} at ${relative}`,
+            'use import type for contracts or compose the implementation through Module Federation',
           ),
         );
       }
@@ -3305,7 +3405,7 @@ const assertAdditionalShellCohort = () => {
       `${shell.path}/src/routes/vertical-components.tsx`,
     );
     const workerRemoteComponents = readText(
-      `${shell.path}/src/routes/vertical-components.worker.tsx`,
+      requiredShellWorkerCompositionPath(shell.path),
     );
     assert(modernConfig.includes(`const appId = '${shell.id}';`), `${shell.id} modern.config.ts appId is incorrect`);
     assert(modernConfig.includes(`const port = Number(getBuildConfigEnvironment('${shell.portEnv}') ?? ${shell.port});`), `${shell.id} modern.config.ts port is incorrect`);
@@ -3553,7 +3653,7 @@ assert(rootPackage.scripts?.['cloudflare:proof'] === 'node ./scripts/proof-cloud
 assert(rootPackage.scripts?.['migrate:strict-effect'] === 'node ./scripts/migrate-strict-effect.mts', 'Root must expose migrate:strict-effect');
 assert(rootPackage.scripts?.['skills:install'] === 'node ./scripts/bootstrap-agent-skills.mts', 'Root must expose skills:install');
 assert(rootPackage.scripts?.['skills:check'] === 'node ./scripts/bootstrap-agent-skills.mts --check', 'Root must expose skills:check');
-assert(rootPackage.scripts?.postinstall === "oxfmt . '!repos/**' && node ./scripts/bootstrap-agent-skills.mts --postinstall", 'Root postinstall must format, run the default-on Codex skills bootstrap, and leave reference repository installs explicit');
+assert(rootPackage.scripts?.postinstall === "node ./scripts/bootstrap-agent-skills.mts --postinstall && oxfmt . '!repos/**'", 'Root postinstall must run the default-on Codex skills bootstrap, format installed skills, and leave reference repository installs explicit');
 assert(rootPackage.scripts?.['agents:refs:install'] === 'node ./scripts/setup-agent-reference-repos.mts', 'Root must expose agents:refs:install as the explicit reference repo installer');
 const agentSkillsBootstrap = readText('scripts/bootstrap-agent-skills.mts');
 assertToolWrapper('scripts/assert-mf-types.mts', 'mf-types');
@@ -3612,8 +3712,8 @@ const shellRouteMetadata = readText('apps/shell-super-app/src/routes/ultramodern
 assert(/^\.mf\/$/mu.test(gitignore), 'Generated .gitignore must ignore root Module Federation diagnostics');
 assert(/^\*\*\/\.mf\/$/mu.test(gitignore), 'Generated .gitignore must ignore per-app Module Federation diagnostics');
 assert(/^dist-cloudflare\/$/mu.test(gitignore), 'Generated .gitignore must ignore Cloudflare build output');
-assert(shellModernAppEnv.includes("import '@modern-js/app-tools/types';"), 'Shell app env must import the framework-owned app ambient type bundle through module resolution');
-assert(/declare global \{\s*const ULTRAMODERN_SITE_URL: string;\s*\}/u.test(shellModernAppEnv), 'Shell app env must keep generated globals explicit after importing app ambient types');
+assert(shellModernAppEnv.includes('/// <reference types="@modern-js/app-tools/types" />'), 'Shell app env must reference the framework-owned app ambient type bundle while remaining an ambient declaration file');
+assert(/declare const ULTRAMODERN_SITE_URL: string;/u.test(shellModernAppEnv), 'Shell app env must keep generated globals explicit in ambient scope');
 assert(!shellModernAppEnv.includes("declare module '*.svg'"), 'Shell app env must not redeclare framework-owned svg asset modules');
 assert(!shellModernAppEnv.includes("declare module '*.css'"), 'Shell app env must not redeclare framework-owned css asset modules');
 assert(shellRouteMetadata.includes('@generated by @modern-js/create'), 'Shell route metadata compatibility manifest must be marked generated');
@@ -3775,8 +3875,8 @@ for (const vertical of fullStackVerticals) {
       `${vertical.path}/shared/ultramodern-build.ts ultramodernApiMarker`,
     );
   }
-  assert(modernAppEnv.includes("import '@modern-js/app-tools/types';"), `${vertical.id} app env must import the framework-owned app ambient type bundle through module resolution`);
-  assert(/declare global \{\s*const ULTRAMODERN_SITE_URL: string;\s*\}/u.test(modernAppEnv), `${vertical.id} app env must keep generated globals explicit after importing app ambient types`);
+  assert(modernAppEnv.includes('/// <reference types="@modern-js/app-tools/types" />'), `${vertical.id} app env must reference the framework-owned app ambient type bundle while remaining an ambient declaration file`);
+  assert(/declare const ULTRAMODERN_SITE_URL: string;/u.test(modernAppEnv), `${vertical.id} app env must keep generated globals explicit in ambient scope`);
   assert(!modernAppEnv.includes("declare module '*.svg'"), `${vertical.id} app env must not redeclare framework-owned svg asset modules`);
   assert(!modernAppEnv.includes("declare module '*.css'"), `${vertical.id} app env must not redeclare framework-owned css asset modules`);
   if (vertical.emitsUi) {

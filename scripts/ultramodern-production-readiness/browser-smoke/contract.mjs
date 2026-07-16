@@ -133,7 +133,14 @@ export function expectedAppIdFromRootSelector(selector) {
 
 export function routesForApp(app) {
   const cloudflareRoutes = app.deploy?.cloudflare?.routes ?? {};
+  const distributedSsrProofRoutes = Array.isArray(
+    app.deploy?.cloudflare?.distributedSsrProofRoutes,
+  )
+    ? app.deploy.cloudflare.distributedSsrProofRoutes
+    : [];
   return {
+    distributedSsr:
+      distributedSsrProofRoutes.at(-1) ?? cloudflareRoutes.ssr ?? '/en',
     effectReadiness:
       cloudflareRoutes.effectReadiness ?? cloudflareRoutes.apiReadiness,
     locale:
@@ -280,6 +287,12 @@ export function createSmokeContractApp(config, app) {
     },
     deploy: {
       cloudflare: {
+        ...(Array.isArray(app.deploy?.cloudflare?.distributedSsrProofRoutes)
+          ? {
+              distributedSsrProofRoutes:
+                app.deploy.cloudflare.distributedSsrProofRoutes,
+            }
+          : {}),
         workerName: `${toKebabCase(packageScope)}-${app.packageSuffix}`.slice(
           0,
           63,

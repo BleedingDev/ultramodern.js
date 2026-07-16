@@ -76,6 +76,10 @@ function runBrowserSmoke(projectDir, { mode, requirePublicUrls = false }) {
 
   run(args[0], args.slice(1), {
     env: {
+      // Acceptance installs the generated workspace with CI=true. Keep pnpm's
+      // install-mode defaults identical when the smoke runner starts package
+      // scripts, including enableGlobalVirtualStore on pnpm 11.
+      CI: 'true',
       ULTRAMODERN_BROWSER_SMOKE_PLAYWRIGHT_ROOT: runtimeDir,
     },
   });

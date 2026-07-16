@@ -4,6 +4,11 @@ import {
   RELEASE_COHORT_PROJECTION_PATH,
   readCreateReleaseCohort,
 } from '../../ultramodern-release-cohort';
+import {
+  createTopology,
+  createUltramodernConfig,
+} from '../../ultramodern-workspace/contracts';
+import { stampDeliveryUnitIdentity } from '../../ultramodern-workspace/delivery-unit-stamp';
 import { ULTRAMODERN_WORKSPACE_POLICY } from '../../ultramodern-workspace/policy';
 import { createAdditionalShellConfigEntry } from '../../ultramodern-workspace/shells';
 import type { WorkspaceApp } from '../../ultramodern-workspace/types';
@@ -78,6 +83,167 @@ function requireRecord(value: unknown, label: string): Record<string, any> {
     throw new Error(`${label} must be an object.`);
   }
   return value as Record<string, any>;
+}
+
+function synchronizeMigrationDeliveryUnitMetadata(
+  io: MigrationIo,
+  raw: Record<string, any>,
+  packageSource: ReturnType<typeof createMigrationPackageSource>,
+) {
+  const normalized = normalizeCompactUltramodernConfig(io.workspaceRoot, raw);
+  const apps = workspaceAppsFromToolingConfig(normalized);
+  const appById = new Map(apps.map(app => [app.id, app] as const));
+  const scope = normalized.workspace.packageScope;
+  const remotes = apps.filter(app => app.kind !== 'shell');
+  const primaryShell = apps.find(app => app.kind === 'shell');
+  const canonicalCompact = requireRecord(
+    createUltramodernConfig(
+      scope,
+      packageSource.modernPackageVersion,
+      packageSource,
+      apps,
+      normalized.features.tailwind,
+      normalized.bridge,
+      additionalShellsFromToolingConfig(normalized),
+      primaryShell,
+    ),
+    'Generated compact config',
+  );
+  const canonicalCompactApps = new Map(
+    (canonicalCompact.topology?.apps ?? []).map(
+      (entry: Record<string, any>) => [String(entry.id), entry],
+    ),
+  );
+
+  for (const entry of raw.topology?.apps ?? []) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+      continue;
+    }
+    const app = appById.get(String(entry.id));
+    if (app) {
+      stampDeliveryUnitIdentity(entry, scope, app);
+      const canonicalEntry = canonicalCompactApps.get(app.id);
+      if (canonicalEntry) {
+        entry.moduleFederation = canonicalEntry.moduleFederation;
+        entry.backendFederation = canonicalEntry.backendFederation;
+        entry.api = canonicalEntry.api;
+      }
+    }
+  }
+  writeJsonFile(
+    io,
+    path.join(io.workspaceRoot, '.modernjs/ultramodern.json'),
+    raw,
+  );
+
+  const topologyPath = path.join(
+    io.workspaceRoot,
+    'topology/reference-topology.json',
+  );
+  if (!fs.existsSync(topologyPath)) {
+    return;
+  }
+  const topology = readJsonFile(topologyPath);
+  const synchronizedConfig = normalizeCompactUltramodernConfig(
+    io.workspaceRoot,
+    raw,
+  );
+  const synchronizedApps = workspaceAppsFromToolingConfig(synchronizedConfig);
+  const synchronizedRemotes = synchronizedApps.filter(
+    app => app.kind !== 'shell',
+  );
+  const synchronizedPrimaryShell = synchronizedApps.find(
+    app => app.kind === 'shell',
+  );
+  const canonicalTopology = requireRecord(
+    createTopology(scope, synchronizedRemotes, synchronizedPrimaryShell),
+    'Generated reference topology',
+  );
+  for (const key of [
+    'schemaVersion',
+    'id',
+    'description',
+    'preset',
+    'sharedPackages',
+    'validation',
+  ]) {
+    topology[key] = canonicalTopology[key];
+  }
+  const canonicalTopologyApps = new Map(
+    [canonicalTopology.shell, ...(canonicalTopology.verticals ?? [])].map(
+      (entry: Record<string, any>) => [String(entry.id), entry],
+    ),
+  );
+  for (const entry of [topology.shell, ...(topology.verticals ?? [])]) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+      continue;
+    }
+    const app = appById.get(String(entry.id));
+    if (app) {
+      stampDeliveryUnitIdentity(entry, scope, app);
+      const canonicalEntry = canonicalTopologyApps.get(app.id);
+      if (canonicalEntry) {
+        for (const key of [
+          'moduleFederation',
+          'backendFederation',
+          'api',
+          'cloudflare',
+          'ownership',
+        ]) {
+          if (Object.hasOwn(canonicalEntry, key)) {
+            entry[key] = canonicalEntry[key];
+          } else {
+            delete entry[key];
+          }
+        }
+      }
+    }
+  }
+  writeJsonFile(io, topologyPath, topology);
+}
+
+const compactPolicyKeys = [
+  'schemaVersion',
+  'profile',
+  'workspace',
+  'features',
+  'deploy',
+  'moduleFederation',
+  'backendFederation',
+  'agentSkills',
+  'tooling',
+] as const;
+
+function synchronizeMigrationCompactPolicy(
+  io: MigrationIo,
+  raw: Record<string, any>,
+  packageSource: ReturnType<typeof createMigrationPackageSource>,
+) {
+  const migrated = normalizeCompactUltramodernConfig(io.workspaceRoot, raw);
+  const apps = workspaceAppsFromToolingConfig(migrated);
+  const remotes = apps.filter(app => app.kind !== 'shell');
+  const canonical = requireRecord(
+    createUltramodernConfig(
+      migrated.workspace.packageScope,
+      packageSource.modernPackageVersion,
+      packageSource,
+      apps,
+      migrated.features.tailwind,
+      migrated.bridge,
+      additionalShellsFromToolingConfig(migrated),
+      apps.find(app => app.kind === 'shell'),
+    ),
+    'Generated compact policy',
+  );
+
+  for (const key of compactPolicyKeys) {
+    raw[key] = canonical[key];
+  }
+  writeJsonFile(
+    io,
+    path.join(io.workspaceRoot, '.modernjs/ultramodern.json'),
+    raw,
+  );
 }
 
 function reconcileRootPackageSourceMetadata(
@@ -392,6 +558,8 @@ function migrateStrictEffect(
     );
   }
   updateReferenceTopology(io);
+  synchronizeMigrationDeliveryUnitMetadata(io, raw, packageSource);
+  synchronizeMigrationCompactPolicy(io, raw, packageSource);
   let migrated = normalizeCompactUltramodernConfig(io.workspaceRoot, raw);
   let migratedApps = workspaceAppsFromToolingConfig(migrated);
   migrated = reconcileAdditionalShellConfig(raw, migrated, migratedApps, io);
@@ -480,6 +648,28 @@ function migrateStrictEffect(
       releaseCohort,
       validationContractInputs.additionalShells,
       validationContractInputs.primaryShell,
+      raw,
+      fs.existsSync(path.join(io.workspaceRoot, 'topology/ownership.json'))
+        ? requireRecord(
+            readJsonFile(
+              path.join(io.workspaceRoot, 'topology/ownership.json'),
+            ),
+            'Ownership topology',
+          )
+        : undefined,
+      fs.existsSync(
+        path.join(io.workspaceRoot, 'topology/local-overlays/development.json'),
+      )
+        ? requireRecord(
+            readJsonFile(
+              path.join(
+                io.workspaceRoot,
+                'topology/local-overlays/development.json',
+              ),
+            ),
+            'Development topology overlay',
+          )
+        : undefined,
     ),
   );
 

@@ -33,6 +33,9 @@ const joinPath = (parentPath: string, routePath?: string): string => {
   return normalisePathPattern(`${parentPath}/${segment}`);
 };
 
+const isFrameworkInternalRoutePath = (canonicalPath: string) =>
+  canonicalPath === '/_mf' || canonicalPath.startsWith('/_mf/');
+
 const ensureLocalisedUrlsForPath = (
   canonicalPath: string,
   languages: string[],
@@ -66,7 +69,10 @@ export const validateLocalisedUrls = (
 ) => {
   const visit = (route: LocalisedRoute, parentPath: string) => {
     const canonicalPath = joinPath(parentPath, route.path);
-    if (isLocalisableRoutePath(route.path)) {
+    if (
+      isLocalisableRoutePath(route.path) &&
+      !isFrameworkInternalRoutePath(canonicalPath)
+    ) {
       ensureLocalisedUrlsForPath(canonicalPath, languages, localisedUrls);
     }
 
@@ -114,9 +120,11 @@ const transformLocalisedRoute = (
   localisedUrls: LocalisedUrlsMap,
 ): LocalisedRoute[] => {
   const canonicalPath = joinPath(parentCanonicalPath, route.path);
-  const localisedUrlEntry = isLocalisableRoutePath(route.path)
-    ? ensureLocalisedUrlsForPath(canonicalPath, languages, localisedUrls)
-    : undefined;
+  const localisedUrlEntry =
+    isLocalisableRoutePath(route.path) &&
+    !isFrameworkInternalRoutePath(canonicalPath)
+      ? ensureLocalisedUrlsForPath(canonicalPath, languages, localisedUrls)
+      : undefined;
   const routeLocalisedPaths = localisedUrlEntry
     ? languages.reduce<Record<string, string>>((acc, language) => {
         acc[language] = normalisePathPattern(localisedUrlEntry[language]);

@@ -10,6 +10,8 @@ import {
   createCloudflarePublicUrlEnv,
   createCloudflareWorkerName,
   createShellHost,
+  distributedSsrExposes,
+  distributedSsrFragmentRoute,
   resolveApiPrefix,
   resolveApiProtocol,
   resolveRemoteRefs,
@@ -109,14 +111,9 @@ ${resolveApiProtocol(app) === 'rest' ? "          openapi: {\n            path: 
     ? '  builderPlugins: [pluginTailwindcss()],\n'
     : '';
   const bffPluginEntry = appHasApi(app) ? '        bffPlugin(),\n' : '';
-  const serviceBindings =
-    app.kind === 'shell'
-      ? resolveRemoteRefs(app, remotes).filter(
-          remote =>
-            appHasApi(remote) ||
-            Object.hasOwn(remote.exposes ?? {}, './Widget'),
-        )
-      : [];
+  const serviceBindings = resolveRemoteRefs(app, remotes).filter(
+    remote => appHasApi(remote) || distributedSsrExposes(remote).length > 0,
+  );
   const serviceBindingsConfig =
     serviceBindings.length > 0
       ? `          services: [
@@ -127,14 +124,18 @@ ${serviceBindings
                 envValue('${createWorkerBindingEnv(service)}') ??
                 '${createWorkerBindingName(service)}',
 ${
-  Object.hasOwn(service.exposes ?? {}, './Widget')
+  distributedSsrExposes(service).length > 0
     ? `              fragments: [
-                {
+${distributedSsrExposes(service)
+  .map(
+    expose => `                {
                   boundaryId: '${service.mfName}',
-                  expose: './Widget',
-                  path: '/{locale}/_mf/fragment/widget',
+                  expose: '${expose}',
+                  path: '${distributedSsrFragmentRoute(expose)}',
                   remote: '${service.id}',
-                },
+                },`,
+  )
+  .join('\n')}
               ],
 `
     : ''
@@ -339,10 +340,16 @@ export function createRemoteModuleFederationConfig(
 ): string {
   const exposes = formatTsObjectLiteral(app.exposes ?? {});
   const hasExposes = Object.keys(app.exposes ?? {}).length > 0;
+  const hasRemoteRefs = resolveRemoteRefs(app, remotes).length > 0;
   const hostOnlyMarker = hasExposes ? '' : '\n// ultramodern-mf: no-exposes';
-  const tsgoCompilerImport = hasExposes
-    ? "import { resolveEffectTsgoCompiler } from '@modern-js/app-tools/config';\n"
-    : '';
+  const appToolsConfigImports = [
+    ...(hasRemoteRefs ? ['getBuildConfigEnvironment'] : []),
+    ...(hasExposes ? ['resolveEffectTsgoCompiler'] : []),
+  ];
+  const appToolsConfigImport =
+    appToolsConfigImports.length > 0
+      ? `import { ${appToolsConfigImports.join(', ')} } from '@modern-js/app-tools/config';\n`
+      : '';
   const tsgoCompilerInstance = hasExposes
     ? `
 const tsgoCompilerInstance =
@@ -350,11 +357,11 @@ const tsgoCompilerInstance =
 `
     : '';
   return `${hostOnlyMarker}
-${tsgoCompilerImport}import { createRequire } from 'node:module';
+${appToolsConfigImport}import { createRequire } from 'node:module';
 import { createModuleFederationConfig } from '@module-federation/modern-js-v3';
 import { dependencies } from './package.json';
 
-${createModuleFederationRemoteUrlHelpers(app, remotes)}
+${createModuleFederationRemoteUrlHelpers(app, remotes, false)}
 const require = createRequire(import.meta.url);
 const pluginI18nVersion = (require('@modern-js/plugin-i18n/package.json') as { version: string }).version;
 const pluginTanstackVersion = (require('@modern-js/plugin-tanstack/package.json') as { version: string }).version;

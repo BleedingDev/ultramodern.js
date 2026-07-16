@@ -63,6 +63,7 @@ const knownStaleReleaseAgeEntries = new Set([
   '@effect/opentelemetry@4.0.0-beta.92',
   '@effect/opentelemetry@4.0.0-beta.94',
   '@typescript/native-preview@7.0.0-dev.20260628.1',
+  '@typescript/typescript6@6.0.2',
   '@cloudflare/workers-types@5.20260708.1',
   'effect@4.0.0-beta.92',
   'effect@4.0.0-beta.94',
@@ -197,7 +198,9 @@ function assertOwnedTrustPolicyList(
     if (
       expectedSet.has(entry) ||
       entry === 'effect@4.0.0-beta.92' ||
-      entry === '@effect/opentelemetry@4.0.0-beta.92'
+      entry === '@effect/opentelemetry@4.0.0-beta.92' ||
+      entry === 'effect@4.0.0-beta.94' ||
+      entry === '@effect/opentelemetry@4.0.0-beta.94'
     ) {
       continue;
     }
@@ -361,9 +364,13 @@ function stalePatchFilesToRemove(workspaceRoot: string) {
       .createHash('sha256')
       .update(fs.readFileSync(patchPath))
       .digest('hex');
-    if (digest !== patch.sha256) {
+    const acceptedDigests = new Set([
+      patch.sha256,
+      ...(patch.acceptedLegacySha256 ?? []),
+    ]);
+    if (!acceptedDigests.has(digest)) {
       throw new Error(
-        `Stale framework patch ${patch.path} was modified (expected sha256 ${patch.sha256}, found ${digest}); refusing to delete it.`,
+        `Stale framework patch ${patch.path} was modified (expected a reviewed sha256, found ${digest}); refusing to delete it.`,
       );
     }
     staleFiles.push(patchPath);

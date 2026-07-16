@@ -171,6 +171,7 @@ test('root package json pins workspace package versions and bridge workspace glo
     '@modern-js/code-tools': packageVersion,
     '@modern-js/create': packageVersion,
     '@modern-js/plugin-bff': packageVersion,
+    '@typescript/native': 'npm:typescript@7.0.2',
     lefthook: '^2.1.10',
     miniflare: MINIFLARE_VERSION,
     oxlint: '1.73.0',

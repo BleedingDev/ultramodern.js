@@ -415,6 +415,62 @@ function createStructuralShellPolicy(workspaceApps: WorkspaceApp[]) {
   };
 }
 
+function createFederatedCompositionSourcePolicy(
+  scope: string,
+  hosts: WorkspaceApp[],
+  remotes: WorkspaceApp[],
+) {
+  const remotesById = new Map(remotes.map(remote => [remote.id, remote]));
+
+  return {
+    schemaVersion: 1,
+    hosts: [...new Map(hosts.map(host => [host.id, host])).values()]
+      .filter(host => (host.verticalRefs?.length ?? 0) > 0)
+      .map(host => ({
+        id: host.id,
+        srcDir: `${host.directory}/src`,
+        remotes: (host.verticalRefs ?? []).map(remoteId => {
+          const remote = remotesById.get(remoteId);
+          if (remote === undefined) {
+            throw new Error(
+              `Unknown remote vertical reference ${remoteId} for ${host.id}.`,
+            );
+          }
+          return {
+            id: remote.id,
+            directory: remote.directory,
+            packageName: packageName(scope, remote.packageSuffix),
+          };
+        }),
+      })),
+    forbiddenSourcePatterns: [
+      {
+        id: 'hydrated-remote-factory',
+        expression: '\\bcreateHydratedRemote\\b',
+        flags: 'u',
+        diagnostic:
+          'Federated hosts must use the framework distributed SSR boundary directly; hydration-time remote factories are forbidden.',
+      },
+      {
+        id: 'hydration-flag',
+        expression:
+          '\\[\\s*(?:is)?[Hh]ydrated\\s*,\\s*set(?:Is)?Hydrated\\s*\\]\\s*=\\s*useState\\s*\\(\\s*false\\s*\\)',
+        flags: 'u',
+        diagnostic:
+          'Federated hosts must hydrate the server DOM directly; hydrated-state component switching is forbidden.',
+      },
+      {
+        id: 'local-loading-copy',
+        expression:
+          '(?:loading\\s*:\\s*|fallback\\s*=\\s*\\{\\s*)<\\s*(?:ServerComponent|LocalComponent)\\b',
+        flags: 'u',
+        diagnostic:
+          'Federated hosts must not render a local component copy while loading a remote implementation.',
+      },
+    ],
+  };
+}
+
 export function createWorkspaceValidationContract(
   scope: string,
   enableTailwind: boolean,
@@ -422,6 +478,9 @@ export function createWorkspaceValidationContract(
   releaseCohort?: UltramodernReleaseCohort,
   additionalShells: WorkspaceApp[] = [],
   primaryShell?: WorkspaceApp,
+  compactConfigOverride?: Record<string, unknown>,
+  ownershipOverride?: Record<string, unknown>,
+  developmentOverlayOverride?: Record<string, unknown>,
 ) {
   const resolvedPrimaryShell = primaryShell ?? createShellHost(remotes);
   const workspaceApps = [resolvedPrimaryShell, ...remotes];
@@ -432,19 +491,20 @@ export function createWorkspaceValidationContract(
   // workspace.
   const configuredShells = [resolvedPrimaryShell, ...additionalShells];
   const compactConfig = asJsonRecord(
-    createUltramodernConfig(
-      scope,
-      'workspace-validation-contract',
-      {
-        strategy: 'workspace',
-        modernPackageVersion: 'workspace:*',
-      },
-      workspaceApps,
-      enableTailwind,
-      undefined,
-      additionalShells,
-      resolvedPrimaryShell,
-    ),
+    compactConfigOverride ??
+      createUltramodernConfig(
+        scope,
+        'workspace-validation-contract',
+        {
+          strategy: 'workspace',
+          modernPackageVersion: 'workspace:*',
+        },
+        workspaceApps,
+        enableTailwind,
+        undefined,
+        additionalShells,
+        resolvedPrimaryShell,
+      ),
   );
   const fullStackVerticals = remotes.map(remote => ({
     id: remote.id,
@@ -613,8 +673,9 @@ export function createWorkspaceValidationContract(
         remotes,
         resolvedPrimaryShell,
       ),
-      ownership: createOwnership(scope, remotes),
-      developmentOverlay: createDevelopmentOverlay(scope, remotes),
+      ownership: ownershipOverride ?? createOwnership(scope, remotes),
+      developmentOverlay:
+        developmentOverlayOverride ?? createDevelopmentOverlay(scope, remotes),
     },
     policy: {
       compactConfig: {
@@ -666,6 +727,11 @@ export function createWorkspaceValidationContract(
     },
     tailwindEnabled: enableTailwind,
     structuralShellPolicy: createStructuralShellPolicy(configuredShells),
+    federatedCompositionSourcePolicy: createFederatedCompositionSourcePolicy(
+      scope,
+      [...configuredShells, ...remotes],
+      remotes,
+    ),
     ...(additionalShellRecords.length > 0
       ? {
           additionalShells: additionalShellRecords,

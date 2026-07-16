@@ -41,7 +41,7 @@ packageExtensionsChecksum: sha256-WRrNhtaGzg0sXiK1NZg6Xsn98YQn2A9Zm/y1eVRzcbY=
 pnpmfileChecksum: sha256-e7fv4++EEy5D/4pBzV1yGYuIWnXfQwaMHH7OMxyEZx4=
 
 patchedDependencies:
-  '@module-federation/bridge-react@2.7.0': 570db78204f3db2a61c3637ee89c8847e767581e7cc666e0a100ae06e5bcb2c5
+  '@module-federation/bridge-react@2.7.0': 2f89441475f83a6e12d8c2a755b5b15c4d2b04523a1b33fd318c2d537382537f
   '@module-federation/manifest@2.7.0': d4e1ba0882ca057905f6f52a3df901a9d54dbd14e6f57ae90b12d970e030b79d
   '@module-federation/modern-js-v3@2.7.0': f51adf0aa6c6e2daa5b7d2978a7716c0d4fb05b29af449b2f16257b957fb7923
   '@module-federation/rspack@2.7.0': d7c0d858ad909a5dc474eb8fa58626fd525d3bc2a9a1b8ff9d852c4ab82c3c25
@@ -18241,7 +18241,7 @@ snapshots:
       '@types/semver': 7.5.8
       semver: 7.6.3
 
-  '@module-federation/bridge-react@2.7.0(patch_hash=570db78204f3db2a61c3637ee89c8847e767581e7cc666e0a100ae06e5bcb2c5)(react-dom@19.2.7(react@19.2.7))(react-router-dom@7.18.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-router@8.1.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)':
+  '@module-federation/bridge-react@2.7.0(patch_hash=2f89441475f83a6e12d8c2a755b5b15c4d2b04523a1b33fd318c2d537382537f)(react-dom@19.2.7(react@19.2.7))(react-router-dom@7.18.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-router@8.1.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)':
     dependencies:
       '@module-federation/sdk': 2.7.0
       lru-cache: 10.4.3
@@ -18324,7 +18324,7 @@ snapshots:
 
   '@module-federation/modern-js-v3@2.7.0(patch_hash=f51adf0aa6c6e2daa5b7d2978a7716c0d4fb05b29af449b2f16257b957fb7923)(@rsbuild/core@2.1.5(@module-federation/runtime-tools@2.7.0)(core-js@3.49.0))(@rspack/core@2.1.3(@module-federation/runtime-tools@2.7.0)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.2.7(react@19.2.7))(react-router-dom@7.18.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-router@8.1.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(typescript@7.0.2)(utf-8-validate@5.0.10)':
     dependencies:
-      '@module-federation/bridge-react': 2.7.0(patch_hash=570db78204f3db2a61c3637ee89c8847e767581e7cc666e0a100ae06e5bcb2c5)(react-dom@19.2.7(react@19.2.7))(react-router-dom@7.18.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-router@8.1.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)
+      '@module-federation/bridge-react': 2.7.0(patch_hash=2f89441475f83a6e12d8c2a755b5b15c4d2b04523a1b33fd318c2d537382537f)(react-dom@19.2.7(react@19.2.7))(react-router-dom@7.18.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-router@8.1.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)
       '@module-federation/cli': 2.7.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
       '@module-federation/enhanced': 2.7.0(@rspack/core@2.1.3(@module-federation/runtime-tools@2.7.0)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
       '@module-federation/node': 2.7.46(@rspack/core@2.1.3(@module-federation/runtime-tools@2.7.0)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)

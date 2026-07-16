@@ -155,6 +155,7 @@ export const walk = async (options: {
   let pageLoaderFile = '';
   let pageRoute = null;
   let pageConfigFile = '';
+  let pageSearchFile = '';
   let pageClientData = '';
   let pageData = '';
   let pageAction = '';
@@ -247,6 +248,10 @@ export const walk = async (options: {
       pageConfigFile = itemPathWithAlias;
     }
 
+    if (itemWithoutExt === NESTED_ROUTE.PAGE_SEARCH_FILE) {
+      pageSearchFile = itemPathWithAlias;
+    }
+
     if (itemWithoutExt === NESTED_ROUTE.PAGE_FILE) {
       pageRoute = createIndexRoute(
         {
@@ -263,6 +268,9 @@ export const walk = async (options: {
       }
       if (pageConfigFile) {
         pageRoute.config = pageConfigFile;
+      }
+      if (pageSearchFile) {
+        pageRoute.validateSearch = pageSearchFile;
       }
       if (pageData) {
         pageRoute.data = pageData;

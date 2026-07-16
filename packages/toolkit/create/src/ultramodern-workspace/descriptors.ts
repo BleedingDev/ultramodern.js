@@ -16,6 +16,24 @@ import type {
 
 export const ULTRAMODERN_CONFIG_PATH = '.modernjs/ultramodern.json';
 
+export function distributedSsrExposes(app: WorkspaceApp) {
+  return Object.keys(app.exposes ?? {})
+    .filter(expose => expose !== './Route')
+    .toSorted();
+}
+
+export function distributedSsrFragmentSlug(expose: string) {
+  const slug = toKebabCase(expose.replace(/^\.\//u, ''));
+  if (!slug) {
+    throw new Error(`Invalid distributed SSR expose ${expose}.`);
+  }
+  return slug;
+}
+
+export function distributedSsrFragmentRoute(expose: string) {
+  return `/{locale}/_mf/fragment/${distributedSsrFragmentSlug(expose)}`;
+}
+
 export const shellApp: WorkspaceApp = {
   id: 'shell-super-app',
   directory: 'apps/shell-super-app',

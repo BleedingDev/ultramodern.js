@@ -39,6 +39,16 @@ export const moduleFederationBridgeReactPatchSourcePath = path.join(
 
 export const effectDeclarationPatchPath = requiredPatchPath('effect');
 
+export const tanstackRouterCorePatchPath = requiredPatchPath(
+  '@tanstack/router-core',
+);
+
+export const tanstackRouterCorePatchSourcePath = path.join(
+  createPackageRoot,
+  'template-workspace',
+  tanstackRouterCorePatchPath,
+);
+
 export const effectDeclarationPatchSourcePath = path.join(
   createPackageRoot,
   'template-workspace',

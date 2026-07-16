@@ -102,6 +102,9 @@ async function dispatchRouteWorker(route, request, env, ctx) {
       requestHandlerOptions.resource.routeManifest,
       request,
       env,
+      requestHandlerOptions.locals[
+        DISTRIBUTED_SSR_FRAGMENTS_LOCALS_KEY
+      ]?.getStylesheetHrefs(),
     );
   }
 

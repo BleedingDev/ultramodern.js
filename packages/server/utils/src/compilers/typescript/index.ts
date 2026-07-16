@@ -29,6 +29,7 @@ type TsgoConfig = {
   };
   files?: string[];
   include?: string[];
+  references?: Array<{ path: string }>;
 };
 
 type NativePreviewPackageJson = {
@@ -89,6 +90,12 @@ export const createResolvedTsgoConfig = async (
   // `--showConfig` emits `files` relative to the tsconfig directory.
   config.files = filterSourceFiles(tsconfigDir, sourceDirs, config.files);
   delete config.include;
+  // This config is a one-shot server emit, not a composite project build.
+  // Keeping the app's project references makes TS-Go require declaration
+  // outputs from sibling workspace packages even though their source is not
+  // part of this emit (TS6305 on a clean checkout). Bare workspace imports
+  // remain resolved through the app's paths config and the output rewriter.
+  delete config.references;
 
   // TS-Go v7 removed baseUrl and the node10/moduleResolution=node spelling.
   // The Modern.js server compiler still resolves aliases itself after emit, so

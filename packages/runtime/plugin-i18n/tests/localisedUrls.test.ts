@@ -216,6 +216,25 @@ describe('cli modifyFileSystemRoutes', () => {
 });
 
 describe('localisedUrls', () => {
+  test('leaves framework-internal Module Federation routes unlocalised', () => {
+    const internalRoute = createRoute('_mf', [
+      createRoute('fragment', [createRoute('product-card')]),
+    ]);
+    const publicRoute = createRoute(':lang', [createRoute('products')]);
+    const routes = [internalRoute, publicRoute];
+
+    expect(() =>
+      validateLocalisedUrls(routes, ['en', 'cs'], {
+        '/products': { en: '/products', cs: '/produkty' },
+      }),
+    ).not.toThrow();
+    expect(
+      applyLocalisedUrlsToRoutes(routes, ['en', 'cs'], {
+        '/products': { en: '/products', cs: '/produkty' },
+      })[0],
+    ).toEqual(internalRoute);
+  });
+
   test('requires every localisable route path to define every language', () => {
     const routes = [createRoute(':lang', [createRoute('terms-of-service')])];
 

@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import os from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { resolveEffectTsgoCompiler } from '@modern-js/app-tools/config';
 
 const args = process.argv.slice(2);
@@ -115,7 +115,9 @@ const defaultCheckers =
 const checkers =
   parsed.checkers ??
   envPositiveInt('ULTRAMODERN_TSGO_CHECKERS', defaultCheckers);
-const tsgoBin = resolveEffectTsgoCompiler({ from: import.meta.url });
+const tsgoBin = resolveEffectTsgoCompiler({
+  from: pathToFileURL(join(workspaceRoot, 'package.json')),
+});
 
 mkdirSync(join(workspaceRoot, 'node_modules/.cache/tsgo'), {
   recursive: true,

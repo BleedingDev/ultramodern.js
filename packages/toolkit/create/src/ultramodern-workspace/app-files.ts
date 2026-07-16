@@ -29,7 +29,8 @@ function createBoundaryDebugMetadata(
 
 export function createAppEnvDts(
   app: WorkspaceApp,
-  remotes: WorkspaceApp[] = [],
+  remotes: WorkspaceApp[],
+  scope: string,
 ): string {
   const remoteModuleDeclarations = resolveRemoteRefs(app, remotes)
     .flatMap(remote =>
@@ -40,24 +41,21 @@ export function createAppEnvDts(
             /^\.\//u,
             '',
           )}`;
+          const workspaceModuleName = `${packageName(
+            scope,
+            remote.packageSuffix,
+          )}/${expose.replace(/^\.\//u, '')}`;
           return `declare module '${moduleName}' {
-  const Component: React.ComponentType<Record<string, never>>;
-  export default Component;
+  export { default } from '${workspaceModuleName}';
 }
 `;
         }),
     )
     .join('\n');
 
-  const reactTypeImport = remoteModuleDeclarations
-    ? "import type React from 'react';\n"
-    : '';
-
   return [
-    `import '@modern-js/app-tools/types';\n${reactTypeImport}`.trimEnd(),
-    `declare global {
-  const ULTRAMODERN_SITE_URL: string;
-}`,
+    '/// <reference types="@modern-js/app-tools/types" />',
+    'declare const ULTRAMODERN_SITE_URL: string;',
     remoteModuleDeclarations.trimEnd(),
   ]
     .filter(section => section.length > 0)

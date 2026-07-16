@@ -24,6 +24,7 @@ import {
   createStrictTsgoTypecheckCommand,
   createWorkspaceAppPackageScripts,
   createWorkspaceRootPackageScripts,
+  GENERATED_POSTINSTALL_SCRIPT,
 } from './workspace-script-plan';
 
 export function appDependencies(
@@ -191,8 +192,7 @@ export function createRootPackageJson(
       'api:check': 'node ./scripts/check-ultramodern-api-boundaries.mts',
       'i18n:boundaries': 'node ./scripts/check-ultramodern-i18n-boundaries.mts',
       ...bridgeScripts,
-      postinstall:
-        "oxfmt . '!repos/**' && node ./scripts/bootstrap-agent-skills.mts --postinstall",
+      postinstall: GENERATED_POSTINSTALL_SCRIPT,
     },
     engines: {
       node: ULTRAMODERN_WORKSPACE_POLICY.toolchain.node.engineRange,

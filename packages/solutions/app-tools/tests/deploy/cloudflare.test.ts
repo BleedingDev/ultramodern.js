@@ -2199,6 +2199,35 @@ describe('cloudflare deploy preset', () => {
     await expect(response.text()).resolves.toBe(html);
   });
 
+  it('deduplicates stylesheet links emitted by multiple distributed fragments', async () => {
+    const href = 'https://explore.example.com/static/css/explore.css';
+    const html = `<!doctype html><html><head></head><body><link href="${href}" rel="stylesheet" type="text/css"><section>Header</section><link rel="stylesheet" href="${href}"><section>Home</section></body></html>`;
+    const { outputDirectory } = await createFixture({
+      distFiles: {
+        'routes-manifest.json': JSON.stringify({ routeAssets: {} }),
+        'worker/html.js': `module.exports = { requestHandler: async () => new Response(${JSON.stringify(
+          html,
+        )}, { headers: { 'content-type': 'text/html; charset=utf-8' } }) };`,
+      },
+    });
+    const entryPath = path.join(outputDirectory, 'server/index.mjs');
+    const worker = (
+      await import(`${pathToFileURL(entryPath).href}?t=${Date.now()}`)
+    ).default;
+
+    const response = await worker.fetch(
+      new Request('https://example.com/styled'),
+      {
+        ASSETS: createAssetBinding(path.join(outputDirectory, 'public')),
+      },
+    );
+    const rendered = await response.text();
+
+    expect(rendered.split(href)).toHaveLength(2);
+    expect(rendered).toContain('<section>Header</section>');
+    expect(rendered).toContain('<section>Home</section>');
+  });
+
   it('injects rendered federated remote CSS links into Cloudflare SSR HTML responses', async () => {
     const { outputDirectory } = await createFixture();
     const entryPath = path.join(outputDirectory, 'server/index.mjs');
@@ -2300,10 +2329,10 @@ describe('cloudflare deploy preset', () => {
         '<link rel="stylesheet" href="https://example.com/static/app.css">',
       );
       expect(html).toContain(
-        '<link rel="stylesheet" href="https://explore.example.com/static/css/explore.css">',
+        '<link href="https://explore.example.com/static/css/explore.css" rel="stylesheet" type="text/css" data-precedence="default">',
       );
       expect(html).toContain(
-        '<link rel="stylesheet" href="https://checkout.example.com/static/css/checkout.css">',
+        '<link href="https://checkout.example.com/static/css/checkout.css" rel="stylesheet" type="text/css" data-precedence="default">',
       );
     } finally {
       globalThis.fetch = originalFetch;
@@ -2397,10 +2426,10 @@ describe('cloudflare deploy preset', () => {
         '<https://checkout.example.com/static/css/checkout.css>; rel=preload; as=style',
       );
       expect(html).toContain(
-        '<link rel="stylesheet" href="https://explore.example.com/static/css/explore.css">',
+        '<link href="https://explore.example.com/static/css/explore.css" rel="stylesheet" type="text/css" data-precedence="default">',
       );
       expect(html).toContain(
-        '<link rel="stylesheet" href="https://checkout.example.com/static/css/checkout.css">',
+        '<link href="https://checkout.example.com/static/css/checkout.css" rel="stylesheet" type="text/css" data-precedence="default">',
       );
     } finally {
       globalThis.fetch = originalFetch;
@@ -2506,7 +2535,7 @@ describe('cloudflare deploy preset', () => {
 
       expect(firstResponse.status).toBe(200);
       expect(firstHtml).not.toContain(
-        '<link rel="stylesheet" href="https://explore.example.com/static/css/explore.css">',
+        '<link href="https://explore.example.com/static/css/explore.css" rel="stylesheet" type="text/css" data-precedence="default">',
       );
 
       const secondResponse = await worker.fetch(
@@ -2519,7 +2548,7 @@ describe('cloudflare deploy preset', () => {
 
       expect(secondResponse.status).toBe(200);
       expect(secondHtml).toContain(
-        '<link rel="stylesheet" href="https://explore.example.com/static/css/explore.css">',
+        '<link href="https://explore.example.com/static/css/explore.css" rel="stylesheet" type="text/css" data-precedence="default">',
       );
       expect(exploreManifestFetches).toBe(2);
     } finally {
@@ -2693,7 +2722,14 @@ describe('cloudflare deploy preset', () => {
   });
 
   it('describes expose-specific CSS on distributed SSR fragment responses', async () => {
+    const renderedFragment =
+      '<section data-sku="CL-08-GR">Inventory SSR</section><output>7750</output>';
     const { outputDirectory } = await createFixture({
+      deliveryUnit: {
+        buildMarker: 'inventory-build-b',
+        sourceRevision: 'inventory-revision-b',
+        unitId: 'tractor-store/inventory',
+      },
       distFiles: {
         'mf-manifest.json': JSON.stringify({
           name: 'verticalInventory',
@@ -2709,8 +2745,10 @@ describe('cloudflare deploy preset', () => {
             },
           ],
         }),
-        'worker/main.js': `module.exports = { requestHandler: async () =>
-          new Response('<!doctype html><html><head></head><body><section data-modern-boundary-id="verticalInventory" data-modern-mf-expose="./Widget">Inventory SSR</section></body></html>', { headers: { 'content-type': 'text/html; charset=utf-8' } }) };`,
+        'worker/main.js': `module.exports = { requestHandler: async (_request, options) => {
+          const fragment = options.locals.__modernDistributedSsrFragmentRequest;
+          return new Response('<!doctype html><html><head></head><body><template data-modern-boundary-id="verticalInventory" data-modern-distributed-ssr-marker="start" data-modern-mf-expose="./Widget"></template><section data-sku="' + fragment.props.sku + '">Inventory SSR</section><output>' + fragment.props.price + '</output><template data-modern-boundary-id="verticalInventory" data-modern-distributed-ssr-marker="end" data-modern-mf-expose="./Widget"></template></body></html>', { headers: { 'content-type': 'text/html; charset=utf-8' } });
+        } };`,
       },
     });
     const entryPath = path.join(outputDirectory, 'server/index.mjs');
@@ -2736,7 +2774,17 @@ describe('cloudflare deploy preset', () => {
 
     const response = await worker.fetch(
       new Request('https://inventory.example.com/dashboard', {
-        headers: { 'x-modern-js-fragment-request': '1' },
+        headers: {
+          'x-modern-distributed-ssr-boundary-id': 'verticalInventory',
+          'x-modern-distributed-ssr-expose': './Widget',
+          'x-modern-distributed-ssr-props': encodeURIComponent(
+            JSON.stringify({ price: 7750, sku: 'CL-08-GR' }),
+          ),
+          'x-modern-distributed-ssr-remote': 'inventory',
+          'x-modern-distributed-ssr-source-url':
+            'https://tractor.example.com/en/tractors/holland-hamster',
+          'x-modern-js-fragment-request': '1',
+        },
       }),
       {
         ASSETS: createSpaFallbackAssetBinding(
@@ -2748,35 +2796,85 @@ describe('cloudflare deploy preset', () => {
     expect(response.headers.get('x-modern-distributed-ssr-css')).toBe(
       JSON.stringify(['static/css/inventory.css']),
     );
+    const provenance = JSON.parse(
+      decodeURIComponent(
+        response.headers.get('x-modern-distributed-ssr-provenance') ?? '',
+      ),
+    );
+    const expectedDigest = [
+      ...new Uint8Array(
+        await crypto.subtle.digest(
+          'SHA-256',
+          new TextEncoder().encode(renderedFragment),
+        ),
+      ),
+    ]
+      .map(byte => byte.toString(16).padStart(2, '0'))
+      .join('');
+    expect(provenance).toEqual({
+      boundaryId: 'verticalInventory',
+      buildMarker: 'inventory-build-b',
+      digest: expectedDigest,
+      expose: './Widget',
+      remote: 'inventory',
+      sourceRevision: 'inventory-revision-b',
+      unitId: 'tractor-store/inventory',
+    });
   });
 
-  it('composes verified SSR fragments through service bindings before rendering the shell', async () => {
+  it('resolves prop-bearing multi-root fragments lazily with verified delivery provenance', async () => {
+    const renderedFragment =
+      '<button data-sku="CL-08-GR">Add Holland Hamster</button><output>7750</output>';
+    const digestBytes = new Uint8Array(
+      await crypto.subtle.digest(
+        'SHA-256',
+        new TextEncoder().encode(renderedFragment),
+      ),
+    );
+    const digest = [...digestBytes]
+      .map(byte => byte.toString(16).padStart(2, '0'))
+      .join('');
+    const provenance = {
+      boundaryId: 'verticalCheckout',
+      buildMarker: 'checkout-build-b',
+      digest,
+      expose: './AddToCart',
+      remote: 'checkout',
+      sourceRevision: 'checkout-revision-b',
+      unitId: 'tractor-store/checkout',
+    };
     const { outputDirectory } = await createFixture({
       distFiles: {
         'mf-manifest.json': JSON.stringify({
           remotes: [
             {
-              alias: 'inventory',
-              entry: 'https://inventory.example.com/mf-manifest.json',
-              federationContainerName: 'verticalInventory',
+              alias: 'checkout',
+              entry: 'https://checkout.example.com/mf-manifest.json',
+              federationContainerName: 'verticalCheckout',
             },
           ],
         }),
-        'worker/main.js': `module.exports = { requestHandler: async (_request, options) =>
-          Response.json(options.locals.__modernDistributedSsrFragments) };`,
+        'worker/main.js': `module.exports = { requestHandler: async (_request, options) => {
+          const fragment = await options.locals.__modernDistributedSsrFragments.resolve(
+            'checkout',
+            './AddToCart',
+            { price: 7750, sku: 'CL-08-GR', variant: undefined },
+          );
+          return Response.json(fragment);
+        } };`,
       },
       services: [
         {
-          binding: 'VERTICAL_INVENTORY_WORKER',
+          binding: 'VERTICAL_CHECKOUT_WORKER',
           fragments: [
             {
-              boundaryId: 'verticalInventory',
-              expose: './Widget',
-              path: '/en/_mf/fragment/widget',
-              remote: 'inventory',
+              boundaryId: 'verticalCheckout',
+              expose: './AddToCart',
+              path: '/{locale}/_mf/fragment/add-to-cart',
+              remote: 'checkout',
             },
           ],
-          service: 'tractor-inventory-worker',
+          service: 'tractor-checkout-worker',
         },
       ],
     });
@@ -2784,25 +2882,48 @@ describe('cloudflare deploy preset', () => {
     const worker = (
       await import(`${pathToFileURL(entryPath).href}?t=${Date.now()}`)
     ).default;
-    const calls: string[] = [];
+    const calls: Array<{
+      expose: string | null;
+      method: string;
+      props: unknown;
+      remote: string | null;
+      sourceUrl: string | null;
+      url: string;
+    }> = [];
 
     const response = await worker.fetch(
-      new Request('https://example.com/dashboard'),
+      new Request('https://tractor.example.com/dashboard?sku=CL-08-GR'),
       {
         ASSETS: createSpaFallbackAssetBinding(
           path.join(outputDirectory, 'public'),
         ),
-        VERTICAL_INVENTORY_WORKER: {
+        VERTICAL_CHECKOUT_WORKER: {
           fetch: async (request: Request) => {
-            calls.push(request.url);
+            calls.push({
+              expose: request.headers.get('x-modern-distributed-ssr-expose'),
+              method: request.method,
+              props: JSON.parse(
+                decodeURIComponent(
+                  request.headers.get('x-modern-distributed-ssr-props') ?? '',
+                ),
+              ),
+              remote: request.headers.get('x-modern-distributed-ssr-remote'),
+              sourceUrl: request.headers.get(
+                'x-modern-distributed-ssr-source-url',
+              ),
+              url: request.url,
+            });
             return new Response(
-              '<!doctype html><html><head><link href="/static/css/route.css" rel="stylesheet"><link href="/static/css/inventory.css" rel="stylesheet"></head><body><!--$--><section data-modern-boundary-id="verticalInventory" data-modern-mf-expose="./Widget"><div>Inventory SSR</div></section><!--/$--></body></html>',
+              `<!doctype html><html><head></head><body><template data-modern-boundary-id="verticalCheckout" data-modern-distributed-ssr-marker="start" data-modern-mf-expose="./AddToCart"></template>${renderedFragment}<template data-modern-boundary-id="verticalCheckout" data-modern-distributed-ssr-marker="end" data-modern-mf-expose="./AddToCart"></template></body></html>`,
               {
                 headers: {
                   'content-type': 'text/html; charset=utf-8',
                   'x-modern-distributed-ssr-css': JSON.stringify([
-                    'static/css/inventory.css',
+                    'static/css/add-to-cart.css',
                   ]),
+                  'x-modern-distributed-ssr-provenance': encodeURIComponent(
+                    JSON.stringify(provenance),
+                  ),
                 },
               },
             );
@@ -2811,22 +2932,51 @@ describe('cloudflare deploy preset', () => {
       },
     );
 
-    expect(calls).toEqual(['https://example.com/en/_mf/fragment/widget']);
-    await expect(response.json()).resolves.toEqual({
-      fragments: {
-        'inventory::./Widget': {
-          boundaryId: 'verticalInventory',
-          expose: './Widget',
-          html: '<!--$--><link href="https://inventory.example.com/static/css/inventory.css" rel="stylesheet" type="text/css"><section data-modern-boundary-id="verticalInventory" data-modern-mf-expose="./Widget"><div>Inventory SSR</div></section><!--/$-->',
-          remote: 'inventory',
-          status: 'ready',
-        },
+    expect(response.status).toBe(200);
+    expect(calls).toEqual([
+      {
+        expose: './AddToCart',
+        method: 'GET',
+        props: { price: 7750, sku: 'CL-08-GR' },
+        remote: 'checkout',
+        sourceUrl: 'https://tractor.example.com/dashboard?sku=CL-08-GR',
+        url: 'https://tractor.example.com/dashboard/_mf/fragment/add-to-cart',
       },
-      required: true,
+    ]);
+    await expect(response.json()).resolves.toEqual({
+      boundaryId: 'verticalCheckout',
+      buildMarker: 'checkout-build-b',
+      digest,
+      expose: './AddToCart',
+      html: `<!--$-->${renderedFragment}<!--/$-->`,
+      provenance,
+      remote: 'checkout',
+      status: 'ready',
     });
   });
 
   it('preloads service-composed fragment CSS without duplication or remote network fetches', async () => {
+    const renderedFragment =
+      '<section data-modern-boundary-id="verticalInventory" data-modern-mf-expose="./Widget"><div>Inventory SSR</div></section>';
+    const digest = [
+      ...new Uint8Array(
+        await crypto.subtle.digest(
+          'SHA-256',
+          new TextEncoder().encode(renderedFragment),
+        ),
+      ),
+    ]
+      .map(byte => byte.toString(16).padStart(2, '0'))
+      .join('');
+    const provenance = {
+      boundaryId: 'verticalInventory',
+      buildMarker: 'inventory-build',
+      digest,
+      expose: './Widget',
+      remote: 'inventory',
+      sourceRevision: 'inventory-revision',
+      unitId: 'tractor-store/inventory',
+    };
     const { outputDirectory } = await createFixture({
       distFiles: {
         'mf-manifest.json': JSON.stringify({
@@ -2838,8 +2988,14 @@ describe('cloudflare deploy preset', () => {
             },
           ],
         }),
-        'worker/main.js': `module.exports = { requestHandler: async (_request, options) =>
-          new Response('<!doctype html><html><head></head><body>' + options.locals.__modernDistributedSsrFragments.fragments['inventory::./Widget'].html + '</body></html>', { headers: { 'content-type': 'text/html; charset=utf-8' } }) };`,
+        'worker/main.js': `module.exports = { requestHandler: async (_request, options) => {
+          const fragment = await options.locals.__modernDistributedSsrFragments.resolve(
+            'inventory',
+            './Widget',
+            {},
+          );
+          return new Response('<!doctype html><html><head></head><body>' + fragment.html + '</body></html>', { headers: { 'content-type': 'text/html; charset=utf-8' } });
+        } };`,
       },
       services: [
         {
@@ -2880,13 +3036,16 @@ describe('cloudflare deploy preset', () => {
           VERTICAL_INVENTORY_WORKER: {
             fetch: async () =>
               new Response(
-                '<!doctype html><html><head><link href="/static/css/route.css" rel="stylesheet"><link href="/static/css/inventory.css" rel="stylesheet"></head><body><section data-modern-boundary-id="verticalInventory" data-modern-mf-expose="./Widget"><div>Inventory SSR</div></section></body></html>',
+                `<!doctype html><html><head><link href="/static/css/route.css" rel="stylesheet"><link href="/static/css/inventory.css" rel="stylesheet"></head><body>${renderedFragment}</body></html>`,
                 {
                   headers: {
                     'content-type': 'text/html; charset=utf-8',
                     'x-modern-distributed-ssr-css': JSON.stringify([
                       'static/css/inventory.css',
                     ]),
+                    'x-modern-distributed-ssr-provenance': encodeURIComponent(
+                      JSON.stringify(provenance),
+                    ),
                   },
                 },
               ),
@@ -2899,11 +3058,11 @@ describe('cloudflare deploy preset', () => {
       expect(response.headers.get('link')).toContain(
         '<https://inventory.example.com/static/css/inventory.css>; rel=preload; as=style',
       );
-      expect(html.slice(0, html.indexOf('</head>'))).not.toContain(
-        'https://inventory.example.com/static/css/inventory.css',
+      expect(html).toContain(
+        '<link href="https://inventory.example.com/static/css/inventory.css" rel="stylesheet" type="text/css" data-precedence="default">',
       );
       expect(html).toContain(
-        '<!--$--><link href="https://inventory.example.com/static/css/inventory.css" rel="stylesheet" type="text/css"><section data-modern-boundary-id="verticalInventory"',
+        '<!--$--><section data-modern-boundary-id="verticalInventory"',
       );
       expect(
         html.split('https://inventory.example.com/static/css/inventory.css'),

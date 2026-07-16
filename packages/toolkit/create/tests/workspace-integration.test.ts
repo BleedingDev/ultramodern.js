@@ -518,7 +518,7 @@ test('workspace and MicroVertical integration stays coherent across public API a
       fs.readdirSync(path.join(workspaceDir, '.modernjs')).sort(),
       ['ultramodern.json'],
     );
-    assert.match(shellModernConfig, /mode:\s*'string'/);
+    assert.match(shellModernConfig, /mode:\s*'stream'/);
     assert.match(shellModernConfig, /moduleFederationAppSSR:\s*true/);
     assert.match(shellModernConfig, /services:\s*\[/);
     assert.match(
@@ -649,6 +649,14 @@ test('workspace and MicroVertical integration stays coherent across public API a
     assert.match(workerdProof, /assets: \{/u);
     assert.match(workerdProof, /workerName: workerName\(app\)/u);
     assert.match(workerdProof, /has_user_worker: true/u);
+    assert.match(workerdProof, /createServiceBindings/u);
+    assert.match(workerdProof, /callerId/u);
+    assert.match(workerdProof, /data-modern-distributed-ssr-boundary/u);
+    assert.match(workerdProof, /x-modern-distributed-ssr-props/u);
+    assert.match(workerdProof, /distributedSsrProofRoutes/u);
+    assert.match(workerdProof, /for \(const route of shell\.proofRoutes\)/u);
+    assert.match(workerdProof, /renderedRemoteIds\.has\(remote\.id\)/u);
+    assert.doesNotMatch(workerdProof, /const fragmentPath =/u);
     assert.match(workerdProof, /ULTRAMODERN_KEEP_WORKERD/u);
     assert.match(workerdProof, /WORKERD_URL=/u);
     const zeropsYaml = read(workspaceDir, 'zerops.yaml');
@@ -1033,7 +1041,7 @@ test('generated MicroVertical self-check names corrupted contracts and fix areas
       expectedContract:
         /MicroVertical contract self-check failed: \.modernjs\/ultramodern\.json shell SSR contract\./,
       expectedFixArea:
-        /Fix area: restore generated string SSR Module Federation settings\./,
+        /Fix area: restore generated streaming SSR Module Federation settings\./,
     },
     {
       workspaceName: 'delivery-unit-drift',

@@ -7,6 +7,9 @@ import {
 } from './tooling-command-catalog';
 import type { WorkspaceApp } from './types';
 
+export const GENERATED_POSTINSTALL_SCRIPT =
+  "node ./scripts/bootstrap-agent-skills.mts --postinstall && oxfmt . '!repos/**'";
+
 const toolingWrapperPath = (key: GeneratedToolingCommandKey) =>
   GENERATED_TOOLING_COMMANDS[key].wrapperPath;
 

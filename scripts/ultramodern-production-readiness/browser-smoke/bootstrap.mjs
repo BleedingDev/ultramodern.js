@@ -71,7 +71,7 @@ export async function assertLocalPortsAvailable(targets) {
           ),
         );
       });
-      server.listen({ port }, () => {
+      server.listen({ host: '127.0.0.1', port }, () => {
         server.close(error => (error ? reject(error) : resolve()));
       });
     });
@@ -81,7 +81,7 @@ export async function assertLocalPortsAvailable(targets) {
 export function startServer(target, { artifactDir, projectDir }) {
   const logPath = path.join(artifactDir, `${target.app.id}-serve.log`);
   fs.mkdirSync(path.dirname(logPath), { recursive: true });
-  const logStream = fs.createWriteStream(logPath, { flags: 'a' });
+  const logStream = fs.createWriteStream(logPath, { flags: 'w' });
   const env = createProcessEnv({
     ...(target.portEnv ? { [target.portEnv]: String(target.port) } : {}),
     ...(target.publicUrlEnv ? { [target.publicUrlEnv]: target.baseUrl } : {}),
@@ -123,7 +123,7 @@ export async function startWorkerdProof({
 }) {
   const logPath = path.join(artifactDir, 'shell-workerd-proof.log');
   fs.mkdirSync(path.dirname(logPath), { recursive: true });
-  const logStream = fs.createWriteStream(logPath, { flags: 'a' });
+  const logStream = fs.createWriteStream(logPath, { flags: 'w' });
   const child = spawn('pnpm', ['run', 'cloudflare:ssr-proof'], {
     cwd: projectDir,
     detached: process.platform !== 'win32',

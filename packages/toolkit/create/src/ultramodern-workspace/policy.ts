@@ -285,6 +285,7 @@ export type UltramodernPatchPolicy = {
 
 export type UltramodernStalePatchPolicy = UltramodernPatchPolicy & {
   sha256: string;
+  acceptedLegacySha256?: readonly string[];
 };
 
 const releaseAgeReasons = {
@@ -411,6 +412,7 @@ export const ULTRAMODERN_PACKAGE_PINS = {
   },
   rootDevDependencies: {
     '@effect/tsgo': EFFECT_TSGO_VERSION,
+    '@typescript/native': `npm:typescript@${TYPESCRIPT_VERSION}`,
     lefthook: LEFTHOOK_VERSION,
     miniflare: MINIFLARE_VERSION,
     oxlint: OXLINT_VERSION,
@@ -462,6 +464,12 @@ const conditionalPatchPolicies: readonly UltramodernPatchPolicy[] = [
 
 const stalePatchPolicies: readonly UltramodernStalePatchPolicy[] = [
   {
+    packageName: 'effect',
+    version: '4.0.0-beta.94',
+    path: 'patches/effect-schema-error-type-id.patch',
+    sha256: 'dc7e8088e600beb20185eb877754d749c4a93909fb79f49465e8319e40d6596a',
+  },
+  {
     packageName: '@module-federation/dts-plugin',
     version: '2.7.0',
     path: 'patches/@module-federation__dts-plugin@2.7.0.patch',
@@ -478,6 +486,9 @@ const stalePatchPolicies: readonly UltramodernStalePatchPolicy[] = [
     version: '2.6.0',
     path: 'patches/@module-federation__dts-plugin@2.6.0.patch',
     sha256: 'bc998f74617f7f060ea0f65235f071a5880aade3144ccd610d098d6bbc1c52fe',
+    acceptedLegacySha256: [
+      'ad19439992ca0757dc7354ad4197eecd5ac83f3ef5ed990e9200c672138600d5',
+    ],
   },
   {
     packageName: '@module-federation/modern-js-v3',

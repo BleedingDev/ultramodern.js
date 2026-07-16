@@ -16,11 +16,12 @@ import {
 import { createBackendFederationContractFile } from './backend-federation';
 import type { UltramodernBridgeConfig } from './bridge-config';
 import {
+  createFederatedComponentsRegistry,
   createLayout,
   createRemoteEntry,
   createRemoteExposeComponent,
+  createRemoteExposeFragmentPage,
   createRemotePage,
-  createRemoteWidgetFragmentPage,
   createShellPage,
   createShellRemoteComponents,
   createShellWorkerRemoteComponents,
@@ -31,6 +32,8 @@ import {
   appHasApi,
   appI18nNamespace,
   createShellHost,
+  distributedSsrExposes,
+  distributedSsrFragmentSlug,
   resolveApiProtocol,
   resolveRemoteRefs,
 } from './descriptors';
@@ -170,7 +173,7 @@ function writeAppConfigFiles({
   writeFile(
     targetDir,
     `${resolvedApp.directory}/src/modern-app-env.d.ts`,
-    createAppEnvDts(resolvedApp, remotes),
+    createAppEnvDts(resolvedApp, remotes, scope),
   );
   writeFile(
     targetDir,
@@ -307,6 +310,16 @@ function writeAppRouteAndShellFiles({
   if (!emitsUi) {
     return;
   }
+  if ((resolvedApp.verticalRefs?.length ?? 0) > 0) {
+    writeAppFile(
+      'src/federated-components.tsx',
+      createFederatedComponentsRegistry(scope, resolvedApp, remotes),
+    );
+    writeAppFile(
+      'src/federated-components.worker.tsx',
+      createFederatedComponentsRegistry(scope, resolvedApp, remotes, true),
+    );
+  }
   writeAppFile('src/routes/layout.tsx', createLayout(resolvedApp.id));
   writeAppFile(
     'src/routes/[lang]/page.tsx',
@@ -345,11 +358,13 @@ function writeAppRouteAndShellFiles({
       `${resolvedApp.directory}/src/api/vertical-clients.ts`,
       createShellApiClient(scope, remotes),
     );
-  } else if (Object.hasOwn(resolvedApp.exposes ?? {}, './Widget')) {
-    writeAppFile(
-      'src/routes/[lang]/_mf/fragment/widget/page.tsx',
-      createRemoteWidgetFragmentPage(resolvedApp),
-    );
+  } else {
+    for (const expose of distributedSsrExposes(resolvedApp)) {
+      writeAppFile(
+        `src/routes/[lang]/_mf/fragment/${distributedSsrFragmentSlug(expose)}/page.tsx`,
+        createRemoteExposeFragmentPage(resolvedApp, expose),
+      );
+    }
   }
 }
 

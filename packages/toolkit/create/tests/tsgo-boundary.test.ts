@@ -128,7 +128,12 @@ test('generated typechecking uses the immutable framework TS-Go resolver', () =>
   );
   assert.match(
     source,
+    /from: pathToFileURL\(join\(workspaceRoot, 'package\.json'\)\)/u,
+  );
+  assert.doesNotMatch(
+    source,
     /resolveEffectTsgoCompiler\(\{ from: import\.meta\.url \}\)/u,
+    'the installed create package must resolve TS-Go from the consumer workspace',
   );
   assert.doesNotMatch(source, /\bchmod(?:Sync)?\b/u);
   assert.doesNotMatch(source, /\bEFFECT_TSGO_CLI\b/u);

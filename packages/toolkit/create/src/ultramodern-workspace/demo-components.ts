@@ -1,8 +1,10 @@
 import {
   appHasApi,
+  distributedSsrExposes,
   remoteDependencyAlias,
   resolveApiProtocol,
   resolveApiStem,
+  resolveRemoteRefs,
 } from './descriptors';
 import { renderFileTemplate } from './fs-io';
 import {
@@ -166,6 +168,140 @@ export function createShellWorkerRemoteComponents(
   return createShellRemoteComponentsSource(shell, remotes, true);
 }
 
+type FederatedRegistryEntry = {
+  expose: string;
+  exportName: string;
+  packageSpecifier: string;
+  remoteAlias: string;
+  remoteId: string;
+};
+
+function federatedRegistryEntries(
+  scope: string,
+  host: WorkspaceApp,
+  remotes: WorkspaceApp[],
+): FederatedRegistryEntry[] {
+  const referencedRemotes = resolveRemoteRefs(host, remotes);
+  const entries = referencedRemotes.flatMap(remote =>
+    distributedSsrExposes(remote).map(expose => ({ remote, expose })),
+  );
+  const exposeNameCounts = new Map<string, number>();
+  for (const { expose } of entries) {
+    const exposeName = toPascalCase(expose.replace(/^\.\//u, ''));
+    exposeNameCounts.set(
+      exposeName,
+      (exposeNameCounts.get(exposeName) ?? 0) + 1,
+    );
+  }
+
+  return entries
+    .map(({ remote, expose }) => {
+      const exposeName = toPascalCase(expose.replace(/^\.\//u, ''));
+      const exportName =
+        exposeNameCounts.get(exposeName) === 1
+          ? exposeName
+          : `${toPascalCase(remote.id)}${exposeName}`;
+      const exposeSubpath = expose.replace(/^\.\//u, '');
+      return {
+        expose,
+        exportName,
+        packageSpecifier: `${packageName(scope, remote.packageSuffix)}/${exposeSubpath}`,
+        remoteAlias: `${remoteDependencyAlias(remote)}/${exposeSubpath}`,
+        remoteId: remote.id,
+      };
+    })
+    .toSorted((left, right) => left.exportName.localeCompare(right.exportName));
+}
+
+/**
+ * Generates the environment-specific primitive registry used by custom hosts.
+ * The browser/Node file contains native MF loaders. Cloudflare's `.worker.tsx`
+ * resolution selects the sibling registry, which contains only distributed
+ * service-binding boundaries and therefore cannot bundle remote UI source.
+ */
+export function createFederatedComponentsRegistry(
+  scope: string,
+  host: WorkspaceApp,
+  remotes: WorkspaceApp[],
+  worker = false,
+): string {
+  const entries = federatedRegistryEntries(scope, host, remotes);
+  const typeImports = entries
+    .map(
+      entry =>
+        `import type ${entry.exportName}Component from '${entry.packageSpecifier}';`,
+    )
+    .join('\n');
+  const propTypes = entries
+    .map(
+      entry =>
+        `type ${entry.exportName}Props = RemoteComponentProps<typeof ${entry.exportName}Component>;`,
+    )
+    .join('\n');
+  const componentEntries = entries
+    .map(entry =>
+      worker
+        ? `  ${entry.exportName}: (props: ${entry.exportName}Props) => (
+    <DistributedSsrBoundary
+      expose="${entry.expose}"
+      fallback={fallback}
+      fragmentProps={props}
+      remote="${entry.remoteId}"
+    >
+      {null}
+    </DistributedSsrBoundary>
+  ),`
+        : `  ${entry.exportName}: createDistributedSsrComponent<${entry.exportName}Props>({
+    createComponent: () =>
+      createLazyComponent<
+        RemoteComponentModule<${entry.exportName}Props>,
+        'default'
+      >({
+        export: 'default',
+        fallback,
+        instance: getInstance(),
+        loader: () =>
+          import('${entry.remoteAlias}') as Promise<
+            RemoteComponentModule<${entry.exportName}Props>
+          >,
+        loading: null,
+      }),
+    expose: '${entry.expose}',
+    fallback,
+    remote: '${entry.remoteId}',
+  }),`,
+    )
+    .join('\n');
+  const runtimeImports = worker
+    ? "import { DistributedSsrBoundary } from '@modern-js/runtime/module-federation';\nimport type { ComponentType, ReactNode } from 'react';"
+    : "import { createLazyComponent } from '@module-federation/modern-js-v3/react';\nimport { getInstance } from '@module-federation/modern-js-v3/runtime';\nimport { createDistributedSsrComponent } from '@modern-js/runtime/module-federation';\nimport type { ComponentType, FunctionComponent, ReactNode } from 'react';";
+  const moduleType = `
+${
+  worker
+    ? ''
+    : `interface RemoteComponentModule<Props extends object> {
+  default: FunctionComponent<Props>;
+}
+`
+}type RemoteComponentProps<Component> =
+  Component extends ComponentType<infer Props>
+    ? Props extends object
+      ? Props
+      : Record<string, never>
+    : Record<string, never>;
+`;
+
+  return `${runtimeImports}
+${typeImports}
+
+${propTypes}
+${moduleType}
+export const createFederatedComponents = (fallback: ReactNode) => ({
+${componentEntries}
+});
+`;
+}
+
 export function createRemotePage(app: WorkspaceApp): string {
   const tw = createTw(tailwindPrefixForApp(app));
   const listApiItems = `list${toPascalCase(resolveApiStem(app))}`;
@@ -314,21 +450,43 @@ export default function ${componentName}() {
 }
 
 export function createRemoteWidgetFragmentPage(app: WorkspaceApp): string {
-  const widgetPath = app.exposes?.['./Widget'];
-  if (!widgetPath?.startsWith('./src/')) {
+  return createRemoteExposeFragmentPage(app, './Widget');
+}
+
+export function createRemoteExposeFragmentPage(
+  app: WorkspaceApp,
+  expose: string,
+): string {
+  const componentPath = app.exposes?.[expose];
+  if (!componentPath?.startsWith('./src/')) {
     throw new Error(
-      `Cannot generate a Widget SSR fragment route for ${app.id}: invalid expose path`,
+      `Cannot generate an SSR fragment route for ${app.id} ${expose}: invalid expose path`,
     );
   }
 
-  const importPath = `../../../../../${widgetPath
+  const importPath = `../../../../../${componentPath
     .replace(/^\.\/src\//u, '')
     .replace(/\.[cm]?[jt]sx?$/u, '')}`;
+  const componentName = toPascalCase(expose.replace(/^\.\//u, ''));
+  const pageName = `${componentName}FragmentPage`;
 
-  return `import Widget from '${importPath}';
+  return `import type { ComponentProps } from 'react';
+import { useDistributedSsrFragmentProps } from '@modern-js/runtime/module-federation/distributed-ssr';
+import ${componentName} from '${importPath}';
 
-export default function WidgetFragmentPage() {
-  return <Widget />;
+export default function ${pageName}() {
+  const props = useDistributedSsrFragmentProps<ComponentProps<typeof ${componentName}>>({
+    boundaryId: '${app.mfName}',
+    expose: '${expose}',
+  });
+
+  return (
+    <>
+      <template data-modern-boundary-id="${app.mfName}" data-modern-distributed-ssr-marker="start" data-modern-mf-expose="${expose}" />
+      <${componentName} {...props} />
+      <template data-modern-boundary-id="${app.mfName}" data-modern-distributed-ssr-marker="end" data-modern-mf-expose="${expose}" />
+    </>
+  );
 }
 `;
 }
@@ -461,11 +619,37 @@ function closingParenthesis(source: string, openingParenthesis: number) {
   return -1;
 }
 
+function removeLegacyLocationSuffixHelper(source: string) {
+  return source
+    .replace(
+      /(^|\n)const locationSuffix = \(location: \{ hash\?: unknown; search\?: unknown; searchStr\?: unknown \}\) => \{[\s\S]*?\n\};\n/u,
+      '$1',
+    )
+    .replace('\n  const suffix = locationSuffix(location);', '');
+}
+
+function rewriteRouterLocationSuffix(source: string) {
+  let changed = false;
+  const next = source.replace(
+    /^(\s*)to: `\$\{([^`\n]+)\}\$\{suffix\}`,/gmu,
+    (_match, indentation: string, destination: string) => {
+      changed = true;
+      return `${indentation}hash: true,\n${indentation}search: true,\n${indentation}to: ${destination},`;
+    },
+  );
+
+  return {
+    changed,
+    source: changed ? removeLegacyLocationSuffixHelper(next) : next,
+  };
+}
+
 function rewriteWindowLocationAssignments(source: string) {
   const callMarker = 'window.location.assign';
   let next = source;
   let searchFrom = 0;
   let changed = false;
+  let preservesCurrentLocationState = false;
 
   while (true) {
     const callStart = next.indexOf(callMarker, searchFrom);
@@ -485,12 +669,29 @@ function rewriteWindowLocationAssignments(source: string) {
     if (destination.endsWith(',')) {
       destination = destination.slice(0, -1).trimEnd();
     }
+    const preservesSuffix =
+      destination.includes('$' + '{suffix}') &&
+      next.includes('const suffix = locationSuffix(location);');
+    if (preservesSuffix) {
+      destination = destination.replace('$' + '{suffix}', '');
+      if (destination.startsWith('`${') && destination.endsWith('}`')) {
+        destination = destination.slice(3, -2);
+      }
+      preservesCurrentLocationState = true;
+    }
     const lineStart = next.lastIndexOf('\n', callStart) + 1;
     const indentation = next.slice(lineStart, callStart);
-    const replacement = `void navigate({\n${indentation}  to: ${destination},\n${indentation}})`;
+    const options = preservesSuffix
+      ? `hash: true,\n${indentation}  search: true,\n${indentation}  to: ${destination},`
+      : `to: ${destination},`;
+    const replacement = `void navigate({\n${indentation}  ${options}\n${indentation}})`;
     next = `${next.slice(0, callStart)}${replacement}${next.slice(callEnd + 1)}`;
     searchFrom = callStart + replacement.length;
     changed = true;
+  }
+
+  if (preservesCurrentLocationState) {
+    next = removeLegacyLocationSuffixHelper(next);
   }
 
   return { changed, source: next };
@@ -649,7 +850,8 @@ export function regenerateGeneratedNavigationSurface(
   source: string,
   kind: GeneratedNavigationSurfaceKind,
 ) {
-  const anchors = rewriteInternalAnchors(source);
+  const routerLocationSuffix = rewriteRouterLocationSuffix(source);
+  const anchors = rewriteInternalAnchors(routerLocationSuffix.source);
   const locationAssignments = rewriteWindowLocationAssignments(anchors.source);
   const forms =
     kind === 'demo-component'
