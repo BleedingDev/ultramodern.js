@@ -18,6 +18,9 @@ packages:
   - 'tests/e2e/**/*'
   - 'website/*'
   - 'benchmark/*'
+  - 'examples/*'
+  - 'examples/deploy/*'
+  - 'examples/module-federation/*/*'
 
 autoInstallPeers: false
 linkWorkspacePackages: false
@@ -32,6 +35,8 @@ allowBuilds:
   '@swc/core': true
   bufferutil: true
   core-js: true
+  # Browser binaries are installed explicitly by examples/test-cypress.
+  cypress: false
   es5-ext: true
   esbuild: true
   msgpackr-extract: true

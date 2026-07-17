@@ -15,7 +15,7 @@
     "modern",
     "modern.js"
   ],
-  "version": "3.5.0",
+  "version": "3.7.0",
   "types": "./src/cli.ts",
   "main": "./dist/cjs/cli.js",
   "exports": {
@@ -177,7 +177,7 @@
     "@opentelemetry/semantic-conventions": "1.43.0",
     "@swc/core": "1.15.43",
     "@swc/helpers": "^0.5.23",
-    "esbuild": "0.28.1",
+    "esbuild": "^0.28.1",
     "effect": "4.0.0-beta.97",
     "qs": "^6.15.3",
     "type-is": "^2.1.0"

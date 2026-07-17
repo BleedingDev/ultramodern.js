@@ -15,7 +15,7 @@
     "modern",
     "modern.js"
   ],
-  "version": "3.5.0",
+  "version": "3.7.0",
   "types": "./src/index.ts",
   "main": "./dist/cjs/index.js",
   "exports": {
@@ -93,7 +93,8 @@
     "@types/merge-deep": "^3.0.3",
     "@types/node": "^26.1.1",
     "@typescript/native-preview": "7.0.0-dev.20260707.2",
-    "http-proxy-middleware": "^4.2.0"
+    "http-proxy-middleware": "^4.2.0",
+    "typescript": "^7.0.2"
   },
   "sideEffects": false,
   "publishConfig": {

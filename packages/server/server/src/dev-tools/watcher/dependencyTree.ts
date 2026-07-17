@@ -1,3 +1,4 @@
+import nodePath from 'node:path';
 import * as minimatch from 'minimatch';
 
 export const defaultIgnores = [
@@ -83,12 +84,16 @@ export class DependencyTree {
   }
 
   private shouldIgnore(path: string): boolean {
+    const matchPath =
+      path && nodePath.isAbsolute(path)
+        ? nodePath.relative(process.cwd(), path)
+        : path;
     return (
-      !path ||
+      !matchPath ||
       Boolean(
         this.ignore.find(
           rule =>
-            minimatch.match([path], rule, {
+            minimatch.match([matchPath], rule, {
               dot: true,
             }).length > 0,
         ),

@@ -2,6 +2,7 @@
 import { SSR_HYDRATION_ID_PREFIX } from '@modern-js/utils/universal/constants';
 import { parseCookie } from 'cookie';
 import type React from 'react';
+import { createRoot } from 'react-dom/client';
 import { getGlobalInternalRuntimeContext } from '../context';
 import { getInitialContext, type TRuntimeContext } from '../context/runtime';
 import { wrapRuntimeContextProvider } from '../react/wrapper';
@@ -118,8 +119,10 @@ async function renderApp(
       App: React.ReactElement,
       callback?: () => void,
     ) {
-      const hydrateFunc = IS_REACT18 ? hydrateWithReact18 : hydrateWithReact17;
-      return hydrateFunc(App, rootElement, callback);
+      if (IS_REACT18) {
+        return hydrateWithReact(App, rootElement);
+      }
+      return hydrateWithReact17(App, rootElement, callback);
     }
 
     // we should hydrateRoot only when SSR or SSG is enabled
@@ -154,8 +157,7 @@ export async function renderWithReact18(
   App: React.ReactElement,
   rootElement: HTMLElement,
 ) {
-  const ReactDOM = await import('react-dom/client');
-  const root = ReactDOM.createRoot(rootElement);
+  const root = createRoot(rootElement);
   root.render(App);
   return root;
 }
@@ -167,17 +169,6 @@ export async function renderWithReact17(
   const ReactDOM: any = await import('react-dom');
   ReactDOM.render(App, rootElement);
   return rootElement;
-}
-
-export async function hydrateWithReact18(
-  App: React.ReactElement,
-  rootElement: HTMLElement,
-) {
-  const ReactDOM = await import('react-dom/client');
-  const root = ReactDOM.hydrateRoot(rootElement, App, {
-    identifierPrefix: SSR_HYDRATION_ID_PREFIX,
-  });
-  return root;
 }
 
 export async function hydrateWithReact17(

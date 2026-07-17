@@ -23,7 +23,6 @@ type RuntimeAdapterOptions = {
 
 type RuntimeAdapter = {
   registerMiddleware: (options: RuntimeAdapterOptions) => Promise<void>;
-  onApiHandlersUpdated?: () => Promise<void>;
 };
 
 type RuntimeAdapterFactory = (api: ServerPluginAPI) => RuntimeAdapter;
@@ -62,10 +61,6 @@ type PrepareApiServerTap = (
 
 class Storage {
   public middlewares: ApiMiddlewareRegistration[] = [];
-
-  reset() {
-    this.middlewares = [];
-  }
 }
 
 export default (): ServerPlugin => ({
@@ -154,28 +149,22 @@ export default (): ServerPlugin => ({
         ),
       );
     });
+    // This plugin's own routes are re-registered from scratch on every unified
+    // runtime reload, so no BFF-local route rebuild is needed here. But the
+    // public `file-change` onReset signal is emitted on the LIVE runtime BEFORE
+    // that debounced rebuild runs, and downstream server plugins may re-register
+    // their BFF handlers from `appContext.apiHandlerInfos` inside their own
+    // onReset handler. So we refresh apiHandlerInfos into the server context on
+    // file-change, keeping the contract that this value is fresh when onReset
+    // fires — otherwise those consumers would re-register with stale handlers.
     api.onReset(async ({ event }) => {
-      storage.reset();
-      const appContext = api.getServerContext();
-      const { middlewares } = storage;
-      api.updateServerContext({
-        ...appContext,
-        apiMiddlewares: middlewares,
-      });
-
-      if (event.type === 'file-change') {
-        if (runtimeFramework === 'hono' && apiRouter) {
-          const apiHandlerInfos = await apiRouter.getApiHandlers();
-          const appContext = api.getServerContext();
-          api.updateServerContext({
-            ...appContext,
-            apiHandlerInfos,
-          });
-        }
-
-        await Promise.all(
-          runtimeAdapters.map(adapter => adapter.onApiHandlersUpdated?.()),
-        );
+      if (event.type === 'file-change' && apiRouter) {
+        const appContext = api.getServerContext();
+        const apiHandlerInfos = await apiRouter.getApiHandlers();
+        api.updateServerContext({
+          ...appContext,
+          apiHandlerInfos,
+        });
       }
     });
     const prepareApiServer: PrepareApiServerTap = async (input, next) => {

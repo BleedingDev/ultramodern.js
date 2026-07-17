@@ -81,6 +81,19 @@ function matchPublicRoute(req: HonoRequest, routes: ServerRoute[]) {
   return undefined;
 }
 
+// Check whether `target` is located inside `root` (or is `root` itself),
+// so a resolved static-asset path cannot escape the serving directory via
+// `../` traversal sequences.
+const isPathInside = (target: string, root: string): boolean => {
+  const relative = path.relative(path.resolve(root), path.resolve(target));
+  return (
+    relative === '' ||
+    (!relative.startsWith(`..${path.sep}`) &&
+      relative !== '..' &&
+      !path.isAbsolute(relative))
+  );
+};
+
 // Remove domain name from assetPrefix if it exists
 const extractPathname = (url: string): string => {
   try {

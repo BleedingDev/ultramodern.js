@@ -1,5 +1,35 @@
 # @modern-js/runtime
 
+## 3.7.0
+
+### Patch Changes
+
+- b261973: fix(runtime): exclude the SSR hydration runtime from CSR bundles
+- b261973: fix(runtime): exclude the RSC client runtime from web bundles when `server.rsc` is disabled
+  - @modern-js/plugin@3.7.0
+  - @modern-js/plugin-data-loader@3.7.0
+  - @modern-js/render@3.7.0
+  - @modern-js/runtime-utils@3.7.0
+  - @modern-js/types@3.7.0
+  - @modern-js/utils@3.7.0
+
+## 3.6.0
+
+### Minor Changes
+
+- c34b53d: refactor: drop React 17 support and import react-dom/client statically in the browser runtime
+  refactor: 浏览器运行时移除 React 17 支持，并改为静态引入 react-dom/client
+
+### Patch Changes
+
+- Updated dependencies [c34b53d]
+  - @modern-js/render@3.6.0
+  - @modern-js/plugin-data-loader@3.6.0
+  - @modern-js/runtime-utils@3.6.0
+  - @modern-js/plugin@3.6.0
+  - @modern-js/types@3.6.0
+  - @modern-js/utils@3.6.0
+
 ## 3.5.0
 
 ### Patch Changes
