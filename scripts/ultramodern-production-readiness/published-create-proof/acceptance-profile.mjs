@@ -104,7 +104,12 @@ function createAcceptancePackageManagerEnv(
     ...createCleanPnpmDlxEnv(path.join(workDir, 'package-manager')),
     ...registryEnv,
     CI: 'true',
+    npm_config_fetch_retries: '5',
+    npm_config_fetch_timeout: '600000',
     MODERN_CREATE_ULTRAMODERN_FRAMEWORK_VERSION: undefined,
+    pnpm_config_fetch_retries: '5',
+    pnpm_config_fetch_timeout: '600000',
+    pnpm_config_network_concurrency: '8',
     ULTRAMODERN_CREATE_BIN: undefined,
     ZE_CI_TOKEN: undefined,
   };

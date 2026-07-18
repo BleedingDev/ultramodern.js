@@ -199,6 +199,21 @@ test('shared ERP-10 profile requires frozen install, checks, both builds, and no
     }).MODERN_CREATE_ULTRAMODERN_FRAMEWORK_VERSION,
     undefined,
   );
+  assert.deepEqual(
+    Object.fromEntries(
+      Object.entries(
+        createAcceptancePackageManagerEnv('/tmp/acceptance'),
+      ).filter(([name]) => /(?:fetch|network_concurrency)/u.test(name)),
+    ),
+    {
+      npm_config_fetch_retries: '5',
+      npm_config_fetch_timeout: '600000',
+      pnpm_config_fetch_retries: '5',
+      pnpm_config_fetch_timeout: '600000',
+      pnpm_config_network_concurrency: '8',
+    },
+    'cold acceptance installs must tolerate slow registries without unbounded request concurrency',
+  );
   const exactPnpmExecutable = path.resolve('/tmp/exact-pnpm/11.11.0/bin/pnpm');
   const calls = [];
   const resolvedPnpmExecutable = resolveExactPnpmExecutable(

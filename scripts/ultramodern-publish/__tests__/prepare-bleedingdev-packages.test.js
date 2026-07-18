@@ -2434,6 +2434,21 @@ test('local acceptance publishes verified buffers even when source paths mutate'
   }
 });
 
+test('local acceptance registry tolerates transient npm uplink failures', async () => {
+  const { createVerdaccioConfig } = await import(
+    '../lib/source-create-proof/runtime-proof/registry.mjs'
+  );
+  const config = createVerdaccioConfig({
+    storageDir: '/tmp/registry-storage',
+    htpasswdPath: '/tmp/registry-htpasswd',
+    scope: 'bleedingdev',
+  });
+
+  assert.match(config, /(?:^|\n) {4}timeout: 10m(?:\n|$)/u);
+  assert.match(config, /(?:^|\n) {4}max_fails: 100(?:\n|$)/u);
+  assert.match(config, /(?:^|\n) {4}fail_timeout: 1s(?:\n|$)/u);
+});
+
 test('dry-run preflights absent versions and publishes every exact snapshot without claiming provenance', async () => {
   const { publishManifestPackages, publishPackage, verifyPackageArtifact } =
     await import('../prepare-bleedingdev-packages.mjs');
