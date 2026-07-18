@@ -106,7 +106,7 @@ function createPublicSurfaceOutputFiles(app: WorkspaceApp): string[] {
   ];
 }
 
-type PublicSurfaceGenerationTarget = 'dist' | 'cloudflare';
+type PublicSurfaceGenerationTarget = 'dist' | 'cloudflare-dist';
 
 export function createPublicSurfaceGenerationCommand(
   app: WorkspaceApp,
@@ -148,7 +148,7 @@ function createPublicSurfaceContract(app: WorkspaceApp): JsonValue {
     metadataExport: './src/routes/ultramodern-route-metadata',
     generator: 'scripts/generate-public-surface-assets.mts',
     outputRoot: 'dist/public',
-    cloudflareOutputRoot: '.output/public',
+    cloudflareBuildOutputRoot: 'dist-cloudflare/public',
     privateRoutePolicy: 'omit-from-generated-public-surface',
     files,
     omittedByDefault: ['api-catalog.json', 'llms.txt', 'security.txt'],

@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { readNodeBackendArtifactEvidence } from '../browser-smoke/runtime-evidence.mjs';
 import { readJsonFile } from './constants.mjs';
 import { createSharedContractVersionAssertion } from './topology.mjs';
 
@@ -61,12 +62,9 @@ function assertSameIds(actual, expected, label) {
 
 function readWorkspaceAcceptanceArtifacts(projectDir) {
   return {
+    projectDir,
     topology: readRequiredJson(projectDir, 'topology/reference-topology.json'),
     compactConfig: readRequiredJson(projectDir, '.modernjs/ultramodern.json'),
-    backendProof: readRequiredJson(
-      projectDir,
-      '.codex/reports/node-backend-federation-proof/proof.json',
-    ),
   };
 }
 
@@ -83,12 +81,22 @@ function assertWorkspaceCheckContract(projectDir) {
     'pnpm typecheck',
     'pnpm api:check',
     'pnpm contract:check',
-    'pnpm node:proof',
   ];
   const missing = requiredCommands.filter(command => !check.includes(command));
   assertCondition(
     missing.length === 0,
     `Generated pnpm check omits required command(s): ${missing.join(', ')}`,
+  );
+  assertCondition(
+    !check.includes('pnpm node:proof'),
+    'Generated pnpm check must remain a static gate and cannot require live Node servers',
+  );
+  const nodeProof = packageJson.scripts?.['node:proof'];
+  assertCondition(
+    typeof nodeProof === 'string' &&
+      nodeProof.includes('proof-node-backend-federation') &&
+      !nodeProof.includes('backend-federation:generate'),
+    'Generated node:proof must read already-built live outputs without regenerating backend federation artifacts',
   );
   assertCondition(
     packageJson.scripts?.['ultramodern:check'] === undefined,
@@ -209,38 +217,23 @@ function assertApiAcceptance(artifacts, verticalNames) {
 }
 
 function assertBackendAcceptance(artifacts, verticalNames) {
-  const report = artifacts.backendProof;
-  assertCondition(
-    report.status !== 'skipped',
-    'Backend federation proof must not be skipped',
+  const compactById = new Map(
+    compactApps(artifacts.compactConfig).map(app => [app.id, app]),
   );
-  assertCondition(
-    report.status === 'pass',
-    `Backend federation proof status is ${report.status}`,
-  );
-  assertCondition(
-    Array.isArray(report.results) && report.results.length > 0,
-    'Backend federation proof results must be non-empty',
-  );
-  assertSameIds(
-    report.results.map(result => result.appId),
-    verticalNames,
-    'Backend federation proof app ids',
-  );
-  for (const result of report.results) {
-    assertCondition(
-      result.status === 'pass',
-      `${result.appId} backend federation proof did not pass`,
-    );
-    assertCondition(
-      result.smokeChecks && Object.keys(result.smokeChecks).length > 0,
-      `${result.appId} backend federation runtime smoke checks are empty`,
-    );
-  }
+  const results = verticalNames.map(vertical => {
+    const app = compactById.get(vertical);
+    assertCondition(app, `${vertical} compact backend metadata is missing`);
+    return readNodeBackendArtifactEvidence(artifacts.projectDir, app);
+  });
   return {
-    backendCount: report.results.length,
-    target: report.target,
-    appIds: report.results.map(result => result.appId),
+    backendCount: results.length,
+    target: 'node',
+    appIds: results.map(result => result.appId),
+    envelopes: results.map(result => ({
+      appId: result.appId,
+      envelopeDigest: result.envelopeDigest,
+      envelopePath: result.envelopePath,
+    })),
   };
 }
 

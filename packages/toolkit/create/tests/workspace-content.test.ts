@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -264,6 +265,16 @@ test('rendered contents of the highest-risk generated files match the checked-in
     );
     assert.match(
       gitignore,
+      /^\.output\/$/mu,
+      'generated workspaces must ignore root final deployment output',
+    );
+    assert.match(
+      gitignore,
+      /^\*\*\/\.output\/$/mu,
+      'generated workspaces must ignore per-app final deployment output',
+    );
+    assert.match(
+      gitignore,
       /^\.zerops\/runtime\/$/mu,
       'generated workspaces must ignore Zerops materialized runtime artifacts',
     );
@@ -508,6 +519,15 @@ test('rendered contents of the highest-risk generated files match the checked-in
       /workspaceValidationContract/,
       'workspace validation must embed the generated structured validation contract',
     );
+    const skillsWrapper = fs.readFileSync(
+      path.join(workspaceDir, 'scripts/bootstrap-agent-skills.mts'),
+      'utf-8',
+    );
+    assert.match(
+      skillsWrapper,
+      /Failed to launch/u,
+      'generated skills wrapper must share fail-closed launch diagnostics',
+    );
     const cloudflareOutputWrapper = fs.readFileSync(
       path.join(workspaceDir, 'scripts/verify-cloudflare-output.mts'),
       'utf-8',
@@ -515,6 +535,27 @@ test('rendered contents of the highest-risk generated files match the checked-in
     assert.match(cloudflareOutputWrapper, /modern-js-create/);
     assert.match(cloudflareOutputWrapper, /ULTRAMODERN_CREATE_BIN/);
     assert.match(cloudflareOutputWrapper, /'cloudflare-output-verify'/);
+    const missingCreateEnv = { ...process.env, PATH: '' };
+    delete missingCreateEnv.ULTRAMODERN_CREATE_BIN;
+    const missingCreateResult = spawnSync(
+      process.execPath,
+      ['scripts/verify-cloudflare-output.mts'],
+      {
+        cwd: workspaceDir,
+        encoding: 'utf-8',
+        env: missingCreateEnv,
+      },
+    );
+    assert.notEqual(
+      missingCreateResult.status,
+      0,
+      'generated verifier must fail closed when modern-js-create cannot launch',
+    );
+    assert.match(
+      missingCreateResult.stderr,
+      /Failed to launch modern-js-create from PATH for UltraModern command "cloudflare-output-verify": spawnSync modern-js-create ENOENT/u,
+      'generated verifier must identify the missing executable, lookup source, and command',
+    );
     for (const command of generatedToolingCommands.filter(
       command => command.id !== 'validate',
     )) {
@@ -524,6 +565,11 @@ test('rendered contents of the highest-risk generated files match the checked-in
       );
       assert.match(wrapper, /modern-js-create/);
       assert.match(wrapper, new RegExp(`'${command.command}'`));
+      assert.match(
+        wrapper,
+        /Failed to launch/u,
+        `${command.wrapperName} must share fail-closed launch diagnostics`,
+      );
     }
     assert.deepEqual(
       readJson(
@@ -747,6 +793,22 @@ test('rendered contents of the highest-risk generated files match the checked-in
       /TaggedErrorClass/,
       'generated shared API must not emit Effect TaggedErrorClass placeholders',
     );
+    for (const identityField of [
+      'buildMarker',
+      'sourceRevision',
+      'unitId',
+    ] as const) {
+      assert.match(
+        generatedSharedApi,
+        new RegExp(`readonly ${identityField}: string;`, 'u'),
+        `generated API marker type must carry ${identityField}`,
+      );
+      assert.match(
+        generatedSharedApi,
+        new RegExp(`${identityField}: Schema\\.String`, 'u'),
+        `generated API marker codec must serialize ${identityField}`,
+      );
+    }
     const generatedEffectEntry = fs.readFileSync(
       path.join(workspaceDir, 'verticals/catalog/api/index.ts'),
       'utf-8',
@@ -925,6 +987,15 @@ test('backend federation proof template resolves monorepo local plugin-bff runti
     proofTemplate,
     /workspaceRequire\.resolve\('@modern-js\/plugin-bff\/effect'\)/,
   );
+  assert.ok(
+    proofTemplate.indexOf(
+      "workspaceRequire.resolve('@modern-js/plugin-bff/effect')",
+    ) <
+      proofTemplate.indexOf(
+        'const localRuntimePath = findLocalRuntimePath(createBin)',
+      ),
+    'installed workspace plugin-bff runtime must take precedence over the source-create fallback',
+  );
   assert.doesNotMatch(
     proofTemplate,
     /await import\('@modern-js\/plugin-bff\/effect'\)/,
@@ -941,15 +1012,16 @@ test('backend federation proof template resolves monorepo local plugin-bff runti
   assert.match(proofTemplate, /function findLocalRuntimePath\(createBin\)/);
   assert.match(
     proofTemplate,
-    /unitId: source\.match\(\/\\bunitId:\\s\*\['"\]\(\[\^'"\]\+\)\['"\]\/u\)\?\.\[1\]/,
+    /app\.directory,[\s\S]*?target,[\s\S]*?'ultramodern-build\.json'/,
   );
   assert.match(
     proofTemplate,
-    /sourceRevision: source\.match\(\/\\bsourceRevision:\\s\*\['"\]\(\[\^'"\]\+\)\['"\]\/u\)\?\.\[1\]/,
+    /const buildIdentity = readBuildIdentity\(app, target\)/,
   );
+  assert.doesNotMatch(proofTemplate, /shared\/ultramodern-build\.(?:json|ts)/);
   assert.match(proofTemplate, /manifestDeliveryUnit/);
   assert.match(proofTemplate, /versionBoundaryDeliveryUnit/);
-  assert.match(proofTemplate, /assertCompactDeliveryUnitMatchesBuild/);
+  assert.match(proofTemplate, /assertCompactStableIdentityMatchesBuild/);
   assert.match(
     proofTemplate,
     /targetApp\.backendFederation\?\.exposes\?\.\[backendExpose\]\?\.readiness/,
@@ -965,6 +1037,18 @@ test('backend federation proof template resolves monorepo local plugin-bff runti
     proofTemplate,
     /backendContract\.compatibility\.unitId,[\s\S]*?manifest\.backendFederation\?\.deliveryUnit\?\.unitId,/,
   );
+  assert.match(proofTemplate, /manifestUrl: app\.manifestUrl/u);
+  assert.match(proofTemplate, /backendRemoteEntry\.cjs/u);
+  assert.match(proofTemplate, /release\/microvertical-release-envelope\.json/u);
+  assert.match(proofTemplate, /async function fetchBoundArtifact/u);
+  assert.match(proofTemplate, /live .* SHA-256/u);
+  assert.match(proofTemplate, /async function proveLiveApi/u);
+  assert.match(proofTemplate, /releaseBinding\.apiBackendArtifacts/u);
+  assert.match(proofTemplate, /marker\?\.sourceRevision/u);
+  assert.match(proofTemplate, /liveArtifacts/u);
+  assert.match(proofTemplate, /liveApi/u);
+  assert.doesNotMatch(proofTemplate, /localRuntimeEntry/u);
+  assert.doesNotMatch(proofTemplate, /remote:\s*\{\s*entry:\s*pathToFileURL/u);
 });
 
 test('backend federation generator accepts migrated app-level metadata', () => {

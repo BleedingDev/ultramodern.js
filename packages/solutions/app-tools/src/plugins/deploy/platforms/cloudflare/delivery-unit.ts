@@ -8,6 +8,7 @@ import {
   ULTRAMODERN_BUILD_ARTIFACT_PATH,
   ULTRAMODERN_BUILD_MODULE_PATH,
 } from '@modern-js/utils/universal';
+import { resolveUltramodernReleaseIdentity } from '../../../../ultramodern-release-identity';
 import { isRecord } from './utils';
 
 const COMPACT_CONFIG_PATH = '.modernjs/ultramodern.json';
@@ -36,6 +37,23 @@ const findWorkspaceRoot = async (
 
     current = parent;
   }
+};
+
+const stampReleaseIdentity = (
+  identity: DeliveryUnitIdentity,
+  workspaceRoot: string,
+): DeliveryUnitIdentity => {
+  if (identity.sourceRevision !== 'workspace') {
+    return identity;
+  }
+  return {
+    ...identity,
+    ...resolveUltramodernReleaseIdentity({
+      generationBuildMarker: identity.buildMarker,
+      unitId: identity.unitId,
+      workspaceRoot,
+    }),
+  };
 };
 
 /**
@@ -82,7 +100,10 @@ export const resolveTopologyDeliveryUnit = async (
         path.resolve(workspaceRoot, appPath.replace(/^\.\/+/u, '')) ===
           resolvedAppDirectory
       ) {
-        return toDeliveryUnitIdentity(app.deliveryUnit);
+        const identity = toDeliveryUnitIdentity(app.deliveryUnit);
+        return identity
+          ? stampReleaseIdentity(identity, workspaceRoot)
+          : undefined;
       }
     }
 
@@ -90,7 +111,8 @@ export const resolveTopologyDeliveryUnit = async (
   }
 
   // Single-app compact config: fall back to a top-level declaration.
-  return toDeliveryUnitIdentity(compactConfig.deliveryUnit);
+  const identity = toDeliveryUnitIdentity(compactConfig.deliveryUnit);
+  return identity ? stampReleaseIdentity(identity, workspaceRoot) : undefined;
 };
 
 /**
@@ -133,6 +155,10 @@ export const resolveWorkerDeliveryUnitStamp = async (
 
   if (!identity) {
     return undefined;
+  }
+  const workspaceRoot = await findWorkspaceRoot(appDirectory);
+  if (workspaceRoot) {
+    identity = stampReleaseIdentity(identity, workspaceRoot);
   }
 
   return {

@@ -5,7 +5,7 @@
  */
 export const TANSTACK_ROUTER_VERSION = '1.170.17';
 export const TANSTACK_ROUTER_CORE_VERSION = '1.171.14';
-export const MODULE_FEDERATION_VERSION = '2.7.0';
+export const MODULE_FEDERATION_VERSION = '2.8.0';
 export const ZEPHYR_RSPACK_PLUGIN_VERSION = '1.1.1';
 export const ZEPHYR_AGENT_VERSION = '1.1.1';
 export const WRANGLER_VERSION = '4.110.0';
@@ -18,14 +18,13 @@ export const EFFECT_TSGO_VERSION = '0.19.0';
 export const DRIZZLE_ORM_VERSION = '1.0.0-rc.4';
 export const TYPESCRIPT_STABLE_VERSION = '7.0.2';
 export const TYPESCRIPT_VERSION = TYPESCRIPT_STABLE_VERSION;
-export const TYPESCRIPT_COMPILER_API_VERSION = '6.0.3';
 export const TYPESCRIPT_NATIVE_PREVIEW_VERSION = '7.0.0-dev.20260707.2';
 export const OXLINT_VERSION = '1.73.0';
 export const OXFMT_VERSION = '0.58.0';
 export const ULTRACITE_VERSION = '7.9.3';
 export const LEFTHOOK_VERSION = '^2.1.10';
 export const I18NEXT_VERSION = '26.3.6';
-export const MODULE_FEDERATION_NODE_VERSION = '2.7.46';
+export const MODULE_FEDERATION_NODE_VERSION = '2.7.47';
 export const MINIFLARE_VERSION = '4.20260708.1';
 export const WORKERD_VERSION = '1.20260708.1';
 export const CLOUDFLARE_WORKERS_TYPES_VERSION = '5.20260710.1';
@@ -52,7 +51,6 @@ export const ultramodernWorkspaceVersions = {
   effectVitest: EFFECT_VITEST_VERSION,
   drizzleOrm: DRIZZLE_ORM_VERSION,
   typescript: TYPESCRIPT_VERSION,
-  typescriptCompilerApi: TYPESCRIPT_COMPILER_API_VERSION,
   typescriptNativePreview: TYPESCRIPT_NATIVE_PREVIEW_VERSION,
   moduleFederationNode: MODULE_FEDERATION_NODE_VERSION,
   miniflare: MINIFLARE_VERSION,

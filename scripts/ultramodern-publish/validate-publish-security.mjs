@@ -22,6 +22,10 @@ const readinessWorkflowPath = path.join(
   repoRoot,
   '.github/workflows/ultramodern-production-readiness.yml',
 );
+const tractorWorkflowPath = path.join(
+  repoRoot,
+  '.github/workflows/ultramodern-tractor-downstream.yml',
+);
 const publishScriptPath = path.join(
   repoRoot,
   'scripts/ultramodern-publish/prepare-bleedingdev-packages.mjs',
@@ -44,7 +48,11 @@ const enforcedPublishTag = 'latest';
 const enforcedPublishConcurrency = '8';
 const releaseBundleArtifact = 'bleedingdev-release-bundle';
 const releaseAcceptanceArtifact = 'bleedingdev-release-acceptance';
+const publishedAcceptanceArtifact = 'bleedingdev-published-acceptance';
 const releaseIdentityArtifact = 'bleedingdev-release-identity';
+const tractorAcceptanceWorkflow =
+  './.github/workflows/ultramodern-tractor-downstream.yml';
+const tractorAcceptanceRef = '2cb6e1c939686b1dfd5cbfb594198512fa9d04f7';
 const releaseManifestPath = '.modern/bleedingdev-publish/manifest.json';
 const releaseManifestDigestPath =
   '.modern/bleedingdev-publish/manifest.json.sha256';
@@ -52,6 +60,14 @@ const releaseCohortDigestPath = '.modern/bleedingdev-publish/cohort.sha256';
 const releaseTarballGlob = '.modern/bleedingdev-publish/tarballs/*.tgz';
 const releaseAcceptanceReceiptPath =
   '.modern/bleedingdev-publish/acceptance-receipt.json';
+const releaseOperationalIndependenceEvidencePath =
+  '.modern/bleedingdev-publish/acceptance-receipt.operational-independence.json';
+const publishedAcceptanceReceiptPath =
+  '.modern/bleedingdev-publish/published-acceptance-receipt.json';
+const publishedOperationalIndependenceEvidencePath =
+  '.modern/bleedingdev-publish/published-acceptance-receipt.operational-independence.json';
+const tractorAcceptanceReportPath =
+  '.modern/bleedingdev-publish/tractor-downstream-acceptance.json';
 const releaseIdentityPath = '.modern/bleedingdev-publish/release-identity.json';
 const postpublishAcceptanceReceiptPath =
   '.modern/production-readiness/postpublish-acceptance-receipt.json';
@@ -60,6 +76,7 @@ const shellInterpolation = expression => `\${${expression}}`;
 const releaseArtifactEnvironmentNames = new Map([
   [releaseBundleArtifact, 'BLEEDINGDEV_RELEASE_BUNDLE_ARTIFACT'],
   [releaseAcceptanceArtifact, 'BLEEDINGDEV_RELEASE_ACCEPTANCE_ARTIFACT'],
+  [publishedAcceptanceArtifact, 'BLEEDINGDEV_PUBLISHED_ACCEPTANCE_ARTIFACT'],
   [releaseIdentityArtifact, 'BLEEDINGDEV_RELEASE_IDENTITY_ARTIFACT'],
 ]);
 const qualifiedReleaseArtifactName = (artifactName, identityExpression) => {
@@ -111,6 +128,10 @@ function requireRecord(value, context) {
     fail(`${context} must be a mapping`);
   }
   return value;
+}
+
+function normalizeWorkflowCondition(value) {
+  return typeof value === 'string' ? value.replace(/\s+/gu, ' ').trim() : '';
 }
 
 function requireCondition(condition, message) {
@@ -422,12 +443,27 @@ function validatePublishWorkflow(workflow) {
     'validate-release job',
   );
   const publishJob = requireRecord(jobs.publish, 'publish job');
+  const publishedAcceptanceJob = requireRecord(
+    jobs['accept-published'],
+    'accept-published job',
+  );
+  const tractorAcceptanceJob = requireRecord(
+    jobs['tractor-downstream'],
+    'tractor-downstream job',
+  );
+  const outcomeJob = requireRecord(
+    jobs['record-publish-outcome'],
+    'record-publish-outcome job',
+  );
 
   for (const [jobId, job] of [
     ['publish-security', securityJob],
     ['prepare-release', prepareJob],
     ['accept-release', acceptanceJob],
     ['validate-release', validationJob],
+    ['accept-published', publishedAcceptanceJob],
+    ['tractor-downstream', tractorAcceptanceJob],
+    ['record-publish-outcome', outcomeJob],
   ]) {
     requireCondition(
       !Object.hasOwn(job, 'permissions'),
@@ -438,6 +474,17 @@ function validatePublishWorkflow(workflow) {
     publishJob.permissions,
     'publish job permissions',
   );
+  const publishOutputs = requireRecord(
+    publishJob.outputs,
+    'publish job outputs',
+  );
+  requireCondition(
+    publishOutputs.publication_run_attempt ===
+      githubExpression(
+        'steps.release-identity.outputs.publication_run_attempt',
+      ),
+    'publish job must expose the immutable publication attempt for retry-safe evidence lookup',
+  );
   assertSameMembers(
     Object.keys(publishPermissions).sort((left, right) =>
       left.localeCompare(right),
@@ -445,10 +492,77 @@ function validatePublishWorkflow(workflow) {
     ['contents', 'id-token'],
     'publish job permissions',
   );
+  assertSameMembers(
+    normalizeNeeds(publishedAcceptanceJob, 'accept-published job needs').sort(
+      (left, right) => left.localeCompare(right),
+    ),
+    ['accept-release', 'publish'],
+    'accept-published job dependencies',
+  );
+  assertSameMembers(
+    normalizeNeeds(tractorAcceptanceJob, 'tractor-downstream job needs').sort(
+      (left, right) => left.localeCompare(right),
+    ),
+    ['accept-published', 'accept-release'],
+    'tractor-downstream job dependencies',
+  );
+  assertSameMembers(
+    normalizeNeeds(outcomeJob, 'record-publish-outcome job needs').sort(
+      (left, right) => left.localeCompare(right),
+    ),
+    [
+      'accept-published',
+      'accept-release',
+      'publish',
+      'publish-security',
+      'tractor-downstream',
+      'validate-release',
+    ],
+    'record-publish-outcome job dependencies',
+  );
   requireCondition(
     publishPermissions.contents === 'read' &&
       publishPermissions['id-token'] === 'write',
     'publish job permissions must be contents: read and id-token: write',
+  );
+  requireCondition(
+    !Object.hasOwn(publishedAcceptanceJob, 'environment') &&
+      !Object.hasOwn(publishedAcceptanceJob, 'permissions') &&
+      typeof publishedAcceptanceJob.if === 'string' &&
+      publishedAcceptanceJob.if.includes('inputs.dry_run == false'),
+    'accept-published must run only for non-dry releases with inherited read-only authority',
+  );
+  const expectedOutcomeCondition = [
+    'always() &&',
+    'github.actor == github.repository_owner &&',
+    'github.triggering_actor == github.repository_owner &&',
+    "github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern') &&",
+    '(',
+    "(inputs.dry_run == true && needs.validate-release.result == 'success' && needs.publish.result == 'skipped') ||",
+    "(inputs.dry_run == false && needs.publish.result == 'success' && needs.accept-published.result == 'success' && needs.tractor-downstream.result == 'success' && needs.validate-release.result == 'skipped')",
+    ')',
+  ].join(' ');
+  requireCondition(
+    normalizeWorkflowCondition(outcomeJob.if) === expectedOutcomeCondition,
+    'non-dry publish outcome must exactly require successful published and Tractor acceptance without semantic bypasses',
+  );
+  const tractorInputs = requireRecord(
+    tractorAcceptanceJob.with,
+    'tractor-downstream job inputs',
+  );
+  requireCondition(
+    tractorAcceptanceJob.uses === tractorAcceptanceWorkflow &&
+      tractorInputs.release_bundle_artifact ===
+        `${releaseBundleArtifact}-${githubExpression(
+          'needs.accept-release.outputs.producer_artifact_identity',
+        )}` &&
+      tractorInputs.tractor_ref === tractorAcceptanceRef &&
+      !Object.hasOwn(tractorAcceptanceJob, 'environment') &&
+      !Object.hasOwn(tractorAcceptanceJob, 'permissions') &&
+      !Object.hasOwn(tractorAcceptanceJob, 'secrets') &&
+      typeof tractorAcceptanceJob.if === 'string' &&
+      tractorAcceptanceJob.if.includes('inputs.dry_run == false'),
+    'tractor-downstream must call the reviewed reusable workflow with the exact bundle and immutable Tractor baseline under inherited read-only authority',
   );
 
   assertSameMembers(
@@ -497,6 +611,9 @@ function validatePublishWorkflow(workflow) {
     ['accept-release', acceptanceJob],
     ['validate-release', validationJob],
     ['publish', publishJob],
+    ['accept-published', publishedAcceptanceJob],
+    ['tractor-downstream', tractorAcceptanceJob],
+    ['record-publish-outcome', outcomeJob],
   ]) {
     requireCondition(
       typeof job.if === 'string' &&
@@ -642,7 +759,7 @@ function validatePublishWorkflow(workflow) {
   );
   assertSameMembers(
     artifactPaths(acceptanceUpload, 'release acceptance receipt'),
-    [releaseAcceptanceReceiptPath],
+    [releaseAcceptanceReceiptPath, releaseOperationalIndependenceEvidencePath],
     'release acceptance receipt paths',
   );
   requireHiddenArtifactUpload(acceptanceUpload, 'release acceptance receipt');
@@ -787,6 +904,247 @@ function validatePublishWorkflow(workflow) {
       ) < acceptanceSteps.indexOf(acceptanceUpload),
     'acceptance must consume the downloaded bundle before emitting its receipt',
   );
+
+  const publishedIdentityDownload = artifactStep(
+    publishedAcceptanceJob,
+    'actions/download-artifact',
+    qualifiedPublicationIdentityArtifactName(
+      'needs.accept-release.outputs.producer_artifact_identity',
+      'needs.publish.outputs.publication_run_attempt',
+    ),
+    'accept-published job',
+  );
+  const publishedIdentityVerification = namedStep(
+    publishedAcceptanceJob,
+    'Verify exact published release identity',
+    'accept-published job',
+  );
+  const publishedIdentityVerificationEnv = requireRecord(
+    publishedIdentityVerification.env,
+    'published identity verification environment',
+  );
+  requireCondition(
+    publishedIdentityVerificationEnv.PUBLICATION_RUN_ATTEMPT ===
+      githubExpression('needs.publish.outputs.publication_run_attempt') &&
+      publishedIdentityVerification.run.includes(
+        'process.env.PUBLICATION_RUN_ATTEMPT',
+      ) &&
+      !publishedIdentityVerification.run.includes(
+        'process.env.GITHUB_RUN_ATTEMPT',
+      ),
+    'accept-published must verify and reuse the publication attempt that emitted the exact identity artifact',
+  );
+  const publishedProducerReceiptVerification = namedStep(
+    publishedAcceptanceJob,
+    'Verify accepted producer receipt for published acceptance',
+    'accept-published job',
+  );
+  requireCondition(
+    publishedProducerReceiptVerification.run.includes('--verify-receipt') &&
+      publishedProducerReceiptVerification.run.includes(
+        '--expected-mode source',
+      ) &&
+      publishedProducerReceiptVerification.run.includes(
+        '--run-identity "$PRODUCER_RUN_IDENTITY"',
+      ) &&
+      !publishedProducerReceiptVerification.run.includes('GITHUB_RUN_ATTEMPT'),
+    'accept-published must verify the accepted producer receipt without rebinding it to a retry attempt',
+  );
+  const registryWait = namedStep(
+    publishedAcceptanceJob,
+    'Wait for the exact registry cohort',
+    'accept-published job',
+  );
+  const publishedAcceptanceRun = namedStep(
+    publishedAcceptanceJob,
+    'Run published ERP-10 acceptance',
+    'accept-published job',
+  );
+  const publishedAcceptanceUpload = artifactStep(
+    publishedAcceptanceJob,
+    'actions/upload-artifact',
+    `${qualifiedReleaseArtifactName(
+      publishedAcceptanceArtifact,
+      'needs.accept-release.outputs.producer_artifact_identity',
+    )}-publication-attempt-${githubExpression(
+      'needs.publish.outputs.publication_run_attempt',
+    )}`,
+    'accept-published job',
+  );
+  requireHiddenArtifactUpload(
+    publishedAcceptanceUpload,
+    'published acceptance evidence',
+  );
+  requireCondition(
+    publishedAcceptanceUpload.if === 'always()',
+    'published acceptance evidence must be uploaded even when ERP-10 fails',
+  );
+  assertSameMembers(
+    artifactPaths(publishedAcceptanceUpload, 'published acceptance evidence'),
+    [
+      publishedAcceptanceReceiptPath,
+      publishedOperationalIndependenceEvidencePath,
+    ],
+    'published acceptance evidence paths',
+  );
+  requireCondition(
+    typeof registryWait.run === 'string' &&
+      registryWait.run.includes('--publish-existing') &&
+      registryWait.run.includes('--dry-run') &&
+      registryWait.run.includes('--version "$PUBLISH_VERSION"') &&
+      registryWait.run.includes('--tag "$PUBLISH_TAG"') &&
+      /for\s+attempt\s+in\s+\{1\.\.12\}/u.test(registryWait.run),
+    'accept-published must retry exact-artifact registry bytes, provenance, and cohort tag verification',
+  );
+  requireCondition(
+    typeof publishedAcceptanceRun.run === 'string' &&
+      publishedAcceptanceRun.run.includes(
+        'scripts/ultramodern-publish/run-release-acceptance.mjs',
+      ) &&
+      publishedAcceptanceRun.run.includes('--mode published') &&
+      publishedAcceptanceRun.run.includes('--scale-profile erp-10') &&
+      publishedAcceptanceRun.run.includes(
+        '--expected-version "$PUBLISH_VERSION"',
+      ) &&
+      publishedAcceptanceRun.run.includes(
+        '--registry-url https://registry.npmjs.org/',
+      ) &&
+      publishedAcceptanceRun.run.includes(
+        '--receipt "$BLEEDINGDEV_PUBLISHED_ACCEPTANCE_RECEIPT"',
+      ) &&
+      !publishedAcceptanceRun.run.includes('@latest'),
+    'accept-published must run the shared full ERP-10 profile against an exact npm version',
+  );
+  const publishedJobSource = JSON.stringify(publishedAcceptanceJob);
+  for (const forbidden of [
+    '"environment"',
+    '"permissions"',
+    'id-token',
+    'NPM_TOKEN',
+    'NODE_AUTH_TOKEN',
+    'ACTIONS_ID_TOKEN',
+    'secrets.',
+    '@latest',
+    'npm publish',
+    'pnpm publish',
+  ]) {
+    requireCondition(
+      !publishedJobSource.includes(forbidden),
+      `accept-published must not contain authority or mutable package resolution: ${forbidden}`,
+    );
+  }
+  const publishedSteps = stepsFor(
+    publishedAcceptanceJob,
+    'accept-published job',
+  );
+  requireCondition(
+    publishedSteps.indexOf(publishedIdentityDownload) <
+      publishedSteps.indexOf(publishedProducerReceiptVerification) &&
+      publishedSteps.indexOf(publishedProducerReceiptVerification) <
+        publishedSteps.indexOf(publishedIdentityVerification) &&
+      publishedSteps.indexOf(publishedIdentityVerification) <
+        publishedSteps.indexOf(registryWait) &&
+      publishedSteps.indexOf(registryWait) <
+        publishedSteps.indexOf(publishedAcceptanceRun) &&
+      publishedSteps.indexOf(publishedAcceptanceRun) <
+        publishedSteps.indexOf(publishedAcceptanceUpload),
+    'accept-published must download, authenticate, verify the registry, run ERP-10, then upload evidence',
+  );
+
+  const outcomePublishedDownload = artifactStep(
+    outcomeJob,
+    'actions/download-artifact',
+    `${qualifiedReleaseArtifactName(
+      publishedAcceptanceArtifact,
+      'needs.accept-release.outputs.producer_artifact_identity',
+    )}-publication-attempt-${githubExpression(
+      'needs.publish.outputs.publication_run_attempt',
+    )}`,
+    'record-publish-outcome job',
+  );
+  requireCondition(
+    outcomePublishedDownload.if === 'inputs.dry_run == false',
+    'publish outcome must download published evidence only for a real publication',
+  );
+  const outcomeTractorDownload = artifactStep(
+    outcomeJob,
+    'actions/download-artifact',
+    githubExpression('needs.tractor-downstream.outputs.evidence_artifact_name'),
+    'record-publish-outcome job',
+  );
+  const outcomeTractorDownloadWith = requireRecord(
+    outcomeTractorDownload.with,
+    'publish outcome Tractor evidence download',
+  );
+  requireCondition(
+    outcomeTractorDownload.if === 'inputs.dry_run == false' &&
+      outcomeTractorDownloadWith.path === '.modern/bleedingdev-publish',
+    'publish outcome must download exact Tractor evidence only for a real publication',
+  );
+  const outcomePublishedVerification = namedStep(
+    outcomeJob,
+    'Verify published receipt for the outcome',
+    'record-publish-outcome job',
+  );
+  requireCondition(
+    outcomePublishedVerification.if === 'inputs.dry_run == false' &&
+      outcomePublishedVerification.run.includes('--expected-mode published') &&
+      outcomePublishedVerification.run.includes(
+        '--receipt "$BLEEDINGDEV_PUBLISHED_ACCEPTANCE_RECEIPT"',
+      ),
+    'publish outcome must authoritatively verify the published receipt in published mode',
+  );
+  const createOutcome = namedStep(
+    outcomeJob,
+    'Create publish outcome',
+    'record-publish-outcome job',
+  );
+  requireCondition(
+    createOutcome.run.includes('--operational-evidence') &&
+      createOutcome.run.includes('--published-receipt') &&
+      createOutcome.run.includes('--published-operational-evidence') &&
+      createOutcome.run.includes('--tractor-report') &&
+      createOutcome.run.includes('--tractor-report-sha256') &&
+      createOutcome.run.includes('--tractor-baseline-revision') &&
+      createOutcome.run.includes('--publication-run-attempt') &&
+      createOutcome.run.includes(
+        'needs.publish.outputs.publication_run_attempt',
+      ) &&
+      createOutcome.run.includes(
+        'needs.tractor-downstream.outputs.report_sha256',
+      ) &&
+      createOutcome.run.includes(
+        'needs.tractor-downstream.outputs.baseline_revision',
+      ),
+    'publish outcome schema must bind source, published, operational, and Tractor evidence',
+  );
+  const outcomeUpload = actionSteps(
+    outcomeJob,
+    'actions/upload-artifact',
+    'record-publish-outcome job',
+  ).find(step =>
+    artifactPaths(step, 'publish outcome upload').includes(
+      '.modern/bleedingdev-publish/publish-outcome.json',
+    ),
+  );
+  requireCondition(
+    Boolean(outcomeUpload),
+    'record-publish-outcome must upload the canonical outcome artifact',
+  );
+  const outcomePaths = artifactPaths(outcomeUpload, 'publish outcome upload');
+  for (const requiredPath of [
+    releaseAcceptanceReceiptPath,
+    releaseOperationalIndependenceEvidencePath,
+    publishedAcceptanceReceiptPath,
+    publishedOperationalIndependenceEvidencePath,
+    tractorAcceptanceReportPath,
+  ]) {
+    requireCondition(
+      outcomePaths.includes(requiredPath),
+      `publish outcome artifact must carry ${requiredPath}`,
+    );
+  }
+
   for (const [jobId, job] of [
     ['publish', publishJob],
     ['validate-release', validationJob],
@@ -842,6 +1200,7 @@ function validatePublishWorkflow(workflow) {
       releaseCohortDigestPath,
       releaseTarballGlob,
       releaseAcceptanceReceiptPath,
+      releaseOperationalIndependenceEvidencePath,
       releaseIdentityPath,
     ],
     'published release identity paths',
@@ -857,7 +1216,8 @@ function validatePublishWorkflow(workflow) {
     'published release identity creation must be unconditional inside the non-dry publish job',
   );
   requireCondition(
-    typeof identityStep.run === 'string' &&
+    identityStep.id === 'release-identity' &&
+      typeof identityStep.run === 'string' &&
       identityStep.run.includes(
         "manifest.schema !== 'bleedingdev.ultramodern.release-manifest'",
       ) &&
@@ -867,6 +1227,8 @@ function validatePublishWorkflow(workflow) {
       identityStep.run.includes('manifest.source.commit') &&
       identityStep.run.includes('BLEEDINGDEV_RELEASE_MANIFEST_DIGEST') &&
       identityStep.run.includes('BLEEDINGDEV_RELEASE_COHORT_DIGEST') &&
+      identityStep.run.includes('publication_run_attempt=') &&
+      identityStep.run.includes('GITHUB_OUTPUT') &&
       !identityStep.run.includes('manifest.version') &&
       !identityStep.run.includes('sourceRevision'),
     'published release identity must consume the strict v2 manifest and detached digests',
@@ -885,6 +1247,8 @@ function validatePublishWorkflow(workflow) {
     'accept-release': acceptanceJob,
     'validate-release': validationJob,
     publish: publishJob,
+    'accept-published': publishedAcceptanceJob,
+    'record-publish-outcome': outcomeJob,
   })) {
     requireCondition(
       typeof job['timeout-minutes'] === 'number',
@@ -969,18 +1333,30 @@ function validateReadinessWorkflow(workflow) {
     ),
     'release identity resolution must require a successful triggering run',
   );
+  const artifactListingStep = namedStep(
+    identityJob,
+    'List triggering run artifacts',
+    'resolve-release-identity job',
+  );
   const signalStep = namedStep(
     identityJob,
-    'Find non-dry-run publication signal',
+    'Find authenticated publication identity',
     'resolve-release-identity job',
   );
   requireCondition(
-    signalStep.run.includes('gh api') &&
+    artifactListingStep.run.includes('gh api') &&
+      artifactListingStep.run.includes(
+        'BLEEDINGDEV_PUBLISH_OUTCOME_ARTIFACTS',
+      ) &&
       signalStep.run.includes(releaseIdentityArtifact) &&
-      signalStep.run.includes('env.TRIGGER_RUN_ATTEMPT') &&
+      signalStep.run.includes('AUTHENTICATED_PUBLICATION_RUN_ATTEMPT') &&
+      signalStep.run.includes('AUTHENTICATED_PRODUCER_ARTIFACT_IDENTITY') &&
       signalStep.run.includes('publication-attempt-') &&
-      signalStep.run.includes('multiple publication identity artifacts'),
-    'release identity resolution must select the non-dry-run artifact from the completed publication attempt',
+      signalStep.run.includes(
+        'Expected exactly one live publication identity artifact',
+      ) &&
+      !signalStep.run.includes('TRIGGER_RUN_ATTEMPT'),
+    'release identity resolution must select the exact publication identity authenticated by the current-attempt outcome',
   );
   const identityOutputs = requireRecord(
     identityJob.outputs,
@@ -1014,8 +1390,7 @@ function validateReadinessWorkflow(workflow) {
     'trusted receipt verifier checkout inputs',
   );
   requireCondition(
-    identityCheckout.if ===
-      "steps.publication-signal.outputs.exists == 'true'" &&
+    identityCheckout.if === undefined &&
       identityCheckoutInputs.ref ===
         githubExpression('github.event.workflow_run.head_sha') &&
       identityCheckoutInputs['fetch-depth'] === 1 &&
@@ -1101,6 +1476,21 @@ function validateReadinessWorkflow(workflow) {
     receiptVerification.env ?? {},
     'triggering release acceptance receipt environment',
   );
+  const outcomeVerification = namedStep(
+    identityJob,
+    'Verify triggering publish outcome',
+    'resolve-release-identity job',
+  );
+  requireCondition(
+    typeof outcomeVerification.run === 'string' &&
+      outcomeVerification.run.includes('publish-outcome.mjs verify') &&
+      outcomeVerification.run.includes('--operational-evidence') &&
+      outcomeVerification.run.includes('--published-receipt') &&
+      outcomeVerification.run.includes('--published-operational-evidence') &&
+      outcomeVerification.run.includes('--tractor-report') &&
+      outcomeVerification.run.includes('tractor-downstream-acceptance.json'),
+    'readiness must verify the v4 publish outcome binding for source, published, Tractor, and publication-attempt evidence',
+  );
   requireCondition(
     receiptVerification.if ===
       "steps.publication-signal.outputs.exists == 'true'" &&
@@ -1119,6 +1509,10 @@ function validateReadinessWorkflow(workflow) {
       ) &&
       receiptVerification.run.includes('release-identity.json') &&
       receiptVerification.run.includes('identity.producerRunIdentity') &&
+      receiptVerification.run.includes('--expected-mode published') &&
+      receiptVerification.run.includes(
+        '$BLEEDINGDEV_PUBLISH_OUTCOME_DIR/published-acceptance-receipt.json',
+      ) &&
       !receiptVerification.run.includes('GITHUB_RUN_ATTEMPT'),
     'readiness must delegate the triggering receipt contract to its authoritative validator',
   );
@@ -1145,7 +1539,8 @@ function validateReadinessWorkflow(workflow) {
       identityVerification.includes('manifest.json.sha256') &&
       identityVerification.includes('cohort.sha256') &&
       identityVerification.includes('path.join(root, file)') &&
-      identityVerification.includes('TRIGGER_RUN_ATTEMPT') &&
+      identityVerification.includes('AUTHENTICATED_PUBLICATION_RUN_ATTEMPT') &&
+      !identityVerification.includes('TRIGGER_RUN_ATTEMPT') &&
       identityVerification.includes(
         `publication_artifact_name=${shellInterpolation(
           'process.env.TRIGGER_ARTIFACT_NAME',
@@ -1165,16 +1560,34 @@ function validateReadinessWorkflow(workflow) {
     'readiness must validate the strict triggering manifest and publication identity',
   );
   const identitySteps = stepsFor(identityJob, 'resolve-release-identity job');
+  const outcomeSelectionStep = namedStep(
+    identityJob,
+    'Select the triggering publish outcome',
+    'resolve-release-identity job',
+  );
+  const outcomeDownloadStep = namedStep(
+    identityJob,
+    'Download triggering publish outcome',
+    'resolve-release-identity job',
+  );
   requireCondition(
-    identitySteps.indexOf(signalStep) <
+    identitySteps.indexOf(artifactListingStep) <
       identitySteps.indexOf(identityCheckout) &&
       identitySteps.indexOf(identityCheckout) <
+        identitySteps.indexOf(outcomeSelectionStep) &&
+      identitySteps.indexOf(outcomeSelectionStep) <
+        identitySteps.indexOf(outcomeDownloadStep) &&
+      identitySteps.indexOf(outcomeDownloadStep) <
+        identitySteps.indexOf(outcomeVerification) &&
+      identitySteps.indexOf(outcomeVerification) <
+        identitySteps.indexOf(signalStep) &&
+      identitySteps.indexOf(signalStep) <
         identitySteps.indexOf(identityDownload) &&
       identitySteps.indexOf(identityDownload) <
         identitySteps.indexOf(receiptVerification) &&
       identitySteps.indexOf(receiptVerification) <
         identitySteps.indexOf(identityVerificationStep),
-    'cross-run identity resolution must signal, check out, download, verify the receipt, then authorize',
+    'cross-run identity resolution must authenticate the retry outcome before selecting, downloading, and authorizing the original publication identity',
   );
 
   const postpublishIdentityDownload = artifactStep(
@@ -1291,6 +1704,230 @@ function validateReadinessWorkflow(workflow) {
   );
 }
 
+function validateTractorWorkflow(workflow) {
+  const triggers = requireRecord(
+    workflow.on,
+    'Tractor acceptance workflow triggers',
+  );
+  assertSameMembers(
+    Object.keys(triggers),
+    ['workflow_call'],
+    'Tractor acceptance workflow triggers',
+  );
+  const workflowCall = requireRecord(
+    triggers.workflow_call,
+    'Tractor acceptance workflow_call',
+  );
+  const inputs = requireRecord(
+    workflowCall.inputs,
+    'Tractor acceptance workflow inputs',
+  );
+  assertSameMembers(
+    Object.keys(inputs).sort((left, right) => left.localeCompare(right)),
+    ['release_bundle_artifact', 'tractor_ref'],
+    'Tractor acceptance workflow inputs',
+  );
+  for (const inputName of ['release_bundle_artifact', 'tractor_ref']) {
+    const input = requireRecord(
+      inputs[inputName],
+      `Tractor acceptance ${inputName} input`,
+    );
+    requireCondition(
+      input.required === true && input.type === 'string',
+      `Tractor acceptance ${inputName} input must be a required string`,
+    );
+  }
+  const outputs = requireRecord(
+    workflowCall.outputs,
+    'Tractor acceptance workflow outputs',
+  );
+  assertSameMembers(
+    Object.keys(outputs).sort((left, right) => left.localeCompare(right)),
+    ['baseline_revision', 'evidence_artifact_name', 'report_sha256'],
+    'Tractor acceptance workflow outputs',
+  );
+  for (const outputName of Object.keys(outputs)) {
+    const output = requireRecord(
+      outputs[outputName],
+      `Tractor acceptance ${outputName} output`,
+    );
+    requireCondition(
+      output.value ===
+        githubExpression(`jobs.tractor-downstream.outputs.${outputName}`),
+      `Tractor acceptance ${outputName} must expose the bound job output`,
+    );
+  }
+
+  const permissions = requireRecord(
+    workflow.permissions,
+    'Tractor acceptance workflow permissions',
+  );
+  assertSameMembers(
+    Object.keys(permissions),
+    ['contents'],
+    'Tractor acceptance workflow permissions',
+  );
+  requireCondition(
+    permissions.contents === 'read',
+    'Tractor acceptance workflow must be read-only',
+  );
+
+  const jobs = requireRecord(workflow.jobs, 'Tractor acceptance workflow jobs');
+  assertSameMembers(
+    Object.keys(jobs),
+    ['tractor-downstream'],
+    'Tractor acceptance workflow jobs',
+  );
+  const job = requireRecord(
+    jobs['tractor-downstream'],
+    'Tractor acceptance workflow job',
+  );
+  requireCondition(
+    job['timeout-minutes'] === 45 &&
+      !Object.hasOwn(job, 'permissions') &&
+      !Object.hasOwn(job, 'environment'),
+    'Tractor acceptance workflow job must be bounded and inherit read-only authority',
+  );
+  const jobOutputs = requireRecord(
+    job.outputs,
+    'Tractor acceptance job outputs',
+  );
+  requireCondition(
+    jobOutputs.baseline_revision ===
+      githubExpression('steps.evidence.outputs.baseline_revision') &&
+      jobOutputs.evidence_artifact_name ===
+        githubExpression('steps.evidence.outputs.artifact_name') &&
+      jobOutputs.report_sha256 ===
+        githubExpression('steps.evidence.outputs.report_sha256'),
+    'Tractor acceptance job must expose the evidence artifact, baseline, and report digest',
+  );
+
+  const runnerCheckout = namedStep(
+    job,
+    'Checkout acceptance runner',
+    'Tractor acceptance workflow job',
+  );
+  const runnerCheckoutWith = requireRecord(
+    runnerCheckout.with,
+    'Tractor acceptance runner checkout',
+  );
+  requireCondition(
+    runnerCheckoutWith.path === 'modernjs' &&
+      runnerCheckoutWith['persist-credentials'] === false,
+    'Tractor acceptance must check out the exact caller source without credentials',
+  );
+
+  const tractorCheckout = namedStep(
+    job,
+    'Checkout immutable Tractor baseline',
+    'Tractor acceptance workflow job',
+  );
+  const tractorCheckoutWith = requireRecord(
+    tractorCheckout.with,
+    'Tractor baseline checkout',
+  );
+  requireCondition(
+    tractorCheckoutWith.repository ===
+      'BleedingDev/tractor-store-vertical-demo' &&
+      tractorCheckoutWith.ref === githubExpression('inputs.tractor_ref') &&
+      tractorCheckoutWith.path === 'tractor' &&
+      tractorCheckoutWith['persist-credentials'] === false,
+    'Tractor acceptance must use the reviewed immutable downstream checkout without credentials',
+  );
+
+  const bundleDownload = namedStep(
+    job,
+    'Download exact release bundle',
+    'Tractor acceptance workflow job',
+  );
+  const bundleDownloadWith = requireRecord(
+    bundleDownload.with,
+    'Tractor release bundle download',
+  );
+  requireCondition(
+    bundleDownloadWith.name ===
+      githubExpression('inputs.release_bundle_artifact') &&
+      bundleDownloadWith.path === 'modernjs/.modern/bleedingdev-publish',
+    'Tractor acceptance must download the exact caller release bundle',
+  );
+
+  const acceptanceRun = namedStep(
+    job,
+    'Run exact-cohort Tractor acceptance',
+    'Tractor acceptance workflow job',
+  );
+  requireCondition(
+    acceptanceRun['working-directory'] === 'tractor' &&
+      typeof acceptanceRun.run === 'string' &&
+      acceptanceRun.run.includes('run-tractor-downstream-acceptance.mjs') &&
+      acceptanceRun.run.includes(
+        '--manifest ../modernjs/.modern/bleedingdev-publish/manifest.json',
+      ) &&
+      acceptanceRun.run.includes('--workspace .') &&
+      acceptanceRun.run.includes(
+        '--registry-url https://registry.npmjs.org/',
+      ) &&
+      !acceptanceRun.run.includes('@latest') &&
+      !acceptanceRun.run.includes('--skip'),
+    'Tractor acceptance must run the exact manifest-bound Node, workerd, and browser contract without bypasses',
+  );
+
+  const upload = namedStep(
+    job,
+    'Upload Tractor acceptance evidence',
+    'Tractor acceptance workflow job',
+  );
+  const uploadWith = requireRecord(
+    upload.with,
+    'Tractor acceptance evidence upload',
+  );
+  const evidenceBinding = namedStep(
+    job,
+    'Bind Tractor acceptance evidence',
+    'Tractor acceptance workflow job',
+  );
+  requireCondition(
+    evidenceBinding.id === 'evidence' &&
+      evidenceBinding.if === 'always()' &&
+      typeof evidenceBinding.run === 'string' &&
+      evidenceBinding.run.includes('tractor-downstream-acceptance.json') &&
+      evidenceBinding.run.includes('createHash') &&
+      evidenceBinding.run.includes('GITHUB_OUTPUT') &&
+      evidenceBinding.run.includes('baseline_revision=') &&
+      evidenceBinding.run.includes('report_sha256=') &&
+      upload.if === 'always()' &&
+      uploadWith['if-no-files-found'] === 'error' &&
+      uploadWith['include-hidden-files'] === true &&
+      uploadWith.path ===
+        'modernjs/.modern/production-readiness/tractor-downstream-acceptance.json' &&
+      uploadWith.name ===
+        githubExpression('steps.evidence.outputs.artifact_name'),
+    'Tractor acceptance must always upload uniquely bound evidence and fail when it is absent',
+  );
+  const steps = stepsFor(job, 'Tractor acceptance workflow job');
+  requireCondition(
+    steps.indexOf(acceptanceRun) < steps.indexOf(evidenceBinding) &&
+      steps.indexOf(evidenceBinding) < steps.indexOf(upload),
+    'Tractor acceptance must execute, bind, then upload its report',
+  );
+
+  const source = JSON.stringify(workflow);
+  for (const forbidden of [
+    'id-token',
+    'NPM_TOKEN',
+    'NODE_AUTH_TOKEN',
+    'secrets.',
+    '@latest',
+    'npm publish',
+    'pnpm publish',
+  ]) {
+    requireCondition(
+      !source.includes(forbidden),
+      `Tractor acceptance workflow must not contain authority or mutable package resolution: ${forbidden}`,
+    );
+  }
+}
+
 function validateWorkflowContract() {
   const publishWorkflow = parseWorkflow(
     publishWorkflowPath,
@@ -1300,8 +1937,13 @@ function validateWorkflowContract() {
     readinessWorkflowPath,
     'readiness workflow',
   );
+  const tractorWorkflow = parseWorkflow(
+    tractorWorkflowPath,
+    'Tractor acceptance workflow',
+  );
   validatePublishWorkflow(publishWorkflow);
   validateReadinessWorkflow(readinessWorkflow);
+  validateTractorWorkflow(tractorWorkflow);
 
   const publishWorkflowSource = readText(publishWorkflowPath);
   for (const forbiddenToken of [
@@ -1603,3 +2245,9 @@ if (
     process.exitCode = 1;
   }
 }
+
+export {
+  validatePublishWorkflow,
+  validateReadinessWorkflow,
+  validateTractorWorkflow,
+};

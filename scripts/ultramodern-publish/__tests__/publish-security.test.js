@@ -7,6 +7,9 @@ const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 const { pathToFileURL } = require('node:url');
+const {
+  createOperationalAcceptanceReceiptFixture,
+} = require('../../ultramodern-production-readiness/__tests__/support/operational-acceptance-fixture');
 
 const repoRoot = path.resolve(__dirname, '../../..');
 const scriptPath = path.join(
@@ -90,7 +93,7 @@ function normalizeNeeds(job) {
 }
 
 function actionSteps(job, action) {
-  return job.steps.filter(
+  return (job.steps ?? []).filter(
     step => typeof step.uses === 'string' && step.uses.startsWith(`${action}@`),
   );
 }
@@ -153,6 +156,7 @@ async function createRunnerSubprocessFixture(root) {
     {
       dependencies: {
         '@modern-js/i18n-utils': `npm:${aliases['@modern-js/i18n-utils']}@${version}`,
+        '@module-federation/runtime': '2.8.0',
       },
       exports: exportsMap,
       sourceName: '@modern-js/create',
@@ -248,13 +252,32 @@ async function createRunnerSubprocessFixture(root) {
     registryMetadataSha256: fixtureDigest('registry'),
     releaseManifestSha256: release.manifestSha256,
   });
-  for (const id of receiptApi.requiredAcceptanceResultIds) {
-    await receiptApi.recordAcceptanceResult(receipt, id, async () => ({ id }));
-  }
-  receiptApi.finalizeAcceptanceReceipt(receipt);
   const receiptPath = path.join(releaseDir, 'acceptance-receipt.json');
+  const operationalEvidence = await createOperationalAcceptanceReceiptFixture({
+    evidencePath: receiptPath.replace(
+      /\.json$/u,
+      '.operational-independence.json',
+    ),
+    overrides: {
+      identity: {
+        baselineRevision: release.source.commit,
+        changedRevision: '2'.repeat(40),
+        releaseVersion: release.release.version,
+        runtimeReleaseVersion: release.release.version,
+        runtimeSourceRevision: release.source.commit,
+      },
+    },
+    receipt,
+    receiptApi,
+  });
   writeFixtureJson(receiptPath, receipt);
-  return { manifestPath, producerRunIdentity, receiptPath, source };
+  return {
+    manifestPath,
+    ...operationalEvidence,
+    producerRunIdentity,
+    receiptPath,
+    source,
+  };
 }
 
 test('publish security validation accepts the hermetic release workflows', () => {
@@ -295,9 +318,33 @@ test('release acceptance runner exposes distinct execution and receipt verificat
     'published',
   );
   assert.equal(parseArgs([...commonArgs, '--verify-receipt']).mode, 'verify');
+  assert.equal(
+    parseArgs([
+      ...commonArgs,
+      '--verify-receipt',
+      '--expected-mode',
+      'published',
+    ]).expectedMode,
+    'published',
+  );
+  assert.throws(
+    () =>
+      parseArgs([
+        ...commonArgs,
+        '--mode',
+        'published',
+        '--expected-mode',
+        'published',
+      ]),
+    /only valid with receipt verification/u,
+  );
   assert.throws(
     () => parseArgs([...commonArgs, '--acceptance-receipt', 'legacy.json']),
     /Unknown argument: --acceptance-receipt/,
+  );
+  assert.throws(
+    () => parseArgs([...commonArgs, '--keep-work-dir']),
+    /Unknown argument: --keep-work-dir/,
   );
 });
 
@@ -325,7 +372,18 @@ test('release acceptance runner preserves the accepted producer identity on a pu
     release: { tag: 'latest', version: '3.4.0-ultramodern.2' },
     manifestSha256: digest('release manifest'),
     cohortDigest: digest('release cohort'),
-    packages: [{ targetName: '@bleedingdev/modern-js-create' }],
+    packages: [
+      {
+        targetName: '@bleedingdev/modern-js-create',
+        version: '3.4.0-ultramodern.2',
+        integrity: 'sha512-create',
+        packageJson: {
+          dependencies: {
+            '@module-federation/runtime': '2.8.0',
+          },
+        },
+      },
+    ],
     createPackage: {
       sourceName: '@modern-js/create',
       targetName: '@bleedingdev/modern-js-create',
@@ -367,14 +425,26 @@ test('release acceptance runner preserves the accepted producer identity on a pu
     registryMetadataSha256: digest('registry'),
     releaseManifestSha256: release.manifestSha256,
   });
-  for (const id of receiptApi.requiredAcceptanceResultIds) {
-    await receiptApi.recordAcceptanceResult(receipt, id, async () => ({ id }));
-  }
-  receiptApi.finalizeAcceptanceReceipt(receipt);
-
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ultramodern-runner-'));
   try {
     const receiptPath = path.join(root, 'acceptance-receipt.json');
+    await createOperationalAcceptanceReceiptFixture({
+      evidencePath: receiptPath.replace(
+        /\.json$/u,
+        '.operational-independence.json',
+      ),
+      overrides: {
+        identity: {
+          baselineRevision: release.source.commit,
+          changedRevision: '2'.repeat(40),
+          releaseVersion: release.release.version,
+          runtimeReleaseVersion: release.release.version,
+          runtimeSourceRevision: release.source.commit,
+        },
+      },
+      receipt,
+      receiptApi,
+    });
     fs.writeFileSync(receiptPath, `${JSON.stringify(receipt, null, 2)}\n`);
     const options = {
       receiptPath,
@@ -461,6 +531,33 @@ test('release acceptance subprocess verifies producer attempt 1 during publicati
       implicit.stderr,
       /--run-identity is required for receipt verification/u,
     );
+
+    fs.writeFileSync(
+      fixture.evidencePath,
+      fixture.evidenceSource.replace('"result": "pass"', '"result": "fail"'),
+    );
+    const tampered = spawnSync(
+      process.execPath,
+      [...commonArgs, '--run-identity', fixture.producerRunIdentity],
+      { cwd: repoRoot, encoding: 'utf8', env },
+    );
+    assert.notEqual(tampered.status, 0);
+    assert.match(
+      tampered.stderr,
+      /Operational-independence evidence file SHA-256 does not match the acceptance receipt/u,
+    );
+
+    fs.rmSync(fixture.evidencePath);
+    const missing = spawnSync(
+      process.execPath,
+      [...commonArgs, '--run-identity', fixture.producerRunIdentity],
+      { cwd: repoRoot, encoding: 'utf8', env },
+    );
+    assert.notEqual(missing.status, 0);
+    assert.match(
+      missing.stderr,
+      /Operational-independence evidence is missing or is not a regular file/u,
+    );
   } finally {
     fs.rmSync(root, { force: true, recursive: true });
   }
@@ -513,6 +610,9 @@ test('OIDC and the trusted publishing environment are confined to publish', () =
     'accept-release',
     'validate-release',
     'publish',
+    'accept-published',
+    'tractor-downstream',
+    'record-publish-outcome',
   ]) {
     assert.match(
       parsed.jobs[jobId].if,
@@ -559,6 +659,130 @@ test('dry-run validation consumes accepted bytes without publish authority', () 
   );
 });
 
+test('published acceptance is exact-version, no-authority, and gates non-dry success', () => {
+  const parsed = workflow(publishWorkflowPath);
+  const acceptance = parsed.jobs['accept-published'];
+  const outcome = parsed.jobs['record-publish-outcome'];
+  const registry = namedStep(acceptance, 'Wait for the exact registry cohort');
+  const run = namedStep(acceptance, 'Run published ERP-10 acceptance');
+  const upload = actionSteps(acceptance, 'actions/upload-artifact')[0];
+
+  assert.deepEqual(normalizeNeeds(acceptance).sort(), [
+    'accept-release',
+    'publish',
+  ]);
+  assert.equal(Object.hasOwn(acceptance, 'permissions'), false);
+  assert.equal(Object.hasOwn(acceptance, 'environment'), false);
+  assert.match(acceptance.if, /inputs\.dry_run == false/u);
+  assert.match(registry.run, /--publish-existing/u);
+  assert.match(registry.run, /--dry-run/u);
+  assert.match(registry.run, /--version "\$PUBLISH_VERSION"/u);
+  assert.match(run.run, /--mode published/u);
+  assert.match(run.run, /--scale-profile erp-10/u);
+  assert.match(run.run, /--expected-version "\$PUBLISH_VERSION"/u);
+  assert.equal(upload.if, 'always()');
+  assert.doesNotMatch(
+    JSON.stringify(acceptance),
+    /@latest|NPM_TOKEN|NODE_AUTH_TOKEN|secrets\./u,
+  );
+  assert.match(outcome.if, /needs\.accept-published\.result == 'success'/u);
+});
+
+test('Tractor acceptance consumes the exact published bundle and gates non-dry success', () => {
+  const parsed = workflow(publishWorkflowPath);
+  const tractor = parsed.jobs['tractor-downstream'];
+  const outcome = parsed.jobs['record-publish-outcome'];
+
+  assert.deepEqual(normalizeNeeds(tractor).sort(), [
+    'accept-published',
+    'accept-release',
+  ]);
+  assert.equal(
+    tractor.uses,
+    './.github/workflows/ultramodern-tractor-downstream.yml',
+  );
+  assert.equal(
+    tractor.with.release_bundle_artifact,
+    `bleedingdev-release-bundle-\${{ needs.accept-release.outputs.producer_artifact_identity }}`,
+  );
+  assert.match(tractor.with.tractor_ref, /^[a-f\d]{40}$/u);
+  assert.equal(Object.hasOwn(tractor, 'permissions'), false);
+  assert.equal(Object.hasOwn(tractor, 'environment'), false);
+  assert.equal(Object.hasOwn(tractor, 'secrets'), false);
+  assert.match(tractor.if, /inputs\.dry_run == false/u);
+  assert.match(outcome.if, /needs\.tractor-downstream\.result == 'success'/u);
+});
+
+test('publish validator rejects authority, mutable resolution, and acceptance bypass attacks', async () => {
+  const { validatePublishWorkflow } = await import(pathToFileURL(scriptPath));
+  const mutateCases = [
+    [
+      'OIDC escalation',
+      parsed => {
+        parsed.jobs['accept-published'].permissions = {
+          contents: 'read',
+          'id-token': 'write',
+        };
+      },
+      /accept-published must inherit the read-only workflow permissions/u,
+    ],
+    [
+      'trusted environment escalation',
+      parsed => {
+        parsed.jobs['accept-published'].environment = 'npm-publish';
+      },
+      /without an environment|inherited read-only authority/u,
+    ],
+    [
+      'mutable latest install',
+      parsed => {
+        namedStep(
+          parsed.jobs['accept-published'],
+          'Run published ERP-10 acceptance',
+        ).run += '\nnpm install @bleedingdev/modern-js-create@latest';
+      },
+      /exact npm version|mutable package resolution/u,
+    ],
+    [
+      'outcome bypass',
+      parsed => {
+        parsed.jobs['record-publish-outcome'].if = parsed.jobs[
+          'record-publish-outcome'
+        ].if.replace(" && needs.accept-published.result == 'success'", '');
+      },
+      /successful published and Tractor acceptance/u,
+    ],
+    [
+      'Tractor outcome bypass',
+      parsed => {
+        parsed.jobs['record-publish-outcome'].if = parsed.jobs[
+          'record-publish-outcome'
+        ].if.replace(" && needs.tractor-downstream.result == 'success'", '');
+      },
+      /successful published and Tractor acceptance/u,
+    ],
+    [
+      'semantic outcome bypass',
+      parsed => {
+        parsed.jobs['record-publish-outcome'].if += ' || true';
+      },
+      /without semantic bypasses/u,
+    ],
+    [
+      'mutable Tractor baseline',
+      parsed => {
+        parsed.jobs['tractor-downstream'].with.tractor_ref = 'main';
+      },
+      /immutable Tractor baseline/u,
+    ],
+  ];
+  for (const [label, mutate, expected] of mutateCases) {
+    const parsed = workflow(publishWorkflowPath);
+    mutate(parsed);
+    assert.throws(() => validatePublishWorkflow(parsed), expected, label);
+  }
+});
+
 test('dry-run and real publication converge on one authenticated outcome artifact', () => {
   const parsed = workflow(publishWorkflowPath);
   const outcomeJob = parsed.jobs['record-publish-outcome'];
@@ -574,9 +798,11 @@ test('dry-run and real publication converge on one authenticated outcome artifac
   );
 
   assert.deepEqual(normalizeNeeds(outcomeJob).sort(), [
+    'accept-published',
     'accept-release',
     'publish',
     'publish-security',
+    'tractor-downstream',
     'validate-release',
   ]);
   assert.match(outcomeJob.if, /always\(\)/u);
@@ -586,7 +812,7 @@ test('dry-run and real publication converge on one authenticated outcome artifac
   );
   assert.match(
     outcomeJob.if,
-    /inputs\.dry_run == false[\s\S]*needs\.publish\.result == 'success'[\s\S]*needs\.validate-release\.result == 'skipped'/u,
+    /inputs\.dry_run == false[\s\S]*needs\.publish\.result == 'success'[\s\S]*needs\.accept-published\.result == 'success'[\s\S]*needs\.tractor-downstream\.result == 'success'[\s\S]*needs\.validate-release\.result == 'skipped'/u,
   );
   assert.equal(actionSteps(outcomeJob, 'actions/upload-artifact').length, 1);
   assert.ok(
@@ -605,11 +831,15 @@ test('dry-run and real publication converge on one authenticated outcome artifac
   );
   assert.deepEqual(artifactPaths(upload), [
     '.modern/bleedingdev-publish/acceptance-receipt.json',
+    '.modern/bleedingdev-publish/acceptance-receipt.operational-independence.json',
     '.modern/bleedingdev-publish/cohort.sha256',
     '.modern/bleedingdev-publish/manifest.json',
     '.modern/bleedingdev-publish/manifest.json.sha256',
     '.modern/bleedingdev-publish/publish-outcome.json',
+    '.modern/bleedingdev-publish/published-acceptance-receipt.json',
+    '.modern/bleedingdev-publish/published-acceptance-receipt.operational-independence.json',
     '.modern/bleedingdev-publish/tarballs/*.tgz',
+    '.modern/bleedingdev-publish/tractor-downstream-acceptance.json',
   ]);
 
   const outcomeUploads = Object.values(parsed.jobs)
@@ -704,6 +934,10 @@ test('prepare, acceptance, and publish transfer one exact immutable bundle', () 
     ),
   );
   assert.equal(acceptanceUpload.with['include-hidden-files'], true);
+  assert.deepEqual(artifactPaths(acceptanceUpload), [
+    '.modern/bleedingdev-publish/acceptance-receipt.json',
+    '.modern/bleedingdev-publish/acceptance-receipt.operational-independence.json',
+  ]);
   assert.equal(
     bundleUpload.with.name,
     `${githubExpression('env.BLEEDINGDEV_RELEASE_BUNDLE_ARTIFACT')}-${githubExpression('steps.producer-identity.outputs.artifact_identity')}`,
@@ -815,6 +1049,7 @@ test('non-dry publish uses the strict v2 manifest and emits its identity', () =>
   assert.doesNotMatch(identityStep.run, /manifest\.version|sourceRevision/);
   assert.deepEqual(artifactPaths(identityUpload), [
     '.modern/bleedingdev-publish/acceptance-receipt.json',
+    '.modern/bleedingdev-publish/acceptance-receipt.operational-independence.json',
     '.modern/bleedingdev-publish/cohort.sha256',
     '.modern/bleedingdev-publish/manifest.json',
     '.modern/bleedingdev-publish/manifest.json.sha256',
@@ -897,7 +1132,8 @@ test('workflow_run readiness downloads and verifies the triggering release ident
   const parsed = workflow(readinessWorkflowPath);
   const resolver = parsed.jobs['resolve-release-identity'];
   const proof = parsed.jobs['published-create-superapp'];
-  const signal = namedStep(resolver, 'Find non-dry-run publication signal');
+  const listArtifacts = namedStep(resolver, 'List triggering run artifacts');
+  const signal = namedStep(resolver, 'Find authenticated publication identity');
   const selectOutcome = namedStep(
     resolver,
     'Select the triggering publish outcome',
@@ -945,6 +1181,11 @@ test('workflow_run readiness downloads and verifies the triggering release ident
     )}`,
     'cancel-in-progress': false,
   });
+  assert.match(listArtifacts.run, /gh api/u);
+  assert.match(
+    signal.env.AUTHENTICATED_PUBLICATION_RUN_ATTEMPT,
+    /steps\.publish-outcome\.outputs\.publication_run_attempt/u,
+  );
   assert.equal(download.with['github-token'], githubExpression('github.token'));
   assert.equal(
     download.with['run-id'],
@@ -980,15 +1221,16 @@ test('workflow_run readiness downloads and verifies the triggering release ident
   assert.equal(resolverCheckout.with['fetch-depth'], 1);
   assert.equal(resolverCheckout.with['persist-credentials'], false);
   assert.ok(
-    resolver.steps.indexOf(signal) < resolver.steps.indexOf(resolverCheckout) &&
+    resolver.steps.indexOf(listArtifacts) <
+      resolver.steps.indexOf(resolverCheckout) &&
       resolver.steps.indexOf(resolverCheckout) <
         resolver.steps.indexOf(selectOutcome) &&
       resolver.steps.indexOf(selectOutcome) <
         resolver.steps.indexOf(outcomeDownload) &&
       resolver.steps.indexOf(outcomeDownload) <
         resolver.steps.indexOf(verifyOutcome) &&
-      resolver.steps.indexOf(verifyOutcome) <
-        resolver.steps.indexOf(download) &&
+      resolver.steps.indexOf(verifyOutcome) < resolver.steps.indexOf(signal) &&
+      resolver.steps.indexOf(signal) < resolver.steps.indexOf(download) &&
       resolver.steps.indexOf(download) < resolver.steps.indexOf(verifyReceipt),
   );
   assert.ok(
@@ -1032,10 +1274,12 @@ test('workflow_run readiness downloads and verifies the triggering release ident
   ]) {
     assert.ok(resolver.if.includes(condition), condition);
   }
-  assert.match(signal.run, /gh api --paginate --slurp/u);
-  assert.doesNotMatch(
+  assert.match(listArtifacts.run, /gh api --paginate --slurp/u);
+  assert.doesNotMatch(listArtifacts.run, /--jq|skipping release readiness/iu);
+  assert.match(signal.run, /AUTHENTICATED_PUBLICATION_RUN_ATTEMPT/u);
+  assert.match(
     signal.run,
-    /--jq|exists=false|skipping release readiness/iu,
+    /Expected exactly one live publication identity artifact/u,
   );
   assert.match(selectOutcome.run, /publish-outcome\.mjs select-artifact/u);
   assert.match(selectOutcome.run, /--completed-at/u);
@@ -1045,6 +1289,9 @@ test('workflow_run readiness downloads and verifies the triggering release ident
   assert.match(
     verifyReceipt.run,
     /steps\.publish-outcome\.outputs\.producer_run_identity/u,
+  );
+  assert.ok(
+    resolver.steps.indexOf(verifyOutcome) < resolver.steps.indexOf(signal),
   );
   assert.doesNotMatch(verifyReceipt.run, /GITHUB_RUN_ATTEMPT/u);
 });
@@ -1097,9 +1344,10 @@ test('readiness uses the shared runner for exact post-publish acceptance', () =>
   assert.doesNotMatch(verifyIdentity.run, /receiptType|binding\?\.sourceSha/);
   assert.equal(
     namedStep(resolver, 'Verify triggering release identity').env
-      .TRIGGER_RUN_ATTEMPT,
-    githubExpression('github.event.workflow_run.run_attempt'),
+      .AUTHENTICATED_PUBLICATION_RUN_ATTEMPT,
+    githubExpression('steps.publish-outcome.outputs.publication_run_attempt'),
   );
+  assert.doesNotMatch(verifyIdentity.run, /TRIGGER_RUN_ATTEMPT/u);
   assert.match(bindManifest.run, /RELEASE_MANIFEST_SHA256/);
   assert.ok(
     postpublishAcceptance.run.includes(

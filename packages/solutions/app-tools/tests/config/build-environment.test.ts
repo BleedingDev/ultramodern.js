@@ -386,31 +386,68 @@ test('prefers an explicit Effect TS-Go compiler path', async () => {
 test('materializes a private executable without mutating the package binary', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'app-tools-effect-tsgo-mode-'));
   const compilerPath = join(directory, 'native/effect-tsgo');
+  const temporaryRoot = join(directory, 'tmp');
 
   try {
+    mkdirSync(temporaryRoot);
     writeCompiler(compilerPath, 0o600);
     writeEffectTsgoPackage(directory, compilerPath);
-    await withEnvironment('EFFECT_TSGO_BIN', undefined, () => {
-      const firstResolution = resolveEffectTsgoCompiler({
-        from: pathToFileURL(join(directory, 'modern.config.ts')),
-      });
-      const secondResolution = resolveEffectTsgoCompiler({
-        from: pathToFileURL(join(directory, 'modern.config.ts')),
-      });
+    await withEnvironment('TMPDIR', temporaryRoot, () =>
+      withEnvironment('EFFECT_TSGO_BIN', undefined, () => {
+        const firstResolution = resolveEffectTsgoCompiler({
+          from: pathToFileURL(join(directory, 'modern.config.ts')),
+        });
+        const secondResolution = resolveEffectTsgoCompiler({
+          from: pathToFileURL(join(directory, 'modern.config.ts')),
+        });
 
-      assert.notEqual(firstResolution, compilerPath);
-      assert.equal(secondResolution, firstResolution);
-      assert.equal(
-        readFileSync(firstResolution, 'utf-8'),
-        readFileSync(compilerPath, 'utf-8'),
-      );
-      accessSync(firstResolution, constants.X_OK);
-      assert.throws(() => accessSync(compilerPath, constants.X_OK));
-      assert.equal(
-        execFileSync(firstResolution, { encoding: 'utf-8' }).trim(),
-        'fixture compiler',
-      );
-    });
+        assert.notEqual(firstResolution, compilerPath);
+        assert.equal(secondResolution, firstResolution);
+        assert.equal(
+          readFileSync(firstResolution, 'utf-8'),
+          readFileSync(compilerPath, 'utf-8'),
+        );
+        accessSync(firstResolution, constants.X_OK);
+        assert.throws(() => accessSync(compilerPath, constants.X_OK));
+        assert.equal(
+          execFileSync(firstResolution, { encoding: 'utf-8' }).trim(),
+          'fixture compiler',
+        );
+      }),
+    );
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('reuses one executable for identical Effect TS-Go package binaries', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'app-tools-effect-tsgo-cache-'));
+  const firstPackage = join(directory, 'first');
+  const secondPackage = join(directory, 'second');
+  const temporaryRoot = join(directory, 'tmp');
+  const firstCompiler = join(firstPackage, 'native/effect-tsgo');
+  const secondCompiler = join(secondPackage, 'native/effect-tsgo');
+
+  try {
+    mkdirSync(temporaryRoot);
+    writeCompiler(firstCompiler, 0o600);
+    writeCompiler(secondCompiler, 0o600);
+    writeEffectTsgoPackage(firstPackage, firstCompiler);
+    writeEffectTsgoPackage(secondPackage, secondCompiler);
+
+    await withEnvironment('TMPDIR', temporaryRoot, () =>
+      withEnvironment('EFFECT_TSGO_BIN', undefined, () => {
+        const firstResolution = resolveEffectTsgoCompiler({
+          from: pathToFileURL(join(firstPackage, 'modern.config.ts')),
+        });
+        const secondResolution = resolveEffectTsgoCompiler({
+          from: pathToFileURL(join(secondPackage, 'modern.config.ts')),
+        });
+
+        assert.equal(secondResolution, firstResolution);
+        accessSync(firstResolution, constants.X_OK);
+      }),
+    );
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }

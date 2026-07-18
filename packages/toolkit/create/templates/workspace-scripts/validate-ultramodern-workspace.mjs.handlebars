@@ -11,8 +11,6 @@ const expectedNodeVersion = workspaceValidationContract.versions.node;
 const expectedEffectVersion = workspaceValidationContract.versions.effect;
 const expectedModuleFederationVersion =
   workspaceValidationContract.versions.moduleFederation;
-const expectedTypescriptCompilerApiVersion =
-  workspaceValidationContract.versions.typescriptCompilerApi;
 const expectedCloudflareCompatibilityDate =
   workspaceValidationContract.versions.cloudflareCompatibilityDate;
 const tailwindEnabled = workspaceValidationContract.tailwindEnabled;
@@ -997,7 +995,7 @@ const createPublicSurface = app => {
     metadataExport: './src/routes/ultramodern-route-metadata',
     generator: 'scripts/generate-public-surface-assets.mts',
     outputRoot: 'dist/public',
-    cloudflareOutputRoot: '.output/public',
+    cloudflareBuildOutputRoot: 'dist-cloudflare/public',
     privateRoutePolicy: 'omit-from-generated-public-surface',
     files:
       publicRoutes.length > 0
@@ -1519,7 +1517,7 @@ const expectedBackendFederationName = vertical => `${vertical.mfName}Backend`;
 const expectedBackendManifestUrl = vertical =>
   `http://localhost:${vertical.port}/backend-mf-manifest.json`;
 const expectedBackendContainerEntry = vertical =>
-  `http://localhost:${vertical.port}/backendRemoteEntry.mjs`;
+  `http://localhost:${vertical.port}/backendRemoteEntry.cjs`;
 const expectedBackendManifestEnv = vertical =>
   `VERTICAL_${toEnvSegment(vertical.domain ?? vertical.id)}_BACKEND_MF_MANIFEST`;
 const expectedPublicUrlEnv = vertical =>
@@ -1597,7 +1595,7 @@ const expectedBackendFederationSubset = vertical => ({
     manifestEnv: expectedBackendManifestEnv(vertical),
     manifestUrl: expectedBackendManifestUrl(vertical),
     containerEntry: expectedBackendContainerEntry(vertical),
-    remoteType: 'module',
+    remoteType: 'commonjs-module',
     expose: './effect-api',
   },
   compatibility: {
@@ -2425,7 +2423,8 @@ const assertPublicSurfaceContract = (appId, publicSurface) => {
   assert(publicSurface?.artifactLifecycle === 'build-and-deploy-output', `${appId} public surface artifacts must be build/deploy outputs`);
   assert(publicSurface?.generator === 'scripts/generate-public-surface-assets.mts', `${appId} public surface generator script is incorrect`);
   assert(publicSurface?.outputRoot === 'dist/public', `${appId} public surface dist outputRoot is incorrect`);
-  assert(publicSurface?.cloudflareOutputRoot === '.output/public', `${appId} public surface Cloudflare outputRoot is incorrect`);
+  assert(publicSurface?.cloudflareBuildOutputRoot === 'dist-cloudflare/public', `${appId} public surface Cloudflare build outputRoot is incorrect`);
+  assert(!('cloudflareOutputRoot' in (publicSurface ?? {})), `${appId} public surface must not target final .output directly`);
   assert(!('staticRoot' in (publicSurface ?? {})), `${appId} public surface must not point at source config/public`);
   assert((publicSurface?.files ?? []).includes('robots.txt'), `${appId} public surface must always emit robots.txt`);
   assert(publicSurface?.contentExpansion?.authoring === 'route-owned-esm-provider', `${appId} public content expansion authoring is incorrect`);
@@ -2502,17 +2501,26 @@ const assertTargetIsolatedBuildArtifacts = (appId, modernConfig) => {
   );
 };
 const assertCloudflareBuildSkipsDeployRebuild = (appId, packageJson) => {
+  const cloudflareBuild = packageJson.scripts?.['cloudflare:build'] ?? '';
+  const buildCommand = 'MODERNJS_DEPLOY=cloudflare modern build';
+  const publicSurfaceCommand = `--app ${appId} --target cloudflare-dist`;
+  const deployCommand =
+    'MODERNJS_DEPLOY=cloudflare modern deploy --skip-build';
   assert(
-    packageJson.scripts?.['cloudflare:build']?.includes(
-      'MODERNJS_DEPLOY=cloudflare modern deploy --skip-build',
-    ),
+    cloudflareBuild.includes(deployCommand),
     `${appId} cloudflare:build must deploy with --skip-build after the explicit Cloudflare build`,
   );
   assert(
-    !packageJson.scripts?.['cloudflare:build']?.includes(
-      '--target dist && MODERNJS_DEPLOY=cloudflare modern deploy',
-    ),
-    `${appId} cloudflare:build must not write public-surface assets into the normal web dist before deploy`,
+    cloudflareBuild.includes(publicSurfaceCommand) &&
+      cloudflareBuild.indexOf(buildCommand) <
+        cloudflareBuild.indexOf(publicSurfaceCommand) &&
+      cloudflareBuild.indexOf(publicSurfaceCommand) <
+        cloudflareBuild.indexOf(deployCommand),
+    `${appId} cloudflare:build must generate public-surface assets in the explicit Cloudflare build output before deploy`,
+  );
+  assert(
+    !/--target (?:dist|cloudflare)(?=\s|$)/u.test(cloudflareBuild),
+    `${appId} cloudflare:build must not target the Node dist or final Cloudflare output directly`,
   );
 };
 const stripYamlInlineComment = value => {
@@ -2772,26 +2780,6 @@ assert(
     `'@module-federation/bridge-react@${expectedModuleFederationVersion}': patches/@module-federation__bridge-react@${expectedModuleFederationVersion}.patch`,
   ),
   'pnpm-workspace.yaml must patch the generated Module Federation React bridge cohort',
-);
-assert(
-  pnpmWorkspace.includes(
-    `'@module-federation/dts-plugin@${expectedModuleFederationVersion}':`,
-  ) &&
-    pnpmWorkspace.includes(
-      `typescript: npm:typescript@${expectedTypescriptCompilerApiVersion}`,
-    ),
-  'pnpm-workspace.yaml must isolate the Module Federation DTS plugin on the supported TypeScript compiler API',
-);
-assert(
-  [
-    `'${expectedTypescriptCompilerApiVersion}'`,
-    expectedTypescriptCompilerApiVersion,
-  ].some(version =>
-    pnpmWorkspace.includes(
-      `'@module-federation/dts-plugin>typescript': ${version}`,
-    ),
-  ),
-  'pnpm-workspace.yaml must declare the Module Federation DTS compiler peer version',
 );
 assert(
   [
@@ -3552,8 +3540,8 @@ if (hasBackendSurfaces) {
   assert(rootPackage.scripts?.['node:backend-federation:generate'] === 'node ./scripts/generate-node-backend-federation.mts', 'Root must expose local Node backend federation artifact generation');
   assert(
     rootPackage.scripts?.['node:proof'] ===
-      'pnpm node:backend-federation:generate && node ./scripts/proof-node-backend-federation.mts',
-    'Root must expose node:proof for backend federation Effect modules',
+      'node ./scripts/proof-node-backend-federation.mts',
+    'Root must expose read-only node:proof for already-built backend federation Effect modules',
   );
 } else {
   assert(rootPackage.scripts?.['node:backend-federation:generate'] === undefined, 'Root must not expose backend federation generation without an API surface');
@@ -3573,15 +3561,13 @@ assertNotExists('scripts/verify-cloudflare-output.mjs');
 assertNotExists('scripts/generate-tanstack-routes.mjs');
 assert(
   rootPackage.scripts?.check?.includes('pnpm api:check') &&
-    (hasBackendSurfaces
-      ? rootPackage.scripts.check.includes('pnpm node:proof')
-      : !rootPackage.scripts.check.includes('pnpm node:proof')) &&
+    !rootPackage.scripts.check.includes('pnpm node:proof') &&
     rootPackage.scripts.check.endsWith(
       bridgeConfig
         ? '&& pnpm performance:readiness && pnpm bridge:check'
         : '&& pnpm performance:readiness',
     ),
-  'Root check must run Node backend federation proof when backend surfaces exist, default-on performance readiness diagnostics, and bridge gates when configured',
+  'Root check must remain static while running default-on performance readiness diagnostics and bridge gates when configured',
 );
 if (hasDeliveryUnits) {
   const zeropsYaml = readText('zerops.yaml');
@@ -3712,6 +3698,8 @@ const shellRouteMetadata = readText('apps/shell-super-app/src/routes/ultramodern
 assert(/^\.mf\/$/mu.test(gitignore), 'Generated .gitignore must ignore root Module Federation diagnostics');
 assert(/^\*\*\/\.mf\/$/mu.test(gitignore), 'Generated .gitignore must ignore per-app Module Federation diagnostics');
 assert(/^dist-cloudflare\/$/mu.test(gitignore), 'Generated .gitignore must ignore Cloudflare build output');
+assert(/^\.output\/$/mu.test(gitignore), 'Generated .gitignore must ignore root final deployment output');
+assert(/^\*\*\/\.output\/$/mu.test(gitignore), 'Generated .gitignore must ignore per-app final deployment output');
 assert(shellModernAppEnv.includes('/// <reference types="@modern-js/app-tools/types" />'), 'Shell app env must reference the framework-owned app ambient type bundle while remaining an ambient declaration file');
 assert(/declare const ULTRAMODERN_SITE_URL: string;/u.test(shellModernAppEnv), 'Shell app env must keep generated globals explicit in ambient scope');
 assert(!shellModernAppEnv.includes("declare module '*.svg'"), 'Shell app env must not redeclare framework-owned svg asset modules');
@@ -4136,6 +4124,12 @@ for (const expectedApp of workspaceValidationContract.topology.compactConfig?.ap
 
   const compactAppEntry = ultramodernConfig.topology?.apps?.find(
     entry => entry?.id === expectedApp.id,
+  );
+  assertSameJson(
+    compactAppEntry?.deploy?.cloudflare,
+    expectedApp.deploy?.cloudflare,
+    `${compactConfigPath} topology.apps.${expectedApp.id}.deploy.cloudflare`,
+    'regenerate the app Cloudflare deployment contract; do not add local proof-only smoke checks',
   );
   assertSameJson(
     deliveryUnitBlock(compactAppEntry?.deliveryUnit),

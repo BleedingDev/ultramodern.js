@@ -2,27 +2,19 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  assertOperationalIndependenceEvidenceMatchesReceipt,
+  assertOperationalIndependenceResultDetails,
+  createReleaseArtifactBinding,
+  operationalIndependenceEvidencePath,
+  operationalIndependenceResultId,
+  requiredAcceptanceResultIds,
+} from './acceptance-contract.mjs';
 
 const acceptanceReceiptSchema =
   'bleedingdev.ultramodern.release-acceptance-receipt';
-const acceptanceReceiptSchemaVersion = 2;
-const acceptanceProfileVersion = 2;
-const requiredAcceptanceResultIds = Object.freeze([
-  'registry-cohort-integrity',
-  'native-create',
-  'vertical-additions',
-  'generate-lockfile',
-  'dependency-closure-audit',
-  'install',
-  'pnpm-check',
-  'build',
-  'cloudflare-build',
-  'topology',
-  'module-federation',
-  'api',
-  'backend',
-  'browser-runtime',
-]);
+const acceptanceReceiptSchemaVersion = 3;
+const acceptanceProfileVersion = 3;
 const finalResultStatuses = new Set(['pass', 'fail', 'not-run']);
 const digestPattern = /^[a-f0-9]{64}$/u;
 
@@ -109,6 +101,7 @@ function createAcceptanceReceipt({
         cohortDigest: release.cohortDigest,
         packageCount: release.packages.length,
       },
+      artifacts: createReleaseArtifactBinding(release),
       create: {
         sourceName: release.createPackage.sourceName,
         targetName: createPackage.packageName,
@@ -121,6 +114,7 @@ function createAcceptanceReceipt({
         version: acceptanceProfileVersion,
       },
       runIdentity,
+      runtimeIdentity: null,
       supplyChain: pendingSupplyChainBinding(release),
     },
     profile: {
@@ -138,6 +132,27 @@ function createAcceptanceReceipt({
     optionalResults: [],
     error: null,
   };
+}
+
+function bindRuntimeIdentityEvidence(receipt, runtimeIdentity) {
+  assertExactKeys(
+    runtimeIdentity,
+    ['node', 'workerd'],
+    'Runtime release-identity binding',
+  );
+  for (const platform of ['node', 'workerd']) {
+    assertCondition(
+      Array.isArray(runtimeIdentity[platform]) &&
+        runtimeIdentity[platform].length === receipt.profile.verticalCount &&
+        !hasSkippedProof(runtimeIdentity[platform]),
+      `Runtime release-identity binding.${platform} must cover every ERP-10 MicroVertical and must not contain skipped proof`,
+    );
+  }
+  assertCondition(
+    receipt.binding.runtimeIdentity === null,
+    'Acceptance receipt runtime release identity was already bound',
+  );
+  receipt.binding.runtimeIdentity = structuredClone(runtimeIdentity);
 }
 
 function bindSupplyChainEvidence(receipt, digests) {
@@ -257,7 +272,46 @@ function assertRuntime(runtime) {
   assertTool(runtime.yaml, 'Acceptance receipt runtime.yaml');
 }
 
-function expectedBinding(release, profileId, runIdentity, supplyChain) {
+function assertRuntimeResultDetails(result, receiptMode) {
+  const match =
+    /^(?<platform>node|workerd)-(?<dimension>ssr|browser-mf|api|backend|backend-driven-ui|failure-isolation|release-identity)$/u.exec(
+      result.id,
+    );
+  if (!match?.groups) {
+    return;
+  }
+  const expectedKeys = [
+    'artifactMode',
+    'assertionCount',
+    'dimension',
+    'durationMs',
+    'platform',
+    ...(match.groups.dimension === 'release-identity' ? ['apps'] : []),
+  ];
+  assertExactKeys(result.details, expectedKeys, `Runtime result ${result.id}`);
+  assertCondition(
+    result.details.artifactMode === receiptMode &&
+      result.details.platform === match.groups.platform &&
+      result.details.dimension === match.groups.dimension,
+    `Runtime result ${result.id} is bound to the wrong artifact mode, platform, or dimension`,
+  );
+  assertCondition(
+    Number.isSafeInteger(result.details.assertionCount) &&
+      result.details.assertionCount > 0 &&
+      typeof result.details.durationMs === 'number' &&
+      Number.isFinite(result.details.durationMs) &&
+      result.details.durationMs >= 0,
+    `Runtime result ${result.id} has invalid assertion count or duration`,
+  );
+}
+
+function expectedBinding(
+  release,
+  profileId,
+  runIdentity,
+  supplyChain,
+  runtimeIdentity,
+) {
   return {
     source: { ...release.source },
     release: { ...release.release },
@@ -266,6 +320,7 @@ function expectedBinding(release, profileId, runIdentity, supplyChain) {
       cohortDigest: release.cohortDigest,
       packageCount: release.packages.length,
     },
+    artifacts: createReleaseArtifactBinding(release),
     create: {
       sourceName: release.createPackage.sourceName,
       targetName: release.createPackage.targetName,
@@ -275,6 +330,7 @@ function expectedBinding(release, profileId, runIdentity, supplyChain) {
     },
     profile: { id: profileId, version: acceptanceProfileVersion },
     runIdentity,
+    runtimeIdentity,
     supplyChain,
   };
 }
@@ -354,11 +410,13 @@ function assertAcceptanceReceipt(
   assertExactKeys(
     receipt.binding,
     [
+      'artifacts',
       'create',
       'manifest',
       'profile',
       'release',
       'runIdentity',
+      'runtimeIdentity',
       'source',
       'supplyChain',
     ],
@@ -378,6 +436,63 @@ function assertAcceptanceReceipt(
     receipt.binding.manifest,
     ['cohortDigest', 'packageCount', 'sha256'],
     'Acceptance receipt binding.manifest',
+  );
+  assertExactKeys(
+    receipt.binding.artifacts,
+    ['moduleFederation', 'packages', 'sourceRevision'],
+    'Acceptance receipt binding.artifacts',
+  );
+  assertCondition(
+    Array.isArray(receipt.binding.artifacts.packages) &&
+      receipt.binding.artifacts.packages.length > 0,
+    'Acceptance receipt exact package cohort is missing',
+  );
+  for (const item of receipt.binding.artifacts.packages) {
+    assertExactKeys(
+      item,
+      ['integrity', 'targetName', 'version'],
+      'Acceptance receipt exact package',
+    );
+    assertCondition(
+      typeof item.targetName === 'string' &&
+        item.targetName.length > 0 &&
+        typeof item.version === 'string' &&
+        item.version.length > 0 &&
+        typeof item.integrity === 'string' &&
+        item.integrity.startsWith('sha512-'),
+      'Acceptance receipt exact package identity is invalid',
+    );
+  }
+  const boundCreatePackage = receipt.binding.artifacts.packages.find(
+    item => item.targetName === receipt.binding.create.targetName,
+  );
+  assertCondition(
+    boundCreatePackage?.version === receipt.binding.create.version &&
+      boundCreatePackage.integrity === receipt.binding.create.integrity,
+    'Acceptance receipt create package differs from the exact package cohort',
+  );
+  assertCondition(
+    Array.isArray(receipt.binding.artifacts.moduleFederation) &&
+      receipt.binding.artifacts.moduleFederation.length > 0,
+    'Acceptance receipt Module Federation cohort is missing',
+  );
+  for (const item of receipt.binding.artifacts.moduleFederation) {
+    assertExactKeys(
+      item,
+      ['packageName', 'version'],
+      'Acceptance receipt Module Federation package',
+    );
+    assertCondition(
+      typeof item.packageName === 'string' &&
+        item.packageName.startsWith('@module-federation/') &&
+        typeof item.version === 'string' &&
+        item.version.length > 0,
+      'Acceptance receipt Module Federation package identity is invalid',
+    );
+  }
+  assertCondition(
+    receipt.binding.artifacts.sourceRevision === receipt.binding.source.commit,
+    'Acceptance receipt artifact sourceRevision is stale or mixed',
   );
   assertExactKeys(
     receipt.binding.create,
@@ -405,6 +520,78 @@ function assertAcceptanceReceipt(
       receipt.binding.runIdentity.length > 0,
     'Acceptance receipt run identity is missing',
   );
+  assertExactKeys(
+    receipt.binding.runtimeIdentity,
+    ['node', 'workerd'],
+    'Acceptance receipt binding.runtimeIdentity',
+  );
+  for (const platform of ['node', 'workerd']) {
+    assertCondition(
+      Array.isArray(receipt.binding.runtimeIdentity[platform]) &&
+        receipt.binding.runtimeIdentity[platform].length ===
+          receipt.profile.verticalCount &&
+        !hasSkippedProof(receipt.binding.runtimeIdentity[platform]),
+      `Acceptance receipt runtime identity for ${platform} must cover every ERP-10 MicroVertical without skipped proof`,
+    );
+    const appIds = [];
+    for (const app of receipt.binding.runtimeIdentity[platform]) {
+      assertExactKeys(
+        app,
+        [
+          'appId',
+          'buildMarker',
+          'moduleFederation',
+          'releaseVersion',
+          'sourceRevision',
+        ],
+        `Acceptance receipt ${platform} MicroVertical identity`,
+      );
+      assertCondition(
+        typeof app.appId === 'string' &&
+          app.appId.length > 0 &&
+          typeof app.buildMarker === 'string' &&
+          app.buildMarker.length > 0,
+        `Acceptance receipt ${platform} MicroVertical identity is incomplete`,
+      );
+      assertCondition(
+        typeof app.sourceRevision === 'string' &&
+          app.sourceRevision.length > 0 &&
+          app.sourceRevision !== 'workspace' &&
+          typeof app.releaseVersion === 'string' &&
+          app.releaseVersion.length > 0 &&
+          JSON.stringify(app.moduleFederation) ===
+            JSON.stringify(receipt.binding.artifacts.moduleFederation),
+        `Acceptance receipt ${platform} MicroVertical identity is stale or mixed`,
+      );
+      appIds.push(app.appId);
+    }
+    assertCondition(
+      new Set(appIds).size === appIds.length,
+      `Acceptance receipt ${platform} MicroVertical identity contains duplicate app ids`,
+    );
+  }
+  const nodeByAppId = new Map(
+    receipt.binding.runtimeIdentity.node.map(app => [app.appId, app]),
+  );
+  const workerdByAppId = new Map(
+    receipt.binding.runtimeIdentity.workerd.map(app => [app.appId, app]),
+  );
+  assertCondition(
+    JSON.stringify([...nodeByAppId.keys()].sort()) ===
+      JSON.stringify([...workerdByAppId.keys()].sort()),
+    'Acceptance receipt Node and workerd identities cover different MicroVerticals',
+  );
+  for (const [appId, node] of nodeByAppId) {
+    const workerd = workerdByAppId.get(appId);
+    assertCondition(
+      ['buildMarker', 'sourceRevision', 'releaseVersion'].every(
+        field => node[field] === workerd?.[field],
+      ) &&
+        JSON.stringify(node.moduleFederation) ===
+          JSON.stringify(workerd?.moduleFederation),
+      `Acceptance receipt ${appId} Node and workerd identities differ`,
+    );
+  }
   for (const [name, digest] of Object.entries(receipt.binding.supplyChain)) {
     assertCondition(
       digestPattern.test(digest ?? ''),
@@ -474,8 +661,28 @@ function assertAcceptanceReceipt(
           !hasSkippedProof(result.details),
         `Required acceptance result ${result.id} has empty or skipped proof details`,
       );
+      assertRuntimeResultDetails(result, receipt.mode);
+      if (result.id === operationalIndependenceResultId) {
+        assertOperationalIndependenceResultDetails(
+          result.details,
+          receipt.mode,
+        );
+      }
     }
   }
+  const runtimeIdentityResults = Object.fromEntries(
+    ['node', 'workerd'].map(platform => [
+      platform,
+      receipt.results.find(
+        result => result.id === `${platform}-release-identity`,
+      )?.details?.apps,
+    ]),
+  );
+  assertCondition(
+    JSON.stringify(receipt.binding.runtimeIdentity) ===
+      JSON.stringify(runtimeIdentityResults),
+    'Acceptance receipt runtime release identity does not match independently recorded Node/workerd results',
+  );
   assertCondition(
     Array.isArray(receipt.optionalResults) &&
       receipt.optionalResults.length === 0,
@@ -491,6 +698,7 @@ function assertAcceptanceReceipt(
             profileId,
             runIdentity ?? receipt.binding.runIdentity,
             receipt.binding.supplyChain,
+            receipt.binding.runtimeIdentity,
           ),
         ),
       'Acceptance receipt binding does not match the strict release manifest',
@@ -554,6 +762,33 @@ function readRegularJson(filePath, label) {
       }`,
     );
   }
+}
+
+function verifyAcceptanceReceiptOperationalEvidence(receipt, receiptPath) {
+  const details = receipt.results?.find(
+    result => result.id === operationalIndependenceResultId,
+  )?.details;
+  assertCondition(
+    isPlainObject(details),
+    'Operational-independence acceptance receipt details are missing',
+  );
+  const evidenceFile = readRegularJson(
+    operationalIndependenceEvidencePath(receiptPath),
+    'Operational-independence evidence',
+  );
+  const evidenceFileSha256 = crypto
+    .createHash('sha256')
+    .update(fs.readFileSync(evidenceFile.path))
+    .digest('hex');
+  assertCondition(
+    evidenceFileSha256 === details.evidenceFileSha256,
+    'Operational-independence evidence file SHA-256 does not match the acceptance receipt',
+  );
+  return assertOperationalIndependenceEvidenceMatchesReceipt({
+    details,
+    evidence: evidenceFile.value,
+    evidenceFileSha256,
+  });
 }
 
 function assertAcceptanceReceiptIdentity(receipt, { manifest, runIdentity }) {
@@ -694,6 +929,7 @@ function verifyAcceptanceReceiptCli(argv = process.argv.slice(2)) {
     manifest,
     runIdentity: options.runIdentity,
   });
+  verifyAcceptanceReceiptOperationalEvidence(receipt, options.receiptPath);
   process.stdout.write(
     `Verified ERP-10 acceptance receipt for ${manifest.release.version}.\n`,
   );
@@ -719,6 +955,7 @@ export {
   acceptanceReceiptSchemaVersion,
   assertAcceptanceReceipt,
   assertAcceptanceReceiptIdentity,
+  bindRuntimeIdentityEvidence,
   bindSupplyChainEvidence,
   createAcceptanceReceipt,
   finalizeAcceptanceReceipt,
@@ -727,4 +964,5 @@ export {
   recordAcceptanceResult,
   requiredAcceptanceResultIds,
   verifyAcceptanceReceiptCli,
+  verifyAcceptanceReceiptOperationalEvidence,
 };

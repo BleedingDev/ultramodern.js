@@ -10,8 +10,8 @@
   "dependencies": {
     "@modern-js/plugin-tanstack": "workspace:*",
     "@modern-js/runtime": "workspace:*",
-    "@module-federation/modern-js-v3": "2.7.0",
-    "@module-federation/runtime": "2.7.0",
+    "@module-federation/modern-js-v3": "2.8.0",
+    "@module-federation/runtime": "2.8.0",
     "@tanstack/react-router": "1.170.17",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"

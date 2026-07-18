@@ -8,6 +8,8 @@ import {
 const languages = ['en', 'cs'];
 
 const defaultSkippedPaths = [
+  '/backend-mf-manifest.json',
+  '/backendRemoteEntry.cjs',
   '/mf-manifest.json',
   '/mf-stats.json',
   '/remoteEntry.js',

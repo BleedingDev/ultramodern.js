@@ -3,10 +3,12 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { assertReleaseAcceptanceProfile } from '../ultramodern-production-readiness/published-create-proof/acceptance-contract.mjs';
 import { runAcceptanceProfile } from '../ultramodern-production-readiness/published-create-proof/acceptance-profile.mjs';
 import {
   assertAcceptanceReceipt,
   readAcceptanceReceipt,
+  verifyAcceptanceReceiptOperationalEvidence,
 } from '../ultramodern-production-readiness/published-create-proof/acceptance-receipt.mjs';
 import { generateVerticalNames } from '../ultramodern-production-readiness/published-create-proof/args.mjs';
 import {
@@ -18,6 +20,7 @@ import { startEphemeralRegistry } from './lib/source-create-proof/runtime-proof/
 
 const valueOptions = new Set([
   '--expected-source-revision',
+  '--expected-mode',
   '--expected-version',
   '--manifest',
   '--mode',
@@ -29,7 +32,7 @@ const valueOptions = new Set([
   '--run-identity',
   '--scale-profile',
 ]);
-const booleanOptions = new Set(['--keep-work-dir', '--verify-receipt']);
+const booleanOptions = new Set(['--verify-receipt']);
 
 function parseArgs(argv) {
   const values = new Map();
@@ -71,6 +74,13 @@ function parseArgs(argv) {
   if (!['prepublish', 'published', 'verify'].includes(mode)) {
     throw new Error('--mode must be prepublish, published, or verify');
   }
+  const expectedMode = values.get('--expected-mode') ?? 'source';
+  if (!['source', 'published'].includes(expectedMode)) {
+    throw new Error('--expected-mode must be source or published');
+  }
+  if (mode !== 'verify' && values.has('--expected-mode')) {
+    throw new Error('--expected-mode is only valid with receipt verification');
+  }
 
   const releaseDirValue = values.get('--release-dir');
   const manifestValue = values.get('--manifest');
@@ -104,8 +114,8 @@ function parseArgs(argv) {
 
   return {
     expectedSourceRevision: values.get('--expected-source-revision'),
+    expectedMode,
     expectedVersion: values.get('--expected-version'),
-    keepWorkDir: flags.has('--keep-work-dir'),
     manifestPath,
     mode,
     projectName,
@@ -167,7 +177,7 @@ function resolveRunIdentity(release, explicit, env = process.env) {
 
 function profileOptions(options) {
   const selectedProfile = scaleProfiles[options.scaleProfile];
-  return {
+  return assertReleaseAcceptanceProfile({
     selectedProfile,
     scaleProfile: selectedProfile.id,
     verticalCount: selectedProfile.verticalCount,
@@ -175,17 +185,19 @@ function profileOptions(options) {
     projectName: options.projectName,
     createPackage: undefined,
     deployCloudflare: false,
-  };
+  });
 }
 
 function verifyReceipt({ release, options, runIdentity }) {
   const receipt = readAcceptanceReceipt(options.receiptPath);
-  return assertAcceptanceReceipt(receipt, {
+  const verified = assertAcceptanceReceipt(receipt, {
     release,
     profileId: options.scaleProfile,
     runIdentity,
-    expectedMode: 'source',
+    expectedMode: options.expectedMode,
   });
+  verifyAcceptanceReceiptOperationalEvidence(receipt, options.receiptPath);
+  return verified;
 }
 
 async function runPrepublish({ release, options, runIdentity }) {
@@ -205,7 +217,6 @@ async function runPrepublish({ release, options, runIdentity }) {
       outPath: options.receiptPath,
       runIdentity,
       releaseAgePolicyPath: options.releaseAgePolicyPath,
-      keepWorkDir: options.keepWorkDir,
     });
   } finally {
     await registry?.stop();
@@ -228,7 +239,6 @@ async function runPublished({ release, options, runIdentity }) {
     outPath: options.receiptPath,
     runIdentity,
     releaseAgePolicyPath: options.releaseAgePolicyPath,
-    keepWorkDir: options.keepWorkDir,
   });
 }
 

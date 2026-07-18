@@ -135,8 +135,8 @@ const createConformanceState = async () => {
     apiStem: workspaceApp.api?.stem ?? 'checkout',
     backendName: 'checkoutBackend',
     manifestUrl: `http://localhost:${workspaceApp.port}/backend-mf-manifest.json`,
-    containerEntry: `http://localhost:${workspaceApp.port}/backendRemoteEntry.mjs`,
-    remoteType: 'module',
+    containerEntry: `http://localhost:${workspaceApp.port}/backendRemoteEntry.cjs`,
+    remoteType: 'commonjs-module',
     uiManifestUrl: `http://localhost:${workspaceApp.port}/mf-manifest.json`,
   };
   const manifest = createBackendManifest(

@@ -201,7 +201,7 @@ function assertIntegratedVertical(
   const manifestUrl = `http://localhost:${port}/mf-manifest.json`;
   const backendFederationName = `${mfName}Backend`;
   const backendManifestUrl = `http://localhost:${port}/backend-mf-manifest.json`;
-  const backendContainerEntry = `http://localhost:${port}/backendRemoteEntry.mjs`;
+  const backendContainerEntry = `http://localhost:${port}/backendRemoteEntry.cjs`;
   const apiUrl = `http://localhost:${port}/${id}-api`;
   const topology = readJson(workspaceDir, 'topology/reference-topology.json');
   const ownership = readJson(workspaceDir, 'topology/ownership.json');
@@ -272,7 +272,7 @@ function assertIntegratedVertical(
   );
   assert.equal(
     topologyEntry.backendFederation.executionSurfaces.node.remoteType,
-    'module',
+    'commonjs-module',
   );
   assert.equal(
     topologyEntry.backendFederation.executionSurfaces.cloudflare.kind,
@@ -362,7 +362,7 @@ function assertIntegratedVertical(
   );
   assert.equal(
     configEntry.backendFederation.executionSurfaces.node.remoteType,
-    'module',
+    'commonjs-module',
   );
   assert.equal(
     configEntry.backendFederation.executionSurfaces.cloudflare.kind,
@@ -386,7 +386,7 @@ function assertIntegratedVertical(
   );
   assert.equal(
     backendFederationEntry.executionSurfaces.node.remoteType,
-    'module',
+    'commonjs-module',
   );
   assert.equal(
     backendFederationEntry.executionSurfaces.cloudflare.kind,
@@ -420,8 +420,9 @@ function assertIntegratedVertical(
   );
   assert.match(
     backendFederationConfig,
-    /filename:\s*'backendRemoteEntry\.mjs'/,
+    /filename:\s*'backendRemoteEntry\.cjs'/,
   );
+  assert.match(backendFederationConfig, /type:\s*'commonjs-module'/);
   assert.match(backendFederationConfig, /name:\s*'vertical[A-Z][a-z]+Backend'/);
   assert.match(
     backendFederationConfig,
@@ -619,10 +620,10 @@ test('workspace and MicroVertical integration stays coherent across public API a
     assert.match(rootPackage.scripts.dev, /@integration-workspace\/checkout/);
     assert.match(rootPackage.scripts.build, /verticals\/\*/);
     assert.match(rootPackage.scripts.check, /contract:check/);
-    assert.match(rootPackage.scripts.check, /node:proof/);
+    assert.doesNotMatch(rootPackage.scripts.check, /node:proof/);
     assert.equal(
       rootPackage.scripts['node:proof'],
-      'pnpm node:backend-federation:generate && node ./scripts/proof-node-backend-federation.mts',
+      'node ./scripts/proof-node-backend-federation.mts',
     );
     assert.equal(
       rootPackage.scripts['node:backend-federation:generate'],
@@ -642,9 +643,13 @@ test('workspace and MicroVertical integration stays coherent across public API a
     );
     assert.equal(exists(workspaceDir, 'scripts/proof-workerd-ssr.mts'), true);
     const workerdProof = read(workspaceDir, 'scripts/proof-workerd-ssr.mts');
+    const workerdServiceBindings = workerdProof.slice(
+      workerdProof.indexOf('const createServiceBindings ='),
+      workerdProof.indexOf('const proofs = []'),
+    );
     assert.match(
       workerdProof,
-      /modules: createWorkerModules\(app\.outputRoot, main\)/u,
+      /const modules = createWorkerModules\(app\.outputRoot, main\)/u,
     );
     assert.match(workerdProof, /assets: \{/u);
     assert.match(workerdProof, /workerName: workerName\(app\)/u);
@@ -652,10 +657,45 @@ test('workspace and MicroVertical integration stays coherent across public API a
     assert.match(workerdProof, /createServiceBindings/u);
     assert.match(workerdProof, /callerId/u);
     assert.match(workerdProof, /data-modern-distributed-ssr-boundary/u);
+    assert.match(workerdProof, /DISTRIBUTED_SSR_FRAGMENT_REQUEST_HEADER/u);
     assert.match(workerdProof, /x-modern-distributed-ssr-props/u);
+    assert.match(
+      workerdProof,
+      /fragmentBindingRequests: routeFragmentBindingRequests/u,
+    );
+    assert.match(workerdProof, /apiBindingRequests: routeApiBindingRequests/u);
+    assert.match(
+      workerdProof,
+      /\.fetch\(\s*`https:\/\/\$\{workerName\(app\)\}\.invalid\$\{check\.route\}`,\s*init,\s*\)/u,
+    );
+    assert.doesNotMatch(workerdProof, /const directRequest = new Request/u);
+    assert.match(
+      workerdProof,
+      /const response = await target\.fetch\(request\);/u,
+    );
+    assert.match(workerdProof, /status: response\.status/u);
+    assert.match(workerdProof, /return response;/u);
+    assert.doesNotMatch(
+      workerdServiceBindings,
+      /(?:request|response)\.(?:arrayBuffer|blob|bytes|clone|formData|json|text)\(/u,
+    );
     assert.match(workerdProof, /distributedSsrProofRoutes/u);
     assert.match(workerdProof, /for \(const route of shell\.proofRoutes\)/u);
     assert.match(workerdProof, /renderedRemoteIds\.has\(remote\.id\)/u);
+    const compactConfig = readJson(workspaceDir, '.modernjs/ultramodern.json');
+    const compactCatalog = appById(compactConfig.topology.apps, 'catalog');
+    assert.deepEqual(compactCatalog.deploy.cloudflare.jsonSmokeChecks, [
+      {
+        id: 'catalog-readiness-smoke',
+        route: '/catalog-api/catalog/readiness',
+        expect: {
+          status: 'ready',
+          'checks.api': 'ready',
+          'checks.moduleFederation': 'ready',
+          'checks.ssr': 'ready',
+        },
+      },
+    ]);
     assert.doesNotMatch(workerdProof, /const fragmentPath =/u);
     assert.match(workerdProof, /ULTRAMODERN_KEEP_WORKERD/u);
     assert.match(workerdProof, /WORKERD_URL=/u);

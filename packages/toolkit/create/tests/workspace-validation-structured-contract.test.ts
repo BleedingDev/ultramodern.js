@@ -104,13 +104,6 @@ function appendText(workspaceDir: string, relativePath: string, text: string) {
   fs.appendFileSync(path.join(workspaceDir, relativePath), text, 'utf-8');
 }
 
-function removeText(workspaceDir: string, relativePath: string, text: string) {
-  const absolutePath = path.join(workspaceDir, relativePath);
-  const source = fs.readFileSync(absolutePath, 'utf-8');
-  assert.ok(source.includes(text), `${relativePath} must contain ${text}`);
-  fs.writeFileSync(absolutePath, source.replace(text, ''), 'utf-8');
-}
-
 function replaceText(
   workspaceDir: string,
   relativePath: string,
@@ -357,65 +350,11 @@ const extractedIntercepted = (
     replaceText(
       plainScalarDir,
       'pnpm-workspace.yaml',
-      "'@module-federation/dts-plugin>typescript': '6.0.3'",
-      "'@module-federation/dts-plugin>typescript': 6.0.3",
-    );
-    replaceText(
-      plainScalarDir,
-      'pnpm-workspace.yaml',
       "'effect@4.0.0-beta.97': patches/effect-schema-error-type-id.patch",
       'effect@4.0.0-beta.97: patches/effect-schema-error-type-id.patch',
     );
     const plainScalar = runValidation(plainScalarDir);
     assert.equal(plainScalar.status, 0, commandOutput(plainScalar));
-
-    for (const scenario of scenarios) {
-      const workspaceDir = path.join(tempRoot, scenario.name);
-      fs.cpSync(baselineDir, workspaceDir, { recursive: true });
-      scenario.mutate(workspaceDir);
-
-      const result = runValidation(workspaceDir);
-      const output = commandOutput(result);
-      assert.notEqual(result.status, 0, `${scenario.name}\n${output}`);
-      assert.match(output, scenario.expected, scenario.name);
-    }
-  } finally {
-    fs.rmSync(tempRoot, { recursive: true, force: true });
-  }
-});
-
-test('generated contract:check requires the isolated Module Federation DTS compiler API', () => {
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-dts-compiler-'));
-  const baselineDir = path.join(tempRoot, 'baseline');
-  const packageExtension = "  '@module-federation/dts-plugin@2.7.0':\n";
-  const compilerDependency = '      typescript: npm:typescript@6.0.3\n';
-  const scenarios: Array<{
-    name: string;
-    mutate: (workspaceDir: string) => void;
-    expected: RegExp;
-  }> = [
-    {
-      name: 'missing-package-extension',
-      mutate: workspaceDir => {
-        removeText(workspaceDir, 'pnpm-workspace.yaml', packageExtension);
-      },
-      expected:
-        /must isolate the Module Federation DTS plugin on the supported TypeScript compiler API/,
-    },
-    {
-      name: 'missing-compiler-dependency',
-      mutate: workspaceDir => {
-        removeText(workspaceDir, 'pnpm-workspace.yaml', compilerDependency);
-      },
-      expected:
-        /must isolate the Module Federation DTS plugin on the supported TypeScript compiler API/,
-    },
-  ];
-
-  try {
-    generateWorkspace(baselineDir);
-    const baseline = runValidation(baselineDir);
-    assert.equal(baseline.status, 0, commandOutput(baseline));
 
     for (const scenario of scenarios) {
       const workspaceDir = path.join(tempRoot, scenario.name);
@@ -554,6 +493,19 @@ test('generated validator rejects schema, cohort, topology, policy, and legacy d
       },
       expected:
         /MicroVertical contract self-check failed: \.modernjs\/ultramodern\.json policy/,
+    },
+    {
+      name: 'missing-cloudflare-smoke-contract',
+      mutate: workspaceDir => {
+        mutateJson(workspaceDir, '.modernjs/ultramodern.json', value => {
+          const catalog = value.topology.apps.find(
+            (app: { id?: string }) => app.id === 'catalog',
+          );
+          delete catalog.deploy.cloudflare.jsonSmokeChecks;
+        });
+      },
+      expected:
+        /MicroVertical contract self-check failed: \.modernjs\/ultramodern\.json topology/,
     },
     {
       name: 'structured-backend-proof-drift',

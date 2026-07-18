@@ -4,7 +4,8 @@ import type {
   ServerPlugin,
 } from '@modern-js/server-core';
 
-const REMOTE_ENTRY_REGEXP = /(^|\/)remoteEntry(?:\.[a-zA-Z0-9_-]+)?\.js$/;
+const REMOTE_ENTRY_REGEXP =
+  /(^|\/)(?:backendRemoteEntry\.cjs|remoteEntry(?:\.[a-zA-Z0-9_-]+)?\.js)$/;
 
 function firstQueryValue(value: unknown): string | undefined {
   if (Array.isArray(value)) {
@@ -26,6 +27,7 @@ export function getRequestPathname(url: string) {
 
 export function isMfManifestAsset(pathname: string) {
   return (
+    pathname.endsWith('/backend-mf-manifest.json') ||
     pathname.endsWith('/mf-manifest.json') ||
     pathname.endsWith('/mf-stats.json')
   );

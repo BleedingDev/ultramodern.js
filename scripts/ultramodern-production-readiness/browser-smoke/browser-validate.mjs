@@ -6,6 +6,35 @@ import { assertion, assertPass, joinUrl } from './http-validate.mjs';
 const { writeJsonFile } = fsKit;
 const fatalConsoleTypes = new Set(['error']);
 
+export function extractBackendDrivenTitle(responseJson) {
+  const titles = [];
+  const visit = value => {
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        visit(item);
+      }
+      return;
+    }
+    if (!value || typeof value !== 'object') {
+      return;
+    }
+
+    if (Array.isArray(value.items)) {
+      const title = value.items.at(0)?.title;
+      if (typeof title === 'string' && title.trim().length > 0) {
+        titles.push(title.trim());
+      }
+    }
+    for (const nested of Object.values(value)) {
+      visit(nested);
+    }
+  };
+
+  visit(responseJson);
+  const uniqueTitles = [...new Set(titles)];
+  return uniqueTitles.length === 1 ? uniqueTitles[0] : undefined;
+}
+
 export function serializeConsoleMessage(message) {
   return {
     location: message.location?.(),
@@ -514,6 +543,7 @@ export async function validateBrowserTarget(target, browser, { artifactDir }) {
   let federationRouteMatcher;
   let releaseFederationAssets;
   const interceptedFederationRequests = [];
+  let backendDrivenUiResponse;
 
   page.on('console', message => {
     const serialized = serializeConsoleMessage(message);
@@ -545,6 +575,27 @@ export async function validateBrowserTarget(target, browser, { artifactDir }) {
     const shellWithRemotes =
       app.kind === 'shell' &&
       (app.moduleFederation?.verticalRefs?.length ?? 0) > 0;
+    const backendDrivenUiResponsePromise =
+      app.kind === 'vertical' &&
+      typeof app.api?.prefix === 'string' &&
+      typeof page.waitForResponse === 'function'
+        ? page.waitForResponse(
+            response => {
+              try {
+                const pathname = new URL(response.url()).pathname;
+                return (
+                  (pathname === app.api.prefix ||
+                    pathname.startsWith(`${app.api.prefix}/`)) &&
+                  response.status() >= 200 &&
+                  response.status() < 400
+                );
+              } catch {
+                return false;
+              }
+            },
+            { timeout: 15_000 },
+          )
+        : undefined;
     if (shellWithRemotes) {
       let release;
       const federationGate = new Promise(resolve => {
@@ -614,6 +665,62 @@ export async function validateBrowserTarget(target, browser, { artifactDir }) {
       `${app.id} browser UI marker mismatch`,
     );
 
+    if (backendDrivenUiResponsePromise) {
+      const response = await backendDrivenUiResponsePromise;
+      const responseJson = await response.json();
+      const expectedValue = extractBackendDrivenTitle(responseJson);
+      backendDrivenUiResponse = {
+        body: responseJson,
+        expectedValue,
+        status: response.status(),
+        url: response.url(),
+      };
+      assertPass(
+        expectedValue,
+        `${app.id} API response did not contain exactly one list item title`,
+        { apiResponse: backendDrivenUiResponse },
+      );
+      const apiStatus = page.locator('[data-testid="api-status"]');
+      await apiStatus.waitFor({
+        state: 'visible',
+        timeout: 15_000,
+      });
+      await page.waitForFunction(
+        () => {
+          const text = document
+            .querySelector('[data-testid="api-status"]')
+            ?.textContent?.trim();
+          return Boolean(
+            text &&
+              !['pending', 'unavailable', 'empty'].includes(text.toLowerCase()),
+          );
+        },
+        undefined,
+        { timeout: 15_000 },
+      );
+      const renderedValue = (await apiStatus.textContent())?.trim();
+      assertions.push(
+        assertion(
+          'backend-driven-ui',
+          renderedValue === expectedValue ? 'pass' : 'fail',
+          {
+            apiResponse: backendDrivenUiResponse,
+            expectedValue,
+            renderedValue,
+          },
+        ),
+      );
+      assertPass(
+        renderedValue === expectedValue,
+        `${app.id} did not render the exact backend-provided item title`,
+        {
+          apiResponse: backendDrivenUiResponse,
+          expectedValue,
+          renderedValue,
+        },
+      );
+    }
+
     const rootSelector = app.styling?.federation?.rootSelector;
     if (rootSelector) {
       const rootCount = await page.locator(rootSelector).count();
@@ -673,9 +780,54 @@ export async function validateBrowserTarget(target, browser, { artifactDir }) {
           .map(response => response.kind),
       );
       const requiredKinds = ['manifest', 'remote-entry', 'exposed-chunk'];
+      const remoteNetworkEvidence = (app.moduleFederation?.remotes ?? [])
+        .filter(
+          remote =>
+            typeof remote.manifestUrl === 'string' &&
+            remote.manifestUrl.length > 0,
+        )
+        .map(remote => {
+          let manifestUrl;
+          try {
+            manifestUrl = new URL(remote.manifestUrl);
+          } catch {
+            return {
+              manifestUrl: remote.manifestUrl,
+              remoteId: remote.id,
+              status: 'fail',
+            };
+          }
+          const responses = federationResponses.filter(response => {
+            try {
+              return new URL(response.url).origin === manifestUrl.origin;
+            } catch {
+              return false;
+            }
+          });
+          const observedKinds = [
+            ...new Set(
+              responses
+                .filter(
+                  response => response.status >= 200 && response.status < 400,
+                )
+                .map(response => response.kind),
+            ),
+          ];
+          return {
+            manifestUrl: manifestUrl.href,
+            observedKinds,
+            remoteId: remote.id,
+            responses,
+            status: requiredKinds.every(kind => observedKinds.includes(kind))
+              ? 'pass'
+              : 'fail',
+          };
+        });
+      const hasConfiguredRemoteUrls = remoteNetworkEvidence.length > 0;
       const networkEvidence = {
         interceptedRequests: interceptedFederationRequests,
         missingKinds: requiredKinds.filter(kind => !successfulKinds.has(kind)),
+        remotes: remoteNetworkEvidence,
         responses: federationResponses,
         selectiveHydrationTrigger,
       };
@@ -683,7 +835,9 @@ export async function validateBrowserTarget(target, browser, { artifactDir }) {
         assertion(
           'shell-mf-network-evidence',
           interceptedFederationRequests.length > 0 &&
-            networkEvidence.missingKinds.length === 0
+            networkEvidence.missingKinds.length === 0 &&
+            (!hasConfiguredRemoteUrls ||
+              remoteNetworkEvidence.every(remote => remote.status === 'pass'))
             ? 'pass'
             : 'fail',
           networkEvidence,
@@ -691,8 +845,10 @@ export async function validateBrowserTarget(target, browser, { artifactDir }) {
       );
       assertPass(
         interceptedFederationRequests.length > 0 &&
-          networkEvidence.missingKinds.length === 0,
-        `${app.id} did not consume the MF manifest, remote entry, and exposed chunks during hydration`,
+          networkEvidence.missingKinds.length === 0 &&
+          (!hasConfiguredRemoteUrls ||
+            remoteNetworkEvidence.every(remote => remote.status === 'pass')),
+        `${app.id} did not consume every remote MF manifest, remote entry, and exposed chunk during hydration`,
         networkEvidence,
       );
     }
@@ -844,6 +1000,13 @@ export async function validateBrowserTarget(target, browser, { artifactDir }) {
           interceptedRequests: interceptedFederationRequests,
           responses: federationResponses,
         },
+        { atomic: false },
+      );
+    }
+    if (backendDrivenUiResponse) {
+      writeJsonFile(
+        path.join(appArtifactDir, 'backend-driven-ui.json'),
+        backendDrivenUiResponse,
         { atomic: false },
       );
     }

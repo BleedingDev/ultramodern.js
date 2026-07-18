@@ -15,6 +15,10 @@ import clientGenerator from '../utils/clientGenerator';
 import pluginGenerator from '../utils/pluginGenerator';
 import runtimeGenerator from '../utils/runtimeGenerator';
 import { getPrimaryPrefix } from './prefix';
+import {
+  serializeServerGlobalVars,
+  transformServerGlobalVars,
+} from './serverGlobalVars';
 
 const RUNTIME_CREATE_REQUEST = '@modern-js/plugin-bff/client';
 
@@ -46,13 +50,14 @@ export const createBffGenerator = (api: CLIPluginAPI<AppTools>) => {
       sourceDirs.push(sharedDir);
     }
 
-    const { alias } = modernConfig.source;
+    const { alias, globalVars } = modernConfig.source;
     const { alias: resolveAlias } = modernConfig.resolve;
 
     if (sourceDirs.length > 0) {
       const combinedAlias = ([] as unknown[])
         .concat(alias ?? [])
         .concat(resolveAlias ?? []) as ConfigChain<Alias>;
+      const serializedGlobalVars = serializeServerGlobalVars(globalVars);
       await compile(
         appDirectory,
         {
@@ -65,6 +70,12 @@ export const createBffGenerator = (api: CLIPluginAPI<AppTools>) => {
           moduleType,
           throwErrorInsteadOfExit: true,
         },
+      );
+      await transformServerGlobalVars(
+        sourceDirs.map(sourceDir =>
+          path.resolve(distDir, path.relative(appDirectory, sourceDir)),
+        ),
+        serializedGlobalVars,
       );
     }
   };

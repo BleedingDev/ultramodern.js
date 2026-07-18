@@ -49,9 +49,35 @@ function ensureBrowserSmokeRuntime() {
   return runtimeDir;
 }
 
-function runBrowserSmoke(projectDir, { mode, requirePublicUrls = false }) {
-  const artifactDir = `.modern/production-readiness/browser-smoke/${mode}`;
-  const out = `.modern/production-readiness/browser-smoke/${mode}-summary.json`;
+function createBrowserSmokeEnvironment(runtimeDir) {
+  return {
+    // Acceptance installs the generated workspace with CI=true. Keep pnpm's
+    // install-mode defaults identical when the smoke runner starts package
+    // scripts, including enableGlobalVirtualStore on pnpm 11.
+    CI: 'true',
+    MODERN_CREATE_ULTRAMODERN_FRAMEWORK_VERSION: undefined,
+    // Exact-artifact acceptance must load plugin-bff from the generated
+    // workspace cohort, never from the repository that launched acceptance.
+    ULTRAMODERN_CREATE_BIN: undefined,
+    ULTRAMODERN_BROWSER_SMOKE_PLAYWRIGHT_ROOT: runtimeDir,
+    // Acceptance proves builds without a Zephyr account or upload side effect.
+    ZE_CI_TOKEN: undefined,
+  };
+}
+
+function runBrowserSmoke(
+  projectDir,
+  { artifactMode, mode, platform, requirePublicUrls = false, shellRuntime },
+) {
+  const releaseAcceptanceMode = artifactMode ?? mode;
+  const executionMode = ['source', 'published'].includes(mode) ? 'local' : mode;
+  const runtimePlatform =
+    platform ??
+    shellRuntime ??
+    (executionMode === 'local' ? 'workerd' : 'public');
+  const artifactKey = `${releaseAcceptanceMode}-${runtimePlatform}`;
+  const artifactDir = `.modern/production-readiness/browser-smoke/${artifactKey}`;
+  const out = `.modern/production-readiness/browser-smoke/${artifactKey}-summary.json`;
   const runtimeDir = ensureBrowserSmokeRuntime();
   const args = [
     'node',
@@ -63,11 +89,20 @@ function runBrowserSmoke(projectDir, { mode, requirePublicUrls = false }) {
     '--out',
     out,
     '--mode',
-    mode,
+    executionMode,
   ];
 
-  if (mode === 'local') {
-    args.push('--shell-runtime', 'workerd');
+  if (['source', 'published'].includes(releaseAcceptanceMode)) {
+    args.push(
+      '--artifact-mode',
+      releaseAcceptanceMode,
+      '--platform',
+      runtimePlatform,
+    );
+  }
+
+  if (executionMode === 'local') {
+    args.push('--shell-runtime', shellRuntime ?? platform ?? 'workerd');
   }
 
   if (requirePublicUrls) {
@@ -75,15 +110,22 @@ function runBrowserSmoke(projectDir, { mode, requirePublicUrls = false }) {
   }
 
   run(args[0], args.slice(1), {
-    env: {
-      // Acceptance installs the generated workspace with CI=true. Keep pnpm's
-      // install-mode defaults identical when the smoke runner starts package
-      // scripts, including enableGlobalVirtualStore on pnpm 11.
-      CI: 'true',
-      ULTRAMODERN_BROWSER_SMOKE_PLAYWRIGHT_ROOT: runtimeDir,
-    },
+    env: createBrowserSmokeEnvironment(runtimeDir),
   });
-  return readJsonFile(path.resolve(repoRoot, out));
+  const report = readJsonFile(path.resolve(repoRoot, out));
+  if (['source', 'published'].includes(releaseAcceptanceMode)) {
+    return {
+      ...report,
+      artifactMode: releaseAcceptanceMode,
+      platform: runtimePlatform,
+    };
+  }
+  return report;
 }
 
-export { ensureBrowserSmokeRuntime, playwrightRuntimeDir, runBrowserSmoke };
+export {
+  createBrowserSmokeEnvironment,
+  ensureBrowserSmokeRuntime,
+  playwrightRuntimeDir,
+  runBrowserSmoke,
+};

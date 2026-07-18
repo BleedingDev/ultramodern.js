@@ -41,7 +41,6 @@ import {
   MODULE_FEDERATION_VERSION,
   NODE_VERSION,
   PNPM_VERSION,
-  TYPESCRIPT_COMPILER_API_VERSION,
 } from './versions';
 import {
   createWorkspaceRootPackageScripts,
@@ -723,7 +722,6 @@ export function createWorkspaceValidationContract(
       moduleFederation: MODULE_FEDERATION_VERSION,
       node: NODE_VERSION,
       pnpm: PNPM_VERSION,
-      typescriptCompilerApi: TYPESCRIPT_COMPILER_API_VERSION,
     },
     tailwindEnabled: enableTailwind,
     structuralShellPolicy: createStructuralShellPolicy(configuredShells),

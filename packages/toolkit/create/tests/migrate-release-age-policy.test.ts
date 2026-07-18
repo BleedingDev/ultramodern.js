@@ -14,6 +14,7 @@ import { discoverReachablePnpmLockReleaseAgeClosure } from '../src/ultramodern-t
 import {
   renderMinimumReleaseAgeExclude,
   ULTRAMODERN_WORKSPACE_POLICY,
+  validateReleaseAgeApprovals,
 } from '../src/ultramodern-workspace/policy';
 
 const now = new Date('2026-07-10T12:00:00.000Z');
@@ -50,6 +51,56 @@ const effectReviewReason =
   'Reviewed Effect 4 beta cohort required by generated strict Effect workspaces before pnpm minimum release age elapsed.';
 const cloudflareReviewReason =
   'Reviewed Cloudflare runtime cohort required by generated Worker tooling before pnpm minimum release age elapsed.';
+
+test('does not treat Module Federation registry evidence as a release-age approval', () => {
+  const moduleFederation =
+    ULTRAMODERN_WORKSPACE_POLICY.pnpm.releaseAge.registryEvidence
+      .moduleFederation;
+  assert.equal(moduleFederation.version, '2.8.0');
+  assert.equal(moduleFederation.nodeVersion, '2.7.47');
+  assert.equal(moduleFederation.releases.length, 18);
+  assert.equal(
+    moduleFederation.releases.find(
+      release => release.packageName === '@module-federation/modern-js-v3',
+    )?.registry.publishedAt,
+    '2026-07-15T09:17:49.953Z',
+  );
+  assert.equal(
+    moduleFederation.node.registry.dist.integrity,
+    'sha512-mifMvCjWmLl53GS+badQws0j2bsu1ICpdGzCbez4I6kSpaYA8v86L6dwcHtVHIZtkUC6cjAZBDcgpxs4fK3nFQ==',
+  );
+  assert.equal(
+    ULTRAMODERN_WORKSPACE_POLICY.pnpm.releaseAge.approvals.some(approval =>
+      approval.packageName.startsWith('@module-federation/'),
+    ),
+    false,
+  );
+});
+
+test('rejects review evidence created before a dependency was published', () => {
+  const existing = ULTRAMODERN_WORKSPACE_POLICY.pnpm.releaseAge.approvals[0];
+  assert.ok(existing);
+
+  assert.throws(
+    () =>
+      validateReleaseAgeApprovals([
+        {
+          ...existing,
+          packageName: '@module-federation/runtime',
+          version: '2.8.0',
+          reviewedAt: '2026-07-09T20:51:39.000Z',
+          registry: {
+            publishedAt: '2026-07-15T09:16:02.203Z',
+            dist: {
+              integrity:
+                'sha512-cGtUBQ1/TVy7KrXy6xPgy3FEmOGyIYkBA2T4iGH3ZH5PNPPTmqN9jF2AfneTSOj0RtBr7Pxq3CUt81E/UCvK1A==',
+            },
+          },
+        },
+      ]),
+    /cannot be reviewed before its registry publish time/u,
+  );
+});
 
 test('pins exact approval evidence for every fresh Effect and Cloudflare dependency', () => {
   const expected = new Map([

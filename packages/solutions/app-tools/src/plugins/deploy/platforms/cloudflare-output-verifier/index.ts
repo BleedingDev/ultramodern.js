@@ -100,6 +100,12 @@ export const verifyCloudflareOutput = async (
     );
 
     const workerReferences = getWorkerBundleReferences(manifest);
+    const providedWorkerPackages = new Set(
+      workerPackage?.dependencies &&
+        typeof workerPackage.dependencies === 'object'
+        ? Object.keys(workerPackage.dependencies)
+        : [],
+    );
     if (workerReferences.length > 0 && !(await pathExists(workerPackagePath))) {
       addIssue(issues, {
         code: 'missing-file',
@@ -142,7 +148,15 @@ export const verifyCloudflareOutput = async (
 
       if (workerExists) {
         const workerSource = await fs.readFile(resolvedWorker.path, 'utf-8');
-        verifyWorkerBundleReferences(issues, resolvedWorker, workerSource);
+        await verifyWorkerBundleReferences(
+          issues,
+          resolvedWorker,
+          workerSource,
+          {
+            providedPackages: providedWorkerPackages,
+            workerRoot: outputPlan.paths.workerBundle,
+          },
+        );
         if (
           resolvedWorker.kind === 'effect-bff' &&
           (workerSource.includes(';entityKind;') ||

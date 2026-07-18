@@ -3,6 +3,7 @@ import { fs as fse } from '@modern-js/utils';
 import { readRouteSpec } from './artifacts';
 import {
   ASSETS_BINDING,
+  BFF_EFFECT_WORKER_DISPATCHER_EXPORT,
   BFF_EFFECT_WORKER_ENTRY,
   CLOUDFLARE_RUNTIME_TYPE,
   CLOUDFLARE_WORKER_BUNDLE_FORMAT,
@@ -21,7 +22,7 @@ import type { DeliveryUnitStamp } from './delivery-unit';
 import { createI18nWorkerManifest } from './i18n-worker';
 import { createCloudflareWorkerSecurityPolicy } from './security-policies';
 import type { CloudflareAppContext, CloudflareModernConfig } from './types';
-import { normalizeRelativePath } from './utils';
+import { isRecord, normalizeRelativePath } from './utils';
 import {
   createWorkerManifestServiceBindings,
   createWorkerServiceBindings,
@@ -51,21 +52,34 @@ const createModuleFederationWorkerManifest = async (
     return undefined;
   }
 
-  const manifest = await fse.readJson(manifestPath);
-  const name = typeof manifest?.name === 'string' ? manifest.name : undefined;
-  const exposes = (Array.isArray(manifest?.exposes) ? manifest.exposes : [])
-    .filter(expose => typeof expose?.path === 'string')
-    .map(expose => ({
-      path: expose.path,
-      css: [
-        ...(Array.isArray(expose.assets?.css?.sync)
-          ? expose.assets.css.sync
-          : []),
-        ...(Array.isArray(expose.assets?.css?.async)
-          ? expose.assets.css.async
-          : []),
-      ].filter(asset => typeof asset === 'string' && asset.endsWith('.css')),
-    }));
+  const manifest = (await fse.readJson(manifestPath)) as unknown;
+  const name =
+    isRecord(manifest) && typeof manifest.name === 'string'
+      ? manifest.name
+      : undefined;
+  const manifestExposes =
+    isRecord(manifest) && Array.isArray(manifest.exposes)
+      ? manifest.exposes
+      : [];
+  const exposes = manifestExposes.filter(isRecord).flatMap(expose => {
+    if (typeof expose.path !== 'string') {
+      return [];
+    }
+    const assets = isRecord(expose.assets) ? expose.assets : undefined;
+    const css = assets && isRecord(assets.css) ? assets.css : undefined;
+    return [
+      {
+        path: expose.path,
+        css: [
+          ...(css && Array.isArray(css.sync) ? css.sync : []),
+          ...(css && Array.isArray(css.async) ? css.async : []),
+        ].filter(
+          (asset): asset is string =>
+            typeof asset === 'string' && asset.endsWith('.css'),
+        ),
+      },
+    ];
+  });
 
   return name && exposes.length > 0 ? { name, exposes } : undefined;
 };
@@ -149,6 +163,7 @@ export const createWorkerManifest = async (
     bff:
       isEffectApi && primaryBffPrefix && effectApiWorkerExists
         ? {
+            dispatcherExport: BFF_EFFECT_WORKER_DISPATCHER_EXPORT,
             runtimeFramework: 'effect',
             prefix: primaryBffPrefix,
             worker: BFF_EFFECT_WORKER_ENTRY,

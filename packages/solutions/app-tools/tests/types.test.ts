@@ -20,8 +20,12 @@ describe('app-tools types', () => {
     expect(appToolsTypes).not.toContain('@rsbuild/core/types');
     expect(appToolsTypes).not.toContain('../dist/types/index.d.ts');
     expect(appToolsTypes).toContain("declare module '*.svg'");
-    expect(appEnvTemplate).toContain("import '@modern-js/app-tools/types';");
-    expect(appEnvTemplate).toContain('declare global');
+    expect(appEnvTemplate).toContain(
+      '/// <reference types="@modern-js/app-tools/types" />',
+    );
+    expect(appEnvTemplate).toContain(
+      'declare const ULTRAMODERN_SITE_URL: string;',
+    );
     expect(appEnvTemplate).not.toContain('@rsbuild/core/types');
     expect(appEnvTemplate).not.toContain("declare module '*.svg'");
     expect(appEnvTemplate).not.toContain("declare module '*.css'");

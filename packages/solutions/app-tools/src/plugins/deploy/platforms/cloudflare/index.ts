@@ -1,5 +1,13 @@
 import path from 'node:path';
 import { fs as fse } from '@modern-js/utils';
+import {
+  emitCloudflareStagedReleaseEnvelope,
+  emitFrameworkMicroVerticalReleaseEnvelope,
+  MICROVERTICAL_RELEASE_ENVELOPE_PATH,
+  stageCloudflareReleaseEnvelope,
+  verifyBuildOutputReleaseEnvelope,
+  verifyCloudflareReleaseEnvelopeStaging,
+} from '../../../../ultramodern-release-envelope/framework-output';
 import { readTemplate } from '../../utils';
 import { createCloudflareOutputPlan } from '../cloudflare-output-plan';
 import { assertCloudflareOutput } from '../cloudflare-output-verifier/index';
@@ -60,7 +68,7 @@ export const createCloudflarePreset: CreatePreset = ({
   appContext,
   modernConfig,
 }) => {
-  const { appDirectory, distDirectory } = appContext;
+  const { apiOnly, appDirectory, distDirectory } = appContext;
 
   const outputDirectory = path.join(appDirectory, '.output');
   const outputPlan = createCloudflareOutputPlan(outputDirectory);
@@ -74,16 +82,43 @@ export const createCloudflarePreset: CreatePreset = ({
     appDirectory,
     modernConfig,
   );
+  let hasReleaseEnvelope = false;
 
   return {
     async prepare() {
       await fse.remove(outputDirectory);
     },
     async writeOutput() {
+      if (
+        await fse.pathExists(
+          path.join(distDirectory, MICROVERTICAL_RELEASE_ENVELOPE_PATH),
+        )
+      ) {
+        await emitFrameworkMicroVerticalReleaseEnvelope({
+          apiOnly,
+          distDirectory,
+          target: 'cloudflare',
+        });
+      }
+      await verifyBuildOutputReleaseEnvelope(distDirectory, 'cloudflare');
       await fse.copy(distDirectory, publicDirectory, {
-        filter: src =>
-          shouldCopyToPublicAssets(src, distDirectory, publicAssetExcludes),
+        filter: src => {
+          const relativePath = path
+            .relative(distDirectory, src)
+            .replace(/\\/gu, '/');
+          return (
+            relativePath !== 'release' &&
+            !relativePath.startsWith('release/') &&
+            relativePath !== 'public' &&
+            !relativePath.startsWith('public/') &&
+            shouldCopyToPublicAssets(src, distDirectory, publicAssetExcludes)
+          );
+        },
       });
+      const generatedPublicDirectory = path.join(distDirectory, 'public');
+      if (await fse.pathExists(generatedPublicDirectory)) {
+        await fse.copy(generatedPublicDirectory, publicDirectory);
+      }
       await fse.ensureDir(path.dirname(workerEntryPath));
       await fse.ensureDir(path.dirname(workerManifestPath));
 
@@ -153,6 +188,12 @@ export const createCloudflarePreset: CreatePreset = ({
         outputPlan.paths.outputPackage,
         outputPlan.packages.output,
       );
+      hasReleaseEnvelope = Boolean(
+        await stageCloudflareReleaseEnvelope({
+          distDirectory,
+          outputDirectory,
+        }),
+      );
     },
     async genEntry() {
       const template = await readCloudflareEntryTemplate();
@@ -174,6 +215,21 @@ export const createCloudflarePreset: CreatePreset = ({
         importWorker: false,
         ...(topologyDeliveryUnit ? { deliveryUnit: topologyDeliveryUnit } : {}),
       });
+      if (hasReleaseEnvelope) {
+        await emitCloudflareStagedReleaseEnvelope({
+          distDirectory,
+          outputDirectory,
+        });
+        await verifyCloudflareReleaseEnvelopeStaging(outputDirectory);
+      } else if (
+        await fse.pathExists(
+          path.join(outputDirectory, MICROVERTICAL_RELEASE_ENVELOPE_PATH),
+        )
+      ) {
+        throw new Error(
+          '[ultramodern-release-envelope] Cloudflare staging contains an envelope not selected from this MicroVertical build.',
+        );
+      }
     },
   };
 };

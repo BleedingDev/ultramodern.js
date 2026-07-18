@@ -42,7 +42,10 @@ import {
   createSharedPackageTsConfig,
   createTsConfigBase,
 } from './package-json';
-import { resolvePackageSource } from './package-source';
+import {
+  resolvePackageSource,
+  resolveWorkspacePackageLinkingPolicy,
+} from './package-source';
 import { renderMinimumReleaseAgeExclude } from './policy';
 import type {
   JsonValue,
@@ -62,7 +65,6 @@ import {
   PNPM_VERSION,
   TANSTACK_ROUTER_CORE_VERSION,
   TANSTACK_ROUTER_VERSION,
-  TYPESCRIPT_COMPILER_API_VERSION,
   TYPESCRIPT_VERSION,
   WRANGLER_VERSION,
 } from './versions';
@@ -236,6 +238,8 @@ export function generateUltramodernWorkspace(
     packageSource,
     releaseCohort,
   });
+  const workspacePackageLinkingPolicy =
+    resolveWorkspacePackageLinkingPolicy(packageSource);
 
   copyRootTemplate(
     options.targetDir,
@@ -252,7 +256,6 @@ export function generateUltramodernWorkspace(
       moduleFederationVersion: MODULE_FEDERATION_VERSION,
       tanstackRouterCoreVersion: TANSTACK_ROUTER_CORE_VERSION,
       tanstackRouterVersion: TANSTACK_ROUTER_VERSION,
-      typescriptCompilerApiVersion: TYPESCRIPT_COMPILER_API_VERSION,
       typescriptVersion: TYPESCRIPT_VERSION,
       wranglerVersion: WRANGLER_VERSION,
       minimumReleaseAgeExcludeYaml:
@@ -261,6 +264,9 @@ export function generateUltramodernWorkspace(
           : `\n${minimumReleaseAgeExclude
               .map(selector => `  - '${selector}'`)
               .join('\n')}`,
+      workspacePackageLinkingYaml: Object.entries(workspacePackageLinkingPolicy)
+        .map(([key, value]) => `${key}: ${String(value)}\n`)
+        .join(''),
       tailwindEnabled: String(enableTailwind),
     },
     new Set([RELEASE_COHORT_PROJECTION_PATH]),

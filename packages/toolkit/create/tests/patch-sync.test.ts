@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { SHARED_ULTRAMODERN_WORKSPACE_PATCH_FILES } from '../src/ultramodern-workspace/shared-patches';
 
@@ -40,5 +42,62 @@ test('shared UltraModern workspace patches stay byte-identical', () => {
       0,
       `${patchFile} must stay byte-identical in patches/ and packages/toolkit/create/template-workspace/patches/`,
     );
+  }
+});
+
+test('Module Federation adapter patch reverses and reapplies cleanly', () => {
+  const patchFile = '@module-federation__modern-js-v3@2.8.0.patch';
+  const patchPath = path.join(repoPatchDir, patchFile);
+  const pnpmModulesDir = path.join(repoRoot, 'node_modules/.pnpm');
+  const packageStoreEntry = fs.readdirSync(pnpmModulesDir).find(entry => {
+    if (
+      !entry.startsWith('@module-federation+modern-js-v3@2.8.0_patch_hash=')
+    ) {
+      return false;
+    }
+
+    const configPluginPath = path.join(
+      pnpmModulesDir,
+      entry,
+      'node_modules/@module-federation/modern-js-v3/dist/cjs/cli/configPlugin.js',
+    );
+    return (
+      fs.existsSync(configPluginPath) &&
+      fs
+        .readFileSync(configPluginPath, 'utf8')
+        .includes('resolveManifestRecoveryPlugin')
+    );
+  });
+
+  assert.ok(
+    packageStoreEntry,
+    '@module-federation/modern-js-v3@2.8.0 must be installed for patch validation',
+  );
+
+  const installedPackageDir = path.join(
+    pnpmModulesDir,
+    packageStoreEntry,
+    'node_modules/@module-federation/modern-js-v3',
+  );
+  const temporaryDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'modern-js-mf-patch-'),
+  );
+
+  try {
+    fs.cpSync(installedPackageDir, temporaryDir, { recursive: true });
+    execFileSync('git', ['apply', '--reverse', '--check', patchPath], {
+      cwd: temporaryDir,
+      stdio: 'pipe',
+    });
+    execFileSync('git', ['apply', '--reverse', patchPath], {
+      cwd: temporaryDir,
+      stdio: 'pipe',
+    });
+    execFileSync('git', ['apply', '--check', patchPath], {
+      cwd: temporaryDir,
+      stdio: 'pipe',
+    });
+  } finally {
+    fs.rmSync(temporaryDir, { recursive: true, force: true });
   }
 });

@@ -3,6 +3,7 @@ import {
   createWorkerBindingEnv,
   createWorkerBindingName,
 } from '../backend-federation';
+import { createDeliveryUnitRecord } from '../delivery-unit';
 import {
   appEmitsBrowserUi,
   appHasApi,
@@ -42,6 +43,7 @@ export function createAppModernConfig(
   enableTailwind = true,
   configuredDevPorts?: number[],
 ): string {
+  const deliveryUnit = createDeliveryUnitRecord(scope, app);
   const emitsUi = appEmitsBrowserUi(app);
   const bffImport = appHasApi(app)
     ? "import { bffPlugin } from '@modern-js/plugin-bff';\n"
@@ -233,6 +235,9 @@ ${developmentPorts.map(port => `  'http://localhost:${port}',`).join('\n')}
     value23: zephyrPluginSource,
     value24: localisedUrlsEntry,
     value25: uiPluginEntries,
+    value26: deliveryUnit.unitId,
+    value27: deliveryUnit.buildMarker,
+    value28: deliveryUnit.version,
   });
 }
 
@@ -308,7 +313,10 @@ const moduleFederationConfig: Parameters<
   exposes: {
     './effect-api': './api/effect-api.ts',
   },
-  filename: 'backendRemoteEntry.mjs',
+  filename: 'backendRemoteEntry.cjs',
+  library: {
+    type: 'commonjs-module',
+  },
   name: '${createBackendFederationName(app)}',
   shared: {
     '@modern-js/plugin-bff': {

@@ -62,6 +62,9 @@ export const getModuleFederationRequestPath = (
 export const isModuleFederationManifestRequest = (requestPath: string) =>
   MODULE_FEDERATION_MANIFEST_FILES.includes(requestPath);
 
+export const isBackendModuleFederationManifestRequest = (requestPath: string) =>
+  requestPath === BACKEND_MODULE_FEDERATION_MANIFEST_FILE;
+
 export const applyModuleFederationAssetHeaders = (
   c: Parameters<Middleware>[0],
 ) => {

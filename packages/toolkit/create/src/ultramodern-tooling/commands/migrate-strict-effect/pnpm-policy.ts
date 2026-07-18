@@ -8,6 +8,7 @@ import {
   releaseCohortSelectors,
   type UltramodernReleaseCohort,
 } from '../../../ultramodern-release-cohort';
+import { resolveWorkspacePackageLinkingPolicy } from '../../../ultramodern-workspace/package-source';
 import {
   renderMinimumReleaseAgeExclude,
   resolveReleaseAgeApprovals,
@@ -81,6 +82,14 @@ const canonicalReleaseAgeEntries = new Set(
     approval => `${approval.packageName}@${approval.version}`,
   ),
 );
+
+const retiredTypescriptPeerOverrides = new Set([
+  '@module-federation/dts-plugin>typescript',
+  '@module-federation/enhanced>typescript',
+  '@module-federation/modern-js-v3>typescript',
+  '@module-federation/rspack>typescript',
+  'i18next>typescript',
+]);
 
 type RegistryResponse = {
   ok: boolean;
@@ -287,6 +296,8 @@ function reconcilePnpmPolicy(
     packageSource,
     releaseCohort,
   });
+  const workspacePackageLinkingPolicy =
+    resolveWorkspacePackageLinkingPolicy(packageSource);
 
   if (document.minimumReleaseAgeExclude !== undefined) {
     assertOwnedReleaseAgeList(
@@ -318,12 +329,26 @@ function reconcilePnpmPolicy(
   ] as const) {
     setOwnedScalar(document, key, value);
   }
+  for (const key of [
+    'injectWorkspacePackages',
+    'linkWorkspacePackages',
+  ] as const) {
+    const value = workspacePackageLinkingPolicy[key];
+    if (value === undefined) {
+      delete document[key];
+    } else {
+      setOwnedScalar(document, key, value);
+    }
+  }
 
   document.minimumReleaseAgeExclude = minimumReleaseAgeExclude;
   document.trustPolicyExclude = [...policy.trustPolicyExclude];
 
   const peerDependencyRules = ensureMap(document, 'peerDependencyRules');
   const allowedVersions = ensureMap(peerDependencyRules, 'allowedVersions');
+  for (const selector of retiredTypescriptPeerOverrides) {
+    delete allowedVersions[selector];
+  }
   reconcileOwnedMap(
     allowedVersions,
     policy.peerDependencyRules.allowedVersions,
@@ -338,15 +363,24 @@ function reconcilePnpmPolicy(
     }
   }
   reconcileOwnedMap(overrides, policy.overrides);
-  const packageExtensions = ensureMap(document, 'packageExtensions');
-  for (const [selector, extensionPolicy] of Object.entries(
-    policy.packageExtensions,
-  )) {
-    const extension = ensureMap(packageExtensions, selector);
-    reconcileOwnedMap(
-      ensureMap(extension, 'dependencies'),
-      extensionPolicy.dependencies,
-    );
+  const packageExtensions = document.packageExtensions;
+  if (packageExtensions !== undefined) {
+    if (!isYamlRecord(packageExtensions)) {
+      throw new Error(
+        'pnpm-workspace.yaml packageExtensions must be a mapping.',
+      );
+    }
+    for (const selector of Object.keys(packageExtensions)) {
+      if (
+        packageVersionParts(selector)?.packageName ===
+        '@module-federation/dts-plugin'
+      ) {
+        delete packageExtensions[selector];
+      }
+    }
+    if (Object.keys(packageExtensions).length === 0) {
+      delete document.packageExtensions;
+    }
   }
   reconcileOwnedMap(ensureMap(document, 'allowBuilds'), policy.allowBuilds);
   reconcilePatchedDependencies(document, includeDrizzleOrmPatch);

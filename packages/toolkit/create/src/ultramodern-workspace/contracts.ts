@@ -341,6 +341,9 @@ export function createUltramodernConfig(
               },
             }
           : {}),
+        deploy: {
+          cloudflare: createCloudflareDeployContract(scope, app),
+        },
       })),
     },
     ...(additionalShells.length > 0

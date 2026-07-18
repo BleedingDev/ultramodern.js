@@ -29,11 +29,11 @@
     },
     {
       "file": "packages/solutions/app-tools/src/index.ts",
-      "specifier": "./presetUltramodern"
+      "specifier": "./plugins/ultramodernReleaseEnvelope"
     },
     {
       "file": "packages/solutions/app-tools/src/index.ts",
-      "specifier": "./ultramodern/designSystem"
+      "specifier": "./presetUltramodern"
     },
     {
       "file": "packages/toolkit/create/src/index.ts",

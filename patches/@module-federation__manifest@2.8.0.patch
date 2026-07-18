@@ -1,5 +1,4 @@
 diff --git a/dist/utils.js b/dist/utils.js
-index 0d3c0a8..c3ccfe6 100644
 --- a/dist/utils.js
 +++ b/dist/utils.js
 @@ -71,8 +71,6 @@ const external_path_namespaceObject = require("path");
@@ -34,7 +33,6 @@ index 0d3c0a8..c3ccfe6 100644
              context,
              moduleFederationConfig: pluginOptions
 diff --git a/dist/utils.mjs b/dist/utils.mjs
-index 3f4e0d9..f2aed76 100644
 --- a/dist/utils.mjs
 +++ b/dist/utils.mjs
 @@ -1,8 +1,9 @@

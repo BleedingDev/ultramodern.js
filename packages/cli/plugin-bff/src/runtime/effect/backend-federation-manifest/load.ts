@@ -1,5 +1,6 @@
 // @effect-diagnostics asyncFunction:off extendsNativeError:off globalTimers:off newPromise:off strictBooleanExpressions:off
 
+import { createInstance } from '@module-federation/runtime';
 import {
   BACKEND_FEDERATION_EFFECT_EXPOSE,
   type BackendFederatedEffectApiModule,
@@ -7,7 +8,11 @@ import {
   loadBackendFederatedEffectApi,
 } from '../backend-federation';
 import { BackendFederationManifestAdapterError } from './errors';
-import { loadBackendFederationManifest, withTimeout } from './reference';
+import {
+  loadBackendFederationManifest,
+  resolveBackendFederationManifestReference,
+  withTimeout,
+} from './reference';
 import { resolveBackendFederationRemoteFromManifest } from './remote';
 import type {
   BackendFederationManifest,
@@ -32,13 +37,38 @@ export async function loadBackendFederatedEffectApiFromManifest(
       manifest,
       options.remote,
     );
+    const manifestReference =
+      resolveBackendFederationManifestReference(options);
+    const officialRuntime =
+      manifestReference &&
+      /^https?:\/\//iu.test(manifestReference) &&
+      options.manifest === undefined &&
+      options.manifestPath === undefined &&
+      options.fetch === undefined &&
+      options.plugins === undefined &&
+      options.remote === undefined &&
+      options.runtime === undefined
+        ? createInstance({
+            name: options.hostName,
+            remotes: [
+              {
+                name: remote.name,
+                entry: manifestReference,
+              },
+            ],
+          })
+        : undefined;
 
     const loaded = await withTimeout(
       loadBackendFederatedEffectApi({
         hostName: options.hostName,
         remote,
         ...(options.plugins ? { plugins: options.plugins } : {}),
-        ...(options.runtime ? { runtime: options.runtime } : {}),
+        ...(options.runtime
+          ? { runtime: options.runtime }
+          : officialRuntime
+            ? { runtime: officialRuntime }
+            : {}),
         // MV-G23: route the manifest adapter through the raw loader's shared
         // delivery-unit identity validation when an identity is expected.
         ...(options.expected?.unitId && options.expected.buildMarker

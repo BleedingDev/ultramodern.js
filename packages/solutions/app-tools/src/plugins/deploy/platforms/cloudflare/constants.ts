@@ -31,6 +31,8 @@ export const DEFAULT_SERVER_ONLY_PUBLIC_ASSET_EXCLUDES = [
   'shared',
 ] as const;
 export const BFF_EFFECT_WORKER_ENTRY = `${WORKER_BUNDLE_DIRECTORY}/__modern_bff_effect.js`;
+export const BFF_EFFECT_WORKER_DISPATCHER_EXPORT =
+  '__modern_create_effect_bff_dispatcher';
 export const EFFECT_BFF_CLOUDFLARE_IMPORT_GUIDANCE =
   'Ensure the Effect API entry exists at api/index.ts or bff.effect.entry, and import Cloudflare edge handlers from @modern-js/plugin-bff/effect-edge instead of lambda/Hono server helpers.';
 export const DEFAULT_COMPATIBILITY_DATE = '2026-06-02';

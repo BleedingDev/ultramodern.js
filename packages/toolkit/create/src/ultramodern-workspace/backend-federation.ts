@@ -60,7 +60,7 @@ export function createDispatchWorkerNameEnv(app: WorkspaceApp) {
 
 function createEffectExpose(
   app: WorkspaceApp & { api: NonNullable<WorkspaceApp['api']> },
-) {
+): Record<string, JsonValue> {
   const apiStem = resolveApiStem(app);
 
   if (resolveApiProtocol(app) === 'rpc') {
@@ -124,7 +124,7 @@ function createNodeExecutionSurface(
     manifestEnv: createBackendFederationManifestEnv(app),
     manifestUrl: createBackendFederationManifestUrl(app),
     containerEntry: createBackendFederationContainerEntry(app),
-    remoteType: 'module',
+    remoteType: 'commonjs-module',
     expose: BACKEND_FEDERATION_EFFECT_EXPOSE,
     runtimePackage: '@modern-js/plugin-bff/effect',
     ...(deliveryUnit

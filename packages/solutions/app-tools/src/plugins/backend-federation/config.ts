@@ -1,8 +1,6 @@
-import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { promisify } from 'node:util';
 import {
   BACKEND_FEDERATION_MANIFEST_FILE as BACKEND_MANIFEST_FILE,
   BACKEND_FEDERATION_REMOTE_ENTRY_FILE as BACKEND_REMOTE_ENTRY_FILE,
@@ -12,6 +10,7 @@ import {
   type DeliveryUnitContractBlock,
   type DeliveryUnitRecord,
   deliveryUnitContractBlock,
+  isUltramodernBuildArtifact,
   ULTRAMODERN_BUILD_ARTIFACT_FILE,
   ULTRAMODERN_BUILD_ARTIFACT_PATH,
   ULTRAMODERN_BUILD_MODULE_PATH,
@@ -19,9 +18,9 @@ import {
   validateDeliveryUnitRecord,
   validateUltramodernBuildArtifact,
 } from '@modern-js/utils/universal';
+import { resolveUltramodernSourceRevision } from '../../ultramodern-release-identity';
 
 export const COMPACT_CONFIG_PATH = '.modernjs/ultramodern.json';
-const execFileAsync = promisify(execFile);
 
 export type CompactApp = {
   id?: unknown;
@@ -142,6 +141,11 @@ export const readBuildIdentity = async (
         `[backend-federation-build] Invalid delivery-unit build artifact at ${buildArtifactPath}.`,
       );
     }
+    if (!isUltramodernBuildArtifact(artifact)) {
+      throw new Error(
+        `[backend-federation-build] Invalid delivery-unit build artifact at ${buildArtifactPath}.`,
+      );
+    }
 
     const deliveryUnit = artifact.deliveryUnit;
     return {
@@ -216,30 +220,7 @@ export const findWorkspaceRoot = (appDirectory: string) => {
 };
 
 export const resolveWorkspaceSourceRevision = async (workspaceRoot: string) => {
-  const envRevision = process.env.ULTRAMODERN_SOURCE_REVISION?.trim();
-  if (envRevision) {
-    return envRevision;
-  }
-
-  try {
-    const { stdout } = await execFileAsync('git', [
-      '-C',
-      workspaceRoot,
-      'rev-parse',
-      'HEAD',
-    ]);
-    const revision = stdout.trim();
-    if (revision.length > 0) {
-      return revision;
-    }
-  } catch {
-    // Fall through to the deterministic workspace marker below.
-  }
-
-  console.warn(
-    '[backend-federation-build] Could not resolve git source revision; stamping sourceRevision as "workspace". Set ULTRAMODERN_SOURCE_REVISION to override.',
-  );
-  return 'workspace';
+  return resolveUltramodernSourceRevision(workspaceRoot);
 };
 
 export const createStampedDeliveryUnit = (input: {
@@ -319,12 +300,26 @@ export const createAppFromCompactMetadata = (
     ) ??
     stringValue(compactApp.serverExecution?.node?.containerEntry) ??
     `http://localhost:${port}/${BACKEND_REMOTE_ENTRY_FILE}`;
-  const remoteType =
+  const configuredRemoteType =
     stringValue(
       compactApp.backendFederation?.executionSurfaces?.node?.remoteType,
-    ) ??
-    stringValue(compactApp.serverExecution?.node?.remoteType) ??
-    'module';
+    ) ?? stringValue(compactApp.serverExecution?.node?.remoteType);
+  if (
+    configuredRemoteType !== undefined &&
+    configuredRemoteType !== 'commonjs-module'
+  ) {
+    throw new Error(
+      `[backend-federation-build] Node backend federation remoteType must be "commonjs-module"; received "${configuredRemoteType}" for ${id}.`,
+    );
+  }
+  if (
+    !new URL(containerEntry).pathname.endsWith(`/${BACKEND_REMOTE_ENTRY_FILE}`)
+  ) {
+    throw new Error(
+      `[backend-federation-build] Node backend federation containerEntry must end with "/${BACKEND_REMOTE_ENTRY_FILE}"; received "${containerEntry}" for ${id}.`,
+    );
+  }
+  const remoteType = 'commonjs-module';
   const packageName = stringValue(compactApp.package);
   const uiManifestUrl =
     stringValue(

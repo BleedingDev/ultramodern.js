@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -8,6 +9,7 @@ const workspaceRoot = path.resolve(
     path.join(path.dirname(fileURLToPath(import.meta.url)), '../..'),
 );
 const configPath = path.join(workspaceRoot, '.modernjs/ultramodern.json');
+const { build } = createRequire(import.meta.url)('esbuild');
 // Keep these constants/checks in sync with
 // @modern-js/utils/universal backend-federation-contract. Generated workspace
 // scripts do not currently import @modern-js/utils directly.
@@ -136,7 +138,8 @@ function normalizeBackendFederation(app) {
   return {
     ...backend,
     name: backend.name ?? nodeSurface.remoteName,
-    remoteType: backend.remoteType ?? nodeSurface.remoteType ?? 'module',
+    remoteType:
+      backend.remoteType ?? nodeSurface.remoteType ?? 'commonjs-module',
     manifestUrl: backend.manifestUrl ?? nodeSurface.manifestUrl,
     containerEntry: backend.containerEntry ?? nodeSurface.containerEntry,
     runtimePackage: backend.runtimePackage ?? nodeSurface.runtimePackage,
@@ -154,34 +157,89 @@ function normalizeBackendFederation(app) {
   };
 }
 
-function createRemoteEntrySource(app) {
+async function createRemoteEntrySource(app, outputDir) {
+  const backend = normalizeBackendFederation(app);
+  if (backend.remoteType !== 'commonjs-module') {
+    throw new Error(
+      `${app.id} backend federation remoteType must be commonjs-module`,
+    );
+  }
   const exposes = backendFederationExposes(app);
-  return `const factories = {
+  const buildIdentity = readBuildIdentity(app);
+  const effectApiPath = path.join(workspaceRoot, app.path, 'api/effect-api.ts');
+  const source = `import * as exposedNamespace from ${JSON.stringify(
+    effectApiPath,
+  )};
+
+const exposedModule = {
+  ...exposedNamespace,
+  backendFederationContract: {
+    ...(exposedNamespace.backendFederationContract ?? {}),
+    compatibility: {
+      ...(exposedNamespace.backendFederationContract?.compatibility ?? {}),
+      build: ${JSON.stringify(buildIdentity.buildVersion)},
+      contractVersion: ${JSON.stringify(backend.contractVersion)},
+      nodeAdapterVersion: ${JSON.stringify(backend.nodeAdapterVersion)},
+      packageName: ${JSON.stringify(buildIdentity.packageName)},
+      sourceRevision: ${JSON.stringify(buildIdentity.sourceRevision)},
+      unitId: ${JSON.stringify(buildIdentity.unitId)},
+    },
+    name: ${JSON.stringify(backend.name)},
+    role: 'microvertical-server',
+    runtimeFramework: 'effect',
+    strictEffectApproach: true,
+  },
+};
+const factories = {
 ${exposes
   .map(
-    expose => `${JSON.stringify(expose)}: async () =>
-  import(new URL('../api/backend-federation.ts', import.meta.url).href),
-`,
+    expose =>
+      `${JSON.stringify(expose)}: () => Promise.resolve(exposedModule),`,
   )
-  .join('')}
+  .join('\n')}
 };
 
-export async function init() {}
+function init() {}
 
-export function get(id) {
+function get(id) {
   const factory = factories[id];
   if (!factory) {
     throw new Error(\`Unknown backend federation expose \${id}\`);
   }
-  return factory;
+  return async () => factory();
 }
 
-export default { init, get };
+module.exports = { init, get };
 `;
+  const result = await build({
+    absWorkingDir: path.dirname(effectApiPath),
+    bundle: true,
+    format: 'cjs',
+    logLevel: 'silent',
+    platform: 'node',
+    stdin: {
+      contents: source,
+      loader: 'ts',
+      resolveDir: path.dirname(effectApiPath),
+      sourcefile: path.join(outputDir, 'backendRemoteEntry.cjs'),
+    },
+    target: 'node20',
+    write: false,
+  });
+  const output = result.outputFiles[0];
+  if (!output) {
+    throw new Error(`${app.id} backend federation container emitted no output`);
+  }
+  return output.text;
 }
 
-function createManifest(app) {
+function createManifest(app, outputDir) {
   const backend = normalizeBackendFederation(app);
+  if (backend.remoteType !== 'commonjs-module') {
+    throw new Error(
+      `${app.id} backend federation remoteType must be commonjs-module`,
+    );
+  }
   const buildIdentity = readBuildIdentity(app);
   const compactDeliveryUnit =
     app.deliveryUnit && typeof app.deliveryUnit === 'object'
@@ -190,6 +248,7 @@ function createManifest(app) {
   const unitId = compactDeliveryUnit?.unitId ?? buildIdentity.unitId;
   const sourceRevision =
     compactDeliveryUnit?.sourceRevision ?? buildIdentity.sourceRevision;
+  const publicPath = new URL('.', backend.containerEntry).href;
   return {
     schemaVersion: 1,
     name: backend.name,
@@ -198,6 +257,13 @@ function createManifest(app) {
     buildVersion: buildIdentity.buildVersion,
     type: backend.remoteType,
     entry: {
+      file: 'backendRemoteEntry.cjs',
+      path: path
+        .relative(
+          workspaceRoot,
+          path.join(outputDir, 'backendRemoteEntry.cjs'),
+        )
+        .replaceAll(path.sep, '/'),
       url: backend.containerEntry,
       type: backend.remoteType,
     },
@@ -209,21 +275,35 @@ function createManifest(app) {
         buildVersion: buildIdentity.buildVersion,
       },
       remoteEntry: {
-        name: 'backendRemoteEntry.mjs',
+        name: 'backendRemoteEntry.cjs',
         path: '',
         type: backend.remoteType,
       },
-        exposes: backend.exposes.map(expose => ({
-          id: expose,
-          name: expose,
-        path: expose,
-      })),
+      globalName: backend.name,
+      publicPath,
+      ssrRemoteEntry: {
+        name: 'backendRemoteEntry.cjs',
+        path: '',
+        type: backend.remoteType,
+      },
+      ssrPublicPath: publicPath,
     },
     exposes: backend.exposes.map(expose => ({
-      id: expose,
+      id: `${backend.name}:${expose}`,
       name: expose,
-      path: expose,
+      path: '',
+      assets: {
+        js: {
+          async: [],
+          sync: ['backendRemoteEntry.cjs'],
+        },
+        css: {
+          async: [],
+          sync: [],
+        },
+      },
     })),
+    shared: [],
     backendFederation: {
       role: backend.role ?? 'microvertical-server',
       name: backend.name,
@@ -277,13 +357,13 @@ for (const app of apps) {
   const outputDir = path.join(workspaceRoot, app.path, options.target);
   fs.mkdirSync(outputDir, { recursive: true });
   fs.writeFileSync(
-    path.join(outputDir, 'backendRemoteEntry.mjs'),
-    createRemoteEntrySource(app),
+    path.join(outputDir, 'backendRemoteEntry.cjs'),
+    await createRemoteEntrySource(app, outputDir),
     'utf-8',
   );
   fs.writeFileSync(
     path.join(outputDir, 'backend-mf-manifest.json'),
-    `${JSON.stringify(createManifest(app), null, 2)}\n`,
+    `${JSON.stringify(createManifest(app, outputDir), null, 2)}\n`,
     'utf-8',
   );
   console.log(

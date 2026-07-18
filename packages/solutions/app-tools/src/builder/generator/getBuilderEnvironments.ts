@@ -9,6 +9,7 @@ import {
   isUseSSRBundle,
 } from '@modern-js/utils';
 import type { ModifyBundlerChainFn, RsbuildConfig } from '@rsbuild/core';
+import { CLOUDFLARE_WORKER_NODE_BUILTINS } from '../../plugins/deploy/platforms/cloudflare-output-contract';
 import type { AppNormalizedConfig } from '../../types';
 import type { AppToolsContext } from '../../types/plugin';
 
@@ -25,20 +26,6 @@ const JS_OR_TS_EXTS = [
   '.cts',
 ] as const;
 type JsOrTsExtension = (typeof JS_OR_TS_EXTS)[number];
-const CLOUDFLARE_WORKER_NODE_BUILTINS = [
-  'async_hooks',
-  'buffer',
-  'crypto',
-  'events',
-  'fs/promises',
-  'module',
-  'path',
-  'process',
-  'stream',
-  'string_decoder',
-  'url',
-  'util',
-];
 const CLOUDFLARE_WORKER_COMPAT_TEMPLATE_DIR = path.resolve(
   __dirname,
   '../../plugins/deploy/platforms/templates',

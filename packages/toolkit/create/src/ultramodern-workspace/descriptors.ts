@@ -264,7 +264,7 @@ export function createBackendFederationManifestUrl(app: WorkspaceApp): string {
 export function createBackendFederationContainerEntry(
   app: WorkspaceApp,
 ): string {
-  return `http://localhost:${app.port}/backendRemoteEntry.mjs`;
+  return `http://localhost:${app.port}/backendRemoteEntry.cjs`;
 }
 
 export function createModuleFederationRemoteContracts(

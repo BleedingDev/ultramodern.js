@@ -8,6 +8,7 @@ import {
   applyModuleFederationAssetHeaders,
   getModuleFederationAssetList,
   getModuleFederationRequestPath,
+  isBackendModuleFederationManifestRequest,
   isModuleFederationManifestRequest,
   type ModuleFederationServeAssets,
   patchModuleFederationManifestPublicPath,
@@ -31,6 +32,12 @@ type StaticServingOptions = {
   pathPrefix: string;
 };
 
+const getStaticMimeType = (filename: string) =>
+  getMimeType(filename) ??
+  (path.extname(filename).toLowerCase() === '.cjs'
+    ? 'text/javascript; charset=UTF-8'
+    : undefined);
+
 export const servePreCompressedPublicRouteAsset = async (
   c: MiddlewareContext,
   pwd: string,
@@ -41,7 +48,7 @@ export const servePreCompressedPublicRouteAsset = async (
   const preCompressedAsset = await resolvePreCompressedAsset(c, originFilename);
   const filename = preCompressedAsset.selected?.filepath ?? originFilename;
   const data = await fileReader.readFile(filename, 'buffer');
-  const mimeType = getMimeType(originFilename);
+  const mimeType = getStaticMimeType(originFilename);
 
   if (data === null) {
     return null;
@@ -79,6 +86,104 @@ const isPathInside = (target: string, root: string): boolean => {
       relative !== '..' &&
       !path.isAbsolute(relative))
   );
+};
+
+const resolvePublicDirectoryAsset = async (pwd: string, pathname: string) => {
+  let decodedPathname: string;
+  try {
+    decodedPathname = decodeURIComponent(pathname).replace(/\\/gu, '/');
+  } catch {
+    return null;
+  }
+
+  if (
+    decodedPathname.includes('\0') ||
+    decodedPathname.split('/').includes('..')
+  ) {
+    return null;
+  }
+
+  const publicDirectory = path.join(pwd, 'public');
+  const filepath = path.resolve(
+    publicDirectory,
+    decodedPathname.replace(/^\/+/u, ''),
+  );
+  if (!isPathInside(filepath, publicDirectory)) {
+    return null;
+  }
+
+  try {
+    const [realPublicDirectory, realFilepath, stat] = await Promise.all([
+      fs.realpath(publicDirectory),
+      fs.realpath(filepath),
+      fs.stat(filepath),
+    ]);
+    if (!stat.isFile() || !isPathInside(realFilepath, realPublicDirectory)) {
+      return null;
+    }
+    return realFilepath;
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Serves post-build convention assets generated under dist/public at their
+ * root URL. This is intentionally independent of config/public and route.json:
+ * the generator runs after the route manifest is built.
+ */
+export const servePublicDirectoryAsset = async (
+  c: MiddlewareContext,
+  pwd: string,
+) => {
+  const method = c.req.raw.method.toUpperCase();
+  if (method !== 'GET' && method !== 'HEAD') {
+    return null;
+  }
+
+  const originFilename = await resolvePublicDirectoryAsset(pwd, c.req.path);
+  if (originFilename === null) {
+    return null;
+  }
+
+  const preCompressedAsset = await resolvePreCompressedAsset(c, originFilename);
+  const selectedFilename =
+    preCompressedAsset.selected?.filepath ?? originFilename;
+  const publicDirectory = await fs.realpath(path.join(pwd, 'public'));
+  let realSelectedFilename: string;
+  try {
+    realSelectedFilename = await fs.realpath(selectedFilename);
+  } catch {
+    return null;
+  }
+  if (!isPathInside(realSelectedFilename, publicDirectory)) {
+    return null;
+  }
+
+  const data = await fileReader.readFileFromSystem(
+    realSelectedFilename,
+    'buffer',
+  );
+  if (data === null) {
+    return null;
+  }
+
+  const mimeType = getStaticMimeType(originFilename);
+  if (mimeType) {
+    c.header('Content-Type', mimeType);
+  }
+  applyPreCompressedAssetHeaders(c, preCompressedAsset);
+  c.header('Content-Length', String(data.byteLength));
+
+  if (method === 'HEAD') {
+    return c.body(null, 200);
+  }
+  const body = new Uint8Array(
+    data.buffer as ArrayBuffer,
+    data.byteOffset,
+    data.byteLength,
+  );
+  return c.body(body, 200);
 };
 
 export const createModuleFederationStaticServing = ({
@@ -126,13 +231,15 @@ export const createModuleFederationStaticServing = ({
       applyModuleFederationAssetHeaders(c);
     }
 
-    const mimeType = getMimeType(filepath);
+    const mimeType = getStaticMimeType(filepath);
     if (mimeType) {
       c.header('Content-Type', mimeType);
     }
 
     const shouldPatchManifest =
-      moduleFederationAsset && isModuleFederationManifestRequest(requestPath);
+      moduleFederationAsset &&
+      isModuleFederationManifestRequest(requestPath) &&
+      !isBackendModuleFederationManifestRequest(requestPath);
     const shouldPatchRemoteEntry = moduleFederationRemoteEntry;
     const canUsePreCompressed = !shouldPatchManifest && !shouldPatchRemoteEntry;
     const preCompressedAsset = canUsePreCompressed

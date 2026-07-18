@@ -7,7 +7,6 @@ import {
   generateUltramodernWorkspace,
 } from '../src/ultramodern-workspace';
 import {
-  TYPESCRIPT_COMPILER_API_VERSION,
   TYPESCRIPT_STABLE_VERSION,
   TYPESCRIPT_VERSION,
 } from '../src/ultramodern-workspace/versions';
@@ -173,7 +172,7 @@ test('create tests use stable TypeScript 7 without compiler API imports', () => 
   }
 });
 
-test('generated package module scopes keep MF apps compatible with classic compiler consumers', () => {
+test('generated package module scopes keep Module Federation apps CommonJS-compatible', () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-ts7-package-'));
   const workspaceDir = path.join(tempRoot, 'ts7-package-workspace');
 
@@ -223,10 +222,6 @@ test('generated package module scopes keep MF apps compatible with classic compi
       undefined,
       'generated MF app packages should not opt into package-level ESM',
     );
-    // TS7 (tsgo's native backend) is installed under the `@typescript/native`
-    // alias so the plain `typescript` package can be the CLASSIC compiler that
-    // the Module Federation DTS plugin executes (typescript.sys), which TS7
-    // does not expose.
     assert.equal(
       shellPackageJson.devDependencies?.['@typescript/native'],
       `npm:typescript@${TYPESCRIPT_VERSION}`,
@@ -234,13 +229,42 @@ test('generated package module scopes keep MF apps compatible with classic compi
     );
     assert.equal(
       shellPackageJson.devDependencies?.typescript,
-      TYPESCRIPT_COMPILER_API_VERSION,
-      'generated apps must install the classic TypeScript compiler API for the MF DTS plugin',
+      TYPESCRIPT_VERSION,
+      'generated apps and the Module Federation DTS plugin must use TypeScript 7',
     );
     assert.equal(
       shellPackageJson.devDependencies?.['@typescript/native-preview'],
       undefined,
       'generated apps must not install native-preview when stable TypeScript 7 is available',
+    );
+    const pnpmWorkspace = fs.readFileSync(
+      path.join(workspaceDir, 'pnpm-workspace.yaml'),
+      'utf-8',
+    );
+    assert.match(
+      pnpmWorkspace,
+      /^injectWorkspacePackages: true$/mu,
+      'source-linked generated workspaces must inject the complete Modern.js dependency graph so generated patches own declaration resolution',
+    );
+    assert.match(
+      pnpmWorkspace,
+      /^linkWorkspacePackages: true$/mu,
+      'source-linked generated workspaces must resolve explicit workspace protocol framework dependencies',
+    );
+    assert.doesNotMatch(
+      pnpmWorkspace,
+      /@module-federation\/dts-plugin>typescript/u,
+      'generated workspaces must not override the Module Federation DTS TypeScript peer',
+    );
+    assert.doesNotMatch(
+      pnpmWorkspace,
+      /@module-federation\/dts-plugin@[^\n]+:\s*\n\s+(?:dependencies|peerDependencies):\s*\n\s+typescript:/u,
+      'generated workspaces must not inject a private TypeScript dependency into the DTS plugin',
+    );
+    assert.doesNotMatch(
+      pnpmWorkspace,
+      /\btypescript@6\.0\.3\b/u,
+      'generated workspaces must not retain the obsolete TypeScript 6 DTS shim',
     );
     assert.equal(
       shellConfig?.moduleFederation?.dts?.compilerInstance,

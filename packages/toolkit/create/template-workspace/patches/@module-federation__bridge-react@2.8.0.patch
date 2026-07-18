@@ -1,7 +1,6 @@
-diff --git a/dist/lazy-load-component-plugin-BjMVNoep.js b/dist/lazy-load-component-plugin-BjMVNoep.js
-index 9f16c3f..bde8e11 100644
---- a/dist/lazy-load-component-plugin-BjMVNoep.js
-+++ b/dist/lazy-load-component-plugin-BjMVNoep.js
+diff --git a/dist/lazy-load-component-plugin-FKp6nQa-.js b/dist/lazy-load-component-plugin-FKp6nQa-.js
+--- a/dist/lazy-load-component-plugin-FKp6nQa-.js
++++ b/dist/lazy-load-component-plugin-FKp6nQa-.js
 @@ -236,6 +236,41 @@ function getTargetModuleInfo(id, instance) {
      remoteEntry
    };
@@ -68,10 +67,9 @@ index 9f16c3f..bde8e11 100644
            }
          )
        );
-diff --git a/dist/lazy-load-component-plugin-aj97Vt-4.mjs b/dist/lazy-load-component-plugin-aj97Vt-4.mjs
-index ed1dc8f..fd603ab 100644
---- a/dist/lazy-load-component-plugin-aj97Vt-4.mjs
-+++ b/dist/lazy-load-component-plugin-aj97Vt-4.mjs
+diff --git a/dist/lazy-load-component-plugin-DEu-DfZt.mjs b/dist/lazy-load-component-plugin-DEu-DfZt.mjs
+--- a/dist/lazy-load-component-plugin-DEu-DfZt.mjs
++++ b/dist/lazy-load-component-plugin-DEu-DfZt.mjs
 @@ -235,6 +235,41 @@ function getTargetModuleInfo(id, instance) {
      remoteEntry
    };

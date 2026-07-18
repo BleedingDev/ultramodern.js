@@ -23,7 +23,7 @@ const writeJson = async (filePath: string, value: unknown) => {
 };
 
 const createOutputFixture = async ({
-  bffWorkerSource = 'module.exports = { default: { handler: async () => new Response("ok") } };\n',
+  bffWorkerSource = 'const __modern_create_effect_bff_dispatcher = async () => ({ dispatch: async () => new Response("ok"), dispose: async () => {} }); module.exports = { __modern_create_effect_bff_dispatcher };\n',
   routeWorker,
   wrangler,
   deliveryUnit,
@@ -102,6 +102,7 @@ const createOutputFixture = async ({
         ? {}
         : {
             bff: {
+              dispatcherExport: '__modern_create_effect_bff_dispatcher',
               runtimeFramework: 'effect',
               prefix: '/api',
               worker: 'worker/__modern_bff_effect.js',
@@ -227,6 +228,31 @@ describe('Cloudflare output verifier', () => {
         {
           code: 'invalid-manifest',
           message: 'Cloudflare output manifest routeSpec.routes must be array.',
+          path: manifestPath,
+        },
+      ],
+    });
+  });
+
+  it('rejects Effect BFF manifests without the reserved dispatcher export', async () => {
+    const { outputDirectory } = await createOutputFixture();
+    const manifestPath = path.join(
+      outputDirectory,
+      'server/modern-worker-manifest.json',
+    );
+    const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf-8'));
+    delete manifest.bff.dispatcherExport;
+    await writeJson(manifestPath, manifest);
+
+    await expect(
+      verifyCloudflareOutput({ outputDirectory, importWorker: false }),
+    ).resolves.toEqual({
+      ok: false,
+      issues: [
+        {
+          code: 'invalid-manifest',
+          message:
+            'Cloudflare Effect BFF manifest dispatcherExport must be __modern_create_effect_bff_dispatcher.',
           path: manifestPath,
         },
       ],
@@ -455,7 +481,7 @@ describe('Cloudflare output verifier', () => {
     );
   });
 
-  it('rejects emitted worker bundles that reference server output paths', async () => {
+  it('rejects emitted worker bundles that resolve outside worker output', async () => {
     const { outputDirectory } = await createOutputFixture({
       bffWorkerSource: "import '../server/index.mjs';\n",
     });
@@ -470,7 +496,182 @@ describe('Cloudflare output verifier', () => {
       expect.objectContaining({
         code: 'invalid-worker-bundle',
         message:
-          'Cloudflare worker bundles must not reference framework-owned server output paths.',
+          'Cloudflare worker bundles must not resolve outside the staged worker directory.',
+      }),
+    );
+  });
+
+  it('rejects Effect BFF worker bundles without their declared dispatcher export', async () => {
+    const { outputDirectory } = await createOutputFixture({
+      bffWorkerSource: 'module.exports = {};\n',
+    });
+
+    const result = await verifyCloudflareOutput({
+      outputDirectory,
+      importWorker: false,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        code: 'invalid-worker-bundle',
+        message:
+          'Cloudflare Effect BFF worker bundle must expose its manifest dispatcherExport.',
+      }),
+    );
+  });
+
+  it('rejects comment-only mentions of the declared dispatcher export', async () => {
+    const { outputDirectory } = await createOutputFixture({
+      bffWorkerSource:
+        '// module.exports = { __modern_create_effect_bff_dispatcher };\nmodule.exports = {};\n',
+    });
+
+    const result = await verifyCloudflareOutput({
+      outputDirectory,
+      importWorker: false,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        code: 'invalid-worker-bundle',
+        message:
+          'Cloudflare Effect BFF worker bundle must expose its manifest dispatcherExport.',
+      }),
+    );
+  });
+
+  it('rejects unresolved bare imports from manifest-declared worker bundles', async () => {
+    const { outputDirectory } = await createOutputFixture({
+      bffWorkerSource: [
+        "require('@modern-js/plugin-bff/effect-edge');",
+        'const __modern_create_effect_bff_dispatcher = async () => ({ dispatch: async () => new Response("ok"), dispose: async () => {} });',
+        'module.exports = { __modern_create_effect_bff_dispatcher };',
+      ].join('\n'),
+    });
+
+    const result = await verifyCloudflareOutput({
+      outputDirectory,
+      importWorker: false,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        code: 'invalid-worker-bundle',
+        message:
+          'Cloudflare worker bundle import "@modern-js/plugin-bff/effect-edge" is not provided by worker/package.json dependencies.',
+      }),
+    );
+  });
+
+  it('allows supported Cloudflare Worker node: builtins', async () => {
+    const { outputDirectory } = await createOutputFixture({
+      bffWorkerSource: [
+        "require('node:async_hooks');",
+        "require('node:util');",
+        'const __modern_create_effect_bff_dispatcher = async () => ({ dispatch: async () => new Response("ok"), dispose: async () => {} });',
+        'module.exports = { __modern_create_effect_bff_dispatcher };',
+      ].join('\n'),
+    });
+
+    await expect(
+      verifyCloudflareOutput({ outputDirectory, importWorker: false }),
+    ).resolves.toEqual({ ok: true, issues: [] });
+  });
+
+  it('rejects unsupported node: builtins even when package metadata declares them', async () => {
+    const { outputDirectory } = await createOutputFixture({
+      bffWorkerSource: [
+        "require('node:child_process');",
+        'const __modern_create_effect_bff_dispatcher = async () => ({ dispatch: async () => new Response("ok"), dispose: async () => {} });',
+        'module.exports = { __modern_create_effect_bff_dispatcher };',
+      ].join('\n'),
+    });
+    await writeJson(path.join(outputDirectory, 'worker/package.json'), {
+      dependencies: {
+        'node:child_process': '1.0.0',
+      },
+      type: 'commonjs',
+    });
+
+    const result = await verifyCloudflareOutput({
+      outputDirectory,
+      importWorker: false,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        code: 'invalid-worker-bundle',
+        message:
+          'Cloudflare worker bundle import "node:child_process" is not a supported Worker node: builtin.',
+      }),
+    );
+  });
+
+  it('allows bare imports only when worker package metadata provides them', async () => {
+    const { outputDirectory } = await createOutputFixture({
+      bffWorkerSource: [
+        "require('@acme/worker-runtime');",
+        'const __modern_create_effect_bff_dispatcher = async () => ({ dispatch: async () => new Response("ok"), dispose: async () => {} });',
+        'module.exports = { __modern_create_effect_bff_dispatcher };',
+      ].join('\n'),
+    });
+    await writeJson(path.join(outputDirectory, 'worker/package.json'), {
+      dependencies: {
+        '@acme/worker-runtime': '1.0.0',
+      },
+      type: 'commonjs',
+    });
+
+    await expect(
+      verifyCloudflareOutput({ outputDirectory, importWorker: false }),
+    ).resolves.toEqual({ ok: true, issues: [] });
+  });
+
+  it('ignores import-like text in worker comments and strings', async () => {
+    const { outputDirectory } = await createOutputFixture({
+      bffWorkerSource: [
+        "// require('@modern-js/plugin-bff/effect-edge');",
+        `const documentation = "import '@modern-js/plugin-bff/effect-edge';";`,
+        'const __modern_create_effect_bff_dispatcher = async () => ({ dispatch: async () => new Response(documentation), dispose: async () => {} });',
+        'module.exports = { __modern_create_effect_bff_dispatcher };',
+      ].join('\n'),
+    });
+
+    await expect(
+      verifyCloudflareOutput({ outputDirectory, importWorker: false }),
+    ).resolves.toEqual({ ok: true, issues: [] });
+  });
+
+  it('rejects relative worker imports that escape through a symlink', async () => {
+    const { directory, outputDirectory } = await createOutputFixture({
+      bffWorkerSource: [
+        "require('./escaped.js');",
+        'const __modern_create_effect_bff_dispatcher = async () => ({ dispatch: async () => new Response("ok"), dispose: async () => {} });',
+        'module.exports = { __modern_create_effect_bff_dispatcher };',
+      ].join('\n'),
+    });
+    const outsideModule = path.join(directory, 'outside-worker-module.js');
+    await fs.writeFile(outsideModule, 'module.exports = {};\n');
+    await fs.symlink(
+      outsideModule,
+      path.join(outputDirectory, 'worker/escaped.js'),
+    );
+
+    const result = await verifyCloudflareOutput({
+      outputDirectory,
+      importWorker: false,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        code: 'invalid-worker-bundle',
+        message:
+          'Cloudflare worker bundles must not resolve outside the staged worker directory.',
       }),
     );
   });

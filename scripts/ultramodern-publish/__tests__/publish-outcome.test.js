@@ -14,6 +14,7 @@ const release = { tag: 'latest', version: '3.4.0-ultramodern.2' };
 const runId = '123';
 const producerRunAttempt = 1;
 const publicationRunAttempt = 2;
+const outcomeRunAttempt = 3;
 const producerArtifactIdentity = `run-${runId}-attempt-${producerRunAttempt}`;
 const producerRunIdentity = `github:${source.repository}:run:${runId}:attempt:${producerRunAttempt}`;
 
@@ -27,6 +28,22 @@ function createEvidenceFixture() {
   const manifestDigestPath = path.join(root, 'manifest.json.sha256');
   const cohortDigestPath = path.join(root, 'cohort.sha256');
   const receiptPath = path.join(root, 'acceptance-receipt.json');
+  const operationalEvidencePath = path.join(
+    root,
+    'acceptance-receipt.operational-independence.json',
+  );
+  const publishedReceiptPath = path.join(
+    root,
+    'published-acceptance-receipt.json',
+  );
+  const publishedOperationalEvidencePath = path.join(
+    root,
+    'published-acceptance-receipt.operational-independence.json',
+  );
+  const tractorReportPath = path.join(
+    root,
+    'tractor-downstream-acceptance.json',
+  );
   const outPath = path.join(root, 'publish-outcome.json');
   const cohortDigest = digest('release cohort');
   const manifest = {
@@ -58,35 +75,120 @@ function createEvidenceFixture() {
     `${digest(fs.readFileSync(manifestPath))}  manifest.json\n`,
   );
   fs.writeFileSync(cohortDigestPath, `${cohortDigest}\n`);
+  const manifestSha256 = digest(fs.readFileSync(manifestPath));
+  const acceptanceReceipt = mode => ({
+    binding: {
+      manifest: { cohortDigest, sha256: manifestSha256 },
+      runIdentity: producerRunIdentity,
+    },
+    mode,
+    passed: true,
+    status: 'passed',
+  });
   fs.writeFileSync(
     receiptPath,
-    `${JSON.stringify({ accepted: true, runIdentity: producerRunIdentity })}\n`,
+    `${JSON.stringify(acceptanceReceipt('source'))}\n`,
+  );
+  fs.writeFileSync(
+    operationalEvidencePath,
+    `${JSON.stringify({ status: 'passed' })}\n`,
+  );
+  fs.writeFileSync(
+    publishedReceiptPath,
+    `${JSON.stringify(acceptanceReceipt('published'))}\n`,
+  );
+  fs.writeFileSync(
+    publishedOperationalEvidencePath,
+    `${JSON.stringify({ status: 'passed' })}\n`,
+  );
+  const tractorBaselineRevision = '2'.repeat(40);
+  const uiSha256 = digest('tractor visible ui');
+  fs.writeFileSync(
+    tractorReportPath,
+    `${JSON.stringify({
+      checks: [
+        {
+          detail: { fileCount: 10, sha256: uiSha256 },
+          id: 'ui-baseline',
+          status: 'passed',
+        },
+        {
+          detail: { resultCount: 3, status: 'pass' },
+          id: 'node-backend-federation-executed',
+          status: 'passed',
+        },
+        {
+          detail: { assertionCount: 5, platform: 'node' },
+          id: 'node-visible-tractor-workflow',
+          status: 'passed',
+        },
+        {
+          detail: { assertionCount: 5, platform: 'workerd' },
+          id: 'workerd-visible-tractor-workflow',
+          status: 'passed',
+        },
+        {
+          detail: {
+            fileCount: 10,
+            sha256: uiSha256,
+            status: 'unchanged',
+          },
+          id: 'final-visible-ui-source',
+          status: 'passed',
+        },
+      ],
+      release: {
+        cohortDigest,
+        manifestSha256,
+        sourceRevision: source.commit,
+        version: release.version,
+      },
+      schema: 'bleedingdev.ultramodern.tractor-downstream-acceptance',
+      schemaVersion: 1,
+      status: 'passed',
+      tractor: { baselineRevision: tractorBaselineRevision },
+    })}\n`,
   );
   return {
     cohortDigestPath,
     manifestDigestPath,
     manifestPath,
+    operationalEvidencePath,
     outPath,
+    publishedOperationalEvidencePath,
+    publishedReceiptPath,
     receiptPath,
     root,
+    tractorBaselineRevision,
+    tractorReportPath,
+    tractorReportSha256: digest(fs.readFileSync(tractorReportPath)),
   };
 }
 
 function createOptions(fixture, artifactName, dryRun) {
-  return {
+  const options = {
     ...fixture,
     artifactName,
     dryRun,
     producerArtifactIdentity,
+    publicationRunAttempt,
     producerRunAttempt,
     producerRunIdentity,
     repository: source.repository,
-    runAttempt: publicationRunAttempt,
+    runAttempt: outcomeRunAttempt,
     runId,
     sourceCommit: source.commit,
     tag: release.tag,
     version: release.version,
   };
+  if (dryRun) {
+    delete options.publishedOperationalEvidencePath;
+    delete options.publishedReceiptPath;
+    delete options.tractorBaselineRevision;
+    delete options.tractorReportPath;
+    delete options.tractorReportSha256;
+  }
+  return options;
 }
 
 function verificationOptions(fixture, artifactName) {
@@ -95,11 +197,15 @@ function verificationOptions(fixture, artifactName) {
     cohortDigestPath: fixture.cohortDigestPath,
     manifestDigestPath: fixture.manifestDigestPath,
     manifestPath: fixture.manifestPath,
+    operationalEvidencePath: fixture.operationalEvidencePath,
+    publishedOperationalEvidencePath: fixture.publishedOperationalEvidencePath,
+    publishedReceiptPath: fixture.publishedReceiptPath,
     receiptPath: fixture.receiptPath,
     repository: source.repository,
-    runAttempt: publicationRunAttempt,
+    runAttempt: outcomeRunAttempt,
     runId,
     sourceCommit: source.commit,
+    tractorReportPath: fixture.tractorReportPath,
   };
 }
 
@@ -116,7 +222,7 @@ function artifact(id, name, overrides = {}) {
 test('dry-run and real publication emit the same strict bound outcome schema', async () => {
   const api = await outcomeApi();
   const artifactName = api.publishOutcomeArtifactName({
-    runAttempt: publicationRunAttempt,
+    runAttempt: outcomeRunAttempt,
     runId,
   });
 
@@ -133,9 +239,13 @@ test('dry-run and real publication emit the same strict bound outcome schema', a
       assert.deepEqual(outcome.source, source);
       assert.deepEqual(outcome.release, release);
       assert.deepEqual(outcome.workflowRun, {
-        attempt: publicationRunAttempt,
+        attempt: outcomeRunAttempt,
         id: runId,
       });
+      assert.deepEqual(
+        outcome.publication,
+        dryRun ? null : { runAttempt: publicationRunAttempt },
+      );
       assert.deepEqual(outcome.producer, {
         artifactIdentity: producerArtifactIdentity,
         runAttempt: producerRunAttempt,
@@ -154,10 +264,58 @@ test('dry-run and real publication emit the same strict bound outcome schema', a
   }
 });
 
+test('dry-run verification omits publication identity without emitting an empty GitHub output', async () => {
+  const api = await outcomeApi();
+  const artifactName = api.publishOutcomeArtifactName({
+    runAttempt: outcomeRunAttempt,
+    runId,
+  });
+  const fixture = createEvidenceFixture();
+  const githubOutput = path.join(fixture.root, 'github-output.txt');
+  try {
+    api.createPublishOutcome(createOptions(fixture, artifactName, true));
+    assert.equal(
+      await api.main([
+        'verify',
+        '--outcome',
+        fixture.outPath,
+        '--artifact-name',
+        artifactName,
+        '--manifest',
+        fixture.manifestPath,
+        '--manifest-digest',
+        fixture.manifestDigestPath,
+        '--cohort-digest',
+        fixture.cohortDigestPath,
+        '--receipt',
+        fixture.receiptPath,
+        '--operational-evidence',
+        fixture.operationalEvidencePath,
+        '--repository',
+        source.repository,
+        '--source-commit',
+        source.commit,
+        '--run-id',
+        runId,
+        '--run-attempt',
+        String(outcomeRunAttempt),
+        '--github-output',
+        githubOutput,
+      ]),
+      0,
+    );
+    const outputs = fs.readFileSync(githubOutput, 'utf8');
+    assert.match(outputs, /dry_run=true/u);
+    assert.doesNotMatch(outputs, /publication_run_attempt/u);
+  } finally {
+    fs.rmSync(fixture.root, { force: true, recursive: true });
+  }
+});
+
 test('publish outcome rejects malformed and mismatched source, version, and run identity', async () => {
   const api = await outcomeApi();
   const artifactName = api.publishOutcomeArtifactName({
-    runAttempt: publicationRunAttempt,
+    runAttempt: outcomeRunAttempt,
     runId,
   });
   const fixture = createEvidenceFixture();
@@ -169,9 +327,16 @@ test('publish outcome rejects malformed and mismatched source, version, and run 
       [
         'schema',
         value => {
-          value.schemaVersion = 2;
+          value.schemaVersion = 5;
         },
         /Unknown publish outcome schema/u,
+      ],
+      [
+        'publication attempt after outcome',
+        value => {
+          value.publication.runAttempt = outcomeRunAttempt + 1;
+        },
+        /publication run attempt follows the outcome attempt/u,
       ],
       [
         'source',
@@ -193,6 +358,13 @@ test('publish outcome rejects malformed and mismatched source, version, and run 
           value.producer.runIdentity = `github:${source.repository}:run:${runId}:attempt:2`;
         },
         /Producer run identity/u,
+      ],
+      [
+        'Tractor report digest',
+        value => {
+          value.evidence.tractorAcceptance.reportSha256 = 'a'.repeat(64);
+        },
+        /Tractor acceptance report SHA-256/u,
       ],
       [
         'unknown field',
@@ -220,11 +392,57 @@ test('publish outcome rejects malformed and mismatched source, version, and run 
   }
 });
 
+test('non-dry outcome fails closed without passing published acceptance evidence', async () => {
+  const api = await outcomeApi();
+  const artifactName = api.publishOutcomeArtifactName({
+    runAttempt: outcomeRunAttempt,
+    runId,
+  });
+  const fixture = createEvidenceFixture();
+  try {
+    const missing = createOptions(fixture, artifactName, false);
+    delete missing.publishedReceiptPath;
+    delete missing.publishedOperationalEvidencePath;
+    assert.throws(
+      () => api.createPublishOutcome(missing),
+      /requires published and Tractor acceptance evidence/u,
+    );
+
+    const missingTractor = createOptions(fixture, artifactName, false);
+    delete missingTractor.tractorBaselineRevision;
+    delete missingTractor.tractorReportPath;
+    delete missingTractor.tractorReportSha256;
+    assert.throws(
+      () => api.createPublishOutcome(missingTractor),
+      /requires published and Tractor acceptance evidence/u,
+    );
+
+    const receipt = JSON.parse(
+      fs.readFileSync(fixture.publishedReceiptPath, 'utf8'),
+    );
+    receipt.mode = 'source';
+    fs.writeFileSync(
+      fixture.publishedReceiptPath,
+      `${JSON.stringify(receipt)}\n`,
+    );
+    assert.throws(
+      () =>
+        api.createPublishOutcome(createOptions(fixture, artifactName, false)),
+      /published acceptance receipt is not a passing receipt/u,
+    );
+  } finally {
+    fs.rmSync(fixture.root, { force: true, recursive: true });
+  }
+});
+
 test('artifact discovery accepts one current outcome across all API pages', async () => {
   const api = await outcomeApi();
-  const previousName = api.publishOutcomeArtifactName({ runAttempt: 1, runId });
-  const expectedName = api.publishOutcomeArtifactName({
+  const previousName = api.publishOutcomeArtifactName({
     runAttempt: publicationRunAttempt,
+    runId,
+  });
+  const expectedName = api.publishOutcomeArtifactName({
+    runAttempt: outcomeRunAttempt,
     runId,
   });
   const selected = api.selectPublishOutcomeArtifact(
@@ -234,7 +452,7 @@ test('artifact discovery accepts one current outcome across all API pages', asyn
     ],
     {
       completedAt: '2026-07-10T10:01:00Z',
-      runAttempt: publicationRunAttempt,
+      runAttempt: outcomeRunAttempt,
       runId,
     },
   );
@@ -245,12 +463,12 @@ test('artifact discovery accepts one current outcome across all API pages', asyn
 test('artifact discovery fails closed for missing and cross-page duplicate outcomes', async () => {
   const api = await outcomeApi();
   const expectedName = api.publishOutcomeArtifactName({
-    runAttempt: publicationRunAttempt,
+    runAttempt: outcomeRunAttempt,
     runId,
   });
   const options = {
     completedAt: '2026-07-10T10:01:00Z',
-    runAttempt: publicationRunAttempt,
+    runAttempt: outcomeRunAttempt,
     runId,
   };
 
@@ -274,12 +492,12 @@ test('artifact discovery fails closed for missing and cross-page duplicate outco
 test('artifact discovery fails closed for malformed, delayed, expired, and name-drift evidence', async () => {
   const api = await outcomeApi();
   const expectedName = api.publishOutcomeArtifactName({
-    runAttempt: publicationRunAttempt,
+    runAttempt: outcomeRunAttempt,
     runId,
   });
   const options = {
     completedAt: '2026-07-10T10:01:00Z',
-    runAttempt: publicationRunAttempt,
+    runAttempt: outcomeRunAttempt,
     runId,
   };
   const cases = [

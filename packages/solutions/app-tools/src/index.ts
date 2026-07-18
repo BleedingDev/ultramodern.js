@@ -26,6 +26,7 @@ import deployPlugin from './plugins/deploy';
 import initializePlugin from './plugins/initialize';
 import serverBuildPlugin from './plugins/serverBuild';
 import serverRuntimePlugin from './plugins/serverRuntime';
+import ultramodernReleaseEnvelopePlugin from './plugins/ultramodernReleaseEnvelope';
 import type { AppTools, CliPlugin } from './types';
 import type {
   AddRuntimeExportsFn,
@@ -55,6 +56,7 @@ export const appTools = (): CliPlugin<AppTools> => ({
     analyzePlugin(),
     serverBuildPlugin(),
     backendFederationBuildPlugin(),
+    ultramodernReleaseEnvelopePlugin(),
     deployPlugin(),
   ],
   post: [

@@ -47,6 +47,21 @@ export function markerFromJson(value) {
   return undefined;
 }
 
+export function jsonPathValue(value, jsonPath) {
+  let current = value;
+  for (const segment of String(jsonPath).split('.').filter(Boolean)) {
+    if (
+      current === null ||
+      typeof current !== 'object' ||
+      !Object.hasOwn(current, segment)
+    ) {
+      return undefined;
+    }
+    current = current[segment];
+  }
+  return current;
+}
+
 export function extractUiMarker(html) {
   return html.match(/data-build-marker=["']([^"']+)["']/u)?.[1];
 }
@@ -302,6 +317,56 @@ export async function validateHttpTarget(target, { fetchImpl = fetch } = {}) {
     assertPass(
       apiMarker === app.marker?.build,
       `${app.id} API marker mismatch`,
+    );
+  }
+
+  for (const check of app.deploy?.cloudflare?.jsonSmokeChecks ?? []) {
+    const method = String(check.method ?? 'GET').toUpperCase();
+    const headers = {};
+    const init = { headers, method };
+    if (check.body !== undefined) {
+      headers['content-type'] = 'application/json';
+      init.body = JSON.stringify(check.body);
+    }
+    const url = joinUrl(target.baseUrl, check.route);
+    const response = await fetchImpl(url, init);
+    const bodyText = await response.text();
+    const body = parseMaybeJson(bodyText);
+    const mismatches = Object.entries(check.expect ?? {}).flatMap(
+      ([jsonPath, expected]) => {
+        const actual = jsonPathValue(body, jsonPath);
+        return JSON.stringify(actual) === JSON.stringify(expected)
+          ? []
+          : [{ actual, expected, path: jsonPath }];
+      },
+    );
+    assertions.push(
+      assertion(
+        'backend-json-smoke',
+        response.ok && body !== undefined && mismatches.length === 0
+          ? 'pass'
+          : 'fail',
+        {
+          checkId: check.id,
+          method,
+          mismatches,
+          route: check.route,
+          statusCode: response.status,
+        },
+      ),
+    );
+    assertPass(
+      response.ok,
+      `${app.id} backend smoke ${check.id ?? `${method} ${check.route}`} returned HTTP ${response.status}`,
+    );
+    assertPass(
+      body !== undefined,
+      `${app.id} backend smoke ${check.id ?? `${method} ${check.route}`} did not return JSON`,
+    );
+    assertPass(
+      mismatches.length === 0,
+      `${app.id} backend smoke ${check.id ?? `${method} ${check.route}`} response mismatch`,
+      { mismatches },
     );
   }
 

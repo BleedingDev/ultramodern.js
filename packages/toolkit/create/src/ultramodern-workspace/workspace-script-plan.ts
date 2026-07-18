@@ -121,19 +121,10 @@ export const createStrictTsgoTypecheckCommand = (packageDir: string) =>
 function createWorkspaceAppScriptPlan(
   app: WorkspaceApp,
 ): WorkspaceAppScriptPlan {
-  const backendFederationBuildCommand = appHasApi(app)
-    ? `${packageToolingWrapperCommand(
-        app.directory,
-        'backendFederationGenerate',
-      )} --app ${app.id}`
-    : undefined;
-  const backendFederationCloudflareBuildCommand = backendFederationBuildCommand
-    ? `${backendFederationBuildCommand} --target dist-cloudflare`
-    : undefined;
   const buildSteps = [
     'modern build',
-    backendFederationBuildCommand,
     createPublicSurfaceGenerationCommand(app, 'dist'),
+    'MODERNJS_DEPLOY=node modern deploy --skip-build',
     // NOTE: the Module Federation DTS archive is emitted by `modern build`
     // above; verifying it (assert-mf-types) is done ONCE at the workspace root
     // (`pnpm mf:types`) AFTER every app has built. A per-app verify here races
@@ -142,9 +133,8 @@ function createWorkspaceAppScriptPlan(
   ].filter((step): step is string => Boolean(step));
   const cloudflareBuildSteps = [
     'MODERNJS_DEPLOY=cloudflare modern build',
-    backendFederationCloudflareBuildCommand,
+    createPublicSurfaceGenerationCommand(app, 'cloudflare-dist'),
     'MODERNJS_DEPLOY=cloudflare modern deploy --skip-build',
-    createPublicSurfaceGenerationCommand(app, 'cloudflare'),
     `${packageToolingWrapperCommand(
       app.directory,
       'cloudflareOutputVerify',
@@ -216,10 +206,6 @@ export function createWorkspaceRootScriptPlan(
   const cloudflareOutputVerifyScript = rootToolingScriptName(
     'cloudflareOutputVerify',
   );
-  const backendFederationGenerateScript = rootToolingScriptName(
-    'backendFederationGenerate',
-  );
-  const nodeProofScript = rootToolingScriptName('backendFederationProof');
   const bridgeCheck = options.bridgeCheck ?? '';
   const remoteBuildPrefix = hasRemotes
     ? 'pnpm -r --filter "./verticals/*" run build && '
@@ -243,9 +229,7 @@ export function createWorkspaceRootScriptPlan(
     backendFederationGenerate: rootToolingWrapperCommand(
       'backendFederationGenerate',
     ),
-    nodeProof: `pnpm ${backendFederationGenerateScript} && ${rootToolingWrapperCommand(
-      'backendFederationProof',
-    )}`,
+    nodeProof: rootToolingWrapperCommand('backendFederationProof'),
     mfTypes: rootToolingWrapperCommand('mfTypes'),
     performanceReadiness: rootToolingWrapperCommand('performanceReadiness'),
     migrateStrictEffect: rootToolingWrapperCommand('migrateStrictEffect'),
@@ -254,13 +238,9 @@ export function createWorkspaceRootScriptPlan(
     typecheck:
       options.typecheck ??
       `${rootToolingWrapperCommand('typecheck')} --project tsconfig.json`,
-    // Backend-federation gates only apply when the workspace exposes
-    // API-bearing verticals. Shell-only workspaces omit them so migrate does
-    // not inject `node:proof`/`node:backend-federation:generate` into a
-    // workspace that has no backend surfaces (matches the validator contract).
-    check: `pnpm format:check && pnpm lint && pnpm typecheck && pnpm skills:check && pnpm i18n:boundaries && pnpm api:check && pnpm contract:check${
-      hasBackendSurface ? ` && pnpm ${nodeProofScript}` : ''
-    } && pnpm performance:readiness${bridgeCheck}`,
+    // `check` is a static source/build gate. Runtime acceptance invokes the
+    // read-only Node proof only after built servers are running.
+    check: `pnpm format:check && pnpm lint && pnpm typecheck && pnpm skills:check && pnpm i18n:boundaries && pnpm api:check && pnpm contract:check && pnpm performance:readiness${bridgeCheck}`,
   };
 }
 

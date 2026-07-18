@@ -1,9 +1,9 @@
 import {
   createUltramodernBuildArtifact,
+  type DeliveryUnitRecord,
   ULTRAMODERN_BUILD_ARTIFACT_FILE,
 } from '@modern-js/utils/universal';
 import { createDeliveryUnitRecord } from '../delivery-unit';
-import type { DeliveryUnitRecord } from '../delivery-unit-schema/types';
 import type { WorkspaceApp } from '../types';
 
 function deliveryUnitRecordFor(scope: string, app: WorkspaceApp) {
@@ -25,11 +25,45 @@ export function createUltramodernBuildModule(
   app: WorkspaceApp,
 ): string {
   const record = deliveryUnitRecordFor(scope, app);
-  return `const ultramodernBuildArtifact = ${JSON.stringify(
+  return `declare const ULTRAMODERN_BUILD_MARKER: string;
+declare const ULTRAMODERN_SOURCE_REVISION: string;
+
+const ultramodernGeneratedBuildArtifact = ${JSON.stringify(
     createUltramodernBuildArtifact(record),
     null,
     2,
   )} as const;
+const ultramodernBuildMarker =
+  typeof ULTRAMODERN_BUILD_MARKER === 'string'
+    ? ULTRAMODERN_BUILD_MARKER
+    : ultramodernGeneratedBuildArtifact.deliveryUnit.buildMarker;
+const ultramodernSourceRevision =
+  typeof ULTRAMODERN_SOURCE_REVISION === 'string'
+    ? ULTRAMODERN_SOURCE_REVISION
+    : ultramodernGeneratedBuildArtifact.deliveryUnit.sourceRevision;
+const ultramodernBuildArtifact = {
+  ...ultramodernGeneratedBuildArtifact,
+  deliveryUnit: {
+    ...ultramodernGeneratedBuildArtifact.deliveryUnit,
+    build: ultramodernBuildMarker,
+    buildMarker: ultramodernBuildMarker,
+    sourceRevision: ultramodernSourceRevision,
+  },
+  surfaces: {
+    api: {
+      ...ultramodernGeneratedBuildArtifact.surfaces.api,
+      build: ultramodernBuildMarker,
+      buildMarker: ultramodernBuildMarker,
+      sourceRevision: ultramodernSourceRevision,
+    },
+    ui: {
+      ...ultramodernGeneratedBuildArtifact.surfaces.ui,
+      build: ultramodernBuildMarker,
+      buildMarker: ultramodernBuildMarker,
+      sourceRevision: ultramodernSourceRevision,
+    },
+  },
+} as const;
 
 export { ultramodernBuildArtifact };
 

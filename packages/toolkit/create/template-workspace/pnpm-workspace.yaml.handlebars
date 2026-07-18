@@ -3,7 +3,7 @@ packages:
   - verticals/*
   - packages/*
 
-minimumReleaseAge: 1440
+{{workspacePackageLinkingYaml}}minimumReleaseAge: 1440
 minimumReleaseAgeStrict: true
 minimumReleaseAgeIgnoreMissingTime: false
 minimumReleaseAgeExclude:{{minimumReleaseAgeExcludeYaml}}
@@ -21,12 +21,7 @@ strictDepBuilds: true
 peerDependencyRules:
   allowedVersions:
     react: '>=19.0.0'
-    '@module-federation/dts-plugin>typescript': '{{typescriptCompilerApiVersion}}'
-    '@module-federation/enhanced>typescript': '{{typescriptCompilerApiVersion}}'
-    '@module-federation/modern-js-v3>typescript': '{{typescriptCompilerApiVersion}}'
-    '@module-federation/rspack>typescript': '{{typescriptCompilerApiVersion}}'
     '@effect/vitest>effect': '{{effectVersion}}'
-    'i18next>typescript': '{{typescriptCompilerApiVersion}}'
 
 overrides:
   '@tanstack/react-router': {{tanstackRouterVersion}}
@@ -35,13 +30,6 @@ overrides:
   '@effect/vitest': {{effectVitestVersion}}
   effect: {{effectVersion}}
   node-fetch: '{{nodeFetchVersion}}'
-
-packageExtensions:
-  '@module-federation/dts-plugin@{{moduleFederationVersion}}':
-    dependencies:
-      typescript: npm:typescript@{{typescriptCompilerApiVersion}}
-    peerDependencies:
-      typescript: '{{typescriptCompilerApiVersion}}'
 
 allowBuilds:
   '@parcel/watcher': true

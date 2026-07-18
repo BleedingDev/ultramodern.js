@@ -82,7 +82,7 @@ const makeCreateFixture = ({ includeTemplateDotFiles }) => {
   return root;
 };
 
-const runPublishExisting = outDir =>
+const runPublishExisting = (outDir, env = process.env) =>
   spawnSync(
     process.execPath,
     [
@@ -96,6 +96,7 @@ const runPublishExisting = outDir =>
     {
       cwd: repoRoot,
       encoding: 'utf8',
+      env,
     },
   );
 
@@ -542,11 +543,39 @@ const createArtifactFixture = async ({ scripts } = {}) => {
   };
 };
 
-test('publish-existing rejects legacy directory manifests before trusted publishing', () => {
+test('publish-existing rejects legacy directory manifests before trusted publishing', t => {
   const outDir = makeCreateFixture({ includeTemplateDotFiles: true });
+  const fakeGitRoot = makeTempDir();
+  t.after(() => removeDir(fakeGitRoot));
+  const binDir = path.join(fakeGitRoot, 'bin');
+  fs.mkdirSync(binDir);
+  const fakeGit = path.join(binDir, 'git');
+  fs.writeFileSync(
+    fakeGit,
+    [
+      '#!/bin/sh',
+      'if [ "$1" = "status" ]; then',
+      '  exit 0',
+      'fi',
+      'if [ "$1" = "rev-parse" ]; then',
+      "  printf '%s\\n' ef882747ef26b96160f76b95146cdfe3ec3e3458",
+      '  exit 0',
+      'fi',
+      'if [ "$1" = "remote" ]; then',
+      "  printf '%s\\n' https://github.com/BleedingDev/ultramodern.js.git",
+      '  exit 0',
+      'fi',
+      'exit 2',
+      '',
+    ].join('\n'),
+  );
+  fs.chmodSync(fakeGit, 0o755);
 
   try {
-    const result = runPublishExisting(outDir);
+    const result = runPublishExisting(outDir, {
+      ...process.env,
+      PATH: `${binDir}${path.delimiter}${process.env.PATH}`,
+    });
 
     assert.notEqual(result.status, 0);
     assert.match(
@@ -557,6 +586,49 @@ test('publish-existing rejects legacy directory manifests before trusted publish
   } finally {
     removeDir(outDir);
   }
+});
+
+test('release preparation rejects dirty source before reading package inputs', t => {
+  const root = makeTempDir();
+  t.after(() => removeDir(root));
+  const binDir = path.join(root, 'bin');
+  fs.mkdirSync(binDir);
+  const fakeGit = path.join(binDir, 'git');
+  fs.writeFileSync(
+    fakeGit,
+    [
+      '#!/bin/sh',
+      'if [ "$1" = "rev-parse" ]; then',
+      "  printf '%s\\n' aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      '  exit 0',
+      'fi',
+      'if [ "$1" = "status" ]; then',
+      "  printf ' M tracked.txt\\0?? untracked.txt\\0'",
+      '  exit 0',
+      'fi',
+      'exit 2',
+      '',
+    ].join('\n'),
+  );
+  fs.chmodSync(fakeGit, 0o755);
+
+  const result = spawnSync(
+    process.execPath,
+    [scriptPath, '--version', '3.5.0-ultramodern.49'],
+    {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        PATH: `${binDir}${path.delimiter}${process.env.PATH}`,
+      },
+    },
+  );
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /release source worktree is not clean/i);
+  assert.match(result.stderr, /tracked\.txt/);
+  assert.match(result.stderr, /untracked\.txt/);
 });
 
 test('parseArgs rejects partial publish controls', async () => {

@@ -184,23 +184,41 @@ export const isUltramodernBuildArtifact = (
 ): value is UltramodernBuildArtifact =>
   validateUltramodernBuildArtifact(value).ok;
 
-export const stampUltramodernBuildArtifactSourceRevision = (
+export const stampUltramodernBuildArtifactIdentity = (
   artifact: UltramodernBuildArtifact,
-  sourceRevision: string,
+  identity: {
+    buildMarker: string;
+    sourceRevision: string;
+  },
 ): UltramodernBuildArtifact => ({
   ...artifact,
   deliveryUnit: {
     ...artifact.deliveryUnit,
-    sourceRevision,
+    build: identity.buildMarker,
+    buildMarker: identity.buildMarker,
+    sourceRevision: identity.sourceRevision,
   },
   surfaces: {
     ui: {
       ...artifact.surfaces.ui,
-      sourceRevision,
+      build: identity.buildMarker,
+      buildMarker: identity.buildMarker,
+      sourceRevision: identity.sourceRevision,
     },
     api: {
       ...artifact.surfaces.api,
-      sourceRevision,
+      build: identity.buildMarker,
+      buildMarker: identity.buildMarker,
+      sourceRevision: identity.sourceRevision,
     },
   },
 });
+
+export const stampUltramodernBuildArtifactSourceRevision = (
+  artifact: UltramodernBuildArtifact,
+  sourceRevision: string,
+): UltramodernBuildArtifact =>
+  stampUltramodernBuildArtifactIdentity(artifact, {
+    buildMarker: artifact.deliveryUnit.buildMarker,
+    sourceRevision,
+  });

@@ -13,6 +13,7 @@ import { getPublicDirPatterns } from '../../../utils/publicDir';
 import {
   createModuleFederationStaticServing,
   servePreCompressedPublicRouteAsset,
+  servePublicDirectoryAsset,
 } from './staticServing';
 
 export const serverStaticPlugin = (): ServerPlugin => ({
@@ -62,6 +63,11 @@ export function createPublicMiddleware({
       if (response !== null) {
         return response;
       }
+    }
+
+    const generatedPublicAsset = await servePublicDirectoryAsset(c, pwd);
+    if (generatedPublicAsset !== null) {
+      return generatedPublicAsset;
     }
 
     return await next();

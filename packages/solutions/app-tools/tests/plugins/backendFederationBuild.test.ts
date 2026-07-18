@@ -1,8 +1,10 @@
 import { execFile } from 'node:child_process';
 import fs from 'node:fs/promises';
+import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
+import { loadBackendFederatedEffectApiFromManifest } from '../../../../cli/plugin-bff/src/runtime/effect';
 import { emitBackendFederationArtifacts } from '../../src/plugins/backendFederationBuild';
 
 const execFileAsync = promisify(execFile);
@@ -139,8 +141,8 @@ describe('backend federation build artifacts', () => {
                   remoteName: 'verticalExploreBackend',
                   manifestUrl: 'http://localhost:3021/backend-mf-manifest.json',
                   containerEntry:
-                    'http://localhost:3021/backendRemoteEntry.mjs',
-                  remoteType: 'module',
+                    'http://localhost:3021/backendRemoteEntry.cjs',
+                  remoteType: 'commonjs-module',
                 },
               },
             },
@@ -158,7 +160,7 @@ describe('backend federation build artifacts', () => {
       expect.objectContaining({
         appId: 'explore',
         remoteName: 'verticalExploreBackend',
-        remoteType: 'module',
+        remoteType: 'commonjs-module',
       }),
     );
     const manifest = JSON.parse(
@@ -167,7 +169,7 @@ describe('backend federation build artifacts', () => {
       }),
     );
     const remoteEntry = await fs.readFile(
-      path.join(distDirectory, 'backendRemoteEntry.mjs'),
+      path.join(distDirectory, 'backendRemoteEntry.cjs'),
       'utf8',
     );
 
@@ -183,15 +185,15 @@ describe('backend federation build artifacts', () => {
           }),
         }),
         entry: expect.objectContaining({
-          path: 'verticals/explore/dist/backendRemoteEntry.mjs',
-          type: 'module',
-          url: 'http://localhost:3021/backendRemoteEntry.mjs',
+          path: 'verticals/explore/dist/backendRemoteEntry.cjs',
+          type: 'commonjs-module',
+          url: 'http://localhost:3021/backendRemoteEntry.cjs',
         }),
         backendFederation: expect.objectContaining({
           contractVersion: 'microvertical-server-effect-v1',
           nodeAdapterVersion: 'backend-mf-effect-v1',
           readinessPath: '/explore-api/explore/readiness',
-          remoteType: 'module',
+          remoteType: 'commonjs-module',
           versionBoundary: expect.objectContaining({
             invariant: 'web-and-api-same-build',
             packageName: '@tractor-store-vertical-demo/explore',
@@ -202,8 +204,8 @@ describe('backend federation build artifacts', () => {
         }),
       }),
     );
-    expect(remoteEntry).toContain('export function get(id)');
-    expect(remoteEntry).toContain('../api/effect-api.ts');
+    expect(remoteEntry).toContain('module.exports');
+    expect(remoteEntry).toContain('function get(id)');
     expect(remoteEntry).toContain(
       '"buildVersion": "tractor-explore-build-1234"',
     );
@@ -215,7 +217,7 @@ describe('backend federation build artifacts', () => {
     const appDirectory = path.join(workspaceRoot, 'verticals/explore');
     const distDirectory = path.join(appDirectory, 'dist');
     const containerEntry =
-      'https://delivery.example.test/explore/assets/backendRemoteEntry.mjs';
+      'https://delivery.example.test/explore/assets/backendRemoteEntry.cjs';
 
     await fs.mkdir(path.join(appDirectory, 'api'), { recursive: true });
     await fs.writeFile(
@@ -249,7 +251,7 @@ describe('backend federation build artifacts', () => {
                   manifestUrl:
                     'https://delivery.example.test/explore/backend-mf-manifest.json',
                   containerEntry,
-                  remoteType: 'module',
+                  remoteType: 'commonjs-module',
                 },
               },
             },
@@ -274,6 +276,126 @@ describe('backend federation build artifacts', () => {
     expect(manifest.metaData.ssrPublicPath).toBe(
       'https://delivery.example.test/explore/assets/',
     );
+  });
+
+  it('loads its emitted bundled container from live HTTP through the official runtime', async () => {
+    const workspaceRoot = await createTempDir();
+    const appDirectory = path.join(workspaceRoot, 'verticals/explore');
+    const distDirectory = path.join(appDirectory, 'dist');
+
+    await fs.mkdir(path.join(appDirectory, 'api'), { recursive: true });
+    await fs.writeFile(
+      path.join(appDirectory, 'api/effect-api.ts'),
+      `
+export const backendFederationContract = {
+  name: 'verticalExploreBackend',
+  role: 'microvertical-server',
+  runtimeFramework: 'effect',
+  strictEffectApproach: true,
+};
+export const api = { service: 'explore' };
+export const runtime = { brand: 'emitted-live-http' };
+`,
+    );
+    await fs.mkdir(path.join(appDirectory, 'shared'), { recursive: true });
+    await writeBuildArtifact(appDirectory);
+    await fs.writeFile(
+      path.join(appDirectory, 'backend-federation.config.ts'),
+      'export default {};\n',
+    );
+
+    const requests: string[] = [];
+    const server = http.createServer(async (request, response) => {
+      requests.push(request.url ?? '');
+      const fileName = request.url?.slice(1);
+      if (
+        fileName !== 'backend-mf-manifest.json' &&
+        fileName !== 'backendRemoteEntry.cjs'
+      ) {
+        response.statusCode = 404;
+        response.end();
+        return;
+      }
+      response.setHeader(
+        'content-type',
+        fileName.endsWith('.json') ? 'application/json' : 'text/javascript',
+      );
+      response.end(await fs.readFile(path.join(distDirectory, fileName)));
+    });
+    await new Promise<void>((resolve, reject) => {
+      server.once('error', reject);
+      server.listen(0, '127.0.0.1', () => {
+        server.off('error', reject);
+        resolve();
+      });
+    });
+    const address = server.address();
+    if (!address || typeof address === 'string') {
+      throw new Error('Expected backend federation test server TCP address.');
+    }
+    const origin = `http://127.0.0.1:${address.port}`;
+
+    await writeJson(path.join(workspaceRoot, '.modernjs/ultramodern.json'), {
+      topology: {
+        apps: [
+          {
+            id: 'explore',
+            kind: 'vertical',
+            package: '@tractor-store-vertical-demo/explore',
+            path: 'verticals/explore',
+            port: address.port,
+            api: {
+              prefix: '/explore-api',
+              stem: 'explore',
+            },
+            backendFederation: {
+              name: 'verticalExploreBackend',
+              executionSurfaces: {
+                node: {
+                  remoteName: 'verticalExploreBackend',
+                  manifestUrl: `${origin}/backend-mf-manifest.json`,
+                  containerEntry: `${origin}/backendRemoteEntry.cjs`,
+                  remoteType: 'commonjs-module',
+                },
+              },
+            },
+          },
+        ],
+      },
+    });
+
+    try {
+      await withSourceRevision('2'.repeat(40), () =>
+        emitBackendFederationArtifacts(appDirectory, distDirectory),
+      );
+      const manifest = JSON.parse(
+        await fs.readFile(
+          path.join(distDirectory, 'backend-mf-manifest.json'),
+          'utf8',
+        ),
+      );
+      const loaded = await loadBackendFederatedEffectApiFromManifest({
+        hostName: `appToolsLiveHttpHost-${Date.now()}`,
+        manifestUrl: `${origin}/backend-mf-manifest.json`,
+        expected: {
+          buildMarker: manifest.backendFederation.deliveryUnit.buildMarker,
+          unitId: manifest.backendFederation.deliveryUnit.unitId,
+        },
+      });
+
+      expect(loaded.api).toEqual({ service: 'explore' });
+      expect(loaded.runtime).toEqual({ brand: 'emitted-live-http' });
+      expect(requests).toEqual([
+        '/backend-mf-manifest.json',
+        '/backend-mf-manifest.json',
+        '/backendRemoteEntry.cjs',
+      ]);
+    } finally {
+      server.closeAllConnections();
+      await new Promise<void>((resolve, reject) => {
+        server.close(error => (error ? reject(error) : resolve()));
+      });
+    }
   });
 
   it('emits matching deliveryUnit blocks when compact config and shared build agree', async () => {
@@ -335,8 +457,8 @@ describe('backend federation build artifacts', () => {
                   remoteName: 'verticalExploreBackend',
                   manifestUrl: 'http://localhost:3021/backend-mf-manifest.json',
                   containerEntry:
-                    'http://localhost:3021/backendRemoteEntry.mjs',
-                  remoteType: 'module',
+                    'http://localhost:3021/backendRemoteEntry.cjs',
+                  remoteType: 'commonjs-module',
                 },
               },
             },
@@ -360,7 +482,7 @@ describe('backend federation build artifacts', () => {
       }),
     );
     const remoteEntry = await fs.readFile(
-      path.join(distDirectory, 'backendRemoteEntry.mjs'),
+      path.join(distDirectory, 'backendRemoteEntry.cjs'),
       'utf8',
     );
 
@@ -428,8 +550,8 @@ describe('backend federation build artifacts', () => {
                   remoteName: 'verticalExploreBackend',
                   manifestUrl: 'http://localhost:3021/backend-mf-manifest.json',
                   containerEntry:
-                    'http://localhost:3021/backendRemoteEntry.mjs',
-                  remoteType: 'module',
+                    'http://localhost:3021/backendRemoteEntry.cjs',
+                  remoteType: 'commonjs-module',
                 },
               },
             },
@@ -438,10 +560,12 @@ describe('backend federation build artifacts', () => {
       },
     });
 
-    const first = await withSourceRevision('revision-one', () =>
+    const sourceRevision = '1'.repeat(40);
+    const secondSourceRevision = '2'.repeat(40);
+    const first = await withSourceRevision(sourceRevision, () =>
       emitBackendFederationArtifacts(appDirectory, distOne),
     );
-    const second = await withSourceRevision('revision-two', () =>
+    const second = await withSourceRevision(secondSourceRevision, () =>
       emitBackendFederationArtifacts(appDirectory, distTwo),
     );
 
@@ -462,18 +586,20 @@ describe('backend federation build artifacts', () => {
     );
 
     expect(firstManifest.backendFederation.deliveryUnit.sourceRevision).toBe(
-      'revision-one',
+      sourceRevision,
     );
     expect(secondManifest.backendFederation.deliveryUnit.sourceRevision).toBe(
-      'revision-two',
+      secondSourceRevision,
     );
     expect(
       firstManifest.backendFederation.deliveryUnit.sourceRevision,
     ).not.toBe(secondManifest.backendFederation.deliveryUnit.sourceRevision);
-    expect(firstArtifact.deliveryUnit.sourceRevision).toBe('revision-one');
-    expect(firstArtifact.surfaces.ui.sourceRevision).toBe('revision-one');
-    expect(firstArtifact.surfaces.api.sourceRevision).toBe('revision-one');
-    expect(secondArtifact.deliveryUnit.sourceRevision).toBe('revision-two');
+    expect(firstArtifact.deliveryUnit.sourceRevision).toBe(sourceRevision);
+    expect(firstArtifact.surfaces.ui.sourceRevision).toBe(sourceRevision);
+    expect(firstArtifact.surfaces.api.sourceRevision).toBe(sourceRevision);
+    expect(secondArtifact.deliveryUnit.sourceRevision).toBe(
+      secondSourceRevision,
+    );
   });
 
   it('honors explicit sourceRevision override inside git workspaces', async () => {
@@ -495,12 +621,6 @@ describe('backend federation build artifacts', () => {
     await execFileAsync('git', ['commit', '--allow-empty', '-m', 'initial'], {
       cwd: workspaceRoot,
     });
-    const { stdout: gitHead } = await execFileAsync(
-      'git',
-      ['rev-parse', 'HEAD'],
-      { cwd: workspaceRoot },
-    );
-
     await fs.mkdir(path.join(appDirectory, 'api'), { recursive: true });
     await fs.writeFile(
       path.join(appDirectory, 'api/effect-api.ts'),
@@ -535,8 +655,8 @@ describe('backend federation build artifacts', () => {
                   remoteName: 'verticalExploreBackend',
                   manifestUrl: 'http://localhost:3021/backend-mf-manifest.json',
                   containerEntry:
-                    'http://localhost:3021/backendRemoteEntry.mjs',
-                  remoteType: 'module',
+                    'http://localhost:3021/backendRemoteEntry.cjs',
+                  remoteType: 'commonjs-module',
                 },
               },
             },
@@ -545,7 +665,17 @@ describe('backend federation build artifacts', () => {
       },
     });
 
-    const result = await withSourceRevision('explicit-build-revision', () =>
+    await execFileAsync('git', ['add', '.'], { cwd: workspaceRoot });
+    await execFileAsync('git', ['commit', '-m', 'add delivery unit'], {
+      cwd: workspaceRoot,
+    });
+    const { stdout: gitHead } = await execFileAsync(
+      'git',
+      ['rev-parse', 'HEAD'],
+      { cwd: workspaceRoot },
+    );
+    const sourceRevision = gitHead.trim();
+    const result = await withSourceRevision(sourceRevision, () =>
       emitBackendFederationArtifacts(appDirectory, distDirectory),
     );
 
@@ -562,12 +692,10 @@ describe('backend federation build artifacts', () => {
     );
 
     expect(manifest.backendFederation.deliveryUnit.sourceRevision).toBe(
-      'explicit-build-revision',
+      sourceRevision,
     );
-    expect(artifact.deliveryUnit.sourceRevision).toBe(
-      'explicit-build-revision',
-    );
-    expect(artifact.deliveryUnit.sourceRevision).not.toBe(gitHead.trim());
+    expect(artifact.deliveryUnit.sourceRevision).toBe(sourceRevision);
+    expect(artifact.deliveryUnit.sourceRevision).toBe(gitHead.trim());
   });
 
   it('throws when compact deliveryUnit and shared/ultramodern-build.ts disagree', async () => {
@@ -627,8 +755,8 @@ describe('backend federation build artifacts', () => {
                   remoteName: 'verticalExploreBackend',
                   manifestUrl: 'http://localhost:3021/backend-mf-manifest.json',
                   containerEntry:
-                    'http://localhost:3021/backendRemoteEntry.mjs',
-                  remoteType: 'module',
+                    'http://localhost:3021/backendRemoteEntry.cjs',
+                  remoteType: 'commonjs-module',
                 },
               },
             },
@@ -689,8 +817,8 @@ describe('backend federation build artifacts', () => {
                   remoteName: 'verticalExploreBackend',
                   manifestUrl: 'http://localhost:3021/backend-mf-manifest.json',
                   containerEntry:
-                    'http://localhost:3021/backendRemoteEntry.mjs',
-                  remoteType: 'module',
+                    'http://localhost:3021/backendRemoteEntry.cjs',
+                  remoteType: 'commonjs-module',
                 },
               },
             },

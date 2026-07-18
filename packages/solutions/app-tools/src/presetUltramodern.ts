@@ -1,8 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { mergeConfig } from '@modern-js/plugin/cli';
-import type { RspackChain } from '@rsbuild/core';
+import { type RspackChain, rspack } from '@rsbuild/core';
 import type { AppUserConfig } from './types';
+import { resolveUltramodernReleaseIdentity } from './ultramodern-release-identity';
 
 const DEFAULT_OTLP_ENDPOINT = 'http://127.0.0.1:4318/v1/logs';
 const DEFAULT_VICTORIA_METRICS_ENDPOINT =
@@ -14,6 +15,16 @@ export interface PresetUltramodernOptions {
    * @default "app"
    */
   appId?: string;
+  /**
+   * Generation-time identity root for a generated delivery unit. When set, the
+   * preset derives one build identity from the immutable source revision and
+   * injects it into every browser, SSR, API, and backend bundle.
+   */
+  deliveryUnit?: {
+    buildMarker: string;
+    unitId: string;
+    version: string;
+  };
   /**
    * Enable BFF requestId contract by default.
    * @default true
@@ -157,6 +168,7 @@ export const createPresetUltramodernConfig = (
 ): AppUserConfig => {
   const {
     appId = 'app',
+    deliveryUnit,
     enableBffRequestId = true,
     enableTelemetry = true,
     enableTelemetryExporters,
@@ -167,6 +179,18 @@ export const createPresetUltramodernConfig = (
   } = options;
 
   const server: NonNullable<AppUserConfig['server']> = {};
+  const releaseIdentity = deliveryUnit
+    ? resolveUltramodernReleaseIdentity({
+        generationBuildMarker: deliveryUnit.buildMarker,
+        unitId: deliveryUnit.unitId,
+      })
+    : undefined;
+  const bundledReleaseIdentity = releaseIdentity
+    ? {
+        ...releaseIdentity,
+        releaseVersion: deliveryUnit!.version,
+      }
+    : undefined;
 
   if (enableTelemetry) {
     server.telemetry = {
@@ -213,8 +237,41 @@ export const createPresetUltramodernConfig = (
       precompress: true,
     },
     server,
+    ...(deliveryUnit
+      ? {
+          source: {
+            globalVars: {
+              ULTRAMODERN_BUILD_MARKER: releaseIdentity?.buildMarker,
+              ULTRAMODERN_RELEASE_VERSION: deliveryUnit.version,
+              ULTRAMODERN_SOURCE_REVISION: releaseIdentity?.sourceRevision,
+            },
+          },
+        }
+      : {}),
     tools: {
       bundlerChain: setReactRouterBridgeSafeAliases,
+      ...(bundledReleaseIdentity
+        ? {
+            rspack: config => {
+              config.plugins ??= [];
+              config.plugins.push(
+                new rspack.BannerPlugin({
+                  banner: `void ${JSON.stringify(bundledReleaseIdentity.buildMarker)};void ${JSON.stringify(bundledReleaseIdentity.sourceRevision)};void ${JSON.stringify(bundledReleaseIdentity.releaseVersion)};`,
+                  raw: true,
+                  // The default additions stage runs before production
+                  // minimization, which removes side-effect-free identity
+                  // expressions from browser and Module Federation assets.
+                  // Inject after minimization but before Rspack derives asset
+                  // hashes, so the identity survives in browser assets and a
+                  // changed identity necessarily changes [contenthash].
+                  stage: rspack.Compilation.PROCESS_ASSETS_STAGE_SUMMARIZE,
+                  test: /\.(?:c|m)?js$/u,
+                }),
+              );
+              return config;
+            },
+          }
+        : {}),
     },
   };
 

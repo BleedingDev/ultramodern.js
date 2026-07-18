@@ -9,6 +9,9 @@ import {
   resolveEffectEntryFile,
 } from './utils/effectClientGenerator';
 
+const EFFECT_BFF_WORKER_RUNTIME_QUERY = 'modern-bff-runtime';
+const EFFECT_BFF_WORKER_RUNTIME_SOURCE_QUERY = 'modern-bff-runtime-source';
+
 export type APILoaderOptions = {
   prefix: string;
   appDir: string;
@@ -53,6 +56,20 @@ async function transformEffectRuntimeSource(source: string, filename: string) {
   return result.code;
 }
 
+function createEffectWorkerRuntimeWrapper(resourcePath: string) {
+  const sourceRequest = `${resourcePath}?${EFFECT_BFF_WORKER_RUNTIME_SOURCE_QUERY}`;
+
+  return `import * as effectBffModule from ${JSON.stringify(sourceRequest)};
+import { createEffectBffEdgeDispatcher } from '@modern-js/plugin-bff/effect-edge';
+
+export const __modern_create_effect_bff_dispatcher = options =>
+  createEffectBffEdgeDispatcher({
+    ...options,
+    module: effectBffModule,
+  });
+`;
+}
+
 async function loader(
   this: Rspack.LoaderContext<APILoaderOptions>,
   source: string,
@@ -66,6 +83,7 @@ async function loader(
   const callback = this.async();
 
   const draftOptions = this.getOptions();
+  const resourceQueries = new URLSearchParams(this.resourceQuery);
   const effectEntryFile = resolveEffectEntryFile({
     appDir: draftOptions.appDir,
     apiDir: draftOptions.apiDir,
@@ -76,10 +94,20 @@ async function loader(
     draftOptions.bffRuntimeFramework === 'effect' &&
     effectEntryFile &&
     path.resolve(effectEntryFile) === path.resolve(resourcePath) &&
-    this.resourceQuery.includes('modern-bff-runtime')
+    resourceQueries.has(EFFECT_BFF_WORKER_RUNTIME_SOURCE_QUERY)
   ) {
     const code = await transformEffectRuntimeSource(source, resourcePath);
     callback(undefined, code);
+    return;
+  }
+
+  if (
+    draftOptions.bffRuntimeFramework === 'effect' &&
+    effectEntryFile &&
+    path.resolve(effectEntryFile) === path.resolve(resourcePath) &&
+    resourceQueries.has(EFFECT_BFF_WORKER_RUNTIME_QUERY)
+  ) {
+    callback(undefined, createEffectWorkerRuntimeWrapper(resourcePath));
     return;
   }
 

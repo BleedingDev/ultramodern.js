@@ -12,7 +12,6 @@ import type { CreatePreset } from './platform';
 export const createNodePreset: CreatePreset = ({
   appContext,
   modernConfig,
-  api,
 }) => {
   const { appDirectory, distDirectory, moduleType } = appContext;
   const isEsmProject = moduleType === 'module';
@@ -25,7 +24,16 @@ export const createNodePreset: CreatePreset = ({
       await fse.remove(outputDirectory);
     },
     async writeOutput() {
-      await fse.copy(distDirectory, outputDirectory);
+      await fse.copy(distDirectory, outputDirectory, {
+        filter: src => {
+          const relativePath = path
+            .relative(distDirectory, src)
+            .replace(/\\/gu, '/');
+          return (
+            relativePath !== 'release' && !relativePath.startsWith('release/')
+          );
+        },
+      });
     },
     async genEntry() {
       const template = await readTemplate(

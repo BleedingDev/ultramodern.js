@@ -2,7 +2,7 @@ export const BACKEND_FEDERATION_EFFECT_EXPOSE = './effect-api';
 
 export const BACKEND_FEDERATION_MANIFEST_FILE = 'backend-mf-manifest.json';
 
-export const BACKEND_FEDERATION_REMOTE_ENTRY_FILE = 'backendRemoteEntry.mjs';
+export const BACKEND_FEDERATION_REMOTE_ENTRY_FILE = 'backendRemoteEntry.cjs';
 
 export const BACKEND_FEDERATION_CONTRACT_VERSION =
   'microvertical-server-effect-v1';

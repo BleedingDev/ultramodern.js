@@ -28,6 +28,7 @@ import {
   packSourcePackage,
   publishManifestPackages,
 } from './registry.mjs';
+import { assertCleanCommittedSource } from '../release-source-state.mjs';
 
 const { readJsonFile, writeJsonFile } = fsKit;
 
@@ -52,9 +53,12 @@ function assertTrustedPublishContext() {
 }
 
 async function prepareBleedingdevPackages(options) {
+  const sourceCommit = assertCleanCommittedSource(repoRoot);
+
   if (options.publishExisting) {
     const { allPackages, aliases } = collectModernPackages(options);
-    const source = resolveSourceIdentity();
+    assertCleanCommittedSource(repoRoot, { expectedCommit: sourceCommit });
+    const source = { ...resolveSourceIdentity(), commit: sourceCommit };
     const releaseArtifacts = verifyReleaseArtifacts(options.out, {
       aliases,
       source,
@@ -107,11 +111,12 @@ async function prepareBleedingdevPackages(options) {
   }
 
   validatePublishManifest(stagingManifest);
+  assertCleanCommittedSource(repoRoot, { expectedCommit: sourceCommit });
   const releaseArtifacts = createReleaseArtifacts({
     aliases,
     outDir: options.out,
     packages: stagingManifest.packages,
-    source: resolveSourceIdentity(),
+    source: { ...resolveSourceIdentity(), commit: sourceCommit },
     tag: options.tag,
     version: options.version,
   });

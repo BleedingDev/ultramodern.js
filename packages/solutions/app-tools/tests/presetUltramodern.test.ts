@@ -1,10 +1,12 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { rspack } from '@rsbuild/core';
 import {
   createPresetUltramodernConfig,
   presetUltramodern,
 } from '../src/presetUltramodern';
+import { createUltramodernReleaseBuildMarker } from '../src/ultramodern-release-identity';
 
 type BundlerChainFn = (chain: unknown, utils: { isProd: boolean }) => void;
 
@@ -198,6 +200,167 @@ describe('presetUltramodern config', () => {
         typeof preset.server.ssr === 'object' &&
         preset.server.ssr.moduleFederationAppSSR,
     ).toBe(true);
+  });
+
+  it('injects one source-derived delivery-unit identity into every build target', () => {
+    const previous = process.env.ULTRAMODERN_SOURCE_REVISION;
+    const previousCwd = process.cwd();
+    const workspaceRoot = fs.realpathSync(
+      fs.mkdtempSync(path.join(os.tmpdir(), 'modern-preset-identity-')),
+    );
+    const sourceRevision = 'a'.repeat(40);
+    process.env.ULTRAMODERN_SOURCE_REVISION = sourceRevision;
+    try {
+      process.chdir(workspaceRoot);
+      const preset = createPresetUltramodernConfig({
+        deliveryUnit: {
+          buildMarker: '0123456789abcdef',
+          unitId: 'acme/catalog',
+          version: '1.2.3',
+        },
+      });
+      const buildMarker = createUltramodernReleaseBuildMarker({
+        generationBuildMarker: '0123456789abcdef',
+        sourceRevision,
+        unitId: 'acme/catalog',
+      });
+
+      expect(preset.source?.globalVars).toEqual({
+        ULTRAMODERN_BUILD_MARKER: buildMarker,
+        ULTRAMODERN_RELEASE_VERSION: '1.2.3',
+        ULTRAMODERN_SOURCE_REVISION: sourceRevision,
+      });
+
+      const rspackConfig = { plugins: [] };
+      const configuredRspack = preset.tools?.rspack as (
+        config: typeof rspackConfig,
+      ) => typeof rspackConfig;
+      configuredRspack(rspackConfig);
+      expect(rspackConfig.plugins).toHaveLength(1);
+
+      const bannerPlugin = rspackConfig.plugins[0] as unknown as {
+        _args: [
+          {
+            banner: string;
+            raw: boolean;
+            stage: number;
+            test: RegExp;
+          },
+        ];
+      };
+      expect(bannerPlugin._args[0]).toMatchObject({
+        banner: `void ${JSON.stringify(buildMarker)};void ${JSON.stringify(sourceRevision)};void "1.2.3";`,
+        raw: true,
+        stage: rspack.Compilation.PROCESS_ASSETS_STAGE_SUMMARIZE,
+      });
+      expect(bannerPlugin._args[0].test.test('client.js')).toBe(true);
+      expect(bannerPlugin._args[0].test.test('server.mjs')).toBe(true);
+      expect(bannerPlugin._args[0].test.test('backend.cjs')).toBe(true);
+      expect(bannerPlugin._args[0].test.test('styles.css')).toBe(false);
+    } finally {
+      process.chdir(previousCwd);
+      fs.rmSync(workspaceRoot, { recursive: true, force: true });
+      if (previous === undefined) {
+        delete process.env.ULTRAMODERN_SOURCE_REVISION;
+      } else {
+        process.env.ULTRAMODERN_SOURCE_REVISION = previous;
+      }
+    }
+  });
+
+  it('stamps minimized browser bytes before content hashes are finalized', async () => {
+    const previous = process.env.ULTRAMODERN_SOURCE_REVISION;
+    const previousCwd = process.cwd();
+    const workspaceRoot = fs.realpathSync(
+      fs.mkdtempSync(path.join(os.tmpdir(), 'modern-preset-rspack-banner-')),
+    );
+    const sourceRevision = 'b'.repeat(40);
+    const entry = path.join(workspaceRoot, 'entry.js');
+    fs.writeFileSync(entry, 'globalThis.ultramodernClientLoaded = true;\n');
+    process.env.ULTRAMODERN_SOURCE_REVISION = sourceRevision;
+
+    try {
+      process.chdir(workspaceRoot);
+      const outputs: Array<{ bytes: string; filename: string }> = [];
+      for (const [index, generationBuildMarker] of [
+        '1111111111111111',
+        '2222222222222222',
+      ].entries()) {
+        const outputPath = path.join(workspaceRoot, `dist-${index}`);
+        const preset = createPresetUltramodernConfig({
+          deliveryUnit: {
+            buildMarker: generationBuildMarker,
+            unitId: 'acme/catalog',
+            version: '1.2.3',
+          },
+        });
+        const rspackConfig = {
+          plugins: [],
+        };
+        const configureRspack = preset.tools?.rspack as (
+          config: typeof rspackConfig,
+        ) => typeof rspackConfig;
+        configureRspack(rspackConfig);
+
+        await new Promise<void>((resolve, reject) => {
+          rspack.rspack(
+            {
+              entry,
+              mode: 'production',
+              optimization: {
+                minimize: true,
+              },
+              output: {
+                clean: true,
+                filename: '[contenthash].js',
+                path: outputPath,
+              },
+              plugins: rspackConfig.plugins,
+            },
+            (error, stats) => {
+              if (error) {
+                reject(error);
+              } else if (!stats || stats.hasErrors()) {
+                reject(
+                  new Error(
+                    stats?.toString({ all: false, errors: true }) ??
+                      'Rspack returned no build stats.',
+                  ),
+                );
+              } else {
+                resolve();
+              }
+            },
+          );
+        });
+
+        const filename = fs
+          .readdirSync(outputPath)
+          .find(candidate => candidate.endsWith('.js'));
+        expect(filename).toBeDefined();
+        const bytes = fs.readFileSync(path.join(outputPath, filename!), 'utf8');
+        const buildMarker = createUltramodernReleaseBuildMarker({
+          generationBuildMarker,
+          sourceRevision,
+          unitId: 'acme/catalog',
+        });
+        expect(bytes).toContain(JSON.stringify(buildMarker));
+        expect(bytes).toContain(JSON.stringify(sourceRevision));
+        expect(bytes).toContain('"1.2.3"');
+        outputs.push({ bytes, filename: filename! });
+      }
+
+      expect(outputs[0].bytes).not.toBe(outputs[1].bytes);
+      expect(outputs[0].filename).not.toBe(outputs[1].filename);
+    } finally {
+      process.chdir(previousCwd);
+      fs.rmSync(workspaceRoot, { recursive: true, force: true });
+      if (previous === undefined) {
+        delete process.env.ULTRAMODERN_SOURCE_REVISION;
+      } else {
+        process.env.ULTRAMODERN_SOURCE_REVISION = previous;
+      }
+    }
   });
 
   it('supports opt-out for strict defaults', () => {

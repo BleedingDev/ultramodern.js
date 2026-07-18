@@ -7,6 +7,7 @@ export {
   useDistributedSsrFragmentProps,
 } from './distributed-ssr';
 export * from './last-known-good';
+export * from './manifest-recovery-runtime-plugin';
 export * from './surface-resolution-types';
 
 export const MODULE_FEDERATION_FALLBACK_SIGNAL_EVENT =

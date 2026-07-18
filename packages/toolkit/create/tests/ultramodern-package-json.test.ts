@@ -10,6 +10,7 @@ import {
   createAppPackage,
   createRootPackageJson,
 } from '../src/ultramodern-workspace/package-json';
+import { resolveWorkspacePackageLinkingPolicy } from '../src/ultramodern-workspace/package-source';
 import type {
   JsonValue,
   ResolvedPackageSource,
@@ -44,9 +45,9 @@ const installAppDependencies = {
   '@modern-js/plugin-tanstack': packageVersion,
   '@modern-js/plugin-i18n': packageVersion,
   '@modern-js/runtime': packageVersion,
-  '@module-federation/bridge-react': '2.7.0',
-  '@module-federation/modern-js-v3': '2.7.0',
-  '@module-federation/runtime': '2.7.0',
+  '@module-federation/bridge-react': '2.8.0',
+  '@module-federation/modern-js-v3': '2.8.0',
+  '@module-federation/runtime': '2.8.0',
   '@tanstack/react-router': '1.170.17',
   i18next: '26.3.6',
   'node-fetch': '^3.3.2',
@@ -133,9 +134,9 @@ test('workspace package source uses workspace versions for generated framework d
     '@modern-js/plugin-tanstack': 'workspace:*',
     '@modern-js/plugin-i18n': 'workspace:*',
     '@modern-js/runtime': 'workspace:*',
-    '@module-federation/bridge-react': '2.7.0',
-    '@module-federation/modern-js-v3': '2.7.0',
-    '@module-federation/runtime': '2.7.0',
+    '@module-federation/bridge-react': '2.8.0',
+    '@module-federation/modern-js-v3': '2.8.0',
+    '@module-federation/runtime': '2.8.0',
     '@tanstack/react-router': '1.170.17',
     i18next: '26.3.6',
     'node-fetch': '^3.3.2',
@@ -146,6 +147,20 @@ test('workspace package source uses workspace versions for generated framework d
     'react-router': '7.18.1',
     '@modern-js/plugin-bff': 'workspace:*',
   });
+});
+
+test('workspace package source isolates linked framework dependencies without changing install-backed workspaces', () => {
+  assert.deepEqual(
+    resolveWorkspacePackageLinkingPolicy({ strategy: 'workspace' }),
+    {
+      injectWorkspacePackages: true,
+      linkWorkspacePackages: true,
+    },
+  );
+  assert.deepEqual(
+    resolveWorkspacePackageLinkingPolicy({ strategy: 'install' }),
+    {},
+  );
 });
 
 test('root package json pins workspace package versions and bridge workspace globs', () => {

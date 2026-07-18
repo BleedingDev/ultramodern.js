@@ -21,6 +21,25 @@ import { createWorkspaceValidationContract } from './workspace-validation-contra
 // which enforces `singleQuote: true`; JSON.stringify would emit double quotes.
 const singleQuoted = (value: string) => `'${value.replace(/'/gu, "\\'")}'`;
 
+const toolWrapperResultHandling = `
+if (result.error) {
+  const launchTarget = createBin
+    ? process.execPath + ' with ULTRAMODERN_CREATE_BIN=' + createBin
+    : 'modern-js-create from PATH';
+  console.error(
+    'Failed to launch ' +
+      launchTarget +
+      ' for UltraModern command "' +
+      ultramodernArgs.slice(1).join(' ') +
+      '": ' +
+      result.error.message,
+  );
+  process.exit(1);
+}
+
+process.exit(result.status ?? 1);
+`;
+
 function createToolWrapperScript(command: string, extraArgs: string[] = []) {
   const commandLiteral = singleQuoted(command);
   const extraArgsLiteral = `[${extraArgs.map(singleQuoted).join(', ')}]`;
@@ -46,14 +65,7 @@ const result = createBin
       shell: process.platform === 'win32',
       stdio: 'inherit',
     });
-
-if (result.error) {
-  console.error(result.error.message);
-  process.exit(1);
-}
-
-process.exit(result.status ?? 1);
-`;
+${toolWrapperResultHandling}`;
 }
 
 function writeGeneratedToolWrapperScript(
@@ -109,14 +121,7 @@ const result = createBin
       shell: process.platform === 'win32',
       stdio: 'inherit',
     });
-
-if (result.error) {
-  console.error(result.error.message);
-  process.exit(1);
-}
-
-process.exit(result.status ?? 1);
-`;
+${toolWrapperResultHandling}`;
 }
 
 function removeLegacyWorkspaceScript(targetDir: string, relativePath: string) {

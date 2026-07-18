@@ -297,14 +297,6 @@ export function updateGeneratedPackageScripts(
       );
     }
 
-    nextCloudflareBuild = nextCloudflareBuild.replace(
-      / && node \S*scripts\/generate-public-surface-assets\.m[ct]s --app [^&]+ --target dist(?= && MODERNJS_DEPLOY=cloudflare modern deploy --skip-build)/u,
-      '',
-    );
-    nextCloudflareBuild = nextCloudflareBuild.replace(
-      / && node \S*scripts\/verify-cloudflare-output\.m[ct]s(?: --app [^&]+)?/u,
-      '',
-    );
     if (nextCloudflareBuild !== cloudflareBuild) {
       scripts['cloudflare:build'] = nextCloudflareBuild;
       changed = true;

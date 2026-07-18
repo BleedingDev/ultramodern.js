@@ -4,10 +4,11 @@ import path from 'node:path';
 import {
   BACKEND_FEDERATION_MANIFEST_FILE as BACKEND_MANIFEST_FILE,
   BACKEND_FEDERATION_REMOTE_ENTRY_FILE as BACKEND_REMOTE_ENTRY_FILE,
-  stampUltramodernBuildArtifactSourceRevision,
+  stampUltramodernBuildArtifactIdentity,
   ULTRAMODERN_BUILD_ARTIFACT_FILE,
 } from '@modern-js/utils/universal';
 import type { AppTools, CliPlugin } from '../../types';
+import { resolveUltramodernReleaseIdentity } from '../../ultramodern-release-identity';
 import {
   createBackendManifest,
   createBackendRemoteEntrySource,
@@ -114,9 +115,17 @@ export const emitBackendFederationArtifacts = async (
   }
 
   const unitId = compactDeliveryUnit?.unitId ?? buildIdentity.unitId;
-  const buildVersion =
+  const generationBuildMarker =
     compactDeliveryUnit?.buildMarker ?? buildIdentity.buildVersion;
   const sourceRevision = await resolveWorkspaceSourceRevision(workspaceRoot);
+  const buildVersion =
+    generationBuildMarker && unitId
+      ? resolveUltramodernReleaseIdentity({
+          generationBuildMarker,
+          unitId,
+          workspaceRoot,
+        }).buildMarker
+      : undefined;
   const packageName =
     compactDeliveryUnit?.packageName ??
     buildIdentity.packageName ??
@@ -131,10 +140,11 @@ export const emitBackendFederationArtifacts = async (
     sourceRevision,
   });
   const stampedBuildArtifact = buildIdentity.artifact
-    ? stampUltramodernBuildArtifactSourceRevision(
-        buildIdentity.artifact,
+    ? stampUltramodernBuildArtifactIdentity(buildIdentity.artifact, {
+        buildMarker:
+          buildVersion ?? buildIdentity.artifact.deliveryUnit.buildMarker,
         sourceRevision,
-      )
+      })
     : undefined;
 
   const resolvedApp: BackendFederationApp = {
@@ -155,7 +165,7 @@ export const emitBackendFederationArtifacts = async (
   await fs.mkdir(distDirectory, { recursive: true });
   await fs.writeFile(
     entryPath,
-    createBackendRemoteEntrySource(
+    await createBackendRemoteEntrySource(
       workspaceRoot,
       resolvedApp,
       effectApiPath,

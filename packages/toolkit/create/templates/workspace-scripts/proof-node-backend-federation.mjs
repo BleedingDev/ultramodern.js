@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -18,6 +19,7 @@ const defaultOut = path.join(
 const contractVersion = 'microvertical-server-effect-v1';
 const nodeAdapterVersion = 'backend-mf-effect-v1';
 const backendExpose = './effect-api';
+const releaseEnvelopePath = 'release/microvertical-release-envelope.json';
 const localRuntimeRelativePaths = [
   'packages/cli/plugin-bff/dist/esm-node/runtime/effect/index.mjs',
   'cli/plugin-bff/dist/esm-node/runtime/effect/index.mjs',
@@ -27,49 +29,23 @@ function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'));
 }
 
-function readBuildIdentity(app) {
+function readBuildIdentity(app, target) {
   const buildArtifactPath = path.join(
     workspaceRoot,
     app.directory,
-    'shared/ultramodern-build.json',
+    target,
+    'ultramodern-build.json',
   );
-  if (fs.existsSync(buildArtifactPath)) {
-    const artifact = readJson(buildArtifactPath);
-    const deliveryUnit = artifact.deliveryUnit ?? {};
-    return {
-      buildVersion: deliveryUnit.buildMarker ?? deliveryUnit.build,
-      packageName: deliveryUnit.packageName,
-      version: deliveryUnit.version,
-      unitId: deliveryUnit.unitId,
-      sourceRevision: deliveryUnit.sourceRevision,
-    };
-  }
-
-  const buildModulePath = path.join(
-    workspaceRoot,
-    app.directory,
-    'shared/ultramodern-build.ts',
-  );
-  if (!fs.existsSync(buildModulePath)) {
-    return {};
-  }
-  console.warn(
-    `[backend-federation-proof] ${path.relative(
-      workspaceRoot,
-      buildArtifactPath,
-    )} missing; falling back to legacy regex parsing of ${path.relative(
-      workspaceRoot,
-      buildModulePath,
-    )}.`,
-  );
-
-  const source = fs.readFileSync(buildModulePath, 'utf8');
+  assertFile(buildArtifactPath, app.id, 'stamped target build identity');
+  const artifact = readJson(buildArtifactPath);
+  const deliveryUnit = artifact.deliveryUnit ?? {};
   return {
-    buildVersion: source.match(/\bbuild:\s*['"]([^'"]+)['"]/u)?.[1],
-    packageName: source.match(/\bpackageName:\s*['"]([^'"]+)['"]/u)?.[1],
-    version: source.match(/\bversion:\s*['"]([^'"]+)['"]/u)?.[1],
-    unitId: source.match(/\bunitId:\s*['"]([^'"]+)['"]/u)?.[1],
-    sourceRevision: source.match(/\bsourceRevision:\s*['"]([^'"]+)['"]/u)?.[1],
+    artifactPath: buildArtifactPath,
+    buildVersion: deliveryUnit.buildMarker ?? deliveryUnit.build,
+    packageName: deliveryUnit.packageName,
+    version: deliveryUnit.version,
+    unitId: deliveryUnit.unitId,
+    sourceRevision: deliveryUnit.sourceRevision,
   };
 }
 
@@ -170,7 +146,7 @@ function createBackendContainerEntry(app) {
   return (
     app.backendFederation?.executionSurfaces?.node?.containerEntry ??
     app.serverExecution?.node?.containerEntry ??
-    `http://localhost:${app.port}/backendRemoteEntry.mjs`
+    `http://localhost:${app.port}/backendRemoteEntry.cjs`
   );
 }
 
@@ -178,7 +154,7 @@ function resolveRemoteType(app) {
   return (
     app.backendFederation?.executionSurfaces?.node?.remoteType ??
     app.serverExecution?.node?.remoteType ??
-    'module'
+    'commonjs-module'
   );
 }
 
@@ -279,6 +255,196 @@ function assertFile(filePath, appId, label) {
   if (!fs.statSync(filePath).isFile()) {
     throw new Error(`${appId} ${label} is not a file`);
   }
+}
+
+function sha256(bytes) {
+  return createHash('sha256').update(bytes).digest('hex');
+}
+
+function readBoundReleaseEnvelope(app, target) {
+  const targetDirectory = path.join(workspaceRoot, app.directory, target);
+  const envelopePath = path.join(targetDirectory, releaseEnvelopePath);
+  assertFile(envelopePath, app.id, 'Node release envelope');
+  const envelope = readJson(envelopePath);
+  assertEqual(envelope.target, 'node', `${app.id} release-envelope target`);
+
+  const manifestLogicalPath = envelope.surfaces?.backendFederation?.manifest;
+  const containerLogicalPath = envelope.surfaces?.backendFederation?.container;
+  assertEqual(
+    manifestLogicalPath,
+    'backend-mf-manifest.json',
+    `${app.id} release-envelope backend manifest path`,
+  );
+  assertEqual(
+    containerLogicalPath,
+    'backendRemoteEntry.cjs',
+    `${app.id} release-envelope backend container path`,
+  );
+
+  const apiBackendPaths = envelope.surfaces?.apiBackend;
+  if (!Array.isArray(apiBackendPaths) || apiBackendPaths.length === 0) {
+    throw new Error(`${app.id} release envelope has no bound API/backend executable`);
+  }
+  if (
+    !apiBackendPaths.some((logicalPath) =>
+      /^api\/.*\.(?:c|m)?js$/u.test(logicalPath),
+    )
+  ) {
+    throw new Error(
+      `${app.id} release envelope does not bind a compiled api/**/*.js executable`,
+    );
+  }
+
+  const artifacts = Array.isArray(envelope.artifacts) ? envelope.artifacts : [];
+  const artifactByPath = new Map(
+    artifacts.map((artifact) => [artifact.logicalPath, artifact]),
+  );
+  const requiredPaths = [
+    manifestLogicalPath,
+    containerLogicalPath,
+    ...apiBackendPaths,
+  ];
+  const boundArtifacts = requiredPaths.map((logicalPath) => {
+    const artifact = artifactByPath.get(logicalPath);
+    if (!artifact) {
+      throw new Error(
+        `${app.id} release envelope surface references unbound artifact ${logicalPath}`,
+      );
+    }
+    const artifactPath = path.join(targetDirectory, logicalPath);
+    assertFile(artifactPath, app.id, `release-envelope artifact ${logicalPath}`);
+    const bytes = fs.readFileSync(artifactPath);
+    assertEqual(
+      bytes.byteLength,
+      artifact.byteLength,
+      `${app.id} ${logicalPath} envelope byte length`,
+    );
+    assertEqual(
+      sha256(bytes),
+      artifact.sha256,
+      `${app.id} ${logicalPath} envelope SHA-256`,
+    );
+    return artifact;
+  });
+
+  return {
+    envelope,
+    envelopePath,
+    manifestArtifact: artifactByPath.get(manifestLogicalPath),
+    containerArtifact: artifactByPath.get(containerLogicalPath),
+    apiBackendArtifacts: boundArtifacts.filter((artifact) =>
+      apiBackendPaths.includes(artifact.logicalPath),
+    ),
+  };
+}
+
+async function fetchBoundArtifact(app, url, artifact, label) {
+  const response = await fetch(url, {
+    headers: {
+      accept: '*/*',
+      'cache-control': 'no-cache',
+    },
+  });
+  if (!response.ok) {
+    throw new Error(`${app.id} live ${label} returned HTTP ${response.status}`);
+  }
+  const bytes = Buffer.from(await response.arrayBuffer());
+  assertEqual(
+    bytes.byteLength,
+    artifact.byteLength,
+    `${app.id} live ${label} byte length`,
+  );
+  const digest = sha256(bytes);
+  assertEqual(
+    digest,
+    artifact.sha256,
+    `${app.id} live ${label} SHA-256`,
+  );
+  const urlPath = normalizeRelativePath(new URL(url).pathname);
+  if (!urlPath.endsWith(artifact.logicalPath)) {
+    throw new Error(
+      `${app.id} live ${label} URL ${url} does not map to envelope artifact ${artifact.logicalPath}`,
+    );
+  }
+  return {
+    url,
+    logicalPath: artifact.logicalPath,
+    statusCode: response.status,
+    byteLength: bytes.byteLength,
+    sha256: digest,
+    status: 'pass',
+  };
+}
+
+async function proveLiveApi(app, manifest, releaseBinding) {
+  const route = normalizeRoutePath(
+    manifest.backendFederation?.readinessPath,
+  );
+  const url = new URL(route, app.manifestUrl).href;
+  const response = await fetch(url, {
+    headers: {
+      accept: 'application/json',
+      'cache-control': 'no-cache',
+    },
+  });
+  const bodyText = await response.text();
+  let body;
+  try {
+    body = bodyText.length > 0 ? JSON.parse(bodyText) : undefined;
+  } catch (error) {
+    throw new Error(
+      `${app.id} live API GET ${route} did not return JSON: ${error.message}`,
+    );
+  }
+  if (!response.ok) {
+    throw new Error(
+      `${app.id} live API GET ${route} returned HTTP ${response.status}`,
+    );
+  }
+
+  const identity = releaseBinding.envelope.identity ?? {};
+  const marker = body?.marker;
+  assertEqual(
+    marker?.unitId,
+    identity.unitId,
+    `${app.id} live API marker unitId`,
+  );
+  assertEqual(
+    marker?.buildMarker ?? marker?.build,
+    identity.buildMarker,
+    `${app.id} live API marker buildMarker`,
+  );
+  assertEqual(
+    marker?.sourceRevision,
+    identity.sourceRevision,
+    `${app.id} live API marker sourceRevision`,
+  );
+  assertEqual(
+    marker?.version,
+    identity.releaseVersion,
+    `${app.id} live API marker releaseVersion`,
+  );
+
+  return {
+    method: 'GET',
+    route,
+    url,
+    statusCode: response.status,
+    marker: {
+      unitId: marker.unitId,
+      buildMarker: marker.buildMarker ?? marker.build,
+      sourceRevision: marker.sourceRevision,
+      releaseVersion: marker.version,
+    },
+    envelopeDigest: releaseBinding.envelope.envelopeDigest,
+    apiBackendArtifacts: releaseBinding.apiBackendArtifacts.map((artifact) => ({
+      logicalPath: artifact.logicalPath,
+      runtime: artifact.runtime,
+      byteLength: artifact.byteLength,
+      sha256: artifact.sha256,
+    })),
+    status: 'pass',
+  };
 }
 
 function jsonPathValue(value, path) {
@@ -404,7 +570,7 @@ function resolveArtifacts(app, target) {
 
   return {
     manifestPath: path.join(targetDirectory, 'backend-mf-manifest.json'),
-    entryPath: path.join(targetDirectory, 'backendRemoteEntry.mjs'),
+    entryPath: path.join(targetDirectory, 'backendRemoteEntry.cjs'),
   };
 }
 
@@ -435,7 +601,7 @@ function validateManifest(app, manifest, buildIdentity) {
   );
   assertEqual(
     manifest.metaData?.remoteEntry?.name,
-    'backendRemoteEntry.mjs',
+    'backendRemoteEntry.cjs',
     `${app.id} backend manifest remote entry filename`,
   );
   assertEqual(
@@ -547,7 +713,7 @@ function validateManifest(app, manifest, buildIdentity) {
   }
 }
 
-function assertCompactDeliveryUnitMatchesBuild(app, buildIdentity) {
+function assertCompactStableIdentityMatchesBuild(app, buildIdentity) {
   const compactDeliveryUnit = app.compactDeliveryUnit;
   if (!compactDeliveryUnit) {
     return;
@@ -561,11 +727,6 @@ function assertCompactDeliveryUnitMatchesBuild(app, buildIdentity) {
   };
   compare('unitId', compactDeliveryUnit.unitId, buildIdentity.unitId);
   compare(
-    'buildMarker/build',
-    compactDeliveryUnit.buildMarker,
-    buildIdentity.buildVersion,
-  );
-  compare(
     'packageName',
     compactDeliveryUnit.packageName,
     buildIdentity.packageName,
@@ -577,28 +738,12 @@ function assertCompactDeliveryUnitMatchesBuild(app, buildIdentity) {
       `${app.id} delivery-unit identity drift between ${path.relative(
         workspaceRoot,
         compactConfigPath,
-      )} (deliveryUnit) and ${path.relative(
+      )} (generation metadata) and ${path.relative(
         workspaceRoot,
-        path.join(workspaceRoot, app.directory, 'shared/ultramodern-build.ts'),
-      )}: ${mismatches.join('; ')}`,
+        buildIdentity.artifactPath,
+      )} (stamped target identity): ${mismatches.join('; ')}`,
     );
   }
-}
-
-async function importBackendEntry(entryPath) {
-  const entry = await import(pathToFileURL(entryPath).href);
-  const container = entry.default ?? entry;
-
-  if (!container || typeof container.get !== 'function' || typeof container.init !== 'function') {
-    throw new Error(
-      `${path.relative(
-        workspaceRoot,
-        entryPath,
-      )} does not export a Module Federation get/init container`,
-    );
-  }
-
-  return container;
 }
 
 async function proveBackend(app, backendRuntime, target) {
@@ -611,19 +756,49 @@ async function proveBackend(app, backendRuntime, target) {
   assertFile(manifestPath, app.id, 'backend manifest');
   assertFile(entryPath, app.id, 'backend remote entry');
 
-  const buildIdentity = readBuildIdentity(app);
-  assertCompactDeliveryUnitMatchesBuild(app, buildIdentity);
+  const buildIdentity = readBuildIdentity(app, target);
+  assertCompactStableIdentityMatchesBuild(app, buildIdentity);
   const manifest = readJson(manifestPath);
   validateManifest(app, manifest, buildIdentity);
+  const releaseBinding = readBoundReleaseEnvelope(app, target);
+  assertEqual(
+    releaseBinding.envelope.identity?.unitId,
+    buildIdentity.unitId,
+    `${app.id} release-envelope/build unitId`,
+  );
+  assertEqual(
+    releaseBinding.envelope.identity?.buildMarker,
+    buildIdentity.buildVersion,
+    `${app.id} release-envelope/build marker`,
+  );
+  assertEqual(
+    releaseBinding.envelope.identity?.sourceRevision,
+    buildIdentity.sourceRevision,
+    `${app.id} release-envelope/build source revision`,
+  );
+  assertEqual(
+    releaseBinding.envelope.identity?.releaseVersion,
+    buildIdentity.version,
+    `${app.id} release-envelope/build version`,
+  );
+  const liveArtifacts = {
+    manifest: await fetchBoundArtifact(
+      app,
+      app.manifestUrl,
+      releaseBinding.manifestArtifact,
+      'backend manifest',
+    ),
+    container: await fetchBoundArtifact(
+      app,
+      app.containerEntry,
+      releaseBinding.containerArtifact,
+      'backend container',
+    ),
+  };
 
-  const localRuntimeEntry = pathToFileURL(entryPath).href;
   const loaded = await loadBackendFederatedEffectApiFromManifest({
     hostName: 'ultramodernNodeBackendProof',
-    manifest,
-    manifestPath,
-    remote: {
-      entry: localRuntimeEntry,
-    },
+    manifestUrl: app.manifestUrl,
     expected: {
       buildMarker: buildIdentity.buildVersion,
       buildVersion: buildIdentity.buildVersion,
@@ -686,6 +861,7 @@ async function proveBackend(app, backendRuntime, target) {
   }
 
   const smokeChecks = await runSmokeChecks(app, loaded, createEffectBffTestHandler);
+  const liveApi = await proveLiveApi(app, manifest, releaseBinding);
 
   return {
     appId: app.id,
@@ -694,7 +870,16 @@ async function proveBackend(app, backendRuntime, target) {
     containerPath: normalizeRelativePath(path.relative(workspaceRoot, entryPath)),
     manifestUrl: app.manifestUrl,
     containerEntry: app.containerEntry,
-    runtimeEntry: localRuntimeEntry,
+    runtimeEntry: app.containerEntry,
+    releaseEnvelope: {
+      path: normalizeRelativePath(
+        path.relative(workspaceRoot, releaseBinding.envelopePath),
+      ),
+      envelopeDigest: releaseBinding.envelope.envelopeDigest,
+      target: releaseBinding.envelope.target,
+    },
+    liveArtifacts,
+    liveApi,
     remoteName: app.backendName,
     remoteType: app.remoteType,
     versionBoundary: {
@@ -710,7 +895,7 @@ async function proveBackend(app, backendRuntime, target) {
 }
 
 function parseArgs(argv) {
-  const parsed = { app: undefined, out: defaultOut, target: 'dist' };
+  const parsed = { app: undefined, out: defaultOut, target: '.output' };
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -742,7 +927,7 @@ function parseArgs(argv) {
 
 function printHelp() {
   process.stdout
-    .write(`Usage: node scripts/proof-node-backend-federation.mjs [--app id] [--target dist] [--out proof.json]
+    .write(`Usage: node scripts/proof-node-backend-federation.mjs [--app id] [--target .output] [--out proof.json]
 `);
 }
 

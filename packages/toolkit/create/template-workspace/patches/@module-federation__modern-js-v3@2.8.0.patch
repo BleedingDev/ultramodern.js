@@ -1,5 +1,4 @@
 diff --git a/dist/cjs/cli/configPlugin.js b/dist/cjs/cli/configPlugin.js
-index 3f1af86afed3d4a2005f3ab6320a13e366594ab5..1f67bf03323bc246e79a2fa43373a39ce96ae1b8 100644
 --- a/dist/cjs/cli/configPlugin.js
 +++ b/dist/cjs/cli/configPlugin.js
 @@ -216,9 +216,12 @@ var __webpack_exports__ = {};
@@ -42,7 +41,6 @@ index 3f1af86afed3d4a2005f3ab6320a13e366594ab5..1f67bf03323bc246e79a2fa43373a39c
                      };
                  });
 diff --git a/dist/esm/cli/configPlugin.mjs b/dist/esm/cli/configPlugin.mjs
-index c8c2ace490c17d42755cc798b438a3ddaa83760c..026ecbcae72b0b215e64a5ec6be4e54ea8d22d47 100644
 --- a/dist/esm/cli/configPlugin.mjs
 +++ b/dist/esm/cli/configPlugin.mjs
 @@ -185,9 +185,12 @@ function patchBundlerConfig(options) {
@@ -85,7 +83,6 @@ index c8c2ace490c17d42755cc798b438a3ddaa83760c..026ecbcae72b0b215e64a5ec6be4e54e
                                  };
                              });
 diff --git a/dist/esm-node/cli/configPlugin.mjs b/dist/esm-node/cli/configPlugin.mjs
-index c238b85c2c34107ca2c544500f1bc5457010d1ad..74b481cafc285fbe9bf3f4ba09c3151e5f1c29a6 100644
 --- a/dist/esm-node/cli/configPlugin.mjs
 +++ b/dist/esm-node/cli/configPlugin.mjs
 @@ -156,9 +156,12 @@ function patchBundlerConfig(options) {
@@ -127,3 +124,92 @@ index c238b85c2c34107ca2c544500f1bc5457010d1ad..74b481cafc285fbe9bf3f4ba09c3151e
                      }
                  };
              });
+diff --git a/dist/cjs/cli/configPlugin.js b/dist/cjs/cli/configPlugin.js
+--- a/dist/cjs/cli/configPlugin.js
++++ b/dist/cjs/cli/configPlugin.js
+@@ -76,8 +76,8 @@ var __webpack_exports__ = {};
+     const utils_namespaceObject = require("@module-federation/rsbuild-plugin/utils");
+     const external_logger_js_namespaceObject = require("../logger.js");
+     var external_logger_js_default = /*#__PURE__*/ __webpack_require__.n(external_logger_js_namespaceObject);
+     const defaultPath = external_path_default().resolve(process.cwd(), 'module-federation.config.ts');
+-    const resolvePackageFile = (packageName, esmRelativePath, cjsRelativePath)=>{
+-        const packageEntry = require.resolve(packageName);
++    const resolvePackageFile = (packageName, esmRelativePath, cjsRelativePath, resolveFrom)=>{
++        const packageEntry = require.resolve(packageName, resolveFrom ? { paths: [resolveFrom] } : void 0);
+         let packageRoot = external_path_default().dirname(packageEntry);
+         while(!external_fs_default().existsSync(external_path_default().join(packageRoot, 'package.json'))){
+@@ -85,6 +85,7 @@ var __webpack_exports__ = {};
+     };
+     const resolveSharedStrategyPlugin = ()=>resolvePackageFile('@module-federation/modern-js-v3', 'dist/esm/cli/mfRuntimePlugins/shared-strategy.mjs', 'dist/cjs/cli/mfRuntimePlugins/shared-strategy.js');
+     const resolveInjectNodeFetchPlugin = ()=>resolvePackageFile('@module-federation/modern-js-v3', 'dist/esm/cli/mfRuntimePlugins/inject-node-fetch.mjs', 'dist/cjs/cli/mfRuntimePlugins/inject-node-fetch.js');
++    const resolveManifestRecoveryPlugin = ()=>resolvePackageFile('@modern-js/runtime', 'dist/esm/module-federation/manifest-recovery-runtime-plugin.mjs', 'dist/cjs/module-federation/manifest-recovery-runtime-plugin.js', process.cwd());
+     const resolveNodeRuntimePlugin = ()=>resolvePackageFile('@module-federation/node', 'dist/src/runtimePlugin.mjs', 'dist/src/runtimePlugin.js');
+     const resolveNodeRecordRemoteHashPlugin = ()=>resolvePackageFile('@module-federation/node', 'dist/src/recordDynamicRemoteEntryHashPlugin.mjs', 'dist/src/recordDynamicRemoteEntryHashPlugin.js');
+     function setEnv(enableSSR) {
+@@ -147,6 +148,7 @@ var __webpack_exports__ = {};
+         patchDTSConfig(mfConfig, isServer);
+         injectRuntimePlugins(resolveSharedStrategyPlugin(), runtimePlugins);
+         if (isServer) {
++            injectRuntimePlugins(resolveManifestRecoveryPlugin(), runtimePlugins);
+             injectRuntimePlugins(resolveNodeRuntimePlugin(), runtimePlugins);
+             if ((0, external_utils_js_namespaceObject.isDev)()) injectRuntimePlugins(resolveNodeRecordRemoteHashPlugin(), runtimePlugins);
+             injectRuntimePlugins(resolveInjectNodeFetchPlugin(), runtimePlugins);
+diff --git a/dist/esm/cli/configPlugin.mjs b/dist/esm/cli/configPlugin.mjs
+--- a/dist/esm/cli/configPlugin.mjs
++++ b/dist/esm/cli/configPlugin.mjs
+@@ -18,7 +18,7 @@ __webpack_require__.add({
+     }
+ });
+ var defaultPath = path.resolve(process.cwd(), 'module-federation.config.ts');
+-var configPlugin_resolvePackageFile = function(packageName, esmRelativePath, cjsRelativePath) {
+-    var packageEntry = require.resolve(packageName);
++var configPlugin_resolvePackageFile = function(packageName, esmRelativePath, cjsRelativePath, resolveFrom) {
++    var packageEntry = require.resolve(packageName, void 0 !== resolveFrom ? { paths: [resolveFrom] } : void 0);
+     var packageRoot = path.dirname(packageEntry);
+     while(!fs.existsSync(path.join(packageRoot, 'package.json'))){
+@@ -35,5 +35,8 @@ var configPlugin_resolveInjectNodeFetchPlugin = function() {
+     return configPlugin_resolvePackageFile('@module-federation/modern-js-v3', 'dist/esm/cli/mfRuntimePlugins/inject-node-fetch.mjs', 'dist/cjs/cli/mfRuntimePlugins/inject-node-fetch.js');
+ };
++var configPlugin_resolveManifestRecoveryPlugin = function() {
++    return configPlugin_resolvePackageFile('@modern-js/runtime', 'dist/esm/module-federation/manifest-recovery-runtime-plugin.mjs', 'dist/cjs/module-federation/manifest-recovery-runtime-plugin.js', process.cwd());
++};
+ var configPlugin_resolveNodeRuntimePlugin = function() {
+     return configPlugin_resolvePackageFile('@module-federation/node', 'dist/src/runtimePlugin.mjs', 'dist/src/runtimePlugin.js');
+ };
+@@ -117,6 +120,7 @@ var configPlugin_patchMFConfig = function(mfConfig, isServer) {
+     configPlugin_patchDTSConfig(mfConfig, isServer);
+     configPlugin_injectRuntimePlugins(configPlugin_resolveSharedStrategyPlugin(), runtimePlugins);
+     if (isServer) {
++        configPlugin_injectRuntimePlugins(configPlugin_resolveManifestRecoveryPlugin(), runtimePlugins);
+         configPlugin_injectRuntimePlugins(configPlugin_resolveNodeRuntimePlugin(), runtimePlugins);
+         if (isDev()) configPlugin_injectRuntimePlugins(configPlugin_resolveNodeRecordRemoteHashPlugin(), runtimePlugins);
+         configPlugin_injectRuntimePlugins(configPlugin_resolveInjectNodeFetchPlugin(), runtimePlugins);
+diff --git a/dist/esm-node/cli/configPlugin.mjs b/dist/esm-node/cli/configPlugin.mjs
+--- a/dist/esm-node/cli/configPlugin.mjs
++++ b/dist/esm-node/cli/configPlugin.mjs
+@@ -14,7 +14,7 @@ __webpack_require__.add({
+     }
+ });
+ const defaultPath = path.resolve(process.cwd(), 'module-federation.config.ts');
+-const resolvePackageFile = (packageName, esmRelativePath, cjsRelativePath)=>{
+-    const packageEntry = require.resolve(packageName);
++const resolvePackageFile = (packageName, esmRelativePath, cjsRelativePath, resolveFrom)=>{
++    const packageEntry = require.resolve(packageName, resolveFrom ? { paths: [resolveFrom] } : undefined);
+     let packageRoot = path.dirname(packageEntry);
+     while(!fs.existsSync(path.join(packageRoot, 'package.json'))){
+@@ -25,6 +25,7 @@ const resolvePackageFile = (packageName, esmRelativePath, cjsRelativePath)=>{
+ };
+ const resolveSharedStrategyPlugin = ()=>resolvePackageFile('@module-federation/modern-js-v3', 'dist/esm/cli/mfRuntimePlugins/shared-strategy.mjs', 'dist/cjs/cli/mfRuntimePlugins/shared-strategy.js');
+ const resolveInjectNodeFetchPlugin = ()=>resolvePackageFile('@module-federation/modern-js-v3', 'dist/esm/cli/mfRuntimePlugins/inject-node-fetch.mjs', 'dist/cjs/cli/mfRuntimePlugins/inject-node-fetch.js');
++const resolveManifestRecoveryPlugin = ()=>resolvePackageFile('@modern-js/runtime', 'dist/esm/module-federation/manifest-recovery-runtime-plugin.mjs', 'dist/cjs/module-federation/manifest-recovery-runtime-plugin.js', process.cwd());
+ const resolveNodeRuntimePlugin = ()=>resolvePackageFile('@module-federation/node', 'dist/src/runtimePlugin.mjs', 'dist/src/runtimePlugin.js');
+ const resolveNodeRecordRemoteHashPlugin = ()=>resolvePackageFile('@module-federation/node', 'dist/src/recordDynamicRemoteEntryHashPlugin.mjs', 'dist/src/recordDynamicRemoteEntryHashPlugin.js');
+ function setEnv(enableSSR) {
+@@ -86,6 +87,7 @@ const patchMFConfig = (mfConfig, isServer)=>{
+     patchDTSConfig(mfConfig, isServer);
+     injectRuntimePlugins(resolveSharedStrategyPlugin(), runtimePlugins);
+     if (isServer) {
++        injectRuntimePlugins(resolveManifestRecoveryPlugin(), runtimePlugins);
+         injectRuntimePlugins(resolveNodeRuntimePlugin(), runtimePlugins);
+         if (isDev()) injectRuntimePlugins(resolveNodeRecordRemoteHashPlugin(), runtimePlugins);
+         injectRuntimePlugins(resolveInjectNodeFetchPlugin(), runtimePlugins);

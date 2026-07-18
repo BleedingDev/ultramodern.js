@@ -1,10 +1,12 @@
 const assert = require('node:assert/strict');
+const { spawnSync } = require('node:child_process');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 const { writeJsonFile } = require('../../lib/fs-kit');
+const { createProcessEnv } = require('../../lib/process-kit');
 
 async function loadProof() {
   return import('../run-published-create-proof.mjs');
@@ -187,14 +189,164 @@ test('shared ERP-10 profile requires frozen install, checks, both builds, and no
   );
   assert.equal(requiredAcceptanceResultIds.includes('cloudflare-build'), true);
   assert.equal(
-    Object.hasOwn(
-      createAcceptancePackageManagerEnv('/tmp/acceptance', {
-        MODERN_CREATE_ULTRAMODERN_FRAMEWORK_VERSION: 'forbidden',
-      }),
-      'MODERN_CREATE_ULTRAMODERN_FRAMEWORK_VERSION',
-    ),
-    false,
+    createAcceptancePackageManagerEnv('/tmp/acceptance', {
+      MODERN_CREATE_ULTRAMODERN_FRAMEWORK_VERSION: 'forbidden',
+    }).MODERN_CREATE_ULTRAMODERN_FRAMEWORK_VERSION,
+    undefined,
   );
+  assert.equal(
+    createAcceptancePackageManagerEnv('/tmp/acceptance', {
+      ULTRAMODERN_CREATE_BIN: '/repo/packages/toolkit/create/bin/run.js',
+    }).ULTRAMODERN_CREATE_BIN,
+    undefined,
+  );
+
+  const inherited = {
+    MODERN_CREATE_ULTRAMODERN_FRAMEWORK_VERSION:
+      process.env.MODERN_CREATE_ULTRAMODERN_FRAMEWORK_VERSION,
+    ULTRAMODERN_CREATE_BIN: process.env.ULTRAMODERN_CREATE_BIN,
+    ZE_CI_TOKEN: process.env.ZE_CI_TOKEN,
+  };
+  try {
+    process.env.MODERN_CREATE_ULTRAMODERN_FRAMEWORK_VERSION =
+      'inherited-framework-override';
+    process.env.ULTRAMODERN_CREATE_BIN = '/inherited/source-create-bin.js';
+    process.env.ZE_CI_TOKEN = 'inherited-zephyr-token';
+    const effectiveEnv = createProcessEnv(
+      createAcceptancePackageManagerEnv('/tmp/acceptance'),
+    );
+    const child = spawnSync(
+      process.execPath,
+      [
+        '-e',
+        `process.stdout.write(JSON.stringify({
+          frameworkOverride: process.env.MODERN_CREATE_ULTRAMODERN_FRAMEWORK_VERSION,
+          sourceCreateBin: process.env.ULTRAMODERN_CREATE_BIN,
+          zephyrToken: process.env.ZE_CI_TOKEN,
+        }))`,
+      ],
+      { encoding: 'utf8', env: effectiveEnv },
+    );
+    assert.equal(child.status, 0, child.stderr);
+    assert.deepEqual(
+      JSON.parse(child.stdout),
+      {},
+      'the effective acceptance child environment must scrub inherited source/runtime and deploy overrides',
+    );
+  } finally {
+    for (const [name, value] of Object.entries(inherited)) {
+      if (value === undefined) {
+        delete process.env[name];
+      } else {
+        process.env[name] = value;
+      }
+    }
+  }
+});
+
+test('snapshots the completed generated application source before building', async () => {
+  const { snapshotAcceptanceWorkspaceSource } = await import(
+    '../published-create-proof/acceptance-profile.mjs'
+  );
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'ultramodern-acceptance-source-'),
+  );
+  const runImpl = (command, args, options = {}) => {
+    const result = spawnSync(command, args, {
+      cwd: options.cwd,
+      encoding: 'utf8',
+      env: createProcessEnv(options.env ?? {}),
+      stdio: options.stdio === 'inherit' ? 'ignore' : 'pipe',
+    });
+    if (result.status !== 0) {
+      throw new Error(result.stderr || `${command} failed`);
+    }
+    return result.stdout?.trim() ?? '';
+  };
+
+  try {
+    runImpl('git', ['init', '--quiet'], { cwd: root });
+    runImpl('git', ['config', 'user.name', 'UltraModern Acceptance'], {
+      cwd: root,
+    });
+    runImpl('git', ['config', 'user.email', 'acceptance@example.test'], {
+      cwd: root,
+    });
+    fs.writeFileSync(path.join(root, 'package.json'), '{"private":true}\n');
+    runImpl('git', ['add', 'package.json'], { cwd: root });
+    runImpl('git', ['commit', '--quiet', '-m', 'initial'], { cwd: root });
+    const initial = runImpl('git', ['rev-parse', 'HEAD'], { cwd: root });
+    fs.mkdirSync(path.join(root, 'verticals', 'catalog'), {
+      recursive: true,
+    });
+    fs.writeFileSync(
+      path.join(root, 'verticals', 'catalog', 'package.json'),
+      '{"name":"catalog"}\n',
+    );
+    fs.writeFileSync(path.join(root, 'pnpm-lock.yaml'), 'lockfileVersion: 9\n');
+
+    const revision = snapshotAcceptanceWorkspaceSource(root, {}, runImpl);
+
+    assert.match(revision, /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u);
+    assert.notEqual(revision, initial);
+    assert.equal(
+      runImpl('git', ['status', '--porcelain=v1', '--untracked-files=all'], {
+        cwd: root,
+      }),
+      '',
+    );
+    assert.equal(
+      runImpl('git', ['show', '--format=', '--name-only', 'HEAD'], {
+        cwd: root,
+      }).includes('verticals/catalog/package.json'),
+      true,
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('browser runtime children scrub inherited source and deployment overrides', async () => {
+  const { createBrowserSmokeEnvironment } = await import(
+    '../published-create-proof/browser-smoke.mjs'
+  );
+  const inherited = {
+    MODERN_CREATE_ULTRAMODERN_FRAMEWORK_VERSION:
+      process.env.MODERN_CREATE_ULTRAMODERN_FRAMEWORK_VERSION,
+    ULTRAMODERN_CREATE_BIN: process.env.ULTRAMODERN_CREATE_BIN,
+    ZE_CI_TOKEN: process.env.ZE_CI_TOKEN,
+  };
+  try {
+    process.env.MODERN_CREATE_ULTRAMODERN_FRAMEWORK_VERSION =
+      'inherited-framework-override';
+    process.env.ULTRAMODERN_CREATE_BIN = '/inherited/source-create-bin.js';
+    process.env.ZE_CI_TOKEN = 'inherited-zephyr-token';
+    const effectiveEnv = createProcessEnv(
+      createBrowserSmokeEnvironment('/tmp/playwright-runtime'),
+    );
+    const child = spawnSync(
+      process.execPath,
+      [
+        '-e',
+        `process.stdout.write(JSON.stringify({
+          frameworkOverride: process.env.MODERN_CREATE_ULTRAMODERN_FRAMEWORK_VERSION,
+          sourceCreateBin: process.env.ULTRAMODERN_CREATE_BIN,
+          zephyrToken: process.env.ZE_CI_TOKEN,
+        }))`,
+      ],
+      { encoding: 'utf8', env: effectiveEnv },
+    );
+    assert.equal(child.status, 0, child.stderr);
+    assert.deepEqual(JSON.parse(child.stdout), {});
+  } finally {
+    for (const [name, value] of Object.entries(inherited)) {
+      if (value === undefined) {
+        delete process.env[name];
+      } else {
+        process.env[name] = value;
+      }
+    }
+  }
 });
 
 test('builds Cloudflare proof args without a pnpm separator argument', async () => {

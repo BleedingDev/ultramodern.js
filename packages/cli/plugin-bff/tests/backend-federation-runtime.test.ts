@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -66,6 +67,21 @@ function createBackendManifest() {
       },
     },
   };
+}
+
+async function listen(server: http.Server) {
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      server.off('error', reject);
+      resolve();
+    });
+  });
+  const address = server.address();
+  if (!address || typeof address === 'string') {
+    throw new Error('Expected backend federation test server TCP address.');
+  }
+  return `http://127.0.0.1:${address.port}`;
 }
 
 function createManifestEffectApiModule(
@@ -285,6 +301,193 @@ module.exports = {
       nodeAdapterVersion: BACKEND_FEDERATION_NODE_ADAPTER_VERSION,
       packageName: '@tractor-store-vertical-demo/catalog',
     });
+  });
+
+  test('loads a live HTTP manifest and CommonJS container through the official Module Federation runtime', async () => {
+    const requests: string[] = [];
+    const server = http.createServer((request, response) => {
+      requests.push(request.url ?? '');
+      const origin = `http://127.0.0.1:${
+        (server.address() as { port: number }).port
+      }`;
+
+      if (
+        request.url === '/backend-mf-manifest.json' ||
+        request.url === '/backend-mf-manifest-mismatch.json'
+      ) {
+        const entryFile =
+          request.url === '/backend-mf-manifest-mismatch.json'
+            ? 'backendRemoteEntry-mismatch.cjs'
+            : 'backendRemoteEntry.cjs';
+        const remoteName =
+          request.url === '/backend-mf-manifest-mismatch.json'
+            ? 'verticalCatalogMismatchBackend'
+            : 'verticalCatalogBackend';
+        response.setHeader('content-type', 'application/json');
+        response.end(
+          JSON.stringify({
+            schemaVersion: 1,
+            id: remoteName,
+            name: remoteName,
+            version: '1.2.3',
+            buildVersion: 'catalog-build-123',
+            metaData: {
+              name: remoteName,
+              type: 'backend',
+              buildInfo: {
+                buildName: '@tractor-store-vertical-demo/catalog',
+                buildVersion: 'catalog-build-123',
+              },
+              remoteEntry: {
+                name: entryFile,
+                path: '',
+                type: 'commonjs-module',
+              },
+              globalName: remoteName,
+              publicPath: `${origin}/`,
+              ssrRemoteEntry: {
+                name: entryFile,
+                path: '',
+                type: 'commonjs-module',
+              },
+              ssrPublicPath: `${origin}/`,
+            },
+            entry: {
+              file: entryFile,
+              path: `dist/${entryFile}`,
+              type: 'commonjs-module',
+              url: `${origin}/${entryFile}`,
+            },
+            exposes: [
+              {
+                id: `${remoteName}:./effect-api`,
+                name: './effect-api',
+                path: '',
+                assets: {
+                  js: { async: [], sync: [entryFile] },
+                  css: { async: [], sync: [] },
+                },
+              },
+            ],
+            shared: [],
+            backendFederation: {
+              role: 'microvertical-server',
+              name: remoteName,
+              runtimeFramework: 'effect',
+              strictEffectApproach: true,
+              contractVersion: BACKEND_FEDERATION_CONTRACT_VERSION,
+              nodeAdapterVersion: BACKEND_FEDERATION_NODE_ADAPTER_VERSION,
+              remoteType: 'commonjs-module',
+              expose: './effect-api',
+              manifestUrl: `${origin}${request.url}`,
+              containerEntry: `${origin}/${entryFile}`,
+              deliveryUnit: {
+                unitId: 'catalog@21',
+                buildMarker: 'catalog-build-123',
+              },
+              versionBoundary: {
+                invariant: 'web-and-api-same-build',
+                packageName: '@tractor-store-vertical-demo/catalog',
+                version: '1.2.3',
+                buildVersion: 'catalog-build-123',
+                deliveryUnit: {
+                  unitId: 'catalog@21',
+                  buildMarker: 'catalog-build-123',
+                },
+              },
+            },
+          }),
+        );
+        return;
+      }
+
+      if (
+        request.url === '/backendRemoteEntry.cjs' ||
+        request.url === '/backendRemoteEntry-mismatch.cjs'
+      ) {
+        const compatibilityBuild =
+          request.url === '/backendRemoteEntry-mismatch.cjs'
+            ? 'catalog-build-wrong'
+            : 'catalog-build-123';
+        const containerName =
+          request.url === '/backendRemoteEntry-mismatch.cjs'
+            ? 'verticalCatalogMismatchBackend'
+            : 'verticalCatalogBackend';
+        response.setHeader('content-type', 'text/javascript');
+        response.end(`
+module.exports = {
+  init() {},
+  get(id) {
+    if (id !== './effect-api') throw new Error('Unexpected expose ' + id);
+    return async () => ({
+      backendFederationContract: {
+        compatibility: {
+          build: '${compatibilityBuild}',
+          contractVersion: '${BACKEND_FEDERATION_CONTRACT_VERSION}',
+          nodeAdapterVersion: '${BACKEND_FEDERATION_NODE_ADAPTER_VERSION}',
+          packageName: '@tractor-store-vertical-demo/catalog',
+          unitId: 'catalog@21',
+        },
+        name: '${containerName}',
+        role: 'microvertical-server',
+        runtimeFramework: 'effect',
+        strictEffectApproach: true,
+      },
+      contract: { servicePrefix: '/catalog-api' },
+      runtime: { brand: 'official-runtime-http' },
+    });
+  },
+};
+`);
+        return;
+      }
+
+      response.statusCode = 404;
+      response.end();
+    });
+    const origin = await listen(server);
+
+    try {
+      const loaded = await loadBackendFederatedEffectApiFromManifest({
+        hostName: `nodeHttpManifestBackendHost-${Date.now()}`,
+        manifestUrl: `${origin}/backend-mf-manifest.json`,
+        expected: {
+          buildMarker: 'catalog-build-123',
+          unitId: 'catalog@21',
+        },
+      });
+
+      expect(loaded.runtime).toEqual({ brand: 'official-runtime-http' });
+      expect(requests).toEqual([
+        '/backend-mf-manifest.json',
+        '/backend-mf-manifest.json',
+        '/backendRemoteEntry.cjs',
+      ]);
+
+      await expect(
+        loadBackendFederatedEffectApiFromManifest({
+          hostName: `nodeHttpMismatchBackendHost-${Date.now()}`,
+          manifestUrl: `${origin}/backend-mf-manifest-mismatch.json`,
+          expected: {
+            buildMarker: 'catalog-build-123',
+            unitId: 'catalog@21',
+          },
+        }),
+      ).rejects.toMatchObject({
+        code: 'version_mismatch',
+        failureEvent: 'modernjs:microvertical-server-fallback',
+      });
+      expect(requests.slice(-3)).toEqual([
+        '/backend-mf-manifest-mismatch.json',
+        '/backend-mf-manifest-mismatch.json',
+        '/backendRemoteEntry-mismatch.cjs',
+      ]);
+    } finally {
+      server.closeAllConnections();
+      await new Promise<void>((resolve, reject) => {
+        server.close(error => (error ? reject(error) : resolve()));
+      });
+    }
   });
 
   test('resolves backend federation manifest URLs from generated env metadata', async () => {

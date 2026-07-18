@@ -36,7 +36,7 @@ function resolveManifestReferenceSource(
   return undefined;
 }
 
-function resolveManifestReference(
+export function resolveBackendFederationManifestReference(
   options: Pick<
     BackendFederationManifestAdapterOptions,
     'env' | 'manifestEnv' | 'manifestPath' | 'manifestUrl'
@@ -157,7 +157,7 @@ export async function loadBackendFederationManifest(
     return options.manifest;
   }
 
-  const reference = resolveManifestReference(options);
+  const reference = resolveBackendFederationManifestReference(options);
   if (!reference) {
     throw new BackendFederationManifestAdapterError(
       'manifest_unavailable',

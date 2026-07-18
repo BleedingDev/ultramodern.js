@@ -43,7 +43,6 @@ import {
   TANSTACK_ROUTER_VERSION,
   TYPES_REACT_DOM_VERSION,
   TYPES_REACT_VERSION,
-  TYPESCRIPT_COMPILER_API_VERSION,
   TYPESCRIPT_NATIVE_PREVIEW_VERSION,
   TYPESCRIPT_VERSION,
   ULTRACITE_VERSION,
@@ -295,8 +294,6 @@ const releaseAgeReasons = {
     'Reviewed Effect 4 beta cohort required by generated strict Effect workspaces before pnpm minimum release age elapsed.',
   i18next:
     'Reviewed i18next release required by generated localized applications before pnpm minimum release age elapsed.',
-  moduleFederation:
-    'Reviewed Module Federation 2.7 cohort required by generated SSR federation workspaces before pnpm minimum release age elapsed.',
   typescript:
     'Reviewed TypeScript compiler and platform cohort required by generated TypeScript 7 workspaces before pnpm minimum release age elapsed.',
 } as const;
@@ -323,13 +320,6 @@ const releaseAgeReviewEvidence = {
     expiresAt: '2026-08-08T23:03:09.000Z',
     uri: 'https://github.com/BleedingDev/ultramodern.js/commit/04ae8b3445464e8f6179c3c89606792c97e9acbd',
     sha256: 'bdc703627ded04958aceff6663844994fca3a0be0d1266ea4fdb8dec7c06f4fa',
-  },
-  moduleFederation: {
-    reviewer: 'Petr Glaser <syreanis+1@gmail.com>',
-    reviewedAt: '2026-07-09T20:51:39.000Z',
-    expiresAt: '2026-08-08T20:51:39.000Z',
-    uri: 'https://github.com/BleedingDev/ultramodern.js/commit/9de554b9c165e8bf3c09bfcca3163612fd0cd473',
-    sha256: 'ffb6fd168d53bff7b48aedb409d832b20155a4526edebb460288d7d10f40ae28',
   },
   releaseCohort: {
     reviewer: 'Petr Glaser <syreanis+1@gmail.com>',
@@ -395,18 +385,12 @@ export const ULTRAMODERN_PACKAGE_PINS = {
   appDevDependencies: {
     '@effect/tsgo': EFFECT_TSGO_VERSION,
     '@rsbuild/plugin-tailwindcss': `^${RSBUILD_PLUGIN_TAILWINDCSS_VERSION}`,
-    // tsgo's native TS7 backend lives under the `@typescript/native` alias
-    // (the name @effect/tsgo resolves), so the plain `typescript` package can be
-    // the classic compiler the Module Federation DTS plugin executes.
     '@typescript/native': `npm:typescript@${TYPESCRIPT_VERSION}`,
     '@types/node': '^20',
     '@types/react': TYPES_REACT_VERSION,
     '@types/react-dom': TYPES_REACT_DOM_VERSION,
     tailwindcss: `^${TAILWIND_VERSION}`,
-    // Classic TypeScript compiler API (`typescript.sys`) — the MF DTS plugin
-    // executes it at build time and TS7/tsgo does not expose it. TS7
-    // typechecking runs through @effect/tsgo + @typescript/native above.
-    typescript: TYPESCRIPT_COMPILER_API_VERSION,
+    typescript: TYPESCRIPT_VERSION,
     wrangler: WRANGLER_VERSION,
     'zephyr-rspack-plugin': ZEPHYR_RSPACK_PLUGIN_VERSION,
   },
@@ -507,95 +491,107 @@ const stalePatchPolicies: readonly UltramodernStalePatchPolicy[] = [
 const moduleFederationRegistryReleases = [
   [
     'bridge-react',
-    '2026-07-08T08:45:11.302Z',
-    'sha512-i+RDBvAYVxZklRZwD50crqEewP8YYhwZ0LwO6rA2GLXVgcf7OR2aFVE0HLURByoT/oX86dyvKgVvPtXZLHNUhw==',
+    '2026-07-15T09:16:06.334Z',
+    'sha512-+MIaWVaXyrFfE2qq7ErZeflSTscJtDV6g4lZ+TQxjup1nC83Zw+Nw0fvfJnScDR5lP5SM9epSvZrrZHxpFeEgw==',
   ],
   [
     'bridge-react-webpack-plugin',
-    '2026-07-08T08:44:46.582Z',
-    'sha512-+7eYeJnIaofQHha8CK+FxPAXMIigd2xwONHi9rlYpdGqpCBIggRKMqL0b1owyDDNiAPF2lWUbxeNm0oUfF7GbA==',
+    '2026-07-15T09:15:40.748Z',
+    'sha512-7AaaiE4YOXFb+st6xlVDK65aNKZYR9S9ykH0q2mkHAHTgquXciAjypS8JuhmKn7Lob/2rkplMOc4YsGxG3Ng9Q==',
   ],
   [
     'cli',
-    '2026-07-08T08:45:40.376Z',
-    'sha512-Nx5PQFmYqiiiIaU8uyzFcm9j8bNGb0SEo1GvbjI4ehfRJ5a92sUjNE++Q3o6zmVDI4wDXIhpGxioYdXi5QF40w==',
+    '2026-07-15T09:16:37.679Z',
+    'sha512-yTxdWkCJPPo+IGASz+NqdW13cw3DhjSBEn9r85aYn1ahckDwB1WcZe0OjDWMqCcR6yi0BMLedk0SWrUeUj0fWw==',
   ],
   [
     'dts-plugin',
-    '2026-07-08T08:45:20.112Z',
-    'sha512-mVKeGUf/7iqRMAFfikhsr2zXtA70WuzJdS1bPqqoeLQNRGXBLDjedcDG26RpIlsvuZcmIOqgN5Z6qw7Bh/HZUg==',
+    '2026-07-15T09:16:15.728Z',
+    'sha512-defjq4jOWMEfeejezPWLP5sc8kw0O6FqTT7/E5rbZPEVyjB1A0U3ynhW6GDE5/6hk9/TzdbWS+fBNi4MqUOY6Q==',
   ],
   [
     'enhanced',
-    '2026-07-08T08:46:28.667Z',
-    'sha512-1ZaiFIsFdH68MLoU7jrYxwhDt4WbDqmuTcnVsRqp9QZhZsex9h2zkeNpZdctL2Q1BtGsuNJ4ngJCOmO84O+6CQ==',
+    '2026-07-15T09:17:21.630Z',
+    'sha512-h8vkLdhK7tlcSPmyYNGfGyt0pSzfDB0tYVYdyUt2tXwQRfaJAi3bsIpujMXElw3MXtOfSHESa6M/hPKrtWTHBw==',
   ],
   [
     'error-codes',
-    '2026-07-08T08:44:26.609Z',
-    'sha512-syToF3H77IbBhJ7auGMCIb5ZDmJ5tvaqSeEvncJrOCq7JBT96F4UDlQDyNh6kCVznvYqqHsPeEMrfI9b5/Omlg==',
+    '2026-07-15T09:15:24.091Z',
+    'sha512-Gaog9904EmxYOQV0hli3XQ7jXeFaADfh5bnBtTCtbZ37Qd/Sz9kQfd+gYQRyIj7RGmkv9DPiN/SsmrTMrTymKw==',
   ],
   [
     'inject-external-runtime-core-plugin',
-    '2026-07-08T08:46:19.229Z',
-    'sha512-8xHVUWsnlYd1vQPUjVEO+OPBhBjbdur+jp33QwqwkJkSUW/WOgnybCevVyfiA05aaiSyPo1PluQPT6uhImVb7A==',
+    '2026-07-15T09:17:12.157Z',
+    'sha512-fW3jD1ZVds6r/Ul8TtUA42RsB0LfT1yjo5KjqgirH9QrmEMH21x44e3e6BC6IN820XKawRDSmz2kFA5YHIQp7Q==',
   ],
   [
     'managers',
-    '2026-07-08T08:44:50.532Z',
-    'sha512-cWohiUvSrY6dIfhwsRABmEWfvJiAD5u/gxU7XRk7bx5nYPj7qn5gvYWJtvLNWzenluHZR6sib+03QMlyo+MYKQ==',
+    '2026-07-15T09:15:44.830Z',
+    'sha512-SnVBCwmi962WGg6hLFElxZUCnrRJdR6glE2ZKPBY/iK07AHUN2ZxuaBCBsVzyws+xLZGHZxBHmVstijTh8dSUA==',
   ],
   [
     'manifest',
-    '2026-07-08T08:45:48.810Z',
-    'sha512-phK5/pK/e0JyjMh7a2tvRXUFE0WCG9lxu4BtBQllZXNO0zjrroOHl2s/0sSUCdOq6NIL1HF9wTAudYiCKmNFjA==',
+    '2026-07-15T09:16:46.336Z',
+    'sha512-wfVeBXc4/C2F70nRFSPqJhkcwbDgo+wQyEn3jbjJTDoUqxxhYBfHFs1ACBYOk3Qm97L7hHclHGtUG0/nvDEfAA==',
   ],
   [
     'modern-js-v3',
-    '2026-07-08T08:47:26.283Z',
-    'sha512-HiTplBM9z4g9WXrIbifRuCira845fALpPXFpeuDrOCnNVuWYrAh0MZNQwv3A8oyi/7zcTSXElotnvGqFCQwp6w==',
+    '2026-07-15T09:17:49.953Z',
+    'sha512-zmFs0I/E3dLa8Vsj35ep7Ms29SePXFOShjedfFs5VnJPooif6l7fgdIJdxThyI1Rdw5JnRXmJsp4qmGm+naziA==',
   ],
   [
     'rsbuild-plugin',
-    '2026-07-08T08:47:02.386Z',
-    'sha512-rB001vPryB94/ytTzvDyVS5PGB82ImWLY938DrPjSqmG+rQWPRyV7QmDPodwDEzZEUvlWGS+MOu4CmqtrkRKpA==',
+    '2026-07-15T09:17:40.351Z',
+    'sha512-rul5OPvLx599rWoAhCtKJ3UYqyM3Dxg0RWEfad3JdnJFqkcSLBojZXgHJE1vbF7DRdGQNmNscKw34iEyn89NwQ==',
   ],
   [
     'rspack',
-    '2026-07-08T08:46:23.723Z',
-    'sha512-VbYc/5cpIze16ysBZJvmeXU7NN8tAs6Q/MdDsllIwO+Ir7JIEXgGrs5Bs+K7BuAu3HpxyRC8KanJTD+JB91+WA==',
+    '2026-07-15T09:17:16.399Z',
+    'sha512-TPcrkHpaZgL25Vx3c8oSNwyv7/KktC7uo6HTQdVWlFzbq5RSoMMGkWoir5pY5124isae2/p6v5xAuqICi4r0Zg==',
   ],
   [
     'runtime',
-    '2026-07-08T08:45:07.096Z',
-    'sha512-UtLozKKNvhT0D1+F0MEWsAmddJ39ItKW15E22LVMAwXmYZRSnzIvJQ2Y6kQ4LwhWABsw/GRSpUDex5OfhpSQPw==',
+    '2026-07-15T09:16:02.203Z',
+    'sha512-cGtUBQ1/TVy7KrXy6xPgy3FEmOGyIYkBA2T4iGH3ZH5PNPPTmqN9jF2AfneTSOj0RtBr7Pxq3CUt81E/UCvK1A==',
   ],
   [
     'runtime-core',
-    '2026-07-08T08:44:54.742Z',
-    'sha512-5ROZLVIeV9YnWO2RwCwSHcy6sh48yclErO/2GZ2Xe8lFubPrFirgU8pbwBjZw+All0ZzN44BGS4ECRMVFzVcpg==',
+    '2026-07-15T09:15:49.410Z',
+    'sha512-Tf98+epGGiPSHqmQHuXa2uXZMMvjGf1IqJDR1/FpXfmobv5ECN0mGZCjUHGNSyxvoDyXKIkKwJu7IwEoh0ouQA==',
   ],
   [
     'runtime-tools',
-    '2026-07-08T08:45:57.683Z',
-    'sha512-AY61QeZ0jV0GywgR9j3Yd37KiXoY6gaSYABhjDF3q7XL9PNtb2Ezm1F/985wqaKJYX+qJvYv+PMH6hTvyHdPYQ==',
+    '2026-07-15T09:16:55.255Z',
+    'sha512-3yOqjdSHXxX4HA3GhlXg3hghGAXW2RJUsnwXCcik2/lTxOHizKI8f3RM+GGCKPxDVqtw43IShe3tA12jNL5A/A==',
   ],
   [
     'sdk',
-    '2026-07-08T08:44:30.710Z',
-    'sha512-piiLEjaIdjbNq8E11Di6vsfryhcdN/+sBCH6NjG7gSU2VHHoHEayZQWWL7VVdS6rVjexF9McLhPTSrl0adUU+A==',
+    '2026-07-15T09:15:28.114Z',
+    'sha512-yBP+9+0Z8nlvKEXAZS3AsQVy7bFbZf8eMivGk4q4ZdwG3TsLMlsPjb1dQb2i7gcAG6ux9y2LWLkj/0LVk74cnQ==',
   ],
   [
     'third-party-dts-extractor',
-    '2026-07-08T08:44:34.650Z',
-    'sha512-hZJKkngQ4hwe0U+vrT3KOsU11qoHCQK0wB4x1bXoTgpTfV9j5NSuddOyRmwbvXpir9bDWh3xy7ghqsx3mFf3kA==',
+    '2026-07-15T09:15:32.527Z',
+    'sha512-nAMlr74OKIylkfRwlunOhytQbmsgb3gCqdXWnPQhG+ZtqWXGELLfMT4a1Q1ht3cS+sRpWj2SZRqK2M7GadI6tA==',
   ],
   [
     'webpack-bundler-runtime',
-    '2026-07-08T08:45:31.961Z',
-    'sha512-3qLRIqcZVBNgJrZpiEzcTP8a6+mCdUV1QGk/XljawsQHyNieMVdLQtdLvkoF5Z5kRXNMovq+wv3vchKOMWyA8w==',
+    '2026-07-15T09:16:28.628Z',
+    'sha512-82fDy9v+7qV5fiN8TKVhOdrxhmAZnUIX/IKivYX5ulCt8aoOzVFTiwm/P1GQUDD8z6dqR48xgJdZdf0548Mc9w==',
   ],
 ] as const;
+
+const moduleFederationNodeRegistryRelease = {
+  packageName: '@module-federation/node',
+  version: MODULE_FEDERATION_NODE_VERSION,
+  registry: {
+    publishedAt: '2026-07-15T09:17:26.899Z',
+    dist: {
+      integrity:
+        'sha512-mifMvCjWmLl53GS+badQws0j2bsu1ICpdGzCbez4I6kSpaYA8v86L6dwcHtVHIZtkUC6cjAZBDcgpxs4fK3nFQ==',
+    },
+  },
+} as const;
 
 const typescriptPlatformRegistryReleases = [
   [
@@ -719,26 +715,6 @@ const releaseAgeApprovals: readonly UltramodernReleaseAgeApproval[] = [
       'sha512-1dH6LBWSZyqnTV7ZO+yIpPGPf/xd7RtFfvQ4ZpTy9elzFN+wr1YBFpHSCr8+BfXOml6b8g9Mtj5eDy1qjbizUA==',
     review: releaseAgeReviewEvidence.dependencyCohort,
   }),
-  ...moduleFederationRegistryReleases.map(
-    ([packageSuffix, publishedAt, integrity]) =>
-      createReleaseAgeApproval({
-        packageName: `@module-federation/${packageSuffix}`,
-        version: MODULE_FEDERATION_VERSION,
-        reason: releaseAgeReasons.moduleFederation,
-        publishedAt,
-        integrity,
-        review: releaseAgeReviewEvidence.moduleFederation,
-      }),
-  ),
-  createReleaseAgeApproval({
-    packageName: '@module-federation/node',
-    version: MODULE_FEDERATION_NODE_VERSION,
-    reason: releaseAgeReasons.moduleFederation,
-    publishedAt: '2026-07-08T08:46:33.557Z',
-    integrity:
-      'sha512-LgrV5NU8SHKznzxl1gAtAYiWT0lFe9K8+mYNZ1atGkhpQiSeQFVsQbObZq5USs0dgjmpZtLtkwfFOQ66fKyNRA==',
-    review: releaseAgeReviewEvidence.moduleFederation,
-  }),
   createReleaseAgeApproval({
     packageName: '@typescript/native-preview',
     version: TYPESCRIPT_NATIVE_PREVIEW_VERSION,
@@ -759,15 +735,6 @@ const releaseAgeApprovals: readonly UltramodernReleaseAgeApproval[] = [
         review: releaseAgeReviewEvidence.typescript,
       }),
   ),
-  createReleaseAgeApproval({
-    packageName: 'typescript',
-    version: TYPESCRIPT_COMPILER_API_VERSION,
-    reason: releaseAgeReasons.typescript,
-    publishedAt: '2026-04-16T23:38:27.905Z',
-    integrity:
-      'sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw==',
-    review: releaseAgeReviewEvidence.typescript,
-  }),
   createReleaseAgeApproval({
     packageName: 'effect',
     version: EFFECT_VERSION,
@@ -856,18 +823,7 @@ export const ULTRAMODERN_WORKSPACE_POLICY = {
     peerDependencyRules: {
       allowedVersions: {
         react: '>=19.0.0',
-        // The classic `typescript` package is the compiler-API version; every
-        // MF plugin and i18next declare classic-TypeScript peers, so they all
-        // resolve to it (their warnings are silenced here).
-        '@module-federation/dts-plugin>typescript':
-          TYPESCRIPT_COMPILER_API_VERSION,
-        '@module-federation/enhanced>typescript':
-          TYPESCRIPT_COMPILER_API_VERSION,
-        '@module-federation/modern-js-v3>typescript':
-          TYPESCRIPT_COMPILER_API_VERSION,
-        '@module-federation/rspack>typescript': TYPESCRIPT_COMPILER_API_VERSION,
         '@effect/vitest>effect': EFFECT_VERSION,
-        'i18next>typescript': TYPESCRIPT_COMPILER_API_VERSION,
       },
     },
     overrides: {
@@ -877,21 +833,6 @@ export const ULTRAMODERN_WORKSPACE_POLICY = {
       '@tanstack/router-core': TANSTACK_ROUTER_CORE_VERSION,
       effect: EFFECT_VERSION,
       'node-fetch': NODE_FETCH_VERSION,
-    },
-    packageExtensions: {
-      [`@module-federation/dts-plugin@${MODULE_FEDERATION_VERSION}`]: {
-        dependencies: {
-          typescript: `npm:typescript@${TYPESCRIPT_COMPILER_API_VERSION}`,
-        },
-        // Narrow the plugin's typescript PEER to the exact classic version so a
-        // hoisted TS7 cannot satisfy it (the plugin's own range `^4.9||^5||^6`
-        // technically excludes 7, but pnpm otherwise resolves the hoisted 7 to
-        // it). This exact pin is the load-bearing isolation: the plugin gets
-        // classic TS6 while tsgo keeps TS7 via @typescript/native.
-        peerDependencies: {
-          typescript: TYPESCRIPT_COMPILER_API_VERSION,
-        },
-      },
     },
     allowBuilds: {
       '@parcel/watcher': true,
@@ -910,6 +851,23 @@ export const ULTRAMODERN_WORKSPACE_POLICY = {
     },
     releaseAge: {
       approvals: releaseAgeApprovals,
+      registryEvidence: {
+        moduleFederation: {
+          version: MODULE_FEDERATION_VERSION,
+          nodeVersion: MODULE_FEDERATION_NODE_VERSION,
+          releases: moduleFederationRegistryReleases.map(
+            ([packageSuffix, publishedAt, integrity]) => ({
+              packageName: `@module-federation/${packageSuffix}`,
+              version: MODULE_FEDERATION_VERSION,
+              registry: {
+                publishedAt,
+                dist: { integrity },
+              },
+            }),
+          ),
+          node: moduleFederationNodeRegistryRelease,
+        },
+      },
       firstParty: {
         source: 'authenticated-release-cohort-projection',
         exactVersionOnly: true,

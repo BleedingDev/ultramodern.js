@@ -1,6 +1,7 @@
 export {
   createUltramodernBuildArtifact,
   isUltramodernBuildArtifact,
+  stampUltramodernBuildArtifactIdentity,
   stampUltramodernBuildArtifactSourceRevision,
   validateUltramodernBuildArtifact,
 } from './build-artifact';

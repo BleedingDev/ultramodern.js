@@ -83,19 +83,24 @@ export function startServer(target, { artifactDir, projectDir }) {
   fs.mkdirSync(path.dirname(logPath), { recursive: true });
   const logStream = fs.createWriteStream(logPath, { flags: 'w' });
   const env = createProcessEnv({
+    PORT: String(target.port),
     ...(target.portEnv ? { [target.portEnv]: String(target.port) } : {}),
     ...(target.publicUrlEnv ? { [target.publicUrlEnv]: target.baseUrl } : {}),
   });
-  const child = spawn(
-    'pnpm',
-    ['--filter', target.app.package, 'run', 'serve'],
-    {
-      cwd: projectDir,
-      detached: process.platform !== 'win32',
-      env,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    },
-  );
+  const nodeDeployDirectory = path.join(projectDir, target.app.path, '.output');
+  const nodeDeployEntry = path.join(nodeDeployDirectory, 'index.js');
+  if (!fs.existsSync(nodeDeployEntry)) {
+    throw new BrowserSmokeError(
+      `${target.app.id} final Node deploy entry is missing`,
+      { nodeDeployEntry },
+    );
+  }
+  const child = spawn(process.execPath, ['index.js'], {
+    cwd: nodeDeployDirectory,
+    detached: process.platform !== 'win32',
+    env,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
   child.stdout.pipe(logStream);
   child.stderr.pipe(logStream);
   const exited = new Promise(resolve => {
@@ -153,9 +158,33 @@ export async function startWorkerdProof({
     child.stdout.on('data', chunk => {
       stdout += String(chunk);
       const match = /(?:^|\n)WORKERD_URL=(https?:\/\/[^\s]+)/u.exec(stdout);
-      if (match) {
+      const targetsMatch = /(?:^|\n)WORKERD_TARGET_URLS=(\{[^\n]+\})/u.exec(
+        stdout,
+      );
+      if (targetsMatch) {
         clearTimeout(timer);
-        resolve(match[1].replace(/\/$/u, ''));
+        try {
+          resolve({
+            baseUrl: match?.[1]?.replace(/\/$/u),
+            targetUrls: JSON.parse(targetsMatch[1]),
+          });
+        } catch (error) {
+          reject(
+            new BrowserSmokeError(
+              'workerd SSR proof published invalid target URL JSON',
+              {
+                cause: error instanceof Error ? error.message : String(error),
+                logPath,
+              },
+            ),
+          );
+        }
+      } else if (match) {
+        // Legacy generated workspaces only publish the shell URL. This remains
+        // usable outside strict acceptance, but strict all-workerd callers
+        // require targetUrls for every app.
+        clearTimeout(timer);
+        resolve({ baseUrl: match[1].replace(/\/$/u), targetUrls: undefined });
       }
     });
     exited.then(result => {
@@ -170,9 +199,10 @@ export async function startWorkerdProof({
   });
 
   try {
-    const baseUrl = await ready;
+    const { baseUrl, targetUrls } = await ready;
     return {
       baseUrl,
+      targetUrls,
       child,
       exited,
       logPath,

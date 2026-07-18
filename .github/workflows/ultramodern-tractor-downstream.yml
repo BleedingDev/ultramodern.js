@@ -1,0 +1,115 @@
+name: UltraModern Tractor Downstream Acceptance
+
+on:
+  workflow_call:
+    inputs:
+      release_bundle_artifact:
+        description: Exact UltraModern release-bundle artifact name from this run
+        required: true
+        type: string
+      tractor_ref:
+        description: Immutable Tractor Store baseline commit
+        required: true
+        type: string
+    outputs:
+      baseline_revision:
+        description: Immutable Tractor revision exercised by the acceptance
+        value: ${{ jobs.tractor-downstream.outputs.baseline_revision }}
+      evidence_artifact_name:
+        description: Exact same-run Tractor acceptance artifact name
+        value: ${{ jobs.tractor-downstream.outputs.evidence_artifact_name }}
+      report_sha256:
+        description: SHA-256 of the passing Tractor acceptance report
+        value: ${{ jobs.tractor-downstream.outputs.report_sha256 }}
+
+permissions:
+  contents: read
+
+jobs:
+  tractor-downstream:
+    name: Exact cohort passes Tractor Node and workerd acceptance
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    outputs:
+      baseline_revision: ${{ steps.evidence.outputs.baseline_revision }}
+      evidence_artifact_name: ${{ steps.evidence.outputs.artifact_name }}
+      report_sha256: ${{ steps.evidence.outputs.report_sha256 }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        with:
+          egress-policy: audit
+
+      - name: Checkout acceptance runner
+        uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
+        with:
+          path: modernjs
+          persist-credentials: false
+
+      - name: Checkout immutable Tractor baseline
+        uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
+        with:
+          repository: BleedingDev/tractor-store-vertical-demo
+          ref: ${{ inputs.tractor_ref }}
+          path: tractor
+          persist-credentials: false
+
+      - name: Download exact release bundle
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v7.0.0
+        with:
+          name: ${{ inputs.release_bundle_artifact }}
+          path: modernjs/.modern/bleedingdev-publish
+
+      - name: Setup mise
+        uses: jdx/mise-action@5ac50f778e26fac95da98d50503682459e86d566 # v3.2.0
+        with:
+          working_directory: tractor
+
+      - name: Install Chromium
+        working-directory: tractor
+        run: mise exec -- npx --yes playwright@1.60.0 install --with-deps chromium
+
+      - name: Run exact-cohort Tractor acceptance
+        working-directory: tractor
+        run: |
+          mise exec -- node ../modernjs/scripts/ultramodern-production-readiness/run-tractor-downstream-acceptance.mjs \
+            --manifest ../modernjs/.modern/bleedingdev-publish/manifest.json \
+            --workspace . \
+            --registry-url https://registry.npmjs.org/ \
+            --out ../modernjs/.modern/production-readiness/tractor-downstream-acceptance.json
+
+      - name: Bind Tractor acceptance evidence
+        id: evidence
+        if: always()
+        env:
+          TRACTOR_REF: ${{ inputs.tractor_ref }}
+        run: |
+          node <<'NODE'
+          const crypto = require('node:crypto');
+          const fs = require('node:fs');
+          const path = 'modernjs/.modern/production-readiness/tractor-downstream-acceptance.json';
+          const artifactName = `ultramodern-tractor-downstream-acceptance-${process.env.TRACTOR_REF}-attempt-${process.env.GITHUB_RUN_ATTEMPT}`;
+          fs.appendFileSync(
+            process.env.GITHUB_OUTPUT,
+            `artifact_name=${artifactName}\nbaseline_revision=${process.env.TRACTOR_REF}\n`,
+          );
+          const bytes = fs.readFileSync(path);
+          const report = JSON.parse(bytes);
+          if (report.tractor?.baselineRevision !== process.env.TRACTOR_REF) {
+            throw new Error('Tractor acceptance report is not bound to the immutable baseline');
+          }
+          const sha256 = crypto.createHash('sha256').update(bytes).digest('hex');
+          fs.appendFileSync(
+            process.env.GITHUB_OUTPUT,
+            `report_sha256=${sha256}\n`,
+          );
+          NODE
+
+      - name: Upload Tractor acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ steps.evidence.outputs.artifact_name }}
+          path: modernjs/.modern/production-readiness/tractor-downstream-acceptance.json
+          if-no-files-found: error
+          include-hidden-files: true

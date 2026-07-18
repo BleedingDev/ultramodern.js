@@ -39,7 +39,6 @@ import {
   OXFMT_VERSION,
   PNPM_VERSION,
   TANSTACK_ROUTER_CORE_VERSION,
-  TYPESCRIPT_COMPILER_API_VERSION,
   TYPESCRIPT_VERSION,
 } from '../src/ultramodern-workspace/versions';
 
@@ -60,6 +59,16 @@ function writeJson(workspaceDir: string, relativePath: string, value: unknown) {
   fs.writeFileSync(
     path.join(workspaceDir, relativePath),
     `${JSON.stringify(value, null, 2)}\n`,
+  );
+}
+
+function writeStandaloneEffectApi(workspaceDir: string) {
+  fs.writeFileSync(
+    path.join(workspaceDir, 'verticals/catalog/api/effect-api.ts'),
+    `export const contract = { servicePrefix: '/catalog-api' };
+export const runtime = { brand: 'test-effect-runtime' };
+`,
+    'utf-8',
   );
 }
 
@@ -148,7 +157,7 @@ test('migrate preserves consumer-owned check segments and rewrites migrated scri
     );
 
     const after = readJson(workspaceDir, 'package.json');
-    assert.match(after.scripts.check, /pnpm node:proof/u);
+    assert.doesNotMatch(after.scripts.check, /pnpm node:proof/u);
     assert.ok(
       after.scripts.check.endsWith('&& pnpm performance:readiness'),
       after.scripts.check,
@@ -165,6 +174,95 @@ test('migrate preserves consumer-owned check segments and rewrites migrated scri
       'node ./scripts/assert-mf-types.mts',
     );
     assertNoDanglingScriptReferences(workspaceDir);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('migrate removes the retired Module Federation TypeScript shim idempotently', async () => {
+  const { tempRoot, workspaceDir } = scaffoldWorkspace('tooling-mf-ts-shim');
+  const workspacePath = path.join(workspaceDir, 'pnpm-workspace.yaml');
+
+  try {
+    const policy = yaml.load(fs.readFileSync(workspacePath, 'utf-8')) as Record<
+      string,
+      any
+    >;
+    policy.peerDependencyRules.allowedVersions[
+      '@module-federation/dts-plugin>typescript'
+    ] = '6.0.3';
+    policy.peerDependencyRules.allowedVersions[
+      '@module-federation/enhanced>typescript'
+    ] = '6.0.3';
+    policy.peerDependencyRules.allowedVersions['i18next>typescript'] = '6.0.3';
+    policy.packageExtensions = {
+      '@module-federation/dts-plugin@2.7.0': {
+        dependencies: { typescript: 'npm:typescript@6.0.3' },
+        peerDependencies: { typescript: '6.0.3' },
+      },
+      'consumer-owned-package@1.2.3': {
+        dependencies: { consumer: '4.5.6' },
+      },
+    };
+    fs.writeFileSync(workspacePath, yaml.dump(policy), 'utf-8');
+
+    for (let run = 0; run < 2; run += 1) {
+      assert.equal(
+        await runUltramodernToolingCli(
+          ['migrate-strict-effect', '--skip-install'],
+          workspaceDir,
+        ),
+        0,
+      );
+    }
+
+    const migratedPolicy = yaml.load(
+      fs.readFileSync(workspacePath, 'utf-8'),
+    ) as Record<string, any>;
+    assert.equal(
+      migratedPolicy.peerDependencyRules.allowedVersions[
+        '@module-federation/dts-plugin>typescript'
+      ],
+      undefined,
+    );
+    assert.equal(
+      migratedPolicy.peerDependencyRules.allowedVersions[
+        '@module-federation/enhanced>typescript'
+      ],
+      undefined,
+    );
+    assert.equal(
+      migratedPolicy.peerDependencyRules.allowedVersions['i18next>typescript'],
+      undefined,
+    );
+    assert.equal(
+      migratedPolicy.packageExtensions['@module-federation/dts-plugin@2.7.0'],
+      undefined,
+    );
+    assert.deepEqual(
+      migratedPolicy.packageExtensions['consumer-owned-package@1.2.3'],
+      {
+        dependencies: { consumer: '4.5.6' },
+      },
+    );
+
+    migratedPolicy.packageExtensions = {
+      '@module-federation/dts-plugin@2.8.0': {
+        dependencies: { typescript: 'npm:typescript@6.0.3' },
+      },
+    };
+    fs.writeFileSync(workspacePath, yaml.dump(migratedPolicy), 'utf-8');
+    assert.equal(
+      await runUltramodernToolingCli(
+        ['migrate-strict-effect', '--skip-install'],
+        workspaceDir,
+      ),
+      0,
+    );
+    const withoutExtensions = yaml.load(
+      fs.readFileSync(workspacePath, 'utf-8'),
+    ) as Record<string, any>;
+    assert.equal(withoutExtensions.packageExtensions, undefined);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
@@ -510,7 +608,7 @@ function assertTargetIsolatedModernConfig(source: string, label: string) {
   );
 }
 
-test('Cloudflare output verifier wrapper uses explicit options contract', () => {
+test('Cloudflare output verifier is read-only and uses explicit options contract', () => {
   const source = fs.readFileSync(
     path.join(
       __dirname,
@@ -519,6 +617,7 @@ test('Cloudflare output verifier wrapper uses explicit options contract', () => 
     'utf-8',
   );
 
+  assert.doesNotMatch(source, /finalizeCloudflareReleaseEnvelope/u);
   assert.match(
     source,
     /verifyCloudflareOutput\(\{\s+outputDirectory: target\.outputDirectory,/u,
@@ -616,6 +715,7 @@ test('backend federation generator reads migrated app-level metadata', async () 
     ) as Record<string, any>;
     assert.equal(catalog.api.backendFederation, undefined);
     assert.equal(catalog.backendFederation.runtimeFramework, 'effect');
+    writeStandaloneEffectApi(workspaceDir);
 
     assert.equal(
       await runUltramodernToolingCli(
@@ -684,7 +784,7 @@ test('backend federation generator reads migrated app-level metadata', async () 
       fs.existsSync(
         path.join(
           workspaceDir,
-          'verticals/catalog/dist/backendRemoteEntry.mjs',
+          'verticals/catalog/dist/backendRemoteEntry.cjs',
         ),
       ),
       true,
@@ -713,6 +813,7 @@ test('backend federation proof rejects drifted delivery-unit stamps in the manif
       ),
       0,
     );
+    writeStandaloneEffectApi(workspaceDir);
 
     assert.equal(
       await runUltramodernToolingCli(
@@ -847,6 +948,14 @@ test('UltraModern migrate-strict-effect updates package cohort and direct API me
       name: 'catalog',
       modernVersion: '3.2.1',
     });
+    const freshShellCloudflareBuild = readJson(
+      workspaceDir,
+      'apps/shell-super-app/package.json',
+    ).scripts['cloudflare:build'];
+    const freshCatalogCloudflareBuild = readJson(
+      workspaceDir,
+      'verticals/catalog/package.json',
+    ).scripts['cloudflare:build'];
 
     const catalogEnglishLocale = readJson(
       workspaceDir,
@@ -1098,7 +1207,9 @@ export default catalogResource;
         .readFileSync(gitignorePath, 'utf-8')
         .replace(/^\.mf\/\n/mu, '')
         .replace(/^\*\*\/\.mf\/\n/mu, '')
-        .replace(/^dist-cloudflare\/\n/mu, ''),
+        .replace(/^dist-cloudflare\/\n/mu, '')
+        .replace(/^\.output\/\n/mu, '')
+        .replace(/^\*\*\/\.output\/\n/mu, ''),
       'utf-8',
     );
 
@@ -1252,10 +1363,7 @@ declare module '*.css' {}
       rootPackage.devDependencies['@modern-js/create'],
       'workspace:*',
     );
-    assert.equal(
-      rootPackage.devDependencies.typescript,
-      TYPESCRIPT_COMPILER_API_VERSION,
-    );
+    assert.equal(rootPackage.devDependencies.typescript, TYPESCRIPT_VERSION);
     assert.equal(
       rootPackage.devDependencies['@typescript/native'],
       `npm:typescript@${TYPESCRIPT_VERSION}`,
@@ -1272,7 +1380,7 @@ declare module '*.css' {}
     );
     assert.equal(
       rootPackage.scripts['node:proof'],
-      'pnpm node:backend-federation:generate && node ./scripts/proof-node-backend-federation.mts',
+      'node ./scripts/proof-node-backend-federation.mts',
     );
     assert.equal(
       rootPackage.scripts['cloudflare-output:verify'],
@@ -1310,7 +1418,7 @@ declare module '*.css' {}
         path.join(workspaceDir, 'scripts/proof-workerd-ssr.mts'),
         'utf-8',
       ),
-      /modules: createWorkerModules\(app\.outputRoot, main\)/u,
+      /const modules = createWorkerModules\(app\.outputRoot, main\)/u,
     );
     assert.throws(() =>
       fs.readFileSync(
@@ -1501,6 +1609,16 @@ declare module '*.css' {}
       /^dist-cloudflare\/$/mu,
       'migrate-strict-effect must ignore Cloudflare build output',
     );
+    assert.match(
+      migratedGitignore,
+      /^\.output\/$/mu,
+      'migrate-strict-effect must ignore root final deployment output',
+    );
+    assert.match(
+      migratedGitignore,
+      /^\*\*\/\.output\/$/mu,
+      'migrate-strict-effect must ignore per-app final deployment output',
+    );
 
     const shellTsConfig = readJson(
       workspaceDir,
@@ -1566,13 +1684,14 @@ declare module '*.css' {}
       shellPackage.scripts['cloudflare:build'],
       /MODERNJS_DEPLOY=cloudflare modern deploy --skip-build/u,
     );
-    assert.doesNotMatch(
+    assert.match(
       shellPackage.scripts['cloudflare:build'],
-      /--target dist && MODERNJS_DEPLOY=cloudflare modern deploy/u,
+      /node \S*generate-public-surface-assets\.mts --app shell-super-app --target cloudflare-dist && MODERNJS_DEPLOY=cloudflare modern deploy --skip-build/u,
     );
-    assert.doesNotMatch(
+    assert.equal(
       shellPackage.scripts['cloudflare:build'],
-      /verify-cloudflare-output/u,
+      freshShellCloudflareBuild,
+      'migrated shell Cloudflare build must exactly match a fresh scaffold',
     );
     assert.equal(
       shellPackage.scripts['cloudflare:deploy'],
@@ -1591,21 +1710,35 @@ declare module '*.css' {}
       catalogPackage.scripts['cloudflare:build'],
       /MODERNJS_DEPLOY=cloudflare modern deploy --skip-build/u,
     );
-    assert.doesNotMatch(
+    assert.match(
       catalogPackage.scripts['cloudflare:build'],
-      /--target dist && MODERNJS_DEPLOY=cloudflare modern deploy/u,
+      /node \S*generate-public-surface-assets\.mts --app catalog --target cloudflare-dist && MODERNJS_DEPLOY=cloudflare modern deploy --skip-build/u,
     );
     assert.doesNotMatch(
       catalogPackage.scripts.build,
       /generate-node-backend-federation/u,
     );
+    assert.match(
+      catalogPackage.scripts.build,
+      /MODERNJS_DEPLOY=node modern deploy --skip-build/u,
+    );
+    assert.ok(
+      catalogPackage.scripts.build.indexOf(
+        'generate-public-surface-assets.mts',
+      ) <
+        catalogPackage.scripts.build.indexOf(
+          'MODERNJS_DEPLOY=node modern deploy --skip-build',
+        ),
+      'Node deploy must framework-reseal generated public assets after public-surface generation',
+    );
     assert.doesNotMatch(
       catalogPackage.scripts['cloudflare:build'],
       /generate-node-backend-federation/u,
     );
-    assert.doesNotMatch(
+    assert.equal(
       catalogPackage.scripts['cloudflare:build'],
-      /verify-cloudflare-output/u,
+      freshCatalogCloudflareBuild,
+      'migrated MicroVertical Cloudflare build must exactly match a fresh scaffold',
     );
     assert.equal(
       catalogPackage.scripts['cloudflare:deploy'],

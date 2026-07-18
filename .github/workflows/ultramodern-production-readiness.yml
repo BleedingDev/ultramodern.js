@@ -85,12 +85,10 @@ jobs:
         with:
           egress-policy: audit
 
-      - name: Find non-dry-run publication signal
-        id: publication-signal
+      - name: List triggering run artifacts
         env:
           GH_TOKEN: ${{ github.token }}
           TRIGGER_RUN_ID: ${{ github.event.workflow_run.id }}
-          TRIGGER_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
         run: |
           mkdir -p "$BLEEDINGDEV_PUBLISH_OUTCOME_DIR"
           gh api --paginate --slurp \
@@ -105,30 +103,9 @@ jobs:
           if (!Array.isArray(pages) || pages.some(page => !Array.isArray(page?.artifacts))) {
             throw new Error('Artifact API response must be a paginated artifact listing');
           }
-          const identityArtifact = 'bleedingdev-release-identity';
-          if (process.env.BLEEDINGDEV_RELEASE_IDENTITY_ARTIFACT !== identityArtifact) {
-            throw new Error('Publication identity artifact name drift');
-          }
-          const suffix = `-publication-attempt-${process.env.TRIGGER_RUN_ATTEMPT}`;
-          const matches = pages
-            .flatMap(page => page.artifacts)
-            .filter(artifact =>
-              typeof artifact?.name === 'string' &&
-              artifact.name.startsWith(`${identityArtifact}-run-`) &&
-              artifact.name.endsWith(suffix) &&
-              artifact.expired === false,
-            );
-          if (matches.length > 1) {
-            throw new Error('multiple publication identity artifacts for the completed attempt');
-          }
-          fs.appendFileSync(process.env.GITHUB_OUTPUT, 'exists=true\n');
-          if (matches.length === 1) {
-            fs.appendFileSync(process.env.GITHUB_OUTPUT, `artifact_name=${matches[0].name}\n`);
-          }
           NODE
 
       - name: Checkout trusted receipt verifier
-        if: steps.publication-signal.outputs.exists == 'true'
         uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
@@ -137,7 +114,6 @@ jobs:
 
       - name: Select the triggering publish outcome
         id: publish-outcome-artifact
-        if: steps.publication-signal.outputs.exists == 'true'
         env:
           TRIGGER_COMPLETED_AT: ${{ github.event.workflow_run.updated_at }}
           TRIGGER_RUN_ID: ${{ github.event.workflow_run.id }}
@@ -151,7 +127,6 @@ jobs:
             --github-output "$GITHUB_OUTPUT"
 
       - name: Download triggering publish outcome
-        if: steps.publication-signal.outputs.exists == 'true'
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v7.0.0
         with:
           name: ${{ steps.publish-outcome-artifact.outputs.artifact_name }}
@@ -161,13 +136,18 @@ jobs:
 
       - name: Verify triggering publish outcome
         id: publish-outcome
-        if: steps.publication-signal.outputs.exists == 'true'
         env:
           OUTCOME_ARTIFACT_NAME: ${{ steps.publish-outcome-artifact.outputs.artifact_name }}
           TRIGGER_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
           TRIGGER_RUN_ID: ${{ github.event.workflow_run.id }}
           TRIGGER_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
         run: |
+          tractor_evidence=()
+          if [[ -f "$BLEEDINGDEV_PUBLISH_OUTCOME_DIR/tractor-downstream-acceptance.json" ]]; then
+            tractor_evidence=(
+              --tractor-report "$BLEEDINGDEV_PUBLISH_OUTCOME_DIR/tractor-downstream-acceptance.json"
+            )
+          fi
           node scripts/ultramodern-publish/publish-outcome.mjs verify \
             --outcome "$BLEEDINGDEV_PUBLISH_OUTCOME" \
             --artifact-name "$OUTCOME_ARTIFACT_NAME" \
@@ -175,11 +155,66 @@ jobs:
             --manifest-digest "$BLEEDINGDEV_PUBLISH_OUTCOME_DIR/manifest.json.sha256" \
             --cohort-digest "$BLEEDINGDEV_PUBLISH_OUTCOME_DIR/cohort.sha256" \
             --receipt "$BLEEDINGDEV_PUBLISH_OUTCOME_DIR/acceptance-receipt.json" \
+            --operational-evidence "$BLEEDINGDEV_PUBLISH_OUTCOME_DIR/acceptance-receipt.operational-independence.json" \
+            --published-receipt "$BLEEDINGDEV_PUBLISH_OUTCOME_DIR/published-acceptance-receipt.json" \
+            --published-operational-evidence "$BLEEDINGDEV_PUBLISH_OUTCOME_DIR/published-acceptance-receipt.operational-independence.json" \
+            "${tractor_evidence[@]}" \
             --repository "$GITHUB_REPOSITORY" \
             --source-commit "$TRIGGER_HEAD_SHA" \
             --run-id "$TRIGGER_RUN_ID" \
             --run-attempt "$TRIGGER_RUN_ATTEMPT" \
             --github-output "$GITHUB_OUTPUT"
+
+      - name: Find authenticated publication identity
+        id: publication-signal
+        env:
+          AUTHENTICATED_DRY_RUN: ${{ steps.publish-outcome.outputs.dry_run }}
+          AUTHENTICATED_PRODUCER_ARTIFACT_IDENTITY: ${{ steps.publish-outcome.outputs.producer_artifact_identity }}
+          AUTHENTICATED_PUBLICATION_RUN_ATTEMPT: ${{ steps.publish-outcome.outputs.publication_run_attempt }}
+        run: |
+          if [[ "$AUTHENTICATED_DRY_RUN" == "true" ]]; then
+            printf 'exists=false\n' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          node <<'NODE'
+          const fs = require('node:fs');
+          const pages = JSON.parse(
+            fs.readFileSync(process.env.BLEEDINGDEV_PUBLISH_OUTCOME_ARTIFACTS, 'utf8'),
+          );
+          if (!Array.isArray(pages) || pages.some(page => !Array.isArray(page?.artifacts))) {
+            throw new Error('Artifact API response must be a paginated artifact listing');
+          }
+          const identityArtifact = 'bleedingdev-release-identity';
+          if (process.env.BLEEDINGDEV_RELEASE_IDENTITY_ARTIFACT !== identityArtifact) {
+            throw new Error('Publication identity artifact name drift');
+          }
+          const producer = process.env.AUTHENTICATED_PRODUCER_ARTIFACT_IDENTITY;
+          const publicationAttempt =
+            process.env.AUTHENTICATED_PUBLICATION_RUN_ATTEMPT;
+          if (
+            !/^run-[1-9]\d*-attempt-[1-9]\d*$/u.test(producer) ||
+            !/^[1-9]\d*$/u.test(publicationAttempt)
+          ) {
+            throw new Error(
+              'Authenticated outcome is missing a valid publication identity',
+            );
+          }
+          const expectedName =
+            `${identityArtifact}-${producer}-publication-attempt-${publicationAttempt}`;
+          const matches = pages
+            .flatMap(page => page.artifacts)
+            .filter(artifact => artifact?.name === expectedName);
+          if (matches.length !== 1 || matches[0].expired !== false) {
+            throw new Error(
+              `Expected exactly one live publication identity artifact named ${expectedName}`,
+            );
+          }
+          fs.appendFileSync(
+            process.env.GITHUB_OUTPUT,
+            `exists=true\nartifact_name=${expectedName}\n`,
+          );
+          NODE
 
       - name: Download triggering release identity
         if: steps.publish-outcome.outputs.dry_run == 'false'
@@ -216,19 +251,27 @@ jobs:
             --receipt "$BLEEDINGDEV_RELEASE_IDENTITY_DIR/acceptance-receipt.json" \
             --run-identity "${{ steps.publish-outcome.outputs.producer_run_identity }}"
 
+          node scripts/ultramodern-publish/run-release-acceptance.mjs \
+            --verify-receipt \
+            --expected-mode published \
+            --manifest "$BLEEDINGDEV_PUBLISH_OUTCOME_DIR/manifest.json" \
+            --scale-profile erp-10 \
+            --receipt "$BLEEDINGDEV_PUBLISH_OUTCOME_DIR/published-acceptance-receipt.json" \
+            --run-identity "${{ steps.publish-outcome.outputs.producer_run_identity }}"
+
       - name: Verify triggering release identity
         id: release-identity
         if: steps.publication-signal.outputs.exists == 'true'
         env:
           AUTHENTICATED_DRY_RUN: ${{ steps.publish-outcome.outputs.dry_run }}
           AUTHENTICATED_MANIFEST_SHA256: ${{ steps.publish-outcome.outputs.manifest_sha256 }}
+          AUTHENTICATED_PUBLICATION_RUN_ATTEMPT: ${{ steps.publish-outcome.outputs.publication_run_attempt }}
           AUTHENTICATED_PRODUCER_ARTIFACT_IDENTITY: ${{ steps.publish-outcome.outputs.producer_artifact_identity }}
           AUTHENTICATED_PRODUCER_RUN_IDENTITY: ${{ steps.publish-outcome.outputs.producer_run_identity }}
           AUTHENTICATED_VERSION: ${{ steps.publish-outcome.outputs.version }}
           TRIGGER_ARTIFACT_NAME: ${{ steps.publication-signal.outputs.artifact_name }}
           TRIGGER_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
           TRIGGER_RUN_ID: ${{ github.event.workflow_run.id }}
-          TRIGGER_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
         run: |
           if [[ "$AUTHENTICATED_DRY_RUN" == "true" ]]; then
             exit 0
@@ -284,8 +327,8 @@ jobs:
             String(identity.releaseRunId) !== process.env.TRIGGER_RUN_ID ||
             !/^[1-9]\d*$/u.test(String(identity.producerRunAttempt)) ||
             !/^[1-9]\d*$/u.test(String(identity.publicationRunAttempt)) ||
-            String(identity.publicationRunAttempt) !== process.env.TRIGGER_RUN_ATTEMPT ||
-            Number(identity.producerRunAttempt) > Number(identity.publicationRunAttempt) ||
+            String(identity.publicationRunAttempt) !== process.env.AUTHENTICATED_PUBLICATION_RUN_ATTEMPT ||
+            Number(identity.producerRunAttempt) > Number(process.env.AUTHENTICATED_PUBLICATION_RUN_ATTEMPT) ||
             identity.producerRunIdentity !== `github:${manifest.source.repository}:run:${process.env.TRIGGER_RUN_ID}:attempt:${identity.producerRunAttempt}` ||
             identity.producerArtifactIdentity !== `run-${process.env.TRIGGER_RUN_ID}-attempt-${identity.producerRunAttempt}` ||
             identity.producerRunIdentity !== process.env.AUTHENTICATED_PRODUCER_RUN_IDENTITY ||

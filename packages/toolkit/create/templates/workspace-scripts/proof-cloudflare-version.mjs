@@ -333,8 +333,8 @@ function createNodeExecutionSurface(app) {
     adapterVersion: 'backend-mf-effect-v1',
     remoteName: createBackendRemoteName(app),
     manifestUrl: `http://localhost:${app.port}/backend-mf-manifest.json`,
-    containerEntry: `http://localhost:${app.port}/backendRemoteEntry.mjs`,
-    remoteType: 'module',
+    containerEntry: `http://localhost:${app.port}/backendRemoteEntry.cjs`,
+    remoteType: 'commonjs-module',
     expose: './effect-api',
     runtimePackage: '@modern-js/plugin-bff/effect',
   };

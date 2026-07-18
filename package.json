@@ -103,7 +103,7 @@
     "nx": "^23.0.2",
     "oxfmt": "0.58.0",
     "rimraf": "^6.1.3",
-    "typescript": "7.0.2"
+    "typescript": "^7.0.2"
   },
   "commitlint": {
     "extends": [

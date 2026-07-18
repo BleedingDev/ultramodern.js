@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import fsKit from '../lib/fs-kit.js';
 import processKit from '../lib/process-kit.js';
 import { collectPackageJsonFiles } from './lib/fs-utils.mjs';
+import { assertCleanCommittedSource } from './lib/release-source-state.mjs';
 
 const { readJsonFile, repoRoot } = fsKit;
 const { runCommand } = processKit;
@@ -74,6 +75,7 @@ function main(args) {
     throw new Error(`Unexpected argument(s): ${args.join(' ')}`);
   }
 
+  assertCleanCommittedSource(repoRoot);
   const buildProjects = collectBuildProjects();
   const packages = collectPublicModernPackages().filter(packageName =>
     buildProjects.has(packageName),

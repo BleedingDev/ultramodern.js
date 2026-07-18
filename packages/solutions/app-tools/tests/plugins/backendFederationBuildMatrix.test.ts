@@ -7,6 +7,7 @@ import {
 } from '@modern-js/utils/universal';
 import { readBuildIdentity } from '../../src/plugins/backend-federation/config';
 import { emitBackendFederationArtifacts } from '../../src/plugins/backendFederationBuild';
+import { createUltramodernReleaseBuildMarker } from '../../src/ultramodern-release-identity';
 
 type ConfigShape = 'compact' | 'full';
 type IdentitySource = 'json' | 'legacy-ts';
@@ -17,7 +18,7 @@ const packageName = '@tractor-store-vertical-demo/explore';
 const version = '0.1.0';
 const buildMarker = 'tractor-explore-build-1234';
 const containerEntry =
-  'https://delivery.example.test/explore/assets/backendRemoteEntry.mjs';
+  'https://delivery.example.test/explore/assets/backendRemoteEntry.cjs';
 const manifestUrl =
   'https://delivery.example.test/explore/backend-mf-manifest.json';
 const uiManifestUrl = 'https://delivery.example.test/explore/mf-manifest.json';
@@ -143,7 +144,7 @@ const createTopologyApp = (configShape: ConfigShape) => {
             remoteName: 'verticalExploreBackend',
             manifestUrl,
             containerEntry,
-            remoteType: 'module',
+            remoteType: 'commonjs-module',
           },
         },
       },
@@ -157,7 +158,7 @@ const createTopologyApp = (configShape: ConfigShape) => {
         remoteName: 'verticalExploreBackend',
         manifestUrl,
         containerEntry,
-        remoteType: 'module',
+        remoteType: 'commonjs-module',
       },
     },
   };
@@ -257,7 +258,7 @@ describe('backend federation build emit matrix', () => {
     },
   ] as const;
 
-  for (const scenario of scenarios) {
+  for (const [scenarioIndex, scenario] of scenarios.entries()) {
     it(`emits complete manifest identity for ${scenario.name}`, async () => {
       const { appDirectory, distDirectory } = await writeWorkspace(scenario);
 
@@ -279,7 +280,12 @@ describe('backend federation build emit matrix', () => {
         expect(buildIdentity.artifact).toBeUndefined();
       }
 
-      const sourceRevision = `matrix-revision-${scenario.configShape}-${scenario.identitySource}`;
+      const sourceRevision = String(scenarioIndex + 3).repeat(40);
+      const releaseBuildMarker = createUltramodernReleaseBuildMarker({
+        generationBuildMarker: buildMarker,
+        sourceRevision,
+        unitId,
+      });
       const result = await withSourceRevision(sourceRevision, () =>
         emitBackendFederationArtifacts(appDirectory, distDirectory),
       );
@@ -288,7 +294,7 @@ describe('backend federation build emit matrix', () => {
         expect.objectContaining({
           appId,
           remoteName: 'verticalExploreBackend',
-          remoteType: 'module',
+          remoteType: 'commonjs-module',
         }),
       );
 
@@ -308,14 +314,14 @@ describe('backend federation build emit matrix', () => {
       expect(manifest.backendFederation.containerEntry).toBe(containerEntry);
       expect(manifest.backendFederation.deliveryUnit).toEqual(
         expect.objectContaining({
-          buildMarker,
+          buildMarker: releaseBuildMarker,
           sourceRevision,
           unitId,
         }),
       );
       expect(manifest.backendFederation.versionBoundary).toEqual(
         expect.objectContaining({
-          buildVersion: buildMarker,
+          buildVersion: releaseBuildMarker,
           invariant: 'web-and-api-same-build',
           packageName,
           version,
@@ -323,7 +329,7 @@ describe('backend federation build emit matrix', () => {
       );
       expect(manifest.backendFederation.versionBoundary.deliveryUnit).toEqual(
         expect.objectContaining({
-          buildMarker,
+          buildMarker: releaseBuildMarker,
           sourceRevision,
           unitId,
         }),
@@ -340,7 +346,7 @@ describe('backend federation build emit matrix', () => {
       });
 
       await expect(
-        withSourceRevision('matrix-revision-drift', () =>
+        withSourceRevision('f'.repeat(40), () =>
           emitBackendFederationArtifacts(appDirectory, distDirectory),
         ),
       ).rejects.toThrow(

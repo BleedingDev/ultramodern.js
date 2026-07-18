@@ -26,6 +26,7 @@ env:
   BLEEDINGDEV_PUBLISH_TAG: latest
   BLEEDINGDEV_RELEASE_BUNDLE_ARTIFACT: bleedingdev-release-bundle
   BLEEDINGDEV_RELEASE_ACCEPTANCE_ARTIFACT: bleedingdev-release-acceptance
+  BLEEDINGDEV_PUBLISHED_ACCEPTANCE_ARTIFACT: bleedingdev-published-acceptance
   BLEEDINGDEV_RELEASE_IDENTITY_ARTIFACT: bleedingdev-release-identity
   BLEEDINGDEV_PUBLISH_OUTCOME_ARTIFACT: bleedingdev-publish-outcome
   BLEEDINGDEV_RELEASE_DIR: .modern/bleedingdev-publish
@@ -33,6 +34,7 @@ env:
   BLEEDINGDEV_RELEASE_MANIFEST_DIGEST: .modern/bleedingdev-publish/manifest.json.sha256
   BLEEDINGDEV_RELEASE_COHORT_DIGEST: .modern/bleedingdev-publish/cohort.sha256
   BLEEDINGDEV_RELEASE_ACCEPTANCE_RECEIPT: .modern/bleedingdev-publish/acceptance-receipt.json
+  BLEEDINGDEV_PUBLISHED_ACCEPTANCE_RECEIPT: .modern/bleedingdev-publish/published-acceptance-receipt.json
   BLEEDINGDEV_RELEASE_IDENTITY: .modern/bleedingdev-publish/release-identity.json
   BLEEDINGDEV_PUBLISH_OUTCOME: .modern/bleedingdev-publish/publish-outcome.json
 
@@ -268,7 +270,9 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ env.BLEEDINGDEV_RELEASE_ACCEPTANCE_ARTIFACT }}-${{ needs.prepare-release.outputs.producer_artifact_identity }}
-          path: .modern/bleedingdev-publish/acceptance-receipt.json
+          path: |
+            .modern/bleedingdev-publish/acceptance-receipt.json
+            .modern/bleedingdev-publish/acceptance-receipt.operational-independence.json
           if-no-files-found: error
           include-hidden-files: true
 
@@ -350,6 +354,8 @@ jobs:
       contents: read
       id-token: write
     timeout-minutes: 45
+    outputs:
+      publication_run_attempt: ${{ steps.release-identity.outputs.publication_run_attempt }}
     if: >-
       github.actor == github.repository_owner &&
       github.triggering_actor == github.repository_owner &&
@@ -403,6 +409,7 @@ jobs:
             --run-identity "${{ needs.accept-release.outputs.producer_run_identity }}"
 
       - name: Prepare non-dry-run release identity
+        id: release-identity
         env:
           PUBLISH_VERSION: ${{ inputs.version }}
           SOURCE_COMMIT: ${{ github.sha }}
@@ -499,6 +506,10 @@ jobs:
             process.env.BLEEDINGDEV_RELEASE_IDENTITY,
             `${JSON.stringify(identity, null, 2)}\n`,
           );
+          fs.appendFileSync(
+            process.env.GITHUB_OUTPUT,
+            `publication_run_attempt=${process.env.PUBLICATION_RUN_ATTEMPT}\n`,
+          );
           NODE
 
       - name: Publish only the accepted tarballs
@@ -524,9 +535,158 @@ jobs:
             .modern/bleedingdev-publish/cohort.sha256
             .modern/bleedingdev-publish/tarballs/*.tgz
             .modern/bleedingdev-publish/acceptance-receipt.json
+            .modern/bleedingdev-publish/acceptance-receipt.operational-independence.json
             .modern/bleedingdev-publish/release-identity.json
           if-no-files-found: error
           include-hidden-files: true
+
+  # npm trusted-publishing OIDC cannot mutate dist-tags or approve a staged
+  # cohort. `latest` is therefore already public here; this job is an immediate
+  # same-workflow registry-byte gate, not a pre-exposure gate or rollback.
+  accept-published:
+    name: Accept the exact published registry cohort
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    if: >-
+      github.actor == github.repository_owner &&
+      github.triggering_actor == github.repository_owner &&
+      github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern') &&
+      inputs.dry_run == false
+    needs:
+      - publish
+      - accept-release
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        with:
+          egress-policy: audit
+
+      - name: Checkout published acceptance runner
+        uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Node.js 26
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "26"
+
+      - name: Download exact published release identity
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v7.0.0
+        with:
+          name: ${{ env.BLEEDINGDEV_RELEASE_IDENTITY_ARTIFACT }}-${{ needs.accept-release.outputs.producer_artifact_identity }}-publication-attempt-${{ needs.publish.outputs.publication_run_attempt }}
+          path: .modern/bleedingdev-publish
+
+      - name: Verify accepted producer receipt for published acceptance
+        env:
+          PRODUCER_RUN_IDENTITY: ${{ needs.accept-release.outputs.producer_run_identity }}
+        run: |
+          node scripts/ultramodern-publish/run-release-acceptance.mjs \
+            --verify-receipt \
+            --expected-mode source \
+            --manifest "$BLEEDINGDEV_RELEASE_MANIFEST" \
+            --scale-profile erp-10 \
+            --receipt "$BLEEDINGDEV_RELEASE_ACCEPTANCE_RECEIPT" \
+            --run-identity "$PRODUCER_RUN_IDENTITY"
+
+      - name: Verify exact published release identity
+        env:
+          PUBLICATION_RUN_ATTEMPT: ${{ needs.publish.outputs.publication_run_attempt }}
+          PRODUCER_RUN_IDENTITY: ${{ needs.accept-release.outputs.producer_run_identity }}
+        run: |
+          node <<'NODE'
+          const crypto = require('node:crypto');
+          const fs = require('node:fs');
+          const manifest = JSON.parse(fs.readFileSync(process.env.BLEEDINGDEV_RELEASE_MANIFEST, 'utf8'));
+          const identity = JSON.parse(fs.readFileSync(process.env.BLEEDINGDEV_RELEASE_IDENTITY, 'utf8'));
+          const sha256 = file => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+          if (
+            identity.schema !== 'bleedingdev.ultramodern.published-release-identity' ||
+            identity.schemaVersion !== 2 ||
+            identity.dryRun !== false ||
+            identity.releaseRunId !== process.env.GITHUB_RUN_ID ||
+            String(identity.publicationRunAttempt) !== process.env.PUBLICATION_RUN_ATTEMPT ||
+            identity.producerRunIdentity !== process.env.PRODUCER_RUN_IDENTITY ||
+            identity.manifestSha256 !== sha256(process.env.BLEEDINGDEV_RELEASE_MANIFEST) ||
+            identity.acceptanceReceiptSha256 !== sha256(process.env.BLEEDINGDEV_RELEASE_ACCEPTANCE_RECEIPT) ||
+            identity.cohortDigest !== manifest.cohortDigest ||
+            identity.release.version !== manifest.release.version ||
+            identity.release.tag !== manifest.release.tag ||
+            identity.source.commit !== manifest.source.commit ||
+            identity.source.repository !== manifest.source.repository
+          ) {
+            throw new Error('Published release identity does not bind the downloaded exact release');
+          }
+          NODE
+
+      - name: Wait for the exact registry cohort
+        env:
+          PUBLISH_CONCURRENCY: ${{ env.BLEEDINGDEV_PUBLISH_CONCURRENCY }}
+          PUBLISH_TAG: ${{ env.BLEEDINGDEV_PUBLISH_TAG }}
+          PUBLISH_VERSION: ${{ inputs.version }}
+        run: |
+          for attempt in {1..12}; do
+            if node scripts/ultramodern-publish/prepare-bleedingdev-packages.mjs \
+              --publish-existing \
+              --dry-run \
+              --out "$BLEEDINGDEV_RELEASE_DIR" \
+              --version "$PUBLISH_VERSION" \
+              --tag "$PUBLISH_TAG" \
+              --publish-concurrency "$PUBLISH_CONCURRENCY"; then
+              exit 0
+            fi
+            if [[ "$attempt" == "12" ]]; then
+              echo "Exact 32-package registry cohort did not become verifiable" >&2
+              exit 1
+            fi
+            sleep 15
+          done
+
+      - name: Install browser smoke runtime
+        run: npx --yes playwright@1.60.0 install --with-deps chromium
+
+      - name: Run published ERP-10 acceptance
+        env:
+          PRODUCER_RUN_IDENTITY: ${{ needs.accept-release.outputs.producer_run_identity }}
+          PUBLISH_VERSION: ${{ inputs.version }}
+        run: |
+          node scripts/ultramodern-publish/run-release-acceptance.mjs \
+            --mode published \
+            --manifest "$BLEEDINGDEV_RELEASE_MANIFEST" \
+            --expected-source-revision "$GITHUB_SHA" \
+            --expected-version "$PUBLISH_VERSION" \
+            --scale-profile erp-10 \
+            --registry-url https://registry.npmjs.org/ \
+            --receipt "$BLEEDINGDEV_PUBLISHED_ACCEPTANCE_RECEIPT" \
+            --run-identity "$PRODUCER_RUN_IDENTITY"
+
+      - name: Upload published acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ env.BLEEDINGDEV_PUBLISHED_ACCEPTANCE_ARTIFACT }}-${{ needs.accept-release.outputs.producer_artifact_identity }}-publication-attempt-${{ needs.publish.outputs.publication_run_attempt }}
+          path: |
+            .modern/bleedingdev-publish/published-acceptance-receipt.json
+            .modern/bleedingdev-publish/published-acceptance-receipt.operational-independence.json
+          if-no-files-found: error
+          include-hidden-files: true
+
+  tractor-downstream:
+    name: Accept the exact published cohort in Tractor
+    if: >-
+      github.actor == github.repository_owner &&
+      github.triggering_actor == github.repository_owner &&
+      github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern') &&
+      inputs.dry_run == false
+    needs:
+      - accept-release
+      - accept-published
+    uses: ./.github/workflows/ultramodern-tractor-downstream.yml
+    with:
+      release_bundle_artifact: bleedingdev-release-bundle-${{ needs.accept-release.outputs.producer_artifact_identity }}
+      # Advance this reviewed immutable baseline after every accepted Tractor update.
+      tractor_ref: 2cb6e1c939686b1dfd5cbfb594198512fa9d04f7
 
   record-publish-outcome:
     name: Record the authenticated publish outcome
@@ -537,6 +697,8 @@ jobs:
       - accept-release
       - validate-release
       - publish
+      - accept-published
+      - tractor-downstream
     if: >-
       always() &&
       github.actor == github.repository_owner &&
@@ -544,7 +706,7 @@ jobs:
       github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern') &&
       (
         (inputs.dry_run == true && needs.validate-release.result == 'success' && needs.publish.result == 'skipped') ||
-        (inputs.dry_run == false && needs.publish.result == 'success' && needs.validate-release.result == 'skipped')
+        (inputs.dry_run == false && needs.publish.result == 'success' && needs.accept-published.result == 'success' && needs.tractor-downstream.result == 'success' && needs.validate-release.result == 'skipped')
       )
     env:
       DRY_RUN: ${{ inputs.dry_run }}
@@ -581,6 +743,20 @@ jobs:
           name: ${{ env.BLEEDINGDEV_RELEASE_ACCEPTANCE_ARTIFACT }}-${{ needs.accept-release.outputs.producer_artifact_identity }}
           path: .modern/bleedingdev-publish
 
+      - name: Download published acceptance evidence
+        if: inputs.dry_run == false
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v7.0.0
+        with:
+          name: ${{ env.BLEEDINGDEV_PUBLISHED_ACCEPTANCE_ARTIFACT }}-${{ needs.accept-release.outputs.producer_artifact_identity }}-publication-attempt-${{ needs.publish.outputs.publication_run_attempt }}
+          path: .modern/bleedingdev-publish
+
+      - name: Download Tractor acceptance evidence
+        if: inputs.dry_run == false
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v7.0.0
+        with:
+          name: ${{ needs.tractor-downstream.outputs.evidence_artifact_name }}
+          path: .modern/bleedingdev-publish
+
       - name: Verify accepted producer receipt for the outcome
         run: |
           node scripts/ultramodern-publish/run-release-acceptance.mjs \
@@ -588,6 +764,17 @@ jobs:
             --manifest "$BLEEDINGDEV_RELEASE_MANIFEST" \
             --scale-profile erp-10 \
             --receipt "$BLEEDINGDEV_RELEASE_ACCEPTANCE_RECEIPT" \
+            --run-identity "$PRODUCER_RUN_IDENTITY"
+
+      - name: Verify published receipt for the outcome
+        if: inputs.dry_run == false
+        run: |
+          node scripts/ultramodern-publish/run-release-acceptance.mjs \
+            --verify-receipt \
+            --expected-mode published \
+            --manifest "$BLEEDINGDEV_RELEASE_MANIFEST" \
+            --scale-profile erp-10 \
+            --receipt "$BLEEDINGDEV_PUBLISHED_ACCEPTANCE_RECEIPT" \
             --run-identity "$PRODUCER_RUN_IDENTITY"
 
           node scripts/ultramodern-production-readiness/published-create-proof/acceptance-receipt.mjs \
@@ -599,11 +786,32 @@ jobs:
       - name: Create publish outcome
         id: publish-outcome
         run: |
+          publication_identity=()
+          published_evidence=()
+          tractor_evidence=()
+          if [[ "$DRY_RUN" == "false" ]]; then
+            publication_identity=(
+              --publication-run-attempt "${{ needs.publish.outputs.publication_run_attempt }}"
+            )
+            published_evidence=(
+              --published-receipt "$BLEEDINGDEV_PUBLISHED_ACCEPTANCE_RECEIPT"
+              --published-operational-evidence "${BLEEDINGDEV_PUBLISHED_ACCEPTANCE_RECEIPT%.json}.operational-independence.json"
+            )
+            tractor_evidence=(
+              --tractor-report "$BLEEDINGDEV_RELEASE_DIR/tractor-downstream-acceptance.json"
+              --tractor-report-sha256 "${{ needs.tractor-downstream.outputs.report_sha256 }}"
+              --tractor-baseline-revision "${{ needs.tractor-downstream.outputs.baseline_revision }}"
+            )
+          fi
           node scripts/ultramodern-publish/publish-outcome.mjs create \
             --manifest "$BLEEDINGDEV_RELEASE_MANIFEST" \
             --manifest-digest "$BLEEDINGDEV_RELEASE_MANIFEST_DIGEST" \
             --cohort-digest "$BLEEDINGDEV_RELEASE_COHORT_DIGEST" \
             --receipt "$BLEEDINGDEV_RELEASE_ACCEPTANCE_RECEIPT" \
+            --operational-evidence "${BLEEDINGDEV_RELEASE_ACCEPTANCE_RECEIPT%.json}.operational-independence.json" \
+            "${publication_identity[@]}" \
+            "${published_evidence[@]}" \
+            "${tractor_evidence[@]}" \
             --out "$BLEEDINGDEV_PUBLISH_OUTCOME" \
             --repository "$GITHUB_REPOSITORY" \
             --source-commit "$GITHUB_SHA" \
@@ -627,6 +835,10 @@ jobs:
             .modern/bleedingdev-publish/cohort.sha256
             .modern/bleedingdev-publish/tarballs/*.tgz
             .modern/bleedingdev-publish/acceptance-receipt.json
+            .modern/bleedingdev-publish/acceptance-receipt.operational-independence.json
+            .modern/bleedingdev-publish/published-acceptance-receipt.json
+            .modern/bleedingdev-publish/published-acceptance-receipt.operational-independence.json
+            .modern/bleedingdev-publish/tractor-downstream-acceptance.json
             .modern/bleedingdev-publish/publish-outcome.json
           if-no-files-found: error
           include-hidden-files: true

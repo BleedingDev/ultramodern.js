@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { brotliCompressSync, gzipSync } from 'node:zlib';
@@ -160,7 +160,7 @@ describe('static plugin Module Federation backend assets', () => {
   it('serves backend manifests and remote entries from dist root', async () => {
     const pwd = await createTempDir();
     const manifestFile = path.join(pwd, 'backend-mf-manifest.json');
-    const remoteEntryFile = path.join(pwd, 'backendRemoteEntry.mjs');
+    const remoteEntryFile = path.join(pwd, 'backendRemoteEntry.cjs');
 
     await writeFile(
       manifestFile,
@@ -170,8 +170,8 @@ describe('static plugin Module Federation backend assets', () => {
           publicPath: '/',
           remoteEntry: {
             path: '',
-            name: 'backendRemoteEntry.mjs',
-            type: 'module',
+            name: 'backendRemoteEntry.cjs',
+            type: 'commonjs-module',
           },
         },
         exposes: [
@@ -189,7 +189,7 @@ describe('static plugin Module Federation backend assets', () => {
       {},
     );
     const remoteEntryResponse = await server.request(
-      '/backendRemoteEntry.mjs',
+      '/backendRemoteEntry.cjs',
       {},
     );
 
@@ -200,16 +200,67 @@ describe('static plugin Module Federation backend assets', () => {
     expect(await manifestResponse.json()).toEqual(
       expect.objectContaining({
         metaData: expect.objectContaining({
-          publicPath: 'http://localhost/',
+          publicPath: '/',
         }),
       }),
     );
     expect(remoteEntryResponse.status).toBe(200);
+    expect(remoteEntryResponse.headers.get('content-type')).toContain(
+      'text/javascript',
+    );
     expect(remoteEntryResponse.headers.get('access-control-allow-origin')).toBe(
       '*',
     );
     expect(await remoteEntryResponse.text()).toContain(
       'export function init() {}',
     );
+  });
+});
+
+describe('static plugin generated public directory assets', () => {
+  it('serves a dist/public asset at its root URL without a route manifest entry', async () => {
+    const pwd = await createTempDir();
+    const publicFile = path.join(pwd, 'public', 'robots.txt');
+    const body = 'User-agent: *\nAllow: /\n';
+
+    await mkdir(path.dirname(publicFile), { recursive: true });
+    await writeFile(publicFile, body);
+
+    const server = await createStaticServer(pwd);
+    const response = await server.request('/robots.txt');
+    const headResponse = await server.request('/robots.txt', {
+      method: 'HEAD',
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toContain('text/plain');
+    expect(await response.text()).toBe(body);
+    expect(headResponse.status).toBe(200);
+    expect(headResponse.headers.get('content-length')).toBe(
+      String(Buffer.byteLength(body)),
+    );
+    expect(await headResponse.text()).toBe('');
+  });
+
+  it('rejects traversal, symlink escape, and non-read methods', async () => {
+    const pwd = await createTempDir();
+    const publicDirectory = path.join(pwd, 'public');
+    const privateFile = path.join(pwd, 'private.txt');
+
+    await mkdir(publicDirectory, { recursive: true });
+    await writeFile(privateFile, 'private');
+    await writeFile(path.join(publicDirectory, 'robots.txt'), 'public');
+    await symlink(privateFile, path.join(publicDirectory, 'escape.txt'));
+
+    const server = await createStaticServer(pwd);
+    const traversalResponse = await server.request('/%2e%2e%2fprivate.txt');
+    const symlinkResponse = await server.request('/escape.txt');
+    const postResponse = await server.request('/robots.txt', {
+      method: 'POST',
+    });
+
+    expect(traversalResponse.status).toBe(404);
+    expect(symlinkResponse.status).toBe(404);
+    expect(postResponse.status).toBe(404);
   });
 });

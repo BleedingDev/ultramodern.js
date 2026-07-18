@@ -45,23 +45,15 @@ allowBuilds:
 patchedDependencies:
   # Lazy-load Module Federation DTS helpers so apps with `dts: false` do not
   # import the DTS plugin in the TS 7 native-preview lane.
-  '@module-federation/modern-js-v3@2.7.0': patches/@module-federation__modern-js-v3@2.7.0.patch
-  '@module-federation/manifest@2.7.0': patches/@module-federation__manifest@2.7.0.patch
-  '@module-federation/rspack@2.7.0': patches/@module-federation__rspack@2.7.0.patch
+  '@module-federation/modern-js-v3@2.8.0': patches/@module-federation__modern-js-v3@2.8.0.patch
+  '@module-federation/manifest@2.8.0': patches/@module-federation__manifest@2.8.0.patch
+  '@module-federation/rspack@2.8.0': patches/@module-federation__rspack@2.8.0.patch
   # Keep bridge-react SSR stylesheet assets hydration-stable while avoiding
   # duplicate stylesheet links after the client has mounted.
-  '@module-federation/bridge-react@2.7.0': patches/@module-federation__bridge-react@2.7.0.patch
+  '@module-federation/bridge-react@2.8.0': patches/@module-federation__bridge-react@2.8.0.patch
   # Stop TanStack loadMatches from dereferencing cached preload matches after
   # RouterCore.updateMatch deletes them on redirect.
   '@tanstack/router-core@1.171.14': patches/@tanstack__router-core@1.171.14.patch
-
-packageExtensions:
-  # The DTS worker consumes the JavaScript compiler API, which the TS 7 native
-  # package intentionally does not expose. Keep that legacy API private to the
-  # worker while the rest of the repository resolves `typescript` to TS 7.
-  '@module-federation/dts-plugin@2.7.0':
-    dependencies:
-      typescript: npm:typescript@6.0.3
 
 overrides:
   micromatch: ^4.0.8
@@ -102,13 +94,6 @@ peerDependencyRules:
     - ioredis
     - webpack
   allowedVersions:
-    # Prefer the TS 7 native-preview lane for Module Federation work.
-    # TS 6 remains allowed only where MF tooling still needs the real
-    # `typescript` package for CJS-based DTS generation.
-    '@module-federation/dts-plugin>typescript': '6.0.3'
-    '@module-federation/enhanced>typescript': '>=6 <8'
-    '@module-federation/modern-js-v3>typescript': '>=6 <8'
-    '@module-federation/rspack>typescript': '>=6 <8'
     '@module-federation/sdk>node-fetch': 3.3.0
     'react-side-effect@2.1.2>react': '19'
 

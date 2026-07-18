@@ -101,9 +101,12 @@ export function createSharedApiContract(service: {
   return `export interface ${markerType} {
   readonly appId: string;
   readonly build: string;
+  readonly buildMarker: string;
   readonly deployProfile: string;
   readonly packageName: string;
+  readonly sourceRevision: string;
   readonly surface: string;
+  readonly unitId: string;
   readonly version: string;
 }
 
@@ -145,9 +148,12 @@ export interface ${notFoundErrorExport} {
 export const ${markerSchemaExport}: Schema.Codec<${markerType}> = Schema.Struct({
   appId: Schema.String,
   build: Schema.String,
+  buildMarker: Schema.String,
   deployProfile: Schema.String,
   packageName: Schema.String,
+  sourceRevision: Schema.String,
   surface: Schema.String,
+  unitId: Schema.String,
   version: Schema.String,
 });
 

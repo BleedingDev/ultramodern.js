@@ -13,6 +13,8 @@ export type LocaleRedirectSkipRule =
 
 export const DEFAULT_LOCALE_REDIRECT_SKIP_RULES: readonly LocaleRedirectSkipRule[] =
   [
+    { type: 'exact', path: '/backend-mf-manifest.json' },
+    { type: 'exact', path: '/backendRemoteEntry.cjs' },
     { type: 'exact', path: '/mf-manifest.json' },
     { type: 'exact', path: '/mf-stats.json' },
     { type: 'exact', path: '/remoteEntry.js' },

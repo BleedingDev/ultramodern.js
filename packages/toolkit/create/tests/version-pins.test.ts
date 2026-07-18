@@ -14,6 +14,7 @@ import {
 import {
   EFFECT_VERSION,
   EFFECT_VITEST_VERSION,
+  MODULE_FEDERATION_NODE_VERSION,
   MODULE_FEDERATION_VERSION,
   NODE_FETCH_VERSION,
   PNPM_VERSION,
@@ -29,6 +30,20 @@ const pluginBffPackagePath = path.resolve(
 
 const readTemplate = (relativePath: string) =>
   fs.readFileSync(path.join(templateWorkspaceDir, relativePath), 'utf-8');
+
+test('pins the Module Federation 2.8 cohort exactly', () => {
+  assert.equal(MODULE_FEDERATION_VERSION, '2.8.0');
+  assert.equal(MODULE_FEDERATION_NODE_VERSION, '2.7.47');
+
+  const pluginBffPackage = JSON.parse(
+    fs.readFileSync(pluginBffPackagePath, 'utf-8'),
+  );
+  assert.equal(
+    pluginBffPackage.dependencies['@module-federation/runtime'],
+    MODULE_FEDERATION_VERSION,
+    '@modern-js/plugin-bff must use the generated Module Federation runtime cohort',
+  );
+});
 
 /**
  * versions.ts is the single source of truth for every pin baked into

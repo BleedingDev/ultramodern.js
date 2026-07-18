@@ -38,3 +38,14 @@ export function resolvePackageSource(
       (aliasScope ? BLEEDINGDEV_PACKAGE_NAME_PREFIX : undefined),
   };
 }
+
+export function resolveWorkspacePackageLinkingPolicy(
+  packageSource: Pick<ResolvedPackageSource, 'strategy'>,
+): Partial<Record<'injectWorkspacePackages' | 'linkWorkspacePackages', true>> {
+  return packageSource.strategy === 'workspace'
+    ? {
+        injectWorkspacePackages: true,
+        linkWorkspacePackages: true,
+      }
+    : {};
+}

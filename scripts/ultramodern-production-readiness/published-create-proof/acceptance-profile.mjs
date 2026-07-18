@@ -1,18 +1,33 @@
+import { spawn } from 'node:child_process';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
+import { fileURLToPath } from 'node:url';
+import { runOperationalIndependence } from '../operational-independence.mjs';
 import {
   assertApiAcceptance,
   assertBackendAcceptance,
-  assertBrowserRuntimeAcceptance,
   assertModuleFederationAcceptance,
   assertTopologyAcceptance,
   assertWorkspaceCheckContract,
   readWorkspaceAcceptanceArtifacts,
 } from './acceptance-assertions.mjs';
 import {
+  assertReleaseAcceptanceProfile,
+  assertRuntimeAcceptanceDimension,
+  createOperationalIndependenceResultDetails,
+  operationalIndependenceEvidencePath,
+  operationalIndependenceResultId,
+  runtimeAcceptanceDimensions,
+  runtimeAcceptanceInvocation,
+  runtimeAcceptancePlatforms,
+  runtimeIdentityBinding,
+} from './acceptance-contract.mjs';
+import {
   assertAcceptanceReceipt,
+  bindRuntimeIdentityEvidence,
   bindSupplyChainEvidence,
   createAcceptanceReceipt,
   finalizeAcceptanceReceipt,
@@ -50,6 +65,27 @@ const requiredPnpmCommands = Object.freeze({
   build: Object.freeze(['build']),
   cloudflareBuild: Object.freeze(['cloudflare:build']),
 });
+const operationalIndependenceChangedPaths = Object.freeze([
+  'verticals/inventory/api/index.ts',
+  'verticals/inventory/locales/en/inventory.json',
+]);
+const operationalIndependenceUiValue =
+  'C1 operational independence: inventory UI and localization moved together.';
+const operationalIndependenceApiValue =
+  'Inventory C1 operational proof response';
+
+function startOwnedWorkDirGuardian(workDir) {
+  const guardian = spawn(
+    process.execPath,
+    [
+      fileURLToPath(new URL('./owned-workdir-guardian.mjs', import.meta.url)),
+      String(process.pid),
+      workDir,
+    ],
+    { detached: true, stdio: 'ignore' },
+  );
+  guardian.unref();
+}
 
 function currentTime(now) {
   return new now();
@@ -60,12 +96,13 @@ function createAcceptancePackageManagerEnv(workDir, registryEnv = {}) {
     ...createCleanPnpmDlxEnv(path.join(workDir, 'package-manager')),
     ...registryEnv,
     CI: 'true',
+    MODERN_CREATE_ULTRAMODERN_FRAMEWORK_VERSION: undefined,
+    ULTRAMODERN_CREATE_BIN: undefined,
+    ZE_CI_TOKEN: undefined,
   };
   // The clean room performs no Zephyr Cloud deploy, so ZE_CI_TOKEN is absent
   // and the generated build never engages Zephyr (it stays a registered but
   // inactive plugin). This tests "builds without a Zephyr Cloud account".
-  delete env.ZE_CI_TOKEN;
-  delete env.MODERN_CREATE_ULTRAMODERN_FRAMEWORK_VERSION;
   return env;
 }
 
@@ -113,6 +150,253 @@ function registryReceiptMetadata({ mode, registryUrl }) {
   };
 }
 
+function snapshotAcceptanceWorkspaceSource(projectDir, env, runImpl = run) {
+  const git = (args, stdio = 'pipe') =>
+    runImpl('git', args, { cwd: projectDir, env, stdio });
+
+  git(['add', '-A'], 'inherit');
+  const pending = git(['status', '--porcelain=v1', '--untracked-files=all']);
+  if (pending) {
+    git(
+      [
+        '-c',
+        'commit.gpgsign=false',
+        'commit',
+        '--no-verify',
+        '-m',
+        'test: snapshot generated ERP-10 application source',
+      ],
+      'inherit',
+    );
+  }
+
+  const dirty = git(['status', '--porcelain=v1', '--untracked-files=all']);
+  if (dirty) {
+    throw new Error(
+      `Generated acceptance application source is dirty after snapshot commit: ${dirty}`,
+    );
+  }
+  const revision = git(['rev-parse', 'HEAD']).toLowerCase();
+  if (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(revision)) {
+    throw new Error(
+      `Generated acceptance application source revision is invalid: ${revision}`,
+    );
+  }
+  return revision;
+}
+
+function replaceExactlyOnce(source, before, after, label) {
+  const first = source.indexOf(before);
+  if (first < 0 || source.indexOf(before, first + before.length) >= 0) {
+    throw new Error(`${label} must contain exactly one expected C0 value`);
+  }
+  return `${source.slice(0, first)}${after}${source.slice(first + before.length)}`;
+}
+
+function assertCleanApplicationGit(
+  projectDir,
+  expectedRevision,
+  env,
+  runImpl,
+  label,
+) {
+  const revision = runImpl('git', ['rev-parse', 'HEAD'], {
+    cwd: projectDir,
+    env,
+    stdio: 'pipe',
+  }).toLowerCase();
+  if (revision !== expectedRevision) {
+    throw new Error(
+      `${label} application HEAD must be ${expectedRevision}, found ${revision}`,
+    );
+  }
+  const dirty = runImpl(
+    'git',
+    ['status', '--porcelain=v1', '--untracked-files=all'],
+    { cwd: projectDir, env, stdio: 'pipe' },
+  );
+  if (dirty) {
+    throw new Error(`${label} application workspace is dirty: ${dirty}`);
+  }
+}
+
+function createOperationalIndependenceCommit(
+  projectDir,
+  applicationSourceRevision,
+  env,
+  runImpl = run,
+) {
+  assertCleanApplicationGit(
+    projectDir,
+    applicationSourceRevision,
+    env,
+    runImpl,
+    'C0',
+  );
+  const localePath = path.join(
+    projectDir,
+    'verticals/inventory/locales/en/inventory.json',
+  );
+  const locale = JSON.parse(fs.readFileSync(localePath, 'utf8'));
+  if (locale?.inventory?.widgetBody !== 'Owns a vertical route surface.') {
+    throw new Error(
+      'Inventory C0 localization widgetBody does not match the generated ERP-10 contract',
+    );
+  }
+  locale.inventory.widgetBody = operationalIndependenceUiValue;
+  writeJsonFile(localePath, locale, { atomic: false });
+
+  const apiPath = path.join(projectDir, 'verticals/inventory/api/index.ts');
+  const apiSource = fs.readFileSync(apiPath, 'utf8');
+  fs.writeFileSync(
+    apiPath,
+    replaceExactlyOnce(
+      apiSource,
+      "title: 'Wire a real inventory source here'",
+      `title: '${operationalIndependenceApiValue}'`,
+      'Inventory Effect API',
+    ),
+  );
+
+  const changedBeforeCommit = runImpl(
+    'git',
+    ['diff', '--name-only', '--no-renames', '--'],
+    { cwd: projectDir, env, stdio: 'pipe' },
+  );
+  const changedPaths = changedBeforeCommit
+    .split('\n')
+    .filter(Boolean)
+    .sort((left, right) => left.localeCompare(right));
+  if (
+    JSON.stringify(changedPaths) !==
+    JSON.stringify(operationalIndependenceChangedPaths)
+  ) {
+    throw new Error(
+      `Operational-independence C1 must change only the inventory UI/localization and API response files; found ${changedPaths.join(', ')}`,
+    );
+  }
+
+  runImpl('git', ['add', '--', ...operationalIndependenceChangedPaths], {
+    cwd: projectDir,
+    env,
+    stdio: 'inherit',
+  });
+  runImpl(
+    'git',
+    [
+      '-c',
+      'commit.gpgsign=false',
+      '-c',
+      'core.hooksPath=/dev/null',
+      'commit',
+      '--no-gpg-sign',
+      '--no-verify',
+      '-m',
+      'test: rotate inventory operational identity',
+    ],
+    { cwd: projectDir, env, stdio: 'inherit' },
+  );
+  const changedRevision = runImpl('git', ['rev-parse', 'HEAD'], {
+    cwd: projectDir,
+    env,
+    stdio: 'pipe',
+  }).toLowerCase();
+  const parentLine = runImpl(
+    'git',
+    ['rev-list', '--parents', '-n', '1', changedRevision],
+    { cwd: projectDir, env, stdio: 'pipe' },
+  ).split(/\s+/u);
+  if (parentLine.length !== 2 || parentLine[1] !== applicationSourceRevision) {
+    throw new Error(
+      'Operational-independence C1 must be one clean commit directly on application C0',
+    );
+  }
+  assertCleanApplicationGit(projectDir, changedRevision, env, runImpl, 'C1');
+  return {
+    applicationSourceRevision,
+    changedPaths,
+    changedRevision,
+    mutations: {
+      apiResponse: {
+        path: operationalIndependenceChangedPaths[0],
+        value: operationalIndependenceApiValue,
+      },
+      uiLocalization: {
+        path: operationalIndependenceChangedPaths[1],
+        value: operationalIndependenceUiValue,
+      },
+    },
+  };
+}
+
+async function runOperationalIndependenceAcceptance({
+  applicationSourceRevision,
+  ephemeralWorkDir,
+  mode,
+  outPath,
+  packageManagerEnv,
+  projectDir,
+  runImpl = run,
+  runOperationalIndependenceImpl = runOperationalIndependence,
+}) {
+  const transition = createOperationalIndependenceCommit(
+    projectDir,
+    applicationSourceRevision,
+    packageManagerEnv,
+    runImpl,
+  );
+  const evidencePath = operationalIndependenceEvidencePath(outPath);
+  if (ephemeralWorkDir) {
+    const relativeEvidencePath = path.relative(
+      path.resolve(ephemeralWorkDir),
+      evidencePath,
+    );
+    if (
+      relativeEvidencePath === '' ||
+      (!relativeEvidencePath.startsWith('..') &&
+        !path.isAbsolute(relativeEvidencePath))
+    ) {
+      throw new Error(
+        `Operational-independence evidence path must survive ephemeral workspace cleanup: ${evidencePath}`,
+      );
+    }
+  }
+  const evidence = await runOperationalIndependenceImpl({
+    baselineRef: transition.applicationSourceRevision,
+    changedId: 'inventory',
+    changedRef: transition.changedRevision,
+    expectedApiValue: transition.mutations.apiResponse.value,
+    expectedUiValue: transition.mutations.uiLocalization.value,
+    out: evidencePath,
+    shellId: 'shell-super-app',
+    siblingId: 'finance',
+    workspace: projectDir,
+  });
+  if (!fs.existsSync(evidencePath)) {
+    throw new Error(
+      `Operational-independence runner did not write durable evidence at ${evidencePath}`,
+    );
+  }
+  const details = createOperationalIndependenceResultDetails({
+    applicationSourceRevision,
+    changedRevision: transition.changedRevision,
+    evidence,
+    evidenceFileSha256: crypto
+      .createHash('sha256')
+      .update(fs.readFileSync(evidencePath))
+      .digest('hex'),
+    evidencePath,
+    expectedApiValue: transition.mutations.apiResponse.value,
+    expectedChangedPaths: transition.changedPaths,
+    expectedUiValue: transition.mutations.uiLocalization.value,
+    mode,
+  });
+  return {
+    ...details,
+    mutations: transition.mutations,
+  };
+}
+
 function receiptFailure(receipt, error) {
   receipt.status = 'failed';
   receipt.passed = false;
@@ -132,282 +416,349 @@ async function runAcceptanceProfile({
   runImpl = run,
   browserSmokeImpl = runBrowserSmoke,
   auditReleaseAgePolicyImpl = auditReleaseAgePolicy,
+  runOperationalIndependenceImpl = runOperationalIndependence,
   now = Date,
   workDir: suppliedWorkDir,
-  keepWorkDir = false,
 }) {
   if (!['source', 'published'].includes(mode)) {
     throw new Error(
       `Acceptance mode must be source or published, found ${mode}`,
     );
   }
-  if (options.selectedProfile.id !== 'erp-10') {
-    throw new Error(
-      `Release acceptance requires profile erp-10, found ${options.selectedProfile.id}`,
-    );
-  }
-  if (options.verticals.length !== 10) {
-    throw new Error('ERP-10 acceptance must generate exactly 10 verticals');
-  }
-  if (options.deployCloudflare) {
-    throw new Error(
-      'Cloudflare deployment is outside exact-artifact ERP-10 acceptance',
-    );
-  }
+  assertReleaseAcceptanceProfile(options);
 
   const createPackage = resolveCreatePackage(release, options.createPackage);
   const workDir =
     suppliedWorkDir ??
     fs.mkdtempSync(path.join(os.tmpdir(), 'ultramodern-release-acceptance-'));
   const ownsWorkDir = suppliedWorkDir === undefined;
-  const projectDir = path.join(workDir, options.projectName);
-  const packageManagerEnv = createAcceptancePackageManagerEnv(
-    workDir,
-    registryEnv,
-  );
-  const receipt = createAcceptanceReceipt({
-    release,
-    mode,
-    profile: options.selectedProfile,
-    createPackage,
-    runtime: runtimeVersions(runImpl, registryTool),
-    registry: registryReceiptMetadata({ mode, registryUrl }),
-    runIdentity,
-    now,
-  });
-
-  let failure;
-  let audit;
-  let artifacts;
+  if (ownsWorkDir) {
+    startOwnedWorkDirGuardian(workDir);
+  }
   try {
-    await recordAcceptanceResult(receipt, 'registry-cohort-integrity', () =>
-      withDuration(() =>
-        verifyRegistryCohort({
-          release,
-          registryUrl,
-          env: packageManagerEnv,
-          workDir,
-          runImpl,
-        }),
-      ),
+    const projectDir = path.join(workDir, options.projectName);
+    const packageManagerEnv = createAcceptancePackageManagerEnv(
+      workDir,
+      registryEnv,
     );
+    const receipt = createAcceptanceReceipt({
+      release,
+      mode,
+      profile: options.selectedProfile,
+      createPackage,
+      runtime: runtimeVersions(runImpl, registryTool),
+      registry: registryReceiptMetadata({ mode, registryUrl }),
+      runIdentity,
+      now,
+    });
 
-    await recordAcceptanceResult(receipt, 'native-create', () =>
-      withDuration(() => {
-        createWorkspace(
-          workDir,
-          options.projectName,
-          createPackage,
-          packageManagerEnv,
-          runImpl,
-        );
-        // The generated project is always-Zephyr by design (the zephyr-gating
-        // policy forbids disabling it), and zephyr-agent requires git identity
-        // and a remote origin to initialize a build — a hard requirement in CI.
-        // A real consumer project has both; the create CLI already stamps an
-        // initial commit, so the clean-room only needs to record a remote
-        // origin (never fetched — Zephyr just parses the URL) to reproduce a
-        // realistic, buildable repository. No Zephyr token is set, so nothing
-        // is uploaded: this exercises "builds with Zephyr present, without a
-        // Zephyr account".
-        runImpl('git', ['config', 'user.name', 'UltraModern Acceptance'], {
-          cwd: projectDir,
-          env: packageManagerEnv,
-        });
-        runImpl(
-          'git',
-          ['config', 'user.email', 'acceptance@ultramodern.local'],
-          { cwd: projectDir, env: packageManagerEnv },
-        );
-        runImpl(
-          'git',
-          [
-            'remote',
-            'add',
-            'origin',
-            'https://github.com/ultramodern-ci/acceptance-superapp.git',
-          ],
-          { cwd: projectDir, env: packageManagerEnv },
-        );
-        return {
-          runner: 'pnpm dlx',
-          exactSpecifier: createPackage.exactSpecifier,
-          projectName: options.projectName,
-        };
-      }),
-    );
+    let failure;
+    let audit;
+    let artifacts;
+    let applicationSourceRevision;
+    const runtimeReports = new Map();
+    const runtimeIdentityDetails = new Map();
+    try {
+      await recordAcceptanceResult(receipt, 'registry-cohort-integrity', () =>
+        withDuration(() =>
+          verifyRegistryCohort({
+            release,
+            registryUrl,
+            env: packageManagerEnv,
+            workDir,
+            runImpl,
+          }),
+        ),
+      );
 
-    await recordAcceptanceResult(receipt, 'vertical-additions', () =>
-      withDuration(() => {
-        for (const vertical of options.verticals) {
-          addVertical(
-            projectDir,
-            vertical,
+      await recordAcceptanceResult(receipt, 'native-create', () =>
+        withDuration(() => {
+          createWorkspace(
+            workDir,
+            options.projectName,
             createPackage,
             packageManagerEnv,
             runImpl,
           );
-        }
-        const cohort = assertGeneratedCohort(projectDir, release, {
-          registryUrl,
-        });
-        return {
-          count: options.verticals.length,
-          verticals: options.verticals,
-          frameworkVersion: createPackage.frameworkVersion,
-          cohort,
-        };
-      }),
-    );
+          // The generated project is always-Zephyr by design (the zephyr-gating
+          // policy forbids disabling it), and zephyr-agent requires git identity
+          // and a remote origin to initialize a build — a hard requirement in CI.
+          // A real consumer project has both; the create CLI already stamps an
+          // initial commit, so the clean-room only needs to record a remote
+          // origin (never fetched — Zephyr just parses the URL) to reproduce a
+          // realistic, buildable repository. No Zephyr token is set, so nothing
+          // is uploaded: this exercises "builds with Zephyr present, without a
+          // Zephyr account".
+          runImpl('git', ['config', 'user.name', 'UltraModern Acceptance'], {
+            cwd: projectDir,
+            env: packageManagerEnv,
+          });
+          runImpl(
+            'git',
+            ['config', 'user.email', 'acceptance@ultramodern.local'],
+            { cwd: projectDir, env: packageManagerEnv },
+          );
+          runImpl(
+            'git',
+            [
+              'remote',
+              'add',
+              'origin',
+              'https://github.com/ultramodern-ci/acceptance-superapp.git',
+            ],
+            { cwd: projectDir, env: packageManagerEnv },
+          );
+          return {
+            runner: 'pnpm dlx',
+            exactSpecifier: createPackage.exactSpecifier,
+            projectName: options.projectName,
+          };
+        }),
+      );
 
-    await recordAcceptanceResult(receipt, 'generate-lockfile', () =>
-      withDuration(() => {
-        runImpl('pnpm', requiredPnpmCommands.lockfileOnly, {
-          cwd: projectDir,
-          env: packageManagerEnv,
-        });
-        return {
-          command: 'pnpm install --lockfile-only --ignore-scripts',
-          lockfile: 'pnpm-lock.yaml',
-        };
-      }),
-    );
+      await recordAcceptanceResult(receipt, 'vertical-additions', () =>
+        withDuration(() => {
+          for (const vertical of options.verticals) {
+            addVertical(
+              projectDir,
+              vertical,
+              createPackage,
+              packageManagerEnv,
+              runImpl,
+            );
+          }
+          const cohort = assertGeneratedCohort(projectDir, release, {
+            registryUrl,
+          });
+          return {
+            count: options.verticals.length,
+            verticals: options.verticals,
+            frameworkVersion: createPackage.frameworkVersion,
+            cohort,
+          };
+        }),
+      );
 
-    await recordAcceptanceResult(receipt, 'dependency-closure-audit', () =>
-      withDuration(async () => {
-        audit = await auditReleaseAgePolicyImpl({
-          projectDir,
-          release,
-          registryUrl,
-          policyPath: releaseAgePolicyPath,
-          runImpl,
-          now: currentTime(now),
-        });
-        bindSupplyChainEvidence(receipt, audit.digests);
-        return {
-          approvals: audit.approvals,
-          candidateDiscovery: audit.candidateDiscovery,
-          closureCount: audit.closureCount,
-          digests: audit.digests,
-          exactExclusionCount: audit.exactExclusions.length,
-          importerCount: audit.importerCount,
-          lockfileVersion: audit.lockfileVersion,
-          matureCount: audit.matureCount,
-          policyEntryCount: audit.policyEntryCount,
-          registryMetadataCount: audit.registryMetadataCount,
-          workspacePolicySha256: audit.workspacePolicySha256,
-        };
-      }),
-    );
+      await recordAcceptanceResult(receipt, 'generate-lockfile', () =>
+        withDuration(() => {
+          runImpl('pnpm', requiredPnpmCommands.lockfileOnly, {
+            cwd: projectDir,
+            env: packageManagerEnv,
+          });
+          applicationSourceRevision = snapshotAcceptanceWorkspaceSource(
+            projectDir,
+            packageManagerEnv,
+            runImpl,
+          );
+          return {
+            command: 'pnpm install --lockfile-only --ignore-scripts',
+            applicationSourceRevision,
+            lockfile: 'pnpm-lock.yaml',
+          };
+        }),
+      );
 
-    await recordAcceptanceResult(receipt, 'install', () =>
-      withDuration(() => {
-        const beforeInstall = verifyStrictInstallInputs(projectDir, audit, {
-          now: currentTime(now),
-          phase: 'before-frozen-install',
-        });
-        runImpl('pnpm', requiredPnpmCommands.install, {
-          cwd: projectDir,
-          env: packageManagerEnv,
-        });
-        return {
-          command: 'pnpm install --frozen-lockfile',
-          beforeInstall,
-          afterInstall: verifyStrictInstallInputs(projectDir, audit, {
+      await recordAcceptanceResult(receipt, 'dependency-closure-audit', () =>
+        withDuration(async () => {
+          audit = await auditReleaseAgePolicyImpl({
+            projectDir,
+            release,
+            registryUrl,
+            policyPath: releaseAgePolicyPath,
+            runImpl,
             now: currentTime(now),
-            phase: 'after-frozen-install',
-          }),
-        };
-      }),
-    );
+          });
+          bindSupplyChainEvidence(receipt, audit.digests);
+          return {
+            approvals: audit.approvals,
+            candidateDiscovery: audit.candidateDiscovery,
+            closureCount: audit.closureCount,
+            digests: audit.digests,
+            exactExclusionCount: audit.exactExclusions.length,
+            importerCount: audit.importerCount,
+            lockfileVersion: audit.lockfileVersion,
+            matureCount: audit.matureCount,
+            policyEntryCount: audit.policyEntryCount,
+            registryMetadataCount: audit.registryMetadataCount,
+            workspacePolicySha256: audit.workspacePolicySha256,
+          };
+        }),
+      );
 
-    await recordAcceptanceResult(receipt, 'pnpm-check', () =>
-      withDuration(() => {
-        runImpl('pnpm', requiredPnpmCommands.check, {
-          cwd: projectDir,
-          env: packageManagerEnv,
-        });
-        return {
-          command: 'pnpm check',
-          ...assertWorkspaceCheckContract(projectDir),
-        };
-      }),
-    );
+      await recordAcceptanceResult(receipt, 'install', () =>
+        withDuration(() => {
+          const beforeInstall = verifyStrictInstallInputs(projectDir, audit, {
+            now: currentTime(now),
+            phase: 'before-frozen-install',
+          });
+          runImpl('pnpm', requiredPnpmCommands.install, {
+            cwd: projectDir,
+            env: packageManagerEnv,
+          });
+          return {
+            command: 'pnpm install --frozen-lockfile',
+            beforeInstall,
+            afterInstall: verifyStrictInstallInputs(projectDir, audit, {
+              now: currentTime(now),
+              phase: 'after-frozen-install',
+            }),
+          };
+        }),
+      );
 
-    await recordAcceptanceResult(receipt, 'build', () =>
-      withDuration(() => {
-        runImpl('pnpm', requiredPnpmCommands.build, {
-          cwd: projectDir,
-          env: packageManagerEnv,
-        });
-        return { command: 'pnpm build' };
-      }),
-    );
+      await recordAcceptanceResult(receipt, 'pnpm-check', () =>
+        withDuration(() => {
+          runImpl('pnpm', requiredPnpmCommands.check, {
+            cwd: projectDir,
+            env: packageManagerEnv,
+          });
+          return {
+            command: 'pnpm check',
+            ...assertWorkspaceCheckContract(projectDir),
+          };
+        }),
+      );
 
-    await recordAcceptanceResult(receipt, 'cloudflare-build', () =>
-      withDuration(() => {
-        runImpl('pnpm', requiredPnpmCommands.cloudflareBuild, {
-          cwd: projectDir,
-          env: packageManagerEnv,
-        });
-        return { command: 'pnpm cloudflare:build' };
-      }),
-    );
+      await recordAcceptanceResult(receipt, 'build', () =>
+        withDuration(() => {
+          runImpl('pnpm', requiredPnpmCommands.build, {
+            cwd: projectDir,
+            env: packageManagerEnv,
+          });
+          return { command: 'pnpm build' };
+        }),
+      );
 
-    await recordAcceptanceResult(receipt, 'topology', () =>
-      withDuration(() => {
-        artifacts = readWorkspaceAcceptanceArtifacts(projectDir);
-        return assertTopologyAcceptance(artifacts, options.verticals);
-      }),
-    );
-    await recordAcceptanceResult(receipt, 'module-federation', () =>
-      withDuration(() =>
-        assertModuleFederationAcceptance(artifacts, options.verticals),
-      ),
-    );
-    await recordAcceptanceResult(receipt, 'api', () =>
-      withDuration(() => assertApiAcceptance(artifacts, options.verticals)),
-    );
-    await recordAcceptanceResult(receipt, 'backend', () =>
-      withDuration(() => assertBackendAcceptance(artifacts, options.verticals)),
-    );
-    await recordAcceptanceResult(receipt, 'browser-runtime', () =>
-      withDuration(async () => {
-        const report = await browserSmokeImpl(projectDir, { mode: 'local' });
-        return assertBrowserRuntimeAcceptance(report, options.verticals);
-      }),
-    );
-  } catch (error) {
-    failure = error;
-  }
+      // Cloudflare builds reuse each app's .output directory. Execute and cache
+      // the strict Node report while the final Node deployment roots still
+      // exist; the receipt loop below consumes this exact report in its normal
+      // platform/dimension order.
+      runtimeReports.set(
+        'node',
+        await browserSmokeImpl(
+          projectDir,
+          runtimeAcceptanceInvocation(mode, 'node'),
+        ),
+      );
 
-  finalizeAcceptanceReceipt(receipt, failure);
-  if (!failure) {
-    try {
-      assertAcceptanceReceipt(receipt, {
-        release,
-        profileId: options.selectedProfile.id,
-        runIdentity,
-        expectedMode: mode,
-      });
+      await recordAcceptanceResult(receipt, 'cloudflare-build', () =>
+        withDuration(() => {
+          runImpl('pnpm', requiredPnpmCommands.cloudflareBuild, {
+            cwd: projectDir,
+            env: packageManagerEnv,
+          });
+          return { command: 'pnpm cloudflare:build' };
+        }),
+      );
+
+      await recordAcceptanceResult(receipt, 'topology', () =>
+        withDuration(() => {
+          artifacts = readWorkspaceAcceptanceArtifacts(projectDir);
+          return assertTopologyAcceptance(artifacts, options.verticals);
+        }),
+      );
+      await recordAcceptanceResult(receipt, 'module-federation', () =>
+        withDuration(() =>
+          assertModuleFederationAcceptance(artifacts, options.verticals),
+        ),
+      );
+      await recordAcceptanceResult(receipt, 'api', () =>
+        withDuration(() => assertApiAcceptance(artifacts, options.verticals)),
+      );
+      await recordAcceptanceResult(receipt, 'backend', () =>
+        withDuration(() =>
+          assertBackendAcceptance(artifacts, options.verticals),
+        ),
+      );
+      for (const platform of runtimeAcceptancePlatforms) {
+        for (const dimension of runtimeAcceptanceDimensions) {
+          const resultId = `${platform}-${dimension}`;
+          const details = await recordAcceptanceResult(receipt, resultId, () =>
+            withDuration(async () => {
+              let report = runtimeReports.get(platform);
+              if (!report) {
+                report = await browserSmokeImpl(
+                  projectDir,
+                  runtimeAcceptanceInvocation(mode, platform),
+                );
+                runtimeReports.set(platform, report);
+              }
+              return assertRuntimeAcceptanceDimension(report, {
+                applicationSourceRevision,
+                artifactBinding: receipt.binding.artifacts,
+                dimension,
+                mode,
+                platform,
+                release,
+                verticals: options.verticals,
+              });
+            }),
+          );
+          if (dimension === 'release-identity') {
+            runtimeIdentityDetails.set(platform, details);
+          }
+        }
+      }
+      bindRuntimeIdentityEvidence(
+        receipt,
+        runtimeIdentityBinding(
+          runtimeIdentityDetails.get('node'),
+          runtimeIdentityDetails.get('workerd'),
+        ),
+      );
+      await recordAcceptanceResult(
+        receipt,
+        operationalIndependenceResultId,
+        () =>
+          withDuration(() =>
+            runOperationalIndependenceAcceptance({
+              applicationSourceRevision,
+              ephemeralWorkDir: ownsWorkDir ? workDir : undefined,
+              mode,
+              outPath,
+              packageManagerEnv,
+              projectDir,
+              runImpl,
+              runOperationalIndependenceImpl,
+            }),
+          ),
+      );
     } catch (error) {
       failure = error;
-      receiptFailure(receipt, error);
+    }
+
+    finalizeAcceptanceReceipt(receipt, failure);
+    if (!failure) {
+      try {
+        assertAcceptanceReceipt(receipt, {
+          release,
+          profileId: options.selectedProfile.id,
+          runIdentity,
+          expectedMode: mode,
+        });
+      } catch (error) {
+        failure = error;
+        receiptFailure(receipt, error);
+      }
+    }
+    writeJsonFile(outPath, receipt, { atomic: false });
+    if (failure) {
+      throw failure;
+    }
+    return receipt;
+  } finally {
+    if (ownsWorkDir) {
+      fs.rmSync(workDir, { recursive: true, force: true });
     }
   }
-  writeJsonFile(outPath, receipt, { atomic: false });
-  if (ownsWorkDir && !keepWorkDir) {
-    fs.rmSync(workDir, { recursive: true, force: true });
-  }
-  if (failure) {
-    throw failure;
-  }
-  return receipt;
 }
 
 export {
   createAcceptancePackageManagerEnv,
+  createOperationalIndependenceCommit,
   requiredPnpmCommands,
   runAcceptanceProfile,
+  runOperationalIndependenceAcceptance,
   runtimeVersions,
+  snapshotAcceptanceWorkspaceSource,
 };

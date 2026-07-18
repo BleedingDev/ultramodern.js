@@ -194,10 +194,91 @@ export function useEffectContext() {
 }
 `;
 
+const bundledEffectDispatcherSource = `
+let currentEffectContext;
+
+function useEffectContext() {
+  if (!currentEffectContext) {
+    throw new Error("Can't call useEffectContext out of Effect runtime scope");
+  }
+
+  return currentEffectContext;
+}
+
+function normalizeEffectPrefix(prefix) {
+  if (!prefix || prefix === '/') {
+    return '';
+  }
+
+  return prefix.endsWith('/') ? prefix.slice(0, -1) : prefix;
+}
+
+const __modern_create_effect_bff_dispatcher = async options => {
+  const created =
+    typeof effectModule.createHandler === 'function'
+      ? effectModule.createHandler()
+      : undefined;
+  const handler =
+    typeof created?.handler === 'function'
+      ? created.handler
+      : effectModule.api &&
+          effectModule.layer &&
+          typeof effectModule.layer.handle === 'function'
+        ? effectModule.layer.handle
+        : undefined;
+
+  if (typeof handler !== 'function') {
+    throw new Error('test Effect BFF worker has no handler');
+  }
+
+  return {
+    dispatch: async (request, dispatchOptions = {}) => {
+      const url = new URL(request.url);
+      const prefix = normalizeEffectPrefix(options.prefix);
+      if (
+        prefix &&
+        url.pathname !== prefix &&
+        !url.pathname.startsWith(\`\${prefix}/\`)
+      ) {
+        return new Response(null, { status: 404 });
+      }
+
+      const mountedPath = url.pathname;
+      if (prefix) {
+        url.pathname = url.pathname.slice(prefix.length) || '/';
+      }
+      const effectRequest = prefix ? new Request(url, request) : request;
+      const previousContext = currentEffectContext;
+      currentEffectContext = {
+        env: dispatchOptions.env || {},
+        method: request.method,
+        operationContext: {
+          attributes: { mountedPath },
+          env: dispatchOptions.env || {},
+          method: request.method,
+          path: mountedPath,
+          request: effectRequest,
+          routePath: new URL(effectRequest.url).pathname,
+        },
+        path: mountedPath,
+        request: effectRequest,
+      };
+
+      try {
+        const response = await handler(effectRequest);
+        return new Response(response.body, response);
+      } finally {
+        currentEffectContext = previousContext;
+      }
+    },
+    dispose: created?.dispose || (async () => {}),
+  };
+};
+`;
+
 const defaultEffectBffWorkerSource = `
 const createHandler = () => ({
   handler: async request => {
-    const { useEffectContext } = await import('@modern-js/plugin-bff/effect-edge');
     const context = useEffectContext();
 
     return new Response(JSON.stringify({
@@ -214,15 +295,20 @@ Object.defineProperty(createHandler, Symbol.for('modernjs.effect.validatorAware'
   value: true,
 });
 
-module.exports = { default: { createHandler } };
+const effectModule = { createHandler };
+${bundledEffectDispatcherSource}
+
+module.exports = {
+  __modern_create_effect_bff_dispatcher,
+  default: effectModule,
+};
 `;
 
 const effectHttpApiWorkerSource = `
-module.exports = { default: {
-      api: { name: 'CatalogHttpApi' },
+const effectModule = {
+  api: { name: 'CatalogHttpApi' },
   layer: {
     handle: async request => {
-      const { useEffectContext } = await import('@modern-js/plugin-bff/effect-edge');
       const context = useEffectContext();
 
       return new Response(JSON.stringify({
@@ -233,14 +319,42 @@ module.exports = { default: {
       }), { headers: { 'content-type': 'application/json' } });
     },
   },
-} };
+};
+${bundledEffectDispatcherSource}
+
+module.exports = {
+  __modern_create_effect_bff_dispatcher,
+  default: effectModule,
+};
 `;
 
 const effectDrizzleWorkerSource = `
+// bundled from drizzle-orm/sqlite-core
+const entityKind = Symbol.for('drizzle:entityKind');
+class Table {
+  static [entityKind] = 'Table';
+
+  constructor(name) {
+    this.name = name;
+  }
+}
+class SQLiteTable extends Table {
+  static [entityKind] = 'SQLiteTable';
+}
+const text = name => ({ name, type: 'text' });
+const sqliteTable = (name, columns) => {
+  class CatalogFixtureTable extends SQLiteTable {
+    static [entityKind] = 'SQLiteTable';
+  }
+
+  return Object.assign(new CatalogFixtureTable(name), {
+    columns,
+    [entityKind]: CatalogFixtureTable[entityKind],
+  });
+};
+
 const createHandler = () => ({
   handler: async request => {
-    const { sqliteTable, text, entityKind } = await import('drizzle-orm/sqlite-core');
-    const { useEffectContext } = await import('@modern-js/plugin-bff/effect-edge');
     const context = useEffectContext();
     const table = sqliteTable('catalog_addresses', {
       street: text('street'),
@@ -261,7 +375,42 @@ Object.defineProperty(createHandler, Symbol.for('modernjs.effect.validatorAware'
   value: true,
 });
 
-module.exports = { default: { createHandler } };
+const effectModule = { createHandler };
+${bundledEffectDispatcherSource}
+
+module.exports = {
+  __modern_create_effect_bff_dispatcher,
+  default: effectModule,
+};
+`;
+
+const recoveringEffectBffWorkerSource = `
+let createCount = 0;
+let disposeCount = 0;
+
+const __modern_create_effect_bff_dispatcher = async () => {
+  createCount += 1;
+
+  if (createCount === 1) {
+    return {
+      dispose: async () => {
+        disposeCount += 1;
+      },
+    };
+  }
+
+  return {
+    dispatch: async () =>
+      new Response(JSON.stringify({ createCount, disposeCount }), {
+        headers: { 'content-type': 'application/json' },
+      }),
+    dispose: async () => {
+      disposeCount += 1;
+    },
+  };
+};
+
+module.exports = { __modern_create_effect_bff_dispatcher };
 `;
 
 async function createFixture({
@@ -549,14 +698,14 @@ export function sqliteTable(name, columns) {
       remotes: [
         {
           alias: 'catalog-backend',
-          entry: 'backendRemoteEntry.mjs',
+          entry: 'backendRemoteEntry.cjs',
         },
       ],
     }),
   );
   await fs.writeFile(
-    path.join(distDirectory, 'backendRemoteEntry.mjs'),
-    'export const name = "catalog-backend";',
+    path.join(distDirectory, 'backendRemoteEntry.cjs'),
+    'module.exports = { name: "catalog-backend" };',
   );
   await fs.writeFile(
     path.join(distDirectory, 'route.json'),
@@ -1086,6 +1235,32 @@ describe('cloudflare deploy preset', () => {
     ).resolves.toBe('{"name":"Fixture Catalog"}');
   });
 
+  it('flattens generated dist/public assets into the Worker Static Assets root', async () => {
+    const { outputDirectory } = await createFixture({
+      distFiles: {
+        'public/robots.txt': 'User-agent: *\nAllow: /\n',
+        'public/sitemap.xml': '<urlset />',
+        'public/site.webmanifest': '{"name":"Fixture Catalog"}',
+      },
+    });
+
+    await expect(
+      fs.readFile(path.join(outputDirectory, 'public/robots.txt'), 'utf-8'),
+    ).resolves.toBe('User-agent: *\nAllow: /\n');
+    await expect(
+      fs.readFile(path.join(outputDirectory, 'public/sitemap.xml'), 'utf-8'),
+    ).resolves.toBe('<urlset />');
+    await expect(
+      fs.readFile(
+        path.join(outputDirectory, 'public/site.webmanifest'),
+        'utf-8',
+      ),
+    ).resolves.toBe('{"name":"Fixture Catalog"}');
+    await expect(
+      fs.access(path.join(outputDirectory, 'public/public/robots.txt')),
+    ).rejects.toThrow();
+  });
+
   it('emits declarative D1 bindings and stages migrations', async () => {
     const { outputDirectory } = await createFixture({
       d1Databases: [
@@ -1366,10 +1541,10 @@ describe('cloudflare deploy preset', () => {
     ).resolves.toContain('catalog-backend');
     await expect(
       fs.readFile(
-        path.join(publicDirectory, 'backendRemoteEntry.mjs'),
+        path.join(publicDirectory, 'backendRemoteEntry.cjs'),
         'utf-8',
       ),
-    ).resolves.toBe('export const name = "catalog-backend";');
+    ).resolves.toBe('module.exports = { name: "catalog-backend" };');
     await expect(
       fs.access(path.join(outputDirectory, 'server/index.mjs')),
     ).resolves.toBeUndefined();
@@ -1425,13 +1600,13 @@ describe('cloudflare deploy preset', () => {
   it('stages backend federation artifacts into Cloudflare public assets', async () => {
     const backendManifest = JSON.stringify({
       name: 'commerce-backend',
-      remoteEntry: 'backendRemoteEntry.mjs',
+      remoteEntry: 'backendRemoteEntry.cjs',
     });
-    const backendRemoteEntry = 'export const get = () => "commerce";\n';
+    const backendRemoteEntry = 'module.exports = { get: () => "commerce" };\n';
     const { outputDirectory } = await createFixture({
       distFiles: {
         'backend-mf-manifest.json': backendManifest,
-        'backendRemoteEntry.mjs': backendRemoteEntry,
+        'backendRemoteEntry.cjs': backendRemoteEntry,
       },
     });
     const publicDirectory = path.join(outputDirectory, 'public');
@@ -1444,7 +1619,7 @@ describe('cloudflare deploy preset', () => {
     ).resolves.toBe(backendManifest);
     await expect(
       fs.readFile(
-        path.join(publicDirectory, 'backendRemoteEntry.mjs'),
+        path.join(publicDirectory, 'backendRemoteEntry.cjs'),
         'utf-8',
       ),
     ).resolves.toBe(backendRemoteEntry);
@@ -1542,6 +1717,7 @@ describe('cloudflare deploy preset', () => {
       routeManifest: 'routes-manifest.json',
     });
     expect(workerManifest.bff).toEqual({
+      dispatcherExport: '__modern_create_effect_bff_dispatcher',
       runtimeFramework: 'effect',
       prefix: '/commerce-api',
       worker: 'worker/__modern_bff_effect.js',
@@ -1640,7 +1816,7 @@ describe('cloudflare deploy preset', () => {
     );
   });
 
-  it('emits explicit Effect BFF dispatch without runtime duck-typing', async () => {
+  it('emits explicit bundled Effect BFF dispatch without a bare runtime import', async () => {
     const { outputDirectory } = await createFixture();
     const entrySource = await fs.readFile(
       path.join(outputDirectory, 'server/index.mjs'),
@@ -1655,12 +1831,13 @@ describe('cloudflare deploy preset', () => {
       directHandlerStart,
     );
 
-    expect(entrySource).toContain(
+    expect(entrySource).not.toContain(
       "import('@modern-js/plugin-bff/effect-edge')",
     );
+    expect(entrySource).toContain('bff.dispatcherExport');
+    expect(entrySource).toContain('effectDispatcherFactory');
     expect(effectBranchStart).toBeGreaterThan(-1);
     expect(directHandlerStart).toBeGreaterThan(effectBranchStart);
-    expect(effectBranch).toContain('createEffectBffEdgeDispatcher');
     expect(effectBranch).toContain(
       'effectDispatcher.dispatch(request, { env })',
     );
@@ -3216,6 +3393,43 @@ describe('cloudflare deploy preset', () => {
       htmlTemplate: '<!doctype html><html>main</html>',
       routeAssetKeys: ['main'],
       loadableName: 'loadable-fixture',
+    });
+  });
+
+  it('disposes invalid Effect dispatchers, retries initialization, and caches recovery', async () => {
+    const { outputDirectory } = await createFixture({
+      bffPrefix: '/api',
+      bffWorkerSource: recoveringEffectBffWorkerSource,
+    });
+    const entryPath = path.join(outputDirectory, 'server/index.mjs');
+    const worker = (
+      await import(`${pathToFileURL(entryPath).href}?t=${Date.now()}`)
+    ).default;
+    const env = {
+      ASSETS: createSpaFallbackAssetBinding(
+        path.join(outputDirectory, 'public'),
+      ),
+    };
+    const request = new Request('https://example.com/api/effect/lifecycle');
+
+    const invalidResponse = await worker.fetch(request, env);
+    expect(invalidResponse.status).toBe(500);
+    await expect(invalidResponse.text()).resolves.toContain(
+      'did not return a dispatcher with a dispatch function',
+    );
+
+    const recoveredResponse = await worker.fetch(request, env);
+    expect(recoveredResponse.status).toBe(200);
+    await expect(recoveredResponse.json()).resolves.toEqual({
+      createCount: 2,
+      disposeCount: 1,
+    });
+
+    const cachedResponse = await worker.fetch(request, env);
+    expect(cachedResponse.status).toBe(200);
+    await expect(cachedResponse.json()).resolves.toEqual({
+      createCount: 2,
+      disposeCount: 1,
     });
   });
 

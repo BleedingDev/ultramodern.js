@@ -1,13 +1,16 @@
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import {
   accessSync,
   chmodSync,
   constants,
-  copyFileSync,
   lstatSync,
-  mkdtempSync,
+  mkdirSync,
   readFileSync,
   realpathSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
 } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
@@ -278,15 +281,45 @@ function resolveExecutableEffectTsgoCompiler(compilerPath: string): string {
 
   const cachedCompiler = executableEffectTsgoCompilers.get(sourcePath);
   if (cachedCompiler) {
-    return cachedCompiler;
+    try {
+      accessSync(cachedCompiler, constants.X_OK);
+      return cachedCompiler;
+    } catch {
+      executableEffectTsgoCompilers.delete(sourcePath);
+    }
   }
 
-  const compilerDirectory = mkdtempSync(
-    join(tmpdir(), 'modern-js-effect-tsgo-'),
+  const compilerBytes = readFileSync(sourcePath);
+  const compilerDigest = createHash('sha256')
+    .update(compilerBytes)
+    .digest('hex');
+  const compilerDirectory = join(
+    tmpdir(),
+    'modern-js',
+    'effect-tsgo',
+    compilerDigest,
   );
+  mkdirSync(compilerDirectory, { recursive: true, mode: 0o700 });
   const executableCompiler = join(compilerDirectory, basename(sourcePath));
-  copyFileSync(sourcePath, executableCompiler, constants.COPYFILE_EXCL);
-  chmodSync(executableCompiler, 0o700);
+  try {
+    accessSync(executableCompiler, constants.X_OK);
+  } catch {
+    const temporaryCompiler = join(
+      compilerDirectory,
+      `.${basename(sourcePath)}.${process.pid}.tmp`,
+    );
+    rmSync(temporaryCompiler, { force: true });
+    try {
+      writeFileSync(temporaryCompiler, compilerBytes, {
+        flag: 'wx',
+        mode: 0o700,
+      });
+      chmodSync(temporaryCompiler, 0o700);
+      renameSync(temporaryCompiler, executableCompiler);
+    } finally {
+      rmSync(temporaryCompiler, { force: true });
+    }
+  }
   accessSync(executableCompiler, constants.X_OK);
   executableEffectTsgoCompilers.set(sourcePath, executableCompiler);
   return executableCompiler;

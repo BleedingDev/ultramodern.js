@@ -28,6 +28,8 @@ export function parseArgs(argv) {
     '--artifact-dir',
     '--out',
     '--mode',
+    '--artifact-mode',
+    '--platform',
     '--public-url',
     '--shell-runtime',
     '--timeout-ms',
@@ -37,6 +39,7 @@ export function parseArgs(argv) {
     defaults: {
       artifactDir: defaultArtifactDir,
       mode: 'local',
+      artifactMode: undefined,
       out: defaultReportPath,
       publicUrlEntries: [],
       requirePublicUrls: false,
@@ -56,6 +59,13 @@ export function parseArgs(argv) {
         requiredValue: false,
       },
       mode: {
+        requiredValue: false,
+      },
+      'artifact-mode': {
+        key: 'artifactMode',
+        requiredValue: false,
+      },
+      platform: {
         requiredValue: false,
       },
       'public-url': {
@@ -96,6 +106,18 @@ export function parseArgs(argv) {
   }
   if (!['local', 'public'].includes(parsed.mode)) {
     throw new Error('--mode must be local or public');
+  }
+  if (
+    parsed.artifactMode !== undefined &&
+    !['source', 'published'].includes(parsed.artifactMode)
+  ) {
+    throw new Error('--artifact-mode must be source or published');
+  }
+  if (
+    parsed.platform !== undefined &&
+    !['node', 'workerd'].includes(parsed.platform)
+  ) {
+    throw new Error('--platform must be node or workerd');
   }
   if (!['node', 'workerd'].includes(parsed.shellRuntime)) {
     throw new Error('--shell-runtime must be node or workerd');
@@ -271,6 +293,7 @@ export function createSmokeContractApp(config, app) {
   return {
     id: app.id,
     kind: app.kind,
+    api: app.api,
     package: app.package,
     path: app.path,
     config: {
@@ -287,6 +310,9 @@ export function createSmokeContractApp(config, app) {
     },
     deploy: {
       cloudflare: {
+        ...(Array.isArray(app.deploy?.cloudflare?.jsonSmokeChecks)
+          ? { jsonSmokeChecks: app.deploy.cloudflare.jsonSmokeChecks }
+          : {}),
         ...(Array.isArray(app.deploy?.cloudflare?.distributedSsrProofRoutes)
           ? {
               distributedSsrProofRoutes:

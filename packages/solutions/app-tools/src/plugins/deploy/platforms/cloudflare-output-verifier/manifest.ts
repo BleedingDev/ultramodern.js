@@ -1,3 +1,4 @@
+import { BFF_EFFECT_WORKER_DISPATCHER_EXPORT } from '../cloudflare/constants';
 import {
   CLOUDFLARE_ASSETS_BINDING,
   CLOUDFLARE_PUBLIC_ASSETS_DIRECTORY,
@@ -59,5 +60,17 @@ export const verifyManifestShape = (
       message: 'Cloudflare output manifest routeSpec.routes must be array.',
       path: manifestPath,
     });
+  }
+  if (manifest.bff?.runtimeFramework === 'effect') {
+    assertEqual(
+      issues,
+      manifest.bff.dispatcherExport,
+      BFF_EFFECT_WORKER_DISPATCHER_EXPORT,
+      {
+        code: 'invalid-manifest',
+        message: `Cloudflare Effect BFF manifest dispatcherExport must be ${BFF_EFFECT_WORKER_DISPATCHER_EXPORT}.`,
+        path: manifestPath,
+      },
+    );
   }
 };

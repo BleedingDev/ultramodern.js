@@ -1,5 +1,4 @@
 diff --git a/dist/ModuleFederationPlugin.js b/dist/ModuleFederationPlugin.js
-index 2818028..c20ab1f 100644
 --- a/dist/ModuleFederationPlugin.js
 +++ b/dist/ModuleFederationPlugin.js
 @@ -69,8 +69,6 @@ const sdk_namespaceObject = require("@module-federation/sdk");
@@ -22,7 +21,6 @@ index 2818028..c20ab1f 100644
              dtsPlugin.apply(compiler);
              dtsPlugin.addRuntimePlugins();
 diff --git a/dist/ModuleFederationPlugin.mjs b/dist/ModuleFederationPlugin.mjs
-index 2daf1a6..65b2c88 100644
 --- a/dist/ModuleFederationPlugin.mjs
 +++ b/dist/ModuleFederationPlugin.mjs
 @@ -1,12 +1,13 @@

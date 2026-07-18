@@ -212,6 +212,12 @@ test('source-checkout migrate uses workspace links and is byte-idempotent after 
       fs.existsSync(path.join(workspaceDir, '.modernjs/release-cohort.json')),
       false,
     );
+    const pnpmWorkspace = fs.readFileSync(
+      path.join(workspaceDir, 'pnpm-workspace.yaml'),
+      'utf-8',
+    );
+    assert.match(pnpmWorkspace, /^injectWorkspacePackages: true$/mu);
+    assert.match(pnpmWorkspace, /^linkWorkspacePackages: true$/mu);
 
     for (const relativePath of retiredMetadataPaths) {
       assert.equal(fs.existsSync(path.join(workspaceDir, relativePath)), false);

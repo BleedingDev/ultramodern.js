@@ -12,12 +12,6 @@ async function loadWorkerModule(workerPath) {
   return workerModulePromises.get(workerPath);
 }
 
-async function loadEffectEdgeRuntime() {
-  effectEdgeRuntimePromise ??= import('@modern-js/plugin-bff/effect-edge');
-
-  return effectEdgeRuntimePromise;
-}
-
 function getRuntimeModule(workerModule) {
   const defaultExport = workerModule.default;
   const nestedDefaultExport =
@@ -148,6 +142,72 @@ function createRequestForMountedPrefix(request, prefix) {
   return new Request(url, request);
 }
 
+function createEffectBffDispatcherErrorResponse(bff, error) {
+  return new Response(
+    `Effect BFF dispatcher initialization failed: ${
+      error instanceof Error ? error.message : String(error)
+    }`,
+    {
+      status: 500,
+      headers: {
+        'content-type': 'text/plain; charset=utf-8',
+        'x-modern-js-bff-dispatcher': String(bff.dispatcherExport || ''),
+        'x-modern-js-bff-worker': bff.worker,
+      },
+    },
+  );
+}
+
+function getEffectBffDispatcher(bff, runtime) {
+  let effectDispatcherPromise = effectBffDispatcherPromises.get(bff.worker);
+
+  if (effectDispatcherPromise) {
+    return effectDispatcherPromise;
+  }
+
+  effectDispatcherPromise = Promise.resolve().then(async () => {
+    if (
+      typeof bff.dispatcherExport !== 'string' ||
+      bff.dispatcherExport.length === 0
+    ) {
+      throw new Error('manifest does not declare dispatcherExport');
+    }
+
+    const effectDispatcherFactory = runtime[bff.dispatcherExport];
+
+    if (typeof effectDispatcherFactory !== 'function') {
+      throw new Error(`worker bundle does not export ${bff.dispatcherExport}`);
+    }
+
+    const effectDispatcher = await effectDispatcherFactory({
+      prefix: bff.prefix,
+    });
+
+    if (!effectDispatcher || typeof effectDispatcher.dispatch !== 'function') {
+      try {
+        await effectDispatcher?.dispose?.();
+      } catch {}
+
+      throw new Error(
+        `worker export ${bff.dispatcherExport} did not return a dispatcher with a dispatch function`,
+      );
+    }
+
+    return effectDispatcher;
+  });
+
+  effectBffDispatcherPromises.set(bff.worker, effectDispatcherPromise);
+  effectDispatcherPromise.catch(() => {
+    if (
+      effectBffDispatcherPromises.get(bff.worker) === effectDispatcherPromise
+    ) {
+      effectBffDispatcherPromises.delete(bff.worker);
+    }
+  });
+
+  return effectDispatcherPromise;
+}
+
 async function dispatchBffRequest(request, env) {
   const bff = MODERN_WORKER_MANIFEST.bff;
 
@@ -175,19 +235,14 @@ async function dispatchBffRequest(request, env) {
   const runtime = getRuntimeModule(workerModule);
 
   if (bff.runtimeFramework === 'effect') {
-    let effectDispatcherPromise = effectBffDispatcherPromises.get(bff.worker);
+    let effectDispatcher;
 
-    if (!effectDispatcherPromise) {
-      const { createEffectBffEdgeDispatcher } = await loadEffectEdgeRuntime();
-
-      effectDispatcherPromise = createEffectBffEdgeDispatcher({
-        module: runtime,
-        prefix: bff.prefix,
-      });
-      effectBffDispatcherPromises.set(bff.worker, effectDispatcherPromise);
+    try {
+      effectDispatcher = await getEffectBffDispatcher(bff, runtime);
+    } catch (error) {
+      return createEffectBffDispatcherErrorResponse(bff, error);
     }
 
-    const effectDispatcher = await effectDispatcherPromise;
     return effectDispatcher.dispatch(request, { env });
   }
 

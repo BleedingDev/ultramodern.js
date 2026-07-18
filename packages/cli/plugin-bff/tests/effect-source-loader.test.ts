@@ -45,7 +45,420 @@ const linkFixturePackage = async (appDir: string, packageName: string) => {
   );
 };
 
+const runApiLoader = async ({
+  options,
+  resourcePath,
+  resourceQuery,
+  source,
+}: {
+  options: APILoaderOptions;
+  resourcePath: string;
+  resourceQuery: string;
+  source: string;
+}) => {
+  let callbackError: Error | null | undefined;
+  let callbackCode: string | Buffer | undefined;
+  await new Promise<void>(resolve => {
+    const context = {
+      addDependency: () => {},
+      async:
+        () => (error: Error | null | undefined, code?: string | Buffer) => {
+          callbackError = error;
+          callbackCode = code;
+          resolve();
+        },
+      cacheable: () => {},
+      getOptions: () => options,
+      resourcePath,
+      resourceQuery,
+    };
+    void apiLoader.call(context as never, source);
+  });
+
+  if (callbackError) {
+    throw callbackError;
+  }
+  return String(callbackCode);
+};
+
+const buildEffectWorkerRuntimeModule = async ({
+  apiDir,
+  appDir,
+  entryFile,
+  prefix,
+  source,
+}: {
+  apiDir: string;
+  appDir: string;
+  entryFile: string;
+  prefix: string;
+  source: string;
+}) => {
+  const wrapperSource = await runApiLoader({
+    options: {
+      apiDir,
+      appDir,
+      bffRuntimeFramework: 'effect',
+      effectEntry: entryFile,
+      existLambda: false,
+      lambdaDir: path.join(apiDir, 'lambda'),
+      port: 8080,
+      prefix,
+      target: 'web',
+    },
+    resourcePath: entryFile,
+    resourceQuery: '?modern-bff-runtime',
+    source,
+  });
+  const wrapperFile = path.join(appDir, 'effect-worker-wrapper.mjs');
+  const outputFile = path.join(appDir, 'effect-worker-runtime.mjs');
+  await writeFile(wrapperFile, wrapperSource);
+
+  const { build } = await import('esbuild');
+  await build({
+    alias: {
+      '@modern-js/plugin-bff/effect-edge': path.resolve(
+        __dirname,
+        '../src/runtime/effect/edge.ts',
+      ),
+    },
+    bundle: true,
+    entryPoints: [wrapperFile],
+    format: 'esm',
+    outfile: outputFile,
+    platform: 'node',
+    target: 'node20',
+  });
+
+  return import(
+    `${pathToFileURL(outputFile).href}?t=${Date.now()}`
+  ) as Promise<{
+    __modern_create_effect_bff_dispatcher: (options: {
+      prefix?: string;
+    }) => Promise<{
+      dispatch: (
+        request: Request,
+        options?: { env?: Record<string, unknown> },
+      ) => Promise<Response>;
+      dispose: () => Promise<void>;
+    }>;
+  }>;
+};
+
 describe('Effect source graph loading', () => {
+  test('Effect worker runtime entry exports a self-contained edge dispatcher factory', async () => {
+    const appDir = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), 'modern-plugin-bff-effect-worker-wrapper-'),
+    );
+
+    try {
+      const apiDir = path.join(appDir, 'api');
+      const entryFile = path.join(apiDir, 'index.ts');
+      const source = `export default { api: {}, layer: {} };`;
+      await writeFile(entryFile, source);
+
+      const code = await runApiLoader({
+        options: {
+          apiDir,
+          appDir,
+          bffRuntimeFramework: 'effect',
+          effectEntry: entryFile,
+          existLambda: false,
+          lambdaDir: path.join(apiDir, 'lambda'),
+          port: 8080,
+          prefix: '/catalog-api',
+          target: 'web',
+        },
+        resourcePath: entryFile,
+        resourceQuery: '?modern-bff-runtime',
+        source,
+      });
+
+      expect(code).toContain(
+        `import * as effectBffModule from ${JSON.stringify(
+          `${entryFile}?modern-bff-runtime-source`,
+        )}`,
+      );
+      expect(code).toContain(`from '@modern-js/plugin-bff/effect-edge'`);
+      expect(code).toContain(
+        'export const __modern_create_effect_bff_dispatcher',
+      );
+      expect(code).toContain('module: effectBffModule');
+      expect(code).not.toContain(source);
+    } finally {
+      await fs.promises.rm(appDir, { recursive: true, force: true });
+    }
+  });
+
+  test('Effect worker runtime source query transpiles the API without recursing into the wrapper', async () => {
+    const appDir = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), 'modern-plugin-bff-effect-worker-source-'),
+    );
+
+    try {
+      const apiDir = path.join(appDir, 'api');
+      const entryFile = path.join(apiDir, 'index.ts');
+      const source = `export const marker: string = 'raw-runtime-source';`;
+      await writeFile(entryFile, source);
+
+      const code = await runApiLoader({
+        options: {
+          apiDir,
+          appDir,
+          bffRuntimeFramework: 'effect',
+          effectEntry: entryFile,
+          existLambda: false,
+          lambdaDir: path.join(apiDir, 'lambda'),
+          port: 8080,
+          prefix: '/catalog-api',
+          target: 'web',
+        },
+        resourcePath: entryFile,
+        resourceQuery: '?modern-bff-runtime-source',
+        source,
+      });
+
+      expect(code).toContain(`export const marker = 'raw-runtime-source';`);
+      expect(code).not.toContain('__modern_create_effect_bff_dispatcher');
+      expect(code).not.toContain('modern-bff-runtime-source?');
+    } finally {
+      await fs.promises.rm(appDir, { recursive: true, force: true });
+    }
+  });
+
+  test('Effect worker dispatcher executes defineEffectBff with mounted prefix and edge env', async () => {
+    const appDir = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), 'modern-plugin-bff-effect-worker-define-'),
+    );
+
+    try {
+      const apiDir = path.join(appDir, 'api');
+      const entryFile = path.join(apiDir, 'index.ts');
+      const source = `
+import {
+  defineEffectBff,
+  Effect,
+  HttpApi,
+  HttpApiBuilder,
+  HttpApiEndpoint,
+  HttpApiGroup,
+  Layer,
+  Schema,
+  useEffectContext,
+} from '@modern-js/plugin-bff/effect-edge';
+
+const api = HttpApi.make('WorkerDefineApi').add(
+  HttpApiGroup.make('status').add(
+    HttpApiEndpoint.get('readiness', '/readiness', {
+      success: Schema.Struct({
+        env: Schema.String,
+        originalPath: Schema.String,
+        routePath: Schema.String,
+      }),
+    }),
+  ),
+);
+const statusLayer = HttpApiBuilder.group(api, 'status', handlers =>
+  handlers.handle('readiness', () =>
+    Effect.sync(() => {
+      const context = useEffectContext();
+      return {
+        env: String(context.env.RUNTIME),
+        originalPath: context.path,
+        routePath: context.operationContext.routePath,
+      };
+    }),
+  ),
+);
+
+export default defineEffectBff({
+  api,
+  layer: HttpApiBuilder.layer(api).pipe(Layer.provide(statusLayer)),
+});
+`;
+      await writeFile(entryFile, source);
+
+      const runtime = await buildEffectWorkerRuntimeModule({
+        apiDir,
+        appDir,
+        entryFile,
+        prefix: '/catalog-api',
+        source,
+      });
+      const dispatcher = await runtime.__modern_create_effect_bff_dispatcher({
+        prefix: '/catalog-api',
+      });
+
+      try {
+        const response = await dispatcher.dispatch(
+          new Request('https://example.com/catalog-api/readiness'),
+          { env: { RUNTIME: 'workerd' } },
+        );
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toEqual({
+          env: 'workerd',
+          originalPath: '/catalog-api/readiness',
+          routePath: '/readiness',
+        });
+      } finally {
+        await dispatcher.dispose();
+      }
+    } finally {
+      await fs.promises.rm(appDir, { recursive: true, force: true });
+    }
+  });
+
+  test('Effect worker dispatcher executes raw api and layer module exports', async () => {
+    const appDir = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), 'modern-plugin-bff-effect-worker-raw-'),
+    );
+
+    try {
+      const apiDir = path.join(appDir, 'api');
+      const entryFile = path.join(apiDir, 'index.ts');
+      const source = `
+import {
+  Effect,
+  HttpApi,
+  HttpApiBuilder,
+  HttpApiEndpoint,
+  HttpApiGroup,
+  Layer,
+  Schema,
+  useEffectContext,
+} from '@modern-js/plugin-bff/effect-edge';
+
+export const api = HttpApi.make('WorkerRawApi').add(
+  HttpApiGroup.make('status').add(
+    HttpApiEndpoint.get('readiness', '/readiness', {
+      success: Schema.Struct({
+        env: Schema.String,
+        originalPath: Schema.String,
+        routePath: Schema.String,
+      }),
+    }),
+  ),
+);
+const statusLayer = HttpApiBuilder.group(api, 'status', handlers =>
+  handlers.handle('readiness', () =>
+    Effect.sync(() => {
+      const context = useEffectContext();
+      return {
+        env: String(context.env.RUNTIME),
+        originalPath: context.path,
+        routePath: context.operationContext.routePath,
+      };
+    }),
+  ),
+);
+export const layer = HttpApiBuilder.layer(api).pipe(
+  Layer.provide(statusLayer),
+);
+`;
+      await writeFile(entryFile, source);
+
+      const runtime = await buildEffectWorkerRuntimeModule({
+        apiDir,
+        appDir,
+        entryFile,
+        prefix: '/inventory-api',
+        source,
+      });
+      const dispatcher = await runtime.__modern_create_effect_bff_dispatcher({
+        prefix: '/inventory-api',
+      });
+
+      try {
+        const response = await dispatcher.dispatch(
+          new Request('https://example.com/inventory-api/readiness'),
+          { env: { RUNTIME: 'raw-workerd' } },
+        );
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toEqual({
+          env: 'raw-workerd',
+          originalPath: '/inventory-api/readiness',
+          routePath: '/readiness',
+        });
+      } finally {
+        await dispatcher.dispose();
+      }
+    } finally {
+      await fs.promises.rm(appDir, { recursive: true, force: true });
+    }
+  });
+
+  test('Effect worker dispatcher disposes its bundled handler', async () => {
+    const appDir = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), 'modern-plugin-bff-effect-worker-dispose-'),
+    );
+    const disposeMarker = Symbol.for(
+      `modernjs.plugin-bff.test.dispose.${path.basename(appDir)}`,
+    );
+    const testGlobal = globalThis as typeof globalThis & {
+      [disposeMarker]?: number;
+    };
+    testGlobal[disposeMarker] = 0;
+
+    try {
+      const apiDir = path.join(appDir, 'api');
+      const entryFile = path.join(apiDir, 'index.ts');
+      const source = `
+import { useEffectContext } from '@modern-js/plugin-bff/effect-edge';
+
+const disposeMarker = Symbol.for(${JSON.stringify(disposeMarker.description)});
+export const createHandler = () => ({
+  handler: request => {
+    const context = useEffectContext();
+    return Response.json({
+      env: String(context.env.RUNTIME),
+      requestPath: new URL(request.url).pathname,
+    });
+  },
+  dispose: async () => {
+    globalThis[disposeMarker] = Number(globalThis[disposeMarker] || 0) + 1;
+  },
+});
+Object.defineProperty(
+  createHandler,
+  Symbol.for('modernjs.effect.validatorAware'),
+  { value: true },
+);
+`;
+      await writeFile(entryFile, source);
+
+      const runtime = await buildEffectWorkerRuntimeModule({
+        apiDir,
+        appDir,
+        entryFile,
+        prefix: '/checkout-api',
+        source,
+      });
+      const dispatcher = await runtime.__modern_create_effect_bff_dispatcher({
+        prefix: '/checkout-api',
+      });
+      const response = await dispatcher.dispatch(
+        new Request('https://example.com/checkout-api/cart'),
+        { env: { RUNTIME: 'dispose-workerd' } },
+      );
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual({
+        env: 'dispose-workerd',
+        requestPath: '/cart',
+      });
+      expect(testGlobal[disposeMarker]).toBe(0);
+
+      await dispatcher.dispose();
+
+      expect(testGlobal[disposeMarker]).toBe(1);
+    } finally {
+      delete testGlobal[disposeMarker];
+      await fs.promises.rm(appDir, { recursive: true, force: true });
+    }
+  });
+
   test('preserves native ESM semantics, TS path precedence, and automatic JSX', async () => {
     const appDir = await fs.promises.mkdtemp(
       path.join(os.tmpdir(), 'modern-plugin-bff-effect-esm-'),
