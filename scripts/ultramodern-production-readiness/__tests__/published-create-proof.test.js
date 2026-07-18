@@ -289,7 +289,7 @@ test('shared ERP-10 profile requires frozen install, checks, both builds, and no
   }
 });
 
-test('snapshots the completed generated application source before building', async () => {
+test('snapshots install-materialized generated source before building', async () => {
   const { snapshotAcceptanceWorkspaceSource } = await import(
     '../published-create-proof/acceptance-profile.mjs'
   );
@@ -329,6 +329,13 @@ test('snapshots the completed generated application source before building', asy
       '{"name":"catalog"}\n',
     );
     fs.writeFileSync(path.join(root, 'pnpm-lock.yaml'), 'lockfileVersion: 9\n');
+    fs.mkdirSync(path.join(root, '.codex', 'skills', 'mf'), {
+      recursive: true,
+    });
+    fs.writeFileSync(
+      path.join(root, '.codex', 'skills', 'mf', 'SKILL.md'),
+      '# Pinned Module Federation skill\n',
+    );
 
     const revision = snapshotAcceptanceWorkspaceSource(root, {}, runImpl);
 
@@ -345,6 +352,13 @@ test('snapshots the completed generated application source before building', asy
         cwd: root,
       }).includes('verticals/catalog/package.json'),
       true,
+    );
+    assert.equal(
+      runImpl('git', ['show', '--format=', '--name-only', 'HEAD'], {
+        cwd: root,
+      }).includes('.codex/skills/mf/SKILL.md'),
+      true,
+      'the promotable source identity must include first-install materialization',
     );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });

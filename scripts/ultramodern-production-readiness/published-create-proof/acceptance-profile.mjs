@@ -616,14 +616,8 @@ async function runAcceptanceProfile({
             cwd: projectDir,
             env: packageManagerEnv,
           });
-          applicationSourceRevision = snapshotAcceptanceWorkspaceSource(
-            projectDir,
-            packageManagerEnv,
-            runImpl,
-          );
           return {
             command: 'pnpm install --lockfile-only --ignore-scripts',
-            applicationSourceRevision,
             lockfile: 'pnpm-lock.yaml',
           };
         }),
@@ -683,8 +677,18 @@ async function runAcceptanceProfile({
             cwd: projectDir,
             env: packageManagerEnv,
           });
+          // A real first install materializes pinned generated-workspace assets
+          // such as clone-backed agent skills. Snapshot only after lifecycle
+          // scripts and the full workspace check have completed so the exact
+          // committed source built below is clean and promotable.
+          applicationSourceRevision = snapshotAcceptanceWorkspaceSource(
+            projectDir,
+            packageManagerEnv,
+            runImpl,
+          );
           return {
             command: 'pnpm check',
+            applicationSourceRevision,
             ...assertWorkspaceCheckContract(projectDir),
           };
         }),
