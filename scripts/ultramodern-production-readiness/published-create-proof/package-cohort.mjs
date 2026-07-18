@@ -219,7 +219,12 @@ function resolveCreatePackage(release, requestedSpecifier) {
 }
 
 function createPnpmDlxArgs(createPackage, forwardedArgs) {
-  return ['dlx', createPackage.exactSpecifier, ...forwardedArgs];
+  return [
+    'dlx',
+    '--allow-build=esbuild',
+    createPackage.exactSpecifier,
+    ...forwardedArgs,
+  ];
 }
 
 function packageJsonFiles(root) {

@@ -134,6 +134,7 @@ test('builds the supported pnpm dlx package command contract', async () => {
     ),
     [
       'dlx',
+      '--allow-build=esbuild',
       '@bleedingdev/modern-js-create@3.4.0-ultramodern.2',
       'my-super-app',
       '--lang',
@@ -150,6 +151,7 @@ test('builds the supported pnpm dlx package command contract', async () => {
     ),
     [
       'dlx',
+      '--allow-build=esbuild',
       '@bleedingdev/modern-js-create@3.2.0-ultramodern.120',
       'catalog',
       '--vertical',
