@@ -34,7 +34,11 @@ import {
   recordAcceptanceResult,
 } from './acceptance-receipt.mjs';
 import { runBrowserSmoke } from './browser-smoke.mjs';
-import { browserSmokePlaywrightPackage, writeJsonFile } from './constants.mjs';
+import {
+  browserSmokePlaywrightPackage,
+  repoRoot,
+  writeJsonFile,
+} from './constants.mjs';
 import {
   assertGeneratedCohort,
   resolveCreatePackage,
@@ -91,7 +95,11 @@ function currentTime(now) {
   return new now();
 }
 
-function createAcceptancePackageManagerEnv(workDir, registryEnv = {}) {
+function createAcceptancePackageManagerEnv(
+  workDir,
+  registryEnv = {},
+  pnpmExecutable,
+) {
   const env = {
     ...createCleanPnpmDlxEnv(path.join(workDir, 'package-manager')),
     ...registryEnv,
@@ -100,6 +108,16 @@ function createAcceptancePackageManagerEnv(workDir, registryEnv = {}) {
     ULTRAMODERN_CREATE_BIN: undefined,
     ZE_CI_TOKEN: undefined,
   };
+  if (pnpmExecutable !== undefined) {
+    if (!path.isAbsolute(pnpmExecutable)) {
+      throw new Error(
+        `Acceptance pnpm executable must be absolute: ${pnpmExecutable}`,
+      );
+    }
+    env.PATH = [path.dirname(pnpmExecutable), process.env.PATH]
+      .filter(Boolean)
+      .join(path.delimiter);
+  }
   // The clean room performs no Zephyr Cloud deploy, so ZE_CI_TOKEN is absent
   // and the generated build never engages Zephyr (it stays a registered but
   // inactive plugin). This tests "builds without a Zephyr Cloud account".
@@ -138,6 +156,53 @@ function runtimeVersions(runImpl, registryTool) {
       integrity: YAML_INTEGRITY,
     },
   };
+}
+
+function resolveExactPnpmExecutable(runImpl, expectedVersion) {
+  if (
+    typeof expectedVersion !== 'string' ||
+    !/^[1-9]\d*\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$/u.test(expectedVersion)
+  ) {
+    throw new Error(
+      `Release manifest must bind an exact pnpm version, found ${String(expectedVersion)}`,
+    );
+  }
+  const discoveryScript = `
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const names = process.platform === 'win32'
+      ? ['pnpm.cmd', 'pnpm.exe', 'pnpm']
+      : ['pnpm'];
+    for (const directory of (process.env.PATH || '').split(path.delimiter)) {
+      for (const name of names) {
+        const candidate = path.resolve(directory, name);
+        if (fs.existsSync(candidate)) {
+          process.stdout.write(candidate);
+          process.exit(0);
+        }
+      }
+    }
+    throw new Error('pnpm executable is absent from the exact pnpm exec PATH');
+  `;
+  const executable = runImpl('pnpm', ['exec', 'node', '-e', discoveryScript], {
+    cwd: repoRoot,
+    stdio: 'pipe',
+  });
+  if (!path.isAbsolute(executable)) {
+    throw new Error(
+      `Exact pnpm discovery returned a non-absolute executable: ${executable}`,
+    );
+  }
+  const actualVersion = runImpl(executable, ['--version'], {
+    cwd: repoRoot,
+    stdio: 'pipe',
+  });
+  if (actualVersion !== expectedVersion) {
+    throw new Error(
+      `Exact pnpm discovery resolved ${actualVersion}, expected ${expectedVersion}`,
+    );
+  }
+  return executable;
 }
 
 function registryReceiptMetadata({ mode, registryUrl }) {
@@ -437,16 +502,22 @@ async function runAcceptanceProfile({
   }
   try {
     const projectDir = path.join(workDir, options.projectName);
+    const runtime = runtimeVersions(runImpl, registryTool);
+    const exactPnpmExecutable = resolveExactPnpmExecutable(
+      runImpl,
+      release.tools?.pnpm ?? runtime.pnpm,
+    );
     const packageManagerEnv = createAcceptancePackageManagerEnv(
       workDir,
       registryEnv,
+      exactPnpmExecutable,
     );
     const receipt = createAcceptanceReceipt({
       release,
       mode,
       profile: options.selectedProfile,
       createPackage,
-      runtime: runtimeVersions(runImpl, registryTool),
+      runtime,
       registry: registryReceiptMetadata({ mode, registryUrl }),
       runIdentity,
       now,
@@ -757,6 +828,7 @@ export {
   createAcceptancePackageManagerEnv,
   createOperationalIndependenceCommit,
   requiredPnpmCommands,
+  resolveExactPnpmExecutable,
   runAcceptanceProfile,
   runOperationalIndependenceAcceptance,
   runtimeVersions,

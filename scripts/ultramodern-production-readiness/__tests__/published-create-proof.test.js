@@ -168,8 +168,11 @@ test('builds the supported pnpm dlx package command contract', async () => {
 });
 
 test('shared ERP-10 profile requires frozen install, checks, both builds, and no framework override', async () => {
-  const { createAcceptancePackageManagerEnv, requiredPnpmCommands } =
-    await import('../published-create-proof/acceptance-profile.mjs');
+  const {
+    createAcceptancePackageManagerEnv,
+    requiredPnpmCommands,
+    resolveExactPnpmExecutable,
+  } = await import('../published-create-proof/acceptance-profile.mjs');
   const { requiredAcceptanceResultIds } = await import(
     '../published-create-proof/acceptance-receipt.mjs'
   );
@@ -193,6 +196,46 @@ test('shared ERP-10 profile requires frozen install, checks, both builds, and no
       MODERN_CREATE_ULTRAMODERN_FRAMEWORK_VERSION: 'forbidden',
     }).MODERN_CREATE_ULTRAMODERN_FRAMEWORK_VERSION,
     undefined,
+  );
+  const exactPnpmExecutable = path.resolve('/tmp/exact-pnpm/11.11.0/bin/pnpm');
+  const calls = [];
+  const resolvedPnpmExecutable = resolveExactPnpmExecutable(
+    (command, args, options) => {
+      calls.push({ args, command, options });
+      if (command === 'pnpm') {
+        return exactPnpmExecutable;
+      }
+      if (command === exactPnpmExecutable) {
+        return '11.11.0';
+      }
+      throw new Error(`Unexpected command ${command}`);
+    },
+    '11.11.0',
+  );
+  assert.equal(resolvedPnpmExecutable, exactPnpmExecutable);
+  assert.deepEqual(
+    calls.map(call => [call.command, call.args]),
+    [
+      ['pnpm', ['exec', 'node', '-e', calls[0].args[3]]],
+      [exactPnpmExecutable, ['--version']],
+    ],
+  );
+  assert.equal(
+    createAcceptancePackageManagerEnv(
+      '/tmp/acceptance',
+      { PATH: '/hostile/registry/path' },
+      exactPnpmExecutable,
+    ).PATH.split(path.delimiter)[0],
+    path.dirname(exactPnpmExecutable),
+    'the manifest-verified pnpm must override inherited and registry PATH entries',
+  );
+  assert.throws(
+    () =>
+      resolveExactPnpmExecutable(
+        command => (command === 'pnpm' ? exactPnpmExecutable : '11.14.0'),
+        '11.11.0',
+      ),
+    /resolved 11\.14\.0, expected 11\.11\.0/u,
   );
   assert.equal(
     createAcceptancePackageManagerEnv('/tmp/acceptance', {
