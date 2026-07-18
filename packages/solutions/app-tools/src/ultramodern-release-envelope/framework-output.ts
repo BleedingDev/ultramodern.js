@@ -374,25 +374,85 @@ const readBackendManifest = async (
   );
 };
 
-const collectFiles = async (
-  root: string,
-  relativeDirectory = '',
-): Promise<string[]> => {
-  const directory = path.join(root, relativeDirectory);
-  const entries = await fs.readdir(directory, { withFileTypes: true });
-  const files: string[] = [];
-  for (const entry of entries) {
-    const logicalPath = path.posix.join(relativeDirectory, entry.name);
-    if (logicalPath === 'release' || logicalPath.startsWith('release/')) {
-      continue;
-    }
-    if (entry.isDirectory()) {
-      files.push(...(await collectFiles(root, logicalPath)));
-    } else if (entry.isFile() || entry.isSymbolicLink()) {
+const collectFiles = async (root: string): Promise<string[]> => {
+  const resolvedRoot = path.resolve(root);
+  const realRoot = await fs.realpath(resolvedRoot);
+
+  const collectDirectory = async (
+    relativeDirectory: string,
+  ): Promise<string[]> => {
+    const directory = path.join(
+      resolvedRoot,
+      ...relativeDirectory.split('/').filter(Boolean),
+    );
+    const entries = await fs.readdir(directory, { withFileTypes: true });
+    const files: string[] = [];
+    for (const entry of entries) {
+      const logicalPath = path.posix.join(relativeDirectory, entry.name);
+      if (logicalPath === 'release' || logicalPath.startsWith('release/')) {
+        continue;
+      }
+      if (entry.isDirectory()) {
+        files.push(...(await collectDirectory(logicalPath)));
+        continue;
+      }
+      if (entry.isFile()) {
+        files.push(logicalPath);
+        continue;
+      }
+      if (!entry.isSymbolicLink()) {
+        continue;
+      }
+
+      const lexicalPath = path.join(resolvedRoot, ...logicalPath.split('/'));
+      let realPath: string;
+      try {
+        realPath = await fs.realpath(lexicalPath);
+      } catch {
+        throw new Error(
+          `[ultramodern-release-envelope] symbolic link ${logicalPath} cannot be resolved.`,
+        );
+      }
+      if (!isFilesystemPathInside(realRoot, realPath)) {
+        throw new Error(
+          `[ultramodern-release-envelope] symbolic link ${logicalPath} resolves outside artifactRoot.`,
+        );
+      }
+      const targetStat = await fs.stat(realPath);
+      if (!targetStat.isFile() && !targetStat.isDirectory()) {
+        throw new Error(
+          `[ultramodern-release-envelope] symbolic link ${logicalPath} must resolve to a file or directory.`,
+        );
+      }
+      const targetLogicalPath = path
+        .relative(realRoot, realPath)
+        .split(path.sep)
+        .join('/');
+      if (
+        targetLogicalPath === 'release' ||
+        targetLogicalPath.startsWith('release/')
+      ) {
+        throw new Error(
+          `[ultramodern-release-envelope] symbolic link ${logicalPath} targets private release metadata.`,
+        );
+      }
+      if (
+        targetStat.isDirectory() &&
+        isFilesystemPathInside(
+          realPath,
+          await fs.realpath(path.dirname(lexicalPath)),
+        )
+      ) {
+        throw new Error(
+          `[ultramodern-release-envelope] symbolic link ${logicalPath} targets an ancestor directory.`,
+        );
+      }
       files.push(logicalPath);
     }
-  }
-  return files.sort();
+    return files;
+  };
+
+  return (await collectDirectory('')).sort();
 };
 
 const releaseArtifact = (

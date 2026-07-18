@@ -100,9 +100,15 @@ async function collectPackageRecords(
     const entries = await fs.readdir(storeDirectory, { withFileTypes: true });
     for (const entry of entries) {
       if (entry.isDirectory()) {
-        await visitNodeModules(
-          path.join(storeDirectory, entry.name, 'node_modules'),
-        );
+        const entryPath = path.join(storeDirectory, entry.name);
+        if (entry.name.startsWith('@')) {
+          // ndepe preserves the slash in a scoped package name, so a
+          // multi-version package is stored as
+          // .ndepe/@scope/package@version/node_modules/@scope/package.
+          await visitScope(entryPath);
+        } else {
+          await visitNodeModules(path.join(entryPath, 'node_modules'));
+        }
       }
     }
   };
@@ -150,13 +156,22 @@ async function resolveAliasTarget(
 ): Promise<PackageRecord | undefined> {
   let directory = ownerDirectory;
   const outputRoot = path.resolve(outputDirectory);
+  const resolvedOutputRoot = await fs.realpath(outputRoot);
   while (
     directory === outputRoot ||
     directory.startsWith(`${outputRoot}${path.sep}`)
   ) {
     const candidate = path.join(directory, 'node_modules', alias.targetName);
     try {
-      await fs.realpath(candidate);
+      const resolvedCandidate = await fs.realpath(candidate);
+      if (
+        resolvedCandidate !== resolvedOutputRoot &&
+        !resolvedCandidate.startsWith(`${resolvedOutputRoot}${path.sep}`)
+      ) {
+        throw new Error(
+          `Cannot preserve npm alias ${alias.aliasName}: emitted target ${candidate} resolves outside deployment output to ${resolvedCandidate}`,
+        );
+      }
       const packageJson = await readPackageJson(
         path.join(candidate, 'package.json'),
       );

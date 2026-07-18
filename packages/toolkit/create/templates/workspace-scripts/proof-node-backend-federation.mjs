@@ -266,6 +266,11 @@ function readBoundReleaseEnvelope(app, target) {
   const envelopePath = path.join(targetDirectory, releaseEnvelopePath);
   assertFile(envelopePath, app.id, 'Node release envelope');
   const envelope = readJson(envelopePath);
+  assertEqual(
+    envelope.schemaVersion,
+    3,
+    `${app.id} release-envelope schema`,
+  );
   assertEqual(envelope.target, 'node', `${app.id} release-envelope target`);
 
   const manifestLogicalPath = envelope.surfaces?.backendFederation?.manifest;
@@ -309,6 +314,11 @@ function readBoundReleaseEnvelope(app, target) {
     if (!artifact) {
       throw new Error(
         `${app.id} release envelope surface references unbound artifact ${logicalPath}`,
+      );
+    }
+    if (artifact.kind !== 'file') {
+      throw new Error(
+        `${app.id} release envelope surface references non-file artifact ${logicalPath}`,
       );
     }
     const artifactPath = path.join(targetDirectory, logicalPath);

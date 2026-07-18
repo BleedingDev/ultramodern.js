@@ -1,4 +1,4 @@
-export const MICROVERTICAL_RELEASE_ENVELOPE_SCHEMA_VERSION = 2 as const;
+export const MICROVERTICAL_RELEASE_ENVELOPE_SCHEMA_VERSION = 3 as const;
 
 export const MICROVERTICAL_RELEASE_ENVELOPE_KIND =
   'ultramodern-target-microvertical-release-envelope' as const;
@@ -20,10 +20,24 @@ export type MicroVerticalReleaseArtifactInput = {
   runtime: string;
 };
 
-export type MicroVerticalReleaseArtifact = MicroVerticalReleaseArtifactInput & {
-  byteLength: number;
-  sha256: string;
-};
+export type MicroVerticalReleaseFileArtifact =
+  MicroVerticalReleaseArtifactInput & {
+    kind: 'file';
+    byteLength: number;
+    sha256: string;
+  };
+
+export type MicroVerticalReleaseSymbolicLinkArtifact =
+  MicroVerticalReleaseArtifactInput & {
+    kind: 'symbolic-link';
+    linkTarget: string;
+    targetKind: 'directory' | 'file';
+    targetLogicalPath: string;
+  };
+
+export type MicroVerticalReleaseArtifact =
+  | MicroVerticalReleaseFileArtifact
+  | MicroVerticalReleaseSymbolicLinkArtifact;
 
 export type MicroVerticalReleaseArtifactInputs = {
   artifacts: MicroVerticalReleaseArtifactInput[];

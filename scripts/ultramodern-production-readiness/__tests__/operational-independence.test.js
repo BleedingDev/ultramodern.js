@@ -224,6 +224,10 @@ function createEnvelopeFixture(root, target = 'node') {
     'api/index.js': `module.exports=${JSON.stringify(identity)};`,
     'backend-mf-manifest.json': JSON.stringify({ identity }),
     'backendRemoteEntry.cjs': `module.exports=${JSON.stringify(identity)};`,
+    'node_modules/@bleedingdev/runtime/package.json': JSON.stringify({
+      name: '@bleedingdev/runtime',
+      version: '1.0.0',
+    }),
   };
   for (const [logicalPath, source] of Object.entries(files)) {
     const filePath = path.join(root, logicalPath);
@@ -238,6 +242,7 @@ function createEnvelopeFixture(root, target = 'node') {
           'api/index.js': 'nodejs',
           'backend-mf-manifest.json': 'module-federation-manifest',
           'backendRemoteEntry.cjs': 'nodejs',
+          'node_modules/@bleedingdev/runtime/package.json': 'nodejs-deployment',
         }
       : {
           'public/client.js': 'browser',
@@ -245,20 +250,42 @@ function createEnvelopeFixture(root, target = 'node') {
           'api/index.js': 'workerd-effect',
           'backend-mf-manifest.json': 'module-federation-manifest',
           'backendRemoteEntry.cjs': 'commonjs-module',
+          'node_modules/@bleedingdev/runtime/package.json':
+            'workerd-deployment',
         };
   const artifacts = Object.keys(files)
     .sort()
     .map(logicalPath => {
       const bytes = fs.readFileSync(path.join(root, logicalPath));
       return {
+        kind: 'file',
         logicalPath,
         runtime: runtimes[logicalPath],
         byteLength: bytes.byteLength,
         sha256: digest(bytes),
       };
     });
+  const aliasPath = path.join(root, 'node_modules/@modern-js/runtime');
+  const aliasTarget = path.join(root, 'node_modules/@bleedingdev/runtime');
+  fs.mkdirSync(path.dirname(aliasPath), { recursive: true });
+  fs.symlinkSync(
+    path.relative(path.dirname(aliasPath), aliasTarget),
+    aliasPath,
+    'dir',
+  );
+  artifacts.push({
+    kind: 'symbolic-link',
+    linkTarget: path.relative(path.dirname(aliasPath), aliasTarget),
+    logicalPath: 'node_modules/@modern-js/runtime',
+    runtime: 'nodejs-deployment',
+    targetKind: 'directory',
+    targetLogicalPath: 'node_modules/@bleedingdev/runtime',
+  });
+  artifacts.sort((left, right) =>
+    left.logicalPath.localeCompare(right.logicalPath),
+  );
   const payload = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     kind: 'ultramodern-target-microvertical-release-envelope',
     target,
     identity,
@@ -710,6 +737,7 @@ test('final-envelope verification rejects a fresh decoy beside a stale compiled 
   const envelope = JSON.parse(fs.readFileSync(fixture.envelopePath, 'utf8'));
   const staleBytes = fs.readFileSync(path.join(root, stalePath));
   envelope.artifacts.push({
+    kind: 'file',
     logicalPath: stalePath,
     runtime: 'browser',
     byteLength: staleBytes.byteLength,
@@ -738,6 +766,166 @@ test('final-envelope verification rejects a fresh decoy beside a stale compiled 
     () => readAndVerifyEnvelope(root, 'node'),
     /stale-client\.js" does not carry the exact release identity/,
   );
+});
+
+test('final-envelope verification structurally binds file and symbolic-link artifact kinds', async t => {
+  const { readAndVerifyEnvelope } = await loadProof();
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'operational-independence-symlink-'),
+  );
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const fixture = createEnvelopeFixture(root);
+
+  const evidence = readAndVerifyEnvelope(root, 'node');
+  assert.deepEqual(
+    evidence.artifacts.find(
+      artifact => artifact.logicalPath === 'node_modules/@modern-js/runtime',
+    ),
+    {
+      kind: 'symbolic-link',
+      linkTarget: '../@bleedingdev/runtime',
+      logicalPath: 'node_modules/@modern-js/runtime',
+      runtime: 'nodejs-deployment',
+      targetKind: 'directory',
+      targetLogicalPath: 'node_modules/@bleedingdev/runtime',
+    },
+  );
+
+  const aliasPath = path.join(root, 'node_modules/@modern-js/runtime');
+  const copyTarget = path.join(root, 'node_modules/@bleedingdev/runtime-copy');
+  fs.cpSync(path.join(root, 'node_modules/@bleedingdev/runtime'), copyTarget, {
+    recursive: true,
+  });
+  fs.rmSync(aliasPath);
+  fs.symlinkSync(
+    path.relative(path.dirname(aliasPath), copyTarget),
+    aliasPath,
+    'dir',
+  );
+  assert.throws(
+    () => readAndVerifyEnvelope(root, 'node'),
+    /linkTarget|targetLogicalPath/,
+  );
+
+  fs.rmSync(aliasPath);
+  fs.symlinkSync('../@bleedingdev/runtime', aliasPath, 'dir');
+  const clientPath = path.join(root, 'public/client.js');
+  const clientCopyPath = path.join(root, 'public/client-copy.js');
+  fs.copyFileSync(clientPath, clientCopyPath);
+  fs.rmSync(clientPath);
+  fs.symlinkSync('client-copy.js', clientPath);
+  assert.throws(
+    () => readAndVerifyEnvelope(root, 'node'),
+    /file artifact|regular file|symbolic link/,
+  );
+
+  fs.rmSync(clientPath);
+  fs.renameSync(clientCopyPath, clientPath);
+  const publicPath = path.join(root, 'public');
+  const publicTargetPath = path.join(root, '..public-target');
+  fs.renameSync(publicPath, publicTargetPath);
+  fs.symlinkSync('..public-target', publicPath, 'dir');
+  assert.throws(
+    () => readAndVerifyEnvelope(root, 'node'),
+    /symbolic-link ancestor/,
+  );
+
+  fs.rmSync(publicPath);
+  fs.renameSync(publicTargetPath, publicPath);
+  const envelope = JSON.parse(fs.readFileSync(fixture.envelopePath, 'utf8'));
+  envelope.surfaces.uiClient = ['node_modules/@modern-js/runtime'];
+  const payload = {
+    schemaVersion: envelope.schemaVersion,
+    kind: envelope.kind,
+    target: envelope.target,
+    identity: envelope.identity,
+    artifacts: envelope.artifacts,
+    surfaces: envelope.surfaces,
+  };
+  envelope.envelopeDigest = digest(Buffer.from(canonical(payload)));
+  fs.writeFileSync(
+    fixture.envelopePath,
+    `${JSON.stringify(envelope, null, 2)}\n`,
+  );
+  assert.throws(
+    () => readAndVerifyEnvelope(root, 'node'),
+    /surface.*file artifact|symbolic-link artifact/,
+  );
+});
+
+test('final-envelope verification rejects hostile symbolic-link targets and metadata', async t => {
+  const { readAndVerifyEnvelope } = await loadProof();
+  const roots = [];
+  t.after(() => {
+    for (const root of roots) {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  for (const failure of [
+    'outside-root',
+    'private-release',
+    'ancestor',
+    'target-kind',
+  ]) {
+    const root = fs.mkdtempSync(
+      path.join(os.tmpdir(), `operational-independence-${failure}-`),
+    );
+    roots.push(root);
+    const fixture = createEnvelopeFixture(root);
+    const aliasPath = path.join(root, 'node_modules/@modern-js/runtime');
+    const envelope = JSON.parse(fs.readFileSync(fixture.envelopePath, 'utf8'));
+    const aliasArtifact = envelope.artifacts.find(
+      artifact => artifact.logicalPath === 'node_modules/@modern-js/runtime',
+    );
+
+    if (failure === 'target-kind') {
+      aliasArtifact.targetKind = 'file';
+    } else {
+      fs.rmSync(aliasPath);
+      const target =
+        failure === 'outside-root'
+          ? fs.mkdtempSync(
+              path.join(os.tmpdir(), 'operational-independence-external-'),
+            )
+          : failure === 'private-release'
+            ? path.join(root, 'release')
+            : path.join(root, 'node_modules');
+      if (failure === 'outside-root') {
+        roots.push(target);
+      }
+      const linkTarget = path.relative(path.dirname(aliasPath), target);
+      fs.symlinkSync(linkTarget, aliasPath, 'dir');
+      aliasArtifact.linkTarget = linkTarget;
+      aliasArtifact.targetLogicalPath =
+        failure === 'private-release' ? 'release' : 'node_modules';
+    }
+
+    const payload = {
+      schemaVersion: envelope.schemaVersion,
+      kind: envelope.kind,
+      target: envelope.target,
+      identity: envelope.identity,
+      artifacts: envelope.artifacts,
+      surfaces: envelope.surfaces,
+    };
+    envelope.envelopeDigest = digest(Buffer.from(canonical(payload)));
+    fs.writeFileSync(
+      fixture.envelopePath,
+      `${JSON.stringify(envelope, null, 2)}\n`,
+    );
+
+    assert.throws(
+      () => readAndVerifyEnvelope(root, 'node'),
+      failure === 'outside-root'
+        ? /outside artifactRoot/
+        : failure === 'private-release'
+          ? /private release metadata/
+          : failure === 'ancestor'
+            ? /ancestor directory/
+            : /targetKind/,
+    );
+  }
 });
 
 test('final-envelope verification rejects prior identity residue in every C1 compiled module', async t => {

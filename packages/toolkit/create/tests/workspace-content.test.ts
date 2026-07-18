@@ -1104,6 +1104,16 @@ test('backend federation proof template resolves monorepo local plugin-bff runti
     proofTemplate,
     /const buildIdentity = readBuildIdentity\(app, target\)/,
   );
+  assert.match(
+    proofTemplate,
+    /assertEqual\(\s*envelope\.schemaVersion,\s*3,\s*`\$\{app\.id\} release-envelope schema`,\s*\)/u,
+  );
+  assert.match(proofTemplate, /artifact\.kind !== 'file'/u);
+  assert.ok(
+    proofTemplate.indexOf("artifact.kind !== 'file'") <
+      proofTemplate.indexOf('artifact.byteLength'),
+    'required release-envelope artifacts must be files before byte metadata is consumed',
+  );
   assert.doesNotMatch(proofTemplate, /shared\/ultramodern-build\.(?:json|ts)/);
   assert.match(proofTemplate, /manifestDeliveryUnit/);
   assert.match(proofTemplate, /versionBoundaryDeliveryUnit/);

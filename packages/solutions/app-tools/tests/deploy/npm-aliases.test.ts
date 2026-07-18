@@ -328,6 +328,108 @@ describe('Node deployment npm aliases', () => {
     }
   });
 
+  it('traverses scoped owners in the real ndepe multi-version store layout', async () => {
+    const appDirectory = await mkdtemp(
+      path.join(tmpdir(), 'app-tools-scoped-store-alias-'),
+    );
+    const outputDirectory = path.join(appDirectory, '.output');
+    const ownerDirectory = path.join(
+      outputDirectory,
+      'node_modules/.ndepe/@bleedingdev/owner@1.0.0/node_modules/@bleedingdev/owner',
+    );
+    const targetDirectory = path.join(
+      outputDirectory,
+      'node_modules/@vendor/core',
+    );
+
+    try {
+      await writeJson(path.join(appDirectory, 'package.json'), {
+        name: 'scoped-store-alias-app',
+      });
+      await writeJson(path.join(outputDirectory, 'package.json'), {
+        name: 'scoped-store-alias-app-prod',
+        version: '1.0.0',
+      });
+      await writeJson(path.join(ownerDirectory, 'package.json'), {
+        name: '@bleedingdev/owner',
+        version: '1.0.0',
+        main: 'index.js',
+        dependencies: {
+          '@logical/core': 'npm:@vendor/core@1.0.0',
+        },
+      });
+      await writeFile(
+        path.join(ownerDirectory, 'index.js'),
+        "module.exports = require('@logical/core');\n",
+      );
+      await writeJson(path.join(targetDirectory, 'package.json'), {
+        name: '@vendor/core',
+        version: '1.0.0',
+        main: 'index.js',
+      });
+      await writeFile(
+        path.join(targetDirectory, 'index.js'),
+        "module.exports = 'scoped-store-alias-ran';\n",
+      );
+
+      await preserveNpmAliases({ appDirectory, outputDirectory });
+
+      const relocatedOutput = path.join(appDirectory, '.relocated-output');
+      await rename(outputDirectory, relocatedOutput);
+      const relocatedOwner = path.join(
+        relocatedOutput,
+        'node_modules/.ndepe/@bleedingdev/owner@1.0.0/node_modules/@bleedingdev/owner',
+      );
+      const requireFromOwner = createRequire(
+        path.join(relocatedOwner, 'index.js'),
+      );
+      expect(requireFromOwner('./index.js')).toBe('scoped-store-alias-ran');
+    } finally {
+      await rm(appDirectory, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects npm alias targets that resolve outside the deployment output', async () => {
+    const appDirectory = await mkdtemp(
+      path.join(tmpdir(), 'app-tools-external-alias-'),
+    );
+    const outputDirectory = path.join(appDirectory, '.output');
+    const externalTarget = path.join(appDirectory, 'external-target');
+    const emittedTarget = path.join(
+      outputDirectory,
+      'node_modules/@vendor/core',
+    );
+
+    try {
+      await writeJson(path.join(appDirectory, 'package.json'), {
+        name: 'external-alias-app',
+        dependencies: {
+          '@logical/core': 'npm:@vendor/core@1.0.0',
+        },
+      });
+      await writeJson(path.join(outputDirectory, 'package.json'), {
+        name: 'external-alias-app-prod',
+        version: '1.0.0',
+      });
+      await writeJson(path.join(externalTarget, 'package.json'), {
+        name: '@vendor/core',
+        version: '1.0.0',
+      });
+      await mkdir(path.dirname(emittedTarget), { recursive: true });
+      await symlink(
+        path.relative(path.dirname(emittedTarget), externalTarget),
+        emittedTarget,
+        'dir',
+      );
+
+      await expect(
+        preserveNpmAliases({ appDirectory, outputDirectory }),
+      ).rejects.toThrow('resolves outside deployment output');
+    } finally {
+      await rm(appDirectory, { recursive: true, force: true });
+    }
+  });
+
   it('leaves ordinary same-name packages unchanged', async () => {
     const appDirectory = await mkdtemp(
       path.join(tmpdir(), 'app-tools-same-package-'),

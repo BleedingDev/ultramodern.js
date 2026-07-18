@@ -95,7 +95,9 @@ function isInside(root, candidate) {
   const relative = path.relative(root, candidate);
   return (
     relative === '' ||
-    (!relative.startsWith('..') && !path.isAbsolute(relative))
+    (!relative.startsWith(`..${path.sep}`) &&
+      relative !== '..' &&
+      !path.isAbsolute(relative))
   );
 }
 
@@ -171,6 +173,179 @@ function artifactPath(location, logicalPath) {
   return path.join(location.root, logicalPath);
 }
 
+function readAndVerifyEnvelopeArtifact(location, appId, value, index) {
+  const label = `${appId} artifacts[${index}]`;
+  const artifact = value;
+  if (!isRecord(artifact)) {
+    throw new Error(`${label} must be an object`);
+  }
+  const kind = assertNonEmptyString(artifact.kind, `${label}.kind`);
+  const expectedKeys =
+    kind === 'file'
+      ? ['kind', 'logicalPath', 'runtime', 'byteLength', 'sha256']
+      : kind === 'symbolic-link'
+        ? [
+            'kind',
+            'logicalPath',
+            'runtime',
+            'linkTarget',
+            'targetKind',
+            'targetLogicalPath',
+          ]
+        : undefined;
+  if (!expectedKeys) {
+    throw new Error(`${label}.kind must be file or symbolic-link`);
+  }
+  assertExactKeys(artifact, expectedKeys, label);
+
+  const logicalPath = assertLogicalPath(
+    artifact.logicalPath,
+    `${label}.logicalPath`,
+  );
+  const runtime = assertNonEmptyString(artifact.runtime, `${label}.runtime`);
+  const realRoot = fs.realpathSync(location.root);
+  const lexicalPath = path.resolve(realRoot, ...logicalPath.split('/'));
+  if (!isInside(realRoot, lexicalPath)) {
+    throw new Error(
+      `${appId} release artifact escapes target root: ${logicalPath}`,
+    );
+  }
+  let lexicalStat;
+  try {
+    lexicalStat = fs.lstatSync(lexicalPath);
+  } catch {
+    throw new Error(`${appId} release artifact is missing: ${logicalPath}`);
+  }
+
+  if (kind === 'file') {
+    if (lexicalStat.isSymbolicLink() || !lexicalStat.isFile()) {
+      throw new Error(
+        `${appId} file artifact must be a non-symlink regular file: ${logicalPath}`,
+      );
+    }
+    let ancestor = realRoot;
+    for (const segment of logicalPath.split('/').slice(0, -1)) {
+      ancestor = path.join(ancestor, segment);
+      if (fs.lstatSync(ancestor).isSymbolicLink()) {
+        throw new Error(
+          `${appId} file artifact has a symbolic-link ancestor: ${logicalPath}`,
+        );
+      }
+    }
+    const realArtifact = fs.realpathSync(lexicalPath);
+    if (!isInside(realRoot, realArtifact)) {
+      throw new Error(
+        `${appId} release artifact escapes target root: ${logicalPath}`,
+      );
+    }
+    if (
+      !Number.isSafeInteger(artifact.byteLength) ||
+      artifact.byteLength < 0 ||
+      !/^[a-f\d]{64}$/u.test(artifact.sha256)
+    ) {
+      throw new Error(`${appId} artifact metadata is invalid`);
+    }
+    const bytes = fs.readFileSync(lexicalPath);
+    if (
+      bytes.byteLength !== artifact.byteLength ||
+      sha256(bytes) !== artifact.sha256
+    ) {
+      throw new Error(
+        `${appId} release envelope artifact mismatch for ${logicalPath}`,
+      );
+    }
+    return { ...artifact, kind, logicalPath, runtime };
+  }
+
+  if (!lexicalStat.isSymbolicLink()) {
+    throw new Error(
+      `${appId} symbolic-link artifact must remain a symbolic link: ${logicalPath}`,
+    );
+  }
+  if (
+    typeof artifact.linkTarget !== 'string' ||
+    artifact.linkTarget.length === 0
+  ) {
+    throw new Error(`${label}.linkTarget must be a non-empty string`);
+  }
+  if (fs.readlinkSync(lexicalPath) !== artifact.linkTarget) {
+    throw new Error(
+      `${appId} symbolic-link artifact linkTarget mismatch for ${logicalPath}`,
+    );
+  }
+  const targetKind =
+    artifact.targetKind === 'file' || artifact.targetKind === 'directory'
+      ? artifact.targetKind
+      : undefined;
+  if (!targetKind) {
+    throw new Error(`${label}.targetKind must be file or directory`);
+  }
+  const targetLogicalPath = assertLogicalPath(
+    artifact.targetLogicalPath,
+    `${label}.targetLogicalPath`,
+  );
+  let realTarget;
+  try {
+    realTarget = fs.realpathSync(lexicalPath);
+  } catch {
+    throw new Error(
+      `${appId} symbolic-link artifact cannot be resolved: ${logicalPath}`,
+    );
+  }
+  if (!isInside(realRoot, realTarget)) {
+    throw new Error(
+      `${appId} symbolic-link artifact escapes target root: ${logicalPath}`,
+    );
+  }
+  const actualTargetLogicalPath = path
+    .relative(realRoot, realTarget)
+    .split(path.sep)
+    .join('/');
+  if (actualTargetLogicalPath !== targetLogicalPath) {
+    throw new Error(
+      `${appId} symbolic-link artifact targetLogicalPath mismatch for ${logicalPath}`,
+    );
+  }
+  if (
+    actualTargetLogicalPath === 'release' ||
+    actualTargetLogicalPath.startsWith('release/')
+  ) {
+    throw new Error(
+      `${appId} symbolic-link artifact targets private release metadata: ${logicalPath}`,
+    );
+  }
+  const targetStat = fs.statSync(realTarget);
+  const actualTargetKind = targetStat.isFile()
+    ? 'file'
+    : targetStat.isDirectory()
+      ? 'directory'
+      : undefined;
+  if (actualTargetKind !== targetKind) {
+    throw new Error(
+      `${appId} symbolic-link artifact targetKind mismatch for ${logicalPath}`,
+    );
+  }
+  const realParent = fs.realpathSync(path.dirname(lexicalPath));
+  if (!isInside(realRoot, realParent)) {
+    throw new Error(
+      `${appId} symbolic-link artifact is stored outside target root: ${logicalPath}`,
+    );
+  }
+  if (targetKind === 'directory' && isInside(realTarget, realParent)) {
+    throw new Error(
+      `${appId} symbolic-link artifact targets an ancestor directory: ${logicalPath}`,
+    );
+  }
+  return {
+    kind,
+    logicalPath,
+    runtime,
+    linkTarget: artifact.linkTarget,
+    targetKind,
+    targetLogicalPath,
+  };
+}
+
 function verifyEnvelope(location, appId) {
   const { envelope } = location;
   assertExactKeys(
@@ -187,7 +362,7 @@ function verifyEnvelope(location, appId) {
     `${appId} release envelope`,
   );
   if (
-    envelope.schemaVersion !== 2 ||
+    envelope.schemaVersion !== 3 ||
     envelope.kind !== 'ultramodern-target-microvertical-release-envelope'
   ) {
     throw new Error(`${appId} has an invalid release envelope schema`);
@@ -221,29 +396,9 @@ function verifyEnvelope(location, appId) {
   if (!Array.isArray(envelope.artifacts) || envelope.artifacts.length === 0) {
     throw new Error(`${appId} release envelope has no artifacts`);
   }
-  const artifacts = envelope.artifacts.map((artifact, index) => {
-    assertExactKeys(
-      artifact,
-      ['logicalPath', 'runtime', 'byteLength', 'sha256'],
-      `${appId} artifacts[${index}]`,
-    );
-    const logicalPath = assertLogicalPath(
-      artifact.logicalPath,
-      `${appId} artifacts[${index}].logicalPath`,
-    );
-    assertNonEmptyString(
-      artifact.runtime,
-      `${appId} artifacts[${index}].runtime`,
-    );
-    if (
-      !Number.isSafeInteger(artifact.byteLength) ||
-      artifact.byteLength < 0 ||
-      !/^[a-f\d]{64}$/u.test(artifact.sha256)
-    ) {
-      throw new Error(`${appId} artifact metadata is invalid`);
-    }
-    return { ...artifact, logicalPath };
-  });
+  const artifacts = envelope.artifacts.map((artifact, index) =>
+    readAndVerifyEnvelopeArtifact(location, appId, artifact, index),
+  );
   const artifactLogicalPaths = artifacts.map(artifact => artifact.logicalPath);
   const sortedArtifactPaths = [...artifactLogicalPaths].sort((left, right) =>
     left.localeCompare(right),
@@ -313,34 +468,16 @@ function verifyEnvelope(location, appId) {
           `${appId} surface ${surface} references unbound artifact ${logicalPath}`,
         );
       }
+      if (artifact.kind !== 'file') {
+        throw new Error(
+          `${appId} surface ${surface} references symbolic-link artifact ${logicalPath} instead of a file artifact`,
+        );
+      }
       if (artifact.runtime !== expectedRuntimes[surface]) {
         throw new Error(
           `${appId} surface ${surface} has invalid runtime ${artifact.runtime}`,
         );
       }
-    }
-  }
-
-  const realRoot = fs.realpathSync(location.root);
-  for (const artifact of artifacts) {
-    const absolutePath = artifactPath(location, artifact.logicalPath);
-    const realArtifact = fs.realpathSync(absolutePath);
-    if (
-      !isInside(realRoot, realArtifact) ||
-      !fs.statSync(realArtifact).isFile()
-    ) {
-      throw new Error(
-        `${appId} release artifact escapes target root: ${artifact.logicalPath}`,
-      );
-    }
-    const bytes = fs.readFileSync(realArtifact);
-    if (
-      bytes.byteLength !== artifact.byteLength ||
-      sha256(bytes) !== artifact.sha256
-    ) {
-      throw new Error(
-        `${appId} release envelope artifact mismatch for ${artifact.logicalPath}`,
-      );
     }
   }
 }
@@ -451,6 +588,7 @@ function verifyWorkerdRuntimeCorrelation(projectDir, app, location) {
     const artifact = artifactByPath.get(module.logicalPath);
     if (
       !artifact ||
+      artifact.kind !== 'file' ||
       module.byteLength !== artifact.byteLength ||
       module.sha256 !== artifact.sha256 ||
       typeof module.type !== 'string'

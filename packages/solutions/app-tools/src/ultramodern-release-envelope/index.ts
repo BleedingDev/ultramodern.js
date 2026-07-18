@@ -28,8 +28,10 @@ export type {
   MicroVerticalReleaseArtifactInputs,
   MicroVerticalReleaseEnvelope,
   MicroVerticalReleaseEnvelopePayload,
+  MicroVerticalReleaseFileArtifact,
   MicroVerticalReleaseIdentity,
   MicroVerticalReleaseSurfaces,
+  MicroVerticalReleaseSymbolicLinkArtifact,
   MicroVerticalReleaseTarget,
   VerifyMicroVerticalReleaseEnvelopeOptions,
 } from './types';
@@ -148,38 +150,11 @@ const assertNormalizedLogicalPath = (value: unknown, location: string) => {
 const isPathInside = (root: string, candidate: string) => {
   const relative = path.relative(root, candidate);
   return (
-    relative.length === 0 ||
-    (!relative.startsWith('..') && !path.isAbsolute(relative))
+    relative === '' ||
+    (!relative.startsWith(`..${path.sep}`) &&
+      relative !== '..' &&
+      !path.isAbsolute(relative))
   );
-};
-
-const resolveArtifactPath = async (
-  artifactRoot: string,
-  logicalPath: string,
-) => {
-  const lexicalPath = path.resolve(artifactRoot, ...logicalPath.split('/'));
-  if (!isPathInside(artifactRoot, lexicalPath)) {
-    throw new Error(
-      `Artifact logicalPath "${logicalPath}" resolves outside artifactRoot.`,
-    );
-  }
-  let realPath: string;
-  try {
-    realPath = await fs.realpath(lexicalPath);
-  } catch {
-    throw new Error(`Artifact "${logicalPath}" does not exist.`);
-  }
-  const realRoot = await fs.realpath(artifactRoot);
-  if (!isPathInside(realRoot, realPath)) {
-    throw new Error(
-      `Artifact logicalPath "${logicalPath}" resolves outside artifactRoot.`,
-    );
-  }
-  const stat = await fs.stat(realPath);
-  if (!stat.isFile()) {
-    throw new Error(`Artifact "${logicalPath}" must resolve to a file.`);
-  }
-  return realPath;
 };
 
 const assertArtifactInput = (
@@ -202,14 +177,114 @@ const readFinalArtifact = async (
   input: MicroVerticalReleaseArtifactInput,
   resolvedLogicalPath = input.logicalPath,
 ): Promise<MicroVerticalReleaseArtifact> => {
+  const artifactInput = {
+    logicalPath: input.logicalPath,
+    runtime: input.runtime,
+  };
   const logicalPath = assertNormalizedLogicalPath(
     resolvedLogicalPath,
     `staged path for ${input.logicalPath}`,
   );
-  const filePath = await resolveArtifactPath(artifactRoot, logicalPath);
-  const bytes = await fs.readFile(filePath);
+  const resolvedRoot = path.resolve(artifactRoot);
+  const logicalSegments = logicalPath.split('/');
+  const lexicalPath = path.resolve(resolvedRoot, ...logicalSegments);
+  if (!isPathInside(resolvedRoot, lexicalPath)) {
+    throw new Error(
+      `Artifact logicalPath "${logicalPath}" resolves outside artifactRoot.`,
+    );
+  }
+  const realRoot = await fs.realpath(resolvedRoot);
+  for (let index = 0; index < logicalSegments.length - 1; index++) {
+    const linkLogicalPath = logicalSegments.slice(0, index + 1).join('/');
+    const candidate = path.join(
+      resolvedRoot,
+      ...logicalSegments.slice(0, index + 1),
+    );
+    let candidateStat;
+    try {
+      candidateStat = await fs.lstat(candidate);
+    } catch {
+      throw new Error(`Artifact "${logicalPath}" does not exist.`);
+    }
+    if (candidateStat.isSymbolicLink()) {
+      throw new Error(
+        `Artifact "${logicalPath}" traverses symbolic-link ancestor "${linkLogicalPath}"; bind the symbolic link itself.`,
+      );
+    }
+  }
+
+  let lexicalStat;
+  try {
+    lexicalStat = await fs.lstat(lexicalPath);
+  } catch {
+    throw new Error(`Artifact "${logicalPath}" does not exist.`);
+  }
+  if (lexicalStat.isSymbolicLink()) {
+    let realTarget: string;
+    try {
+      realTarget = await fs.realpath(lexicalPath);
+    } catch {
+      throw new Error(
+        `Artifact symbolic link "${logicalPath}" cannot be resolved.`,
+      );
+    }
+    if (!isPathInside(realRoot, realTarget)) {
+      throw new Error(
+        `Artifact logicalPath "${logicalPath}" resolves outside artifactRoot.`,
+      );
+    }
+    const targetStat = await fs.stat(realTarget);
+    const targetKind = targetStat.isFile()
+      ? 'file'
+      : targetStat.isDirectory()
+        ? 'directory'
+        : undefined;
+    if (!targetKind) {
+      throw new Error(
+        `Artifact symbolic link "${logicalPath}" must resolve to a file or directory.`,
+      );
+    }
+    const targetLogicalPath = path
+      .relative(realRoot, realTarget)
+      .split(path.sep)
+      .join('/');
+    if (
+      targetLogicalPath === 'release' ||
+      targetLogicalPath.startsWith('release/')
+    ) {
+      throw new Error(
+        `Artifact symbolic link "${logicalPath}" targets private release metadata.`,
+      );
+    }
+    if (
+      targetKind === 'directory' &&
+      isPathInside(realTarget, await fs.realpath(path.dirname(lexicalPath)))
+    ) {
+      throw new Error(
+        `Artifact symbolic link "${logicalPath}" targets an ancestor directory.`,
+      );
+    }
+    return {
+      ...artifactInput,
+      kind: 'symbolic-link',
+      linkTarget: await fs.readlink(lexicalPath),
+      targetKind,
+      targetLogicalPath,
+    };
+  }
+  if (!lexicalStat.isFile()) {
+    throw new Error(`Artifact "${logicalPath}" must be a file or symlink.`);
+  }
+  const realPath = await fs.realpath(lexicalPath);
+  if (!isPathInside(realRoot, realPath)) {
+    throw new Error(
+      `Artifact logicalPath "${logicalPath}" resolves outside artifactRoot.`,
+    );
+  }
+  const bytes = await fs.readFile(realPath);
   return {
-    ...input,
+    ...artifactInput,
+    kind: 'file',
     byteLength: bytes.byteLength,
     sha256: createHash('sha256').update(bytes).digest('hex'),
   };
@@ -220,34 +295,71 @@ const assertReleaseArtifact = (
   location: string,
 ): MicroVerticalReleaseArtifact => {
   const artifact = assertRecord(value, location);
-  assertExactKeys(
-    artifact,
-    ['logicalPath', 'runtime', 'byteLength', 'sha256'],
-    location,
-  );
-  const byteLength = artifact.byteLength;
-  if (
-    typeof byteLength !== 'number' ||
-    !Number.isSafeInteger(byteLength) ||
-    byteLength < 0
-  ) {
-    throw new Error(`${location}.byteLength must be a non-negative integer.`);
-  }
-  const sha256 = assertNonEmptyString(artifact.sha256, `${location}.sha256`);
-  if (!SHA256_PATTERN.test(sha256)) {
-    throw new Error(`${location}.sha256 must be a lowercase SHA-256 digest.`);
-  }
-  return {
-    ...assertArtifactInput(
-      {
-        logicalPath: artifact.logicalPath,
-        runtime: artifact.runtime,
-      },
-      location,
-    ),
-    byteLength,
-    sha256,
+  const kind = assertNonEmptyString(artifact.kind, `${location}.kind`);
+  const input = {
+    logicalPath: artifact.logicalPath,
+    runtime: artifact.runtime,
   };
+  if (kind === 'file') {
+    assertExactKeys(
+      artifact,
+      ['kind', 'logicalPath', 'runtime', 'byteLength', 'sha256'],
+      location,
+    );
+    const byteLength = artifact.byteLength;
+    if (
+      typeof byteLength !== 'number' ||
+      !Number.isSafeInteger(byteLength) ||
+      byteLength < 0
+    ) {
+      throw new Error(`${location}.byteLength must be a non-negative integer.`);
+    }
+    const sha256 = assertNonEmptyString(artifact.sha256, `${location}.sha256`);
+    if (!SHA256_PATTERN.test(sha256)) {
+      throw new Error(`${location}.sha256 must be a lowercase SHA-256 digest.`);
+    }
+    return {
+      ...assertArtifactInput(input, location),
+      kind,
+      byteLength,
+      sha256,
+    };
+  }
+  if (kind === 'symbolic-link') {
+    assertExactKeys(
+      artifact,
+      [
+        'kind',
+        'logicalPath',
+        'runtime',
+        'linkTarget',
+        'targetKind',
+        'targetLogicalPath',
+      ],
+      location,
+    );
+    const targetKind = assertNonEmptyString(
+      artifact.targetKind,
+      `${location}.targetKind`,
+    );
+    if (targetKind !== 'directory' && targetKind !== 'file') {
+      throw new Error(`${location}.targetKind must be "directory" or "file".`);
+    }
+    return {
+      ...assertArtifactInput(input, location),
+      kind,
+      linkTarget: assertNonEmptyString(
+        artifact.linkTarget,
+        `${location}.linkTarget`,
+      ),
+      targetKind,
+      targetLogicalPath: assertNormalizedLogicalPath(
+        artifact.targetLogicalPath,
+        `${location}.targetLogicalPath`,
+      ),
+    };
+  }
+  throw new Error(`${location}.kind must be "file" or "symbolic-link".`);
 };
 
 const assertUniqueSortedArtifacts = (
@@ -356,10 +468,15 @@ const assertTargetSurfaceContract = (
     surface: string,
   ) => {
     for (const logicalPath of paths) {
-      const runtime = byPath.get(logicalPath)?.runtime;
-      if (runtime !== expected) {
+      const artifact = byPath.get(logicalPath);
+      if (artifact?.runtime !== expected) {
         throw new Error(
-          `${target} ${surface} artifact "${logicalPath}" must use runtime "${expected}"; received "${String(runtime)}".`,
+          `${target} ${surface} artifact "${logicalPath}" must use runtime "${expected}"; received "${String(artifact?.runtime)}".`,
+        );
+      }
+      if ('kind' in artifact && artifact.kind !== 'file') {
+        throw new Error(
+          `${target} ${surface} artifact "${logicalPath}" must be a file.`,
         );
       }
     }
@@ -482,6 +599,7 @@ export const createMicroVerticalReleaseEnvelope = async (
   const artifacts = await Promise.all(
     sortedInputs.map(artifact => readFinalArtifact(artifactRoot, artifact)),
   );
+  assertTargetSurfaceContract(target, artifacts, surfaces);
   const payload: MicroVerticalReleaseEnvelopePayload = {
     schemaVersion: MICROVERTICAL_RELEASE_ENVELOPE_SCHEMA_VERSION,
     kind: MICROVERTICAL_RELEASE_ENVELOPE_KIND,
@@ -516,12 +634,21 @@ export const verifyMicroVerticalReleaseEnvelope = async (
       artifact,
       options.logicalPathForArtifact?.(artifact) ?? artifact.logicalPath,
     );
-    if (
-      finalArtifact.byteLength !== artifact.byteLength ||
-      finalArtifact.sha256 !== artifact.sha256
-    ) {
+    const matches =
+      finalArtifact.kind === artifact.kind &&
+      (artifact.kind === 'file' && finalArtifact.kind === 'file'
+        ? finalArtifact.byteLength === artifact.byteLength &&
+          finalArtifact.sha256 === artifact.sha256
+        : artifact.kind === 'symbolic-link' &&
+          finalArtifact.kind === 'symbolic-link' &&
+          finalArtifact.linkTarget === artifact.linkTarget &&
+          finalArtifact.targetKind === artifact.targetKind &&
+          finalArtifact.targetLogicalPath === artifact.targetLogicalPath);
+    if (!matches) {
       throw new Error(
-        `Artifact "${artifact.logicalPath}" digest does not match final artifact bytes.`,
+        artifact.kind === 'file' && finalArtifact.kind === 'file'
+          ? `Artifact "${artifact.logicalPath}" digest does not match final artifact bytes.`
+          : `Artifact "${artifact.logicalPath}" does not match its final filesystem binding.`,
       );
     }
   }

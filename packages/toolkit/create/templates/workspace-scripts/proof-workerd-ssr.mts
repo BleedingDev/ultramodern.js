@@ -69,6 +69,7 @@ const readExecutionEnvelope = (appId, outputRoot, expectedUnitId) => {
   );
   assert(fs.existsSync(envelopePath), `${appId} executed .output release envelope is missing`);
   const envelope = readJson(envelopePath);
+  assert(envelope.schemaVersion === 3, `${appId} executed envelope schema must be 3`);
   assert(envelope.target === "cloudflare", `${appId} executed envelope must target cloudflare`);
   assert(
     typeof expectedUnitId === "string" &&
@@ -100,6 +101,10 @@ const bindExecutedModule = (app, envelope, module) => {
     (candidate) => candidate.logicalPath === logicalPath,
   );
   assert(artifact, `${app.id} selected module ${logicalPath} is not envelope-bound`);
+  assert(
+    artifact.kind === "file",
+    `${app.id} selected module ${logicalPath} is bound to a non-file artifact`,
+  );
   const bytes = fs.readFileSync(module.path);
   const digest = sha256(bytes);
   assert(

@@ -291,6 +291,7 @@ test('workerd proof binds selected modules and API responses to the executed env
     proofTemplate,
     /envelope\.identity\?\.unitId === expectedUnitId/u,
   );
+  assert.match(proofTemplate, /envelope\.schemaVersion === 3/u);
   assert.match(proofTemplate, /rawApp\.deliveryUnit\?\.unitId/u);
   assert.match(
     proofTemplate,
@@ -303,6 +304,12 @@ test('workerd proof binds selected modules and API responses to the executed env
   assert.match(
     proofTemplate,
     /artifact\.byteLength === bytes\.byteLength && artifact\.sha256 === digest/u,
+  );
+  assert.match(proofTemplate, /artifact\.kind === "file"/u);
+  assert.ok(
+    proofTemplate.indexOf('artifact.kind === "file"') <
+      proofTemplate.indexOf('artifact.byteLength === bytes.byteLength'),
+    'selected release-envelope modules must be files before byte metadata is consumed',
   );
   assert.match(
     proofTemplate,

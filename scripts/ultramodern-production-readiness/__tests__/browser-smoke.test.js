@@ -1316,15 +1316,30 @@ test('release identity evidence verifies the target envelope and its SHA-bound M
         ],
       }),
     ),
+    'node_modules/@bleedingdev/runtime/package.json': Buffer.from(
+      JSON.stringify({
+        name: '@bleedingdev/runtime',
+        version: '1.0.0',
+      }),
+    ),
   };
   for (const [logicalPath, bytes] of Object.entries(artifactBytes)) {
     const artifactPath = path.join(appRoot, logicalPath);
     fs.mkdirSync(path.dirname(artifactPath), { recursive: true });
     fs.writeFileSync(artifactPath, bytes);
   }
-  const payload = {
-    artifacts: Object.entries(artifactBytes).map(([logicalPath, bytes]) => ({
+  const aliasPath = path.join(appRoot, 'node_modules/@modern-js/runtime');
+  const aliasTarget = path.join(appRoot, 'node_modules/@bleedingdev/runtime');
+  fs.mkdirSync(path.dirname(aliasPath), { recursive: true });
+  fs.symlinkSync(
+    path.relative(path.dirname(aliasPath), aliasTarget),
+    aliasPath,
+    'dir',
+  );
+  const fileArtifacts = Object.entries(artifactBytes).map(
+    ([logicalPath, bytes]) => ({
       byteLength: bytes.byteLength,
+      kind: 'file',
       logicalPath,
       runtime:
         logicalPath === 'mf-manifest.json'
@@ -1332,9 +1347,24 @@ test('release identity evidence verifies the target envelope and its SHA-bound M
           : logicalPath === 'bundles/ssr.js' ||
               logicalPath === 'backendRemoteEntry.cjs'
             ? 'nodejs'
-            : 'module-federation-manifest',
+            : logicalPath.startsWith('node_modules/')
+              ? 'nodejs-deployment'
+              : 'module-federation-manifest',
       sha256: crypto.createHash('sha256').update(bytes).digest('hex'),
-    })),
+    }),
+  );
+  const payload = {
+    artifacts: [
+      ...fileArtifacts,
+      {
+        kind: 'symbolic-link',
+        linkTarget: path.relative(path.dirname(aliasPath), aliasTarget),
+        logicalPath: 'node_modules/@modern-js/runtime',
+        runtime: 'nodejs-deployment',
+        targetKind: 'directory',
+        targetLogicalPath: 'node_modules/@bleedingdev/runtime',
+      },
+    ].sort((left, right) => left.logicalPath.localeCompare(right.logicalPath)),
     identity: {
       buildMarker: 'build-inventory',
       releaseVersion: '0.1.0',
@@ -1342,7 +1372,7 @@ test('release identity evidence verifies the target envelope and its SHA-bound M
       unitId: 'inventory',
     },
     kind: 'ultramodern-target-microvertical-release-envelope',
-    schemaVersion: 2,
+    schemaVersion: 3,
     surfaces: {
       apiBackend: ['backendRemoteEntry.cjs'],
       backendFederation: {
@@ -1408,6 +1438,36 @@ test('release identity evidence verifies the target envelope and its SHA-bound M
       frontend: expectedIdentity,
       ssr: expectedIdentity,
     });
+
+    const byteIdenticalTarget = path.join(
+      appRoot,
+      'node_modules/@bleedingdev/runtime-copy',
+    );
+    fs.cpSync(aliasTarget, byteIdenticalTarget, { recursive: true });
+    fs.rmSync(aliasPath);
+    fs.symlinkSync(
+      path.relative(path.dirname(aliasPath), byteIdenticalTarget),
+      aliasPath,
+      'dir',
+    );
+    const reboundAliasEvidence = createRuntimeEvidence({
+      artifactMode: 'published',
+      contract,
+      platform: 'node',
+      projectDir: root,
+      results: [],
+    });
+    assert.equal(reboundAliasEvidence['release-identity'].status, 'fail');
+    assert.match(
+      reboundAliasEvidence['release-identity'].assertions[0].reason,
+      /linkTarget|targetLogicalPath/,
+    );
+    fs.rmSync(aliasPath);
+    fs.symlinkSync(
+      path.relative(path.dirname(aliasPath), aliasTarget),
+      aliasPath,
+      'dir',
+    );
 
     fs.writeFileSync(
       path.join(root, 'verticals/inventory/package.json'),
@@ -1489,7 +1549,7 @@ test('release identity evidence verifies the target envelope and its SHA-bound M
     assert.equal(symlinkEscapeEvidence['release-identity'].status, 'fail');
     assert.match(
       symlinkEscapeEvidence['release-identity'].assertions[0].reason,
-      /escapes target root/,
+      /escapes target root|non-symlink regular file/,
     );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
@@ -1520,26 +1580,51 @@ test('release identity reads only the artifact root executed by workerd', async 
     'public/mf-manifest.json': Buffer.from(
       JSON.stringify({ pluginVersion: '2.8.0' }),
     ),
+    'node_modules/@bleedingdev/runtime/package.json': Buffer.from(
+      JSON.stringify({
+        name: '@bleedingdev/runtime',
+        version: '1.0.0',
+      }),
+    ),
     'server/index.mjs': Buffer.from('worker main'),
     'worker/__modern_bff_effect.js': Buffer.from('effect api'),
     'worker/index.js': Buffer.from('worker ssr'),
   };
+  const aliasLogicalPath = 'node_modules/@modern-js/runtime';
+  const aliasTargetLogicalPath = 'node_modules/@bleedingdev/runtime';
+  const aliasLinkTarget = path.posix.relative(
+    path.posix.dirname(aliasLogicalPath),
+    aliasTargetLogicalPath,
+  );
   const payload = {
-    artifacts: Object.entries(artifactBytes).map(([logicalPath, bytes]) => ({
-      byteLength: bytes.byteLength,
-      logicalPath,
-      runtime:
-        logicalPath === 'public/mf-manifest.json'
-          ? 'browser'
-          : logicalPath === 'public/backend-mf-manifest.json'
-            ? 'module-federation-manifest'
-            : logicalPath === 'public/backendRemoteEntry.cjs'
-              ? 'commonjs-module'
-              : logicalPath === 'worker/__modern_bff_effect.js'
-                ? 'workerd-effect'
-                : 'workerd',
-      sha256: crypto.createHash('sha256').update(bytes).digest('hex'),
-    })),
+    artifacts: [
+      ...Object.entries(artifactBytes).map(([logicalPath, bytes]) => ({
+        byteLength: bytes.byteLength,
+        kind: 'file',
+        logicalPath,
+        runtime:
+          logicalPath === 'public/mf-manifest.json'
+            ? 'browser'
+            : logicalPath === 'public/backend-mf-manifest.json'
+              ? 'module-federation-manifest'
+              : logicalPath === 'public/backendRemoteEntry.cjs'
+                ? 'commonjs-module'
+                : logicalPath === 'worker/__modern_bff_effect.js'
+                  ? 'workerd-effect'
+                  : logicalPath.startsWith('node_modules/')
+                    ? 'cloudflare-deployment'
+                    : 'workerd',
+        sha256: crypto.createHash('sha256').update(bytes).digest('hex'),
+      })),
+      {
+        kind: 'symbolic-link',
+        linkTarget: aliasLinkTarget,
+        logicalPath: aliasLogicalPath,
+        runtime: 'cloudflare-deployment',
+        targetKind: 'directory',
+        targetLogicalPath: aliasTargetLogicalPath,
+      },
+    ].sort((left, right) => left.logicalPath.localeCompare(right.logicalPath)),
     identity: {
       buildMarker: 'build-inventory',
       releaseVersion: '0.1.0',
@@ -1547,7 +1632,7 @@ test('release identity reads only the artifact root executed by workerd', async 
       unitId: 'inventory',
     },
     kind: 'ultramodern-target-microvertical-release-envelope',
-    schemaVersion: 2,
+    schemaVersion: 3,
     surfaces: {
       apiBackend: ['worker/__modern_bff_effect.js'],
       backendFederation: {
@@ -1572,6 +1657,9 @@ test('release identity reads only the artifact root executed by workerd', async 
       fs.mkdirSync(path.dirname(artifactPath), { recursive: true });
       fs.writeFileSync(artifactPath, bytes);
     }
+    const aliasPath = path.join(outputRoot, aliasLogicalPath);
+    fs.mkdirSync(path.dirname(aliasPath), { recursive: true });
+    fs.symlinkSync(aliasLinkTarget, aliasPath, 'dir');
     fs.mkdirSync(path.join(outputRoot, 'release'), { recursive: true });
     fs.writeFileSync(
       path.join(outputRoot, 'release/microvertical-release-envelope.json'),
@@ -1718,6 +1806,23 @@ test('release identity reads only the artifact root executed by workerd', async 
     };
     fs.writeFileSync(reportPath, JSON.stringify(report));
     assert.equal(releaseEvidence().status, 'pass');
+
+    const validModules = report.executions[0].modules;
+    report.executions[0].modules = [
+      ...validModules,
+      {
+        logicalPath: aliasLogicalPath,
+        type: 'ESModule',
+      },
+    ];
+    fs.writeFileSync(reportPath, JSON.stringify(report));
+    const symbolicLinkExecution = releaseEvidence();
+    assert.equal(symbolicLinkExecution.status, 'fail');
+    assert.match(
+      symbolicLinkExecution.assertions[0].reason,
+      /selected workerd module .* is not envelope-bound/,
+    );
+    report.executions[0].modules = validModules;
 
     report.apiProofs[0].route = '/inventory-api/inventory/not-configured';
     fs.writeFileSync(reportPath, JSON.stringify(report));

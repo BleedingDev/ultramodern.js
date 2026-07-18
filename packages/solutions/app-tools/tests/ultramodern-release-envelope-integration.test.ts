@@ -423,6 +423,227 @@ describe('framework target-specific MicroVertical release-envelope integration',
     ).resolves.toBeUndefined();
   });
 
+  it('binds internal Node package-alias directories to their final files', async () => {
+    const fixture = await createTargetBuildOutput('node');
+    await emitFrameworkMicroVerticalReleaseEnvelope({
+      apiOnly: false,
+      distDirectory: fixture.distDirectory,
+      target: 'node',
+    });
+    const outputDirectory = path.join(fixture.root, 'node-output-alias');
+    await fs.cp(fixture.distDirectory, outputDirectory, { recursive: true });
+    await fs.rm(path.join(outputDirectory, 'release'), {
+      recursive: true,
+      force: true,
+    });
+    await fs.writeFile(
+      path.join(outputDirectory, 'index.js'),
+      compiledCarrier(),
+    );
+    await writeJson(path.join(outputDirectory, 'package.json'), {
+      type: 'commonjs',
+    });
+
+    const targetDirectory = path.join(
+      outputDirectory,
+      'node_modules/@bleedingdev/modern-js-bff-core',
+    );
+    const aliasDirectory = path.join(
+      outputDirectory,
+      'node_modules/@modern-js/bff-core',
+    );
+    const fileAlias = path.join(
+      outputDirectory,
+      'node_modules/bff-core-entry.js',
+    );
+    await writeJson(path.join(targetDirectory, 'package.json'), {
+      name: '@bleedingdev/modern-js-bff-core',
+      version: '1.0.0',
+    });
+    await fs.writeFile(
+      path.join(targetDirectory, 'index.js'),
+      "module.exports = 'bff-core';\n",
+    );
+    const byteIdenticalTargetDirectory = path.join(
+      outputDirectory,
+      'node_modules/@bleedingdev/modern-js-bff-core-copy',
+    );
+    await fs.cp(targetDirectory, byteIdenticalTargetDirectory, {
+      recursive: true,
+    });
+    await fs.mkdir(path.dirname(aliasDirectory), { recursive: true });
+    await fs.symlink(
+      path.relative(path.dirname(aliasDirectory), targetDirectory),
+      aliasDirectory,
+      'dir',
+    );
+    await fs.symlink(
+      path.relative(
+        path.dirname(fileAlias),
+        path.join(targetDirectory, 'index.js'),
+      ),
+      fileAlias,
+      'file',
+    );
+
+    const envelope = await emitNodeStagedReleaseEnvelope({
+      distDirectory: fixture.distDirectory,
+      outputDirectory,
+    });
+    const artifactPaths = envelope?.artifacts.map(
+      artifact => artifact.logicalPath,
+    );
+    expect(artifactPaths).toContain('node_modules/@modern-js/bff-core');
+    expect(artifactPaths).not.toContain(
+      'node_modules/@modern-js/bff-core/index.js',
+    );
+    const directoryAliasArtifact = envelope?.artifacts.find(
+      artifact => artifact.logicalPath === 'node_modules/@modern-js/bff-core',
+    );
+    const fileAliasArtifact = envelope?.artifacts.find(
+      artifact => artifact.logicalPath === 'node_modules/bff-core-entry.js',
+    );
+    expect(directoryAliasArtifact).toMatchObject({
+      kind: 'symbolic-link',
+      targetKind: 'directory',
+    });
+    expect(fileAliasArtifact).toMatchObject({
+      kind: 'symbolic-link',
+      targetKind: 'file',
+    });
+    await expect(
+      verifyNodeReleaseEnvelopeStaging({ outputDirectory }),
+    ).resolves.toMatchObject({ target: 'node' });
+
+    await fs.rm(aliasDirectory);
+    await expect(
+      verifyNodeReleaseEnvelopeStaging({ outputDirectory }),
+    ).rejects.toThrow(
+      'Artifact "node_modules/@modern-js/bff-core" does not exist',
+    );
+
+    await fs.symlink(
+      path.relative(path.dirname(aliasDirectory), byteIdenticalTargetDirectory),
+      aliasDirectory,
+      'dir',
+    );
+    await expect(
+      verifyNodeReleaseEnvelopeStaging({ outputDirectory }),
+    ).rejects.toThrow('does not match its final filesystem binding');
+
+    await fs.rm(aliasDirectory);
+    await fs.writeFile(
+      aliasDirectory,
+      `${JSON.stringify(directoryAliasArtifact)}\n`,
+    );
+    await expect(
+      verifyNodeReleaseEnvelopeStaging({ outputDirectory }),
+    ).rejects.toThrow('does not match its final filesystem binding');
+
+    await fs.rm(aliasDirectory);
+    await fs.cp(targetDirectory, aliasDirectory, { recursive: true });
+    await expect(
+      verifyNodeReleaseEnvelopeStaging({ outputDirectory }),
+    ).rejects.toThrow('must be a file or symlink');
+
+    await fs.rm(aliasDirectory, { recursive: true });
+    await fs.symlink(
+      path.relative(path.dirname(aliasDirectory), targetDirectory),
+      aliasDirectory,
+      'dir',
+    );
+    await fs.rm(fileAlias);
+    await fs.writeFile(fileAlias, `${JSON.stringify(fileAliasArtifact)}\n`);
+    await expect(
+      verifyNodeReleaseEnvelopeStaging({ outputDirectory }),
+    ).rejects.toThrow('does not match its final filesystem binding');
+
+    await fs.rm(fileAlias);
+    await fs.symlink(
+      path.relative(
+        path.dirname(fileAlias),
+        path.join(targetDirectory, 'index.js'),
+      ),
+      fileAlias,
+      'file',
+    );
+    await fs.appendFile(path.join(targetDirectory, 'index.js'), '// drift\n');
+    await expect(
+      verifyNodeReleaseEnvelopeStaging({ outputDirectory }),
+    ).rejects.toThrow('digest does not match final artifact bytes');
+  });
+
+  it.each([
+    'outside-root',
+    'unresolvable-cycle',
+    'ancestor-cycle',
+  ] as const)('rejects a Node staging directory symlink %s', async failure => {
+    const fixture = await createTargetBuildOutput('node');
+    await emitFrameworkMicroVerticalReleaseEnvelope({
+      apiOnly: false,
+      distDirectory: fixture.distDirectory,
+      target: 'node',
+    });
+    const outputDirectory = path.join(
+      fixture.root,
+      `node-output-symlink-${failure}`,
+    );
+    await fs.cp(fixture.distDirectory, outputDirectory, { recursive: true });
+    await fs.rm(path.join(outputDirectory, 'release'), {
+      recursive: true,
+      force: true,
+    });
+    await fs.writeFile(
+      path.join(outputDirectory, 'index.js'),
+      compiledCarrier(),
+    );
+    await writeJson(path.join(outputDirectory, 'package.json'), {
+      type: 'commonjs',
+    });
+    const nodeModulesDirectory = path.join(outputDirectory, 'node_modules');
+    await fs.mkdir(nodeModulesDirectory, { recursive: true });
+
+    if (failure === 'outside-root') {
+      const externalDirectory = path.join(fixture.root, 'external-package');
+      await fs.mkdir(externalDirectory);
+      await fs.symlink(
+        externalDirectory,
+        path.join(nodeModulesDirectory, 'escaped-package'),
+        'dir',
+      );
+    } else if (failure === 'unresolvable-cycle') {
+      await fs.symlink(
+        'cycle-b',
+        path.join(nodeModulesDirectory, 'cycle-a'),
+        'dir',
+      );
+      await fs.symlink(
+        'cycle-a',
+        path.join(nodeModulesDirectory, 'cycle-b'),
+        'dir',
+      );
+    } else {
+      await fs.symlink(
+        '..',
+        path.join(nodeModulesDirectory, 'ancestor-cycle'),
+        'dir',
+      );
+    }
+
+    await expect(
+      emitNodeStagedReleaseEnvelope({
+        distDirectory: fixture.distDirectory,
+        outputDirectory,
+      }),
+    ).rejects.toThrow(
+      failure === 'outside-root'
+        ? 'resolves outside artifactRoot'
+        : failure === 'unresolvable-cycle'
+          ? 'cannot be resolved'
+          : 'targets an ancestor directory',
+    );
+  });
+
   it('fails closed when a final executed Cloudflare module changes after staging', async () => {
     const fixture = await createTargetBuildOutput('cloudflare');
     await emitFrameworkMicroVerticalReleaseEnvelope({
