@@ -650,9 +650,10 @@ test('publish readiness fails closed around paginated authenticated outcome evid
     ),
   );
 
+  const expectedNameExpression = '$' + '{expectedName}';
   const missingEvidenceSkip = source.replace(
-    "fs.appendFileSync(process.env.GITHUB_OUTPUT, 'exists=true\\n');",
-    "fs.appendFileSync(process.env.GITHUB_OUTPUT, 'exists=false\\n');\n          console.log('skipping release readiness');",
+    `\`exists=true\\nartifact_name=${expectedNameExpression}\\n\`,`,
+    `\`exists=false\\nartifact_name=${expectedNameExpression}\\n\`,\n          console.log('skipping release readiness');`,
   );
   assert.ok(
     validateWorkflowContent(

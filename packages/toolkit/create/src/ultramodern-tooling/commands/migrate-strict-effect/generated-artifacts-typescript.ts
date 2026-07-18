@@ -211,6 +211,8 @@ function ensureGeneratedIgnoreRules(io: MigrationIo) {
     '**/.output/',
     '.modern-js/',
     '**/.modern-js/',
+    '**/src/modern-tanstack/',
+    '**/.tsgo.*.resolved.json',
   ]) {
     if (!lines.includes(rule)) {
       lines.push(rule);

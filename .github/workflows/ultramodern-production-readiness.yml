@@ -173,7 +173,6 @@ jobs:
           AUTHENTICATED_PUBLICATION_RUN_ATTEMPT: ${{ steps.publish-outcome.outputs.publication_run_attempt }}
         run: |
           if [[ "$AUTHENTICATED_DRY_RUN" == "true" ]]; then
-            printf 'exists=false\n' >> "$GITHUB_OUTPUT"
             exit 0
           fi
 

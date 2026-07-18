@@ -3700,6 +3700,8 @@ assert(/^\*\*\/\.mf\/$/mu.test(gitignore), 'Generated .gitignore must ignore per
 assert(/^dist-cloudflare\/$/mu.test(gitignore), 'Generated .gitignore must ignore Cloudflare build output');
 assert(/^\.output\/$/mu.test(gitignore), 'Generated .gitignore must ignore root final deployment output');
 assert(/^\*\*\/\.output\/$/mu.test(gitignore), 'Generated .gitignore must ignore per-app final deployment output');
+assert(/^\*\*\/src\/modern-tanstack\/$/mu.test(gitignore), 'Generated .gitignore must ignore framework-owned TanStack router output');
+assert(/^\*\*\/\.tsgo\.\*\.resolved\.json$/mu.test(gitignore), 'Generated .gitignore must ignore transient TS-Go resolution output');
 assert(shellModernAppEnv.includes('/// <reference types="@modern-js/app-tools/types" />'), 'Shell app env must reference the framework-owned app ambient type bundle while remaining an ambient declaration file');
 assert(/declare const ULTRAMODERN_SITE_URL: string;/u.test(shellModernAppEnv), 'Shell app env must keep generated globals explicit in ambient scope');
 assert(!shellModernAppEnv.includes("declare module '*.svg'"), 'Shell app env must not redeclare framework-owned svg asset modules');

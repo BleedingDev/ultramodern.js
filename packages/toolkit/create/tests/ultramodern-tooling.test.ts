@@ -2315,6 +2315,8 @@ test('UltraModern migrate keeps generated gitignore rules idempotent', async () 
       '**/.output/',
       '.modern-js/',
       '**/.modern-js/',
+      '**/src/modern-tanstack/',
+      '**/.tsgo.*.resolved.json',
     ]) {
       const occurrences = gitignore
         .split(/\r?\n/u)

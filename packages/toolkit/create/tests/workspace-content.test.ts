@@ -275,6 +275,16 @@ test('rendered contents of the highest-risk generated files match the checked-in
     );
     assert.match(
       gitignore,
+      /^\*\*\/src\/modern-tanstack\/$/mu,
+      'generated workspaces must ignore framework-owned TanStack router output',
+    );
+    assert.match(
+      gitignore,
+      /^\*\*\/\.tsgo\.\*\.resolved\.json$/mu,
+      'generated workspaces must ignore transient TS-Go resolution output',
+    );
+    assert.match(
+      gitignore,
       /^\.zerops\/runtime\/$/mu,
       'generated workspaces must ignore Zerops materialized runtime artifacts',
     );
@@ -901,6 +911,82 @@ test('rendered contents of the highest-risk generated files match the checked-in
       generatedBackendFederationEntry,
       /dispatchEffectBffRequest|handler\.length/,
       'backend federation facade must not smuggle runtime dispatch helpers',
+    );
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('generated build-owned router and TS-Go files cannot dirty release source identity', () => {
+  const tempRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'um-workspace-gitignore-'),
+  );
+  const workspaceDir = path.join(tempRoot, 'gitignore-workspace');
+  const runGit = (args: string[]) => {
+    const result = spawnSync('git', args, {
+      cwd: workspaceDir,
+      encoding: 'utf-8',
+    });
+    assert.equal(
+      result.status,
+      0,
+      `git ${args.join(' ')} failed: ${result.stderr}`,
+    );
+    return result.stdout.trim();
+  };
+
+  try {
+    generateUltramodernWorkspace({
+      targetDir: workspaceDir,
+      packageName: 'gitignore-workspace',
+      modernVersion: '3.2.1',
+      enableTailwind: true,
+      packageSource: { strategy: 'workspace' },
+    });
+    runGit(['init', '--quiet']);
+    runGit(['config', 'user.email', 'ultramodern@example.test']);
+    runGit(['config', 'user.name', 'UltraModern Test']);
+    runGit(['add', '.']);
+    runGit(['commit', '--quiet', '-m', 'generated source']);
+
+    const generatedRouterDirectory = path.join(
+      workspaceDir,
+      'apps/shell-super-app/src/modern-tanstack/index',
+    );
+    fs.mkdirSync(generatedRouterDirectory, { recursive: true });
+    fs.writeFileSync(
+      path.join(generatedRouterDirectory, 'router.gen.ts'),
+      'export {};\n',
+    );
+    fs.writeFileSync(
+      path.join(
+        workspaceDir,
+        'apps/shell-super-app/src/modern-tanstack/register.gen.d.ts',
+      ),
+      'export {};\n',
+    );
+    fs.writeFileSync(
+      path.join(
+        workspaceDir,
+        'apps/shell-super-app/.tsgo.12345.0.resolved.json',
+      ),
+      '{}\n',
+    );
+
+    assert.equal(
+      runGit(['status', '--porcelain=v1', '--untracked-files=all']),
+      '',
+      'framework-owned build output must not make a clean release checkout dirty',
+    );
+
+    fs.writeFileSync(
+      path.join(workspaceDir, 'apps/shell-super-app/src/user-source.ts'),
+      'export const userSource = true;\n',
+    );
+    assert.match(
+      runGit(['status', '--porcelain=v1', '--untracked-files=all']),
+      /\?\? apps\/shell-super-app\/src\/user-source\.ts/u,
+      'the generated ignore rules must not conceal user-owned source changes',
     );
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
