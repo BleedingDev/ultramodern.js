@@ -408,6 +408,62 @@ test('browser runtime children scrub inherited source and deployment overrides',
   }
 });
 
+test('browser smoke exposes the bounded child cause through the outer acceptance failure', async () => {
+  const { runBrowserSmoke } = await import(
+    '../published-create-proof/browser-smoke.mjs'
+  );
+  const logPath = '/tmp/inventory-serve.log';
+  const exactCause = "Error: Cannot find module '@modern-js/prod-server'";
+  const genericFailure = new Error(
+    'Command failed: node run-browser-smoke.mjs',
+  );
+
+  assert.throws(
+    () =>
+      runBrowserSmoke(
+        '/tmp/generated-superapp',
+        {
+          artifactMode: 'source',
+          mode: 'source',
+          platform: 'node',
+          shellRuntime: 'node',
+        },
+        {
+          ensureBrowserSmokeRuntimeImpl: () => '/tmp/playwright-runtime',
+          readJsonFileImpl: () => ({
+            error: 'inventory serve process exited before readiness',
+            errorDetails: {
+              exitCode: 1,
+              logPath,
+              logTail: `${'old output\n'.repeat(2_000)}AUTH_TOKEN=do-not-copy-me\n${exactCause}`,
+              signal: null,
+            },
+            status: 'fail',
+          }),
+          runImpl: () => {
+            throw genericFailure;
+          },
+        },
+      ),
+    error => {
+      assert.equal(error.name, 'BrowserSmokeAcceptanceError');
+      assert.match(error.message, /inventory serve process exited/);
+      assert.match(error.message, new RegExp(logPath.replaceAll('/', '\\/')));
+      assert.match(
+        error.message,
+        /Cannot find module '@modern-js\/prod-server'/,
+      );
+      assert.doesNotMatch(error.message, /do-not-copy-me/);
+      assert.match(error.message, /AUTH_TOKEN=\[REDACTED\]/);
+      assert.doesNotMatch(error.message, /^Command failed/u);
+      assert.equal(error.details.logPath, logPath);
+      assert.ok(error.details.logTail.length <= 8_192);
+      assert.equal(error.cause, genericFailure);
+      return true;
+    },
+  );
+});
+
 test('builds Cloudflare proof args without a pnpm separator argument', async () => {
   const { createCloudflareProofArgs } = await loadProof();
 

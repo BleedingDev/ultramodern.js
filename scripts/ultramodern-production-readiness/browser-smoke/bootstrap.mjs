@@ -5,6 +5,7 @@ import net from 'node:net';
 import path from 'node:path';
 import processKit from '../../lib/process-kit.js';
 import { BrowserSmokeError } from './contract.mjs';
+import { createCombinedLogTailCollector } from './log-tail.mjs';
 
 const { createProcessEnv, killChild, sleep } = processKit;
 
@@ -101,16 +102,23 @@ export function startServer(target, { artifactDir, projectDir }) {
     env,
     stdio: ['ignore', 'pipe', 'pipe'],
   });
+  const combinedLogTail = createCombinedLogTailCollector();
+  child.stdout.on('data', chunk => combinedLogTail.append(chunk));
+  child.stderr.on('data', chunk => combinedLogTail.append(chunk));
   child.stdout.pipe(logStream);
   child.stderr.pipe(logStream);
   const exited = new Promise(resolve => {
+    let spawnError;
     child.once('error', error => {
-      resolve({
-        error: error instanceof Error ? error.message : String(error),
-      });
+      spawnError = error instanceof Error ? error.message : String(error);
     });
-    child.once('exit', (exitCode, signal) => {
-      resolve({ exitCode, signal });
+    child.once('close', (exitCode, signal) => {
+      resolve({
+        ...(spawnError ? { error: spawnError } : {}),
+        exitCode,
+        signal,
+        logTail: combinedLogTail.read(),
+      });
     });
   });
   return {

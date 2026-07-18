@@ -525,23 +525,41 @@ test('fails readiness when required MF manifest never becomes valid JSON', async
 test('fails readiness immediately when the owned serve process exits', async () => {
   const { createSmokeTargets, waitForTarget } = await loadSmoke();
   const [target] = createSmokeTargets(createContract()).targets;
-
-  await assert.rejects(
-    () =>
-      waitForTarget(target, {
-        fetchImpl: async () => new Promise(() => {}),
-        retryDelayMs: 1,
-        serverExit: Promise.resolve({ exitCode: 1, signal: null }),
-        serverLogPath: '/tmp/shell-serve.log',
-        timeoutMs: 1_000,
-      }),
-    error => {
-      assert.match(error.message, /serve process exited before readiness/);
-      assert.equal(error.details.exitCode, 1);
-      assert.equal(error.details.logPath, '/tmp/shell-serve.log');
-      return true;
-    },
+  const root = tempRoot();
+  const logPath = path.join(root, 'shell-serve.log');
+  fs.writeFileSync(
+    logPath,
+    `${'discard-me\n'.repeat(2_000)}NPM_TOKEN=do-not-copy-me\nError: Cannot find module '@modern-js/prod-server'\n`,
   );
+
+  try {
+    await assert.rejects(
+      () =>
+        waitForTarget(target, {
+          fetchImpl: async () => new Promise(() => {}),
+          retryDelayMs: 1,
+          serverExit: Promise.resolve({ exitCode: 1, signal: null }),
+          serverLogPath: logPath,
+          timeoutMs: 1_000,
+        }),
+      error => {
+        assert.match(error.message, /serve process exited before readiness/);
+        assert.match(
+          error.message,
+          /Cannot find module '@modern-js\/prod-server'/,
+        );
+        assert.match(error.message, new RegExp(logPath.replaceAll('/', '\\/')));
+        assert.doesNotMatch(error.message, /do-not-copy-me/);
+        assert.match(error.message, /NPM_TOKEN=\[REDACTED\]/);
+        assert.equal(error.details.exitCode, 1);
+        assert.equal(error.details.logPath, logPath);
+        assert.ok(error.details.logTail.length <= 8_192);
+        return true;
+      },
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test('rejects occupied local smoke ports before startup', async () => {

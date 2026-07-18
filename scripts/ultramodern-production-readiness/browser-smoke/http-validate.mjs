@@ -2,6 +2,10 @@ import {
   BrowserSmokeError,
   expectedAppIdFromRootSelector,
 } from './contract.mjs';
+import {
+  formatFailureWithLogEvidence,
+  readCombinedLogTail,
+} from './log-tail.mjs';
 
 export function normalizeBaseUrl(url) {
   return url.endsWith('/') ? url.slice(0, -1) : url;
@@ -183,13 +187,19 @@ export async function waitForTarget(
     serverExit.then(exit => ({ exit, status: 'exited' })),
   ]);
   if (result.status === 'exited') {
+    const logTail = result.exit.logTail || readCombinedLogTail(serverLogPath);
+    const details = {
+      ...result.exit,
+      baseUrl: target.baseUrl,
+      logPath: serverLogPath,
+      ...(logTail ? { logTail } : {}),
+    };
     throw new BrowserSmokeError(
-      `${target.app.id} serve process exited before readiness`,
-      {
-        ...result.exit,
-        baseUrl: target.baseUrl,
-        logPath: serverLogPath,
-      },
+      formatFailureWithLogEvidence(
+        `${target.app.id} serve process exited before readiness`,
+        details,
+      ),
+      details,
     );
   }
 }

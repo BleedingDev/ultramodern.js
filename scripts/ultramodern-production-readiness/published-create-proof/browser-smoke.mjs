@@ -3,6 +3,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {
+  boundCombinedLogTail,
+  formatFailureWithLogEvidence,
+} from '../browser-smoke/log-tail.mjs';
+import {
   browserSmokePlaywrightPackage,
   browserSmokeScript,
   readJsonFile,
@@ -68,6 +72,11 @@ function createBrowserSmokeEnvironment(runtimeDir) {
 function runBrowserSmoke(
   projectDir,
   { artifactMode, mode, platform, requirePublicUrls = false, shellRuntime },
+  {
+    ensureBrowserSmokeRuntimeImpl = ensureBrowserSmokeRuntime,
+    readJsonFileImpl = readJsonFile,
+    runImpl = run,
+  } = {},
 ) {
   const releaseAcceptanceMode = artifactMode ?? mode;
   const executionMode = ['source', 'published'].includes(mode) ? 'local' : mode;
@@ -78,7 +87,7 @@ function runBrowserSmoke(
   const artifactKey = `${releaseAcceptanceMode}-${runtimePlatform}`;
   const artifactDir = `.modern/production-readiness/browser-smoke/${artifactKey}`;
   const out = `.modern/production-readiness/browser-smoke/${artifactKey}-summary.json`;
-  const runtimeDir = ensureBrowserSmokeRuntime();
+  const runtimeDir = ensureBrowserSmokeRuntimeImpl();
   const args = [
     'node',
     browserSmokeScript,
@@ -109,10 +118,42 @@ function runBrowserSmoke(
     args.push('--require-public-urls');
   }
 
-  run(args[0], args.slice(1), {
-    env: createBrowserSmokeEnvironment(runtimeDir),
-  });
-  const report = readJsonFile(path.resolve(repoRoot, out));
+  const reportPath = path.resolve(repoRoot, out);
+  fs.rmSync(reportPath, { force: true });
+  try {
+    runImpl(args[0], args.slice(1), {
+      env: createBrowserSmokeEnvironment(runtimeDir),
+    });
+  } catch (cause) {
+    if (!fs.existsSync(reportPath) && readJsonFileImpl === readJsonFile) {
+      throw cause;
+    }
+    const report = readJsonFileImpl(reportPath);
+    const details =
+      report?.errorDetails && typeof report.errorDetails === 'object'
+        ? {
+            ...report.errorDetails,
+            ...(report.errorDetails.logTail
+              ? {
+                  logTail: boundCombinedLogTail(report.errorDetails.logTail),
+                }
+              : {}),
+            reportPath,
+          }
+        : { reportPath };
+    const error = new Error(
+      formatFailureWithLogEvidence(
+        report?.error ||
+          (cause instanceof Error ? cause.message : String(cause)),
+        details,
+      ),
+      { cause },
+    );
+    error.name = 'BrowserSmokeAcceptanceError';
+    error.details = details;
+    throw error;
+  }
+  const report = readJsonFileImpl(reportPath);
   if (['source', 'published'].includes(releaseAcceptanceMode)) {
     return {
       ...report,
