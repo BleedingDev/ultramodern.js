@@ -1,30 +1,24 @@
-import type { TRuntimeContext } from '@modern-js/runtime';
 import { isBrowser } from '@modern-js/runtime';
 import type React from 'react';
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import type { LocalisedUrlsOption } from '../shared/localisedUrls';
+import {
+  cacheI18nLanguage,
+  changeI18nInstanceLanguage,
+} from './contextHelpers';
 import type { I18nInstance } from './i18n';
 import {
   getI18nSdkBackendId,
   I18N_SDK_RESOURCES_LOADED_EVENT,
   type I18nSdkResourcesLoadedEventDetail,
 } from './i18n/backend/sdk-event';
-import { cacheUserLanguage } from './i18n/detection';
 import { useI18nRouterAdapter } from './routerAdapter';
 import {
   buildLocalizedUrl,
   detectLanguageFromPath,
   getEntryPath,
-  getPathname,
   shouldIgnoreRedirect,
 } from './utils';
-
-interface RuntimeContextWithI18n extends TRuntimeContext {
-  i18nInstance?: I18nInstance;
-  // Present when the context actually is the internal runtime context;
-  // getPathname only ever reads this on the server.
-  ssrContext?: { request?: { pathname?: string } };
-}
 
 type WindowWithSSRData = Window & {
   _SSR_DATA?: unknown;
@@ -55,6 +49,7 @@ export function createContextValue(
   ignoreRedirectRoutes: string[] | ((pathname: string) => boolean) | undefined,
   localisedUrls: LocalisedUrlsOption | undefined,
   setLang: (lang: string) => void,
+  synchronizeLanguage: (lang: string) => void,
 ) {
   const instance = i18nInstance || createMinimalI18nInstance(lang);
   return {
@@ -66,6 +61,7 @@ export function createContextValue(
     ignoreRedirectRoutes,
     localisedUrls,
     updateLanguage: setLang,
+    synchronizeLanguage,
   };
 }
 
@@ -271,36 +267,88 @@ export function useLanguageSync(
   i18nInstance: I18nInstance | undefined,
   localePathRedirect: boolean,
   languages: string[],
-  runtimeContextRef: React.MutableRefObject<RuntimeContextWithI18n>,
+  pathname: string | undefined,
   prevLangRef: React.MutableRefObject<string>,
   setLang: (lang: string) => void,
 ) {
+  const latestRequestRef = useRef(0);
+  const syncQueueRef = useRef(Promise.resolve());
+  const isMountedRef = useRef(false);
+  const desiredLanguageRef = useRef<string | undefined>(undefined);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      latestRequestRef.current += 1;
+    };
+  }, []);
+
+  useEffect(() => {
+    desiredLanguageRef.current = undefined;
+    latestRequestRef.current += 1;
+    syncQueueRef.current = Promise.resolve();
+  }, [i18nInstance]);
+
+  const synchronizeLanguage = useCallback(
+    (currentLang: string) => {
+      if (
+        !i18nInstance ||
+        !currentLang ||
+        desiredLanguageRef.current === currentLang
+      ) {
+        return;
+      }
+
+      desiredLanguageRef.current = currentLang;
+      const requestId = ++latestRequestRef.current;
+      syncQueueRef.current = syncQueueRef.current.then(async () => {
+        if (requestId !== latestRequestRef.current || !isMountedRef.current) {
+          return;
+        }
+
+        try {
+          if (i18nInstance.language !== currentLang) {
+            await changeI18nInstanceLanguage(i18nInstance, currentLang);
+          }
+
+          if (requestId !== latestRequestRef.current || !isMountedRef.current) {
+            return;
+          }
+
+          prevLangRef.current = currentLang;
+          setLang(currentLang);
+          cacheI18nLanguage(i18nInstance, currentLang);
+        } catch (error) {
+          if (requestId === latestRequestRef.current && isMountedRef.current) {
+            desiredLanguageRef.current = undefined;
+            console.error(
+              `Failed to synchronize i18n language "${currentLang}".`,
+              error,
+            );
+          }
+        }
+      });
+    },
+    [i18nInstance, prevLangRef, setLang],
+  );
+
   useEffect(() => {
     if (!i18nInstance) {
       return;
     }
 
     if (localePathRedirect) {
-      const currentPathname = getPathname(runtimeContextRef.current);
       const pathDetection = detectLanguageFromPath(
-        currentPathname,
+        pathname || '',
         languages,
         localePathRedirect,
       );
       if (pathDetection.detected && pathDetection.language) {
-        const currentLang = pathDetection.language;
-        if (currentLang !== prevLangRef.current) {
-          prevLangRef.current = currentLang;
-          setLang(currentLang);
-          i18nInstance.setLang?.(currentLang);
-          i18nInstance.changeLanguage?.(currentLang);
-          if (isBrowser()) {
-            const detectionOptions = i18nInstance.options?.detection;
-            cacheUserLanguage(i18nInstance, currentLang, detectionOptions);
-          }
-        }
+        synchronizeLanguage(pathDetection.language);
       }
     } else {
+      latestRequestRef.current += 1;
       const instanceLang = i18nInstance.language;
       if (instanceLang && instanceLang !== prevLangRef.current) {
         prevLangRef.current = instanceLang;
@@ -311,8 +359,11 @@ export function useLanguageSync(
     i18nInstance,
     localePathRedirect,
     languages,
-    runtimeContextRef,
+    pathname,
     prevLangRef,
     setLang,
+    synchronizeLanguage,
   ]);
+
+  return synchronizeLanguage;
 }

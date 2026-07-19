@@ -50,6 +50,17 @@ export function cacheI18nLanguage(
   }
 }
 
+export async function changeI18nInstanceLanguage(
+  i18nInstance: I18nInstance,
+  language: string,
+): Promise<void> {
+  if (i18nInstance.setLang) {
+    await i18nInstance.setLang(language);
+  } else {
+    await i18nInstance.changeLanguage?.(language);
+  }
+}
+
 interface ChangeModernI18nLanguageOptions {
   i18nInstance: I18nInstance;
   updateLanguage?: (newLang: string) => void;
@@ -83,8 +94,7 @@ export async function changeModernI18nLanguage(
       throw new Error('Language must be non-empty string');
     }
 
-    await i18nInstance?.setLang?.(newLang);
-    await i18nInstance?.changeLanguage?.(newLang);
+    await changeI18nInstanceLanguage(i18nInstance, newLang);
     cacheI18nLanguage(i18nInstance, newLang);
 
     if (

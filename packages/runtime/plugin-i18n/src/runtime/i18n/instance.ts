@@ -196,15 +196,52 @@ async function createI18nextInstance(): Promise<I18nInstance | null> {
 
 export function getI18nextInstanceForProvider(
   instance: I18nInstance,
+  language?: string,
 ): I18nInstance {
+  let providerInstance = instance;
   if (isI18nWrapperInstance(instance)) {
     const i18nextInstance = getI18nWrapperI18nextInstance(instance);
     if (i18nextInstance) {
-      return i18nextInstance;
+      providerInstance = i18nextInstance;
     }
   }
 
-  return instance;
+  if (!language || typeof Proxy === 'undefined') {
+    return providerInstance;
+  }
+
+  return new Proxy(providerInstance, {
+    get(target, property, receiver) {
+      if (property === 'language' || property === 'resolvedLanguage') {
+        return language;
+      }
+      if (property === 'languages') {
+        const languages = Reflect.get(target, property, receiver);
+        return Array.isArray(languages)
+          ? [language, ...languages.filter(item => item !== language)]
+          : [language];
+      }
+      if (property === 't' && typeof target.getFixedT === 'function') {
+        return target.getFixedT(language);
+      }
+      if (
+        property === 'hasLoadedNamespace' &&
+        typeof target.hasLoadedNamespace === 'function'
+      ) {
+        const hasLoadedNamespace = target.hasLoadedNamespace as (
+          this: I18nInstance,
+          namespace: string,
+          options?: Record<string, unknown>,
+        ) => boolean;
+        return (namespace: string, options?: Record<string, unknown>) =>
+          hasLoadedNamespace.call(target, namespace, {
+            ...options,
+            lng: options?.lng || language,
+          });
+      }
+      return Reflect.get(target, property, receiver);
+    },
+  });
 }
 
 export async function getI18nInstance(

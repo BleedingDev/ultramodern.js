@@ -13,7 +13,7 @@ import {
   replaceChunkJsPlaceholder,
 } from '../scriptOrder';
 import { type BuildHtmlCb, buildHtml, type SSRConfig } from '../shared';
-import { attributesToString, safeReplace } from '../utils';
+import { attributesToString } from '../utils';
 
 export type BuildShellAfterTemplateOptions = {
   runtimeContext: TInternalRuntimeContext;
@@ -32,6 +32,7 @@ export function buildShellAfterTemplate(
     options;
 
   const callbacks: BuildHtmlCb[] = [
+    template => injectJs(template, entryName, config.nonce),
     createReplaceSSRData({
       request,
       ssrConfig,
@@ -39,8 +40,8 @@ export function buildShellAfterTemplate(
       useJsonScript: config.useJsonScript,
       runtimeContext,
       renderLevel,
+      entryName,
     }),
-    template => injectJs(template, entryName, config.nonce),
   ];
 
   async function injectJs(template: string, entryName: string, nonce?: string) {
@@ -69,9 +70,16 @@ function createReplaceSSRData(options: {
   nonce?: string;
   useJsonScript?: boolean;
   renderLevel: RenderLevel;
+  entryName: string;
 }) {
-  const { runtimeContext, nonce, renderLevel, useJsonScript, ssrConfig } =
-    options;
+  const {
+    runtimeContext,
+    nonce,
+    renderLevel,
+    useJsonScript,
+    ssrConfig,
+    entryName,
+  } = options;
 
   const { request, reporter } = runtimeContext.ssrContext!;
 
@@ -120,6 +128,15 @@ function createReplaceSSRData(options: {
     ? `${ssrDataScript}\n${hydrationScripts.join('\n')}`
     : ssrDataScript;
 
-  return (template: string) =>
-    safeReplace(template, SSR_DATA_PLACEHOLDER, ssrScripts);
+  return (template: string) => {
+    if (!template.includes(SSR_DATA_PLACEHOLDER)) {
+      return template;
+    }
+    return replaceChunkJsPlaceholder(
+      template,
+      ssrScripts,
+      entryName,
+      SSR_DATA_PLACEHOLDER,
+    );
+  };
 }

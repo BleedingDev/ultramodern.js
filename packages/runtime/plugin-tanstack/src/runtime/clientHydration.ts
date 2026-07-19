@@ -139,6 +139,9 @@ export function hasTanstackSsrHydrationRecord(router: AnyRouter) {
 
 export function ModernRouterClient({ router }: { router: AnyRouter }) {
   const hydrationRecord = getTanstackSsrHydrationRecord(router);
+  if (hydrationRecord.status === 'pending') {
+    throw hydrationRecord.promise;
+  }
   if (hydrationRecord.status === 'rejected') {
     throw hydrationRecord.error;
   }

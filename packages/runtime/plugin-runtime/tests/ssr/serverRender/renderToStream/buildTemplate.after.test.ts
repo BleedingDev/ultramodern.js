@@ -1,6 +1,7 @@
 import { RenderLevel } from '../../../../src/core/constants';
 import { SSR_DATA_PLACEHOLDER } from '../../../../src/core/server/constants';
 import { buildShellAfterTemplate } from '../../../../src/core/server/stream/afterTemplate';
+import { getTemplates } from '../../../../src/core/server/stream/template';
 import { SSRDataCollector } from '../../../../src/core/server/string/ssrData';
 import { applyRouterRuntimeState } from '../../../../src/router/runtime/lifecycle';
 
@@ -313,5 +314,190 @@ describe('SSRDataCollector (stream parity)', () => {
       '/static/js/async/async-index.js',
       '/static/js/index.js',
     ]);
+  });
+
+  it('should place stream hydration bootstrap before an async head entry', async () => {
+    const { shellBefore, shellAfter } = await getTemplates(
+      [
+        '<html><head>',
+        '<script async src="/static/js/index.js"></script>',
+        '</head><body><div id="root">',
+        '<!--<?- html ?>-->',
+        '</div>',
+        '<!--<?- chunksMap.js ?>-->',
+        SSR_DATA_PLACEHOLDER,
+        '</body></html>',
+      ].join(''),
+      {
+        entryName: 'index',
+        renderLevel: RenderLevel.SERVER_RENDER,
+        request: new Request('http://localhost/products/shoe'),
+        runtimeContext: withRouterSnapshot(
+          {
+            routeManifest: {
+              routeAssets: {
+                'products/$slug': {
+                  assets: ['/static/js/async/products/$slug.js'],
+                },
+                'async-index': {
+                  assets: ['/static/js/async/async-index.js'],
+                },
+              },
+            },
+            initialData: {},
+            __i18nData__: {},
+            ssrContext: {
+              request: {
+                params: {},
+                query: {},
+                pathname: '/products/shoe',
+                host: 'localhost',
+                url: 'http://localhost/products/shoe',
+                headers: {},
+              },
+              reporter: { sessionId: 'session-1' },
+            },
+          },
+          {
+            hydrationScripts: [
+              '<script>window.$_TSR = { router: "hydrated" };</script>',
+            ],
+            matchedRouteIds: ['products/$slug'],
+          },
+        ) as any,
+        ssrConfig: {} as any,
+        config: {} as any,
+      },
+    );
+
+    const html = `${shellBefore}<main>server markup</main>${shellAfter}`;
+    const entryIndex = html.indexOf(
+      '<script async src="/static/js/index.js"></script>',
+    );
+    const routeIndex = html.indexOf(
+      '<script src=/static/js/async/products/$slug.js></script>',
+    );
+    const ssrDataIndex = html.indexOf('window._SSR_DATA =');
+    const routerBootstrapIndex = html.indexOf('window.$_TSR =');
+
+    expect(routeIndex).toBeGreaterThan(-1);
+    expect(ssrDataIndex).toBeGreaterThan(routeIndex);
+    expect(routerBootstrapIndex).toBeGreaterThan(ssrDataIndex);
+    expect(entryIndex).toBeGreaterThan(routerBootstrapIndex);
+    expect(html).not.toContain('<!--<?- chunksMap.js ?>-->');
+    expect(html).not.toContain(SSR_DATA_PLACEHOLDER);
+  });
+
+  it('should preserve JSON bootstrap and nonce before an async head entry', async () => {
+    const { shellBefore, shellAfter } = await getTemplates(
+      [
+        '<html><head>',
+        '<script async nonce="nonce-value" src="/static/js/index.js"></script>',
+        '</head><body><div id="root">',
+        '<!--<?- html ?>-->',
+        '</div>',
+        '<!--<?- chunksMap.js ?>-->',
+        SSR_DATA_PLACEHOLDER,
+        '</body></html>',
+      ].join(''),
+      {
+        entryName: 'index',
+        renderLevel: RenderLevel.SERVER_RENDER,
+        request: new Request('http://localhost/products/shoe'),
+        runtimeContext: withRouterSnapshot(
+          {
+            routeManifest: {
+              routeAssets: {
+                'products/$slug': {
+                  assets: ['/static/js/async/products/$slug.js'],
+                },
+              },
+            },
+            initialData: {},
+            __i18nData__: {},
+            ssrContext: {
+              request: {
+                params: {},
+                query: {},
+                pathname: '/products/shoe',
+                host: 'localhost',
+                url: 'http://localhost/products/shoe',
+                headers: {},
+              },
+              reporter: { sessionId: 'session-1' },
+            },
+          },
+          {
+            hydrationScripts: [
+              '<script nonce="nonce-value">window.$_TSR = { router: "hydrated" };</script>',
+            ],
+            matchedRouteIds: ['products/$slug'],
+          },
+        ) as any,
+        ssrConfig: {} as any,
+        config: {
+          nonce: 'nonce-value',
+          useJsonScript: true,
+        } as any,
+      },
+    );
+
+    const html = `${shellBefore}<main>server markup</main>${shellAfter}`;
+    const routeIndex = html.indexOf(
+      '<script src=/static/js/async/products/$slug.js nonce="nonce-value"></script>',
+    );
+    const ssrDataIndex = html.indexOf(
+      '<script type="application/json" id="__MODERN_SSR_DATA__">',
+    );
+    const routerBootstrapIndex = html.indexOf('window.$_TSR =');
+    const entryIndex = html.indexOf(
+      '<script async nonce="nonce-value" src="/static/js/index.js"></script>',
+    );
+
+    expect(routeIndex).toBeGreaterThan(-1);
+    expect(ssrDataIndex).toBeGreaterThan(routeIndex);
+    expect(routerBootstrapIndex).toBeGreaterThan(ssrDataIndex);
+    expect(entryIndex).toBeGreaterThan(routerBootstrapIndex);
+    expect(html).not.toContain('window._SSR_DATA =');
+    expect(html).not.toContain('<!--<?- chunksMap.js ?>-->');
+    expect(html).not.toContain(SSR_DATA_PLACEHOLDER);
+  });
+
+  it('should preserve a custom stream template that omits SSR bootstrap', async () => {
+    const html = await buildShellAfterTemplate(
+      '<script async src="/static/js/index.js"></script>',
+      {
+        entryName: 'index',
+        renderLevel: RenderLevel.SERVER_RENDER,
+        request: new Request('http://localhost/'),
+        runtimeContext: withRouterSnapshot(
+          {
+            initialData: {},
+            __i18nData__: {},
+            routeManifest: {},
+            ssrContext: {
+              request: {
+                params: {},
+                query: {},
+                pathname: '/',
+                host: 'localhost',
+                url: 'http://localhost/',
+                headers: {},
+              },
+              reporter: { sessionId: 'session-1' },
+            },
+          },
+          {
+            hydrationScripts: [
+              '<script>window.__OMITTED_BOOTSTRAP__ = true;</script>',
+            ],
+          },
+        ) as any,
+        ssrConfig: {} as any,
+        config: {} as any,
+      },
+    );
+
+    expect(html).toBe('<script async src="/static/js/index.js"></script>');
   });
 });

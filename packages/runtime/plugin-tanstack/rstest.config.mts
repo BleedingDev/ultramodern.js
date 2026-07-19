@@ -62,6 +62,7 @@ export default {
       name: 'plugin-tanstack-client',
       testEnvironment: 'happy-dom',
       include: [
+        'tests/router/clientHydration.test.tsx',
         'tests/router/dataMutation.test.tsx',
         'tests/router/hydrationBoundary.test.tsx',
         'tests/router/prefetchLink.test.tsx',

@@ -544,6 +544,7 @@ export async function validateBrowserTarget(target, browser, { artifactDir }) {
   let releaseFederationAssets;
   const interceptedFederationRequests = [];
   let backendDrivenUiResponse;
+  let activePhase = 'initial-navigation';
 
   page.on('console', message => {
     const serialized = serializeConsoleMessage(message);
@@ -551,6 +552,9 @@ export async function validateBrowserTarget(target, browser, { artifactDir }) {
   });
   page.on('pageerror', error => {
     pageErrors.push({
+      phase: activePhase,
+      url: page.url(),
+      name: error.name,
       message: error.message,
       stack: error.stack,
     });
@@ -628,6 +632,7 @@ export async function validateBrowserTarget(target, browser, { artifactDir }) {
         waitUntil: 'domcontentloaded',
       });
     }
+    activePhase = 'hydration';
     await page.waitForSelector('[data-testid="ultramodern-ui-marker"]', {
       state: shellWithRemotes ? 'attached' : 'visible',
       timeout: 15_000,
@@ -908,17 +913,135 @@ export async function validateBrowserTarget(target, browser, { artifactDir }) {
       { duplicateStylesheetHrefs, stylesheetLinks },
     );
 
-    const csLink = page.locator('a[href="/cs"], a[href$="/cs"]').first();
-    if (app.kind !== 'shell' && (await csLink.count()) > 0) {
-      await csLink.click();
-      await page.waitForSelector('[data-testid="ultramodern-ui-marker"]', {
-        timeout: 15_000,
-      });
-      assertions.push(
-        assertion('localized-router-navigation', 'pass', {
-          targetLanguage: 'cs',
-        }),
+    const localizedLinkSelector = 'a[href="/cs"], a[href$="/cs"]';
+    const csLinks = page.locator(localizedLinkSelector);
+    if (app.kind !== 'shell') {
+      const localizedLinkCount = await csLinks.count();
+      assertPass(
+        localizedLinkCount === 1,
+        `${app.id} must render exactly one Czech locale navigation link`,
+        { localizedLinkCount, localizedLinkSelector },
       );
+      const csLink = csLinks.first();
+      const localizedNavigation = page
+        .locator(`nav:has(${localizedLinkSelector})`)
+        .first();
+      const source = {
+        htmlLang: await page.locator('html').getAttribute('lang'),
+        navigationLabel: await localizedNavigation.getAttribute('aria-label'),
+        pathname: new URL(page.url()).pathname,
+        text: (await csLink.textContent())?.trim(),
+      };
+      assertPass(
+        source.pathname === '/en' &&
+          source.htmlLang === 'en' &&
+          typeof source.navigationLabel === 'string' &&
+          source.navigationLabel.length > 0 &&
+          typeof source.text === 'string' &&
+          source.text.length > 0,
+        `${app.id} localized navigation did not start from rendered English DOM`,
+        { source },
+      );
+
+      await page.evaluate(operation => {
+        if (operation === 'install-localized-navigation-continuity') {
+          Object.defineProperty(
+            window,
+            '__ultramodernLocalizedNavigationDocument',
+            {
+              configurable: true,
+              value: document,
+            },
+          );
+        }
+      }, 'install-localized-navigation-continuity');
+      activePhase = 'localized-router-navigation';
+      const localePageErrorOffset = pageErrors.length;
+      try {
+        await csLink.click();
+        await page.waitForURL(url => url.pathname === '/cs', {
+          timeout: 15_000,
+        });
+        await page.locator('html[lang="cs"]').waitFor({
+          state: 'attached',
+          timeout: 15_000,
+        });
+      } catch (error) {
+        assertPass(false, `${app.id} localized router navigation failed`, {
+          cause: error instanceof Error ? error.message : String(error),
+          pageErrors: pageErrors.slice(localePageErrorOffset),
+          phase: activePhase,
+        });
+      }
+
+      const documentContinuityPreserved = await page.evaluate(
+        operation =>
+          operation === 'read-localized-navigation-continuity' &&
+          window.__ultramodernLocalizedNavigationDocument === document,
+        'read-localized-navigation-continuity',
+      );
+      const target = {
+        htmlLang: await page.locator('html').getAttribute('lang'),
+        navigationLabel: await localizedNavigation.getAttribute('aria-label'),
+        pathname: new URL(page.url()).pathname,
+        text: (await csLink.textContent())?.trim(),
+      };
+      const localizedNavigationPassed =
+        documentContinuityPreserved === true &&
+        target.pathname === '/cs' &&
+        target.htmlLang === 'cs' &&
+        typeof target.navigationLabel === 'string' &&
+        target.navigationLabel.length > 0 &&
+        target.navigationLabel !== source.navigationLabel &&
+        typeof target.text === 'string' &&
+        target.text.length > 0 &&
+        target.text !== source.text;
+      assertions.push(
+        assertion(
+          'localized-router-navigation',
+          localizedNavigationPassed ? 'pass' : 'fail',
+          { documentContinuityPreserved, source, target },
+        ),
+      );
+      assertPass(
+        documentContinuityPreserved === true,
+        `${app.id} localized navigation replaced the browser document`,
+        { documentContinuityPreserved, source, target },
+      );
+      assertPass(
+        target.pathname === '/cs',
+        `${app.id} localized navigation did not reach /cs`,
+        { source, target },
+      );
+      assertPass(
+        target.htmlLang === 'cs',
+        `${app.id} localized navigation did not update html lang`,
+        { source, target },
+      );
+      assertPass(
+        typeof target.text === 'string' &&
+          target.text.length > 0 &&
+          target.text !== source.text,
+        `${app.id} localized navigation did not update translated DOM`,
+        { source, target },
+      );
+      assertPass(
+        typeof target.navigationLabel === 'string' &&
+          target.navigationLabel.length > 0 &&
+          target.navigationLabel !== source.navigationLabel,
+        `${app.id} localized navigation did not update the translated navigation label`,
+        { source, target },
+      );
+      const localizedPageErrors = pageErrors.slice(localePageErrorOffset);
+      assertPass(
+        localizedPageErrors.length === 0,
+        `${app.id} emitted page errors during localized router navigation`,
+        {
+          pageErrors: localizedPageErrors,
+          phase: activePhase,
+        },
+      );
+      activePhase = 'final-diagnostics';
     }
 
     const fatalConsoleMessages = consoleMessages.filter(isFatalConsoleMessage);

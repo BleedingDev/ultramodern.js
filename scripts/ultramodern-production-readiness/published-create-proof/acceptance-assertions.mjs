@@ -325,6 +325,35 @@ function assertBrowserRuntimeAcceptance(report, verticalNames) {
         ),
         `${result.appId} browser/runtime proof lacks an API readiness assertion`,
       );
+      const localizedNavigation = result.assertions.find(
+        assertion =>
+          assertion.type === 'localized-router-navigation' &&
+          assertion.status === 'pass',
+      );
+      assertCondition(
+        localizedNavigation,
+        `${result.appId} browser/runtime proof lacks required localized-router-navigation evidence`,
+      );
+      const source = localizedNavigation?.source;
+      const target = localizedNavigation?.target;
+      assertCondition(
+        localizedNavigation?.documentContinuityPreserved === true &&
+          source?.pathname === '/en' &&
+          source?.htmlLang === 'en' &&
+          typeof source?.text === 'string' &&
+          source.text.length > 0 &&
+          typeof source?.navigationLabel === 'string' &&
+          source.navigationLabel.length > 0 &&
+          target?.pathname === '/cs' &&
+          target?.htmlLang === 'cs' &&
+          typeof target?.text === 'string' &&
+          target.text.length > 0 &&
+          target.text !== source.text &&
+          typeof target?.navigationLabel === 'string' &&
+          target.navigationLabel.length > 0 &&
+          target.navigationLabel !== source.navigationLabel,
+        `${result.appId} browser/runtime localized-router-navigation evidence is incomplete`,
+      );
     }
   }
   const shellBoundary = shellResults[0].assertions.find(

@@ -76,7 +76,9 @@ type RouterInstance = {
       get?: () => Array<{ params?: Record<string, string> }>;
     };
   };
-  subscribe?: (eventType: string, listener: () => void) => () => void;
+  subscribe?:
+    | ((listener: () => void) => () => void)
+    | ((eventType: string, listener: () => void) => () => void);
 };
 
 const normalizeUrlPart = (value: unknown, prefix: '?' | '#'): string => {
@@ -231,10 +233,6 @@ export const useI18nRouterAdapter = (): I18nRouterAdapter => {
     Boolean(reactRouterNavigate);
 
   useEffect(() => {
-    if (framework !== 'tanstack') {
-      return;
-    }
-
     const router = getRouterInstance(internalContext, contextRouter);
     if (!router) {
       return;
@@ -243,16 +241,39 @@ export const useI18nRouterAdapter = (): I18nRouterAdapter => {
     const update = () => setRouterVersion(version => version + 1);
     const unsubscribers: Array<() => void> = [];
 
-    if (typeof router.stores?.location?.subscribe === 'function') {
+    if (
+      framework === 'react-router' &&
+      !inReactRouter &&
+      typeof router.subscribe === 'function'
+    ) {
+      const subscribe = router.subscribe as (
+        this: RouterInstance,
+        listener: () => void,
+      ) => () => void;
+      const unsubscribe = subscribe.call(router, update);
+      if (typeof unsubscribe === 'function') {
+        unsubscribers.push(unsubscribe);
+      }
+    }
+
+    if (
+      framework === 'tanstack' &&
+      typeof router.stores?.location?.subscribe === 'function'
+    ) {
       const unsubscribe = router.stores.location.subscribe(update);
       if (typeof unsubscribe === 'function') {
         unsubscribers.push(unsubscribe);
       }
     }
 
-    if (typeof router.subscribe === 'function') {
+    if (framework === 'tanstack' && typeof router.subscribe === 'function') {
+      const subscribe = router.subscribe as (
+        this: RouterInstance,
+        eventType: string,
+        listener: () => void,
+      ) => () => void;
       for (const eventType of ['onBeforeNavigate', 'onBeforeLoad']) {
-        const unsubscribe = router.subscribe(eventType, update);
+        const unsubscribe = subscribe.call(router, eventType, update);
         if (typeof unsubscribe === 'function') {
           unsubscribers.push(unsubscribe);
         }
@@ -264,7 +285,7 @@ export const useI18nRouterAdapter = (): I18nRouterAdapter => {
         unsubscribe();
       }
     };
-  }, [contextRouter, framework, internalContext]);
+  }, [contextRouter, framework, inReactRouter, internalContext]);
 
   const navigate = useCallback<I18nRouterNavigate>(
     (href, options) => {

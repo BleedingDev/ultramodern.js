@@ -151,6 +151,99 @@ test('release acceptance requires the browser shell to run in workerd', async ()
   );
 });
 
+test('release acceptance requires localized router navigation evidence from every vertical', async () => {
+  const { assertBrowserRuntimeAcceptance } = await loadAcceptanceAssertions();
+  const requiredBrowserAssertions = [
+    { status: 'pass', type: 'browser-screenshot' },
+    { status: 'pass', type: 'mf-manifest' },
+    { status: 'pass', type: 'no-js-screenshot' },
+    { status: 'pass', type: 'stylesheet-evidence' },
+  ];
+  const report = {
+    results: [
+      {
+        appId: 'shell-super-app',
+        assertions: [
+          ...requiredBrowserAssertions,
+          {
+            declaredRemoteIds: ['inventory'],
+            matchedRemoteBoundaries: [{ remoteId: 'inventory' }],
+            status: 'pass',
+            type: 'shell-composition-boundary',
+          },
+          {
+            declaredRemoteIds: ['inventory'],
+            matchedRemoteBoundaries: [{ remoteId: 'inventory' }],
+            status: 'pass',
+            type: 'no-js-shell-composition-boundary',
+          },
+        ],
+        status: 'pass',
+      },
+      {
+        appId: 'inventory',
+        assertions: [
+          ...requiredBrowserAssertions,
+          { status: 'pass', type: 'effect-readiness' },
+        ],
+        status: 'pass',
+      },
+    ],
+    shellRuntime: 'workerd',
+    skipped: [],
+    status: 'pass',
+  };
+
+  assert.throws(
+    () => assertBrowserRuntimeAcceptance(report, ['inventory']),
+    /inventory browser\/runtime proof lacks required localized-router-navigation evidence/u,
+  );
+
+  report.results[1].assertions.push({
+    status: 'pass',
+    type: 'localized-router-navigation',
+  });
+  assert.throws(
+    () => assertBrowserRuntimeAcceptance(report, ['inventory']),
+    /inventory browser\/runtime localized-router-navigation evidence is incomplete/u,
+  );
+  report.results[1].assertions.pop();
+  report.results[1].assertions.push({
+    documentContinuityPreserved: true,
+    source: {
+      htmlLang: 'en',
+      navigationLabel: 'Language',
+      pathname: '/en',
+      text: 'Czech',
+    },
+    status: 'pass',
+    target: {
+      htmlLang: 'cs',
+      navigationLabel: 'Jazyk',
+      pathname: '/cs',
+      text: 'Čeština',
+    },
+    type: 'localized-router-navigation',
+  });
+  const localizedNavigation = report.results[1].assertions.at(-1);
+  localizedNavigation.documentContinuityPreserved = false;
+  assert.throws(
+    () => assertBrowserRuntimeAcceptance(report, ['inventory']),
+    /inventory browser\/runtime localized-router-navigation evidence is incomplete/u,
+  );
+  localizedNavigation.documentContinuityPreserved = true;
+  localizedNavigation.target.navigationLabel =
+    localizedNavigation.source.navigationLabel;
+  assert.throws(
+    () => assertBrowserRuntimeAcceptance(report, ['inventory']),
+    /inventory browser\/runtime localized-router-navigation evidence is incomplete/u,
+  );
+  localizedNavigation.target.navigationLabel = 'Jazyk';
+  assert.doesNotThrow(() =>
+    assertBrowserRuntimeAcceptance(report, ['inventory']),
+  );
+});
+
 function response(status, body, headers = {}) {
   return {
     headers: {
@@ -2255,6 +2348,13 @@ function createFakeBrowser({
   consoleError = false,
   consoleMessages = [],
   hydrationIdentityPreserved = true,
+  localizedDomChanges = true,
+  localizedHardReload = false,
+  localizedLinkCount,
+  localizedNavigation = true,
+  localizedNavigationLabelChanges = true,
+  localizedNavigationPageError = false,
+  localizedNavigationSourceLabel = 'Language',
   markerValue = 'build-shell',
   stylesheetHrefs,
 } = {}) {
@@ -2263,10 +2363,17 @@ function createFakeBrowser({
   const resolvedStylesheetHrefs = stylesheetHrefs ?? [
     'http://localhost:3020/static/css/app.css',
   ];
+  const resolvedLocalizedLinkCount =
+    localizedLinkCount ?? (localizedNavigation ? 1 : 0);
   let hydrationSettled = false;
   let javaScriptEnabled = true;
   let routeHandler;
   let identityProbeCalls = 0;
+  let currentUrl = 'http://localhost:3020/en';
+  let htmlLang = 'en';
+  let localizedLinkText = 'Czech';
+  let localizedNavigationLabel = localizedNavigationSourceLabel;
+  let localizedNavigationDocumentPreserved = true;
   const federationUrls = [
     'http://localhost:3021/mf-manifest.json',
     'http://localhost:3021/remoteEntry.js',
@@ -2289,8 +2396,31 @@ function createFakeBrowser({
     },
     locator(selector) {
       return {
-        async click() {},
+        async click() {
+          if (
+            localizedNavigation &&
+            selector === 'a[href="/cs"], a[href$="/cs"]'
+          ) {
+            currentUrl = new URL('/cs', currentUrl).toString();
+            htmlLang = 'cs';
+            if (localizedDomChanges) {
+              localizedLinkText = 'Čeština';
+            }
+            if (localizedNavigationLabelChanges) {
+              localizedNavigationLabel = 'Jazyk';
+            }
+            if (localizedHardReload) {
+              localizedNavigationDocumentPreserved = false;
+            }
+            if (localizedNavigationPageError) {
+              handlers.pageerror?.(new Error('localized navigation exploded'));
+            }
+          }
+        },
         async count() {
+          if (selector === 'a[href="/cs"], a[href$="/cs"]') {
+            return resolvedLocalizedLinkCount;
+          }
           if (selector.includes('[data-app-id="')) {
             return 1;
           }
@@ -2309,15 +2439,34 @@ function createFakeBrowser({
           return this;
         },
         async getAttribute(name) {
+          if (selector.startsWith('html') && name === 'lang') {
+            return htmlLang;
+          }
+          if (
+            selector === 'nav:has(a[href="/cs"], a[href$="/cs"])' &&
+            name === 'aria-label'
+          ) {
+            return localizedNavigationLabel;
+          }
           return name === 'data-build-marker' ? markerValue : null;
         },
         async textContent() {
+          if (selector === 'a[href="/cs"], a[href$="/cs"]') {
+            return localizedLinkText;
+          }
           return selector === '[data-testid="api-status"]' ? apiStatus : '';
         },
         async waitFor() {},
       };
     },
-    async evaluate() {
+    async evaluate(_callback, operation) {
+      if (operation === 'install-localized-navigation-continuity') {
+        localizedNavigationDocumentPreserved = true;
+        return undefined;
+      }
+      if (operation === 'read-localized-navigation-continuity') {
+        return localizedNavigationDocumentPreserved;
+      }
       identityProbeCalls += 1;
       if (identityProbeCalls === 1) {
         return { boundaryCount: 1, nodeCount: 3 };
@@ -2335,7 +2484,9 @@ function createFakeBrowser({
     on(event, handler) {
       handlers[event] = handler;
     },
-    async goto(_url, options = {}) {
+    async goto(url, options = {}) {
+      currentUrl = url;
+      htmlLang = new URL(url).pathname.startsWith('/cs') ? 'cs' : 'en';
       for (const message of consoleMessages) {
         handlers.console?.({
           location: () =>
@@ -2382,6 +2533,16 @@ function createFakeBrowser({
       hydrationSettled = true;
     },
     async waitForFunction() {},
+    async waitForURL(predicate) {
+      const url = new URL(currentUrl);
+      const matches =
+        typeof predicate === 'function'
+          ? predicate(url)
+          : String(predicate) === currentUrl;
+      if (!matches) {
+        throw new Error(`URL did not match: ${currentUrl}`);
+      }
+    },
     async waitForResponse(predicate) {
       const response = {
         json: async () => apiResponseJson,
@@ -2395,6 +2556,9 @@ function createFakeBrowser({
     async waitForTimeout() {},
     async unroute() {
       routeHandler = undefined;
+    },
+    url() {
+      return currentUrl;
     },
   };
   const browser = {
@@ -2609,6 +2773,249 @@ test('fails when the browser emits a console error', async () => {
       fs.existsSync(path.join(root, 'shell-super-app/console.json')),
       true,
     );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('proves native localized navigation updates the route, html language, and translated DOM', async () => {
+  const { createSmokeTargets, validateBrowserTarget } = await loadSmoke();
+  const root = tempRoot();
+  const [target] = createSmokeTargets(createContract()).targets;
+  target.app.domain = 'inventory';
+  target.app.id = 'inventory';
+  target.app.kind = 'vertical';
+
+  try {
+    const assertions = await validateBrowserTarget(
+      target,
+      createFakeBrowser({ localizedNavigation: true }),
+      { artifactDir: root },
+    );
+    const localizedNavigation = assertions.find(
+      item => item.type === 'localized-router-navigation',
+    );
+
+    assert.deepEqual(localizedNavigation, {
+      documentContinuityPreserved: true,
+      source: {
+        htmlLang: 'en',
+        navigationLabel: 'Language',
+        pathname: '/en',
+        text: 'Czech',
+      },
+      status: 'pass',
+      target: {
+        htmlLang: 'cs',
+        navigationLabel: 'Jazyk',
+        pathname: '/cs',
+        text: 'Čeština',
+      },
+      type: 'localized-router-navigation',
+    });
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('rejects a vertical that renders no Czech locale navigation link', async () => {
+  const { createSmokeTargets, validateBrowserTarget } = await loadSmoke();
+  const root = tempRoot();
+  const [target] = createSmokeTargets(createContract()).targets;
+  target.app.domain = 'inventory';
+  target.app.id = 'inventory';
+  target.app.kind = 'vertical';
+
+  try {
+    await assert.rejects(
+      () =>
+        validateBrowserTarget(
+          target,
+          createFakeBrowser({ localizedLinkCount: 0 }),
+          {
+            artifactDir: root,
+          },
+        ),
+      /must render exactly one Czech locale navigation link/u,
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('rejects a vertical that renders duplicate Czech locale navigation links', async () => {
+  const { createSmokeTargets, validateBrowserTarget } = await loadSmoke();
+  const root = tempRoot();
+  const [target] = createSmokeTargets(createContract()).targets;
+  target.app.domain = 'inventory';
+  target.app.id = 'inventory';
+  target.app.kind = 'vertical';
+
+  try {
+    await assert.rejects(
+      () =>
+        validateBrowserTarget(
+          target,
+          createFakeBrowser({
+            localizedLinkCount: 2,
+            localizedNavigation: true,
+          }),
+          { artifactDir: root },
+        ),
+      error =>
+        /must render exactly one Czech locale navigation link/u.test(
+          error.message,
+        ) && error.details?.localizedLinkCount === 2,
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('rejects localized navigation when only the route and html language change', async () => {
+  const { createSmokeTargets, validateBrowserTarget } = await loadSmoke();
+  const root = tempRoot();
+  const [target] = createSmokeTargets(createContract()).targets;
+  target.app.domain = 'inventory';
+  target.app.id = 'inventory';
+  target.app.kind = 'vertical';
+
+  try {
+    await assert.rejects(
+      () =>
+        validateBrowserTarget(
+          target,
+          createFakeBrowser({
+            localizedDomChanges: false,
+            localizedNavigation: true,
+            localizedNavigationLabelChanges: false,
+          }),
+          { artifactDir: root },
+        ),
+      /localized navigation did not update translated DOM/u,
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('rejects localized navigation when only the language link text translates', async () => {
+  const { createSmokeTargets, validateBrowserTarget } = await loadSmoke();
+  const root = tempRoot();
+  const [target] = createSmokeTargets(createContract()).targets;
+  target.app.domain = 'inventory';
+  target.app.id = 'inventory';
+  target.app.kind = 'vertical';
+
+  try {
+    await assert.rejects(
+      () =>
+        validateBrowserTarget(
+          target,
+          createFakeBrowser({
+            localizedNavigation: true,
+            localizedNavigationLabelChanges: false,
+          }),
+          { artifactDir: root },
+        ),
+      /localized navigation did not update the translated navigation label/u,
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('rejects localized navigation without an English navigation label', async () => {
+  const { createSmokeTargets, validateBrowserTarget } = await loadSmoke();
+  const root = tempRoot();
+  const [target] = createSmokeTargets(createContract()).targets;
+  target.app.domain = 'inventory';
+  target.app.id = 'inventory';
+  target.app.kind = 'vertical';
+
+  try {
+    await assert.rejects(
+      () =>
+        validateBrowserTarget(
+          target,
+          createFakeBrowser({
+            localizedNavigationSourceLabel: null,
+          }),
+          { artifactDir: root },
+        ),
+      /did not start from rendered English DOM/u,
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('rejects localized navigation that falls back to a full document reload', async () => {
+  const { createSmokeTargets, validateBrowserTarget } = await loadSmoke();
+  const root = tempRoot();
+  const [target] = createSmokeTargets(createContract()).targets;
+  target.app.domain = 'inventory';
+  target.app.id = 'inventory';
+  target.app.kind = 'vertical';
+
+  try {
+    await assert.rejects(
+      () =>
+        validateBrowserTarget(
+          target,
+          createFakeBrowser({
+            localizedHardReload: true,
+            localizedNavigation: true,
+          }),
+          { artifactDir: root },
+        ),
+      /localized navigation replaced the browser document/u,
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('attributes page errors to localized router navigation immediately', async () => {
+  const { createSmokeTargets, validateBrowserTarget } = await loadSmoke();
+  const root = tempRoot();
+  const [target] = createSmokeTargets(createContract()).targets;
+  target.app.domain = 'inventory';
+  target.app.id = 'inventory';
+  target.app.kind = 'vertical';
+  let failure;
+
+  try {
+    await validateBrowserTarget(
+      target,
+      createFakeBrowser({
+        localizedNavigation: true,
+        localizedNavigationPageError: true,
+      }),
+      { artifactDir: root },
+    ).catch(error => {
+      failure = error;
+    });
+
+    assert.match(
+      failure?.message ?? '',
+      /emitted page errors during localized router navigation/u,
+    );
+    assert.equal(
+      failure?.details?.pageErrors?.[0]?.phase,
+      'localized-router-navigation',
+    );
+    assert.equal(
+      failure?.details?.pageErrors?.[0]?.url,
+      'http://localhost:3020/cs',
+    );
+    assert.equal(failure?.details?.pageErrors?.[0]?.name, 'Error');
+
+    const persisted = JSON.parse(
+      fs.readFileSync(path.join(root, 'inventory/page-errors.json'), 'utf8'),
+    );
+    assert.equal(persisted[0].phase, 'localized-router-navigation');
+    assert.equal(persisted[0].url, 'http://localhost:3020/cs');
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

@@ -13,6 +13,7 @@ import {
 import type { I18nInstance } from './i18n';
 import { getI18nextInstanceForProvider } from './i18n/instance';
 import type { RuntimeContextWithI18n } from './pluginSetup';
+import { useI18nRouterAdapter } from './routerAdapter';
 
 interface I18nRootWrapperOptions {
   entryName?: string;
@@ -52,8 +53,7 @@ export const createI18nRootWrapper =
       const [lang, setLang] = useState(initialLang);
       const [forceUpdate, setForceUpdate] = useState(0);
       const prevLangRef = useRef(lang);
-      const runtimeContextRef = useRef(runtimeContext);
-      runtimeContextRef.current = runtimeContext;
+      const { location } = useI18nRouterAdapter();
 
       useEffect(() => {
         if (i18nInstance?.language) {
@@ -69,11 +69,11 @@ export const createI18nRootWrapper =
       }, [lang]);
 
       useSdkResourcesLoader(i18nInstance, setForceUpdate);
-      useLanguageSync(
+      const synchronizeLanguage = useLanguageSync(
         i18nInstance,
         localePathRedirect,
         languages,
-        runtimeContextRef,
+        location?.pathname,
         prevLangRef,
         setLang,
       );
@@ -99,6 +99,7 @@ export const createI18nRootWrapper =
             ignoreRedirectRoutes,
             localisedUrls,
             setLang,
+            synchronizeLanguage,
           ),
         [
           lang,
@@ -109,6 +110,7 @@ export const createI18nRootWrapper =
           ignoreRedirectRoutes,
           localisedUrls,
           forceUpdate,
+          synchronizeLanguage,
         ],
       );
 
@@ -122,8 +124,10 @@ export const createI18nRootWrapper =
       if (i18nInstance) {
         const I18nextProvider = getI18nextProvider();
         if (I18nextProvider) {
-          const i18nextInstanceForProvider =
-            getI18nextInstanceForProvider(i18nInstance);
+          const i18nextInstanceForProvider = getI18nextInstanceForProvider(
+            i18nInstance,
+            lang,
+          );
           appContent = (
             <I18nextProvider i18n={i18nextInstanceForProvider}>
               {appContent}

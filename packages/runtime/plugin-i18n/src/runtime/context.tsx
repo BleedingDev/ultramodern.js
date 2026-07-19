@@ -8,7 +8,6 @@ import {
 } from 'react';
 import type { LocalisedUrlsOption } from '../shared/localisedUrls';
 import {
-  cacheI18nLanguage,
   changeModernI18nLanguage,
   getPathLanguage,
   isI18nLanguageSupported,
@@ -29,6 +28,7 @@ interface ModernI18nContextValue {
   localisedUrls?: LocalisedUrlsOption;
   // Callback to update language in context
   updateLanguage?: (newLang: string) => void;
+  synchronizeLanguage?: (newLang: string) => void;
 }
 
 const modernI18nContextKey = Symbol.for(
@@ -105,6 +105,7 @@ export const useModernI18n = (): UseModernI18nReturn => {
     ignoreRedirectRoutes,
     localisedUrls,
     updateLanguage,
+    synchronizeLanguage,
   } = context;
 
   const { navigate, location, hasRouter } = useI18nRouterAdapter();
@@ -114,18 +115,13 @@ export const useModernI18n = (): UseModernI18nReturn => {
     [languages, localePathRedirect, location?.pathname],
   );
 
-  const currentLanguage = pathLanguage || contextLanguage;
-
   useEffect(() => {
-    if (!pathLanguage || pathLanguage === contextLanguage) {
-      return;
+    if (pathLanguage) {
+      synchronizeLanguage?.(pathLanguage);
     }
+  }, [pathLanguage, synchronizeLanguage]);
 
-    updateLanguage?.(pathLanguage);
-    i18nInstance?.setLang?.(pathLanguage);
-    void i18nInstance?.changeLanguage?.(pathLanguage);
-    cacheI18nLanguage(i18nInstance, pathLanguage);
-  }, [contextLanguage, i18nInstance, pathLanguage, updateLanguage]);
+  const currentLanguage = contextLanguage;
 
   /**
    * Changes the current language and updates URL accordingly.
