@@ -57,25 +57,36 @@ export async function assertLocalPortsAvailable(targets) {
     }
     seenPorts.add(port);
 
-    await new Promise((resolve, reject) => {
-      const server = net.createServer();
-      server.unref();
-      server.once('error', error => {
-        reject(
-          new BrowserSmokeError(
-            `${target.app.id} local smoke port ${port} is already in use`,
-            {
-              baseUrl: target.baseUrl,
-              cause: error instanceof Error ? error.message : String(error),
-              port,
-            },
-          ),
-        );
+    for (const host of ['127.0.0.1', '::']) {
+      await new Promise((resolve, reject) => {
+        const server = net.createServer();
+        server.unref();
+        server.once('error', error => {
+          if (
+            host === '::' &&
+            'code' in error &&
+            ['EAFNOSUPPORT', 'EADDRNOTAVAIL'].includes(error.code)
+          ) {
+            resolve();
+            return;
+          }
+          reject(
+            new BrowserSmokeError(
+              `${target.app.id} local smoke port ${port} is already in use`,
+              {
+                baseUrl: target.baseUrl,
+                cause: error instanceof Error ? error.message : String(error),
+                host,
+                port,
+              },
+            ),
+          );
+        });
+        server.listen({ host, port }, () => {
+          server.close(error => (error ? reject(error) : resolve()));
+        });
       });
-      server.listen({ host: '127.0.0.1', port }, () => {
-        server.close(error => (error ? reject(error) : resolve()));
-      });
-    });
+    }
   }
 }
 

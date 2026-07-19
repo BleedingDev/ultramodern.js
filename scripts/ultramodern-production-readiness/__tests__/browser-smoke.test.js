@@ -659,6 +659,28 @@ test('waits for remote manifest JSON readiness', async () => {
   assert.deepEqual(calls, ['/en', '/mf-manifest.json', '/mf-manifest.json']);
 });
 
+test('does not accept SSR readiness from a foreign build marker', async () => {
+  const { createSmokeTargets, waitForTarget } = await loadSmoke();
+  const [target] = createSmokeTargets(createContract()).targets;
+  let attempts = 0;
+
+  await waitForTarget(target, {
+    fetchImpl: async () => {
+      attempts += 1;
+      return response(
+        200,
+        html({
+          marker: attempts === 1 ? 'foreign-build' : 'build-shell',
+        }),
+      );
+    },
+    retryDelayMs: 0,
+    timeoutMs: 1_000,
+  });
+
+  assert.equal(attempts, 2);
+});
+
 test('fails readiness when required MF manifest never becomes valid JSON', async () => {
   const { createSmokeTargets, waitForTarget } = await loadSmoke();
   const [target] = createSmokeTargets(createContract()).targets;
@@ -723,12 +745,79 @@ test('fails readiness immediately when the owned serve process exits', async () 
   }
 });
 
+test('rejects stale matching HTTP readiness when the owned process exits during startup', async () => {
+  const { createSmokeTargets, waitForTarget } = await loadSmoke();
+  const [target] = createSmokeTargets(createContract()).targets;
+  const root = tempRoot();
+  const logPath = path.join(root, 'shell-serve.log');
+  fs.writeFileSync(
+    logPath,
+    'Error: listen EADDRINUSE: address already in use :::3020\n',
+  );
+
+  try {
+    await assert.rejects(
+      () =>
+        waitForTarget(target, {
+          fetchImpl: async () => response(200, html()),
+          retryDelayMs: 0,
+          serverExit: new Promise(resolve =>
+            setTimeout(() => resolve({ exitCode: 1, signal: null }), 5),
+          ),
+          serverLogPath: logPath,
+          timeoutMs: 1_000,
+        }),
+      error => {
+        assert.match(error.message, /serve process exited before readiness/);
+        assert.match(error.message, /EADDRINUSE/);
+        return true;
+      },
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('rejects occupied local smoke ports before startup', async () => {
   const { assertLocalPortsAvailable } = await loadSmoke();
   const server = net.createServer();
   await new Promise(resolve =>
     server.listen({ host: '127.0.0.1', port: 0 }, resolve),
   );
+  const { port } = server.address();
+
+  try {
+    await assert.rejects(
+      () =>
+        assertLocalPortsAvailable([
+          {
+            app: { id: 'shell-super-app' },
+            baseUrl: `http://localhost:${port}`,
+            port,
+          },
+        ]),
+      /local smoke port .* is already in use/,
+    );
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+  }
+});
+
+test('rejects an IPv6 wildcard listener before local smoke startup', async t => {
+  const { assertLocalPortsAvailable } = await loadSmoke();
+  const server = net.createServer();
+  try {
+    await new Promise((resolve, reject) => {
+      server.once('error', reject);
+      server.listen({ host: '::', ipv6Only: true, port: 0 }, resolve);
+    });
+  } catch (error) {
+    server.close();
+    t.skip(
+      `IPv6 wildcard listeners are unavailable: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return;
+  }
   const { port } = server.address();
 
   try {

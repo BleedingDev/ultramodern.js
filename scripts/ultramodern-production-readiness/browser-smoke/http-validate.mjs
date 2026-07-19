@@ -103,13 +103,25 @@ export async function waitForTargetSsr(
   let lastError;
   while (Date.now() - startedAt < timeoutMs) {
     try {
-      const response = await fetchImpl(
+      const response = await fetchText(
         joinUrl(target.baseUrl, target.routes.ssr),
+        fetchImpl,
       );
       if (response.status < 500) {
-        return;
+        const expectedBuildMarker = target.app.marker?.build;
+        const actualBuildMarker = extractUiMarker(response.body);
+        if (
+          typeof expectedBuildMarker !== 'string' ||
+          actualBuildMarker === expectedBuildMarker
+        ) {
+          return;
+        }
+        lastError = new Error(
+          `foreign SSR build marker ${actualBuildMarker ?? '<missing>'}; expected ${expectedBuildMarker}`,
+        );
+      } else {
+        lastError = new Error(`HTTP ${response.status}`);
       }
-      lastError = new Error(`HTTP ${response.status}`);
     } catch (error) {
       lastError = error;
     }
@@ -166,6 +178,10 @@ export async function waitForTarget(
     timeoutMs = 60_000,
   },
 ) {
+  const serverExitResult = serverExit?.then(exit => ({
+    exit,
+    status: 'exited',
+  }));
   const readiness = async () => {
     await waitForTargetSsr(target, { fetchImpl, retryDelayMs, timeoutMs });
     if (requireManifest) {
@@ -183,8 +199,15 @@ export async function waitForTarget(
   }
 
   const result = await Promise.race([
-    readiness().then(() => ({ status: 'ready' })),
-    serverExit.then(exit => ({ exit, status: 'exited' })),
+    readiness().then(() =>
+      Promise.race([
+        new Promise(resolve =>
+          setTimeout(() => resolve({ status: 'ready' }), 50),
+        ),
+        serverExitResult,
+      ]),
+    ),
+    serverExitResult,
   ]);
   if (result.status === 'exited') {
     const logTail = result.exit.logTail || readCombinedLogTail(serverLogPath);
