@@ -1,7 +1,14 @@
+import { execFileSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
+// Must stay in sync with app-tools/ultramodern-release-identity.ts. Node shell
+// output has no full-stack MicroVertical envelope, so strict acceptance derives
+// its promoted expectation from the canonical delivery-unit identity inputs.
+const RELEASE_BUILD_MARKER_NAMESPACE =
+  'ultramodern-delivery-unit-release-build-marker:v1';
+const PROMOTABLE_SOURCE_REVISION_PATTERN = /^(?:[a-f\d]{40}|[a-f\d]{64})$/u;
 const dimensions = [
   'ssr',
   'browser-mf',
@@ -59,6 +66,65 @@ function assertNonEmptyString(value, label) {
     throw new Error(`${label} must be a non-empty trimmed string`);
   }
   return value;
+}
+
+function createReleaseBuildMarker({
+  generationBuildMarker,
+  sourceRevision,
+  unitId,
+}) {
+  return sha256(
+    `${RELEASE_BUILD_MARKER_NAMESPACE}:${unitId}:${generationBuildMarker}:${sourceRevision}`,
+  ).slice(0, 16);
+}
+
+function configuredDeliveryUnit(app) {
+  if (!isRecord(app.deliveryUnit)) {
+    throw new Error(`${app.id} strict release binding requires deliveryUnit`);
+  }
+  return {
+    buildMarker: assertNonEmptyString(
+      app.deliveryUnit.buildMarker,
+      `${app.id} deliveryUnit.buildMarker`,
+    ),
+    unitId: assertNonEmptyString(
+      app.deliveryUnit.unitId,
+      `${app.id} deliveryUnit.unitId`,
+    ),
+    version: assertNonEmptyString(
+      app.deliveryUnit.version,
+      `${app.id} deliveryUnit.version`,
+    ),
+  };
+}
+
+function promotableProjectRevision(projectDir) {
+  let revision;
+  let status;
+  try {
+    revision = execFileSync('git', ['-C', projectDir, 'rev-parse', 'HEAD'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+    status = execFileSync(
+      'git',
+      ['-C', projectDir, 'status', '--porcelain=v1', '--untracked-files=all'],
+      {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+      },
+    ).trim();
+  } catch {
+    throw new Error(
+      'Strict release binding requires a clean Git application snapshot',
+    );
+  }
+  if (!PROMOTABLE_SOURCE_REVISION_PATTERN.test(revision) || status.length > 0) {
+    throw new Error(
+      'Strict release binding requires a clean promotable Git application snapshot',
+    );
+  }
+  return revision;
 }
 
 function assertLogicalPath(value, label) {
@@ -675,7 +741,13 @@ function verifyWorkerdRuntimeCorrelation(projectDir, app, location) {
   };
 }
 
-function releaseIdentity(projectDir, app, platform) {
+function releaseIdentity(
+  projectDir,
+  app,
+  platform,
+  { verifyRuntime = true } = {},
+) {
+  const deliveryUnit = configuredDeliveryUnit(app);
   const location = envelopeLocation(projectDir, app, platform);
   verifyEnvelope(location, app.id);
   const packageJson = readAppPackageJson(projectDir, app);
@@ -688,6 +760,26 @@ function releaseIdentity(projectDir, app, platform) {
       `${app.id} release envelope version ${String(
         location.envelope.identity.releaseVersion,
       )} differs from its package version ${String(packageJson.version)}`,
+    );
+  }
+  if (location.envelope.identity.unitId !== deliveryUnit.unitId) {
+    throw new Error(
+      `${app.id} release envelope unit ${location.envelope.identity.unitId} differs from its configured delivery unit ${deliveryUnit.unitId}`,
+    );
+  }
+  if (location.envelope.identity.releaseVersion !== deliveryUnit.version) {
+    throw new Error(
+      `${app.id} release envelope version ${location.envelope.identity.releaseVersion} differs from its configured delivery unit version ${deliveryUnit.version}`,
+    );
+  }
+  const expectedBuildMarker = createReleaseBuildMarker({
+    generationBuildMarker: deliveryUnit.buildMarker,
+    sourceRevision: location.envelope.identity.sourceRevision,
+    unitId: deliveryUnit.unitId,
+  });
+  if (location.envelope.identity.buildMarker !== expectedBuildMarker) {
+    throw new Error(
+      `${app.id} release envelope build marker does not derive from its configured delivery unit and source revision`,
     );
   }
   const frontendManifest = location.envelope.surfaces.uiClient.find(
@@ -719,7 +811,7 @@ function releaseIdentity(projectDir, app, platform) {
       fs.realpathSync(projectDir),
       location.envelopePath,
     ),
-    ...(platform === 'workerd'
+    ...(platform === 'workerd' && verifyRuntime
       ? {
           workerd: verifyWorkerdRuntimeCorrelation(projectDir, app, location),
         }
@@ -730,6 +822,166 @@ function releaseIdentity(projectDir, app, platform) {
       frontend: { ...identity },
       ssr: { ...identity },
     },
+  };
+}
+
+function verifyShellWorkerdIdentity(projectDir, app, identity) {
+  const outputRoot = path.join(projectDir, app.path, '.output');
+  const manifestPath = path.join(
+    outputRoot,
+    'server/modern-worker-manifest.json',
+  );
+  if (!fs.existsSync(manifestPath)) {
+    throw new Error(`${app.id} Cloudflare worker manifest is missing`);
+  }
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  const stamped = manifest.deliveryUnit;
+  if (!isRecord(stamped)) {
+    throw new Error(
+      `${app.id} Cloudflare worker manifest delivery unit is missing`,
+    );
+  }
+  for (const field of ['unitId', 'buildMarker', 'sourceRevision']) {
+    if (stamped[field] !== identity[field]) {
+      throw new Error(
+        `${app.id} Cloudflare worker manifest deliveryUnit.${field} differs from its promoted shell identity`,
+      );
+    }
+  }
+  for (const surface of ['ui', 'api']) {
+    if (!isRecord(stamped.surfaces?.[surface])) {
+      throw new Error(
+        `${app.id} Cloudflare worker manifest ${surface} delivery-unit surface is missing`,
+      );
+    }
+    for (const field of ['unitId', 'buildMarker', 'sourceRevision']) {
+      if (stamped.surfaces[surface][field] !== identity[field]) {
+        throw new Error(
+          `${app.id} Cloudflare worker manifest ${surface} deliveryUnit.${field} differs from its promoted shell identity`,
+        );
+      }
+    }
+    if (stamped.surfaces[surface].surface !== surface) {
+      throw new Error(
+        `${app.id} Cloudflare worker manifest ${surface} surface discriminator is invalid`,
+      );
+    }
+  }
+  const wranglerPath = path.join(outputRoot, 'wrangler.json');
+  if (!fs.existsSync(wranglerPath)) {
+    throw new Error(`${app.id} Cloudflare Wrangler config is missing`);
+  }
+  const wrangler = JSON.parse(fs.readFileSync(wranglerPath, 'utf8'));
+  const main = assertLogicalPath(
+    wrangler.main,
+    `${app.id} Cloudflare Wrangler main`,
+  );
+  const entryPath = path.resolve(outputRoot, main);
+  const realOutputRoot = fs.realpathSync(outputRoot);
+  if (
+    !fs.existsSync(entryPath) ||
+    !isInside(realOutputRoot, fs.realpathSync(entryPath))
+  ) {
+    throw new Error(
+      `${app.id} Cloudflare Wrangler main is missing or escapes its output`,
+    );
+  }
+  const entrySource = fs.readFileSync(entryPath, 'utf8');
+  const embeddedManifest = `const MODERN_WORKER_MANIFEST = ${JSON.stringify(manifest, null, 2)};`;
+  if (!entrySource.includes(embeddedManifest)) {
+    throw new Error(
+      `${app.id} executed Cloudflare worker entry does not embed its verified worker manifest`,
+    );
+  }
+}
+
+function bindContractToReleaseIdentity({ contract, platform, projectDir }) {
+  if (!isRecord(contract) || !Array.isArray(contract.apps)) {
+    throw new Error('Browser smoke contract must contain apps');
+  }
+  const sourceRevision = promotableProjectRevision(projectDir);
+  const packageScope = assertNonEmptyString(
+    contract.workspace?.packageScope,
+    'Strict release contract workspace.packageScope',
+  );
+  const unitIds = new Set();
+  return {
+    ...contract,
+    apps: contract.apps.map(app => {
+      const deliveryUnit = configuredDeliveryUnit(app);
+      const expectedUnitId = `${packageScope}/${app.domain ?? app.id}`;
+      if (deliveryUnit.unitId !== expectedUnitId) {
+        throw new Error(
+          `${app.id} deliveryUnit.unitId must be canonical ${expectedUnitId}`,
+        );
+      }
+      if (unitIds.has(deliveryUnit.unitId)) {
+        throw new Error(
+          `${app.id} deliveryUnit.unitId ${deliveryUnit.unitId} is not unique`,
+        );
+      }
+      unitIds.add(deliveryUnit.unitId);
+      if (app.marker?.build !== deliveryUnit.buildMarker) {
+        throw new Error(
+          `${app.id} generated smoke marker differs from its delivery-unit build marker`,
+        );
+      }
+      if (app.kind === 'shell') {
+        const packageJson = readAppPackageJson(projectDir, app);
+        if (packageJson.version !== deliveryUnit.version) {
+          throw new Error(
+            `${app.id} delivery-unit version ${deliveryUnit.version} differs from its package version ${String(packageJson.version)}`,
+          );
+        }
+        const identity = {
+          buildMarker: createReleaseBuildMarker({
+            generationBuildMarker: deliveryUnit.buildMarker,
+            sourceRevision,
+            unitId: deliveryUnit.unitId,
+          }),
+          releaseVersion: deliveryUnit.version,
+          sourceRevision,
+          unitId: deliveryUnit.unitId,
+        };
+        if (platform === 'workerd') {
+          verifyShellWorkerdIdentity(projectDir, app, identity);
+        }
+        return {
+          ...app,
+          marker: {
+            ...app.marker,
+            appId: app.marker?.appId ?? app.id,
+            build: identity.buildMarker,
+            buildMarker: identity.buildMarker,
+            releaseVersion: identity.releaseVersion,
+            sourceRevision: identity.sourceRevision,
+          },
+        };
+      }
+      if (app.kind !== 'vertical') {
+        throw new Error(`${app.id} has unsupported strict release kind`);
+      }
+      const release = releaseIdentity(projectDir, app, platform, {
+        verifyRuntime: false,
+      });
+      const identity = release.surfaces.frontend;
+      if (identity.sourceRevision !== sourceRevision) {
+        throw new Error(
+          `${app.id} release envelope source revision differs from clean application HEAD`,
+        );
+      }
+      return {
+        ...app,
+        marker: {
+          ...app.marker,
+          appId: app.marker?.appId ?? app.id,
+          build: identity.buildMarker,
+          buildMarker: identity.buildMarker,
+          releaseVersion: identity.releaseVersion,
+          sourceRevision: identity.sourceRevision,
+        },
+      };
+    }),
   };
 }
 
@@ -937,4 +1189,8 @@ function createRuntimeEvidence({
   );
 }
 
-export { createRuntimeEvidence, readNodeBackendArtifactEvidence };
+export {
+  bindContractToReleaseIdentity,
+  createRuntimeEvidence,
+  readNodeBackendArtifactEvidence,
+};

@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const { execFileSync } = require('node:child_process');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const net = require('node:net');
@@ -105,6 +106,31 @@ function canonicalJson(value) {
       .join(',')}}`;
   }
   return JSON.stringify(value);
+}
+
+function releaseBuildMarker(unitId, generationBuildMarker, sourceRevision) {
+  return crypto
+    .createHash('sha256')
+    .update(
+      `ultramodern-delivery-unit-release-build-marker:v1:${unitId}:${generationBuildMarker}:${sourceRevision}`,
+    )
+    .digest('hex')
+    .slice(0, 16);
+}
+
+function commitFixture(root) {
+  fs.writeFileSync(path.join(root, '.gitignore'), '**/.output/\n.codex/\n');
+  execFileSync('git', ['init', '--quiet'], { cwd: root });
+  execFileSync('git', ['config', 'user.email', 'proof@example.invalid'], {
+    cwd: root,
+  });
+  execFileSync('git', ['config', 'user.name', 'Proof'], { cwd: root });
+  execFileSync('git', ['add', '.'], { cwd: root });
+  execFileSync('git', ['commit', '--quiet', '-m', 'fixture'], { cwd: root });
+  return execFileSync('git', ['rev-parse', 'HEAD'], {
+    cwd: root,
+    encoding: 'utf8',
+  }).trim();
 }
 
 test('release acceptance requires the browser shell to run in workerd', async () => {
@@ -219,6 +245,11 @@ function createCompactConfig() {
           path: 'apps/shell-super-app',
           port: 3020,
           portEnv: 'SHELL_SUPER_APP_PORT',
+          deliveryUnit: {
+            buildMarker: '6fa0ccad57ed2cba',
+            unitId: '@demo/shell-super-app',
+            version: '0.1.0',
+          },
           deploy: {
             cloudflare: {
               distributedSsrProofRoutes: ['/en', '/en/products/tractor-1'],
@@ -246,6 +277,11 @@ function createCompactConfig() {
           domain: 'inventory',
           port: 3021,
           portEnv: 'VERTICAL_INVENTORY_PORT',
+          deliveryUnit: {
+            buildMarker: '254adf7dcb9e1da2',
+            unitId: '@demo/inventory',
+            version: '0.1.0',
+          },
           moduleFederation: {
             exposes: ['./Route'],
             name: 'verticalInventory',
@@ -305,7 +341,8 @@ test('creates local and public smoke targets from the generated contract', async
 
 test('creates smoke targets from the compact UltraModern config', async () => {
   const { createSmokeTargets, orderTargetsForLocalStartup } = await loadSmoke();
-  const { targets } = createSmokeTargets(createCompactConfig());
+  const config = createCompactConfig();
+  const { targets } = createSmokeTargets(config);
 
   assert.deepEqual(
     targets.map(target => [target.app.id, target.baseUrl, target.portEnv]),
@@ -327,6 +364,16 @@ test('creates smoke targets from the compact UltraModern config', async () => {
     '[data-app-id="shell-super-app"]',
   );
   assert.equal(targets[0].app.marker.build, '6fa0ccad57ed2cba');
+  assert.throws(
+    () =>
+      createSmokeTargets({
+        ...config,
+        topology: {
+          apps: [{ ...config.topology.apps[1], kind: 'verticall' }],
+        },
+      }),
+    /kind must be exactly "shell" or "vertical"/,
+  );
 
   const ordered = orderTargetsForLocalStartup(targets);
   assert.deepEqual(
@@ -355,10 +402,15 @@ test('reads compact config before the retired generated contract path', async ()
     contract.apps.map(app => app.id),
     ['shell-super-app', 'inventory'],
   );
+  assert.deepEqual(contract.apps[1].deliveryUnit, {
+    buildMarker: '254adf7dcb9e1da2',
+    unitId: '@demo/inventory',
+    version: '0.1.0',
+  });
 });
 
 test('parses browser smoke CLI options with stable validation behavior', async () => {
-  const { parseArgs } = await loadSmoke();
+  const { parseArgs, runUltramodernBrowserSmoke } = await loadSmoke();
   const parsed = parseArgs([
     '--project-dir',
     '.',
@@ -398,6 +450,22 @@ test('parses browser smoke CLI options with stable validation behavior', async (
   assert.throws(
     () => parseArgs(['--project-dir=.']),
     /^Error: Unknown argument: --project-dir=.$/,
+  );
+  assert.throws(
+    () => parseArgs(['--project-dir', '.', '--artifact-mode', 'source']),
+    /--artifact-mode and --platform must be provided together/,
+  );
+  assert.throws(
+    () => parseArgs(['--project-dir', '.', '--platform', 'node']),
+    /--artifact-mode and --platform must be provided together/,
+  );
+  await assert.rejects(
+    () =>
+      runUltramodernBrowserSmoke({
+        artifactMode: 'source',
+        projectDir: '.',
+      }),
+    /artifactMode and platform must be provided together/,
   );
 });
 
@@ -926,6 +994,7 @@ test('rejects a hardcoded backend-driven UI value that differs from the API resp
 });
 
 test('strict runtime evidence fails closed when executed results omit required dimensions', async () => {
+  const { assertStrictRuntimeEvidence } = await loadSmoke();
   const { createRuntimeEvidence } = await import(
     '../browser-smoke/runtime-evidence.mjs'
   );
@@ -988,6 +1057,11 @@ test('strict runtime evidence fails closed when executed results omit required d
     assert.deepEqual(evidence.ssr.verticalIds, ['inventory']);
     assert.equal(evidence.ssr.artifactMode, 'source');
     assert.equal(evidence.ssr.platform, 'node');
+    assert.throws(
+      () => assertStrictRuntimeEvidence(evidence),
+      /Strict runtime evidence failed: backend-driven-ui, failure-isolation, release-identity/,
+      'the standalone strict runner must not report pass when embedded evidence failed',
+    );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -1284,8 +1358,11 @@ test('Node failure isolation stops each real remote process and proves restart r
 });
 
 test('release identity evidence verifies the target envelope and its SHA-bound MF manifest', async () => {
-  const { createRuntimeEvidence } = await import(
+  const { bindContractToReleaseIdentity, createRuntimeEvidence } = await import(
     '../browser-smoke/runtime-evidence.mjs'
+  );
+  const { createBuildMarker, normalizeSmokeContract } = await import(
+    '../browser-smoke/contract.mjs'
   );
   const root = tempRoot();
   const appRoot = path.join(root, 'verticals/inventory/.output');
@@ -1298,6 +1375,11 @@ test('release identity evidence verifies the target envelope and its SHA-bound M
       },
       version: '0.1.0',
     }),
+  );
+  fs.mkdirSync(path.join(root, 'apps/shell-super-app'), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, 'apps/shell-super-app/package.json'),
+    JSON.stringify({ version: '0.1.0' }),
   );
   const artifactBytes = {
     'backend-mf-manifest.json': Buffer.from(
@@ -1353,6 +1435,33 @@ test('release identity evidence verifies the target envelope and its SHA-bound M
       sha256: crypto.createHash('sha256').update(bytes).digest('hex'),
     }),
   );
+  const scope = 'proof';
+  const inventoryApp = {
+    domain: 'inventory',
+    id: 'inventory-web',
+    kind: 'vertical',
+    packageSuffix: 'inventory',
+  };
+  const shellApp = {
+    id: 'shell-super-app',
+    kind: 'shell',
+    packageSuffix: 'shell-super-app',
+  };
+  const inventoryGenerationMarker = createBuildMarker(scope, inventoryApp);
+  const shellGenerationMarker = createBuildMarker(scope, shellApp);
+  const inventoryUnitId = `${scope}/inventory`;
+  const shellUnitId = `${scope}/shell-super-app`;
+  const sourceRevision = commitFixture(root);
+  const inventoryReleaseMarker = releaseBuildMarker(
+    inventoryUnitId,
+    inventoryGenerationMarker,
+    sourceRevision,
+  );
+  const shellReleaseMarker = releaseBuildMarker(
+    shellUnitId,
+    shellGenerationMarker,
+    sourceRevision,
+  );
   const payload = {
     artifacts: [
       ...fileArtifacts,
@@ -1366,10 +1475,10 @@ test('release identity evidence verifies the target envelope and its SHA-bound M
       },
     ].sort((left, right) => left.logicalPath.localeCompare(right.logicalPath)),
     identity: {
-      buildMarker: 'build-inventory',
+      buildMarker: inventoryReleaseMarker,
       releaseVersion: '0.1.0',
-      sourceRevision: 'a'.repeat(40),
-      unitId: 'inventory',
+      sourceRevision,
+      unitId: inventoryUnitId,
     },
     kind: 'ultramodern-target-microvertical-release-envelope',
     schemaVersion: 3,
@@ -1401,17 +1510,248 @@ test('release identity evidence verifies the target envelope and its SHA-bound M
     );
   };
   writeEnvelope(payload);
-  const contract = {
-    apps: [
-      {
-        id: 'inventory',
-        kind: 'vertical',
-        path: 'verticals/inventory',
-      },
-    ],
-  };
+  const contract = normalizeSmokeContract({
+    workspace: { packageScope: scope },
+    topology: {
+      apps: [
+        {
+          ...shellApp,
+          deliveryUnit: {
+            buildMarker: shellGenerationMarker,
+            unitId: shellUnitId,
+            version: '0.1.0',
+          },
+          path: 'apps/shell-super-app',
+          port: 3010,
+        },
+        {
+          ...inventoryApp,
+          deliveryUnit: {
+            buildMarker: inventoryGenerationMarker,
+            unitId: inventoryUnitId,
+            version: '0.1.0',
+          },
+          path: 'verticals/inventory',
+          port: 3021,
+        },
+      ],
+    },
+  });
+  const sourceContractSnapshot = structuredClone(contract);
 
   try {
+    const releaseContract = bindContractToReleaseIdentity({
+      contract,
+      platform: 'node',
+      projectDir: root,
+    });
+    assert.equal(
+      releaseContract.apps.find(app => app.id === 'inventory-web').marker.build,
+      inventoryReleaseMarker,
+      'strict runtime validation must compare live responses with the final release envelope marker',
+    );
+    assert.equal(
+      releaseContract.apps.find(app => app.id === 'shell-super-app').marker
+        .build,
+      shellReleaseMarker,
+      'strict shell validation must derive the promoted marker without requiring a MicroVertical envelope',
+    );
+    assert.deepEqual(
+      contract,
+      sourceContractSnapshot,
+      'binding the release identity must not mutate any generated source contract field',
+    );
+    const shellContract = {
+      ...contract,
+      apps: contract.apps.filter(app => app.kind === 'shell'),
+    };
+    const shellWorkerManifestPath = path.join(
+      root,
+      'apps/shell-super-app/.output/server/modern-worker-manifest.json',
+    );
+    fs.mkdirSync(path.dirname(shellWorkerManifestPath), { recursive: true });
+    const shellStamp = {
+      buildMarker: shellReleaseMarker,
+      sourceRevision,
+      surfaces: {
+        api: {
+          buildMarker: shellReleaseMarker,
+          sourceRevision,
+          surface: 'api',
+          unitId: shellUnitId,
+        },
+        ui: {
+          buildMarker: shellReleaseMarker,
+          sourceRevision,
+          surface: 'ui',
+          unitId: shellUnitId,
+        },
+      },
+      unitId: shellUnitId,
+    };
+    const shellWorkerManifest = { deliveryUnit: shellStamp };
+    fs.writeFileSync(
+      shellWorkerManifestPath,
+      JSON.stringify(shellWorkerManifest),
+    );
+    const shellWranglerPath = path.join(
+      root,
+      'apps/shell-super-app/.output/wrangler.json',
+    );
+    fs.writeFileSync(
+      shellWranglerPath,
+      JSON.stringify({ main: 'server/index.mjs' }),
+    );
+    const shellWorkerEntryPath = path.join(
+      root,
+      'apps/shell-super-app/.output/server/index.mjs',
+    );
+    const shellWorkerEntry = `const MODERN_WORKER_MANIFEST = ${JSON.stringify(
+      shellWorkerManifest,
+      null,
+      2,
+    )};`;
+    fs.writeFileSync(shellWorkerEntryPath, shellWorkerEntry);
+    assert.equal(
+      bindContractToReleaseIdentity({
+        contract: shellContract,
+        platform: 'workerd',
+        projectDir: root,
+      }).apps[0].marker.build,
+      shellReleaseMarker,
+    );
+    fs.writeFileSync(
+      shellWorkerManifestPath,
+      JSON.stringify({
+        deliveryUnit: { ...shellStamp, unitId: `${scope}/wrong-shell` },
+      }),
+    );
+    assert.throws(
+      () =>
+        bindContractToReleaseIdentity({
+          contract: shellContract,
+          platform: 'workerd',
+          projectDir: root,
+        }),
+      /worker manifest deliveryUnit\.unitId differs/,
+    );
+    fs.writeFileSync(
+      shellWorkerManifestPath,
+      JSON.stringify(shellWorkerManifest),
+    );
+    fs.writeFileSync(
+      shellWorkerEntryPath,
+      'const MODERN_WORKER_MANIFEST = {};',
+    );
+    assert.throws(
+      () =>
+        bindContractToReleaseIdentity({
+          contract: shellContract,
+          platform: 'workerd',
+          projectDir: root,
+        }),
+      /executed Cloudflare worker entry does not embed its verified worker manifest/,
+    );
+    fs.writeFileSync(shellWorkerEntryPath, shellWorkerEntry);
+
+    const wrongVersionShell = structuredClone(shellContract);
+    wrongVersionShell.apps[0].deliveryUnit.version = '0.2.0';
+    assert.throws(
+      () =>
+        bindContractToReleaseIdentity({
+          contract: wrongVersionShell,
+          platform: 'node',
+          projectDir: root,
+        }),
+      /differs from its package version/,
+    );
+
+    const inventoryContractApp = contract.apps.find(
+      app => app.id === 'inventory-web',
+    );
+    const identitylessInventory = { ...inventoryContractApp };
+    delete identitylessInventory.deliveryUnit;
+    assert.throws(
+      () =>
+        bindContractToReleaseIdentity({
+          contract: { ...contract, apps: [identitylessInventory] },
+          platform: 'node',
+          projectDir: root,
+        }),
+      /strict release binding requires deliveryUnit/,
+    );
+    const wrongUnitShell = structuredClone(shellContract);
+    wrongUnitShell.apps[0].deliveryUnit.unitId = `${scope}/wrong-shell`;
+    assert.throws(
+      () =>
+        bindContractToReleaseIdentity({
+          contract: wrongUnitShell,
+          platform: 'node',
+          projectDir: root,
+        }),
+      /deliveryUnit\.unitId must be canonical proof\/shell-super-app/,
+    );
+    const { runUltramodernBrowserSmoke } = await loadSmoke();
+    await assert.rejects(
+      () =>
+        runUltramodernBrowserSmoke({
+          artifactMode: 'source',
+          contract: {
+            apps: [],
+            workspace: { packageScope: scope },
+          },
+          mode: 'local',
+          platform: 'node',
+          projectDir: root,
+        }),
+      /Strict release smoke requires one executable target for every contract app/,
+      'strict smoke must not convert an empty topology into a successful skipped run',
+    );
+    await assert.rejects(
+      () =>
+        runUltramodernBrowserSmoke({
+          artifactMode: 'source',
+          contract,
+          mode: 'local',
+          platform: 'workerd',
+          projectDir: root,
+          shellRuntime: 'node',
+        }),
+      /shellRuntime to match platform/,
+    );
+    const dirtyPath = path.join(root, 'dirty-source.txt');
+    fs.writeFileSync(dirtyPath, 'dirty');
+    assert.throws(
+      () =>
+        bindContractToReleaseIdentity({
+          contract,
+          platform: 'node',
+          projectDir: root,
+        }),
+      /clean promotable Git application snapshot/,
+      'strict release binding must not silently fall back to generation markers for dirty source',
+    );
+    fs.rmSync(dirtyPath);
+
+    writeEnvelope({
+      ...payload,
+      identity: {
+        ...payload.identity,
+        unitId: `${scope}/orders`,
+      },
+    });
+    assert.throws(
+      () =>
+        bindContractToReleaseIdentity({
+          contract,
+          platform: 'node',
+          projectDir: root,
+        }),
+      /release envelope unit proof\/orders differs from its configured delivery unit proof\/inventory/,
+      'a validly re-digested envelope from another delivery unit must not become the expected live marker',
+    );
+    writeEnvelope(payload);
+
     const evidence = createRuntimeEvidence({
       artifactMode: 'published',
       contract,
@@ -1422,7 +1762,7 @@ test('release identity evidence verifies the target envelope and its SHA-bound M
 
     assert.equal(evidence['release-identity'].status, 'pass');
     const expectedIdentity = {
-      buildMarker: 'build-inventory',
+      buildMarker: inventoryReleaseMarker,
       moduleFederation: [
         {
           packageName: '@module-federation/runtime',
@@ -1430,7 +1770,7 @@ test('release identity evidence verifies the target envelope and its SHA-bound M
         },
       ],
       releaseVersion: '0.1.0',
-      sourceRevision: 'a'.repeat(40),
+      sourceRevision,
     };
     assert.deepEqual(evidence['release-identity'].apps[0].surfaces, {
       api: expectedIdentity,
@@ -1596,6 +1936,9 @@ test('release identity reads only the artifact root executed by workerd', async 
     path.posix.dirname(aliasLogicalPath),
     aliasTargetLogicalPath,
   );
+  const generationBuildMarker = 'generation-inventory';
+  const sourceRevision = 'a'.repeat(40);
+  const unitId = 'inventory';
   const payload = {
     artifacts: [
       ...Object.entries(artifactBytes).map(([logicalPath, bytes]) => ({
@@ -1626,10 +1969,14 @@ test('release identity reads only the artifact root executed by workerd', async 
       },
     ].sort((left, right) => left.logicalPath.localeCompare(right.logicalPath)),
     identity: {
-      buildMarker: 'build-inventory',
+      buildMarker: releaseBuildMarker(
+        unitId,
+        generationBuildMarker,
+        sourceRevision,
+      ),
       releaseVersion: '0.1.0',
-      sourceRevision: 'a'.repeat(40),
-      unitId: 'inventory',
+      sourceRevision,
+      unitId,
     },
     kind: 'ultramodern-target-microvertical-release-envelope',
     schemaVersion: 3,
@@ -1678,6 +2025,11 @@ test('release identity reads only the artifact root executed by workerd', async 
               },
             ],
           },
+        },
+        deliveryUnit: {
+          buildMarker: generationBuildMarker,
+          unitId,
+          version: '0.1.0',
         },
         id: 'inventory',
         kind: 'vertical',
@@ -1741,7 +2093,7 @@ test('release identity reads only the artifact root executed by workerd', async 
       JSON.stringify({
         marker: {
           appId: 'inventory',
-          build: 'build-inventory',
+          build: payload.identity.buildMarker,
           version: '0.1.0',
         },
         status: 'ready',
@@ -1752,7 +2104,7 @@ test('release identity reads only the artifact root executed by workerd', async 
       byteLength: responseBytes.byteLength,
       releaseMarker: {
         appId: 'inventory',
-        build: 'build-inventory',
+        build: payload.identity.buildMarker,
         version: '0.1.0',
       },
       sha256: crypto.createHash('sha256').update(responseBytes).digest('hex'),
@@ -1805,7 +2157,12 @@ test('release identity reads only the artifact root executed by workerd', async 
       schemaVersion: 3,
     };
     fs.writeFileSync(reportPath, JSON.stringify(report));
-    assert.equal(releaseEvidence().status, 'pass');
+    const validReleaseEvidence = releaseEvidence();
+    assert.equal(
+      validReleaseEvidence.status,
+      'pass',
+      JSON.stringify(validReleaseEvidence),
+    );
 
     const validModules = report.executions[0].modules;
     report.executions[0].modules = [

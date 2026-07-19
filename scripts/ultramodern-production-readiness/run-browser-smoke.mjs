@@ -21,7 +21,10 @@ import {
   validateHttpTarget,
   waitForTarget,
 } from './browser-smoke/http-validate.mjs';
-import { createRuntimeEvidence } from './browser-smoke/runtime-evidence.mjs';
+import {
+  bindContractToReleaseIdentity,
+  createRuntimeEvidence,
+} from './browser-smoke/runtime-evidence.mjs';
 import {
   createSmokeTargets,
   orderTargetsForLocalStartup,
@@ -52,8 +55,41 @@ export { assertLocalPortsAvailable };
 const { writeJsonFile } = fsKit;
 const { writeStream } = processKit;
 
+export function assertStrictRuntimeEvidence(evidence) {
+  const failedEvidence = Object.entries(evidence).filter(
+    ([, dimension]) => dimension?.status !== 'pass',
+  );
+  if (failedEvidence.length > 0) {
+    throw new BrowserSmokeError(
+      `Strict runtime evidence failed: ${failedEvidence
+        .map(([dimension]) => dimension)
+        .join(', ')}`,
+      {
+        failedEvidence: Object.fromEntries(failedEvidence),
+      },
+    );
+  }
+}
+
 export async function runUltramodernBrowserSmoke(options) {
-  const { contract, contractPath } = options.contract
+  if (
+    (options.artifactMode === undefined) !==
+    (options.platform === undefined)
+  ) {
+    throw new BrowserSmokeError(
+      'artifactMode and platform must be provided together for strict release smoke',
+    );
+  }
+  if (
+    options.artifactMode &&
+    options.mode === 'local' &&
+    (options.shellRuntime ?? 'node') !== options.platform
+  ) {
+    throw new BrowserSmokeError(
+      'Strict local release smoke requires shellRuntime to match platform',
+    );
+  }
+  const { contract: sourceContract, contractPath } = options.contract
     ? {
         contract: normalizeSmokeContract(options.contract, {
           sourcePath: options.contractPath,
@@ -61,7 +97,30 @@ export async function runUltramodernBrowserSmoke(options) {
         contractPath: options.contractPath ?? '<provided>',
       }
     : readSmokeContract(options.projectDir);
+  const contract =
+    options.artifactMode && options.platform
+      ? bindContractToReleaseIdentity({
+          contract: sourceContract,
+          platform: options.platform,
+          projectDir: options.projectDir,
+        })
+      : sourceContract;
   const { skipped, targets } = createSmokeTargets(contract, options);
+  if (
+    options.artifactMode &&
+    (targets.length === 0 ||
+      targets.length !== contract.apps.length ||
+      skipped.length > 0)
+  ) {
+    throw new BrowserSmokeError(
+      'Strict release smoke requires one executable target for every contract app',
+      {
+        appIds: contract.apps.map(app => app.id),
+        skipped,
+        targetAppIds: targets.map(target => target.app.id),
+      },
+    );
+  }
   const report = {
     schemaVersion: 1,
     artifactMode: options.artifactMode,
@@ -220,6 +279,7 @@ export async function runUltramodernBrowserSmoke(options) {
         projectDir: options.projectDir,
         results: report.results,
       });
+      assertStrictRuntimeEvidence(report.evidence);
     }
     report.status = 'pass';
     writeJsonFile(options.out, report, { atomic: false });

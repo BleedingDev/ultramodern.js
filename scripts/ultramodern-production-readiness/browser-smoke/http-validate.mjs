@@ -234,6 +234,11 @@ export async function validateHttpTarget(target, { fetchImpl = fetch } = {}) {
   assertPass(
     uiMarker === app.marker?.build,
     `${app.id} SSR UI marker mismatch`,
+    {
+      actual: uiMarker,
+      expected: app.marker?.build,
+      url: ssr.url,
+    },
   );
 
   const expectedRootAppId = expectedAppIdFromRootSelector(

@@ -119,6 +119,11 @@ export function parseArgs(argv) {
   ) {
     throw new Error('--platform must be node or workerd');
   }
+  if ((parsed.artifactMode === undefined) !== (parsed.platform === undefined)) {
+    throw new Error(
+      '--artifact-mode and --platform must be provided together for strict release smoke',
+    );
+  }
   if (!['node', 'workerd'].includes(parsed.shellRuntime)) {
     throw new Error('--shell-runtime must be node or workerd');
   }
@@ -199,7 +204,12 @@ export function appNamespace(app) {
 
 export function normalizeCompactApp(rawApp) {
   const id = String(rawApp.id);
-  const kind = rawApp.kind === 'vertical' ? 'vertical' : 'shell';
+  if (!['shell', 'vertical'].includes(rawApp.kind)) {
+    throw new Error(
+      `Compact app ${id} kind must be exactly "shell" or "vertical"`,
+    );
+  }
+  const kind = rawApp.kind;
   const appPath =
     typeof rawApp.path === 'string'
       ? normalizeRelativePath(rawApp.path)
@@ -293,6 +303,7 @@ export function createSmokeContractApp(config, app) {
   return {
     id: app.id,
     kind: app.kind,
+    ...(typeof app.domain === 'string' ? { domain: app.domain } : {}),
     api: app.api,
     package: app.package,
     path: app.path,
@@ -327,6 +338,11 @@ export function createSmokeContractApp(config, app) {
         routes: createCloudflareRoutes(app),
       },
     },
+    ...(app.deliveryUnit &&
+    typeof app.deliveryUnit === 'object' &&
+    !Array.isArray(app.deliveryUnit)
+      ? { deliveryUnit: { ...app.deliveryUnit } }
+      : {}),
     i18n: {
       namespace: appNamespace(app),
     },
@@ -355,6 +371,11 @@ export function synthesizeContractFromCompactConfig(
 
   return {
     sourcePath,
+    ...(config.workspace &&
+    typeof config.workspace === 'object' &&
+    !Array.isArray(config.workspace)
+      ? { workspace: { ...config.workspace } }
+      : {}),
     apps: apps.map(app => createSmokeContractApp(config, app)),
   };
 }
