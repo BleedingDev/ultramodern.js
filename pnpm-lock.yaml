@@ -2577,8 +2577,6 @@ importers:
         specifier: ^7.0.2
         version: 7.0.2
 
-  tests/integration/bff-cross-project/bff-api-app/dist-1/client: {}
-
   tests/integration/bff-cross-project/bff-client-app:
     dependencies:
       '@modern-js/plugin-bff':
@@ -4062,8 +4060,6 @@ importers:
         specifier: ^7.0.2
         version: 7.0.2
 
-  tests/integration/routes-tanstack-mf/mf-host/dist/shared/effect: {}
-
   tests/integration/routes-tanstack-mf/mf-host/shared/effect: {}
 
   tests/integration/routes-tanstack-mf/mf-remote:
@@ -4140,11 +4136,7 @@ importers:
         specifier: ^7.0.2
         version: 7.0.2
 
-  tests/integration/routes-tanstack-mf/mf-remote-2/dist/shared/effect: {}
-
   tests/integration/routes-tanstack-mf/mf-remote-2/shared/effect: {}
-
-  tests/integration/routes-tanstack-mf/mf-remote/dist/shared/effect: {}
 
   tests/integration/routes-tanstack-mf/mf-remote/shared/effect: {}
 
