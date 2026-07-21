@@ -68,17 +68,32 @@ test('workspace dependency verification fails closed before release commands', (
 });
 
 function cleanEnvironment(extra = {}) {
-  const env = {
-    ...process.env,
+  const env = { ...process.env };
+  for (const envName of [
+    'AFFECTED_BASE',
+    'AFFECTED_HEAD',
+    'DEPENDENCY_VERSION',
+    'EXPLICIT_PACKAGES',
+    'GITHUB_ACTIONS',
+    'GITHUB_EVENT_NAME',
+    'GITHUB_REF',
+    'GITHUB_REPOSITORY',
+    'NODE_AUTH_TOKEN',
+    'NPM_TOKEN',
+    'PACKAGE_MODE',
+    'SKIP_EXISTING',
+  ]) {
+    delete env[envName];
+  }
+
+  return {
+    ...env,
     PUBLISH_VERSION: '3.2.0-ultramodern.45',
     PUBLISH_TAG: 'latest',
     PUBLISH_CONCURRENCY: '8',
     DRY_RUN: 'false',
     ...extra,
   };
-  delete env.NPM_TOKEN;
-  delete env.NODE_AUTH_TOKEN;
-  return env;
 }
 
 const runSecurityValidation = env =>
