@@ -5,6 +5,13 @@ import { assertion, assertPass, joinUrl } from './http-validate.mjs';
 
 const { writeJsonFile } = fsKit;
 const fatalConsoleTypes = new Set(['error']);
+const distributedSsrBoundarySelector = '[data-modern-distributed-ssr-boundary]';
+
+function distributedSsrServerBoundarySelector(runtime) {
+  return runtime === 'workerd'
+    ? `${distributedSsrBoundarySelector}[data-modern-distributed-ssr-status="ready"]`
+    : distributedSsrBoundarySelector;
+}
 
 export function extractBackendDrivenTitle(responseJson) {
   const titles = [];
@@ -134,10 +141,8 @@ export function federationAssetKind(url, app, observedRemoteOrigins = []) {
   return undefined;
 }
 
-async function installHydrationIdentityProbe(page) {
-  return page.evaluate(() => {
-    const selector =
-      '[data-modern-distributed-ssr-boundary][data-modern-distributed-ssr-status="ready"]';
+async function installHydrationIdentityProbe(page, runtime) {
+  return page.evaluate(selector => {
     const records = [...document.querySelectorAll(selector)].map(boundary => {
       const nodes = [boundary];
       const walker = document.createTreeWalker(boundary, NodeFilter.SHOW_ALL);
@@ -172,11 +177,22 @@ async function installHydrationIdentityProbe(page) {
         0,
       ),
     };
-  });
+  }, distributedSsrServerBoundarySelector(runtime));
 }
 
-async function readHydrationIdentityProbe(page) {
-  return page.evaluate(() => {
+export function isHydrationIdentityPreserved(evidence, runtime) {
+  return (
+    evidence.boundaryCount > 0 &&
+    evidence.connectedNodeCount === evidence.nodeCount &&
+    evidence.removedNodeCount === 0 &&
+    (runtime !== 'workerd' ||
+      (evidence.readyBoundaryCount === evidence.boundaryCount &&
+        evidence.provenanceBoundaryCount === evidence.boundaryCount))
+  );
+}
+
+async function readHydrationIdentityProbe(page, runtime) {
+  const evidence = await page.evaluate(() => {
     const records = window.__modernHydrationIdentityProbe?.records ?? [];
     let connectedNodeCount = 0;
     let nodeCount = 0;
@@ -244,20 +260,23 @@ async function readHydrationIdentityProbe(page) {
       connectedNodeCount,
       mutations,
       nodeCount,
-      preserved:
-        records.length > 0 &&
-        connectedNodeCount === nodeCount &&
-        removedNodeCount === 0 &&
-        readyBoundaryCount === records.length &&
-        provenanceBoundaryCount === records.length,
       provenanceBoundaryCount,
       readyBoundaryCount,
       removedNodeCount,
     };
   });
+
+  return {
+    ...evidence,
+    preserved: isHydrationIdentityPreserved(evidence, runtime),
+  };
 }
 
-async function collectShellRemoteBoundaries(page, app) {
+async function collectShellRemoteBoundaries(
+  page,
+  app,
+  { runtime = 'node', withinDistributedSsr = false } = {},
+) {
   const remotes =
     app.moduleFederation.remotes?.length > 0
       ? app.moduleFederation.remotes
@@ -270,7 +289,19 @@ async function collectShellRemoteBoundaries(page, app) {
     const boundaryCounts = await Promise.all(
       boundaryCandidates.map(async boundaryId => [
         boundaryId,
-        await page.locator(`[data-modern-boundary-id="${boundaryId}"]`).count(),
+        await page
+          .locator(
+            `${
+              withinDistributedSsr
+                ? `[data-modern-distributed-ssr-boundary^="${remote.id}::"]${
+                    runtime === 'workerd'
+                      ? '[data-modern-distributed-ssr-status="ready"]'
+                      : ''
+                  } `
+                : ''
+            }[data-modern-boundary-id="${boundaryId}"]`,
+          )
+          .count(),
       ]),
     );
     const matchedBoundary = boundaryCounts.find(([, count]) => count > 0);
@@ -290,6 +321,73 @@ async function collectShellRemoteBoundaries(page, app) {
   return { matchedRemoteBoundaries, remotes, triedRemoteBoundaries };
 }
 
+async function waitForEveryShellRemoteBoundary(page, app, runtime) {
+  const remotes =
+    app.moduleFederation.remotes?.length > 0
+      ? app.moduleFederation.remotes
+      : app.moduleFederation.verticalRefs.map(id => ({ id }));
+  const expectations = remotes.map(remote => ({
+    boundaryIds: remoteBoundaryCandidates(remote),
+    remoteId: remote.id,
+    requiresReady: runtime === 'workerd',
+  }));
+
+  let waitFailure;
+  try {
+    await page.waitForFunction(
+      expectedBoundaryIds => {
+        const wrappers = [
+          ...document.querySelectorAll(
+            '[data-modern-distributed-ssr-boundary]',
+          ),
+        ];
+        return expectedBoundaryIds.every(expectation =>
+          wrappers.some(wrapper => {
+            const key = wrapper.getAttribute(
+              'data-modern-distributed-ssr-boundary',
+            );
+            if (!key?.startsWith(`${expectation.remoteId}::`)) {
+              return false;
+            }
+            if (
+              expectation.requiresReady &&
+              wrapper.getAttribute('data-modern-distributed-ssr-status') !==
+                'ready'
+            ) {
+              return false;
+            }
+            const renderedBoundaryIds = new Set(
+              [...wrapper.querySelectorAll('[data-modern-boundary-id]')]
+                .map(boundary =>
+                  boundary.getAttribute('data-modern-boundary-id'),
+                )
+                .filter(Boolean),
+            );
+            return expectation.boundaryIds.some(candidate =>
+              renderedBoundaryIds.has(candidate),
+            );
+          }),
+        );
+      },
+      expectations,
+      { timeout: 15_000 },
+    );
+  } catch (error) {
+    if (!(error instanceof Error) || error.name !== 'TimeoutError') {
+      throw error;
+    }
+    waitFailure = error.message;
+  }
+
+  return {
+    ...(await collectShellRemoteBoundaries(page, app, {
+      runtime,
+      withinDistributedSsr: true,
+    })),
+    ...(waitFailure ? { waitFailure } : {}),
+  };
+}
+
 export async function waitForHydrationStyles(page) {
   if (typeof page.waitForLoadState === 'function') {
     await page
@@ -305,11 +403,9 @@ export async function waitForHydrationStyles(page) {
   }
 }
 
-async function triggerRemoteBoundaryHydration(page) {
-  const target = await page.evaluate(() => {
-    const boundary = document.querySelector(
-      '[data-modern-distributed-ssr-boundary][data-modern-distributed-ssr-status="ready"]',
-    );
+async function triggerRemoteBoundaryHydration(page, runtime) {
+  const target = await page.evaluate(selector => {
+    const boundary = document.querySelector(selector);
     const interactiveElement = boundary?.querySelector(
       'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]',
     );
@@ -333,7 +429,7 @@ async function triggerRemoteBoundaryHydration(page) {
       boundary: boundary.getAttribute('data-modern-distributed-ssr-boundary'),
       target: interactiveElement.tagName.toLowerCase(),
     };
-  });
+  }, distributedSsrServerBoundarySelector(runtime));
   if (target === undefined) {
     return undefined;
   }
@@ -384,7 +480,7 @@ export async function maybeScreenshot(page, filePath) {
 export async function validateNoJavaScriptSsrTarget(
   target,
   browser,
-  { appArtifactDir },
+  { appArtifactDir, runtime = 'node' },
 ) {
   const app = target.app;
   const context = await browser.newContext({
@@ -416,7 +512,7 @@ export async function validateNoJavaScriptSsrTarget(
     });
     if (usesDedicatedDistributedSsrRoute) {
       await page.waitForSelector(
-        '[data-modern-distributed-ssr-boundary][data-modern-distributed-ssr-status="ready"]',
+        distributedSsrServerBoundarySelector(runtime),
         { state: 'attached', timeout: 15_000 },
       );
       assertions.push(
@@ -470,7 +566,10 @@ export async function validateNoJavaScriptSsrTarget(
       app.moduleFederation?.verticalRefs?.length > 0
     ) {
       const { matchedRemoteBoundaries, remotes, triedRemoteBoundaries } =
-        await collectShellRemoteBoundaries(page, app);
+        await collectShellRemoteBoundaries(page, app, {
+          runtime,
+          withinDistributedSsr: true,
+        });
       assertions.push(
         assertion(
           'no-js-shell-composition-boundary',
@@ -520,7 +619,11 @@ export async function validateNoJavaScriptSsrTarget(
   }
 }
 
-export async function validateBrowserTarget(target, browser, { artifactDir }) {
+export async function validateBrowserTarget(
+  target,
+  browser,
+  { artifactDir, runtime = 'node' },
+) {
   const app = target.app;
   const appArtifactDir = path.join(artifactDir, app.id);
   fs.mkdirSync(appArtifactDir, { recursive: true });
@@ -639,14 +742,49 @@ export async function validateBrowserTarget(target, browser, { artifactDir }) {
     });
     if (shellWithRemotes) {
       await page.waitForSelector(
-        '[data-modern-distributed-ssr-boundary][data-modern-distributed-ssr-status="ready"]',
+        distributedSsrServerBoundarySelector(runtime),
         { state: 'attached', timeout: 15_000 },
       );
-      const initialIdentity = await installHydrationIdentityProbe(page);
+      const {
+        matchedRemoteBoundaries,
+        remotes,
+        triedRemoteBoundaries,
+        waitFailure,
+      } = await waitForEveryShellRemoteBoundary(page, app, runtime);
+      const serverRenderedEveryRemote =
+        matchedRemoteBoundaries.length === remotes.length;
+      assertions.push(
+        assertion(
+          'shell-server-rendered-composition',
+          serverRenderedEveryRemote ? 'pass' : 'fail',
+          {
+            declaredRemoteIds: remotes.map(remote => remote.id),
+            matchedRemoteBoundaries,
+            runtime,
+            triedRemoteBoundaries,
+            waitFailure,
+          },
+        ),
+      );
       assertPass(
-        initialIdentity.boundaryCount > 0 && initialIdentity.nodeCount > 0,
+        serverRenderedEveryRemote,
+        `${app.id} did not server-render every declared remote boundary`,
+        {
+          matchedRemoteBoundaries,
+          runtime,
+          triedRemoteBoundaries,
+          waitFailure,
+        },
+      );
+      const initialIdentity = await installHydrationIdentityProbe(
+        page,
+        runtime,
+      );
+      assertPass(
+        initialIdentity.boundaryCount >= remotes.length &&
+          initialIdentity.nodeCount > initialIdentity.boundaryCount,
         `${app.id} did not expose server-rendered remote DOM for identity tracking`,
-        { initialIdentity },
+        { initialIdentity, remoteCount: remotes.length, runtime },
       );
       releaseFederationAssets();
       releaseFederationAssets = undefined;
@@ -757,7 +895,10 @@ export async function validateBrowserTarget(target, browser, { artifactDir }) {
             response.status() < 400,
           { timeout: 15_000 },
         );
-        selectiveHydrationTrigger = await triggerRemoteBoundaryHydration(page);
+        selectiveHydrationTrigger = await triggerRemoteBoundaryHydration(
+          page,
+          runtime,
+        );
         assertPass(
           selectiveHydrationTrigger !== undefined,
           `${app.id} exposed no interactive remote element for selective hydration`,
@@ -765,7 +906,7 @@ export async function validateBrowserTarget(target, browser, { artifactDir }) {
         await exposedChunkResponse;
         await waitForHydrationStyles(page);
       }
-      hydrationIdentity = await readHydrationIdentityProbe(page);
+      hydrationIdentity = await readHydrationIdentityProbe(page, runtime);
       assertions.push(
         assertion(
           'shell-hydration-dom-identity',
@@ -863,7 +1004,10 @@ export async function validateBrowserTarget(target, browser, { artifactDir }) {
       app.moduleFederation?.verticalRefs?.length > 0
     ) {
       const { matchedRemoteBoundaries, remotes, triedRemoteBoundaries } =
-        await collectShellRemoteBoundaries(page, app);
+        await collectShellRemoteBoundaries(page, app, {
+          runtime,
+          withinDistributedSsr: true,
+        });
       assertions.push(
         assertion(
           'shell-composition-boundary',
@@ -1082,6 +1226,7 @@ export async function validateBrowserTarget(target, browser, { artifactDir }) {
     assertions.push(
       ...(await validateNoJavaScriptSsrTarget(target, browser, {
         appArtifactDir,
+        runtime,
       })),
     );
     return assertions;

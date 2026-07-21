@@ -432,6 +432,43 @@ test('creates local and public smoke targets from the generated contract', async
   );
 });
 
+test('validates public Cloudflare browser targets with workerd semantics', async () => {
+  const { runUltramodernBrowserSmoke } = await loadSmoke();
+  const root = tempRoot();
+  let observedRuntime;
+
+  try {
+    await runUltramodernBrowserSmoke({
+      artifactDir: root,
+      browserProvider: {
+        chromium: {
+          async launch() {
+            return { async close() {} };
+          },
+        },
+      },
+      contract: createContract(),
+      fetchImpl: createFetch(successRoutes()),
+      generatedAt: '2026-07-01T00:00:00.000Z',
+      mode: 'public',
+      out: path.join(root, 'summary.json'),
+      projectDir: root,
+      publicUrls: {
+        'shell-super-app': 'https://shell.example.test',
+      },
+      requirePublicUrls: true,
+      async validateBrowserTargetImpl(_target, _browser, options) {
+        observedRuntime = options.runtime;
+        return [];
+      },
+    });
+
+    assert.equal(observedRuntime, 'workerd');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('creates smoke targets from the compact UltraModern config', async () => {
   const { createSmokeTargets, orderTargetsForLocalStartup } = await loadSmoke();
   const config = createCompactConfig();
@@ -2434,9 +2471,14 @@ function createFakeBrowser({
   boundaryIds = [],
   boundaryIdsAfterHydration = [],
   boundaryIdsNoJs = boundaryIds,
+  boundaryWaitError = false,
   consoleError = false,
   consoleMessages = [],
+  degradedDistributedRemoteIds = [],
+  globalOnlyBoundaryIds = [],
   hydrationIdentityPreserved = true,
+  hydrationProvenanceBoundaryCount,
+  hydrationReadyBoundaryCount,
   localizedDomChanges = true,
   localizedHardReload = false,
   localizedLinkCount,
@@ -2445,6 +2487,7 @@ function createFakeBrowser({
   localizedNavigationPageError = false,
   localizedNavigationSourceLabel = 'Language',
   markerValue = 'build-shell',
+  rejectReadyBoundarySelector = false,
   stylesheetHrefs,
 } = {}) {
   const handlers = {};
@@ -2518,6 +2561,24 @@ function createFakeBrowser({
               ? [...boundaryIds, ...boundaryIdsAfterHydration]
               : boundaryIds
             : boundaryIdsNoJs;
+          if (
+            selector.includes('[data-modern-distributed-ssr-boundary') &&
+            globalOnlyBoundaryIds.some(boundaryId =>
+              selector.includes(`[data-modern-boundary-id="${boundaryId}"]`),
+            )
+          ) {
+            return 0;
+          }
+          if (
+            selector.includes('data-modern-distributed-ssr-status="ready"') &&
+            degradedDistributedRemoteIds.some(remoteId =>
+              selector.includes(
+                `[data-modern-distributed-ssr-boundary^="${remoteId}::"]`,
+              ),
+            )
+          ) {
+            return 0;
+          }
           return renderedBoundaryIds.some(boundaryId =>
             selector.includes(`[data-modern-boundary-id="${boundaryId}"]`),
           )
@@ -2558,15 +2619,25 @@ function createFakeBrowser({
       }
       identityProbeCalls += 1;
       if (identityProbeCalls === 1) {
-        return { boundaryCount: 1, nodeCount: 3 };
+        return {
+          boundaryCount: Math.max(boundaryIds.length, 1),
+          nodeCount: Math.max(boundaryIds.length, 1) * 3,
+        };
       }
+      const identityNodeCount = Math.max(boundaryIds.length, 1) * 3;
       return {
-        boundaryCount: 1,
-        connectedNodeCount: hydrationIdentityPreserved ? 3 : 2,
-        nodeCount: 3,
+        boundaryCount: Math.max(boundaryIds.length, 1),
+        connectedNodeCount: hydrationIdentityPreserved
+          ? identityNodeCount
+          : identityNodeCount - 1,
+        nodeCount: identityNodeCount,
         preserved: hydrationIdentityPreserved,
-        provenanceBoundaryCount: hydrationIdentityPreserved ? 1 : 0,
-        readyBoundaryCount: hydrationIdentityPreserved ? 1 : 0,
+        provenanceBoundaryCount:
+          hydrationProvenanceBoundaryCount ??
+          (hydrationIdentityPreserved ? Math.max(boundaryIds.length, 1) : 0),
+        readyBoundaryCount:
+          hydrationReadyBoundaryCount ??
+          (hydrationIdentityPreserved ? Math.max(boundaryIds.length, 1) : 0),
         removedNodeCount: hydrationIdentityPreserved ? 0 : 1,
       };
     },
@@ -2621,7 +2692,11 @@ function createFakeBrowser({
     async waitForLoadState() {
       hydrationSettled = true;
     },
-    async waitForFunction() {},
+    async waitForFunction() {
+      if (boundaryWaitError) {
+        throw new Error('browser execution context failed');
+      }
+    },
     async waitForURL(predicate) {
       const url = new URL(currentUrl);
       const matches =
@@ -2641,7 +2716,16 @@ function createFakeBrowser({
       assert.equal(predicate(response), true);
       return response;
     },
-    async waitForSelector() {},
+    async waitForSelector(selector) {
+      if (
+        rejectReadyBoundarySelector &&
+        selector.includes('data-modern-distributed-ssr-status="ready"')
+      ) {
+        throw new Error(
+          'Node native Module Federation SSR does not emit workerd fragment status',
+        );
+      }
+    },
     async waitForTimeout() {},
     async unroute() {
       routeHandler = undefined;
@@ -2728,7 +2812,7 @@ test('fails unless the shell renders a declared remote boundary', async () => {
         validateBrowserTarget(target, createFakeBrowser({ boundaryIds: [] }), {
           artifactDir: root,
         }),
-      /did not render a declared remote boundary/,
+      /did not server-render every declared remote boundary/,
     );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
@@ -2750,7 +2834,7 @@ test('fails unless no-JS shell SSR contains every declared remote boundary', asy
         validateBrowserTarget(
           target,
           createFakeBrowser({
-            boundaryIdsAfterHydration: ['inventory', 'finance'],
+            boundaryIds: ['inventory', 'finance'],
             boundaryIdsNoJs: ['inventory'],
           }),
           { artifactDir: root },
@@ -2775,7 +2859,7 @@ test('waits for hydration before checking shell remote boundaries', async () => 
     const assertions = await validateBrowserTarget(
       target,
       createFakeBrowser({
-        boundaryIdsAfterHydration: ['inventory'],
+        boundaryIds: ['inventory'],
         boundaryIdsNoJs: ['inventory'],
       }),
       { artifactDir: root },
@@ -2808,6 +2892,209 @@ test('waits for hydration before checking shell remote boundaries', async () => 
     assert.equal(
       fs.existsSync(path.join(root, 'shell-super-app/federation-network.json')),
       true,
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('accepts native Node shell SSR without workerd fragment status', async () => {
+  const { createSmokeTargets, validateBrowserTarget } = await loadSmoke();
+  const root = tempRoot();
+  const [target] = createSmokeTargets(createContract()).targets;
+  target.app.moduleFederation = {
+    verticalRefs: ['inventory'],
+    remotes: [{ id: 'inventory' }],
+  };
+
+  try {
+    const assertions = await validateBrowserTarget(
+      target,
+      createFakeBrowser({
+        boundaryIds: ['inventory'],
+        boundaryIdsNoJs: ['inventory'],
+        rejectReadyBoundarySelector: true,
+      }),
+      { artifactDir: root, runtime: 'node' },
+    );
+
+    assert.equal(
+      assertions.find(item => item.type === 'shell-hydration-dom-identity')
+        ?.status,
+      'pass',
+    );
+    assert.equal(
+      assertions.find(item => item.type === 'no-js-shell-composition-boundary')
+        ?.status,
+      'pass',
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('requires every declared remote in server-rendered shell DOM before hydration', async () => {
+  const { createSmokeTargets, validateBrowserTarget } = await loadSmoke();
+  const root = tempRoot();
+  const [target] = createSmokeTargets(createContract()).targets;
+  target.app.moduleFederation = {
+    verticalRefs: ['inventory', 'finance'],
+    remotes: [{ id: 'inventory' }, { id: 'finance' }],
+  };
+
+  try {
+    await assert.rejects(
+      () =>
+        validateBrowserTarget(
+          target,
+          createFakeBrowser({
+            boundaryIds: ['inventory'],
+            boundaryIdsAfterHydration: ['finance'],
+            boundaryIdsNoJs: ['inventory', 'finance'],
+          }),
+          { artifactDir: root, runtime: 'node' },
+        ),
+      /did not server-render every declared remote boundary/,
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('rejects global remote markers outside their distributed SSR wrappers', async () => {
+  const { createSmokeTargets, validateBrowserTarget } = await loadSmoke();
+  const root = tempRoot();
+  const [target] = createSmokeTargets(createContract()).targets;
+  target.app.moduleFederation = {
+    verticalRefs: ['inventory'],
+    remotes: [{ id: 'inventory' }],
+  };
+
+  try {
+    await assert.rejects(
+      () =>
+        validateBrowserTarget(
+          target,
+          createFakeBrowser({
+            boundaryIds: ['inventory'],
+            boundaryIdsNoJs: ['inventory'],
+            globalOnlyBoundaryIds: ['inventory'],
+          }),
+          { artifactDir: root, runtime: 'node' },
+        ),
+      /did not server-render every declared remote boundary/,
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('does not swallow shell boundary wait infrastructure failures', async () => {
+  const { createSmokeTargets, validateBrowserTarget } = await loadSmoke();
+  const root = tempRoot();
+  const [target] = createSmokeTargets(createContract()).targets;
+  target.app.moduleFederation = {
+    verticalRefs: ['inventory'],
+    remotes: [{ id: 'inventory' }],
+  };
+
+  try {
+    await assert.rejects(
+      () =>
+        validateBrowserTarget(
+          target,
+          createFakeBrowser({
+            boundaryIds: ['inventory'],
+            boundaryIdsNoJs: ['inventory'],
+            boundaryWaitError: true,
+          }),
+          { artifactDir: root, runtime: 'node' },
+        ),
+      /browser execution context failed/,
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('keeps verified fragment readiness mandatory for workerd shell SSR', async () => {
+  const { createSmokeTargets, validateBrowserTarget } = await loadSmoke();
+  const root = tempRoot();
+  const [target] = createSmokeTargets(createContract()).targets;
+  target.app.moduleFederation = {
+    verticalRefs: ['inventory'],
+    remotes: [{ id: 'inventory' }],
+  };
+
+  try {
+    await assert.rejects(
+      () =>
+        validateBrowserTarget(
+          target,
+          createFakeBrowser({
+            boundaryIds: ['inventory'],
+            boundaryIdsNoJs: ['inventory'],
+            rejectReadyBoundarySelector: true,
+          }),
+          { artifactDir: root, runtime: 'workerd' },
+        ),
+      /does not emit workerd fragment status/,
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('rejects workerd shell hydration identity without fragment provenance', async () => {
+  const { createSmokeTargets, validateBrowserTarget } = await loadSmoke();
+  const root = tempRoot();
+  const [target] = createSmokeTargets(createContract()).targets;
+  target.app.moduleFederation = {
+    verticalRefs: ['inventory'],
+    remotes: [{ id: 'inventory' }],
+  };
+
+  try {
+    await assert.rejects(
+      () =>
+        validateBrowserTarget(
+          target,
+          createFakeBrowser({
+            boundaryIds: ['inventory'],
+            boundaryIdsNoJs: ['inventory'],
+            hydrationProvenanceBoundaryCount: 0,
+          }),
+          { artifactDir: root, runtime: 'workerd' },
+        ),
+      /hydration replaced server-rendered remote DOM nodes/,
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('requires a ready workerd distributed SSR wrapper for every remote', async () => {
+  const { createSmokeTargets, validateBrowserTarget } = await loadSmoke();
+  const root = tempRoot();
+  const [target] = createSmokeTargets(createContract()).targets;
+  target.app.moduleFederation = {
+    verticalRefs: ['inventory', 'finance'],
+    remotes: [{ id: 'inventory' }, { id: 'finance' }],
+  };
+
+  try {
+    await assert.rejects(
+      () =>
+        validateBrowserTarget(
+          target,
+          createFakeBrowser({
+            boundaryIds: ['inventory', 'finance'],
+            boundaryIdsNoJs: ['inventory', 'finance'],
+            degradedDistributedRemoteIds: ['finance'],
+          }),
+          { artifactDir: root, runtime: 'workerd' },
+        ),
+      /did not server-render every declared remote boundary/,
     );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });

@@ -130,7 +130,10 @@ export async function runUltramodernBrowserSmoke(options) {
     mode: options.mode,
     platform: options.platform,
     projectDir: options.projectDir,
-    shellRuntime: options.shellRuntime ?? 'node',
+    shellRuntime:
+      options.mode === 'public'
+        ? (options.platform ?? 'workerd')
+        : (options.shellRuntime ?? 'node'),
     results: [],
     skipped,
     status: 'running',
@@ -142,6 +145,8 @@ export async function runUltramodernBrowserSmoke(options) {
   const localStartupOrder =
     options.mode === 'local' ? orderTargetsForLocalStartup(targets) : undefined;
   const startServerImpl = options.startServerImpl ?? startServer;
+  const validateBrowserTargetImpl =
+    options.validateBrowserTargetImpl ?? validateBrowserTarget;
 
   try {
     if (localStartupOrder) {
@@ -233,9 +238,21 @@ export async function runUltramodernBrowserSmoke(options) {
       const httpAssertions = await validateHttpTarget(target, {
         fetchImpl: options.fetchImpl ?? fetch,
       });
-      const browserAssertions = await validateBrowserTarget(target, browser, {
-        artifactDir: options.artifactDir,
-      });
+      const runtime =
+        report.targetRuntimes[target.app.id] ??
+        options.platform ??
+        (options.mode === 'public'
+          ? 'workerd'
+          : (options.shellRuntime ?? 'node'));
+      report.targetRuntimes[target.app.id] ??= runtime;
+      const browserAssertions = await validateBrowserTargetImpl(
+        target,
+        browser,
+        {
+          artifactDir: options.artifactDir,
+          runtime,
+        },
+      );
       report.results.push({
         appId: target.app.id,
         assertions: [...httpAssertions, ...browserAssertions],
