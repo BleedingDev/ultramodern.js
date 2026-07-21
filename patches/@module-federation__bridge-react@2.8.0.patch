@@ -38,7 +38,7 @@ diff --git a/dist/lazy-load-component-plugin-FKp6nQa-.js b/dist/lazy-load-compon
 +  if (!shouldRender) {
 +    return null;
 +  }
-+  return /* @__PURE__ */ React.createElement("link", { ref: linkRef, href, precedence: "default", rel: "stylesheet", type: "text/css" });
++  return /* @__PURE__ */ React.createElement("link", { ref: linkRef, href, rel: "stylesheet", type: "text/css" });
 +}
  function collectSSRAssets(options) {
    const {
@@ -107,7 +107,7 @@ diff --git a/dist/lazy-load-component-plugin-DEu-DfZt.mjs b/dist/lazy-load-compo
 +  if (!shouldRender) {
 +    return null;
 +  }
-+  return /* @__PURE__ */ React__default.createElement("link", { ref: linkRef, href, precedence: "default", rel: "stylesheet", type: "text/css" });
++  return /* @__PURE__ */ React__default.createElement("link", { ref: linkRef, href, rel: "stylesheet", type: "text/css" });
 +}
  function collectSSRAssets(options) {
    const {

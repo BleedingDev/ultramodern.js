@@ -2487,13 +2487,38 @@ function createFakeBrowser({
   localizedNavigationPageError = false,
   localizedNavigationSourceLabel = 'Language',
   markerValue = 'build-shell',
+  noJavaScriptStylesheetLinks,
+  preFederationHydrationStylesheetLinks,
   rejectReadyBoundarySelector = false,
   stylesheetHrefs,
+  stylesheetLinks,
 } = {}) {
   const handlers = {};
   const contextOptions = [];
   const resolvedStylesheetHrefs = stylesheetHrefs ?? [
     'http://localhost:3020/static/css/app.css',
+  ];
+  const defaultStylesheetLink = {
+    dataChunk: 'shell',
+    dataPrecedence: 'default',
+    href: 'http://localhost:3020/static/css/app.css',
+    outerHTML:
+      '<link rel="stylesheet" href="/static/css/app.css" data-chunk="shell" data-precedence="default">',
+    parent: { id: '', tagName: 'head' },
+    rawHref: '/static/css/app.css',
+  };
+  const resolvedStylesheetLinks =
+    stylesheetLinks ??
+    resolvedStylesheetHrefs.map(href => ({
+      ...defaultStylesheetLink,
+      href,
+      outerHTML: `<link rel="stylesheet" href="${href}">`,
+      rawHref: href,
+    }));
+  const resolvedPreFederationHydrationStylesheetLinks =
+    preFederationHydrationStylesheetLinks ?? [defaultStylesheetLink];
+  const resolvedNoJavaScriptStylesheetLinks = noJavaScriptStylesheetLinks ?? [
+    defaultStylesheetLink,
   ];
   const resolvedLocalizedLinkCount =
     localizedLinkCount ?? (localizedNavigation ? 1 : 0);
@@ -2516,12 +2541,39 @@ function createFakeBrowser({
       if (selector !== 'link[rel~="stylesheet"]') {
         return mapper([]);
       }
+      const stylesheetLinkRecords = !javaScriptEnabled
+        ? resolvedNoJavaScriptStylesheetLinks
+        : hydrationSettled
+          ? resolvedStylesheetLinks
+          : resolvedPreFederationHydrationStylesheetLinks;
       return mapper(
-        resolvedStylesheetHrefs.map(href => ({
+        stylesheetLinkRecords.map(record => ({
           getAttribute(name) {
-            return name === 'rel' ? 'stylesheet' : null;
+            if (name === 'rel') {
+              return 'stylesheet';
+            }
+            if (name === 'href') {
+              return record.rawHref;
+            }
+            if (name === 'data-chunk') {
+              return record.dataChunk ?? null;
+            }
+            if (name === 'data-precedence') {
+              return record.dataPrecedence ?? null;
+            }
+            return null;
           },
-          href,
+          href: record.href,
+          outerHTML: record.outerHTML,
+          parentElement: record.parent
+            ? {
+                getAttribute() {
+                  return null;
+                },
+                id: record.parent.id ?? '',
+                tagName: record.parent.tagName.toUpperCase(),
+              }
+            : null,
           rel: 'stylesheet',
         })),
       );
@@ -3432,7 +3484,14 @@ test('checks SSR output with JavaScript disabled', async () => {
   const { createSmokeTargets, validateBrowserTarget } = await loadSmoke();
   const root = tempRoot();
   const [target] = createSmokeTargets(createContract()).targets;
-  const browser = createFakeBrowser();
+  target.app.moduleFederation = {
+    verticalRefs: ['inventory'],
+    remotes: [{ id: 'inventory' }],
+  };
+  const browser = createFakeBrowser({
+    boundaryIds: ['inventory'],
+    boundaryIdsNoJs: ['inventory'],
+  });
 
   try {
     const assertions = await validateBrowserTarget(target, browser, {
@@ -3454,6 +3513,16 @@ test('checks SSR output with JavaScript disabled', async () => {
       true,
     );
     assert.equal(
+      assertions.some(
+        item => item.type === 'pre-federation-hydration-stylesheet-href-dedupe',
+      ),
+      true,
+    );
+    assert.equal(
+      assertions.some(item => item.type === 'no-js-stylesheet-href-dedupe'),
+      true,
+    );
+    assert.equal(
       fs.existsSync(
         path.join(root, 'shell-super-app/no-js-failed-responses.json'),
       ),
@@ -3463,15 +3532,65 @@ test('checks SSR output with JavaScript disabled', async () => {
       fs.existsSync(path.join(root, 'shell-super-app/stylesheets.json')),
       true,
     );
+    const preFederationHydrationStylesheets = JSON.parse(
+      fs.readFileSync(
+        path.join(
+          root,
+          'shell-super-app/pre-federation-hydration-stylesheets.json',
+        ),
+        'utf8',
+      ),
+    );
+    assert.deepEqual(preFederationHydrationStylesheets, [
+      {
+        dataChunk: 'shell',
+        dataPrecedence: 'default',
+        href: 'http://localhost:3020/static/css/app.css',
+        normalizedHref: 'http://localhost:3020/static/css/app.css',
+        outerHTML:
+          '<link rel="stylesheet" href="/static/css/app.css" data-chunk="shell" data-precedence="default">',
+        parent: { id: '', tagName: 'head' },
+        rawHref: '/static/css/app.css',
+        rel: 'stylesheet',
+      },
+    ]);
+    assert.equal(
+      fs.existsSync(path.join(root, 'shell-super-app/no-js-stylesheets.json')),
+      true,
+    );
+    for (const artifactName of ['no-js-stylesheets.json', 'stylesheets.json']) {
+      const stylesheets = JSON.parse(
+        fs.readFileSync(
+          path.join(root, 'shell-super-app', artifactName),
+          'utf8',
+        ),
+      );
+      assert.deepEqual(Object.keys(stylesheets[0]).sort(), [
+        'dataChunk',
+        'dataPrecedence',
+        'href',
+        'normalizedHref',
+        'outerHTML',
+        'parent',
+        'rawHref',
+        'rel',
+      ]);
+    }
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
 
-test('fails when hydrated stylesheets contain duplicate hrefs', async () => {
+test('fails when pre-federation-hydration stylesheets resolve to a duplicate normalized href', async () => {
   const { createSmokeTargets, validateBrowserTarget } = await loadSmoke();
   const root = tempRoot();
   const [target] = createSmokeTargets(createContract()).targets;
+  target.app.moduleFederation = {
+    verticalRefs: ['inventory'],
+    remotes: [{ id: 'inventory' }],
+  };
+  const normalizedHref =
+    'http://localhost:3020/static/css/async/async-index.css';
 
   try {
     await assert.rejects(
@@ -3479,9 +3598,105 @@ test('fails when hydrated stylesheets contain duplicate hrefs', async () => {
         validateBrowserTarget(
           target,
           createFakeBrowser({
-            stylesheetHrefs: [
-              'http://localhost:3020/static/css/async/async-index.css',
-              'http://localhost:3020/static/css/async/async-index.css',
+            boundaryIds: ['inventory'],
+            preFederationHydrationStylesheetLinks: [
+              {
+                href: normalizedHref,
+                rawHref: '/static/css/async/async-index.css',
+              },
+              {
+                href: normalizedHref,
+                rawHref:
+                  'http://localhost:3020/static/css/async/async-index.css',
+              },
+            ],
+          }),
+          { artifactDir: root },
+        ),
+      /rendered duplicate stylesheet links before federated-boundary hydration/,
+    );
+    const stylesheets = JSON.parse(
+      fs.readFileSync(
+        path.join(
+          root,
+          'shell-super-app/pre-federation-hydration-stylesheets.json',
+        ),
+        'utf8',
+      ),
+    );
+    assert.equal(stylesheets.length, 2);
+    assert.equal(stylesheets[0].normalizedHref, normalizedHref);
+    assert.notEqual(stylesheets[0].rawHref, stylesheets[1].rawHref);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('fails when no-JavaScript stylesheets resolve to a duplicate normalized href', async () => {
+  const { createSmokeTargets, validateBrowserTarget } = await loadSmoke();
+  const root = tempRoot();
+  const [target] = createSmokeTargets(createContract()).targets;
+  const normalizedHref =
+    'http://localhost:3020/static/css/async/async-index.css';
+
+  try {
+    await assert.rejects(
+      () =>
+        validateBrowserTarget(
+          target,
+          createFakeBrowser({
+            noJavaScriptStylesheetLinks: [
+              {
+                href: normalizedHref,
+                rawHref: '/static/css/async/async-index.css',
+              },
+              {
+                href: normalizedHref,
+                rawHref:
+                  'http://localhost:3020/static/css/async/async-index.css',
+              },
+            ],
+          }),
+          { artifactDir: root },
+        ),
+      /rendered duplicate stylesheet links without JavaScript/,
+    );
+    const stylesheets = JSON.parse(
+      fs.readFileSync(
+        path.join(root, 'shell-super-app/no-js-stylesheets.json'),
+        'utf8',
+      ),
+    );
+    assert.equal(stylesheets.length, 2);
+    assert.equal(stylesheets[0].normalizedHref, normalizedHref);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('fails when hydrated stylesheets resolve to a duplicate normalized href', async () => {
+  const { createSmokeTargets, validateBrowserTarget } = await loadSmoke();
+  const root = tempRoot();
+  const [target] = createSmokeTargets(createContract()).targets;
+  const normalizedHref =
+    'http://localhost:3020/static/css/async/async-index.css';
+
+  try {
+    await assert.rejects(
+      () =>
+        validateBrowserTarget(
+          target,
+          createFakeBrowser({
+            stylesheetLinks: [
+              {
+                href: normalizedHref,
+                rawHref: '/static/css/async/async-index.css',
+              },
+              {
+                href: normalizedHref,
+                rawHref:
+                  'http://localhost:3020/static/css/async/async-index.css',
+              },
             ],
           }),
           {
@@ -3497,6 +3712,8 @@ test('fails when hydrated stylesheets contain duplicate hrefs', async () => {
       ),
     );
     assert.equal(stylesheets.length, 2);
+    assert.equal(stylesheets[0].normalizedHref, normalizedHref);
+    assert.notEqual(stylesheets[0].rawHref, stylesheets[1].rawHref);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

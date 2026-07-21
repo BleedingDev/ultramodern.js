@@ -459,11 +459,25 @@ async function triggerRemoteBoundaryHydration(page, runtime) {
 
 export async function collectStylesheetLinks(page) {
   return page.$$eval('link[rel~="stylesheet"]', links =>
-    links.map(link => ({
-      dataChunk: link.getAttribute('data-chunk') ?? undefined,
-      href: link.href,
-      rel: link.getAttribute('rel') ?? link.rel ?? '',
-    })),
+    links.map(link => {
+      const parentElement = link.parentElement;
+      const normalizedHref = link.href;
+      return {
+        dataChunk: link.getAttribute('data-chunk') ?? undefined,
+        dataPrecedence: link.getAttribute('data-precedence') ?? undefined,
+        href: normalizedHref,
+        normalizedHref,
+        outerHTML: link.outerHTML,
+        parent: parentElement
+          ? {
+              id: parentElement.id,
+              tagName: parentElement.tagName.toLowerCase(),
+            }
+          : undefined,
+        rawHref: link.getAttribute('href') ?? undefined,
+        rel: link.getAttribute('rel') ?? link.rel ?? '',
+      };
+    }),
   );
 }
 
@@ -492,6 +506,7 @@ export async function validateNoJavaScriptSsrTarget(
   });
   const page = await context.newPage();
   const failedResponses = [];
+  let stylesheetLinks = [];
 
   page.on('response', response => {
     const status = response.status();
@@ -588,6 +603,26 @@ export async function validateNoJavaScriptSsrTarget(
       );
     }
 
+    stylesheetLinks = await collectStylesheetLinks(page);
+    const duplicateStylesheetHrefs = findDuplicateStylesheetHrefs(
+      stylesheetLinks.map(link => link.normalizedHref),
+    );
+    assertions.push(
+      assertion(
+        'no-js-stylesheet-href-dedupe',
+        duplicateStylesheetHrefs.length === 0 ? 'pass' : 'fail',
+        {
+          duplicateStylesheetHrefs,
+          stylesheetCount: stylesheetLinks.length,
+        },
+      ),
+    );
+    assertPass(
+      duplicateStylesheetHrefs.length === 0,
+      `${app.id} rendered duplicate stylesheet links without JavaScript`,
+      { duplicateStylesheetHrefs, stylesheetLinks },
+    );
+
     assertions.push(
       assertion(
         'no-js-ssr-failed-responses',
@@ -615,6 +650,11 @@ export async function validateNoJavaScriptSsrTarget(
       failedResponses,
       { atomic: false },
     );
+    writeJsonFile(
+      path.join(appArtifactDir, 'no-js-stylesheets.json'),
+      stylesheetLinks,
+      { atomic: false },
+    );
     await context.close();
   }
 }
@@ -640,6 +680,7 @@ export async function validateBrowserTarget(
   const failedResponses = [];
   const federationResponses = [];
   const observedRemoteOrigins = new Set();
+  let preFederationHydrationStylesheetLinks = [];
   let stylesheetLinks = [];
   let hydrationIdentity;
   let federationRouteHandler;
@@ -774,6 +815,36 @@ export async function validateBrowserTarget(
           runtime,
           triedRemoteBoundaries,
           waitFailure,
+        },
+      );
+      preFederationHydrationStylesheetLinks =
+        await collectStylesheetLinks(page);
+      const duplicatePreFederationHydrationStylesheetHrefs =
+        findDuplicateStylesheetHrefs(
+          preFederationHydrationStylesheetLinks.map(
+            link => link.normalizedHref,
+          ),
+        );
+      assertions.push(
+        assertion(
+          'pre-federation-hydration-stylesheet-href-dedupe',
+          duplicatePreFederationHydrationStylesheetHrefs.length === 0
+            ? 'pass'
+            : 'fail',
+          {
+            duplicateStylesheetHrefs:
+              duplicatePreFederationHydrationStylesheetHrefs,
+            stylesheetCount: preFederationHydrationStylesheetLinks.length,
+          },
+        ),
+      );
+      assertPass(
+        duplicatePreFederationHydrationStylesheetHrefs.length === 0,
+        `${app.id} rendered duplicate stylesheet links before federated-boundary hydration`,
+        {
+          duplicateStylesheetHrefs:
+            duplicatePreFederationHydrationStylesheetHrefs,
+          stylesheetLinks: preFederationHydrationStylesheetLinks,
         },
       );
       const initialIdentity = await installHydrationIdentityProbe(
@@ -1028,7 +1099,7 @@ export async function validateBrowserTarget(
 
     stylesheetLinks = await collectStylesheetLinks(page);
     const duplicateStylesheetHrefs = findDuplicateStylesheetHrefs(
-      stylesheetLinks.map(link => link.href),
+      stylesheetLinks.map(link => link.normalizedHref),
     );
     assertions.push(
       assertion(
@@ -1251,6 +1322,11 @@ export async function validateBrowserTarget(
     writeJsonFile(
       path.join(appArtifactDir, 'stylesheets.json'),
       stylesheetLinks,
+      { atomic: false },
+    );
+    writeJsonFile(
+      path.join(appArtifactDir, 'pre-federation-hydration-stylesheets.json'),
+      preFederationHydrationStylesheetLinks,
       { atomic: false },
     );
     if (
