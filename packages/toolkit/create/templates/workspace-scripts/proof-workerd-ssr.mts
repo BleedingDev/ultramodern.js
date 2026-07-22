@@ -394,16 +394,34 @@ const closeServer = (server) =>
     server.close((error) => (error ? reject(error) : resolve()));
   });
 
-const startWorkerdTargetServers = async (miniflare, failedServices) => {
+const startWorkerdTargetServers = async (
+  miniflare,
+  failedServices,
+  workerConfigurations,
+) => {
   const servers = [];
+  const isolatedVerticalRuntimes = [];
   const targetUrls = {};
   try {
-    for (const app of apps) {
+    for (const [index, app] of apps.entries()) {
       assert(
         Number.isInteger(app.port) && app.port > 0,
         `${app.id} requires a configured local port for all-workerd browser proof`,
       );
-      const target = await miniflare.getWorker(workerName(app));
+      // Miniflare 4 currently assigns one shared assets storage service inside
+      // a multi-worker instance. Keep the shell composition runtime intact,
+      // but give every directly browsed MicroVertical its own runtime so its
+      // static assets and MF manifest cannot resolve from a sibling Worker.
+      const runtime =
+        app.kind === "vertical"
+          ? new Miniflare({
+              log: new Log(LogLevel.ERROR),
+              workers: [workerConfigurations[index]],
+            })
+          : miniflare;
+      if (runtime !== miniflare) {
+        isolatedVerticalRuntimes.push(runtime);
+      }
       const server = http.createServer(async (incoming, outgoing) => {
         try {
           const body = await readRequestBody(incoming);
@@ -424,16 +442,19 @@ const startWorkerdTargetServers = async (miniflare, failedServices) => {
             outgoing.end(JSON.stringify({ failed: failedServices.has(service), service }));
             return;
           }
-          const request = new Request(
-            `http://127.0.0.1:${app.port}${incoming.url ?? "/"}`,
+          // Miniflare's WorkerFetcher owns its own Request implementation.
+          // Passing a Node-global Request across that realm boundary makes
+          // Miniflare stringify it as "[object Request]" and reject the URL.
+          // Keep the internal URL on the target Worker's canonical fake host
+          // so Miniflare also selects that Worker's asset namespace.
+          const response = await runtime.dispatchFetch(
+            `https://${workerName(app)}.invalid${incoming.url ?? "/"}`,
             {
-              body,
+              ...(body === undefined ? {} : { body }),
               headers: incoming.headers,
               method: incoming.method,
-              ...(body === undefined ? {} : { duplex: "half" }),
             },
           );
-          const response = await target.fetch(request);
           outgoing.writeHead(
             response.status,
             Object.fromEntries(response.headers.entries()),
@@ -452,10 +473,16 @@ const startWorkerdTargetServers = async (miniflare, failedServices) => {
       targetUrls,
       async stop() {
         await Promise.allSettled(servers.map(closeServer));
+        await Promise.allSettled(
+          isolatedVerticalRuntimes.map((runtime) => runtime.dispose()),
+        );
       },
     };
   } catch (error) {
     await Promise.allSettled(servers.map(closeServer));
+    await Promise.allSettled(
+      isolatedVerticalRuntimes.map((runtime) => runtime.dispose()),
+    );
     throw error;
   }
 };
@@ -766,6 +793,7 @@ for (const shell of shells) {
       const targetServers = await startWorkerdTargetServers(
         miniflare,
         failedServices,
+        workers,
       );
       console.log(`WORKERD_TARGET_URLS=${JSON.stringify(targetServers.targetUrls)}`);
       console.log(`WORKERD_URL=${targetServers.targetUrls[shell.id]}`);

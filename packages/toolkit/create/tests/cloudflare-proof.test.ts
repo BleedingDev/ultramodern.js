@@ -276,6 +276,37 @@ createServiceBindings;`,
   ]);
 });
 
+test('workerd browser bridge crosses the Miniflare realm with URL and init', () => {
+  const proofTemplate = fs.readFileSync(
+    path.join(packageRoot, 'templates/workspace-scripts/proof-workerd-ssr.mts'),
+    'utf-8',
+  );
+  const targetServersStart = proofTemplate.indexOf(
+    'const startWorkerdTargetServers =',
+  );
+  const readAttributeStart = proofTemplate.indexOf('const readAttribute =');
+  assert.notEqual(targetServersStart, -1);
+  assert.notEqual(readAttributeStart, -1);
+  const targetServers = proofTemplate.slice(
+    targetServersStart,
+    readAttributeStart,
+  );
+
+  assert.doesNotMatch(targetServers, /new Request\(/u);
+  assert.match(
+    targetServers,
+    /app\.kind === "vertical"[\s\S]*?new Miniflare\(\{[\s\S]*?workers: \[workerConfigurations\[index\]\],[\s\S]*?\}\)/u,
+  );
+  assert.match(
+    targetServers,
+    /runtime\.dispatchFetch\(\s*`https:\/\/\$\{workerName\(app\)\}\.invalid\$\{incoming\.url \?\? "\/"\}`,\s*\{[\s\S]*?method: incoming\.method,[\s\S]*?\},\s*\)/u,
+  );
+  assert.match(
+    targetServers,
+    /isolatedVerticalRuntimes[\s\S]*?runtime\.dispose\(\)/u,
+  );
+});
+
 test('workerd proof binds selected modules and API responses to the executed envelope', () => {
   const proofTemplate = fs.readFileSync(
     path.join(packageRoot, 'templates/workspace-scripts/proof-workerd-ssr.mts'),
