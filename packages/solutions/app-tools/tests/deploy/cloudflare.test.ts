@@ -889,6 +889,67 @@ afterEach(async () => {
 });
 
 describe('cloudflare deploy preset', () => {
+  it('resolves the Rspack auto public path from the Worker origin root', async () => {
+    const fixtureDirectory = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'modern-cloudflare-loadable-'),
+    );
+    tempDirectories.push(fixtureDirectory);
+    const templatePath = path.join(fixtureDirectory, 'loadable-server.mjs');
+    await fs.copyFile(
+      path.join(
+        process.cwd(),
+        'src/plugins/deploy/platforms/templates/cloudflare-worker-loadable-server.mjs',
+      ),
+      templatePath,
+    );
+    for (const [packageName, source] of [
+      [
+        'react',
+        'export default { createContext: () => ({}), createElement: () => undefined };',
+      ],
+      [
+        '@loadable/component',
+        'export default { __SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED: {} };',
+      ],
+    ]) {
+      const packageDirectory = path.join(
+        fixtureDirectory,
+        'node_modules',
+        packageName,
+      );
+      await fs.mkdir(packageDirectory, { recursive: true });
+      await fs.writeFile(
+        path.join(packageDirectory, 'package.json'),
+        JSON.stringify({ type: 'module', exports: './index.js' }),
+      );
+      await fs.writeFile(path.join(packageDirectory, 'index.js'), source);
+    }
+    const { ChunkExtractor } = await import(
+      `${pathToFileURL(templatePath).href}?t=${Date.now()}`
+    );
+    const extractor = new ChunkExtractor({
+      entrypoints: ['main'],
+      stats: {
+        namedChunkGroups: {
+          main: {
+            assets: [
+              'static/js/main.12345678.js',
+              'static/css/main.12345678.css',
+            ],
+            childAssets: {},
+            chunks: [],
+          },
+        },
+        publicPath: 'auto',
+      },
+    });
+
+    expect(extractor.getChunkAssets('main').map(asset => asset.url)).toEqual([
+      '/static/js/main.12345678.js',
+      '/static/css/main.12345678.css',
+    ]);
+  });
+
   it('fails clearly when Effect BFF is configured but its worker bundle is missing', async () => {
     await expect(createFixture({ includeBffWorker: false })).rejects.toThrow(
       /Cloudflare Effect API runtime is configured, but the BFF worker bundle is missing: .*worker[\\/]__modern_bff_effect\.js.*@modern-js\/plugin-bff\/effect-edge/u,

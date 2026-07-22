@@ -32,7 +32,7 @@ function extname(filePath) {
 }
 
 function joinUrl(publicPath, filename) {
-  const base = publicPath || '/';
+  const base = !publicPath || publicPath === 'auto' ? '/' : publicPath;
 
   return `${base.replace(/\/+$/u, '')}/${String(filename).replace(/^\/+/u, '')}`;
 }
@@ -108,7 +108,11 @@ export class ChunkExtractor {
   } = {}) {
     this.namespace = namespace;
     this.stats = stats || {};
-    this.publicPath = publicPath || this.stats.publicPath || '/';
+    const configuredPublicPath = publicPath || this.stats.publicPath;
+    this.publicPath =
+      !configuredPublicPath || configuredPublicPath === 'auto'
+        ? '/'
+        : configuredPublicPath;
     this.outputPath = outputPath || this.stats.outputPath || '/';
     this.entrypoints = Array.isArray(entrypoints) ? entrypoints : [entrypoints];
     this.chunks = [];
