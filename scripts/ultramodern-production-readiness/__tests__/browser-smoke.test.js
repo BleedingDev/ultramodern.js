@@ -72,6 +72,12 @@ function createNodeBackendProofResult() {
           byteLength: 4096,
           sha256: 'd'.repeat(64),
         },
+        {
+          logicalPath: 'shared/runtime.js',
+          runtime: 'node',
+          byteLength: 2048,
+          sha256: 'e'.repeat(64),
+        },
       ],
       status: 'pass',
     },
@@ -1409,6 +1415,8 @@ test('canonical backend proof shape contract rejects missing live correlation wh
   for (const logicalPath of [
     '/api/index.js',
     String.raw`api\index.js`,
+    'shared/config.json',
+    'private/runtime.js',
     '',
     '.',
     'api/./index.js',

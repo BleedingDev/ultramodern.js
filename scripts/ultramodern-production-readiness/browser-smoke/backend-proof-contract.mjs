@@ -55,7 +55,7 @@ function isNormalizedReleaseEnvelopePath(value) {
   );
 }
 
-function isNormalizedApiBackendArtifactPath(value) {
+function isNormalizedNodeApiBackendArtifactPath(value) {
   if (
     typeof value !== 'string' ||
     value.includes('\\') ||
@@ -65,7 +65,7 @@ function isNormalizedApiBackendArtifactPath(value) {
   }
   const segments = value.split('/');
   return (
-    segments[0] === 'api' &&
+    ['api', 'shared'].includes(segments[0]) &&
     segments.length > 1 &&
     segments.every(
       segment => segment.length > 0 && !['.', '..'].includes(segment),
@@ -187,7 +187,7 @@ function validateNodeBackendFederationProofResult(result) {
     liveApi.apiBackendArtifacts.some(
       artifact =>
         !isRecord(artifact) ||
-        !isNormalizedApiBackendArtifactPath(artifact.logicalPath) ||
+        !isNormalizedNodeApiBackendArtifactPath(artifact.logicalPath) ||
         !Number.isSafeInteger(artifact.byteLength) ||
         artifact.byteLength <= 0 ||
         !sha256Pattern.test(artifact.sha256),
