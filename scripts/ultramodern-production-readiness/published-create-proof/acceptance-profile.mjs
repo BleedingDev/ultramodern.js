@@ -721,16 +721,6 @@ async function runAcceptanceProfile({
         ),
       );
 
-      await recordAcceptanceResult(receipt, 'cloudflare-build', () =>
-        withDuration(() => {
-          runImpl('pnpm', requiredPnpmCommands.cloudflareBuild, {
-            cwd: projectDir,
-            env: packageManagerEnv,
-          });
-          return { command: 'pnpm cloudflare:build' };
-        }),
-      );
-
       await recordAcceptanceResult(receipt, 'topology', () =>
         withDuration(() => {
           artifacts = readWorkspaceAcceptanceArtifacts(projectDir);
@@ -749,6 +739,20 @@ async function runAcceptanceProfile({
         withDuration(() =>
           assertBackendAcceptance(artifacts, options.verticals),
         ),
+      );
+
+      // The Cloudflare deploy replaces each app's final `.output` directory.
+      // Capture every path-based Node artifact assertion first; the strict Node
+      // browser report above and this backend-envelope assertion must describe
+      // the same executed deployment roots, not the later Cloudflare staging.
+      await recordAcceptanceResult(receipt, 'cloudflare-build', () =>
+        withDuration(() => {
+          runImpl('pnpm', requiredPnpmCommands.cloudflareBuild, {
+            cwd: projectDir,
+            env: packageManagerEnv,
+          });
+          return { command: 'pnpm cloudflare:build' };
+        }),
       );
       for (const platform of runtimeAcceptancePlatforms) {
         for (const dimension of runtimeAcceptanceDimensions) {

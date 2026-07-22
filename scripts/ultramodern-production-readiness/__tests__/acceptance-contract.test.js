@@ -121,9 +121,16 @@ test('acceptance executes final Node outputs before Cloudflare replaces .output'
   const cloudflare = source.indexOf(
     "recordAcceptanceResult(receipt, 'cloudflare-build'",
   );
+  const nodeBackendArtifacts = source.indexOf(
+    "recordAcceptanceResult(receipt, 'backend'",
+  );
 
   assert.ok(build >= 0 && build < eagerNode);
   assert.ok(eagerNode < cloudflare);
+  assert.ok(
+    eagerNode < nodeBackendArtifacts && nodeBackendArtifacts < cloudflare,
+    'all path-based Node backend evidence must be captured before Cloudflare replaces .output',
+  );
   assert.match(
     source.slice(eagerNode, cloudflare),
     /runtimeAcceptanceInvocation\(mode, 'node'\)/u,
