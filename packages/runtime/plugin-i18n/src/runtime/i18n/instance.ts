@@ -82,11 +82,12 @@ export interface I18nInstance {
   setLang?: (lang: string) => void | Promise<void>;
   use: (plugin: unknown) => void;
   createInstance?: (options?: I18nInitOptions) => I18nInstance;
-  cloneInstance?: () => I18nInstance; // ssr need
+  cloneInstance?: (options?: I18nInitOptions) => I18nInstance; // ssr need
   // i18next store (may not be in type definition but exists at runtime)
   store?: I18nResourceStore;
   emit?: (event: string, ...args: unknown[]) => void;
   reloadResources?: (language?: string, namespace?: string) => Promise<void>;
+  removeResourceBundle?: (language: string, namespace: string) => I18nInstance;
   services?: {
     languageDetector?: {
       detect: (
@@ -154,6 +155,7 @@ export type I18nInitOptions = {
     useSuspense?: boolean;
     [key: string]: unknown;
   };
+  forkResourceStore?: boolean;
 };
 
 export function isI18nInstance(obj: unknown): obj is I18nInstance {

@@ -108,7 +108,11 @@ export type {
   CanonicalRoutePath,
   UltramodernCanonicalRoutes,
 } from './canonicalRoutes';
-export { useModernI18n } from './context';
+export {
+  FederatedI18nBoundary,
+  type FederatedI18nBoundaryProps,
+  useModernI18n,
+} from './context';
 export { I18nLink, type I18nLinkProps } from './I18nLink';
 export {
   Link,

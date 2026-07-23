@@ -142,15 +142,7 @@ function createAppLocaleMessages(app: WorkspaceApp, language: 'en' | 'cs') {
 export function createAppPublicLocaleMessages(
   app: WorkspaceApp,
   language: 'en' | 'cs',
-  remotes: WorkspaceApp[] = [],
+  _remotes: WorkspaceApp[] = [],
 ) {
-  if (app.kind !== 'shell') {
-    return createAppLocaleMessages(app, language);
-  }
-
-  return Object.assign(
-    {},
-    createAppLocaleMessages(app, language),
-    ...remotes.map(remote => createAppLocaleMessages(remote, language)),
-  );
+  return createAppLocaleMessages(app, language);
 }

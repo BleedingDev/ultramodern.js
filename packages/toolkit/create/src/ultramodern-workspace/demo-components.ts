@@ -1,5 +1,6 @@
 import {
   appHasApi,
+  appI18nNamespace,
   distributedSsrExposes,
   remoteDependencyAlias,
   resolveApiProtocol,
@@ -14,6 +15,37 @@ import {
   toPascalCase,
 } from './naming';
 import type { WorkspaceApp } from './types';
+
+function createFederatedI18nSetup(
+  app: WorkspaceApp,
+  localeRoot: string,
+): string {
+  const namespace = appI18nNamespace(app);
+
+  return `import { FederatedI18nBoundary, useModernI18n } from '@modern-js/plugin-i18n/runtime';
+import csResource from '${localeRoot}/cs/${namespace}.json';
+import enResource from '${localeRoot}/en/${namespace}.json';
+
+const federatedI18nLanguages = ['en', 'cs'];
+const federatedI18nResources = {
+  cs: { ${JSON.stringify(namespace)}: csResource },
+  en: { ${JSON.stringify(namespace)}: enResource },
+};`;
+}
+
+function createFederatedI18nBoundary(
+  namespace: string,
+  content: string,
+): string {
+  return `<FederatedI18nBoundary
+      defaultNamespace="${namespace}"
+      fallbackLanguage="en"
+      resources={federatedI18nResources}
+      supportedLanguages={federatedI18nLanguages}
+    >
+      ${content}
+    </FederatedI18nBoundary>`;
+}
 
 export function createShellPage(
   shell: WorkspaceApp,
@@ -413,10 +445,12 @@ export default function Layout() {
 export function createRemoteEntry(app: WorkspaceApp): string {
   const tw = createTw(tailwindPrefixForApp(app));
   const domain = app.domain ?? app.id;
+  const namespace = appI18nNamespace(app);
+  const componentName = `${toPascalCase(domain)}Route`;
 
-  return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
+  return `${createFederatedI18nSetup(app, '../locales')}
 
-export default function ${toPascalCase(domain)}Route() {
+const ${componentName}Content = () => {
   const { t } = useModernI18n();
 
   return (
@@ -424,6 +458,12 @@ export default function ${toPascalCase(domain)}Route() {
       <h2 className="${tw('text-2xl font-black')}">{t('${domain}.title')}</h2>
       <p className="${tw('mt-2 text-stone-600')}">{t('${domain}.routeSurface')}</p>
     </section>
+  );
+};
+
+export default function ${componentName}() {
+  return (
+    ${createFederatedI18nBoundary(namespace, `<${componentName}Content />`)}
   );
 }
 `;
@@ -433,10 +473,11 @@ function createRemoteWidget(app: WorkspaceApp): string {
   const tw = createTw(tailwindPrefixForApp(app));
   const domain = app.domain ?? app.id;
   const componentName = `${toPascalCase(domain)}Widget`;
+  const namespace = appI18nNamespace(app);
 
-  return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
+  return `${createFederatedI18nSetup(app, '../../locales')}
 
-export default function ${componentName}() {
+const ${componentName}Content = () => {
   const { t } = useModernI18n();
 
   return (
@@ -444,6 +485,12 @@ export default function ${componentName}() {
       <h2 className="${tw('text-2xl font-black')}">{t('${domain}.title')}</h2>
       <p className="${tw('mt-2 text-stone-600')}">{t('${domain}.widgetBody')}</p>
     </section>
+  );
+};
+
+export default function ${componentName}() {
+  return (
+    ${createFederatedI18nBoundary(namespace, `<${componentName}Content />`)}
   );
 }
 `;
@@ -505,10 +552,11 @@ export function createRemoteExposeComponent(
     expose.replace(/^\.\//u, ''),
   )}`;
   const domain = app.domain ?? app.id;
+  const namespace = appI18nNamespace(app);
 
-  return `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
+  return `${createFederatedI18nSetup(app, '../../locales')}
 
-export default function ${componentName}() {
+const ${componentName}Content = () => {
   const { t } = useModernI18n();
 
   return (
@@ -516,6 +564,12 @@ export default function ${componentName}() {
       <h2 className="${tw('text-2xl font-black')}">{t('${domain}.title')}</h2>
       <p className="${tw('mt-2 text-stone-600')}">{t('${domain}.federatedSurface')}</p>
     </section>
+  );
+};
+
+export default function ${componentName}() {
+  return (
+    ${createFederatedI18nBoundary(namespace, `<${componentName}Content />`)}
   );
 }
 `;

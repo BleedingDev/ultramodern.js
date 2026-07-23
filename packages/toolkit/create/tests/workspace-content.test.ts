@@ -626,6 +626,41 @@ test('rendered contents of the highest-risk generated files match the checked-in
       /declare module '\*\.(?:svg|css)'/,
       'generated vertical env must not redeclare framework-owned asset modules',
     );
+    const shellEnglishMessages = readJson(
+      path.join(workspaceDir, 'apps/shell-super-app/locales/en/shell.json'),
+    );
+    const catalogEnglishMessages = readJson(
+      path.join(workspaceDir, 'verticals/catalog/locales/en/catalog.json'),
+    );
+    assert.equal(
+      shellEnglishMessages.catalog,
+      undefined,
+      'the shell delivery unit must not bundle a MicroVertical translation catalog',
+    );
+    assert.equal(
+      (catalogEnglishMessages.catalog as Record<string, unknown>).widgetBody,
+      'Owns a vertical route surface.',
+      'the MicroVertical delivery unit must own its translation catalog',
+    );
+    const catalogWidget = fs.readFileSync(
+      path.join(
+        workspaceDir,
+        'verticals/catalog/src/components/catalog-widget.tsx',
+      ),
+      'utf-8',
+    );
+    assert.match(
+      catalogWidget,
+      /FederatedI18nBoundary/,
+      'a generated federated component must establish the framework-owned remote i18n boundary',
+    );
+    assert.match(catalogWidget, /locales\/cs\/catalog\.json/);
+    assert.match(catalogWidget, /locales\/en\/catalog\.json/);
+    assert.match(
+      catalogWidget,
+      /defaultNamespace="catalog"/,
+      'the remote i18n boundary must bind the MicroVertical namespace',
+    );
 
     // Regression: the vertical page once read the bare identifier
     // `supportedLanguages` without declaring it, so every --vertical
