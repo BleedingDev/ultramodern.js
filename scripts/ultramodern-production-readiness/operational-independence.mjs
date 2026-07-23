@@ -572,12 +572,14 @@ function readAndVerifyEnvelope(outputRoot, expectedTarget, options = {}) {
           (expectedTarget === 'cloudflare' &&
             artifact.logicalPath === 'server/index.mjs'));
       // Modern's final Node index.js and Cloudflare server/index.mjs are
-      // generic deployment launchers, not Rspack SSR execution modules. The
-      // framework envelope verifier makes these same narrow exclusions while
-      // requiring every route-referenced and compiled SSR/workerd module to
-      // carry identity. Keep scanning launchers for forbidden prior identity
-      // above, and reject any partial current stamp.
-      if (isNeutralDeploymentLauncher && presentIdentityParts.length === 0) {
+      // generic deployment launchers, not Rspack SSR execution modules. They
+      // can legitimately contain the current framework releaseVersion without
+      // carrying the per-build marker and revision. The framework envelope
+      // verifier makes these same narrow exclusions while requiring every
+      // route-referenced and compiled SSR/workerd module to carry identity.
+      // Keep hash-binding launchers through the envelope and scanning them for
+      // forbidden prior identity above, but do not classify them as carriers.
+      if (isNeutralDeploymentLauncher) {
         continue;
       }
       if (presentIdentityParts.length !== identityParts.length) {

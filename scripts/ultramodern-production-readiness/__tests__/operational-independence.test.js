@@ -833,15 +833,20 @@ test('final-envelope verification still rejects prior identity in a neutral Node
   );
 });
 
-test('final-envelope verification accepts only an identity-neutral Cloudflare deployment launcher', async t => {
+test('final-envelope verification excludes the Cloudflare deployment launcher from the compiled identity closure', async t => {
   const { readAndVerifyEnvelope } = await loadProof();
   const root = fs.mkdtempSync(
     path.join(os.tmpdir(), 'operational-independence-cloudflare-launcher-'),
   );
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
-  createEnvelopeFixture(root, 'cloudflare', {
+  const { identity } = createEnvelopeFixture(root, 'cloudflare', {
     neutralCloudflareLauncher: true,
   });
+  rewriteEnvelopeArtifact(
+    root,
+    'server/index.mjs',
+    `import '../worker/ssr.js';\n/* framework ${identity.releaseVersion} */\n`,
+  );
 
   const evidence = readAndVerifyEnvelope(root, 'cloudflare');
 
