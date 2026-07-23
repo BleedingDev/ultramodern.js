@@ -960,6 +960,16 @@ function validatePublishWorkflow(workflow) {
     'Run published ERP-10 acceptance',
     'accept-published job',
   );
+  const publishedMiseSteps = actionSteps(
+    publishedAcceptanceJob,
+    'jdx/mise-action',
+    'accept-published job',
+  );
+  requireCondition(
+    publishedMiseSteps.length === 1,
+    'accept-published must install the pinned mise toolchain before running ERP-10',
+  );
+  const publishedMise = publishedMiseSteps[0];
   const publishedAcceptanceUpload = artifactStep(
     publishedAcceptanceJob,
     'actions/upload-artifact',
@@ -1038,8 +1048,10 @@ function validatePublishWorkflow(workflow) {
     'accept-published job',
   );
   requireCondition(
-    publishedSteps.indexOf(publishedIdentityDownload) <
-      publishedSteps.indexOf(publishedProducerReceiptVerification) &&
+    publishedSteps.indexOf(publishedMise) <
+      publishedSteps.indexOf(publishedIdentityDownload) &&
+      publishedSteps.indexOf(publishedIdentityDownload) <
+        publishedSteps.indexOf(publishedProducerReceiptVerification) &&
       publishedSteps.indexOf(publishedProducerReceiptVerification) <
         publishedSteps.indexOf(publishedIdentityVerification) &&
       publishedSteps.indexOf(publishedIdentityVerification) <
@@ -1048,7 +1060,7 @@ function validatePublishWorkflow(workflow) {
         publishedSteps.indexOf(publishedAcceptanceRun) &&
       publishedSteps.indexOf(publishedAcceptanceRun) <
         publishedSteps.indexOf(publishedAcceptanceUpload),
-    'accept-published must download, authenticate, verify the registry, run ERP-10, then upload evidence',
+    'accept-published must install its toolchain, download, authenticate, verify the registry, run ERP-10, then upload evidence',
   );
 
   const outcomePublishedDownload = artifactStep(

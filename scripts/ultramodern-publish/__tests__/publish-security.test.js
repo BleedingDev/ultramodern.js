@@ -687,6 +687,7 @@ test('published acceptance is exact-version, no-authority, and gates non-dry suc
   const outcome = parsed.jobs['record-publish-outcome'];
   const registry = namedStep(acceptance, 'Wait for the exact registry cohort');
   const run = namedStep(acceptance, 'Run published ERP-10 acceptance');
+  const mise = actionSteps(acceptance, 'jdx/mise-action')[0];
   const upload = actionSteps(acceptance, 'actions/upload-artifact')[0];
 
   assert.deepEqual(normalizeNeeds(acceptance).sort(), [
@@ -702,6 +703,8 @@ test('published acceptance is exact-version, no-authority, and gates non-dry suc
   assert.match(run.run, /--mode published/u);
   assert.match(run.run, /--scale-profile erp-10/u);
   assert.match(run.run, /--expected-version "\$PUBLISH_VERSION"/u);
+  assert.ok(mise);
+  assert.ok(acceptance.steps.indexOf(mise) < acceptance.steps.indexOf(run));
   assert.equal(upload.if, 'always()');
   assert.doesNotMatch(
     JSON.stringify(acceptance),
@@ -764,6 +767,17 @@ test('publish validator rejects authority, mutable resolution, and acceptance by
         ).run += '\nnpm install @bleedingdev/modern-js-create@latest';
       },
       /exact npm version|mutable package resolution/u,
+    ],
+    [
+      'missing published acceptance toolchain',
+      parsed => {
+        parsed.jobs['accept-published'].steps = parsed.jobs[
+          'accept-published'
+        ].steps.filter(
+          step => !String(step.uses ?? '').startsWith('jdx/mise-action@'),
+        );
+      },
+      /must install the pinned mise toolchain/u,
     ],
     [
       'outcome bypass',
