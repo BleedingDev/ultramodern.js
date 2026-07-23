@@ -163,7 +163,11 @@ function runtimeVersions(runImpl, registryTool) {
   };
 }
 
-function resolveExactPnpmExecutable(runImpl, expectedVersion) {
+function resolveExactPnpmExecutable(
+  runImpl,
+  expectedVersion,
+  environment = process.env,
+) {
   if (
     typeof expectedVersion !== 'string' ||
     !/^[1-9]\d*\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$/u.test(expectedVersion)
@@ -172,30 +176,32 @@ function resolveExactPnpmExecutable(runImpl, expectedVersion) {
       `Release manifest must bind an exact pnpm version, found ${String(expectedVersion)}`,
     );
   }
-  const discoveryScript = `
-    const fs = require('node:fs');
-    const path = require('node:path');
-    const names = process.platform === 'win32'
-      ? ['pnpm.cmd', 'pnpm.exe', 'pnpm']
-      : ['pnpm'];
-    for (const directory of (process.env.PATH || '').split(path.delimiter)) {
-      for (const name of names) {
-        const candidate = path.resolve(directory, name);
-        if (fs.existsSync(candidate)) {
-          process.stdout.write(candidate);
-          process.exit(0);
+  const names =
+    process.platform === 'win32' ? ['pnpm.cmd', 'pnpm.exe', 'pnpm'] : ['pnpm'];
+  let executable;
+  for (const directory of (environment.PATH ?? '').split(path.delimiter)) {
+    for (const name of names) {
+      const candidate = path.resolve(directory, name);
+      try {
+        fs.accessSync(
+          candidate,
+          process.platform === 'win32' ? fs.constants.F_OK : fs.constants.X_OK,
+        );
+        if (fs.statSync(candidate).isFile()) {
+          executable = candidate;
+          break;
         }
+      } catch {
+        // Continue exactly as executable lookup would for a missing PATH entry.
       }
     }
-    throw new Error('pnpm executable is absent from the exact pnpm exec PATH');
-  `;
-  const executable = runImpl('pnpm', ['exec', 'node', '-e', discoveryScript], {
-    cwd: repoRoot,
-    stdio: 'pipe',
-  });
-  if (!path.isAbsolute(executable)) {
+    if (executable !== undefined) {
+      break;
+    }
+  }
+  if (executable === undefined) {
     throw new Error(
-      `Exact pnpm discovery returned a non-absolute executable: ${executable}`,
+      'pnpm executable is absent from the acceptance parent PATH',
     );
   }
   const actualVersion = runImpl(executable, ['--version'], {

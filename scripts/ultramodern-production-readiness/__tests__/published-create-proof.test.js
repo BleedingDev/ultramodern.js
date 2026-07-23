@@ -169,7 +169,7 @@ test('builds the supported pnpm dlx package command contract', async () => {
   });
 });
 
-test('shared ERP-10 profile requires frozen install, checks, both builds, and no framework override', async () => {
+test('shared ERP-10 profile requires frozen install, checks, both builds, and no framework override', async t => {
   const {
     createAcceptancePackageManagerEnv,
     requiredPnpmCommands,
@@ -214,28 +214,32 @@ test('shared ERP-10 profile requires frozen install, checks, both builds, and no
     },
     'cold acceptance installs must tolerate slow registries without unbounded request concurrency',
   );
-  const exactPnpmExecutable = path.resolve('/tmp/exact-pnpm/11.11.0/bin/pnpm');
+  const exactPnpmDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'ultramodern-exact-pnpm-'),
+  );
+  t.after(() => fs.rmSync(exactPnpmDir, { force: true, recursive: true }));
+  const exactPnpmExecutable = path.join(
+    exactPnpmDir,
+    process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm',
+  );
+  fs.writeFileSync(exactPnpmExecutable, 'acceptance test executable');
+  fs.chmodSync(exactPnpmExecutable, 0o755);
   const calls = [];
   const resolvedPnpmExecutable = resolveExactPnpmExecutable(
     (command, args, options) => {
       calls.push({ args, command, options });
-      if (command === 'pnpm') {
-        return exactPnpmExecutable;
-      }
       if (command === exactPnpmExecutable) {
         return '11.11.0';
       }
       throw new Error(`Unexpected command ${command}`);
     },
     '11.11.0',
+    { PATH: exactPnpmDir },
   );
   assert.equal(resolvedPnpmExecutable, exactPnpmExecutable);
   assert.deepEqual(
     calls.map(call => [call.command, call.args]),
-    [
-      ['pnpm', ['exec', 'node', '-e', calls[0].args[3]]],
-      [exactPnpmExecutable, ['--version']],
-    ],
+    [[exactPnpmExecutable, ['--version']]],
   );
   assert.equal(
     createAcceptancePackageManagerEnv(
@@ -249,10 +253,27 @@ test('shared ERP-10 profile requires frozen install, checks, both builds, and no
   assert.throws(
     () =>
       resolveExactPnpmExecutable(
-        command => (command === 'pnpm' ? exactPnpmExecutable : '11.14.0'),
+        command => {
+          assert.equal(command, exactPnpmExecutable);
+          return '11.14.0';
+        },
         '11.11.0',
+        { PATH: exactPnpmDir },
       ),
     /resolved 11\.14\.0, expected 11\.11\.0/u,
+  );
+  const directoryDecoyPath = path.join(exactPnpmDir, 'directory-decoy');
+  fs.mkdirSync(path.join(directoryDecoyPath, 'pnpm'), { recursive: true });
+  assert.throws(
+    () =>
+      resolveExactPnpmExecutable(
+        () => {
+          throw new Error('directory decoy must not be executed');
+        },
+        '11.11.0',
+        { PATH: directoryDecoyPath },
+      ),
+    /pnpm executable is absent from the acceptance parent PATH/u,
   );
   assert.equal(
     createAcceptancePackageManagerEnv('/tmp/acceptance', {
