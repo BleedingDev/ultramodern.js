@@ -524,7 +524,7 @@ function assertOperationalServedBehavior({
   assertCondition(
     sameJson(Object.keys(servedBehavior).sort(), [
       'appId',
-      'baseUrl',
+      'baseUrls',
       'identity',
       'platform',
       'responses',
@@ -533,23 +533,30 @@ function assertOperationalServedBehavior({
     ]),
     `Operational-independence ${target} served behavior has unknown or missing fields`,
   );
-  let baseUrl;
+  const baseUrls = servedBehavior.baseUrls;
+  let appBaseUrl;
+  let shellBaseUrl;
   try {
-    baseUrl = new URL(servedBehavior.baseUrl);
+    appBaseUrl = new URL(baseUrls?.app);
+    shellBaseUrl = new URL(baseUrls?.shell);
   } catch {
-    baseUrl = undefined;
+    appBaseUrl = undefined;
+    shellBaseUrl = undefined;
   }
   assertCondition(
     servedBehavior.appId === 'inventory' &&
       servedBehavior.platform === runtimePlatform &&
-      ['http:', 'https:'].includes(baseUrl?.protocol),
+      sameJson(Object.keys(baseUrls ?? {}).sort(), ['app', 'shell']) &&
+      [appBaseUrl, shellBaseUrl].every(baseUrl =>
+        ['http:', 'https:'].includes(baseUrl?.protocol),
+      ),
     `Operational-independence ${target} served behavior did not execute the expected inventory runtime`,
   );
   assertCondition(
     sameJson(servedBehavior.routes, {
       api: '/inventory-api/inventory',
       ssr: '/en',
-      widget: '/en/_mf/fragment/widget',
+      ui: '/en',
     }),
     `Operational-independence ${target} served behavior routes are invalid`,
   );
@@ -564,12 +571,12 @@ function assertOperationalServedBehavior({
     sameJson(servedBehavior.identity, expectedIdentity),
     `Operational-independence ${target} served behavior identity does not match the changed C1 identity`,
   );
-  const { api, ssr, widget } = servedBehavior.responses ?? {};
+  const { api, ssr, ui } = servedBehavior.responses ?? {};
   assertCondition(
     sameJson(Object.keys(servedBehavior.responses ?? {}).sort(), [
       'api',
       'ssr',
-      'widget',
+      'ui',
     ]) &&
       sameJson(Object.keys(api ?? {}).sort(), [
         'bodySha256',
@@ -583,8 +590,9 @@ function assertOperationalServedBehavior({
         'contentType',
         'status',
       ]) &&
-      sameJson(Object.keys(widget ?? {}).sort(), [
+      sameJson(Object.keys(ui ?? {}).sort(), [
         'bodySha256',
+        'boundaryId',
         'contentType',
         'expose',
         'status',
@@ -594,7 +602,7 @@ function assertOperationalServedBehavior({
     `Operational-independence ${target} served behavior responses have unknown or missing fields`,
   );
   assertCondition(
-    [api, ssr, widget].every(
+    [api, ssr, ui].every(
       response =>
         response.status === 200 &&
         SHA256_PATTERN.test(response.bodySha256) &&
@@ -602,12 +610,13 @@ function assertOperationalServedBehavior({
         response.contentType.length > 0,
     ) &&
       ssr.buildMarker === changedIdentity.buildMarker &&
-      widget.expose === './Widget' &&
-      widget.visiblyRendered === true,
+      ui.boundaryId === 'verticalInventory' &&
+      ui.expose === './Widget' &&
+      ui.visiblyRendered === true,
     `Operational-independence ${target} served behavior response probes are invalid`,
   );
   assertCondition(
-    api.value === expectedApiValue && widget.value === expectedUiValue,
+    api.value === expectedApiValue && ui.value === expectedUiValue,
     `Operational-independence ${target} served behavior did not observe the exact C1 API and UI mutations`,
   );
   return structuredClone(servedBehavior);

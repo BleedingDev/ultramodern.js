@@ -238,7 +238,10 @@ function operationalEvidence(options) {
   });
   const servedBehavior = platform => ({
     appId: options.changedId,
-    baseUrl: `http://127.0.0.1/${platform}`,
+    baseUrls: {
+      app: `http://127.0.0.1/${platform}/inventory`,
+      shell: `http://127.0.0.1/${platform}/shell`,
+    },
     identity: {
       build: changedIdentity.buildMarker,
       buildMarker: changedIdentity.buildMarker,
@@ -251,7 +254,7 @@ function operationalEvidence(options) {
     routes: {
       api: '/inventory-api/inventory',
       ssr: '/en',
-      widget: '/en/_mf/fragment/widget',
+      ui: '/en',
     },
     responses: {
       api: {
@@ -266,8 +269,9 @@ function operationalEvidence(options) {
         contentType: 'text/html',
         status: 200,
       },
-      widget: {
+      ui: {
         bodySha256: '3'.repeat(64),
+        boundaryId: 'verticalInventory',
         contentType: 'text/html',
         expose: './Widget',
         status: 200,
@@ -509,7 +513,7 @@ test('operational acceptance rejects missing, forged, and hardcoded served behav
   );
 
   const hardcoded = operationalEvidence(options);
-  hardcoded.targets.node.servedBehavior.responses.widget.value =
+  hardcoded.targets.node.servedBehavior.responses.ui.value =
     'hardcoded UI value';
   assert.throws(
     () => create(hardcoded),

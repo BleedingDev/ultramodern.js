@@ -108,7 +108,10 @@ function operationalDetails(receipt, evidencePath, options) {
       },
       servedBehavior: {
         appId: options.apps.changed,
-        baseUrl: `http://127.0.0.1/${runtimePlatform}`,
+        baseUrls: {
+          app: `http://127.0.0.1/${runtimePlatform}/${options.apps.changed}`,
+          shell: `http://127.0.0.1/${runtimePlatform}/${options.apps.shell}`,
+        },
         identity: {
           build: afterIdentity.buildMarker,
           buildMarker: afterIdentity.buildMarker,
@@ -121,7 +124,7 @@ function operationalDetails(receipt, evidencePath, options) {
         routes: {
           api: `/${options.apps.changed}-api/${options.apps.changed}`,
           ssr: '/en',
-          widget: '/en/_mf/fragment/widget',
+          ui: '/en',
         },
         responses: {
           api: {
@@ -136,8 +139,9 @@ function operationalDetails(receipt, evidencePath, options) {
             contentType: 'text/html',
             status: 200,
           },
-          widget: {
-            bodySha256: digest(`${platform}-widget-body`),
+          ui: {
+            bodySha256: digest(`${platform}-ui-body`),
+            boundaryId: 'verticalInventory',
             contentType: 'text/html',
             expose: './Widget',
             status: 200,
