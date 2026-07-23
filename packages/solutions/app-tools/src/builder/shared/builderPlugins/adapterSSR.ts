@@ -17,7 +17,11 @@ import type {
   SSGMultiEntryOptions,
 } from '../../../types';
 import type { AppToolsContext } from '../../../types/plugin';
-import { HtmlAsyncChunkPlugin, RouterPlugin } from '../bundlerPlugins';
+import {
+  CssExtractRuntimePlugin,
+  HtmlAsyncChunkPlugin,
+  RouterPlugin,
+} from '../bundlerPlugins';
 import type { BuilderOptions } from '../types';
 
 export const builderPluginAdapterSSR = (
@@ -161,6 +165,9 @@ function applyRouterPlugin(
     : enableInlineRouteManifests;
 
   if (existNestedRoutes || workerSSR) {
+    chain
+      .plugin(`${pluginName}-css-extract-runtime`)
+      .use(CssExtractRuntimePlugin);
     chain.plugin(pluginName).use(RouterPlugin, [
       {
         HtmlBundlerPlugin,

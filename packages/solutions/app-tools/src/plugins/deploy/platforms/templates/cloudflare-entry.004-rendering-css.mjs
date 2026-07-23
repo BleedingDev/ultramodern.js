@@ -934,6 +934,7 @@ async function withRouteCssLinks(
     })),
   ];
 
+  const requestOrigin = new URL(request.url).origin;
   if (cssEntries.length === 0) {
     return new Response(html, {
       headers,
@@ -951,8 +952,14 @@ async function withRouteCssLinks(
     seenCssHrefs.add(entry.preloadHref);
     return true;
   });
-  for (const { preloadHref } of uniqueCssEntries) {
-    headers.append('link', `<${preloadHref}>; rel=preload; as=style`);
+  for (const { href, preloadHref } of uniqueCssEntries) {
+    const preloadUrl = new URL(preloadHref);
+    const preloadReference =
+      preloadUrl.origin === requestOrigin
+        ? `${preloadUrl.pathname}${preloadUrl.search}`
+        : preloadUrl.toString();
+
+    headers.append('link', `<${preloadReference}>; rel=preload; as=style`);
   }
 
   const links = uniqueCssEntries

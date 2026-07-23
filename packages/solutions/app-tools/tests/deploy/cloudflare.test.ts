@@ -2398,7 +2398,7 @@ describe('cloudflare deploy preset', () => {
       response.headers.get('content-security-policy-report-only'),
     ).toContain('connect-src');
     expect(response.headers.get('link')).toContain(
-      '<https://example.com/static/app.css>; rel=preload; as=style',
+      '</static/app.css>; rel=preload; as=style',
     );
     expect(await response.text()).toContain(
       '<link rel="stylesheet" href="/static/app.css">',
@@ -2413,6 +2413,37 @@ describe('cloudflare deploy preset', () => {
 
     expect(workersDevResponse.headers.get('x-robots-tag')).toBe(
       'noindex, nofollow',
+    );
+  });
+
+  it('percent-encodes same-origin Link header targets', async () => {
+    const asset = '/assets/styles/a > b.css';
+    const { outputDirectory } = await createFixture({
+      distFiles: {
+        'loadable-stats.json': JSON.stringify({ publicPath: 'auto' }),
+        'routes-manifest.json': JSON.stringify({
+          routeAssets: {
+            main: {
+              referenceCssAssets: [asset],
+            },
+          },
+        }),
+      },
+    });
+    const entryPath = path.join(outputDirectory, 'server/index.mjs');
+    const worker = (
+      await import(`${pathToFileURL(entryPath).href}?t=${Date.now()}`)
+    ).default;
+
+    const response = await worker.fetch(
+      new Request('https://example.com/styled'),
+      {
+        ASSETS: createAssetBinding(path.join(outputDirectory, 'public')),
+      },
+    );
+
+    expect(response.headers.get('link')).toContain(
+      '</assets/styles/a%20%3E%20b.css>; rel=preload; as=style',
     );
   });
 
@@ -2468,8 +2499,42 @@ describe('cloudflare deploy preset', () => {
     const rendered = await response.text();
 
     expect(rendered.split(href)).toHaveLength(2);
+    expect(rendered).toContain(
+      `<link href="${href}" rel="stylesheet" type="text/css">`,
+    );
+    expect(rendered).not.toContain('data-rspack=');
     expect(rendered).toContain('<section>Header</section>');
     expect(rendered).toContain('<section>Home</section>');
+  });
+
+  it('does not collapse federated stylesheets under distinct same-origin mounts', async () => {
+    const firstHref = 'https://example.com/one/static/css/shared.css';
+    const secondHref = 'https://example.com/two/static/css/shared.css';
+    const html = `<!doctype html><html><head><link href="${firstHref}" rel="stylesheet"><link href="${secondHref}" rel="stylesheet"></head><body>SSR content</body></html>`;
+    const { outputDirectory } = await createFixture({
+      distFiles: {
+        'routes-manifest.json': JSON.stringify({ routeAssets: {} }),
+        'worker/html.js': `module.exports = { requestHandler: async () => new Response(${JSON.stringify(
+          html,
+        )}, { headers: { 'content-type': 'text/html; charset=utf-8' } }) };`,
+      },
+    });
+    const entryPath = path.join(outputDirectory, 'server/index.mjs');
+    const worker = (
+      await import(`${pathToFileURL(entryPath).href}?t=${Date.now()}`)
+    ).default;
+
+    const response = await worker.fetch(
+      new Request('https://example.com/styled'),
+      {
+        ASSETS: createAssetBinding(path.join(outputDirectory, 'public')),
+      },
+    );
+    const rendered = await response.text();
+
+    expect(rendered).toContain(`<link href="${firstHref}" rel="stylesheet">`);
+    expect(rendered).toContain(`<link href="${secondHref}" rel="stylesheet">`);
+    expect(rendered).not.toContain('data-rspack=');
   });
 
   it('injects rendered federated remote CSS links into Cloudflare SSR HTML responses', async () => {
@@ -2559,9 +2624,7 @@ describe('cloudflare deploy preset', () => {
       expect(
         response.headers.get('content-security-policy-report-only'),
       ).toContain('http:');
-      expect(linkHeader).toContain(
-        '<https://example.com/static/app.css>; rel=preload; as=style',
-      );
+      expect(linkHeader).toContain('</static/app.css>; rel=preload; as=style');
       expect(linkHeader).toContain(
         '<https://explore.example.com/static/css/explore.css>; rel=preload; as=style',
       );
