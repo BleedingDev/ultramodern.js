@@ -32,6 +32,9 @@ const generateContentHash = (content: string) => {
   return createHash('md5').update(content).digest('hex').slice(0, 8);
 };
 
+const isAutomaticPublicPath = (publicPath: unknown): publicPath is string =>
+  publicPath === 'auto' || publicPath === 'auto/';
+
 export const normalizeRouterAssetPublicPath = (
   publicPath: string | undefined,
 ): string => {
@@ -39,7 +42,7 @@ export const normalizeRouterAssetPublicPath = (
     return '';
   }
 
-  if (publicPath === 'auto' || publicPath === 'auto/') {
+  if (isAutomaticPublicPath(publicPath)) {
     return '/';
   }
 
@@ -137,7 +140,10 @@ export class RouterPlugin {
         const { chunks } = data.plugin.options!;
         chunksToHtmlName.set(chunks, outputName);
 
-        data.html = data.html.replace('</script>', `</script>${placeholder}`);
+        const html = isAutomaticPublicPath(compiler.options.output.publicPath)
+          ? data.html.replace(/(\b(?:href|src)=["'])auto\//gu, '$1/')
+          : data.html;
+        data.html = html.replace('</script>', `</script>${placeholder}`);
         callback(null, data);
       });
 
