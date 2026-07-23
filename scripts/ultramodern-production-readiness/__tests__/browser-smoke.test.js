@@ -810,6 +810,7 @@ test('includes the owned serve log when HTTP readiness times out', async () => {
         }),
       error => {
         assert.match(error.message, /did not become reachable/);
+        assert.match(error.message, /cause: HTTP 503/);
         assert.match(error.message, /remote manifest remained unavailable/);
         assert.match(error.message, /NPM_TOKEN=\[REDACTED\]/);
         assert.doesNotMatch(error.message, /do-not-copy-me/);

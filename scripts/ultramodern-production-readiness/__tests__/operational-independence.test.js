@@ -69,6 +69,25 @@ test('Node served proof starts each remote deterministically and waits before st
   ]);
 });
 
+test('C1 Node readiness is bound to the rebuilt MicroVertical marker', async () => {
+  const { bindTargetBuildMarker } = await loadProof();
+  const original = {
+    app: {
+      id: 'inventory',
+      marker: { build: 'marker-c0', framework: 'framework-marker' },
+    },
+    baseUrl: 'http://localhost:4101',
+  };
+
+  const changed = bindTargetBuildMarker(original, 'marker-c1');
+
+  assert.equal(changed.app.marker.build, 'marker-c1');
+  assert.equal(changed.app.marker.framework, 'framework-marker');
+  assert.equal(original.app.marker.build, 'marker-c0');
+  assert.notEqual(changed, original);
+  assert.notEqual(changed.app, original.app);
+});
+
 function digest(bytes) {
   return crypto.createHash('sha256').update(bytes).digest('hex');
 }

@@ -980,6 +980,19 @@ function smokeTargets(workspace) {
   return targets;
 }
 
+function bindTargetBuildMarker(target, buildMarker) {
+  return {
+    ...target,
+    app: {
+      ...target.app,
+      marker: {
+        ...target.app.marker,
+        build: assertNonEmptyString(buildMarker, 'expected build marker'),
+      },
+    },
+  };
+}
+
 function requiredSmokeTarget(targets, appId) {
   const target = targets.find(candidate => candidate.app.id === appId);
   if (!target) {
@@ -1033,7 +1046,11 @@ async function runNodeServedBehavior({
   processEnv,
   workspace,
 }) {
-  const targets = smokeTargets(workspace);
+  const targets = smokeTargets(workspace).map(target =>
+    target.app.id === apps.changed.id
+      ? bindTargetBuildMarker(target, identity.buildMarker)
+      : target,
+  );
   const changedTarget = requiredSmokeTarget(targets, apps.changed.id);
   requiredSmokeTarget(targets, apps.sibling.id);
   const shellTarget = requiredSmokeTarget(targets, apps.shell.id);
@@ -1644,6 +1661,7 @@ export {
   assertChangedPathsOwnedBy,
   assertChangedVerticalRotated,
   assertCrossTargetIdentity,
+  bindTargetBuildMarker,
   canonicalSerialize,
   compareTargetSnapshots,
   createBuildCommand,

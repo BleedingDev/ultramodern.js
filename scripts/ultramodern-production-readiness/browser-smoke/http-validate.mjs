@@ -218,11 +218,13 @@ export async function waitForTarget(
       logPath: serverLogPath,
       ...(logTail ? { logTail } : {}),
     };
+    const failureMessage = details.cause
+      ? `${error instanceof Error ? error.message : String(error)}\ncause: ${details.cause}`
+      : error instanceof Error
+        ? error.message
+        : String(error);
     throw new BrowserSmokeError(
-      formatFailureWithLogEvidence(
-        error instanceof Error ? error.message : String(error),
-        details,
-      ),
+      formatFailureWithLogEvidence(failureMessage, details),
       details,
     );
   }
