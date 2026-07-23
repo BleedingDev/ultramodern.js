@@ -133,6 +133,7 @@ test('builds the supported pnpm dlx package command contract', async () => {
       ['my-super-app', '--lang', 'en'],
     ),
     [
+      '--pm-on-fail=ignore',
       '--config.minimum-release-age-exclude=@bleedingdev/*',
       'dlx',
       '--allow-build=esbuild',
@@ -151,6 +152,7 @@ test('builds the supported pnpm dlx package command contract', async () => {
       ['catalog', '--vertical', '--lang', 'en'],
     ),
     [
+      '--pm-on-fail=ignore',
       '--config.minimum-release-age-exclude=@bleedingdev/*',
       'dlx',
       '--allow-build=esbuild',

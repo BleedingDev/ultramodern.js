@@ -185,8 +185,12 @@ test('protects visible Tractor source byte-for-byte across migration', async () 
 });
 
 test('runner has no bypass for Node or workerd release gates', async () => {
-  const { parseArgs, requiredCommands, requiredVisibleRuntimePlatforms } =
-    await runnerPromise;
+  const {
+    createTractorPackageManagerContext,
+    parseArgs,
+    requiredCommands,
+    requiredVisibleRuntimePlatforms,
+  } = await runnerPromise;
   assert.deepEqual(requiredCommands, [
     ['pnpm', ['install', '--frozen-lockfile']],
     ['pnpm', ['build']],
@@ -206,6 +210,49 @@ test('runner has no bypass for Node or workerd release gates', async () => {
       ]),
     /Unknown argument: --skip-browser/u,
   );
+
+  const packageManagerRoot = path.join(
+    os.tmpdir(),
+    'tractor-package-manager-context',
+  );
+  const exactPnpmExecutable = '/opt/pnpm-11.17.0/bin/pnpm';
+  const calls = [];
+  const packageManager = createTractorPackageManagerContext({
+    createPackage: {
+      exactSpecifier: '@bleedingdev/modern-js-create@3.5.0-ultramodern.77',
+    },
+    expectedPnpmVersion: '11.17.0',
+    packageManagerRoot,
+    registryUrl: 'https://registry.npmjs.org/',
+    resolveExactPnpmExecutableImpl: (...args) => {
+      calls.push(args);
+      return exactPnpmExecutable;
+    },
+    runImpl: () => {
+      throw new Error('resolver stub must own executable discovery');
+    },
+  });
+  assert.equal(packageManager.pnpmExecutable, exactPnpmExecutable);
+  assert.equal(
+    packageManager.env.PATH.split(path.delimiter)[0],
+    path.dirname(exactPnpmExecutable),
+  );
+  assert.equal(
+    packageManager.env.pnpm_config_minimum_release_age_exclude,
+    '@bleedingdev/*',
+  );
+  assert.equal(packageManager.env.pnpm_config_pm_on_fail, 'ignore');
+  assert.equal(
+    packageManager.env.pnpm_config_trust_policy_exclude,
+    '@bleedingdev/*',
+  );
+  assert.equal(
+    packageManager.env.pnpm_config_registry,
+    'https://registry.npmjs.org/',
+  );
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][1], '11.17.0');
+  assert.equal(calls[0][3], packageManagerRoot);
 });
 
 test('Node acceptance rejects hydrated CSR without authoritative no-JS distributed SSR evidence', async () => {

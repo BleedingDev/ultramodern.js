@@ -503,6 +503,52 @@ test('matches the production audit closure across peer-variant snapshots', () =>
   );
 });
 
+test('accepts pnpm 11.17 base package records and nested peer snapshot locators', () => {
+  const root = '@bleedingdev/modern-js-plugin-tanstack@3.5.0-ultramodern.77';
+  const nestedPeer = 'nested-peer@2.0.0';
+  const directPeer = `direct-peer@1.0.0(${nestedPeer})`;
+  const rootSnapshot = `${root}(${directPeer})(patch_hash=${'a'.repeat(
+    64,
+  )})(${'b'.repeat(32)})`;
+  const lockfile = lockfileWithImporter(
+    '@modern-js/plugin-tanstack',
+    rootSnapshot,
+    {
+      specifier:
+        'npm:@bleedingdev/modern-js-plugin-tanstack@3.5.0-ultramodern.77',
+      packages: {
+        [root]: { resolution: { integrity } },
+        'direct-peer@1.0.0': { resolution: { integrity } },
+        [nestedPeer]: { resolution: { integrity } },
+      },
+      snapshots: {
+        [rootSnapshot]: {},
+        [directPeer]: {},
+        [nestedPeer]: {},
+      },
+    },
+  );
+
+  const migrationClosure = discoverReachablePnpmLockReleaseAgeClosure(lockfile);
+  const productionClosure = buildDependencyClosure(lockfile);
+
+  assert.deepEqual(migrationClosure.unresolved, []);
+  assert.deepEqual(productionClosure.unresolved, []);
+  assert.deepEqual(
+    migrationClosure.candidates.map(candidate => candidate.packageName).sort(),
+    ['@bleedingdev/modern-js-plugin-tanstack', 'direct-peer', 'nested-peer'],
+  );
+  assert.deepEqual(
+    migrationClosure.candidates,
+    productionClosure.closure.map(candidate => ({
+      packageName: candidate.name,
+      version: candidate.version,
+      registry: { dist: { integrity: candidate.integrity } },
+      path: candidate.path,
+    })),
+  );
+});
+
 test('rejects a reachable importer dependency missing from packages and snapshots', async () => {
   const workspaceRoot = createWorkspace(
     lockfileWithImporter('missing-package', '1.0.0', {

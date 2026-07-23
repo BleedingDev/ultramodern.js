@@ -171,14 +171,51 @@ function splitPeerContext(locator) {
     return { base: locator, peers: [] };
   }
   const context = locator.slice(peerStart);
-  const peers = [];
-  const pattern = /\(([^()]+)\)/gu;
-  let match;
-  while ((match = pattern.exec(context)) !== null) {
-    const parsed = parseFullPackageLocator(match[1]);
-    if (parsed) {
-      peers.push(parsed);
+  const segments = [];
+  let start = -1;
+  let depth = 0;
+  for (let index = 0; index < context.length; index += 1) {
+    const character = context[index];
+    if (character === '(') {
+      if (depth === 0) {
+        start = index + 1;
+      }
+      depth += 1;
+      continue;
     }
+    if (character !== ')' || depth === 0) {
+      if (depth === 0) {
+        return { unresolved: locator };
+      }
+      continue;
+    }
+    depth -= 1;
+    if (depth === 0) {
+      const segment = context.slice(start, index);
+      if (segment === '') {
+        return { unresolved: locator };
+      }
+      segments.push(segment);
+      start = -1;
+    }
+  }
+  if (depth !== 0 || start !== -1) {
+    return { unresolved: locator };
+  }
+
+  const peers = [];
+  for (const segment of segments) {
+    if (
+      /^patch_hash=[a-f0-9]{32,128}$/u.test(segment) ||
+      /^[a-f0-9]{32,128}$/u.test(segment)
+    ) {
+      continue;
+    }
+    const peer = parsePackageKey(segment);
+    if (!peer) {
+      return { unresolved: locator };
+    }
+    peers.push(peer);
   }
   return { base: locator.slice(0, peerStart), peers };
 }
@@ -202,7 +239,11 @@ function parseFullPackageLocator(rawLocator) {
 
 function parsePackageKey(rawKey) {
   assertNonEmptyString(rawKey, 'pnpm package key');
-  const { base, peers } = splitPeerContext(rawKey.replace(/^\//u, ''));
+  const peerContext = splitPeerContext(rawKey.replace(/^\//u, ''));
+  if (peerContext.unresolved) {
+    return undefined;
+  }
+  const { base, peers } = peerContext;
   const identity = parseFullPackageLocator(base);
   return identity ? { ...identity, peers } : undefined;
 }
@@ -234,7 +275,11 @@ function dependencyIdentity(dependencyName, rawValue) {
   const npmAliasValue = value.startsWith('npm:')
     ? value.slice('npm:'.length)
     : value;
-  const { base, peers } = splitPeerContext(npmAliasValue);
+  const peerContext = splitPeerContext(npmAliasValue);
+  if (peerContext.unresolved) {
+    return { unresolved: value };
+  }
+  const { base, peers } = peerContext;
   const full = parseFullPackageLocator(base);
   if (full) {
     return { ...full, peers };
@@ -302,15 +347,24 @@ function buildDependencyClosure(lock) {
     });
   }
 
-  const nodes = new Map();
-  const nodeIdsByIdentity = new Map();
   const packageRecords = new Map(sortedEntries(lock.packages));
   const snapshotRecords = new Map(sortedEntries(lock.snapshots));
-  const allNodeIds = new Set([
-    ...packageRecords.keys(),
-    ...snapshotRecords.keys(),
-  ]);
-  for (const nodeId of [...allNodeIds].sort((left, right) =>
+  const packageRecordsByIdentity = new Map();
+  for (const [packageKey, packageRecord] of packageRecords) {
+    const identity = parsePackageKey(packageKey);
+    if (!identity) {
+      continue;
+    }
+    const key = identityKey(identity);
+    packageRecordsByIdentity.set(key, [
+      ...(packageRecordsByIdentity.get(key) ?? []),
+      packageRecord,
+    ]);
+  }
+
+  const nodes = new Map();
+  const nodeIdsByIdentity = new Map();
+  for (const nodeId of [...snapshotRecords.keys()].sort((left, right) =>
     left.localeCompare(right),
   )) {
     const identity = parsePackageKey(nodeId);
@@ -321,9 +375,8 @@ function buildDependencyClosure(lock) {
     const node = {
       id: nodeId,
       identity,
-      records: [packageRecords.get(nodeId), snapshotRecords.get(nodeId)].filter(
-        Boolean,
-      ),
+      packageRecords: packageRecordsByIdentity.get(key) ?? [],
+      snapshotRecord: snapshotRecords.get(nodeId),
     };
     nodes.set(nodeId, node);
     const nodeIds = nodeIdsByIdentity.get(key) ?? [];
@@ -384,10 +437,14 @@ function buildDependencyClosure(lock) {
     const nodeId = queue.shift();
     const node = nodes.get(nodeId);
     const nodePath = shortestNodePaths.get(nodeId);
+    if (node.packageRecords.length === 0) {
+      recordUnresolved(node.identity, nodePath, 'missing lock package');
+      continue;
+    }
     for (const peer of node.identity.peers) {
       enqueueIdentity(peer, nodePath);
     }
-    for (const record of node.records) {
+    for (const record of [...node.packageRecords, node.snapshotRecord]) {
       for (const edge of dependencyEdges(record)) {
         const identity = dependencyIdentity(
           edge.dependencyName,

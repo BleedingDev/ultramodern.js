@@ -72,19 +72,52 @@ function splitPeerContext(
     return { base: locator, peers: [] };
   }
 
-  const peers: PnpmLockIdentity[] = [];
-  let suffix = locator.slice(peerStart);
-  while (suffix !== '') {
-    const match = /^\(([^()]+)\)/u.exec(suffix);
-    if (!match) {
-      return { unresolved: locator };
+  const context = locator.slice(peerStart);
+  const segments: string[] = [];
+  let start = -1;
+  let depth = 0;
+  for (let index = 0; index < context.length; index += 1) {
+    const character = context[index];
+    if (character === '(') {
+      if (depth === 0) {
+        start = index + 1;
+      }
+      depth += 1;
+      continue;
     }
-    const peer = parsePackageLocator(match[1]);
+    if (character !== ')' || depth === 0) {
+      if (depth === 0) {
+        return { unresolved: locator };
+      }
+      continue;
+    }
+    depth -= 1;
+    if (depth === 0) {
+      const segment = context.slice(start, index);
+      if (segment === '') {
+        return { unresolved: locator };
+      }
+      segments.push(segment);
+      start = -1;
+    }
+  }
+  if (depth !== 0 || start !== -1) {
+    return { unresolved: locator };
+  }
+
+  const peers: PnpmLockIdentity[] = [];
+  for (const segment of segments) {
+    if (
+      /^patch_hash=[a-f0-9]{32,128}$/u.test(segment) ||
+      /^[a-f0-9]{32,128}$/u.test(segment)
+    ) {
+      continue;
+    }
+    const peer = parsePackageKey(segment);
     if (!peer) {
       return { unresolved: locator };
     }
     peers.push(peer);
-    suffix = suffix.slice(match[0].length);
   }
   return { base: locator.slice(0, peerStart), peers };
 }
@@ -235,27 +268,28 @@ export function discoverReachablePnpmLockReleaseAgeClosure(
 
   const nodes = new Map<
     string,
-    { identity: PnpmLockIdentity; records: unknown[] }
+    {
+      identity: PnpmLockIdentity;
+      packageRecords: unknown[];
+      snapshotRecord: unknown;
+    }
   >();
   const nodeIdsByIdentity = new Map<string, string[]>();
-  const allNodeIds = new Set([
-    ...packageRecords.keys(),
-    ...snapshotRecords.keys(),
-  ]);
-  for (const nodeId of [...allNodeIds].sort((left, right) =>
+  for (const nodeId of [...snapshotRecords.keys()].sort((left, right) =>
     left.localeCompare(right),
   )) {
     const identity = parsePackageKey(nodeId);
     if (!identity) {
       continue;
     }
+    const key = packageVersionKey(identity);
     nodes.set(nodeId, {
       identity,
-      records: [packageRecords.get(nodeId), snapshotRecords.get(nodeId)].filter(
-        record => record !== undefined,
+      packageRecords: (packageRecordsByIdentity.get(key) ?? []).map(
+        ([, record]) => record,
       ),
+      snapshotRecord: snapshotRecords.get(nodeId),
     });
-    const key = packageVersionKey(identity);
     nodeIdsByIdentity.set(key, [...(nodeIdsByIdentity.get(key) ?? []), nodeId]);
   }
 
@@ -314,21 +348,18 @@ export function discoverReachablePnpmLockReleaseAgeClosure(
     const nodeId = queue.shift() as string;
     const node = nodes.get(nodeId) as {
       identity: PnpmLockIdentity;
-      records: unknown[];
+      packageRecords: unknown[];
+      snapshotRecord: unknown;
     };
     const nodePath = shortestNodePaths.get(nodeId) as string[];
-    if (!snapshotRecords.has(nodeId)) {
-      recordUnresolved(node.identity, nodePath, 'missing lock snapshot');
-      continue;
-    }
-    if (!packageRecords.has(nodeId)) {
+    if (node.packageRecords.length === 0) {
       recordUnresolved(node.identity, nodePath, 'missing lock package');
       continue;
     }
     for (const peer of node.identity.peers) {
       enqueueIdentity(peer, nodePath);
     }
-    for (const record of node.records) {
+    for (const record of [...node.packageRecords, node.snapshotRecord]) {
       for (const edge of dependencyEdges(record)) {
         const identity = dependencyIdentity(
           edge.dependencyName,

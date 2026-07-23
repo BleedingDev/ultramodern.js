@@ -19,15 +19,17 @@ import {
   createSmokeTargets,
   orderTargetsForLocalStartup,
 } from '../browser-smoke/targets.mjs';
+import {
+  createAcceptancePackageManagerEnv,
+  resolveExactPnpmExecutable,
+} from '../published-create-proof/acceptance-profile.mjs';
 import { writeJsonFile } from '../published-create-proof/constants.mjs';
 import {
   createPnpmDlxArgs,
+  releasePackageScopePattern,
   resolveCreatePackage,
 } from '../published-create-proof/package-cohort.mjs';
-import {
-  createCleanPnpmDlxEnv,
-  run,
-} from '../published-create-proof/process.mjs';
+import { run } from '../published-create-proof/process.mjs';
 import {
   assertAuthenticatedTractorCohort,
   assertExactModernDependencySpecifiers,
@@ -47,6 +49,40 @@ const requiredCommands = Object.freeze([
   Object.freeze(['pnpm', ['cloudflare:build']]),
 ]);
 const requiredVisibleRuntimePlatforms = Object.freeze(['node', 'workerd']);
+
+function createTractorPackageManagerContext({
+  createPackage,
+  expectedPnpmVersion,
+  packageManagerRoot,
+  registryUrl,
+  resolveExactPnpmExecutableImpl = resolveExactPnpmExecutable,
+  runImpl = run,
+}) {
+  const pnpmExecutable = resolveExactPnpmExecutableImpl(
+    runImpl,
+    expectedPnpmVersion,
+    process.env,
+    packageManagerRoot,
+  );
+  return {
+    env: {
+      ...createAcceptancePackageManagerEnv(
+        packageManagerRoot,
+        {
+          npm_config_registry: registryUrl,
+          pnpm_config_registry: registryUrl,
+        },
+        pnpmExecutable,
+      ),
+      pnpm_config_pm_on_fail: 'ignore',
+      pnpm_config_minimum_release_age_exclude:
+        releasePackageScopePattern(createPackage),
+      pnpm_config_trust_policy_exclude:
+        releasePackageScopePattern(createPackage),
+    },
+    pnpmExecutable,
+  };
+}
 
 function parseArgs(argv) {
   const values = new Map();
@@ -440,13 +476,13 @@ async function runTractorDownstreamAcceptance(
   const packageManagerRoot = fs.mkdtempSync(
     path.join(os.tmpdir(), 'ultramodern-tractor-downstream-'),
   );
-  const env = {
-    ...createCleanPnpmDlxEnv(packageManagerRoot),
-    CI: 'true',
-    npm_config_registry: options.registryUrl,
-    pnpm_config_registry: options.registryUrl,
-    ZE_CI_TOKEN: undefined,
-  };
+  const packageManager = createTractorPackageManagerContext({
+    createPackage,
+    expectedPnpmVersion: release.tools?.pnpm,
+    packageManagerRoot,
+    registryUrl: options.registryUrl,
+    runImpl,
+  });
   const report = {
     schema: 'bleedingdev.ultramodern.tractor-downstream-acceptance',
     schemaVersion: 1,
@@ -477,7 +513,7 @@ async function runTractorDownstreamAcceptance(
     });
 
     runImpl(
-      'pnpm',
+      packageManager.pnpmExecutable,
       createPnpmDlxArgs(createPackage, [
         'ultramodern',
         'migrate-strict-effect',
@@ -486,7 +522,7 @@ async function runTractorDownstreamAcceptance(
         '--registry',
         options.registryUrl,
       ]),
-      { cwd: options.workspace, env },
+      { cwd: options.workspace, env: packageManager.env },
     );
     report.checks.push({
       id: 'exact-create-migration',
@@ -648,6 +684,7 @@ async function main(argv = process.argv.slice(2)) {
 
 export {
   assertCleanCheckout,
+  createTractorPackageManagerContext,
   main,
   parseArgs,
   proveNodeServerRenderedSsr,

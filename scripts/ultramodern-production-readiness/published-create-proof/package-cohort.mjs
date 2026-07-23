@@ -218,15 +218,20 @@ function resolveCreatePackage(release, requestedSpecifier) {
   };
 }
 
-function createPnpmDlxArgs(createPackage, forwardedArgs) {
+function releasePackageScopePattern(createPackage) {
   const scope = /^(?<scope>@[^/]+)\//u.exec(createPackage.exactSpecifier)
     ?.groups?.scope;
   assertCondition(
     scope,
     `Create package must use a scoped exact specifier, found ${String(createPackage.exactSpecifier)}`,
   );
+  return `${scope}/*`;
+}
+
+function createPnpmDlxArgs(createPackage, forwardedArgs) {
   return [
-    `--config.minimum-release-age-exclude=${scope}/*`,
+    '--pm-on-fail=ignore',
+    `--config.minimum-release-age-exclude=${releasePackageScopePattern(createPackage)}`,
     'dlx',
     '--allow-build=esbuild',
     createPackage.exactSpecifier,
@@ -428,6 +433,7 @@ export {
   expectedReleaseCohort,
   packageJsonFiles,
   readCompactMetadata,
+  releasePackageScopePattern,
   resolveCreatePackage,
   retiredMetadataPaths,
 };
