@@ -167,6 +167,7 @@ function resolveExactPnpmExecutable(
   runImpl,
   expectedVersion,
   environment = process.env,
+  verificationCwd = repoRoot,
 ) {
   if (
     typeof expectedVersion !== 'string' ||
@@ -176,9 +177,48 @@ function resolveExactPnpmExecutable(
       `Release manifest must bind an exact pnpm version, found ${String(expectedVersion)}`,
     );
   }
+  const discoveryScript = `
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const names = process.platform === 'win32'
+      ? ['pnpm.cmd', 'pnpm.exe', 'pnpm']
+      : ['pnpm'];
+    for (const directory of (process.env.PATH || '').split(path.delimiter)) {
+      for (const name of names) {
+        const candidate = path.resolve(directory, name);
+        try {
+          fs.accessSync(
+            candidate,
+            process.platform === 'win32' ? fs.constants.F_OK : fs.constants.X_OK,
+          );
+          if (fs.statSync(candidate).isFile()) {
+            process.stdout.write(candidate);
+            process.exit(0);
+          }
+        } catch {}
+      }
+    }
+    throw new Error('pnpm executable is absent from the exact pnpm exec PATH');
+  `;
   const names =
     process.platform === 'win32' ? ['pnpm.cmd', 'pnpm.exe', 'pnpm'] : ['pnpm'];
-  let executable;
+  const candidates = [];
+  try {
+    const nestedExecutable = runImpl(
+      'pnpm',
+      ['exec', 'node', '-e', discoveryScript],
+      {
+        cwd: repoRoot,
+        stdio: 'pipe',
+      },
+    );
+    if (path.isAbsolute(nestedExecutable)) {
+      candidates.push(nestedExecutable);
+    }
+  } catch {
+    // mise can execute pnpm without exposing its shim in `pnpm exec` PATH.
+    // Parent PATH discovery below covers that installation shape.
+  }
   for (const directory of (environment.PATH ?? '').split(path.delimiter)) {
     for (const name of names) {
       const candidate = path.resolve(directory, name);
@@ -188,32 +228,42 @@ function resolveExactPnpmExecutable(
           process.platform === 'win32' ? fs.constants.F_OK : fs.constants.X_OK,
         );
         if (fs.statSync(candidate).isFile()) {
-          executable = candidate;
-          break;
+          candidates.push(candidate);
         }
       } catch {
         // Continue exactly as executable lookup would for a missing PATH entry.
       }
     }
-    if (executable !== undefined) {
-      break;
-    }
   }
-  if (executable === undefined) {
+  const observedVersions = new Set();
+  for (const executable of new Set(candidates)) {
+    let actualVersion;
+    try {
+      actualVersion = runImpl(executable, ['--version'], {
+        cwd: verificationCwd,
+        stdio: 'pipe',
+      });
+    } catch {
+      continue;
+    }
+    if (actualVersion === expectedVersion) {
+      return executable;
+    }
+    observedVersions.add(actualVersion);
+  }
+  if (observedVersions.size > 0) {
+    throw new Error(
+      `Exact pnpm discovery resolved ${[...observedVersions].join(', ')}, expected ${expectedVersion}`,
+    );
+  }
+  if (candidates.length === 0) {
     throw new Error(
       'pnpm executable is absent from the acceptance parent PATH',
     );
   }
-  const actualVersion = runImpl(executable, ['--version'], {
-    cwd: repoRoot,
-    stdio: 'pipe',
-  });
-  if (actualVersion !== expectedVersion) {
-    throw new Error(
-      `Exact pnpm discovery resolved ${actualVersion}, expected ${expectedVersion}`,
-    );
-  }
-  return executable;
+  throw new Error(
+    `No executable pnpm candidate could be verified as ${expectedVersion}`,
+  );
 }
 
 function registryReceiptMetadata({ mode, registryUrl }) {
@@ -518,6 +568,8 @@ async function runAcceptanceProfile({
     const exactPnpmExecutable = resolveExactPnpmExecutable(
       runImpl,
       release.tools?.pnpm ?? runtime.pnpm,
+      process.env,
+      workDir,
     );
     const packageManagerEnv = createAcceptancePackageManagerEnv(
       workDir,

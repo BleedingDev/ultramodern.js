@@ -228,6 +228,9 @@ test('shared ERP-10 profile requires frozen install, checks, both builds, and no
   const resolvedPnpmExecutable = resolveExactPnpmExecutable(
     (command, args, options) => {
       calls.push({ args, command, options });
+      if (command === 'pnpm') {
+        throw new Error('mise pnpm exec PATH does not expose the pnpm shim');
+      }
       if (command === exactPnpmExecutable) {
         return '11.11.0';
       }
@@ -235,12 +238,17 @@ test('shared ERP-10 profile requires frozen install, checks, both builds, and no
     },
     '11.11.0',
     { PATH: exactPnpmDir },
+    exactPnpmDir,
   );
   assert.equal(resolvedPnpmExecutable, exactPnpmExecutable);
   assert.deepEqual(
     calls.map(call => [call.command, call.args]),
-    [[exactPnpmExecutable, ['--version']]],
+    [
+      ['pnpm', ['exec', 'node', '-e', calls[0].args[3]]],
+      [exactPnpmExecutable, ['--version']],
+    ],
   );
+  assert.equal(calls[1].options.cwd, exactPnpmDir);
   assert.equal(
     createAcceptancePackageManagerEnv(
       '/tmp/acceptance',
@@ -254,11 +262,15 @@ test('shared ERP-10 profile requires frozen install, checks, both builds, and no
     () =>
       resolveExactPnpmExecutable(
         command => {
+          if (command === 'pnpm') {
+            throw new Error('nested discovery unavailable');
+          }
           assert.equal(command, exactPnpmExecutable);
           return '11.14.0';
         },
         '11.11.0',
         { PATH: exactPnpmDir },
+        exactPnpmDir,
       ),
     /resolved 11\.14\.0, expected 11\.11\.0/u,
   );
@@ -272,6 +284,7 @@ test('shared ERP-10 profile requires frozen install, checks, both builds, and no
         },
         '11.11.0',
         { PATH: directoryDecoyPath },
+        exactPnpmDir,
       ),
     /pnpm executable is absent from the acceptance parent PATH/u,
   );
