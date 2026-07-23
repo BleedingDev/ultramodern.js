@@ -895,11 +895,20 @@ function verifyShellWorkerdIdentity(projectDir, app, identity) {
   }
 }
 
-function bindContractToReleaseIdentity({ contract, platform, projectDir }) {
+function bindContractToExpectedReleaseIdentities({
+  contract,
+  expectedSourceRevisions,
+  platform,
+  projectDir,
+}) {
   if (!isRecord(contract) || !Array.isArray(contract.apps)) {
     throw new Error('Browser smoke contract must contain apps');
   }
-  const sourceRevision = promotableProjectRevision(projectDir);
+  if (!isRecord(expectedSourceRevisions)) {
+    throw new Error(
+      'Expected release source revisions must be an app-id keyed object',
+    );
+  }
   const packageScope = assertNonEmptyString(
     contract.workspace?.packageScope,
     'Strict release contract workspace.packageScope',
@@ -908,6 +917,15 @@ function bindContractToReleaseIdentity({ contract, platform, projectDir }) {
   return {
     ...contract,
     apps: contract.apps.map(app => {
+      const sourceRevision = assertNonEmptyString(
+        expectedSourceRevisions[app.id],
+        `${app.id} expected release source revision`,
+      );
+      if (!PROMOTABLE_SOURCE_REVISION_PATTERN.test(sourceRevision)) {
+        throw new Error(
+          `${app.id} expected release source revision is not promotable`,
+        );
+      }
       const deliveryUnit = configuredDeliveryUnit(app);
       const expectedUnitId = `${packageScope}/${app.domain ?? app.id}`;
       if (deliveryUnit.unitId !== expectedUnitId) {
@@ -967,7 +985,7 @@ function bindContractToReleaseIdentity({ contract, platform, projectDir }) {
       const identity = release.surfaces.frontend;
       if (identity.sourceRevision !== sourceRevision) {
         throw new Error(
-          `${app.id} release envelope source revision differs from clean application HEAD`,
+          `${app.id} release envelope source revision differs from its expected deployed revision`,
         );
       }
       return {
@@ -983,6 +1001,21 @@ function bindContractToReleaseIdentity({ contract, platform, projectDir }) {
       };
     }),
   };
+}
+
+function bindContractToReleaseIdentity({ contract, platform, projectDir }) {
+  if (!isRecord(contract) || !Array.isArray(contract.apps)) {
+    throw new Error('Browser smoke contract must contain apps');
+  }
+  const sourceRevision = promotableProjectRevision(projectDir);
+  return bindContractToExpectedReleaseIdentities({
+    contract,
+    expectedSourceRevisions: Object.fromEntries(
+      contract.apps.map(app => [app.id, sourceRevision]),
+    ),
+    platform,
+    projectDir,
+  });
 }
 
 function readNodeBackendArtifactEvidence(projectDir, app) {
@@ -1190,6 +1223,7 @@ function createRuntimeEvidence({
 }
 
 export {
+  bindContractToExpectedReleaseIdentities,
   bindContractToReleaseIdentity,
   createRuntimeEvidence,
   readNodeBackendArtifactEvidence,

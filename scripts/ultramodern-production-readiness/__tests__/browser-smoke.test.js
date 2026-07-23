@@ -1621,9 +1621,11 @@ test('Node failure isolation stops each real remote process and proves restart r
 });
 
 test('release identity evidence verifies the target envelope and its SHA-bound MF manifest', async () => {
-  const { bindContractToReleaseIdentity, createRuntimeEvidence } = await import(
-    '../browser-smoke/runtime-evidence.mjs'
-  );
+  const {
+    bindContractToExpectedReleaseIdentities,
+    bindContractToReleaseIdentity,
+    createRuntimeEvidence,
+  } = await import('../browser-smoke/runtime-evidence.mjs');
   const { createBuildMarker, normalizeSmokeContract } = await import(
     '../browser-smoke/contract.mjs'
   );
@@ -1823,6 +1825,32 @@ test('release identity evidence verifies the target envelope and its SHA-bound M
       contract,
       sourceContractSnapshot,
       'binding the release identity must not mutate any generated source contract field',
+    );
+    const independentShellRevision = 'b'.repeat(40);
+    const mixedRevisionContract = bindContractToExpectedReleaseIdentities({
+      contract,
+      expectedSourceRevisions: {
+        'inventory-web': sourceRevision,
+        'shell-super-app': independentShellRevision,
+      },
+      platform: 'node',
+      projectDir: root,
+    });
+    assert.equal(
+      mixedRevisionContract.apps.find(app => app.id === 'inventory-web').marker
+        .build,
+      inventoryReleaseMarker,
+      'an unchanged MicroVertical must bind to its executed C0 envelope',
+    );
+    assert.equal(
+      mixedRevisionContract.apps.find(app => app.id === 'shell-super-app')
+        .marker.build,
+      releaseBuildMarker(
+        shellUnitId,
+        shellGenerationMarker,
+        independentShellRevision,
+      ),
+      'independently deployed apps must bind against their own expected source revision',
     );
     const shellContract = {
       ...contract,

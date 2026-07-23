@@ -69,23 +69,30 @@ test('Node served proof starts each remote deterministically and waits before st
   ]);
 });
 
-test('C1 Node readiness is bound to the rebuilt MicroVertical marker', async () => {
-  const { bindTargetBuildMarker } = await loadProof();
-  const original = {
-    app: {
-      id: 'inventory',
-      marker: { build: 'marker-c0', framework: 'framework-marker' },
+test('operational readiness binds every app to its deployed C0 or C1 revision', async () => {
+  const { operationalSourceRevisions } = await loadProof();
+  const revisions = operationalSourceRevisions(
+    {
+      apps: [
+        { id: 'inventory' },
+        { id: 'finance' },
+        { id: 'people' },
+        { id: 'shell-super-app' },
+      ],
     },
-    baseUrl: 'http://localhost:4101',
-  };
+    {
+      baselineRevision: 'baseline',
+      changedAppId: 'inventory',
+      changedRevision: 'changed',
+    },
+  );
 
-  const changed = bindTargetBuildMarker(original, 'marker-c1');
-
-  assert.equal(changed.app.marker.build, 'marker-c1');
-  assert.equal(changed.app.marker.framework, 'framework-marker');
-  assert.equal(original.app.marker.build, 'marker-c0');
-  assert.notEqual(changed, original);
-  assert.notEqual(changed.app, original.app);
+  assert.deepEqual(revisions, {
+    inventory: 'changed',
+    finance: 'baseline',
+    people: 'baseline',
+    'shell-super-app': 'baseline',
+  });
 });
 
 function digest(bytes) {

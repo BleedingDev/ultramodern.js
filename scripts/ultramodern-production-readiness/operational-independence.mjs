@@ -19,6 +19,7 @@ import {
   parseMaybeJson,
   waitForTarget,
 } from './browser-smoke/http-validate.mjs';
+import { bindContractToExpectedReleaseIdentities } from './browser-smoke/runtime-evidence.mjs';
 import {
   createSmokeTargets,
   orderTargetsForLocalStartup,
@@ -974,23 +975,35 @@ async function verifyServedBehavior({
   };
 }
 
-function smokeTargets(workspace) {
-  const { contract } = readSmokeContract(workspace);
-  const { targets } = createSmokeTargets(contract, { mode: 'local' });
-  return targets;
+function operationalSourceRevisions(
+  contract,
+  { baselineRevision, changedAppId, changedRevision },
+) {
+  return Object.fromEntries(
+    contract.apps.map(app => [
+      app.id,
+      app.id === changedAppId ? changedRevision : baselineRevision,
+    ]),
+  );
 }
 
-function bindTargetBuildMarker(target, buildMarker) {
-  return {
-    ...target,
-    app: {
-      ...target.app,
-      marker: {
-        ...target.app.marker,
-        build: assertNonEmptyString(buildMarker, 'expected build marker'),
-      },
-    },
-  };
+function smokeTargets(
+  workspace,
+  { baselineRevision, changedAppId, changedRevision, platform },
+) {
+  const { contract: sourceContract } = readSmokeContract(workspace);
+  const contract = bindContractToExpectedReleaseIdentities({
+    contract: sourceContract,
+    expectedSourceRevisions: operationalSourceRevisions(sourceContract, {
+      baselineRevision,
+      changedAppId,
+      changedRevision,
+    }),
+    platform,
+    projectDir: workspace,
+  });
+  const { targets } = createSmokeTargets(contract, { mode: 'local' });
+  return targets;
 }
 
 function requiredSmokeTarget(targets, appId) {
@@ -1040,17 +1053,20 @@ async function startNodeTargetsInDependencyOrder({
 async function runNodeServedBehavior({
   apps,
   artifactDir,
+  baselineRevision,
+  changedRevision,
   expectedApiValue,
   expectedUiValue,
   identity,
   processEnv,
   workspace,
 }) {
-  const targets = smokeTargets(workspace).map(target =>
-    target.app.id === apps.changed.id
-      ? bindTargetBuildMarker(target, identity.buildMarker)
-      : target,
-  );
+  const targets = smokeTargets(workspace, {
+    baselineRevision,
+    changedAppId: apps.changed.id,
+    changedRevision,
+    platform: 'node',
+  });
   const changedTarget = requiredSmokeTarget(targets, apps.changed.id);
   requiredSmokeTarget(targets, apps.sibling.id);
   const shellTarget = requiredSmokeTarget(targets, apps.shell.id);
@@ -1122,6 +1138,8 @@ function servedBehaviorAppIds(apps) {
 async function runWorkerdServedBehavior({
   apps,
   artifactDir,
+  baselineRevision,
+  changedRevision,
   expectedApiValue,
   expectedUiValue,
   identity,
@@ -1129,7 +1147,12 @@ async function runWorkerdServedBehavior({
   workspace,
 }) {
   const { appId, shellId } = servedBehaviorAppIds(apps);
-  const targets = smokeTargets(workspace);
+  const targets = smokeTargets(workspace, {
+    baselineRevision,
+    changedAppId: apps.changed.id,
+    changedRevision,
+    platform: 'workerd',
+  });
   const target = requiredSmokeTarget(targets, appId);
   const server = await startWorkerdProof({
     artifactDir,
@@ -1533,6 +1556,8 @@ async function runOperationalIndependence(options) {
           ? await runNodeServedBehavior({
               apps,
               artifactDir: runtimeArtifactDir,
+              baselineRevision: transition.baseline,
+              changedRevision: transition.changed,
               expectedApiValue,
               expectedUiValue,
               identity,
@@ -1543,6 +1568,8 @@ async function runOperationalIndependence(options) {
           : await runWorkerdServedBehavior({
               apps,
               artifactDir: runtimeArtifactDir,
+              baselineRevision: transition.baseline,
+              changedRevision: transition.changed,
               expectedApiValue,
               expectedUiValue,
               identity,
@@ -1661,7 +1688,6 @@ export {
   assertChangedPathsOwnedBy,
   assertChangedVerticalRotated,
   assertCrossTargetIdentity,
-  bindTargetBuildMarker,
   canonicalSerialize,
   compareTargetSnapshots,
   createBuildCommand,
@@ -1671,6 +1697,7 @@ export {
   digestCanonical,
   ENVELOPE_RELATIVE_PATH,
   EVIDENCE_SCHEMA_VERSION,
+  operationalSourceRevisions,
   parseArgs,
   readAndVerifyEnvelope,
   readTopologyApps,
