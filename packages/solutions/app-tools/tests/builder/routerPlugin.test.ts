@@ -36,7 +36,11 @@ const compile = async (context: string, outputPath: string) =>
           publicPath: 'auto/',
         },
         plugins: [
-          new rspack.HtmlRspackPlugin({ chunks: ['main'] }),
+          new rspack.HtmlRspackPlugin({
+            chunks: ['main'],
+            templateContent:
+              '<!doctype html><html><head><script src="auto/custom.js"></script></head><body><a href="auto/help">Help</a></body></html>',
+          }),
           new RouterPlugin({
             HtmlBundlerPlugin: rspack.HtmlRspackPlugin,
             disableFilenameHash: true,
@@ -101,6 +105,9 @@ describe('RouterPlugin', () => {
     expect(emittedAssets).toContain('/static/css/lazy.css');
     expect(emittedAssets.some(asset => asset.includes('auto/'))).toBe(false);
     expect(html).toContain('src="/static/js/route-manifest-main.js"');
-    expect(html).not.toContain('auto/');
+    expect(html).toContain('src="auto/custom.js"');
+    expect(html).toContain('href="auto/help"');
+    expect(html).not.toContain('src="auto/static/');
+    expect(html).not.toContain('href="auto/static/');
   });
 });

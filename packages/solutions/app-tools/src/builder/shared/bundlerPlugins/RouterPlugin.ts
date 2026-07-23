@@ -35,6 +35,9 @@ const generateContentHash = (content: string) => {
 const isAutomaticPublicPath = (publicPath: unknown): publicPath is string =>
   publicPath === 'auto' || publicPath === 'auto/';
 
+const normalizeAutomaticHtmlAsset = (asset: string): string =>
+  asset.startsWith('auto/') ? `/${asset.slice('auto/'.length)}` : asset;
+
 export const normalizeRouterAssetPublicPath = (
   publicPath: string | undefined,
 ): string => {
@@ -133,19 +136,36 @@ export class RouterPlugin {
     const placeholder = `<!--<?- ${ROUTE_MANIFEST_HOLDER} ?>-->`;
 
     compiler.hooks.thisCompilation.tap(PLUGIN_NAME, compilation => {
-      this.HtmlBundlerPlugin.getCompilationHooks(
-        compilation,
-      ).beforeEmit.tapAsync('RouterManifestPlugin', (data, callback) => {
-        const { outputName } = data;
-        const { chunks } = data.plugin.options!;
-        chunksToHtmlName.set(chunks, outputName);
+      const htmlPluginHooks =
+        this.HtmlBundlerPlugin.getCompilationHooks(compilation);
+      htmlPluginHooks.beforeAssetTagGeneration.tapAsync(
+        'RouterManifestPlugin',
+        (data, callback) => {
+          if (isAutomaticPublicPath(compiler.options.output.publicPath)) {
+            data.assets.publicPath = '/';
+            data.assets.js = data.assets.js.map(normalizeAutomaticHtmlAsset);
+            data.assets.css = data.assets.css.map(normalizeAutomaticHtmlAsset);
+            if (data.assets.favicon) {
+              data.assets.favicon = normalizeAutomaticHtmlAsset(
+                data.assets.favicon,
+              );
+            }
+          }
 
-        const html = isAutomaticPublicPath(compiler.options.output.publicPath)
-          ? data.html.replace(/(\b(?:href|src)=["'])auto\//gu, '$1/')
-          : data.html;
-        data.html = html.replace('</script>', `</script>${placeholder}`);
-        callback(null, data);
-      });
+          callback(null, data);
+        },
+      );
+      htmlPluginHooks.beforeEmit.tapAsync(
+        'RouterManifestPlugin',
+        (data, callback) => {
+          const { outputName } = data;
+          const { chunks } = data.plugin.options!;
+          chunksToHtmlName.set(chunks, outputName);
+
+          data.html = data.html.replace('</script>', `</script>${placeholder}`);
+          callback(null, data);
+        },
+      );
 
       compilation.hooks.processAssets.tapPromise(
         {
