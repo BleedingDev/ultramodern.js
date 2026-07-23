@@ -566,16 +566,18 @@ function readAndVerifyEnvelope(outputRoot, expectedTarget, options = {}) {
       const presentIdentityParts = identityParts.filter(part =>
         source.includes(part),
       );
-      const isNeutralNodeLauncher =
-        expectedTarget === 'node' &&
+      const isNeutralDeploymentLauncher =
         surfaceName === 'ssr' &&
-        artifact.logicalPath === 'index.js';
-      // Modern's final Node index.js is the generic deployment launcher, not
-      // a Rspack SSR execution module. The framework envelope verifier makes
-      // the same narrow exclusion while requiring every route-referenced and
-      // bundles/* SSR module to carry identity. Keep scanning the launcher for
-      // forbidden prior identity above, and reject any partial current stamp.
-      if (isNeutralNodeLauncher && presentIdentityParts.length === 0) {
+        ((expectedTarget === 'node' && artifact.logicalPath === 'index.js') ||
+          (expectedTarget === 'cloudflare' &&
+            artifact.logicalPath === 'server/index.mjs'));
+      // Modern's final Node index.js and Cloudflare server/index.mjs are
+      // generic deployment launchers, not Rspack SSR execution modules. The
+      // framework envelope verifier makes these same narrow exclusions while
+      // requiring every route-referenced and compiled SSR/workerd module to
+      // carry identity. Keep scanning launchers for forbidden prior identity
+      // above, and reject any partial current stamp.
+      if (isNeutralDeploymentLauncher && presentIdentityParts.length === 0) {
         continue;
       }
       if (presentIdentityParts.length !== identityParts.length) {

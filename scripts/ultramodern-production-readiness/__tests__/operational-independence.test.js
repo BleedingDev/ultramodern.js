@@ -305,7 +305,7 @@ function canonical(value) {
 function createEnvelopeFixture(
   root,
   target = 'node',
-  { neutralNodeLauncher = false } = {},
+  { neutralCloudflareLauncher = false, neutralNodeLauncher = false } = {},
 ) {
   const identity = createIdentity('a'.repeat(40), '0123456789abcdef');
   const files = {
@@ -320,6 +320,9 @@ function createEnvelopeFixture(
     }),
     ...(neutralNodeLauncher
       ? { 'index.js': "require('./server/ssr.js');\n" }
+      : {}),
+    ...(neutralCloudflareLauncher
+      ? { 'server/index.mjs': "import '../worker/ssr.js';\n" }
       : {}),
   };
   for (const [logicalPath, source] of Object.entries(files)) {
@@ -346,6 +349,9 @@ function createEnvelopeFixture(
           'backendRemoteEntry.cjs': 'commonjs-module',
           'node_modules/@bleedingdev/runtime/package.json':
             'workerd-deployment',
+          ...(neutralCloudflareLauncher
+            ? { 'server/index.mjs': 'workerd' }
+            : {}),
         };
   const artifacts = Object.keys(files)
     .sort()
@@ -386,7 +392,11 @@ function createEnvelopeFixture(
     artifacts,
     surfaces: {
       uiClient: ['public/client.js'],
-      ssr: [...(neutralNodeLauncher ? ['index.js'] : []), 'server/ssr.js'],
+      ssr: [
+        ...(neutralNodeLauncher ? ['index.js'] : []),
+        ...(neutralCloudflareLauncher ? ['server/index.mjs'] : []),
+        'server/ssr.js',
+      ],
       apiBackend: ['api/index.js'],
       backendFederation: {
         manifest: 'backend-mf-manifest.json',
@@ -817,6 +827,50 @@ test('final-envelope verification still rejects prior identity in a neutral Node
   assert.throws(
     () =>
       readAndVerifyEnvelope(root, 'node', {
+        forbiddenIdentity: priorIdentity,
+      }),
+    /retains prior release identity residue/,
+  );
+});
+
+test('final-envelope verification accepts only an identity-neutral Cloudflare deployment launcher', async t => {
+  const { readAndVerifyEnvelope } = await loadProof();
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'operational-independence-cloudflare-launcher-'),
+  );
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  createEnvelopeFixture(root, 'cloudflare', {
+    neutralCloudflareLauncher: true,
+  });
+
+  const evidence = readAndVerifyEnvelope(root, 'cloudflare');
+
+  assert.equal(evidence.surfaces.ssr.artifacts.length, 2);
+  assert.deepEqual(evidence.surfaces.ssr.carrierPaths, ['server/ssr.js']);
+});
+
+test('final-envelope verification rejects prior identity in a neutral Cloudflare deployment launcher', async t => {
+  const { readAndVerifyEnvelope } = await loadProof();
+  const root = fs.mkdtempSync(
+    path.join(
+      os.tmpdir(),
+      'operational-independence-stale-cloudflare-launcher-',
+    ),
+  );
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  createEnvelopeFixture(root, 'cloudflare', {
+    neutralCloudflareLauncher: true,
+  });
+  const priorIdentity = createIdentity('b'.repeat(40), 'fedcba9876543210');
+  rewriteEnvelopeArtifact(
+    root,
+    'server/index.mjs',
+    `import '../worker/ssr.js';\n/* ${priorIdentity.buildMarker} ${priorIdentity.sourceRevision} */\n`,
+  );
+
+  assert.throws(
+    () =>
+      readAndVerifyEnvelope(root, 'cloudflare', {
         forbiddenIdentity: priorIdentity,
       }),
     /retains prior release identity residue/,
