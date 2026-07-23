@@ -232,11 +232,11 @@ test('shared ERP-10 profile requires frozen install, checks, both builds, and no
         throw new Error('mise pnpm exec PATH does not expose the pnpm shim');
       }
       if (command === exactPnpmExecutable) {
-        return '11.11.0';
+        return '11.16.0';
       }
       throw new Error(`Unexpected command ${command}`);
     },
-    '11.11.0',
+    '11.16.0',
     { PATH: exactPnpmDir },
     exactPnpmDir,
   );
@@ -268,11 +268,11 @@ test('shared ERP-10 profile requires frozen install, checks, both builds, and no
           assert.equal(command, exactPnpmExecutable);
           return '11.14.0';
         },
-        '11.11.0',
+        '11.16.0',
         { PATH: exactPnpmDir },
         exactPnpmDir,
       ),
-    /resolved 11\.14\.0, expected 11\.11\.0/u,
+    /resolved 11\.14\.0, expected 11\.16\.0/u,
   );
   const directoryDecoyPath = path.join(exactPnpmDir, 'directory-decoy');
   fs.mkdirSync(path.join(directoryDecoyPath, 'pnpm'), { recursive: true });
@@ -282,7 +282,7 @@ test('shared ERP-10 profile requires frozen install, checks, both builds, and no
         () => {
           throw new Error('directory decoy must not be executed');
         },
-        '11.11.0',
+        '11.16.0',
         { PATH: directoryDecoyPath },
         exactPnpmDir,
       ),
