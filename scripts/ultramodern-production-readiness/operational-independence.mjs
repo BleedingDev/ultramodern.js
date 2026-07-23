@@ -988,6 +988,47 @@ function requiredSmokeTarget(targets, appId) {
   return target;
 }
 
+async function startNodeTargetsInDependencyOrder({
+  artifactDir,
+  fetchImpl = fetch,
+  processEnv,
+  projectDir,
+  servers,
+  startServerImpl = startServer,
+  startup,
+  timeoutMs = 60_000,
+  waitForTargetImpl = waitForTarget,
+}) {
+  const startAndWait = async (targets, requireManifest) => {
+    const layerServers = targets.map(target => {
+      const server = startServerImpl(target, {
+        artifactDir,
+        processEnv,
+        projectDir,
+      });
+      const record = { server, target };
+      servers.push(record);
+      return record;
+    });
+    await Promise.all(
+      layerServers.map(({ server, target }) =>
+        waitForTargetImpl(target, {
+          fetchImpl,
+          requireManifest,
+          serverExit: server.exited,
+          serverLogPath: server.logPath,
+          timeoutMs,
+        }),
+      ),
+    );
+  };
+
+  for (const layer of startup.remoteLayers) {
+    await startAndWait(layer, true);
+  }
+  await startAndWait(startup.shells, false);
+}
+
 async function runNodeServedBehavior({
   apps,
   artifactDir,
@@ -1001,32 +1042,19 @@ async function runNodeServedBehavior({
   const changedTarget = requiredSmokeTarget(targets, apps.changed.id);
   requiredSmokeTarget(targets, apps.sibling.id);
   const shellTarget = requiredSmokeTarget(targets, apps.shell.id);
-  const startupTargets = orderTargetsForLocalStartup(targets).validation;
-  await assertLocalPortsAvailable(startupTargets);
+  const startup = orderTargetsForLocalStartup(targets);
+  await assertLocalPortsAvailable(startup.validation);
   const servers = [];
   let result;
   let failure;
   try {
-    for (const target of startupTargets) {
-      servers.push({
-        server: startServer(target, {
-          artifactDir,
-          processEnv,
-          projectDir: workspace,
-        }),
-        target,
-      });
-    }
-    await Promise.all(
-      servers.map(({ server, target }) =>
-        waitForTarget(target, {
-          fetchImpl: fetch,
-          serverExit: server.exited,
-          serverLogPath: server.logPath,
-          timeoutMs: 60_000,
-        }),
-      ),
-    );
+    await startNodeTargetsInDependencyOrder({
+      artifactDir,
+      processEnv,
+      projectDir: workspace,
+      servers,
+      startup,
+    });
     result = await verifyServedBehavior({
       app: changedTarget.app,
       baseUrl: changedTarget.baseUrl,
@@ -1636,6 +1664,7 @@ export {
   runOperationalIndependence,
   servedBehaviorAppIds,
   sha256,
+  startNodeTargetsInDependencyOrder,
   verifyServedBehavior,
   visibleHtmlText,
 };

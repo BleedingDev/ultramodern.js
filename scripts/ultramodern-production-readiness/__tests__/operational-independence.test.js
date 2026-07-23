@@ -23,6 +23,56 @@ test('operational process environment preserves exact pnpm and scrubs build iden
   assert.equal(env.MODERNJS_DEPLOY, undefined);
 });
 
+test('Node served proof waits for every remote dependency layer before starting the shell', async () => {
+  const { startNodeTargetsInDependencyOrder } = await loadProof();
+  const events = [];
+  const target = (id, kind = 'vertical') => ({
+    app: { id, kind },
+    baseUrl: `http://${id}.test`,
+  });
+  const inventory = target('inventory');
+  const finance = target('finance');
+  const shell = target('shell-super-app', 'shell');
+  const servers = [];
+
+  await startNodeTargetsInDependencyOrder({
+    artifactDir: '/proof/artifacts',
+    processEnv: { PATH: '/exact/pnpm/bin' },
+    projectDir: '/proof/workspace',
+    servers,
+    startServerImpl: currentTarget => {
+      events.push(`start:${currentTarget.app.id}`);
+      return {
+        exited: new Promise(() => {}),
+        logPath: `/proof/${currentTarget.app.id}.log`,
+      };
+    },
+    startup: {
+      remoteLayers: [[inventory, finance]],
+      shells: [shell],
+    },
+    waitForTargetImpl: async (currentTarget, options) => {
+      events.push(
+        `ready:${currentTarget.app.id}:${String(options.requireManifest)}`,
+      );
+    },
+  });
+
+  assert.equal(servers.length, 3);
+  assert.ok(
+    events.indexOf('start:shell-super-app') >
+      events.indexOf('ready:inventory:true'),
+  );
+  assert.ok(
+    events.indexOf('start:shell-super-app') >
+      events.indexOf('ready:finance:true'),
+  );
+  assert.deepEqual(events.slice(-2), [
+    'start:shell-super-app',
+    'ready:shell-super-app:false',
+  ]);
+});
+
 function digest(bytes) {
   return crypto.createHash('sha256').update(bytes).digest('hex');
 }
