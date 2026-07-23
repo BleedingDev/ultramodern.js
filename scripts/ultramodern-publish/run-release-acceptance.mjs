@@ -188,16 +188,30 @@ function profileOptions(options) {
   });
 }
 
-function verifyReceipt({ release, options, runIdentity }) {
+function verifyReceipt({
+  release,
+  options,
+  runIdentity,
+  expectedMode = options.expectedMode,
+}) {
   const receipt = readAcceptanceReceipt(options.receiptPath);
   const verified = assertAcceptanceReceipt(receipt, {
     release,
     profileId: options.scaleProfile,
     runIdentity,
-    expectedMode: options.expectedMode,
+    expectedMode,
   });
   verifyAcceptanceReceiptOperationalEvidence(receipt, options.receiptPath);
   return verified;
+}
+
+function verifyProducedReceipt({ release, options, runIdentity }) {
+  return verifyReceipt({
+    release,
+    options,
+    runIdentity,
+    expectedMode: options.mode === 'published' ? 'published' : 'source',
+  });
 }
 
 async function runPrepublish({ release, options, runIdentity }) {
@@ -264,6 +278,7 @@ async function main(argv = process.argv.slice(2), env = process.env) {
   } else {
     await runPrepublish({ release, options, runIdentity });
   }
+  verifyProducedReceipt({ release, options, runIdentity });
   process.stdout.write(
     `ERP-10 exact-artifact acceptance passed for ${release.release.version}.\n`,
   );
@@ -290,5 +305,6 @@ export {
   parseArgs,
   profileOptions,
   resolveRunIdentity,
+  verifyProducedReceipt,
   verifyReceipt,
 };

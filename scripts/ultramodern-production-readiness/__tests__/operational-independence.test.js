@@ -558,7 +558,7 @@ test('topology selector allows extra ERP verticals while isolating three chosen 
 });
 
 test('comparison proves all changed surfaces rotate and siblings stay byte-identical', async () => {
-  const { compareTargetSnapshots } = await loadProof();
+  const { compareTargetSnapshots, digestCanonical } = await loadProof();
   const fixture = createComparisonFixture();
 
   const result = compareTargetSnapshots({
@@ -577,6 +577,16 @@ test('comparison proves all changed surfaces rotate and siblings stay byte-ident
   assert.equal(result.shell.envelopeIdentical, true);
   assert.equal(result.sibling.byteIdentical, true);
   assert.equal(result.sibling.envelopeIdentical, true);
+  assert.deepEqual(Object.keys(result.shell).sort(), [
+    'byteIdentical',
+    'envelopeIdentical',
+    'treeDigest',
+  ]);
+  assert.equal(
+    digestCanonical(result),
+    digestCanonical(JSON.parse(JSON.stringify(result))),
+    'canonical evidence digest must survive durable JSON serialization',
+  );
 });
 
 test('comparison rejects every stale changed-MicroVertical surface', async () => {

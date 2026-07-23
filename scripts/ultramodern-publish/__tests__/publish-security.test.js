@@ -474,6 +474,13 @@ test('release acceptance runner preserves the accepted producer identity on a pu
       }),
     );
     assert.doesNotThrow(() =>
+      runner.verifyProducedReceipt({
+        release,
+        options: { ...options, mode: 'prepublish' },
+        runIdentity: producerRunIdentity,
+      }),
+    );
+    assert.doesNotThrow(() =>
       runner.verifyReceipt({
         release,
         options,

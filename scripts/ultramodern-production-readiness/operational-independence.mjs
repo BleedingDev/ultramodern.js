@@ -723,10 +723,9 @@ function assertByteIdentical(before, after, label) {
     byteIdentical: true,
     envelopeIdentical: true,
     treeDigest: before.tree.treeDigest,
-    envelopeDigest:
-      beforeEnvelope.present === false
-        ? undefined
-        : beforeEnvelope.envelopeDigest,
+    ...(beforeEnvelope.present === false
+      ? {}
+      : { envelopeDigest: beforeEnvelope.envelopeDigest }),
   };
 }
 
