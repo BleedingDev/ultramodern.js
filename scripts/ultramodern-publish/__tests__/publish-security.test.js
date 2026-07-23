@@ -28,6 +28,10 @@ const publishWorkflowPath = path.join(
   repoRoot,
   '.github/workflows/publish-bleedingdev.yml',
 );
+const tractorWorkflowPath = path.join(
+  repoRoot,
+  '.github/workflows/ultramodern-tractor-downstream.yml',
+);
 const readinessWorkflowPath = path.join(
   repoRoot,
   '.github/workflows/ultramodern-production-readiness.yml',
@@ -736,6 +740,22 @@ test('Tractor acceptance consumes the exact published bundle and gates non-dry s
   assert.equal(Object.hasOwn(tractor, 'secrets'), false);
   assert.match(tractor.if, /inputs\.dry_run == false/u);
   assert.match(outcome.if, /needs\.tractor-downstream\.result == 'success'/u);
+});
+
+test('Tractor acceptance provisions the manifest-pinned pnpm ahead of the stale downstream shim', () => {
+  const parsed = workflow(tractorWorkflowPath);
+  const tractor = parsed.jobs['tractor-downstream'];
+  const provision = namedStep(tractor, 'Provision manifest-pinned pnpm');
+  const acceptance = namedStep(tractor, 'Run exact-cohort Tractor acceptance');
+
+  assert.equal(provision['working-directory'], 'modernjs');
+  assert.match(provision.run, /manifest\.tools\?\.pnpm/u);
+  assert.match(provision.run, /mise install/u);
+  assert.match(provision.run, /mise where/u);
+  assert.match(provision.run, /ULTRAMODERN_PNPM_EXECUTABLE/u);
+  assert.ok(
+    tractor.steps.indexOf(provision) < tractor.steps.indexOf(acceptance),
+  );
 });
 
 test('publish validator rejects authority, mutable resolution, and acceptance bypass attacks', async () => {

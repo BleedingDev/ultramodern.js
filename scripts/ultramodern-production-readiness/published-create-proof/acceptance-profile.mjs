@@ -203,21 +203,34 @@ function resolveExactPnpmExecutable(
   const names =
     process.platform === 'win32' ? ['pnpm.cmd', 'pnpm.exe', 'pnpm'] : ['pnpm'];
   const candidates = [];
-  try {
-    const nestedExecutable = runImpl(
-      'pnpm',
-      ['exec', 'node', '-e', discoveryScript],
-      {
-        cwd: repoRoot,
-        stdio: 'pipe',
-      },
-    );
-    if (path.isAbsolute(nestedExecutable)) {
-      candidates.push(nestedExecutable);
+  const provisionedExecutable = environment.ULTRAMODERN_PNPM_EXECUTABLE;
+  if (provisionedExecutable !== undefined) {
+    if (
+      typeof provisionedExecutable !== 'string' ||
+      !path.isAbsolute(provisionedExecutable)
+    ) {
+      throw new Error(
+        `Provisioned acceptance pnpm executable must be absolute: ${String(provisionedExecutable)}`,
+      );
     }
-  } catch {
-    // mise can execute pnpm without exposing its shim in `pnpm exec` PATH.
-    // Parent PATH discovery below covers that installation shape.
+    candidates.push(provisionedExecutable);
+  } else {
+    try {
+      const nestedExecutable = runImpl(
+        'pnpm',
+        ['exec', 'node', '-e', discoveryScript],
+        {
+          cwd: repoRoot,
+          stdio: 'pipe',
+        },
+      );
+      if (path.isAbsolute(nestedExecutable)) {
+        candidates.push(nestedExecutable);
+      }
+    } catch {
+      // mise can execute pnpm without exposing its shim in `pnpm exec` PATH.
+      // Parent PATH discovery below covers that installation shape.
+    }
   }
   for (const directory of (environment.PATH ?? '').split(path.delimiter)) {
     for (const name of names) {

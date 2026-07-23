@@ -261,6 +261,40 @@ test('shared ERP-10 profile requires frozen install, checks, both builds, and no
     ],
   );
   assert.equal(calls[1].options.cwd, exactPnpmDir);
+  const stalePnpmDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'ultramodern-stale-pnpm-shim-'),
+  );
+  t.after(() => fs.rmSync(stalePnpmDir, { force: true, recursive: true }));
+  const stalePnpmExecutable = path.join(
+    stalePnpmDir,
+    process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm',
+  );
+  fs.writeFileSync(stalePnpmExecutable, 'stale acceptance test executable');
+  fs.chmodSync(stalePnpmExecutable, 0o755);
+  const explicitCalls = [];
+  assert.equal(
+    resolveExactPnpmExecutable(
+      (command, args) => {
+        explicitCalls.push([command, args]);
+        if (command === exactPnpmExecutable) {
+          return '11.17.0';
+        }
+        if (command === stalePnpmExecutable || command === 'pnpm') {
+          return '11.11.0';
+        }
+        throw new Error(`Unexpected command ${command}`);
+      },
+      '11.17.0',
+      {
+        PATH: stalePnpmDir,
+        ULTRAMODERN_PNPM_EXECUTABLE: exactPnpmExecutable,
+      },
+      exactPnpmDir,
+    ),
+    exactPnpmExecutable,
+    'an explicitly provisioned manifest pnpm must win over a stale project shim',
+  );
+  assert.deepEqual(explicitCalls, [[exactPnpmExecutable, ['--version']]]);
   assert.equal(
     createAcceptancePackageManagerEnv(
       '/tmp/acceptance',

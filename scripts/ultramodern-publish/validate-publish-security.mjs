@@ -1863,6 +1863,22 @@ function validateTractorWorkflow(workflow) {
     'Tractor acceptance must download the exact caller release bundle',
   );
 
+  const pnpmProvision = namedStep(
+    job,
+    'Provision manifest-pinned pnpm',
+    'Tractor acceptance workflow job',
+  );
+  requireCondition(
+    pnpmProvision['working-directory'] === 'modernjs' &&
+      typeof pnpmProvision.run === 'string' &&
+      pnpmProvision.run.includes('manifest.tools?.pnpm') &&
+      pnpmProvision.run.includes('mise install "pnpm@$pnpm_version"') &&
+      pnpmProvision.run.includes('mise where "pnpm@$pnpm_version"') &&
+      pnpmProvision.run.includes('ULTRAMODERN_PNPM_EXECUTABLE') &&
+      pnpmProvision.run.includes('test "$actual_version" = "$pnpm_version"'),
+    'Tractor acceptance must provision and verify the exact manifest-bound pnpm executable',
+  );
+
   const acceptanceRun = namedStep(
     job,
     'Run exact-cohort Tractor acceptance',
@@ -1918,9 +1934,11 @@ function validateTractorWorkflow(workflow) {
   );
   const steps = stepsFor(job, 'Tractor acceptance workflow job');
   requireCondition(
-    steps.indexOf(acceptanceRun) < steps.indexOf(evidenceBinding) &&
+    steps.indexOf(bundleDownload) < steps.indexOf(pnpmProvision) &&
+      steps.indexOf(pnpmProvision) < steps.indexOf(acceptanceRun) &&
+      steps.indexOf(acceptanceRun) < steps.indexOf(evidenceBinding) &&
       steps.indexOf(evidenceBinding) < steps.indexOf(upload),
-    'Tractor acceptance must execute, bind, then upload its report',
+    'Tractor acceptance must download, provision pnpm, execute, bind, then upload its report',
   );
 
   const source = JSON.stringify(workflow);
