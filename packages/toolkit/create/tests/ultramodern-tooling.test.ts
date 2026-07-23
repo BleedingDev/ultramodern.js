@@ -268,6 +268,74 @@ test('migrate removes the retired Module Federation TypeScript shim idempotently
   }
 });
 
+test('migrate recognizes the previously generated Module Federation 2.7 patch cohort', async () => {
+  const { tempRoot, workspaceDir } = scaffoldWorkspace(
+    'tooling-mf-previous-patch-cohort',
+  );
+  const workspacePath = path.join(workspaceDir, 'pnpm-workspace.yaml');
+
+  try {
+    const policy = yaml.load(fs.readFileSync(workspacePath, 'utf-8')) as Record<
+      string,
+      any
+    >;
+    delete policy.patchedDependencies[
+      `@module-federation/modern-js-v3@${MODULE_FEDERATION_VERSION}`
+    ];
+    delete policy.patchedDependencies[
+      `@module-federation/bridge-react@${MODULE_FEDERATION_VERSION}`
+    ];
+    policy.patchedDependencies['@module-federation/modern-js-v3@2.7.0'] =
+      'patches/@module-federation__modern-js-v3@2.7.0.patch';
+    policy.patchedDependencies['@module-federation/bridge-react@2.7.0'] =
+      'patches/@module-federation__bridge-react@2.7.0.patch';
+    fs.writeFileSync(workspacePath, yaml.dump(policy), 'utf-8');
+
+    assert.equal(
+      await runUltramodernToolingCli(
+        ['migrate-strict-effect', '--skip-install'],
+        workspaceDir,
+      ),
+      0,
+    );
+
+    const migratedPolicy = yaml.load(
+      fs.readFileSync(workspacePath, 'utf-8'),
+    ) as Record<string, any>;
+    assert.equal(
+      migratedPolicy.patchedDependencies[
+        '@module-federation/modern-js-v3@2.7.0'
+      ],
+      undefined,
+    );
+    assert.equal(
+      migratedPolicy.patchedDependencies[
+        '@module-federation/bridge-react@2.7.0'
+      ],
+      undefined,
+    );
+    assert.equal(
+      migratedPolicy.patchedDependencies[
+        `@module-federation/modern-js-v3@${MODULE_FEDERATION_VERSION}`
+      ],
+      `patches/@module-federation__modern-js-v3@${MODULE_FEDERATION_VERSION}.patch`,
+    );
+    assert.equal(
+      migratedPolicy.patchedDependencies[
+        `@module-federation/bridge-react@${MODULE_FEDERATION_VERSION}`
+      ],
+      `patches/@module-federation__bridge-react@${MODULE_FEDERATION_VERSION}.patch`,
+    );
+    assert.equal(
+      exists(workspaceDir, 'patches/effect-schema-error-type-id.patch'),
+      true,
+      'migration must preserve a stale-version patch path that remains active in the current policy',
+    );
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test('migrate keeps version fields consistent across the compact config', async () => {
   const { tempRoot, workspaceDir } = scaffoldWorkspace('tooling-version-sync');
 

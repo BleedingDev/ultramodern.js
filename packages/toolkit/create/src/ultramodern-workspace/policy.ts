@@ -448,6 +448,18 @@ const conditionalPatchPolicies: readonly UltramodernPatchPolicy[] = [
 
 const stalePatchPolicies: readonly UltramodernStalePatchPolicy[] = [
   {
+    packageName: '@module-federation/bridge-react',
+    version: '2.7.0',
+    path: 'patches/@module-federation__bridge-react@2.7.0.patch',
+    sha256: '2f89441475f83a6e12d8c2a755b5b15c4d2b04523a1b33fd318c2d537382537f',
+  },
+  {
+    packageName: '@module-federation/modern-js-v3',
+    version: '2.7.0',
+    path: 'patches/@module-federation__modern-js-v3@2.7.0.patch',
+    sha256: 'f51adf0aa6c6e2daa5b7d2978a7716c0d4fb05b29af449b2f16257b957fb7923',
+  },
+  {
     packageName: 'effect',
     version: '4.0.0-beta.94',
     path: 'patches/effect-schema-error-type-id.patch',
