@@ -133,6 +133,7 @@ test('builds the supported pnpm dlx package command contract', async () => {
       ['my-super-app', '--lang', 'en'],
     ),
     [
+      '--config.minimum-release-age-exclude=@bleedingdev/*',
       'dlx',
       '--allow-build=esbuild',
       '@bleedingdev/modern-js-create@3.4.0-ultramodern.2',
@@ -150,6 +151,7 @@ test('builds the supported pnpm dlx package command contract', async () => {
       ['catalog', '--vertical', '--lang', 'en'],
     ),
     [
+      '--config.minimum-release-age-exclude=@bleedingdev/*',
       'dlx',
       '--allow-build=esbuild',
       '@bleedingdev/modern-js-create@3.2.0-ultramodern.120',
@@ -158,6 +160,14 @@ test('builds the supported pnpm dlx package command contract', async () => {
       '--lang',
       'en',
     ],
+  );
+  assert.throws(
+    () =>
+      createPnpmDlxArgs(
+        { exactSpecifier: 'modern-js-create@3.5.0-ultramodern.77' },
+        [],
+      ),
+    /must use a scoped exact specifier/u,
   );
 
   const root = path.join(os.tmpdir(), 'published-create-dlx-cache');
@@ -232,11 +242,11 @@ test('shared ERP-10 profile requires frozen install, checks, both builds, and no
         throw new Error('mise pnpm exec PATH does not expose the pnpm shim');
       }
       if (command === exactPnpmExecutable) {
-        return '11.16.0';
+        return '11.17.0';
       }
       throw new Error(`Unexpected command ${command}`);
     },
-    '11.16.0',
+    '11.17.0',
     { PATH: exactPnpmDir },
     exactPnpmDir,
   );
@@ -268,11 +278,11 @@ test('shared ERP-10 profile requires frozen install, checks, both builds, and no
           assert.equal(command, exactPnpmExecutable);
           return '11.14.0';
         },
-        '11.16.0',
+        '11.17.0',
         { PATH: exactPnpmDir },
         exactPnpmDir,
       ),
-    /resolved 11\.14\.0, expected 11\.16\.0/u,
+    /resolved 11\.14\.0, expected 11\.17\.0/u,
   );
   const directoryDecoyPath = path.join(exactPnpmDir, 'directory-decoy');
   fs.mkdirSync(path.join(directoryDecoyPath, 'pnpm'), { recursive: true });
@@ -282,7 +292,7 @@ test('shared ERP-10 profile requires frozen install, checks, both builds, and no
         () => {
           throw new Error('directory decoy must not be executed');
         },
-        '11.16.0',
+        '11.17.0',
         { PATH: directoryDecoyPath },
         exactPnpmDir,
       ),

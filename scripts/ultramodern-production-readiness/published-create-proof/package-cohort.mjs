@@ -219,7 +219,14 @@ function resolveCreatePackage(release, requestedSpecifier) {
 }
 
 function createPnpmDlxArgs(createPackage, forwardedArgs) {
+  const scope = /^(?<scope>@[^/]+)\//u.exec(createPackage.exactSpecifier)
+    ?.groups?.scope;
+  assertCondition(
+    scope,
+    `Create package must use a scoped exact specifier, found ${String(createPackage.exactSpecifier)}`,
+  );
   return [
+    `--config.minimum-release-age-exclude=${scope}/*`,
     'dlx',
     '--allow-build=esbuild',
     createPackage.exactSpecifier,
