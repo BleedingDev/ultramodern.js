@@ -396,7 +396,10 @@ test('browser runtime children scrub inherited source and deployment overrides',
     process.env.ULTRAMODERN_CREATE_BIN = '/inherited/source-create-bin.js';
     process.env.ZE_CI_TOKEN = 'inherited-zephyr-token';
     const effectiveEnv = createProcessEnv(
-      createBrowserSmokeEnvironment('/tmp/playwright-runtime'),
+      createBrowserSmokeEnvironment('/tmp/playwright-runtime', {
+        PATH: '/tmp/exact-pnpm/bin',
+        pnpm_config_registry: 'http://127.0.0.1:4873/',
+      }),
     );
     const child = spawnSync(
       process.execPath,
@@ -406,12 +409,17 @@ test('browser runtime children scrub inherited source and deployment overrides',
           frameworkOverride: process.env.MODERN_CREATE_ULTRAMODERN_FRAMEWORK_VERSION,
           sourceCreateBin: process.env.ULTRAMODERN_CREATE_BIN,
           zephyrToken: process.env.ZE_CI_TOKEN,
+          path: process.env.PATH,
+          registry: process.env.pnpm_config_registry,
         }))`,
       ],
       { encoding: 'utf8', env: effectiveEnv },
     );
     assert.equal(child.status, 0, child.stderr);
-    assert.deepEqual(JSON.parse(child.stdout), {});
+    assert.deepEqual(JSON.parse(child.stdout), {
+      path: '/tmp/exact-pnpm/bin',
+      registry: 'http://127.0.0.1:4873/',
+    });
   } finally {
     for (const [name, value] of Object.entries(inherited)) {
       if (value === undefined) {

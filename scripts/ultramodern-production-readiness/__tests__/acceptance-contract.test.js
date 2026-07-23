@@ -135,6 +135,11 @@ test('acceptance executes final Node outputs before Cloudflare replaces .output'
     source.slice(eagerNode, cloudflare),
     /runtimeAcceptanceInvocation\(mode, 'node'\)/u,
   );
+  assert.match(
+    source.slice(eagerNode, cloudflare),
+    /runtimeAcceptanceInvocation\(mode, 'node'\)[\s\S]*packageManagerEnv/u,
+    'the nested runtime proof must inherit the exact package-manager environment',
+  );
 
   const bootstrap = fs.readFileSync(
     path.join(__dirname, '../browser-smoke/bootstrap.mjs'),

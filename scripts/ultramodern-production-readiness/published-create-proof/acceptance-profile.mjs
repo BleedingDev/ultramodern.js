@@ -715,10 +715,10 @@ async function runAcceptanceProfile({
       // platform/dimension order.
       runtimeReports.set(
         'node',
-        await browserSmokeImpl(
-          projectDir,
-          runtimeAcceptanceInvocation(mode, 'node'),
-        ),
+        await browserSmokeImpl(projectDir, {
+          ...runtimeAcceptanceInvocation(mode, 'node'),
+          packageManagerEnv,
+        }),
       );
 
       await recordAcceptanceResult(receipt, 'topology', () =>
@@ -761,10 +761,10 @@ async function runAcceptanceProfile({
             withDuration(async () => {
               let report = runtimeReports.get(platform);
               if (!report) {
-                report = await browserSmokeImpl(
-                  projectDir,
-                  runtimeAcceptanceInvocation(mode, platform),
-                );
+                report = await browserSmokeImpl(projectDir, {
+                  ...runtimeAcceptanceInvocation(mode, platform),
+                  packageManagerEnv,
+                });
                 runtimeReports.set(platform, report);
               }
               return assertRuntimeAcceptanceDimension(report, {

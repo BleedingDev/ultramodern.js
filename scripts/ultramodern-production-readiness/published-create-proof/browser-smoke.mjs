@@ -53,8 +53,9 @@ function ensureBrowserSmokeRuntime() {
   return runtimeDir;
 }
 
-function createBrowserSmokeEnvironment(runtimeDir) {
+function createBrowserSmokeEnvironment(runtimeDir, packageManagerEnv = {}) {
   return {
+    ...packageManagerEnv,
     // Acceptance installs the generated workspace with CI=true. Keep pnpm's
     // install-mode defaults identical when the smoke runner starts package
     // scripts, including enableGlobalVirtualStore on pnpm 11.
@@ -71,7 +72,14 @@ function createBrowserSmokeEnvironment(runtimeDir) {
 
 function runBrowserSmoke(
   projectDir,
-  { artifactMode, mode, platform, requirePublicUrls = false, shellRuntime },
+  {
+    artifactMode,
+    mode,
+    packageManagerEnv,
+    platform,
+    requirePublicUrls = false,
+    shellRuntime,
+  },
   {
     ensureBrowserSmokeRuntimeImpl = ensureBrowserSmokeRuntime,
     readJsonFileImpl = readJsonFile,
@@ -122,7 +130,7 @@ function runBrowserSmoke(
   fs.rmSync(reportPath, { force: true });
   try {
     runImpl(args[0], args.slice(1), {
-      env: createBrowserSmokeEnvironment(runtimeDir),
+      env: createBrowserSmokeEnvironment(runtimeDir, packageManagerEnv),
     });
   } catch (cause) {
     if (!fs.existsSync(reportPath) && readJsonFileImpl === readJsonFile) {
