@@ -396,7 +396,10 @@ test('shared source and published profiles commit only inventory and invoke the 
           ephemeralWorkDir: root,
           mode,
           outPath,
-          packageManagerEnv: {},
+          packageManagerEnv: {
+            PATH: process.env.PATH,
+            npm_config_registry: 'http://registry.example.test',
+          },
           projectDir: root,
           runImpl,
           runOperationalIndependenceImpl,
@@ -413,6 +416,10 @@ test('shared source and published profiles commit only inventory and invoke the 
             '..',
             `${mode}-receipt.operational-independence.json`,
           ),
+          packageManagerEnv: {
+            PATH: process.env.PATH,
+            npm_config_registry: 'http://registry.example.test',
+          },
           shellId: 'shell-super-app',
           siblingId: 'finance',
           workspace: root,

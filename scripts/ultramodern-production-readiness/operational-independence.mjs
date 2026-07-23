@@ -974,6 +974,7 @@ async function runNodeServedBehavior({
   expectedApiValue,
   expectedUiValue,
   identity,
+  processEnv,
   workspace,
 }) {
   const targets = smokeTargets(workspace);
@@ -990,6 +991,7 @@ async function runNodeServedBehavior({
       servers.push({
         server: startServer(target, {
           artifactDir,
+          processEnv,
           projectDir: workspace,
         }),
         target,
@@ -1063,6 +1065,7 @@ async function runWorkerdServedBehavior({
   expectedApiValue,
   expectedUiValue,
   identity,
+  processEnv,
   workspace,
 }) {
   const { appId, shellId } = servedBehaviorAppIds(apps);
@@ -1070,6 +1073,7 @@ async function runWorkerdServedBehavior({
   const target = requiredSmokeTarget(targets, appId);
   const server = await startWorkerdProof({
     artifactDir,
+    processEnv,
     projectDir: workspace,
     timeoutMs: 60_000,
   });
@@ -1193,24 +1197,32 @@ function runProcess(command, args, options = {}) {
   };
 }
 
+function createOperationalProcessEnv(packageManagerEnv = {}) {
+  const env = { ...process.env, ...packageManagerEnv };
+  delete env.ULTRAMODERN_SOURCE_REVISION;
+  delete env.MODERNJS_DEPLOY;
+  return env;
+}
+
 function git(workspace, args, options = {}) {
   return runProcess('git', args, {
     cwd: workspace,
     capture: true,
+    env: options.env,
     allowedExitCodes: options.allowedExitCodes,
   });
 }
 
-function assertCleanGitWorkspace(workspace, expectedHead, label) {
-  const head = git(workspace, ['rev-parse', 'HEAD']).stdout;
+function assertCleanGitWorkspace(workspace, expectedHead, label, env) {
+  const head = git(workspace, ['rev-parse', 'HEAD'], { env }).stdout;
   if (head !== expectedHead) {
     throw new Error(`${label} HEAD must be ${expectedHead}; received ${head}.`);
   }
-  const status = git(workspace, [
-    'status',
-    '--porcelain=v1',
-    '--untracked-files=all',
-  ]).stdout;
+  const status = git(
+    workspace,
+    ['status', '--porcelain=v1', '--untracked-files=all'],
+    { env },
+  ).stdout;
   if (status !== '') {
     throw new Error(`${label} Git workspace is dirty:\n${status}`);
   }
@@ -1253,10 +1265,7 @@ function readTopologyApps(workspace, ids) {
   return apps;
 }
 
-function buildApps({ workspace, apps, target, roles, run = runProcess }) {
-  const env = { ...process.env };
-  delete env.ULTRAMODERN_SOURCE_REVISION;
-  delete env.MODERNJS_DEPLOY;
+function buildApps({ workspace, apps, target, roles, env, run = runProcess }) {
   const commands = [];
   for (const role of roles) {
     const app = apps[role];
@@ -1271,10 +1280,7 @@ function buildApps({ workspace, apps, target, roles, run = runProcess }) {
   return commands;
 }
 
-function buildWorkspaceBaseline({ workspace, target, run = runProcess }) {
-  const env = { ...process.env };
-  delete env.ULTRAMODERN_SOURCE_REVISION;
-  delete env.MODERNJS_DEPLOY;
+function buildWorkspaceBaseline({ workspace, target, env, run = runProcess }) {
   const build = createWorkspaceBuildCommand(target);
   run(build.command, build.args, { cwd: workspace, env });
   return [
@@ -1304,57 +1310,53 @@ function captureApps(workspace, apps, target, forbiddenIdentities = {}) {
   );
 }
 
-function resolveCommitTransition(workspace, baselineRef, changedRef) {
-  const baseline = git(workspace, [
-    'rev-parse',
-    '--verify',
-    `${baselineRef}^{commit}`,
-  ]).stdout;
-  const changed = git(workspace, [
-    'rev-parse',
-    '--verify',
-    `${changedRef}^{commit}`,
-  ]).stdout;
+function resolveCommitTransition(workspace, baselineRef, changedRef, env) {
+  const baseline = git(
+    workspace,
+    ['rev-parse', '--verify', `${baselineRef}^{commit}`],
+    { env },
+  ).stdout;
+  const changed = git(
+    workspace,
+    ['rev-parse', '--verify', `${changedRef}^{commit}`],
+    { env },
+  ).stdout;
   if (baseline === changed) {
     throw new Error('C0 and C1 must be different commits.');
   }
-  const parentLine = git(workspace, [
-    'rev-list',
-    '--parents',
-    '-n',
-    '1',
-    changed,
-  ]).stdout.split(/\s+/u);
+  const parentLine = git(
+    workspace,
+    ['rev-list', '--parents', '-n', '1', changed],
+    { env },
+  ).stdout.split(/\s+/u);
   if (parentLine.length !== 2 || parentLine[1] !== baseline) {
     throw new Error('C1 must be a single-parent commit directly on C0.');
   }
-  const changedPaths = git(workspace, [
-    'diff',
-    '--name-only',
-    '--no-renames',
-    baseline,
-    changed,
-    '--',
-  ])
+  const changedPaths = git(
+    workspace,
+    ['diff', '--name-only', '--no-renames', baseline, changed, '--'],
+    { env },
+  )
     .stdout.split('\n')
     .filter(Boolean);
   return { baseline, changed, changedPaths };
 }
 
-function restoreCheckout(workspace, original) {
-  const currentHead = git(workspace, ['rev-parse', 'HEAD']).stdout;
+function restoreCheckout(workspace, original, env) {
+  const currentHead = git(workspace, ['rev-parse', 'HEAD'], { env }).stdout;
   if (original.branch) {
     if (
       currentHead !== original.head ||
       original.branch !==
         git(workspace, ['symbolic-ref', '--quiet', '--short', 'HEAD'], {
           allowedExitCodes: [0, 1],
+          env,
         }).stdout
     ) {
-      git(workspace, ['switch', original.branch]);
+      git(workspace, ['switch', original.branch], { env });
     }
   } else if (currentHead !== original.head) {
-    git(workspace, ['switch', '--detach', original.head]);
+    git(workspace, ['switch', '--detach', original.head], { env });
   }
 }
 
@@ -1367,6 +1369,7 @@ function writeEvidence(outputPath, evidence) {
 
 async function runOperationalIndependence(options) {
   const workspace = fs.realpathSync(path.resolve(options.workspace));
+  const processEnv = createOperationalProcessEnv(options.packageManagerEnv);
   const expectedApiValue = assertNonEmptyString(
     options.expectedApiValue,
     'expected C1 API value',
@@ -1385,18 +1388,19 @@ async function runOperationalIndependence(options) {
     workspace,
     options.baselineRef,
     options.changedRef,
+    processEnv,
   );
   assertChangedPathsOwnedBy(transition.changedPaths, apps.changed.path);
   const originalBranch = git(
     workspace,
     ['symbolic-ref', '--quiet', '--short', 'HEAD'],
-    { allowedExitCodes: [0, 1] },
+    { allowedExitCodes: [0, 1], env: processEnv },
   );
   const original = {
     branch: originalBranch.exitCode === 0 ? originalBranch.stdout : undefined,
-    head: git(workspace, ['rev-parse', 'HEAD']).stdout,
+    head: git(workspace, ['rev-parse', 'HEAD'], { env: processEnv }).stdout,
   };
-  assertCleanGitWorkspace(workspace, original.head, 'Initial');
+  assertCleanGitWorkspace(workspace, original.head, 'Initial', processEnv);
 
   const targets = {};
   const runtimeArtifactDir = fs.mkdtempSync(
@@ -1405,35 +1409,53 @@ async function runOperationalIndependence(options) {
   let failure;
   try {
     for (const target of ['node', 'cloudflare']) {
-      git(workspace, ['switch', '--detach', transition.baseline]);
-      assertCleanGitWorkspace(workspace, transition.baseline, `${target} C0`);
+      git(workspace, ['switch', '--detach', transition.baseline], {
+        env: processEnv,
+      });
+      assertCleanGitWorkspace(
+        workspace,
+        transition.baseline,
+        `${target} C0`,
+        processEnv,
+      );
       removeOutputs(workspace, apps, ['shell', 'changed', 'sibling']);
       const baselineCommands = buildWorkspaceBaseline({
         workspace,
         target,
+        env: processEnv,
         run: options.run,
       });
       assertCleanGitWorkspace(
         workspace,
         transition.baseline,
         `${target} C0 after build`,
+        processEnv,
       );
       const baseline = captureApps(workspace, apps, target);
 
-      git(workspace, ['switch', '--detach', transition.changed]);
-      assertCleanGitWorkspace(workspace, transition.changed, `${target} C1`);
+      git(workspace, ['switch', '--detach', transition.changed], {
+        env: processEnv,
+      });
+      assertCleanGitWorkspace(
+        workspace,
+        transition.changed,
+        `${target} C1`,
+        processEnv,
+      );
       removeOutputs(workspace, apps, ['changed']);
       const changedCommands = buildApps({
         workspace,
         apps,
         target,
         roles: ['changed'],
+        env: processEnv,
         run: options.run,
       });
       assertCleanGitWorkspace(
         workspace,
         transition.changed,
         `${target} C1 after build`,
+        processEnv,
       );
       const changed = captureApps(workspace, apps, target, {
         [apps.changed.id]: baseline[apps.changed.id].envelope.identity,
@@ -1454,6 +1476,7 @@ async function runOperationalIndependence(options) {
               expectedApiValue,
               expectedUiValue,
               identity,
+              processEnv,
               shellId: apps.shell.id,
               workspace,
             })
@@ -1463,12 +1486,14 @@ async function runOperationalIndependence(options) {
               expectedApiValue,
               expectedUiValue,
               identity,
+              processEnv,
               workspace,
             });
       assertCleanGitWorkspace(
         workspace,
         transition.changed,
         `${target} C1 after served-behavior proof`,
+        processEnv,
       );
       targets[target] = {
         baselineCommands,
@@ -1484,7 +1509,7 @@ async function runOperationalIndependence(options) {
   } finally {
     fs.rmSync(runtimeArtifactDir, { recursive: true, force: true });
     try {
-      restoreCheckout(workspace, original);
+      restoreCheckout(workspace, original, processEnv);
     } catch (restoreError) {
       failure = failure
         ? new AggregateError(
@@ -1579,6 +1604,7 @@ export {
   canonicalSerialize,
   compareTargetSnapshots,
   createBuildCommand,
+  createOperationalProcessEnv,
   createTreeSnapshot,
   createWorkspaceBuildCommand,
   digestCanonical,

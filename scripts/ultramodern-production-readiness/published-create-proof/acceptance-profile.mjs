@@ -438,6 +438,7 @@ async function runOperationalIndependenceAcceptance({
     expectedApiValue: transition.mutations.apiResponse.value,
     expectedUiValue: transition.mutations.uiLocalization.value,
     out: evidencePath,
+    packageManagerEnv,
     shellId: 'shell-super-app',
     siblingId: 'finance',
     workspace: projectDir,

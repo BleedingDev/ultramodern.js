@@ -9,6 +9,20 @@ async function loadProof() {
   return import('../operational-independence.mjs');
 }
 
+test('operational process environment preserves exact pnpm and scrubs build identity overrides', async () => {
+  const { createOperationalProcessEnv } = await loadProof();
+  const env = createOperationalProcessEnv({
+    PATH: '/exact/pnpm/bin',
+    npm_config_registry: 'http://registry.example.test',
+    ULTRAMODERN_SOURCE_REVISION: 'forbidden-source-override',
+    MODERNJS_DEPLOY: 'cloudflare',
+  });
+  assert.equal(env.PATH, '/exact/pnpm/bin');
+  assert.equal(env.npm_config_registry, 'http://registry.example.test');
+  assert.equal(env.ULTRAMODERN_SOURCE_REVISION, undefined);
+  assert.equal(env.MODERNJS_DEPLOY, undefined);
+});
+
 function digest(bytes) {
   return crypto.createHash('sha256').update(bytes).digest('hex');
 }
