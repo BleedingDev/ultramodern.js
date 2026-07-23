@@ -100,6 +100,68 @@ const runPublishExisting = (outDir, env = process.env) =>
     },
   );
 
+test('release package rewriting canonicalizes dependency metadata order', async () => {
+  const { rewritePackageJson } = await import(
+    '../lib/prepare-bleedingdev-packages/rewrite.mjs'
+  );
+  const sourceNames = new Set([
+    '@modern-js/rslib',
+    '@modern-js/types',
+    '@modern-js/utils',
+  ]);
+  const options = {
+    bugsUrl: 'https://github.com/BleedingDev/ultramodern.js/issues',
+    dependencyVersion: '3.5.0-ultramodern.75',
+    homepage: 'https://github.com/BleedingDev/ultramodern.js',
+    prefix: 'modern-js-',
+    repositoryUrl: 'git+https://github.com/BleedingDev/ultramodern.js.git',
+    scope: 'bleedingdev',
+    version: '3.5.0-ultramodern.75',
+  };
+  const packageJson = dependencyOrder => ({
+    name: '@modern-js/utils',
+    version: '3.5.0',
+    devDependencies: Object.fromEntries(
+      dependencyOrder.map(name => [
+        name,
+        name.startsWith('@modern-js/') ? 'workspace:*' : '2.66.0',
+      ]),
+    ),
+    peerDependenciesMeta: Object.fromEntries(
+      [...dependencyOrder].reverse().map(name => [name, { optional: true }]),
+    ),
+  });
+  const first = packageJson([
+    '@modern-js/types',
+    '@scripts/rstest-config',
+    '@modern-js/rslib',
+  ]);
+  const second = packageJson([
+    '@modern-js/rslib',
+    '@scripts/rstest-config',
+    '@modern-js/types',
+  ]);
+
+  rewritePackageJson(first, '@modern-js/utils', options, sourceNames);
+  rewritePackageJson(second, '@modern-js/utils', options, sourceNames);
+
+  assert.equal(
+    `${JSON.stringify(first, null, 2)}\n`,
+    `${JSON.stringify(second, null, 2)}\n`,
+    'semantically identical release package metadata must produce identical bytes',
+  );
+  assert.deepEqual(Object.keys(first.devDependencies), [
+    '@modern-js/rslib',
+    '@modern-js/types',
+    '@scripts/rstest-config',
+  ]);
+  assert.deepEqual(Object.keys(first.peerDependenciesMeta), [
+    '@modern-js/rslib',
+    '@modern-js/types',
+    '@scripts/rstest-config',
+  ]);
+});
+
 const makeManifest = () => ({
   source: releaseSource,
   release: {
@@ -448,7 +510,10 @@ const artifactExpectations = aliases => ({
   version: '3.2.0-ultramodern.1',
 });
 
-const createArtifactFixture = async ({ scripts } = {}) => {
+const createArtifactFixture = async ({
+  packageJsonTransform,
+  scripts,
+} = {}) => {
   const { createReleaseArtifacts } = await import(
     '../prepare-bleedingdev-packages.mjs'
   );
@@ -487,13 +552,15 @@ const createArtifactFixture = async ({ scripts } = {}) => {
       'staged',
       definition.targetName.replaceAll('/', '__'),
     );
-    writeJson(path.join(packageDir, 'package.json'), {
+    const packageJson = {
       name: definition.targetName,
       version: '3.2.0-ultramodern.1',
       dependencies: definition.dependencies,
       publishConfig: { access: 'public' },
       scripts: definition.scripts,
-    });
+    };
+    packageJsonTransform?.(packageJson, definition);
+    writeJson(path.join(packageDir, 'package.json'), packageJson);
     writeFile(
       path.join(packageDir, 'index.js'),
       `module.exports = ${JSON.stringify(definition.sourceName)};\n`,
@@ -518,19 +585,25 @@ const createArtifactFixture = async ({ scripts } = {}) => {
     };
   });
   const packCalls = [];
-  const releaseArtifacts = createReleaseArtifacts({
-    aliases,
-    command(command, args, options) {
-      packCalls.push({ args: [...args], command, options });
-      return execFileSync(command, args, options);
-    },
-    outDir,
-    packages,
-    source: releaseSource,
-    tag: 'latest',
-    tools: releaseTools,
-    version: '3.2.0-ultramodern.1',
-  });
+  let releaseArtifacts;
+  try {
+    releaseArtifacts = createReleaseArtifacts({
+      aliases,
+      command(command, args, options) {
+        packCalls.push({ args: [...args], command, options });
+        return execFileSync(command, args, options);
+      },
+      outDir,
+      packages,
+      source: releaseSource,
+      tag: 'latest',
+      tools: releaseTools,
+      version: '3.2.0-ultramodern.1',
+    });
+  } catch (error) {
+    removeDir(root);
+    throw error;
+  }
 
   return {
     aliases,
@@ -812,6 +885,24 @@ test('orderPublishItems publishes hard dependencies before consumers', async () 
   } finally {
     removeDir(fixture.root);
   }
+});
+
+test('release artifacts reject non-canonical dependency metadata order', async () => {
+  await assert.rejects(
+    () =>
+      createArtifactFixture({
+        packageJsonTransform(packageJson, definition) {
+          if (definition.sourceName === '@modern-js/utils') {
+            packageJson.devDependencies = {
+              '@scripts/rstest-config': '2.66.0',
+              '@modern-js/types':
+                'npm:@bleedingdev/modern-js-types@3.2.0-ultramodern.1',
+            };
+          }
+        },
+      }),
+    /modern-js-utils.*devDependencies keys must use canonical lexical order/u,
+  );
 });
 
 test('verifyRegistryTarball downloads the pinned body and recomputes every accepted hash', async () => {

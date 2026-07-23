@@ -152,6 +152,27 @@ function rewriteDependencyBlock(
   }
 }
 
+function canonicalizeDependencyMetadata(packageJson) {
+  for (const blockName of [
+    'dependencies',
+    'devDependencies',
+    'optionalDependencies',
+    'peerDependencies',
+    'peerDependenciesMeta',
+  ]) {
+    const block = packageJson[blockName];
+    if (!block || typeof block !== 'object' || Array.isArray(block)) {
+      continue;
+    }
+
+    packageJson[blockName] = Object.fromEntries(
+      Object.keys(block)
+        .sort()
+        .map(packageName => [packageName, block[packageName]]),
+    );
+  }
+}
+
 function stripModernSourceConditions(exportsValue) {
   if (Array.isArray(exportsValue)) {
     return exportsValue.map(entry => stripModernSourceConditions(entry));
@@ -210,6 +231,11 @@ function rewritePackageJson(packageJson, sourceName, options, sourceNames) {
   rewriteDependencyBlock(packageJson.peerDependencies, options, sourceNames, {
     peer: true,
   });
+  // pnpm pack may append resolved workspace dependencies in a different order
+  // depending on the preceding install/build state. npm tarballs preserve JSON
+  // key order, so canonicalize only dependency maps (where order has no
+  // semantics) and deliberately leave condition-sensitive exports untouched.
+  canonicalizeDependencyMetadata(packageJson);
 }
 
 export {

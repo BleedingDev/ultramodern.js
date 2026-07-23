@@ -102,6 +102,15 @@ const writeCreatePublishSurface = packageDir => {
   }
 };
 
+const canonicalDependencyBlock = block =>
+  block
+    ? Object.fromEntries(
+        Object.keys(block)
+          .sort()
+          .map(packageName => [packageName, block[packageName]]),
+      )
+    : undefined;
+
 const makePackageJson = ({
   dir,
   name,
@@ -123,8 +132,12 @@ const makePackageJson = ({
       access: 'public',
       ...(extra.publishConfig ?? {}),
     },
-    ...(dependencies ? { dependencies } : {}),
-    ...(devDependencies ? { devDependencies } : {}),
+    ...(dependencies
+      ? { dependencies: canonicalDependencyBlock(dependencies) }
+      : {}),
+    ...(devDependencies
+      ? { devDependencies: canonicalDependencyBlock(devDependencies) }
+      : {}),
     ...(ultramodern ? { ultramodern } : {}),
   });
 };

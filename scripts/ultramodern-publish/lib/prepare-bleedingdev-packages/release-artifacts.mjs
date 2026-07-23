@@ -723,10 +723,19 @@ function validatePackedPackageJson(item, inspection) {
     'devDependencies',
     'optionalDependencies',
     'peerDependencies',
+    'peerDependenciesMeta',
   ]) {
-    for (const [dependencyName, specifier] of Object.entries(
-      packageJson[blockName] ?? {},
-    )) {
+    const block = packageJson[blockName] ?? {};
+    const dependencyNames = Object.keys(block);
+    if (
+      JSON.stringify(dependencyNames) !==
+      JSON.stringify([...dependencyNames].sort())
+    ) {
+      throw new Error(
+        `${item.targetName} tarball ${blockName} keys must use canonical lexical order`,
+      );
+    }
+    for (const [dependencyName, specifier] of Object.entries(block)) {
       if (typeof specifier === 'string' && specifier.startsWith('workspace:')) {
         throw new Error(
           `${item.targetName} ${blockName}.${dependencyName} still uses ${specifier}`,
