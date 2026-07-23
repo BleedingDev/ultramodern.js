@@ -788,6 +788,41 @@ test('fails readiness immediately when the owned serve process exits', async () 
   }
 });
 
+test('includes the owned serve log when HTTP readiness times out', async () => {
+  const { createSmokeTargets, waitForTarget } = await loadSmoke();
+  const [target] = createSmokeTargets(createContract()).targets;
+  const root = tempRoot();
+  const logPath = path.join(root, 'shell-serve.log');
+  fs.writeFileSync(
+    logPath,
+    'NPM_TOKEN=do-not-copy-me\nError: remote manifest remained unavailable\n',
+  );
+
+  try {
+    await assert.rejects(
+      () =>
+        waitForTarget(target, {
+          fetchImpl: async () => response(503, 'not ready'),
+          retryDelayMs: 1,
+          serverExit: new Promise(() => {}),
+          serverLogPath: logPath,
+          timeoutMs: 5,
+        }),
+      error => {
+        assert.match(error.message, /did not become reachable/);
+        assert.match(error.message, /remote manifest remained unavailable/);
+        assert.match(error.message, /NPM_TOKEN=\[REDACTED\]/);
+        assert.doesNotMatch(error.message, /do-not-copy-me/);
+        assert.equal(error.details.cause, 'HTTP 503');
+        assert.equal(error.details.logPath, logPath);
+        return true;
+      },
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('rejects stale matching HTTP readiness when the owned process exits during startup', async () => {
   const { createSmokeTargets, waitForTarget } = await loadSmoke();
   const [target] = createSmokeTargets(createContract()).targets;

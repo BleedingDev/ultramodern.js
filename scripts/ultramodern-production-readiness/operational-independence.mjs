@@ -1000,7 +1000,7 @@ async function startNodeTargetsInDependencyOrder({
   waitForTargetImpl = waitForTarget,
 }) {
   const startAndWait = async (targets, requireManifest) => {
-    const layerServers = targets.map(target => {
+    for (const target of targets) {
       const server = startServerImpl(target, {
         artifactDir,
         processEnv,
@@ -1008,19 +1008,14 @@ async function startNodeTargetsInDependencyOrder({
       });
       const record = { server, target };
       servers.push(record);
-      return record;
-    });
-    await Promise.all(
-      layerServers.map(({ server, target }) =>
-        waitForTargetImpl(target, {
-          fetchImpl,
-          requireManifest,
-          serverExit: server.exited,
-          serverLogPath: server.logPath,
-          timeoutMs,
-        }),
-      ),
-    );
+      await waitForTargetImpl(target, {
+        fetchImpl,
+        requireManifest,
+        serverExit: server.exited,
+        serverLogPath: server.logPath,
+        timeoutMs,
+      });
+    }
   };
 
   for (const layer of startup.remoteLayers) {

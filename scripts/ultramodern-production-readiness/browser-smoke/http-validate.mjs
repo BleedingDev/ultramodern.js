@@ -198,17 +198,34 @@ export async function waitForTarget(
     return;
   }
 
-  const result = await Promise.race([
-    readiness().then(() =>
-      Promise.race([
-        new Promise(resolve =>
-          setTimeout(() => resolve({ status: 'ready' }), 50),
-        ),
-        serverExitResult,
-      ]),
-    ),
-    serverExitResult,
-  ]);
+  let result;
+  try {
+    result = await Promise.race([
+      readiness().then(() =>
+        Promise.race([
+          new Promise(resolve =>
+            setTimeout(() => resolve({ status: 'ready' }), 50),
+          ),
+          serverExitResult,
+        ]),
+      ),
+      serverExitResult,
+    ]);
+  } catch (error) {
+    const logTail = readCombinedLogTail(serverLogPath);
+    const details = {
+      ...(error instanceof BrowserSmokeError ? error.details : {}),
+      logPath: serverLogPath,
+      ...(logTail ? { logTail } : {}),
+    };
+    throw new BrowserSmokeError(
+      formatFailureWithLogEvidence(
+        error instanceof Error ? error.message : String(error),
+        details,
+      ),
+      details,
+    );
+  }
   if (result.status === 'exited') {
     const logTail = result.exit.logTail || readCombinedLogTail(serverLogPath);
     const details = {

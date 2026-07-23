@@ -23,7 +23,7 @@ test('operational process environment preserves exact pnpm and scrubs build iden
   assert.equal(env.MODERNJS_DEPLOY, undefined);
 });
 
-test('Node served proof waits for every remote dependency layer before starting the shell', async () => {
+test('Node served proof starts each remote deterministically and waits before starting the shell', async () => {
   const { startNodeTargetsInDependencyOrder } = await loadProof();
   const events = [];
   const target = (id, kind = 'vertical') => ({
@@ -59,15 +59,11 @@ test('Node served proof waits for every remote dependency layer before starting 
   });
 
   assert.equal(servers.length, 3);
-  assert.ok(
-    events.indexOf('start:shell-super-app') >
-      events.indexOf('ready:inventory:true'),
-  );
-  assert.ok(
-    events.indexOf('start:shell-super-app') >
-      events.indexOf('ready:finance:true'),
-  );
-  assert.deepEqual(events.slice(-2), [
+  assert.deepEqual(events, [
+    'start:inventory',
+    'ready:inventory:true',
+    'start:finance',
+    'ready:finance:true',
     'start:shell-super-app',
     'ready:shell-super-app:false',
   ]);
