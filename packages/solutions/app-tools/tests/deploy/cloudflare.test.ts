@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { normalizeRouterAssetPublicPath } from '../../src/builder/shared/bundlerPlugins/RouterPlugin';
 import { resolveTopologyDeliveryUnit } from '../../src/plugins/deploy/platforms/cloudflare/delivery-unit';
 import { createCloudflarePreset } from '../../src/plugins/deploy/platforms/cloudflare/index';
 import type {
@@ -927,27 +928,32 @@ describe('cloudflare deploy preset', () => {
     const { ChunkExtractor } = await import(
       `${pathToFileURL(templatePath).href}?t=${Date.now()}`
     );
-    const extractor = new ChunkExtractor({
-      entrypoints: ['main'],
-      stats: {
-        namedChunkGroups: {
-          main: {
-            assets: [
-              'static/js/main.12345678.js',
-              'static/css/main.12345678.css',
-            ],
-            childAssets: {},
-            chunks: [],
+    for (const publicPath of ['auto', 'auto/']) {
+      const extractor = new ChunkExtractor({
+        entrypoints: ['main'],
+        stats: {
+          namedChunkGroups: {
+            main: {
+              assets: [
+                'static/js/main.12345678.js',
+                'static/css/main.12345678.css',
+              ],
+              childAssets: {},
+              chunks: [],
+            },
           },
+          publicPath,
         },
-        publicPath: 'auto',
-      },
-    });
+      });
 
-    expect(extractor.getChunkAssets('main').map(asset => asset.url)).toEqual([
-      '/static/js/main.12345678.js',
-      '/static/css/main.12345678.css',
-    ]);
+      expect(extractor.getChunkAssets('main').map(asset => asset.url)).toEqual([
+        '/static/js/main.12345678.js',
+        '/static/css/main.12345678.css',
+      ]);
+    }
+
+    expect(normalizeRouterAssetPublicPath('auto')).toBe('/');
+    expect(normalizeRouterAssetPublicPath('auto/')).toBe('/');
   });
 
   it('fails clearly when Effect BFF is configured but its worker bundle is missing', async () => {
@@ -2577,7 +2583,7 @@ describe('cloudflare deploy preset', () => {
     }
   });
 
-  it('resolves relative remote publicPath values against the remote manifest URL', async () => {
+  it('resolves relative and automatic remote publicPath values against the remote manifest URL', async () => {
     const { outputDirectory } = await createFixture();
     const entryPath = path.join(outputDirectory, 'server/index.mjs');
     const worker = (
@@ -2611,7 +2617,7 @@ describe('cloudflare deploy preset', () => {
       },
       'https://explore.example.com/mf-manifest.json': {
         metaData: {
-          publicPath: '/',
+          publicPath: 'auto/',
         },
         exposes: [
           {

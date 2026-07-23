@@ -2,4 +2,4 @@
 '@modern-js/app-tools': patch
 ---
 
-Normalize the Rspack `auto` public-path sentinel in the Cloudflare Worker chunk extractor so SSR emits origin-root asset URLs instead of broken `/auto/static/*` requests.
+Normalize both serialized forms of Rspack's automatic public-path sentinel across Cloudflare loadable chunks, route assets, and federated remote CSS so SSR emits origin-root asset URLs instead of broken or duplicated `/auto/static/*` links.

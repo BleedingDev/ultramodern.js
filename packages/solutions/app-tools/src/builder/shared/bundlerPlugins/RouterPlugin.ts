@@ -32,6 +32,20 @@ const generateContentHash = (content: string) => {
   return createHash('md5').update(content).digest('hex').slice(0, 8);
 };
 
+export const normalizeRouterAssetPublicPath = (
+  publicPath: string | undefined,
+): string => {
+  if (!publicPath) {
+    return '';
+  }
+
+  if (publicPath === 'auto' || publicPath === 'auto/') {
+    return '/';
+  }
+
+  return publicPath.endsWith('/') ? publicPath : `${publicPath}/`;
+};
+
 export class RouterPlugin {
   readonly name: string = 'RouterPlugin';
 
@@ -111,14 +125,6 @@ export class RouterPlugin {
     const { Compilation, sources } = rspack;
     const { RawSource } = sources;
 
-    const normalizePath = (path: string): string => {
-      if (!path.endsWith('/')) {
-        return `${path}/`;
-      }
-
-      return path;
-    };
-
     const chunksToHtmlName = new Map();
     const ROUTE_MANIFEST_HOLDER = `route-manifest`;
     const placeholder = `<!--<?- ${ROUTE_MANIFEST_HOLDER} ?>-->`;
@@ -154,6 +160,7 @@ export class RouterPlugin {
             chunks = [],
             namedChunkGroups,
           } = stats as Rspack.StatsCompilation;
+          const assetPublicPath = normalizeRouterAssetPublicPath(publicPath);
           const routeAssets: RouteAssets = {};
 
           if (!namedChunkGroups) {
@@ -190,9 +197,7 @@ export class RouterPlugin {
               for (const chunk of child.chunks) {
                 for (const file of chunk.files) {
                   if (/\.css$/.test(file)) {
-                    cssFiles.add(
-                      publicPath ? normalizePath(publicPath) + file : file,
-                    );
+                    cssFiles.add(assetPublicPath + file);
                   }
                 }
               }
@@ -216,9 +221,7 @@ export class RouterPlugin {
 
             const assets = (chunkGroup as ChunkGroupLike).assets.map(asset => {
               const filename = asset.name;
-              return publicPath
-                ? normalizePath(publicPath) + filename
-                : filename;
+              return assetPublicPath + filename;
             });
             const directCssAssets = assets.filter(asset =>
               /\.css$/.test(asset),
@@ -316,7 +319,9 @@ export class RouterPlugin {
                 ) {
                   if (!useRsc) return undefined;
                   return v.map(item => {
-                    return item.replace(publicPath, '');
+                    return assetPublicPath
+                      ? item.replace(assetPublicPath, '')
+                      : item;
                   });
                 }
                 return v;
@@ -369,7 +374,7 @@ export class RouterPlugin {
                     : `.${generateContentHash(injectedContent)}.js`
                 }`;
 
-                const scriptUrl = `${publicPath}${scriptPath}`;
+                const scriptUrl = `${assetPublicPath}${scriptPath}`;
 
                 const scriptLoadingAttr =
                   scriptLoading === 'defer'

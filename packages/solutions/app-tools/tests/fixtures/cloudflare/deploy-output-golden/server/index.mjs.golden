@@ -1725,6 +1725,10 @@ function ensureTrailingSlash(value) {
   return value.endsWith('/') ? value : `${value}/`;
 }
 
+function isAutomaticPublicPath(publicPath) {
+  return publicPath === 'auto' || publicPath === 'auto/';
+}
+
 function getRemoteAssetBase(remoteManifest, manifestUrl) {
   const publicPath =
     typeof remoteManifest?.metaData?.publicPath === 'string'
@@ -1732,7 +1736,7 @@ function getRemoteAssetBase(remoteManifest, manifestUrl) {
       : undefined;
   const fallbackBase = new URL('.', manifestUrl).toString();
 
-  if (!publicPath || publicPath === 'auto') {
+  if (!publicPath || isAutomaticPublicPath(publicPath)) {
     return fallbackBase;
   }
 
