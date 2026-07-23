@@ -230,7 +230,11 @@ function canonical(value) {
     .join(',')}}`;
 }
 
-function createEnvelopeFixture(root, target = 'node') {
+function createEnvelopeFixture(
+  root,
+  target = 'node',
+  { neutralNodeLauncher = false } = {},
+) {
   const identity = createIdentity('a'.repeat(40), '0123456789abcdef');
   const files = {
     'public/client.js': `export const identity=${JSON.stringify(identity)};`,
@@ -242,6 +246,9 @@ function createEnvelopeFixture(root, target = 'node') {
       name: '@bleedingdev/runtime',
       version: '1.0.0',
     }),
+    ...(neutralNodeLauncher
+      ? { 'index.js': "require('./server/ssr.js');\n" }
+      : {}),
   };
   for (const [logicalPath, source] of Object.entries(files)) {
     const filePath = path.join(root, logicalPath);
@@ -257,6 +264,7 @@ function createEnvelopeFixture(root, target = 'node') {
           'backend-mf-manifest.json': 'module-federation-manifest',
           'backendRemoteEntry.cjs': 'nodejs',
           'node_modules/@bleedingdev/runtime/package.json': 'nodejs-deployment',
+          ...(neutralNodeLauncher ? { 'index.js': 'nodejs' } : {}),
         }
       : {
           'public/client.js': 'browser',
@@ -306,7 +314,7 @@ function createEnvelopeFixture(root, target = 'node') {
     artifacts,
     surfaces: {
       uiClient: ['public/client.js'],
-      ssr: ['server/ssr.js'],
+      ssr: [...(neutralNodeLauncher ? ['index.js'] : []), 'server/ssr.js'],
       apiBackend: ['api/index.js'],
       backendFederation: {
         manifest: 'backend-mf-manifest.json',
@@ -703,6 +711,43 @@ test('final-envelope verification binds all four surfaces to real bytes and iden
       surface => surface.carrierPaths.length > 0,
     ),
     true,
+  );
+});
+
+test('final-envelope verification accepts a neutral Node launcher outside the compiled SSR identity closure', async t => {
+  const { readAndVerifyEnvelope } = await loadProof();
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'operational-independence-node-launcher-'),
+  );
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  createEnvelopeFixture(root, 'node', { neutralNodeLauncher: true });
+
+  const evidence = readAndVerifyEnvelope(root, 'node');
+
+  assert.equal(evidence.surfaces.ssr.artifacts.length, 2);
+  assert.deepEqual(evidence.surfaces.ssr.carrierPaths, ['server/ssr.js']);
+});
+
+test('final-envelope verification still rejects prior identity in a neutral Node launcher', async t => {
+  const { readAndVerifyEnvelope } = await loadProof();
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'operational-independence-stale-node-launcher-'),
+  );
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  createEnvelopeFixture(root, 'node', { neutralNodeLauncher: true });
+  const priorIdentity = createIdentity('b'.repeat(40), 'fedcba9876543210');
+  rewriteEnvelopeArtifact(
+    root,
+    'index.js',
+    `require('./server/ssr.js');\n/* ${priorIdentity.buildMarker} ${priorIdentity.sourceRevision} */\n`,
+  );
+
+  assert.throws(
+    () =>
+      readAndVerifyEnvelope(root, 'node', {
+        forbiddenIdentity: priorIdentity,
+      }),
+    /retains prior release identity residue/,
   );
 });
 

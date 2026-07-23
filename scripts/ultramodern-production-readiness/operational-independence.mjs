@@ -539,16 +539,11 @@ function readAndVerifyEnvelope(outputRoot, expectedTarget, options = {}) {
         ),
         'utf8',
       );
-      const missingIdentityParts = [
+      const identityParts = [
         identity.buildMarker,
         identity.sourceRevision,
         identity.releaseVersion,
-      ].filter(part => !source.includes(part));
-      if (missingIdentityParts.length > 0) {
-        throw new Error(
-          `${surfaceName} compiled artifact "${artifact.logicalPath}" does not carry the exact release identity.`,
-        );
-      }
+      ];
       if (
         options.forbiddenIdentity &&
         [
@@ -567,7 +562,32 @@ function readAndVerifyEnvelope(outputRoot, expectedTarget, options = {}) {
           `${surfaceName} compiled artifact "${artifact.logicalPath}" retains prior release identity residue.`,
         );
       }
+      const presentIdentityParts = identityParts.filter(part =>
+        source.includes(part),
+      );
+      const isNeutralNodeLauncher =
+        expectedTarget === 'node' &&
+        surfaceName === 'ssr' &&
+        artifact.logicalPath === 'index.js';
+      // Modern's final Node index.js is the generic deployment launcher, not
+      // a Rspack SSR execution module. The framework envelope verifier makes
+      // the same narrow exclusion while requiring every route-referenced and
+      // bundles/* SSR module to carry identity. Keep scanning the launcher for
+      // forbidden prior identity above, and reject any partial current stamp.
+      if (isNeutralNodeLauncher && presentIdentityParts.length === 0) {
+        continue;
+      }
+      if (presentIdentityParts.length !== identityParts.length) {
+        throw new Error(
+          `${surfaceName} compiled artifact "${artifact.logicalPath}" does not carry the exact release identity.`,
+        );
+      }
       carrierPaths.push(artifact.logicalPath);
+    }
+    if (carrierPaths.length === 0) {
+      throw new Error(
+        `${surfaceName} has no compiled artifact carrying the exact release identity.`,
+      );
     }
     if (surfaceName === 'backendFederation') {
       const manifestSource = fs.readFileSync(
