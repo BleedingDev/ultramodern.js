@@ -177,7 +177,7 @@ test('protects visible Tractor source byte-for-byte across migration', async () 
     );
     assert.throws(
       () => assertProtectedUiUnchanged(before, snapshotProtectedUi(root)),
-      /changed Tractor visible UI/u,
+      /changed Tractor visible UI[\s\S]*apps\/shell-super-app\/locales\/en\/shell\.json/u,
     );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });

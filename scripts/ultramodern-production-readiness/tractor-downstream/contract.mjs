@@ -199,9 +199,30 @@ function snapshotProtectedUi(workspace) {
 }
 
 function assertProtectedUiUnchanged(before, after) {
+  const beforeByPath = new Map(
+    before.entries.map(entry => [entry.path, entry]),
+  );
+  const afterByPath = new Map(after.entries.map(entry => [entry.path, entry]));
+  const changedPaths = [
+    ...new Set([...beforeByPath.keys(), ...afterByPath.keys()]),
+  ]
+    .toSorted((left, right) => left.localeCompare(right))
+    .flatMap(file => {
+      const previous = beforeByPath.get(file);
+      const current = afterByPath.get(file);
+      if (!previous) {
+        return [`added ${file}`];
+      }
+      if (!current) {
+        return [`removed ${file}`];
+      }
+      return previous.sha256 === current.sha256 ? [] : [`changed ${file}`];
+    });
   assert(
-    JSON.stringify(before.entries) === JSON.stringify(after.entries),
-    'UltraModern migration changed Tractor visible UI, localization, public assets, or shared UI source',
+    changedPaths.length === 0,
+    `UltraModern migration changed Tractor visible UI, localization, public assets, or shared UI source:\n${changedPaths.join(
+      '\n',
+    )}`,
   );
   return {
     fileCount: after.fileCount,

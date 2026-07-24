@@ -25,6 +25,7 @@ import {
   allWorkspaceAppsFromToolingConfig,
   type UltramodernToolingConfig,
 } from '../../config';
+import { writeGeneratedUiSourceIfChanged } from './generated-ui-source';
 import { type MigrationIo, writeJsonIfChanged, writeTextIfChanged } from './io';
 
 type JsonObject = Record<string, unknown>;
@@ -392,7 +393,7 @@ export function updateGeneratedTypeScriptSurfaces(
           continue;
         }
         changed =
-          writeTextIfChanged(
+          writeGeneratedUiSourceIfChanged(
             io,
             fragmentPagePath,
             createRemoteExposeFragmentPage(app, expose),

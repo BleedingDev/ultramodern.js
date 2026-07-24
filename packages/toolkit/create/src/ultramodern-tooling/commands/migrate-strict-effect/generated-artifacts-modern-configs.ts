@@ -25,6 +25,7 @@ import {
   allWorkspaceAppsFromToolingConfig,
   type UltramodernToolingConfig,
 } from '../../config';
+import { writeGeneratedUiSourceIfChanged } from './generated-ui-source';
 import { type MigrationIo, readJsonFile, writeTextIfChanged } from './io';
 
 function isGeneratedShellComposition(source: string) {
@@ -180,7 +181,7 @@ export function updateGeneratedModernConfigs(
     } else {
       for (const expose of distributedSsrExposes(app)) {
         changed =
-          writeTextIfChanged(
+          writeGeneratedUiSourceIfChanged(
             io,
             path.join(
               io.workspaceRoot,
@@ -193,7 +194,7 @@ export function updateGeneratedModernConfigs(
     }
     if ((app.verticalRefs?.length ?? 0) > 0) {
       changed =
-        writeTextIfChanged(
+        writeGeneratedUiSourceIfChanged(
           io,
           path.join(
             io.workspaceRoot,
@@ -207,7 +208,7 @@ export function updateGeneratedModernConfigs(
           ),
         ) || changed;
       changed =
-        writeTextIfChanged(
+        writeGeneratedUiSourceIfChanged(
           io,
           path.join(
             io.workspaceRoot,
