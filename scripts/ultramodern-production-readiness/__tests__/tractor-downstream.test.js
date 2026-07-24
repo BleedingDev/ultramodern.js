@@ -190,6 +190,7 @@ test('runner has no bypass for Node or workerd release gates', async () => {
     parseArgs,
     requiredCommands,
     requiredVisibleRuntimePlatforms,
+    runTractorDownstreamAcceptance,
   } = await runnerPromise;
   assert.deepEqual(requiredCommands, [
     ['pnpm', ['install', '--frozen-lockfile']],
@@ -198,6 +199,10 @@ test('runner has no bypass for Node or workerd release gates', async () => {
     ['pnpm', ['cloudflare:build']],
   ]);
   assert.deepEqual(requiredVisibleRuntimePlatforms, ['node', 'workerd']);
+  assert.match(
+    runTractorDownstreamAcceptance.toString(),
+    /const env = packageManager\.env;/u,
+  );
   assert.throws(() => parseArgs([]), /--manifest is required/u);
   assert.throws(
     () =>

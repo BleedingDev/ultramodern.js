@@ -483,6 +483,7 @@ async function runTractorDownstreamAcceptance(
     registryUrl: options.registryUrl,
     runImpl,
   });
+  const env = packageManager.env;
   const report = {
     schema: 'bleedingdev.ultramodern.tractor-downstream-acceptance',
     schemaVersion: 1,
