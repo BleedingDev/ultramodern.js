@@ -1089,6 +1089,56 @@ test('verifyRegistryProvenance validates npm DSSE SLSA subject bytes and trusted
   }
 });
 
+test('verifyRegistryProvenance accepts only one unique npm SLSA bundle', async () => {
+  const { createRegistryProvenanceExpectation, verifyRegistryProvenance } =
+    await import('../prepare-bleedingdev-packages.mjs');
+  const fixture = await createArtifactFixture();
+  const artifact = fixture.releaseArtifacts.packages.find(
+    item => item.sourceName === '@modern-js/runtime',
+  );
+  const expectation = createRegistryProvenanceExpectation(
+    fixture.releaseArtifacts.manifest,
+    {
+      GITHUB_REF: trustedWorkflow.ref,
+      GITHUB_REPOSITORY: 'BleedingDev/ultramodern.js',
+    },
+  );
+  const document = provenanceDocument(provenanceStatement(artifact));
+  document.attestations.push(structuredClone(document.attestations[0]));
+  const verifiedBundles = [];
+
+  try {
+    await verifyRegistryProvenance(
+      artifact,
+      provenanceDist,
+      expectation,
+      async () => provenanceResponse(document),
+      async (bundle, verifiedExpectation) => {
+        verifiedBundles.push(bundle);
+        return sigstoreVerificationResult(verifiedExpectation);
+      },
+    );
+    assert.deepEqual(verifiedBundles, [document.attestations[0].bundle]);
+
+    const conflictingDocument = structuredClone(document);
+    conflictingDocument.attestations[1].bundle.dsseEnvelope.signatures[0].sig =
+      'conflicting-signature';
+    await assert.rejects(
+      () =>
+        verifyRegistryProvenance(
+          artifact,
+          provenanceDist,
+          expectation,
+          async () => provenanceResponse(conflictingDocument),
+          acceptSigstoreBundle,
+        ),
+      /exactly one SLSA v1 attestation bundle identity; found 2 unique bundles across 2 records/,
+    );
+  } finally {
+    removeDir(fixture.root);
+  }
+});
+
 test('verifyRegistryProvenance rejects missing, malformed, or mismatched npm provenance', async () => {
   const { createRegistryProvenanceExpectation, verifyRegistryProvenance } =
     await import('../prepare-bleedingdev-packages.mjs');

@@ -695,13 +695,21 @@ async function verifyRegistryProvenance(
       isPlainObject(attestation) &&
       attestation.predicateType === slsaProvenanceV1,
   );
-  if (slsaAttestations.length !== 1) {
+  const uniqueSlsaAttestations = [
+    ...new Map(
+      slsaAttestations.map(attestation => [
+        JSON.stringify(attestation.bundle),
+        attestation,
+      ]),
+    ).values(),
+  ];
+  if (uniqueSlsaAttestations.length !== 1) {
     throw new Error(
-      `${packageLabel} registry provenance must contain exactly one SLSA v1 attestation; found ${slsaAttestations.length}`,
+      `${packageLabel} registry provenance must contain exactly one SLSA v1 attestation bundle identity; found ${uniqueSlsaAttestations.length} unique bundles across ${slsaAttestations.length} records`,
     );
   }
 
-  const [attestation] = slsaAttestations;
+  const [attestation] = uniqueSlsaAttestations;
   assertPlainObject(attestation.bundle, `${packageLabel} SLSA bundle`);
   const envelope = attestation.bundle.dsseEnvelope;
   assertPlainObject(envelope, `${packageLabel} SLSA DSSE envelope`);
