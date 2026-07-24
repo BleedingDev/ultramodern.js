@@ -569,6 +569,82 @@ test('migrate reconciles backend federation config files with API metadata', asy
   }
 });
 
+test('migrate converges legacy backend federation entries across config and development overlay', async () => {
+  const { tempRoot, workspaceDir } = scaffoldWorkspace(
+    'tooling-backend-entry-convergence',
+  );
+
+  try {
+    addUltramodernVertical({
+      workspaceRoot: workspaceDir,
+      name: 'explore',
+      modernVersion: '3.2.1',
+    });
+
+    const developmentOverlay = readJson(
+      workspaceDir,
+      'topology/local-overlays/development.json',
+    );
+    const canonicalEntry =
+      developmentOverlay.serverExecution.explore.node.containerEntry;
+    const legacyEntry = canonicalEntry.replace(
+      'backendRemoteEntry.cjs',
+      'backendRemoteEntry.mjs',
+    );
+    developmentOverlay.serverExecution.explore.node.containerEntry =
+      legacyEntry;
+    developmentOverlay.consumerExtension = {
+      retained: true,
+    };
+    writeJson(
+      workspaceDir,
+      'topology/local-overlays/development.json',
+      developmentOverlay,
+    );
+
+    const backendConfigPath = 'verticals/explore/backend-federation.config.ts';
+    fs.writeFileSync(
+      path.join(workspaceDir, backendConfigPath),
+      readText(workspaceDir, backendConfigPath).replace(
+        'backendRemoteEntry.cjs',
+        'backendRemoteEntry.mjs',
+      ),
+    );
+
+    assert.equal(
+      await runUltramodernToolingCli(
+        ['migrate-strict-effect', '--skip-install'],
+        workspaceDir,
+      ),
+      0,
+    );
+
+    const migratedOverlay = readJson(
+      workspaceDir,
+      'topology/local-overlays/development.json',
+    );
+    assert.equal(
+      migratedOverlay.serverExecution.explore.node.containerEntry,
+      canonicalEntry,
+    );
+    assert.deepEqual(migratedOverlay.consumerExtension, {
+      retained: true,
+    });
+    assert.match(
+      readText(workspaceDir, backendConfigPath),
+      /filename: 'backendRemoteEntry\.cjs'/u,
+    );
+    assert.ok(
+      readText(
+        workspaceDir,
+        'scripts/validate-ultramodern-workspace.mts',
+      ).includes(canonicalEntry),
+    );
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test('migrate materializes every validator-required wrapper and rewires legacy scripts', async () => {
   const { tempRoot, workspaceDir } = scaffoldWorkspace(
     'tooling-legacy-scripts',

@@ -5,6 +5,7 @@ import {
   readCreateReleaseCohort,
 } from '../../ultramodern-release-cohort';
 import {
+  createDevelopmentOverlay,
   createTopology,
   createUltramodernConfig,
 } from '../../ultramodern-workspace/contracts';
@@ -492,6 +493,37 @@ function reconcileAdditionalShellConfig(
   return normalizeCompactUltramodernConfig(io.workspaceRoot, raw);
 }
 
+function synchronizeMigrationDevelopmentOverlay(
+  io: MigrationIo,
+  migrated: ReturnType<typeof normalizeCompactUltramodernConfig>,
+  migratedApps: WorkspaceApp[],
+) {
+  const overlayPath = path.join(
+    io.workspaceRoot,
+    'topology/local-overlays/development.json',
+  );
+  const existing = fs.existsSync(overlayPath)
+    ? requireRecord(readJsonFile(overlayPath), 'Development topology overlay')
+    : {};
+  const canonical = requireRecord(
+    createDevelopmentOverlay(
+      migrated.workspace.packageScope,
+      migratedApps.filter(app => app.kind !== 'shell'),
+    ),
+    'Generated development topology overlay',
+  );
+  canonical.ports = Object.fromEntries(
+    migratedApps.map(app => [app.id, app.port]),
+  );
+  const frameworkOwnedKeys = new Set(Object.keys(canonical));
+  const reconciled = Object.fromEntries(
+    Object.entries(existing).filter(([key]) => !frameworkOwnedKeys.has(key)),
+  );
+  Object.assign(reconciled, canonical);
+  writeJsonFile(io, overlayPath, reconciled);
+  return reconciled;
+}
+
 function migrateStrictEffect(
   args: string[],
   context: CommandContext,
@@ -565,6 +597,11 @@ function migrateStrictEffect(
   migrated = reconcileAdditionalShellConfig(raw, migrated, migratedApps, io);
   migratedApps = workspaceAppsFromToolingConfig(migrated);
   const allMigratedApps = allWorkspaceAppsFromToolingConfig(migrated);
+  const developmentOverlay = synchronizeMigrationDevelopmentOverlay(
+    io,
+    migrated,
+    allMigratedApps,
+  );
   const validationContractInputs = deriveValidationContractInputs(
     io.workspaceRoot,
     migrated,
@@ -657,19 +694,7 @@ function migrateStrictEffect(
             'Ownership topology',
           )
         : undefined,
-      fs.existsSync(
-        path.join(io.workspaceRoot, 'topology/local-overlays/development.json'),
-      )
-        ? requireRecord(
-            readJsonFile(
-              path.join(
-                io.workspaceRoot,
-                'topology/local-overlays/development.json',
-              ),
-            ),
-            'Development topology overlay',
-          )
-        : undefined,
+      developmentOverlay,
     ),
   );
 
