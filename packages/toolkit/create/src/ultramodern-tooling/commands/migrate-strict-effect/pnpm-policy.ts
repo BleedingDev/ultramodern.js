@@ -475,6 +475,46 @@ function isRegistryRecord(value: unknown): value is Record<string, any> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
+const registryFetchConcurrency = 16;
+const registryFetchAttempts = 3;
+const registryFetchRetryDelayMs = 250;
+
+function isTransientRegistryStatus(status: number) {
+  return status === 429 || status >= 500;
+}
+
+async function fetchRegistryResponse(
+  fetchImpl: ReleaseAgeRegistryFetch,
+  url: URL,
+) {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < registryFetchAttempts; attempt += 1) {
+    try {
+      const response = await fetchImpl(url, {
+        headers: { accept: 'application/json' },
+        redirect: 'error',
+      });
+      if (
+        response.ok ||
+        !isTransientRegistryStatus(response.status) ||
+        attempt === registryFetchAttempts - 1
+      ) {
+        return response;
+      }
+      lastError = new Error(`HTTP ${response.status}`);
+    } catch (error) {
+      lastError = error;
+      if (attempt === registryFetchAttempts - 1) {
+        throw error;
+      }
+    }
+    await new Promise(resolve =>
+      setTimeout(resolve, registryFetchRetryDelayMs * 2 ** attempt),
+    );
+  }
+  throw lastError;
+}
+
 async function resolveRegistryCandidates(
   candidates: ReturnType<
     typeof discoverReachablePnpmLockReleaseAgeClosure
@@ -490,85 +530,99 @@ async function resolveRegistryCandidates(
     throw new Error('Release-age validation requires a valid current time.');
   }
 
-  return Promise.all(
-    candidates.map(async candidate => {
-      const key = packageVersionKey(candidate.packageName, candidate.version);
-      let response: RegistryResponse;
-      try {
-        response = await options.fetchImpl(
-          packageRegistryUrl(options.registryUrl, candidate.packageName),
-          {
-            headers: { accept: 'application/json' },
-            redirect: 'error',
-          },
-        );
-      } catch (error) {
-        throw new Error(
-          `Registry metadata is uncertain for ${key} (${candidate.path.join(
-            ' -> ',
-          )}): ${error instanceof Error ? error.message : String(error)}`,
-        );
-      }
-      if (!response.ok) {
-        throw new Error(
-          `Registry metadata is uncertain for ${key} (${candidate.path.join(
-            ' -> ',
-          )}): HTTP ${response.status}`,
-        );
-      }
+  async function resolveCandidate(candidate: (typeof candidates)[number]) {
+    const key = packageVersionKey(candidate.packageName, candidate.version);
+    let response: RegistryResponse;
+    try {
+      response = await fetchRegistryResponse(
+        options.fetchImpl,
+        packageRegistryUrl(options.registryUrl, candidate.packageName),
+      );
+    } catch (error) {
+      throw new Error(
+        `Registry metadata is uncertain for ${key} (${candidate.path.join(
+          ' -> ',
+        )}): ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+    if (!response.ok) {
+      throw new Error(
+        `Registry metadata is uncertain for ${key} (${candidate.path.join(
+          ' -> ',
+        )}): HTTP ${response.status}`,
+      );
+    }
 
-      let packument: unknown;
-      try {
-        packument = await response.json();
-      } catch (error) {
-        throw new Error(
-          `Registry metadata is invalid JSON for ${key}: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        );
-      }
-      if (!isRegistryRecord(packument)) {
-        throw new Error(`Registry metadata is invalid for ${key}.`);
-      }
-      const versions = packument.versions;
-      const time = packument.time;
-      const versionMetadata = isRegistryRecord(versions)
-        ? versions[candidate.version]
-        : undefined;
-      const dist = isRegistryRecord(versionMetadata)
-        ? versionMetadata.dist
-        : undefined;
-      const integrity = isRegistryRecord(dist) ? dist.integrity : undefined;
-      if (integrity !== candidate.registry.dist.integrity) {
-        throw new Error(
-          `Registry metadata integrity mismatch for ${key}: lock has ${candidate.registry.dist.integrity}, registry has ${String(
-            integrity,
-          )}`,
-        );
-      }
-      const publishedAt = isRegistryRecord(time)
-        ? time[candidate.version]
-        : undefined;
-      const publishedAtTimestamp =
-        typeof publishedAt === 'string' ? Date.parse(publishedAt) : Number.NaN;
-      if (
-        typeof publishedAt !== 'string' ||
-        !Number.isFinite(publishedAtTimestamp) ||
-        publishedAtTimestamp > nowTimestamp
-      ) {
-        throw new Error(
-          `Registry publication time is missing, invalid, or in the future for ${key}.`,
-        );
-      }
-      return {
-        ...candidate,
-        registry: {
-          ...candidate.registry,
-          publishedAt: new Date(publishedAtTimestamp).toISOString(),
-        },
-      };
-    }),
+    let packument: unknown;
+    try {
+      packument = await response.json();
+    } catch (error) {
+      throw new Error(
+        `Registry metadata is invalid JSON for ${key}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+    if (!isRegistryRecord(packument)) {
+      throw new Error(`Registry metadata is invalid for ${key}.`);
+    }
+    const versions = packument.versions;
+    const time = packument.time;
+    const versionMetadata = isRegistryRecord(versions)
+      ? versions[candidate.version]
+      : undefined;
+    const dist = isRegistryRecord(versionMetadata)
+      ? versionMetadata.dist
+      : undefined;
+    const integrity = isRegistryRecord(dist) ? dist.integrity : undefined;
+    if (integrity !== candidate.registry.dist.integrity) {
+      throw new Error(
+        `Registry metadata integrity mismatch for ${key}: lock has ${candidate.registry.dist.integrity}, registry has ${String(
+          integrity,
+        )}`,
+      );
+    }
+    const publishedAt = isRegistryRecord(time)
+      ? time[candidate.version]
+      : undefined;
+    const publishedAtTimestamp =
+      typeof publishedAt === 'string' ? Date.parse(publishedAt) : Number.NaN;
+    if (
+      typeof publishedAt !== 'string' ||
+      !Number.isFinite(publishedAtTimestamp) ||
+      publishedAtTimestamp > nowTimestamp
+    ) {
+      throw new Error(
+        `Registry publication time is missing, invalid, or in the future for ${key}.`,
+      );
+    }
+    return {
+      ...candidate,
+      registry: {
+        ...candidate.registry,
+        publishedAt: new Date(publishedAtTimestamp).toISOString(),
+      },
+    };
+  }
+
+  const results = new Array<Awaited<ReturnType<typeof resolveCandidate>>>(
+    candidates.length,
   );
+  let nextIndex = 0;
+  async function worker() {
+    while (nextIndex < candidates.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      results[index] = await resolveCandidate(candidates[index]);
+    }
+  }
+  await Promise.all(
+    Array.from(
+      { length: Math.min(registryFetchConcurrency, candidates.length) },
+      () => worker(),
+    ),
+  );
+  return results;
 }
 
 export async function validateGeneratedPnpmLockReleaseAgePolicy(

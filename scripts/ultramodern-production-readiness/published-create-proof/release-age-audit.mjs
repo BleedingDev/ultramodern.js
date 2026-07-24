@@ -707,6 +707,41 @@ function packumentUrl(registryUrl, packageName) {
   return new URL(encodedName, base);
 }
 
+const registryFetchAttempts = 3;
+const registryFetchRetryDelayMs = 250;
+
+function isTransientRegistryStatus(status) {
+  return status === 429 || status >= 500;
+}
+
+async function fetchRegistryResponse(fetchImpl, url) {
+  let lastError;
+  for (let attempt = 0; attempt < registryFetchAttempts; attempt += 1) {
+    try {
+      const response = await fetchImpl(url, {
+        headers: { accept: 'application/json' },
+      });
+      if (
+        response.ok ||
+        !isTransientRegistryStatus(response.status) ||
+        attempt === registryFetchAttempts - 1
+      ) {
+        return response;
+      }
+      lastError = new Error(`HTTP ${response.status}`);
+    } catch (error) {
+      lastError = error;
+      if (attempt === registryFetchAttempts - 1) {
+        throw error;
+      }
+    }
+    await new Promise(resolve =>
+      setTimeout(resolve, registryFetchRetryDelayMs * 2 ** attempt),
+    );
+  }
+  throw lastError;
+}
+
 async function fetchRegistryMetadata(
   packages,
   { registryUrl, fetchImpl = fetch, now = new Date(), concurrency = 16 },
@@ -721,9 +756,10 @@ async function fetchRegistryMetadata(
       const specifier = identityKey(item);
       let response;
       try {
-        response = await fetchImpl(packumentUrl(registryUrl, item.name), {
-          headers: { accept: 'application/json' },
-        });
+        response = await fetchRegistryResponse(
+          fetchImpl,
+          packumentUrl(registryUrl, item.name),
+        );
       } catch (error) {
         throw new Error(
           `Registry metadata is uncertain for ${specifier} (${item.path.join(

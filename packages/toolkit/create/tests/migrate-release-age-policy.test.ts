@@ -631,6 +631,79 @@ test('rejects HTTP registries and disables registry redirects', async () => {
   }
 });
 
+test('bounds registry metadata concurrency and retries transient transport failures', async () => {
+  const packageNames = Array.from(
+    { length: 20 },
+    (_, index) => `registry-load-${index}`,
+  );
+  const version = '1.0.0';
+  const dependencies = Object.fromEntries(
+    packageNames.map(packageName => [
+      packageName,
+      { specifier: version, version },
+    ]),
+  );
+  const packages = Object.fromEntries(
+    packageNames.map(packageName => [
+      `${packageName}@${version}`,
+      { resolution: { integrity } },
+    ]),
+  );
+  const snapshots = Object.fromEntries(
+    packageNames.map(packageName => [`${packageName}@${version}`, {}]),
+  );
+  const workspaceRoot = createWorkspace({
+    lockfileVersion: '9.0',
+    importers: { '.': { dependencies } },
+    packages,
+    snapshots,
+  });
+  let active = 0;
+  let maximumActive = 0;
+  const attempts = new Map<string, number>();
+
+  try {
+    await validateGeneratedPnpmLockReleaseAgePolicy(
+      workspaceRoot,
+      packageSource,
+      {
+        async fetchImpl(url) {
+          const packageName = decodeURIComponent(
+            url.pathname.replace(/^\//u, ''),
+          );
+          const attempt = (attempts.get(packageName) ?? 0) + 1;
+          attempts.set(packageName, attempt);
+          active += 1;
+          maximumActive = Math.max(maximumActive, active);
+          try {
+            await new Promise(resolve => setTimeout(resolve, 1));
+            if (packageName === packageNames[0] && attempt === 1) {
+              throw new Error('transient socket reset');
+            }
+            return {
+              ok: true,
+              status: 200,
+              json: async () => packument(version, '2026-07-01T00:00:00.000Z'),
+            };
+          } finally {
+            active -= 1;
+          }
+        },
+        now,
+        registryUrl: 'https://registry.example.test/',
+        releaseCohort,
+      },
+    );
+    assert.equal(attempts.get(packageNames[0]), 2);
+    assert.ok(
+      maximumActive <= 16,
+      `registry audit exceeded its 16-request bound: ${maximumActive}`,
+    );
+  } finally {
+    fs.rmSync(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
 test('rejects package-source aliases that rebind the authenticated cohort', () => {
   assert.throws(
     () =>

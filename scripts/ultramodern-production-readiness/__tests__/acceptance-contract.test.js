@@ -850,3 +850,45 @@ test('exact registry cohort verification fails closed on unavailable or stale pa
     fs.rmSync(root, { force: true, recursive: true });
   }
 });
+
+test('independent release-age audit retries transient registry transport failures', async () => {
+  const { fetchRegistryMetadata } = await import(
+    '../published-create-proof/release-age-audit.mjs'
+  );
+  const version = '1.0.0';
+  const integrity = 'sha512-YWNjZXB0YW5jZQ==';
+  let attempts = 0;
+  const metadata = await fetchRegistryMetadata(
+    [
+      {
+        integrity,
+        name: 'transient-registry-package',
+        path: ['importer:.', `transient-registry-package@${version}`],
+        version,
+      },
+    ],
+    {
+      concurrency: 1,
+      async fetchImpl() {
+        attempts += 1;
+        if (attempts === 1) {
+          throw new Error('transient socket reset');
+        }
+        return new Response(
+          JSON.stringify({
+            time: { [version]: '2026-07-01T00:00:00.000Z' },
+            versions: { [version]: { dist: { integrity } } },
+          }),
+          {
+            headers: { 'content-type': 'application/json' },
+            status: 200,
+          },
+        );
+      },
+      now: new Date('2026-07-10T12:00:00.000Z'),
+      registryUrl: 'https://registry.example.test/',
+    },
+  );
+  assert.equal(attempts, 2);
+  assert.equal(metadata[0].integrity, integrity);
+});
