@@ -300,6 +300,10 @@ function snapshotAcceptanceWorkspaceSource(projectDir, env, runImpl = run) {
       [
         '-c',
         'commit.gpgsign=false',
+        '-c',
+        'user.name=UltraModern Acceptance',
+        '-c',
+        'user.email=acceptance@ultramodern.local',
         'commit',
         '--no-verify',
         '-m',

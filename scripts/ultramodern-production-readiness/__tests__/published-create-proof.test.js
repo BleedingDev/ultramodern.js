@@ -406,15 +406,22 @@ test('snapshots install-materialized generated source before building', async ()
 
   try {
     runImpl('git', ['init', '--quiet'], { cwd: root });
-    runImpl('git', ['config', 'user.name', 'UltraModern Acceptance'], {
-      cwd: root,
-    });
-    runImpl('git', ['config', 'user.email', 'acceptance@example.test'], {
-      cwd: root,
-    });
     fs.writeFileSync(path.join(root, 'package.json'), '{"private":true}\n');
     runImpl('git', ['add', 'package.json'], { cwd: root });
-    runImpl('git', ['commit', '--quiet', '-m', 'initial'], { cwd: root });
+    runImpl(
+      'git',
+      [
+        '-c',
+        'user.name=Fixture Author',
+        '-c',
+        'user.email=fixture@example.test',
+        'commit',
+        '--quiet',
+        '-m',
+        'initial',
+      ],
+      { cwd: root },
+    );
     const initial = runImpl('git', ['rev-parse', 'HEAD'], { cwd: root });
     fs.mkdirSync(path.join(root, 'verticals', 'catalog'), {
       recursive: true,
@@ -432,7 +439,17 @@ test('snapshots install-materialized generated source before building', async ()
       '# Pinned Module Federation skill\n',
     );
 
-    const revision = snapshotAcceptanceWorkspaceSource(root, {}, runImpl);
+    const revision = snapshotAcceptanceWorkspaceSource(
+      root,
+      {
+        GIT_CONFIG_COUNT: '1',
+        GIT_CONFIG_GLOBAL: '/dev/null',
+        GIT_CONFIG_KEY_0: 'user.useConfigOnly',
+        GIT_CONFIG_NOSYSTEM: '1',
+        GIT_CONFIG_VALUE_0: 'true',
+      },
+      runImpl,
+    );
 
     assert.match(revision, /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u);
     assert.notEqual(revision, initial);

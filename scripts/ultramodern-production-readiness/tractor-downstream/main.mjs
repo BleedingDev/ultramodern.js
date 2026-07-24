@@ -22,6 +22,7 @@ import {
 import {
   createAcceptancePackageManagerEnv,
   resolveExactPnpmExecutable,
+  snapshotAcceptanceWorkspaceSource,
 } from '../published-create-proof/acceptance-profile.mjs';
 import { writeJsonFile } from '../published-create-proof/constants.mjs';
 import {
@@ -44,6 +45,7 @@ const nodeBackendProofPath =
   '.codex/reports/node-backend-federation-proof/proof.json';
 const requiredCommands = Object.freeze([
   Object.freeze(['pnpm', ['install', '--frozen-lockfile']]),
+  Object.freeze(['pnpm', ['check']]),
   Object.freeze(['pnpm', ['build']]),
   Object.freeze(['pnpm', ['node:proof']]),
   Object.freeze(['pnpm', ['cloudflare:build']]),
@@ -578,6 +580,19 @@ async function runTractorDownstreamAcceptance(
         status: 'passed',
         detail: { command: [command, ...args].join(' ') },
       });
+      if (args[0] === 'check') {
+        const applicationSourceRevision = snapshotAcceptanceWorkspaceSource(
+          options.workspace,
+          env,
+          runImpl,
+        );
+        report.tractor.applicationSourceRevision = applicationSourceRevision;
+        report.checks.push({
+          id: 'promotable-application-source',
+          status: 'passed',
+          detail: { applicationSourceRevision },
+        });
+      }
       if (args[0] === 'node:proof') {
         report.checks.push({
           id: 'node-backend-federation-executed',
