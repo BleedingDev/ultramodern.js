@@ -23,6 +23,7 @@ on:
         value: ${{ jobs.tractor-downstream.outputs.report_sha256 }}
 
 permissions:
+  actions: read
   contents: read
 
 jobs:
@@ -57,8 +58,11 @@ jobs:
       - name: Download exact release bundle
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v7.0.0
         with:
+          github-token: ${{ github.token }}
           name: ${{ inputs.release_bundle_artifact }}
           path: modernjs/.modern/bleedingdev-publish
+          repository: ${{ github.repository }}
+          run-id: ${{ github.run_id }}
 
       - name: Setup mise
         uses: jdx/mise-action@5ac50f778e26fac95da98d50503682459e86d566 # v3.2.0

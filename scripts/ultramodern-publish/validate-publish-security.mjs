@@ -319,6 +319,16 @@ function requireTriggerRunArtifactDownload(step, context) {
   }
 }
 
+function requireSameRunArtifactDownload(step, context) {
+  const withOptions = requireRecord(step.with, `${context} action inputs`);
+  requireCondition(
+    withOptions['github-token'] === githubExpression('github.token') &&
+      withOptions.repository === githubExpression('github.repository') &&
+      withOptions['run-id'] === githubExpression('github.run_id'),
+    `${context} must use the authenticated same-run artifact API`,
+  );
+}
+
 function validateNoTokenEnv() {
   for (const envName of ['NPM_TOKEN', 'NODE_AUTH_TOKEN']) {
     if (process.env[envName]) {
@@ -399,12 +409,12 @@ function validatePublishWorkflow(workflow) {
     'publish workflow permissions',
   );
   requireCondition(
-    permissions.contents === 'read',
-    'publish workflow must grant only contents: read by default',
+    permissions.actions === 'read' && permissions.contents === 'read',
+    'publish workflow must grant only actions: read and contents: read by default',
   );
   assertSameMembers(
     Object.keys(permissions).sort((left, right) => left.localeCompare(right)),
-    ['contents'],
+    ['actions', 'contents'],
     'publish workflow permissions',
   );
   requireCondition(
@@ -489,7 +499,7 @@ function validatePublishWorkflow(workflow) {
     Object.keys(publishPermissions).sort((left, right) =>
       left.localeCompare(right),
     ),
-    ['contents', 'id-token'],
+    ['actions', 'contents', 'id-token'],
     'publish job permissions',
   );
   assertSameMembers(
@@ -521,10 +531,26 @@ function validatePublishWorkflow(workflow) {
     'record-publish-outcome job dependencies',
   );
   requireCondition(
-    publishPermissions.contents === 'read' &&
+    publishPermissions.actions === 'read' &&
+      publishPermissions.contents === 'read' &&
       publishPermissions['id-token'] === 'write',
-    'publish job permissions must be contents: read and id-token: write',
+    'publish job permissions must be actions: read, contents: read, and id-token: write',
   );
+  for (const [jobId, job] of [
+    ['accept-release', acceptanceJob],
+    ['validate-release', validationJob],
+    ['publish', publishJob],
+    ['accept-published', publishedAcceptanceJob],
+    ['record-publish-outcome', outcomeJob],
+  ]) {
+    for (const download of actionSteps(
+      job,
+      'actions/download-artifact',
+      `${jobId} job`,
+    )) {
+      requireSameRunArtifactDownload(download, `${jobId} artifact download`);
+    }
+  }
   requireCondition(
     !Object.hasOwn(publishedAcceptanceJob, 'environment') &&
       !Object.hasOwn(publishedAcceptanceJob, 'permissions') &&
@@ -1776,11 +1802,11 @@ function validateTractorWorkflow(workflow) {
   );
   assertSameMembers(
     Object.keys(permissions),
-    ['contents'],
+    ['actions', 'contents'],
     'Tractor acceptance workflow permissions',
   );
   requireCondition(
-    permissions.contents === 'read',
+    permissions.actions === 'read' && permissions.contents === 'read',
     'Tractor acceptance workflow must be read-only',
   );
 
@@ -1794,6 +1820,16 @@ function validateTractorWorkflow(workflow) {
     jobs['tractor-downstream'],
     'Tractor acceptance workflow job',
   );
+  for (const download of actionSteps(
+    job,
+    'actions/download-artifact',
+    'Tractor acceptance workflow job',
+  )) {
+    requireSameRunArtifactDownload(
+      download,
+      'Tractor acceptance artifact download',
+    );
+  }
   requireCondition(
     job['timeout-minutes'] === 45 &&
       !Object.hasOwn(job, 'permissions') &&

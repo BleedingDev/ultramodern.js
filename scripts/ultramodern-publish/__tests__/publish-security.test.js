@@ -618,8 +618,12 @@ test('OIDC and the trusted publishing environment are confined to publish', () =
     .map(([jobId]) => jobId);
 
   assert.equal(parsed.permissions.contents, 'read');
+  assert.equal(parsed.permissions.actions, 'read');
   assert.equal(parsed.permissions['id-token'], undefined);
-  assert.deepEqual(parsed.permissions, { contents: 'read' });
+  assert.deepEqual(parsed.permissions, {
+    actions: 'read',
+    contents: 'read',
+  });
   assert.deepEqual(oidcJobs, ['publish']);
   assert.equal(Object.hasOwn(dryRun, 'environment'), false);
   assert.equal(Object.hasOwn(dryRun, 'permissions'), false);
@@ -627,6 +631,7 @@ test('OIDC and the trusted publishing environment are confined to publish', () =
   assert.equal(publish.environment, 'npm-publish');
   assert.match(publish.if, /inputs\.dry_run == false/u);
   assert.deepEqual(publish.permissions, {
+    actions: 'read',
     contents: 'read',
     'id-token': 'write',
   });
@@ -649,6 +654,39 @@ test('OIDC and the trusted publishing environment are confined to publish', () =
       /github\.triggering_actor == github\.repository_owner/u,
     );
     assert.match(parsed.jobs[jobId].if, /vars\.BLEEDINGDEV_PUBLISH_BRANCH/u);
+  }
+});
+
+test('publish and Tractor artifact downloads survive workflow reruns', () => {
+  for (const [workflowPath, label] of [
+    [publishWorkflowPath, 'publish'],
+    [tractorWorkflowPath, 'Tractor'],
+  ]) {
+    const parsed = workflow(workflowPath);
+    assert.equal(parsed.permissions.actions, 'read', `${label} actions`);
+    assert.equal(parsed.permissions.contents, 'read', `${label} contents`);
+
+    const downloads = Object.values(parsed.jobs).flatMap(job =>
+      actionSteps(job, 'actions/download-artifact'),
+    );
+    assert.ok(downloads.length > 0, `${label} artifact downloads`);
+    for (const download of downloads) {
+      assert.equal(
+        download.with['github-token'],
+        githubExpression('github.token'),
+        `${label} github-token`,
+      );
+      assert.equal(
+        download.with.repository,
+        githubExpression('github.repository'),
+        `${label} repository`,
+      );
+      assert.equal(
+        download.with['run-id'],
+        githubExpression('github.run_id'),
+        `${label} run-id`,
+      );
+    }
   }
 });
 
@@ -777,6 +815,16 @@ test('publish validator rejects authority, mutable resolution, and acceptance by
         parsed.jobs['accept-published'].environment = 'npm-publish';
       },
       /without an environment|inherited read-only authority/u,
+    ],
+    [
+      'rerun artifact authentication downgrade',
+      parsed => {
+        delete namedStep(
+          parsed.jobs.publish,
+          'Download accepted release bundle',
+        ).with['github-token'];
+      },
+      /authenticated same-run artifact API/u,
     ],
     [
       'mutable latest install',

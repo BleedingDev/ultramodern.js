@@ -15,6 +15,7 @@ on:
 # id-token: write (OIDC for npm trusted publishing) is granted only on the
 # publish job below; every other job runs read-only.
 permissions:
+  actions: read
   contents: read
 
 defaults:
@@ -252,8 +253,11 @@ jobs:
       - name: Download immutable release bundle
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v7.0.0
         with:
+          github-token: ${{ github.token }}
           name: ${{ env.BLEEDINGDEV_RELEASE_BUNDLE_ARTIFACT }}-${{ needs.prepare-release.outputs.producer_artifact_identity }}
           path: .modern/bleedingdev-publish
+          repository: ${{ github.repository }}
+          run-id: ${{ github.run_id }}
 
       - name: Install browser smoke runtime
         run: npx --yes playwright@1.60.0 install --with-deps chromium
@@ -308,14 +312,20 @@ jobs:
       - name: Download accepted release bundle
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v7.0.0
         with:
+          github-token: ${{ github.token }}
           name: ${{ env.BLEEDINGDEV_RELEASE_BUNDLE_ARTIFACT }}-${{ needs.accept-release.outputs.producer_artifact_identity }}
           path: .modern/bleedingdev-publish
+          repository: ${{ github.repository }}
+          run-id: ${{ github.run_id }}
 
       - name: Download release acceptance receipt
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v7.0.0
         with:
+          github-token: ${{ github.token }}
           name: ${{ env.BLEEDINGDEV_RELEASE_ACCEPTANCE_ARTIFACT }}-${{ needs.accept-release.outputs.producer_artifact_identity }}
           path: .modern/bleedingdev-publish
+          repository: ${{ github.repository }}
+          run-id: ${{ github.run_id }}
 
       - name: Verify exact release acceptance receipt
         run: |
@@ -351,6 +361,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: npm-publish
     permissions:
+      actions: read
       contents: read
       id-token: write
     timeout-minutes: 45
@@ -384,14 +395,20 @@ jobs:
       - name: Download accepted release bundle
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v7.0.0
         with:
+          github-token: ${{ github.token }}
           name: ${{ env.BLEEDINGDEV_RELEASE_BUNDLE_ARTIFACT }}-${{ needs.accept-release.outputs.producer_artifact_identity }}
           path: .modern/bleedingdev-publish
+          repository: ${{ github.repository }}
+          run-id: ${{ github.run_id }}
 
       - name: Download release acceptance receipt
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v7.0.0
         with:
+          github-token: ${{ github.token }}
           name: ${{ env.BLEEDINGDEV_RELEASE_ACCEPTANCE_ARTIFACT }}-${{ needs.accept-release.outputs.producer_artifact_identity }}
           path: .modern/bleedingdev-publish
+          repository: ${{ github.repository }}
+          run-id: ${{ github.run_id }}
 
       - name: Verify exact release acceptance receipt
         run: |
@@ -578,8 +595,11 @@ jobs:
       - name: Download exact published release identity
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v7.0.0
         with:
+          github-token: ${{ github.token }}
           name: ${{ env.BLEEDINGDEV_RELEASE_IDENTITY_ARTIFACT }}-${{ needs.accept-release.outputs.producer_artifact_identity }}-publication-attempt-${{ needs.publish.outputs.publication_run_attempt }}
           path: .modern/bleedingdev-publish
+          repository: ${{ github.repository }}
+          run-id: ${{ github.run_id }}
 
       - name: Verify accepted producer receipt for published acceptance
         env:
@@ -737,28 +757,40 @@ jobs:
       - name: Download accepted release bundle
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v7.0.0
         with:
+          github-token: ${{ github.token }}
           name: ${{ env.BLEEDINGDEV_RELEASE_BUNDLE_ARTIFACT }}-${{ needs.accept-release.outputs.producer_artifact_identity }}
           path: .modern/bleedingdev-publish
+          repository: ${{ github.repository }}
+          run-id: ${{ github.run_id }}
 
       - name: Download release acceptance receipt
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v7.0.0
         with:
+          github-token: ${{ github.token }}
           name: ${{ env.BLEEDINGDEV_RELEASE_ACCEPTANCE_ARTIFACT }}-${{ needs.accept-release.outputs.producer_artifact_identity }}
           path: .modern/bleedingdev-publish
+          repository: ${{ github.repository }}
+          run-id: ${{ github.run_id }}
 
       - name: Download published acceptance evidence
         if: inputs.dry_run == false
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v7.0.0
         with:
+          github-token: ${{ github.token }}
           name: ${{ env.BLEEDINGDEV_PUBLISHED_ACCEPTANCE_ARTIFACT }}-${{ needs.accept-release.outputs.producer_artifact_identity }}-publication-attempt-${{ needs.publish.outputs.publication_run_attempt }}
           path: .modern/bleedingdev-publish
+          repository: ${{ github.repository }}
+          run-id: ${{ github.run_id }}
 
       - name: Download Tractor acceptance evidence
         if: inputs.dry_run == false
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v7.0.0
         with:
+          github-token: ${{ github.token }}
           name: ${{ needs.tractor-downstream.outputs.evidence_artifact_name }}
           path: .modern/bleedingdev-publish
+          repository: ${{ github.repository }}
+          run-id: ${{ github.run_id }}
 
       - name: Verify accepted producer receipt for the outcome
         run: |
