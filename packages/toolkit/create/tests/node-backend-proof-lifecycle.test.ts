@@ -48,6 +48,9 @@ test('Node backend proof owns the runtime lifecycle for built MicroVerticals', a
       ),
     ).href
   )) as {
+    resolveNodeProofServerMode?: (
+      env: Record<string, string | undefined>,
+    ) => 'existing' | 'owned';
     startNodeRuntime?: (
       app: Record<string, unknown>,
       target: string,
@@ -57,6 +60,21 @@ test('Node backend proof owns the runtime lifecycle for built MicroVerticals', a
   };
 
   try {
+    assert.equal(typeof proofModule.resolveNodeProofServerMode, 'function');
+    assert.equal(proofModule.resolveNodeProofServerMode!({}), 'owned');
+    assert.equal(
+      proofModule.resolveNodeProofServerMode!({
+        ULTRAMODERN_NODE_PROOF_SERVER_MODE: 'existing',
+      }),
+      'existing',
+    );
+    assert.throws(
+      () =>
+        proofModule.resolveNodeProofServerMode!({
+          ULTRAMODERN_NODE_PROOF_SERVER_MODE: 'disabled',
+        }),
+      /ULTRAMODERN_NODE_PROOF_SERVER_MODE/u,
+    );
     assert.equal(typeof proofModule.startNodeRuntime, 'function');
     assert.equal(typeof proofModule.stopNodeRuntime, 'function');
     const runtime = await proofModule.startNodeRuntime!(

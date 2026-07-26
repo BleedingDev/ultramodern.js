@@ -438,6 +438,16 @@ export async function stopNodeRuntime(runtime) {
   await Promise.race([runtime.exited, sleep(1_000)]);
 }
 
+export function resolveNodeProofServerMode(env = process.env) {
+  const mode = env.ULTRAMODERN_NODE_PROOF_SERVER_MODE ?? 'owned';
+  if (mode !== 'owned' && mode !== 'existing') {
+    throw new Error(
+      `ULTRAMODERN_NODE_PROOF_SERVER_MODE must be "owned" or "existing", received ${JSON.stringify(mode)}`,
+    );
+  }
+  return mode;
+}
+
 function assertEqual(actual, expected, message) {
   if (actual !== expected) {
     throw new Error(`${message}: expected ${expected}, received ${actual}`);
@@ -1158,18 +1168,20 @@ async function main(argv = process.argv.slice(2)) {
     apps.length > 0 ? await importBackendFederationRuntime() : undefined;
   const runtimes = [];
   try {
-    for (const app of runtimeApps) {
-      runtimes.push(
-        await startNodeRuntime(app, args.target, {
-          deferReadiness: true,
-        }),
+    if (resolveNodeProofServerMode() === 'owned') {
+      for (const app of runtimeApps) {
+        runtimes.push(
+          await startNodeRuntime(app, args.target, {
+            deferReadiness: true,
+          }),
+        );
+      }
+      await Promise.all(
+        runtimes.map((runtime) =>
+          waitForNodeRuntime(runtime, runtime.startupTimeoutMs),
+        ),
       );
     }
-    await Promise.all(
-      runtimes.map((runtime) =>
-        waitForNodeRuntime(runtime, runtime.startupTimeoutMs),
-      ),
-    );
     for (const app of apps) {
       results.push(await proveBackend(app, backendRuntime, args.target));
     }

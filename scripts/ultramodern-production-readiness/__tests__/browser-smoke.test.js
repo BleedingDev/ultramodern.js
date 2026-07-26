@@ -1347,15 +1347,22 @@ test('Node backend evidence accepts only network-loaded federation with executed
   fs.writeFileSync(reportPath, JSON.stringify(report));
 
   try {
+    let proofEnvironment;
     const [assertion] = runNodeBackendFederationProof({
       artifactDir: path.join(root, 'artifacts'),
       projectDir: root,
-      spawnSyncImpl() {
+      spawnSyncImpl(_command, _args, options) {
+        proofEnvironment = options.env;
         return { status: 0, stderr: '', stdout: 'proof passed' };
       },
     });
     assert.equal(assertion.status, 'pass');
     assert.equal(assertion.type, 'backend-federation-network');
+    assert.equal(
+      proofEnvironment.ULTRAMODERN_NODE_PROOF_SERVER_MODE,
+      'existing',
+      'the integrated browser harness must remain the only owner of its live Node server processes',
+    );
 
     report.results[0].runtimeEntry =
       'file:///tmp/inventory/backendRemoteEntry.cjs';

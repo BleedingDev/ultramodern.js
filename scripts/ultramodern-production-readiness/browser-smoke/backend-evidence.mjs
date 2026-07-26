@@ -12,7 +12,13 @@ function runNodeBackendFederationProof({
   const result = spawnSyncImpl('pnpm', ['run', 'node:proof'], {
     cwd: projectDir,
     encoding: 'utf8',
-    env: process.env,
+    env: {
+      ...process.env,
+      // The browser smoke harness already owns and has health-checked these
+      // exact final Node processes. Ask the generated proof to consume them
+      // instead of racing a second process set for the same ports.
+      ULTRAMODERN_NODE_PROOF_SERVER_MODE: 'existing',
+    },
     maxBuffer: 16 * 1024 * 1024,
   });
   fs.mkdirSync(artifactDir, { recursive: true });
