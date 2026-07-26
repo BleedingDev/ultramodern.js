@@ -162,6 +162,27 @@ test('Module Federation bridge patch reverses and reapplies cleanly', () => {
       cwd: temporaryDir,
       stdio: 'pipe',
     });
+    execFileSync('git', ['apply', patchPath], {
+      cwd: temporaryDir,
+      stdio: 'pipe',
+    });
+
+    const invalidDeclarationImports = fs
+      .readdirSync(path.join(temporaryDir, 'dist'), {
+        recursive: true,
+        withFileTypes: true,
+      })
+      .filter(entry => entry.isFile() && entry.name.endsWith('.d.ts'))
+      .map(entry => path.join(entry.parentPath, entry.name))
+      .filter(file =>
+        fs.readFileSync(file, 'utf8').includes('import("node_modules/@types/'),
+      );
+
+    assert.deepEqual(
+      invalidDeclarationImports,
+      [],
+      'the bridge patch must repair package-invalid node_modules/@types declaration imports',
+    );
   } finally {
     fs.rmSync(temporaryDir, { recursive: true, force: true });
   }
