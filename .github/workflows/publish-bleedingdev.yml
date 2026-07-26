@@ -15,8 +15,8 @@ on:
 # id-token: write (OIDC for npm trusted publishing) is granted only on the
 # publish job below; every other job runs read-only.
 permissions:
-  actions: read
   contents: read
+  actions: read
 
 defaults:
   run:

@@ -13,6 +13,8 @@ import { type MigrationIo, writeTextIfChanged } from './io';
 
 const legacyApiMarkerPattern =
   /export const ultramodernApiMarker\s*=\s*\{[\s\S]*?\}\s+as const;\n?/u;
+const markerSchemaPattern =
+  /(export const [A-Za-z_$][\w$]*MarkerSchema(?:\s*:[^=]+)?\s*=\s*Schema\.Struct\(\{\n)([\s\S]*?)(\n\}\);)/u;
 
 export function rewriteLegacyApiMarkerBinding(source: string): string {
   if (!legacyApiMarkerPattern.test(source)) {
@@ -21,6 +23,50 @@ export function rewriteLegacyApiMarkerBinding(source: string): string {
   return source.replace(
     legacyApiMarkerPattern,
     "export { ultramodernApiMarker } from './ultramodern-build.ts';\n",
+  );
+}
+
+export function rewriteApiMarkerIdentitySchema(source: string): string {
+  const match = source.match(markerSchemaPattern);
+  if (!match) {
+    return source;
+  }
+
+  let body = match[2];
+  const requiredLegacyFields = [
+    'appId',
+    'build',
+    'deployProfile',
+    'packageName',
+    'surface',
+    'version',
+  ];
+  if (
+    !requiredLegacyFields.every(field =>
+      new RegExp(`^\\s+${field}: Schema\\.String,\\s*$`, 'mu').test(body),
+    )
+  ) {
+    return source;
+  }
+
+  const insertAfter = (anchor: string, field: string) => {
+    if (new RegExp(`^\\s+${field}: Schema\\.String,\\s*$`, 'mu').test(body)) {
+      return;
+    }
+    body = body.replace(
+      new RegExp(`^(\\s+)${anchor}: Schema\\.String,\\s*$`, 'mu'),
+      `$&\n$1${field}: Schema.String,`,
+    );
+  };
+
+  insertAfter('build', 'buildMarker');
+  insertAfter('packageName', 'sourceRevision');
+  insertAfter('surface', 'unitId');
+
+  return source.replace(
+    markerSchemaPattern,
+    (_full, prefix: string, _body: string, suffix: string) =>
+      `${prefix}${body}${suffix}`,
   );
 }
 
@@ -40,8 +86,10 @@ export function updateGeneratedBuildIdentityModules(
         writeTextIfChanged(
           io,
           sharedApiPath,
-          rewriteLegacyApiMarkerBinding(
-            fs.readFileSync(sharedApiPath, 'utf-8'),
+          rewriteApiMarkerIdentitySchema(
+            rewriteLegacyApiMarkerBinding(
+              fs.readFileSync(sharedApiPath, 'utf-8'),
+            ),
           ),
         ) || changed;
     }

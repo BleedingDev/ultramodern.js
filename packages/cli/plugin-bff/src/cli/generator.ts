@@ -12,6 +12,7 @@ import {
 import type { ConfigChain } from '@rsbuild/core';
 import path from 'path';
 import clientGenerator from '../utils/clientGenerator';
+import { bundleEffectEntryForNode } from '../utils/effectSourceLoader';
 import pluginGenerator from '../utils/pluginGenerator';
 import runtimeGenerator from '../utils/runtimeGenerator';
 import { getPrimaryPrefix } from './prefix';
@@ -21,6 +22,53 @@ import {
 } from './serverGlobalVars';
 
 const RUNTIME_CREATE_REQUEST = '@modern-js/plugin-bff/client';
+const effectEntryExtensions = [
+  '.js',
+  '.jsx',
+  '.ts',
+  '.tsx',
+  '.mjs',
+  '.mts',
+  '.cjs',
+  '.cts',
+];
+
+function resolveEffectSourceEntry(
+  appDirectory: string,
+  apiDirectory: string,
+  configuredEntry?: string,
+) {
+  const entry = configuredEntry
+    ? path.isAbsolute(configuredEntry)
+      ? configuredEntry
+      : path.resolve(appDirectory, configuredEntry)
+    : path.resolve(apiDirectory, 'index');
+  return path.extname(entry)
+    ? entry
+    : effectEntryExtensions
+        .map(extension => `${entry}${extension}`)
+        .find(candidate => fs.existsSync(candidate));
+}
+
+function resolveBuiltEffectEntry(
+  appDirectory: string,
+  distDirectory: string,
+  sourceEntry: string | undefined,
+) {
+  if (!sourceEntry) {
+    return undefined;
+  }
+  const relativeEntry = path.relative(appDirectory, sourceEntry);
+  if (relativeEntry === '..' || relativeEntry.startsWith(`..${path.sep}`)) {
+    throw new Error(
+      `Effect BFF entry must be inside the application directory: ${sourceEntry}`,
+    );
+  }
+  const builtEntry = path
+    .resolve(distDirectory, relativeEntry)
+    .replace(/\.(?:[cm]?ts|tsx|jsx)$/u, '.js');
+  return fs.existsSync(builtEntry) ? builtEntry : undefined;
+}
 
 export const createBffGenerator = (api: CLIPluginAPI<AppTools>) => {
   const compileApi = async () => {
@@ -28,6 +76,7 @@ export const createBffGenerator = (api: CLIPluginAPI<AppTools>) => {
       appDirectory,
       distDirectory,
       apiDirectory,
+      bffRuntimeFramework,
       sharedDirectory,
       moduleType,
     } = api.getAppContext();
@@ -77,6 +126,31 @@ export const createBffGenerator = (api: CLIPluginAPI<AppTools>) => {
         ),
         serializedGlobalVars,
       );
+
+      if (bffRuntimeFramework === 'effect') {
+        const sourceEntry = resolveEffectSourceEntry(
+          appDirectory,
+          apiDir,
+          modernConfig.bff?.effect?.entry,
+        );
+        const builtEntry = resolveBuiltEffectEntry(
+          appDirectory,
+          distDir,
+          sourceEntry,
+        );
+        if (!builtEntry) {
+          throw new Error(
+            `Effect BFF entry was not emitted into ${distDir}: ${
+              sourceEntry ?? path.resolve(apiDir, 'index')
+            }`,
+          );
+        }
+        await bundleEffectEntryForNode({
+          appDir: appDirectory,
+          entryPath: builtEntry,
+          format: moduleType === 'module' ? 'esm' : 'cjs',
+        });
+      }
     }
   };
 

@@ -25,6 +25,105 @@ describe('BFF compiler global variables', () => {
     );
   });
 
+  it('emits a Node-executable Effect entry when it imports raw TypeScript from a workspace package', async () => {
+    const workspaceDirectory = await fs.realpath(
+      await fs.mkdtemp(
+        path.join(os.tmpdir(), 'plugin-bff-workspace-typescript-'),
+      ),
+    );
+    const appDirectory = path.join(workspaceDirectory, 'verticals', 'catalog');
+    const apiDirectory = path.join(appDirectory, 'api');
+    const sharedDirectory = path.join(appDirectory, 'shared');
+    const distDirectory = path.join(appDirectory, 'dist');
+    const packageDirectory = path.join(
+      workspaceDirectory,
+      'packages',
+      'raw-contract',
+    );
+    const packageLink = path.join(
+      appDirectory,
+      'node_modules',
+      '@fixture',
+      'raw-contract',
+    );
+    const tsconfigPath = path.join(appDirectory, 'tsconfig.json');
+
+    await fs.outputJSON(path.join(packageDirectory, 'package.json'), {
+      name: '@fixture/raw-contract',
+      version: '1.0.0',
+      type: 'module',
+      exports: {
+        '.': './src/index.ts',
+      },
+    });
+    await fs.outputFile(
+      path.join(packageDirectory, 'src/index.ts'),
+      "export const workspaceValue: string = 'raw-workspace-typescript';\n",
+    );
+    await fs.ensureDir(path.dirname(packageLink));
+    await fs.symlink(
+      packageDirectory,
+      packageLink,
+      process.platform === 'win32' ? 'junction' : 'dir',
+    );
+    await fs.outputJSON(tsconfigPath, {
+      compilerOptions: {
+        declaration: false,
+        module: 'CommonJS',
+        moduleResolution: 'Node',
+        noEmitOnError: true,
+        target: 'ES2020',
+      },
+      include: ['api', 'shared'],
+    });
+    await fs.outputFile(
+      path.join(apiDirectory, 'index.ts'),
+      [
+        "import { workspaceValue } from '@fixture/raw-contract';",
+        'export default () => workspaceValue;',
+        '',
+      ].join('\n'),
+    );
+
+    const api = {
+      getAppContext: () => ({
+        appDirectory,
+        apiDirectory,
+        bffRuntimeFramework: 'effect',
+        distDirectory,
+        isProd: true,
+        moduleType: 'commonjs',
+        sharedDirectory,
+      }),
+      getNormalizedConfig: () => ({
+        bff: {
+          runtimeFramework: 'effect',
+        },
+        resolve: {},
+        server: {
+          tsconfigPath,
+        },
+        source: {},
+      }),
+    };
+
+    try {
+      const { compileApi } = createBffGenerator(api as never);
+      await compileApi();
+
+      const compiledEntry = path.join(distDirectory, 'api/index.js');
+      const runtime = require(compiledEntry) as {
+        default: () => string;
+      };
+      expect(runtime.default()).toBe('raw-workspace-typescript');
+      expect(await fs.readFile(compiledEntry, 'utf8')).not.toMatch(
+        /require\(["']@fixture\/raw-contract["']\)/u,
+      );
+    } finally {
+      await fs.remove(workspaceDirectory);
+    }
+  });
+
   it('embeds exact release identity without touching near matches, strings, or comments', async () => {
     const appDirectory = await fs.realpath(
       await fs.mkdtemp(path.join(os.tmpdir(), 'plugin-bff-global-vars-')),

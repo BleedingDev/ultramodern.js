@@ -1,6 +1,7 @@
 // @effect-diagnostics anyUnknownInErrorContext:off asyncFunction:off nodeBuiltinImport:off strictBooleanExpressions:off
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import { builtinModules } from 'node:module';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
@@ -67,6 +68,103 @@ function preserveSourceModuleSemantics(): Plugin {
   };
 }
 
+const nodeBuiltins = new Set([
+  ...builtinModules,
+  ...builtinModules.map(name => `node:${name}`),
+]);
+const dependencyResolutionMarker = 'modern-js-effect-dependency-resolution';
+
+function isBareSpecifier(specifier: string) {
+  return (
+    !specifier.startsWith('.') &&
+    !specifier.startsWith('/') &&
+    !path.isAbsolute(specifier)
+  );
+}
+
+/**
+ * Keep installed registry dependencies external while bundling symlinked
+ * workspace source packages. Node can execute registry packages from the
+ * deployment node_modules tree, but it intentionally refuses to type-strip
+ * raw TypeScript copied under node_modules. Bundling workspace source into the
+ * Effect entry before deployment makes that entry relocatable and executable.
+ */
+function externalizeInstalledDependencies(): Plugin {
+  return {
+    name: 'modern-js-effect-installed-dependencies',
+    setup(buildApi) {
+      buildApi.onResolve({ filter: /.*/ }, async args => {
+        if (
+          !isBareSpecifier(args.path) ||
+          nodeBuiltins.has(args.path) ||
+          args.pluginData?.[dependencyResolutionMarker] === true
+        ) {
+          return nodeBuiltins.has(args.path)
+            ? { external: true, path: args.path }
+            : undefined;
+        }
+
+        const resolution = await buildApi.resolve(args.path, {
+          importer: args.importer,
+          kind: args.kind,
+          namespace: args.namespace,
+          pluginData: {
+            ...args.pluginData,
+            [dependencyResolutionMarker]: true,
+          },
+          resolveDir: args.resolveDir,
+        });
+        if (resolution.errors.length > 0) {
+          return { external: true, path: args.path };
+        }
+        if (resolution.external || !resolution.path) {
+          return { external: true, path: args.path };
+        }
+
+        const realPath = await fs.promises
+          .realpath(resolution.path)
+          .catch(() => resolution.path);
+        if (realPath.includes(`${path.sep}node_modules${path.sep}`)) {
+          return { external: true, path: args.path };
+        }
+
+        return {
+          namespace: resolution.namespace,
+          path: resolution.path,
+          pluginData: resolution.pluginData,
+          sideEffects: resolution.sideEffects,
+          suffix: resolution.suffix,
+          warnings: resolution.warnings,
+          watchDirs: resolution.watchDirs,
+          watchFiles: resolution.watchFiles,
+        };
+      });
+    },
+  };
+}
+
+export async function bundleEffectEntryForNode(options: {
+  appDir: string;
+  entryPath: string;
+  format: 'cjs' | 'esm';
+}) {
+  await build({
+    absWorkingDir: options.appDir,
+    allowOverwrite: true,
+    bundle: true,
+    entryPoints: [options.entryPath],
+    format: options.format,
+    logLevel: 'silent',
+    outfile: options.entryPath,
+    platform: 'node',
+    plugins: [
+      externalizeInstalledDependencies(),
+      preserveSourceModuleSemantics(),
+    ],
+    target: 'node20',
+  });
+}
+
 function isWatchableInput(filename: string) {
   return (
     !filename.includes(`${path.sep}node_modules${path.sep}`) &&
@@ -129,9 +227,11 @@ export async function loadEffectSourceModule(
     logLevel: 'silent',
     metafile: true,
     outfile: outputPath,
-    packages: 'external',
     platform: 'node',
-    plugins: [preserveSourceModuleSemantics()],
+    plugins: [
+      externalizeInstalledDependencies(),
+      preserveSourceModuleSemantics(),
+    ],
     sourcemap: 'inline',
     target: 'node20',
     tsconfig: fs.existsSync(tsconfigPath) ? tsconfigPath : undefined,

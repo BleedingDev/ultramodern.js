@@ -1,7 +1,9 @@
 #!/usr/bin/env node
+import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
+import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -221,6 +223,8 @@ function compactApps(config, appFilter) {
       backendName: createBackendName(app),
       manifestUrl: createBackendManifestUrl(app),
       containerEntry: createBackendContainerEntry(app),
+      port: app.port,
+      portEnv: app.portEnv,
       remoteType: resolveRemoteType(app),
       smokeChecks: collectJsonSmokeChecks(apps, app),
       compactDeliveryUnit:
@@ -234,6 +238,204 @@ function compactApps(config, appFilter) {
   }
 
   return filteredApps;
+}
+
+const sleep = (durationMs) =>
+  new Promise((resolve) => setTimeout(resolve, durationMs));
+
+async function assertPortAvailable(port, appId) {
+  for (const host of ['127.0.0.1', '::']) {
+    await new Promise((resolve, reject) => {
+      const server = net.createServer();
+      server.unref();
+      server.once('error', (error) => {
+        if (
+          host === '::' &&
+          ['EAFNOSUPPORT', 'EADDRNOTAVAIL'].includes(error?.code)
+        ) {
+          resolve();
+          return;
+        }
+        reject(
+          new Error(
+            `${appId} Node proof port ${port} is unavailable on ${host}: ${error.message}`,
+          ),
+        );
+      });
+      server.listen({ host, port }, () => {
+        server.close((error) => (error ? reject(error) : resolve()));
+      });
+    });
+  }
+}
+
+function runtimeLogTail(logPath) {
+  if (!fs.existsSync(logPath)) {
+    return '';
+  }
+  const source = fs.readFileSync(logPath, 'utf8');
+  return source.length > 8_000 ? source.slice(-8_000) : source;
+}
+
+async function waitForNodeRuntime(runtime, startupTimeoutMs) {
+  const deadline = Date.now() + startupTimeoutMs;
+  let lastError;
+  while (Date.now() < deadline) {
+    if (runtime.exitResult) {
+      const tail = runtimeLogTail(runtime.logPath);
+      throw new Error(
+        `${runtime.appId} Node runtime exited before readiness (code ${runtime.exitResult.exitCode}, signal ${runtime.exitResult.signal})${
+          tail ? `\n${tail}` : ''
+        }`,
+      );
+    }
+    try {
+      const response = await fetch(runtime.manifestUrl, {
+        headers: {
+          accept: 'application/json',
+          'cache-control': 'no-cache',
+        },
+      });
+      if (response.ok) {
+        return;
+      }
+      lastError = new Error(`HTTP ${response.status}`);
+    } catch (error) {
+      lastError = error;
+    }
+    await sleep(100);
+  }
+
+  throw new Error(
+    `${runtime.appId} Node runtime did not serve ${runtime.manifestUrl} within ${startupTimeoutMs}ms${
+      lastError instanceof Error ? `: ${lastError.message}` : ''
+    }`,
+  );
+}
+
+export async function startNodeRuntime(
+  app,
+  target,
+  {
+    deferReadiness = false,
+    startupTimeoutMs = 90_000,
+    workspaceRoot: runtimeWorkspaceRoot = workspaceRoot,
+  } = {},
+) {
+  const parsedPort =
+    Number.isInteger(app.port) && app.port > 0
+      ? app.port
+      : Number(new URL(app.manifestUrl).port);
+  if (!Number.isInteger(parsedPort) || parsedPort <= 0) {
+    throw new Error(`${app.id} has no valid Node proof port`);
+  }
+  await assertPortAvailable(parsedPort, app.id);
+
+  const outputDirectory = path.join(
+    runtimeWorkspaceRoot,
+    app.directory,
+    target,
+  );
+  const entryPath = path.join(outputDirectory, 'index.js');
+  assertFile(entryPath, app.id, 'Node deploy entry');
+  const logPath = path.join(
+    runtimeWorkspaceRoot,
+    '.codex/reports/node-backend-federation-proof',
+    `${app.id}-serve.log`,
+  );
+  fs.mkdirSync(path.dirname(logPath), { recursive: true });
+  const logStream = fs.createWriteStream(logPath, { flags: 'w' });
+  const env = {
+    ...process.env,
+    PORT: String(parsedPort),
+    ...(typeof app.portEnv === 'string' && app.portEnv.length > 0
+      ? { [app.portEnv]: String(parsedPort) }
+      : {}),
+  };
+  const child = spawn(process.execPath, ['index.js'], {
+    cwd: outputDirectory,
+    detached: process.platform !== 'win32',
+    env,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  child.stdout.pipe(logStream);
+  child.stderr.pipe(logStream);
+
+  const runtime = {
+    appId: app.id,
+    child,
+    exitResult: undefined,
+    logPath,
+    logStream,
+    manifestUrl: app.manifestUrl,
+  };
+  runtime.exited = new Promise((resolve) => {
+    let spawnError;
+    child.once('error', (error) => {
+      spawnError = error instanceof Error ? error.message : String(error);
+    });
+    child.once('close', (exitCode, signal) => {
+      runtime.exitResult = { exitCode, signal, spawnError };
+      logStream.end();
+      resolve(runtime.exitResult);
+    });
+  });
+
+  if (deferReadiness) {
+    runtime.startupTimeoutMs = startupTimeoutMs;
+    return runtime;
+  }
+
+  try {
+    await waitForNodeRuntime(runtime, startupTimeoutMs);
+    return runtime;
+  } catch (error) {
+    await stopNodeRuntime(runtime);
+    throw error;
+  }
+}
+
+function processGroupIsAlive(pid) {
+  if (process.platform === 'win32' || !pid) {
+    return false;
+  }
+  try {
+    process.kill(-pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function signalRuntime(runtime, signal) {
+  if (!runtime.child.pid) {
+    return;
+  }
+  if (process.platform === 'win32') {
+    runtime.child.kill(signal);
+    return;
+  }
+  try {
+    process.kill(-runtime.child.pid, signal);
+  } catch {}
+}
+
+export async function stopNodeRuntime(runtime) {
+  if (!runtime?.child || runtime.exitResult) {
+    return;
+  }
+  signalRuntime(runtime, 'SIGTERM');
+  const deadline = Date.now() + 5_000;
+  while (
+    processGroupIsAlive(runtime.child.pid) &&
+    Date.now() < deadline
+  ) {
+    await sleep(50);
+  }
+  if (processGroupIsAlive(runtime.child.pid)) {
+    signalRuntime(runtime, 'SIGKILL');
+  }
+  await Promise.race([runtime.exited, sleep(1_000)]);
 }
 
 function assertEqual(actual, expected, message) {
@@ -949,13 +1151,32 @@ async function main(argv = process.argv.slice(2)) {
   }
 
   const config = readJson(compactConfigPath);
-  const apps = compactApps(config, args.app);
+  const runtimeApps = compactApps(config);
+  const apps = args.app ? compactApps(config, args.app) : runtimeApps;
   const results = [];
   const backendRuntime =
     apps.length > 0 ? await importBackendFederationRuntime() : undefined;
-
-  for (const app of apps) {
-    results.push(await proveBackend(app, backendRuntime, args.target));
+  const runtimes = [];
+  try {
+    for (const app of runtimeApps) {
+      runtimes.push(
+        await startNodeRuntime(app, args.target, {
+          deferReadiness: true,
+        }),
+      );
+    }
+    await Promise.all(
+      runtimes.map((runtime) =>
+        waitForNodeRuntime(runtime, runtime.startupTimeoutMs),
+      ),
+    );
+    for (const app of apps) {
+      results.push(await proveBackend(app, backendRuntime, args.target));
+    }
+  } finally {
+    await Promise.allSettled(
+      runtimes.reverse().map((runtime) => stopNodeRuntime(runtime)),
+    );
   }
 
   const report = {
@@ -973,12 +1194,18 @@ async function main(argv = process.argv.slice(2)) {
   return 0;
 }
 
-main().then(
-  (exitCode) => {
-    process.exitCode = exitCode;
-  },
-  (error) => {
-    process.stderr.write(`[node-backend-federation-proof] ${error.message}\n`);
-    process.exitCode = 1;
-  },
-);
+const isMain =
+  typeof process.argv[1] === 'string' &&
+  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+
+if (isMain) {
+  main().then(
+    (exitCode) => {
+      process.exitCode = exitCode;
+    },
+    (error) => {
+      process.stderr.write(`[node-backend-federation-proof] ${error.message}\n`);
+      process.exitCode = 1;
+    },
+  );
+}
