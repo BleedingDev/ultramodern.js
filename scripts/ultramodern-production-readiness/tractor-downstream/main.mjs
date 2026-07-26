@@ -15,6 +15,7 @@ import {
   validateHttpTarget,
   waitForTarget,
 } from '../browser-smoke/http-validate.mjs';
+import { bindContractToReleaseIdentity } from '../browser-smoke/runtime-evidence.mjs';
 import {
   createSmokeTargets,
   orderTargetsForLocalStartup,
@@ -269,6 +270,21 @@ function loadWorkspacePlaywright(workspace) {
   return workspaceRequire('@playwright/test');
 }
 
+function createReleaseBoundNodeSmokeTargets(
+  { contract, projectDir },
+  {
+    bindContractToReleaseIdentityImpl = bindContractToReleaseIdentity,
+    createSmokeTargetsImpl = createSmokeTargets,
+  } = {},
+) {
+  const releaseBoundContract = bindContractToReleaseIdentityImpl({
+    contract,
+    platform: 'node',
+    projectDir,
+  });
+  return createSmokeTargetsImpl(releaseBoundContract, { mode: 'local' });
+}
+
 async function startNodeProof(
   { artifactDir, projectDir, timeoutMs = 90_000 },
   {
@@ -278,7 +294,10 @@ async function startNodeProof(
   } = {},
 ) {
   const { contract } = readSmokeContract(projectDir);
-  const { targets } = createSmokeTargets(contract, { mode: 'local' });
+  const { targets } = createReleaseBoundNodeSmokeTargets({
+    contract,
+    projectDir,
+  });
   const startup = orderTargetsForLocalStartup(targets);
   if (startup.shells.length !== 1) {
     throw new Error(
@@ -700,6 +719,7 @@ async function main(argv = process.argv.slice(2)) {
 
 export {
   assertCleanCheckout,
+  createReleaseBoundNodeSmokeTargets,
   createTractorPackageManagerContext,
   main,
   parseArgs,

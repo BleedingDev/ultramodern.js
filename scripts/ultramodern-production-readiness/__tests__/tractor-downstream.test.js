@@ -265,6 +265,60 @@ test('runner has no bypass for Node or workerd release gates', async () => {
   assert.equal(calls[0][3], packageManagerRoot);
 });
 
+test('Node runtime targets use release-envelope markers instead of generation markers', async () => {
+  const { createReleaseBoundNodeSmokeTargets } = await runnerPromise;
+  const contract = {
+    apps: [
+      {
+        id: 'explore',
+        marker: { build: 'generation-marker' },
+      },
+    ],
+  };
+  const releaseBoundContract = {
+    apps: [
+      {
+        id: 'explore',
+        marker: { build: 'release-envelope-marker' },
+      },
+    ],
+  };
+  const calls = [];
+
+  const result = createReleaseBoundNodeSmokeTargets(
+    {
+      contract,
+      projectDir: '/tmp/tractor-release-bound-node-targets',
+    },
+    {
+      bindContractToReleaseIdentityImpl: options => {
+        calls.push(['bind', options]);
+        return releaseBoundContract;
+      },
+      createSmokeTargetsImpl: (value, options) => {
+        calls.push(['targets', value, options]);
+        return {
+          skipped: [],
+          targets: value.apps.map(app => ({ app })),
+        };
+      },
+    },
+  );
+
+  assert.equal(result.targets[0].app.marker.build, 'release-envelope-marker');
+  assert.deepEqual(calls, [
+    [
+      'bind',
+      {
+        contract,
+        platform: 'node',
+        projectDir: '/tmp/tractor-release-bound-node-targets',
+      },
+    ],
+    ['targets', releaseBoundContract, { mode: 'local' }],
+  ]);
+});
+
 test('Node acceptance rejects hydrated CSR without authoritative no-JS distributed SSR evidence', async () => {
   const { proveNodeServerRenderedSsr } = await runnerPromise;
   const root = fs.mkdtempSync(
