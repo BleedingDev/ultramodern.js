@@ -9,8 +9,15 @@ const dependencyBlocks = Object.freeze([
   'optionalDependencies',
   'peerDependencies',
 ]);
-const ignoredDirectories = new Set(['.git', '.output', 'dist', 'node_modules']);
+const ignoredDirectories = new Set([
+  '.git',
+  '.output',
+  'dist',
+  'dist-cloudflare',
+  'node_modules',
+]);
 const protectedUiRoots = Object.freeze(['apps', 'packages', 'verticals']);
+const generatedSourceFilePattern = /\.gen\.(?:[cm]?[jt]sx?|d\.[cm]?[jt]s)$/u;
 const forbiddenRouteSearchPatterns = Object.freeze([
   {
     label: 'URLSearchParams',
@@ -166,6 +173,9 @@ function assertExactModernDependencySpecifiers(workspace, release) {
 function isProtectedUiFile(workspace, file) {
   const relative = normalizePath(path.relative(workspace, file));
   if (!protectedUiRoots.some(root => relative.startsWith(`${root}/`))) {
+    return false;
+  }
+  if (generatedSourceFilePattern.test(relative)) {
     return false;
   }
   return (

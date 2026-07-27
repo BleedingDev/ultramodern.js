@@ -171,6 +171,39 @@ test('protects visible Tractor source byte-for-byte across migration', async () 
       assertProtectedUiUnchanged(before, snapshotProtectedUi(root)).status,
       'unchanged',
     );
+    fs.mkdirSync(
+      path.join(root, 'apps/shell-super-app/dist-cloudflare/locales/en'),
+      { recursive: true },
+    );
+    fs.writeFileSync(
+      path.join(
+        root,
+        'apps/shell-super-app/dist-cloudflare/locales/en/shell.json',
+      ),
+      '{"heading":"generated build output"}\n',
+    );
+    fs.mkdirSync(
+      path.join(root, 'apps/shell-super-app/src/modern-tanstack/index'),
+      { recursive: true },
+    );
+    fs.writeFileSync(
+      path.join(
+        root,
+        'apps/shell-super-app/src/modern-tanstack/index/router.gen.ts',
+      ),
+      'export const generatedRouteTree = {};\n',
+    );
+    fs.writeFileSync(
+      path.join(
+        root,
+        'apps/shell-super-app/src/modern-tanstack/register.gen.d.ts',
+      ),
+      'declare const generatedRegistration: unique symbol;\n',
+    );
+    assert.equal(
+      assertProtectedUiUnchanged(before, snapshotProtectedUi(root)).status,
+      'unchanged',
+    );
     fs.writeFileSync(
       path.join(root, 'apps/shell-super-app/locales/en/shell.json'),
       '{"heading":"Definitely changed"}\n',
