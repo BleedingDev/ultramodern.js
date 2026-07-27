@@ -788,6 +788,47 @@ test('fails readiness immediately when the owned serve process exits', async () 
   }
 });
 
+test('includes bounded redacted child output when the workerd proof exits before publishing URLs', async () => {
+  const { startWorkerdProof } = await import('../browser-smoke/bootstrap.mjs');
+  const root = tempRoot();
+  const artifactDir = path.join(root, 'artifacts');
+  fs.writeFileSync(
+    path.join(root, 'package.json'),
+    `${JSON.stringify({
+      scripts: {
+        'cloudflare:ssr-proof': `node -e "process.stderr.write('NPM_TOKEN=do-not-copy-me\\\\nError: workerd bootstrap exploded\\\\n'); process.exit(23)"`,
+      },
+    })}\n`,
+  );
+
+  try {
+    await assert.rejects(
+      () =>
+        startWorkerdProof({
+          artifactDir,
+          projectDir: root,
+          timeoutMs: 2_000,
+        }),
+      error => {
+        const logPath = path.join(artifactDir, 'shell-workerd-proof.log');
+        assert.match(
+          error.message,
+          /workerd SSR proof exited before publishing a browser URL/u,
+        );
+        assert.match(error.message, /Error: workerd bootstrap exploded/u);
+        assert.match(error.message, /NPM_TOKEN=\[REDACTED\]/u);
+        assert.doesNotMatch(error.message, /do-not-copy-me/u);
+        assert.equal(error.details.exitCode, 23);
+        assert.equal(error.details.logPath, logPath);
+        assert.match(error.details.logTail, /workerd bootstrap exploded/u);
+        return true;
+      },
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('includes the owned serve log when HTTP readiness times out', async () => {
   const { createSmokeTargets, waitForTarget } = await loadSmoke();
   const [target] = createSmokeTargets(createContract()).targets;

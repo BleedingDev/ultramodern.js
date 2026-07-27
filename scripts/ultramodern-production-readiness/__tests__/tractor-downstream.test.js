@@ -208,6 +208,10 @@ test('runner has no bypass for Node or workerd release gates', async () => {
     runTractorDownstreamAcceptance.toString(),
     /args\[0\] === 'check'[\s\S]*snapshotAcceptanceWorkspaceSource/u,
   );
+  assert.match(
+    runTractorDownstreamAcceptance.toString(),
+    /startWorkerdProofImpl\(\{[\s\S]*?processEnv: env,[\s\S]*?\}\)/u,
+  );
   assert.throws(() => parseArgs([]), /--manifest is required/u);
   assert.throws(
     () =>

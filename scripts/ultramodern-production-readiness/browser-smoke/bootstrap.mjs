@@ -5,7 +5,10 @@ import net from 'node:net';
 import path from 'node:path';
 import processKit from '../../lib/process-kit.js';
 import { BrowserSmokeError } from './contract.mjs';
-import { createCombinedLogTailCollector } from './log-tail.mjs';
+import {
+  createCombinedLogTailCollector,
+  formatFailureWithLogEvidence,
+} from './log-tail.mjs';
 
 const { createProcessEnv, killChild, sleep } = processKit;
 
@@ -162,23 +165,40 @@ export async function startWorkerdProof({
     }),
     stdio: ['ignore', 'pipe', 'pipe'],
   });
+  const combinedLogTail = createCombinedLogTailCollector();
+  child.stdout.on('data', chunk => combinedLogTail.append(chunk));
+  child.stderr.on('data', chunk => combinedLogTail.append(chunk));
   child.stdout.pipe(logStream);
   child.stderr.pipe(logStream);
   const exited = new Promise(resolve => {
+    let spawnError;
     child.once('error', error => {
+      spawnError = error instanceof Error ? error.message : String(error);
+    });
+    child.once('close', (exitCode, signal) => {
       resolve({
-        error: error instanceof Error ? error.message : String(error),
+        ...(spawnError ? { error: spawnError } : {}),
+        exitCode,
+        signal,
+        logTail: combinedLogTail.read(),
       });
     });
-    child.once('exit', (exitCode, signal) => resolve({ exitCode, signal }));
   });
   let stdout = '';
   const ready = new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
+      const logTail = combinedLogTail.read();
+      const details = {
+        logPath,
+        ...(logTail ? { logTail } : {}),
+      };
       reject(
         new BrowserSmokeError(
-          `workerd SSR proof did not publish a browser URL within ${timeoutMs}ms`,
-          { logPath },
+          formatFailureWithLogEvidence(
+            `workerd SSR proof did not publish a browser URL within ${timeoutMs}ms`,
+            details,
+          ),
+          details,
         ),
       );
     }, timeoutMs);
@@ -216,10 +236,14 @@ export async function startWorkerdProof({
     });
     exited.then(result => {
       clearTimeout(timer);
+      const details = { ...result, logPath };
       reject(
         new BrowserSmokeError(
-          'workerd SSR proof exited before publishing a browser URL',
-          { ...result, logPath },
+          formatFailureWithLogEvidence(
+            'workerd SSR proof exited before publishing a browser URL',
+            details,
+          ),
+          details,
         ),
       );
     });

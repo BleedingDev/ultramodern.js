@@ -660,6 +660,7 @@ async function runTractorDownstreamAcceptance(
     );
     const workerd = await startWorkerdProofImpl({
       artifactDir,
+      processEnv: env,
       projectDir: options.workspace,
       timeoutMs: 90_000,
     });
