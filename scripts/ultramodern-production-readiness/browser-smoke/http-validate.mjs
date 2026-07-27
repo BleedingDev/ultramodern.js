@@ -246,7 +246,10 @@ export async function waitForTarget(
   }
 }
 
-export async function validateHttpTarget(target, { fetchImpl = fetch } = {}) {
+export async function validateHttpTarget(
+  target,
+  { fetchImpl = fetch, includeCloudflareJsonSmokeChecks = true } = {},
+) {
   const app = target.app;
   const assertions = [];
 
@@ -377,7 +380,10 @@ export async function validateHttpTarget(target, { fetchImpl = fetch } = {}) {
     );
   }
 
-  for (const check of app.deploy?.cloudflare?.jsonSmokeChecks ?? []) {
+  const jsonSmokeChecks = includeCloudflareJsonSmokeChecks
+    ? (app.deploy?.cloudflare?.jsonSmokeChecks ?? [])
+    : [];
+  for (const check of jsonSmokeChecks) {
     const method = String(check.method ?? 'GET').toUpperCase();
     const headers = {};
     const init = { headers, method };

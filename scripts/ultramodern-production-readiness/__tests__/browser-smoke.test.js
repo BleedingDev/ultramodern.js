@@ -1141,6 +1141,36 @@ test('executes configured backend JSON smoke checks against the selected runtime
   );
 });
 
+test('can omit Cloudflare service-binding JSON checks from Node HTTP validation', async () => {
+  const { createSmokeTargets, validateHttpTarget } = await loadSmoke();
+  const contract = createContract();
+  contract.apps[0].deploy.cloudflare.jsonSmokeChecks = [
+    {
+      expect: { sku: 'TRACTOR-1' },
+      id: 'cloudflare-service-binding-domain-query',
+      route: '/inventory-api/inventory/TRACTOR-1',
+    },
+  ];
+  const [target] = createSmokeTargets(contract).targets;
+  const requestedPaths = [];
+  const assertions = await validateHttpTarget(target, {
+    async fetchImpl(url) {
+      requestedPaths.push(new URL(url).pathname);
+      return createFetch(successRoutes())(url);
+    },
+    includeCloudflareJsonSmokeChecks: false,
+  });
+
+  assert.equal(
+    requestedPaths.includes('/inventory-api/inventory/TRACTOR-1'),
+    false,
+  );
+  assert.equal(
+    assertions.some(assertion => assertion.type === 'backend-json-smoke'),
+    false,
+  );
+});
+
 test('proves backend-driven UI from a successful API response and rendered item title', async () => {
   const { createSmokeTargets, validateBrowserTarget } = await loadSmoke();
   const root = tempRoot();

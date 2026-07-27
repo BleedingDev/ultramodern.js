@@ -359,12 +359,16 @@ test('Node acceptance rejects hydrated CSR without authoritative no-JS distribut
     },
   ];
   const pass = type => ({ status: 'pass', type });
-  const validateHttpTargetImpl = async target => [
-    pass('ssr-route'),
-    pass('ui-marker-html'),
-    pass('css-root-marker'),
-    ...(target.app.api ? [pass('effect-readiness')] : []),
-  ];
+  const httpValidationCalls = [];
+  const validateHttpTargetImpl = async (target, options) => {
+    httpValidationCalls.push({ options, target });
+    return [
+      pass('ssr-route'),
+      pass('ui-marker-html'),
+      pass('css-root-marker'),
+      ...(target.app.api ? [pass('effect-readiness')] : []),
+    ];
+  };
   const validNoJavaScriptSsr = async target =>
     target.app.kind === 'shell'
       ? [
@@ -390,6 +394,13 @@ test('Node acceptance rejects hydrated CSR without authoritative no-JS distribut
     assert.equal(evidence.status, 'pass');
     assert.equal(evidence.appCount, 2);
     assert.equal(evidence.distributedSsrRoute, '/en/tractors/CL-08-GR');
+    assert.equal(httpValidationCalls.length, 2);
+    assert.equal(
+      httpValidationCalls.every(
+        call => call.options.includeCloudflareJsonSmokeChecks === false,
+      ),
+      true,
+    );
     assert.equal(
       evidence.results
         .find(result => result.appId === 'shell-super-app')

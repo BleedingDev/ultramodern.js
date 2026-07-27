@@ -207,7 +207,10 @@ async function proveNodeServerRenderedSsr({
 
   const results = [];
   for (const target of targets) {
-    const httpAssertions = await validateHttpTargetImpl(target, { fetchImpl });
+    const httpAssertions = await validateHttpTargetImpl(target, {
+      fetchImpl,
+      includeCloudflareJsonSmokeChecks: false,
+    });
     const requiredHttpTypes = [
       'ssr-route',
       'ui-marker-html',
