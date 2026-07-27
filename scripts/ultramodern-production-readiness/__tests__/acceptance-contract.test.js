@@ -892,3 +892,41 @@ test('independent release-age audit retries transient registry transport failure
   assert.equal(attempts, 2);
   assert.equal(metadata[0].integrity, integrity);
 });
+
+test('release-age audit parses lockfiles by path with the pinned parser', async () => {
+  const { parseYamlFile, YAML_INTEGRITY, YAML_SPECIFIER, YAML_VERSION } =
+    await import('../published-create-proof/release-age-audit.mjs');
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'release-age-yaml-file-parser-'),
+  );
+  const lockPath = path.join(root, 'pnpm-lock.yaml');
+  fs.writeFileSync(lockPath, "lockfileVersion: '9.0'\n");
+  const calls = [];
+
+  try {
+    const parsed = parseYamlFile(lockPath, (...args) => {
+      calls.push(args);
+      return {
+        error: undefined,
+        status: 0,
+        stderr: '',
+        stdout: '{"lockfileVersion":"9.0"}\n',
+      };
+    });
+
+    assert.deepEqual(parsed, { lockfileVersion: '9.0' });
+    assert.equal(YAML_SPECIFIER, 'js-yaml@5.2.2');
+    assert.equal(YAML_VERSION, '5.2.2');
+    assert.equal(
+      YAML_INTEGRITY,
+      'sha512-dayzUzKkJ1MkuUtZglSebU43utNXH0OWQByK9rKOOuYIO8M5TV1y+n8ALMdG0rdzBnfNkOmZEqrURepb0ejqBw==',
+    );
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0][0], 'pnpm');
+    assert.deepEqual(calls[0][1], ['dlx', YAML_SPECIFIER, lockPath]);
+    assert.equal(Object.hasOwn(calls[0][2], 'input'), false);
+    assert.deepEqual(calls[0][2].stdio, ['ignore', 'pipe', 'pipe']);
+  } finally {
+    fs.rmSync(root, { force: true, recursive: true });
+  }
+});

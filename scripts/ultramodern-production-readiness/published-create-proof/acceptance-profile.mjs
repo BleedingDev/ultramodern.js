@@ -49,6 +49,7 @@ import {
   auditReleaseAgePolicy,
   verifyStrictInstallInputs,
   YAML_INTEGRITY,
+  YAML_NAME,
   YAML_VERSION,
 } from './release-age-audit.mjs';
 import { addVertical, createWorkspace } from './workspace.mjs';
@@ -156,7 +157,7 @@ function runtimeVersions(runImpl, registryTool) {
     arch: process.arch,
     registry: normalizedRegistryTool(registryTool),
     yaml: {
-      name: 'yaml',
+      name: YAML_NAME,
       version: YAML_VERSION,
       integrity: YAML_INTEGRITY,
     },

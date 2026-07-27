@@ -4,10 +4,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { run } from './process.mjs';
 
-const YAML_VERSION = '2.9.0';
-const YAML_SPECIFIER = `yaml@${YAML_VERSION}`;
+const YAML_NAME = 'js-yaml';
+const YAML_VERSION = '5.2.2';
+const YAML_SPECIFIER = `${YAML_NAME}@${YAML_VERSION}`;
 const YAML_INTEGRITY =
-  'sha512-2AvhNX3mb8zd6Zy7INTtSpl1F15HW6Wnqj0srWlkKLcpYl/gMIMJiyuGq2KeI2YFxUPjdlB+3Lc10seMLtL4cA==';
+  'sha512-dayzUzKkJ1MkuUtZglSebU43utNXH0OWQByK9rKOOuYIO8M5TV1y+n8ALMdG0rdzBnfNkOmZEqrURepb0ejqBw==';
 const NPM_REGISTRY = 'https://registry.npmjs.org/';
 const releaseAgePolicySchema = 'bleedingdev.ultramodern.release-age-exceptions';
 const releaseAgePolicySchemaVersion = 2;
@@ -98,13 +99,14 @@ function sha256(value) {
   return crypto.createHash('sha256').update(value).digest('hex');
 }
 
-function runYamlCli(input, args, spawnImpl = spawnSync) {
+function runYamlCli(args, { input, spawnImpl = spawnSync } = {}) {
+  const usesStdin = input !== undefined;
   const result = spawnImpl('pnpm', ['dlx', YAML_SPECIFIER, ...args], {
     encoding: 'utf8',
     env: { ...process.env, FORCE_COLOR: '0' },
-    input,
+    ...(usesStdin ? { input } : {}),
     maxBuffer: 64 * 1024 * 1024,
-    stdio: ['pipe', 'pipe', 'pipe'],
+    stdio: [usesStdin ? 'pipe' : 'ignore', 'pipe', 'pipe'],
   });
   if (result.error) {
     throw new Error(
@@ -122,11 +124,20 @@ function runYamlCli(input, args, spawnImpl = spawnSync) {
 }
 
 function parseYaml(source, spawnImpl = spawnSync) {
-  const output = runYamlCli(
-    source,
-    ['--json', '--single', '--strict'],
-    spawnImpl,
-  );
+  const output = runYamlCli([], { input: source, spawnImpl });
+  try {
+    return JSON.parse(output);
+  } catch (error) {
+    throw new Error(
+      `Pinned YAML parser returned invalid JSON: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  }
+}
+
+function parseYamlFile(filePath, spawnImpl = spawnSync) {
+  const output = runYamlCli([filePath], { spawnImpl });
   try {
     return JSON.parse(output);
   } catch (error) {
@@ -948,15 +959,14 @@ function validateExactExclusions(value, label) {
   return exclusions;
 }
 
-function readNativeWorkspacePolicy(
-  workspacePath,
-  { parseYamlImpl = parseYaml } = {},
-) {
+function readNativeWorkspacePolicy(workspacePath, { parseYamlImpl } = {}) {
   const bytes = readRegularFile(
     workspacePath,
     'Generated pnpm workspace policy',
   );
-  const policy = parseYamlImpl(bytes.toString('utf8'));
+  const policy = parseYamlImpl
+    ? parseYamlImpl(bytes.toString('utf8'))
+    : parseYamlFile(workspacePath);
   assertPlainObject(policy, 'Generated pnpm workspace policy');
   assertCondition(
     policy.minimumReleaseAge === minimumReleaseAgeMinutes &&
@@ -980,11 +990,13 @@ function readNativeWorkspacePolicy(
   };
 }
 
-function readNativeLock(lockPath, { parseYamlImpl = parseYaml } = {}) {
+function readNativeLock(lockPath, { parseYamlImpl } = {}) {
   const bytes = readRegularFile(lockPath, 'Generated pnpm lockfile');
   return {
     bytes,
-    lock: parseYamlImpl(bytes.toString('utf8')),
+    lock: parseYamlImpl
+      ? parseYamlImpl(bytes.toString('utf8'))
+      : parseYamlFile(lockPath),
     sha256: sha256(bytes),
   };
 }
@@ -1016,7 +1028,7 @@ async function auditReleaseAgePolicy({
   runImpl = run,
   fetchImpl = fetch,
   now = new Date(),
-  parseYamlImpl = parseYaml,
+  parseYamlImpl,
   verifyYamlTool = true,
 }) {
   assertCondition(
@@ -1124,11 +1136,7 @@ async function auditReleaseAgePolicy({
 function verifyStrictInstallInputs(
   projectDir,
   audit,
-  {
-    parseYamlImpl = parseYaml,
-    now = new Date(),
-    phase = 'frozen-install',
-  } = {},
+  { parseYamlImpl, now = new Date(), phase = 'frozen-install' } = {},
 ) {
   const lockPath = path.join(projectDir, 'pnpm-lock.yaml');
   const nativeLock = readNativeLock(lockPath, { parseYamlImpl });
@@ -1171,6 +1179,7 @@ export {
   minimumReleaseAgeMinutes,
   parsePackageKey,
   parseYaml,
+  parseYamlFile,
   readExceptionPolicy,
   readNativeWorkspacePolicy,
   releaseAgePolicySchema,
@@ -1180,6 +1189,7 @@ export {
   validateExceptionPolicy,
   verifyStrictInstallInputs,
   YAML_INTEGRITY,
+  YAML_NAME,
   YAML_SPECIFIER,
   YAML_VERSION,
 };
