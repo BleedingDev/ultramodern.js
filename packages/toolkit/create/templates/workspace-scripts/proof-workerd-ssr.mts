@@ -163,6 +163,10 @@ const apps = (compactConfig.topology?.apps ?? []).map((rawApp) => {
     verticalRefs: Array.isArray(moduleFederation.verticalRefs)
       ? moduleFederation.verticalRefs.filter((ref) => typeof ref === "string")
       : [],
+    apiPrefix:
+      typeof rawApp.api?.prefix === "string"
+        ? rawApp.api.prefix.replace(/\/+$/u, "")
+        : undefined,
     proofRoutes: proofRoutes.length > 0 ? proofRoutes : defaultProofRoutes,
     jsonSmokeChecks: Array.isArray(rawApp.deploy?.cloudflare?.jsonSmokeChecks)
       ? rawApp.deploy.cloudflare.jsonSmokeChecks
@@ -317,18 +321,46 @@ const responseEvidence = async (app, response) => {
   };
 };
 
+const resolveApiSmokeChecks = (app, shell) => {
+  const shellChecks =
+    typeof app.apiPrefix === "string" && app.apiPrefix.startsWith("/")
+      ? shell.jsonSmokeChecks.filter(
+          (check) =>
+            typeof check?.route === "string" &&
+            (check.route === app.apiPrefix ||
+              check.route.startsWith(`${app.apiPrefix}/`)),
+        )
+      : [];
+  const checks = [...app.jsonSmokeChecks, ...shellChecks];
+  const uniqueChecks = new Map();
+  for (const check of checks) {
+    const key = JSON.stringify([
+      String(check.method ?? "GET").toUpperCase(),
+      check.route,
+      check.body ?? null,
+      check.expect ?? null,
+      check.id ?? null,
+    ]);
+    if (!uniqueChecks.has(key)) {
+      uniqueChecks.set(key, check);
+    }
+  }
+  return [...uniqueChecks.values()];
+};
+
 const runApiProofs = async (miniflare, shell, executionByAppId) => {
   const results = [];
   for (const app of apps.filter((candidate) => candidate.kind === "vertical")) {
+    const jsonSmokeChecks = resolveApiSmokeChecks(app, shell);
     assert(
-      app.jsonSmokeChecks.length > 0,
+      jsonSmokeChecks.length > 0,
       `${app.id} has no real Cloudflare API smoke check`,
     );
     const binding = (shell.wrangler.services ?? []).find(
       (candidate) => candidate.service === workerName(app),
     );
     assert(binding, `${shell.id} has no service binding for ${app.id}`);
-    for (const check of app.jsonSmokeChecks) {
+    for (const check of jsonSmokeChecks) {
       const method = String(check.method ?? "GET").toUpperCase();
       const headers = {};
       const init = { method, headers };

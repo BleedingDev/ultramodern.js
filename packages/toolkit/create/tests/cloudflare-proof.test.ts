@@ -276,6 +276,72 @@ createServiceBindings;`,
   ]);
 });
 
+test('workerd SSR proof resolves shell service-binding checks to legacy API verticals', () => {
+  const proofTemplate = fs.readFileSync(
+    path.join(packageRoot, 'templates/workspace-scripts/proof-workerd-ssr.mts'),
+    'utf-8',
+  );
+  const resolverStart = proofTemplate.indexOf('const resolveApiSmokeChecks =');
+  const apiProofStart = proofTemplate.indexOf('const runApiProofs =');
+  assert.notEqual(resolverStart, -1);
+  assert.notEqual(apiProofStart, -1);
+  const resolveApiSmokeChecks = vm.runInNewContext(
+    `${proofTemplate.slice(resolverStart, apiProofStart)}
+resolveApiSmokeChecks;`,
+  );
+
+  const checks = resolveApiSmokeChecks(
+    {
+      apiPrefix: '/explore-api',
+      id: 'explore',
+      jsonSmokeChecks: [
+        {
+          expect: { status: 'ready' },
+          id: 'explore-readiness-smoke',
+          route: '/explore-api/explore/readiness',
+        },
+      ],
+    },
+    {
+      jsonSmokeChecks: [
+        {
+          expect: { status: 'ready' },
+          id: 'explore-readiness-smoke',
+          route: '/explore-api/explore/readiness',
+        },
+        {
+          expect: { sku: 'CL-08-GR' },
+          id: 'explore-domain-smoke',
+          route: '/explore-api/explore/CL-08-GR',
+        },
+        {
+          expect: { sku: 'CL-08-GR' },
+          id: 'explore-prefix-collision',
+          route: '/explore-api-v2/explore/CL-08-GR',
+        },
+        {
+          expect: { sku: 'CL-08-GR' },
+          id: 'decide-domain-smoke',
+          route: '/decide-api/decide/CL-08-GR',
+        },
+      ],
+    },
+  );
+
+  assert.deepEqual(JSON.parse(JSON.stringify(checks)), [
+    {
+      expect: { status: 'ready' },
+      id: 'explore-readiness-smoke',
+      route: '/explore-api/explore/readiness',
+    },
+    {
+      expect: { sku: 'CL-08-GR' },
+      id: 'explore-domain-smoke',
+      route: '/explore-api/explore/CL-08-GR',
+    },
+  ]);
+});
+
 test('workerd browser bridge crosses the Miniflare realm with URL and init', () => {
   const proofTemplate = fs.readFileSync(
     path.join(packageRoot, 'templates/workspace-scripts/proof-workerd-ssr.mts'),
