@@ -151,6 +151,7 @@ export async function startWorkerdProof({
   artifactDir,
   processEnv = {},
   projectDir,
+  requireTargetUrls = false,
   timeoutMs = 60_000,
 }) {
   const logPath = path.join(artifactDir, 'shell-workerd-proof.log');
@@ -208,11 +209,11 @@ export async function startWorkerdProof({
       const targetsMatch = /(?:^|\n)WORKERD_TARGET_URLS=(\{[^\n]+\})/u.exec(
         stdout,
       );
-      if (targetsMatch) {
+      if (match && targetsMatch) {
         clearTimeout(timer);
         try {
           resolve({
-            baseUrl: match?.[1]?.replace(/\/$/u),
+            baseUrl: match[1].replace(/\/$/u),
             targetUrls: JSON.parse(targetsMatch[1]),
           });
         } catch (error) {
@@ -226,7 +227,7 @@ export async function startWorkerdProof({
             ),
           );
         }
-      } else if (match) {
+      } else if (match && !requireTargetUrls) {
         // Legacy generated workspaces only publish the shell URL. This remains
         // usable outside strict acceptance, but strict all-workerd callers
         // require targetUrls for every app.

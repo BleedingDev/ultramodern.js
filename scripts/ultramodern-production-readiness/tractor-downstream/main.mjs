@@ -662,6 +662,7 @@ async function runTractorDownstreamAcceptance(
       artifactDir,
       processEnv: env,
       projectDir: options.workspace,
+      requireTargetUrls: true,
       timeoutMs: 90_000,
     });
     try {

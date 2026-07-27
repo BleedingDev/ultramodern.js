@@ -829,6 +829,68 @@ test('includes bounded redacted child output when the workerd proof exits before
   }
 });
 
+test('waits for both generated workerd URL lines when target URLs arrive first', async () => {
+  const { startWorkerdProof } = await import('../browser-smoke/bootstrap.mjs');
+  const root = tempRoot();
+  const artifactDir = path.join(root, 'artifacts');
+  fs.writeFileSync(
+    path.join(root, 'package.json'),
+    `${JSON.stringify({
+      scripts: {
+        'cloudflare:ssr-proof': `node -e "process.stdout.write('WORKERD_TARGET_URLS={\\\\\\"shell-super-app\\\\\\":\\\\\\"http://127.0.0.1:3020\\\\\\"}\\\\n'); setTimeout(() => process.stdout.write('WORKERD_URL=http://127.0.0.1:3020\\\\n'), 25); setInterval(() => {}, 1000)"`,
+      },
+    })}\n`,
+  );
+
+  let proof;
+  try {
+    proof = await startWorkerdProof({
+      artifactDir,
+      projectDir: root,
+      requireTargetUrls: true,
+      timeoutMs: 2_000,
+    });
+    assert.equal(proof.baseUrl, 'http://127.0.0.1:3020');
+    assert.deepEqual(proof.targetUrls, {
+      'shell-super-app': 'http://127.0.0.1:3020',
+    });
+  } finally {
+    await proof?.stop();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('waits for both generated workerd URL lines when shell URL arrives first', async () => {
+  const { startWorkerdProof } = await import('../browser-smoke/bootstrap.mjs');
+  const root = tempRoot();
+  const artifactDir = path.join(root, 'artifacts');
+  fs.writeFileSync(
+    path.join(root, 'package.json'),
+    `${JSON.stringify({
+      scripts: {
+        'cloudflare:ssr-proof': `node -e "process.stdout.write('WORKERD_URL=http://127.0.0.1:3020\\\\n'); setTimeout(() => process.stdout.write('WORKERD_TARGET_URLS={\\\\\\"shell-super-app\\\\\\":\\\\\\"http://127.0.0.1:3020\\\\\\"}\\\\n'), 25); setInterval(() => {}, 1000)"`,
+      },
+    })}\n`,
+  );
+
+  let proof;
+  try {
+    proof = await startWorkerdProof({
+      artifactDir,
+      projectDir: root,
+      requireTargetUrls: true,
+      timeoutMs: 2_000,
+    });
+    assert.equal(proof.baseUrl, 'http://127.0.0.1:3020');
+    assert.deepEqual(proof.targetUrls, {
+      'shell-super-app': 'http://127.0.0.1:3020',
+    });
+  } finally {
+    await proof?.stop();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('includes the owned serve log when HTTP readiness times out', async () => {
   const { createSmokeTargets, waitForTarget } = await loadSmoke();
   const [target] = createSmokeTargets(createContract()).targets;
@@ -1054,6 +1116,7 @@ test('uses the generated workerd proof as the local shell browser target', async
   });
   const events = [];
   const preflightIds = [];
+  let workerdProofOptions;
   const browser = createFakeBrowser({ boundaryIds: ['inventory'] });
 
   try {
@@ -1091,7 +1154,8 @@ test('uses the generated workerd proof as the local shell browser target', async
         events.push(`start:${target.app.id}`);
         return { async stop() {} };
       },
-      startWorkerdProofImpl() {
+      startWorkerdProofImpl(options) {
+        workerdProofOptions = options;
         events.push('start:workerd');
         return {
           baseUrl: 'http://127.0.0.1:3999',
@@ -1112,6 +1176,7 @@ test('uses the generated workerd proof as the local shell browser target', async
     );
     assert.equal(events.includes('start:shell-super-app'), false);
     assert.equal(events.includes('start:workerd'), true);
+    assert.equal(workerdProofOptions.requireTargetUrls, true);
     assert.deepEqual(preflightIds, ['inventory', 'shell-super-app']);
     assert.equal(events.includes('start:inventory'), false);
     assert.deepEqual(report.targetRuntimes, {

@@ -243,7 +243,7 @@ test('runner has no bypass for Node or workerd release gates', async () => {
   );
   assert.match(
     runTractorDownstreamAcceptance.toString(),
-    /startWorkerdProofImpl\(\{[\s\S]*?processEnv: env,[\s\S]*?\}\)/u,
+    /startWorkerdProofImpl\(\{[\s\S]*?processEnv: env,[\s\S]*?requireTargetUrls: true,[\s\S]*?\}\)/u,
   );
   assert.throws(() => parseArgs([]), /--manifest is required/u);
   assert.throws(

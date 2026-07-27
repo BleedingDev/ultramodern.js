@@ -1161,6 +1161,7 @@ async function runWorkerdServedBehavior({
     artifactDir,
     processEnv,
     projectDir: workspace,
+    requireTargetUrls: true,
     timeoutMs: 60_000,
   });
   let result;

@@ -161,7 +161,10 @@ export async function runUltramodernBrowserSmoke(options) {
         }
         const startWorkerdProofImpl =
           options.startWorkerdProofImpl ?? startWorkerdProof;
-        const server = await startWorkerdProofImpl(options);
+        const server = await startWorkerdProofImpl({
+          ...options,
+          requireTargetUrls: true,
+        });
         servers.push(server);
         if (!server.targetUrls) {
           throw new BrowserSmokeError(
