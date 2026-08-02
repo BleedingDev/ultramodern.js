@@ -52,7 +52,7 @@ const publishedAcceptanceArtifact = 'bleedingdev-published-acceptance';
 const releaseIdentityArtifact = 'bleedingdev-release-identity';
 const tractorAcceptanceWorkflow =
   './.github/workflows/ultramodern-tractor-downstream.yml';
-const tractorAcceptanceRef = '2cb6e1c939686b1dfd5cbfb594198512fa9d04f7';
+const tractorAcceptanceRef = '3a9ac349f8f52662d451030aa86ba142ca01973d';
 const releaseManifestPath = '.modern/bleedingdev-publish/manifest.json';
 const releaseManifestDigestPath =
   '.modern/bleedingdev-publish/manifest.json.sha256';
@@ -1860,7 +1860,8 @@ function validateTractorWorkflow(workflow) {
     'Tractor acceptance runner checkout',
   );
   requireCondition(
-    runnerCheckoutWith.path === 'modernjs' &&
+    runnerCheckoutWith['fetch-depth'] === 1 &&
+      runnerCheckoutWith.path === 'modernjs' &&
       runnerCheckoutWith['persist-credentials'] === false,
     'Tractor acceptance must check out the exact caller source without credentials',
   );
@@ -1875,8 +1876,9 @@ function validateTractorWorkflow(workflow) {
     'Tractor baseline checkout',
   );
   requireCondition(
-    tractorCheckoutWith.repository ===
-      'BleedingDev/tractor-store-vertical-demo' &&
+    tractorCheckoutWith['fetch-depth'] === 1 &&
+      tractorCheckoutWith.repository ===
+        'BleedingDev/tractor-store-vertical-demo' &&
       tractorCheckoutWith.ref === githubExpression('inputs.tractor_ref') &&
       tractorCheckoutWith.path === 'tractor' &&
       tractorCheckoutWith['persist-credentials'] === false,

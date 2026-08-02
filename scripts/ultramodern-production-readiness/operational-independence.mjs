@@ -24,6 +24,7 @@ import {
   createSmokeTargets,
   orderTargetsForLocalStartup,
 } from './browser-smoke/targets.mjs';
+import { canonicalSerialize, digestCanonical } from './canonical-digest.mjs';
 
 const EVIDENCE_SCHEMA_VERSION = 1;
 const ENVELOPE_RELATIVE_PATH = 'release/microvertical-release-envelope.json';
@@ -35,26 +36,6 @@ const WIDGET_EXPOSE = './Widget';
 
 function sha256(bytes) {
   return crypto.createHash('sha256').update(bytes).digest('hex');
-}
-
-function canonicalSerialize(value) {
-  if (value === null || typeof value !== 'object') {
-    if (typeof value === 'number' && !Number.isFinite(value)) {
-      throw new Error('Canonical evidence values must be finite.');
-    }
-    return JSON.stringify(value);
-  }
-  if (Array.isArray(value)) {
-    return `[${value.map(canonicalSerialize).join(',')}]`;
-  }
-  return `{${Object.keys(value)
-    .sort()
-    .map(key => `${JSON.stringify(key)}:${canonicalSerialize(value[key])}`)
-    .join(',')}}`;
-}
-
-function digestCanonical(value) {
-  return sha256(Buffer.from(canonicalSerialize(value), 'utf8'));
 }
 
 function assertRecord(value, label) {

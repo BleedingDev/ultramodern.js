@@ -140,10 +140,11 @@ test('rejects manual route query parsing and requires native typed search', asyn
   const { assertNativeTanStackSearch } = await contractPromise;
   const root = fixture();
   try {
-    assert.equal(
-      assertNativeTanStackSearch(root).status,
-      'native-typed-search',
-    );
+    const nativeSearch = assertNativeTanStackSearch(root);
+    assert.equal(nativeSearch.status, 'native-typed-search');
+    assert.deepEqual(nativeSearch.auditedRouteRoots, [
+      'apps/shell-super-app/src/routes',
+    ]);
     const routePath = path.join(
       root,
       'apps/shell-super-app/src/routes/[lang]/tractors/[slug]/page.tsx',
@@ -156,6 +157,41 @@ test('rejects manual route query parsing and requires native typed search', asyn
       () => assertNativeTanStackSearch(root),
       /manually parses query search/u,
     );
+    fs.writeFileSync(
+      routePath,
+      fs
+        .readFileSync(routePath, 'utf8')
+        .replace(
+          `\nconst sku = new URLSearchParams(location.search).get('sku');\n`,
+          "\nconst sku = new URL(request.url).searchParams.get('sku');\n",
+        ),
+    );
+    assert.throws(
+      () => assertNativeTanStackSearch(root),
+      /manually parses query search through \.searchParams/u,
+    );
+    fs.writeFileSync(
+      routePath,
+      fs
+        .readFileSync(routePath, 'utf8')
+        .replace(
+          `\nconst sku = new URL(request.url).searchParams.get('sku');\n`,
+          '\n',
+        ),
+    );
+    const verticalRoute = path.join(
+      root,
+      'verticals/inventory/src/routes/page.tsx',
+    );
+    fs.mkdirSync(path.dirname(verticalRoute), { recursive: true });
+    fs.writeFileSync(
+      verticalRoute,
+      `export const sku = new URL(request.url).searchParams.get('sku');\n`,
+    );
+    assert.throws(
+      () => assertNativeTanStackSearch(root),
+      /verticals\/inventory\/src\/routes\/page\.tsx/u,
+    );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -167,10 +203,17 @@ test('protects visible Tractor source byte-for-byte across migration', async () 
   const root = fixture();
   try {
     const before = snapshotProtectedUi(root);
-    assert.equal(
-      assertProtectedUiUnchanged(before, snapshotProtectedUi(root)).status,
-      'unchanged',
+    assert.deepEqual(before.excludedPatterns, [
+      '\\.gen\\.(?:[cm]?[jt]sx?|d\\.[cm]?[jt]s)$',
+    ]);
+    const unchanged = assertProtectedUiUnchanged(
+      before,
+      snapshotProtectedUi(root),
     );
+    assert.equal(unchanged.status, 'unchanged');
+    assert.deepEqual(unchanged.excludedPatterns, [
+      '\\.gen\\.(?:[cm]?[jt]sx?|d\\.[cm]?[jt]s)$',
+    ]);
     fs.mkdirSync(
       path.join(root, 'apps/shell-super-app/dist-cloudflare/locales/en'),
       { recursive: true },
@@ -222,6 +265,7 @@ test('runner has no bypass for Node or workerd release gates', async () => {
     createTractorPackageManagerContext,
     parseArgs,
     requiredCommands,
+    requiredTractorCheckIds,
     requiredVisibleRuntimePlatforms,
     runTractorDownstreamAcceptance,
   } = await runnerPromise;
@@ -233,6 +277,28 @@ test('runner has no bypass for Node or workerd release gates', async () => {
     ['pnpm', ['cloudflare:build']],
   ]);
   assert.deepEqual(requiredVisibleRuntimePlatforms, ['node', 'workerd']);
+  assert.deepEqual(requiredTractorCheckIds, [
+    'ui-baseline',
+    'exact-create-migration',
+    'exact-cohort',
+    'native-tanstack-search',
+    'migration-preserves-visible-ui-source',
+    'install---frozen-lockfile',
+    'check',
+    'promotable-application-source',
+    'build',
+    'node:proof',
+    'node-backend-federation-executed',
+    'node-server-rendered-ssr-executed',
+    'node-visible-tractor-workflow',
+    'cloudflare:build',
+    'workerd-visible-tractor-workflow',
+    'final-visible-ui-source',
+  ]);
+  assert.match(
+    runTractorDownstreamAcceptance.toString(),
+    /excludedPatterns: uiBefore\.excludedPatterns/u,
+  );
   assert.match(
     runTractorDownstreamAcceptance.toString(),
     /const env = packageManager\.env;/u,

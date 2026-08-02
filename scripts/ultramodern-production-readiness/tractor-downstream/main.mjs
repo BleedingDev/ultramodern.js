@@ -37,6 +37,8 @@ import {
   assertExactModernDependencySpecifiers,
   assertNativeTanStackSearch,
   assertProtectedUiUnchanged,
+  requiredTractorCheckIds,
+  requiredVisibleRuntimePlatforms,
   snapshotProtectedUi,
 } from './contract.mjs';
 
@@ -51,7 +53,6 @@ const requiredCommands = Object.freeze([
   Object.freeze(['pnpm', ['node:proof']]),
   Object.freeze(['pnpm', ['cloudflare:build']]),
 ]);
-const requiredVisibleRuntimePlatforms = Object.freeze(['node', 'workerd']);
 
 function createTractorPackageManagerContext({
   createPackage,
@@ -532,6 +533,7 @@ async function runTractorDownstreamAcceptance(
       id: 'ui-baseline',
       status: 'passed',
       detail: {
+        excludedPatterns: uiBefore.excludedPatterns,
         fileCount: uiBefore.fileCount,
         sha256: uiBefore.sha256,
       },
@@ -695,6 +697,22 @@ async function runTractorDownstreamAcceptance(
         snapshotProtectedUi(options.workspace),
       ),
     });
+    const checkIds = report.checks.map(check => check.id);
+    if (JSON.stringify(checkIds) !== JSON.stringify(requiredTractorCheckIds)) {
+      throw new Error(
+        'Tractor acceptance did not execute every required check exactly once and in contract order',
+      );
+    }
+    for (const platform of requiredVisibleRuntimePlatforms) {
+      const detail = report.checks.find(
+        check => check.id === `${platform}-visible-tractor-workflow`,
+      )?.detail;
+      if (detail?.platform !== platform) {
+        throw new Error(
+          `Tractor acceptance is missing ${platform} visible workflow evidence`,
+        );
+      }
+    }
     report.finishedAt = new now().toISOString();
     report.status = 'passed';
     return report;
@@ -731,6 +749,7 @@ export {
   proveNodeServerRenderedSsr,
   readPassingNodeBackendProof,
   requiredCommands,
+  requiredTractorCheckIds,
   requiredVisibleRuntimePlatforms,
   runTractorDownstreamAcceptance,
   runVisibleWorkflow,

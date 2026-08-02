@@ -4,11 +4,34 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
+import { assertOperationalIndependenceEvidenceMatchesReceipt } from '../ultramodern-production-readiness/published-create-proof/acceptance-contract.mjs';
+import { assertAcceptanceReceipt } from '../ultramodern-production-readiness/published-create-proof/acceptance-receipt.mjs';
+import {
+  protectedUiExclusions,
+  requiredTractorCheckIds,
+} from '../ultramodern-production-readiness/tractor-downstream/contract.mjs';
+import { readReleaseManifest } from './lib/source-create-proof/release-manifest.mjs';
 
+const requiredNodeHttpAssertionTypes = Object.freeze([
+  'ssr-route',
+  'ui-marker-html',
+  'css-root-marker',
+  'mf-manifest',
+  'mf-manifest-json',
+  'locale-json',
+]);
+const requiredNodeNoJavaScriptAssertionTypes = Object.freeze([
+  'no-js-ssr-css-root-marker',
+  'no-js-stylesheet-href-dedupe',
+  'no-js-ssr-failed-responses',
+  'no-js-screenshot',
+]);
 const publishOutcomeSchema = 'bleedingdev.ultramodern.publish-outcome';
 const publishOutcomeSchemaVersion = 4;
 const publishOutcomeArtifactPrefix = 'bleedingdev-publish-outcome';
 const digestPattern = /^[a-f0-9]{64}$/u;
+const legacyTractorUiDisclosureBaseline =
+  '2cb6e1c939686b1dfd5cbfb594198512fa9d04f7';
 const commitPattern = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 const semverPattern =
   /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/u;
@@ -97,6 +120,111 @@ function sha256File(filePath) {
     .digest('hex');
 }
 
+function hasPassingAssertionTypes(assertions, reportedTypes, requiredTypes) {
+  return (
+    Array.isArray(assertions) &&
+    Array.isArray(reportedTypes) &&
+    requiredTypes.every(
+      type =>
+        reportedTypes.includes(type) &&
+        assertions.some(
+          assertion => assertion?.type === type && assertion.status === 'pass',
+        ),
+    )
+  );
+}
+
+function hasExactStringSet(values, expected) {
+  return (
+    Array.isArray(values) &&
+    values.every(value => typeof value === 'string' && value.length > 0) &&
+    new Set(values).size === values.length &&
+    isDeepStrictEqual([...values].sort(), [...expected].sort())
+  );
+}
+
+function hasShellCompositionEvidence(assertions, expectedRemoteIds) {
+  const composition = assertions?.find(
+    assertion => assertion?.type === 'no-js-shell-composition-boundary',
+  );
+  const matched = composition?.matchedRemoteBoundaries;
+  const tried = composition?.triedRemoteBoundaries;
+  const triedByRemoteId = new Map(
+    tried?.map(boundary => [boundary?.remoteId, boundary]),
+  );
+  return (
+    composition?.status === 'pass' &&
+    hasExactStringSet(composition.declaredRemoteIds, expectedRemoteIds) &&
+    hasExactStringSet(
+      matched?.map(boundary => boundary?.remoteId),
+      expectedRemoteIds,
+    ) &&
+    matched.every(boundary => {
+      const triedBoundary = triedByRemoteId.get(boundary.remoteId);
+      return (
+        typeof boundary.boundaryId === 'string' &&
+        boundary.boundaryId.length > 0 &&
+        triedBoundary?.matchedBoundaryId === boundary.boundaryId &&
+        triedBoundary.triedBoundaryIds?.includes(boundary.boundaryId)
+      );
+    }) &&
+    hasExactStringSet(
+      tried?.map(boundary => boundary?.remoteId),
+      expectedRemoteIds,
+    ) &&
+    tried.every(
+      boundary =>
+        typeof boundary.matchedBoundaryId === 'string' &&
+        boundary.matchedBoundaryId.length > 0 &&
+        Array.isArray(boundary.triedBoundaryIds) &&
+        boundary.triedBoundaryIds.includes(boundary.matchedBoundaryId),
+    )
+  );
+}
+
+function hasStrictNodeSsrEvidence(detail, expectedVerticalIds) {
+  if (
+    detail?.status !== 'pass' ||
+    !Number.isSafeInteger(detail.appCount) ||
+    detail.appCount !== expectedVerticalIds.length + 1 ||
+    typeof detail.distributedSsrRoute !== 'string' ||
+    !Array.isArray(detail.results) ||
+    detail.results.length !== detail.appCount
+  ) {
+    return false;
+  }
+  const appIds = detail.results.map(result => result?.appId);
+  const expectedAppIds = ['shell-super-app', ...expectedVerticalIds];
+  return (
+    hasExactStringSet(appIds, expectedAppIds) &&
+    detail.results.every(result => {
+      const requiredNoJavaScriptTypes = [
+        ...requiredNodeNoJavaScriptAssertionTypes,
+        ...(result.appId === 'shell-super-app'
+          ? ['no-js-distributed-ssr-route', 'no-js-shell-composition-boundary']
+          : ['no-js-ssr-ui-marker']),
+      ];
+      return (
+        hasPassingAssertionTypes(
+          result.httpAssertions,
+          result.httpAssertionTypes,
+          requiredNodeHttpAssertionTypes,
+        ) &&
+        hasPassingAssertionTypes(
+          result.noJavaScriptAssertions,
+          result.noJavaScriptAssertionTypes,
+          requiredNoJavaScriptTypes,
+        ) &&
+        (result.appId !== 'shell-super-app' ||
+          hasShellCompositionEvidence(
+            result.noJavaScriptAssertions,
+            expectedVerticalIds,
+          ))
+      );
+    })
+  );
+}
+
 function readTractorAcceptanceEvidence({
   baselineRevision,
   cohortDigest,
@@ -146,6 +274,12 @@ function readTractorAcceptanceEvidence({
       'Tractor acceptance report is not a passing report for the exact release and baseline',
     );
   }
+  const checkIds = report.checks.map(check => check?.id);
+  if (JSON.stringify(checkIds) !== JSON.stringify(requiredTractorCheckIds)) {
+    throw new Error(
+      'Tractor acceptance report must contain every required check exactly once and in contract order',
+    );
+  }
   const checksById = new Map();
   for (const check of report.checks) {
     if (
@@ -186,10 +320,36 @@ function readTractorAcceptanceEvidence({
       'Tractor acceptance report is missing executed Node backend-federation evidence',
     );
   }
+  const expectedNodeSsrVerticalIds = nodeBackend.appIds;
+  if (
+    !hasExactStringSet(
+      expectedNodeSsrVerticalIds,
+      expectedNodeSsrVerticalIds,
+    ) ||
+    expectedNodeSsrVerticalIds.length !== nodeBackend.resultCount
+  ) {
+    throw new Error(
+      'Tractor acceptance report has malformed Node backend-federation app identity evidence',
+    );
+  }
+  const nodeSsr = checksById.get('node-server-rendered-ssr-executed')?.detail;
+  if (!hasStrictNodeSsrEvidence(nodeSsr, expectedNodeSsrVerticalIds)) {
+    throw new Error(
+      'Tractor acceptance report is missing executed Node server-rendered SSR evidence',
+    );
+  }
   const uiBaseline = checksById.get('ui-baseline')?.detail;
   const uiFinal = checksById.get('final-visible-ui-source')?.detail;
+  const hasBoundUiDisclosure =
+    isDeepStrictEqual(uiBaseline?.excludedPatterns, protectedUiExclusions) &&
+    isDeepStrictEqual(uiFinal?.excludedPatterns, protectedUiExclusions);
+  const isAuthenticatedLegacyUiDisclosure =
+    baselineRevision === legacyTractorUiDisclosureBaseline &&
+    uiBaseline?.excludedPatterns === undefined &&
+    uiFinal?.excludedPatterns === undefined;
   if (
     !digestPattern.test(uiBaseline?.sha256 ?? '') ||
+    (!hasBoundUiDisclosure && !isAuthenticatedLegacyUiDisclosure) ||
     uiFinal?.status !== 'unchanged' ||
     uiFinal.sha256 !== uiBaseline.sha256 ||
     uiFinal.fileCount !== uiBaseline.fileCount
@@ -238,6 +398,7 @@ function readReleaseEvidence({
   publishedReceiptPath,
   receiptPath,
   repository,
+  runIdentity,
   sourceCommit,
   tag,
   tractorBaselineRevision,
@@ -291,6 +452,7 @@ function readReleaseEvidence({
   }
 
   const manifestSha256 = sha256File(manifestPath);
+  const verifiedRelease = readReleaseManifest({ manifestPath });
   const detachedManifest = fs.readFileSync(manifestDigestPath, 'utf8');
   const detachedCohort = fs.readFileSync(cohortDigestPath, 'utf8');
   if (detachedManifest !== `${manifestSha256}  manifest.json\n`) {
@@ -301,24 +463,55 @@ function readReleaseEvidence({
   }
   const acceptanceEvidence = (receiptFile, operationalFile, expectedMode) => {
     const receipt = readJson(receiptFile, `${expectedMode} acceptance receipt`);
+    const operationalEvidence = readJson(
+      operationalFile,
+      `${expectedMode} operational evidence`,
+    );
     assertPlainObject(receipt, `${expectedMode} acceptance receipt`);
+    assertPlainObject(
+      operationalEvidence,
+      `${expectedMode} operational evidence`,
+    );
+    assertAcceptanceReceipt(receipt, {
+      expectedMode,
+      profileId: 'erp-10',
+      release: verifiedRelease,
+      runIdentity,
+    });
+    const operationalResult = receipt.results.find(
+      result => result?.id === 'operational-independence',
+    );
+    const operationalEvidenceSha256 = sha256File(operationalFile);
+    assertOperationalIndependenceEvidenceMatchesReceipt({
+      details: operationalResult.details,
+      evidence: operationalEvidence,
+      evidenceFileSha256: operationalEvidenceSha256,
+    });
     if (
       receipt.mode !== expectedMode ||
       receipt.status !== 'passed' ||
       receipt.passed !== true ||
+      receipt.error !== null ||
+      receipt.binding?.source?.repository !== repository ||
+      receipt.binding?.source?.commit !== sourceCommit ||
+      receipt.binding?.release?.tag !== tag ||
+      receipt.binding?.release?.version !== version ||
+      receipt.binding?.runIdentity !== runIdentity ||
       receipt.binding?.manifest?.sha256 !== manifestSha256 ||
-      receipt.binding?.manifest?.cohortDigest !== manifest.cohortDigest
+      receipt.binding?.manifest?.cohortDigest !== manifest.cohortDigest ||
+      receipt.binding?.manifest?.packageCount !== manifest.packages.length ||
+      operationalResult?.details?.artifactMode !== expectedMode ||
+      operationalResult?.details?.evidenceFileSha256 !==
+        operationalEvidenceSha256 ||
+      operationalResult?.details?.evidenceDigest !==
+        operationalEvidence.evidenceDigest
     ) {
       throw new Error(
-        `${expectedMode} acceptance receipt is not a passing receipt for the exact release manifest`,
+        `${expectedMode} acceptance receipt is not a complete passing receipt for the exact release manifest and operational evidence`,
       );
     }
-    assertPlainObject(
-      readJson(operationalFile, `${expectedMode} operational evidence`),
-      `${expectedMode} operational evidence`,
-    );
     return {
-      operationalEvidenceSha256: sha256File(operationalFile),
+      operationalEvidenceSha256,
       receiptSha256: sha256File(receiptFile),
     };
   };
@@ -478,6 +671,7 @@ function createPublishOutcome({
     publishedReceiptPath,
     receiptPath,
     repository,
+    runIdentity: producerRunIdentity,
     sourceCommit,
     tag,
     tractorBaselineRevision,
@@ -722,6 +916,7 @@ function assertPublishOutcome(
     publishedReceiptPath: outcome.dryRun ? undefined : publishedReceiptPath,
     receiptPath,
     repository: outcome.source.repository,
+    runIdentity: outcome.producer.runIdentity,
     sourceCommit: outcome.source.commit,
     tag: outcome.release.tag,
     tractorBaselineRevision:

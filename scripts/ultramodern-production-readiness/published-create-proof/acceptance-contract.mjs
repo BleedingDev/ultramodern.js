@@ -1,5 +1,5 @@
-import crypto from 'node:crypto';
 import path from 'node:path';
+import { digestCanonical } from '../canonical-digest.mjs';
 
 const releaseAcceptanceProfileId = 'erp-10';
 const releaseAcceptanceVerticalCount = 10;
@@ -764,10 +764,7 @@ function assertOperationalIndependenceEvidenceMatchesReceipt({
   );
   const canonicalPayload = { ...evidence };
   delete canonicalPayload.evidenceDigest;
-  const canonicalDigest = crypto
-    .createHash('sha256')
-    .update(JSON.stringify(canonicalValue(canonicalPayload)))
-    .digest('hex');
+  const canonicalDigest = digestCanonical(canonicalPayload);
   assertCondition(
     canonicalDigest === evidence.evidenceDigest,
     'Operational-independence evidence canonical digest does not match its content',

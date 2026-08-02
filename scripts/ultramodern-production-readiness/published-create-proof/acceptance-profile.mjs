@@ -790,13 +790,14 @@ async function runAcceptanceProfile({
       // the strict Node report while the final Node deployment roots still
       // exist; the receipt loop below consumes this exact report in its normal
       // platform/dimension order.
-      runtimeReports.set(
-        'node',
-        await browserSmokeImpl(projectDir, {
-          ...runtimeAcceptanceInvocation(mode, 'node'),
-          packageManagerEnv,
-        }),
-      );
+      const nodeRuntimeReport = await browserSmokeImpl(projectDir, {
+        ...runtimeAcceptanceInvocation(mode, 'node'),
+        packageManagerEnv,
+      });
+      if (!nodeRuntimeReport || typeof nodeRuntimeReport !== 'object') {
+        throw new Error('Node runtime acceptance did not produce a report');
+      }
+      runtimeReports.set('node', nodeRuntimeReport);
 
       await recordAcceptanceResult(receipt, 'topology', () =>
         withDuration(() => {

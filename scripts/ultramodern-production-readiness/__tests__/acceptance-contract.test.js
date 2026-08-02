@@ -117,7 +117,9 @@ test('acceptance executes final Node outputs before Cloudflare replaces .output'
     'utf8',
   );
   const build = source.indexOf("recordAcceptanceResult(receipt, 'build'");
-  const eagerNode = source.indexOf("runtimeReports.set(\n        'node'");
+  const eagerNode = source.indexOf(
+    'const nodeRuntimeReport = await browserSmokeImpl',
+  );
   const cloudflare = source.indexOf(
     "recordAcceptanceResult(receipt, 'cloudflare-build'",
   );

@@ -44,12 +44,14 @@ jobs:
       - name: Checkout acceptance runner
         uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
         with:
+          fetch-depth: 1
           path: modernjs
           persist-credentials: false
 
       - name: Checkout immutable Tractor baseline
         uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
         with:
+          fetch-depth: 1
           repository: BleedingDev/tractor-store-vertical-demo
           ref: ${{ inputs.tractor_ref }}
           path: tractor

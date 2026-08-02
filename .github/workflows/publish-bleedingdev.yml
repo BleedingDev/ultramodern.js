@@ -709,7 +709,7 @@ jobs:
     with:
       release_bundle_artifact: bleedingdev-release-bundle-${{ needs.accept-release.outputs.producer_artifact_identity }}
       # Advance this reviewed immutable baseline after every accepted Tractor update.
-      tractor_ref: 2cb6e1c939686b1dfd5cbfb594198512fa9d04f7
+      tractor_ref: 3a9ac349f8f52662d451030aa86ba142ca01973d
 
   record-publish-outcome:
     name: Record the authenticated publish outcome
@@ -810,12 +810,6 @@ jobs:
             --manifest "$BLEEDINGDEV_RELEASE_MANIFEST" \
             --scale-profile erp-10 \
             --receipt "$BLEEDINGDEV_PUBLISHED_ACCEPTANCE_RECEIPT" \
-            --run-identity "$PRODUCER_RUN_IDENTITY"
-
-          node scripts/ultramodern-production-readiness/published-create-proof/acceptance-receipt.mjs \
-            --verify \
-            --manifest "$BLEEDINGDEV_RELEASE_MANIFEST" \
-            --receipt "$BLEEDINGDEV_RELEASE_ACCEPTANCE_RECEIPT" \
             --run-identity "$PRODUCER_RUN_IDENTITY"
 
       - name: Create publish outcome

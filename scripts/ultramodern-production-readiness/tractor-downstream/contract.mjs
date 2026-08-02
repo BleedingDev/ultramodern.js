@@ -18,10 +18,36 @@ const ignoredDirectories = new Set([
 ]);
 const protectedUiRoots = Object.freeze(['apps', 'packages', 'verticals']);
 const generatedSourceFilePattern = /\.gen\.(?:[cm]?[jt]sx?|d\.[cm]?[jt]s)$/u;
+const protectedUiExclusions = Object.freeze([
+  generatedSourceFilePattern.source,
+]);
+const requiredTractorCheckIds = Object.freeze([
+  'ui-baseline',
+  'exact-create-migration',
+  'exact-cohort',
+  'native-tanstack-search',
+  'migration-preserves-visible-ui-source',
+  'install---frozen-lockfile',
+  'check',
+  'promotable-application-source',
+  'build',
+  'node:proof',
+  'node-backend-federation-executed',
+  'node-server-rendered-ssr-executed',
+  'node-visible-tractor-workflow',
+  'cloudflare:build',
+  'workerd-visible-tractor-workflow',
+  'final-visible-ui-source',
+]);
+const requiredVisibleRuntimePlatforms = Object.freeze(['node', 'workerd']);
 const forbiddenRouteSearchPatterns = Object.freeze([
   {
     label: 'URLSearchParams',
     pattern: /\bURLSearchParams\b/u,
+  },
+  {
+    label: '.searchParams',
+    pattern: /\.searchParams\b/u,
   },
   {
     label: 'location.search',
@@ -199,16 +225,22 @@ function snapshotProtectedUi(workspace) {
     return { path: relative, sha256 };
   });
   return {
+    entries,
+    excludedPatterns: protectedUiExclusions,
     fileCount: entries.length,
     sha256: crypto
       .createHash('sha256')
       .update(JSON.stringify(entries))
       .digest('hex'),
-    entries,
   };
 }
 
 function assertProtectedUiUnchanged(before, after) {
+  assert(
+    JSON.stringify(before.excludedPatterns) ===
+      JSON.stringify(after.excludedPatterns),
+    'Tractor protected UI exclusion disclosure changed during migration',
+  );
   const beforeByPath = new Map(
     before.entries.map(entry => [entry.path, entry]),
   );
@@ -235,6 +267,7 @@ function assertProtectedUiUnchanged(before, after) {
     )}`,
   );
   return {
+    excludedPatterns: after.excludedPatterns,
     fileCount: after.fileCount,
     sha256: after.sha256,
     status: 'unchanged',
@@ -243,10 +276,16 @@ function assertProtectedUiUnchanged(before, after) {
 
 function assertNativeTanStackSearch(workspace) {
   const routeRoot = path.join(workspace, 'apps/shell-super-app/src/routes');
-  const routeFiles = collectFiles(routeRoot, file =>
-    /\.(?:ts|tsx)$/u.test(file),
+  const routeRoots = protectedUiRoots.flatMap(root =>
+    collectFiles(path.join(workspace, root), file => {
+      const relative = normalizePath(path.relative(workspace, file));
+      return (
+        /\/src\/routes\//u.test(relative) && /\.(?:ts|tsx)$/u.test(relative)
+      );
+    }),
   );
-  assert(routeFiles.length > 0, 'Tractor shell route source is missing');
+  const routeFiles = [...new Set(routeRoots)].sort();
+  assert(routeFiles.length > 0, 'Tractor route source is missing');
 
   for (const file of routeFiles) {
     const source = fs.readFileSync(file, 'utf8');
@@ -283,6 +322,16 @@ function assertNativeTanStackSearch(workspace) {
   );
   return {
     auditedRouteFiles: routeFiles.length,
+    auditedRouteRoots: [
+      ...new Set(
+        routeFiles.map(file =>
+          normalizePath(path.relative(workspace, file)).replace(
+            /\/src\/routes\/.*$/u,
+            '/src/routes',
+          ),
+        ),
+      ),
+    ].sort(),
     productRoute: normalizePath(path.relative(workspace, productRoute)),
     searchContract: normalizePath(path.relative(workspace, searchContract)),
     status: 'native-typed-search',
@@ -294,5 +343,8 @@ export {
   assertExactModernDependencySpecifiers,
   assertNativeTanStackSearch,
   assertProtectedUiUnchanged,
+  protectedUiExclusions,
+  requiredTractorCheckIds,
+  requiredVisibleRuntimePlatforms,
   snapshotProtectedUi,
 };

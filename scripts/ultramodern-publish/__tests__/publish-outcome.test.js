@@ -1,11 +1,17 @@
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
+const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
+const { pathToFileURL } = require('node:url');
+const {
+  createOperationalAcceptanceReceiptFixture,
+} = require('../../ultramodern-production-readiness/__tests__/support/operational-acceptance-fixture.js');
 
 const digest = value => crypto.createHash('sha256').update(value).digest('hex');
+const repoRoot = path.resolve(__dirname, '../../..');
 const source = {
   commit: '1'.repeat(40),
   repository: 'BleedingDev/ultramodern.js',
@@ -22,12 +28,13 @@ async function outcomeApi() {
   return import('../publish-outcome.mjs');
 }
 
-function createEvidenceFixture() {
+async function createEvidenceFixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'publish-outcome-'));
-  const manifestPath = path.join(root, 'manifest.json');
-  const manifestDigestPath = path.join(root, 'manifest.json.sha256');
-  const cohortDigestPath = path.join(root, 'cohort.sha256');
-  const receiptPath = path.join(root, 'acceptance-receipt.json');
+  const releaseDir = path.join(root, 'release');
+  const manifestPath = path.join(releaseDir, 'manifest.json');
+  const manifestDigestPath = path.join(releaseDir, 'manifest.json.sha256');
+  const cohortDigestPath = path.join(releaseDir, 'cohort.sha256');
+  const receiptPath = path.join(releaseDir, 'acceptance-receipt.json');
   const operationalEvidencePath = path.join(
     root,
     'acceptance-receipt.operational-independence.json',
@@ -45,81 +52,242 @@ function createEvidenceFixture() {
     'tractor-downstream-acceptance.json',
   );
   const outPath = path.join(root, 'publish-outcome.json');
-  const cohortDigest = digest('release cohort');
-  const manifest = {
-    aliases: {
-      '@modern-js/create': '@bleedingdev/modern-js-create',
+  const [releaseArtifactsApi, releaseManifestApi, receiptApi, constants] =
+    await Promise.all([
+      import('../prepare-bleedingdev-packages.mjs'),
+      import('../lib/source-create-proof/release-manifest.mjs'),
+      import(
+        '../../ultramodern-production-readiness/published-create-proof/acceptance-receipt.mjs'
+      ),
+      import('../lib/prepare-bleedingdev-packages/constants.mjs'),
+    ]);
+  const aliases = {
+    '@modern-js/create': '@bleedingdev/modern-js-create',
+    '@modern-js/i18n-utils': '@bleedingdev/modern-js-i18n-utils',
+  };
+  const exportsMap = {
+    '.': './index.js',
+    './ultramodern-workspace': './index.js',
+    './ultramodern-workspace/codesmith': './index.js',
+  };
+  const definitions = [
+    {
+      dependencies: {
+        '@modern-js/i18n-utils': `npm:${aliases['@modern-js/i18n-utils']}@${release.version}`,
+        '@module-federation/runtime': '2.8.0',
+      },
+      exports: exportsMap,
+      sourceName: '@modern-js/create',
+      targetName: aliases['@modern-js/create'],
+      ultramodern: { frameworkVersion: release.version },
     },
-    cohortDigest,
-    cohortProjection: { sha256: digest('cohort projection') },
-    dependencyGraph: {
-      '@bleedingdev/modern-js-create': [],
+    {
+      dependencies: {},
+      sourceName: '@modern-js/i18n-utils',
+      targetName: aliases['@modern-js/i18n-utils'],
     },
-    packages: [
-      {
-        sourceName: '@modern-js/create',
-        targetName: '@bleedingdev/modern-js-create',
+  ];
+  const packages = definitions.map(definition => {
+    const packageDir = path.join(
+      root,
+      'staged',
+      definition.targetName.replaceAll('/', '__'),
+    );
+    fs.mkdirSync(packageDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(packageDir, 'package.json'),
+      `${JSON.stringify({
+        dependencies: definition.dependencies,
+        exports: definition.exports,
+        name: definition.targetName,
+        publishConfig: { access: 'public', exports: definition.exports },
+        ultramodern: definition.ultramodern,
+        version: release.version,
+      })}\n`,
+    );
+    fs.writeFileSync(
+      path.join(packageDir, 'index.js'),
+      'module.exports = {};\n',
+    );
+    if (definition.sourceName === '@modern-js/create') {
+      for (const relativePath of constants.createTemplateRequiredFiles) {
+        const filePath = path.join(packageDir, relativePath);
+        fs.mkdirSync(path.dirname(filePath), { recursive: true });
+        fs.writeFileSync(filePath, 'fixture\n');
+      }
+    }
+    return {
+      packageDir: path.relative(repoRoot, packageDir),
+      sourceName: definition.sourceName,
+      targetName: definition.targetName,
+      version: release.version,
+    };
+  });
+  releaseArtifactsApi.createReleaseArtifacts({
+    aliases,
+    command: execFileSync,
+    outDir: releaseDir,
+    packages,
+    source,
+    tag: release.tag,
+    tools: { node: process.version, npm: 'fixture-npm', pnpm: 'fixture-pnpm' },
+    version: release.version,
+  });
+  const acceptanceRelease = releaseManifestApi.readReleaseManifest({
+    manifestPath,
+  });
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  const cohortDigest = manifest.cohortDigest;
+  const manifestSha256 = acceptanceRelease.manifestSha256;
+  const createReceipt = async (mode, targetPath, evidencePath) => {
+    const receipt = receiptApi.createAcceptanceReceipt({
+      createPackage: {
+        exactSpecifier: `@bleedingdev/modern-js-create@${release.version}`,
+        packageName: '@bleedingdev/modern-js-create',
         version: release.version,
       },
-    ],
-    publishOrder: ['@bleedingdev/modern-js-create'],
-    release,
-    schema: 'bleedingdev.ultramodern.release-manifest',
-    schemaVersion: 2,
-    source,
-    tools: { node: '24.0.0', npm: '11.0.0', pnpm: '10.0.0' },
-  };
-  fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
-  fs.writeFileSync(
-    manifestDigestPath,
-    `${digest(fs.readFileSync(manifestPath))}  manifest.json\n`,
-  );
-  fs.writeFileSync(cohortDigestPath, `${cohortDigest}\n`);
-  const manifestSha256 = digest(fs.readFileSync(manifestPath));
-  const acceptanceReceipt = mode => ({
-    binding: {
-      manifest: { cohortDigest, sha256: manifestSha256 },
+      mode,
+      profile: { id: 'erp-10', verticalCount: 10 },
+      registry: {
+        cohortPackages: 'verified',
+        externalDependencies: 'verified',
+        resolution: 'verified',
+        url: 'https://registry.npmjs.org/',
+      },
+      release: acceptanceRelease,
       runIdentity: producerRunIdentity,
-    },
-    mode,
-    passed: true,
-    status: 'passed',
-  });
-  fs.writeFileSync(
-    receiptPath,
-    `${JSON.stringify(acceptanceReceipt('source'))}\n`,
-  );
-  fs.writeFileSync(
-    operationalEvidencePath,
-    `${JSON.stringify({ status: 'passed' })}\n`,
-  );
-  fs.writeFileSync(
+      runtime: {
+        arch: 'x64',
+        node: '24.0.0',
+        npm: '11.0.0',
+        platform: 'linux',
+        playwright: '1.60.0',
+        pnpm: '11.17.0',
+        registry: { integrity: 'sha512-bnBt', name: 'npm', version: '11.0.0' },
+        yaml: { integrity: 'sha512-eWFtbA==', name: 'yaml', version: '2.0.0' },
+      },
+    });
+    receiptApi.bindSupplyChainEvidence(receipt, {
+      closureSha256: digest('closure'),
+      exceptionPolicySha256: digest('exceptions'),
+      lockSha256: digest('lock'),
+      registryMetadataSha256: digest('registry'),
+      releaseManifestSha256: manifestSha256,
+    });
+    await createOperationalAcceptanceReceiptFixture({
+      evidencePath,
+      receipt,
+      receiptApi,
+    });
+    fs.writeFileSync(targetPath, `${JSON.stringify(receipt)}\n`);
+  };
+  await createReceipt('source', receiptPath, operationalEvidencePath);
+  await createReceipt(
+    'published',
     publishedReceiptPath,
-    `${JSON.stringify(acceptanceReceipt('published'))}\n`,
-  );
-  fs.writeFileSync(
     publishedOperationalEvidencePath,
-    `${JSON.stringify({ status: 'passed' })}\n`,
   );
   const tractorBaselineRevision = '2'.repeat(40);
   const uiSha256 = digest('tractor visible ui');
+  const assertions = types => types.map(type => ({ status: 'pass', type }));
+  const nodeSsrResult = (appId, noJavaScriptType) => {
+    const httpAssertionTypes = [
+      'ssr-route',
+      'ui-marker-html',
+      'css-root-marker',
+      'mf-manifest',
+      'mf-manifest-json',
+      'locale-json',
+    ];
+    const noJavaScriptAssertionTypes = [
+      'no-js-ssr-css-root-marker',
+      'no-js-stylesheet-href-dedupe',
+      'no-js-ssr-failed-responses',
+      'no-js-screenshot',
+      noJavaScriptType,
+      ...(appId === 'shell-super-app'
+        ? ['no-js-shell-composition-boundary']
+        : []),
+    ];
+    const noJavaScriptAssertions = assertions(noJavaScriptAssertionTypes);
+    if (appId === 'shell-super-app') {
+      Object.assign(
+        noJavaScriptAssertions.find(
+          assertion => assertion.type === 'no-js-shell-composition-boundary',
+        ),
+        {
+          declaredRemoteIds: ['inventory'],
+          matchedRemoteBoundaries: [
+            { boundaryId: 'inventory-boundary', remoteId: 'inventory' },
+          ],
+          triedRemoteBoundaries: [
+            {
+              matchedBoundaryId: 'inventory-boundary',
+              remoteId: 'inventory',
+              triedBoundaryIds: ['inventory-boundary'],
+            },
+          ],
+        },
+      );
+    }
+    return {
+      appId,
+      httpAssertions: assertions(httpAssertionTypes),
+      httpAssertionTypes,
+      noJavaScriptAssertions,
+      noJavaScriptAssertionTypes,
+    };
+  };
   fs.writeFileSync(
     tractorReportPath,
     `${JSON.stringify({
       checks: [
         {
-          detail: { fileCount: 10, sha256: uiSha256 },
+          detail: {
+            excludedPatterns: ['\\.gen\\.(?:[cm]?[jt]sx?|d\\.[cm]?[jt]s)$'],
+            fileCount: 10,
+            sha256: uiSha256,
+          },
           id: 'ui-baseline',
           status: 'passed',
         },
+        ...[
+          'exact-create-migration',
+          'exact-cohort',
+          'native-tanstack-search',
+          'migration-preserves-visible-ui-source',
+          'install---frozen-lockfile',
+          'check',
+          'promotable-application-source',
+          'build',
+          'node:proof',
+        ].map(id => ({ detail: { id }, id, status: 'passed' })),
         {
-          detail: { resultCount: 3, status: 'pass' },
+          detail: { appIds: ['inventory'], resultCount: 1, status: 'pass' },
           id: 'node-backend-federation-executed',
+          status: 'passed',
+        },
+        {
+          detail: {
+            appCount: 2,
+            distributedSsrRoute: '/en/tractors/example',
+            results: [
+              nodeSsrResult('inventory', 'no-js-ssr-ui-marker'),
+              nodeSsrResult('shell-super-app', 'no-js-distributed-ssr-route'),
+            ],
+            status: 'pass',
+          },
+          id: 'node-server-rendered-ssr-executed',
           status: 'passed',
         },
         {
           detail: { assertionCount: 5, platform: 'node' },
           id: 'node-visible-tractor-workflow',
+          status: 'passed',
+        },
+        {
+          detail: { id: 'cloudflare:build' },
+          id: 'cloudflare:build',
           status: 'passed',
         },
         {
@@ -129,6 +297,7 @@ function createEvidenceFixture() {
         },
         {
           detail: {
+            excludedPatterns: ['\\.gen\\.(?:[cm]?[jt]sx?|d\\.[cm]?[jt]s)$'],
             fileCount: 10,
             sha256: uiSha256,
             status: 'unchanged',
@@ -227,7 +396,7 @@ test('dry-run and real publication emit the same strict bound outcome schema', a
   });
 
   for (const dryRun of [true, false]) {
-    const fixture = createEvidenceFixture();
+    const fixture = await createEvidenceFixture();
     try {
       const outcome = api.createPublishOutcome(
         createOptions(fixture, artifactName, dryRun),
@@ -270,7 +439,7 @@ test('dry-run verification omits publication identity without emitting an empty 
     runAttempt: outcomeRunAttempt,
     runId,
   });
-  const fixture = createEvidenceFixture();
+  const fixture = await createEvidenceFixture();
   const githubOutput = path.join(fixture.root, 'github-output.txt');
   try {
     api.createPublishOutcome(createOptions(fixture, artifactName, true));
@@ -318,7 +487,7 @@ test('publish outcome rejects malformed and mismatched source, version, and run 
     runAttempt: outcomeRunAttempt,
     runId,
   });
-  const fixture = createEvidenceFixture();
+  const fixture = await createEvidenceFixture();
   try {
     const outcome = api.createPublishOutcome(
       createOptions(fixture, artifactName, false),
@@ -398,7 +567,7 @@ test('non-dry outcome fails closed without passing published acceptance evidence
     runAttempt: outcomeRunAttempt,
     runId,
   });
-  const fixture = createEvidenceFixture();
+  const fixture = await createEvidenceFixture();
   try {
     const missing = createOptions(fixture, artifactName, false);
     delete missing.publishedReceiptPath;
@@ -428,10 +597,246 @@ test('non-dry outcome fails closed without passing published acceptance evidence
     assert.throws(
       () =>
         api.createPublishOutcome(createOptions(fixture, artifactName, false)),
-      /published acceptance receipt is not a passing receipt/u,
+      /Acceptance receipt mode must be published/u,
     );
   } finally {
     fs.rmSync(fixture.root, { force: true, recursive: true });
+  }
+});
+
+test('publish outcome rejects incomplete receipt, operational evidence, and Tractor proof', async () => {
+  const api = await outcomeApi();
+  const artifactName = api.publishOutcomeArtifactName({
+    runAttempt: outcomeRunAttempt,
+    runId,
+  });
+  const cases = [
+    {
+      label: 'forged receipt artifact binding',
+      mutate(fixture) {
+        const receipt = JSON.parse(
+          fs.readFileSync(fixture.receiptPath, 'utf8'),
+        );
+        receipt.binding.artifacts.packages[0].integrity = 'sha512-Zm9yZ2Vk';
+        receipt.binding.create.integrity = 'sha512-Zm9yZ2Vk';
+        fs.writeFileSync(fixture.receiptPath, `${JSON.stringify(receipt)}\n`);
+      },
+      pattern: /binding does not match the strict release manifest/u,
+    },
+    {
+      label: 'foreign producer receipt',
+      mutate(fixture) {
+        const receipt = JSON.parse(
+          fs.readFileSync(fixture.receiptPath, 'utf8'),
+        );
+        receipt.binding.runIdentity = 'github:foreign/repo:run:999:attempt:1';
+        fs.writeFileSync(fixture.receiptPath, `${JSON.stringify(receipt)}\n`);
+      },
+      pattern:
+        /(?:run identity must be|binding does not match the strict release manifest)/u,
+    },
+    {
+      label: 'missing required receipt result',
+      mutate(fixture) {
+        const receipt = JSON.parse(
+          fs.readFileSync(fixture.receiptPath, 'utf8'),
+        );
+        receipt.results.pop();
+        fs.writeFileSync(fixture.receiptPath, `${JSON.stringify(receipt)}\n`);
+      },
+      pattern: /every required result exactly once/u,
+    },
+    {
+      label: 'tampered operational evidence',
+      mutate(fixture) {
+        const evidence = JSON.parse(
+          fs.readFileSync(fixture.operationalEvidencePath, 'utf8'),
+        );
+        evidence.result = 'fail';
+        fs.writeFileSync(
+          fixture.operationalEvidencePath,
+          `${JSON.stringify(evidence)}\n`,
+        );
+      },
+      pattern: /canonical digest does not match its content/u,
+    },
+    {
+      label: 'coherently re-digested operational forgery',
+      async mutate(fixture) {
+        const receipt = JSON.parse(
+          fs.readFileSync(fixture.receiptPath, 'utf8'),
+        );
+        const evidence = JSON.parse(
+          fs.readFileSync(fixture.operationalEvidencePath, 'utf8'),
+        );
+        const { digestCanonical } = await import(
+          pathToFileURL(
+            path.resolve(
+              __dirname,
+              '../../ultramodern-production-readiness/canonical-digest.mjs',
+            ),
+          )
+        );
+        evidence.result = 'fail';
+        const payload = { ...evidence };
+        delete payload.evidenceDigest;
+        evidence.evidenceDigest = digestCanonical(payload);
+        const evidenceSource = `${JSON.stringify(evidence)}\n`;
+        fs.writeFileSync(fixture.operationalEvidencePath, evidenceSource);
+        const detail = receipt.results.find(
+          result => result.id === 'operational-independence',
+        ).details;
+        detail.evidenceDigest = evidence.evidenceDigest;
+        detail.evidenceFileSha256 = digest(evidenceSource);
+        fs.writeFileSync(fixture.receiptPath, `${JSON.stringify(receipt)}\n`);
+      },
+      pattern: /missing, skipped, or not passing/u,
+    },
+    {
+      label: 'missing Tractor check',
+      mutate(fixture) {
+        const report = JSON.parse(
+          fs.readFileSync(fixture.tractorReportPath, 'utf8'),
+        );
+        report.checks.pop();
+        fs.writeFileSync(
+          fixture.tractorReportPath,
+          `${JSON.stringify(report)}\n`,
+        );
+        fixture.tractorReportSha256 = digest(
+          fs.readFileSync(fixture.tractorReportPath),
+        );
+      },
+      pattern: /every required check/u,
+    },
+    {
+      label: 'malformed Node SSR proof',
+      mutate(fixture) {
+        const report = JSON.parse(
+          fs.readFileSync(fixture.tractorReportPath, 'utf8'),
+        );
+        report.checks.find(
+          check => check.id === 'node-server-rendered-ssr-executed',
+        ).detail.appCount = 0;
+        fs.writeFileSync(
+          fixture.tractorReportPath,
+          `${JSON.stringify(report)}\n`,
+        );
+        fixture.tractorReportSha256 = digest(
+          fs.readFileSync(fixture.tractorReportPath),
+        );
+      },
+      pattern: /server-rendered SSR evidence/u,
+    },
+    {
+      label: 'incomplete Node SSR app set',
+      mutate(fixture) {
+        const report = JSON.parse(
+          fs.readFileSync(fixture.tractorReportPath, 'utf8'),
+        );
+        const backend = report.checks.find(
+          check => check.id === 'node-backend-federation-executed',
+        ).detail;
+        backend.appIds.push('checkout');
+        backend.resultCount = backend.appIds.length;
+        fs.writeFileSync(
+          fixture.tractorReportPath,
+          `${JSON.stringify(report)}\n`,
+        );
+        fixture.tractorReportSha256 = digest(
+          fs.readFileSync(fixture.tractorReportPath),
+        );
+      },
+      pattern: /server-rendered SSR evidence/u,
+    },
+    {
+      label: 'empty shell SSR composition payload',
+      mutate(fixture) {
+        const report = JSON.parse(
+          fs.readFileSync(fixture.tractorReportPath, 'utf8'),
+        );
+        const composition = report.checks
+          .find(check => check.id === 'node-server-rendered-ssr-executed')
+          .detail.results.find(result => result.appId === 'shell-super-app')
+          .noJavaScriptAssertions.find(
+            assertion => assertion.type === 'no-js-shell-composition-boundary',
+          );
+        composition.declaredRemoteIds = [];
+        composition.matchedRemoteBoundaries = [];
+        composition.triedRemoteBoundaries = [];
+        fs.writeFileSync(
+          fixture.tractorReportPath,
+          `${JSON.stringify(report)}\n`,
+        );
+        fixture.tractorReportSha256 = digest(
+          fs.readFileSync(fixture.tractorReportPath),
+        );
+      },
+      pattern: /server-rendered SSR evidence/u,
+    },
+    {
+      label: 'inconsistent shell SSR boundary identity',
+      mutate(fixture) {
+        const report = JSON.parse(
+          fs.readFileSync(fixture.tractorReportPath, 'utf8'),
+        );
+        const composition = report.checks
+          .find(check => check.id === 'node-server-rendered-ssr-executed')
+          .detail.results.find(result => result.appId === 'shell-super-app')
+          .noJavaScriptAssertions.find(
+            assertion => assertion.type === 'no-js-shell-composition-boundary',
+          );
+        composition.matchedRemoteBoundaries[0].boundaryId = 'forged-boundary';
+        fs.writeFileSync(
+          fixture.tractorReportPath,
+          `${JSON.stringify(report)}\n`,
+        );
+        fixture.tractorReportSha256 = digest(
+          fs.readFileSync(fixture.tractorReportPath),
+        );
+      },
+      pattern: /server-rendered SSR evidence/u,
+    },
+    {
+      label: 'missing shell SSR composition proof',
+      mutate(fixture) {
+        const report = JSON.parse(
+          fs.readFileSync(fixture.tractorReportPath, 'utf8'),
+        );
+        const shell = report.checks
+          .find(check => check.id === 'node-server-rendered-ssr-executed')
+          .detail.results.find(result => result.appId === 'shell-super-app');
+        shell.noJavaScriptAssertionTypes =
+          shell.noJavaScriptAssertionTypes.filter(
+            type => type !== 'no-js-shell-composition-boundary',
+          );
+        shell.noJavaScriptAssertions = shell.noJavaScriptAssertions.filter(
+          assertion => assertion.type !== 'no-js-shell-composition-boundary',
+        );
+        fs.writeFileSync(
+          fixture.tractorReportPath,
+          `${JSON.stringify(report)}\n`,
+        );
+        fixture.tractorReportSha256 = digest(
+          fs.readFileSync(fixture.tractorReportPath),
+        );
+      },
+      pattern: /server-rendered SSR evidence/u,
+    },
+  ];
+  for (const { label, mutate, pattern } of cases) {
+    const fixture = await createEvidenceFixture();
+    try {
+      await mutate(fixture);
+      assert.throws(
+        () =>
+          api.createPublishOutcome(createOptions(fixture, artifactName, false)),
+        pattern,
+        label,
+      );
+    } finally {
+      fs.rmSync(fixture.root, { force: true, recursive: true });
+    }
   }
 });
 
