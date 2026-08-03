@@ -24,8 +24,6 @@ Legend:
 - **[F]** permanent fork divergence — only meaningful with the ultramodern lanes (Effect BFF, TanStack, Module Federation SSR/topology evidence, telemetry, tsgo toolchain). Includes coupled dependency migrations where `package.json` and source must be taken from the same side.
 - **[M]** mechanical — biome import re-sorting, `@effect-diagnostics` pragma headers (~73 of the 537 modified package files), tsconfig `rootDir`/`ignoreDeprecations`, package.json script/dep churn for the tsgo + rstest toolchain. Safe to take either side on conflict; prefer upstream content and re-run biome/pragma tooling.
 
-Headline: **`packages/server/core/src/plugins/render/render.ts` — `matchRoute` undefined-narrowing remains fork-local in the checked upstream ref.** As of 2026-07-07, local `origin/main` (`f1dc167e3bdb9a87e087c028197cbfd4de5c468e`) still returns `[]` cast to `MatchedRoute` when nothing matches, so callers can destructure `undefined` as a `ServerRoute`. The fork types the miss explicitly (`[ServerRoute | undefined, Params]`, returns `[undefined, {}]`). Keep the fork side in merges until the upstream ref actually carries the narrowing.
-
 Total at last audit (2026-06-13, post Phase A-C brutal-cleanup branch `ultracode/brutal-cleanup`):
 
 - Raw package diff: 537 M, 335 A, 5 D, 17 R, total 894 paths.
@@ -82,7 +80,6 @@ Toolchain only: package.json scripts, rslib config, tsconfig `ignoreDeprecations
 ### builder (19 files)
 
 - `src/createBuilder.ts`, `src/shared/parseCommonConfig.ts`, `src/types.ts` — [F] `performance.rsdoctor` opt-in config surface (`RsdoctorUserConfig`) and default HTML `templateParameters`. The fork-added `src/plugins/rsdoctor.ts` and `src/rsdoctorConfig.ts` carry the RsDoctor plugin split; RsDoctor defaults to OFF after the ADR-0001 revert (a210ac658d), and `tests/rsdoctor.test.ts` pins the behavior.
-- `src/plugins/environmentDefaults.ts` — [U] service-worker environment emits ESM library output when `output.module` is set (upstream hardcodes `commonjs2`).
 - `src/plugins/postcss.ts` — [U] resolves postcss/tailwind plugins from the app root via `createRequire` so monorepo/workspace installs resolve correctly.
 - `src/plugins/rscConfig.ts`, `src/shared/rsc/rscClientBrowserFallback.ts`, `src/shared/devServer.ts` — [F] RSC layer matching extended to fork render-package dist entries (`render/dist/esm/rsc.mjs`) and server-loader entry patterns.
 - `src/index.ts` — [M] export reshuffle.
@@ -149,7 +146,6 @@ package.json bumps farrow-api/farrow-pipeline/farrow-schema `^1.12` → `^2.3` (
 
 ### core (35 files)
 
-- `src/plugins/render/render.ts` — **[U] `matchRoute` undefined-narrowing bug fix in this checkout — see headline above before dropping.**
 - `src/adapters/node/plugins/static.ts` — [F] fork asset-serving behavior for pre-compressed assets (`.br`/`.gz` with Accept-Encoding q-value parsing); not in the current verified [U] queue.
 - `src/types/config/server.ts` — [F] `server.telemetry` (exporters, SLO, canary, contract gates) + `ssr.moduleFederationAppSSR` + preload types.
 - `src/types/config/bff.ts` — [F] `bff.crossProjectPolicy`.
@@ -208,10 +204,6 @@ Sync policy: do not restore private-path generator consumers or upstream
 single-app template entrypoints. Port upstream template fixes into the
 UltraModern workspace templates by hand, keep overlays post-generation only, and
 keep `exports` plus `publishConfig.exports` mirrored with the runtime files.
-
-### i18n-utils (3 files) — [U]
-
-`languageDetector` guards `globalThis.process` access (edge/worker-safe).
 
 ### plugin (26 files) — [M]
 
@@ -286,6 +278,6 @@ Scripts and CI (fork-added; ~repo-tooling only):
 
 1. Resolve [M] conflicts toward upstream, then re-run `npx biome check --write` and restore `@effect-diagnostics` pragmas.
 2. Keep the fork side for everything [F]; diffs inside upstream-owned files are intentionally minimal — if a conflict looks large, check whether the logic should move to a fork-owned module instead. For the coupled dependency migrations (`bff-runtime`, `plugin-polyfill`) keep `package.json` + source together — never split sides within the package.
-3. Current verified [U] queue: builder `postcss.ts` app-root resolution, builder `environmentDefaults.ts` service-worker ESM output, runtime `PrefetchLink.tsx` intent/render/viewport prefetch, and toolkit `i18n-utils` `languageDetector` process guard. Re-check `render.ts` against `origin/main` before dropping it; this checkout still shows the old upstream shape.
+3. Current verified [U] queue: builder `postcss.ts` app-root resolution and runtime `PrefetchLink.tsx` intent/render/viewport prefetch. Service-worker ESM output, the edge-safe language detector, and `matchRoute` undefined narrowing landed upstream and are no longer fork divergences.
 4. Deleted upstream files (Appendix A): keep them deleted; a merge that resurrects one is wrong even if it applies cleanly. Port the upstream change into the fork replacement listed per file.
 5. Renamed files (Appendix B): run the sync with rename detection on (`git merge`/`git diff -M`) and land upstream edits on the renamed path.

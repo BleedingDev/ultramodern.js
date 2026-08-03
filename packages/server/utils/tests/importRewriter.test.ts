@@ -40,6 +40,15 @@ describe('rewriteImportSpecifiers', () => {
     expect(content).toContain(`'./d'`);
   });
 
+  it('does not rewrite a string fragment in a non-literal dynamic import', () => {
+    const input = `const locale = import('@a/locales/' + lang + '.js');`;
+
+    const { content, changed } = run(input);
+
+    expect(changed).toBe(false);
+    expect(content).toBe(input);
+  });
+
   it('does not rewrite specifier-like text inside string literals', () => {
     const input = [
       `const a = "see require('@a/m') for details";`,

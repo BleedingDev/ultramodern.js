@@ -224,6 +224,7 @@ export type UltramodernWorkspaceOptions = {
   packageName: string;
   modernVersion: string;
   enableTailwind?: boolean;
+  generateAgentFiles?: boolean;
   overlays?: UltramodernCodeSmithOverlay[];
   bridge?: UltramodernBridgeConfigInput;
   packageSource?: {

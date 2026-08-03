@@ -152,6 +152,7 @@ export function collectPositionalArgs(args: string[]): string[] {
     DRY_RUN_FLAG,
     VERTICAL_FLAG,
     HORIZONTAL_REMOTE_FLAG,
+    '--no-agents-md',
     ...ultramodernBridgeCliBooleanFlags,
   ]);
   const positionalArgs: string[] = [];

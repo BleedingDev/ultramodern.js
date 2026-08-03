@@ -41,7 +41,7 @@ export default (): CliPlugin<AppTools> => ({
       const hooks = api.getHooks();
 
       try {
-        if (checkIsBuildCommands()) {
+        if (checkIsBuildCommands(appContext.command)) {
           fs.emptydirSync(appContext.internalDirectory);
         }
       } catch {
@@ -203,7 +203,7 @@ export default (): CliPlugin<AppTools> => ({
 
       api.updateAppContext(appContext);
 
-      if (checkIsBuildCommands()) {
+      if (checkIsBuildCommands(appContext.command)) {
         await hooks.generateEntryCode.call({ entrypoints });
 
         const normalizedConfig =

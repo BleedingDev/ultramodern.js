@@ -30,7 +30,6 @@ class I18CLILanguageDetector {
         };
       }
     ).process?.env;
-
     const shellLocale =
       env?.LC_ALL ??
       env?.LC_MESSAGES ??

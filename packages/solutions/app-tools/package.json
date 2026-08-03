@@ -94,10 +94,25 @@
     "modern": "./bin/modern.js",
     "modern-app": "./bin/modern.js"
   },
+  "nx": {
+    "targets": {
+      "build": {
+        "inputs": [
+          "build",
+          "^build",
+          "{workspaceRoot}/packages/document/docs/en/**/*"
+        ],
+        "outputs": [
+          "{projectRoot}/dist",
+          "{projectRoot}/docs"
+        ]
+      }
+    }
+  },
   "scripts": {
     "prepublishOnly": "only-allow-pnpm",
     "dev": "rslib build --watch",
-    "build": "rslib build && pnpm -w tsgo:dts \"$PWD\" && pnpm run verify:public-surface",
+    "build": "rslib build && pnpm -w tsgo:dts \"$PWD\" && pnpm run verify:public-surface && node ./scripts/copy-main-doc.mjs",
     "verify:public-surface": "node ./tests/config/verify-public-surface.mjs",
     "test": "rstest"
   },

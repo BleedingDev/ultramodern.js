@@ -14,10 +14,21 @@ export const ZH_LOCALE = {
   message: {
     welcome: '🚀 欢迎使用 UltraModern.js',
     success: '✨ 创建成功！',
+    agentsMd:
+      '✔ 已生成 AGENTS.md 和 CLAUDE.md —— AI 编码助手会自动读取。（--no-agents-md 可跳过）',
     nextSteps: '📋 下一步：',
     step1: 'cd {projectName}',
     step2: 'pnpm install',
     step3: 'pnpm dev',
+  },
+  agentsCmd: {
+    created: '✔ 已创建 {file}',
+    updatedBlock: '✔ 已更新 {file} 中的 modernjs-agent-rules 块',
+    addedBlock: '✔ 已在 {file} 顶部添加 modernjs-agent-rules 块',
+    linked: '✔ 已向 {file} 添加 `@AGENTS.md` 引用',
+    unchanged: '• {file} 已是最新',
+    done: '✨ 完成 —— AI 编码助手会读取 node_modules/@modern-js/app-tools/docs/ 里的随包文档。',
+    targetNotFound: '错误: 目标目录 "{dir}" 不存在',
   },
   help: {
     title: '🚀 UltraModern.js 项目创建工具',
@@ -28,6 +39,8 @@ export const ZH_LOCALE = {
     optionHelp: '  -h, --help     显示帮助信息',
     optionVersion: '  -v, --version  显示版本信息',
     optionLang: '  -l, --lang     设置语言 (默认 en；zh 需显式选择)',
+    optionNoAgentsMd:
+      '      --no-agents-md 跳过生成 AGENTS.md / CLAUDE.md（AI 编码助手指引文件）',
     optionTailwind: '      --no-tailwind 禁用默认 Tailwind CSS v4 工作区样式',
     optionBff:
       '      --bff 保留默认的严格 Effect API 运行时（每个 MicroVertical 自带一个）',
@@ -93,6 +106,7 @@ export const ZH_LOCALE = {
       '  pnpm dlx @bleedingdev/modern-js-create catalog --vertical --dry-run',
     example10:
       '  pnpm dlx @bleedingdev/modern-js-create catalog --vertical --codesmith-overlay ./overlay-generator',
+    example11: '  pnpm dlx @bleedingdev/modern-js-create agents-md [已有项目]',
     moreInfo: '📚 更多信息: https://modernjs.dev',
   },
   version: {

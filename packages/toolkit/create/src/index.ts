@@ -1,5 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { runAgentsMd } from './agents-md';
 import {
   CODESMITH_OVERLAY_FLAG,
   DRY_RUN_FLAG,
@@ -35,6 +37,16 @@ import {
 } from './ultramodern-workspace';
 import { hasUltramodernBridgeCliOptions } from './ultramodern-workspace/bridge-config';
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const templateDir = [
+  path.resolve(__dirname, '../template-workspace'),
+  path.resolve(__dirname, '../../template-workspace'),
+].find(candidate => fs.existsSync(candidate));
+
+if (!templateDir) {
+  throw new Error('Unable to locate the UltraModern workspace templates');
+}
+
 i18n.changeLanguage({ locale: detectLanguage() });
 
 async function main() {
@@ -55,10 +67,15 @@ async function main() {
     return;
   }
 
-  // Validate the BFF flag surface before any prompt or filesystem write so an
-  // unsupported runtime never leaves a half-created project behind. The
-  // returned runtime is always 'effect' today: the workspace generator bakes
-  // the strict Effect API runtime into every scaffolded vertical.
+  if (args[0] === 'agents-md') {
+    const dirArg = args.slice(1).find(arg => !arg.startsWith('-'));
+    const targetDir = dirArg
+      ? path.resolve(process.cwd(), dirArg)
+      : process.cwd();
+    runAgentsMd(templateDir, targetDir);
+    return;
+  }
+
   detectBffRuntime(args);
   const dryRun = detectDryRunFlag(args);
   const verticalInput = resolveVerticalCliInput(args);
@@ -161,6 +178,7 @@ async function main() {
       createPackage,
     ),
   );
+  const generateAgentFiles = !args.includes('--no-agents-md');
   generateUltramodernWorkspace({
     targetDir,
     packageName: generatedPackageName,
@@ -169,14 +187,17 @@ async function main() {
     bridge,
     overlays,
     packageSource,
+    generateAgentFiles,
   });
   initializeGeneratedGitRepository(targetDir);
 
-  // ANSI escape codes: \x1b[2m = dim, \x1b[3m = italic, \x1b[0m = reset
   const dim = '\x1b[2m\x1b[3m';
   const reset = '\x1b[0m';
 
   console.log(`${i18n.t(localeKeys.message.success)}\n`);
+  if (generateAgentFiles) {
+    console.log(`${i18n.t(localeKeys.message.agentsMd)}\n`);
+  }
   console.log(i18n.t(localeKeys.message.nextSteps));
   if (!useCurrentDir) {
     console.log(

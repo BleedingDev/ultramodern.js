@@ -46,6 +46,7 @@ export function showHelp() {
   console.log(i18n.t(localeKeys.help.optionPreset));
   console.log(i18n.t(localeKeys.help.optionApiProtocol));
   console.log(i18n.t(localeKeys.help.optionHorizontalRemote));
+  console.log(i18n.t(localeKeys.help.optionNoAgentsMd));
   console.log('');
   console.log(i18n.t(localeKeys.help.examples));
   console.log(i18n.t(localeKeys.help.example1));
@@ -58,6 +59,7 @@ export function showHelp() {
   console.log(i18n.t(localeKeys.help.example8));
   console.log(i18n.t(localeKeys.help.example9));
   console.log(i18n.t(localeKeys.help.example10));
+  console.log(i18n.t(localeKeys.help.example11));
   console.log('');
   console.log(i18n.t(localeKeys.help.moreInfo));
   console.log('');

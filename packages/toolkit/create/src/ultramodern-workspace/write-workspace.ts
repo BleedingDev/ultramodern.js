@@ -241,6 +241,12 @@ export function generateUltramodernWorkspace(
   const workspacePackageLinkingPolicy =
     resolveWorkspacePackageLinkingPolicy(packageSource);
 
+  const excludedRootTemplates = new Set([RELEASE_COHORT_PROJECTION_PATH]);
+  if (options.generateAgentFiles === false) {
+    excludedRootTemplates.add('AGENTS.md.handlebars');
+    excludedRootTemplates.add('CLAUDE.md.handlebars');
+  }
+
   copyRootTemplate(
     options.targetDir,
     {
@@ -269,7 +275,7 @@ export function generateUltramodernWorkspace(
         .join(''),
       tailwindEnabled: String(enableTailwind),
     },
-    new Set([RELEASE_COHORT_PROJECTION_PATH]),
+    excludedRootTemplates,
   );
   if (releaseCohort) {
     copyCreateReleaseCohort(options.targetDir);

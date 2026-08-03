@@ -21,13 +21,22 @@ const toImportSpecifier = (sourceFile: string, resolvedPath: string) => {
   return relativePath[0] === '.' ? relativePath : `./${relativePath}`;
 };
 
-// Convert a resolved source path into the specifier that native ESM output
-// should reference at runtime, which is always the emitted `.js` file.
+const COMPILED_TO_JS_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx']);
+
 const toEsmOutputPath = (resolvedPath: string) => {
-  const sourcePath = findSourceEntry(resolvedPath) || resolvedPath;
+  const sourcePath = (findSourceEntry(resolvedPath) || resolvedPath).replace(
+    /\\/g,
+    '/',
+  );
   const ext = path.extname(sourcePath);
 
-  return ext ? `${sourcePath.slice(0, -ext.length)}.js` : `${sourcePath}.js`;
+  if (!ext) {
+    return `${sourcePath}.js`;
+  }
+  if (!COMPILED_TO_JS_EXTENSIONS.has(ext)) {
+    return sourcePath;
+  }
+  return `${sourcePath.slice(0, -ext.length)}.js`;
 };
 
 const resolveRelativeEsmSpecifier = (sourceFile: string, text: string) => {
@@ -44,7 +53,6 @@ const isRegExpKey = (str: string) => {
 };
 
 const resolveAliasPath = (baseUrl: string, filePath: string) => {
-  // exclude absolute path and alias
   if (filePath.startsWith('.') || filePath.startsWith('..')) {
     return path.resolve(baseUrl, filePath);
   }
@@ -126,15 +134,9 @@ export function getNotAliasedPath(
   text: string,
   moduleType?: 'module' | 'commonjs',
 ) {
-  // Resolve aliases and tsconfig paths using the same `.js` -> `.ts` fallback
-  // rules as the runtime loaders.
   let result = findMatchedSourcePath(matcher, text);
 
-  // For native ESM, unresolved relative imports like `../service/user` must be
-  // resolved to a source path before we convert them to the emitted `.js` specifier.
   if (!result && moduleType === 'module') {
-    // This branch is only for relative specifiers. Bare package imports should
-    // stay untouched when they are not matched by alias rules.
     result = resolveRelativeEsmSpecifier(sourceFile, text);
   }
 
@@ -143,12 +145,8 @@ export function getNotAliasedPath(
   }
 
   if (!isAbsolutePath(result)) {
-    // If an alias resolves to another bare specifier, prefer leaving it as a
-    // package import when Node can resolve that package.
     if (!result.startsWith('.') && !result.startsWith('..')) {
       try {
-        // Installed packages (node modules) should take precedence over root files with the same name.
-        // Ref: https://github.com/nestjs/nest-cli/issues/838
         const packagePath = require.resolve(result, {
           paths: [process.cwd(), ...module.paths],
         });
@@ -158,10 +156,6 @@ export function getNotAliasedPath(
       } catch {}
     }
     try {
-      // Likewise, if the original specifier already resolves as a package,
-      // keep the original text instead of forcing a relative filesystem path.
-      // Installed packages (node modules) should take precedence over root files with the same name.
-      // Ref: https://github.com/nestjs/nest-cli/issues/838
       const packagePath = require.resolve(text, {
         paths: [process.cwd(), ...module.paths],
       });
@@ -172,11 +166,8 @@ export function getNotAliasedPath(
   }
 
   if (moduleType === 'module') {
-    // Native ESM output must reference the emitted file extension that Node
-    // will load at runtime, typically `.js`.
     result = toEsmOutputPath(result);
   }
 
-  // Emit a relative specifier from the current source file to the resolved target.
   return toImportSpecifier(sourceFile, result) || './';
 }

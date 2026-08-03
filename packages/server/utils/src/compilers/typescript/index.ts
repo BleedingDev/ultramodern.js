@@ -17,6 +17,7 @@ type TsgoConfig = {
     declarationMap?: boolean;
     emitDeclarationOnly?: boolean;
     incremental?: boolean;
+    jsx?: string;
     module?: string;
     moduleResolution?: string;
     noEmit?: boolean;
@@ -46,7 +47,7 @@ const copyFiles = async (from: string, to: string, appDirectory: string) => {
     const targetDir = path.join(to, relativePath);
     await fs.copy(from, targetDir, {
       filter: src =>
-        !['.ts', '.js'].includes(path.extname(src)) &&
+        !['.ts', '.tsx', '.js', '.jsx'].includes(path.extname(src)) &&
         !src.endsWith('tsconfig.json'),
     });
   }
@@ -83,6 +84,12 @@ export const createResolvedTsgoConfig = async (
   config.compilerOptions.emitDeclarationOnly = false;
   config.compilerOptions.incremental = false;
   config.compilerOptions.noEmit = false;
+  if (
+    config.compilerOptions.jsx === undefined ||
+    config.compilerOptions.jsx === 'preserve'
+  ) {
+    config.compilerOptions.jsx = 'react-jsx';
+  }
   delete config.compilerOptions.tsBuildInfoFile;
   if (config.compilerOptions.allowImportingTsExtensions === true) {
     config.compilerOptions.rewriteRelativeImportExtensions = true;
@@ -293,7 +300,7 @@ export const rewriteOutputSpecifiers = async (
   paths: Record<string, string[] | string>,
   moduleType?: 'module' | 'commonjs',
 ) => {
-  if (Object.keys(paths).length === 0 || !(await fs.pathExists(distDir))) {
+  if (!(await fs.pathExists(distDir))) {
     return;
   }
 

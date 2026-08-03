@@ -15,10 +15,21 @@ export const EN_LOCALE = {
   message: {
     welcome: '🚀 Welcome to UltraModern.js',
     success: '✨ Created successfully!',
+    agentsMd:
+      '✔ AGENTS.md & CLAUDE.md generated — AI coding agents will pick them up automatically. (--no-agents-md to skip)',
     nextSteps: '📋 Next steps:',
     step1: 'cd {projectName}',
     step2: 'pnpm install',
     step3: 'pnpm dev',
+  },
+  agentsCmd: {
+    created: '✔ Created {file}',
+    updatedBlock: '✔ Updated the modernjs-agent-rules block in {file}',
+    addedBlock: '✔ Added the modernjs-agent-rules block to the top of {file}',
+    linked: '✔ Added the `@AGENTS.md` import to {file}',
+    unchanged: '• {file} is already up to date',
+    done: '✨ Done — AI coding agents will read the bundled docs in node_modules/@modern-js/app-tools/docs/.',
+    targetNotFound: 'Error: target directory "{dir}" does not exist',
   },
   help: {
     title: '🚀 UltraModern.js Project Creator',
@@ -31,6 +42,8 @@ export const EN_LOCALE = {
     optionHelp: '  -h, --help     Display this help message',
     optionVersion: '  -v, --version  Display version information',
     optionLang: '  -l, --lang     Set the language (en default; zh opt-in)',
+    optionNoAgentsMd:
+      '      --no-agents-md Skip generating AGENTS.md / CLAUDE.md for AI coding agents',
     optionTailwind:
       '      --no-tailwind Disable default Tailwind CSS v4 workspace styling',
     optionBff:
@@ -98,6 +111,8 @@ export const EN_LOCALE = {
       '  pnpm dlx @bleedingdev/modern-js-create catalog --vertical --dry-run',
     example10:
       '  pnpm dlx @bleedingdev/modern-js-create catalog --vertical --codesmith-overlay ./overlay-generator',
+    example11:
+      '  pnpm dlx @bleedingdev/modern-js-create agents-md [existing-project]',
     moreInfo: '📚 Learn more: https://modernjs.dev',
   },
   version: {

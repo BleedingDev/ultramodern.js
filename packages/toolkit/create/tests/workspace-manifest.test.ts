@@ -40,6 +40,7 @@ const expectedWorkspaceManifest = [
   '.mise.toml',
   '.modernjs/ultramodern.json',
   'AGENTS.md',
+  'CLAUDE.md',
   'README.md',
   'apps/shell-super-app/locales/cs/shell.json',
   'apps/shell-super-app/locales/cs/translation.json',

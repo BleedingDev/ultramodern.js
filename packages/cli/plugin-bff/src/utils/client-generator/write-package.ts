@@ -125,6 +125,6 @@ export async function setPackage(
 
   await fs.promises.writeFile(
     packagePath,
-    JSON.stringify(packageJson, null, 2),
+    `${JSON.stringify(packageJson, null, 2)}\n`,
   );
 }

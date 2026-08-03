@@ -1,6 +1,9 @@
 import appToolsDefault, {
   appTools,
+  build,
+  closeServer,
   createPresetUltramodernConfig,
+  deploy,
   mergeConfig,
   presetUltramodern,
 } from '../src';
@@ -12,7 +15,10 @@ describe('app-tools export', () => {
 
   it('named export', () => {
     expect(appTools).toBeDefined();
+    expect(build).toBeDefined();
+    expect(closeServer).toBeDefined();
     expect(createPresetUltramodernConfig).toBeDefined();
+    expect(deploy).toBeDefined();
     expect(presetUltramodern).toBeDefined();
   });
 });

@@ -1,7 +1,7 @@
 import { isLazyCompilationSafeByDefault } from '../../src/config';
 import { createDefaultConfig } from '../../src/config/default';
 
-describe('create default config', () => {
+describe('createDefaultConfig', () => {
   it('should leave precompress unset in core defaults', () => {
     const config = createDefaultConfig({
       metaName: 'modern-js',
@@ -13,6 +13,12 @@ describe('create default config', () => {
     } as any);
 
     expect(config.output?.precompress).toBeUndefined();
+  });
+
+  it('uses config/mock as the default Mock directory', () => {
+    const config = createDefaultConfig({ metaName: 'modern' } as any);
+
+    expect(config.dev?.mockDir).toBe('./config/mock');
   });
 });
 

@@ -81,7 +81,7 @@ function getRouter(routes: ServerRoute[]): Router<ServerRoute> {
 }
 
 type MatchedRoute = [ServerRoute | undefined, Params];
-function matchRoute(
+export function matchRoute(
   router: Router<ServerRoute>,
   pathname: string,
   entryName?: string,

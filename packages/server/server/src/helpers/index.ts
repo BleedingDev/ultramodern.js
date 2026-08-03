@@ -9,6 +9,7 @@ import Watcher, {
   mergeWatchOptions,
   type WatchEvent,
 } from '../dev-tools/watcher';
+import { resolveMockDirectory } from './mock';
 
 export * from './devOptions';
 export * from './fileReader';
@@ -20,6 +21,7 @@ export function startWatcher({
   distDir,
   apiDir,
   sharedDir,
+  mockDir,
   watchOptions,
   onChange,
 }: {
@@ -27,6 +29,7 @@ export function startWatcher({
   distDir: string;
   apiDir: string;
   sharedDir: string;
+  mockDir?: string;
   watchOptions?: WatchOptions;
   /**
    * Called after the require cache for a changed user server file has been
@@ -35,9 +38,8 @@ export function startWatcher({
    */
   onChange: (filepath: string, event: WatchEvent) => void;
 }) {
-  const { mock } = AGGRED_DIR;
   const defaultWatched = [
-    `${mock}/**/*`,
+    path.join(resolveMockDirectory(pwd, mockDir), '**/*'),
     `${SERVER_DIR}/**/*`,
     `${apiDir}/**`,
     `${sharedDir}/**/*`,

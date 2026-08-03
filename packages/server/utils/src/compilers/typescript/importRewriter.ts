@@ -78,6 +78,35 @@ const isSpecifierContext = (
   );
 };
 
+const isCallSpecifierContext = (
+  prev1: string,
+  prev2: string,
+  prev3: string,
+): boolean =>
+  prev1 === '(' && (prev2 === 'import' || prev2 === 'require') && prev3 !== '.';
+
+const nextNonTriviaChar = (content: string, start: number): string => {
+  let i = start;
+  while (i < content.length) {
+    if (WHITESPACE.test(content[i])) {
+      i++;
+      continue;
+    }
+    if (content[i] === '/' && content[i + 1] === '/') {
+      const newline = content.indexOf('\n', i + 2);
+      i = newline === -1 ? content.length : newline + 1;
+      continue;
+    }
+    if (content[i] === '/' && content[i + 1] === '*') {
+      const end = content.indexOf('*/', i + 2);
+      i = end === -1 ? content.length : end + 2;
+      continue;
+    }
+    return content[i];
+  }
+  return '';
+};
+
 const skipRegexLiteral = (content: string, start: number): number => {
   let i = start + 1;
   let inClass = false;
@@ -235,7 +264,15 @@ const scanSpecifiers = (content: string): SpecifierToken[] => {
         }
         j++;
       }
-      if (terminated && isSpecifierContext(prev1, prev2, prev3)) {
+      const callSpecifier = isCallSpecifierContext(prev1, prev2, prev3);
+      const nextChar = callSpecifier ? nextNonTriviaChar(content, j) : '';
+      const isCompleteCallSpecifier =
+        !callSpecifier || nextChar === ')' || nextChar === ',';
+      if (
+        terminated &&
+        isSpecifierContext(prev1, prev2, prev3) &&
+        isCompleteCallSpecifier
+      ) {
         specifiers.push({
           start: start + 1,
           end: j - 1,

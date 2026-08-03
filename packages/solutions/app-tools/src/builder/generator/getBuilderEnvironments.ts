@@ -68,6 +68,17 @@ function resolvePackageFile(
       }),
     );
   } catch {
+    try {
+      const packageJsonPath = require.resolve(`${packageName}/package.json`, {
+        paths,
+      });
+      const packageFile = path.join(path.dirname(packageJsonPath), filePath);
+
+      if (fs.existsSync(packageFile)) {
+        return fs.realpathSync(packageFile);
+      }
+    } catch {}
+
     const packageEntry = resolvePackageEntry(packageName, paths);
     if (!packageEntry) {
       return undefined;

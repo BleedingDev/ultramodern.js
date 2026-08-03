@@ -16,6 +16,12 @@ const getWorkers = () => {
   return configuredWorkers;
 };
 
+const isCI = Boolean(process.env.CI);
+
 export default defineConfig({
   workers: getWorkers(),
+  use: {
+    // Use the built-in Chrome browser to speed up CI tests
+    channel: isCI ? 'chrome' : undefined,
+  },
 });

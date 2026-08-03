@@ -4,20 +4,25 @@ type StorageGlobals = typeof globalThis & {
   [key: symbol]: ah.AsyncLocalStorage<unknown> | undefined;
 };
 
-const createStorage = <T>(storageKey?: symbol) => {
+const getGlobalStorage = <T>(storageKey: string | symbol) => {
+  const globalStore = globalThis as StorageGlobals;
+  const key =
+    typeof storageKey === 'string' ? Symbol.for(storageKey) : storageKey;
+  const sharedStorage = globalStore[key];
+  const storage =
+    (sharedStorage as ah.AsyncLocalStorage<T> | undefined) ??
+    new ah.AsyncLocalStorage<T>();
+  globalStore[key] = storage;
+  return storage;
+};
+
+const createStorage = <T>(storageKey?: string | symbol) => {
   let storage: ah.AsyncLocalStorage<T>;
 
   if (typeof ah.AsyncLocalStorage !== 'undefined') {
-    if (storageKey) {
-      const globalStore = globalThis as StorageGlobals;
-      const sharedStorage = globalStore[storageKey];
-      storage =
-        (sharedStorage as ah.AsyncLocalStorage<T> | undefined) ??
-        new ah.AsyncLocalStorage<T>();
-      globalStore[storageKey] = storage;
-    } else {
-      storage = new ah.AsyncLocalStorage<T>();
-    }
+    storage = storageKey
+      ? getGlobalStorage<T>(storageKey)
+      : new ah.AsyncLocalStorage<T>();
   }
 
   const run = <O>(context: T, cb: () => O | Promise<O>): Promise<O> => {
@@ -44,7 +49,7 @@ const createStorage = <T>(storageKey?: symbol) => {
     }
     const context = storage.getStore();
     if (!context) {
-      throw new Error(`Can't call context hook out of server scope`);
+      throw new Error(`Can't call useContext out of server scope`);
     }
 
     return context;
@@ -53,6 +58,7 @@ const createStorage = <T>(storageKey?: symbol) => {
   return {
     run,
     useContext,
+    useHonoContext: useContext,
   };
 };
 

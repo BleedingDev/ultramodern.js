@@ -1,21 +1,27 @@
 # UltraModern.js Workspace
 
-This is an UltraModern.js SuperApp: a composition shell plus independently
-owned business MicroVerticals.
+This is an UltraModern.js SuperApp with a composition shell and owned business
+MicroVerticals.
 
-## Work Here
+## Work here
 
-- Use Node `>=26` and pnpm `{{pnpmVersion}}`. Run `mise install` before
-  `pnpm install` when the active toolchain differs.
-- Keep business features out of the shell. Follow [README.md](./README.md) to
-  add a MicroVertical.
-- Run checks relevant to the change. Before finishing code changes, run
-  `pnpm check`; also run `pnpm build` for runtime, build, routing, or deployment
+- Use Node `>=26` and pnpm `{{pnpmVersion}}`.
+- Keep business features out of the shell; follow
+  [README.md](./README.md) when adding a MicroVertical.
+- Run `pnpm check`; also run `pnpm build` for runtime, routing, build, or deploy
   changes.
+- Use a matching skill under [`.codex/skills`](./.codex/skills), reading its
+  `SKILL.md` and references only as needed.
 
-## Reusable Guidance
+<!-- BEGIN:modernjs-agent-rules -->
 
-- Read only the relevant sections of [README.md](./README.md) for architecture,
-  routes and i18n, environment variables, deployment, and troubleshooting.
-- Use a skill under [`.codex/skills`](./.codex/skills) only when its description
-  matches the task; read that skill's `SKILL.md` and referenced files on demand.
+## Modern.js docs
+
+Before changing Modern.js code, read the relevant version-matched page under
+`node_modules/@modern-js/app-tools/docs/`. If missing, use
+https://modernjs.dev/llms.txt.
+
+Modern.js v3 uses `src/routes/`, `modern.config.ts` with `defineConfig`, and
+`modern dev|build|serve`. There is no `modern new` command.
+
+<!-- END:modernjs-agent-rules -->

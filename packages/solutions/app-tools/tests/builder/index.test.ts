@@ -4,6 +4,16 @@ import path from 'path';
 import { createBuilderProviderConfig } from '../../src/builder/generator/createBuilderProviderConfig';
 import { getBuilderEnvironments } from '../../src/builder/generator/getBuilderEnvironments';
 
+const linkTestPackage = (
+  appDirectory: string,
+  packageName: string,
+  packageDirectory: string,
+) => {
+  const linkPath = path.join(appDirectory, 'node_modules', packageName);
+  fs.mkdirSync(path.dirname(linkPath), { recursive: true });
+  fs.symlinkSync(fs.realpathSync(packageDirectory), linkPath, 'junction');
+};
+
 describe('create builder Options', () => {
   it('test create builder environments config', () => {
     const appContext = {
@@ -143,10 +153,37 @@ describe('create builder Options', () => {
     );
     const apiDirectory = path.join(appDirectory, 'api');
 
-    fs.mkdirSync(apiDirectory, { recursive: true });
-    fs.writeFileSync(path.join(apiDirectory, 'index.ts'), '');
-
     try {
+      fs.mkdirSync(apiDirectory, { recursive: true });
+      fs.writeFileSync(path.join(apiDirectory, 'index.ts'), '');
+
+      const packagesDirectory = path.resolve(__dirname, '../../../..');
+      const runtimeDirectory = path.join(
+        packagesDirectory,
+        'runtime/plugin-runtime',
+      );
+      linkTestPackage(appDirectory, '@modern-js/runtime', runtimeDirectory);
+      linkTestPackage(
+        appDirectory,
+        '@modern-js/render',
+        path.join(packagesDirectory, 'runtime/render'),
+      );
+      linkTestPackage(
+        appDirectory,
+        '@tanstack/router-core',
+        path.join(
+          packagesDirectory,
+          'runtime/plugin-tanstack/node_modules/@tanstack/router-core',
+        ),
+      );
+      for (const packageName of ['@loadable/server', 'react', 'react-dom']) {
+        linkTestPackage(
+          appDirectory,
+          packageName,
+          path.join(runtimeDirectory, 'node_modules', packageName),
+        );
+      }
+
       const appContext = {
         appDirectory,
         apiDirectory,
@@ -528,6 +565,28 @@ describe('create builder provider config', () => {
     );
 
     expect(builderConfig.dev?.startUrl).toEqual('/xxx');
+  });
+
+  it('should not pass dev.mockDir to Builder', () => {
+    const config = {
+      source: {},
+      output: {},
+      dev: {
+        mockDir: './mocks',
+      },
+    };
+    const appContext = {
+      appDirectory: `/fixtures`,
+      configDir: './icons',
+    };
+
+    const builderConfig = createBuilderProviderConfig(
+      config as any,
+      appContext as any,
+    );
+
+    expect(builderConfig.dev?.mockDir).toBeUndefined();
+    expect(config.dev.mockDir).toBe('./mocks');
   });
 
   it('should not mutate source.preEntry when removing it from builder config', () => {
