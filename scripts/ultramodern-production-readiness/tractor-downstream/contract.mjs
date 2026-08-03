@@ -40,6 +40,26 @@ const requiredTractorCheckIds = Object.freeze([
   'final-visible-ui-source',
 ]);
 const requiredVisibleRuntimePlatforms = Object.freeze(['node', 'workerd']);
+const reviewedTractorTopology = Object.freeze({
+  backendAppIds: Object.freeze(['checkout', 'decide', 'explore']),
+  visibleWorkflowRoutePatterns: Object.freeze([
+    '^/en/tractors$',
+    '^/en/tractors/[^/?#]+\\?sku=[^&#]+$',
+    '^/en/cart\\?sku=[^&#]+$',
+    '^/en/checkout$',
+    '^/en/checkout/thank-you$',
+  ]),
+  shellRemoteBoundaryCandidates: Object.freeze({
+    checkout: Object.freeze(['checkout', 'verticalCheckout']),
+    decide: Object.freeze(['decide', 'verticalDecide']),
+    explore: Object.freeze(['explore', 'verticalExplore']),
+  }),
+  ssrVerticalIds: Object.freeze(['checkout', 'decide', 'explore']),
+});
+const tractorTopologiesByBaseline = Object.freeze({
+  '2cb6e1c939686b1dfd5cbfb594198512fa9d04f7': reviewedTractorTopology,
+  '3a9ac349f8f52662d451030aa86ba142ca01973d': reviewedTractorTopology,
+});
 const forbiddenRouteSearchPatterns = Object.freeze([
   {
     label: 'URLSearchParams',
@@ -347,4 +367,5 @@ export {
   requiredTractorCheckIds,
   requiredVisibleRuntimePlatforms,
   snapshotProtectedUi,
+  tractorTopologiesByBaseline,
 };

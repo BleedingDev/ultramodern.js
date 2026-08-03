@@ -187,8 +187,14 @@ async function createEvidenceFixture() {
     publishedReceiptPath,
     publishedOperationalEvidencePath,
   );
-  const tractorBaselineRevision = '2'.repeat(40);
+  const tractorBaselineRevision = '3a9ac349f8f52662d451030aa86ba142ca01973d';
   const uiSha256 = digest('tractor visible ui');
+  const verticalIds = ['checkout', 'decide', 'explore'];
+  const boundaryCandidates = {
+    checkout: ['checkout', 'verticalCheckout'],
+    decide: ['decide', 'verticalDecide'],
+    explore: ['explore', 'verticalExplore'],
+  };
   const assertions = types => types.map(type => ({ status: 'pass', type }));
   const nodeSsrResult = (appId, noJavaScriptType) => {
     const httpAssertionTypes = [
@@ -211,22 +217,24 @@ async function createEvidenceFixture() {
     ];
     const noJavaScriptAssertions = assertions(noJavaScriptAssertionTypes);
     if (appId === 'shell-super-app') {
+      noJavaScriptAssertions.find(
+        assertion => assertion.type === 'no-js-distributed-ssr-route',
+      ).route = '/en/tractors/example';
       Object.assign(
         noJavaScriptAssertions.find(
           assertion => assertion.type === 'no-js-shell-composition-boundary',
         ),
         {
-          declaredRemoteIds: ['inventory'],
-          matchedRemoteBoundaries: [
-            { boundaryId: 'inventory-boundary', remoteId: 'inventory' },
-          ],
-          triedRemoteBoundaries: [
-            {
-              matchedBoundaryId: 'inventory-boundary',
-              remoteId: 'inventory',
-              triedBoundaryIds: ['inventory-boundary'],
-            },
-          ],
+          declaredRemoteIds: verticalIds,
+          matchedRemoteBoundaries: verticalIds.map(remoteId => ({
+            boundaryId: remoteId,
+            remoteId,
+          })),
+          triedRemoteBoundaries: verticalIds.map(remoteId => ({
+            matchedBoundaryId: remoteId,
+            remoteId,
+            triedBoundaryIds: boundaryCandidates[remoteId],
+          })),
         },
       );
     }
@@ -251,9 +259,28 @@ async function createEvidenceFixture() {
           id: 'ui-baseline',
           status: 'passed',
         },
+        {
+          detail: {
+            createPackage: `@bleedingdev/modern-js-create@${release.version}`,
+            version: release.version,
+          },
+          id: 'exact-create-migration',
+          status: 'passed',
+        },
+        {
+          detail: {
+            dependencyObservationCount: 1,
+            generatedCohort: {
+              packageCount: definitions.length,
+              projectionSchema: 'bleedingdev.ultramodern.release-cohort',
+              projectionSchemaVersion: 1,
+              version: release.version,
+            },
+          },
+          id: 'exact-cohort',
+          status: 'passed',
+        },
         ...[
-          'exact-create-migration',
-          'exact-cohort',
           'native-tanstack-search',
           'migration-preserves-visible-ui-source',
           'install---frozen-lockfile',
@@ -263,16 +290,22 @@ async function createEvidenceFixture() {
           'node:proof',
         ].map(id => ({ detail: { id }, id, status: 'passed' })),
         {
-          detail: { appIds: ['inventory'], resultCount: 1, status: 'pass' },
+          detail: {
+            appIds: verticalIds,
+            resultCount: verticalIds.length,
+            status: 'pass',
+          },
           id: 'node-backend-federation-executed',
           status: 'passed',
         },
         {
           detail: {
-            appCount: 2,
+            appCount: verticalIds.length + 1,
             distributedSsrRoute: '/en/tractors/example',
             results: [
-              nodeSsrResult('inventory', 'no-js-ssr-ui-marker'),
+              ...verticalIds.map(appId =>
+                nodeSsrResult(appId, 'no-js-ssr-ui-marker'),
+              ),
               nodeSsrResult('shell-super-app', 'no-js-distributed-ssr-route'),
             ],
             status: 'pass',
@@ -281,7 +314,17 @@ async function createEvidenceFixture() {
           status: 'passed',
         },
         {
-          detail: { assertionCount: 5, platform: 'node' },
+          detail: {
+            assertionCount: 5,
+            platform: 'node',
+            routes: [
+              '/en/tractors',
+              '/en/tractors/example?sku=EX-01',
+              '/en/cart?sku=EX-01',
+              '/en/checkout',
+              '/en/checkout/thank-you',
+            ],
+          },
           id: 'node-visible-tractor-workflow',
           status: 'passed',
         },
@@ -291,7 +334,17 @@ async function createEvidenceFixture() {
           status: 'passed',
         },
         {
-          detail: { assertionCount: 5, platform: 'workerd' },
+          detail: {
+            assertionCount: 5,
+            platform: 'workerd',
+            routes: [
+              '/en/tractors',
+              '/en/tractors/example?sku=EX-01',
+              '/en/cart?sku=EX-01',
+              '/en/checkout',
+              '/en/checkout/thank-you',
+            ],
+          },
           id: 'workerd-visible-tractor-workflow',
           status: 'passed',
         },
@@ -710,6 +763,44 @@ test('publish outcome rejects incomplete receipt, operational evidence, and Trac
       pattern: /every required check/u,
     },
     {
+      label: 'forged exact create migration detail',
+      mutate(fixture) {
+        const report = JSON.parse(
+          fs.readFileSync(fixture.tractorReportPath, 'utf8'),
+        );
+        report.checks.find(
+          check => check.id === 'exact-create-migration',
+        ).detail.createPackage = 'attacker-package@latest';
+        fs.writeFileSync(
+          fixture.tractorReportPath,
+          `${JSON.stringify(report)}\n`,
+        );
+        fixture.tractorReportSha256 = digest(
+          fs.readFileSync(fixture.tractorReportPath),
+        );
+      },
+      pattern: /exact-create migration/u,
+    },
+    {
+      label: 'forged exact cohort detail',
+      mutate(fixture) {
+        const report = JSON.parse(
+          fs.readFileSync(fixture.tractorReportPath, 'utf8'),
+        );
+        report.checks.find(
+          check => check.id === 'exact-cohort',
+        ).detail.generatedCohort.packageCount = 1;
+        fs.writeFileSync(
+          fixture.tractorReportPath,
+          `${JSON.stringify(report)}\n`,
+        );
+        fixture.tractorReportSha256 = digest(
+          fs.readFileSync(fixture.tractorReportPath),
+        );
+      },
+      pattern: /exact cohort/u,
+    },
+    {
       label: 'malformed Node SSR proof',
       mutate(fixture) {
         const report = JSON.parse(
@@ -729,7 +820,7 @@ test('publish outcome rejects incomplete receipt, operational evidence, and Trac
       pattern: /server-rendered SSR evidence/u,
     },
     {
-      label: 'incomplete Node SSR app set',
+      label: 'coherently reduced Node SSR app set',
       mutate(fixture) {
         const report = JSON.parse(
           fs.readFileSync(fixture.tractorReportPath, 'utf8'),
@@ -737,8 +828,53 @@ test('publish outcome rejects incomplete receipt, operational evidence, and Trac
         const backend = report.checks.find(
           check => check.id === 'node-backend-federation-executed',
         ).detail;
-        backend.appIds.push('checkout');
+        backend.appIds = backend.appIds.filter(appId => appId !== 'checkout');
         backend.resultCount = backend.appIds.length;
+        const ssr = report.checks.find(
+          check => check.id === 'node-server-rendered-ssr-executed',
+        ).detail;
+        ssr.results = ssr.results.filter(result => result.appId !== 'checkout');
+        ssr.appCount = ssr.results.length;
+        const composition = ssr.results
+          .find(result => result.appId === 'shell-super-app')
+          .noJavaScriptAssertions.find(
+            assertion => assertion.type === 'no-js-shell-composition-boundary',
+          );
+        composition.declaredRemoteIds = composition.declaredRemoteIds.filter(
+          appId => appId !== 'checkout',
+        );
+        composition.matchedRemoteBoundaries =
+          composition.matchedRemoteBoundaries.filter(
+            boundary => boundary.remoteId !== 'checkout',
+          );
+        composition.triedRemoteBoundaries =
+          composition.triedRemoteBoundaries.filter(
+            boundary => boundary.remoteId !== 'checkout',
+          );
+        fs.writeFileSync(
+          fixture.tractorReportPath,
+          `${JSON.stringify(report)}\n`,
+        );
+        fixture.tractorReportSha256 = digest(
+          fs.readFileSync(fixture.tractorReportPath),
+        );
+      },
+      pattern: /reviewed topology/u,
+    },
+    {
+      label: 'failing assertion appended to passing Node SSR proof',
+      mutate(fixture) {
+        const report = JSON.parse(
+          fs.readFileSync(fixture.tractorReportPath, 'utf8'),
+        );
+        const result = report.checks
+          .find(check => check.id === 'node-server-rendered-ssr-executed')
+          .detail.results.find(item => item.appId === 'explore');
+        result.httpAssertions.push({
+          status: 'fail',
+          type: 'effect-readiness',
+        });
+        result.httpAssertionTypes.push('effect-readiness');
         fs.writeFileSync(
           fixture.tractorReportPath,
           `${JSON.stringify(report)}\n`,
@@ -748,6 +884,63 @@ test('publish outcome rejects incomplete receipt, operational evidence, and Trac
         );
       },
       pattern: /server-rendered SSR evidence/u,
+    },
+    {
+      label: 'empty distributed SSR route',
+      mutate(fixture) {
+        const report = JSON.parse(
+          fs.readFileSync(fixture.tractorReportPath, 'utf8'),
+        );
+        report.checks.find(
+          check => check.id === 'node-server-rendered-ssr-executed',
+        ).detail.distributedSsrRoute = '';
+        fs.writeFileSync(
+          fixture.tractorReportPath,
+          `${JSON.stringify(report)}\n`,
+        );
+        fixture.tractorReportSha256 = digest(
+          fs.readFileSync(fixture.tractorReportPath),
+        );
+      },
+      pattern: /server-rendered SSR evidence/u,
+    },
+    {
+      label: 'self-attested distributed SSR route',
+      mutate(fixture) {
+        const report = JSON.parse(
+          fs.readFileSync(fixture.tractorReportPath, 'utf8'),
+        );
+        report.checks.find(
+          check => check.id === 'node-server-rendered-ssr-executed',
+        ).detail.distributedSsrRoute = '/';
+        fs.writeFileSync(
+          fixture.tractorReportPath,
+          `${JSON.stringify(report)}\n`,
+        );
+        fixture.tractorReportSha256 = digest(
+          fs.readFileSync(fixture.tractorReportPath),
+        );
+      },
+      pattern: /server-rendered SSR evidence/u,
+    },
+    {
+      label: 'forged visible workflow route coverage',
+      mutate(fixture) {
+        const report = JSON.parse(
+          fs.readFileSync(fixture.tractorReportPath, 'utf8'),
+        );
+        report.checks.find(
+          check => check.id === 'node-visible-tractor-workflow',
+        ).detail.routes = Array(5).fill('/en/tractors');
+        fs.writeFileSync(
+          fixture.tractorReportPath,
+          `${JSON.stringify(report)}\n`,
+        );
+        fixture.tractorReportSha256 = digest(
+          fs.readFileSync(fixture.tractorReportPath),
+        );
+      },
+      pattern: /node browser workflow evidence/u,
     },
     {
       label: 'empty shell SSR composition payload',
@@ -764,6 +957,37 @@ test('publish outcome rejects incomplete receipt, operational evidence, and Trac
         composition.declaredRemoteIds = [];
         composition.matchedRemoteBoundaries = [];
         composition.triedRemoteBoundaries = [];
+        fs.writeFileSync(
+          fixture.tractorReportPath,
+          `${JSON.stringify(report)}\n`,
+        );
+        fixture.tractorReportSha256 = digest(
+          fs.readFileSync(fixture.tractorReportPath),
+        );
+      },
+      pattern: /server-rendered SSR evidence/u,
+    },
+    {
+      label: 'producer-impossible shell SSR boundary identity',
+      mutate(fixture) {
+        const report = JSON.parse(
+          fs.readFileSync(fixture.tractorReportPath, 'utf8'),
+        );
+        const composition = report.checks
+          .find(check => check.id === 'node-server-rendered-ssr-executed')
+          .detail.results.find(result => result.appId === 'shell-super-app')
+          .noJavaScriptAssertions.find(
+            assertion => assertion.type === 'no-js-shell-composition-boundary',
+          );
+        const matched = composition.matchedRemoteBoundaries.find(
+          boundary => boundary.remoteId === 'explore',
+        );
+        const tried = composition.triedRemoteBoundaries.find(
+          boundary => boundary.remoteId === 'explore',
+        );
+        matched.boundaryId = 'forged-boundary';
+        tried.matchedBoundaryId = 'forged-boundary';
+        tried.triedBoundaryIds = ['forged-boundary'];
         fs.writeFileSync(
           fixture.tractorReportPath,
           `${JSON.stringify(report)}\n`,
