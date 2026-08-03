@@ -15,20 +15,24 @@
     "modern",
     "modern.js"
   ],
-  "version": "3.5.0",
+  "version": "3.7.0",
   "types": "./dist/types/index.d.ts",
   "main": "./dist/cjs/index.js",
   "exports": {
     ".": {
       "types": "./dist/types/index.d.ts",
-      "import": "./dist/esm-node/index.mjs",
-      "require": "./dist/cjs/index.js",
+      "node": {
+        "import": "./dist/esm-node/index.mjs",
+        "require": "./dist/cjs/index.js"
+      },
       "default": "./dist/cjs/index.js"
     },
     "./builder": {
       "types": "./dist/types/builder/index.d.ts",
-      "import": "./dist/esm-node/builder/index.mjs",
-      "require": "./dist/cjs/builder/index.js",
+      "node": {
+        "import": "./dist/esm-node/builder/index.mjs",
+        "require": "./dist/cjs/builder/index.js"
+      },
       "default": "./dist/cjs/builder/index.js"
     },
     "./config": {
@@ -39,14 +43,18 @@
     },
     "./cli": {
       "types": "./dist/types/index.d.ts",
-      "import": "./dist/esm-node/index.mjs",
-      "require": "./dist/cjs/index.js",
+      "node": {
+        "import": "./dist/esm-node/index.mjs",
+        "require": "./dist/cjs/index.js"
+      },
       "default": "./dist/cjs/index.js"
     },
     "./cli/run": {
       "types": "./dist/types/run/index.d.ts",
-      "import": "./dist/esm-node/run/index.mjs",
-      "require": "./dist/cjs/run/index.js",
+      "node": {
+        "import": "./dist/esm-node/run/index.mjs",
+        "require": "./dist/cjs/run/index.js"
+      },
       "default": "./dist/cjs/run/index.js"
     },
     "./cloudflare-output-verifier": {

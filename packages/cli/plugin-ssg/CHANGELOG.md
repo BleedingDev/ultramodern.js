@@ -1,5 +1,19 @@
 # @modern-js/plugin-ssg
 
+## 3.7.0
+
+### Patch Changes
+
+- @modern-js/prod-server@3.7.0
+- @modern-js/utils@3.7.0
+
+## 3.6.0
+
+### Patch Changes
+
+- @modern-js/prod-server@3.6.0
+- @modern-js/utils@3.6.0
+
 ## 3.5.0
 
 ### Patch Changes

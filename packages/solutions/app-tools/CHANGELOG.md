@@ -1,5 +1,44 @@
 # @modern-js/app-tools
 
+## 3.7.0
+
+### Minor Changes
+
+- 65dd786: feat(builder): add `source.reactCompiler` to enable React Compiler via Rspack's built-in SWC implementation
+  feat(builder): 新增 `source.reactCompiler` 配置，基于 Rspack 内置 SWC 的 Rust 版 React Compiler 提供一键开启能力
+
+### Patch Changes
+
+- Updated dependencies [65dd786]
+  - @modern-js/builder@3.7.0
+  - @modern-js/server@3.7.0
+  - @modern-js/plugin@3.7.0
+  - @modern-js/plugin-data-loader@3.7.0
+  - @modern-js/server-core@3.7.0
+  - @modern-js/prod-server@3.7.0
+  - @modern-js/server-utils@3.7.0
+  - @modern-js/i18n-utils@3.7.0
+  - @modern-js/types@3.7.0
+  - @modern-js/utils@3.7.0
+
+## 3.6.0
+
+### Patch Changes
+
+- Updated dependencies [c69486b]
+- Updated dependencies [c34b53d]
+- Updated dependencies [70d8300]
+  - @modern-js/server-core@3.6.0
+  - @modern-js/plugin-data-loader@3.6.0
+  - @modern-js/server@3.6.0
+  - @modern-js/prod-server@3.6.0
+  - @modern-js/server-utils@3.6.0
+  - @modern-js/plugin@3.6.0
+  - @modern-js/builder@3.6.0
+  - @modern-js/i18n-utils@3.6.0
+  - @modern-js/types@3.6.0
+  - @modern-js/utils@3.6.0
+
 ## 3.5.0
 
 ### Minor Changes

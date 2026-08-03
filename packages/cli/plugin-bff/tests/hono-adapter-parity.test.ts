@@ -143,7 +143,11 @@ describe('hono adapter parity (bff-core scenario table)', () => {
         req: {
           raw: new Request('http://localhost/api/maintenance'),
           path: '/api/maintenance',
+          routePath: '/api/maintenance',
           method: 'GET',
+          param: () => ({}),
+          query: () => ({}),
+          header: () => undefined,
         },
         env: {},
       } as unknown,

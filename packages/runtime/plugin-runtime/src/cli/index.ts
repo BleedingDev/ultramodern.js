@@ -89,14 +89,12 @@ export const runtimePlugin = (params?: {
     api.config(() => {
       const { appDirectory, metaName } = api.getAppContext();
 
-      const isReact18 = checkIsReact18(appDirectory);
-
-      process.env.IS_REACT18 = isReact18.toString();
-
       return {
         source: {
           globalVars: {
-            'process.env.IS_REACT18': process.env.IS_REACT18,
+            // The runtime itself no longer reads this, but user code may.
+            // React >=18 is required now, so it is always 'true'.
+            'process.env.IS_REACT18': 'true',
           },
           include: [
             new RegExp(
@@ -114,19 +112,6 @@ export const runtimePlugin = (params?: {
               )
               .end()
               .sideEffects(true);
-          },
-          /**
-           * Add IgnorePlugin to fix react-dom/client import error when use react17
-           */
-          rspack: (_config, { appendPlugins, rspack }) => {
-            if (!isReact18) {
-              appendPlugins([
-                new rspack.IgnorePlugin({
-                  resourceRegExp: /^react-dom\/client$/,
-                  contextRegExp: /@modern-js\/runtime/,
-                }),
-              ]);
-            }
           },
         },
       };
