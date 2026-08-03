@@ -16,7 +16,7 @@
     "@vercel/ncc": "0.44.1",
     "dts-packer": "0.0.3",
     "import-meta-resolve": "^4.2.0",
-    "postcss": "^8.5.16",
+    "postcss": "^8.5.18",
     "typescript": "^7.0.2"
   },
   "devDependencies": {
