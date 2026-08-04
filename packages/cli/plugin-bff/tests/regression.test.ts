@@ -72,7 +72,12 @@ describe('plugin-bff regressions', () => {
     for (const [peerName, peerRange] of Object.entries(
       openTelemetryPackage.peerDependencies ?? {},
     )) {
-      const dependencyRange = packageJson.dependencies[peerName];
+      // `effect` is declared as an optional exact peer (not a dependency) so a
+      // consumer keeps a single Effect Context/Service identity; every other
+      // @effect/opentelemetry peer stays a hard dependency.
+      const dependencyRange =
+        packageJson.dependencies[peerName] ??
+        packageJson.peerDependencies?.[peerName];
       expect({
         compatible: semver.subset(dependencyRange, peerRange as string, {
           includePrerelease: true,
@@ -87,6 +92,63 @@ describe('plugin-bff regressions', () => {
         peerRange,
       });
     }
+
+    // FORK: upstream's plugin-bff has no `effect` dependency and no
+    // `peerDependencies` block at all — the whole peer/optional-peer/devDep
+    // triple below is fork-added (see FORK-DIVERGENCE.md, packages/cli
+    // plugin-bff). A sync merge that takes "theirs" on package.json silently
+    // drops the peer and reintroduces the duplicate-Effect-identity defect.
+    //
+    // `@effect/opentelemetry` MUST move with `effect`: it declares a REQUIRED
+    // (non-optional) `effect` peer of its own, so leaving it in `dependencies`
+    // would re-impose that peer on every hono-only consumer transitively and
+    // make the "optional" claim false.
+    for (const name of ['effect', '@effect/opentelemetry']) {
+      expect({
+        name,
+        dependency: packageJson.dependencies[name],
+        peer: packageJson.peerDependencies?.[name],
+        optional: packageJson.peerDependenciesMeta?.[name]?.optional,
+        dev: packageJson.devDependencies?.[name],
+      }).toEqual({
+        name,
+        dependency: undefined,
+        peer: packageJson.devDependencies?.[name],
+        optional: true,
+        dev: expect.stringMatching(/^\d+\.\d+\.\d+(-[\w.]+)?$/),
+      });
+    }
+    // The whole Effect cohort moves in lockstep at one exact version.
+    expect(packageJson.devDependencies['@effect/opentelemetry']).toBe(
+      packageJson.devDependencies.effect,
+    );
+  });
+
+  test('server entry does not eagerly load Effect', () => {
+    // FORK: `@modern-js/plugin-bff/server-plugin` must load for a hono-only
+    // consumer that has NOT installed the optional `effect` peer. A static
+    // import of EffectAdapter pulls effect/Effect, effect/Layer, effect/Schema
+    // and effect/unstable/http* into the eager module graph and the entry
+    // throws ERR_MODULE_NOT_FOUND. src/server.ts loads the adapter through a
+    // dynamic import instead; this asserts the source, so it holds before the
+    // bundle is even built.
+    const serverSource = fs.readFileSync(
+      path.resolve(__dirname, '../src/server.ts'),
+      'utf8',
+    );
+    const staticImports = [
+      ...serverSource.matchAll(/^\s*import\s[^\n]*?from\s+'([^']+)'/gm),
+    ].map(([, specifier]) => specifier);
+    expect(
+      staticImports.filter(
+        specifier =>
+          specifier === 'effect' ||
+          specifier.startsWith('effect/') ||
+          specifier.startsWith('@effect/') ||
+          specifier.includes('runtime/effect/'),
+      ),
+    ).toEqual([]);
+    expect(serverSource).toContain("await import('./runtime/effect/adapter')");
   });
 
   const backendEffectApiModuleUrl = (remoteName = 'verticalExploreBackend') =>

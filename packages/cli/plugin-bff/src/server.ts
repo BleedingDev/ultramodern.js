@@ -10,7 +10,6 @@ import type {
 import type { ServerNodeMiddleware } from '@modern-js/server-core/node';
 import { API_DIR, isFunction, isWebOnly } from '@modern-js/utils';
 import path from 'path';
-import { EffectAdapter } from './runtime/effect/adapter';
 import { HonoAdapter } from './runtime/hono/adapter';
 
 type ApiMiddlewareRegistration = unknown;
@@ -25,15 +24,25 @@ type RuntimeAdapter = {
   registerMiddleware: (options: RuntimeAdapterOptions) => Promise<void>;
 };
 
-type RuntimeAdapterFactory = (api: ServerPluginAPI) => RuntimeAdapter;
+type RuntimeAdapterLoader = (api: ServerPluginAPI) => Promise<RuntimeAdapter[]>;
 
-const RUNTIME_ADAPTER_FACTORIES: Record<
-  RuntimeFramework,
-  RuntimeAdapterFactory[]
-> = {
-  hono: [api => new HonoAdapter(api)],
-  effect: [api => new EffectAdapter(api)],
-};
+// FORK: the Effect adapter is loaded through a DYNAMIC import so that `effect`
+// and `@effect/opentelemetry` are genuinely optional peers. A static
+// `import { EffectAdapter } from './runtime/effect/adapter'` here made
+// `@modern-js/plugin-bff/server-plugin` pull `effect/Effect`, `effect/Layer`,
+// `effect/Schema`, `effect/unstable/http*` and friends into the module graph
+// eagerly, so a hono-only consumer without Effect installed crashed on import
+// with ERR_MODULE_NOT_FOUND. Upstream has no Effect lane at all; do NOT
+// collapse this back to a static import on a sync merge.
+// Guard: tests/regression.test.ts ("server entry does not eagerly load Effect").
+const RUNTIME_ADAPTER_LOADERS: Record<RuntimeFramework, RuntimeAdapterLoader> =
+  {
+    hono: async api => [new HonoAdapter(api)],
+    effect: async api => {
+      const { EffectAdapter } = await import('./runtime/effect/adapter');
+      return [new EffectAdapter(api)];
+    },
+  };
 
 const normalizePrefixList = (prefix: string | string[] | undefined) => {
   if (Array.isArray(prefix)) {
@@ -72,9 +81,6 @@ export default (): ServerPlugin => ({
     const appContext = api.getServerContext();
     const runtimeFramework = resolveRuntimeFramework(
       appContext.bffRuntimeFramework,
-    );
-    const runtimeAdapters = RUNTIME_ADAPTER_FACTORIES[runtimeFramework].map(
-      createAdapter => createAdapter(api),
     );
 
     api.onPrepare(async () => {
@@ -140,6 +146,8 @@ export default (): ServerPlugin => ({
         }
       }
 
+      const runtimeAdapters =
+        await RUNTIME_ADAPTER_LOADERS[runtimeFramework](api);
       await Promise.all(
         runtimeAdapters.map(adapter =>
           adapter.registerMiddleware({

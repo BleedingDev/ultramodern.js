@@ -158,7 +158,6 @@
     "test": "rstest --passWithNoTests"
   },
   "dependencies": {
-    "@effect/opentelemetry": "4.0.0-beta.97",
     "@modern-js/bff-core": "workspace:*",
     "@modern-js/builder": "workspace:*",
     "@modern-js/create-request": "workspace:*",
@@ -178,11 +177,23 @@
     "@swc/core": "1.15.43",
     "@swc/helpers": "^0.5.23",
     "esbuild": "^0.28.1",
-    "effect": "4.0.0-beta.97",
     "qs": "^6.15.3",
     "type-is": "^2.1.0"
   },
+  "peerDependencies": {
+    "@effect/opentelemetry": "4.0.0-beta.102",
+    "effect": "4.0.0-beta.102"
+  },
+  "peerDependenciesMeta": {
+    "@effect/opentelemetry": {
+      "optional": true
+    },
+    "effect": {
+      "optional": true
+    }
+  },
   "devDependencies": {
+    "@effect/opentelemetry": "4.0.0-beta.102",
     "@modern-js/app-tools": "workspace:*",
     "@modern-js/bff-runtime": "workspace:*",
     "@modern-js/plugin": "workspace:*",
@@ -196,6 +207,7 @@
     "@types/qs": "^6.15.1",
     "@types/type-is": "^1.6.7",
     "@typescript/native-preview": "7.0.0-dev.20260707.2",
+    "effect": "4.0.0-beta.102",
     "memfs": "^4.64.0",
     "typescript": "^7.0.2",
     "zod": "^4.4.3"

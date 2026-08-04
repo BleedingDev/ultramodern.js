@@ -423,6 +423,10 @@ test('a stale source projection cannot authorize local generation', () => {
   }
 });
 
+// FORK: guards a fork-only manifest shape. Upstream plugin-bff declares no
+// `effect` dependency and no `peerDependencies` block, so this test only fails
+// when a sync merge reverts the fork side of
+// packages/cli/plugin-bff/package.json.
 test('plugin-bff declares the same Effect cohort generated workspaces pin', () => {
   const pluginBffPackage = JSON.parse(
     fs.readFileSync(pluginBffPackagePath, 'utf-8'),
@@ -430,13 +434,42 @@ test('plugin-bff declares the same Effect cohort generated workspaces pin', () =
 
   assert.equal(
     pluginBffPackage.dependencies.effect,
+    undefined,
+    '@modern-js/plugin-bff must declare Effect as a peer so consumers keep a single Effect identity',
+  );
+  assert.equal(
+    pluginBffPackage.peerDependencies.effect,
     EFFECT_VERSION,
     '@modern-js/plugin-bff must not force a different Effect version than generated pnpm overrides',
   );
   assert.equal(
+    pluginBffPackage.devDependencies.effect,
+    EFFECT_VERSION,
+    '@modern-js/plugin-bff must install the Effect cohort locally (autoInstallPeers is disabled)',
+  );
+  // `@effect/opentelemetry` declares a REQUIRED `effect` peer of its own, so it
+  // must move with `effect` into the optional-peer lane. Leaving it in
+  // `dependencies` would re-impose that peer on every hono-only consumer
+  // transitively and make the optional `effect` peer a fiction.
+  assert.equal(
     pluginBffPackage.dependencies['@effect/opentelemetry'],
+    undefined,
+    '@modern-js/plugin-bff must declare @effect/opentelemetry as a peer, not a dependency',
+  );
+  assert.equal(
+    pluginBffPackage.peerDependencies['@effect/opentelemetry'],
     EFFECT_VERSION,
     '@modern-js/plugin-bff must keep @effect/opentelemetry on the generated Effect cohort',
+  );
+  assert.equal(
+    pluginBffPackage.peerDependenciesMeta['@effect/opentelemetry'].optional,
+    true,
+    '@modern-js/plugin-bff must keep the @effect/opentelemetry peer optional',
+  );
+  assert.equal(
+    pluginBffPackage.devDependencies['@effect/opentelemetry'],
+    EFFECT_VERSION,
+    '@modern-js/plugin-bff must install @effect/opentelemetry locally (autoInstallPeers is disabled)',
   );
   assert.doesNotMatch(
     JSON.stringify(pluginBffPackage),

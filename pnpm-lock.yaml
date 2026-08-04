@@ -180,11 +180,11 @@ importers:
         specifier: ^19.2.7
         version: 19.2.7(react@19.2.7)
       zephyr-modernjs-plugin:
-        specifier: 1.1.0
-        version: 1.1.0(@modern-js/app-tools@3.7.0(@module-federation/runtime-tools@2.8.0)(@rspack/core@2.1.3(@module-federation/runtime-tools@2.8.0)(@swc/helpers@0.5.23))(@typescript/native-preview@7.0.0-dev.20260707.2)(bufferutil@4.1.0)(core-js@3.49.0)(react-dom@19.2.7(react@19.2.7))(react-server-dom-rspack@0.0.2(@rspack/core@2.1.3(@module-federation/runtime-tools@2.8.0)(@swc/helpers@0.5.23))(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(supports-color@8.1.1)(ts-node@10.9.2(@swc/core@1.15.43(@swc/helpers@0.5.23))(@types/node@20.19.43)(typescript@5.7.3))(tsconfig-paths@4.2.0)(typescript@5.7.3)(utf-8-validate@5.0.10))(supports-color@8.1.1)(zephyr-rspack-plugin@1.1.0(@rspack/core@2.1.3(@module-federation/runtime-tools@2.8.0)(@swc/helpers@0.5.23))(supports-color@8.1.1))
+        specifier: 1.2.1
+        version: 1.2.1(@modern-js/app-tools@3.7.0(@module-federation/runtime-tools@2.8.0)(@rspack/core@2.1.3(@module-federation/runtime-tools@2.8.0)(@swc/helpers@0.5.23))(@typescript/native-preview@7.0.0-dev.20260707.2)(bufferutil@4.1.0)(core-js@3.49.0)(react-dom@19.2.7(react@19.2.7))(react-server-dom-rspack@0.0.2(@rspack/core@2.1.3(@module-federation/runtime-tools@2.8.0)(@swc/helpers@0.5.23))(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(supports-color@8.1.1)(ts-node@10.9.2(@swc/core@1.15.43(@swc/helpers@0.5.23))(@types/node@20.19.43)(typescript@5.7.3))(tsconfig-paths@4.2.0)(typescript@5.7.3)(utf-8-validate@5.0.10))(supports-color@8.1.1)(zephyr-rspack-plugin@1.2.1(@rspack/core@2.1.3(@module-federation/runtime-tools@2.8.0)(@swc/helpers@0.5.23))(supports-color@8.1.1))
       zephyr-rspack-plugin:
-        specifier: 1.1.0
-        version: 1.1.0(@rspack/core@2.1.3(@module-federation/runtime-tools@2.8.0)(@swc/helpers@0.5.23))(supports-color@8.1.1)
+        specifier: 1.2.1
+        version: 1.2.1(@rspack/core@2.1.3(@module-federation/runtime-tools@2.8.0)(@swc/helpers@0.5.23))(supports-color@8.1.1)
     devDependencies:
       '@biomejs/biome':
         specifier: 1.9.4
@@ -1096,9 +1096,6 @@ importers:
 
   packages/cli/plugin-bff:
     dependencies:
-      '@effect/opentelemetry':
-        specifier: 4.0.0-beta.97
-        version: 4.0.0-beta.97(@opentelemetry/api-logs@0.220.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.220.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-node@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-beta.97)
       '@modern-js/bff-core':
         specifier: workspace:*
         version: link:../../server/bff-core
@@ -1153,9 +1150,6 @@ importers:
       '@swc/helpers':
         specifier: ^0.5.23
         version: 0.5.23
-      effect:
-        specifier: 4.0.0-beta.97
-        version: 4.0.0-beta.97
       esbuild:
         specifier: '>=0.28.1'
         version: 0.28.1
@@ -1166,6 +1160,9 @@ importers:
         specifier: ^2.1.0
         version: 2.1.0
     devDependencies:
+      '@effect/opentelemetry':
+        specifier: 4.0.0-beta.102
+        version: 4.0.0-beta.102(@opentelemetry/api-logs@0.220.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.220.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-node@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-beta.102)
       '@modern-js/app-tools':
         specifier: workspace:*
         version: link:../../solutions/app-tools
@@ -1205,6 +1202,9 @@ importers:
       '@typescript/native-preview':
         specifier: 7.0.0-dev.20260707.2
         version: 7.0.0-dev.20260707.2
+      effect:
+        specifier: 4.0.0-beta.102
+        version: 4.0.0-beta.102
       memfs:
         specifier: ^4.64.0
         version: 4.64.0
@@ -7830,8 +7830,8 @@ packages:
   '@cypress/xvfb@1.2.4':
     resolution: {integrity: sha512-skbBzPggOVYCbnGgV+0dmBdW/s77ZkAOXIC1knS8NagwDjBrNC1LuXtQJeiN6l+m7lzmHtaoUw/ctJKdqkG57Q==}
 
-  '@effect/opentelemetry@4.0.0-beta.97':
-    resolution: {integrity: sha512-x9yPmb8K8D0GLlGogz28VpKN6q5va9Zvti8kA3Mq1DgTIQf2641Tt6UbhlYfvHxjtwE/mVgztuuapjN8qlDLBw==}
+  '@effect/opentelemetry@4.0.0-beta.102':
+    resolution: {integrity: sha512-U15cxJ1uf3+HMnZB0BUQe3U4TuyIPYxSHJ+wEzkF4ZjteN224hsgeTgsyXSFjSIpWDVWfujdGPqmtkDpcMzf6w==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       '@opentelemetry/api': ^1.9
@@ -7843,7 +7843,7 @@ packages:
       '@opentelemetry/sdk-trace-node': ^2.0.0
       '@opentelemetry/sdk-trace-web': ^2.0.0
       '@opentelemetry/semantic-conventions': ^1.33.0
-      effect: ^4.0.0-beta.97
+      effect: ^4.0.0-beta.102
     peerDependenciesMeta:
       '@opentelemetry/api':
         optional: true
@@ -12019,6 +12019,10 @@ packages:
   '@types/parse-json@4.0.2':
     resolution: {integrity: sha512-dISoDXWWQwUquiKsyZ4Ng+HX2KsPL7LyHKHQwgGFEA3IaKac4Obd+h2a/a6waisAoepJlBcx9paWqjA8/HVjCw==}
 
+  '@types/parse-path@7.1.0':
+    resolution: {integrity: sha512-EULJ8LApcVEPbrfND0cRQqutIOdiIgJ1Mgrhpy755r14xMohPTEpkV/k28SJvuOs9bHRFW8x+KeDAEPiGQPB9Q==}
+    deprecated: This is a stub types definition. parse-path provides its own type definitions, so you do not need this installed.
+
   '@types/qs@6.15.1':
     resolution: {integrity: sha512-GZHUBZR9hckSUhrxmp1nG6NwdpM9fCunJwyThLW1X3AyHgd9IlHb6VANpQQqDr2o/qQp6McZ3y/IA2rVzKzSbw==}
 
@@ -14063,8 +14067,8 @@ packages:
   ee-first@1.1.1:
     resolution: {integrity: sha512-WMwm9LhRUo+WUaRN+vRuETqG89IgZphVSNkdFgeb6sS/E4OrDIN7t48CAewSHXc6C8lefD8KKfr5vY61brQlow==}
 
-  effect@4.0.0-beta.97:
-    resolution: {integrity: sha512-pK03HpQVxGZOWdwDAy/iwvV8u3KYcUf2mOWyWqaut2zau8V2u6ejWP7b4BELjyUIiZWW1fl/s/VJpgZUcTjThg==}
+  effect@4.0.0-beta.102:
+    resolution: {integrity: sha512-z8Y+Q76Hh/kjLFZrXu8tGn6e+tDsg45R+UHhxd190pXxD53OGwf/G/zDxXTkse4HJ5mobNZfitLfUCp4fMvu6w==}
 
   ejs@5.0.1:
     resolution: {integrity: sha512-COqBPFMxuPTPspXl2DkVYaDS3HtrD1GpzOGkNTJ1IYkifq/r9h8SVEFrjA3D9/VJGOEoMQcrlhpntcSUrM8k6A==}
@@ -14744,11 +14748,11 @@ packages:
     engines: {node: '>=10'}
     hasBin: true
 
-  git-up@7.0.0:
-    resolution: {integrity: sha512-ONdIrbBCFusq1Oy0sC71F5azx8bVkvtZtMJAsv+a6lz5YAmbNnLD6HAB4gptHZVLPR8S2/kVN6Gab7lryq5+lQ==}
+  git-up@8.1.1:
+    resolution: {integrity: sha512-FDenSF3fVqBYSaJoYy1KSc2wosx0gCvKP+c+PRBht7cAaiCeQlBtfBDX9vgnNOHmdePlSFITVcn4pFfcgNvx3g==}
 
-  git-url-parse@15.0.0:
-    resolution: {integrity: sha512-5reeBufLi+i4QD3ZFftcJs9jC26aULFLBU23FeKM/b1rI0K6ofIeAblmDVO7Ht22zTDE9+CkJ3ZVb0CgJmz3UQ==}
+  git-url-parse@16.1.0:
+    resolution: {integrity: sha512-cPLz4HuK86wClEW7iDdeAKcCVlWXmrLpb2L+G9goW0Z1dtpNS6BXXSOckUTlJT/LDQViE1QZKstNORzHsLnobw==}
 
   glob-parent@5.1.2:
     resolution: {integrity: sha512-AOIgSQCepiJYwP3ARnGx+5VnTu2HBYdzbGP45eLw1vr3zB3vZLeyed1sC9hnbcOc9/SrMyM5RPQrkGz4aS9Zow==}
@@ -16915,8 +16919,9 @@ packages:
   parse-path@7.1.0:
     resolution: {integrity: sha512-EuCycjZtfPcjWk7KTksnJ5xPMvWGA/6i4zrLYhRG0hGvC3GPU/jGUj3Cy+ZR0v30duV3e23R95T1lE2+lsndSw==}
 
-  parse-url@8.1.0:
-    resolution: {integrity: sha512-xDvOoLU5XRrcOZvnI6b8zA6n9O9ejNk/GExuz1yBuWUGn9KA97GI6HTs6u02wKara1CeVmZhH+0TZFdWScR89w==}
+  parse-url@9.2.0:
+    resolution: {integrity: sha512-bCgsFI+GeGWPAvAiUv63ZorMeif3/U0zaXABGJbOWt5OH2KCaPHF6S+0ok4aqM9RuIPGyZdx9tR9l13PsW4AYQ==}
+    engines: {node: '>=14.13.0'}
 
   parse5@7.3.0:
     resolution: {integrity: sha512-IInvU7fabl34qmi9gY8XOVxhYyMyuH2xUNpb2q8/Y+7552KlejkRvqvD19nMoUW/uQGGbqNpA6Tufu5FL5BZgw==}
@@ -20105,31 +20110,28 @@ packages:
     resolution: {integrity: sha512-CzhO+pFNo8ajLM2d2IW/R93ipy99LWjtwblvC1RsoSUMZgyLbYFr221TnSNT7GjGdYui6P459mw9JH/g/zW2ug==}
     engines: {node: '>=18'}
 
-  zephyr-agent@1.1.0:
-    resolution: {integrity: sha512-QuOH3Vw1TW9wFZs98akeRpw0PnNCz7RL4CG91KYl6UNvutUcvN90GKXaarQ11Ra+XsUE6qN0FhIjgKn+cQpz+A==}
+  zephyr-agent@1.2.1:
+    resolution: {integrity: sha512-jIAztXae300LG1yl6+v0s4N83xeL0Ttq/5cA6JIJdVn8YvNIZZMH1RQhJCKbjpAo+MyuXbJmi2zvu6ixB1/jgw==}
 
-  zephyr-edge-contract@1.1.0:
-    resolution: {integrity: sha512-SWvFp+pqbhddc0nj1oU6IoJtzJolzgGzxFuwz6v9aeSyOENSJfOx6Ul2he5+e0/qv+ZoctutxtUK6/761CgQLA==}
+  zephyr-edge-contract@1.2.1:
+    resolution: {integrity: sha512-IWJHnxB96cunATEp+EHDznyCHZyvBzMdD6xC4/OGV01wyocT7iHkxA6jNIe+StJrWJy/t0t43R3ewIE1EtNUpQ==}
 
-  zephyr-modernjs-plugin@1.1.0:
-    resolution: {integrity: sha512-fmevUBeSDZBBkE8oUjHrAFlytQ0hzU3qhDUe6NYG/97/BfOlAqioyy70lZvVJeh+5TvkZzfKs04Nq2QDs/BMGQ==}
+  zephyr-modernjs-plugin@1.2.1:
+    resolution: {integrity: sha512-95iU1T4LBFEIOmqjkikMakbYzVeRT8aYYsPnF4n462bGRN2dqUBaS3ktjHnXFBQrNz/Gf4txmSkchPMSFCCyXg==}
     peerDependencies:
-      '@modern-js/app-tools': ^2.0.0
-      zephyr-rspack-plugin: ^1.1.0
-      zephyr-webpack-plugin: ^1.1.0
+      '@modern-js/app-tools': ^3.0.0
+      zephyr-rspack-plugin: ^1.2.1
     peerDependenciesMeta:
       zephyr-rspack-plugin:
         optional: true
-      zephyr-webpack-plugin:
-        optional: true
 
-  zephyr-rspack-plugin@1.1.0:
-    resolution: {integrity: sha512-W6lOgXIeRQxD422QeTQvw5U3uAtAfBV5bLqtWojVtIu+2jUJ8j5UkpcLf8/h8ITJsOBlAr435pZtetDwvSvd5Q==}
+  zephyr-rspack-plugin@1.2.1:
+    resolution: {integrity: sha512-ObWEvozWs1FneSp/8LMXWlcUcwwmjhkiV8Pw35+6p7ey1IGy8WpNshiazgcptE8XxexcrxWGdTBSZQA9KWiYrw==}
     peerDependencies:
       '@rspack/core': ^1.0.0 || ^2.0.0-0
 
-  zephyr-xpack-internal@1.1.0:
-    resolution: {integrity: sha512-aC7f1Ogli3nzaOdEJkP7Mu1OXyY34Bg9Fhxl8rlxNFcavMc6vQKgXyc25ev41Hfq2gSy2OnXIwf6mMZGLlf2/Q==}
+  zephyr-xpack-internal@1.2.1:
+    resolution: {integrity: sha512-rT5yxrSgrA0HVT4TVoLs1ZnxIAYS+MvsaPdwlln+e76wC3rQ8gm/E+Q0bntH8UObYgEzAssSQwphi0O9HEzE/w==}
 
   zod-validation-error@4.0.2:
     resolution: {integrity: sha512-Q6/nZLe6jxuU80qb/4uJ4t5v2VEZ44lzQjPDhYJNztRQ4wyWc6VF3D3Kb/fAuPetZQnhS3hnajCf9CsWesghLQ==}
@@ -21863,10 +21865,10 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@effect/opentelemetry@4.0.0-beta.97(@opentelemetry/api-logs@0.220.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.220.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-node@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-beta.97)':
+  '@effect/opentelemetry@4.0.0-beta.102(@opentelemetry/api-logs@0.220.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.220.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-node@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-beta.102)':
     dependencies:
       '@opentelemetry/semantic-conventions': 1.43.0
-      effect: 4.0.0-beta.97
+      effect: 4.0.0-beta.102
     optionalDependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/api-logs': 0.220.0
@@ -26957,6 +26959,10 @@ snapshots:
 
   '@types/parse-json@4.0.2': {}
 
+  '@types/parse-path@7.1.0':
+    dependencies:
+      parse-path: 7.1.0
+
   '@types/qs@6.15.1': {}
 
   '@types/range-parser@1.2.7': {}
@@ -29303,7 +29309,7 @@ snapshots:
 
   ee-first@1.1.1: {}
 
-  effect@4.0.0-beta.97:
+  effect@4.0.0-beta.102:
     dependencies:
       '@standard-schema/spec': 1.1.0
       fast-check: 4.9.0
@@ -30119,14 +30125,14 @@ snapshots:
       fs-extra: 11.3.6
       globby: 11.1.0
 
-  git-up@7.0.0:
+  git-up@8.1.1:
     dependencies:
       is-ssh: 1.4.1
-      parse-url: 8.1.0
+      parse-url: 9.2.0
 
-  git-url-parse@15.0.0:
+  git-url-parse@16.1.0:
     dependencies:
-      git-up: 7.0.0
+      git-up: 8.1.1
 
   glob-parent@5.1.2:
     dependencies:
@@ -33248,8 +33254,9 @@ snapshots:
     dependencies:
       protocols: 2.0.2
 
-  parse-url@8.1.0:
+  parse-url@9.2.0:
     dependencies:
+      '@types/parse-path': 7.1.0
       parse-path: 7.1.0
 
   parse5@7.3.0:
@@ -36747,56 +36754,51 @@ snapshots:
 
   yoctocolors@2.1.2: {}
 
-  zephyr-agent@1.1.0(supports-color@8.1.1):
+  zephyr-agent@1.2.1(supports-color@8.1.1):
     dependencies:
       '@toon-format/toon': 0.9.0
       axios: 1.18.1(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
       axios-retry: 4.5.0(axios@1.18.1(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))
       debug: 4.4.3(supports-color@8.1.1)
       eventsource: 4.1.0
-      git-url-parse: 15.0.0
+      git-url-parse: 16.1.0
       https-proxy-agent: 7.0.6(supports-color@8.1.1)
       is-ci: 4.1.0
+      jiti: 2.7.0
       jose: 5.10.0
       node-persist: 4.0.4
       open: 10.2.0
       proper-lockfile: 4.1.2
-      tslib: 2.8.1
-      zephyr-edge-contract: 1.1.0
+      zephyr-edge-contract: 1.2.1
     transitivePeerDependencies:
       - supports-color
 
-  zephyr-edge-contract@1.1.0:
-    dependencies:
-      tslib: 2.8.1
+  zephyr-edge-contract@1.2.1: {}
 
-  zephyr-modernjs-plugin@1.1.0(@modern-js/app-tools@3.7.0(@module-federation/runtime-tools@2.8.0)(@rspack/core@2.1.3(@module-federation/runtime-tools@2.8.0)(@swc/helpers@0.5.23))(@typescript/native-preview@7.0.0-dev.20260707.2)(bufferutil@4.1.0)(core-js@3.49.0)(react-dom@19.2.7(react@19.2.7))(react-server-dom-rspack@0.0.2(@rspack/core@2.1.3(@module-federation/runtime-tools@2.8.0)(@swc/helpers@0.5.23))(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(supports-color@8.1.1)(ts-node@10.9.2(@swc/core@1.15.43(@swc/helpers@0.5.23))(@types/node@20.19.43)(typescript@5.7.3))(tsconfig-paths@4.2.0)(typescript@5.7.3)(utf-8-validate@5.0.10))(supports-color@8.1.1)(zephyr-rspack-plugin@1.1.0(@rspack/core@2.1.3(@module-federation/runtime-tools@2.8.0)(@swc/helpers@0.5.23))(supports-color@8.1.1)):
+  zephyr-modernjs-plugin@1.2.1(@modern-js/app-tools@3.7.0(@module-federation/runtime-tools@2.8.0)(@rspack/core@2.1.3(@module-federation/runtime-tools@2.8.0)(@swc/helpers@0.5.23))(@typescript/native-preview@7.0.0-dev.20260707.2)(bufferutil@4.1.0)(core-js@3.49.0)(react-dom@19.2.7(react@19.2.7))(react-server-dom-rspack@0.0.2(@rspack/core@2.1.3(@module-federation/runtime-tools@2.8.0)(@swc/helpers@0.5.23))(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(supports-color@8.1.1)(ts-node@10.9.2(@swc/core@1.15.43(@swc/helpers@0.5.23))(@types/node@20.19.43)(typescript@5.7.3))(tsconfig-paths@4.2.0)(typescript@5.7.3)(utf-8-validate@5.0.10))(supports-color@8.1.1)(zephyr-rspack-plugin@1.2.1(@rspack/core@2.1.3(@module-federation/runtime-tools@2.8.0)(@swc/helpers@0.5.23))(supports-color@8.1.1)):
     dependencies:
       '@modern-js/app-tools': 3.7.0(@module-federation/runtime-tools@2.8.0)(@rspack/core@2.1.3(@module-federation/runtime-tools@2.8.0)(@swc/helpers@0.5.23))(@typescript/native-preview@7.0.0-dev.20260707.2)(bufferutil@4.1.0)(core-js@3.49.0)(react-dom@19.2.7(react@19.2.7))(react-server-dom-rspack@0.0.2(@rspack/core@2.1.3(@module-federation/runtime-tools@2.8.0)(@swc/helpers@0.5.23))(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(supports-color@8.1.1)(ts-node@10.9.2(@swc/core@1.15.43(@swc/helpers@0.5.23))(@types/node@20.19.43)(typescript@5.7.3))(tsconfig-paths@4.2.0)(typescript@5.7.3)(utf-8-validate@5.0.10)
-      tslib: 2.8.1
-      zephyr-agent: 1.1.0(supports-color@8.1.1)
-      zephyr-edge-contract: 1.1.0
+      zephyr-agent: 1.2.1(supports-color@8.1.1)
+      zephyr-edge-contract: 1.2.1
     optionalDependencies:
-      zephyr-rspack-plugin: 1.1.0(@rspack/core@2.1.3(@module-federation/runtime-tools@2.8.0)(@swc/helpers@0.5.23))(supports-color@8.1.1)
+      zephyr-rspack-plugin: 1.2.1(@rspack/core@2.1.3(@module-federation/runtime-tools@2.8.0)(@swc/helpers@0.5.23))(supports-color@8.1.1)
     transitivePeerDependencies:
       - supports-color
 
-  zephyr-rspack-plugin@1.1.0(@rspack/core@2.1.3(@module-federation/runtime-tools@2.8.0)(@swc/helpers@0.5.23))(supports-color@8.1.1):
+  zephyr-rspack-plugin@1.2.1(@rspack/core@2.1.3(@module-federation/runtime-tools@2.8.0)(@swc/helpers@0.5.23))(supports-color@8.1.1):
     dependencies:
       '@rspack/core': 2.1.3(@module-federation/runtime-tools@2.8.0)(@swc/helpers@0.5.23)
-      tslib: 2.8.1
-      zephyr-agent: 1.1.0(supports-color@8.1.1)
-      zephyr-xpack-internal: 1.1.0(supports-color@8.1.1)
+      zephyr-agent: 1.2.1(supports-color@8.1.1)
+      zephyr-xpack-internal: 1.2.1(supports-color@8.1.1)
     transitivePeerDependencies:
       - supports-color
       - webpack
 
-  zephyr-xpack-internal@1.1.0(supports-color@8.1.1):
+  zephyr-xpack-internal@1.2.1(supports-color@8.1.1):
     dependencies:
       '@module-federation/automatic-vendor-federation': 1.2.1
-      tslib: 2.8.1
-      zephyr-agent: 1.1.0(supports-color@8.1.1)
-      zephyr-edge-contract: 1.1.0
+      zephyr-agent: 1.2.1(supports-color@8.1.1)
+      zephyr-edge-contract: 1.2.1
     transitivePeerDependencies:
       - supports-color
       - webpack
