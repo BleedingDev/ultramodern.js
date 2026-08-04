@@ -18,8 +18,8 @@
     "@modern-js/runtime": "latest",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "zephyr-modernjs-plugin": "1.1.0",
-    "zephyr-rspack-plugin": "1.1.0"
+    "zephyr-modernjs-plugin": "1.2.1",
+    "zephyr-rspack-plugin": "1.2.1"
   },
   "devDependencies": {
     "@biomejs/biome": "1.9.4",
