@@ -151,7 +151,7 @@ async function generateHtml(
     createReplaceHtml(html),
     createReplaceChunkJs(jsChunk, entryName),
     createReplaceChunkCss(cssChunk),
-    createReplaceSSRDataScript(ssrScripts),
+    createReplaceSSRDataScript(ssrScripts, entryName),
     createReplaceHelemt(helmetData),
     ...htmlModifiers,
   ]);
@@ -163,9 +163,27 @@ function createReplaceHtml(html: string): BuildHtmlCb {
   return (template: string) => safeReplace(template, HTML_PLACEHOLDER, html);
 }
 
-function createReplaceSSRDataScript(data: string): BuildHtmlCb {
+// FORK: upstream uses a plain `safeReplace` here, which leaves the SSR data +
+// router hydration block wherever the template author put the placeholder —
+// usually AFTER the entry script tag. We reuse the fork's stream-mode
+// primitive (stream/afterTemplate.ts) so `window._SSR_DATA` and the TanStack
+// `$_TSR` bootstrap are emitted BEFORE the entry script in string mode too,
+// giving string mode the same script-ordering guarantee stream mode has.
+// `replaceChunkJsPlaceholder` degrades to `safeReplace` when no entry script
+// tag is found (custom HTML templates, MF host shells): THOSE templates are
+// byte-identical. Every template that DOES carry an entry script tag — i.e.
+// every standard Modern.js app — changes by design: the SSR data + router
+// bootstrap block moves out of the placeholder position to in front of the
+// entry tag, which in the common head-script layout relocates it above the
+// rendered `<div id="root">`. Do NOT restore upstream's `safeReplace` call when
+// resolving a sync merge — the guard is
+// tests/ssr/serverRender/renderToString/buildTemplate.test.tsx.
+function createReplaceSSRDataScript(
+  data: string,
+  entryName?: string,
+): BuildHtmlCb {
   return (template: string) =>
-    safeReplace(template, SSR_DATA_PLACEHOLDER, data);
+    replaceChunkJsPlaceholder(template, data, entryName, SSR_DATA_PLACEHOLDER);
 }
 
 function createReplaceChunkJs(js: string, entryName?: string): BuildHtmlCb {

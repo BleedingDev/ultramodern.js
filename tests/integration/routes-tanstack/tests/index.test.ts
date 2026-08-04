@@ -79,6 +79,20 @@ describe('routes-tanstack', () => {
     expect(streamHtml.text).toContain('$_TSR');
   });
 
+  test('emits the TanStack SSR bootstrap before the entry script (string + stream)', async () => {
+    for (const route of ['string', 'stream'] as const) {
+      const { text } = await fetchHtml(`http://localhost:${appPort}/${route}`);
+      const bootstrapIndex = text.indexOf('$_TSR');
+      const entryIndex = text.search(
+        new RegExp(`<script[^>]*src="/static/js/${route}\\.[a-f0-9]+\\.js"`),
+      );
+      expect(bootstrapIndex).toBeGreaterThan(-1);
+      expect(entryIndex).toBeGreaterThan(-1);
+      // the TanStack bootstrap must execute before the Modern.js entry bundle
+      expect(entryIndex).toBeGreaterThan(bootstrapIndex);
+    }
+  });
+
   test('SSR renders loader data (string + stream)', async () => {
     await page.goto(`http://localhost:${appPort}/string`, {
       waitUntil: ['networkidle0'],
