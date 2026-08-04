@@ -307,13 +307,6 @@ type ReleaseAgeReviewEvidence = {
 };
 
 const releaseAgeReviewEvidence = {
-  dependencyCohort: {
-    reviewer: 'Petr Glaser <syreanis+1@gmail.com>',
-    reviewedAt: '2026-07-10T01:20:00.000Z',
-    expiresAt: '2026-08-09T01:20:00.000Z',
-    uri: 'https://github.com/BleedingDev/ultramodern.js/commit/3e83a30a06fd4d056057e8f0aad52bc46f256811',
-    sha256: 'b70f1326e9b555465d9390048d416238bce1efcf91b467336308aa4c3b253940',
-  },
   i18next: {
     reviewer: 'Petr Glaser <syreanis+1@gmail.com>',
     reviewedAt: '2026-07-09T23:03:09.000Z',
@@ -463,7 +456,29 @@ const stalePatchPolicies: readonly UltramodernStalePatchPolicy[] = [
     packageName: 'effect',
     version: '4.0.0-beta.94',
     path: 'patches/effect-schema-error-type-id.patch',
-    sha256: 'dc7e8088e600beb20185eb877754d749c4a93909fb79f49465e8319e40d6596a',
+    // Same path as the active effect patch, so the primary digest tracks the
+    // current template patch and the legacy list carries superseded ones. The
+    // beta.102 cohort dropped the dead SchemaError TypeId hunk and rebased the
+    // remaining hunk onto the beta.102 pre-image; workspaces still on the
+    // beta.94/beta.97 template carry the older two-hunk digest.
+    sha256: 'bd29a0ae24f0674c6007e5e6060d847dbeb9499a6e2cf4c9f13b24ba9fb3af37',
+    acceptedLegacySha256: [
+      'dc7e8088e600beb20185eb877754d749c4a93909fb79f49465e8319e40d6596a',
+    ],
+  },
+  {
+    packageName: 'effect',
+    version: '4.0.0-beta.97',
+    path: 'patches/effect-schema-error-type-id.patch',
+    // Same path as the active effect patch, so the primary digest tracks the
+    // current template patch and the legacy list carries superseded ones. The
+    // beta.102 cohort dropped the dead SchemaError TypeId hunk and rebased the
+    // remaining hunk onto the beta.102 pre-image; workspaces still on the
+    // beta.94/beta.97 template carry the older two-hunk digest.
+    sha256: 'bd29a0ae24f0674c6007e5e6060d847dbeb9499a6e2cf4c9f13b24ba9fb3af37',
+    acceptedLegacySha256: [
+      'dc7e8088e600beb20185eb877754d749c4a93909fb79f49465e8319e40d6596a',
+    ],
   },
   {
     packageName: '@module-federation/dts-plugin',
@@ -709,24 +724,14 @@ const typescriptPlatformRegistryReleases = [
 ] as const;
 
 const releaseAgeApprovals: readonly UltramodernReleaseAgeApproval[] = [
-  createReleaseAgeApproval({
-    packageName: '@effect/opentelemetry',
-    version: EFFECT_VERSION,
-    reason: releaseAgeReasons.effect,
-    publishedAt: '2026-07-10T00:07:44.725Z',
-    integrity:
-      'sha512-x9yPmb8K8D0GLlGogz28VpKN6q5va9Zvti8kA3Mq1DgTIQf2641Tt6UbhlYfvHxjtwE/mVgztuuapjN8qlDLBw==',
-    review: releaseAgeReviewEvidence.dependencyCohort,
-  }),
-  createReleaseAgeApproval({
-    packageName: '@effect/vitest',
-    version: EFFECT_VITEST_VERSION,
-    reason: releaseAgeReasons.effect,
-    publishedAt: '2026-07-10T00:07:56.326Z',
-    integrity:
-      'sha512-1dH6LBWSZyqnTV7ZO+yIpPGPf/xd7RtFfvQ4ZpTy9elzFN+wr1YBFpHSCr8+BfXOml6b8g9Mtj5eDy1qjbizUA==',
-    review: releaseAgeReviewEvidence.dependencyCohort,
-  }),
+  // FORK: the Effect cohort (`effect`, `@effect/opentelemetry`,
+  // `@effect/vitest` at EFFECT_VERSION) carries NO release-age approval.
+  // 4.0.0-beta.102 published 2026-07-26T22:24Z and passed the 1440-minute
+  // minimum release age on 2026-07-27, so no exemption is needed and none is
+  // claimed. Do NOT re-add one against a commit that predates the cohort it
+  // attests: an approval requires purpose-made review evidence (an immutable
+  // GitHub commit whose payload sha256 is recorded) that actually CONTAINS the
+  // reviewed versions, timestamps, integrities and patch applicability.
   createReleaseAgeApproval({
     packageName: '@typescript/native-preview',
     version: TYPESCRIPT_NATIVE_PREVIEW_VERSION,
@@ -747,15 +752,6 @@ const releaseAgeApprovals: readonly UltramodernReleaseAgeApproval[] = [
         review: releaseAgeReviewEvidence.typescript,
       }),
   ),
-  createReleaseAgeApproval({
-    packageName: 'effect',
-    version: EFFECT_VERSION,
-    reason: releaseAgeReasons.effect,
-    publishedAt: '2026-07-10T00:07:52.514Z',
-    integrity:
-      'sha512-pK03HpQVxGZOWdwDAy/iwvV8u3KYcUf2mOWyWqaut2zau8V2u6ejWP7b4BELjyUIiZWW1fl/s/VJpgZUcTjThg==',
-    review: releaseAgeReviewEvidence.dependencyCohort,
-  }),
   createReleaseAgeApproval({
     packageName: '@cloudflare/workers-types',
     version: CLOUDFLARE_WORKERS_TYPES_VERSION,

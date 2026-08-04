@@ -76,7 +76,7 @@ type ${pascalStem}ApiGroups = typeof ${apiExport} extends HttpApi.HttpApi<
   : never;
 
 export type ${clientTypeName} = HttpApiClient.Client<
-  Extract<${pascalStem}ApiGroups, HttpApiGroup.Any>,
+  Extract<${pascalStem}ApiGroups, HttpApiGroup.Constraint>,
   never,
   never
 >;

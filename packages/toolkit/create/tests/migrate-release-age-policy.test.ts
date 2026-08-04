@@ -47,8 +47,6 @@ const releaseCohort = parseUltramodernReleaseCohort({
   },
 });
 
-const effectReviewReason =
-  'Reviewed Effect 4 beta cohort required by generated strict Effect workspaces before pnpm minimum release age elapsed.';
 const cloudflareReviewReason =
   'Reviewed Cloudflare runtime cohort required by generated Worker tooling before pnpm minimum release age elapsed.';
 
@@ -103,34 +101,26 @@ test('rejects review evidence created before a dependency was published', () => 
 });
 
 test('pins exact approval evidence for every fresh Effect and Cloudflare dependency', () => {
+  // FORK: the Effect cohort deliberately carries NO release-age approval.
+  // effect / @effect/opentelemetry / @effect/vitest 4.0.0-beta.102 published
+  // 2026-07-26T22:24Z and matured past the 1440-minute minimum release age on
+  // 2026-07-27, so no exemption is needed. An approval must never be re-added
+  // against review evidence that predates the cohort it attests.
+  for (const packageName of [
+    'effect',
+    '@effect/opentelemetry',
+    '@effect/vitest',
+  ]) {
+    assert.equal(
+      ULTRAMODERN_WORKSPACE_POLICY.pnpm.releaseAge.approvals.find(
+        item => item.packageName === packageName,
+      ),
+      undefined,
+      `${packageName} must not claim a release-age exemption`,
+    );
+  }
+
   const expected = new Map([
-    [
-      '@effect/opentelemetry',
-      [
-        '4.0.0-beta.97',
-        '2026-07-10T00:07:44.725Z',
-        'sha512-x9yPmb8K8D0GLlGogz28VpKN6q5va9Zvti8kA3Mq1DgTIQf2641Tt6UbhlYfvHxjtwE/mVgztuuapjN8qlDLBw==',
-        effectReviewReason,
-      ],
-    ],
-    [
-      '@effect/vitest',
-      [
-        '4.0.0-beta.97',
-        '2026-07-10T00:07:56.326Z',
-        'sha512-1dH6LBWSZyqnTV7ZO+yIpPGPf/xd7RtFfvQ4ZpTy9elzFN+wr1YBFpHSCr8+BfXOml6b8g9Mtj5eDy1qjbizUA==',
-        effectReviewReason,
-      ],
-    ],
-    [
-      'effect',
-      [
-        '4.0.0-beta.97',
-        '2026-07-10T00:07:52.514Z',
-        'sha512-pK03HpQVxGZOWdwDAy/iwvV8u3KYcUf2mOWyWqaut2zau8V2u6ejWP7b4BELjyUIiZWW1fl/s/VJpgZUcTjThg==',
-        effectReviewReason,
-      ],
-    ],
     [
       '@cloudflare/workers-types',
       [
@@ -161,7 +151,7 @@ test('pins exact approval evidence for every fresh Effect and Cloudflare depende
   ]);
   const approvals = ULTRAMODERN_WORKSPACE_POLICY.pnpm.releaseAge.approvals;
 
-  assert.equal(expected.size, 6);
+  assert.equal(expected.size, 3);
   for (const [
     packageName,
     [version, publishedAt, integrity, reason],

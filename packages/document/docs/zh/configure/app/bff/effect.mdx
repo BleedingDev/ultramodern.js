@@ -45,6 +45,21 @@ import EnableBFFCaution from "@site-docs/components/enable-bff-caution";
 
 仅当 `bff.runtimeFramework` 设置为 `'effect'` 时，`bff.effect` 才会生效。
 
+:::caution 需要自行安装 Effect peer 依赖
+`effect` 与 `@effect/opentelemetry` 是 `@modern-js/plugin-bff` 的**可选精确 peer
+依赖**，而不是直接依赖。插件不再自带副本——Effect 4 的 `Context` / `Service` 键按模块
+实例生成，自带副本会让应用出现第二份 Effect 身份。在设置 `runtimeFramework: 'effect'`
+或引入 `@modern-js/plugin-bff/effect`、`/effect-server`、`/effect-edge`、
+`/effect-client` 之前，请安装精确版本的依赖组：
+
+```bash
+pnpm add effect@4.0.0-beta.102 @effect/opentelemetry@4.0.0-beta.102
+```
+
+采用精确版本是因为 UltraModern 以锁步依赖组的方式发布 Effect。只使用
+`runtimeFramework: 'hono'` 或 `./data-platform` 通道的应用无需安装这两个包。
+:::
+
 生成的 UltraModern workspace 只把这个运行时作为生成 HTTP API 路径。API 契约固定在
 `shared/api.ts`，服务端运行时固定在 `api/index.ts`，客户端固定在
 `src/api/*-client.ts`。生成检查会拒绝 `api/effect`、`api/lambda`、
@@ -199,17 +214,17 @@ Effect 版本组。当前 UltraModern 版本组使用：
 
 ```yaml
 minimumReleaseAgeExclude:
-  - 'effect@4.0.0-beta.97'
-  - '@effect/opentelemetry@4.0.0-beta.97'
+  - 'effect@4.0.0-beta.102'
+  - '@effect/opentelemetry@4.0.0-beta.102'
 
 trustPolicyExclude:
-  - 'effect@4.0.0-beta.97'
-  - '@effect/opentelemetry@4.0.0-beta.97'
+  - 'effect@4.0.0-beta.102'
+  - '@effect/opentelemetry@4.0.0-beta.102'
 
 overrides:
-  '@effect/opentelemetry': 4.0.0-beta.97
-  '@effect/vitest': 4.0.0-beta.97
-  effect: 4.0.0-beta.97
+  '@effect/opentelemetry': 4.0.0-beta.102
+  '@effect/vitest': 4.0.0-beta.102
+  effect: 4.0.0-beta.102
 ```
 
 不要在应用包里添加不同版本的直接 `effect` 依赖。Effect beta 不一致时，Layer 或 HTTP

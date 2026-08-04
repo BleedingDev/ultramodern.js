@@ -18,7 +18,7 @@ import type {
 } from './types';
 
 export function defineEffectBff<
-  TApi extends HttpApi.AnyWithProps,
+  TApi extends HttpApi.Constraint,
   TLayer extends EffectRuntimeLayer,
   TRpcs extends Rpc.Any = Rpc.Any,
 >(definition: {
@@ -86,7 +86,7 @@ const LOADER_CLIENT_IGNORED_KEYS = new Set<PropertyKey>([
  * an actionable error on first property access.
  */
 function createLoaderMaterializedClientPlaceholder<
-  TApi extends HttpApi.AnyWithProps,
+  TApi extends HttpApi.Constraint,
 >(): EffectApiPromiseClientFromApi<TApi> {
   const explain = (property: PropertyKey): never => {
     throw new Error(

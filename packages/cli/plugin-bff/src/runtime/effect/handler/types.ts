@@ -94,18 +94,22 @@ type EffectApiPromiseClient<TClient> = {
 };
 
 export type EffectApiClientFromApi<
-  TApi extends HttpApi.AnyWithProps = HttpApi.AnyWithProps,
+  TApi extends HttpApi.Constraint = HttpApi.Top,
 > =
   TApi extends HttpApi.HttpApi<infer _ApiId, infer Groups>
-    ? HttpApiClient.Client<Extract<Groups, HttpApiGroup.Any>, never, never>
+    ? HttpApiClient.Client<
+        Extract<Groups, HttpApiGroup.Constraint>,
+        never,
+        never
+      >
     : never;
 
 export type EffectApiPromiseClientFromApi<
-  TApi extends HttpApi.AnyWithProps = HttpApi.AnyWithProps,
+  TApi extends HttpApi.Constraint = HttpApi.Top,
 > = EffectApiPromiseClient<EffectApiClientFromApi<TApi>>;
 
 export type EffectBffDefinition<
-  TApi extends HttpApi.AnyWithProps = HttpApi.AnyWithProps,
+  TApi extends HttpApi.Constraint = HttpApi.Top,
   TLayer extends EffectRuntimeLayer = EffectRuntimeLayer,
   TRpcs extends Rpc.Any = Rpc.Any,
 > = {
@@ -217,7 +221,7 @@ export type EffectRequestValidator = (
 ) => Response | null | undefined;
 
 export type EffectBffHandlerFactory<
-  TApi extends HttpApi.AnyWithProps = HttpApi.AnyWithProps,
+  TApi extends HttpApi.Constraint = HttpApi.Top,
   TLayer extends EffectRuntimeLayer = EffectRuntimeLayer,
 > = (options?: {
   openapi?: EffectBffOpenApiConfig;
@@ -227,7 +231,7 @@ export type EffectBffHandlerFactory<
 }) => ReturnType<typeof createHttpApiHandler>;
 
 export type EffectBffRuntime<
-  TApi extends HttpApi.AnyWithProps = HttpApi.AnyWithProps,
+  TApi extends HttpApi.Constraint = HttpApi.Top,
   TLayer extends EffectRuntimeLayer = EffectRuntimeLayer,
 > = {
   createHandler: EffectBffHandlerFactory<TApi, TLayer>;

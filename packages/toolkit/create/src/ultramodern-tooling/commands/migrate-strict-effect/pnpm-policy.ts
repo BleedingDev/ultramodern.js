@@ -63,11 +63,19 @@ const legacyBareReleaseAgePackages = new Set([
 const knownStaleReleaseAgeEntries = new Set([
   '@effect/opentelemetry@4.0.0-beta.92',
   '@effect/opentelemetry@4.0.0-beta.94',
+  '@effect/opentelemetry@4.0.0-beta.97',
+  // @effect/vitest only became a release-age approval while the cohort was
+  // already on beta.97, so no beta.92/beta.94 workspace ever emitted it into
+  // minimumReleaseAgeExclude. It is also never emitted into
+  // trustPolicyExclude (only effect and @effect/opentelemetry are), so it
+  // needs no assertOwnedTrustPolicyList clause.
+  '@effect/vitest@4.0.0-beta.97',
   '@typescript/native-preview@7.0.0-dev.20260628.1',
   '@typescript/typescript6@6.0.2',
   '@cloudflare/workers-types@5.20260708.1',
   'effect@4.0.0-beta.92',
   'effect@4.0.0-beta.94',
+  'effect@4.0.0-beta.97',
   'i18next@26.3.1',
   'miniflare@4.20260708.0',
   'workerd@1.20260708.1',
@@ -209,7 +217,9 @@ function assertOwnedTrustPolicyList(
       entry === 'effect@4.0.0-beta.92' ||
       entry === '@effect/opentelemetry@4.0.0-beta.92' ||
       entry === 'effect@4.0.0-beta.94' ||
-      entry === '@effect/opentelemetry@4.0.0-beta.94'
+      entry === '@effect/opentelemetry@4.0.0-beta.94' ||
+      entry === 'effect@4.0.0-beta.97' ||
+      entry === '@effect/opentelemetry@4.0.0-beta.97'
     ) {
       continue;
     }

@@ -350,8 +350,8 @@ const extractedIntercepted = (
     replaceText(
       plainScalarDir,
       'pnpm-workspace.yaml',
-      "'effect@4.0.0-beta.97': patches/effect-schema-error-type-id.patch",
-      'effect@4.0.0-beta.97: patches/effect-schema-error-type-id.patch',
+      "'effect@4.0.0-beta.102': patches/effect-schema-error-type-id.patch",
+      'effect@4.0.0-beta.102: patches/effect-schema-error-type-id.patch',
     );
     const plainScalar = runValidation(plainScalarDir);
     assert.equal(plainScalar.status, 0, commandOutput(plainScalar));

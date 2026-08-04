@@ -199,7 +199,7 @@ export function runEffectView<
 
 export function makeEffectHttpApiClient<
   ApiId extends string,
-  Groups extends HttpApiGroup.Any,
+  Groups extends HttpApiGroup.Constraint,
 >(
   api: HttpApi.HttpApi<ApiId, Groups>,
   options?: EffectHttpApiClientOptions,

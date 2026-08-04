@@ -207,10 +207,10 @@ your back. If `pnpm api:check` still fails, migrate the source to
 `api/effect`, `api/lambda`, `shared/effect`, and `src/effect` paths.
 
 Generated strict Effect workspaces pin the compatible Effect cohort through
-`pnpm-workspace.yaml` overrides: `effect@4.0.0-beta.97`,
-`@effect/opentelemetry@4.0.0-beta.97`, and
-`@effect/vitest@4.0.0-beta.97`. The generated pnpm policy also excludes the
-known `effect@4.0.0-beta.97` and `@effect/opentelemetry@4.0.0-beta.97`
+`pnpm-workspace.yaml` overrides: `effect@4.0.0-beta.102`,
+`@effect/opentelemetry@4.0.0-beta.102`, and
+`@effect/vitest@4.0.0-beta.102`. The generated pnpm policy also excludes the
+known `effect@4.0.0-beta.102` and `@effect/opentelemetry@4.0.0-beta.102`
 versions from the 24-hour minimum-release-age gate and their trusted-publisher
 to provenance transitions from no-downgrade checks. Do not override those in
 app packages; update the framework cohort when the runtime moves.

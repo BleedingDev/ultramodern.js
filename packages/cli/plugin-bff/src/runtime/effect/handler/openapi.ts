@@ -24,7 +24,7 @@ function getOpenApiOptions(openapi: EffectBffOpenApiConfig | undefined) {
 }
 
 export function createOpenApiLayer(
-  api: HttpApi.AnyWithProps,
+  api: HttpApi.Constraint,
   openapi: EffectBffOpenApiConfig | undefined,
 ) {
   const openApiOptions = getOpenApiOptions(openapi);
@@ -32,9 +32,13 @@ export function createOpenApiLayer(
     return null;
   }
 
+  // effect 4.0.0-beta.98 made `HttpApi`'s `Groups` parameter invariant, so no
+  // concrete api is assignable to the widened `HttpApi.Top` instance type.
+  // `HttpApi.Constraint` is the erased bound every api satisfies; `fromApi`
+  // only reads runtime properties, which `Top` preserves.
   return HttpRouter.add(
     'GET',
     openApiOptions.path,
-    HttpServerResponse.jsonUnsafe(OpenApi.fromApi(api)),
+    HttpServerResponse.jsonUnsafe(OpenApi.fromApi(api as HttpApi.Top)),
   );
 }

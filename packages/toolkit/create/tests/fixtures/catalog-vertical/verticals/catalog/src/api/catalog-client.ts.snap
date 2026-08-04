@@ -22,7 +22,7 @@ type CatalogApiGroups =
   typeof catalogApi extends HttpApi.HttpApi<infer _ApiId, infer Groups> ? Groups : never;
 
 export type CatalogClient = HttpApiClient.Client<
-  Extract<CatalogApiGroups, HttpApiGroup.Any>,
+  Extract<CatalogApiGroups, HttpApiGroup.Constraint>,
   never,
   never
 >;

@@ -37,10 +37,26 @@ type HttpApiGroupLike = {
 };
 
 type HttpApiEndpointLike = {
+  /**
+   * effect 4.0.0-beta.98 renamed the endpoint `name` property to `identifier`,
+   * matching `HttpApiGroup`. `name` is kept as a fallback so reflection over an
+   * older Effect build does not silently degrade to the class name.
+   */
+  identifier?: unknown;
   name?: unknown;
   method?: unknown;
   path?: unknown;
 };
+
+function resolveEffectEndpointName(endpoint: HttpApiEndpointLike): string {
+  if (typeof endpoint.identifier === 'string' && endpoint.identifier) {
+    return endpoint.identifier;
+  }
+  if (typeof endpoint.name === 'string' && endpoint.name) {
+    return endpoint.name;
+  }
+  return '';
+}
 
 export type HttpApiReflect = (
   api: unknown,
@@ -102,7 +118,7 @@ export function collectEffectEndpoints(
       endpoints.push({
         apiId,
         groupName: String(group.identifier),
-        endpointName: String(endpoint.name),
+        endpointName: resolveEffectEndpointName(endpoint),
         method: String(endpoint.method).toUpperCase(),
         routePath: getEffectRoutePath(prefix, String(endpoint.path)),
       });

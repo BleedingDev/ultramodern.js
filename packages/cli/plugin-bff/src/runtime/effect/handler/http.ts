@@ -20,7 +20,7 @@ import type {
 import { toEffectServiceContext } from './types';
 
 export function createHttpApiHandler<
-  TApi extends HttpApi.AnyWithProps = HttpApi.AnyWithProps,
+  TApi extends HttpApi.Constraint = HttpApi.Top,
   TRpcs extends Rpc.Any = Rpc.Any,
 >(options: {
   api: TApi;

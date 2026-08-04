@@ -45,6 +45,23 @@ import EnableBFFCaution from "@site-docs-en/components/enable-bff-caution";
 
 `bff.effect` is only effective when `bff.runtimeFramework` is set to `'effect'`.
 
+:::caution Install the Effect peers yourself
+`effect` and `@effect/opentelemetry` are **optional exact peer dependencies** of
+`@modern-js/plugin-bff`, not dependencies. The plugin no longer bundles a copy —
+Effect 4 derives `Context` / `Service` keys per module instance, so a bundled copy
+would give your app a second Effect identity. Before setting
+`runtimeFramework: 'effect'` or importing `@modern-js/plugin-bff/effect`,
+`/effect-server`, `/effect-edge` or `/effect-client`, install the exact cohort:
+
+```bash
+pnpm add effect@4.0.0-beta.102 @effect/opentelemetry@4.0.0-beta.102
+```
+
+The pin is exact because UltraModern ships Effect as one lockstep cohort. Apps
+using only `runtimeFramework: 'hono'` or the `./data-platform` lane need neither
+package.
+:::
+
 Generated UltraModern workspaces use this runtime as the only generated HTTP API
 path. The API contract lives at `shared/api.ts`, the server runtime lives at
 `api/index.ts`, clients live under `src/api/*-client.ts`, and generated checks
@@ -202,17 +219,17 @@ generated apps use:
 
 ```yaml
 minimumReleaseAgeExclude:
-  - 'effect@4.0.0-beta.97'
-  - '@effect/opentelemetry@4.0.0-beta.97'
+  - 'effect@4.0.0-beta.102'
+  - '@effect/opentelemetry@4.0.0-beta.102'
 
 trustPolicyExclude:
-  - 'effect@4.0.0-beta.97'
-  - '@effect/opentelemetry@4.0.0-beta.97'
+  - 'effect@4.0.0-beta.102'
+  - '@effect/opentelemetry@4.0.0-beta.102'
 
 overrides:
-  '@effect/opentelemetry': 4.0.0-beta.97
-  '@effect/vitest': 4.0.0-beta.97
-  effect: 4.0.0-beta.97
+  '@effect/opentelemetry': 4.0.0-beta.102
+  '@effect/vitest': 4.0.0-beta.102
+  effect: 4.0.0-beta.102
 ```
 
 Do not add a different direct `effect` version in an app package. A mismatched

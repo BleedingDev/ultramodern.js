@@ -12,8 +12,18 @@ export const WRANGLER_VERSION = '4.110.0';
 export const CLOUDFLARE_COMPATIBILITY_DATE = '2026-06-02';
 export const TAILWIND_VERSION = '4.3.2';
 export const RSBUILD_PLUGIN_TAILWINDCSS_VERSION = '2.0.3';
-export const EFFECT_VERSION = '4.0.0-beta.97';
-export const EFFECT_VITEST_VERSION = '4.0.0-beta.97';
+// FORK: upstream Modern.js has no Effect lane at all. `EFFECT_VERSION` is the
+// single source of truth for the fork's lockstep Effect cohort — moving it
+// requires moving, in the same commit: pnpm-workspace.yaml
+// `minimumReleaseAgeExclude`, packages/cli/plugin-bff/package.json
+// (`peerDependencies` and `devDependencies` for BOTH `effect` and
+// `@effect/opentelemetry` — they are exact optional peers, not dependencies,
+// so all four pins move together), and template-workspace/patches/
+// effect-schema-error-type-id.patch (regenerate via `pnpm patch effect@<v>`;
+// its blob index lines are version-specific and a stale patch fails to apply).
+// See FORK-DIVERGENCE.md, packages/toolkit/create.
+export const EFFECT_VERSION = '4.0.0-beta.102';
+export const EFFECT_VITEST_VERSION = '4.0.0-beta.102';
 export const EFFECT_TSGO_VERSION = '0.19.0';
 export const DRIZZLE_ORM_VERSION = '1.0.0-rc.4';
 export const TYPESCRIPT_STABLE_VERSION = '7.0.2';

@@ -695,13 +695,13 @@ describe('framework target-specific MicroVertical release-envelope integration',
     });
     await fs.writeFile(path.join(nodeOutput, 'index.js'), compiledCarrier());
     await writeJson(path.join(nodeOutput, 'package.json'), {
-      dependencies: { effect: '4.0.0-beta.97' },
+      dependencies: { effect: '4.0.0-beta.102' },
     });
     await fs.mkdir(path.join(nodeOutput, 'node_modules/effect'), {
       recursive: true,
     });
     await writeJson(path.join(nodeOutput, 'node_modules/effect/package.json'), {
-      version: '4.0.0-beta.97',
+      version: '4.0.0-beta.102',
     });
     await emitNodeStagedReleaseEnvelope({
       distDirectory: nodeFixture.distDirectory,
