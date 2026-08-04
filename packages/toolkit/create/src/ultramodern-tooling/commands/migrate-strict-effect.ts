@@ -51,6 +51,7 @@ import {
   writeJsonFile,
 } from './migrate-strict-effect/io';
 import {
+  ensureBffEffectDependencies,
   updateGeneratedPackageScripts,
   updateGeneratedToolingDependencies,
   updateModernDependencies,
@@ -719,6 +720,7 @@ function migrateStrictEffect(
 
     updateModernDependencies(packageJson, packageSource);
     updateGeneratedToolingDependencies(packageJson);
+    ensureBffEffectDependencies(packageJson);
     updateGeneratedPackageScripts(packageJson, {
       relativePackageFile,
       apps: allMigratedApps,

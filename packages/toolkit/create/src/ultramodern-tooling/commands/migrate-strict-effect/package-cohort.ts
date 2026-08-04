@@ -95,6 +95,43 @@ export function updateGeneratedToolingDependencies(
   return changed;
 }
 
+/**
+ * `@modern-js/plugin-bff` declares `effect` and `@effect/opentelemetry` as
+ * OPTIONAL peers, so whoever depends on plugin-bff has to supply them. A
+ * workspace generated before that change declares neither, and nothing else
+ * pulls Effect in — so on migration the BFF lane has no Effect to load, and the
+ * `effect@<version>` entry this command writes into `patchedDependencies`
+ * matches no package, which pnpm rejects with ERR_PNPM_UNUSED_PATCH.
+ *
+ * Unlike `updateGeneratedToolingDependencies`, this adds the pins when they are
+ * missing rather than only re-pinning what is already declared.
+ */
+export function ensureBffEffectDependencies(packageJson: Record<string, any>) {
+  let changed = false;
+  for (const section of ['dependencies', 'devDependencies']) {
+    const dependencies = packageJson[section];
+    if (
+      !dependencies ||
+      typeof dependencies !== 'object' ||
+      Array.isArray(dependencies) ||
+      !Object.hasOwn(dependencies, '@modern-js/plugin-bff')
+    ) {
+      continue;
+    }
+
+    for (const [packageName, version] of Object.entries(
+      ULTRAMODERN_PACKAGE_PINS.bffEffectDependencies,
+    )) {
+      if (dependencies[packageName] !== version) {
+        dependencies[packageName] = version;
+        changed = true;
+      }
+    }
+  }
+
+  return changed;
+}
+
 const cloudflareModernDeployCommand =
   'MODERNJS_DEPLOY=cloudflare modern deploy';
 

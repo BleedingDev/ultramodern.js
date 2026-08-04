@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { yaml } from '@modern-js/utils';
 import { runUltramodernToolingCli } from '../src/ultramodern-tooling/commands';
+import { ensureBffEffectDependencies } from '../src/ultramodern-tooling/commands/migrate-strict-effect/package-cohort';
 import {
   readUltramodernConfig,
   workspaceAppsFromToolingConfig,
@@ -1824,6 +1825,15 @@ declare module '*.css' {}
       shellPackage.dependencies['@modern-js/plugin-bff'],
       'workspace:*',
     );
+    // plugin-bff declares both as optional peers, so migration has to add them
+    // to whoever depends on plugin-bff. Without them the workspace resolves no
+    // Effect at all and pnpm rejects the generated `effect@<version>` patch
+    // entry with ERR_PNPM_UNUSED_PATCH.
+    assert.equal(shellPackage.dependencies.effect, EFFECT_VERSION);
+    assert.equal(
+      shellPackage.dependencies['@effect/opentelemetry'],
+      EFFECT_VERSION,
+    );
     assert.match(
       shellPackage.scripts['cloudflare:build'],
       /MODERNJS_DEPLOY=cloudflare modern deploy --skip-build/u,
@@ -2585,4 +2595,36 @@ export default defineConfig({
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
+});
+
+test('migration supplies the optional Effect peers to workspaces generated before plugin-bff dropped them', () => {
+  // A workspace scaffolded before plugin-bff moved `effect` and
+  // `@effect/opentelemetry` to optional peers declares neither, and nothing
+  // else pulls Effect in. Migration has to add them, or the BFF lane has no
+  // Effect to load and pnpm rejects the `effect@<version>` patch entry the
+  // migration writes with ERR_PNPM_UNUSED_PATCH.
+  const legacyApp = {
+    dependencies: { '@modern-js/plugin-bff': '3.5.0-ultramodern.44' },
+  };
+  assert.equal(ensureBffEffectDependencies(legacyApp), true);
+  assert.deepEqual(legacyApp.dependencies, {
+    '@modern-js/plugin-bff': '3.5.0-ultramodern.44',
+    '@effect/opentelemetry': EFFECT_VERSION,
+    effect: EFFECT_VERSION,
+  });
+
+  // Already at the cohort version: nothing to change.
+  assert.equal(ensureBffEffectDependencies(legacyApp), false);
+
+  // Packages that do not depend on plugin-bff never gain an Effect dependency.
+  const uiOnly = { dependencies: { react: '19.2.7' } };
+  assert.equal(ensureBffEffectDependencies(uiOnly), false);
+  assert.deepEqual(uiOnly.dependencies, { react: '19.2.7' });
+
+  // The generated root carries plugin-bff in devDependencies.
+  const root = {
+    devDependencies: { '@modern-js/plugin-bff': '3.5.0-ultramodern.44' },
+  };
+  assert.equal(ensureBffEffectDependencies(root), true);
+  assert.equal(root.devDependencies.effect, EFFECT_VERSION);
 });
