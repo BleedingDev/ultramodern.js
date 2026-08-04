@@ -58,7 +58,12 @@ Root/infra is intentionally not package-owned, but it is not optional during ups
   entry), the generated-workspace `pnpm.overrides`/`trustPolicyExclude` emitted
   by `ultramodern-workspace/policy.ts`, and
   `packages/toolkit/create/template-workspace/patches/effect-schema-error-type-id.patch`.
-  That patch restores the erased `preResponseHandler.d.ts` type exports; its
+  That patch carries two hunks: it restores the erased
+  `preResponseHandler.d.ts` type exports, and it drops the dangling
+  `SchemaAST.Sentinel` reference from `Schema.d.ts` (beta.102 marked
+  `collectSentinels` `@internal`, erasing `Sentinel` from `SchemaAST.d.ts`
+  while `Schema.d.ts` kept referencing it, so the shipped types fail their own
+  `tsgo` check with TS2694 — still true on beta.103). Its
   `index <blob>..<blob>` header is version-specific, so a version bump without
   `pnpm patch effect@<new-version>` produces a patch that silently fails to
   apply. The patch is **template-only** (it is deliberately absent from the

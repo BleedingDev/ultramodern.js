@@ -471,12 +471,14 @@ const stalePatchPolicies: readonly UltramodernStalePatchPolicy[] = [
     path: 'patches/effect-schema-error-type-id.patch',
     // Same path as the active effect patch, so the primary digest tracks the
     // current template patch and the legacy list carries superseded ones. The
-    // beta.102 cohort dropped the dead SchemaError TypeId hunk and rebased the
-    // remaining hunk onto the beta.102 pre-image; workspaces still on the
-    // beta.94/beta.97 template carry the older two-hunk digest.
-    sha256: 'bd29a0ae24f0674c6007e5e6060d847dbeb9499a6e2cf4c9f13b24ba9fb3af37',
+    // beta.102 cohort dropped the dead SchemaError TypeId hunk, rebased the
+    // remaining hunk onto the beta.102 pre-image, and added a hunk removing the
+    // dangling SchemaAST.Sentinel reference beta.102 left in Schema.d.ts;
+    // workspaces on an older template carry a superseded digest.
+    sha256: 'd9e12b42d06a051957899a9df14b2b7b2385fc3a5677a89037eeee3674d64ebe',
     acceptedLegacySha256: [
       'dc7e8088e600beb20185eb877754d749c4a93909fb79f49465e8319e40d6596a',
+      'bd29a0ae24f0674c6007e5e6060d847dbeb9499a6e2cf4c9f13b24ba9fb3af37',
     ],
   },
   {
@@ -485,12 +487,14 @@ const stalePatchPolicies: readonly UltramodernStalePatchPolicy[] = [
     path: 'patches/effect-schema-error-type-id.patch',
     // Same path as the active effect patch, so the primary digest tracks the
     // current template patch and the legacy list carries superseded ones. The
-    // beta.102 cohort dropped the dead SchemaError TypeId hunk and rebased the
-    // remaining hunk onto the beta.102 pre-image; workspaces still on the
-    // beta.94/beta.97 template carry the older two-hunk digest.
-    sha256: 'bd29a0ae24f0674c6007e5e6060d847dbeb9499a6e2cf4c9f13b24ba9fb3af37',
+    // beta.102 cohort dropped the dead SchemaError TypeId hunk, rebased the
+    // remaining hunk onto the beta.102 pre-image, and added a hunk removing the
+    // dangling SchemaAST.Sentinel reference beta.102 left in Schema.d.ts;
+    // workspaces on an older template carry a superseded digest.
+    sha256: 'd9e12b42d06a051957899a9df14b2b7b2385fc3a5677a89037eeee3674d64ebe',
     acceptedLegacySha256: [
       'dc7e8088e600beb20185eb877754d749c4a93909fb79f49465e8319e40d6596a',
+      'bd29a0ae24f0674c6007e5e6060d847dbeb9499a6e2cf4c9f13b24ba9fb3af37',
     ],
   },
   {
