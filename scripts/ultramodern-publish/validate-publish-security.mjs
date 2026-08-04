@@ -465,6 +465,29 @@ function validatePublishWorkflow(workflow) {
     jobs['record-publish-outcome'],
     'record-publish-outcome job',
   );
+  const changeRecordJob = requireRecord(
+    jobs['publish-change-record'],
+    'publish-change-record job',
+  );
+
+  // FORK: closed set. Without this a NEW job could be added to the publish
+  // workflow and never be reached by any assertion below (which all enumerate
+  // job ids by name). Adding a job must be a deliberate edit here.
+  assertSameMembers(
+    Object.keys(jobs).sort((left, right) => left.localeCompare(right)),
+    [
+      'accept-published',
+      'accept-release',
+      'prepare-release',
+      'publish',
+      'publish-change-record',
+      'publish-security',
+      'record-publish-outcome',
+      'tractor-downstream',
+      'validate-release',
+    ],
+    'publish workflow jobs',
+  );
 
   for (const [jobId, job] of [
     ['publish-security', securityJob],
@@ -616,6 +639,42 @@ function validatePublishWorkflow(workflow) {
     .filter(([, job]) => job?.permissions?.['id-token'] === 'write')
     .map(([jobId]) => jobId);
   assertSameMembers(oidcJobs, ['publish'], 'OIDC-enabled jobs');
+
+  // FORK: publish-change-record is the ONLY job allowed to write to the
+  // repository (it creates the GitHub release carrying the cohort change
+  // record). Mirror of the OIDC closed set above.
+  const repoWriteJobs = Object.entries(jobs)
+    .filter(([, job]) => job?.permissions?.contents === 'write')
+    .map(([jobId]) => jobId);
+  assertSameMembers(
+    repoWriteJobs,
+    ['publish-change-record'],
+    'contents: write jobs',
+  );
+  assertSameMembers(
+    Object.keys(
+      requireRecord(
+        changeRecordJob.permissions,
+        'publish-change-record job permissions',
+      ),
+    ).sort((left, right) => left.localeCompare(right)),
+    ['contents'],
+    'publish-change-record job permissions',
+  );
+  assertSameMembers(
+    normalizeNeeds(changeRecordJob, 'publish-change-record job needs').sort(
+      (left, right) => left.localeCompare(right),
+    ),
+    ['record-publish-outcome'],
+    'publish-change-record job dependencies',
+  );
+  requireCondition(
+    !Object.hasOwn(changeRecordJob, 'environment') &&
+      !Object.hasOwn(changeRecordJob, 'secrets') &&
+      typeof changeRecordJob.if === 'string' &&
+      changeRecordJob.if.includes('inputs.dry_run == false'),
+    'publish-change-record must run only for non-dry releases without an environment or inherited secrets',
+  );
   requireCondition(
     publishJob.environment === 'npm-publish',
     'publish job must use the npm-publish environment',
@@ -640,6 +699,7 @@ function validatePublishWorkflow(workflow) {
     ['accept-published', publishedAcceptanceJob],
     ['tractor-downstream', tractorAcceptanceJob],
     ['record-publish-outcome', outcomeJob],
+    ['publish-change-record', changeRecordJob],
   ]) {
     requireCondition(
       typeof job.if === 'string' &&
@@ -716,6 +776,25 @@ function validatePublishWorkflow(workflow) {
       qualificationStep.run.includes('pnpm --filter @modern-js/create test'),
     'prepare-release must run the canonical release and create test suites',
   );
+  // FORK: the publish workflow is dispatch-triggered and does NOT require a
+  // green commit status from the push-triggered ut-* / lint-Linux workflows.
+  // Without these the behavioural surface of the published runtime packages is
+  // ungated and a red commit still publishes to npm at dist-tag latest.
+  for (const required of [
+    'pnpm lint',
+    'pnpm run check-changeset',
+    '--project plugin-runtime-node',
+    '--project plugin-runtime-client',
+    '--project plugin-i18n-node',
+    '--project plugin-i18n-client',
+    '--project @modern-js/plugin-bff',
+    '--project @modern-js/bff-core',
+  ]) {
+    requireCondition(
+      qualificationStep.run.includes(required),
+      `prepare-release source qualification must run "${required}"`,
+    );
+  }
   validateRegistrySourceCohortGate(registrySourceCohortStep);
   requireCondition(
     prepareSteps.indexOf(installStep) <

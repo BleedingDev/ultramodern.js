@@ -131,11 +131,23 @@ jobs:
       - name: Qualify release source
         run: |
           mise exec -- pnpm test:scripts
+          mise exec -- pnpm lint
+          mise exec -- pnpm run check-changeset
           # @modern-js/create's own test script rebuilds only itself; its
           # workspace deps (e.g. @modern-js/rslib) must be built first, and
           # the diagnostics probe type-checks against built app-tools types.
           mise exec -- pnpm --filter "@modern-js/create^..." --filter @modern-js/app-tools build
           mise exec -- pnpm --filter @modern-js/create test
+          # The behavioural surface of the published runtime packages. Without
+          # these, a dispatch on a commit whose ut-* workflows are red would
+          # still publish to npm at dist-tag latest.
+          mise exec -- pnpm test:ut \
+            --project plugin-runtime-node \
+            --project plugin-runtime-client \
+            --project plugin-i18n-node \
+            --project plugin-i18n-client \
+            --project @modern-js/plugin-bff \
+            --project @modern-js/bff-core
 
       - name: Reject an already published source cohort
         env:
@@ -869,5 +881,92 @@ jobs:
             .modern/bleedingdev-publish/published-acceptance-receipt.operational-independence.json
             .modern/bleedingdev-publish/tractor-downstream-acceptance.json
             .modern/bleedingdev-publish/publish-outcome.json
+          if-no-files-found: error
+          include-hidden-files: true
+
+  publish-change-record:
+    name: Publish the cohort change record
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # The only job that may write to the repository, and it runs strictly after
+    # the publish outcome is recorded. Elevating any existing job instead is
+    # rejected by scripts/ultramodern-publish/validate-publish-security.mjs.
+    permissions:
+      contents: write
+    needs:
+      - record-publish-outcome
+    if: >-
+      github.actor == github.repository_owner &&
+      github.triggering_actor == github.repository_owner &&
+      github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern') &&
+      inputs.dry_run == false
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node.js 26
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "26"
+
+      - name: Generate the cohort change record
+        env:
+          PUBLISH_VERSION: ${{ inputs.version }}
+        run: |
+          mkdir -p "$BLEEDINGDEV_RELEASE_DIR"
+          node scripts/ultramodern-publish/gen-cohort-change-record.mjs \
+            --version "$PUBLISH_VERSION" \
+            --out "$BLEEDINGDEV_RELEASE_DIR/change-record.md"
+
+      - name: Create or update the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PUBLISH_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          # FORK: this repository carries 271 inherited upstream Modern.js `v*`
+          # tags (v1.x .. v3.4.0). `gh release create` REUSES a pre-existing tag
+          # and silently ignores --target, so a fork release published under
+          # `v$PUBLISH_VERSION` could point at an upstream commit. Namespace the
+          # fork's releases away from `v*` and never move an existing tag.
+          TAG="ultramodern-v$PUBLISH_VERSION"
+          TITLE="@bleedingdev/modern-js-* $PUBLISH_VERSION"
+          NOTES="$BLEEDINGDEV_RELEASE_DIR/change-record.md"
+
+          EXISTING_TAG_SHA="$(git rev-parse -q --verify "refs/tags/$TAG^{commit}" || true)"
+          if [ -n "$EXISTING_TAG_SHA" ] && [ "$EXISTING_TAG_SHA" != "$GITHUB_SHA" ]; then
+            echo "::error::tag $TAG already exists at $EXISTING_TAG_SHA, not $GITHUB_SHA" >&2
+            exit 1
+          fi
+
+          # Idempotent: the publish job runs BEFORE this one and is
+          # unrollbackable, so a re-run must be able to converge instead of
+          # failing permanently on an already-created release.
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release edit "$TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "$TITLE" \
+              --notes-file "$NOTES"
+          else
+            gh release create "$TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --title "$TITLE" \
+              --notes-file "$NOTES"
+          fi
+
+      - name: Upload the change record
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: bleedingdev-change-record-${{ inputs.version }}
+          path: .modern/bleedingdev-publish/change-record.md
           if-no-files-found: error
           include-hidden-files: true
