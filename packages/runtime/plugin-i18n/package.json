@@ -109,7 +109,7 @@
     "i18next-http-middleware": "^3.9.7"
   },
   "peerDependencies": {
-    "@modern-js/runtime": "workspace:^3.5.0",
+    "@modern-js/runtime": "workspace:^3.7.0",
     "i18next": ">=26.3.1",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
