@@ -16,6 +16,7 @@ function createBackendI18nInstance(): I18nInstance {
     isInitialized: false,
     init: async () => undefined,
     use: () => {},
+    t: (key: string | string[]) => (Array.isArray(key) ? key[0] : key),
     options: {},
     store: {
       data: {},

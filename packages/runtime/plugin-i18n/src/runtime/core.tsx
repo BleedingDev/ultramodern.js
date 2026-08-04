@@ -17,7 +17,12 @@ import {
 import './types';
 
 export type { I18nSdkLoader, I18nSdkLoadOptions } from '../shared/type';
-export type { Resources } from './i18n/instance';
+export type {
+  I18nInitOptions,
+  I18nInstance,
+  Resources,
+  TranslateFn,
+} from './i18n/instance';
 export type {
   LoadReactI18nextIntegration,
   ReactI18nextIntegration,
@@ -111,6 +116,7 @@ export type {
 export {
   FederatedI18nBoundary,
   type FederatedI18nBoundaryProps,
+  type UseModernI18nReturn,
   useModernI18n,
 } from './context';
 export { I18nLink, type I18nLinkProps } from './I18nLink';

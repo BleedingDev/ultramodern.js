@@ -33,6 +33,13 @@ function createMinimalI18nInstance(language: string): I18nInstance {
     language,
     isInitialized: false,
     init: () => Promise.resolve(undefined),
+    // Keep the pre-existing loud failure: an uninitialised instance has no
+    // translator. Never echo the key back — that would silently render raw
+    // keys as if they were translations. This throws the same error that
+    // translateI18n (contextHelpers.ts:187) already throws today.
+    t: () => {
+      throw new Error('i18nInstance.t required');
+    },
     use: () => {},
     createInstance: () => minimalInstance,
     services: {},

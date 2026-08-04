@@ -65,47 +65,101 @@ export function getActualI18nextInstance(instance: I18nInstance): I18nInstance {
   return instance;
 }
 
+export type TranslateFn = (
+  key: string | string[],
+  options?: Record<string, unknown>,
+) => string;
+
+// FORK: intentionally diverges from upstream @modern-js/plugin-i18n. Upstream
+// declares a top-level `[key: string]: any` and overloaded call-signature
+// properties; both make i18next's `i18n` structurally unassignable to this
+// type, so the documented `i18nInstance: i18next` usage does not typecheck.
+// Do NOT restore upstream's shape when resolving a sync merge — the guard is
+// tests/type-fixture/i18nInstanceTypes.fixture.ts.
 export interface I18nInstance {
   language: string;
   isInitialized?: boolean;
-  init: {
-    (callback?: (error: unknown, t: unknown) => void): Promise<unknown>;
-    (
-      options: I18nInitOptions,
-      callback?: (error: unknown, t: unknown) => void,
-    ): Promise<unknown>;
-  };
-  changeLanguage?: (
-    lng?: string,
-    callback?: (error: unknown, t: unknown) => void,
-  ) => Promise<unknown>;
+  // Single non-overloaded method signatures. Method syntax is required for
+  // bivariant parameter checking; a SINGLE signature is required because
+  // overload bivariance is order-dependent across program compositions.
+  init(options?: any, callback?: any): Promise<any>;
+  changeLanguage?(lng?: string, callback?: any): Promise<any>;
   setLang?: (lang: string) => void | Promise<void>;
-  use: (plugin: unknown) => void;
-  createInstance?: (options?: I18nInitOptions) => I18nInstance;
-  cloneInstance?: (options?: I18nInitOptions) => I18nInstance; // ssr need
-  // i18next store (may not be in type definition but exists at runtime)
+  use(plugin: any): unknown;
+  t: TranslateFn;
+  exists?: (
+    key: string | string[],
+    options?: Record<string, unknown>,
+  ) => boolean;
+  // `lng` is required: i18next's getFixedT does not accept `undefined`.
+  getFixedT?: (
+    lng: string | readonly string[] | null,
+    ns?: string | readonly string[] | null,
+    keyPrefix?: string,
+  ) => TranslateFn;
+  hasLoadedNamespace?: (
+    ns: string | readonly string[],
+    options?: Record<string, unknown>,
+  ) => boolean;
+  dir?: (lng?: string) => string;
+  format?: (
+    value: unknown,
+    format?: string,
+    lng?: string,
+    options?: Record<string, unknown>,
+  ) => string;
+  // readonly: i18next declares `languages: readonly string[]`.
+  languages?: readonly string[];
+  resolvedLanguage?: string;
+  loadNamespaces?: (
+    ns: string | readonly string[],
+    callback?: (...args: any[]) => void,
+  ) => Promise<void>;
+  loadLanguages?: (
+    lngs: string | readonly string[],
+    callback?: (...args: any[]) => void,
+  ) => Promise<void>;
+  addResourceBundle?: (
+    lng: string,
+    ns: string,
+    resources: Record<string, unknown>,
+    deep?: boolean,
+    overwrite?: boolean,
+  ) => unknown;
+  getResourceBundle?: (lng: string, ns: string) => unknown;
+  getDataByLanguage?: (
+    lng: string,
+  ) => Record<string, Record<string, string>> | undefined;
+  createInstance?(options?: any, callback?: any): I18nInstance;
+  cloneInstance?(options?: any, callback?: any): I18nInstance; // ssr need
+  // i18next store (may not be in the type definition but exists at runtime)
   store?: I18nResourceStore;
-  emit?: (event: string, ...args: unknown[]) => void;
-  reloadResources?: (language?: string, namespace?: string) => Promise<void>;
-  removeResourceBundle?: (language: string, namespace: string) => I18nInstance;
+  emit?(event: string, ...args: any[]): unknown;
+  reloadResources?(
+    language?: any,
+    namespace?: any,
+    callback?: any,
+  ): Promise<void>;
+  removeResourceBundle?(language: string, namespace: string): I18nInstance;
+  // No nested index signature: i18next's `Services` is an interface and would
+  // fail "Index signature for type 'string' is missing".
   services?: {
-    languageDetector?: {
-      detect: (
-        request?: unknown,
-        options?: unknown,
-      ) => string | string[] | undefined;
-      [key: string]: unknown;
-    };
+    store?: unknown;
+    languageDetector?: any;
     resourceStore?: I18nResourceStore;
-    backend?: unknown; // Backend instance (e.g., SdkBackend)
-    [key: string]: unknown;
+    backend?: unknown; // Backend instance (e.g. SdkBackend)
   };
   // i18next instance options (available after initialization)
   options?: {
-    backend?: BackendOptions;
-    [key: string]: unknown;
+    detection?: any;
+    backend?: any;
+    ns?: any;
+    defaultNS?: any;
   };
-  [key: string]: unknown;
+  // NO `[key: string]: unknown`. TypeScript never grants an interface an
+  // implicit index signature, so any index signature here makes i18next's
+  // `i18n` permanently unassignable. BREAKING for consumers that read
+  // undeclared properties off I18nInstance.
 }
 
 type LanguageDetectorOrder = string[];

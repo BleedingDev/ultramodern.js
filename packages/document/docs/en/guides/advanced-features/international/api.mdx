@@ -145,19 +145,52 @@ const myPlugin = (): RuntimePlugin => ({
 
 The i18next instance type used by the plugin. It is a subset of the i18next `i18n` type and only lists fields actually used by the plugin:
 
+:::warning BREAKING (UltraModern)
+`I18nInstance` no longer declares a top-level `[key: string]: unknown` index
+signature: TypeScript never grants an interface an implicit index signature, so
+that member made the documented `runtime: { i18n: { i18nInstance: i18next } }`
+usage fail to typecheck. Reading a property that is not declared below is now a
+type error (TS2339) — cast to the concrete instance type instead. `t` is now a
+REQUIRED member, so object literals that produce an `I18nInstance` must supply
+one.
+:::
+
 ```ts
+type TranslateFn = (
+  key: string | string[],
+  options?: Record<string, unknown>,
+) => string;
+
 interface I18nInstance {
   language: string;
-  isInitialized: boolean;
-  init: (options?: I18nInitOptions) => void | Promise<void>;
-  changeLanguage: (lang: string) => void | Promise<void>;
-  use: (plugin: any) => void;
-  createInstance: (options?: I18nInitOptions) => I18nInstance;
+  isInitialized?: boolean;
+  init(options?: any, callback?: any): Promise<any>;
+  changeLanguage?(lng?: string, callback?: any): Promise<any>;
+  setLang?: (lang: string) => void | Promise<void>;
+  use(plugin: any): unknown;
+  t: TranslateFn;
+  exists?: (key: string | string[], options?: Record<string, unknown>) => boolean;
+  getFixedT?: (
+    lng: string | readonly string[] | null,
+    ns?: string | readonly string[] | null,
+    keyPrefix?: string,
+  ) => TranslateFn;
+  hasLoadedNamespace?: (
+    ns: string | readonly string[],
+    options?: Record<string, unknown>,
+  ) => boolean;
+  dir?: (lng?: string) => string;
+  languages?: readonly string[];
+  resolvedLanguage?: string;
+  createInstance?(options?: any, callback?: any): I18nInstance;
+  cloneInstance?(options?: any, callback?: any): I18nInstance;
   options?: {
-    backend?: BackendOptions;
-    supportedLngs?: string[];
-    [key: string]: any;
+    detection?: any;
+    backend?: any;
+    ns?: any;
+    defaultNS?: any;
   };
+  // ...see src/runtime/i18n/instance.ts for the full member list.
 }
 ```
 

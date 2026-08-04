@@ -144,19 +144,50 @@ const myPlugin = (): RuntimePlugin => ({
 
 插件使用的 i18next 实例类型（i18next `i18n` 类型的子集，仅列出插件实际使用的字段）：
 
+:::warning 破坏性变更（UltraModern）
+`I18nInstance` 不再声明顶层的 `[key: string]: unknown` 索引签名：TypeScript 永远不会
+为 interface 自动添加隐式索引签名，该成员会让文档中的
+`runtime: { i18n: { i18nInstance: i18next } }` 用法无法通过类型检查。读取下方未声明的
+属性现在会报类型错误（TS2339），请改为断言到具体的实例类型。`t` 现在是**必需**成员，
+因此以对象字面量构造 `I18nInstance` 时必须提供 `t`。
+:::
+
 ```ts
+type TranslateFn = (
+  key: string | string[],
+  options?: Record<string, unknown>,
+) => string;
+
 interface I18nInstance {
   language: string;
-  isInitialized: boolean;
-  init: (options?: I18nInitOptions) => void | Promise<void>;
-  changeLanguage: (lang: string) => void | Promise<void>;
-  use: (plugin: any) => void;
-  createInstance: (options?: I18nInitOptions) => I18nInstance;
+  isInitialized?: boolean;
+  init(options?: any, callback?: any): Promise<any>;
+  changeLanguage?(lng?: string, callback?: any): Promise<any>;
+  setLang?: (lang: string) => void | Promise<void>;
+  use(plugin: any): unknown;
+  t: TranslateFn;
+  exists?: (key: string | string[], options?: Record<string, unknown>) => boolean;
+  getFixedT?: (
+    lng: string | readonly string[] | null,
+    ns?: string | readonly string[] | null,
+    keyPrefix?: string,
+  ) => TranslateFn;
+  hasLoadedNamespace?: (
+    ns: string | readonly string[],
+    options?: Record<string, unknown>,
+  ) => boolean;
+  dir?: (lng?: string) => string;
+  languages?: readonly string[];
+  resolvedLanguage?: string;
+  createInstance?(options?: any, callback?: any): I18nInstance;
+  cloneInstance?(options?: any, callback?: any): I18nInstance;
   options?: {
-    backend?: BackendOptions;
-    supportedLngs?: string[];
-    [key: string]: any;
+    detection?: any;
+    backend?: any;
+    ns?: any;
+    defaultNS?: any;
   };
+  // ...完整成员列表见 src/runtime/i18n/instance.ts。
 }
 ```
 

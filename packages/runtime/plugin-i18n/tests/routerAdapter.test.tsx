@@ -56,6 +56,7 @@ function createI18nInstance(language = 'en'): I18nInstance {
     isInitialized: true,
     init: () => Promise.resolve(undefined),
     use: () => {},
+    t: (key: string | string[]) => (Array.isArray(key) ? key[0] : key),
     createInstance: () => createI18nInstance(language),
     setLang: rstest.fn(async () => undefined),
     changeLanguage: rstest.fn(async () => undefined),

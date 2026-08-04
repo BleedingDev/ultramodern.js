@@ -187,11 +187,13 @@ export const FederatedI18nBoundary: FC<FederatedI18nBoundaryProps> = ({
   return <ModernI18nProvider value={value}>{children}</ModernI18nProvider>;
 };
 
-interface UseModernI18nReturn {
+export interface UseModernI18nReturn<
+  TInstance extends I18nInstance = I18nInstance,
+> {
   language: string;
   changeLanguage: (newLang: string) => Promise<void>;
   t: (key: string | string[], ...args: any[]) => string;
-  i18nInstance: I18nInstance;
+  i18nInstance: TInstance;
   supportedLanguages: string[];
   localisedUrls?: LocalisedUrlsOption;
   isLanguageSupported: (lang: string) => boolean;
@@ -209,10 +211,18 @@ interface UseModernI18nReturn {
  * - List of supported languages
  * - Helper function to check if language is supported
  *
+ * @typeParam TInstance - The concrete shape of the i18n instance held by the
+ * provider (e.g. i18next's `i18n`, or a wrapper type). Constrained to
+ * `I18nInstance`, so a nonsense argument is rejected; within that constraint it
+ * is still a caller assertion — the provider stores the base type and the
+ * narrowing is not verified at runtime. Pass it only when you know which
+ * instance the provider was given.
  * @param options - Optional configuration to override context settings
  * @returns Object containing i18n functionality and utilities
  */
-export const useModernI18n = (): UseModernI18nReturn => {
+export const useModernI18n = <
+  TInstance extends I18nInstance = I18nInstance,
+>(): UseModernI18nReturn<TInstance> => {
   const context = useContext(ModernI18nContext);
   if (!context) {
     throw new Error('useModernI18n must be used within ModernI18nProvider');
@@ -303,7 +313,9 @@ export const useModernI18n = (): UseModernI18nReturn => {
     language: currentLanguage,
     changeLanguage,
     t,
-    i18nInstance,
+    // The provider stores the instance as the base `I18nInstance`; the caller
+    // narrows to the concrete instance type via the TInstance type argument.
+    i18nInstance: i18nInstance as TInstance,
     supportedLanguages: languages || [],
     localisedUrls,
     isLanguageSupported,

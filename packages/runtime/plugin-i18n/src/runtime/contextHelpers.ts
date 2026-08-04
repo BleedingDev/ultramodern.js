@@ -188,7 +188,16 @@ export function translateI18n(
     throw new Error('i18nInstance.t required');
   }
 
-  return i18nInstance.t(key, ...args) as string;
+  // Called through `.call` with the original receiver: `I18nInstance.t` is a
+  // method, and custom instances (wrappers, class-based translators) may read
+  // `this`. Extracting the function and calling it bare would silently drop the
+  // receiver — i18next's own `t` happens to be bound, which would hide it.
+  const translate = i18nInstance.t as (
+    this: I18nInstance,
+    key: string | string[],
+    ...rest: unknown[]
+  ) => string;
+  return translate.call(i18nInstance, key, ...args);
 }
 
 export function isI18nLanguageSupported(
