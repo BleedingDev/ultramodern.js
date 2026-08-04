@@ -128,6 +128,11 @@ jobs:
       - name: Install Dependencies
         run: mise exec -- pnpm install --frozen-lockfile
 
+      # plugin-runtime's boundary-debugger suite drives a real chromium through
+      # the playwright installed in the rstest browser fixture.
+      - name: Install browser qualification runtime
+        run: mise exec -- pnpm --dir tests/integration/rstest/basic-app-rstest-browser exec playwright install --with-deps chromium
+
       - name: Qualify release source
         run: |
           mise exec -- pnpm test:scripts

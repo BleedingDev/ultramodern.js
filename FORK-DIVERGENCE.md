@@ -72,6 +72,19 @@ Root/infra is intentionally not package-owned, but it is not optional during ups
   that reverts any one site to upstream leaves the other four pointing at a
   version that is no longer installed.
 
+- **Examples consume the workspace, not the registry — [F] (2026-08-04).** Every
+  `@modern-js/*` dependency in the 15 `examples/**` workspace members is
+  `workspace:*`; upstream declares them `latest`. Under upstream's spelling a
+  `pnpm install` in this fork downloads real Modern.js (`3.7.0`) beside the fork's
+  own packages, and pnpm hoists one of the two into
+  `node_modules/.pnpm/node_modules/@modern-js/*`. Which one wins is not
+  deterministic across machines, so any code that resolves a bare
+  `@modern-js/*` specifier from outside the workspace tree — the plugin-bff
+  generator fixtures do exactly this — silently binds to upstream on CI and to
+  the fork locally, and fork-only subpaths (`./effect-client`, `./effect`) fail
+  with `ERR_PACKAGE_PATH_NOT_EXPORTED`. Take upstream's example *sources* on
+  sync; keep `workspace:*` on their manifests.
+
 ### CI and GitHub workflows — mixed
 
 - Added fork-owned workflows: `boundary-anti-patterns.yml`, `bun-superapp-smoke.yml`, `contract-gates.yml`, `docs-pages.yml`, `publish-bleedingdev.yml`, `superapp-certification.yml`, `ultramodern-nightly.yml`, `ultramodern-production-readiness.yml`, `workflow-security.yml`.
