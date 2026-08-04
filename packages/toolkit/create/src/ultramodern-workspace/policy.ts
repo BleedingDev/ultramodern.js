@@ -375,6 +375,19 @@ export const ULTRAMODERN_PACKAGE_PINS = {
     'react-dom': REACT_DOM_VERSION,
     'react-router': REACT_ROUTER_VERSION,
   },
+  // FORK: `@modern-js/plugin-bff` declares `effect` and `@effect/opentelemetry`
+  // as OPTIONAL peers so a hono-only consumer is never forced to install Effect.
+  // Every generated UltraModern workspace runs the strict Effect BFF lane, so
+  // whoever depends on plugin-bff must supply that peer itself — at the exact
+  // cohort version, which is the whole point of the optional-peer shape (one
+  // Effect Context/Service identity). Without this the generated workspace
+  // installs no `effect` at all: the BFF lane fails at runtime, and the
+  // `effect@<version>` entry in `patchedDependencies` matches nothing, so pnpm
+  // rejects the install with ERR_PNPM_UNUSED_PATCH.
+  bffEffectDependencies: {
+    '@effect/opentelemetry': EFFECT_VERSION,
+    effect: EFFECT_VERSION,
+  },
   appDevDependencies: {
     '@effect/tsgo': EFFECT_TSGO_VERSION,
     '@rsbuild/plugin-tailwindcss': `^${RSBUILD_PLUGIN_TAILWINDCSS_VERSION}`,

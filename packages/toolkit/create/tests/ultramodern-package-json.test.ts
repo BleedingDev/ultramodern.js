@@ -58,6 +58,13 @@ const installAppDependencies = {
   'react-router': '7.18.1',
 };
 
+// plugin-bff declares both as optional peers, so whoever depends on plugin-bff
+// carries them at the exact cohort version.
+const bffEffectDependencies = {
+  '@effect/opentelemetry': '4.0.0-beta.102',
+  effect: '4.0.0-beta.102',
+};
+
 function createCatalogVertical() {
   return createVerticalDescriptor('catalog', 4101);
 }
@@ -80,6 +87,7 @@ test('app dependencies pin generated framework deps and distinguish shell-only f
 
   assert.deepEqual(appDependencies(scope, installPackageSource, shellApp), {
     ...installAppDependencies,
+    ...bffEffectDependencies,
     '@modern-js/plugin-bff': packageVersion,
   });
   assert.deepEqual(
@@ -89,6 +97,7 @@ test('app dependencies pin generated framework deps and distinguish shell-only f
     ]),
     {
       ...installAppDependencies,
+      ...bffEffectDependencies,
       '@modern-js/plugin-bff': packageVersion,
       '@tractor-store/catalog': 'workspace:*',
       '@tractor-store/checkout': 'workspace:*',
@@ -104,6 +113,7 @@ test('bridge dependencies are added after generated app deps and collisions fail
     {
       ...installAppDependencies,
       '@tractor-store/bridge-kit': 'workspace:*',
+      ...bffEffectDependencies,
       '@modern-js/plugin-bff': packageVersion,
     },
   );
@@ -145,6 +155,7 @@ test('workspace package source uses workspace versions for generated framework d
     react: '19.2.7',
     'react-dom': '19.2.7',
     'react-router': '7.18.1',
+    ...bffEffectDependencies,
     '@modern-js/plugin-bff': 'workspace:*',
   });
 });
@@ -186,6 +197,7 @@ test('root package json pins workspace package versions and bridge workspace glo
     '@modern-js/code-tools': packageVersion,
     '@modern-js/create': packageVersion,
     '@modern-js/plugin-bff': packageVersion,
+    ...bffEffectDependencies,
     '@typescript/native': 'npm:typescript@7.0.2',
     lefthook: '^2.1.10',
     miniflare: MINIFLARE_VERSION,

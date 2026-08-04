@@ -69,6 +69,7 @@ export function appDependencies(
       '@modern-js/plugin-bff',
       packageSource,
     );
+    Object.assign(dependencies, ULTRAMODERN_PACKAGE_PINS.bffEffectDependencies);
     for (const remote of verticalApiApps(remotes)) {
       dependencies[packageName(scope, remote.packageSuffix)] =
         WORKSPACE_PACKAGE_VERSION;
@@ -85,6 +86,7 @@ export function appDependencies(
       '@modern-js/plugin-bff',
       packageSource,
     );
+    Object.assign(dependencies, ULTRAMODERN_PACKAGE_PINS.bffEffectDependencies);
   }
 
   return dependencies;
@@ -223,6 +225,7 @@ export function createRootPackageJson(
         '@modern-js/plugin-bff',
         packageSource,
       ),
+      ...ULTRAMODERN_PACKAGE_PINS.bffEffectDependencies,
     },
   };
 }
