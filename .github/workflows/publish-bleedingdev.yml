@@ -24,6 +24,12 @@ defaults:
 
 env:
   BLEEDINGDEV_PUBLISH_CONCURRENCY: "8"
+  # The cohort ships `latest` and nothing else. Trusted-publishing OIDC cannot
+  # mutate dist-tags (see the accept-published comment below), so a tag is only
+  # ever set at publish time; validate-publish-security.mjs pins this to
+  # `latest`. The stale `ultramodern-canary` tag was retired on 2026-08-05
+  # rather than kept alive by hand. A real pre-release lane would need a `tag`
+  # dispatch input plus an allowlist in that validator, not a manual dist-tag.
   BLEEDINGDEV_PUBLISH_TAG: latest
   BLEEDINGDEV_RELEASE_BUNDLE_ARTIFACT: bleedingdev-release-bundle
   BLEEDINGDEV_RELEASE_ACCEPTANCE_ARTIFACT: bleedingdev-release-acceptance
