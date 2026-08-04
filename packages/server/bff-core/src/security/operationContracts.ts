@@ -1,3 +1,4 @@
+import { createRequire } from 'node:module';
 import { createHash } from 'crypto';
 import 'reflect-metadata';
 import type { ApiHandler } from '../router/types';
@@ -72,6 +73,16 @@ type ZodToJSONSchema = (schema: unknown, options?: unknown) => unknown;
 
 let cachedZodToJSONSchema: ZodToJSONSchema | null | undefined;
 
+// FORK: the specifier is assembled at runtime so the bundler cannot see it.
+// A literal require of the zod specifier here is externalized by rslib/rspack
+// into a TOP-LEVEL static import of it in the esm-node output, which makes
+// this OPTIONAL peer a hard runtime requirement: every consumer of
+// @modern-js/bff-core (and therefore of @modern-js/plugin-bff's root, ./cli,
+// ./server-plugin and ./hono-server entries) crashed with
+// ERR_MODULE_NOT_FOUND: zod unless they happened to install zod.
+// Guard: tests/optionalZodPeer.test.ts. Do NOT inline this back to a literal.
+const ZOD_SPECIFIER = ['z', 'o', 'd'].join('');
+
 const resolveZodToJSONSchema = (): ZodToJSONSchema | null => {
   if (typeof cachedZodToJSONSchema !== 'undefined') {
     return cachedZodToJSONSchema;
@@ -79,8 +90,10 @@ const resolveZodToJSONSchema = (): ZodToJSONSchema | null => {
   try {
     // zod is an optional peer dependency: schema serialization degrades to a
     // route-identity hash when it is absent.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const zod = require('zod') as Record<string, unknown> & {
+    const load = createRequire(
+      typeof __filename === 'string' ? __filename : import.meta.url,
+    );
+    const zod = load(ZOD_SPECIFIER) as Record<string, unknown> & {
       z?: Record<string, unknown>;
     };
     const candidate = zod?.toJSONSchema ?? zod?.z?.toJSONSchema;
