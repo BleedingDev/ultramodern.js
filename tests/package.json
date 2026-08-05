@@ -24,7 +24,7 @@
     "@types/node": "^26.1.1",
     "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "cross-spawn": "^7.0.6",
-    "enhanced-resolve": "5.24.2",
+    "enhanced-resolve": "5.24.5",
     "fs-extra": "^11.3.6",
     "get-port": "7.2.0",
     "kill-port": "^2.0.1",
