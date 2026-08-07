@@ -1,18 +1,3 @@
-# UltraModern.js Workspace
-
-This is an UltraModern.js SuperApp with a composition shell and owned business
-MicroVerticals.
-
-## Work here
-
-- Use Node `>=26` and pnpm `{{pnpmVersion}}`.
-- Keep business features out of the shell; follow
-  [README.md](./README.md) when adding a MicroVertical.
-- Run `pnpm check`; also run `pnpm build` for runtime, routing, build, or deploy
-  changes.
-- Use a matching skill under [`.codex/skills`](./.codex/skills), reading its
-  `SKILL.md` and references only as needed.
-
 <!-- BEGIN:modernjs-agent-rules -->
 
 # Modern.js: read the docs before you code

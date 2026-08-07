@@ -23,7 +23,7 @@
     "build": "rspress build",
     "preview": "rspress preview"
   },
-  "version": "3.7.0",
+  "version": "3.8.0",
   "publishConfig": {
     "registry": "https://registry.npmjs.org/",
     "access": "public"
@@ -49,5 +49,20 @@
     "rsbuild-plugin-open-graph": "1.1.3",
     "ts-node": "^10.9.2",
     "typescript": "^7.0.2"
+  },
+  "nx": {
+    "targets": {
+      "build": {
+        "inputs": [
+          "build",
+          "^build",
+          "{projectRoot}/docs/**/*",
+          "{projectRoot}/rspress.config.ts"
+        ],
+        "outputs": [
+          "{projectRoot}/doc_build"
+        ]
+      }
+    }
   }
 }

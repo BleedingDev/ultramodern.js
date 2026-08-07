@@ -10,6 +10,8 @@ export const ZH_LOCALE = {
     verticalNameAmbiguous:
       '错误: MicroVertical 名称不明确：{firstSource} 的 "{firstName}" 与 {secondSource} 的 "{secondName}" 不一致。',
     createFailed: '创建项目时出错:',
+    agentsMdOnlyConflict:
+      '错误: --agents-md-only 只更新当前项目，不能与项目名或 --no-agents-md 同时使用',
   },
   message: {
     welcome: '🚀 欢迎使用 UltraModern.js',
@@ -27,8 +29,11 @@ export const ZH_LOCALE = {
     addedBlock: '✔ 已在 {file} 顶部添加 modernjs-agent-rules 块',
     linked: '✔ 已向 {file} 添加 `@AGENTS.md` 引用',
     unchanged: '• {file} 已是最新',
-    done: '✨ 完成 —— AI 编码助手会读取 node_modules/@modern-js/app-tools/docs/ 里的随包文档。',
+    done: '✨ 完成 —— AI 编码助手会读取 {location}。',
     targetNotFound: '错误: 目标目录 "{dir}" 不存在',
+    notAProject: '错误: 当前目录不是 Modern.js 项目，请在项目根目录运行',
+    unsupportedVersion:
+      '• 当前 @modern-js/app-tools@{version} 不支持随包文档，未修改任何文件。可在 AGENTS.md 中补充 https://modernjs.dev/llms.txt 供 AI 工具获取框架知识，或升级到 {since} 及以上后重新执行本命令',
   },
   help: {
     title: '🚀 UltraModern.js 项目创建工具',
@@ -41,6 +46,8 @@ export const ZH_LOCALE = {
     optionLang: '  -l, --lang     设置语言 (默认 en；zh 需显式选择)',
     optionNoAgentsMd:
       '      --no-agents-md 跳过生成 AGENTS.md / CLAUDE.md（AI 编码助手指引文件）',
+    optionAgentsMdOnly:
+      '      --agents-md-only 仅为当前项目补齐/更新 AGENTS.md / CLAUDE.md（不创建项目）',
     optionTailwind: '      --no-tailwind 禁用默认 Tailwind CSS v4 工作区样式',
     optionBff:
       '      --bff 保留默认的严格 Effect API 运行时（每个 MicroVertical 自带一个）',
@@ -106,7 +113,7 @@ export const ZH_LOCALE = {
       '  pnpm dlx @bleedingdev/modern-js-create catalog --vertical --dry-run',
     example10:
       '  pnpm dlx @bleedingdev/modern-js-create catalog --vertical --codesmith-overlay ./overlay-generator',
-    example11: '  pnpm dlx @bleedingdev/modern-js-create agents-md [已有项目]',
+    example11: '  pnpm dlx @bleedingdev/modern-js-create --agents-md-only',
     moreInfo: '📚 更多信息: https://modernjs.dev',
   },
   version: {

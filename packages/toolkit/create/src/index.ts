@@ -67,12 +67,19 @@ async function main() {
     return;
   }
 
-  if (args[0] === 'agents-md') {
-    const dirArg = args.slice(1).find(arg => !arg.startsWith('-'));
-    const targetDir = dirArg
-      ? path.resolve(process.cwd(), dirArg)
-      : process.cwd();
-    runAgentsMd(templateDir, targetDir);
+  // Mode for existing projects: refresh agent instructions without reserving
+  // a positional project name.
+  if (args.includes('--agents-md-only')) {
+    const valueFlags = ['--lang', '-l'];
+    const hasProjectName = args.some(
+      (arg, index) =>
+        !arg.startsWith('-') && !valueFlags.includes(args[index - 1]),
+    );
+    if (hasProjectName || args.includes('--no-agents-md')) {
+      console.error(i18n.t(localeKeys.error.agentsMdOnlyConflict));
+      process.exit(1);
+    }
+    runAgentsMd(templateDir, process.cwd());
     return;
   }
 

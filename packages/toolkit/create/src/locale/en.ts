@@ -11,6 +11,8 @@ export const EN_LOCALE = {
     verticalNameAmbiguous:
       'Error: Ambiguous MicroVertical name: "{firstName}" from {firstSource} does not match "{secondName}" from {secondSource}.',
     createFailed: 'Error creating project:',
+    agentsMdOnlyConflict:
+      'Error: --agents-md-only only updates the current project and cannot be combined with a project name or --no-agents-md',
   },
   message: {
     welcome: '🚀 Welcome to UltraModern.js',
@@ -28,8 +30,11 @@ export const EN_LOCALE = {
     addedBlock: '✔ Added the modernjs-agent-rules block to the top of {file}',
     linked: '✔ Added the `@AGENTS.md` import to {file}',
     unchanged: '• {file} is already up to date',
-    done: '✨ Done — AI coding agents will read the bundled docs in node_modules/@modern-js/app-tools/docs/.',
+    done: '✨ Done — AI coding agents will read {location}.',
     targetNotFound: 'Error: target directory "{dir}" does not exist',
+    notAProject: 'Error: not a Modern.js project — run this in a project root',
+    unsupportedVersion:
+      '• @modern-js/app-tools@{version} does not ship bundled docs; nothing was changed. Add https://modernjs.dev/llms.txt to AGENTS.md so AI tools can reach the framework docs, or upgrade to {since} or later and re-run this command',
   },
   help: {
     title: '🚀 UltraModern.js Project Creator',
@@ -44,6 +49,8 @@ export const EN_LOCALE = {
     optionLang: '  -l, --lang     Set the language (en default; zh opt-in)',
     optionNoAgentsMd:
       '      --no-agents-md Skip generating AGENTS.md / CLAUDE.md for AI coding agents',
+    optionAgentsMdOnly:
+      '      --agents-md-only Only add/refresh AGENTS.md / CLAUDE.md in the current project (no scaffolding)',
     optionTailwind:
       '      --no-tailwind Disable default Tailwind CSS v4 workspace styling',
     optionBff:
@@ -111,8 +118,7 @@ export const EN_LOCALE = {
       '  pnpm dlx @bleedingdev/modern-js-create catalog --vertical --dry-run',
     example10:
       '  pnpm dlx @bleedingdev/modern-js-create catalog --vertical --codesmith-overlay ./overlay-generator',
-    example11:
-      '  pnpm dlx @bleedingdev/modern-js-create agents-md [existing-project]',
+    example11: '  pnpm dlx @bleedingdev/modern-js-create --agents-md-only',
     moreInfo: '📚 Learn more: https://modernjs.dev',
   },
   version: {
