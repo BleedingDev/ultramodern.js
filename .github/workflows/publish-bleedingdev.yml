@@ -141,13 +141,15 @@ jobs:
 
       - name: Qualify release source
         run: |
+          # Script qualification imports public package entry points. Build the
+          # create dependency closure and app-tools first so a clean checkout
+          # exercises the same package boundaries as an installed workspace.
+          mise exec -- pnpm --filter "@modern-js/create^..." --filter @modern-js/app-tools build
           mise exec -- pnpm test:scripts
           mise exec -- pnpm lint
           mise exec -- pnpm run check-changeset
           # @modern-js/create's own test script rebuilds only itself; its
-          # workspace deps (e.g. @modern-js/rslib) must be built first, and
-          # the diagnostics probe type-checks against built app-tools types.
-          mise exec -- pnpm --filter "@modern-js/create^..." --filter @modern-js/app-tools build
+          # workspace deps and app-tools types are already built above.
           mise exec -- pnpm --filter @modern-js/create test
           # These suites do not run from source alone: bff-core's fixtures
           # import its own dist/esm-node/index.mjs by absolute path, and the
