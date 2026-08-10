@@ -22,10 +22,12 @@ packages:
   - 'examples/deploy/*'
   - 'examples/module-federation/*/*'
   # FORK: gitignored build output under tests/integration/** contains emitted
-  # package.json files (e.g. routes-tanstack-mf/mf-remote/dist/shared/effect)
+  # package.json files (e.g. routes-tanstack-mf/mf-remote/dist/shared/effect and
+  # bff-cross-project/bff-api-app/dist-1/client)
   # that match the globs above, so a local `pnpm install` on a dirty tree adds
   # phantom importers to pnpm-lock.yaml. Upstream has no such emitted manifests.
   - '!tests/integration/**/dist/**'
+  - '!tests/integration/**/dist-*/**'
   - '!tests/integration/**/node_modules/**'
 
 autoInstallPeers: false
