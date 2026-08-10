@@ -144,25 +144,28 @@ jobs:
           # Script qualification imports public package entry points. Build the
           # create dependency closure and app-tools first so a clean checkout
           # exercises the same package boundaries as an installed workspace.
-          mise exec -- pnpm --filter "@modern-js/create^..." --filter @modern-js/app-tools build
-          mise exec -- pnpm test:scripts
-          mise exec -- pnpm lint
-          mise exec -- pnpm run check-changeset
-          # @modern-js/create's own test script rebuilds only itself; its
-          # workspace deps and app-tools types are already built above.
-          mise exec -- pnpm --filter @modern-js/create test
+          mise exec -- pnpm --filter "@modern-js/create^..." --filter "@modern-js/app-tools..." build
           # These suites do not run from source alone: bff-core's fixtures
           # import its own dist/esm-node/index.mjs by absolute path, and the
           # plugin-i18n and plugin-bff type fixtures resolve @modern-js/runtime
           # and @modern-js/create-request through their exports maps, which
-          # point at dist/types. A clean checkout has none of it, so build each
-          # tested package together with its workspace dependencies first.
+          # point at dist/types. The create CLI fixture also loads plugin-i18n
+          # and plugin-tanstack from their built public entries. A clean
+          # checkout has none of it, so build every tested package and
+          # dependency closure before tests.
           mise exec -- pnpm \
             --filter "@modern-js/runtime..." \
             --filter "@modern-js/plugin-i18n..." \
+            --filter "@modern-js/plugin-tanstack..." \
             --filter "@modern-js/plugin-bff..." \
             --filter "@modern-js/bff-core..." \
             build
+          mise exec -- pnpm test:scripts
+          mise exec -- pnpm lint
+          mise exec -- pnpm run check-changeset
+          # @modern-js/create's own test script rebuilds only itself; every
+          # installed framework boundary it exercises is already built above.
+          mise exec -- pnpm --filter @modern-js/create test
           # The behavioural surface of the published runtime packages. Without
           # these, a dispatch on a commit whose ut-* workflows are red would
           # still publish to npm at dist-tag latest.
