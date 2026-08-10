@@ -104,7 +104,7 @@ describe('BFF compiler global variables', () => {
       [
         "import { workspaceValue } from '@fixture/raw-contract';",
         "import { runtimeValue } from '@fixture/esm-runtime';",
-        String.raw`export default () => \`\${workspaceValue}:\${runtimeValue}\`;`,
+        "export default () => workspaceValue + ':' + runtimeValue;",
         '',
       ].join('\n'),
     );
