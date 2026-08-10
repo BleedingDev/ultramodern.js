@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
@@ -79,6 +80,57 @@ const operationalIndependenceUiValue =
   'C1 operational independence: inventory UI and localization moved together.';
 const operationalIndependenceApiValue =
   'Inventory C1 operational proof response';
+const forbiddenDefaultOffRscDependencies = Object.freeze([
+  'react-server-dom-rspack',
+  'rsbuild-plugin-rsc',
+]);
+
+function assertDefaultOffRscInstall(projectDir, closureIdentities) {
+  const forbiddenDependencies = forbiddenDefaultOffRscDependencies.filter(
+    packageName =>
+      closureIdentities.some(identity => identity.name === packageName),
+  );
+  if (forbiddenDependencies.length > 0) {
+    throw new Error(
+      `Default-off clean-room install contains forbidden RSC dependencies: ${forbiddenDependencies.join(', ')}`,
+    );
+  }
+
+  const appsRoot = path.join(projectDir, 'apps');
+  const appManifestPaths = fs
+    .readdirSync(appsRoot, { withFileTypes: true })
+    .filter(entry => entry.isDirectory())
+    .map(entry => path.join(appsRoot, entry.name, 'package.json'))
+    .filter(file => fs.existsSync(file))
+    .sort();
+  if (appManifestPaths.length === 0) {
+    throw new Error('Default-off clean-room install has no generated app');
+  }
+  const appManifestPath = appManifestPaths[0];
+  const appManifest = JSON.parse(fs.readFileSync(appManifestPath, 'utf8'));
+  const runtimeEntry =
+    createRequire(appManifestPath).resolve('@modern-js/runtime');
+  const renderClient = createRequire(runtimeEntry).resolve(
+    '@modern-js/render/client',
+  );
+  try {
+    createRequire(renderClient).resolve(
+      'react-server-dom-rspack/client.browser',
+    );
+  } catch (error) {
+    if (error?.code === 'MODULE_NOT_FOUND') {
+      return {
+        appPackage: appManifest.name,
+        forbiddenDependencyCount: 0,
+        renderClient,
+      };
+    }
+    throw error;
+  }
+  throw new Error(
+    'Default-off clean-room install must not resolve react-server-dom-rspack/client.browser from @modern-js/render/client.',
+  );
+}
 
 function startOwnedWorkDirGuardian(workDir) {
   const guardian = spawn(
@@ -800,13 +852,18 @@ async function runAcceptanceProfile({
             cwd: projectDir,
             env: packageManagerEnv,
           });
+          const afterInstall = verifyStrictInstallInputs(projectDir, audit, {
+            now: currentTime(now),
+            phase: 'after-frozen-install',
+          });
           return {
             command: 'pnpm install --frozen-lockfile',
             beforeInstall,
-            afterInstall: verifyStrictInstallInputs(projectDir, audit, {
-              now: currentTime(now),
-              phase: 'after-frozen-install',
-            }),
+            afterInstall,
+            defaultOffRsc: assertDefaultOffRscInstall(
+              projectDir,
+              audit.closureIdentities,
+            ),
           };
         }),
       );
@@ -974,6 +1031,7 @@ async function runAcceptanceProfile({
 }
 
 export {
+  assertDefaultOffRscInstall,
   createAcceptancePackageManagerEnv,
   createOperationalIndependenceCommit,
   requiredPnpmCommands,

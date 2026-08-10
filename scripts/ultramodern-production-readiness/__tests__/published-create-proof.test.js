@@ -384,6 +384,90 @@ test('shared ERP-10 profile requires frozen install, checks, both builds, and no
   }
 });
 
+test('default-off clean-room install excludes and cannot resolve RSC runtimes', async t => {
+  const { assertDefaultOffRscInstall } = await import(
+    '../published-create-proof/acceptance-profile.mjs'
+  );
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'ultramodern-default-off-rsc-'),
+  );
+  t.after(() => fs.rmSync(root, { force: true, recursive: true }));
+
+  const appRoot = path.join(root, 'apps', 'shell');
+  const runtimeRoot = path.join(root, 'node_modules', '@modern-js', 'runtime');
+  const renderRoot = path.join(
+    runtimeRoot,
+    'node_modules',
+    '@modern-js',
+    'render',
+  );
+  fs.mkdirSync(appRoot, { recursive: true });
+  fs.mkdirSync(renderRoot, { recursive: true });
+  writeJson(root, 'apps/shell/package.json', {
+    name: '@acceptance/shell',
+    dependencies: { '@modern-js/runtime': '3.5.0-ultramodern.103' },
+  });
+  writeJson(root, 'node_modules/@modern-js/runtime/package.json', {
+    name: '@modern-js/runtime',
+    exports: { '.': './index.js' },
+  });
+  fs.writeFileSync(path.join(runtimeRoot, 'index.js'), 'module.exports = {}\n');
+  writeJson(
+    root,
+    'node_modules/@modern-js/runtime/node_modules/@modern-js/render/package.json',
+    {
+      name: '@modern-js/render',
+      exports: { './client': './client.js' },
+    },
+  );
+  fs.writeFileSync(path.join(renderRoot, 'client.js'), 'module.exports = {}\n');
+
+  const oversizedCleanClosure = Array.from({ length: 25_000 }, (_, index) => ({
+    name: `clean-dependency-${index}`,
+    version: '1.0.0',
+  }));
+  assert.deepEqual(assertDefaultOffRscInstall(root, oversizedCleanClosure), {
+    appPackage: '@acceptance/shell',
+    forbiddenDependencyCount: 0,
+    renderClient: fs.realpathSync(path.join(renderRoot, 'client.js')),
+  });
+
+  assert.throws(
+    () =>
+      assertDefaultOffRscInstall(
+        root,
+        oversizedCleanClosure.concat({
+          name: 'rsbuild-plugin-rsc',
+          version: '0.1.1',
+        }),
+      ),
+    /contains forbidden RSC dependencies: rsbuild-plugin-rsc/u,
+  );
+
+  const poisonRoot = path.join(
+    renderRoot,
+    'node_modules',
+    'react-server-dom-rspack',
+  );
+  fs.mkdirSync(poisonRoot, { recursive: true });
+  writeJson(
+    root,
+    'node_modules/@modern-js/runtime/node_modules/@modern-js/render/node_modules/react-server-dom-rspack/package.json',
+    {
+      name: 'react-server-dom-rspack',
+      exports: { './client.browser': './client.browser.js' },
+    },
+  );
+  fs.writeFileSync(
+    path.join(poisonRoot, 'client.browser.js'),
+    'module.exports = {}\n',
+  );
+  assert.throws(
+    () => assertDefaultOffRscInstall(root, oversizedCleanClosure),
+    /must not resolve react-server-dom-rspack\/client\.browser/u,
+  );
+});
+
 test('snapshots install-materialized generated source before building', async () => {
   const { snapshotAcceptanceWorkspaceSource } = await import(
     '../published-create-proof/acceptance-profile.mjs'

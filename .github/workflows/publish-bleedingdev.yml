@@ -757,7 +757,7 @@ jobs:
     with:
       release_bundle_artifact: bleedingdev-release-bundle-${{ needs.accept-release.outputs.producer_artifact_identity }}
       # Advance this reviewed immutable baseline after every accepted Tractor update.
-      tractor_ref: 3a9ac349f8f52662d451030aa86ba142ca01973d
+      tractor_ref: a2cc23e01c280ed34fb8e9a1e7117f5efe67ec37
 
   record-publish-outcome:
     name: Record the authenticated publish outcome

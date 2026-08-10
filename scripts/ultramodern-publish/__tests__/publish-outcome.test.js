@@ -187,7 +187,7 @@ async function createEvidenceFixture() {
     publishedReceiptPath,
     publishedOperationalEvidencePath,
   );
-  const tractorBaselineRevision = '3a9ac349f8f52662d451030aa86ba142ca01973d';
+  const tractorBaselineRevision = 'a2cc23e01c280ed34fb8e9a1e7117f5efe67ec37';
   const verticalIds = ['checkout', 'decide', 'explore'];
   const boundaryCandidates = {
     checkout: ['checkout', 'verticalCheckout'],

@@ -623,6 +623,151 @@ test('migrate preserves and rejects a consumer-modified retired Rspack RSC patch
   }
 });
 
+for (const [pathDescription, consumerPatchPath] of [
+  [
+    'through the canonical path',
+    'patches/@react-server-dom-rspack@0.0.3.patch',
+  ],
+  [
+    'through a dot-relative path',
+    './patches/@react-server-dom-rspack@0.0.3.patch',
+  ],
+  [
+    'through Windows separators',
+    'patches\\@react-server-dom-rspack@0.0.3.patch',
+  ],
+] as const) {
+  test(`migrate rejects a retired Rspack RSC patch still referenced by a consumer selector ${pathDescription}`, async () => {
+    const { tempRoot, workspaceDir } = scaffoldWorkspace(
+      'tooling-shared-retired-rspack-rsc-patch',
+    );
+    const workspacePath = path.join(workspaceDir, 'pnpm-workspace.yaml');
+    const patchFile = '@react-server-dom-rspack@0.0.3.patch';
+    const relativePatchPath = `patches/${patchFile}`;
+    const frameworkSelector = 'react-server-dom-rspack@0.0.3';
+    const consumerSelector = 'consumer-package@1.0.0';
+    const patchPath = path.join(workspaceDir, relativePatchPath);
+
+    try {
+      const policy = yaml.load(
+        fs.readFileSync(workspacePath, 'utf-8'),
+      ) as Record<string, any>;
+      policy.patchedDependencies[frameworkSelector] = relativePatchPath;
+      policy.patchedDependencies[consumerSelector] = consumerPatchPath;
+      fs.writeFileSync(workspacePath, yaml.dump(policy), 'utf-8');
+      fs.copyFileSync(
+        path.resolve(__dirname, '../../../..', 'patches', patchFile),
+        patchPath,
+      );
+      const originalWorkspace = fs.readFileSync(workspacePath);
+      const originalPatch = fs.readFileSync(patchPath);
+
+      assert.equal(
+        await runUltramodernToolingCli(
+          ['migrate-strict-effect', '--skip-install'],
+          workspaceDir,
+        ),
+        1,
+      );
+
+      assert.deepEqual(fs.readFileSync(workspacePath), originalWorkspace);
+      assert.deepEqual(fs.readFileSync(patchPath), originalPatch);
+    } finally {
+      fs.rmSync(tempRoot, { recursive: true, force: true });
+    }
+  });
+}
+
+test('migrate rejects patched dependency paths that escape the workspace', async () => {
+  const { tempRoot, workspaceDir } = scaffoldWorkspace(
+    'tooling-escaping-patch-path',
+  );
+  const workspacePath = path.join(workspaceDir, 'pnpm-workspace.yaml');
+  const patchFile = '@react-server-dom-rspack@0.0.3.patch';
+  const relativePatchPath = `patches/${patchFile}`;
+  const patchPath = path.join(workspaceDir, relativePatchPath);
+
+  try {
+    const policy = yaml.load(fs.readFileSync(workspacePath, 'utf-8')) as Record<
+      string,
+      any
+    >;
+    policy.patchedDependencies['react-server-dom-rspack@0.0.3'] =
+      relativePatchPath;
+    policy.patchedDependencies['consumer-package@1.0.0'] =
+      '../outside-workspace.patch';
+    fs.writeFileSync(workspacePath, yaml.dump(policy), 'utf-8');
+    fs.copyFileSync(
+      path.resolve(__dirname, '../../../..', 'patches', patchFile),
+      patchPath,
+    );
+    const originalWorkspace = fs.readFileSync(workspacePath);
+    const originalPatch = fs.readFileSync(patchPath);
+
+    assert.equal(
+      await runUltramodernToolingCli(
+        ['migrate-strict-effect', '--skip-install'],
+        workspaceDir,
+      ),
+      1,
+    );
+    assert.deepEqual(fs.readFileSync(workspacePath), originalWorkspace);
+    assert.deepEqual(fs.readFileSync(patchPath), originalPatch);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('migrate preserves a retired patch reached through a consumer symlink', async () => {
+  const { tempRoot, workspaceDir } = scaffoldWorkspace(
+    'tooling-symlinked-patch-path',
+  );
+  const workspacePath = path.join(workspaceDir, 'pnpm-workspace.yaml');
+  const patchFile = '@react-server-dom-rspack@0.0.3.patch';
+  const relativePatchPath = `patches/${patchFile}`;
+  const patchPath = path.join(workspaceDir, relativePatchPath);
+  const linkedPatchesPath = path.join(workspaceDir, 'consumer-patches');
+
+  try {
+    const policy = yaml.load(fs.readFileSync(workspacePath, 'utf-8')) as Record<
+      string,
+      any
+    >;
+    policy.patchedDependencies['react-server-dom-rspack@0.0.3'] =
+      relativePatchPath;
+    policy.patchedDependencies['consumer-package@1.0.0'] =
+      `consumer-patches/${patchFile}`;
+    fs.writeFileSync(workspacePath, yaml.dump(policy), 'utf-8');
+    fs.copyFileSync(
+      path.resolve(__dirname, '../../../..', 'patches', patchFile),
+      patchPath,
+    );
+    fs.symlinkSync(
+      path.join(workspaceDir, 'patches'),
+      linkedPatchesPath,
+      process.platform === 'win32' ? 'junction' : 'dir',
+    );
+    const originalWorkspace = fs.readFileSync(workspacePath);
+    const originalPatch = fs.readFileSync(patchPath);
+
+    assert.equal(
+      await runUltramodernToolingCli(
+        ['migrate-strict-effect', '--skip-install'],
+        workspaceDir,
+      ),
+      1,
+    );
+    assert.deepEqual(fs.readFileSync(workspacePath), originalWorkspace);
+    assert.deepEqual(fs.readFileSync(patchPath), originalPatch);
+    assert.equal(
+      fs.realpathSync(linkedPatchesPath),
+      fs.realpathSync(path.dirname(patchPath)),
+    );
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test('migrate keeps version fields consistent across the compact config', async () => {
   const { tempRoot, workspaceDir } = scaffoldWorkspace('tooling-version-sync');
 

@@ -398,11 +398,104 @@ function reconcilePnpmPolicy(
   reconcilePatchedDependencies(document, includeDrizzleOrmPatch);
 }
 
-function stalePatchFilesToRemove(workspaceRoot: string) {
+function stalePatchFilesToRemove(
+  workspaceRoot: string,
+  document: PnpmWorkspaceYaml,
+) {
   const staleFiles: string[] = [];
+  const patchedDependencies = ensureMap(document, 'patchedDependencies');
+  const lexicalWorkspaceRoot = path.resolve(workspaceRoot);
+  const physicalWorkspaceRoot = fs.realpathSync.native(lexicalWorkspaceRoot);
+  const isOutsideRoot = (root: string, candidate: string) => {
+    const relativePath = path.relative(root, candidate);
+    return (
+      relativePath === '' ||
+      relativePath === '..' ||
+      relativePath.startsWith(`..${path.sep}`) ||
+      path.isAbsolute(relativePath)
+    );
+  };
+  const resolvePhysicalPath = (absolutePath: string) => {
+    const missingSegments: string[] = [];
+    let existingAncestor = absolutePath;
+    while (!fs.existsSync(existingAncestor)) {
+      const parent = path.dirname(existingAncestor);
+      if (parent === existingAncestor) {
+        break;
+      }
+      missingSegments.unshift(path.basename(existingAncestor));
+      existingAncestor = parent;
+    }
+    return path.resolve(
+      fs.realpathSync.native(existingAncestor),
+      ...missingSegments,
+    );
+  };
+  const resolvePatchPath = (selector: string, patchPath: unknown) => {
+    if (typeof patchPath !== 'string' || patchPath.length === 0) {
+      throw new Error(
+        `Patched dependency ${selector} must reference a non-empty path string.`,
+      );
+    }
+    const absolutePath = path.resolve(
+      lexicalWorkspaceRoot,
+      patchPath.replaceAll('\\', '/'),
+    );
+    if (isOutsideRoot(lexicalWorkspaceRoot, absolutePath)) {
+      throw new Error(
+        `Patched dependency ${selector} references a path outside the workspace: ${patchPath}`,
+      );
+    }
+    const physicalPath = resolvePhysicalPath(absolutePath);
+    if (isOutsideRoot(physicalWorkspaceRoot, physicalPath)) {
+      throw new Error(
+        `Patched dependency ${selector} resolves outside the workspace: ${patchPath}`,
+      );
+    }
+    return {
+      absolutePath,
+      identity:
+        process.platform === 'win32'
+          ? physicalPath.toLowerCase()
+          : physicalPath,
+    };
+  };
+  const resolvedPatchedDependencies = Object.entries(patchedDependencies).map(
+    ([selector, patchPath]) => ({
+      ...resolvePatchPath(selector, patchPath),
+      selector,
+    }),
+  );
+  const resolvedBySelector = new Map(
+    resolvedPatchedDependencies.map(resolved => [resolved.selector, resolved]),
+  );
+  const activeFrameworkPatchIdentities = new Set(
+    [
+      ...ULTRAMODERN_WORKSPACE_POLICY.pnpm.patchedDependencies.required,
+      ...ULTRAMODERN_WORKSPACE_POLICY.pnpm.patchedDependencies.conditional,
+    ]
+      .map(patch => ({
+        actual: resolvedBySelector.get(patchKey(patch)),
+        expected: resolvePatchPath(patchKey(patch), patch.path),
+      }))
+      .filter(({ actual, expected }) => actual?.identity === expected.identity)
+      .map(({ expected }) => expected.identity),
+  );
   for (const patch of ULTRAMODERN_WORKSPACE_POLICY.pnpm.patchedDependencies
     .stale) {
-    const patchPath = path.join(workspaceRoot, patch.path);
+    const stalePath = resolvePatchPath(patchKey(patch), patch.path);
+    if (activeFrameworkPatchIdentities.has(stalePath.identity)) {
+      continue;
+    }
+    const survivingSelectors = resolvedPatchedDependencies
+      .filter(resolved => resolved.identity === stalePath.identity)
+      .map(resolved => resolved.selector);
+    if (survivingSelectors.length > 0) {
+      throw new Error(
+        `Stale framework patch ${patch.path} is still referenced by consumer-owned selector(s): ${survivingSelectors.join(', ')}; refusing to mutate the workspace.`,
+      );
+    }
+    const patchPath = stalePath.absolutePath;
     if (!fs.existsSync(patchPath)) {
       continue;
     }
@@ -447,7 +540,7 @@ export function updateGeneratedPnpmWorkspacePolicy(
     options.releaseCohort,
     options.now,
   );
-  const stalePatchFiles = stalePatchFilesToRemove(io.workspaceRoot);
+  const stalePatchFiles = stalePatchFilesToRemove(io.workspaceRoot, document);
 
   let changed = false;
   if (JSON.stringify(document) !== before) {

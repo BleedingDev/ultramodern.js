@@ -1115,6 +1115,10 @@ async function auditReleaseAgePolicy({
   return {
     approvals,
     closureCount: closureResult.closure.length,
+    closureIdentities: closureResult.closure.map(({ name, version }) => ({
+      name,
+      version,
+    })),
     candidateDiscovery: {
       classification: 'quarantined-input-only',
       source: 'native-generated-pnpm-lock',

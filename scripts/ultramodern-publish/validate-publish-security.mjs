@@ -41,7 +41,7 @@ const publishedAcceptanceArtifact = 'bleedingdev-published-acceptance';
 const releaseIdentityArtifact = 'bleedingdev-release-identity';
 const tractorAcceptanceWorkflow =
   './.github/workflows/ultramodern-tractor-downstream.yml';
-const tractorAcceptanceRef = '3a9ac349f8f52662d451030aa86ba142ca01973d';
+const tractorAcceptanceRef = 'a2cc23e01c280ed34fb8e9a1e7117f5efe67ec37';
 const releaseManifestPath = '.modern/bleedingdev-publish/manifest.json';
 const releaseManifestDigestPath =
   '.modern/bleedingdev-publish/manifest.json.sha256';
