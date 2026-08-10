@@ -22,27 +22,9 @@ export function defineEffectBff<
   TApi extends HttpApi.Constraint,
   TLayer extends EffectRuntimeLayer,
   TRpcs extends Rpc.Any = Rpc.Any,
->(definition: {
-  api: TApi;
-  layer: TLayer;
-  rpc?: EffectRpcBffDefinition<TRpcs>;
-  dataPlatform?: EffectDataPlatformValidationOptions;
-  interceptRequest?: EffectBffDefinition<
-    TApi,
-    TLayer,
-    TRpcs
-  >['interceptRequest'];
-}): {
-  api: TApi;
-  layer: TLayer;
-  rpc?: EffectRpcBffDefinition<TRpcs>;
-  dataPlatform?: EffectDataPlatformValidationOptions;
-  interceptRequest?: EffectBffDefinition<
-    TApi,
-    TLayer,
-    TRpcs
-  >['interceptRequest'];
-} & EffectBffRuntime<TApi, TLayer> {
+>(
+  definition: EffectBffDefinition<TApi, TLayer, TRpcs>,
+): EffectBffDefinition<TApi, TLayer, TRpcs> & EffectBffRuntime<TApi, TLayer> {
   const createHandler: EffectBffHandlerFactory<TApi, TLayer> = options => {
     const rpcDefinition = definition.rpc;
     let mergedRpcOptions: EffectRpcBffDefinition<TRpcs> | undefined =

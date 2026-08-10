@@ -4,7 +4,7 @@ import path from 'node:path';
 
 const packageRoot = path.resolve(__dirname, '..');
 
-describe('effect-client public types', () => {
+describe('Effect public types', () => {
   test('makeEffectHttpApiClient keeps no-middleware clients requirement-free', () => {
     const tempDir = fs.mkdtempSync(
       path.join(packageRoot, 'tests/.tmp-effect-client-types-'),
@@ -78,6 +78,74 @@ type _ClientConstructionRequirementsAreNever =
 type _PingMethodRequirementsAreNever = Assert<IsNever<PingMethodRequirements>>;
 type _ServerHelperPingMethodRequirementsAreNever =
   Assert<IsNever<ServerHelperPingMethodRequirements>>;
+`,
+      );
+
+      const result = spawnSync(
+        'pnpm',
+        ['exec', 'tsgo', '--project', path.join(tempDir, 'tsconfig.json')],
+        {
+          cwd: packageRoot,
+          encoding: 'utf-8',
+        },
+      );
+
+      expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  test('defineEffectBff satisfies its public definition under exact optional types', () => {
+    const tempDir = fs.mkdtempSync(
+      path.join(packageRoot, 'tests/.tmp-effect-definition-types-'),
+    );
+
+    try {
+      fs.writeFileSync(
+        path.join(tempDir, 'tsconfig.json'),
+        JSON.stringify(
+          {
+            compilerOptions: {
+              exactOptionalPropertyTypes: true,
+              isolatedModules: true,
+              lib: ['ES2022', 'ESNext.Disposable', 'DOM'],
+              module: 'ESNext',
+              moduleResolution: 'Bundler',
+              noEmit: true,
+              skipLibCheck: true,
+              strict: true,
+              target: 'ES2022',
+              types: ['node'],
+            },
+            include: ['input.ts'],
+          },
+          null,
+          2,
+        ),
+      );
+      fs.writeFileSync(
+        path.join(tempDir, 'input.ts'),
+        `import {
+  defineEffectBff,
+  HttpApi,
+  Layer,
+} from '../../dist/types/runtime/effect/edge';
+import type {
+  EffectBffDefinition,
+  EffectBffRuntime,
+  EffectRuntimeLayer,
+} from '../../dist/types/runtime/effect/edge';
+
+const api = HttpApi.make('StrictApi');
+const layer = Layer.empty satisfies EffectRuntimeLayer;
+const runtime: EffectBffDefinition<typeof api, EffectRuntimeLayer> &
+  EffectBffRuntime<typeof api, EffectRuntimeLayer> = defineEffectBff({
+    api,
+    layer,
+  });
+
+void runtime;
 `,
       );
 
