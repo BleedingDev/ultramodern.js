@@ -32,7 +32,6 @@ test('boundary-guards CLI passes on a minimal valid profile', () => {
     const profilePath = writeJson(dir, 'profile.json', {
       schemaVersion: 1,
       importGuards: [],
-      requiredSnippets: [],
     });
     const result = runCli('scripts/boundary-guards/check-boundary-violations.js', [
       '--profile',
@@ -52,7 +51,6 @@ test('boundary-guards CLI fails on an unsupported profile schemaVersion', () => 
     const profilePath = writeJson(dir, 'profile.json', {
       schemaVersion: 2,
       importGuards: [],
-      requiredSnippets: [],
     });
     const result = runCli('scripts/boundary-guards/check-boundary-violations.js', [
       '--profile',

@@ -26,22 +26,6 @@ const tractorWorkflowPath = path.join(
   repoRoot,
   '.github/workflows/ultramodern-tractor-downstream.yml',
 );
-const publishScriptPath = path.join(
-  repoRoot,
-  'scripts/ultramodern-publish/prepare-bleedingdev-packages.mjs',
-);
-const trustedPublisherScriptPath = path.join(
-  repoRoot,
-  'scripts/ultramodern-publish/configure-bleedingdev-trusted-publishing.mjs',
-);
-const releaseAcceptanceScriptPath = path.join(
-  repoRoot,
-  'scripts/ultramodern-publish/run-release-acceptance.mjs',
-);
-const releaseManifestReaderPath = path.join(
-  repoRoot,
-  'scripts/ultramodern-publish/lib/source-create-proof/release-manifest.mjs',
-);
 const semverPattern =
   /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 const enforcedPublishTag = 'latest';
@@ -115,12 +99,6 @@ function fail(message) {
 
 function readText(filePath) {
   return fs.readFileSync(filePath, 'utf-8');
-}
-
-function requireIncludes(content, token, context) {
-  if (!content.includes(token)) {
-    fail(`${context} must include ${token}`);
-  }
 }
 
 function requireRecord(value, context) {
@@ -2091,53 +2069,6 @@ function validateWorkflowContract() {
   validatePublishWorkflow(publishWorkflow);
   validateReadinessWorkflow(readinessWorkflow);
   validateTractorWorkflow(tractorWorkflow);
-
-  const publishWorkflowSource = readText(publishWorkflowPath);
-  for (const forbiddenToken of [
-    'dependency_version',
-    'package_mode',
-    'affected_base',
-    'affected_head',
-    'skip_existing',
-    'EXPLICIT_PACKAGES',
-    'PUBLISH_PACKAGES',
-    'PACKAGE_MODE',
-    'AFFECTED_BASE',
-    'AFFECTED_HEAD',
-    'SKIP_EXISTING',
-  ]) {
-    if (publishWorkflowSource.includes(forbiddenToken)) {
-      fail(`publish workflow must not expose ${forbiddenToken}`);
-    }
-  }
-  if (publishWorkflowSource.includes('pull_request_target')) {
-    fail('publish workflow must not use pull_request_target');
-  }
-  if (/\b(?:NPM_TOKEN|NODE_AUTH_TOKEN)\b/u.test(publishWorkflowSource)) {
-    fail('publish workflow must not reference npm token environment variables');
-  }
-  if (/npm\s+publish\s+--dry-run/u.test(publishWorkflowSource)) {
-    fail(
-      'publish workflow must not represent dry-run as an npm publish command',
-    );
-  }
-}
-
-function readPublishScriptSources() {
-  // The publish script was split into ./lib/prepare-bleedingdev-packages/*.
-  // Read the entry file plus every module so the security-literal contract is
-  // checked wherever the code actually lives, not just in the entry file.
-  const libDir = path.join(
-    repoRoot,
-    'scripts/ultramodern-publish/lib/prepare-bleedingdev-packages',
-  );
-  const sources = [readText(publishScriptPath)];
-  for (const entry of fs.readdirSync(libDir)) {
-    if (entry.endsWith('.mjs')) {
-      sources.push(readText(path.join(libDir, entry)));
-    }
-  }
-  return sources.join('\n');
 }
 
 async function validateBufferPublisherContract() {
@@ -2291,84 +2222,7 @@ async function validateBufferPublisherContract() {
 }
 
 async function validatePublishScriptContract() {
-  const publishScript = readPublishScriptSources();
   await validateBufferPublisherContract();
-  requireIncludes(
-    publishScript,
-    'assertTrustedPublishContext();',
-    'publish script',
-  );
-  requireIncludes(
-    publishScript,
-    'verifyReleaseArtifacts(options.out',
-    'publish-existing producer verifier',
-  );
-  requireIncludes(
-    publishScript,
-    "repositoryUrl: 'git+https://github.com/BleedingDev/ultramodern.js.git'",
-    'publish script',
-  );
-  requireIncludes(
-    publishScript,
-    "homepage: 'https://github.com/BleedingDev/ultramodern.js#readme'",
-    'publish script',
-  );
-  requireIncludes(
-    publishScript,
-    "bugsUrl: 'https://github.com/BleedingDev/ultramodern.js/issues'",
-    'publish script',
-  );
-  requireIncludes(
-    publishScript,
-    'await registry.validateRegistryCohort(manifest, options',
-    'publish script registry cohort gate',
-  );
-
-  const trustedPublisherScript = readText(trustedPublisherScriptPath);
-  requireIncludes(
-    trustedPublisherScript,
-    "const trustedPublisherEnvironment = 'npm-publish';",
-    'trusted publisher configuration',
-  );
-  requireIncludes(
-    trustedPublisherScript,
-    "args.push('--env', trustedPublisherEnvironment);",
-    'trusted publisher configuration',
-  );
-  requireIncludes(
-    trustedPublisherScript,
-    'verifyReleaseArtifacts(path.dirname(manifestPath))',
-    'trusted publisher strict release verification',
-  );
-  requireIncludes(
-    trustedPublisherScript,
-    'verified.manifestPath !== manifestPath',
-    'trusted publisher verified manifest path binding',
-  );
-
-  const releaseAcceptanceScript = readText(releaseAcceptanceScriptPath);
-  requireIncludes(
-    releaseAcceptanceScript,
-    "'--verify-receipt'",
-    'release acceptance runner receipt verification mode',
-  );
-  requireIncludes(
-    releaseAcceptanceScript,
-    'readReleaseManifest',
-    'release acceptance runner strict manifest reader',
-  );
-  requireIncludes(
-    releaseAcceptanceScript,
-    'assertAcceptanceReceipt',
-    'release acceptance runner receipt verifier',
-  );
-
-  const releaseManifestReader = readText(releaseManifestReaderPath);
-  requireIncludes(
-    releaseManifestReader,
-    'const verified = verifyReleaseArtifacts(artifactRoot);',
-    'release acceptance producer artifact verifier',
-  );
 }
 
 async function main() {

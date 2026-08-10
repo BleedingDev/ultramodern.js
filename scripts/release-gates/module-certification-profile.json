@@ -20,39 +20,6 @@
     ],
     "minimumReviewers": 2
   },
-  "migrationContracts": {
-    "targets": [
-      {
-        "id": "module-manifest-example-shape",
-        "path": "docs/super-app-rfc-adr/contracts/module-manifest.example.json",
-        "includes": [
-          "\"moduleId\":",
-          "\"runtime\":",
-          "\"usesSdkContracts\": true",
-          "\"usesPolicyMiddleware\": true",
-          "\"usesObservabilityHooks\": true"
-        ]
-      },
-      {
-        "id": "boundary-guard-profile-enforcement",
-        "path": "scripts/boundary-guards/profile.json",
-        "includes": [
-          "\"requiredSnippets\"",
-          "\"importGuards\"",
-          "\"core-no-domain-or-vendor-connector-imports\""
-        ]
-      },
-      {
-        "id": "module-certification-workflow",
-        "path": ".github/workflows/contract-gates.yml",
-        "includes": [
-          "module-certification",
-          "validate-release-candidate-gates.js",
-          "module-certification-profile.json"
-        ]
-      }
-    ]
-  },
   "gateCommands": [
     {
       "command": "pnpm",

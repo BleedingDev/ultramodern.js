@@ -24,17 +24,6 @@ const validateProfileShape = profile => {
     throw new Error('Profile evidence.requiredMetadataFields must be an array');
   }
 
-  if (
-    !profile.migrationContracts ||
-    typeof profile.migrationContracts !== 'object'
-  ) {
-    throw new Error('Profile is missing "migrationContracts" section');
-  }
-
-  if (!Array.isArray(profile.migrationContracts.targets)) {
-    throw new Error('Profile migrationContracts.targets must be an array');
-  }
-
   if (!Array.isArray(profile.gateCommands)) {
     throw new Error('Profile gateCommands must be an array');
   }

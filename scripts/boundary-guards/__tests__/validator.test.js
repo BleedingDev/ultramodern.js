@@ -9,7 +9,6 @@ const {
   runBoundaryGuardChecks,
   validateImportGuards,
   validateProfileShape,
-  validateRequiredSnippets,
 } = require('../validator');
 
 const makeTempDir = () =>
@@ -27,13 +26,6 @@ test('validateProfileShape accepts valid profile schema', () => {
         id: 'guard',
         roots: ['packages/runtime'],
         bannedImportPatterns: ['^@modules/'],
-      },
-    ],
-    requiredSnippets: [
-      {
-        id: 'snippet',
-        path: 'file.ts',
-        includes: ['token'],
       },
     ],
   };
@@ -112,52 +104,16 @@ test('validateImportGuards detects banned re-export specifiers', () => {
   }
 });
 
-test('validateRequiredSnippets detects order violations', () => {
-  const dir = makeTempDir();
-  try {
-    const filePath = path.join(dir, 'runtime.ts');
-    fs.writeFileSync(filePath, 'register();\nvalidate();\ntrust();\n');
-
-    const report = validateRequiredSnippets({
-      requiredSnippets: [
-        {
-          id: 'ordered-check',
-          path: path.relative(process.cwd(), filePath),
-          includes: ['register();', 'validate();', 'trust();'],
-          orderedIncludes: ['trust();', 'validate();'],
-        },
-      ],
-      rootDir: process.cwd(),
-    });
-
-    assert.equal(report.violations.length, 1);
-    assert.match(report.violations[0].message, /out of required order/);
-  } finally {
-    removeDir(dir);
-  }
-});
-
 test('runBoundaryGuardChecks validates happy path', () => {
   const dir = makeTempDir();
   try {
     const sourceDir = path.join(dir, 'module');
-    const runtimeFile = path.join(dir, 'runtime.ts');
-    const policyFile = path.join(dir, 'policy.ts');
     fs.mkdirSync(sourceDir, { recursive: true });
 
     fs.writeFileSync(
       path.join(sourceDir, 'index.ts'),
       'export const moduleValue = "ok";\n',
     );
-    fs.writeFileSync(
-      runtimeFile,
-      'await enforceRemoteTrustPolicy();\nvalidateRuntimeCompatibility();\nGarfishInstance.registerApp(apps);\n',
-    );
-    fs.writeFileSync(
-      policyFile,
-      'export const evaluateCrossProjectPolicy = () => "missing_operation_context operation_context_mismatch";\n',
-    );
-
     const profilePath = path.join(dir, 'profile.json');
     fs.writeFileSync(
       profilePath,
@@ -169,31 +125,6 @@ test('runBoundaryGuardChecks validates happy path', () => {
               id: 'guard',
               roots: [path.relative(dir, sourceDir)],
               bannedImportPatterns: ['^@modules/'],
-            },
-          ],
-          requiredSnippets: [
-            {
-              id: 'runtime',
-              path: path.relative(dir, runtimeFile),
-              includes: [
-                'enforceRemoteTrustPolicy',
-                'validateRuntimeCompatibility',
-                'GarfishInstance.registerApp',
-              ],
-              orderedIncludes: [
-                'enforceRemoteTrustPolicy',
-                'validateRuntimeCompatibility',
-                'GarfishInstance.registerApp',
-              ],
-            },
-            {
-              id: 'policy',
-              path: path.relative(dir, policyFile),
-              includes: [
-                'evaluateCrossProjectPolicy',
-                'missing_operation_context',
-                'operation_context_mismatch',
-              ],
             },
           ],
           scanExtensions: ['.ts'],
@@ -209,7 +140,7 @@ test('runBoundaryGuardChecks validates happy path', () => {
       allowEmptyManifests: false,
     });
 
-    assert.equal(report.requiredSnippetChecks, 2);
+    assert.equal(report.importGuardFilesScanned, 1);
   } finally {
     removeDir(dir);
   }

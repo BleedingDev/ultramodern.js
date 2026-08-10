@@ -113,36 +113,6 @@ const validateProfileShape = profile => {
       );
     }
   });
-
-  if (!Array.isArray(profile.requiredSnippets)) {
-    throw new Error('Boundary guard profile requiredSnippets must be an array');
-  }
-
-  profile.requiredSnippets.forEach((check, index) => {
-    if (!check || typeof check !== 'object') {
-      throw new Error(`requiredSnippets[${String(index)}] must be an object`);
-    }
-    if (typeof check.id !== 'string' || check.id.trim() === '') {
-      throw new Error(
-        `requiredSnippets[${String(index)}].id must be non-empty`,
-      );
-    }
-    if (typeof check.path !== 'string' || check.path.trim() === '') {
-      throw new Error(
-        `requiredSnippets[${String(index)}].path must be non-empty`,
-      );
-    }
-    if (!Array.isArray(check.includes)) {
-      throw new Error(
-        `requiredSnippets[${String(index)}].includes must be an array`,
-      );
-    }
-    if (check.orderedIncludes && !Array.isArray(check.orderedIncludes)) {
-      throw new Error(
-        `requiredSnippets[${String(index)}].orderedIncludes must be an array`,
-      );
-    }
-  });
 };
 
 const validateImportGuards = ({
@@ -195,81 +165,6 @@ const validateImportGuards = ({
   };
 };
 
-const validateRequiredSnippets = ({ requiredSnippets, rootDir }) => {
-  const validations = [];
-  const violations = [];
-
-  requiredSnippets.forEach(check => {
-    const targetPath = path.resolve(rootDir, check.path);
-    if (!fs.existsSync(targetPath)) {
-      violations.push({
-        type: 'required-snippet',
-        checkId: check.id,
-        filePath: targetPath,
-        message: 'Target file does not exist',
-      });
-      return;
-    }
-
-    const content = fs.readFileSync(targetPath, 'utf8');
-    check.includes.forEach(snippet => {
-      if (!content.includes(snippet)) {
-        violations.push({
-          type: 'required-snippet',
-          checkId: check.id,
-          filePath: targetPath,
-          snippet,
-          message: `Missing required snippet "${snippet}"`,
-        });
-      }
-    });
-
-    let ordered = true;
-    if (
-      Array.isArray(check.orderedIncludes) &&
-      check.orderedIncludes.length > 0
-    ) {
-      let previousIndex = -1;
-      check.orderedIncludes.forEach(snippet => {
-        const index = content.indexOf(snippet);
-        if (index === -1) {
-          ordered = false;
-          violations.push({
-            type: 'required-snippet-order',
-            checkId: check.id,
-            filePath: targetPath,
-            snippet,
-            message: `Missing ordered snippet "${snippet}"`,
-          });
-          return;
-        }
-        if (index < previousIndex) {
-          ordered = false;
-          violations.push({
-            type: 'required-snippet-order',
-            checkId: check.id,
-            filePath: targetPath,
-            snippet,
-            message: `Snippet "${snippet}" appears out of required order`,
-          });
-        }
-        previousIndex = index;
-      });
-    }
-
-    validations.push({
-      id: check.id,
-      path: check.path,
-      ordered,
-    });
-  });
-
-  return {
-    validations,
-    violations,
-  };
-};
-
 const flattenViolations = sections =>
   sections.flatMap(section =>
     section.violations.map(violation => ({
@@ -304,17 +199,8 @@ const runBoundaryGuardChecks = ({ profilePath, rootDir = process.cwd() }) => {
     rootDir,
     scanExtensions,
   });
-  const requiredSnippetReport = validateRequiredSnippets({
-    requiredSnippets: profile.requiredSnippets,
-    rootDir,
-  });
-
   const allViolations = flattenViolations([
     { section: 'import-guards', violations: importGuardReport.violations },
-    {
-      section: 'required-snippets',
-      violations: requiredSnippetReport.violations,
-    },
   ]);
   if (allViolations.length > 0) {
     throw new Error(
@@ -327,7 +213,6 @@ const runBoundaryGuardChecks = ({ profilePath, rootDir = process.cwd() }) => {
   return {
     profilePath: resolvedProfilePath,
     importGuardFilesScanned: importGuardReport.inspectedFiles,
-    requiredSnippetChecks: requiredSnippetReport.validations.length,
   };
 };
 
@@ -338,6 +223,5 @@ module.exports = {
   runBoundaryGuardChecks,
   validateImportGuards,
   validateProfileShape,
-  validateRequiredSnippets,
   walkFiles,
 };

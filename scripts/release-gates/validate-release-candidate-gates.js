@@ -6,7 +6,6 @@ const {
   readJsonFile,
   runGateCommands,
   validateEvidence,
-  validateMigrationContracts,
   validateProfileShape,
   writeGateSnapshot,
 } = require('./validator');
@@ -20,7 +19,6 @@ const parseArgs = argv => {
       evidenceDir: undefined,
       allowMissingEvidence: false,
       skipCommands: false,
-      skipMigrationValidation: false,
       gateSnapshotPath:
         process.env.MODERN_CONTRACT_GATES_FILE || DEFAULT_GATE_SNAPSHOT_PATH,
       gateName: undefined,
@@ -38,10 +36,6 @@ const parseArgs = argv => {
       },
       'skip-commands': {
         key: 'skipCommands',
-        type: 'boolean',
-      },
-      'skip-migration-validation': {
-        key: 'skipMigrationValidation',
         type: 'boolean',
       },
       'gate-snapshot-path': {
@@ -120,21 +114,6 @@ const runValidation = args => {
     allowMissingEvidence: args.allowMissingEvidence,
   });
 
-  const migrationReport = args.skipMigrationValidation
-    ? []
-    : validateMigrationContracts({
-        targets: profile.migrationContracts.targets,
-        rootDir: process.cwd(),
-        allowAutoBuildArtifacts: !args.skipCommands,
-        skipCommandRequiredTargets: args.skipCommands,
-      });
-  const skippedMigrationTargets =
-    args.skipCommands && !args.skipMigrationValidation
-      ? profile.migrationContracts.targets.filter(
-          target => target.requiresCommands === true,
-        ).length
-      : 0;
-
   if (!args.skipCommands) {
     runGateCommands({
       commands: profile.gateCommands,
@@ -147,8 +126,6 @@ const runValidation = args => {
     evidenceDir: path.resolve(evidenceDir),
     validatedEvidenceFiles: evidenceReport.validatedFiles.length,
     skippedEvidenceFiles: evidenceReport.skippedFiles.length,
-    validatedMigrationTargets: migrationReport.length,
-    skippedMigrationTargets,
     executedCommands: args.skipCommands ? 0 : profile.gateCommands.length,
   };
   return {

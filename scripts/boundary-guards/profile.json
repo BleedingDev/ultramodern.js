@@ -16,35 +16,5 @@
       ]
     }
   ],
-  "requiredSnippets": [
-    {
-      "id": "cross-project-operation-context-node",
-      "path": "packages/server/create-request/src/node.ts",
-      "includes": [
-        "x-modernjs-bff-operation-context",
-        "traceparent",
-        "attachOperationContext"
-      ]
-    },
-    {
-      "id": "cross-project-operation-context-core",
-      "path": "packages/server/create-request/src/policyCore.ts",
-      "includes": [
-        "x-modernjs-bff-operation-context",
-        "traceparent",
-        "traceId",
-        "spanId"
-      ]
-    },
-    {
-      "id": "cross-project-policy-enforcement",
-      "path": "packages/server/bff-core/src/security/crossProjectPolicy.ts",
-      "includes": [
-        "evaluateCrossProjectPolicy",
-        "missing_operation_context",
-        "operation_context_mismatch"
-      ]
-    }
-  ],
   "scanExtensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]
 }

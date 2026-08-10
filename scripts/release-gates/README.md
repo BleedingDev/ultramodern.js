@@ -5,7 +5,7 @@ This folder contains release-candidate gate tooling for `modernjs-44t.5.5`.
 ## Files
 
 1. `rc-contract-profile.json`
-   - source-of-truth profile for required evidence files, migration contract assertions, and representative gate commands.
+   - source-of-truth profile for required evidence files and executable gate commands.
    - also covers UltraModern preset starter/docs contract surfaces (public positioning guide, starter README/workflow, sandpack sync).
 2. `module-certification-profile.json`
    - module onboarding certification profile (SDK contract + boundary anti-pattern readiness).
@@ -33,9 +33,6 @@ node scripts/release-gates/validate-release-candidate-gates.js \
   --profile scripts/release-gates/rc-contract-profile.json \
   --evidence-dir docs/super-app-rfc-adr/evidence/release-candidate/current
 ```
-
-Note: full runs automatically attempt to build missing `dist*` migration-contract
-artifacts from their nearest package before snippet validation.
 
 Module certification gate run:
 

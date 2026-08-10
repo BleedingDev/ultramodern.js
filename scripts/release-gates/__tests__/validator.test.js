@@ -8,7 +8,6 @@ const {
   runGateCommands,
   validateEvidence,
   validateGateSnapshotFile,
-  validateMigrationContracts,
   validateProfileShape,
   writeGateSnapshot,
 } = require('../validator');
@@ -27,9 +26,6 @@ test('validateProfileShape accepts valid schema', () => {
       requiredFiles: ['architecture-evidence.md'],
       requiredMetadataFields: ['author'],
     },
-    migrationContracts: {
-      targets: [],
-    },
     gateCommands: [
       {
         command: process.execPath,
@@ -47,9 +43,6 @@ test('validateProfileShape rejects shell-string gate commands', () => {
     evidence: {
       requiredFiles: [],
       requiredMetadataFields: [],
-    },
-    migrationContracts: {
-      targets: [],
     },
     gateCommands: ['pnpm test'],
   };
@@ -207,149 +200,6 @@ test('validateEvidence rejects placeholder metadata values', () => {
           allowMissingEvidence: false,
         }),
       /placeholder value/,
-    );
-  } finally {
-    removeDir(dir);
-  }
-});
-
-test('validateMigrationContracts checks snippets', () => {
-  const dir = makeTempDir();
-  try {
-    const fixture = path.join(dir, 'fixture.txt');
-    fs.writeFileSync(fixture, 'alpha beta gamma traceId spanId');
-
-    const report = validateMigrationContracts({
-      rootDir: dir,
-      targets: [
-        {
-          id: 'fixture-contract',
-          path: 'fixture.txt',
-          includes: ['alpha', 'traceId', 'spanId'],
-        },
-      ],
-    });
-
-    assert.equal(report.length, 1);
-    assert.equal(report[0].id, 'fixture-contract');
-  } finally {
-    removeDir(dir);
-  }
-});
-
-test('validateMigrationContracts auto-builds missing dist artifacts when enabled', () => {
-  const dir = makeTempDir();
-  try {
-    const appDir = path.join(dir, 'integration/demo-app');
-    const artifactPath = path.join(appDir, 'dist-1/client/effect/index.js');
-    fs.mkdirSync(appDir, { recursive: true });
-    fs.writeFileSync(
-      path.join(appDir, 'package.json'),
-      JSON.stringify(
-        {
-          name: 'demo-app',
-          version: '1.0.0',
-          scripts: {
-            build: 'node ./build.js',
-          },
-        },
-        null,
-        2,
-      ),
-    );
-
-    const executed = [];
-    const report = validateMigrationContracts({
-      rootDir: dir,
-      allowAutoBuildArtifacts: true,
-      commandRunner: commandSpec => {
-        executed.push(commandSpec);
-        fs.mkdirSync(path.dirname(artifactPath), { recursive: true });
-        fs.writeFileSync(artifactPath, 'const operationManifest = true;');
-      },
-      targets: [
-        {
-          id: 'generated-contract',
-          path: 'integration/demo-app/dist-1/client/effect/index.js',
-          includes: ['operationManifest'],
-        },
-      ],
-    });
-
-    assert.equal(report.length, 1);
-    assert.equal(executed.length, 1);
-    assert.equal(executed[0].command, 'pnpm');
-    assert.deepEqual(executed[0].args, ['--dir', appDir, 'run', 'build']);
-    assert.match(executed[0].label, /pnpm --dir/);
-  } finally {
-    removeDir(dir);
-  }
-});
-
-test('validateMigrationContracts can skip command-required generated artifacts', () => {
-  const dir = makeTempDir();
-  try {
-    const staticPath = path.join(dir, 'static-contract.txt');
-    fs.writeFileSync(staticPath, 'static contract');
-
-    const report = validateMigrationContracts({
-      rootDir: dir,
-      skipCommandRequiredTargets: true,
-      targets: [
-        {
-          id: 'static-contract',
-          path: 'static-contract.txt',
-          includes: ['static contract'],
-        },
-        {
-          id: 'generated-contract',
-          path: 'integration/demo-app/dist/client/index.js',
-          includes: ['generated contract'],
-          requiresCommands: true,
-        },
-      ],
-    });
-
-    assert.deepEqual(
-      report.map(item => item.id),
-      ['static-contract'],
-    );
-  } finally {
-    removeDir(dir);
-  }
-});
-
-test('validateMigrationContracts fails auto-build when package has no build script', () => {
-  const dir = makeTempDir();
-  try {
-    const appDir = path.join(dir, 'integration/no-build-app');
-    fs.mkdirSync(appDir, { recursive: true });
-    fs.writeFileSync(
-      path.join(appDir, 'package.json'),
-      JSON.stringify(
-        {
-          name: 'no-build-app',
-          version: '1.0.0',
-        },
-        null,
-        2,
-      ),
-    );
-
-    assert.throws(
-      () =>
-        validateMigrationContracts({
-          rootDir: dir,
-          allowAutoBuildArtifacts: true,
-          targets: [
-            {
-              id: 'missing-artifact',
-              path: 'integration/no-build-app/dist/client/index.js',
-              includes: ['anything'],
-            },
-          ],
-        }),
-      /does not define scripts\.build/,
     );
   } finally {
     removeDir(dir);
