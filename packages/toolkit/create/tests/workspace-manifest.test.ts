@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { yaml } from '@modern-js/utils';
 import {
   addUltramodernVertical,
   generateUltramodernWorkspace,
@@ -79,9 +80,8 @@ const expectedWorkspaceManifest = [
   'packages/shared-design-tokens/src/index.ts',
   'packages/shared-design-tokens/src/tokens.css',
   'packages/shared-design-tokens/tsconfig.json',
-  'patches/@module-federation__bridge-react@2.8.0.patch',
-  'patches/@module-federation__modern-js-v3@2.8.0.patch',
-  'patches/@tanstack__router-core@1.171.14.patch',
+  'patches/@module-federation__bridge-react@2.8.2.patch',
+  'patches/@module-federation__modern-js-v3@2.8.2.patch',
   'patches/drizzle-orm-ts7-strict-declarations.patch',
   'patches/effect-schema-error-type-id.patch',
   'pnpm-workspace.yaml',
@@ -162,6 +162,64 @@ function listFiles(root: string, dir = root): string[] {
   // Byte-order sort keeps the snapshot stable across machine locales.
   return files.sort();
 }
+
+function readWorkflowSteps(workspaceDir: string) {
+  const workflow = yaml.load(
+    fs.readFileSync(
+      path.join(
+        workspaceDir,
+        '.github/workflows/ultramodern-workspace-gates.yml',
+      ),
+      'utf-8',
+    ),
+  ) as {
+    jobs: {
+      'workspace-gate': {
+        steps: Array<{
+          name: string;
+          uses?: string;
+          with?: Record<string, unknown>;
+        }>;
+      };
+    };
+  };
+  return new Map(
+    workflow.jobs['workspace-gate'].steps.map(step => [step.name, step]),
+  );
+}
+
+test('generated workflow pins reviewed action commits and mise release', () => {
+  const tempRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'um-workspace-workflow-'),
+  );
+  const workspaceDir = path.join(tempRoot, 'workflow-workspace');
+
+  try {
+    generateUltramodernWorkspace({
+      targetDir: workspaceDir,
+      packageName: 'workflow-workspace',
+      modernVersion: '3.2.1',
+      enableTailwind: true,
+      packageSource: { strategy: 'workspace' },
+    });
+    const workflowSteps = readWorkflowSteps(workspaceDir);
+    assert.equal(
+      workflowSteps.get('Checkout')?.uses,
+      'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1',
+    );
+    assert.equal(
+      workflowSteps.get('Setup Node.js')?.uses,
+      'actions/setup-node@820762786026740c76f36085b0efc47a31fe5020',
+    );
+    assert.equal(
+      workflowSteps.get('Setup mise')?.uses,
+      'jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654',
+    );
+    assert.equal(workflowSteps.get('Setup mise')?.with?.version, '2026.8.3');
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
 
 test('generated workspace file manifest matches the checked-in snapshot', () => {
   const tempRoot = fs.mkdtempSync(

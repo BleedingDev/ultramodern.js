@@ -1,6 +1,5 @@
 // @effect-diagnostics asyncFunction:off strictBooleanExpressions:off
 
-import path from 'node:path';
 import type {
   AppNormalizedConfig,
   AppTools,
@@ -8,6 +7,7 @@ import type {
 } from '@modern-js/app-tools';
 import { makeLegalIdentifier } from '@modern-js/runtime/cli';
 import type { NestedRouteForCli, PageRoute } from '@modern-js/types';
+import { upath as path } from '@modern-js/utils';
 
 import {
   createRouteStaticDataSnippet,

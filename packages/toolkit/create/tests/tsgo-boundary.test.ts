@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { yaml } from '@modern-js/utils';
 import { generateUltramodernWorkspace } from '../src/ultramodern-workspace';
 import { TYPESCRIPT_VERSION } from '../src/ultramodern-workspace/versions';
 
@@ -12,49 +14,129 @@ function readPackageJson(relativePath = 'package.json'): any {
   );
 }
 
-test('create package build and test keep declarations on tsgo:dts', () => {
-  const packageJson = readPackageJson();
+function writeExecutable(filePath: string, lines: string[]) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, `${lines.join('\n')}\n`);
+  fs.chmodSync(filePath, 0o755);
+}
 
-  assert.match(
-    packageJson.scripts.build,
-    /rslib build/u,
-    'package build must still emit runtime artifacts before declarations',
+function createPackageScriptWorkspace(
+  workspaceRoot: string,
+  scripts: Record<string, string>,
+) {
+  const createPackageDir = path.join(workspaceRoot, 'packages/create');
+  const binDir = path.join(createPackageDir, 'node_modules/.bin');
+  fs.mkdirSync(createPackageDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(workspaceRoot, 'package.json'),
+    JSON.stringify({
+      private: true,
+      scripts: {
+        'tsgo:dts': 'node scripts/emit-declarations.cjs',
+      },
+    }),
   );
-  assert.match(
-    packageJson.scripts.build,
-    /pnpm -w tsgo:dts "\$PWD"/u,
-    'package build must emit declarations through the repo tsgo:dts flow',
+  fs.writeFileSync(
+    path.join(workspaceRoot, 'pnpm-workspace.yaml'),
+    yaml.dump({ packages: ['packages/*'] }),
   );
-  assert.match(
-    packageJson.scripts.test,
-    /rslib build/u,
-    'package tests must build runtime artifacts before executing tests',
+  fs.writeFileSync(
+    path.join(createPackageDir, 'package.json'),
+    JSON.stringify({
+      name: '@fixture/create',
+      private: true,
+      scripts,
+    }),
   );
-  assert.match(
-    packageJson.scripts.test,
-    /pnpm -w tsgo:dts "\$PWD"/u,
-    'package tests must emit declarations before validating the public surface',
-  );
-  assert.equal(
-    packageJson.dependencies?.typescript,
-    undefined,
-    'published create runtime must not depend on the stable TypeScript package',
-  );
-  assert.equal(
-    packageJson.dependencies?.['@typescript/native-preview'],
-    undefined,
-    'published create runtime must not depend on native-preview compiler internals',
-  );
-  assert.equal(
-    typeof packageJson.devDependencies?.typescript,
-    'string',
-    'create tests may use the stable TypeScript package explicitly',
-  );
-  assert.equal(
-    typeof packageJson.devDependencies?.['@typescript/native-preview'],
-    'string',
-    'create build tooling may depend on native-preview as a dev-only compiler',
-  );
+  writeExecutable(path.join(binDir, 'rslib'), [
+    '#!/usr/bin/env node',
+    "const fs = require('node:fs');",
+    "fs.mkdirSync('dist/esm-node', { recursive: true });",
+    "fs.writeFileSync('dist/esm-node/index.js', 'export const runtime = true;\\n');",
+  ]);
+  writeExecutable(path.join(binDir, 'rstest'), [
+    '#!/usr/bin/env node',
+    "const fs = require('node:fs');",
+    "if (!fs.existsSync('dist/esm-node/index.js')) throw new Error('runtime artifact missing');",
+    "if (!fs.existsSync('dist/index.d.ts')) throw new Error('declaration artifact missing');",
+    "fs.writeFileSync('dist/test-evidence.json', JSON.stringify({ declarations: true, runtime: true }));",
+  ]);
+  writeExecutable(path.join(workspaceRoot, 'scripts/emit-declarations.cjs'), [
+    '#!/usr/bin/env node',
+    "const fs = require('node:fs');",
+    "const path = require('node:path');",
+    'const packageDir = process.argv[2];',
+    "if (!packageDir) throw new Error('package directory missing');",
+    "const runtimeArtifact = path.join(packageDir, 'dist/esm-node/index.js');",
+    "if (!fs.existsSync(runtimeArtifact)) throw new Error('runtime must be emitted first');",
+    "fs.writeFileSync(path.join(packageDir, 'dist/index.d.ts'), 'export declare const runtime: true;\\n');",
+  ]);
+
+  return createPackageDir;
+}
+
+test('create package scripts emit runtime and declarations before testing', () => {
+  const packageJson = readPackageJson();
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-create-scripts-'));
+
+  try {
+    const createPackageDir = createPackageScriptWorkspace(tempRoot, {
+      build: packageJson.scripts.build,
+      test: packageJson.scripts.test,
+    });
+
+    execFileSync('pnpm', ['run', 'build'], {
+      cwd: createPackageDir,
+      stdio: 'pipe',
+    });
+    assert.equal(
+      fs.existsSync(path.join(createPackageDir, 'dist/esm-node/index.js')),
+      true,
+      'package build must emit its runtime artifact',
+    );
+    assert.equal(
+      fs.existsSync(path.join(createPackageDir, 'dist/index.d.ts')),
+      true,
+      'package build must emit declarations through the workspace TS-Go flow',
+    );
+
+    execFileSync('pnpm', ['run', 'test'], {
+      cwd: createPackageDir,
+      stdio: 'pipe',
+    });
+    assert.deepEqual(
+      JSON.parse(
+        fs.readFileSync(
+          path.join(createPackageDir, 'dist/test-evidence.json'),
+          'utf-8',
+        ),
+      ),
+      { declarations: true, runtime: true },
+      'package tests must execute only after runtime and declaration artifacts exist',
+    );
+    assert.equal(
+      packageJson.dependencies?.typescript,
+      undefined,
+      'published create runtime must not depend on the stable TypeScript package',
+    );
+    assert.equal(
+      packageJson.dependencies?.['@typescript/native-preview'],
+      undefined,
+      'published create runtime must not depend on native-preview compiler internals',
+    );
+    assert.equal(
+      typeof packageJson.devDependencies?.typescript,
+      'string',
+      'create tests may use the stable TypeScript package explicitly',
+    );
+    assert.equal(
+      typeof packageJson.devDependencies?.['@typescript/native-preview'],
+      'string',
+      'create build tooling may depend on native-preview as a dev-only compiler',
+    );
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
 });
 
 test('generated package module scopes keep Module Federation apps CommonJS-compatible', () => {
@@ -122,34 +204,47 @@ test('generated package module scopes keep Module Federation apps CommonJS-compa
       undefined,
       'generated apps must not install native-preview when stable TypeScript 7 is available',
     );
-    const pnpmWorkspace = fs.readFileSync(
-      path.join(workspaceDir, 'pnpm-workspace.yaml'),
-      'utf-8',
-    );
-    assert.match(
-      pnpmWorkspace,
-      /^injectWorkspacePackages: true$/mu,
+    const pnpmWorkspace = yaml.load(
+      fs.readFileSync(path.join(workspaceDir, 'pnpm-workspace.yaml'), 'utf-8'),
+    ) as Record<string, any>;
+    assert.equal(
+      pnpmWorkspace.injectWorkspacePackages,
+      true,
       'source-linked generated workspaces must inject the complete Modern.js dependency graph so generated patches own declaration resolution',
     );
-    assert.match(
-      pnpmWorkspace,
-      /^linkWorkspacePackages: true$/mu,
+    assert.equal(
+      pnpmWorkspace.linkWorkspacePackages,
+      true,
       'source-linked generated workspaces must resolve explicit workspace protocol framework dependencies',
     );
-    assert.doesNotMatch(
-      pnpmWorkspace,
-      /@module-federation\/dts-plugin>typescript/u,
+    assert.equal(
+      pnpmWorkspace.overrides?.['@module-federation/dts-plugin>typescript'],
+      undefined,
       'generated workspaces must not override the Module Federation DTS TypeScript peer',
     );
-    assert.doesNotMatch(
-      pnpmWorkspace,
-      /@module-federation\/dts-plugin@[^\n]+:\s*\n\s+(?:dependencies|peerDependencies):\s*\n\s+typescript:/u,
-      'generated workspaces must not inject a private TypeScript dependency into the DTS plugin',
+    const dtsPluginExtensions = Object.entries(
+      pnpmWorkspace.packageExtensions ?? {},
+    ).filter(
+      ([selector]) =>
+        selector === '@module-federation/dts-plugin' ||
+        selector.startsWith('@module-federation/dts-plugin@'),
     );
-    assert.doesNotMatch(
-      pnpmWorkspace,
-      /\btypescript@6\.0\.3\b/u,
-      'generated workspaces must not retain the obsolete TypeScript 6 DTS shim',
+    for (const [, extension] of dtsPluginExtensions) {
+      assert.equal(
+        extension.dependencies?.typescript,
+        undefined,
+        'generated workspaces must not inject a private TypeScript dependency into the DTS plugin',
+      );
+      assert.equal(
+        extension.peerDependencies?.typescript,
+        undefined,
+        'generated workspaces must not replace the DTS plugin TypeScript peer',
+      );
+    }
+    assert.equal(
+      pnpmWorkspace.overrides?.typescript,
+      undefined,
+      'workspace policy must not redirect the app-level stable TypeScript 7 compiler dependency',
     );
     assert.equal(
       shellConfig?.moduleFederation?.dts?.compilerInstance,

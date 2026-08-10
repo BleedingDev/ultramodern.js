@@ -10,57 +10,34 @@ import {
 import { stripRuntimeContextExtensions } from '../context/extensions';
 import { ensureHelmetContext } from '../context/helmetContext';
 
-function toRscSafeRecord(value: unknown) {
-  if (!value || typeof value !== 'object') {
-    return value;
-  }
-
-  return Object.fromEntries(Object.entries(value as Record<string, unknown>));
-}
-
-function createRscSafeSsrContext(
-  ssrContext: TInternalRuntimeContext['ssrContext'],
-): TInternalRuntimeContext['ssrContext'] {
-  if (!ssrContext) {
-    return ssrContext;
-  }
-
-  const { request } = ssrContext;
-
-  return {
-    nonce: ssrContext.nonce,
-    useJsonScript: ssrContext.useJsonScript,
-    htmlModifiers: [],
-    baseUrl: ssrContext.baseUrl,
-    request: request
-      ? {
-          url: request.url,
-          userAgent: request.userAgent,
-          cookie: request.cookie,
-          pathname: request.pathname,
-          query: toRscSafeRecord(request.query),
-          params: toRscSafeRecord(request.params),
-          headers: toRscSafeRecord(request.headers),
-          host: request.host,
-          referer: request.referer,
-        }
-      : request,
-    mode: ssrContext.mode,
-    loaderFailureMode: ssrContext.loaderFailureMode,
-  } as TInternalRuntimeContext['ssrContext'];
-}
-
 function createRscSafeRequestContext(
   ssrContext: TInternalRuntimeContext['ssrContext'],
 ): TInternalRuntimeContext['requestContext'] {
-  const safeSsrContext = createRscSafeSsrContext(ssrContext);
+  if (ssrContext === undefined) {
+    return {
+      request: {},
+      response: { locals: {} },
+    };
+  }
+
+  const { request, response } = ssrContext;
 
   return {
-    request: safeSsrContext?.request || {},
-    response: {
-      locals: ssrContext?.response?.locals || {},
+    request: {
+      url: request.url,
+      userAgent: request.userAgent,
+      cookie: request.cookie,
+      pathname: request.pathname,
+      query: { ...request.query },
+      params: { ...request.params },
+      headers: { ...request.headers },
+      host: request.host,
+      referer: request.referer,
     },
-  } as TInternalRuntimeContext['requestContext'];
+    response: {
+      locals: response.locals ?? {},
+    },
+  };
 }
 
 export function wrapRuntimeContextProvider(
@@ -97,14 +74,14 @@ export function wrapRuntimeContextProvider(
   // keep using `internalContextValue`, which is the original object.
   stripRuntimeContextExtensions(runtimeContextValue);
 
-  if (getGlobalEnableRsc() && !isBrowser) {
+  if (getGlobalEnableRsc() === true && isBrowser === false) {
     const rscSafeRequestContext = createRscSafeRequestContext(ssrContext);
     const rscInternalContextValue = {
       ...internalContextValue,
       context: rscSafeRequestContext,
       requestContext: rscSafeRequestContext,
-      ssrContext: createRscSafeSsrContext(ssrContext),
     };
+    delete rscInternalContextValue.ssrContext;
     const rscRuntimeContextValue = {
       ...runtimeContextValue,
       context: rscSafeRequestContext,

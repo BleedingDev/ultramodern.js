@@ -29,6 +29,7 @@ rstest.mock('../../src/cli/tanstackTypes/shared', () => {
   };
 });
 
+import { writeTanstackRegisterFile } from '../../src/cli/artifacts';
 import {
   collectCanonicalRoutesForEntry,
   generateTanstackRouterTypesSourceForEntry,
@@ -47,6 +48,10 @@ const oxlintCliPath = path.resolve(
 const strictestTsconfigPath = path.resolve(
   __dirname,
   '../../node_modules/@tsconfig/strictest/tsconfig.json',
+);
+const installedReactRouterPath = path.resolve(
+  __dirname,
+  '../../node_modules/@tanstack/react-router',
 );
 
 async function writeRuntimeTestPackage(projectDirectory: string) {
@@ -125,6 +130,41 @@ async function writeRuntimeTestPackage(projectDirectory: string) {
   );
 }
 
+async function writeInstalledRouterRuntimeTestPackage(
+  projectDirectory: string,
+) {
+  const runtimePackageDirectory = path.join(
+    projectDirectory,
+    'node_modules',
+    '@modern-js',
+    'plugin-tanstack',
+  );
+  await mkdir(runtimePackageDirectory, { recursive: true });
+  await writeFile(
+    path.join(runtimePackageDirectory, 'package.json'),
+    JSON.stringify({
+      name: '@modern-js/plugin-tanstack',
+      type: 'commonjs',
+      exports: {
+        './runtime': {
+          types: './runtime.d.ts',
+          default: './runtime.js',
+        },
+      },
+    }),
+  );
+  await writeFile(
+    path.join(runtimePackageDirectory, 'runtime.d.ts'),
+    [
+      "export { createMemoryHistory, createRootRouteWithContext, createRoute, createRouter } from '@tanstack/react-router';",
+      'export type ModernRouterContext = { request?: Request; requestContext?: unknown };',
+      'export const modernTanstackRouterFastDefaults: { readonly defaultStructuralSharing: true };',
+      'export function createRouteStaticData<TData extends { modernRouteId?: string; modernRouteAction?: unknown; modernRouteLoader?: unknown }>(data: TData): TData;',
+      'export function modernLoaderToTanstack<TLoader extends (...args: any[]) => any>(options: { hasSplat: boolean }, modernLoader: TLoader): (context: unknown) => Promise<Awaited<ReturnType<TLoader>>>;',
+    ].join('\n'),
+  );
+}
+
 async function compileAndRunGeneratedRouter(options: {
   projectDirectory: string;
   routerGenTs: string;
@@ -181,13 +221,20 @@ async function compileAndRunGeneratedRouter(options: {
       },
     );
   } catch (error) {
-    if (
-      error &&
-      typeof error === 'object' &&
-      'stdout' in error &&
-      typeof error.stdout === 'string'
-    ) {
-      throw new Error(error.stdout, { cause: error });
+    if (error && typeof error === 'object') {
+      const stdout =
+        'stdout' in error && typeof error.stdout === 'string'
+          ? error.stdout
+          : '';
+      const stderr =
+        'stderr' in error && typeof error.stderr === 'string'
+          ? error.stderr
+          : '';
+      if (stdout || stderr) {
+        throw new Error([stdout, stderr].filter(Boolean).join('\n'), {
+          cause: error,
+        });
+      }
     }
     throw error;
   }
@@ -196,6 +243,160 @@ async function compileAndRunGeneratedRouter(options: {
     [path.join(projectDirectory, 'dist', 'runtime-check.js')],
     { cwd: projectDirectory },
   );
+}
+
+async function compileGeneratedRouterAgainstInstalledDeclarations(options: {
+  projectDirectory: string;
+  routerGenTs: string;
+}) {
+  const { projectDirectory, routerGenTs } = options;
+  const generatedDirectory = path.join(
+    projectDirectory,
+    'src',
+    'modern-tanstack',
+    'golden',
+  );
+  await mkdir(generatedDirectory, { recursive: true });
+  await writeFile(path.join(generatedDirectory, 'router.gen.ts'), routerGenTs);
+  await writeInstalledRouterRuntimeTestPackage(projectDirectory);
+  await writeFile(
+    path.join(projectDirectory, 'package.json'),
+    JSON.stringify({ private: true, type: 'commonjs' }),
+  );
+  await writeFile(
+    path.join(projectDirectory, 'tsconfig.json'),
+    JSON.stringify(
+      {
+        extends: strictestTsconfigPath,
+        compilerOptions: {
+          jsx: 'react-jsx',
+          lib: ['ESNext', 'DOM'],
+          module: 'Node16',
+          moduleResolution: 'Node16',
+          noEmit: true,
+          paths: {
+            '@tanstack/react-router': [installedReactRouterPath],
+          },
+          target: 'ES2022',
+          types: [],
+          verbatimModuleSyntax: false,
+        },
+        include: ['src/**/*.ts', 'src/**/*.tsx'],
+      },
+      null,
+      2,
+    ),
+  );
+
+  try {
+    await execFileAsync(
+      process.platform === 'win32' ? 'tsgo.cmd' : 'tsgo',
+      ['-p', 'tsconfig.json'],
+      {
+        cwd: projectDirectory,
+        shell: process.platform === 'win32',
+      },
+    );
+  } catch (error) {
+    if (error && typeof error === 'object') {
+      const stdout =
+        'stdout' in error && typeof error.stdout === 'string'
+          ? error.stdout
+          : '';
+      const stderr =
+        'stderr' in error && typeof error.stderr === 'string'
+          ? error.stderr
+          : '';
+      if (stdout || stderr) {
+        throw new Error([stdout, stderr].filter(Boolean).join('\n'), {
+          cause: error,
+        });
+      }
+    }
+    throw error;
+  }
+}
+
+async function typecheckCanonicalRegisterContract(options: {
+  canonicalRoutes: Record<string, string>;
+  contractLines: string[];
+  projectDirectory: string;
+}) {
+  const { canonicalRoutes, contractLines, projectDirectory } = options;
+  const srcDirectory = path.join(projectDirectory, 'src');
+  const generatedDirectory = path.join(srcDirectory, 'modern-tanstack');
+  const routerDirectory = path.join(generatedDirectory, 'index');
+  await mkdir(routerDirectory, { recursive: true });
+  await writeFile(
+    path.join(routerDirectory, 'router.gen.ts'),
+    'export const router = { context: {} };',
+  );
+  await writeTanstackRegisterFile({
+    canonicalRoutes,
+    entries: ['index'],
+    srcDirectory,
+  });
+  await writeFile(
+    path.join(srcDirectory, 'runtime-shims.d.ts'),
+    [
+      "declare module '@modern-js/plugin-tanstack/runtime' { export interface Register {} }",
+      "declare module '@modern-js/plugin-i18n/runtime' { export interface UltramodernCanonicalRoutes {} }",
+    ].join('\n'),
+  );
+  await writeFile(
+    path.join(srcDirectory, 'canonical-routes-contract.ts'),
+    [
+      "import type { UltramodernCanonicalRoutes } from '@modern-js/plugin-i18n/runtime';",
+      ...contractLines,
+    ].join('\n'),
+  );
+  await writeFile(
+    path.join(projectDirectory, 'tsconfig.json'),
+    JSON.stringify(
+      {
+        extends: strictestTsconfigPath,
+        compilerOptions: {
+          lib: ['ESNext', 'DOM'],
+          module: 'Preserve',
+          moduleResolution: 'Bundler',
+          noEmit: true,
+          target: 'ESNext',
+          types: [],
+        },
+        include: ['src/**/*.ts', 'src/**/*.d.ts'],
+      },
+      null,
+      2,
+    ),
+  );
+
+  try {
+    await execFileAsync(
+      process.platform === 'win32' ? 'tsgo.cmd' : 'tsgo',
+      ['-p', 'tsconfig.json'],
+      {
+        cwd: projectDirectory,
+        shell: process.platform === 'win32',
+      },
+    );
+  } catch (error) {
+    if (error && typeof error === 'object') {
+      const stdout =
+        'stdout' in error && typeof error.stdout === 'string'
+          ? error.stdout
+          : '';
+      const stderr =
+        'stderr' in error && typeof error.stderr === 'string'
+          ? error.stderr
+          : '';
+      if (stdout || stderr) {
+        throw new Error([stdout, stderr].filter(Boolean).join('\n'), {
+          cause: error,
+        });
+      }
+    }
+    throw error;
+  }
 }
 
 async function writeComprehensiveRouterFixture(srcDirectory: string) {
@@ -539,6 +740,17 @@ describe('tanstack router type generation', () => {
     });
   });
 
+  test('strictly compiles generated routes against installed router declarations', async () => {
+    tempDir = await mkdtemp(path.join(tmpdir(), 'modern-tanstack-types-'));
+    const srcDirectory = path.join(tempDir, 'src');
+    const routerGenTs = await generateComprehensiveRouterGen(srcDirectory);
+
+    await compileGeneratedRouterAgainstInstalledDeclarations({
+      projectDirectory: tempDir,
+      routerGenTs,
+    });
+  });
+
   test('passes the generated-artifact lint contract', async () => {
     tempDir = await mkdtemp(path.join(tmpdir(), 'modern-tanstack-types-'));
     const srcDirectory = path.join(tempDir, 'src');
@@ -636,6 +848,15 @@ describe('tanstack router type generation', () => {
 });
 
 describe('collectCanonicalRoutesForEntry', () => {
+  let tempDir: string | undefined;
+
+  afterEach(async () => {
+    if (tempDir) {
+      await rm(tempDir, { recursive: true, force: true });
+      tempDir = undefined;
+    }
+  });
+
   test('returns null for a route tree with no locale param and no canonical metadata', () => {
     const result = collectCanonicalRoutesForEntry([
       {
@@ -660,7 +881,7 @@ describe('collectCanonicalRoutesForEntry', () => {
     expect(result).toBeNull();
   });
 
-  test('ignores a leading :lang param when the locale-param heuristic is disabled (no plugin-i18n)', () => {
+  test('ignores a leading :lang param when the locale-param heuristic is disabled (no plugin-i18n)', async () => {
     const routes = [
       {
         type: 'nested',
@@ -689,14 +910,27 @@ describe('collectCanonicalRoutesForEntry', () => {
       collectCanonicalRoutesForEntry(routes, { localeParamHeuristic: false }),
     ).toBeNull();
     // With plugin-i18n installed the heuristic strips the locale prefix.
-    expect(
-      collectCanonicalRoutesForEntry(routes, { localeParamHeuristic: true }),
-    ).toEqual({
-      '/about': 'Record<string, never>',
+    const result = collectCanonicalRoutesForEntry(routes, {
+      localeParamHeuristic: true,
+    });
+    expect(result).not.toBeNull();
+    expect(Object.keys(result!)).toEqual(['/about']);
+
+    tempDir = await mkdtemp(path.join(tmpdir(), 'modern-tanstack-canonical-'));
+    await typecheckCanonicalRegisterContract({
+      canonicalRoutes: result!,
+      contractLines: [
+        "const aboutParams: UltramodernCanonicalRoutes['/about'] = {};",
+        '// @ts-expect-error canonical routes without params reject unexpected properties',
+        "const invalidAboutParams: UltramodernCanonicalRoutes['/about'] = { slug: 'unexpected' };",
+        'void aboutParams;',
+        'void invalidAboutParams;',
+      ],
+      projectDirectory: tempDir,
     });
   });
 
-  test('still honors modernCanonicalPath metadata when the heuristic is disabled', () => {
+  test('still honors modernCanonicalPath metadata when the heuristic is disabled', async () => {
     const result = collectCanonicalRoutesForEntry(
       [
         {
@@ -717,10 +951,26 @@ describe('collectCanonicalRoutesForEntry', () => {
     );
 
     expect(result).not.toBeNull();
-    expect(result!['/products/$slug']).toBe('{ "slug": string }');
+    expect(Object.keys(result!)).toEqual(['/products/$slug']);
+
+    tempDir = await mkdtemp(path.join(tmpdir(), 'modern-tanstack-canonical-'));
+    await typecheckCanonicalRegisterContract({
+      canonicalRoutes: result!,
+      contractLines: [
+        "const productParams: UltramodernCanonicalRoutes['/products/$slug'] = { slug: 'tractor' };",
+        '// @ts-expect-error a required canonical route param cannot be omitted',
+        "const missingProductParams: UltramodernCanonicalRoutes['/products/$slug'] = {};",
+        '// @ts-expect-error canonical route params retain their string type',
+        "const invalidProductParams: UltramodernCanonicalRoutes['/products/$slug'] = { slug: 42 };",
+        'void productParams;',
+        'void missingProductParams;',
+        'void invalidProductParams;',
+      ],
+      projectDirectory: tempDir,
+    });
   });
 
-  test('strips leading :lang param and maps index under :lang to "/"', () => {
+  test('strips leading :lang param and maps index under :lang to "/"', async () => {
     const result = collectCanonicalRoutesForEntry([
       {
         type: 'nested',
@@ -749,11 +999,25 @@ describe('collectCanonicalRoutesForEntry', () => {
     ] as any);
 
     expect(result).not.toBeNull();
-    expect(result!['/']).toBe('Record<string, never>');
-    expect(result!['/about']).toBe('Record<string, never>');
+    expect(Object.keys(result!)).toEqual(['/', '/about']);
+
+    tempDir = await mkdtemp(path.join(tmpdir(), 'modern-tanstack-canonical-'));
+    await typecheckCanonicalRegisterContract({
+      canonicalRoutes: result!,
+      contractLines: [
+        "const rootParams: UltramodernCanonicalRoutes['/'] = {};",
+        "const aboutParams: UltramodernCanonicalRoutes['/about'] = {};",
+        '// @ts-expect-error index canonical routes reject unexpected params',
+        "const invalidRootParams: UltramodernCanonicalRoutes['/'] = { slug: 'unexpected' };",
+        'void rootParams;',
+        'void aboutParams;',
+        'void invalidRootParams;',
+      ],
+      projectDirectory: tempDir,
+    });
   });
 
-  test('converts :slug to $slug with required params type', () => {
+  test('converts :slug to $slug with required params type', async () => {
     const result = collectCanonicalRoutesForEntry([
       {
         type: 'nested',
@@ -777,10 +1041,23 @@ describe('collectCanonicalRoutesForEntry', () => {
     ] as any);
 
     expect(result).not.toBeNull();
-    expect(result!['/products/$slug']).toBe('{ "slug": string }');
+    expect(Object.keys(result!)).toEqual(['/products/$slug']);
+
+    tempDir = await mkdtemp(path.join(tmpdir(), 'modern-tanstack-canonical-'));
+    await typecheckCanonicalRegisterContract({
+      canonicalRoutes: result!,
+      contractLines: [
+        "const productParams: UltramodernCanonicalRoutes['/products/$slug'] = { slug: 'tractor' };",
+        '// @ts-expect-error a required slug cannot be omitted',
+        "const missingProductParams: UltramodernCanonicalRoutes['/products/$slug'] = {};",
+        'void productParams;',
+        'void missingProductParams;',
+      ],
+      projectDirectory: tempDir,
+    });
   });
 
-  test('converts :slug? to optional {-$slug} with optional params type', () => {
+  test('converts :slug? to optional {-$slug} with optional params type', async () => {
     const result = collectCanonicalRoutesForEntry([
       {
         type: 'nested',
@@ -804,10 +1081,25 @@ describe('collectCanonicalRoutesForEntry', () => {
     ] as any);
 
     expect(result).not.toBeNull();
-    expect(result!['/optional/{-$slug}']).toBe('{ "slug"?: string }');
+    expect(Object.keys(result!)).toEqual(['/optional/{-$slug}']);
+
+    tempDir = await mkdtemp(path.join(tmpdir(), 'modern-tanstack-canonical-'));
+    await typecheckCanonicalRegisterContract({
+      canonicalRoutes: result!,
+      contractLines: [
+        "const omittedOptionalParams: UltramodernCanonicalRoutes['/optional/{-$slug}'] = {};",
+        "const presentOptionalParams: UltramodernCanonicalRoutes['/optional/{-$slug}'] = { slug: 'tractor' };",
+        '// @ts-expect-error optional canonical params still retain their string type',
+        "const invalidOptionalParams: UltramodernCanonicalRoutes['/optional/{-$slug}'] = { slug: 42 };",
+        'void omittedOptionalParams;',
+        'void presentOptionalParams;',
+        'void invalidOptionalParams;',
+      ],
+      projectDirectory: tempDir,
+    });
   });
 
-  test('converts * splat to $ with optional _splat param', () => {
+  test('converts * splat to $ with optional _splat param', async () => {
     const result = collectCanonicalRoutesForEntry([
       {
         type: 'nested',
@@ -831,10 +1123,25 @@ describe('collectCanonicalRoutesForEntry', () => {
     ] as any);
 
     expect(result).not.toBeNull();
-    expect(result!['/files/$']).toBe("{ '_splat'?: string }");
+    expect(Object.keys(result!)).toEqual(['/files/$']);
+
+    tempDir = await mkdtemp(path.join(tmpdir(), 'modern-tanstack-canonical-'));
+    await typecheckCanonicalRegisterContract({
+      canonicalRoutes: result!,
+      contractLines: [
+        "const emptySplatParams: UltramodernCanonicalRoutes['/files/$'] = {};",
+        "const splatParams: UltramodernCanonicalRoutes['/files/$'] = { _splat: 'guides/intro' };",
+        '// @ts-expect-error splat params retain their string type',
+        "const invalidSplatParams: UltramodernCanonicalRoutes['/files/$'] = { _splat: 42 };",
+        'void emptySplatParams;',
+        'void splatParams;',
+        'void invalidSplatParams;',
+      ],
+      projectDirectory: tempDir,
+    });
   });
 
-  test('collapses localized variants with shared modernCanonicalPath to one canonical key', () => {
+  test('collapses localized variants with shared modernCanonicalPath to one canonical key', async () => {
     // This reuses the same fixture shape as the 'preserves typed child trees'
     // test but adds modernCanonicalPath fields as plugin-i18n now emits.
     const result = collectCanonicalRoutesForEntry([
@@ -877,10 +1184,28 @@ describe('collectCanonicalRoutesForEntry', () => {
     const keys = Object.keys(result!);
     // /products/$slug and /optional/{-$slug} — exactly 2 keys with params
     expect(keys.filter(k => k.startsWith('/products'))).toHaveLength(1);
-    expect(result!['/products/$slug']).toBe('{ "slug": string }');
-    expect(result!['/optional/{-$slug}']).toBe('{ "slug"?: string }');
+    expect(keys).toHaveLength(2);
+    expect(keys).toEqual(['/optional/{-$slug}', '/products/$slug']);
     // The Czech localized path must not appear as a separate key.
     expect('/produkty/$slug' in result!).toBe(false);
+
+    tempDir = await mkdtemp(path.join(tmpdir(), 'modern-tanstack-canonical-'));
+    await typecheckCanonicalRegisterContract({
+      canonicalRoutes: result!,
+      contractLines: [
+        "const productParams: UltramodernCanonicalRoutes['/products/$slug'] = { slug: 'tractor' };",
+        "const optionalParams: UltramodernCanonicalRoutes['/optional/{-$slug}'] = {};",
+        '// @ts-expect-error localized physical variants do not become canonical keys',
+        "declare const localizedParams: UltramodernCanonicalRoutes['/produkty/$slug'];",
+        '// @ts-expect-error the deduplicated product route still requires its param',
+        "const missingProductParams: UltramodernCanonicalRoutes['/products/$slug'] = {};",
+        'void productParams;',
+        'void optionalParams;',
+        'void localizedParams;',
+        'void missingProductParams;',
+      ],
+      projectDirectory: tempDir,
+    });
   });
 
   test('output is sorted alphabetically by canonical key', () => {

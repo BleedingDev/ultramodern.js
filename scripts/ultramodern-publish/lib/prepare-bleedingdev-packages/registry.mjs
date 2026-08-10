@@ -12,6 +12,7 @@ import {
 } from './constants.mjs';
 import { run, sleep } from './commands.mjs';
 import {
+  preflightTrustedPublishingPackages,
   publishAcceptedPackage,
   validateAcceptedPackageDryRun,
 } from './npm-buffer-publisher.mjs';
@@ -940,6 +941,7 @@ async function publishManifestPackages(
     assertRegistryDistMatches,
     lookupRegistryDistTag,
     lookupRegistryPackageDist,
+    preflightTrustedPublishingPackages,
     preflightRegistryPackages,
     publishPackage,
     validateRegistryCohort,
@@ -988,6 +990,16 @@ async function publishManifestPackages(
       verifyRegistryPackageDist: registry.verifyRegistryPackageDist,
     },
   );
+  const absentPublishItems = publishItems.filter(
+    item => !preflight.get(item.targetName)?.exists,
+  );
+  if (!options.dryRun && absentPublishItems.length > 0) {
+    await registry.preflightTrustedPublishingPackages(
+      absentPublishItems,
+      options,
+      overrides.trustedPublishing,
+    );
+  }
 
   console.log(
     `Publishing ${publishItems.length} immutable package artifact(s) in dependency order`,

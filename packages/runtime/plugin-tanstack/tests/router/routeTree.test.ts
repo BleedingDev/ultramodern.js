@@ -3,7 +3,12 @@ import path from 'node:path';
 import type { RouteObject } from '@modern-js/runtime-utils/router';
 import type { NestedRoute } from '@modern-js/types';
 import { createMemoryHistory } from '@tanstack/history';
-import { createRouter, Outlet, RouterProvider } from '@tanstack/react-router';
+import {
+  createRouter,
+  Outlet,
+  RouterProvider,
+  redirect,
+} from '@tanstack/react-router';
 import type { ComponentType } from 'react';
 import { createElement, lazy } from 'react';
 import { renderToStaticMarkup, renderToString } from 'react-dom/server';
@@ -77,15 +82,23 @@ type PreloadableTestComponent = {
 };
 
 type TestRouter = {
+  _serverResult?:
+    | {
+        type: 'redirect';
+        redirect: Response;
+      }
+    | {
+        type: 'render';
+        status: 200 | 404 | 500;
+      };
   load: () => Promise<void>;
-  looseRoutesById: Partial<Record<string, TestRoute>>;
+  routesById: Partial<Record<string, TestRoute>>;
   state: {
     matches: Array<{
       error?: unknown;
       loaderData?: unknown;
       routeId: string;
     }>;
-    statusCode?: number;
   };
 };
 
@@ -110,19 +123,19 @@ async function loadRouteTree(
   return router as unknown as TestRouter;
 }
 
-function getLooseRoute(router: TestRouter, id: string): TestRoute {
-  const route = router.looseRoutesById[id];
+function getRoute(router: TestRouter, id: string): TestRoute {
+  const route = router.routesById[id];
   if (!route) {
     throw new Error(`Expected TanStack route ${id} to exist`);
   }
   return route;
 }
 
-function getLooseRouteByModernRouteId(
+function getRouteByModernRouteId(
   router: TestRouter,
   modernRouteId: string,
 ): TestRoute {
-  const route = Object.values(router.looseRoutesById).find(
+  const route = Object.values(router.routesById).find(
     route => route?.options.staticData?.modernRouteId === modernRouteId,
   );
   if (!route) {
@@ -255,7 +268,47 @@ describe('tanstack route tree from RouteObject[]', () => {
     const routeTree = createRouteTreeFromRouteObjects(routes);
     const router = await loadRouteTree(routeTree, '/missing');
 
-    expect(router.state.statusCode).toBe(404);
+    expect(router._serverResult).toMatchObject({
+      type: 'render',
+      status: 404,
+    });
+  });
+
+  test('reports native TanStack loader redirects as server responses', async () => {
+    const routes: RouteObject[] = [
+      {
+        id: 'root',
+        path: '/',
+        Component: () => null,
+        children: [
+          {
+            id: 'redirect',
+            path: 'redirect',
+            loader: () => {
+              throw redirect({ to: '/target' });
+            },
+            Component: () => null,
+          },
+          {
+            id: 'target',
+            path: 'target',
+            Component: () => null,
+          },
+        ],
+      },
+    ];
+
+    const routeTree = createRouteTreeFromRouteObjects(routes);
+    const router = await loadRouteTree(routeTree, '/redirect');
+
+    expect(router._serverResult?.type).toBe('redirect');
+    if (router._serverResult?.type !== 'redirect') {
+      throw new Error('Expected a TanStack redirect server result');
+    }
+    expect(router._serverResult.redirect.status).toBe(307);
+    expect(router._serverResult.redirect.headers.get('Location')).toBe(
+      '/target',
+    );
   });
 
   test('does not force Suspense wrappers for ordinary generated routes', async () => {
@@ -278,9 +331,7 @@ describe('tanstack route tree from RouteObject[]', () => {
     const router = await loadRouteTree(routeTree, '/plain');
 
     expect(routeTree.options.wrapInSuspense).toBeUndefined();
-    expect(
-      getLooseRoute(router, '/plain').options.wrapInSuspense,
-    ).toBeUndefined();
+    expect(getRoute(router, '/plain').options.wrapInSuspense).toBeUndefined();
   });
 
   test('renders Modern Outlet through TanStack native outlet', async () => {
@@ -395,7 +446,7 @@ describe('tanstack route tree from RouteObject[]', () => {
       }),
       context: {},
     }) as unknown as TestRouter;
-    const searchRoute = getLooseRoute(router, '/search');
+    const searchRoute = getRoute(router, '/search');
 
     expect(routeTree.options.validateSearch).toBe(rootValidateSearch);
     expect(routeTree.options.loaderDeps).toBe(rootLoaderDeps);
@@ -516,7 +567,7 @@ describe('tanstack route tree from RouteObject[]', () => {
 
     const routeTree = createRouteTreeFromRouteObjects(routes);
     const router = await loadRouteTree(routeTree, '/lazy');
-    const lazyRoute = getLooseRoute(router, '/lazy');
+    const lazyRoute = getRoute(router, '/lazy');
     const component = lazyRoute.options.component as ComponentType & {
       preload?: () => Promise<unknown>;
     };
@@ -550,7 +601,7 @@ describe('tanstack route tree from RouteObject[]', () => {
 
     const routeTree = createRouteTreeFromRouteObjects(routes);
     const router = await loadRouteTree(routeTree, '/lazy');
-    const lazyRoute = getLooseRoute(router, '/lazy');
+    const lazyRoute = getRoute(router, '/lazy');
     const lazyComponent = lazyRoute.options
       .component as PreloadableTestComponent;
 
@@ -586,7 +637,7 @@ describe('tanstack route tree from RouteObject[]', () => {
 
     const routeTree = createRouteTreeFromRouteObjects(routes);
     const router = await loadRouteTree(routeTree, '/load-only');
-    const loadOnlyRoute = getLooseRoute(router, '/load-only');
+    const loadOnlyRoute = getRoute(router, '/load-only');
     const loadOnlyComponent = loadOnlyRoute.options
       .component as PreloadableTestComponent;
 
@@ -665,7 +716,7 @@ describe('tanstack route tree from RouteObject[]', () => {
 
     const routeTree = createRouteTreeFromRouteObjects(routes);
     const router = await loadRouteTree(routeTree, '/user/123');
-    const userRoute = getLooseRoute(router, '/user/$id');
+    const userRoute = getRoute(router, '/user/$id');
 
     expect(routeTree.options.staticData.modernRouteHandle).toEqual({
       shell: true,
@@ -718,7 +769,7 @@ describe('tanstack route tree from RouteObject[]', () => {
 
     const routeTree = createRouteTreeFromRouteObjects(routes);
     const router = await loadRouteTree(routeTree, '/client');
-    const clientRoute = getLooseRoute(router, '/client');
+    const clientRoute = getRoute(router, '/client');
 
     expect(clientRoute.options.ssr).toBe(false);
     expect(clientRoute.options.staticData).toMatchObject({
@@ -789,7 +840,10 @@ describe('tanstack route tree from RouteObject[]', () => {
       match => match.routeId === '/broken',
     );
 
-    expect(router.state.statusCode).toBe(200);
+    expect(router._serverResult).toMatchObject({
+      type: 'render',
+      status: 200,
+    });
     expect(brokenMatch?.loaderData).toBe(response);
     expect(brokenMatch?.error).toBeUndefined();
   });
@@ -829,7 +883,7 @@ describe('tanstack route tree from RouteObject[]', () => {
       }),
       context: {},
     }) as unknown as TestRouter;
-    const clientRoute = getLooseRouteByModernRouteId(router, 'client');
+    const clientRoute = getRouteByModernRouteId(router, 'client');
 
     expect(clientRoute.options.ssr).toBe(false);
     expect(clientRoute.options.staticData).toMatchObject({

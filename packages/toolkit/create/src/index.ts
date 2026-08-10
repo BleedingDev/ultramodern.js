@@ -46,6 +46,7 @@ const templateDir = [
 if (!templateDir) {
   throw new Error('Unable to locate the UltraModern workspace templates');
 }
+const availableTemplateDir = templateDir;
 
 i18n.changeLanguage({ locale: detectLanguage() });
 
@@ -79,7 +80,7 @@ async function main() {
       console.error(i18n.t(localeKeys.error.agentsMdOnlyConflict));
       process.exit(1);
     }
-    runAgentsMd(templateDir, process.cwd());
+    runAgentsMd(availableTemplateDir, process.cwd());
     return;
   }
 

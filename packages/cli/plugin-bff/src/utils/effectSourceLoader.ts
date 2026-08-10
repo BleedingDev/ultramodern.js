@@ -192,8 +192,6 @@ function externalizeInstalledDependencies(options: {
                   sideEffects: resolution.sideEffects,
                   suffix: resolution.suffix,
                   warnings: resolution.warnings,
-                  watchDirs: resolution.watchDirs,
-                  watchFiles: resolution.watchFiles,
                 };
               }
             }
@@ -208,8 +206,6 @@ function externalizeInstalledDependencies(options: {
           sideEffects: resolution.sideEffects,
           suffix: resolution.suffix,
           warnings: resolution.warnings,
-          watchDirs: resolution.watchDirs,
-          watchFiles: resolution.watchFiles,
         };
       });
     },

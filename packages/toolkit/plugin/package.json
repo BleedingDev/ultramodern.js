@@ -99,8 +99,8 @@
     "@modern-js/builder": "workspace:*",
     "@modern-js/rslib": "workspace:*",
     "@rslib/core": "0.23.2",
-    "@types/node": "^26.1.1",
-    "@types/react": "^19.2.17",
+    "@types/node": "^26.2.0",
+    "@types/react": "^19.2.18",
     "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "typescript": "^7.0.2"
   },

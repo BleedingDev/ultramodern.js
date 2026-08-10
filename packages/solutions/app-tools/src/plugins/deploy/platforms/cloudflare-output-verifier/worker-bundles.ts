@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { isDeepStrictEqual } from 'node:util';
 import { parse } from '@babel/parser';
 import {
   CLOUDFLARE_WORKER_BUNDLE_DIRECTORY,
@@ -487,17 +488,30 @@ export const verifyWorkerBundleReferences = async (
 export const verifyWorkerImport = async (
   issues: CloudflareOutputVerifierIssue[],
   entryPath: string,
+  expectedManifest?: JsonObject,
 ) => {
   try {
-    const worker = (
-      await import(`${pathToFileURL(entryPath).href}?t=${Date.now()}`)
-    ).default;
+    const workerModule = await import(
+      `${pathToFileURL(entryPath).href}?t=${Date.now()}`
+    );
+    const worker = workerModule.default;
 
     if (!worker || typeof worker.fetch !== 'function') {
       addIssue(issues, {
         code: 'worker-import-failed',
         message:
           'Cloudflare server entry must default-export a Worker with fetch.',
+        path: entryPath,
+      });
+    }
+    if (
+      expectedManifest !== undefined &&
+      !isDeepStrictEqual(workerModule.modernWorkerManifest, expectedManifest)
+    ) {
+      addIssue(issues, {
+        code: 'worker-import-failed',
+        message:
+          'Cloudflare server entry runtime manifest must exactly match modern-worker-manifest.json.',
         path: entryPath,
       });
     }

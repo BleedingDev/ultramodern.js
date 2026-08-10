@@ -19,12 +19,13 @@ import {
   DELIVERY_UNIT_SCHEMA_VERSION,
   type DeliveryUnitRecord,
 } from '@modern-js/utils/universal';
-import type {
-  JsonObject,
-  JsonValue,
-  Ownership,
-  WorkspaceApi,
-  WorkspaceApp,
+import {
+  isVerticalApiProtocol,
+  type JsonObject,
+  type JsonValue,
+  type Ownership,
+  type WorkspaceApi,
+  type WorkspaceApp,
 } from '../types';
 
 /* -------------------------------------------------------------------------- */
@@ -543,7 +544,9 @@ function projectApi(
     stem: apiSurface.surfaceId,
     prefix: http?.address ?? `/${apiSurface.surfaceId}`,
     consumedBy: [],
-    ...(mode === 'extended-v1' ? { protocol: apiSurface.protocol } : {}),
+    ...(mode === 'extended-v1' && isVerticalApiProtocol(apiSurface.protocol)
+      ? { protocol: apiSurface.protocol }
+      : {}),
   };
 }
 

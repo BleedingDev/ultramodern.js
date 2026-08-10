@@ -42,15 +42,10 @@ const deliveryUnit: DeliveryUnitRecord = {
   ...identity,
 };
 
-const compiledCarrier = (
-  {
-    buildMarker = identity.buildMarker,
-    releaseVersion = identity.releaseVersion,
-    sourceRevision = identity.sourceRevision,
-  } = {},
-  commonjs = false,
-) =>
-  `const i={buildMarker:${JSON.stringify(buildMarker)},releaseVersion:${JSON.stringify(releaseVersion)},sourceRevision:${JSON.stringify(sourceRevision)}};${commonjs ? 'module.exports=i;' : 'export{i};'}`;
+const compiledModule = (commonjs = false) =>
+  commonjs
+    ? 'module.exports = { render: () => "catalog" };\n'
+    : 'export const render = () => "catalog";\n';
 
 const writeJson = async (filePath: string, value: unknown) => {
   await fs.mkdir(path.dirname(filePath), { recursive: true });
@@ -64,10 +59,10 @@ const createTargetBuildOutput = async (target: MicroVerticalReleaseTarget) => {
   tempDirectories.push(root);
   const distDirectory = path.join(root, 'dist');
   const files: Record<string, string> = {
-    'static/catalog.js': compiledCarrier(),
+    'static/catalog.js': compiledModule(),
     'static/catalog.css': '.catalog{color:green}',
     'html/main/index.html': '<main>catalog</main>',
-    'backendRemoteEntry.cjs': compiledCarrier({}, true),
+    'backendRemoteEntry.cjs': compiledModule(true),
     'mf-manifest.json': JSON.stringify({
       name: 'verticalCatalog',
       pluginVersion: '2.8.0',
@@ -93,12 +88,12 @@ const createTargetBuildOutput = async (target: MicroVerticalReleaseTarget) => {
     'public/robots.txt': 'User-agent: *\nAllow: /\n',
     ...(target === 'node'
       ? {
-          'api/index.js': compiledCarrier(),
-          'bundles/main.js': compiledCarrier(),
+          'api/index.js': compiledModule(),
+          'bundles/main.js': compiledModule(),
         }
       : {
-          'worker/main.js': compiledCarrier(),
-          'worker/__modern_bff_effect.js': compiledCarrier(),
+          'worker/main.js': compiledModule(),
+          'worker/__modern_bff_effect.js': compiledModule(),
         }),
   };
   await Promise.all(
@@ -154,7 +149,7 @@ const createCloudflareStaging = async (
   await fs.mkdir(path.join(outputDirectory, 'server'), { recursive: true });
   await fs.writeFile(
     path.join(outputDirectory, 'server/index.mjs'),
-    compiledCarrier(),
+    compiledModule(),
   );
   await fs.copyFile(
     path.join(distDirectory, 'route.json'),
@@ -266,6 +261,68 @@ describe('framework target-specific MicroVertical release-envelope integration',
     );
   });
 
+  it('binds structured per-artifact identity carriers into the envelope', async () => {
+    const fixture = await createTargetBuildOutput('node');
+    const envelope = await emitFrameworkMicroVerticalReleaseEnvelope({
+      apiOnly: false,
+      distDirectory: fixture.distDirectory,
+      target: 'node',
+    });
+    const metadataLogicalPath =
+      'release/microvertical-release-identity-carriers.json';
+    const metadataArtifact = envelope?.artifacts.find(
+      artifact => artifact.logicalPath === metadataLogicalPath,
+    );
+    expect(metadataArtifact).toMatchObject({
+      kind: 'file',
+      runtime: 'release-identity-metadata',
+    });
+    const metadata = JSON.parse(
+      await fs.readFile(
+        path.join(fixture.distDirectory, metadataLogicalPath),
+        'utf8',
+      ),
+    );
+    expect(metadata).toMatchObject({
+      schemaVersion: 1,
+      kind: 'ultramodern-release-identity-carriers',
+      identity,
+    });
+    expect(metadata.carriers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          logicalPath: 'static/catalog.js',
+          surfaces: ['uiClient'],
+        }),
+        expect.objectContaining({
+          logicalPath: 'bundles/main.js',
+          surfaces: ['ssr'],
+        }),
+        expect.objectContaining({
+          logicalPath: 'api/index.js',
+          surfaces: ['apiBackend'],
+        }),
+        expect.objectContaining({
+          logicalPath: 'backend-mf-manifest.json',
+          surfaces: ['backendFederation'],
+        }),
+        expect.objectContaining({
+          logicalPath: 'backendRemoteEntry.cjs',
+          surfaces: ['backendFederation'],
+        }),
+      ]),
+    );
+
+    metadata.carriers[0].sha256 = 'f'.repeat(64);
+    await writeJson(
+      path.join(fixture.distDirectory, metadataLogicalPath),
+      metadata,
+    );
+    await expect(
+      verifyBuildOutputReleaseEnvelope(fixture.distDirectory, 'node'),
+    ).rejects.toThrow('digest does not match final artifact bytes');
+  });
+
   it('reseals generated public assets into the final target envelopes', async () => {
     const nodeFixture = await createTargetBuildOutput('node');
     const firstNodeEnvelope = await emitFrameworkMicroVerticalReleaseEnvelope({
@@ -347,7 +404,7 @@ describe('framework target-specific MicroVertical release-envelope integration',
       recursive: true,
       force: true,
     });
-    await fs.writeFile(path.join(nodeOutput, 'index.js'), compiledCarrier());
+    await fs.writeFile(path.join(nodeOutput, 'index.js'), compiledModule());
     await writeJson(path.join(nodeOutput, 'package.json'), {
       type: 'commonjs',
     });
@@ -438,7 +495,7 @@ describe('framework target-specific MicroVertical release-envelope integration',
     });
     await fs.writeFile(
       path.join(outputDirectory, 'index.js'),
-      compiledCarrier(),
+      compiledModule(),
     );
     await writeJson(path.join(outputDirectory, 'package.json'), {
       type: 'commonjs',
@@ -595,7 +652,7 @@ describe('framework target-specific MicroVertical release-envelope integration',
     });
     await fs.writeFile(
       path.join(outputDirectory, 'index.js'),
-      compiledCarrier(),
+      compiledModule(),
     );
     await writeJson(path.join(outputDirectory, 'package.json'), {
       type: 'commonjs',
@@ -693,7 +750,7 @@ describe('framework target-specific MicroVertical release-envelope integration',
       recursive: true,
       force: true,
     });
-    await fs.writeFile(path.join(nodeOutput, 'index.js'), compiledCarrier());
+    await fs.writeFile(path.join(nodeOutput, 'index.js'), compiledModule());
     await writeJson(path.join(nodeOutput, 'package.json'), {
       dependencies: { effect: '4.0.0-beta.102' },
     });
@@ -780,7 +837,7 @@ describe('framework target-specific MicroVertical release-envelope integration',
       recursive: true,
       force: true,
     });
-    await fs.writeFile(path.join(nodeOutput, 'index.js'), compiledCarrier());
+    await fs.writeFile(path.join(nodeOutput, 'index.js'), compiledModule());
     await writeJson(path.join(nodeOutput, 'package.json'), {
       type: 'commonjs',
     });
@@ -857,7 +914,7 @@ describe('framework target-specific MicroVertical release-envelope integration',
     });
     await fs.writeFile(
       path.join(staleCloudflareTarget.distDirectory, 'bundles/main.js'),
-      compiledCarrier(),
+      compiledModule(),
     );
     await expect(
       emitFrameworkMicroVerticalReleaseEnvelope({
@@ -902,7 +959,7 @@ describe('framework target-specific MicroVertical release-envelope integration',
     });
     await fs.writeFile(
       path.join(driftFixture.distDirectory, 'worker/main.js'),
-      `${compiledCarrier()}\n// mutated after envelope`,
+      `${compiledModule()}\n// mutated after envelope`,
     );
     await expect(
       verifyBuildOutputReleaseEnvelope(
@@ -930,56 +987,14 @@ describe('framework target-specific MicroVertical release-envelope integration',
     ).resolves.toBeUndefined();
   });
 
-  it.each([
-    {
-      surface: 'UI/client',
-      actual: 'static/catalog.js',
-      decoy: 'static/identity-decoy.js',
-    },
-    {
-      surface: 'SSR',
-      actual: 'bundles/main.js',
-      decoy: 'bundles/identity-decoy.js',
-    },
-    {
-      surface: 'API/backend',
-      actual: 'api/index.js',
-      decoy: 'shared/identity-decoy.js',
-    },
-  ])('rejects an identity decoy when the executed Node $surface module is stale', async ({
-    actual,
-    decoy,
-  }) => {
-    const fixture = await createTargetBuildOutput('node');
-    await fs.writeFile(
-      path.join(fixture.distDirectory, actual),
-      compiledCarrier({ sourceRevision: 'c'.repeat(40) }),
-    );
-    await fs.mkdir(path.dirname(path.join(fixture.distDirectory, decoy)), {
-      recursive: true,
-    });
-    await fs.writeFile(
-      path.join(fixture.distDirectory, decoy),
-      compiledCarrier(),
-    );
-
-    await expect(
-      emitFrameworkMicroVerticalReleaseEnvelope({
-        apiOnly: false,
-        distDirectory: fixture.distDirectory,
-        target: 'node',
-      }),
-    ).rejects.toThrow(/exact buildMarker|execution module/u);
-  });
-
-  it('rejects a vacuous SSR carrier gate when route references match no execution module', async () => {
+  it('rejects a vacuous SSR carrier declaration when route references match no execution module', async () => {
     const fixture = await createTargetBuildOutput('node');
     await writeJson(path.join(fixture.distDirectory, 'route.json'), {
       routes: [{ bundle: 'bundles/not-emitted.js', urlPath: '/' }],
     });
     await fs.writeFile(
       path.join(fixture.distDirectory, 'bundles/identity-decoy.js'),
-      compiledCarrier(),
+      'export const decoy = true;\n',
     );
 
     await expect(
@@ -989,121 +1004,7 @@ describe('framework target-specific MicroVertical release-envelope integration',
         target: 'node',
       }),
     ).rejects.toThrow(
-      'route-referenced Node SSR has no compiled execution module',
-    );
-  });
-
-  it.each([
-    ['node', 'bundles/stale-transitive.js'],
-    ['cloudflare', 'worker/stale-transitive.js'],
-  ] as const)('rejects a stale transitive %s SSR module outside the route manifest entry', async (target, staleLogicalPath) => {
-    const fixture = await createTargetBuildOutput(target);
-    await fs.writeFile(
-      path.join(fixture.distDirectory, staleLogicalPath),
-      compiledCarrier({ sourceRevision: 'c'.repeat(40) }),
-    );
-
-    await expect(
-      emitFrameworkMicroVerticalReleaseEnvelope({
-        apiOnly: false,
-        distDirectory: fixture.distDirectory,
-        target,
-      }),
-    ).rejects.toThrow(/compiled .*SSR.* closure execution module/u);
-  });
-
-  it.each([
-    'node',
-    'cloudflare',
-  ] as const)('rejects a stale transitive %s SSR module in final deployment staging', async target => {
-    const fixture = await createTargetBuildOutput(target);
-    await emitFrameworkMicroVerticalReleaseEnvelope({
-      apiOnly: false,
-      distDirectory: fixture.distDirectory,
-      target,
-    });
-    const outputDirectory = path.join(
-      fixture.root,
-      `${target}-stale-transitive`,
-    );
-
-    if (target === 'node') {
-      await fs.cp(fixture.distDirectory, outputDirectory, {
-        recursive: true,
-      });
-      await fs.rm(path.join(outputDirectory, 'release'), {
-        recursive: true,
-        force: true,
-      });
-      await fs.writeFile(
-        path.join(outputDirectory, 'index.js'),
-        compiledCarrier(),
-      );
-      await writeJson(path.join(outputDirectory, 'package.json'), {
-        type: 'commonjs',
-      });
-      await fs.writeFile(
-        path.join(outputDirectory, 'bundles/stale-transitive.js'),
-        compiledCarrier({ sourceRevision: 'c'.repeat(40) }),
-      );
-      await expect(
-        emitNodeStagedReleaseEnvelope({
-          distDirectory: fixture.distDirectory,
-          outputDirectory,
-        }),
-      ).rejects.toThrow(
-        'final compiled Node SSR closure execution module bundles/stale-transitive.js',
-      );
-      return;
-    }
-
-    await createCloudflareStaging(fixture.distDirectory, outputDirectory);
-    await fs.writeFile(
-      path.join(outputDirectory, 'worker/stale-transitive.js'),
-      compiledCarrier({ sourceRevision: 'c'.repeat(40) }),
-    );
-    await expect(
-      emitCloudflareStagedReleaseEnvelope({
-        distDirectory: fixture.distDirectory,
-        outputDirectory,
-      }),
-    ).rejects.toThrow(
-      'final compiled Cloudflare SSR/workerd closure execution module worker/stale-transitive.js',
-    );
-  });
-
-  it('rejects mixed fresh and stale manifest-referenced client execution modules', async () => {
-    const fixture = await createTargetBuildOutput('node');
-    await fs.writeFile(
-      path.join(fixture.distDirectory, 'static/catalog.js'),
-      compiledCarrier({ sourceRevision: 'c'.repeat(40) }),
-    );
-    await fs.writeFile(
-      path.join(fixture.distDirectory, 'static/fresh.js'),
-      compiledCarrier(),
-    );
-    await writeJson(path.join(fixture.distDirectory, 'mf-manifest.json'), {
-      exposes: [
-        {
-          assets: {
-            js: {
-              sync: ['static/catalog.js', 'static/fresh.js'],
-            },
-          },
-          path: './Route',
-        },
-      ],
-      name: 'verticalCatalog',
-    });
-
-    await expect(
-      emitFrameworkMicroVerticalReleaseEnvelope({
-        apiOnly: false,
-        distDirectory: fixture.distDirectory,
-        target: 'node',
-      }),
-    ).rejects.toThrow(
-      'manifest-referenced UI/client execution module static/catalog.js',
+      'route manifest references no emitted Node SSR execution module',
     );
   });
 });

@@ -1,4 +1,3 @@
-import crypto from 'node:crypto';
 import dns from 'node:dns';
 import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { readdir, writeFile } from 'node:fs/promises';
@@ -34,15 +33,60 @@ type Page = any;
 
 type MatrixEnv = Record<string, string>;
 
-type BuildSnapshot = {
-  digestByFile: Record<string, string>;
-  routeAssets: Record<
-    string,
-    { assets?: string[]; referenceCssAssets?: string[] }
-  >;
-  scriptSrcs: string[];
-  staticFiles: string[];
-  styleHrefs: string[];
+type AssetInventory = {
+  other: string[];
+  scripts: string[];
+  styles: string[];
+};
+
+type RouteAssetReferences = {
+  assets: string[];
+  referenceCssAssets: string[];
+};
+
+type ApplicationRoute = {
+  bundle: string | null;
+  entryName: string | null;
+  entryPath: string;
+  isApi: boolean;
+  isSpa: boolean;
+  isSsr: boolean;
+  urlPath: string;
+};
+
+type NestedRoute = {
+  children: NestedRoute[];
+  hasData: boolean;
+  hasLoader: boolean;
+  id: string;
+  index: boolean;
+  path: string | null;
+  routeType: string;
+};
+
+type BuildArtifacts = {
+  assetReferences: {
+    document: {
+      scripts: string[];
+      styles: string[];
+    };
+    routes: Record<string, RouteAssetReferences>;
+  };
+  semanticInventory: {
+    applicationRoutes: ApplicationRoute[];
+    documentAssets: AssetInventory;
+    entrypointAssets: Record<string, AssetInventory>;
+    loadablePublicPath: string;
+    nestedRoutes: Record<string, NestedRoute[]>;
+    routeAssets: Record<
+      string,
+      {
+        assets: AssetInventory;
+        referenceStyles: string[];
+      }
+    >;
+    staticAssets: AssetInventory;
+  };
 };
 
 const requireFromRstestBrowserFixture = createRequire(
@@ -87,12 +131,244 @@ function cleanMatrixDistRoots() {
   }
 }
 
-function hashText(value: string) {
-  return crypto.createHash('sha256').update(value).digest('hex');
+function artifactRecord(value: unknown, label: string) {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new Error(`${label} must be an object`);
+  }
+
+  return value as Record<string, unknown>;
 }
 
-function hashFile(filePath: string) {
-  return hashText(readFileSync(filePath, 'utf-8'));
+function artifactArray(value: unknown, label: string) {
+  if (!Array.isArray(value)) {
+    throw new Error(`${label} must be an array`);
+  }
+
+  return value;
+}
+
+function artifactString(value: unknown, label: string) {
+  if (typeof value !== 'string') {
+    throw new Error(`${label} must be a string`);
+  }
+
+  return value;
+}
+
+function artifactBoolean(value: unknown, label: string) {
+  if (typeof value !== 'boolean') {
+    throw new Error(`${label} must be a boolean`);
+  }
+
+  return value;
+}
+
+function artifactOptionalString(value: unknown, label: string) {
+  return value === undefined ? null : artifactString(value, label);
+}
+
+function artifactStringArray(value: unknown, label: string) {
+  return artifactArray(value, label).map((item, index) =>
+    artifactString(item, `${label}[${index}]`),
+  );
+}
+
+function readJsonArtifact(filePath: string) {
+  return JSON.parse(readFileSync(filePath, 'utf-8')) as unknown;
+}
+
+function canonicalStaticAssetName(asset: string) {
+  const marker = 'static/';
+  const markerIndex = asset.indexOf(marker);
+  if (markerIndex < 0) {
+    return asset;
+  }
+
+  return asset.slice(markerIndex);
+}
+
+function collectAssetInventory(assets: string[]): AssetInventory {
+  const inventory: AssetInventory = {
+    other: [],
+    scripts: [],
+    styles: [],
+  };
+
+  for (const asset of new Set(assets.map(canonicalStaticAssetName))) {
+    if (asset.endsWith('.js') || asset.endsWith('.mjs')) {
+      inventory.scripts.push(asset);
+    } else if (asset.endsWith('.css')) {
+      inventory.styles.push(asset);
+    } else {
+      inventory.other.push(asset);
+    }
+  }
+
+  inventory.other.sort();
+  inventory.scripts.sort();
+  inventory.styles.sort();
+  return inventory;
+}
+
+function parseRouteAssetReferences(distDir: string) {
+  const filePath = path.join(distDir, 'routes-manifest.json');
+  const root = artifactRecord(
+    readJsonArtifact(filePath),
+    'routes-manifest.json',
+  );
+  const routeAssets = artifactRecord(
+    root.routeAssets,
+    'routes-manifest.json routeAssets',
+  );
+
+  return Object.fromEntries(
+    Object.entries(routeAssets).map(([routeId, value]) => {
+      const route = artifactRecord(
+        value,
+        `routes-manifest.json routeAssets.${routeId}`,
+      );
+      return [
+        routeId,
+        {
+          assets: artifactStringArray(
+            route.assets,
+            `routes-manifest.json routeAssets.${routeId}.assets`,
+          ),
+          referenceCssAssets: artifactStringArray(
+            route.referenceCssAssets,
+            `routes-manifest.json routeAssets.${routeId}.referenceCssAssets`,
+          ),
+        },
+      ];
+    }),
+  ) as Record<string, RouteAssetReferences>;
+}
+
+function parseEntrypointAssets(distDir: string) {
+  const root = artifactRecord(
+    readJsonArtifact(path.join(distDir, 'loadable-stats.json')),
+    'loadable-stats.json',
+  );
+  const entrypoints = artifactRecord(
+    root.entrypoints,
+    'loadable-stats.json entrypoints',
+  );
+
+  return {
+    assets: Object.fromEntries(
+      Object.entries(entrypoints).map(([entrypointName, value]) => {
+        const entrypoint = artifactRecord(
+          value,
+          `loadable-stats.json entrypoints.${entrypointName}`,
+        );
+        const assets = artifactArray(
+          entrypoint.assets,
+          `loadable-stats.json entrypoints.${entrypointName}.assets`,
+        ).map((asset, index) => {
+          const assetRecord = artifactRecord(
+            asset,
+            `loadable-stats.json entrypoints.${entrypointName}.assets[${index}]`,
+          );
+          return artifactString(
+            assetRecord.name,
+            `loadable-stats.json entrypoints.${entrypointName}.assets[${index}].name`,
+          );
+        });
+
+        return [entrypointName, collectAssetInventory(assets)];
+      }),
+    ) as Record<string, AssetInventory>,
+    publicPath: artifactString(
+      root.publicPath,
+      'loadable-stats.json publicPath',
+    ),
+  };
+}
+
+function parseApplicationRoutes(distDir: string): ApplicationRoute[] {
+  const root = artifactRecord(
+    readJsonArtifact(path.join(distDir, 'route.json')),
+    'route.json',
+  );
+
+  return artifactArray(root.routes, 'route.json routes')
+    .map((value, index) => {
+      const route = artifactRecord(value, `route.json routes[${index}]`);
+      return {
+        bundle: artifactOptionalString(
+          route.bundle,
+          `route.json routes[${index}].bundle`,
+        ),
+        entryName: artifactOptionalString(
+          route.entryName,
+          `route.json routes[${index}].entryName`,
+        ),
+        entryPath: artifactString(
+          route.entryPath,
+          `route.json routes[${index}].entryPath`,
+        ),
+        isApi:
+          route.isApi === undefined
+            ? false
+            : artifactBoolean(route.isApi, `route.json routes[${index}].isApi`),
+        isSpa: artifactBoolean(
+          route.isSPA,
+          `route.json routes[${index}].isSPA`,
+        ),
+        isSsr: artifactBoolean(
+          route.isSSR,
+          `route.json routes[${index}].isSSR`,
+        ),
+        urlPath: artifactString(
+          route.urlPath,
+          `route.json routes[${index}].urlPath`,
+        ),
+      };
+    })
+    .sort((left, right) => left.urlPath.localeCompare(right.urlPath));
+}
+
+function parseNestedRoute(value: unknown, label: string): NestedRoute {
+  const route = artifactRecord(value, label);
+  const children =
+    route.children === undefined
+      ? []
+      : artifactArray(route.children, `${label}.children`).map((child, index) =>
+          parseNestedRoute(child, `${label}.children[${index}]`),
+        );
+
+  return {
+    children,
+    hasData: route.data !== undefined,
+    hasLoader: route.loader !== undefined,
+    id: artifactString(route.id, `${label}.id`),
+    index:
+      route.index === undefined
+        ? false
+        : artifactBoolean(route.index, `${label}.index`),
+    path: artifactOptionalString(route.path, `${label}.path`),
+    routeType: artifactString(route.routeType, `${label}.routeType`),
+  };
+}
+
+function parseNestedRoutes(distDir: string) {
+  const root = artifactRecord(
+    readJsonArtifact(path.join(distDir, 'nestedRoutes.json')),
+    'nestedRoutes.json',
+  );
+
+  return Object.fromEntries(
+    Object.entries(root).map(([entrypointName, value]) => [
+      entrypointName,
+      artifactArray(value, `nestedRoutes.json ${entrypointName}`).map(
+        (route, index) =>
+          parseNestedRoute(
+            route,
+            `nestedRoutes.json ${entrypointName}[${index}]`,
+          ),
+      ),
+    ]),
+  ) as Record<string, NestedRoute[]>;
 }
 
 function normalizeRelativePath(filePath: string) {
@@ -119,17 +395,15 @@ async function collectRelativeFiles(
   return files.sort();
 }
 
-async function collectBuildSnapshot(
+async function collectBuildArtifacts(
   browser: Browser,
   distRoot: string,
-): Promise<BuildSnapshot> {
+): Promise<BuildArtifacts> {
   const distDir = matrixDistPath(distRoot);
   const htmlPath = path.join(distDir, 'html/index/index.html');
-  const routeAssetsPath = path.join(distDir, 'routes-manifest.json');
   const staticDir = path.join(distDir, 'static');
-  const routeAssets = JSON.parse(
-    readFileSync(routeAssetsPath, 'utf-8'),
-  ).routeAssets;
+  const routeAssetReferences = parseRouteAssetReferences(distDir);
+  const entrypointAssets = parseEntrypointAssets(distDir);
   const context = await browser.newContext({ javaScriptEnabled: false });
   const page = await context.newPage();
   await page.goto(pathToFileURL(htmlPath).href);
@@ -149,29 +423,40 @@ async function collectBuildSnapshot(
   const staticFiles = (await collectRelativeFiles(staticDir)).filter(
     file => !file.endsWith('.map') && !file.endsWith('.LICENSE.txt'),
   );
-  const digestFiles = [
-    'html/index/index.html',
-    'loadable-stats.json',
-    'nestedRoutes.json',
-    'route.json',
-    'routes-manifest.json',
-    'static/css/index.css',
-    'static/js/index.js',
-  ];
-  const digestByFile = Object.fromEntries(
-    digestFiles.map(file => [file, hashFile(path.join(distDir, file))]),
-  );
 
   return {
-    digestByFile,
-    routeAssets,
-    scriptSrcs,
-    staticFiles,
-    styleHrefs,
+    assetReferences: {
+      document: {
+        scripts: scriptSrcs,
+        styles: styleHrefs,
+      },
+      routes: routeAssetReferences,
+    },
+    semanticInventory: {
+      applicationRoutes: parseApplicationRoutes(distDir),
+      documentAssets: collectAssetInventory([...scriptSrcs, ...styleHrefs]),
+      entrypointAssets: entrypointAssets.assets,
+      loadablePublicPath: entrypointAssets.publicPath,
+      nestedRoutes: parseNestedRoutes(distDir),
+      routeAssets: Object.fromEntries(
+        Object.entries(routeAssetReferences).map(([routeId, route]) => [
+          routeId,
+          {
+            assets: collectAssetInventory(route.assets),
+            referenceStyles: route.referenceCssAssets
+              .map(canonicalStaticAssetName)
+              .sort(),
+          },
+        ]),
+      ),
+      staticAssets: collectAssetInventory(
+        staticFiles.map(file => `static/${file}`),
+      ),
+    },
   };
 }
 
-async function buildAndSnapshot(input: {
+async function buildAndInspect(input: {
   browser: Browser;
   distRoot: string;
   env: MatrixEnv;
@@ -190,7 +475,7 @@ async function buildAndSnapshot(input: {
     );
   }
 
-  return collectBuildSnapshot(input.browser, input.distRoot);
+  return collectBuildArtifacts(input.browser, input.distRoot);
 }
 
 async function resetPortfolio(port: number) {
@@ -342,7 +627,7 @@ async function fetchStaticAsset(port: number, pathname: string) {
 
 describe('superapp portfolio runtime/build matrix coverage', () => {
   let browser: Browser | undefined;
-  let defaultBuildSnapshot: BuildSnapshot | undefined;
+  let defaultBuildArtifacts: BuildArtifacts | undefined;
   let releaseFixtureLock: ReleaseFixtureLock | undefined;
   const runningApps: unknown[] = [];
 
@@ -379,8 +664,8 @@ describe('superapp portfolio runtime/build matrix coverage', () => {
   }
 
   async function ensureDefaultProductionBuild() {
-    if (!defaultBuildSnapshot) {
-      defaultBuildSnapshot = await buildAndSnapshot({
+    if (!defaultBuildArtifacts) {
+      defaultBuildArtifacts = await buildAndInspect({
         browser: browser!,
         distRoot: defaultDistRoot,
         env: defaultProductionEnv,
@@ -388,7 +673,7 @@ describe('superapp portfolio runtime/build matrix coverage', () => {
       });
     }
 
-    return defaultBuildSnapshot;
+    return defaultBuildArtifacts;
   }
 
   test('certifies dev cold start and browser runtime path', async () => {
@@ -436,20 +721,71 @@ describe('superapp portfolio runtime/build matrix coverage', () => {
   });
 
   test('certifies repeated production build, cold production serve, SSR, and forced CSR paths', async () => {
-    const firstSnapshot = await buildAndSnapshot({
+    const firstBuild = await buildAndInspect({
       browser: browser!,
       distRoot: defaultDistRoot,
       env: defaultProductionEnv,
       label: 'production-repeat-1',
     });
-    const secondSnapshot = await buildAndSnapshot({
+    const secondBuild = await buildAndInspect({
       browser: browser!,
       distRoot: defaultDistRoot,
       env: defaultProductionEnv,
       label: 'production-repeat-2',
     });
-    defaultBuildSnapshot = secondSnapshot;
-    expect(secondSnapshot).toEqual(firstSnapshot);
+    defaultBuildArtifacts = secondBuild;
+
+    expect(secondBuild.semanticInventory).toEqual(firstBuild.semanticInventory);
+    expect(
+      secondBuild.semanticInventory.documentAssets.scripts.length,
+    ).toBeGreaterThan(0);
+    expect(
+      secondBuild.semanticInventory.documentAssets.styles.length,
+    ).toBeGreaterThan(0);
+    expect(secondBuild.semanticInventory.entrypointAssets.index).toEqual(
+      secondBuild.semanticInventory.documentAssets,
+    );
+    expect(secondBuild.semanticInventory.routeAssets.index).toEqual({
+      assets: secondBuild.semanticInventory.documentAssets,
+      referenceStyles: secondBuild.semanticInventory.documentAssets.styles,
+    });
+    const physicalAssets = new Set([
+      ...secondBuild.semanticInventory.staticAssets.other,
+      ...secondBuild.semanticInventory.staticAssets.scripts,
+      ...secondBuild.semanticInventory.staticAssets.styles,
+    ]);
+    expect(
+      [
+        ...secondBuild.semanticInventory.documentAssets.scripts,
+        ...secondBuild.semanticInventory.documentAssets.styles,
+      ].every(asset => physicalAssets.has(asset)),
+    ).toBe(true);
+    expect(secondBuild.semanticInventory.applicationRoutes).toContainEqual({
+      bundle: 'bundles/index.js',
+      entryName: 'index',
+      entryPath: 'html/index/index.html',
+      isApi: false,
+      isSpa: true,
+      isSsr: true,
+      urlPath: '/',
+    });
+    expect(secondBuild.semanticInventory.nestedRoutes.index).toMatchObject([
+      {
+        children: [
+          { id: 'page', index: true, routeType: 'page' },
+          { id: '$', path: '*', routeType: 'page' },
+          {
+            hasData: true,
+            id: 'apps/(appId)/page',
+            path: 'apps/:appId',
+            routeType: 'page',
+          },
+        ],
+        hasLoader: true,
+        id: 'layout',
+        routeType: 'layout',
+      },
+    ]);
 
     const { app, coldStartMs, port } =
       await startProductionServer(defaultProductionEnv);
@@ -481,6 +817,28 @@ describe('superapp portfolio runtime/build matrix coverage', () => {
         waitUntil: 'networkidle',
       });
       await expectPortfolioHome(page);
+      const cssEvidence = await page
+        .getByTestId('portfolio-page')
+        .evaluate((portfolioPage: HTMLElement) => {
+          const shell = portfolioPage.closest<HTMLElement>('.portfolio-shell');
+          const panel = portfolioPage.querySelector<HTMLElement>('.panel');
+          if (!shell || !panel) {
+            throw new Error('portfolio layout elements are missing');
+          }
+
+          const shellStyle = window.getComputedStyle(shell);
+          const panelStyle = window.getComputedStyle(panel);
+          return {
+            panelBorderStyle: panelStyle.borderTopStyle,
+            panelPadding: panelStyle.paddingTop,
+            shellDisplay: shellStyle.display,
+          };
+        });
+      expect(cssEvidence).toEqual({
+        panelBorderStyle: 'solid',
+        panelPadding: '20px',
+        shellDisplay: 'grid',
+      });
       await page.goto(`${host}:${port}/?csr=true`, {
         waitUntil: 'networkidle',
       });
@@ -494,12 +852,7 @@ describe('superapp portfolio runtime/build matrix coverage', () => {
         coldStartMs,
         distRoot: defaultDistRoot,
         mode: 'production-serve',
-        repeatedBuild: {
-          digestByFile: secondSnapshot.digestByFile,
-          scriptSrcs: secondSnapshot.scriptSrcs,
-          staticFiles: secondSnapshot.staticFiles,
-          styleHrefs: secondSnapshot.styleHrefs,
-        },
+        repeatedBuild: secondBuild.semanticInventory,
         ssr: {
           containsRenderedShell: ssrHeading === 'Validation Portfolio',
         },
@@ -520,19 +873,22 @@ describe('superapp portfolio runtime/build matrix coverage', () => {
     const env = createMatrixEnv(assetPrefixDistRoot, {
       SUPERAPP_PORTFOLIO_ASSET_PREFIX: matrixAssetPrefix,
     });
-    const snapshot = await buildAndSnapshot({
+    const buildArtifacts = await buildAndInspect({
       browser: browser!,
       distRoot: assetPrefixDistRoot,
       env,
       label: 'asset-prefix-production',
     });
-    const assetRefs = [...snapshot.scriptSrcs, ...snapshot.styleHrefs];
+    const assetRefs = [
+      ...buildArtifacts.assetReferences.document.scripts,
+      ...buildArtifacts.assetReferences.document.styles,
+    ];
 
     expect(assetRefs.length).toBeGreaterThan(0);
     expect(assetRefs.every(ref => ref.startsWith(matrixAssetPrefix))).toBe(
       true,
     );
-    expect(snapshot.routeAssets.index.assets).toEqual(
+    expect(buildArtifacts.assetReferences.routes.index.assets).toEqual(
       expect.arrayContaining([
         `${matrixAssetPrefix}static/js/index.js`,
         `${matrixAssetPrefix}static/css/index.css`,
@@ -550,8 +906,9 @@ describe('superapp portfolio runtime/build matrix coverage', () => {
 
     try {
       const scriptSrc =
-        snapshot.scriptSrcs.find(src => src.endsWith('/static/js/index.js')) ??
-        snapshot.scriptSrcs[0];
+        buildArtifacts.assetReferences.document.scripts.find(src =>
+          src.endsWith('/static/js/index.js'),
+        ) ?? buildArtifacts.assetReferences.document.scripts[0];
       await fetchStaticAsset(port, scriptSrc);
 
       await page.goto(`${host}:${port}`, {

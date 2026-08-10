@@ -7,24 +7,20 @@ title: rsc
 - **类型：** `boolean`
 - **默认值：** `false`
 
-启用 React Server Components (RSC) 配置。
+配置 React Server Components (RSC)。
 
-当设置为 `true` 时，启用 Modern.js 的 React Server Components 支持。这允许组件在服务端渲染，提供更好的性能和开发体验。
+:::warning UltraModern 可用性
+当前 UltraModern 公司发行版不提供也不支持 RSC。请保持该选项为 `false`。Rspack Flight 运行时仍在上游审查中；除非应用显式提供完整的可选工具链，否则启用 RSC 会按设计失败。
+
+请勿安装 `react-server-dom-rspack`，也不要添加应用级 pnpm 补丁来绕过此边界。
+:::
 
 ```ts title="modern.config.ts"
 export default defineConfig({
   server: {
-    rsc: true,
+    rsc: false,
   },
 });
 ```
 
-:::tip 前置条件
-在启用 RSC 之前，请确保：
-1. React 和 React DOM 已升级到 19 版本（建议 19.2.4 以上版本）
-2. 已安装 `react-server-dom-rspack@0.0.2` 依赖
-
-:::
-
-有关使用 RSC 的更多信息，请参阅 [React Server Components 指南](/guides/basic-features/render/rsc)。
-
+[React Server Components 指南](/guides/basic-features/render/rsc) 仅作为未来采用上游实现时的参考资料保留。

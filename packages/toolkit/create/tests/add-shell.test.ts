@@ -40,6 +40,61 @@ function runValidation(workspaceDir: string) {
   );
 }
 
+type RecordedBuildInvocation = {
+  argv: string[];
+  cwd: string;
+};
+
+function runRecordedRootBuild(
+  workspaceDir: string,
+  options: { failFilter?: string } = {},
+) {
+  const recorderRoot = fs.mkdtempSync(
+    path.join(path.dirname(workspaceDir), 'build-recorder-'),
+  );
+  const binDir = path.join(recorderRoot, 'bin');
+  const invocationLog = path.join(recorderRoot, 'invocations.jsonl');
+  const fakePnpm = path.join(binDir, 'pnpm');
+  fs.mkdirSync(binDir, { recursive: true });
+  fs.writeFileSync(
+    fakePnpm,
+    `#!/usr/bin/env node
+const fs = require('node:fs');
+const argv = process.argv.slice(2);
+fs.appendFileSync(
+  process.env.ULTRAMODERN_TEST_BUILD_LOG,
+  JSON.stringify({ argv, cwd: process.cwd() }) + '\\n',
+);
+if (argv.includes(process.env.ULTRAMODERN_TEST_FAIL_FILTER)) {
+  process.exit(23);
+}
+`,
+  );
+  fs.chmodSync(fakePnpm, 0o755);
+
+  const rootPackage = readJson(workspaceDir, 'package.json');
+  const result = spawnSync(rootPackage.scripts.build, {
+    cwd: workspaceDir,
+    encoding: 'utf-8',
+    env: {
+      ...process.env,
+      PATH: `${binDir}${path.delimiter}${process.env.PATH ?? ''}`,
+      ULTRAMODERN_TEST_BUILD_LOG: invocationLog,
+      ULTRAMODERN_TEST_FAIL_FILTER: options.failFilter ?? '',
+    },
+    shell: true,
+  });
+  const invocations = fs.existsSync(invocationLog)
+    ? fs
+        .readFileSync(invocationLog, 'utf-8')
+        .trim()
+        .split('\n')
+        .filter(Boolean)
+        .map(line => JSON.parse(line) as RecordedBuildInvocation)
+    : [];
+  return { invocations, result };
+}
+
 test('addUltramodernShell scaffolds an additional shell delivery unit and keeps the workspace valid', () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-add-shell-'));
   const workspaceDir = path.join(tempRoot, 'workspace');
@@ -112,11 +167,6 @@ test('addUltramodernShell scaffolds an additional shell delivery unit and keeps 
       'root tsconfig references the additional shell',
     );
 
-    // Root scripts enumerate every configured shell.
-    const rootPackage = readJson(workspaceDir, 'package.json');
-    assert.match(rootPackage.scripts.build, /apps\/shell-super-app.*run build/);
-    assert.match(rootPackage.scripts.build, /apps\/shell-admin.*run build/);
-
     const shellPackageModern = readJson(
       workspaceDir,
       'apps/shell-admin/package.json',
@@ -139,6 +189,74 @@ test('addUltramodernShell scaffolds an additional shell delivery unit and keeps 
       validation.status,
       0,
       `${validation.stdout}\n${validation.stderr}`,
+    );
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('root build executes every shell before and after adding a vertical and propagates failures', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-add-shell-'));
+  const workspaceDir = path.join(tempRoot, 'workspace');
+  const expectedInvocations = [
+    ['-r', '--filter', './verticals/*', 'run', 'build'],
+    ['--filter', './apps/shell-super-app', 'run', 'build'],
+    ['--filter', './apps/shell-admin', 'run', 'build'],
+    ['mf:types'],
+    ['performance:readiness'],
+  ];
+  try {
+    createBaseWorkspace(workspaceDir);
+    addUltramodernShell({
+      workspaceRoot: workspaceDir,
+      name: 'admin',
+      modernVersion: '3.2.1',
+    });
+
+    const buildBeforeVertical = runRecordedRootBuild(workspaceDir);
+    assert.equal(
+      buildBeforeVertical.result.status,
+      0,
+      buildBeforeVertical.result.stderr,
+    );
+    assert.deepEqual(
+      buildBeforeVertical.invocations.map(invocation => invocation.argv),
+      expectedInvocations,
+    );
+    assert.ok(
+      buildBeforeVertical.invocations.every(
+        invocation => invocation.cwd === fs.realpathSync(workspaceDir),
+      ),
+    );
+
+    addUltramodernVertical({
+      workspaceRoot: workspaceDir,
+      name: 'orders',
+      modernVersion: '3.2.1',
+    });
+    const buildAfterVertical = runRecordedRootBuild(workspaceDir);
+    assert.equal(
+      buildAfterVertical.result.status,
+      0,
+      buildAfterVertical.result.stderr,
+    );
+    assert.deepEqual(
+      buildAfterVertical.invocations.map(invocation => invocation.argv),
+      expectedInvocations,
+    );
+
+    // A shell build failure is returned by the root build and stops later
+    // shells and post-build gates from running.
+    const failedBuild = runRecordedRootBuild(workspaceDir, {
+      failFilter: './apps/shell-super-app',
+    });
+    assert.equal(failedBuild.result.status, 23);
+    assert.deepEqual(
+      failedBuild.invocations.map(invocation => invocation.argv),
+      [
+        ['-r', '--filter', './verticals/*', 'run', 'build'],
+        ['--filter', './apps/shell-super-app', 'run', 'build'],
+      ],
     );
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
@@ -271,10 +389,6 @@ test('add-shell followed by add-vertical preserves every shell-derived artifact'
       readJson(workspaceDir, 'tsconfig.json').references.some(
         (reference: { path?: string }) => reference.path === 'apps/shell-admin',
       ),
-    );
-    assert.match(
-      readJson(workspaceDir, 'package.json').scripts.build,
-      /apps\/shell-admin.*run build/,
     );
     const validation = runValidation(workspaceDir);
     assert.equal(

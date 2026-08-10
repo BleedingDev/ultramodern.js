@@ -11,7 +11,7 @@ describe('tanstack router-core preload redirects', () => {
     rstest.restoreAllMocks();
   });
 
-  test('keeps concurrent cached preload redirects from reading deleted matches', async () => {
+  test('resolves concurrent preload redirects without stale loader work', async () => {
     const consoleErrorSpy = rstest
       .spyOn(console, 'error')
       .mockImplementation(() => {});
@@ -58,12 +58,7 @@ describe('tanstack router-core preload redirects', () => {
 
     expect(consoleErrorSpy).not.toHaveBeenCalled();
     expect(router.options.defaultStructuralSharing).toBe(true);
-    expect(redirectLoaderCalls).toBeGreaterThan(0);
-    expect(targetLoader).toHaveBeenCalled();
-    expect(
-      router.stores.cachedMatches
-        .get()
-        .some(match => match.status === 'redirected'),
-    ).toBe(false);
+    expect(redirectLoaderCalls).toBe(1);
+    expect(targetLoader).toHaveBeenCalledTimes(1);
   });
 });

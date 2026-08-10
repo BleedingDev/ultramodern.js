@@ -9,6 +9,10 @@ export function ensureGeneratedOxfmtIgnorePatterns(io: MigrationIo) {
   }
 
   const source = fs.readFileSync(configPath, 'utf-8');
+  const legacyPreset = /^([ \t]*)extends:\s*\[\s*ultracite\s*\],?[ \t]*$/mu;
+  const nextPresetSource = legacyPreset.test(source)
+    ? source.replace(legacyPreset, '$1...ultracite,')
+    : source;
   const requiredPatterns = [
     '.modernjs',
     '.output',
@@ -27,16 +31,21 @@ export function ensureGeneratedOxfmtIgnorePatterns(io: MigrationIo) {
     }
   };
 
-  const anchor = source.indexOf('ignorePatterns:');
+  const writePresetReconciliation = () =>
+    nextPresetSource === source
+      ? false
+      : io.write(configPath, nextPresetSource);
+
+  const anchor = nextPresetSource.indexOf('ignorePatterns:');
   if (anchor === -1) {
     warnUnparseable();
-    return false;
+    return writePresetReconciliation();
   }
 
-  const openBracket = source.indexOf('[', anchor);
+  const openBracket = nextPresetSource.indexOf('[', anchor);
   if (openBracket === -1) {
     warnUnparseable();
-    return false;
+    return writePresetReconciliation();
   }
 
   // Bracket-match to find the matching closing ], skipping brackets inside
@@ -44,8 +53,8 @@ export function ensureGeneratedOxfmtIgnorePatterns(io: MigrationIo) {
   let depth = 0;
   let closeBracket = -1;
   let stringQuote: string | undefined;
-  for (let index = openBracket; index < source.length; index += 1) {
-    const char = source[index];
+  for (let index = openBracket; index < nextPresetSource.length; index += 1) {
+    const char = nextPresetSource[index];
     if (stringQuote) {
       if (char === '\\') {
         index += 1;
@@ -69,14 +78,14 @@ export function ensureGeneratedOxfmtIgnorePatterns(io: MigrationIo) {
 
   if (closeBracket === -1) {
     warnUnparseable();
-    return false;
+    return writePresetReconciliation();
   }
 
-  const body = source.slice(openBracket + 1, closeBracket);
+  const body = nextPresetSource.slice(openBracket + 1, closeBracket);
   // Reject dynamic/spread ignorePattern arrays we cannot safely edit.
   if (body.includes('...')) {
     warnUnparseable();
-    return false;
+    return writePresetReconciliation();
   }
 
   const literalPattern = /(['"`])((?:\\.|(?!\1).)*)\1/g;
@@ -87,7 +96,7 @@ export function ensureGeneratedOxfmtIgnorePatterns(io: MigrationIo) {
 
   const missing = requiredPatterns.filter(pattern => !existing.has(pattern));
   if (missing.length === 0) {
-    return false;
+    return writePresetReconciliation();
   }
 
   // Derive indentation and quote style from the last existing literal line.
@@ -103,8 +112,8 @@ export function ensureGeneratedOxfmtIgnorePatterns(io: MigrationIo) {
     }
   }
 
-  const head = source.slice(0, closeBracket);
-  const rest = source.slice(closeBracket);
+  const head = nextPresetSource.slice(0, closeBracket);
+  const rest = nextPresetSource.slice(closeBracket);
   const tailMatch = head.match(/(\r?\n[ \t]*)$/u);
   const tail = tailMatch ? tailMatch[1] : '\n';
   let bodyContent = tailMatch ? head.slice(0, head.length - tail.length) : head;

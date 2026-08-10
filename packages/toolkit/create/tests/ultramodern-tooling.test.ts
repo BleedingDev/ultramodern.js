@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -31,7 +32,6 @@ import {
   NODE_VERSION,
   OXFMT_VERSION,
   PNPM_VERSION,
-  TANSTACK_ROUTER_CORE_VERSION,
   TYPESCRIPT_VERSION,
 } from '../src/ultramodern-workspace/versions';
 
@@ -42,10 +42,6 @@ function readJson(workspaceDir: string, relativePath: string) {
   return JSON.parse(
     fs.readFileSync(path.join(workspaceDir, relativePath), 'utf-8'),
   );
-}
-
-function readText(workspaceDir: string, relativePath: string) {
-  return fs.readFileSync(path.join(workspaceDir, relativePath), 'utf-8');
 }
 
 function writeJson(workspaceDir: string, relativePath: string, value: unknown) {
@@ -82,22 +78,217 @@ function exists(workspaceDir: string, relativePath: string) {
   return fs.existsSync(path.join(workspaceDir, relativePath));
 }
 
-function assertNoDanglingScriptReferences(workspaceDir: string) {
-  const rootPackage = readJson(workspaceDir, 'package.json');
-  const scripts = rootPackage.scripts ?? {};
-  const referencePattern = /(?:\.\/|(?:\.\.\/)+)?scripts\/[\w.-]+\.m[jt]s/gu;
-  for (const [name, value] of Object.entries(scripts)) {
-    if (typeof value !== 'string') {
-      continue;
+function readYaml(workspaceDir: string, relativePath: string) {
+  return yaml.load(
+    fs.readFileSync(path.join(workspaceDir, relativePath), 'utf-8'),
+  ) as Record<string, any>;
+}
+
+function writeYaml(
+  workspaceDir: string,
+  relativePath: string,
+  value: Record<string, any>,
+) {
+  fs.writeFileSync(
+    path.join(workspaceDir, relativePath),
+    yaml.dump(value, {
+      lineWidth: -1,
+      noCompatMode: true,
+      noRefs: true,
+      quotingType: "'",
+    }),
+    'utf-8',
+  );
+}
+
+function replaceValuesForKey(
+  value: unknown,
+  key: string,
+  replacement: unknown,
+): number {
+  if (Array.isArray(value)) {
+    return value.reduce(
+      (count, item) => count + replaceValuesForKey(item, key, replacement),
+      0,
+    );
+  }
+  if (value === null || typeof value !== 'object') {
+    return 0;
+  }
+  let count = 0;
+  for (const [entryKey, entryValue] of Object.entries(value)) {
+    if (entryKey === key) {
+      (value as Record<string, unknown>)[entryKey] = replacement;
+      count += 1;
+    } else {
+      count += replaceValuesForKey(entryValue, key, replacement);
     }
-    for (const reference of value.match(referencePattern) ?? []) {
-      const relative = reference.replace(/^(?:\.\/|(?:\.\.\/)+)/u, '');
-      assert.equal(
-        exists(workspaceDir, relative),
-        true,
-        `script "${name}" references missing file ${reference}`,
-      );
+  }
+  return count;
+}
+
+function valuesForKey(value: unknown, key: string): unknown[] {
+  if (Array.isArray(value)) {
+    return value.flatMap(item => valuesForKey(item, key));
+  }
+  if (value === null || typeof value !== 'object') {
+    return [];
+  }
+  return Object.entries(value).flatMap(([entryKey, entryValue]) =>
+    entryKey === key ? [entryValue] : valuesForKey(entryValue, key),
+  );
+}
+
+type CommandRecord = {
+  args: string[];
+  command: string;
+  cwd: string;
+  env: {
+    MODERNJS_DEPLOY?: string;
+    ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS?: string;
+    ULTRAMODERN_ZEPHYR?: string;
+  };
+};
+
+function installCommandRecorder(tempRoot: string) {
+  const binDir = path.join(tempRoot, 'command-recorder-bin');
+  const logPath = path.join(tempRoot, 'command-recorder.jsonl');
+  const recorderPath = path.join(binDir, 'record-command.cjs');
+  fs.mkdirSync(binDir, { recursive: true });
+  fs.writeFileSync(
+    recorderPath,
+    `#!${process.execPath}
+const fs = require('node:fs');
+const path = require('node:path');
+
+const command = path.basename(process.argv[1]);
+const args = process.argv.slice(2);
+const record = {
+  args,
+  command,
+  cwd: process.cwd(),
+  env: {
+    MODERNJS_DEPLOY: process.env.MODERNJS_DEPLOY,
+    ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS:
+      process.env.ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS,
+    ULTRAMODERN_ZEPHYR: process.env.ULTRAMODERN_ZEPHYR,
+  },
+};
+fs.appendFileSync(process.env.ULTRAMODERN_TEST_COMMAND_LOG, JSON.stringify(record) + '\\n');
+
+if (command === 'pnpm') {
+  const scriptName = args[0] === 'run' ? args[1] : args[0];
+  if (scriptName && !scriptName.startsWith('-') && !['exec', 'install'].includes(scriptName)) {
+    const manifest = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8'));
+    if (typeof manifest.scripts?.[scriptName] !== 'string') {
+      process.exit(127);
     }
+  }
+}
+
+const invocation = command + ':' + (args[0] === 'run' ? args[1] : args[0] ?? '');
+if (process.env.ULTRAMODERN_TEST_FAIL_INVOCATION === invocation) {
+  process.exit(Number(process.env.ULTRAMODERN_TEST_FAIL_CODE ?? 1));
+}
+`,
+    'utf-8',
+  );
+  fs.chmodSync(recorderPath, 0o755);
+  for (const command of ['modern', 'node', 'oxfmt', 'pnpm', 'wrangler']) {
+    fs.symlinkSync(recorderPath, path.join(binDir, command));
+  }
+  return { binDir, logPath };
+}
+
+function runRecordedPackageScript(
+  tempRoot: string,
+  workspaceDir: string,
+  packageDir: string,
+  scriptName: string,
+  options: { failCode?: number; failInvocation?: string } = {},
+) {
+  const { binDir, logPath } = installCommandRecorder(
+    fs.mkdtempSync(path.join(tempRoot, 'command-run-')),
+  );
+  const cwd = path.join(workspaceDir, packageDir);
+  const packageJson = readJson(
+    workspaceDir,
+    path.join(packageDir, 'package.json'),
+  );
+  const script = packageJson.scripts?.[scriptName];
+  const result = spawnSync(
+    typeof script === 'string' ? script : 'exit 127',
+    [],
+    {
+      cwd,
+      encoding: 'utf-8',
+      env: {
+        ...process.env,
+        PATH: `${binDir}${path.delimiter}${process.env.PATH ?? ''}`,
+        ULTRAMODERN_TEST_COMMAND_LOG: logPath,
+        ...(options.failInvocation
+          ? {
+              ULTRAMODERN_TEST_FAIL_CODE: String(options.failCode ?? 1),
+              ULTRAMODERN_TEST_FAIL_INVOCATION: options.failInvocation,
+            }
+          : {}),
+      },
+      shell: true,
+    },
+  );
+  const records: CommandRecord[] = fs.existsSync(logPath)
+    ? fs
+        .readFileSync(logPath, 'utf-8')
+        .trim()
+        .split('\n')
+        .filter(Boolean)
+        .map(line => JSON.parse(line) as CommandRecord)
+    : [];
+  return { records, result };
+}
+
+function recordedPnpmScripts(records: CommandRecord[]) {
+  return records
+    .filter(record => record.command === 'pnpm')
+    .map(record =>
+      record.args[0] === 'run' ? record.args[1] : record.args[0],
+    );
+}
+
+function normalizedCommandTrace(records: CommandRecord[]) {
+  return records.map(({ args, command, env }) => ({ args, command, env }));
+}
+
+function assertRecordedNodeTarget(
+  record: CommandRecord | undefined,
+  expectedBasename: string,
+) {
+  assert.ok(record, `expected node to execute ${expectedBasename}`);
+  assert.equal(record.command, 'node');
+  assert.equal(path.basename(record.args[0] ?? ''), expectedBasename);
+  assert.equal(
+    fs.existsSync(path.resolve(record.cwd, record.args[0] ?? '')),
+    true,
+    `${expectedBasename} must resolve to an existing executable script`,
+  );
+}
+
+function assertGitIgnored(workspaceDir: string, relativePaths: string[]) {
+  const initialized = spawnSync('git', ['init', '--quiet'], {
+    cwd: workspaceDir,
+    encoding: 'utf-8',
+  });
+  assert.equal(initialized.status, 0, initialized.stderr);
+  for (const relativePath of relativePaths) {
+    const absolutePath = path.join(workspaceDir, relativePath);
+    fs.mkdirSync(path.dirname(absolutePath), { recursive: true });
+    fs.writeFileSync(absolutePath, 'ignore probe\n');
+    const ignored = spawnSync(
+      'git',
+      ['check-ignore', '--quiet', '--', relativePath],
+      { cwd: workspaceDir, encoding: 'utf-8' },
+    );
+    assert.equal(ignored.status, 0, `${relativePath} must be ignored by git`);
   }
 }
 
@@ -114,12 +305,17 @@ test('migrate preserves consumer-owned check segments and rewrites migrated scri
     const before = readJson(workspaceDir, 'package.json');
     before.scripts['content:validate'] = 'node ./scripts/content-validate.mjs';
     before.scripts.check = `${before.scripts.check} && pnpm content:validate && pnpm design-system:check`;
-    before.scripts['design-system:check'] = 'echo design-system';
+    before.scripts['design-system:check'] =
+      'node ./scripts/design-system-check.mjs';
     before.scripts['ultramodern:assert-mf-types'] =
       'node ./scripts/assert-mf-types.mjs';
     writeJson(workspaceDir, 'package.json', before);
     fs.writeFileSync(
       path.join(workspaceDir, 'scripts/content-validate.mjs'),
+      'export {};\n',
+    );
+    fs.writeFileSync(
+      path.join(workspaceDir, 'scripts/design-system-check.mjs'),
       'export {};\n',
     );
 
@@ -131,24 +327,54 @@ test('migrate preserves consumer-owned check segments and rewrites migrated scri
       0,
     );
 
-    const after = readJson(workspaceDir, 'package.json');
-    assert.doesNotMatch(after.scripts.check, /pnpm node:proof/u);
-    assert.ok(
-      after.scripts.check.endsWith('&& pnpm performance:readiness'),
-      after.scripts.check,
+    const check = runRecordedPackageScript(
+      tempRoot,
+      workspaceDir,
+      '.',
+      'check',
     );
-    assert.match(after.scripts.check, /pnpm content:validate/u);
-    assert.match(after.scripts.check, /pnpm design-system:check/u);
-    assert.equal(
-      after.scripts['content:validate'],
-      'node ./scripts/content-validate.mjs',
+    assert.equal(check.result.status, 0, check.result.stderr);
+    const invokedScripts = recordedPnpmScripts(check.records);
+    const contentIndex = invokedScripts.indexOf('content:validate');
+    const designSystemIndex = invokedScripts.indexOf('design-system:check');
+    const performanceIndex = invokedScripts.indexOf('performance:readiness');
+    assert.notEqual(contentIndex, -1);
+    assert.notEqual(designSystemIndex, -1);
+    assert.notEqual(performanceIndex, -1);
+    assert.ok(contentIndex < designSystemIndex);
+    assert.ok(designSystemIndex < performanceIndex);
+    assert.equal(invokedScripts.at(-1), 'performance:readiness');
+    assert.equal(invokedScripts.includes('node:proof'), false);
+
+    for (const [scriptName, expectedTarget] of [
+      ['content:validate', 'content-validate.mjs'],
+      ['design-system:check', 'design-system-check.mjs'],
+      ['ultramodern:assert-mf-types', 'assert-mf-types.mts'],
+    ] as const) {
+      const execution = runRecordedPackageScript(
+        tempRoot,
+        workspaceDir,
+        '.',
+        scriptName,
+      );
+      assert.equal(execution.result.status, 0, execution.result.stderr);
+      assertRecordedNodeTarget(
+        execution.records.find(record => record.command === 'node'),
+        expectedTarget,
+      );
+    }
+
+    const failedCheck = runRecordedPackageScript(
+      tempRoot,
+      workspaceDir,
+      '.',
+      'check',
+      { failCode: 37, failInvocation: 'pnpm:content:validate' },
     );
-    assert.equal(after.scripts['design-system:check'], 'echo design-system');
-    assert.equal(
-      after.scripts['ultramodern:assert-mf-types'],
-      'node ./scripts/assert-mf-types.mts',
-    );
-    assertNoDanglingScriptReferences(workspaceDir);
+    assert.equal(failedCheck.result.status, 37);
+    const failedInvocations = recordedPnpmScripts(failedCheck.records);
+    assert.equal(failedInvocations.includes('design-system:check'), false);
+    assert.equal(failedInvocations.includes('performance:readiness'), false);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
@@ -243,28 +469,97 @@ test('migrate removes the retired Module Federation TypeScript shim idempotently
   }
 });
 
-test('migrate recognizes the previously generated Module Federation 2.7 patch cohort', async () => {
+test('migrate recognizes previously generated Module Federation patch cohorts', async () => {
+  for (const staleVersion of ['2.7.0', '2.8.0']) {
+    const { tempRoot, workspaceDir } = scaffoldWorkspace(
+      `tooling-mf-${staleVersion}-patch-cohort`,
+    );
+    const workspacePath = path.join(workspaceDir, 'pnpm-workspace.yaml');
+
+    try {
+      const policy = yaml.load(
+        fs.readFileSync(workspacePath, 'utf-8'),
+      ) as Record<string, any>;
+      delete policy.patchedDependencies[
+        `@module-federation/modern-js-v3@${MODULE_FEDERATION_VERSION}`
+      ];
+      delete policy.patchedDependencies[
+        `@module-federation/bridge-react@${MODULE_FEDERATION_VERSION}`
+      ];
+      policy.patchedDependencies[
+        `@module-federation/modern-js-v3@${staleVersion}`
+      ] = `patches/@module-federation__modern-js-v3@${staleVersion}.patch`;
+      policy.patchedDependencies[
+        `@module-federation/bridge-react@${staleVersion}`
+      ] = `patches/@module-federation__bridge-react@${staleVersion}.patch`;
+      fs.writeFileSync(workspacePath, yaml.dump(policy), 'utf-8');
+
+      assert.equal(
+        await runUltramodernToolingCli(
+          ['migrate-strict-effect', '--skip-install'],
+          workspaceDir,
+        ),
+        0,
+      );
+
+      const migratedPolicy = yaml.load(
+        fs.readFileSync(workspacePath, 'utf-8'),
+      ) as Record<string, any>;
+      assert.equal(
+        migratedPolicy.patchedDependencies[
+          `@module-federation/modern-js-v3@${staleVersion}`
+        ],
+        undefined,
+      );
+      assert.equal(
+        migratedPolicy.patchedDependencies[
+          `@module-federation/bridge-react@${staleVersion}`
+        ],
+        undefined,
+      );
+      assert.equal(
+        migratedPolicy.patchedDependencies[
+          `@module-federation/modern-js-v3@${MODULE_FEDERATION_VERSION}`
+        ],
+        `patches/@module-federation__modern-js-v3@${MODULE_FEDERATION_VERSION}.patch`,
+      );
+      assert.equal(
+        migratedPolicy.patchedDependencies[
+          `@module-federation/bridge-react@${MODULE_FEDERATION_VERSION}`
+        ],
+        `patches/@module-federation__bridge-react@${MODULE_FEDERATION_VERSION}.patch`,
+      );
+      assert.equal(
+        exists(workspaceDir, 'patches/effect-schema-error-type-id.patch'),
+        true,
+        'migration must preserve the active same-path Effect declaration patch',
+      );
+    } finally {
+      fs.rmSync(tempRoot, { recursive: true, force: true });
+    }
+  }
+});
+
+test('migrate retires the former generated Rspack RSC patch', async () => {
   const { tempRoot, workspaceDir } = scaffoldWorkspace(
-    'tooling-mf-previous-patch-cohort',
+    'tooling-retired-rspack-rsc-patch',
   );
   const workspacePath = path.join(workspaceDir, 'pnpm-workspace.yaml');
+  const patchFile = '@react-server-dom-rspack@0.0.3.patch';
+  const relativePatchPath = `patches/${patchFile}`;
+  const selector = 'react-server-dom-rspack@0.0.3';
 
   try {
     const policy = yaml.load(fs.readFileSync(workspacePath, 'utf-8')) as Record<
       string,
       any
     >;
-    delete policy.patchedDependencies[
-      `@module-federation/modern-js-v3@${MODULE_FEDERATION_VERSION}`
-    ];
-    delete policy.patchedDependencies[
-      `@module-federation/bridge-react@${MODULE_FEDERATION_VERSION}`
-    ];
-    policy.patchedDependencies['@module-federation/modern-js-v3@2.7.0'] =
-      'patches/@module-federation__modern-js-v3@2.7.0.patch';
-    policy.patchedDependencies['@module-federation/bridge-react@2.7.0'] =
-      'patches/@module-federation__bridge-react@2.7.0.patch';
+    policy.patchedDependencies[selector] = relativePatchPath;
     fs.writeFileSync(workspacePath, yaml.dump(policy), 'utf-8');
+    fs.copyFileSync(
+      path.resolve(__dirname, '../../../..', 'patches', patchFile),
+      path.join(workspaceDir, relativePatchPath),
+    );
 
     assert.equal(
       await runUltramodernToolingCli(
@@ -277,35 +572,52 @@ test('migrate recognizes the previously generated Module Federation 2.7 patch co
     const migratedPolicy = yaml.load(
       fs.readFileSync(workspacePath, 'utf-8'),
     ) as Record<string, any>;
-    assert.equal(
-      migratedPolicy.patchedDependencies[
-        '@module-federation/modern-js-v3@2.7.0'
-      ],
-      undefined,
+    assert.equal(migratedPolicy.patchedDependencies[selector], undefined);
+    assert.equal(exists(workspaceDir, relativePatchPath), false);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('migrate preserves and rejects a consumer-modified retired Rspack RSC patch', async () => {
+  const { tempRoot, workspaceDir } = scaffoldWorkspace(
+    'tooling-modified-retired-rspack-rsc-patch',
+  );
+  const workspacePath = path.join(workspaceDir, 'pnpm-workspace.yaml');
+  const patchFile = '@react-server-dom-rspack@0.0.3.patch';
+  const relativePatchPath = `patches/${patchFile}`;
+  const selector = 'react-server-dom-rspack@0.0.3';
+  const patchPath = path.join(workspaceDir, relativePatchPath);
+
+  try {
+    const policy = yaml.load(fs.readFileSync(workspacePath, 'utf-8')) as Record<
+      string,
+      any
+    >;
+    policy.patchedDependencies[selector] = relativePatchPath;
+    fs.writeFileSync(workspacePath, yaml.dump(policy), 'utf-8');
+    fs.copyFileSync(
+      path.resolve(__dirname, '../../../..', 'patches', patchFile),
+      patchPath,
     );
+    fs.appendFileSync(patchPath, '\n# consumer-owned change\n', 'utf-8');
+
     assert.equal(
-      migratedPolicy.patchedDependencies[
-        '@module-federation/bridge-react@2.7.0'
-      ],
-      undefined,
+      await runUltramodernToolingCli(
+        ['migrate-strict-effect', '--skip-install'],
+        workspaceDir,
+      ),
+      1,
     );
+
+    const preservedPolicy = yaml.load(
+      fs.readFileSync(workspacePath, 'utf-8'),
+    ) as Record<string, any>;
     assert.equal(
-      migratedPolicy.patchedDependencies[
-        `@module-federation/modern-js-v3@${MODULE_FEDERATION_VERSION}`
-      ],
-      `patches/@module-federation__modern-js-v3@${MODULE_FEDERATION_VERSION}.patch`,
+      preservedPolicy.patchedDependencies[selector],
+      relativePatchPath,
     );
-    assert.equal(
-      migratedPolicy.patchedDependencies[
-        `@module-federation/bridge-react@${MODULE_FEDERATION_VERSION}`
-      ],
-      `patches/@module-federation__bridge-react@${MODULE_FEDERATION_VERSION}.patch`,
-    );
-    assert.equal(
-      exists(workspaceDir, 'patches/effect-schema-error-type-id.patch'),
-      true,
-      'migration must preserve a stale-version patch path that remains active in the current policy',
-    );
+    assert.equal(exists(workspaceDir, relativePatchPath), true);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
@@ -335,16 +647,15 @@ test('migrate keeps version fields consistent across the compact config', async 
       '[tools]\nnode = "26.3.0"\npnpm = "11.9.0"\n',
       'utf-8',
     );
-    const workflowPath = path.join(
+    const workflow = readYaml(
       workspaceDir,
       '.github/workflows/ultramodern-workspace-gates.yml',
     );
-    fs.writeFileSync(
-      workflowPath,
-      fs
-        .readFileSync(workflowPath, 'utf-8')
-        .replace(/^(\s*)node-version\s*:\s*.*$/mu, "$1node-version: '26.3.0'"),
-      'utf-8',
+    assert.ok(replaceValuesForKey(workflow, 'node-version', '26.3.0') > 0);
+    writeYaml(
+      workspaceDir,
+      '.github/workflows/ultramodern-workspace-gates.yml',
+      workflow,
     );
 
     assert.equal(
@@ -371,6 +682,16 @@ test('migrate keeps version fields consistent across the compact config', async 
     assert.equal(rootPackageAfter.packageManager, `pnpm@${PNPM_VERSION}`);
     assert.equal(rootPackageAfter.engines.node, '>=26');
     assert.equal(rootPackageAfter.engines.pnpm, '>=11');
+    assert.deepEqual(
+      valuesForKey(
+        readYaml(
+          workspaceDir,
+          '.github/workflows/ultramodern-workspace-gates.yml',
+        ),
+        'node-version',
+      ),
+      [NODE_VERSION],
+    );
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
@@ -382,20 +703,31 @@ test('fresh shell-only workspace omits backend-federation and Zerops runtime sur
   );
 
   try {
-    const rootPackage = readJson(workspaceDir, 'package.json');
-
-    assert.doesNotMatch(rootPackage.scripts.check, /node:proof/u);
-    assert.doesNotMatch(
-      rootPackage.scripts.check,
-      /node:backend-federation:generate/u,
+    const check = runRecordedPackageScript(
+      tempRoot,
+      workspaceDir,
+      '.',
+      'check',
     );
-    assert.equal(rootPackage.scripts['node:proof'], undefined);
+    assert.equal(check.result.status, 0, check.result.stderr);
+    const invokedScripts = recordedPnpmScripts(check.records);
+    assert.equal(invokedScripts.includes('node:proof'), false);
     assert.equal(
-      rootPackage.scripts['node:backend-federation:generate'],
-      undefined,
+      invokedScripts.includes('node:backend-federation:generate'),
+      false,
     );
-    assert.equal(rootPackage.scripts['zerops:materialize'], undefined);
-    assert.equal(rootPackage.scripts['cloudflare:ssr-proof'], undefined);
+    for (const scriptName of [
+      'node:proof',
+      'node:backend-federation:generate',
+      'zerops:materialize',
+      'cloudflare:ssr-proof',
+    ]) {
+      assert.notEqual(
+        runRecordedPackageScript(tempRoot, workspaceDir, '.', scriptName).result
+          .status,
+        0,
+      );
+    }
     assert.equal(
       exists(workspaceDir, 'scripts/generate-node-backend-federation.mts'),
       false,
@@ -409,7 +741,6 @@ test('fresh shell-only workspace omits backend-federation and Zerops runtime sur
       false,
     );
     assert.equal(exists(workspaceDir, 'scripts/proof-workerd-ssr.mts'), false);
-    assertNoDanglingScriptReferences(workspaceDir);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
@@ -427,22 +758,32 @@ test('migrate does not inject backend-federation gates into a shell-only workspa
       0,
     );
 
-    const rootPackage = readJson(workspaceDir, 'package.json');
-    assert.doesNotMatch(rootPackage.scripts.check, /node:proof/u);
-    assert.doesNotMatch(
-      rootPackage.scripts.check,
-      /node:backend-federation:generate/u,
+    const check = runRecordedPackageScript(
+      tempRoot,
+      workspaceDir,
+      '.',
+      'check',
     );
-    assert.ok(
-      rootPackage.scripts.check.endsWith('&& pnpm performance:readiness'),
-    );
-    assert.equal(rootPackage.scripts['node:proof'], undefined);
+    assert.equal(check.result.status, 0, check.result.stderr);
+    const invokedScripts = recordedPnpmScripts(check.records);
+    assert.equal(invokedScripts.includes('node:proof'), false);
     assert.equal(
-      rootPackage.scripts['node:backend-federation:generate'],
-      undefined,
+      invokedScripts.includes('node:backend-federation:generate'),
+      false,
     );
-    assert.equal(rootPackage.scripts['zerops:materialize'], undefined);
-    assert.equal(rootPackage.scripts['cloudflare:ssr-proof'], undefined);
+    assert.equal(invokedScripts.at(-1), 'performance:readiness');
+    for (const scriptName of [
+      'node:proof',
+      'node:backend-federation:generate',
+      'zerops:materialize',
+      'cloudflare:ssr-proof',
+    ]) {
+      assert.notEqual(
+        runRecordedPackageScript(tempRoot, workspaceDir, '.', scriptName).result
+          .status,
+        0,
+      );
+    }
     assert.equal(
       exists(workspaceDir, 'scripts/generate-node-backend-federation.mts'),
       false,
@@ -451,7 +792,6 @@ test('migrate does not inject backend-federation gates into a shell-only workspa
       exists(workspaceDir, 'scripts/proof-node-backend-federation.mts'),
       false,
     );
-    assertNoDanglingScriptReferences(workspaceDir);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
@@ -565,10 +905,9 @@ test('migrate converges legacy backend federation entries across config and deve
     const backendConfigPath = 'verticals/explore/backend-federation.config.ts';
     fs.writeFileSync(
       path.join(workspaceDir, backendConfigPath),
-      readText(workspaceDir, backendConfigPath).replace(
-        'backendRemoteEntry.cjs',
-        'backendRemoteEntry.mjs',
-      ),
+      fs
+        .readFileSync(path.join(workspaceDir, backendConfigPath), 'utf-8')
+        .replace('backendRemoteEntry.cjs', 'backendRemoteEntry.mjs'),
     );
 
     assert.equal(
@@ -638,28 +977,33 @@ test('migrate materializes every validator-required wrapper and rewires legacy s
       assert.equal(exists(workspaceDir, `scripts/${name}.mts`), true, name);
       assert.equal(exists(workspaceDir, `scripts/${name}.mjs`), false, name);
     }
-    const after = readJson(workspaceDir, 'package.json');
-    assert.equal(
-      after.scripts['skills:install'],
-      'node ./scripts/bootstrap-agent-skills.mts',
-    );
-    assert.equal(
-      after.scripts['skills:check'],
-      'node ./scripts/bootstrap-agent-skills.mts --check',
-    );
-    assert.equal(
-      after.scripts.postinstall,
-      "node ./scripts/bootstrap-agent-skills.mts --postinstall && oxfmt . '!repos/**'",
-    );
-    assert.equal(
-      after.scripts['agents:refs:install'],
-      'node ./scripts/setup-agent-reference-repos.mts',
-    );
-    assert.equal(
-      after.scripts['i18n:boundaries'],
-      'node ./scripts/check-ultramodern-i18n-boundaries.mts',
-    );
-    assertNoDanglingScriptReferences(workspaceDir);
+    const expectations = [
+      ['skills:install', 'bootstrap-agent-skills.mts', []],
+      ['skills:check', 'bootstrap-agent-skills.mts', ['--check']],
+      ['postinstall', 'bootstrap-agent-skills.mts', ['--postinstall']],
+      ['agents:refs:install', 'setup-agent-reference-repos.mts', []],
+      ['i18n:boundaries', 'check-ultramodern-i18n-boundaries.mts', []],
+    ] as const;
+    for (const [scriptName, target, expectedArgs] of expectations) {
+      const execution = runRecordedPackageScript(
+        tempRoot,
+        workspaceDir,
+        '.',
+        scriptName,
+      );
+      assert.equal(execution.result.status, 0, execution.result.stderr);
+      const nodeRecord = execution.records.find(
+        record => record.command === 'node',
+      );
+      assertRecordedNodeTarget(nodeRecord, target);
+      assert.deepEqual(nodeRecord?.args.slice(1), expectedArgs);
+      if (scriptName === 'postinstall') {
+        assert.deepEqual(
+          execution.records.map(record => record.command),
+          ['node', 'oxfmt'],
+        );
+      }
+    }
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
@@ -945,14 +1289,28 @@ test('UltraModern migrate-strict-effect updates package cohort and direct API me
       name: 'catalog',
       modernVersion: '3.2.1',
     });
-    const freshShellCloudflareBuild = readJson(
+    const freshShellCloudflareBuild = runRecordedPackageScript(
+      tempRoot,
       workspaceDir,
-      'apps/shell-super-app/package.json',
-    ).scripts['cloudflare:build'];
-    const freshCatalogCloudflareBuild = readJson(
+      'apps/shell-super-app',
+      'cloudflare:build',
+    );
+    const freshCatalogCloudflareBuild = runRecordedPackageScript(
+      tempRoot,
       workspaceDir,
-      'verticals/catalog/package.json',
-    ).scripts['cloudflare:build'];
+      'verticals/catalog',
+      'cloudflare:build',
+    );
+    assert.equal(
+      freshShellCloudflareBuild.result.status,
+      0,
+      freshShellCloudflareBuild.result.stderr,
+    );
+    assert.equal(
+      freshCatalogCloudflareBuild.result.status,
+      0,
+      freshCatalogCloudflareBuild.result.stderr,
+    );
 
     const catalogEnglishLocale = readJson(
       workspaceDir,
@@ -1126,7 +1484,7 @@ export default catalogResource;
     pnpmPolicy.overrides.effect = '4.0.0-beta.89';
     delete pnpmPolicy.overrides['@effect/opentelemetry'];
     delete pnpmPolicy.patchedDependencies[`effect@${EFFECT_VERSION}`];
-    pnpmPolicy.patchedDependencies['effect@4.0.0-beta.94'] =
+    pnpmPolicy.patchedDependencies['effect@4.0.0-beta.102'] =
       'patches/effect-schema-error-type-id.patch';
     delete pnpmPolicy.patchedDependencies[
       `@module-federation/bridge-react@${MODULE_FEDERATION_VERSION}`
@@ -1140,8 +1498,8 @@ export default catalogResource;
       'i18next@26.3.1',
     ];
     pnpmPolicy.trustPolicyExclude = [
-      'effect@4.0.0-beta.94',
-      '@effect/opentelemetry@4.0.0-beta.94',
+      'effect@4.0.0-beta.102',
+      '@effect/opentelemetry@4.0.0-beta.102',
     ];
     fs.writeFileSync(
       pnpmWorkspaceFile,
@@ -1183,17 +1541,7 @@ export default catalogResource;
     writeJson(workspaceDir, 'tsconfig.base.json', baseTsConfig);
 
     const gitignorePath = path.join(workspaceDir, '.gitignore');
-    fs.writeFileSync(
-      gitignorePath,
-      fs
-        .readFileSync(gitignorePath, 'utf-8')
-        .replace(/^\.mf\/\n/mu, '')
-        .replace(/^\*\*\/\.mf\/\n/mu, '')
-        .replace(/^dist-cloudflare\/\n/mu, '')
-        .replace(/^\.output\/\n/mu, '')
-        .replace(/^\*\*\/\.output\/\n/mu, ''),
-      'utf-8',
-    );
+    fs.writeFileSync(gitignorePath, 'consumer-cache/\n', 'utf-8');
 
     for (const sharedPackageDir of [
       'packages/shared-contracts',
@@ -1335,37 +1683,68 @@ declare module '*.css' {}
     );
     assert.equal(rootPackage.devDependencies.oxfmt, OXFMT_VERSION);
     assert.equal(rootPackage.modernjs.packageSource.strategy, 'workspace');
-    assert.match(
-      rootPackage.scripts['cloudflare:build'],
-      /cloudflare-output:verify/u,
-    );
-    assert.doesNotMatch(
-      JSON.stringify(rootPackage.scripts),
-      /ULTRAMODERN_ZEPHYR/u,
+    const rootCloudflareBuild = runRecordedPackageScript(
+      tempRoot,
+      workspaceDir,
+      '.',
+      'cloudflare:build',
     );
     assert.equal(
-      rootPackage.scripts['node:proof'],
-      'node ./scripts/proof-node-backend-federation.mts',
+      rootCloudflareBuild.result.status,
+      0,
+      rootCloudflareBuild.result.stderr,
     );
+    const rootCloudflareScripts = recordedPnpmScripts(
+      rootCloudflareBuild.records,
+    );
+    assert.notEqual(
+      rootCloudflareScripts.indexOf('cloudflare-output:verify'),
+      -1,
+    );
+    assert.equal(rootCloudflareScripts.at(-1), 'cloudflare:ssr-proof');
     assert.equal(
-      rootPackage.scripts['cloudflare-output:verify'],
-      'node ./scripts/verify-cloudflare-output.mts',
+      rootCloudflareBuild.records.every(
+        record => record.env.ULTRAMODERN_ZEPHYR === undefined,
+      ),
+      true,
     );
+
+    for (const [scriptName, expectedTarget] of [
+      ['node:proof', 'proof-node-backend-federation.mts'],
+      ['cloudflare-output:verify', 'verify-cloudflare-output.mts'],
+      [
+        'node:backend-federation:generate',
+        'generate-node-backend-federation.mts',
+      ],
+      ['zerops:materialize', 'materialize-zerops-runtime.mjs'],
+      ['cloudflare:ssr-proof', 'proof-workerd-ssr.mts'],
+    ] as const) {
+      const execution = runRecordedPackageScript(
+        tempRoot,
+        workspaceDir,
+        '.',
+        scriptName,
+      );
+      assert.equal(execution.result.status, 0, execution.result.stderr);
+      assertRecordedNodeTarget(
+        execution.records.find(record => record.command === 'node'),
+        expectedTarget,
+      );
+    }
+
+    const failedCloudflareBuild = runRecordedPackageScript(
+      tempRoot,
+      workspaceDir,
+      '.',
+      'cloudflare:build',
+      { failCode: 29, failInvocation: 'pnpm:cloudflare-output:verify' },
+    );
+    assert.equal(failedCloudflareBuild.result.status, 29);
     assert.equal(
-      rootPackage.scripts['node:backend-federation:generate'],
-      'node ./scripts/generate-node-backend-federation.mts',
-    );
-    assert.equal(
-      rootPackage.scripts['zerops:materialize'],
-      'node ./scripts/materialize-zerops-runtime.mjs',
-    );
-    assert.equal(
-      rootPackage.scripts['cloudflare:ssr-proof'],
-      'node ./scripts/proof-workerd-ssr.mts',
-    );
-    assert.match(
-      rootPackage.scripts['cloudflare:build'],
-      /&& pnpm cloudflare:ssr-proof$/u,
+      recordedPnpmScripts(failedCloudflareBuild.records).includes(
+        'cloudflare:ssr-proof',
+      ),
+      false,
     );
     for (const relativePath of [
       'scripts/generate-node-backend-federation.mts',
@@ -1408,8 +1787,7 @@ declare module '*.css' {}
     assert.equal(migratedCompactCatalog.backendFederation.entry, undefined);
     assert.equal(migratedCompactCatalog.api.backendFederation, undefined);
     assert.equal(migratedCompactCatalog.api.runtime, 'effect');
-    const pnpmWorkspace = fs.readFileSync(pnpmWorkspaceFile, 'utf-8');
-    const migratedPnpmPolicy = yaml.load(pnpmWorkspace) as Record<string, any>;
+    const migratedPnpmPolicy = readYaml(workspaceDir, 'pnpm-workspace.yaml');
     assert.equal(
       migratedPnpmPolicy.peerDependencyRules.allowedVersions[
         '@effect/vitest>effect'
@@ -1440,6 +1818,10 @@ declare module '*.css' {}
     assert.equal(
       migratedPnpmPolicy.patchedDependencies[`effect@${EFFECT_VERSION}`],
       'patches/effect-schema-error-type-id.patch',
+    );
+    assert.equal(
+      migratedPnpmPolicy.patchedDependencies['effect@4.0.0-beta.102'],
+      undefined,
     );
     assert.equal(
       migratedPnpmPolicy.patchedDependencies[
@@ -1482,15 +1864,6 @@ declare module '*.css' {}
       fs.existsSync(
         path.join(
           workspaceDir,
-          `patches/@tanstack__router-core@${TANSTACK_ROUTER_CORE_VERSION}.patch`,
-        ),
-      ),
-      'migrate-strict-effect must restore the generated TanStack Router patch',
-    );
-    assert.ok(
-      fs.existsSync(
-        path.join(
-          workspaceDir,
           `patches/@module-federation__bridge-react@${MODULE_FEDERATION_VERSION}.patch`,
         ),
       ),
@@ -1512,32 +1885,14 @@ declare module '*.css' {}
       undefined,
       'migrate-strict-effect must remove generated skipLibCheck',
     );
-    const migratedGitignore = fs.readFileSync(gitignorePath, 'utf-8');
-    assert.match(
-      migratedGitignore,
-      /^\.mf\/$/mu,
-      'migrate-strict-effect must ignore root Module Federation diagnostics',
-    );
-    assert.match(
-      migratedGitignore,
-      /^\*\*\/\.mf\/$/mu,
-      'migrate-strict-effect must ignore per-app Module Federation diagnostics',
-    );
-    assert.match(
-      migratedGitignore,
-      /^dist-cloudflare\/$/mu,
-      'migrate-strict-effect must ignore Cloudflare build output',
-    );
-    assert.match(
-      migratedGitignore,
-      /^\.output\/$/mu,
-      'migrate-strict-effect must ignore root final deployment output',
-    );
-    assert.match(
-      migratedGitignore,
-      /^\*\*\/\.output\/$/mu,
-      'migrate-strict-effect must ignore per-app final deployment output',
-    );
+    assertGitIgnored(workspaceDir, [
+      '.mf/diagnostics.json',
+      'apps/shell-super-app/.mf/diagnostics.json',
+      'dist-cloudflare/index.js',
+      '.output/server/index.js',
+      'verticals/catalog/.output/server/index.js',
+      'consumer-cache/preserved.txt',
+    ]);
 
     const shellTsConfig = readJson(
       workspaceDir,
@@ -1602,66 +1957,163 @@ declare module '*.css' {}
       shellPackage.dependencies['@effect/opentelemetry'],
       EFFECT_VERSION,
     );
-    assert.match(
-      shellPackage.scripts['cloudflare:build'],
-      /MODERNJS_DEPLOY=cloudflare modern deploy --skip-build/u,
-    );
-    assert.match(
-      shellPackage.scripts['cloudflare:build'],
-      /node \S*generate-public-surface-assets\.mts --app shell-super-app --target cloudflare-dist && MODERNJS_DEPLOY=cloudflare modern deploy --skip-build/u,
+    const migratedShellCloudflareBuild = runRecordedPackageScript(
+      tempRoot,
+      workspaceDir,
+      'apps/shell-super-app',
+      'cloudflare:build',
     );
     assert.equal(
-      shellPackage.scripts['cloudflare:build'],
-      freshShellCloudflareBuild,
-      'migrated shell Cloudflare build must exactly match a fresh scaffold',
+      migratedShellCloudflareBuild.result.status,
+      0,
+      migratedShellCloudflareBuild.result.stderr,
     );
-    assert.equal(
-      shellPackage.scripts['cloudflare:deploy'],
-      'ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS=true pnpm run cloudflare:build && wrangler deploy --config .output/wrangler.json',
+    assert.deepEqual(
+      normalizedCommandTrace(migratedShellCloudflareBuild.records),
+      normalizedCommandTrace(freshShellCloudflareBuild.records),
+    );
+    const shellAssetGeneration = migratedShellCloudflareBuild.records.find(
+      record =>
+        record.command === 'node' &&
+        path.basename(record.args[0] ?? '') ===
+          'generate-public-surface-assets.mts',
+    );
+    assertRecordedNodeTarget(
+      shellAssetGeneration,
+      'generate-public-surface-assets.mts',
+    );
+    assert.deepEqual(shellAssetGeneration?.args.slice(1), [
+      '--app',
+      'shell-super-app',
+      '--target',
+      'cloudflare-dist',
+    ]);
+    const shellCloudflareDeploy = migratedShellCloudflareBuild.records.find(
+      record =>
+        record.command === 'modern' &&
+        record.env.MODERNJS_DEPLOY === 'cloudflare' &&
+        record.args[0] === 'deploy',
+    );
+    assert.deepEqual(shellCloudflareDeploy?.args, ['deploy', '--skip-build']);
+    assert.ok(
+      migratedShellCloudflareBuild.records.indexOf(shellAssetGeneration!) <
+        migratedShellCloudflareBuild.records.indexOf(shellCloudflareDeploy!),
     );
 
-    const catalogPackage = readJson(
+    const migratedCatalogCloudflareBuild = runRecordedPackageScript(
+      tempRoot,
       workspaceDir,
-      'verticals/catalog/package.json',
+      'verticals/catalog',
+      'cloudflare:build',
     );
-    assert.match(
-      catalogPackage.scripts['cloudflare:build'],
-      /MODERNJS_DEPLOY=cloudflare modern deploy --skip-build/u,
+    assert.equal(
+      migratedCatalogCloudflareBuild.result.status,
+      0,
+      migratedCatalogCloudflareBuild.result.stderr,
     );
-    assert.match(
-      catalogPackage.scripts['cloudflare:build'],
-      /node \S*generate-public-surface-assets\.mts --app catalog --target cloudflare-dist && MODERNJS_DEPLOY=cloudflare modern deploy --skip-build/u,
+    assert.deepEqual(
+      normalizedCommandTrace(migratedCatalogCloudflareBuild.records),
+      normalizedCommandTrace(freshCatalogCloudflareBuild.records),
     );
-    assert.doesNotMatch(
-      catalogPackage.scripts.build,
-      /generate-node-backend-federation/u,
+    const catalogAssetGeneration = migratedCatalogCloudflareBuild.records.find(
+      record =>
+        record.command === 'node' &&
+        path.basename(record.args[0] ?? '') ===
+          'generate-public-surface-assets.mts',
     );
-    assert.match(
-      catalogPackage.scripts.build,
-      /MODERNJS_DEPLOY=node modern deploy --skip-build/u,
+    assertRecordedNodeTarget(
+      catalogAssetGeneration,
+      'generate-public-surface-assets.mts',
     );
+    assert.deepEqual(catalogAssetGeneration?.args.slice(1), [
+      '--app',
+      'catalog',
+      '--target',
+      'cloudflare-dist',
+    ]);
+    const catalogCloudflareDeploy = migratedCatalogCloudflareBuild.records.find(
+      record =>
+        record.command === 'modern' &&
+        record.env.MODERNJS_DEPLOY === 'cloudflare' &&
+        record.args[0] === 'deploy',
+    );
+    assert.deepEqual(catalogCloudflareDeploy?.args, ['deploy', '--skip-build']);
+    assert.equal(
+      migratedCatalogCloudflareBuild.records.some(
+        record =>
+          path.basename(record.args[0] ?? '') ===
+          'generate-node-backend-federation.mts',
+      ),
+      false,
+    );
+
+    const catalogNodeBuild = runRecordedPackageScript(
+      tempRoot,
+      workspaceDir,
+      'verticals/catalog',
+      'build',
+    );
+    assert.equal(
+      catalogNodeBuild.result.status,
+      0,
+      catalogNodeBuild.result.stderr,
+    );
+    const catalogNodeAssets = catalogNodeBuild.records.find(
+      record =>
+        record.command === 'node' &&
+        path.basename(record.args[0] ?? '') ===
+          'generate-public-surface-assets.mts',
+    );
+    const catalogNodeDeploy = catalogNodeBuild.records.find(
+      record =>
+        record.command === 'modern' &&
+        record.env.MODERNJS_DEPLOY === 'node' &&
+        record.args[0] === 'deploy',
+    );
+    assertRecordedNodeTarget(
+      catalogNodeAssets,
+      'generate-public-surface-assets.mts',
+    );
+    assert.deepEqual(catalogNodeDeploy?.args, ['deploy', '--skip-build']);
     assert.ok(
-      catalogPackage.scripts.build.indexOf(
-        'generate-public-surface-assets.mts',
-      ) <
-        catalogPackage.scripts.build.indexOf(
-          'MODERNJS_DEPLOY=node modern deploy --skip-build',
-        ),
-      'Node deploy must framework-reseal generated public assets after public-surface generation',
-    );
-    assert.doesNotMatch(
-      catalogPackage.scripts['cloudflare:build'],
-      /generate-node-backend-federation/u,
+      catalogNodeBuild.records.indexOf(catalogNodeAssets!) <
+        catalogNodeBuild.records.indexOf(catalogNodeDeploy!),
     );
     assert.equal(
-      catalogPackage.scripts['cloudflare:build'],
-      freshCatalogCloudflareBuild,
-      'migrated MicroVertical Cloudflare build must exactly match a fresh scaffold',
+      catalogNodeBuild.records.some(
+        record =>
+          path.basename(record.args[0] ?? '') ===
+          'generate-node-backend-federation.mts',
+      ),
+      false,
     );
-    assert.equal(
-      catalogPackage.scripts['cloudflare:deploy'],
-      'ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS=true pnpm run cloudflare:build && wrangler deploy --config .output/wrangler.json',
-    );
+
+    for (const packageDir of ['apps/shell-super-app', 'verticals/catalog']) {
+      const deploy = runRecordedPackageScript(
+        tempRoot,
+        workspaceDir,
+        packageDir,
+        'cloudflare:deploy',
+      );
+      assert.equal(deploy.result.status, 0, deploy.result.stderr);
+      const build = deploy.records.find(record => record.command === 'pnpm');
+      assert.deepEqual(build?.args, ['run', 'cloudflare:build']);
+      assert.equal(
+        build?.env.ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS,
+        'true',
+      );
+      const wrangler = deploy.records.find(
+        record => record.command === 'wrangler',
+      );
+      assert.deepEqual(wrangler?.args, [
+        'deploy',
+        '--config',
+        '.output/wrangler.json',
+      ]);
+      assert.ok(
+        deploy.records.indexOf(build!) < deploy.records.indexOf(wrangler!),
+      );
+    }
 
     const migratedTopology = readJson(
       workspaceDir,
@@ -1696,17 +2148,10 @@ test('UltraModern migrate-strict-effect removes unused Drizzle declaration patch
   const { tempRoot, workspaceDir } = scaffoldWorkspace('tooling-no-drizzle');
 
   try {
-    const pnpmWorkspaceFile = path.join(workspaceDir, 'pnpm-workspace.yaml');
-    fs.writeFileSync(
-      pnpmWorkspaceFile,
-      fs
-        .readFileSync(pnpmWorkspaceFile, 'utf-8')
-        .replace(
-          `  'effect@${EFFECT_VERSION}': patches/effect-schema-error-type-id.patch\n`,
-          `  'effect@${EFFECT_VERSION}': patches/effect-schema-error-type-id.patch\n  'drizzle-orm@${DRIZZLE_ORM_VERSION}': patches/drizzle-orm-ts7-strict-declarations.patch\n`,
-        ),
-      'utf-8',
-    );
+    const policy = readYaml(workspaceDir, 'pnpm-workspace.yaml');
+    policy.patchedDependencies[`drizzle-orm@${DRIZZLE_ORM_VERSION}`] =
+      'patches/drizzle-orm-ts7-strict-declarations.patch';
+    writeYaml(workspaceDir, 'pnpm-workspace.yaml', policy);
 
     assert.equal(
       await runUltramodernToolingCli(
@@ -1716,13 +2161,10 @@ test('UltraModern migrate-strict-effect removes unused Drizzle declaration patch
       0,
     );
 
-    const pnpmWorkspace = fs.readFileSync(pnpmWorkspaceFile, 'utf-8');
-    assert.doesNotMatch(
-      pnpmWorkspace,
-      new RegExp(
-        `'drizzle-orm@${DRIZZLE_ORM_VERSION}': patches/drizzle-orm-ts7-strict-declarations\\.patch`,
-        'u',
-      ),
+    const migratedPolicy = readYaml(workspaceDir, 'pnpm-workspace.yaml');
+    assert.equal(
+      migratedPolicy.patchedDependencies[`drizzle-orm@${DRIZZLE_ORM_VERSION}`],
+      undefined,
       'migrate-strict-effect must remove stale Drizzle patches when drizzle-orm is not installed',
     );
     assert.equal(
@@ -2074,30 +2516,36 @@ test('UltraModern migrate keeps generated gitignore rules idempotent', async () 
   const { tempRoot, workspaceDir } = scaffoldWorkspace('tooling-gitignore');
 
   try {
-    for (let run = 0; run < 2; run += 1) {
-      assert.equal(
-        await runUltramodernToolingCli(
-          ['migrate-strict-effect', '--skip-install'],
-          workspaceDir,
-        ),
-        0,
-      );
-    }
+    assert.equal(
+      await runUltramodernToolingCli(
+        ['migrate-strict-effect', '--skip-install'],
+        workspaceDir,
+      ),
+      0,
+    );
+    const gitignorePath = path.join(workspaceDir, '.gitignore');
+    const afterFirstMigration = fs.readFileSync(gitignorePath);
+    assertGitIgnored(workspaceDir, [
+      '.output/server/index.js',
+      'verticals/catalog/.output/server/index.js',
+      '.modern-js/build.json',
+      'apps/shell-super-app/.modern-js/build.json',
+      'verticals/catalog/src/modern-tanstack/router.gen.ts',
+      'apps/shell-super-app/.tsgo.app.resolved.json',
+    ]);
 
-    const gitignore = readText(workspaceDir, '.gitignore');
-    for (const rule of [
-      '.output/',
-      '**/.output/',
-      '.modern-js/',
-      '**/.modern-js/',
-      '**/src/modern-tanstack/',
-      '**/.tsgo.*.resolved.json',
-    ]) {
-      const occurrences = gitignore
-        .split(/\r?\n/u)
-        .filter(line => line === rule).length;
-      assert.equal(occurrences, 1, `${rule} must appear exactly once`);
-    }
+    assert.equal(
+      await runUltramodernToolingCli(
+        ['migrate-strict-effect', '--skip-install'],
+        workspaceDir,
+      ),
+      0,
+    );
+    assert.deepEqual(
+      fs.readFileSync(gitignorePath),
+      afterFirstMigration,
+      'a second migration must leave the ignore policy byte-identical',
+    );
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }

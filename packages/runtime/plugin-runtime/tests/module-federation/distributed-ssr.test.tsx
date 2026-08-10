@@ -12,6 +12,11 @@ import {
 
 const key = distributedSsrFragmentKey('inventory', './Widget');
 
+interface CheckoutRemoteProps {
+  price: number;
+  sku: string;
+}
+
 function renderBoundary(context: Record<string, unknown>) {
   return renderToString(
     <RuntimeContext.Provider value={context as never}>
@@ -244,10 +249,7 @@ describe('createDistributedSsrComponent', () => {
       props: Record<string, unknown>;
       remote: string;
     }> = [];
-    const Remote = createDistributedSsrComponent<{
-      price: number;
-      sku: string;
-    }>({
+    const Remote = createDistributedSsrComponent<CheckoutRemoteProps>({
       createComponent: () => () => (
         <section data-native-mf="inventory">native inventory</section>
       ),

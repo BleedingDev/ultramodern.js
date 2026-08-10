@@ -27,6 +27,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from '../../packages/toolkit/utils/compiled/js-yaml/index.js';
+import {
+  conditionCalls,
+  evaluateJobSchedule,
+  parseJobCondition,
+} from './github-job-condition.mjs';
 
 export const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
 
@@ -310,6 +315,80 @@ function collectPublishOutcomeErrors(workflow, relativePath) {
   ) {
     errors.push(
       `${relativePath} record-publish-outcome must upload exactly one deterministically named outcome artifact`,
+    );
+  }
+
+  const changeRecordJob = workflow.jobs?.['publish-change-record'];
+  if (!isObject(changeRecordJob)) {
+    errors.push(
+      `${relativePath} authenticated publish outcome must converge on publish-change-record`,
+    );
+    return errors;
+  }
+  const changeRecordNeeds = normalizeNeeds(changeRecordJob);
+  if (
+    changeRecordNeeds.length !== 1 ||
+    changeRecordNeeds[0] !== 'record-publish-outcome'
+  ) {
+    errors.push(
+      `${relativePath} publish-change-record must depend only on record-publish-outcome`,
+    );
+  }
+
+  let changeRecordCondition;
+  try {
+    changeRecordCondition = parseJobCondition(changeRecordJob.if);
+  } catch {
+    changeRecordCondition = undefined;
+  }
+  const successfulPublishResults = {
+    'accept-published': 'success',
+    'accept-release': 'success',
+    'prepare-release': 'success',
+    publish: 'success',
+    'publish-security': 'success',
+    'record-publish-outcome': 'success',
+    'tractor-downstream': 'success',
+    'validate-release': 'skipped',
+  };
+  const successfulPublishContext = {
+    github: {
+      actor: 'BleedingDev',
+      ref: 'refs/heads/main-ultramodern',
+      repository_owner: 'BleedingDev',
+      triggering_actor: 'BleedingDev',
+    },
+    inputs: { dry_run: false },
+    vars: {},
+  };
+  const schedulesChangeRecord = ({ context, results } = {}) =>
+    evaluateJobSchedule({
+      workflow,
+      jobId: 'publish-change-record',
+      results: results ?? successfulPublishResults,
+      context: context ?? successfulPublishContext,
+    });
+  if (
+    changeRecordCondition === undefined ||
+    !conditionCalls(changeRecordCondition, 'always') ||
+    !schedulesChangeRecord() ||
+    schedulesChangeRecord({
+      context: {
+        ...successfulPublishContext,
+        inputs: { dry_run: true },
+      },
+    }) ||
+    ['failure', 'cancelled', 'skipped'].some(result =>
+      schedulesChangeRecord({
+        results: {
+          ...successfulPublishResults,
+          'record-publish-outcome': result,
+        },
+      }),
+    )
+  ) {
+    errors.push(
+      `${relativePath} publish-change-record must survive the intentional branch skip, require a successful authenticated outcome, and reject dry-runs`,
     );
   }
   return errors;
@@ -691,21 +770,37 @@ const collectUntrustedCheckoutRefs = (
 const requiredSensitiveChecks = [
   {
     label: 'permissions: contents: read',
-    test: content => content.includes('permissions:\n  contents: read'),
+    test: workflow => workflow.permissions?.contents === 'read',
   },
   {
     label: 'persist-credentials: false',
-    test: content => content.includes('persist-credentials: false'),
+    test: workflow =>
+      workflowSteps(workflow).some(
+        ({ step }) =>
+          isCheckoutAction(step.uses) &&
+          step.with?.['persist-credentials'] === false,
+      ),
   },
   {
     label: 'timeout-minutes:',
-    test: content => content.includes('timeout-minutes:'),
+    test: workflow =>
+      Object.values(workflow.jobs ?? {}).some(
+        job =>
+          isObject(job) &&
+          Number.isInteger(job['timeout-minutes']) &&
+          job['timeout-minutes'] > 0,
+      ),
   },
   {
     // Accept either egress mode: `block` is the stronger posture and must
     // never fail the gate.
     label: 'egress-policy: audit|block',
-    test: content => /egress-policy:\s*(?:audit|block)\b/.test(content),
+    test: workflow =>
+      workflowSteps(workflow).some(
+        ({ step }) =>
+          actionMatches(step, 'step-security/harden-runner') &&
+          ['audit', 'block'].includes(step.with?.['egress-policy']),
+      ),
   },
 ];
 
@@ -832,7 +927,7 @@ export function validateWorkflowContent(relativePath, content, options = {}) {
 
   if (sensitive) {
     for (const check of requiredSensitiveChecks) {
-      if (!check.test(content)) {
+      if (!check.test(workflow)) {
         push(
           'sensitive-hardening',
           `${relativePath} must include ${check.label}`,
@@ -841,13 +936,16 @@ export function validateWorkflowContent(relativePath, content, options = {}) {
     }
 
     if (relativePath.includes('publish')) {
-      if (!content.includes('id-token: write')) {
+      const oidcJobs = Object.values(workflow.jobs ?? {}).filter(
+        job => isObject(job) && job.permissions?.['id-token'] === 'write',
+      );
+      if (oidcJobs.length === 0) {
         push(
           'trusted-publishing',
           `${relativePath} must grant id-token: write for trusted publishing`,
         );
       }
-      if (!content.includes('environment: npm-publish')) {
+      if (!oidcJobs.some(job => job.environment === 'npm-publish')) {
         push(
           'trusted-publishing',
           `${relativePath} must publish through the npm-publish environment`,

@@ -274,6 +274,36 @@ test('down-projects a headless microvertical (no api http address)', () => {
   });
 });
 
+test('down-projection never leaks an unsupported GraphQL protocol into v1', () => {
+  const descriptor: DeliveryUnitDescriptor = {
+    unitId: 'acme/catalog',
+    kind: 'microvertical',
+    owner: { kind: 'team', id: 'catalog' },
+    sourceRevision: 'rev-graphql',
+    buildMarker: 'marker-graphql',
+    baselineCohort,
+    surfaces: [
+      {
+        kind: 'api',
+        surfaceId: 'catalog',
+        protocol: 'graphql',
+        locations: [{ platform: 'http', address: '/graphql' }],
+      },
+    ],
+  };
+
+  const { app } = projectDeliveryUnitToV1(
+    descriptor,
+    context({ mode: 'extended-v1' }),
+  );
+
+  assert.deepEqual(app.api, {
+    stem: 'catalog',
+    prefix: '/graphql',
+    consumedBy: [],
+  });
+});
+
 test('horizontal-remote collapses to vertical (lossy)', () => {
   const descriptor: DeliveryUnitDescriptor = {
     unitId: 'acme/design-system',

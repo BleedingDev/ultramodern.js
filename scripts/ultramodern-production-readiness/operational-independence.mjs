@@ -29,6 +29,9 @@ import { canonicalSerialize, digestCanonical } from './canonical-digest.mjs';
 const EVIDENCE_SCHEMA_VERSION = 1;
 const ENVELOPE_RELATIVE_PATH = 'release/microvertical-release-envelope.json';
 const ENVELOPE_KIND = 'ultramodern-target-microvertical-release-envelope';
+const IDENTITY_CARRIERS_RELATIVE_PATH =
+  'release/microvertical-release-identity-carriers.json';
+const IDENTITY_CARRIERS_KIND = 'ultramodern-release-identity-carriers';
 const SHA256_PATTERN = /^[a-f0-9]{64}$/u;
 const SOURCE_REVISION_PATTERN = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 const SURFACE_NAMES = ['uiClient', 'ssr', 'apiBackend', 'backendFederation'];
@@ -387,6 +390,182 @@ function assertSortedUniquePaths(paths, label) {
   return normalized;
 }
 
+function readAndVerifyIdentityCarriers({
+  artifactByPath,
+  identity,
+  options,
+  outputRoot,
+  surfacePaths,
+}) {
+  const metadataArtifact = artifactByPath.get(IDENTITY_CARRIERS_RELATIVE_PATH);
+  if (!metadataArtifact || metadataArtifact.kind !== 'file') {
+    throw new Error(
+      `Release envelope must bind ${IDENTITY_CARRIERS_RELATIVE_PATH} as a file artifact.`,
+    );
+  }
+  const metadata = assertRecord(
+    JSON.parse(
+      fs.readFileSync(
+        resolveContainedPath(
+          outputRoot,
+          IDENTITY_CARRIERS_RELATIVE_PATH,
+          'release identity carrier metadata',
+        ),
+        'utf8',
+      ),
+    ),
+    'release identity carrier metadata',
+  );
+  assertExactKeys(
+    metadata,
+    ['schemaVersion', 'kind', 'identity', 'carriers'],
+    'release identity carrier metadata',
+  );
+  if (
+    metadata.schemaVersion !== 1 ||
+    metadata.kind !== IDENTITY_CARRIERS_KIND
+  ) {
+    throw new Error('Release identity carrier metadata schema is invalid.');
+  }
+  const metadataIdentity = assertIdentity(
+    metadata.identity,
+    'release identity carrier metadata.identity',
+  );
+  if (canonicalSerialize(metadataIdentity) !== canonicalSerialize(identity)) {
+    throw new Error(
+      'Release identity carrier metadata does not match the release envelope identity.',
+    );
+  }
+  if (
+    options.forbiddenIdentity &&
+    metadataIdentity.buildMarker === options.forbiddenIdentity.buildMarker &&
+    metadataIdentity.sourceRevision === options.forbiddenIdentity.sourceRevision
+  ) {
+    throw new Error(
+      'Release identity carrier metadata retains the prior release identity.',
+    );
+  }
+  if (!Array.isArray(metadata.carriers) || metadata.carriers.length === 0) {
+    throw new Error(
+      'Release identity carrier metadata must declare at least one carrier.',
+    );
+  }
+
+  const carriers = metadata.carriers.map((value, index) => {
+    const label = `release identity carrier metadata.carriers[${index}]`;
+    const carrier = assertRecord(value, label);
+    assertExactKeys(
+      carrier,
+      ['logicalPath', 'byteLength', 'sha256', 'surfaces'],
+      label,
+    );
+    const logicalPath = normalizeLogicalPath(
+      carrier.logicalPath,
+      `${label}.logicalPath`,
+    );
+    const byteLength = carrier.byteLength;
+    if (
+      typeof byteLength !== 'number' ||
+      !Number.isSafeInteger(byteLength) ||
+      byteLength < 0
+    ) {
+      throw new Error(`${label}.byteLength must be a non-negative integer.`);
+    }
+    const artifactDigest = assertNonEmptyString(
+      carrier.sha256,
+      `${label}.sha256`,
+    );
+    if (!SHA256_PATTERN.test(artifactDigest)) {
+      throw new Error(`${label}.sha256 must be a lowercase SHA-256 digest.`);
+    }
+    if (!Array.isArray(carrier.surfaces) || carrier.surfaces.length === 0) {
+      throw new Error(`${label}.surfaces must be a non-empty array.`);
+    }
+    const surfaces = carrier.surfaces.map((surface, surfaceIndex) => {
+      const parsed = assertNonEmptyString(
+        surface,
+        `${label}.surfaces[${surfaceIndex}]`,
+      );
+      if (!SURFACE_NAMES.includes(parsed)) {
+        throw new Error(
+          `${label}.surfaces contains unknown surface ${parsed}.`,
+        );
+      }
+      return parsed;
+    });
+    const sortedSurfaces = [...surfaces].sort((left, right) =>
+      left.localeCompare(right),
+    );
+    if (
+      new Set(surfaces).size !== surfaces.length ||
+      canonicalSerialize(surfaces) !== canonicalSerialize(sortedSurfaces)
+    ) {
+      throw new Error(`${label}.surfaces must be sorted and unique.`);
+    }
+    const artifact = artifactByPath.get(logicalPath);
+    if (
+      !artifact ||
+      artifact.kind !== 'file' ||
+      artifact.byteLength !== byteLength ||
+      artifact.sha256 !== artifactDigest
+    ) {
+      throw new Error(
+        `Release identity carrier "${logicalPath}" is not bound to the exact envelope artifact bytes.`,
+      );
+    }
+    return {
+      byteLength,
+      logicalPath,
+      sha256: artifactDigest,
+      surfaces,
+    };
+  });
+  const carrierPaths = carriers.map(carrier => carrier.logicalPath);
+  const sortedCarrierPaths = [...carrierPaths].sort((left, right) =>
+    left.localeCompare(right),
+  );
+  if (
+    new Set(carrierPaths).size !== carrierPaths.length ||
+    canonicalSerialize(carrierPaths) !== canonicalSerialize(sortedCarrierPaths)
+  ) {
+    throw new Error(
+      'Release identity carrier metadata paths must be sorted and unique.',
+    );
+  }
+
+  return Object.fromEntries(
+    Object.entries(surfacePaths).map(([surfaceName, paths]) => {
+      const surfaceCarriers = carriers.filter(carrier =>
+        carrier.surfaces.includes(surfaceName),
+      );
+      const requiredPaths = paths.filter(logicalPath => {
+        if (surfaceName === 'backendFederation') {
+          return true;
+        }
+        if (!/\.(?:c|m)?js$/u.test(logicalPath)) {
+          return false;
+        }
+        return !(
+          surfaceName === 'ssr' &&
+          (logicalPath === 'index.js' || logicalPath === 'server/index.mjs')
+        );
+      });
+      if (
+        requiredPaths.length === 0 ||
+        !requiredPaths.every(logicalPath =>
+          surfaceCarriers.some(carrier => carrier.logicalPath === logicalPath),
+        ) ||
+        !surfaceCarriers.every(carrier => paths.includes(carrier.logicalPath))
+      ) {
+        throw new Error(
+          `${surfaceName} carrier metadata does not exactly cover its executable release artifacts.`,
+        );
+      }
+      return [surfaceName, surfaceCarriers];
+    }),
+  );
+}
+
 function readAndVerifyEnvelope(outputRoot, expectedTarget, options = {}) {
   const envelopePath = path.join(outputRoot, ENVELOPE_RELATIVE_PATH);
   if (!fs.existsSync(envelopePath)) {
@@ -487,6 +666,13 @@ function readAndVerifyEnvelope(outputRoot, expectedTarget, options = {}) {
       normalizedSurfaces.backendFederation.container,
     ],
   };
+  const carriersBySurface = readAndVerifyIdentityCarriers({
+    artifactByPath,
+    identity,
+    options,
+    outputRoot,
+    surfacePaths,
+  });
   const surfaceEvidence = {};
   for (const [surfaceName, paths] of Object.entries(surfacePaths)) {
     const surfaceArtifacts = paths.map(logicalPath => {
@@ -506,96 +692,9 @@ function readAndVerifyEnvelope(outputRoot, expectedTarget, options = {}) {
     const compiledArtifacts = surfaceArtifacts.filter(artifact =>
       /\.(?:c|m)?js$/u.test(artifact.logicalPath),
     );
-    if (compiledArtifacts.length === 0) {
-      throw new Error(
-        `${surfaceName} has no compiled release-identity artifact.`,
-      );
-    }
-    const carrierPaths = [];
-    for (const artifact of compiledArtifacts) {
-      const source = fs.readFileSync(
-        resolveContainedPath(
-          outputRoot,
-          artifact.logicalPath,
-          `${surfaceName} identity carrier`,
-        ),
-        'utf8',
-      );
-      const identityParts = [
-        identity.buildMarker,
-        identity.sourceRevision,
-        identity.releaseVersion,
-      ];
-      if (
-        options.forbiddenIdentity &&
-        [
-          options.forbiddenIdentity.buildMarker,
-          options.forbiddenIdentity.sourceRevision,
-        ]
-          .filter(
-            part =>
-              typeof part === 'string' &&
-              part !== identity.buildMarker &&
-              part !== identity.sourceRevision,
-          )
-          .some(part => source.includes(part))
-      ) {
-        throw new Error(
-          `${surfaceName} compiled artifact "${artifact.logicalPath}" retains prior release identity residue.`,
-        );
-      }
-      const presentIdentityParts = identityParts.filter(part =>
-        source.includes(part),
-      );
-      const isNeutralDeploymentLauncher =
-        surfaceName === 'ssr' &&
-        ((expectedTarget === 'node' && artifact.logicalPath === 'index.js') ||
-          (expectedTarget === 'cloudflare' &&
-            artifact.logicalPath === 'server/index.mjs'));
-      // Modern's final Node index.js and Cloudflare server/index.mjs are
-      // generic deployment launchers, not Rspack SSR execution modules. They
-      // can legitimately contain the current framework releaseVersion without
-      // carrying the per-build marker and revision. The framework envelope
-      // verifier makes these same narrow exclusions while requiring every
-      // route-referenced and compiled SSR/workerd module to carry identity.
-      // Keep hash-binding launchers through the envelope and scanning them for
-      // forbidden prior identity above, but do not classify them as carriers.
-      if (isNeutralDeploymentLauncher) {
-        continue;
-      }
-      if (presentIdentityParts.length !== identityParts.length) {
-        throw new Error(
-          `${surfaceName} compiled artifact "${artifact.logicalPath}" does not carry the exact release identity.`,
-        );
-      }
-      carrierPaths.push(artifact.logicalPath);
-    }
-    if (carrierPaths.length === 0) {
-      throw new Error(
-        `${surfaceName} has no compiled artifact carrying the exact release identity.`,
-      );
-    }
-    if (surfaceName === 'backendFederation') {
-      const manifestSource = fs.readFileSync(
-        resolveContainedPath(
-          outputRoot,
-          normalizedSurfaces.backendFederation.manifest,
-          'backendFederation manifest identity',
-        ),
-        'utf8',
-      );
-      if (
-        ![
-          identity.buildMarker,
-          identity.sourceRevision,
-          identity.releaseVersion,
-        ].every(part => manifestSource.includes(part))
-      ) {
-        throw new Error(
-          'backendFederation manifest does not carry the exact release identity.',
-        );
-      }
-    }
+    const carrierPaths = carriersBySurface[surfaceName].map(
+      carrier => carrier.logicalPath,
+    );
     surfaceEvidence[surfaceName] = {
       artifactCount: surfaceArtifacts.length,
       artifacts: surfaceArtifacts,

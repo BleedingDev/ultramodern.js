@@ -164,7 +164,7 @@
     "@modern-js/server-core": "workspace:*",
     "@modern-js/server-utils": "workspace:*",
     "@modern-js/utils": "workspace:*",
-    "@module-federation/runtime": "2.8.0",
+    "@module-federation/runtime": "2.8.2",
     "@opentelemetry/api": "1.9.1",
     "@opentelemetry/api-logs": "0.220.0",
     "@opentelemetry/resources": "2.9.0",
@@ -181,8 +181,8 @@
     "type-is": "^2.1.0"
   },
   "peerDependencies": {
-    "@effect/opentelemetry": "4.0.0-beta.102",
-    "effect": "4.0.0-beta.102"
+    "@effect/opentelemetry": "4.0.0-beta.107",
+    "effect": "4.0.0-beta.107"
   },
   "peerDependenciesMeta": {
     "@effect/opentelemetry": {
@@ -193,7 +193,7 @@
     }
   },
   "devDependencies": {
-    "@effect/opentelemetry": "4.0.0-beta.102",
+    "@effect/opentelemetry": "4.0.0-beta.107",
     "@modern-js/app-tools": "workspace:*",
     "@modern-js/bff-runtime": "workspace:*",
     "@modern-js/plugin": "workspace:*",
@@ -203,11 +203,11 @@
     "@rsbuild/core": "2.1.5",
     "@rslib/core": "0.23.2",
     "@scripts/rstest-config": "workspace:*",
-    "@types/node": "^26.1.1",
+    "@types/node": "^26.2.0",
     "@types/qs": "^6.15.1",
     "@types/type-is": "^1.6.7",
     "@typescript/native-preview": "7.0.0-dev.20260707.2",
-    "effect": "4.0.0-beta.102",
+    "effect": "4.0.0-beta.107",
     "memfs": "^4.64.0",
     "typescript": "^7.0.2",
     "zod": "^4.4.3"

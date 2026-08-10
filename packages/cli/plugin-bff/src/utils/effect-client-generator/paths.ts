@@ -1,5 +1,4 @@
-import { findExists, fs } from '@modern-js/utils';
-import path from 'path';
+import { findExists, fs, upath as path } from '@modern-js/utils';
 
 const JS_OR_TS_EXTS = [
   '.js',
@@ -20,14 +19,14 @@ export function resolveEffectEntryFile(options: {
   const { appDir, apiDir, effectEntry } = options;
 
   const resolveEntry = (entryWithoutExt: string) => {
-    if (path.extname(entryWithoutExt)) {
+    if (path.extname(entryWithoutExt) !== '') {
       return fs.existsSync(entryWithoutExt) ? entryWithoutExt : undefined;
     }
 
     return findExists(JS_OR_TS_EXTS.map(ext => `${entryWithoutExt}${ext}`));
   };
 
-  if (effectEntry) {
+  if (effectEntry !== undefined && effectEntry !== '') {
     const entryWithoutExt = path.isAbsolute(effectEntry)
       ? effectEntry
       : path.resolve(appDir, effectEntry);

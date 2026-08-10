@@ -1,6 +1,4 @@
 // @effect-diagnostics asyncFunction:off newPromise:off strictBooleanExpressions:off unnecessaryArrowBlock:off
-/// <reference path="./ssr-shim.d.ts" />
-
 import {
   getGlobalEnableRsc,
   type InternalRouterServerSnapshot,
@@ -175,10 +173,18 @@ export const tanstackRouterPlugin = (
           context.ssrContext?.onTiming?.(LOADER_REPORTER_NAME, cost);
         }
 
-        if (serverRouter.state.redirect) {
-          const resolved = serverRouter.resolveRedirect
-            ? serverRouter.resolveRedirect(serverRouter.state.redirect)
-            : serverRouter.state.redirect;
+        const serverLoadResult = serverRouter._serverResult;
+        if (!serverLoadResult) {
+          try {
+            serverRouter.serverSsr?.cleanup?.();
+          } catch {}
+          throw new Error(
+            'TanStack Router completed an SSR load without a server result.',
+          );
+        }
+
+        if (serverLoadResult.type === 'redirect') {
+          const { redirect } = serverLoadResult;
 
           try {
             serverRouter.serverSsr?.cleanup?.();
@@ -187,11 +193,11 @@ export const tanstackRouterPlugin = (
           return interrupt(
             isRSCNavigation
               ? handleTanstackRscRedirect(
-                  resolved.headers,
+                  redirect.headers,
                   _basename,
-                  resolved.status,
+                  redirect.status,
                 )
-              : resolved,
+              : redirect,
           );
         }
 
@@ -214,7 +220,7 @@ export const tanstackRouterPlugin = (
           context.ssrContext?.response as
             | { status: (code: number) => void }
             | undefined
-        )?.status(tanstackRouter.state.statusCode);
+        )?.status(serverLoadResult.status);
 
         await serverRouter.serverSsr?.dehydrate?.();
 
@@ -240,7 +246,7 @@ export const tanstackRouterPlugin = (
           createRouterServerSnapshot({
             framework: 'tanstack',
             basename: _basename,
-            statusCode: tanstackRouter.state.statusCode,
+            statusCode: serverLoadResult.status,
             errors: routerErrors,
             matchedRouteIds,
             hydrationScripts,

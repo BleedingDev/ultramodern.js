@@ -11,10 +11,6 @@ function fixture() {
   const root = fs.mkdtempSync(
     path.join(os.tmpdir(), 'tractor-downstream-contract-'),
   );
-  fs.mkdirSync(
-    path.join(root, 'apps/shell-super-app/src/routes/[lang]/tractors/[slug]'),
-    { recursive: true },
-  );
   fs.mkdirSync(path.join(root, 'apps/shell-super-app/locales/en'), {
     recursive: true,
   });
@@ -26,26 +22,6 @@ function fixture() {
           'npm:@bleedingdev/modern-js-runtime@3.5.0-ultramodern.50',
       },
     })}\n`,
-  );
-  fs.writeFileSync(
-    path.join(
-      root,
-      'apps/shell-super-app/src/routes/[lang]/tractors/[slug]/page.tsx',
-    ),
-    `import { useParams, useSearch } from '@modern-js/plugin-tanstack/runtime';
-export default function Page() {
-  const slug = useParams({ select: params => params.slug });
-  const sku = useSearch({ select: search => search.sku });
-  return <p>{slug}:{sku}</p>;
-}
-`,
-  );
-  fs.writeFileSync(
-    path.join(
-      root,
-      'apps/shell-super-app/src/routes/[lang]/tractors/[slug]/page.search.ts',
-    ),
-    `export const validateSearch = (search) => ({ sku: search.sku });\n`,
   );
   fs.writeFileSync(
     path.join(root, 'apps/shell-super-app/locales/en/shell.json'),
@@ -95,6 +71,185 @@ function writeAuthenticatedCohort(root) {
   );
 }
 
+function nativeSearchEvidence() {
+  const product = {
+    detailName: 'Sapphire Sunworker 460R',
+    sku: 'AU-04-RD',
+    slug: 'sapphire-sunworker-460r',
+  };
+  return {
+    assertions: [
+      {
+        route: '/en/tractors',
+        status: 'pass',
+        type: 'product-grid-not-checkout',
+      },
+      {
+        route: `/en/tractors/${product.slug}?sku=${product.sku}`,
+        status: 'pass',
+        type: 'product-detail',
+      },
+      {
+        cartLine: {
+          id: product.sku,
+          name: product.detailName,
+          quantity: 1,
+          slug: product.slug,
+        },
+        route: `/en/cart?sku=${product.sku}`,
+        status: 'pass',
+        type: 'cart-product-match',
+      },
+      {
+        route: '/en/checkout',
+        status: 'pass',
+        type: 'checkout-page',
+      },
+      {
+        route: '/en/checkout/thank-you',
+        status: 'pass',
+        type: 'thank-you-page',
+      },
+    ],
+    product,
+    status: 'pass',
+    ui: {
+      accessibility: {
+        controls: [
+          {
+            name: 'Add to basket',
+            role: 'link',
+            route: `/en/tractors/${product.slug}?sku=${product.sku}`,
+            status: 'pass',
+          },
+          {
+            name: 'Checkout',
+            role: 'link',
+            route: `/en/cart?sku=${product.sku}`,
+            status: 'pass',
+          },
+          {
+            name: 'Name',
+            role: 'textbox',
+            route: '/en/checkout',
+            status: 'pass',
+          },
+          {
+            name: 'Email',
+            role: 'textbox',
+            route: '/en/checkout',
+            status: 'pass',
+          },
+          {
+            name: 'Delivery address',
+            role: 'textbox',
+            route: '/en/checkout',
+            status: 'pass',
+          },
+          {
+            name: 'Place order',
+            role: 'button',
+            route: '/en/checkout',
+            status: 'pass',
+          },
+          {
+            name: 'Thank you for your order',
+            role: 'heading',
+            route: '/en/checkout/thank-you',
+            status: 'pass',
+          },
+        ],
+        status: 'pass',
+      },
+      computedStyles: {
+        samples: [
+          {
+            display: 'grid',
+            opacity: 1,
+            route: '/en/tractors',
+            subject: 'product-grid',
+            visibility: 'visible',
+          },
+          {
+            display: 'block',
+            opacity: 1,
+            route: `/en/tractors/${product.slug}?sku=${product.sku}`,
+            subject: 'product-page',
+            visibility: 'visible',
+          },
+          {
+            display: 'block',
+            opacity: 1,
+            route: `/en/cart?sku=${product.sku}`,
+            subject: 'cart-page',
+            visibility: 'visible',
+          },
+          {
+            display: 'block',
+            opacity: 1,
+            route: '/en/checkout',
+            subject: 'checkout-page',
+            visibility: 'visible',
+          },
+          {
+            display: 'block',
+            opacity: 1,
+            route: '/en/checkout/thank-you',
+            subject: 'thanks-page',
+            visibility: 'visible',
+          },
+        ],
+        status: 'pass',
+      },
+      dom: {
+        boundaries: [
+          {
+            boundaryId: 'explore',
+            expose: './ProductGrid',
+            route: '/en/tractors',
+            visible: true,
+          },
+          {
+            boundaryId: 'decide',
+            expose: './ProductPage',
+            route: `/en/tractors/${product.slug}?sku=${product.sku}`,
+            visible: true,
+          },
+          {
+            boundaryId: 'checkout',
+            expose: './CartPage',
+            route: `/en/cart?sku=${product.sku}`,
+            visible: true,
+          },
+          {
+            boundaryId: 'checkout',
+            expose: './CheckoutPage',
+            route: '/en/checkout',
+            visible: true,
+          },
+          {
+            boundaryId: 'checkout',
+            expose: './ThanksPage',
+            route: '/en/checkout/thank-you',
+            visible: true,
+          },
+        ],
+        status: 'pass',
+      },
+      runtime: {
+        interactions: [
+          { status: 'pass', type: 'open-product' },
+          { status: 'pass', type: 'add-to-basket' },
+          { status: 'pass', type: 'begin-checkout' },
+          { status: 'pass', type: 'place-order' },
+        ],
+        status: 'pass',
+      },
+      status: 'pass',
+    },
+  };
+}
+
 test('requires the exact release cohort in every Tractor package manifest', async () => {
   const {
     assertAuthenticatedTractorCohort,
@@ -136,128 +291,159 @@ test('requires the exact release cohort in every Tractor package manifest', asyn
   }
 });
 
-test('rejects manual route query parsing and requires native typed search', async () => {
-  const { assertNativeTanStackSearch } = await contractPromise;
+test('requires exact versions for arbitrary aliases to cohort packages', async () => {
+  const { assertExactModernDependencySpecifiers } = await contractPromise;
   const root = fixture();
   try {
-    const nativeSearch = assertNativeTanStackSearch(root);
-    assert.equal(nativeSearch.status, 'native-typed-search');
-    assert.deepEqual(nativeSearch.auditedRouteRoots, [
-      'apps/shell-super-app/src/routes',
-    ]);
-    const routePath = path.join(
-      root,
-      'apps/shell-super-app/src/routes/[lang]/tractors/[slug]/page.tsx',
+    writeAuthenticatedCohort(root);
+    const manifestPath = path.join(root, 'package.json');
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    manifest.dependencies['framework-runtime'] =
+      'npm:@bleedingdev/modern-js-runtime@3.5.0-ultramodern.50';
+    fs.writeFileSync(manifestPath, `${JSON.stringify(manifest)}\n`);
+    assert.deepEqual(
+      assertExactModernDependencySpecifiers(root, release).find(
+        observation => observation.dependencyName === 'framework-runtime',
+      ),
+      {
+        blockName: 'dependencies',
+        dependencyName: 'framework-runtime',
+        packageFile: 'package.json',
+        specifier: 'npm:@bleedingdev/modern-js-runtime@3.5.0-ultramodern.50',
+        targetName: '@bleedingdev/modern-js-runtime',
+      },
     );
-    fs.appendFileSync(
-      routePath,
-      `\nconst sku = new URLSearchParams(location.search).get('sku');\n`,
-    );
+
+    manifest.dependencies['framework-runtime'] =
+      'npm:@bleedingdev/modern-js-runtime@~3.5.0-ultramodern.50';
+    fs.writeFileSync(manifestPath, `${JSON.stringify(manifest)}\n`);
     assert.throws(
-      () => assertNativeTanStackSearch(root),
-      /manually parses query search/u,
-    );
-    fs.writeFileSync(
-      routePath,
-      fs
-        .readFileSync(routePath, 'utf8')
-        .replace(
-          `\nconst sku = new URLSearchParams(location.search).get('sku');\n`,
-          "\nconst sku = new URL(request.url).searchParams.get('sku');\n",
-        ),
-    );
-    assert.throws(
-      () => assertNativeTanStackSearch(root),
-      /manually parses query search through \.searchParams/u,
-    );
-    fs.writeFileSync(
-      routePath,
-      fs
-        .readFileSync(routePath, 'utf8')
-        .replace(
-          `\nconst sku = new URL(request.url).searchParams.get('sku');\n`,
-          '\n',
-        ),
-    );
-    const verticalRoute = path.join(
-      root,
-      'verticals/inventory/src/routes/page.tsx',
-    );
-    fs.mkdirSync(path.dirname(verticalRoute), { recursive: true });
-    fs.writeFileSync(
-      verticalRoute,
-      `export const sku = new URL(request.url).searchParams.get('sku');\n`,
-    );
-    assert.throws(
-      () => assertNativeTanStackSearch(root),
-      /verticals\/inventory\/src\/routes\/page\.tsx/u,
+      () => assertExactModernDependencySpecifiers(root, release),
+      /dependencies\.framework-runtime must be npm:@bleedingdev\/modern-js-runtime@3\.5\.0-ultramodern\.50, found npm:@bleedingdev\/modern-js-runtime@~3\.5\.0-ultramodern\.50/u,
     );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
 
-test('protects visible Tractor source byte-for-byte across migration', async () => {
-  const { assertProtectedUiUnchanged, snapshotProtectedUi } =
-    await contractPromise;
-  const root = fixture();
+test('requires browser-visible native search continuity into the cart', async () => {
+  const { assertNativeTanStackSearch } = await contractPromise;
+  const evidence = nativeSearchEvidence();
+
+  assert.deepEqual(assertNativeTanStackSearch(evidence), {
+    cartRoute: '/en/cart?sku=AU-04-RD',
+    productRoute: '/en/tractors/sapphire-sunworker-460r?sku=AU-04-RD',
+    sku: 'AU-04-RD',
+    status: 'native-typed-search',
+  });
+
+  const wrongProductSearch = structuredClone(evidence);
+  wrongProductSearch.assertions.find(
+    assertion => assertion.type === 'product-detail',
+  ).route = '/en/tractors/sapphire-sunworker-460r?sku=CL-08-GR';
+  assert.throws(
+    () => assertNativeTanStackSearch(wrongProductSearch),
+    /product-detail route must carry the selected product sku/u,
+  );
+
+  const wrongCartIdentity = structuredClone(evidence);
+  wrongCartIdentity.assertions.find(
+    assertion => assertion.type === 'cart-product-match',
+  ).cartLine.id = 'CL-08-GR';
+  assert.throws(
+    () => assertNativeTanStackSearch(wrongCartIdentity),
+    /cart evidence must preserve the selected product identity/u,
+  );
+});
+
+test('validates native search from the emitted Playwright workflow artifact', async () => {
+  const { runVisibleWorkflow } = await runnerPromise;
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'tractor-native-search-workflow-'),
+  );
   try {
-    const before = snapshotProtectedUi(root);
-    assert.deepEqual(before.excludedPatterns, [
-      '\\.gen\\.(?:[cm]?[jt]sx?|d\\.[cm]?[jt]s)$',
-    ]);
-    const unchanged = assertProtectedUiUnchanged(
-      before,
-      snapshotProtectedUi(root),
-    );
-    assert.equal(unchanged.status, 'unchanged');
-    assert.deepEqual(unchanged.excludedPatterns, [
-      '\\.gen\\.(?:[cm]?[jt]sx?|d\\.[cm]?[jt]s)$',
-    ]);
-    fs.mkdirSync(
-      path.join(root, 'apps/shell-super-app/dist-cloudflare/locales/en'),
-      { recursive: true },
-    );
-    fs.writeFileSync(
-      path.join(
-        root,
-        'apps/shell-super-app/dist-cloudflare/locales/en/shell.json',
-      ),
-      '{"heading":"generated build output"}\n',
-    );
-    fs.mkdirSync(
-      path.join(root, 'apps/shell-super-app/src/modern-tanstack/index'),
-      { recursive: true },
-    );
-    fs.writeFileSync(
-      path.join(
-        root,
-        'apps/shell-super-app/src/modern-tanstack/index/router.gen.ts',
-      ),
-      'export const generatedRouteTree = {};\n',
-    );
-    fs.writeFileSync(
-      path.join(
-        root,
-        'apps/shell-super-app/src/modern-tanstack/register.gen.d.ts',
-      ),
-      'declare const generatedRegistration: unique symbol;\n',
-    );
-    assert.equal(
-      assertProtectedUiUnchanged(before, snapshotProtectedUi(root)).status,
-      'unchanged',
-    );
-    fs.writeFileSync(
-      path.join(root, 'apps/shell-super-app/locales/en/shell.json'),
-      '{"heading":"Definitely changed"}\n',
-    );
-    assert.throws(
-      () => assertProtectedUiUnchanged(before, snapshotProtectedUi(root)),
-      /changed Tractor visible UI[\s\S]*apps\/shell-super-app\/locales\/en\/shell\.json/u,
-    );
+    const runImpl = (_command, args, options) => {
+      assert.equal(
+        options.env.ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP,
+        'http://127.0.0.1:4173',
+      );
+      fs.writeFileSync(
+        args.at(-1),
+        `${JSON.stringify(nativeSearchEvidence())}\n`,
+      );
+    };
+    const result = runVisibleWorkflow({
+      artifactDir: root,
+      baseUrl: 'http://127.0.0.1:4173',
+      env: {},
+      platform: 'node',
+      runImpl,
+      workspace: root,
+    });
+
+    assert.equal(result.platform, 'node');
+    assert.equal(result.assertionCount, 5);
+    assert.equal(result.nativeSearch.status, 'native-typed-search');
+    assert.equal(result.nativeSearch.sku, 'AU-04-RD');
+    assert.deepEqual(result.ui, {
+      accessibilityCheckCount: 7,
+      boundaryCount: 5,
+      computedStyleSampleCount: 5,
+      runtimeInteractionCount: 4,
+      status: 'visible-ui-contract',
+    });
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
+});
+
+test('requires structured visible UI behavior evidence', async () => {
+  const { assertVisibleTractorUi } = await contractPromise;
+  const evidence = nativeSearchEvidence();
+  assert.deepEqual(assertVisibleTractorUi(evidence), {
+    accessibilityCheckCount: 7,
+    boundaryCount: 5,
+    computedStyleSampleCount: 5,
+    runtimeInteractionCount: 4,
+    status: 'visible-ui-contract',
+  });
+
+  const inaccessible = structuredClone(evidence);
+  inaccessible.ui.accessibility.controls =
+    inaccessible.ui.accessibility.controls.filter(
+      control => control.name !== 'Place order',
+    );
+  assert.throws(
+    () => assertVisibleTractorUi(inaccessible),
+    /accessible button named Place order/u,
+  );
+
+  const visuallyHidden = structuredClone(evidence);
+  visuallyHidden.ui.computedStyles.samples.find(
+    sample => sample.subject === 'product-grid',
+  ).display = 'none';
+  assert.throws(
+    () => assertVisibleTractorUi(visuallyHidden),
+    /computed style for product-grid is not visibly rendered/u,
+  );
+
+  const missingRemoteUi = structuredClone(evidence);
+  missingRemoteUi.ui.dom.boundaries.find(
+    boundary => boundary.expose === './ProductPage',
+  ).visible = false;
+  assert.throws(
+    () => assertVisibleTractorUi(missingRemoteUi),
+    /visible DOM boundary decide \.\/ProductPage/u,
+  );
+
+  const brokenInteraction = structuredClone(evidence);
+  brokenInteraction.ui.runtime.interactions.find(
+    interaction => interaction.type === 'place-order',
+  ).status = 'fail';
+  assert.throws(
+    () => assertVisibleTractorUi(brokenInteraction),
+    /passing place-order runtime interaction/u,
+  );
 });
 
 test('runner has no bypass for Node or workerd release gates', async () => {
@@ -278,11 +464,8 @@ test('runner has no bypass for Node or workerd release gates', async () => {
   ]);
   assert.deepEqual(requiredVisibleRuntimePlatforms, ['node', 'workerd']);
   assert.deepEqual(requiredTractorCheckIds, [
-    'ui-baseline',
     'exact-create-migration',
     'exact-cohort',
-    'native-tanstack-search',
-    'migration-preserves-visible-ui-source',
     'install---frozen-lockfile',
     'check',
     'promotable-application-source',
@@ -293,7 +476,8 @@ test('runner has no bypass for Node or workerd release gates', async () => {
     'node-visible-tractor-workflow',
     'cloudflare:build',
     'workerd-visible-tractor-workflow',
-    'final-visible-ui-source',
+    'native-tanstack-search',
+    'visible-tractor-ui',
   ]);
   assert.equal(typeof runTractorDownstreamAcceptance, 'function');
   assert.throws(() => parseArgs([]), /--manifest is required/u);

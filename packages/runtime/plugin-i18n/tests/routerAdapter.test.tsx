@@ -253,6 +253,60 @@ function createMutableTanstackRouter(pathname = '/en') {
   };
 }
 
+function createMutableReactRouter(
+  pathname = '/en',
+  params: Record<string, string> = { lang: pathname.slice(1) },
+) {
+  const listeners = new Set<() => void>();
+  const router = {
+    state: {
+      location: {
+        pathname,
+        search: '',
+        hash: '',
+      },
+      matches: [{ params }],
+      fetchers: new Map<string, unknown>(),
+    },
+    subscribe(listener: () => void) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    publishFetcherUpdate() {
+      router.state = {
+        ...router.state,
+        fetchers: new Map([['fetcher', { state: 'idle' }]]),
+      };
+      for (const listener of listeners) {
+        listener();
+      }
+    },
+    publishPathname(nextPathname: string) {
+      router.state = {
+        ...router.state,
+        location: {
+          ...router.state.location,
+          pathname: nextPathname,
+        },
+      };
+      for (const listener of listeners) {
+        listener();
+      }
+    },
+    publishParams(nextParams: Record<string, string>) {
+      router.state = {
+        ...router.state,
+        matches: [{ params: nextParams }],
+      };
+      for (const listener of listeners) {
+        listener();
+      }
+    },
+  };
+
+  return router;
+}
+
 function createDeferredI18nInstance() {
   const resources = {
     en: { languageSwitcher: 'Language' },
@@ -841,6 +895,55 @@ describe('i18n router adapter', () => {
     });
     expect(renders).toBe(initialRenders + 1);
     expect(rendered.container.textContent).toBe('/cs');
+  });
+
+  test('ignores React Router fetcher updates while observing location changes', async () => {
+    const router = createMutableReactRouter('/en');
+    let renders = 0;
+    const LocationProbe = () => {
+      renders += 1;
+      const { location } = useI18nRouterAdapter();
+      return <output>{location?.pathname}</output>;
+    };
+
+    rendered = await renderWithRuntime(
+      <LocationProbe />,
+      createReactRouterRuntimeContext(router),
+    );
+    const initialRenders = renders;
+
+    await act(async () => {
+      router.publishFetcherUpdate();
+    });
+    expect(renders).toBe(initialRenders);
+    expect(rendered.container.textContent).toBe('/en');
+
+    await act(async () => {
+      router.publishPathname('/cs');
+    });
+    expect(renders).toBe(initialRenders + 1);
+    expect(rendered.container.textContent).toBe('/cs');
+  });
+
+  test('observes distinct route params without serialized snapshot collisions', async () => {
+    const router = createMutableReactRouter('/products', {
+      a: '1&b=2',
+    });
+    const ParamsProbe = () => {
+      const { params } = useI18nRouterAdapter();
+      return <output>{JSON.stringify(params)}</output>;
+    };
+
+    rendered = await renderWithRuntime(
+      <ParamsProbe />,
+      createReactRouterRuntimeContext(router),
+    );
+    expect(rendered.container.textContent).toBe('{"a":"1&b=2"}');
+
+    await act(async () => {
+      router.publishParams({ a: '1', b: '2' });
+    });
+    expect(rendered.container.textContent).toBe('{"a":"1","b":"2"}');
   });
 
   test('forwards warmup props through I18nLink with a localized string target', async () => {

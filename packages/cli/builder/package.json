@@ -63,7 +63,6 @@
     "postcss-media-minmax": "5.0.0",
     "postcss-nesting": "14.0.0",
     "postcss-page-break": "3.0.4",
-    "rsbuild-plugin-rsc": "0.1.1",
     "rspack-manifest-plugin": "5.2.2",
     "ts-deepmerge": "8.0.0"
   },
@@ -74,9 +73,23 @@
     "@scripts/rstest-config": "workspace:*",
     "@types/html-minifier-terser": "^7.0.2",
     "@types/lodash": "^4.17.24",
-    "react": "^19.2.7",
+    "react": "^19.2.8",
+    "react-server-dom-rspack": "0.0.3",
+    "rsbuild-plugin-rsc": "0.1.1",
     "terser": "^5.48.0",
     "typescript": "^7.0.2"
+  },
+  "peerDependencies": {
+    "react-server-dom-rspack": "0.0.3",
+    "rsbuild-plugin-rsc": "0.1.1"
+  },
+  "peerDependenciesMeta": {
+    "react-server-dom-rspack": {
+      "optional": true
+    },
+    "rsbuild-plugin-rsc": {
+      "optional": true
+    }
   },
   "publishConfig": {
     "access": "public",

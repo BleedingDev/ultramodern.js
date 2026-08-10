@@ -1,5 +1,3 @@
-/// <reference path="./ssr-shim.d.ts" />
-
 import type { RequestContext } from '@modern-js/runtime-utils/node';
 import type { AnyRouter } from '@tanstack/react-router';
 
@@ -35,7 +33,6 @@ type RouterRouteWithOptions = {
 };
 
 export type TanstackRouterWithServerSsr = AnyRouter & {
-  resolveRedirect?: (redirect: Response) => Response;
   routesById?: Record<string, RouterRouteWithOptions>;
   serverSsr?: {
     cleanup?: () => void;
@@ -46,6 +43,5 @@ export type TanstackRouterWithServerSsr = AnyRouter & {
   };
   state: AnyRouter['state'] & {
     matches?: unknown;
-    redirect?: Response;
   };
 };

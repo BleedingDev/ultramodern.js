@@ -15,8 +15,8 @@
   },
   "dependencies": {
     "@modern-js/runtime": "workspace:*",
-    "react": "^19.2.7",
-    "react-dom": "^19.2.7"
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
   },
   "devDependencies": {
     "@modern-js/app-tools": "workspace:*",
@@ -25,8 +25,8 @@
     "typescript": "~5.7.3",
     "@types/jest": "~29.2.4",
     "@types/node": "^20",
-    "@types/react": "^19.2.17",
-    "@types/react-dom": "^19.2.3",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
     "rimraf": "^6.1.3"
   }
 }

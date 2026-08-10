@@ -54,7 +54,7 @@ would give your app a second Effect identity. Before setting
 `/effect-server`, `/effect-edge` or `/effect-client`, install the exact cohort:
 
 ```bash
-pnpm add effect@4.0.0-beta.102 @effect/opentelemetry@4.0.0-beta.102
+pnpm add effect@4.0.0-beta.107 @effect/opentelemetry@4.0.0-beta.107
 ```
 
 The pin is exact because UltraModern ships Effect as one lockstep cohort. Apps
@@ -218,27 +218,25 @@ through `pnpm-workspace.yaml` overrides. For the current UltraModern cohort,
 generated apps use:
 
 ```yaml
-minimumReleaseAgeExclude:
-  - 'effect@4.0.0-beta.102'
-  - '@effect/opentelemetry@4.0.0-beta.102'
-
 trustPolicyExclude:
-  - 'effect@4.0.0-beta.102'
-  - '@effect/opentelemetry@4.0.0-beta.102'
+  - 'effect@4.0.0-beta.107'
+  - '@effect/opentelemetry@4.0.0-beta.107'
 
 overrides:
-  '@effect/opentelemetry': 4.0.0-beta.102
-  '@effect/vitest': 4.0.0-beta.102
-  effect: 4.0.0-beta.102
+  '@effect/opentelemetry': 4.0.0-beta.107
+  '@effect/vitest': 4.0.0-beta.107
+  effect: 4.0.0-beta.107
 ```
 
 Do not add a different direct `effect` version in an app package. A mismatched
 Effect beta can fail while building layers or HTTP middleware because runtime
-services come from different package instances. Keep the generated
-policy exclusion entries with the same Effect cohort; they handle the
-framework-selected Effect beta versions before the 24-hour maturity window and
-the `effect`/`@effect/opentelemetry` trusted-publisher to provenance metadata
-transition without weakening UltraModern API architecture checks.
+services come from different package instances. The strict 24-hour release-age
+gate applies to installed packages; the current cohort has no Effect age
+exemption, and override-only `@effect/vitest` is not an installed approval
+target. `trustPolicyExclude` is a separate policy:
+its exact `effect` and `@effect/opentelemetry` exceptions cover their
+trusted-publisher to provenance metadata transition and are not release-age
+approvals.
 
 ## Contract tests
 

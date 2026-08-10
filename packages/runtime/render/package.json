@@ -24,7 +24,7 @@
     "prepublishOnly": "only-allow-pnpm",
     "dev": "rslib build --watch",
     "build": "rslib build && pnpm -w tsgo:dts \"$PWD\"",
-    "test": "rstest --passWithNoTests"
+    "test": "tsgo --noEmit -p tsconfig.json && rstest --passWithNoTests"
   },
   "dependencies": {
     "@modern-js/types": "workspace:*",
@@ -37,18 +37,24 @@
     "@rslib/core": "0.23.2",
     "@scripts/build": "workspace:*",
     "@scripts/rstest-config": "workspace:*",
-    "@types/react": "^19.2.17",
-    "@types/react-dom": "^19.2.3",
+    "@types/node": "^26.2.0",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
     "@typescript/native-preview": "7.0.0-dev.20260707.2",
-    "react": "^19.2.7",
-    "react-dom": "^19.2.7",
-    "react-server-dom-rspack": "0.0.2",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-server-dom-rspack": "0.0.3",
     "typescript": "^7.0.2"
   },
   "peerDependencies": {
-    "react": "^19.2.7",
-    "react-dom": "^19.2.7",
-    "react-server-dom-rspack": "0.0.2"
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-server-dom-rspack": "0.0.3"
+  },
+  "peerDependenciesMeta": {
+    "react-server-dom-rspack": {
+      "optional": true
+    }
   },
   "exports": {
     "./ssr": {

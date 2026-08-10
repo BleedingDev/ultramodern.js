@@ -684,6 +684,26 @@ test('asserts generated cohorts only from strict manifest expectations and compa
 
     assert.equal(assertGeneratedCohort(root, release).observedPackageCount, 1);
 
+    writeJson(root, 'package.json', {
+      dependencies: {
+        '@modern-js/runtime': `npm:@bleedingdev/modern-js-runtime@${version}`,
+        'runtime-compat':
+          'npm:@bleedingdev/modern-js-runtime@^3.2.0-framework.1',
+      },
+    });
+    assert.throws(
+      () => assertGeneratedCohort(root, release),
+      /runtime-compat must target exact cohort package @bleedingdev\/modern-js-runtime@3\.2\.0-framework\.1/u,
+    );
+
+    writeJson(root, 'package.json', {
+      dependencies: {
+        '@modern-js/runtime': `npm:@bleedingdev/modern-js-runtime@${version}`,
+        'runtime-compat': `npm:@bleedingdev/modern-js-runtime@${version}`,
+      },
+    });
+    assert.equal(assertGeneratedCohort(root, release).observedPackageCount, 1);
+
     fs.rmSync(path.join(root, '.modernjs/release-cohort.json'));
     assert.throws(
       () => assertGeneratedCohort(root, release),

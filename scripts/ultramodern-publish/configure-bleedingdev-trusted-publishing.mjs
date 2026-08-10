@@ -10,6 +10,10 @@ const { parseCliArgs } = cliKit;
 const { repoRoot } = fsKit;
 const { runCommand } = processKit;
 const trustedPublisherEnvironment = 'npm-publish';
+const trustedPublisherRegistry = 'https://registry.npmjs.org/';
+const trustedPublisherRepository = 'BleedingDev/ultramodern.js';
+const trustedPublisherTargetPrefix = '@bleedingdev/modern-js-';
+const trustedPublisherWorkflow = 'publish-bleedingdev.yml';
 
 function rejectInlineOptionSyntax(argv) {
   for (const arg of argv) {
@@ -30,8 +34,8 @@ function parseArgs(argv) {
         'bleedingdev-publish',
         'manifest.json',
       ),
-      repository: 'BleedingDev/ultramodern.js',
-      file: 'publish-bleedingdev.yml',
+      repository: trustedPublisherRepository,
+      file: trustedPublisherWorkflow,
       environment: trustedPublisherEnvironment,
       delayMs: '2000',
       dryRun: false,
@@ -77,6 +81,16 @@ function parseArgs(argv) {
       `Trusted publishing environment must be ${trustedPublisherEnvironment}`,
     );
   }
+  if (options.repository !== trustedPublisherRepository) {
+    throw new Error(
+      `Trusted publishing repository must be ${trustedPublisherRepository}`,
+    );
+  }
+  if (options.file !== trustedPublisherWorkflow) {
+    throw new Error(
+      `Trusted publishing workflow must be ${trustedPublisherWorkflow}`,
+    );
+  }
 
   return options;
 }
@@ -88,13 +102,27 @@ function readManifest(manifestPath) {
       `Verified release manifest path mismatch: expected ${manifestPath}, found ${verified.manifestPath}`,
     );
   }
-  return verified.manifest;
+  const { manifest } = verified;
+  if (manifest.source.repository !== trustedPublisherRepository) {
+    throw new Error(
+      `Release manifest source repository must be ${trustedPublisherRepository}`,
+    );
+  }
+  for (const item of manifest.packages) {
+    if (!item.targetName.startsWith(trustedPublisherTargetPrefix)) {
+      throw new Error(
+        `Release manifest package ${item.targetName} is outside ${trustedPublisherTargetPrefix}`,
+      );
+    }
+  }
+  return manifest;
 }
 
-function run(command, args) {
+function run(command, args, { stdio = 'inherit' } = {}) {
   const result = runCommand(command, args, {
     cwd: repoRoot,
-    stdio: 'inherit',
+    encoding: 'utf-8',
+    stdio,
     env: {
       ...process.env,
       FORCE_COLOR: '0',
@@ -103,16 +131,20 @@ function run(command, args) {
 
   if (result.exitCode !== 0) {
     throw new Error(
-      `${command} ${args.join(' ')} failed with ${result.exitCode}`,
+      `${command} ${args.join(' ')} failed with ${result.exitCode}${
+        result.stderr ? `: ${result.stderr.trim()}` : ''
+      }`,
     );
   }
+
+  return result;
 }
 
 function sleep(ms) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 
-function supportsTrustAllowPublishFlag() {
+function requireTrustAllowPublishSupport() {
   const result = runCommand('npm', ['trust', 'github', '--help'], {
     cwd: repoRoot,
     encoding: 'utf-8',
@@ -123,12 +155,15 @@ function supportsTrustAllowPublishFlag() {
     },
   });
 
-  return `${result.stdout ?? ''}\n${result.stderr ?? ''}`.includes(
-    '--allow-publish',
-  );
+  const help = `${result.stdout ?? ''}\n${result.stderr ?? ''}`;
+  if (result.exitCode !== 0 || !/(?:^|\s)--allow-publish(?:\s|$)/u.test(help)) {
+    throw new Error(
+      'npm trust with --allow-publish support is required; refusing to configure trusted publishing',
+    );
+  }
 }
 
-function trustedPublisherArgs(packageName, options, includeAllowPublish) {
+function trustedPublisherArgs(packageName, options) {
   const args = [
     'trust',
     'github',
@@ -137,12 +172,15 @@ function trustedPublisherArgs(packageName, options, includeAllowPublish) {
     options.repository,
     '--file',
     options.file,
+    '--allow-publish',
   ];
 
-  if (includeAllowPublish) {
-    args.push('--allow-publish');
-  }
-  args.push('--env', trustedPublisherEnvironment);
+  args.push(
+    '--env',
+    trustedPublisherEnvironment,
+    '--registry',
+    trustedPublisherRegistry,
+  );
   if (options.dryRun) {
     args.push('--dry-run');
   }
@@ -152,10 +190,97 @@ function trustedPublisherArgs(packageName, options, includeAllowPublish) {
   return args;
 }
 
+function parseTrustedPublisherList(stdout, packageName) {
+  const serialized = stdout.trim();
+  if (serialized === '') {
+    return [];
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(serialized);
+  } catch (error) {
+    throw new Error(
+      `npm trust list returned invalid JSON for ${packageName}: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  }
+
+  const configurations = Array.isArray(parsed) ? parsed : [parsed];
+  if (
+    configurations.some(
+      configuration =>
+        !configuration ||
+        typeof configuration !== 'object' ||
+        Array.isArray(configuration),
+    )
+  ) {
+    throw new Error(
+      `npm trust list returned an invalid configuration for ${packageName}`,
+    );
+  }
+  return configurations;
+}
+
+function isExactTrustedPublisher(configuration, options) {
+  const keys = Object.keys(configuration).sort();
+  const expectedKeys = [
+    'environment',
+    'file',
+    'id',
+    'permissions',
+    'repository',
+    'type',
+  ].sort();
+  return (
+    JSON.stringify(keys) === JSON.stringify(expectedKeys) &&
+    typeof configuration.id === 'string' &&
+    configuration.id.length > 0 &&
+    configuration.type === 'github' &&
+    configuration.repository === options.repository &&
+    configuration.file === options.file &&
+    configuration.environment === trustedPublisherEnvironment &&
+    Array.isArray(configuration.permissions) &&
+    configuration.permissions.length === 1 &&
+    configuration.permissions[0] === 'createPackage'
+  );
+}
+
+function inspectTrustedPublisher(packageName, options) {
+  const result = run(
+    'npm',
+    [
+      'trust',
+      'list',
+      packageName,
+      '--json',
+      '--registry',
+      trustedPublisherRegistry,
+    ],
+    { stdio: 'pipe' },
+  );
+  const configurations = parseTrustedPublisherList(result.stdout, packageName);
+  if (configurations.length === 0) {
+    return { packageName, status: 'absent' };
+  }
+  if (configurations.length !== 1) {
+    throw new Error(
+      `Expected zero or one npm trust configuration for ${packageName}; found ${configurations.length}`,
+    );
+  }
+  if (!isExactTrustedPublisher(configurations[0], options)) {
+    throw new Error(
+      `Existing npm trust configuration for ${packageName} does not exactly match the required GitHub publish trust`,
+    );
+  }
+  return { packageName, status: 'configured' };
+}
+
 function main() {
   const options = parseArgs(process.argv.slice(2));
   const manifest = readManifest(options.manifest);
-  const includeAllowPublish = supportsTrustAllowPublishFlag();
+  requireTrustAllowPublishSupport();
   const packages = manifest.packages
     .map(item => item.targetName)
     .filter(Boolean)
@@ -168,18 +293,30 @@ function main() {
   console.log(`Workflow: ${options.file}`);
   console.log(`Environment: ${trustedPublisherEnvironment}`);
 
-  for (const packageName of packages) {
-    const args = trustedPublisherArgs(
-      packageName,
-      options,
-      includeAllowPublish,
-    );
+  const inspected = packages.map(packageName =>
+    inspectTrustedPublisher(packageName, options),
+  );
+  const absent = inspected.filter(item => item.status === 'absent');
+  for (const item of inspected.filter(item => item.status === 'configured')) {
+    console.log(`Already configured ${item.packageName}`);
+  }
+
+  for (const { packageName } of absent) {
+    const args = trustedPublisherArgs(packageName, options);
 
     console.log(`Configuring ${packageName}`);
     run('npm', args);
 
     if (options.delayMs > 0) {
       sleep(options.delayMs);
+    }
+    if (!options.dryRun) {
+      const verified = inspectTrustedPublisher(packageName, options);
+      if (verified.status !== 'configured') {
+        throw new Error(
+          `npm trust creation postcondition failed for ${packageName}`,
+        );
+      }
     }
   }
 }

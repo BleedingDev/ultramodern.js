@@ -249,7 +249,7 @@ export const verifyCloudflareOutput = async (
     options.importWorker !== false &&
     (await pathExists(outputPlan.paths.workerEntry))
   ) {
-    await verifyWorkerImport(issues, outputPlan.paths.workerEntry);
+    await verifyWorkerImport(issues, outputPlan.paths.workerEntry, manifest);
   }
 
   return {

@@ -87,12 +87,13 @@ export function createTanstackRouteObjects({
   ssrMode?: SSRMode;
 }): RouteObject[] {
   const { mergedConfig, finalRouteConfig } = routeConfig;
-  const routeObjects = mergedConfig.createRoutes
-    ? mergedConfig.createRoutes()
-    : createTanstackRouteObjectsFromConfig({
-        routesConfig: finalRouteConfig,
-        ssrMode,
-      }) || [];
+  const routeObjects =
+    mergedConfig.createRoutes !== undefined
+      ? mergedConfig.createRoutes()
+      : (createTanstackRouteObjectsFromConfig({
+          routesConfig: finalRouteConfig,
+          ssrMode,
+        }) ?? []);
 
   return hooks.modifyRoutes.call(routeObjects) as RouteObject[];
 }
@@ -105,7 +106,7 @@ export function joinBasename(baseUrl: string, basename: string): string {
       ? normalizedBase.replace(/\/+$/g, '')
       : normalizedBase;
   const trimmedBasename = basename.replace(/^\/+|\/+$/g, '');
-  if (!trimmedBasename) {
+  if (trimmedBasename.length === 0) {
     return trimmedBase || '/';
   }
   return `${trimmedBase}/${trimmedBasename}`.replace(/\/{2,}/g, '/');

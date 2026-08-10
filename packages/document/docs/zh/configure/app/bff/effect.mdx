@@ -53,7 +53,7 @@ import EnableBFFCaution from "@site-docs/components/enable-bff-caution";
 `/effect-client` 之前，请安装精确版本的依赖组：
 
 ```bash
-pnpm add effect@4.0.0-beta.102 @effect/opentelemetry@4.0.0-beta.102
+pnpm add effect@4.0.0-beta.107 @effect/opentelemetry@4.0.0-beta.107
 ```
 
 采用精确版本是因为 UltraModern 以锁步依赖组的方式发布 Effect。只使用
@@ -213,25 +213,23 @@ UltraModern 生成的 workspace 会通过 `pnpm-workspace.yaml` overrides 锁定
 Effect 版本组。当前 UltraModern 版本组使用：
 
 ```yaml
-minimumReleaseAgeExclude:
-  - 'effect@4.0.0-beta.102'
-  - '@effect/opentelemetry@4.0.0-beta.102'
-
 trustPolicyExclude:
-  - 'effect@4.0.0-beta.102'
-  - '@effect/opentelemetry@4.0.0-beta.102'
+  - 'effect@4.0.0-beta.107'
+  - '@effect/opentelemetry@4.0.0-beta.107'
 
 overrides:
-  '@effect/opentelemetry': 4.0.0-beta.102
-  '@effect/vitest': 4.0.0-beta.102
-  effect: 4.0.0-beta.102
+  '@effect/opentelemetry': 4.0.0-beta.107
+  '@effect/vitest': 4.0.0-beta.107
+  effect: 4.0.0-beta.107
 ```
 
 不要在应用包里添加不同版本的直接 `effect` 依赖。Effect beta 不一致时，Layer 或 HTTP
-middleware 构建可能因为运行时 service 来自不同包实例而失败。保留生成的 policy
-exclusion 条目并让它跟随同一个 Effect 版本组；它用于处理框架选定 Effect beta 版本在
-24 小时成熟期内的安装，以及 `effect` 和 `@effect/opentelemetry` 从 trusted-publisher
-metadata 迁移到 provenance attestation 时的 pnpm no-downgrade 检查。
+middleware 构建可能因为运行时 service 来自不同包实例而失败。严格的 24 小时发布年龄
+门禁适用于实际安装的包；当前版本组没有 Effect 年龄豁免，且仅用于 override 的
+`@effect/vitest` 不是已安装的审批目标。
+`trustPolicyExclude` 是另一项独立策略：其中精确的 `effect` 与
+`@effect/opentelemetry` 例外用于处理 trusted-publisher metadata 向 provenance
+attestation 的迁移，并不等同于 release-age 审批。
 
 ## 契约测试
 

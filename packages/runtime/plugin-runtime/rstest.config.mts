@@ -24,6 +24,7 @@ export default {
       testEnvironment: 'node',
       exclude: [
         'tests/boundary-debugger/client.test.tsx',
+        'tests/router/plugin.client.test.tsx',
         'tests/router/prefetch.test.tsx',
       ],
       extends: commonConfig,
@@ -51,6 +52,7 @@ export default {
       testEnvironment: 'happy-dom',
       include: [
         'tests/boundary-debugger/client.test.tsx',
+        'tests/router/plugin.client.test.tsx',
         'tests/router/prefetch.test.tsx',
       ],
       extends: commonConfig,

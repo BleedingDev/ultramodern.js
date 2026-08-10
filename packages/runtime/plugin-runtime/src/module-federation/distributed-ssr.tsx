@@ -6,14 +6,6 @@ export const DISTRIBUTED_SSR_FRAGMENTS_LOCALS_KEY =
 export const DISTRIBUTED_SSR_FRAGMENT_REQUEST_LOCALS_KEY =
   '__modernDistributedSsrFragmentRequest';
 
-type DistributedSsrFragmentRequest = {
-  boundaryId: string;
-  expose: string;
-  props: Record<string, unknown>;
-  remote: string;
-  sourceUrl: string;
-};
-
 export type DistributedSsrFragment = {
   boundaryId: string;
   buildMarker?: string;
@@ -49,11 +41,13 @@ export type DistributedSsrFragmentContext = {
   ) => DistributedSsrFragmentResult | PromiseLike<DistributedSsrFragmentResult>;
 };
 
-export type DistributedSsrBoundaryProps = {
+export type DistributedSsrBoundaryProps<
+  Props extends object = Record<string, unknown>,
+> = {
   children: ReactNode;
   expose: string;
   fallback: ReactNode;
-  fragmentProps?: Record<string, unknown>;
+  fragmentProps?: Props;
   remote: string;
 };
 
@@ -72,15 +66,16 @@ function getDistributedSsrFragmentContext(
   response: Record<string, unknown> | undefined,
 ): DistributedSsrFragmentContext | undefined {
   const locals = response?.locals;
-  if (!locals || typeof locals !== 'object') {
+  if (typeof locals !== 'object' || locals === null) {
     return undefined;
   }
 
-  const context = (locals as Record<string, unknown>)[
-    DISTRIBUTED_SSR_FRAGMENTS_LOCALS_KEY
-  ];
+  const context =
+    DISTRIBUTED_SSR_FRAGMENTS_LOCALS_KEY in locals
+      ? locals[DISTRIBUTED_SSR_FRAGMENTS_LOCALS_KEY]
+      : undefined;
 
-  if (!context || typeof context !== 'object') {
+  if (typeof context !== 'object' || context === null) {
     return undefined;
   }
 
@@ -97,25 +92,27 @@ export function useDistributedSsrFragmentProps<Props extends object>({
   const runtimeContext = useRuntimeContext();
   const locals = runtimeContext.requestContext?.response?.locals;
   const request =
-    locals && typeof locals === 'object'
-      ? (locals as Record<string, unknown>)[
-          DISTRIBUTED_SSR_FRAGMENT_REQUEST_LOCALS_KEY
-        ]
+    typeof locals === 'object' &&
+    locals !== null &&
+    DISTRIBUTED_SSR_FRAGMENT_REQUEST_LOCALS_KEY in locals
+      ? locals[DISTRIBUTED_SSR_FRAGMENT_REQUEST_LOCALS_KEY]
       : undefined;
 
   if (
-    !request ||
     typeof request !== 'object' ||
-    (request as DistributedSsrFragmentRequest).boundaryId !== boundaryId ||
-    (request as DistributedSsrFragmentRequest).expose !== expose
+    request === null ||
+    !('boundaryId' in request) ||
+    request.boundaryId !== boundaryId ||
+    !('expose' in request) ||
+    request.expose !== expose
   ) {
     throw new Error(
       `Distributed SSR fragment request contract mismatch for ${boundaryId} ${expose}.`,
     );
   }
 
-  const props = (request as DistributedSsrFragmentRequest).props;
-  if (!props || typeof props !== 'object' || Array.isArray(props)) {
+  const props = 'props' in request ? request.props : undefined;
+  if (typeof props !== 'object' || props === null || Array.isArray(props)) {
     throw new Error(
       `Distributed SSR fragment request props must be an object for ${boundaryId} ${expose}.`,
     );
@@ -127,11 +124,11 @@ export function useDistributedSsrFragmentProps<Props extends object>({
 function isThenable(
   value:
     | DistributedSsrFragmentResult
-    | PromiseLike<DistributedSsrFragmentResult>,
+    | PromiseLike<DistributedSsrFragmentResult>
+    | undefined,
 ): value is PromiseLike<DistributedSsrFragmentResult> {
   return (
-    typeof (value as PromiseLike<DistributedSsrFragmentResult>).then ===
-    'function'
+    value !== undefined && 'then' in value && typeof value.then === 'function'
   );
 }
 
@@ -143,13 +140,15 @@ function isThenable(
  * Node SSR has no distributed-fragment context and therefore renders the
  * child normally, preserving Module Federation's in-process SSR path.
  */
-export function DistributedSsrBoundary({
+export function DistributedSsrBoundary<
+  Props extends object = Record<string, unknown>,
+>({
   children,
   expose,
   fallback,
-  fragmentProps = {},
+  fragmentProps,
   remote,
-}: DistributedSsrBoundaryProps) {
+}: DistributedSsrBoundaryProps<Props>) {
   const runtimeContext = useRuntimeContext();
   const key = distributedSsrFragmentKey(remote, expose);
   const attributes = {
@@ -166,14 +165,18 @@ export function DistributedSsrBoundary({
 
   // Node can execute the Module Federation server runtime. Only workerd's
   // request adapter supplies a required distributed-fragment context.
-  if (!fragmentContext) {
+  if (fragmentContext === undefined) {
     return <div {...attributes}>{children}</div>;
   }
 
+  const resolverFragmentProps =
+    fragmentProps === undefined
+      ? {}
+      : Object.fromEntries(Object.entries(fragmentProps));
   const fragmentOrPromise =
-    fragmentContext.resolve?.(remote, expose, fragmentProps) ??
+    fragmentContext.resolve?.(remote, expose, resolverFragmentProps) ??
     fragmentContext.fragments?.[key];
-  if (fragmentOrPromise && isThenable(fragmentOrPromise)) {
+  if (isThenable(fragmentOrPromise)) {
     throw fragmentOrPromise;
   }
   const fragment = fragmentOrPromise;

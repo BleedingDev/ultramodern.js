@@ -32,21 +32,16 @@ type RouteLoader = (args: {
 }) => Promise<unknown> | unknown;
 
 type RouterBuildLocationOptions = Parameters<AnyRouter['buildLocation']>[0];
-type RouterBuiltLocation = ReturnType<AnyRouter['buildLocation']> & {
-  pathname: string;
-};
-type RouterParsedLocation = Parameters<AnyRouter['getParsedLocationHref']>[0];
 type RouterNavigateOptions = Parameters<AnyRouter['navigate']>[0];
 
 function resolveRouteHandlers(router: AnyRouter, actionTo: string) {
   const builtLocation = router.buildLocation({
     to: actionTo,
-  } as RouterBuildLocationOptions) as RouterBuiltLocation;
-  const href = router.getParsedLocationHref(
-    builtLocation as RouterParsedLocation,
+  } as RouterBuildLocationOptions);
+  const [, routeParams, foundRoute] = router.getMatchedRoutes(
+    builtLocation.pathname,
   );
-  const matchedRoutes = router.getMatchedRoutes(builtLocation.pathname);
-  const routeStaticData = matchedRoutes.foundRoute?.options?.staticData as
+  const routeStaticData = foundRoute?.options?.staticData as
     | Record<string, unknown>
     | undefined;
   const action = routeStaticData?.modernRouteAction as RouteAction | undefined;
@@ -55,8 +50,8 @@ function resolveRouteHandlers(router: AnyRouter, actionTo: string) {
   return {
     action,
     loader,
-    href,
-    params: (matchedRoutes.routeParams || {}) as Record<string, string>,
+    href: builtLocation.href,
+    params: routeParams,
   };
 }
 

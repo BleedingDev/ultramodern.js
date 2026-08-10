@@ -106,11 +106,15 @@ export const generateCode = async (
   api: CLIPluginAPI<AppTools>,
   options: {
     hydrateRscClientRoutes?: boolean;
+    includeRouteServerLoadersInSsrEntry?: boolean;
+    isolateRouteDataInRscLayer?: boolean;
     serverRoutesFileName?: string;
   } = {},
 ) => {
   const { internalDirectory, srcDirectory, internalSrcAlias, packageName } =
     appContext;
+  const includeRouteServerLoadersInSsrEntry =
+    options.includeRouteServerLoadersInSsrEntry !== false || !isUseRsc(config);
 
   const hooks = api.getHooks();
 
@@ -270,16 +274,20 @@ export const generateCode = async (
           const filtedRoutesForServer = filterRoutesForServer(
             routes as (NestedRouteForCli | PageRoute)[],
           );
-          const routesForServerLoaderMatches = filterRoutesLoader(
-            routes as (NestedRouteForCli | PageRoute)[],
-          );
+          if (includeRouteServerLoadersInSsrEntry) {
+            const routesForServerLoaderMatches = filterRoutesLoader(
+              routes as (NestedRouteForCli | PageRoute)[],
+            );
 
-          const code = templates.routesForServer({
-            routesForServerLoaderMatches,
-          });
+            const code = templates.routesForServer({
+              routesForServerLoaderMatches,
+            });
 
-          await fs.ensureFile(routesServerFile);
-          await fs.writeFile(routesServerFile, code);
+            await fs.ensureFile(routesServerFile);
+            await fs.writeFile(routesServerFile, code);
+          } else {
+            await fs.remove(routesServerFile);
+          }
 
           const serverRoutesCode = await templates.fileSystemRoutes({
             metaName,
@@ -290,6 +298,8 @@ export const generateCode = async (
             internalDirectory,
             splitRouteChunks: config?.output?.splitRouteChunks,
             isRscClientBundle: false,
+            isolateRouteDataInRscLayer:
+              isUseRsc(config) && options.isolateRouteDataInRscLayer,
             srcDirectory,
             internalSrcAlias: appContext.internalSrcAlias,
           });
@@ -309,6 +319,9 @@ export const generateCode = async (
           entrypoint,
           config as AppNormalizedConfig,
           appContext,
+          {
+            includeRouteServerLoaders: includeRouteServerLoadersInSsrEntry,
+          },
         );
         if (serverLoaderCombined) {
           const serverLoaderFile = getServerCombinedModuleFile(

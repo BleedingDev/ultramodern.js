@@ -67,12 +67,12 @@ export const ${itemSchema}: Schema.Codec<${pascalStem}RpcItem> = Schema.Struct({
   title: Schema.String,
 });
 
-export class ${notFound} extends Schema.ErrorClass<${notFound}>(
+export class ${notFound} extends Schema.TaggedError<${notFound}>()(
   '${notFound}',
-)({
-  _tag: Schema.tag('${notFound}'),
+  {
   id: Schema.String,
-}) {}
+  },
+) {}
 
 // RpcGroup contract consumed by both the server handler layer and the client
 // (mirrors the shapes plugin-bff's RpcServer/RpcClient runtime accepts).

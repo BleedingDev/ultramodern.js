@@ -1,7 +1,128 @@
-import type { RsbuildPlugin } from '@rsbuild/core';
+import { type RsbuildPlugin, rspack } from '@rsbuild/core';
 import { afterEach, describe, expect, it, rs } from '@rstest/core';
+import { mkdtemp, rm } from 'fs/promises';
+import { tmpdir } from 'os';
 import { join } from 'path';
+import { pathToFileURL } from 'url';
 import { createBuilder } from '../src';
+
+const builderPath = join(__dirname, '..');
+
+const compileRspack = async (config: any) => {
+  const compiler = rspack(config);
+
+  return new Promise<any>((resolve, reject) => {
+    compiler.run((runError, stats) => {
+      compiler.close(closeError => {
+        const error = runError ?? closeError;
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        if (!stats || stats.hasErrors()) {
+          reject(
+            new Error(
+              stats?.toString({ all: false, errors: true, warnings: true }) ??
+                'Rspack did not return compilation stats.',
+            ),
+          );
+          return;
+        }
+
+        resolve(stats);
+      });
+    });
+  });
+};
+
+const getDataUrlEntry = (config: any): string => {
+  const entries = Object.values(config.entry ?? {}).flatMap(value =>
+    Array.isArray(value) ? value : [value],
+  );
+  const entry = entries.find(value => {
+    if (typeof value !== 'string') {
+      return false;
+    }
+
+    try {
+      return new URL(value).protocol === 'data:';
+    } catch {
+      return false;
+    }
+  });
+
+  if (typeof entry !== 'string') {
+    throw new Error('Expected the browser entry to include a data URL module.');
+  }
+
+  return entry;
+};
+
+const executeDataUrlEntry = async (entry: string) => {
+  const outputPath = await mkdtemp(join(tmpdir(), 'modern-builder-entry-'));
+
+  try {
+    await compileRspack({
+      context: builderPath,
+      entry,
+      mode: 'development',
+      output: {
+        filename: 'entry.cjs',
+        library: { type: 'commonjs2' },
+        path: outputPath,
+      },
+      target: 'node',
+    });
+
+    await import(pathToFileURL(join(outputPath, 'entry.cjs')).href);
+  } finally {
+    await rm(outputPath, { force: true, recursive: true });
+  }
+};
+
+const compileHtmlTemplate = async (config: any, entry: string) => {
+  const htmlPlugin = config.plugins?.find(
+    (plugin: any) => plugin?.constructor?.name === 'HtmlRspackPlugin',
+  );
+  if (!htmlPlugin) {
+    throw new Error('Expected the browser config to include HtmlRspackPlugin.');
+  }
+  expect(htmlPlugin.options).toMatchObject({
+    chunks: ['index'],
+    compile: true,
+    inject: 'head',
+    meta: {
+      charset: { charset: 'utf-8' },
+      viewport: 'width=device-width, initial-scale=1.0',
+    },
+    scriptLoading: 'defer',
+  });
+
+  const outputPath = await mkdtemp(join(tmpdir(), 'modern-builder-html-'));
+
+  try {
+    const stats = await compileRspack({
+      context: builderPath,
+      entry: { index: entry },
+      mode: 'development',
+      optimization: { minimize: false },
+      output: {
+        filename: 'static/js/[name].js',
+        path: outputPath,
+      },
+      plugins: [htmlPlugin],
+      target: 'web',
+    });
+    const assets = stats
+      .toJson({ all: false, assets: true })
+      .assets?.map((asset: any) => asset.name);
+
+    expect(assets).toContain('html/index/index.html');
+  } finally {
+    await rm(outputPath, { force: true, recursive: true });
+  }
+};
 
 const collectSwcLoaderOptions = (value: unknown): any[] => {
   const matches: any[] = [];
@@ -65,7 +186,7 @@ describe('builder rspack', () => {
     rs.unstubAllEnvs();
   });
 
-  it('should generator rspack config correctly', async () => {
+  it('creates an executable browser entry and a compilable HTML template', async () => {
     rs.stubEnv('NODE_ENV', 'development');
 
     const rsbuild = await createBuilder({
@@ -78,21 +199,62 @@ describe('builder rspack', () => {
           },
         ],
       },
-      cwd: join(__dirname, '..'),
+      cwd: builderPath,
     });
 
     const {
       origin: { bundlerConfigs, rsbuildConfig },
     } = await rsbuild.inspectConfig();
 
-    expect(bundlerConfigs[0]).toMatchSnapshot();
+    const config = bundlerConfigs[0];
+    expect(config).toMatchObject({
+      cache: {
+        storage: { type: 'filesystem' },
+        type: 'persistent',
+        version: 'web-development',
+      },
+      devtool: 'cheap-module-source-map',
+      experiments: { sourceImport: true },
+      mode: 'development',
+      name: 'web',
+      output: {
+        filename: 'static/js/[name].js',
+        publicPath: '/',
+      },
+      target: [
+        'web',
+        'browserslist:chrome >= 87,edge >= 88,firefox >= 78,safari >= 14',
+      ],
+    });
 
-    expect(
-      rsbuildConfig.plugins?.map(p => (p as RsbuildPlugin)?.name),
-    ).toMatchSnapshot();
+    const dataUrlEntry = getDataUrlEntry(config);
+    await executeDataUrlEntry(dataUrlEntry);
+    await compileHtmlTemplate(config, dataUrlEntry);
+
+    expect(rsbuildConfig.plugins?.map(p => (p as RsbuildPlugin)?.name)).toEqual(
+      [
+        'modern-js:rspack-2-1-defaults',
+        'modern-js:environment-build-cache-isolation',
+        'builder:global-vars',
+        'builder:devtool',
+        'builder:emit-route-file',
+        'rsbuild:sass',
+        'rsbuild:less',
+        'builder:environment-defaults-plugin',
+        'builder:plugin-html-minifier-terser',
+        'rsbuild:type-check',
+        'builder:runtime-chunk',
+        'rsbuild:react',
+        'rsbuild:svgr',
+        'rsbuild:css-minimizer',
+        'builder:postcss-plugins',
+        'builder:rsc-client-browser-fallback',
+        'user-plugin',
+      ],
+    );
   });
 
-  it('should generator rspack config correctly when prod', async () => {
+  it('creates a hashed, minimized production browser config', async () => {
     rs.stubEnv('NODE_ENV', 'production');
 
     const rsbuild = await createBuilder({
@@ -102,17 +264,38 @@ describe('builder rspack', () => {
           rsdoctor: false,
         },
       },
-      cwd: join(__dirname, '..'),
+      cwd: builderPath,
     });
 
     const {
       origin: { bundlerConfigs },
     } = await rsbuild.inspectConfig();
 
-    expect(bundlerConfigs[0]).toMatchSnapshot();
+    const config = bundlerConfigs[0];
+    expect(config).toMatchObject({
+      cache: {
+        storage: { type: 'filesystem' },
+        type: 'persistent',
+        version: 'web-production',
+      },
+      mode: 'production',
+      name: 'web',
+      output: {
+        chunkFilename: 'static/js/async/[name].[contenthash:10].js',
+        filename: 'static/js/[name].[contenthash:10].js',
+      },
+    });
+    expect(config.optimization?.minimize).toBe(true);
+    expect(
+      config.plugins?.some(
+        (plugin: any) =>
+          plugin?.constructor?.name === 'HtmlRspackPlugin' &&
+          typeof plugin.options?.minify === 'function',
+      ),
+    ).toBe(true);
   });
 
-  it('should generator rspack config correctly when node', async () => {
+  it('creates a CommonJS production server config', async () => {
     rs.stubEnv('NODE_ENV', 'production');
 
     const rsbuild = await createBuilder({
@@ -129,17 +312,30 @@ describe('builder rspack', () => {
           },
         },
       },
-      cwd: join(__dirname, '..'),
+      cwd: builderPath,
     });
 
     const {
       origin: { bundlerConfigs },
     } = await rsbuild.inspectConfig();
 
-    expect(bundlerConfigs[0]).toMatchSnapshot();
+    expect(bundlerConfigs[0]).toMatchObject({
+      cache: {
+        storage: { type: 'filesystem' },
+        type: 'persistent',
+        version: 'server-production',
+      },
+      mode: 'production',
+      name: 'server',
+      output: {
+        filename: '[name].js',
+        library: { type: 'commonjs2' },
+      },
+      target: 'node',
+    });
   });
 
-  it('should generator rspack config correctly when service-worker', async () => {
+  it('creates an isolated production web-worker config', async () => {
     rs.stubEnv('NODE_ENV', 'production');
 
     const rsbuild = await createBuilder({
@@ -156,14 +352,33 @@ describe('builder rspack', () => {
           },
         },
       },
-      cwd: join(__dirname, '..'),
+      cwd: builderPath,
     });
 
     const {
       origin: { bundlerConfigs },
     } = await rsbuild.inspectConfig();
 
-    expect(bundlerConfigs[0]).toMatchSnapshot();
+    const config = bundlerConfigs[0];
+    expect(config).toMatchObject({
+      cache: {
+        storage: { type: 'filesystem' },
+        type: 'persistent',
+        version: 'workerSSR-production',
+      },
+      mode: 'production',
+      name: 'workerSSR',
+      output: {
+        filename: '[name].js',
+        library: { type: 'commonjs2' },
+      },
+      target: ['webworker', 'es5'],
+    });
+    expect(
+      config.plugins?.some(
+        (plugin: any) => plugin?.constructor?.name === 'HtmlRspackPlugin',
+      ),
+    ).toBe(false);
   });
 
   it('should enable Rspack 2.1 createRequire parsing by default', async () => {

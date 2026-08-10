@@ -781,6 +781,38 @@ export const layer = Layer.empty;`,
     }
   });
 
+  test('preserves dependency registration rejections from generated client codegen', async () => {
+    const appDir = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), 'modern-plugin-bff-effect-codegen-rejection-'),
+    );
+
+    try {
+      const apiDir = path.join(appDir, 'api');
+      const entryFile = path.join(apiDir, 'effect', 'index.ts');
+      const dependencyFailure = new Error('dependency registration failed');
+      await writeEmptyPathsTsconfig(appDir);
+      await writeFile(entryFile, `export const api = null;`);
+
+      const rejection = await generateEffectClient({
+        appDir,
+        apiDir,
+        resourcePath: entryFile,
+        prefix: '/api',
+        port: 8080,
+        onDependency: () => {
+          throw dependencyFailure;
+        },
+      }).then(
+        () => undefined,
+        error => error,
+      );
+
+      expect(rejection).toBe(dependencyFailure);
+    } finally {
+      await fs.promises.rm(appDir, { recursive: true, force: true });
+    }
+  });
+
   test('Rspack loader registers the complete typed graph with its watcher', async () => {
     const appDir = await fs.promises.mkdtemp(
       path.join(os.tmpdir(), 'modern-plugin-bff-effect-watch-'),

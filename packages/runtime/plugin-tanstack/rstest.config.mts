@@ -35,6 +35,8 @@ export default {
         'tests/router/preloadRedirect.test.ts',
         'tests/router/register.test.ts',
         'tests/router/routeHooks.test.ts',
+        'tests/router/serverPlugin.test.ts',
+        'tests/router/rscDecoderSecurity.test.ts',
         'tests/router/rscPayloadRouterMatrix.test.ts',
         'tests/router/rsc.test.tsx',
         'tests/router/slotUsageSanitizer.test.ts',

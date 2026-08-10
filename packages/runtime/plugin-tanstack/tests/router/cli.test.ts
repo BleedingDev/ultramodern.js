@@ -803,6 +803,8 @@ describe('tanstack router cli plugin', () => {
       {
         entrypointsKey: '@modern-js/plugin-tanstack',
         hydrateRscClientRoutes: true,
+        includeRouteServerLoadersInSsrEntry: false,
+        isolateRouteDataInRscLayer: true,
         serverRoutesFileName: 'tanstack-routes.server.js',
       },
     );

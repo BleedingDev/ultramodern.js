@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+const testDirectory = dirname(fileURLToPath(import.meta.url));
+const packageRoot = resolve(testDirectory, '../..');
 const packageJson = JSON.parse(
   readFileSync(join(packageRoot, 'package.json'), 'utf-8'),
 );
@@ -23,30 +25,24 @@ const expectedRuntimeExports = [
 
 assert.deepEqual(configExport, expectedExport);
 
-const publicDeclaration = readFileSync(
-  join(packageRoot, configExport.types),
-  'utf-8',
-);
-for (const publicName of [
-  ...expectedRuntimeExports,
-  'ResolveEffectTsgoCompilerOptions',
-]) {
-  assert.match(publicDeclaration, new RegExp(`\\b${publicName}\\b`, 'u'));
+try {
+  execFileSync(
+    process.env.TSGO_BIN ||
+      (process.platform === 'win32' ? 'tsgo.cmd' : 'tsgo'),
+    ['-p', join(testDirectory, 'tsconfig.public-surface-consumer.json')],
+    {
+      cwd: packageRoot,
+      encoding: 'utf-8',
+      stdio: 'pipe',
+    },
+  );
+} catch (error) {
+  const output = [error?.message, error?.stdout, error?.stderr]
+    .filter(Boolean)
+    .map(value => value.toString())
+    .join('\n');
+  assert.fail(`Public config type consumer failed to compile.\n${output}`);
 }
-assert.doesNotMatch(publicDeclaration, /\bsetBuildConfigEnvironment\b/u);
-assert.doesNotMatch(publicDeclaration, /\bcreateDefaultConfig\b/u);
-assert.doesNotMatch(publicDeclaration, /\binitialNormalizedConfig\b/u);
-
-const implementationDeclaration = readFileSync(
-  join(packageRoot, 'dist/types/config/build-environment.d.ts'),
-  'utf-8',
-);
-assert.match(implementationDeclaration, /\bwithBuildConfigEnvironment\b/u);
-assert.match(implementationDeclaration, /\bfrom:\s*string\s*\|\s*URL\b/u);
-assert.doesNotMatch(
-  implementationDeclaration,
-  /\bsetBuildConfigEnvironment\b/u,
-);
 
 const require = createRequire(import.meta.url);
 const cjsConfig = require('@modern-js/app-tools/config');

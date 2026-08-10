@@ -1,4 +1,3 @@
-// @effect-diagnostics globalConsole:off newPromise:off processEnv:off
 import { loadableReady } from '@loadable/component';
 import { SSR_HYDRATION_ID_PREFIX } from '@modern-js/utils/universal/constants';
 import type React from 'react';
@@ -8,25 +7,39 @@ import type { TRuntimeContext } from '../context/runtime';
 import { wrapRuntimeContextProvider } from '../react/wrapper';
 import { WithCallback } from './withCallback';
 
-export const isReact18 = () => process.env.IS_REACT18 === 'true';
+const runtimeProcess: unknown = Reflect.get(globalThis, 'process');
+const runtimeEnvironment: unknown =
+  runtimeProcess !== null && typeof runtimeProcess === 'object'
+    ? Reflect.get(runtimeProcess, 'env')
+    : undefined;
 
-const runtimeProcess = Reflect.get(globalThis, 'process') as
-  | { env?: { MODERN_CHUNK_LOADING_GLOBAL?: string } }
-  | undefined;
+const readRuntimeEnvironment = (name: string): string | undefined => {
+  if (runtimeEnvironment === null || typeof runtimeEnvironment !== 'object') {
+    return;
+  }
 
-const loadableReadyOptions = {
-  chunkLoadingGlobal:
-    runtimeProcess?.env?.MODERN_CHUNK_LOADING_GLOBAL ||
-    '__LOADABLE_LOADED_CHUNKS__',
+  const value: unknown = Reflect.get(runtimeEnvironment, name);
+  return typeof value === 'string' ? value : undefined;
 };
 
-export async function hydrateWithReact(
+const loadableReadyOptions = {
+  chunkLoadingGlobal: (() => {
+    const configured = readRuntimeEnvironment('MODERN_CHUNK_LOADING_GLOBAL');
+    return configured === undefined || configured === ''
+      ? '__LOADABLE_LOADED_CHUNKS__'
+      : configured;
+  })(),
+};
+
+export function hydrateWithReact(
   App: React.ReactElement,
   rootElement: HTMLElement,
 ) {
-  return hydrateReactRoot(rootElement, App, {
-    identifierPrefix: SSR_HYDRATION_ID_PREFIX,
-  });
+  return Promise.resolve(
+    hydrateReactRoot(rootElement, App, {
+      identifierPrefix: SSR_HYDRATION_ID_PREFIX,
+    }),
+  );
 }
 
 export function hydrateRoot(
@@ -53,11 +66,11 @@ export function hydrateRoot(
 
   // if render level not exist, use client render
   const renderLevel =
-    window?._SSR_DATA?.renderLevel || RenderLevel.CLIENT_RENDER;
+    window?._SSR_DATA?.renderLevel ?? RenderLevel.CLIENT_RENDER;
 
-  const renderMode = window?._SSR_DATA?.mode || 'string';
+  const renderMode = window?._SSR_DATA?.mode ?? 'string';
 
-  if (isReact18() && renderMode === 'stream') {
+  if (renderMode === 'stream') {
     return streamSSRHydrate();
   }
 
@@ -82,33 +95,26 @@ export function hydrateRoot(
     if (renderLevel === RenderLevel.CLIENT_RENDER) {
       return ModernRender(wrapRuntimeContextProvider(App, context));
     } else if (renderLevel === RenderLevel.SERVER_RENDER) {
-      return new Promise<Root | HTMLElement>(resolve => {
-        if (isReact18()) {
-          loadableReady(() => {
-            // callback: https://github.com/reactwg/react-18/discussions/5
-            const SSRApp: React.FC = () => (
-              <WithCallback callback={callback}>{App}</WithCallback>
-            );
-            ModernHydrate(
-              wrapRuntimeContextProvider(<SSRApp />, hydrateContext),
-            ).then(root => {
-              resolve(root);
-            });
-          }, loadableReadyOptions);
-        } else {
-          loadableReady(() => {
-            ModernHydrate(
-              wrapRuntimeContextProvider(App, hydrateContext),
-              callback,
-            ).then(root => {
-              resolve(root);
-            });
-          }, loadableReadyOptions);
-        }
+      return loadableReady(() => undefined, loadableReadyOptions).then(() => {
+        // callback: https://github.com/reactwg/react-18/discussions/5
+        const SSRApp: React.FC = () => (
+          <WithCallback callback={callback}>{App}</WithCallback>
+        );
+        return ModernHydrate(
+          wrapRuntimeContextProvider(<SSRApp />, hydrateContext),
+        );
       });
     } else {
       // unknown renderlevel or renderlevel is server prefetch.
-      console.warn(`unknow render level: ${renderLevel}, execute render()`);
+      const runtimeConsole: unknown = Reflect.get(globalThis, 'console');
+      if (runtimeConsole !== null && typeof runtimeConsole === 'object') {
+        const warn: unknown = Reflect.get(runtimeConsole, 'warn');
+        if (typeof warn === 'function') {
+          Reflect.apply(warn, runtimeConsole, [
+            `unknow render level: ${renderLevel}, execute render()`,
+          ]);
+        }
+      }
       return ModernRender(wrapRuntimeContextProvider(App, context));
     }
   }

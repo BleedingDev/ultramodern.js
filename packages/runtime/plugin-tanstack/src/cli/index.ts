@@ -76,6 +76,8 @@ type RuntimeRouterCliHelpers = {
     options?: {
       entrypointsKey?: string;
       hydrateRscClientRoutes?: boolean;
+      includeRouteServerLoadersInSsrEntry?: boolean;
+      isolateRouteDataInRscLayer?: boolean;
       serverRoutesFileName?: string;
     },
   ) => Promise<Record<string, (NestedRouteForCli | PageRoute)[]>>;
@@ -268,6 +270,8 @@ export function tanstackRouterPlugin(
           {
             entrypointsKey: ENTRYPOINTS_KEY,
             hydrateRscClientRoutes: true,
+            includeRouteServerLoadersInSsrEntry: false,
+            isolateRouteDataInRscLayer: true,
             serverRoutesFileName: 'tanstack-routes.server.js',
           },
         );
@@ -296,6 +300,8 @@ export function tanstackRouterPlugin(
               {
                 entrypointsKey: ENTRYPOINTS_KEY,
                 hydrateRscClientRoutes: true,
+                includeRouteServerLoadersInSsrEntry: false,
+                isolateRouteDataInRscLayer: true,
                 serverRoutesFileName: 'tanstack-routes.server.js',
               },
             );

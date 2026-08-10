@@ -47,25 +47,22 @@ const releaseCohort = parseUltramodernReleaseCohort({
   },
 });
 
-const cloudflareReviewReason =
-  'Reviewed Cloudflare runtime cohort required by generated Worker tooling before pnpm minimum release age elapsed.';
-
 test('does not treat Module Federation registry evidence as a release-age approval', () => {
   const moduleFederation =
     ULTRAMODERN_WORKSPACE_POLICY.pnpm.releaseAge.registryEvidence
       .moduleFederation;
-  assert.equal(moduleFederation.version, '2.8.0');
-  assert.equal(moduleFederation.nodeVersion, '2.7.47');
+  assert.equal(moduleFederation.version, '2.8.2');
+  assert.equal(moduleFederation.nodeVersion, '2.7.49');
   assert.equal(moduleFederation.releases.length, 18);
   assert.equal(
     moduleFederation.releases.find(
       release => release.packageName === '@module-federation/modern-js-v3',
     )?.registry.publishedAt,
-    '2026-07-15T09:17:49.953Z',
+    '2026-08-06T11:25:21.202Z',
   );
   assert.equal(
     moduleFederation.node.registry.dist.integrity,
-    'sha512-mifMvCjWmLl53GS+badQws0j2bsu1ICpdGzCbez4I6kSpaYA8v86L6dwcHtVHIZtkUC6cjAZBDcgpxs4fK3nFQ==',
+    'sha512-xNGYfhA2aqFpogb/uq6lwBeEbnmDLV6PwHzSe97mRrSSr00eUKAMwlLG6PcQP6ynbkPeDG86RYj/YUC7EWgLMA==',
   );
   assert.equal(
     ULTRAMODERN_WORKSPACE_POLICY.pnpm.releaseAge.approvals.some(approval =>
@@ -85,13 +82,13 @@ test('rejects review evidence created before a dependency was published', () => 
         {
           ...existing,
           packageName: '@module-federation/runtime',
-          version: '2.8.0',
+          version: '2.8.2',
           reviewedAt: '2026-07-09T20:51:39.000Z',
           registry: {
-            publishedAt: '2026-07-15T09:16:02.203Z',
+            publishedAt: '2026-08-06T11:24:39.297Z',
             dist: {
               integrity:
-                'sha512-cGtUBQ1/TVy7KrXy6xPgy3FEmOGyIYkBA2T4iGH3ZH5PNPPTmqN9jF2AfneTSOj0RtBr7Pxq3CUt81E/UCvK1A==',
+                'sha512-SUoP+PD5EjSPSi6FxEPGIZoRkFifxdeYcVQbJE9mO0VEjF51gAk3/TgX8k0vzUryOBPmXekLr9SfQXU6DqUtvA==',
             },
           },
         },
@@ -100,72 +97,25 @@ test('rejects review evidence created before a dependency was published', () => 
   );
 });
 
-test('pins exact approval evidence for every fresh Effect and Cloudflare dependency', () => {
-  // FORK: the Effect cohort deliberately carries NO release-age approval.
-  // effect / @effect/opentelemetry / @effect/vitest 4.0.0-beta.102 published
-  // 2026-07-26T22:24Z and matured past the 1440-minute minimum release age on
-  // 2026-07-27, so no exemption is needed. An approval must never be re-added
-  // against review evidence that predates the cohort it attests.
+test('does not claim stale Effect or Cloudflare release-age approvals', () => {
+  // FORK: the fresh Effect beta.107 cohort deliberately carries NO release-age
+  // approval until purpose-built review evidence contains its exact versions,
+  // timestamps, integrities, and patch-applicability result. The former
+  // Cloudflare approvals are also stale after that cohort moved forward.
   for (const packageName of [
     'effect',
     '@effect/opentelemetry',
     '@effect/vitest',
+    '@cloudflare/workers-types',
+    'miniflare',
+    'wrangler',
   ]) {
     assert.equal(
       ULTRAMODERN_WORKSPACE_POLICY.pnpm.releaseAge.approvals.find(
         item => item.packageName === packageName,
       ),
       undefined,
-      `${packageName} must not claim a release-age exemption`,
-    );
-  }
-
-  const expected = new Map([
-    [
-      '@cloudflare/workers-types',
-      [
-        '5.20260710.1',
-        '2026-07-10T01:13:24.132Z',
-        'sha512-4ooaY2Pb5XGwDn8Fzm6jnTAJkIX0R5LBvL9euQpp2T58sQItlAQd9yivAlkwGhpY5cM1u81/9HaXwKAjXwtyzA==',
-        cloudflareReviewReason,
-      ],
-    ],
-    [
-      'miniflare',
-      [
-        '4.20260708.1',
-        '2026-07-09T18:25:09.203Z',
-        'sha512-c94O9zRDISdqO18EHt6l0iF/fWgWt8p18PJvRsA/L/NJZ9Cfke3s/F5Blg1XXF7WDutVRzWVWy8Vy4LaT5ifsA==',
-        cloudflareReviewReason,
-      ],
-    ],
-    [
-      'wrangler',
-      [
-        '4.110.0',
-        '2026-07-09T18:25:09.429Z',
-        'sha512-xZeXKYi7hxQRF5anL+v77RkufJNpF9f3Eqeyqq2QBsETpLZgh0Agj0jJ6JPtkbgn6ukZdh8OK5egsGPWIditgg==',
-        cloudflareReviewReason,
-      ],
-    ],
-  ]);
-  const approvals = ULTRAMODERN_WORKSPACE_POLICY.pnpm.releaseAge.approvals;
-
-  assert.equal(expected.size, 3);
-  for (const [
-    packageName,
-    [version, publishedAt, integrity, reason],
-  ] of expected) {
-    const approval = approvals.find(item => item.packageName === packageName);
-    assert.deepEqual(
-      approval && [
-        approval.version,
-        approval.registry.publishedAt,
-        approval.registry.dist.integrity,
-        approval.reason,
-      ],
-      [version, publishedAt, integrity, reason],
-      `approval evidence for ${packageName}`,
+      `${packageName} must not claim a stale release-age exemption`,
     );
   }
 });

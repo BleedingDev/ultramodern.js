@@ -246,6 +246,25 @@ async function requestTrustedPublishingToken(
   return exchange.token;
 }
 
+async function preflightTrustedPublishingPackages(
+  items,
+  options,
+  {
+    env = process.env,
+    fetchImpl = globalThis.fetch,
+    requestToken = requestTrustedPublishingToken,
+  } = {},
+) {
+  const registry = assertNpmRegistryUrl(options.registryUrl ?? npmRegistryUrl);
+  for (const item of items) {
+    await requestToken(item.targetName, {
+      env,
+      fetchImpl,
+      registryUrl: registry.href,
+    });
+  }
+}
+
 async function publishAcceptedPackage(
   item,
   acceptedBytes,
@@ -334,6 +353,7 @@ function validateAcceptedPackageDryRun(
 export {
   assertAcceptedPublishToolchain,
   loadNpmPublishingRuntime,
+  preflightTrustedPublishingPackages,
   publishAcceptedPackage,
   publishPackageBuffer,
   requestTrustedPublishingToken,

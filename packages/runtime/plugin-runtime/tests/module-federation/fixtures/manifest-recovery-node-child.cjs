@@ -33,7 +33,7 @@ const healthyManifest = {
       type: 'commonjs-module',
     },
     globalName: 'inventory',
-    pluginVersion: '2.8.0',
+    pluginVersion: '2.8.2',
     publicPath: `${remoteOrigin}/`,
     ssrPublicPath: `${remoteOrigin}/`,
   },

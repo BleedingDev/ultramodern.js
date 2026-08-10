@@ -33,6 +33,7 @@ import {
 } from './migrate-strict-effect/api-metadata';
 import {
   ensureGeneratedOxfmtIgnorePatterns,
+  ensureGeneratedOxlintComponentStyle,
   removeGeneratedFileIfExists,
   removeStaleBackendFederationArtifacts,
   updateGeneratedBackendFederationContractFiles,
@@ -111,9 +112,9 @@ function synchronizeMigrationDeliveryUnitMetadata(
     ),
     'Generated compact config',
   );
-  const canonicalCompactApps = new Map(
+  const canonicalCompactApps = new Map<string, Record<string, unknown>>(
     (canonicalCompact.topology?.apps ?? []).map(
-      (entry: Record<string, any>) => [String(entry.id), entry],
+      (entry: Record<string, unknown>) => [String(entry.id), entry],
     ),
   );
 
@@ -171,9 +172,9 @@ function synchronizeMigrationDeliveryUnitMetadata(
   ]) {
     topology[key] = canonicalTopology[key];
   }
-  const canonicalTopologyApps = new Map(
+  const canonicalTopologyApps = new Map<string, Record<string, unknown>>(
     [canonicalTopology.shell, ...(canonicalTopology.verticals ?? [])].map(
-      (entry: Record<string, any>) => [String(entry.id), entry],
+      (entry: Record<string, unknown>) => [String(entry.id), entry],
     ),
   );
   for (const entry of [topology.shell, ...(topology.verticals ?? [])]) {
@@ -472,6 +473,7 @@ function reconcileAdditionalShellConfig(
           entry !== null &&
           typeof entry === 'object' &&
           !Array.isArray(entry) &&
+          'id' in entry &&
           typeof entry.id === 'string',
       )
       .map((entry: Record<string, any>) => [entry.id, entry] as const),
@@ -739,6 +741,7 @@ function migrateStrictEffect(
     ),
   });
   ensureGeneratedOxfmtIgnorePatterns(io);
+  ensureGeneratedOxlintComponentStyle(io);
 
   if (!skipInstall) {
     return io.withStagedWorkspace(stagedWorkspaceRoot => {

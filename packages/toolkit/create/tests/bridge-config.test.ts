@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -15,6 +16,93 @@ import {
 
 const readJson = (root: string, relativePath: string) =>
   JSON.parse(fs.readFileSync(path.join(root, relativePath), 'utf-8'));
+
+type RecordedCommand = {
+  argv: string[];
+  cwd: string;
+};
+
+const createCommandRecorder = (root: string) => {
+  const binDir = path.join(root, 'command-recorder-bin');
+  const logPath = path.join(root, 'command-recorder.ndjson');
+  const executablePath = path.join(binDir, 'pnpm');
+
+  fs.mkdirSync(binDir, { recursive: true });
+  fs.writeFileSync(
+    executablePath,
+    `#!/usr/bin/env node
+const fs = require('node:fs');
+
+const argv = process.argv.slice(2);
+fs.appendFileSync(
+  process.env.ULTRAMODERN_COMMAND_LOG,
+  JSON.stringify({ argv, cwd: process.cwd() }) + '\\n',
+);
+
+const failArgv = process.env.ULTRAMODERN_FAIL_ARGV
+  ? JSON.parse(process.env.ULTRAMODERN_FAIL_ARGV)
+  : undefined;
+if (failArgv && JSON.stringify(argv) === JSON.stringify(failArgv)) {
+  process.exit(73);
+}
+`,
+    'utf-8',
+  );
+  fs.chmodSync(executablePath, 0o755);
+
+  return {
+    clear() {
+      fs.rmSync(logPath, { force: true });
+    },
+    env(failArgv?: string[]): NodeJS.ProcessEnv {
+      return {
+        ...process.env,
+        PATH: `${binDir}${path.delimiter}${process.env.PATH ?? ''}`,
+        ULTRAMODERN_COMMAND_LOG: logPath,
+        ...(failArgv
+          ? { ULTRAMODERN_FAIL_ARGV: JSON.stringify(failArgv) }
+          : {}),
+      };
+    },
+    read(): RecordedCommand[] {
+      if (!fs.existsSync(logPath)) {
+        return [];
+      }
+
+      return fs
+        .readFileSync(logPath, 'utf-8')
+        .split('\n')
+        .filter(Boolean)
+        .map(line => JSON.parse(line) as RecordedCommand);
+    },
+  };
+};
+
+const runGeneratedScript = (
+  workspaceRoot: string,
+  packageJson: { scripts?: Record<string, string> },
+  scriptName: string,
+  commandRecorder: ReturnType<typeof createCommandRecorder>,
+  failArgv?: string[],
+) => {
+  const command = packageJson.scripts?.[scriptName];
+  assert.equal(typeof command, 'string');
+
+  return spawnSync(command, {
+    cwd: workspaceRoot,
+    encoding: 'utf-8',
+    env: commandRecorder.env(failArgv),
+    shell: true,
+  });
+};
+
+const assertScriptPassed = (result: ReturnType<typeof spawnSync>) => {
+  assert.equal(
+    result.status,
+    0,
+    `generated script failed:\n${String(result.stdout)}\n${String(result.stderr)}`,
+  );
+};
 
 test('bridge config is disabled by default and normalizes explicit API input', () => {
   assert.equal(normalizeUltramodernBridgeConfig(undefined), undefined);
@@ -456,23 +544,118 @@ test('bridge mode materializes workspace packages, app dependencies, compact con
         target: '../../packages/domain-core/src/testing.ts',
       },
     ]);
-    assert.equal(
-      rootPackage.scripts.typecheck,
-      'pnpm -r --filter "./apps/*" --filter "./verticals/*" --filter "./packages/*" run typecheck',
+    const commandRecorder = createCommandRecorder(tempRoot);
+    const canonicalWorkspaceDir = fs.realpathSync(workspaceDir);
+    const canonicalParentDir = fs.realpathSync(
+      path.resolve(workspaceDir, '../..'),
     );
-    assert.equal(
-      rootPackage.scripts['bridge:parent-rstest'],
-      'cd ../.. && pnpm exec rstest packages/domain-core/tests packages/domain-react/tests',
+    const typecheckInvocation: RecordedCommand = {
+      argv: [
+        '-r',
+        '--filter',
+        './apps/*',
+        '--filter',
+        './verticals/*',
+        '--filter',
+        './packages/*',
+        'run',
+        'typecheck',
+      ],
+      cwd: canonicalWorkspaceDir,
+    };
+    const parentRstestInvocation: RecordedCommand = {
+      argv: [
+        'exec',
+        'rstest',
+        'packages/domain-core/tests',
+        'packages/domain-react/tests',
+      ],
+      cwd: canonicalParentDir,
+    };
+    const parentTypecheckInvocation: RecordedCommand = {
+      argv: [
+        'exec',
+        'tsc',
+        '-b',
+        'packages/domain-core',
+        'packages/domain-react',
+      ],
+      cwd: canonicalParentDir,
+    };
+    const bridgeCheckInvocations: RecordedCommand[] = [
+      {
+        argv: ['run', 'bridge:parent-rstest'],
+        cwd: canonicalWorkspaceDir,
+      },
+      {
+        argv: ['run', 'bridge:parent-typecheck'],
+        cwd: canonicalWorkspaceDir,
+      },
+    ];
+    const composedCheckInvocations: RecordedCommand[] = [
+      'format:check',
+      'lint',
+      'typecheck',
+      'skills:check',
+      'i18n:boundaries',
+      'api:check',
+      'contract:check',
+      'performance:readiness',
+      'bridge:check',
+    ].map(scriptName => ({
+      argv: [scriptName],
+      cwd: canonicalWorkspaceDir,
+    }));
+
+    commandRecorder.clear();
+    assertScriptPassed(
+      runGeneratedScript(
+        workspaceDir,
+        rootPackage,
+        'typecheck',
+        commandRecorder,
+      ),
     );
-    assert.equal(
-      rootPackage.scripts['bridge:parent-typecheck'],
-      'cd ../.. && pnpm exec tsc -b packages/domain-core packages/domain-react',
+    assert.deepEqual(commandRecorder.read(), [typecheckInvocation]);
+
+    commandRecorder.clear();
+    assertScriptPassed(
+      runGeneratedScript(
+        workspaceDir,
+        rootPackage,
+        'bridge:parent-rstest',
+        commandRecorder,
+      ),
     );
-    assert.equal(
-      rootPackage.scripts['bridge:check'],
-      'pnpm run bridge:parent-rstest && pnpm run bridge:parent-typecheck',
+    assert.deepEqual(commandRecorder.read(), [parentRstestInvocation]);
+
+    commandRecorder.clear();
+    assertScriptPassed(
+      runGeneratedScript(
+        workspaceDir,
+        rootPackage,
+        'bridge:parent-typecheck',
+        commandRecorder,
+      ),
     );
-    assert.match(rootPackage.scripts.check, /pnpm bridge:check/u);
+    assert.deepEqual(commandRecorder.read(), [parentTypecheckInvocation]);
+
+    commandRecorder.clear();
+    assertScriptPassed(
+      runGeneratedScript(
+        workspaceDir,
+        rootPackage,
+        'bridge:check',
+        commandRecorder,
+      ),
+    );
+    assert.deepEqual(commandRecorder.read(), bridgeCheckInvocations);
+
+    commandRecorder.clear();
+    assertScriptPassed(
+      runGeneratedScript(workspaceDir, rootPackage, 'check', commandRecorder),
+    );
+    assert.deepEqual(commandRecorder.read(), composedCheckInvocations);
 
     addUltramodernVertical({
       workspaceRoot: workspaceDir,
@@ -503,11 +686,67 @@ test('bridge mode materializes workspace packages, app dependencies, compact con
       '@acme/domain-core',
       '@acme/domain-react',
     ]);
-    assert.equal(
-      rootPackageAfterVertical.scripts['bridge:check'],
-      'pnpm run bridge:parent-rstest && pnpm run bridge:parent-typecheck',
+
+    commandRecorder.clear();
+    for (const scriptName of [
+      'typecheck',
+      'bridge:parent-rstest',
+      'bridge:parent-typecheck',
+      'bridge:check',
+      'check',
+    ]) {
+      assertScriptPassed(
+        runGeneratedScript(
+          workspaceDir,
+          rootPackageAfterVertical,
+          scriptName,
+          commandRecorder,
+        ),
+      );
+    }
+    assert.deepEqual(commandRecorder.read(), [
+      typecheckInvocation,
+      parentRstestInvocation,
+      parentTypecheckInvocation,
+      ...bridgeCheckInvocations,
+      ...composedCheckInvocations,
+    ]);
+
+    commandRecorder.clear();
+    const failedParentGate = runGeneratedScript(
+      workspaceDir,
+      rootPackageAfterVertical,
+      'bridge:parent-typecheck',
+      commandRecorder,
+      parentTypecheckInvocation.argv,
     );
-    assert.match(rootPackageAfterVertical.scripts.check, /pnpm bridge:check/u);
+    assert.equal(failedParentGate.status, 73);
+    assert.deepEqual(commandRecorder.read(), [parentTypecheckInvocation]);
+
+    commandRecorder.clear();
+    const failedBridgeCheck = runGeneratedScript(
+      workspaceDir,
+      rootPackageAfterVertical,
+      'bridge:check',
+      commandRecorder,
+      bridgeCheckInvocations[0].argv,
+    );
+    assert.equal(failedBridgeCheck.status, 73);
+    assert.deepEqual(commandRecorder.read(), [bridgeCheckInvocations[0]]);
+
+    commandRecorder.clear();
+    const failedComposedCheck = runGeneratedScript(
+      workspaceDir,
+      rootPackageAfterVertical,
+      'check',
+      commandRecorder,
+      ['typecheck'],
+    );
+    assert.equal(failedComposedCheck.status, 73);
+    assert.deepEqual(
+      commandRecorder.read(),
+      composedCheckInvocations.slice(0, 3),
+    );
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }

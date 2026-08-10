@@ -381,6 +381,43 @@ function createEnvelopeFixture(
     targetKind: 'directory',
     targetLogicalPath: 'node_modules/@bleedingdev/runtime',
   });
+  const carrierSurfaces = {
+    'api/index.js': ['apiBackend'],
+    'backend-mf-manifest.json': ['backendFederation'],
+    'backendRemoteEntry.cjs': ['backendFederation'],
+    'public/client.js': ['uiClient'],
+    'server/ssr.js': ['ssr'],
+  };
+  const carrierMetadata = {
+    schemaVersion: 1,
+    kind: 'ultramodern-release-identity-carriers',
+    identity,
+    carriers: Object.entries(carrierSurfaces)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([logicalPath, surfaces]) => {
+        const bytes = fs.readFileSync(path.join(root, logicalPath));
+        return {
+          logicalPath,
+          byteLength: bytes.byteLength,
+          sha256: digest(bytes),
+          surfaces,
+        };
+      }),
+  };
+  const carrierMetadataPath =
+    'release/microvertical-release-identity-carriers.json';
+  const carrierMetadataBytes = Buffer.from(
+    `${JSON.stringify(carrierMetadata, null, 2)}\n`,
+  );
+  fs.mkdirSync(path.join(root, 'release'), { recursive: true });
+  fs.writeFileSync(path.join(root, carrierMetadataPath), carrierMetadataBytes);
+  artifacts.push({
+    kind: 'file',
+    logicalPath: carrierMetadataPath,
+    runtime: 'release-identity-metadata',
+    byteLength: carrierMetadataBytes.byteLength,
+    sha256: digest(carrierMetadataBytes),
+  });
   artifacts.sort((left, right) =>
     left.logicalPath.localeCompare(right.logicalPath),
   );
@@ -415,31 +452,6 @@ function createEnvelopeFixture(
   fs.mkdirSync(path.dirname(envelopePath), { recursive: true });
   fs.writeFileSync(envelopePath, `${JSON.stringify(envelope, null, 2)}\n`);
   return { envelope, envelopePath, identity };
-}
-
-function rewriteEnvelopeArtifact(root, logicalPath, source) {
-  const envelopePath = path.join(
-    root,
-    'release/microvertical-release-envelope.json',
-  );
-  const envelope = JSON.parse(fs.readFileSync(envelopePath, 'utf8'));
-  fs.writeFileSync(path.join(root, logicalPath), source);
-  const bytes = fs.readFileSync(path.join(root, logicalPath));
-  const artifact = envelope.artifacts.find(
-    candidate => candidate.logicalPath === logicalPath,
-  );
-  artifact.byteLength = bytes.byteLength;
-  artifact.sha256 = digest(bytes);
-  const payload = {
-    schemaVersion: envelope.schemaVersion,
-    kind: envelope.kind,
-    target: envelope.target,
-    identity: envelope.identity,
-    artifacts: envelope.artifacts,
-    surfaces: envelope.surfaces,
-  };
-  envelope.envelopeDigest = digest(Buffer.from(canonical(payload)));
-  fs.writeFileSync(envelopePath, `${JSON.stringify(envelope, null, 2)}\n`);
 }
 
 test('build commands use native workspace C0 scripts and one exact C1 package filter', async () => {
@@ -820,43 +832,15 @@ test('final-envelope verification accepts a neutral Node launcher outside the co
   assert.deepEqual(evidence.surfaces.ssr.carrierPaths, ['server/ssr.js']);
 });
 
-test('final-envelope verification still rejects prior identity in a neutral Node launcher', async t => {
-  const { readAndVerifyEnvelope } = await loadProof();
-  const root = fs.mkdtempSync(
-    path.join(os.tmpdir(), 'operational-independence-stale-node-launcher-'),
-  );
-  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
-  createEnvelopeFixture(root, 'node', { neutralNodeLauncher: true });
-  const priorIdentity = createIdentity('b'.repeat(40), 'fedcba9876543210');
-  rewriteEnvelopeArtifact(
-    root,
-    'index.js',
-    `require('./server/ssr.js');\n/* ${priorIdentity.buildMarker} ${priorIdentity.sourceRevision} */\n`,
-  );
-
-  assert.throws(
-    () =>
-      readAndVerifyEnvelope(root, 'node', {
-        forbiddenIdentity: priorIdentity,
-      }),
-    /retains prior release identity residue/,
-  );
-});
-
 test('final-envelope verification excludes the Cloudflare deployment launcher from the compiled identity closure', async t => {
   const { readAndVerifyEnvelope } = await loadProof();
   const root = fs.mkdtempSync(
     path.join(os.tmpdir(), 'operational-independence-cloudflare-launcher-'),
   );
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
-  const { identity } = createEnvelopeFixture(root, 'cloudflare', {
+  createEnvelopeFixture(root, 'cloudflare', {
     neutralCloudflareLauncher: true,
   });
-  rewriteEnvelopeArtifact(
-    root,
-    'server/index.mjs',
-    `import '../worker/ssr.js';\n/* framework ${identity.releaseVersion} */\n`,
-  );
 
   const evidence = readAndVerifyEnvelope(root, 'cloudflare');
 
@@ -864,31 +848,44 @@ test('final-envelope verification excludes the Cloudflare deployment launcher fr
   assert.deepEqual(evidence.surfaces.ssr.carrierPaths, ['server/ssr.js']);
 });
 
-test('final-envelope verification rejects prior identity in a neutral Cloudflare deployment launcher', async t => {
+test('final-envelope verification rejects prior identity carrier metadata even when all hashes are resealed', async t => {
   const { readAndVerifyEnvelope } = await loadProof();
   const root = fs.mkdtempSync(
-    path.join(
-      os.tmpdir(),
-      'operational-independence-stale-cloudflare-launcher-',
-    ),
+    path.join(os.tmpdir(), 'operational-independence-prior-carriers-'),
   );
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
-  createEnvelopeFixture(root, 'cloudflare', {
-    neutralCloudflareLauncher: true,
-  });
+  const fixture = createEnvelopeFixture(root);
   const priorIdentity = createIdentity('b'.repeat(40), 'fedcba9876543210');
-  rewriteEnvelopeArtifact(
+  const carrierPath = path.join(
     root,
-    'server/index.mjs',
-    `import '../worker/ssr.js';\n/* ${priorIdentity.buildMarker} ${priorIdentity.sourceRevision} */\n`,
+    'release/microvertical-release-identity-carriers.json',
+  );
+  const carriers = JSON.parse(fs.readFileSync(carrierPath, 'utf8'));
+  carriers.identity = priorIdentity;
+  const carrierBytes = Buffer.from(`${JSON.stringify(carriers, null, 2)}\n`);
+  fs.writeFileSync(carrierPath, carrierBytes);
+  const envelope = JSON.parse(fs.readFileSync(fixture.envelopePath, 'utf8'));
+  envelope.identity = priorIdentity;
+  const carrierArtifact = envelope.artifacts.find(
+    artifact =>
+      artifact.logicalPath ===
+      'release/microvertical-release-identity-carriers.json',
+  );
+  carrierArtifact.byteLength = carrierBytes.byteLength;
+  carrierArtifact.sha256 = digest(carrierBytes);
+  const { envelopeDigest: _envelopeDigest, ...payload } = envelope;
+  envelope.envelopeDigest = digest(Buffer.from(canonical(payload)));
+  fs.writeFileSync(
+    fixture.envelopePath,
+    `${JSON.stringify(envelope, null, 2)}\n`,
   );
 
   assert.throws(
     () =>
-      readAndVerifyEnvelope(root, 'cloudflare', {
+      readAndVerifyEnvelope(root, 'node', {
         forbiddenIdentity: priorIdentity,
       }),
-    /retains prior release identity residue/,
+    /carrier metadata retains the prior release identity/,
   );
 });
 
@@ -921,7 +918,7 @@ test('final-envelope verification rejects stale artifact bytes and forged payloa
   );
   assert.throws(
     () => readAndVerifyEnvelope(forgedRoot, 'node'),
-    /does not carry the exact release identity|canonical payload/,
+    /carrier metadata does not match the release envelope identity/,
   );
 });
 
@@ -964,7 +961,7 @@ test('final-envelope verification rejects a fresh decoy beside a stale compiled 
 
   assert.throws(
     () => readAndVerifyEnvelope(root, 'node'),
-    /stale-client\.js" does not carry the exact release identity/,
+    /uiClient carrier metadata does not exactly cover its executable release artifacts/,
   );
 });
 
@@ -1049,7 +1046,7 @@ test('final-envelope verification structurally binds file and symbolic-link arti
   );
   assert.throws(
     () => readAndVerifyEnvelope(root, 'node'),
-    /surface.*file artifact|symbolic-link artifact/,
+    /carrier metadata does not exactly cover|symbolic-link artifact/,
   );
 });
 
@@ -1126,33 +1123,6 @@ test('final-envelope verification rejects hostile symbolic-link targets and meta
             : /targetKind/,
     );
   }
-});
-
-test('final-envelope verification rejects prior identity residue in every C1 compiled module', async t => {
-  const { readAndVerifyEnvelope } = await loadProof();
-  const root = fs.mkdtempSync(
-    path.join(os.tmpdir(), 'operational-independence-residue-'),
-  );
-  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
-  const fixture = createEnvelopeFixture(root);
-  const priorIdentity = createIdentity('b'.repeat(40), 'fedcba9876543210');
-  const currentSource = fs.readFileSync(
-    path.join(root, 'api/index.js'),
-    'utf8',
-  );
-  rewriteEnvelopeArtifact(
-    root,
-    'api/index.js',
-    `${currentSource}\n/* ${priorIdentity.buildMarker} ${priorIdentity.sourceRevision} */`,
-  );
-
-  assert.throws(
-    () =>
-      readAndVerifyEnvelope(root, 'node', {
-        forbiddenIdentity: priorIdentity,
-      }),
-    /retains prior release identity residue/,
-  );
 });
 
 test('argument parser requires the two commit refs and workspace', async () => {

@@ -20,11 +20,10 @@ export default function MfPage() {
   const count = match.loaderData!.count;
   const [clientReady, setClientReady] = React.useState(false);
   const [effectMessage, setEffectMessage] = React.useState('pending');
-  const hostBootIdentity = React.useRef('');
+  const hostBootIdentity = React.useId();
 
   React.useEffect(() => {
     let canceled = false;
-    hostBootIdentity.current ||= crypto.randomUUID();
     setClientReady(true);
 
     hostEffectBff.client.greetings
@@ -51,7 +50,7 @@ export default function MfPage() {
       <div id="host-mf-count">host-mf-count:{count}</div>
       <div id="host-effect-message">host-effect:{effectMessage}</div>
       <div id="host-boot-identity">
-        {clientReady ? hostBootIdentity.current : 'pending'}
+        {clientReady ? hostBootIdentity : 'pending'}
       </div>
       {!clientReady ? (
         <>

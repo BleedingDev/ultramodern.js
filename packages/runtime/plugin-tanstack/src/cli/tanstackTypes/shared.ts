@@ -1,6 +1,5 @@
 // @effect-diagnostics asyncFunction:off strictBooleanExpressions:off
 
-import path from 'node:path';
 import { getPathWithoutExt } from '@modern-js/runtime/cli';
 import type { NestedRouteForCli, PageRoute } from '@modern-js/types';
 import { findExists, formatImportPath, slash } from '@modern-js/utils';

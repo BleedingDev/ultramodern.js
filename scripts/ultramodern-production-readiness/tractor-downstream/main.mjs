@@ -36,10 +36,9 @@ import {
   assertAuthenticatedTractorCohort,
   assertExactModernDependencySpecifiers,
   assertNativeTanStackSearch,
-  assertProtectedUiUnchanged,
+  assertVisibleTractorUi,
   requiredTractorCheckIds,
   requiredVisibleRuntimePlatforms,
-  snapshotProtectedUi,
 } from './contract.mjs';
 
 const defaultOut =
@@ -414,8 +413,10 @@ function runVisibleWorkflow({
   }
   return {
     assertionCount: workflow.assertions.length,
+    nativeSearch: assertNativeTanStackSearch(workflow),
     platform,
     routes: workflow.assertions.map(assertion => assertion.route),
+    ui: assertVisibleTractorUi(workflow),
   };
 }
 
@@ -528,17 +529,6 @@ async function runTractorDownstreamAcceptance(
       options.workspace,
       runImpl,
     );
-    const uiBefore = snapshotProtectedUi(options.workspace);
-    report.checks.push({
-      id: 'ui-baseline',
-      status: 'passed',
-      detail: {
-        excludedPatterns: uiBefore.excludedPatterns,
-        fileCount: uiBefore.fileCount,
-        sha256: uiBefore.sha256,
-      },
-    });
-
     runImpl(
       packageManager.pnpmExecutable,
       createPnpmDlxArgs(createPackage, [
@@ -575,21 +565,6 @@ async function runTractorDownstreamAcceptance(
         dependencyObservationCount: dependencyObservations.length,
         generatedCohort,
       },
-    });
-
-    const nativeSearch = assertNativeTanStackSearch(options.workspace);
-    report.checks.push({
-      id: 'native-tanstack-search',
-      status: 'passed',
-      detail: nativeSearch,
-    });
-    report.checks.push({
-      id: 'migration-preserves-visible-ui-source',
-      status: 'passed',
-      detail: assertProtectedUiUnchanged(
-        uiBefore,
-        snapshotProtectedUi(options.workspace),
-      ),
     });
 
     for (const [command, args] of requiredCommands) {
@@ -690,11 +665,28 @@ async function runTractorDownstreamAcceptance(
     }
 
     report.checks.push({
-      id: 'final-visible-ui-source',
+      id: 'native-tanstack-search',
       status: 'passed',
-      detail: assertProtectedUiUnchanged(
-        uiBefore,
-        snapshotProtectedUi(options.workspace),
+      detail: Object.fromEntries(
+        requiredVisibleRuntimePlatforms.map(platform => [
+          platform,
+          report.checks.find(
+            check => check.id === `${platform}-visible-tractor-workflow`,
+          )?.detail.nativeSearch,
+        ]),
+      ),
+    });
+
+    report.checks.push({
+      id: 'visible-tractor-ui',
+      status: 'passed',
+      detail: Object.fromEntries(
+        requiredVisibleRuntimePlatforms.map(platform => [
+          platform,
+          report.checks.find(
+            check => check.id === `${platform}-visible-tractor-workflow`,
+          )?.detail.ui,
+        ]),
       ),
     });
     const checkIds = report.checks.map(check => check.id);

@@ -14,9 +14,12 @@ import {
 
 rstest.mock('@modern-js/utils', () => {
   const fs = {
+    ensureDir() {},
     writeFile() {},
     writeJSON() {},
     ensureFile() {},
+    outputFile() {},
+    remove() {},
   };
   return {
     __esModule: true,
@@ -221,6 +224,39 @@ describe('fileSystemRoutes', () => {
     expect(loadedPage.default.moduleId).toBe(
       '@_modern_js_src/routes/user/[id]/page.tsx',
     );
+  });
+
+  test('routes isolated server data through a generated RSC boundary', async () => {
+    const generatedModule = await executeGeneratedModule(
+      await fileSystemRoutes({
+        metaName: 'modern-js',
+        entryName: 'main',
+        internalDirectory: '',
+        isolateRouteDataInRscLayer: true,
+        nestedRoutesEntry: '/repo/src/routes',
+        routes: [
+          {
+            path: '/',
+            id: 'layout',
+            type: 'nested' as const,
+            children: [
+              {
+                data: '@_modern_js_src/routes/inventory/page.data.ts',
+                id: 'inventory/page',
+                path: 'inventory',
+                type: 'nested' as const,
+              },
+            ],
+          },
+        ],
+        ssrMode: 'stream',
+      }),
+    );
+
+    const [rootRoute] = generatedModule.routes;
+    const [inventoryRoute] = rootRoute.children;
+    const resolvedLoader = inventoryRoute.loader();
+    expect(resolvedLoader.moduleId).toBe('./__rsc_route_data__/loader_0.js');
   });
 
   test('executes synchronous route components for stream SSR when route chunks are disabled', async () => {
@@ -520,5 +556,48 @@ describe('ssrLoaderCombinedModule', () => {
     const loadedModules = await generatedModule.loadModules();
     expect(loadedModules.runtimeLoader()).toBe('runtime-loader');
     expect(loadedModules.routeServerLoader()).toBe('route-server');
+  });
+
+  test('keeps plugin-owned RSC loaders out of the conventional SSR loader bundle', async () => {
+    const code = ssrLoaderCombinedModule(
+      entrypoints as any,
+      entrypoint as any,
+      {
+        server: { ssr: true, ssrByEntries: {} },
+        output: {},
+        source: { enableAsyncEntry: false },
+      } as any,
+      appContext as any,
+      { includeRouteServerLoaders: false },
+    );
+    if (!code) {
+      throw new Error('expected an SSR loader module');
+    }
+
+    const generatedModule = await executeGeneratedModule(code);
+    expect(generatedModule.runtimeLoader()).toBe('runtime-loader');
+    expect(generatedModule.routeServerLoader).toBeUndefined();
+  });
+
+  test('loads only the asynchronous runtime loader for plugin-owned RSC routes', async () => {
+    const code = ssrLoaderCombinedModule(
+      entrypoints as any,
+      entrypoint as any,
+      {
+        server: { ssr: true, ssrByEntries: {} },
+        output: {},
+        source: { enableAsyncEntry: true },
+      } as any,
+      appContext as any,
+      { includeRouteServerLoaders: false },
+    );
+    if (!code) {
+      throw new Error('expected an async SSR loader module');
+    }
+
+    const generatedModule = await executeGeneratedModule(code);
+    const loadedModules = await generatedModule.loadModules();
+    expect(loadedModules.runtimeLoader()).toBe('runtime-loader');
+    expect(loadedModules.routeServerLoader).toBeUndefined();
   });
 });

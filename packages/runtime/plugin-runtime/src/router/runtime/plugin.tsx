@@ -18,6 +18,7 @@ import * as React from 'react';
 import { useContext, useEffect, useMemo } from 'react';
 import type { RuntimePlugin } from '../../common';
 import {
+  getGlobalEnableRsc,
   getGlobalIsRscClient,
   getGlobalLayoutApp,
   getGlobalRoutes,
@@ -38,6 +39,8 @@ import {
   renderRoutes,
   urlJoin,
 } from './utils';
+
+declare const __MODERN_ENABLE_RSC__: boolean;
 
 export let finalRouteConfig: RouterConfig['routesConfig'] = {
   routes: [],
@@ -151,7 +154,11 @@ export const routerPlugin = (
 
         const RouterWrapper = (props: any) => {
           const routerResult = useRouterCreation(
-            process.env.MODERN_ENABLE_RSC
+            (
+              typeof __MODERN_ENABLE_RSC__ !== 'undefined'
+                ? __MODERN_ENABLE_RSC__
+                : getGlobalEnableRsc() === true
+            )
               ? {
                   ...props,
                   rscPayload: props?.rscPayload,
@@ -238,16 +245,24 @@ function useRouterCreation(props: any, options: UseRouterCreationOptions) {
       : baseUrl;
 
   const { unstable_getBlockNavState: getBlockNavState } = runtimeContext;
-  // Keep the define expression inline at every RSC branch. Rspack can then
-  // remove the RSC imports in both production and development compilations.
+  // Keep the compile-time flag inline at every RSC branch so Rspack can prune
+  // RSC-only modules in non-RSC development and production bundles. Runtime
+  // consumers without the builder define use the generated context fallback.
   const rscPayload =
-    process.env.MODERN_ENABLE_RSC && props?.rscPayload
+    (typeof __MODERN_ENABLE_RSC__ !== 'undefined'
+      ? __MODERN_ENABLE_RSC__
+      : getGlobalEnableRsc() === true) && props?.rscPayload
       ? safeUse(props.rscPayload)
       : null;
 
-  let hydrationData = process.env.MODERN_ENABLE_RSC
-    ? window._ROUTER_DATA || rscPayload
-    : window._ROUTER_DATA;
+  let hydrationData =
+    typeof __MODERN_ENABLE_RSC__ !== 'undefined'
+      ? __MODERN_ENABLE_RSC__
+        ? window._ROUTER_DATA || rscPayload
+        : window._ROUTER_DATA
+      : getGlobalEnableRsc() === true
+        ? window._ROUTER_DATA || rscPayload
+        : window._ROUTER_DATA;
 
   return useMemo(() => {
     if (hydrationData?.errors) {
@@ -258,7 +273,12 @@ function useRouterCreation(props: any, options: UseRouterCreationOptions) {
     }
 
     let routes: RouteObject[] | null = null;
-    if (process.env.MODERN_ENABLE_RSC && getGlobalIsRscClient()) {
+    if (
+      (typeof __MODERN_ENABLE_RSC__ !== 'undefined'
+        ? __MODERN_ENABLE_RSC__
+        : getGlobalEnableRsc() === true) &&
+      getGlobalIsRscClient()
+    ) {
       routes = createRoutes
         ? createRoutes()
         : createRouteObjectsFromConfig({
@@ -281,7 +301,12 @@ function useRouterCreation(props: any, options: UseRouterCreationOptions) {
 
     const hooks = api.getHooks();
 
-    if (process.env.MODERN_ENABLE_RSC && rscPayload) {
+    if (
+      (typeof __MODERN_ENABLE_RSC__ !== 'undefined'
+        ? __MODERN_ENABLE_RSC__
+        : getGlobalEnableRsc() === true) &&
+      rscPayload
+    ) {
       try {
         const router = createClientRouterFromPayload(
           rscPayload,

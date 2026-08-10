@@ -1,3 +1,5 @@
+import { wait } from '@modern-js/utils';
+
 const DEFAULT_ATTEMPTS = 3;
 const DEFAULT_RETRY_DELAY_MS = 100;
 const DEFAULT_TIMEOUT_MS = 1_000;
@@ -94,7 +96,7 @@ const isRetryableError = (error: unknown) => {
 };
 
 const isHttpManifestUrl = (id: string | undefined): id is string => {
-  if (!id) {
+  if (id === undefined || id.length === 0) {
     return false;
   }
 
@@ -109,27 +111,17 @@ const isHttpManifestUrl = (id: string | undefined): id is string => {
   }
 };
 
-const defaultWait = (milliseconds: number) =>
-  new Promise<void>(resolve => {
-    setTimeout(resolve, milliseconds);
-  });
+const defaultWait = (milliseconds: number): Promise<void> =>
+  wait(milliseconds).then(() => undefined);
 
-const fetchWithTimeout = async (
+const fetchWithTimeout = (
   fetchImpl: typeof fetch,
   url: string,
   timeoutMs: number,
-) => {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-
-  try {
-    return await fetchImpl(url, {
-      signal: controller.signal,
-    });
-  } finally {
-    clearTimeout(timeout);
-  }
-};
+) =>
+  fetchImpl(url, {
+    signal: AbortSignal.timeout(timeoutMs),
+  });
 
 /**
  * Gives server-side manifest loading a small, bounded recovery window.
@@ -163,55 +155,59 @@ export const createModuleFederationManifestRecoveryPlugin = (
   const fetchImpl = options.fetchImpl ?? globalThis.fetch;
   const waitImpl = options.waitImpl ?? defaultWait;
 
+  const recoverManifest = (url: string, attempt: number): Promise<unknown> => {
+    const fetchManifest = () =>
+      Promise.resolve()
+        .then(() => fetchWithTimeout(fetchImpl, url, timeoutMs))
+        .then(
+          response => {
+            if (!response.ok) {
+              if (
+                !RETRYABLE_HTTP_STATUSES.has(response.status) ||
+                attempt === attempts - 1
+              ) {
+                return undefined;
+              }
+
+              return recoverManifest(url, attempt + 1);
+            }
+
+            return Promise.resolve()
+              .then(() => response.json())
+              .then(
+                manifest => manifest,
+                () => undefined,
+              );
+          },
+          error => {
+            if (!isRetryableError(error) || attempt === attempts - 1) {
+              return undefined;
+            }
+
+            return recoverManifest(url, attempt + 1);
+          },
+        );
+
+    if (attempt > 0 && retryDelayMs > 0) {
+      return waitImpl(retryDelayMs).then(fetchManifest);
+    }
+
+    return fetchManifest();
+  };
+
   return {
     name: 'modern-js-manifest-recovery-plugin',
-    async errorLoadRemote(args: ErrorLoadRemoteArgs) {
+    errorLoadRemote(args: ErrorLoadRemoteArgs) {
       if (
         args.lifecycle !== 'afterResolve' ||
         !isHttpManifestUrl(args.id) ||
         !isRetryableError(args.error) ||
         typeof fetchImpl !== 'function'
       ) {
-        return undefined;
+        return Promise.resolve(undefined);
       }
 
-      for (let attempt = 0; attempt < attempts; attempt++) {
-        if (attempt > 0 && retryDelayMs > 0) {
-          await waitImpl(retryDelayMs);
-        }
-
-        try {
-          const response = await fetchWithTimeout(
-            fetchImpl,
-            args.id,
-            timeoutMs,
-          );
-
-          if (!response.ok) {
-            if (
-              !RETRYABLE_HTTP_STATUSES.has(response.status) ||
-              attempt === attempts - 1
-            ) {
-              return undefined;
-            }
-
-            continue;
-          }
-
-          try {
-            return await response.json();
-          } catch {
-            // A reachable but malformed manifest is not transient.
-            return undefined;
-          }
-        } catch (error) {
-          if (!isRetryableError(error) || attempt === attempts - 1) {
-            return undefined;
-          }
-        }
-      }
-
-      return undefined;
+      return recoverManifest(args.id, 0);
     },
   };
 };

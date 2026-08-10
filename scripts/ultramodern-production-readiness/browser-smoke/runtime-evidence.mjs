@@ -24,6 +24,13 @@ const dependencyBlocks = [
   'optionalDependencies',
   'peerDependencies',
 ];
+const workerRuntimeManifestProbe = [
+  "import { pathToFileURL } from 'node:url';",
+  'const url = pathToFileURL(process.argv[1]);',
+  "url.searchParams.set('runtimeEvidence', Date.now().toString());",
+  'const entry = await import(url.href);',
+  'process.stdout.write(JSON.stringify(entry.modernWorkerManifest));',
+].join('\n');
 
 function canonical(value) {
   if (Array.isArray(value)) {
@@ -886,11 +893,19 @@ function verifyShellWorkerdIdentity(projectDir, app, identity) {
       `${app.id} Cloudflare Wrangler main is missing or escapes its output`,
     );
   }
-  const entrySource = fs.readFileSync(entryPath, 'utf8');
-  const embeddedManifest = `const MODERN_WORKER_MANIFEST = ${JSON.stringify(manifest, null, 2)};`;
-  if (!entrySource.includes(embeddedManifest)) {
+  const runtimeManifest = JSON.parse(
+    execFileSync(
+      process.execPath,
+      ['--input-type=module', '--eval', workerRuntimeManifestProbe, entryPath],
+      {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+      },
+    ),
+  );
+  if (canonical(runtimeManifest) !== canonical(manifest)) {
     throw new Error(
-      `${app.id} executed Cloudflare worker entry does not embed its verified worker manifest`,
+      `${app.id} executed Cloudflare worker runtime manifest differs from its verified worker manifest`,
     );
   }
 }

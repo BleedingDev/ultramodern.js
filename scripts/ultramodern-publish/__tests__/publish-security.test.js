@@ -666,6 +666,13 @@ test('publish validator rejects authority, mutable resolution, and acceptance by
       /without semantic bypasses/u,
     ],
     [
+      'missing change-record schedule policy',
+      parsed => {
+        delete parsed.jobs['publish-change-record'].if;
+      },
+      /override skipped-ancestor propagation/u,
+    ],
+    [
       'mutable Tractor baseline',
       parsed => {
         parsed.jobs['tractor-downstream'].with.tractor_ref = 'main';
@@ -678,6 +685,92 @@ test('publish validator rejects authority, mutable resolution, and acceptance by
     mutate(parsed);
     assert.throws(() => validatePublishWorkflow(parsed), expected, label);
   }
+});
+
+test('publish change record structurally schedules only for a successful real outcome despite a skipped branch ancestor', async () => {
+  const { evaluateJobSchedule } = await import(
+    pathToFileURL(
+      path.join(repoRoot, 'scripts/security/github-job-condition.mjs'),
+    )
+  );
+  const parsed = workflow(publishWorkflowPath);
+  const changeRecordJob = parsed.jobs['publish-change-record'];
+  assert.deepEqual(normalizeNeeds(changeRecordJob), ['record-publish-outcome']);
+
+  const results = {
+    'accept-published': 'success',
+    'accept-release': 'success',
+    'prepare-release': 'success',
+    publish: 'success',
+    'publish-security': 'success',
+    'record-publish-outcome': 'success',
+    'tractor-downstream': 'success',
+    'validate-release': 'skipped',
+  };
+  const context = {
+    github: {
+      actor: 'BleedingDev',
+      ref: 'refs/heads/main-ultramodern',
+      repository_owner: 'BleedingDev',
+      triggering_actor: 'BleedingDev',
+    },
+    inputs: { dry_run: false },
+    vars: {},
+  };
+  const schedules = ({ context: nextContext, results: nextResults } = {}) =>
+    evaluateJobSchedule({
+      workflow: parsed,
+      jobId: 'publish-change-record',
+      results: nextResults ?? results,
+      context: nextContext ?? context,
+    });
+
+  assert.equal(
+    schedules(),
+    true,
+    'real release must survive the intentionally skipped dry-run ancestor',
+  );
+  assert.equal(
+    schedules({
+      context: { ...context, inputs: { dry_run: true } },
+    }),
+    false,
+    'dry-run must never publish a change record',
+  );
+  for (const outcomeResult of ['failure', 'cancelled', 'skipped']) {
+    assert.equal(
+      schedules({
+        results: {
+          ...results,
+          'record-publish-outcome': outcomeResult,
+        },
+      }),
+      false,
+      `${outcomeResult} outcome must never publish a change record`,
+    );
+  }
+  for (const identity of ['actor', 'triggering_actor']) {
+    assert.equal(
+      schedules({
+        context: {
+          ...context,
+          github: { ...context.github, [identity]: 'Mallory' },
+        },
+      }),
+      false,
+      `${identity} must remain bound to the repository owner`,
+    );
+  }
+  assert.equal(
+    schedules({
+      context: {
+        ...context,
+        github: { ...context.github, ref: 'refs/heads/not-publish' },
+      },
+    }),
+    false,
+    'change record must remain bound to the publish branch',
+  );
 });
 
 test('readiness validator preserves artifact evidence across checkout', async () => {
@@ -754,81 +847,410 @@ test('publish delegates source-cohort rejection to the authoritative registry AP
   }
 });
 
-test('trusted publisher configuration is strict and always passes npm-publish', async () => {
-  const { parseArgs, readManifest, trustedPublisherArgs } = await import(
-    pathToFileURL(trustedPublisherScriptPath)
-  );
-  const options = parseArgs(['--dry-run']);
-  assert.deepEqual(
-    trustedPublisherArgs('@bleedingdev/modern-js-create', options, true),
-    [
-      'trust',
-      'github',
-      '@bleedingdev/modern-js-create',
-      '--repo',
-      'BleedingDev/ultramodern.js',
-      '--file',
-      'publish-bleedingdev.yml',
-      '--allow-publish',
-      '--env',
-      'npm-publish',
-      '--dry-run',
-      '--yes',
-    ],
-  );
-  assert.throws(
-    () => parseArgs(['--env', 'staging']),
-    /Trusted publishing environment must be npm-publish/,
-  );
-
-  const tempDir = fs.mkdtempSync(
+async function createTrustedPublisherFixture({
+  createTargetName = '@bleedingdev/modern-js-create',
+  includeSecondPackage = false,
+  sourceRepository = 'BleedingDev/ultramodern.js',
+} = {}) {
+  const root = fs.mkdtempSync(
     path.join(os.tmpdir(), 'ultramodern-trusted-publisher-'),
   );
-  try {
-    const binDir = path.join(tempDir, 'bin');
-    const callLog = path.join(tempDir, 'npm-calls.log');
-    const fakeNpm = path.join(binDir, 'npm');
-    const manifestPath = path.join(tempDir, 'manifest.json');
-    fs.mkdirSync(binDir);
+  const binDir = path.join(root, 'bin');
+  const packageDir = path.join(root, 'staged-create');
+  const secondPackageDir = path.join(root, 'staged-i18n-utils');
+  const artifactDir = path.join(root, 'release');
+  const callLog = path.join(root, 'npm-calls.jsonl');
+  const createdTrustMarker = path.join(root, 'created-trust');
+  const fakeNpm = path.join(binDir, 'npm');
+  const version = '3.5.0-ultramodern.103';
+  fs.mkdirSync(binDir);
+  fs.mkdirSync(packageDir);
+  fs.writeFileSync(
+    path.join(packageDir, 'package.json'),
+    `${JSON.stringify({
+      dependencies: {},
+      exports: { '.': './index.js' },
+      name: createTargetName,
+      publishConfig: { access: 'public', exports: { '.': './index.js' } },
+      ultramodern: { frameworkVersion: version },
+      version,
+    })}\n`,
+  );
+  fs.writeFileSync(path.join(packageDir, 'index.js'), 'export {};\n');
+  if (includeSecondPackage) {
+    fs.mkdirSync(secondPackageDir);
     fs.writeFileSync(
-      fakeNpm,
-      ['#!/bin/sh', 'printf \'%s\\n\' "$*" >> "$NPM_CALL_LOG"', ''].join('\n'),
+      path.join(secondPackageDir, 'package.json'),
+      `${JSON.stringify({
+        name: '@bleedingdev/modern-js-i18n-utils',
+        publishConfig: { access: 'public' },
+        version,
+      })}\n`,
     );
-    fs.chmodSync(fakeNpm, 0o755);
-    const legacyManifest = `${JSON.stringify(
-      { packages: [{ targetName: '@bleedingdev/modern-js-create' }] },
-      null,
-      2,
-    )}\n`;
-    fs.writeFileSync(manifestPath, legacyManifest);
-    fs.writeFileSync(
-      path.join(tempDir, 'manifest.json.sha256'),
-      `${crypto.createHash('sha256').update(legacyManifest).digest('hex')}  manifest.json\n`,
-    );
-    assert.throws(
-      () => readManifest(manifestPath),
-      /Release manifest has unknown or missing fields/,
-    );
-    const result = spawnSync(
-      process.execPath,
-      [trustedPublisherScriptPath, '--manifest', manifestPath, '--dry-run'],
-      {
-        cwd: repoRoot,
-        encoding: 'utf8',
-        env: {
-          ...process.env,
-          PATH: `${binDir}${path.delimiter}${process.env.PATH}`,
-          NPM_CALL_LOG: callLog,
-        },
+    fs.writeFileSync(path.join(secondPackageDir, 'index.js'), 'export {};\n');
+  }
+
+  const [releaseArtifactsApi, constants] = await Promise.all([
+    import(
+      pathToFileURL(
+        path.join(
+          repoRoot,
+          'scripts/ultramodern-publish/lib/prepare-bleedingdev-packages/release-artifacts.mjs',
+        ),
+      )
+    ),
+    import(
+      pathToFileURL(
+        path.join(
+          repoRoot,
+          'scripts/ultramodern-publish/lib/prepare-bleedingdev-packages/constants.mjs',
+        ),
+      )
+    ),
+  ]);
+  for (const relativePath of constants.createTemplateRequiredFiles) {
+    const filePath = path.join(packageDir, relativePath);
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, 'fixture\n');
+  }
+  const aliases = {
+    '@modern-js/create': createTargetName,
+    ...(includeSecondPackage
+      ? {
+          '@modern-js/i18n-utils': '@bleedingdev/modern-js-i18n-utils',
+        }
+      : {}),
+  };
+  const packages = [
+    {
+      packageDir: path.relative(repoRoot, packageDir),
+      sourceName: '@modern-js/create',
+      targetName: createTargetName,
+      version,
+    },
+  ];
+  if (includeSecondPackage) {
+    packages.push({
+      packageDir: path.relative(repoRoot, secondPackageDir),
+      sourceName: '@modern-js/i18n-utils',
+      targetName: '@bleedingdev/modern-js-i18n-utils',
+      version,
+    });
+  }
+  releaseArtifactsApi.createReleaseArtifacts({
+    aliases,
+    outDir: artifactDir,
+    packages,
+    source: {
+      commit: '1'.repeat(40),
+      repository: sourceRepository,
+    },
+    tag: 'latest',
+    tools: {
+      node: process.version,
+      npm: 'fake-npm',
+      pnpm: 'fake-pnpm',
+    },
+    version,
+  });
+
+  fs.writeFileSync(
+    fakeNpm,
+    `#!/usr/bin/env node
+const fs = require('node:fs');
+const args = process.argv.slice(2);
+fs.appendFileSync(process.env.NPM_CALL_LOG, JSON.stringify(args) + '\\n');
+if (args[0] === 'trust' && args[1] === 'github' && args[2] === '--help') {
+  if (process.env.NPM_TRUST_SUPPORT === 'missing') {
+    process.stderr.write('npm trust is unavailable\\n');
+    process.exitCode = 1;
+  } else if (process.env.NPM_TRUST_SUPPORT === 'supported') {
+    process.stdout.write('Usage: npm trust github --allow-publish\\n');
+  } else {
+    process.stdout.write('Usage: npm trust github\\n');
+  }
+} else if (args[0] === 'trust' && args[1] === 'list' && args.includes('--json')) {
+  const responses = JSON.parse(process.env.NPM_TRUST_LIST_RESPONSES || '{}');
+  const response = fs.existsSync(process.env.NPM_CREATED_TRUST_MARKER)
+    ? process.env.NPM_TRUST_LIST_RESPONSE_AFTER_CREATE
+    : responses[args[2]] || process.env.NPM_TRUST_LIST_RESPONSE;
+  process.stdout.write(response || '');
+} else if (args[0] === 'trust' && args[1] === 'github') {
+  fs.writeFileSync(process.env.NPM_CREATED_TRUST_MARKER, 'created\\n');
+  process.stdout.write('{"configured":true}\\n');
+} else {
+  process.stderr.write('unexpected fake npm invocation\\n');
+  process.exitCode = 2;
+}
+`,
+  );
+  fs.chmodSync(fakeNpm, 0o755);
+
+  return {
+    artifactDir,
+    binDir,
+    callLog,
+    createdTrustMarker,
+    manifestPath: path.join(artifactDir, 'manifest.json'),
+    root,
+  };
+}
+
+function runTrustedPublisherFixture(fixture, options = {}) {
+  return spawnSync(
+    process.execPath,
+    [
+      trustedPublisherScriptPath,
+      '--manifest',
+      fixture.manifestPath,
+      '--delay-ms',
+      '0',
+    ],
+    {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        PATH: `${fixture.binDir}${path.delimiter}${process.env.PATH}`,
+        NPM_CREATED_TRUST_MARKER: fixture.createdTrustMarker,
+        NPM_CALL_LOG: fixture.callLog,
+        NPM_TRUST_LIST_RESPONSE: options.listResponse ?? '',
+        NPM_TRUST_LIST_RESPONSE_AFTER_CREATE:
+          options.listResponseAfterCreate ?? '',
+        NPM_TRUST_LIST_RESPONSES: JSON.stringify(options.listResponses ?? {}),
+        NPM_TRUST_SUPPORT: options.support ?? 'supported',
       },
-    );
-    assert.notEqual(result.status, 0);
-    assert.match(
-      result.stderr,
-      /Release manifest has unknown or missing fields/,
-    );
-    assert.equal(fs.existsSync(callLog), false, 'npm must not be invoked');
+    },
+  );
+}
+
+function readNpmCalls(fixture) {
+  if (!fs.existsSync(fixture.callLog)) {
+    return [];
+  }
+  return fs
+    .readFileSync(fixture.callLog, 'utf8')
+    .trim()
+    .split('\n')
+    .filter(Boolean)
+    .map(line => JSON.parse(line));
+}
+
+const expectedTrustedPublisher = {
+  environment: 'npm-publish',
+  file: 'publish-bleedingdev.yml',
+  id: 'trust-1',
+  permissions: ['createPackage'],
+  repository: 'BleedingDev/ultramodern.js',
+  type: 'github',
+};
+const trustedPublisherRegistry = 'https://registry.npmjs.org/';
+const expectedTrustListCall = packageName => [
+  'trust',
+  'list',
+  packageName,
+  '--json',
+  '--registry',
+  trustedPublisherRegistry,
+];
+
+test('trusted publisher configuration rejects alternate authority before npm is invoked', async () => {
+  const { parseArgs } = await import(pathToFileURL(trustedPublisherScriptPath));
+  const cases = [
+    [['--env', 'staging'], /environment must be npm-publish/u],
+    [['--repo', 'Mallory/fork'], /repository must be BleedingDev/u],
+    [['--file', 'alternate.yml'], /workflow must be publish-bleedingdev.yml/u],
+  ];
+  for (const [args, expectedError] of cases) {
+    assert.throws(() => parseArgs(args), expectedError);
+  }
+});
+
+test('trusted publisher configuration rejects manifests outside its repository and package scope', async t => {
+  const cases = [
+    {
+      options: { sourceRepository: 'Mallory/fork' },
+      name: 'foreign repository',
+    },
+    {
+      options: { createTargetName: '@mallory/modern-js-create' },
+      name: 'foreign package scope',
+    },
+  ];
+  for (const scenario of cases) {
+    await t.test(scenario.name, async () => {
+      const fixture = await createTrustedPublisherFixture(scenario.options);
+      try {
+        const result = runTrustedPublisherFixture(fixture);
+        assert.notEqual(result.status, 0);
+        assert.deepEqual(readNpmCalls(fixture), []);
+      } finally {
+        fs.rmSync(fixture.root, { recursive: true, force: true });
+      }
+    });
+  }
+});
+
+test('trusted publisher configuration fails closed without npm trust publish support', async t => {
+  for (const support of ['missing', 'without-allow-publish']) {
+    await t.test(support, async () => {
+      const fixture = await createTrustedPublisherFixture();
+      try {
+        const result = runTrustedPublisherFixture(fixture, { support });
+        assert.notEqual(result.status, 0);
+        assert.match(result.stderr, /npm trust.*--allow-publish/u);
+        assert.deepEqual(readNpmCalls(fixture), [
+          ['trust', 'github', '--help'],
+        ]);
+      } finally {
+        fs.rmSync(fixture.root, { recursive: true, force: true });
+      }
+    });
+  }
+});
+
+test('trusted publisher configuration creates an absent publish trust exactly once', async () => {
+  const fixture = await createTrustedPublisherFixture();
+  try {
+    const result = runTrustedPublisherFixture(fixture, {
+      listResponseAfterCreate: JSON.stringify(expectedTrustedPublisher),
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(readNpmCalls(fixture), [
+      ['trust', 'github', '--help'],
+      expectedTrustListCall('@bleedingdev/modern-js-create'),
+      [
+        'trust',
+        'github',
+        '@bleedingdev/modern-js-create',
+        '--repo',
+        'BleedingDev/ultramodern.js',
+        '--file',
+        'publish-bleedingdev.yml',
+        '--allow-publish',
+        '--env',
+        'npm-publish',
+        '--registry',
+        trustedPublisherRegistry,
+        '--yes',
+      ],
+      expectedTrustListCall('@bleedingdev/modern-js-create'),
+    ]);
   } finally {
-    fs.rmSync(tempDir, { recursive: true, force: true });
+    fs.rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test('trusted publisher configuration skips an exact existing publish trust', async () => {
+  const fixture = await createTrustedPublisherFixture();
+  try {
+    const result = runTrustedPublisherFixture(fixture, {
+      listResponse: JSON.stringify(expectedTrustedPublisher),
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(readNpmCalls(fixture), [
+      ['trust', 'github', '--help'],
+      expectedTrustListCall('@bleedingdev/modern-js-create'),
+    ]);
+  } finally {
+    fs.rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test('trusted publisher configuration rejects drift and multiple trusts without mutation', async t => {
+  const cases = [
+    {
+      label: 'repository drift',
+      response: [{ ...expectedTrustedPublisher, repository: 'Mallory/fork' }],
+    },
+    {
+      label: 'workflow drift',
+      response: [{ ...expectedTrustedPublisher, file: 'publish.yml' }],
+    },
+    {
+      label: 'environment drift',
+      response: [{ ...expectedTrustedPublisher, environment: 'staging' }],
+    },
+    {
+      label: 'action drift',
+      response: [
+        { ...expectedTrustedPublisher, permissions: ['createStagedPackage'] },
+      ],
+    },
+    {
+      label: 'multiple trusts',
+      response: [expectedTrustedPublisher, { ...expectedTrustedPublisher }],
+    },
+  ];
+  for (const scenario of cases) {
+    await t.test(scenario.label, async () => {
+      const fixture = await createTrustedPublisherFixture();
+      try {
+        const result = runTrustedPublisherFixture(fixture, {
+          listResponse: JSON.stringify(scenario.response),
+        });
+        assert.notEqual(result.status, 0);
+        assert.deepEqual(readNpmCalls(fixture), [
+          ['trust', 'github', '--help'],
+          expectedTrustListCall('@bleedingdev/modern-js-create'),
+        ]);
+      } finally {
+        fs.rmSync(fixture.root, { recursive: true, force: true });
+      }
+    });
+  }
+});
+
+test('trusted publisher configuration preflights the whole cohort before creating missing trusts', async () => {
+  const fixture = await createTrustedPublisherFixture({
+    includeSecondPackage: true,
+  });
+  try {
+    const result = runTrustedPublisherFixture(fixture, {
+      listResponses: {
+        '@bleedingdev/modern-js-i18n-utils': JSON.stringify({
+          ...expectedTrustedPublisher,
+          repository: 'Mallory/fork',
+        }),
+      },
+    });
+    assert.notEqual(result.status, 0);
+    assert.deepEqual(readNpmCalls(fixture), [
+      ['trust', 'github', '--help'],
+      expectedTrustListCall('@bleedingdev/modern-js-create'),
+      expectedTrustListCall('@bleedingdev/modern-js-i18n-utils'),
+    ]);
+  } finally {
+    fs.rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test('trusted publisher configuration verifies registry state after creation', async () => {
+  const fixture = await createTrustedPublisherFixture();
+  try {
+    const result = runTrustedPublisherFixture(fixture);
+    assert.notEqual(result.status, 0);
+    assert.deepEqual(readNpmCalls(fixture), [
+      ['trust', 'github', '--help'],
+      expectedTrustListCall('@bleedingdev/modern-js-create'),
+      [
+        'trust',
+        'github',
+        '@bleedingdev/modern-js-create',
+        '--repo',
+        'BleedingDev/ultramodern.js',
+        '--file',
+        'publish-bleedingdev.yml',
+        '--allow-publish',
+        '--env',
+        'npm-publish',
+        '--registry',
+        trustedPublisherRegistry,
+        '--yes',
+      ],
+      expectedTrustListCall('@bleedingdev/modern-js-create'),
+    ]);
+  } finally {
+    fs.rmSync(fixture.root, { recursive: true, force: true });
   }
 });

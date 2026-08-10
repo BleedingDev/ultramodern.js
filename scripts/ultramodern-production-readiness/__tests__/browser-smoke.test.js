@@ -2049,11 +2049,9 @@ test('release identity evidence verifies the target envelope and its SHA-bound M
       root,
       'apps/shell-super-app/.output/server/index.mjs',
     );
-    const shellWorkerEntry = `const MODERN_WORKER_MANIFEST = ${JSON.stringify(
+    const shellWorkerEntry = `export const modernWorkerManifest = ${JSON.stringify(
       shellWorkerManifest,
-      null,
-      2,
-    )};`;
+    )};\nexport default { fetch() { return new Response('ok'); } };`;
     fs.writeFileSync(shellWorkerEntryPath, shellWorkerEntry);
     assert.equal(
       bindContractToReleaseIdentity({
@@ -2084,7 +2082,7 @@ test('release identity evidence verifies the target envelope and its SHA-bound M
     );
     fs.writeFileSync(
       shellWorkerEntryPath,
-      'const MODERN_WORKER_MANIFEST = {};',
+      "export const modernWorkerManifest = {};\nexport default { fetch() { return new Response('ok'); } };",
     );
     assert.throws(
       () =>
@@ -2093,7 +2091,7 @@ test('release identity evidence verifies the target envelope and its SHA-bound M
           platform: 'workerd',
           projectDir: root,
         }),
-      /executed Cloudflare worker entry does not embed its verified worker manifest/,
+      /executed Cloudflare worker runtime manifest differs from its verified worker manifest/,
     );
     fs.writeFileSync(shellWorkerEntryPath, shellWorkerEntry);
 

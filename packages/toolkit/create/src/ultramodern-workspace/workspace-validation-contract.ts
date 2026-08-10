@@ -38,16 +38,18 @@ import { resolveOwnerAttribution } from './types';
 import {
   CLOUDFLARE_COMPATIBILITY_DATE,
   EFFECT_VERSION,
+  EFFECT_VITEST_VERSION,
   MODULE_FEDERATION_VERSION,
   NODE_VERSION,
   PNPM_VERSION,
+  TANSTACK_HISTORY_VERSION,
 } from './versions';
 import {
   createWorkspaceRootPackageScripts,
   createWorkspaceRootScriptPlan,
 } from './workspace-script-plan';
 
-const WORKSPACE_VALIDATION_CONTRACT_SCHEMA_VERSION = 1;
+const WORKSPACE_VALIDATION_CONTRACT_SCHEMA_VERSION = 2;
 const WORKSPACE_METADATA_SCHEMA_VERSION = 1;
 const WORKSPACE_VALIDATION_CONTRACT_KIND =
   'modernjs.ultramodern-workspace-validation-contract';
@@ -114,214 +116,34 @@ function createReferenceTopologyExpectation(
   };
 }
 
-function createGeneratedSurfacePolicy(workspaceApps: WorkspaceApp[]) {
-  // Native-navigation / native-MF-loading rules apply to EVERY shell's route
-  // tree (G28) — additional shells included, not only the primary.
-  const shellRouteDirectories = workspaceApps
-    .filter(app => app.kind === 'shell')
-    .map(app => ({
-      kind: 'directory' as const,
-      path: `${app.directory}/src/routes`,
-      extensions: ['.ts', '.tsx'],
-    }));
-  const appConfigPaths = workspaceApps.map(
-    app => `${app.directory}/modern.config.ts`,
-  );
-  const moduleFederationConfigPaths = workspaceApps
-    .filter(appEmitsBrowserUi)
-    .map(app => `${app.directory}/module-federation.config.ts`);
-  const appPackagePaths = workspaceApps.map(
-    app => `${app.directory}/package.json`,
-  );
-  const sourceDirectories = workspaceApps.flatMap(app => [
-    `${app.directory}/src`,
-    ...(appHasApi(app) ? [`${app.directory}/api`] : []),
-  ]);
-
-  return {
-    schemaVersion: 1,
-    rules: [
-      {
-        id: 'effect-diagnostics-suppressions',
-        paths: [
-          ...sourceDirectories.map(path => ({
-            kind: 'directory',
-            path,
-            extensions: ['.ts', '.tsx'],
-          })),
-          {
-            kind: 'directory',
-            path: 'scripts',
-            extensions: ['.mts', '.ts'],
-            excludePaths: ['scripts/validate-ultramodern-workspace.mts'],
-          },
-          ...appConfigPaths.map(path => ({ kind: 'file', path })),
-          ...moduleFederationConfigPaths.map(path => ({ kind: 'file', path })),
-        ],
-        patterns: [
-          {
-            id: 'effect-diagnostics-directive',
-            expression: '@effect-diagnostics\\b',
-            flags: 'u',
-            diagnostic:
-              'Generated sources must not suppress Effect diagnostics.',
-            fixArea: 'remove the @effect-diagnostics suppression directive',
-          },
-        ],
-      },
-      {
-        id: 'zephyr-gating',
-        paths: [
-          { kind: 'file', path: 'package.json' },
-          ...appPackagePaths.map(path => ({ kind: 'file', path })),
-          ...appConfigPaths.map(path => ({ kind: 'file', path })),
-          ...moduleFederationConfigPaths.map(path => ({ kind: 'file', path })),
-        ],
-        patterns: [
-          {
-            id: 'ultramodern-zephyr-environment-gate',
-            expression: '\\bULTRAMODERN_ZEPHYR\\b',
-            flags: 'u',
-            diagnostic:
-              'Generated Zephyr integration must not be gated or disabled through ULTRAMODERN_ZEPHYR.',
-            fixArea:
-              'use the framework-owned Zephyr integration without a gate',
-          },
-        ],
-      },
-      {
-        id: 'module-federation-bridge-escapes',
-        paths: moduleFederationConfigPaths.map(path => ({
-          kind: 'file',
-          path,
-        })),
-        patterns: [
-          {
-            id: 'bridge-router-disabled',
-            expression: '\\benableBridgeRouter\\s*:\\s*false\\b',
-            flags: 'u',
-            diagnostic:
-              'Generated Module Federation must keep bridge routing enabled.',
-            fixArea: 'remove enableBridgeRouter: false',
-          },
-          {
-            id: 'dynamic-remote-type-hints-disabled',
-            expression: '\\bdisableDynamicRemoteTypeHints\\s*:\\s*true\\b',
-            flags: 'u',
-            diagnostic:
-              'Generated Module Federation must keep dynamic remote type hints enabled.',
-            fixArea: 'remove disableDynamicRemoteTypeHints: true',
-          },
-          {
-            id: 'shared-exclude-plugin-tree-shaking',
-            expression: '\\btreeShakingSharedExcludePlugins\\b',
-            flags: 'u',
-            diagnostic:
-              'Generated Module Federation must not exclude shared plugins from tree shaking.',
-            fixArea: 'remove treeShakingSharedExcludePlugins',
-          },
-        ],
-      },
-      {
-        id: 'shell-routing-native-navigation',
-        paths: shellRouteDirectories,
-        patterns: [
-          {
-            id: 'window-location-navigation',
-            expression:
-              '\\bwindow\\s*\\.\\s*location(?:\\s*\\.\\s*(?:assign|replace|reload)\\s*\\(|\\s*\\.\\s*href\\s*=|\\s*=)',
-            flags: 'u',
-            diagnostic:
-              'Generated shell routing must use native router navigation instead of window.location.',
-            fixArea:
-              'replace manual window.location navigation with the router primitive',
-          },
-          {
-            id: 'synthetic-anchor-click-interception',
-            structuralMatcher: {
-              kind: 'jsx-attribute',
-              elementName: 'a',
-              attributeName: 'onClick',
-            },
-            diagnostic:
-              'Generated shell routing must not intercept anchor clicks synthetically.',
-            fixArea:
-              'use the router Link primitive without preventDefault interception',
-          },
-        ],
-      },
-      {
-        id: 'module-federation-native-loading',
-        paths: shellRouteDirectories,
-        patterns: [
-          {
-            id: 'manual-module-federation-loading-wrapper',
-            expression: '\\b(?:hydrateRoot|loadRemote|loadShare)\\s*\\(',
-            flags: 'u',
-            diagnostic:
-              'Generated shell routing must use native Module Federation loading primitives.',
-            fixArea:
-              'remove the manual Module Federation hydration or loading wrapper',
-          },
-        ],
-      },
-      {
-        id: 'framework-config-api',
-        paths: [
-          ...appConfigPaths.map(path => ({ kind: 'file', path })),
-          ...moduleFederationConfigPaths.map(path => ({ kind: 'file', path })),
-        ],
-        patterns: [
-          {
-            id: 'direct-process-env-access',
-            expression: '\\bprocess\\s*\\.\\s*env\\b',
-            flags: 'u',
-            diagnostic:
-              'Generated config must use the framework config environment API instead of direct process.env access.',
-            fixArea:
-              'replace direct process.env access with the framework config API',
-          },
-          {
-            id: 'node-child-process-access',
-            expression: '[\'"]node:child_process[\'"]',
-            flags: 'u',
-            diagnostic:
-              'Generated config must not invoke node:child_process directly.',
-            fixArea:
-              'use the framework config API instead of node:child_process',
-          },
-        ],
-      },
-    ],
-  };
-}
+const validationEvidencePolicy = {
+  schemaVersion: 1,
+  required: [
+    { id: 'typescript-compiler', kind: 'compiler' },
+    { id: 'architecture-compiler', kind: 'compiler' },
+    { id: 'executable-modern-config', kind: 'runtime' },
+    { id: 'executable-runtime-config', kind: 'runtime' },
+    { id: 'executable-module-federation-config', kind: 'runtime' },
+    { id: 'executable-build-facade', kind: 'runtime' },
+    { id: 'structured-package-config', kind: 'structured' },
+    { id: 'structured-deploy-config', kind: 'structured' },
+    { id: 'public-behavior-gates', kind: 'behavior' },
+  ],
+} as const;
 
 type WorkspaceValidationContract = ReturnType<
   typeof createWorkspaceValidationContract
 >;
 
 /**
- * Structural thin-shell gate (G30a). A Shell is a thin composition host: it
+ * Structured thin-shell gate (G30a). A Shell is a thin composition host: it
  * owns top-level routing, provisions the Platform Baseline, and composes
- * MicroVertical surfaces — it has no business capability. These rules are
- * purely structural (forbidden file classes + forbidden import patterns), not
- * semantic intent detection:
+ * MicroVertical surfaces without owning business capability. The contract
+ * carries filesystem topology and shell descriptors; compiler-backed
+ * architecture diagnostics enforce published package and Module Federation
+ * boundaries without generated-source token matching.
  *
- *  - a shell package must not contain an api/ or server/ surface, or
- *    backend-federation artifacts (forbidden path classes, relative to the
- *    shell package root — the shell's own `src/api/` client is unaffected);
- *  - shell source must not deep-import a vertical's internals — only published
- *    surfaces (package roots / Module Federation) are allowed.
- *
- * The `forbiddenImportPatterns` below are matched by the generated validator
- * against comment-stripped source: it removes line and block comments (in a
- * string-literal-aware pass, so a `//` inside a string such as `'http://x'` is
- * preserved) before running these matchers. A specifier that only appears in a
- * comment therefore never trips the gate, while a real import carrying a magic
- * comment (`import(/* … *\/ '…')`) is still detected once the comment is gone.
- *
- * The generated validator enforces this block; a violating shell fails the
- * generated `validate` script. Emitted for every configured shell (G28).
+ * The generated validator enforces this block for every configured shell.
  */
 function createStructuralShellPolicy(workspaceApps: WorkspaceApp[]) {
   return {
@@ -353,68 +175,10 @@ function createStructuralShellPolicy(workspaceApps: WorkspaceApp[]) {
           'A thin Shell must not own backend-federation artifacts; backend federation belongs to a MicroVertical delivery unit.',
       },
     ],
-    forbiddenImportPatterns: [
-      {
-        id: 'vertical-directory-deep-import',
-        expression: 'from\\s+[\'"][^\'"]*verticals/[^\'"/]+/',
-        flags: 'u',
-        diagnostic:
-          'A thin Shell must consume only published vertical surfaces (package root or Module Federation), never deep-import a vertical directory.',
-      },
-      {
-        id: 'vertical-directory-side-effect-import',
-        expression: String.raw`import\s+['"][^'"]*verticals/[^'"/]+/`,
-        flags: 'u',
-        diagnostic:
-          'A thin Shell must consume only published vertical surfaces; side-effect imports of vertical directories are forbidden.',
-      },
-      {
-        id: 'vertical-directory-dynamic-import',
-        expression: String.raw`import\s*\(\s*['"][^'"]*verticals/[^'"/]+/`,
-        flags: 'u',
-        diagnostic:
-          'A thin Shell must consume only published vertical surfaces; dynamic imports of vertical directories are forbidden.',
-      },
-      {
-        id: 'vertical-directory-require',
-        expression: String.raw`require\s*\(\s*['"][^'"]*verticals/[^'"/]+/`,
-        flags: 'u',
-        diagnostic:
-          'A thin Shell must consume only published vertical surfaces; require() of vertical directories is forbidden.',
-      },
-      {
-        id: 'workspace-package-source-import',
-        expression: 'from\\s+[\'"]@[^\'"/]+/[^\'"/]+/src/',
-        flags: 'u',
-        diagnostic:
-          'A thin Shell must consume only published package surfaces, never deep-import another package’s raw src/ internals (published subpath exports are allowed).',
-      },
-      {
-        id: 'workspace-package-side-effect-import',
-        expression: String.raw`import\s+['"]@[^/'"]+/[^/'"]+/src/`,
-        flags: 'u',
-        diagnostic:
-          'A thin Shell must consume only published package surfaces; side-effect imports of raw package src/ are forbidden.',
-      },
-      {
-        id: 'workspace-package-dynamic-import',
-        expression: String.raw`import\s*\(\s*['"]@[^/'"]+/[^/'"]+/src/`,
-        flags: 'u',
-        diagnostic:
-          'A thin Shell must consume only published package surfaces; dynamic imports of raw package src/ are forbidden.',
-      },
-      {
-        id: 'workspace-package-require',
-        expression: String.raw`require\s*\(\s*['"]@[^/'"]+/[^/'"]+/src/`,
-        flags: 'u',
-        diagnostic:
-          'A thin Shell must consume only published package surfaces; require() of raw package src/ is forbidden.',
-      },
-    ],
   };
 }
 
-function createFederatedCompositionSourcePolicy(
+function createFederatedCompositionPolicy(
   scope: string,
   hosts: WorkspaceApp[],
   remotes: WorkspaceApp[],
@@ -442,31 +206,6 @@ function createFederatedCompositionSourcePolicy(
           };
         }),
       })),
-    forbiddenSourcePatterns: [
-      {
-        id: 'hydrated-remote-factory',
-        expression: '\\bcreateHydratedRemote\\b',
-        flags: 'u',
-        diagnostic:
-          'Federated hosts must use the framework distributed SSR boundary directly; hydration-time remote factories are forbidden.',
-      },
-      {
-        id: 'hydration-flag',
-        expression:
-          '\\[\\s*(?:is)?[Hh]ydrated\\s*,\\s*set(?:Is)?Hydrated\\s*\\]\\s*=\\s*useState\\s*\\(\\s*false\\s*\\)',
-        flags: 'u',
-        diagnostic:
-          'Federated hosts must hydrate the server DOM directly; hydrated-state component switching is forbidden.',
-      },
-      {
-        id: 'local-loading-copy',
-        expression:
-          '(?:loading\\s*:\\s*|fallback\\s*=\\s*\\{\\s*)<\\s*(?:ServerComponent|LocalComponent)\\b',
-        flags: 'u',
-        diagnostic:
-          'Federated hosts must not render a local component copy while loading a remote implementation.',
-      },
-    ],
   };
 }
 
@@ -707,10 +446,7 @@ export function createWorkspaceValidationContract(
       ],
       forbiddenTopologyFields: ['effectServices', 'remotes'],
     },
-    generatedSurfacePolicy: createGeneratedSurfacePolicy([
-      ...workspaceApps,
-      ...additionalShells,
-    ]),
+    validationEvidencePolicy,
     packageScope: scope,
     node: {
       version: NODE_VERSION,
@@ -719,13 +455,15 @@ export function createWorkspaceValidationContract(
     versions: {
       cloudflareCompatibilityDate: CLOUDFLARE_COMPATIBILITY_DATE,
       effect: EFFECT_VERSION,
+      effectVitest: EFFECT_VITEST_VERSION,
       moduleFederation: MODULE_FEDERATION_VERSION,
       node: NODE_VERSION,
       pnpm: PNPM_VERSION,
+      tanstackHistory: TANSTACK_HISTORY_VERSION,
     },
     tailwindEnabled: enableTailwind,
     structuralShellPolicy: createStructuralShellPolicy(configuredShells),
-    federatedCompositionSourcePolicy: createFederatedCompositionSourcePolicy(
+    federatedCompositionPolicy: createFederatedCompositionPolicy(
       scope,
       [...configuredShells, ...remotes],
       remotes,

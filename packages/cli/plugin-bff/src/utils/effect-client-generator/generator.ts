@@ -17,37 +17,38 @@ import type {
  * the group/endpoint structure of the HttpApi instead of erasing it to
  * `Record<string, ...>`.
  */
-export async function generateEffectClient(
+export function generateEffectClient(
   options: EffectClientCodegenOptions,
 ): Promise<GeneratedEffectClientArtifacts | null> {
-  const api = await loadEffectApi({
+  return loadEffectApi({
     appDir: options.appDir,
     resourcePath: options.resourcePath,
     onDependency: options.onDependency,
-  });
-  if (!api) {
-    logger.warn(
-      `[BFF][Effect] Failed to generate client for ${options.resourcePath}: unable to resolve exported HttpApi.`,
-    );
-    return null;
-  }
+  }).then(api => {
+    if (api === null) {
+      logger.warn(
+        `[BFF][Effect] Failed to generate client for ${options.resourcePath}: unable to resolve exported HttpApi.`,
+      );
+      return null;
+    }
 
-  const httpApiRuntime = await getHttpApiRuntime();
-  const endpoints = collectEffectEndpoints(
-    httpApiRuntime.reflect,
-    api,
-    options.prefix,
-  );
-  return {
-    code: renderEffectClientCode(endpoints, options),
-    declaration: renderEffectClientDeclaration(endpoints),
-    endpoints,
-  };
+    return getHttpApiRuntime().then(httpApiRuntime => {
+      const endpoints = collectEffectEndpoints(
+        httpApiRuntime.reflect,
+        api,
+        options.prefix,
+      );
+      return {
+        code: renderEffectClientCode(endpoints, options),
+        declaration: renderEffectClientDeclaration(endpoints),
+        endpoints,
+      };
+    });
+  });
 }
 
-export async function generateEffectClientCode(
-  options: EffectClientCodegenOptions,
-) {
-  const artifacts = await generateEffectClient(options);
-  return artifacts ? artifacts.code : null;
+export function generateEffectClientCode(options: EffectClientCodegenOptions) {
+  return generateEffectClient(options).then(artifacts =>
+    artifacts === null ? null : artifacts.code,
+  );
 }

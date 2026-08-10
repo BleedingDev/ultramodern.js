@@ -165,6 +165,65 @@ test('excludes changesets already reachable from the previous release', async ()
   }
 });
 
+test('regenerates the same non-empty record after the target release tag exists', async () => {
+  const { execFileSync } = require('node:child_process');
+  const fs = require('node:fs');
+  const os = require('node:os');
+
+  const { generateCohortChangeRecord } = await loadGenerator();
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cohort-record-rerun-'));
+  const run = (...args) =>
+    execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
+  try {
+    run('init', '-q', '-b', 'main');
+    run('config', 'user.email', 'debug@ultramodern.local');
+    run('config', 'user.name', 'UltraModern Debug');
+    fs.mkdirSync(path.join(root, '.changeset'));
+
+    fs.writeFileSync(
+      path.join(root, '.changeset', 'released.md'),
+      "---\n'@modern-js/runtime': patch\n---\n\nfix(runtime): already shipped\n",
+    );
+    run('add', '-A');
+    run('commit', '-qm', 'released');
+    run('tag', 'ultramodern-v3.5.0-ultramodern.1');
+
+    fs.writeFileSync(
+      path.join(root, '.changeset', 'target.md'),
+      "---\n'@modern-js/runtime': patch\n---\n\nfix(runtime): target release\n",
+    );
+    run('add', '-A');
+    run('commit', '-qm', 'target');
+    const githubSha = run('rev-parse', 'HEAD');
+    const version = '3.5.0-ultramodern.2';
+    const firstOutput = path.join(root, 'first.md');
+    const rerunOutput = path.join(root, 'rerun.md');
+
+    await generateCohortChangeRecord({
+      rootDir: root,
+      version,
+      out: firstOutput,
+      commit: githubSha,
+      repository: 'BleedingDev/ultramodern.js',
+    });
+    run('tag', `ultramodern-v${version}`, githubSha);
+    await generateCohortChangeRecord({
+      rootDir: root,
+      version,
+      out: rerunOutput,
+      commit: githubSha,
+      repository: 'BleedingDev/ultramodern.js',
+    });
+
+    const first = fs.readFileSync(firstOutput);
+    const rerun = fs.readFileSync(rerunOutput);
+    assert.ok(first.byteLength > 0);
+    assert.deepEqual(rerun, first);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('rejects a rendered body over the GitHub release-notes limit', async () => {
   const { renderCohortChangeRecord, MAX_RELEASE_BODY_CHARS } =
     await loadGenerator();

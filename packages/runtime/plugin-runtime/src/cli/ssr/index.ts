@@ -325,6 +325,9 @@ const ssrBuilderPlugin = (
             'process.env.MODERN_ENABLE_RSC': JSON.stringify(
               Boolean(userConfig.server?.rsc),
             ),
+            __MODERN_ENABLE_RSC__: JSON.stringify(
+              Boolean(userConfig.server?.rsc),
+            ),
             'process.env.MODERN_MF_APP_SSR': JSON.stringify(
               isModuleFederationAppSSR,
             ),

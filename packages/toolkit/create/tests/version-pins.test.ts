@@ -18,6 +18,7 @@ import {
   MODULE_FEDERATION_VERSION,
   NODE_FETCH_VERSION,
   PNPM_VERSION,
+  TANSTACK_HISTORY_VERSION,
   TANSTACK_ROUTER_CORE_VERSION,
   TANSTACK_ROUTER_VERSION,
 } from '../src/ultramodern-workspace/versions';
@@ -28,8 +29,8 @@ const pluginBffPackagePath = path.resolve(
 );
 
 test('pins the Module Federation 2.8 cohort exactly', () => {
-  assert.equal(MODULE_FEDERATION_VERSION, '2.8.0');
-  assert.equal(MODULE_FEDERATION_NODE_VERSION, '2.7.47');
+  assert.equal(MODULE_FEDERATION_VERSION, '2.8.2');
+  assert.equal(MODULE_FEDERATION_NODE_VERSION, '2.7.49');
 
   const pluginBffPackage = JSON.parse(
     fs.readFileSync(pluginBffPackagePath, 'utf-8'),
@@ -69,6 +70,7 @@ test('generated workspace renders the pins from versions.ts', () => {
     assert.deepEqual(pnpmPolicy.overrides, {
       '@effect/opentelemetry': EFFECT_VERSION,
       '@effect/vitest': EFFECT_VITEST_VERSION,
+      '@tanstack/history': TANSTACK_HISTORY_VERSION,
       '@tanstack/react-router': TANSTACK_ROUTER_VERSION,
       '@tanstack/router-core': TANSTACK_ROUTER_CORE_VERSION,
       effect: EFFECT_VERSION,
@@ -77,18 +79,8 @@ test('generated workspace renders the pins from versions.ts', () => {
     assert.deepEqual(pnpmPolicy.patchedDependencies, {
       [`@module-federation/bridge-react@${MODULE_FEDERATION_VERSION}`]: `patches/@module-federation__bridge-react@${MODULE_FEDERATION_VERSION}.patch`,
       [`@module-federation/modern-js-v3@${MODULE_FEDERATION_VERSION}`]: `patches/@module-federation__modern-js-v3@${MODULE_FEDERATION_VERSION}.patch`,
-      [`@tanstack/router-core@${TANSTACK_ROUTER_CORE_VERSION}`]: `patches/@tanstack__router-core@${TANSTACK_ROUTER_CORE_VERSION}.patch`,
       [`effect@${EFFECT_VERSION}`]: 'patches/effect-schema-error-type-id.patch',
     });
-    assert.ok(
-      fs.existsSync(
-        path.join(
-          workspaceDir,
-          `patches/@tanstack__router-core@${TANSTACK_ROUTER_CORE_VERSION}.patch`,
-        ),
-      ),
-      'generated router-core patch file must match TANSTACK_ROUTER_CORE_VERSION',
-    );
     assert.ok(
       fs.existsSync(
         path.join(

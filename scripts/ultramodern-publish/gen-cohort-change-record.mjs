@@ -107,13 +107,11 @@ const isAncestor = (candidate, descendant, rootDir) => {
   }
 };
 
-/**
- * The commit of the most recent fork release, used as the "since" boundary.
- * Returns '' on the first release (no fork tag yet), which includes the whole
- * queued backlog by design.
- */
-export function resolvePreviousReleaseCommit(rootDir = repoRoot) {
-  const tag = git(
+const resolvePreviousRelease = (rootDir, options = {}) => {
+  const targetTag = options.targetVersion
+    ? `${RELEASE_TAG_PREFIX}${options.targetVersion}`
+    : '';
+  const tags = git(
     [
       'tag',
       '--list',
@@ -125,11 +123,37 @@ export function resolvePreviousReleaseCommit(rootDir = repoRoot) {
   )
     .split('\n')
     .map(line => line.trim())
-    .filter(Boolean)[0];
-  if (!tag) {
-    return '';
+    .filter(Boolean);
+  for (const tag of tags) {
+    // A trusted-publishing rerun may begin after the release step already
+    // created the target tag. It is never the "previous" boundary.
+    if (tag === targetTag) {
+      continue;
+    }
+    const commit = git(['rev-parse', `${tag}^{commit}`], rootDir);
+    if (
+      !commit ||
+      (options.targetCommit &&
+        !isAncestor(commit, options.targetCommit, rootDir))
+    ) {
+      continue;
+    }
+    return {
+      commit,
+      tag,
+      version: tag.slice(RELEASE_TAG_PREFIX.length),
+    };
   }
-  return git(['rev-parse', `${tag}^{commit}`], rootDir);
+  return { commit: '', tag: '', version: '' };
+};
+
+/**
+ * The commit of the most recent fork release, used as the "since" boundary.
+ * Returns '' on the first release (no fork tag yet), which includes the whole
+ * queued backlog by design.
+ */
+export function resolvePreviousReleaseCommit(rootDir = repoRoot, options = {}) {
+  return resolvePreviousRelease(rootDir, options).commit;
 }
 
 export async function collectChangesetEntries(
@@ -147,7 +171,10 @@ export async function collectChangesetEntries(
   // previous fork release.
   const since =
     options.since === undefined
-      ? resolvePreviousReleaseCommit(rootDir)
+      ? resolvePreviousReleaseCommit(rootDir, {
+          targetCommit: options.targetCommit,
+          targetVersion: options.targetVersion,
+        })
       : options.since;
   const entries = [];
   for (const file of files.sort()) {
@@ -292,30 +319,27 @@ function parseArgs(argv) {
   return options;
 }
 
-export function resolvePreviousReleaseVersion(rootDir = repoRoot) {
-  const commit = resolvePreviousReleaseCommit(rootDir);
-  if (!commit) {
-    return '';
-  }
-  const tag = git(
-    [
-      'tag',
-      '--list',
-      `${RELEASE_TAG_PREFIX}*`,
-      '--sort=-creatordate',
-      '--format=%(refname:strip=2)',
-    ],
-    rootDir,
-  )
-    .split('\n')
-    .map(line => line.trim())
-    .filter(Boolean)[0];
-  return tag ? tag.slice(RELEASE_TAG_PREFIX.length) : '';
+export function resolvePreviousReleaseVersion(
+  rootDir = repoRoot,
+  options = {},
+) {
+  return resolvePreviousRelease(rootDir, options).version;
 }
 
-async function main() {
-  const { version, out } = parseArgs(process.argv.slice(2));
-  const entries = await collectChangesetEntries();
+export async function generateCohortChangeRecord({
+  rootDir = repoRoot,
+  version,
+  out,
+  commit,
+  repository,
+}) {
+  const previousRelease = resolvePreviousRelease(rootDir, {
+    targetCommit: commit,
+    targetVersion: version,
+  });
+  const entries = await collectChangesetEntries(rootDir, {
+    since: previousRelease.commit,
+  });
   if (entries.length === 0) {
     throw new Error(
       'refusing to publish an empty change record: no queued changesets added since the previous UltraModern release',
@@ -323,9 +347,9 @@ async function main() {
   }
   const body = renderCohortChangeRecord(entries, {
     version,
-    commit: process.env.GITHUB_SHA,
-    repository: process.env.GITHUB_REPOSITORY,
-    previousVersion: resolvePreviousReleaseVersion(),
+    commit,
+    repository,
+    previousVersion: previousRelease.version,
   });
   // Fail HERE, not in `gh release create`: that step runs after npm publish has
   // already succeeded and cannot be rolled back.
@@ -337,6 +361,17 @@ async function main() {
     );
   }
   await writeFile(path.resolve(out), body, 'utf8');
+  return { body, entries, previousRelease };
+}
+
+async function main() {
+  const { version, out } = parseArgs(process.argv.slice(2));
+  const { body, entries } = await generateCohortChangeRecord({
+    version,
+    out,
+    commit: process.env.GITHUB_SHA,
+    repository: process.env.GITHUB_REPOSITORY,
+  });
   console.log(
     `Wrote cohort change record for ${version} (${entries.length} entries, ${body.length} chars) to ${out}`,
   );

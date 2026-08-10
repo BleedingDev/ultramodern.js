@@ -1,5 +1,4 @@
-import { compatibleRequire } from '@modern-js/utils';
-import path from 'path';
+import { compatibleRequire, upath as path } from '@modern-js/utils';
 import {
   extractHttpApiFromModule,
   type HttpApiLike,
@@ -18,13 +17,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
-export async function getHttpApiRuntime(): Promise<HttpApiRuntime> {
-  if (!httpApiRuntimePromise) {
-    httpApiRuntimePromise = (async () => {
-      let mod: unknown;
-      try {
-        mod = await compatibleRequire('effect/unstable/httpapi', false);
-      } catch (error) {
+function isHttpApiRuntime(value: unknown): value is HttpApiRuntime {
+  return (
+    isRecord(value) &&
+    typeof value.isHttpApi === 'function' &&
+    typeof value.reflect === 'function'
+  );
+}
+
+export function getHttpApiRuntime(): Promise<HttpApiRuntime> {
+  if (httpApiRuntimePromise === undefined) {
+    httpApiRuntimePromise = compatibleRequire('effect/unstable/httpapi', false)
+      .catch(error => {
         const message = error instanceof Error ? error.message : String(error);
         if (!message.includes("Cannot find module 'effect/unstable/httpapi'")) {
           throw error;
@@ -38,33 +42,29 @@ export async function getHttpApiRuntime(): Promise<HttpApiRuntime> {
           'httpapi',
           'index.js',
         );
-        mod = await compatibleRequire(effectHttpApiRuntimePath, false);
-      }
-
-      if (isRecord(mod) && isRecord(mod.HttpApi)) {
-        const maybeHttpApi = mod.HttpApi as Partial<HttpApiRuntime>;
-        if (
-          typeof maybeHttpApi.isHttpApi === 'function' &&
-          typeof maybeHttpApi.reflect === 'function'
-        ) {
-          return maybeHttpApi as HttpApiRuntime;
+        return compatibleRequire(effectHttpApiRuntimePath, false);
+      })
+      .then(mod => {
+        if (isRecord(mod) && isHttpApiRuntime(mod.HttpApi)) {
+          return mod.HttpApi;
         }
-      }
-      throw new Error(
-        '[BFF][Effect] Unable to resolve HttpApi runtime from effect/unstable/httpapi.',
-      );
-    })();
+        throw new Error(
+          '[BFF][Effect] Unable to resolve HttpApi runtime from effect/unstable/httpapi.',
+        );
+      });
   }
 
   return httpApiRuntimePromise;
 }
 
-export async function loadEffectApi(options: {
+export function loadEffectApi(options: {
   appDir: string;
   resourcePath: string;
   onDependency?: (dependency: string) => void;
 }): Promise<HttpApiLike | null> {
-  const httpApiRuntime = await getHttpApiRuntime();
-  const mod = await loadEffectSourceModule(options);
-  return extractHttpApiFromModule(mod, httpApiRuntime.isHttpApi);
+  return getHttpApiRuntime().then(httpApiRuntime =>
+    loadEffectSourceModule(options).then(mod =>
+      extractHttpApiFromModule(mod, httpApiRuntime.isHttpApi),
+    ),
+  );
 }

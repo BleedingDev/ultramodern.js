@@ -1,8 +1,8 @@
 diff --git a/dist/Schema.d.ts b/dist/Schema.d.ts
-index c766b84ab80a1d4675acc01c1456c4ffefe3d161..1ea932e4920c85d7690575ef376686ca856e9b2d 100644
+index 9547bd05cb7b91e5e5decc43b64c10a47a86186a..e58693c3742604ccb703045dedd259fca2c66b6e 100644
 --- a/dist/Schema.d.ts
 +++ b/dist/Schema.d.ts
-@@ -10783,7 +10783,7 @@ export declare namespace Annotations {
+@@ -10812,7 +10812,7 @@ export declare namespace Annotations {
           *
           * Reserved to internal use only.
           */
@@ -11,17 +11,3 @@ index c766b84ab80a1d4675acc01c1456c4ffefe3d161..1ea932e4920c85d7690575ef376686ca
      }
      /**
       * Annotations for filter schema nodes (created via `Schema.filter`). Extends
-diff --git a/dist/unstable/http/internal/preResponseHandler.d.ts b/dist/unstable/http/internal/preResponseHandler.d.ts
-index efb146d88ed6fc653b97f421050db5e3b4bbb7de..37e505bf6e0cc7bb65ce6f9a05d170dcb14f902d 100644
---- a/dist/unstable/http/internal/preResponseHandler.d.ts
-+++ b/dist/unstable/http/internal/preResponseHandler.d.ts
-@@ -1,2 +1,6 @@
--export {};
--//# sourceMappingURL=preResponseHandler.d.ts.map
-\ No newline at end of file
-+import type * as Effect from "../../../Effect.ts";
-+import type { HttpServerError } from "../HttpServerError.ts";
-+import type { HttpServerRequest } from "../HttpServerRequest.ts";
-+import type { HttpServerResponse } from "../HttpServerResponse.ts";
-+export declare const requestPreResponseHandlers: WeakMap<object, (request: HttpServerRequest, response: HttpServerResponse) => Effect.Effect<HttpServerResponse, HttpServerError>>;
-+export declare const appendPreResponseHandlerUnsafe: (request: HttpServerRequest, handler: (request: HttpServerRequest, response: HttpServerResponse) => Effect.Effect<HttpServerResponse, HttpServerError>) => void;

@@ -1,8 +1,12 @@
-import { applyOptionsChain, fs } from '@modern-js/utils';
+import type { AppTools } from '@modern-js/app-tools';
+import type { RsbuildTarget } from '@modern-js/builder';
+import { applyOptionsChain, fs, upath as path } from '@modern-js/utils';
 import { transform } from '@swc/core';
-import path from 'path';
 
 type SerializedGlobalVars = Record<string, string>;
+type ServerGlobalVarsOptions = NonNullable<
+  NonNullable<AppTools['config']>['source']
+>['globalVars'];
 
 const RELEASE_IDENTITY_GLOBAL_NAMES = [
   'ULTRAMODERN_BUILD_MARKER',
@@ -10,24 +14,28 @@ const RELEASE_IDENTITY_GLOBAL_NAMES = [
   'ULTRAMODERN_RELEASE_VERSION',
 ] as const;
 
-const collectJavaScriptFiles = async (directory: string): Promise<string[]> => {
-  const entries = await fs.readdir(directory, { withFileTypes: true });
-  const nested = await Promise.all(
-    entries.map(async entry => {
-      const absolutePath = path.join(directory, entry.name);
-      if (entry.isDirectory()) {
-        return collectJavaScriptFiles(absolutePath);
-      }
-      return /\.(?:c|m)?js$/u.test(entry.name) ? [absolutePath] : [];
-    }),
-  );
-  return nested.flat();
-};
+const collectJavaScriptFiles = (directory: string): Promise<string[]> =>
+  Promise.resolve()
+    .then(() => fs.readdir(directory, { withFileTypes: true }))
+    .then(entries =>
+      Promise.all(
+        entries.map(entry => {
+          const absolutePath = path.join(directory, entry.name);
+          if (entry.isDirectory()) {
+            return collectJavaScriptFiles(absolutePath);
+          }
+          return /\.(?:c|m)?js$/u.test(entry.name) ? [absolutePath] : [];
+        }),
+      ).then(nested => nested.flat()),
+    );
 
 export const serializeServerGlobalVars = (
-  options: unknown,
+  options: ServerGlobalVarsOptions,
 ): SerializedGlobalVars => {
-  const globalVars = applyOptionsChain<Record<string, unknown>>({}, options, {
+  const globalVars = applyOptionsChain<
+    Record<string, unknown>,
+    { env: string; target: RsbuildTarget }
+  >({}, options, {
     env: 'server',
     target: 'node',
   });
@@ -53,61 +61,85 @@ export const serializeServerGlobalVars = (
   );
 };
 
-export const transformServerGlobalVars = async (
+export const transformServerGlobalVars = (
   outputDirectories: string[],
   globalVars: SerializedGlobalVars,
-) => {
-  if (Object.keys(globalVars).length === 0) {
-    return;
-  }
+) =>
+  Promise.resolve().then(() => {
+    if (Object.keys(globalVars).length === 0) {
+      return undefined;
+    }
 
-  const existingDirectories = (
-    await Promise.all(
-      outputDirectories.map(async directory =>
-        (await fs.pathExists(directory)) ? directory : undefined,
+    return Promise.all(
+      outputDirectories.map(directory =>
+        fs
+          .pathExists(directory)
+          .then(directoryExists => (directoryExists ? directory : undefined)),
       ),
     )
-  ).filter((directory): directory is string => Boolean(directory));
-  const files = (
-    await Promise.all(existingDirectories.map(collectJavaScriptFiles))
-  ).flat();
-  const releaseIdentityBanner = RELEASE_IDENTITY_GLOBAL_NAMES.every(name =>
-    Object.hasOwn(globalVars, name),
-  )
-    ? `${RELEASE_IDENTITY_GLOBAL_NAMES.map(name => `void ${globalVars[name]};`).join('')}\n`
-    : '';
-  await Promise.all(
-    files.map(async filename => {
-      const source = await fs.readFile(filename, 'utf8');
-      const sourceMapFilename = `${filename}.map`;
-      const sourceMapExists = await fs.pathExists(sourceMapFilename);
-      const inputSourceMap = sourceMapExists
-        ? await fs.readFile(sourceMapFilename, 'utf8')
-        : undefined;
-      const result = await transform(`${releaseIdentityBanner}${source}`, {
-        filename,
-        inputSourceMap,
-        sourceMaps: sourceMapExists,
-        jsc: {
-          parser: {
-            syntax: 'ecmascript',
-          },
-          preserveAllComments: true,
-          target: 'es2022',
-          transform: {
-            optimizer: {
-              globals: {
-                vars: globalVars,
-              },
-            },
-          },
-        },
-      });
+      .then(existingDirectories => {
+        const filesPromise = Promise.all(
+          existingDirectories
+            .filter((directory): directory is string => directory !== undefined)
+            .map(collectJavaScriptFiles),
+        ).then(files => files.flat());
 
-      await fs.writeFile(filename, result.code);
-      if (sourceMapExists && result.map) {
-        await fs.writeFile(sourceMapFilename, result.map);
-      }
-    }),
-  );
-};
+        const releaseIdentityBanner = RELEASE_IDENTITY_GLOBAL_NAMES.every(
+          name => Object.hasOwn(globalVars, name),
+        )
+          ? `${RELEASE_IDENTITY_GLOBAL_NAMES.map(name => `void ${globalVars[name]};`).join('')}\n`
+          : '';
+
+        return filesPromise.then(files =>
+          Promise.all(
+            files.map(filename =>
+              fs.readFile(filename, 'utf8').then(source => {
+                const sourceMapFilename = `${filename}.map`;
+                return fs
+                  .pathExists(sourceMapFilename)
+                  .then(sourceMapExists => {
+                    const inputSourceMapPromise: Promise<string | undefined> =
+                      sourceMapExists
+                        ? fs.readFile(sourceMapFilename, 'utf8')
+                        : Promise.resolve(undefined);
+
+                    return inputSourceMapPromise.then(inputSourceMap =>
+                      transform(`${releaseIdentityBanner}${source}`, {
+                        filename,
+                        inputSourceMap,
+                        sourceMaps: sourceMapExists,
+                        jsc: {
+                          parser: {
+                            syntax: 'ecmascript',
+                          },
+                          preserveAllComments: true,
+                          target: 'es2022',
+                          transform: {
+                            optimizer: {
+                              globals: {
+                                vars: globalVars,
+                              },
+                            },
+                          },
+                        },
+                      }).then(result =>
+                        fs.writeFile(filename, result.code).then(() => {
+                          if (
+                            sourceMapExists &&
+                            result.map !== undefined &&
+                            result.map.length > 0
+                          ) {
+                            return fs.writeFile(sourceMapFilename, result.map);
+                          }
+                          return undefined;
+                        }),
+                      ),
+                    );
+                  });
+              }),
+            ),
+          ),
+        );
+      })
+      .then(() => undefined);
+  });

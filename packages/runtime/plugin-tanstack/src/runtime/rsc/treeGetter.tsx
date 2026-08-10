@@ -18,18 +18,19 @@ function loadModernRscClientRuntime() {
   return modernRscClientRuntimePromise;
 }
 
-async function createFromFlightStream(stream: ReadableStream<Uint8Array>) {
+function createFromFlightStream(stream: ReadableStream<Uint8Array>) {
   if (typeof window === 'undefined') {
-    const runtime: ServerRscClientRuntime = await import(
-      'react-server-dom-rspack/client.edge'
+    return import('react-server-dom-rspack/client.edge').then(
+      (runtime: ServerRscClientRuntime) =>
+        runtime.createFromReadableStream(stream),
     );
-    return runtime.createFromReadableStream(stream);
   }
 
-  const runtime = await loadModernRscClientRuntime();
-  return runtime.createFromReadableStream(stream, {
-    callServer: runtime.callServer,
-  });
+  return loadModernRscClientRuntime().then(runtime =>
+    runtime.createFromReadableStream(stream, {
+      callServer: runtime.callServer,
+    }),
+  );
 }
 
 export function createTreeGetterFromFlightStream(

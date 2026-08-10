@@ -8,17 +8,17 @@ source files; the monorepo applies them through `pnpm-workspace.yaml`.
 Repo-only patches are used by the Modern.js monorepo build and are not copied
 into generated UltraModern workspaces:
 
-- `@module-federation/manifest@2.8.0` -> `patches/@module-federation__manifest@2.8.0.patch`
-- `@module-federation/rspack@2.8.0` -> `patches/@module-federation__rspack@2.8.0.patch`
+- `@module-federation/manifest@2.8.2` -> `patches/@module-federation__manifest@2.8.2.patch`
+- `@module-federation/rspack@2.8.2` -> `patches/@module-federation__rspack@2.8.2.patch`
+- `react-server-dom-rspack@0.0.3` -> `patches/@react-server-dom-rspack@0.0.3.patch` (root-only RSC regression-test containment)
 
 Shared patches exist in both this directory and
 `packages/toolkit/create/template-workspace/patches/`. They must stay
 byte-identical because generated workspaces rely on the template copy at
 runtime:
 
-- `@module-federation/bridge-react@2.8.0` -> `@module-federation__bridge-react@2.8.0.patch`
-- `@module-federation/modern-js-v3@2.8.0` -> `@module-federation__modern-js-v3@2.8.0.patch`
-- `@tanstack/router-core@1.171.14` -> `@tanstack__router-core@1.171.14.patch`
+- `@module-federation/bridge-react@2.8.2` -> `@module-federation__bridge-react@2.8.2.patch`
+- `@module-federation/modern-js-v3@2.8.2` -> `@module-federation__modern-js-v3@2.8.2.patch`
 
 The shared list is defined in
 `packages/toolkit/create/src/ultramodern-workspace/shared-patches.ts` and gated
@@ -36,8 +36,9 @@ workspaces:
 - `@module-federation/manifest`: avoids loading `@module-federation/dts-plugin/core` at module import time and returns default type metadata immediately when `dts: false`.
 - `@module-federation/modern-js-v3`: suppresses the stream SSR splitChunks warning when `splitChunks.chunks` is already `async`, while still coercing invalid values to `async`; disables lazy compilation for both remote producers and consumers; and injects the Modern.js manifest-recovery runtime plugin into server builds, resolving it from the application workspace.
 - `@module-federation/rspack`: avoids loading `@module-federation/dts-plugin` at module import time and only requires `DtsPlugin` when DTS generation is enabled.
-- `@module-federation/bridge-react`: keeps server-rendered stylesheet assets in HTML during SSR/hydration and removes only duplicate client-mounted stylesheet links after mount.
-- `@tanstack/router-core`: makes `loadMatches` tolerate a cached preload match disappearing after `RouterCore.updateMatch` deletes it on redirect. This preserves TanStack's immediate redirected-cache cleanup while preventing same-call `getMatch(id)!._nonReactive` reads from crashing.
+- `@module-federation/bridge-react`: repairs non-portable declaration specifiers that reference package-local `node_modules/@types/react*` paths.
+- `effect-schema-error-type-id.patch`: replaces beta.107's dangling public `SchemaAST.Sentinel` declaration reference with `unknown`; no private Effect HTTP declarations are patched.
+- `react-server-dom-rspack`: backports the official React Flight decoder security fixes missing from the newest upstream Rspack package across all shipped server bundles. The patched package is used only by root framework RSC regression tests while RSC stays disabled in the UltraModern company distribution. It is not published, copied into generated workspaces, or imposed on application consumers.
 
 These patches keep Module Federation usable in the fork's TS 7 native-preview
 lane where apps use `dts: false`, while preserving DTS behavior for callers

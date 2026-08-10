@@ -1,6 +1,5 @@
 import { deriveOperationVersion } from '@modern-js/bff-core';
-import { fs } from '@modern-js/utils';
-import path from 'path';
+import { fs, upath as path } from '@modern-js/utils';
 import {
   createEffectEndpointContractHash,
   type EffectEndpointMeta,
@@ -23,14 +22,15 @@ function isAbsoluteUrl(value: string) {
 }
 
 function resolveBatchEndpoint(prefix: string, endpoint: string | undefined) {
-  const value = endpoint || '/_data/batch';
+  const value =
+    endpoint === undefined || endpoint === '' ? '/_data/batch' : endpoint;
   if (isAbsoluteUrl(value)) {
     return value;
   }
 
   const normalizedPrefix = normalizeEffectPrefix(prefix);
   const normalizedEndpoint = ensureLeadingSlash(value);
-  if (!normalizedPrefix) {
+  if (normalizedPrefix === '') {
     return normalizedEndpoint;
   }
 
@@ -65,12 +65,18 @@ export function renderEffectClientCode(
   const httpMethodDecider = options.httpMethodDecider || 'functionName';
   const packageInfo = getPackageInfo(options.appDir);
   const packageName = packageInfo.name;
-  const dataPlatformAppNamespace = packageName || 'unknown-app';
+  const dataPlatformAppNamespace =
+    packageName === undefined || packageName === ''
+      ? 'unknown-app'
+      : packageName;
   const requestId =
     options.target === 'bundle'
-      ? packageName || process.env.npm_package_name
+      ? packageName !== undefined && packageName !== ''
+        ? packageName
+        : undefined
       : undefined;
-  const normalizedRequestId = requestId || 'default';
+  const normalizedRequestId =
+    requestId === undefined || requestId === '' ? 'default' : requestId;
   const operationVersion = deriveOperationVersion(packageInfo.version);
   const batchConfig = options.dataPlatformBatch;
   const batchEndpoint = resolveBatchEndpoint(
@@ -95,7 +101,7 @@ export function renderEffectClientCode(
 
   const config = {
     appNamespace: dataPlatformAppNamespace,
-    ...(requestId ? { requestId } : {}),
+    ...(requestId !== undefined && requestId !== '' ? { requestId } : {}),
     port: options.port,
     useEnvPort: options.target === 'server',
     defaultOrigin: `http://localhost:${String(options.port)}`,
@@ -108,7 +114,8 @@ export function renderEffectClientCode(
       maxBatchBytes: batchConfig?.maxBatchBytes ?? 64 * 1024,
       requestTimeoutMs: batchConfig?.requestTimeoutMs ?? 10_000,
       allowedMethods:
-        batchConfig?.allowedMethods && batchConfig.allowedMethods.length > 0
+        batchConfig?.allowedMethods !== undefined &&
+        batchConfig.allowedMethods.length > 0
           ? batchConfig.allowedMethods
           : ['GET'],
     },

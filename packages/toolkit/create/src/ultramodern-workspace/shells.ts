@@ -8,8 +8,13 @@ import {
   shellApp,
 } from './descriptors';
 import { packageName, toEnvSegment, toKebabCase, toPascalCase } from './naming';
-import type { JsonObject, JsonValue, WorkspaceApp } from './types';
-import { resolveOwnerAttribution } from './types';
+import {
+  type JsonObject,
+  type JsonValue,
+  type OwnerAttribution,
+  resolveOwnerAttribution,
+  type WorkspaceApp,
+} from './types';
 
 /**
  * Multi-shell model (G28). A workspace models N Shells, each its own Delivery
@@ -171,16 +176,28 @@ export function resolveConfiguredAdditionalShells(
           : undefined;
       const owner = entry.owner;
       const deliveryUnit = entry.deliveryUnit;
-      const ownership =
+      const ownerAttribution: OwnerAttribution | undefined =
         owner &&
         typeof owner === 'object' &&
         !Array.isArray(owner) &&
+        'kind' in owner &&
         (owner.kind === 'team' ||
           owner.kind === 'agent' ||
           owner.kind === 'agent-team') &&
+        'id' in owner &&
         typeof owner.id === 'string'
-          ? { ...descriptor.ownership, owner }
-          : descriptor.ownership;
+          ? {
+              kind: owner.kind,
+              id: owner.id,
+              ...('contact' in owner && typeof owner.contact === 'string'
+                ? { contact: owner.contact }
+                : {}),
+            }
+          : undefined;
+      const ownership =
+        ownerAttribution === undefined
+          ? descriptor.ownership
+          : { ...descriptor.ownership, owner: ownerAttribution };
       return {
         ...descriptor,
         id,

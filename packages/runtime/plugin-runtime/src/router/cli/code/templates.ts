@@ -185,6 +185,7 @@ export const fileSystemRoutes = async ({
   // via the RSC payload from the server.
   isRscClientBundle = false,
   hydrateRscClientRoutes = false,
+  isolateRouteDataInRscLayer = false,
   srcDirectory,
   internalSrcAlias,
 }: {
@@ -197,6 +198,7 @@ export const fileSystemRoutes = async ({
   splitRouteChunks?: boolean;
   isRscClientBundle?: boolean;
   hydrateRscClientRoutes?: boolean;
+  isolateRouteDataInRscLayer?: boolean;
   srcDirectory?: string;
   internalSrcAlias?: string;
 }) => {
@@ -391,11 +393,15 @@ export const fileSystemRoutes = async ({
       hydrateRscClientRoutes &&
       isRscClientBundle &&
       !isClientComponent &&
-      !route.loader &&
-      !route.data;
+      (route.type !== 'nested' || (!route.loader && !route.data));
     const shouldIncludeClientBundle =
       !isRscClientBundle || isClientComponent || shouldHydrateRscRoute;
-    if (route.isRoot && route._component && shouldIncludeClientBundle) {
+    if (
+      route.type === 'nested' &&
+      route.isRoot &&
+      route._component &&
+      shouldIncludeClientBundle
+    ) {
       rootLayoutCode = `import RootLayout from '${route._component}'`;
     }
 
@@ -485,44 +491,52 @@ export const fileSystemRoutes = async ({
     .join('');
 
   let importLoadersCode = '';
+  const isolatedRouteDataDirectory = path.join(
+    internalDirectory,
+    entryName,
+    '__rsc_route_data__',
+  );
+  await fs.remove(isolatedRouteDataDirectory);
+  if (isolateRouteDataInRscLayer) {
+    await fs.ensureDir(isolatedRouteDataDirectory);
+  }
 
   for (const [key, loaderInfo] of Object.entries(loadersMap)) {
+    const { route } = loaderInfo;
+    const loaderRequest = `${slash(loaderInfo.filePath)}${getDataLoaderPath({
+      loaderId: key,
+      clientData: loaderInfo.clientData,
+      action: route.action || false,
+      inline: loaderInfo.inline,
+      routeId: loaderInfo.routeId,
+      inValidSSRRoute: loaderInfo.inValidSSRRoute,
+    })}`;
+    let loaderImport = loaderRequest;
+
+    if (isolateRouteDataInRscLayer) {
+      const isolatedLoaderFile = path.join(
+        isolatedRouteDataDirectory,
+        `${key}.js`,
+      );
+      const isolatedLoaderCode = loaderInfo.inline
+        ? route.action
+          ? `export { loader, action } from ${JSON.stringify(loaderRequest)};`
+          : `export { loader } from ${JSON.stringify(loaderRequest)};`
+        : `export { default } from ${JSON.stringify(loaderRequest)};`;
+      await fs.outputFile(isolatedLoaderFile, isolatedLoaderCode, 'utf8');
+      loaderImport = `./__rsc_route_data__/${key}.js`;
+    }
+
     if (loaderInfo.inline) {
-      const { route } = loaderInfo;
       if (route.action) {
         importLoadersCode += `import { loader as ${key}, action as action_${
           loaderInfo.loaderId
-        } } from "${slash(loaderInfo.filePath)}${getDataLoaderPath({
-          loaderId: key,
-          clientData: loaderInfo.clientData,
-          action: route.action,
-          inline: loaderInfo.inline,
-          routeId: loaderInfo.routeId,
-          inValidSSRRoute: loaderInfo.inValidSSRRoute,
-        })}";\n`;
+        } } from "${loaderImport}";\n`;
       } else {
-        importLoadersCode += `import { loader as ${key} } from "${slash(
-          loaderInfo.filePath,
-        )}${getDataLoaderPath({
-          loaderId: key,
-          clientData: loaderInfo.clientData,
-          action: false,
-          inline: loaderInfo.inline,
-          routeId: route.id!,
-          inValidSSRRoute: loaderInfo.inValidSSRRoute,
-        })}";\n`;
+        importLoadersCode += `import { loader as ${key} } from "${loaderImport}";\n`;
       }
     } else {
-      importLoadersCode += `import ${key} from "${slash(
-        loaderInfo.filePath,
-      )}${getDataLoaderPath({
-        loaderId: key,
-        clientData: loaderInfo.clientData,
-        action: false,
-        inline: loaderInfo.inline,
-        routeId: loaderInfo.routeId,
-        inValidSSRRoute: loaderInfo.inValidSSRRoute,
-      })}";\n`;
+      importLoadersCode += `import ${key} from "${loaderImport}";\n`;
     }
   }
 
@@ -563,6 +577,7 @@ export function ssrLoaderCombinedModule(
   entrypoint: Entrypoint,
   config: AppNormalizedConfig,
   appContext: AppToolsContext,
+  options: { includeRouteServerLoaders?: boolean } = {},
 ) {
   const { entryName, isMainEntry } = entrypoint;
   const { packageName } = appContext;
@@ -581,6 +596,21 @@ export function ssrLoaderCombinedModule(
       '@modern-js/plugin-data-loader/runtime',
     );
     const serverLoadersFile = './route-server-loaders.js';
+    const includeRouteServerLoaders =
+      options.includeRouteServerLoaders !== false;
+
+    if (!includeRouteServerLoaders) {
+      if (!config.source.enableAsyncEntry) {
+        return `export * from "${slash(serverLoaderRuntime)}"`;
+      }
+      return `
+      async function loadModules() {
+        return import("${slash(serverLoaderRuntime)}");
+      }
+
+      export { loadModules };
+      `;
+    }
 
     const combinedModule = `export * from "${slash(
       serverLoaderRuntime,

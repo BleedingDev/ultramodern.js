@@ -7,8 +7,9 @@ import { isDeepStrictEqual } from 'node:util';
 import { assertOperationalIndependenceEvidenceMatchesReceipt } from '../ultramodern-production-readiness/published-create-proof/acceptance-contract.mjs';
 import { assertAcceptanceReceipt } from '../ultramodern-production-readiness/published-create-proof/acceptance-receipt.mjs';
 import {
-  protectedUiExclusions,
+  assertVisibleTractorUi,
   requiredTractorCheckIds,
+  requiredVisibleRuntimePlatforms,
   tractorTopologiesByBaseline,
 } from '../ultramodern-production-readiness/tractor-downstream/contract.mjs';
 import { readReleaseManifest } from './lib/source-create-proof/release-manifest.mjs';
@@ -31,8 +32,6 @@ const publishOutcomeSchema = 'bleedingdev.ultramodern.publish-outcome';
 const publishOutcomeSchemaVersion = 4;
 const publishOutcomeArtifactPrefix = 'bleedingdev-publish-outcome';
 const digestPattern = /^[a-f0-9]{64}$/u;
-const legacyTractorUiDisclosureBaseline =
-  '2cb6e1c939686b1dfd5cbfb594198512fa9d04f7';
 const commitPattern = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 const semverPattern =
   /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/u;
@@ -401,25 +400,25 @@ function readTractorAcceptanceEvidence({
       'Tractor acceptance report is missing executed Node server-rendered SSR evidence',
     );
   }
-  const uiBaseline = checksById.get('ui-baseline')?.detail;
-  const uiFinal = checksById.get('final-visible-ui-source')?.detail;
-  const hasBoundUiDisclosure =
-    isDeepStrictEqual(uiBaseline?.excludedPatterns, protectedUiExclusions) &&
-    isDeepStrictEqual(uiFinal?.excludedPatterns, protectedUiExclusions);
-  const isAuthenticatedLegacyUiDisclosure =
-    baselineRevision === legacyTractorUiDisclosureBaseline &&
-    uiBaseline?.excludedPatterns === undefined &&
-    uiFinal?.excludedPatterns === undefined;
+  const visibleUi = checksById.get('visible-tractor-ui')?.detail;
   if (
-    !digestPattern.test(uiBaseline?.sha256 ?? '') ||
-    (!hasBoundUiDisclosure && !isAuthenticatedLegacyUiDisclosure) ||
-    uiFinal?.status !== 'unchanged' ||
-    uiFinal.sha256 !== uiBaseline.sha256 ||
-    uiFinal.fileCount !== uiBaseline.fileCount
+    !visibleUi ||
+    !hasExactStringSet(Object.keys(visibleUi), requiredVisibleRuntimePlatforms)
   ) {
     throw new Error(
-      'Tractor acceptance report does not preserve the visible UI source',
+      'Tractor acceptance report is missing exact visible UI platform evidence',
     );
+  }
+  for (const platform of requiredVisibleRuntimePlatforms) {
+    const workflow = checksById.get(
+      `${platform}-visible-tractor-workflow`,
+    )?.detail;
+    if (!isDeepStrictEqual(visibleUi[platform], workflow?.ui)) {
+      throw new Error(
+        `Tractor ${platform} visible UI summary differs from its executed browser workflow`,
+      );
+    }
+    assertVisibleTractorUi(workflow);
   }
   return {
     baselineRevision,

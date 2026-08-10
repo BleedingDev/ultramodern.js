@@ -263,7 +263,7 @@ fs.writeFileSync(
 
     const runtimeRoot = path.join(workspaceRoot, '.zerops/runtime/catalog');
     assert.equal(
-      execFileSync(process.execPath, ['index.js'], {
+      execFileSync('npm', ['run', 'serve', '--silent'], {
         cwd: runtimeRoot,
         encoding: 'utf-8',
       }).trim(),
@@ -279,7 +279,6 @@ fs.writeFileSync(
     );
     assert.equal(runtimePackage.private, true);
     assert.equal(runtimePackage.name, 'catalog-zerops-runtime');
-    assert.equal(runtimePackage.scripts?.serve, 'node index.js');
     assert.equal(
       runtimePackage.dependencies?.['@bleedingdev/modern-js-runtime'],
       modernVersion,

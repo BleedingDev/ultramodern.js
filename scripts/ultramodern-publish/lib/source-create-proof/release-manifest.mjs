@@ -130,8 +130,33 @@ function validatePackedCohort(packages, manifest) {
 
         const aliasMatch =
           typeof specifier === 'string'
-            ? /^npm:(?<target>@[^/]+\/[^@]+|[^@]+)@/u.exec(specifier)
+            ? /^npm:(?<target>@[^/]+\/[^@]+|[^@]+)(?:@(?<range>.*))?$/u.exec(
+                specifier,
+              )
             : undefined;
+        if (
+          aliasMatch?.groups?.target &&
+          targetNames.has(aliasMatch.groups.target)
+        ) {
+          const expected = exactInternalSpecifier(
+            aliasMatch.groups.target,
+            manifest.release.version,
+          );
+          if (specifier !== expected) {
+            throw new Error(
+              `${item.targetName} ${blockName}.${dependencyName} must resolve to exact cohort ${expected}, found ${String(
+                specifier,
+              )}`,
+            );
+          }
+          internalDependencyChecks.push({
+            blockName,
+            dependencyName,
+            resolution: 'exact-release-alias',
+            specifier,
+          });
+          continue;
+        }
         if (
           aliasMatch?.groups?.target?.startsWith('@bleedingdev/modern-js-') &&
           !targetNames.has(aliasMatch.groups.target)

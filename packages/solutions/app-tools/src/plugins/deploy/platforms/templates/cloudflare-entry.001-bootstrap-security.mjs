@@ -1,5 +1,6 @@
 const ASSETS_BINDING = 'ASSETS';
 const MODERN_WORKER_MANIFEST = p_workerManifest;
+export const modernWorkerManifest = MODERN_WORKER_MANIFEST;
 const WORKER_MODULE_LOADERS = p_workerModuleLoaders;
 const workerModulePromises = new Map();
 const effectBffDispatcherPromises = new Map();

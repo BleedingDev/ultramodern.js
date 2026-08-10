@@ -1,17 +1,22 @@
+import { SSR_HYDRATION_ID_PREFIX } from '@modern-js/utils/universal/constants';
 import React from 'react';
 
+const nativeHydrateRoot = rstest.fn(() => ({ kind: 'react-root' }));
 const loadableReady = rstest.fn(
   (callback: () => void, _options: { chunkLoadingGlobal: string }) => {
     callback();
+    return Promise.resolve();
   },
 );
 
 rstest.mock('@loadable/component', () => ({
   loadableReady,
 }));
+rstest.mock('react-dom/client', () => ({
+  hydrateRoot: nativeHydrateRoot,
+}));
 
 describe('hydrateRoot loadable chunk loading global', () => {
-  const originalIsReact18 = process.env.IS_REACT18;
   const originalChunkLoadingGlobal = process.env.MODERN_CHUNK_LOADING_GLOBAL;
 
   beforeEach(() => {
@@ -26,11 +31,6 @@ describe('hydrateRoot loadable chunk loading global', () => {
   });
 
   afterAll(() => {
-    if (originalIsReact18 === undefined) {
-      delete process.env.IS_REACT18;
-    } else {
-      process.env.IS_REACT18 = originalIsReact18;
-    }
     if (originalChunkLoadingGlobal === undefined) {
       delete process.env.MODERN_CHUNK_LOADING_GLOBAL;
     } else {
@@ -41,19 +41,16 @@ describe('hydrateRoot loadable chunk loading global', () => {
 
   test.each([
     {
-      name: 'uses the compiled per-app global for React 18 hydration',
-      isReact18: 'true',
+      name: 'uses the compiled per-app chunk loading global',
       configured: '__REMOTE_INVENTORY_CHUNKS__',
       expected: '__REMOTE_INVENTORY_CHUNKS__',
     },
     {
-      name: 'uses the legacy fallback for React 17 hydration',
-      isReact18: 'false',
+      name: 'uses the legacy fallback when the chunk loading global is unset',
       configured: undefined,
       expected: '__LOADABLE_LOADED_CHUNKS__',
     },
-  ])('$name', async ({ isReact18, configured, expected }) => {
-    process.env.IS_REACT18 = isReact18;
+  ])('$name', async ({ configured, expected }) => {
     if (configured) {
       process.env.MODERN_CHUNK_LOADING_GLOBAL = configured;
     } else {
@@ -78,13 +75,28 @@ describe('hydrateRoot loadable chunk loading global', () => {
     });
   });
 
+  test('delegates hydration to the native React root and preserves the promise contract', async () => {
+    const { hydrateWithReact } = await import(
+      '../../../src/core/browser/hydrate'
+    );
+    const App = React.createElement('main');
+    const rootElement = {} as HTMLElement;
+    const nativeRoot = nativeHydrateRoot();
+    nativeHydrateRoot.mockClear();
+    nativeHydrateRoot.mockReturnValueOnce(nativeRoot);
+
+    await expect(hydrateWithReact(App, rootElement)).resolves.toBe(nativeRoot);
+    expect(nativeHydrateRoot).toHaveBeenCalledWith(rootElement, App, {
+      identifierPrefix: SSR_HYDRATION_ID_PREFIX,
+    });
+  });
+
   test('loads in a browser runtime without a process global', async () => {
     const nodeProcess = globalThis.process;
     rstest.stubGlobal('process', undefined);
 
-    await expect(
-      import('../../../src/core/browser/hydrate'),
-    ).resolves.toBeDefined();
+    const hydrate = await import('../../../src/core/browser/hydrate');
+    expect(hydrate).toBeDefined();
 
     rstest.stubGlobal('process', nodeProcess);
   });

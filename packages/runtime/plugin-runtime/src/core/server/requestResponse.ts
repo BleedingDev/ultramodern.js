@@ -41,7 +41,12 @@ export const applyRouterSnapshotResult = (
   const routerServerSnapshot = getRouterServerSnapshot(context);
   const routerStatusCode =
     routerServerSnapshot?.statusCode ?? context.routerContext?.statusCode;
-  if (routerStatusCode && routerStatusCode !== 200) {
+  if (
+    routerStatusCode !== undefined &&
+    routerStatusCode !== 0 &&
+    !Number.isNaN(routerStatusCode) &&
+    routerStatusCode !== 200
+  ) {
     context.ssrContext?.response.status(routerStatusCode);
   }
 
@@ -59,7 +64,10 @@ export const createLoaderRedirectResponse = (
   beforeRenderResult: Response | undefined,
   redirectCtx: RedirectContext,
 ): Response | undefined => {
-  if (!beforeRenderResult || !isRedirectStatus(beforeRenderResult.status)) {
+  if (
+    beforeRenderResult === undefined ||
+    !isRedirectStatus(beforeRenderResult.status)
+  ) {
     return;
   }
 
@@ -84,7 +92,8 @@ export const finalizeRenderResponse = (
   if (
     responseProxy.status !== -1 &&
     isRedirectStatus(responseProxy.status) &&
-    responseProxy.headers.Location
+    responseProxy.headers.Location !== undefined &&
+    responseProxy.headers.Location !== ''
   ) {
     return processRedirect(
       new Headers(responseProxy.headers),

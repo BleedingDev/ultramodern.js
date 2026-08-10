@@ -6,7 +6,7 @@ import { rstest } from '@rstest/core';
 
 const repoRoot = path.resolve(__dirname, '../../../../');
 const createBin = path.resolve(repoRoot, 'packages/toolkit/create/bin/run.js');
-const expectedEffectVersion = '4.0.0-beta.102';
+const expectedEffectVersion = '4.0.0-beta.107';
 const shellAppPath = 'apps/shell-super-app';
 
 function readJson<T = any>(baseDir: string, relativePath: string): T {
@@ -19,6 +19,42 @@ function expectPnpm11OrNewerPackageManager(packageManager: unknown): string {
   expect(match).not.toBeNull();
   expect(Number(match?.[1])).toBeGreaterThanOrEqual(11);
   return `${match?.[1]}.${match?.[2]}.${match?.[3]}`;
+}
+
+interface MiseToolState {
+  active: boolean;
+  installed: boolean;
+  requested_version: string;
+  source: {
+    path: string;
+    type: string;
+  };
+  version: string;
+}
+
+function readActiveMiseTool(projectDir: string, tool: string): MiseToolState {
+  const output = execFileSync(
+    'mise',
+    ['ls', '--json', '--current', '-C', projectDir, tool],
+    {
+      encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    },
+  );
+  const tools = JSON.parse(output) as MiseToolState[];
+  expect(tools).toHaveLength(1);
+  return tools[0];
+}
+
+function readPnpmVersionFromMise(projectDir: string): string {
+  return execFileSync(
+    'mise',
+    ['exec', '-C', projectDir, '--', 'pnpm', '--version'],
+    {
+      encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    },
+  ).trim();
 }
 
 function readPnpmConfig<T = any>(
@@ -129,7 +165,7 @@ describe('create-tailwind', () => {
     ).toBe(true);
 
     const shellPackage = readJson(shellDir, 'package.json');
-    expect(shellPackage.devDependencies.tailwindcss).toBe('^4.3.2');
+    expect(shellPackage.devDependencies.tailwindcss).toBe('^4.3.3');
     expect(shellPackage.devDependencies['@rsbuild/plugin-tailwindcss']).toBe(
       '^2.0.3',
     );
@@ -159,7 +195,7 @@ describe('create-tailwind', () => {
       true,
     );
     const verticalPackage = readJson(verticalDir, 'package.json');
-    expect(verticalPackage.devDependencies.tailwindcss).toBe('^4.3.2');
+    expect(verticalPackage.devDependencies.tailwindcss).toBe('^4.3.3');
   });
 
   test('vertical inherits --no-tailwind workspace setting', () => {
@@ -211,10 +247,18 @@ describe('create-tailwind', () => {
       rootPackage.packageManager,
     );
     expect(rootPackage.engines.pnpm).toBe('>=11');
-    expect(fs.existsSync(path.join(withTailwindDir, '.mise.toml'))).toBe(true);
-    expect(
-      fs.readFileSync(path.join(withTailwindDir, '.mise.toml'), 'utf-8'),
-    ).toContain(`pnpm = "${pnpmVersion}"`);
+    const misePnpm = readActiveMiseTool(withTailwindDir, 'pnpm');
+    expect(misePnpm).toMatchObject({
+      active: true,
+      installed: true,
+      requested_version: pnpmVersion,
+      source: {
+        path: fs.realpathSync(path.join(withTailwindDir, '.mise.toml')),
+        type: 'mise.toml',
+      },
+      version: pnpmVersion,
+    });
+    expect(readPnpmVersionFromMise(withTailwindDir)).toBe(pnpmVersion);
     expectPnpm11Policy(withTailwindDir);
   });
 });

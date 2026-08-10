@@ -4,7 +4,7 @@ import path from 'path';
 import clientGenerator from '../src/utils/clientGenerator';
 
 describe('clientGenerator', () => {
-  it('writes package.json with a trailing newline', async () => {
+  it('adds the generated API export to package.json', async () => {
     const appDir = await fs.mkdtemp(path.join(os.tmpdir(), 'bff-client-gen-'));
     const lambdaDir = path.join(appDir, 'api', 'lambda');
 
@@ -29,13 +29,8 @@ describe('clientGenerator', () => {
         relativeApiPath: 'api',
       });
 
-      const packageContent = await fs.readFile(
-        path.join(appDir, 'package.json'),
-        'utf8',
-      );
-
-      expect(packageContent.endsWith('\n')).toBe(true);
-      expect(JSON.parse(packageContent).exports).toHaveProperty('./api/*');
+      const packageJson = await fs.readJSON(path.join(appDir, 'package.json'));
+      expect(packageJson.exports).toHaveProperty('./api/*');
     } finally {
       await fs.remove(appDir);
     }

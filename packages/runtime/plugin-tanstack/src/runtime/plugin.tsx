@@ -1,6 +1,4 @@
 // @effect-diagnostics globalConsole:off strictBooleanExpressions:off
-/// <reference path="./ssr-shim.d.ts" />
-
 import {
   getGlobalEnableRsc,
   InternalRuntimeContext,

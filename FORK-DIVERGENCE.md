@@ -45,37 +45,60 @@ Root/infra is intentionally not package-owned, but it is not optional during ups
 
 - `pnpm-workspace.yaml`, `pnpm-lock.yaml`, `.npmrc`, `package.json`, `nx.json`, `biome.json`, `.gitignore`, `.mise.toml` — fork package manager, Renovate/security, tsgo/rstest/biome, and publish policy. Keep fork policy unless the upstream change is a pure package version/security update that can be re-expressed without undoing the fork's package-manager constraints.
 - Root Renovate/security carve-outs already exist in `.github/renovate.json` and `pnpm-workspace.yaml` (`minimumReleaseAgeExclude`, Module Federation peer allowances, patched dependencies). Do not add app-level install shims to work around dependency policy.
-- `patchedDependencies` applies Module Federation `2.8.0` patches to
+- `patchedDependencies` applies Module Federation `2.8.2` patches to
   `@module-federation/{bridge-react,manifest,modern-js-v3,rspack}`; see
-  `patches/README.md`.
+  `patches/README.md`. Generated SSR tooling pins `@module-federation/node`
+  separately at `2.7.49`.
+- The root-only `react-server-dom-rspack@0.0.3` patch contains the upstream
+  runtime used by framework RSC regression tests. RSC remains disabled in the
+  UltraModern company distribution; the patch is never published, copied into
+  a generated workspace, or imposed on an application consumer.
 - **Effect cohort pin — [F] (2026-08-03).** Upstream has no Effect lane and pins
-  nothing. The fork pins one lockstep cohort (currently `4.0.0-beta.102`) across
-  five sites that must move in a single commit:
-  `pnpm-workspace.yaml` `minimumReleaseAgeExclude` (`effect@…`,
-  `@effect/opentelemetry@…`), `EFFECT_VERSION`/`EFFECT_VITEST_VERSION` in
+  nothing. The fork pins one lockstep cohort (currently `4.0.0-beta.107`) across
+  four sites that must move in a single commit:
+  `EFFECT_VERSION`/`EFFECT_VITEST_VERSION` in
   `packages/toolkit/create/src/ultramodern-workspace/versions.ts`,
   `packages/cli/plugin-bff/package.json` (dep/peer/devDep — see the plugin-bff
   entry), the generated-workspace `pnpm.overrides`/`trustPolicyExclude` emitted
   by `ultramodern-workspace/policy.ts`, and
   `packages/toolkit/create/template-workspace/patches/effect-schema-error-type-id.patch`.
-  That patch carries two hunks: it restores the erased
-  `preResponseHandler.d.ts` type exports, and it drops the dangling
+  Add release-age approval evidence only for immature packages that are
+  reachable from the generated lockfile; an override-only package is not an
+  approval target.
+  That patch carries one public declaration hunk: it drops the dangling
   `SchemaAST.Sentinel` reference from `Schema.d.ts` (beta.102 marked
   `collectSentinels` `@internal`, erasing `Sentinel` from `SchemaAST.d.ts`
   while `Schema.d.ts` kept referencing it, so the shipped types fail their own
-  `tsgo` check with TS2694 — still true on beta.103). Its
+  `tsgo` check with TS2694 — still true on beta.107). The former private
+  `preResponseHandler.d.ts` hunk is intentionally retired. Its
   `index <blob>..<blob>` header is version-specific, so a version bump without
   `pnpm patch effect@<new-version>` produces a patch that silently fails to
   apply. The patch is **template-only** (it is deliberately absent from the
   repo-root `patches/` and from `SHARED_ULTRAMODERN_WORKSPACE_PATCH_FILES`, so
   `tests/patch-sync.test.ts` guards its absence there, not its content); its
-  content is pinned instead by the `sha256` recorded in the two
+  content is pinned instead by the `sha256` recorded in the Effect
   `stalePatchPolicies` entries at
   `packages/toolkit/create/src/ultramodern-workspace/policy.ts:449-486`.
   Guards: `packages/toolkit/create/tests/version-pins.test.ts` and
   `packages/toolkit/create/tests/migrate-release-age-policy.test.ts`. A merge
-  that reverts any one site to upstream leaves the other four pointing at a
+  that reverts any one site to upstream leaves the other three pointing at a
   version that is no longer installed.
+  Fresh release-age exclusions are temporary, exact-version outputs backed by
+  review evidence and removed after the 24-hour maturity window or approval
+  expiry. They are distinct from the generated `trustPolicyExclude` entries,
+  which remain limited to `effect` and `@effect/opentelemetry` for the
+  trusted-publisher to provenance metadata transition.
+- **Generated dependency/toolchain cohort — [F] (2026-08-10).** Keep the
+  generator-owned pins aligned across version policy, templates, generated
+  validation, and documentation: `@effect/tsgo@0.36.2`,
+  `@tanstack/react-router@1.170.25`, `@tanstack/router-core@1.171.21`,
+  `@tanstack/history@1.162.1`, the Module Federation `2.8.2` cohort,
+  `@module-federation/node@2.7.49`, `react-router@7.18.2`, Node `26.7.0`, pnpm
+  `11.21.0`, and `@types/node@^26.2.0`. RSC stays disabled and absent from the
+  generated dependency cohort. Builder, render, and TanStack expose the Rspack
+  RSC runtime only as an exact optional peer; the root installs and patches
+  upstream `react-server-dom-rspack@0.0.3` solely for framework regression
+  tests.
 
 - **Examples consume the workspace, not the registry — [F] (2026-08-04).** Every
   `@modern-js/*` dependency in the 15 `examples/**` workspace members is
@@ -137,7 +160,7 @@ Toolchain only: package.json scripts, rslib config, tsconfig `ignoreDeprecations
 - `src/cli.ts`, `src/server.ts`, `src/loader.ts` — `bff.runtimeFramework: 'hono' | 'effect'` wiring + effect worker entry. `src/server.ts` — [F] (2026-08-04) loads `EffectAdapter` through a **dynamic** `await import('./runtime/effect/adapter')` inside `onPrepare`, never a static top-level import. A static import pulls `effect/Effect`, `effect/Layer`, `effect/Schema` and `effect/unstable/http*` into the eager module graph of `@modern-js/plugin-bff/server-plugin`, so a hono-only consumer that has not installed the optional `effect` peer crashes on import with `ERR_MODULE_NOT_FOUND`. Guard: `tests/regression.test.ts` (`server entry does not eagerly load Effect`).
 - `src/utils/{clientGenerator,runtimeGenerator,pluginGenerator,createHonoRoutes,crossProjectApiPlugin}.ts` — generator hardening per ADR-0005 (prefix conflicts are hard errors, deterministic package-metadata merge with collision detection) plus Effect client/data-platform generation. The fail-fast/merge hardening is upstreamable in isolation if ever wanted; the Effect parts are not.
 - `src/runtime/*` (create-request, hono adapter/operators) — operation-context headers + envelope policy.
-- `package.json` — [F] (2026-08-04) **entirely fork-added dependency block.** Upstream's plugin-bff has no `effect` dependency and no `peerDependencies` block at all. The fork declares `peerDependencies: { effect: '<cohort>', '@effect/opentelemetry': '<cohort>' }`, both marked `optional` in `peerDependenciesMeta`, and mirrored exact `devDependencies` for both (needed because `autoInstallPeers: false`). `@effect/opentelemetry` MUST move with `effect`: it declares a REQUIRED (non-optional) `effect` peer of its own, so leaving it in `dependencies` re-imposes that peer on every hono-only consumer transitively and makes the optional `effect` peer a fiction. Why: Effect must resolve to **one** identity in the consumer's graph — shipping it as a hard `dependencies` entry lets pnpm install a second copy alongside the app's own, and `export * from 'effect/unstable/http'` in the runtime barrels then hands back services from the wrong Effect instance. Because the block is purely additive, a sync merge will not conflict on it, so a resolver taking "theirs" wholesale drops it **silently**. Guards: `packages/cli/plugin-bff/tests/regression.test.ts` (asserts, for BOTH `effect` and `@effect/opentelemetry`, that `dependencies[name] === undefined`, `peerDependencies[name] === devDependencies[name]`, `peerDependenciesMeta[name].optional === true`; plus `server entry does not eagerly load Effect`) and `packages/toolkit/create/tests/version-pins.test.ts` (`plugin-bff declares the same Effect cohort generated workspaces pin`). Moving the cohort means moving four sites in lockstep — the otel dep, the peer, the devDep, and `pnpm-workspace.yaml` `minimumReleaseAgeExclude` — plus `EFFECT_VERSION` in `packages/toolkit/create/src/ultramodern-workspace/versions.ts`.
+- `package.json` — [F] (2026-08-04) **entirely fork-added dependency block.** Upstream's plugin-bff has no `effect` dependency and no `peerDependencies` block at all. The fork declares `peerDependencies: { effect: '<cohort>', '@effect/opentelemetry': '<cohort>' }`, both marked `optional` in `peerDependenciesMeta`, and mirrored exact `devDependencies` for both (needed because `autoInstallPeers: false`). `@effect/opentelemetry` MUST move with `effect`: it declares a REQUIRED (non-optional) `effect` peer of its own, so leaving it in `dependencies` re-imposes that peer on every hono-only consumer transitively and makes the optional `effect` peer a fiction. Why: Effect must resolve to **one** identity in the consumer's graph — shipping it as a hard `dependencies` entry lets pnpm install a second copy alongside the app's own, and `export * from 'effect/unstable/http'` in the runtime barrels then hands back services from the wrong Effect instance. Because the block is purely additive, a sync merge will not conflict on it, so a resolver taking "theirs" wholesale drops it **silently**. Guards: `packages/cli/plugin-bff/tests/regression.test.ts` (asserts, for BOTH `effect` and `@effect/opentelemetry`, that `dependencies[name] === undefined`, `peerDependencies[name] === devDependencies[name]`, `peerDependenciesMeta[name].optional === true`; plus `server entry does not eagerly load Effect`) and `packages/toolkit/create/tests/version-pins.test.ts` (`plugin-bff declares the same Effect cohort generated workspaces pin`). Moving the cohort means moving the exact peer/devDependency pins, `EFFECT_VERSION`, generated overrides and trust exclusions, and the version-specific declaration patch in lockstep. If an immature installed package receives an exact release-age approval, its immutable evidence and temporary generated exclusion move too; override-only packages do not receive approvals, and age-gate entries are not trust exclusions.
 - tsconfig — [M].
 
 ### plugin-data-loader (7 files) — [M]

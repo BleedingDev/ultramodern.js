@@ -46,7 +46,7 @@ describe('builder environment compat', () => {
   afterEach(() => {
     rstest.unstubAllEnvs();
   });
-  it('should generator environment config correctly', async () => {
+  it('creates isolated client, server, and worker configs', async () => {
     rstest.stubEnv('NODE_ENV', 'development');
 
     const rsbuild = await createBuilder({
@@ -79,7 +79,65 @@ describe('builder environment compat', () => {
       'workerSSR',
     ]);
 
-    expect(bundlerConfigs).toMatchSnapshot();
+    const configsByName = Object.fromEntries(
+      bundlerConfigs.map(config => [config.name, config]),
+    );
+    expect(configsByName.client).toMatchObject({
+      cache: {
+        storage: { type: 'filesystem' },
+        type: 'persistent',
+        version: 'client-development',
+      },
+      mode: 'development',
+      output: { filename: 'static/js/[name].js' },
+      target: [
+        'web',
+        'browserslist:chrome >= 87,edge >= 88,firefox >= 78,safari >= 14',
+      ],
+    });
+    expect(configsByName.server).toMatchObject({
+      cache: {
+        storage: { type: 'filesystem' },
+        type: 'persistent',
+        version: 'server-development',
+      },
+      mode: 'development',
+      output: {
+        filename: '[name].js',
+        library: { type: 'commonjs2' },
+      },
+      target: 'node',
+    });
+    expect(configsByName.workerSSR).toMatchObject({
+      cache: {
+        storage: { type: 'filesystem' },
+        type: 'persistent',
+        version: 'workerSSR-development',
+      },
+      mode: 'development',
+      output: {
+        filename: '[name].js',
+        library: { type: 'commonjs2' },
+      },
+      target: ['webworker', 'es5'],
+    });
+
+    const cacheDirectories = bundlerConfigs.map(
+      config => (config.cache as any).storage.directory,
+    );
+    expect(new Set(cacheDirectories).size).toBe(bundlerConfigs.length);
+    expect(
+      configsByName.client.plugins?.some(
+        (plugin: any) => plugin?.constructor?.name === 'HtmlRspackPlugin',
+      ),
+    ).toBe(true);
+    for (const config of [configsByName.server, configsByName.workerSSR]) {
+      expect(
+        config.plugins?.some(
+          (plugin: any) => plugin?.constructor?.name === 'HtmlRspackPlugin',
+        ),
+      ).toBe(false);
+    }
   });
 
   it('should emit module library for module workerSSR output', async () => {

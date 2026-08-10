@@ -231,7 +231,7 @@ function writePreformatConfig(targetDir: string) {
       `import ultracite from ${JSON.stringify(ultraciteConfigUrl)};`,
       '',
       'export default defineConfig({',
-      '  extends: [ultracite],',
+      '  ...ultracite,',
       '  ignorePatterns: [',
       ...workspaceOxfmtIgnorePatterns.map(
         pattern => `    ${JSON.stringify(pattern)},`,

@@ -1,34 +1,85 @@
-import { describe, expect, it } from '@rstest/core';
-import { RSLIB_CODE_ENTRY_GLOB, rslibConfig } from '../src/index';
+import { createRslib, type RslibConfig } from '@rslib/core';
+import { afterAll, beforeAll, describe, expect, it } from '@rstest/core';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+import { pathToFileURL } from 'url';
+import { rslibConfig } from '../src/index';
 
-const codeExtensions = ['js', 'jsx', 'ts', 'tsx', 'mjs', 'mts', 'cjs', 'cts'];
+const fixtureDirectory = path.join(__dirname, 'fixtures/source-entry');
+const temporaryDirectory = fs.mkdtempSync(
+  path.join(os.tmpdir(), 'modernjs-rslib-source-entry-'),
+);
+const outputDirectory = path.join(temporaryDirectory, 'dist');
+const outputFormats = [
+  { directory: 'esm-node', extension: 'mjs', module: 'esm' },
+  { directory: 'esm', extension: 'mjs', module: 'esm' },
+  { directory: 'cjs', extension: 'js', module: 'cjs' },
+] as const;
 
 describe('Rslib bundleless source entries', () => {
-  it('includes code files and excludes Markdown files', () => {
-    const extensionGroup = RSLIB_CODE_ENTRY_GLOB.match(/\{([^}]+)\}/u)?.[1];
-    const codeEntryPattern = new RegExp(
-      `\\.(${extensionGroup?.split(',').join('|')})$`,
-      'u',
-    );
+  beforeAll(async () => {
+    const config: RslibConfig = {
+      ...rslibConfig,
+      lib: rslibConfig.lib?.map(libConfig => ({
+        ...libConfig,
+        output: {
+          ...libConfig.output,
+          distPath: {
+            ...libConfig.output?.distPath,
+            root: path.join(
+              outputDirectory,
+              path.basename(libConfig.output?.distPath?.root ?? libConfig.id),
+            ),
+          },
+        },
+      })),
+    };
+    const rslib = await createRslib({ cwd: fixtureDirectory, config });
 
-    expect(extensionGroup?.split(',')).toEqual(codeExtensions);
-    expect(extensionGroup?.split(',')).not.toContain('md');
-    expect(
-      codeEntryPattern.test(
-        'src/ultramodern-workspace/delivery-unit-schema/SPEC.md',
-      ),
-    ).toBe(false);
+    await rslib.build();
+  }, 120_000);
 
-    for (const extension of codeExtensions) {
-      expect(codeEntryPattern.test(`src/entry.${extension}`)).toBe(true);
+  afterAll(() => {
+    fs.rmSync(temporaryDirectory, { recursive: true, force: true });
+  });
+
+  it('emits executable TypeScript and TSX modules for every bundleless output', async () => {
+    for (const outputFormat of outputFormats) {
+      const entryPath = path.join(
+        outputDirectory,
+        outputFormat.directory,
+        `entry.${outputFormat.extension}`,
+      );
+      const componentPath = path.join(
+        outputDirectory,
+        outputFormat.directory,
+        `component.${outputFormat.extension}`,
+      );
+      const entry =
+        outputFormat.module === 'esm'
+          ? await import(pathToFileURL(entryPath).href)
+          : require(entryPath);
+      const component =
+        outputFormat.module === 'esm'
+          ? await import(pathToFileURL(componentPath).href)
+          : require(componentPath);
+
+      expect(entry.identifySourceEntry()).toBe('typescript-entry');
+      expect(component.Greeting({ name: 'UltraModern' })).toMatchObject({
+        element: 'strong',
+        label: 'UltraModern',
+      });
     }
   });
 
-  it('applies the policy to every bundleless library output', () => {
-    expect(rslibConfig.lib?.map(lib => lib.source?.entry)).toEqual(
-      Array.from({ length: 3 }, () => ({
-        index: [RSLIB_CODE_ENTRY_GLOB],
-      })),
-    );
+  it('does not emit Markdown as a library module', () => {
+    for (const outputFormat of outputFormats) {
+      expect(
+        fs.existsSync(
+          path.join(outputDirectory, outputFormat.directory, 'SPEC.md'),
+        ),
+      ).toBe(false);
+    }
   });
 });

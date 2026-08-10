@@ -97,7 +97,7 @@ export function getMatchedRouteChunks<T>(
   routeManifest: RouteManifestLike | undefined,
   routeAssetToChunk: (asset: string) => T,
 ) {
-  if (!routeManifest) {
+  if (routeManifest === undefined) {
     return [];
   }
 

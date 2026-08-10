@@ -21,7 +21,7 @@
     "@modern-js/plugin-polyfill": "workspace:*",
     "@modern-js/utils": "workspace:*",
     "@swc/core": "1.15.43",
-    "@types/node": "^26.1.1",
+    "@types/node": "^26.2.0",
     "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "cross-spawn": "^7.0.6",
     "enhanced-resolve": "5.24.5",

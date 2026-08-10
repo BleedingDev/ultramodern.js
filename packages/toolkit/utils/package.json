@@ -197,13 +197,13 @@
     "@modern-js/types": "workspace:*",
     "@rslib/core": "0.23.2",
     "@scripts/rstest-config": "workspace:*",
-    "@types/node": "^26.1.1",
+    "@types/node": "^26.2.0",
     "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "happy-dom": "^20.10.6"
   },
   "peerDependencies": {
-    "react": "^19.2.7",
-    "react-dom": "^19.2.7"
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
   },
   "peerDependenciesMeta": {
     "react": {

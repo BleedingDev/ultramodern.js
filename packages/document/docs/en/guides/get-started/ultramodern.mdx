@@ -143,13 +143,25 @@ migration work: move code to `shared/api.ts`, `api/index.ts`, and
 and `src/effect`.
 
 Generated strict Effect workspaces pin the compatible Effect cohort with pnpm
-overrides: `effect@4.0.0-beta.102`, `@effect/opentelemetry@4.0.0-beta.102`,
-and `@effect/vitest@4.0.0-beta.102`. Do not add app-local direct Effect
-versions that disagree with those overrides. They also carry generated pnpm
-policy exclusions for `effect@4.0.0-beta.102` and
-`@effect/opentelemetry@4.0.0-beta.102` so the framework-selected Effect beta
-cohort is not blocked by the 24-hour age gate or trusted-publisher to
-provenance metadata transition.
+overrides: `effect@4.0.0-beta.107`, `@effect/opentelemetry@4.0.0-beta.107`,
+and `@effect/vitest@4.0.0-beta.107`. Do not add app-local direct Effect
+versions that disagree with those overrides. The strict 24-hour release-age
+gate applies to installed packages; this cohort carries no Effect age
+exemption, and override-only `@effect/vitest` is not an installed approval
+target. Independently, exact `trustPolicyExclude` entries for `effect`
+and `@effect/opentelemetry` cover their trusted-publisher to provenance
+metadata transition; they are not release-age approvals.
+
+### Current generated dependency baseline
+
+| Surface | Pin |
+| --- | --- |
+| Effect runtime and test cohort | `effect`, `@effect/opentelemetry`, and `@effect/vitest`: `4.0.0-beta.107` |
+| Effect compiler | `@effect/tsgo@0.36.2` |
+| TanStack Router | `@tanstack/react-router@1.170.25`, `@tanstack/router-core@1.171.21`, `@tanstack/history@1.162.1` |
+| Module Federation | `bridge-react`, `manifest`, `modern-js-v3`, and `rspack`: `2.8.2`; `@module-federation/node@2.7.49` |
+| React Router | `react-router@7.18.2` |
+| Node and package tooling | Node `26.7.0`, `@types/node@^26.2.0`, pnpm `11.21.0` |
 
 Gradual migration means old, unmigrated Modern.js apps can keep their existing
 runtime until they are converted. Once a surface is generated or migrated as

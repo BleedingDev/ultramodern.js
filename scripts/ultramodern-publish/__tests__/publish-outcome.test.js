@@ -188,12 +188,70 @@ async function createEvidenceFixture() {
     publishedOperationalEvidencePath,
   );
   const tractorBaselineRevision = '3a9ac349f8f52662d451030aa86ba142ca01973d';
-  const uiSha256 = digest('tractor visible ui');
   const verticalIds = ['checkout', 'decide', 'explore'];
   const boundaryCandidates = {
     checkout: ['checkout', 'verticalCheckout'],
     decide: ['decide', 'verticalDecide'],
     explore: ['explore', 'verticalExplore'],
+  };
+  const nativeSearch = {
+    cartRoute: '/en/cart?sku=EX-01',
+    productRoute: '/en/tractors/example?sku=EX-01',
+    sku: 'EX-01',
+    status: 'native-typed-search',
+  };
+  const visibleUi = {
+    accessibility: {
+      controls: [
+        ['link', 'Add to basket'],
+        ['link', 'Checkout'],
+        ['textbox', 'Name'],
+        ['textbox', 'Email'],
+        ['textbox', 'Delivery address'],
+        ['button', 'Place order'],
+        ['heading', 'Thank you for your order'],
+      ].map(([role, name]) => ({ name, role, status: 'pass' })),
+      status: 'pass',
+    },
+    computedStyles: {
+      samples: [
+        ['product-grid', 'grid'],
+        ['product-page', 'block'],
+        ['cart-page', 'block'],
+        ['checkout-page', 'block'],
+        ['thanks-page', 'block'],
+      ].map(([subject, display]) => ({
+        display,
+        opacity: 1,
+        subject,
+        visibility: 'visible',
+      })),
+      status: 'pass',
+    },
+    dom: {
+      boundaries: [
+        ['explore', './ProductGrid'],
+        ['decide', './ProductPage'],
+        ['checkout', './CartPage'],
+        ['checkout', './CheckoutPage'],
+        ['checkout', './ThanksPage'],
+      ].map(([boundaryId, expose]) => ({
+        boundaryId,
+        expose,
+        visible: true,
+      })),
+      status: 'pass',
+    },
+    runtime: {
+      interactions: [
+        'open-product',
+        'add-to-basket',
+        'begin-checkout',
+        'place-order',
+      ].map(type => ({ status: 'pass', type })),
+      status: 'pass',
+    },
+    status: 'pass',
   };
   const assertions = types => types.map(type => ({ status: 'pass', type }));
   const nodeSsrResult = (appId, noJavaScriptType) => {
@@ -252,15 +310,6 @@ async function createEvidenceFixture() {
       checks: [
         {
           detail: {
-            excludedPatterns: ['\\.gen\\.(?:[cm]?[jt]sx?|d\\.[cm]?[jt]s)$'],
-            fileCount: 10,
-            sha256: uiSha256,
-          },
-          id: 'ui-baseline',
-          status: 'passed',
-        },
-        {
-          detail: {
             createPackage: `@bleedingdev/modern-js-create@${release.version}`,
             version: release.version,
           },
@@ -281,8 +330,6 @@ async function createEvidenceFixture() {
           status: 'passed',
         },
         ...[
-          'native-tanstack-search',
-          'migration-preserves-visible-ui-source',
           'install---frozen-lockfile',
           'check',
           'promotable-application-source',
@@ -316,6 +363,7 @@ async function createEvidenceFixture() {
         {
           detail: {
             assertionCount: 5,
+            nativeSearch,
             platform: 'node',
             routes: [
               '/en/tractors',
@@ -324,6 +372,7 @@ async function createEvidenceFixture() {
               '/en/checkout',
               '/en/checkout/thank-you',
             ],
+            ui: visibleUi,
           },
           id: 'node-visible-tractor-workflow',
           status: 'passed',
@@ -336,6 +385,7 @@ async function createEvidenceFixture() {
         {
           detail: {
             assertionCount: 5,
+            nativeSearch,
             platform: 'workerd',
             routes: [
               '/en/tractors',
@@ -344,18 +394,22 @@ async function createEvidenceFixture() {
               '/en/checkout',
               '/en/checkout/thank-you',
             ],
+            ui: visibleUi,
           },
           id: 'workerd-visible-tractor-workflow',
           status: 'passed',
         },
         {
           detail: {
-            excludedPatterns: ['\\.gen\\.(?:[cm]?[jt]sx?|d\\.[cm]?[jt]s)$'],
-            fileCount: 10,
-            sha256: uiSha256,
-            status: 'unchanged',
+            node: nativeSearch,
+            workerd: nativeSearch,
           },
-          id: 'final-visible-ui-source',
+          id: 'native-tanstack-search',
+          status: 'passed',
+        },
+        {
+          detail: { node: visibleUi, workerd: visibleUi },
+          id: 'visible-tractor-ui',
           status: 'passed',
         },
       ],
@@ -941,6 +995,52 @@ test('publish outcome rejects incomplete receipt, operational evidence, and Trac
         );
       },
       pattern: /node browser workflow evidence/u,
+    },
+    {
+      label: 'hidden Module Federation UI boundary',
+      mutate(fixture) {
+        const report = JSON.parse(
+          fs.readFileSync(fixture.tractorReportPath, 'utf8'),
+        );
+        const workflow = report.checks.find(
+          check => check.id === 'node-visible-tractor-workflow',
+        ).detail;
+        workflow.ui.dom.boundaries.find(
+          boundary => boundary.expose === './ProductPage',
+        ).visible = false;
+        report.checks.find(
+          check => check.id === 'visible-tractor-ui',
+        ).detail.node = workflow.ui;
+        fs.writeFileSync(
+          fixture.tractorReportPath,
+          `${JSON.stringify(report)}\n`,
+        );
+        fixture.tractorReportSha256 = digest(
+          fs.readFileSync(fixture.tractorReportPath),
+        );
+      },
+      pattern: /visible DOM boundary decide \.\/ProductPage/u,
+    },
+    {
+      label: 'detached visible UI summary',
+      mutate(fixture) {
+        const report = JSON.parse(
+          fs.readFileSync(fixture.tractorReportPath, 'utf8'),
+        );
+        report.checks
+          .find(check => check.id === 'visible-tractor-ui')
+          .detail.node.runtime.interactions.find(
+            interaction => interaction.type === 'place-order',
+          ).status = 'fail';
+        fs.writeFileSync(
+          fixture.tractorReportPath,
+          `${JSON.stringify(report)}\n`,
+        );
+        fixture.tractorReportSha256 = digest(
+          fs.readFileSync(fixture.tractorReportPath),
+        );
+      },
+      pattern: /visible UI summary differs/u,
     },
     {
       label: 'empty shell SSR composition payload',

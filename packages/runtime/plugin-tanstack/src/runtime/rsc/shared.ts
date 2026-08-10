@@ -62,7 +62,7 @@ export function renderSelectedTree(
     missingTreeError,
   }: RenderSelectedTreeOptions,
 ) {
-  if (!getTree) {
+  if (getTree === undefined) {
     throw new Error(missingTreeError);
   }
 

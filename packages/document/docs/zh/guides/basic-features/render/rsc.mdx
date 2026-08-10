@@ -21,29 +21,20 @@ React Server Components (RSC) 是一种新的组件类型，允许在服务端�
 
 ## 快速开始
 
-1. **确保 React 和 React DOM 升级到 19 版本**（建议 19.2.4 以上版本）
+:::warning UltraModern 可用性
+当前 UltraModern 公司发行版不提供也不支持 RSC。在 Rspack Flight 运行时完成上游工作之前，框架会保持 [`server.rsc`](/configure/app/server/rsc) 关闭。请勿安装 `react-server-dom-rspack`，也不要携带应用级 pnpm 补丁来提前启用它。
 
-2. **安装 `react-server-dom-rspack@0.0.2` 依赖**
-
-```bash
-npm install react-server-dom-rspack@0.0.2
-```
-
-:::warning 注意事项
-
-1. 目前暂不支持在 SPA 项目中使用 [Server Functions](https://react.dev/reference/rsc/server-functions)
-2. 目前在 Rspack 构建时，产物分片和体积还未达到最优状态，我们将在近期进一步优化
-
+本页其余内容仅作为未来采用上游实现时的参考资料保留。
 :::
 
-3. 设置 [`server.rsc`](/configure/app/server/rsc) 为 `true`：
+请保持 [`server.rsc`](/configure/app/server/rsc) 为 `false`：
 
 ```ts title="modern.config.ts"
 import { defineConfig } from '@modern-js/app-tools';
 
 export default defineConfig({
   server: {
-    rsc: true,
+    rsc: false,
   },
 });
 ```

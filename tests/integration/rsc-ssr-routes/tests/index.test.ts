@@ -506,4 +506,4 @@ async function requestRscPayloadForClientOnlyRouteWithLoader({
 }
 
 runTests({ mode: 'dev' });
-// runTests({ mode: 'build' });
+runTests({ mode: 'build' });

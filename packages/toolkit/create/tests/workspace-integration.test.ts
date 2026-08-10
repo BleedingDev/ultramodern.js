@@ -89,6 +89,296 @@ function commandOutput(result: ReturnType<typeof runGeneratedWorkspaceCheck>) {
   return `${result.stdout}\n${result.stderr}`;
 }
 
+type RecordedCommand = {
+  argv: string[];
+  command: 'node' | 'pnpm';
+  cwd: string;
+};
+
+type CommandRecorder = {
+  binDir: string;
+  logPath: string;
+  recorderPath: string;
+};
+
+function resolvePackageManagerExecutable() {
+  const npmExecPath = process.env.npm_execpath;
+  if (npmExecPath && fs.existsSync(npmExecPath)) {
+    return npmExecPath;
+  }
+
+  const lookup = spawnSync(
+    process.platform === 'win32' ? 'where' : 'which',
+    ['pnpm'],
+    { encoding: 'utf8' },
+  );
+  assert.equal(lookup.status, 0, commandOutput(lookup));
+  const executable = lookup.stdout.split(/\r?\n/u).find(Boolean);
+  assert.ok(executable, 'Expected pnpm to be available for script execution');
+  return executable;
+}
+
+const packageManagerExecutable = resolvePackageManagerExecutable();
+
+function writeRecorderCommandShim(binDir: string, command: string) {
+  const executablePath = path.join(binDir, command);
+  fs.writeFileSync(
+    executablePath,
+    [
+      '#!/bin/sh',
+      `exec "$ULTRAMODERN_SCRIPT_RECORDER_NODE" "$ULTRAMODERN_SCRIPT_RECORDER_PATH" ${command} "$@"`,
+      '',
+    ].join('\n'),
+    { mode: 0o755 },
+  );
+  fs.writeFileSync(
+    `${executablePath}.cmd`,
+    `@echo off\r\n"%ULTRAMODERN_SCRIPT_RECORDER_NODE%" "%ULTRAMODERN_SCRIPT_RECORDER_PATH%" ${command} %*\r\n`,
+    'utf8',
+  );
+}
+
+function createCommandRecorder(tempRoot: string): CommandRecorder {
+  const binDir = path.join(tempRoot, 'script-recorder-bin');
+  const logPath = path.join(tempRoot, 'script-invocations.jsonl');
+  const recorderPath = path.join(tempRoot, 'script-recorder.cjs');
+  fs.mkdirSync(binDir, { recursive: true });
+  fs.writeFileSync(
+    recorderPath,
+    `
+const fs = require('node:fs');
+const path = require('node:path');
+
+const [command, ...argv] = process.argv.slice(2);
+const cwd = path.relative(process.env.ULTRAMODERN_SCRIPT_RECORDER_WORKSPACE, process.cwd()) || '.';
+const record = { argv, command, cwd };
+fs.appendFileSync(process.env.ULTRAMODERN_SCRIPT_RECORDER_LOG, JSON.stringify(record) + '\\n');
+
+const failure = process.env.ULTRAMODERN_SCRIPT_RECORDER_FAILURE
+  ? JSON.parse(process.env.ULTRAMODERN_SCRIPT_RECORDER_FAILURE)
+  : undefined;
+if (
+  failure &&
+  failure.command === command &&
+  JSON.stringify(failure.argv) === JSON.stringify(argv)
+) {
+  process.exit(23);
+}
+`,
+    'utf8',
+  );
+  for (const command of ['node', 'pnpm']) {
+    writeRecorderCommandShim(binDir, command);
+  }
+  return { binDir, logPath, recorderPath };
+}
+
+function readRecordedCommands(logPath: string): RecordedCommand[] {
+  const records = fs.existsSync(logPath)
+    ? fs.readFileSync(logPath, 'utf8').trim()
+    : '';
+  return records
+    ? records.split(/\r?\n/u).map(line => JSON.parse(line) as RecordedCommand)
+    : [];
+}
+
+function runGeneratedPackageScript(
+  workspaceDir: string,
+  recorder: CommandRecorder,
+  scriptName: string,
+  failure?: Pick<RecordedCommand, 'argv' | 'command'>,
+) {
+  fs.writeFileSync(recorder.logPath, '', 'utf8');
+  const env: NodeJS.ProcessEnv = {
+    ...hermeticEnv,
+    PATH: `${recorder.binDir}${path.delimiter}${process.env.PATH ?? ''}`,
+    ULTRAMODERN_SCRIPT_RECORDER_FAILURE: failure
+      ? JSON.stringify(failure)
+      : undefined,
+    ULTRAMODERN_SCRIPT_RECORDER_LOG: recorder.logPath,
+    ULTRAMODERN_SCRIPT_RECORDER_NODE: process.execPath,
+    ULTRAMODERN_SCRIPT_RECORDER_PATH: recorder.recorderPath,
+    ULTRAMODERN_SCRIPT_RECORDER_WORKSPACE: fs.realpathSync(workspaceDir),
+  };
+  if (process.platform === 'win32') {
+    env.Path = env.PATH;
+    env.PATHEXT = `.CMD;.EXE;.BAT;.COM;${process.env.PATHEXT ?? ''}`;
+  }
+  const executableIsJavaScript =
+    /\.[cm]?js$/u.test(packageManagerExecutable) ||
+    fs
+      .readFileSync(packageManagerExecutable, 'utf8')
+      .startsWith('#!/usr/bin/env node');
+  const result = spawnSync(
+    executableIsJavaScript ? process.execPath : packageManagerExecutable,
+    [
+      ...(executableIsJavaScript ? [packageManagerExecutable] : []),
+      '--config.verify-deps-before-run=false',
+      'run',
+      scriptName,
+    ],
+    { cwd: workspaceDir, encoding: 'utf8', env },
+  );
+  return { records: readRecordedCommands(recorder.logPath), result };
+}
+
+function assertGeneratedWorkspaceScriptBehavior(
+  workspaceDir: string,
+  tempRoot: string,
+) {
+  const recorder = createCommandRecorder(tempRoot);
+  const pnpm = (...argv: string[]): RecordedCommand => ({
+    argv,
+    command: 'pnpm',
+    cwd: '.',
+  });
+  const node = (...argv: string[]): RecordedCommand => ({
+    argv,
+    command: 'node',
+    cwd: '.',
+  });
+  const successfulScenarios: Array<{
+    expected: RecordedCommand[];
+    scriptName: string;
+  }> = [
+    {
+      scriptName: 'dev',
+      expected: [
+        pnpm(
+          '--parallel',
+          '--filter',
+          '@integration-workspace/shell-super-app',
+          '--filter',
+          '@integration-workspace/catalog',
+          '--filter',
+          '@integration-workspace/checkout',
+          'dev',
+        ),
+      ],
+    },
+    {
+      scriptName: 'dev:catalog',
+      expected: [pnpm('--filter', '@integration-workspace/catalog', 'dev')],
+    },
+    {
+      scriptName: 'dev:checkout',
+      expected: [pnpm('--filter', '@integration-workspace/checkout', 'dev')],
+    },
+    {
+      scriptName: 'build',
+      expected: [
+        pnpm('-r', '--filter', './verticals/*', 'run', 'build'),
+        pnpm('--filter', './apps/shell-super-app', 'run', 'build'),
+        pnpm('mf:types'),
+        pnpm('performance:readiness'),
+      ],
+    },
+    {
+      scriptName: 'check',
+      expected: [
+        pnpm('format:check'),
+        pnpm('lint'),
+        pnpm('typecheck'),
+        pnpm('skills:check'),
+        pnpm('i18n:boundaries'),
+        pnpm('api:check'),
+        pnpm('contract:check'),
+        pnpm('performance:readiness'),
+      ],
+    },
+    {
+      scriptName: 'node:proof',
+      expected: [node('./scripts/proof-node-backend-federation.mts')],
+    },
+    {
+      scriptName: 'node:backend-federation:generate',
+      expected: [node('./scripts/generate-node-backend-federation.mts')],
+    },
+    {
+      scriptName: 'zerops:materialize',
+      expected: [node('./scripts/materialize-zerops-runtime.mjs')],
+    },
+    {
+      scriptName: 'cloudflare:ssr-proof',
+      expected: [node('./scripts/proof-workerd-ssr.mts')],
+    },
+    {
+      scriptName: 'cloudflare:build',
+      expected: [
+        pnpm('-r', '--filter', './verticals/*', 'run', 'cloudflare:build'),
+        pnpm('--filter', './apps/shell-super-app', 'run', 'cloudflare:build'),
+        pnpm('mf:types'),
+        pnpm('cloudflare-output:verify'),
+        pnpm('cloudflare:ssr-proof'),
+      ],
+    },
+  ];
+
+  for (const scenario of successfulScenarios) {
+    const execution = runGeneratedPackageScript(
+      workspaceDir,
+      recorder,
+      scenario.scriptName,
+    );
+    assert.equal(
+      execution.result.status,
+      0,
+      `${scenario.scriptName}\n${commandOutput(execution.result)}`,
+    );
+    assert.deepEqual(execution.records, scenario.expected, scenario.scriptName);
+  }
+
+  const failureScenarios: Array<{
+    expected: RecordedCommand[];
+    failure: Pick<RecordedCommand, 'argv' | 'command'>;
+    scriptName: string;
+  }> = [
+    {
+      scriptName: 'build',
+      failure: pnpm('-r', '--filter', './verticals/*', 'run', 'build'),
+      expected: [pnpm('-r', '--filter', './verticals/*', 'run', 'build')],
+    },
+    {
+      scriptName: 'check',
+      failure: pnpm('contract:check'),
+      expected: [
+        pnpm('format:check'),
+        pnpm('lint'),
+        pnpm('typecheck'),
+        pnpm('skills:check'),
+        pnpm('i18n:boundaries'),
+        pnpm('api:check'),
+        pnpm('contract:check'),
+      ],
+    },
+    {
+      scriptName: 'cloudflare:build',
+      failure: pnpm('cloudflare-output:verify'),
+      expected: [
+        pnpm('-r', '--filter', './verticals/*', 'run', 'cloudflare:build'),
+        pnpm('--filter', './apps/shell-super-app', 'run', 'cloudflare:build'),
+        pnpm('mf:types'),
+        pnpm('cloudflare-output:verify'),
+      ],
+    },
+  ];
+
+  for (const scenario of failureScenarios) {
+    const execution = runGeneratedPackageScript(
+      workspaceDir,
+      recorder,
+      scenario.scriptName,
+      scenario.failure,
+    );
+    assert.notEqual(
+      execution.result.status,
+      0,
+      `${scenario.scriptName} must propagate command failure`,
+    );
+    assert.deepEqual(execution.records, scenario.expected, scenario.scriptName);
+  }
+}
+
 function appById(apps: any[], id: string): any {
   const app = apps.find(candidate => candidate.id === id);
   assert.ok(app, `Expected app ${id}`);
@@ -343,8 +633,8 @@ function assertIntegratedVertical(
     verticalPackage.dependencies['@modern-js/plugin-bff'],
     'workspace:*',
   );
-  assert.equal(shellPackage.dependencies['react-router'], '7.18.1');
-  assert.equal(verticalPackage.dependencies['react-router'], '7.18.1');
+  assert.equal(shellPackage.dependencies['react-router'], '7.18.2');
+  assert.equal(verticalPackage.dependencies['react-router'], '7.18.2');
   assert.equal(shellPackage.dependencies['react-router-dom'], undefined);
   assert.equal(verticalPackage.dependencies['react-router-dom'], undefined);
   assert.equal(shellPackage.dependencies[packageName], 'workspace:*');
@@ -353,6 +643,35 @@ function assertIntegratedVertical(
     `${packageName}@workspace:*`,
   );
 }
+
+test('generated workspace scripts execute the complete ordered command plan and stop on failure', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-script-plan-'));
+  const workspaceDir = path.join(tempRoot, 'integration-workspace');
+
+  try {
+    generateUltramodernWorkspace({
+      targetDir: workspaceDir,
+      packageName: 'integration-workspace',
+      modernVersion: '3.2.1',
+      enableTailwind: true,
+      packageSource: { strategy: 'workspace' },
+    });
+    addUltramodernVertical({
+      workspaceRoot: workspaceDir,
+      name: 'catalog',
+      modernVersion: '3.2.1',
+    });
+    addUltramodernVertical({
+      workspaceRoot: workspaceDir,
+      name: 'checkout',
+      modernVersion: '3.2.1',
+    });
+
+    assertGeneratedWorkspaceScriptBehavior(workspaceDir, tempRoot);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
 
 test('workspace and MicroVertical integration stays coherent across public API and CLI additions', () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-integration-'));
@@ -440,39 +759,6 @@ test('workspace and MicroVertical integration stays coherent across public API a
       shellPackage.type,
       undefined,
       'generated MF shell app package must stay CJS-compatible',
-    );
-    assert.equal(
-      rootPackage.scripts['dev:catalog'],
-      'pnpm --filter @integration-workspace/catalog dev',
-    );
-    assert.equal(
-      rootPackage.scripts['dev:checkout'],
-      'pnpm --filter @integration-workspace/checkout dev',
-    );
-    assert.match(rootPackage.scripts.dev, /@integration-workspace\/catalog/);
-    assert.match(rootPackage.scripts.dev, /@integration-workspace\/checkout/);
-    assert.match(rootPackage.scripts.build, /verticals\/\*/);
-    assert.match(rootPackage.scripts.check, /contract:check/);
-    assert.doesNotMatch(rootPackage.scripts.check, /node:proof/);
-    assert.equal(
-      rootPackage.scripts['node:proof'],
-      'node ./scripts/proof-node-backend-federation.mts',
-    );
-    assert.equal(
-      rootPackage.scripts['node:backend-federation:generate'],
-      'node ./scripts/generate-node-backend-federation.mts',
-    );
-    assert.equal(
-      rootPackage.scripts['zerops:materialize'],
-      'node ./scripts/materialize-zerops-runtime.mjs',
-    );
-    assert.equal(
-      rootPackage.scripts['cloudflare:ssr-proof'],
-      'node ./scripts/proof-workerd-ssr.mts',
-    );
-    assert.match(
-      rootPackage.scripts['cloudflare:build'],
-      /&& pnpm cloudflare:ssr-proof$/u,
     );
     assert.equal(exists(workspaceDir, 'scripts/proof-workerd-ssr.mts'), true);
     const compactConfig = readJson(workspaceDir, '.modernjs/ultramodern.json');

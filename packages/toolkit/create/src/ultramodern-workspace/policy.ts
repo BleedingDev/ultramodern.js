@@ -39,8 +39,10 @@ import {
   REACT_VERSION,
   RSBUILD_PLUGIN_TAILWINDCSS_VERSION,
   TAILWIND_VERSION,
+  TANSTACK_HISTORY_VERSION,
   TANSTACK_ROUTER_CORE_VERSION,
   TANSTACK_ROUTER_VERSION,
+  TYPES_NODE_VERSION,
   TYPES_REACT_DOM_VERSION,
   TYPES_REACT_VERSION,
   TYPESCRIPT_NATIVE_PREVIEW_VERSION,
@@ -392,7 +394,7 @@ export const ULTRAMODERN_PACKAGE_PINS = {
     '@effect/tsgo': EFFECT_TSGO_VERSION,
     '@rsbuild/plugin-tailwindcss': `^${RSBUILD_PLUGIN_TAILWINDCSS_VERSION}`,
     '@typescript/native': `npm:typescript@${TYPESCRIPT_VERSION}`,
-    '@types/node': '^20',
+    '@types/node': TYPES_NODE_VERSION,
     '@types/react': TYPES_REACT_VERSION,
     '@types/react-dom': TYPES_REACT_DOM_VERSION,
     tailwindcss: `^${TAILWIND_VERSION}`,
@@ -414,6 +416,7 @@ export const ULTRAMODERN_PACKAGE_PINS = {
   transitiveDependencies: {
     '@cloudflare/workers-types': CLOUDFLARE_WORKERS_TYPES_VERSION,
     '@module-federation/node': MODULE_FEDERATION_NODE_VERSION,
+    '@tanstack/history': TANSTACK_HISTORY_VERSION,
     '@tanstack/router-core': TANSTACK_ROUTER_CORE_VERSION,
     '@typescript/native-preview': TYPESCRIPT_NATIVE_PREVIEW_VERSION,
     miniflare: MINIFLARE_VERSION,
@@ -433,11 +436,6 @@ const requiredPatchPolicies: readonly UltramodernPatchPolicy[] = [
     path: `patches/@module-federation__modern-js-v3@${MODULE_FEDERATION_VERSION}.patch`,
   },
   {
-    packageName: '@tanstack/router-core',
-    version: TANSTACK_ROUTER_CORE_VERSION,
-    path: `patches/@tanstack__router-core@${TANSTACK_ROUTER_CORE_VERSION}.patch`,
-  },
-  {
     packageName: 'effect',
     version: EFFECT_VERSION,
     path: 'patches/effect-schema-error-type-id.patch',
@@ -453,6 +451,18 @@ const conditionalPatchPolicies: readonly UltramodernPatchPolicy[] = [
 ];
 
 const stalePatchPolicies: readonly UltramodernStalePatchPolicy[] = [
+  {
+    packageName: '@module-federation/bridge-react',
+    version: '2.8.0',
+    path: 'patches/@module-federation__bridge-react@2.8.0.patch',
+    sha256: '54bfc79e097473222f83cbfa6d717792e3026bf16b5097c2ed91715b7da126be',
+  },
+  {
+    packageName: '@module-federation/modern-js-v3',
+    version: '2.8.0',
+    path: 'patches/@module-federation__modern-js-v3@2.8.0.patch',
+    sha256: '948d2a725ae526f395b0343b113ff80dfaa50dbdec8158179746e98259925d20',
+  },
   {
     packageName: '@module-federation/bridge-react',
     version: '2.7.0',
@@ -471,12 +481,11 @@ const stalePatchPolicies: readonly UltramodernStalePatchPolicy[] = [
     path: 'patches/effect-schema-error-type-id.patch',
     // Same path as the active effect patch, so the primary digest tracks the
     // current template patch and the legacy list carries superseded ones. The
-    // beta.102 cohort dropped the dead SchemaError TypeId hunk, rebased the
-    // remaining hunk onto the beta.102 pre-image, and added a hunk removing the
-    // dangling SchemaAST.Sentinel reference beta.102 left in Schema.d.ts;
-    // workspaces on an older template carry a superseded digest.
-    sha256: 'd9e12b42d06a051957899a9df14b2b7b2385fc3a5677a89037eeee3674d64ebe',
+    // beta.107 retains only the public SchemaAST.Sentinel repair. The previous
+    // private preResponseHandler declaration hunk is intentionally historical.
+    sha256: 'ed9f636f82a1a1e5c128fc85e99e24a8fcf4ba06a35e89e3dd6460250875153f',
     acceptedLegacySha256: [
+      'd9e12b42d06a051957899a9df14b2b7b2385fc3a5677a89037eeee3674d64ebe',
       'dc7e8088e600beb20185eb877754d749c4a93909fb79f49465e8319e40d6596a',
       'bd29a0ae24f0674c6007e5e6060d847dbeb9499a6e2cf4c9f13b24ba9fb3af37',
     ],
@@ -487,12 +496,22 @@ const stalePatchPolicies: readonly UltramodernStalePatchPolicy[] = [
     path: 'patches/effect-schema-error-type-id.patch',
     // Same path as the active effect patch, so the primary digest tracks the
     // current template patch and the legacy list carries superseded ones. The
-    // beta.102 cohort dropped the dead SchemaError TypeId hunk, rebased the
-    // remaining hunk onto the beta.102 pre-image, and added a hunk removing the
-    // dangling SchemaAST.Sentinel reference beta.102 left in Schema.d.ts;
-    // workspaces on an older template carry a superseded digest.
-    sha256: 'd9e12b42d06a051957899a9df14b2b7b2385fc3a5677a89037eeee3674d64ebe',
+    // beta.107 retains only the public SchemaAST.Sentinel repair. The previous
+    // private preResponseHandler declaration hunk is intentionally historical.
+    sha256: 'ed9f636f82a1a1e5c128fc85e99e24a8fcf4ba06a35e89e3dd6460250875153f',
     acceptedLegacySha256: [
+      'd9e12b42d06a051957899a9df14b2b7b2385fc3a5677a89037eeee3674d64ebe',
+      'dc7e8088e600beb20185eb877754d749c4a93909fb79f49465e8319e40d6596a',
+      'bd29a0ae24f0674c6007e5e6060d847dbeb9499a6e2cf4c9f13b24ba9fb3af37',
+    ],
+  },
+  {
+    packageName: 'effect',
+    version: '4.0.0-beta.102',
+    path: 'patches/effect-schema-error-type-id.patch',
+    sha256: 'ed9f636f82a1a1e5c128fc85e99e24a8fcf4ba06a35e89e3dd6460250875153f',
+    acceptedLegacySha256: [
+      'd9e12b42d06a051957899a9df14b2b7b2385fc3a5677a89037eeee3674d64ebe',
       'dc7e8088e600beb20185eb877754d749c4a93909fb79f49465e8319e40d6596a',
       'bd29a0ae24f0674c6007e5e6060d847dbeb9499a6e2cf4c9f13b24ba9fb3af37',
     ],
@@ -530,98 +549,110 @@ const stalePatchPolicies: readonly UltramodernStalePatchPolicy[] = [
     path: 'patches/@tanstack__router-core@1.171.13.patch',
     sha256: '0c6119dcaa6ad35a11e1ce4fd95179bf929d5b5a86e9cbee110f45bd07c5c8d3',
   },
+  {
+    packageName: '@tanstack/router-core',
+    version: '1.171.14',
+    path: 'patches/@tanstack__router-core@1.171.14.patch',
+    sha256: '1e1572940e00d6327c75bb8457c108e32e75a2292e4d90d764208d5b6f330155',
+  },
+  {
+    packageName: 'react-server-dom-rspack',
+    version: '0.0.3',
+    path: 'patches/@react-server-dom-rspack@0.0.3.patch',
+    sha256: '11e471512012c0015883a233017b3ad695765e344cbd1d8174e79196ab6ba567',
+  },
 ];
 
 const moduleFederationRegistryReleases = [
   [
     'bridge-react',
-    '2026-07-15T09:16:06.334Z',
-    'sha512-+MIaWVaXyrFfE2qq7ErZeflSTscJtDV6g4lZ+TQxjup1nC83Zw+Nw0fvfJnScDR5lP5SM9epSvZrrZHxpFeEgw==',
+    '2026-08-06T11:23:38.662Z',
+    'sha512-cRuoIZ2sX572+N5Ih3gKvajVnWMHN0n3FpWNtTheX81XYYKghGpl+fsJ68fAthZefYccnEcy9SGoaSYyXEtIyA==',
   ],
   [
     'bridge-react-webpack-plugin',
-    '2026-07-15T09:15:40.748Z',
-    'sha512-7AaaiE4YOXFb+st6xlVDK65aNKZYR9S9ykH0q2mkHAHTgquXciAjypS8JuhmKn7Lob/2rkplMOc4YsGxG3Ng9Q==',
+    '2026-08-06T11:24:16.927Z',
+    'sha512-cEhnpCsWHqUndQC6WKtwat5BGz+IU0UdCjzyXrZtx1UqHX1jRB0+DZxB4DKYKtxTko8fsV0FUCJ/0FjKZY6z8g==',
   ],
   [
     'cli',
-    '2026-07-15T09:16:37.679Z',
-    'sha512-yTxdWkCJPPo+IGASz+NqdW13cw3DhjSBEn9r85aYn1ahckDwB1WcZe0OjDWMqCcR6yi0BMLedk0SWrUeUj0fWw==',
+    '2026-08-06T11:26:17.305Z',
+    'sha512-SrRe2UOzjYux/9Zf7AYymGGsYpJgrIHUPF+T9JQ+rZ7MC9Uiy5rNUtSYdxNrdFpVaRZYXMrI4b82iUy66CU6UA==',
   ],
   [
     'dts-plugin',
-    '2026-07-15T09:16:15.728Z',
-    'sha512-defjq4jOWMEfeejezPWLP5sc8kw0O6FqTT7/E5rbZPEVyjB1A0U3ynhW6GDE5/6hk9/TzdbWS+fBNi4MqUOY6Q==',
+    '2026-08-06T11:24:53.645Z',
+    'sha512-pwZFW8b2LZTymMMC+o2M9xMXDIQKAHGtCRqj/IkOp0jHRYrKjK9cma9xoUNst8/R3sEn878/i9wgv/43BnCEyg==',
   ],
   [
     'enhanced',
-    '2026-07-15T09:17:21.630Z',
-    'sha512-h8vkLdhK7tlcSPmyYNGfGyt0pSzfDB0tYVYdyUt2tXwQRfaJAi3bsIpujMXElw3MXtOfSHESa6M/hPKrtWTHBw==',
+    '2026-08-06T11:30:02.334Z',
+    'sha512-XVCp1dz7ADd2YgjuvGVsS7IVJ8ViuAUCEz9gAb4M0qMJCjcPfzXQ1CzV1/Me1lKaPPwNj/cJ3NXTRvXjMHanGg==',
   ],
   [
     'error-codes',
-    '2026-07-15T09:15:24.091Z',
-    'sha512-Gaog9904EmxYOQV0hli3XQ7jXeFaADfh5bnBtTCtbZ37Qd/Sz9kQfd+gYQRyIj7RGmkv9DPiN/SsmrTMrTymKw==',
+    '2026-08-06T11:26:04.260Z',
+    'sha512-8inlDv48QOjA//CLQ3epjoHEiMQGsz1Pmtu2N+s7gQVggn6AYHpjnMe8AsyGxtpaPg3wbX0HmBZtRFggpXUB9A==',
   ],
   [
     'inject-external-runtime-core-plugin',
-    '2026-07-15T09:17:12.157Z',
-    'sha512-fW3jD1ZVds6r/Ul8TtUA42RsB0LfT1yjo5KjqgirH9QrmEMH21x44e3e6BC6IN820XKawRDSmz2kFA5YHIQp7Q==',
+    '2026-08-06T11:26:50.044Z',
+    'sha512-RetbaupJGiT2FtmA3WWGm72xZkNSJ6Xyy53jSgtu9HRnR/5xt/wiQl+Pe/iEfzgfLsUnUAkOsSfiPBXrDtNizw==',
   ],
   [
     'managers',
-    '2026-07-15T09:15:44.830Z',
-    'sha512-SnVBCwmi962WGg6hLFElxZUCnrRJdR6glE2ZKPBY/iK07AHUN2ZxuaBCBsVzyws+xLZGHZxBHmVstijTh8dSUA==',
+    '2026-08-06T11:25:25.160Z',
+    'sha512-OQfnoUwy1IUfn6DaI2S/DPKgnElkYlP+gG8mbUQlJVEW1Zg/8V/dZbNgJUKikTJly6yR1r08PK59g7239ITYMw==',
   ],
   [
     'manifest',
-    '2026-07-15T09:16:46.336Z',
-    'sha512-wfVeBXc4/C2F70nRFSPqJhkcwbDgo+wQyEn3jbjJTDoUqxxhYBfHFs1ACBYOk3Qm97L7hHclHGtUG0/nvDEfAA==',
+    '2026-08-06T11:27:26.712Z',
+    'sha512-mJUZo7QFL46NXoEWNby3CfPFFm2235J7LO6bXAAMrEIT4qF8QHLiqfoo5dZmrisRgM6e+muriWtGvPFMprnXyA==',
   ],
   [
     'modern-js-v3',
-    '2026-07-15T09:17:49.953Z',
-    'sha512-zmFs0I/E3dLa8Vsj35ep7Ms29SePXFOShjedfFs5VnJPooif6l7fgdIJdxThyI1Rdw5JnRXmJsp4qmGm+naziA==',
+    '2026-08-06T11:25:21.202Z',
+    'sha512-FK6ez4uUAZrG9a/5+T37DKN8OIAHLFpNTvlM5Qha4U4reeZavLU8TPsayaPON/3WVbzMxvy2uKfObwXq8+ubTQ==',
   ],
   [
     'rsbuild-plugin',
-    '2026-07-15T09:17:40.351Z',
-    'sha512-rul5OPvLx599rWoAhCtKJ3UYqyM3Dxg0RWEfad3JdnJFqkcSLBojZXgHJE1vbF7DRdGQNmNscKw34iEyn89NwQ==',
+    '2026-08-06T11:25:12.457Z',
+    'sha512-rUzx5quE/pqEiZk0ESyPj4QCDCvSpqhgoq/+zjuz9vyHAuMvXL/U0si6bOclBg4UGGFlLmq5+XVIJR43iAADJg==',
   ],
   [
     'rspack',
-    '2026-07-15T09:17:16.399Z',
-    'sha512-TPcrkHpaZgL25Vx3c8oSNwyv7/KktC7uo6HTQdVWlFzbq5RSoMMGkWoir5pY5124isae2/p6v5xAuqICi4r0Zg==',
+    '2026-08-06T11:25:53.432Z',
+    'sha512-HEDirYhVYvx7IzP9jes6KLPMqSoSQwuLfBzPSOgBqY7sIH/e9zRSRO1qh5C8OXYKHi23WcQpGY+EeecIK9wxWw==',
   ],
   [
     'runtime',
-    '2026-07-15T09:16:02.203Z',
-    'sha512-cGtUBQ1/TVy7KrXy6xPgy3FEmOGyIYkBA2T4iGH3ZH5PNPPTmqN9jF2AfneTSOj0RtBr7Pxq3CUt81E/UCvK1A==',
+    '2026-08-06T11:24:39.297Z',
+    'sha512-SUoP+PD5EjSPSi6FxEPGIZoRkFifxdeYcVQbJE9mO0VEjF51gAk3/TgX8k0vzUryOBPmXekLr9SfQXU6DqUtvA==',
   ],
   [
     'runtime-core',
-    '2026-07-15T09:15:49.410Z',
-    'sha512-Tf98+epGGiPSHqmQHuXa2uXZMMvjGf1IqJDR1/FpXfmobv5ECN0mGZCjUHGNSyxvoDyXKIkKwJu7IwEoh0ouQA==',
+    '2026-08-06T11:24:25.871Z',
+    'sha512-PEkkK9MUp+nUCeQMS4ox3QGZfwwxgfjGA7P4umEnr5c3y8DLNDR+26tyHf/Gkjen2VsjlcyL+mEAQo1Zi4IE3g==',
   ],
   [
     'runtime-tools',
-    '2026-07-15T09:16:55.255Z',
-    'sha512-3yOqjdSHXxX4HA3GhlXg3hghGAXW2RJUsnwXCcik2/lTxOHizKI8f3RM+GGCKPxDVqtw43IShe3tA12jNL5A/A==',
+    '2026-08-06T11:25:33.018Z',
+    'sha512-eW/yPvZB2LbpbyPXPTnOeF1ieWl165D9QcPV0y5Bj1QYGDjL2cb+dnzrBp0fmFtJhCYqmAdsVNoYItVa3yuJ3g==',
   ],
   [
     'sdk',
-    '2026-07-15T09:15:28.114Z',
-    'sha512-yBP+9+0Z8nlvKEXAZS3AsQVy7bFbZf8eMivGk4q4ZdwG3TsLMlsPjb1dQb2i7gcAG6ux9y2LWLkj/0LVk74cnQ==',
+    '2026-08-06T11:24:06.157Z',
+    'sha512-OPS/lbQjraLXoWniQpCwQ/vqgURHTrhsackSNcOPmcJHM3LyR+DabxUc0pl8jAqExsW2l+uepQq7+/Gkei871w==',
   ],
   [
     'third-party-dts-extractor',
-    '2026-07-15T09:15:32.527Z',
-    'sha512-nAMlr74OKIylkfRwlunOhytQbmsgb3gCqdXWnPQhG+ZtqWXGELLfMT4a1Q1ht3cS+sRpWj2SZRqK2M7GadI6tA==',
+    '2026-08-06T11:24:09.575Z',
+    'sha512-Xf3iZ4iDi972XMOMbmUm/c5Vwwb6cTsU+Jpoz96lUom6Yps9FQX48elIdhgcQsL7/K64PqdOONsrlZVo8zphKA==',
   ],
   [
     'webpack-bundler-runtime',
-    '2026-07-15T09:16:28.628Z',
-    'sha512-82fDy9v+7qV5fiN8TKVhOdrxhmAZnUIX/IKivYX5ulCt8aoOzVFTiwm/P1GQUDD8z6dqR48xgJdZdf0548Mc9w==',
+    '2026-08-06T11:27:08.353Z',
+    'sha512-g4xQgfgMMCKgJjVMBh7nIYGjLGNDYwSZ4lfpTdkVyWDnxmR3SL6VPQTJEZHRYPyqvrTtZE1zdDhDd++yNRvLdA==',
   ],
 ] as const;
 
@@ -629,10 +660,10 @@ const moduleFederationNodeRegistryRelease = {
   packageName: '@module-federation/node',
   version: MODULE_FEDERATION_NODE_VERSION,
   registry: {
-    publishedAt: '2026-07-15T09:17:26.899Z',
+    publishedAt: '2026-08-06T11:26:03.867Z',
     dist: {
       integrity:
-        'sha512-mifMvCjWmLl53GS+badQws0j2bsu1ICpdGzCbez4I6kSpaYA8v86L6dwcHtVHIZtkUC6cjAZBDcgpxs4fK3nFQ==',
+        'sha512-xNGYfhA2aqFpogb/uq6lwBeEbnmDLV6PwHzSe97mRrSSr00eUKAMwlLG6PcQP6ynbkPeDG86RYj/YUC7EWgLMA==',
     },
   },
 } as const;
@@ -741,14 +772,10 @@ const typescriptPlatformRegistryReleases = [
 ] as const;
 
 const releaseAgeApprovals: readonly UltramodernReleaseAgeApproval[] = [
-  // FORK: the Effect cohort (`effect`, `@effect/opentelemetry`,
-  // `@effect/vitest` at EFFECT_VERSION) carries NO release-age approval.
-  // 4.0.0-beta.102 published 2026-07-26T22:24Z and passed the 1440-minute
-  // minimum release age on 2026-07-27, so no exemption is needed and none is
-  // claimed. Do NOT re-add one against a commit that predates the cohort it
-  // attests: an approval requires purpose-made review evidence (an immutable
-  // GitHub commit whose payload sha256 is recorded) that actually CONTAINS the
-  // reviewed versions, timestamps, integrities and patch applicability.
+  // FORK: fresh-cohort approvals are added only after the purpose-built review
+  // artifact has an immutable pushed commit identity. Never attest a cohort
+  // from a commit that predates its reviewed versions, timestamps, integrities,
+  // optional-platform closure, and patch applicability evidence.
   createReleaseAgeApproval({
     packageName: '@typescript/native-preview',
     version: TYPESCRIPT_NATIVE_PREVIEW_VERSION,
@@ -769,33 +796,6 @@ const releaseAgeApprovals: readonly UltramodernReleaseAgeApproval[] = [
         review: releaseAgeReviewEvidence.typescript,
       }),
   ),
-  createReleaseAgeApproval({
-    packageName: '@cloudflare/workers-types',
-    version: CLOUDFLARE_WORKERS_TYPES_VERSION,
-    reason: releaseAgeReasons.cloudflare,
-    publishedAt: '2026-07-10T01:13:24.132Z',
-    integrity:
-      'sha512-4ooaY2Pb5XGwDn8Fzm6jnTAJkIX0R5LBvL9euQpp2T58sQItlAQd9yivAlkwGhpY5cM1u81/9HaXwKAjXwtyzA==',
-    review: releaseAgeReviewEvidence.releaseCohort,
-  }),
-  createReleaseAgeApproval({
-    packageName: 'miniflare',
-    version: MINIFLARE_VERSION,
-    reason: releaseAgeReasons.cloudflare,
-    publishedAt: '2026-07-09T18:25:09.203Z',
-    integrity:
-      'sha512-c94O9zRDISdqO18EHt6l0iF/fWgWt8p18PJvRsA/L/NJZ9Cfke3s/F5Blg1XXF7WDutVRzWVWy8Vy4LaT5ifsA==',
-    review: releaseAgeReviewEvidence.releaseCohort,
-  }),
-  createReleaseAgeApproval({
-    packageName: 'wrangler',
-    version: WRANGLER_VERSION,
-    reason: releaseAgeReasons.cloudflare,
-    publishedAt: '2026-07-09T18:25:09.429Z',
-    integrity:
-      'sha512-xZeXKYi7hxQRF5anL+v77RkufJNpF9f3Eqeyqq2QBsETpLZgh0Agj0jJ6JPtkbgn6ukZdh8OK5egsGPWIditgg==',
-    review: releaseAgeReviewEvidence.releaseCohort,
-  }),
   createReleaseAgeApproval({
     packageName: 'i18next',
     version: I18NEXT_VERSION,
@@ -854,6 +854,7 @@ export const ULTRAMODERN_WORKSPACE_POLICY = {
     overrides: {
       '@effect/opentelemetry': EFFECT_VERSION,
       '@effect/vitest': EFFECT_VITEST_VERSION,
+      '@tanstack/history': TANSTACK_HISTORY_VERSION,
       '@tanstack/react-router': TANSTACK_ROUTER_VERSION,
       '@tanstack/router-core': TANSTACK_ROUTER_CORE_VERSION,
       effect: EFFECT_VERSION,

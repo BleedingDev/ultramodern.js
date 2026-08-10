@@ -1,12 +1,22 @@
 import type { ToolsDevServerConfig } from '@modern-js/builder';
-import type { IncomingMessage } from 'http';
 import { normalizePrefixList } from './prefix';
+
+type CompressConfig = Exclude<
+  NonNullable<
+    Extract<ToolsDevServerConfig, { compress?: unknown }>['compress']
+  >,
+  boolean
+>;
 
 export const createCompressConfig = (
   devServer: ToolsDevServerConfig | undefined,
   prefix: string | string[] | undefined,
 ) => {
-  if (!devServer || typeof devServer !== 'object' || Array.isArray(devServer)) {
+  if (
+    devServer === undefined ||
+    typeof devServer !== 'object' ||
+    Array.isArray(devServer)
+  ) {
     return undefined;
   }
 
@@ -15,9 +25,8 @@ export const createCompressConfig = (
   if (compress === undefined || compress === true) {
     const prefixes = normalizePrefixList(prefix);
     return {
-      filter: (req: IncomingMessage) =>
-        !prefixes.some(item => req.url?.includes(item)),
-    };
+      filter: req => !prefixes.some(item => req.url?.includes(item)),
+    } satisfies CompressConfig;
   }
 
   if (compress === false) {

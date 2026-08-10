@@ -6,6 +6,11 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  conditionCalls,
+  evaluateJobSchedule,
+  parseJobCondition,
+} from '../security/github-job-condition.mjs';
+import {
   createTemplateRequiredFiles,
   trustedPublishRepository,
 } from './lib/prepare-bleedingdev-packages/constants.mjs';
@@ -646,12 +651,82 @@ function validatePublishWorkflow(workflow) {
     ['record-publish-outcome'],
     'publish-change-record job dependencies',
   );
+  let changeRecordCondition;
+  try {
+    changeRecordCondition = parseJobCondition(changeRecordJob.if);
+  } catch {
+    changeRecordCondition = undefined;
+  }
+  const successfulPublishResults = {
+    'accept-published': 'success',
+    'accept-release': 'success',
+    'prepare-release': 'success',
+    publish: 'success',
+    'publish-security': 'success',
+    'record-publish-outcome': 'success',
+    'tractor-downstream': 'success',
+    'validate-release': 'skipped',
+  };
+  const successfulPublishContext = {
+    github: {
+      actor: 'BleedingDev',
+      ref: `refs/heads/${enforcedPublishBranch}`,
+      repository_owner: 'BleedingDev',
+      triggering_actor: 'BleedingDev',
+    },
+    inputs: { dry_run: false },
+    vars: {},
+  };
+  const schedulesChangeRecord = ({ context, results }) =>
+    evaluateJobSchedule({
+      workflow,
+      jobId: 'publish-change-record',
+      results: results ?? successfulPublishResults,
+      context: context ?? successfulPublishContext,
+    });
   requireCondition(
     !Object.hasOwn(changeRecordJob, 'environment') &&
       !Object.hasOwn(changeRecordJob, 'secrets') &&
-      typeof changeRecordJob.if === 'string' &&
-      changeRecordJob.if.includes('inputs.dry_run == false'),
-    'publish-change-record must run only for non-dry releases without an environment or inherited secrets',
+      changeRecordCondition !== undefined &&
+      conditionCalls(changeRecordCondition, 'always') &&
+      schedulesChangeRecord({}) &&
+      !schedulesChangeRecord({
+        context: {
+          ...successfulPublishContext,
+          inputs: { dry_run: true },
+        },
+      }) &&
+      ['failure', 'cancelled', 'skipped'].every(
+        result =>
+          !schedulesChangeRecord({
+            results: {
+              ...successfulPublishResults,
+              'record-publish-outcome': result,
+            },
+          }),
+      ) &&
+      ['actor', 'triggering_actor'].every(
+        identity =>
+          !schedulesChangeRecord({
+            context: {
+              ...successfulPublishContext,
+              github: {
+                ...successfulPublishContext.github,
+                [identity]: 'Mallory',
+              },
+            },
+          }),
+      ) &&
+      !schedulesChangeRecord({
+        context: {
+          ...successfulPublishContext,
+          github: {
+            ...successfulPublishContext.github,
+            ref: 'refs/heads/not-the-publish-branch',
+          },
+        },
+      }),
+    'publish-change-record must override skipped-ancestor propagation, require a successful authenticated outcome, and run only for non-dry releases without an environment or inherited secrets',
   );
   requireCondition(
     publishJob.environment === 'npm-publish',

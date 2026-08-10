@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { fileURLToPath } from 'node:url';
+import { parseSync, transformFromAstSync, traverse, types } from '@babel/core';
 import { runOperationalIndependence } from '../operational-independence.mjs';
 import {
   assertApiAcceptance,
@@ -329,12 +330,78 @@ function snapshotAcceptanceWorkspaceSource(projectDir, env, runImpl = run) {
   return revision;
 }
 
-function replaceExactlyOnce(source, before, after, label) {
-  const first = source.indexOf(before);
-  if (first < 0 || source.indexOf(before, first + before.length) >= 0) {
-    throw new Error(`${label} must contain exactly one expected C0 value`);
+function isNamedObjectProperty(property, name) {
+  return (
+    types.isObjectProperty(property) &&
+    !property.computed &&
+    (types.isIdentifier(property.key, { name }) ||
+      types.isStringLiteral(property.key, { value: name }))
+  );
+}
+
+function setGeneratedInventoryApiTitle(apiPath, title) {
+  const source = fs.readFileSync(apiPath, 'utf8');
+  const ast = parseSync(source, {
+    babelrc: false,
+    configFile: false,
+    filename: apiPath,
+    parserOpts: {
+      plugins: ['typescript'],
+      sourceType: 'module',
+    },
+  });
+  if (ast === null) {
+    throw new Error('Inventory Effect API could not be parsed');
   }
-  return `${source.slice(0, first)}${after}${source.slice(first + before.length)}`;
+
+  const titleProperties = [];
+  traverse(ast, {
+    ObjectExpression(objectPath) {
+      const idProperty = objectPath.node.properties.find(property =>
+        isNamedObjectProperty(property, 'id'),
+      );
+      if (
+        !types.isObjectProperty(idProperty) ||
+        !types.isStringLiteral(idProperty.value, {
+          value: 'starter-inventory',
+        })
+      ) {
+        return;
+      }
+
+      const titleProperty = objectPath.node.properties.find(property =>
+        isNamedObjectProperty(property, 'title'),
+      );
+      if (
+        !types.isObjectProperty(titleProperty) ||
+        !types.isStringLiteral(titleProperty.value)
+      ) {
+        throw new Error(
+          'Generated inventory API starter item must have one static title',
+        );
+      }
+      titleProperties.push(titleProperty);
+    },
+  });
+  if (titleProperties.length !== 1) {
+    throw new Error(
+      `Generated inventory API must have one starter item, found ${titleProperties.length}`,
+    );
+  }
+
+  titleProperties[0].value = types.stringLiteral(title);
+  const transformed = transformFromAstSync(ast, source, {
+    ast: false,
+    babelrc: false,
+    cloneInputAst: false,
+    code: true,
+    configFile: false,
+    filename: apiPath,
+  });
+  if (typeof transformed?.code !== 'string') {
+    throw new Error('Inventory Effect API transformation produced no code');
+  }
+  fs.writeFileSync(apiPath, `${transformed.code}\n`);
 }
 
 function assertCleanApplicationGit(
@@ -391,16 +458,7 @@ function createOperationalIndependenceCommit(
   writeJsonFile(localePath, locale, { atomic: false });
 
   const apiPath = path.join(projectDir, 'verticals/inventory/api/index.ts');
-  const apiSource = fs.readFileSync(apiPath, 'utf8');
-  fs.writeFileSync(
-    apiPath,
-    replaceExactlyOnce(
-      apiSource,
-      "title: 'Wire a real inventory source here'",
-      `title: '${operationalIndependenceApiValue}'`,
-      'Inventory Effect API',
-    ),
-  );
+  setGeneratedInventoryApiTitle(apiPath, operationalIndependenceApiValue);
 
   const changedBeforeCommit = runImpl(
     'git',

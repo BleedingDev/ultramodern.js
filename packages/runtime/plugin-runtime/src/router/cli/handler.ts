@@ -25,6 +25,8 @@ type RegenerateRoutesFn = (params: {
 type HandleGeneratorEntryCodeOptions = {
   entrypointsKey?: string;
   hydrateRscClientRoutes?: boolean;
+  includeRouteServerLoadersInSsrEntry?: boolean;
+  isolateRouteDataInRscLayer?: boolean;
   serverRoutesFileName?: string;
 };
 
@@ -72,6 +74,9 @@ export async function handleGeneratorEntryCode(
     api,
     {
       hydrateRscClientRoutes: normalizedOptions.hydrateRscClientRoutes,
+      includeRouteServerLoadersInSsrEntry:
+        normalizedOptions.includeRouteServerLoadersInSsrEntry,
+      isolateRouteDataInRscLayer: normalizedOptions.isolateRouteDataInRscLayer,
       serverRoutesFileName: normalizedOptions.serverRoutesFileName,
     },
   );

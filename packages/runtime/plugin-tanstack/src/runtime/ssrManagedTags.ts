@@ -1,6 +1,4 @@
 // @effect-diagnostics asyncFunction:off newPromise:off strictBooleanExpressions:off
-/// <reference path="./ssr-shim.d.ts" />
-
 import type { AnyRouter } from '@tanstack/react-router';
 import type {
   RouterManagedTag,

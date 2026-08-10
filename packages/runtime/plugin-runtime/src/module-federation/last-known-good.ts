@@ -131,7 +131,9 @@ export function createLastKnownGoodProvider(
   options: LastKnownGoodOptions,
 ): SurfaceResolutionProvider {
   const storage = options.storage ?? createInMemoryLkgStorage();
-  const now = options.now ?? (() => Date.now());
+  const now =
+    options.now ??
+    (() => Math.floor(performance.timeOrigin + performance.now()));
   const maxStaleMs = options.freshness?.maxStaleMs;
 
   async function serveFromCache(

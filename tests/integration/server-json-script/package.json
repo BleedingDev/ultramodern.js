@@ -16,11 +16,11 @@
     "@modern-js/runtime": "workspace:*",
     "axios": "^1.18.1",
     "express": "^5.2.1",
-    "react": "^19.2.7",
-    "react-dom": "^19.2.7"
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
   },
   "devDependencies": {
     "@modern-js/app-tools": "workspace:*",
-    "@types/node": "^26.1.1"
+    "@types/node": "^26.2.0"
   }
 }

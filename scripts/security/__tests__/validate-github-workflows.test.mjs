@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import yaml from '../../../packages/toolkit/utils/compiled/js-yaml/index.js';
 import {
   collectRunBlockInputInterpolations,
   collectUses,
@@ -37,6 +38,14 @@ jobs:
 `;
 
 const githubExpression = expression => ['${{', expression, '}}'].join(' ');
+
+const loadWorkflow = filePath => yaml.load(fs.readFileSync(filePath, 'utf8'));
+
+const validateWorkflowObject = (relativePath, workflow) =>
+  validateWorkflowContent(
+    relativePath,
+    yaml.dump(workflow, { lineWidth: -1, noRefs: true }),
+  );
 
 const workflowRunCheckoutWorkflow = ({
   branchPolicy = '    branches:\n      - main-ultramodern\n',
@@ -587,32 +596,58 @@ test('release receipt verification requires an explicit authenticated run identi
 });
 
 test('publish branches must converge on one deterministic structured outcome', () => {
-  const source = fs.readFileSync(publishWorkflowPath, 'utf8');
+  const parsed = loadWorkflow(publishWorkflowPath);
   assert.deepEqual(
-    validateWorkflowContent(
-      '.github/workflows/publish-bleedingdev.yml',
-      source,
-    ),
+    validateWorkflowObject('.github/workflows/publish-bleedingdev.yml', parsed),
     [],
   );
 
-  const missing = source.replace(
-    /\n {2}record-publish-outcome:[\s\S]*$/u,
-    '\n',
-  );
+  const missing = structuredClone(parsed);
+  delete missing.jobs['record-publish-outcome'];
   assert.ok(
-    validateWorkflowContent(
+    validateWorkflowObject(
       '.github/workflows/publish-bleedingdev.yml',
       missing,
     ).some(error => error.includes('must converge on record-publish-outcome')),
   );
 
-  const driftedName = source.replace(
-    `name: ${githubExpression('steps.publish-outcome.outputs.artifact_name')}`,
-    'name: bleedingdev-publish-outcome-renamed',
-  );
+  const missingChangeRecord = structuredClone(parsed);
+  delete missingChangeRecord.jobs['publish-change-record'];
   assert.ok(
-    validateWorkflowContent(
+    validateWorkflowObject(
+      '.github/workflows/publish-bleedingdev.yml',
+      missingChangeRecord,
+    ).some(error => error.includes('must converge on publish-change-record')),
+  );
+
+  const unboundChangeRecord = structuredClone(parsed);
+  unboundChangeRecord.jobs['publish-change-record'].needs = [];
+  assert.ok(
+    validateWorkflowObject(
+      '.github/workflows/publish-bleedingdev.yml',
+      unboundChangeRecord,
+    ).some(error =>
+      error.includes('must depend only on record-publish-outcome'),
+    ),
+  );
+
+  const missingSchedulePolicy = structuredClone(parsed);
+  delete missingSchedulePolicy.jobs['publish-change-record'].if;
+  assert.ok(
+    validateWorkflowObject(
+      '.github/workflows/publish-bleedingdev.yml',
+      missingSchedulePolicy,
+    ).some(error => error.includes('must survive the intentional branch skip')),
+  );
+
+  const driftedName = structuredClone(parsed);
+  const outcomeUpload = driftedName.jobs['record-publish-outcome'].steps.find(
+    step => String(step.uses ?? '').startsWith('actions/upload-artifact@'),
+  );
+  assert.ok(outcomeUpload);
+  outcomeUpload.with.name = 'bleedingdev-publish-outcome-renamed';
+  assert.ok(
+    validateWorkflowObject(
       '.github/workflows/publish-bleedingdev.yml',
       driftedName,
     ).some(error => error.includes('deterministically named outcome artifact')),
@@ -695,6 +730,41 @@ test('sensitive workflows accept both egress-policy audit and block', () => {
       `egress-policy: ${policy} must pass`,
     );
   }
+});
+
+test('sensitive workflow policy is independent of YAML serialization style', () => {
+  const workflow = {
+    name: 'Sensitive structured workflow',
+    on: { workflow_dispatch: {} },
+    permissions: { contents: 'read' },
+    jobs: {
+      job: {
+        'runs-on': 'ubuntu-latest',
+        'timeout-minutes': 10,
+        steps: [
+          {
+            name: 'Harden Runner',
+            uses: 'step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5',
+            with: { 'egress-policy': 'audit' },
+          },
+          {
+            name: 'Checkout',
+            uses: 'actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0',
+            with: { 'persist-credentials': false },
+          },
+        ],
+      },
+    },
+  };
+
+  assert.deepEqual(
+    validateWorkflowContent(
+      '.github/workflows/sensitive.yml',
+      JSON.stringify(workflow),
+      { sensitive: true },
+    ),
+    [],
+  );
 });
 
 test('sensitive workflows without harden-runner egress policy are flagged', () => {

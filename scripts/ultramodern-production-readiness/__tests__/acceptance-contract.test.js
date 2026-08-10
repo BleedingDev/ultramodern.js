@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
+const { pathToFileURL } = require('node:url');
 
 async function loadContract() {
   return import('../published-create-proof/acceptance-contract.mjs');
@@ -335,7 +336,7 @@ function operationalEvidence(options) {
   };
 }
 
-test('shared source and published profiles commit only inventory and invoke the same post-runtime proof', async t => {
+test('shared source and published profiles commit only inventory, execute its C1 API, and invoke the same post-runtime proof', async t => {
   const { runOperationalIndependenceAcceptance } = await import(
     '../published-create-proof/acceptance-profile.mjs'
   );
@@ -363,7 +364,19 @@ test('shared source and published profiles commit only inventory and invoke the 
         );
         fs.writeFileSync(
           apiPath,
-          "const item = { title: 'Wire a real inventory source here' };\n",
+          `export const inventoryItems = [
+  {
+    title /* generator formatting is not an acceptance contract */:
+      'Wire a real inventory source here',
+    marker: 'generated-inventory',
+    id: 'starter-inventory',
+  },
+];
+
+export function listInventory() {
+  return inventoryItems;
+}
+`,
         );
         runCommand('git', ['init', '--quiet'], { cwd: root });
         runCommand('git', ['config', 'user.name', 'Acceptance Test'], {
@@ -411,6 +424,14 @@ test('shared source and published profiles commit only inventory and invoke the 
               { cwd: root },
             ),
             '',
+          );
+          const api = await import(
+            `${pathToFileURL(apiPath).href}?revision=${options.changedRef}`
+          );
+          assert.equal(
+            api.listInventory()[0].title,
+            options.expectedApiValue,
+            'C1 must execute the changed inventory API response',
           );
           const evidence = operationalEvidence(options);
           fs.writeFileSync(options.out, `${JSON.stringify(evidence)}\n`);

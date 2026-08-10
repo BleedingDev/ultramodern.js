@@ -43,10 +43,6 @@ const createOutputFixture = async ({
   await fs.mkdir(path.join(outputDirectory, 'public/static'), {
     recursive: true,
   });
-  await fs.writeFile(
-    path.join(outputDirectory, 'server/index.mjs'),
-    'export default { fetch: async () => new Response("ok") };\n',
-  );
   if (bffWorkerSource !== false) {
     await fs.mkdir(path.join(outputDirectory, 'worker'), { recursive: true });
     await fs.writeFile(
@@ -64,52 +60,57 @@ const createOutputFixture = async ({
   await writeJson(path.join(outputDirectory, 'package.json'), {
     type: 'module',
   });
+  const workerManifest = {
+    version: 1,
+    runtime: {
+      type: 'cloudflare-module-worker',
+      entry: 'server/index.mjs',
+      fetchExport: true,
+      nodeListen: false,
+    },
+    workerBundles: {
+      directory: 'worker',
+      format: 'commonjs',
+      importableFromModuleWorker: true,
+      requestHandlerExport: 'requestHandler',
+    },
+    assets: {
+      directory: './public',
+      binding: 'ASSETS',
+      runWorkerFirst: true,
+    },
+    routeSpec: {
+      file: 'server/route.json',
+      routes: routeWorker
+        ? [
+            {
+              urlPath: '/route-worker',
+              entryName: 'main',
+              worker: routeWorker,
+              workerExists: false,
+            },
+          ]
+        : [],
+    },
+    ...(bffWorkerSource === false
+      ? {}
+      : {
+          bff: {
+            dispatcherExport: '__modern_create_effect_bff_dispatcher',
+            runtimeFramework: 'effect',
+            prefix: '/api',
+            worker: 'worker/__modern_bff_effect.js',
+          },
+        }),
+    ...(deliveryUnit === undefined ? {} : { deliveryUnit }),
+  };
   await writeJson(
     path.join(outputDirectory, 'server/modern-worker-manifest.json'),
-    {
-      version: 1,
-      runtime: {
-        type: 'cloudflare-module-worker',
-        entry: 'server/index.mjs',
-        fetchExport: true,
-        nodeListen: false,
-      },
-      workerBundles: {
-        directory: 'worker',
-        format: 'commonjs',
-        importableFromModuleWorker: true,
-        requestHandlerExport: 'requestHandler',
-      },
-      assets: {
-        directory: './public',
-        binding: 'ASSETS',
-        runWorkerFirst: true,
-      },
-      routeSpec: {
-        file: 'server/route.json',
-        routes: routeWorker
-          ? [
-              {
-                urlPath: '/route-worker',
-                entryName: 'main',
-                worker: routeWorker,
-                workerExists: false,
-              },
-            ]
-          : [],
-      },
-      ...(bffWorkerSource === false
-        ? {}
-        : {
-            bff: {
-              dispatcherExport: '__modern_create_effect_bff_dispatcher',
-              runtimeFramework: 'effect',
-              prefix: '/api',
-              worker: 'worker/__modern_bff_effect.js',
-            },
-          }),
-      ...(deliveryUnit === undefined ? {} : { deliveryUnit }),
-    },
+    workerManifest,
+  );
+  await fs.writeFile(
+    path.join(outputDirectory, 'server/index.mjs'),
+    `export const modernWorkerManifest = ${JSON.stringify(workerManifest)};\nexport default { fetch: async () => new Response("ok") };\n`,
   );
   await writeJson(path.join(outputDirectory, 'wrangler.json'), {
     main: 'server/index.mjs',
@@ -193,9 +194,32 @@ describe('Cloudflare output verifier', () => {
     await expect(
       assertCloudflareOutput({ outputDirectory }),
     ).resolves.toBeUndefined();
-    await expect(verifyCloudflareOutput({ outputDirectory })).resolves.toEqual({
+    await expect(
+      verifyCloudflareOutput({ outputDirectory, importWorker: false }),
+    ).resolves.toEqual({
       ok: true,
       issues: [],
+    });
+  });
+
+  it('rejects a worker whose runtime manifest differs from its verified manifest artifact', async () => {
+    const { outputDirectory } = await createOutputFixture();
+    const manifestPath = path.join(
+      outputDirectory,
+      'server/modern-worker-manifest.json',
+    );
+    const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf-8'));
+    manifest.runtime.entry = 'server/drifted.mjs';
+    await writeJson(manifestPath, manifest);
+
+    const result = await verifyCloudflareOutput({ outputDirectory });
+
+    expect(result.ok).toBe(false);
+    expect(result.issues).toContainEqual({
+      code: 'worker-import-failed',
+      message:
+        'Cloudflare server entry runtime manifest must exactly match modern-worker-manifest.json.',
+      path: path.join(outputDirectory, 'server/index.mjs'),
     });
   });
 
@@ -222,7 +246,9 @@ describe('Cloudflare output verifier', () => {
     manifest.routeSpec.routes = { worker: 'worker/route.js' };
     await writeJson(manifestPath, manifest);
 
-    await expect(verifyCloudflareOutput({ outputDirectory })).resolves.toEqual({
+    await expect(
+      verifyCloudflareOutput({ outputDirectory, importWorker: false }),
+    ).resolves.toEqual({
       ok: false,
       issues: [
         {

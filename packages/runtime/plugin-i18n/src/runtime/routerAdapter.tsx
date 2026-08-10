@@ -13,7 +13,7 @@ import {
   useParams as useReactRouterParams,
 } from '@modern-js/runtime/router';
 import type React from 'react';
-import { useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { useCallback, useContext, useSyncExternalStore } from 'react';
 
 type I18nRouterFramework = 'react-router' | 'tanstack' | string;
 
@@ -211,13 +211,12 @@ const getRouterSnapshot = (
 ) => {
   const location = getRouterStateLocation(internalContext, contextRouter);
   const params = getRouterParams(internalContext, contextRouter);
-  const serializedParams = Object.entries(params)
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([key, value]) => `${key}=${value}`)
-    .join('&');
-  return `${location?.pathname ?? ''}\u0000${location?.search ?? ''}\u0000${
-    location?.hash ?? ''
-  }\u0000${serializedParams}`;
+  return JSON.stringify([
+    location?.pathname ?? '',
+    location?.search ?? '',
+    location?.hash ?? '',
+    Object.entries(params).sort(([left], [right]) => left.localeCompare(right)),
+  ]);
 };
 
 export const useI18nRouterAdapter = (): I18nRouterAdapter => {
@@ -241,77 +240,72 @@ export const useI18nRouterAdapter = (): I18nRouterAdapter => {
   const contextRouter = contextUseRouter
     ? (contextUseRouter({ warn: false }) as RouterInstance | null)
     : null;
-  const [, setRouterVersion] = useState(0);
-  const routerSnapshotRef = useRef(
-    getRouterSnapshot(internalContext, contextRouter),
-  );
-  routerSnapshotRef.current = getRouterSnapshot(internalContext, contextRouter);
   const hasRouter =
     framework === 'tanstack' ||
     framework === 'react-router' ||
     Boolean(reactRouterNavigate);
 
-  useEffect(() => {
-    const router = getRouterInstance(internalContext, contextRouter);
-    if (!router) {
-      return;
-    }
-
-    const update = () => {
-      const nextSnapshot = getRouterSnapshot(internalContext, contextRouter);
-      if (nextSnapshot === routerSnapshotRef.current) {
-        return;
+  const subscribeToRouter = useCallback(
+    (update: () => void) => {
+      const router = getRouterInstance(internalContext, contextRouter);
+      if (!router) {
+        return () => undefined;
       }
-      routerSnapshotRef.current = nextSnapshot;
-      setRouterVersion(version => version + 1);
-    };
-    const unsubscribers: Array<() => void> = [];
 
-    if (
-      framework === 'react-router' &&
-      !inReactRouter &&
-      typeof router.subscribe === 'function'
-    ) {
-      const subscribe = router.subscribe as (
-        this: RouterInstance,
-        listener: () => void,
-      ) => () => void;
-      const unsubscribe = subscribe.call(router, update);
-      if (typeof unsubscribe === 'function') {
-        unsubscribers.push(unsubscribe);
-      }
-    }
+      const unsubscribers: Array<() => void> = [];
 
-    if (
-      framework === 'tanstack' &&
-      typeof router.stores?.location?.subscribe === 'function'
-    ) {
-      const unsubscribe = router.stores.location.subscribe(update);
-      if (typeof unsubscribe === 'function') {
-        unsubscribers.push(unsubscribe);
-      }
-    }
-
-    if (framework === 'tanstack' && typeof router.subscribe === 'function') {
-      const subscribe = router.subscribe as (
-        this: RouterInstance,
-        eventType: string,
-        listener: () => void,
-      ) => () => void;
-      for (const eventType of ['onBeforeNavigate', 'onBeforeLoad']) {
-        const unsubscribe = subscribe.call(router, eventType, update);
+      if (
+        framework === 'react-router' &&
+        !inReactRouter &&
+        typeof router.subscribe === 'function'
+      ) {
+        const subscribe = router.subscribe as (
+          this: RouterInstance,
+          listener: () => void,
+        ) => () => void;
+        const unsubscribe = subscribe.call(router, update);
         if (typeof unsubscribe === 'function') {
           unsubscribers.push(unsubscribe);
         }
       }
-    }
 
-    return () => {
-      for (const unsubscribe of unsubscribers) {
-        unsubscribe();
+      if (
+        framework === 'tanstack' &&
+        typeof router.stores?.location?.subscribe === 'function'
+      ) {
+        const unsubscribe = router.stores.location.subscribe(update);
+        if (typeof unsubscribe === 'function') {
+          unsubscribers.push(unsubscribe);
+        }
       }
-    };
-  }, [contextRouter, framework, inReactRouter, internalContext]);
+
+      if (framework === 'tanstack' && typeof router.subscribe === 'function') {
+        const subscribe = router.subscribe as (
+          this: RouterInstance,
+          eventType: string,
+          listener: () => void,
+        ) => () => void;
+        for (const eventType of ['onBeforeNavigate', 'onBeforeLoad']) {
+          const unsubscribe = subscribe.call(router, eventType, update);
+          if (typeof unsubscribe === 'function') {
+            unsubscribers.push(unsubscribe);
+          }
+        }
+      }
+
+      return () => {
+        for (const unsubscribe of unsubscribers) {
+          unsubscribe();
+        }
+      };
+    },
+    [contextRouter, framework, inReactRouter, internalContext],
+  );
+  const getSnapshot = useCallback(
+    () => getRouterSnapshot(internalContext, contextRouter),
+    [contextRouter, internalContext],
+  );
+  useSyncExternalStore(subscribeToRouter, getSnapshot, getSnapshot);
 
   const navigate = useCallback<I18nRouterNavigate>(
     (href, options) => {

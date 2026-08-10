@@ -13,7 +13,7 @@ import {
   Schema,
 } from '../src/runtime/effect';
 
-class RecommendationNotFound extends Schema.TaggedErrorClass<RecommendationNotFound>()(
+class RecommendationNotFound extends Schema.TaggedError<RecommendationNotFound>()(
   'RecommendationNotFound',
   {
     id: Schema.String,

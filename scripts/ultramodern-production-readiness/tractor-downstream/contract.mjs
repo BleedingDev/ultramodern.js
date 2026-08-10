@@ -1,4 +1,3 @@
-import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
@@ -17,16 +16,9 @@ const ignoredDirectories = new Set([
   'node_modules',
 ]);
 const protectedUiRoots = Object.freeze(['apps', 'packages', 'verticals']);
-const generatedSourceFilePattern = /\.gen\.(?:[cm]?[jt]sx?|d\.[cm]?[jt]s)$/u;
-const protectedUiExclusions = Object.freeze([
-  generatedSourceFilePattern.source,
-]);
 const requiredTractorCheckIds = Object.freeze([
-  'ui-baseline',
   'exact-create-migration',
   'exact-cohort',
-  'native-tanstack-search',
-  'migration-preserves-visible-ui-source',
   'install---frozen-lockfile',
   'check',
   'promotable-application-source',
@@ -37,7 +29,8 @@ const requiredTractorCheckIds = Object.freeze([
   'node-visible-tractor-workflow',
   'cloudflare:build',
   'workerd-visible-tractor-workflow',
-  'final-visible-ui-source',
+  'native-tanstack-search',
+  'visible-tractor-ui',
 ]);
 const requiredVisibleRuntimePlatforms = Object.freeze(['node', 'workerd']);
 const reviewedTractorTopology = Object.freeze({
@@ -60,24 +53,6 @@ const tractorTopologiesByBaseline = Object.freeze({
   '2cb6e1c939686b1dfd5cbfb594198512fa9d04f7': reviewedTractorTopology,
   '3a9ac349f8f52662d451030aa86ba142ca01973d': reviewedTractorTopology,
 });
-const forbiddenRouteSearchPatterns = Object.freeze([
-  {
-    label: 'URLSearchParams',
-    pattern: /\bURLSearchParams\b/u,
-  },
-  {
-    label: '.searchParams',
-    pattern: /\.searchParams\b/u,
-  },
-  {
-    label: 'location.search',
-    pattern: /\blocation\.search(?:Str)?\b/u,
-  },
-  {
-    label: 'window.location.search',
-    pattern: /\bwindow\.location\.search\b/u,
-  },
-]);
 
 function assert(condition, message) {
   if (!condition) {
@@ -178,6 +153,9 @@ function assertExactModernDependencySpecifiers(workspace, release) {
     aliases && typeof aliases === 'object' && !Array.isArray(aliases),
     'Release aliases are required for Tractor cohort validation',
   );
+  const cohortTargetNames = new Set(
+    Object.values(aliases).filter(targetName => typeof targetName === 'string'),
+  );
 
   const observations = [];
   for (const packageFile of collectPackageJsonFiles(workspace)) {
@@ -186,14 +164,23 @@ function assertExactModernDependencySpecifiers(workspace, release) {
       for (const [dependencyName, specifier] of Object.entries(
         manifest[blockName] ?? {},
       )) {
-        if (!dependencyName.startsWith('@modern-js/')) {
+        const declaredTargetName = aliases[dependencyName];
+        if (dependencyName.startsWith('@modern-js/')) {
+          assert(
+            typeof declaredTargetName === 'string',
+            `${normalizePath(path.relative(workspace, packageFile))} ${blockName}.${dependencyName} is absent from the exact release cohort`,
+          );
+        }
+        const targetName =
+          declaredTargetName ??
+          (typeof specifier === 'string' && specifier.startsWith('npm:')
+            ? [...cohortTargetNames].find(candidate =>
+                specifier.startsWith(`npm:${candidate}@`),
+              )
+            : undefined);
+        if (typeof targetName !== 'string') {
           continue;
         }
-        const targetName = aliases[dependencyName];
-        assert(
-          typeof targetName === 'string',
-          `${normalizePath(path.relative(workspace, packageFile))} ${blockName}.${dependencyName} is absent from the exact release cohort`,
-        );
         const expected = `npm:${targetName}@${version}`;
         assert(
           specifier === expected,
@@ -216,145 +203,218 @@ function assertExactModernDependencySpecifiers(workspace, release) {
   return observations;
 }
 
-function isProtectedUiFile(workspace, file) {
-  const relative = normalizePath(path.relative(workspace, file));
-  if (!protectedUiRoots.some(root => relative.startsWith(`${root}/`))) {
-    return false;
-  }
-  if (generatedSourceFilePattern.test(relative)) {
-    return false;
-  }
-  return (
-    relative.includes('/src/') ||
-    relative.includes('/locales/') ||
-    relative.includes('/public/')
-  );
-}
-
-function snapshotProtectedUi(workspace) {
-  const files = collectFiles(workspace, file =>
-    isProtectedUiFile(workspace, file),
-  );
-  assert(files.length > 0, 'Tractor protected UI source set is empty');
-  const entries = files.map(file => {
-    const relative = normalizePath(path.relative(workspace, file));
-    const sha256 = crypto
-      .createHash('sha256')
-      .update(fs.readFileSync(file))
-      .digest('hex');
-    return { path: relative, sha256 };
-  });
-  return {
-    entries,
-    excludedPatterns: protectedUiExclusions,
-    fileCount: entries.length,
-    sha256: crypto
-      .createHash('sha256')
-      .update(JSON.stringify(entries))
-      .digest('hex'),
-  };
-}
-
-function assertProtectedUiUnchanged(before, after) {
+function assertNativeTanStackSearch(workflow) {
   assert(
-    JSON.stringify(before.excludedPatterns) ===
-      JSON.stringify(after.excludedPatterns),
-    'Tractor protected UI exclusion disclosure changed during migration',
+    workflow && typeof workflow === 'object',
+    'Tractor native search proof must be structured workflow evidence',
   );
-  const beforeByPath = new Map(
-    before.entries.map(entry => [entry.path, entry]),
-  );
-  const afterByPath = new Map(after.entries.map(entry => [entry.path, entry]));
-  const changedPaths = [
-    ...new Set([...beforeByPath.keys(), ...afterByPath.keys()]),
-  ]
-    .toSorted((left, right) => left.localeCompare(right))
-    .flatMap(file => {
-      const previous = beforeByPath.get(file);
-      const current = afterByPath.get(file);
-      if (!previous) {
-        return [`added ${file}`];
-      }
-      if (!current) {
-        return [`removed ${file}`];
-      }
-      return previous.sha256 === current.sha256 ? [] : [`changed ${file}`];
-    });
   assert(
-    changedPaths.length === 0,
-    `UltraModern migration changed Tractor visible UI, localization, public assets, or shared UI source:\n${changedPaths.join(
-      '\n',
-    )}`,
+    workflow.status === 'pass',
+    'Tractor native search proof must come from a passing browser workflow',
   );
-  return {
-    excludedPatterns: after.excludedPatterns,
-    fileCount: after.fileCount,
-    sha256: after.sha256,
-    status: 'unchanged',
-  };
-}
-
-function assertNativeTanStackSearch(workspace) {
-  const routeRoot = path.join(workspace, 'apps/shell-super-app/src/routes');
-  const routeRoots = protectedUiRoots.flatMap(root =>
-    collectFiles(path.join(workspace, root), file => {
-      const relative = normalizePath(path.relative(workspace, file));
-      return (
-        /\/src\/routes\//u.test(relative) && /\.(?:ts|tsx)$/u.test(relative)
-      );
-    }),
+  assert(
+    workflow.product && typeof workflow.product === 'object',
+    'Tractor native search proof is missing the selected product',
   );
-  const routeFiles = [...new Set(routeRoots)].sort();
-  assert(routeFiles.length > 0, 'Tractor route source is missing');
+  const { detailName, sku, slug } = workflow.product;
+  assert(
+    [detailName, sku, slug].every(
+      value => typeof value === 'string' && value.length > 0,
+    ),
+    'Tractor native search proof has an invalid selected product identity',
+  );
+  assert(
+    Array.isArray(workflow.assertions),
+    'Tractor native search proof is missing browser assertions',
+  );
 
-  for (const file of routeFiles) {
-    const source = fs.readFileSync(file, 'utf8');
-    for (const forbidden of forbiddenRouteSearchPatterns) {
-      assert(
-        !forbidden.pattern.test(source),
-        `${normalizePath(path.relative(workspace, file))} manually parses query search through ${forbidden.label}; use the native typed TanStack search contract`,
-      );
-    }
+  const assertionsByType = new Map();
+  for (const assertion of workflow.assertions) {
+    assert(
+      assertion &&
+        typeof assertion.type === 'string' &&
+        assertion.status === 'pass',
+      'Tractor native search proof contains malformed or failing browser evidence',
+    );
+    assert(
+      !assertionsByType.has(assertion.type),
+      `Tractor native search proof contains duplicate ${assertion.type} evidence`,
+    );
+    assertionsByType.set(assertion.type, assertion);
   }
 
-  const productRoute = path.join(routeRoot, '[lang]/tractors/[slug]/page.tsx');
-  const searchContract = path.join(
-    routeRoot,
-    '[lang]/tractors/[slug]/page.search.ts',
-  );
-  assert(fs.existsSync(productRoute), 'Tractor product route is missing');
+  const productDetail = assertionsByType.get('product-detail');
+  const cartProduct = assertionsByType.get('cart-product-match');
   assert(
-    fs.existsSync(searchContract),
-    'Tractor product search contract is missing',
-  );
-  const routeSource = fs.readFileSync(productRoute, 'utf8');
-  const searchSource = fs.readFileSync(searchContract, 'utf8');
-  assert(
-    /from ['"]@modern-js\/plugin-tanstack\/runtime['"]/u.test(routeSource) &&
-      /\buseParams\s*\(/u.test(routeSource) &&
-      /\buseSearch\s*\(/u.test(routeSource),
-    'Tractor product route must use native Modern.js TanStack useParams and useSearch hooks',
+    typeof productDetail?.route === 'string',
+    'Tractor native search proof is missing product-detail browser evidence',
   );
   assert(
-    /\bexport const validateSearch\b/u.test(searchSource) &&
-      /\bsku\b/u.test(searchSource),
-    'Tractor product route must expose a typed sku validateSearch contract',
+    typeof cartProduct?.route === 'string',
+    'Tractor native search proof is missing cart-product-match browser evidence',
   );
+
+  const productUrl = new URL(productDetail.route, 'https://tractor.invalid');
+  assert(
+    productUrl.pathname === `/en/tractors/${slug}` &&
+      productUrl.searchParams.getAll('sku').length === 1 &&
+      productUrl.searchParams.get('sku') === sku,
+    'Tractor product-detail route must carry the selected product sku',
+  );
+  const cartUrl = new URL(cartProduct.route, 'https://tractor.invalid');
+  assert(
+    cartUrl.pathname === '/en/cart' &&
+      cartUrl.searchParams.getAll('sku').length === 1 &&
+      cartUrl.searchParams.get('sku') === sku,
+    'Tractor cart route must preserve the selected product sku',
+  );
+  assert(
+    cartProduct.cartLine?.id === sku &&
+      cartProduct.cartLine?.slug === slug &&
+      cartProduct.cartLine?.name === detailName,
+    'Tractor cart evidence must preserve the selected product identity',
+  );
+
   return {
-    auditedRouteFiles: routeFiles.length,
-    auditedRouteRoots: [
-      ...new Set(
-        routeFiles.map(file =>
-          normalizePath(path.relative(workspace, file)).replace(
-            /\/src\/routes\/.*$/u,
-            '/src/routes',
-          ),
-        ),
-      ),
-    ].sort(),
-    productRoute: normalizePath(path.relative(workspace, productRoute)),
-    searchContract: normalizePath(path.relative(workspace, searchContract)),
+    cartRoute: cartProduct.route,
+    productRoute: productDetail.route,
+    sku,
     status: 'native-typed-search',
+  };
+}
+
+function assertUniqueEvidence(items, key, label, requirePassing = false) {
+  assert(Array.isArray(items), `Tractor ${label} evidence must be an array`);
+  const byKey = new Map();
+  for (const item of items) {
+    const value = item?.[key];
+    assert(
+      typeof value === 'string' &&
+        value.length > 0 &&
+        (!requirePassing || item.status === 'pass'),
+      `Tractor ${label} evidence contains a malformed${requirePassing ? ' or failing' : ''} item`,
+    );
+    assert(!byKey.has(value), `Tractor ${label} evidence duplicates ${value}`);
+    byKey.set(value, item);
+  }
+  return byKey;
+}
+
+function assertVisibleTractorUi(workflow) {
+  const ui = workflow?.ui;
+  assert(
+    ui?.status === 'pass',
+    'Tractor visible UI proof must come from a passing browser workflow',
+  );
+
+  assert(
+    ui.accessibility?.status === 'pass',
+    'Tractor visible UI proof is missing passing accessibility evidence',
+  );
+  const controls = Array.isArray(ui.accessibility.controls)
+    ? ui.accessibility.controls
+    : [];
+  const requiredControls = [
+    ['link', 'Add to basket'],
+    ['link', 'Checkout'],
+    ['textbox', 'Name'],
+    ['textbox', 'Email'],
+    ['textbox', 'Delivery address'],
+    ['button', 'Place order'],
+    ['heading', 'Thank you for your order'],
+  ];
+  for (const [role, name] of requiredControls) {
+    const matches = controls.filter(
+      control =>
+        control?.role === role &&
+        control.name === name &&
+        control.status === 'pass',
+    );
+    assert(
+      matches.length === 1,
+      `Tractor visible UI proof requires exactly one accessible ${role} named ${name}`,
+    );
+  }
+
+  assert(
+    ui.computedStyles?.status === 'pass',
+    'Tractor visible UI proof is missing passing computed-style evidence',
+  );
+  const styles = assertUniqueEvidence(
+    ui.computedStyles.samples,
+    'subject',
+    'computed-style',
+  );
+  for (const subject of [
+    'product-grid',
+    'product-page',
+    'cart-page',
+    'checkout-page',
+    'thanks-page',
+  ]) {
+    const sample = styles.get(subject);
+    assert(sample, `Tractor visible UI proof is missing ${subject} style`);
+    assert(
+      sample.display !== 'none' &&
+        sample.visibility !== 'hidden' &&
+        sample.visibility !== 'collapse' &&
+        typeof sample.opacity === 'number' &&
+        sample.opacity > 0,
+      `Tractor computed style for ${subject} is not visibly rendered`,
+    );
+  }
+
+  assert(
+    ui.dom?.status === 'pass' && Array.isArray(ui.dom.boundaries),
+    'Tractor visible UI proof is missing passing DOM boundary evidence',
+  );
+  const expectedBoundaries = [
+    ['explore', './ProductGrid'],
+    ['decide', './ProductPage'],
+    ['checkout', './CartPage'],
+    ['checkout', './CheckoutPage'],
+    ['checkout', './ThanksPage'],
+  ];
+  for (const [boundaryId, expose] of expectedBoundaries) {
+    const matches = ui.dom.boundaries.filter(
+      boundary =>
+        boundary?.boundaryId === boundaryId &&
+        boundary.expose === expose &&
+        boundary.visible === true,
+    );
+    assert(
+      matches.length === 1,
+      `Tractor visible UI proof requires exactly one visible DOM boundary ${boundaryId} ${expose}`,
+    );
+  }
+
+  assert(
+    ui.runtime?.status === 'pass',
+    'Tractor visible UI proof is missing passing runtime evidence',
+  );
+  const interactions = assertUniqueEvidence(
+    ui.runtime.interactions,
+    'type',
+    'runtime interaction',
+  );
+  for (const type of [
+    'open-product',
+    'add-to-basket',
+    'begin-checkout',
+    'place-order',
+  ]) {
+    assert(
+      interactions.get(type)?.status === 'pass',
+      `Tractor visible UI proof requires exactly one passing ${type} runtime interaction`,
+    );
+  }
+
+  return {
+    accessibilityCheckCount: controls.length,
+    boundaryCount: ui.dom.boundaries.length,
+    computedStyleSampleCount: ui.computedStyles.samples.length,
+    runtimeInteractionCount: ui.runtime.interactions.length,
+    status: 'visible-ui-contract',
   };
 }
 
@@ -362,10 +422,8 @@ export {
   assertAuthenticatedTractorCohort,
   assertExactModernDependencySpecifiers,
   assertNativeTanStackSearch,
-  assertProtectedUiUnchanged,
-  protectedUiExclusions,
+  assertVisibleTractorUi,
   requiredTractorCheckIds,
   requiredVisibleRuntimePlatforms,
-  snapshotProtectedUi,
   tractorTopologiesByBaseline,
 };

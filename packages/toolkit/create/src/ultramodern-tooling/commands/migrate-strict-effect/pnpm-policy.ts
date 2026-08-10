@@ -219,7 +219,9 @@ function assertOwnedTrustPolicyList(
       entry === 'effect@4.0.0-beta.94' ||
       entry === '@effect/opentelemetry@4.0.0-beta.94' ||
       entry === 'effect@4.0.0-beta.97' ||
-      entry === '@effect/opentelemetry@4.0.0-beta.97'
+      entry === '@effect/opentelemetry@4.0.0-beta.97' ||
+      entry === 'effect@4.0.0-beta.102' ||
+      entry === '@effect/opentelemetry@4.0.0-beta.102'
     ) {
       continue;
     }

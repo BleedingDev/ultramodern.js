@@ -12,8 +12,6 @@ import {
   moduleFederationBridgeReactPatchSourcePath,
   moduleFederationModernJsPatchPath,
   moduleFederationModernJsPatchSourcePath,
-  tanstackRouterCorePatchPath,
-  tanstackRouterCorePatchSourcePath,
 } from './policy-constants';
 
 export function ensureGeneratedDeclarationPatches(
@@ -38,12 +36,6 @@ export function ensureGeneratedDeclarationPatches(
       io,
       effectDeclarationPatchPath,
       effectDeclarationPatchSourcePath,
-    ) || changed;
-  changed =
-    ensureGeneratedPatchFile(
-      io,
-      tanstackRouterCorePatchPath,
-      tanstackRouterCorePatchSourcePath,
     ) || changed;
   if (options.includeDrizzleOrmPatch) {
     changed =

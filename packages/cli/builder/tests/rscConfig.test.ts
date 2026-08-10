@@ -31,11 +31,11 @@ describe('getRscPlugins', () => {
   it.each([
     {
       internalDir: '/repo/node_modules/.modern-js',
-      route: '/repo/node_modules/.modern-js/main/routes/reviews/page.tsx',
+      route: '/repo/node_modules/.modern-js/loader/routes.server.js',
     },
     {
       internalDir: String.raw`C:\repo\node_modules\.modern-js`,
-      route: String.raw`C:\repo\node_modules\.modern-js\main\routes\reviews\page.tsx`,
+      route: String.raw`C:\repo\node_modules\.modern-js\loader\routes.server.js`,
     },
   ])('classifies generated conventional routes as RSC modules', ({
     internalDir,
@@ -45,13 +45,40 @@ describe('getRscPlugins', () => {
     expect(matchers.some(matcher => matcher.test(route))).toBe(true);
   });
 
-  it('classifies route data modules outside the generated directory as RSC modules', () => {
+  it('keeps the TanStack render tree in SSR while isolating its data modules in RSC', () => {
     const matchers = createRscLayerMatchers('/repo/node_modules/.modern-js');
     expect(
       matchers.some(matcher =>
-        matcher.test('/repo/src/routes/reviews/page.loader.ts?build=client'),
+        matcher.test(
+          '/repo/node_modules/.modern-js/index/tanstack-routes.server.js',
+        ),
+      ),
+    ).toBe(false);
+    expect(
+      matchers.some(matcher =>
+        matcher.test(
+          '/repo/node_modules/.modern-js/index/__rsc_route_data__/loader_0.js',
+        ),
       ),
     ).toBe(true);
+  });
+
+  it('keeps server-loader route data modules in the SSR layer', () => {
+    const matchers = createRscLayerMatchers('/repo/node_modules/.modern-js');
+    expect(
+      matchers.some(matcher =>
+        matcher.test(
+          '/repo/src/loader/routes/redirect/page.data.ts?loaderId=loader_3&action=false&inline=true',
+        ),
+      ),
+    ).toBe(false);
+    expect(
+      matchers.some(matcher =>
+        matcher.test(
+          '/repo/node_modules/.modern-js/loader/route-server-loaders.js',
+        ),
+      ),
+    ).toBe(false);
   });
 });
 

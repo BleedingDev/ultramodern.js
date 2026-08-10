@@ -13,17 +13,22 @@ const packageRoot = path.resolve(__dirname, '..');
 const lintDependencyNodeModules = path.dirname(
   fs.realpathSync(path.join(packageRoot, 'node_modules/ultracite')),
 );
-const oxlintCliPath = path.join(lintDependencyNodeModules, 'oxlint/bin/oxlint');
 
-function createLintHarness(tempRoot: string) {
-  const lintHarnessDir = path.join(tempRoot, 'lint-harness');
-  fs.mkdirSync(lintHarnessDir, { recursive: true });
+function provisionGeneratedLintDependencies(workspaceDir: string) {
+  const nodeModulesDir = path.join(workspaceDir, 'node_modules');
+  fs.mkdirSync(nodeModulesDir, { recursive: true });
+  for (const packageName of ['oxlint', 'ultracite']) {
+    fs.symlinkSync(
+      path.join(lintDependencyNodeModules, packageName),
+      path.join(nodeModulesDir, packageName),
+      process.platform === 'win32' ? 'junction' : 'dir',
+    );
+  }
   fs.symlinkSync(
-    lintDependencyNodeModules,
-    path.join(lintHarnessDir, 'node_modules'),
+    fs.realpathSync(path.join(packageRoot, 'node_modules/typescript')),
+    path.join(nodeModulesDir, 'typescript'),
     process.platform === 'win32' ? 'junction' : 'dir',
   );
-  return lintHarnessDir;
 }
 
 function parseOxlintReport(
@@ -53,38 +58,18 @@ function parseOxlintReport(
 
 function assertGeneratedWorkspaceLintClean(
   workspaceDir: string,
-  lintHarnessDir: string,
   generatedState: string,
 ) {
-  const rootPackage: unknown = JSON.parse(
-    fs.readFileSync(path.join(workspaceDir, 'package.json'), 'utf-8'),
-  );
-  assert.ok(rootPackage !== null && typeof rootPackage === 'object');
-  const scripts = Reflect.get(rootPackage, 'scripts');
-  assert.ok(scripts !== null && typeof scripts === 'object');
-  assert.equal(
-    Reflect.get(scripts, 'lint'),
-    'oxlint apps verticals packages',
-    'the regression must exercise the generated pnpm lint surface',
-  );
-
-  const lintConfigPath = path.join(lintHarnessDir, 'oxlint.config.ts');
-  fs.copyFileSync(path.join(workspaceDir, 'oxlint.config.ts'), lintConfigPath);
   const result = spawnSync(
-    process.execPath,
-    [
-      oxlintCliPath,
-      '--config',
-      lintConfigPath,
-      '--format',
-      'json',
-      'apps',
-      'verticals',
-      'packages',
-    ],
+    process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm',
+    ['--config.verify-deps-before-run=false', 'lint', '--format', 'json'],
     {
       cwd: workspaceDir,
       encoding: 'utf-8',
+      env: {
+        ...process.env,
+        PATH: `${path.join(packageRoot, 'node_modules/.bin')}${path.delimiter}${process.env.PATH ?? ''}`,
+      },
     },
   );
   const commandOutput = `${result.stdout}\n${result.stderr}`;
@@ -128,12 +113,8 @@ test('generated shell, checkout, and generic verticals are lint-clean', () => {
   });
 
   try {
-    const lintHarnessDir = createLintHarness(tempRoot);
-    assertGeneratedWorkspaceLintClean(
-      workspaceDir,
-      lintHarnessDir,
-      'shell-only workspace',
-    );
+    provisionGeneratedLintDependencies(workspaceDir);
+    assertGeneratedWorkspaceLintClean(workspaceDir, 'shell-only workspace');
     assertGeneratedWorkspaceContractClean(workspaceDir, 'shell-only workspace');
 
     addUltramodernVertical({
@@ -141,11 +122,7 @@ test('generated shell, checkout, and generic verticals are lint-clean', () => {
       name: 'checkout',
       modernVersion: '3.2.1',
     });
-    assertGeneratedWorkspaceLintClean(
-      workspaceDir,
-      lintHarnessDir,
-      'workspace with checkout',
-    );
+    assertGeneratedWorkspaceLintClean(workspaceDir, 'workspace with checkout');
     assertGeneratedWorkspaceContractClean(
       workspaceDir,
       'workspace with checkout',
@@ -158,7 +135,6 @@ test('generated shell, checkout, and generic verticals are lint-clean', () => {
     });
     assertGeneratedWorkspaceLintClean(
       workspaceDir,
-      lintHarnessDir,
       'workspace with checkout and catalog',
     );
     assertGeneratedWorkspaceContractClean(
@@ -175,12 +151,43 @@ test('generated shell, checkout, and generic verticals are lint-clean', () => {
     }
     assertGeneratedWorkspaceLintClean(
       workspaceDir,
-      lintHarnessDir,
       'workspace with former demo-name verticals',
     );
     assertGeneratedWorkspaceContractClean(
       workspaceDir,
       'workspace with former demo-name verticals',
+    );
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('generated lint policy accepts the workspace component styles', () => {
+  const { tempRoot, workspaceDir } = createWorkspace(
+    'generated-component-style',
+    {
+      tempPrefix: 'um-generated-component-style-',
+    },
+  );
+
+  try {
+    provisionGeneratedLintDependencies(workspaceDir);
+    const componentDir = path.join(workspaceDir, 'packages', 'style-probe');
+    fs.mkdirSync(componentDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(componentDir, 'components.tsx'),
+      `export function FunctionDeclaration() {
+  return <div />;
+}
+
+export const ArrowFunction = () => <div />;
+`,
+      'utf-8',
+    );
+
+    assertGeneratedWorkspaceLintClean(
+      workspaceDir,
+      'workspace component style probe',
     );
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });

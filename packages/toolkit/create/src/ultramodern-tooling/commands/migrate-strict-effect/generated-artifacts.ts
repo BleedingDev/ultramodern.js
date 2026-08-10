@@ -2,6 +2,7 @@ export { updateGeneratedBackendFederationContractFiles } from './generated-artif
 export { updateGeneratedBuildIdentityModules } from './generated-artifacts-build-identity';
 export { updateGeneratedModernConfigs } from './generated-artifacts-modern-configs';
 export { ensureGeneratedOxfmtIgnorePatterns } from './generated-artifacts-oxfmt';
+export { ensureGeneratedOxlintComponentStyle } from './generated-artifacts-oxlint';
 export {
   removeGeneratedFileIfExists,
   removeStaleBackendFederationArtifacts,

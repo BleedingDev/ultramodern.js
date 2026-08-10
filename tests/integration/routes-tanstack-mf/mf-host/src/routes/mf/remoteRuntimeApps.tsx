@@ -4,12 +4,13 @@ import { loadRemote } from '@module-federation/modern-js-v3/runtime';
 type RemoteOneAppModule = typeof import('remote/App');
 type RemoteTwoAppModule = typeof import('remote2/App');
 
-async function loadRequiredRemote<T>(id: string): Promise<T> {
-  const remote = await loadRemote<T>(id);
-  if (remote === null) {
-    throw new Error(`Module Federation remote "${id}" resolved to null.`);
-  }
-  return remote;
+function loadRequiredRemote<T>(id: string): Promise<T> {
+  return loadRemote<T>(id).then(remote => {
+    if (remote === null) {
+      throw new Error(`Module Federation remote "${id}" resolved to null.`);
+    }
+    return remote;
+  });
 }
 
 function RemoteRuntimeError({ error }: { error: Error }) {

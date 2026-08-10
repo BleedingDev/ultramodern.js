@@ -2,14 +2,15 @@ import type { BackendFederationRuntimeOptions } from './types';
 
 export function collectRemotes(options: BackendFederationRuntimeOptions) {
   const remotes = [...(options.remotes ?? [])];
-  if (options.remote) {
+  const configuredRemote = options.remote;
+  if (configuredRemote !== undefined) {
     const existingIndex = remotes.findIndex(
-      remote => remote.name === options.remote?.name,
+      remote => remote.name === configuredRemote.name,
     );
     if (existingIndex >= 0) {
-      remotes[existingIndex] = options.remote;
+      remotes[existingIndex] = configuredRemote;
     } else {
-      remotes.push(options.remote);
+      remotes.push(configuredRemote);
     }
   }
   return remotes;

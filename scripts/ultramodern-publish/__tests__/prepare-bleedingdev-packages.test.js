@@ -167,6 +167,75 @@ test('release package rewriting canonicalizes dependency metadata order', async 
   ]);
 });
 
+test('RSC remains an explicit optional toolchain and is absent from the release cohort', () => {
+  const upstreamRuntime = '0.0.3';
+  const frameworkContracts = [
+    {
+      path: 'packages/cli/builder/package.json',
+      optionalPeers: {
+        'react-server-dom-rspack': upstreamRuntime,
+        'rsbuild-plugin-rsc': '0.1.1',
+      },
+    },
+    {
+      path: 'packages/runtime/render/package.json',
+      optionalPeers: { 'react-server-dom-rspack': upstreamRuntime },
+    },
+    {
+      path: 'packages/runtime/plugin-tanstack/package.json',
+      optionalPeers: { 'react-server-dom-rspack': upstreamRuntime },
+    },
+  ];
+
+  for (const { path: relativePath, optionalPeers } of frameworkContracts) {
+    const packageJson = JSON.parse(
+      fs.readFileSync(path.join(repoRoot, relativePath), 'utf8'),
+    );
+    for (const [packageName, version] of Object.entries(optionalPeers)) {
+      assert.equal(
+        packageJson.dependencies?.[packageName],
+        undefined,
+        `${relativePath} must not install ${packageName} for non-RSC consumers`,
+      );
+      assert.equal(packageJson.devDependencies?.[packageName], version);
+      assert.equal(packageJson.peerDependencies?.[packageName], version);
+      assert.equal(
+        packageJson.peerDependenciesMeta?.[packageName]?.optional,
+        true,
+      );
+    }
+  }
+
+  for (const relativePath of [
+    'tests/integration/routes-tanstack-rsc/package.json',
+    'tests/integration/rsc-csr-app/package.json',
+    'tests/integration/rsc-csr-routes/package.json',
+    'tests/integration/rsc-ssr-app/package.json',
+    'tests/integration/rsc-ssr-routes/package.json',
+    'tests/integration/ssr/fixtures/rsc-closing-tags/package.json',
+  ]) {
+    const packageJson = JSON.parse(
+      fs.readFileSync(path.join(repoRoot, relativePath), 'utf8'),
+    );
+    assert.equal(
+      packageJson.dependencies?.['react-server-dom-rspack'],
+      upstreamRuntime,
+      `${relativePath} must exercise the patched upstream runtime directly`,
+    );
+  }
+
+  assert.equal(
+    fs.existsSync(
+      path.join(
+        repoRoot,
+        'packages/runtime/react-server-dom-rspack/package.json',
+      ),
+    ),
+    false,
+    'the Modern.js release cohort must not contain a temporary RSDR package',
+  );
+});
+
 const makeManifest = () => ({
   source: releaseSource,
   release: {
@@ -2011,6 +2080,73 @@ test('buffer publisher exchanges GitHub OIDC and sends only accepted bytes to li
   }
 });
 
+test('trusted publisher preflight discards its credential before the package publish', async () => {
+  const { preflightTrustedPublishingPackages, publishAcceptedPackage } =
+    await import(
+      '../lib/prepare-bleedingdev-packages/npm-buffer-publisher.mjs'
+    );
+  const fixture = await createArtifactFixture();
+  const artifact = fixture.releaseArtifacts.packages[0];
+  const acceptedBytes = fs.readFileSync(artifact.artifactPath);
+  const exchanges = [];
+  let oidcRequests = 0;
+  let publishedAuthToken;
+  const env = {
+    ACTIONS_ID_TOKEN_REQUEST_TOKEN: 'github-request-token',
+    ACTIONS_ID_TOKEN_REQUEST_URL:
+      'https://pipelines.actions.githubusercontent.com/example/oidc?api-version=2.0',
+    GITHUB_ACTIONS: 'true',
+  };
+  const fetchImpl = async url => {
+    const requestUrl = new URL(url);
+    if (requestUrl.hostname.endsWith('.actions.githubusercontent.com')) {
+      oidcRequests += 1;
+      return {
+        ok: true,
+        json: async () => ({ value: `github.oidc.token.${oidcRequests}` }),
+      };
+    }
+    exchanges.push(decodeURIComponent(requestUrl.pathname.split('/').at(-1)));
+    return {
+      ok: true,
+      json: async () => ({ token: `npm-publish-token-${exchanges.length}` }),
+    };
+  };
+  const options = {
+    acceptedTools: {
+      node: process.version,
+      npm: '11.17.0',
+      pnpm: '10.28.2',
+    },
+    tag: 'latest',
+  };
+
+  try {
+    await preflightTrustedPublishingPackages([artifact], options, {
+      env,
+      fetchImpl,
+    });
+    await publishAcceptedPackage(artifact, acceptedBytes, options, {
+      env,
+      fetchImpl,
+      loadRuntime: () => ({
+        libnpmpublishVersion: '11.2.0',
+        npmVersion: '11.17.0',
+        publish: async (_manifest, _bytes, publishOptions) => {
+          publishedAuthToken =
+            publishOptions['//registry.npmjs.org/:_authToken'];
+        },
+      }),
+    });
+
+    assert.deepEqual(exchanges, [artifact.targetName, artifact.targetName]);
+    assert.equal(oidcRequests, 2);
+    assert.equal(publishedAuthToken, 'npm-publish-token-2');
+  } finally {
+    removeDir(fixture.root);
+  }
+});
+
 test('installed libnpmpublish binds buffer, tag, auth, and provenance mode', async () => {
   const { loadNpmPublishingRuntime, publishPackageBuffer } = await import(
     '../prepare-bleedingdev-packages.mjs'
@@ -2755,6 +2891,166 @@ test('dry-run fully verifies existing registry versions and tags before invoking
   }
 });
 
+test('trusted publishing rejects the entire absent cohort before the first registry mutation', async () => {
+  const { publishManifestPackages } = await import(
+    '../prepare-bleedingdev-packages.mjs'
+  );
+  const fixture = await createArtifactFixture();
+  const exchangeRequests = [];
+  const registryMutations = [];
+
+  try {
+    await assert.rejects(
+      () =>
+        publishManifestPackages(
+          fixture.releaseArtifacts,
+          {
+            dryRun: false,
+            publishConcurrency: 1,
+            tag: 'latest',
+            version: '3.2.0-ultramodern.1',
+          },
+          {
+            lookupRegistryDistTag: async () => '3.5.0-ultramodern.previous',
+            lookupRegistryPackageDist: async () => null,
+            publishPackage: async artifact => {
+              registryMutations.push(artifact.targetName);
+              return artifact.targetName;
+            },
+            trustedPublishing: {
+              env: {
+                ACTIONS_ID_TOKEN_REQUEST_TOKEN: 'github-request-token',
+                ACTIONS_ID_TOKEN_REQUEST_URL:
+                  'https://pipelines.actions.githubusercontent.com/example/oidc?api-version=2.0',
+                GITHUB_ACTIONS: 'true',
+              },
+              fetchImpl: async url => {
+                const requestUrl = new URL(url);
+                if (
+                  requestUrl.hostname.endsWith('.actions.githubusercontent.com')
+                ) {
+                  return {
+                    ok: true,
+                    json: async () => ({
+                      value: `github.oidc.token.${exchangeRequests.length + 1}`,
+                    }),
+                  };
+                }
+                exchangeRequests.push(requestUrl.pathname);
+                return exchangeRequests.length === 2
+                  ? { ok: false, status: 403 }
+                  : {
+                      ok: true,
+                      json: async () => ({
+                        token: `discarded-preflight-token-${exchangeRequests.length}`,
+                      }),
+                    };
+              },
+            },
+            verifyRegistryPackage: async () => {},
+          },
+        ),
+      /returned HTTP 403/u,
+    );
+
+    assert.deepEqual(
+      exchangeRequests,
+      fixture.releaseArtifacts.manifest.publishOrder
+        .slice(0, 2)
+        .map(
+          packageName =>
+            `/-/npm/v1/oidc/token/exchange/package/${packageName.replace('/', '%2f')}`,
+        ),
+    );
+    assert.deepEqual(registryMutations, []);
+  } finally {
+    removeDir(fixture.root);
+  }
+});
+
+test('trusted publishing authorizes every absent package before publishing any of them', async () => {
+  const { publishManifestPackages } = await import(
+    '../prepare-bleedingdev-packages.mjs'
+  );
+  const fixture = await createArtifactFixture();
+  const [existingTarget, ...absentTargets] =
+    fixture.releaseArtifacts.manifest.publishOrder;
+  const events = [];
+
+  try {
+    await publishManifestPackages(
+      fixture.releaseArtifacts,
+      {
+        dryRun: false,
+        publishConcurrency: 1,
+        tag: 'latest',
+        version: '3.2.0-ultramodern.1',
+      },
+      {
+        lookupRegistryDistTag: async packageName =>
+          packageName === existingTarget
+            ? '3.2.0-ultramodern.1'
+            : '3.5.0-ultramodern.previous',
+        lookupRegistryPackageDist: async packageName => {
+          if (packageName !== existingTarget) {
+            return null;
+          }
+          const artifact = fixture.releaseArtifacts.packages.find(
+            item => item.targetName === packageName,
+          );
+          return registryDistFor(artifact);
+        },
+        publishPackage: async artifact => {
+          events.push({ kind: 'registry-mutation', name: artifact.targetName });
+          return artifact.targetName;
+        },
+        trustedPublishing: {
+          env: {
+            ACTIONS_ID_TOKEN_REQUEST_TOKEN: 'github-request-token',
+            ACTIONS_ID_TOKEN_REQUEST_URL:
+              'https://pipelines.actions.githubusercontent.com/example/oidc?api-version=2.0',
+            GITHUB_ACTIONS: 'true',
+          },
+          fetchImpl: async url => {
+            const requestUrl = new URL(url);
+            if (
+              requestUrl.hostname.endsWith('.actions.githubusercontent.com')
+            ) {
+              return {
+                ok: true,
+                json: async () => ({ value: 'fresh-github-oidc-token' }),
+              };
+            }
+            const targetName = decodeURIComponent(
+              requestUrl.pathname.split('/').at(-1),
+            );
+            events.push({ kind: 'publisher-authorized', name: targetName });
+            return {
+              ok: true,
+              json: async () => ({
+                token: `discarded-token-for-${targetName}`,
+              }),
+            };
+          },
+        },
+        validateRegistryCohort: async () => {},
+        verifyRegistryPackage: async () => {},
+        verifyRegistryPackageDist: async () => {},
+      },
+    );
+
+    assert.deepEqual(events, [
+      ...absentTargets.map(name => ({
+        kind: 'publisher-authorized',
+        name,
+      })),
+      ...absentTargets.map(name => ({ kind: 'registry-mutation', name })),
+    ]);
+  } finally {
+    removeDir(fixture.root);
+  }
+});
+
 test('real publish verifies registry provenance after each accepted tarball before cohort validation', async () => {
   const { publishManifestPackages, verifyPackageArtifact } = await import(
     '../prepare-bleedingdev-packages.mjs'
@@ -2786,6 +3082,24 @@ test('real publish verifies registry provenance after each accepted tarball befo
         validateRegistryCohort: async (_manifest, options) => {
           assert.equal(options.dryRun, false);
           events.push({ kind: 'cohort' });
+        },
+        trustedPublishing: {
+          env: {
+            ACTIONS_ID_TOKEN_REQUEST_TOKEN: 'github-request-token',
+            ACTIONS_ID_TOKEN_REQUEST_URL:
+              'https://pipelines.actions.githubusercontent.com/example/oidc?api-version=2.0',
+            GITHUB_ACTIONS: 'true',
+          },
+          fetchImpl: async url =>
+            new URL(url).hostname.endsWith('.actions.githubusercontent.com')
+              ? {
+                  ok: true,
+                  json: async () => ({ value: 'github.oidc.token' }),
+                }
+              : {
+                  ok: true,
+                  json: async () => ({ token: 'discarded-preflight-token' }),
+                },
         },
         verifyPackageArtifact,
         verifyRegistryDistTag: async () => {},

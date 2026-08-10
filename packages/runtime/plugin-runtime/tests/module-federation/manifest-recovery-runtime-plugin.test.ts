@@ -57,6 +57,47 @@ describe('Module Federation manifest recovery runtime plugin', () => {
     expect(calls).toHaveLength(2);
   });
 
+  test('retries a synchronous fetch failure through the hook promise contract', async () => {
+    let calls = 0;
+    const fetchImpl: typeof fetch = () => {
+      calls += 1;
+      if (calls === 1) {
+        throw new TypeError('fetch failed');
+      }
+      return Promise.resolve(Response.json(manifest));
+    };
+
+    await expect(
+      hook({
+        attempts: 2,
+        fetchImpl,
+        retryDelayMs: 0,
+        timeoutMs: 50,
+      })(args()),
+    ).resolves.toEqual(manifest);
+    expect(calls).toBe(2);
+  });
+
+  test('retries through the built-in backoff when no wait implementation is injected', async () => {
+    let calls = 0;
+    const fetchImpl: typeof fetch = () => {
+      calls += 1;
+      return calls === 1
+        ? Promise.reject(new TypeError('fetch failed'))
+        : Promise.resolve(Response.json(manifest));
+    };
+
+    await expect(
+      hook({
+        attempts: 2,
+        fetchImpl,
+        retryDelayMs: 1,
+        timeoutMs: 50,
+      })(args()),
+    ).resolves.toEqual(manifest);
+    expect(calls).toBe(2);
+  });
+
   test.each([
     408, 425, 429, 500, 502, 503, 504,
   ])('retries explicitly transient HTTP %i responses', async status => {
@@ -95,6 +136,39 @@ describe('Module Federation manifest recovery runtime plugin', () => {
       })(args()),
     ).resolves.toBeUndefined();
     expect(calls).toBe(3);
+  });
+
+  test('abandons a manifest fetch at the configured timeout', async () => {
+    let aborted = false;
+    const fetchImpl: typeof fetch = (_input, init) => {
+      const signal = init?.signal;
+      if (!(signal instanceof AbortSignal)) {
+        return Promise.reject(
+          new Error('fetch did not receive an abort signal'),
+        );
+      }
+
+      return new Promise<Response>((_resolve, reject) => {
+        signal.addEventListener(
+          'abort',
+          () => {
+            aborted = true;
+            reject(signal.reason);
+          },
+          { once: true },
+        );
+      });
+    };
+
+    await expect(
+      hook({
+        attempts: 1,
+        fetchImpl,
+        retryDelayMs: 0,
+        timeoutMs: 5,
+      })(args()),
+    ).resolves.toBeUndefined();
+    expect(aborted).toBe(true);
   });
 
   test.each([

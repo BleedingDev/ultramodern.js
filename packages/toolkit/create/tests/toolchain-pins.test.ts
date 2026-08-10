@@ -17,7 +17,7 @@ test('root migration removes retired TS6 tooling without dropping consumer depen
   assert.deepEqual(packageJson.devDependencies, {
     '@typescript/native': 'npm:typescript@7.0.2',
     'consumer-owned-tool': '1.2.3',
-    miniflare: '4.20260708.1',
+    miniflare: '4.20260730.0',
   });
   assert.equal(packageJson.engines.consumer, 'preserved');
   assert.equal(typeof packageJson.engines.node, 'string');

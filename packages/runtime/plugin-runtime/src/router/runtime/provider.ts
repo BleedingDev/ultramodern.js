@@ -96,7 +96,7 @@ export function createRouterProviderRealm(
   let defaultProvider: string | undefined;
 
   for (const registration of registrations) {
-    if (!registration.name) {
+    if (registration.name.length === 0) {
       throw new Error(
         '[@modern-js/runtime] A router provider realm cannot contain an unnamed provider.',
       );
@@ -124,7 +124,7 @@ export function createRouterProviderRealm(
 
   const providerNames = Object.freeze([...providers.keys()]);
   return Object.freeze({
-    ...(defaultProvider ? { defaultProvider } : {}),
+    ...(defaultProvider !== undefined ? { defaultProvider } : {}),
     get: (name: string) => providers.get(name),
     names: () => providerNames,
   });

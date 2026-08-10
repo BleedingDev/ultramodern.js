@@ -7,6 +7,7 @@ import {
   getRouterServerSnapshot,
   InternalRuntimeContext,
   RuntimeContext,
+  setGlobalContext,
 } from '../../../src/core/context';
 import { getHelmetContext } from '../../../src/core/context/helmetContext';
 import { wrapRuntimeContextProvider } from '../../../src/core/react/wrapper';
@@ -108,6 +109,86 @@ describe('wrapRuntimeContextProvider', () => {
     expect(getHelmetContext(context)?.helmet?.title.toString()).toBe(
       '<title data-rh="true">Modern SSR</title>',
     );
+  });
+
+  it('keeps response functions outside the RSC internal context', () => {
+    let internalValue: ReturnType<typeof getInitialContext> | undefined;
+
+    const Probe = () => {
+      internalValue = useContext(InternalRuntimeContext);
+      return null;
+    };
+
+    const response = {
+      setHeader: rstest.fn(),
+      status: rstest.fn(),
+      locals: { tenant: 'tractor-store' },
+    };
+    const context = getInitialContext(false);
+    context.ssrContext = {
+      request: {
+        params: { category: 'compact' },
+        pathname: '/tractors',
+        query: { sort: 'price' },
+        headers: { accept: 'text/html' },
+        host: 'example.test',
+        url: 'https://example.test/tractors?sort=price',
+      },
+      response,
+    };
+
+    setGlobalContext({ enableRsc: true });
+    try {
+      renderToString(wrapRuntimeContextProvider(<Probe />, context));
+    } finally {
+      setGlobalContext({ enableRsc: false });
+    }
+
+    expect(internalValue?.ssrContext).toBeUndefined();
+    expect(internalValue?.requestContext.request).toEqual({
+      params: { category: 'compact' },
+      pathname: '/tractors',
+      query: { sort: 'price' },
+      headers: { accept: 'text/html' },
+      host: 'example.test',
+      url: 'https://example.test/tractors?sort=price',
+      userAgent: undefined,
+      cookie: undefined,
+      referer: undefined,
+    });
+    expect(internalValue?.requestContext.response).toEqual({
+      locals: response.locals,
+    });
+    expect(
+      Object.values(internalValue?.requestContext.response ?? {}).some(
+        value => typeof value === 'function',
+      ),
+    ).toBe(false);
+  });
+
+  it('renders an RSC context without an SSR context', () => {
+    let internalValue: ReturnType<typeof getInitialContext> | undefined;
+
+    const Probe = () => {
+      internalValue = useContext(InternalRuntimeContext);
+      return <main>RSC request context</main>;
+    };
+
+    setGlobalContext({ enableRsc: true });
+    try {
+      const html = renderToString(
+        wrapRuntimeContextProvider(<Probe />, getInitialContext(false)),
+      );
+
+      expect(html).toContain('RSC request context');
+      expect(internalValue?.requestContext).toEqual({
+        request: {},
+        response: { locals: {} },
+      });
+      expect(internalValue?.ssrContext).toBeUndefined();
+    } finally {
+      setGlobalContext({ enableRsc: false });
+    }
   });
 
   it('serializes React head prop names to valid HTML attributes', () => {

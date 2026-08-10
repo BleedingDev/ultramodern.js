@@ -77,7 +77,7 @@
     "@modern-js/types": "workspace:*",
     "@rslib/core": "0.23.2",
     "@scripts/rstest-config": "workspace:*",
-    "@types/node": "^26.1.1",
+    "@types/node": "^26.2.0",
     "@types/ua-parser-js": "^0.7.39",
     "@typescript/native-preview": "7.0.0-dev.20260707.2"
   },

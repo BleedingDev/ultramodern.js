@@ -80,6 +80,38 @@ const createEnvironmentConfigTransformer = ({
   };
 };
 
+describe('RSC compile-time definition', () => {
+  it.each([
+    {
+      expected: 'false',
+      name: 'non-RSC',
+      normalizedConfig: {},
+    },
+    {
+      expected: 'true',
+      name: 'RSC',
+      normalizedConfig: { server: { rsc: true } },
+    },
+  ])('defines the native and compatibility flags for $name builds', entry => {
+    const transform = createEnvironmentConfigTransformer({
+      normalizedConfig: entry.normalizedConfig,
+    });
+    const result = transform(
+      {
+        output: {
+          target: 'web',
+        },
+      },
+      'client',
+    );
+
+    expect(result.source?.define).toMatchObject({
+      __MODERN_ENABLE_RSC__: entry.expected,
+      'process.env.MODERN_ENABLE_RSC': entry.expected,
+    });
+  });
+});
+
 describe('module federation SSR output compatibility', () => {
   afterEach(() => {
     delete process.env.MF_SSR_PRJ;

@@ -565,8 +565,20 @@ export async function getRscPlugins(
 }
 
 export function createRscLayerMatchers(internalDirectory: string) {
+  const escapedInternalDirectory = internalDirectory
+    .split(/[/\\]+/u)
+    .map(segment => segment.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&'))
+    .join('[/\\\\]');
   const routesFileReg = new RegExp(
-    `${internalDirectory.replace(/[/\\]/g, '[/\\\\]')}[/\\\\][^/\\\\]*[/\\\\]routes`,
+    `${escapedInternalDirectory}[/\\\\][^/\\\\]+[/\\\\]routes(?:\\.server)?\\.js(?:\\?.*)?$`,
   );
-  return [routesFileReg, ROUTE_DATA_FILE_PATTERN];
+  const isolatedRouteDataReg = new RegExp(
+    `${escapedInternalDirectory}[/\\\\][^/\\\\]+[/\\\\]__rsc_route_data__[/\\\\][^/\\\\]+\\.js(?:\\?.*)?$`,
+  );
+  // Conventional route modules render through Flight and belong to the RSC
+  // layer. TanStack renders its route table into the HTML shell in the SSR
+  // layer, while only explicitly marked server-only data modules enter the
+  // RSC layer. Unmarked route data can also be imported by the SSR-only
+  // server-loader entry and must retain that issuer's layer.
+  return [routesFileReg, isolatedRouteDataReg];
 }

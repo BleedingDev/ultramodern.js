@@ -263,6 +263,36 @@ module.exports = {
     expect(loaded.runtime).toEqual({ brand: 'defineEffectBff-runtime' });
   });
 
+  test('isolates custom entry plugins between runtime instances sharing a remote identity', async () => {
+    const remote: BackendFederationRemote = {
+      name: 'verticalSharedBackend',
+      entry: 'https://shared.example.test/backendRemoteEntry.mjs',
+      type: 'module',
+    };
+    const createRuntime = (brand: string) =>
+      createBackendFederationRuntime({
+        hostName: 'sharedBackendHost',
+        remote,
+        plugins: [
+          createBackendFederationLoadEntryPlugin({
+            resolveEntry() {
+              return createEffectApiEntryExports({ runtime: { brand } });
+            },
+          }),
+        ],
+      });
+
+    const first = await createRuntime('first').loadRemote<{
+      runtime: { brand: string };
+    }>('verticalSharedBackend/effect-api');
+    const second = await createRuntime('second').loadRemote<{
+      runtime: { brand: string };
+    }>('verticalSharedBackend/effect-api');
+
+    expect(first?.runtime.brand).toBe('first');
+    expect(second?.runtime.brand).toBe('second');
+  });
+
   test('loads a strict Effect backend expose through the Node manifest adapter', async () => {
     const manifest = createBackendManifest();
     const resolvedRemotes: BackendFederationRemote[] = [];

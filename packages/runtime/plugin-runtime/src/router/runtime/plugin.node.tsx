@@ -272,12 +272,12 @@ export const routerPlugin = (
           const enableRsc = getGlobalEnableRsc();
           return (props => {
             const context = useContext(InternalRuntimeContext);
-            const { routerContext, ssrContext, routes } = context;
-            const { nonce, mode, useJsonScript } = ssrContext!;
+            const { routerContext, routes } = context;
             const { basename } = routerContext!;
 
-            const remixRouter = createStaticRouter(routes!, routerContext!);
             if (!enableRsc) {
+              const { nonce, mode, useJsonScript } = context.ssrContext!;
+              const remixRouter = createStaticRouter(routes!, routerContext!);
               const routerWrapper = (
                 <>
                   <StaticRouterProvider

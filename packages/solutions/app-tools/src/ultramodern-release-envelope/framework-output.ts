@@ -1,6 +1,6 @@
+import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { parse } from '@babel/parser';
 import {
   BACKEND_FEDERATION_MANIFEST_FILE,
   BACKEND_FEDERATION_REMOTE_ENTRY_FILE,
@@ -24,109 +24,18 @@ import type {
 
 export const MICROVERTICAL_RELEASE_ENVELOPE_PATH =
   'release/microvertical-release-envelope.json';
+export const MICROVERTICAL_RELEASE_IDENTITY_CARRIERS_PATH =
+  'release/microvertical-release-identity-carriers.json';
+
+const MICROVERTICAL_RELEASE_IDENTITY_CARRIERS_KIND =
+  'ultramodern-release-identity-carriers';
+const MICROVERTICAL_RELEASE_IDENTITY_CARRIERS_SCHEMA_VERSION = 1;
 
 const COMPILED_MODULE_PATTERN = /\.(?:c|m)?js$/u;
 const EFFECT_BFF_WORKER_PATTERN = /^worker\/__modern_bff_effect\.(?:c|m)?js$/u;
 
-interface AstNode {
-  type: string;
-  [key: string]: unknown;
-}
-
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
-
-const isAstNode = (value: unknown): value is AstNode =>
-  isRecord(value) && typeof value.type === 'string';
-
-const visitAst = (node: AstNode, visitor: (node: AstNode) => void) => {
-  visitor(node);
-  for (const value of Object.values(node)) {
-    if (isAstNode(value)) {
-      visitAst(value, visitor);
-    } else if (Array.isArray(value)) {
-      for (const item of value) {
-        if (isAstNode(item)) {
-          visitAst(item, visitor);
-        }
-      }
-    }
-  }
-};
-
-const compiledModuleIdentityValues = (source: string) => {
-  const values = new Set<string>();
-  const ast = parse(source, { sourceType: 'unambiguous' });
-  visitAst(ast.program as unknown as AstNode, node => {
-    if (node.type === 'StringLiteral' && typeof node.value === 'string') {
-      values.add(node.value);
-    } else if (
-      node.type === 'TemplateElement' &&
-      isRecord(node.value) &&
-      typeof node.value.cooked === 'string'
-    ) {
-      values.add(node.value.cooked);
-    }
-  });
-  return values;
-};
-
-const assertCompiledIdentityCarrier = async (
-  distDirectory: string,
-  logicalPaths: string[],
-  identity: MicroVerticalReleaseIdentity,
-  surface: string,
-) => {
-  for (const logicalPath of logicalPaths.filter(pathname =>
-    COMPILED_MODULE_PATTERN.test(pathname),
-  )) {
-    const source = await fs.readFile(path.join(distDirectory, logicalPath), {
-      encoding: 'utf8',
-    });
-    const values = compiledModuleIdentityValues(source);
-    if (
-      values.has(identity.buildMarker) &&
-      values.has(identity.sourceRevision) &&
-      values.has(identity.releaseVersion)
-    ) {
-      return;
-    }
-  }
-  throw new Error(
-    `[ultramodern-release-envelope] ${surface} output has no compiled module carrying exact buildMarker ${identity.buildMarker}, sourceRevision ${identity.sourceRevision}, and releaseVersion ${identity.releaseVersion}.`,
-  );
-};
-
-const assertEveryCompiledIdentityCarrier = async (
-  distDirectory: string,
-  logicalPaths: string[],
-  identity: MicroVerticalReleaseIdentity,
-  surface: string,
-) => {
-  const compiledLogicalPaths = logicalPaths.filter(pathname =>
-    COMPILED_MODULE_PATTERN.test(pathname),
-  );
-  if (compiledLogicalPaths.length === 0) {
-    throw new Error(
-      `[ultramodern-release-envelope] ${surface} has no compiled execution module carrying release identity.`,
-    );
-  }
-  for (const logicalPath of compiledLogicalPaths) {
-    const source = await fs.readFile(path.join(distDirectory, logicalPath), {
-      encoding: 'utf8',
-    });
-    const values = compiledModuleIdentityValues(source);
-    if (
-      !values.has(identity.buildMarker) ||
-      !values.has(identity.sourceRevision) ||
-      !values.has(identity.releaseVersion)
-    ) {
-      throw new Error(
-        `[ultramodern-release-envelope] ${surface} execution module ${logicalPath} does not carry exact buildMarker ${identity.buildMarker}, sourceRevision ${identity.sourceRevision}, and releaseVersion ${identity.releaseVersion}.`,
-      );
-    }
-  }
-};
 
 const flattenStrings = (value: unknown): string[] =>
   typeof value === 'string'
@@ -463,6 +372,98 @@ const releaseArtifact = (
   runtime,
 });
 
+type ReleaseIdentityCarrierSurface =
+  | 'apiBackend'
+  | 'backendFederation'
+  | 'ssr'
+  | 'uiClient';
+
+type ReleaseIdentityCarrierPaths = Record<
+  ReleaseIdentityCarrierSurface,
+  string[]
+>;
+
+const writeReleaseIdentityCarrierMetadata = async (
+  artifactRoot: string,
+  identity: MicroVerticalReleaseIdentity,
+  carrierPaths: ReleaseIdentityCarrierPaths,
+) => {
+  const surfacesByPath = new Map<string, Set<ReleaseIdentityCarrierSurface>>();
+  for (const [surface, logicalPaths] of Object.entries(carrierPaths) as [
+    ReleaseIdentityCarrierSurface,
+    string[],
+  ][]) {
+    if (logicalPaths.length === 0) {
+      throw new Error(
+        `[ultramodern-release-envelope] ${surface} has no declared release-identity carrier artifact.`,
+      );
+    }
+    for (const logicalPath of logicalPaths) {
+      const surfaces = surfacesByPath.get(logicalPath) ?? new Set();
+      surfaces.add(surface);
+      surfacesByPath.set(logicalPath, surfaces);
+    }
+  }
+
+  const carriers = await Promise.all(
+    [...surfacesByPath]
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(async ([logicalPath, surfaces]) => {
+        const bytes = await fs.readFile(path.join(artifactRoot, logicalPath));
+        return {
+          logicalPath,
+          byteLength: bytes.byteLength,
+          sha256: createHash('sha256').update(bytes).digest('hex'),
+          surfaces: [...surfaces].sort((left, right) =>
+            left.localeCompare(right),
+          ),
+        };
+      }),
+  );
+  const releaseEnvelopePath = await resolveSafeReleaseEnvelopePath({
+    artifactRoot,
+    createDirectory: true,
+  });
+  if (!releaseEnvelopePath) {
+    throw new Error(
+      '[ultramodern-release-envelope] could not resolve private release metadata directory.',
+    );
+  }
+  const metadataPath = path.join(
+    path.dirname(releaseEnvelopePath),
+    path.basename(MICROVERTICAL_RELEASE_IDENTITY_CARRIERS_PATH),
+  );
+  try {
+    const metadataStat = await fs.lstat(metadataPath);
+    if (metadataStat.isSymbolicLink() || !metadataStat.isFile()) {
+      throw new Error(
+        '[ultramodern-release-envelope] release identity carrier metadata must be a real file inside artifactRoot.',
+      );
+    }
+  } catch (error) {
+    if (!isMissingPathError(error)) {
+      throw error;
+    }
+  }
+  await fs.writeFile(
+    metadataPath,
+    `${JSON.stringify(
+      {
+        schemaVersion: MICROVERTICAL_RELEASE_IDENTITY_CARRIERS_SCHEMA_VERSION,
+        kind: MICROVERTICAL_RELEASE_IDENTITY_CARRIERS_KIND,
+        identity,
+        carriers,
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  return releaseArtifact(
+    MICROVERTICAL_RELEASE_IDENTITY_CARRIERS_PATH,
+    'release-identity-metadata',
+  );
+};
+
 const createReleaseArtifactInputs = async (
   distDirectory: string,
   identity: MicroVerticalReleaseIdentity,
@@ -556,40 +557,11 @@ const createReleaseArtifactInputs = async (
     files,
     target,
   );
-  await assertEveryCompiledIdentityCarrier(
-    distDirectory,
-    clientExecutionPaths,
-    identity,
-    'manifest-referenced UI/client',
-  );
-  await assertEveryCompiledIdentityCarrier(
-    distDirectory,
-    ssrExecutionPaths,
-    identity,
-    target === 'node'
-      ? 'route-referenced Node SSR'
-      : 'route-referenced Cloudflare SSR',
-  );
-  await assertEveryCompiledIdentityCarrier(
-    distDirectory,
-    ssrPaths,
-    identity,
-    target === 'node'
-      ? 'compiled Node SSR closure'
-      : 'compiled Cloudflare SSR/workerd closure',
-  );
-  await assertEveryCompiledIdentityCarrier(
-    distDirectory,
-    target === 'node' ? nodeApiEntryPaths : apiBackendPaths,
-    identity,
-    target === 'node' ? 'Node API/backend' : 'Cloudflare API/backend',
-  );
-  await assertEveryCompiledIdentityCarrier(
-    distDirectory,
-    [BACKEND_FEDERATION_REMOTE_ENTRY_FILE],
-    identity,
-    'backend Module Federation container',
-  );
+  if (ssrExecutionPaths.length === 0) {
+    throw new Error(
+      `[ultramodern-release-envelope] route manifest references no emitted ${target === 'node' ? 'Node' : 'Cloudflare'} SSR execution module.`,
+    );
+  }
 
   const runtimeByPath = new Map<string, string>();
   const add = (paths: string[], runtime: string) => {
@@ -628,7 +600,25 @@ const createReleaseArtifactInputs = async (
   const artifacts = [...runtimeByPath]
     .map(([logicalPath, runtime]) => releaseArtifact(logicalPath, runtime))
     .sort((left, right) => left.logicalPath.localeCompare(right.logicalPath));
-  return { artifacts, surfaces };
+  const identityCarrierMetadata = await writeReleaseIdentityCarrierMetadata(
+    distDirectory,
+    identity,
+    {
+      apiBackend: target === 'node' ? nodeApiEntryPaths : apiBackendPaths,
+      backendFederation: [
+        BACKEND_FEDERATION_MANIFEST_FILE,
+        BACKEND_FEDERATION_REMOTE_ENTRY_FILE,
+      ],
+      ssr: [...new Set([...ssrExecutionPaths, ...ssrPaths])],
+      uiClient: clientExecutionPaths,
+    },
+  );
+  return {
+    artifacts: [...artifacts, identityCarrierMetadata].sort((left, right) =>
+      left.logicalPath.localeCompare(right.logicalPath),
+    ),
+    surfaces,
+  };
 };
 
 const pathExists = async (filePath: string) => {
@@ -830,36 +820,11 @@ const createNodeStagedReleaseArtifactInputs = async (
     files,
     'node',
   );
-  await assertEveryCompiledIdentityCarrier(
-    outputDirectory,
-    clientExecutionPaths,
-    identity,
-    'final manifest-referenced Node UI/client',
-  );
-  await assertEveryCompiledIdentityCarrier(
-    outputDirectory,
-    ssrExecutionPaths,
-    identity,
-    'final route-referenced Node SSR',
-  );
-  await assertEveryCompiledIdentityCarrier(
-    outputDirectory,
-    ssrPaths.filter(logicalPath => logicalPath !== 'index.js'),
-    identity,
-    'final compiled Node SSR closure',
-  );
-  await assertEveryCompiledIdentityCarrier(
-    outputDirectory,
-    apiBackendPaths.filter(logicalPath => logicalPath.startsWith('api/')),
-    identity,
-    'final Node API/backend',
-  );
-  await assertEveryCompiledIdentityCarrier(
-    outputDirectory,
-    [BACKEND_FEDERATION_REMOTE_ENTRY_FILE],
-    identity,
-    'final Node backend Module Federation container',
-  );
+  if (clientExecutionPaths.length === 0 || ssrExecutionPaths.length === 0) {
+    throw new Error(
+      '[ultramodern-release-envelope] final Node manifests must reference emitted UI/client and SSR execution modules.',
+    );
+  }
 
   const runtimeByPath = new Map(
     files
@@ -881,10 +846,33 @@ const createNodeStagedReleaseArtifactInputs = async (
   );
   runtimeByPath.set(BACKEND_FEDERATION_REMOTE_ENTRY_FILE, 'nodejs');
 
+  const identityCarrierMetadata = await writeReleaseIdentityCarrierMetadata(
+    outputDirectory,
+    identity,
+    {
+      apiBackend: apiBackendPaths.filter(logicalPath =>
+        logicalPath.startsWith('api/'),
+      ),
+      backendFederation: [
+        BACKEND_FEDERATION_MANIFEST_FILE,
+        BACKEND_FEDERATION_REMOTE_ENTRY_FILE,
+      ],
+      ssr: [
+        ...new Set([
+          ...ssrExecutionPaths,
+          ...ssrPaths.filter(logicalPath => logicalPath !== 'index.js'),
+        ]),
+      ],
+      uiClient: clientExecutionPaths,
+    },
+  );
   return {
-    artifacts: [...runtimeByPath]
-      .map(([logicalPath, runtime]) => releaseArtifact(logicalPath, runtime))
-      .sort((left, right) => left.logicalPath.localeCompare(right.logicalPath)),
+    artifacts: [
+      ...[...runtimeByPath].map(([logicalPath, runtime]) =>
+        releaseArtifact(logicalPath, runtime),
+      ),
+      identityCarrierMetadata,
+    ].sort((left, right) => left.logicalPath.localeCompare(right.logicalPath)),
     surfaces: {
       uiClient: [...uiClientPaths].sort((left, right) =>
         left.localeCompare(right),
@@ -1030,36 +1018,11 @@ const createCloudflareStagedReleaseArtifactInputs = async (
     'cloudflare',
     'server/route.json',
   );
-  await assertEveryCompiledIdentityCarrier(
-    outputDirectory,
-    clientExecutionPaths,
-    identity,
-    'final manifest-referenced Cloudflare UI/client',
-  );
-  await assertEveryCompiledIdentityCarrier(
-    outputDirectory,
-    ssrExecutionPaths,
-    identity,
-    'final route-referenced Cloudflare SSR',
-  );
-  await assertEveryCompiledIdentityCarrier(
-    outputDirectory,
-    ssrPaths.filter(logicalPath => logicalPath.startsWith('worker/')),
-    identity,
-    'final compiled Cloudflare SSR/workerd closure',
-  );
-  await assertEveryCompiledIdentityCarrier(
-    outputDirectory,
-    apiBackendPaths,
-    identity,
-    'final Cloudflare API/backend',
-  );
-  await assertEveryCompiledIdentityCarrier(
-    outputDirectory,
-    [backendContainerPath],
-    identity,
-    'final Cloudflare backend Module Federation container',
-  );
+  if (clientExecutionPaths.length === 0 || ssrExecutionPaths.length === 0) {
+    throw new Error(
+      '[ultramodern-release-envelope] final Cloudflare manifests must reference emitted UI/client and SSR execution modules.',
+    );
+  }
 
   const runtimeByPath = new Map<string, string>();
   for (const logicalPath of files) {
@@ -1076,10 +1039,28 @@ const createCloudflareStagedReleaseArtifactInputs = async (
   add([backendManifestPath], 'module-federation-manifest');
   add([backendContainerPath], 'commonjs-module');
 
+  const identityCarrierMetadata = await writeReleaseIdentityCarrierMetadata(
+    outputDirectory,
+    identity,
+    {
+      apiBackend: apiBackendPaths,
+      backendFederation: [backendManifestPath, backendContainerPath],
+      ssr: [
+        ...new Set([
+          ...ssrExecutionPaths,
+          ...ssrPaths.filter(logicalPath => logicalPath.startsWith('worker/')),
+        ]),
+      ],
+      uiClient: clientExecutionPaths,
+    },
+  );
   return {
-    artifacts: [...runtimeByPath]
-      .map(([logicalPath, runtime]) => releaseArtifact(logicalPath, runtime))
-      .sort((left, right) => left.logicalPath.localeCompare(right.logicalPath)),
+    artifacts: [
+      ...[...runtimeByPath].map(([logicalPath, runtime]) =>
+        releaseArtifact(logicalPath, runtime),
+      ),
+      identityCarrierMetadata,
+    ].sort((left, right) => left.logicalPath.localeCompare(right.logicalPath)),
     surfaces: {
       uiClient: [...uiClientPaths].sort((left, right) =>
         left.localeCompare(right),

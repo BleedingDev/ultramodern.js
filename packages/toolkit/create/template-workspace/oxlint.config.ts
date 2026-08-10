@@ -8,6 +8,21 @@ export default defineConfig({
     node: true,
   },
   extends: [core, react],
+  rules: {
+    'func-style': [
+      'error',
+      'declaration',
+      {
+        allowArrowFunctions: true,
+      },
+    ],
+    'react/function-component-definition': [
+      'error',
+      {
+        namedComponents: ['function-declaration', 'arrow-function'],
+      },
+    ],
+  },
   ignorePatterns: [
     '.agents',
     '.codex/skills',

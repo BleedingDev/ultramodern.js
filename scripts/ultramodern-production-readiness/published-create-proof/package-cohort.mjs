@@ -380,31 +380,49 @@ function assertGeneratedCohort(projectDir, release, { registryUrl } = {}) {
             `${relative} ${blockName}.${dependencyName} bypasses the source-name alias contract`,
           );
         }
+        const exactSourceName = sourceNames.has(dependencyName)
+          ? dependencyName
+          : undefined;
         if (dependencyName.startsWith('@modern-js/')) {
           assertCondition(
-            sourceNames.has(dependencyName),
+            exactSourceName,
             `${relative} declares ${dependencyName} outside strict release aliases/publishOrder`,
           );
-          const expectedSpecifier = `npm:${expected.aliases[dependencyName]}@${release.release.version}`;
+        }
+        if (exactSourceName) {
+          const expectedSpecifier = `npm:${expected.aliases[exactSourceName]}@${release.release.version}`;
           assertCondition(
             specifier === expectedSpecifier,
             `${relative} ${blockName}.${dependencyName} must be ${expectedSpecifier}, found ${String(
               specifier,
             )}`,
           );
-          observed.add(dependencyName);
+          observed.add(exactSourceName);
           continue;
+        }
+        const npmAlias =
+          typeof specifier === 'string'
+            ? /^npm:(?<target>@[^/]+\/[^@]+|[^@]+)@(?<version>.+)$/u.exec(
+                specifier,
+              )?.groups
+            : undefined;
+        if (npmAlias && targetNames.has(npmAlias.target)) {
+          const expectedSpecifier = `npm:${npmAlias.target}@${release.release.version}`;
+          assertCondition(
+            specifier === expectedSpecifier,
+            `${relative} ${blockName}.${dependencyName} must target exact cohort package ${npmAlias.target}@${release.release.version}, found ${String(
+              specifier,
+            )}`,
+          );
         }
         if (
           typeof specifier === 'string' &&
           specifier.startsWith('npm:@bleedingdev/')
         ) {
-          const target = /^npm:(?<target>@[^@]+)@/u.exec(specifier)?.groups
-            ?.target;
           assertCondition(
-            targetNames.has(target),
+            targetNames.has(npmAlias?.target),
             `${relative} ${blockName}.${dependencyName} aliases an unknown BleedingDev cohort target ${String(
-              target,
+              npmAlias?.target,
             )}`,
           );
         }
