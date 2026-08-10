@@ -1,5 +1,6 @@
 import { describe, expect, it } from '@rstest/core';
 import {
+  createRscLayerMatchers,
   enrichServerOnlyDiagnostics,
   getRscPlugins,
 } from '../src/plugins/rscConfig';
@@ -25,6 +26,32 @@ describe('getRscPlugins', () => {
     });
     expect(plugins).toHaveLength(2);
     expect(plugins.map(p => p.name)).toContain('builder:rsc-config');
+  });
+
+  it.each([
+    {
+      internalDir: '/repo/node_modules/.modern-js',
+      route: '/repo/node_modules/.modern-js/main/routes/reviews/page.tsx',
+    },
+    {
+      internalDir: String.raw`C:\repo\node_modules\.modern-js`,
+      route: String.raw`C:\repo\node_modules\.modern-js\main\routes\reviews\page.tsx`,
+    },
+  ])('classifies generated conventional routes as RSC modules', ({
+    internalDir,
+    route,
+  }) => {
+    const matchers = createRscLayerMatchers(internalDir);
+    expect(matchers.some(matcher => matcher.test(route))).toBe(true);
+  });
+
+  it('classifies route data modules outside the generated directory as RSC modules', () => {
+    const matchers = createRscLayerMatchers('/repo/node_modules/.modern-js');
+    expect(
+      matchers.some(matcher =>
+        matcher.test('/repo/src/routes/reviews/page.loader.ts?build=client'),
+      ),
+    ).toBe(true);
   });
 });
 

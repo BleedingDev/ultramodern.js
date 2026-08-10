@@ -13,6 +13,7 @@ import { createRpcApiHandler, normalizeRpcPath } from './rpc';
 import type {
   EffectBffOpenApiConfig,
   EffectDataPlatformValidationOptions,
+  EffectRequestInterceptor,
   EffectRequestValidator,
   EffectRpcBffDefinition,
   EffectRuntimeLayer,
@@ -28,6 +29,7 @@ export function createHttpApiHandler<
   openapi?: EffectBffOpenApiConfig;
   rpc?: EffectRpcBffDefinition<TRpcs>;
   dataPlatform?: EffectDataPlatformValidationOptions;
+  interceptRequest?: EffectRequestInterceptor;
   validateRequest?: EffectRequestValidator;
 }) {
   const apiLayer = options.layer.pipe(Layer.provide(HttpServer.layerServices));
@@ -37,16 +39,10 @@ export function createHttpApiHandler<
     : apiLayer;
   const httpApiHandler = HttpRouter.toWebHandler(mergedLayer);
 
-  const withDataPlatformValidation = async (
+  const dispatchHttpApiRequest = async (
     request: Request,
     context?: Parameters<typeof httpApiHandler.handler>[1],
   ) => {
-    // Policy seam first: every HttpApi request, direct or batched item,
-    // passes through here, so batch fan-out cannot bypass validator.
-    const policyDenial = options.validateRequest?.(request);
-    if (policyDenial) {
-      return policyDenial;
-    }
     const preparedRequest = await prepareJsonRequestBody(request);
     if (preparedRequest instanceof Response) {
       return preparedRequest;
@@ -64,9 +60,27 @@ export function createHttpApiHandler<
     );
   };
 
+  const withRequestPolicy = async (
+    request: Request,
+    context?: Parameters<typeof httpApiHandler.handler>[1],
+  ) => {
+    // Policy seam first: every HttpApi request, direct or batched item,
+    // passes through here, so batch fan-out cannot bypass validator. The
+    // interceptor receives the original request and may own malformed or
+    // legacy payloads; delegated requests still pass through body validation.
+    const policyDenial = options.validateRequest?.(request);
+    if (policyDenial) {
+      return policyDenial;
+    }
+    const next = () => dispatchHttpApiRequest(request, context);
+    return options.interceptRequest
+      ? options.interceptRequest({ request, next })
+      : next();
+  };
+
   const batchHandler = createDataPlatformBatchRequestHandler({
     dataPlatform: options.dataPlatform,
-    handleItem: withDataPlatformValidation,
+    handleItem: withRequestPolicy,
   });
 
   const handleHttpApiRequest = async (
@@ -79,7 +93,7 @@ export function createHttpApiHandler<
       // dispatched through withDataPlatformValidation and hits policy handling.
       return batchHandler.handle(request, context);
     }
-    return withDataPlatformValidation(request, context);
+    return withRequestPolicy(request, context);
   };
 
   if (!options.rpc) {
@@ -104,7 +118,11 @@ export function createHttpApiHandler<
         if (policyDenial) {
           return policyDenial;
         }
-        return rpcHandler.handler(request, toEffectServiceContext(context));
+        const next = () =>
+          rpcHandler.handler(request, toEffectServiceContext(context));
+        return options.interceptRequest
+          ? options.interceptRequest({ request, next })
+          : next();
       }
       return handleHttpApiRequest(request, context);
     },

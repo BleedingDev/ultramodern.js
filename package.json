@@ -75,7 +75,7 @@
   },
   "packageManager": "pnpm@11.17.0",
   "lint-staged": {
-    "*.{js,ts,cjs,mjs,d.cts,d.mts,jsx,tsx,json,jsonc}": [
+    "!(*.gen).{js,ts,cjs,mjs,d.cts,d.mts,jsx,tsx,json,jsonc}": [
       "biome check --files-ignore-unknown=true --no-errors-on-unmatched"
     ],
     "**/package.json": [

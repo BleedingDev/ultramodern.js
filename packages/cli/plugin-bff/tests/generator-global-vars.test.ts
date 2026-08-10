@@ -46,6 +46,12 @@ describe('BFF compiler global variables', () => {
       '@fixture',
       'raw-contract',
     );
+    const esmDependencyDirectory = path.join(
+      appDirectory,
+      'node_modules',
+      '@fixture',
+      'esm-runtime',
+    );
     const tsconfigPath = path.join(appDirectory, 'tsconfig.json');
 
     await fs.outputJSON(path.join(packageDirectory, 'package.json'), {
@@ -66,6 +72,23 @@ describe('BFF compiler global variables', () => {
       packageLink,
       process.platform === 'win32' ? 'junction' : 'dir',
     );
+    await fs.outputJSON(path.join(esmDependencyDirectory, 'package.json'), {
+      name: '@fixture/esm-runtime',
+      version: '1.0.0',
+      type: 'module',
+      exports: {
+        types: './index.d.ts',
+        default: './index.js',
+      },
+    });
+    await fs.outputFile(
+      path.join(esmDependencyDirectory, 'index.d.ts'),
+      'export declare const runtimeValue: string;\n',
+    );
+    await fs.outputFile(
+      path.join(esmDependencyDirectory, 'index.js'),
+      "export const runtimeValue = 'esm-runtime';\n",
+    );
     await fs.outputJSON(tsconfigPath, {
       compilerOptions: {
         declaration: false,
@@ -80,7 +103,8 @@ describe('BFF compiler global variables', () => {
       path.join(apiDirectory, 'index.ts'),
       [
         "import { workspaceValue } from '@fixture/raw-contract';",
-        'export default () => workspaceValue;',
+        "import { runtimeValue } from '@fixture/esm-runtime';",
+        String.raw`export default () => \`\${workspaceValue}:\${runtimeValue}\`;`,
         '',
       ].join('\n'),
     );
@@ -112,10 +136,11 @@ describe('BFF compiler global variables', () => {
       await compileApi();
 
       const compiledEntry = path.join(distDirectory, 'api/index.js');
+      await fs.remove(esmDependencyDirectory);
       const runtime = require(compiledEntry) as {
         default: () => string;
       };
-      expect(runtime.default()).toBe('raw-workspace-typescript');
+      expect(runtime.default()).toBe('raw-workspace-typescript:esm-runtime');
     } finally {
       await fs.remove(workspaceDirectory);
     }

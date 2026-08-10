@@ -100,7 +100,8 @@ async function acquireWorkspacePackageBuildLock(packageDir) {
 // The locks below implement a cross-process reader/writer protocol in
 // os.tmpdir() (scoped per repo root):
 //   - every spawned modern command holds a READ lock while it may resolve
-//     workspace dist files (builds: until exit; dev/serve: until readiness),
+//     workspace dist files (builds, dev servers, and preview servers: until
+//     exit),
 //   - a workspace package rebuild takes the WRITE lock: it blocks new readers
 //     and waits for in-flight readers to drain before wiping any dist tree.
 // Writers are preferred (new readers wait once writer.lock exists), so
@@ -271,6 +272,61 @@ async function acquireWorkspaceDistWriteLock() {
       force: true,
     });
   };
+}
+
+async function waitForTcpServer(port, timeoutMs = 10_000) {
+  const numericPort = Number(port);
+  const deadline = Date.now() + timeoutMs;
+  let lastError;
+
+  while (Date.now() < deadline) {
+    try {
+      await new Promise((resolve, reject) => {
+        const socket = net.createConnection({
+          host: '127.0.0.1',
+          port: numericPort,
+        });
+
+        socket.once('connect', () => {
+          socket.end();
+          resolve();
+        });
+        socket.once('error', reject);
+        socket.setTimeout(500, () => {
+          socket.destroy(
+            new Error(`Timed out connecting to 127.0.0.1:${numericPort}`),
+          );
+        });
+      });
+      return;
+    } catch (error) {
+      lastError = error;
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+  }
+
+  const error = new Error(
+    `Dev server did not accept TCP connections on 127.0.0.1:${numericPort} within ${timeoutMs}ms`,
+  );
+  error.cause = lastError;
+  throw error;
+}
+
+function resolveReadyPort(configuredPort, output) {
+  const numericPort = Number(configuredPort);
+  if (Number.isInteger(numericPort) && numericPort > 0) {
+    return numericPort;
+  }
+
+  const localUrl = output.match(
+    /> Local:\s+(?:\x1b\[[0-9;]*m)*https?:\/\/(?:localhost|127\.0\.0\.1):(\d+)/i,
+  );
+  const detectedPort = Number(localUrl?.[1]);
+  if (Number.isInteger(detectedPort) && detectedPort > 0) {
+    return detectedPort;
+  }
+
+  throw new Error('Dev server reported readiness without a usable local port');
 }
 
 function getNewestModifiedAt(targetPath) {
@@ -679,21 +735,28 @@ function runModernCommandDev(argv, stdOut, options = {}) {
   };
   let releaseWorkspaceDistReadLock;
 
+  const releaseDistReadLock = async () => {
+    const release = releaseWorkspaceDistReadLock;
+    releaseWorkspaceDistReadLock = undefined;
+    await release?.();
+  };
+
   const commandPromise = new Promise((resolve, reject) => {
     const launch = async () => {
       await ensureWorkspacePackagesBuilt(options.ensureWorkspacePackages);
       assertWorkspacePackagesBuildComplete(options.ensureWorkspacePackages);
-      // Hold the dist read lock until the dev/serve process is ready (its
-      // startup is when workspace dist files are resolved); afterwards the
-      // module graph lives in the child process.
+      // A ready dev/serve process can still lazily resolve workspace packages
+      // during compilation, route discovery, and request handling. Keep its
+      // read lock until the child exits so a concurrent fixture cannot wipe a
+      // package dist tree while the live server is still using it.
       releaseWorkspaceDistReadLock = await acquireWorkspaceDistReadLock();
 
       const instance = spawn(process.execPath, [kModernAppTools, ...argv], {
         cwd,
         env,
       });
-
       let didResolve = false;
+      let readinessStarted = false;
       let stdoutOutput = '';
       let stderrOutput = '';
 
@@ -714,12 +777,35 @@ function runModernCommandDev(argv, stdOut, options = {}) {
         }
 
         if (
+          !readinessStarted &&
           bootupMarkers[options.modernServe ? 'serve' : 'dev'].test(message)
         ) {
-          if (!didResolve) {
+          readinessStarted = true;
+          let readyPort;
+          try {
+            readyPort = resolveReadyPort(env.PORT, stdoutOutput);
+          } catch (error) {
             didResolve = true;
-            resolve(stdOut ? message : instance);
+            error.stdout = stdoutOutput;
+            error.stderr = stderrOutput;
+            reject(error);
+            return;
           }
+          void waitForTcpServer(readyPort)
+            .then(() => {
+              if (!didResolve) {
+                didResolve = true;
+                resolve(stdOut ? message : instance);
+              }
+            })
+            .catch(error => {
+              if (!didResolve) {
+                didResolve = true;
+                error.stdout = stdoutOutput;
+                error.stderr = stderrOutput;
+                reject(error);
+              }
+            });
         }
 
         if (typeof options.onStdout === 'function') {
@@ -759,10 +845,12 @@ function runModernCommandDev(argv, stdOut, options = {}) {
       instance.on('error', error => {
         error.stdout = stdoutOutput;
         error.stderr = stderrOutput;
+        void releaseDistReadLock();
         reject(error);
       });
 
       instance.on('close', code => {
+        void releaseDistReadLock();
         instance.stdout.removeListener('data', handleStdout);
         if (!didResolve) {
           const phase = options.modernServe ? 'serve' : 'dev';
@@ -785,7 +873,10 @@ function runModernCommandDev(argv, stdOut, options = {}) {
     launch().catch(reject);
   });
 
-  return commandPromise.finally(() => releaseWorkspaceDistReadLock?.());
+  return commandPromise.catch(async error => {
+    await releaseDistReadLock();
+    throw error;
+  });
 }
 
 function runContinuousTask(argv, stdOut, options = {}) {

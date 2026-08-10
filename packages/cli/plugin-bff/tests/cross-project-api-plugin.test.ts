@@ -4,15 +4,18 @@ import {
   RUNTIME_FRAMEWORK,
 } from '../src/utils/crossProjectApiPlugin';
 
-function runWithConfig(config: Record<string, any>) {
-  const plugin = crossProjectApiPlugin();
-  const resolvedConfig = {
+function runWithConfig(
+  config: Record<string, any>,
+  initialResolvedConfig: Record<string, any> = {
     bff: {
       prefix: '/api',
       runtimeFramework: 'hono' as 'hono' | 'effect',
       isCrossProjectServer: false,
     },
-  };
+  },
+) {
+  const plugin = crossProjectApiPlugin();
+  const resolvedConfig = initialResolvedConfig;
   let nextAppContext: Record<string, unknown> = {};
 
   plugin.setup({
@@ -72,5 +75,19 @@ describe('crossProjectApiPlugin', () => {
     expect(resolvedConfig.bff.runtimeFramework).toBe(RUNTIME_FRAMEWORK);
     expect(resolvedConfig.bff.isCrossProjectServer).toBe(true);
     expect(nextAppContext.bffRuntimeFramework).toBe(RUNTIME_FRAMEWORK);
+  });
+
+  test('initializes BFF config for consumers without a local BFF block', () => {
+    const { resolvedConfig } = runWithConfig({}, {});
+
+    expect(resolvedConfig.bff).toMatchObject({
+      prefix: PREFIX,
+      runtimeFramework: RUNTIME_FRAMEWORK,
+      isCrossProjectServer: true,
+      crossProjectPolicy: {
+        enabled: true,
+        requireEnvelope: true,
+      },
+    });
   });
 });

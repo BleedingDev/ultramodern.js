@@ -146,6 +146,28 @@ const buildEffectWorkerRuntimeModule = async ({
 };
 
 describe('Effect source graph loading', () => {
+  test('emits an executable diagnostic module for platform-native paths', async () => {
+    const resourcePath = String.raw`D:\a\ultramodern.js\app\api\effect\index.ts`;
+    const code = await runApiLoader({
+      options: {
+        apiDir: String.raw`D:\a\ultramodern.js\app\api`,
+        appDir: String.raw`D:\a\ultramodern.js\app`,
+        existLambda: false,
+        lambdaDir: String.raw`D:\a\ultramodern.js\app\api\lambda`,
+        port: 8080,
+        prefix: '/api',
+        target: 'web',
+      },
+      resourcePath,
+      resourceQuery: '',
+      source: 'export const invalid = true;',
+    });
+
+    expect(() => Function(code)()).toThrow(
+      `The file ${resourcePath} is not allowed to be imported in src directory, only API definition files are allowed.`,
+    );
+  });
+
   test('Effect worker runtime entry validates invalid edge modules at dispatcher creation', async () => {
     const appDir = await fs.promises.mkdtemp(
       path.join(os.tmpdir(), 'modern-plugin-bff-effect-worker-wrapper-'),
@@ -578,6 +600,80 @@ export const result = {
       expect(loaded.value).toBe('from-base-url');
     } finally {
       await fs.promises.rm(appDir, { recursive: true, force: true });
+    }
+  });
+
+  test('keeps workspace-owned transitive dependencies executable after relocating the entry', async () => {
+    const fixtureDir = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), 'modern-plugin-bff-effect-workspace-dependency-'),
+    );
+    const appDir = path.join(fixtureDir, 'app');
+    const workspacePackageDir = path.join(fixtureDir, 'workspace-package');
+
+    try {
+      await writeEmptyPathsTsconfig(appDir);
+      await writeFile(
+        path.join(workspacePackageDir, 'package.json'),
+        JSON.stringify({
+          name: 'workspace-package',
+          type: 'module',
+          exports: './index.js',
+        }),
+      );
+      await writeFile(
+        path.join(workspacePackageDir, 'index.js'),
+        `import { suffix } from 'workspace-transitive-dependency';
+export const message = \`workspace-\${suffix}\`;`,
+      );
+      await writeFile(
+        path.join(
+          workspacePackageDir,
+          'node_modules',
+          'workspace-transitive-dependency',
+          'package.json',
+        ),
+        JSON.stringify({
+          name: 'workspace-transitive-dependency',
+          type: 'module',
+          exports: './index.js',
+        }),
+      );
+      await writeFile(
+        path.join(
+          workspacePackageDir,
+          'node_modules',
+          'workspace-transitive-dependency',
+          'index.js',
+        ),
+        `export const suffix = 'dependency';`,
+      );
+
+      const workspaceLink = path.join(
+        appDir,
+        'node_modules',
+        'workspace-package',
+      );
+      await fs.promises.mkdir(path.dirname(workspaceLink), { recursive: true });
+      await fs.promises.symlink(
+        workspacePackageDir,
+        workspaceLink,
+        process.platform === 'win32' ? 'junction' : 'dir',
+      );
+
+      const entryFile = path.join(appDir, 'api', 'index.ts');
+      await writeFile(
+        entryFile,
+        `export { message } from 'workspace-package';`,
+      );
+
+      const loaded = (await loadEffectSourceModule({
+        appDir,
+        resourcePath: entryFile,
+      })) as { message: string };
+
+      expect(loaded.message).toBe('workspace-dependency');
+    } finally {
+      await fs.promises.rm(fixtureDir, { recursive: true, force: true });
     }
   });
 

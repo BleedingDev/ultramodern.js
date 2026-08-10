@@ -806,6 +806,9 @@ test('includes bounded redacted child output when the workerd proof exits before
       () =>
         startWorkerdProof({
           artifactDir,
+          processEnv: {
+            pnpm_config_verify_deps_before_run: 'false',
+          },
           projectDir: root,
           timeoutMs: 2_000,
         }),
@@ -846,6 +849,9 @@ test('waits for both generated workerd URL lines when target URLs arrive first',
   try {
     proof = await startWorkerdProof({
       artifactDir,
+      processEnv: {
+        pnpm_config_verify_deps_before_run: 'false',
+      },
       projectDir: root,
       requireTargetUrls: true,
       timeoutMs: 2_000,
@@ -877,6 +883,9 @@ test('waits for both generated workerd URL lines when shell URL arrives first', 
   try {
     proof = await startWorkerdProof({
       artifactDir,
+      processEnv: {
+        pnpm_config_verify_deps_before_run: 'false',
+      },
       projectDir: root,
       requireTargetUrls: true,
       timeoutMs: 2_000,

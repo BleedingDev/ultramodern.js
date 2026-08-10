@@ -156,6 +156,17 @@ const rpcLayer = bffRpcGroup.toLayer(
 const runtime = defineEffectBff({
   api: bffEffectApi,
   layer,
+  interceptRequest: ({ request, next }) => {
+    const pathname = new URL(request.url).pathname;
+    if (pathname === '/managed') {
+      const managedError = new Error('Managed effect error') as Error & {
+        status?: number;
+      };
+      managedError.status = 503;
+      throw managedError;
+    }
+    return next();
+  },
   rpc: {
     group: bffRpcGroup,
     layer: rpcLayer,
@@ -163,25 +174,4 @@ const runtime = defineEffectBff({
   },
 });
 
-const withManagedFailure = {
-  ...runtime,
-  createHandler: (options?: Parameters<typeof runtime.createHandler>[0]) => {
-    const base = runtime.createHandler(options);
-    return {
-      handler: async (request: Request) => {
-        const pathname = new URL(request.url).pathname;
-        if (pathname.endsWith('/managed')) {
-          const managedError = new Error('Managed effect error') as Error & {
-            status?: number;
-          };
-          managedError.status = 503;
-          throw managedError;
-        }
-        return base.handler(request);
-      },
-      dispose: base.dispose,
-    };
-  },
-};
-
-export default withManagedFailure;
+export default runtime;

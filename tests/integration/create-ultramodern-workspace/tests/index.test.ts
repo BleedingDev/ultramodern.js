@@ -23,6 +23,10 @@ const bleedingDevAliases: Record<string, string> = {
   '@modern-js/runtime': '@bleedingdev/modern-js-runtime',
 };
 
+type ExecSyncError = Error & {
+  stderr?: Buffer | string;
+};
+
 function expectedBleedingDevSpecifier(
   packageName: string,
   version = testFrameworkVersion,
@@ -52,6 +56,16 @@ function runCreate(projectDir: string, args: string[]) {
     },
     stdio: 'pipe',
   });
+}
+
+function captureCreateFailure(projectDir: string, args: string[]) {
+  try {
+    runCreate(projectDir, args);
+  } catch (error) {
+    const stderr = (error as ExecSyncError).stderr;
+    return typeof stderr === 'string' ? stderr : stderr?.toString() || '';
+  }
+  throw new Error(`Expected create to reject: ${args.join(' ')}`);
 }
 
 function runCreateInWorkspace(workspaceDir: string, args: string[]) {
@@ -440,10 +454,10 @@ process.exit(1);
     expectNoPath(workspaceDir, 'services/service-catalog-api-effect');
   });
 
-  test('scaffolds install-backed Modern package source metadata', () => {
+  test('rejects install-backed package source from a local source checkout', () => {
     const workspaceDir = path.join(tempRoot, 'ultra-install-workspace');
     fs.rmSync(workspaceDir, { recursive: true, force: true });
-    runCreate(workspaceDir, [
+    const stderr = captureCreateFailure(workspaceDir, [
       '--ultramodern-package-source',
       'install',
       '--ultramodern-package-version',
@@ -454,7 +468,10 @@ process.exit(1);
       'en',
     ]);
 
-    expectWorkspaceValidatorPass(workspaceDir);
+    expect(stderr).toContain(
+      'local @modern-js/create source checkout cannot satisfy an explicit install',
+    );
+    expectNoPath(tempRoot, 'ultra-install-workspace');
   });
 
   test('generates public surface assets from route-owned content sources', () => {
@@ -475,7 +492,7 @@ process.exit(1);
       publicSurface: {
         artifactLifecycle: 'build-and-deploy-output',
         authoring: 'colocated-route-meta',
-        cloudflareOutputRoot: '.output/public',
+        cloudflareOutputRoot: 'dist-cloudflare/public',
         concreteUrlPaths: [],
         contentExpansion: {
           authoring: 'route-owned-esm-provider',
@@ -689,7 +706,7 @@ export const entries = [
         '--app',
         'shell-super-app',
         '--target',
-        'cloudflare',
+        'cloudflare-dist',
       ],
       {
         cwd: workspaceDir,
@@ -704,23 +721,23 @@ export const entries = [
     );
     const cloudflareSitemap = readText(
       workspaceDir,
-      'apps/shell-super-app/.output/public/sitemap.xml',
+      'apps/shell-super-app/dist-cloudflare/public/sitemap.xml',
     );
     expect(cloudflareSitemap).toContain(
       '<loc>https://global.example/en/sessions/provider-loader</loc>',
     );
     const cloudflareRobots = readText(
       workspaceDir,
-      'apps/shell-super-app/.output/public/robots.txt',
+      'apps/shell-super-app/dist-cloudflare/public/robots.txt',
     );
     expect(cloudflareRobots).toContain(
       'Sitemap: https://global.example/sitemap.xml',
     );
   });
-  test('scaffolds npm alias package source metadata for external forks', () => {
+  test('rejects install aliases from a local source checkout', () => {
     const workspaceDir = path.join(tempRoot, 'ultra-alias-workspace');
     fs.rmSync(workspaceDir, { recursive: true, force: true });
-    runCreate(workspaceDir, [
+    const stderr = captureCreateFailure(workspaceDir, [
       '--ultramodern-package-source',
       'install',
       '--ultramodern-package-version',
@@ -733,6 +750,9 @@ export const entries = [
       'en',
     ]);
 
-    expectWorkspaceValidatorPass(workspaceDir);
+    expect(stderr).toContain(
+      'local @modern-js/create source checkout cannot satisfy an explicit install',
+    );
+    expectNoPath(tempRoot, 'ultra-alias-workspace');
   });
 });

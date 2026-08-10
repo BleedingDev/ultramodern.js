@@ -184,6 +184,7 @@ export const fileSystemRoutes = async ({
   // bundle code (component / lazyImport); all other routes are rendered
   // via the RSC payload from the server.
   isRscClientBundle = false,
+  hydrateRscClientRoutes = false,
   srcDirectory,
   internalSrcAlias,
 }: {
@@ -195,6 +196,7 @@ export const fileSystemRoutes = async ({
   internalDirectory: string;
   splitRouteChunks?: boolean;
   isRscClientBundle?: boolean;
+  hydrateRscClientRoutes?: boolean;
   srcDirectory?: string;
   internalSrcAlias?: string;
 }) => {
@@ -347,7 +349,6 @@ export const fileSystemRoutes = async ({
             componentPath: route._component,
             routeId: route.id,
           });
-          rootLayoutCode = `import RootLayout from '${route._component}'`;
           component = 'RootLayout';
         } else if (splitRouteChunks) {
           lazyImport = createLazyImport({
@@ -387,9 +388,16 @@ export const fileSystemRoutes = async ({
       ));
 
     const shouldHydrateRscRoute =
-      isRscClientBundle && !isClientComponent && !route.loader && !route.data;
+      hydrateRscClientRoutes &&
+      isRscClientBundle &&
+      !isClientComponent &&
+      !route.loader &&
+      !route.data;
     const shouldIncludeClientBundle =
       !isRscClientBundle || isClientComponent || shouldHydrateRscRoute;
+    if (route.isRoot && route._component && shouldIncludeClientBundle) {
+      rootLayoutCode = `import RootLayout from '${route._component}'`;
+    }
 
     const finalRoute: any = {
       ...route,
@@ -609,6 +617,7 @@ export const runtimeGlobalContext = async ({
   internalSrcAlias,
   globalApp,
   rscType = false,
+  routesImportPath = './routes',
   basename,
 }: {
   entryName: string;
@@ -618,6 +627,7 @@ export const runtimeGlobalContext = async ({
   internalSrcAlias: string;
   globalApp?: string | false;
   rscType?: 'server' | 'client' | false;
+  routesImportPath?: string;
   basename?: string;
 }) => {
   const imports = [
@@ -669,7 +679,7 @@ export const runtimeGlobalContext = async ({
   if (isClient) {
     return `${imports.join('\n')}
 
-    import { routes } from './routes';
+    import { routes } from '${routesImportPath}';
 
     const entryName = '${entryName}';
     const basename = '${basename || '/'}';
@@ -686,7 +696,7 @@ export const runtimeGlobalContext = async ({
   } else {
     return `${imports.join('\n')}
 
-    import { routes } from './routes';
+    import { routes } from '${routesImportPath}';
 
     const entryName = '${entryName}';
     const basename = '${basename || '/'}';

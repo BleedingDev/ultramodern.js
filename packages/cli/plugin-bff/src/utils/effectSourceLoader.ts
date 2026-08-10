@@ -1,7 +1,7 @@
 // @effect-diagnostics anyUnknownInErrorContext:off asyncFunction:off nodeBuiltinImport:off strictBooleanExpressions:off
 import crypto from 'node:crypto';
 import fs from 'node:fs';
-import { builtinModules } from 'node:module';
+import { builtinModules, createRequire } from 'node:module';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
@@ -74,6 +74,42 @@ const nodeBuiltins = new Set([
 ]);
 const dependencyResolutionMarker = 'modern-js-effect-dependency-resolution';
 
+async function isEsmOnlyFile(filename: string) {
+  const extension = path.extname(filename).toLowerCase();
+  if (extension === '.mjs' || extension === '.mts') {
+    return true;
+  }
+  if (extension === '.cjs' || extension === '.cts') {
+    return false;
+  }
+
+  let directory = path.dirname(filename);
+  while (true) {
+    const packagePath = path.join(directory, 'package.json');
+    try {
+      const packageJson = JSON.parse(
+        await fs.promises.readFile(packagePath, 'utf8'),
+      ) as { type?: unknown };
+      return packageJson.type === 'module';
+    } catch (error) {
+      if (
+        !error ||
+        typeof error !== 'object' ||
+        !('code' in error) ||
+        error.code !== 'ENOENT'
+      ) {
+        throw error;
+      }
+    }
+
+    const parent = path.dirname(directory);
+    if (parent === directory) {
+      return false;
+    }
+    directory = parent;
+  }
+}
+
 function isBareSpecifier(specifier: string) {
   return (
     !specifier.startsWith('.') &&
@@ -89,7 +125,13 @@ function isBareSpecifier(specifier: string) {
  * raw TypeScript copied under node_modules. Bundling workspace source into the
  * Effect entry before deployment makes that entry relocatable and executable.
  */
-function externalizeInstalledDependencies(): Plugin {
+function externalizeInstalledDependencies(options: {
+  format: 'cjs' | 'esm';
+  runtimeResolveDir: string;
+}): Plugin {
+  const runtimeRequire = createRequire(
+    path.join(options.runtimeResolveDir, '__modern_effect_entry.cjs'),
+  );
   return {
     name: 'modern-js-effect-installed-dependencies',
     setup(buildApi) {
@@ -125,7 +167,38 @@ function externalizeInstalledDependencies(): Plugin {
           .realpath(resolution.path)
           .catch(() => resolution.path);
         if (realPath.includes(`${path.sep}node_modules${path.sep}`)) {
-          return { external: true, path: args.path };
+          const runtimeResolution = await buildApi.resolve(args.path, {
+            importer: '',
+            kind: args.kind,
+            namespace: 'file',
+            pluginData: {
+              [dependencyResolutionMarker]: true,
+            },
+            resolveDir: options.runtimeResolveDir,
+          });
+          if (runtimeResolution.errors.length === 0 && runtimeResolution.path) {
+            if (options.format === 'cjs') {
+              let requiredPath: string;
+              try {
+                requiredPath = runtimeRequire.resolve(args.path);
+              } catch {
+                requiredPath = runtimeResolution.path;
+              }
+              if (await isEsmOnlyFile(requiredPath)) {
+                return {
+                  namespace: resolution.namespace,
+                  path: resolution.path,
+                  pluginData: resolution.pluginData,
+                  sideEffects: resolution.sideEffects,
+                  suffix: resolution.suffix,
+                  warnings: resolution.warnings,
+                  watchDirs: resolution.watchDirs,
+                  watchFiles: resolution.watchFiles,
+                };
+              }
+            }
+            return { external: true, path: args.path };
+          }
         }
 
         return {
@@ -158,7 +231,10 @@ export async function bundleEffectEntryForNode(options: {
     outfile: options.entryPath,
     platform: 'node',
     plugins: [
-      externalizeInstalledDependencies(),
+      externalizeInstalledDependencies({
+        format: options.format,
+        runtimeResolveDir: options.appDir,
+      }),
       preserveSourceModuleSemantics(),
     ],
     target: 'node20',
@@ -229,7 +305,10 @@ export async function loadEffectSourceModule(
     outfile: outputPath,
     platform: 'node',
     plugins: [
-      externalizeInstalledDependencies(),
+      externalizeInstalledDependencies({
+        format: 'esm',
+        runtimeResolveDir: appDir,
+      }),
       preserveSourceModuleSemantics(),
     ],
     sourcemap: 'inline',

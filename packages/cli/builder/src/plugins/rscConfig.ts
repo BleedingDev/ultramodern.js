@@ -18,6 +18,8 @@ const SERVER_ONLY_MESSAGE_PATTERN =
   /server-only|server only|only works in a Server Component|cannot be imported (?:directly )?(?:from|into) (?:a )?Client Component/i;
 const SERVER_ONLY_DIAGNOSTIC_PREFIX =
   '[Modern.js RSC server-only diagnostic context]';
+const ROUTE_DATA_FILE_PATTERN =
+  /[/\\]routes[/\\](?:.*[/\\])?(?:layout|page|\$)\.(?:loader|data)\.[tj]sx?(?:\?.*)?$/;
 
 type RspackDiagnostic = Error & {
   details?: string;
@@ -357,7 +359,10 @@ export function pluginRscConfig(): RsbuildPlugin {
                 '../shared/rsc/rscEmptyModule',
               );
             }
-            chain.resolve.alias.set('server-only$', emptyModulePath);
+            chain.module
+              .rule('rsc-route-data-server-only')
+              .test(ROUTE_DATA_FILE_PATTERN)
+              .resolve.alias.set('server-only$', emptyModulePath);
             // Pattern 1: Match route files in routes directory (conventional routing)
             // Matches: layout.tsx, layout.ts, layout.jsx, layout.js
             //         page.tsx, page.ts, page.jsx, page.js
@@ -535,11 +540,7 @@ export async function getRscPlugins(
   environments?: { server?: string; client?: string },
 ): Promise<RsbuildPlugin[]> {
   if (enableRsc) {
-    const routesFileReg = new RegExp(
-      `${internalDirectory.replace(/[/\\]/g, '[/\\\\]')}[/\\\\][^/\\\\]*[/\\\\]routes`,
-    );
-    const routeDataFileReg =
-      /[/\\]routes[/\\](?:.*[/\\])?(?:layout|page|\$)\.(?:loader|data)\.[tj]sx?(?:\?.*)?$/;
+    const rscLayerMatchers = createRscLayerMatchers(internalDirectory);
     // Dynamically import pluginRSC to avoid CJS -> ESM require() issue(e2e test cases in CI)
     // rsbuild-plugin-rsc is a pure ESM module (type: "module")
     // Static import in CJS code causes issues in e2e test environments
@@ -553,7 +554,7 @@ export async function getRscPlugins(
             RENDER_RSC_SOURCE_PATTERN,
             RENDER_RSC_RSLIB_ENTRY_PATTERN,
             /AppProxy/,
-            routeDataFileReg,
+            ...rscLayerMatchers,
           ],
         },
       }),
@@ -561,4 +562,11 @@ export async function getRscPlugins(
     ];
   }
   return [];
+}
+
+export function createRscLayerMatchers(internalDirectory: string) {
+  const routesFileReg = new RegExp(
+    `${internalDirectory.replace(/[/\\]/g, '[/\\\\]')}[/\\\\][^/\\\\]*[/\\\\]routes`,
+  );
+  return [routesFileReg, ROUTE_DATA_FILE_PATTERN];
 }

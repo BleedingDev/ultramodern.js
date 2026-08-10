@@ -1,4 +1,7 @@
+import fs from 'node:fs/promises';
 import { createRequire } from 'node:module';
+import os from 'node:os';
+import path from 'node:path';
 import type { RouteLegacy } from '@modern-js/types/cli';
 import * as utils from '@modern-js/utils' with { rstest: 'importActual' };
 import { build } from 'esbuild';
@@ -293,6 +296,124 @@ describe('fileSystemRoutes', () => {
     expect(
       aboutRoute.component.options.resolveComponent(aboutModule).moduleId,
     ).toBe('@_modern_js_src/routes/about/page.tsx');
+  });
+
+  test('executes an RSC client route tree without mounting server components', async () => {
+    const srcDirectory = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'modern-rsc-client-routes-'),
+    );
+    const internalSrcAlias = '@_modern_js_src';
+
+    try {
+      await fs.mkdir(path.join(srcDirectory, 'routes/client'), {
+        recursive: true,
+      });
+      await fs.mkdir(path.join(srcDirectory, 'routes/server'), {
+        recursive: true,
+      });
+      await fs.writeFile(
+        path.join(srcDirectory, 'routes/layout.tsx'),
+        'export default function Layout() { return null; }',
+      );
+      await fs.writeFile(
+        path.join(srcDirectory, 'routes/server/page.tsx'),
+        'export default function ServerPage() { return null; }',
+      );
+      await fs.writeFile(
+        path.join(srcDirectory, 'routes/client/page.tsx'),
+        "'use client'; export default function ClientPage() { return null; }",
+      );
+
+      const generatedModule = await executeGeneratedModule(
+        await fileSystemRoutes({
+          metaName: 'modern-js',
+          entryName: 'main',
+          internalDirectory: '',
+          internalSrcAlias,
+          isRscClientBundle: true,
+          srcDirectory,
+          routes: [
+            {
+              path: '/',
+              _component: `${internalSrcAlias}/routes/layout`,
+              id: 'layout',
+              isRoot: true,
+              type: 'nested' as const,
+              children: [
+                {
+                  path: 'server',
+                  _component: `${internalSrcAlias}/routes/server/page`,
+                  id: 'server/page',
+                  type: 'nested' as const,
+                },
+                {
+                  path: 'client',
+                  _component: `${internalSrcAlias}/routes/client/page`,
+                  id: 'client/page',
+                  type: 'nested' as const,
+                },
+              ],
+            },
+          ],
+        }),
+      );
+
+      const [rootRoute] = generatedModule.routes;
+      const [serverRoute, clientRoute] = rootRoute.children;
+      expect(rootRoute.component).toBeUndefined();
+      expect(serverRoute.component).toBeUndefined();
+      expect(serverRoute.lazyImport).toBeUndefined();
+      expect(clientRoute.component).toMatchObject({ kind: 'react-lazy' });
+      await expect(clientRoute.lazyImport()).resolves.toMatchObject({
+        default: {
+          moduleId: `${internalSrcAlias}/routes/client/page`,
+        },
+      });
+    } finally {
+      await fs.rm(srcDirectory, { recursive: true, force: true });
+    }
+  });
+
+  test('mounts an explicit client root layout in an RSC client route tree', async () => {
+    const srcDirectory = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'modern-rsc-client-root-'),
+    );
+    const internalSrcAlias = '@_modern_js_src';
+
+    try {
+      await fs.mkdir(path.join(srcDirectory, 'routes'), { recursive: true });
+      await fs.writeFile(
+        path.join(srcDirectory, 'routes/layout.tsx'),
+        "'use client'; export default function Layout() { return null; }",
+      );
+      const generatedModule = await executeGeneratedModule(
+        await fileSystemRoutes({
+          metaName: 'modern-js',
+          entryName: 'main',
+          internalDirectory: '',
+          internalSrcAlias,
+          isRscClientBundle: true,
+          srcDirectory,
+          routes: [
+            {
+              path: '/',
+              _component: `${internalSrcAlias}/routes/layout`,
+              id: 'layout',
+              isRoot: true,
+              type: 'nested' as const,
+            },
+          ],
+        }),
+      );
+
+      const [rootRoute] = generatedModule.routes;
+      expect(rootRoute.component).toEqual({
+        moduleId: `${internalSrcAlias}/routes/layout`,
+      });
+      expect(rootRoute.isClientComponent).toBe(true);
+    } finally {
+      await fs.rm(srcDirectory, { recursive: true, force: true });
+    }
   });
 });
 

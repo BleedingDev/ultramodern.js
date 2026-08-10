@@ -85,6 +85,13 @@ jobs:
         with:
           egress-policy: audit
 
+      - name: Checkout trusted receipt verifier
+        uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
       - name: List triggering run artifacts
         env:
           GH_TOKEN: ${{ github.token }}
@@ -104,13 +111,6 @@ jobs:
             throw new Error('Artifact API response must be a paginated artifact listing');
           }
           NODE
-
-      - name: Checkout trusted receipt verifier
-        uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
-        with:
-          ref: ${{ github.event.workflow_run.head_sha }}
-          fetch-depth: 1
-          persist-credentials: false
 
       - name: Select the triggering publish outcome
         id: publish-outcome-artifact

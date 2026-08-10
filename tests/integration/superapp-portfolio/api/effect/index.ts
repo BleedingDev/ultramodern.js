@@ -785,22 +785,10 @@ const layer = HttpApiBuilder.layer(portfolioApi).pipe(
 const runtime = defineEffectBff({
   api: portfolioApi,
   layer,
+  interceptRequest: async ({ request, next }) => {
+    const chaosResponse = await maybeHandleChaosToggle(request);
+    return chaosResponse ?? next();
+  },
 });
 
-export default {
-  ...runtime,
-  createHandler: (options?: Parameters<typeof runtime.createHandler>[0]) => {
-    const base = runtime.createHandler(options);
-    return {
-      handler: async (request: Request) => {
-        const chaosResponse = await maybeHandleChaosToggle(request);
-        if (chaosResponse) {
-          return chaosResponse;
-        }
-
-        return base.handler(request);
-      },
-      dispose: base.dispose,
-    };
-  },
-};
+export default runtime;

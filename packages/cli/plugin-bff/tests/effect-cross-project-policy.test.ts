@@ -501,6 +501,88 @@ describe('custom createHandler factory policy enforcement', () => {
       warnings.some(message => message.includes('strictEffectApproach')),
     ).toBe(true);
   });
+
+  test('defineEffectBff interceptors run after policy and before delegated body validation', async () => {
+    const policy = resolvePolicy();
+    let interceptedRequests = 0;
+    const runtime = defineEffectBff({
+      api: pingApi,
+      layer: pingLayer,
+      interceptRequest: ({ request, next }) => {
+        interceptedRequests += 1;
+        return new URL(request.url).pathname === '/legacy'
+          ? Response.json({ source: 'interceptor' })
+          : next();
+      },
+    });
+    const loaded = await resolveEffectBffModuleHandler(
+      runtime as unknown as EffectApiModule,
+      {
+        validateRequest: request =>
+          checkCrossProjectPolicyForRequest(request, policy),
+      },
+    );
+
+    expect(loaded).not.toBeNull();
+    try {
+      const denied = await loaded!.handler(
+        new Request('http://localhost/legacy'),
+      );
+      expect(denied.status).toBe(403);
+      expect(interceptedRequests).toBe(0);
+
+      const intercepted = await loaded!.handler(
+        new Request('http://localhost/legacy', {
+          headers: validPolicyHeaders(),
+        }),
+      );
+      expect(intercepted.status).toBe(200);
+      await expect(intercepted.json()).resolves.toEqual({
+        source: 'interceptor',
+      });
+
+      const interceptedMalformedBody = await loaded!.handler(
+        new Request('http://localhost/legacy', {
+          method: 'POST',
+          headers: {
+            ...validPolicyHeaders(),
+            'content-type': 'application/json',
+          },
+          body: '{',
+        }),
+      );
+      expect(interceptedMalformedBody.status).toBe(200);
+      await expect(interceptedMalformedBody.json()).resolves.toEqual({
+        source: 'interceptor',
+      });
+
+      const delegatedMalformedBody = await loaded!.handler(
+        new Request('http://localhost/ping', {
+          method: 'POST',
+          headers: {
+            ...validPolicyHeaders(),
+            'content-type': 'application/json',
+          },
+          body: '{',
+        }),
+      );
+      expect(delegatedMalformedBody.status).toBe(400);
+      await expect(delegatedMalformedBody.json()).resolves.toEqual({
+        message: 'Invalid JSON request body',
+      });
+
+      const delegated = await loaded!.handler(
+        new Request('http://localhost/ping', {
+          headers: validPolicyHeaders(),
+        }),
+      );
+      expect(delegated.status).toBe(200);
+      await expect(delegated.json()).resolves.toEqual({ ok: true });
+      expect(interceptedRequests).toBe(4);
+    } finally {
+      await loaded?.dispose?.();
+    }
+  });
 });
 
 describe('defineEffectBff client placeholder', () => {

@@ -33,8 +33,6 @@ export const api = bffCrossProjectEffectApi;
 export const layer = HttpApiBuilder.layer(bffCrossProjectEffectApi).pipe(
   Layer.provide(greetingsLayer),
 );
-const runtime = defineEffectBff({ api, layer });
-
 const json = (data, init) =>
   new Response(JSON.stringify(data), {
     status: init?.status ?? 200,
@@ -54,103 +52,97 @@ const getHelloPathId = pathname => {
   return match?.[1];
 };
 
-const createHandler = options => {
-  const effectHandler = runtime.createHandler(options);
+const runtime = defineEffectBff({
+  api,
+  layer,
+  interceptRequest: async ({ request, next }) => {
+    const url = new URL(request.url);
+    const pathname = url.pathname;
 
-  return {
-    handler: async (request, context) => {
-      const url = new URL(request.url);
-      const pathname = url.pathname;
+    if (request.method === 'GET' && pathname === '/') {
+      return json({
+        message: 'Hello get bff-api-app',
+      });
+    }
 
-      if (request.method === 'GET' && pathname === '/') {
-        return json({
-          message: 'Hello get bff-api-app',
-        });
-      }
+    if (request.method === 'POST' && pathname === '/') {
+      return json({
+        message: 'Hello post bff-api-app',
+      });
+    }
 
-      if (request.method === 'POST' && pathname === '/') {
-        return json({
-          message: 'Hello post bff-api-app',
-        });
-      }
-
-      if (request.method === 'GET' && pathname === '/context') {
-        return json(
-          {
-            message: 'Hello Modern.js',
-          },
-          {
-            headers: {
-              'x-id': '1',
-            },
-          },
-        );
-      }
-
-      const userId = getPathId(pathname);
-      if (request.method === 'GET' && userId) {
-        return json({
-          id: userId,
-          message: 'bff-api-app/user/[id]',
-        });
-      }
-
-      const helloId = getHelloPathId(pathname);
-      if (request.method === 'POST' && helloId) {
-        const payload = await request.json();
-        return json({
-          params: {
-            id: helloId,
-          },
-          query: {
-            user: url.searchParams.get('user') || '',
-          },
-          data: payload,
+    if (request.method === 'GET' && pathname === '/context') {
+      return json(
+        {
+          message: 'Hello Modern.js',
+        },
+        {
           headers: {
-            'x-header': request.headers.get('x-header') || '',
+            'x-id': '1',
           },
-        });
+        },
+      );
+    }
+
+    const userId = getPathId(pathname);
+    if (request.method === 'GET' && userId) {
+      return json({
+        id: userId,
+        message: 'bff-api-app/user/[id]',
+      });
+    }
+
+    const helloId = getHelloPathId(pathname);
+    if (request.method === 'POST' && helloId) {
+      const payload = await request.json();
+      return json({
+        params: {
+          id: helloId,
+        },
+        query: {
+          user: url.searchParams.get('user') || '',
+        },
+        data: payload,
+        headers: {
+          'x-header': request.headers.get('x-header') || '',
+        },
+      });
+    }
+
+    if (request.method === 'POST' && pathname === '/upload') {
+      let fileName = '';
+      let parsedParams = {};
+      try {
+        const formData = await request.formData();
+        const image = formData.get('images');
+        fileName =
+          image && typeof image === 'object' && 'name' in image
+            ? String(image.name)
+            : '';
+        const params = formData.get('params');
+        parsedParams =
+          typeof params === 'string' && params.length > 0
+            ? JSON.parse(params)
+            : {};
+      } catch {
+        fileName = 'mock_image.png';
+        parsedParams = {
+          a: 1,
+          b: 2,
+        };
       }
 
-      if (request.method === 'POST' && pathname === '/upload') {
-        let fileName = '';
-        let parsedParams = {};
-        try {
-          const formData = await request.formData();
-          const image = formData.get('images');
-          fileName =
-            image && typeof image === 'object' && 'name' in image
-              ? String(image.name)
-              : '';
-          const params = formData.get('params');
-          parsedParams =
-            typeof params === 'string' && params.length > 0
-              ? JSON.parse(params)
-              : {};
-        } catch {
-          fileName = 'mock_image.png';
-          parsedParams = {
-            a: 1,
-            b: 2,
-          };
-        }
+      return json({
+        data: {
+          code: 0,
+          file_name: fileName,
+          params: parsedParams,
+        },
+      });
+    }
 
-        return json({
-          data: {
-            code: 0,
-            file_name: fileName,
-            params: parsedParams,
-          },
-        });
-      }
+    return next();
+  },
+});
 
-      return effectHandler.handler(request, context);
-    },
-    dispose: effectHandler.dispose,
-  };
-};
-
-export default {
-  ...runtime,
-  createHandler,
-};
+export default runtime;

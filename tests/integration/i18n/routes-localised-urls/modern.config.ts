@@ -12,6 +12,9 @@ export default defineConfig({
   bff: {
     prefix: '/bff-api',
     runtimeFramework: 'effect',
+    effect: {
+      entry: './api/effect/index',
+    },
   },
   performance: {
     buildCache: false,

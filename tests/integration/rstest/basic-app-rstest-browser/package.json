@@ -18,8 +18,8 @@
   "devDependencies": {
     "@modern-js/adapter-rstest": "workspace:*",
     "@modern-js/app-tools": "workspace:*",
-    "@rstest/browser": "0.11.0",
-    "@rstest/browser-react": "0.11.0",
+    "@rstest/browser": "0.11.1",
+    "@rstest/browser-react": "0.11.1",
     "@rstest/core": "0.11.1",
     "@types/node": "^26.1.1",
     "@types/react": "^19.2.17",

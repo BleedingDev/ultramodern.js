@@ -41,10 +41,15 @@ function relativeAppPath(appDirectory: string, entryPath: string) {
     : relativePath;
 }
 
+function isDependencyPath(relativePath: string | undefined) {
+  return relativePath?.split(/[\\/]/u).includes('node_modules') ?? false;
+}
+
 export function resolveEffectAdapterEntryFile(api: ServerPluginAPI) {
   const { appDirectory, apiDirectory, distDirectory } = api.getServerContext();
   const appRoot = path.resolve(appDirectory || process.cwd());
-  const productionRoot = isProd() && distDirectory ? distDirectory : undefined;
+  const productionRoot =
+    isProd() && distDirectory ? path.resolve(distDirectory) : undefined;
   const bffConfig = api.getServerConfig()?.bff;
   const configuredEntry = bffConfig?.effect?.entry;
   if (configuredEntry) {
@@ -53,6 +58,9 @@ export function resolveEffectAdapterEntryFile(api: ServerPluginAPI) {
       : path.resolve(appRoot, configuredEntry);
     if (productionRoot) {
       const relativeEntry = relativeAppPath(appRoot, sourceEntry);
+      if (relativeEntry === undefined || isDependencyPath(relativeEntry)) {
+        return resolveJsOrTsEntry(sourceEntry);
+      }
       return relativeEntry
         ? resolveJsOrTsEntry(
             builtEntryPath(path.resolve(productionRoot, relativeEntry)),
@@ -62,15 +70,26 @@ export function resolveEffectAdapterEntryFile(api: ServerPluginAPI) {
     return resolveJsOrTsEntry(sourceEntry);
   }
 
-  const relativeApiDirectory = apiDirectory
-    ? path.isAbsolute(apiDirectory)
-      ? relativeAppPath(appRoot, apiDirectory)
-      : apiDirectory
-    : API_DIR;
-  if (!relativeApiDirectory) {
+  const resolvedApiDirectory = path.resolve(appRoot, apiDirectory || API_DIR);
+  const productionApiDirectory = productionRoot
+    ? relativeAppPath(productionRoot, resolvedApiDirectory) !== undefined
+      ? resolvedApiDirectory
+      : (() => {
+          const relativeApiDirectory = relativeAppPath(
+            appRoot,
+            resolvedApiDirectory,
+          );
+          if (isDependencyPath(relativeApiDirectory)) {
+            return resolvedApiDirectory;
+          }
+          return relativeApiDirectory
+            ? path.resolve(productionRoot, relativeApiDirectory)
+            : undefined;
+        })()
+    : resolvedApiDirectory;
+  if (!productionApiDirectory) {
     return undefined;
   }
-  const apiRoot = path.resolve(productionRoot || appRoot, relativeApiDirectory);
 
-  return resolveJsOrTsEntry(path.resolve(apiRoot, 'index'));
+  return resolveJsOrTsEntry(path.resolve(productionApiDirectory, 'index'));
 }

@@ -41,7 +41,7 @@ pnpmfileChecksum: sha256-e7fv4++EEy5D/4pBzV1yGYuIWnXfQwaMHH7OMxyEZx4=
 patchedDependencies:
   '@module-federation/bridge-react@2.8.0': 54bfc79e097473222f83cbfa6d717792e3026bf16b5097c2ed91715b7da126be
   '@module-federation/manifest@2.8.0': a31d4d30913ffb579faf42be4f1c03a0f330d3f09348e9eedc00059d6e8d123f
-  '@module-federation/modern-js-v3@2.8.0': 476103915f02f84b79dfadddc715c83af47c7396a405915ebeafee580cbdc2e0
+  '@module-federation/modern-js-v3@2.8.0': 948d2a725ae526f395b0343b113ff80dfaa50dbdec8158179746e98259925d20
   '@module-federation/rspack@2.8.0': 7c9e11912b300a296a4437b651b10e3ad70f85ea8c521a9bc97871c14273ac2d
   '@tanstack/router-core@1.171.14': 1e1572940e00d6327c75bb8457c108e32e75a2292e4d90d764208d5b6f330155
 
@@ -3325,6 +3325,9 @@ importers:
 
   tests/integration/bff-cross-project/bff-api-app:
     dependencies:
+      '@effect/opentelemetry':
+        specifier: 4.0.0-beta.102
+        version: 4.0.0-beta.102(@opentelemetry/api-logs@0.220.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.220.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-node@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-beta.102)
       '@modern-js/plugin-bff':
         specifier: workspace:*
         version: link:../../../../packages/cli/plugin-bff
@@ -3334,6 +3337,9 @@ importers:
       '@modern-js/server-runtime':
         specifier: workspace:*
         version: link:../../../../packages/server/server-runtime
+      effect:
+        specifier: 4.0.0-beta.102
+        version: 4.0.0-beta.102
       express:
         specifier: ^5.2.1
         version: 5.2.1(supports-color@8.1.1)
@@ -3502,6 +3508,9 @@ importers:
 
   tests/integration/bff-effect:
     dependencies:
+      '@effect/opentelemetry':
+        specifier: 4.0.0-beta.102
+        version: 4.0.0-beta.102(@opentelemetry/api-logs@0.220.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.220.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-node@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-beta.102)
       '@modern-js/plugin-bff':
         specifier: workspace:*
         version: link:../../../packages/cli/plugin-bff
@@ -3511,6 +3520,9 @@ importers:
       '@modern-js/server-runtime':
         specifier: workspace:*
         version: link:../../../packages/server/server-runtime
+      effect:
+        specifier: 4.0.0-beta.102
+        version: 4.0.0-beta.102
       react:
         specifier: ^19.2.7
         version: 19.2.7
@@ -4239,7 +4251,7 @@ importers:
         version: link:../../../../../packages/runtime/plugin-runtime
       '@module-federation/modern-js-v3':
         specifier: 2.8.0
-        version: 2.8.0(patch_hash=476103915f02f84b79dfadddc715c83af47c7396a405915ebeafee580cbdc2e0)(@rsbuild/core@2.1.5(@module-federation/runtime-tools@2.8.0)(core-js@3.49.0))(@rspack/core@2.1.3(@module-federation/runtime-tools@2.8.0)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.2.7(react@19.2.7))(react-router-dom@7.18.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-router@8.1.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(typescript@7.0.2)(utf-8-validate@5.0.10)
+        version: 2.8.0(patch_hash=948d2a725ae526f395b0343b113ff80dfaa50dbdec8158179746e98259925d20)(@rsbuild/core@2.1.5(@module-federation/runtime-tools@2.8.0)(core-js@3.49.0))(@rspack/core@2.1.3(@module-federation/runtime-tools@2.8.0)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.2.7(react@19.2.7))(react-router-dom@7.18.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-router@8.1.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(typescript@7.0.2)(utf-8-validate@5.0.10)
       i18next:
         specifier: 26.3.6
         version: 26.3.6(typescript@7.0.2)
@@ -4273,7 +4285,7 @@ importers:
         version: link:../../../../../packages/runtime/plugin-runtime
       '@module-federation/modern-js-v3':
         specifier: 2.8.0
-        version: 2.8.0(patch_hash=476103915f02f84b79dfadddc715c83af47c7396a405915ebeafee580cbdc2e0)(@rsbuild/core@2.1.5(@module-federation/runtime-tools@2.8.0)(core-js@3.49.0))(@rspack/core@2.1.3(@module-federation/runtime-tools@2.8.0)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.2.7(react@19.2.7))(react-router-dom@7.18.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-router@8.1.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(typescript@7.0.2)(utf-8-validate@5.0.10)
+        version: 2.8.0(patch_hash=948d2a725ae526f395b0343b113ff80dfaa50dbdec8158179746e98259925d20)(@rsbuild/core@2.1.5(@module-federation/runtime-tools@2.8.0)(core-js@3.49.0))(@rspack/core@2.1.3(@module-federation/runtime-tools@2.8.0)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.2.7(react@19.2.7))(react-router-dom@7.18.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-router@8.1.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(typescript@7.0.2)(utf-8-validate@5.0.10)
       i18next:
         specifier: 26.3.6
         version: 26.3.6(typescript@7.0.2)
@@ -4307,7 +4319,7 @@ importers:
         version: link:../../../../../packages/runtime/plugin-runtime
       '@module-federation/modern-js-v3':
         specifier: 2.8.0
-        version: 2.8.0(patch_hash=476103915f02f84b79dfadddc715c83af47c7396a405915ebeafee580cbdc2e0)(@rsbuild/core@2.1.5(@module-federation/runtime-tools@2.8.0)(core-js@3.49.0))(@rspack/core@2.1.3(@module-federation/runtime-tools@2.8.0)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.2.7(react@19.2.7))(react-router-dom@7.18.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-router@8.1.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(typescript@7.0.2)(utf-8-validate@5.0.10)
+        version: 2.8.0(patch_hash=948d2a725ae526f395b0343b113ff80dfaa50dbdec8158179746e98259925d20)(@rsbuild/core@2.1.5(@module-federation/runtime-tools@2.8.0)(core-js@3.49.0))(@rspack/core@2.1.3(@module-federation/runtime-tools@2.8.0)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.2.7(react@19.2.7))(react-router-dom@7.18.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-router@8.1.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(typescript@7.0.2)(utf-8-validate@5.0.10)
       '@module-federation/runtime':
         specifier: 2.8.0
         version: 2.8.0
@@ -4364,6 +4376,9 @@ importers:
 
   tests/integration/i18n/routes-localised-urls:
     dependencies:
+      '@effect/opentelemetry':
+        specifier: 4.0.0-beta.102
+        version: 4.0.0-beta.102(@opentelemetry/api-logs@0.220.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.220.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-node@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-beta.102)
       '@modern-js/plugin-bff':
         specifier: workspace:*
         version: link:../../../../packages/cli/plugin-bff
@@ -4373,6 +4388,9 @@ importers:
       '@modern-js/runtime':
         specifier: workspace:*
         version: link:../../../../packages/runtime/plugin-runtime
+      effect:
+        specifier: 4.0.0-beta.102
+        version: 4.0.0-beta.102
       i18next:
         specifier: 26.3.6
         version: 26.3.6(typescript@7.0.2)
@@ -4857,6 +4875,9 @@ importers:
 
   tests/integration/routes-tanstack-mf/mf-host:
     dependencies:
+      '@effect/opentelemetry':
+        specifier: 4.0.0-beta.102
+        version: 4.0.0-beta.102(@opentelemetry/api-logs@0.220.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.220.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-node@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-beta.102)
       '@modern-js/plugin-tanstack':
         specifier: workspace:*
         version: link:../../../../packages/runtime/plugin-tanstack
@@ -4865,13 +4886,16 @@ importers:
         version: link:../../../../packages/runtime/plugin-runtime
       '@module-federation/modern-js-v3':
         specifier: 2.8.0
-        version: 2.8.0(patch_hash=476103915f02f84b79dfadddc715c83af47c7396a405915ebeafee580cbdc2e0)(@rsbuild/core@2.1.5(@module-federation/runtime-tools@2.8.0)(core-js@3.49.0))(@rspack/core@2.1.3(@module-federation/runtime-tools@2.8.0)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.2.7(react@19.2.7))(react-router-dom@7.18.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-router@8.1.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(typescript@7.0.2)(utf-8-validate@5.0.10)
+        version: 2.8.0(patch_hash=948d2a725ae526f395b0343b113ff80dfaa50dbdec8158179746e98259925d20)(@rsbuild/core@2.1.5(@module-federation/runtime-tools@2.8.0)(core-js@3.49.0))(@rspack/core@2.1.3(@module-federation/runtime-tools@2.8.0)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.2.7(react@19.2.7))(react-router-dom@7.18.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-router@8.1.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(typescript@7.0.2)(utf-8-validate@5.0.10)
       '@module-federation/runtime':
         specifier: 2.8.0
         version: 2.8.0
       '@tanstack/react-router':
         specifier: 1.170.17
         version: 1.170.17(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      effect:
+        specifier: 4.0.0-beta.102
+        version: 4.0.0-beta.102
       react:
         specifier: ^19.2.7
         version: 19.2.7
@@ -4896,6 +4920,9 @@ importers:
 
   tests/integration/routes-tanstack-mf/mf-remote:
     dependencies:
+      '@effect/opentelemetry':
+        specifier: 4.0.0-beta.102
+        version: 4.0.0-beta.102(@opentelemetry/api-logs@0.220.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.220.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-node@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-beta.102)
       '@modern-js/plugin-tanstack':
         specifier: workspace:*
         version: link:../../../../packages/runtime/plugin-tanstack
@@ -4904,13 +4931,16 @@ importers:
         version: link:../../../../packages/runtime/plugin-runtime
       '@module-federation/modern-js-v3':
         specifier: 2.8.0
-        version: 2.8.0(patch_hash=476103915f02f84b79dfadddc715c83af47c7396a405915ebeafee580cbdc2e0)(@rsbuild/core@2.1.5(@module-federation/runtime-tools@2.8.0)(core-js@3.49.0))(@rspack/core@2.1.3(@module-federation/runtime-tools@2.8.0)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.2.7(react@19.2.7))(react-router-dom@7.18.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-router@8.1.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(typescript@7.0.2)(utf-8-validate@5.0.10)
+        version: 2.8.0(patch_hash=948d2a725ae526f395b0343b113ff80dfaa50dbdec8158179746e98259925d20)(@rsbuild/core@2.1.5(@module-federation/runtime-tools@2.8.0)(core-js@3.49.0))(@rspack/core@2.1.3(@module-federation/runtime-tools@2.8.0)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.2.7(react@19.2.7))(react-router-dom@7.18.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-router@8.1.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(typescript@7.0.2)(utf-8-validate@5.0.10)
       '@module-federation/runtime':
         specifier: 2.8.0
         version: 2.8.0
       '@tanstack/react-router':
         specifier: 1.170.17
         version: 1.170.17(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      effect:
+        specifier: 4.0.0-beta.102
+        version: 4.0.0-beta.102
       react:
         specifier: ^19.2.7
         version: 19.2.7
@@ -4933,6 +4963,9 @@ importers:
 
   tests/integration/routes-tanstack-mf/mf-remote-2:
     dependencies:
+      '@effect/opentelemetry':
+        specifier: 4.0.0-beta.102
+        version: 4.0.0-beta.102(@opentelemetry/api-logs@0.220.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.220.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-node@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-beta.102)
       '@modern-js/plugin-tanstack':
         specifier: workspace:*
         version: link:../../../../packages/runtime/plugin-tanstack
@@ -4941,13 +4974,16 @@ importers:
         version: link:../../../../packages/runtime/plugin-runtime
       '@module-federation/modern-js-v3':
         specifier: 2.8.0
-        version: 2.8.0(patch_hash=476103915f02f84b79dfadddc715c83af47c7396a405915ebeafee580cbdc2e0)(@rsbuild/core@2.1.5(@module-federation/runtime-tools@2.8.0)(core-js@3.49.0))(@rspack/core@2.1.3(@module-federation/runtime-tools@2.8.0)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.2.7(react@19.2.7))(react-router-dom@7.18.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-router@8.1.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(typescript@7.0.2)(utf-8-validate@5.0.10)
+        version: 2.8.0(patch_hash=948d2a725ae526f395b0343b113ff80dfaa50dbdec8158179746e98259925d20)(@rsbuild/core@2.1.5(@module-federation/runtime-tools@2.8.0)(core-js@3.49.0))(@rspack/core@2.1.3(@module-federation/runtime-tools@2.8.0)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.2.7(react@19.2.7))(react-router-dom@7.18.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-router@8.1.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(typescript@7.0.2)(utf-8-validate@5.0.10)
       '@module-federation/runtime':
         specifier: 2.8.0
         version: 2.8.0
       '@tanstack/react-router':
         specifier: 1.170.17
         version: 1.170.17(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      effect:
+        specifier: 4.0.0-beta.102
+        version: 4.0.0-beta.102
       react:
         specifier: ^19.2.7
         version: 19.2.7
@@ -5288,11 +5324,11 @@ importers:
         specifier: workspace:*
         version: link:../../../../packages/solutions/app-tools
       '@rstest/browser':
-        specifier: 0.11.0
-        version: 0.11.0(@rstest/core@0.11.1(core-js@3.49.0)(happy-dom@20.10.6(bufferutil@4.1.0)(utf-8-validate@5.0.10))(jsdom@25.0.1(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@5.0.10)))(bufferutil@4.1.0)(playwright@1.61.1)(utf-8-validate@5.0.10)
+        specifier: 0.11.1
+        version: 0.11.1(@rstest/core@0.11.1(core-js@3.49.0)(happy-dom@20.10.6(bufferutil@4.1.0)(utf-8-validate@5.0.10))(jsdom@25.0.1(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@5.0.10)))(bufferutil@4.1.0)(playwright@1.61.1)(utf-8-validate@5.0.10)
       '@rstest/browser-react':
-        specifier: 0.11.0
-        version: 0.11.0(@rstest/core@0.11.1(core-js@3.49.0)(happy-dom@20.10.6(bufferutil@4.1.0)(utf-8-validate@5.0.10))(jsdom@25.0.1(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@5.0.10)))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        specifier: 0.11.1
+        version: 0.11.1(@rstest/core@0.11.1(core-js@3.49.0)(happy-dom@20.10.6(bufferutil@4.1.0)(utf-8-validate@5.0.10))(jsdom@25.0.1(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@5.0.10)))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@rstest/core':
         specifier: 0.11.1
         version: 0.11.1(@module-federation/runtime-tools@2.8.0)(core-js@3.49.0)(happy-dom@20.10.6(bufferutil@4.1.0)(utf-8-validate@5.0.10))(jsdom@25.0.1(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@5.0.10))
@@ -6224,6 +6260,9 @@ importers:
 
   tests/integration/superapp-portfolio:
     dependencies:
+      '@effect/opentelemetry':
+        specifier: 4.0.0-beta.102
+        version: 4.0.0-beta.102(@opentelemetry/api-logs@0.220.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.220.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-node@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-web@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-beta.102)
       '@modern-js/plugin-bff':
         specifier: workspace:*
         version: link:../../../packages/cli/plugin-bff
@@ -6236,6 +6275,9 @@ importers:
       '@modern-js/server-runtime':
         specifier: workspace:*
         version: link:../../../packages/server/server-runtime
+      effect:
+        specifier: 4.0.0-beta.102
+        version: 4.0.0-beta.102
       react:
         specifier: ^19.2.7
         version: 19.2.7
@@ -10929,19 +10971,19 @@ packages:
       '@rsbuild/core': ^1.0.0 || ^2.0.0
       '@rstest/core': ^0.11.1
 
-  '@rstest/browser-react@0.11.0':
-    resolution: {integrity: sha512-NGqMKLgBfIKJ9iwFP0L3jUykczyjyzSGM38wlLPywXDA68AEeJuc62a6iHW+X7sdmrPLGeFxdihKfKMc2C5BGw==}
+  '@rstest/browser-react@0.11.1':
+    resolution: {integrity: sha512-3DJD4ZboGI4A4bwV351Ieiwnswunvw3KT0PNb8n3cObfOFx9qbFVhW0dT+iESwdn5ZjDdWJqMeAYvwvfJrgJAw==}
     engines: {node: ^20.19.0 || >=22.12.0}
     peerDependencies:
-      '@rstest/core': ^0.11.0
+      '@rstest/core': ^0.11.1
       react: ^18.0.0 || ^19.0.0
       react-dom: ^18.0.0 || ^19.0.0
 
-  '@rstest/browser@0.11.0':
-    resolution: {integrity: sha512-QytPTiXkooobjm8c9auQX9fzXzA9Y8cVUNtzGJpzF74TAjKN3laA4LvcA9iKhDsUDfZaqXM4kdYy9KAFU+mVUA==}
+  '@rstest/browser@0.11.1':
+    resolution: {integrity: sha512-zxglgEaO83IvyxAuf3o1MMbxROuFXLQo/F2k1zUo5D+ujPlBrlZbNJjLYXhavc/N0EfAM7WVhJ+tHj0mjLBvEg==}
     engines: {node: ^20.19.0 || >=22.12.0}
     peerDependencies:
-      '@rstest/core': ^0.11.0
+      '@rstest/core': ^0.11.1
       playwright: ^1.49.1
     peerDependenciesMeta:
       playwright:
@@ -22844,7 +22886,7 @@ snapshots:
       - utf-8-validate
       - webpack
 
-  '@module-federation/modern-js-v3@2.8.0(patch_hash=476103915f02f84b79dfadddc715c83af47c7396a405915ebeafee580cbdc2e0)(@rsbuild/core@2.1.5(@module-federation/runtime-tools@2.8.0)(core-js@3.49.0))(@rspack/core@2.1.3(@module-federation/runtime-tools@2.8.0)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.2.7(react@19.2.7))(react-router-dom@7.18.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-router@8.1.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(typescript@7.0.2)(utf-8-validate@5.0.10)':
+  '@module-federation/modern-js-v3@2.8.0(patch_hash=948d2a725ae526f395b0343b113ff80dfaa50dbdec8158179746e98259925d20)(@rsbuild/core@2.1.5(@module-federation/runtime-tools@2.8.0)(core-js@3.49.0))(@rspack/core@2.1.3(@module-federation/runtime-tools@2.8.0)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.2.7(react@19.2.7))(react-router-dom@7.18.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-router@8.1.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(typescript@7.0.2)(utf-8-validate@5.0.10)':
     dependencies:
       '@module-federation/bridge-react': 2.8.0(patch_hash=54bfc79e097473222f83cbfa6d717792e3026bf16b5097c2ed91715b7da126be)(react-dom@19.2.7(react@19.2.7))(react-router-dom@7.18.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-router@8.1.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)
       '@module-federation/cli': 2.8.0(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
@@ -24625,13 +24667,13 @@ snapshots:
       '@rsbuild/core': 2.1.5(@module-federation/runtime-tools@2.8.0)(core-js@3.49.0)
       '@rstest/core': 0.11.1(@module-federation/runtime-tools@2.8.0)(core-js@3.49.0)(happy-dom@20.10.6(bufferutil@4.1.0)(utf-8-validate@5.0.10))(jsdom@25.0.1(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@5.0.10))
 
-  '@rstest/browser-react@0.11.0(@rstest/core@0.11.1(core-js@3.49.0)(happy-dom@20.10.6(bufferutil@4.1.0)(utf-8-validate@5.0.10))(jsdom@25.0.1(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@5.0.10)))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
+  '@rstest/browser-react@0.11.1(@rstest/core@0.11.1(core-js@3.49.0)(happy-dom@20.10.6(bufferutil@4.1.0)(utf-8-validate@5.0.10))(jsdom@25.0.1(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@5.0.10)))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
     dependencies:
       '@rstest/core': 0.11.1(@module-federation/runtime-tools@2.8.0)(core-js@3.49.0)(happy-dom@20.10.6(bufferutil@4.1.0)(utf-8-validate@5.0.10))(jsdom@25.0.1(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@5.0.10))
       react: 19.2.7
       react-dom: 19.2.7(react@19.2.7)
 
-  '@rstest/browser@0.11.0(@rstest/core@0.11.1(core-js@3.49.0)(happy-dom@20.10.6(bufferutil@4.1.0)(utf-8-validate@5.0.10))(jsdom@25.0.1(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@5.0.10)))(bufferutil@4.1.0)(playwright@1.61.1)(utf-8-validate@5.0.10)':
+  '@rstest/browser@0.11.1(@rstest/core@0.11.1(core-js@3.49.0)(happy-dom@20.10.6(bufferutil@4.1.0)(utf-8-validate@5.0.10))(jsdom@25.0.1(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@5.0.10)))(bufferutil@4.1.0)(playwright@1.61.1)(utf-8-validate@5.0.10)':
     dependencies:
       '@jridgewell/trace-mapping': 0.3.31
       '@rstest/core': 0.11.1(@module-federation/runtime-tools@2.8.0)(core-js@3.49.0)(happy-dom@20.10.6(bufferutil@4.1.0)(utf-8-validate@5.0.10))(jsdom@25.0.1(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@5.0.10))

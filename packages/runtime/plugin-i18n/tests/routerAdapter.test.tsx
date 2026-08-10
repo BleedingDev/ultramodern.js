@@ -20,6 +20,7 @@ import { I18nLink } from '../src/runtime/I18nLink';
 import type { I18nInstance } from '../src/runtime/i18n';
 import { getReactI18nextIntegration } from '../src/runtime/i18n/react-i18next';
 import { createI18nRootWrapper } from '../src/runtime/providerComposition';
+import { useI18nRouterAdapter } from '../src/runtime/routerAdapter';
 
 (
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -244,6 +245,11 @@ function createMutableTanstackRouter(pathname = '/en') {
         listener();
       }
     },
+    publishStateUpdate() {
+      for (const listener of listeners) {
+        listener();
+      }
+    },
   };
 }
 
@@ -457,6 +463,53 @@ describe('i18n runtime wrapRoot', () => {
 
     expect(observedLanguages).toEqual(['cs:cs']);
     expect(rendered.container.textContent).toContain('router content');
+  });
+
+  test('keeps the i18next provider instance stable across unrelated parent renders', async () => {
+    const i18nInstance = createI18nInstance('cs');
+    const providerInstances: I18nInstance[] = [];
+    const I18nextProvider = ({
+      children,
+      i18n,
+    }: PropsWithChildren<{ i18n: I18nInstance }>) => {
+      providerInstances.push(i18n);
+      return <>{children}</>;
+    };
+    const App = () => <main>router content</main>;
+    const I18nRoot = createI18nRootWrapper({
+      htmlLangAttr: false,
+      localePathRedirect: false,
+      languages: ['en', 'cs'],
+      fallbackLanguage: 'en',
+      getLatestI18nInstance: () => i18nInstance,
+      getI18nextProvider: () => I18nextProvider,
+    })(App);
+    const Parent = () => {
+      const [renderVersion, setRenderVersion] = useState(0);
+      return (
+        <>
+          <button
+            type="button"
+            onClick={() => setRenderVersion(version => version + 1)}
+          >
+            Render {renderVersion}
+          </button>
+          <I18nRoot renderVersion={renderVersion} />
+        </>
+      );
+    };
+
+    rendered = await renderI18nRoot(<Parent />);
+    const initialProviderInstance = providerInstances.at(-1);
+
+    await act(async () => {
+      rendered?.container
+        .querySelector('button')
+        ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(providerInstances.length).toBeGreaterThan(1);
+    expect(providerInstances.at(-1)).toBe(initialProviderInstance);
   });
 
   test('commits route language and translated copy after the instance changes', async () => {
@@ -760,6 +813,34 @@ describe('i18n router adapter', () => {
     );
     expect(link?.getAttribute('href')).toBe('/cs/podminky-pouzivani');
     expect(link?.getAttribute('data-router-link')).toBe('tanstack');
+  });
+
+  test('ignores router state updates that do not change location or params', async () => {
+    const router = createMutableTanstackRouter('/en');
+    let renders = 0;
+    const LocationProbe = () => {
+      renders += 1;
+      const { location } = useI18nRouterAdapter();
+      return <output>{location?.pathname}</output>;
+    };
+
+    rendered = await renderWithRuntime(
+      <LocationProbe />,
+      createTanstackRuntimeContext(router),
+    );
+    const initialRenders = renders;
+
+    await act(async () => {
+      router.publishStateUpdate();
+    });
+    expect(renders).toBe(initialRenders);
+    expect(rendered.container.textContent).toBe('/en');
+
+    await act(async () => {
+      router.publishPathname('/cs');
+    });
+    expect(renders).toBe(initialRenders + 1);
+    expect(rendered.container.textContent).toBe('/cs');
   });
 
   test('forwards warmup props through I18nLink with a localized string target', async () => {

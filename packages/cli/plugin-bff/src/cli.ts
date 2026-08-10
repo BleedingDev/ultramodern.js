@@ -191,3 +191,5 @@ export const bffPlugin = (): CliPlugin<AppTools> => ({
     });
   },
 });
+
+export default bffPlugin;

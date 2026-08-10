@@ -1,6 +1,17 @@
 // @effect-diagnostics asyncFunction:off
-export default {
-  handler: async (request: Request) => {
+import {
+  defineEffectBff,
+  HttpApi,
+  HttpApiBuilder,
+} from '@modern-js/plugin-bff/effect-server';
+
+const api = HttpApi.make('LocalisedUrlsHealthApi');
+const layer = HttpApiBuilder.layer(api);
+
+export default defineEffectBff({
+  api,
+  layer,
+  interceptRequest: ({ request, next }) => {
     const pathname = new URL(request.url).pathname;
 
     if (pathname.endsWith('/health')) {
@@ -10,8 +21,6 @@ export default {
       });
     }
 
-    return new Response('Not Found', {
-      status: 404,
-    });
+    return next();
   },
-};
+});

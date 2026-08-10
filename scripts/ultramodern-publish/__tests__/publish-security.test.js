@@ -680,6 +680,32 @@ test('publish validator rejects authority, mutable resolution, and acceptance by
   }
 });
 
+test('readiness validator preserves artifact evidence across checkout', async () => {
+  const { validateReadinessWorkflow } = await import(pathToFileURL(scriptPath));
+  const parsed = workflow(readinessWorkflowPath);
+  const steps = parsed.jobs['resolve-release-identity'].steps;
+  const checkoutIndex = steps.indexOf(
+    actionSteps(parsed.jobs['resolve-release-identity'], 'actions/checkout')[0],
+  );
+  const listingIndex = steps.indexOf(
+    namedStep(
+      parsed.jobs['resolve-release-identity'],
+      'List triggering run artifacts',
+    ),
+  );
+
+  assert.ok(checkoutIndex < listingIndex);
+  [steps[checkoutIndex], steps[listingIndex]] = [
+    steps[listingIndex],
+    steps[checkoutIndex],
+  ];
+
+  assert.throws(
+    () => validateReadinessWorkflow(parsed),
+    /preserve the post-checkout artifact listing/u,
+  );
+});
+
 test('publish delegates source-cohort rejection to the authoritative registry API', async () => {
   const prepare = workflow(publishWorkflowPath).jobs['prepare-release'];
   const gate = namedStep(prepare, 'Reject an already published source cohort');

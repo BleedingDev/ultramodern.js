@@ -13,7 +13,7 @@ import {
   useParams as useReactRouterParams,
 } from '@modern-js/runtime/router';
 import type React from 'react';
-import { useCallback, useContext, useEffect, useState } from 'react';
+import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 
 type I18nRouterFramework = 'react-router' | 'tanstack' | string;
 
@@ -205,6 +205,21 @@ const getRouterParams = (
   }, {});
 };
 
+const getRouterSnapshot = (
+  internalContext: InternalRuntimeContextWithRouter,
+  contextRouter?: RouterInstance | null,
+) => {
+  const location = getRouterStateLocation(internalContext, contextRouter);
+  const params = getRouterParams(internalContext, contextRouter);
+  const serializedParams = Object.entries(params)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, value]) => `${key}=${value}`)
+    .join('&');
+  return `${location?.pathname ?? ''}\u0000${location?.search ?? ''}\u0000${
+    location?.hash ?? ''
+  }\u0000${serializedParams}`;
+};
+
 export const useI18nRouterAdapter = (): I18nRouterAdapter => {
   const runtimeContext = useContext(RuntimeContext) as RuntimeContextWithRouter;
   const internalContext = useContext(
@@ -227,6 +242,10 @@ export const useI18nRouterAdapter = (): I18nRouterAdapter => {
     ? (contextUseRouter({ warn: false }) as RouterInstance | null)
     : null;
   const [, setRouterVersion] = useState(0);
+  const routerSnapshotRef = useRef(
+    getRouterSnapshot(internalContext, contextRouter),
+  );
+  routerSnapshotRef.current = getRouterSnapshot(internalContext, contextRouter);
   const hasRouter =
     framework === 'tanstack' ||
     framework === 'react-router' ||
@@ -238,7 +257,14 @@ export const useI18nRouterAdapter = (): I18nRouterAdapter => {
       return;
     }
 
-    const update = () => setRouterVersion(version => version + 1);
+    const update = () => {
+      const nextSnapshot = getRouterSnapshot(internalContext, contextRouter);
+      if (nextSnapshot === routerSnapshotRef.current) {
+        return;
+      }
+      routerSnapshotRef.current = nextSnapshot;
+      setRouterVersion(version => version + 1);
+    };
     const unsubscribers: Array<() => void> = [];
 
     if (

@@ -235,25 +235,3 @@ diff --git a/dist/esm/react/index.mjs b/dist/esm/react/index.mjs
 +        injectLink: false,
 +        ...options,
 +    });
-diff --git a/dist/esm/react/v18.mjs b/dist/esm/react/v18.mjs
---- a/dist/esm/react/v18.mjs
-+++ b/dist/esm/react/v18.mjs
-@@ -1 +1,6 @@
--export * from "@module-federation/bridge-react/v18";
-+import { createLazyComponent as createBridgeLazyComponent } from "@module-federation/bridge-react/v18";
-+export * from "@module-federation/bridge-react/v18";
-+export const createLazyComponent = (options)=>createBridgeLazyComponent({
-+        injectLink: false,
-+        ...options,
-+    });
-diff --git a/dist/esm/react/v19.mjs b/dist/esm/react/v19.mjs
---- a/dist/esm/react/v19.mjs
-+++ b/dist/esm/react/v19.mjs
-@@ -1 +1,6 @@
--export * from "@module-federation/bridge-react/v19";
-+import { createLazyComponent as createBridgeLazyComponent } from "@module-federation/bridge-react/v19";
-+export * from "@module-federation/bridge-react/v19";
-+export const createLazyComponent = (options)=>createBridgeLazyComponent({
-+        injectLink: false,
-+        ...options,
-+    });

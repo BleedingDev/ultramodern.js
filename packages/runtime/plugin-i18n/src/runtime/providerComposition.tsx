@@ -113,6 +113,14 @@ export const createI18nRootWrapper =
           synchronizeLanguage,
         ],
       );
+      const I18nextProvider = getI18nextProvider();
+      const i18nextInstanceForProvider = useMemo(
+        () =>
+          i18nInstance
+            ? getI18nextInstanceForProvider(i18nInstance, lang)
+            : undefined,
+        [i18nInstance, lang],
+      );
 
       const children = (props as React.PropsWithChildren).children;
       let appContent: React.ReactNode = App ? (
@@ -121,19 +129,12 @@ export const createI18nRootWrapper =
         children
       );
 
-      if (i18nInstance) {
-        const I18nextProvider = getI18nextProvider();
-        if (I18nextProvider) {
-          const i18nextInstanceForProvider = getI18nextInstanceForProvider(
-            i18nInstance,
-            lang,
-          );
-          appContent = (
-            <I18nextProvider i18n={i18nextInstanceForProvider}>
-              {appContent}
-            </I18nextProvider>
-          );
-        }
+      if (I18nextProvider && i18nextInstanceForProvider) {
+        appContent = (
+          <I18nextProvider i18n={i18nextInstanceForProvider}>
+            {appContent}
+          </I18nextProvider>
+        );
       }
 
       return (

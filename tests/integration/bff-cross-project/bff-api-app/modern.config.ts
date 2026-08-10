@@ -7,6 +7,7 @@ export default applyBaseConfig({
     crossProject: true,
     runtimeFramework: 'effect',
     effect: {
+      entry: './api/effect/index',
       openapi: {
         path: '/openapi.json',
       },

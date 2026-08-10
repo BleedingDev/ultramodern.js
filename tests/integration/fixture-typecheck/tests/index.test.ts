@@ -52,11 +52,6 @@ const fixtureTypechecks = [
     tsconfig: 'tsconfig.json',
   },
   {
-    name: 'bff-runtime-parity',
-    cwd: 'integration/bff-runtime-parity',
-    tsconfig: 'tsconfig.json',
-  },
-  {
     name: 'superapp-portfolio',
     cwd: 'integration/superapp-portfolio',
     tsconfig: 'tsconfig.json',

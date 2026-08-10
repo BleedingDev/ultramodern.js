@@ -12,6 +12,7 @@ export default applyBaseConfig({
     prefix: '/bff-api',
     runtimeFramework: 'effect',
     effect: {
+      entry: './api/effect/index',
       openapi: {
         path: '/openapi.json',
       },

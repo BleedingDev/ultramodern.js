@@ -12,6 +12,9 @@ import {
 const EFFECT_BFF_WORKER_RUNTIME_QUERY = 'modern-bff-runtime';
 const EFFECT_BFF_WORKER_RUNTIME_SOURCE_QUERY = 'modern-bff-runtime-source';
 
+const createErrorModule = (message: string) =>
+  `throw new Error(${JSON.stringify(message)});`;
+
 export type APILoaderOptions = {
   prefix: string;
   appDir: string;
@@ -138,7 +141,7 @@ async function loader(
 
     callback(
       undefined,
-      `throw new Error('Failed to generate Effect client for ${resourcePath}')`,
+      createErrorModule(`Failed to generate Effect client for ${resourcePath}`),
     );
     return;
   }
@@ -147,7 +150,7 @@ async function loader(
 
   if (!draftOptions.existLambda) {
     logger.warn(warning);
-    callback(null, `throw new Error('${warning}')`);
+    callback(null, createErrorModule(warning));
     return;
   }
 
@@ -168,7 +171,7 @@ async function loader(
   const { lambdaDir } = draftOptions;
   if (!resourcePath.startsWith(lambdaDir)) {
     logger.warn(warning);
-    callback(null, `throw new Error('${warning}')`);
+    callback(null, createErrorModule(warning));
     return;
   }
 
@@ -187,7 +190,7 @@ async function loader(
   if (result.isOk) {
     callback(undefined, result.value);
   } else {
-    callback(undefined, `throw new Error('${result.value}')`);
+    callback(undefined, createErrorModule(result.value));
   }
 }
 

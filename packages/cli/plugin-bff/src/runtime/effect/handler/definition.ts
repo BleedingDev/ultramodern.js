@@ -8,6 +8,7 @@ import { createHttpApiHandler } from './http';
 import { createRpcApiHandler } from './rpc';
 import type {
   EffectApiPromiseClientFromApi,
+  EffectBffDefinition,
   EffectBffHandlerFactory,
   EffectBffRuntime,
   EffectDataPlatformValidationOptions,
@@ -26,11 +27,21 @@ export function defineEffectBff<
   layer: TLayer;
   rpc?: EffectRpcBffDefinition<TRpcs>;
   dataPlatform?: EffectDataPlatformValidationOptions;
+  interceptRequest?: EffectBffDefinition<
+    TApi,
+    TLayer,
+    TRpcs
+  >['interceptRequest'];
 }): {
   api: TApi;
   layer: TLayer;
   rpc?: EffectRpcBffDefinition<TRpcs>;
   dataPlatform?: EffectDataPlatformValidationOptions;
+  interceptRequest?: EffectBffDefinition<
+    TApi,
+    TLayer,
+    TRpcs
+  >['interceptRequest'];
 } & EffectBffRuntime<TApi, TLayer> {
   const createHandler: EffectBffHandlerFactory<TApi, TLayer> = options => {
     const rpcDefinition = definition.rpc;
@@ -52,6 +63,7 @@ export function defineEffectBff<
         definition.dataPlatform,
         options?.dataPlatform,
       ),
+      interceptRequest: definition.interceptRequest,
       validateRequest: options?.validateRequest,
     });
   };

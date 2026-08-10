@@ -24,6 +24,8 @@ type RegenerateRoutesFn = (params: {
 
 type HandleGeneratorEntryCodeOptions = {
   entrypointsKey?: string;
+  hydrateRscClientRoutes?: boolean;
+  serverRoutesFileName?: string;
 };
 
 type HandleFileChangeOptions = {
@@ -68,6 +70,10 @@ export async function handleGeneratorEntryCode(
     resolvedConfig as AppNormalizedConfig,
     entrypoints,
     api,
+    {
+      hydrateRscClientRoutes: normalizedOptions.hydrateRscClientRoutes,
+      serverRoutesFileName: normalizedOptions.serverRoutesFileName,
+    },
   );
   await Promise.all(
     entrypoints.map(async entrypoint => {
@@ -102,6 +108,9 @@ export async function handleGeneratorEntryCode(
               internalSrcAlias: appContext.internalSrcAlias,
               globalApp: entrypoint.fileSystemRoutes?.globalApp,
               rscType: 'server',
+              routesImportPath: normalizedOptions.serverRoutesFileName
+                ? `./${normalizedOptions.serverRoutesFileName.replace(/\.js$/, '')}`
+                : undefined,
               basename,
             }),
           );

@@ -104,6 +104,10 @@ export const generateCode = async (
   config: AppNormalizedConfig,
   entrypoints: Entrypoint[],
   api: CLIPluginAPI<AppTools>,
+  options: {
+    hydrateRscClientRoutes?: boolean;
+    serverRoutesFileName?: string;
+  } = {},
 ) => {
   const { internalDirectory, srcDirectory, internalSrcAlias, packageName } =
     appContext;
@@ -247,6 +251,7 @@ export const generateCode = async (
             internalDirectory,
             splitRouteChunks: config?.output?.splitRouteChunks,
             isRscClientBundle: isUseRsc(config),
+            hydrateRscClientRoutes: options.hydrateRscClientRoutes,
             srcDirectory,
             internalSrcAlias: appContext.internalSrcAlias,
           }),
@@ -290,7 +295,10 @@ export const generateCode = async (
           });
 
           await fs.outputFile(
-            path.resolve(internalDirectory, `./${entryName}/routes.server.js`),
+            path.resolve(
+              internalDirectory,
+              `./${entryName}/${options.serverRoutesFileName || 'routes.server.js'}`,
+            ),
             serverRoutesCode,
             'utf8',
           );

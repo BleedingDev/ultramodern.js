@@ -36,17 +36,23 @@ describe('routes inspect report', () => {
     await fs.copy(sourceAppDir, appDir, {
       filter: shouldCopyFixturePath,
     });
+    await fs.ensureSymlink(
+      path.join(sourceAppDir, 'node_modules'),
+      path.join(appDir, 'node_modules'),
+      'dir',
+    );
 
     const distDir = path.join(appDir, './dist');
     if (await fs.pathExists(distDir)) {
       await fs.remove(distDir);
     }
 
-    await runModernCommand(['routes'], {
+    const result = await runModernCommand(['routes'], {
       cwd: appDir,
       stdout: true,
       stderr: true,
     });
+    expect(result.code, result.stderr).toBe(0);
   });
 
   afterAll(async () => {

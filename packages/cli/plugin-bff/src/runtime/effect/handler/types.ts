@@ -117,6 +117,7 @@ export type EffectBffDefinition<
   layer: TLayer;
   rpc?: EffectRpcBffDefinition<TRpcs>;
   dataPlatform?: EffectDataPlatformValidationOptions;
+  interceptRequest?: EffectRequestInterceptor;
 };
 
 export type EffectDataPlatformSelectionValidationOptions = {
@@ -219,6 +220,11 @@ export type EffectDataPlatformValidationOptions = {
 export type EffectRequestValidator = (
   request: Request,
 ) => Response | null | undefined;
+
+export type EffectRequestInterceptor = (options: {
+  request: Request;
+  next: () => Promise<Response>;
+}) => Response | Promise<Response>;
 
 export type EffectBffHandlerFactory<
   TApi extends HttpApi.Constraint = HttpApi.Top,

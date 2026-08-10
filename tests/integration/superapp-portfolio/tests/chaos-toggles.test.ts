@@ -351,7 +351,10 @@ function assertChaosErrorEnvelope(
   target: ChaosTargetRequest,
 ) {
   for (const fieldPath of failure.expectedErrorEnvelope.requiredFields) {
-    expect(readPath(payload, fieldPath)).not.toBeUndefined();
+    expect(
+      readPath(payload, fieldPath),
+      `${failure.id} response omitted required field ${fieldPath}: ${JSON.stringify(payload)}`,
+    ).not.toBeUndefined();
   }
 
   const expectedErrorKeys = [

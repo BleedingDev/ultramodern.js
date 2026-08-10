@@ -1666,9 +1666,9 @@ function validateReadinessWorkflow(workflow) {
     'resolve-release-identity job',
   );
   requireCondition(
-    identitySteps.indexOf(artifactListingStep) <
-      identitySteps.indexOf(identityCheckout) &&
-      identitySteps.indexOf(identityCheckout) <
+    identitySteps.indexOf(identityCheckout) <
+      identitySteps.indexOf(artifactListingStep) &&
+      identitySteps.indexOf(artifactListingStep) <
         identitySteps.indexOf(outcomeSelectionStep) &&
       identitySteps.indexOf(outcomeSelectionStep) <
         identitySteps.indexOf(outcomeDownloadStep) &&
@@ -1682,7 +1682,7 @@ function validateReadinessWorkflow(workflow) {
         identitySteps.indexOf(receiptVerification) &&
       identitySteps.indexOf(receiptVerification) <
         identitySteps.indexOf(identityVerificationStep),
-    'cross-run identity resolution must authenticate the retry outcome before selecting, downloading, and authorizing the original publication identity',
+    'cross-run identity resolution must preserve the post-checkout artifact listing while authenticating the retry outcome before selecting, downloading, and authorizing the original publication identity',
   );
 
   const postpublishIdentityDownload = artifactStep(

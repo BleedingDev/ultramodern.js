@@ -11,10 +11,12 @@
     "new": "modern new"
   },
   "dependencies": {
+    "@effect/opentelemetry": "4.0.0-beta.102",
     "@modern-js/plugin-bff": "workspace:*",
     "@modern-js/runtime": "workspace:*",
     "@modern-js/server-runtime": "workspace:*",
     "express": "^5.2.1",
+    "effect": "4.0.0-beta.102",
     "hono": "^4.12.28",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
@@ -51,6 +53,10 @@
       "import": "./dist-1/client/context/index.js",
       "types": "./dist-1/client/context/index.d.ts"
     },
+    "./api/effect/index": {
+      "import": "./dist-1/client/effect/index.js",
+      "types": "./dist-1/client/effect/index.d.ts"
+    },
     "./api/index": {
       "import": "./dist-1/client/index.js",
       "types": "./dist-1/client/index.d.ts"
@@ -81,6 +87,9 @@
       ],
       "api/context/index": [
         "./dist-1/client/context/index.d.ts"
+      ],
+      "api/effect/index": [
+        "./dist-1/client/effect/index.d.ts"
       ],
       "api/index": [
         "./dist-1/client/index.d.ts"

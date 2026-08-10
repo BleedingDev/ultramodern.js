@@ -1,5 +1,9 @@
 import type { AppTools } from '@modern-js/app-tools';
-import { ApiRouter } from '@modern-js/bff-core';
+import {
+  ApiRouter,
+  buildOperationContractMap,
+  deriveOperationVersion,
+} from '@modern-js/bff-core';
 import type { CLIPluginAPI } from '@modern-js/plugin';
 import { compile } from '@modern-js/server-utils';
 import {
@@ -181,9 +185,37 @@ export const createBffGenerator = (api: CLIPluginAPI<AppTools>) => {
     const lambdaDir = apiRouter.getLambdaDir();
     const existLambda = apiRouter.isExistLambda();
 
+    const packageJson = fs.readJSONSync(
+      path.resolve(appDirectory, 'package.json'),
+    ) as {
+      name?: string;
+      version?: string;
+    };
+    const requestId = packageJson.name || process.env.npm_package_name;
+    const operationContracts = existLambda
+      ? buildOperationContractMap({
+          handlers: await apiRouter.getApiHandlers(),
+          requestId,
+          operationVersion: deriveOperationVersion(packageJson.version),
+        })
+      : {};
+
     const runtime = bff?.runtimeCreateRequest || RUNTIME_CREATE_REQUEST;
     const relativeApiPath = path.relative(appDirectory, apiDirectory);
     const relativeLambdaPath = path.relative(appDirectory, lambdaDir);
+    const sourceEffectEntry =
+      bffRuntimeFramework === 'effect'
+        ? resolveEffectSourceEntry(
+            appDirectory,
+            apiDirectory,
+            bff?.effect?.entry,
+          )
+        : undefined;
+    const relativeEffectEntry = sourceEffectEntry
+      ? path
+          .relative(appDirectory, sourceEffectEntry)
+          .replace(/\.(?:[cm]?ts|tsx|jsx)$/u, '.js')
+      : '';
 
     await pluginGenerator({
       prefix,
@@ -192,6 +224,8 @@ export const createBffGenerator = (api: CLIPluginAPI<AppTools>) => {
       relativeApiPath,
       relativeLambdaPath,
       runtimeFramework: bffRuntimeFramework === 'hono' ? 'hono' : 'effect',
+      relativeEffectEntry,
+      operationContracts,
     });
     await clientGenerator({
       prefix,

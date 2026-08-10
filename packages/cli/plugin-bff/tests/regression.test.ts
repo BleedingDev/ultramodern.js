@@ -5,6 +5,7 @@ import path from 'node:path';
 import type { ServerPluginAPI } from '@modern-js/server-core';
 import { semver } from '@modern-js/utils';
 import { build } from 'esbuild';
+import defaultBffPlugin, { bffPlugin } from '../src/cli';
 import {
   createBackendFederationRuntime,
   loadBackendFederatedEffectApi,
@@ -23,6 +24,11 @@ import runtimeGenerator from '../src/utils/runtimeGenerator';
 const require = createRequire(import.meta.url);
 
 describe('plugin-bff regressions', () => {
+  test('default and named CLI exports create the same public plugin', () => {
+    expect(defaultBffPlugin).toBe(bffPlugin);
+    expect(defaultBffPlugin().name).toBe('@modern-js/plugin-bff');
+  });
+
   test('package server export is Effect-first and Hono remains explicit compatibility', () => {
     const packageJson = JSON.parse(
       fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf8'),

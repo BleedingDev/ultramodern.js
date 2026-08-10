@@ -13,11 +13,6 @@ type ExecSyncError = Error & {
   stderr?: Buffer | string;
 };
 
-function expectedBleedingDevSpecifier(packageName: string) {
-  const unscopedName = packageName.split('/').at(-1);
-  return `npm:@bleedingdev/modern-js-${unscopedName}@${testFrameworkVersion}`;
-}
-
 function expectWorkspaceModernVersions(packageJson: {
   dependencies?: Record<string, string>;
   devDependencies?: Record<string, string>;
@@ -140,10 +135,10 @@ describe('create-bff-runtime', () => {
       'verticals/greetings/package.json',
     );
     expect(verticalPackage.dependencies['@modern-js/plugin-tanstack']).toBe(
-      expectedBleedingDevSpecifier('@modern-js/plugin-tanstack'),
+      'workspace:*',
     );
     expect(verticalPackage.dependencies['@modern-js/plugin-bff']).toBe(
-      expectedBleedingDevSpecifier('@modern-js/plugin-bff'),
+      'workspace:*',
     );
     expect(verticalPackage.dependencies['@tanstack/react-router']).toBe(
       '1.170.17',

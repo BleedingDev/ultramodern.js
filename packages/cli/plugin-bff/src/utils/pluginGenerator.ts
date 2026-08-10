@@ -4,7 +4,9 @@ import path from 'path';
 import {
   API_DIR,
   DIST_DIR,
+  EFFECT_ENTRY,
   LAMBDA_DIR,
+  OPERATION_CONTRACTS_JSON,
   PACKAGE_NAME,
   PREFIX,
   RUNTIME_FRAMEWORK,
@@ -18,6 +20,8 @@ function replaceContent(
   relativeApiPath: string,
   relativeLambdaPath: string,
   runtimeFramework: 'hono' | 'effect',
+  relativeEffectEntry: string,
+  operationContracts: Record<string, unknown>,
 ) {
   const updatedSource = source
     .replace(new RegExp(PACKAGE_NAME, 'g'), packageName)
@@ -28,7 +32,14 @@ function replaceContent(
       new RegExp(LAMBDA_DIR, 'g'),
       normalizeToPosixPath(relativeLambdaPath),
     )
-    .replace(new RegExp(RUNTIME_FRAMEWORK, 'g'), runtimeFramework);
+    .replace(new RegExp(RUNTIME_FRAMEWORK, 'g'), runtimeFramework)
+    .replace(
+      new RegExp(EFFECT_ENTRY, 'g'),
+      normalizeToPosixPath(relativeEffectEntry),
+    )
+    .replace(`'${OPERATION_CONTRACTS_JSON}'`, () =>
+      JSON.stringify(JSON.stringify(operationContracts)),
+    );
   return updatedSource;
 }
 
@@ -39,6 +50,8 @@ async function pluginGenerator({
   relativeApiPath,
   relativeLambdaPath,
   runtimeFramework,
+  relativeEffectEntry,
+  operationContracts,
 }: {
   prefix: string;
   appDirectory: string;
@@ -46,6 +59,8 @@ async function pluginGenerator({
   relativeApiPath: string;
   relativeLambdaPath: string;
   runtimeFramework: 'hono' | 'effect';
+  relativeEffectEntry: string;
+  operationContracts: Record<string, unknown>;
 }) {
   try {
     const packageContent = await fs.readFile(
@@ -73,6 +88,8 @@ async function pluginGenerator({
       relativeApiPath,
       relativeLambdaPath,
       runtimeFramework,
+      relativeEffectEntry,
+      operationContracts,
     );
 
     await fs.ensureFile(pluginPath);

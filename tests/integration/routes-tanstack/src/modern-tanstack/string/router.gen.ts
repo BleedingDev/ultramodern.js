@@ -107,5 +107,5 @@ export const router = createRouter({
   history: createMemoryHistory({
     initialEntries: ['/'],
   }),
-  context: {} as ModernRouterContext,
+  context: {},
 });
