@@ -7,9 +7,10 @@ import { inspect } from 'node:util';
 const storage = new AsyncLocalStorage();
 
 storage.run({ value: 'externalized' }, () => {
-  window.__asyncHooksValue = inspect({
+  window.__asyncHooksValue = {
     file: basename('/workers/index.mjs'),
     id: randomUUID(),
     payload: Buffer.from(storage.getStore().value).toString('utf8'),
-  });
+  };
+  window.__asyncHooksInspect = inspect(window.__asyncHooksValue);
 });

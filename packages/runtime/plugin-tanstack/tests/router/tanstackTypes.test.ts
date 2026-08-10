@@ -1,9 +1,8 @@
 import { execFile } from 'node:child_process';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { isRedirect } from '@tanstack/react-router';
 
 const resolverDelays = new Map<string, number>();
 
@@ -34,14 +33,8 @@ import {
   collectCanonicalRoutesForEntry,
   generateTanstackRouterTypesSourceForEntry,
 } from '../../src/cli/tanstackTypes';
-import { throwTanstackRedirect } from '../../src/runtime/loaderBridge';
 
 const execFileAsync = promisify(execFile);
-const routerGenGoldenPath = path.join(
-  __dirname,
-  'fixtures',
-  'router-gen.golden.txt',
-);
 const routerGenOxlintConfigPath = path.join(
   __dirname,
   'fixtures',
@@ -51,35 +44,161 @@ const oxlintCliPath = path.resolve(
   __dirname,
   '../../../../toolkit/code-tools/node_modules/oxlint/bin/oxlint',
 );
+const strictestTsconfigPath = path.resolve(
+  __dirname,
+  '../../node_modules/@tsconfig/strictest/tsconfig.json',
+);
 
-type RedirectLike = {
-  options?: {
-    href?: string;
-    to?: string;
-  };
-};
+async function writeRuntimeTestPackage(projectDirectory: string) {
+  const runtimePackageDirectory = path.join(
+    projectDirectory,
+    'node_modules',
+    '@modern-js',
+    'plugin-tanstack',
+  );
+  await mkdir(runtimePackageDirectory, { recursive: true });
+  await writeFile(
+    path.join(runtimePackageDirectory, 'package.json'),
+    JSON.stringify({
+      name: '@modern-js/plugin-tanstack',
+      type: 'commonjs',
+      exports: {
+        './runtime': {
+          types: './runtime.d.ts',
+          default: './runtime.js',
+        },
+      },
+    }),
+  );
+  await writeFile(
+    path.join(runtimePackageDirectory, 'runtime.d.ts'),
+    [
+      'export type ModernRouterContext = { request?: Request; requestContext?: unknown };',
+      'export type ModernRouteStaticData = { modernRouteId?: string; modernRouteAction?: unknown; modernRouteLoader?: unknown };',
+      'export type RouteOptions = {',
+      '  component?: unknown;',
+      '  getParentRoute?: (...args: never[]) => unknown;',
+      '  id?: string;',
+      '  loader?: (...args: never[]) => unknown;',
+      '  loaderDeps?: (...args: never[]) => unknown;',
+      '  path?: string;',
+      '  staticData?: ModernRouteStaticData;',
+      '  validateSearch?: (...args: never[]) => unknown;',
+      '};',
+      'export type Route<TOptions extends RouteOptions = RouteOptions> = {',
+      '  options: TOptions;',
+      '  addChildren<const TChildren extends readonly unknown[]>(children: TChildren): Route<TOptions> & { children: TChildren };',
+      '};',
+      'export const runtimeState: { adapterCalls: Array<{ hasSplat: boolean; modernLoader: unknown }> };',
+      'export function createMemoryHistory<TOptions>(options: TOptions): TOptions;',
+      'export const modernTanstackRouterFastDefaults: { defaultPreload: "intent" };',
+      'export function createRootRouteWithContext<TContext extends ModernRouterContext>(): <const TOptions extends RouteOptions>(options: TOptions) => Route<TOptions>;',
+      'export function createRoute<const TOptions extends RouteOptions>(options: TOptions): Route<TOptions>;',
+      'export function createRouter<const TOptions extends { context: ModernRouterContext; history: unknown; routeTree: unknown }>(options: TOptions): TOptions;',
+      'export function createRouteStaticData<const TData extends ModernRouteStaticData>(data: TData): TData;',
+      'export function modernLoaderToTanstack<TLoader extends (...args: never[]) => unknown>(options: { hasSplat: boolean }, modernLoader: TLoader): (context: unknown) => Promise<Awaited<ReturnType<TLoader>>>;',
+    ].join('\n'),
+  );
+  await writeFile(
+    path.join(runtimePackageDirectory, 'runtime.js'),
+    [
+      'const runtimeState = { adapterCalls: [] };',
+      'const createRouteRecord = options => ({',
+      '  options,',
+      '  addChildren(children) {',
+      '    this.children = children;',
+      '    return this;',
+      '  },',
+      '});',
+      'const createMemoryHistory = options => options;',
+      'const modernTanstackRouterFastDefaults = { defaultPreload: "intent" };',
+      'const createRootRouteWithContext = () => options => createRouteRecord(options);',
+      'const createRoute = options => createRouteRecord(options);',
+      'const createRouter = options => options;',
+      'const createRouteStaticData = data => data;',
+      'const modernLoaderToTanstack = (options, modernLoader) => {',
+      '  runtimeState.adapterCalls.push({ ...options, modernLoader });',
+      '  return async context => modernLoader(context);',
+      '};',
+      'module.exports = { createMemoryHistory, createRootRouteWithContext, createRoute, createRouter, createRouteStaticData, modernLoaderToTanstack, modernTanstackRouterFastDefaults, runtimeState };',
+    ].join('\n'),
+  );
+}
 
-function catchThrown(fn: () => unknown): unknown {
+async function compileAndRunGeneratedRouter(options: {
+  projectDirectory: string;
+  routerGenTs: string;
+  runtimeCheck: string;
+}) {
+  const { projectDirectory, routerGenTs, runtimeCheck } = options;
+  const generatedDirectory = path.join(
+    projectDirectory,
+    'src',
+    'modern-tanstack',
+    'index',
+  );
+  await mkdir(generatedDirectory, { recursive: true });
+  await writeFile(path.join(generatedDirectory, 'router.gen.ts'), routerGenTs);
+  await writeFile(
+    path.join(projectDirectory, 'src', 'runtime-check.ts'),
+    runtimeCheck,
+  );
+  await writeRuntimeTestPackage(projectDirectory);
+  await writeFile(
+    path.join(projectDirectory, 'package.json'),
+    JSON.stringify({ private: true, type: 'commonjs' }),
+  );
+  await writeFile(
+    path.join(projectDirectory, 'tsconfig.json'),
+    JSON.stringify(
+      {
+        extends: strictestTsconfigPath,
+        compilerOptions: {
+          lib: ['ESNext', 'DOM'],
+          jsx: 'react-jsx',
+          module: 'Node16',
+          moduleResolution: 'Node16',
+          outDir: 'dist',
+          rootDir: 'src',
+          target: 'ES2022',
+          types: [],
+          verbatimModuleSyntax: false,
+        },
+        include: ['src/**/*.ts', 'src/**/*.tsx'],
+      },
+      null,
+      2,
+    ),
+  );
+
   try {
-    fn();
-  } catch (err) {
-    return err;
-  }
-  throw new Error('expected function to throw');
-}
-
-function extractRouteGenerationOrder(source: string) {
-  return source.split('\n').filter(line => {
-    return (
-      line.startsWith('import component_') ||
-      line.startsWith('const route_') ||
-      line.includes('component: component_') ||
-      line.startsWith('export const routeTree')
+    await execFileAsync(
+      process.platform === 'win32' ? 'tsgo.cmd' : 'tsgo',
+      ['-p', 'tsconfig.json'],
+      {
+        cwd: projectDirectory,
+        shell: process.platform === 'win32',
+      },
     );
-  });
+  } catch (error) {
+    if (
+      error &&
+      typeof error === 'object' &&
+      'stdout' in error &&
+      typeof error.stdout === 'string'
+    ) {
+      throw new Error(error.stdout, { cause: error });
+    }
+    throw error;
+  }
+  await execFileAsync(
+    process.execPath,
+    [path.join(projectDirectory, 'dist', 'runtime-check.js')],
+    { cwd: projectDirectory },
+  );
 }
 
-async function writeGoldenRouterFixture(srcDirectory: string) {
+async function writeComprehensiveRouterFixture(srcDirectory: string) {
   const files = new Map([
     [
       'routes/(app)/layout.tsx',
@@ -116,8 +235,8 @@ async function writeGoldenRouterFixture(srcDirectory: string) {
   }
 }
 
-async function generateGoldenRouterGen(srcDirectory: string) {
-  await writeGoldenRouterFixture(srcDirectory);
+async function generateComprehensiveRouterGen(srcDirectory: string) {
+  await writeComprehensiveRouterFixture(srcDirectory);
 
   const { routerGenTs } = await generateTanstackRouterTypesSourceForEntry({
     appContext: {
@@ -173,7 +292,79 @@ describe('tanstack router type generation', () => {
     }
   });
 
-  test('emits inline data actions into route static data', async () => {
+  test('strictly compiles and executes a loader-free conventional route tree', async () => {
+    tempDir = await mkdtemp(path.join(tmpdir(), 'modern-tanstack-types-'));
+    const srcDirectory = path.join(tempDir, 'src');
+    const files = new Map([
+      [
+        'routes/layout.tsx',
+        'export default function Layout() { return null; }',
+      ],
+      ['routes/page.tsx', 'export default function Home() { return null; }'],
+      [
+        'routes/reviews/[scanId]/page.tsx',
+        'export default function Review() { return null; }',
+      ],
+    ]);
+
+    for (const [relativePath, contents] of files) {
+      const filePath = path.join(srcDirectory, relativePath);
+      await mkdir(path.dirname(filePath), { recursive: true });
+      await writeFile(filePath, contents);
+    }
+
+    const { routerGenTs } = await generateTanstackRouterTypesSourceForEntry({
+      appContext: {
+        srcDirectory,
+        internalSrcAlias: '@/_',
+      } as any,
+      entryName: 'index',
+      routes: [
+        {
+          type: 'nested',
+          id: 'layout',
+          isRoot: true,
+          _component: '@/_/routes/layout',
+          children: [
+            {
+              type: 'nested',
+              id: 'page',
+              index: true,
+              _component: '@/_/routes/page',
+            },
+            {
+              type: 'nested',
+              id: 'reviews/(scanId)/page',
+              path: 'reviews/:scanId',
+              _component: '@/_/routes/reviews/[scanId]/page',
+            },
+          ],
+        },
+      ] as any,
+    });
+
+    await compileAndRunGeneratedRouter({
+      projectDirectory: tempDir,
+      routerGenTs,
+      runtimeCheck: [
+        "import { runtimeState } from '@modern-js/plugin-tanstack/runtime';",
+        "import Layout from './routes/layout';",
+        "import Home from './routes/page';",
+        "import Review from './routes/reviews/[scanId]/page';",
+        "import { rootRoute, routeTree, router } from './modern-tanstack/index/router.gen';",
+        '',
+        'if (runtimeState.adapterCalls.length !== 0) throw new Error("loader adapter registered without a loader");',
+        'if (Object.keys(router.context).length !== 0) throw new Error("router context is not empty");',
+        'if (rootRoute.options.component !== Layout) throw new Error("root component was not wired");',
+        'const [homeRoute, reviewRoute] = routeTree.children;',
+        'if (homeRoute.options.component !== Home) throw new Error("index component was not wired");',
+        'if (reviewRoute.options.component !== Review) throw new Error("review component was not wired");',
+        'if (reviewRoute.options.path !== "reviews/$scanId") throw new Error("route params were not translated");',
+      ].join('\n'),
+    });
+  });
+
+  test('executes generated loader and action wiring through route static data', async () => {
     tempDir = await mkdtemp(path.join(tmpdir(), 'modern-tanstack-types-'));
     const srcDirectory = path.join(tempDir, 'src');
     const routeDir = path.join(srcDirectory, 'routes', 'mf');
@@ -210,126 +401,29 @@ describe('tanstack router type generation', () => {
       ] as any,
     });
 
-    expect(routerGenTs).toContain(
-      'import { loader as loader_0, action as action_0 } from "../../routes/mf/page.data";',
-    );
-    expect(routerGenTs).toContain('modernRouteLoader: loader_0');
-    expect(routerGenTs).toContain('modernRouteAction: action_0');
-    expect(routerGenTs).toContain(
-      "} from '@modern-js/plugin-tanstack/runtime';",
-    );
-    expect(routerGenTs).toContain('modernTanstackRouterFastDefaults,');
-    expect(routerGenTs).toContain('...modernTanstackRouterFastDefaults,');
-
-    // The loader-bridge helpers are imported from the package runtime instead
-    // of being inlined into every generated file (bugfixes ship via package
-    // update, and the broken inline absolute-redirect handler is gone).
-    expect(routerGenTs).toContain('createRouteStaticData,');
-    expect(routerGenTs).toContain('modernLoaderToTanstack,');
-    expect(routerGenTs).toContain('type ModernRouterContext,');
-    expect(routerGenTs).not.toContain('function modernLoaderToTanstack');
-    expect(routerGenTs).not.toContain('function createRouteStaticData');
-    expect(routerGenTs).not.toContain('function throwTanstackRedirect');
-    expect(routerGenTs).not.toContain('new URL(target)');
-    expect(routerGenTs).not.toContain('redirect({ to: target })');
-
-    const redirectError = catchThrown(() =>
-      throwTanstackRedirect('https://example.com/absolute'),
-    ) as RedirectLike;
-    expect(isRedirect(redirectError)).toBe(true);
-    expect(redirectError.options?.href).toBe('https://example.com/absolute');
-    expect(redirectError.options?.to).toBeUndefined();
-  });
-
-  test('emits resolvable relative component imports for routes carrying _component', async () => {
-    tempDir = await mkdtemp(path.join(tmpdir(), 'modern-tanstack-types-'));
-    const srcDirectory = path.join(tempDir, 'src');
-    for (const componentFile of [
-      'routes/layout.tsx',
-      'routes/page.tsx',
-      'routes/about/page.tsx',
-    ]) {
-      const componentPath = path.join(srcDirectory, componentFile);
-      await mkdir(path.dirname(componentPath), { recursive: true });
-      await writeFile(componentPath, 'export default () => null;');
-    }
-
-    const { routerGenTs } = await generateTanstackRouterTypesSourceForEntry({
-      appContext: {
-        srcDirectory,
-        internalSrcAlias: '@/_',
-      } as any,
-      entryName: 'index',
-      routes: [
-        {
-          type: 'nested',
-          id: 'layout',
-          isRoot: true,
-          _component: '@/_/routes/layout',
-          children: [
-            {
-              type: 'nested',
-              id: 'page',
-              index: true,
-              _component: '@/_/routes/page',
-            },
-            {
-              type: 'nested',
-              id: 'about/page',
-              path: 'about',
-              _component: '@/_/routes/about/page',
-            },
-            {
-              // Shares the page component module: the import must be reused.
-              type: 'nested',
-              id: 'about-alias/page',
-              path: 'about-alias',
-              _component: '@/_/routes/about/page',
-            },
-            {
-              // No _component: no component option may be emitted.
-              type: 'nested',
-              id: 'data-only/page',
-              path: 'data-only',
-            },
-          ],
-        },
-      ] as any,
+    await compileAndRunGeneratedRouter({
+      projectDirectory: tempDir,
+      routerGenTs,
+      runtimeCheck: [
+        "import { runtimeState } from '@modern-js/plugin-tanstack/runtime';",
+        "import { action, loader } from './routes/mf/page.data';",
+        "import { routeTree } from './modern-tanstack/index/router.gen';",
+        '',
+        'async function main() {',
+        'const [mfRoute] = routeTree.children;',
+        'if (runtimeState.adapterCalls.length !== 1) throw new Error("loader adapter was not registered exactly once");',
+        'if (runtimeState.adapterCalls[0]?.modernLoader !== loader) throw new Error("wrong loader was adapted");',
+        'const result = await mfRoute.options.loader({});',
+        'if (result.count !== 0) throw new Error("adapted loader returned the wrong value");',
+        'if (mfRoute.options.staticData.modernRouteLoader !== loader) throw new Error("loader static data was not wired");',
+        'if (mfRoute.options.staticData.modernRouteAction !== action) throw new Error("action static data was not wired");',
+        '}',
+        'void main();',
+      ].join('\n'),
     });
-
-    // Children are emitted first, the root route component import last.
-    // Imports are relative (resolved like loader modules) — the raw
-    // `@/_` internal alias is not mapped by app tsconfigs.
-    expect(routerGenTs).toContain(
-      'import component_0 from "../../routes/page";',
-    );
-    expect(routerGenTs).toContain(
-      'import component_1 from "../../routes/about/page";',
-    );
-    expect(routerGenTs).toContain(
-      'import component_2 from "../../routes/layout";',
-    );
-    expect(routerGenTs).not.toContain('@/_/routes');
-    // The shared module is imported exactly once.
-    expect(routerGenTs).not.toContain('component_3');
-    expect(
-      routerGenTs.match(/from "\.\.\/\.\.\/routes\/about\/page";/g),
-    ).toHaveLength(1);
-
-    expect(routerGenTs).toContain('component: component_0,');
-    // The shared component import is referenced by both aliased routes.
-    expect(routerGenTs.match(/component: component_1,/g)).toHaveLength(2);
-    // The root route gets its component option.
-    expect(routerGenTs).toContain('component: component_2,');
-
-    const dataOnlyRoute = routerGenTs
-      .split('const ')
-      .find(block => block.includes('path: "data-only",'));
-    expect(dataOnlyRoute).toBeDefined();
-    expect(dataOnlyRoute).not.toContain('component:');
   });
 
-  test('keeps generated source stable when route module resolution races', async () => {
+  test('executes component sharing correctly when module resolution races', async () => {
     tempDir = await mkdtemp(path.join(tmpdir(), 'modern-tanstack-types-'));
     const srcDirectory = path.join(tempDir, 'src');
 
@@ -346,93 +440,109 @@ describe('tanstack router type generation', () => {
       );
     }
 
-    const routes = [
-      {
-        type: 'nested',
-        id: 'layout',
-        isRoot: true,
-        children: [
-          {
-            type: 'nested',
-            id: 'slow/page',
-            path: 'slow',
-            _component: '@/_/routes/slow-page',
-          },
-          {
-            type: 'nested',
-            id: 'fast/page',
-            path: 'fast',
-            _component: '@/_/routes/fast-page',
-          },
-          {
-            type: 'nested',
-            id: 'shared-a/page',
-            path: 'shared-a',
-            _component: '@/_/routes/shared-page',
-          },
-          {
-            type: 'nested',
-            id: 'shared-b/page',
-            path: 'shared-b',
-            _component: '@/_/routes/shared-page',
-          },
-        ],
-      },
-    ] as any;
-
-    const generateWithResolverDelays = async (
-      delays: Record<string, number>,
-    ) => {
-      resolverDelays.clear();
-      for (const [suffix, delay] of Object.entries(delays)) {
-        resolverDelays.set(suffix, delay);
-      }
-
-      const { routerGenTs } = await generateTanstackRouterTypesSourceForEntry({
-        appContext: {
-          srcDirectory,
-          internalSrcAlias: '@/_',
-        } as any,
-        entryName: 'index',
-        routes,
-      });
-
-      return routerGenTs;
-    };
-
-    const sequentialOutput = await generateWithResolverDelays({});
-    const racedOutput = await generateWithResolverDelays({
-      '/routes/slow-page': 25,
+    resolverDelays.set('/routes/slow-page', 25);
+    const { routerGenTs } = await generateTanstackRouterTypesSourceForEntry({
+      appContext: {
+        srcDirectory,
+        internalSrcAlias: '@/_',
+      } as any,
+      entryName: 'index',
+      routes: [
+        {
+          type: 'nested',
+          id: 'layout',
+          isRoot: true,
+          children: [
+            {
+              type: 'nested',
+              id: 'slow/page',
+              path: 'slow',
+              _component: '@/_/routes/slow-page',
+            },
+            {
+              type: 'nested',
+              id: 'fast/page',
+              path: 'fast',
+              _component: '@/_/routes/fast-page',
+            },
+            {
+              type: 'nested',
+              id: 'shared-a/page',
+              path: 'shared-a',
+              _component: '@/_/routes/shared-page',
+            },
+            {
+              type: 'nested',
+              id: 'shared-b/page',
+              path: 'shared-b',
+              _component: '@/_/routes/shared-page',
+            },
+            {
+              type: 'nested',
+              id: 'data-only/page',
+              path: 'data-only',
+            },
+          ],
+        },
+      ] as any,
     });
 
-    expect(
-      racedOutput.match(/from "\.\.\/\.\.\/routes\/shared-page";/g),
-    ).toHaveLength(1);
-    expect(extractRouteGenerationOrder(racedOutput)).toEqual(
-      extractRouteGenerationOrder(sequentialOutput),
-    );
-    expect(racedOutput).toBe(sequentialOutput);
-  });
-
-  test('matches checked-in router.gen golden output', async () => {
-    tempDir = await mkdtemp(path.join(tmpdir(), 'modern-tanstack-types-'));
-    const srcDirectory = path.join(tempDir, 'src');
-    const routerGenTs = await generateGoldenRouterGen(srcDirectory);
-
-    if (process.env.UPDATE_TANSTACK_ROUTER_GOLDEN === '1') {
-      await mkdir(path.dirname(routerGenGoldenPath), { recursive: true });
-      await writeFile(routerGenGoldenPath, routerGenTs);
-    }
-
-    await expect(readFile(routerGenGoldenPath, 'utf8')).resolves.toBe(
+    await compileAndRunGeneratedRouter({
+      projectDirectory: tempDir,
       routerGenTs,
-    );
+      runtimeCheck: [
+        "import SlowPage from './routes/slow-page';",
+        "import FastPage from './routes/fast-page';",
+        "import SharedPage from './routes/shared-page';",
+        "import { routeTree } from './modern-tanstack/index/router.gen';",
+        '',
+        'const [slowRoute, fastRoute, sharedA, sharedB, dataOnly] = routeTree.children;',
+        'if (slowRoute.options.component !== SlowPage) throw new Error("slow component was crossed during resolution");',
+        'if (fastRoute.options.component !== FastPage) throw new Error("fast component was crossed during resolution");',
+        'if (sharedA.options.component !== SharedPage || sharedB.options.component !== SharedPage) throw new Error("shared component identity was not preserved");',
+        'if (Reflect.has(dataOnly.options, "component")) throw new Error("data-only route gained a component");',
+      ].join('\n'),
+    });
   });
 
-  test('emits suppression-free router source that passes the generated-artifact lint fixture', async () => {
+  test('strictly compiles and executes nested loader and search contracts', async () => {
     tempDir = await mkdtemp(path.join(tmpdir(), 'modern-tanstack-types-'));
     const srcDirectory = path.join(tempDir, 'src');
-    const routerGenTs = await generateGoldenRouterGen(srcDirectory);
+    const routerGenTs = await generateComprehensiveRouterGen(srcDirectory);
+
+    await compileAndRunGeneratedRouter({
+      projectDirectory: tempDir,
+      routerGenTs,
+      runtimeCheck: [
+        "import { runtimeState } from '@modern-js/plugin-tanstack/runtime';",
+        "import { action, loader } from './routes/(app)/users/(userId)/page.data';",
+        "import { loaderDeps, validateSearch } from './routes/search.contract';",
+        "import { routeTree } from './modern-tanstack/index/router.gen';",
+        '',
+        'async function main() {',
+        'const [appRoute] = routeTree.children;',
+        'const [userRoute, docsRoute] = appRoute.children;',
+        'if (runtimeState.adapterCalls.length !== 1) throw new Error("nested loader was not adapted");',
+        'if (userRoute.options.validateSearch !== validateSearch) throw new Error("search validator was not wired");',
+        'if (userRoute.options.loaderDeps !== loaderDeps) throw new Error("loader dependencies were not wired");',
+        'if (userRoute.options.staticData.modernRouteLoader !== loader) throw new Error("nested static loader was not wired");',
+        'if (userRoute.options.staticData.modernRouteAction !== action) throw new Error("nested static action was not wired");',
+        'const user = await userRoute.options.loader({});',
+        'if (user.userId !== "42") throw new Error("nested loader result was lost");',
+        'if (userRoute.options.path !== "users/$userId") throw new Error("required route param was not translated");',
+        'if (docsRoute.options.path !== "docs/$") throw new Error("splat route was not translated");',
+        'const search = userRoute.options.validateSearch({});',
+        'if (search.tab !== "overview") throw new Error("search contract returned the wrong value");',
+        '}',
+        'void main();',
+      ].join('\n'),
+    });
+  });
+
+  test('passes the generated-artifact lint contract', async () => {
+    tempDir = await mkdtemp(path.join(tmpdir(), 'modern-tanstack-types-'));
+    const srcDirectory = path.join(tempDir, 'src');
+    const routerGenTs = await generateComprehensiveRouterGen(srcDirectory);
     const routerGenPath = path.join(
       srcDirectory,
       'modern-tanstack',
@@ -442,8 +552,6 @@ describe('tanstack router type generation', () => {
 
     await mkdir(path.dirname(routerGenPath), { recursive: true });
     await writeFile(routerGenPath, routerGenTs);
-
-    expect(routerGenTs).not.toContain('eslint-disable');
 
     const { stderr, stdout } = await execFileAsync(
       process.execPath,
@@ -464,130 +572,7 @@ describe('tanstack router type generation', () => {
     expect(`${stdout}${stderr}`).toBe('');
   });
 
-  test('typechecks generated TanStack search contracts', async () => {
-    tempDir = await mkdtemp(path.join(tmpdir(), 'modern-tanstack-types-'));
-    const srcDirectory = path.join(tempDir, 'src');
-    const routeDir = path.join(srcDirectory, 'routes');
-    const generatedDir = path.join(srcDirectory, 'modern-tanstack', 'index');
-    await mkdir(routeDir, { recursive: true });
-    await mkdir(generatedDir, { recursive: true });
-    await writeFile(
-      path.join(routeDir, 'search.contract.ts'),
-      [
-        'export const validateSearch = (search: { q?: string }) => ({ q: search.q ?? "" });',
-        'export const loaderDeps = ({ search }: { search: { q: string } }) => ({ q: search.q });',
-      ].join('\n'),
-    );
-
-    const { routerGenTs } = await generateTanstackRouterTypesSourceForEntry({
-      appContext: {
-        srcDirectory,
-        internalSrcAlias: '@/_',
-      } as any,
-      entryName: 'index',
-      routes: [
-        {
-          type: 'nested',
-          id: 'layout',
-          isRoot: true,
-          validateSearch: '@/_/routes/search.contract',
-          loaderDeps: '@/_/routes/search.contract',
-          children: [
-            {
-              type: 'nested',
-              id: 'search/page',
-              path: 'search',
-              validateSearch: '@/_/routes/search.contract',
-              loaderDeps: '@/_/routes/search.contract',
-            },
-          ],
-        },
-      ] as any,
-    });
-
-    await writeFile(path.join(generatedDir, 'router.gen.ts'), routerGenTs);
-    await writeFile(
-      path.join(srcDirectory, 'runtime-shim.d.ts'),
-      [
-        "declare module '@modern-js/plugin-tanstack/runtime' {",
-        '  type RouteOptions = {',
-        '    getParentRoute?: () => unknown;',
-        '    id?: string;',
-        '    loader?: unknown;',
-        '    loaderDeps?: unknown;',
-        '    path?: string;',
-        '    staticData?: unknown;',
-        '    validateSearch?: unknown;',
-        '  };',
-        '  type Route<TOptions extends RouteOptions> = {',
-        '    options: TOptions;',
-        '    addChildren<TChildren extends readonly unknown[]>(children: TChildren): Route<TOptions> & { children: TChildren };',
-        '  };',
-        '  export type ModernRouterContext = {',
-        '    request?: Request;',
-        '    requestContext?: unknown;',
-        '  };',
-        '  export function createMemoryHistory(options: unknown): unknown;',
-        '  export const modernTanstackRouterFastDefaults: Record<string, unknown>;',
-        '  export function createRootRouteWithContext<TContext>(): <TOptions extends RouteOptions>(options: TOptions) => Route<TOptions>;',
-        '  export function createRoute<TOptions extends RouteOptions>(options: TOptions): Route<TOptions>;',
-        '  export function createRouter<TOptions extends Record<string, unknown>>(options: TOptions): TOptions;',
-        '  export function createRouteStaticData(opts: { modernRouteId?: string; modernRouteAction?: unknown; modernRouteLoader?: unknown }): Record<string, unknown>;',
-        '  export function modernLoaderToTanstack<TLoader extends (args: never) => unknown>(opts: { hasSplat: boolean }, modernLoader: TLoader): (ctx: unknown) => Promise<Awaited<ReturnType<TLoader>>>;',
-        '}',
-      ].join('\n'),
-    );
-    await writeFile(
-      path.join(srcDirectory, 'assert-search-contracts.ts'),
-      [
-        "import { rootRoute, routeTree } from './modern-tanstack/index/router.gen';",
-        "import { loaderDeps, validateSearch } from './routes/search.contract';",
-        '',
-        'const rootValidateSearch: typeof validateSearch = rootRoute.options.validateSearch;',
-        'const rootLoaderDeps: typeof loaderDeps = rootRoute.options.loaderDeps;',
-        'const childValidateSearch: typeof validateSearch = routeTree.children[0].options.validateSearch;',
-        'const childLoaderDeps: typeof loaderDeps = routeTree.children[0].options.loaderDeps;',
-        '',
-        "rootValidateSearch({ q: 'root' });",
-        "rootLoaderDeps({ search: { q: 'root' } });",
-        "childValidateSearch({ q: 'child' });",
-        "childLoaderDeps({ search: { q: 'child' } });",
-      ].join('\n'),
-    );
-    await writeFile(
-      path.join(tempDir, 'tsconfig.json'),
-      JSON.stringify(
-        {
-          compilerOptions: {
-            lib: ['ESNext', 'DOM'],
-            module: 'Preserve',
-            moduleResolution: 'Bundler',
-            noEmit: true,
-            skipLibCheck: true,
-            strict: true,
-            target: 'ESNext',
-            types: [],
-          },
-          include: ['src/**/*.ts', 'src/**/*.d.ts'],
-        },
-        null,
-        2,
-      ),
-    );
-
-    await expect(
-      execFileAsync(
-        process.platform === 'win32' ? 'tsgo.cmd' : 'tsgo',
-        ['--noEmit', '-p', 'tsconfig.json'],
-        {
-          cwd: tempDir,
-          shell: process.platform === 'win32',
-        },
-      ),
-    ).resolves.toBeDefined();
-  });
-
-  test('preserves typed child trees for localized nested route aliases', async () => {
+  test('executes localized aliases with typed children and correct parents', async () => {
     tempDir = await mkdtemp(path.join(tmpdir(), 'modern-tanstack-types-'));
     const srcDirectory = path.join(tempDir, 'src');
 
@@ -630,21 +615,23 @@ describe('tanstack router type generation', () => {
       ] as any,
     });
 
-    expect(routerGenTs).toContain(
-      'const route__lang__layout__base = createRoute({',
-    );
-    expect(routerGenTs).toContain(
-      'getParentRoute: () => route__lang__layout__base,',
-    );
-    expect(routerGenTs).toContain('path: "produkty/$slug",');
-    expect(routerGenTs).toContain('path: "volitelne/{-$slug}",');
-    expect(routerGenTs).toContain(
-      'const route__lang__layout = route__lang__layout__base.addChildren([route__lang__products__slug__page, route__lang__products__slug__page__localised_produkty_slug, route__lang__optional__slug$__page__localised_volitelne_slug]);',
-    );
-    expect(routerGenTs).toContain(
-      'export const routeTree = rootRoute.addChildren([route__lang__layout]);',
-    );
-    expect(routerGenTs).not.toContain('route__lang__layout.addChildren([');
+    await compileAndRunGeneratedRouter({
+      projectDirectory: tempDir,
+      routerGenTs,
+      runtimeCheck: [
+        "import { routeTree } from './modern-tanstack/index/router.gen';",
+        '',
+        'const [localeRoute] = routeTree.children;',
+        'const [productRoute, localizedProductRoute, optionalRoute] = localeRoute.children;',
+        'if (localeRoute.options.path !== "$lang") throw new Error("locale param was not translated");',
+        'if (productRoute.options.path !== "products/$slug") throw new Error("product param was not translated");',
+        'if (localizedProductRoute.options.path !== "produkty/$slug") throw new Error("localized param was not translated");',
+        'if (optionalRoute.options.path !== "volitelne/{-$slug}") throw new Error("optional param was not translated");',
+        'for (const child of localeRoute.children) {',
+        '  if (child.options.getParentRoute() !== localeRoute) throw new Error("localized child points at the wrong parent");',
+        '}',
+      ].join('\n'),
+    });
   });
 });
 

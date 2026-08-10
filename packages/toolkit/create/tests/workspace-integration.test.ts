@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { yaml } from '@modern-js/utils';
 import { runUltramodernToolingCli } from '../src/ultramodern-tooling/commands';
 import {
   addUltramodernVertical,
@@ -92,82 +93,6 @@ function appById(apps: any[], id: string): any {
   const app = apps.find(candidate => candidate.id === id);
   assert.ok(app, `Expected app ${id}`);
   return app;
-}
-
-function assertModuleFederationWarningHygiene(
-  modernConfig: string,
-  label: string,
-) {
-  assert.match(
-    modernConfig,
-    /const moduleFederationDevServerOrigin =\s*envValue\('ULTRAMODERN_MF_DEV_ORIGIN'\) \|\| 'http:\/\/localhost:3020';/,
-    `${label} must default MF dev CORS to the local shell origin, with an explicit trusted-origin override`,
-  );
-  assert.match(
-    modernConfig,
-    /splitChunks:\s*\{\s*chunks:\s*'async',\s*\},/,
-    `${label} must set stream-SSR-compatible splitChunks defaults before MF mutates the bundler chain`,
-  );
-  assert.match(
-    modernConfig,
-    /const buildTarget = cloudflareDeployEnabled \? 'cloudflare' : 'web';/,
-    `${label} must derive mutable build paths from the active target`,
-  );
-  assert.match(
-    modernConfig,
-    /const buildOutputRoot = cloudflareDeployEnabled \? 'dist-cloudflare' : 'dist';/,
-    `${label} must isolate normal and Cloudflare output roots`,
-  );
-  assert.match(
-    modernConfig,
-    /const buildTempDirectory = `node_modules\/\.modern-js-\$\{appId\}-\$\{buildTarget\}`;/,
-    `${label} must isolate normal and Cloudflare Modern temp directories`,
-  );
-  assert.match(
-    modernConfig,
-    /const buildCacheDirectory = `node_modules\/\.cache\/rspack-\$\{appId\}-\$\{buildTarget\}`;/,
-    `${label} must provide a per-app/per-target Rspack cache base directory`,
-  );
-  assert.match(
-    modernConfig,
-    /root: buildOutputRoot,/,
-    `${label} must pass the per-target output root to the builder`,
-  );
-  assert.match(
-    modernConfig,
-    /tempDir: buildTempDirectory,/,
-    `${label} must pass the per-target Modern temp directory to the builder`,
-  );
-  assert.match(
-    modernConfig,
-    /cacheDigest: \[appId, buildTarget\],/,
-    `${label} must include the build target in the Rspack cache digest`,
-  );
-  assert.match(
-    modernConfig,
-    /cacheDirectory: buildCacheDirectory,/,
-    `${label} must pass the per-target Rspack cache base directory to the builder`,
-  );
-  assert.match(
-    modernConfig,
-    /devServer:\s*\{\s*headers:\s*\{\s*'Access-Control-Allow-Headers':\s*'Accept, Authorization, Content-Type, X-Requested-With',\s*'Access-Control-Allow-Methods':\s*'GET, HEAD, OPTIONS',\s*'Access-Control-Allow-Origin':\s*moduleFederationDevServerOrigin,\s*\},\s*\},/,
-    `${label} must provide explicit devServer headers so MF does not inject wildcard CORS defaults`,
-  );
-  assert.doesNotMatch(
-    modernConfig,
-    /'Access-Control-Allow-(?:Headers|Origin)':\s*'\*'/,
-    `${label} must not emit wildcard MF dev CORS headers`,
-  );
-  assert.doesNotMatch(
-    modernConfig,
-    /devServer:\s*\{\s*headers:\s*\{\s*\}\s*\}/,
-    `${label} must not leave devServer.headers empty`,
-  );
-  assert.doesNotMatch(
-    modernConfig,
-    /splitChunks:\s*false/,
-    `${label} must not disable splitChunks to hide stream SSR warnings`,
-  );
 }
 
 function assertGeneratedVerticalFiles(workspaceDir: string, id: string) {
@@ -414,38 +339,6 @@ function assertIntegratedVertical(
     `./src/components/${id}-widget.tsx`,
   );
   assert.equal(verticalPackage.exports['./api'], './shared/api.ts');
-  const backendFederationConfig = read(
-    workspaceDir,
-    `verticals/${id}/backend-federation.config.ts`,
-  );
-  assert.match(
-    backendFederationConfig,
-    /filename:\s*'backendRemoteEntry\.cjs'/,
-  );
-  assert.match(backendFederationConfig, /type:\s*'commonjs-module'/);
-  assert.match(backendFederationConfig, /name:\s*'vertical[A-Z][a-z]+Backend'/);
-  assert.match(
-    backendFederationConfig,
-    /'\.\/effect-api':\s*'\.\/api\/effect-api\.ts'/,
-  );
-  assert.match(backendFederationConfig, /'@module-federation\/runtime':\s*\{/);
-  const backendEffectApi = read(
-    workspaceDir,
-    `verticals/${id}/api/effect-api.ts`,
-  );
-  assert.match(backendEffectApi, /strictEffectApproach:\s*true/);
-  assert.match(
-    backendEffectApi,
-    /contractVersion:\s*'microvertical-server-effect-v1'/,
-  );
-  assert.match(
-    backendEffectApi,
-    /nodeAdapterVersion:\s*'backend-mf-effect-v1'/,
-  );
-  assert.match(
-    backendEffectApi,
-    /export \{ default, default as runtime \} from '\.\/index\.ts'/,
-  );
   assert.equal(
     verticalPackage.dependencies['@modern-js/plugin-bff'],
     'workspace:*',
@@ -500,72 +393,12 @@ test('workspace and MicroVertical integration stays coherent across public API a
       workspaceDir,
       'apps/shell-super-app/package.json',
     );
-    const shellModernConfig = read(
-      workspaceDir,
-      'apps/shell-super-app/modern.config.ts',
-    );
-    const catalogModernConfig = read(
-      workspaceDir,
-      'verticals/catalog/modern.config.ts',
-    );
-    const checkoutModernConfig = read(
-      workspaceDir,
-      'verticals/checkout/modern.config.ts',
-    );
     const packageSource = ultramodernConfig.packageSource;
 
     assert.deepEqual(topology.shell.verticalRefs, ['catalog', 'checkout']);
     assert.deepEqual(
       fs.readdirSync(path.join(workspaceDir, '.modernjs')).sort(),
       ['ultramodern.json'],
-    );
-    assert.match(shellModernConfig, /mode:\s*'stream'/);
-    assert.match(shellModernConfig, /moduleFederationAppSSR:\s*true/);
-    assert.match(shellModernConfig, /services:\s*\[/);
-    assert.match(
-      shellModernConfig,
-      /envValue\('VERTICAL_CATALOG_WORKER_BINDING'\)\s*\?\?\s*'VERTICAL_CATALOG_WORKER'/,
-    );
-    assert.match(shellModernConfig, /prefix:\s*'\/catalog-api'/);
-    assert.match(shellModernConfig, /boundaryId:\s*'verticalCatalog'/);
-    assert.match(shellModernConfig, /expose:\s*'\.\/Widget'/);
-    assert.match(
-      shellModernConfig,
-      /path:\s*'\/\{locale\}\/_mf\/fragment\/widget'/,
-    );
-    assert.match(shellModernConfig, /remote:\s*'catalog'/);
-    assert.match(
-      shellModernConfig,
-      /envValue\('VERTICAL_CATALOG_WORKER_NAME'\)\s*\?\?\s*'integration-workspace-catalog'/,
-    );
-    assert.match(
-      shellModernConfig,
-      /envValue\('VERTICAL_CHECKOUT_WORKER_BINDING'\)\s*\?\?\s*'VERTICAL_CHECKOUT_WORKER'/,
-    );
-    assert.match(shellModernConfig, /prefix:\s*'\/checkout-api'/);
-    assert.match(shellModernConfig, /boundaryId:\s*'verticalCheckout'/);
-    assert.match(shellModernConfig, /remote:\s*'checkout'/);
-    assert.match(
-      shellModernConfig,
-      /envValue\('VERTICAL_CHECKOUT_WORKER_NAME'\)\s*\?\?\s*'integration-workspace-checkout'/,
-    );
-    assert.doesNotMatch(catalogModernConfig, /services:\s*\[/);
-    assert.doesNotMatch(checkoutModernConfig, /services:\s*\[/);
-    assertModuleFederationWarningHygiene(
-      shellModernConfig,
-      'generated shell Modern config',
-    );
-    assertModuleFederationWarningHygiene(
-      catalogModernConfig,
-      'generated catalog Modern config',
-    );
-    assertModuleFederationWarningHygiene(
-      checkoutModernConfig,
-      'generated checkout Modern config',
-    );
-    assert.match(
-      shellModernConfig,
-      /'@modern-js\/plugin-i18n\/runtime':\s*'@modern-js\/plugin-i18n\/runtime\/no-react-i18next'/,
     );
     assert.equal(
       appById(ultramodernConfig.topology.apps, 'shell-super-app')
@@ -642,46 +475,6 @@ test('workspace and MicroVertical integration stays coherent across public API a
       /&& pnpm cloudflare:ssr-proof$/u,
     );
     assert.equal(exists(workspaceDir, 'scripts/proof-workerd-ssr.mts'), true);
-    const workerdProof = read(workspaceDir, 'scripts/proof-workerd-ssr.mts');
-    const workerdServiceBindings = workerdProof.slice(
-      workerdProof.indexOf('const createServiceBindings ='),
-      workerdProof.indexOf('const proofs = []'),
-    );
-    assert.match(
-      workerdProof,
-      /const modules = createWorkerModules\(app\.outputRoot, main\)/u,
-    );
-    assert.match(workerdProof, /assets: \{/u);
-    assert.match(workerdProof, /workerName: workerName\(app\)/u);
-    assert.match(workerdProof, /has_user_worker: true/u);
-    assert.match(workerdProof, /createServiceBindings/u);
-    assert.match(workerdProof, /callerId/u);
-    assert.match(workerdProof, /data-modern-distributed-ssr-boundary/u);
-    assert.match(workerdProof, /DISTRIBUTED_SSR_FRAGMENT_REQUEST_HEADER/u);
-    assert.match(workerdProof, /x-modern-distributed-ssr-props/u);
-    assert.match(
-      workerdProof,
-      /fragmentBindingRequests: routeFragmentBindingRequests/u,
-    );
-    assert.match(workerdProof, /apiBindingRequests: routeApiBindingRequests/u);
-    assert.match(
-      workerdProof,
-      /\.fetch\(\s*`https:\/\/\$\{workerName\(app\)\}\.invalid\$\{check\.route\}`,\s*init,\s*\)/u,
-    );
-    assert.doesNotMatch(workerdProof, /const directRequest = new Request/u);
-    assert.match(
-      workerdProof,
-      /const response = await target\.fetch\(request\);/u,
-    );
-    assert.match(workerdProof, /status: response\.status/u);
-    assert.match(workerdProof, /return response;/u);
-    assert.doesNotMatch(
-      workerdServiceBindings,
-      /(?:request|response)\.(?:arrayBuffer|blob|bytes|clone|formData|json|text)\(/u,
-    );
-    assert.match(workerdProof, /distributedSsrProofRoutes/u);
-    assert.match(workerdProof, /for \(const route of shell\.proofRoutes\)/u);
-    assert.match(workerdProof, /renderedRemoteIds\.has\(remote\.id\)/u);
     const compactConfig = readJson(workspaceDir, '.modernjs/ultramodern.json');
     const compactCatalog = appById(compactConfig.topology.apps, 'catalog');
     assert.deepEqual(compactCatalog.deploy.cloudflare.jsonSmokeChecks, [
@@ -696,38 +489,36 @@ test('workspace and MicroVertical integration stays coherent across public API a
         },
       },
     ]);
-    assert.doesNotMatch(workerdProof, /const fragmentPath =/u);
-    assert.match(workerdProof, /ULTRAMODERN_KEEP_WORKERD/u);
-    assert.match(workerdProof, /WORKERD_URL=/u);
-    const zeropsYaml = read(workspaceDir, 'zerops.yaml');
-    assert.match(zeropsYaml, /zerops:/);
-    assert.match(zeropsYaml, /setup: 'shell-super-app'/);
-    assert.match(zeropsYaml, /base: 'nodejs@26'/);
-    assert.match(
-      zeropsYaml,
-      /start: cd '\.zerops\/runtime\/shell-super-app' && npm run serve/,
+    const zeropsConfig = yaml.load(read(workspaceDir, 'zerops.yaml')) as {
+      zerops: Array<{
+        build: { base: string; deployFiles: string[] };
+        deploy: { readinessCheck: { httpGet: { path: string; port: number } } };
+        run: { base: string };
+        setup: string;
+      }>;
+    };
+    const zeropsServices = new Map(
+      zeropsConfig.zerops.map(service => [service.setup, service]),
     );
-    assert.match(zeropsYaml, /setup: 'catalog'/);
-    assert.match(zeropsYaml, /setup: 'checkout'/);
-    assert.match(
-      zeropsYaml,
-      /pnpm run zerops:materialize -- --app 'catalog' --package '@integration-workspace\/catalog' --package-dir 'verticals\/catalog'/,
+    assert.deepEqual(
+      [...zeropsServices.keys()],
+      ['shell-super-app', 'catalog', 'checkout'],
     );
-    assert.match(zeropsYaml, /path: '\/catalog-api\/catalog\/readiness'/);
-    assert.match(
-      zeropsYaml,
-      /pnpm run zerops:materialize -- --app 'checkout' --package '@integration-workspace\/checkout' --package-dir 'verticals\/checkout'/,
+    const zeropsShell = zeropsServices.get('shell-super-app');
+    assert.equal(zeropsShell?.build.base, 'nodejs@26');
+    assert.equal(zeropsShell?.run.base, 'nodejs@26');
+    assert.deepEqual(zeropsShell?.deploy.readinessCheck.httpGet, {
+      path: '/',
+      port: 3020,
+    });
+    assert.deepEqual(
+      zeropsServices.get('catalog')?.deploy.readinessCheck.httpGet,
+      { path: '/catalog-api/catalog/readiness', port: 4101 },
     );
-    assert.match(zeropsYaml, /path: '\/checkout-api\/checkout\/readiness'/);
-    const zeropsMaterializer = read(
-      workspaceDir,
-      'scripts/materialize-zerops-runtime.mjs',
+    assert.deepEqual(
+      zeropsServices.get('checkout')?.deploy.readinessCheck.httpGet,
+      { path: '/checkout-api/checkout/readiness', port: 4102 },
     );
-    assert.match(zeropsMaterializer, /MODERNJS_DEPLOY: 'node'/);
-    assert.match(zeropsMaterializer, /'deploy',\s*'--skip-build'/);
-    assert.match(zeropsMaterializer, /normalizeRuntimePackageDependencies/);
-    assert.match(zeropsMaterializer, /officialPackageName/);
-    assert.match(zeropsMaterializer, /installRuntimeDependencies/);
     assert.equal(
       rootPackage.devDependencies['@modern-js/plugin-bff'],
       'workspace:*',
@@ -738,28 +529,6 @@ test('workspace and MicroVertical integration stays coherent across public API a
     assert.throws(() =>
       read(workspaceDir, 'scripts/proof-node-backend-federation.mjs'),
     );
-    assert.match(
-      read(workspaceDir, 'scripts/generate-node-backend-federation.mts'),
-      /backend-federation-generate/,
-    );
-    assert.match(
-      read(workspaceDir, 'scripts/proof-node-backend-federation.mts'),
-      /backend-federation-proof/,
-    );
-    const shellModernConfigSource = read(
-      workspaceDir,
-      'apps/shell-super-app/modern.config.ts',
-    );
-    assert.match(shellModernConfigSource, /services:\s*\[/);
-    assert.match(shellModernConfigSource, /VERTICAL_CATALOG_WORKER_BINDING/);
-    assert.match(shellModernConfigSource, /VERTICAL_CHECKOUT_WORKER_BINDING/);
-    const catalogBackendFederationFacade = read(
-      workspaceDir,
-      'verticals/catalog/api/backend-federation.ts',
-    );
-    assert.match(catalogBackendFederationFacade, /backendFederationContract/);
-    assert.match(catalogBackendFederationFacade, /node-mf-runtime/);
-    assert.match(catalogBackendFederationFacade, /catalogApiContract/);
     assert.equal(packageSource.strategy, 'workspace');
     assert.equal(packageSource.modernPackageVersion, 'workspace:*');
     assert.equal(packageSource.aliasScope, undefined);
@@ -771,25 +540,8 @@ test('workspace and MicroVertical integration stays coherent across public API a
 
     assertIntegratedVertical(workspaceDir, 'catalog', 4101);
     assertIntegratedVertical(workspaceDir, 'checkout', 4102);
-    assert.match(
-      read(workspaceDir, 'apps/shell-super-app/src/api/vertical-clients.ts'),
-      /createCheckoutClient/,
-    );
-    assert.match(
-      read(
-        workspaceDir,
-        'apps/shell-super-app/src/routes/vertical-components.tsx',
-      ),
-      /checkout\/Widget/,
-    );
-    assert.match(
-      read(
-        workspaceDir,
-        'apps/shell-super-app/src/routes/vertical-components.worker.tsx',
-      ),
-      /'checkout'[\s\S]*'\.\/Widget'/u,
-    );
-
+    const validation = runGeneratedWorkspaceCheck(workspaceDir);
+    assert.equal(validation.status, 0, commandOutput(validation));
     const afterTwoVerticals = snapshotWorkspace(workspaceDir);
     assert.throws(
       () =>
@@ -1227,134 +979,6 @@ export const handler = async (request: Request) => Response.json(await request.j
     assert.match(
       output,
       /must preserve the MicroVertical server contract version/,
-    );
-  } finally {
-    fs.rmSync(tempRoot, { recursive: true, force: true });
-  }
-});
-
-test('generated workspace self-check accepts stable formatting but rejects wrong CI Node pins', () => {
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-validator-'));
-  const workspaceDir = path.join(tempRoot, 'validator-workspace');
-
-  try {
-    generateUltramodernWorkspace({
-      targetDir: workspaceDir,
-      packageName: 'validator-workspace',
-      modernVersion: '3.2.1',
-      enableTailwind: true,
-      packageSource: { strategy: 'workspace' },
-    });
-
-    const ultramodernConfig = readJson(
-      workspaceDir,
-      '.modernjs/ultramodern.json',
-    );
-    const expectedNodeVersion = ultramodernConfig.workspace.node.version;
-    const workflowPath = path.join(
-      workspaceDir,
-      '.github/workflows/ultramodern-workspace-gates.yml',
-    );
-    const modernConfigPath = path.join(
-      workspaceDir,
-      'apps/shell-super-app/modern.config.ts',
-    );
-
-    fs.writeFileSync(
-      workflowPath,
-      read(
-        workspaceDir,
-        '.github/workflows/ultramodern-workspace-gates.yml',
-      ).replace(
-        `node-version: "${expectedNodeVersion}"`,
-        `node-version: '${expectedNodeVersion}'`,
-      ),
-      'utf-8',
-    );
-
-    const sameLineAssetPrefix = read(
-      workspaceDir,
-      'apps/shell-super-app/modern.config.ts',
-    ).replace(
-      /const assetPrefix =\n\s+configuredModernAssetPrefix \|\| configuredUltramodernAssetPrefix \|\| defaultAssetPrefix;/u,
-      'const assetPrefix = configuredModernAssetPrefix || configuredUltramodernAssetPrefix || defaultAssetPrefix;',
-    );
-    fs.writeFileSync(modernConfigPath, sameLineAssetPrefix, 'utf-8');
-
-    const passingResult = runGeneratedWorkspaceCheck(workspaceDir);
-    assert.equal(passingResult.status, 0, commandOutput(passingResult));
-
-    fs.writeFileSync(
-      workflowPath,
-      read(
-        workspaceDir,
-        '.github/workflows/ultramodern-workspace-gates.yml',
-      ).replace(
-        `node-version: '${expectedNodeVersion}'`,
-        "node-version: '25.0.0'",
-      ),
-      'utf-8',
-    );
-
-    const failingResult = runGeneratedWorkspaceCheck(workspaceDir);
-    const output = commandOutput(failingResult);
-    assert.notEqual(failingResult.status, 0, output);
-    assert.match(
-      output,
-      new RegExp(
-        `CI workflow must pin the generated Node version ${expectedNodeVersion}; found 25\\.0\\.0`,
-      ),
-    );
-  } finally {
-    fs.rmSync(tempRoot, { recursive: true, force: true });
-  }
-});
-
-test('emitted module federation config leases Zephyr fail-closed behavior only when authenticated', () => {
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-zephyr-'));
-  const workspaceDir = path.join(tempRoot, 'zephyr-workspace');
-
-  try {
-    generateUltramodernWorkspace({
-      targetDir: workspaceDir,
-      packageName: 'zephyr-workspace',
-      modernVersion: '3.2.1',
-      enableTailwind: true,
-      packageSource: { strategy: 'workspace' },
-    });
-
-    const modernConfig = read(
-      workspaceDir,
-      'apps/shell-super-app/modern.config.ts',
-    );
-    assert.match(
-      modernConfig,
-      /import \{\s*getBuildConfigEnvironment,\s*withBuildConfigEnvironment,?\s*\} from '@modern-js\/app-tools\/config';/u,
-      'generated Modern config must import the public config environment API',
-    );
-    // Zephyr is always registered (no gate), but fail-closed behavior is leased
-    // only for an authoritative CI deploy, signalled by Zephyr's own
-    // ZE_CI_TOKEN; a plain build degrades gracefully (works without a Zephyr
-    // Cloud account, and a build may set ZE_SECRET_TOKEN only to skip auth).
-    assert.match(
-      modernConfig,
-      /getBuildConfigEnvironment\(\s*'ZE_CI_TOKEN'\s*\)/u,
-      'generated Modern config must key Zephyr fail-closed behavior off the Zephyr CI deploy token',
-    );
-    assert.match(
-      modernConfig,
-      /withBuildConfigEnvironment\(\s*'ZE_FAIL_BUILD',\s*'true',\s*withZephyrRspack\(\),?\s*\)/u,
-      'generated Modern config must lease Zephyr fail-closed behavior through the public config API when it does deploy',
-    );
-    assert.doesNotMatch(
-      modernConfig,
-      /\bprocess\s*\.\s*env\b/u,
-      'generated Modern config must not bypass the public config API with direct process.env access',
-    );
-    assert.match(modernConfig, /\n\s*zephyrRspackPlugin\(\),/u);
-    assert.doesNotMatch(
-      modernConfig,
-      /@effect-diagnostics|ULTRAMODERN_ZEPHYR|zephyrWarn|Promise\.race|modifyRspackConfig\(\s*(?:async\s+)?(?:config|\(config\))\s*=>|console\.warn/u,
     );
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });

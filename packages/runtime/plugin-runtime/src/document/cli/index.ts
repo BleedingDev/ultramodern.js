@@ -123,7 +123,10 @@ const isAsset = (req: string): boolean =>
     req,
   );
 
-const processScriptPlaceholders = (html: string, nonce?: string): string => {
+export const processScriptPlaceholders = (
+  html: string,
+  nonce?: string,
+): string => {
   if (
     !html.includes(DOCUMENT_SCRIPT_PLACEHOLDER_START) ||
     !html.includes(DOCUMENT_SCRIPT_PLACEHOLDER_END)

@@ -1,3 +1,4 @@
+import vm from 'node:vm';
 import React, { useContext } from 'react';
 import ReactDomServer from 'react-dom/server';
 
@@ -10,7 +11,7 @@ import {
   Script,
   Scripts,
 } from '../../src/document';
-import cliPlugin from '../../src/document/cli';
+import cliPlugin, { processScriptPlaceholders } from '../../src/document/cli';
 
 describe('plugin-document', () => {
   it('default', () => {
@@ -44,9 +45,13 @@ describe('plugin-document', () => {
     expect(docHtml.includes(' Element')).toBeTruthy();
   });
 
-  it('should runder the script by IIFE ', () => {
+  it('executes document scripts as an IIFE', () => {
     const fn = () => {
-      console.log('===> script can use script');
+      const documentGlobal = globalThis as typeof globalThis & {
+        __modernDocumentScriptExecutions?: number;
+      };
+      documentGlobal.__modernDocumentScriptExecutions =
+        (documentGlobal.__modernDocumentScriptExecutions ?? 0) + 1;
     };
     const document = (
       <Html>
@@ -55,13 +60,16 @@ describe('plugin-document', () => {
         <Script content={fn} />
       </Html>
     );
-    const docHtml = ReactDomServer.renderToString(document);
-    const fnStr = fn.toString();
-    const expectFnStr = encodeURIComponent(`(${fnStr})()`);
-    expect(
-      // react will change ' => '&#x27;'
-      docHtml.includes(expectFnStr.replaceAll("'", '&#x27;')),
-    ).toBeTruthy();
+    const html = processScriptPlaceholders(
+      ReactDomServer.renderToStaticMarkup(document),
+    );
+    const script = /<script[^>]*>([\s\S]*?)<\/script>/u.exec(html)?.[1];
+    const sandbox = { __modernDocumentScriptExecutions: 0 };
+
+    expect(script).toBeDefined();
+    vm.runInNewContext(script!, sandbox);
+
+    expect(sandbox.__modernDocumentScriptExecutions).toBe(1);
   });
 
   it('should give the correct child', () => {

@@ -40,9 +40,15 @@ describe('SSR useId Hydration', () => {
       waitUntil: ['networkidle0'],
     });
 
-    const content = await page.content();
-    expect(content).toContain('modern-js-');
-    expect(content).toContain('React useId SSR Test');
+    await expect(
+      page.$eval('h1', element => element.textContent),
+    ).resolves.toBe('React useId SSR Test');
+    const generatedIds = await page.$$eval(
+      '[data-testid^="useid-item-"]',
+      elements => elements.map(element => element.id),
+    );
+    expect(generatedIds.length).toBeGreaterThan(0);
+    expect(generatedIds.every(id => id.includes('modern-js-'))).toBe(true);
   });
 
   test('should not have hydration mismatch', async () => {
@@ -64,16 +70,5 @@ describe('SSR useId Hydration', () => {
         err.includes('useId'),
     );
     expect(hydrationError).toBeUndefined();
-  });
-
-  test('SSR useId should work correctly', async () => {
-    await page.goto(`http://localhost:${appPort}`, {
-      waitUntil: ['networkidle0'],
-    });
-
-    // Verify SSR rendered content with useId
-    const content = await page.content();
-    expect(content).toContain('React useId SSR Test');
-    expect(content).toContain('modern-js-');
   });
 });

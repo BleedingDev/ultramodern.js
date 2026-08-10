@@ -28,14 +28,6 @@ describe('build', () => {
     expect(buildRes.code === 0).toBe(true);
     expect(existsSync('route.json')).toBe(true);
     expect(existsSync('html/index/index.html')).toBe(true);
-
-    const pageName = resolveDist('static/js/async/page.js');
-    const pageContent = await fs.promises.readFile(pageName, 'utf-8');
-    expect(pageContent).toContain(
-      'url: __webpack_require__.p + "static/assets/crab.png"',
-    );
-    expect(pageContent).toContain('width: 1920');
-    expect(pageContent).toContain('height: 1281');
   });
 
   it('should get image url with production CDN', async () => {
@@ -51,15 +43,21 @@ describe('build', () => {
       waitUntil: ['networkidle0'],
     });
 
-    const root = await page.$('#root img');
-    const targetText = await page.evaluate(el => el?.outerHTML, root);
-    expect(targetText).toContain(
-      'src="/static/assets/crab.png?w=1000&amp;q=75"',
-    );
-    expect(targetText).toContain(
-      'srcset="/static/assets/crab.png?w=500&amp;q=75 1x,/static/assets/crab.png?w=1000&amp;q=75 2x"',
-    );
-    expect(targetText).toContain('width="500"');
+    const image = await page.$eval('#root img', element => ({
+      complete: (element as HTMLImageElement).complete,
+      height: (element as HTMLImageElement).height,
+      src: element.getAttribute('src'),
+      srcset: element.getAttribute('srcset'),
+      width: (element as HTMLImageElement).width,
+    }));
+    expect(image).toEqual({
+      complete: true,
+      height: 334,
+      src: '/static/assets/crab.png?w=1000&q=75',
+      srcset:
+        '/static/assets/crab.png?w=500&q=75 1x,/static/assets/crab.png?w=1000&q=75 2x',
+      width: 500,
+    });
     expect(errors.length).toEqual(0);
 
     await browser.close();

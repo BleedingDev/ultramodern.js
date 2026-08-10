@@ -1,9 +1,26 @@
 import path from 'node:path';
 import { expect, test } from '@playwright/test';
-import { build } from '@scripts/shared';
+import { build, getHrefByEntryName } from '@scripts/shared';
 import tailwindPostcss from '@tailwindcss/postcss';
 
-test('should allow to use `postcssOptions` function to apply different postcss config for different files and overrides modern.js default plugins', async () => {
+const expectEntryStyles = async (
+  page: import('@playwright/test').Page,
+  port: number,
+) => {
+  await page.goto(getHrefByEntryName('foo', port));
+  await expect(page.locator('h1')).toHaveCSS('font-weight', '700');
+  await expect(page.locator('h1')).toHaveCSS(
+    'text-decoration-line',
+    'underline',
+  );
+
+  await page.goto(getHrefByEntryName('bar', port));
+  await expect(page.locator('h1')).toHaveCSS('font-size', '30px');
+};
+
+test('should allow to use `postcssOptions` function to apply different postcss config for different files and overrides modern.js default plugins', async ({
+  page,
+}) => {
   const builder = await build({
     cwd: __dirname,
     entry: {
@@ -33,23 +50,16 @@ test('should allow to use `postcssOptions` function to apply different postcss c
         },
       },
     },
+    runServer: true,
   });
 
-  const files = await builder.unwrapOutputJSON();
-  const fooCssFile = Object.keys(files).find(
-    file => file.includes('foo.') && file.endsWith('.css'),
-  )!;
-
-  expect(files[fooCssFile]).toContain('.font-bold');
-  expect(files[fooCssFile]).toContain('.underline');
-
-  const barCssFile = Object.keys(files).find(
-    file => file.includes('bar.') && file.endsWith('.css'),
-  )!;
-  expect(files[barCssFile]).toContain('.text-3xl');
+  await expectEntryStyles(page, builder.port);
+  builder.close();
 });
 
-test('should allow to use `postcssOptions` function to apply different postcss config for different files and apply modern.js default plugins', async () => {
+test('should allow to use `postcssOptions` function to apply different postcss config for different files and apply modern.js default plugins', async ({
+  page,
+}) => {
   const builder = await build({
     cwd: __dirname,
     entry: {
@@ -84,18 +94,9 @@ test('should allow to use `postcssOptions` function to apply different postcss c
         },
       },
     },
+    runServer: true,
   });
 
-  const files = await builder.unwrapOutputJSON();
-  const fooCssFile = Object.keys(files).find(
-    file => file.includes('foo.') && file.endsWith('.css'),
-  )!;
-  // apply tailwind config and autoprefixer correctly
-  expect(files[fooCssFile]).toContain('.font-bold');
-  expect(files[fooCssFile]).toContain('.underline');
-
-  const barCssFile = Object.keys(files).find(
-    file => file.includes('bar.') && file.endsWith('.css'),
-  )!;
-  expect(files[barCssFile]).toContain('.text-3xl');
+  await expectEntryStyles(page, builder.port);
+  builder.close();
 });

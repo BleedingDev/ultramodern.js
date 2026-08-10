@@ -39,11 +39,15 @@ describe('init with SSR', () => {
     await page.goto(`http://localhost:${appPort}`, {
       waitUntil: ['networkidle0'],
     });
-    const content = await page.content();
+    const runtime = await page.evaluate(() => ({
+      hasRouteManifest:
+        typeof (window as any)._MODERNJS_ROUTE_MANIFEST !== 'undefined',
+      scripts: Array.from(document.scripts, script => script.src),
+    }));
 
-    expect(content).toContain('_MODERNJS_ROUTE_MANIFEST');
-    expect(content).toMatch(
-      /<script[^>]*src="\/static\/js\/builder-runtime\.js"[^>]*>/,
+    expect(runtime.hasRouteManifest).toBe(true);
+    expect(runtime.scripts).toContain(
+      `http://localhost:${appPort}/static/js/builder-runtime.js`,
     );
   });
 });

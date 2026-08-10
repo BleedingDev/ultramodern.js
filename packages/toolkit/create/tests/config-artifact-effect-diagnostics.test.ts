@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { transformSync } from 'esbuild';
 import { resolveEffectTsgoCompiler } from '../../../solutions/app-tools/src/config/public';
 import { addUltramodernVertical } from '../src/ultramodern-workspace';
 import { createWorkspace, listFiles } from './helpers/workspace-kit';
@@ -113,7 +114,7 @@ function writeConfigDiagnosticProject(workspaceDir: string): string {
   return projectPath;
 }
 
-test('generated config artifacts pass Effect TS-Go diagnostics without suppressions', () => {
+test('generated config artifacts transpile and their config APIs pass Effect TS-Go diagnostics', () => {
   const { tempRoot, workspaceDir } = createWorkspace(
     'config-artifact-effect-diagnostics',
     { tempPrefix: 'um-config-effect-diagnostics-' },
@@ -128,30 +129,13 @@ test('generated config artifacts pass Effect TS-Go diagnostics without suppressi
     const configFiles = generatedConfigFiles(workspaceDir);
 
     assert.ok(configFiles.length > 0, 'expected generated config artifacts');
-    const configSources: string[] = [];
     for (const relativePath of configFiles) {
-      const source = fs.readFileSync(
-        path.join(workspaceDir, relativePath),
-        'utf-8',
-      );
-      configSources.push(source);
-      assert.doesNotMatch(
-        source,
-        /@effect-diagnostics|process\.env|node:child_process/u,
-        `${relativePath} must use the framework-owned config API`,
-      );
-    }
-    const combinedConfigSource = configSources.join('\n');
-    for (const packageExport of [
-      'getBuildConfigEnvironment',
-      'resolveEffectTsgoCompiler',
-      'withBuildConfigEnvironment',
-    ]) {
-      assert.match(
-        combinedConfigSource,
-        new RegExp(`\\b${packageExport}\\b`, 'u'),
-        `generated config must exercise ${packageExport}`,
-      );
+      transformSync(fs.readFileSync(path.join(workspaceDir, relativePath)), {
+        format: 'esm',
+        loader: 'ts',
+        sourcefile: relativePath,
+        target: 'esnext',
+      });
     }
     linkRepositoryPackageModules(workspaceDir);
 

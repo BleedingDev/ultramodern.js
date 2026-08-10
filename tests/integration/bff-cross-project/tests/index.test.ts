@@ -1,6 +1,7 @@
 import dns from 'node:dns';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
+import { pathToFileURL } from 'node:url';
 import path from 'path';
 import puppeteer, { type Browser, type Page } from 'puppeteer';
 import {
@@ -45,39 +46,38 @@ const PRODUCER_REQUEST_ID = 'bff-api-app';
  * Reads the operation manifest the producer SDK generator emits into every
  * generated client module (`export const operationManifest = {...};`).
  */
-function readProducerOperationManifest(clientRelativePath: string) {
-  const code = fs.readFileSync(
+async function readProducerOperationManifest(clientRelativePath: string) {
+  const clientUrl = pathToFileURL(
     path.join(apiAppDir, clientRelativePath),
-    'utf8',
-  );
-  const match = code.match(
-    /export const operationManifest = (\{[\s\S]*?\n\});/,
-  );
-  if (!match) {
+  ).href;
+  const generatedClient = (await import(clientUrl)) as {
+    operationManifest?: {
+      operationVersion: number;
+      operations: Array<{
+        name: string;
+        httpMethod: string;
+        routePath: string;
+        schemaHash: string;
+      }>;
+    };
+  };
+  if (!generatedClient.operationManifest) {
     throw new Error(
       `No operationManifest found in producer SDK artifact ${clientRelativePath}`,
     );
   }
-  return JSON.parse(match[1]) as {
-    operationVersion: number;
-    operations: Array<{
-      name: string;
-      httpMethod: string;
-      routePath: string;
-      schemaHash: string;
-    }>;
-  };
+  return generatedClient.operationManifest;
 }
 
 /**
  * Builds the cross-project policy headers the generated SDK attaches to
  * every request, stamped from the producer's own operation manifest.
  */
-function producerPolicyHeaders(
+async function producerPolicyHeaders(
   clientRelativePath: string,
   operationName: string,
 ): Record<string, string> {
-  const manifest = readProducerOperationManifest(clientRelativePath);
+  const manifest = await readProducerOperationManifest(clientRelativePath);
   const operation = manifest.operations.find(
     item => item.name === operationName,
   );
@@ -353,7 +353,7 @@ describe.sequential('cross project bff', () => {
       // A contract-stamped request (what the generated SDK sends) reaches
       // the producer handler and its useContext response survives hosting.
       const res = await fetch(`${host}:${port}${prefix}/context`, {
-        headers: producerPolicyHeaders(
+        headers: await producerPolicyHeaders(
           'dist-1/client/context/index.js',
           'default',
         ),
@@ -501,7 +501,7 @@ describe.sequential('cross project bff', () => {
       // A contract-stamped request (what the generated SDK sends) reaches
       // the producer handler and its useContext response survives hosting.
       const res = await fetch(`${host}:${port}${prefix}/context`, {
-        headers: producerPolicyHeaders(
+        headers: await producerPolicyHeaders(
           'dist-1/client/context/index.js',
           'default',
         ),

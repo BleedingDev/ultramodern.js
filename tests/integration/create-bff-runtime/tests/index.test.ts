@@ -18,17 +18,6 @@ function expectedBleedingDevSpecifier(packageName: string) {
   return `npm:@bleedingdev/modern-js-${unscopedName}@${testFrameworkVersion}`;
 }
 
-// Generated apps legitimately ship i18next interpolation placeholders
-// ({{lng}}/{{ns}} in the locale backend loadPath); everything else shaped
-// like a handlebars expression is a leaked template artifact.
-function expectNoTemplateArtifacts(content: string) {
-  const withoutI18nextPlaceholders = content.replaceAll(
-    /\{\{(?:lng|ns)\}\}/gu,
-    '',
-  );
-  expect(withoutI18nextPlaceholders).not.toMatch(/\{\{[#/\w]/u);
-}
-
 function expectWorkspaceModernVersions(packageJson: {
   dependencies?: Record<string, string>;
   devDependencies?: Record<string, string>;
@@ -96,6 +85,16 @@ function scaffoldWorkspaceWithVertical(
   runCreateInWorkspace(workspaceDir, verticalArgs);
 }
 
+function expectGeneratedWorkspaceValid(workspaceDir: string) {
+  expect(() =>
+    execFileSync(
+      process.execPath,
+      ['scripts/validate-ultramodern-workspace.mts'],
+      { cwd: workspaceDir, stdio: 'pipe' },
+    ),
+  ).not.toThrow();
+}
+
 function captureCreateFailure(projectDir: string, args: string[]): string {
   try {
     runCreate(projectDir, args);
@@ -154,32 +153,12 @@ describe('create-bff-runtime', () => {
       '^2.0.3',
     );
 
-    const modernConfig = readText(
-      workspaceDir,
-      'verticals/greetings/modern.config.ts',
-    );
-    expect(modernConfig).toContain(
-      "import { tanstackRouterPlugin } from '@modern-js/plugin-tanstack';",
-    );
-    expect(modernConfig).toContain('tanstackRouterPlugin(');
-    expect(modernConfig).toContain('bffPlugin(),');
-    expect(modernConfig).toContain("runtimeFramework: 'effect'");
-    expect(modernConfig).toContain("path: '/openapi.json'");
-    expect(modernConfig).toContain("prefix: '/greetings-api'");
-    expectNoTemplateArtifacts(modernConfig);
-
     expectNoPath(workspaceDir, 'verticals/greetings/api/lambda');
     expectPath(workspaceDir, 'verticals/greetings/api/index.ts');
     expectPath(workspaceDir, 'verticals/greetings/shared/api.ts');
     expectNoPath(workspaceDir, 'verticals/greetings/postcss.config.mjs');
     expectPath(workspaceDir, 'verticals/greetings/tailwind.config.ts');
-    expect(
-      readText(workspaceDir, 'verticals/greetings/src/routes/index.css'),
-    ).toContain("@import 'tailwindcss'");
-
-    expectNoTemplateArtifacts(
-      readText(workspaceDir, 'verticals/greetings/src/routes/[lang]/page.tsx'),
-    );
+    expectGeneratedWorkspaceValid(workspaceDir);
   });
 
   test('scaffolds the strict Effect approach with an explicit --bff-runtime effect', () => {
@@ -190,30 +169,10 @@ describe('create-bff-runtime', () => {
       ['greetings', '--vertical', '--bff-runtime', 'effect', '--lang', 'en'],
     );
 
-    const effectEntry = readText(
-      workspaceDir,
-      'verticals/greetings/api/index.ts',
-    );
-    expect(effectEntry).toContain('defineEffectBff');
-    expect(effectEntry).toContain("from '@modern-js/plugin-bff/effect-edge'");
-    expect(effectEntry).toContain("from '../shared/api.ts'");
     expectNoPath(workspaceDir, 'verticals/greetings/api/lambda');
-
-    const sharedEffectApi = readText(
-      workspaceDir,
-      'verticals/greetings/shared/api.ts',
-    );
-    expect(sharedEffectApi).toContain('@modern-js/plugin-bff/effect-client');
-    expect(sharedEffectApi).toContain('greetingsApi');
-
+    expectPath(workspaceDir, 'verticals/greetings/api/index.ts');
+    expectPath(workspaceDir, 'verticals/greetings/shared/api.ts');
     expectPath(workspaceDir, 'verticals/greetings/src/api/greetings-client.ts');
-    const routePage = readText(
-      workspaceDir,
-      'verticals/greetings/src/routes/[lang]/page.tsx',
-    );
-    expectNoTemplateArtifacts(routePage);
-    expect(routePage).toContain("from '../../api/greetings-client'");
-    expect(routePage).toContain('data-testid="api-status"');
 
     const tsConfig = readJson<{ include: string[] }>(
       workspaceDir,
@@ -221,6 +180,7 @@ describe('create-bff-runtime', () => {
     );
     expect(tsConfig.include).toContain('api');
     expect(tsConfig.include).toContain('shared');
+    expectGeneratedWorkspaceValid(workspaceDir);
   });
 
   test('rejects the removed hono BFF runtime with an actionable error', () => {
@@ -262,12 +222,7 @@ describe('create-bff-runtime', () => {
       readJson(workspaceDir, 'verticals/greetings/package.json'),
     );
 
-    const modernConfig = readText(
-      workspaceDir,
-      'verticals/greetings/modern.config.ts',
-    );
-    expect(modernConfig).toContain("runtimeFramework: 'effect'");
-    expectNoTemplateArtifacts(modernConfig);
+    expectGeneratedWorkspaceValid(workspaceDir);
   });
 
   test('fails on an unsupported BFF runtime', () => {

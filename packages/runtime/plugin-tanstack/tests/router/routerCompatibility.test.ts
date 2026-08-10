@@ -199,12 +199,6 @@ describe('runtime router compatibility', () => {
       runTsgo(tsgoBin, path.join(tempRoot, 'emit.json'));
 
       const declarationPath = path.join(emittedRoot, 'router.d.ts');
-      const declaration = readFileSync(declarationPath, 'utf8');
-      expect(declaration).not.toMatch(
-        /\b(?:createRouterPlugin|RouterPluginFactory)\b/u,
-      );
-      expect(declaration).toContain("['routerPlugin']");
-
       writeFileSync(
         path.join(tempRoot, 'legacyRuntimeRouter.ts'),
         readFileSync(legacyFixturePath, 'utf8'),

@@ -1,8 +1,25 @@
 import path from 'path';
 import { expect, test } from '@playwright/test';
-import { build } from '@scripts/shared';
+import type { Page } from '@playwright/test';
+import { build, getHrefByEntryName } from '@scripts/shared';
 
-test('should inline assets retry runtime code to html by default', async () => {
+const expectMissingImageWasRetried = async (page: Page) => {
+  await page.evaluate(() => {
+    const image = document.createElement('img');
+    image.id = 'missing-asset';
+    image.src = '/definitely-missing-asset.png';
+    document.body.appendChild(image);
+  });
+
+  await expect(page.locator('#missing-asset')).toHaveAttribute(
+    'data-rb-retry-times',
+    '3',
+  );
+};
+
+test('should execute the inline assets retry runtime by default', async ({
+  page,
+}) => {
   const builder = await build({
     cwd: __dirname,
     entry: { index: path.resolve(__dirname, './src/index.js') },
@@ -22,15 +39,23 @@ test('should inline assets retry runtime code to html by default', async () => {
         },
       },
     },
+    runServer: true,
   });
-  const files = await builder.unwrapOutputJSON();
-  const htmlFile = Object.keys(files).find(file => file.endsWith('.html'));
+  await page.goto(getHrefByEntryName('index', builder.port));
+  await expectMissingImageWasRetried(page);
 
-  expect(htmlFile).toBeTruthy();
-  expect(files[htmlFile!].includes('onRetry')).toBeTruthy();
+  const files = await builder.unwrapOutputJSON();
+  const retryFile = Object.keys(files).find(
+    file => path.basename(file).startsWith('assets-retry.'),
+  );
+
+  expect(retryFile).toBeUndefined();
+  builder.close();
 });
 
-test('should extract assets retry runtime code when inlineScript is false', async () => {
+test('should load and execute the extracted assets retry runtime', async ({
+  page,
+}) => {
   const builder = await build({
     cwd: __dirname,
     entry: { index: path.resolve(__dirname, './src/index.js') },
@@ -41,15 +66,24 @@ test('should extract assets retry runtime code when inlineScript is false', asyn
         },
       },
     },
+    runServer: true,
   });
+  await page.goto(getHrefByEntryName('index', builder.port));
+  await expectMissingImageWasRetried(page);
+
   const files = await builder.unwrapOutputJSON();
 
-  const htmlFile = Object.keys(files).find(file => file.endsWith('.html'));
   const retryFile = Object.keys(files).find(
-    file => file.includes('/assets-retry') && file.endsWith('.js'),
+    file => path.basename(file).startsWith('assets-retry.'),
   );
 
-  expect(htmlFile).toBeTruthy();
   expect(retryFile).toBeTruthy();
-  expect(files[htmlFile!].includes('onRetry')).toBeFalsy();
+  expect(
+    await page.evaluate(() =>
+      performance
+        .getEntriesByType('resource')
+        .some(entry => entry.name.includes('/assets-retry')),
+    ),
+  ).toBe(true);
+  builder.close();
 });

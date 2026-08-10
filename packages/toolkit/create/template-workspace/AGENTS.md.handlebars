@@ -1,13 +1,12 @@
 # UltraModern.js Workspace
 
-This is an UltraModern.js SuperApp with a composition shell and owned business
-MicroVerticals.
+This UltraModern.js SuperApp has a composition shell and owned MicroVerticals.
 
 ## Work here
 
 - Use Node `>=26` and pnpm `{{pnpmVersion}}`.
-- Keep business features out of the shell; follow
-  [README.md](./README.md) when adding a MicroVertical.
+- Keep business features out of the shell. Follow [README.md](./README.md) when
+  adding a MicroVertical.
 - Run `pnpm check`; also run `pnpm build` for runtime, routing, build, or deploy
   changes.
 - Use a matching skill under [`.codex/skills`](./.codex/skills), reading its
@@ -15,17 +14,13 @@ MicroVerticals.
 
 <!-- BEGIN:modernjs-agent-rules -->
 
-# Modern.js: read the docs before you code
+# Modern.js documentation
 
-> Documentation: **`node_modules/@modern-js/app-tools/docs/`**
-> Index: `node_modules/@modern-js/app-tools/docs/llms.txt` — start here when unsure which page to open
+Read `node_modules/@modern-js/app-tools/docs/llms.txt` before changing Modern.js
+configuration, APIs, routes, or conventions. These packaged docs match the
+installed version and are the source of truth.
 
-These docs ship inside the package, so they match the Modern.js
-version this project installed exactly. Your training data is likely
-outdated — **treat them as the source of truth**, and do not answer
-from memory on Modern.js configuration, APIs or directory conventions.
-
-**🟢 Read the docs before you touch anything, except for:**
+You can skip them for:
 
 - Writing ordinary React components (not route components)
 - Editing CSS or style files

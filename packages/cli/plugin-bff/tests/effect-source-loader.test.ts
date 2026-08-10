@@ -146,7 +146,7 @@ const buildEffectWorkerRuntimeModule = async ({
 };
 
 describe('Effect source graph loading', () => {
-  test('Effect worker runtime entry exports a self-contained edge dispatcher factory', async () => {
+  test('Effect worker runtime entry validates invalid edge modules at dispatcher creation', async () => {
     const appDir = await fs.promises.mkdtemp(
       path.join(os.tmpdir(), 'modern-plugin-bff-effect-worker-wrapper-'),
     );
@@ -157,34 +157,22 @@ describe('Effect source graph loading', () => {
       const source = `export default { api: {}, layer: {} };`;
       await writeFile(entryFile, source);
 
-      const code = await runApiLoader({
-        options: {
-          apiDir,
-          appDir,
-          bffRuntimeFramework: 'effect',
-          effectEntry: entryFile,
-          existLambda: false,
-          lambdaDir: path.join(apiDir, 'lambda'),
-          port: 8080,
-          prefix: '/catalog-api',
-          target: 'web',
-        },
-        resourcePath: entryFile,
-        resourceQuery: '?modern-bff-runtime',
+      const runtimeModule = await buildEffectWorkerRuntimeModule({
+        apiDir,
+        appDir,
+        entryFile,
+        prefix: '/catalog-api',
         source,
       });
 
-      expect(code).toContain(
-        `import * as effectBffModule from ${JSON.stringify(
-          `${entryFile}?modern-bff-runtime-source`,
-        )}`,
+      expect(typeof runtimeModule.__modern_create_effect_bff_dispatcher).toBe(
+        'function',
       );
-      expect(code).toContain(`from '@modern-js/plugin-bff/effect-edge'`);
-      expect(code).toContain(
-        'export const __modern_create_effect_bff_dispatcher',
-      );
-      expect(code).toContain('module: effectBffModule');
-      expect(code).not.toContain(source);
+      await expect(
+        runtimeModule.__modern_create_effect_bff_dispatcher({
+          prefix: '/catalog-api',
+        }),
+      ).rejects.toThrow('[BFF][Effect] Invalid Effect edge module');
     } finally {
       await fs.promises.rm(appDir, { recursive: true, force: true });
     }
@@ -218,9 +206,21 @@ describe('Effect source graph loading', () => {
         source,
       });
 
-      expect(code).toContain(`export const marker = 'raw-runtime-source';`);
-      expect(code).not.toContain('__modern_create_effect_bff_dispatcher');
-      expect(code).not.toContain('modern-bff-runtime-source?');
+      const outputFile = path.join(appDir, 'raw-runtime-source.mjs');
+      const { build } = await import('esbuild');
+      await build({
+        bundle: true,
+        format: 'esm',
+        platform: 'node',
+        stdin: {
+          contents: code,
+          resolveDir: apiDir,
+          sourcefile: entryFile,
+        },
+        outfile: outputFile,
+      });
+      const runtimeModule = await import(pathToFileURL(outputFile).href);
+      expect(runtimeModule.marker).toBe('raw-runtime-source');
     } finally {
       await fs.promises.rm(appDir, { recursive: true, force: true });
     }

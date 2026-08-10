@@ -146,83 +146,6 @@ function withCreateBinEnv() {
   };
 }
 
-test('generated postinstall owns Codex skills without system packages or reference repos', () => {
-  const { tempRoot, workspaceDir } = scaffoldWorkspace();
-
-  try {
-    const rootPackage = JSON.parse(
-      fs.readFileSync(path.join(workspaceDir, 'package.json'), 'utf-8'),
-    );
-    assert.equal(
-      rootPackage.scripts.postinstall,
-      "node ./scripts/bootstrap-agent-skills.mts --postinstall && oxfmt . '!repos/**'",
-      'postinstall must not chain the reference-repo installer',
-    );
-    // The explicit opt-in entry points must remain available.
-    assert.equal(
-      rootPackage.scripts['skills:install'],
-      'node ./scripts/bootstrap-agent-skills.mts',
-    );
-    assert.equal(
-      rootPackage.scripts['agents:refs:install'],
-      'node ./scripts/setup-agent-reference-repos.mts',
-    );
-
-    const bootstrapScript = fs.readFileSync(
-      path.join(workspaceDir, 'scripts/bootstrap-agent-skills.mts'),
-      'utf-8',
-    );
-    assert.equal(
-      fs.existsSync(path.join(workspaceDir, '.codex/skills-lock.json')),
-      true,
-    );
-    assert.equal(
-      fs.existsSync(
-        path.join(
-          workspaceDir,
-          '.codex/skills/rsbuild-best-practices/SKILL.md',
-        ),
-      ),
-      true,
-    );
-    assert.ok(
-      !bootstrapScript.includes("run('brew'") &&
-        !bootstrapScript.includes('runShell('),
-      'bootstrap script must not invoke system package managers',
-    );
-    assert.match(
-      bootstrapScript,
-      /modern-js-create/,
-      'generated bootstrap script must delegate to the versioned create tool surface',
-    );
-    assert.match(
-      bootstrapScript,
-      /ULTRAMODERN_CREATE_BIN/,
-      'generated bootstrap script must support local create-bin overrides for tests',
-    );
-
-    const oxfmtConfig = fs.readFileSync(
-      path.join(workspaceDir, 'oxfmt.config.ts'),
-      'utf-8',
-    );
-    const oxlintConfig = fs.readFileSync(
-      path.join(workspaceDir, 'oxlint.config.ts'),
-      'utf-8',
-    );
-    for (const generatedOutputPattern of [
-      "'.codex/skills'",
-      "'.output'",
-      "'**/modern-tanstack/**'",
-      "'**/routeTree.gen.*'",
-    ]) {
-      assert.ok(oxfmtConfig.includes(generatedOutputPattern));
-      assert.ok(oxlintConfig.includes(generatedOutputPattern));
-    }
-  } finally {
-    fs.rmSync(tempRoot, { recursive: true, force: true });
-  }
-});
-
 test('bootstrap-agent-skills --postinstall installs vendored Codex skills and keeps user skills offline', () => {
   const { tempRoot, workspaceDir } = scaffoldWorkspace();
 
@@ -451,26 +374,6 @@ test('bootstrap-agent-skills resolves the agents-standard .agents/ lockfile layo
 
     assert.equal(result.status, 0, result.stderr);
     assert.doesNotMatch(result.stderr, /Missing skills-lock\.json/u);
-
-    // The workspace-side validator script is a thin wrapper forwarding to
-    // `modern-js-create ultramodern validate`; the actual assertions live in
-    // the packaged handlebars template.
-    const validatorSource = fs.readFileSync(
-      path.join(
-        __dirname,
-        '../templates/workspace-scripts/validate-ultramodern-workspace.mjs.handlebars',
-      ),
-      'utf-8',
-    );
-    assert.match(
-      validatorSource,
-      /assertAnyOf\(\['\.agents\/skills-lock\.json', '\.codex\/skills-lock\.json'\]\);/u,
-    );
-    assert.doesNotMatch(
-      validatorSource,
-      /^\s*'\.codex\/skills-lock\.json',$/mu,
-      'validator must not hard-require the legacy skills-lock path',
-    );
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }

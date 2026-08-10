@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -96,26 +97,69 @@ test('public route metadata carries only explicitly authored JSON-LD', () => {
   ]);
 });
 
-test('generated JSON-LD helper module exposes typed builders without inference policy', () => {
-  const helperModule = createJsonLdHelperModule();
+test('generated JSON-LD helper module executes every public builder', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-jsonld-runtime-'));
+  const helperPath = path.join(tempRoot, 'ultramodern-jsonld.ts');
+  const usagePath = path.join(tempRoot, 'usage.ts');
+  const outputRoot = path.join(tempRoot, 'dist');
 
-  for (const snippet of [
-    'export const defineRouteJsonLd',
-    'export const webPageJsonLd',
-    'export const webApplicationJsonLd',
-    'export const softwareApplicationJsonLd',
-    'export const breadcrumbListJsonLd',
-    'export const faqPageJsonLd',
-    'export const organizationJsonLd',
-    "const schemaContext = 'https://schema.org' as const",
-  ]) {
-    assert.match(
-      helperModule,
-      new RegExp(snippet.replaceAll(/[.*+?^${}()|[\]\\]/gu, '\\$&')),
+  try {
+    fs.writeFileSync(helperPath, createJsonLdHelperModule());
+    fs.writeFileSync(
+      usagePath,
+      `import {
+  breadcrumbListJsonLd,
+  defineRouteJsonLd,
+  faqPageJsonLd,
+  organizationJsonLd,
+  softwareApplicationJsonLd,
+  webApplicationJsonLd,
+  webPageJsonLd,
+} from './ultramodern-jsonld';
+
+const values = [
+  webPageJsonLd({ name: 'Page', url: 'https://example.test/page' }),
+  webApplicationJsonLd({ name: 'Web app', url: 'https://example.test/app' }),
+  softwareApplicationJsonLd({ name: 'Software', url: 'https://example.test/software' }),
+  breadcrumbListJsonLd([{ name: 'Home', item: 'https://example.test/' }]),
+  faqPageJsonLd([{ name: 'Question', acceptedAnswer: { text: 'Answer' } }]),
+  organizationJsonLd({ name: 'Organization' }),
+];
+const routeValue = defineRouteJsonLd(values);
+if (routeValue !== values || values.some(value => value['@context'] !== 'https://schema.org')) {
+  throw new Error('generated JSON-LD builders violated their runtime contract');
+}
+`,
     );
+    const compiled = runStableTypeScript(
+      [
+        usagePath,
+        '--ignoreConfig',
+        '--module',
+        'nodenext',
+        '--moduleResolution',
+        'nodenext',
+        '--outDir',
+        outputRoot,
+        '--pretty',
+        'false',
+        '--skipLibCheck',
+        '--strict',
+        '--target',
+        'es2022',
+      ],
+      tempRoot,
+    );
+    assert.equal(compiled.status, 0, compiled.output);
+    const executed = spawnSync(
+      process.execPath,
+      [path.join(outputRoot, 'usage.js')],
+      { encoding: 'utf-8' },
+    );
+    assert.equal(executed.status, 0, `${executed.stdout}\n${executed.stderr}`);
+  } finally {
+    fs.rmSync(tempRoot, { force: true, recursive: true });
   }
-
-  assert.doesNotMatch(helperModule, /infer/u);
 });
 
 test('generated JSON-LD types reject scalar route metadata', () => {

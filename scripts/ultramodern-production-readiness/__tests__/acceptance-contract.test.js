@@ -111,53 +111,73 @@ function runtimeReport({
   };
 }
 
-test('acceptance executes final Node outputs before Cloudflare replaces .output', () => {
-  const source = fs.readFileSync(
-    path.join(__dirname, '../published-create-proof/acceptance-profile.mjs'),
-    'utf8',
+test('browser smoke executes the final Node deployment entry with its bound environment', async t => {
+  const { startServer } = await import('../browser-smoke/bootstrap.mjs');
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'acceptance-node-output-'),
   );
-  const build = source.indexOf("recordAcceptanceResult(receipt, 'build'");
-  const eagerNode = source.indexOf(
-    'const nodeRuntimeReport = await browserSmokeImpl',
-  );
-  const cloudflare = source.indexOf(
-    "recordAcceptanceResult(receipt, 'cloudflare-build'",
-  );
-  const nodeBackendArtifacts = source.indexOf(
-    "recordAcceptanceResult(receipt, 'backend'",
-  );
-
-  assert.ok(build >= 0 && build < eagerNode);
-  assert.ok(eagerNode < cloudflare);
-  assert.ok(
-    eagerNode < nodeBackendArtifacts && nodeBackendArtifacts < cloudflare,
-    'all path-based Node backend evidence must be captured before Cloudflare replaces .output',
-  );
-  assert.match(
-    source.slice(eagerNode, cloudflare),
-    /runtimeAcceptanceInvocation\(mode, 'node'\)/u,
-  );
-  assert.match(
-    source.slice(eagerNode, cloudflare),
-    /runtimeAcceptanceInvocation\(mode, 'node'\)[\s\S]*packageManagerEnv/u,
-    'the nested runtime proof must inherit the exact package-manager environment',
+  const outputDirectory = path.join(root, 'apps/shell/.output');
+  const artifactDirectory = path.join(root, 'artifacts');
+  fs.mkdirSync(outputDirectory, { recursive: true });
+  fs.writeFileSync(
+    path.join(outputDirectory, 'index.js'),
+    `const http = require('node:http');
+http.createServer((_request, response) => {
+  response.setHeader('content-type', 'application/json');
+  response.end(JSON.stringify({
+    cwd: process.cwd(),
+    marker: process.env.ACCEPTANCE_MARKER,
+    port: process.env.PORT,
+  }));
+}).listen(Number(process.env.PORT), '127.0.0.1');
+`,
   );
 
-  const bootstrap = fs.readFileSync(
-    path.join(__dirname, '../browser-smoke/bootstrap.mjs'),
-    'utf8',
-  );
-  assert.match(
-    bootstrap,
-    /path\.join\(\s*projectDir,\s*target\.app\.path,\s*'\.output'/u,
-  );
-  assert.match(bootstrap, /PORT: String\(target\.port\)/u);
-  assert.match(bootstrap, /spawn\(process\.execPath, \['index\.js'\]/u);
-  assert.match(bootstrap, /cwd: nodeDeployDirectory/u);
-  assert.doesNotMatch(
-    bootstrap,
-    /\['--filter', target\.app\.package, 'run', 'serve'\]/u,
-  );
+  const port = await new Promise((resolve, reject) => {
+    const server = require('node:net').createServer();
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address();
+      server.close(error => {
+        if (error) {
+          reject(error);
+        } else {
+          resolve(address.port);
+        }
+      });
+    });
+  });
+  const target = {
+    app: { id: 'shell', path: 'apps/shell' },
+    baseUrl: `http://127.0.0.1:${port}`,
+    port,
+  };
+  const server = startServer(target, {
+    artifactDir: artifactDirectory,
+    processEnv: { ACCEPTANCE_MARKER: 'final-node-output' },
+    projectDir: root,
+  });
+  t.after(async () => {
+    await server.stop();
+    fs.rmSync(root, { force: true, recursive: true });
+  });
+
+  let response;
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    try {
+      response = await fetch(target.baseUrl);
+      break;
+    } catch {
+      await new Promise(resolve => setTimeout(resolve, 20));
+    }
+  }
+  assert.ok(response);
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), {
+    cwd: fs.realpathSync(outputDirectory),
+    marker: 'final-node-output',
+    port: String(port),
+  });
 });
 
 test('the immutable ERP contract independently requires every Node and workerd runtime dimension', async () => {
@@ -438,10 +458,6 @@ test('shared source and published profiles commit only inventory and invoke the 
         assert.equal(
           JSON.parse(fs.readFileSync(localePath, 'utf8')).inventory.widgetBody,
           details.mutations.uiLocalization.value,
-        );
-        assert.match(
-          fs.readFileSync(apiPath, 'utf8'),
-          /Inventory C1 operational proof response/u,
         );
         assert.equal(
           runCommand('git', ['rev-parse', 'HEAD^'], { cwd: root }),

@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 const repoRoot = path.resolve(__dirname, '../../../../');
 const createBin = path.resolve(repoRoot, 'packages/toolkit/create/bin/run.js');
@@ -269,14 +270,23 @@ describe('create-ultramodern-workspace', () => {
     );
     const readinessConfigPath =
       'scripts/ultramodern-performance-readiness.config.mjs';
-    const readinessConfig = readText(workspaceDir, readinessConfigPath);
-    expect(readinessConfig).toContain(
-      'UltramodernPerformanceReadinessDiagnosticsConfig',
-    );
+    const readinessConfigFile = path.join(workspaceDir, readinessConfigPath);
+    const readinessConfigSource = readText(workspaceDir, readinessConfigPath);
+    const readinessConfig = (
+      await import(`${pathToFileURL(readinessConfigFile).href}?state=enabled`)
+    ).default;
+    expect(readinessConfig).toEqual({
+      enabled: true,
+      failOn: 'framework-invariant',
+      reportPath: readinessReportPath,
+    });
     writeText(
       workspaceDir,
       readinessConfigPath,
-      readinessConfig.replace('enabled: true', 'enabled: false'),
+      `export default ${JSON.stringify({
+        ...readinessConfig,
+        enabled: false,
+      })};\n`,
     );
     const disabledReadinessOutput = runPerformanceReadiness(workspaceDir);
     expect(disabledReadinessOutput.trim()).toBe(
@@ -290,7 +300,7 @@ describe('create-ultramodern-workspace', () => {
       optOut: `${readinessConfigPath}#enabled=false`,
       apps: [],
     });
-    writeText(workspaceDir, readinessConfigPath, readinessConfig);
+    writeText(workspaceDir, readinessConfigPath, readinessConfigSource);
     const envDisabledReadinessOutput = runPerformanceReadiness(workspaceDir, {
       ULTRAMODERN_PERFORMANCE_READINESS_DIAGNOSTICS: 'false',
     });
@@ -302,17 +312,15 @@ describe('create-ultramodern-workspace', () => {
       optOut: 'ULTRAMODERN_PERFORMANCE_READINESS_DIAGNOSTICS=false',
     });
 
-    const shellHeaderPath =
-      'apps/shell-super-app/src/routes/vertical-components.tsx';
-    const shellHeaderSource = readText(workspaceDir, shellHeaderPath);
-    expect(shellHeaderSource).toContain('data-modern-boundary-id');
+    const legacyBoundaryFixturePath =
+      'apps/shell-super-app/src/routes/__legacy-boundary-fixture.tsx';
     writeText(
       workspaceDir,
-      shellHeaderPath,
-      shellHeaderSource.replace(
-        'data-modern-boundary-id=',
-        'data-mf-boundary=',
-      ),
+      legacyBoundaryFixturePath,
+      `export default function LegacyBoundaryFixture() {
+  return <div data-mf-boundary="legacy" />;
+}
+`,
     );
     linkWorkspaceToolPackages(workspaceDir);
     try {
@@ -344,7 +352,7 @@ describe('create-ultramodern-workspace', () => {
         /legacy data-mf-\* boundary attributes/u,
       );
     }
-    writeText(workspaceDir, shellHeaderPath, shellHeaderSource);
+    fs.rmSync(path.join(workspaceDir, legacyBoundaryFixturePath));
 
     const fakeBinDir = path.join(tempRoot, 'fake-pnpm-bin');
     fs.mkdirSync(fakeBinDir, { recursive: true });
@@ -396,7 +404,7 @@ process.exit(1);
     expectWorkspaceValidatorPass(workspaceDir);
   });
 
-  test('keeps numbered vertical Tailwind prefixes unique', () => {
+  test('validates numbered vertical Tailwind prefixes as unique', () => {
     const workspaceDir = path.join(tempRoot, 'ultra-numbered-workspace');
     fs.rmSync(workspaceDir, { recursive: true, force: true });
     runCreate(workspaceDir, ['--lang', 'en']);
@@ -413,12 +421,7 @@ process.exit(1);
       'en',
     ]);
 
-    expect(
-      readText(workspaceDir, 'verticals/erp-vertical-011/src/routes/index.css'),
-    ).toContain('prefix(erpverticalzerooneone)');
-    expect(
-      readText(workspaceDir, 'verticals/erp-vertical-012/src/routes/index.css'),
-    ).toContain('prefix(erpverticalzeroonetwo)');
+    expectWorkspaceValidatorPass(workspaceDir);
   });
 
   test('rejects removed legacy microvertical flag', () => {

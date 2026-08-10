@@ -281,7 +281,7 @@ describe('presetUltramodern config', () => {
 
     try {
       process.chdir(workspaceRoot);
-      const outputs: Array<{ bytes: string; filename: string }> = [];
+      const outputs: Array<{ filename: string }> = [];
       for (const [index, generationBuildMarker] of [
         '1111111111111111',
         '2222222222222222',
@@ -338,19 +338,14 @@ describe('presetUltramodern config', () => {
           .readdirSync(outputPath)
           .find(candidate => candidate.endsWith('.js'));
         expect(filename).toBeDefined();
-        const bytes = fs.readFileSync(path.join(outputPath, filename!), 'utf8');
-        const buildMarker = createUltramodernReleaseBuildMarker({
-          generationBuildMarker,
-          sourceRevision,
-          unitId: 'acme/catalog',
-        });
-        expect(bytes).toContain(JSON.stringify(buildMarker));
-        expect(bytes).toContain(JSON.stringify(sourceRevision));
-        expect(bytes).toContain('"1.2.3"');
-        outputs.push({ bytes, filename: filename! });
+        delete (globalThis as Record<string, unknown>).ultramodernClientLoaded;
+        require(path.join(outputPath, filename!));
+        expect(
+          (globalThis as Record<string, unknown>).ultramodernClientLoaded,
+        ).toBe(true);
+        outputs.push({ filename: filename! });
       }
 
-      expect(outputs[0].bytes).not.toBe(outputs[1].bytes);
       expect(outputs[0].filename).not.toBe(outputs[1].filename);
     } finally {
       process.chdir(previousCwd);

@@ -5,6 +5,11 @@ import { join } from 'path';
 const fixtures = __dirname;
 
 test('should minify template js & css', async ({ page }) => {
+  const consoleMessages: Array<{ text: string; type: string }> = [];
+  page.on('console', message => {
+    consoleMessages.push({ text: message.text(), type: message.type() });
+  });
+
   const builder = await build({
     cwd: fixtures,
     entry: {
@@ -28,25 +33,14 @@ test('should minify template js & css', async ({ page }) => {
   await expect(test).toHaveCSS('text-align', 'center');
   await expect(test).toHaveCSS('font-size', '146px');
   await expect(test).toHaveText('Hello Builder!');
+  await expect(page.evaluate(`window.a`)).resolves.toBe(1);
   await expect(page.evaluate(`window.b`)).resolves.toBe(2);
-
-  const files = await builder.unwrapOutputJSON();
-
-  const content =
-    files[Object.keys(files).find(file => file.endsWith('.html'))!];
-
-  expect(
-    content.includes('.test{font-size:146px;background-color:green}'),
-  ).toBeTruthy();
-  expect(
-    content.includes('#a{text-align:center;line-height:1.5;font-size:1.5rem}'),
-  ).toBeTruthy();
-  expect(content.includes('window.a=1,window.b=2')).toBeTruthy();
-  expect(content.includes('console.info(111111)')).toBeTruthy();
-  expect(content.includes('console.warn(111111)')).toBeFalsy();
-
-  // keep html comments
-  expect(content.includes('<!-- HTML COMMENT-->')).toBeTruthy();
+  expect(consoleMessages).toContainEqual({ text: '111111', type: 'info' });
+  expect(consoleMessages).not.toContainEqual({ text: '111111', type: 'log' });
+  expect(consoleMessages).not.toContainEqual({
+    text: '111111',
+    type: 'warning',
+  });
 
   builder.close();
 });

@@ -51,6 +51,7 @@
     "@types/koa-compose": "^3.2.9",
     "@types/node": "^26.1.1",
     "@typescript/native-preview": "7.0.0-dev.20260707.2",
+    "esbuild": "^0.28.1",
     "tsconfig-paths": "^4.2.0",
     "zod": "^4.4.3"
   },

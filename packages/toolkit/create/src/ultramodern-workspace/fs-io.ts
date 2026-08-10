@@ -291,9 +291,16 @@ function collectTemplateFiles(dir: string): string[] {
   const files: string[] = [];
 
   function collect(currentDir: string) {
-    for (const entry of fs
-      .readdirSync(currentDir, { withFileTypes: true })
-      .sort((a, b) => a.name.localeCompare(b.name))) {
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(currentDir, { withFileTypes: true });
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        return;
+      }
+      throw error;
+    }
+    for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
       const entryPath = path.join(currentDir, entry.name);
       if (entry.isDirectory()) {
         collect(entryPath);

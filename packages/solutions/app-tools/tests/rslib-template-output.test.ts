@@ -1,8 +1,10 @@
 import { createRslib, type RslibConfig } from '@rslib/core';
 import { afterAll, beforeAll, describe, expect, it } from '@rstest/core';
+import { transform } from 'esbuild';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import { pathToFileURL } from 'url';
 import appToolsRslibConfig from '../rslib.config.mts';
 
 const appToolsDirectory = path.resolve(__dirname, '..');
@@ -10,7 +12,6 @@ const templatesDirectory = path.join(
   appToolsDirectory,
   'src/plugins/deploy/platforms/templates',
 );
-const esmRuntimeDirectory = path.join(appToolsDirectory, 'src/esm');
 const temporaryDirectory = fs.mkdtempSync(
   path.join(os.tmpdir(), 'modernjs-app-tools-rslib-'),
 );
@@ -50,6 +51,11 @@ function getBuildConfig(): RslibConfig {
 
 describe('App Tools Rslib deploy templates', () => {
   beforeAll(async () => {
+    fs.symlinkSync(
+      path.join(appToolsDirectory, 'node_modules'),
+      path.join(temporaryDirectory, 'node_modules'),
+      process.platform === 'win32' ? 'junction' : 'dir',
+    );
     const rslib = await createRslib({
       cwd: appToolsDirectory,
       config: getBuildConfig(),
@@ -62,51 +68,61 @@ describe('App Tools Rslib deploy templates', () => {
     fs.rmSync(temporaryDirectory, { recursive: true, force: true });
   });
 
-  it('copies every template byte-for-byte to each library output', () => {
+  it('emits every deploy template as parseable JavaScript in each library output', async () => {
     const templateFiles = getTemplateFiles(templatesDirectory);
 
     expect(templateFiles).toHaveLength(15);
 
     for (const sourcePath of templateFiles) {
-      const source = fs.readFileSync(sourcePath);
       const relativePath = path.relative(
         path.join(appToolsDirectory, 'src'),
         sourcePath,
       );
 
-      expect(source.byteLength).toBeGreaterThan(0);
-
       for (const outputFormat of outputFormats) {
-        const output = fs.readFileSync(
-          path.join(outputDirectory, outputFormat, relativePath),
+        const outputPath = path.join(
+          outputDirectory,
+          outputFormat,
+          relativePath,
         );
-
-        expect(output.byteLength).toBeGreaterThan(0);
-        expect(output).toEqual(source);
+        const output = fs.readFileSync(outputPath, 'utf8');
+        await expect(
+          transform(output, {
+            format: outputPath.endsWith('.cjs') ? 'cjs' : 'esm',
+            loader: 'js',
+            sourcefile: outputPath,
+          }),
+        ).resolves.toMatchObject({ warnings: [] });
       }
     }
   }, 120_000);
 
-  it('retains emitted ESM loaders and compiled CJS runtime entries', () => {
+  it('loads emitted ESM loaders and compiled CJS runtime entries', async () => {
     const runtimeEntries = fs
-      .readdirSync(esmRuntimeDirectory)
+      .readdirSync(path.join(outputDirectory, 'esm-node', 'esm'))
       .filter(file => file.endsWith('.mjs'))
       .sort();
 
     expect(runtimeEntries).toEqual(['register-esm.mjs', 'ts-paths-loader.mjs']);
 
     for (const file of runtimeEntries) {
-      const source = fs.readFileSync(path.join(esmRuntimeDirectory, file));
-      expect(source.byteLength).toBeGreaterThan(0);
-
       for (const outputFormat of outputFormats) {
-        const emitted = fs.readFileSync(
-          path.join(outputDirectory, outputFormat, 'esm', file),
+        const emitted = await import(
+          `${pathToFileURL(path.join(outputDirectory, outputFormat, 'esm', file)).href}?format=${outputFormat}`
         );
-        expect(emitted.byteLength).toBeGreaterThan(0);
+        expect(emitted).toEqual(
+          expect.objectContaining(
+            file === 'register-esm.mjs'
+              ? { registerPathsLoader: expect.any(Function) }
+              : {
+                  initialize: expect.any(Function),
+                  resolve: expect.any(Function),
+                },
+          ),
+        );
       }
 
-      const compiledCjs = fs.readFileSync(
+      const compiledCjs = require(
         path.join(
           outputDirectory,
           'cjs',
@@ -114,7 +130,16 @@ describe('App Tools Rslib deploy templates', () => {
           file.replace(/\.mjs$/u, '.js'),
         ),
       );
-      expect(compiledCjs.byteLength).toBeGreaterThan(0);
+      expect(compiledCjs).toEqual(
+        expect.objectContaining(
+          file === 'register-esm.mjs'
+            ? { registerPathsLoader: expect.any(Function) }
+            : {
+                initialize: expect.any(Function),
+                resolve: expect.any(Function),
+              },
+        ),
+      );
     }
   }, 120_000);
 });

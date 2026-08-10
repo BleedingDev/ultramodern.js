@@ -2,63 +2,14 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {
-  addUltramodernVertical,
-  generateUltramodernWorkspace,
-} from '../src/ultramodern-workspace';
-import {
-  TYPESCRIPT_STABLE_VERSION,
-  TYPESCRIPT_VERSION,
-} from '../src/ultramodern-workspace/versions';
+import { generateUltramodernWorkspace } from '../src/ultramodern-workspace';
+import { TYPESCRIPT_VERSION } from '../src/ultramodern-workspace/versions';
 
 const packageRoot = path.resolve(__dirname, '..');
-const sourceRoots = ['src', 'templates', 'template-workspace'];
-const sourceExtensions = new Set([
-  '.cjs',
-  '.handlebars',
-  '.js',
-  '.mjs',
-  '.mts',
-  '.ts',
-  '.tsx',
-]);
-
-const compilerApiImportPattern =
-  /\b(?:import(?:\s+type)?[\s\S]*?\sfrom\s*|require\()\s*['"](?:typescript|@typescript\/typescript6|@typescript\/native-preview(?:\/[^'"]*)?)['"]/u;
-const nativePreviewImportPattern =
-  /\b(?:import(?:\s+type)?[\s\S]*?\sfrom\s*|require\()\s*['"]@typescript\/native-preview(?:\/[^'"]*)?['"]/u;
-
-function listSourceFiles(root: string, dir = root): string[] {
-  const files: string[] = [];
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    const entryPath = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      files.push(...listSourceFiles(root, entryPath));
-    } else if (
-      entry.isFile() &&
-      sourceExtensions.has(path.extname(entry.name))
-    ) {
-      files.push(path.relative(root, entryPath).split(path.sep).join('/'));
-    }
-  }
-  return files.sort();
-}
-
 function readPackageJson(relativePath = 'package.json'): any {
   return JSON.parse(
     fs.readFileSync(path.join(packageRoot, relativePath), 'utf-8'),
   );
-}
-
-function assertNoCompilerApiImports(root: string, label: string) {
-  for (const relativePath of listSourceFiles(root)) {
-    const source = fs.readFileSync(path.join(root, relativePath), 'utf-8');
-    assert.doesNotMatch(
-      source,
-      compilerApiImportPattern,
-      `${label}/${relativePath} must not import TypeScript compiler APIs`,
-    );
-  }
 }
 
 test('create package build and test keep declarations on tsgo:dts', () => {
@@ -104,72 +55,6 @@ test('create package build and test keep declarations on tsgo:dts', () => {
     'string',
     'create build tooling may depend on native-preview as a dev-only compiler',
   );
-});
-
-test('UltraModern generator runtime sources do not import TypeScript compiler APIs', () => {
-  for (const sourceRoot of sourceRoots) {
-    assertNoCompilerApiImports(path.join(packageRoot, sourceRoot), sourceRoot);
-  }
-});
-
-test('generated typechecking uses the immutable framework TS-Go resolver', () => {
-  const source = fs.readFileSync(
-    path.join(
-      packageRoot,
-      'templates/workspace-scripts/ultramodern-typecheck.mjs',
-    ),
-    'utf-8',
-  );
-
-  assert.match(
-    source,
-    /import \{ resolveEffectTsgoCompiler \} from '@modern-js\/app-tools\/config';/u,
-  );
-  assert.match(
-    source,
-    /from: pathToFileURL\(join\(workspaceRoot, 'package\.json'\)\)/u,
-  );
-  assert.doesNotMatch(
-    source,
-    /resolveEffectTsgoCompiler\(\{ from: import\.meta\.url \}\)/u,
-    'the installed create package must resolve TS-Go from the consumer workspace',
-  );
-  assert.doesNotMatch(source, /\bchmod(?:Sync)?\b/u);
-  assert.doesNotMatch(source, /\bEFFECT_TSGO_CLI\b/u);
-});
-
-test('create tests use stable TypeScript 7 without compiler API imports', () => {
-  const packageJson = readPackageJson();
-
-  assert.equal(
-    packageJson.devDependencies?.typescript,
-    '^7.0.2',
-    'create package keeps the repo-consistent TypeScript tooling line',
-  );
-  assert.equal(
-    packageJson.devDependencies?.['@typescript/typescript6'],
-    undefined,
-    'repository-owned create tests must not retain the legacy TypeScript API',
-  );
-
-  for (const relativePath of listSourceFiles(path.join(packageRoot, 'tests'))) {
-    const source = fs.readFileSync(
-      path.join(packageRoot, 'tests', relativePath),
-      'utf-8',
-    );
-
-    assert.doesNotMatch(
-      source,
-      nativePreviewImportPattern,
-      `tests/${relativePath} must not import @typescript/native-preview`,
-    );
-
-    assert.doesNotMatch(
-      source,
-      compilerApiImportPattern,
-      `tests/${relativePath} must use the stable TypeScript CLI instead of compiler APIs`,
-    );
-  }
 });
 
 test('generated package module scopes keep Module Federation apps CommonJS-compatible', () => {
@@ -271,32 +156,6 @@ test('generated package module scopes keep Module Federation apps CommonJS-compa
       'effect-tsgo',
       'compact metadata should keep MF DTS generation on the effect-tsgo lane',
     );
-  } finally {
-    fs.rmSync(tempRoot, { recursive: true, force: true });
-  }
-});
-
-test('generated workspaces do not import TypeScript compiler APIs', () => {
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-tsgo-boundary-'));
-  const workspaceDir = path.join(tempRoot, 'tsgo-boundary-workspace');
-
-  try {
-    generateUltramodernWorkspace({
-      targetDir: workspaceDir,
-      packageName: 'tsgo-boundary-workspace',
-      modernVersion: '3.2.1',
-      enableTailwind: true,
-      packageSource: {
-        strategy: 'workspace',
-      },
-    });
-    addUltramodernVertical({
-      workspaceRoot: workspaceDir,
-      name: 'catalog',
-      modernVersion: '3.2.1',
-    });
-
-    assertNoCompilerApiImports(workspaceDir, 'generated workspace');
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }

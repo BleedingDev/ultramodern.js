@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { Entrypoint } from '@modern-js/types';
@@ -187,19 +187,24 @@ describe('router cli extension points', () => {
     );
 
     expect(routesByEntry.main).toHaveLength(1);
-    expect(JSON.stringify(routesByEntry.main)).toContain('"id":"page"');
-
-    const generatedRoutes = await readFile(
-      path.join(internalDirectory, 'main', 'routes.js'),
-      'utf-8',
-    );
-    expect(generatedRoutes).toContain('@_modern_js_src/main/views/page');
-
-    const runtimeContext = await readFile(
-      path.join(internalDirectory, 'main', 'runtime-global-context.js'),
-      'utf-8',
-    );
-    expect(runtimeContext).toContain("import { routes } from './routes'");
+    const [rootRoute] = routesByEntry.main;
+    expect(rootRoute).toMatchObject({
+      id: 'layout',
+      children: [
+        expect.objectContaining({
+          id: 'page',
+          _component: '@_modern_js_src/main/views/page',
+        }),
+      ],
+    });
+    await expect(
+      fs.pathExists(path.join(internalDirectory, 'main', 'routes.js')),
+    ).resolves.toBe(true);
+    await expect(
+      fs.pathExists(
+        path.join(internalDirectory, 'main', 'runtime-global-context.js'),
+      ),
+    ).resolves.toBe(true);
     expect(
       await fs.pathExists(path.join(srcDirectory, 'modern-tanstack')),
     ).toBe(false);

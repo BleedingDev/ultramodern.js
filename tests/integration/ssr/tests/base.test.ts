@@ -1,5 +1,4 @@
 import dns from 'node:dns';
-import { fs } from '@modern-js/utils';
 import axios from 'axios';
 import path, { join } from 'path';
 import puppeteer, { type Browser, type Page } from 'puppeteer';
@@ -55,13 +54,6 @@ async function redirectInLoader(page: Page, appPort: number) {
   expect(body).not.toMatch(/Redirect page/);
 }
 
-async function checkIsPassChunkLoadingGlobal() {
-  const modernJsDir = join(fixtureDir, 'base', 'node_modules', '.modern-js');
-  const entryFilePath = join(modernJsDir, 'index', 'index.jsx');
-  const content = await fs.readFile(entryFilePath, 'utf-8');
-  expect(content).toMatch(/chunkLoadingGlobal/);
-}
-
 describe('Traditional SSR', () => {
   let app: any;
   let appPort: number;
@@ -88,11 +80,6 @@ describe('Traditional SSR', () => {
 
   test(`basic usage`, async () => {
     await basicUsage(page, appPort);
-  });
-
-  // We will not add chunkLoadingGlobal to entry(index.jsx)
-  test.skip(`should pass chunkLoadingGlobal`, async () => {
-    await checkIsPassChunkLoadingGlobal();
   });
 
   test.skip(`client navigation works`, async () => {

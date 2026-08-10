@@ -52,13 +52,7 @@ rstest.mock('react', () => {
   const originalModule = rstest.requireActual('react');
   const originContext = originalModule.useContext;
   const mockedUseContext = (context: unknown) => {
-    // Mock both contexts using string comparison as fallback
-    const contextString = context.toString();
-
-    if (
-      context === InternalRuntimeContext ||
-      contextString.includes('InternalRuntimeContext')
-    ) {
+    if (context === InternalRuntimeContext) {
       return {
         routes: mockRoutes,
         routeManifest: mockRouteManifest,

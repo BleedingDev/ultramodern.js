@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import yaml from 'js-yaml';
 import type { WorkspaceApp } from '../src/ultramodern-workspace/types';
 import { createZeropsYaml } from '../src/ultramodern-workspace/zerops';
 
@@ -32,24 +33,26 @@ test('Zerops YAML quotes interpolated values with spaces and quotes', () => {
     ownership,
   };
 
-  const yaml = createZeropsYaml('acme', [app]);
+  const document = yaml.load(createZeropsYaml('acme', [app])) as {
+    zerops: Array<Record<string, any>>;
+  };
+  const [service] = document.zerops;
 
-  assert.match(yaml, /setup: 'catalog ''quoted'' app'/u);
-  assert.ok(
-    yaml.includes("--app 'catalog '\\''quoted'\\'' app'"),
-    'app id should be shell-quoted in materialize command',
+  assert.equal(service.setup, "catalog 'quoted' app");
+  assert.equal(
+    service.deploy.readinessCheck.httpGet.path,
+    "/catalog api/catalog 'stem'/readiness",
   );
-  assert.ok(
-    yaml.includes("--package '@acme/catalog '\\''quoted'\\'' pkg'"),
-    'package name should be shell-quoted in materialize command',
+  assert.equal(
+    service.run.start,
+    "cd '.zerops/runtime/catalog '\\''quoted'\\'' app' && npm run serve",
   );
-  assert.ok(
-    yaml.includes("--package-dir 'verticals/catalog '\\''quoted'\\'''"),
-    'package directory should be shell-quoted in materialize command',
-  );
-  assert.match(yaml, /path: '\/catalog api\/catalog ''stem''\/readiness'/u);
-  assert.ok(
-    yaml.includes("start: cd '.zerops/runtime/catalog '\\''quoted'\\'' app'"),
-    'runtime start path should be shell-quoted',
+  assert.equal(service.build.buildCommands.length, 1);
+  const materialize = service.build.buildCommands[0]
+    .split('\n')
+    .find((command: string) => command.includes('zerops:materialize'));
+  assert.equal(
+    materialize,
+    "~/.local/bin/mise exec -- pnpm run zerops:materialize -- --app 'catalog '\\''quoted'\\'' app' --package '@acme/catalog '\\''quoted'\\'' pkg' --package-dir 'verticals/catalog '\\''quoted'\\'''",
   );
 });

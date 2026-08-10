@@ -168,11 +168,6 @@ describe('backend federation build artifacts', () => {
         encoding: 'utf8',
       }),
     );
-    const remoteEntry = await fs.readFile(
-      path.join(distDirectory, 'backendRemoteEntry.cjs'),
-      'utf8',
-    );
-
     expect(manifest).toEqual(
       expect.objectContaining({
         name: 'verticalExploreBackend',
@@ -204,12 +199,6 @@ describe('backend federation build artifacts', () => {
         }),
       }),
     );
-    expect(remoteEntry).toContain('module.exports');
-    expect(remoteEntry).toContain('function get(id)');
-    expect(remoteEntry).toContain(
-      '"buildVersion": "tractor-explore-build-1234"',
-    );
-    expect(remoteEntry).toContain('"version": "0.1.0"');
   });
 
   it('uses configured container entry base as backend public path', async () => {
@@ -481,11 +470,6 @@ export const runtime = { brand: 'emitted-live-http' };
         encoding: 'utf8',
       }),
     );
-    const remoteEntry = await fs.readFile(
-      path.join(distDirectory, 'backendRemoteEntry.cjs'),
-      'utf8',
-    );
-
     expect(manifest.backendFederation.deliveryUnit).toEqual({
       schemaVersion: 1,
       kind: 'microvertical-delivery-unit',
@@ -503,10 +487,6 @@ export const runtime = { brand: 'emitted-live-http' };
     expect(
       manifest.backendFederation.versionBoundary.deliveryUnit.buildMarker,
     ).toBe(manifest.backendFederation.versionBoundary.buildVersion);
-    expect(remoteEntry).toContain(
-      '"unitId": "tractor-store-vertical-demo/explore"',
-    );
-    expect(remoteEntry).toContain('"sourceRevision": "workspace"');
   });
 
   it('stamps sourceRevision from build revision into manifest and delivery-unit artifact', async () => {

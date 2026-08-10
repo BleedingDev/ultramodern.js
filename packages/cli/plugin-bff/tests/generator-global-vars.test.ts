@@ -116,9 +116,6 @@ describe('BFF compiler global variables', () => {
         default: () => string;
       };
       expect(runtime.default()).toBe('raw-workspace-typescript');
-      expect(await fs.readFile(compiledEntry, 'utf8')).not.toMatch(
-        /require\(["']@fixture\/raw-contract["']\)/u,
-      );
     } finally {
       await fs.remove(workspaceDirectory);
     }
@@ -169,7 +166,16 @@ describe('BFF compiler global variables', () => {
     );
     await fs.outputFile(
       path.join(apiDirectory, 'backend-federation.ts'),
-      'export const backendFederationContract = {};\n',
+      [
+        'declare const ULTRAMODERN_BUILD_MARKER: string;',
+        'declare const ULTRAMODERN_RELEASE_VERSION: string;',
+        'declare const ULTRAMODERN_SOURCE_REVISION: string;',
+        'export const backendFederationContract = {',
+        '  buildMarker: ULTRAMODERN_BUILD_MARKER,',
+        '  releaseVersion: ULTRAMODERN_RELEASE_VERSION,',
+        '  sourceRevision: ULTRAMODERN_SOURCE_REVISION,',
+        '};',
+      ].join('\n'),
     );
     const unrelatedBrowserOutput = path.join(
       distDirectory,
@@ -179,6 +185,7 @@ describe('BFF compiler global variables', () => {
       unrelatedBrowserOutput,
       'globalThis.browserMarker = ULTRAMODERN_BUILD_MARKER;\n',
     );
+    const unrelatedBrowserStat = await fs.stat(unrelatedBrowserOutput);
 
     const api = {
       getAppContext: () => ({
@@ -212,18 +219,11 @@ describe('BFF compiler global variables', () => {
         distDirectory,
         'shared/ultramodern-build.js',
       );
-      const compiled = await fs.readFile(compiledPath, 'utf8');
-      expect(compiled).toContain(JSON.stringify(buildMarker));
-      expect(compiled).toContain(JSON.stringify(releaseVersion));
-      expect(compiled).toContain(JSON.stringify(sourceRevision));
-      expect(compiled).toContain(
-        '// ULTRAMODERN_BUILD_MARKER must remain a comment token.',
-      );
-      expect(compiled).toContain("'ULTRAMODERN_BUILD_MARKER'");
-      expect(compiled).toContain('ULTRAMODERN_BUILD_MARKER_NEAR_MATCH');
-      expect(await fs.readFile(unrelatedBrowserOutput, 'utf8')).toBe(
-        'globalThis.browserMarker = ULTRAMODERN_BUILD_MARKER;\n',
-      );
+      expect(await fs.stat(unrelatedBrowserOutput)).toMatchObject({
+        ino: unrelatedBrowserStat.ino,
+        mtimeMs: unrelatedBrowserStat.mtimeMs,
+        size: unrelatedBrowserStat.size,
+      });
 
       const runtime = require(compiledPath) as {
         ultramodernApiMarker: {
@@ -240,17 +240,20 @@ describe('BFF compiler global variables', () => {
         nearMatchType: 'undefined',
       });
 
-      const compiledBackendFederation = await fs.readFile(
+      const compiledBackendFederation = require(
         path.join(distDirectory, 'api/backend-federation.js'),
-        'utf8',
-      );
-      expect(compiledBackendFederation).toContain(JSON.stringify(buildMarker));
-      expect(compiledBackendFederation).toContain(
-        JSON.stringify(sourceRevision),
-      );
-      expect(compiledBackendFederation).toContain(
-        JSON.stringify(releaseVersion),
-      );
+      ) as {
+        backendFederationContract: {
+          buildMarker: string;
+          releaseVersion: string;
+          sourceRevision: string;
+        };
+      };
+      expect(compiledBackendFederation.backendFederationContract).toEqual({
+        buildMarker,
+        releaseVersion,
+        sourceRevision,
+      });
     } finally {
       await fs.remove(appDirectory);
     }

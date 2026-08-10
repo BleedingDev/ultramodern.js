@@ -1,115 +1,173 @@
+import { createRequire } from 'node:module';
 import { fs } from '@modern-js/utils';
+import { build } from 'esbuild';
 import path from 'path';
 import { generateClient } from '../../src/client/generateClient';
 
 const PWD = path.resolve(__dirname, '../fixtures/function');
+const fixtureRequire = createRequire(import.meta.url);
+
+async function executeGeneratedClient(code: string) {
+  const result = await build({
+    bundle: true,
+    format: 'cjs',
+    platform: 'node',
+    stdin: {
+      contents: code,
+      resolveDir: __dirname,
+      sourcefile: 'generated-bff-client.mjs',
+    },
+    write: false,
+    plugins: [
+      {
+        name: 'generated-client-runtime',
+        setup(buildApi) {
+          buildApi.onResolve({ filter: /.*/ }, args => {
+            if (args.kind === 'entry-point') {
+              return undefined;
+            }
+            return { namespace: 'request-runtime', path: args.path };
+          });
+          buildApi.onLoad(
+            { filter: /.*/, namespace: 'request-runtime' },
+            () => ({
+              contents: [
+                'export const createRequest = (...args) => ({ kind: "request", args });',
+                'export const createUploader = options => ({ kind: "uploader", options });',
+                'export const configure = options => options;',
+              ].join('\n'),
+              loader: 'js',
+            }),
+          );
+        },
+      },
+    ],
+  });
+  const output = result.outputFiles[0]?.text;
+  if (!output) {
+    throw new Error('generated BFF client bundle was empty');
+  }
+  const moduleRecord: { exports: Record<string, any> } = { exports: {} };
+  const evaluate = new Function('module', 'exports', 'require', output);
+  evaluate(moduleRecord, moduleRecord.exports, fixtureRequire);
+  return moduleRecord.exports;
+}
+
+async function generateFixtureClient(options: {
+  prefix: string;
+  resourcePath: string;
+  target?: 'bundle';
+  requestId?: string;
+}) {
+  const source = await fs.readFile(options.resourcePath, 'utf-8');
+  const result = await generateClient({
+    appDir: __dirname,
+    prefix: options.prefix,
+    port: 3000,
+    resourcePath: options.resourcePath,
+    source,
+    apiDir: PWD,
+    lambdaDir: path.join(PWD, './lambda'),
+    requireResolve: ((input: any) => input) as any,
+    ...(options.target ? { target: options.target } : {}),
+    ...(options.requestId ? { requestId: options.requestId } : {}),
+  });
+  if (!result.isOk) {
+    throw new Error(String(result.value));
+  }
+  return executeGeneratedClient(result.value);
+}
 
 describe('client', () => {
-  test('generateClient should works correctly', async () => {
-    const prefix = '/api';
-    const port = 3000;
+  test('executes generated requests for dynamic route handlers', async () => {
     const resourcePath = path.resolve(
       __dirname,
       '../fixtures/function/lambda/[id]/origin/foo.ts',
     );
-    const source = await fs.readFile(resourcePath, 'utf-8');
-
-    const result = await generateClient({
-      appDir: __dirname,
-      prefix,
-      port,
+    const client = await generateFixtureClient({
+      prefix: '/api',
       resourcePath,
-      source,
-      apiDir: PWD,
-      lambdaDir: path.join(PWD, './lambda'),
-      requireResolve: ((input: any) => input) as any,
     });
-    expect(result.isOk).toBeTruthy();
-    expect(result.value).toMatchSnapshot();
+
+    expect(client.get).toMatchObject({
+      kind: 'request',
+      args: [
+        '/api/:id/origin/foo',
+        'GET',
+        3000,
+        'functionName',
+        undefined,
+        undefined,
+        expect.objectContaining({
+          method: 'GET',
+          operationId: 'get',
+          routePath: '/api/:id/origin/foo',
+          operationVersion: 1,
+        }),
+      ],
+    });
+    expect(client.post.args[1]).toBe('POST');
+    expect(client.operationManifest.operations).toHaveLength(2);
   });
 
-  test('generateClient should support operator', async () => {
-    const prefix = '/';
-    const port = 3000;
+  test('executes generated default, method-named, and custom handlers', async () => {
     const resourcePath = path.resolve(
       __dirname,
       '../fixtures/function/lambda/normal/origin/index.ts',
     );
-    const source = await fs.readFile(resourcePath, 'utf-8');
+    const client = await generateFixtureClient({ prefix: '/', resourcePath });
 
-    const result = await generateClient({
-      appDir: __dirname,
-      prefix,
-      port,
-      resourcePath,
-      source,
-      apiDir: PWD,
-      lambdaDir: path.join(PWD, './lambda'),
-      requireResolve: ((input: any) => input) as any,
-    });
-    expect(result.isOk).toBeTruthy();
-    expect(result.value).toMatchSnapshot();
+    expect(client.default.kind).toBe('request');
+    expect(client.default.args.slice(0, 2)).toEqual(['/normal/origin', 'GET']);
+    expect(client.DELETE.args.slice(0, 2)).toEqual([
+      '/normal/origin',
+      'DELETE',
+    ]);
+    expect(client.putRepo.args.slice(0, 2)).toEqual(['/put-repo', 'PUT']);
+    expect(
+      client.operationManifest.operations.map((entry: any) => entry.name),
+    ).toEqual(['DELETE', 'default', 'putRepo']);
   });
 
-  test('generateClient should support cross project invocation', async () => {
-    const prefix = '/';
-    const port = 3000;
+  test('executes cross-project client manifests and secure bootstrap', async () => {
     const resourcePath = path.resolve(
       __dirname,
       '../fixtures/function/lambda/normal/origin/index.ts',
     );
-    const source = await fs.readFile(resourcePath, 'utf-8');
-
-    const result = await generateClient({
-      appDir: __dirname,
-      prefix,
-      port,
+    const client = await generateFixtureClient({
+      prefix: '/',
       resourcePath,
-      source,
-      apiDir: PWD,
-      lambdaDir: path.join(PWD, './lambda'),
-      requireResolve: ((input: any) => input) as any,
-      target: 'bundle',
-    });
-    expect(result.isOk).toBeTruthy();
-    expect(result.value).toContain(
-      `import { createRequest } from "@modern-js/plugin-bff/client";`,
-    );
-    expect(result.value).toContain(`export const operationSchemaHash`);
-    expect(result.value).toContain(`export const operationVersion`);
-    expect(result.value).toContain(`export const operationManifest`);
-  });
-
-  test('generateClient should default bundle producer clients to secure bootstrap path', async () => {
-    const prefix = '/';
-    const port = 3000;
-    const resourcePath = path.resolve(
-      __dirname,
-      '../fixtures/function/lambda/normal/origin/index.ts',
-    );
-    const source = await fs.readFile(resourcePath, 'utf-8');
-
-    const result = await generateClient({
-      appDir: __dirname,
-      prefix,
-      port,
-      resourcePath,
-      source,
-      apiDir: PWD,
-      lambdaDir: path.join(PWD, './lambda'),
-      requireResolve: ((input: any) => input) as any,
       target: 'bundle',
       requestId: 'producer-app',
     });
 
-    expect(result.isOk).toBeTruthy();
-    expect(result.value).toContain('export const initProducerClient =');
-    expect(result.value).toContain('requestId: "producer-app"');
-    expect(result.value).toContain('requireEnvelope: true');
-    expect(result.value).toContain('enabled: true');
-    expect(result.value).toContain('strict: true');
-    expect(result.value).toContain('requireSchemaHash: true');
-    expect(result.value).toContain('requireOperationVersion: true');
+    expect(client.operationVersion).toBe(1);
+    expect(client.operationSchemaHash).toHaveLength(64);
+    expect(client.operationManifest).toMatchObject({
+      operationVersion: 1,
+      schemaHash: client.operationSchemaHash,
+      operations: expect.arrayContaining([
+        expect.objectContaining({
+          httpMethod: 'GET',
+          name: 'default',
+          routePath: '/normal/origin',
+        }),
+      ]),
+    });
+    expect(client.initProducerClient()).toEqual({
+      requestId: 'producer-app',
+      requireEnvelope: true,
+      identityBinding: {
+        enabled: true,
+        strict: true,
+      },
+      operationContract: {
+        enabled: true,
+        strict: true,
+        requireSchemaHash: true,
+        requireOperationVersion: true,
+      },
+    });
   });
 
   describe('upload operators', () => {
@@ -118,7 +176,7 @@ describe('client', () => {
 
     const generateUploadClient = async (requestId?: string) => {
       const source = await fs.readFile(uploadResourcePath, 'utf-8');
-      return generateClient({
+      const result = await generateClient({
         appDir: __dirname,
         prefix: '/api',
         port: 3000,
@@ -129,49 +187,42 @@ describe('client', () => {
         requireResolve: ((input: any) => input) as any,
         ...(requestId ? { target: 'bundle', requestId } : {}),
       });
+      if (!result.isOk) {
+        throw new Error(String(result.value));
+      }
+      return executeGeneratedClient(result.value);
     };
 
-    test('emits createUploader for upload handlers (vanilla path)', async () => {
-      const result = await generateUploadClient();
+    test('executes uploader and request handlers through their runtime contracts', async () => {
+      const client = await generateUploadClient();
 
-      expect(result.isOk).toBeTruthy();
-      expect(result.value).toContain(
-        'import { createRequest, createUploader } from',
-      );
-      expect(result.value).toMatch(
-        /export var upload = createUploader\(\{"path":"\/api\/upload"\}\);/,
-      );
-      // non-upload sibling handlers still use createRequest
-      expect(result.value).toContain('export var get = createRequest(');
+      expect(client.upload).toEqual({
+        kind: 'uploader',
+        options: { path: '/api/upload' },
+      });
+      expect(client.get.kind).toBe('request');
+      expect(client.get.args.slice(0, 2)).toEqual(['/api', 'GET']);
     });
 
-    test('emits createUploader with requestId and operation context for producer SDKs', async () => {
-      const result = await generateUploadClient('producer-app');
+    test('executes producer upload clients with operation context', async () => {
+      const client = await generateUploadClient('producer-app');
 
-      expect(result.isOk).toBeTruthy();
-      expect(result.value).toContain(
-        'const { createRequest, createUploader } = requestRuntime;',
-      );
-
-      const uploaderCall = result.value.match(
-        /export var upload = createUploader\((\{.*?\})\);/s,
-      );
-      expect(uploaderCall).toBeTruthy();
-      const uploaderOptions = JSON.parse(uploaderCall![1]!);
-      expect(uploaderOptions).toMatchObject({
-        path: '/api/upload',
-        requestId: 'producer-app',
-        operationContext: {
-          operationId: 'upload',
-          routePath: '/api/upload',
-          method: 'POST',
-          operationVersion: 1,
+      expect(client.upload).toMatchObject({
+        kind: 'uploader',
+        options: {
+          path: '/api/upload',
+          requestId: 'producer-app',
+          operationContext: {
+            operationId: 'upload',
+            routePath: '/api/upload',
+            method: 'POST',
+            operationVersion: 1,
+          },
         },
       });
-      expect(typeof uploaderOptions.operationContext.schemaHash).toBe('string');
-      expect(
-        uploaderOptions.operationContext.schemaHash.length,
-      ).toBeGreaterThan(0);
+      expect(client.upload.options.operationContext.schemaHash).toHaveLength(
+        64,
+      );
     });
   });
 });

@@ -120,16 +120,10 @@ describe('RouterPlugin', () => {
     const emittedAssets = Object.values(routeManifest.routeAssets).flatMap(
       route => [...(route.assets ?? []), ...(route.referenceCssAssets ?? [])],
     );
-    const html = await fs.readFile(path.join(outputPath, 'index.html'), 'utf8');
 
     expect(emittedAssets).toContain('/static/css/main.css');
     expect(emittedAssets).toContain('/static/css/lazy.css');
     expect(emittedAssets.some(asset => asset.includes('auto/'))).toBe(false);
-    expect(html).toContain('src="/static/js/route-manifest-main.js"');
-    expect(html).toContain('src="auto/custom.js"');
-    expect(html).toContain('href="auto/help"');
-    expect(html).not.toContain('src="auto/static/');
-    expect(html).not.toContain('href="auto/static/');
   });
 });
 

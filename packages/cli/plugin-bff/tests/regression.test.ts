@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { ServerPluginAPI } from '@modern-js/server-core';
 import { semver } from '@modern-js/utils';
+import { build } from 'esbuild';
 import {
   createBackendFederationRuntime,
   loadBackendFederatedEffectApi,
@@ -124,31 +125,43 @@ describe('plugin-bff regressions', () => {
     );
   });
 
-  test('server entry does not eagerly load Effect', () => {
-    // FORK: `@modern-js/plugin-bff/server-plugin` must load for a hono-only
-    // consumer that has NOT installed the optional `effect` peer. A static
-    // import of EffectAdapter pulls effect/Effect, effect/Layer, effect/Schema
-    // and effect/unstable/http* into the eager module graph and the entry
-    // throws ERR_MODULE_NOT_FOUND. src/server.ts loads the adapter through a
-    // dynamic import instead; this asserts the source, so it holds before the
-    // bundle is even built.
-    const serverSource = fs.readFileSync(
-      path.resolve(__dirname, '../src/server.ts'),
-      'utf8',
+  test('server entry keeps Effect in an asynchronous bundle', async () => {
+    const result = await build({
+      bundle: true,
+      entryPoints: [path.resolve(__dirname, '../src/server.ts')],
+      format: 'esm',
+      metafile: true,
+      outdir: 'out',
+      packages: 'external',
+      platform: 'node',
+      splitting: true,
+      write: false,
+    });
+    const entryOutput = Object.values(result.metafile.outputs).find(output =>
+      output.entryPoint?.endsWith('/server.ts'),
     );
-    const staticImports = [
-      ...serverSource.matchAll(/^\s*import\s[^\n]*?from\s+'([^']+)'/gm),
-    ].map(([, specifier]) => specifier);
+    if (!entryOutput) {
+      throw new Error('server entry output was not generated');
+    }
+    const dynamicOutputNames = entryOutput.imports
+      .filter(moduleImport => moduleImport.kind === 'dynamic-import')
+      .map(moduleImport => path.basename(moduleImport.path));
+    const dynamicEntries = Object.entries(result.metafile.outputs)
+      .filter(([outputPath]) =>
+        dynamicOutputNames.includes(path.basename(outputPath)),
+      )
+      .map(([, output]) => path.basename(output.entryPoint ?? ''));
+
+    expect(dynamicEntries).toContain('adapter.ts');
     expect(
-      staticImports.filter(
-        specifier =>
-          specifier === 'effect' ||
-          specifier.startsWith('effect/') ||
-          specifier.startsWith('@effect/') ||
-          specifier.includes('runtime/effect/'),
+      entryOutput.imports.filter(
+        moduleImport =>
+          moduleImport.kind === 'import-statement' &&
+          (moduleImport.path === 'effect' ||
+            moduleImport.path.startsWith('effect/') ||
+            moduleImport.path.startsWith('@effect/')),
       ),
     ).toEqual([]);
-    expect(serverSource).toContain("await import('./runtime/effect/adapter')");
   });
 
   const backendEffectApiModuleUrl = (remoteName = 'verticalExploreBackend') =>
@@ -1285,25 +1298,51 @@ const api = HttpApi.make('ModuleApi').add(
         relativeDistPath: '.modern-js',
       });
 
-      const runtimeCode = await fs.promises.readFile(
-        path.join(appDir, '.modern-js', 'runtime', 'index.js'),
-        'utf8',
+      const generatedRuntimeDirectory = path.join(
+        appDir,
+        '.modern-js',
+        'runtime',
       );
-      const runtimeTypes = await fs.promises.readFile(
-        path.join(appDir, '.modern-js', 'runtime', 'index.d.ts'),
-        'utf8',
+      const requestRuntimeDirectory = path.join(
+        appDir,
+        '.modern-js',
+        'node_modules',
+        '@modern-js',
+        'plugin-bff',
       );
+      await fs.promises.mkdir(requestRuntimeDirectory, { recursive: true });
+      await fs.promises.writeFile(
+        path.join(requestRuntimeDirectory, 'package.json'),
+        JSON.stringify({
+          exports: { './client': './client.js' },
+          name: '@modern-js/plugin-bff',
+        }),
+      );
+      await fs.promises.writeFile(
+        path.join(requestRuntimeDirectory, 'client.js'),
+        'exports.configure = options => options;',
+      );
+      const generatedRequire = createRequire(
+        path.join(generatedRuntimeDirectory, 'index.js'),
+      );
+      const generatedRuntime = generatedRequire('./index.js') as {
+        configure: (options?: Record<string, unknown>) => unknown;
+        initProducerClient: (options?: Record<string, unknown>) => unknown;
+      };
+      const expectedDefaults = {
+        requestId: 'runtime-app',
+        requireEnvelope: true,
+        identityBinding: { enabled: true, strict: true },
+        operationContract: {
+          enabled: true,
+          strict: true,
+          requireSchemaHash: true,
+          requireOperationVersion: true,
+        },
+      };
 
-      expect(runtimeCode).toContain('const initProducerClient = (options)');
-      expect(runtimeCode).toContain('const configure = initProducerClient;');
-      expect(runtimeCode).toMatch(/requestId:\s*['"]runtime-app['"]/);
-      expect(runtimeTypes).toContain('initProducerClient');
-      expect(runtimeTypes).toContain(
-        'typeof import("@modern-js/plugin-bff/client")',
-      );
-      expect(runtimeTypes).toContain(
-        'export declare const configure: typeof initProducerClient;',
-      );
+      expect(generatedRuntime.initProducerClient()).toEqual(expectedDefaults);
+      expect(generatedRuntime.configure()).toEqual(expectedDefaults);
     } finally {
       await fs.promises.rm(appDir, { recursive: true, force: true });
     }

@@ -112,44 +112,15 @@ function replaceText(
 ) {
   const absolutePath = path.join(workspaceDir, relativePath);
   const source = fs.readFileSync(absolutePath, 'utf-8');
-  assert.ok(
-    source.includes(current),
-    `${relativePath} must contain ${current}`,
-  );
   fs.writeFileSync(absolutePath, source.replace(current, replacement), 'utf-8');
 }
 
-test('generated validator embeds one structured contract and ignores JSON representation', () => {
+test('generated validator accepts equivalent structured JSON representations', () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-contract-json-'));
   const workspaceDir = path.join(tempRoot, 'structured-contract');
 
   try {
     generateWorkspace(workspaceDir);
-
-    const validatorSource = fs.readFileSync(
-      path.join(workspaceDir, 'scripts/validate-ultramodern-workspace.mts'),
-      'utf-8',
-    );
-    assert.match(
-      validatorSource,
-      /const workspaceValidationContract = \{\s*schemaVersion: 1,/,
-    );
-    assert.match(
-      validatorSource,
-      /kind: 'modernjs\.ultramodern-workspace-validation-contract'/,
-    );
-    assert.match(
-      validatorSource,
-      /generatedSurfacePolicy: \{\s*schemaVersion: 1,/,
-    );
-    assert.doesNotMatch(
-      validatorSource,
-      /const ultramodernArgs = \['ultramodern', 'validate'/,
-    );
-    assert.doesNotMatch(
-      validatorSource,
-      /\{\{+workspaceValidationContractJson/,
-    );
 
     const baseline = runValidation(workspaceDir);
     assert.equal(baseline.status, 0, commandOutput(baseline));

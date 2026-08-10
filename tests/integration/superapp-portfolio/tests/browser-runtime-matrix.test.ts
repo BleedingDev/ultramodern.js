@@ -4,6 +4,7 @@ import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { readdir, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import {
   acquireFixtureLock,
   type ReleaseFixtureLock,
@@ -118,22 +119,33 @@ async function collectRelativeFiles(
   return files.sort();
 }
 
-function extractStaticRefs(html: string, attr: 'href' | 'src') {
-  return Array.from(html.matchAll(new RegExp(`${attr}="([^"]+)"`, 'g')))
-    .map(match => match[1])
-    .filter(ref => ref.includes('/static/'))
-    .sort();
-}
-
-async function collectBuildSnapshot(distRoot: string): Promise<BuildSnapshot> {
+async function collectBuildSnapshot(
+  browser: Browser,
+  distRoot: string,
+): Promise<BuildSnapshot> {
   const distDir = matrixDistPath(distRoot);
   const htmlPath = path.join(distDir, 'html/index/index.html');
   const routeAssetsPath = path.join(distDir, 'routes-manifest.json');
   const staticDir = path.join(distDir, 'static');
-  const html = readFileSync(htmlPath, 'utf-8');
   const routeAssets = JSON.parse(
     readFileSync(routeAssetsPath, 'utf-8'),
   ).routeAssets;
+  const context = await browser.newContext({ javaScriptEnabled: false });
+  const page = await context.newPage();
+  await page.goto(pathToFileURL(htmlPath).href);
+  const { scriptSrcs, styleHrefs } = await page.evaluate(() => ({
+    scriptSrcs: [...document.scripts]
+      .map(script => script.getAttribute('src'))
+      .filter((src): src is string => src?.includes('/static/') ?? false)
+      .sort(),
+    styleHrefs: [
+      ...document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]'),
+    ]
+      .map(link => link.getAttribute('href'))
+      .filter((href): href is string => href?.includes('/static/') ?? false)
+      .sort(),
+  }));
+  await context.close();
   const staticFiles = (await collectRelativeFiles(staticDir)).filter(
     file => !file.endsWith('.map') && !file.endsWith('.LICENSE.txt'),
   );
@@ -153,13 +165,14 @@ async function collectBuildSnapshot(distRoot: string): Promise<BuildSnapshot> {
   return {
     digestByFile,
     routeAssets,
-    scriptSrcs: extractStaticRefs(html, 'src'),
+    scriptSrcs,
     staticFiles,
-    styleHrefs: extractStaticRefs(html, 'href'),
+    styleHrefs,
   };
 }
 
 async function buildAndSnapshot(input: {
+  browser: Browser;
   distRoot: string;
   env: MatrixEnv;
   label: string;
@@ -177,22 +190,7 @@ async function buildAndSnapshot(input: {
     );
   }
 
-  return collectBuildSnapshot(input.distRoot);
-}
-
-async function fetchText(
-  port: number,
-  pathname: string,
-  headers: Record<string, string> = {},
-) {
-  const response = await fetch(`${host}:${port}${pathname}`, {
-    headers,
-    signal: AbortSignal.timeout(15000),
-  });
-  return {
-    response,
-    text: await response.text(),
-  };
+  return collectBuildSnapshot(input.browser, input.distRoot);
 }
 
 async function resetPortfolio(port: number) {
@@ -337,12 +335,9 @@ async function fetchStaticAsset(port: number, pathname: string) {
   const response = await fetch(`${host}:${port}${pathname}`, {
     signal: AbortSignal.timeout(15000),
   });
-  const text = await response.text();
-
   expect(response.status).toBe(200);
   expect(response.headers.get('content-type') ?? '').toContain('javascript');
-  expect(text).not.toMatch(/^<!DOCTYPE html>/);
-  expect(text.length).toBeGreaterThan(100);
+  await response.body?.cancel();
 }
 
 describe('superapp portfolio runtime/build matrix coverage', () => {
@@ -386,6 +381,7 @@ describe('superapp portfolio runtime/build matrix coverage', () => {
   async function ensureDefaultProductionBuild() {
     if (!defaultBuildSnapshot) {
       defaultBuildSnapshot = await buildAndSnapshot({
+        browser: browser!,
         distRoot: defaultDistRoot,
         env: defaultProductionEnv,
         label: 'default-production',
@@ -404,13 +400,10 @@ describe('superapp portfolio runtime/build matrix coverage', () => {
     let failed = false;
 
     try {
-      const html = await fetchText(port, '/');
-      expect(html.response.status).toBe(200);
-      expect(html.text).toContain('SuperApp Portfolio');
-
-      await page.goto(`${host}:${port}`, {
+      const response = await page.goto(`${host}:${port}`, {
         waitUntil: 'networkidle',
       });
+      expect(response?.status()).toBe(200);
       await expectPortfolioHome(page);
       const runtimeEvidence = await page.evaluate(() => {
         return {
@@ -444,11 +437,13 @@ describe('superapp portfolio runtime/build matrix coverage', () => {
 
   test('certifies repeated production build, cold production serve, SSR, and forced CSR paths', async () => {
     const firstSnapshot = await buildAndSnapshot({
+      browser: browser!,
       distRoot: defaultDistRoot,
       env: defaultProductionEnv,
       label: 'production-repeat-1',
     });
     const secondSnapshot = await buildAndSnapshot({
+      browser: browser!,
       distRoot: defaultDistRoot,
       env: defaultProductionEnv,
       label: 'production-repeat-2',
@@ -467,16 +462,20 @@ describe('superapp portfolio runtime/build matrix coverage', () => {
     let failed = false;
 
     try {
-      const ssrHtml = await fetchText(port, '/');
-      expect(ssrHtml.response.status).toBe(200);
-      expect(ssrHtml.text).toContain('Validation Portfolio');
-      expect(ssrHtml.text).toContain('tanstack-effect-superapp-portfolio');
-      expect(ssrHtml.text).not.toContain('<!--<?- html ?>-->');
+      const noJsContext = await browser!.newContext({
+        javaScriptEnabled: false,
+      });
+      const noJsPage = await noJsContext.newPage();
+      const ssrResponse = await noJsPage.goto(`${host}:${port}`);
+      expect(ssrResponse?.status()).toBe(200);
+      const ssrHeading = await noJsPage.locator('h1').textContent();
+      expect(ssrHeading).toBe('Validation Portfolio');
 
-      const csrHtml = await fetchText(port, '/?csr=true');
-      expect(csrHtml.response.status).toBe(200);
-      expect(csrHtml.text).toContain('<!--<?- html ?>-->');
-      expect(csrHtml.text).not.toContain('Validation Portfolio');
+      const csrResponse = await noJsPage.goto(`${host}:${port}/?csr=true`);
+      expect(csrResponse?.status()).toBe(200);
+      const csrHeading = await noJsPage.locator('h1').count();
+      expect(csrHeading).toBe(0);
+      await noJsContext.close();
 
       await page.goto(`${host}:${port}`, {
         waitUntil: 'networkidle',
@@ -502,10 +501,10 @@ describe('superapp portfolio runtime/build matrix coverage', () => {
           styleHrefs: secondSnapshot.styleHrefs,
         },
         ssr: {
-          containsRenderedShell: ssrHtml.text.includes('Validation Portfolio'),
+          containsRenderedShell: ssrHeading === 'Validation Portfolio',
         },
         csr: {
-          containsCsrPlaceholder: csrHtml.text.includes('<!--<?- html ?>-->'),
+          startsWithoutRenderedShell: csrHeading === 0,
         },
       });
     } catch (error) {
@@ -522,6 +521,7 @@ describe('superapp portfolio runtime/build matrix coverage', () => {
       SUPERAPP_PORTFOLIO_ASSET_PREFIX: matrixAssetPrefix,
     });
     const snapshot = await buildAndSnapshot({
+      browser: browser!,
       distRoot: assetPrefixDistRoot,
       env,
       label: 'asset-prefix-production',

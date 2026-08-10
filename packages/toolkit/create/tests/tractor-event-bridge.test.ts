@@ -175,49 +175,14 @@ test('generated shared contracts expose neutral workspace event helpers', () => 
       ),
       false,
     );
-  } finally {
-    fs.rmSync(tempRoot, { recursive: true, force: true });
-  }
-});
-
-test('generated checkout vertical keeps Effect-backed cart state out of shared contracts', () => {
-  const { tempRoot, workspaceDir } = scaffoldSharedContractsWorkspace();
-
-  try {
-    const readGenerated = (relativePath: string) =>
-      fs.readFileSync(path.join(workspaceDir, relativePath), 'utf-8');
-    const sharedContracts = readGenerated(
-      'packages/shared-contracts/src/index.ts',
-    );
-    const checkoutSharedApi = readGenerated('verticals/checkout/shared/api.ts');
-    const checkoutServer = readGenerated('verticals/checkout/api/index.ts');
-    const checkoutClient = readGenerated(
-      'verticals/checkout/src/api/checkout-client.ts',
-    );
-    const exploreSharedApi = readGenerated('verticals/explore/shared/api.ts');
-    const shellClients = readGenerated(
-      'apps/shell-super-app/src/api/vertical-clients.ts',
-    );
-
-    assert.match(sharedContracts, /ultramodern:navigate/);
-    assert.match(sharedContracts, /ultramodern:performance-signal/);
-    assert.match(sharedContracts, /ultramodern:remote-ready/);
-    assert.match(sharedContracts, /ultramodern:route-settled/);
-    assert.doesNotMatch(sharedContracts, /Tractor|tractor|checkout:/);
-    assert.doesNotMatch(sharedContracts, /explore:selected-shop|mf:navigate/);
-    assert.match(checkoutSharedApi, /checkoutCartSchema/);
-    assert.match(checkoutSharedApi, /addCartItem/);
-    assert.match(checkoutSharedApi, /clearCart/);
-    assert.match(checkoutServer, /const checkoutCartLines = new Map/);
-    assert.match(
-      checkoutServer,
-      /Effect\.sync\(\(\) => createCheckoutCartSnapshot\(\)\)/,
-    );
-    assert.match(checkoutClient, /export const addCheckoutCartItem/);
-    assert.match(checkoutClient, /export const clearCheckoutCart/);
-    assert.match(shellClients, /addCheckoutCartItem/);
-    assert.doesNotMatch(exploreSharedApi, /checkoutCartSchema/);
-    assert.doesNotMatch(sharedContracts, /createRuntimeEventBus/);
+    for (const domainExport of [
+      'checkoutCartSchema',
+      'addCartItem',
+      'clearCart',
+      'createRuntimeEventBus',
+    ]) {
+      assert.equal(Object.hasOwn(contracts, domainExport), false);
+    }
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }

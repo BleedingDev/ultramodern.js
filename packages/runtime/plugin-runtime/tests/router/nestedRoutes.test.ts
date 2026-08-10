@@ -239,9 +239,23 @@ describe('nested routes', () => {
         isMainEntry: true,
       });
 
-      expect(JSON.stringify(route)).toContain(
-        '"validateSearch":"@_modern_js_src/products/[slug]/page.search"',
-      );
+      const findRouteWithSearchContract = (routes: any[]): any => {
+        for (const candidate of routes) {
+          if (candidate.validateSearch) {
+            return candidate;
+          }
+          const child = findRouteWithSearchContract(candidate.children ?? []);
+          if (child) {
+            return child;
+          }
+        }
+        return undefined;
+      };
+
+      const productPage = findRouteWithSearchContract(route);
+      expect(productPage).toMatchObject({
+        validateSearch: '@_modern_js_src/products/[slug]/page.search',
+      });
     } finally {
       await rm(rootDir, { force: true, recursive: true });
     }

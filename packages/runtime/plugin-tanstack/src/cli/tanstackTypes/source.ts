@@ -379,8 +379,7 @@ import {
   createRouter,
   createRouteStaticData,
   type ModernRouterContext,
-  modernLoaderToTanstack,
-  modernTanstackRouterFastDefaults,
+${loaderImportMap.size > 0 ? '  modernLoaderToTanstack,\n' : ''}  modernTanstackRouterFastDefaults,
 } from '@modern-js/plugin-tanstack/runtime';
 
 ${imports.join('\n')}
@@ -406,7 +405,7 @@ export const router = createRouter({
   history: createMemoryHistory({
     initialEntries: ['/'],
   }),
-  context: {} as ModernRouterContext,
+  context: {},
 });
 `;
 

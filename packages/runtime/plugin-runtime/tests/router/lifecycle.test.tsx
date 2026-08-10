@@ -1,5 +1,3 @@
-import { readFile } from 'node:fs/promises';
-import path from 'node:path';
 import { getInitialContext } from '../../src/core/context';
 import {
   modifyRoutes,
@@ -109,32 +107,26 @@ describe('router lifecycle seams', () => {
     }
   });
 
-  it('should keep generic router state sources free of TanStack type imports', async () => {
-    const genericStateSources = [
-      '../../src/core/context/runtime.ts',
-      '../../src/router/runtime/lifecycle.ts',
-      '../../src/router/runtime/types.ts',
-    ];
+  it('should expose only the router-agnostic runtime state contract', () => {
+    type RuntimeContext = ReturnType<typeof getInitialContext>;
+    type DeprecatedRuntimeField = Extract<
+      'tanstackRouter' | 'tanstackSsrScript' | 'tanstackMatchedModernRouteIds',
+      keyof RuntimeContext
+    >;
 
-    for (const sourceFile of genericStateSources) {
-      const source = await readFile(path.join(__dirname, sourceFile), 'utf-8');
+    const deprecatedRuntimeFields: DeprecatedRuntimeField[] = [];
+    expect(deprecatedRuntimeFields).toEqual([]);
 
-      expect(source).not.toContain('@tanstack/react-router');
-    }
-  });
-
-  it('should not expose deprecated TanStack context fields from the runtime context source', async () => {
-    const source = await readFile(
-      path.join(__dirname, '../../src/core/context/runtime.ts'),
-      'utf-8',
-    );
-
-    for (const deprecatedField of [
-      'tanstackRouter',
-      'tanstackSsrScript',
-      'tanstackMatchedModernRouteIds',
-    ]) {
-      expect(source).not.toContain(deprecatedField);
-    }
+    const context = getInitialContext(false);
+    applyRouterRuntimeState(context, {
+      framework: 'router-without-framework-types',
+      instance: { publicApi: true },
+      matches: [{ routeId: 'route', assetRouteId: 'asset' }],
+    });
+    expect(getRouterRuntimeState(context)).toMatchObject({
+      framework: 'router-without-framework-types',
+      instance: { publicApi: true },
+      matchedRouteIds: ['asset'],
+    });
   });
 });

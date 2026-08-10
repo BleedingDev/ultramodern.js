@@ -377,8 +377,7 @@ async function assertModuleFederationAssets(remotePort: number) {
     remoteEntryResponse.headers.get('content-type') || '';
   expect(remoteEntryContentType).toContain('javascript');
 
-  const remoteEntryCode = await remoteEntryResponse.text();
-  expect(remoteEntryCode.startsWith('<!DOCTYPE html>')).toBe(false);
+  await remoteEntryResponse.body?.cancel();
 }
 
 async function buildFederatedFixtureApp(

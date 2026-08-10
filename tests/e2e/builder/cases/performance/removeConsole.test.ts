@@ -1,25 +1,24 @@
 import { expect, test } from '@playwright/test';
-import { build } from '@scripts/shared';
+import { build, getHrefByEntryName } from '@scripts/shared';
 import { join } from 'path';
 
 const cwd = join(__dirname, 'removeConsole');
 
 const expectConsoleType = async (
   builder: Awaited<ReturnType<typeof build>>,
+  page: import('@playwright/test').Page,
   consoleType: Record<string, boolean>,
 ) => {
-  const files = await builder.unwrapOutputJSON();
-  const mainFile = Object.keys(files).find(
-    name => name.includes('main.') && name.endsWith('.js'),
-  )!;
-  const content = files[mainFile];
+  const messages: string[] = [];
+  page.on('console', message => messages.push(message.text()));
+  await page.goto(getHrefByEntryName('main', builder.port));
 
   Object.entries(consoleType).forEach(([key, value]) => {
-    expect(content.includes(`test-console-${key}`)).toEqual(value);
+    expect(messages.includes(`test-console-${key}`)).toEqual(value);
   });
 };
 
-test('should remove specified console correctly', async () => {
+test('should remove specified console correctly', async ({ page }) => {
   const builder = await build({
     cwd,
     entry: {
@@ -35,17 +34,20 @@ test('should remove specified console correctly', async () => {
         removeConsole: ['log', 'warn'],
       },
     },
+    runServer: true,
   });
 
-  await expectConsoleType(builder, {
+  await expectConsoleType(builder, page, {
     log: false,
     warn: false,
     debug: true,
     error: true,
   });
+  builder.close();
+  await builder.clean();
 });
 
-test('should remove all console correctly', async () => {
+test('should remove all console correctly', async ({ page }) => {
   const builder = await build({
     cwd,
     entry: {
@@ -61,12 +63,15 @@ test('should remove all console correctly', async () => {
         removeConsole: true,
       },
     },
+    runServer: true,
   });
 
-  await expectConsoleType(builder, {
+  await expectConsoleType(builder, page, {
     log: false,
     warn: false,
     debug: false,
     error: false,
   });
+  builder.close();
+  await builder.clean();
 });

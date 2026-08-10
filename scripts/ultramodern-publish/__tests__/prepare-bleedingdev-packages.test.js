@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const http = require('node:http');
+const { createRequire } = require('node:module');
 const os = require('node:os');
 const path = require('node:path');
 const { execFileSync, spawnSync } = require('node:child_process');
@@ -9,6 +10,10 @@ const test = require('node:test');
 const { pathToFileURL } = require('node:url');
 
 const repoRoot = path.resolve(__dirname, '../../..');
+const requireFromCreate = createRequire(
+  path.join(repoRoot, 'packages/toolkit/create/package.json'),
+);
+const { yaml } = requireFromCreate('@modern-js/utils');
 const scriptPath = path.join(
   repoRoot,
   'scripts/ultramodern-publish/prepare-bleedingdev-packages.mjs',
@@ -2585,9 +2590,12 @@ test('local acceptance registry tolerates transient npm uplink failures', async 
     scope: 'bleedingdev',
   });
 
-  assert.match(config, /(?:^|\n) {4}timeout: 10m(?:\n|$)/u);
-  assert.match(config, /(?:^|\n) {4}max_fails: 100(?:\n|$)/u);
-  assert.match(config, /(?:^|\n) {4}fail_timeout: 1s(?:\n|$)/u);
+  assert.deepEqual(yaml.load(config).uplinks.npmjs, {
+    url: 'https://registry.npmjs.org/',
+    timeout: '10m',
+    max_fails: 100,
+    fail_timeout: '1s',
+  });
 });
 
 test('dry-run preflights absent versions and publishes every exact snapshot without claiming provenance', async () => {

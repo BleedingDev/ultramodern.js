@@ -1,5 +1,7 @@
+import { createRequire } from 'node:module';
 import type { RouteLegacy } from '@modern-js/types/cli';
 import * as utils from '@modern-js/utils' with { rstest: 'importActual' };
+import { build } from 'esbuild';
 
 import {
   fileSystemRoutes,
@@ -20,13 +22,102 @@ rstest.mock('@modern-js/utils', () => {
   };
 });
 
-expect.addSnapshotSerializer({
-  test: val => typeof val === 'string',
-  print: (val: unknown) => (val as string).replace(/\\/g, '/'),
-});
+const fixtureRequire = createRequire(import.meta.url);
+
+async function executeGeneratedModule(code: string) {
+  const result = await build({
+    bundle: true,
+    format: 'cjs',
+    platform: 'node',
+    stdin: {
+      contents: code,
+      resolveDir: '/',
+      sourcefile: 'generated-router.mjs',
+    },
+    write: false,
+    plugins: [
+      {
+        name: 'generated-router-runtime',
+        setup(buildApi) {
+          buildApi.onResolve({ filter: /.*/ }, args => {
+            if (args.kind === 'entry-point') {
+              return undefined;
+            }
+            return { namespace: 'fixture-module', path: args.path };
+          });
+          buildApi.onLoad(
+            { filter: /.*/, namespace: 'fixture-module' },
+            args => {
+              if (args.path === 'react') {
+                return {
+                  contents:
+                    'export const lazy = loader => ({ kind: "react-lazy", loader });',
+                  loader: 'js',
+                };
+              }
+              if (args.path === '@modern-js/runtime/loadable') {
+                return {
+                  contents: [
+                    'export default function loadable(loader, options) { return { kind: "loadable", loader, options }; }',
+                    'export const lazy = loader => ({ kind: "loadable-lazy", loader });',
+                  ].join('\n'),
+                  loader: 'js',
+                };
+              }
+              if (args.path === '@modern-js/runtime/routerHelper') {
+                return {
+                  contents: [
+                    'export const createShouldRevalidate = routeId => () => routeId;',
+                    'export const handleRouteModule = routeModule => routeModule;',
+                    'export const handleRouteModuleError = error => { throw error; };',
+                    'export const resolveRouteComponent = routeModule => routeModule.default;',
+                  ].join('\n'),
+                  loader: 'js',
+                };
+              }
+              if (args.path === './route-server-loaders.js') {
+                return {
+                  contents:
+                    'export const routeServerLoader = () => "route-server";',
+                  loader: 'js',
+                };
+              }
+              if (args.path.includes('plugin-data-loader')) {
+                return {
+                  contents:
+                    'export const runtimeLoader = () => "runtime-loader";',
+                  loader: 'js',
+                };
+              }
+
+              return {
+                contents: [
+                  `export const moduleId = ${JSON.stringify(args.path)};`,
+                  'export const loader = () => ({ moduleId, kind: "loader-result" });',
+                  'export const action = () => ({ moduleId, kind: "action-result" });',
+                  'export default { moduleId };',
+                ].join('\n'),
+                loader: 'js',
+              };
+            },
+          );
+        },
+      },
+    ],
+  });
+
+  const output = result.outputFiles[0]?.text;
+  if (!output) {
+    throw new Error('generated router bundle was empty');
+  }
+  const moduleRecord: { exports: Record<string, any> } = { exports: {} };
+  const evaluate = new Function('module', 'exports', 'require', output);
+  evaluate(moduleRecord, moduleRecord.exports, fixtureRequire);
+  return moduleRecord.exports;
+}
 
 describe('fileSystemRoutes', () => {
-  test('generate code for legacy router', async () => {
+  test('executes a generated legacy route module', async () => {
     const routes: RouteLegacy[] = [
       {
         path: '/user',
@@ -36,16 +127,29 @@ describe('fileSystemRoutes', () => {
       },
     ];
 
-    const code = await fileSystemRoutes({
-      metaName: 'modern-js',
-      routes,
-      entryName: 'main',
-      internalDirectory: '',
+    const generatedModule = await executeGeneratedModule(
+      await fileSystemRoutes({
+        metaName: 'modern-js',
+        routes,
+        entryName: 'main',
+        internalDirectory: '',
+      }),
+    );
+
+    const [userRoute] = generatedModule.routes;
+    expect(userRoute).toMatchObject({
+      path: '/user',
+      exact: true,
+      _component: '@/pages/user',
+      component: {
+        kind: 'loadable',
+      },
     });
-    expect(code).toMatchSnapshot();
+    const userModule = await userRoute.component.loader();
+    expect(userModule.default.moduleId).toBe('@/pages/user');
   });
 
-  test('generate code', async () => {
+  test('executes nested components, errors, loadings, and loaders', async () => {
     const routes = [
       {
         path: '/',
@@ -81,16 +185,42 @@ describe('fileSystemRoutes', () => {
         ],
       },
     ];
-    const code = await fileSystemRoutes({
-      metaName: 'modern-js',
-      entryName: 'main',
-      routes,
-      internalDirectory: '',
+
+    const generatedModule = await executeGeneratedModule(
+      await fileSystemRoutes({
+        metaName: 'modern-js',
+        entryName: 'main',
+        routes,
+        internalDirectory: '',
+      }),
+    );
+
+    const [rootRoute] = generatedModule.routes;
+    const [userLayout] = rootRoute.children;
+    const [userParamLayout] = userLayout.children;
+    const [userPage] = userParamLayout.children;
+    expect(userLayout).toMatchObject({
+      id: 'user/layout',
+      path: 'user',
+      component: { kind: 'react-lazy' },
+      error: { moduleId: '@_modern_js_src/routes/error.tsx' },
+      loading: { moduleId: '@_modern_js_src/routes/loading.tsx' },
+      loader: { moduleId: '@_modern_js_src/routes/layout.loader.ts' },
     });
-    expect(code).toMatchSnapshot();
+    expect(userPage).toMatchObject({
+      id: 'user/[id]/page',
+      index: true,
+      component: { kind: 'react-lazy' },
+      loader: { moduleId: '@_modern_js_src/routes/user/[id]/page.tsx' },
+    });
+    expect(userPage.shouldRevalidate()).toBe('user/[id]/page');
+    const loadedPage = await userPage.lazyImport();
+    expect(loadedPage.default.moduleId).toBe(
+      '@_modern_js_src/routes/user/[id]/page.tsx',
+    );
   });
 
-  test('uses synchronous route components for stream SSR when route chunks are disabled', async () => {
+  test('executes synchronous route components for stream SSR when route chunks are disabled', async () => {
     const routes = [
       {
         path: '/',
@@ -108,24 +238,26 @@ describe('fileSystemRoutes', () => {
       },
     ];
 
-    const code = await fileSystemRoutes({
-      metaName: 'modern-js',
-      entryName: 'main',
-      routes,
-      internalDirectory: '',
-      ssrMode: 'stream',
-      splitRouteChunks: false,
-    });
-
-    expect(code).toContain(
-      "import component_0 from '@_modern_js_src/routes/tractors/page.tsx';",
+    const generatedModule = await executeGeneratedModule(
+      await fileSystemRoutes({
+        metaName: 'modern-js',
+        entryName: 'main',
+        routes,
+        internalDirectory: '',
+        ssrMode: 'stream',
+        splitRouteChunks: false,
+      }),
     );
-    expect(code).toContain('"lazyImport": null');
-    expect(code).toContain('"component": component_0');
-    expect(code).not.toContain('lazy(() => import(/* webpackMode: "eager" */');
+
+    const [rootRoute] = generatedModule.routes;
+    const [tractorsRoute] = rootRoute.children;
+    expect(tractorsRoute.component).toEqual({
+      moduleId: '@_modern_js_src/routes/tractors/page.tsx',
+    });
+    expect(tractorsRoute.lazyImport).toBeNull();
   });
 
-  test('imports loadable statically so the swc loadable transform can rewrite string-SSR route components', async () => {
+  test('loads string-SSR route components through the loadable contract', async () => {
     const routes = [
       {
         path: '/',
@@ -143,32 +275,29 @@ describe('fileSystemRoutes', () => {
       },
     ];
 
-    const code = await fileSystemRoutes({
-      metaName: 'modern-js',
-      entryName: 'main',
-      routes,
-      internalDirectory: '',
-      ssrMode: 'string',
-      splitRouteChunks: true,
-    });
+    const generatedModule = await executeGeneratedModule(
+      await fileSystemRoutes({
+        metaName: 'modern-js',
+        entryName: 'main',
+        routes,
+        internalDirectory: '',
+        ssrMode: 'string',
+        splitRouteChunks: true,
+      }),
+    );
 
-    // @swc/plugin-loadable-components matches `default`/`lazy` imported
-    // directly from the runtime loadable export; an indirect (namespace +
-    // helper) binding leaves loadable() call sites untransformed and string
-    // SSR throws "SSR requires `@loadable/babel-plugin`".
-    expect(code).toContain(
-      'import loadable, { lazy as loadableLazy } from "@modern-js/runtime/loadable"',
-    );
-    expect(code).toContain(
-      'import { createShouldRevalidate, handleRouteModule, handleRouteModuleError, resolveRouteComponent } from',
-    );
-    expect(code).not.toContain('resolveLoadableExport');
-    expect(code).toContain('{ resolveComponent: resolveRouteComponent }');
+    const [rootRoute] = generatedModule.routes;
+    const [aboutRoute] = rootRoute.children;
+    expect(aboutRoute.component.kind).toBe('loadable');
+    const aboutModule = await aboutRoute.component.loader();
+    expect(
+      aboutRoute.component.options.resolveComponent(aboutModule).moduleId,
+    ).toBe('@_modern_js_src/routes/about/page.tsx');
   });
 });
 
 describe('routesForServer', () => {
-  test('generate code for server', async () => {
+  test('executes generated nested server loader bindings', async () => {
     const routesForServerLoaderMatches = [
       {
         path: '/',
@@ -178,9 +307,6 @@ describe('routesForServer', () => {
         children: [
           {
             path: 'user',
-            error: '@_modern_js_src/routes/error.tsx',
-            _component: '@_modern_js_src/routes/user/layout.tsx',
-            loading: '@_modern_js_src/routes/loading.tsx',
             id: 'user/layout',
             type: 'nested' as const,
             loader: '@_modern_js_src/routes/layout.loader.ts',
@@ -191,9 +317,8 @@ describe('routesForServer', () => {
                 type: 'nested' as const,
                 children: [
                   {
-                    _component: '@_modern_js_src/routes/user/[id]/page.tsx',
-                    index: true,
                     id: 'user/[id]/page',
+                    index: true,
                     loader: '@_modern_js_src/routes/user/[id]/page.loader.ts',
                     type: 'nested' as const,
                   },
@@ -204,10 +329,20 @@ describe('routesForServer', () => {
         ],
       },
     ];
-    const code = routesForServer({
-      routesForServerLoaderMatches,
+
+    const generatedModule = await executeGeneratedModule(
+      routesForServer({ routesForServerLoaderMatches }),
+    );
+    const [rootRoute] = generatedModule.routes;
+    const [userLayout] = rootRoute.children;
+    const [userParamLayout] = userLayout.children;
+    const [userPage] = userParamLayout.children;
+    expect(userLayout.loader).toEqual({
+      moduleId: '@_modern_js_src/routes/layout.loader.ts',
     });
-    expect(code).toMatchSnapshot();
+    expect(userPage.loader).toEqual({
+      moduleId: '@_modern_js_src/routes/user/[id]/page.loader.ts',
+    });
   });
 });
 
@@ -225,7 +360,7 @@ describe('ssrLoaderCombinedModule', () => {
     internalDirectory: '/tmp/modern-app/.modern-js',
   };
 
-  test('imports route server loaders as a sibling module', () => {
+  test('executes synchronous runtime and route-server loader exports', async () => {
     const code = ssrLoaderCombinedModule(
       entrypoints as any,
       entrypoint as any,
@@ -236,12 +371,16 @@ describe('ssrLoaderCombinedModule', () => {
       } as any,
       appContext as any,
     );
+    if (!code) {
+      throw new Error('expected an SSR loader module');
+    }
 
-    expect(code).toContain('export * from "./route-server-loaders.js"');
-    expect(code).not.toContain('/tmp/modern-app/.modern-js');
+    const generatedModule = await executeGeneratedModule(code);
+    expect(generatedModule.runtimeLoader()).toBe('runtime-loader');
+    expect(generatedModule.routeServerLoader()).toBe('route-server');
   });
 
-  test('imports async route server loaders as a sibling module', () => {
+  test('loads asynchronous runtime and route-server loader exports', async () => {
     const code = ssrLoaderCombinedModule(
       entrypoints as any,
       entrypoint as any,
@@ -252,8 +391,13 @@ describe('ssrLoaderCombinedModule', () => {
       } as any,
       appContext as any,
     );
+    if (!code) {
+      throw new Error('expected an async SSR loader module');
+    }
 
-    expect(code).toContain('import("./route-server-loaders.js")');
-    expect(code).not.toContain('/tmp/modern-app/.modern-js');
+    const generatedModule = await executeGeneratedModule(code);
+    const loadedModules = await generatedModule.loadModules();
+    expect(loadedModules.runtimeLoader()).toBe('runtime-loader');
+    expect(loadedModules.routeServerLoader()).toBe('route-server');
   });
 });

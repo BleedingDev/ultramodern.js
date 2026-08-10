@@ -58,7 +58,9 @@ test('rem enable', async ({ page }) => {
   builder.close();
 });
 
-test('should inline runtime code to html by default', async () => {
+test('should execute the inline runtime without loading a runtime asset', async ({
+  page,
+}) => {
   const builder = await build({
     cwd: fixtures,
     entry: { index: join(fixtures, 'src/index.ts') },
@@ -67,15 +69,25 @@ test('should inline runtime code to html by default', async () => {
         convertToRem: {},
       },
     },
+    runServer: true,
   });
-  const files = await builder.unwrapOutputJSON();
-  const htmlFile = Object.keys(files).find(file => file.endsWith('.html'));
+  await page.goto(getHrefByEntryName('index', builder.port));
 
-  expect(htmlFile).toBeTruthy();
-  expect(files[htmlFile!].includes('function setRootPixel')).toBeTruthy();
+  await expect(page.locator('html')).toHaveCSS('font-size', '64px');
+  expect(
+    await page.evaluate(() =>
+      performance
+        .getEntriesByType('resource')
+        .some(entry => entry.name.includes('/convert-rem')),
+    ),
+  ).toBe(false);
+
+  builder.close();
 });
 
-test('should extract runtime code when inlineRuntime is false', async () => {
+test('should load and execute the extracted runtime when inlineRuntime is false', async ({
+  page,
+}) => {
   const builder = await build({
     cwd: fixtures,
     entry: { index: join(fixtures, 'src/index.ts') },
@@ -86,15 +98,18 @@ test('should extract runtime code when inlineRuntime is false', async () => {
         },
       },
     },
+    runServer: true,
   });
-  const files = await builder.unwrapOutputJSON();
+  await page.goto(getHrefByEntryName('index', builder.port));
 
-  const htmlFile = Object.keys(files).find(file => file.endsWith('.html'));
-  const retryFile = Object.keys(files).find(
-    file => file.includes('/convert-rem') && file.endsWith('.js'),
-  );
+  await expect(page.locator('html')).toHaveCSS('font-size', '64px');
+  expect(
+    await page.evaluate(() =>
+      performance
+        .getEntriesByType('resource')
+        .some(entry => entry.name.includes('/convert-rem')),
+    ),
+  ).toBe(true);
 
-  expect(htmlFile).toBeTruthy();
-  expect(retryFile).toBeTruthy();
-  expect(files[htmlFile!].includes('function setRootPixel')).toBeFalsy();
+  builder.close();
 });

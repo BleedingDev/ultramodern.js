@@ -1,18 +1,20 @@
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
 const PKG_ROOT = path.resolve(__dirname, '..');
+const TSC_BIN = path.resolve(PKG_ROOT, '../../../node_modules/.bin/tsc');
 
 /**
- * Upstream Modern.js v3.2.1 ships `export * from './middleware'` in
- * server/index.d.ts although no middleware.d.ts exists on disk. The line is
- * kept verbatim for merge friendliness, so it is allowlisted here.
+ * Upstream Modern.js declares one member inside an already ambient namespace.
+ * TypeScript reports it even though consumers can use the package normally,
+ * so that existing diagnostic is allowlisted here.
  * Do NOT add fork-introduced entries to this list — fix the export instead
  * (a merge resolution once resurrected `export * from './babel'` without the
  * file, shipping a broken published .d.ts; this test exists to prevent that).
  */
 const KNOWN_UPSTREAM_DANGLING = new Set([
-  path.join('server', 'index.d.ts') + " -> './middleware'",
+  "packages/hoist-non-react-statics.d.ts(59,3): error TS1038: A 'declare' modifier cannot be used in an already ambient context.",
 ]);
 
 const collectDtsFiles = (dir: string, files: string[] = []): string[] => {
@@ -30,38 +32,37 @@ const collectDtsFiles = (dir: string, files: string[] = []): string[] => {
   return files;
 };
 
-const relativeSpecifierResolves = (
-  fromFile: string,
-  specifier: string,
-): boolean => {
-  const base = path.resolve(path.dirname(fromFile), specifier);
-  return (
-    fs.existsSync(`${base}.d.ts`) ||
-    fs.existsSync(path.join(base, 'index.d.ts')) ||
-    (specifier.endsWith('.d.ts') && fs.existsSync(base))
-  );
-};
-
 describe('shipped .d.ts files', () => {
-  it('should have every relative import/re-export resolve to a file on disk', () => {
-    const specifierPattern =
-      /from\s+['"](\.[^'"]+)['"]|import\(['"](\.[^'"]+)['"]\)/g;
-    const dangling: string[] = [];
+  it('resolves every relative import and re-export through TypeScript', () => {
+    const result = spawnSync(
+      TSC_BIN,
+      [
+        '--ignoreConfig',
+        '--noEmit',
+        '--module',
+        'nodenext',
+        '--moduleResolution',
+        'nodenext',
+        '--target',
+        'esnext',
+        '--types',
+        'node,react',
+        ...collectDtsFiles(PKG_ROOT).map(file => path.relative(PKG_ROOT, file)),
+      ],
+      {
+        cwd: PKG_ROOT,
+        encoding: 'utf8',
+      },
+    );
 
-    for (const file of collectDtsFiles(PKG_ROOT)) {
-      const source = fs.readFileSync(file, 'utf-8');
-      for (const match of source.matchAll(specifierPattern)) {
-        const specifier = match[1] ?? match[2];
-        const key = `${path.relative(PKG_ROOT, file)} -> '${specifier}'`;
-        if (KNOWN_UPSTREAM_DANGLING.has(key)) {
-          continue;
-        }
-        if (!relativeSpecifierResolves(file, specifier)) {
-          dangling.push(key);
-        }
-      }
-    }
-
-    expect(dangling).toEqual([]);
+    const diagnostics = `${result.stdout}${result.stderr}`
+      .split(/\r?\n/u)
+      .filter(Boolean);
+    expect(
+      diagnostics.filter(
+        diagnostic => !KNOWN_UPSTREAM_DANGLING.has(diagnostic),
+      ),
+    ).toEqual([]);
+    expect(diagnostics).toEqual([...KNOWN_UPSTREAM_DANGLING]);
   });
 });

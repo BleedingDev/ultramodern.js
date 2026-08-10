@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import type {
@@ -39,6 +40,15 @@ function add(
     modernVersion: MODERN_VERSION,
     ...extra,
   });
+}
+
+function assertWorkspaceValid(workspaceDir: string) {
+  const result = spawnSync(
+    process.execPath,
+    ['scripts/validate-ultramodern-workspace.mts'],
+    { cwd: workspaceDir, encoding: 'utf-8' },
+  );
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
 }
 
 /** Paths (relative to workspace root) created for a vertical named `name`. */
@@ -349,33 +359,8 @@ test('G7c: rpc protocol emits an Effect RPC contract/handlers/client', () => {
       'rpc emits an rpc client',
     );
 
-    // The service entry mounts the RPC handler layer via defineEffectBff.
-    const serviceEntry = fs.readFileSync(
-      path.join(dir, 'verticals/catalog/api/index.ts'),
-      'utf-8',
-    );
-    assert.match(serviceEntry, /catalogRpcGroup\.of\(/);
-    assert.doesNotMatch(serviceEntry, /HttpApiBuilder|shared\/api/);
-
-    const rpcClient = fs.readFileSync(
-      path.join(dir, 'verticals/catalog/src/api/catalog-rpc-client.ts'),
-      'utf-8',
-    );
-    assert.match(rpcClient, /makeEffectRpcClient/);
-    assert.match(
-      rpcClient,
-      /url: String\(options\.url \?\? catalogRpcContract\.path\)/,
-    );
-    assert.match(rpcClient, /serialization: 'json'/);
     assert.ok(!files.has('shared/api.ts'));
     assert.ok(!files.has('src/api/catalog-client.ts'));
-
-    const rpcPage = fs.readFileSync(
-      path.join(dir, 'verticals/catalog/src/routes/[lang]/page.tsx'),
-      'utf-8',
-    );
-    assert.match(rpcPage, /listCatalogRpc/);
-    assert.doesNotMatch(rpcPage, /catalog-client/);
 
     const overlay = JSON.parse(
       fs.readFileSync(
@@ -414,6 +399,7 @@ test('G7c: rpc protocol emits an Effect RPC contract/handlers/client', () => {
         : undefined,
       '/catalog-api/rpc',
     );
+    assertWorkspaceValid(dir);
   });
 });
 

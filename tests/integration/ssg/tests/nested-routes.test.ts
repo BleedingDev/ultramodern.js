@@ -1,6 +1,6 @@
-import { fs } from '@modern-js/utils';
+import { pathToFileURL } from 'node:url';
 import path, { join } from 'path';
-import puppeteer from 'puppeteer';
+import puppeteer, { type Browser, type Page } from 'puppeteer';
 import {
   getPort,
   killApp,
@@ -15,33 +15,45 @@ const fixtureDir = path.resolve(__dirname, '../fixtures');
 const appDir = join(fixtureDir, 'nested-routes');
 
 describe('ssg', () => {
-  let app: any;
+  let browser: Browser;
   let distDir: string;
+  let page: Page;
   beforeAll(async () => {
     distDir = join(appDir, './dist');
     await modernBuild(appDir);
+    browser = await puppeteer.launch(launchOptions as any);
+    page = await browser.newPage();
   });
   afterAll(async () => {
-    await killApp(app);
+    await page.close();
+    await browser.close();
   });
 
   test('should nested-routes ssg access / work correctly', async () => {
     const htmlPath = path.join(distDir, 'html/index/index.html');
-    const html = (await fs.readFile(htmlPath)).toString();
-    expect(html.includes('Hello, Home')).toBe(true);
+    await page.goto(pathToFileURL(htmlPath).href);
+    await expect(
+      page.$eval('#data', element => element.textContent?.trim()),
+    ).resolves.toBe('Hello, Home');
   });
 
   test('should nested-routes ssg access /user work correctly', async () => {
     const htmlPath = path.join(distDir, 'html/index/user/index.html');
-    const html = (await fs.readFile(htmlPath)).toString();
-    expect(html.includes('Hello, User')).toBe(true);
+    await page.goto(pathToFileURL(htmlPath).href);
+    await expect(
+      page.$eval('#data', element => element.textContent?.trim()),
+    ).resolves.toBe('Hello, User');
   });
 
   test('should nested-routes ssg access /user/1 work correctly with data loading', async () => {
     const htmlPath = path.join(distDir, 'html/index/user/1/index.html');
-    const html = (await fs.readFile(htmlPath)).toString();
-    expect(html.includes('User 1: John Doe')).toBe(true);
-    expect(html.includes('User ID: <!-- -->1')).toBe(true);
+    await page.goto(pathToFileURL(htmlPath).href);
+    await expect(
+      page.$eval('#data', element => element.textContent?.trim()),
+    ).resolves.toBe('User 1: John Doe');
+    await expect(
+      page.$eval('#params', element => element.textContent?.trim()),
+    ).resolves.toBe('User ID: 1');
   });
 });
 

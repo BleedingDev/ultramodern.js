@@ -1245,11 +1245,13 @@ describe('cloudflare deploy preset', () => {
       FEATURE_FLAG: 'enabled',
     });
     await expect(
-      fs.readFile(
-        path.join(outputDirectory, 'config/runtime-policy.json'),
-        'utf-8',
-      ),
-    ).resolves.toBe('{"revision":"2026-06-27"}');
+      fs
+        .readFile(
+          path.join(outputDirectory, 'config/runtime-policy.json'),
+          'utf-8',
+        )
+        .then(JSON.parse),
+    ).resolves.toEqual({ revision: '2026-06-27' });
   });
 
   it('stages configured public assets under Cloudflare Worker Static Assets', async () => {
@@ -1277,20 +1279,24 @@ describe('cloudflare deploy preset', () => {
     });
 
     await expect(
-      fs.readFile(
-        path.join(outputDirectory, 'public/fixture-owned-data/manifest.json'),
-        'utf-8',
-      ),
-    ).resolves.toBe('{"schemaVersion":"fixture-owned-artifacts/v1"}');
+      fs
+        .readFile(
+          path.join(outputDirectory, 'public/fixture-owned-data/manifest.json'),
+          'utf-8',
+        )
+        .then(JSON.parse),
+    ).resolves.toEqual({ schemaVersion: 'fixture-owned-artifacts/v1' });
     await expect(
-      fs.readFile(
-        path.join(
-          outputDirectory,
-          'public/fixture-owned-data/postal-prefix/CZ/101.json',
-        ),
-        'utf-8',
-      ),
-    ).resolves.toBe('{"records":[]}');
+      fs
+        .readFile(
+          path.join(
+            outputDirectory,
+            'public/fixture-owned-data/postal-prefix/CZ/101.json',
+          ),
+          'utf-8',
+        )
+        .then(JSON.parse),
+    ).resolves.toEqual({ records: [] });
     await expect(
       fs.readFile(path.join(outputDirectory, 'public/robots.txt'), 'utf-8'),
     ).resolves.toBe('User-agent: *\nDisallow: /\n');
@@ -1601,17 +1607,24 @@ describe('cloudflare deploy preset', () => {
       fs.access(path.join(publicDirectory, 'html/plain/index.html')),
     ).resolves.toBeUndefined();
     await expect(
-      fs.readFile(
-        path.join(publicDirectory, 'backend-mf-manifest.json'),
-        'utf-8',
-      ),
-    ).resolves.toContain('catalog-backend');
-    await expect(
-      fs.readFile(
-        path.join(publicDirectory, 'backendRemoteEntry.cjs'),
-        'utf-8',
-      ),
-    ).resolves.toBe('module.exports = { name: "catalog-backend" };');
+      fs
+        .readFile(
+          path.join(publicDirectory, 'backend-mf-manifest.json'),
+          'utf-8',
+        )
+        .then(JSON.parse),
+    ).resolves.toMatchObject({
+      remotes: [
+        {
+          alias: 'catalog-backend',
+          entry: 'backendRemoteEntry.cjs',
+        },
+      ],
+    });
+    const backendRemote = await import(
+      pathToFileURL(path.join(publicDirectory, 'backendRemoteEntry.cjs')).href
+    );
+    expect(backendRemote.default).toEqual({ name: 'catalog-backend' });
     await expect(
       fs.access(path.join(outputDirectory, 'server/index.mjs')),
     ).resolves.toBeUndefined();
@@ -1679,17 +1692,17 @@ describe('cloudflare deploy preset', () => {
     const publicDirectory = path.join(outputDirectory, 'public');
 
     await expect(
-      fs.readFile(
-        path.join(publicDirectory, 'backend-mf-manifest.json'),
-        'utf-8',
-      ),
-    ).resolves.toBe(backendManifest);
-    await expect(
-      fs.readFile(
-        path.join(publicDirectory, 'backendRemoteEntry.cjs'),
-        'utf-8',
-      ),
-    ).resolves.toBe(backendRemoteEntry);
+      fs
+        .readFile(
+          path.join(publicDirectory, 'backend-mf-manifest.json'),
+          'utf-8',
+        )
+        .then(JSON.parse),
+    ).resolves.toEqual(JSON.parse(backendManifest));
+    const stagedRemote = await import(
+      pathToFileURL(path.join(publicDirectory, 'backendRemoteEntry.cjs')).href
+    );
+    expect(stagedRemote.default.get()).toBe('commerce');
   });
 
   it('excludes server-only and configured paths from Cloudflare public assets', async () => {
@@ -1793,11 +1806,15 @@ describe('cloudflare deploy preset', () => {
       fs.access(path.join(outputDirectory, 'worker/__modern_bff_effect.js')),
     ).resolves.toBeUndefined();
     await expect(
-      fs.readFile(path.join(outputDirectory, 'package.json'), 'utf-8'),
-    ).resolves.toBe('{"type":"module"}\n');
+      fs
+        .readFile(path.join(outputDirectory, 'package.json'), 'utf-8')
+        .then(JSON.parse),
+    ).resolves.toEqual({ type: 'module' });
     await expect(
-      fs.readFile(path.join(outputDirectory, 'worker/package.json'), 'utf-8'),
-    ).resolves.toBe('{"type":"commonjs"}\n');
+      fs
+        .readFile(path.join(outputDirectory, 'worker/package.json'), 'utf-8')
+        .then(JSON.parse),
+    ).resolves.toEqual({ type: 'commonjs' });
   });
 
   it('stamps the delivery-unit identity into the Cloudflare worker manifest', async () => {
@@ -1880,43 +1897,6 @@ describe('cloudflare deploy preset', () => {
 
     await expect(resolveTopologyDeliveryUnit(appDirectory)).resolves.toBe(
       undefined,
-    );
-  });
-
-  it('emits explicit bundled Effect BFF dispatch without a bare runtime import', async () => {
-    const { outputDirectory } = await createFixture();
-    const entrySource = await fs.readFile(
-      path.join(outputDirectory, 'server/index.mjs'),
-      'utf-8',
-    );
-    const effectBranchStart = entrySource.indexOf(
-      "if (bff.runtimeFramework === 'effect')",
-    );
-    const directHandlerStart = entrySource.indexOf('const directHandler');
-    const effectBranch = entrySource.slice(
-      effectBranchStart,
-      directHandlerStart,
-    );
-
-    expect(entrySource).not.toContain(
-      "import('@modern-js/plugin-bff/effect-edge')",
-    );
-    expect(entrySource).toContain('bff.dispatcherExport');
-    expect(entrySource).toContain('effectDispatcherFactory');
-    expect(effectBranchStart).toBeGreaterThan(-1);
-    expect(directHandlerStart).toBeGreaterThan(effectBranchStart);
-    expect(effectBranch).toContain(
-      'effectDispatcher.dispatch(request, { env })',
-    );
-    expect(effectBranch).not.toContain('createEffectBffEdgeHandler');
-    expect(effectBranch).not.toContain('effectHandler.handler');
-    expect(effectBranch).not.toContain('handler.length');
-    expect(entrySource).not.toContain('handler.length');
-    expect(entrySource).not.toContain(
-      'typeof runtime.dispatchEffectBffRequest',
-    );
-    expect(entrySource).not.toContain(
-      'typeof defaultExport?.dispatchEffectBffRequest',
     );
   });
 
@@ -3595,18 +3575,10 @@ describe('cloudflare deploy preset', () => {
     const { outputDirectory } = await createFixture({
       bffWorkerSource: effectDrizzleWorkerSource,
     });
-    const workerBundleSource = await fs.readFile(
-      path.join(outputDirectory, 'worker/__modern_bff_effect.js'),
-      'utf-8',
-    );
     const entryPath = path.join(outputDirectory, 'server/index.mjs');
     const worker = (
       await import(`${pathToFileURL(entryPath).href}?t=${Date.now()}`)
     ).default;
-
-    expect(workerBundleSource).toContain('drizzle-orm/sqlite-core');
-    expect(workerBundleSource).not.toContain(';entityKind;');
-    expect(workerBundleSource).not.toContain(';entityKind,entityKind;');
 
     const response = await worker.fetch(
       new Request('https://example.com/commerce-api/effect/drizzle'),

@@ -1,6 +1,7 @@
 import { readFileSync } from 'fs';
 import path from 'path';
-import { modernBuild } from '../../../utils/modernTestUtils';
+import puppeteer from 'puppeteer';
+import { launchOptions, modernBuild } from '../../../utils/modernTestUtils';
 
 async function testPublicHtml() {
   const appDir = path.resolve(__dirname, '..');
@@ -11,7 +12,20 @@ async function testPublicHtml() {
     path.join(appDir, `dist/public/demo.html`),
     'utf-8',
   );
-  expect(copiedHTML).toMatchSnapshot();
+  const browser = await puppeteer.launch(launchOptions as any);
+  try {
+    const page = await browser.newPage();
+    await page.setContent(copiedHTML);
+    expect(
+      await page.evaluate(() => [
+        (window as any).__assetPrefix__,
+        (window as any).__assetPrefix2__,
+        (window as any).__assetPrefix3__,
+      ]),
+    ).toEqual(['https://demo.com', 'https://demo.com', 'https://demo.com']);
+  } finally {
+    await browser.close();
+  }
 }
 
 describe('copy assets', () => {

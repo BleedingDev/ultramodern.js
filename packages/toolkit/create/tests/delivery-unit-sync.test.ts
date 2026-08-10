@@ -2,11 +2,13 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import vm from 'node:vm';
 import {
   addUltramodernVertical,
   generateUltramodernWorkspace,
 } from '../src/ultramodern-workspace';
 import { runSyncDeliveryUnit } from '../src/ultramodern-workspace/delivery-unit-sync';
+import { runStableTypeScript } from './helpers/stable-typescript';
 
 const TARGET_FILES = [
   '.modernjs/ultramodern.json',
@@ -72,6 +74,38 @@ function scaffoldWorkspace(): { tempRoot: string; workspaceDir: string } {
     modernVersion: '3.2.1',
   });
   return { tempRoot, workspaceDir };
+}
+
+function executeBuildModule(workspaceDir: string, relativePath: string) {
+  const compilerRoot = path.join(workspaceDir, '.test-build-module');
+  const sourcePath = path.join(compilerRoot, 'ultramodern-build.ts');
+  const outputRoot = path.join(compilerRoot, 'dist');
+  fs.mkdirSync(compilerRoot, { recursive: true });
+  fs.copyFileSync(path.join(workspaceDir, relativePath), sourcePath);
+  const compiled = runStableTypeScript(
+    [
+      sourcePath,
+      '--ignoreConfig',
+      '--module',
+      'commonjs',
+      '--outDir',
+      outputRoot,
+      '--pretty',
+      'false',
+      '--skipLibCheck',
+      '--target',
+      'es2022',
+    ],
+    compilerRoot,
+  );
+  assert.equal(compiled.status, 0, compiled.output);
+
+  const module = { exports: {} as Record<string, any> };
+  vm.runInNewContext(
+    fs.readFileSync(path.join(outputRoot, 'ultramodern-build.js'), 'utf-8'),
+    { exports: module.exports, module },
+  );
+  return module.exports;
 }
 
 function stripDeliveryUnitIdentity(workspaceDir: string) {
@@ -184,19 +218,21 @@ test('sync-delivery-unit backfills identity blocks matching the generator', () =
       buildArtifact.deliveryUnit.buildMarker,
     );
 
-    const build = read(
+    const buildModule = executeBuildModule(
       workspaceDir,
       'verticals/catalog/shared/ultramodern-build.ts',
     );
-    assert.doesNotMatch(build, /with \{ type: 'json' \}/u);
-    assert.match(build, /const ultramodernBuildArtifact = \{/u);
-    assert.match(
-      build,
-      /export const ultramodernDeliveryUnit =\s*ultramodernBuildArtifact\.deliveryUnit;/u,
+    assert.deepEqual(
+      JSON.parse(JSON.stringify(buildModule.ultramodernBuildArtifact)),
+      buildArtifact,
     );
-    assert.match(
-      build,
-      /export const ultramodernApiMarker = ultramodernBuildArtifact\.surfaces\.api;/u,
+    assert.equal(
+      buildModule.ultramodernDeliveryUnit.unitId,
+      buildArtifact.deliveryUnit.unitId,
+    );
+    assert.equal(
+      buildModule.ultramodernApiMarker.buildMarker,
+      buildArtifact.surfaces.api.buildMarker,
     );
 
     // Validator-shaped assertions on the restored compact config.

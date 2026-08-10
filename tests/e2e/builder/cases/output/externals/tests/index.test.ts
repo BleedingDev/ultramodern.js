@@ -1,4 +1,6 @@
 import { join, resolve } from 'path';
+import { pathToFileURL } from 'node:url';
+import { Worker } from 'node:worker_threads';
 import { expect, test } from '@playwright/test';
 import { build, getHrefByEntryName } from '@scripts/shared';
 
@@ -42,7 +44,8 @@ test('externals', async ({ page }) => {
 test('should not external dependencies when target is web worker', async () => {
   const builder = await build({
     cwd: fixtures,
-    entry: { index: resolve(fixtures, './src/index.js') },
+    entry: { index: resolve(fixtures, './src/web-worker-react.js') },
+    runServer: true,
     builderConfig: {
       output: {
         target: 'web-worker',
@@ -53,9 +56,21 @@ test('should not external dependencies when target is web worker', async () => {
     },
   });
   const files = await builder.unwrapOutputJSON();
-
-  const content = files[Object.keys(files).find(file => file.endsWith('.js'))!];
-  expect(content.includes('MyReact')).toBeFalsy();
+  const workerFile = Object.keys(files).find(
+    file => file.includes('/static/js/index.') && file.endsWith('.js'),
+  )!;
+  const worker = new Worker(
+    `const { parentPort } = require('node:worker_threads');
+globalThis.self = { postMessage: value => parentPort.postMessage(value) };
+import(${JSON.stringify(pathToFileURL(workerFile).href)}).catch(error => { throw error; });`,
+    { eval: true },
+  );
+  const workerResult = await new Promise((resolve, reject) => {
+    worker.once('message', resolve);
+    worker.once('error', reject);
+  });
+  expect(workerResult).toEqual({ canCreateElement: true });
+  await worker.terminate();
 
   builder.clean();
 });
@@ -90,27 +105,30 @@ test('externalizes node:async_hooks as a module worker import', async () => {
             .library({ type: 'module' })
             .chunkFormat('module')
             .chunkLoading('import');
+          chain.optimization.runtimeChunk(false);
         },
       },
     },
   });
   const files = await builder.unwrapOutputJSON();
-
-  const content = files[Object.keys(files).find(file => file.endsWith('.js'))!];
-  for (const builtin of [
-    'node:async_hooks',
-    'node:buffer',
-    'node:crypto',
-    'node:path',
-    'node:util',
-  ]) {
-    expect(content).toContain(builtin);
-    expect(content).toMatch(new RegExp(`from\\s*["']${builtin}["']`));
+  const moduleFile = Object.keys(files).find(file => file.endsWith('.js'))!;
+  const previousWindow = (globalThis as any).window;
+  (globalThis as any).window = globalThis;
+  try {
+    await import(`${pathToFileURL(moduleFile).href}?test=${Date.now()}`);
+    expect((globalThis as any).window.__asyncHooksValue).toMatchObject({
+      file: 'index.mjs',
+      payload: 'externalized',
+    });
+    expect((globalThis as any).window.__asyncHooksValue.id).toEqual(
+      expect.any(String),
+    );
+    expect((globalThis as any).window.__asyncHooksInspect).toEqual(
+      expect.any(String),
+    );
+  } finally {
+    (globalThis as any).window = previousWindow;
   }
-  expect(content).not.toContain('from "async_hooks"');
-  expect(content).not.toContain('createRequire(import.meta.url)');
-  expect(content).not.toContain('node:module');
-  expect(content).not.toContain('Reading from "node:async_hooks"');
 
   builder.clean();
 });

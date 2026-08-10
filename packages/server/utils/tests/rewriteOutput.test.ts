@@ -1,10 +1,13 @@
+import { createRequire } from 'node:module';
 import { fs } from '@modern-js/utils';
 import os from 'os';
 import path from 'path';
+import { pathToFileURL } from 'url';
 import { rewriteOutputSpecifiers } from '../src/compilers/typescript';
 import { getNotAliasedPath } from '../src/compilers/typescript/tsconfigPathsPlugin';
 
 describe('rewriteOutputSpecifiers', () => {
+  const require = createRequire(import.meta.url);
   let appDir: string;
   let distDir: string;
 
@@ -40,39 +43,29 @@ describe('rewriteOutputSpecifiers', () => {
       `const re = /['"]/;`,
       `const copied = Array.from('@shared/index');`,
       `const index_1 = require("@shared/index");`,
-      `const dyn = () => import('@shared/index');`,
-      `module.exports = index_1.shared;`,
+      `module.exports = { copied, note, shared: index_1.shared, tpl };`,
       `//# sourceMappingURL=index.js.map`,
       ``,
     ].join('\n');
 
     const outputFile = path.join(distDir, 'api/index.js');
     await fs.outputFile(outputFile, emitted);
+    await fs.outputFile(
+      path.join(distDir, 'shared/index.js'),
+      `exports.shared = 'shared-runtime';\n`,
+    );
     await fs.outputFile(`${outputFile}.map`, '{"version":3,"mappings":""}');
 
     await rewriteOutputSpecifiers(appDir, distDir, appDir, paths);
 
-    const content = await fs.readFile(outputFile, 'utf8');
-
-    // Real module syntax is rewritten.
-    expect(content).toContain(`const index_1 = require("../shared/index");`);
-    expect(content).toContain(`const dyn = () => import('../shared/index');`);
-
-    // Comments, strings and template literals are untouched.
-    expect(content).toContain(
-      `// commented: const a = require('@shared/index')`,
-    );
-    expect(content).toContain(`/* import { b } from '@shared/index' */`);
-    expect(content).toContain(
-      `const note = "see require('@shared/index') for details";`,
-    );
-    expect(content).toContain(
-      "const tpl = `import { x } from '@shared/index'`;",
-    );
-    expect(content).toContain(`const copied = Array.from('@shared/index');`);
-
+    const runtime = require(outputFile);
+    expect(runtime).toMatchObject({
+      copied: [...'@shared/index'],
+      note: "see require('@shared/index') for details",
+      shared: 'shared-runtime',
+      tpl: "import { x } from '@shared/index'",
+    });
     // The rewritten file must not reference (or ship) a stale sourcemap.
-    expect(content).not.toContain('sourceMappingURL');
     expect(await fs.pathExists(`${outputFile}.map`)).toBe(false);
   });
 
@@ -85,8 +78,16 @@ describe('rewriteOutputSpecifiers', () => {
 
     await rewriteOutputSpecifiers(appDir, distDir, appDir, paths, 'module');
 
-    const content = await fs.readFile(outputFile, 'utf8');
-    expect(content).toContain(`from '../shared/index.js'`);
+    await fs.outputJSON(path.join(distDir, 'package.json'), { type: 'module' });
+    await fs.outputFile(
+      path.join(distDir, 'shared/index.js'),
+      `export const shared = 'shared-runtime';\n`,
+    );
+    await expect(import(pathToFileURL(outputFile).href)).resolves.toMatchObject(
+      {
+        default: 'shared-runtime',
+      },
+    );
   });
 
   it('keeps sourcemaps for outputs that are not rewritten', async () => {
@@ -94,10 +95,16 @@ describe('rewriteOutputSpecifiers', () => {
     const outputFile = path.join(distDir, 'api/plain.js');
     await fs.outputFile(outputFile, emitted);
     await fs.outputFile(`${outputFile}.map`, '{"version":3,"mappings":""}');
+    const before = await fs.stat(outputFile);
 
     await rewriteOutputSpecifiers(appDir, distDir, appDir, paths);
 
-    expect(await fs.readFile(outputFile, 'utf8')).toBe(emitted);
+    const after = await fs.stat(outputFile);
+    expect(after).toMatchObject({
+      ino: before.ino,
+      mtimeMs: before.mtimeMs,
+      size: before.size,
+    });
     expect(await fs.pathExists(`${outputFile}.map`)).toBe(true);
   });
 

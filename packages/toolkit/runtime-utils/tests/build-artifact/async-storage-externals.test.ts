@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 const asyncStorageArtifactPaths = [
   path.resolve(__dirname, '../../dist/esm/universal/async_storage.server.mjs'),
@@ -8,19 +9,26 @@ const asyncStorageArtifactPaths = [
     '../../dist/esm-node/universal/async_storage.server.mjs',
   ),
 ];
+
 describe('async storage build artifact', () => {
-  test('preserves the Cloudflare-compatible node:async_hooks builtin import', () => {
-    const missingArtifacts = asyncStorageArtifactPaths.filter(
-      artifactPath => !fs.existsSync(artifactPath),
-    );
+  test('preserves context across async work in every ESM artifact', async () => {
+    expect(
+      asyncStorageArtifactPaths.filter(file => !fs.existsSync(file)),
+    ).toEqual([]);
 
-    expect(missingArtifacts).toEqual([]);
-
-    const contents = asyncStorageArtifactPaths
-      .map(artifactPath => fs.readFileSync(artifactPath, 'utf8'))
-      .join('\n');
-
-    expect(contents).toContain('from "node:async_hooks"');
-    expect(contents).not.toContain('from "async_hooks"');
+    for (const artifactPath of asyncStorageArtifactPaths) {
+      const runtime = await import(
+        `${pathToFileURL(artifactPath).href}?artifact=${path.basename(path.dirname(artifactPath))}`
+      );
+      await expect(
+        runtime.storage.run(
+          { headers: { 'x-contract': 'preserved' } },
+          async () => {
+            await Promise.resolve();
+            return runtime.storage.useContext().headers['x-contract'];
+          },
+        ),
+      ).resolves.toBe('preserved');
+    }
   });
 });

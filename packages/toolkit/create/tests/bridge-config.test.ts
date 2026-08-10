@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import yaml from 'js-yaml';
 import {
   addUltramodernVertical,
   generateUltramodernWorkspace,
@@ -14,9 +15,6 @@ import {
 
 const readJson = (root: string, relativePath: string) =>
   JSON.parse(fs.readFileSync(path.join(root, relativePath), 'utf-8'));
-
-const read = (root: string, relativePath: string) =>
-  fs.readFileSync(path.join(root, relativePath), 'utf-8');
 
 test('bridge config is disabled by default and normalizes explicit API input', () => {
   assert.equal(normalizeUltramodernBridgeConfig(undefined), undefined);
@@ -418,7 +416,9 @@ test('bridge mode materializes workspace packages, app dependencies, compact con
       'apps/shell-super-app/package.json',
     );
     const compactConfig = readJson(workspaceDir, '.modernjs/ultramodern.json');
-    const pnpmWorkspace = read(workspaceDir, 'pnpm-workspace.yaml');
+    const pnpmWorkspace = yaml.load(
+      fs.readFileSync(path.join(workspaceDir, 'pnpm-workspace.yaml'), 'utf-8'),
+    ) as { packages: string[] };
 
     assert.deepEqual(rootPackage.workspaces, [
       'apps/*',
@@ -427,8 +427,8 @@ test('bridge mode materializes workspace packages, app dependencies, compact con
       '../../packages/domain-core',
       '../../packages/domain-react',
     ]);
-    assert.match(pnpmWorkspace, / {2}- \.\.\/\.\.\/packages\/domain-core/u);
-    assert.match(pnpmWorkspace, / {2}- \.\.\/\.\.\/packages\/domain-react/u);
+    assert.ok(pnpmWorkspace.packages.includes('../../packages/domain-core'));
+    assert.ok(pnpmWorkspace.packages.includes('../../packages/domain-react'));
     assert.equal(shellPackage.dependencies['@acme/domain-core'], 'workspace:*');
     assert.equal(
       shellPackage.dependencies['@acme/domain-react'],

@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import vm from 'node:vm';
+import { transformSync } from 'esbuild';
 import {
   createVerticalDescriptor,
   shellApp,
@@ -12,41 +14,30 @@ function evaluateGeneratedRemoteManifestUrl(
   helpers: string,
   env: Record<string, string | undefined>,
 ) {
-  assert.match(
-    helpers,
-    /^import \{ getBuildConfigEnvironment \} from '@modern-js\/app-tools\/config';$/mu,
-    'generated remote URL helpers must import the build-config environment accessor',
-  );
-  const executableHelpers = helpers
-    .replace(
-      /^import \{ getBuildConfigEnvironment \} from '@modern-js\/app-tools\/config';\n\n/u,
-      '',
-    )
-    .replace(
-      /const createRemoteManifestUrl = \(options: \{[\s\S]*?\}\) => \{/u,
-      'const createRemoteManifestUrl = (options) => {',
-    );
-  assert.notEqual(
-    executableHelpers,
-    helpers,
-    'test must execute the generated createRemoteManifestUrl helper',
-  );
-
-  const evaluate = new Function(
-    'getBuildConfigEnvironment',
-    `${executableHelpers}
-return createRemoteManifestUrl({
+  const executableHelpers = transformSync(
+    `${helpers}
+module.exports = createRemoteManifestUrl({
   manifestEnv: 'VERTICAL_CATALOG_MF_MANIFEST',
   mfName: 'verticalCatalog',
   port: 4101,
   publicUrlEnv: 'VERTICAL_CATALOG_PUBLIC_URL',
   workerName: 'tractor-store-catalog',
 });`,
-  ) as (
-    getBuildConfigEnvironment: (name: string) => string | undefined,
-  ) => string;
+    { format: 'cjs', loader: 'ts', target: 'node20' },
+  ).code;
+  const module = { exports: undefined as unknown };
+  vm.runInNewContext(executableHelpers, {
+    module,
+    exports: module.exports,
+    require(specifier: string) {
+      assert.equal(specifier, '@modern-js/app-tools/config');
+      return {
+        getBuildConfigEnvironment: (name: string) => env[name],
+      };
+    },
+  });
 
-  return evaluate(name => env[name]);
+  return module.exports;
 }
 
 test('module federation remote refs fail closed when a configured vertical is missing', () => {

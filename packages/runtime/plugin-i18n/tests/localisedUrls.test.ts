@@ -1,5 +1,3 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import path from 'node:path';
 import type { NestedRouteForCli } from '@modern-js/types';
 import { describe, expect, test } from '@rstest/core';
 import { i18nPlugin as i18nCliPlugin } from '../src/cli';
@@ -18,12 +16,6 @@ import {
   resolveLocalisedUrlsConfig,
   validateLocalisedUrls,
 } from '../src/shared/localisedUrls';
-
-const localisedRoutesGoldenPath = path.join(
-  __dirname,
-  'fixtures',
-  'localised-routes.golden.json',
-);
 
 const createRoute = (
   path: string,
@@ -44,9 +36,6 @@ const createRequestContext = (pathname: string) =>
       url: `http://localhost${pathname}`,
     },
   }) as any;
-
-const serializeRoutesForGolden = (routes: unknown): string =>
-  `${JSON.stringify(routes, null, 2)}\n`;
 
 describe('resolveLocalisedUrlsConfig', () => {
   test('is opt-in: only a non-empty map enables the feature', () => {
@@ -119,7 +108,7 @@ describe('cli modifyFileSystemRoutes', () => {
     return modifyRoutes!;
   };
 
-  const generateLocalisedRoutesGolden = (): string => {
+  const generateLocalisedRoutes = () => {
     const modifyRoutes = setupModifyRoutes({
       localePathRedirect: true,
       languages: ['en', 'cs', 'de'],
@@ -164,23 +153,53 @@ describe('cli modifyFileSystemRoutes', () => {
       routes,
     });
 
-    return serializeRoutesForGolden(result.routes);
+    return result.routes;
   };
 
-  test('matches checked-in localised routes golden output', async () => {
-    const localisedRoutes = generateLocalisedRoutesGolden();
-    const repeatedLocalisedRoutes = generateLocalisedRoutesGolden();
+  test('creates deterministic localized aliases with canonical route identity', () => {
+    const localisedRoutes = generateLocalisedRoutes();
+    expect(generateLocalisedRoutes()).toEqual(localisedRoutes);
 
-    expect(repeatedLocalisedRoutes).toBe(localisedRoutes);
-
-    if (process.env.UPDATE_I18N_LOCALISED_ROUTES_GOLDEN === '1') {
-      await mkdir(path.dirname(localisedRoutesGoldenPath), { recursive: true });
-      await writeFile(localisedRoutesGoldenPath, localisedRoutes);
+    const [localeLayout] = localisedRoutes;
+    expect(localeLayout.children?.map(route => route.path)).toEqual([
+      'about',
+      'o-nas',
+      'ueber-uns',
+      'products',
+      'produkty',
+      'produkte',
+      'docs',
+      'dokumenty',
+      'dokumente',
+    ]);
+    expect(localeLayout.children?.slice(0, 3)).toMatchObject([
+      {
+        _component: 'about.tsx',
+        modernCanonicalPath: '/about',
+        path: 'about',
+      },
+      {
+        _component: 'about.tsx',
+        modernCanonicalPath: '/about',
+        path: 'o-nas',
+      },
+      {
+        _component: 'about.tsx',
+        modernCanonicalPath: '/about',
+        path: 'ueber-uns',
+      },
+    ]);
+    for (const productRoute of localeLayout.children?.slice(3, 6) ?? []) {
+      expect(productRoute).toMatchObject({
+        _component: 'products.tsx',
+        modernCanonicalPath: '/products',
+      });
+      expect(productRoute.children?.[0]).toMatchObject({
+        _component: ':slug.tsx',
+        modernCanonicalPath: '/products/:slug',
+        path: ':slug',
+      });
     }
-
-    await expect(readFile(localisedRoutesGoldenPath, 'utf8')).resolves.toBe(
-      localisedRoutes,
-    );
   });
 
   test('upstream-style configs without a map keep routes untouched', () => {

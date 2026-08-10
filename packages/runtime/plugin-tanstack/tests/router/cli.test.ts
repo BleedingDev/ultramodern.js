@@ -1,6 +1,8 @@
-import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { promisify } from 'node:util';
 import { mergeConfig } from '@modern-js/plugin/cli';
 import type { Entrypoint } from '@modern-js/types';
 import { fs, NESTED_ROUTE_SPEC_FILE } from '@modern-js/utils';
@@ -11,6 +13,119 @@ import {
   writeTanstackRegisterFile,
   writeTanstackRouterTypesForEntries,
 } from '../../src/cli';
+
+const execFileAsync = promisify(execFile);
+const strictestTsconfigPath = path.resolve(
+  __dirname,
+  '../../node_modules/@tsconfig/strictest/tsconfig.json',
+);
+
+async function typecheckGeneratedRegistration(options: {
+  entries: string[];
+  generatedDirName: string;
+  srcDirectory: string;
+  runtimeModule?: string;
+  i18nRuntimeModule?: string;
+  canonicalTypeChecks?: string[];
+}) {
+  const {
+    entries,
+    generatedDirName,
+    srcDirectory,
+    runtimeModule = '@modern-js/plugin-tanstack/runtime',
+    i18nRuntimeModule,
+    canonicalTypeChecks = [],
+  } = options;
+  const projectDirectory = path.dirname(srcDirectory);
+
+  for (const entry of entries) {
+    const routerPath = path.join(
+      srcDirectory,
+      generatedDirName,
+      entry,
+      'router.gen.ts',
+    );
+    if (!(await fs.pathExists(routerPath))) {
+      await fs.outputFile(routerPath, 'export const router = { context: {} };');
+    }
+  }
+
+  const runtimeDeclaration = [
+    `declare module '${runtimeModule}' {`,
+    '  export interface Register {}',
+    '  export type ModernRouterContext = { request?: Request; requestContext?: unknown };',
+    '  type RouteOptions = { getParentRoute?: (...args: never[]) => unknown; id?: string; loader?: (...args: never[]) => unknown; path?: string; staticData?: unknown };',
+    '  type Route<TOptions extends RouteOptions = RouteOptions> = { options: TOptions; addChildren<const TChildren extends readonly unknown[]>(children: TChildren): Route<TOptions> & { children: TChildren } };',
+    '  export function createMemoryHistory<TOptions>(options: TOptions): TOptions;',
+    '  export function createRootRouteWithContext<TContext extends ModernRouterContext>(): <const TOptions extends RouteOptions>(options: TOptions) => Route<TOptions>;',
+    '  export function createRoute<const TOptions extends RouteOptions>(options: TOptions): Route<TOptions>;',
+    '  export function createRouter<const TOptions extends { context: ModernRouterContext; routeTree: unknown }>(options: TOptions): TOptions;',
+    '  export function createRouteStaticData<const TData extends Record<string, unknown>>(data: TData): TData;',
+    '  export function modernLoaderToTanstack<TLoader extends (...args: never[]) => unknown>(options: { hasSplat: boolean }, loader: TLoader): (context: unknown) => Promise<Awaited<ReturnType<TLoader>>>;',
+    '  export const modernTanstackRouterFastDefaults: Record<string, unknown>;',
+    '}',
+  ];
+  if (i18nRuntimeModule) {
+    runtimeDeclaration.push(
+      `declare module '${i18nRuntimeModule}' { export interface UltramodernCanonicalRoutes {} }`,
+    );
+  }
+  await fs.outputFile(
+    path.join(srcDirectory, 'generated-runtime-shim.d.ts'),
+    runtimeDeclaration.join('\n'),
+  );
+
+  const contractLines = [
+    `import type { Register } from '${runtimeModule}';`,
+    ...entries.map(
+      (entry, index) =>
+        `import { router as router${index} } from './${generatedDirName}/${entry}/router.gen';`,
+    ),
+    ...entries.map(
+      (_, index) =>
+        `const registeredRouter${index}: Register['router'] = router${index};`,
+    ),
+    ...entries.map((_, index) => `void registeredRouter${index};`),
+    ...canonicalTypeChecks,
+  ];
+  await fs.outputFile(
+    path.join(srcDirectory, 'registration-contract.ts'),
+    contractLines.join('\n'),
+  );
+  await fs.outputJSON(path.join(projectDirectory, 'tsconfig.json'), {
+    extends: strictestTsconfigPath,
+    compilerOptions: {
+      lib: ['ESNext', 'DOM'],
+      module: 'Preserve',
+      moduleResolution: 'Bundler',
+      noEmit: true,
+      target: 'ESNext',
+      types: [],
+    },
+    include: ['src/**/*.ts', 'src/**/*.d.ts'],
+  });
+
+  try {
+    await execFileAsync(
+      process.platform === 'win32' ? 'tsgo.cmd' : 'tsgo',
+      ['-p', 'tsconfig.json'],
+      {
+        cwd: projectDirectory,
+        shell: process.platform === 'win32',
+      },
+    );
+  } catch (error) {
+    if (
+      error &&
+      typeof error === 'object' &&
+      'stdout' in error &&
+      typeof error.stdout === 'string'
+    ) {
+      throw new Error(error.stdout, { cause: error });
+    }
+    throw error;
+  }
+}
 
 const runtimeCliMocks = {
   handleFileChange: rstest.fn(),
@@ -86,7 +201,7 @@ describe('tanstack router cli plugin', () => {
     }
   });
 
-  test('writes plugin-owned router types and register metadata', async () => {
+  test('typechecks plugin-owned routers and register metadata under strictest', async () => {
     tempDir = await mkdtemp(path.join(tmpdir(), 'modern-tanstack-cli-'));
     const srcDirectory = path.join(tempDir, 'src');
     await mkdir(srcDirectory, { recursive: true });
@@ -102,33 +217,33 @@ describe('tanstack router cli plugin', () => {
       } as any,
       generatedDirName: 'generated-router',
       routesByEntry: {
-        dashboard: [],
-        main: [],
+        dashboard: [
+          {
+            type: 'nested',
+            id: 'layout',
+            isRoot: true,
+            children: [{ type: 'nested', id: 'page', index: true }],
+          },
+        ],
+        main: [
+          {
+            type: 'nested',
+            id: 'layout',
+            isRoot: true,
+            children: [{ type: 'nested', id: 'page', index: true }],
+          },
+        ],
       },
     });
 
-    const mainRouter = await readFile(
-      path.join(srcDirectory, 'generated-router', 'main', 'router.gen.ts'),
-      'utf-8',
-    );
-    expect(mainRouter).toContain(
-      "} from '@modern-js/plugin-tanstack/runtime';",
-    );
-
-    const register = await readFile(
-      path.join(srcDirectory, 'generated-router', 'register.gen.d.ts'),
-      'utf-8',
-    );
-    expect(register).toContain("from './main/router.gen'");
-    expect(register.indexOf("from './main/router.gen'")).toBeLessThan(
-      register.indexOf("from './dashboard/router.gen'"),
-    );
-    expect(register).toContain(
-      "declare module '@modern-js/plugin-tanstack/runtime'",
-    );
+    await typecheckGeneratedRegistration({
+      entries: ['main', 'dashboard'],
+      generatedDirName: 'generated-router',
+      srcDirectory,
+    });
   });
 
-  test('can write register metadata without routes for custom entry lists', async () => {
+  test('typechecks register metadata for custom entry lists without routes', async () => {
     tempDir = await mkdtemp(path.join(tmpdir(), 'modern-tanstack-cli-'));
     const srcDirectory = path.join(tempDir, 'src');
 
@@ -138,17 +253,14 @@ describe('tanstack router cli plugin', () => {
       srcDirectory,
     });
 
-    const register = await readFile(
-      path.join(srcDirectory, 'tanstack', 'register.gen.d.ts'),
-      'utf-8',
-    );
-    expect(register).toContain('router: typeof router0');
-    expect(register).toContain(
-      "declare module '@modern-js/plugin-tanstack/runtime'",
-    );
+    await typecheckGeneratedRegistration({
+      entries: ['main'],
+      generatedDirName: 'tanstack',
+      srcDirectory,
+    });
   });
 
-  test('writes plugin-i18n module augmentation when canonicalRoutes are provided', async () => {
+  test('exposes canonical route params through plugin-i18n types', async () => {
     tempDir = await mkdtemp(path.join(tmpdir(), 'modern-tanstack-cli-'));
     const srcDirectory = path.join(tempDir, 'src');
 
@@ -162,20 +274,22 @@ describe('tanstack router cli plugin', () => {
       },
     });
 
-    const register = await readFile(
-      path.join(srcDirectory, 'tanstack', 'register.gen.d.ts'),
-      'utf-8',
-    );
-
-    expect(register).toContain(
-      "declare module '@modern-js/plugin-i18n/runtime'",
-    );
-    expect(register).toContain('interface UltramodernCanonicalRoutes');
-    expect(register).toContain("'/': Record<string, never>;");
-    expect(register).toContain('\'/products/$slug\': { "slug": string };');
+    await typecheckGeneratedRegistration({
+      entries: ['main'],
+      generatedDirName: 'tanstack',
+      srcDirectory,
+      i18nRuntimeModule: '@modern-js/plugin-i18n/runtime',
+      canonicalTypeChecks: [
+        "import type { UltramodernCanonicalRoutes } from '@modern-js/plugin-i18n/runtime';",
+        "const rootParams: UltramodernCanonicalRoutes['/'] = {};",
+        "const productParams: UltramodernCanonicalRoutes['/products/$slug'] = { slug: 'tractor' };",
+        'void rootParams;',
+        'void productParams;',
+      ],
+    });
   });
 
-  test('does not emit plugin-i18n augmentation when canonicalRoutes is absent (back-compat)', async () => {
+  test('typechecks a plain TanStack register without plugin-i18n installed', async () => {
     tempDir = await mkdtemp(path.join(tmpdir(), 'modern-tanstack-cli-'));
     const srcDirectory = path.join(tempDir, 'src');
 
@@ -183,23 +297,16 @@ describe('tanstack router cli plugin', () => {
       entries: ['main'],
       generatedDirName: 'tanstack',
       srcDirectory,
-      // No canonicalRoutes provided at all — plain TanStack app
     });
 
-    const register = await readFile(
-      path.join(srcDirectory, 'tanstack', 'register.gen.d.ts'),
-      'utf-8',
-    );
-
-    expect(register).not.toContain('plugin-i18n');
-    expect(register).not.toContain('UltramodernCanonicalRoutes');
-    // But the standard TanStack runtime augmentation must still be present.
-    expect(register).toContain(
-      "declare module '@modern-js/plugin-tanstack/runtime'",
-    );
+    await typecheckGeneratedRegistration({
+      entries: ['main'],
+      generatedDirName: 'tanstack',
+      srcDirectory,
+    });
   });
 
-  test('uses a custom i18nRuntimeModule when specified', async () => {
+  test('exposes canonical route params through a custom i18n runtime module', async () => {
     tempDir = await mkdtemp(path.join(tmpdir(), 'modern-tanstack-cli-'));
     const srcDirectory = path.join(tempDir, 'src');
 
@@ -213,15 +320,17 @@ describe('tanstack router cli plugin', () => {
       i18nRuntimeModule: '@my-org/i18n/runtime',
     });
 
-    const register = await readFile(
-      path.join(srcDirectory, 'tanstack', 'register.gen.d.ts'),
-      'utf-8',
-    );
-
-    expect(register).toContain("declare module '@my-org/i18n/runtime'");
-    expect(register).not.toContain(
-      "declare module '@modern-js/plugin-i18n/runtime'",
-    );
+    await typecheckGeneratedRegistration({
+      entries: ['main'],
+      generatedDirName: 'tanstack',
+      srcDirectory,
+      i18nRuntimeModule: '@my-org/i18n/runtime',
+      canonicalTypeChecks: [
+        "import type { UltramodernCanonicalRoutes } from '@my-org/i18n/runtime';",
+        "const talksParams: UltramodernCanonicalRoutes['/talks'] = {};",
+        'void talksParams;',
+      ],
+    });
   });
 
   test('claims custom routes, injects runtime plugin, and merges route specs', async () => {
@@ -576,32 +685,36 @@ describe('tanstack router cli plugin', () => {
       tanstackRouterPlugin().setup!(api as any);
       await taps.generateEntryCode({ entrypoints: [entrypoint] });
 
-      const register = await readFile(
-        path.join(srcDirectory, 'modern-tanstack', 'register.gen.d.ts'),
-        'utf-8',
+      const hasI18n = registeredPlugins.some(
+        plugin => plugin.name === '@modern-js/plugin-i18n',
       );
+      await typecheckGeneratedRegistration({
+        entries: ['main'],
+        generatedDirName: 'modern-tanstack',
+        srcDirectory,
+        ...(hasI18n && {
+          i18nRuntimeModule: '@modern-js/plugin-i18n/runtime',
+        }),
+        canonicalTypeChecks: hasI18n
+          ? [
+              "import type { UltramodernCanonicalRoutes } from '@modern-js/plugin-i18n/runtime';",
+              "const aboutParams: UltramodernCanonicalRoutes['/about'] = {};",
+              'void aboutParams;',
+            ]
+          : [],
+      });
       await rm(dir, { recursive: true, force: true });
-      return register;
     };
 
     // A hand-rolled `/:lang/` app WITHOUT plugin-i18n must not get the
     // augmentation — it would reference an unresolvable module (TS2664).
-    const withoutI18n = await runGenerate([{ name: '@modern-js/app-tools' }]);
-    expect(withoutI18n).not.toContain('plugin-i18n');
-    expect(withoutI18n).not.toContain('UltramodernCanonicalRoutes');
-    expect(withoutI18n).toContain(
-      "declare module '@modern-js/plugin-tanstack/runtime'",
-    );
+    await runGenerate([{ name: '@modern-js/app-tools' }]);
 
     // With plugin-i18n registered the canonical route map is emitted.
-    const withI18n = await runGenerate([
+    await runGenerate([
       { name: '@modern-js/app-tools' },
       { name: '@modern-js/plugin-i18n' },
     ]);
-    expect(withI18n).toContain(
-      "declare module '@modern-js/plugin-i18n/runtime'",
-    );
-    expect(withI18n).toContain("'/about': Record<string, never>;");
   });
 
   test('generates plugin-owned TanStack route files through core route generation', async () => {
@@ -692,20 +805,11 @@ describe('tanstack router cli plugin', () => {
       },
     );
 
-    const routerGen = await readFile(
-      path.join(srcDirectory, 'tanstack-generated', 'main', 'router.gen.ts'),
-      'utf-8',
-    );
-    expect(routerGen).toContain("} from '@modern-js/plugin-tanstack/runtime';");
-    expect(routerGen).toContain('modernRouteAction: action_0');
-
-    const register = await readFile(
-      path.join(srcDirectory, 'tanstack-generated', 'register.gen.d.ts'),
-      'utf-8',
-    );
-    expect(register).toContain(
-      "declare module '@modern-js/plugin-tanstack/runtime'",
-    );
+    await typecheckGeneratedRegistration({
+      entries: ['main'],
+      generatedDirName: 'tanstack-generated',
+      srcDirectory,
+    });
   });
 
   test('regenerates plugin-owned TanStack files for scoped file changes', async () => {

@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 type CommandRecord = {
   argv: string[];
@@ -48,7 +49,7 @@ function writeExecutable(filePath: string, source: string) {
   );
 }
 
-test('Zerops runtime materializer executes deploy, assembles runtime output, and vendors workspace deps', () => {
+test('Zerops runtime materializer executes deploy, assembles runtime output, and vendors workspace deps', async () => {
   const tempRoot = fs.mkdtempSync(
     path.join(os.tmpdir(), 'um-zerops-materialize-'),
   );
@@ -104,6 +105,7 @@ test('Zerops runtime materializer executes deploy, assembles runtime output, and
 
     writeJson(path.join(workspaceRoot, 'packages/shared/package.json'), {
       name: '@acme/shared',
+      type: 'module',
       version: '0.0.0',
       exports: {
         '.': './src/index.ts',
@@ -261,8 +263,11 @@ fs.writeFileSync(
 
     const runtimeRoot = path.join(workspaceRoot, '.zerops/runtime/catalog');
     assert.equal(
-      fs.readFileSync(path.join(runtimeRoot, 'index.js'), 'utf-8'),
-      "console.log('catalog runtime');\n",
+      execFileSync(process.execPath, ['index.js'], {
+        cwd: runtimeRoot,
+        encoding: 'utf-8',
+      }).trim(),
+      'catalog runtime',
     );
     assert.equal(
       fs.readFileSync(path.join(runtimeRoot, 'public/asset.txt'), 'utf-8'),
@@ -323,13 +328,13 @@ fs.writeFileSync(
       ),
       false,
     );
-    const sharedJs = fs.readFileSync(
-      path.join(runtimeRoot, 'node_modules/@acme/shared/src/index.js'),
-      'utf-8',
+    const sharedModule = await import(
+      pathToFileURL(
+        path.join(runtimeRoot, 'node_modules/@acme/shared/src/index.js'),
+      ).href
     );
-    assert.doesNotMatch(sharedJs, /import type|type LocalValue|interface/u);
-    assert.match(sharedJs, /export const sharedValue = 'from-shared';/u);
-    assert.match(sharedJs, /export const tuple = \['shared'\];/u);
+    assert.equal(sharedModule.sharedValue, 'from-shared');
+    assert.deepEqual(sharedModule.tuple, ['shared']);
     assert.equal(
       readJson<PackageJson>(
         path.join(runtimeRoot, 'node_modules/@acme/optional/package.json'),

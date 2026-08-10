@@ -39,12 +39,16 @@ test('--bff keeps the default strict Effect approach workspace scaffold', () => 
     const verticalResult = runCli(workspaceDir, ['catalog', '--vertical']);
     assert.equal(verticalResult.status, 0, verticalResult.stderr);
 
-    const modernConfig = fs.readFileSync(
-      path.join(workspaceDir, 'verticals/catalog/modern.config.ts'),
-      'utf8',
+    const workspaceContract = JSON.parse(
+      fs.readFileSync(
+        path.join(workspaceDir, '.modernjs/ultramodern.json'),
+        'utf8',
+      ),
     );
-    assert.match(modernConfig, /runtimeFramework: 'effect'/);
-    assert.match(modernConfig, /bffPlugin\(\)/);
+    const catalog = workspaceContract.topology.apps.find(
+      (app: { id?: string }) => app.id === 'catalog',
+    );
+    assert.equal(catalog.api.runtime, 'effect');
     assert.equal(
       fs.existsSync(path.join(workspaceDir, 'verticals/catalog/api/index.ts')),
       true,

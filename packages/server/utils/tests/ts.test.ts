@@ -1,10 +1,16 @@
 import { fs } from '@modern-js/utils';
 import os from 'os';
 import path from 'path';
+import { pathToFileURL } from 'url';
 import { compile } from '../src';
 import { createIsolatedTsExample } from './helpers';
 
 describe('typescript', () => {
+  const loadEsmModule = async (distDir: string, entry: string) => {
+    await fs.outputJSON(path.join(distDir, 'package.json'), { type: 'module' });
+    return import(`${pathToFileURL(entry).href}?t=${Date.now()}`);
+  };
+
   it('compile typescript', async () => {
     const { example, tempRoot } = await createIsolatedTsExample();
     const tsconfigPath = path.join(example, './tsconfig.json');
@@ -83,25 +89,22 @@ describe('typescript', () => {
         },
       );
 
-      const apiContent = await fs.readFile(
+      const api = await loadEsmModule(
+        distDir,
         path.join(distDir, './api/index.js'),
       );
-      const jsAliasContent = await fs.readFile(
+      const jsAlias = await loadEsmModule(
+        distDir,
         path.join(distDir, './api/js-alias.js'),
       );
-      const relativeContent = await fs.readFile(
+      const relative = await loadEsmModule(
+        distDir,
         path.join(distDir, './api/relative.js'),
       );
 
-      expect(apiContent.toString()).toMatch(
-        /from ['"]\.\.\/shared\/index\.js['"]/,
-      );
-      expect(jsAliasContent.toString()).toMatch(
-        /from ['"]\.\.\/shared\/index\.js['"]/,
-      );
-      expect(relativeContent.toString()).toMatch(
-        /from ['"]\.\.\/shared\/index\.js['"]/,
-      );
+      expect(api.default()).toBe('runtime-shared-api');
+      expect(jsAlias.default()).toBe('shared-js-alias');
+      expect(relative.default()).toBe('shared-relative');
     } finally {
       await fs.remove(tempRoot);
     }
@@ -135,11 +138,6 @@ describe('typescript', () => {
           tsconfigPath,
         },
       );
-
-      const apiContent = (
-        await fs.readFile(path.join(distDir, './api/index.js'))
-      ).toString();
-      expect(apiContent).not.toMatch(/^import /m);
 
       const api = require(path.join(distDir, './api')).default;
       expect(api()).toEqual('runtime-shared-api');
@@ -193,13 +191,10 @@ describe('typescript', () => {
         }),
       ).rejects.toThrow(/TS-Go compilation failed/);
 
-      const serverOutput = await fs.readFile(
+      const serverOutput = require(
         path.join(distDir, 'server/modern.server.js'),
-        'utf8',
       );
-
-      expect(serverOutput).not.toContain('@shared/repro');
-      expect(serverOutput).toContain('require("../shared/repro")');
+      expect(serverOutput.default).toBe('alias test');
     } finally {
       await fs.remove(example);
     }
@@ -222,13 +217,11 @@ describe('typescript', () => {
         moduleType: 'module',
       });
 
-      const serverContent = (
-        await fs.readFile(path.join(distDir, './server/index.js'))
-      ).toString();
-
-      // `./foo` points at `foo/index.tsx`, so it must not become `./foo.js`.
-      expect(serverContent).toMatch(/from\s+['"]\.\/foo\/index\.js['"]/);
-      expect(serverContent).toMatch(/from\s+['"]\.\.\/shared\/bar\.js['"]/);
+      const server = await loadEsmModule(
+        distDir,
+        path.join(distDir, './server/index.js'),
+      );
+      expect(server.default()).toBe('foo-bar-helper-mjs-legacy-cjs-data-json');
 
       // `jsx: preserve` would emit `foo/index.jsx`, which Node cannot load.
       expect(
@@ -262,30 +255,20 @@ describe('typescript', () => {
         moduleType: 'module',
       });
 
-      const serverContent = (
-        await fs.readFile(path.join(distDir, './server/index.js'))
-      ).toString();
-
-      // `.json` and `.mjs` are copied verbatim, so their extensions must stay.
-      expect(serverContent).toMatch(/['"]\.\.\/shared\/data\.json['"]/);
-      expect(serverContent).not.toMatch(/\.\.\/shared\/data\.js['"]/);
-      expect(serverContent).toMatch(/['"]\.\/helper\.mjs['"]/);
-      expect(serverContent).not.toMatch(/['"]\.\/helper\.js['"]/);
-
-      // Import attributes must survive the specifier rewrite.
-      expect(serverContent).toMatch(/type:\s*['"]json['"]/);
-
-      // The options argument of a dynamic import must not be dropped.
-      expect(serverContent).toMatch(
-        /import\(\s*['"]\.\.\/shared\/data\.json['"]\s*,\s*\{/,
+      const server = await loadEsmModule(
+        distDir,
+        path.join(distDir, './server/index.js'),
       );
-
-      expect(serverContent).toMatch(/['"]\.\/legacy\.cjs['"]/);
-
-      // Non-literal specifiers are resolved at runtime and must be untouched.
-      // biome-ignore lint/suspicious/noTemplateCurlyInString: literal source emitted by the fixture
-      expect(serverContent).toContain('import(`./locales/${lang}.js`)');
-      expect(serverContent).toContain(`import('./locales/' + lang + '.js')`);
+      expect(server.default()).toBe('foo-bar-helper-mjs-legacy-cjs-data-json');
+      await expect(server.loadData()).resolves.toMatchObject({
+        default: { name: 'data-json' },
+      });
+      await expect(server.loadLocaleTemplate('en')).resolves.toMatchObject({
+        locale: 'en',
+      });
+      await expect(server.loadLocaleConcat('en')).resolves.toMatchObject({
+        locale: 'en',
+      });
 
       expect(
         await fs.pathExists(path.join(distDir, './shared/data.json')),

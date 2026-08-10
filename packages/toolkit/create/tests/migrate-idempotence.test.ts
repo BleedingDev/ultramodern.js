@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { yaml } from '@modern-js/utils';
 import { runUltramodernToolingCli } from '../src/ultramodern-tooling/commands';
 import { runMigrateStrictEffect } from '../src/ultramodern-tooling/commands/migrate-strict-effect';
 import { createWorkspace } from './helpers/workspace-kit';
@@ -212,12 +213,11 @@ test('source-checkout migrate uses workspace links and is byte-idempotent after 
       fs.existsSync(path.join(workspaceDir, '.modernjs/release-cohort.json')),
       false,
     );
-    const pnpmWorkspace = fs.readFileSync(
-      path.join(workspaceDir, 'pnpm-workspace.yaml'),
-      'utf-8',
-    );
-    assert.match(pnpmWorkspace, /^injectWorkspacePackages: true$/mu);
-    assert.match(pnpmWorkspace, /^linkWorkspacePackages: true$/mu);
+    const pnpmWorkspace = yaml.load(
+      fs.readFileSync(path.join(workspaceDir, 'pnpm-workspace.yaml'), 'utf-8'),
+    ) as Record<string, unknown>;
+    assert.equal(pnpmWorkspace.injectWorkspacePackages, true);
+    assert.equal(pnpmWorkspace.linkWorkspacePackages, true);
 
     for (const relativePath of retiredMetadataPaths) {
       assert.equal(fs.existsSync(path.join(workspaceDir, relativePath)), false);

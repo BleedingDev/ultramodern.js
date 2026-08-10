@@ -1,13 +1,22 @@
 import { type BundlerChain, RUNTIME_CHUNK_NAME } from '@modern-js/builder';
-import { expect, test } from '@playwright/test';
+import { expect, type Page, test } from '@playwright/test';
 import { build, getHrefByEntryName } from '@scripts/shared';
 import path from 'path';
 
-const hasRuntimeChunkScriptTag = (html: string): boolean =>
-  /<script[^>]*src="\/static\/js\/builder-runtime\.[^"]+\.js"/.test(html);
-
-const hasInlineRuntimeChunk = (html: string): boolean =>
-  /<script[^>]*>[\s\S]*globalThis\.rspackChunk[\s\S]*<\/script>/.test(html);
+const expectRuntimeWasInlined = async (page: Page) => {
+  await expect(
+    page.locator(`script[src*="${RUNTIME_CHUNK_NAME}"]`),
+  ).toHaveCount(0);
+  expect(
+    await page.evaluate(
+      runtimeChunkName =>
+        performance
+          .getEntriesByType('resource')
+          .some(entry => entry.name.includes(runtimeChunkName)),
+      RUNTIME_CHUNK_NAME,
+    ),
+  ).toBe(false);
+};
 
 // use source-map for easy to test. By default, builder use hidden-source-map
 const toolsConfig = {
@@ -77,6 +86,7 @@ test('runtime chunk is inlined by default', async ({ page }) => {
   await page.goto(getHrefByEntryName('index', builder.port));
 
   expect(await page.evaluate(`window.test`)).toBe('aaaa');
+  await expectRuntimeWasInlined(page);
 
   const files = await builder.unwrapOutputJSON(false);
 
@@ -88,20 +98,16 @@ test('runtime chunk is inlined by default', async ({ page }) => {
     ),
   ).toBe(false);
 
-  // runtime chunk is inlined into html by default.
-  const indexHtml =
-    files[path.resolve(__dirname, './dist/html/index/index.html')];
-
-  expect(hasRuntimeChunkScriptTag(indexHtml)).toBeFalsy();
-  expect(hasInlineRuntimeChunk(indexHtml)).toBeTruthy();
-
   builder.close();
 });
 
-test('inline runtime chunk and remove source map when devtool is "hidden-source-map"', async () => {
+test('inline runtime chunk and remove source map when devtool is "hidden-source-map"', async ({
+  page,
+}) => {
   const builder = await build({
     cwd: __dirname,
     entry: { index: path.resolve(__dirname, './src/index.js') },
+    runServer: true,
     builderConfig: {
       tools: {
         bundlerChain(chain) {
@@ -113,6 +119,10 @@ test('inline runtime chunk and remove source map when devtool is "hidden-source-
 
   const files = await builder.unwrapOutputJSON(false);
 
+  await page.goto(getHrefByEntryName('index', builder.port));
+  expect(await page.evaluate(`window.test`)).toBe('aaaa');
+  await expectRuntimeWasInlined(page);
+
   // builder runtime source map is not emitted when the runtime is inlined and
   // devtool is hidden-source-map.
   expect(
@@ -121,15 +131,20 @@ test('inline runtime chunk and remove source map when devtool is "hidden-source-
         fileName.includes(RUNTIME_CHUNK_NAME) && fileName.endsWith('.js.map'),
     ),
   ).toBe(false);
+
+  builder.close();
 });
 
-test('runtime chunk is inlined by default with multiple entries', async () => {
+test('runtime chunk is inlined by default with multiple entries', async ({
+  page,
+}) => {
   const builder = await build({
     cwd: __dirname,
     entry: {
       index: path.resolve(__dirname, './src/index.js'),
       another: path.resolve(__dirname, './src/another.js'),
     },
+    runServer: true,
     builderConfig: {
       tools: toolsConfig,
     },
@@ -144,16 +159,15 @@ test('runtime chunk is inlined by default with multiple entries', async () => {
     ),
   ).toBe(false);
 
-  // runtime chunk is inlined into every html entry by default.
-  const indexHtml =
-    files[path.resolve(__dirname, './dist/html/index/index.html')];
-  const anotherHtml =
-    files[path.resolve(__dirname, './dist/html/another/index.html')];
+  await page.goto(getHrefByEntryName('index', builder.port));
+  expect(await page.evaluate(`window.test`)).toBe('aaaa');
+  await expectRuntimeWasInlined(page);
 
-  expect(hasRuntimeChunkScriptTag(indexHtml)).toBeFalsy();
-  expect(hasRuntimeChunkScriptTag(anotherHtml)).toBeFalsy();
-  expect(hasInlineRuntimeChunk(indexHtml)).toBeTruthy();
-  expect(hasInlineRuntimeChunk(anotherHtml)).toBeTruthy();
+  await page.goto(getHrefByEntryName('another', builder.port));
+  await expect.poll(() => page.evaluate(`window.answer`)).toBe('another foo');
+  await expectRuntimeWasInlined(page);
+
+  builder.close();
 });
 
 test('using RegExp to inline scripts', async () => {

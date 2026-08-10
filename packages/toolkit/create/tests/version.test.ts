@@ -21,72 +21,77 @@ const writeExecutable = (filePath: string, content: string) => {
   fs.writeFileSync(filePath, content, { mode: 0o755 });
 };
 
+const generatedConfigRuntimePackages = {
+  'app-tools': path.resolve(packageRoot, '../../solutions/app-tools'),
+  'plugin-i18n': path.resolve(packageRoot, '../../runtime/plugin-i18n'),
+  'plugin-tanstack': path.resolve(packageRoot, '../../runtime/plugin-tanstack'),
+};
+
+function linkGeneratedConfigRuntime(
+  workspacePath: string,
+  appDirectory: string,
+) {
+  fs.symlinkSync(
+    path.resolve(packageRoot, '../../../node_modules/.pnpm/node_modules'),
+    path.join(workspacePath, 'node_modules'),
+    'dir',
+  );
+  const modernScope = path.join(
+    workspacePath,
+    'apps',
+    appDirectory,
+    'node_modules/@modern-js',
+  );
+  fs.mkdirSync(modernScope, { recursive: true });
+  for (const [name, packagePath] of Object.entries(
+    generatedConfigRuntimePackages,
+  )) {
+    fs.symlinkSync(packagePath, path.join(modernScope, name), 'dir');
+  }
+}
+
+function loadGeneratedAssetPrefix(
+  workspacePath: string,
+  appDirectory: string,
+  env: Record<string, string | undefined>,
+) {
+  const configPath = path.join(
+    workspacePath,
+    'apps',
+    appDirectory,
+    'modern.config.ts',
+  );
+  const tsxLoader = fs.realpathSync(
+    path.join(packageRoot, 'node_modules/tsx/dist/loader.mjs'),
+  );
+  const result = spawnSync(
+    process.execPath,
+    [
+      '--import',
+      tsxLoader,
+      '--input-type=module',
+      '--eval',
+      `
+        import { pathToFileURL } from 'node:url';
+        const loaded = await import(pathToFileURL(${JSON.stringify(configPath)}).href);
+        const config = loaded.default?.default ?? loaded.default;
+        process.stdout.write(JSON.stringify(config.output.assetPrefix));
+      `,
+    ],
+    {
+      cwd: path.dirname(configPath),
+      encoding: 'utf8',
+      env: { ...process.env, ...env },
+    },
+  );
+  assert.equal(result.status, 0, result.stderr);
+  return JSON.parse(result.stdout) as string;
+}
+
 const linkCreatePackageIntoConsumer = (consumerDir: string) => {
   const scopeDir = path.join(consumerDir, 'node_modules/@modern-js');
   fs.mkdirSync(scopeDir, { recursive: true });
   fs.symlinkSync(packageRoot, path.join(scopeDir, 'create'), 'dir');
-};
-
-const assertGeneratedModernConfigAssetPrefixContract = (
-  modernConfig: string,
-  label: string,
-) => {
-  const indexOfAny = (source: string, needles: string[]) => {
-    const indexes = needles
-      .map(needle => source.indexOf(needle))
-      .filter(index => index >= 0);
-
-    return indexes.length > 0 ? Math.min(...indexes) : -1;
-  };
-
-  const assetPrefixMatch = modernConfig.match(
-    /const\s+assetPrefix\s*=\s*(?<expression>[\s\S]*?);/,
-  );
-
-  assert.ok(
-    assetPrefixMatch?.groups?.expression,
-    `${label} derives assetPrefix`,
-  );
-
-  const assetPrefixExpression = assetPrefixMatch.groups.expression;
-
-  assert.doesNotMatch(
-    assetPrefixExpression,
-    /configuredSiteUrl|MODERN_PUBLIC_SITE_URL/,
-    `${label} assetPrefix must not use MODERN_PUBLIC_SITE_URL`,
-  );
-  assert.match(
-    modernConfig,
-    /MODERN_ASSET_PREFIX/,
-    `${label} modern.config.ts must read MODERN_ASSET_PREFIX`,
-  );
-  assert.match(
-    modernConfig,
-    /ULTRAMODERN_ASSET_PREFIX/,
-    `${label} modern.config.ts must read ULTRAMODERN_ASSET_PREFIX`,
-  );
-  assert.match(
-    assetPrefixExpression,
-    /configuredModernAssetPrefix|MODERN_ASSET_PREFIX/,
-    `${label} assetPrefix must prefer MODERN_ASSET_PREFIX`,
-  );
-  assert.match(
-    assetPrefixExpression,
-    /configuredUltramodernAssetPrefix|ULTRAMODERN_ASSET_PREFIX/,
-    `${label} assetPrefix must fall back to ULTRAMODERN_ASSET_PREFIX`,
-  );
-  assert.ok(
-    indexOfAny(assetPrefixExpression, [
-      'configuredModernAssetPrefix',
-      'MODERN_ASSET_PREFIX',
-    ]) <
-      indexOfAny(assetPrefixExpression, [
-        'configuredUltramodernAssetPrefix',
-        'ULTRAMODERN_ASSET_PREFIX',
-      ]),
-    `${label} assetPrefix must prefer MODERN_ASSET_PREFIX before ` +
-      'ULTRAMODERN_ASSET_PREFIX',
-  );
 };
 
 test('package exposes the pnpm dlx command alias', () => {
@@ -373,7 +378,7 @@ test('built CLI resolves workspace template for default scaffold', () => {
   try {
     const result = spawnSync(
       process.execPath,
-      [builtCliPath, 'smoke-workspace'],
+      [builtCliPath, 'smoke-workspace', '--no-tailwind'],
       {
         cwd: tmpDir,
         encoding: 'utf8',
@@ -404,12 +409,30 @@ test('built CLI resolves workspace template for default scaffold', () => {
     assert.notEqual(appDirectories.length, 0);
 
     for (const appDirectory of appDirectories) {
-      assertGeneratedModernConfigAssetPrefixContract(
-        readGeneratedFile(
-          workspacePath,
-          `apps/${appDirectory}/modern.config.ts`,
-        ),
-        appDirectory,
+      linkGeneratedConfigRuntime(workspacePath, appDirectory);
+      assert.equal(
+        loadGeneratedAssetPrefix(workspacePath, appDirectory, {
+          MODERN_ASSET_PREFIX: 'https://modern.example/assets/',
+          MODERN_PUBLIC_SITE_URL: 'https://site.example/',
+          ULTRAMODERN_ASSET_PREFIX: 'https://ultramodern.example/assets/',
+        }),
+        'https://modern.example/assets/',
+      );
+      assert.equal(
+        loadGeneratedAssetPrefix(workspacePath, appDirectory, {
+          MODERN_ASSET_PREFIX: undefined,
+          MODERN_PUBLIC_SITE_URL: 'https://site.example/',
+          ULTRAMODERN_ASSET_PREFIX: 'https://ultramodern.example/assets/',
+        }),
+        'https://ultramodern.example/assets/',
+      );
+      assert.equal(
+        loadGeneratedAssetPrefix(workspacePath, appDirectory, {
+          MODERN_ASSET_PREFIX: undefined,
+          MODERN_PUBLIC_SITE_URL: 'https://site.example/',
+          ULTRAMODERN_ASSET_PREFIX: undefined,
+        }),
+        '/',
       );
     }
   } finally {

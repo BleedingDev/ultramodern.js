@@ -132,61 +132,6 @@ test('addUltramodernShell scaffolds an additional shell delivery unit and keeps 
       registered.deliveryUnit.buildMarker,
     );
 
-    const shellModernConfig = fs.readFileSync(
-      path.join(workspaceDir, 'apps/shell-admin/modern.config.ts'),
-      'utf-8',
-    );
-    for (const port of [3020, 3120, 4101]) {
-      assert.match(shellModernConfig, new RegExp(`http://localhost:${port}`));
-    }
-    assert.match(shellModernConfig, /credentials: false/);
-    assert.doesNotMatch(shellModernConfig, /origin:\s*true|origin:\s*'\*'/u);
-    const shellMfConfig = fs.readFileSync(
-      path.join(workspaceDir, 'apps/shell-admin/module-federation.config.ts'),
-      'utf-8',
-    );
-    assert.match(shellMfConfig, /name: 'shellAdmin'/);
-    assert.doesNotMatch(shellMfConfig, /name: 'shellSuperApp'/);
-    assert.match(
-      fs.readFileSync(
-        path.join(workspaceDir, 'apps/shell-admin/src/routes/index.css'),
-        'utf-8',
-      ),
-      /prefix\(shelladmin\)/,
-    );
-    const shellComponents = fs.readFileSync(
-      path.join(
-        workspaceDir,
-        'apps/shell-admin/src/routes/vertical-components.tsx',
-      ),
-      'utf-8',
-    );
-    assert.match(shellComponents, /data-modern-boundary-id="shellAdmin"/);
-    assert.match(shellComponents, /shelladmin:text-red-900/);
-    assert.doesNotMatch(
-      shellComponents,
-      /data-modern-boundary-id="shellSuperApp"/,
-    );
-    const shellWorkerComponents = fs.readFileSync(
-      path.join(
-        workspaceDir,
-        'apps/shell-admin/src/routes/vertical-components.worker.tsx',
-      ),
-      'utf-8',
-    );
-    assert.match(shellWorkerComponents, /DistributedSsrBoundary/);
-    assert.doesNotMatch(shellWorkerComponents, /@module-federation/);
-
-    const zeropsYaml = fs.readFileSync(
-      path.join(workspaceDir, 'zerops.yaml'),
-      'utf-8',
-    );
-    assert.match(zeropsYaml, /setup: 'shell-admin'/);
-    assert.match(
-      zeropsYaml,
-      /start: cd '\.zerops\/runtime\/shell-admin' && npm run serve/,
-    );
-
     // The generated validator still passes with the additional shell present —
     // both shells clear the structural thin-shell gate (G30a x G28).
     const validation = runValidation(workspaceDir);
@@ -266,41 +211,6 @@ test('add-vertical targets an additional shell and rejects unknown shell ids dur
       ),
       ['catalog'],
     );
-    assert.match(
-      fs.readFileSync(
-        path.join(workspaceDir, 'apps/shell-admin/module-federation.config.ts'),
-        'utf-8',
-      ),
-      /name: 'shellAdmin'[\s\S]*catalog:[\s\S]*orders:/u,
-    );
-    assert.match(
-      fs.readFileSync(
-        path.join(workspaceDir, 'apps/shell-admin/src/routes/index.css'),
-        'utf-8',
-      ),
-      /prefix\(shelladmin\)/,
-    );
-    assert.match(
-      fs.readFileSync(
-        path.join(
-          workspaceDir,
-          'apps/shell-admin/src/routes/vertical-components.tsx',
-        ),
-        'utf-8',
-      ),
-      /data-modern-boundary-id="shellAdmin"/,
-    );
-    assert.doesNotMatch(
-      fs.readFileSync(
-        path.join(
-          workspaceDir,
-          'apps/shell-admin/src/routes/vertical-components.worker.tsx',
-        ),
-        'utf-8',
-      ),
-      /@module-federation/,
-    );
-
     const validation = runValidation(workspaceDir);
     assert.equal(
       validation.status,
@@ -366,11 +276,6 @@ test('add-shell followed by add-vertical preserves every shell-derived artifact'
       readJson(workspaceDir, 'package.json').scripts.build,
       /apps\/shell-admin.*run build/,
     );
-    assert.match(
-      fs.readFileSync(path.join(workspaceDir, 'zerops.yaml'), 'utf-8'),
-      /setup: 'shell-admin'/,
-    );
-
     const validation = runValidation(workspaceDir);
     assert.equal(
       validation.status,

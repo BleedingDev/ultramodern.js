@@ -1,9 +1,9 @@
 import { expect, test } from '@playwright/test';
-import { build } from '@scripts/shared';
+import { build, getHrefByEntryName } from '@scripts/shared';
 import path from 'path';
-import { cases, copyPkgToNodeModules, findEntry, shareTest } from './helper';
+import { cases, copyPkgToNodeModules, shareTest } from './helper';
 
-test('should import with template config', async () => {
+test('should import with template config', async ({ page }) => {
   copyPkgToNodeModules();
 
   const builder = await build({
@@ -20,10 +20,13 @@ test('should import with template config', async () => {
       },
       splitChunks: false,
     },
+    runServer: true,
   });
-  const files = await builder.unwrapOutputJSON(false);
-  const entry = findEntry(files);
-  expect(files[entry]).toContain('transformImport test succeed');
+  const messages: string[] = [];
+  page.on('console', message => messages.push(message.text()));
+  await page.goto(getHrefByEntryName('index', builder.port));
+  expect(messages).toContain('transformImport test succeed');
+  builder.close();
 });
 
 cases.forEach(c => {

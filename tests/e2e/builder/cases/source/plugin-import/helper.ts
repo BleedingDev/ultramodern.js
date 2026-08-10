@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import type { RsbuildConfig, SourceConfig } from '@rsbuild/core';
-import { build } from '@scripts/shared';
+import { build, getHrefByEntryName } from '@scripts/shared';
 import { copySync, ensureDirSync } from 'fs-extra';
 import path from 'path';
 
@@ -41,19 +41,6 @@ export const cases: Parameters<typeof shareTest>[] = [
   ],
 ];
 
-export function findEntry(
-  files: Record<string, string>,
-  name = 'index',
-): string {
-  for (const key of Reflect.ownKeys(files) as string[]) {
-    if (key.includes(`dist/static/js/${name}`) && key.endsWith('.js')) {
-      return key;
-    }
-  }
-
-  throw new Error('unreacheable');
-}
-
 export function copyPkgToNodeModules() {
   const nodeModules = path.resolve(__dirname, 'node_modules');
 
@@ -82,13 +69,17 @@ export function shareTest(
     splitChunks: false,
   };
 
-  test(msg, async () => {
+  test(msg, async ({ page }) => {
     const builder = await build({
       ...setupConfig,
       ...otherConfigs,
       builderConfig: { ...config },
+      runServer: true,
     });
-    const files = await builder.unwrapOutputJSON(false);
-    expect(files[findEntry(files)]).toContain('transformImport test succeed');
+    const messages: string[] = [];
+    page.on('console', message => messages.push(message.text()));
+    await page.goto(getHrefByEntryName('index', builder.port));
+    expect(messages).toContain('transformImport test succeed');
+    builder.close();
   });
 }

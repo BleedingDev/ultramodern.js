@@ -106,6 +106,22 @@ function assertGeneratedWorkspaceLintClean(
   );
 }
 
+function assertGeneratedWorkspaceContractClean(
+  workspaceDir: string,
+  generatedState: string,
+) {
+  const result = spawnSync(
+    process.execPath,
+    ['scripts/validate-ultramodern-workspace.mts'],
+    { cwd: workspaceDir, encoding: 'utf8' },
+  );
+  assert.equal(
+    result.status,
+    0,
+    `${generatedState} failed its generated workspace contract.\n${result.stdout}\n${result.stderr}`,
+  );
+}
+
 test('generated shell, checkout, and generic verticals are lint-clean', () => {
   const { tempRoot, workspaceDir } = createWorkspace('generated-lint', {
     tempPrefix: 'um-generated-lint-',
@@ -118,6 +134,7 @@ test('generated shell, checkout, and generic verticals are lint-clean', () => {
       lintHarnessDir,
       'shell-only workspace',
     );
+    assertGeneratedWorkspaceContractClean(workspaceDir, 'shell-only workspace');
 
     addUltramodernVertical({
       workspaceRoot: workspaceDir,
@@ -127,6 +144,10 @@ test('generated shell, checkout, and generic verticals are lint-clean', () => {
     assertGeneratedWorkspaceLintClean(
       workspaceDir,
       lintHarnessDir,
+      'workspace with checkout',
+    );
+    assertGeneratedWorkspaceContractClean(
+      workspaceDir,
       'workspace with checkout',
     );
 
@@ -139,6 +160,27 @@ test('generated shell, checkout, and generic verticals are lint-clean', () => {
       workspaceDir,
       lintHarnessDir,
       'workspace with checkout and catalog',
+    );
+    assertGeneratedWorkspaceContractClean(
+      workspaceDir,
+      'workspace with checkout and catalog',
+    );
+
+    for (const name of ['records', 'actions', 'workspace']) {
+      addUltramodernVertical({
+        workspaceRoot: workspaceDir,
+        name,
+        modernVersion: '3.2.1',
+      });
+    }
+    assertGeneratedWorkspaceLintClean(
+      workspaceDir,
+      lintHarnessDir,
+      'workspace with former demo-name verticals',
+    );
+    assertGeneratedWorkspaceContractClean(
+      workspaceDir,
+      'workspace with former demo-name verticals',
     );
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
