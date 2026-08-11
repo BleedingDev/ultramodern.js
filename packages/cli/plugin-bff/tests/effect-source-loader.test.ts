@@ -7,7 +7,10 @@ import type { ServerPluginAPI } from '@modern-js/server-core';
 import apiLoader, { type APILoaderOptions } from '../src/loader';
 import { EffectAdapter } from '../src/runtime/effect/adapter';
 import { generateEffectClient } from '../src/utils/effectClientGenerator';
-import { loadEffectSourceModule } from '../src/utils/effectSourceLoader';
+import {
+  loadEffectBuiltModule,
+  loadEffectSourceModule,
+} from '../src/utils/effectSourceLoader';
 
 const require = createRequire(import.meta.url);
 
@@ -146,6 +149,68 @@ const buildEffectWorkerRuntimeModule = async ({
 };
 
 describe('Effect source graph loading', () => {
+  test('loads a built CommonJS Effect artifact without changing its native module boundary', async () => {
+    const appDir = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), 'modern-plugin-bff-effect-built-commonjs-'),
+    );
+
+    try {
+      const entryFile = path.join(appDir, 'dist', 'api', 'index.js');
+      await writeFile(
+        entryFile,
+        `"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.default = {
+  filename: __filename,
+  moduleType: "commonjs",
+};`,
+      );
+
+      const loaded = (await loadEffectBuiltModule(entryFile)) as {
+        default: { filename: string; moduleType: string };
+      };
+
+      expect(loaded.default).toEqual({
+        filename: await fs.promises.realpath(entryFile),
+        moduleType: 'commonjs',
+      });
+    } finally {
+      await fs.promises.rm(appDir, { recursive: true, force: true });
+    }
+  });
+
+  test('loads a built ESM Effect artifact through its native module boundary', async () => {
+    const appDir = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), 'modern-plugin-bff-effect-built-esm-'),
+    );
+
+    try {
+      const entryFile = path.join(appDir, 'dist', 'api', 'index.js');
+      await writeFile(
+        path.join(appDir, 'package.json'),
+        JSON.stringify({ type: 'module' }),
+      );
+      await writeFile(
+        entryFile,
+        `export default {
+  moduleUrl: import.meta.url,
+  moduleType: "module",
+};`,
+      );
+
+      const loaded = (await loadEffectBuiltModule(entryFile)) as {
+        default: { moduleType: string; moduleUrl: string };
+      };
+
+      expect(loaded.default).toEqual({
+        moduleType: 'module',
+        moduleUrl: pathToFileURL(await fs.promises.realpath(entryFile)).href,
+      });
+    } finally {
+      await fs.promises.rm(appDir, { recursive: true, force: true });
+    }
+  });
+
   test('emits an executable diagnostic module for platform-native paths', async () => {
     const resourcePath = String.raw`D:\a\ultramodern.js\app\api\effect\index.ts`;
     const code = await runApiLoader({

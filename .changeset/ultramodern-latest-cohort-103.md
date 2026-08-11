@@ -21,4 +21,6 @@ exact root development input for framework regression tests. Generated and
 migrated applications receive neither an RSC runtime nor a consumer-side patch.
 The Module Federation manifest-recovery runtime also keeps its retry timer on
 the browser-safe universal utilities surface so client bundles never traverse
-Node-only framework utilities.
+Node-only framework utilities. Production Effect BFF entries retain the native
+module boundary established by their deployment build instead of being
+re-bundled through the development source loader at server startup.

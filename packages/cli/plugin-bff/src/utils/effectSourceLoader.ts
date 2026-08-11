@@ -263,6 +263,27 @@ function normalizeImportedModule(module: unknown): unknown {
 }
 
 /**
+ * Loads the relocatable artifact emitted by the production BFF build.
+ *
+ * Production entries have already been compiled and bundled by
+ * `bundleEffectEntryForNode`. Loading that artifact through the development
+ * source-graph bundler a second time changes its module format and can strip
+ * CommonJS runtime globals from bundled dependencies. Keep the built module's
+ * native Node boundary intact instead.
+ */
+export async function loadEffectBuiltModule(
+  resourcePath: string,
+): Promise<unknown> {
+  const canonicalPath = await fs.promises.realpath(path.resolve(resourcePath));
+  if (!(await isEsmOnlyFile(canonicalPath))) {
+    return createRequire(canonicalPath)(canonicalPath);
+  }
+  return normalizeImportedModule(
+    await dynamicImport(pathToFileURL(canonicalPath).href),
+  );
+}
+
+/**
  * Loads an Effect source entry as native ESM while keeping its complete local
  * source graph observable by the framework watcher.
  */

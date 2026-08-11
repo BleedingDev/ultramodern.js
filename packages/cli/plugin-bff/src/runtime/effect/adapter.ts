@@ -9,7 +9,10 @@ import { fs, isProd, logger } from '@modern-js/utils';
 import path from 'path';
 
 import type { ResolvedCrossProjectPolicy } from '../../utils/crossProjectServerPolicy';
-import { loadEffectSourceModule } from '../../utils/effectSourceLoader';
+import {
+  loadEffectBuiltModule,
+  loadEffectSourceModule,
+} from '../../utils/effectSourceLoader';
 import { before } from './adapter/constants';
 import { resolveEffectAdapterCrossProjectPolicy } from './adapter/cross-project-policy';
 import { resolveEffectAdapterEntryFile } from './adapter/entry';
@@ -136,10 +139,12 @@ export class EffectAdapter {
     let mod: EffectApiModule;
     try {
       const { appDirectory } = this.api.getServerContext();
-      mod = (await loadEffectSourceModule({
-        resourcePath: entryFile,
-        appDir: appDirectory || path.dirname(entryFile),
-      })) as EffectApiModule;
+      mod = (await (isProd()
+        ? loadEffectBuiltModule(entryFile)
+        : loadEffectSourceModule({
+            resourcePath: entryFile,
+            appDir: appDirectory || path.dirname(entryFile),
+          }))) as EffectApiModule;
     } catch (error) {
       logger.error(
         `[BFF][Effect] Failed to load Effect entry: ${entryFile}\n${String(error)}`,
