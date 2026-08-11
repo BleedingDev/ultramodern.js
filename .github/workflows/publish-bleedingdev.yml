@@ -717,6 +717,9 @@ jobs:
             sleep 15
           done
 
+      - name: Install published acceptance runner dependencies
+        run: mise exec -- pnpm install --frozen-lockfile --ignore-scripts --filter @scripts/ultramodern-production-readiness
+
       - name: Install browser smoke runtime
         run: npx --yes playwright@1.60.0 install --with-deps chromium
 

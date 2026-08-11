@@ -1118,6 +1118,11 @@ function validatePublishWorkflow(workflow) {
     'Run published ERP-10 acceptance',
     'accept-published job',
   );
+  const publishedAcceptanceDependencyInstall = namedStep(
+    publishedAcceptanceJob,
+    'Install published acceptance runner dependencies',
+    'accept-published job',
+  );
   const publishedMiseSteps = actionSteps(
     publishedAcceptanceJob,
     'jdx/mise-action',
@@ -1126,6 +1131,20 @@ function validatePublishWorkflow(workflow) {
   requireCondition(
     publishedMiseSteps.length === 1,
     'accept-published must install the pinned mise toolchain before running ERP-10',
+  );
+  requireCondition(
+    publishedAcceptanceDependencyInstall.run ===
+      'mise exec -- pnpm install --frozen-lockfile --ignore-scripts --filter @scripts/ultramodern-production-readiness',
+    'accept-published must install the frozen published acceptance runner dependencies',
+  );
+  const publishedAcceptanceSteps = stepsFor(
+    publishedAcceptanceJob,
+    'accept-published job',
+  );
+  requireCondition(
+    publishedAcceptanceSteps.indexOf(publishedAcceptanceDependencyInstall) <
+      publishedAcceptanceSteps.indexOf(publishedAcceptanceRun),
+    'accept-published must install the frozen published acceptance runner dependencies before ERP-10',
   );
   const publishedMise = publishedMiseSteps[0];
   const publishedAcceptanceUpload = artifactStep(

@@ -748,6 +748,18 @@ test('publish validator rejects authority, mutable resolution, and acceptance by
       /must install the pinned mise toolchain/u,
     ],
     [
+      'missing published acceptance runner dependencies',
+      parsed => {
+        parsed.jobs['accept-published'].steps = parsed.jobs[
+          'accept-published'
+        ].steps.filter(
+          step =>
+            step.name !== 'Install published acceptance runner dependencies',
+        );
+      },
+      /published acceptance runner dependencies/u,
+    ],
+    [
       'outcome bypass',
       parsed => {
         parsed.jobs['record-publish-outcome'].if = parsed.jobs[
