@@ -565,6 +565,12 @@ const stalePatchPolicies: readonly UltramodernStalePatchPolicy[] = [
     sha256: '1e1572940e00d6327c75bb8457c108e32e75a2292e4d90d764208d5b6f330155',
   },
   {
+    packageName: '@tanstack/router-core',
+    version: '1.171.21',
+    path: 'patches/@tanstack__router-core@1.171.21.patch',
+    sha256: 'fb269f2a1c6c789ffb2d4f9341f6dd6a1dbb977b5bb66ce8e31a3a9cdd197dad',
+  },
+  {
     packageName: 'react-server-dom-rspack',
     version: '0.0.3',
     path: 'patches/@react-server-dom-rspack@0.0.3.patch',

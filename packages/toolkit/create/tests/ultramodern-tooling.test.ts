@@ -579,6 +579,45 @@ test('migrate retires the former generated Rspack RSC patch', async () => {
   }
 });
 
+test('migrate retires the obsolete TanStack router declaration patch', async () => {
+  const { tempRoot, workspaceDir } = scaffoldWorkspace(
+    'tooling-retired-tanstack-router-patch',
+  );
+  const workspacePath = path.join(workspaceDir, 'pnpm-workspace.yaml');
+  const patchFile = '@tanstack__router-core@1.171.21.patch';
+  const relativePatchPath = `patches/${patchFile}`;
+  const selector = '@tanstack/router-core@1.171.21';
+
+  try {
+    const policy = yaml.load(fs.readFileSync(workspacePath, 'utf-8')) as Record<
+      string,
+      any
+    >;
+    policy.patchedDependencies[selector] = relativePatchPath;
+    fs.writeFileSync(workspacePath, yaml.dump(policy), 'utf-8');
+    fs.copyFileSync(
+      path.resolve(__dirname, 'fixtures/legacy-patches', patchFile),
+      path.join(workspaceDir, relativePatchPath),
+    );
+
+    assert.equal(
+      await runUltramodernToolingCli(
+        ['migrate-strict-effect', '--skip-install'],
+        workspaceDir,
+      ),
+      0,
+    );
+
+    const migratedPolicy = yaml.load(
+      fs.readFileSync(workspacePath, 'utf-8'),
+    ) as Record<string, any>;
+    assert.equal(migratedPolicy.patchedDependencies[selector], undefined);
+    assert.equal(exists(workspaceDir, relativePatchPath), false);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test('migrate preserves and rejects a consumer-modified retired Rspack RSC patch', async () => {
   const { tempRoot, workspaceDir } = scaffoldWorkspace(
     'tooling-modified-retired-rspack-rsc-patch',
