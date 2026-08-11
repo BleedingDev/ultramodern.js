@@ -235,10 +235,6 @@ describe('create builder Options', () => {
       const chunkFormat = rstest.fn().mockReturnThis();
       const chunkLoading = rstest.fn().mockReturnThis();
       const workerChunkLoading = rstest.fn().mockReturnThis();
-      const usedExports = rstest.fn().mockReturnThis();
-      const providedExports = rstest.fn().mockReturnThis();
-      const innerGraph = rstest.fn().mockReturnThis();
-      const sideEffects = rstest.fn().mockReturnThis();
       const conditionNames = {
         add: rstest.fn().mockReturnThis(),
         delete: rstest.fn().mockReturnThis(),
@@ -253,12 +249,6 @@ describe('create builder Options', () => {
           chunkFormat,
           chunkLoading,
           workerChunkLoading,
-        },
-        optimization: {
-          usedExports,
-          providedExports,
-          innerGraph,
-          sideEffects,
         },
         plugins: {
           delete: (name: string) => {
@@ -317,6 +307,21 @@ describe('create builder Options', () => {
           util: 'module-import node:util',
         },
         externalsType: 'module-import',
+        module: {
+          parser: {
+            javascript: {
+              dynamicImportMode: 'eager',
+            },
+          },
+        },
+        optimization: {
+          runtimeChunk: { name: '__modern_worker_runtime' },
+          splitChunks: {
+            chunks: 'all',
+            minSize: 0,
+            name: '__modern_worker_shared',
+          },
+        },
       });
       expect(chain.externalsPresets).not.toHaveBeenCalled();
       expect(chain.target).not.toHaveBeenCalled();
@@ -326,10 +331,6 @@ describe('create builder Options', () => {
       expect(chunkFormat).toHaveBeenCalledWith('module');
       expect(chunkLoading).toHaveBeenCalledWith('import');
       expect(workerChunkLoading).toHaveBeenCalledWith('import');
-      expect(usedExports).toHaveBeenCalledWith(false);
-      expect(providedExports).toHaveBeenCalledWith(true);
-      expect(innerGraph).toHaveBeenCalledWith(false);
-      expect(sideEffects).toHaveBeenCalledWith(false);
       expect(conditionNames.add).toHaveBeenCalledWith('workerd');
       expect(conditionNames.add).toHaveBeenCalledWith('worker');
       expect(conditionNames.add).toHaveBeenCalledWith('webpack');

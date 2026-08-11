@@ -85,6 +85,15 @@
       "import": "./dist/esm/runtime/effect/edge.mjs",
       "default": "./dist/esm/runtime/effect/edge.mjs"
     },
+    "./effect-edge/dispatcher": {
+      "types": "./dist/types/runtime/effect/edge-dispatcher.d.ts",
+      "node": {
+        "import": "./dist/esm-node/runtime/effect/edge-dispatcher.mjs",
+        "require": "./dist/cjs/runtime/effect/edge-dispatcher.js"
+      },
+      "import": "./dist/esm/runtime/effect/edge-dispatcher.mjs",
+      "default": "./dist/esm/runtime/effect/edge-dispatcher.mjs"
+    },
     "./effect-client": {
       "types": "./dist/types/runtime/effect-client/index.d.ts",
       "node": {
@@ -140,6 +149,9 @@
       ],
       "effect-edge": [
         "./dist/types/runtime/effect/edge.d.ts"
+      ],
+      "effect-edge/dispatcher": [
+        "./dist/types/runtime/effect/edge-dispatcher.d.ts"
       ],
       "effect-client": [
         "./dist/types/runtime/effect-client/index.d.ts"

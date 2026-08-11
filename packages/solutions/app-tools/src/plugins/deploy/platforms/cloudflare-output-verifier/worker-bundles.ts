@@ -305,6 +305,42 @@ const getStaticImport = (modulePath: NodePath) => {
   return undefined;
 };
 
+const isAmbientLoaderWrite = (modulePath: NodePath) => {
+  let targetPath: NodePath | null = modulePath;
+
+  while (targetPath.parentPath) {
+    const parentPath = targetPath.parentPath;
+    if (parentPath.isAssignmentExpression()) {
+      return targetPath.key === 'left';
+    }
+    if (parentPath.isUpdateExpression()) {
+      return targetPath.key === 'argument';
+    }
+    if (parentPath.isForInStatement() || parentPath.isForOfStatement()) {
+      return targetPath.key === 'left';
+    }
+    if (parentPath.isObjectProperty()) {
+      if (targetPath.key !== 'value') {
+        return false;
+      }
+      targetPath = parentPath;
+      continue;
+    }
+    if (
+      parentPath.isObjectPattern() ||
+      parentPath.isArrayPattern() ||
+      parentPath.isRestElement() ||
+      parentPath.isAssignmentPattern()
+    ) {
+      targetPath = parentPath;
+      continue;
+    }
+    return false;
+  }
+
+  return false;
+};
+
 const analyzeWorkerModule = (source: string): WorkerModuleAnalysis => {
   const ast = parse(source, {
     sourceType: 'unambiguous',
@@ -347,7 +383,7 @@ const analyzeWorkerModule = (source: string): WorkerModuleAnalysis => {
       }
       if (
         node.type === 'Identifier' &&
-        modulePath.isBindingIdentifier() &&
+        isAmbientLoaderWrite(modulePath) &&
         (node.name === 'require' || node.name === 'module') &&
         modulePath.scope.getBinding(node.name) === undefined
       ) {
@@ -503,6 +539,15 @@ const verifyWorkerModuleClosure = async (
     }
 
     for (const specifier of analysis.imports) {
+      if (specifier.length === 0) {
+        addIssue(issues, {
+          code: 'invalid-worker-bundle',
+          message:
+            'Cloudflare worker bundle module specifiers must not be empty.',
+          path: modulePath,
+        });
+        continue;
+      }
       if (!specifier.startsWith('.') && !path.isAbsolute(specifier)) {
         if (CLOUDFLARE_WORKER_NODE_BUILTIN_SPECIFIERS.has(specifier)) {
           continue;

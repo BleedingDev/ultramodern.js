@@ -89,12 +89,14 @@ const buildEffectWorkerRuntimeModule = async ({
   apiDir,
   appDir,
   entryFile,
+  onBuildInputs,
   prefix,
   source,
 }: {
   apiDir: string;
   appDir: string;
   entryFile: string;
+  onBuildInputs?: (inputs: string[]) => void;
   prefix: string;
   source: string;
 }) => {
@@ -119,20 +121,26 @@ const buildEffectWorkerRuntimeModule = async ({
   await writeFile(wrapperFile, wrapperSource);
 
   const { build } = await import('esbuild');
-  await build({
+  const result = await build({
     alias: {
       '@modern-js/plugin-bff/effect-edge': path.resolve(
         __dirname,
         '../src/runtime/effect/edge.ts',
       ),
+      '@modern-js/plugin-bff/effect-edge/dispatcher': path.resolve(
+        __dirname,
+        '../src/runtime/effect/edge-dispatcher.ts',
+      ),
     },
     bundle: true,
     entryPoints: [wrapperFile],
     format: 'esm',
+    metafile: true,
     outfile: outputFile,
     platform: 'node',
     target: 'node20',
   });
+  onBuildInputs?.(Object.keys(result.metafile.inputs));
 
   return import(
     `${pathToFileURL(outputFile).href}?t=${Date.now()}`
@@ -348,14 +356,27 @@ exports.default = {
       const entryFile = path.join(apiDir, 'index.ts');
       const source = `export default { api: {}, layer: {} };`;
       await writeFile(entryFile, source);
+      const buildInputs: string[] = [];
 
       const runtimeModule = await buildEffectWorkerRuntimeModule({
         apiDir,
         appDir,
         entryFile,
+        onBuildInputs: inputs => buildInputs.push(...inputs),
         prefix: '/catalog-api',
         source,
       });
+
+      expect(
+        buildInputs.some(input => input.endsWith('edge-dispatcher.ts')),
+      ).toBe(true);
+      expect(
+        buildInputs.filter(
+          input =>
+            input.includes('backend-federation') ||
+            input.includes('@module-federation'),
+        ),
+      ).toEqual([]);
 
       expect(typeof runtimeModule.__modern_create_effect_bff_dispatcher).toBe(
         'function',

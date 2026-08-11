@@ -142,6 +142,76 @@ function getCloudflareWorkerNodeExternals() {
   );
 }
 
+const reserveWorkerChunkName = (
+  baseName: string,
+  reservedOutputNames: ReadonlySet<string>,
+) => {
+  let name = baseName;
+  while (reservedOutputNames.has(normalizeWorkerOutputName(name))) {
+    name = `${name}_`;
+  }
+  return name;
+};
+
+const normalizeWorkerOutputName = (name: string) =>
+  path.posix.normalize(name.replace(/\\/gu, '/')).toLowerCase();
+
+export function getCloudflareWorkerRspackConfig(
+  workerEntryNames: Iterable<string>,
+) {
+  const entryNames = [...workerEntryNames];
+  for (const entryName of entryNames) {
+    const slashName = entryName.replace(/\\/gu, '/');
+    const normalizedName = path.posix.normalize(slashName);
+    if (
+      entryName !== slashName ||
+      normalizedName !== slashName ||
+      normalizedName === '.' ||
+      normalizedName.startsWith('../') ||
+      path.posix.isAbsolute(normalizedName) ||
+      path.win32.isAbsolute(slashName) ||
+      /^[A-Za-z]:/u.test(slashName)
+    ) {
+      throw new Error(
+        `Cloudflare worker entry name "${entryName}" must be a canonical relative output path without dot segments or backslashes.`,
+      );
+    }
+  }
+  const reservedNames = new Set(entryNames.map(normalizeWorkerOutputName));
+  const runtimeName = reserveWorkerChunkName(
+    '__modern_worker_runtime',
+    reservedNames,
+  );
+  reservedNames.add(normalizeWorkerOutputName(runtimeName));
+  const sharedName = reserveWorkerChunkName(
+    '__modern_worker_shared',
+    reservedNames,
+  );
+
+  return {
+    experiments: {
+      outputModule: true,
+    },
+    externals: getCloudflareWorkerNodeExternals(),
+    externalsType: 'module-import',
+    module: {
+      parser: {
+        javascript: {
+          dynamicImportMode: 'eager',
+        },
+      },
+    },
+    optimization: {
+      runtimeChunk: { name: runtimeName },
+      splitChunks: {
+        chunks: 'all',
+        minSize: 0,
+        name: sharedName,
+      },
+    },
+  } as const;
+}
+
 function getEffectBffEntry(
   normalizedConfig: AppNormalizedConfig,
   appContext: AppToolsContext,
@@ -415,13 +485,14 @@ export function getBuilderEnvironments(
         ...(useCloudflareModuleWorker
           ? {
               bundlerChain: chain => {
-                chain.merge({
-                  experiments: {
-                    outputModule: true,
-                  },
-                  externals: getCloudflareWorkerNodeExternals(),
-                  externalsType: 'module-import',
-                });
+                // Workerd acceptance rejects runtime-selected module paths.
+                // Eager mode keeps local lazy boundaries asynchronous while
+                // lowering them to Promise continuations. A single runtime and
+                // static shared chunk preserve module identity across route and
+                // Effect BFF entries loaded in the same workerd isolate.
+                chain.merge(
+                  getCloudflareWorkerRspackConfig(Object.keys(workerEntries)),
+                );
                 chain.output
                   .module(true)
                   .library({ type: 'module' })
@@ -429,11 +500,6 @@ export function getBuilderEnvironments(
                   .chunkFormat('module')
                   .chunkLoading('import')
                   .workerChunkLoading('import');
-                chain.optimization
-                  .usedExports(false)
-                  .providedExports(true)
-                  .innerGraph(false)
-                  .sideEffects(false);
                 // A Cloudflare module worker uses ESM output, but it is still
                 // a server runtime. Keeping Rspack's target-web `browser`
                 // condition makes packages such as TanStack Router resolve

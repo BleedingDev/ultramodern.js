@@ -27,4 +27,12 @@ module boundary established by their deployment build instead of being
 re-bundled through the development source loader at server startup. Cloudflare
 output verification now distinguishes bundled, lexically scoped loader calls
 from actual external module imports while retaining fail-closed checks for
-unprovided package edges.
+unprovided package edges. Cloudflare worker builds restore compiler tree
+shaking and consume Effect dispatch through a narrow public subpath, preventing
+unused browser-router and backend-federation loaders from entering worker
+artifacts. Cloudflare Rspack builds eagerly lower local lazy boundaries by
+default and share one statically imported runtime across route and Effect BFF
+entries, preserving module identity without a mutable runtime chunk dispatcher.
+An explicit lazy-mode override fails output verification; the verifier rejects
+every nonliteral `import()` specifier instead of granting a compiler-shaped
+exception.

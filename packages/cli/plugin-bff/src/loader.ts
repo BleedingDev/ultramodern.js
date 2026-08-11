@@ -63,7 +63,7 @@ function createEffectWorkerRuntimeWrapper(resourcePath: string) {
   const sourceRequest = `${resourcePath}?${EFFECT_BFF_WORKER_RUNTIME_SOURCE_QUERY}`;
 
   return `import * as effectBffModule from ${JSON.stringify(sourceRequest)};
-import { createEffectBffEdgeDispatcher } from '@modern-js/plugin-bff/effect-edge';
+import { createEffectBffEdgeDispatcher } from '@modern-js/plugin-bff/effect-edge/dispatcher';
 
 export const __modern_create_effect_bff_dispatcher = options =>
   createEffectBffEdgeDispatcher({
