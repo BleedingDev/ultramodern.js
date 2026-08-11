@@ -603,15 +603,12 @@ test('release acceptance subprocess verifies producer attempt 1 during publicati
     writeFixtureFile(
       dependencyBlockerPath,
       [
-        "import { registerHooks } from 'node:module';",
-        'registerHooks({',
-        '  resolve(specifier, context, nextResolve) {',
-        "    if (specifier === '@babel/core') {",
-        "      throw new Error('receipt verification loaded execution-only @babel/core');",
-        '    }',
-        '    return nextResolve(specifier, context);',
-        '  },',
-        '});',
+        'export async function resolve(specifier, context, nextResolve) {',
+        "  if (specifier === '@babel/core') {",
+        "    throw new Error('receipt verification loaded execution-only @babel/core');",
+        '  }',
+        '  return nextResolve(specifier, context);',
+        '}',
         '',
       ].join('\n'),
     );
@@ -632,7 +629,7 @@ test('release acceptance subprocess verifies producer attempt 1 during publicati
       GITHUB_RUN_ID: '123',
       NODE_OPTIONS: [
         process.env.NODE_OPTIONS,
-        `--import=${pathToFileURL(dependencyBlockerPath).href}`,
+        `--experimental-loader=${pathToFileURL(dependencyBlockerPath).href}`,
       ]
         .filter(Boolean)
         .join(' '),
