@@ -248,8 +248,8 @@ describe('builder rspack', () => {
         'rsbuild:svgr',
         'rsbuild:css-minimizer',
         'builder:postcss-plugins',
-        'builder:rsc-client-browser-fallback',
         'user-plugin',
+        'builder:rsc-disabled-runtime',
       ],
     );
   });
