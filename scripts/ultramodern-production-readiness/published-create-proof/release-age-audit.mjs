@@ -651,8 +651,8 @@ function validateExceptionPolicy(policy, now = new Date()) {
       `${label}.reviewedAt must not be in the future`,
     );
     assertCondition(
-      expiresAtMs > reviewedAtMs && expiresAtMs > nowMs,
-      `${label}.expiresAt must be after review and unexpired`,
+      expiresAtMs > reviewedAtMs,
+      `${label}.expiresAt must be after review`,
     );
     assertExactKeys(entry.evidence, ['sha256', 'uri'], `${label}.evidence`);
     assertImmutableEvidenceUri(entry.evidence.uri, `${label}.evidence.uri`);
@@ -836,7 +836,7 @@ async function fetchRegistryMetadata(
   return results;
 }
 
-function approveImmaturePackages({ metadata, policy, release }) {
+function approveImmaturePackages({ metadata, policy, release, now }) {
   const policyByIdentity = new Map(
     policy.entries.map(entry => [identityKey(entry), entry]),
   );
@@ -848,10 +848,14 @@ function approveImmaturePackages({ metadata, policy, release }) {
   const rejected = [];
   const matchedPolicyEntries = new Set();
   for (const item of metadata) {
+    const key = identityKey(item);
+    const exception = policyByIdentity.get(key);
+    if (exception?.integrity === item.integrity) {
+      matchedPolicyEntries.add(key);
+    }
     if (item.ageMinutes >= minimumReleaseAgeMinutes) {
       continue;
     }
-    const key = identityKey(item);
     const releaseItem = releaseByIdentity.get(key);
     if (releaseItem?.integrity === item.integrity) {
       exactExclusions.push(key);
@@ -871,10 +875,11 @@ function approveImmaturePackages({ metadata, policy, release }) {
       });
       continue;
     }
-    const exception = policyByIdentity.get(key);
-    if (exception?.integrity === item.integrity) {
+    if (
+      exception?.integrity === item.integrity &&
+      Date.parse(exception.expiresAt) > now.getTime()
+    ) {
       exactExclusions.push(key);
-      matchedPolicyEntries.add(key);
       approvals.push({
         authority: 'external-release-age-policy',
         package: exception.package,
@@ -918,7 +923,11 @@ function approveImmaturePackages({ metadata, policy, release }) {
   approvals.sort((left, right) =>
     compareCodeUnits(identityKey(left), identityKey(right)),
   );
-  return { approvals, exactExclusions };
+  return {
+    approvals,
+    exactExclusions,
+    matchedPolicyEntries: [...matchedPolicyEntries].sort(compareCodeUnits),
+  };
 }
 
 function readRegularFile(filePath, label) {
@@ -1060,25 +1069,31 @@ async function auditReleaseAgePolicy({
     fetchImpl,
     now,
   });
-  const { approvals, exactExclusions: requiredExclusions } =
-    approveImmaturePackages({
-      metadata,
-      policy,
-      release,
-    });
+  const {
+    approvals,
+    exactExclusions: requiredExclusions,
+    matchedPolicyEntries,
+  } = approveImmaturePackages({
+    metadata,
+    policy,
+    release,
+    now,
+  });
   // The generated workspace deterministically exempts the whole authenticated
   // release cohort (it cannot predict which of those first-party packages a
   // given app + its future verticals will actually resolve). The audit enforces
   // the two properties that matter for supply-chain safety instead of exact
   // equality: (1) every immature package actually in the closure IS exempted
   // (no under-exclusion — the real hazard), and (2) every declared exemption is
-  // a member of the integrity-verified release cohort (no phantom exemption
-  // outside the proven release). A tamper check across audit -> frozen install
-  // (verifyStrictInstallInputs) still pins the exact declared set + its digest.
+  // authorized either by the integrity-verified first-party release cohort or
+  // by the exact, matched external review policy. A tamper check across audit
+  // -> frozen install (verifyStrictInstallInputs) still pins the exact declared
+  // set + its digest.
   const declaredExclusions = new Set(workspace.exactExclusions);
   const authenticatedCohort = new Set(
     release.packages.map(item => `${item.targetName}@${item.version}`),
   );
+  const externallyReviewed = new Set(matchedPolicyEntries);
   const missingExclusions = requiredExclusions.filter(
     key => !declaredExclusions.has(key),
   );
@@ -1089,11 +1104,11 @@ async function auditReleaseAgePolicy({
     }`,
   );
   const phantomExclusions = workspace.exactExclusions.filter(
-    key => !authenticatedCohort.has(key),
+    key => !authenticatedCohort.has(key) && !externallyReviewed.has(key),
   );
   assertCondition(
     phantomExclusions.length === 0,
-    `Generated minimumReleaseAgeExclude declares exemptions outside the authenticated release cohort: ${
+    `Generated minimumReleaseAgeExclude declares exemptions outside the authenticated release cohort and matched review policy: ${
       phantomExclusions.join(', ') || '(empty)'
     }`,
   );

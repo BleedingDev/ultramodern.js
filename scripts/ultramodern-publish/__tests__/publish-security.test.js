@@ -317,7 +317,7 @@ test('publish security validation rejects partial publish controls', () => {
 });
 
 test('release acceptance runner exposes distinct execution and receipt verification modes', async () => {
-  const { parseArgs } = await import(
+  const { defaultReleaseAgePolicyPath, parseArgs } = await import(
     pathToFileURL(releaseAcceptanceScriptPath)
   );
   const commonArgs = [
@@ -331,7 +331,27 @@ test('release acceptance runner exposes distinct execution and receipt verificat
     'test:release-run',
   ];
 
-  assert.equal(parseArgs(commonArgs).mode, 'prepublish');
+  const defaultOptions = parseArgs(commonArgs);
+  assert.equal(defaultOptions.mode, 'prepublish');
+  assert.equal(
+    defaultOptions.releaseAgePolicyPath,
+    path.join(
+      repoRoot,
+      'scripts/ultramodern-publish/release-age-exceptions-2026-08-10.json',
+    ),
+  );
+  assert.equal(
+    defaultOptions.releaseAgePolicyPath,
+    defaultReleaseAgePolicyPath,
+  );
+  assert.equal(
+    parseArgs([
+      ...commonArgs,
+      '--release-age-policy',
+      path.join(os.tmpdir(), 'reviewed-release-age-policy.json'),
+    ]).releaseAgePolicyPath,
+    path.resolve(os.tmpdir(), 'reviewed-release-age-policy.json'),
+  );
   assert.equal(
     parseArgs([...commonArgs, '--mode', 'published']).mode,
     'published',
@@ -365,6 +385,74 @@ test('release acceptance runner exposes distinct execution and receipt verificat
     () => parseArgs([...commonArgs, '--keep-work-dir']),
     /Unknown argument: --keep-work-dir/,
   );
+});
+
+test('release acceptance defaults to the exact reviewed third-party policy', async () => {
+  const [
+    { defaultReleaseAgePolicyPath, parseArgs },
+    { validateExceptionPolicy },
+  ] = await Promise.all([
+    import(pathToFileURL(releaseAcceptanceScriptPath)),
+    import(
+      pathToFileURL(
+        path.join(
+          repoRoot,
+          'scripts/ultramodern-production-readiness/published-create-proof/release-age-audit.mjs',
+        ),
+      )
+    ),
+  ]);
+  const options = parseArgs([
+    '--manifest',
+    '/tmp/ultramodern-release/manifest.json',
+    '--receipt',
+    '/tmp/ultramodern-release/acceptance-receipt.json',
+    '--scale-profile',
+    'erp-10',
+    '--run-identity',
+    'test:release-run',
+  ]);
+  const policy = JSON.parse(
+    fs.readFileSync(defaultReleaseAgePolicyPath, 'utf8'),
+  );
+  const validated = validateExceptionPolicy(
+    policy,
+    new Date('2026-08-11T01:00:00.000Z'),
+  );
+  const review = JSON.parse(
+    fs.readFileSync(
+      path.join(
+        repoRoot,
+        'packages/toolkit/create/release-age-review-2026-08-10.json',
+      ),
+      'utf8',
+    ),
+  );
+  const reviewedRegistry = new Map(
+    review.registryRecords.map(record => [
+      `${record.packageName}@${record.version}`,
+      record,
+    ]),
+  );
+
+  assert.equal(options.releaseAgePolicyPath, defaultReleaseAgePolicyPath);
+  assert.equal(validated.entries.length, 50);
+  assert.deepEqual(
+    policy.entries,
+    validated.entries,
+    'policy must be canonical',
+  );
+  for (const entry of validated.entries) {
+    const registryRecord = reviewedRegistry.get(
+      `${entry.package}@${entry.version}`,
+    );
+    assert.ok(registryRecord, `missing review record for ${entry.package}`);
+    assert.equal(registryRecord.dist.integrity, entry.integrity);
+    assert.equal(registryRecord.maturityAtReview.state, 'immature');
+    assert.equal(entry.approvedBy, review.reviewer);
+    assert.equal(entry.reviewedAt, review.reviewedAt);
+    assert.equal(entry.expiresAt, new Date(review.expiresAt).toISOString());
+  }
 });
 
 test('release acceptance runner preserves the accepted producer identity on a publish retry', async () => {

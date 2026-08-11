@@ -961,6 +961,166 @@ test('release-age exclusions use locale-independent canonical ordering', () => {
   }
 });
 
+test('reviewed release-age exceptions authorize exact third-party exclusions', async () => {
+  const { auditReleaseAgePolicy } = await import(
+    '../published-create-proof/release-age-audit.mjs'
+  );
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'release-age-policy-'));
+  const external = {
+    name: '@effect/tsgo',
+    version: '0.36.2',
+    integrity: 'sha512-ZXh0ZXJuYWw=',
+    publishedAt: '2026-08-10T07:00:57.951Z',
+  };
+  const firstParty = {
+    name: '@bleedingdev/modern-js-create',
+    version: '3.5.0-ultramodern.103',
+    integrity: 'sha512-Zmlyc3QtcGFydHk=',
+    publishedAt: '2026-08-10T08:00:00.000Z',
+  };
+  const policyPath = path.join(root, 'release-age-policy.json');
+  const workspacePath = path.join(root, 'pnpm-workspace.yaml');
+  const lockPath = path.join(root, 'pnpm-lock.yaml');
+  const locator = item => `${item.name}@${item.version}`;
+  const lock = {
+    lockfileVersion: '9.0',
+    importers: {
+      '.': {
+        dependencies: {
+          [external.name]: {
+            specifier: external.version,
+            version: external.version,
+          },
+          [firstParty.name]: {
+            specifier: firstParty.version,
+            version: firstParty.version,
+          },
+        },
+      },
+    },
+    packages: Object.fromEntries(
+      [external, firstParty].map(item => [
+        locator(item),
+        { resolution: { integrity: item.integrity } },
+      ]),
+    ),
+    snapshots: Object.fromEntries(
+      [external, firstParty].map(item => [locator(item), {}]),
+    ),
+  };
+  const workspace = {
+    minimumReleaseAge: 1440,
+    minimumReleaseAgeExclude: [locator(external), locator(firstParty)].sort(),
+    minimumReleaseAgeIgnoreMissingTime: false,
+    minimumReleaseAgeStrict: true,
+    trustPolicy: 'no-downgrade',
+    trustPolicyIgnoreAfter: 1440,
+  };
+  const policy = {
+    schema: 'bleedingdev.ultramodern.release-age-exceptions',
+    schemaVersion: 2,
+    entries: [
+      {
+        approvedBy: 'Release reviewer <reviewer@example.test>',
+        evidence: {
+          sha256: 'a'.repeat(64),
+          uri: `urn:sha256:${'a'.repeat(64)}`,
+        },
+        expiresAt: '2026-09-09T23:59:59.000Z',
+        integrity: external.integrity,
+        package: external.name,
+        reviewedAt: '2026-08-10T14:36:54.394Z',
+        version: external.version,
+      },
+    ],
+  };
+  fs.writeFileSync(workspacePath, JSON.stringify(workspace));
+  fs.writeFileSync(lockPath, JSON.stringify(lock));
+  fs.writeFileSync(policyPath, JSON.stringify(policy));
+
+  try {
+    let registry = new Map(
+      [external, firstParty].map(item => [item.name, item]),
+    );
+    const auditAt = now =>
+      auditReleaseAgePolicy({
+        fetchImpl: async url => {
+          const packageName = decodeURIComponent(
+            new URL(url).pathname.slice(1),
+          );
+          const item = registry.get(packageName);
+          assert.ok(item, `unexpected registry request for ${packageName}`);
+          return new Response(
+            JSON.stringify({
+              time: { [item.version]: item.publishedAt },
+              versions: {
+                [item.version]: { dist: { integrity: item.integrity } },
+              },
+            }),
+            { status: 200 },
+          );
+        },
+        now,
+        parseYamlImpl: JSON.parse,
+        policyPath,
+        projectDir: root,
+        registryUrl: 'https://registry.example.test/',
+        release: {
+          cohortDigest: 'b'.repeat(64),
+          manifestSha256: 'c'.repeat(64),
+          packages: [
+            {
+              integrity: firstParty.integrity,
+              sourceName: '@modern-js/create',
+              targetName: firstParty.name,
+              version: firstParty.version,
+            },
+          ],
+          source: {
+            commit: 'd'.repeat(40),
+            repository: 'BleedingDev/ultramodern.js',
+          },
+        },
+        verifyYamlTool: false,
+      });
+
+    const result = await auditAt(new Date('2026-08-11T01:00:00.000Z'));
+
+    assert.deepEqual(
+      result.approvals.map(approval => [
+        `${approval.package}@${approval.version}`,
+        approval.authority,
+      ]),
+      [
+        [locator(firstParty), 'strict-release-manifest'],
+        [locator(external), 'external-release-age-policy'],
+      ],
+    );
+    assert.deepEqual(
+      result.exactExclusions,
+      workspace.minimumReleaseAgeExclude,
+    );
+
+    const delayed = await auditAt(new Date('2026-09-10T01:00:00.000Z'));
+    assert.deepEqual(delayed.approvals, []);
+    assert.deepEqual(
+      delayed.exactExclusions,
+      workspace.minimumReleaseAgeExclude,
+    );
+
+    registry = new Map([
+      [external.name, { ...external, publishedAt: '2026-09-10T00:30:00.000Z' }],
+      [firstParty.name, firstParty],
+    ]);
+    await assert.rejects(
+      auditAt(new Date('2026-09-10T01:00:00.000Z')),
+      /without an exact, unexpired approval/u,
+    );
+  } finally {
+    fs.rmSync(root, { force: true, recursive: true });
+  }
+});
+
 test('release-age audit parses lockfiles by path with the pinned parser', async () => {
   const { parseYamlFile, YAML_INTEGRITY, YAML_SPECIFIER, YAML_VERSION } =
     await import('../published-create-proof/release-age-audit.mjs');

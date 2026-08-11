@@ -18,6 +18,10 @@ import {
 import { readReleaseManifest } from './lib/source-create-proof/release-manifest.mjs';
 import { startEphemeralRegistry } from './lib/source-create-proof/runtime-proof/registry.mjs';
 
+const defaultReleaseAgePolicyPath = fileURLToPath(
+  new URL('./release-age-exceptions-2026-08-10.json', import.meta.url),
+);
+
 const valueOptions = new Set([
   '--expected-source-revision',
   '--expected-mode',
@@ -123,7 +127,7 @@ function parseArgs(argv) {
     registryUrl: values.get('--registry-url') ?? 'https://registry.npmjs.org/',
     releaseAgePolicyPath: values.has('--release-age-policy')
       ? path.resolve(values.get('--release-age-policy'))
-      : undefined,
+      : defaultReleaseAgePolicyPath,
     releaseDir,
     runIdentity: values.get('--run-identity'),
     scaleProfile,
@@ -301,6 +305,7 @@ if (
 
 export {
   assertExpectedRelease,
+  defaultReleaseAgePolicyPath,
   main,
   parseArgs,
   profileOptions,
