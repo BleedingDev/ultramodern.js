@@ -475,6 +475,57 @@ test('validates public Cloudflare browser targets with workerd semantics', async
   }
 });
 
+test('records the owning server log when browser validation fails', async () => {
+  const { runUltramodernBrowserSmoke } = await loadSmoke();
+  const root = tempRoot();
+  const out = path.join(root, 'summary.json');
+  const logPath = path.join(root, 'shell-serve.log');
+  fs.writeFileSync(
+    logPath,
+    'Effect handler failed: AUTH_TOKEN=do-not-copy-me\nError: Missing service InventoryStore\n',
+  );
+
+  try {
+    await assert.rejects(
+      () =>
+        runUltramodernBrowserSmoke({
+          artifactDir: root,
+          browserProvider: {
+            chromium: {
+              async launch() {
+                return createFakeBrowser({ consoleError: true });
+              },
+            },
+          },
+          contract: createContract(),
+          fetchImpl: createFetch(successRoutes()),
+          generatedAt: '2026-07-01T00:00:00.000Z',
+          mode: 'local',
+          out,
+          preflightLocalPortsImpl() {},
+          projectDir: root,
+          startServerImpl() {
+            return {
+              exited: new Promise(() => {}),
+              logPath,
+              async stop() {},
+            };
+          },
+        }),
+      /shell-super-app emitted browser console errors/,
+    );
+
+    const report = JSON.parse(fs.readFileSync(out, 'utf8'));
+    assert.equal(report.errorDetails.appId, 'shell-super-app');
+    assert.equal(report.errorDetails.logPath, logPath);
+    assert.match(report.errorDetails.logTail, /Missing service InventoryStore/);
+    assert.doesNotMatch(report.errorDetails.logTail, /do-not-copy-me/);
+    assert.match(report.errorDetails.logTail, /AUTH_TOKEN=\[REDACTED\]/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('creates smoke targets from the compact UltraModern config', async () => {
   const { createSmokeTargets, orderTargetsForLocalStartup } = await loadSmoke();
   const config = createCompactConfig();

@@ -637,9 +637,23 @@ test('browser smoke exposes the bounded child cause through the outer acceptance
           readJsonFileImpl: () => ({
             error: 'inventory serve process exited before readiness',
             errorDetails: {
+              apiPrefix: '/inventory-api',
+              apiResponse: {
+                body: {
+                  AUTH_TOKEN: 'do-not-copy-me',
+                  nested: {
+                    password: 'also-do-not-copy-me',
+                  },
+                  message: `Effect request failed ${'x'.repeat(8_000)}`,
+                },
+                status: 500,
+                url: 'http://127.0.0.1:4173/inventory-api/items',
+              },
+              appId: 'inventory',
               exitCode: 1,
               logPath,
               logTail: `${'old output\n'.repeat(2_000)}AUTH_TOKEN=do-not-copy-me\n${exactCause}`,
+              phase: 'backend-driven-ui',
               signal: null,
             },
             status: 'fail',
@@ -659,13 +673,56 @@ test('browser smoke exposes the bounded child cause through the outer acceptance
       );
       assert.doesNotMatch(error.message, /do-not-copy-me/);
       assert.match(error.message, /AUTH_TOKEN=\[REDACTED\]/);
+      assert.match(error.message, /\\"AUTH_TOKEN\\":\\"\[REDACTED\]\\"/);
+      assert.match(error.message, /\\"password\\":\\"\[REDACTED\]\\"/);
+      assert.match(error.message, /structured failure evidence:/);
+      assert.match(error.message, /"appId": "inventory"/);
+      assert.match(error.message, /"status": 500/);
+      assert.match(error.message, /Effect request failed/);
       assert.doesNotMatch(error.message, /^Command failed/u);
+      assert.ok(error.message.length < 13_000);
+      const evidenceSource = error.message
+        .split('structured failure evidence:\n')[1]
+        .split('\nchild log:')[0];
+      const evidence = JSON.parse(evidenceSource);
+      assert.equal(evidence.appId, 'inventory');
+      assert.equal(evidence.apiResponse.status, 500);
       assert.equal(error.details.logPath, logPath);
       assert.ok(error.details.logTail.length <= 8_192);
+      assert.equal(typeof error.details.apiResponse.body, 'string');
+      assert.ok(error.details.apiResponse.body.length <= 2_048);
+      assert.doesNotMatch(JSON.stringify(error.details), /do-not-copy-me/);
+      assert.match(
+        error.details.apiResponse.body,
+        /"AUTH_TOKEN":"\[REDACTED\]"/,
+      );
+      assert.match(error.details.apiResponse.body, /"password":"\[REDACTED\]"/);
       assert.equal(error.cause, genericFailure);
       return true;
     },
   );
+});
+
+test('browser smoke diagnostics redact structured and embedded JSON secrets', async () => {
+  const { createBrowserSmokeFailureDetails } = await import(
+    '../published-create-proof/browser-smoke.mjs'
+  );
+  for (const body of [
+    {
+      AUTH_TOKEN: 'object-secret',
+      nested: { password: 'nested-secret' },
+    },
+    '<pre>{"AUTH_TOKEN":"string-secret","password":"embedded-secret"}</pre>',
+  ]) {
+    const details = createBrowserSmokeFailureDetails({
+      apiResponse: { body, status: 500 },
+    });
+    const serialized = JSON.stringify(details);
+    assert.doesNotMatch(serialized, /object-secret|nested-secret/u);
+    assert.doesNotMatch(serialized, /string-secret|embedded-secret/u);
+    assert.match(serialized, /\[REDACTED\]/u);
+    assert.ok(details.apiResponse.body.length <= 2_048);
+  }
 });
 
 test('builds Cloudflare proof args without a pnpm separator argument', async () => {

@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   boundCombinedLogTail,
+  boundFailureEvidence,
   formatFailureWithLogEvidence,
 } from '../browser-smoke/log-tail.mjs';
 import {
@@ -68,6 +69,95 @@ function createBrowserSmokeEnvironment(runtimeDir, packageManagerEnv = {}) {
     // Acceptance proves builds without a Zephyr account or upload side effect.
     ZE_CI_TOKEN: undefined,
   };
+}
+
+const sensitiveFailureKeyPattern =
+  /(?:token|secret|password|passwd|api[_-]?key|access[_-]?key|authorization|cookie)/iu;
+
+function serializeFailureValue(value, space) {
+  if (typeof value === 'string') {
+    return value;
+  }
+  return JSON.stringify(
+    value,
+    (key, nestedValue) =>
+      sensitiveFailureKeyPattern.test(key) ? '[REDACTED]' : nestedValue,
+    space,
+  );
+}
+
+function boundFailureDetail(value, maxChars) {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (
+    value === null ||
+    typeof value === 'boolean' ||
+    typeof value === 'number'
+  ) {
+    return value;
+  }
+  return boundFailureEvidence(serializeFailureValue(value), maxChars);
+}
+
+function createBrowserSmokeFailureDetails(details) {
+  const boundedDetails = {};
+  for (const [key, value] of Object.entries(details)) {
+    if (value === undefined) {
+      continue;
+    }
+    if (sensitiveFailureKeyPattern.test(key)) {
+      boundedDetails[key] = '[REDACTED]';
+    } else if (key === 'logTail') {
+      boundedDetails[key] = boundCombinedLogTail(value);
+    } else if (key === 'apiResponse' && value && typeof value === 'object') {
+      boundedDetails[key] = {
+        status: boundFailureDetail(value.status),
+        url: boundFailureDetail(value.url),
+        ...(value.body === undefined
+          ? {}
+          : { body: boundFailureDetail(value.body, 2_048) }),
+      };
+    } else {
+      boundedDetails[key] = boundFailureDetail(value);
+    }
+  }
+  return boundedDetails;
+}
+
+function createBrowserSmokeFailureEvidence(details) {
+  const evidence = {};
+  for (const key of ['appId', 'phase', 'apiPrefix', 'currentUrl']) {
+    if (details[key] !== undefined) {
+      evidence[key] = details[key];
+    }
+  }
+  if (details.apiResponse && typeof details.apiResponse === 'object') {
+    const body = details.apiResponse.body;
+    evidence.apiResponse = {
+      status: details.apiResponse.status,
+      url: details.apiResponse.url,
+      ...(body === undefined
+        ? {}
+        : {
+            body: boundFailureEvidence(serializeFailureValue(body), 2_048),
+          }),
+    };
+  }
+  for (const key of [
+    'cause',
+    'consoleMessages',
+    'pageErrors',
+    'failedResponses',
+    'exitCode',
+    'signal',
+    'reportPath',
+  ]) {
+    if (details[key] !== undefined) {
+      evidence[key] = details[key];
+    }
+  }
+  return serializeFailureValue(evidence, 2);
 }
 
 function runBrowserSmoke(
@@ -137,7 +227,7 @@ function runBrowserSmoke(
       throw cause;
     }
     const report = readJsonFileImpl(reportPath);
-    const details =
+    const rawDetails =
       report?.errorDetails && typeof report.errorDetails === 'object'
         ? {
             ...report.errorDetails,
@@ -149,11 +239,15 @@ function runBrowserSmoke(
             reportPath,
           }
         : { reportPath };
+    const details = createBrowserSmokeFailureDetails(rawDetails);
     const error = new Error(
       formatFailureWithLogEvidence(
         report?.error ||
           (cause instanceof Error ? cause.message : String(cause)),
-        details,
+        {
+          ...details,
+          failureEvidence: createBrowserSmokeFailureEvidence(details),
+        },
       ),
       { cause },
     );
@@ -174,6 +268,8 @@ function runBrowserSmoke(
 
 export {
   createBrowserSmokeEnvironment,
+  createBrowserSmokeFailureDetails,
+  createBrowserSmokeFailureEvidence,
   ensureBrowserSmokeRuntime,
   playwrightRuntimeDir,
   runBrowserSmoke,

@@ -21,6 +21,7 @@ import {
   validateHttpTarget,
   waitForTarget,
 } from './browser-smoke/http-validate.mjs';
+import { readCombinedLogTail } from './browser-smoke/log-tail.mjs';
 import {
   bindContractToReleaseIdentity,
   createRuntimeEvidence,
@@ -180,6 +181,7 @@ export async function runUltramodernBrowserSmoke(options) {
           }
           target.baseUrl = targetUrl;
           target.port = Number(new URL(targetUrl).port);
+          serversByAppId.set(target.app.id, server);
           report.targetRuntimes[target.app.id] = 'workerd';
           await waitForTarget(target, {
             fetchImpl: options.fetchImpl ?? fetch,
@@ -238,30 +240,40 @@ export async function runUltramodernBrowserSmoke(options) {
     browser = await launchBrowser(options.browserProvider);
     const validationTargets = localStartupOrder?.validation ?? targets;
     for (const target of validationTargets) {
-      const httpAssertions = await validateHttpTarget(target, {
-        fetchImpl: options.fetchImpl ?? fetch,
-      });
-      const runtime =
-        report.targetRuntimes[target.app.id] ??
-        options.platform ??
-        (options.mode === 'public'
-          ? 'workerd'
-          : (options.shellRuntime ?? 'node'));
-      report.targetRuntimes[target.app.id] ??= runtime;
-      const browserAssertions = await validateBrowserTargetImpl(
-        target,
-        browser,
-        {
-          artifactDir: options.artifactDir,
-          runtime,
-        },
-      );
-      report.results.push({
-        appId: target.app.id,
-        assertions: [...httpAssertions, ...browserAssertions],
-        baseUrl: target.baseUrl,
-        status: 'pass',
-      });
+      try {
+        const httpAssertions = await validateHttpTarget(target, {
+          fetchImpl: options.fetchImpl ?? fetch,
+        });
+        const runtime =
+          report.targetRuntimes[target.app.id] ??
+          options.platform ??
+          (options.mode === 'public'
+            ? 'workerd'
+            : (options.shellRuntime ?? 'node'));
+        report.targetRuntimes[target.app.id] ??= runtime;
+        const browserAssertions = await validateBrowserTargetImpl(
+          target,
+          browser,
+          {
+            artifactDir: options.artifactDir,
+            runtime,
+          },
+        );
+        report.results.push({
+          appId: target.app.id,
+          assertions: [...httpAssertions, ...browserAssertions],
+          baseUrl: target.baseUrl,
+          status: 'pass',
+        });
+      } catch (error) {
+        if (error instanceof BrowserSmokeError) {
+          error.details = {
+            ...error.details,
+            appId: target.app.id,
+          };
+        }
+        throw error;
+      }
     }
 
     if (options.artifactMode && options.platform) {
@@ -308,7 +320,16 @@ export async function runUltramodernBrowserSmoke(options) {
     report.status = 'fail';
     report.error = error instanceof Error ? error.message : String(error);
     if (error instanceof BrowserSmokeError && error.details) {
-      report.errorDetails = error.details;
+      const details = { ...error.details };
+      const owningServer =
+        typeof details.appId === 'string'
+          ? serversByAppId.get(details.appId)
+          : undefined;
+      if (owningServer?.logPath) {
+        details.logPath ??= owningServer.logPath;
+        details.logTail ??= readCombinedLogTail(owningServer.logPath);
+      }
+      report.errorDetails = details;
     }
     writeJsonFile(options.out, report, { atomic: false });
     throw error;
