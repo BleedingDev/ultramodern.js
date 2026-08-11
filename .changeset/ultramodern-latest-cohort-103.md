@@ -1,6 +1,7 @@
 ---
 '@modern-js/create': patch
 '@modern-js/code-tools': patch
+'@modern-js/app-tools': patch
 '@modern-js/builder': patch
 '@modern-js/main-doc': patch
 '@modern-js/plugin-bff': patch
@@ -23,4 +24,7 @@ The Module Federation manifest-recovery runtime also keeps its retry timer on
 the browser-safe universal utilities surface so client bundles never traverse
 Node-only framework utilities. Production Effect BFF entries retain the native
 module boundary established by their deployment build instead of being
-re-bundled through the development source loader at server startup.
+re-bundled through the development source loader at server startup. Cloudflare
+output verification now distinguishes bundled, lexically scoped loader calls
+from actual external module imports while retaining fail-closed checks for
+unprovided package edges.

@@ -3,6 +3,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
 import { parse } from '@babel/parser';
+import traverse, { type NodePath } from '@babel/traverse';
 import {
   CLOUDFLARE_WORKER_BUNDLE_DIRECTORY,
   CLOUDFLARE_WORKER_NODE_BUILTINS,
@@ -109,6 +110,8 @@ interface AstNode {
 interface WorkerModuleAnalysis {
   exports: Set<string>;
   imports: Set<string>;
+  unsafeCommonJsLoaderUsage: boolean;
+  unsafeDynamicImport: boolean;
 }
 
 interface WorkerBundleVerificationContract {
@@ -132,6 +135,13 @@ const getNodeName = (node: unknown) => {
       ? node.value
       : undefined;
 };
+
+const getStringLiteralValue = (node: unknown) =>
+  isAstNode(node) &&
+  node.type === 'StringLiteral' &&
+  typeof node.value === 'string'
+    ? node.value
+    : undefined;
 
 const collectBindingNames = (node: unknown, names: Set<string>) => {
   if (!isAstNode(node)) {
@@ -163,8 +173,23 @@ const collectBindingNames = (node: unknown, names: Set<string>) => {
   }
 };
 
-const getMemberPropertyName = (node: AstNode) =>
-  node.type === 'MemberExpression' ? getNodeName(node.property) : undefined;
+const getMemberPropertyName = (node: AstNode) => {
+  if (node.type !== 'MemberExpression') {
+    return undefined;
+  }
+  return node.computed === true
+    ? getStringLiteralValue(node.property)
+    : getNodeName(node.property);
+};
+
+const isAmbientModuleRequire = (node: unknown, modulePath: NodePath) =>
+  isAstNode(node) &&
+  node.type === 'MemberExpression' &&
+  isAstNode(node.object) &&
+  node.object.type === 'Identifier' &&
+  node.object.name === 'module' &&
+  modulePath.scope.getBinding('module') === undefined &&
+  getMemberPropertyName(node) === 'require';
 
 const isModuleExports = (node: unknown) =>
   isAstNode(node) &&
@@ -251,52 +276,31 @@ const collectEsmExports = (statement: AstNode, exports: Set<string>) => {
   }
 };
 
-const visitAst = (node: AstNode, visitor: (node: AstNode) => void) => {
-  visitor(node);
-  for (const [key, value] of Object.entries(node)) {
-    if (
-      key === 'loc' ||
-      key === 'start' ||
-      key === 'end' ||
-      key === 'leadingComments' ||
-      key === 'trailingComments' ||
-      key === 'innerComments'
-    ) {
-      continue;
-    }
-    if (isAstNode(value)) {
-      visitAst(value, visitor);
-    } else if (Array.isArray(value)) {
-      for (const item of value) {
-        if (isAstNode(item)) {
-          visitAst(item, visitor);
-        }
-      }
-    }
-  }
-};
-
-const getStaticImport = (node: AstNode) => {
+const getStaticImport = (modulePath: NodePath) => {
+  const node = modulePath.node as unknown as AstNode;
   if (
     (node.type === 'ImportDeclaration' ||
       node.type === 'ExportNamedDeclaration' ||
       node.type === 'ExportAllDeclaration') &&
     isAstNode(node.source)
   ) {
-    return getNodeName(node.source);
+    return getStringLiteralValue(node.source);
   }
   if (node.type === 'ImportExpression' && isAstNode(node.source)) {
-    return getNodeName(node.source);
+    return getStringLiteralValue(node.source);
   }
   if (
     node.type === 'CallExpression' &&
     Array.isArray(node.arguments) &&
     node.arguments.length === 1 &&
     isAstNode(node.callee) &&
-    ((node.callee.type === 'Identifier' && node.callee.name === 'require') ||
+    ((node.callee.type === 'Identifier' &&
+      node.callee.name === 'require' &&
+      modulePath.scope.getBinding('require') === undefined) ||
+      isAmbientModuleRequire(node.callee, modulePath) ||
       node.callee.type === 'Import')
   ) {
-    return getNodeName(node.arguments[0]);
+    return getStringLiteralValue(node.arguments[0]);
   }
   return undefined;
 };
@@ -307,17 +311,87 @@ const analyzeWorkerModule = (source: string): WorkerModuleAnalysis => {
   });
   const exports = new Set<string>();
   const imports = new Set<string>();
+  let unsafeCommonJsLoaderUsage = false;
+  let unsafeDynamicImport = false;
   for (const statement of ast.program.body) {
     collectEsmExports(statement as AstNode, exports);
     collectCommonJsExports(statement as AstNode, exports);
   }
-  visitAst(ast.program as unknown as AstNode, node => {
-    const specifier = getStaticImport(node);
-    if (specifier) {
-      imports.add(specifier);
-    }
+  traverse(ast, {
+    enter(modulePath) {
+      const node = modulePath.node as unknown as AstNode;
+      if (
+        (node.type === 'ImportExpression' ||
+          (node.type === 'CallExpression' &&
+            isAstNode(node.callee) &&
+            node.callee.type === 'Import')) &&
+        getStaticImport(modulePath) === undefined
+      ) {
+        unsafeDynamicImport = true;
+      }
+      if (
+        modulePath.isReferencedIdentifier({ name: 'require' }) &&
+        modulePath.scope.getBinding('require') === undefined
+      ) {
+        const parentPath = modulePath.parentPath;
+        const isStaticRequireCall =
+          parentPath?.isCallExpression() &&
+          modulePath.key === 'callee' &&
+          getStaticImport(parentPath) !== undefined;
+        const isAvailabilityCheck = parentPath?.isUnaryExpression({
+          operator: 'typeof',
+        });
+        if (!isStaticRequireCall && !isAvailabilityCheck) {
+          unsafeCommonJsLoaderUsage = true;
+        }
+      }
+      if (
+        node.type === 'Identifier' &&
+        modulePath.isBindingIdentifier() &&
+        (node.name === 'require' || node.name === 'module') &&
+        modulePath.scope.getBinding(node.name) === undefined
+      ) {
+        unsafeCommonJsLoaderUsage = true;
+      }
+      if (
+        modulePath.isReferencedIdentifier({ name: 'module' }) &&
+        modulePath.scope.getBinding('module') === undefined
+      ) {
+        const parentPath = modulePath.parentPath;
+        const isExportsAccess =
+          parentPath !== null && isModuleExports(parentPath.node);
+        const isStaticModuleRequireCall =
+          parentPath !== null &&
+          isAmbientModuleRequire(parentPath.node, parentPath) &&
+          parentPath.parentPath?.isCallExpression() === true &&
+          parentPath.key === 'callee' &&
+          getStaticImport(parentPath.parentPath) !== undefined;
+        if (!isExportsAccess && !isStaticModuleRequireCall) {
+          unsafeCommonJsLoaderUsage = true;
+        }
+      }
+      if (isAmbientModuleRequire(node, modulePath)) {
+        const parentPath = modulePath.parentPath;
+        const isStaticRequireCall =
+          parentPath?.isCallExpression() &&
+          modulePath.key === 'callee' &&
+          getStaticImport(parentPath) !== undefined;
+        if (!isStaticRequireCall) {
+          unsafeCommonJsLoaderUsage = true;
+        }
+      }
+      const specifier = getStaticImport(modulePath);
+      if (specifier !== undefined) {
+        imports.add(specifier);
+      }
+    },
   });
-  return { exports, imports };
+  return {
+    exports,
+    imports,
+    unsafeCommonJsLoaderUsage,
+    unsafeDynamicImport,
+  };
 };
 
 const getPackageName = (specifier: string) =>
@@ -409,6 +483,23 @@ const verifyWorkerModuleClosure = async (
     }
     if (isEntry) {
       entryAnalysis = analysis;
+    }
+
+    if (analysis.unsafeCommonJsLoaderUsage) {
+      addIssue(issues, {
+        code: 'invalid-worker-bundle',
+        message:
+          'Cloudflare worker bundles must use exactly one string-literal specifier in ambient CommonJS loader calls and must not pass or alias the loader.',
+        path: modulePath,
+      });
+    }
+    if (analysis.unsafeDynamicImport) {
+      addIssue(issues, {
+        code: 'invalid-worker-bundle',
+        message:
+          'Cloudflare worker bundles must not contain non-static dynamic module imports.',
+        path: modulePath,
+      });
     }
 
     for (const specifier of analysis.imports) {
