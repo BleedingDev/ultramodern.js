@@ -354,8 +354,11 @@ describe('effect edge runtime', () => {
   HttpApiEndpoint,
   HttpApiGroup,
   Layer,
+  loadBackendFederatedEffectApi,
   Schema,
 } from '@modern-js/plugin-bff/effect-edge';
+
+export const loadBackend = loadBackendFederatedEffectApi;
 
 const api = HttpApi.make('GeneratedEdgeApi').add(
   HttpApiGroup.make('status').add(

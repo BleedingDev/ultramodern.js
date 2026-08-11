@@ -1,5 +1,6 @@
-import { logger } from '@modern-js/utils';
 import { BACKEND_FEDERATION_EFFECT_EXPOSE } from '@modern-js/utils/universal';
+import * as Effect from 'effect/Effect';
+import * as Logger from 'effect/Logger';
 
 import {
   type BackendFederationExpectedIdentity,
@@ -16,6 +17,17 @@ import { isRecord, normalizeExpose } from './utils';
 
 const LEGACY_LOAD_WARNING =
   '[BFF][Effect] loadBackendFederatedEffectApi was called without an expected delivery-unit identity (expected.unitId + expected.buildMarker). Identity-less public backend loads are deprecated (ADR-0019/MV-G23) and will be rejected in a future major.';
+const legacyWarningLogger = Logger.withLeveledConsole(Logger.formatLogFmt);
+
+function warnLegacyLoad() {
+  Effect.runSync(
+    Effect.provideService(
+      Effect.logWarning(LEGACY_LOAD_WARNING),
+      Logger.CurrentLoggers,
+      new Set([legacyWarningLogger]),
+    ),
+  );
+}
 
 /**
  * Load a federated Effect API with mandatory delivery-unit identity
@@ -47,7 +59,7 @@ export function loadBackendFederatedEffectApi(
   }
 
   if (options.expected === undefined) {
-    logger.warn(LEGACY_LOAD_WARNING);
+    warnLegacyLoad();
   }
 
   const runtime = options.runtime ?? createBackendFederationRuntime(options);
