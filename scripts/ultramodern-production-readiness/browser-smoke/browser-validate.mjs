@@ -1,11 +1,24 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import fsKit from '../../lib/fs-kit.js';
+import { BrowserSmokeError } from './contract.mjs';
 import { assertion, assertPass, joinUrl } from './http-validate.mjs';
 
 const { writeJsonFile } = fsKit;
 const fatalConsoleTypes = new Set(['error']);
 const distributedSsrBoundarySelector = '[data-modern-distributed-ssr-boundary]';
+
+async function readBrowserResponseBody(response) {
+  try {
+    return await response.json();
+  } catch {
+    try {
+      return await response.text();
+    } catch {
+      return undefined;
+    }
+  }
+}
 
 function distributedSsrServerBoundarySelector(runtime) {
   return runtime === 'workerd'
@@ -732,10 +745,8 @@ export async function validateBrowserTarget(
               try {
                 const pathname = new URL(response.url()).pathname;
                 return (
-                  (pathname === app.api.prefix ||
-                    pathname.startsWith(`${app.api.prefix}/`)) &&
-                  response.status() >= 200 &&
-                  response.status() < 400
+                  pathname === app.api.prefix ||
+                  pathname.startsWith(`${app.api.prefix}/`)
                 );
               } catch {
                 return false;
@@ -880,15 +891,43 @@ export async function validateBrowserTarget(
     );
 
     if (backendDrivenUiResponsePromise) {
-      const response = await backendDrivenUiResponsePromise;
-      const responseJson = await response.json();
-      const expectedValue = extractBackendDrivenTitle(responseJson);
+      let response;
+      try {
+        response = await backendDrivenUiResponsePromise;
+      } catch (error) {
+        throw new BrowserSmokeError(`${app.id} API response was not observed`, {
+          apiPrefix: app.api.prefix,
+          appId: app.id,
+          cause: {
+            message: error instanceof Error ? error.message : String(error),
+            name: error instanceof Error ? error.name : 'UnknownError',
+          },
+          consoleMessages,
+          currentUrl: page.url(),
+          failedResponses,
+          pageErrors,
+          phase: activePhase,
+        });
+      }
+      const responseBody = await readBrowserResponseBody(response);
       backendDrivenUiResponse = {
-        body: responseJson,
-        expectedValue,
+        body: responseBody,
         status: response.status(),
         url: response.url(),
       };
+      assertPass(
+        backendDrivenUiResponse.status >= 200 &&
+          backendDrivenUiResponse.status < 400,
+        `${app.id} API returned HTTP ${backendDrivenUiResponse.status}`,
+        {
+          apiPrefix: app.api.prefix,
+          apiResponse: backendDrivenUiResponse,
+          appId: app.id,
+          phase: activePhase,
+        },
+      );
+      const expectedValue = extractBackendDrivenTitle(responseBody);
+      backendDrivenUiResponse.expectedValue = expectedValue;
       assertPass(
         expectedValue,
         `${app.id} API response did not contain exactly one list item title`,

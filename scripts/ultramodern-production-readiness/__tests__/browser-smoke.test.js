@@ -1343,6 +1343,129 @@ test('proves backend-driven UI from a successful API response and rendered item 
   }
 });
 
+test('reports a matching failed backend response instead of timing out', async () => {
+  const { createSmokeTargets, validateBrowserTarget } = await loadSmoke();
+  const root = tempRoot();
+  const target = createSmokeTargets(createCompactConfig()).targets.find(
+    candidate => candidate.app.id === 'inventory',
+  );
+  const apiResponseUrl =
+    'http://localhost:3021/inventory-api/inventory?limit=1';
+
+  try {
+    await assert.rejects(
+      () =>
+        validateBrowserTarget(
+          target,
+          createFakeBrowser({
+            apiResponseJson: {
+              message: 'temporary backend failure',
+            },
+            apiResponseStatus: 503,
+            apiResponseUrl,
+            markerValue: target.app.marker.build,
+          }),
+          { artifactDir: root },
+        ),
+      error => {
+        assert.equal(error.name, 'BrowserSmokeError');
+        assert.equal(error.message, 'inventory API returned HTTP 503');
+        assert.deepEqual(error.details.apiResponse, {
+          body: {
+            message: 'temporary backend failure',
+          },
+          status: 503,
+          url: apiResponseUrl,
+        });
+        assert.equal(error.details.appId, 'inventory');
+        assert.equal(error.details.apiPrefix, '/inventory-api');
+        assert.equal(error.details.phase, 'hydration');
+        return true;
+      },
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('reports a matching non-JSON backend failure body', async () => {
+  const { createSmokeTargets, validateBrowserTarget } = await loadSmoke();
+  const root = tempRoot();
+  const target = createSmokeTargets(createCompactConfig()).targets.find(
+    candidate => candidate.app.id === 'inventory',
+  );
+  const apiResponseUrl =
+    'http://localhost:3021/inventory-api/inventory?limit=1';
+
+  try {
+    await assert.rejects(
+      () =>
+        validateBrowserTarget(
+          target,
+          createFakeBrowser({
+            apiResponseJsonError: new Error('response was not JSON'),
+            apiResponseStatus: 502,
+            apiResponseText: 'upstream unavailable',
+            apiResponseUrl,
+            markerValue: target.app.marker.build,
+          }),
+          { artifactDir: root },
+        ),
+      error => {
+        assert.equal(error.name, 'BrowserSmokeError');
+        assert.equal(error.message, 'inventory API returned HTTP 502');
+        assert.deepEqual(error.details.apiResponse, {
+          body: 'upstream unavailable',
+          status: 502,
+          url: apiResponseUrl,
+        });
+        return true;
+      },
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('reports browser evidence when a backend response is not observed', async () => {
+  const { createSmokeTargets, validateBrowserTarget } = await loadSmoke();
+  const root = tempRoot();
+  const target = createSmokeTargets(createCompactConfig()).targets.find(
+    candidate => candidate.app.id === 'inventory',
+  );
+
+  try {
+    await assert.rejects(
+      () =>
+        validateBrowserTarget(
+          target,
+          createFakeBrowser({
+            apiResponseWaitError: new Error('response wait expired'),
+            markerValue: target.app.marker.build,
+          }),
+          { artifactDir: root },
+        ),
+      error => {
+        assert.equal(error.name, 'BrowserSmokeError');
+        assert.equal(error.message, 'inventory API response was not observed');
+        assert.equal(error.details.appId, 'inventory');
+        assert.equal(error.details.apiPrefix, '/inventory-api');
+        assert.equal(error.details.phase, 'hydration');
+        assert.deepEqual(error.details.cause, {
+          message: 'response wait expired',
+          name: 'Error',
+        });
+        assert.deepEqual(error.details.consoleMessages, []);
+        assert.deepEqual(error.details.failedResponses, []);
+        assert.deepEqual(error.details.pageErrors, []);
+        return true;
+      },
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('extracts the rendered title from REST and RPC API response JSON', async () => {
   const { extractBackendDrivenTitle } = await import(
     '../browser-smoke/browser-validate.mjs'
@@ -2688,7 +2811,11 @@ function createFakeBrowser({
   apiResponseJson = {
     items: [{ title: 'Backend item title' }],
   },
+  apiResponseJsonError,
+  apiResponseStatus = 200,
+  apiResponseText = '',
   apiResponseUrl,
+  apiResponseWaitError,
   apiStatus = 'Backend item title',
   boundaryIds = [],
   boundaryIdsAfterHydration = [],
@@ -2982,11 +3109,21 @@ function createFakeBrowser({
       }
     },
     async waitForResponse(predicate) {
+      if (apiResponseWaitError) {
+        throw apiResponseWaitError;
+      }
       const response = {
-        json: async () => apiResponseJson,
-        status: () => 200,
+        async json() {
+          if (apiResponseJsonError) {
+            throw apiResponseJsonError;
+          }
+          return apiResponseJson;
+        },
+        status: () => apiResponseStatus,
+        text: async () => apiResponseText,
         url: () => apiResponseUrl,
       };
+      handlers.response?.(response);
       assert.equal(predicate(response), true);
       return response;
     },
