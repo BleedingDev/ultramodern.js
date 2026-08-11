@@ -9,8 +9,7 @@ import {
   HttpApiBuilder,
   Layer,
 } from '@modern-js/plugin-bff/effect-server';
-import { useFetcher } from '@modern-js/plugin-tanstack/runtime';
-import { Outlet } from '@modern-js/runtime/router';
+import { Outlet, useFetcher } from '@modern-js/plugin-tanstack/runtime';
 
 void HttpApi;
 void HttpApiEndpoint;

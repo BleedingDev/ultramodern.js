@@ -62,6 +62,34 @@ describe('react-i18next runtime boundary', () => {
     expect(adapterResolutions).toBeGreaterThan(0);
   });
 
+  test('gets router capabilities from the selected runtime provider', async () => {
+    await expect(
+      build({
+        bundle: true,
+        entryPoints: [resolve(runtimeRoot, 'routerAdapter.tsx')],
+        format: 'esm',
+        packages: 'external',
+        platform: 'neutral',
+        plugins: [
+          {
+            name: 'reject-direct-router-provider',
+            setup(buildApi) {
+              buildApi.onResolve(
+                { filter: /^@modern-js\/runtime\/router$/ },
+                () => {
+                  throw new Error(
+                    'The i18n adapter loaded the React Router provider directly.',
+                  );
+                },
+              );
+            },
+          },
+        ],
+        write: false,
+      }),
+    ).resolves.toBeDefined();
+  });
+
   test('keeps expensive lifecycle helpers behind asynchronous bundle edges', async () => {
     const result = await build({
       bundle: true,

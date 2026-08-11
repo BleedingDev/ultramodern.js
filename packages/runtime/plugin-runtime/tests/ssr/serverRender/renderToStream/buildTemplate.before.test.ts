@@ -16,29 +16,34 @@ const withRouterSnapshot = (
 
 describe('buildShellBeforeTemplate', () => {
   it('should use shared matched route ids from the router snapshot for css injection', async () => {
-    const html = await buildShellBeforeTemplate(
-      `<html><head>${CHUNK_CSS_PLACEHOLDER}</head><body></body></html>`,
-      {
-        entryName: 'main',
-        runtimeContext: withRouterSnapshot(
-          {
-            routeManifest: {
-              routeAssets: {
-                'route-a': {
-                  referenceCssAssets: ['/assets/route-a.css'],
+    for (const buildTemplate of [
+      buildShellBeforeTemplate,
+      buildWorkerShellBeforeTemplate,
+    ]) {
+      const html = await buildTemplate(
+        `<html><head>${CHUNK_CSS_PLACEHOLDER}</head><body></body></html>`,
+        {
+          entryName: 'main',
+          runtimeContext: withRouterSnapshot(
+            {
+              routeManifest: {
+                routeAssets: {
+                  'route-a': {
+                    referenceCssAssets: ['/assets/route-a.css'],
+                  },
                 },
               },
             },
-          },
-          {
-            matchedRouteIds: ['route-a'],
-          },
-        ) as any,
-        config: {} as any,
-      },
-    );
+            {
+              matchedRouteIds: ['route-a'],
+            },
+          ) as any,
+          config: {} as any,
+        },
+      );
 
-    expect(html).toContain('/assets/route-a.css');
+      expect(html).toContain('/assets/route-a.css');
+    }
   });
 
   it('should derive css route ids from generic match snapshots', async () => {

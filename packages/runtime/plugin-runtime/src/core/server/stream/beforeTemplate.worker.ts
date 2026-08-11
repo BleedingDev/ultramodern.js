@@ -1,6 +1,4 @@
 // @effect-diagnostics asyncFunction:off processEnv:off strictBooleanExpressions:off unnecessaryArrowBlock:off
-// Todo: This import will introduce router code, like remix, even if router config is false
-import { matchRoutes } from '@modern-js/runtime-utils/router';
 import { getRouterMatchedRouteIds } from '../../../router/runtime/lifecycle';
 import type { TInternalRuntimeContext } from '../../context';
 import { CHUNK_CSS_PLACEHOLDER } from '../constants';
@@ -81,7 +79,7 @@ export async function buildShellBeforeTemplate(
     return safeReplace(template, CHUNK_CSS_PLACEHOLDER, css);
 
     async function getCssChunks() {
-      const { routeManifest, routerContext, routes } = runtimeContext;
+      const { routeManifest } = runtimeContext;
       const routeAssets = (routeManifest as RouteManifestLike | undefined)
         ?.routeAssets;
       if (!routeAssets) {
@@ -96,28 +94,6 @@ export async function buildShellBeforeTemplate(
         matchedRouteManifests = matchedRouteIds
           .map(routeId => routeAssets[routeId] as RouteManifest | undefined)
           .filter(Boolean) as RouteManifest[];
-      } else if (routerContext && routes) {
-        const matches = matchRoutes(
-          routes,
-          routerContext.location,
-          routerContext.basename,
-        );
-        matchedRouteManifests =
-          matches
-            ?.map((match, index) => {
-              if (!index) {
-                return;
-              }
-
-              const routeId = match.route.id;
-              if (routeId) {
-                return routeAssets[routeId] as RouteManifest | undefined;
-              }
-            })
-            .filter(
-              (routeManifest): routeManifest is RouteManifest =>
-                routeManifest !== undefined,
-            ) ?? [];
       }
 
       const asyncEntry = routeAssets[`async-${entryName}`] as

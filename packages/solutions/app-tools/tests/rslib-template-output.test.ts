@@ -71,7 +71,7 @@ describe('App Tools Rslib deploy templates', () => {
   it('emits every deploy template as parseable JavaScript in each library output', async () => {
     const templateFiles = getTemplateFiles(templatesDirectory);
 
-    expect(templateFiles).toHaveLength(15);
+    expect(templateFiles).toHaveLength(16);
 
     for (const sourcePath of templateFiles) {
       const relativePath = path.relative(

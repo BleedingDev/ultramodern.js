@@ -239,9 +239,26 @@ describe('create builder Options', () => {
         add: rstest.fn().mockReturnThis(),
         delete: rstest.fn().mockReturnThis(),
       };
+      const experiments = rstest.fn().mockReturnThis();
+      const externals = rstest.fn().mockReturnThis();
+      const externalsType = rstest.fn().mockReturnThis();
+      const parserMerge = rstest.fn().mockReturnThis();
+      const runtimeChunk = rstest.fn().mockReturnThis();
+      const splitChunks = rstest.fn().mockReturnThis();
       const chain = {
-        merge: rstest.fn(),
+        experiments,
+        externals,
+        externalsType,
         externalsPresets: rstest.fn(),
+        module: {
+          parser: {
+            merge: parserMerge,
+          },
+        },
+        optimization: {
+          runtimeChunk,
+          splitChunks,
+        },
         output: {
           module,
           library,
@@ -276,52 +293,44 @@ describe('create builder Options', () => {
         {} as any,
       );
 
-      expect(chain.merge).toHaveBeenCalledWith({
-        experiments: {
-          outputModule: true,
-        },
-        externals: {
-          async_hooks: 'module-import node:async_hooks',
-          buffer: 'module-import node:buffer',
-          crypto: 'module-import node:crypto',
-          events: 'module-import node:events',
-          'fs/promises': 'module-import node:fs/promises',
-          module: 'module-import node:module',
-          'node:async_hooks': 'module-import node:async_hooks',
-          'node:buffer': 'module-import node:buffer',
-          'node:crypto': 'module-import node:crypto',
-          'node:events': 'module-import node:events',
-          'node:fs/promises': 'module-import node:fs/promises',
-          'node:module': 'module-import node:module',
-          'node:path': 'module-import node:path',
-          'node:process': 'module-import node:process',
-          'node:stream': 'module-import node:stream',
-          'node:string_decoder': 'module-import node:string_decoder',
-          'node:url': 'module-import node:url',
-          'node:util': 'module-import node:util',
-          path: 'module-import node:path',
-          process: 'module-import node:process',
-          stream: 'module-import node:stream',
-          string_decoder: 'module-import node:string_decoder',
-          url: 'module-import node:url',
-          util: 'module-import node:util',
-        },
-        externalsType: 'module-import',
-        module: {
-          parser: {
-            javascript: {
-              dynamicImportMode: 'eager',
-            },
-          },
-        },
-        optimization: {
-          runtimeChunk: { name: '__modern_worker_runtime' },
-          splitChunks: {
-            chunks: 'all',
-            minSize: 0,
-            name: '__modern_worker_shared',
-          },
-        },
+      expect(experiments).toHaveBeenCalledWith({ outputModule: true });
+      expect(externals).toHaveBeenCalledWith({
+        async_hooks: 'module-import node:async_hooks',
+        buffer: 'module-import node:buffer',
+        crypto: 'module-import node:crypto',
+        events: 'module-import node:events',
+        'fs/promises': 'module-import node:fs/promises',
+        module: 'module-import node:module',
+        'node:async_hooks': 'module-import node:async_hooks',
+        'node:buffer': 'module-import node:buffer',
+        'node:crypto': 'module-import node:crypto',
+        'node:events': 'module-import node:events',
+        'node:fs/promises': 'module-import node:fs/promises',
+        'node:module': 'module-import node:module',
+        'node:path': 'module-import node:path',
+        'node:process': 'module-import node:process',
+        'node:stream': 'module-import node:stream',
+        'node:string_decoder': 'module-import node:string_decoder',
+        'node:url': 'module-import node:url',
+        'node:util': 'module-import node:util',
+        path: 'module-import node:path',
+        process: 'module-import node:process',
+        stream: 'module-import node:stream',
+        string_decoder: 'module-import node:string_decoder',
+        url: 'module-import node:url',
+        util: 'module-import node:util',
+      });
+      expect(externalsType).toHaveBeenCalledWith('module-import');
+      expect(parserMerge).toHaveBeenCalledWith({
+        javascript: { dynamicImportMode: 'eager' },
+      });
+      expect(runtimeChunk).toHaveBeenCalledWith({
+        name: '__modern_worker_runtime',
+      });
+      expect(splitChunks).toHaveBeenCalledWith({
+        chunks: 'all',
+        minSize: 0,
+        name: '__modern_worker_shared',
       });
       expect(chain.externalsPresets).not.toHaveBeenCalled();
       expect(chain.target).not.toHaveBeenCalled();
@@ -342,6 +351,14 @@ describe('create builder Options', () => {
       // contain no native remote imports. Keeping the MF transform here would
       // initialize its Node runtime at module scope and perform forbidden I/O.
       expect(deletedPlugins.has('plugin-module-federation')).toBe(true);
+      expect(
+        aliases.get(
+          '@module-federation/modern-js-v3/ssr-inject-data-fetch-function-plugin$',
+        ),
+      ).toMatch(/cloudflare-worker-mf-ssr-runtime-plugin\.mjs$/);
+      expect(
+        aliases.get('@module-federation/modern-js-v3/ssr-dev-plugin$'),
+      ).toMatch(/cloudflare-worker-mf-ssr-runtime-plugin\.mjs$/);
       expect(aliases.get('@modern-js/runtime/rsc/server$')).toMatch(
         /runtime[/\\]plugin-runtime[/\\]dist[/\\]esm[/\\]rsc[/\\]server\.worker\.mjs$/,
       );

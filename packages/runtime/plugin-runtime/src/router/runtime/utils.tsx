@@ -3,7 +3,6 @@ import { renderNestedRoute } from '@modern-js/runtime-utils/browser';
 import type { DataRouter } from '@modern-js/runtime-utils/router';
 import {
   UNSAFE_ErrorResponseImpl as ErrorResponseImpl,
-  isRouteErrorResponse,
   Route,
   type RouteObject,
   type StaticHandlerContext,
@@ -12,6 +11,7 @@ import type { NestedRoute, PageRoute, SSRMode } from '@modern-js/types';
 import React from 'react';
 import { DefaultNotFound } from './DefaultNotFound';
 import DeferredDataScripts from './DeferredDataScripts';
+import { isRouteErrorResponse } from './routerHelper';
 import type { ModernRouteObject, RouterConfig } from './types';
 
 export function getRouteComponents(

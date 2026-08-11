@@ -10,8 +10,11 @@ import {
   RouterProvider,
   type RouterProviderProps,
   useHref,
+  useInRouterContext,
   useLocation,
   useMatches,
+  useNavigate,
+  useParams,
 } from '@modern-js/runtime-utils/router';
 import { normalizePathname } from '@modern-js/runtime-utils/url';
 import * as React from 'react';
@@ -30,6 +33,7 @@ import {
   applyRouterRuntimeState,
   type RouterLifecycleContext,
 } from './lifecycle';
+import { Link as PrefetchLink } from './PrefetchLink';
 import { routerProviderRegistryHooks } from './provider';
 import { createClientRouterFromPayload } from './rsc-router';
 import type { ModernRoute, RouterConfig, Routes } from './types';
@@ -106,9 +110,13 @@ export const routerPlugin = (
         // why not let garfish plugin just import @modern-js/runtime/router
         // so the `router` has no type declare in RuntimeContext
         context.router = {
+          Link: PrefetchLink,
           useMatches,
           useLocation,
           useHref,
+          useInRouterContext,
+          useNavigate,
+          useParams,
         };
 
         // Prefetch Link will use routes for match next route

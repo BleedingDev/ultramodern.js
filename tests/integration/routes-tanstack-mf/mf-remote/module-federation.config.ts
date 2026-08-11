@@ -1,4 +1,5 @@
 import { createRequire } from 'node:module';
+import { getBuildConfigEnvironment } from '@modern-js/app-tools/config';
 import { createModuleFederationConfig } from '@module-federation/modern-js-v3';
 import { dependencies } from './package.json';
 
@@ -11,10 +12,16 @@ const reactVersion = (require('react/package.json') as { version: string })
 const reactDomVersion = (
   require('react-dom/package.json') as { version: string }
 ).version;
+const isCloudflareBuild =
+  getBuildConfigEnvironment('MODERNJS_DEPLOY') === 'cloudflare';
 
 export default createModuleFederationConfig({
   name: 'tanstackRemote',
-  treeShakingSharedExcludePlugins: ['RspackModuleFederationPlugin'],
+  ...(isCloudflareBuild
+    ? {}
+    : {
+        treeShakingSharedExcludePlugins: ['RspackModuleFederationPlugin'],
+      }),
   dev: {
     disableDynamicRemoteTypeHints: true,
   },

@@ -23,6 +23,8 @@ import type {
   RouteManifest,
 } from './types';
 
+export { handleRSCRedirect } from './redirect';
+
 declare global {
   interface Window {
     _MODERNJS_ROUTE_MANIFEST?: RouteManifest;
@@ -175,28 +177,6 @@ export const createServerPayload = (
       } as PayloadRoute;
     }),
   };
-};
-
-export const handleRSCRedirect = (
-  headers: Headers,
-  basename: string,
-  status: number,
-): Response => {
-  const newHeaders = new Headers(headers);
-  let redirectUrl = headers.get('Location')!;
-
-  if (basename !== '/') {
-    redirectUrl = redirectUrl.replace(basename, '');
-  }
-
-  newHeaders.set('X-Modernjs-Redirect', redirectUrl);
-  newHeaders.set('X-Modernjs-BaseUrl', basename);
-  newHeaders.delete('Location');
-
-  return new Response(null, {
-    status: status,
-    headers: newHeaders,
-  });
 };
 
 export const prepareRSCRoutes = async (

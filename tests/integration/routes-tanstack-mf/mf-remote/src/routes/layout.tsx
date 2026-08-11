@@ -1,5 +1,8 @@
-import { Link, useRouterState } from '@modern-js/plugin-tanstack/runtime';
-import { Outlet } from '@modern-js/runtime/router';
+import {
+  Link,
+  Outlet,
+  useRouterState,
+} from '@modern-js/plugin-tanstack/runtime';
 import { useId } from 'react';
 
 export default function Layout() {

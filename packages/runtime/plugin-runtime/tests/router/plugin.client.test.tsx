@@ -5,6 +5,7 @@ import {
   InternalRuntimeContext,
   setGlobalContext,
 } from '../../src/core/context';
+import { Link as PrefetchLink } from '../../src/router/runtime/PrefetchLink';
 
 (
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -15,6 +16,30 @@ describe('router runtime root', () => {
     setGlobalContext({ enableRsc: false });
     window.history.replaceState(null, '', '/');
     window._ROUTER_DATA = undefined;
+  });
+
+  it('provides the Modern prefetch Link to runtime consumers', async () => {
+    const { routerPlugin } = await import('../../src/router/runtime/plugin');
+    let beforeRender:
+      | ((context: { router?: { Link?: React.ComponentType<any> } }) => void)
+      | undefined;
+
+    routerPlugin().setup?.({
+      getRuntimeConfig: () => ({}),
+      onBeforeRender: callback => {
+        beforeRender = callback;
+      },
+      wrapRoot: () => undefined,
+    } as any);
+
+    if (!beforeRender) {
+      throw new Error('Expected router plugin to register onBeforeRender');
+    }
+
+    const context: { router?: { Link?: React.ComponentType<any> } } = {};
+    beforeRender(context);
+
+    expect(context.router?.Link).toBe(PrefetchLink);
   });
 
   it('keeps the mounted RouterProvider tree across parent renders', async () => {

@@ -2,8 +2,33 @@ import { ROUTE_MODULES } from '@modern-js/utils/universal/constants';
 import {
   createShouldRevalidate,
   handleRouteModule,
+  isRouteErrorResponse,
   resolveRouteComponent,
 } from '../../src/router/runtime/routerHelper';
+
+describe('router helper route error recognition', () => {
+  test('recognizes the provider-neutral route error contract', () => {
+    expect(
+      isRouteErrorResponse({
+        status: 404,
+        statusText: 'Not Found',
+        internal: false,
+        data: { resource: 'invoice' },
+      }),
+    ).toBe(true);
+  });
+
+  test.each([
+    null,
+    new Error('not a route response'),
+    { status: '404', statusText: 'Not Found', internal: false, data: null },
+    { status: 404, statusText: 404, internal: false, data: null },
+    { status: 404, statusText: 'Not Found', internal: 'false', data: null },
+    { status: 404, statusText: 'Not Found', internal: false },
+  ])('rejects values outside the route error contract', value => {
+    expect(isRouteErrorResponse(value)).toBe(false);
+  });
+});
 
 describe('router helper route module handling', () => {
   const originalDocument = globalThis.document;

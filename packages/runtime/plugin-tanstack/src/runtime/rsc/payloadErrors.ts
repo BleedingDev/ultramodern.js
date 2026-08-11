@@ -1,6 +1,6 @@
 // @effect-diagnostics asyncFunction:off globalFetch:off processEnv:off strictBooleanExpressions:off
 import type { ServerPayload } from '@modern-js/runtime/context';
-import { isRouteErrorResponse } from '@modern-js/runtime-utils/router';
+import { isRouteErrorResponse } from '@modern-js/runtime/routerHelper';
 
 export function shouldRedactServerError(status = 500) {
   return (

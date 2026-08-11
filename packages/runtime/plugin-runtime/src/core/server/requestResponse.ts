@@ -1,6 +1,6 @@
 import type { OnError } from '@modern-js/app-tools';
 import { getRouterServerSnapshot } from '../../router/runtime/lifecycle';
-import { handleRSCRedirect } from '../../router/runtime/rsc-router';
+import { handleRSCRedirect } from '../../router/runtime/redirect';
 import type { TInternalRuntimeContext } from '../context';
 import type { RouterCleanup } from './routerCleanup';
 import { SSRErrors } from './tracer';

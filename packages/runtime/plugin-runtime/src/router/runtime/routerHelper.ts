@@ -14,6 +14,23 @@ type RouteModulesWindow = Window & {
   [ROUTE_MODULES]?: Record<string, unknown>;
 };
 
+export type ModernRouteErrorResponse = {
+  status: number;
+  statusText: string;
+  internal: boolean;
+  data: unknown;
+};
+
+export const isRouteErrorResponse = (
+  error: unknown,
+): error is ModernRouteErrorResponse =>
+  error !== null &&
+  typeof error === 'object' &&
+  typeof (error as Partial<ModernRouteErrorResponse>).status === 'number' &&
+  typeof (error as Partial<ModernRouteErrorResponse>).statusText === 'string' &&
+  typeof (error as Partial<ModernRouteErrorResponse>).internal === 'boolean' &&
+  'data' in error;
+
 const isObjectLike = (value: unknown): value is Record<PropertyKey, unknown> =>
   (typeof value === 'object' && value !== null) || typeof value === 'function';
 

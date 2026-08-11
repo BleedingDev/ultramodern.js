@@ -5,13 +5,6 @@ import {
   type TInternalRuntimeContext,
   type TRuntimeContext,
 } from '@modern-js/runtime/context';
-import {
-  Link as ReactRouterLink,
-  useInRouterContext,
-  useLocation as useReactRouterLocation,
-  useNavigate as useReactRouterNavigate,
-  useParams as useReactRouterParams,
-} from '@modern-js/runtime/router';
 import type React from 'react';
 import { useCallback, useContext, useSyncExternalStore } from 'react';
 
@@ -50,8 +43,11 @@ interface I18nRouterAdapter {
 
 type RuntimeContextWithRouter = TRuntimeContext & {
   router?: {
+    useInRouterContext?: () => boolean;
     useRouter?: (options?: { warn?: boolean }) => unknown;
     useLocation?: () => unknown;
+    useNavigate?: () => I18nRouterNavigate;
+    useParams?: () => Record<string, string>;
     useHref?: () => unknown;
     Link?: I18nRouterLink;
   };
@@ -224,10 +220,17 @@ export const useI18nRouterAdapter = (): I18nRouterAdapter => {
   const internalContext = useContext(
     InternalRuntimeContext,
   ) as InternalRuntimeContextWithRouter;
-  const inReactRouter = useInRouterContext();
-  const reactRouterNavigate = inReactRouter ? useReactRouterNavigate() : null;
-  const reactRouterLocation = inReactRouter ? useReactRouterLocation() : null;
-  const reactRouterParams = inReactRouter ? useReactRouterParams() : {};
+  const routerApi = internalContext.router || runtimeContext.router;
+  const inReactRouter = routerApi?.useInRouterContext?.() ?? false;
+  const reactRouterNavigate = inReactRouter
+    ? (routerApi?.useNavigate?.() ?? null)
+    : null;
+  const reactRouterLocation = inReactRouter
+    ? (routerApi?.useLocation?.() ?? null)
+    : null;
+  const reactRouterParams = inReactRouter
+    ? (routerApi?.useParams?.() ?? {})
+    : {};
   const framework = getRouterFramework(
     runtimeContext,
     internalContext,
@@ -359,7 +362,7 @@ export const useI18nRouterAdapter = (): I18nRouterAdapter => {
     framework === 'tanstack'
       ? internalContext.router?.Link || runtimeContext.router?.Link || null
       : framework === 'react-router' || inReactRouter
-        ? (ReactRouterLink as I18nRouterLink)
+        ? (routerApi?.Link ?? null)
         : null;
 
   return {

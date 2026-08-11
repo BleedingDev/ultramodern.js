@@ -15,6 +15,10 @@ import type { AppToolsContext } from '../../types/plugin';
 
 const BFF_EFFECT_WORKER_ENTRY_NAME = '__modern_bff_effect';
 const BFF_EFFECT_WORKER_RUNTIME_QUERY = 'modern-bff-runtime';
+const MF_SSR_DATA_FETCH_RUNTIME_PLUGIN =
+  '@module-federation/modern-js-v3/ssr-inject-data-fetch-function-plugin';
+const MF_SSR_DEV_RUNTIME_PLUGIN =
+  '@module-federation/modern-js-v3/ssr-dev-plugin';
 const JS_OR_TS_EXTS = [
   '.js',
   '.jsx',
@@ -210,6 +214,44 @@ export function getCloudflareWorkerRspackConfig(
       },
     },
   } as const;
+}
+
+export function applyCloudflareWorkerRspackConfig(
+  chain: Parameters<ModifyBundlerChainFn>[0],
+  workerEntryNames: Iterable<string>,
+) {
+  const config = getCloudflareWorkerRspackConfig(workerEntryNames);
+
+  // webpack-chain models these nodes separately. A generic chain.merge()
+  // loses nested parser options and splitChunks fields when Rsbuild composes
+  // its environment defaults.
+  chain.experiments(config.experiments);
+  chain.externals(config.externals);
+  chain.externalsType(config.externalsType);
+  chain.module.parser.merge(config.module.parser);
+  chain.optimization.runtimeChunk(config.optimization.runtimeChunk);
+  chain.optimization.splitChunks(config.optimization.splitChunks);
+}
+
+export function applyCloudflareWorkerMfRuntimeBoundary(
+  chain: Parameters<ModifyBundlerChainFn>[0],
+) {
+  // Module Federation remotes are not initialized in the Workerd graph. Keep
+  // its shared runtime out of the compiler and replace the SSR data-fetch
+  // registration with the same no-hook runtime-plugin contract.
+  chain.plugins.delete('plugin-module-federation');
+  chain.resolve.alias.set(
+    `${MF_SSR_DATA_FETCH_RUNTIME_PLUGIN}$`,
+    getCloudflareWorkerCompatFile(
+      'cloudflare-worker-mf-ssr-runtime-plugin.mjs',
+    ),
+  );
+  chain.resolve.alias.set(
+    `${MF_SSR_DEV_RUNTIME_PLUGIN}$`,
+    getCloudflareWorkerCompatFile(
+      'cloudflare-worker-mf-ssr-runtime-plugin.mjs',
+    ),
+  );
 }
 
 function getEffectBffEntry(
@@ -490,8 +532,9 @@ export function getBuilderEnvironments(
                 // lowering them to Promise continuations. A single runtime and
                 // static shared chunk preserve module identity across route and
                 // Effect BFF entries loaded in the same workerd isolate.
-                chain.merge(
-                  getCloudflareWorkerRspackConfig(Object.keys(workerEntries)),
+                applyCloudflareWorkerRspackConfig(
+                  chain,
+                  Object.keys(workerEntries),
                 );
                 chain.output
                   .module(true)
@@ -519,7 +562,7 @@ export function getBuilderEnvironments(
                 // module with no native remote imports. Exclude the Node Module
                 // Federation runtime entirely: even initializing it would fetch
                 // remote manifests at Worker global scope, which workerd forbids.
-                chain.plugins.delete('plugin-module-federation');
+                applyCloudflareWorkerMfRuntimeBoundary(chain);
                 if (tanstackRouterSsrServerFile) {
                   chain.resolve.alias.set(
                     '@tanstack/router-core/ssr/server$',

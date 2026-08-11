@@ -11,6 +11,10 @@ import {
   type RouteObject,
   type StaticHandlerContext,
   StaticRouterProvider,
+  useInRouterContext,
+  useLocation,
+  useNavigate,
+  useParams,
 } from '@modern-js/runtime-utils/router';
 import { time } from '@modern-js/runtime-utils/time';
 import { LOADER_REPORTER_NAME } from '@modern-js/utils/universal/constants';
@@ -33,6 +37,7 @@ import {
   createRouterServerSnapshot,
   type RouterLifecycleContext,
 } from './lifecycle';
+import { Link as PrefetchLink } from './PrefetchLink';
 import { routerProviderRegistryHooks } from './provider';
 import {
   createServerPayload,
@@ -95,6 +100,13 @@ export const routerPlugin = (
           context: TInternalRuntimeContext,
           interrupt: (payload?: unknown) => unknown,
         ) => {
+          context.router = {
+            Link: PrefetchLink,
+            useInRouterContext,
+            useLocation,
+            useNavigate,
+            useParams,
+          };
           const pluginConfig: Record<string, any> = api.getRuntimeConfig();
           const {
             basename = '',

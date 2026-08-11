@@ -2,14 +2,18 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { rspack } from '@rsbuild/core';
+import { createRsbuild } from '@rsbuild/core';
 
 const packageRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   '../../',
 );
 
-import { getCloudflareWorkerRspackConfig } from '../../src/builder/generator/getBuilderEnvironments';
+import {
+  applyCloudflareWorkerMfRuntimeBoundary,
+  applyCloudflareWorkerRspackConfig,
+  getCloudflareWorkerRspackConfig,
+} from '../../src/builder/generator/getBuilderEnvironments';
 import { createCloudflareOutputPlan } from '../../src/plugins/deploy/platforms/cloudflare-output-plan';
 import {
   assertCloudflareOutput,
@@ -19,7 +23,25 @@ import {
 
 const tempDirectories: string[] = [];
 
-const buildRspackWorker = async ({
+const listJavaScriptFiles = async (
+  directory: string,
+  relativeDirectory = '',
+): Promise<string[]> => {
+  const entries = await fs.readdir(path.join(directory, relativeDirectory), {
+    withFileTypes: true,
+  });
+  const files = await Promise.all(
+    entries.map(entry => {
+      const relativePath = path.join(relativeDirectory, entry.name);
+      return entry.isDirectory()
+        ? listJavaScriptFiles(directory, relativePath)
+        : Promise.resolve(entry.name.endsWith('.js') ? [relativePath] : []);
+    }),
+  );
+  return files.flat();
+};
+
+const buildRsbuildWorker = async ({
   directory,
   entryNames = {
     bff: '__modern_bff_effect',
@@ -38,12 +60,17 @@ const buildRspackWorker = async ({
   const sourceDirectory = path.join(directory, 'rspack-worker-source');
   const workerDirectory = path.join(outputDirectory, 'worker');
   await fs.mkdir(sourceDirectory, { recursive: true });
+  await fs.rm(workerDirectory, { force: true, recursive: true });
   await Promise.all([
     fs.writeFile(
       path.join(sourceDirectory, 'entry.js'),
       [
+        "import { injectDataFetchFunctionPlugin } from '@module-federation/modern-js-v3/ssr-inject-data-fetch-function-plugin';",
+        "import { mfSSRDevPlugin } from '@module-federation/modern-js-v3/ssr-dev-plugin';",
         "import { loadFirst } from './barrel.js';",
         'export { loadFirst };',
+        'export const mfRuntimePlugin = injectDataFetchFunctionPlugin({});',
+        'export const mfDevRuntimePlugin = mfSSRDevPlugin({});',
         'export const __modern_create_effect_bff_dispatcher = async () => ({ dispatch: async () => new Response("ok"), dispose: async () => {} });',
         explicitLazy
           ? "export const loadSecond = () => import(/* webpackMode: 'lazy' */ './second.js');"
@@ -91,57 +118,65 @@ const buildRspackWorker = async ({
     ),
   ]);
 
-  const compiler = rspack({
-    context: sourceDirectory,
-    entry: {
-      [entryNames.bff]: './entry.js',
-      [entryNames.route]: './main.js',
+  const rsbuild = await createRsbuild({
+    cwd: sourceDirectory,
+    rsbuildConfig: {
+      environments: {
+        workerSSR: {
+          output: {
+            cleanDistPath: false,
+            distPath: {
+              js: 'worker',
+              root: outputDirectory,
+            },
+            filename: { js: '[name].js' },
+            module: true,
+            target: 'web',
+          },
+          source: {
+            entry: {
+              [entryNames.bff]: './entry.js',
+              [entryNames.route]: './main.js',
+            },
+          },
+          tools: {
+            bundlerChain(chain) {
+              applyCloudflareWorkerRspackConfig(chain, [
+                entryNames.bff,
+                entryNames.route,
+              ]);
+              applyCloudflareWorkerMfRuntimeBoundary(chain);
+              chain.optimization.minimize(minimize);
+              chain.output
+                .module(true)
+                .library({ type: 'module' })
+                .chunkFormat('module')
+                .chunkLoading('import');
+            },
+            htmlPlugin: false,
+          },
+        },
+      },
+      mode: 'production',
     },
-    ...getCloudflareWorkerRspackConfig([entryNames.bff, entryNames.route]),
-    mode: 'production',
-    optimization: {
-      ...getCloudflareWorkerRspackConfig([entryNames.bff, entryNames.route])
-        .optimization,
-      minimize,
-    },
-    output: {
-      chunkFormat: 'module',
-      chunkLoading: 'import',
-      clean: false,
-      filename: '[name].js',
-      library: { type: 'module' },
-      module: true,
-      path: workerDirectory,
-    },
-    target: 'web',
   });
-  try {
-    return await new Promise<string[]>((resolve, reject) => {
-      compiler.run((error, stats) => {
-        if (error) {
-          reject(error);
-        } else if (!stats) {
-          reject(new Error('Rspack did not return worker build stats.'));
-        } else if (stats.hasErrors()) {
-          reject(
-            new Error(
-              stats.toString({ all: false, errors: true, warnings: true }),
-            ),
-          );
-        } else {
-          resolve(
-            (stats.toJson({ all: false, assets: true }).assets ?? []).map(
-              asset => asset.name,
-            ),
-          );
-        }
-      });
-    });
-  } finally {
-    await new Promise<void>((resolve, reject) => {
-      compiler.close(error => (error ? reject(error) : resolve()));
-    });
-  }
+
+  const [config] = await rsbuild.initConfigs();
+  const expectedWorkerConfig = getCloudflareWorkerRspackConfig([
+    entryNames.bff,
+    entryNames.route,
+  ]);
+  expect(config.module?.parser?.javascript).toMatchObject({
+    dynamicImportMode: 'eager',
+  });
+  expect(config.optimization?.splitChunks).toMatchObject({
+    chunks: 'all',
+    minSize: 0,
+    name: expectedWorkerConfig.optimization.splitChunks.name,
+  });
+  await rsbuild.build();
+
+  return (await listJavaScriptFiles(workerDirectory)).sort();
 };
 
 const writeJson = async (filePath: string, value: unknown) => {
@@ -920,7 +955,7 @@ describe('Cloudflare output verifier', () => {
       const { directory, outputDirectory } = await createOutputFixture({
         routeWorker: 'worker/main.js',
       });
-      const assets = await buildRspackWorker({
+      const assets = await buildRsbuildWorker({
         directory,
         minimize,
         outputDirectory,
@@ -931,6 +966,9 @@ describe('Cloudflare output verifier', () => {
         '__modern_worker_shared.js',
         'main.js',
       ]);
+      await writeJson(path.join(outputDirectory, 'worker/package.json'), {
+        type: 'commonjs',
+      });
       await expect(
         verifyCloudflareOutput({ outputDirectory, importWorker: false }),
       ).resolves.toEqual({ ok: true, issues: [] });
@@ -959,12 +997,20 @@ describe('Cloudflare output verifier', () => {
       const dispatcher = await worker.__modern_create_effect_bff_dispatcher();
       await expect(dispatcher.dispatch()).resolves.toBeInstanceOf(Response);
       await expect(dispatcher.dispose()).resolves.toBeUndefined();
+      expect(worker.mfRuntimePlugin).toMatchObject({
+        name: '@module-federation/inject-data-fetch-function-plugin',
+        setup: expect.any(Function),
+      });
+      expect(worker.mfDevRuntimePlugin).toMatchObject({
+        name: '@module-federation/modern-js-v3',
+        setup: expect.any(Function),
+      });
     }
   });
 
   it('reserves collision-free runtime and shared chunk names', async () => {
     const { directory, outputDirectory } = await createOutputFixture();
-    const assets = await buildRspackWorker({
+    const assets = await buildRsbuildWorker({
       directory,
       entryNames: {
         bff: '__MODERN_WORKER_RUNTIME',
@@ -1022,7 +1068,7 @@ describe('Cloudflare output verifier', () => {
     const { directory, outputDirectory } = await createOutputFixture({
       routeWorker: 'worker/main.js',
     });
-    const assets = await buildRspackWorker({
+    const assets = await buildRsbuildWorker({
       directory,
       explicitLazy: true,
       minimize: true,

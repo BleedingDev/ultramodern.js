@@ -1,9 +1,7 @@
 // @effect-diagnostics processEnv:off strictBooleanExpressions:off
 import type { ServerUserConfig } from '@modern-js/app-tools';
-import {
-  isRouteErrorResponse,
-  type StaticHandlerContext,
-} from '@modern-js/runtime-utils/router';
+import type { StaticHandlerContext } from '@modern-js/runtime-utils/router';
+import { isRouteErrorResponse } from '../../router/runtime/routerHelper';
 import type { SSRConfig } from './shared';
 
 export function attributesToString(attributes: Record<string, any>) {
