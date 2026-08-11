@@ -4,7 +4,6 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { assertReleaseAcceptanceProfile } from '../ultramodern-production-readiness/published-create-proof/acceptance-contract.mjs';
-import { runAcceptanceProfile } from '../ultramodern-production-readiness/published-create-proof/acceptance-profile.mjs';
 import {
   assertAcceptanceReceipt,
   readAcceptanceReceipt,
@@ -218,6 +217,13 @@ function verifyProducedReceipt({ release, options, runIdentity }) {
   });
 }
 
+async function executeAcceptanceProfile(options) {
+  const { runAcceptanceProfile } = await import(
+    '../ultramodern-production-readiness/published-create-proof/acceptance-profile.mjs'
+  );
+  return runAcceptanceProfile(options);
+}
+
 async function runPrepublish({ release, options, runIdentity }) {
   const registryRoot = fs.mkdtempSync(
     path.join(os.tmpdir(), 'ultramodern-verdaccio-'),
@@ -225,7 +231,7 @@ async function runPrepublish({ release, options, runIdentity }) {
   let registry;
   try {
     registry = await startEphemeralRegistry({ release, rootDir: registryRoot });
-    return await runAcceptanceProfile({
+    return await executeAcceptanceProfile({
       mode: 'source',
       release,
       registryUrl: registry.registryUrl,
@@ -244,7 +250,7 @@ async function runPrepublish({ release, options, runIdentity }) {
 
 async function runPublished({ release, options, runIdentity }) {
   const registryUrl = new URL(options.registryUrl).toString();
-  return runAcceptanceProfile({
+  return executeAcceptanceProfile({
     mode: 'published',
     release,
     registryUrl,

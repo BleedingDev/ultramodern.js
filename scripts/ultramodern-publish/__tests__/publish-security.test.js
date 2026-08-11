@@ -599,6 +599,22 @@ test('release acceptance subprocess verifies producer attempt 1 during publicati
   );
   try {
     const fixture = await createRunnerSubprocessFixture(root);
+    const dependencyBlockerPath = path.join(root, 'dependency-blocker.mjs');
+    writeFixtureFile(
+      dependencyBlockerPath,
+      [
+        "import { registerHooks } from 'node:module';",
+        'registerHooks({',
+        '  resolve(specifier, context, nextResolve) {',
+        "    if (specifier === '@babel/core') {",
+        "      throw new Error('receipt verification loaded execution-only @babel/core');",
+        '    }',
+        '    return nextResolve(specifier, context);',
+        '  },',
+        '});',
+        '',
+      ].join('\n'),
+    );
     const commonArgs = [
       releaseAcceptanceScriptPath,
       '--verify-receipt',
@@ -614,6 +630,12 @@ test('release acceptance subprocess verifies producer attempt 1 during publicati
       GITHUB_REPOSITORY: fixture.source.repository,
       GITHUB_RUN_ATTEMPT: '2',
       GITHUB_RUN_ID: '123',
+      NODE_OPTIONS: [
+        process.env.NODE_OPTIONS,
+        `--import=${pathToFileURL(dependencyBlockerPath).href}`,
+      ]
+        .filter(Boolean)
+        .join(' '),
     };
     const producer = spawnSync(
       process.execPath,
