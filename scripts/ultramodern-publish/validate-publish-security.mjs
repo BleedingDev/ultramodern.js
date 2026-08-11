@@ -41,7 +41,7 @@ const publishedAcceptanceArtifact = 'bleedingdev-published-acceptance';
 const releaseIdentityArtifact = 'bleedingdev-release-identity';
 const tractorAcceptanceWorkflow =
   './.github/workflows/ultramodern-tractor-downstream.yml';
-const tractorAcceptanceRef = 'a2cc23e01c280ed34fb8e9a1e7117f5efe67ec37';
+const tractorAcceptanceRef = 'cb6974e31bc919c86ae5bb86044409f0f1e036d5';
 const releaseManifestPath = '.modern/bleedingdev-publish/manifest.json';
 const releaseManifestDigestPath =
   '.modern/bleedingdev-publish/manifest.json.sha256';
@@ -350,6 +350,26 @@ function validateInputs() {
 
   if (!semverPattern.test(version)) {
     fail(`version must be a semver value, found "${version}"`);
+  }
+  const frameworkSource = JSON.parse(
+    fs.readFileSync(
+      path.join(repoRoot, 'packages/toolkit/create/package.json'),
+      'utf8',
+    ),
+  ).version;
+  if (
+    typeof frameworkSource !== 'string' ||
+    !/^\d+\.\d+\.\d+$/.test(frameworkSource)
+  ) {
+    fail('incorporated Modern.js source version is invalid');
+  }
+  const expectedVersionPattern = new RegExp(
+    `^${frameworkSource.replaceAll('.', '\\.')}-ultramodern\\.[1-9]\\d*$`,
+  );
+  if (!expectedVersionPattern.test(version)) {
+    fail(
+      `version must match the incorporated Modern.js source ${frameworkSource}-ultramodern.<positive revision>, found "${version}"`,
+    );
   }
   if (tag !== enforcedPublishTag) {
     fail(`dist-tag must be ${enforcedPublishTag}, found "${tag}"`);

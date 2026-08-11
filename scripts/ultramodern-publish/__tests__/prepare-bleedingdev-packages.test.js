@@ -13,6 +13,8 @@ const repoRoot = path.resolve(__dirname, '../../..');
 const requireFromCreate = createRequire(
   path.join(repoRoot, 'packages/toolkit/create/package.json'),
 );
+const sourceFrameworkVersion = requireFromCreate('./package.json').version;
+const fixtureReleaseVersion = `${sourceFrameworkVersion}-ultramodern.1`;
 const { yaml } = requireFromCreate('@modern-js/utils');
 const scriptPath = path.join(
   repoRoot,
@@ -52,7 +54,7 @@ const makeCreateFixture = ({ includeTemplateDotFiles }) => {
   const packageDir = path.join(root, 'packages/create/package');
   writeJson(path.join(packageDir, 'package.json'), {
     name: '@bleedingdev/modern-js-create',
-    version: '3.2.0-ultramodern.1',
+    version: fixtureReleaseVersion,
     publishConfig: {
       access: 'public',
     },
@@ -68,8 +70,8 @@ const makeCreateFixture = ({ includeTemplateDotFiles }) => {
     generatedAt: '2026-06-04T00:00:00.000Z',
     scope: 'bleedingdev',
     prefix: 'modern-js-',
-    version: '3.2.0-ultramodern.1',
-    dependencyVersion: '3.2.0-ultramodern.1',
+    version: fixtureReleaseVersion,
+    dependencyVersion: fixtureReleaseVersion,
     tag: 'latest',
     aliases: {
       '@modern-js/create': '@bleedingdev/modern-js-create',
@@ -78,7 +80,7 @@ const makeCreateFixture = ({ includeTemplateDotFiles }) => {
       {
         sourceName: '@modern-js/create',
         targetName: '@bleedingdev/modern-js-create',
-        version: '3.2.0-ultramodern.1',
+        version: fixtureReleaseVersion,
         packageDir: path.relative(repoRoot, packageDir),
       },
     ],
@@ -94,7 +96,7 @@ const runPublishExisting = (outDir, env = process.env) =>
       scriptPath,
       '--publish-existing',
       '--version',
-      '3.2.0-ultramodern.1',
+      fixtureReleaseVersion,
       '--out',
       outDir,
     ],
@@ -165,6 +167,85 @@ test('release package rewriting canonicalizes dependency metadata order', async 
     '@modern-js/types',
     '@scripts/rstest-config',
   ]);
+});
+
+test('release cohort version base matches the incorporated Modern.js source', async () => {
+  const { enforceSingleVersionPolicy } = await import(
+    '../lib/prepare-bleedingdev-packages/rewrite.mjs'
+  );
+  const packages = [
+    {
+      packageJson: {
+        name: '@modern-js/create',
+        version: '3.8.1',
+      },
+    },
+    {
+      packageJson: {
+        name: '@modern-js/plugin-tanstack',
+        version: '3.2.0',
+      },
+    },
+  ];
+
+  assert.doesNotThrow(() =>
+    enforceSingleVersionPolicy(
+      {
+        dependencyVersion: '3.8.1-ultramodern.1',
+        version: '3.8.1-ultramodern.1',
+      },
+      packages,
+      packages,
+    ),
+  );
+  assert.throws(
+    () =>
+      enforceSingleVersionPolicy(
+        {
+          dependencyVersion: '3.5.0-ultramodern.103',
+          version: '3.5.0-ultramodern.103',
+        },
+        packages,
+        packages,
+      ),
+    /release base 3\.5\.0 does not match the incorporated Modern\.js source version 3\.8\.1/i,
+  );
+  assert.throws(
+    () =>
+      enforceSingleVersionPolicy(
+        {
+          dependencyVersion: '3.8.1',
+          version: '3.8.1',
+        },
+        packages,
+        packages,
+      ),
+    /must use the form 3\.8\.1-ultramodern\.<revision>/i,
+  );
+  assert.throws(
+    () =>
+      enforceSingleVersionPolicy(
+        {
+          dependencyVersion: '3.8.1-ultramodern.0',
+          version: '3.8.1-ultramodern.0',
+        },
+        packages,
+        packages,
+      ),
+    /must use the form 3\.8\.1-ultramodern\.<revision>/i,
+  );
+  assert.throws(
+    () =>
+      enforceSingleVersionPolicy(
+        {
+          dependencyVersion: '3.8.1-ultramodern.1',
+          version: '3.8.1-ultramodern.1',
+        },
+        packages.slice(1),
+        packages.slice(1),
+      ),
+    /cannot determine the incorporated Modern\.js source version/i,
+  );
 });
 
 test('RSC remains an explicit optional toolchain and is absent from the release cohort', () => {
@@ -2734,6 +2815,60 @@ test('local acceptance registry tolerates transient npm uplink failures', async 
   });
 });
 
+test('registry preflight accepts a revision reset on a newer Modern.js base', async () => {
+  const { preflightRegistryPackages } = await import(
+    '../prepare-bleedingdev-packages.mjs'
+  );
+  const targetName = '@bleedingdev/modern-js-create';
+  const version = '3.8.1-ultramodern.1';
+
+  const states = await preflightRegistryPackages(
+    [{ targetName, version }],
+    { dryRun: true, tag: 'latest', version },
+    {},
+    {
+      lookupRegistryDistTag: async () => '3.5.0-ultramodern.103',
+      lookupRegistryPackageDist: async () => null,
+      verifyRegistryPackageDist: async () => {
+        throw new Error('absent candidates have no registry bytes to verify');
+      },
+    },
+  );
+
+  assert.deepEqual(states.get(targetName), {
+    currentTag: '3.5.0-ultramodern.103',
+    dist: null,
+    exists: false,
+  });
+});
+
+test('registry preflight rejects a non-forward candidate before publication', async () => {
+  const { preflightRegistryPackages } = await import(
+    '../prepare-bleedingdev-packages.mjs'
+  );
+  const targetName = '@bleedingdev/modern-js-create';
+  const version = '3.5.0-ultramodern.102';
+
+  await assert.rejects(
+    () =>
+      preflightRegistryPackages(
+        [{ targetName, version }],
+        { dryRun: false, tag: 'latest', version },
+        {},
+        {
+          lookupRegistryDistTag: async () => '3.5.0-ultramodern.103',
+          lookupRegistryPackageDist: async () => null,
+          verifyRegistryPackageDist: async () => {
+            throw new Error(
+              'absent candidates have no registry bytes to verify',
+            );
+          },
+        },
+      ),
+    /must be greater than current latest 3\.5\.0-ultramodern\.103/u,
+  );
+});
+
 test('dry-run preflights absent versions and publishes every exact snapshot without claiming provenance', async () => {
   const { publishManifestPackages, publishPackage, verifyPackageArtifact } =
     await import('../prepare-bleedingdev-packages.mjs');
@@ -2759,7 +2894,7 @@ test('dry-run preflights absent versions and publishes every exact snapshot with
       {
         lookupRegistryDistTag: async (packageName, tag) => {
           tagLookups.push({ packageName, tag });
-          return '3.5.0-ultramodern.44';
+          return '3.1.0-ultramodern.44';
         },
         lookupRegistryPackageDist: async (packageName, version) => {
           packageLookups.push({ packageName, version });
@@ -2911,7 +3046,7 @@ test('trusted publishing rejects the entire absent cohort before the first regis
             version: '3.2.0-ultramodern.1',
           },
           {
-            lookupRegistryDistTag: async () => '3.5.0-ultramodern.previous',
+            lookupRegistryDistTag: async () => '3.1.0-ultramodern.previous',
             lookupRegistryPackageDist: async () => null,
             publishPackage: async artifact => {
               registryMutations.push(artifact.targetName);
@@ -2990,7 +3125,7 @@ test('trusted publishing authorizes every absent package before publishing any o
         lookupRegistryDistTag: async packageName =>
           packageName === existingTarget
             ? '3.2.0-ultramodern.1'
-            : '3.5.0-ultramodern.previous',
+            : '3.1.0-ultramodern.previous',
         lookupRegistryPackageDist: async packageName => {
           if (packageName !== existingTarget) {
             return null;
@@ -3069,7 +3204,7 @@ test('real publish verifies registry provenance after each accepted tarball befo
       },
       {
         assertRegistryDistMatches: () => {},
-        lookupRegistryDistTag: async () => '3.5.0-ultramodern.44',
+        lookupRegistryDistTag: async () => '3.1.0-ultramodern.44',
         lookupRegistryPackageDist: async () => null,
         publishPackage: async artifact => {
           events.push({

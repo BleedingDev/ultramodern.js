@@ -34,7 +34,7 @@ workspaces:
 ## What Patches Do
 
 - `@module-federation/manifest`: avoids loading `@module-federation/dts-plugin/core` at module import time and returns default type metadata immediately when `dts: false`.
-- `@module-federation/modern-js-v3`: suppresses the stream SSR splitChunks warning when `splitChunks.chunks` is already `async`, while still coercing invalid values to `async`; disables lazy compilation for both remote producers and consumers; and injects the Modern.js manifest-recovery runtime plugin into server builds, resolving it from the application workspace.
+- `@module-federation/modern-js-v3`: suppresses the stream SSR splitChunks warning when `splitChunks.chunks` is already `async`, while still coercing invalid values to `async`; disables lazy compilation for both remote producers and consumers; injects the Modern.js manifest-recovery runtime plugin into server builds, resolving it from the application workspace; and keeps React bridge CSS ownership in Modern.js by creating both bridge adapters with `injectLink: false`.
 - `@module-federation/rspack`: avoids loading `@module-federation/dts-plugin` at module import time and only requires `DtsPlugin` when DTS generation is enabled.
 - `@module-federation/bridge-react`: repairs non-portable declaration specifiers that reference package-local `node_modules/@types/react*` paths.
 - `effect-schema-error-type-id.patch`: replaces beta.107's dangling public `SchemaAST.Sentinel` declaration reference with `unknown`; no private Effect HTTP declarations are patched.

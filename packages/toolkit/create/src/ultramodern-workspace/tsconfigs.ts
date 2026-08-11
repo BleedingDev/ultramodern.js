@@ -73,6 +73,7 @@ function createReferences(
 type CreatePackageTsConfigOptions = {
   include?: string[];
   includeApi?: boolean;
+  includeServer?: boolean;
   references?: string[];
 };
 
@@ -88,6 +89,9 @@ export function createPackageTsConfig(
     'package.json',
     'shared',
   ];
+  if (resolvedOptions.includeServer) {
+    include.push('server');
+  }
   if (resolvedOptions.includeApi) {
     include.push('api');
   }
@@ -128,6 +132,7 @@ export function createAppTsConfig(
   ];
   return createPackageTsConfig(app.directory, {
     includeApi: appHasApi(app),
+    includeServer: true,
     references,
   });
 }

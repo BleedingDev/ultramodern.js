@@ -92,7 +92,40 @@ function collectModernPackages(options) {
   };
 }
 
+function assertReleaseBaseMatchesSource(options, allPackages) {
+  const sourcePackage = allPackages.find(
+    item => item.packageJson.name === '@modern-js/create',
+  );
+  const sourceVersion = sourcePackage?.packageJson.version;
+  if (
+    typeof sourceVersion !== 'string' ||
+    !/^\d+\.\d+\.\d+$/.test(sourceVersion)
+  ) {
+    throw new Error(
+      'Cannot determine the incorporated Modern.js source version from @modern-js/create.',
+    );
+  }
+
+  const releaseMatch = /^(\d+\.\d+\.\d+)-ultramodern\.([1-9]\d*)$/.exec(
+    options.version,
+  );
+  if (!releaseMatch) {
+    throw new Error(
+      `Release version ${options.version} must use the form ${sourceVersion}-ultramodern.<revision>.`,
+    );
+  }
+
+  const releaseBase = releaseMatch[1];
+  if (releaseBase !== sourceVersion) {
+    throw new Error(
+      `Release base ${releaseBase} does not match the incorporated Modern.js source version ${sourceVersion}.`,
+    );
+  }
+}
+
 function enforceSingleVersionPolicy(options, packages, allPackages) {
+  assertReleaseBaseMatchesSource(options, allPackages);
+
   if (options.dependencyVersion !== options.version) {
     return;
   }

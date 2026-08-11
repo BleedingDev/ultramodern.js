@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Package version to publish, for example 3.2.0-ultramodern.1"
+        description: "Package version to publish, for example 3.8.1-ultramodern.1"
         required: true
       dry_run:
         description: "Validate the exact release without authorizing publication"
@@ -763,7 +763,7 @@ jobs:
     with:
       release_bundle_artifact: bleedingdev-release-bundle-${{ needs.accept-release.outputs.producer_artifact_identity }}
       # Advance this reviewed immutable baseline after every accepted Tractor update.
-      tractor_ref: a2cc23e01c280ed34fb8e9a1e7117f5efe67ec37
+      tractor_ref: cb6974e31bc919c86ae5bb86044409f0f1e036d5
 
   record-publish-outcome:
     name: Record the authenticated publish outcome

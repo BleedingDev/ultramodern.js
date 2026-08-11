@@ -122,7 +122,7 @@ function parseArgs(argv) {
 
   if (!options.version) {
     throw new Error(
-      'Missing --version, for example --version 3.2.0-ultramodern.0',
+      'Missing --version, for example --version <Modern.js-version>-ultramodern.<revision>',
     );
   }
 

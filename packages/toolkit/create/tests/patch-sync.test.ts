@@ -1,11 +1,14 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { createRpcContractFile } from '../src/ultramodern-workspace/api/rpc';
 import { SHARED_ULTRAMODERN_WORKSPACE_PATCH_FILES } from '../src/ultramodern-workspace/shared-patches';
 import {
+  DRIZZLE_ORM_VERSION,
   EFFECT_VERSION,
   MODULE_FEDERATION_VERSION,
   TYPES_NODE_VERSION,
@@ -15,6 +18,31 @@ const packageRoot = path.resolve(__dirname, '..');
 const repoRoot = path.resolve(packageRoot, '../../..');
 const repoPatchDir = path.join(repoRoot, 'patches');
 const templatePatchDir = path.join(packageRoot, 'template-workspace/patches');
+const pnpmModulesDir = path.join(repoRoot, 'node_modules/.pnpm');
+const require = createRequire(import.meta.url);
+
+function packageStoreDirectory(prefix: string, packagePath: string): string {
+  const packageStoreEntry = fs
+    .readdirSync(pnpmModulesDir)
+    .find(entry => entry.startsWith(prefix));
+  assert.ok(
+    packageStoreEntry,
+    `${prefix} must be installed for patch validation`,
+  );
+  return path.join(
+    pnpmModulesDir,
+    packageStoreEntry,
+    'node_modules',
+    packagePath,
+  );
+}
+
+function moduleFederationPackageDirectory(packageName: string): string {
+  return packageStoreDirectory(
+    `@module-federation+${packageName}@${MODULE_FEDERATION_VERSION}_patch_hash=`,
+    `@module-federation/${packageName}`,
+  );
+}
 
 function listPatchFiles(dir: string): string[] {
   return fs
@@ -26,25 +54,7 @@ function listPatchFiles(dir: string): string[] {
 function assertPatchReversesAndReapplies(packageName: string): void {
   const patchFile = `@module-federation__${packageName}@${MODULE_FEDERATION_VERSION}.patch`;
   const patchPath = path.join(repoPatchDir, patchFile);
-  const pnpmModulesDir = path.join(repoRoot, 'node_modules/.pnpm');
-  const packageStoreEntry = fs
-    .readdirSync(pnpmModulesDir)
-    .find(entry =>
-      entry.startsWith(
-        `@module-federation+${packageName}@${MODULE_FEDERATION_VERSION}_patch_hash=`,
-      ),
-    );
-
-  assert.ok(
-    packageStoreEntry,
-    `@module-federation/${packageName}@${MODULE_FEDERATION_VERSION} must be installed for patch validation`,
-  );
-
-  const installedPackageDir = path.join(
-    pnpmModulesDir,
-    packageStoreEntry,
-    `node_modules/@module-federation/${packageName}`,
-  );
+  const installedPackageDir = moduleFederationPackageDirectory(packageName);
   const temporaryDir = fs.mkdtempSync(
     path.join(os.tmpdir(), `modern-js-mf-${packageName}-patch-`),
   );
@@ -77,7 +87,6 @@ function assertEffectPatchAppliesAndPublicSurfaceCompiles(): void {
     templatePatchDir,
     'effect-schema-error-type-id.patch',
   );
-  const pnpmModulesDir = path.join(repoRoot, 'node_modules/.pnpm');
   const packageStoreEntry = fs
     .readdirSync(pnpmModulesDir)
     .find(entry => entry.startsWith(`effect@${EFFECT_VERSION}`));
@@ -190,17 +199,6 @@ function assertEffectPatchAppliesAndPublicSurfaceCompiles(): void {
       cwd: temporaryPackageDir,
       stdio: 'pipe',
     });
-    assert.equal(
-      fs
-        .readFileSync(
-          path.join(temporaryPackageDir, 'dist/Schema.d.ts'),
-          'utf8',
-        )
-        .includes('SchemaAST.Sentinel'),
-      false,
-      'Effect patch must repair the dangling public SchemaAST.Sentinel type',
-    );
-
     const proofPath = path.join(temporaryDir, 'public-effect-proof.ts');
     fs.writeFileSync(
       proofPath,
@@ -243,6 +241,522 @@ function assertEffectPatchAppliesAndPublicSurfaceCompiles(): void {
   }
 }
 
+function runNodeProof(source: string, env: NodeJS.ProcessEnv = {}): void {
+  execFileSync(process.execPath, ['--input-type=commonjs', '--eval', source], {
+    cwd: repoRoot,
+    env: { ...process.env, ...env },
+    stdio: 'inherit',
+  });
+}
+
+function assertModuleFederationRuntimePatchBehavior(): void {
+  const manifestUtils = path.join(
+    moduleFederationPackageDirectory('manifest'),
+    'dist/utils.js',
+  );
+  const rspackPlugin = path.join(
+    moduleFederationPackageDirectory('rspack'),
+    'dist/ModuleFederationPlugin.js',
+  );
+  runNodeProof(
+    `
+      const assert = require('node:assert/strict');
+      const fs = require('node:fs');
+      const os = require('node:os');
+      const path = require('node:path');
+      const Module = require('node:module');
+      const { createRequire } = Module;
+      const originalLoad = Module._load;
+      Module._load = function (request) {
+        if (request === '@module-federation/dts-plugin/core' || request === '@module-federation/dts-plugin') {
+          throw new Error('DTS modules must stay unloaded when dts is false');
+        }
+        return originalLoad.apply(this, arguments);
+      };
+      const { getTypesMetaInfo } = require(process.env.MANIFEST_UTILS);
+      assert.deepEqual(getTypesMetaInfo({ dts: false }, process.cwd()), {
+        path: '', name: '', zip: '', api: '',
+      });
+
+      let manifestDtsProjectChecks = 0;
+      let manifestDtsAssetLookups = 0;
+      Module._load = function (request) {
+        if (request === '@module-federation/dts-plugin/core') {
+          return {
+            isTSProject(dts, context) {
+              assert.equal(dts, undefined);
+              assert.equal(context, process.cwd());
+              manifestDtsProjectChecks += 1;
+              return true;
+            },
+            retrieveTypesAssetsInfo(options) {
+              assert.equal(options.context, process.cwd());
+              assert.equal(options.generateAPITypes, true);
+              assert.equal(options.compileInChildProcess, true);
+              assert.equal(options.moduleFederationConfig.name, 'manifest_default_dts');
+              manifestDtsAssetLookups += 1;
+              return {
+                apiFileName: 'manifest-default.d.ts',
+                zipName: 'manifest-default.zip',
+              };
+            },
+          };
+        }
+        return originalLoad.apply(this, arguments);
+      };
+      assert.deepEqual(
+        getTypesMetaInfo({ name: 'manifest_default_dts' }, process.cwd()),
+        {
+          path: '',
+          name: '',
+          zip: 'manifest-default.zip',
+          api: 'manifest-default.d.ts',
+        },
+      );
+      assert.equal(manifestDtsProjectChecks, 1);
+      assert.equal(manifestDtsAssetLookups, 1);
+
+      const temporaryDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mf-rspack-proof-'));
+      try {
+        fs.writeFileSync(path.join(temporaryDir, 'entry.js'), 'export default 1;');
+        const pluginRequire = createRequire(process.env.RSPACK_PLUGIN);
+        const { rspack } = pluginRequire('@rspack/core');
+        const { ModuleFederationPlugin } = require(process.env.RSPACK_PLUGIN);
+        const compiler = rspack({
+          context: temporaryDir,
+          entry: './entry.js',
+          mode: 'production',
+          output: { path: path.join(temporaryDir, 'dist') },
+          plugins: [new ModuleFederationPlugin({
+            name: 'patch_behavior', dts: false, manifest: false,
+          })],
+        });
+        compiler.run((error, stats) => {
+          compiler.close(closeError => {
+            if (error) throw error;
+            if (closeError) throw closeError;
+            const compilationErrors = stats?.toJson({ all: false, errors: true }).errors ?? [];
+            assert.deepEqual(compilationErrors, []);
+          });
+        });
+
+        let defaultDtsConstructions = 0;
+        let defaultDtsApplications = 0;
+        let defaultDtsRuntimeRegistrations = 0;
+        Module._load = function (request) {
+          if (request === '@module-federation/dts-plugin') {
+            return {
+              DtsPlugin: class {
+                constructor(options) {
+                  assert.notEqual(options.dts, false);
+                  defaultDtsConstructions += 1;
+                }
+                apply() {
+                  defaultDtsApplications += 1;
+                }
+                addRuntimePlugins() {
+                  defaultDtsRuntimeRegistrations += 1;
+                }
+              },
+            };
+          }
+          return originalLoad.apply(this, arguments);
+        };
+        rspack({
+          context: temporaryDir,
+          entry: './entry.js',
+          mode: 'production',
+          output: { path: path.join(temporaryDir, 'dist-default-dts') },
+          plugins: [new ModuleFederationPlugin({
+            name: 'default_dts_behavior', manifest: false,
+          })],
+        });
+        assert.equal(defaultDtsConstructions, 1);
+        assert.equal(defaultDtsApplications, 1);
+        assert.equal(defaultDtsRuntimeRegistrations, 1);
+      } finally {
+        process.on('exit', () => fs.rmSync(temporaryDir, { recursive: true, force: true }));
+      }
+    `,
+    {
+      MANIFEST_UTILS: manifestUtils,
+      RSPACK_PLUGIN: rspackPlugin,
+    },
+  );
+}
+
+function assertModernJsV3PatchBehavior(): Promise<void> {
+  const packageDir = moduleFederationPackageDirectory('modern-js-v3');
+  const configPluginPath = path.join(
+    packageDir,
+    'dist/cjs/cli/configPlugin.js',
+  );
+  const configPlugin = require(configPluginPath) as {
+    moduleFederationConfigPlugin: (config: Record<string, unknown>) => {
+      setup(api: Record<string, unknown>): Promise<void>;
+    };
+    patchMFConfig(
+      config: Record<string, unknown>,
+      isServer: boolean,
+    ): Record<string, unknown>;
+    patchBundlerConfig(options: Record<string, unknown>): void;
+  };
+  const remoteConfig = {
+    name: 'consumer',
+    remotes: { catalog: 'catalog@https://example.test/mf-manifest.json' },
+  };
+  let configCallback: (() => { dev: { lazyCompilation: boolean } }) | undefined;
+  return configPlugin
+    .moduleFederationConfigPlugin({
+      originPluginOptions: { config: remoteConfig },
+      csrConfig: remoteConfig,
+    })
+    .setup({
+      getConfig: () => ({ dev: { lazyCompilation: true } }),
+      modifyBundlerChain: () => undefined,
+      config: (callback: typeof configCallback) => {
+        configCallback = callback;
+      },
+    })
+    .then(() => {
+      assert.equal(configCallback?.().dev.lazyCompilation, false);
+
+      const serverWorkspace = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'modern-js-v3-server-proof-'),
+      );
+      const runtimePackageDir = path.join(
+        serverWorkspace,
+        'node_modules/@modern-js/runtime',
+      );
+      const manifestRecoveryPath = path.join(
+        runtimePackageDir,
+        'dist/cjs/module-federation/manifest-recovery-runtime-plugin.js',
+      );
+      fs.mkdirSync(path.dirname(manifestRecoveryPath), { recursive: true });
+      fs.writeFileSync(
+        path.join(runtimePackageDir, 'package.json'),
+        `${JSON.stringify({ main: './index.js', name: '@modern-js/runtime' })}\n`,
+      );
+      fs.writeFileSync(
+        path.join(runtimePackageDir, 'index.js'),
+        'module.exports = {};\n',
+      );
+      fs.writeFileSync(
+        manifestRecoveryPath,
+        "module.exports = () => ({ name: 'manifest-recovery-proof' });\n",
+      );
+      const originalCwd = process.cwd();
+      process.chdir(serverWorkspace);
+      try {
+        const serverMfConfig = {
+          exposes: {},
+          name: 'server_consumer',
+          runtimePlugins: [],
+        };
+        configPlugin.patchMFConfig(serverMfConfig, true);
+        assert.equal(serverMfConfig.dts, false);
+        assert.deepEqual(serverMfConfig.library, {
+          name: 'server_consumer',
+          type: 'commonjs-module',
+        });
+        const manifestRecoveryRealPath = fs.realpathSync(manifestRecoveryPath);
+        assert.ok(
+          serverMfConfig.runtimePlugins.some(plugin => {
+            const pluginPath = Array.isArray(plugin) ? plugin[0] : plugin;
+            return fs.realpathSync(pluginPath) === manifestRecoveryRealPath;
+          }),
+          'server federation must inject the resolvable manifest recovery runtime',
+        );
+        assert.deepEqual(require(manifestRecoveryPath)(), {
+          name: 'manifest-recovery-proof',
+        });
+      } finally {
+        process.chdir(originalCwd);
+        fs.rmSync(serverWorkspace, { recursive: true, force: true });
+      }
+
+      const splitChunks = { cacheGroups: {}, chunks: 'all' };
+      const values = new Map<string, unknown>();
+      const output = {
+        get: (key: string) => values.get(key),
+        chunkLoadingGlobal: (value: unknown) =>
+          values.set('chunkLoadingGlobal', value),
+        uniqueName: (value: unknown) => values.set('uniqueName', value),
+      };
+      configPlugin.patchBundlerConfig({
+        chain: {
+          get: () => undefined,
+          ignoreWarnings: () => undefined,
+          optimization: {
+            delete: () => undefined,
+            splitChunks: { entries: () => splitChunks },
+          },
+          output,
+        },
+        modernjsConfig: {},
+        isServer: false,
+        mfConfig: { name: 'consumer' },
+        enableSSR: true,
+      });
+      assert.equal(splitChunks.chunks, 'async');
+
+      const defaultSplitChunks = { cacheGroups: {} };
+      configPlugin.patchBundlerConfig({
+        chain: {
+          get: () => undefined,
+          ignoreWarnings: () => undefined,
+          optimization: {
+            delete: () => undefined,
+            splitChunks: { entries: () => defaultSplitChunks },
+          },
+          output,
+        },
+        modernjsConfig: {},
+        isServer: false,
+        mfConfig: { name: 'default_consumer' },
+        enableSSR: true,
+      });
+      assert.equal(Object.hasOwn(defaultSplitChunks, 'chunks'), false);
+
+      const serverSplitChunks = { cacheGroups: {}, chunks: 'all' };
+      const serverOutputValues = new Map<string, unknown>([
+        ['chunkFilename', '[name].js'],
+      ]);
+      configPlugin.patchBundlerConfig({
+        chain: {
+          get: () => undefined,
+          ignoreWarnings: () => undefined,
+          optimization: {
+            delete: () => undefined,
+            splitChunks: { entries: () => serverSplitChunks },
+          },
+          output: {
+            get: (key: string) => serverOutputValues.get(key),
+            chunkFilename: (value: unknown) =>
+              serverOutputValues.set('chunkFilename', value),
+            chunkLoadingGlobal: (value: unknown) =>
+              serverOutputValues.set('chunkLoadingGlobal', value),
+            uniqueName: (value: unknown) =>
+              serverOutputValues.set('uniqueName', value),
+          },
+        },
+        modernjsConfig: {},
+        isServer: true,
+        mfConfig: { name: 'server_consumer' },
+        enableSSR: true,
+      });
+      assert.equal(serverSplitChunks.chunks, 'all');
+      assert.notEqual(serverOutputValues.get('chunkFilename'), '[name].js');
+    });
+}
+
+function assertModernJsRuntimeWrapperBehavior(): void {
+  const packageDir = moduleFederationPackageDirectory('modern-js-v3');
+  for (const relativePath of [
+    'dist/esm/react/index.mjs',
+    'dist/esm/react/data-fetch.mjs',
+  ]) {
+    const temporaryDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'modern-js-v3-wrapper-proof-'),
+    );
+    try {
+      const bridgePackageDir = path.join(
+        temporaryDir,
+        'node_modules/@module-federation/bridge-react',
+      );
+      fs.mkdirSync(bridgePackageDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(bridgePackageDir, 'package.json'),
+        `${JSON.stringify({
+          name: '@module-federation/bridge-react',
+          type: 'module',
+          exports: { '.': './index.js', './data-fetch': './index.js' },
+        })}\n`,
+      );
+      fs.writeFileSync(
+        path.join(bridgePackageDir, 'index.js'),
+        'export const createLazyComponent = options => options;\n',
+      );
+      const wrapperPath = path.join(temporaryDir, 'wrapper.mjs');
+      fs.copyFileSync(path.join(packageDir, relativePath), wrapperPath);
+      runNodeProof(
+        `
+          const assert = require('node:assert/strict');
+          import(process.env.WRAPPER_URL).then(module => {
+            assert.equal(module.createLazyComponent({ name: 'catalog' }).injectLink, false);
+            assert.equal(module.createLazyComponent({ name: 'catalog', injectLink: true }).injectLink, true);
+          });
+        `,
+        { WRAPPER_URL: pathToFileURL(wrapperPath).href },
+      );
+    } finally {
+      fs.rmSync(temporaryDir, { recursive: true, force: true });
+    }
+  }
+}
+
+function assertDeclarationPatchesCompile(): void {
+  const temporaryDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'ultramodern-declaration-patch-proof-'),
+  );
+  try {
+    const bridgePackageDir = moduleFederationPackageDirectory('bridge-react');
+    const temporaryBridgeDir = path.join(
+      temporaryDir,
+      'node_modules/@module-federation/bridge-react',
+    );
+    fs.mkdirSync(path.dirname(temporaryBridgeDir), { recursive: true });
+    fs.cpSync(bridgePackageDir, temporaryBridgeDir, { recursive: true });
+    const runtimeStubDir = path.join(
+      temporaryDir,
+      'node_modules/@module-federation/runtime',
+    );
+    fs.mkdirSync(runtimeStubDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(runtimeStubDir, 'package.json'),
+      `${JSON.stringify({
+        name: '@module-federation/runtime',
+        type: 'module',
+        exports: { '.': { types: './index.d.ts', default: './index.js' } },
+      })}\n`,
+    );
+    fs.writeFileSync(
+      path.join(runtimeStubDir, 'index.d.ts'),
+      [
+        'export declare const getInstance: () => unknown;',
+        'export interface ModuleFederationRuntimePlugin {}',
+        'export interface ModuleFederation {}',
+      ].join('\n'),
+    );
+    fs.writeFileSync(path.join(runtimeStubDir, 'index.js'), 'export {};\n');
+    const webpackStubDir = path.join(temporaryDir, 'node_modules/webpack');
+    fs.mkdirSync(webpackStubDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(webpackStubDir, 'package.json'),
+      `${JSON.stringify({ name: 'webpack', types: './index.d.ts' })}\n`,
+    );
+    fs.writeFileSync(
+      path.join(webpackStubDir, 'index.d.ts'),
+      'export interface Compiler {}\nexport interface Compilation {}\n',
+    );
+    const rootPackageJson = JSON.parse(
+      fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'),
+    ) as { devDependencies: Record<string, string> };
+    const dependencyVersions: Record<string, string | undefined> = {
+      '@module-federation/sdk': MODULE_FEDERATION_VERSION,
+      '@types/node': TYPES_NODE_VERSION.replace(/^\^/, ''),
+      '@types/react': rootPackageJson.devDependencies['@types/react']?.replace(
+        /^\^/,
+        '',
+      ),
+      '@types/react-dom': rootPackageJson.devDependencies[
+        '@types/react-dom'
+      ]?.replace(/^\^/, ''),
+      'undici-types': undefined,
+    };
+    for (const [packageName, exactVersion] of Object.entries(
+      dependencyVersions,
+    )) {
+      const normalizedPrefix = packageName.replace(/^@/, '@').replace('/', '+');
+      const storeEntry = fs
+        .readdirSync(pnpmModulesDir)
+        .find(entry =>
+          entry.startsWith(
+            `${normalizedPrefix}@${exactVersion ? exactVersion : ''}`,
+          ),
+        );
+      assert.ok(
+        storeEntry,
+        `${packageName} must be installed for declaration proof`,
+      );
+      const installedDependencyPath = path.join(
+        pnpmModulesDir,
+        storeEntry,
+        'node_modules',
+        packageName,
+      );
+      const temporaryDependencyPath = path.join(
+        temporaryDir,
+        'node_modules',
+        packageName,
+      );
+      fs.mkdirSync(path.dirname(temporaryDependencyPath), { recursive: true });
+      if (packageName === '@module-federation/sdk') {
+        fs.cpSync(installedDependencyPath, temporaryDependencyPath, {
+          recursive: true,
+        });
+      } else {
+        fs.symlinkSync(
+          fs.realpathSync(installedDependencyPath),
+          temporaryDependencyPath,
+          process.platform === 'win32' ? 'junction' : 'dir',
+        );
+      }
+    }
+
+    const installedDrizzleDir = packageStoreDirectory(
+      `drizzle-orm@${DRIZZLE_ORM_VERSION}`,
+      'drizzle-orm',
+    );
+    const temporaryDrizzleDir = path.join(
+      temporaryDir,
+      'node_modules/drizzle-orm',
+    );
+    fs.cpSync(installedDrizzleDir, temporaryDrizzleDir, { recursive: true });
+    const drizzlePatchPath = path.join(
+      templatePatchDir,
+      'drizzle-orm-ts7-strict-declarations.patch',
+    );
+    execFileSync('git', ['apply', '--check', drizzlePatchPath], {
+      cwd: temporaryDrizzleDir,
+      stdio: 'pipe',
+    });
+    execFileSync('git', ['apply', drizzlePatchPath], {
+      cwd: temporaryDrizzleDir,
+      stdio: 'pipe',
+    });
+
+    const proofPath = path.join(temporaryDir, 'declaration-proof.ts');
+    fs.writeFileSync(
+      proofPath,
+      [
+        "import { createRemoteAppComponent } from '@module-federation/bridge-react';",
+        "import { pgTable, serial, text } from 'drizzle-orm/pg-core';",
+        "import { sqliteTable, integer } from 'drizzle-orm/sqlite-core';",
+        'export const Remote = createRemoteAppComponent;',
+        "export const pg = pgTable('items', { id: serial().primaryKey(), name: text() });",
+        "export const sqlite = sqliteTable('items', { id: integer().primaryKey() });",
+      ].join('\n'),
+    );
+    execFileSync(
+      path.join(
+        repoRoot,
+        `node_modules/.bin/${process.platform === 'win32' ? 'tsgo.cmd' : 'tsgo'}`,
+      ),
+      [
+        '--noEmit',
+        '--strict',
+        '--skipLibCheck',
+        'false',
+        '--module',
+        'ESNext',
+        '--moduleResolution',
+        'Bundler',
+        '--target',
+        'ES2022',
+        '--lib',
+        'ES2022,DOM,DOM.Iterable,ESNext.Disposable',
+        '--types',
+        'node',
+        proofPath,
+      ],
+      { cwd: temporaryDir, stdio: 'inherit' },
+    );
+  } finally {
+    fs.rmSync(temporaryDir, { recursive: true, force: true });
+  }
+}
+
 test('shared UltraModern workspace patch list matches files present in both patch directories', () => {
   const repoPatchFiles = new Set(listPatchFiles(repoPatchDir));
   const templatePatchFiles = new Set(listPatchFiles(templatePatchDir));
@@ -269,4 +783,14 @@ for (const packageName of [
 
 test('Effect patch applies and the generated RPC public surface compiles', () => {
   assertEffectPatchAppliesAndPublicSurfaceCompiles();
+});
+
+test('Module Federation patches preserve default DTS, explicit opt-out, consumer, and SSR behavior', async () => {
+  assertModuleFederationRuntimePatchBehavior();
+  await assertModernJsV3PatchBehavior();
+  assertModernJsRuntimeWrapperBehavior();
+});
+
+test('Module Federation and Drizzle declaration patches compile on strict TypeScript 7', () => {
+  assertDeclarationPatchesCompile();
 });

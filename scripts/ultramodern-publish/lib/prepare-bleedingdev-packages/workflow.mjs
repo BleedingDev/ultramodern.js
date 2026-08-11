@@ -57,6 +57,7 @@ async function prepareBleedingdevPackages(options) {
 
   if (options.publishExisting) {
     const { allPackages, aliases } = collectModernPackages(options);
+    enforceSingleVersionPolicy(options, allPackages, allPackages);
     assertCleanCommittedSource(repoRoot, { expectedCommit: sourceCommit });
     const source = { ...resolveSourceIdentity(), commit: sourceCommit };
     const releaseArtifacts = verifyReleaseArtifacts(options.out, {

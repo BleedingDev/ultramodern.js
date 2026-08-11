@@ -27,6 +27,7 @@ import {
   slsaProvenanceV1,
   verifyRegistryProvenance,
 } from './provenance.mjs';
+import semver from '../../../../packages/toolkit/utils/compiled/semver/index.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -773,6 +774,18 @@ async function preflightRegistryPackages(
         throw new Error(
           `${item.targetName} dist-tag ${options.tag} points at ${item.version}, but that exact registry version is absent`,
         );
+      }
+      if (currentTag !== undefined) {
+        if (!semver.valid(item.version) || !semver.valid(currentTag)) {
+          throw new Error(
+            `${item.targetName} cannot compare candidate ${item.version} with current ${options.tag} ${currentTag} as strict semantic versions`,
+          );
+        }
+        if (!semver.gt(item.version, currentTag)) {
+          throw new Error(
+            `${item.targetName}@${item.version} must be greater than current ${options.tag} ${currentTag}`,
+          );
+        }
       }
       states.set(item.targetName, { currentTag, dist: null, exists: false });
       const prefix = options.dryRun

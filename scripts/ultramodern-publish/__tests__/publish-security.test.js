@@ -92,7 +92,7 @@ function cleanEnvironment(extra = {}) {
 
   return {
     ...env,
-    PUBLISH_VERSION: '3.2.0-ultramodern.45',
+    PUBLISH_VERSION: '3.8.1-ultramodern.1',
     PUBLISH_TAG: 'latest',
     PUBLISH_CONCURRENCY: '8',
     DRY_RUN: 'false',
@@ -304,6 +304,27 @@ test('publish security validation accepts the hermetic release workflows', () =>
 
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /Publish security validation passed/);
+});
+
+test('publish security validation rejects a release base that differs from source', () => {
+  const result = runSecurityValidation({
+    PUBLISH_VERSION: '3.5.0-ultramodern.103',
+  });
+
+  assert.notEqual(result.status, 0);
+  assert.match(
+    result.stderr,
+    /version must match the incorporated Modern\.js source 3\.8\.1-ultramodern\.<positive revision>/i,
+  );
+
+  const zeroRevision = runSecurityValidation({
+    PUBLISH_VERSION: '3.8.1-ultramodern.0',
+  });
+  assert.notEqual(zeroRevision.status, 0);
+  assert.match(
+    zeroRevision.stderr,
+    /version must match the incorporated Modern\.js source 3\.8\.1-ultramodern\.<positive revision>/i,
+  );
 });
 
 test('publish security validation rejects partial publish controls', () => {

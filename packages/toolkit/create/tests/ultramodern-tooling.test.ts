@@ -2048,6 +2048,7 @@ declare module '*.css' {}
       'locales/**/*.json',
       'package.json',
       'shared',
+      'server',
     ]);
 
     const catalogTsConfig = readJson(
@@ -2059,6 +2060,7 @@ declare module '*.css' {}
       'locales/**/*.json',
       'package.json',
       'shared',
+      'server',
       'api',
     ]);
 
@@ -2496,19 +2498,23 @@ test('generated app tsconfig uses sibling-relative vertical references', () => {
     },
   });
   const checkout = apps.find(app => app.id === 'checkout');
-  assert.deepEqual(
-    (
-      createAppTsConfig(
-        checkout!,
-        apps.filter(app => app.kind !== 'shell'),
-      ) as Record<string, unknown>
-    ).references,
-    [
-      { path: '../../packages/shared-contracts' },
-      { path: '../../packages/shared-design-tokens' },
-      { path: '../catalog' },
-    ],
-  );
+  const checkoutTsConfig = createAppTsConfig(
+    checkout!,
+    apps.filter(app => app.kind !== 'shell'),
+  ) as Record<string, unknown>;
+  assert.deepEqual(checkoutTsConfig.include, [
+    'src',
+    'locales/**/*.json',
+    'package.json',
+    'shared',
+    'server',
+    'api',
+  ]);
+  assert.deepEqual(checkoutTsConfig.references, [
+    { path: '../../packages/shared-contracts' },
+    { path: '../../packages/shared-design-tokens' },
+    { path: '../catalog' },
+  ]);
 });
 
 function fileMutationStamp(filePath: string) {

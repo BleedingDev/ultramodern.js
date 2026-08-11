@@ -2612,7 +2612,7 @@ const assertTsConfigReferenceGraph = () => {
   assert(baseTsConfig.compilerOptions?.skipLibCheck !== true, 'tsconfig.base.json must not use skipLibCheck');
   assertSameJson(
     shellTsConfig.include ?? [],
-    ['src', 'locales/**/*.json', 'package.json', 'shared'],
+    ['src', 'locales/**/*.json', 'package.json', 'shared', 'server'],
     'apps/shell-super-app/tsconfig.json include',
     'restore the generated shell typecheck boundary',
   );
@@ -2663,6 +2663,7 @@ const assertTsConfigReferenceGraph = () => {
         'locales/**/*.json',
         'package.json',
         'shared',
+        'server',
         ...(vertical.emitsApi ? ['api'] : []),
       ],
       `${vertical.path}/tsconfig.json include`,
@@ -2712,7 +2713,7 @@ const assertTsConfigReferenceGraph = () => {
     );
     assertSameJson(
       shellTsConfig.include ?? [],
-      ['src', 'locales/**/*.json', 'package.json', 'shared'],
+      ['src', 'locales/**/*.json', 'package.json', 'shared', 'server'],
       `${shell.path}/tsconfig.json include`,
       'restore the generated additional-shell typecheck boundary',
     );

@@ -1,17 +1,17 @@
 # FORK-DIVERGENCE — modified upstream files ledger
 
-Read this during every upstream sync. Merge-base: `8a744c1b` (v3.2.1), upstream = `origin` (web-infra-dev/modern.js).
+Read this during every upstream sync. Audited merge-base: `ecef47dcbbec018a169b9026affd8d01adf65219` (Modern.js v3.8.1 mainline release), upstream = `origin` (web-infra-dev/modern.js). The parallel `v3.8.1` release-tag commit has the same parent, tree, and stable patch-id.
 
 Scope: upstream files **modified** by the fork, plus upstream files the fork **deleted** or **renamed** (appendices below — they conflict differently). This ledger has two scopes:
 
 1. `packages/**` deltas, which are categorized by owning package below.
 2. Root/infra deltas outside `packages/**` (CI, scripts, tests, docs, workspace policy, patches, changesets), summarized in the root/infra section because they are not package-owned but are still part of the upstream sync blast radius.
 
-Regenerate the raw lists with rename detection pinned on (the counts depend on it; with `diff.renames=false` the 17 raw package renames surface as 17 D + 17 A and the M total shifts):
+Regenerate the raw lists with rename detection pinned on (the counts depend on it; without rename detection the moves surface as delete/add pairs):
 
 ```sh
-git diff -M 8a744c1b HEAD --name-status -- packages
-git diff -M 8a744c1b HEAD --name-status -- . ':(exclude)packages/**'
+git diff -M origin/main HEAD --name-status -- packages
+git diff -M origin/main HEAD --name-status -- . ':(exclude)packages/**'
 ```
 
 `M` lines are the body of this ledger; `D`/`R` lines are the appendices; `A` lines are fork-owned files and usually summarized rather than listed exhaustively.
@@ -22,18 +22,22 @@ Legend:
 
 - **[U]** upstreamable — a candidate to PR to web-infra-dev/modern.js in isolation.
 - **[F]** permanent fork divergence — only meaningful with the ultramodern lanes (Effect BFF, TanStack, Module Federation SSR/topology evidence, telemetry, tsgo toolchain). Includes coupled dependency migrations where `package.json` and source must be taken from the same side.
-- **[M]** mechanical — biome import re-sorting, `@effect-diagnostics` pragma headers (~73 of the 537 modified package files), tsconfig `rootDir`/`ignoreDeprecations`, package.json script/dep churn for the tsgo + rstest toolchain. Safe to take either side on conflict; prefer upstream content and re-run biome/pragma tooling.
+- **[M]** mechanical — biome import re-sorting, `@effect-diagnostics` pragma headers, tsconfig `rootDir`/`ignoreDeprecations`, package.json script/dep churn for the tsgo + rstest toolchain. Safe to take either side on conflict; prefer upstream content and re-run biome/pragma tooling.
 
-Total at last audit (2026-06-13, post Phase A-C brutal-cleanup branch `ultracode/brutal-cleanup`):
+Total at the Modern.js 3.8.1 audit boundary (2026-08-11):
 
-- Raw package diff: 537 M, 335 A, 5 D, 17 R, total 894 paths.
-- Ledger classification: 537 modified upstream files, 19 delete/template-move
-  review items, 3 non-exact renames. The 14 exact `R100` moves from
+- Raw package diff: 581 M, 846 A, 11 D, 18 R, total 1,456 paths.
+- Ledger classification: 581 modified upstream files, 26 delete/template-move
+  review items, 3 non-exact renames. The 15 exact template moves from
   `packages/toolkit/create/template/**` to
-  `packages/toolkit/sandpack-react/scripts/mwa-template/**` are treated as
-  keep-deleted from their original upstream paths during merge review; the
-  remaining three non-exact renames stay in Appendix B.
-- root/infra outside `packages/**`: 835 paths changed from `8a744c1b` (`371 M`, `461 A`, `3 D`, `0 R`). These are mostly fork-owned additions, but the modified/deleted upstream files still conflict during sync and are summarized below.
+  `packages/toolkit/sandpack-react/scripts/mwa-template/**` or
+  `template-workspace/**` are treated as keep-deleted from their original
+  upstream paths during merge review; the remaining three non-exact renames
+  stay in Appendix B.
+- root/infra outside `packages/**`: 1,220 paths changed from `origin/main`
+  (`467 M`, `715 A`, `7 D`, `31 R`). These are mostly fork-owned additions,
+  but modified/deleted/renamed upstream files still require explicit sync
+  review and are summarized below.
 
 ---
 
@@ -151,7 +155,7 @@ Toolchain only: package.json scripts, rslib config, tsconfig `ignoreDeprecations
 
 - `src/createBuilder.ts`, `src/shared/parseCommonConfig.ts`, `src/types.ts` — [F] `performance.rsdoctor` opt-in config surface (`RsdoctorUserConfig`) and default HTML `templateParameters`. The fork-added `src/plugins/rsdoctor.ts` and `src/rsdoctorConfig.ts` carry the RsDoctor plugin split; RsDoctor defaults to OFF after the ADR-0001 revert (a210ac658d), and `tests/rsdoctor.test.ts` pins the behavior.
 - `src/plugins/postcss.ts` — [U] resolves postcss/tailwind plugins from the app root via `createRequire` so monorepo/workspace installs resolve correctly.
-- `src/plugins/rscConfig.ts`, `src/shared/rsc/rscClientBrowserFallback.ts`, `src/shared/devServer.ts` — [F] RSC layer matching extended to fork render-package dist entries (`render/dist/esm/rsc.mjs`) and server-loader entry patterns.
+- `src/plugins/rscConfig.ts`, `src/shared/rsc/rscDisabledRuntime.ts`, `src/shared/devServer.ts` — [F] RSC layer matching extended to fork render-package dist entries (`render/dist/esm/rsc.mjs`) and server-loader entry patterns. The upstream `rscClientBrowserFallback.ts` is intentionally deleted: the replacement uses explicit entrypoint-specific throwing modules so disabled RSC fails closed even when the optional runtime is resolvable.
 - `src/index.ts` — [M] export reshuffle.
 - `tests/*` (8 files incl. snapshots) — [F] track the above behaviors.
 
@@ -310,23 +314,24 @@ Server/CLI type surface additions: tanstack route fields (`loaderDeps`, `validat
 
 ---
 
-## Appendix A — deleted or template-moved upstream files (19): keep deleted on sync
+## Appendix A — deleted or template-moved upstream files (26): keep deleted on sync
 
-Raw `-M` reports 5 deleted files plus 14 exact `R100` template moves. Treat all
-19 original upstream paths as keep-deleted during sync. On merge they conflict
+Raw `-M` against Modern.js 3.8.1 reports 11 deleted files plus 15 template
+moves. Treat all 26 original upstream paths as keep-deleted during sync. On merge they conflict
 as delete/modify, rename/modify, or silently resurrect — re-delete the original
 path and port any upstream change into the listed fork replacement instead.
 
+- `packages/cli/builder/src/shared/rsc/rscClientBrowserFallback.ts` — replaced by fork-owned `rscDisabledRuntime.ts` and entrypoint-specific throwing modules. Keep deleted; disabled RSC must override resolvable optional peers and fail closed.
+- Five exact-output snapshots are intentionally deleted in favor of structured/compiler/runtime behavior checks: `packages/cli/builder/tests/__snapshots__/{default.test.ts.snap,environment.test.ts.snap}`, `packages/runtime/plugin-runtime/tests/router/__snapshots__/templates.test.ts.snap`, `packages/server/bff-core/tests/client/__snapshots__/generateClient.test.ts.snap`, and `packages/server/core/tests/utils/__snapshots__/error.test.ts.snap`. Do not restore source/generated-output snapshot oracles during sync.
 - `packages/runtime/render/modern.config.js` — build config replaced by fork-added `rslib.config.mts`. Keep deleted; port upstream build-config changes into the rslib config.
 - `packages/server/utils/src/compilers/typescript/typescriptLoader.ts` — the TS compile path was rebuilt around tsgo (see the `server/utils` entry above). Keep deleted; re-express upstream loader fixes in the fork's tsgo compiler path under `src/compilers/typescript/`.
 - `packages/solutions/app-tools/src/esm/ts-node-loader.mjs` + `packages/solutions/app-tools/tests/utils/ts-node-loader.test.ts` — ts-node ESM loader dropped for the tsgo toolchain; the fork keeps `src/esm/register-esm.mjs` and `src/esm/ts-paths-loader.mjs`. Keep deleted; map upstream loader changes onto `ts-paths-loader.mjs`.
-- `packages/toolkit/create/template/**` (14 files: `.browserslistrc`, `.gitignore.handlebars`, `.npmrc`, `.nvmrc`, `README.md`, `biome.json`, `modern.config.ts`, `package.json.handlebars`, `tsconfig.json`, `src/modern-app-env.d.ts`, `src/modern.runtime.ts`, `src/routes/{index.css,layout.tsx,page.tsx}`) — the handlebars single-app template was replaced by the fork-added ultramodern workspace generator (`src/ultramodern-workspace/`, `template-workspace/`, `templates/`). Keep deleted; mirror upstream template-content changes in the workspace templates only where they still apply. The upstream single-app template content is additionally vendored byte-identically at `packages/toolkit/sandpack-react/scripts/mwa-template/` (with `biome.json` stored as `biome.json.handlebars`) as the source of the Sandpack `web-app` template — mirror upstream `create/template` content changes there too.
-Post-baseline addition (not in the 19 above, because the file does not exist at
-`8a744c1b`):
+- `packages/toolkit/create/template/**` (15 files: `CLAUDE.md`, `.browserslistrc`, `.gitignore.handlebars`, `.npmrc`, `.nvmrc`, `README.md`, `biome.json`, `modern.config.ts`, `package.json.handlebars`, `tsconfig.json`, `src/modern-app-env.d.ts`, `src/modern.runtime.ts`, `src/routes/{index.css,layout.tsx,page.tsx}`) — the handlebars single-app template was replaced by the fork-added ultramodern workspace generator (`src/ultramodern-workspace/`, `template-workspace/`, `templates/`). `CLAUDE.md` moved to `template-workspace/CLAUDE.md.handlebars`; the other upstream single-app template files moved to `packages/toolkit/sandpack-react/scripts/mwa-template/` (with `biome.json` stored as `biome.json.handlebars`). Keep the original paths deleted and mirror later upstream content only where it still applies to those owning replacements.
+- `packages/toolkit/sandpack-react/scripts/template.ts` — replaced by fork-added `scripts/template.mts` run via `node --experimental-strip-types` (see `package.json:37`). Keep deleted; apply upstream script changes to the `.mts` version. `template.mts` now renders `scripts/mwa-template/` (upstream MWA content) instead of `template-workspace`, and the generated `src/templates/{mwa,common}.ts` are untracked gitignored build outputs again, matching upstream.
+
+Additional upstream deletion outside the package count above:
 
 - `examples/basic-withZephyr/.npmrc` — (2026-08-03) upstream ships this file containing only `strict-peer-dependencies=false`. pnpm 11 does not read `strict-peer-dependencies` from `.npmrc` at all (only `pnpm-workspace.yaml` `strictPeerDependencies` / the CLI flag take effect — same reason the root `.npmrc` settings were migrated), so it is dead config that misleads anyone debugging peer resolution in this example. Keep deleted on sync.
-
-- `packages/toolkit/sandpack-react/scripts/template.ts` — replaced by fork-added `scripts/template.mts` run via `node --experimental-strip-types` (see `package.json:37`). Keep deleted; apply upstream script changes to the `.mts` version. `template.mts` now renders `scripts/mwa-template/` (upstream MWA content) instead of `template-workspace`, and the generated `src/templates/{mwa,common}.ts` are untracked gitignored build outputs again, matching upstream.
 
 ## Appendix B — renamed + modified upstream files (3): follow the rename
 
