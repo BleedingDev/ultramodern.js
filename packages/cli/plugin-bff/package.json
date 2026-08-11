@@ -78,6 +78,10 @@
     },
     "./effect-edge": {
       "types": "./dist/types/runtime/effect/edge.d.ts",
+      "node": {
+        "import": "./dist/esm-node/runtime/effect/edge.mjs",
+        "require": "./dist/cjs/runtime/effect/edge.js"
+      },
       "import": "./dist/esm/runtime/effect/edge.mjs",
       "default": "./dist/esm/runtime/effect/edge.mjs"
     },

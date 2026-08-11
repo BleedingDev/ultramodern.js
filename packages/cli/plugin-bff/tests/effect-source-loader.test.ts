@@ -8,6 +8,7 @@ import apiLoader, { type APILoaderOptions } from '../src/loader';
 import { EffectAdapter } from '../src/runtime/effect/adapter';
 import { generateEffectClient } from '../src/utils/effectClientGenerator';
 import {
+  bundleEffectEntryForNode,
   loadEffectBuiltModule,
   loadEffectSourceModule,
 } from '../src/utils/effectSourceLoader';
@@ -149,6 +150,110 @@ const buildEffectWorkerRuntimeModule = async ({
 };
 
 describe('Effect source graph loading', () => {
+  test('keeps CommonJS Effect client and edge entrypoints on one runtime identity', async () => {
+    const appDir = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), 'modern-plugin-bff-effect-runtime-identity-'),
+    );
+
+    try {
+      const pluginManifest = JSON.parse(
+        await fs.promises.readFile(
+          path.join(__dirname, '../package.json'),
+          'utf8',
+        ),
+      ) as {
+        exports: Record<string, unknown>;
+      };
+      const pluginDirectory = path.join(
+        appDir,
+        'node_modules',
+        '@modern-js',
+        'plugin-bff',
+      );
+      const effectDirectory = path.join(appDir, 'node_modules', 'effect');
+      const runtimeTargets = (value: unknown): string[] => {
+        if (typeof value === 'string') {
+          return value.endsWith('.d.ts') ? [] : [value];
+        }
+        if (value === null || typeof value !== 'object') {
+          return [];
+        }
+        return Object.values(value).flatMap(runtimeTargets);
+      };
+      const writeRuntimeTargets = async (
+        exportEntry: unknown,
+        esmSource: string,
+        commonJsSource: string,
+      ) => {
+        for (const target of new Set(runtimeTargets(exportEntry))) {
+          await writeFile(
+            path.join(pluginDirectory, target),
+            target.endsWith('.mjs') ? esmSource : commonJsSource,
+          );
+        }
+      };
+
+      await writeFile(
+        path.join(pluginDirectory, 'package.json'),
+        JSON.stringify({
+          name: '@modern-js/plugin-bff',
+          exports: {
+            './effect-client': pluginManifest.exports['./effect-client'],
+            './effect-edge': pluginManifest.exports['./effect-edge'],
+          },
+        }),
+      );
+      await writeRuntimeTargets(
+        pluginManifest.exports['./effect-client'],
+        `import { missing } from 'effect/Schema';
+export const makeSchema = () => ({ missing });`,
+        `const { missing } = require('effect/Schema');
+exports.makeSchema = () => ({ missing });`,
+      );
+      await writeRuntimeTargets(
+        pluginManifest.exports['./effect-edge'],
+        `import { missing } from 'effect/Schema';
+export const decode = schema =>
+  schema.missing === missing ? 'missing' : Number(schema.missing);`,
+        `const { missing } = require('effect/Schema');
+exports.decode = schema =>
+  schema.missing === missing ? 'missing' : Number(schema.missing);`,
+      );
+      await writeFile(
+        path.join(effectDirectory, 'package.json'),
+        JSON.stringify({
+          name: 'effect',
+          type: 'module',
+          exports: {
+            './Schema': './Schema.js',
+          },
+        }),
+      );
+      await writeFile(
+        path.join(effectDirectory, 'Schema.js'),
+        `export const missing = Symbol('effect-schema-missing');`,
+      );
+
+      const entryPath = path.join(appDir, 'api.cjs');
+      await writeFile(
+        entryPath,
+        `const client = require('@modern-js/plugin-bff/effect-client');
+const edge = require('@modern-js/plugin-bff/effect-edge');
+module.exports = edge.decode(client.makeSchema());`,
+      );
+
+      await bundleEffectEntryForNode({
+        appDir,
+        entryPath,
+        format: 'cjs',
+      });
+
+      expect(createRequire(entryPath)(entryPath)).toBe('missing');
+    } finally {
+      await fs.promises.rm(appDir, { recursive: true, force: true });
+    }
+  });
+
   test('loads a built CommonJS Effect artifact without changing its native module boundary', async () => {
     const appDir = await fs.promises.mkdtemp(
       path.join(os.tmpdir(), 'modern-plugin-bff-effect-built-commonjs-'),

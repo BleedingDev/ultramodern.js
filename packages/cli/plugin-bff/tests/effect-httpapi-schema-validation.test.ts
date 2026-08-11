@@ -40,7 +40,7 @@ const recommendationsApi = HttpApi.make('RecommendationsContractTestApi').add(
     .add(
       HttpApiEndpoint.get('list', '/recommendations', {
         query: {
-          limit: Schema.optional(Schema.NumberFromString),
+          limit: Schema.optional(Schema.FiniteFromString),
         },
         success: Schema.Struct({
           items: Schema.Array(recommendationItemSchema),
