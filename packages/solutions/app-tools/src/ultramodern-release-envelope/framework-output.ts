@@ -604,13 +604,15 @@ const createReleaseArtifactInputs = async (
     distDirectory,
     identity,
     {
-      apiBackend: target === 'node' ? nodeApiEntryPaths : apiBackendPaths,
+      apiBackend: apiBackendPaths,
       backendFederation: [
         BACKEND_FEDERATION_MANIFEST_FILE,
         BACKEND_FEDERATION_REMOTE_ENTRY_FILE,
       ],
       ssr: [...new Set([...ssrExecutionPaths, ...ssrPaths])],
-      uiClient: clientExecutionPaths,
+      uiClient: uiClientPaths.filter(logicalPath =>
+        COMPILED_MODULE_PATTERN.test(logicalPath),
+      ),
     },
   );
   return {
@@ -850,9 +852,7 @@ const createNodeStagedReleaseArtifactInputs = async (
     outputDirectory,
     identity,
     {
-      apiBackend: apiBackendPaths.filter(logicalPath =>
-        logicalPath.startsWith('api/'),
-      ),
+      apiBackend: apiBackendPaths,
       backendFederation: [
         BACKEND_FEDERATION_MANIFEST_FILE,
         BACKEND_FEDERATION_REMOTE_ENTRY_FILE,
@@ -863,7 +863,9 @@ const createNodeStagedReleaseArtifactInputs = async (
           ...ssrPaths.filter(logicalPath => logicalPath !== 'index.js'),
         ]),
       ],
-      uiClient: clientExecutionPaths,
+      uiClient: uiClientPaths.filter(logicalPath =>
+        COMPILED_MODULE_PATTERN.test(logicalPath),
+      ),
     },
   );
   return {
@@ -1051,7 +1053,9 @@ const createCloudflareStagedReleaseArtifactInputs = async (
           ...ssrPaths.filter(logicalPath => logicalPath.startsWith('worker/')),
         ]),
       ],
-      uiClient: clientExecutionPaths,
+      uiClient: uiClientPaths.filter(logicalPath =>
+        COMPILED_MODULE_PATTERN.test(logicalPath),
+      ),
     },
   );
   return {

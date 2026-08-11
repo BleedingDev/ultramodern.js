@@ -323,6 +323,75 @@ describe('framework target-specific MicroVertical release-envelope integration',
     ).rejects.toThrow('digest does not match final artifact bytes');
   });
 
+  it('covers every executable surface artifact without cross-claiming runtimes', async () => {
+    const fixture = await createTargetBuildOutput('node');
+    await Promise.all([
+      fs.writeFile(
+        path.join(fixture.distDirectory, 'static/lazy.js'),
+        compiledModule(),
+      ),
+      fs.writeFile(
+        path.join(fixture.distDirectory, 'remoteEntry.js'),
+        compiledModule(),
+      ),
+      fs.writeFile(
+        path.join(fixture.distDirectory, 'bundles/remoteEntry.js'),
+        compiledModule(),
+      ),
+      fs.mkdir(path.join(fixture.distDirectory, 'shared'), { recursive: true }),
+    ]);
+    await fs.writeFile(
+      path.join(fixture.distDirectory, 'shared/runtime.js'),
+      compiledModule(),
+    );
+    await writeJson(path.join(fixture.distDirectory, 'mf-manifest.json'), {
+      name: 'verticalCatalog',
+      remoteEntry: {
+        path: 'remoteEntry.js',
+      },
+      exposes: [
+        {
+          path: './Route',
+          assets: {
+            js: {
+              sync: ['static/catalog.js'],
+              async: [],
+            },
+          },
+        },
+      ],
+    });
+
+    await emitFrameworkMicroVerticalReleaseEnvelope({
+      apiOnly: false,
+      distDirectory: fixture.distDirectory,
+      target: 'node',
+    });
+    const metadata = JSON.parse(
+      await fs.readFile(
+        path.join(
+          fixture.distDirectory,
+          'release/microvertical-release-identity-carriers.json',
+        ),
+        'utf8',
+      ),
+    );
+    expect(
+      metadata.carriers
+        .filter((carrier: { surfaces: string[] }) =>
+          carrier.surfaces.includes('uiClient'),
+        )
+        .map((carrier: { logicalPath: string }) => carrier.logicalPath),
+    ).toEqual(['remoteEntry.js', 'static/catalog.js', 'static/lazy.js']);
+    expect(
+      metadata.carriers
+        .filter((carrier: { surfaces: string[] }) =>
+          carrier.surfaces.includes('apiBackend'),
+        )
+        .map((carrier: { logicalPath: string }) => carrier.logicalPath),
+    ).toEqual(['api/index.js', 'shared/runtime.js']);
+  });
+
   it('reseals generated public assets into the final target envelopes', async () => {
     const nodeFixture = await createTargetBuildOutput('node');
     const firstNodeEnvelope = await emitFrameworkMicroVerticalReleaseEnvelope({

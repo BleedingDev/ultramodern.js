@@ -36,3 +36,6 @@ entries, preserving module identity without a mutable runtime chunk dispatcher.
 An explicit lazy-mode override fails output verification; the verifier rejects
 every nonliteral `import()` specifier instead of granting a compiler-shaped
 exception.
+Release identity carrier metadata now exactly covers every executable artifact
+declared by each UI, SSR, API/backend, and federation surface without claiming
+artifacts from a different runtime surface.
