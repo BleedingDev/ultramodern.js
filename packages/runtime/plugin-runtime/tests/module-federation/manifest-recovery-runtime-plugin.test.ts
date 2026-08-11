@@ -1,7 +1,85 @@
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { rspack } from '@rsbuild/core';
 import {
   createModuleFederationManifestRecoveryPlugin,
   type ModuleFederationManifestRecoveryPluginOptions,
 } from '../../src/module-federation/manifest-recovery-runtime-plugin';
+
+const recoveryPluginEntry = path.resolve(
+  __dirname,
+  '../../src/module-federation/manifest-recovery-runtime-plugin.ts',
+);
+
+const compileBrowserRecoveryPlugin = async () => {
+  const outputPath = await mkdtemp(
+    path.join(tmpdir(), 'modern-manifest-recovery-browser-'),
+  );
+
+  try {
+    const compiler = rspack({
+      context: path.dirname(recoveryPluginEntry),
+      entry: recoveryPluginEntry,
+      mode: 'production',
+      module: {
+        rules: [
+          {
+            test: /\.[cm]?[jt]sx?$/,
+            type: 'javascript/auto',
+            use: [
+              {
+                loader: 'builtin:swc-loader',
+                options: {
+                  jsc: {
+                    parser: {
+                      syntax: 'typescript',
+                    },
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      },
+      output: {
+        filename: 'manifest-recovery.js',
+        library: {
+          type: 'commonjs2',
+        },
+        path: outputPath,
+      },
+      target: 'web',
+    });
+
+    await new Promise<void>((resolve, reject) => {
+      compiler.run((runError, compilationStats) => {
+        compiler.close(closeError => {
+          const error = runError ?? closeError;
+          if (error !== null && error !== undefined) {
+            reject(error);
+            return;
+          }
+          if (compilationStats === undefined || compilationStats.hasErrors()) {
+            reject(
+              new Error(
+                compilationStats?.toString({
+                  all: false,
+                  errors: true,
+                  warnings: true,
+                }) ?? 'Rspack did not return compilation stats.',
+              ),
+            );
+            return;
+          }
+          resolve();
+        });
+      });
+    });
+  } finally {
+    await rm(outputPath, { force: true, recursive: true });
+  }
+};
 
 type RecoveryHook = NonNullable<
   ReturnType<
@@ -36,6 +114,10 @@ const args = (error: unknown = new TypeError('fetch failed')) =>
   }) as Parameters<RecoveryHook>[0];
 
 describe('Module Federation manifest recovery runtime plugin', () => {
+  test('builds as a browser runtime without Node-only dependencies', async () => {
+    await expect(compileBrowserRecoveryPlugin()).resolves.toBeUndefined();
+  });
+
   test('retries a transient manifest network failure and returns valid JSON', async () => {
     const calls: string[] = [];
     const fetchImpl: typeof fetch = async input => {

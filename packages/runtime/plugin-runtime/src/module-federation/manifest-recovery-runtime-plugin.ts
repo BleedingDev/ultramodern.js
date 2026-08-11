@@ -1,4 +1,4 @@
-import { wait } from '@modern-js/utils';
+import { wait } from '@modern-js/utils/universal';
 
 const DEFAULT_ATTEMPTS = 3;
 const DEFAULT_RETRY_DELAY_MS = 100;

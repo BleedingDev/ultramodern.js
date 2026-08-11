@@ -6,6 +6,8 @@
 '@modern-js/plugin-bff': patch
 '@modern-js/plugin-tanstack': patch
 '@modern-js/render': patch
+'@modern-js/runtime': patch
+'@modern-js/utils': patch
 ---
 
 Advance the UltraModern generator, Effect BFF lane, and TanStack integration to
@@ -17,3 +19,6 @@ distribution. The Rspack RSC toolchain is now an explicit optional peer of the
 framework packages, while the patched upstream runtime is retained only as an
 exact root development input for framework regression tests. Generated and
 migrated applications receive neither an RSC runtime nor a consumer-side patch.
+The Module Federation manifest-recovery runtime also keeps its retry timer on
+the browser-safe universal utilities surface so client bundles never traverse
+Node-only framework utilities.

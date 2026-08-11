@@ -1,5 +1,7 @@
 import debug from '../../compiled/debug';
 
+export { wait } from '../universal/wait';
+
 /**
  * Create debug function with unified namespace prefix.
  * @param scope - Custom module name of your debug function.
@@ -12,8 +14,3 @@ export const clearConsole = () => {
     process.stdout.write('\x1B[H\x1B[2J');
   }
 };
-
-export const wait = (time = 0) =>
-  new Promise(resolve => {
-    setTimeout(resolve, time);
-  });
