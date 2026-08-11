@@ -72,34 +72,9 @@ jobs:
           version: 2026.8.3
           working_directory: tractor
 
-      - name: Provision manifest-pinned pnpm
+      - name: Provision Tractor acceptance dependencies
         working-directory: modernjs
-        run: |
-          pnpm_version="$(
-            node --input-type=module <<'NODE'
-          import fs from 'node:fs';
-          const manifest = JSON.parse(
-            fs.readFileSync('.modern/bleedingdev-publish/manifest.json', 'utf8'),
-          );
-          const version = manifest.tools?.pnpm;
-          if (
-            typeof version !== 'string' ||
-            !/^[1-9]\d*\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$/u.test(version)
-          ) {
-            throw new Error(
-              `Release manifest must bind an exact pnpm version, found ${String(version)}`,
-            );
-          }
-          process.stdout.write(version);
-          NODE
-          )"
-          mise install "pnpm@$pnpm_version"
-          pnpm_root="$(mise where "pnpm@$pnpm_version")"
-          pnpm_executable="$pnpm_root/pnpm"
-          test -x "$pnpm_executable"
-          actual_version="$("$pnpm_executable" --version)"
-          test "$actual_version" = "$pnpm_version"
-          echo "ULTRAMODERN_PNPM_EXECUTABLE=$pnpm_executable" >> "$GITHUB_ENV"
+        run: node scripts/ultramodern-publish/provision-tractor-acceptance.mjs
 
       - name: Install Chromium
         working-directory: tractor
@@ -107,39 +82,21 @@ jobs:
 
       - name: Run exact-cohort Tractor acceptance
         working-directory: tractor
-        run: |
-          mise exec -- node ../modernjs/scripts/ultramodern-production-readiness/run-tractor-downstream-acceptance.mjs \
-            --manifest ../modernjs/.modern/bleedingdev-publish/manifest.json \
-            --workspace . \
-            --registry-url https://registry.npmjs.org/ \
-            --out ../modernjs/.modern/production-readiness/tractor-downstream-acceptance.json
+        run: >-
+          mise exec -- node
+          ../modernjs/scripts/ultramodern-production-readiness/run-tractor-downstream-acceptance.mjs
+          --manifest ../modernjs/.modern/bleedingdev-publish/manifest.json
+          --workspace .
+          --registry-url https://registry.npmjs.org/
+          --out ../modernjs/.modern/production-readiness/tractor-downstream-acceptance.json
 
       - name: Bind Tractor acceptance evidence
         id: evidence
         if: always()
+        working-directory: modernjs
         env:
           TRACTOR_REF: ${{ inputs.tractor_ref }}
-        run: |
-          node <<'NODE'
-          const crypto = require('node:crypto');
-          const fs = require('node:fs');
-          const path = 'modernjs/.modern/production-readiness/tractor-downstream-acceptance.json';
-          const artifactName = `ultramodern-tractor-downstream-acceptance-${process.env.TRACTOR_REF}-attempt-${process.env.GITHUB_RUN_ATTEMPT}`;
-          fs.appendFileSync(
-            process.env.GITHUB_OUTPUT,
-            `artifact_name=${artifactName}\nbaseline_revision=${process.env.TRACTOR_REF}\n`,
-          );
-          const bytes = fs.readFileSync(path);
-          const report = JSON.parse(bytes);
-          if (report.tractor?.baselineRevision !== process.env.TRACTOR_REF) {
-            throw new Error('Tractor acceptance report is not bound to the immutable baseline');
-          }
-          const sha256 = crypto.createHash('sha256').update(bytes).digest('hex');
-          fs.appendFileSync(
-            process.env.GITHUB_OUTPUT,
-            `report_sha256=${sha256}\n`,
-          );
-          NODE
+        run: node scripts/ultramodern-publish/bind-tractor-acceptance-evidence.mjs
 
       - name: Upload Tractor acceptance evidence
         if: always()

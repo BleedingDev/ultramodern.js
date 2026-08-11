@@ -41,6 +41,23 @@ const publishedAcceptanceArtifact = 'bleedingdev-published-acceptance';
 const releaseIdentityArtifact = 'bleedingdev-release-identity';
 const tractorAcceptanceWorkflow =
   './.github/workflows/ultramodern-tractor-downstream.yml';
+const tractorDependencyProvisionCommand =
+  'node scripts/ultramodern-publish/provision-tractor-acceptance.mjs';
+const tractorAcceptanceCommand =
+  'mise exec -- node ../modernjs/scripts/ultramodern-production-readiness/run-tractor-downstream-acceptance.mjs --manifest ../modernjs/.modern/bleedingdev-publish/manifest.json --workspace . --registry-url https://registry.npmjs.org/ --out ../modernjs/.modern/production-readiness/tractor-downstream-acceptance.json';
+const tractorEvidenceBindingCommand =
+  'node scripts/ultramodern-publish/bind-tractor-acceptance-evidence.mjs';
+const tractorChromiumInstallCommand =
+  'mise exec -- npx --yes playwright@1.60.0 install --with-deps chromium';
+const hardenRunnerAction =
+  'step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5';
+const checkoutAction =
+  'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1';
+const downloadArtifactAction =
+  'actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c';
+const uploadArtifactAction =
+  'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a';
+const miseAction = 'jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654';
 const tractorAcceptanceRef = 'cb6974e31bc919c86ae5bb86044409f0f1e036d5';
 const releaseManifestPath = '.modern/bleedingdev-publish/manifest.json';
 const releaseManifestDigestPath =
@@ -121,6 +138,13 @@ function requireCondition(condition, message) {
   if (!condition) {
     fail(message);
   }
+}
+
+function hasExactKeys(value, keys) {
+  return (
+    JSON.stringify(Object.keys(value).sort()) ===
+    JSON.stringify([...keys].sort())
+  );
 }
 
 function parseWorkflow(filePath, context) {
@@ -1914,6 +1938,11 @@ function validateReadinessWorkflow(workflow) {
 }
 
 function validateTractorWorkflow(workflow) {
+  requireCondition(
+    JSON.stringify(Object.keys(workflow).sort()) ===
+      JSON.stringify(['jobs', 'name', 'on', 'permissions']),
+    'Tractor acceptance workflow must not override the reviewed execution environment',
+  );
   const triggers = requireRecord(
     workflow.on,
     'Tractor acceptance workflow triggers',
@@ -2002,10 +2031,52 @@ function validateTractorWorkflow(workflow) {
     );
   }
   requireCondition(
-    job['timeout-minutes'] === 45 &&
-      !Object.hasOwn(job, 'permissions') &&
-      !Object.hasOwn(job, 'environment'),
+    job['runs-on'] === 'ubuntu-latest' &&
+      job['timeout-minutes'] === 45 &&
+      JSON.stringify(Object.keys(job).sort()) ===
+        JSON.stringify([
+          'name',
+          'outputs',
+          'runs-on',
+          'steps',
+          'timeout-minutes',
+        ]),
     'Tractor acceptance workflow job must be bounded and inherit read-only authority',
+  );
+  const steps = stepsFor(job, 'Tractor acceptance workflow job');
+  const expectedStepNames = [
+    'Harden Runner',
+    'Checkout acceptance runner',
+    'Checkout immutable Tractor baseline',
+    'Download exact release bundle',
+    'Setup mise',
+    'Provision Tractor acceptance dependencies',
+    'Install Chromium',
+    'Run exact-cohort Tractor acceptance',
+    'Bind Tractor acceptance evidence',
+    'Upload Tractor acceptance evidence',
+  ];
+  requireCondition(
+    JSON.stringify(steps.map(step => step.name)) ===
+      JSON.stringify(expectedStepNames),
+    'Tractor acceptance workflow must contain exactly the reviewed step sequence',
+  );
+
+  const hardenRunner = namedStep(
+    job,
+    'Harden Runner',
+    'Tractor acceptance workflow job',
+  );
+  const hardenRunnerWith = requireRecord(
+    hardenRunner.with,
+    'Tractor Harden Runner inputs',
+  );
+  requireCondition(
+    hasExactKeys(hardenRunner, ['name', 'uses', 'with']) &&
+      hardenRunner.uses === hardenRunnerAction &&
+      hasExactKeys(hardenRunnerWith, ['egress-policy']) &&
+      hardenRunnerWith['egress-policy'] === 'audit',
+    'Tractor acceptance must use the exact reviewed Harden Runner action',
   );
   const jobOutputs = requireRecord(
     job.outputs,
@@ -2031,7 +2102,14 @@ function validateTractorWorkflow(workflow) {
     'Tractor acceptance runner checkout',
   );
   requireCondition(
-    runnerCheckoutWith['fetch-depth'] === 1 &&
+    hasExactKeys(runnerCheckout, ['name', 'uses', 'with']) &&
+      runnerCheckout.uses === checkoutAction &&
+      hasExactKeys(runnerCheckoutWith, [
+        'fetch-depth',
+        'path',
+        'persist-credentials',
+      ]) &&
+      runnerCheckoutWith['fetch-depth'] === 1 &&
       runnerCheckoutWith.path === 'modernjs' &&
       runnerCheckoutWith['persist-credentials'] === false,
     'Tractor acceptance must check out the exact caller source without credentials',
@@ -2047,7 +2125,16 @@ function validateTractorWorkflow(workflow) {
     'Tractor baseline checkout',
   );
   requireCondition(
-    tractorCheckoutWith['fetch-depth'] === 1 &&
+    hasExactKeys(tractorCheckout, ['name', 'uses', 'with']) &&
+      tractorCheckout.uses === checkoutAction &&
+      hasExactKeys(tractorCheckoutWith, [
+        'fetch-depth',
+        'path',
+        'persist-credentials',
+        'ref',
+        'repository',
+      ]) &&
+      tractorCheckoutWith['fetch-depth'] === 1 &&
       tractorCheckoutWith.repository ===
         'BleedingDev/tractor-store-vertical-demo' &&
       tractorCheckoutWith.ref === githubExpression('inputs.tractor_ref') &&
@@ -2066,26 +2153,64 @@ function validateTractorWorkflow(workflow) {
     'Tractor release bundle download',
   );
   requireCondition(
-    bundleDownloadWith.name ===
-      githubExpression('inputs.release_bundle_artifact') &&
-      bundleDownloadWith.path === 'modernjs/.modern/bleedingdev-publish',
+    hasExactKeys(bundleDownload, ['name', 'uses', 'with']) &&
+      bundleDownload.uses === downloadArtifactAction &&
+      hasExactKeys(bundleDownloadWith, [
+        'github-token',
+        'name',
+        'path',
+        'repository',
+        'run-id',
+      ]) &&
+      bundleDownloadWith['github-token'] === githubExpression('github.token') &&
+      bundleDownloadWith.name ===
+        githubExpression('inputs.release_bundle_artifact') &&
+      bundleDownloadWith.path === 'modernjs/.modern/bleedingdev-publish' &&
+      bundleDownloadWith.repository === githubExpression('github.repository') &&
+      bundleDownloadWith['run-id'] === githubExpression('github.run_id'),
     'Tractor acceptance must download the exact caller release bundle',
   );
 
-  const pnpmProvision = namedStep(
+  const setupMise = namedStep(
     job,
-    'Provision manifest-pinned pnpm',
+    'Setup mise',
+    'Tractor acceptance workflow job',
+  );
+  const setupMiseWith = requireRecord(
+    setupMise.with,
+    'Tractor mise action inputs',
+  );
+  requireCondition(
+    hasExactKeys(setupMise, ['name', 'uses', 'with']) &&
+      setupMise.uses === miseAction &&
+      hasExactKeys(setupMiseWith, ['version', 'working_directory']) &&
+      setupMiseWith.version === '2026.8.3' &&
+      setupMiseWith.working_directory === 'tractor',
+    'Tractor acceptance must use the exact reviewed mise action and inputs',
+  );
+
+  const dependencyProvision = namedStep(
+    job,
+    'Provision Tractor acceptance dependencies',
     'Tractor acceptance workflow job',
   );
   requireCondition(
-    pnpmProvision['working-directory'] === 'modernjs' &&
-      typeof pnpmProvision.run === 'string' &&
-      pnpmProvision.run.includes('manifest.tools?.pnpm') &&
-      pnpmProvision.run.includes('mise install "pnpm@$pnpm_version"') &&
-      pnpmProvision.run.includes('mise where "pnpm@$pnpm_version"') &&
-      pnpmProvision.run.includes('ULTRAMODERN_PNPM_EXECUTABLE') &&
-      pnpmProvision.run.includes('test "$actual_version" = "$pnpm_version"'),
-    'Tractor acceptance must provision and verify the exact manifest-bound pnpm executable',
+    dependencyProvision['working-directory'] === 'modernjs' &&
+      hasExactKeys(dependencyProvision, ['name', 'run', 'working-directory']) &&
+      dependencyProvision.run === tractorDependencyProvisionCommand,
+    'Tractor acceptance must invoke the reviewed manifest-bound dependency provisioner without execution overrides',
+  );
+
+  const chromiumInstall = namedStep(
+    job,
+    'Install Chromium',
+    'Tractor acceptance workflow job',
+  );
+  requireCondition(
+    hasExactKeys(chromiumInstall, ['name', 'run', 'working-directory']) &&
+      chromiumInstall['working-directory'] === 'tractor' &&
+      chromiumInstall.run === tractorChromiumInstallCommand,
+    'Tractor acceptance must install the exact reviewed browser runtime',
   );
 
   const acceptanceRun = namedStep(
@@ -2094,18 +2219,9 @@ function validateTractorWorkflow(workflow) {
     'Tractor acceptance workflow job',
   );
   requireCondition(
-    acceptanceRun['working-directory'] === 'tractor' &&
-      typeof acceptanceRun.run === 'string' &&
-      acceptanceRun.run.includes('run-tractor-downstream-acceptance.mjs') &&
-      acceptanceRun.run.includes(
-        '--manifest ../modernjs/.modern/bleedingdev-publish/manifest.json',
-      ) &&
-      acceptanceRun.run.includes('--workspace .') &&
-      acceptanceRun.run.includes(
-        '--registry-url https://registry.npmjs.org/',
-      ) &&
-      !acceptanceRun.run.includes('@latest') &&
-      !acceptanceRun.run.includes('--skip'),
+    hasExactKeys(acceptanceRun, ['name', 'run', 'working-directory']) &&
+      acceptanceRun['working-directory'] === 'tractor' &&
+      acceptanceRun.run === tractorAcceptanceCommand,
     'Tractor acceptance must run the exact manifest-bound Node, workerd, and browser contract without bypasses',
   );
 
@@ -2123,16 +2239,35 @@ function validateTractorWorkflow(workflow) {
     'Bind Tractor acceptance evidence',
     'Tractor acceptance workflow job',
   );
+  const evidenceEnvironment = requireRecord(
+    evidenceBinding.env,
+    'Tractor acceptance evidence environment',
+  );
   requireCondition(
-    evidenceBinding.id === 'evidence' &&
+    hasExactKeys(evidenceBinding, [
+      'env',
+      'id',
+      'if',
+      'name',
+      'run',
+      'working-directory',
+    ]) &&
+      evidenceBinding.id === 'evidence' &&
       evidenceBinding.if === 'always()' &&
-      typeof evidenceBinding.run === 'string' &&
-      evidenceBinding.run.includes('tractor-downstream-acceptance.json') &&
-      evidenceBinding.run.includes('createHash') &&
-      evidenceBinding.run.includes('GITHUB_OUTPUT') &&
-      evidenceBinding.run.includes('baseline_revision=') &&
-      evidenceBinding.run.includes('report_sha256=') &&
+      evidenceBinding['working-directory'] === 'modernjs' &&
+      evidenceBinding.run === tractorEvidenceBindingCommand &&
+      hasExactKeys(evidenceEnvironment, ['TRACTOR_REF']) &&
+      evidenceEnvironment.TRACTOR_REF ===
+        githubExpression('inputs.tractor_ref') &&
+      hasExactKeys(upload, ['if', 'name', 'uses', 'with']) &&
+      upload.uses === uploadArtifactAction &&
       upload.if === 'always()' &&
+      hasExactKeys(uploadWith, [
+        'if-no-files-found',
+        'include-hidden-files',
+        'name',
+        'path',
+      ]) &&
       uploadWith['if-no-files-found'] === 'error' &&
       uploadWith['include-hidden-files'] === true &&
       uploadWith.path ===
@@ -2141,13 +2276,12 @@ function validateTractorWorkflow(workflow) {
         githubExpression('steps.evidence.outputs.artifact_name'),
     'Tractor acceptance must always upload uniquely bound evidence and fail when it is absent',
   );
-  const steps = stepsFor(job, 'Tractor acceptance workflow job');
   requireCondition(
-    steps.indexOf(bundleDownload) < steps.indexOf(pnpmProvision) &&
-      steps.indexOf(pnpmProvision) < steps.indexOf(acceptanceRun) &&
+    steps.indexOf(bundleDownload) < steps.indexOf(dependencyProvision) &&
+      steps.indexOf(dependencyProvision) < steps.indexOf(acceptanceRun) &&
       steps.indexOf(acceptanceRun) < steps.indexOf(evidenceBinding) &&
       steps.indexOf(evidenceBinding) < steps.indexOf(upload),
-    'Tractor acceptance must download, provision pnpm, execute, bind, then upload its report',
+    'Tractor acceptance must download, provision dependencies, execute, bind, then upload its report',
   );
 
   const source = JSON.stringify(workflow);

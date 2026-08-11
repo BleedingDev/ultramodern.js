@@ -32,6 +32,14 @@ const tractorWorkflowPath = path.join(
   repoRoot,
   '.github/workflows/ultramodern-tractor-downstream.yml',
 );
+const tractorProvisionScriptPath = path.join(
+  repoRoot,
+  'scripts/ultramodern-publish/provision-tractor-acceptance.mjs',
+);
+const tractorEvidenceScriptPath = path.join(
+  repoRoot,
+  'scripts/ultramodern-publish/bind-tractor-acceptance-evidence.mjs',
+);
 const readinessWorkflowPath = path.join(
   repoRoot,
   '.github/workflows/ultramodern-production-readiness.yml',
@@ -824,6 +832,407 @@ test('publish validator rejects authority, mutable resolution, and acceptance by
     const parsed = workflow(publishWorkflowPath);
     mutate(parsed);
     assert.throws(() => validatePublishWorkflow(parsed), expected, label);
+  }
+});
+
+test('Tractor validator requires the reviewed dependency provisioner before acceptance', async () => {
+  const { validateTractorWorkflow } = await import(pathToFileURL(scriptPath));
+  const provisionStepName = 'Provision Tractor acceptance dependencies';
+  assert.doesNotThrow(() =>
+    validateTractorWorkflow(workflow(tractorWorkflowPath)),
+  );
+
+  const missing = workflow(tractorWorkflowPath);
+  const missingJob = missing.jobs['tractor-downstream'];
+  missingJob.steps = missingJob.steps.filter(
+    step => step.name !== provisionStepName,
+  );
+  assert.throws(
+    () => validateTractorWorkflow(missing),
+    /exactly the reviewed step sequence/u,
+  );
+
+  const late = workflow(tractorWorkflowPath);
+  const lateJob = late.jobs['tractor-downstream'];
+  const lateDependencyStep = namedStep(lateJob, provisionStepName);
+  lateJob.steps = lateJob.steps.filter(step => step !== lateDependencyStep);
+  lateJob.steps.push(lateDependencyStep);
+  assert.throws(
+    () => validateTractorWorkflow(late),
+    /exactly the reviewed step sequence/u,
+  );
+
+  const decoy = workflow(tractorWorkflowPath);
+  const decoyDependencyStep = namedStep(
+    decoy.jobs['tractor-downstream'],
+    provisionStepName,
+  );
+  decoyDependencyStep.run = [
+    `echo '${decoyDependencyStep.run}'`,
+    'npm install @babel/core',
+  ].join('\n');
+  assert.throws(
+    () => validateTractorWorkflow(decoy),
+    /reviewed manifest-bound dependency provisioner/u,
+  );
+
+  const deadBranch = workflow(tractorWorkflowPath);
+  const deadBranchDependencyStep = namedStep(
+    deadBranch.jobs['tractor-downstream'],
+    provisionStepName,
+  );
+  deadBranchDependencyStep.run = [
+    'if false; then',
+    `  ${deadBranchDependencyStep.run}`,
+    'fi',
+    'true',
+  ].join('\n');
+  assert.throws(
+    () => validateTractorWorkflow(deadBranch),
+    /reviewed manifest-bound dependency provisioner/u,
+  );
+
+  for (const [property, value] of [
+    ['if', githubExpression('false')],
+    ['continue-on-error', true],
+    ['env', { ULTRAMODERN_PNPM_EXECUTABLE: '/bin/true' }],
+    ['shell', '/bin/true {0}'],
+  ]) {
+    const bypass = workflow(tractorWorkflowPath);
+    const bypassDependencyStep = namedStep(
+      bypass.jobs['tractor-downstream'],
+      provisionStepName,
+    );
+    bypassDependencyStep[property] = value;
+    assert.throws(
+      () => validateTractorWorkflow(bypass),
+      /reviewed manifest-bound dependency provisioner/u,
+    );
+  }
+
+  for (const scope of ['workflow', 'job']) {
+    const bypass = workflow(tractorWorkflowPath);
+    const target =
+      scope === 'workflow' ? bypass : bypass.jobs['tractor-downstream'];
+    target.env = { ULTRAMODERN_PNPM_EXECUTABLE: '/bin/true' };
+    assert.throws(
+      () => validateTractorWorkflow(bypass),
+      /execution environment|read-only authority/u,
+    );
+  }
+
+  for (const scope of ['workflow', 'job']) {
+    const bypass = workflow(tractorWorkflowPath);
+    const target =
+      scope === 'workflow' ? bypass : bypass.jobs['tractor-downstream'];
+    target.defaults = {
+      run: {
+        shell: `bash -c 'npm install @babel/core; bash "$1"' -- {0}`,
+      },
+    };
+    assert.throws(
+      () => validateTractorWorkflow(bypass),
+      /execution environment|read-only authority/u,
+    );
+  }
+
+  const extraInstall = workflow(tractorWorkflowPath);
+  extraInstall.jobs['tractor-downstream'].steps.push({
+    name: 'Install fallback dependencies',
+    run: 'npm install @babel/core',
+  });
+  assert.throws(
+    () => validateTractorWorkflow(extraInstall),
+    /exactly the reviewed step sequence/u,
+  );
+
+  const redirectedCheckout = workflow(tractorWorkflowPath);
+  Object.assign(
+    namedStep(
+      redirectedCheckout.jobs['tractor-downstream'],
+      'Checkout acceptance runner',
+    ).with,
+    { ref: 'main', repository: 'attacker/other' },
+  );
+  assert.throws(
+    () => validateTractorWorkflow(redirectedCheckout),
+    /exact caller source/u,
+  );
+
+  for (const [stepName, expected] of [
+    ['Setup mise', /exact reviewed mise action/u],
+    ['Download exact release bundle', /exact caller release bundle/u],
+  ]) {
+    const replacedAction = workflow(tractorWorkflowPath);
+    namedStep(replacedAction.jobs['tractor-downstream'], stepName).uses =
+      'attacker/action@0123456789abcdef0123456789abcdef01234567';
+    assert.throws(() => validateTractorWorkflow(replacedAction), expected);
+  }
+
+  const mutableChromium = workflow(tractorWorkflowPath);
+  const chromiumStep = namedStep(
+    mutableChromium.jobs['tractor-downstream'],
+    'Install Chromium',
+  );
+  chromiumStep.run = [
+    'cd ../modernjs',
+    '"$ULTRAMODERN_PNPM_EXECUTABLE" install --no-frozen-lockfile',
+    chromiumStep.run,
+  ].join('\n');
+  assert.throws(
+    () => validateTractorWorkflow(mutableChromium),
+    /exact reviewed browser runtime/u,
+  );
+
+  const misplacedEvidence = workflow(tractorWorkflowPath);
+  delete namedStep(
+    misplacedEvidence.jobs['tractor-downstream'],
+    'Bind Tractor acceptance evidence',
+  )['working-directory'];
+  assert.throws(
+    () => validateTractorWorkflow(misplacedEvidence),
+    /uniquely bound evidence/u,
+  );
+});
+
+test('Tractor dependency provisioner installs with verified manifest pnpm before export', async () => {
+  const { provisionTractorAcceptance } = await import(
+    pathToFileURL(
+      path.join(
+        repoRoot,
+        'scripts/ultramodern-publish/provision-tractor-acceptance.mjs',
+      ),
+    )
+  );
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tractor-provision-'));
+  try {
+    const pnpmVersion = '11.21.0';
+    const manifestPath = path.join(
+      root,
+      '.modern/bleedingdev-publish/manifest.json',
+    );
+    fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
+    fs.writeFileSync(
+      manifestPath,
+      `${JSON.stringify({ tools: { pnpm: pnpmVersion } })}\n`,
+    );
+    const pnpmRoot = path.join(root, 'mise-pnpm');
+    const pnpmExecutable = path.join(pnpmRoot, 'pnpm');
+    fs.mkdirSync(pnpmRoot, { recursive: true });
+    fs.writeFileSync(pnpmExecutable, '#!/bin/sh\nexit 0\n');
+    fs.chmodSync(pnpmExecutable, 0o755);
+    const githubEnvPath = path.join(root, 'github-env');
+    const calls = [];
+    const successfulRun = (command, args, options) => {
+      calls.push({ args, command, options });
+      if (command === 'mise' && args[0] === 'where') {
+        return { status: 0, stderr: '', stdout: `${pnpmRoot}\n` };
+      }
+      if (command === pnpmExecutable && args[0] === '--version') {
+        return { status: 0, stderr: '', stdout: `${pnpmVersion}\n` };
+      }
+      return { status: 0, stderr: '', stdout: '' };
+    };
+
+    assert.deepEqual(
+      provisionTractorAcceptance({
+        cwd: root,
+        environment: { GITHUB_ENV: githubEnvPath },
+        run: successfulRun,
+      }),
+      { pnpmExecutable, pnpmVersion },
+    );
+    assert.deepEqual(
+      calls.map(({ args, command, options }) => [command, args, options.stdio]),
+      [
+        ['mise', ['install', `pnpm@${pnpmVersion}`], 'inherit'],
+        ['mise', ['where', `pnpm@${pnpmVersion}`], 'pipe'],
+        [pnpmExecutable, ['--version'], 'pipe'],
+        [
+          pnpmExecutable,
+          [
+            'install',
+            '--frozen-lockfile',
+            '--ignore-scripts',
+            '--filter',
+            '@scripts/ultramodern-production-readiness',
+          ],
+          'inherit',
+        ],
+      ],
+    );
+    assert.equal(
+      fs.readFileSync(githubEnvPath, 'utf8'),
+      `ULTRAMODERN_PNPM_EXECUTABLE=${pnpmExecutable}\n`,
+    );
+
+    const failedEnvPath = path.join(root, 'failed-github-env');
+    assert.throws(
+      () =>
+        provisionTractorAcceptance({
+          cwd: root,
+          environment: { GITHUB_ENV: failedEnvPath },
+          run(command, args, options) {
+            const result = successfulRun(command, args, options);
+            return command === pnpmExecutable && args[0] === 'install'
+              ? { ...result, status: 1, stderr: 'install failed' }
+              : result;
+          },
+        }),
+      /dependency installation exited 1/u,
+    );
+    assert.equal(fs.existsSync(failedEnvPath), false);
+
+    if (process.platform !== 'win32') {
+      const fakeBin = path.join(root, 'fake-bin');
+      const misePath = path.join(fakeBin, 'mise');
+      const markerPath = path.join(root, 'pnpm-install-argv.json');
+      writeFixtureFile(
+        misePath,
+        [
+          '#!/usr/bin/env node',
+          'const [action] = process.argv.slice(2);',
+          "if (action === 'install') process.exit(0);",
+          "if (action === 'where') {",
+          '  process.stdout.write(process.env.FAKE_PNPM_ROOT);',
+          '  process.exit(0);',
+          '}',
+          'process.exit(2);',
+          '',
+        ].join('\n'),
+      );
+      fs.chmodSync(misePath, 0o755);
+      writeFixtureFile(
+        pnpmExecutable,
+        [
+          '#!/usr/bin/env node',
+          "const fs = require('node:fs');",
+          'const args = process.argv.slice(2);',
+          "if (args[0] === '--version') {",
+          '  process.stdout.write(process.env.FAKE_PNPM_VERSION);',
+          '  process.exit(0);',
+          '}',
+          'fs.writeFileSync(process.env.FAKE_PNPM_MARKER, JSON.stringify(args));',
+          'process.exit(Number(process.env.FAKE_PNPM_INSTALL_STATUS || 0));',
+          '',
+        ].join('\n'),
+      );
+      fs.chmodSync(pnpmExecutable, 0o755);
+      const cliGithubEnvPath = path.join(root, 'cli-github-env');
+      const cliEnvironment = {
+        ...process.env,
+        FAKE_PNPM_MARKER: markerPath,
+        FAKE_PNPM_ROOT: pnpmRoot,
+        FAKE_PNPM_VERSION: pnpmVersion,
+        GITHUB_ENV: cliGithubEnvPath,
+        PATH: `${fakeBin}${path.delimiter}${process.env.PATH || ''}`,
+      };
+      const cliSuccess = spawnSync(
+        process.execPath,
+        [tractorProvisionScriptPath],
+        { cwd: root, encoding: 'utf8', env: cliEnvironment },
+      );
+      assert.equal(
+        cliSuccess.status,
+        0,
+        cliSuccess.stderr || cliSuccess.stdout,
+      );
+      assert.deepEqual(JSON.parse(fs.readFileSync(markerPath, 'utf8')), [
+        'install',
+        '--frozen-lockfile',
+        '--ignore-scripts',
+        '--filter',
+        '@scripts/ultramodern-production-readiness',
+      ]);
+      assert.equal(
+        fs.readFileSync(cliGithubEnvPath, 'utf8'),
+        `ULTRAMODERN_PNPM_EXECUTABLE=${pnpmExecutable}\n`,
+      );
+
+      const cliFailedEnvPath = path.join(root, 'cli-failed-github-env');
+      const cliFailure = spawnSync(
+        process.execPath,
+        [tractorProvisionScriptPath],
+        {
+          cwd: root,
+          encoding: 'utf8',
+          env: {
+            ...cliEnvironment,
+            FAKE_PNPM_INSTALL_STATUS: '1',
+            GITHUB_ENV: cliFailedEnvPath,
+          },
+        },
+      );
+      assert.notEqual(cliFailure.status, 0);
+      assert.match(cliFailure.stderr, /dependency installation exited 1/u);
+      assert.equal(fs.existsSync(cliFailedEnvPath), false);
+    }
+  } finally {
+    fs.rmSync(root, { force: true, recursive: true });
+  }
+});
+
+test('Tractor evidence binder validates the immutable report before exporting outputs', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tractor-evidence-'));
+  try {
+    const tractorRef = '0123456789abcdef0123456789abcdef01234567';
+    const reportPath = path.join(
+      root,
+      '.modern/production-readiness/tractor-downstream-acceptance.json',
+    );
+    const report = {
+      schema: 'bleedingdev.ultramodern.tractor-downstream-acceptance',
+      tractor: { baselineRevision: tractorRef },
+    };
+    writeFixtureJson(reportPath, report);
+    const outputPath = path.join(root, 'github-output');
+    const result = spawnSync(process.execPath, [tractorEvidenceScriptPath], {
+      cwd: root,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        GITHUB_OUTPUT: outputPath,
+        GITHUB_RUN_ATTEMPT: '3',
+        TRACTOR_REF: tractorRef,
+      },
+    });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const reportSha256 = crypto
+      .createHash('sha256')
+      .update(fs.readFileSync(reportPath))
+      .digest('hex');
+    assert.equal(
+      fs.readFileSync(outputPath, 'utf8'),
+      [
+        `artifact_name=ultramodern-tractor-downstream-acceptance-${tractorRef}-attempt-3`,
+        `baseline_revision=${tractorRef}`,
+        `report_sha256=${reportSha256}`,
+        '',
+      ].join('\n'),
+    );
+
+    writeFixtureJson(reportPath, {
+      ...report,
+      tractor: {
+        baselineRevision: 'fedcba9876543210fedcba9876543210fedcba98',
+      },
+    });
+    const failedOutputPath = path.join(root, 'failed-github-output');
+    const failure = spawnSync(process.execPath, [tractorEvidenceScriptPath], {
+      cwd: root,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        GITHUB_OUTPUT: failedOutputPath,
+        GITHUB_RUN_ATTEMPT: '3',
+        TRACTOR_REF: tractorRef,
+      },
+    });
+    assert.notEqual(failure.status, 0);
+    assert.match(failure.stderr, /not bound to the immutable baseline/u);
+    assert.equal(fs.existsSync(failedOutputPath), false);
+  } finally {
+    fs.rmSync(root, { force: true, recursive: true });
   }
 });
 
