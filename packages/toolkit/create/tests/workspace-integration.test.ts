@@ -214,6 +214,7 @@ function runGeneratedPackageScript(
     [
       ...(executableIsJavaScript ? [packageManagerExecutable] : []),
       '--config.verify-deps-before-run=false',
+      `--config.node-version=${process.versions.node}`,
       'run',
       scriptName,
     ],

@@ -14,6 +14,41 @@ const lintDependencyNodeModules = path.dirname(
   fs.realpathSync(path.join(packageRoot, 'node_modules/ultracite')),
 );
 
+function provisionPackageBinary(
+  nodeModulesDir: string,
+  packageName: string,
+  binaryName: string,
+) {
+  const packageJson = JSON.parse(
+    fs.readFileSync(
+      path.join(nodeModulesDir, packageName, 'package.json'),
+      'utf8',
+    ),
+  ) as { bin?: Record<string, string> | string };
+  const packageBinary =
+    typeof packageJson.bin === 'string'
+      ? packageJson.bin
+      : packageJson.bin?.[binaryName];
+  assert.ok(packageBinary, `${packageName} must expose ${binaryName}`);
+
+  const binDir = path.join(nodeModulesDir, '.bin');
+  const binaryPath = path.join(nodeModulesDir, packageName, packageBinary);
+  fs.mkdirSync(binDir, { recursive: true });
+  if (process.platform === 'win32') {
+    fs.writeFileSync(
+      path.join(binDir, `${binaryName}.cmd`),
+      `@echo off\r\n"${process.execPath}" "${binaryPath}" %*\r\n`,
+      'utf8',
+    );
+  } else {
+    fs.symlinkSync(
+      path.relative(binDir, binaryPath),
+      path.join(binDir, binaryName),
+      'file',
+    );
+  }
+}
+
 function provisionGeneratedLintDependencies(workspaceDir: string) {
   const nodeModulesDir = path.join(workspaceDir, 'node_modules');
   fs.mkdirSync(nodeModulesDir, { recursive: true });
@@ -29,6 +64,7 @@ function provisionGeneratedLintDependencies(workspaceDir: string) {
     path.join(nodeModulesDir, 'typescript'),
     process.platform === 'win32' ? 'junction' : 'dir',
   );
+  provisionPackageBinary(nodeModulesDir, 'oxlint', 'oxlint');
 }
 
 function parseOxlintReport(
@@ -60,16 +96,21 @@ function assertGeneratedWorkspaceLintClean(
   workspaceDir: string,
   generatedState: string,
 ) {
+  const externalPath = (process.env.PATH ?? process.env.Path ?? '')
+    .split(path.delimiter)
+    .filter(entry => !/[\\/]node_modules[\\/]\.bin$/u.test(entry))
+    .join(path.delimiter);
+  const env: NodeJS.ProcessEnv = { ...process.env, PATH: externalPath };
+  if (process.platform === 'win32') {
+    env.Path = externalPath;
+  }
   const result = spawnSync(
     process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm',
     ['--config.verify-deps-before-run=false', 'lint', '--format', 'json'],
     {
       cwd: workspaceDir,
       encoding: 'utf-8',
-      env: {
-        ...process.env,
-        PATH: `${path.join(packageRoot, 'node_modules/.bin')}${path.delimiter}${process.env.PATH ?? ''}`,
-      },
+      env,
     },
   );
   const commandOutput = `${result.stdout}\n${result.stderr}`;
