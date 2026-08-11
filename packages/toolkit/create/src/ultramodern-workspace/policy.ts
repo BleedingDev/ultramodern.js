@@ -296,6 +296,8 @@ const releaseAgeReasons = {
     'Reviewed Effect 4 beta cohort required by generated strict Effect workspaces before pnpm minimum release age elapsed.',
   i18next:
     'Reviewed i18next release required by generated localized applications before pnpm minimum release age elapsed.',
+  tooling:
+    'Reviewed Oxlint and Oxfmt toolchain cohort required by generated workspace quality gates before pnpm minimum release age elapsed.',
   typescript:
     'Reviewed TypeScript compiler and platform cohort required by generated TypeScript 7 workspaces before pnpm minimum release age elapsed.',
 } as const;
@@ -309,6 +311,13 @@ type ReleaseAgeReviewEvidence = {
 };
 
 const releaseAgeReviewEvidence = {
+  effectTooling20260810: {
+    reviewer: 'Petr Glaser <syreanis+1@gmail.com>',
+    reviewedAt: '2026-08-10T14:36:54.394Z',
+    expiresAt: '2026-09-09T23:59:59.000Z',
+    uri: 'https://github.com/BleedingDev/ultramodern.js/commit/eb27eddccec4e51896d63abb070ef46a7b7d3eb7',
+    sha256: '47c9f25308e6bb521fa6e5a603205be9664034ae92bb94b1aa7d5683229bb240',
+  },
   i18next: {
     reviewer: 'Petr Glaser <syreanis+1@gmail.com>',
     reviewedAt: '2026-07-09T23:03:09.000Z',
@@ -668,6 +677,240 @@ const moduleFederationNodeRegistryRelease = {
   },
 } as const;
 
+const effectTsgoPlatformRegistryReleases = [
+  [
+    '@effect/tsgo-darwin-arm64',
+    '2026-08-10T07:00:52.282Z',
+    'sha512-eK1UY2bI//sOjfclmGmW+rrkTr8C7LksCl8aclrni6lz2na8NtCqvoehf4XPC/Mwsnsusc+nZl15OrUlSrhHOw==',
+  ],
+  [
+    '@effect/tsgo-darwin-x64',
+    '2026-08-10T07:00:52.990Z',
+    'sha512-LRY9v/awOQljxVQQS/euH29ZNR9u5Ui6FtTSuorvCILdN6P+C5XNwGaup3aKh37B/Tie7vqNNwwFvcPQdyA2hw==',
+  ],
+  [
+    '@effect/tsgo-linux-arm',
+    '2026-08-10T07:00:48.436Z',
+    'sha512-w+RJ/eUq91HJQEfkH7WohGYRLQQs98uYMFXrX8u+LtCiqIqOsw6KIdhQ6jsBrplZANxUIzQOs3YrSfRKKf1CGg==',
+  ],
+  [
+    '@effect/tsgo-linux-arm64',
+    '2026-08-10T07:00:51.672Z',
+    'sha512-0OpqPvivRBu4lTcn0cMaQKb9WWPl+lSXLZYLKLg2QjV0065MConVK3NvIh601qToHifFtdcet8n71gHQWExRiw==',
+  ],
+  [
+    '@effect/tsgo-linux-x64',
+    '2026-08-10T07:00:52.977Z',
+    'sha512-mOAcOtcb5mJa2mIJAW7oZChaItYx1ApQ4ton6FEkjBjDEcMK84OgaCrJWGd5mzHj+JmuHw4Enllzct0pyCZTrg==',
+  ],
+  [
+    '@effect/tsgo-win32-arm64',
+    '2026-08-10T07:00:51.117Z',
+    'sha512-hyBJelUFZnBGLMJQKiM/w4hED4foqD8GkMOdFPNOBhWNuU5Z8JVTXkircWol01XgSo86RnSEjMfeKYv4FEeLWw==',
+  ],
+  [
+    '@effect/tsgo-win32-x64',
+    '2026-08-10T07:00:51.373Z',
+    'sha512-Gh1nYw6hRudspkleoqWl/KX19+dShuODJPPv8rhqf3pPRRWm0GniKNxzPr5L42rcv1JXN1GK7no8FkStFLb9jQ==',
+  ],
+] as const;
+
+const oxfmtBindingRegistryReleases = [
+  [
+    '@oxfmt/binding-android-arm-eabi',
+    '2026-08-10T10:42:59.749Z',
+    'sha512-YmRth4ZPGgEXcgmkhvANbC9uD67dxmSobW7DQuyt5tOBOKvPnIpk5SVHBj88E+7wMNRI2FhqaDbOhQFBix+b8A==',
+  ],
+  [
+    '@oxfmt/binding-android-arm64',
+    '2026-08-10T10:42:34.186Z',
+    'sha512-icbahX8X2X3sRamOMecvdYeZXWjPDazRDIfvWfy7Ca1nc/ZDT2Y9k5Nt7s46EqFd7NQPdgk+CM3/SgIT5LPCaQ==',
+  ],
+  [
+    '@oxfmt/binding-darwin-arm64',
+    '2026-08-10T10:42:29.211Z',
+    'sha512-WV+Ze5v5gI2qoj8jpAovt8KBTW8pjEz/AiMXXjeTQS+Bmf/MmZXTS40S8xNPDszX+W8WDv2Bbk6qKrMTtUGu1A==',
+  ],
+  [
+    '@oxfmt/binding-darwin-x64',
+    '2026-08-10T10:43:43.321Z',
+    'sha512-CJGSBdDxXOWIpoFXHpverimCvz084KA7L483rqJ44c3jDtzv6d4qOSoR/V9ywSHfV+Ks1lwIj2P49BFhunLNAA==',
+  ],
+  [
+    '@oxfmt/binding-freebsd-x64',
+    '2026-08-10T10:43:53.247Z',
+    'sha512-BDfKY+KhL2078cgswBBFQPAYuxCy93bS/iC5frdSeSbTLcGrR6VC2hsuPTanoJmg84+wSyWl0wWC1eR+uTnkRg==',
+  ],
+  [
+    '@oxfmt/binding-linux-arm-gnueabihf',
+    '2026-08-10T10:43:04.657Z',
+    'sha512-Ov1cQEXT4mj7cojAokWSS1eoxkoyvbDfAbxNsGIKY2o36kvdAaFzPxRN6NxFRk9fD72B8oCoTTX/NuYTUWlpsg==',
+  ],
+  [
+    '@oxfmt/binding-linux-arm-musleabihf',
+    '2026-08-10T10:43:09.619Z',
+    'sha512-0LE7ro3+6L79jcMANycAZfRaC7zxr9YZ2+vEL5uMD9QlEep+rS/r1kSJsnuLl991NXJZD60euh0PC1GHrR20vw==',
+  ],
+  [
+    '@oxfmt/binding-linux-arm64-gnu',
+    '2026-08-10T10:43:50.309Z',
+    'sha512-izPk+2Z4gjuZK32Fqh5qXoMpT/2NXzLh++ob57HiEiVSQZ1iYXu8EKMzb+K5AvWyIEXhdDIt7ADjGGtFhkT9Bw==',
+  ],
+  [
+    '@oxfmt/binding-linux-arm64-musl',
+    '2026-08-10T10:42:49.438Z',
+    'sha512-alPmbOuWXFXiSo+lOtv6X71C7SYMEDW2WVvywOvf9BwKgEhSNGhMTLeFVSjKUMCamcjbbgVdsWF8GN1uy8xshg==',
+  ],
+  [
+    '@oxfmt/binding-linux-ppc64-gnu',
+    '2026-08-10T10:43:19.947Z',
+    'sha512-BdzCPvolJc4AWZ+YMzgUDJcDzbQWrFjYuqBHoNHNqP1aCaluQRJNs4k3vNU5IG7vTpjf9zeD73D7MFM1TecZpg==',
+  ],
+  [
+    '@oxfmt/binding-linux-riscv64-gnu',
+    '2026-08-10T10:43:26.753Z',
+    'sha512-7sIgfLzqtNKSkMGsGVyRpHwpjNezRg2XONvUOheFZs95TSZpM0JAuPpA8KrQFsWc4wPU95roX2O69JgH8igOgw==',
+  ],
+  [
+    '@oxfmt/binding-linux-riscv64-musl',
+    '2026-08-10T10:43:32.351Z',
+    'sha512-9Tcg0y0WcVa6Mm9AgcgFMseDS+VkFJZpKZ8We9SpDY4gg5jewSwln+0sO04QLcTS1BtfDl9MwR+NfID8L7PUTg==',
+  ],
+  [
+    '@oxfmt/binding-linux-s390x-gnu',
+    '2026-08-10T10:43:37.948Z',
+    'sha512-qWKC1pEOpx1qYhXaugPhHUeXwSfqEOk2wJH2LqVXGPV5iQYfdAZdt+d2XDiX4DTSWA2QDMUcFB+wEORh3Xn/sA==',
+  ],
+  [
+    '@oxfmt/binding-linux-x64-gnu',
+    '2026-08-10T10:45:05.823Z',
+    'sha512-S9wXYOiGSqYGS4Fx/TFsY+xDd/7dE5s+rUgbA4TsHiVF9e8J3ZcKmP7dsP/7iqLI9Wz7Ic7TzEr3mdthRCTdrA==',
+  ],
+  [
+    '@oxfmt/binding-linux-x64-musl',
+    '2026-08-10T10:46:11.254Z',
+    'sha512-5eGyTJuMZNwBSHCivXt8Yuta6GeTYksOPXRk2MIhajiyFGQx7bjaHIwY+ZusAoFHhT157A9x6sktLjYo9D5oMQ==',
+  ],
+  [
+    '@oxfmt/binding-openharmony-arm64',
+    '2026-08-10T10:42:54.565Z',
+    'sha512-Rz7hx+Dv3DoW/S6pwVAyjfFXp7/trdQ1zg+vNmsdsdDNlUccugp4XNqambSuEAeP0DaG9k72AtNyfDXCEg0AGw==',
+  ],
+  [
+    '@oxfmt/binding-win32-arm64-msvc',
+    '2026-08-10T10:42:39.105Z',
+    'sha512-T/IuizKN9mr4Xw6YYnptkXRNdLkyIlUZ7c8zfTOBpoytZyJ1BAsMUvsMDEx0X4YvSMpaivm+DR8112rQfzC25g==',
+  ],
+  [
+    '@oxfmt/binding-win32-ia32-msvc',
+    '2026-08-10T10:43:14.437Z',
+    'sha512-XjrO5FJ5Wl9vsAxtCP1G/eaeT6y1K2s9CICUHGE42cEjou32/J6S+B1KnrOAboj6E7uhJnwPbRSvznWcxNdA0g==',
+  ],
+  [
+    '@oxfmt/binding-win32-x64-msvc',
+    '2026-08-10T10:43:48.242Z',
+    'sha512-sgsHCQy432OTQH4Ikk3tZptp3GqwnhwUDuY0loBH41zyHWfMZY9v8Dy78wsnSofHejvFozZGgJgBB1A0LQRwMQ==',
+  ],
+] as const;
+
+const oxlintBindingRegistryReleases = [
+  [
+    '@oxlint/binding-android-arm-eabi',
+    '2026-08-10T10:43:53.410Z',
+    'sha512-Bu819lmAfZMUHErrpe0cEWj3iaefuUODHSU8+UbXy67V/r7/7f4K3FL0NmbD85E+wiFLDYuhP8Zlv0XnVeXshw==',
+  ],
+  [
+    '@oxlint/binding-android-arm64',
+    '2026-08-10T10:43:12.922Z',
+    'sha512-CDfxZgB61B7buRdY2FJoAYYPPXCZ1EoC1LKscnC5dg3kjobdxiconvAvvN1BmHyW4PyFT3jRLDag/BY/roSNBQ==',
+  ],
+  [
+    '@oxlint/binding-darwin-arm64',
+    '2026-08-10T10:58:18.659Z',
+    'sha512-2Y2U9Ahrz+OO0Ej88f9SJYq51/jUBp1Mc7iZu0ukrbeeZ3gpRGfzIFnoqfHDY96xr0GEfNrPUBFEy0nN5aD7HA==',
+  ],
+  [
+    '@oxlint/binding-darwin-x64',
+    '2026-08-10T10:44:42.061Z',
+    'sha512-rpych6eJq6m9jDRypTEaPD1xysaEW5h9+xuxhGK/QhOg+/xaqPZrCrTNoIl/f3nEjuJeCEmstNDlrE9rJi/3/g==',
+  ],
+  [
+    '@oxlint/binding-freebsd-x64',
+    '2026-08-10T10:44:54.940Z',
+    'sha512-IcMGrQT3QizkOESUJd5et+rOhVqSkNDfNik1cvrKDqIbzqx9KMtRswpFgkCuNTSwylCFLKhGUu8KmqY1ZnC0Dg==',
+  ],
+  [
+    '@oxlint/binding-linux-arm-gnueabihf',
+    '2026-08-10T10:43:59.131Z',
+    'sha512-/uLdoJ0IXE6vo/0f0LKjinQAp+re+VMaCWaNT8ENIv2EOCkSsc8SGaflXAuW0Jua2dq5+GLVWm1NQK7P3UFSNQ==',
+  ],
+  [
+    '@oxlint/binding-linux-arm-musleabihf',
+    '2026-08-10T10:44:04.347Z',
+    'sha512-7xi4Wb/O8NRJhLoUXmDJMUVpNYvB5kefdhFU1Jb8rtae4QoXlTiLwI14X4YvAXVZLNZChP8m5qO9SQAlWQTbkQ==',
+  ],
+  [
+    '@oxlint/binding-linux-arm64-gnu',
+    '2026-08-10T10:45:36.209Z',
+    'sha512-4hFW0+fVXa3OIh1Y4A5SPkmvI4wuuBSrCVKzOyE7PTjhc7yEqZ1pmvEEeS5Lj/MaqvegFxXyF33N+6jkehxdyg==',
+  ],
+  [
+    '@oxlint/binding-linux-arm64-musl',
+    '2026-08-10T10:43:41.258Z',
+    'sha512-oC0mvsgBJjlMijSDEhx9KuvR9zYeHXceA9MjbuXB1F8NSR78Yj2unOBrstEvTVaq+pko+kuue6DajC00eqvTdg==',
+  ],
+  [
+    '@oxlint/binding-linux-ppc64-gnu',
+    '2026-08-10T10:44:16.586Z',
+    'sha512-XAllT5SUZS+ohjuZ3/5S0cwe0r7eboiuigeStCZ5DXRYx/2KVM2UvQXvAfyzXEimtQjAB7cDQ2YxDe2Zl2WNQQ==',
+  ],
+  [
+    '@oxlint/binding-linux-riscv64-gnu',
+    '2026-08-10T10:44:22.637Z',
+    'sha512-trucMER/0QtecoXvc1y/UVqE3kwJipDwrx4oHfj+nNm3dq2zjP44WT0CfHNDPM3G1DXIkx/gY6lAD21NSCZVhA==',
+  ],
+  [
+    '@oxlint/binding-linux-riscv64-musl',
+    '2026-08-10T10:44:28.893Z',
+    'sha512-cm3O4F/HQbdzOUX5mKHqG5KDL6E5w0pnlZ+fbBy2rmLryPOowkuLagFHTopQsEIpjcaZoPOrL+BmmAytAG9HFg==',
+  ],
+  [
+    '@oxlint/binding-linux-s390x-gnu',
+    '2026-08-10T10:44:36.103Z',
+    'sha512-33wRf6HqGNsybJ3qX4cGaQN2ODPxNmc1rMa0mrTmx3eFq1VzOnvQooi9bIGVYakW8a/wmqVx1mgsUm8R2xfTiw==',
+  ],
+  [
+    '@oxlint/binding-linux-x64-gnu',
+    '2026-08-10T10:47:08.430Z',
+    'sha512-rRdISSYegj6VganMZ9tjRjijowfHJ09IZU01i0toBAqr6n5LEtwHq2IeS4FjW2RoskOHlb6efB26H5izYb3GEQ==',
+  ],
+  [
+    '@oxlint/binding-linux-x64-musl',
+    '2026-08-10T10:47:14.572Z',
+    'sha512-GmsP4rW0xTL6u5CVdcDsaN5Fbc7hBc382Wmar1kttbnwSEviM+rSINKOMQ+UQ6iH+AGwC+8gaAiwu134Tgh6Lg==',
+  ],
+  [
+    '@oxlint/binding-openharmony-arm64',
+    '2026-08-10T10:43:47.808Z',
+    'sha512-sy9yeYuADc8a+n4TLBayzMCZiHPW78DcIFVpOXTmdKHWQeM9xe5uzkqIIZmi326D5hY9XVwacipEB1p7tQjPAg==',
+  ],
+  [
+    '@oxlint/binding-win32-arm64-msvc',
+    '2026-08-10T10:43:18.280Z',
+    'sha512-rjc2hF1KfMi8fZj1X/m3AmnHbdsF3rL0v6KQg0Uc880Yb2khjz+3U14sfdZ7jWTpRnN1m1NQa/TT7uU9lJWPrA==',
+  ],
+  [
+    '@oxlint/binding-win32-ia32-msvc',
+    '2026-08-10T10:44:09.793Z',
+    'sha512-zcuXFVrEFHIafRfkCQT8w/Xe41o07ozl/vwHq7p94vB29xVzsB0sZGYORU1jhcYKv3Lr0J3HbJ2T4fHH5rWmvA==',
+  ],
+  [
+    '@oxlint/binding-win32-x64-msvc',
+    '2026-08-10T10:44:48.187Z',
+    'sha512-Sb5ocmLSuYeOuXd+CFOToGKp/gjXUEWDnvIGwhnh8aq8wY4TMmEnKnvbogSW7RdMZv77JSARduS7/gv+khYEjA==',
+  ],
+] as const;
+
 const typescriptPlatformRegistryReleases = [
   [
     'aix-ppc64',
@@ -776,6 +1019,83 @@ const releaseAgeApprovals: readonly UltramodernReleaseAgeApproval[] = [
   // artifact has an immutable pushed commit identity. Never attest a cohort
   // from a commit that predates its reviewed versions, timestamps, integrities,
   // optional-platform closure, and patch applicability evidence.
+  createReleaseAgeApproval({
+    packageName: 'effect',
+    version: EFFECT_VERSION,
+    reason: releaseAgeReasons.effect,
+    publishedAt: '2026-08-10T04:57:48.469Z',
+    integrity:
+      'sha512-OoBAv8eF+yanc+C6xhgEUnWeXUSHA6ynnscYqpkAY9GSnzZWystsIjBowVqCkLpHGlnRtdIqYT3wHwpOY6JDnQ==',
+    review: releaseAgeReviewEvidence.effectTooling20260810,
+  }),
+  createReleaseAgeApproval({
+    packageName: '@effect/opentelemetry',
+    version: EFFECT_VERSION,
+    reason: releaseAgeReasons.effect,
+    publishedAt: '2026-08-10T04:50:45.944Z',
+    integrity:
+      'sha512-WxR3OEcwVtckNYGxvERA4kiS8cb2B46lSWxQw8P6dCCzW0j0VC7hkWyzryJ16MVXfI/5xQHS3r5j9mud+JVvsg==',
+    review: releaseAgeReviewEvidence.effectTooling20260810,
+  }),
+  createReleaseAgeApproval({
+    packageName: '@effect/tsgo',
+    version: EFFECT_TSGO_VERSION,
+    reason: releaseAgeReasons.effect,
+    publishedAt: '2026-08-10T07:00:57.951Z',
+    integrity:
+      'sha512-qyEhYRuNbltg4YCWOyyAQ2Hd11f8ecF/DaWMuDhDcIyQBUN2IqNKMLPoLeC9aUlSDgRbzJyQZRvtGJpb8CJ2WA==',
+    review: releaseAgeReviewEvidence.effectTooling20260810,
+  }),
+  ...effectTsgoPlatformRegistryReleases.map(
+    ([packageName, publishedAt, integrity]) =>
+      createReleaseAgeApproval({
+        packageName,
+        version: EFFECT_TSGO_VERSION,
+        reason: releaseAgeReasons.effect,
+        publishedAt,
+        integrity,
+        review: releaseAgeReviewEvidence.effectTooling20260810,
+      }),
+  ),
+  createReleaseAgeApproval({
+    packageName: 'oxfmt',
+    version: OXFMT_VERSION,
+    reason: releaseAgeReasons.tooling,
+    publishedAt: '2026-08-10T10:51:19.151Z',
+    integrity:
+      'sha512-kgdDwv35wvVf6554U2Ab8Jnd0zTM+TsEQWwaB70RAjK3gICFAFGO+2Hd3Be27GMoXj3XRL9IKSNRVl7KBQL6iw==',
+    review: releaseAgeReviewEvidence.effectTooling20260810,
+  }),
+  ...oxfmtBindingRegistryReleases.map(([packageName, publishedAt, integrity]) =>
+    createReleaseAgeApproval({
+      packageName,
+      version: OXFMT_VERSION,
+      reason: releaseAgeReasons.tooling,
+      publishedAt,
+      integrity,
+      review: releaseAgeReviewEvidence.effectTooling20260810,
+    }),
+  ),
+  createReleaseAgeApproval({
+    packageName: 'oxlint',
+    version: OXLINT_VERSION,
+    reason: releaseAgeReasons.tooling,
+    publishedAt: '2026-08-10T10:47:19.210Z',
+    integrity:
+      'sha512-QgQePuxIqKOzo1KSjG2EnITEeWvWnKAm77eq8nrMtf6AGoA+zyGc4PFYtDNJSD25g/ibOwfQ851hZ4/SPkMVoA==',
+    review: releaseAgeReviewEvidence.effectTooling20260810,
+  }),
+  ...oxlintBindingRegistryReleases.map(
+    ([packageName, publishedAt, integrity]) =>
+      createReleaseAgeApproval({
+        packageName,
+        version: OXLINT_VERSION,
+        reason: releaseAgeReasons.tooling,
+        publishedAt,
+        integrity,
+        review: releaseAgeReviewEvidence.effectTooling20260810,
+      }),
+  ),
   createReleaseAgeApproval({
     packageName: '@typescript/native-preview',
     version: TYPESCRIPT_NATIVE_PREVIEW_VERSION,

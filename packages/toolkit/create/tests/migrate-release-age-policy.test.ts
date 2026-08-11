@@ -97,25 +97,83 @@ test('rejects review evidence created before a dependency was published', () => 
   );
 });
 
-test('does not claim stale Effect or Cloudflare release-age approvals', () => {
-  // FORK: the fresh Effect beta.107 cohort deliberately carries NO release-age
-  // approval until purpose-built review evidence contains its exact versions,
-  // timestamps, integrities, and patch-applicability result. The former
-  // Cloudflare approvals are also stale after that cohort moved forward.
+test('approves only the reviewed lock-reachable immature latest cohort', () => {
+  const review = JSON.parse(
+    fs.readFileSync(
+      new URL('../release-age-review-2026-08-10.json', import.meta.url),
+      'utf8',
+    ),
+  ) as {
+    expiresAt: string;
+    registryRecords: Array<{
+      packageName: string;
+      version: string;
+      publishedAt: string;
+      dist: { integrity: string };
+    }>;
+    reviewedAt: string;
+  };
+  const reviewedClosure = review.registryRecords.filter(
+    record =>
+      record.packageName === 'effect' ||
+      record.packageName === '@effect/opentelemetry' ||
+      record.packageName.startsWith('@effect/tsgo') ||
+      record.packageName === 'oxfmt' ||
+      record.packageName.startsWith('@oxfmt/binding-') ||
+      record.packageName === 'oxlint' ||
+      record.packageName.startsWith('@oxlint/binding-'),
+  );
+  const expectedSelectors = new Set(
+    reviewedClosure.map(record =>
+      packageKey(record.packageName, record.version),
+    ),
+  );
+  const approvalBySelector = new Map(
+    ULTRAMODERN_WORKSPACE_POLICY.pnpm.releaseAge.approvals.map(approval => [
+      packageKey(approval.packageName, approval.version),
+      approval,
+    ]),
+  );
+
+  assert.equal(reviewedClosure.length, 50);
+  assert.deepEqual(
+    new Set(
+      renderMinimumReleaseAgeExclude({
+        now: new Date('2026-08-11T00:39:42.463Z'),
+      }),
+    ),
+    expectedSelectors,
+  );
+  for (const record of reviewedClosure) {
+    const selector = packageKey(record.packageName, record.version);
+    const approval = approvalBySelector.get(selector);
+    assert.ok(approval, `${selector} must have exact review approval`);
+    assert.equal(approval.reviewedAt, review.reviewedAt);
+    assert.equal(Date.parse(approval.expiresAt), Date.parse(review.expiresAt));
+    assert.deepEqual(approval.registry, {
+      publishedAt: record.publishedAt,
+      dist: { integrity: record.dist.integrity },
+    });
+    assert.deepEqual(approval.evidence, {
+      uri: 'https://github.com/BleedingDev/ultramodern.js/commit/eb27eddccec4e51896d63abb070ef46a7b7d3eb7',
+      sha256:
+        '47c9f25308e6bb521fa6e5a603205be9664034ae92bb94b1aa7d5683229bb240',
+      sha256Subject: 'git-commit-payload',
+    });
+  }
+
   for (const packageName of [
-    'effect',
-    '@effect/opentelemetry',
     '@effect/vitest',
+    '@tanstack/react-router',
+    '@tanstack/router-core',
     '@cloudflare/workers-types',
-    'miniflare',
-    'wrangler',
   ]) {
     assert.equal(
-      ULTRAMODERN_WORKSPACE_POLICY.pnpm.releaseAge.approvals.find(
-        item => item.packageName === packageName,
+      ULTRAMODERN_WORKSPACE_POLICY.pnpm.releaseAge.approvals.some(
+        approval => approval.packageName === packageName,
       ),
-      undefined,
-      `${packageName} must not claim a stale release-age exemption`,
+      false,
+      `${packageName} is reviewed but not in the failing lock closure`,
     );
   }
 });
