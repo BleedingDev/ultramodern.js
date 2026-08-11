@@ -3032,6 +3032,12 @@ importers:
         specifier: 0.6.0
         version: 0.6.0
 
+  scripts/ultramodern-production-readiness:
+    dependencies:
+      '@babel/core':
+        specifier: ^8.0.1
+        version: 8.0.1
+
   tests:
     devDependencies:
       '@modern-js/app-tools':
