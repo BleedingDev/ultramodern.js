@@ -3,7 +3,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { yaml } from '@modern-js/utils';
-import { buildDependencyClosure } from '../../../../scripts/ultramodern-production-readiness/published-create-proof/release-age-audit.mjs';
+import {
+  buildDependencyClosure,
+  validateExactExclusions,
+} from '../../../../scripts/ultramodern-production-readiness/published-create-proof/release-age-audit.mjs';
 import type { ResolvedUltramodernPackageSource } from '../src/ultramodern-package-source';
 import { parseUltramodernReleaseCohort } from '../src/ultramodern-release-cohort';
 import {
@@ -174,6 +177,25 @@ test('approves only the reviewed lock-reachable immature latest cohort', () => {
       ),
       false,
       `${packageName} is reviewed but not in the failing lock closure`,
+    );
+  }
+});
+
+test('renders reviewed and first-party exclusions in the clean-room canonical order', () => {
+  const approvalTime = new Date('2026-08-11T00:39:42.463Z');
+  const renderedPolicies = [
+    renderMinimumReleaseAgeExclude({ now: approvalTime }),
+    renderMinimumReleaseAgeExclude({
+      now: approvalTime,
+      packageSource,
+      releaseCohort,
+    }),
+  ];
+
+  for (const exclusions of renderedPolicies) {
+    assert.deepEqual(exclusions, [...exclusions].sort());
+    assert.doesNotThrow(() =>
+      validateExactExclusions(exclusions, 'Generated minimumReleaseAgeExclude'),
     );
   }
 });

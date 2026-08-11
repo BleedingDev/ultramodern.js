@@ -932,6 +932,35 @@ test('independent release-age audit retries transient registry transport failure
   assert.equal(metadata[0].integrity, integrity);
 });
 
+test('release-age exclusions use locale-independent canonical ordering', () => {
+  const auditModuleUrl = pathToFileURL(
+    path.resolve(__dirname, '../published-create-proof/release-age-audit.mjs'),
+  ).href;
+  const program = `
+    const { validateExactExclusions } = await import(${JSON.stringify(auditModuleUrl)});
+    validateExactExclusions(
+      ['a@1.0.0-I', 'a@1.0.0-i'],
+      'Generated minimumReleaseAgeExclude',
+    );
+  `;
+
+  for (const locale of ['en_US.UTF-8', 'tr_TR.UTF-8']) {
+    const result = spawnSync(
+      process.execPath,
+      ['--input-type=module', '--eval', program],
+      {
+        encoding: 'utf8',
+        env: { ...process.env, LANG: locale, LC_ALL: locale },
+      },
+    );
+    assert.equal(
+      result.status,
+      0,
+      `${locale} rejected code-unit-sorted exclusions: ${result.stderr}`,
+    );
+  }
+});
+
 test('release-age audit parses lockfiles by path with the pinned parser', async () => {
   const { parseYamlFile, YAML_INTEGRITY, YAML_SPECIFIER, YAML_VERSION } =
     await import('../published-create-proof/release-age-audit.mjs');

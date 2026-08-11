@@ -1442,7 +1442,8 @@ export function renderMinimumReleaseAgeExclude(
         nowTimestamp < maturesAt
       );
     })
-    .map(packageVersionKey);
+    .map(packageVersionKey)
+    .sort();
 
   const packageSource = options.packageSource;
   if (

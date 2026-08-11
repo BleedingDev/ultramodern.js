@@ -31,6 +31,13 @@ function assertCondition(condition, message) {
   }
 }
 
+function compareCodeUnits(left, right) {
+  if (left === right) {
+    return 0;
+  }
+  return left < right ? -1 : 1;
+}
+
 function isPlainObject(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return false;
@@ -45,12 +52,8 @@ function assertPlainObject(value, label) {
 
 function assertExactKeys(value, expectedKeys, label) {
   assertPlainObject(value, label);
-  const actual = Object.keys(value).sort((left, right) =>
-    left.localeCompare(right),
-  );
-  const expected = [...expectedKeys].sort((left, right) =>
-    left.localeCompare(right),
-  );
+  const actual = Object.keys(value).sort(compareCodeUnits);
+  const expected = [...expectedKeys].sort(compareCodeUnits);
   assertCondition(
     JSON.stringify(actual) === JSON.stringify(expected),
     `${label} has unknown or missing fields: expected ${expected.join(
@@ -86,7 +89,7 @@ function canonicalValue(value, label = 'value') {
   assertPlainObject(value, label);
   return Object.fromEntries(
     Object.keys(value)
-      .sort((left, right) => left.localeCompare(right))
+      .sort(compareCodeUnits)
       .map(key => [key, canonicalValue(value[key], `${label}.${key}`)]),
   );
 }
@@ -309,7 +312,7 @@ function identityKey(identity) {
 
 function sortedEntries(value) {
   return Object.entries(isPlainObject(value) ? value : {}).sort(
-    ([left], [right]) => left.localeCompare(right),
+    ([left], [right]) => compareCodeUnits(left, right),
   );
 }
 
@@ -375,9 +378,7 @@ function buildDependencyClosure(lock) {
 
   const nodes = new Map();
   const nodeIdsByIdentity = new Map();
-  for (const nodeId of [...snapshotRecords.keys()].sort((left, right) =>
-    left.localeCompare(right),
-  )) {
+  for (const nodeId of [...snapshotRecords.keys()].sort(compareCodeUnits)) {
     const identity = parsePackageKey(nodeId);
     if (!identity) {
       continue;
@@ -500,10 +501,12 @@ function buildDependencyClosure(lock) {
       return { ...metadata, path: packagePath };
     })
     .filter(Boolean)
-    .sort((left, right) => identityKey(left).localeCompare(identityKey(right)));
+    .sort((left, right) =>
+      compareCodeUnits(identityKey(left), identityKey(right)),
+    );
 
   unresolved.sort((left, right) =>
-    canonicalJson(left).localeCompare(canonicalJson(right)),
+    compareCodeUnits(canonicalJson(left), canonicalJson(right)),
   );
   return {
     closure,
@@ -674,7 +677,7 @@ function validateExceptionPolicy(policy, now = new Date()) {
     });
   }
   normalized.sort((left, right) =>
-    identityKey(left).localeCompare(identityKey(right)),
+    compareCodeUnits(identityKey(left), identityKey(right)),
   );
   return {
     schema: releaseAgePolicySchema,
@@ -911,9 +914,9 @@ function approveImmaturePackages({ metadata, policy, release }) {
         .join(', ')}`,
     );
   }
-  exactExclusions.sort((left, right) => left.localeCompare(right));
+  exactExclusions.sort(compareCodeUnits);
   approvals.sort((left, right) =>
-    identityKey(left).localeCompare(identityKey(right)),
+    compareCodeUnits(identityKey(left), identityKey(right)),
   );
   return { approvals, exactExclusions };
 }
@@ -949,9 +952,7 @@ function validateExactExclusions(value, label) {
     identities.add(exclusion);
     exclusions.push(exclusion);
   }
-  const sorted = [...exclusions].sort((left, right) =>
-    left.localeCompare(right),
-  );
+  const sorted = [...exclusions].sort(compareCodeUnits);
   assertCondition(
     JSON.stringify(exclusions) === JSON.stringify(sorted),
     `${label} must be sorted canonically`,
