@@ -1,9 +1,16 @@
 // @effect-diagnostics anyUnknownInErrorContext:off asyncFunction:off globalDate:off globalTimers:off newPromise:off strictBooleanExpressions:off
+
+import { toHeaderRecord } from '../../../utils/headers';
 import {
   type DataBatchRequestPayload,
   type DataBatchResponseItem,
   DEFAULT_DATA_BATCH_ENDPOINT,
+  isPlainObject,
+  measureTextBytes,
+  normalizeMethod as normalizeItemMethod,
 } from '../../data-platform';
+
+export { toHeaderRecord } from '../../../utils/headers';
 
 export function normalizeBatchPath(pathname: string | undefined) {
   if (!pathname || pathname === '/') {
@@ -13,34 +20,6 @@ export function normalizeBatchPath(pathname: string | undefined) {
     return `/${pathname}` as `/${string}`;
   }
   return pathname as `/${string}`;
-}
-
-export function isPlainObject(
-  value: unknown,
-): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-export function toTextLength(value: string) {
-  if (typeof TextEncoder !== 'undefined') {
-    return new TextEncoder().encode(value).length;
-  }
-  if (typeof Buffer !== 'undefined') {
-    return Buffer.byteLength(value);
-  }
-  return value.length;
-}
-
-export function toHeaderRecord(headers: Headers): Record<string, string> {
-  const record: Record<string, string> = {};
-  headers.forEach((value, key) => {
-    record[key] = value;
-  });
-  return record;
-}
-
-export function normalizeItemMethod(method: string | undefined) {
-  return (method || 'GET').toUpperCase();
 }
 
 export function normalizeBatchAllowedMethods(
@@ -70,20 +49,6 @@ export function isBatchRequestPayload(
 }
 
 export function createBatchValidationResponse(message: string, status = 400) {
-  return new Response(
-    JSON.stringify({
-      message,
-    }),
-    {
-      status,
-      headers: {
-        'content-type': 'application/json; charset=utf-8',
-      },
-    },
-  );
-}
-
-function createJsonValidationResponse(message: string, status = 400) {
   return new Response(
     JSON.stringify({
       message,
@@ -132,7 +97,7 @@ export async function prepareJsonRequestBody(request: Request) {
 
     JSON.parse(bodyText);
   } catch {
-    return createJsonValidationResponse('Invalid JSON request body');
+    return createBatchValidationResponse('Invalid JSON request body');
   }
 
   return request;

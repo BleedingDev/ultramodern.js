@@ -70,6 +70,27 @@ describe('plugin-bff regressions', () => {
       './dist/types/runtime/effect-client/index.d.ts',
     ]);
 
+    const effectEntry = require('@modern-js/plugin-bff/effect') as {
+      defineEffectRpcBff?: unknown;
+    };
+    const dataPlatformEntry =
+      require('@modern-js/plugin-bff/data-platform') as Record<string, unknown>;
+    expect(effectEntry.defineEffectRpcBff).toBeTypeOf('function');
+    for (const name of [
+      'buildQueryKey',
+      'buildScopeKey',
+      'createHydrationEnvelope',
+      'createInvalidationEvent',
+      'createOperationId',
+      'createRequestEnvelope',
+      'deriveChildTraceContext',
+      'shouldApplyInvalidation',
+      'validateHydrationEnvelope',
+      'validateRequestEnvelope',
+    ]) {
+      expect(dataPlatformEntry[name]).toBeTypeOf('function');
+    }
+
     const openTelemetryPackage = JSON.parse(
       fs.readFileSync(
         require.resolve('@effect/opentelemetry/package.json'),

@@ -5,19 +5,19 @@ import {
   DEFAULT_DATA_BATCH_HEADER,
   DEFAULT_DATA_ENVELOPE_HEADER,
   decodeRequestEnvelopeHeader,
+  isPlainObject,
+  measureTextBytes,
+  normalizeMethod as normalizeItemMethod,
 } from '../../data-platform';
 import {
   createBatchValidationResponse,
   isBatchRequestPayload,
-  isPlainObject,
   mapWithConcurrency,
   normalizeBatchAllowedMethods,
   normalizeBatchPath,
-  normalizeItemMethod,
   promiseWithTimeout,
   toBatchItemError,
   toHeaderRecord,
-  toTextLength,
 } from './batch';
 import {
   getMountedPrefixFromContext,
@@ -79,7 +79,7 @@ export function createDataPlatformBatchRequestHandler<TContext>(options: {
     }
 
     const payloadText = await request.text();
-    if (toTextLength(payloadText) > batchMaxBytes) {
+    if (measureTextBytes(payloadText) > batchMaxBytes) {
       return createBatchValidationResponse(
         `Batch payload exceeds max size (${String(batchMaxBytes)} bytes)`,
         413,

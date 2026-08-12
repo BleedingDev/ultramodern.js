@@ -1,5 +1,5 @@
 // @effect-diagnostics anyUnknownInErrorContext:off asyncFunction:off globalDate:off globalTimers:off newPromise:off strictBooleanExpressions:off
-import { isPlainObject } from './batch';
+import { isPlainObject } from '../../data-platform';
 
 export function getRequestPathname(request: Request) {
   try {

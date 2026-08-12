@@ -26,6 +26,8 @@ import {
 import type { ServerPluginAPI } from '@modern-js/server-core';
 import path from 'path';
 
+import { toHeaderRecord } from './headers';
+
 export type { ResolvedCrossProjectPolicy };
 
 /**
@@ -113,14 +115,6 @@ export const checkCrossProjectPolicyResponse = (
     status: denial.status,
     headers: DENIAL_HEADERS,
   });
-};
-
-const toHeaderRecord = (headers: Headers): Record<string, string> => {
-  const record: Record<string, string> = {};
-  headers.forEach((value, key) => {
-    record[key] = value;
-  });
-  return record;
 };
 
 /**

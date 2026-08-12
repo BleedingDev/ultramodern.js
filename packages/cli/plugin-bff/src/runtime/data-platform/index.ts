@@ -1,3 +1,4 @@
+export { measureTextBytes, normalizeMethod } from './batch/request';
 export {
   createDataBatchTransport,
   createDataBatchTransportTelemetryAttributes,
@@ -10,6 +11,7 @@ export {
   createOperationId,
   decodeRequestEnvelopeHeader,
   encodeRequestEnvelopeHeader,
+  isPlainObject,
   normalizeOrigin,
   stableStringify,
 } from './codec';
