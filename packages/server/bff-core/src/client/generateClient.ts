@@ -142,26 +142,38 @@ export const generateClient = async ({
       continue;
     }
 
-    const serializedRouteName = JSON.stringify(routePath);
-    const serializedMethod = JSON.stringify(upperHttpMethod);
-    const serializedMethodDecider = JSON.stringify(
-      httpMethodDecider ? httpMethodDecider : 'functionName',
-    );
-    const serializedOperationContext = JSON.stringify(operationContext);
-    const tailArgs = `, ${
-      fetcher ? 'fetch' : 'undefined'
-    }, ${requestId ? JSON.stringify(requestId) : 'undefined'}, ${serializedOperationContext}`;
-    if (target === 'server') {
-      handlersCode += `export ${exportStatement} createRequest(${serializedRouteName}, ${serializedMethod}, process.env.PORT || ${String(
-        port,
-      )}, ${serializedMethodDecider}${tailArgs});
-      `;
-    } else {
-      handlersCode += `export ${exportStatement} createRequest(${serializedRouteName}, ${serializedMethod}, ${String(
-        port,
-      )}, ${serializedMethodDecider}${tailArgs});
-      `;
+    // `port` is emitted as a raw expression for the server target, so the
+    // options bag has to be assembled as source text rather than JSON.
+    const portExpression =
+      target === 'server'
+        ? `process.env.PORT || ${String(port)}`
+        : String(port);
+    const requestOptionProperties = [
+      `path: ${JSON.stringify(routePath)}`,
+      `method: ${JSON.stringify(upperHttpMethod)}`,
+      `port: ${portExpression}`,
+      `httpMethodDecider: ${JSON.stringify(
+        httpMethodDecider ? httpMethodDecider : 'functionName',
+      )}`,
+    ];
+    if (domain) {
+      requestOptionProperties.push(`domain: ${JSON.stringify(domain)}`);
     }
+    if (fetcher) {
+      // `fetch` is the identifier imported from the configured fetcher module.
+      requestOptionProperties.push('fetch');
+    }
+    if (requestId) {
+      requestOptionProperties.push(`requestId: ${JSON.stringify(requestId)}`);
+    }
+    requestOptionProperties.push(
+      `operationContext: ${JSON.stringify(operationContext)}`,
+    );
+
+    handlersCode += `export ${exportStatement} createRequest({ ${requestOptionProperties.join(
+      ', ',
+    )} });
+      `;
   }
 
   const serializedRequestCreator = JSON.stringify(requestCreator);

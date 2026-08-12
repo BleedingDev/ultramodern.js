@@ -81,10 +81,10 @@ const createHarness = (
       return typeof referer === 'string' ? referer : undefined;
     },
     createInputParamsBody: args => JSON.stringify({ args }),
-    resolveRequestUrl: ({ configDomain, path, port }) =>
+    resolveRequestUrl: ({ configDomain, domain, path, port }) =>
       target === 'server'
         ? `${configDomain || `http://127.0.0.1:${port}`}${path}`
-        : `${configDomain || ''}${path}`,
+        : `${configDomain || domain || ''}${path}`,
     resolveUploadUrl: ({ configDomain, domain, path }) =>
       `${configDomain || domain || ''}${path}`,
   });

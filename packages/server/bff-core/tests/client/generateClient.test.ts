@@ -35,6 +35,7 @@ async function executeGeneratedClient(code: string) {
                 'export const createRequest = (...args) => ({ kind: "request", args });',
                 'export const createUploader = options => ({ kind: "uploader", options });',
                 'export const configure = options => options;',
+                'export const fetch = (...args) => ({ kind: "fetch", args });',
               ].join('\n'),
               loader: 'js',
             }),
@@ -53,12 +54,17 @@ async function executeGeneratedClient(code: string) {
   return moduleRecord.exports;
 }
 
-async function generateFixtureClient(options: {
+type FixtureClientOptions = {
   prefix: string;
   resourcePath: string;
-  target?: 'bundle';
+  target?: 'bundle' | 'server';
   requestId?: string;
-}) {
+  domain?: string;
+  fetcher?: string;
+  requestCreator?: string;
+};
+
+async function generateFixtureSource(options: FixtureClientOptions) {
   const source = await fs.readFile(options.resourcePath, 'utf-8');
   const result = await generateClient({
     appDir: __dirname,
@@ -71,11 +77,20 @@ async function generateFixtureClient(options: {
     requireResolve: ((input: any) => input) as any,
     ...(options.target ? { target: options.target } : {}),
     ...(options.requestId ? { requestId: options.requestId } : {}),
+    ...(options.domain ? { domain: options.domain } : {}),
+    ...(options.fetcher ? { fetcher: options.fetcher } : {}),
+    ...(options.requestCreator
+      ? { requestCreator: options.requestCreator }
+      : {}),
   });
   if (!result.isOk) {
     throw new Error(String(result.value));
   }
-  return executeGeneratedClient(result.value);
+  return result.value;
+}
+
+async function generateFixtureClient(options: FixtureClientOptions) {
+  return executeGeneratedClient(await generateFixtureSource(options));
 }
 
 describe('client', () => {
@@ -89,25 +104,133 @@ describe('client', () => {
       resourcePath,
     });
 
-    expect(client.get).toMatchObject({
-      kind: 'request',
-      args: [
-        '/api/:id/origin/foo',
-        'GET',
-        3000,
-        'functionName',
-        undefined,
-        undefined,
-        expect.objectContaining({
-          method: 'GET',
-          operationId: 'get',
-          routePath: '/api/:id/origin/foo',
-          operationVersion: 1,
-        }),
-      ],
+    expect(client.get.kind).toBe('request');
+    // Upstream contract: createRequest takes exactly one options object.
+    expect(client.get.args).toHaveLength(1);
+    expect(client.get.args[0]).toEqual({
+      path: '/api/:id/origin/foo',
+      method: 'GET',
+      port: 3000,
+      httpMethodDecider: 'functionName',
+      operationContext: expect.objectContaining({
+        method: 'GET',
+        operationId: 'get',
+        routePath: '/api/:id/origin/foo',
+        operationVersion: 1,
+      }),
     });
-    expect(client.post.args[1]).toBe('POST');
+    expect(client.post.args[0].method).toBe('POST');
     expect(client.operationManifest.operations).toHaveLength(2);
+  });
+
+  test('passes a single options object to a custom request creator', async () => {
+    const resourcePath = path.resolve(
+      __dirname,
+      '../fixtures/function/lambda/[id]/origin/foo.ts',
+    );
+    const client = await generateFixtureClient({
+      prefix: '/api',
+      resourcePath,
+      requestCreator: 'custom-request-runtime',
+    });
+
+    for (const handler of [client.get, client.post]) {
+      expect(handler.args).toHaveLength(1);
+      expect(typeof handler.args[0]).toBe('object');
+      expect(handler.args[0]).not.toBeNull();
+      expect(Array.isArray(handler.args[0])).toBe(false);
+    }
+  });
+
+  test('emits the configured bff domain for data requests', async () => {
+    const resourcePath = path.resolve(
+      __dirname,
+      '../fixtures/function/lambda/[id]/origin/foo.ts',
+    );
+    const client = await generateFixtureClient({
+      prefix: '/api',
+      resourcePath,
+      target: 'bundle',
+      requestId: 'producer-app',
+      domain: 'https://bff.example.com',
+    });
+
+    expect(client.get.args).toHaveLength(1);
+    expect(client.get.args[0]).toMatchObject({
+      path: '/api/:id/origin/foo',
+      method: 'GET',
+      port: 3000,
+      httpMethodDecider: 'functionName',
+      domain: 'https://bff.example.com',
+      requestId: 'producer-app',
+    });
+  });
+
+  test('omits the domain option when no bff domain is configured', async () => {
+    const resourcePath = path.resolve(
+      __dirname,
+      '../fixtures/function/lambda/[id]/origin/foo.ts',
+    );
+    const client = await generateFixtureClient({
+      prefix: '/api',
+      resourcePath,
+    });
+
+    expect(client.get.args).toHaveLength(1);
+    expect(client.get.args[0]).not.toHaveProperty('domain');
+    expect(client.post.args[0]).not.toHaveProperty('domain');
+  });
+
+  test('passes the imported fetcher through the options object', async () => {
+    const resourcePath = path.resolve(
+      __dirname,
+      '../fixtures/function/lambda/[id]/origin/foo.ts',
+    );
+    const client = await generateFixtureClient({
+      prefix: '/api',
+      resourcePath,
+      fetcher: 'custom-fetcher',
+    });
+
+    expect(client.get.args).toHaveLength(1);
+    // `fetch` is emitted as a shorthand property bound to the identifier
+    // imported from the configured fetcher module.
+    expect(client.get.args[0].fetch).toBeInstanceOf(Function);
+    expect(client.get.args[0].fetch('ping')).toEqual({
+      kind: 'fetch',
+      args: ['ping'],
+    });
+  });
+
+  test('emits the raw port expression for the server target', async () => {
+    const resourcePath = path.resolve(
+      __dirname,
+      '../fixtures/function/lambda/[id]/origin/foo.ts',
+    );
+    const source = await generateFixtureSource({
+      prefix: '/api',
+      resourcePath,
+      target: 'server',
+      domain: 'https://bff.example.com',
+    });
+
+    const previousPort = process.env.PORT;
+    try {
+      process.env.PORT = '4567';
+      const client = await executeGeneratedClient(source);
+      expect(client.get.args[0].port).toBe('4567');
+      expect(client.get.args[0].domain).toBe('https://bff.example.com');
+
+      delete process.env.PORT;
+      const fallbackClient = await executeGeneratedClient(source);
+      expect(fallbackClient.get.args[0].port).toBe(3000);
+    } finally {
+      if (previousPort === undefined) {
+        delete process.env.PORT;
+      } else {
+        process.env.PORT = previousPort;
+      }
+    }
   });
 
   test('executes generated default, method-named, and custom handlers', async () => {
@@ -118,12 +241,18 @@ describe('client', () => {
     const client = await generateFixtureClient({ prefix: '/', resourcePath });
 
     expect(client.default.kind).toBe('request');
-    expect(client.default.args.slice(0, 2)).toEqual(['/normal/origin', 'GET']);
-    expect(client.DELETE.args.slice(0, 2)).toEqual([
-      '/normal/origin',
-      'DELETE',
-    ]);
-    expect(client.putRepo.args.slice(0, 2)).toEqual(['/put-repo', 'PUT']);
+    expect(client.default.args[0]).toMatchObject({
+      path: '/normal/origin',
+      method: 'GET',
+    });
+    expect(client.DELETE.args[0]).toMatchObject({
+      path: '/normal/origin',
+      method: 'DELETE',
+    });
+    expect(client.putRepo.args[0]).toMatchObject({
+      path: '/put-repo',
+      method: 'PUT',
+    });
     expect(
       client.operationManifest.operations.map((entry: any) => entry.name),
     ).toEqual(['DELETE', 'default', 'putRepo']);
@@ -201,7 +330,7 @@ describe('client', () => {
         options: { path: '/api/upload' },
       });
       expect(client.get.kind).toBe('request');
-      expect(client.get.args.slice(0, 2)).toEqual(['/api', 'GET']);
+      expect(client.get.args[0]).toMatchObject({ path: '/api', method: 'GET' });
     });
 
     test('executes producer upload clients with operation context', async () => {

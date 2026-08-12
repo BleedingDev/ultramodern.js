@@ -31,7 +31,8 @@ const requestFactory = createRequestFactory<typeof fetch>({
     JSON.stringify({
       args,
     }),
-  resolveRequestUrl: ({ configDomain, path }) => `${configDomain || ''}${path}`,
+  resolveRequestUrl: ({ configDomain, domain, path }) =>
+    `${configDomain || domain || ''}${path}`,
   resolveUploadUrl: ({ configDomain, domain, path }) =>
     `${configDomain || domain || ''}${path}`,
 });

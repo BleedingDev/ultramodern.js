@@ -44,6 +44,7 @@ import { getUploadPayload } from './utiles';
 type HeaderMap = Record<string, any>;
 type RequestUrlOptions = {
   configDomain: string | undefined;
+  domain: string | undefined;
   path: string;
   port: number;
 };
@@ -334,6 +335,7 @@ export const createRequestFactory = <F>(
       port,
       httpMethodDecider = 'functionName',
       fetch = environment.originFetch,
+      domain,
       requestId = 'default',
       operationContext,
     } = options;
@@ -355,6 +357,7 @@ export const createRequestFactory = <F>(
         }
         url = environment.resolveRequestUrl({
           configDomain,
+          domain,
           port,
           path,
         });
@@ -422,6 +425,7 @@ export const createRequestFactory = <F>(
         }
         url = environment.resolveRequestUrl({
           configDomain,
+          domain,
           port,
           path: finalPath,
         });

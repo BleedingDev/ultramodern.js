@@ -591,6 +591,74 @@ describe('configure', () => {
     }
   });
 
+  describe('options.domain', () => {
+    const domain = 'https://bff.example.com';
+    const okResponse = () =>
+      Promise.resolve(new Response(JSON.stringify(response)));
+
+    const deciders = ['functionName', 'inputParams'] as const;
+
+    test.each(
+      deciders,
+    )('should prefix the resolved url with options.domain (%s decider)', async httpMethodDecider => {
+      const customRequest = rs.fn((_requestPath: RequestInfo) => okResponse());
+      configure({ request: customRequest });
+
+      const request = createRequest({
+        path,
+        method,
+        port: 8080,
+        httpMethodDecider,
+        domain,
+      });
+      await request();
+
+      expect(customRequest).toHaveBeenCalledTimes(1);
+      expect(customRequest.mock.calls[0][0]).toBe(`${domain}${path}`);
+    });
+
+    test('should resolve a relative url when no domain is supplied', async () => {
+      const customRequest = rs.fn((_requestPath: RequestInfo) => okResponse());
+      configure({ request: customRequest });
+
+      const request = createRequest({
+        path,
+        method,
+        port: 8080,
+      });
+      await request();
+
+      expect(customRequest.mock.calls[0][0]).toBe(path);
+    });
+
+    test('should let a configured setDomain override options.domain', async () => {
+      const producer = 'producer-browser-domain-precedence';
+      const configuredDomain = 'https://configured.example.com';
+      const customRequest = rs.fn((_requestPath: RequestInfo) => okResponse());
+
+      configure({
+        request: customRequest,
+        requestId: producer,
+        allowCrossOriginEnvelope: true,
+        operationContract: {
+          enabled: false,
+        },
+        setDomain: () => configuredDomain,
+      });
+
+      const request = createRequest({
+        path,
+        method,
+        port: 8080,
+        domain,
+        requestId: producer,
+      });
+      await request();
+
+      expect(customRequest.mock.calls[0][0]).toBe(`${configuredDomain}${path}`);
+    });
+  });
+
   test('should retry with backoff and emit degraded telemetry events', async () => {
     rs.useFakeTimers();
     const onDegraded = rs.fn();
