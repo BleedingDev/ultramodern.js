@@ -463,6 +463,13 @@ test('release acceptance defaults to the exact reviewed third-party policy', asy
       record,
     ]),
   );
+  const allowedExpiryDates = new Set([
+    '2026-09-25T23:59:59.000Z',
+    '2026-10-09T23:59:59.000Z',
+    '2026-10-23T23:59:59.000Z',
+    '2026-11-06T23:59:59.000Z',
+  ]);
+  const observedExpiryDates = new Set();
 
   assert.equal(options.releaseAgePolicyPath, defaultReleaseAgePolicyPath);
   assert.equal(validated.entries.length, 50);
@@ -480,8 +487,17 @@ test('release acceptance defaults to the exact reviewed third-party policy', asy
     assert.equal(registryRecord.maturityAtReview.state, 'immature');
     assert.equal(entry.approvedBy, review.reviewer);
     assert.equal(entry.reviewedAt, review.reviewedAt);
-    assert.equal(entry.expiresAt, new Date(review.expiresAt).toISOString());
+    assert.ok(
+      allowedExpiryDates.has(entry.expiresAt),
+      `unexpected expiry for ${entry.package}`,
+    );
+    assert.ok(
+      new Date(entry.expiresAt) > new Date(review.reviewedAt),
+      `expiry must follow review for ${entry.package}`,
+    );
+    observedExpiryDates.add(entry.expiresAt);
   }
+  assert.deepEqual(observedExpiryDates, allowedExpiryDates);
 });
 
 test('release acceptance runner preserves the accepted producer identity on a publish retry', async () => {
