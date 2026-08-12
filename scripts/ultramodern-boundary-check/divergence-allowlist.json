@@ -5,7 +5,7 @@
   "migrationGoal": "Shrink-only budget of fork edits inside upstream-owned files. Every entry is debt: move it upstream or behind an extension point, then re-run --write-divergence-allowlist.",
   "totalFiles": 633,
   "totalHunks": 2835,
-  "totalChangedLines": 33832,
+  "totalChangedLines": 33831,
   "files": [
     {
       "file": "packages/cli/adapter-rstest/package.json",
@@ -2640,7 +2640,7 @@
     {
       "file": "packages/toolkit/create/README.md",
       "hunks": 4,
-      "changedLines": 445
+      "changedLines": 444
     },
     {
       "file": "packages/toolkit/create/src/agents-md.ts",

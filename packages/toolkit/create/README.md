@@ -10,8 +10,7 @@
 
 ## UltraModern.js Create
 
-The BleedingDev create package has one supported generated product: an
-UltraModern SuperApp workspace.
+The BleedingDev create package has one supported generated product: an UltraModern SuperApp workspace. New scaffolds use TanStack Router.
 
 ```bash
 pnpm dlx @bleedingdev/modern-js-create my-workspace

@@ -3,7 +3,9 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import vm from 'node:vm';
 import { yaml } from '@modern-js/utils';
+import { transformSync } from 'esbuild';
 import { runUltramodernToolingCli } from '../src/ultramodern-tooling/commands';
 import {
   addUltramodernVertical,
@@ -87,6 +89,33 @@ function runGeneratedCloudflareProof(workspaceDir: string, outPath: string) {
 
 function commandOutput(result: ReturnType<typeof runGeneratedWorkspaceCheck>) {
   return `${result.stdout}\n${result.stderr}`;
+}
+
+function evaluateRuntimeFramework(source: string): string {
+  const transformed = transformSync(source, {
+    format: 'cjs',
+    loader: 'ts',
+    target: 'node20',
+  }).code;
+  const module = { exports: {} as Record<string, unknown> };
+  vm.runInNewContext(transformed, {
+    module,
+    exports: module.exports,
+    require(specifier: string) {
+      if (specifier === '@modern-js/runtime') {
+        return { defineRuntimeConfig: (config: unknown) => config };
+      }
+      if (specifier === '@modern-js/runtime/boundary-debugger') {
+        return { ultramodernBoundaryDebuggerPlugin: () => ({}) };
+      }
+      if (specifier === 'i18next') {
+        return { createInstance: () => ({}) };
+      }
+      return { default: {} };
+    },
+  });
+  const config = module.exports.default as { router?: { framework?: string } };
+  return config.router?.framework ?? '';
 }
 
 type RecordedCommand = {
@@ -823,6 +852,18 @@ test('workspace and MicroVertical integration stays coherent across public API a
     assert.equal(
       shellPackage.dependencies['@modern-js/runtime'],
       'workspace:*',
+    );
+    assert.equal(
+      evaluateRuntimeFramework(
+        read(workspaceDir, 'apps/shell-super-app/src/modern.runtime.ts'),
+      ),
+      'tanstack',
+    );
+    assert.equal(
+      evaluateRuntimeFramework(
+        read(workspaceDir, 'verticals/catalog/src/modern.runtime.ts'),
+      ),
+      'tanstack',
     );
 
     assertIntegratedVertical(workspaceDir, 'catalog', 4101);
