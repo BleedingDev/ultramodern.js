@@ -1,7 +1,7 @@
-name: Lint(Ubuntu)
+name: Unit Test (Linux)
 
 concurrency:
-  group: ubuntu-lint-${{ github.head_ref }}
+  group: linux-unit-test-${{ github.head_ref }}
   cancel-in-progress: true
 
 # Controls when the action will run.
@@ -20,7 +20,7 @@ permissions:
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  lint-linux:
+  ut-linux:
     # The type of runner that the job will run on
     runs-on: ubuntu-latest
 
@@ -29,7 +29,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # This makes Actions fetch only one branch to release
           fetch-depth: 1
           persist-credentials: false
 
@@ -39,20 +38,33 @@ jobs:
           version: 2026.8.3
           install: true
 
-      - name: Setup Node.js 22
+      - name: Check skip CI
+        run: echo "RESULT=$(node ./scripts/skipCI.js)" >> "$GITHUB_OUTPUT"
+        id: skip-ci
+
+      - name: Log skip CI result
+        env:
+          SKIP_CI_RESULT: ${{ steps.skip-ci.outputs.RESULT }}
+        run: echo "$SKIP_CI_RESULT"
+
+      - name: Setup Node.js 26.7.0
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: "22"
+          node-version: '26.7.0'
           cache: 'pnpm'
 
       - name: Install Dependencies
+        if: ${{steps.skip-ci.outputs.RESULT != 'true'}}
         run: pnpm install --frozen-lockfile
 
-      - name: Lint package.json
-        run: pnpm run lint:package-json
+      - name: Build Required Pkg
+        if: ${{steps.skip-ci.outputs.RESULT != 'true'}}
+        run: pnpm run build:required
 
-      - name: Lint
-        run: pnpm run lint
+      - name: Install Playwright Chromium
+        if: ${{steps.skip-ci.outputs.RESULT != 'true'}}
+        run: pnpm --dir tests/integration/rstest/basic-app-rstest-browser exec playwright install chromium
 
-      - name: Check Changeset
-        run: pnpm run check-changeset
+      - name: Test
+        if: ${{steps.skip-ci.outputs.RESULT != 'true'}}
+        run: pnpm run test:ut
