@@ -13,7 +13,9 @@ import {
   orderPublishItems,
   packageDependenciesFromPackageJson,
 } from './manifest.mjs';
+import validationKit from '../../../lib/validation-kit.js';
 
+const { assertNonEmptyString, assertPlainObject } = validationKit;
 const releaseManifestSchema = 'bleedingdev.ultramodern.release-manifest';
 const releaseManifestSchemaVersion = 2;
 const releaseManifestFile = 'manifest.json';
@@ -79,18 +81,6 @@ function sha256(value) {
   return hashBuffer('sha256', value);
 }
 
-function assertPlainObject(value, label) {
-  if (
-    !value ||
-    typeof value !== 'object' ||
-    Array.isArray(value) ||
-    (Object.getPrototypeOf(value) !== Object.prototype &&
-      Object.getPrototypeOf(value) !== null)
-  ) {
-    throw new Error(`${label} must be a JSON object`);
-  }
-}
-
 function assertExactKeys(value, expectedKeys, label) {
   assertPlainObject(value, label);
   const actual = Object.keys(value).sort(compareCanonicalStrings);
@@ -101,12 +91,6 @@ function assertExactKeys(value, expectedKeys, label) {
         ', ',
       )}; found ${actual.join(', ')}`,
     );
-  }
-}
-
-function assertNonEmptyString(value, label) {
-  if (typeof value !== 'string' || value.trim() !== value || value === '') {
-    throw new Error(`${label} must be a non-empty trimmed string`);
   }
 }
 

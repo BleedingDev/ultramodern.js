@@ -3,17 +3,13 @@ import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { npmRegistryOrigin, repoRoot } from './constants.mjs';
+import validationKit from '../../../lib/validation-kit.js';
 import { verifyPackageArtifactBytes } from './release-artifacts.mjs';
 
+const { assertNonEmptyString } = validationKit;
 const npmRegistryUrl = `${npmRegistryOrigin}/`;
 const githubActionsOidcHostSuffix = '.actions.githubusercontent.com';
 let cachedNpmPublishingRuntime;
-
-function assertNonEmptyString(value, label) {
-  if (typeof value !== 'string' || value.trim() !== value || value === '') {
-    throw new Error(`${label} must be a non-empty trimmed string`);
-  }
-}
 
 function assertPublishRegistryUrl(value) {
   let registry;

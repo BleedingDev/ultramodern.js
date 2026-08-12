@@ -1,11 +1,12 @@
 #!/usr/bin/env node
-// Consumers: publish-bleedingdev.yml `record-publish-outcome` (create command) and
-// backfill-change-record.mjs (publishOutcomeArtifactName, selectPublishOutcomeArtifact).
+// Consumer: publish-bleedingdev.yml `record-publish-outcome` create command;
+// exports also support fail-closed publish-outcome artifact discovery.
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
+import validationKit from '../lib/validation-kit.js';
 import { assertOperationalIndependenceEvidenceMatchesReceipt } from '../ultramodern-production-readiness/published-create-proof/acceptance-contract.mjs';
 import { assertAcceptanceReceipt } from '../ultramodern-production-readiness/published-create-proof/acceptance-receipt.mjs';
 import {
@@ -15,6 +16,9 @@ import {
   tractorTopologiesByBaseline,
 } from '../ultramodern-production-readiness/tractor-downstream/contract.mjs';
 import { readReleaseManifest } from './lib/source-create-proof/release-manifest.mjs';
+
+const { assertNonEmptyString: assertBaseNonEmptyString, assertPlainObject } =
+  validationKit;
 
 const requiredNodeHttpAssertionTypes = Object.freeze([
   'ssr-route',
@@ -38,18 +42,6 @@ const commitPattern = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 const semverPattern =
   /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/u;
 
-function assertPlainObject(value, label) {
-  if (
-    value === null ||
-    typeof value !== 'object' ||
-    Array.isArray(value) ||
-    (Object.getPrototypeOf(value) !== Object.prototype &&
-      Object.getPrototypeOf(value) !== null)
-  ) {
-    throw new Error(`${label} must be a JSON object`);
-  }
-}
-
 function assertExactKeys(value, expected, label) {
   assertPlainObject(value, label);
   const actual = Object.keys(value).sort((left, right) =>
@@ -68,9 +60,7 @@ function assertExactKeys(value, expected, label) {
 }
 
 function assertNonEmptyString(value, label) {
-  if (typeof value !== 'string' || value === '' || value.trim() !== value) {
-    throw new Error(`${label} must be a non-empty trimmed string`);
-  }
+  assertBaseNonEmptyString(value, label);
   if (/\r|\n/u.test(value)) {
     throw new Error(`${label} must not contain line breaks`);
   }
@@ -665,7 +655,6 @@ function validateProducer({
 }
 
 function createPublishOutcome({
-  artifactName,
   cohortDigestPath,
   dryRun,
   manifestDigestPath,
@@ -716,11 +705,6 @@ function createPublishOutcome({
     runId: normalizedRunId,
     runAttempt: normalizedRunAttempt,
   });
-  if (artifactName !== undefined && artifactName !== expectedArtifactName) {
-    throw new Error(
-      'Publish outcome artifact name does not match the workflow run',
-    );
-  }
   const normalizedProducerAttempt = validateProducer({
     artifactIdentity: producerArtifactIdentity,
     publicationRunAttempt: normalizedPublicationAttempt ?? normalizedRunAttempt,
@@ -1009,7 +993,6 @@ async function main(argv = process.argv.slice(2)) {
       args,
       new Set([
         ...evidenceOptions,
-        '--artifact-name',
         '--dry-run',
         '--github-output',
         '--out',
@@ -1028,7 +1011,6 @@ async function main(argv = process.argv.slice(2)) {
     const dryRun = booleanValue(required(values, '--dry-run'), '--dry-run');
     const outcome = createPublishOutcome({
       ...evidencePaths(values, { dryRun }),
-      artifactName: values.get('--artifact-name'),
       dryRun,
       outPath: path.resolve(required(values, '--out')),
       publicationRunAttempt: dryRun

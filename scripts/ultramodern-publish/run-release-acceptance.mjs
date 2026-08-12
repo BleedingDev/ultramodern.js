@@ -28,11 +28,9 @@ const valueOptions = new Set([
   '--expected-version',
   '--manifest',
   '--mode',
-  '--project-name',
   '--receipt',
   '--registry-url',
   '--release-age-policy',
-  '--release-dir',
   '--run-identity',
   '--scale-profile',
 ]);
@@ -86,18 +84,13 @@ function parseArgs(argv) {
     throw new Error('--expected-mode is only valid with receipt verification');
   }
 
-  const releaseDirValue = values.get('--release-dir');
   const manifestValue = values.get('--manifest');
-  if (!releaseDirValue && !manifestValue) {
-    throw new Error('--release-dir or --manifest is required');
+  if (!manifestValue) {
+    throw new Error('--manifest is required');
   }
-  const manifestPath = path.resolve(
-    manifestValue ?? path.join(releaseDirValue, 'manifest.json'),
-  );
-  const releaseDir = path.resolve(
-    releaseDirValue ?? path.dirname(manifestPath),
-  );
-  if (manifestPath !== path.join(releaseDir, 'manifest.json')) {
+  const manifestPath = path.resolve(manifestValue);
+  const releaseDir = path.dirname(manifestPath);
+  if (path.basename(manifestPath) !== 'manifest.json') {
     throw new Error(
       `Strict release manifest must be ${path.join(releaseDir, 'manifest.json')}`,
     );
@@ -111,18 +104,13 @@ function parseArgs(argv) {
   if (scaleProfile !== 'erp-10') {
     throw new Error('--scale-profile must be erp-10 for release acceptance');
   }
-  const projectName = values.get('--project-name') ?? defaultProjectName;
-  if (!/^[a-z][a-z0-9-]*$/u.test(projectName)) {
-    throw new Error('--project-name must match /^[a-z][a-z0-9-]*$/');
-  }
-
   return {
     expectedSourceRevision: values.get('--expected-source-revision'),
     expectedMode,
     expectedVersion: values.get('--expected-version'),
     manifestPath,
     mode,
-    projectName,
+    projectName: defaultProjectName,
     receiptPath: path.resolve(receipt),
     registryUrl: values.get('--registry-url') ?? 'https://registry.npmjs.org/',
     releaseAgePolicyPath: values.has('--release-age-policy')

@@ -1,5 +1,5 @@
 // Consumer: publish-bleedingdev.yml cohort staging and registry operations.
-import { execFileSync, spawn } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import processKit from '../../../lib/process-kit.js';
 import { repoRoot } from './constants.mjs';
 
@@ -22,53 +22,8 @@ function run(command, args, options = {}) {
   }
 }
 
-function runAsync(command, args, options = {}) {
-  return new Promise((resolve, reject) => {
-    const stdio = options.captureOutput
-      ? ['ignore', 'pipe', 'pipe']
-      : (options.stdio ?? 'inherit');
-    const child = spawn(command, args, {
-      cwd: options.cwd ?? repoRoot,
-      stdio,
-      env: {
-        ...process.env,
-        FORCE_COLOR: '0',
-      },
-    });
-
-    const stdout = [];
-    const stderr = [];
-    if (options.captureOutput) {
-      child.stdout?.on('data', chunk => {
-        stdout.push(chunk);
-        process.stdout.write(chunk);
-      });
-      child.stderr?.on('data', chunk => {
-        stderr.push(chunk);
-        process.stderr.write(chunk);
-      });
-    }
-
-    child.on('error', reject);
-    child.on('close', status => {
-      if (status === 0) {
-        resolve();
-        return;
-      }
-
-      const error = new Error(
-        `${command} ${args.join(' ')} failed with ${status}`,
-      );
-      error.status = status;
-      error.stdout = Buffer.concat(stdout).toString('utf-8');
-      error.stderr = Buffer.concat(stderr).toString('utf-8');
-      reject(error);
-    });
-  });
-}
-
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-export { run, runAsync, sleep };
+export { run, sleep };

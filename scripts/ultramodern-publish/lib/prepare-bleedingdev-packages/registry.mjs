@@ -29,7 +29,9 @@ import {
   verifyRegistryProvenance,
 } from './provenance.mjs';
 import semver from '../../../../packages/toolkit/utils/compiled/semver/index.js';
+import validationKit from '../../../lib/validation-kit.js';
 
+const { assertNonEmptyString, assertPlainObject, isPlainObject } = validationKit;
 const execFileAsync = promisify(execFile);
 
 // This code-reviewed checkpoint is deliberately independent of mutable npm
@@ -53,26 +55,6 @@ const registrySourceChronologyPolicies = Object.freeze({
     ]),
   }),
 });
-
-function isPlainObject(value) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    return false;
-  }
-  const prototype = Object.getPrototypeOf(value);
-  return prototype === Object.prototype || prototype === null;
-}
-
-function assertPlainObject(value, label) {
-  if (!isPlainObject(value)) {
-    throw new Error(`${label} must be a JSON object`);
-  }
-}
-
-function assertNonEmptyString(value, label) {
-  if (typeof value !== 'string' || value.trim() !== value || value === '') {
-    throw new Error(`${label} must be a non-empty trimmed string`);
-  }
-}
 
 function isTransientNpmPublishError(error) {
   const output = [

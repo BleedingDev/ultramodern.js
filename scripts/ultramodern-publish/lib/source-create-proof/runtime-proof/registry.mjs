@@ -4,7 +4,6 @@ import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 import { once } from 'node:events';
-import { assert } from '../assertions.mjs';
 import { publishPackageBuffer } from '../../prepare-bleedingdev-packages/npm-buffer-publisher.mjs';
 import {
   readVerifiedPackageArtifactBytes,
@@ -17,6 +16,12 @@ const VERDACCIO_INTEGRITY =
   'sha512-C59DdKYtc1vayM3HiRFVRCRJMd4Hq4QCQnjTMM6CVanJvMpaqHlZ+DHE31/L8ScXkzUl1oS0HulizpxmMXW1LA==';
 const VERDACCIO_UPSTREAM = 'https://registry.npmjs.org/';
 const registryHost = '127.0.0.1';
+
+function assert(condition, message) {
+  if (!condition) {
+    throw new Error(message);
+  }
+}
 
 function runChecked(command, args, options = {}) {
   const result = spawnSync(command, args, {

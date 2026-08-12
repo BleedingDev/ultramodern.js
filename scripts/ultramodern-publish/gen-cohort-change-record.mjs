@@ -320,13 +320,6 @@ function parseArgs(argv) {
   return options;
 }
 
-export function resolvePreviousReleaseVersion(
-  rootDir = repoRoot,
-  options = {},
-) {
-  return resolvePreviousRelease(rootDir, options).version;
-}
-
 export async function generateCohortChangeRecord({
   rootDir = repoRoot,
   version,

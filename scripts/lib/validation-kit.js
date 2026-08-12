@@ -36,6 +36,26 @@ const ensureFileExists = (filePath, { label = 'Required file' } = {}) => {
 const resolvePath = (value, baseDir = process.cwd()) =>
   path.resolve(baseDir, value);
 
+const isPlainObject = value => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return false;
+  }
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+};
+
+const assertPlainObject = (value, label) => {
+  if (!isPlainObject(value)) {
+    throw new Error(`${label} must be a JSON object`);
+  }
+};
+
+const assertNonEmptyString = (value, label) => {
+  if (typeof value !== 'string' || value.trim() !== value || value === '') {
+    throw new Error(`${label} must be a non-empty trimmed string`);
+  }
+};
+
 const ensureObject = (value, context) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     throw new Error(`${context} must be an object`);
@@ -144,6 +164,8 @@ const escapeRegExp = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 module.exports = {
   PLACEHOLDER_VALUES,
+  assertNonEmptyString,
+  assertPlainObject,
   ensureArray,
   ensureBoolean,
   ensureFileExists,
@@ -159,6 +181,7 @@ module.exports = {
   ensureUniqueIds,
   escapeRegExp,
   isPlaceholderValue,
+  isPlainObject,
   normalizeIdentifier,
   readJsonFile,
   resolvePath,

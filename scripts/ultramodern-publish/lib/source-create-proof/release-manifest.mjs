@@ -21,18 +21,6 @@ function computeTarballDigests(tarballPath) {
   };
 }
 
-function assertTarballDigests(item) {
-  const actual = computeTarballDigests(item.artifactPath);
-  for (const field of ['sha256', 'shasum', 'integrity']) {
-    if (actual[field] !== item[field]) {
-      throw new Error(
-        `${item.targetName} tarball ${field} mismatch: expected ${item[field]}, found ${actual[field]}`,
-      );
-    }
-  }
-  return actual;
-}
-
 function targetScope(targetName) {
   const match = /^@([^/]+)\//u.exec(targetName);
   if (!match) {
@@ -258,8 +246,4 @@ function readReleaseManifest({ manifestPath }) {
   });
 }
 
-export {
-  assertTarballDigests,
-  computeTarballDigests,
-  readReleaseManifest,
-};
+export { computeTarballDigests, readReleaseManifest };

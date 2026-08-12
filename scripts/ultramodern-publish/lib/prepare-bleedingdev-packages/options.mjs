@@ -137,14 +137,6 @@ function parseArgs(argv) {
   delete options.packages;
   delete options.noSkipExisting;
 
-  if (
-    !Number.isInteger(options.publishConcurrency) ||
-    options.publishConcurrency < 1 ||
-    options.publishConcurrency > 8
-  ) {
-    throw new Error('--publish-concurrency must be an integer from 1 to 8');
-  }
-
   return options;
 }
 

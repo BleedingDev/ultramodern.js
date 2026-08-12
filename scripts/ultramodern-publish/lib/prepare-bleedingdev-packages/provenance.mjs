@@ -11,7 +11,15 @@ import {
   trustedPublishRepository,
   trustedPublishWorkflowPath,
 } from './constants.mjs';
+import validationKit from '../../../lib/validation-kit.js';
 import { normalizeRepositoryIdentity } from './release-artifacts.mjs';
+
+const {
+  assertNonEmptyString,
+  assertPlainObject,
+  escapeRegExp,
+  isPlainObject,
+} = validationKit;
 
 const dsseInTotoPayloadType = 'application/vnd.in-toto+json';
 const githubActionsBuildType =
@@ -23,26 +31,6 @@ const fulcioSourceRepositoryOid = '1.3.6.1.4.1.57264.1.5';
 const fulcioSourceRefOid = '1.3.6.1.4.1.57264.1.6';
 
 let cachedNpmSigstoreVerifier;
-
-function isPlainObject(value) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    return false;
-  }
-  const prototype = Object.getPrototypeOf(value);
-  return prototype === Object.prototype || prototype === null;
-}
-
-function assertPlainObject(value, label) {
-  if (!isPlainObject(value)) {
-    throw new Error(`${label} must be a JSON object`);
-  }
-}
-
-function assertNonEmptyString(value, label) {
-  if (typeof value !== 'string' || value.trim() !== value || value === '') {
-    throw new Error(`${label} must be a non-empty trimmed string`);
-  }
-}
 
 function decodeCanonicalBase64(value, label) {
   if (
@@ -559,10 +547,6 @@ function loadNpmSigstoreVerifier(runner = execFileSync) {
   }
 }
 
-function escapeRegularExpression(value) {
-  return value.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
-}
-
 async function verifySigstoreBundle(
   bundle,
   expectation,
@@ -575,9 +559,7 @@ async function verifySigstoreBundle(
     throw new Error('npm-bundled Sigstore verifier is unavailable');
   }
   const options = {
-    certificateIdentityURI: `^${escapeRegularExpression(
-      expectation.certificateIdentity,
-    )}$`,
+    certificateIdentityURI: `^${escapeRegExp(expectation.certificateIdentity)}$`,
     certificateIssuer: expectation.issuer,
     certificateOIDs: {
       [fulcioSourceCommitOid]: expectation.source.commit,
