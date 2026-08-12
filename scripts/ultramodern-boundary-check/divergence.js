@@ -73,7 +73,11 @@ const runGitDiff = ({ rootDir, args }) => {
  * Builds the single `git diff` invocation the whole check runs on.
  *
  * `-U0` keeps the patch small while still emitting one `@@` header per changed
- * region, which is what the hunk budget counts.
+ * region, which is what the hunk budget counts. The diff algorithm and indent
+ * heuristic are pinned so hunk counts match the committed allowlist on every
+ * machine regardless of user/CI git config or git-version defaults (an
+ * unpinned run under myers measures 2923 hunks where histogram measures the
+ * recorded 2835, failing 39 budgets that were never exceeded).
  */
 const buildDiffArgs = ({
   baseRef = DEFAULT_DIVERGENCE_BASE_REF,
@@ -82,6 +86,10 @@ const buildDiffArgs = ({
 } = {}) => [
   '-c',
   'core.quotePath=false',
+  '-c',
+  'diff.algorithm=histogram',
+  '-c',
+  'diff.indentHeuristic=true',
   'diff',
   '--no-ext-diff',
   '--no-color',
