@@ -733,7 +733,6 @@ async function main(argv = process.argv.slice(2)) {
 }
 
 export {
-  assertCleanCheckout,
   createReleaseBoundNodeSmokeTargets,
   createTractorPackageManagerContext,
   main,
@@ -745,5 +744,4 @@ export {
   requiredVisibleRuntimePlatforms,
   runTractorDownstreamAcceptance,
   runVisibleWorkflow,
-  startNodeProof,
 };

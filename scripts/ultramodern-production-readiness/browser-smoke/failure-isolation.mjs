@@ -219,4 +219,4 @@ async function validateFailureIsolation({
       });
 }
 
-export { boundaryStatus, validateFailureIsolation };
+export { validateFailureIsolation };

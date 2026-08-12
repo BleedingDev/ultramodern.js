@@ -55,7 +55,7 @@ export function extractBackendDrivenTitle(responseJson) {
   return uniqueTitles.length === 1 ? uniqueTitles[0] : undefined;
 }
 
-export function serializeConsoleMessage(message) {
+function serializeConsoleMessage(message) {
   return {
     location: message.location?.(),
     text: message.text?.(),
@@ -83,7 +83,7 @@ export function isFatalConsoleMessage(message) {
   return true;
 }
 
-export function isSameOriginAsset(target, url) {
+function isSameOriginAsset(target, url) {
   try {
     return new URL(url).origin === new URL(target.baseUrl).origin;
   } catch {
@@ -193,7 +193,7 @@ async function installHydrationIdentityProbe(page, runtime) {
   }, distributedSsrServerBoundarySelector(runtime));
 }
 
-export function isHydrationIdentityPreserved(evidence, runtime) {
+function isHydrationIdentityPreserved(evidence, runtime) {
   return (
     evidence.boundaryCount > 0 &&
     evidence.connectedNodeCount === evidence.nodeCount &&
@@ -401,7 +401,7 @@ async function waitForEveryShellRemoteBoundary(page, app, runtime) {
   };
 }
 
-export async function waitForHydrationStyles(page) {
+async function waitForHydrationStyles(page) {
   if (typeof page.waitForLoadState === 'function') {
     await page
       .waitForLoadState('networkidle', { timeout: 15_000 })
@@ -470,7 +470,7 @@ async function triggerRemoteBoundaryHydration(page, runtime) {
   return target;
 }
 
-export async function collectStylesheetLinks(page) {
+async function collectStylesheetLinks(page) {
   return page.$$eval('link[rel~="stylesheet"]', links =>
     links.map(link => {
       const parentElement = link.parentElement;
@@ -494,7 +494,7 @@ export async function collectStylesheetLinks(page) {
   );
 }
 
-export async function maybeScreenshot(page, filePath) {
+async function maybeScreenshot(page, filePath) {
   await page.screenshot({ fullPage: true, path: filePath });
   const stat = fs.lstatSync(filePath, { throwIfNoEntry: false });
   assertPass(

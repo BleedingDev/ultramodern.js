@@ -1124,37 +1124,3 @@ test('final-envelope verification rejects hostile symbolic-link targets and meta
     );
   }
 });
-
-test('argument parser requires the two commit refs and workspace', async () => {
-  const { parseArgs } = await loadProof();
-
-  assert.deepEqual(
-    parseArgs([
-      '--workspace',
-      '/tmp/proof',
-      '--baseline-ref',
-      'HEAD^',
-      '--changed-ref',
-      'HEAD',
-      '--changed-id',
-      'catalog',
-      '--expected-api-value',
-      'C1 API',
-      '--expected-ui-value',
-      'C1 UI',
-    ]),
-    {
-      workspace: '/tmp/proof',
-      baselineRef: 'HEAD^',
-      changedRef: 'HEAD',
-      changedId: 'catalog',
-      expectedApiValue: 'C1 API',
-      expectedUiValue: 'C1 UI',
-    },
-  );
-  assert.throws(
-    () => parseArgs(['--workspace', '/tmp/proof']),
-    /--baseline-ref is required/,
-  );
-  assert.throws(() => parseArgs(['--wat']), /Unknown argument: --wat/);
-});

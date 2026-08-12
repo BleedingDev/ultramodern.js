@@ -1033,11 +1033,9 @@ async function runAcceptanceProfile({
 export {
   assertDefaultOffRscInstall,
   createAcceptancePackageManagerEnv,
-  createOperationalIndependenceCommit,
   requiredPnpmCommands,
   resolveExactPnpmExecutable,
   runAcceptanceProfile,
   runOperationalIndependenceAcceptance,
-  runtimeVersions,
   snapshotAcceptanceWorkspaceSource,
 };

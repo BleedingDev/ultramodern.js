@@ -8,7 +8,7 @@ import {
 } from './contract.mjs';
 import { normalizeBaseUrl } from './http-validate.mjs';
 
-export function inferPublicUrl(app, explicitPublicUrls, env) {
+function inferPublicUrl(app, explicitPublicUrls, env) {
   const explicit = explicitPublicUrls[app.id];
   if (explicit) {
     return explicit;

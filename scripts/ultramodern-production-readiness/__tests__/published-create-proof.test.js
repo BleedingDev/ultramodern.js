@@ -8,10 +8,6 @@ const test = require('node:test');
 const { writeJsonFile } = require('../../lib/fs-kit');
 const { createProcessEnv } = require('../../lib/process-kit');
 
-async function loadProof() {
-  return import('../run-published-create-proof.mjs');
-}
-
 function writeJson(root, relativePath, value) {
   writeJsonFile(path.join(root, relativePath), value, { atomic: false });
 }
@@ -41,26 +37,10 @@ function writeCanonicalJson(root, relativePath, value) {
   return crypto.createHash('sha256').update(bytes).digest('hex');
 }
 
-test('defines generated workspace scale profiles for 10, 25, and 50 verticals', async () => {
-  const { scaleProfiles } = await loadProof();
-
-  assert.deepEqual(
-    Object.fromEntries(
-      Object.entries(scaleProfiles).map(([id, profile]) => [
-        id,
-        profile.verticalCount,
-      ]),
-    ),
-    {
-      'erp-10': 10,
-      'erp-25': 25,
-      'erp-50': 50,
-    },
-  );
-});
-
 test('generates readable first-ten verticals and deterministic safe names above ten', async () => {
-  const { generateVerticalNames } = await loadProof();
+  const { generateVerticalNames } = await import(
+    '../published-create-proof/args.mjs'
+  );
   const verticals = generateVerticalNames(25);
 
   assert.deepEqual(verticals.slice(0, 10), [
@@ -88,41 +68,13 @@ test('generates readable first-ten verticals and deterministic safe names above 
   );
 });
 
-test('parses scale profile and legacy custom vertical count requests', async () => {
-  const { parseArgs } = await loadProof();
-
-  assert.equal(parseArgs([]).createPackage, '@bleedingdev/modern-js-create');
-  assert.equal(
-    parseArgs(['--command-contract-only']).commandContractOnly,
-    true,
-  );
-
-  const profiled = parseArgs([
-    '--scale-profile',
-    'erp-25',
-    '--out',
-    '.modern/example.json',
-  ]);
-  assert.equal(profiled.scaleProfile, 'erp-25');
-  assert.equal(profiled.verticalCount, 25);
-  assert.equal(path.isAbsolute(profiled.out), true);
-
-  const custom = parseArgs(['--vertical-count', '3']);
-  assert.equal(custom.scaleProfile, 'custom-3');
-  assert.deepEqual(custom.verticals, ['inventory', 'finance', 'people']);
-
-  assert.throws(
-    () => parseArgs(['--scale-profile', 'erp-25', '--vertical-count', '10']),
-    /does not match --scale-profile erp-25/,
-  );
-  assert.throws(
-    () => parseArgs(['--scale-profile=erp-25']),
-    /^Error: Unknown argument: --scale-profile=erp-25$/,
-  );
-});
-
 test('builds the supported pnpm dlx package command contract', async () => {
-  const { createCleanPnpmDlxEnv, createPnpmDlxArgs } = await loadProof();
+  const { createPnpmDlxArgs } = await import(
+    '../published-create-proof/package-cohort.mjs'
+  );
+  const { createCleanPnpmDlxEnv } = await import(
+    '../published-create-proof/process.mjs'
+  );
 
   assert.deepEqual(
     createPnpmDlxArgs(
@@ -725,34 +677,80 @@ test('browser smoke diagnostics redact structured and embedded JSON secrets', as
   }
 });
 
-test('builds Cloudflare proof args without a pnpm separator argument', async () => {
-  const { createCloudflareProofArgs } = await loadProof();
-
-  assert.deepEqual(createCloudflareProofArgs(), ['cloudflare:proof']);
-  assert.deepEqual(createCloudflareProofArgs({ requirePublicUrls: true }), [
-    'cloudflare:proof',
-    '--require-public-urls',
-  ]);
-});
-
-test('records skipped Cloudflare deploy proof evidence when deploy is disabled', async () => {
-  const { createCloudflareDeployProofEvidence } = await loadProof();
-
-  assert.deepEqual(createCloudflareDeployProofEvidence(), {
-    id: 'cloudflare-deploy-proof',
-    dimensions: ['integration', 'browser'],
-    status: 'skipped',
-    reason:
-      'Cloudflare deploy proof was skipped because --deploy-cloudflare was not provided.',
-    detail: {
-      deployCloudflare: false,
-      requiredFlag: '--deploy-cloudflare',
+test('asserts MF shared contract versions across generated topology evidence', async () => {
+  const { createSharedContractVersionAssertion } = await import(
+    '../published-create-proof/topology.mjs'
+  );
+  const matchingTopology = {
+    shell: {
+      moduleFederation: {
+        sharedContractVersion: 'mf-ssr-contract-v1',
+      },
     },
-  });
+    verticals: [
+      {
+        moduleFederation: {
+          sharedContractVersion: 'mf-ssr-contract-v1',
+        },
+      },
+    ],
+  };
+  const matchingContract = {
+    apps: [
+      {
+        moduleFederation: {
+          sharedContractVersion: 'mf-ssr-contract-v1',
+        },
+      },
+    ],
+  };
+
+  assert.deepEqual(
+    createSharedContractVersionAssertion({
+      topology: matchingTopology,
+      generatedContract: matchingContract,
+    }),
+    {
+      status: 'pass',
+      versions: ['mf-ssr-contract-v1'],
+    },
+  );
+  assert.deepEqual(
+    createSharedContractVersionAssertion({
+      topology: {
+        ...matchingTopology,
+        verticals: [
+          {
+            moduleFederation: {
+              sharedContractVersion: 'mf-ssr-contract-v2',
+            },
+          },
+        ],
+      },
+      generatedContract: matchingContract,
+    }),
+    {
+      status: 'fail',
+      versions: ['mf-ssr-contract-v1', 'mf-ssr-contract-v2'],
+    },
+  );
+  assert.deepEqual(
+    createSharedContractVersionAssertion({
+      topology: { shell: {}, verticals: [{}] },
+      generatedContract: { apps: [{}] },
+    }),
+    {
+      status: 'unknown',
+      versions: [],
+      message: 'No MF sharedContractVersion values found in topology/contract.',
+    },
+  );
 });
 
 test('asserts generated cohorts only from strict manifest expectations and compact observations', async () => {
-  const { assertGeneratedCohort } = await loadProof();
+  const { assertGeneratedCohort } = await import(
+    '../published-create-proof/package-cohort.mjs'
+  );
   const root = fs.mkdtempSync(
     path.join(os.tmpdir(), 'published-create-cohort-'),
   );
@@ -862,114 +860,4 @@ test('asserts generated cohorts only from strict manifest expectations and compa
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
-});
-
-test('summarizes topology and generated contract evidence', async () => {
-  const { createTopologyEvidence, generateVerticalNames } = await loadProof();
-  const verticalNames = generateVerticalNames(3);
-
-  const evidence = createTopologyEvidence({
-    selectedProfile: {
-      id: 'custom-3',
-      verticalCount: 3,
-    },
-    verticalNames,
-    packageCohortAssertion: {
-      status: 'pass',
-      expectedVersion: '1.2.3',
-    },
-    topology: {
-      shell: {
-        moduleFederation: {
-          remotes: [{ id: 'inventory' }, { id: 'finance' }, { id: 'people' }],
-          sharedContractVersion: 'mf-ssr-contract-v1',
-        },
-      },
-      verticals: verticalNames.map(id => ({
-        id,
-        moduleFederation: {
-          sharedContractVersion: 'mf-ssr-contract-v1',
-        },
-      })),
-      sharedPackages: [{ id: 'shared-contracts' }],
-    },
-    generatedContract: {
-      apps: [
-        {
-          id: 'shell-super-app',
-          kind: 'shell',
-          moduleFederation: {
-            remotes: [{ id: 'inventory' }],
-            sharedContractVersion: 'mf-ssr-contract-v1',
-          },
-        },
-        ...verticalNames.map(id => ({
-          id,
-          kind: 'vertical',
-          moduleFederation: {
-            sharedContractVersion: 'mf-ssr-contract-v1',
-          },
-        })),
-      ],
-    },
-  });
-
-  assert.equal(evidence.selectedProfile, 'custom-3');
-  assert.equal(evidence.verticalCount, 3);
-  assert.deepEqual(evidence.verticalNames, verticalNames);
-  assert.equal(evidence.mfRemoteCount, 3);
-  assert.deepEqual(evidence.contractCounts, {
-    topologyVerticals: 3,
-    topologySharedPackages: 1,
-    generatedContractApps: 4,
-    generatedContractVerticals: 3,
-  });
-  assert.equal(evidence.sharedVersionAssertions.packageCohort.status, 'pass');
-  assert.equal(
-    evidence.sharedVersionAssertions.moduleFederationSharedContract.status,
-    'pass',
-  );
-});
-
-test('marks mismatched MF shared contract versions as failed evidence', async () => {
-  const { createTopologyEvidence } = await loadProof();
-
-  const evidence = createTopologyEvidence({
-    selectedProfile: {
-      id: 'custom-1',
-      verticalCount: 1,
-    },
-    verticalNames: ['inventory'],
-    packageCohortAssertion: {
-      status: 'pass',
-      expectedVersion: '1.2.3',
-    },
-    topology: {
-      shell: {
-        moduleFederation: {
-          sharedContractVersion: 'mf-ssr-contract-v1',
-        },
-      },
-      verticals: [
-        {
-          id: 'inventory',
-          moduleFederation: {
-            sharedContractVersion: 'mf-ssr-contract-v2',
-          },
-        },
-      ],
-    },
-    generatedContract: {
-      apps: [],
-    },
-  });
-
-  assert.equal(
-    evidence.sharedVersionAssertions.moduleFederationSharedContract.status,
-    'fail',
-  );
-  assert.deepEqual(
-    evidence.sharedVersionAssertions.moduleFederationSharedContract.versions,
-    ['mf-ssr-contract-v1', 'mf-ssr-contract-v2'],
-  );
 });

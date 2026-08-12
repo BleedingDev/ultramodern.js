@@ -268,7 +268,7 @@ export async function startWorkerdProof({
   }
 }
 
-export async function importPlaywright() {
+async function importPlaywright() {
   const configuredRoot = process.env.ULTRAMODERN_BROWSER_SMOKE_PLAYWRIGHT_ROOT;
   if (configuredRoot) {
     const requireFromPlaywrightRoot = createRequire(
@@ -287,7 +287,7 @@ export async function importPlaywright() {
   }
 }
 
-export function findBrowserExecutable() {
+function findBrowserExecutable() {
   const candidates = [
     process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
     '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',

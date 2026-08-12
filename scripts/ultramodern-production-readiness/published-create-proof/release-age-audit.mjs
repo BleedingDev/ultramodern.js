@@ -1190,20 +1190,13 @@ function verifyStrictInstallInputs(
 }
 
 export {
-  assertYamlDistributionIntegrity,
   auditReleaseAgePolicy,
   buildDependencyClosure,
   canonicalJson,
-  emptyExceptionPolicy,
   fetchRegistryMetadata,
-  minimumReleaseAgeMinutes,
   parsePackageKey,
   parseYaml,
   parseYamlFile,
-  readExceptionPolicy,
-  readNativeWorkspacePolicy,
-  releaseAgePolicySchema,
-  releaseAgePolicySchemaVersion,
   sha256,
   validateExactExclusions,
   validateExceptionPolicy,

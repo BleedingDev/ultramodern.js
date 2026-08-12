@@ -1,12 +1,5 @@
-import fs from 'node:fs';
 import path from 'node:path';
-import { performance } from 'node:perf_hooks';
-import {
-  createProcessEnv,
-  readJsonFile,
-  repoRoot,
-  runCommand,
-} from './constants.mjs';
+import { createProcessEnv, repoRoot, runCommand } from './constants.mjs';
 
 function run(command, args, options = {}) {
   const result = runCommand(command, args, {
@@ -30,40 +23,8 @@ function createCleanPnpmDlxEnv(root) {
   };
 }
 
-function readJsonIfExists(filePath) {
-  if (!fs.existsSync(filePath)) {
-    return undefined;
-  }
-  return readJsonFile(filePath);
-}
-
 function roundDurationMs(value) {
   return Math.round(value * 100) / 100;
 }
 
-function timedStep(summary, id, action) {
-  const startedAt = performance.now();
-  try {
-    const value = action();
-    summary.timings[id] = {
-      status: 'pass',
-      durationMs: roundDurationMs(performance.now() - startedAt),
-    };
-    return value;
-  } catch (error) {
-    summary.timings[id] = {
-      status: 'fail',
-      durationMs: roundDurationMs(performance.now() - startedAt),
-      error: error instanceof Error ? error.message : String(error),
-    };
-    throw error;
-  }
-}
-
-export {
-  createCleanPnpmDlxEnv,
-  readJsonIfExists,
-  roundDurationMs,
-  run,
-  timedStep,
-};
+export { createCleanPnpmDlxEnv, roundDurationMs, run };

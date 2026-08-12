@@ -5,7 +5,6 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import {
   assertLocalPortsAvailable,
   startServer,
@@ -1719,70 +1718,17 @@ async function runOperationalIndependence(options) {
   return evidence;
 }
 
-function parseArgs(argv) {
-  const options = {};
-  const valueFlags = new Map([
-    ['--workspace', 'workspace'],
-    ['--baseline-ref', 'baselineRef'],
-    ['--changed-ref', 'changedRef'],
-    ['--shell-id', 'shellId'],
-    ['--changed-id', 'changedId'],
-    ['--sibling-id', 'siblingId'],
-    ['--expected-api-value', 'expectedApiValue'],
-    ['--expected-ui-value', 'expectedUiValue'],
-    ['--out', 'out'],
-  ]);
-  for (let index = 0; index < argv.length; index += 1) {
-    const flag = argv[index];
-    const property = valueFlags.get(flag);
-    if (!property) {
-      throw new Error(`Unknown argument: ${flag}`);
-    }
-    const value = argv[index + 1];
-    if (!value || value.startsWith('--')) {
-      throw new Error(`${flag} requires a value.`);
-    }
-    options[property] = value;
-    index += 1;
-  }
-  for (const property of [
-    'workspace',
-    'baselineRef',
-    'changedRef',
-    'expectedApiValue',
-    'expectedUiValue',
-  ]) {
-    if (!options[property]) {
-      throw new Error(
-        `--${property.replace(/[A-Z]/gu, match => `-${match.toLowerCase()}`)} is required.`,
-      );
-    }
-  }
-  return options;
-}
-
-async function main(argv = process.argv.slice(2)) {
-  const options = parseArgs(argv);
-  const evidence = await runOperationalIndependence(options);
-  process.stdout.write(`${JSON.stringify(evidence)}\n`);
-}
-
 export {
   assertByteIdentical,
   assertChangedPathsOwnedBy,
-  assertChangedVerticalRotated,
   assertCrossTargetIdentity,
   canonicalSerialize,
   compareTargetSnapshots,
   createBuildCommand,
   createOperationalProcessEnv,
-  createTreeSnapshot,
   createWorkspaceBuildCommand,
   digestCanonical,
-  ENVELOPE_RELATIVE_PATH,
-  EVIDENCE_SCHEMA_VERSION,
   operationalSourceRevisions,
-  parseArgs,
   readAndVerifyEnvelope,
   readTopologyApps,
   runOperationalIndependence,
@@ -1790,21 +1736,4 @@ export {
   sha256,
   startNodeTargetsInDependencyOrder,
   verifyServedBehavior,
-  visibleHtmlText,
 };
-
-if (
-  process.argv[1] &&
-  fileURLToPath(import.meta.url) === path.resolve(process.argv[1])
-) {
-  try {
-    await main();
-  } catch (error) {
-    process.stderr.write(
-      `[ultramodern-operational-independence] ${
-        error instanceof Error ? (error.stack ?? error.message) : String(error)
-      }\n`,
-    );
-    process.exitCode = 1;
-  }
-}

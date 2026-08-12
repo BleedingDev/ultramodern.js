@@ -269,8 +269,5 @@ function runBrowserSmoke(
 export {
   createBrowserSmokeEnvironment,
   createBrowserSmokeFailureDetails,
-  createBrowserSmokeFailureEvidence,
-  ensureBrowserSmokeRuntime,
-  playwrightRuntimeDir,
   runBrowserSmoke,
 };

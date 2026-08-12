@@ -920,13 +920,9 @@ export {
   createReleaseArtifactBinding,
   operationalIndependenceEvidencePath,
   operationalIndependenceResultId,
-  releaseAcceptanceProfileId,
-  releaseAcceptanceVerticalCount,
   requiredAcceptanceResultIds,
   runtimeAcceptanceDimensions,
   runtimeAcceptanceInvocation,
   runtimeAcceptancePlatforms,
-  runtimeAcceptanceResultIds,
   runtimeIdentityBinding,
-  staticAcceptanceResultIds,
 };

@@ -294,7 +294,7 @@ export function createCloudflareRoutes(app) {
   };
 }
 
-export function createSmokeContractApp(config, app) {
+function createSmokeContractApp(config, app) {
   const packageScope =
     typeof config.workspace?.packageScope === 'string'
       ? config.workspace.packageScope
@@ -396,7 +396,7 @@ export function normalizeSmokeContract(contract, options = {}) {
   };
 }
 
-export function resolveContractPath(projectDir) {
+function resolveContractPath(projectDir) {
   const compactPath = path.join(projectDir, compactContractRelativePath);
   if (fs.existsSync(compactPath)) {
     return compactPath;

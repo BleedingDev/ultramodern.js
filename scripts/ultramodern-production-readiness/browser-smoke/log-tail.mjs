@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 
-export const combinedLogTailMaxChars = 8_192;
+const combinedLogTailMaxChars = 8_192;
 
 const truncationMarker = '[earlier child output truncated]\n';
 const messageTruncationMarker = '\n[additional failure context truncated]';
@@ -14,7 +14,7 @@ const authorizationPattern =
 const jsonSecretPropertyPattern =
   /"([^"\n]*(?:token|secret|password|passwd|api[_-]?key|access[_-]?key|authorization|cookie)[^"\n]*)"\s*:\s*(?:"(?:\\.|[^"\\\n])*"|[^,}\s]+)/giu;
 
-export function redactLogText(value) {
+function redactLogText(value) {
   return String(value)
     .replace(ansiEscapePattern, '')
     .replace(jsonSecretPropertyPattern, (match, key) =>

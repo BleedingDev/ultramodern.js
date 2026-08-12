@@ -950,19 +950,13 @@ if (
 }
 
 export {
-  acceptanceProfileVersion,
-  acceptanceReceiptSchema,
-  acceptanceReceiptSchemaVersion,
   assertAcceptanceReceipt,
-  assertAcceptanceReceiptIdentity,
   bindRuntimeIdentityEvidence,
   bindSupplyChainEvidence,
   createAcceptanceReceipt,
   finalizeAcceptanceReceipt,
   readAcceptanceReceipt,
-  readAcceptanceReceiptManifest,
   recordAcceptanceResult,
   requiredAcceptanceResultIds,
-  verifyAcceptanceReceiptCli,
   verifyAcceptanceReceiptOperationalEvidence,
 };

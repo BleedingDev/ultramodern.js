@@ -445,12 +445,9 @@ function assertGeneratedCohort(projectDir, release, { registryUrl } = {}) {
 
 export {
   assertGeneratedCohort,
-  assertGeneratedReleaseCohort,
-  compactMetadataPath,
   createPnpmDlxArgs,
   expectedReleaseCohort,
   packageJsonFiles,
-  readCompactMetadata,
   releasePackageScopePattern,
   resolveCreatePackage,
   retiredMetadataPaths,

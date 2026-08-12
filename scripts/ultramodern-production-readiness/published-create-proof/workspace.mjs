@@ -33,4 +33,4 @@ function addVertical(projectDir, vertical, createPackage, env, runImpl = run) {
   );
 }
 
-export { addVertical, createWorkspace, packageScriptExists };
+export { addVertical, createWorkspace };

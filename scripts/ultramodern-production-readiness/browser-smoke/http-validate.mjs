@@ -95,7 +95,7 @@ export async function fetchText(url, fetchImpl) {
   };
 }
 
-export async function waitForTargetSsr(
+async function waitForTargetSsr(
   target,
   { fetchImpl, retryDelayMs, timeoutMs },
 ) {
@@ -135,7 +135,7 @@ export async function waitForTargetSsr(
   );
 }
 
-export async function waitForTargetManifest(
+async function waitForTargetManifest(
   target,
   { fetchImpl, retryDelayMs, timeoutMs },
 ) {
