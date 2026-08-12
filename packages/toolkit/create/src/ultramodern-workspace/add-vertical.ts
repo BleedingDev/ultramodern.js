@@ -3,8 +3,6 @@ export { planUltramodernVertical } from './add-vertical/plan';
 export type { AddUltramodernVerticalPreflight } from './add-vertical/preflight';
 export { prepareAddUltramodernVertical } from './add-vertical/preflight';
 export {
-  addShellWorkspaceDependency,
-  addShellZephyrDependency,
   rewriteShellAppFiles,
   updateRootWorkspaceScripts,
 } from './add-vertical/shell-files';

@@ -5,7 +5,10 @@ import {
   readUltramodernConfig,
   workspaceAppsFromToolingConfig,
 } from '../ultramodern-tooling/config';
-import { stampDeliveryUnitIdentity } from './delivery-unit-stamp';
+import {
+  isPlainObject,
+  stampDeliveryUnitIdentity,
+} from './delivery-unit-stamp';
 import { ULTRAMODERN_CONFIG_PATH } from './descriptors';
 import {
   createUltramodernBuildArtifactJson,
@@ -18,10 +21,6 @@ type SyncContext = {
   workspaceRoot: string;
   invocationCwd: string;
 };
-
-function isPlainObject(value: unknown): value is Record<string, any> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 function writeTextIfChanged(absolutePath: string, content: string): boolean {
   if (

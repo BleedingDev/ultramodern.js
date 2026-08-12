@@ -1,5 +1,4 @@
 import path from 'node:path';
-import { WORKSPACE_PACKAGE_VERSION } from '../../ultramodern-package-source';
 import { createShellApiClient } from '../api';
 import {
   createAppEnvDts,
@@ -14,13 +13,10 @@ import {
 } from '../demo-components';
 import {
   appEmitsBrowserUi,
-  appHasApi,
   appI18nNamespace,
   createShellHost,
-  remoteDependencyAlias,
   resolveRemoteRefs,
   shellApp,
-  zephyrRemoteDependency,
 } from '../descriptors';
 import { readJsonFile, writeFileReplacing, writeJsonFile } from '../fs-io';
 import { createAppPublicLocaleMessages } from '../locales';
@@ -28,7 +24,6 @@ import {
   createAppModernConfig,
   createShellModuleFederationConfig,
 } from '../module-federation';
-import { packageName } from '../naming';
 import {
   createAppMfTypesTsConfig,
   createAppPackage,
@@ -210,36 +205,4 @@ export function rewriteShellAppFiles(
     `${shellHost.directory}/src/api/vertical-clients.ts`,
     createShellApiClient(scope, remotes),
   );
-}
-
-export function addShellZephyrDependency(
-  workspaceRoot: string,
-  scope: string,
-  remote: WorkspaceApp,
-  shell: WorkspaceApp = shellApp,
-) {
-  const packagePath = path.join(workspaceRoot, shell.directory, 'package.json');
-  const shellPackage = readJsonFile(packagePath);
-  shellPackage['zephyr:dependencies'] ??= {};
-  shellPackage['zephyr:dependencies'][remoteDependencyAlias(remote)] =
-    zephyrRemoteDependency(scope, remote);
-  writeJsonFile(packagePath, shellPackage as JsonValue);
-}
-
-export function addShellWorkspaceDependency(
-  workspaceRoot: string,
-  scope: string,
-  remote: WorkspaceApp,
-  shell: WorkspaceApp = shellApp,
-) {
-  if (!appHasApi(remote)) {
-    return;
-  }
-
-  const packagePath = path.join(workspaceRoot, shell.directory, 'package.json');
-  const shellPackage = readJsonFile(packagePath);
-  shellPackage.dependencies ??= {};
-  shellPackage.dependencies[packageName(scope, remote.packageSuffix)] =
-    WORKSPACE_PACKAGE_VERSION;
-  writeJsonFile(packagePath, shellPackage as JsonValue);
 }

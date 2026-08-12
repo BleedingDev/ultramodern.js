@@ -98,16 +98,6 @@ export type PublicationZone =
   | { zone: 'coordinated' }
   | { zone: 'external'; external: ExternalPublication };
 
-/* -------------------------------------------------------------------------- */
-/* Surface platform locations                                                  */
-/* -------------------------------------------------------------------------- */
-
-export type SurfaceLocationPlatform =
-  | 'browser-mf'
-  | 'node-mf'
-  | 'http'
-  | 'cloudflare-binding';
-
 /**
  * A concrete per-platform location for a surface. Discriminated on `platform`
  * so each platform carries only the address shape it can actually resolve.

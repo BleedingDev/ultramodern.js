@@ -20,7 +20,7 @@ import {
   verticalApiSchemaExport,
 } from './names';
 
-export function createSharedApiImports(): string {
+function createSharedApiImports(): string {
   return `import {
   HttpApi,
   HttpApiEndpoint,
@@ -31,7 +31,7 @@ export function createSharedApiImports(): string {
 `;
 }
 
-export function createSharedApiContract(service: {
+function createSharedApiContract(service: {
   id: string;
   api?: WorkspaceApi;
 }): string {

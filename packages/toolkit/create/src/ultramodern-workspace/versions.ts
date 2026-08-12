@@ -55,22 +55,3 @@ export const PNPM_VERSION = '11.21.0';
 const RSTACK_AGENT_SKILLS_COMMIT = '61c948b42512e223bad44b83af4080eba48b2677';
 const MODULE_FEDERATION_AGENT_SKILLS_COMMIT =
   '07bb5b6c43ad457609e00c081b72d4c42508ec76';
-
-export const ultramodernWorkspaceVersions = {
-  tanstackRouter: TANSTACK_ROUTER_VERSION,
-  tanstackRouterCore: TANSTACK_ROUTER_CORE_VERSION,
-  tanstackHistory: TANSTACK_HISTORY_VERSION,
-  moduleFederation: MODULE_FEDERATION_VERSION,
-  effect: EFFECT_VERSION,
-  effectVitest: EFFECT_VITEST_VERSION,
-  drizzleOrm: DRIZZLE_ORM_VERSION,
-  typescript: TYPESCRIPT_VERSION,
-  typescriptNativePreview: TYPESCRIPT_NATIVE_PREVIEW_VERSION,
-  moduleFederationNode: MODULE_FEDERATION_NODE_VERSION,
-  miniflare: MINIFLARE_VERSION,
-  workerd: WORKERD_VERSION,
-  cloudflareWorkersTypes: CLOUDFLARE_WORKERS_TYPES_VERSION,
-  tailwind: TAILWIND_VERSION,
-  rsbuildPluginTailwindcss: RSBUILD_PLUGIN_TAILWINDCSS_VERSION,
-  typesNode: TYPES_NODE_VERSION,
-};

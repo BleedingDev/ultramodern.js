@@ -2,14 +2,10 @@ import { appHasApi, resolveApiProtocol, resolveApiStem } from '../descriptors';
 import { toPascalCase } from '../naming';
 import type { JsonValue, WorkspaceApi, WorkspaceApp } from '../types';
 import { serviceHasCheckoutCartState } from './checkout-cart';
-import {
-  verticalApiErrorStem,
-  verticalApiGroupName,
-  verticalApiNotFoundErrorExport,
-} from './names';
+import { verticalApiErrorStem, verticalApiGroupName } from './names';
 import { RPC_ROUTE_PATH, rpcPath } from './rpc';
 
-export function createApiReadinessContract(app: {
+function createApiReadinessContract(app: {
   id: string;
   api?: WorkspaceApi;
 }): JsonValue {
@@ -25,7 +21,7 @@ export function createApiReadinessContract(app: {
   };
 }
 
-export function createApiRequestContextContract(): JsonValue {
+function createApiRequestContextContract(): JsonValue {
   return {
     propagatedHeaders: [
       'accept-language',
@@ -40,7 +36,7 @@ export function createApiRequestContextContract(): JsonValue {
   };
 }
 
-export function createApiDomainOperations(app: {
+function createApiDomainOperations(app: {
   id: string;
   api?: WorkspaceApi;
 }): JsonValue {
@@ -165,64 +161,5 @@ export function apiTopologyMetadata(app: WorkspaceApp): JsonValue | undefined {
     readiness: createApiReadinessContract(app),
     requestContext: createApiRequestContextContract(),
     domainOperations: createApiDomainOperations(app),
-  };
-}
-
-export function createApiOperationContract(target: {
-  id: string;
-  api?: WorkspaceApi;
-}): JsonValue {
-  const stem = resolveApiStem(target);
-  const checkoutCartOperations: Record<string, JsonValue> =
-    serviceHasCheckoutCartState(target)
-      ? {
-          addCartItem: {
-            method: 'POST',
-            path: '/checkout/cart/items',
-            source: 'generated-client',
-          },
-          clearCart: {
-            method: 'POST',
-            path: '/checkout/cart/clear',
-            source: 'generated-client',
-          },
-          getCart: {
-            method: 'GET',
-            path: '/checkout/cart',
-            source: 'generated-client',
-          },
-          removeCartItem: {
-            method: 'POST',
-            path: '/checkout/cart/remove',
-            source: 'generated-client',
-          },
-        }
-      : {};
-  return {
-    group: verticalApiGroupName(target),
-    notFound: verticalApiNotFoundErrorExport(target),
-    operations: {
-      ...checkoutCartOperations,
-      list: {
-        method: 'GET',
-        path: `/${stem}`,
-        source: 'generated-client',
-      },
-      readiness: {
-        method: 'GET',
-        path: `/${stem}/readiness`,
-        source: 'generated-client',
-      },
-      get: {
-        method: 'GET',
-        path: `/${stem}/:id`,
-        source: 'generated-client',
-      },
-      create: {
-        method: 'POST',
-        path: `/${stem}`,
-        source: 'generated-client',
-      },
-    },
   };
 }

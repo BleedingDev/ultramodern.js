@@ -33,10 +33,6 @@ export const PRIMARY_SHELL_ID = shellApp.id;
 
 export const FIRST_ADDITIONAL_SHELL_PORT = 3120;
 
-export function isPrimaryShell(shell: { id: string }): boolean {
-  return shell.id === PRIMARY_SHELL_ID;
-}
-
 /**
  * Build the descriptor for an additional (non-primary) shell delivery unit
  * (G28). Its id / directory / package suffix / Module Federation host name /

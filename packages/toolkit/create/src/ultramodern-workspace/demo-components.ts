@@ -496,10 +496,6 @@ export default function ${componentName}() {
 `;
 }
 
-export function createRemoteWidgetFragmentPage(app: WorkspaceApp): string {
-  return createRemoteExposeFragmentPage(app, './Widget');
-}
-
 export function createRemoteExposeFragmentPage(
   app: WorkspaceApp,
   expose: string,

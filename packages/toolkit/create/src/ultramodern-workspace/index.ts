@@ -41,5 +41,4 @@ export type {
   UltramodernVerticalPlan,
   UltramodernWorkspaceOptions,
 } from './types';
-export { ultramodernWorkspaceVersions } from './versions';
 export { generateUltramodernWorkspace } from './write-workspace';
