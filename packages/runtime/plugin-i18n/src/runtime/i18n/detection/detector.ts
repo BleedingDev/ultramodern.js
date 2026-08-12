@@ -10,7 +10,7 @@ import {
 
 import { mergeDetectionOptions } from './initOptions';
 
-import { getSupportedLanguage, isLanguageSupported } from './language';
+import { getSupportedLanguage } from './language';
 
 import { detectLanguage, useI18nextLanguageDetector } from './middleware';
 
@@ -136,7 +136,7 @@ export const detectLanguageFromI18nextDetector = async (
     // Fallback to instance's current language if detector didn't detect
     if (detectorInstance.isInitialized && detectorInstance.language) {
       const currentLang = detectorInstance.language;
-      if (isLanguageSupported(currentLang, options.languages)) {
+      if (getSupportedLanguage(currentLang, options.languages)) {
         return currentLang;
       }
     }

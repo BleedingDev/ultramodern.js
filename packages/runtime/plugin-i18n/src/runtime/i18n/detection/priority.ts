@@ -68,7 +68,6 @@ export const detectLanguageWithPriority = async (
         i18nextDetector,
         detection,
         userInitOptions,
-        mergedBackend: options.mergedBackend,
         ssrContext,
       });
     }

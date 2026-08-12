@@ -138,7 +138,6 @@ export async function setupI18nBeforeRender(
     i18nextDetector,
     detection,
     userInitOptions,
-    mergedBackend,
     pathname,
     ssrContext: context.ssrContext,
   });

@@ -1,41 +1,6 @@
-import { isBrowser } from '@modern-js/runtime';
 import type { I18nInitOptions, LanguageDetectorOptions } from '../instance';
 
 import { mergeDetectionOptions as mergeDetectionOptionsUtil } from './config';
-
-import type { BuildInitOptionsParams } from './types';
-
-/**
- * Build i18n initialization options
- */
-export const buildInitOptions = (
-  params: BuildInitOptionsParams,
-): I18nInitOptions => {
-  const {
-    finalLanguage,
-    fallbackLanguage,
-    languages,
-    userInitOptions,
-    mergedDetection,
-    mergeBackend,
-  } = params;
-
-  return {
-    ...(userInitOptions || {}),
-    lng: finalLanguage,
-    fallbackLng: fallbackLanguage,
-    supportedLngs: languages,
-    detection: mergedDetection,
-    backend: mergeBackend,
-    interpolation: {
-      ...(userInitOptions?.interpolation || {}),
-      escapeValue: userInitOptions?.interpolation?.escapeValue ?? false,
-    },
-    react: {
-      useSuspense: isBrowser(),
-    },
-  } as any;
-};
 
 /**
  * Merge detection and backend options

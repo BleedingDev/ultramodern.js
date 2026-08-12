@@ -29,15 +29,6 @@ export const convertToHonoLanguageDetectorOptions = (
   const detectionOrder =
     order.length > 0 ? order : ['querystring', 'cookie', 'header'];
 
-  // Map i18next order to hono order
-  const honoOrder = detectionOrder.map(item => {
-    // Map 'querystring' to 'querystring', 'cookie' to 'cookie', 'header' to 'header'
-    if (item === 'querystring') return 'querystring';
-    if (item === 'cookie') return 'cookie';
-    if (item === 'header') return 'header';
-    return item;
-  }) as ('querystring' | 'cookie' | 'header' | 'path')[];
-
   // Determine caches option
   // hono languageDetector expects: false | "cookie"[] | undefined
   const caches: false | ['cookie'] | undefined =
@@ -85,7 +76,7 @@ export const convertToHonoLanguageDetectorOptions = (
   return {
     supportedLanguages: languages.length > 0 ? languages : [fallbackLanguage],
     fallbackLanguage,
-    order: honoOrder,
+    order: detectionOrder as ('querystring' | 'cookie' | 'header' | 'path')[],
     lookupQueryString:
       mergedDetection.lookupQuerystring ||
       DEFAULT_I18NEXT_DETECTION_OPTIONS.lookupQuerystring ||
