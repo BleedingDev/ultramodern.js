@@ -7,7 +7,7 @@ import { merge } from '@modern-js/runtime-utils/merge';
 import type { RouteObject } from '@modern-js/runtime-utils/router';
 import type { RouterExtendsHooks } from './hooks';
 import type { RouterConfig } from './types';
-import { createTanstackRouteObjectsFromConfig, type SSRMode } from './utils';
+import { createTanstackRouteObjectsFromConfig } from './utils';
 
 type TanstackRouterRuntimeConfig = {
   plugins?: TanstackRouterRuntimePlugin[];
@@ -80,11 +80,9 @@ export function getTanstackRouteConfig(
 export function createTanstackRouteObjects({
   hooks,
   routeConfig,
-  ssrMode,
 }: {
   hooks: RouterExtendsHooks;
   routeConfig: TanstackRouteConfig;
-  ssrMode?: SSRMode;
 }): RouteObject[] {
   const { mergedConfig, finalRouteConfig } = routeConfig;
   const routeObjects =
@@ -92,7 +90,6 @@ export function createTanstackRouteObjects({
       ? mergedConfig.createRoutes()
       : (createTanstackRouteObjectsFromConfig({
           routesConfig: finalRouteConfig,
-          ssrMode,
         }) ?? []);
 
   return hooks.modifyRoutes.call(routeObjects) as RouteObject[];

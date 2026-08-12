@@ -53,7 +53,7 @@ function createRouteFromRouteObject(opts: {
   const stableFallbackId =
     routeObject.id || modernRouteObject.file || pathlessFallbackId;
 
-  const component = toRouteComponent(routeObject, options);
+  const component = toRouteComponent(routeObject);
   const base: TanstackRouteOptions = {
     getParentRoute: () => parent,
     component,

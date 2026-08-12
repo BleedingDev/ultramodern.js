@@ -109,7 +109,7 @@ function getLoaderSignal(ctx: LoaderLikeContext | undefined): AbortSignal {
   return new AbortController().signal;
 }
 
-function getLoaderHref(ctx: LoaderLikeContext | undefined): string {
+export function getLoaderHref(ctx: LoaderLikeContext | undefined): string {
   if (typeof ctx?.location === 'string') {
     return ctx.location;
   }
@@ -136,7 +136,7 @@ function getLoaderParams(
     : {};
 }
 
-function handleModernLoaderResult<LoaderResult>(
+export function handleModernLoaderResult<LoaderResult>(
   result: LoaderResult,
 ): LoaderResult {
   if (isResponse(result)) {
@@ -152,7 +152,7 @@ function handleModernLoaderResult<LoaderResult>(
   return result;
 }
 
-function handleModernLoaderError(err: unknown): never {
+export function handleModernLoaderError(err: unknown): never {
   if (isResponse(err)) {
     if (isTanstackRedirect(err)) {
       throw err;

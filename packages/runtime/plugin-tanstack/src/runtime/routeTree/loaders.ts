@@ -1,13 +1,11 @@
 // @effect-diagnostics asyncFunction:off strictBooleanExpressions:off
 
 import type { RouteObject } from '@modern-js/runtime-utils/router';
-import { notFound } from '@tanstack/react-router';
-
 import {
-  isRedirectResponse,
-  isResponse,
-  isTanstackRedirect,
-  throwTanstackRedirect,
+  getLoaderHref,
+  handleModernLoaderError,
+  handleModernLoaderResult,
+  mapSplatParamsForModernLoader,
 } from '../loaderBridge';
 import {
   isTanstackRscPayloadNavigationEnabled,
@@ -16,7 +14,6 @@ import {
 import type {
   ModernRouteObject,
   ModernShouldRevalidate,
-  RouteParams,
   RouteRevalidationState,
   RouteTreeOptions,
   TanstackLoaderContext,
@@ -48,31 +45,11 @@ function normalizeModernLoaderResult(result: unknown): unknown {
 }
 
 function normalizeModernLoaderResponse(result: unknown): unknown {
-  if (isResponse(result)) {
-    if (isRedirectResponse(result)) {
-      const location = result.headers.get('Location') || '/';
-      throwTanstackRedirect(location);
-    }
-    if (result.status === 404) {
-      throw notFound();
-    }
-  }
-
-  return normalizeModernLoaderResult(result);
-}
-
-function createModernRequest(input: string, signal: AbortSignal) {
-  return new Request(input, { signal });
+  return normalizeModernLoaderResult(handleModernLoaderResult(result));
 }
 
 function getModernUrlFromLoaderContext(ctx: TanstackLoaderContext): URL {
-  const href =
-    typeof ctx?.location === 'string'
-      ? ctx.location
-      : ctx?.location?.publicHref ||
-        ctx?.location?.href ||
-        ctx?.location?.url?.href ||
-        '/';
+  const href = getLoaderHref(ctx) || '/';
   const baseRequest: Request | undefined =
     ctx?.context?.request instanceof Request ? ctx.context.request : undefined;
   const baseUrl =
@@ -118,29 +95,6 @@ export function createModernShouldReload(
   };
 }
 
-function isRouteObjectSplatRoute(route: RouteObject) {
-  return typeof route.path === 'string' && route.path.includes('*');
-}
-
-function mapParamsForRouteObjectLoader({
-  route,
-  params,
-}: {
-  route: RouteObject;
-  params: RouteParams;
-}) {
-  if (isRouteObjectSplatRoute(route)) {
-    const { _splat, ...rest } = params as RouteParams & {
-      _splat?: string;
-    };
-    if (typeof _splat !== 'undefined') {
-      return { ...rest, '*': _splat };
-    }
-    return rest;
-  }
-  return params;
-}
-
 export function wrapRouteObjectLoader(
   route: RouteObject,
   revalidationState?: RouteRevalidationState,
@@ -173,23 +127,17 @@ export function wrapRouteObjectLoader(
           ? ctx.context.request
           : undefined;
 
-      const href =
-        typeof ctx?.location === 'string'
-          ? ctx.location
-          : ctx?.location?.publicHref ||
-            ctx?.location?.href ||
-            ctx?.location?.url?.href ||
-            '';
+      const href = getLoaderHref(ctx);
 
       const request =
         baseRequest !== undefined
           ? new Request(baseRequest, { signal })
-          : createModernRequest(href, signal);
+          : new Request(href, { signal });
 
-      const params = mapParamsForRouteObjectLoader({
-        route,
-        params: ctx.params || {},
-      });
+      const params = mapSplatParamsForModernLoader(
+        ctx.params || {},
+        typeof route.path === 'string' && route.path.includes('*'),
+      );
 
       const loadModernData = async () => {
         const result = await routeLoader({
@@ -214,19 +162,7 @@ export function wrapRouteObjectLoader(
 
       return loadModernData();
     } catch (err) {
-      if (isResponse(err)) {
-        if (isTanstackRedirect(err)) {
-          throw err;
-        }
-        if (isRedirectResponse(err)) {
-          const location = err.headers.get('Location') || '/';
-          throwTanstackRedirect(location);
-        }
-        if (err.status === 404) {
-          throw notFound();
-        }
-      }
-      throw err;
+      handleModernLoaderError(err);
     }
   };
 }

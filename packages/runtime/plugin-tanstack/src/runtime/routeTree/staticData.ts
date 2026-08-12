@@ -1,8 +1,9 @@
 // @effect-diagnostics asyncFunction:off strictBooleanExpressions:off
 
 export function mergeModernRouteHandle(route: {
-  config?: { handle?: Record<string, unknown> } | unknown;
+  config?: unknown;
   handle?: Record<string, unknown>;
+  [key: string]: unknown;
 }) {
   const config = route.config as { handle?: Record<string, unknown> } | null;
   const handle = {

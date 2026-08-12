@@ -57,5 +57,3 @@ const adapter = createSerializationAdapter({
 export function getTanstackRscSerializationAdapters() {
   return [adapter];
 }
-
-export const rscSerializationAdapter = getTanstackRscSerializationAdapters;

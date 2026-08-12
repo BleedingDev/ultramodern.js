@@ -6,6 +6,7 @@ import {
   formDataToUrlSearchParams,
   toFormData,
 } from './formData';
+import { isRedirectResponse } from './loaderBridge';
 
 export class RouteActionResponseError<TData = unknown> extends Error {
   readonly response: Response;
@@ -53,13 +54,6 @@ function resolveRouteHandlers(router: AnyRouter, actionTo: string) {
     href: builtLocation.href,
     params: routeParams,
   };
-}
-
-function isRedirectResponse(value: unknown): value is Response {
-  if (!(value instanceof Response)) {
-    return false;
-  }
-  return [301, 302, 303, 307, 308].includes(value.status);
 }
 
 async function parseResponseData(response: Response) {

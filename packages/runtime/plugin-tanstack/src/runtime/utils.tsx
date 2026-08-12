@@ -1,9 +1,8 @@
 // @effect-diagnostics strictBooleanExpressions:off
 import type { RouteObject } from '@modern-js/runtime-utils/router';
 import React from 'react';
+import { mergeModernRouteHandle } from './routeTree/staticData';
 import type { ModernRoute } from './types';
-
-export type SSRMode = 'string' | 'stream';
 
 type RouterConfig = {
   routesConfig: {
@@ -49,13 +48,6 @@ function withGlobalLayout(
   };
 }
 
-function getRouteHandle(route: ModernRoute) {
-  return {
-    ...route.handle,
-    ...(typeof route.config === 'object' ? route.config?.handle : {}),
-  };
-}
-
 function toTanstackRouteObject(
   route: ModernRoute,
   globalApp?: React.ComponentType<GlobalAppProps>,
@@ -67,7 +59,7 @@ function toTanstackRouteObject(
       loader: route.loader,
       action: route.action,
       shouldRevalidate: route.shouldRevalidate,
-      handle: getRouteHandle(route),
+      handle: mergeModernRouteHandle(route) ?? {},
       index: route.index,
       hasLoader: route.hasLoader || Boolean(route.loader),
       hasClientLoader: route.hasClientLoader || Boolean(route.clientData),
@@ -108,8 +100,6 @@ export function createTanstackRouteObjectsFromConfig({
   routesConfig,
 }: {
   routesConfig: RouterConfig['routesConfig'];
-  props?: Record<string, unknown>;
-  ssrMode?: SSRMode;
 }): RouteObject[] | null {
   if (!routesConfig) {
     return null;

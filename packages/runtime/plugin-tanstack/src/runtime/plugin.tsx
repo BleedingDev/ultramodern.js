@@ -222,7 +222,7 @@ export const tanstackRouterPlugin = (
             runtimeContext,
             getClientBasename(runtimeContext),
           );
-          if (router !== undefined && router !== null) {
+          if (router) {
             return getTanstackSsrHydrationPromise(router).then(() => undefined);
           }
         }
@@ -273,8 +273,7 @@ export const tanstackRouterPlugin = (
             typeof window !== 'undefined' &&
             (Boolean((window as WindowWithTanstackSsr).$_TSR) ||
               hasTanstackSsrHydrationRecord(router));
-          const needsRouterClient = hasSSRBootstrap;
-          if (needsRouterClient) {
+          if (hasSSRBootstrap) {
             hooks.onBeforeHydrateRouter.call({
               ...lifecycleContext,
               phase: 'hydrate',
@@ -283,7 +282,7 @@ export const tanstackRouterPlugin = (
             });
           }
 
-          const RouterContent = needsRouterClient ? (
+          const RouterContent = hasSSRBootstrap ? (
             <ModernRouterClient router={router} />
           ) : (
             <RouterProvider router={router} />
@@ -292,7 +291,7 @@ export const tanstackRouterPlugin = (
             RouterContent,
             hasSSRBootstrap,
           );
-          if (needsRouterClient) {
+          if (hasSSRBootstrap) {
             hooks.onAfterHydrateRouter.call({
               ...lifecycleContext,
               phase: 'hydrate',

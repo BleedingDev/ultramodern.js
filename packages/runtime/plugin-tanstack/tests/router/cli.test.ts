@@ -306,13 +306,14 @@ describe('tanstack router cli plugin', () => {
     });
   });
 
-  test('exposes canonical route params through a custom i18n runtime module', async () => {
+  test('typechecks custom runtime module augmentations', async () => {
     tempDir = await mkdtemp(path.join(tmpdir(), 'modern-tanstack-cli-'));
     const srcDirectory = path.join(tempDir, 'src');
 
     await writeTanstackRegisterFile({
       entries: ['main'],
       generatedDirName: 'tanstack',
+      runtimeModule: '@my-org/tanstack/runtime',
       srcDirectory,
       canonicalRoutes: {
         '/talks': 'Record<string, never>',
@@ -324,6 +325,7 @@ describe('tanstack router cli plugin', () => {
       entries: ['main'],
       generatedDirName: 'tanstack',
       srcDirectory,
+      runtimeModule: '@my-org/tanstack/runtime',
       i18nRuntimeModule: '@my-org/i18n/runtime',
       canonicalTypeChecks: [
         "import type { UltramodernCanonicalRoutes } from '@my-org/i18n/runtime';",

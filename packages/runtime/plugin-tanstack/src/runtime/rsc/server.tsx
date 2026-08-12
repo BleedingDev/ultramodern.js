@@ -188,8 +188,6 @@ export function getTanstackRscSerializationAdapters() {
   return [adapter];
 }
 
-export const rscSerializationAdapter = getTanstackRscSerializationAdapters;
-
 function createReadableStreamEmitter<T>(): SlotEmitter<T> {
   let closed = false;
   const queue: T[] = [];

@@ -75,10 +75,10 @@ export const tanstackRouterPlugin = (
       api.onBeforeRender(async (context, interrupt) => {
         const routeConfig = getTanstackRouteConfig(api, userConfig);
         const { mergedConfig } = routeConfig;
-        const serializationAdapters = getGlobalEnableRsc()
+        const enableRsc = getGlobalEnableRsc();
+        const serializationAdapters = enableRsc
           ? (await import('./rsc/server')).getTanstackRscSerializationAdapters()
           : undefined;
-        const enableRsc = getGlobalEnableRsc();
 
         const { basename = '' } = mergedConfig;
 
@@ -92,7 +92,6 @@ export const tanstackRouterPlugin = (
         const modifiedRouteObjects = createTanstackRouteObjects({
           hooks,
           routeConfig,
-          ssrMode: context.ssrContext?.mode,
         });
 
         if (!modifiedRouteObjects.length) {

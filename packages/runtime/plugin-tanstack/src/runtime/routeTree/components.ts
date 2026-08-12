@@ -3,7 +3,7 @@
 import type { RouteObject } from '@modern-js/runtime-utils/router';
 import { createElement, type ElementType } from 'react';
 
-import type { ModernRouteObject, RouteTreeOptions } from './types';
+import type { ModernRouteObject } from './types';
 
 type ModernRouteModule = {
   Component?: unknown;
@@ -85,10 +85,7 @@ function createServerLazyImportComponent(
   return Component;
 }
 
-export function toRouteComponent(
-  routeObject: RouteObject,
-  options: RouteTreeOptions = {},
-): unknown {
+export function toRouteComponent(routeObject: RouteObject): unknown {
   const route = routeObject as ModernRouteObject;
   const lazyImport =
     typeof route.lazyImport === 'function' ? route.lazyImport : undefined;
