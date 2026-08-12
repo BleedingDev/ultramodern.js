@@ -50,7 +50,7 @@ const recommendationsApi = HttpApi.make('RecommendationsContractTestApi').add(
     .add(
       HttpApiEndpoint.get('get', '/recommendations/:id', {
         params: {
-          id: Schema.String,
+          id: Schema.String.check(Schema.isPattern(/^[a-z][a-z0-9-]*$/)),
         },
         success: recommendationItemSchema,
         error: recommendationNotFoundSchema,
@@ -216,11 +216,28 @@ describe('effect HttpApi schema validation', () => {
     }
   });
 
-  test('rejects invalid payload before the handler runs', async () => {
-    const { handledCalls, handler } = createRecommendationsHandler();
-
-    try {
-      const response = await handler.handler(
+  test.each([
+    {
+      expectedBody: '',
+      expectedCalls: [],
+      expectedStatus: 400,
+      name: 'params',
+      request: () => new Request('http://localhost/recommendations/INVALID'),
+    },
+    {
+      expectedBody: '',
+      expectedCalls: [],
+      expectedStatus: 400,
+      name: 'query',
+      request: () =>
+        new Request('http://localhost/recommendations?limit=invalid'),
+    },
+    {
+      expectedBody: '',
+      expectedCalls: [],
+      expectedStatus: 400,
+      name: 'payload',
+      request: () =>
         new Request('http://localhost/recommendations', {
           body: JSON.stringify({ title: 123 }),
           headers: {
@@ -228,10 +245,35 @@ describe('effect HttpApi schema validation', () => {
           },
           method: 'POST',
         }),
-      );
+    },
+    {
+      expectedBody: {
+        _tag: 'RecommendationNotFound',
+        id: 'missing',
+      },
+      expectedCalls: ['get'],
+      expectedStatus: 404,
+      name: 'declared error channel',
+      request: () => new Request('http://localhost/recommendations/missing'),
+    },
+  ])('decodes typed $name input and response failures', async ({
+    expectedBody,
+    expectedCalls,
+    expectedStatus,
+    request,
+  }) => {
+    const { handledCalls, handler } = createRecommendationsHandler();
 
-      expect(response.status).toBeGreaterThanOrEqual(400);
-      expect(handledCalls).toEqual([]);
+    try {
+      const response = await handler.handler(request());
+      expect(response.status).toBe(expectedStatus);
+      expect(handledCalls).toEqual(expectedCalls);
+
+      if (expectedStatus === 400) {
+        await expect(response.text()).resolves.toBe(expectedBody);
+      } else {
+        await expect(response.json()).resolves.toEqual(expectedBody);
+      }
     } finally {
       await handler.dispose();
     }
