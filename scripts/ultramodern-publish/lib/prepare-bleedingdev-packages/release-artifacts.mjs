@@ -1,3 +1,4 @@
+// Consumer: publish-bleedingdev.yml immutable manifest, cohort digest, and tarball bundle.
 import { execFileSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';

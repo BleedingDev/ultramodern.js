@@ -1,3 +1,4 @@
+// Consumer: ultramodern-tractor-downstream.yml manifest-pinned acceptance install.
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';

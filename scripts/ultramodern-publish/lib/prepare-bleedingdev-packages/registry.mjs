@@ -1,3 +1,4 @@
+// Consumer: publish-bleedingdev.yml preflight, publish, and exact registry verification.
 import { execFile } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';

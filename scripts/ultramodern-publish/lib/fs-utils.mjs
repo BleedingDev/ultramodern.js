@@ -1,3 +1,4 @@
+// Consumer: BleedingDev release staging and build package discovery.
 import fs from 'node:fs';
 import path from 'node:path';
 

@@ -1,3 +1,4 @@
+// Consumer: run-release-acceptance.mjs ephemeral registry validation.
 import path from 'node:path';
 
 class SourceCreateProofError extends Error {

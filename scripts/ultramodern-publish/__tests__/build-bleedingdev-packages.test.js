@@ -1,3 +1,4 @@
+// Consumer: publish-bleedingdev.yml prepare-release build.
 const assert = require('node:assert/strict');
 const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');

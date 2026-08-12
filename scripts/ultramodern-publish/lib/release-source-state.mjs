@@ -1,3 +1,4 @@
+// Consumer: publish-bleedingdev.yml build and staging source qualification.
 import { spawnSync } from 'node:child_process';
 
 function runGit(cwd, args) {

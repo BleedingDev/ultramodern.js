@@ -1,3 +1,4 @@
+// Consumer: prepare-bleedingdev-packages.mjs CLI input boundary.
 function rejectInlineOptionSyntax(
   argv,
   { valueOptions, booleanOptions = new Set() },

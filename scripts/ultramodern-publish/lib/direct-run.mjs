@@ -1,3 +1,4 @@
+// Consumer: prepare-bleedingdev-packages.mjs direct CLI execution.
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 

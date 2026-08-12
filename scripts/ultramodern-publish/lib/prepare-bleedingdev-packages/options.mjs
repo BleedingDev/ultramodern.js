@@ -1,3 +1,4 @@
+// Consumer: publish-bleedingdev.yml prepare/publish CLI invocations.
 import path from 'node:path';
 import cliKit from '../../../lib/cli-kit.js';
 import { rejectInlineOptionSyntax } from '../option-syntax.mjs';

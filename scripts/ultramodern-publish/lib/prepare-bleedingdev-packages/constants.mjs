@@ -1,3 +1,4 @@
+// Consumer: BleedingDev release staging, publishing, and acceptance contracts.
 import fsKit from '../../../lib/fs-kit.js';
 
 const { repoRoot } = fsKit;

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// Consumer: publish-bleedingdev.yml publish-change-record GitHub release.
 // Aggregate queued .changeset/*.md into ONE cohort change record for the
 // @bleedingdev/modern-js-* channel. Read-only: never mutates package.json,
 // never consumes changesets, never runs `changeset version`.

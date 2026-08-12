@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// Consumer: operators recovering a published cohort whose GitHub release record was skipped.
 // Create the GitHub release for a cohort version that was already published to
 // npm but never got its change record.
 //
@@ -10,9 +11,7 @@
 // either -- the publish job runs first and would refuse an already published
 // version. Historical recovery therefore happens here, out of band.
 //
-// This deliberately stays a local script rather than a second workflow:
-// validate-publish-security.mjs vets only the three named workflow files, so a
-// new CI job holding `contents: write` would be an unvetted write path.
+// This deliberately stays a local script rather than a second CI write path.
 //
 // Usage:
 //   node scripts/ultramodern-publish/backfill-change-record.mjs \

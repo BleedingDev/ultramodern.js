@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// Consumer: publish-bleedingdev.yml prepare-release package build.
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

@@ -1,3 +1,4 @@
+// Consumer: publish-bleedingdev.yml validates shipped declarations and create templates.
 import fs from 'node:fs';
 import path from 'node:path';
 import { createTemplateRequiredFiles } from './constants.mjs';

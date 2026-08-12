@@ -15,11 +15,12 @@ Repository-side controls were already present in code:
 3. The publish job is guarded to `refs/heads/main-ultramodern`.
 4. The publish job uses the `npm-publish` environment.
 5. The publish job does not reference `NPM_TOKEN` or `NODE_AUTH_TOKEN`.
-6. `scripts/ultramodern-publish/validate-publish-security.mjs` validates the
-   workflow contract, GitHub repository, branch, dispatch event, npm registry,
-   accepted publish modes, accepted tags, and absence of `NPM_TOKEN`.
-7. `scripts/ultramodern-publish/prepare-bleedingdev-packages.mjs` publishes with
-   `npm publish --provenance` for non-dry-run publishes.
+6. `.github/workflows/publish-bleedingdev.yml` validates the repository,
+   branch, dispatch event, npm registry, latest-only tag, fixed concurrency, and
+   version shape before release work; the workflow security gate rejects token
+   environment variables.
+7. `scripts/ultramodern-publish/prepare-bleedingdev-packages.mjs` publishes
+   accepted bytes through npm trusted publishing with provenance.
 
 Live external controls verified:
 
@@ -34,12 +35,11 @@ Live external controls verified:
 9. Secret scanning open alerts: zero.
 10. Latest checked publish workflow run: successful
     `https://github.com/BleedingDev/ultramodern.js/actions/runs/26170328264`.
-11. Latest checked publish run emitted `Publish security validation passed`.
-12. Latest checked publish run emitted npm provenance confirmation from GitHub
+11. Latest checked publish run emitted npm provenance confirmation from GitHub
     Actions.
-13. `@bleedingdev/modern-js-create@3.2.0-ultramodern.21` has npm dist
+12. `@bleedingdev/modern-js-create@3.2.0-ultramodern.21` has npm dist
     attestations with SLSA provenance.
-14. `@bleedingdev/modern-js-create@3.2.0-ultramodern.21` shows npm publisher
+13. `@bleedingdev/modern-js-create@3.2.0-ultramodern.21` shows npm publisher
     metadata as `GitHub Actions` with `trustedPublisher.id = github`.
 
 External controls changed during this audit:

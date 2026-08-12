@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// Consumer: publish-bleedingdev.yml immutable cohort staging, publish, and registry verification.
 import { isDirectRun } from './lib/direct-run.mjs';
 import { parseArgs } from './lib/prepare-bleedingdev-packages/options.mjs';
 import { prepareBleedingdevPackages } from './lib/prepare-bleedingdev-packages/workflow.mjs';

@@ -1,3 +1,4 @@
+// Consumer: release acceptance, publish outcomes, and downstream exact-artifact readers.
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';

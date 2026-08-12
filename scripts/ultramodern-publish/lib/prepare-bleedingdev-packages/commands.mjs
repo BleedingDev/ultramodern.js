@@ -1,3 +1,4 @@
+// Consumer: publish-bleedingdev.yml cohort staging and registry operations.
 import { execFileSync, spawn } from 'node:child_process';
 import processKit from '../../../lib/process-kit.js';
 import { repoRoot } from './constants.mjs';

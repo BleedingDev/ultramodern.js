@@ -36,7 +36,6 @@ const exactNode26WorkflowPaths = [
   '.github/workflows/integration-test-Windows.yml',
   '.github/workflows/publish-bleedingdev.yml',
   '.github/workflows/superapp-certification.yml',
-  '.github/workflows/ultramodern-production-readiness.yml',
   '.github/workflows/ut-Windows.yml',
   '.github/workflows/ut-macOS.yml',
   'examples/modern-js-deploy-csr/.github/workflows/gh-pages-deploy.yml',

@@ -1,3 +1,4 @@
+// Consumer: prepare-bleedingdev-packages.mjs release staging and publish orchestration.
 import fs from 'node:fs';
 import path from 'node:path';
 import fsKit from '../../../lib/fs-kit.js';

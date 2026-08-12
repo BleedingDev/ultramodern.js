@@ -1,3 +1,4 @@
+// Consumer: backfill-change-record.mjs historical release recovery.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';

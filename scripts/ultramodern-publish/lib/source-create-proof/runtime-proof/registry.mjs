@@ -1,3 +1,4 @@
+// Consumer: run-release-acceptance.mjs source-mode exact-tarball registry.
 import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import net from 'node:net';

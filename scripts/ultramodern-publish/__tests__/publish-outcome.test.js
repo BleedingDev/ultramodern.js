@@ -1,3 +1,4 @@
+// Consumer: publish-bleedingdev.yml authenticated outcome handoff.
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const { execFileSync } = require('node:child_process');
@@ -467,24 +468,6 @@ function createOptions(fixture, artifactName, dryRun) {
   return options;
 }
 
-function verificationOptions(fixture, artifactName) {
-  return {
-    artifactName,
-    cohortDigestPath: fixture.cohortDigestPath,
-    manifestDigestPath: fixture.manifestDigestPath,
-    manifestPath: fixture.manifestPath,
-    operationalEvidencePath: fixture.operationalEvidencePath,
-    publishedOperationalEvidencePath: fixture.publishedOperationalEvidencePath,
-    publishedReceiptPath: fixture.publishedReceiptPath,
-    receiptPath: fixture.receiptPath,
-    repository: source.repository,
-    runAttempt: outcomeRunAttempt,
-    runId,
-    sourceCommit: source.commit,
-    tractorReportPath: fixture.tractorReportPath,
-  };
-}
-
 function artifact(id, name, overrides = {}) {
   return {
     created_at: '2026-07-10T10:00:00Z',
@@ -527,144 +510,9 @@ test('dry-run and real publication emit the same strict bound outcome schema', a
         runAttempt: producerRunAttempt,
         runIdentity: producerRunIdentity,
       });
-      assert.deepEqual(
-        api.assertPublishOutcome(
-          JSON.parse(fs.readFileSync(fixture.outPath, 'utf8')),
-          verificationOptions(fixture, artifactName),
-        ),
-        outcome,
-      );
     } finally {
       fs.rmSync(fixture.root, { force: true, recursive: true });
     }
-  }
-});
-
-test('dry-run verification omits publication identity without emitting an empty GitHub output', async () => {
-  const api = await outcomeApi();
-  const artifactName = api.publishOutcomeArtifactName({
-    runAttempt: outcomeRunAttempt,
-    runId,
-  });
-  const fixture = await createEvidenceFixture();
-  const githubOutput = path.join(fixture.root, 'github-output.txt');
-  try {
-    api.createPublishOutcome(createOptions(fixture, artifactName, true));
-    assert.equal(
-      await api.main([
-        'verify',
-        '--outcome',
-        fixture.outPath,
-        '--artifact-name',
-        artifactName,
-        '--manifest',
-        fixture.manifestPath,
-        '--manifest-digest',
-        fixture.manifestDigestPath,
-        '--cohort-digest',
-        fixture.cohortDigestPath,
-        '--receipt',
-        fixture.receiptPath,
-        '--operational-evidence',
-        fixture.operationalEvidencePath,
-        '--repository',
-        source.repository,
-        '--source-commit',
-        source.commit,
-        '--run-id',
-        runId,
-        '--run-attempt',
-        String(outcomeRunAttempt),
-        '--github-output',
-        githubOutput,
-      ]),
-      0,
-    );
-    const outputs = fs.readFileSync(githubOutput, 'utf8');
-    assert.match(outputs, /dry_run=true/u);
-    assert.doesNotMatch(outputs, /publication_run_attempt/u);
-  } finally {
-    fs.rmSync(fixture.root, { force: true, recursive: true });
-  }
-});
-
-test('publish outcome rejects malformed and mismatched source, version, and run identity', async () => {
-  const api = await outcomeApi();
-  const artifactName = api.publishOutcomeArtifactName({
-    runAttempt: outcomeRunAttempt,
-    runId,
-  });
-  const fixture = await createEvidenceFixture();
-  try {
-    const outcome = api.createPublishOutcome(
-      createOptions(fixture, artifactName, false),
-    );
-    const cases = [
-      [
-        'schema',
-        value => {
-          value.schemaVersion = 5;
-        },
-        /Unknown publish outcome schema/u,
-      ],
-      [
-        'publication attempt after outcome',
-        value => {
-          value.publication.runAttempt = outcomeRunAttempt + 1;
-        },
-        /publication run attempt follows the outcome attempt/u,
-      ],
-      [
-        'source',
-        value => {
-          value.source.commit = '2'.repeat(40);
-        },
-        /does not match the triggering workflow run/u,
-      ],
-      [
-        'version',
-        value => {
-          value.release.version = '3.4.0-ultramodern.3';
-        },
-        /Release manifest does not match/u,
-      ],
-      [
-        'producer identity',
-        value => {
-          value.producer.runIdentity = `github:${source.repository}:run:${runId}:attempt:2`;
-        },
-        /Producer run identity/u,
-      ],
-      [
-        'Tractor report digest',
-        value => {
-          value.evidence.tractorAcceptance.reportSha256 = 'a'.repeat(64);
-        },
-        /Tractor acceptance report SHA-256/u,
-      ],
-      [
-        'unknown field',
-        value => {
-          value.untrusted = true;
-        },
-        /unknown or missing fields/u,
-      ],
-    ];
-    for (const [label, mutate, pattern] of cases) {
-      const changed = structuredClone(outcome);
-      mutate(changed);
-      assert.throws(
-        () =>
-          api.assertPublishOutcome(
-            changed,
-            verificationOptions(fixture, artifactName),
-          ),
-        pattern,
-        label,
-      );
-    }
-  } finally {
-    fs.rmSync(fixture.root, { force: true, recursive: true });
   }
 });
 

@@ -44,7 +44,6 @@ const sensitiveWorkflowPaths = new Set([
   '.github/workflows/contract-gates.yml',
   '.github/workflows/publish-bleedingdev.yml',
   '.github/workflows/ultramodern-nightly.yml',
-  '.github/workflows/ultramodern-production-readiness.yml',
   '.github/workflows/workflow-security.yml',
   '.github/workflows/superapp-certification.yml',
   'packages/toolkit/create/template-workspace/.github/workflows/ultramodern-workspace-gates.yml.handlebars',
@@ -222,13 +221,6 @@ const hasDryRunPublishBranches = workflow => {
   );
 };
 
-const followsPublishWorkflow = workflow => {
-  const watched = workflowRunConfig(workflow)?.workflows;
-  return (
-    Array.isArray(watched) && watched.includes('Publish BleedingDev Packages')
-  );
-};
-
 function collectReceiptRunIdentityErrors(workflow, relativePath) {
   return workflowSteps(workflow).flatMap(({ jobId, step }) =>
     runIncludes(
@@ -394,89 +386,106 @@ function collectPublishOutcomeErrors(workflow, relativePath) {
   return errors;
 }
 
-function collectReadinessOutcomeErrors(workflow, relativePath) {
-  if (!followsPublishWorkflow(workflow)) {
+// Structural fail-closed contract for the trusted-publishing release workflow,
+// previously enforced by scripts/ultramodern-publish/validate-publish-security.mjs.
+// Consumer: .github/workflows/publish-bleedingdev.yml.
+const bleedingdevPublishWorkflowPath =
+  '.github/workflows/publish-bleedingdev.yml';
+
+// Consumer: publish-bleedingdev.yml — `publish` mints the npm OIDC token
+// (id-token: write) and `publish-change-record` commits the change record
+// (contents: write). No other job in the release graph may hold either.
+const bleedingdevElevatedPermissionJobs = Object.freeze([
+  'publish',
+  'publish-change-record',
+]);
+const bleedingdevGuardedPermissionScopes = Object.freeze([
+  'contents',
+  'id-token',
+]);
+
+// Consumer: publish-bleedingdev.yml — the closed release job graph, so a new job
+// cannot be smuggled between the acceptance, publish, outcome, and record gates.
+const bleedingdevPublishJobs = Object.freeze([
+  'accept-published',
+  'accept-release',
+  'prepare-release',
+  'publish',
+  'publish-change-record',
+  'publish-security',
+  'record-publish-outcome',
+  'tractor-downstream',
+  'validate-release',
+]);
+
+// Consumer: publish-bleedingdev.yml — @bleedingdev/* publishes latest-only.
+const bleedingdevPublishTag = 'latest';
+
+const elevatedPermissionScopes = (permissions, scopes) =>
+  permissionIsWrite(permissions)
+    ? [...scopes]
+    : isObject(permissions)
+      ? scopes.filter(scope => permissionIsWrite(permissions[scope]))
+      : [];
+
+function collectBleedingdevPublishStructureErrors(workflow, relativePath) {
+  if (relativePath !== bleedingdevPublishWorkflowPath) {
     return [];
   }
-  const steps = workflowSteps(workflow);
-  const selectors = steps.filter(({ step }) =>
-    runIncludes(step, 'publish-outcome.mjs select-artifact'),
-  );
-  const verifiers = steps.filter(({ step }) =>
-    runIncludes(step, 'publish-outcome.mjs verify'),
-  );
-  const paginatedListings = steps.filter(
-    ({ step }) =>
-      runIncludes(step, 'gh api') &&
-      runIncludes(step, '--paginate') &&
-      runIncludes(step, '--slurp') &&
-      !runIncludes(step, '--jq'),
-  );
   const errors = [];
-  if (
-    selectors.length !== 1 ||
-    verifiers.length !== 1 ||
-    paginatedListings.length !== 1
-  ) {
+  const jobs = isObject(workflow.jobs) ? workflow.jobs : {};
+
+  for (const scope of elevatedPermissionScopes(
+    workflow.permissions,
+    bleedingdevGuardedPermissionScopes,
+  )) {
     errors.push(
-      `${relativePath} publish readiness must list every artifact page and select and verify exactly one structured outcome`,
-    );
-    return errors;
-  }
-  const selector = selectors[0];
-  const verifier = verifiers[0];
-  const listing = paginatedListings[0];
-  if (
-    selector.jobId !== verifier.jobId ||
-    listing.jobId !== selector.jobId ||
-    listing.stepIndex >= selector.stepIndex ||
-    selector.stepIndex >= verifier.stepIndex ||
-    !runIncludes(selector.step, '--completed-at') ||
-    !runIncludes(verifier.step, '--artifact-name') ||
-    !runIncludes(verifier.step, '--source-commit') ||
-    !runIncludes(verifier.step, '--run-id') ||
-    !runIncludes(verifier.step, '--run-attempt')
-  ) {
-    errors.push(
-      `${relativePath} publish readiness must authenticate paginated outcome evidence before use`,
+      `${relativePath} must not grant ${scope}: write at the workflow level`,
     );
   }
-  const resolverOutput = verifier.job.outputs?.dry_run;
-  if (
-    typeof resolverOutput !== 'string' ||
-    !resolverOutput.includes('steps.publish-outcome.outputs.dry_run')
-  ) {
-    errors.push(
-      `${relativePath} publish readiness must expose dry_run only from the verified outcome`,
-    );
+  for (const [jobId, job] of Object.entries(jobs)) {
+    if (!isObject(job) || bleedingdevElevatedPermissionJobs.includes(jobId)) {
+      continue;
+    }
+    for (const scope of elevatedPermissionScopes(
+      job.permissions,
+      bleedingdevGuardedPermissionScopes,
+    )) {
+      errors.push(
+        `${relativePath} job ${jobId} must not grant ${scope}: write; confined to ${bleedingdevElevatedPermissionJobs.join(
+          ', ',
+        )}`,
+      );
+    }
   }
-  const downstreamProofs = Object.values(workflow.jobs ?? {}).filter(
-    job =>
-      isObject(job) &&
-      normalizeNeeds(job).includes(verifier.jobId) &&
-      Array.isArray(job.steps) &&
-      job.steps.some(
-        step => isObject(step) && runIncludes(step, '--mode published'),
-      ),
+
+  const actualJobs = Object.keys(jobs).sort();
+  const unexpectedJobs = actualJobs.filter(
+    jobId => !bleedingdevPublishJobs.includes(jobId),
   );
-  if (
-    downstreamProofs.length !== 1 ||
-    typeof downstreamProofs[0].if !== 'string' ||
-    !downstreamProofs[0].if.includes("outputs.dry_run == 'false'")
-  ) {
+  const missingJobs = bleedingdevPublishJobs.filter(
+    jobId => !actualJobs.includes(jobId),
+  );
+  if (unexpectedJobs.length > 0 || missingJobs.length > 0) {
     errors.push(
-      `${relativePath} post-publish readiness may skip only for an authenticated dry-run outcome`,
+      `${relativePath} job set must be exactly ${bleedingdevPublishJobs.join(
+        ', ',
+      )}${
+        unexpectedJobs.length > 0
+          ? `; unexpected: ${unexpectedJobs.join(', ')}`
+          : ''
+      }${missingJobs.length > 0 ? `; missing: ${missingJobs.join(', ')}` : ''}`,
     );
   }
-  if (
-    steps.some(
-      ({ step }) =>
-        typeof step.run === 'string' &&
-        /exists=false|skipping release readiness/iu.test(step.run),
-    )
-  ) {
+
+  const tag = isObject(workflow.env)
+    ? workflow.env.BLEEDINGDEV_PUBLISH_TAG
+    : undefined;
+  if (tag !== bleedingdevPublishTag) {
     errors.push(
-      `${relativePath} publish readiness must fail rather than skip when outcome evidence is missing`,
+      `${relativePath} BLEEDINGDEV_PUBLISH_TAG must be ${bleedingdevPublishTag}, found ${String(
+        tag,
+      )}`,
     );
   }
   return errors;
@@ -921,8 +930,11 @@ export function validateWorkflowContent(relativePath, content, options = {}) {
   for (const message of collectPublishOutcomeErrors(workflow, relativePath)) {
     push('publish-outcome-contract', message);
   }
-  for (const message of collectReadinessOutcomeErrors(workflow, relativePath)) {
-    push('publish-outcome-readiness', message);
+  for (const message of collectBleedingdevPublishStructureErrors(
+    workflow,
+    relativePath,
+  )) {
+    push('bleedingdev-publish-structure', message);
   }
 
   if (sensitive) {

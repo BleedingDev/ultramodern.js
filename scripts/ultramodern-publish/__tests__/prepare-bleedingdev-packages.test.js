@@ -1,3 +1,4 @@
+// Consumer: publish-bleedingdev.yml staging, publication, and registry gates.
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const fs = require('node:fs');

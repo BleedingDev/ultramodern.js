@@ -1,3 +1,4 @@
+// Consumer: publish-bleedingdev.yml npm provenance verification.
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import path from 'node:path';

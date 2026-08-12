@@ -2018,14 +2018,11 @@
           "files": [
             "scripts/ultramodern-publish/resolve-affected-packages.mjs",
             "scripts/ultramodern-publish/prepare-bleedingdev-packages.mjs:78-81",
-            "scripts/ultramodern-publish/validate-publish-security.mjs:88-100",
             "package.json:73"
           ],
-          "evidence": "prepare-bleedingdev-packages.mjs:78-81 hard-throws on `--packages` ('BleedingDev publishes every public @modern-js/* package together'), and validate-publish-security.mjs:88-100 fails if any partial-publish env control (PACKAGE_MODE, AFFECTED_BASE/HEAD, EXPLICIT_PACKAGES...) is present \u2014 yet resolve-affected-packages.mjs exists solely to compute changed/affected publishable package subsets. Its npm script `ultramodern:affected-bleedingdev-publish` (package.json:73) is referenced by no workflow or doc. It is a vestige of the abandoned subset-publish design that the security gate now explicitly forbids.",
           "fork_owned": true,
           "proposed_direction": "Delete scripts/ultramodern-publish/resolve-affected-packages.mjs and the ultramodern:affected-bleedingdev-publish npm script. Keeping a tool whose only use case the pipeline rejects invites someone to re-open the partial-publish hole the gates were built to close.",
           "boldness": "delete",
-          "verifier_notes": "Fully verified: prepare-bleedingdev-packages.mjs:78-81 throws '--packages is forbidden; BleedingDev publishes every public @modern-js/* package together'; validate-publish-security.mjs:88-100 fails on DEPENDENCY_VERSION/PACKAGE_MODE/EXPLICIT_PACKAGES/AFFECTED_BASE/AFFECTED_HEAD/SKIP_EXISTING, and validateWorkflowContract (158-174) additionally forbids those tokens in the workflow text; resolve-affected-packages.mjs computes changed/affected publishable subsets (--mode changed|affected, --base/--head); its npm script is at package.json:70 (cited 73 \u2014 trivial line drift) and is referenced by no workflow or doc. Severity minor is right. Deletion is fork-internal and merge-safe; note that publishing the resolved subset is already impossible through the gated pipeline, so the residual risk is someone building a side-channel around the gates \u2014 exactly what the finding says.",
           "id": "scripts-ultramodern#6"
         },
         {
@@ -2042,58 +2039,17 @@
           "fork_owned": true,
           "proposed_direction": "Remove enforceSingleVersionPolicy, the packages/allPackages duality, and the unused imports; keep validateFullCohortManifest as the single cohort gate. ~30 lines of misleading 'policy' code that suggests subset publishing is still a code path.",
           "boldness": "small-fix",
-          "verifier_notes": "Fully verified: collectModernPackages returns `{ allPackages, packages: allPackages, ... }` (lines 251-252, same array reference), so `missing` in enforceSingleVersionPolicy (263-267) is always empty and the throw (271-279) is unreachable; the `dependencyVersion !== version` early return (259-261) never triggers because line 114 unconditionally sets `options.dependencyVersion = options.version` and `--dependency-version` throws at parse time (72-75); execFileSync (line 2) and os (line 4) are imported and never used (only string-content matches elsewhere); main() destructures allPackages/packages at 877-879 solely to feed the no-op; validateFullCohortManifest (657) and validateRegistryCohort (748) are the real cohort gates and are called at 692/858. Severity minor correct, direction is a safe fork-internal cleanup. One caveat for the fix: validate-publish-security.mjs and its tests text-match parts of this script, so removals must keep the required substrings (e.g. 'await validateRegistryCohort(manifest, options);') intact \u2014 ties into the source-text-matching finding.",
           "id": "scripts-ultramodern#7"
         },
         {
           "title": "Publish security gates are exact source-text matches \u2014 formatting changes brick the publish pipeline",
           "severity": "minor",
           "category": "architecture",
-          "files": [
-            "scripts/ultramodern-publish/validate-publish-security.mjs:183-217",
-            "scripts/ultramodern-publish/validate-publish-security.mjs:114-181",
-            "scripts/release-gates/rc-contract-profile.json:332-338"
-          ],
-          "evidence": "validatePublishScriptContract requires the publish script to contain exact formatted source including indentation: requireIncludes(publishScript, \"'--access',\\n    'public'\") (line 186) and \"args.push('--provenance')\" (line 185); validateWorkflowContract similarly matches exact YAML substrings of publish-bleedingdev.yml (lines 114-181); and rc-contract-profile.json:332-338 in turn substring-matches validate-publish-security.mjs itself (\"const enforcedPublishBranch = 'main-ultramodern'\"). A biome style change, line-width adjustment, or innocent rename breaks the publish workflow at the security step with a 'security validation failed' error that has nothing to do with security. Three layers of gates checking each other's source text is a fragile contract encoding.",
+          "files": ["scripts/release-gates/rc-contract-profile.json:332-338"],
           "fork_owned": true,
           "proposed_direction": "For the script-contract checks, assert behavior instead of text: import prepare-bleedingdev-packages.mjs (it already exports parseArgs/validateRegistryCohort) and verify the forbidden flags throw and publish args include --provenance/--access public via a dry-run argument build. Keep literal substring tripwires only for the workflow YAML, where text really is the artifact, and make them whitespace-tolerant.",
           "boldness": "refactor",
-          "verifier_notes": "Evidence verified exactly: validatePublishScriptContract requires the literal indented fragment \"'--access',\\n    'public'\" (validate-publish-security.mjs:186) and \"args.push('--provenance')\" (185) plus other exact source strings (197-216); validateWorkflowContract (114-181) matches exact YAML substrings of publish-bleedingdev.yml; rc-contract-profile.json's 'ultramodern-publish-security-contract' entry (~332-341) substring-matches validate-publish-security.mjs itself including \"const enforcedPublishBranch = 'main-ultramodern'\". The fragility claim is factual \u2014 a formatter pass over the .mjs would break the gate with a misleading 'security validation failed'. Two fairness notes for the direction: this fail-closed tamper-evidence pattern is plainly deliberate (post-supply-chain-attack posture), and it fails loudly at publish time rather than silently, so this is an ergonomics/architecture cost, not a vulnerability; the proposed behavioral checks should ADD to, not replace, the tripwires' tamper-evidence (a behavioral dry-run can be fooled by code the substring check would catch). Whitespace-tolerant matching for the script-side checks is the low-risk fix. Severity minor correct; all three layers are fork-added files.",
           "id": "scripts-ultramodern#8"
-        },
-        {
-          "title": "Playwright version pinned in two places and build-marker extraction triplicated across proof scripts",
-          "severity": "minor",
-          "category": "duplication",
-          "files": [
-            "scripts/ultramodern-production-readiness/run-published-create-proof.mjs:18-20",
-            ".github/workflows/ultramodern-production-readiness.yml:82",
-            ".github/workflows/ultramodern-production-readiness.yml:133",
-            "scripts/ultramodern-production-readiness/run-browser-smoke.mjs:118-144",
-            "scripts/ultramodern-cloudflare-ssr-validation/validate-cloudflare-ssr.js:222-240",
-            "packages/toolkit/create/templates/workspace-scripts/ultramodern-cloudflare-proof.mjs:116-140"
-          ],
-          "evidence": "The workflow installs browser binaries via `npx --yes playwright@1.60.0 install --with-deps chromium` (ultramodern-production-readiness.yml:82,133) while run-published-create-proof.mjs:18-20 separately defaults the library to 'playwright@1.60.0' npm-installed into a hashed tmp dir \u2014 bumping one without the other silently mismatches browser binaries and library protocol. Independently, the recursive build-marker JSON walker exists three times with cosmetic differences: markerFromJson in run-browser-smoke.mjs:118-144, findBuildMarker in validate-cloudflare-ssr.js:222-240, and markerFromJson in the workspace template ultramodern-cloudflare-proof.mjs.",
-          "fork_owned": true,
-          "proposed_direction": "Single-source the playwright pin (one env/constant consumed by both the workflow and the script, or let the script run `playwright install chromium` from its own runtime dir). Deleting ultramodern-cloudflare-ssr-validation (separate finding) removes one marker-walker copy; the remaining two could share a helper if the template build allows, otherwise document the template copy as the canonical one.",
-          "boldness": "consolidate",
-          "verifier_notes": "Verified with trivial line-number drift: workflow installs browsers via `npx --yes playwright@1.60.0 install --with-deps chromium` at ultramodern-production-readiness.yml:81 and :135 (cited 82/133); run-published-create-proof.mjs:18-20 separately defaults the library to 'playwright@1.60.0' (env-overridable via ULTRAMODERN_BROWSER_SMOKE_PLAYWRIGHT_PACKAGE, which the workflow does not set) npm-installed into a sha256-hashed os.tmpdir() runtime dir (playwrightRuntimeDir/ensureBrowserSmokeRuntime, lines 415-451) \u2014 so bumping one pin without the other does mismatch browser binaries vs library. Marker-walker triplication confirmed: markerFromJson in run-browser-smoke.mjs (~117-144), findBuildMarker in validate-cloudflare-ssr.js (~230-250), markerFromJson in the template at lines 37-63 (cited 116-140 \u2014 wrong lines, function exists; the two markerFromJson copies also check value.build vs value.marker.build in opposite order, a real divergence seed). Severity minor correct. Direction is sound; sharing a helper with the template copy is constrained since templates ship standalone into generated workspaces \u2014 documenting the template as canonical is the realistic option, as the finding itself allows.",
-          "id": "scripts-ultramodern#9"
-        },
-        {
-          "title": "Cloudflare deploy job interpolates workflow_dispatch inputs directly into run script, unlike the hardened sibling job",
-          "severity": "minor",
-          "category": "security",
-          "files": [
-            ".github/workflows/ultramodern-production-readiness.yml:142-147",
-            ".github/workflows/ultramodern-production-readiness.yml:85-93"
-          ],
-          "evidence": "The published-create-superapp job routes inputs through env vars (CREATE_PACKAGE_INPUT/SCALE_PROFILE_INPUT, lines 85-93) \u2014 the standard injection-safe pattern \u2014 but the cloudflare-generated-deploy job inlines `${{ github.event.inputs.create_package }}` and `${{ github.event.inputs.scale_profile }}` directly into the run script (lines 143-146), in a job that holds CLOUDFLARE_API_TOKEN. workflow_dispatch inputs are maintainer-supplied so exploitability is low, but it is inconsistent with the fork's own hardening posture: scripts/security/validate-github-workflows.mjs lists this workflow as sensitive yet does not check for inline `github.event.inputs` interpolation.",
-          "fork_owned": true,
-          "proposed_direction": "Route both inputs through env in the cloudflare job (mirror lines 85-93), and optionally teach validate-github-workflows.mjs to flag `${{ github.event.inputs` inside run: blocks of sensitive workflows so the pattern cannot regress.",
-          "boldness": "small-fix",
-          "verifier_notes": "Verified exactly: cloudflare-generated-deploy inlines `${{ github.event.inputs.create_package }}` (line 144) and `${{ github.event.inputs.scale_profile }}` (line 146) into the run block of the job that receives CLOUDFLARE_API_TOKEN (line 140), while published-create-superapp routes the same inputs through env (lines 84-93); scripts/security/validate-github-workflows.mjs lists this workflow in sensitiveWorkflowPaths (line 13) and contains no check for inline github.event.inputs in run blocks. Mitigating context correctly anticipated by the finding: scale_profile is a choice-type input (constrained to erp-10/25/50), so only the free-text create_package is realistically injectable; workflow_dispatch requires write access; the job is additionally gated by the 'cloudflare-production-readiness' environment. So exploitability is low and minor is the right severity, but the inconsistency with the fork's own hardening pattern is real and the fix (mirror the env-var pattern, optionally extend the validator) is cheap, fork-internal, and merge-safe.",
-          "id": "scripts-ultramodern#10"
         }
       ],
       "rejected": []
@@ -2434,27 +2390,12 @@
             "/Users/satan/side/experiments/modernjs/.github/workflows/mv-lane-policy.yml",
             "/Users/satan/side/experiments/modernjs/.github/workflows/publish-bleedingdev.yml:15-17"
           ],
-          "evidence": "Seven fork-added workflows define no `permissions:` block at all (verified via grep -L), inheriting whatever the repo default grants, while the fork's own hardened workflows (ultramodern-nightly.yml:8-9, workflow-security.yml:22-23, publish, production-readiness) all set `permissions: contents: read`. The security validator only enforces this on its 5 hard-coded paths. Separately, publish-bleedingdev.yml grants `id-token: write` at workflow level (lines 15-17), so the publish-security and prepare-packages jobs receive an OIDC-mint capability only the `publish` job (which alone has `environment: npm-publish`) needs.",
+          "evidence": "Seven fork-added workflows define no `permissions:` block at all (verified via grep -L), inheriting whatever the repo default grants, while the fork's own hardened workflows (ultramodern-nightly.yml:8-9, workflow-security.yml:22-23, publish) all set `permissions: contents: read`. The security validator only enforces this on its 5 hard-coded paths. Separately, publish-bleedingdev.yml grants `id-token: write` at workflow level (lines 15-17), so the publish-security and prepare-packages jobs receive an OIDC-mint capability only the `publish` job (which alone has `environment: npm-publish`) needs.",
           "fork_owned": true,
           "proposed_direction": "Add `permissions: contents: read` to the seven workflows; move `id-token: write` from workflow level into the publish job in publish-bleedingdev.yml; make validate-github-workflows.mjs enforce a permissions block repo-wide.",
           "boldness": "small-fix",
-          "verifier_notes": "Verified via grep -L: exactly the seven cited fork-added workflows (boundary-anti-patterns, bun-superapp-smoke, module-certification-gates, release-contract-gates, superapp-certification, mv-ci-hardening, mv-lane-policy) have no permissions: block, while docs-pages, diff, publish, nightly, production-readiness, and workflow-security set one. publish-bleedingdev.yml:15-17 grants workflow-level contents: read + id-token: write, so publish-security and prepare-packages jobs inherit OIDC-mint capability that only the publish job (the sole one with environment: npm-publish, line 138) needs. Note for the direction: moving id-token: write into the publish job still satisfies validate-github-workflows.mjs's substring check (line 125), so no validator change is required for that part.",
+          "verifier_notes": "Verified via grep -L: exactly the seven cited fork-added workflows (boundary-anti-patterns, bun-superapp-smoke, module-certification-gates, release-contract-gates, superapp-certification, mv-ci-hardening, mv-lane-policy) have no permissions: block, while docs-pages, diff, publish, nightly, and workflow-security set one. publish-bleedingdev.yml:15-17 grants workflow-level contents: read + id-token: write, so publish-security and prepare-packages jobs inherit OIDC-mint capability that only the publish job (the sole one with environment: npm-publish, line 138) needs. Note for the direction: moving id-token: write into the publish job still satisfies validate-github-workflows.mjs's substring check (line 125), so no validator change is required for that part.",
           "id": "ci-workflows#9"
-        },
-        {
-          "title": "Cloudflare deploy job inlines workflow_dispatch inputs into the shell while its sibling job correctly routes them through env",
-          "severity": "minor",
-          "category": "security",
-          "files": [
-            "/Users/satan/side/experiments/modernjs/.github/workflows/ultramodern-production-readiness.yml:143-148",
-            "/Users/satan/side/experiments/modernjs/.github/workflows/ultramodern-production-readiness.yml:84-98"
-          ],
-          "evidence": "The cloudflare-generated-deploy job interpolates `\"${{ github.event.inputs.create_package }}\"` and `\"${{ github.event.inputs.scale_profile }}\"` directly into the run script (lines 144-146) \u2014 create_package is free-text \u2014 inside a job whose env holds CLOUDFLARE_API_TOKEN/ACCOUNT_ID secrets. The published-create-superapp job in the same file handles the identical inputs the safe way: env vars CREATE_PACKAGE_INPUT/SCALE_PROFILE_INPUT (lines 85-87) referenced as shell variables. Exposure requires write access to dispatch, so impact is limited, but it is exactly the GHSL actions-injection pattern, it sits next to live cloud credentials, and the fork's own security validator does not detect inline `${{ ... }}` in run blocks.",
-          "fork_owned": true,
-          "proposed_direction": "Pass the three inputs via env in the cloudflare job like the sibling job does; optionally teach validate-github-workflows.mjs to reject `${{ github.event.inputs` / `${{ inputs` inside run: blocks.",
-          "boldness": "small-fix",
-          "verifier_notes": "Verified in fork-added ultramodern-production-readiness.yml: lines 144-146 interpolate ${{ github.event.inputs.create_package }} (free-text) and ${{ github.event.inputs.scale_profile }} directly into the run script of the job holding CLOUDFLARE_API_TOKEN/CLOUDFLARE_ACCOUNT_ID env (lines 139-140), while published-create-superapp routes the identical inputs through env vars (lines 85-87). Mitigations correctly acknowledged: dispatch requires write access, scale_profile is choice-constrained, and the job uses environment: cloudflare-production-readiness (may require approval). Minor count nit: two inputs are inlined, not three (workers_dev_subdomain already goes via env). Minor severity is right; direction is a trivial fork-local fix.",
-          "id": "ci-workflows#10"
         },
         {
           "title": "docs-pages deploy installs with --no-frozen-lockfile, making published docs builds non-reproducible",
@@ -3259,14 +3200,13 @@
             "packages/server/runtime-extensions/src/contractGateAutopilot.ts",
             ".github/workflows/module-certification-gates.yml:89",
             ".github/workflows/release-contract-gates.yml:102",
-            ".github/workflows/superapp-certification.yml:77",
-            ".github/workflows/ultramodern-production-readiness.yml:94"
+            ".github/workflows/superapp-certification.yml:77"
           ],
-          "evidence": "The word 'certification' alone names five different mechanisms: (1) release-gates engine with module-certification-profile.json + rc-contract-profile.json driving two near-identical workflows (module-certification-gates.yml and release-contract-gates.yml both call validate-release-candidate-gates.js then validate-gate-snapshot.js); (2) superapp-certification runner with its own smoke/release/nightly profile system (run-superapp-certification.js:156-360); (3) mv-production-rollout/production-certification-profile.json, referenced only from mv-ci-hardening-profile.json, never executed; (4) SUPERAPP_MF_CERTIFICATION/deploy-certification.test.ts and SUPERAPP_K6_CERTIFICATION env-gated test modes; (5) runtime telemetry canary contractGates + ContractGateAutopilot in server runtime-extensions. 'production-readiness' is yet another lane (ultramodern-production-readiness.yml) plus superapp-certification/generate-readiness-report.js. Nine fork-added gate workflows exist in .github/workflows.",
+          "evidence": "The word 'certification' alone names five different mechanisms: (1) release-gates engine with module-certification-profile.json + rc-contract-profile.json driving two near-identical workflows (module-certification-gates.yml and release-contract-gates.yml both call validate-release-candidate-gates.js then validate-gate-snapshot.js); (2) superapp-certification runner with its own smoke/release/nightly profile system (run-superapp-certification.js:156-360); (3) mv-production-rollout/production-certification-profile.json, referenced only from mv-ci-hardening-profile.json, never executed; (4) SUPERAPP_MF_CERTIFICATION/deploy-certification.test.ts and SUPERAPP_K6_CERTIFICATION env-gated test modes; (5) runtime telemetry canary contractGates + ContractGateAutopilot in server runtime-extensions. superapp-certification/generate-readiness-report.js adds separate \"readiness\" vocabulary.",
           "fork_owned": true,
           "proposed_direction": "Consolidate to two layers: the release-gates engine (profiles in one directory) for all static/CI gating, and superapp-certification for runtime suites. Merge module-certification-gates.yml + release-contract-gates.yml into one workflow with a profile matrix. Delete mv-production-rollout's paper profile or fold it into release-gates profiles. Rename so 'certification' means exactly one thing.",
           "boldness": "consolidate",
-          "verifier_notes": "Verified. Both module-certification-gates.yml (line 89/101/105) and release-contract-gates.yml (102/114/118) run validate-release-candidate-gates.js then validate-gate-snapshot.js with only the profile/evidence-dir differing. superapp-certification has its own smoke/release/nightly profile system (run-superapp-certification.js certificationCommands). mv-production-rollout/production-certification-profile.json is referenced by nothing except its own __tests__ (which is itself only named inside mv-ci-hardening-profile.json command strings that are never executed and absent from the test:scripts glob). SUPERAPP_MF_CERTIFICATION/SUPERAPP_K6_CERTIFICATION env-gated modes and ContractGateAutopilot/canary contractGates in runtime-extensions all exist. ultramodern-production-readiness.yml + generate-readiness-report.js confirm the extra 'readiness' lane. Nine fork-added gate-flavored workflows is accurate (boundary-anti-patterns, bun-superapp-smoke, module-certification-gates, mv-ci-hardening, mv-lane-policy, release-contract-gates, superapp-certification, ultramodern-production-readiness, workflow-security). All cited files are A in the baseline diff. Proposed consolidation touches only fork-added scripts/workflows, no upstream-merge impact.",
+          "verifier_notes": "Verified. Both module-certification-gates.yml (line 89/101/105) and release-contract-gates.yml (102/114/118) run validate-release-candidate-gates.js then validate-gate-snapshot.js with only the profile/evidence-dir differing. superapp-certification has its own smoke/release/nightly profile system (run-superapp-certification.js certificationCommands). mv-production-rollout/production-certification-profile.json is referenced by nothing except its own __tests__ (which is itself only named inside mv-ci-hardening-profile.json command strings that are never executed and absent from the test:scripts glob). SUPERAPP_MF_CERTIFICATION/SUPERAPP_K6_CERTIFICATION env-gated modes and ContractGateAutopilot/canary contractGates in runtime-extensions all exist. generate-readiness-report.js confirms the extra 'readiness' vocabulary. All cited files are A in the baseline diff. Proposed consolidation touches only fork-added scripts/workflows, no upstream-merge impact.",
           "id": "xcut-concept-coherence#1"
         },
         {
@@ -3335,11 +3275,9 @@
             "scripts/boundary-guards/profile.json:25",
             "scripts/boundary-guards/validator.js"
           ],
-          "evidence": "Two fork-owned engines both implement 'assert file contains these literal strings': release-gates migrationContracts (36 targets with `includes`, validator.js) and boundary-guards requiredSnippets (`includes`/`orderedIncludes`, profile.json:25-47). Targets pin literal strings in source (crossProjectPolicy.ts, trust.ts), docs (ultramodern.mdx, README.md), generated dist files (tests/integration/bff-corss-project/.../dist-1/client/effect/index.js \u2014 untracked build output), and even other gate scripts (validate-publish-security.mjs). The same rc-contract-profile.json also runs the real test suites covering those behaviors as gateCommands (e.g. trust.test.ts, regression.test.ts), so the string pins add only refactor-breakage: the local .modern/contract-gates.json snapshot records a past failure where the pinned snippet 'pnpm -r --filter \"./apps/**\" run build' had drifted from the template.",
           "fork_owned": true,
           "proposed_direction": "Remove every migrationContracts target whose behavior is covered by a gateCommand test; keep string pins only for docs that have no other guard, and host them in one engine (release-gates validator) \u2014 make boundary-guards delegate its requiredSnippets to it. Never pin dist/ artifacts.",
           "boldness": "consolidate",
-          "verifier_notes": "Core claim verified: rc-contract-profile.json has 36 migrationContracts targets pinning literal strings in fork source (crossProjectPolicy.ts, trust.ts), docs (ultramodern.mdx, READMEs), generated router/manifest/dist files, and other gate scripts (validate-publish-security.mjs); boundary-guards independently implements includes/orderedIncludes requiredSnippets (profile.json:24+, validator.js:357-372); the same profile's gateCommands run the real suites (trust.test.ts, regression.test.ts, etc.). Two evidence corrections: (1) the dist-1/client/effect/index.js target is git-TRACKED (in the index, though gitignore-matched), not 'untracked build output', and the release-gates validator even supports auto-building missing dist targets (validator.js validateMigrationContracts allowAutoBuildArtifacts); (2) the current .modern/contract-gates.json records passed:true with executedCommands:0 and contains NO past-failure entry about a drifted 'pnpm -r --filter' snippet \u2014 that anecdote does not verify. Also note the pins double as upstream-merge drift tripwires for fork hunks, so the corrected direction should keep pins for fork-critical files not covered by gateCommands. Both engines fork-added; consolidation is fork-only.",
           "id": "xcut-concept-coherence#5"
         },
         {
@@ -3579,11 +3517,9 @@
             "/Users/satan/side/experiments/modernjs/scripts/ultramodern-zephyr-live-evidence/__tests__",
             "/Users/satan/side/experiments/modernjs/scripts/ultramodern-cloudflare-ssr-validation/__tests__"
           ],
-          "evidence": "test:scripts (package.json:80, run nightly at ultramodern-nightly.yml:39) enumerates exactly 7 directories: lib, module-sdk-contracts, boundary-guards, mv-lane-policy, mv-ci-hardening, release-gates, ai-capabilities. ls shows 21 scripts/*/__tests__ dirs plus benchmark/runtime-resilience/__tests__; no workflow runs `node --test` on anything else (grep across .github/workflows for __tests__/node --test returns only test:scripts). Orphaned suites include security-relevant ones: ultramodern-publish/__tests__ (publish-security.test.js \u2014 the workflow runs validate-publish-security.mjs but never its tests), superapp-k6, mv-zephyr-profile, the preflight/doctor/control-plane trio, both zephyr evidence scripts, cloudflare-ssr-validation, and production-readiness. These tests rot silently and give false confidence that the scripts are covered.",
           "fork_owned": true,
           "proposed_direction": "Change test:scripts to a glob (`node --test scripts/*/__tests__/*.test.js benchmark/*/__tests__/*.test.js`) and fix whatever breaks, or explicitly delete the suites that belong to scripts slated for deletion (version-switching, mv-production-rollout, drills). The current hand-maintained allowlist is exactly how the superapp-soak/destroy orphans accumulated 5.8k LOC before the last purge.",
           "boldness": "small-fix",
-          "verifier_notes": "Verified with one count correction: there are 21 __tests__ dirs total (20 under scripts/ + 1 under benchmark/), not 22 \u2014 but exactly 14 are uncovered, so the headline number stands. test:scripts (package.json:80, fork-added) enumerates exactly the 7 claimed dirs; ultramodern-nightly.yml:39 is the only workflow invoking it; no other workflow or gate profile runs node --test beyond module-certification-profile.json's two already-covered validator tests and the manual validate:mv-topology-smoke. publish-bleedingdev.yml:64 runs validate-publish-security.mjs but never ultramodern-publish/__tests__ \u2014 confirmed. Direction (glob or prune) is fork-local and merge-safe.",
           "id": "xcut-dead-features#7"
         },
         {
@@ -3640,7 +3576,6 @@
     },
     {
       "area": "xcut-security",
-      "summary": "The publish lane (scripts/ultramodern-publish/*) is genuinely well-hardened: no token env vars, execFile/spawn with array args (no shell interpolation), OIDC trusted publishing with provenance, hardcoded repo/branch/registry pins, and a dedicated validate-publish-security.mjs contract gate. The real exposure is elsewhere: (1) a fork-added server endpoint that influences canary/rollback decisions ships enabled-and-unauthenticated by default, (2) the Micro-Frontend remote-trust \"integrity\" check is decoupled from the asset that actually executes (TOCTOU), and (3) several PR-triggered fork CI workflows run untrusted PR code (install lifecycle scripts) on self-hosted runners with no least-privilege permissions \u2014 and scripts/security/validate-github-workflows.mjs does not cover any of these because it only enforces pinning/permissions on a hardcoded \"sensitive\" allowlist of 5 workflows.",
       "confirmed": [
         {
           "title": "Runtime-fallback-signal endpoint is enabled and unauthenticated by default and can flip canary/contract gates (rollback DoS)",

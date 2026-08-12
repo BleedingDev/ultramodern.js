@@ -17,11 +17,6 @@ const publishWorkflowPath = path.join(
   repoRoot,
   '.github/workflows/publish-bleedingdev.yml',
 );
-const readinessWorkflowPath = path.join(
-  repoRoot,
-  '.github/workflows/ultramodern-production-readiness.yml',
-);
-
 const compliantWorkflow = `name: Example
 on:
   push:
@@ -654,47 +649,104 @@ test('publish branches must converge on one deterministic structured outcome', (
   );
 });
 
-test('publish readiness fails closed around paginated authenticated outcome evidence', () => {
-  const source = fs.readFileSync(readinessWorkflowPath, 'utf8');
+test('trusted publishing keeps elevated permissions, the job graph, and the dist-tag closed', () => {
+  const parsed = loadWorkflow(publishWorkflowPath);
+  const validate = workflow =>
+    validateWorkflowObject(
+      '.github/workflows/publish-bleedingdev.yml',
+      workflow,
+    );
+  assert.deepEqual(validate(parsed), []);
+
+  const smuggledJob = structuredClone(parsed);
+  smuggledJob.jobs.exfiltrate = {
+    'runs-on': 'ubuntu-latest',
+    'timeout-minutes': 10,
+    permissions: { 'id-token': 'write' },
+    steps: [{ name: 'Run', run: 'echo ok' }],
+  };
+  const smuggledErrors = validate(smuggledJob);
+  assert.ok(
+    smuggledErrors.some(error =>
+      error.includes('job exfiltrate must not grant id-token: write'),
+    ),
+  );
+  assert.ok(
+    smuggledErrors.some(error => error.includes('unexpected: exfiltrate')),
+  );
+
+  const widenedContents = structuredClone(parsed);
+  widenedContents.jobs['prepare-release'].permissions = {
+    contents: 'write',
+  };
+  assert.ok(
+    validate(widenedContents).some(error =>
+      error.includes('job prepare-release must not grant contents: write'),
+    ),
+  );
+
+  const writeAllJob = structuredClone(parsed);
+  writeAllJob.jobs['validate-release'].permissions = 'write-all';
+  const writeAllErrors = validate(writeAllJob);
+  for (const scope of ['contents', 'id-token']) {
+    assert.ok(
+      writeAllErrors.some(error =>
+        error.includes(`job validate-release must not grant ${scope}: write`),
+      ),
+    );
+  }
+
+  const elevatedWorkflow = structuredClone(parsed);
+  elevatedWorkflow.permissions = {
+    ...elevatedWorkflow.permissions,
+    'id-token': 'write',
+  };
+  assert.ok(
+    validate(elevatedWorkflow).some(error =>
+      error.includes('must not grant id-token: write at the workflow level'),
+    ),
+  );
+
+  const droppedJob = structuredClone(parsed);
+  delete droppedJob.jobs['tractor-downstream'];
+  assert.ok(
+    validate(droppedJob).some(error =>
+      error.includes('missing: tractor-downstream'),
+    ),
+  );
+
+  for (const tag of ['canary', 'next', undefined]) {
+    const retagged = structuredClone(parsed);
+    retagged.env.BLEEDINGDEV_PUBLISH_TAG = tag;
+    assert.ok(
+      validate(retagged).some(error =>
+        error.includes('BLEEDINGDEV_PUBLISH_TAG must be latest'),
+      ),
+      `tag ${String(tag)}`,
+    );
+  }
+
+  // The contract is scoped to the release workflow; other workflows keep their
+  // own job graphs and dist-tags.
   assert.deepEqual(
-    validateWorkflowContent(
-      '.github/workflows/ultramodern-production-readiness.yml',
-      source,
+    validateWorkflowObject('.github/workflows/other.yml', {
+      ...structuredClone(parsed),
+      jobs: {
+        ...structuredClone(parsed).jobs,
+        exfiltrate: {
+          'runs-on': 'ubuntu-latest',
+          'timeout-minutes': 10,
+          permissions: { 'id-token': 'write' },
+          steps: [{ name: 'Run', run: 'echo ok' }],
+        },
+      },
+    }).filter(
+      error =>
+        error.includes('BLEEDINGDEV_PUBLISH_TAG') ||
+        error.includes('job set must be exactly') ||
+        error.includes('confined to publish, publish-change-record'),
     ),
     [],
-  );
-
-  const unpaginated = source.replace('gh api --paginate --slurp', 'gh api');
-  assert.ok(
-    validateWorkflowContent(
-      '.github/workflows/ultramodern-production-readiness.yml',
-      unpaginated,
-    ).some(error => error.includes('list every artifact page')),
-  );
-
-  const unauthenticatedSkip = source.replace(
-    "      needs.resolve-release-identity.outputs.dry_run == 'false' &&\n",
-    '',
-  );
-  assert.ok(
-    validateWorkflowContent(
-      '.github/workflows/ultramodern-production-readiness.yml',
-      unauthenticatedSkip,
-    ).some(error =>
-      error.includes('may skip only for an authenticated dry-run'),
-    ),
-  );
-
-  const expectedNameExpression = '$' + '{expectedName}';
-  const missingEvidenceSkip = source.replace(
-    `\`exists=true\\nartifact_name=${expectedNameExpression}\\n\`,`,
-    `\`exists=false\\nartifact_name=${expectedNameExpression}\\n\`,\n          console.log('skipping release readiness');`,
-  );
-  assert.ok(
-    validateWorkflowContent(
-      '.github/workflows/ultramodern-production-readiness.yml',
-      missingEvidenceSkip,
-    ).some(error => error.includes('must fail rather than skip')),
   );
 });
 

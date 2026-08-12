@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+// Consumers: publish-bleedingdev.yml `record-publish-outcome` (create command) and
+// backfill-change-record.mjs (publishOutcomeArtifactName, selectPublishOutcomeArtifact).
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -782,222 +784,6 @@ function createPublishOutcome({
   return outcome;
 }
 
-function assertPublishOutcome(
-  outcome,
-  {
-    artifactName,
-    cohortDigestPath,
-    manifestDigestPath,
-    manifestPath,
-    operationalEvidencePath,
-    publishedOperationalEvidencePath,
-    publishedReceiptPath,
-    receiptPath,
-    repository,
-    runAttempt,
-    runId,
-    sourceCommit,
-    tractorReportPath,
-  },
-) {
-  assertExactKeys(
-    outcome,
-    [
-      'artifactName',
-      'dryRun',
-      'evidence',
-      'publication',
-      'producer',
-      'release',
-      'schema',
-      'schemaVersion',
-      'source',
-      'workflowRun',
-    ],
-    'Publish outcome',
-  );
-  assertExactKeys(
-    outcome.source,
-    ['commit', 'repository'],
-    'Publish outcome source',
-  );
-  assertExactKeys(
-    outcome.release,
-    ['tag', 'version'],
-    'Publish outcome release',
-  );
-  assertExactKeys(
-    outcome.workflowRun,
-    ['attempt', 'id'],
-    'Publish outcome workflow run',
-  );
-  if (outcome.publication !== null) {
-    assertExactKeys(
-      outcome.publication,
-      ['runAttempt'],
-      'Publish outcome publication',
-    );
-  }
-  assertExactKeys(
-    outcome.producer,
-    ['artifactIdentity', 'runAttempt', 'runIdentity'],
-    'Publish outcome producer',
-  );
-  assertExactKeys(
-    outcome.evidence,
-    [
-      'cohortDigest',
-      'manifestSha256',
-      'prepublishAcceptance',
-      'publishedAcceptance',
-      'tractorAcceptance',
-    ],
-    'Publish outcome evidence',
-  );
-  if (
-    outcome.schema !== publishOutcomeSchema ||
-    outcome.schemaVersion !== publishOutcomeSchemaVersion
-  ) {
-    throw new Error(
-      `Unknown publish outcome schema ${String(outcome.schema)}@${String(
-        outcome.schemaVersion,
-      )}`,
-    );
-  }
-  if (typeof outcome.dryRun !== 'boolean') {
-    throw new Error('Publish outcome dryRun must be a boolean');
-  }
-  if (outcome.dryRun !== (outcome.publication === null)) {
-    throw new Error(
-      'Publish outcome dry-run mode does not match publication identity',
-    );
-  }
-  assertRepository(outcome.source.repository, 'Publish outcome repository');
-  assertSourceCommit(outcome.source.commit, 'Publish outcome source commit');
-  assertVersion(outcome.release.version, 'Publish outcome release version');
-  assertNonEmptyString(outcome.release.tag, 'Publish outcome release tag');
-  const normalizedRunId = runIdString(runId);
-  const normalizedRunAttempt = positiveInteger(
-    runAttempt,
-    'Expected run attempt',
-  );
-  const expectedArtifactName = publishOutcomeArtifactName({
-    runId: normalizedRunId,
-    runAttempt: normalizedRunAttempt,
-  });
-  if (
-    artifactName !== expectedArtifactName ||
-    outcome.artifactName !== expectedArtifactName ||
-    outcome.workflowRun.id !== normalizedRunId ||
-    outcome.workflowRun.attempt !== normalizedRunAttempt ||
-    outcome.source.repository !== repository ||
-    outcome.source.commit !== sourceCommit
-  ) {
-    throw new Error(
-      'Publish outcome does not match the triggering workflow run',
-    );
-  }
-  const normalizedPublicationAttempt =
-    outcome.publication === null
-      ? normalizedRunAttempt
-      : positiveInteger(
-          outcome.publication.runAttempt,
-          'Publish outcome publication run attempt',
-        );
-  if (normalizedPublicationAttempt > normalizedRunAttempt) {
-    throw new Error(
-      'Publish outcome publication run attempt follows the outcome attempt',
-    );
-  }
-  validateProducer({
-    artifactIdentity: outcome.producer.artifactIdentity,
-    publicationRunAttempt: normalizedPublicationAttempt,
-    repository,
-    runAttempt: outcome.producer.runAttempt,
-    runId: normalizedRunId,
-    runIdentity: outcome.producer.runIdentity,
-  });
-  for (const field of ['cohortDigest', 'manifestSha256']) {
-    assertDigest(outcome.evidence[field], `Publish outcome evidence.${field}`);
-  }
-  for (const [label, acceptance] of [
-    ['prepublishAcceptance', outcome.evidence.prepublishAcceptance],
-    ['publishedAcceptance', outcome.evidence.publishedAcceptance],
-  ]) {
-    if (acceptance === null) {
-      if (label !== 'publishedAcceptance' || outcome.dryRun !== true) {
-        throw new Error(`Publish outcome evidence.${label} must be present`);
-      }
-      continue;
-    }
-    assertExactKeys(
-      acceptance,
-      ['operationalEvidenceSha256', 'receiptSha256'],
-      `Publish outcome evidence.${label}`,
-    );
-    for (const [field, value] of Object.entries(acceptance)) {
-      assertDigest(value, `Publish outcome evidence.${label}.${field}`);
-    }
-  }
-  if (outcome.dryRun === (outcome.evidence.publishedAcceptance !== null)) {
-    throw new Error(
-      'Publish outcome dry-run mode does not match published acceptance evidence',
-    );
-  }
-  if (outcome.evidence.tractorAcceptance === null) {
-    if (outcome.dryRun !== true) {
-      throw new Error(
-        'Publish outcome evidence.tractorAcceptance must be present',
-      );
-    }
-  } else {
-    assertExactKeys(
-      outcome.evidence.tractorAcceptance,
-      ['baselineRevision', 'reportSha256'],
-      'Publish outcome evidence.tractorAcceptance',
-    );
-    assertSourceCommit(
-      outcome.evidence.tractorAcceptance.baselineRevision,
-      'Publish outcome Tractor baseline revision',
-    );
-    assertDigest(
-      outcome.evidence.tractorAcceptance.reportSha256,
-      'Publish outcome Tractor report SHA-256',
-    );
-  }
-  if (outcome.dryRun === (outcome.evidence.tractorAcceptance !== null)) {
-    throw new Error(
-      'Publish outcome dry-run mode does not match Tractor acceptance evidence',
-    );
-  }
-  const actualEvidence = readReleaseEvidence({
-    cohortDigestPath,
-    manifestDigestPath,
-    manifestPath,
-    operationalEvidencePath,
-    publishedOperationalEvidencePath: outcome.dryRun
-      ? undefined
-      : publishedOperationalEvidencePath,
-    publishedReceiptPath: outcome.dryRun ? undefined : publishedReceiptPath,
-    receiptPath,
-    repository: outcome.source.repository,
-    runIdentity: outcome.producer.runIdentity,
-    sourceCommit: outcome.source.commit,
-    tag: outcome.release.tag,
-    tractorBaselineRevision:
-      outcome.evidence.tractorAcceptance?.baselineRevision,
-    tractorReportPath: outcome.dryRun ? undefined : tractorReportPath,
-    tractorReportSha256: outcome.evidence.tractorAcceptance?.reportSha256,
-    version: outcome.release.version,
-  });
-  if (!isDeepStrictEqual(actualEvidence, outcome.evidence)) {
-    throw new Error(
-      'Publish outcome evidence digests do not match the artifact payload',
-    );
-  }
-  return outcome;
-}
-
 function parseTimestamp(value, label) {
   if (typeof value !== 'string' || !Number.isFinite(Date.parse(value))) {
     throw new Error(`${label} must be an ISO timestamp`);
@@ -1148,7 +934,7 @@ const evidenceOptions = new Set([
   '--tractor-report-sha256',
 ]);
 
-function evidencePaths(values, { dryRun, verification = false } = {}) {
+function evidencePaths(values, { dryRun } = {}) {
   const publishedReceipt = values.get('--published-receipt');
   const publishedOperationalEvidence = values.get(
     '--published-operational-evidence',
@@ -1172,16 +958,14 @@ function evidencePaths(values, { dryRun, verification = false } = {}) {
   if (dryRun === true && publishedReceipt !== undefined) {
     throw new Error('Dry-run publish outcome must not bind published evidence');
   }
-  const tractorValues = [tractorBaselineRevision, tractorReportSha256];
-  if (verification) {
-    if (tractorValues.some(value => value !== undefined)) {
-      throw new Error(
-        'Publish outcome verification derives the Tractor baseline and digest from the authenticated outcome',
-      );
-    }
-  } else if (
-    [...tractorValues, tractorReport].some(value => value === undefined) &&
-    [...tractorValues, tractorReport].some(value => value !== undefined)
+  const tractorValues = [
+    tractorBaselineRevision,
+    tractorReportSha256,
+    tractorReport,
+  ];
+  if (
+    tractorValues.some(value => value === undefined) &&
+    tractorValues.some(value => value !== undefined)
   ) {
     throw new Error(
       '--tractor-baseline-revision, --tractor-report, and --tractor-report-sha256 must be provided together',
@@ -1268,78 +1052,7 @@ async function main(argv = process.argv.slice(2)) {
     });
     return 0;
   }
-  if (command === 'select-artifact') {
-    const values = parseOptions(
-      args,
-      new Set([
-        '--artifacts',
-        '--completed-at',
-        '--github-output',
-        '--run-attempt',
-        '--run-id',
-      ]),
-    );
-    const artifact = selectPublishOutcomeArtifact(
-      readJson(
-        path.resolve(required(values, '--artifacts')),
-        'Artifact API response',
-      ),
-      {
-        completedAt: required(values, '--completed-at'),
-        runAttempt: required(values, '--run-attempt'),
-        runId: required(values, '--run-id'),
-      },
-    );
-    appendGithubOutputs(values.get('--github-output'), {
-      artifact_name: artifact.name,
-    });
-    return 0;
-  }
-  if (command === 'verify') {
-    const values = parseOptions(
-      args,
-      new Set([
-        ...evidenceOptions,
-        '--artifact-name',
-        '--github-output',
-        '--outcome',
-        '--repository',
-        '--run-attempt',
-        '--run-id',
-        '--source-commit',
-      ]),
-    );
-    const outcomeValue = readJson(
-      path.resolve(required(values, '--outcome')),
-      'Publish outcome',
-    );
-    const outcome = assertPublishOutcome(outcomeValue, {
-      ...evidencePaths(values, {
-        dryRun: outcomeValue.dryRun,
-        verification: true,
-      }),
-      artifactName: required(values, '--artifact-name'),
-      repository: required(values, '--repository'),
-      runAttempt: required(values, '--run-attempt'),
-      runId: required(values, '--run-id'),
-      sourceCommit: required(values, '--source-commit'),
-    });
-    const outputs = {
-      artifact_name: outcome.artifactName,
-      authorized: 'true',
-      dry_run: String(outcome.dryRun),
-      manifest_sha256: outcome.evidence.manifestSha256,
-      producer_artifact_identity: outcome.producer.artifactIdentity,
-      producer_run_identity: outcome.producer.runIdentity,
-      version: outcome.release.version,
-    };
-    if (outcome.publication !== null) {
-      outputs.publication_run_attempt = String(outcome.publication.runAttempt);
-    }
-    appendGithubOutputs(values.get('--github-output'), outputs);
-    return 0;
-  }
-  throw new Error('Command must be create, select-artifact, or verify');
+  throw new Error('Command must be create');
 }
 
 if (
@@ -1357,7 +1070,6 @@ if (
 }
 
 export {
-  assertPublishOutcome,
   createPublishOutcome,
   main,
   publishOutcomeArtifactName,

@@ -1,3 +1,4 @@
+// Consumer: publish-bleedingdev.yml full-cohort publish order and identity checks.
 import fs from 'node:fs';
 import path from 'node:path';
 import fsKit from '../../../lib/fs-kit.js';
