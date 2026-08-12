@@ -45,6 +45,42 @@ jobs:
       - name: Run boundary anti-pattern guards
         run: node scripts/boundary-guards/check-boundary-violations.js --profile scripts/boundary-guards/profile.json
 
+      - name: Run UltraModern import boundary guard
+        if: ${{ !cancelled() }}
+        run: node scripts/ultramodern-boundary-check/check-fork-import-boundary.js --mode imports
+
+      # The divergence budgets in divergence-allowlist.json are recorded against
+      # the checker's built-in upstream base (divergence.js
+      # DEFAULT_DIVERGENCE_BASE_REF = dfcd414a), so the guard must always be
+      # measured against that base — never a PR merge-base or a push
+      # before-SHA. Against a PR-sized base the gate is wrong in both
+      # directions: fork-added files already exist there, which breaks the
+      # `--diff-filter=MD` "fork-new files are excluded" assumption and
+      # false-fails legitimate Bucket-A work as unallowlisted-divergence, while
+      # a PR-sized delta inside an allowlisted upstream file is always below its
+      # base-sized budget and can never trip line-/hunk-budget-exceeded.
+      # Requires the checkout's fetch-depth: 0 so dfcd414a stays reachable.
+      # Only the head is event-derived: the PR branch tip on pull_request, the
+      # pushed commit otherwise. Pinning it keeps the measurement deterministic
+      # instead of depending on whatever the runner happens to have checked out.
       - name: Run UltraModern divergence boundary guard
         if: ${{ !cancelled() }}
-        run: node scripts/ultramodern-boundary-check/check-fork-import-boundary.js
+        env:
+          DIVERGENCE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+
+          node scripts/ultramodern-boundary-check/check-fork-import-boundary.js \
+            --mode divergence --head "$DIVERGENCE_HEAD_SHA"
+
+      - name: Enforce UltraModern divergence allowlist governance
+        if: github.event_name == 'pull_request'
+        env:
+          DIVERGENCE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+
+          MERGE_BASE="$(git merge-base "origin/$GITHUB_BASE_REF" "$DIVERGENCE_HEAD_SHA")"
+          node scripts/ultramodern-boundary-check/check-fork-import-boundary.js \
+            --mode allowlist-governance --merge-base "$MERGE_BASE" \
+            --head "$DIVERGENCE_HEAD_SHA"
