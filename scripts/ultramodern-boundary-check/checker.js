@@ -315,6 +315,7 @@ module.exports = {
   DEFAULT_ALLOWLIST_PATH,
   DEFAULT_BASE_REF,
   DEFAULT_DENYLIST,
+  SOURCE_FILE_PATTERN,
   checkForkImportBoundary,
   createAllowlistSnapshot,
   diffViolations,
