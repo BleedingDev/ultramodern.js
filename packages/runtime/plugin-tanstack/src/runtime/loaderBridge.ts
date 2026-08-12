@@ -9,9 +9,10 @@
  * helpers for the same reason.
  */
 import { notFound, redirect } from '@tanstack/react-router';
+import { createRouteStaticData } from '../shared/routeStaticData';
 import { isAbsoluteUrl } from './shared/isAbsoluteUrl';
 
-export { isAbsoluteUrl };
+export { createRouteStaticData, isAbsoluteUrl };
 
 /** Router context shape used by the generated TanStack router types. */
 export type ModernRouterContext = {
@@ -81,40 +82,6 @@ export function mapSplatParamsForModernLoader(
     return { ...rest, '*': _splat };
   }
   return rest;
-}
-
-/**
- * Static-data factory used by the generated router files: drops empty fields
- * so route static data stays minimal.
- */
-export function createRouteStaticData(opts: {
-  modernRouteId?: string;
-  modernRouteAction?: unknown;
-  modernRouteLoader?: unknown;
-}): {
-  modernRouteId?: string;
-  modernRouteAction?: unknown;
-  modernRouteLoader?: unknown;
-} {
-  const staticData: {
-    modernRouteId?: string;
-    modernRouteAction?: unknown;
-    modernRouteLoader?: unknown;
-  } = {};
-
-  if (typeof opts.modernRouteId === 'string' && opts.modernRouteId.length > 0) {
-    staticData.modernRouteId = opts.modernRouteId;
-  }
-
-  if (typeof opts.modernRouteLoader !== 'undefined') {
-    staticData.modernRouteLoader = opts.modernRouteLoader;
-  }
-
-  if (typeof opts.modernRouteAction !== 'undefined') {
-    staticData.modernRouteAction = opts.modernRouteAction;
-  }
-
-  return staticData;
 }
 
 type LoaderLikeContext = {

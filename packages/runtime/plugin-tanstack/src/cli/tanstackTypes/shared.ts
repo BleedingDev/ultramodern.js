@@ -4,6 +4,8 @@ import { getPathWithoutExt } from '@modern-js/runtime/cli';
 import type { NestedRouteForCli, PageRoute } from '@modern-js/types';
 import { findExists, formatImportPath, slash } from '@modern-js/utils';
 
+import { createRouteStaticData } from '../../shared/routeStaticData';
+
 const JS_OR_TS_EXTS = [
   '.js',
   '.jsx',
@@ -88,25 +90,15 @@ export function createRouteStaticDataSnippet(opts: {
   loaderName?: string | null;
   actionName?: string | null;
 }) {
-  const staticDataLines: string[] = [];
-
-  if (opts.modernRouteId) {
-    staticDataLines.push(`modernRouteId: ${quote(opts.modernRouteId)},`);
-  }
-
-  if (opts.loaderName) {
-    staticDataLines.push(`modernRouteLoader: ${opts.loaderName},`);
-  }
-
-  if (opts.actionName) {
-    staticDataLines.push(`modernRouteAction: ${opts.actionName},`);
-  }
-
-  if (!staticDataLines.length) {
-    return null;
-  }
-
-  return `staticData: createRouteStaticData({\n    ${staticDataLines.join(
-    '\n    ',
-  )}\n  }),`;
+  const staticData = createRouteStaticData({
+    modernRouteId: opts.modernRouteId && quote(opts.modernRouteId),
+    modernRouteLoader: opts.loaderName,
+    modernRouteAction: opts.actionName,
+  });
+  const entries = Object.entries(staticData);
+  return entries.length > 0
+    ? `staticData: createRouteStaticData({\n    ${entries
+        .map(([key, value]) => `${key}: ${value},`)
+        .join('\n    ')}\n  }),`
+    : null;
 }

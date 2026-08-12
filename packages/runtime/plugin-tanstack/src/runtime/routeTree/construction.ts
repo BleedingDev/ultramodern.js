@@ -5,6 +5,7 @@ import type { RouteObject } from '@modern-js/runtime-utils/router';
 import type { AnyRoute, AnyRouter } from '@tanstack/react-router';
 import { rootRouteId } from '@tanstack/react-router';
 
+import { createRouteStaticData } from '../../shared/routeStaticData';
 import { withModernRouteMatchContext } from '../outlet';
 import {
   toErrorComponent,
@@ -13,7 +14,7 @@ import {
 } from './components';
 import { createModernShouldReload, wrapRouteObjectLoader } from './loaders';
 import { isRouteObjectPathlessLayout, toTanstackPath } from './paths';
-import { createRouteStaticData, mergeModernRouteHandle } from './staticData';
+import { mergeModernRouteHandle } from './staticData';
 import {
   createTanstackRootRoute,
   createTanstackRoute,
