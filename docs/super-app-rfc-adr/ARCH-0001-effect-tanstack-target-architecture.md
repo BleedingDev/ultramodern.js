@@ -26,7 +26,9 @@ Primary defaults for new work:
 Compatibility lanes remain available:
 
 - Hono for backward-compatible BFF usage only.
-- React Router / Remix paths for backward-compatible routing usage only.
+- React Router / Remix paths for backward-compatible routing usage only. React
+  Router is maintenance-only: drift-reverts and regression fixes are allowed,
+  but no new features or public surface.
 - Node deployment remains supported and tested.
 
 ## 2. Architectural Principles

@@ -13,12 +13,8 @@ Modern.js supports two BFF runtime frameworks:
 `effect` and `hono` are strict runtime modes. There is no automatic fallback between them.
 
 ::::info
-This page documents generic Modern.js runtime support. Generated UltraModern
-workspaces always use the `effect` runtime with
-`bff.effect.strictEffectApproach: true`. Add or change generated UltraModern
-HTTP API work through `shared/api.ts` and `api/index.ts`; do not add
-Hono/file-convention handlers, raw request parsing, or manual `Response`
-construction inside those workspaces.
+Generated UltraModern workspaces use strict Effect APIs: author HTTP APIs in
+`shared/api.ts` and `api/index.ts`, not Hono/file-convention handlers.
 ::::
 
 ## Switch to Effect runtime
@@ -125,6 +121,10 @@ const response = await api.client.hello.ping({});
 ```
 
 The `api.client.*` surface is materialized by the BFF loader for `@api/index` imports. Do not import `api/index` directly and expect `client` to run in server code, scripts, or tests; direct entry imports expose the server runtime definition, and `client` is only a typed placeholder there.
+
+For UltraModern, Effect `HttpApi` plus Effect BFF is the single blessed authored HTTP path. Use `HttpApi` endpoints with `query`, `params`, `payload`, `success`, and declared errors such as `HttpApiSchema.status(...)`; implement them with `HttpApiBuilder.group(...).handle(...)` and `HttpApiBuilder.layer(...).pipe(Layer.provide(...))`, then default-export the entry as `defineEffectBff({ api, layer })`. See `packages/cli/plugin-bff/tests/effect-httpapi-schema-validation.test.ts` for the real shapes.
+
+Hono and `api/lambda/**` are internal compatibility only and feature-frozen.
 
 import Hono from '@site-docs-en/components/hono';
 
