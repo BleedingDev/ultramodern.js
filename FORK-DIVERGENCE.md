@@ -1,369 +1,523 @@
-# FORK-DIVERGENCE — modified upstream files ledger
+# FORK-DIVERGENCE — canonical divergence ledger
 
-Read this during every upstream sync. Audited merge-base: `ecef47dcbbec018a169b9026affd8d01adf65219` (Modern.js v3.8.1 mainline release), upstream = `origin` (web-infra-dev/modern.js). The parallel `v3.8.1` release-tag commit has the same parent, tree, and stable patch-id.
+**Verified: 2026-08-11.** Every row below was re-checked against the working
+tree on that date. Rows carry their own `Verified` date only when it differs.
 
-Scope: upstream files **modified** by the fork, plus upstream files the fork **deleted** or **renamed** (appendices below — they conflict differently). This ledger has two scopes:
+This file is the single canonical record of where the UltraModern fork diverges
+from upstream Modern.js. It is read during every upstream sync and enforced on
+every PR.
 
-1. `packages/**` deltas, which are categorized by owning package below.
-2. Root/infra deltas outside `packages/**` (CI, scripts, tests, docs, workspace policy, patches, changesets), summarized in the root/infra section because they are not package-owned but are still part of the upstream sync blast radius.
+---
 
-Regenerate the raw lists with rename detection pinned on (the counts depend on it; without rename detection the moves surface as delete/add pairs):
+## 1. Maintenance contract
+
+**Rows below that cover upstream-owned paths under `packages/**` are enforced
+by the boundary checker's shrink-only divergence allowlist (§3); fork-added
+package paths and every root/infra path in this ledger are hand-review-only.**
+
+- Gate: `node scripts/ultramodern-boundary-check/check-fork-import-boundary.js`
+  (`--mode divergence`), wired into `validate:boundary-check` and
+  `.github/workflows/boundary-anti-patterns.yml`.
+- Baseline: `scripts/ultramodern-boundary-check/divergence-allowlist.json`,
+  one entry per upstream-owned file recording `hunks` and `changedLines` only.
+- Semantics are **shrink-only**. The gate fails on
+  `unallowlisted-divergence`, `line-budget-exceeded`, or
+  `hunk-budget-exceeded`. Shrinking always passes, where a shrink is
+  componentwise: neither per-file metric (hunks, changed lines) may grow and at
+  least one decreases — a net line shrink that splits into extra hunks still
+  fails the hunk budget.
+
+**The two-bucket rule** (`AGENTS.md` Rule 5). Every change under `packages/**`
+is in exactly one bucket:
+
+- **Bucket A — additive fork behavior** (new features, subsystems, plugins,
+  gates, instrumentation). It MUST live in a fork-owned package. Fork-owned
+  files carry no divergence budget and are **never listed in this ledger**.
+- **Bucket B — changes to upstream-owned lines** (any file that already exists
+  at the audited merge-base). Allowed only as one of three resolutions:
+  1. a PR to upstream `web-infra-dev/modern.js`,
+  2. use of an existing upstream extension point, or
+  3. a **capped patch of `<= ~20` changed lines** per file per change, with a
+     matching row in this ledger.
+
+Every `packages/**` row below is a Bucket-B divergence except TK-10, which the
+row itself flags as a fork-added directory carrying no budget; §4's root/infra
+rows sit outside the two-bucket rule's `packages/**` scope entirely.
+
+**Rule being amended in parallel (AGENTS.md):** any new Bucket-B divergence
+requires a ledger entry **in the same PR** that raises the budget. A budget
+raise without a ledger row is an incomplete change, not a passing one. After
+adding that ledger row in the same change-set, re-record the sanctioned growth
+with `node scripts/ultramodern-boundary-check/check-fork-import-boundary.js
+--mode divergence --write-divergence-allowlist --record-growth`. Plain
+`--write-divergence-allowlist` (without `--record-growth`) refuses every growth
+and prints the offending entries; that flag is for **shrinks**, never for
+laundering a new divergence past the gate. The explicit `--record-growth` path
+is the sanctioned exception, not a way to bypass the same-PR ledger requirement.
+
+**Owner.** Every entry is owned by the repo owner **`bleedingdev`** unless the
+row names someone else. Owner means: accountable for the disposition landing,
+and the person a sync conflict in that file is escalated to.
+
+**Related:** `AGENTS.md` Rule 5 (two-bucket fork boundary),
+`scripts/ultramodern-boundary-check/README.md` (both gates),
+`docs/super-app-rfc-adr/ADR-0006-boundary-anti-pattern-checks.md`, and
+`docs/super-app-rfc-adr/ADR-0022-upstream-freeze-or-track.md` (proposed; the
+freeze-vs-track decision determines whether the `upstream-PR` dispositions below
+are ever actually filed).
+
+### Disposition vocabulary
+
+| Disposition | Meaning |
+| --- | --- |
+| `upstream-PR` | Bucket B resolution (1). Isolatable and PR-able to web-infra-dev/modern.js as-is. |
+| `extension-point` | Bucket B resolution (2). Logic should move out of the upstream file into a fork-owned module; budget shrinks when it does. |
+| `capped-patch` | Bucket B resolution (3). Stays inline, `<= ~20` changed lines, kept deliberately. |
+| `fixed-in-fork` | Upstream defect repaired in the fork. Keep the repair; add `upstream-PR` separately when the fix is queued upstream. |
+| `keep-deleted` | Upstream artifact intentionally deleted in the fork. Re-delete it on sync and port upstream changes to its replacement when applicable. |
+| `keep-[F]` | Permanent fork divergence. Only meaningful with the ultramodern lanes (Effect BFF, TanStack, Module Federation, telemetry, tsgo). Never resolved toward upstream. |
+| `keep-[M]` | Mechanical (biome sorting, pragmas, tsconfig, toolchain package.json churn). Safe to take either side; prefer upstream then re-run tooling. |
+| `revert` | Scheduled revert to upstream behavior. Carries a P-lane. |
+| `fix` | Fork bug, not a divergence worth keeping. Carries a P-lane. |
+| `owner-decision` | Disposition not yet decided; blocked on the owner. Carries a P-lane. |
+
+P-lanes: **P1** next, **P2** near-term, **P3** scheduled, **P4** owner-gated.
+
+---
+
+## 2. Bases and counts
+
+Two different base refs are in play. Do not mix them — the counts differ.
+
+| Base | SHA | Used by | Meaning |
+| --- | --- | --- | --- |
+| Divergence-gate base | `dfcd414a050d4455851ff76f861822fca0d4bcf4` | `divergence-allowlist.json`, `--mode divergence` | `git merge-base HEAD v3.8.1` |
+| Import-gate base | `8a744c1b` | `allowlist.json`, `--mode imports` | frozen import-boundary baseline |
+| Sync-review base | `ecef47dcbbec018a169b9026affd8d01adf65219` | this ledger's raw counts | `origin/main` tip, 1 commit ahead of `dfcd414a` |
+
+Raw `git diff -M <base> --name-status` (worktree vs base) at 2026-08-12:
+
+| Scope | Base | M | A | D | R |
+| --- | --- | --- | --- | --- | --- |
+| `packages/**` | `dfcd414a` (gate base) | 604 | 847 | 11 | 18 |
+| `packages/**` | `origin/main` | 581 | 847 | 11 | 18 |
+| root/infra (`:(exclude)packages/**`) | `dfcd414a` | 467 | 707 | 8 | 37 |
+
+The 604 vs 581 gap is the one upstream commit between `dfcd414a` and
+`origin/main`; the gate deliberately pins the older, stricter base.
+
+Regenerate with rename detection pinned on — without `-M` the template moves
+surface as delete/add pairs:
 
 ```sh
-git diff -M origin/main HEAD --name-status -- packages
-git diff -M origin/main HEAD --name-status -- . ':(exclude)packages/**'
+git diff -M origin/main --name-status -- packages
+git diff -M origin/main --name-status -- . ':(exclude)packages/**'
+node scripts/ultramodern-boundary-check/check-fork-import-boundary.js --mode divergence --json
 ```
 
-`M` lines are the body of this ledger; `D`/`R` lines are the appendices; `A` lines are fork-owned files and usually summarized rather than listed exhaustively.
-
-Fork-**added** files and packages (`@modern-js/plugin-tanstack`, `@modern-js/server-runtime-extensions` — `packages/server/runtime-extensions`, where the telemetry/contract-gate/MF-cache/MF-CSS server modules live — `app-tools/src/baseline.ts`, etc.) are fork-owned by definition and not listed here.
-
-Legend:
-
-- **[U]** upstreamable — a candidate to PR to web-infra-dev/modern.js in isolation.
-- **[F]** permanent fork divergence — only meaningful with the ultramodern lanes (Effect BFF, TanStack, Module Federation SSR/topology evidence, telemetry, tsgo toolchain). Includes coupled dependency migrations where `package.json` and source must be taken from the same side.
-- **[M]** mechanical — biome import re-sorting, `@effect-diagnostics` pragma headers, tsconfig `rootDir`/`ignoreDeprecations`, package.json script/dep churn for the tsgo + rstest toolchain. Safe to take either side on conflict; prefer upstream content and re-run biome/pragma tooling.
-
-Total at the Modern.js 3.8.1 audit boundary (2026-08-11):
-
-- Raw package diff: 581 M, 846 A, 11 D, 18 R, total 1,456 paths.
-- Ledger classification: 581 modified upstream files, 26 delete/template-move
-  review items, 3 non-exact renames. The 15 exact template moves from
-  `packages/toolkit/create/template/**` to
-  `packages/toolkit/sandpack-react/scripts/mwa-template/**` or
-  `template-workspace/**` are treated as keep-deleted from their original
-  upstream paths during merge review; the remaining three non-exact renames
-  stay in Appendix B.
-- root/infra outside `packages/**`: 1,220 paths changed from `origin/main`
-  (`467 M`, `715 A`, `7 D`, `31 R`). These are mostly fork-owned additions,
-  but modified/deleted/renamed upstream files still require explicit sync
-  review and are summarized below.
+Fork-**added** files and packages (`@modern-js/plugin-tanstack`,
+`@modern-js/server-runtime-extensions`, `app-tools/src/presetUltramodern.ts`, …) are
+fork-owned by definition, carry no divergence budget, and are not listed here.
 
 ---
 
-## Root and infra scope (outside `packages/**`)
+## 3. Allowlist reconciliation
 
-Root/infra is intentionally not package-owned, but it is not optional during upstream syncs. Treat these deltas as the repository policy layer for the fork.
+The divergence allowlist covers **633 files / 2,835 hunks / 33,832 changed
+lines** under `packages/`. Every entry is an upstream-owned path that existed at
+`dfcd414a`; fork-added files remain excluded by `git diff --diff-filter=MD`.
+Every allowlisted file family maps to a ledger section below.
 
-### Workspace and dependency policy — [F]/[M]
+| Allowlist group | Files | Hunks | Lines | Ledger coverage |
+| --- | ---: | ---: | ---: | --- |
+| Source trees (`packages/**/src/**`) | 352 | 1,824 | 14,563 | Existing package-family rows below |
+| Tests and test fixtures | 66 | 309 | 14,368 | Corresponding package-family rows |
+| Manifests and build/type configs | 66 | 284 | 1,237 | Corresponding package-family rows |
+| Snapshots and package documentation | 116 | 358 | 2,774 | Corresponding package-family rows |
+| Other package files outside `src/` | 23 | 50 | 736 | Corresponding package-family rows |
+| Templates outside `src/` | 10 | 10 | 154 | Corresponding package-family rows |
+| **Total** | **633** | **2,835** | **33,832** | Sections 5–9 |
 
-- `pnpm-workspace.yaml`, `pnpm-lock.yaml`, `.npmrc`, `package.json`, `nx.json`, `biome.json`, `.gitignore`, `.mise.toml` — fork package manager, Renovate/security, tsgo/rstest/biome, and publish policy. Keep fork policy unless the upstream change is a pure package version/security update that can be re-expressed without undoing the fork's package-manager constraints.
-- Root Renovate/security carve-outs already exist in `.github/renovate.json` and `pnpm-workspace.yaml` (`minimumReleaseAgeExclude`, Module Federation peer allowances, patched dependencies). Do not add app-level install shims to work around dependency policy.
-- `patchedDependencies` applies Module Federation `2.8.2` patches to
-  `@module-federation/{bridge-react,manifest,modern-js-v3,rspack}`; see
-  `patches/README.md`. Generated SSR tooling pins `@module-federation/node`
-  separately at `2.7.49`.
-- The root-only `react-server-dom-rspack@0.0.3` patch contains the upstream
-  runtime used by framework RSC regression tests. RSC remains disabled in the
-  UltraModern company distribution; the patch is never published, copied into
-  a generated workspace, or imposed on an application consumer.
-- **Effect cohort pin — [F] (2026-08-03).** Upstream has no Effect lane and pins
-  nothing. The fork pins one lockstep cohort (currently `4.0.0-beta.107`) across
-  four sites that must move in a single commit:
-  `EFFECT_VERSION`/`EFFECT_VITEST_VERSION` in
-  `packages/toolkit/create/src/ultramodern-workspace/versions.ts`,
-  `packages/cli/plugin-bff/package.json` (dep/peer/devDep — see the plugin-bff
-  entry), the generated-workspace `pnpm.overrides`/`trustPolicyExclude` emitted
-  by `ultramodern-workspace/policy.ts`, and
-  `packages/toolkit/create/template-workspace/patches/effect-schema-error-type-id.patch`.
-  Add release-age approval evidence only for immature packages that are
-  reachable from the generated lockfile; an override-only package is not an
-  approval target.
-  That patch carries one public declaration hunk: it drops the dangling
-  `SchemaAST.Sentinel` reference from `Schema.d.ts` (beta.102 marked
-  `collectSentinels` `@internal`, erasing `Sentinel` from `SchemaAST.d.ts`
-  while `Schema.d.ts` kept referencing it, so the shipped types fail their own
-  `tsgo` check with TS2694 — still true on beta.107). The former private
-  `preResponseHandler.d.ts` hunk is intentionally retired. Its
-  `index <blob>..<blob>` header is version-specific, so a version bump without
-  `pnpm patch effect@<new-version>` produces a patch that silently fails to
-  apply. The patch is **template-only** (it is deliberately absent from the
-  repo-root `patches/` and from `SHARED_ULTRAMODERN_WORKSPACE_PATCH_FILES`, so
-  `tests/patch-sync.test.ts` guards its absence there, not its content); its
-  content is pinned instead by the `sha256` recorded in the Effect
-  `stalePatchPolicies` entries at
-  `packages/toolkit/create/src/ultramodern-workspace/policy.ts:449-486`.
-  Guards: `packages/toolkit/create/tests/version-pins.test.ts` and
-  `packages/toolkit/create/tests/migrate-release-age-policy.test.ts`. A merge
-  that reverts any one site to upstream leaves the other three pointing at a
-  version that is no longer installed.
-  Fresh release-age exclusions are temporary, exact-version outputs backed by
-  review evidence and removed after the 24-hour maturity window or approval
-  expiry. They are distinct from the generated `trustPolicyExclude` entries,
-  which remain limited to `effect` and `@effect/opentelemetry` for the
-  trusted-publisher to provenance metadata transition.
-- **Generated dependency/toolchain cohort — [F] (2026-08-10).** Keep the
-  generator-owned pins aligned across version policy, templates, generated
-  validation, and documentation: `@effect/tsgo@0.36.2`,
-  `@tanstack/react-router@1.170.25`, `@tanstack/router-core@1.171.21`,
-  `@tanstack/history@1.162.1`, the Module Federation `2.8.2` cohort,
-  `@module-federation/node@2.7.49`, `react-router@7.18.2`, Node `26.7.0`, pnpm
-  `11.21.0`, and `@types/node@^26.2.0`. RSC stays disabled and absent from the
-  generated dependency cohort. Builder, render, and TanStack expose the Rspack
-  RSC runtime only as an exact optional peer; the root installs and patches
-  upstream `react-server-dom-rspack@0.0.3` solely for framework regression
-  tests.
+**What the budget covers.** Divergence mode measures every modified or deleted
+path under `packages/` that existed at the audited base, regardless of file
+extension or directory. This includes source files, tests, `package.json`,
+TypeScript and build configs, snapshots, package documentation, templates, and
+other package-owned artifacts. Each path has independent hunk and changed-line
+budgets; either metric growing is governance-significant.
 
-- **Examples consume the workspace, not the registry — [F] (2026-08-04).** Every
-  `@modern-js/*` dependency in the 15 `examples/**` workspace members is
-  `workspace:*`; upstream declares them `latest`. Under upstream's spelling a
-  `pnpm install` in this fork downloads real Modern.js (`3.7.0`) beside the fork's
-  own packages, and pnpm hoists one of the two into
-  `node_modules/.pnpm/node_modules/@modern-js/*`. Which one wins is not
-  deterministic across machines, so any code that resolves a bare
-  `@modern-js/*` specifier from outside the workspace tree — the plugin-bff
-  generator fixtures do exactly this — silently binds to upstream on CI and to
-  the fork locally, and fork-only subpaths (`./effect-client`, `./effect`) fail
-  with `ERR_PACKAGE_PATH_NOT_EXPORTED`. Take upstream's example *sources* on
-  sync; keep `workspace:*` on their manifests.
-
-### CI and GitHub workflows — mixed
-
-- Added fork-owned workflows: `boundary-anti-patterns.yml`, `bun-superapp-smoke.yml`, `contract-gates.yml`, `docs-pages.yml`, `publish-bleedingdev.yml`, `superapp-certification.yml`, `ultramodern-nightly.yml`, `ultramodern-production-readiness.yml`, `workflow-security.yml`.
-- Modified upstream workflows: dependency check, diff, integration tests, lint, type-check, unit tests, builder e2e, and issue labels. Reconcile upstream infrastructure fixes by hand; keep fork gates only where their scripts still exist.
-- Deleted Phase A-C workflow names are intentionally not live: the old `.github/workflows/mv-*.yml` governance layer was removed with the dead script families in Appendix C. Do not cite those workflows as current evidence.
-- **Release tag namespace — [F] (2026-08-04).** This repository carries 271 inherited upstream Modern.js `v*` tags (`v1.x` … `v3.4.0`). `gh release create` REUSES a pre-existing tag and silently ignores `--target`, so the fork's `publish-change-record` job tags releases as `ultramodern-v<version>`, never `v<version>`, and refuses to proceed if that tag already exists at a different commit. The step is idempotent (`gh release view` → `edit`, else `create`) because it runs AFTER the unrollbackable npm publish. `RELEASE_TAG_PREFIX` in `scripts/ultramodern-publish/gen-cohort-change-record.mjs` must stay in sync with the workflow: it is also the since-boundary the change record uses.
-- **`publish-change-record` is the only `contents: write` job.** `scripts/ultramodern-publish/validate-publish-security.mjs` now asserts a closed set over `Object.keys(jobs)`, that exactly one job carries `contents: write`, that its permissions are exactly `{contents: write}`, and that its `if:` restricts to the owner/branch/non-dry-run. Adding a job to the publish workflow is a deliberate edit to that closed set.
-
-### Scripts and repo tooling — mixed
-
-- Added fork-owned script families that remain live: `scripts/boundary-guards`, `scripts/ultramodern-boundary-check` (divergence guard, now wired into `validate:boundary-check` + `boundary-anti-patterns.yml`), `scripts/lib`, `scripts/mv-integration-pilot` smoke subset, `scripts/release-gates`, `scripts/security`, `scripts/superapp-certification`, `scripts/ultramodern-production-readiness`, `scripts/ultramodern-publish`, tsgo helper scripts, and `scripts/prepare-root.mjs`.
-- Modified upstream script packages mostly carry tsgo/rstest/toolchain/package-json churn. Prefer upstream bug fixes, but keep fork executable paths and script package manager policy coherent.
-- Deleted upstream script files: `scripts/build/bin/modern.js` and `scripts/build/src/cli_core_init.js`. This docs pass does not decide the docs-command binary cleanup; do not resurrect them while resolving unrelated docs or MF patch conflicts.
-
-### Tests, docs, changesets, and patches — mixed
-
-- `tests/**` has the largest non-package raw count because integration/e2e fixtures moved with fork defaults and generated-workspace proof coverage. Treat test changes as evidence for package/runtime behavior, not as standalone product features.
-- `tests/integration/bff-corss-project` was renamed to `tests/integration/bff-cross-project`; the removed `bff-effect-lambda-only` fixture should not be resurrected because Effect-only BFF coverage now lives under `tests/integration/bff-effect`.
-- `docs/super-app-rfc-adr/**`, `docs/research/**`, and `FORK-DIVERGENCE.md` are fork docs. Keep them truthful to live code after Phase A-C: Garfish runtime/trust lanes are historical, Module Federation is the live composition runtime, and generated-workspace proof scripts replace deleted repo-local proof lanes.
-- `.changeset/**` entries are fork release metadata. Keep or regenerate per release train; do not treat them as upstreamable source changes.
-- `patches/**` is external dependency patch policy. Keep it paired with `pnpm-workspace.yaml` and `pnpm-lock.yaml` patch hashes.
-- `pnpm-workspace.yaml` `packages:` — [F] (2026-08-04) carries the negative globs `'!tests/integration/**/dist/**'` and `'!tests/integration/**/node_modules/**'`. Gitignored build output under `tests/integration/**` contains emitted `package.json` files (e.g. `routes-tanstack-mf/mf-remote/dist/shared/effect`) that match the positive globs, so any local `pnpm install` on a dirty tree added phantom importers to `pnpm-lock.yaml` and silently changed what `--frozen-lockfile` considers in sync. Upstream has no such emitted manifests. Verified: removing the negation makes `pnpm ls -r --depth -1` report the `dist/shared/effect` project (1 → 0 with it).
-- `scripts/check-changeset/src/index.ts` — [F] (2026-08-04) `FORK_ALLOWED_MAJOR_CHANGESET_IDS`. Upstream only permits a `major` bump inside a changeset whose id contains `modern-3` (the Modern.js 3.0 release train). The fork ships breaking changes outside that train, so each one is allowlisted by id instead of weakening the gate. Adding an entry is the conscious act of accepting a breaking change.
-- `examples/basic-withZephyr/package.json` — [U] (2026-08-03). This example post-dates the `8a744c1b` merge-base (upstream added it in `7b1292d5c5`, "migrate examples from modern-js-examples into the monorepo"), so it does not appear in the raw counts above. Upstream still pins `zephyr-modernjs-plugin@1.1.0` + `zephyr-rspack-plugin@1.1.0`; `zephyr-modernjs-plugin@1.1.0` declares `peerDependencies['@modern-js/app-tools']: ^2.0.0`, which the installed `@modern-js/app-tools@3.7.0` does not satisfy — a real unmet peer masked by the root `strictPeerDependencies: false`. The fork bumps both to `1.2.1`, whose peer range is `^3.0.0`. Pure hygiene, upstreamable as-is; on sync, prefer the fork side unless upstream has bumped further. Verified by `pnpm install --strict-peer-dependencies` (exit 0, zero `zephyr` peer diagnostics; before the bump the lockfile records the `^2.0.0` peer). The example itself is **not** a fork regression testbed: it is in no CI job and its `latest` specifiers resolve to the upstream registry, not the fork (`linkWorkspacePackages: false`).
-- Do **not** add `peerDependencyRules.allowedVersions` entries for `@modern-js/app-tools`. Empirically (2026-08-03) pnpm 11 compares peer ranges on major.minor.patch and ignores the prerelease tag, so an aliased `@bleedingdev/modern-js-*@3.5.0-ultramodern.NN` already satisfies `^3.0.0` under `--strict-peer-dependencies`. If a rule is ever genuinely needed for some other plugin, the key must be the **alias/peer** name (never the real `@bleedingdev/…` name) and the value must be an exact version — `'*'` does not match a prerelease and silently does nothing.
+The allowlist itself is compared with its PR merge-base version. A raised
+metric, newly added entry, or `baseRef` re-anchor is accepted only when
+`FORK-DIVERGENCE.md` changes in the same PR; otherwise CI fails. Section 4
+remains outside the divergence pathspec because it covers root and
+infrastructure files outside `packages/`.
 
 ---
 
-## packages/cli
+## 4. Root and infra (outside `packages/**`) — not budget-enforced
 
-### adapter-rstest (3 files) — [M]
+| ID | What diverged | Owner | Reason | Disposition | Lane |
+| --- | --- | --- | --- | --- | --- |
+| ROOT-01 | `pnpm-workspace.yaml`, `pnpm-lock.yaml`, `.npmrc`, root `package.json`, `nx.json`, `biome.json`, `.gitignore`, `.mise.toml` | bleedingdev | Fork package-manager, Renovate/security, tsgo/rstest/biome and publish policy | keep-[F] | — |
+| ROOT-02 | Effect cohort pinned lockstep across 4 sites (`4.0.0-beta.107`) | bleedingdev | Upstream has no Effect lane; a partial revert leaves 3 sites pointing at an uninstalled version | keep-[F] — see note N1 | — |
+| ROOT-03 | Generated dependency/toolchain cohort pins (tsgo, TanStack, MF 2.8.2, `@module-federation/node@2.7.49`, react-router 7.18.2, Node 26.7.0, pnpm 11.21.0) | bleedingdev | Generator, templates, validation and docs must agree or generated workspaces break | keep-[F] | — |
+| ROOT-04 | 15 `examples/**` members use `workspace:*`; upstream uses `latest` | bleedingdev | Upstream's spelling installs real Modern.js 3.7.0 beside the fork and pnpm non-deterministically hoists one | keep-[F] — see note N2 | — |
+| ROOT-05 | `patchedDependencies` for MF 2.8.2 cohort | bleedingdev | MF SSR/topology lane | keep-[F] | — |
+| ROOT-06 | Root-only `react-server-dom-rspack@0.0.3` patch | bleedingdev | RSC regression tests only; RSC is disabled in the distribution and the patch is never published or generated | keep-[F] | — |
+| ROOT-07 | `pnpm-workspace.yaml` negative globs `!tests/integration/**/{dist,node_modules}/**` | bleedingdev | Gitignored build output emits `package.json` files that match the positive globs and add phantom importers to the lockfile | keep-[F] | — |
+| ROOT-08 | 10 fork-owned workflows added | bleedingdev | Fork gates (boundary, contract, publish, certification, nightly, readiness, security), docs publishing (`docs-pages`), bun smoke (`bun-superapp-smoke`), and Tractor downstream acceptance (`ultramodern-tractor-downstream`) | keep-[F] | — |
+| ROOT-09 | Modified upstream workflows (dependency check, diff, integration, lint, type-check, unit, builder e2e, issue labels) | bleedingdev | Fork toolchain + gate wiring | capped-patch — reconcile upstream infra fixes by hand | — |
+| ROOT-10 | Release tags namespaced `ultramodern-v<version>`, never `v<version>` | bleedingdev | 277 inherited upstream `v*` tags; `gh release create` reuses a pre-existing tag and silently ignores `--target` | keep-[F] — see note N3 | — |
+| ROOT-11 | `publish-change-record` is the only `contents: write` job, asserted as a closed set | bleedingdev | Publish-workflow privilege containment | keep-[F] | — |
+| ROOT-12 | Fork-owned script families (`boundary-guards`, `ultramodern-boundary-check`, `lib`, `release-gates`, `security`, `superapp-certification`, `ultramodern-production-readiness`, `ultramodern-publish`, `prepare-root.mjs`, tsgo helpers) | bleedingdev | Fork CI surface | keep-[F] | — |
+| ROOT-13 | Modified upstream script packages | bleedingdev | tsgo/rstest/toolchain and package.json churn | keep-[M] — prefer upstream fixes, keep fork executable paths | — |
+| ROOT-14 | `scripts/build/bin/modern.js` and `scripts/build/src/cli_core_init.js` deleted | bleedingdev | Docs-command binary cleanup was never decided | owner-decision — do not resurrect meanwhile | P4 |
+| ROOT-15 | `tests/**` integration/e2e fixtures carry fork defaults | bleedingdev | Fixtures are evidence for package behavior, not product features | keep-[F] | — |
+| ROOT-16 | `tests/integration/bff-corss-project` → `bff-cross-project`; `bff-effect-lambda-only` removed | bleedingdev | Typo fix; Effect-only BFF coverage consolidated under `tests/integration/bff-effect` | keep-[F] | — |
+| ROOT-17 | `docs/super-app-rfc-adr/**`, `docs/research/**`, this file | bleedingdev | Fork docs; must stay truthful to live code (MF is the live composition runtime, Garfish lanes are historical) | keep-[F] | — |
+| ROOT-18 | `.changeset/**` | bleedingdev | Fork release metadata | keep-[F] — regenerate per release train | — |
+| ROOT-19 | `scripts/check-changeset` `FORK_ALLOWED_MAJOR_CHANGESET_IDS` | bleedingdev | Upstream only permits `major` inside `modern-3`-ids; the fork ships breaking changes outside that train | keep-[F] — each entry is a conscious accept | — |
+| ROOT-20 | `examples/basic-withZephyr/package.json` bumps zephyr plugins `1.1.0` → `1.2.1` | bleedingdev | Upstream's 1.1.0 declares `@modern-js/app-tools: ^2.0.0`, an unmet peer masked by `strictPeerDependencies: false`; 1.2.1 declares `^3.0.0` | upstream-PR (pure hygiene) | P2 |
+| ROOT-21 | `examples/basic-withZephyr/.npmrc` deleted | bleedingdev | pnpm 11 does not read `strict-peer-dependencies` from `.npmrc`; it is dead config that misleads peer debugging | upstream-PR / keep-deleted | P2 |
+| ROOT-22 | No `peerDependencyRules.allowedVersions` for `@modern-js/app-tools` | bleedingdev | pnpm 11 ignores the prerelease tag when comparing peer ranges, so aliased `3.5.0-ultramodern.NN` already satisfies `^3.0.0`; a `'*'` rule silently does nothing | keep-[F] (policy) | — |
 
-Toolchain only: package.json scripts, rslib config, tsconfig `ignoreDeprecations`.
+---
 
-### builder (19 files)
+## 5. `packages/cli`
 
-- `src/createBuilder.ts`, `src/shared/parseCommonConfig.ts`, `src/types.ts` — [F] `performance.rsdoctor` opt-in config surface (`RsdoctorUserConfig`) and default HTML `templateParameters`. The fork-added `src/plugins/rsdoctor.ts` and `src/rsdoctorConfig.ts` carry the RsDoctor plugin split; RsDoctor defaults to OFF after the ADR-0001 revert (a210ac658d), and `tests/rsdoctor.test.ts` pins the behavior.
-- `src/plugins/postcss.ts` — [U] resolves postcss/tailwind plugins from the app root via `createRequire` so monorepo/workspace installs resolve correctly.
-- `src/plugins/rscConfig.ts`, `src/shared/rsc/rscDisabledRuntime.ts`, `src/shared/devServer.ts` — [F] RSC layer matching extended to fork render-package dist entries (`render/dist/esm/rsc.mjs`) and server-loader entry patterns. The upstream `rscClientBrowserFallback.ts` is intentionally deleted: the replacement uses explicit entrypoint-specific throwing modules so disabled RSC fails closed even when the optional runtime is resolvable.
-- `src/index.ts` — [M] export reshuffle.
-- `tests/*` (8 files incl. snapshots) — [F] track the above behaviors.
+| ID | What diverged | Owner | Reason | Disposition | Lane |
+| --- | --- | --- | --- | --- | --- |
+| CLI-01 | `adapter-rstest` package.json scripts, rslib config, tsconfig `ignoreDeprecations` | bleedingdev | tsgo/rstest toolchain | keep-[M] | — |
+| CLI-02 | `adapter-rstest/src/index.ts:32` hardcodes `disableReactCompiler: true` | bleedingdev | Compensates for CLI-04; the fork's own test adapter opts out of the default it ships | **revert** with CLI-04 / APP-06 | **P1** |
+| CLI-03 | `builder` `performance.rsdoctor` opt-in surface (`RsdoctorUserConfig`) in `createBuilder.ts`, `parseCommonConfig.ts`, `types.ts` | bleedingdev | RsDoctor config surface; defaults OFF after the ADR-0001 revert (`a210ac658d`), pinned by `tests/rsdoctor.test.ts` | extension-point (plugin split already in fork-owned `plugins/rsdoctor.ts`, `rsdoctorConfig.ts`) | P3 |
+| CLI-04 | `builder/src/shared/parseCommonConfig.ts:305` sets `reactCompiler: reactCompiler ?? true` | bleedingdev | Upstream ships React Compiler **opt-in**; the fork enables it by default for every vanilla build. Fork's own rstest adapter then hardcodes an opt-out (CLI-02), i.e. the default is not trusted internally | **revert to opt-in, or move to `presetUltramodern` only** | **P1** |
+| CLI-05 | `builder/src/plugins/postcss.ts` resolves postcss/tailwind from the app root via `createRequire` | bleedingdev | Fixes monorepo/workspace resolution; upstreamable in isolation | upstream-PR | P2 |
+| CLI-06 | `builder` RSC layer matching extended to fork render dist entries + `shared/rsc/rscDisabledRuntime.ts`, `plugins/rscConfig.ts`, `shared/devServer.ts` | bleedingdev | Disabled RSC must fail closed even when the optional runtime is resolvable; upstream `rscClientBrowserFallback.ts` deleted in favor of entrypoint-specific throwing modules | keep-[F] | — |
+| CLI-07 | `builder/src/index.ts` export reshuffle | bleedingdev | Import hygiene | keep-[M] | — |
+| CLI-08 | `builder` tests (8 files incl. snapshots) | bleedingdev | Track CLI-03…CLI-06 | keep-[F] | — |
+| CLI-09 | `builder` `dev.lazyCompilation` disabled unless set (`parseCommonConfig.ts:220`), paired with APP-07 route-eager `lazyCompilation.test` | bleedingdev | Deliberate dev-perf lane, broadened beyond stream-SSR | keep-[F], documented — see APP-07 | — |
+| CLI-10 | `plugin-bff` `./server` export repointed **Hono → Effect** (`dist/.../runtime/effect/index`) | bleedingdev | Product decision: Effect BFF is a blessed path in this fork | keep-[F] (product) | — |
+| CLI-11 | `bff.runtimeFramework` defaults to `'effect'` (`src/cli.ts:21`, `src/server.ts:60` — `=== 'hono' ? 'hono' : 'effect'`) | bleedingdev | Same product decision as CLI-10; upstream has only Hono | keep-[F] (product) | — |
+| CLI-12 | `src/server.ts` loads `EffectAdapter` via **dynamic** `await import('./runtime/effect/adapter')` inside `onPrepare` | bleedingdev | A static import pulls `effect/*` into the eager module graph and crashes hono-only consumers with `ERR_MODULE_NOT_FOUND` | keep-[F] — see note N4 | — |
+| CLI-13 | `src/utils/{clientGenerator,runtimeGenerator,pluginGenerator,createHonoRoutes,crossProjectApiPlugin}.ts` generator hardening (ADR-0005) | bleedingdev | Prefix conflicts are hard errors; deterministic package-metadata merge with collision detection. The fail-fast/merge half is isolatable; the Effect client/data-platform half is not | upstream-PR (fail-fast/merge half) + keep-[F] (Effect half) | P3 |
+| CLI-14 | `plugin-bff/package.json` entirely fork-added optional `effect` / `@effect/opentelemetry` peer + mirrored devDep block | bleedingdev | Effect must resolve to one identity in the consumer graph; a `dependencies` entry lets pnpm install a second copy and the runtime barrels hand back services from the wrong instance | keep-[F] — see note N5 | — |
+| CLI-15 | `src/runtime/safe-failure.ts:71` builds the error envelope from `SAFE_FAILURE_MESSAGES[status] ?? 'Request failed'`, discarding `err.message` | bleedingdev | Not a deliberate divergence — real error detail is dropped on every BFF failure, including in development | **fix** (preserve `err.message` at least in dev / behind a flag) | **P2** |
+| CLI-16 | `plugin-data-loader` (4 files): import reordering, storage import path swap, strictness | bleedingdev | Toolchain | keep-[M] | — |
+| CLI-17 | `plugin-ssg` (7 files): import reordering, destructuring/strictness in prerender/server paths | bleedingdev | Toolchain | keep-[M] | — |
+| CLI-18 | `plugin-styled-components` derives the styled interface from `typeof styledComponents.default` | bleedingdev | styled-components v6 no longer exports `StyledInterface`; coupled to the dependency migration | keep-[F] (coupled dep) | — |
 
-### plugin-bff (14 files) — [F] Effect-first BFF lane
+---
 
-- `src/cli.ts`, `src/server.ts`, `src/loader.ts` — `bff.runtimeFramework: 'hono' | 'effect'` wiring + effect worker entry. `src/server.ts` — [F] (2026-08-04) loads `EffectAdapter` through a **dynamic** `await import('./runtime/effect/adapter')` inside `onPrepare`, never a static top-level import. A static import pulls `effect/Effect`, `effect/Layer`, `effect/Schema` and `effect/unstable/http*` into the eager module graph of `@modern-js/plugin-bff/server-plugin`, so a hono-only consumer that has not installed the optional `effect` peer crashes on import with `ERR_MODULE_NOT_FOUND`. Guard: `tests/regression.test.ts` (`server entry does not eagerly load Effect`).
-- `src/utils/{clientGenerator,runtimeGenerator,pluginGenerator,createHonoRoutes,crossProjectApiPlugin}.ts` — generator hardening per ADR-0005 (prefix conflicts are hard errors, deterministic package-metadata merge with collision detection) plus Effect client/data-platform generation. The fail-fast/merge hardening is upstreamable in isolation if ever wanted; the Effect parts are not.
-- `src/runtime/*` (create-request, hono adapter/operators) — operation-context headers + envelope policy.
-- `package.json` — [F] (2026-08-04) **entirely fork-added dependency block.** Upstream's plugin-bff has no `effect` dependency and no `peerDependencies` block at all. The fork declares `peerDependencies: { effect: '<cohort>', '@effect/opentelemetry': '<cohort>' }`, both marked `optional` in `peerDependenciesMeta`, and mirrored exact `devDependencies` for both (needed because `autoInstallPeers: false`). `@effect/opentelemetry` MUST move with `effect`: it declares a REQUIRED (non-optional) `effect` peer of its own, so leaving it in `dependencies` re-imposes that peer on every hono-only consumer transitively and makes the optional `effect` peer a fiction. Why: Effect must resolve to **one** identity in the consumer's graph — shipping it as a hard `dependencies` entry lets pnpm install a second copy alongside the app's own, and `export * from 'effect/unstable/http'` in the runtime barrels then hands back services from the wrong Effect instance. Because the block is purely additive, a sync merge will not conflict on it, so a resolver taking "theirs" wholesale drops it **silently**. Guards: `packages/cli/plugin-bff/tests/regression.test.ts` (asserts, for BOTH `effect` and `@effect/opentelemetry`, that `dependencies[name] === undefined`, `peerDependencies[name] === devDependencies[name]`, `peerDependenciesMeta[name].optional === true`; plus `server entry does not eagerly load Effect`) and `packages/toolkit/create/tests/version-pins.test.ts` (`plugin-bff declares the same Effect cohort generated workspaces pin`). Moving the cohort means moving the exact peer/devDependency pins, `EFFECT_VERSION`, generated overrides and trust exclusions, and the version-specific declaration patch in lockstep. If an immature installed package receives an exact release-age approval, its immutable evidence and temporary generated exclusion move too; override-only packages do not receive approvals, and age-gate entries are not trust exclusions.
-- tsconfig — [M].
+## 6. `packages/runtime`
 
-### plugin-data-loader (7 files) — [M]
+| ID | What diverged | Owner | Reason | Disposition | Lane |
+| --- | --- | --- | --- | --- | --- |
+| RT-01 | `plugin-i18n` localised URLs, API-prefix locale-redirect skip incl. MF manifest endpoints (`/mf-manifest.json`, `/mf-stats.json`, `/remoteEntry.js`, ADR-0002), backend SDK/middleware split, I18nLink/hooks | bleedingdev | Fork i18n + MF lane; upstream has neither | keep-[F] | — |
+| RT-02 | `src/runtime/i18n/instance.ts` `I18nInstance` has **no** index signature and **non-overloaded** method signatures | bleedingdev | Upstream's `[key: string]: any` + overloads make i18next's `i18n` permanently unassignable; the documented `i18nInstance: i18next` usage does not typecheck. Overload bivariance also proved order-dependent on tsgo and tsc | keep-[F] — see note N6 | — |
+| RT-03 | `plugin-i18n/tsconfig.json` drops `baseUrl` | bleedingdev | TypeScript 7 / tsgo reject `baseUrl` outright (TS5102); `paths` was empty so nothing resolved through it | keep-[F] | — |
+| RT-04 | `src/runtime/i18n/detection/index.ts` — 651 changed lines, the single heaviest budgeted file in the repo | bleedingdev | Fork locale detection accreted inline instead of behind a seam | **extension-point** — move to a fork-owned detector module and shrink the budget | P3 |
+| RT-05 | `plugin-image` ipx basename type cast + toolchain configs | bleedingdev | Strictness | keep-[M] | — |
+| RT-06 | `plugin-runtime` `src/router/runtime/*` router runtime state machinery (`routerRuntime`, `routerServerSnapshot`, hydration script on internal context) + fork-added `provider.ts` / `lifecycle.ts` | bleedingdev | TanStack consolidation landed: all TanStack code is in `@modern-js/plugin-tanstack` and `routerFramework` is removed from the runtime context (ADR-0017 §6; `tests/core/react/wrapper.test.tsx:59,73` asserts its absence) | extension-point (partially migrated) | P3 |
+| RT-07 | `PrefetchLink.tsx:68` sets `DEFAULT_PREFETCH_BEHAVIOR = 'render'`; upstream is `prefetch = 'none'` (upstream `PrefetchLink.tsx:276`) | bleedingdev | Flips prefetching on for every `<Link>` in every app, changing network behavior silently on upgrade | **revert** to `'none'` | **P1** |
+| RT-08 | `PrefetchLink.tsx:25` declares `WEBPACK_CHUNK_LOAD` (a build-time define → literal `__webpack_chunk_load__`, `rslib.config.mts:8`) and guards it with truthiness (`!WEBPACK_CHUNK_LOAD`, `WEBPACK_CHUNK_LOAD?.(…)`), not `typeof` | bleedingdev | After substitution the emitted code touches a bare undeclared identifier; a truthiness check on an undeclared global is a `ReferenceError`, not `undefined`, in any runtime that is not webpack/Rspack | **revert / fix** to a `typeof` guard, with RT-07 | **P1** |
+| RT-09 | `PrefetchLink.tsx` intent / render / viewport prefetch behaviors and chunk preload (the feature itself) | bleedingdev | Genuinely useful and isolatable from the default flip | upstream-PR (after RT-07/RT-08 land) | P2 |
+| RT-10 | `src/core/server/string/loadable.ts` drops upstream's `existsAssets` de-dup getter (upstream `loadable.ts:81,182,220`); fork emits `existingAssets: emittedChunks.map(c => c.url)` at `:265` | bleedingdev | Upstream suppressed chunks already present in the route manifest. The fork's replacement de-dups against emitted chunks only, so manifest-present assets can be re-emitted | **revert** / restore the manifest-aware de-dup | **P1** |
+| RT-11 | `src/exports/head.ts` — Helmet re-implemented over `react-helmet-async` with SSR `_helmetContext` plumbing (474 changed lines) | bleedingdev | Fork SSR head lane | keep-[F]; **extension-point** for the budget | P3 |
+| RT-12 | `src/core/server/*` (stream/string/requestHandler) — router server snapshot, `loaderFailureMode`, helmet integration | bleedingdev | Helper logic already concentrated in fork-owned `requestResponse.ts`, `routerCleanup.ts`, `scriptOrder.ts`; `requestHandler.tsx` keeps only orchestration | keep-[F] | — |
+| RT-13 | `src/core/server/string/index.ts` — `createReplaceSSRDataScript` routes `SSR_DATA_PLACEHOLDER` through fork-owned `replaceChunkJsPlaceholder`/`injectBeforeHydrationEntryScript` instead of upstream's plain `safeReplace`, **unconditionally, with no opt-out** | bleedingdev | Fixes a measured hydration race (`/string` entry@11958 < bootstrap@12977 reproduced React #418), but relocates the SSR-data script for every consumer with no config escape and no upstream counterpart | **owner-decision** — keep unconditional, or add an opt-out | **P4** |
+| RT-14 | `src/core/server/stream/afterTemplate.ts` — SSR-data + router hydration scripts emitted **before** the entry script (template order inverted vs upstream) | bleedingdev | Deliberate, test-pinned hydration-race fix; degrades to `safeReplace` when no entry script tag is found (custom templates, MF host shells) | keep-[F], documented divergence — see note N7 | — |
+| RT-15 | `src/core/context/*`, `src/core/browser/*`, `src/core/compat/*` — `TInternalRuntimeContext` extensions; `core/context/index.ts` exports router runtime/provider types and lifecycle helpers | bleedingdev | This is the public `@modern-js/runtime/context` seam `@modern-js/plugin-tanstack` consumes | extension-point (the seam itself is the intended shape) | — |
+| RT-16 | `src/router/runtime/utils.tsx:62,158` — catch-all route loader returns `new Response('404', { status: 404 })` | bleedingdev | Fork **fix** upstream lacks: an unmatched route otherwise resolves 200 | upstream-PR | P2 |
+| RT-17 | RSC payload route tree strips `hasErrorBoundary` (`plugin-tanstack` `payloadRoutes`, pinned by `routeTree.test.ts:897`) | bleedingdev | Safe — react-router re-derives `hasErrorBoundary` from `errorElement`. Latent edge exists only for RSC payload routes that carry an error boundary with no `errorElement` | keep-[F], documented latent edge | — |
+| RT-18 | `src/router/cli/*` routes owner metadata (`BUILT_IN_ROUTES_OWNER`), config-routes converter, template generation | bleedingdev | Fork routing ownership model | keep-[F] | — |
+| RT-19 | `src/document/*`, `src/exports/*`, `src/rsc/*`, `static/modern-inline.js`, `tsconfig.json` (`rootDir`/`baseUrl`) | bleedingdev | Smaller adaptations + toolchain | keep-[M]/keep-[F] | — |
+| RT-20 | `render` (6 files) RSC adapter surface: `createFromFetch` export, `rscManifest` plumb-through, `react-server-dom-rspack.d.ts` | bleedingdev | Fork RSC lane; RSC stays disabled in the distribution | keep-[F] | — |
 
-Import reordering/pragmas; storage import path swap; small strictness fixes.
+---
 
-### plugin-ssg (10 files) — [M]
+## 7. `packages/server`
 
-Import reordering + minor destructuring/strictness cleanups in prerender/server paths.
+| ID | What diverged | Owner | Reason | Disposition | Lane |
+| --- | --- | --- | --- | --- | --- |
+| SRV-01 | `bff-core` operation contracts (schema hash, operation entries), cross-project policy evaluator (ADR-0005 §13), client generator emits operation-context bootstrap | bleedingdev | Fork BFF contract lane | keep-[F] | — |
+| SRV-02 | `src/security/operationContracts.ts` loads the optional `zod` peer through a runtime-assembled specifier `['z','o','d'].join('')` passed to `createRequire` | bleedingdev | rslib/rspack externalizes a literal `require('zod')` into a top-level `import * as … from "zod"` in `esm-node`, turning an optional peer into a hard requirement | keep-[F] — see note N8 | — |
+| SRV-03 | `src/client/generateClient.ts:50` takes a single options object; generated request options emit the imported `fetch` identifier shorthand instead of upstream's `fetch: 'fetch'` string literal | bleedingdev | Restores the upstream-compatible call shape after a fork regression to positional args and fixes an upstream generated-client bug on the upstream-owned `fetch` option | fixed-in-fork + upstream-PR | P2 |
+| SRV-04 | `bff-runtime` bumps farrow-api/pipeline/schema `^1.12` → `^2.3` (majors) with `src/index.ts:1` re-exporting `farrow-schema` | bleedingdev | The package's public API surface follows farrow 2.x | keep-[F] — `package.json` + source must move together | — |
+| SRV-05 | `core` `src/adapters/node/plugins/static.ts` serves pre-compressed `.br`/`.gz` with Accept-Encoding q-value parsing | bleedingdev | Fork asset-serving behavior; not isolatable as-is | keep-[F] | — |
+| SRV-06 | `core` `src/types/config/server.ts` adds `server.telemetry` (exporters, SLO, canary, contract gates), `ssr.moduleFederationAppSSR`, preload types | bleedingdev | Fork telemetry + MF SSR config surface | keep-[F] | — |
+| SRV-07 | `core` `src/types/config/bff.ts` adds `bff.crossProjectPolicy` | bleedingdev | Fork cross-project BFF policy | keep-[F] | — |
+| SRV-08 | `core` `src/plugins/{index,monitors,default}.ts`, `adapters/node/plugins/resource.ts` | bleedingdev | Pure import/export re-sorting after telemetry moved to `@modern-js/server-runtime-extensions` (`grep -rn telemetry src/plugins/` returns zero hits) | keep-[M] | — |
+| SRV-09 | `core` `src/plugins/render/{csrRscRender,ssrRender,renderRscHandler}.ts` | bleedingdev | Fork RSC + router-snapshot integration | keep-[F] | — |
+| SRV-10 | `core` `src/context.ts:4` changes the ALS context key (`Symbol.for(...)` value differs from upstream) | bleedingdev | Fork and vanilla `server-core` copies loaded in one process **cannot share request context**; a mixed graph silently sees two ALS stores | **owner-decision** — evaluate revert to upstream's key | **P3** |
+| SRV-11 | `core` `adapters/node/helper/utils.ts:44` `isResFinalized` is null-safe: also checks HTTP/1 `destroyed`/`closed` plus HTTP/2 `stream?.destroyed`/`stream?.closed` (`Http2ServerResponse` exposes liveness on `res.stream`) | bleedingdev | A destroyed/closed response detaches its socket, so `socket?.writable` alone reports `undefined` and wrongly looks writable | fixed-in-fork — the null-safe form is deliberately not upstream's expression, so the divergence remains | — |
+| SRV-12 | `create-request` producer-client hardening (ADR-0005): envelope policy, identity binding, transport resilience, canonical `traceparent` parsing/propagation (`ce7c6b06ac`) | bleedingdev | Fork BFF client contract | keep-[F] | — |
+| SRV-13 | `create-request` `src/requestFactory.ts:408` upload `formData` body-branch fix | bleedingdev | Upstream mismatched the `formData` payload branch; the fix is independent of the fork lanes | upstream-PR | P2 |
+| SRV-14 | `plugin-polyfill` migrates ua-parser-js `0.7` → `2.0` (`src/index.ts:34-36`) and lru-cache `6` → `11` (`src/libs/cache.ts:39-40`, `max`/`length` → `maxSize`/`sizeCalculation`) | bleedingdev | Breaking major runtime deps with call-site rewrites | keep-[F] — `package.json` + source must move together | — |
+| SRV-15 | `prod-server` telemetry re-export surface (`src/apply.ts:23`, `src/index.ts:17`), typed `createProdServer`, netlify entry | bleedingdev | Re-exported from `@modern-js/server-runtime-extensions` | keep-[F] | — |
+| SRV-16 | `prod-server/src/apply.ts` registers `injectTelemetryPlugin()`, `injectModuleFederationCssPlugin()`, `injectMfAssetCacheHeadersPlugin()` **unconditionally** in the shared prod+dev plugin assembly | bleedingdev | Fork telemetry + MF integration stays fork-owned, but registration must be gated on config (`server.telemetry`, MF SSR) so unconfigured consumers do not pay for the plugins | keep-[F] — add config gates | **P3** |
+| SRV-17 | `server` `src/helpers/mock.ts` drops `encode: encodeURI` from the path-to-regexp `match` options (`:149-151`) and adds `method ?? 'get'` / `pathname ?? '/'` fallbacks in `parseKey` (`:73-74`) | bleedingdev | Changes dev-mock route matching for non-ASCII paths. Dev tooling only, but it hides inside otherwise mechanical churn | capped-patch — on conflict keep the fork side or consciously re-add `encode` | — |
+| SRV-18 | `server` typed `CreateDevServerResult` and undefined-guards in watcher/fileReader | bleedingdev | Strictness fixes, same family as `render.ts` | upstream-PR | P3 |
+| SRV-19 | `server-runtime` export reordering | bleedingdev | Import hygiene | keep-[M] | — |
+| SRV-20 | `utils` TypeScript compiler path rebuilt around tsgo (spawned `tsgo`, tsconfig-paths matcher, import-specifier rewriting; `src/compilers/typescript/index.ts` 454 changed lines) | bleedingdev | Toolchain divergence; upstream `typescriptLoader.ts` deleted (Appendix A) | keep-[F]; **extension-point** for the budget | P3 |
 
-### plugin-styled-components (2 files) — [F]
+---
 
-Styled-components v6-coupled type fix (`StyledInterface` no longer exported; derive from `typeof styledComponents.default`). Not in the current verified [U] queue because the dependency migration is fork-coupled.
+## 8. `packages/solutions/app-tools`
 
-## packages/document (118 files) — [F]
+| ID | What diverged | Owner | Reason | Disposition | Lane |
+| --- | --- | --- | --- | --- | --- |
+| APP-01 | `config/initialize`, `src/index.ts`, types wire fork-added `src/presetUltramodern.ts` (telemetry, MF SSR defaults) | bleedingdev | Fork preset entry point. **Corrected 2026-08-11:** the old ledger named `src/baseline.ts`; that file and its alias shim were deleted in `5f8230e055` | keep-[F] | — |
+| APP-02 | `src/builder/generator/getBuilderEnvironments.ts` — Effect BFF worker entry + Cloudflare worker compat template resolution (591 changed lines) | bleedingdev | Second-heaviest budgeted file; fork lanes written inline into an upstream generator | **extension-point** — move to a fork-owned environment contributor | P3 |
+| APP-03 | `src/plugins/deploy/*` platform entries | bleedingdev | Fork deploy targets. `deploy.microFrontend.{runtimeDigest,integrity,attestation}` were removed in the 2026-06-12 cleanup; `MicroFrontend` is back to upstream shape | keep-[F] | — |
+| APP-04 | `src/commands/*` dev/build/serve/deploy/info/inspect hooks | bleedingdev | Fork CLI surface. **Corrected 2026-08-11:** the old ledger claimed `modern runtime status` / `fallback-signal` registration (EPIC-7); those commands were deleted in `5f8230e055` and `src/commands/` no longer contains them | keep-[F] | — |
+| APP-05 | `src/plugins/analyze/*` entry/routes-owner integration | bleedingdev | Pairs with RT-18 | keep-[F] | — |
+| APP-06 | `src/rsbuild.ts:19,58-60` adds `disableReactCompiler?: boolean` to `ResolveModernRsbuildConfigOptions` | bleedingdev | Exists only to let callers opt out of CLI-04's default; disappears if CLI-04 reverts | **revert** with CLI-02 / CLI-04 | **P1** |
+| APP-07 | `src/plugins/initialize/index.ts:36-43` defaults `dev.lazyCompilation` to `{ imports: true, entries: false }` when unset, plus `src/builder/shared/lazyCompilation.ts` route-eager `lazyCompilation.test` | bleedingdev | Deliberate dev-perf divergence, broadened beyond stream-SSR to all route component modules. Low priority so an explicit user `dev.lazyCompilation` always wins | keep-[F], documented | — |
+| APP-08 | esm register hooks, utils, tests | bleedingdev | tsgo toolchain + track the above | keep-[M] | — |
 
-Full rebrand to UltraModern.js (en + zh): homepage, nav, get-started, BFF/Effect, TanStack, MF-SSR and deploy guides, rspress config, i18n strings, components. Permanent divergence; on sync, take upstream factual/API updates but re-apply branding and fork-feature pages by hand. Never bulk-accept upstream doc content.
+---
 
-## packages/runtime
+## 9. `packages/toolkit`, `packages/document`, `packages/tsconfig`
 
-### plugin-i18n (21 files) — [F]
+| ID | What diverged | Owner | Reason | Disposition | Lane |
+| --- | --- | --- | --- | --- | --- |
+| TK-01 | `create` defaults to the ultramodern workspace generator with a `--legacy-modern-js` escape hatch (`src/index.ts`, 424 changed lines) | bleedingdev | The fork's primary product surface | keep-[F]; **extension-point** for the budget | P3 |
+| TK-02 | `create` resolves packages from `@bleedingdev` | bleedingdev | Fork publishes under its own scope | keep-[F] | — |
+| TK-03 | `create` public generator API subpaths (`./ultramodern-workspace`, `./ultramodern-workspace/codesmith`) | bleedingdev | Public generator seam; `exports` and `publishConfig.exports` must stay mirrored with runtime files | keep-[F] | — |
+| TK-04 | `create` MicroVertical dry-run/preflight validation + explicit CodeSmith overlay hook; tooling commands split under `src/ultramodern-tooling/commands/` | bleedingdev | Fork generator validation | keep-[F] | — |
+| TK-05 | `create` workspace content migrating from TypeScript strings to `templates/workspace/` shipped file templates; shared patches gated by `tests/patch-sync.test.ts` | bleedingdev | Replaces the deleted upstream handlebars single-app template (Appendix A) | keep-[F] | — |
+| TK-06 | `toolkit/plugin` (27 files) import/type re-export hygiene + fork duplicate-plugin detection across internal and config plugins | bleedingdev | Mostly mechanical; the duplicate detection is fork behavior | keep-[M] + capped-patch (detection) | — |
+| TK-07 | `runtime-utils` `nestedRoutes` browser export, `url` `normalizePathname`, `loaderContext`, async storage, `fileReader`; rstest config on happy-dom | bleedingdev | Support the fork router/runtime lanes | keep-[F] / keep-[M] | — |
+| TK-08 | `toolkit/utils` `compiled/pkg-up/*` vendored compiled blob replaced by a readable reimplementation (same API) | bleedingdev | Auditability of vendored blobs | keep-[F] | — |
+| TK-09 | `toolkit/utils` `src/cli/constants.ts` fork constants (`NESTED_ROUTE_SPEC_FILE`, …) | bleedingdev | Fork routing constants | keep-[F] | — |
+| TK-10 | `toolkit/utils` `src/universal/backend-federation-contract/` (entry `index.ts`; also `build-artifact`, `constants`, `delivery-unit`, `metadata`, `types`, `validation-core`) | bleedingdev | Shared delivery-unit / backend-federation contract consumed by create, app-tools, plugin-bff. Fork-**added** directory, so it carries no divergence budget (zero allowlist entries) | keep-[F] | — |
+| TK-11 | `toolkit/types` server/CLI type additions: TanStack route fields (`loaderDeps`, `validateSearch`), `unsafeHeaders`, `cacheConfig` | bleedingdev | Fork type surface. `common/index.d.ts` matches upstream again after the 2026-06-12 cleanup | keep-[F] — **not budget-enforced** (no `src/` directory — outside the gate's `packages/**/src` pattern; `.d.ts` under `src/` *is* budgeted) | — |
+| TK-12 | `sandpack-react` build script (`node --experimental-strip-types` + `tsgo:dts`) and dependency alignment; upstream MWA template vendored at `scripts/mwa-template/` | bleedingdev | Toolchain; generated `src/templates/{mwa,common}.ts` are untracked gitignored build outputs again, matching upstream | keep-[M] — **not budget-enforced** (scripts) | — |
+| TK-13 | `packages/tsconfig/base.json` sets `module: "preserve"` (upstream `"commonjs"`) and `moduleResolution: "bundler"` (upstream `"node"`) | bleedingdev | TS7 / tsgo toolchain: node10 resolution is removed, and `preserve` + `bundler` are required. Resolving toward upstream reinstates commonjs/node10 and breaks the toolchain | keep-[F] — never resolve toward upstream's values | — |
+| DOC-01 | `packages/document/docs` content (109 changed paths, en + zh; measured by <code>git diff -M dfcd414a050d4455851ff76f861822fca0d4bcf4 --name-status -- packages/document/docs &#124; wc -l</code>): full UltraModern.js rebrand — homepage, nav metadata, get-started, BFF/Effect, TanStack, MF-SSR and deploy guides | bleedingdev | Permanent product divergence | keep-[F] — **not budget-enforced**; never bulk-accept upstream doc content | — |
+| DOC-02 | `packages/document/src` (8 files) components/config | bleedingdev | Fork docs site components | keep-[F] | — |
 
-Localised URLs (`shared/localisedUrls`), API-prefix locale-redirect skip incl. MF manifest endpoints (`/mf-manifest.json`, `/mf-stats.json`, `/remoteEntry.js` per ADR-0002), backend SDK/middleware split, I18nLink/hooks.
+---
 
-`src/runtime/i18n/instance.ts` — [F] (2026-08-03) the `I18nInstance` interface deliberately has **no** top-level index signature and uses **single, non-overloaded** method signatures. Upstream declares `[key: string]: any` plus overloaded call-signature properties; TypeScript never grants an interface an implicit index signature, so upstream's shape makes i18next's `i18n` permanently unassignable and the documented `i18nInstance: i18next` usage (written by all eight `tests/integration/i18n/*/src/modern.runtime.tsx` fixtures) does not typecheck. Overload bivariance was also proven order-dependent across program compositions on both tsgo and tsc. On sync, do **not** take upstream's interface body wholesale — that silently re-breaks assignability. The guard is `packages/runtime/plugin-i18n/tests/type-fixture/i18nInstanceTypes.fixture.ts`, executed by `tests/linkTypes.test.ts`. `t` is a REQUIRED member (upstream declares no `t` at all), so every object literal producing an `I18nInstance` must supply one — including the three factories in `tests/{link,routerAdapter,i18nUtils}.test.*`. Coupled fork edits: `src/runtime/contextHelpers.ts` (cast for the fixed-arity `t`, invoked via `translate.call(i18nInstance, …)` so a custom `t` that reads `this` still works — i18next's own `t` is bound and would hide the bug), `src/runtime/hooks.ts` (throwing `t` stub on `createMinimalI18nInstance`), `src/runtime/context.tsx` (`useModernI18n<TInstance extends I18nInstance>` generic), `src/runtime/core.tsx` (re-exports `I18nInstance`/`TranslateFn`/`UseModernI18nReturn`). `tsconfig.json` — [F] (2026-08-04) `baseUrl` removed: TypeScript 7 / tsgo reject it outright (TS5102), so the package's own tsconfig could not be typechecked at all; `paths` was empty, so nothing resolved through it. Do not restore it on sync.
+## 10. Sync-hazard notes
 
-### plugin-image (5 files) — [M]
+Only for entries where a **clean merge silently produces a broken or reverted
+result**. Referenced by ID from the tables above.
 
-Type-cast strictness fix on ipx basename + toolchain configs.
+**N1 — ROOT-02 Effect cohort (4 sites, one commit).**
+`EFFECT_VERSION`/`EFFECT_VITEST_VERSION` in
+`packages/toolkit/create/src/ultramodern-workspace/versions.ts`;
+`packages/cli/plugin-bff/package.json` (dep/peer/devDep, see N5); the generated
+`pnpm.overrides`/`trustPolicyExclude` emitted by
+`ultramodern-workspace/policy.ts`; and
+`packages/toolkit/create/template-workspace/patches/effect-schema-error-type-id.patch`.
+That patch carries one public declaration hunk — it drops the dangling
+`SchemaAST.Sentinel` reference from `Schema.d.ts` (beta.102 marked
+`collectSentinels` `@internal`, erasing `Sentinel` from `SchemaAST.d.ts` while
+`Schema.d.ts` kept referencing it, so the shipped types fail their own `tsgo`
+check with TS2694 — still true on beta.107). Its `index <blob>..<blob>` header
+is version-specific: a version bump without `pnpm patch effect@<new-version>`
+produces a patch that silently fails to apply. The patch is **template-only**
+(deliberately absent from repo-root `patches/` and from
+`SHARED_ULTRAMODERN_WORKSPACE_PATCH_FILES`, so `tests/patch-sync.test.ts` guards
+its *absence* there, not its content); its content is pinned by the `sha256` /
+`acceptedLegacySha256` on the three `packageName: 'effect'` entries (beta.94,
+beta.97, beta.102) in `stalePatchPolicies` —
+`packages/toolkit/create/src/ultramodern-workspace/policy.ts:487-527` at the
+time of writing; **find them by name, not by line**, and re-pin every one on an
+Effect cohort bump.
+Guards: `packages/toolkit/create/tests/version-pins.test.ts`,
+`tests/migrate-release-age-policy.test.ts`.
+Release-age exclusions are temporary, exact-version, evidence-backed and removed
+after the 24-hour window; they are **distinct** from generated
+`trustPolicyExclude` entries (limited to `effect` and `@effect/opentelemetry`).
 
-### plugin-runtime (98 files) — the largest divergence
+**N2 — ROOT-04 examples must consume the workspace.**
+Under upstream's `latest` spelling, `pnpm install` downloads real Modern.js
+(3.7.0) beside the fork's packages and pnpm hoists one of the two into
+`node_modules/.pnpm/node_modules/@modern-js/*`. Which one wins is not
+deterministic across machines, so anything resolving a bare `@modern-js/*`
+specifier from outside the workspace tree — the plugin-bff generator fixtures do
+exactly this — binds to upstream on CI and to the fork locally, and fork-only
+subpaths (`./effect-client`, `./effect`) fail with
+`ERR_PACKAGE_PATH_NOT_EXPORTED`. Take upstream's example *sources* on sync; keep
+`workspace:*` on their manifests.
 
-- `src/router/runtime/*` — [F] router runtime state machinery (`routerRuntime`/`routerServerSnapshot`/hydration script on the internal context) plus the fork-added router provider-registry (`provider.ts`) and state helpers (`lifecycle.ts`). The TanStack consolidation has landed: all TanStack code lives in `@modern-js/plugin-tanstack`, and `routerFramework` has been **removed** from the runtime context (no `src/` hits remain; `tests/core/react/wrapper.test.tsx:59,73` asserts its absence — see ADR-0017 §6).
-- `src/router/runtime/PrefetchLink.tsx` — [U] candidate: intent/render/viewport prefetch behaviors + webpack chunk preload.
-- `src/exports/head.ts` — [F] Helmet re-implemented over `react-helmet-async` with SSR `_helmetContext` plumbing.
-- `src/core/server/*` (stream/string/requestHandler) — [F] router server snapshot + `loaderFailureMode` + helmet integration in SSR rendering. Fork SSR helper logic is now concentrated in fork-owned `src/core/server/{requestResponse.ts,routerCleanup.ts,scriptOrder.ts}`; `requestHandler.tsx` keeps the orchestration surface and `string/loadable.ts` imports script-order helpers instead of carrying them inline.
-- `src/core/server/string/index.ts` — [F] (2026-08-03) `createReplaceSSRDataScript` routes `SSR_DATA_PLACEHOLDER` through the fork-owned `replaceChunkJsPlaceholder`/`injectBeforeHydrationEntryScript` (`src/core/server/scriptOrder.ts`) instead of upstream's plain `safeReplace`, so `window._SSR_DATA` and the router hydration block (including the TanStack `$_TSR` bootstrap) are emitted **before** the entry script in string mode — the same guarantee stream mode already gets at `stream/afterTemplate.ts`. Measured on `tests/integration/routes-tanstack` before the fix: `/stream` bootstrap@11932 < entry@12523 (safe) but `/string` entry@11958 < bootstrap@12977 (raced); deferring the bootstrap reproduces React `#418` with the SSR DOM node discarded. It degrades to `safeReplace` when no entry script tag is found (custom HTML templates, MF host shells). Upstream still owns the plain `safeReplace` here, so a sync merge that takes "theirs" silently reopens the ordering gap. Guards: `packages/runtime/plugin-runtime/tests/ssr/serverRender/renderToString/buildTemplate.test.tsx` (unit) and the byte-offset assertion in `tests/integration/routes-tanstack/tests/index.test.ts`.
-- `src/core/context/*`, `src/core/browser/*`, `src/core/compat/*` — [F] `TInternalRuntimeContext` extensions. `src/core/context/index.ts` now exports router runtime/provider types and lifecycle helpers used by `@modern-js/plugin-tanstack` through the public `@modern-js/runtime/context` seam.
-- `src/router/cli/*` — [F] routes owner metadata (`BUILT_IN_ROUTES_OWNER`), config-routes converter, template generation.
-- `src/document/*`, `src/exports/*`, `src/rsc/*`, `static/modern-inline.js` — [M]/[F] smaller adaptations.
-- `tsconfig.json` — [M] `rootDir`/`baseUrl` only (the `src/ssr` exclude hunk was reverted when the orphaned legacy `src/ssr` copies were deleted in the 2026-06-12 cleanup).
-- `tests/*` — track the above.
+**N3 — ROOT-10 release tags.**
+`RELEASE_TAG_PREFIX` in `scripts/ultramodern-publish/gen-cohort-change-record.mjs`
+must stay in sync with the workflow — it is also the since-boundary the change
+record uses. The tagging step is idempotent (`gh release view` → `edit`, else
+`create`) because it runs **after** the unrollbackable npm publish.
 
-### render (7 files) — [F]
+**N4 — CLI-12 dynamic Effect import.**
+A static top-level import pulls `effect/Effect`, `effect/Layer`, `effect/Schema`
+and `effect/unstable/http*` into the eager module graph of
+`@modern-js/plugin-bff/server-plugin`. Guard:
+`packages/cli/plugin-bff/tests/regression.test.ts`
+(`server entry does not eagerly load Effect`).
 
-RSC adapter surface: `createFromFetch` export, `rscManifest` plumb-through, `react-server-dom-rspack.d.ts` updates.
+**N5 — CLI-14 plugin-bff dependency block is purely additive.**
+Upstream's plugin-bff has no `effect` dependency and **no `peerDependencies`
+block at all**, so a sync merge will not conflict on it and a resolver taking
+"theirs" wholesale drops it **silently**. `@effect/opentelemetry` MUST move with
+`effect`: it declares a REQUIRED (non-optional) `effect` peer of its own, so
+leaving it in `dependencies` re-imposes that peer on every hono-only consumer
+transitively and makes the optional `effect` peer a fiction. Guards:
+`tests/regression.test.ts` asserts, for BOTH packages, that
+`dependencies[name] === undefined`,
+`peerDependencies[name] === devDependencies[name]`, and
+`peerDependenciesMeta[name].optional === true`; plus
+`packages/toolkit/create/tests/version-pins.test.ts`
+(`plugin-bff declares the same Effect cohort generated workspaces pin`).
 
-## packages/server
+**N6 — RT-02 `I18nInstance`.**
+Do **not** take upstream's interface body wholesale on sync — it silently
+re-breaks assignability. Guard:
+`packages/runtime/plugin-i18n/tests/type-fixture/i18nInstanceTypes.fixture.ts`
+via `tests/linkTypes.test.ts`. `t` is a REQUIRED member (upstream declares no
+`t` at all), so every object literal producing an `I18nInstance` must supply one
+— including the three factories in `tests/{link,routerAdapter,i18nUtils}.test.*`.
+Coupled fork edits: `src/runtime/contextHelpers.ts` (cast for the fixed-arity
+`t`, invoked via `translate.call(i18nInstance, …)` so a custom `t` reading `this`
+still works — i18next's own `t` is bound and would hide the bug),
+`src/runtime/hooks.ts` (throwing `t` stub on `createMinimalI18nInstance`),
+`src/runtime/context.tsx` (`useModernI18n<TInstance extends I18nInstance>`),
+`src/runtime/core.tsx` (re-exports `I18nInstance`/`TranslateFn`/
+`UseModernI18nReturn`).
 
-### bff-core (12 files) — [F]
+**N7 — RT-13 / RT-14 script ordering.**
+Upstream owns the plain `safeReplace` in `string/index.ts`, so a sync merge
+taking "theirs" silently reopens the ordering gap. Measured on
+`tests/integration/routes-tanstack` before the fix: `/stream` bootstrap@11932 <
+entry@12523 (safe) but `/string` entry@11958 < bootstrap@12977 (raced);
+deferring the bootstrap reproduces React `#418` with the SSR DOM node discarded.
+Guards: `packages/runtime/plugin-runtime/tests/ssr/serverRender/renderToString/buildTemplate.test.tsx`
+and the byte-offset assertion in
+`tests/integration/routes-tanstack/tests/index.test.ts`.
 
-Operation contracts (schema hash, operation entries), cross-project policy evaluator (ADR-0005 §13), client generator emits operation-context bootstrap.
+**N8 — SRV-02 optional zod peer.**
+`@modern-js/plugin-bff`'s root, `./cli`, `./server-plugin` and `./hono-server`
+entries all reach `operationContracts.ts` transitively and threw
+`ERR_MODULE_NOT_FOUND: zod` for consumers without zod. Do not "simplify" the
+assembled specifier back to a literal on sync. Guard:
+`packages/server/bff-core/tests/optionalZodPeer.test.ts` (asserts the source
+shape and that no built format carries an eager zod dependency).
 
-`src/security/operationContracts.ts` — [F] (2026-08-04) the optional `zod` peer is loaded through a **runtime-assembled specifier** (`['z','o','d'].join('')`) passed to `createRequire(...)`, never a literal `require('zod')` or a static import. rslib/rspack externalizes a literal require into a TOP-LEVEL `import * as … from "zod"` in the `esm-node` output, which turned an optional peer into a hard runtime requirement: `@modern-js/plugin-bff`'s root, `./cli`, `./server-plugin` and `./hono-server` entries all reach this module transitively and threw `ERR_MODULE_NOT_FOUND: zod` for any consumer that had not installed zod. Do not "simplify" this back to a literal on sync. Guard: `packages/server/bff-core/tests/optionalZodPeer.test.ts` (asserts the source shape and that no built format carries an eager zod dependency).
+---
 
-### bff-runtime (4 files) — [F] coupled dependency migration
+## 11. Scheduled work summary
 
-package.json bumps farrow-api/farrow-pipeline/farrow-schema `^1.12` → `^2.3` (**majors**), and `src/index.ts:1` does `export * from 'farrow-schema'`, so the package's public API surface follows farrow 2.x. The `src/{index,match}.ts` diffs are otherwise import/export reordering, but `package.json` and source must be taken from the same side — **keep the fork version on sync**; do not resolve `package.json` toward upstream's farrow 1.x while keeping fork source (or vice versa).
+| Lane | Entries |
+| --- | --- |
+| **P1** | CLI-02, CLI-04, APP-06 (React Compiler default → opt-in); RT-07, RT-08 (PrefetchLink default + chunk-load guard); RT-10 (`existsAssets` de-dup) |
+| **P2** | CLI-05, CLI-15, RT-09, RT-16, SRV-03, SRV-13, ROOT-20, ROOT-21 |
+| **P3** | CLI-03, CLI-13, RT-04, RT-06, RT-11, SRV-10, SRV-16, SRV-18, SRV-20, APP-02, TK-01 |
+| **P4** | RT-13 (SSR-data relocation opt-out), ROOT-14 (docs binary cleanup) |
 
-### core (35 files)
-
-- `src/adapters/node/plugins/static.ts` — [F] fork asset-serving behavior for pre-compressed assets (`.br`/`.gz` with Accept-Encoding q-value parsing); not in the current verified [U] queue.
-- `src/types/config/server.ts` — [F] `server.telemetry` (exporters, SLO, canary, contract gates) + `ssr.moduleFederationAppSSR` + preload types.
-- `src/types/config/bff.ts` — [F] `bff.crossProjectPolicy`.
-- `src/plugins/{index,monitors,default}.ts`, `src/adapters/node/plugins/resource.ts` — [M] pure import/export re-sorting (the telemetry/contract-gate registration that used to live here was extracted to the fork-added `@modern-js/server-runtime-extensions` package, `packages/server/runtime-extensions/src/`; `grep -rn telemetry src/plugins/` in server-core returns zero hits).
-- `src/plugins/render/{csrRscRender,ssrRender,renderRscHandler}.ts` — [F] fork RSC + router-snapshot integration.
-- adapters/node helpers, `context.ts`, `utils/*`, `hono.ts` — [M]/[F] plumbing + strictness.
-
-### create-request (10 files) — [F]
-
-Producer-client hardening per ADR-0005: envelope policy, identity binding, transport resilience, canonical `traceparent` parsing/propagation (ce7c6b06ac).
-
-### plugin-polyfill (4 files) — [F] coupled dependency migration
-
-Breaking major-version runtime dep migrations, not mechanical churn: ua-parser-js `0.7` → `2.0` with a call-site rewrite in `src/index.ts:34-36` (`new UAParser.UAParser(ua).getResult()` against the v2 module shape), and lru-cache `6` → `11` with the constructor API rewrite in `src/libs/cache.ts:39-40` (`max`/`length` → `maxSize`/`sizeCalculation`). **Keep the fork version on sync** for both `package.json` and source as a pair — taking upstream source against the fork's 2.x/11.x deps (or the reverse) produces a runtime-broken package.
-
-### prod-server (5 files) — [F]
-
-Telemetry re-export surface (re-exported from `@modern-js/server-runtime-extensions` — see `src/apply.ts:23`, `src/index.ts:17`), typed `createProdServer`, netlify entry. (MF cache headers now live in `@modern-js/server-runtime-extensions`.)
-
-### server (16 files) — [M]
-
-Mostly mechanical; plus typed `CreateDevServerResult` and undefined-guards in watcher/fileReader ([U]-grade strictness fixes, same family as render.ts). One semantic delta hides in the churn: `src/helpers/mock.ts:117-120` dropped `encode: encodeURI` from the path-to-regexp `match` options (plus `method ?? 'get'` / `pathname ?? '/'` fallbacks in `parseKey`), which changes dev-mock route matching for non-ASCII paths. Dev-tooling only, but on conflict in this file keep the fork side or consciously re-add `encode` — do not assume the whole package is take-upstream-safe.
-
-### server-runtime (3 files) — [M]
-
-Export reordering only.
-
-### utils (9 files) — [F]
-
-TypeScript compiler path rebuilt around tsgo (spawned `tsgo`, tsconfig-paths matcher, import-specifier rewriting). Toolchain divergence.
-
-## packages/solutions/app-tools (61 files) — [F]
-
-- config/initialize, `src/index.ts`, types — wiring for fork-added `baseline.ts` (`presetUltramodern` defaults: telemetry, MF SSR).
-- `src/builder/generator/getBuilderEnvironments.ts` — Effect BFF worker entry + Cloudflare worker compat template resolution.
-- `src/plugins/deploy/*` — platform entries. (The `deploy.microFrontend.{runtimeDigest,integrity,attestation}` trust-contract fields were removed in the 2026-06-12 cleanup; `MicroFrontend` is back to upstream shape.)
-- `src/commands/*` — dev/build/serve hooks + `modern runtime status|fallback-signal` registration (EPIC-7).
-- `src/plugins/analyze/*` — entry/routes-owner integration.
-- esm register hooks, utils, tests — [M]/track the above.
-
-## packages/toolkit
-
-### create (6 files) — [F]
-
-`create` defaults to the ultramodern workspace generator; `--legacy-modern-js`
-escape hatch; `@bleedingdev` package-source resolution; public generator API
-subpaths (`./ultramodern-workspace`, `./ultramodern-workspace/codesmith`);
-MicroVertical dry-run/preflight validation; explicit CodeSmith overlay hook.
-UltraModern tooling commands are split under
-`src/ultramodern-tooling/commands/` instead of one monolithic command file.
-Workspace content that used to be emitted from TypeScript strings is moving to
-`templates/workspace/` shipped file templates. Shared workspace patches are
-gated by `tests/patch-sync.test.ts`; `patches/README.md` documents the
-repo-only / shared / template-only three-way split.
-Sync policy: do not restore private-path generator consumers or upstream
-single-app template entrypoints. Port upstream template fixes into the
-UltraModern workspace templates by hand, keep overlays post-generation only, and
-keep `exports` plus `publishConfig.exports` mirrored with the runtime files.
-
-### plugin (26 files) — [M]
-
-Mostly import/type re-export hygiene; plus fork duplicate-plugin detection across internal + config plugins.
-
-### runtime-utils (11 files) — [F]
-
-`nestedRoutes` browser export, `url` normalizePathname, loaderContext, async storage, fileReader — support the fork router/runtime lanes. rstest config moved to happy-dom [M].
-
-### sandpack-react (2 files) — [M]
-
-Build script (node strip-types + `tsgo:dts`) and dependency alignment. File inventory changed in the 2026-06-12 cleanup: the generated `src/templates/{mwa,common}.ts` are untracked gitignored build outputs again (matching upstream), and the upstream single-app MWA template content is vendored at `scripts/mwa-template/` (see Appendix A).
-
-### types (6 files) — [F]
-
-Server/CLI type surface additions: tanstack route fields (`loaderDeps`, `validateSearch`), `unsafeHeaders`, `cacheConfig`. (`common/index.d.ts` matches the upstream baseline again — the fork-added babel/moduleSdk re-exports were removed and `common/moduleSdk.d.ts` deleted in the 2026-06-12 cleanup.)
-
-### utils (20 files) — mixed
-
-- `compiled/pkg-up/*` — [F] vendored compiled blob replaced with a readable reimplementation (same API).
-- `src/cli/constants.ts` — [F] fork constants (`NESTED_ROUTE_SPEC_FILE`, etc.).
-- `src/universal/backend-federation-contract.ts` — [F] shared UltraModern delivery-unit/backend-federation contract consumed by create, app-tools, and plugin-bff.
-- rest (logger, version, require, is/get) — [M] reordering + strictness.
-
-## packages/tsconfig (1 file) — [M]
-
-`base.json` adds `ignoreDeprecations: "6.0"` for the TS 6 toolchain.
+**Fixed in fork 2026-08-11:** SRV-03 (`generateClient` options object restored
+and imported `fetch` identifier emitted), SRV-11 (`isResFinalized` null-safe).
+Both still count as divergences — the resulting code is deliberately not
+upstream's expression. SRV-03's upstream `fetch: 'fetch'` bug fix is queued P2.
 
 ---
 
 ## Appendix A — deleted or template-moved upstream files (26): keep deleted on sync
 
-Raw `-M` against Modern.js 3.8.1 reports 11 deleted files plus 15 template
-moves. Treat all 26 original upstream paths as keep-deleted during sync. On merge they conflict
-as delete/modify, rename/modify, or silently resurrect — re-delete the original
-path and port any upstream change into the listed fork replacement instead.
+Raw `-M` against the base reports 11 deleted files plus 15 template moves. Treat
+all 26 original upstream paths as keep-deleted. On merge they conflict as
+delete/modify, rename/modify, or silently resurrect — re-delete the original path
+and port any upstream change into the listed fork replacement instead.
 
-- `packages/cli/builder/src/shared/rsc/rscClientBrowserFallback.ts` — replaced by fork-owned `rscDisabledRuntime.ts` and entrypoint-specific throwing modules. Keep deleted; disabled RSC must override resolvable optional peers and fail closed.
-- Five exact-output snapshots are intentionally deleted in favor of structured/compiler/runtime behavior checks: `packages/cli/builder/tests/__snapshots__/{default.test.ts.snap,environment.test.ts.snap}`, `packages/runtime/plugin-runtime/tests/router/__snapshots__/templates.test.ts.snap`, `packages/server/bff-core/tests/client/__snapshots__/generateClient.test.ts.snap`, and `packages/server/core/tests/utils/__snapshots__/error.test.ts.snap`. Do not restore source/generated-output snapshot oracles during sync.
-- `packages/runtime/render/modern.config.js` — build config replaced by fork-added `rslib.config.mts`. Keep deleted; port upstream build-config changes into the rslib config.
-- `packages/server/utils/src/compilers/typescript/typescriptLoader.ts` — the TS compile path was rebuilt around tsgo (see the `server/utils` entry above). Keep deleted; re-express upstream loader fixes in the fork's tsgo compiler path under `src/compilers/typescript/`.
-- `packages/solutions/app-tools/src/esm/ts-node-loader.mjs` + `packages/solutions/app-tools/tests/utils/ts-node-loader.test.ts` — ts-node ESM loader dropped for the tsgo toolchain; the fork keeps `src/esm/register-esm.mjs` and `src/esm/ts-paths-loader.mjs`. Keep deleted; map upstream loader changes onto `ts-paths-loader.mjs`.
-- `packages/toolkit/create/template/**` (15 files: `CLAUDE.md`, `.browserslistrc`, `.gitignore.handlebars`, `.npmrc`, `.nvmrc`, `README.md`, `biome.json`, `modern.config.ts`, `package.json.handlebars`, `tsconfig.json`, `src/modern-app-env.d.ts`, `src/modern.runtime.ts`, `src/routes/{index.css,layout.tsx,page.tsx}`) — the handlebars single-app template was replaced by the fork-added ultramodern workspace generator (`src/ultramodern-workspace/`, `template-workspace/`, `templates/`). `CLAUDE.md` moved to `template-workspace/CLAUDE.md.handlebars`; the other upstream single-app template files moved to `packages/toolkit/sandpack-react/scripts/mwa-template/` (with `biome.json` stored as `biome.json.handlebars`). Keep the original paths deleted and mirror later upstream content only where it still applies to those owning replacements.
-- `packages/toolkit/sandpack-react/scripts/template.ts` — replaced by fork-added `scripts/template.mts` run via `node --experimental-strip-types` (see `package.json:37`). Keep deleted; apply upstream script changes to the `.mts` version. `template.mts` now renders `scripts/mwa-template/` (upstream MWA content) instead of `template-workspace`, and the generated `src/templates/{mwa,common}.ts` are untracked gitignored build outputs again, matching upstream.
-
-Additional upstream deletion outside the package count above:
-
-- `examples/basic-withZephyr/.npmrc` — (2026-08-03) upstream ships this file containing only `strict-peer-dependencies=false`. pnpm 11 does not read `strict-peer-dependencies` from `.npmrc` at all (only `pnpm-workspace.yaml` `strictPeerDependencies` / the CLI flag take effect — same reason the root `.npmrc` settings were migrated), so it is dead config that misleads anyone debugging peer resolution in this example. Keep deleted on sync.
+| Original upstream path | Fork replacement / reason |
+| --- | --- |
+| `packages/cli/builder/src/shared/rsc/rscClientBrowserFallback.ts` | Fork-owned `rscDisabledRuntime.ts` + entrypoint-specific throwing modules. Disabled RSC must override resolvable optional peers and fail closed (CLI-06). |
+| `packages/cli/builder/tests/__snapshots__/{default,environment}.test.ts.snap`, `packages/runtime/plugin-runtime/tests/router/__snapshots__/templates.test.ts.snap`, `packages/server/bff-core/tests/client/__snapshots__/generateClient.test.ts.snap`, `packages/server/core/tests/utils/__snapshots__/error.test.ts.snap` | Five exact-output snapshots replaced by structured/compiler/runtime behavior checks. Do not restore generated-output oracles. |
+| `packages/runtime/render/modern.config.js` | Fork-added `rslib.config.mts`. Port upstream build-config changes there. |
+| `packages/server/utils/src/compilers/typescript/typescriptLoader.ts` | tsgo compiler path under `src/compilers/typescript/` (SRV-20). |
+| `packages/solutions/app-tools/src/esm/ts-node-loader.mjs` + `tests/utils/ts-node-loader.test.ts` | `src/esm/register-esm.mjs` + `src/esm/ts-paths-loader.mjs`. Map upstream loader changes onto `ts-paths-loader.mjs`. |
+| `packages/toolkit/create/template/**` (15 files) | Replaced by the ultramodern workspace generator (TK-01, TK-05). `CLAUDE.md` → `template-workspace/CLAUDE.md.handlebars`; the rest → `packages/toolkit/sandpack-react/scripts/mwa-template/` (with `biome.json` as `biome.json.handlebars`). |
+| `packages/toolkit/sandpack-react/scripts/template.ts` | Fork-added `scripts/template.mts` run via `node --experimental-strip-types` (`package.json:37`). It renders `scripts/mwa-template/`; generated `src/templates/{mwa,common}.ts` are untracked gitignored build outputs, matching upstream. |
+| `examples/basic-withZephyr/.npmrc` (outside the package count) | Dead config — pnpm 11 ignores `strict-peer-dependencies` in `.npmrc` (ROOT-21). |
 
 ## Appendix B — renamed + modified upstream files (3): follow the rename
 
-Git resolves these only with rename detection on (`-M`); without it they look like delete + add. Apply upstream edits to the **new** path, then re-apply fork content.
+Git resolves these only with rename detection on (`-M`); without it they look
+like delete + add. Apply upstream edits to the **new** path, then re-apply fork
+content.
 
-- `packages/document/docs/en/apis/app/runtime/bff/use-hono-context.mdx` → `use-backend-context.mdx` (R087) and the `zh` twin (R088) — renamed for runtime-framework-neutral BFF naming, ~12-13% content change. Follow the rename; treat content per the `packages/document` [F] rule above.
-- `packages/runtime/plugin-runtime/scripts/gen-static.ts` → `scripts/gen-static.mts` (R075, ~25% modified) — ESM script for the tsgo toolchain. Follow the rename; port upstream script logic into the `.mts` file.
+| From → To | Notes |
+| --- | --- |
+| `packages/document/docs/en/apis/app/runtime/bff/use-hono-context.mdx` → `use-backend-context.mdx` (R087) and the `zh` twin (R088) | Renamed for runtime-framework-neutral BFF naming (~12-13% content change). Treat content per DOC-01. |
+| `packages/runtime/plugin-runtime/scripts/gen-static.ts` → `scripts/gen-static.mts` (R075, ~25% modified) | ESM script for the tsgo toolchain. Port upstream script logic into the `.mts` file. |
+
+## Appendix C — 2026-06-12 brutal-cleanup removals (fork-added; keep deleted)
+
+These are **fork-added** deletions, so a sync never resurrects them. This list
+exists so the deletions are not mistaken for merge losses. Source:
+`docs/research/fork-audit-2026-06-12-findings.md`.
+
+**Packages:** `packages/runtime/plugin-garfish` (Garfish compat lane; MF is the
+sole micro-frontend runtime, ADR-0011 retired; upstream removed its own before
+the baseline); `packages/server/plugin-koa`, `packages/server/plugin-express`
+(fork-resurrected v2 BFF adapters, absent upstream since v3, both `private`,
+unpublished — the v3 BFF pipeline is hono/effect-only and node-style handlers
+cannot satisfy the hono `prepareApiServer` contract);
+`packages/builder/**` (5 stale orphans; upstream removed `packages/builder` in
+`4df6c876aa`); `plugin-runtime/src/ssr/**` (4 orphaned legacy SSR copies),
+`runtime-utils/src/universal/async_storage.server.worker.ts`,
+`toolkit/types/common/moduleSdk.d.ts`; the prod-server zombie lane
+(`src/server/{index,modernServerSplit}.ts`,
+`src/libs/{runtimeFallbackWorkerLane,loadConfig,metrics}.ts`, `src/utils.ts`,
+`benchmark/runtime-resilience`) — the live telemetry lane is
+`@modern-js/server-runtime-extensions`.
+
+**Scripts and CI:** the MV governance layer (~6,550 LOC:
+`scripts/mv-zephyr-profile`, `mv-production-rollout`, `mv-ci-hardening`,
+`mv-lane-policy`, `wave0-mv-contracts`, 3 of 5 `mv-integration-pilot` drills,
+both `.github/workflows/mv-*.yml`; **kept**: the `validate:mv-topology-smoke`
+lane); the SuperApp load/preflight chain (`scripts/superapp-k6` —
+5.2k lines that could never execute, `scripts/superapp-load`,
+`scripts/ultramodern-preflight`, `scripts/ultramodern-contract-doctor`,
+`scripts/superapp-local-control-plane`,
+`scripts/superapp-certification/validate-harness-contract.js`; certification
+profiles slimmed release 16→12 and nightly 22→15; the readiness report no longer
+converts skipped/budget-failed artifacts into passed evidence); and the dead
+script families `ultramodern-version-switching`,
+`ultramodern-cloudflare-ssr-validation`, `ultramodern-zephyr-live-evidence`,
+`ai-capabilities`, `test-orchestrator`,
+`ultramodern-publish/resolve-affected-packages.mjs`,
+`ultramodern-zephyr-ssr-upload`, `ultramodern-publish-readiness`, plus the
+ownership/blast-radius module in `scripts/boundary-guards/validator.js`.
+Surviving validation: `tests/integration/create-ultramodern-workspace` and each
+generated workspace's own `scripts/validate-ultramodern-workspace.mjs`.
+The deleted Phase A-C `.github/workflows/mv-*.yml` governance layer is **not**
+current evidence — do not cite it.
 
 ---
 
-## Appendix C — 2026-06-12 brutal-cleanup removals (fork-added code; keep deleted on sync)
+## 12. Sync guidance
 
-The fork-audit cleanup (see `docs/research/fork-audit-2026-06-12-findings.md`) deleted the following **fork-added** code. None of it exists upstream at the baseline, so a sync never resurrects it — this list exists so the deletions are not mistaken for merge losses.
-
-Packages:
-
-- `packages/runtime/plugin-garfish` — the fork-rewritten Garfish compat lane (trust/compatibility/fallback-telemetry/cache-policy). Module Federation is the sole micro-frontend runtime surface (ADR-0011 retired). Upstream removed its own plugin-garfish before the baseline; keep deleted.
-- `packages/server/plugin-koa`, `packages/server/plugin-express` — fork-resurrected v2 BFF adapter packages (re-added in 42e2dcf66f, absent upstream since v3, both `private: true` and unpublished). Deleted per findings server-lane#3 / xcut-dead-features#3: the v3 BFF pipeline is hono/effect-only (`BffRuntimeFramework` in `packages/server/core/src/types/config/bff.ts`) and the adapters' node-style handlers could not satisfy the hono `prepareApiServer` contract. Hono-side cross-project enforcement lives in plugin-bff's `crossProjectApiPlugin`; coverage lives in bff-core's `crossProjectPolicy`/`resolveCrossProjectPolicy`/`adapterKit` tests.
-- `packages/builder/**` (5 stale orphan files) — upstream removed `packages/builder` in 4df6c876aa; the fork copies (incl. the DIAG-0001 `performance.ts` diagnostics writer that never had a live producer) are deleted.
-- `packages/runtime/plugin-runtime/src/ssr/**` (4 orphaned legacy SSR copies), `packages/toolkit/runtime-utils/src/universal/async_storage.server.worker.ts`, `packages/toolkit/types/common/moduleSdk.d.ts` — fork-added orphans, deleted.
-- prod-server zombie lane: `src/server/{index,modernServerSplit}.ts`, `src/libs/{runtimeFallbackWorkerLane,loadConfig,metrics}.ts`, `src/utils.ts` and the worker-lane config surface; `benchmark/runtime-resilience`. The live telemetry lane is `@modern-js/server-runtime-extensions`.
-
-Scripts and CI (fork-added; ~repo-tooling only):
-
-- MV governance layer (~6,550 LOC) per scripts-mv#1..#10: `scripts/mv-zephyr-profile`, `scripts/mv-production-rollout`, `scripts/mv-ci-hardening`, `scripts/mv-lane-policy`, `scripts/wave0-mv-contracts`, 3 of 5 `scripts/mv-integration-pilot` drills, and both `.github/workflows/mv-*.yml`. Kept: the `validate:mv-topology-smoke` lane (reference-topology + design-system-bad-release-drill).
-- SuperApp load/preflight chain: `scripts/superapp-k6` (5.2k-line lane that could never execute — k6/autocannon installed nowhere, every invocation skip-passed against a server that was never started; scripts-superapp#1), `scripts/superapp-load` (third load engine, single consumer; xcut-scripts-duplication#8), `scripts/ultramodern-preflight` + `scripts/ultramodern-contract-doctor` + `scripts/superapp-local-control-plane` (chain broken on every fresh workspace, wired to no CI; scripts-ultramodern#1-2), `scripts/superapp-certification/validate-harness-contract.js` (vacuous gate; scripts-superapp#4). Certification profiles slimmed (release 16→12, nightly 22→15 commands); the readiness report no longer converts skipped/budget-failed artifacts into passed evidence (scripts-superapp#2). Surviving validation: `tests/integration/create-ultramodern-workspace` plus each generated workspace's own `scripts/validate-ultramodern-workspace.mjs`.
-- Dead script families per scripts-misc: `scripts/ultramodern-version-switching` (tautological self-simulation), `scripts/ultramodern-cloudflare-ssr-validation` (duplicated the workspace cloudflare proof; retired Tractor defaults), `scripts/ultramodern-zephyr-live-evidence` (hardcoded retired Tractor topology), `scripts/ai-capabilities` (LSP-framed MCP bridge no MCP client can speak + tautological parity gate), `scripts/test-orchestrator` (no consumer), `scripts/ultramodern-publish/resolve-affected-packages.mjs` (contradicted the enforced full-cohort publish). The ownership/blast-radius module was removed from `scripts/boundary-guards/validator.js`. `scripts/ultramodern-zephyr-ssr-upload` and `scripts/ultramodern-publish-readiness` were deleted in cleanup round 23 (no live automated consumer; publish-readiness duplicated source-create-proof validation).
-
-## Sync guidance
-
-1. Resolve [M] conflicts toward upstream, then re-run `npx biome check --write` and restore `@effect-diagnostics` pragmas.
-2. Keep the fork side for everything [F]; diffs inside upstream-owned files are intentionally minimal — if a conflict looks large, check whether the logic should move to a fork-owned module instead. For the coupled dependency migrations (`bff-runtime`, `plugin-polyfill`) keep `package.json` + source together — never split sides within the package.
-3. Current verified [U] queue: builder `postcss.ts` app-root resolution and runtime `PrefetchLink.tsx` intent/render/viewport prefetch. Service-worker ESM output, the edge-safe language detector, and `matchRoute` undefined narrowing landed upstream and are no longer fork divergences.
-4. Deleted upstream files (Appendix A): keep them deleted; a merge that resurrects one is wrong even if it applies cleanly. Port the upstream change into the fork replacement listed per file.
-5. Renamed files (Appendix B): run the sync with rename detection on (`git merge`/`git diff -M`) and land upstream edits on the renamed path.
+1. Resolve `keep-[M]` conflicts toward upstream, then re-run
+   `npx biome check --write` and restore `@effect-diagnostics` pragmas.
+2. Keep the fork side for everything `keep-[F]`. Diffs inside upstream-owned
+   files are intentionally minimal — if a conflict looks large, the logic should
+   probably move to a fork-owned module (an `extension-point` row). For the
+   coupled dependency migrations (SRV-04 `bff-runtime`, SRV-14
+   `plugin-polyfill`, CLI-18 `plugin-styled-components`) keep `package.json` and
+   source **together**; never split sides within the package.
+3. Current verified upstream-PR queue: CLI-05 (builder postcss app-root
+   resolution), RT-09 (PrefetchLink prefetch behaviors, after RT-07/RT-08),
+   RT-16 (RSC catch-all 404 status), SRV-03 (generated client must emit the
+   imported `fetch` identifier, not upstream's `fetch: 'fetch'` string literal),
+   SRV-13 (upload `formData`), SRV-18 (dev-server strictness), CLI-13 (BFF
+   generator fail-fast/merge half), ROOT-20/ROOT-21 (zephyr example hygiene).
+   Service-worker ESM output, the
+   edge-safe language detector, and `matchRoute` undefined narrowing landed
+   upstream and are no longer fork divergences.
+4. Appendix A files stay deleted; a merge that resurrects one is wrong even if
+   it applies cleanly. Port the upstream change into the listed replacement.
+5. Appendix B: run the sync with rename detection on and land upstream edits on
+   the renamed path.
+6. After the sync, re-run
+   `node scripts/ultramodern-boundary-check/check-fork-import-boundary.js`.
+   Any `unallowlisted-divergence` is a new Bucket-B entry that needs a row in
+   this ledger before the budget is re-recorded.
