@@ -1,5 +1,5 @@
 const path = require('path');
-const { runCommand, runCommandList } = require('../../lib/process-kit');
+const { runCommandList } = require('../../lib/process-kit');
 
 const formatCommand = ({ command, args = [] }) => [command, ...args].join(' ');
 
@@ -21,31 +21,6 @@ const normalizeCommandSpec = value => {
     ...normalized,
     label: spec.label || formatCommand(normalized),
   };
-};
-
-const executeCommand = ({ command, cwd, commandRunner, failureMessage }) => {
-  const commandSpec = normalizeCommandSpec(command);
-  if (typeof commandRunner === 'function') {
-    commandRunner({
-      ...commandSpec,
-      cwd,
-    });
-    return;
-  }
-
-  const result = runCommand(commandSpec.command, commandSpec.args, {
-    cwd,
-  });
-
-  if (typeof result.processStatus === 'number' && result.processStatus !== 0) {
-    throw new Error(
-      `${failureMessage} (exit code ${String(result.processStatus)})`,
-    );
-  }
-
-  if (result.error) {
-    throw new Error(`${failureMessage}\n${result.error.message}`);
-  }
 };
 
 const runGateCommands = ({ commands, cwd }) => {
@@ -81,6 +56,5 @@ const runGateCommands = ({ commands, cwd }) => {
 };
 
 module.exports = {
-  executeCommand,
   runGateCommands,
 };
