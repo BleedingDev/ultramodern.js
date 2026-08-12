@@ -26,7 +26,7 @@ import {
   type UltramodernToolingConfig,
 } from '../../config';
 import { writeGeneratedUiSourceIfChanged } from './generated-ui-source';
-import { type MigrationIo, readJsonFile, writeTextIfChanged } from './io';
+import { type MigrationIo, readJsonFile } from './io';
 
 function isGeneratedShellComposition(source: string) {
   return (
@@ -65,8 +65,7 @@ export function updateGeneratedModernConfigs(
 
   for (const app of apps) {
     changed =
-      writeTextIfChanged(
-        io,
+      io.write(
         path.join(io.workspaceRoot, app.directory, 'modern.config.ts'),
         createAppModernConfig(
           config.workspace.packageScope,
@@ -80,8 +79,7 @@ export function updateGeneratedModernConfigs(
     // not write a browser config for it — and must remove a stale one.
     if (appEmitsBrowserUi(app)) {
       changed =
-        writeTextIfChanged(
-          io,
+        io.write(
           path.join(
             io.workspaceRoot,
             app.directory,
@@ -112,8 +110,7 @@ export function updateGeneratedModernConfigs(
 
     if (appHasApi(app)) {
       changed =
-        writeTextIfChanged(
-          io,
+        io.write(
           path.join(
             io.workspaceRoot,
             app.directory,
@@ -156,14 +153,12 @@ export function updateGeneratedModernConfigs(
         isGeneratedShellComposition(existingComponents)
       ) {
         changed =
-          writeTextIfChanged(
-            io,
+          io.write(
             componentsPath,
             createShellRemoteComponents(app, shellUiRemotes),
           ) || changed;
         changed =
-          writeTextIfChanged(
-            io,
+          io.write(
             workerComponentsPath,
             createShellWorkerRemoteComponents(app, shellUiRemotes),
           ) || changed;

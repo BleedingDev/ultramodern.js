@@ -5,21 +5,19 @@ import {
   allWorkspaceAppsFromToolingConfig,
   type UltramodernToolingConfig,
 } from '../../config';
-import { type MigrationIo, writeTextIfChanged } from './io';
+import { type MigrationIo } from './io';
 
 export function updateGeneratedZeropsArtifacts(
   io: MigrationIo,
   config: UltramodernToolingConfig,
 ) {
   const apps = allWorkspaceAppsFromToolingConfig(config);
-  let changed = writeTextIfChanged(
-    io,
+  let changed = io.write(
     path.join(io.workspaceRoot, 'zerops.yaml'),
     `${createZeropsYaml(config.workspace.packageScope, apps)}\n`,
   );
   changed =
-    writeTextIfChanged(
-      io,
+    io.write(
       path.join(io.workspaceRoot, 'scripts/materialize-zerops-runtime.mjs'),
       createZeropsRuntimeMaterializationScript(),
     ) || changed;

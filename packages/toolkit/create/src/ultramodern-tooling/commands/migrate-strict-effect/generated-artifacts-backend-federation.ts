@@ -4,7 +4,7 @@ import {
   allWorkspaceAppsFromToolingConfig,
   type UltramodernToolingConfig,
 } from '../../config';
-import { type MigrationIo, writeTextIfChanged } from './io';
+import { type MigrationIo } from './io';
 
 export function updateGeneratedBackendFederationContractFiles(
   io: MigrationIo,
@@ -16,8 +16,7 @@ export function updateGeneratedBackendFederationContractFiles(
       continue;
     }
     changed =
-      writeTextIfChanged(
-        io,
+      io.write(
         path.join(io.workspaceRoot, app.directory, 'api/backend-federation.ts'),
         createBackendFederationContractFile(app),
       ) || changed;

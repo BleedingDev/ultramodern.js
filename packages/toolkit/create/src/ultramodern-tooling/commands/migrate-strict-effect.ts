@@ -31,6 +31,8 @@ import {
   updateReferenceTopology,
   updateUltramodernConfig,
 } from './migrate-strict-effect/api-metadata';
+import { ensureGeneratedDeclarationPatches } from './migrate-strict-effect/declaration-patches';
+import { workspaceUsesDependency } from './migrate-strict-effect/dependency-usage';
 import {
   ensureGeneratedOxfmtIgnorePatterns,
   ensureGeneratedOxlintComponentStyle,
@@ -59,10 +61,8 @@ import {
 } from './migrate-strict-effect/package-cohort';
 import { createMigrationPackageSource } from './migrate-strict-effect/package-source';
 import {
-  ensureGeneratedDeclarationPatches,
   updateGeneratedPnpmWorkspacePolicy,
   validateGeneratedPnpmLockReleaseAgePolicy,
-  workspaceUsesDependency,
 } from './migrate-strict-effect/pnpm-policy';
 import {
   updateGeneratedToolchainFiles,

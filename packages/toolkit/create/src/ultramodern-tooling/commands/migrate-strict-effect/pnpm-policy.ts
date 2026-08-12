@@ -26,12 +26,6 @@ import {
   stringifyPnpmWorkspaceYaml,
 } from './pnpm-yaml';
 
-export { ensureGeneratedDeclarationPatches } from './declaration-patches';
-export { workspaceUsesDependency } from './dependency-usage';
-
-const exactVersionPattern =
-  /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/u;
-
 const legacyBareReleaseAgePackages = new Set([
   ...Object.keys(ULTRAMODERN_PACKAGE_PINS.appDependencies),
   ...Object.keys(ULTRAMODERN_PACKAGE_PINS.appDevDependencies),
@@ -193,12 +187,6 @@ function assertOwnedReleaseAgeList(
       continue;
     }
 
-    const parts = packageVersionParts(entry);
-    if (!parts || !exactVersionPattern.test(parts.version)) {
-      throw new Error(
-        `Unapproved release-age exclusion "${entry}" is not an exact package@version.`,
-      );
-    }
     throw new Error(
       `Unapproved release-age exclusion "${entry}" has no canonical review evidence.`,
     );

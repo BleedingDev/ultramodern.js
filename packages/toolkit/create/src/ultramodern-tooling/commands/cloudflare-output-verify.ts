@@ -4,7 +4,7 @@ import {
   workspaceAppsFromToolingConfig,
 } from '../config';
 import { type CommandContext, runRenderedModule } from './context';
-import { hasFlag, readOption } from './options';
+import { readOption } from './options';
 
 interface CloudflareOutputVerifyTarget {
   label: string;
@@ -52,22 +52,18 @@ const resolveCloudflareOutputVerifyTargets = (
 const renderCloudflareOutputVerifyModule = ({
   workspaceRoot,
   targets,
-  scanRoots,
   excludePaths,
-  importWorker,
 }: {
   workspaceRoot: string;
   targets: CloudflareOutputVerifyTarget[];
-  scanRoots: string[];
   excludePaths: string[];
-  importWorker: boolean;
 }) => `
 import { createRequire } from 'node:module';
 import path from 'node:path';
 
 const workspaceRoot = ${JSON.stringify(workspaceRoot)};
 const targets = ${JSON.stringify(targets, null, 2)};
-const scanRoots = ${JSON.stringify(scanRoots)};
+const scanRoots = [workspaceRoot];
 const excludePaths = ${JSON.stringify(excludePaths)};
 const verifierRequire = createRequire(path.join(workspaceRoot, 'package.json'));
 const {
@@ -79,7 +75,7 @@ let failed = false;
 for (const target of targets) {
   const result = await verifyCloudflareOutput({
     outputDirectory: target.outputDirectory,
-    importWorker: ${JSON.stringify(importWorker)},
+    importWorker: true,
   });
   if (result.ok) {
     console.log(\`[ultramodern] Cloudflare output verified: \${target.label}\`);
@@ -112,7 +108,7 @@ export function runCloudflareOutputVerify(
 ) {
   if (args.includes('--help') || args.includes('-h')) {
     process.stdout.write(`Usage:
-  modern-js-create ultramodern cloudflare-output-verify [--app <id> | --output <dir>] [--no-import-worker] [--no-source-scan]
+  modern-js-create ultramodern cloudflare-output-verify [--app <id> | --output <dir>]
 
 Verifies generated Cloudflare output against the UltraModern worker contract.
 Without --app or --output, every generated workspace app is verified.
@@ -123,7 +119,6 @@ Without --app or --output, every generated workspace app is verified.
   const source = renderCloudflareOutputVerifyModule({
     workspaceRoot: context.workspaceRoot,
     targets: resolveCloudflareOutputVerifyTargets(args, context),
-    scanRoots: hasFlag(args, '--no-source-scan') ? [] : [context.workspaceRoot],
     // The generated validation-contract validator is a read-only proof artifact
     // whose embedded contract records generated-output paths as data; exclude it
     // from the mutation scan so those literals are not misread as a rewrite.
@@ -134,7 +129,6 @@ Without --app or --output, every generated workspace app is verified.
         'validate-ultramodern-workspace.mts',
       ),
     ],
-    importWorker: !hasFlag(args, '--no-import-worker'),
   });
 
   return runRenderedModule(source, context);

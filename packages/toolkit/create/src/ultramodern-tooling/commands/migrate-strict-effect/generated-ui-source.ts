@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import { isDeepStrictEqual } from 'node:util';
 import type { MigrationIo } from './io';
-import { writeTextIfChanged } from './io';
+import {} from './io';
 
 const multiCharacterTokens = [
   '===',
@@ -128,5 +128,5 @@ export function writeGeneratedUiSourceIfChanged(
   ) {
     return false;
   }
-  return writeTextIfChanged(io, filePath, nextSource);
+  return io.write(filePath, nextSource);
 }

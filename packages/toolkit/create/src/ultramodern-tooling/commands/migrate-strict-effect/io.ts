@@ -382,22 +382,6 @@ export function writeJsonFile(
   return io.write(filePath, `${JSON.stringify(value, null, 2)}\n`);
 }
 
-export function writeJsonIfChanged(
-  io: MigrationIo,
-  filePath: string,
-  value: unknown,
-) {
-  return io.write(filePath, `${JSON.stringify(value, null, 2)}\n`);
-}
-
-export function writeTextIfChanged(
-  io: MigrationIo,
-  filePath: string,
-  value: string,
-) {
-  return io.write(filePath, value);
-}
-
 export function listWorkspacePackageFiles(workspaceRoot: string) {
   const packageFiles = ['package.json'];
 

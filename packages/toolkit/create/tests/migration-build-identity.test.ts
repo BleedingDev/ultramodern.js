@@ -11,26 +11,23 @@ import { runStableTypeScript } from './helpers/stable-typescript';
 
 function compileAndExecute(apiSource: string, usageSource: string) {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-identity-'));
-  const outputRoot = path.join(tempRoot, 'dist');
-
   try {
     fs.writeFileSync(path.join(tempRoot, 'api.ts'), apiSource);
     fs.writeFileSync(
       path.join(tempRoot, 'ultramodern-build.ts'),
       "export const ultramodernApiMarker = { build: 'canonical-build' } as const;\n",
     );
-    const usagePath = path.join(tempRoot, 'usage.ts');
-    fs.writeFileSync(usagePath, usageSource);
+    fs.writeFileSync(path.join(tempRoot, 'usage.ts'), usageSource);
     const compiled = runStableTypeScript(
       [
-        usagePath,
+        'usage.ts',
         '--ignoreConfig',
         '--module',
         'node16',
         '--moduleResolution',
         'node16',
         '--outDir',
-        outputRoot,
+        'dist',
         '--pretty',
         'false',
         '--rewriteRelativeImportExtensions',
@@ -44,8 +41,10 @@ function compileAndExecute(apiSource: string, usageSource: string) {
     assert.equal(compiled.status, 0, compiled.output);
     const executed = spawnSync(
       process.execPath,
-      [path.join(outputRoot, 'usage.js')],
-      { encoding: 'utf-8' },
+      [path.join(tempRoot, 'dist/usage.js')],
+      {
+        encoding: 'utf-8',
+      },
     );
     assert.equal(executed.status, 0, `${executed.stdout}\n${executed.stderr}`);
   } finally {
@@ -54,11 +53,11 @@ function compileAndExecute(apiSource: string, usageSource: string) {
 }
 
 test('migration binds legacy API markers to the canonical build identity', () => {
-  const source = `const Schema = {
+  compileAndExecute(
+    rewriteLegacyApiMarkerBinding(`const Schema = {
   String: 'string',
   Struct: <T>(value: T) => value,
 };
-
 export const ultramodernApiMarker = {
   appId: 'catalog',
   build: 'stale-build',
@@ -67,26 +66,20 @@ export const ultramodernApiMarker = {
   surface: 'effect-bff',
   version: '0.1.0',
 } as const;
-
 export const markerSchema = Schema.Struct({ build: Schema.String });
-`;
-
-  compileAndExecute(
-    rewriteLegacyApiMarkerBinding(source),
+`),
     `import { markerSchema, ultramodernApiMarker } from './api';
-if (ultramodernApiMarker.build !== 'canonical-build' || markerSchema.build !== 'string') {
-  throw new Error('legacy API marker migration did not bind the canonical identity');
-}
+if (ultramodernApiMarker.build !== 'canonical-build' || markerSchema.build !== 'string') throw new Error('identity');
 `,
   );
 });
 
 test('migration preserves complete delivery-unit identity in custom Effect marker schemas', () => {
-  const source = `const Schema = {
+  compileAndExecute(
+    rewriteApiMarkerIdentitySchema(`const Schema = {
   String: 'string',
   Struct: <T>(value: T) => value,
 };
-
 export const catalogMarkerSchema = Schema.Struct({
   appId: Schema.String,
   build: Schema.String,
@@ -95,27 +88,11 @@ export const catalogMarkerSchema = Schema.Struct({
   surface: Schema.String,
   version: Schema.String,
 });
-
 export { ultramodernApiMarker } from './ultramodern-build.ts';
-`;
-
-  compileAndExecute(
-    rewriteApiMarkerIdentitySchema(source),
+`),
     `import { catalogMarkerSchema } from './api';
-const required = [
-  'appId',
-  'build',
-  'buildMarker',
-  'deployProfile',
-  'packageName',
-  'sourceRevision',
-  'surface',
-  'unitId',
-  'version',
-];
-if (!required.every(field => Object.hasOwn(catalogMarkerSchema, field))) {
-  throw new Error('marker schema migration dropped delivery-unit identity');
-}
+const required = ['appId', 'build', 'buildMarker', 'deployProfile', 'packageName', 'sourceRevision', 'surface', 'unitId', 'version'];
+if (!required.every(field => Object.hasOwn(catalogMarkerSchema, field))) throw new Error('schema');
 `,
   );
 });

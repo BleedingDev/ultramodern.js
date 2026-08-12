@@ -26,7 +26,7 @@ import {
   type UltramodernToolingConfig,
 } from '../../config';
 import { writeGeneratedUiSourceIfChanged } from './generated-ui-source';
-import { type MigrationIo, writeJsonIfChanged, writeTextIfChanged } from './io';
+import { type MigrationIo, writeJsonFile } from './io';
 
 type JsonObject = Record<string, unknown>;
 
@@ -140,8 +140,7 @@ function updateGeneratedNavigationSurfaces(
       if (fs.existsSync(filePath)) {
         const source = fs.readFileSync(filePath, 'utf-8');
         changed =
-          writeTextIfChanged(
-            io,
+          io.write(
             filePath,
             regenerateGeneratedNavigationSurface(source, 'shell-frame'),
           ) || changed;
@@ -184,8 +183,7 @@ function updateGeneratedNavigationSurfaces(
         continue;
       }
       changed =
-        writeTextIfChanged(
-          io,
+        io.write(
           filePath,
           regenerateGeneratedNavigationSurface(source, 'demo-component'),
         ) || changed;
@@ -297,13 +295,13 @@ function updateGeneratedShellRuntimeSurfaces(
         ),
       );
       changed =
-        writeJsonIfChanged(
+        writeJsonFile(
           io,
           path.join(shellLocaleDirectory, `${appI18nNamespace(app)}.json`),
           mergedLocale,
         ) || changed;
       changed =
-        writeJsonIfChanged(
+        writeJsonFile(
           io,
           path.join(shellLocaleDirectory, 'translation.json'),
           mergedLocale,
@@ -311,8 +309,7 @@ function updateGeneratedShellRuntimeSurfaces(
     }
 
     changed =
-      writeTextIfChanged(
-        io,
+      io.write(
         runtimePath,
         createAppRuntimeConfig(app, config.workspace.packageScope, remotes),
       ) || changed;
@@ -330,7 +327,7 @@ export function updateGeneratedTypeScriptSurfaces(
   const remotes = apps.filter(app => app.kind !== 'shell');
 
   changed =
-    writeJsonIfChanged(
+    writeJsonFile(
       io,
       path.join(io.workspaceRoot, 'tsconfig.base.json'),
       createTsConfigBase(),
@@ -342,7 +339,7 @@ export function updateGeneratedTypeScriptSurfaces(
     'packages/shared-design-tokens',
   ]) {
     changed =
-      writeJsonIfChanged(
+      writeJsonFile(
         io,
         path.join(io.workspaceRoot, sharedPackage, 'tsconfig.json'),
         createSharedPackageTsConfig(sharedPackage),
@@ -351,20 +348,19 @@ export function updateGeneratedTypeScriptSurfaces(
 
   for (const app of apps) {
     changed =
-      writeJsonIfChanged(
+      writeJsonFile(
         io,
         path.join(io.workspaceRoot, app.directory, 'tsconfig.json'),
         createAppTsConfig(app, remotes),
       ) || changed;
     changed =
-      writeJsonIfChanged(
+      writeJsonFile(
         io,
         path.join(io.workspaceRoot, app.directory, 'tsconfig.mf-types.json'),
         createAppMfTypesTsConfig(app),
       ) || changed;
     changed =
-      writeTextIfChanged(
-        io,
+      io.write(
         path.join(io.workspaceRoot, app.directory, 'src/modern-app-env.d.ts'),
         createAppEnvDts(app, remotes, config.workspace.packageScope),
       ) || changed;

@@ -9,7 +9,7 @@ import {
   allWorkspaceAppsFromToolingConfig,
   type UltramodernToolingConfig,
 } from '../../config';
-import { type MigrationIo, writeTextIfChanged } from './io';
+import { type MigrationIo } from './io';
 
 const legacyApiMarkerPattern =
   /export const ultramodernApiMarker\s*=\s*\{[\s\S]*?\}\s+as const;\n?/u;
@@ -17,9 +17,6 @@ const markerSchemaPattern =
   /(export const [A-Za-z_$][\w$]*MarkerSchema(?:\s*:[^=]+)?\s*=\s*Schema\.Struct\(\{\n)([\s\S]*?)(\n\}\);)/u;
 
 export function rewriteLegacyApiMarkerBinding(source: string): string {
-  if (!legacyApiMarkerPattern.test(source)) {
-    return source;
-  }
   return source.replace(
     legacyApiMarkerPattern,
     "export { ultramodernApiMarker } from './ultramodern-build.ts';\n",
@@ -31,38 +28,33 @@ export function rewriteApiMarkerIdentitySchema(source: string): string {
   if (!match) {
     return source;
   }
-
   let body = match[2];
-  const requiredLegacyFields = [
-    'appId',
-    'build',
-    'deployProfile',
-    'packageName',
-    'surface',
-    'version',
-  ];
   if (
-    !requiredLegacyFields.every(field =>
+    ![
+      'appId',
+      'build',
+      'deployProfile',
+      'packageName',
+      'surface',
+      'version',
+    ].every(field =>
       new RegExp(`^\\s+${field}: Schema\\.String,\\s*$`, 'mu').test(body),
     )
   ) {
     return source;
   }
-
-  const insertAfter = (anchor: string, field: string) => {
-    if (new RegExp(`^\\s+${field}: Schema\\.String,\\s*$`, 'mu').test(body)) {
-      return;
+  for (const [anchor, field] of [
+    ['build', 'buildMarker'],
+    ['packageName', 'sourceRevision'],
+    ['surface', 'unitId'],
+  ]) {
+    if (!new RegExp(`^\\s+${field}: Schema\\.String,\\s*$`, 'mu').test(body)) {
+      body = body.replace(
+        new RegExp(`^(\\s+)${anchor}: Schema\\.String,\\s*$`, 'mu'),
+        `$&\n$1${field}: Schema.String,`,
+      );
     }
-    body = body.replace(
-      new RegExp(`^(\\s+)${anchor}: Schema\\.String,\\s*$`, 'mu'),
-      `$&\n$1${field}: Schema.String,`,
-    );
-  };
-
-  insertAfter('build', 'buildMarker');
-  insertAfter('packageName', 'sourceRevision');
-  insertAfter('surface', 'unitId');
-
+  }
   return source.replace(
     markerSchemaPattern,
     (_full, prefix: string, _body: string, suffix: string) =>
@@ -83,8 +75,7 @@ export function updateGeneratedBuildIdentityModules(
     );
     if (app.api && fs.existsSync(sharedApiPath)) {
       changed =
-        writeTextIfChanged(
-          io,
+        io.write(
           sharedApiPath,
           rewriteApiMarkerIdentitySchema(
             rewriteLegacyApiMarkerBinding(
@@ -94,14 +85,12 @@ export function updateGeneratedBuildIdentityModules(
         ) || changed;
     }
     changed =
-      writeTextIfChanged(
-        io,
+      io.write(
         path.join(io.workspaceRoot, app.directory, 'src/ultramodern-build.ts'),
         createUltramodernBuildReexportModule(),
       ) || changed;
     changed =
-      writeTextIfChanged(
-        io,
+      io.write(
         path.join(
           io.workspaceRoot,
           app.directory,
@@ -110,8 +99,7 @@ export function updateGeneratedBuildIdentityModules(
         createUltramodernBuildModule(config.workspace.packageScope, app),
       ) || changed;
     changed =
-      writeTextIfChanged(
-        io,
+      io.write(
         path.join(
           io.workspaceRoot,
           app.directory,

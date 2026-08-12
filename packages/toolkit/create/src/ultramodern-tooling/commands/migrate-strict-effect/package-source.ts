@@ -21,9 +21,7 @@ export function createMigrationPackageSource(
         '--ultramodern-package-version',
         '--registry',
         '--ultramodern-package-registry',
-        '--alias-scope',
         '--ultramodern-package-scope',
-        '--alias-package-name-prefix',
         '--ultramodern-package-name-prefix',
       ].some(option => readOption(args, option) !== undefined));
   if (isCreatePackageSourceCheckout() && explicitInstallRequested) {
@@ -38,16 +36,13 @@ export function createMigrationPackageSource(
   const registry =
     readOption(args, '--registry') ??
     readOption(args, '--ultramodern-package-registry');
-  const explicitAliasScope =
-    readOption(args, '--alias-scope') ??
-    readOption(args, '--ultramodern-package-scope');
+  const explicitAliasScope = readOption(args, '--ultramodern-package-scope');
   const aliasScope =
     explicitAliasScope ??
     (strategy === 'install' && registry === undefined
       ? (current.packageSource?.aliasScope ?? BLEEDINGDEV_PACKAGE_SCOPE)
       : current.packageSource?.aliasScope);
   const aliasPackageNamePrefix =
-    readOption(args, '--alias-package-name-prefix') ??
     readOption(args, '--ultramodern-package-name-prefix') ??
     current.packageSource?.aliasPackageNamePrefix ??
     (aliasScope ? BLEEDINGDEV_PACKAGE_NAME_PREFIX : undefined);
