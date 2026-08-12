@@ -63,7 +63,7 @@ export interface PresetUltramodernOptions {
   /**
    * Enable fail-loud startup probing for telemetry exporters.
    * Probes only run for exporters that are actually enabled.
-   * @default true
+   * @default false
    */
   telemetryFailLoudStartup?: boolean;
   /**
@@ -174,7 +174,7 @@ export const createPresetUltramodernConfig = (
     enableTelemetryExporters,
     otlpEndpoint = process.env.MODERN_TELEMETRY_OTLP_ENDPOINT,
     victoriaMetricsEndpoint = process.env.MODERN_TELEMETRY_VICTORIA_ENDPOINT,
-    telemetryFailLoudStartup = true,
+    telemetryFailLoudStartup = false,
     enableModuleFederationSSR = true,
   } = options;
 

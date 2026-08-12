@@ -84,7 +84,7 @@ describe('presetUltramodern config', () => {
     // configured, so fail-loud startup probes have nothing to fail on.
     expect(preset.server?.telemetry).toEqual({
       enabled: true,
-      failLoudStartup: true,
+      failLoudStartup: false,
     });
     expect(preset.bff?.requestId).toBe('app');
     expect(
@@ -165,7 +165,7 @@ describe('presetUltramodern config', () => {
 
     expect(preset.server?.telemetry).toEqual({
       enabled: true,
-      failLoudStartup: true,
+      failLoudStartup: false,
       exporters: {
         otlp: {
           enabled: true,
