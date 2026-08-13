@@ -5,7 +5,7 @@
   "migrationGoal": "Shrink-only budget of fork edits inside upstream-owned files. Every entry is debt: move it upstream or behind an extension point, then re-run --write-divergence-allowlist.",
   "totalFiles": 633,
   "totalHunks": 2835,
-  "totalChangedLines": 33831,
+  "totalChangedLines": 33825,
   "files": [
     {
       "file": "packages/cli/adapter-rstest/package.json",
@@ -975,7 +975,7 @@
     {
       "file": "packages/runtime/plugin-i18n/src/runtime/i18n/detection/index.ts",
       "hunks": 1,
-      "changedLines": 651
+      "changedLines": 645
     },
     {
       "file": "packages/runtime/plugin-i18n/src/runtime/i18n/detection/middleware.node.ts",
