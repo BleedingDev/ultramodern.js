@@ -55,6 +55,41 @@ const tractorTopologiesByBaseline = Object.freeze({
   a2cc23e01c280ed34fb8e9a1e7117f5efe67ec37: reviewedTractorTopology,
   cb6974e31bc919c86ae5bb86044409f0f1e036d5: reviewedTractorTopology,
 });
+const requiredUiControls = Object.freeze([
+  ['link', 'Add to basket'],
+  ['link', 'Checkout'],
+  ['textbox', 'Name'],
+  ['textbox', 'Email'],
+  ['textbox', 'Delivery address'],
+  ['button', 'Place order'],
+  ['heading', 'Thank you for your order'],
+]);
+const requiredUiBoundaries = Object.freeze([
+  ['explore', './ProductGrid'],
+  ['decide', './ProductPage'],
+  ['checkout', './CartPage'],
+  ['checkout', './CheckoutPage'],
+  ['checkout', './ThanksPage'],
+]);
+const requiredUiStyleSubjects = Object.freeze([
+  'product-grid',
+  'product-page',
+  'cart-page',
+  'checkout-page',
+  'thanks-page',
+]);
+const requiredUiInteractionTypes = Object.freeze([
+  'open-product',
+  'add-to-basket',
+  'begin-checkout',
+  'place-order',
+]);
+const visibleUiSummaryMinimums = Object.freeze({
+  accessibilityCheckCount: requiredUiControls.length,
+  boundaryCount: requiredUiBoundaries.length,
+  computedStyleSampleCount: requiredUiStyleSubjects.length,
+  runtimeInteractionCount: requiredUiInteractionTypes.length,
+});
 
 function assert(condition, message) {
   if (!condition) {
@@ -316,16 +351,7 @@ function assertVisibleTractorUi(workflow) {
   const controls = Array.isArray(ui.accessibility.controls)
     ? ui.accessibility.controls
     : [];
-  const requiredControls = [
-    ['link', 'Add to basket'],
-    ['link', 'Checkout'],
-    ['textbox', 'Name'],
-    ['textbox', 'Email'],
-    ['textbox', 'Delivery address'],
-    ['button', 'Place order'],
-    ['heading', 'Thank you for your order'],
-  ];
-  for (const [role, name] of requiredControls) {
+  for (const [role, name] of requiredUiControls) {
     const matches = controls.filter(
       control =>
         control?.role === role &&
@@ -347,13 +373,7 @@ function assertVisibleTractorUi(workflow) {
     'subject',
     'computed-style',
   );
-  for (const subject of [
-    'product-grid',
-    'product-page',
-    'cart-page',
-    'checkout-page',
-    'thanks-page',
-  ]) {
+  for (const subject of requiredUiStyleSubjects) {
     const sample = styles.get(subject);
     assert(sample, `Tractor visible UI proof is missing ${subject} style`);
     assert(
@@ -370,14 +390,7 @@ function assertVisibleTractorUi(workflow) {
     ui.dom?.status === 'pass' && Array.isArray(ui.dom.boundaries),
     'Tractor visible UI proof is missing passing DOM boundary evidence',
   );
-  const expectedBoundaries = [
-    ['explore', './ProductGrid'],
-    ['decide', './ProductPage'],
-    ['checkout', './CartPage'],
-    ['checkout', './CheckoutPage'],
-    ['checkout', './ThanksPage'],
-  ];
-  for (const [boundaryId, expose] of expectedBoundaries) {
+  for (const [boundaryId, expose] of requiredUiBoundaries) {
     const matches = ui.dom.boundaries.filter(
       boundary =>
         boundary?.boundaryId === boundaryId &&
@@ -399,12 +412,7 @@ function assertVisibleTractorUi(workflow) {
     'type',
     'runtime interaction',
   );
-  for (const type of [
-    'open-product',
-    'add-to-basket',
-    'begin-checkout',
-    'place-order',
-  ]) {
+  for (const type of requiredUiInteractionTypes) {
     assert(
       interactions.get(type)?.status === 'pass',
       `Tractor visible UI proof requires exactly one passing ${type} runtime interaction`,
@@ -420,11 +428,37 @@ function assertVisibleTractorUi(workflow) {
   };
 }
 
+// Acceptance reports carry only the summary assertVisibleTractorUi returns;
+// the raw browser evidence stays with the downstream run. Post-publish
+// validation therefore re-checks the summary shape, not the raw proof.
+function assertVisibleTractorUiSummary(summary) {
+  assert(
+    summary !== null && typeof summary === 'object' && !Array.isArray(summary),
+    'Tractor visible UI summary must be structured contract evidence',
+  );
+  const expectedKeys = [...Object.keys(visibleUiSummaryMinimums), 'status'];
+  assert(
+    isDeepStrictEqual(Object.keys(summary).sort(), [...expectedKeys].sort()),
+    'Tractor visible UI summary has unknown or missing fields',
+  );
+  assert(
+    summary.status === 'visible-ui-contract',
+    'Tractor visible UI summary must attest the executed visible UI contract',
+  );
+  for (const [key, minimum] of Object.entries(visibleUiSummaryMinimums)) {
+    assert(
+      Number.isSafeInteger(summary[key]) && summary[key] >= minimum,
+      `Tractor visible UI summary ${key} must cover at least ${minimum} evidence items`,
+    );
+  }
+}
+
 export {
   assertAuthenticatedTractorCohort,
   assertExactModernDependencySpecifiers,
   assertNativeTanStackSearch,
   assertVisibleTractorUi,
+  assertVisibleTractorUiSummary,
   requiredTractorCheckIds,
   requiredVisibleRuntimePlatforms,
   tractorTopologiesByBaseline,

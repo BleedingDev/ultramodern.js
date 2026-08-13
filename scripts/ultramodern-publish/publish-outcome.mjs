@@ -10,7 +10,7 @@ import validationKit from '../lib/validation-kit.js';
 import { assertOperationalIndependenceEvidenceMatchesReceipt } from '../ultramodern-production-readiness/published-create-proof/acceptance-contract.mjs';
 import { assertAcceptanceReceipt } from '../ultramodern-production-readiness/published-create-proof/acceptance-receipt.mjs';
 import {
-  assertVisibleTractorUi,
+  assertVisibleTractorUiSummary,
   requiredTractorCheckIds,
   requiredVisibleRuntimePlatforms,
   tractorTopologiesByBaseline,
@@ -410,7 +410,7 @@ function readTractorAcceptanceEvidence({
         `Tractor ${platform} visible UI summary differs from its executed browser workflow`,
       );
     }
-    assertVisibleTractorUi(workflow);
+    assertVisibleTractorUiSummary(workflow.ui);
   }
   return {
     baselineRevision,
