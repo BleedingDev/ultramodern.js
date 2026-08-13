@@ -445,6 +445,15 @@ const requiredPatchPolicies: readonly UltramodernPatchPolicy[] = [
     path: `patches/@module-federation__modern-js-v3@${MODULE_FEDERATION_VERSION}.patch`,
   },
   {
+    // router-core 1.171.21 still ships `MakeRouteMatch['__beforeLoadContext']`
+    // in dist ssr type declarations; the property does not exist on the type,
+    // so workspace builds fail under skipLibCheck:false (which generated
+    // workspaces enforce). Patch until an upstream release fixes the d.ts.
+    packageName: '@tanstack/router-core',
+    version: TANSTACK_ROUTER_CORE_VERSION,
+    path: `patches/@tanstack__router-core@${TANSTACK_ROUTER_CORE_VERSION}.patch`,
+  },
+  {
     packageName: 'effect',
     version: EFFECT_VERSION,
     path: 'patches/effect-schema-error-type-id.patch',
@@ -563,12 +572,6 @@ const stalePatchPolicies: readonly UltramodernStalePatchPolicy[] = [
     version: '1.171.14',
     path: 'patches/@tanstack__router-core@1.171.14.patch',
     sha256: '1e1572940e00d6327c75bb8457c108e32e75a2292e4d90d764208d5b6f330155',
-  },
-  {
-    packageName: '@tanstack/router-core',
-    version: '1.171.21',
-    path: 'patches/@tanstack__router-core@1.171.21.patch',
-    sha256: 'fb269f2a1c6c789ffb2d4f9341f6dd6a1dbb977b5bb66ce8e31a3a9cdd197dad',
   },
   {
     packageName: 'react-server-dom-rspack',

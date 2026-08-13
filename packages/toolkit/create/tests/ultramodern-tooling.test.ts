@@ -32,6 +32,7 @@ import {
   NODE_VERSION,
   OXFMT_VERSION,
   PNPM_VERSION,
+  TANSTACK_ROUTER_CORE_VERSION,
   TYPESCRIPT_VERSION,
 } from '../src/ultramodern-workspace/versions';
 
@@ -579,26 +580,35 @@ test('migrate retires the former generated Rspack RSC patch', async () => {
   }
 });
 
-test('migrate retires the obsolete TanStack router declaration patch', async () => {
+test('migrate materializes the required TanStack router declaration patch', async () => {
   const { tempRoot, workspaceDir } = scaffoldWorkspace(
-    'tooling-retired-tanstack-router-patch',
+    'tooling-required-tanstack-router-patch',
   );
   const workspacePath = path.join(workspaceDir, 'pnpm-workspace.yaml');
-  const patchFile = '@tanstack__router-core@1.171.21.patch';
+  const patchFile = `@tanstack__router-core@${TANSTACK_ROUTER_CORE_VERSION}.patch`;
   const relativePatchPath = `patches/${patchFile}`;
-  const selector = '@tanstack/router-core@1.171.21';
+  const selector = `@tanstack/router-core@${TANSTACK_ROUTER_CORE_VERSION}`;
+  const canonicalPatch = fs.readFileSync(
+    path.resolve(__dirname, '../template-workspace', relativePatchPath),
+    'utf-8',
+  );
 
   try {
+    assert.equal(
+      fs.readFileSync(path.join(workspaceDir, relativePatchPath), 'utf-8'),
+      canonicalPatch,
+      'fresh scaffolds must ship the canonical router-core declaration patch',
+    );
+
+    // Simulate a workspace created before the router-core 1.171.21 cohort:
+    // no selector and no patch file on disk.
     const policy = yaml.load(fs.readFileSync(workspacePath, 'utf-8')) as Record<
       string,
       any
     >;
-    policy.patchedDependencies[selector] = relativePatchPath;
+    delete policy.patchedDependencies[selector];
     fs.writeFileSync(workspacePath, yaml.dump(policy), 'utf-8');
-    fs.copyFileSync(
-      path.resolve(__dirname, 'fixtures/legacy-patches', patchFile),
-      path.join(workspaceDir, relativePatchPath),
-    );
+    fs.rmSync(path.join(workspaceDir, relativePatchPath));
 
     assert.equal(
       await runUltramodernToolingCli(
@@ -611,8 +621,15 @@ test('migrate retires the obsolete TanStack router declaration patch', async () 
     const migratedPolicy = yaml.load(
       fs.readFileSync(workspacePath, 'utf-8'),
     ) as Record<string, any>;
-    assert.equal(migratedPolicy.patchedDependencies[selector], undefined);
-    assert.equal(exists(workspaceDir, relativePatchPath), false);
+    assert.equal(
+      migratedPolicy.patchedDependencies[selector],
+      relativePatchPath,
+    );
+    assert.equal(
+      fs.readFileSync(path.join(workspaceDir, relativePatchPath), 'utf-8'),
+      canonicalPatch,
+      'migration must restore the canonical router-core declaration patch',
+    );
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }

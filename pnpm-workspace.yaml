@@ -63,6 +63,9 @@ patchedDependencies:
   '@module-federation/rspack@2.8.2': patches/@module-federation__rspack@2.8.2.patch
   # Repair bridge-react's declaration specifiers for portable TS resolution.
   '@module-federation/bridge-react@2.8.2': patches/@module-federation__bridge-react@2.8.2.patch
+  # 1.171.21 dist ssr declarations index a property MakeRouteMatch does not
+  # have; fails skipLibCheck:false consumers (generated workspaces enforce it).
+  '@tanstack/router-core@1.171.21': patches/@tanstack__router-core@1.171.21.patch
   # Backport the official React Flight decoder security fixes absent from 0.0.3.
   'react-server-dom-rspack@0.0.3': patches/@react-server-dom-rspack@0.0.3.patch
 

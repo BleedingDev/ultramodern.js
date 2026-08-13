@@ -82,6 +82,7 @@ const expectedWorkspaceManifest = [
   'packages/shared-design-tokens/tsconfig.json',
   'patches/@module-federation__bridge-react@2.8.2.patch',
   'patches/@module-federation__modern-js-v3@2.8.2.patch',
+  'patches/@tanstack__router-core@1.171.21.patch',
   'patches/drizzle-orm-ts7-strict-declarations.patch',
   'patches/effect-schema-error-type-id.patch',
   'pnpm-workspace.yaml',

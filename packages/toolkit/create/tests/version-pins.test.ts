@@ -79,6 +79,7 @@ test('generated workspace renders the pins from versions.ts', () => {
     assert.deepEqual(pnpmPolicy.patchedDependencies, {
       [`@module-federation/bridge-react@${MODULE_FEDERATION_VERSION}`]: `patches/@module-federation__bridge-react@${MODULE_FEDERATION_VERSION}.patch`,
       [`@module-federation/modern-js-v3@${MODULE_FEDERATION_VERSION}`]: `patches/@module-federation__modern-js-v3@${MODULE_FEDERATION_VERSION}.patch`,
+      [`@tanstack/router-core@${TANSTACK_ROUTER_CORE_VERSION}`]: `patches/@tanstack__router-core@${TANSTACK_ROUTER_CORE_VERSION}.patch`,
       [`effect@${EFFECT_VERSION}`]: 'patches/effect-schema-error-type-id.patch',
     });
     assert.ok(

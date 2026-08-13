@@ -43,6 +43,7 @@ patchedDependencies:
   '@module-federation/manifest@2.8.2': a31d4d30913ffb579faf42be4f1c03a0f330d3f09348e9eedc00059d6e8d123f
   '@module-federation/modern-js-v3@2.8.2': 948d2a725ae526f395b0343b113ff80dfaa50dbdec8158179746e98259925d20
   '@module-federation/rspack@2.8.2': 7c9e11912b300a296a4437b651b10e3ad70f85ea8c521a9bc97871c14273ac2d
+  '@tanstack/router-core@1.171.21': fb269f2a1c6c789ffb2d4f9341f6dd6a1dbb977b5bb66ce8e31a3a9cdd197dad
   react-server-dom-rspack@0.0.3: 11e471512012c0015883a233017b3ad695765e344cbd1d8174e79196ab6ba567
 
 importers:
@@ -1679,7 +1680,7 @@ importers:
         version: 1.170.25(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@tanstack/router-core':
         specifier: 1.171.21
-        version: 1.171.21
+        version: 1.171.21(patch_hash=fb269f2a1c6c789ffb2d4f9341f6dd6a1dbb977b5bb66ce8e31a3a9cdd197dad)
     devDependencies:
       '@modern-js/app-tools':
         specifier: workspace:*
@@ -25176,7 +25177,7 @@ snapshots:
     dependencies:
       '@tanstack/history': 1.162.1
       '@tanstack/react-store': 0.9.3(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
-      '@tanstack/router-core': 1.171.21
+      '@tanstack/router-core': 1.171.21(patch_hash=fb269f2a1c6c789ffb2d4f9341f6dd6a1dbb977b5bb66ce8e31a3a9cdd197dad)
       isbot: 5.2.0
       react: 19.2.8
       react-dom: 19.2.8(react@19.2.8)
@@ -25188,7 +25189,7 @@ snapshots:
       react-dom: 19.2.8(react@19.2.8)
       use-sync-external-store: 1.6.0(react@19.2.8)
 
-  '@tanstack/router-core@1.171.21':
+  '@tanstack/router-core@1.171.21(patch_hash=fb269f2a1c6c789ffb2d4f9341f6dd6a1dbb977b5bb66ce8e31a3a9cdd197dad)':
     dependencies:
       '@tanstack/history': 1.162.1
       cookie-es: 3.1.1

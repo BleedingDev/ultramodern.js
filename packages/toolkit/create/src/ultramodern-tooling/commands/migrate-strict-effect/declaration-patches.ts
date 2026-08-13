@@ -12,6 +12,8 @@ import {
   moduleFederationBridgeReactPatchSourcePath,
   moduleFederationModernJsPatchPath,
   moduleFederationModernJsPatchSourcePath,
+  tanstackRouterCorePatchPath,
+  tanstackRouterCorePatchSourcePath,
 } from './policy-constants';
 
 export function ensureGeneratedDeclarationPatches(
@@ -30,6 +32,12 @@ export function ensureGeneratedDeclarationPatches(
       io,
       moduleFederationBridgeReactPatchPath,
       moduleFederationBridgeReactPatchSourcePath,
+    ) || changed;
+  changed =
+    ensureGeneratedPatchFile(
+      io,
+      tanstackRouterCorePatchPath,
+      tanstackRouterCorePatchSourcePath,
     ) || changed;
   changed =
     ensureGeneratedPatchFile(
