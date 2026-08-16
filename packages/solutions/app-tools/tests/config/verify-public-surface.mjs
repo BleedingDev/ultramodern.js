@@ -4,7 +4,10 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import tsgoInvocation from '../../../../../scripts/lib/tsgo-invocation.js';
 
+const { createTsgoInvocation } = tsgoInvocation;
+const require = createRequire(import.meta.url);
 const testDirectory = dirname(fileURLToPath(import.meta.url));
 const packageRoot = resolve(testDirectory, '../..');
 const packageJson = JSON.parse(
@@ -26,16 +29,15 @@ const expectedRuntimeExports = [
 assert.deepEqual(configExport, expectedExport);
 
 try {
-  execFileSync(
-    process.env.TSGO_BIN ||
-      (process.platform === 'win32' ? 'tsgo.cmd' : 'tsgo'),
-    ['-p', join(testDirectory, 'tsconfig.public-surface-consumer.json')],
-    {
-      cwd: packageRoot,
-      encoding: 'utf-8',
-      stdio: 'pipe',
-    },
-  );
+  const tsgo = createTsgoInvocation({
+    args: ['-p', join(testDirectory, 'tsconfig.public-surface-consumer.json')],
+    requireFrom: require,
+  });
+  execFileSync(tsgo.command, tsgo.argv, {
+    cwd: packageRoot,
+    encoding: 'utf-8',
+    stdio: 'pipe',
+  });
 } catch (error) {
   const output = [error?.message, error?.stdout, error?.stderr]
     .filter(Boolean)
@@ -44,7 +46,6 @@ try {
   assert.fail(`Public config type consumer failed to compile.\n${output}`);
 }
 
-const require = createRequire(import.meta.url);
 const cjsConfig = require('@modern-js/app-tools/config');
 const esmConfig = await import('@modern-js/app-tools/config');
 assert.deepEqual(Object.keys(cjsConfig).sort(), expectedRuntimeExports);

@@ -17,6 +17,9 @@ and script helper families (`boundary-guards`, `release-gates`,
 - `process-kit.js` — shared argv command and command-list execution plus
   small process/stream helpers (`createProcessEnv`, `killChild`, `sleep`,
   `writeStream`).
+- `tsgo-invocation.js` — package-pinned, shell-free TS-Go invocation for build
+  verifiers, including Windows where package-manager `.cmd` shims cannot be
+  passed to `execFile` directly.
 - `artifact-schema.js` — the shared SuperApp readiness dimension list.
 
 Rules:
