@@ -36,6 +36,9 @@ jobs:
         with:
           node-version: 26.x
 
+      - name: Install Dependencies
+        run: mise exec -- pnpm install --frozen-lockfile
+
       - name: Run script test suites
         run: pnpm run test:scripts
 
