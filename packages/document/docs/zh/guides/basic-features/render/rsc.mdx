@@ -22,9 +22,9 @@ React Server Components (RSC) 是一种新的组件类型，允许在服务端�
 ## 快速开始
 
 :::warning UltraModern 可用性
-当前 UltraModern 公司发行版不提供也不支持 RSC。在 Rspack Flight 运行时完成上游工作之前，框架会保持 [`server.rsc`](/configure/app/server/rsc) 关闭。请勿安装 `react-server-dom-rspack`，也不要携带应用级 pnpm 补丁来提前启用它。
+RSC 仍属实验性能力，默认关闭，且不对外部消费者提供支持；当前 UltraModern 公司发行版不会随附 RSC。发布批次与 clean-room 发布验收测试验证 RSC 运行时不存在且无法解析，发布批次也不会包含由 Modern.js 维护的 `@bleedingdev/*` RSC 运行时包；启用 RSC 时框架仍按 fail-closed 处理。
 
-本页其余内容仅作为未来采用上游实现时的参考资料保留。
+根目录专用的 `react-server-dom-rspack@0.0.3` 补丁仅为本仓库的 RSC 回归测试回移 Flight 解码器安全修复；它不会复制到生成工作区或发布给消费者，因此应用自行安装上游包得到的是未打补丁的字节。上游补救链（[SyMind/react#1](https://github.com/SyMind/react/pull/1)、[BleedingDev/react#1](https://github.com/BleedingDev/react/pull/1) 和 [rspack#15144](https://github.com/web-infra-dev/rspack/issues/15144)）已提交、正在审查、尚未合并。此边界仍待所有者最终批准。
 :::
 
 请保持 [`server.rsc`](/configure/app/server/rsc) 为 `false`：

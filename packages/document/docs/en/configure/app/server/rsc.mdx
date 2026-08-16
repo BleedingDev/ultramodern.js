@@ -10,9 +10,9 @@ title: rsc
 Configure React Server Components (RSC).
 
 :::warning UltraModern availability
-RSC is not shipped or supported in the current UltraModern company distribution. Keep this option `false`. The Rspack Flight runtime remains under upstream review, and enabling RSC intentionally fails unless an application supplies the complete optional toolchain.
+RSC is experimental, default-off, and unsupported for external consumers; it is not shipped in the current UltraModern company distribution. Release-cohort and clean-room release-acceptance tests verify that RSC runtimes are absent and cannot resolve, and the release cohort has no maintained `@bleedingdev/*` RSC runtime package; the framework remains fail-closed when RSC is enabled.
 
-Do not install `react-server-dom-rspack` or add an application-level pnpm patch to bypass this boundary.
+The root-only `react-server-dom-rspack@0.0.3` patch backports Flight decoder security fixes for this repository's RSC tests; it is never copied into generated workspaces or published to consumers, so an app installing the upstream package receives unpatched bytes. The upstream remediation chain ([SyMind/react#1](https://github.com/SyMind/react/pull/1), [BleedingDev/react#1](https://github.com/BleedingDev/react/pull/1), and [rspack#15144](https://github.com/web-infra-dev/rspack/issues/15144)) is submitted, in review, and not merged. This boundary is pending final owner ratification.
 :::
 
 ```ts title="modern.config.ts"
