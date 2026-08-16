@@ -9,6 +9,8 @@ on:
       - 'scripts/ultramodern-boundary-check/**'
       - 'docs/super-app-rfc-adr/contracts/**'
       - 'package.json'
+      - 'AGENTS.md'
+      - 'FORK-DIVERGENCE.md'
       - '.github/workflows/boundary-anti-patterns.yml'
   push:
     branches:
@@ -20,6 +22,8 @@ on:
       - 'scripts/ultramodern-boundary-check/**'
       - 'docs/super-app-rfc-adr/contracts/**'
       - 'package.json'
+      - 'AGENTS.md'
+      - 'FORK-DIVERGENCE.md'
       - '.github/workflows/boundary-anti-patterns.yml'
 
 permissions:
@@ -65,6 +69,7 @@ jobs:
       # instead of depending on whatever the runner happens to have checked out.
       - name: Run UltraModern divergence boundary guard
         if: ${{ !cancelled() }}
+        working-directory: ${{ github.workspace }}
         env:
           DIVERGENCE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
@@ -75,6 +80,7 @@ jobs:
 
       - name: Enforce UltraModern divergence allowlist governance
         if: github.event_name == 'pull_request'
+        working-directory: ${{ github.workspace }}
         env:
           DIVERGENCE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |

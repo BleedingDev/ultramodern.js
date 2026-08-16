@@ -6,14 +6,23 @@ const path = require('node:path');
 const test = require('node:test');
 
 const {
+  CAPPED_PATCH_LINES,
   DEFAULT_DIVERGENCE_ALLOWLIST_PATH,
   DEFAULT_DIVERGENCE_BASE_REF,
   checkAllowlistGovernance,
   checkForkDivergence,
   compareDivergence,
+  createDivergenceSnapshot,
+  evaluateDivergenceGovernance,
   formatDivergenceReport,
+  getCanonicalDivergenceAllowlistPath,
+  measureDivergence,
   parseDivergenceDiff,
+  readDivergenceAllowlist,
+  readDivergenceAllowlistAtRef,
   runSelfTest,
+  serializeDivergenceSnapshot,
+  validateDivergenceAllowlist,
   writeDivergenceAllowlist,
 } = require('../divergence');
 
@@ -29,103 +38,151 @@ const runGit = (rootDir, args) =>
     encoding: 'utf8',
   }).trim();
 
-/**
- * Fixture with one upstream-owned source file plus one fork-added file, so the
- * "existed at the base ref" rule can be exercised without touching the repo.
- */
-const makeAllowlist = ({ baseRef = 'dfcd414a', files = [] } = {}) => ({
-  schemaVersion: 1,
-  baseRef,
-  pathspec: ['packages'],
-  totalFiles: files.length,
-  totalHunks: files.reduce((sum, entry) => sum + entry.hunks, 0),
-  totalChangedLines: files.reduce((sum, entry) => sum + entry.changedLines, 0),
-  files,
-});
-
-const writeFixtureAllowlist = (rootDir, allowlist) => {
-  const allowlistPath = path.join(
-    rootDir,
-    'scripts/ultramodern-boundary-check/divergence-allowlist.json',
-  );
-  fs.mkdirSync(path.dirname(allowlistPath), { recursive: true });
-  fs.writeFileSync(allowlistPath, `${JSON.stringify(allowlist, null, 2)}\n`);
-  return allowlistPath;
+const writeRepoFile = (rootDir, repoPath, contents) => {
+  const filePath = path.join(rootDir, ...repoPath.split('/'));
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, contents);
+  return filePath;
 };
 
-const makeGovernanceFixture = ({ baseAllowlist } = {}) => {
-  const rootDir = fs.mkdtempSync(
-    path.join(os.tmpdir(), 'modern-fork-governance-'),
-  );
-  runGit(rootDir, ['init']);
-  runGit(rootDir, ['config', 'user.email', 'fixture@example.test']);
-  runGit(rootDir, ['config', 'user.name', 'Fixture']);
-  fs.writeFileSync(path.join(rootDir, 'FORK-DIVERGENCE.md'), '# Ledger\n');
-  if (baseAllowlist !== null) {
-    writeFixtureAllowlist(rootDir, baseAllowlist ?? makeAllowlist());
-  }
+const commitAll = (rootDir, message) => {
   runGit(rootDir, ['add', '.']);
-  runGit(rootDir, ['commit', '-m', 'merge base']);
-
-  return {
-    mergeBase: runGit(rootDir, ['rev-parse', 'HEAD']),
-    rootDir,
-  };
+  runGit(rootDir, ['commit', '-m', message]);
+  return runGit(rootDir, ['rev-parse', 'HEAD']);
 };
 
-const runGovernanceCli = ({ rootDir, mergeBase, headRef, allowlistPath }) =>
-  spawnSync(
-    process.execPath,
-    [
-      boundaryCliPath,
-      '--root',
-      rootDir,
-      '--mode',
-      'allowlist-governance',
-      '--merge-base',
-      mergeBase,
-      '--head',
-      headRef,
-      '--divergence-allowlist',
-      allowlistPath,
-    ],
-    { cwd: rootDir, encoding: 'utf8' },
-  );
-
-const makeGitFixture = () => {
+const makeGitFixture = ({
+  files = {
+    'packages/runtime/src/index.ts': [
+      'export const a = 1;',
+      'export const b = 2;',
+      'export const c = 3;',
+      '',
+    ].join('\n'),
+  },
+} = {}) => {
   const rootDir = fs.mkdtempSync(
     path.join(os.tmpdir(), 'modern-fork-divergence-'),
   );
   runGit(rootDir, ['init']);
   runGit(rootDir, ['config', 'user.email', 'fixture@example.test']);
   runGit(rootDir, ['config', 'user.name', 'Fixture']);
-
-  const sourceDir = path.join(rootDir, 'packages/runtime/src');
-  fs.mkdirSync(sourceDir, { recursive: true });
-  fs.writeFileSync(
-    path.join(sourceDir, 'index.ts'),
-    [
-      'export const a = 1;',
-      'export const b = 2;',
-      'export const c = 3;',
-      '',
-    ].join('\n'),
-  );
-
-  runGit(rootDir, ['add', '.']);
-  runGit(rootDir, ['commit', '-m', 'upstream base']);
-
-  return {
-    baseRef: runGit(rootDir, ['rev-parse', 'HEAD']),
-    rootDir,
-    sourceDir,
-  };
+  writeRepoFile(rootDir, 'FORK-DIVERGENCE.md', '# Ledger\n');
+  for (const [repoPath, contents] of Object.entries(files)) {
+    writeRepoFile(rootDir, repoPath, contents);
+  }
+  const upstreamBase = commitAll(rootDir, 'upstream base');
+  return { rootDir, upstreamBase };
 };
 
-test('self test covers the hunk parser and the shrink-only budget rules', () => {
+const writeSnapshot = ({
+  rootDir,
+  baseRef,
+  headRef,
+  pathspec = ['packages'],
+}) => {
+  const measured = measureDivergence({
+    rootDir,
+    baseRef,
+    headRef,
+    pathspec,
+  });
+  const snapshot = createDivergenceSnapshot({
+    baseRef: measured.baseRef,
+    pathspec,
+    files: measured.files,
+  });
+  const allowlistPath = getCanonicalDivergenceAllowlistPath(rootDir);
+  fs.mkdirSync(path.dirname(allowlistPath), { recursive: true });
+  fs.writeFileSync(allowlistPath, serializeDivergenceSnapshot(snapshot));
+  return { allowlistPath, measured, snapshot };
+};
+
+const makeLegacyFixture = ({
+  baseContents,
+  legacyContents = [
+    'export const a = 9;',
+    'export const b = 2;',
+    'export const c = 3;',
+    '',
+  ].join('\n'),
+  pathspec = ['packages'],
+} = {}) => {
+  const fixture = makeGitFixture({
+    files: baseContents
+      ? { 'packages/runtime/src/index.ts': baseContents }
+      : undefined,
+  });
+  writeRepoFile(
+    fixture.rootDir,
+    'packages/runtime/src/index.ts',
+    legacyContents,
+  );
+  const { allowlistPath, snapshot } = writeSnapshot({
+    rootDir: fixture.rootDir,
+    baseRef: fixture.upstreamBase,
+    pathspec,
+  });
+  const mergeBase = commitAll(fixture.rootDir, 'legacy fork baseline');
+  return { ...fixture, allowlistPath, baseSnapshot: snapshot, mergeBase };
+};
+
+const runCli = (rootDir, args, options = {}) =>
+  spawnSync(process.execPath, [boundaryCliPath, ...args], {
+    cwd: rootDir,
+    encoding: 'utf8',
+    ...options,
+  });
+
+const runGovernanceCli = ({ rootDir, mergeBase, headRef, extraArgs = [] }) =>
+  runCli(rootDir, [
+    '--mode',
+    'allowlist-governance',
+    '--merge-base',
+    mergeBase,
+    '--head',
+    headRef,
+    ...extraArgs,
+  ]);
+
+const readFixtureAllowlist = fixture =>
+  readDivergenceAllowlist(fixture.allowlistPath, {
+    rootDir: fixture.rootDir,
+  });
+
+const loadGovernance = ({ rootDir, mergeBase, headRef }) =>
+  evaluateDivergenceGovernance({
+    rootDir,
+    mergeBaseRef: mergeBase,
+    headRef,
+    baseAllowlist: readDivergenceAllowlistAtRef({
+      rootDir,
+      ref: mergeBase,
+      allowMissing: true,
+    }),
+    headAllowlist: readDivergenceAllowlistAtRef({
+      rootDir,
+      ref: headRef,
+    }),
+  });
+
+const cleanup = rootDir => fs.rmSync(rootDir, { recursive: true, force: true });
+
+const replacementLines = count =>
+  `${Array.from(
+    { length: count },
+    (_, index) => `export const v${String(index)} = ${String(index)};`,
+  ).join('\n')}\n`;
+
+const changedReplacementLines = count =>
+  `${Array.from(
+    { length: count },
+    (_, index) => `export const v${String(index)} = ${String(index + 100)};`,
+  ).join('\n')}\n`;
+
+test('self test covers parser, shrink-only budgets, and incomplete-scope clears', () => {
   const { ok, results } = runSelfTest();
   const failed = results.filter(result => !result.pass);
-
   assert.equal(
     ok,
     true,
@@ -134,7 +191,7 @@ test('self test covers the hunk parser and the shrink-only budget rules', () => 
   assert.ok(results.length >= 8);
 });
 
-test('parser ignores diff headers and counts non-source package paths', () => {
+test('parser ignores headers and counts every package file shape', () => {
   const parsed = parseDivergenceDiff(
     [
       'diff --git a/packages/runtime/src/index.ts b/packages/runtime/src/index.ts',
@@ -154,7 +211,6 @@ test('parser ignores diff headers and counts non-source package paths', () => {
       '',
     ].join('\n'),
   );
-
   assert.deepEqual(parsed, [
     {
       file: 'packages/runtime/README.md',
@@ -173,365 +229,386 @@ test('parser ignores diff headers and counts non-source package paths', () => {
   ]);
 });
 
-test('allowlist growth without a ledger co-change fails governance', () => {
-  const baseAllowlist = makeAllowlist({
-    files: [
-      { file: 'packages/runtime/package.json', hunks: 1, changedLines: 2 },
-    ],
-  });
-  const { rootDir, mergeBase } = makeGovernanceFixture({ baseAllowlist });
-
-  try {
-    const allowlistPath = writeFixtureAllowlist(
-      rootDir,
-      makeAllowlist({
-        files: [
-          {
-            file: 'packages/runtime/package.json',
-            hunks: 9,
-            changedLines: 999,
-          },
-        ],
-      }),
-    );
-    runGit(rootDir, ['add', '.']);
-    runGit(rootDir, ['commit', '-m', 'raise budget']);
-    const headRef = runGit(rootDir, ['rev-parse', 'HEAD']);
-    const result = runGovernanceCli({
-      rootDir,
-      mergeBase,
-      headRef,
-      allowlistPath,
-    });
-
-    const governance = checkAllowlistGovernance({
-      baseAllowlist,
-      headAllowlist: JSON.parse(fs.readFileSync(allowlistPath, 'utf8')),
-    });
-    assert.equal(governance.growth.length, 1);
-    assert.equal(governance.growth[0].file, 'packages/runtime/package.json');
-    assert.notEqual(result.status, 0);
-  } finally {
-    fs.rmSync(rootDir, { recursive: true, force: true });
-  }
-});
-
-test('allowlist growth with a ledger co-change passes governance', () => {
-  const baseAllowlist = makeAllowlist({
-    files: [
-      { file: 'packages/runtime/package.json', hunks: 1, changedLines: 2 },
-    ],
-  });
-  const { rootDir, mergeBase } = makeGovernanceFixture({ baseAllowlist });
-
-  try {
-    const allowlistPath = writeFixtureAllowlist(
-      rootDir,
-      makeAllowlist({
-        files: [
-          { file: 'packages/runtime/package.json', hunks: 2, changedLines: 4 },
-        ],
-      }),
-    );
-    fs.appendFileSync(path.join(rootDir, 'FORK-DIVERGENCE.md'), 'growth row\n');
-    runGit(rootDir, ['add', '.']);
-    runGit(rootDir, ['commit', '-m', 'sanction growth']);
-    const headRef = runGit(rootDir, ['rev-parse', 'HEAD']);
-    const result = runGovernanceCli({
-      rootDir,
-      mergeBase,
-      headRef,
-      allowlistPath,
-    });
-
-    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
-  } finally {
-    fs.rmSync(rootDir, { recursive: true, force: true });
-  }
-});
-
-test('pure allowlist shrink passes governance without a ledger change', () => {
-  const baseAllowlist = makeAllowlist({
-    files: [
-      { file: 'packages/runtime/package.json', hunks: 3, changedLines: 8 },
-    ],
-  });
-  const headAllowlist = makeAllowlist({
-    files: [
-      { file: 'packages/runtime/package.json', hunks: 2, changedLines: 6 },
-    ],
-  });
-
-  assert.deepEqual(checkAllowlistGovernance({ baseAllowlist, headAllowlist }), {
-    growth: [],
-    reAnchored: false,
-    ok: true,
-  });
-
-  const { rootDir, mergeBase } = makeGovernanceFixture({ baseAllowlist });
-  try {
-    const allowlistPath = writeFixtureAllowlist(rootDir, headAllowlist);
-    runGit(rootDir, ['add', '.']);
-    runGit(rootDir, ['commit', '-m', 'shrink budget']);
-    const headRef = runGit(rootDir, ['rev-parse', 'HEAD']);
-    const result = runGovernanceCli({
-      rootDir,
-      mergeBase,
-      headRef,
-      allowlistPath,
-    });
-
-    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
-  } finally {
-    fs.rmSync(rootDir, { recursive: true, force: true });
-  }
-});
-
-test('allowlist absent at merge-base passes when the ledger changes', () => {
-  const { rootDir, mergeBase } = makeGovernanceFixture({ baseAllowlist: null });
-
-  try {
-    const allowlistPath = writeFixtureAllowlist(
-      rootDir,
-      makeAllowlist({
-        files: [
-          { file: 'packages/runtime/package.json', hunks: 1, changedLines: 2 },
-        ],
-      }),
-    );
-    fs.appendFileSync(
-      path.join(rootDir, 'FORK-DIVERGENCE.md'),
-      'initial row\n',
-    );
-    runGit(rootDir, ['add', '.']);
-    runGit(rootDir, ['commit', '-m', 'introduce governed allowlist']);
-    const headRef = runGit(rootDir, ['rev-parse', 'HEAD']);
-    const result = runGovernanceCli({
-      rootDir,
-      mergeBase,
-      headRef,
-      allowlistPath,
-    });
-
-    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
-  } finally {
-    fs.rmSync(rootDir, { recursive: true, force: true });
-  }
-});
-
-test('repo divergence allowlist keeps the current tree green', () => {
-  const report = checkForkDivergence({
-    rootDir: repoRoot,
-    baseRef: DEFAULT_DIVERGENCE_BASE_REF,
-    allowlistPath: DEFAULT_DIVERGENCE_ALLOWLIST_PATH,
-  });
-
-  assert.equal(report.violations.length, 0, formatDivergenceReport(report));
-  assert.equal(report.ok, true);
-});
-
-test('a grown hunk in an upstream-owned file fails the gate', () => {
-  const { rootDir, baseRef, sourceDir } = makeGitFixture();
-
-  try {
-    fs.writeFileSync(
-      path.join(sourceDir, 'index.ts'),
-      [
-        'export const a = 9;',
-        'export const b = 2;',
-        'export const c = 3;',
-        '',
-      ].join('\n'),
-    );
-
-    const allowlistPath = path.join(rootDir, 'divergence-allowlist.json');
-    const seeded = writeDivergenceAllowlist({
-      rootDir,
-      baseRef,
-      allowlistPath,
-      recordGrowth: true,
-    });
-
-    assert.equal(seeded.totalFiles, 1);
-    assert.equal(seeded.files[0].changedLines, 2);
-
-    assert.equal(
-      checkForkDivergence({ rootDir, baseRef, allowlistPath }).ok,
-      true,
-    );
-
-    fs.writeFileSync(
-      path.join(sourceDir, 'index.ts'),
-      [
-        'export const a = 9;',
-        'export const b = 9;',
-        'export const c = 9;',
-        'export const forkOnly = true;',
-        '',
-      ].join('\n'),
-    );
-
-    const grown = checkForkDivergence({ rootDir, baseRef, allowlistPath });
-
-    assert.equal(grown.ok, false);
-    assert.equal(grown.violations.length, 1);
-    assert.equal(grown.violations[0].file, 'packages/runtime/src/index.ts');
-    assert.equal(grown.violations[0].reason, 'line-budget-exceeded');
-    assert.equal(grown.violations[0].budgetChangedLines, 2);
-    assert.ok(grown.violations[0].measuredChangedLines > 2);
-    assert.match(formatDivergenceReport(grown), /capped patch of <= ~20/);
-  } finally {
-    fs.rmSync(rootDir, { recursive: true, force: true });
-  }
-});
-
-test('default allowlist write refuses growth without modifying the file', () => {
-  const { rootDir, baseRef, sourceDir } = makeGitFixture();
-
-  try {
-    fs.writeFileSync(
-      path.join(sourceDir, 'index.ts'),
-      [
-        'export const a = 9;',
-        'export const b = 2;',
-        'export const c = 3;',
-        '',
-      ].join('\n'),
-    );
-
-    const allowlistPath = path.join(rootDir, 'divergence-allowlist.json');
-    writeDivergenceAllowlist({
-      rootDir,
-      baseRef,
-      allowlistPath,
-      recordGrowth: true,
-    });
-    const before = fs.readFileSync(allowlistPath);
-
-    fs.writeFileSync(
-      path.join(sourceDir, 'index.ts'),
-      [
-        'export const a = 9;',
-        'export const b = 9;',
-        'export const c = 9;',
-        'export const forkOnly = true;',
-        '',
-      ].join('\n'),
-    );
-
-    const result = spawnSync(
-      process.execPath,
-      [
-        boundaryCliPath,
-        '--root',
-        rootDir,
-        '--base',
-        baseRef,
-        '--divergence-allowlist',
-        allowlistPath,
-        '--write-divergence-allowlist',
-      ],
-      { cwd: rootDir, encoding: 'utf8' },
-    );
-
-    assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /requires the explicit --record-growth/);
-    assert.match(result.stderr, /packages\/runtime\/src\/index\.ts/);
-    assert.deepEqual(fs.readFileSync(allowlistPath), before);
-  } finally {
-    fs.rmSync(rootDir, { recursive: true, force: true });
-  }
-});
-
-test('--record-growth writes and announces every grown entry', () => {
-  const { rootDir, baseRef, sourceDir } = makeGitFixture();
-
-  try {
-    fs.writeFileSync(
-      path.join(sourceDir, 'index.ts'),
-      [
-        'export const a = 9;',
-        'export const b = 2;',
-        'export const c = 3;',
-        '',
-      ].join('\n'),
-    );
-
-    const allowlistPath = path.join(rootDir, 'divergence-allowlist.json');
-    const seeded = writeDivergenceAllowlist({
-      rootDir,
-      baseRef,
-      allowlistPath,
-      recordGrowth: true,
-    });
-
-    fs.writeFileSync(
-      path.join(sourceDir, 'index.ts'),
-      [
-        'export const a = 9;',
-        'export const b = 9;',
-        'export const c = 9;',
-        'export const forkOnly = true;',
-        '',
-      ].join('\n'),
-    );
-
-    const result = spawnSync(
-      process.execPath,
-      [
-        boundaryCliPath,
-        '--root',
-        rootDir,
-        '--base',
-        baseRef,
-        '--divergence-allowlist',
-        allowlistPath,
-        '--write-divergence-allowlist',
-        '--record-growth',
-      ],
-      { cwd: rootDir, encoding: 'utf8' },
-    );
-
-    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
-    assert.match(result.stderr, /WARNING: --record-growth is raising 1/);
-    assert.match(
-      result.stderr,
-      /GROWTH - packages\/runtime\/src\/index\.ts: budget/,
-    );
-
-    const updated = JSON.parse(fs.readFileSync(allowlistPath, 'utf8'));
-    assert.ok(updated.files[0].hunks >= seeded.files[0].hunks);
-    assert.ok(updated.files[0].changedLines > seeded.files[0].changedLines);
-  } finally {
-    fs.rmSync(rootDir, { recursive: true, force: true });
-  }
-});
-
-test('new hunks with a net changed-line shrink violate the hunk budget', () => {
+test('incomplete comparison never reports unmeasured entries as cleared', () => {
   const comparison = compareDivergence({
     measuredFiles: [
-      { file: 'packages/runtime/src/index.ts', hunks: 8, changedLines: 38 },
+      { file: 'packages/server/a.ts', hunks: 1, changedLines: 2 },
     ],
     allowlistFiles: [
-      { file: 'packages/runtime/src/index.ts', hunks: 3, changedLines: 39 },
+      { file: 'packages/runtime/a.ts', hunks: 1, changedLines: 2 },
+      { file: 'packages/server/a.ts', hunks: 1, changedLines: 2 },
     ],
   });
+  assert.equal(comparison.ok, true);
+  assert.deepEqual(comparison.cleared, []);
+});
 
-  assert.equal(comparison.ok, false);
-  assert.equal(comparison.violations.length, 1);
-  assert.equal(comparison.violations[0].reason, 'hunk-budget-exceeded');
-  assert.equal(comparison.shrunk.length, 0);
+test('the exact packages/server CLI bypass fails closed without false clears', () => {
+  const result = runCli(repoRoot, [
+    '--mode',
+    'divergence',
+    '--pathspec',
+    'packages/server',
+    '--json',
+  ]);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /--pathspec is not accepted|scope mismatch/);
+  assert.doesNotMatch(result.stdout, /"cleared"/);
+});
+
+test('mode all rejects the same caller-controlled scope override', () => {
+  const result = runCli(repoRoot, ['--pathspec', 'packages/server', '--json']);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /--pathspec is not accepted/);
+});
+
+test('full recorded repository scope remains green and fully measured', () => {
+  const report = checkForkDivergence({
+    rootDir: repoRoot,
+    allowlistPath: DEFAULT_DIVERGENCE_ALLOWLIST_PATH,
+  });
+  assert.equal(report.ok, true, formatDivergenceReport(report));
+  assert.equal(report.measuredFiles, 633);
+  assert.equal(report.allowlistFiles, 633);
+  assert.equal(report.cleared.length, 0);
+});
+
+test('direct verifier rejects narrower, broader, empty, duplicate, and normalized scopes', () => {
+  const fixture = makeLegacyFixture();
+  try {
+    const invalidScopes = [
+      ['packages/runtime'],
+      ['packages', 'scripts'],
+      [],
+      ['packages', 'packages'],
+      ['./packages'],
+      ['packages/runtime/../runtime'],
+      ['packages\\runtime'],
+      ['Packages'],
+    ];
+    for (const pathspec of invalidScopes) {
+      assert.throws(
+        () =>
+          checkForkDivergence({
+            rootDir: fixture.rootDir,
+            pathspec,
+            allowlistPath: fixture.allowlistPath,
+          }),
+        /pathspec|scope|canonical|separator|duplicate|lexical|case/i,
+        JSON.stringify(pathspec),
+      );
+    }
+  } finally {
+    cleanup(fixture.rootDir);
+  }
+});
+
+test('direct verifier rejects reordered recorded scope', () => {
+  const fixture = makeGitFixture({
+    files: {
+      'packages/cli/a.ts': 'export const a = 1;\n',
+      'packages/runtime/b.ts': 'export const b = 1;\n',
+    },
+  });
+  try {
+    writeRepoFile(
+      fixture.rootDir,
+      'packages/cli/a.ts',
+      'export const a = 2;\n',
+    );
+    writeRepoFile(
+      fixture.rootDir,
+      'packages/runtime/b.ts',
+      'export const b = 2;\n',
+    );
+    const { allowlistPath } = writeSnapshot({
+      rootDir: fixture.rootDir,
+      baseRef: fixture.upstreamBase,
+      pathspec: ['packages/cli', 'packages/runtime'],
+    });
+    assert.throws(
+      () =>
+        checkForkDivergence({
+          rootDir: fixture.rootDir,
+          pathspec: ['packages/runtime', 'packages/cli'],
+          allowlistPath,
+        }),
+      /lexical|scope mismatch/,
+    );
+  } finally {
+    cleanup(fixture.rootDir);
+  }
+});
+
+test('nested cwd and --root probes fail with no cleared report', () => {
+  const nested = path.join(repoRoot, 'packages/server');
+  const fromNested = runCli(nested, ['--mode', 'divergence', '--json']);
+  assert.notEqual(fromNested.status, 0);
+  assert.match(fromNested.stderr, /repository top level|nested root/);
+  assert.doesNotMatch(fromNested.stdout, /"cleared"/);
+
+  const rootOverride = runCli(repoRoot, [
+    '--root',
+    nested,
+    '--mode',
+    'divergence',
+    '--json',
+  ]);
+  assert.notEqual(rootOverride.status, 0);
+  assert.match(rootOverride.stderr, /--root is not accepted|top level/);
+  assert.doesNotMatch(rootOverride.stdout, /"cleared"/);
+});
+
+test('verification rejects an alternate divergence allowlist path', () => {
+  const result = runCli(repoRoot, [
+    '--mode',
+    'divergence',
+    '--divergence-allowlist',
+    DEFAULT_DIVERGENCE_ALLOWLIST_PATH,
+  ]);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /--divergence-allowlist is not accepted/);
+});
+
+test('allowlist governance rejects writer options instead of silently ignoring them', () => {
+  const result = runCli(repoRoot, [
+    '--mode',
+    'allowlist-governance',
+    '--merge-base',
+    'HEAD',
+    '--head',
+    'HEAD',
+    '--write-divergence-allowlist',
+    '--record-growth',
+  ]);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /verification-only.*writer option/);
+});
+
+test('inherited Git context variables cannot narrow verification', () => {
+  const fixture = makeLegacyFixture();
+  try {
+    const result = runCli(fixture.rootDir, ['--mode', 'divergence', '--json'], {
+      env: {
+        ...process.env,
+        GIT_DIR: path.join(fixture.rootDir, 'missing-git-dir'),
+        GIT_WORK_TREE: path.join(fixture.rootDir, 'packages/runtime'),
+        GIT_PREFIX: 'packages/runtime/',
+      },
+    });
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.divergence.measuredFiles, 1);
+    assert.equal(output.divergence.allowlistFiles, 1);
+  } finally {
+    cleanup(fixture.rootDir);
+  }
+});
+
+test('strict parser rejects aggregate total mismatches', () => {
+  const fixture = makeLegacyFixture();
+  try {
+    const valid = readFixtureAllowlist(fixture);
+    for (const key of ['totalFiles', 'totalHunks', 'totalChangedLines']) {
+      const invalid = structuredClone(valid);
+      invalid[key] += 1;
+      assert.throws(
+        () =>
+          validateDivergenceAllowlist(invalid, {
+            rootDir: fixture.rootDir,
+          }),
+        new RegExp(`${key} mismatch`),
+      );
+    }
+  } finally {
+    cleanup(fixture.rootDir);
+  }
+});
+
+test('strict parser rejects duplicate and unsorted file entries', () => {
+  const fixture = makeLegacyFixture();
+  try {
+    const valid = readFixtureAllowlist(fixture);
+    const duplicate = structuredClone(valid);
+    duplicate.files.push(structuredClone(duplicate.files[0]));
+    duplicate.totalFiles += 1;
+    duplicate.totalHunks += duplicate.files[0].hunks;
+    duplicate.totalChangedLines += duplicate.files[0].changedLines;
+    assert.throws(
+      () =>
+        validateDivergenceAllowlist(duplicate, {
+          rootDir: fixture.rootDir,
+        }),
+      /duplicate file entry|uniquely sorted/,
+    );
+
+    const twoFileFixture = makeGitFixture({
+      files: {
+        'packages/runtime/a.ts': 'export const a = 1;\n',
+        'packages/runtime/b.ts': 'export const b = 1;\n',
+      },
+    });
+    try {
+      writeRepoFile(
+        twoFileFixture.rootDir,
+        'packages/runtime/a.ts',
+        'export const a = 2;\n',
+      );
+      writeRepoFile(
+        twoFileFixture.rootDir,
+        'packages/runtime/b.ts',
+        'export const b = 2;\n',
+      );
+      const { snapshot } = writeSnapshot({
+        rootDir: twoFileFixture.rootDir,
+        baseRef: twoFileFixture.upstreamBase,
+      });
+      snapshot.files.reverse();
+      assert.throws(
+        () =>
+          validateDivergenceAllowlist(snapshot, {
+            rootDir: twoFileFixture.rootDir,
+          }),
+        /lexical order/,
+      );
+    } finally {
+      cleanup(twoFileFixture.rootDir);
+    }
+  } finally {
+    cleanup(fixture.rootDir);
+  }
+});
+
+test('strict parser rejects coercible, non-finite, fractional, and negative budgets', () => {
+  const fixture = makeLegacyFixture();
+  try {
+    const valid = readFixtureAllowlist(fixture);
+    const invalidBudgets = [
+      '2',
+      null,
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+      1.5,
+      -1,
+    ];
+    for (const value of invalidBudgets) {
+      for (const key of ['hunks', 'changedLines']) {
+        const invalid = structuredClone(valid);
+        invalid.files[0][key] = value;
+        assert.throws(
+          () =>
+            validateDivergenceAllowlist(invalid, {
+              rootDir: fixture.rootDir,
+            }),
+          /finite nonnegative safe integer/,
+          `${key}=${String(value)}`,
+        );
+      }
+    }
+  } finally {
+    cleanup(fixture.rootDir);
+  }
+});
+
+test('strict parser rejects missing, short, and unresolvable base identity', () => {
+  const fixture = makeLegacyFixture();
+  try {
+    const valid = readFixtureAllowlist(fixture);
+    const missing = structuredClone(valid);
+    delete missing.baseRef;
+    assert.throws(
+      () => validateDivergenceAllowlist(missing, { rootDir: fixture.rootDir }),
+      /unsupported keys|baseRef/,
+    );
+    for (const baseRef of ['deadbeef', 'f'.repeat(40)]) {
+      const invalid = structuredClone(valid);
+      invalid.baseRef = baseRef;
+      assert.throws(
+        () =>
+          validateDivergenceAllowlist(invalid, {
+            rootDir: fixture.rootDir,
+          }),
+        /full lowercase 40-hex|does not resolve/,
+      );
+    }
+  } finally {
+    cleanup(fixture.rootDir);
+  }
+});
+
+test('strict parser rejects noncanonical, case-mismatched, outside, and base-missing files', () => {
+  const fixture = makeLegacyFixture();
+  try {
+    const valid = readFixtureAllowlist(fixture);
+    writeRepoFile(
+      fixture.rootDir,
+      'packages/runtime/src/new.ts',
+      'export const newFile = true;\n',
+    );
+    const invalidPaths = [
+      './packages/runtime/src/index.ts',
+      'packages/runtime/src/../src/index.ts',
+      'packages\\runtime\\src\\index.ts',
+      'Packages/runtime/src/index.ts',
+      'scripts/index.ts',
+      'packages/runtime/src/new.ts',
+    ];
+    for (const file of invalidPaths) {
+      const invalid = structuredClone(valid);
+      invalid.files[0].file = file;
+      assert.throws(
+        () =>
+          validateDivergenceAllowlist(invalid, {
+            rootDir: fixture.rootDir,
+          }),
+        /canonical|separators|outside|does not exist|exact path and case/i,
+        file,
+      );
+    }
+  } finally {
+    cleanup(fixture.rootDir);
+  }
+});
+
+test('strict parser rejects invalid, duplicate, reordered, and case-mismatched recorded scope', () => {
+  const fixture = makeLegacyFixture();
+  try {
+    const valid = readFixtureAllowlist(fixture);
+    const invalidScopes = [
+      [],
+      ['packages', 'packages'],
+      ['./packages'],
+      ['packages/runtime/../runtime'],
+      ['packages\\runtime'],
+      ['Packages'],
+    ];
+    for (const pathspec of invalidScopes) {
+      const invalid = structuredClone(valid);
+      invalid.pathspec = pathspec;
+      assert.throws(
+        () =>
+          validateDivergenceAllowlist(invalid, {
+            rootDir: fixture.rootDir,
+          }),
+        /pathspec|canonical|separator|duplicate|case/i,
+        JSON.stringify(pathspec),
+      );
+    }
+  } finally {
+    cleanup(fixture.rootDir);
+  }
 });
 
 test('an upstream-owned file with no recorded budget fails the gate', () => {
-  const { rootDir, baseRef, sourceDir } = makeGitFixture();
-
+  const fixture = makeGitFixture();
   try {
-    const allowlistPath = path.join(rootDir, 'divergence-allowlist.json');
-    writeDivergenceAllowlist({ rootDir, baseRef, allowlistPath });
-
-    fs.writeFileSync(
-      path.join(sourceDir, 'index.ts'),
+    writeSnapshot({
+      rootDir: fixture.rootDir,
+      baseRef: fixture.upstreamBase,
+    });
+    writeRepoFile(
+      fixture.rootDir,
+      'packages/runtime/src/index.ts',
       [
         'export const a = 1;',
         'export const b = 2;',
@@ -539,193 +616,68 @@ test('an upstream-owned file with no recorded budget fails the gate', () => {
         '',
       ].join('\n'),
     );
-
-    const report = checkForkDivergence({ rootDir, baseRef, allowlistPath });
-
+    const report = checkForkDivergence({ rootDir: fixture.rootDir });
     assert.equal(report.ok, false);
     assert.equal(report.violations[0].reason, 'unallowlisted-divergence');
-    assert.equal(report.violations[0].budgetChangedLines, 0);
   } finally {
-    fs.rmSync(rootDir, { recursive: true, force: true });
+    cleanup(fixture.rootDir);
   }
 });
 
-test('fork-added files are not upstream-owned and never enter the budget', () => {
-  const { rootDir, baseRef, sourceDir } = makeGitFixture();
-
+test('fork-added files remain outside audited ownership', () => {
+  const fixture = makeGitFixture();
   try {
-    const allowlistPath = path.join(rootDir, 'divergence-allowlist.json');
-    writeDivergenceAllowlist({ rootDir, baseRef, allowlistPath });
-
-    fs.writeFileSync(
-      path.join(sourceDir, 'fork-only.ts'),
+    writeSnapshot({
+      rootDir: fixture.rootDir,
+      baseRef: fixture.upstreamBase,
+    });
+    writeRepoFile(
+      fixture.rootDir,
+      'packages/runtime/src/fork-only.ts',
       'export const forkOnly = true;\n',
     );
-    runGit(rootDir, ['add', '.']);
-
-    const report = checkForkDivergence({ rootDir, baseRef, allowlistPath });
-
+    const report = checkForkDivergence({ rootDir: fixture.rootDir });
     assert.equal(report.ok, true);
     assert.equal(report.measuredFiles, 0);
   } finally {
-    fs.rmSync(rootDir, { recursive: true, force: true });
+    cleanup(fixture.rootDir);
   }
 });
 
-test('shrinking divergence passes and reports a re-shrink hint', () => {
-  const { rootDir, baseRef, sourceDir } = makeGitFixture();
-
+test('checking against a different or unresolvable base fails closed', () => {
+  const fixture = makeLegacyFixture();
   try {
-    fs.writeFileSync(
-      path.join(sourceDir, 'index.ts'),
-      [
-        'export const a = 9;',
-        'export const b = 9;',
-        'export const c = 9;',
-        '',
-      ].join('\n'),
-    );
-
-    const allowlistPath = path.join(rootDir, 'divergence-allowlist.json');
-    writeDivergenceAllowlist({
-      rootDir,
-      baseRef,
-      allowlistPath,
-      recordGrowth: true,
-    });
-
-    fs.writeFileSync(
-      path.join(sourceDir, 'index.ts'),
-      [
-        'export const a = 9;',
-        'export const b = 2;',
-        'export const c = 3;',
-        '',
-      ].join('\n'),
-    );
-
-    const report = checkForkDivergence({ rootDir, baseRef, allowlistPath });
-
-    assert.equal(report.ok, true);
-    assert.equal(report.shrunk.length, 1);
-    assert.match(formatDivergenceReport(report), /Divergence shrank in 1 file/);
-  } finally {
-    fs.rmSync(rootDir, { recursive: true, force: true });
-  }
-});
-
-test('shrink re-record hint is absent while any violation exists', () => {
-  const comparison = compareDivergence({
-    measuredFiles: [
-      { file: 'packages/runtime/src/grown.ts', hunks: 8, changedLines: 38 },
-      { file: 'packages/runtime/src/shrunk.ts', hunks: 1, changedLines: 2 },
-    ],
-    allowlistFiles: [
-      { file: 'packages/runtime/src/grown.ts', hunks: 3, changedLines: 39 },
-      { file: 'packages/runtime/src/shrunk.ts', hunks: 2, changedLines: 4 },
-    ],
-  });
-  const output = formatDivergenceReport({
-    baseRef: 'base',
-    headRef: null,
-    measuredFiles: 2,
-    measuredHunks: 9,
-    measuredChangedLines: 40,
-    allowlistFiles: 2,
-    allowlistChangedLines: 43,
-    violations: comparison.violations,
-    shrunk: comparison.shrunk,
-    cleared: comparison.cleared,
-  });
-
-  assert.equal(comparison.violations.length, 1);
-  assert.equal(comparison.shrunk.length, 1);
-  assert.doesNotMatch(output, /re-run with --write-divergence-allowlist/);
-});
-
-test('checking against a base other than the recorded one throws', () => {
-  const { rootDir, baseRef, sourceDir } = makeGitFixture();
-
-  try {
-    const allowlistPath = path.join(rootDir, 'divergence-allowlist.json');
-    writeDivergenceAllowlist({ rootDir, baseRef, allowlistPath });
-
-    fs.writeFileSync(
-      path.join(sourceDir, 'index.ts'),
-      ['export const a = 9;', 'export const b = 2;', ''].join('\n'),
-    );
-    runGit(rootDir, ['add', '.']);
-    runGit(rootDir, ['commit', '-m', 'fork edit']);
-    const laterRef = runGit(rootDir, ['rev-parse', 'HEAD']);
-
-    assert.notEqual(laterRef, baseRef);
-    assert.throws(
-      () => checkForkDivergence({ rootDir, baseRef: laterRef, allowlistPath }),
-      /Divergence base mismatch/,
-    );
-
-    // A short ref that resolves to the recorded base is still accepted.
-    assert.equal(
-      checkForkDivergence({
-        rootDir,
-        baseRef: baseRef.slice(0, 8),
-        allowlistPath,
-      }).ok,
-      false,
-    );
-  } finally {
-    fs.rmSync(rootDir, { recursive: true, force: true });
-  }
-});
-
-test('re-recording at a different base needs an explicit rebase opt-in', () => {
-  const { rootDir, baseRef, sourceDir } = makeGitFixture();
-
-  try {
-    const allowlistPath = path.join(rootDir, 'divergence-allowlist.json');
-    writeDivergenceAllowlist({ rootDir, baseRef, allowlistPath });
-
-    fs.writeFileSync(
-      path.join(sourceDir, 'index.ts'),
-      ['export const a = 9;', 'export const b = 2;', ''].join('\n'),
-    );
-    runGit(rootDir, ['add', '.']);
-    runGit(rootDir, ['commit', '-m', 'fork edit']);
-    const laterRef = runGit(rootDir, ['rev-parse', 'HEAD']);
-
+    runGit(fixture.rootDir, ['commit', '--allow-empty', '-m', 'later commit']);
+    const laterRef = runGit(fixture.rootDir, ['rev-parse', 'HEAD']);
     assert.throws(
       () =>
-        writeDivergenceAllowlist({
-          rootDir,
+        checkForkDivergence({
+          rootDir: fixture.rootDir,
           baseRef: laterRef,
-          allowlistPath,
+          allowlistPath: fixture.allowlistPath,
         }),
       /Divergence base mismatch/,
     );
-
-    const rebased = writeDivergenceAllowlist({
-      rootDir,
-      baseRef: laterRef,
-      allowlistPath,
-      rebaseAllowlist: true,
-    });
-
-    assert.equal(rebased.snapshot.baseRef, laterRef);
-    assert.equal(
-      checkForkDivergence({ rootDir, baseRef: laterRef, allowlistPath }).ok,
-      true,
+    assert.throws(
+      () =>
+        checkForkDivergence({
+          rootDir: fixture.rootDir,
+          baseRef: 'deadbeef',
+          allowlistPath: fixture.allowlistPath,
+        }),
+      /does not resolve/,
     );
   } finally {
-    fs.rmSync(rootDir, { recursive: true, force: true });
+    cleanup(fixture.rootDir);
   }
 });
 
-test('--head compares a committed range instead of the worktree', () => {
-  const { rootDir, baseRef, sourceDir } = makeGitFixture();
-
+test('--head measures the committed tree rather than a dirtier worktree', () => {
+  const fixture = makeGitFixture();
   try {
-    fs.writeFileSync(
-      path.join(sourceDir, 'index.ts'),
+    writeRepoFile(
+      fixture.rootDir,
+      'packages/runtime/src/index.ts',
       [
         'export const a = 9;',
         'export const b = 2;',
@@ -733,22 +685,15 @@ test('--head compares a committed range instead of the worktree', () => {
         '',
       ].join('\n'),
     );
-    runGit(rootDir, ['add', '.']);
-    runGit(rootDir, ['commit', '-m', 'fork edit']);
-    const headRef = runGit(rootDir, ['rev-parse', 'HEAD']);
-
-    const allowlistPath = path.join(rootDir, 'divergence-allowlist.json');
-    writeDivergenceAllowlist({
-      rootDir,
-      baseRef,
+    const headRef = commitAll(fixture.rootDir, 'fork edit');
+    writeSnapshot({
+      rootDir: fixture.rootDir,
+      baseRef: fixture.upstreamBase,
       headRef,
-      allowlistPath,
-      recordGrowth: true,
     });
-
-    // Dirty the worktree beyond the committed range; --head must ignore it.
-    fs.writeFileSync(
-      path.join(sourceDir, 'index.ts'),
+    writeRepoFile(
+      fixture.rootDir,
+      'packages/runtime/src/index.ts',
       [
         'export const a = 9;',
         'export const b = 9;',
@@ -756,16 +701,678 @@ test('--head compares a committed range instead of the worktree', () => {
         '',
       ].join('\n'),
     );
-
     assert.equal(
-      checkForkDivergence({ rootDir, baseRef, headRef, allowlistPath }).ok,
+      checkForkDivergence({ rootDir: fixture.rootDir, headRef }).ok,
       true,
     );
+    assert.equal(checkForkDivergence({ rootDir: fixture.rootDir }).ok, false);
+  } finally {
+    cleanup(fixture.rootDir);
+  }
+});
+
+test('allowlist comparison distinguishes shrink, growth, and contract transitions', () => {
+  const fixture = makeLegacyFixture();
+  try {
+    const base = readFixtureAllowlist(fixture);
+    const shrink = structuredClone(base);
+    shrink.files[0].changedLines -= 1;
+    shrink.totalChangedLines -= 1;
+    assert.deepEqual(
+      checkAllowlistGovernance({ baseAllowlist: base, headAllowlist: shrink }),
+      {
+        growth: [],
+        introduced: false,
+        reAnchored: false,
+        scopeChanged: false,
+        transition: false,
+        ok: true,
+      },
+    );
+    const growth = structuredClone(base);
+    growth.files[0].changedLines += 1;
+    growth.totalChangedLines += 1;
     assert.equal(
-      checkForkDivergence({ rootDir, baseRef, allowlistPath }).ok,
-      false,
+      checkAllowlistGovernance({ baseAllowlist: base, headAllowlist: growth })
+        .growth.length,
+      1,
+    );
+    assert.equal(
+      checkAllowlistGovernance({ baseAllowlist: null, headAllowlist: base })
+        .transition,
+      true,
     );
   } finally {
-    fs.rmSync(rootDir, { recursive: true, force: true });
+    cleanup(fixture.rootDir);
+  }
+});
+
+test('unresolvable governance merge-base and head refs fail closed', () => {
+  const fixture = makeLegacyFixture();
+  try {
+    fs.appendFileSync(
+      path.join(fixture.rootDir, 'FORK-DIVERGENCE.md'),
+      'ledger row\n',
+    );
+    const headRef = commitAll(fixture.rootDir, 'ledger edit');
+    const badBase = runGovernanceCli({
+      rootDir: fixture.rootDir,
+      mergeBase: 'deadbeef',
+      headRef,
+    });
+    assert.notEqual(badBase.status, 0);
+    assert.match(badBase.stderr, /does not resolve to a commit/);
+
+    const badHead = runGovernanceCli({
+      rootDir: fixture.rootDir,
+      mergeBase: fixture.mergeBase,
+      headRef: 'deadbeef',
+    });
+    assert.notEqual(badHead.status, 0);
+    assert.match(badHead.stderr, /does not resolve to a commit/);
+  } finally {
+    cleanup(fixture.rootDir);
+  }
+});
+
+test('initial allowlist introduction requires a real base tree, exact snapshot, ledger, and capped PR delta', () => {
+  const fixture = makeGitFixture();
+  try {
+    writeRepoFile(
+      fixture.rootDir,
+      'packages/runtime/src/index.ts',
+      [
+        'export const a = 9;',
+        'export const b = 2;',
+        'export const c = 3;',
+        '',
+      ].join('\n'),
+    );
+    fs.appendFileSync(
+      path.join(fixture.rootDir, 'FORK-DIVERGENCE.md'),
+      'initial capped row\n',
+    );
+    writeSnapshot({
+      rootDir: fixture.rootDir,
+      baseRef: fixture.upstreamBase,
+    });
+    const headRef = commitAll(fixture.rootDir, 'introduce governed allowlist');
+    const result = runGovernanceCli({
+      rootDir: fixture.rootDir,
+      mergeBase: fixture.upstreamBase,
+      headRef,
+    });
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    assert.equal(
+      loadGovernance({
+        rootDir: fixture.rootDir,
+        mergeBase: fixture.upstreamBase,
+        headRef,
+      }).allowlist.introduced,
+      true,
+    );
+  } finally {
+    cleanup(fixture.rootDir);
+  }
+});
+
+test('capped allowlist growth passes only with a same-PR ledger change', () => {
+  for (const ledgerChanged of [false, true]) {
+    const fixture = makeLegacyFixture();
+    try {
+      writeRepoFile(
+        fixture.rootDir,
+        'packages/runtime/src/index.ts',
+        [
+          'export const a = 9;',
+          'export const b = 2;',
+          'export const c = 3;',
+          'export const forkOnly = true;',
+          '',
+        ].join('\n'),
+      );
+      if (ledgerChanged) {
+        fs.appendFileSync(
+          path.join(fixture.rootDir, 'FORK-DIVERGENCE.md'),
+          'capped growth row\n',
+        );
+      }
+      writeSnapshot({
+        rootDir: fixture.rootDir,
+        baseRef: fixture.upstreamBase,
+      });
+      const headRef = commitAll(fixture.rootDir, 'candidate capped growth');
+      const result = runGovernanceCli({
+        rootDir: fixture.rootDir,
+        mergeBase: fixture.mergeBase,
+        headRef,
+      });
+      assert.equal(
+        result.status,
+        ledgerChanged ? 0 : 1,
+        `${result.stdout}\n${result.stderr}`,
+      );
+      if (!ledgerChanged) {
+        assert.match(result.stderr, /FORK-DIVERGENCE\.md/);
+      }
+    } finally {
+      cleanup(fixture.rootDir);
+    }
+  }
+});
+
+test('exactly 20 PR lines is allowed but an over-cap patch fails even with ledger', () => {
+  for (const replacements of [10, 11]) {
+    const baseContents = replacementLines(12);
+    const fixture = makeLegacyFixture({
+      baseContents,
+      legacyContents: baseContents,
+    });
+    try {
+      writeRepoFile(
+        fixture.rootDir,
+        'packages/runtime/src/index.ts',
+        `${changedReplacementLines(replacements)}${replacementLines(12)
+          .split('\n')
+          .slice(replacements, -1)
+          .join('\n')}\n`,
+      );
+      fs.appendFileSync(
+        path.join(fixture.rootDir, 'FORK-DIVERGENCE.md'),
+        `replacement ${String(replacements)}\n`,
+      );
+      writeSnapshot({
+        rootDir: fixture.rootDir,
+        baseRef: fixture.upstreamBase,
+      });
+      const headRef = commitAll(fixture.rootDir, 'replace upstream lines');
+      const governance = loadGovernance({
+        rootDir: fixture.rootDir,
+        mergeBase: fixture.mergeBase,
+        headRef,
+      });
+      assert.equal(governance.rule5Changes[0].changedLines, replacements * 2);
+      assert.equal(
+        governance.ok,
+        replacements === 10,
+        governance.errors.join('\n'),
+      );
+    } finally {
+      cleanup(fixture.rootDir);
+    }
+  }
+  assert.equal(CAPPED_PATCH_LINES, 20);
+});
+
+test('same-count semantic replacement is a governed non-shrink change', () => {
+  for (const ledgerChanged of [false, true]) {
+    const fixture = makeLegacyFixture();
+    try {
+      writeRepoFile(
+        fixture.rootDir,
+        'packages/runtime/src/index.ts',
+        [
+          'export const a = 8;',
+          'export const b = 2;',
+          'export const c = 3;',
+          '',
+        ].join('\n'),
+      );
+      if (ledgerChanged) {
+        fs.appendFileSync(
+          path.join(fixture.rootDir, 'FORK-DIVERGENCE.md'),
+          'semantic replacement row\n',
+        );
+      }
+      const headRef = commitAll(fixture.rootDir, 'same-count replacement');
+      const governance = loadGovernance({
+        rootDir: fixture.rootDir,
+        mergeBase: fixture.mergeBase,
+        headRef,
+      });
+      assert.equal(governance.rule5Changes[0].genuineShrink, false);
+      assert.equal(governance.rule5Changes[0].changedLines, 2);
+      assert.equal(governance.ok, ledgerChanged, governance.errors.join('\n'));
+    } finally {
+      cleanup(fixture.rootDir);
+    }
+  }
+});
+
+test('componentwise genuine shrink passes without ledger ceremony', () => {
+  const fixture = makeLegacyFixture({
+    legacyContents: [
+      'export const a = 9;',
+      'export const b = 9;',
+      'export const c = 3;',
+      '',
+    ].join('\n'),
+  });
+  try {
+    writeRepoFile(
+      fixture.rootDir,
+      'packages/runtime/src/index.ts',
+      [
+        'export const a = 9;',
+        'export const b = 2;',
+        'export const c = 3;',
+        '',
+      ].join('\n'),
+    );
+    const headRef = commitAll(fixture.rootDir, 'shrink legacy divergence');
+    const governance = loadGovernance({
+      rootDir: fixture.rootDir,
+      mergeBase: fixture.mergeBase,
+      headRef,
+    });
+    assert.equal(governance.ledgerChanged, false);
+    assert.equal(governance.rule5Changes[0].genuineShrink, true);
+    assert.equal(governance.ok, true, governance.errors.join('\n'));
+  } finally {
+    cleanup(fixture.rootDir);
+  }
+});
+
+test('hand-raised budget cannot exceed the committed-head measurement', () => {
+  const fixture = makeLegacyFixture();
+  try {
+    writeRepoFile(
+      fixture.rootDir,
+      'packages/runtime/src/index.ts',
+      [
+        'export const a = 9;',
+        'export const b = 2;',
+        'export const c = 3;',
+        'export const forkOnly = true;',
+        '',
+      ].join('\n'),
+    );
+    fs.appendFileSync(
+      path.join(fixture.rootDir, 'FORK-DIVERGENCE.md'),
+      'real capped row\n',
+    );
+    const { snapshot } = writeSnapshot({
+      rootDir: fixture.rootDir,
+      baseRef: fixture.upstreamBase,
+    });
+    snapshot.files[0].changedLines += 10;
+    snapshot.totalChangedLines += 10;
+    fs.writeFileSync(
+      fixture.allowlistPath,
+      serializeDivergenceSnapshot(snapshot),
+    );
+    const headRef = commitAll(fixture.rootDir, 'hand raise budget');
+    const governance = loadGovernance({
+      rootDir: fixture.rootDir,
+      mergeBase: fixture.mergeBase,
+      headRef,
+    });
+    assert.equal(governance.ok, false);
+    assert.match(governance.errors.join('\n'), /does not exactly match/);
+  } finally {
+    cleanup(fixture.rootDir);
+  }
+});
+
+test('governance reads the committed head allowlist, not a repaired worktree file', () => {
+  const fixture = makeLegacyFixture();
+  try {
+    writeRepoFile(
+      fixture.rootDir,
+      'packages/runtime/src/index.ts',
+      [
+        'export const a = 9;',
+        'export const b = 2;',
+        'export const c = 3;',
+        'export const forkOnly = true;',
+        '',
+      ].join('\n'),
+    );
+    fs.appendFileSync(
+      path.join(fixture.rootDir, 'FORK-DIVERGENCE.md'),
+      'row\n',
+    );
+    const { snapshot } = writeSnapshot({
+      rootDir: fixture.rootDir,
+      baseRef: fixture.upstreamBase,
+    });
+    snapshot.files[0].changedLines += 5;
+    snapshot.totalChangedLines += 5;
+    fs.writeFileSync(
+      fixture.allowlistPath,
+      serializeDivergenceSnapshot(snapshot),
+    );
+    const headRef = commitAll(fixture.rootDir, 'commit dishonest allowlist');
+
+    writeSnapshot({
+      rootDir: fixture.rootDir,
+      baseRef: fixture.upstreamBase,
+      headRef,
+    });
+    const result = runGovernanceCli({
+      rootDir: fixture.rootDir,
+      mergeBase: fixture.mergeBase,
+      headRef,
+    });
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /does not exactly match/);
+  } finally {
+    cleanup(fixture.rootDir);
+  }
+});
+
+test('pure upstream-owned rename is keyed by its audited old path and needs ledger', () => {
+  for (const ledgerChanged of [false, true]) {
+    const fixture = makeGitFixture({
+      files: {
+        'packages/runtime/src/old.ts': 'export const oldName = true;\n',
+      },
+    });
+    try {
+      writeSnapshot({
+        rootDir: fixture.rootDir,
+        baseRef: fixture.upstreamBase,
+      });
+      const mergeBase = commitAll(fixture.rootDir, 'baseline allowlist');
+      fs.renameSync(
+        path.join(fixture.rootDir, 'packages/runtime/src/old.ts'),
+        path.join(fixture.rootDir, 'packages/runtime/src/new.ts'),
+      );
+      if (ledgerChanged) {
+        fs.appendFileSync(
+          path.join(fixture.rootDir, 'FORK-DIVERGENCE.md'),
+          'rename row\n',
+        );
+      }
+      writeSnapshot({
+        rootDir: fixture.rootDir,
+        baseRef: fixture.upstreamBase,
+      });
+      const headRef = commitAll(fixture.rootDir, 'rename upstream file');
+      const governance = loadGovernance({
+        rootDir: fixture.rootDir,
+        mergeBase,
+        headRef,
+      });
+      assert.equal(
+        governance.rule5Changes[0].file,
+        'packages/runtime/src/old.ts',
+      );
+      assert.equal(governance.rule5Changes[0].renamed, true);
+      assert.equal(governance.rule5Changes[0].changedLines, 0);
+      assert.equal(governance.ok, ledgerChanged, governance.errors.join('\n'));
+    } finally {
+      cleanup(fixture.rootDir);
+    }
+  }
+});
+
+test('a historically renamed upstream file retains audited ownership', () => {
+  const fixture = makeGitFixture({
+    files: {
+      'packages/runtime/src/old.ts': 'export const value = 1;\n',
+    },
+  });
+  try {
+    fs.renameSync(
+      path.join(fixture.rootDir, 'packages/runtime/src/old.ts'),
+      path.join(fixture.rootDir, 'packages/runtime/src/new.ts'),
+    );
+    writeSnapshot({
+      rootDir: fixture.rootDir,
+      baseRef: fixture.upstreamBase,
+    });
+    const mergeBase = commitAll(fixture.rootDir, 'historical rename baseline');
+    writeRepoFile(
+      fixture.rootDir,
+      'packages/runtime/src/new.ts',
+      'export const value = 2;\n',
+    );
+    const headRef = commitAll(fixture.rootDir, 'modify renamed file');
+    const governance = loadGovernance({
+      rootDir: fixture.rootDir,
+      mergeBase,
+      headRef,
+    });
+    assert.equal(
+      governance.rule5Changes[0].file,
+      'packages/runtime/src/old.ts',
+    );
+    assert.equal(governance.rule5Changes[0].genuineShrink, false);
+    assert.equal(governance.ok, false);
+    assert.match(governance.errors.join('\n'), /FORK-DIVERGENCE\.md/);
+  } finally {
+    cleanup(fixture.rootDir);
+  }
+});
+
+test('plain writer locks in genuine shrink but refuses growth atomically', () => {
+  const fixture = makeLegacyFixture({
+    legacyContents: [
+      'export const a = 9;',
+      'export const b = 9;',
+      'export const c = 3;',
+      '',
+    ].join('\n'),
+  });
+  try {
+    writeRepoFile(
+      fixture.rootDir,
+      'packages/runtime/src/index.ts',
+      [
+        'export const a = 9;',
+        'export const b = 2;',
+        'export const c = 3;',
+        '',
+      ].join('\n'),
+    );
+    const shrunk = writeDivergenceAllowlist({
+      rootDir: fixture.rootDir,
+      baseRef: fixture.upstreamBase,
+      allowlistPath: fixture.allowlistPath,
+    });
+    assert.equal(shrunk.growth.length, 0);
+    const afterShrink = fs.readFileSync(fixture.allowlistPath);
+
+    writeRepoFile(
+      fixture.rootDir,
+      'packages/runtime/src/index.ts',
+      [
+        'export const a = 9;',
+        'export const b = 9;',
+        'export const c = 9;',
+        'export const forkOnly = true;',
+        '',
+      ].join('\n'),
+    );
+    assert.throws(
+      () =>
+        writeDivergenceAllowlist({
+          rootDir: fixture.rootDir,
+          baseRef: fixture.upstreamBase,
+          allowlistPath: fixture.allowlistPath,
+        }),
+      /explicit --record-growth/,
+    );
+    assert.deepEqual(fs.readFileSync(fixture.allowlistPath), afterShrink);
+  } finally {
+    cleanup(fixture.rootDir);
+  }
+});
+
+test('reviewed growth writer independently enforces refs, ledger, exact cap, and canonical path', () => {
+  const fixture = makeLegacyFixture();
+  try {
+    writeRepoFile(
+      fixture.rootDir,
+      'packages/runtime/src/index.ts',
+      [
+        'export const a = 9;',
+        'export const b = 2;',
+        'export const c = 3;',
+        'export const forkOnly = true;',
+        '',
+      ].join('\n'),
+    );
+    fs.appendFileSync(
+      path.join(fixture.rootDir, 'FORK-DIVERGENCE.md'),
+      'writer capped row\n',
+    );
+    const headRef = commitAll(
+      fixture.rootDir,
+      'source and ledger before writer',
+    );
+    const report = writeDivergenceAllowlist({
+      rootDir: fixture.rootDir,
+      baseRef: fixture.upstreamBase,
+      headRef,
+      mergeBaseRef: fixture.mergeBase,
+      allowlistPath: fixture.allowlistPath,
+      recordGrowth: true,
+    });
+    assert.equal(report.growth.length, 1);
+    assert.equal(report.governance.ok, true);
+    assert.equal(
+      checkForkDivergence({ rootDir: fixture.rootDir, headRef }).ok,
+      true,
+    );
+  } finally {
+    cleanup(fixture.rootDir);
+  }
+});
+
+test('reviewed growth writer rejects absent ledger and over-cap growth without modifying the file', () => {
+  for (const scenario of ['no-ledger', 'over-cap']) {
+    const baseContents =
+      scenario === 'over-cap' ? replacementLines(12) : undefined;
+    const fixture = makeLegacyFixture({
+      baseContents,
+      legacyContents: scenario === 'over-cap' ? baseContents : undefined,
+    });
+    try {
+      if (scenario === 'over-cap') {
+        writeRepoFile(
+          fixture.rootDir,
+          'packages/runtime/src/index.ts',
+          changedReplacementLines(12),
+        );
+        fs.appendFileSync(
+          path.join(fixture.rootDir, 'FORK-DIVERGENCE.md'),
+          'over-cap row\n',
+        );
+      } else {
+        writeRepoFile(
+          fixture.rootDir,
+          'packages/runtime/src/index.ts',
+          [
+            'export const a = 9;',
+            'export const b = 2;',
+            'export const c = 3;',
+            'export const forkOnly = true;',
+            '',
+          ].join('\n'),
+        );
+      }
+      const headRef = commitAll(fixture.rootDir, scenario);
+      const before = fs.readFileSync(fixture.allowlistPath);
+      assert.throws(
+        () =>
+          writeDivergenceAllowlist({
+            rootDir: fixture.rootDir,
+            baseRef: fixture.upstreamBase,
+            headRef,
+            mergeBaseRef: fixture.mergeBase,
+            allowlistPath: fixture.allowlistPath,
+            recordGrowth: true,
+          }),
+        scenario === 'over-cap'
+          ? /exceeding the exact 20-line cap/
+          : /FORK-DIVERGENCE\.md/,
+      );
+      assert.deepEqual(fs.readFileSync(fixture.allowlistPath), before);
+    } finally {
+      cleanup(fixture.rootDir);
+    }
+  }
+});
+
+test('base re-anchor requires the reviewed re-record operation and ledger evidence', () => {
+  const fixture = makeLegacyFixture();
+  try {
+    fs.appendFileSync(
+      path.join(fixture.rootDir, 'FORK-DIVERGENCE.md'),
+      'base migration row\n',
+    );
+    const headRef = commitAll(fixture.rootDir, 'authorize base migration');
+    assert.throws(
+      () =>
+        writeDivergenceAllowlist({
+          rootDir: fixture.rootDir,
+          baseRef: fixture.mergeBase,
+          headRef,
+          allowlistPath: fixture.allowlistPath,
+        }),
+      /Divergence base mismatch/,
+    );
+    const report = writeDivergenceAllowlist({
+      rootDir: fixture.rootDir,
+      baseRef: fixture.mergeBase,
+      headRef,
+      mergeBaseRef: fixture.mergeBase,
+      allowlistPath: fixture.allowlistPath,
+      rebaseAllowlist: true,
+    });
+    assert.equal(report.snapshot.baseRef, fixture.mergeBase);
+    assert.equal(report.governance.allowlist.reAnchored, true);
+    const repeated = writeDivergenceAllowlist({
+      rootDir: fixture.rootDir,
+      headRef,
+      allowlistPath: fixture.allowlistPath,
+    });
+    assert.equal(repeated.snapshot.baseRef, fixture.mergeBase);
+    assert.equal(
+      checkForkDivergence({
+        rootDir: fixture.rootDir,
+        baseRef: fixture.mergeBase,
+        headRef,
+      }).ok,
+      true,
+    );
+  } finally {
+    cleanup(fixture.rootDir);
+  }
+});
+
+test('scope transition is governance-significant and cannot be hidden by reordering', () => {
+  const fixture = makeGitFixture({
+    files: {
+      'packages/cli/a.ts': 'export const a = 1;\n',
+      'packages/runtime/b.ts': 'export const b = 1;\n',
+    },
+  });
+  try {
+    writeSnapshot({
+      rootDir: fixture.rootDir,
+      baseRef: fixture.upstreamBase,
+      pathspec: ['packages'],
+    });
+    const mergeBase = commitAll(fixture.rootDir, 'full scope baseline');
+    const baseAllowlist = readDivergenceAllowlistAtRef({
+      rootDir: fixture.rootDir,
+      ref: mergeBase,
+    });
+    const narrowed = createDivergenceSnapshot({
+      baseRef: fixture.upstreamBase,
+      pathspec: ['packages/runtime'],
+      files: [],
+    });
+    const comparison = checkAllowlistGovernance({
+      baseAllowlist,
+      headAllowlist: narrowed,
+    });
+    assert.equal(comparison.scopeChanged, true);
+    assert.equal(comparison.ok, false);
+  } finally {
+    cleanup(fixture.rootDir);
   }
 });

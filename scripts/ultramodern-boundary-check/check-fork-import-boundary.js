@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 
-const { spawnSync } = require('node:child_process');
 const path = require('node:path');
 const { parseArgs } = require('node:util');
 
@@ -13,14 +12,14 @@ const {
 } = require('./checker');
 
 const {
-  DEFAULT_DIVERGENCE_ALLOWLIST_PATH,
-  DEFAULT_DIVERGENCE_BASE_REF,
-  DEFAULT_PATHSPEC,
-  checkAllowlistGovernance,
+  CAPPED_PATCH_LINES,
   checkForkDivergence,
+  evaluateDivergenceGovernance,
   formatDivergenceGrowth,
   formatDivergenceReport,
-  readDivergenceAllowlist,
+  getCanonicalDivergenceAllowlistPath,
+  readDivergenceAllowlistAtRef,
+  resolveRepositoryTopLevel,
   runSelfTest,
   writeDivergenceAllowlist,
 } = require('./divergence');
@@ -31,131 +30,32 @@ const MODES = Object.freeze([
   'divergence',
   'allowlist-governance',
 ]);
-const DIVERGENCE_ALLOWLIST_REPO_PATH =
-  'scripts/ultramodern-boundary-check/divergence-allowlist.json';
-const DIVERGENCE_LEDGER_REPO_PATH = 'FORK-DIVERGENCE.md';
 
 const parseCliArgs = argv =>
   parseArgs({
     args: argv,
     strict: true,
     options: {
-      // Shared / legacy import-boundary options.
-      'base-ref': {
-        type: 'string',
-        default: DEFAULT_BASE_REF,
-      },
-      allowlist: {
-        type: 'string',
-        default: DEFAULT_ALLOWLIST_PATH,
-      },
-      root: {
-        type: 'string',
-        default: process.cwd(),
-      },
-      'write-allowlist': {
-        type: 'boolean',
-        default: false,
-      },
-      json: {
-        type: 'boolean',
-        default: false,
-      },
-      // Divergence-mode options.
-      mode: {
-        type: 'string',
-        default: 'all',
-      },
-      base: {
-        type: 'string',
-        default: DEFAULT_DIVERGENCE_BASE_REF,
-      },
-      head: {
-        type: 'string',
-      },
-      'merge-base': {
-        type: 'string',
-      },
-      pathspec: {
-        type: 'string',
-        multiple: true,
-      },
-      'divergence-allowlist': {
-        type: 'string',
-        default: DEFAULT_DIVERGENCE_ALLOWLIST_PATH,
-      },
-      'write-divergence-allowlist': {
-        type: 'boolean',
-        default: false,
-      },
-      // Explicit opt-in for sanctioned budget growth. Without this flag,
-      // writing is monotonic and refuses grown metrics or new file entries.
-      'record-growth': {
-        type: 'boolean',
-        default: false,
-      },
-      // Opt-in re-anchor: only pass when the recorded upstream base itself
-      // moves, never to bless new divergence at the existing base.
-      'rebase-divergence-allowlist': {
-        type: 'boolean',
-        default: false,
-      },
-      'self-test': {
-        type: 'boolean',
-        default: false,
-      },
+      'base-ref': { type: 'string', default: DEFAULT_BASE_REF },
+      allowlist: { type: 'string', default: DEFAULT_ALLOWLIST_PATH },
+      root: { type: 'string' },
+      'write-allowlist': { type: 'boolean', default: false },
+      json: { type: 'boolean', default: false },
+      mode: { type: 'string', default: 'all' },
+      base: { type: 'string' },
+      head: { type: 'string' },
+      'merge-base': { type: 'string' },
+      pathspec: { type: 'string', multiple: true },
+      'divergence-allowlist': { type: 'string' },
+      'write-divergence-allowlist': { type: 'boolean', default: false },
+      'record-growth': { type: 'boolean', default: false },
+      'rebase-divergence-allowlist': { type: 'boolean', default: false },
+      'self-test': { type: 'boolean', default: false },
     },
   }).values;
 
-const runGit = ({ rootDir, args, allowFailure = false }) => {
-  const result = spawnSync('git', args, {
-    cwd: rootDir,
-    encoding: 'utf8',
-    stdio: 'pipe',
-  });
-
-  if (result.error) {
-    throw new Error(`git ${args.join(' ')} failed: ${result.error.message}`);
-  }
-  if (result.status !== 0) {
-    if (allowFailure) {
-      return null;
-    }
-    const stderr = (result.stderr || '').trim();
-    throw new Error(
-      `git ${args.join(' ')} failed${stderr ? `: ${stderr}` : ''}`,
-    );
-  }
-
-  return result.stdout || '';
-};
-
-const readAllowlistAtRef = ({ rootDir, ref }) => {
-  const contents = runGit({
-    rootDir,
-    args: ['show', `${ref}:${DIVERGENCE_ALLOWLIST_REPO_PATH}`],
-    allowFailure: true,
-  });
-
-  return contents === null ? null : JSON.parse(contents);
-};
-
-const checkLedgerChanged = ({ rootDir, mergeBase, headRef }) =>
-  runGit({
-    rootDir,
-    args: [
-      'diff',
-      '--name-only',
-      mergeBase,
-      headRef,
-      '--',
-      DIVERGENCE_LEDGER_REPO_PATH,
-    ],
-  }).trim().length > 0;
-
 const printSelfTest = () => {
   const { ok, results } = runSelfTest();
-
   results.forEach(result => {
     console.log(
       `[ultramodern-boundary:self-test] ${result.pass ? 'ok' : 'FAIL'} - ${
@@ -163,27 +63,74 @@ const printSelfTest = () => {
       }${result.pass ? '' : ` :: ${result.detail}`}`,
     );
   });
-
   const passed = results.filter(result => result.pass).length;
   console.log(
     `[ultramodern-boundary:self-test] ${String(passed)}/${String(
       results.length,
     )} checks passed`,
   );
-
   return ok;
+};
+
+const assertNoVerificationOverrides = args => {
+  const rejected = [
+    ['root', '--root'],
+    ['pathspec', '--pathspec'],
+    ['divergence-allowlist', '--divergence-allowlist'],
+  ];
+  for (const [key, flag] of rejected) {
+    if (args[key] !== undefined) {
+      throw new Error(
+        `${flag} is not accepted in verification modes. Run from the repository top level and use the checked-in divergence allowlist's recorded scope.`,
+      );
+    }
+  }
+};
+
+const printGovernance = governance => {
+  const { allowlist, ledgerChanged, rule5Changes } = governance;
+  if (allowlist.growth.length > 0) {
+    console.log(
+      `[ultramodern-divergence-governance] ${
+        ledgerChanged ? 'ledger-backed' : 'unledgered'
+      } allowlist growth:`,
+    );
+    allowlist.growth.forEach(entry => {
+      console.log(
+        `[ultramodern-divergence-governance] ${formatDivergenceGrowth(entry)}`,
+      );
+    });
+  } else if (allowlist.transition) {
+    console.log(
+      '[ultramodern-divergence-governance] reviewed initial/base/scope allowlist transition.',
+    );
+  } else {
+    console.log(
+      '[ultramodern-divergence-governance] allowlist is shrink-only relative to the PR merge-base.',
+    );
+  }
+
+  for (const change of rule5Changes) {
+    const disposition = change.genuineShrink
+      ? 'genuine shrink'
+      : `${String(change.changedLines)} PR lines${
+          change.renamed ? ', rename-governed' : ''
+        }`;
+    console.log(
+      `[ultramodern-divergence-governance] Rule 5 ${change.file}: ${disposition}`,
+    );
+  }
+
+  if (!governance.ok) {
+    governance.errors.forEach(error => {
+      console.error(`[ultramodern-divergence-governance] ${error}`);
+    });
+    process.exitCode = 1;
+  }
 };
 
 const main = () => {
   const args = parseCliArgs(process.argv.slice(2));
-  const rootDir = path.resolve(args.root);
-  const allowlistPath = path.resolve(args.allowlist);
-  const divergenceAllowlistPath = path.resolve(args['divergence-allowlist']);
-  const pathspec =
-    args.pathspec && args.pathspec.length > 0
-      ? args.pathspec
-      : [...DEFAULT_PATHSPEC];
-
   if (!MODES.includes(args.mode)) {
     throw new Error(
       `Unknown --mode ${args.mode}; expected one of ${MODES.join(', ')}`,
@@ -197,61 +144,75 @@ const main = () => {
     return;
   }
 
+  const writingDivergence = args['write-divergence-allowlist'];
+  if (
+    args.mode === 'allowlist-governance' &&
+    (writingDivergence ||
+      args['write-allowlist'] ||
+      args['record-growth'] ||
+      args['rebase-divergence-allowlist'])
+  ) {
+    throw new Error(
+      '--mode allowlist-governance is verification-only and rejects every writer option.',
+    );
+  }
+  const verificationMode =
+    !writingDivergence &&
+    (args.mode === 'all' ||
+      args.mode === 'divergence' ||
+      args.mode === 'allowlist-governance');
+  if (verificationMode) {
+    assertNoVerificationOverrides(args);
+  }
+
+  const requestedRoot = path.resolve(args.root ?? process.cwd());
+  const rootDir = resolveRepositoryTopLevel({ rootDir: requestedRoot });
+  const canonicalDivergenceAllowlistPath =
+    getCanonicalDivergenceAllowlistPath(rootDir);
+
   if (args.mode === 'allowlist-governance') {
     if (!args['merge-base']) {
       throw new Error(
-        '--mode allowlist-governance requires --merge-base <sha>',
+        '--mode allowlist-governance requires --merge-base <commit>',
       );
     }
     if (!args.head) {
-      throw new Error('--mode allowlist-governance requires --head <sha>');
+      throw new Error('--mode allowlist-governance requires --head <commit>');
     }
-
-    const baseAllowlist = readAllowlistAtRef({
+    const baseAllowlist = readDivergenceAllowlistAtRef({
       rootDir,
       ref: args['merge-base'],
+      allowMissing: true,
     });
-    const headAllowlist = readDivergenceAllowlist(divergenceAllowlistPath);
-    const governance = checkAllowlistGovernance({
+    const headAllowlist = readDivergenceAllowlistAtRef({
+      rootDir,
+      ref: args.head,
+      allowMissing: false,
+    });
+    const governance = evaluateDivergenceGovernance({
+      rootDir,
+      mergeBaseRef: args['merge-base'],
+      headRef: args.head,
       baseAllowlist,
       headAllowlist,
     });
-    const ledgerChanged = checkLedgerChanged({
-      rootDir,
-      mergeBase: args['merge-base'],
-      headRef: args.head,
-    });
-    const requiresLedger =
-      governance.growth.length > 0 || governance.reAnchored;
-
-    if (requiresLedger) {
-      console.log(
-        `[ultramodern-divergence-governance] ${
-          ledgerChanged ? 'sanctioned' : 'unsanctioned'
-        } allowlist growth${governance.reAnchored ? ' / base re-anchor' : ''}:`,
-      );
-      governance.growth.forEach(entry => {
-        console.log(
-          `[ultramodern-divergence-governance] ${formatDivergenceGrowth(entry)}`,
-        );
-      });
-    } else {
-      console.log(
-        '[ultramodern-divergence-governance] allowlist is shrink-only relative to the PR merge-base.',
-      );
-    }
-
-    if (requiresLedger && !ledgerChanged) {
-      console.error(
-        `[ultramodern-divergence-governance] ${DIVERGENCE_LEDGER_REPO_PATH} must change in the same PR as allowlist growth or a base re-anchor.`,
-      );
-      process.exitCode = 1;
-    }
+    printGovernance(governance);
     return;
   }
 
-  const runImports = args.mode === 'all' || args.mode === 'imports';
-  const runDivergence = args.mode === 'all' || args.mode === 'divergence';
+  if (args['record-growth'] && !writingDivergence) {
+    throw new Error('--record-growth requires --write-divergence-allowlist.');
+  }
+  if (args['rebase-divergence-allowlist'] && !writingDivergence) {
+    throw new Error(
+      '--rebase-divergence-allowlist requires --write-divergence-allowlist.',
+    );
+  }
+
+  const allowlistPath = path.resolve(args.allowlist);
+  const divergenceAllowlistPath = args['divergence-allowlist']
+    ? path.resolve(args['divergence-allowlist'])
+    : canonicalDivergenceAllowlistPath;
 
   if (args['write-allowlist']) {
     const report = writeAllowlist({
@@ -259,34 +220,34 @@ const main = () => {
       baseRef: args['base-ref'],
       allowlistPath,
     });
-
     console.log(
       `[ultramodern-boundary] wrote ${allowlistPath} with ${String(
         report.violations.length,
       )} current violations from ${String(report.scannedFiles)} files`,
     );
-
-    if (!args['write-divergence-allowlist']) {
+    if (!writingDivergence) {
       return;
     }
   }
 
-  if (args['write-divergence-allowlist']) {
+  if (writingDivergence) {
     const report = writeDivergenceAllowlist({
       rootDir,
       baseRef: args.base,
       headRef: args.head,
-      pathspec,
+      mergeBaseRef: args['merge-base'],
+      pathspec: args.pathspec,
       allowlistPath: divergenceAllowlistPath,
       rebaseAllowlist: args['rebase-divergence-allowlist'],
       recordGrowth: args['record-growth'],
     });
-
     if (report.growth.length > 0) {
       console.warn(
-        `[ultramodern-divergence] WARNING: --record-growth is raising ${String(
+        `[ultramodern-divergence] reviewed capped growth is raising ${String(
           report.growth.length,
-        )} divergence budget(s):`,
+        )} budget(s), each independently checked against the exact ${String(
+          CAPPED_PATCH_LINES,
+        )}-line Rule 5 cap:`,
       );
       report.growth.forEach(entry => {
         console.warn(
@@ -294,17 +255,18 @@ const main = () => {
         );
       });
     }
-
     console.log(
       `[ultramodern-divergence] wrote ${divergenceAllowlistPath} with ${String(
         report.totalFiles,
-      )} upstream-owned files / ${String(
-        report.totalHunks,
-      )} hunks / ${String(report.totalChangedLines)} changed lines`,
+      )} upstream-owned files / ${String(report.totalHunks)} hunks / ${String(
+        report.totalChangedLines,
+      )} changed lines`,
     );
     return;
   }
 
+  const runImports = args.mode === 'all' || args.mode === 'imports';
+  const runDivergence = args.mode === 'all' || args.mode === 'divergence';
   const importReport = runImports
     ? checkForkImportBoundary({
         rootDir,
@@ -312,14 +274,12 @@ const main = () => {
         allowlistPath,
       })
     : null;
-
   const divergenceReport = runDivergence
     ? checkForkDivergence({
         rootDir,
         baseRef: args.base,
         headRef: args.head,
-        pathspec,
-        allowlistPath: divergenceAllowlistPath,
+        allowlistPath: canonicalDivergenceAllowlistPath,
       })
     : null;
 
@@ -346,11 +306,10 @@ const main = () => {
     console.log(sections.join('\n\n'));
   }
 
-  const ok =
-    (importReport ? importReport.ok : true) &&
-    (divergenceReport ? divergenceReport.ok : true);
-
-  if (!ok) {
+  if (
+    !(importReport ? importReport.ok : true) ||
+    !(divergenceReport ? divergenceReport.ok : true)
+  ) {
     process.exitCode = 1;
   }
 };
