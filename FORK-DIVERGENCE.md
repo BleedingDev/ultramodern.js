@@ -3,6 +3,10 @@
 **Verified: 2026-08-11.** Every row below was re-checked against the working
 tree on that date. Rows carry their own `Verified` date only when it differs.
 
+**Partially re-verified 2026-08-16** for the upstream 3.8.2 merge: §2 bases and
+counts, §3 reconciliation, CLI-19, CLI-20, SRV-20, SRV-21, SRV-22, SRV-23 and
+notes N9/N10. Rows outside that set still carry the 2026-08-11 date.
+
 This file is the single canonical record of where the UltraModern fork diverges
 from upstream Modern.js. It is read during every upstream sync and enforced on
 every PR.
@@ -91,20 +95,24 @@ Two different base refs are in play. Do not mix them — the counts differ.
 
 | Base | SHA | Used by | Meaning |
 | --- | --- | --- | --- |
-| Divergence-gate base | `dfcd414a050d4455851ff76f861822fca0d4bcf4` | `divergence-allowlist.json`, `--mode divergence` | `git merge-base HEAD v3.8.1` |
-| Import-gate base | `8a744c1b` | `allowlist.json`, `--mode imports` | frozen import-boundary baseline |
-| Sync-review base | `ecef47dcbbec018a169b9026affd8d01adf65219` | this ledger's raw counts | `origin/main` tip, 1 commit ahead of `dfcd414a` |
+| Divergence-gate base | `eded841256a7cffdaa622e3889fc83407debd3e4` | `divergence-allowlist.json`, `--mode divergence` | upstream `Release v3.8.2 (#8810)`, merged into this fork and a true ancestor of `HEAD` |
+| Import-gate base | `8a744c1b` | `allowlist.json`, `--mode imports` | frozen import-boundary baseline, deliberately **not** re-anchored with the divergence base |
+| Sync-review base | `eded841256a7cffdaa622e3889fc83407debd3e4` | this ledger's raw counts | `origin/main` tip; identical to the gate base, so the two no longer differ |
 
-Raw `git diff -M <base> --name-status` (worktree vs base) at 2026-08-12:
+**Re-anchored 2026-08-16 (was `dfcd414a050d4455851ff76f861822fca0d4bcf4`,
+`git merge-base HEAD v3.8.1`).** Measure against the **mainline** release commit,
+never against the `v3.8.2` tag. Upstream cuts releases on a parallel commit: tag
+`v3.8.2` is `e642cd16a8` (`release: v3.8.2`), which shares this base's parent
+`8edf91adb1` and its tree `35d89ac688`. The tag is therefore patch-equivalent but
+**not** an ancestor of `HEAD`, so `git merge-base --is-ancestor v3.8.2 HEAD`
+fails while the same check against `eded841256` passes.
+
+Raw `git diff -M <base> --name-status` (worktree vs base) at 2026-08-16:
 
 | Scope | Base | M | A | D | R |
 | --- | --- | --- | --- | --- | --- |
-| `packages/**` | `dfcd414a` (gate base) | 604 | 847 | 11 | 18 |
-| `packages/**` | `origin/main` | 581 | 847 | 11 | 18 |
-| root/infra (`:(exclude)packages/**`) | `dfcd414a` | 467 | 707 | 8 | 37 |
-
-The 604 vs 581 gap is the one upstream commit between `dfcd414a` and
-`origin/main`; the gate deliberately pins the older, stricter base.
+| `packages/**` | `eded841256` (gate base = `origin/main`) | 582 | 846 | 11 | 18 |
+| root/infra (`:(exclude)packages/**`) | `eded841256` | 467 | 684 | 8 | 39 |
 
 Regenerate with rename detection pinned on — without `-M` the template moves
 surface as delete/add pairs:
@@ -123,10 +131,33 @@ fork-owned by definition, carry no divergence budget, and are not listed here.
 
 ## 3. Allowlist reconciliation
 
-The divergence allowlist covers **633 files / 2,835 hunks / 33,832 changed
-lines** under `packages/`. Every entry is an upstream-owned path that existed at
-`dfcd414a`; fork-added files remain excluded by `git diff --diff-filter=MD`.
-Every allowlisted file family maps to a ledger section below.
+Measured divergence at the current gate base `eded841256` is **611 files /
+2,789 hunks / 33,821 changed lines** under `packages/` (`measureDivergence`,
+`--diff-filter=MD`, so fork-added files are excluded). It was 633 files / 2,844
+hunks / 34,177 changed lines at the retired `dfcd414a` base: the drop is upstream
+3.8.2 landing content the fork already carried, not a shrink the fork earned.
+
+**The recorded budgets in `divergence-allowlist.json` are still the `dfcd414a`
+snapshot — the re-record at the new base is the one step of this change that has
+not run.** Until it does, `--mode divergence` stops at the base-mismatch
+assertion instead of reporting budgets. Re-record with the sanctioned writer path
+(§1), which is required here because a base re-anchor is by definition growth:
+
+```sh
+node scripts/ultramodern-boundary-check/check-fork-import-boundary.js \
+  --mode divergence --base eded841256a7cffdaa622e3889fc83407debd3e4 \
+  --write-divergence-allowlist --rebase-divergence-allowlist --record-growth
+```
+
+The six entries that grow across the base transition are each dispositioned
+below — CLI-19, CLI-20, SRV-20, SRV-21, SRV-22, SRV-23. Four of them grow purely
+because upstream's own file grew in #8797 while the fork keeps its replacement;
+two are the capped Bucket-B patches that port #8797 onto the fork's tsgo
+pipeline. None is a merge-resolution defect.
+
+The group breakdown below is the last hand-classified snapshot, taken at
+`dfcd414a`. It is advisory attribution only — the gate reads per-file budgets,
+never these groups — and is regenerated by hand, not by the writer.
 
 | Allowlist group | Files | Hunks | Lines | Ledger coverage |
 | --- | ---: | ---: | ---: | --- |
@@ -136,7 +167,7 @@ Every allowlisted file family maps to a ledger section below.
 | Snapshots and package documentation | 116 | 358 | 2,774 | Corresponding package-family rows |
 | Other package files outside `src/` | 23 | 50 | 736 | Corresponding package-family rows |
 | Templates outside `src/` | 10 | 10 | 154 | Corresponding package-family rows |
-| **Total** | **633** | **2,835** | **33,832** | Sections 5–9 |
+| **Total (at `dfcd414a`)** | **633** | **2,835** | **33,832** | Sections 5–9 |
 
 **What the budget covers.** Divergence mode measures every modified or deleted
 path under `packages/` that existed at the audited base, regardless of file
@@ -204,6 +235,8 @@ infrastructure files outside `packages/`.
 | CLI-16 | `plugin-data-loader` (4 files): import reordering, storage import path swap, strictness | bleedingdev | Toolchain | keep-[M] | — |
 | CLI-17 | `plugin-ssg` (7 files): import reordering, destructuring/strictness in prerender/server paths | bleedingdev | Toolchain | keep-[M] | — |
 | CLI-18 | `plugin-styled-components` derives the styled interface from `typeof styledComponents.default` | bleedingdev | styled-components v6 no longer exports `StyledInterface`; coupled to the dependency migration | keep-[F] (coupled dep) | — |
+| CLI-19 | `plugin-bff/src/cli.ts` reduced to a 38-line plugin entry that delegates to fork-owned `src/cli/{generator,compress,prefix,watch}.ts`. Budget 216 → **218** lines at the 3.8.2 base | bleedingdev | Base-transition growth, not new fork code: upstream #8797 added `moduleType` and `apiFiles: apiRouter.getApiFiles()` to its inline `generator()` (4 lines). The fork already threads both from `src/cli/generator.ts:87,134` and `:253`, so the behavior is adopted — the upstream file simply grew underneath the extraction | extension-point (already extracted) | — |
+| CLI-20 | `plugin-bff/src/utils/clientGenerator.ts` is a re-export shim over fork-owned `src/utils/client-generator/`. Budget 291 → **338** lines at the 3.8.2 base | bleedingdev | Base-transition growth: upstream #8797 rewrote this file (+153 changed lines) to stop copying handler declarations into `dist/client`. The fork ports that behavior into `client-generator/{generate,type-facade,files,write-package}.ts`; a shim over a bigger upstream file measures as a bigger deletion | extension-point (already extracted) — see note N9 | — |
 
 ---
 
@@ -258,7 +291,10 @@ infrastructure files outside `packages/`.
 | SRV-17 | `server` `src/helpers/mock.ts` drops `encode: encodeURI` from the path-to-regexp `match` options (`:149-151`) and adds `method ?? 'get'` / `pathname ?? '/'` fallbacks in `parseKey` (`:73-74`) | bleedingdev | Changes dev-mock route matching for non-ASCII paths. Dev tooling only, but it hides inside otherwise mechanical churn | capped-patch — on conflict keep the fork side or consciously re-add `encode` | — |
 | SRV-18 | `server` typed `CreateDevServerResult` and undefined-guards in watcher/fileReader | bleedingdev | Strictness fixes, same family as `render.ts` | upstream-PR | P3 |
 | SRV-19 | `server-runtime` export reordering | bleedingdev | Import hygiene | keep-[M] | — |
-| SRV-20 | `utils` TypeScript compiler path rebuilt around tsgo (spawned `tsgo`, tsconfig-paths matcher, import-specifier rewriting; `src/compilers/typescript/index.ts` 454 changed lines) | bleedingdev | Toolchain divergence; upstream `typescriptLoader.ts` deleted (Appendix A) | keep-[F]; **extension-point** for the budget | P3 |
+| SRV-20 | `utils` TypeScript compiler path rebuilt around tsgo (spawned `tsgo`, tsconfig-paths matcher, import-specifier rewriting; `src/compilers/typescript/index.ts` 454 → **482** changed lines, 15 → **17** hunks) | bleedingdev | Toolchain divergence; upstream `typescriptLoader.ts` deleted (Appendix A). The 2026-08-16 growth is a capped Bucket-B patch (20 insertions / 4 deletions) porting #8797: `declaration` is no longer forced to `false`, `OUTPUT_SOURCE_EXTENSIONS` maps `.d.ts`/`.d.mts`/`.d.cts` back to their sources, `getSourceFileForOutput` splits the double extension (`path.parse('index.d.ts').name` is `index.d`), and the output collector accepts `.d.(c\|m)?ts` so declarations reach the specifier rewriter | keep-[F]; **extension-point** for the budget | P3 |
+| SRV-21 | `utils` `src/compilers/typescript/tsconfigPathsPlugin.ts` hosts only the `before` transform. Budget 203 → **325** lines, 24 → **22** hunks at the 3.8.2 base | bleedingdev | Base-transition growth: upstream #8797 added `tsconfigPathsAfterDeclarationsHookFactory`, a `ts.TransformerFactory` run through the tsc `afterDeclarations` hook (~130 lines). The fork has no tsc `Program` — it spawns `tsgo` — so there is no `afterDeclarations` hook to register (`grep -rn afterDeclarations packages/server/utils/src/` is empty). The same alias-stripping is achieved post-emit in fork-owned `importRewriter.ts`, verified against all four specifier kinds by `packages/server/utils/tests/ts.test.ts` | keep-[F] (no upstream extension point exists under tsgo) | — |
+| SRV-22 | `utils` `tests/ts.test.ts` asserts rewritten declaration specifiers with quote-agnostic regexes (`/from ["']\.\.\/shared\/types\.js["']/`) instead of upstream's double-quoted `toContain` literals. Budget 216 → **230** lines, 16 → **20** hunks | bleedingdev | Capped Bucket-B patch (8 insertions / 6 deletions). Upstream's assertions encode `tsc`'s emitter, which normalises specifiers to double quotes; tsgo preserves the quote style of the source. The assertion is loosened on quoting only — the specifier text itself, which is what #8797 fixes, stays exact | capped-patch | — |
+| SRV-23 | `utils` `tests/fixtures/ts-declaration/api/declaration.ts` carries one extra blank line versus upstream's new #8797 fixture | bleedingdev | Repo formatter output: `biome check --write` inserts a blank line between the leading comment/`import type` pair and the next comment. Take upstream's fixture on sync and re-run biome rather than hand-reverting the line | keep-[M] | — |
 
 ---
 
@@ -403,6 +439,31 @@ assembled specifier back to a literal on sync. Guard:
 `packages/server/bff-core/tests/optionalZodPeer.test.ts` (asserts the source
 shape and that no built format carries an eager zod dependency).
 
+**N9 — CLI-20 the client type facade is always ESM.**
+Upstream #8797 threads the app-level `moduleType` from `cli.ts` into
+`clientGenerator` and emits an **extensionless** re-export specifier for CJS
+apps. The fork deliberately ignores `moduleType` for this one decision and always
+emits `./x.js`, because `writeClientModuleBoundary` gives `dist/client` its own
+`{"type": "module"}` manifest: the generated declarations are native ESM whatever
+the surrounding app is, and an extensionless relative specifier inside an ESM
+package fails a consumer's `node16`/`nodenext` typecheck with TS2835. This is the
+only executable difference between upstream #8797 and the fork's port, and it is
+a superset — every `moduleType` still produces a resolvable facade. Do not
+"restore" the `moduleType` thread on sync. Guards: the rationale is pinned in
+`packages/cli/plugin-bff/src/utils/client-generator/generate.ts:112-117`, and
+`tests/integration/bff-cross-project/tests/types-portability.test.ts` typechecks a
+packed tarball from an isolated consumer under both `bundler` and `nodenext`
+resolution.
+
+**N10 — CLI-20 a missing handler declaration must fail the build.**
+The facade re-exports the emitted declaration instead of copying it, so if the
+declaration is absent the facade dangles and the published client's advertised
+types silently degrade to `any`. `writeClientTypeFacade` therefore throws
+`MissingClientDeclarationError` rather than skipping, and the cross-project
+integration test asserts both `code === 0` and the absence of that error name in
+stderr — without those two assertions the suite stays green when
+`declaration: false` is restored, which is exactly the defect #8797 fixes.
+
 ---
 
 ## 11. Scheduled work summary
@@ -418,6 +479,14 @@ shape and that no built format carries an eager zod dependency).
 and imported `fetch` identifier emitted), SRV-11 (`isResFinalized` null-safe).
 Both still count as divergences — the resulting code is deliberately not
 upstream's expression. SRV-03's upstream `fetch: 'fetch'` bug fix is queued P2.
+
+**Upstream 3.8.2 merged 2026-08-16.** Upstream #8797 (published crossProject BFF
+client declarations must resolve in a consumer project) is ported onto the fork's
+tsgo pipeline rather than taken verbatim, because the upstream fix is written as
+a tsc `afterDeclarations` transformer the fork has no `Program` to register. New
+rows: CLI-19, CLI-20, SRV-20 (updated), SRV-21, SRV-22, SRV-23; notes N9 and N10.
+No P-lane — none of them is scheduled work, they are the standing cost of the
+tsgo and fork-owned-generator lanes.
 
 ---
 
@@ -522,3 +591,12 @@ current evidence — do not cite it.
    `node scripts/ultramodern-boundary-check/check-fork-import-boundary.js`.
    Any `unallowlisted-divergence` is a new Bucket-B entry that needs a row in
    this ledger before the budget is re-recorded.
+7. When the upstream base itself moves, re-anchor
+   `DEFAULT_DIVERGENCE_BASE_REF` to the upstream **mainline** release commit
+   (§2), not the release tag, and re-record with the writer command in §3 in the
+   same change as the ledger rows. Expect growth on every upstream-owned file the
+   fork replaced with a shim or an extension point: the fork's side did not
+   change, upstream's did, and a deletion of a bigger file measures bigger.
+   Inspect each entry against `git diff <old-base> <new-base> -- <file>` before
+   recording it — that diff is what separates a base-transition artifact from a
+   merge-resolution defect.

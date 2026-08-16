@@ -33,6 +33,13 @@ assumption to be ratified or replaced before that spend happens.
 | Root/infra diff outside `packages/**` | 467 M, 719 A, 8 D, 37 R (1,231 paths), base `dfcd414a` | `FORK-DIVERGENCE.md` § "Bases and counts" |
 | Ledger disposition split (103 entry rows) | **62 `keep-[F]` / 13 `keep-[M]` / 8 `upstream-PR` / 5 `extension-point` primary (8 rows name it, 3 as the budget target of a `keep-[F]` row) / 6 `revert` (plus 1 "document, evaluate revert") / 3 `fix`-or-fixed / 2 `capped-patch` / 2 `owner-decision` / 1 `gate`** | disposition column of the ledger entry tables in `FORK-DIVERGENCE.md` (§ 4 and the `packages/**` sections) |
 
+> **Superseded snapshot (2026-08-16).** Every figure in the table above was
+> measured in the 3.8.1 era. Upstream 3.8.2 has since been merged and the
+> divergence gate re-anchored to `eded841256` (`Release v3.8.2 (#8810)`), which
+> is also the `origin/main` tip, so the gate base and the sync-review base now
+> coincide and the two-base caveat below no longer applies. Current figures live
+> in `FORK-DIVERGENCE.md` §2–§3; do not cite this table as current evidence.
+
 **Two different base refs are in play, and the ledger keeps them apart on
 purpose.** The divergence gate pins `dfcd414a` (`git merge-base HEAD v3.8.1`);
 the sync-review counts use `ecef47dc` (`origin/main` tip, one commit ahead). The

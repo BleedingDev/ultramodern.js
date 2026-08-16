@@ -27,8 +27,11 @@ node scripts/ultramodern-boundary-check/check-fork-import-boundary.js --write-al
 
 The import gate is blind to the much larger violation surface: fork code
 written *into* upstream-owned files. This gate diffs the tree against the
-upstream base (`dfcd414a`, i.e. `git merge-base HEAD v3.8.1`) and budgets every
-upstream-owned file that has any diff hunk.
+upstream base (`eded841256`, upstream's `Release v3.8.2 (#8810)` mainline commit,
+merged into this fork) and budgets every upstream-owned file that has any diff
+hunk. Anchor on the mainline commit, not the `v3.8.2` tag: upstream cuts releases
+on a parallel commit (`e642cd16a8`, same parent and same tree), so the tag is
+patch-equivalent but is not an ancestor of `HEAD`.
 
 Baseline lives in `divergence-allowlist.json`, one entry per file recording
 `hunks` and `changedLines` only — never hunk content.
@@ -57,18 +60,34 @@ Divergence mode measures every modified or deleted file under `packages/` that
 existed at the recorded upstream base, including sources, tests, manifests,
 snapshots, docs, and configs. `git diff --diff-filter=MD` provides the ownership
 test: fork-added files remain excluded. Each measured file has independent hunk
-and changed-line budgets against `dfcd414a`; either metric growing fails the
+and changed-line budgets against `eded841256`; either metric growing fails the
 divergence gate unless the allowlist is deliberately updated through the
 sanctioned governance path.
 
 ### Always measure against the recorded base
 
 The budgets in `divergence-allowlist.json` are cumulative counts taken at the
-`baseRef` recorded inside that file (`dfcd414a`). Running the gate against any
+`baseRef` recorded inside that file, which must equal
+`DEFAULT_DIVERGENCE_BASE_REF` in `divergence.js`. Running the gate against any
 other base — a PR merge-base, `HEAD~1`, a push `before` SHA — compares a
 per-range delta against a full-history budget and is wrong in both directions,
 so `checkForkDivergence` refuses to run when the two bases disagree. CI runs the
 default invocation; do not pass `--base`.
+
+When upstream is merged and the base itself moves, re-anchor the constant and
+re-record in the **same** change as the `FORK-DIVERGENCE.md` rows:
+
+```sh
+node scripts/ultramodern-boundary-check/check-fork-import-boundary.js \
+  --mode divergence --base <new-upstream-base> \
+  --write-divergence-allowlist --rebase-divergence-allowlist --record-growth
+```
+
+`--rebase-divergence-allowlist` alone only waives the base-equality assertion;
+the growth guard still fires, because budgets recorded at the old base are not
+comparable with measurements at the new one. That is why a base re-anchor always
+needs `--record-growth` — and why every entry it raises must be inspected and
+dispositioned first, not blessed in bulk.
 
 ```bash
 # working tree vs upstream base (default) — this is what CI runs

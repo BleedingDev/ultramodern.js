@@ -51,7 +51,7 @@ jobs:
 
       # The divergence budgets in divergence-allowlist.json are recorded against
       # the checker's built-in upstream base (divergence.js
-      # DEFAULT_DIVERGENCE_BASE_REF = dfcd414a), so the guard must always be
+      # DEFAULT_DIVERGENCE_BASE_REF = eded841256), so the guard must always be
       # measured against that base — never a PR merge-base or a push
       # before-SHA. Against a PR-sized base the gate is wrong in both
       # directions: fork-added files already exist there, which breaks the
@@ -59,7 +59,7 @@ jobs:
       # false-fails legitimate Bucket-A work as unallowlisted-divergence, while
       # a PR-sized delta inside an allowlisted upstream file is always below its
       # base-sized budget and can never trip line-/hunk-budget-exceeded.
-      # Requires the checkout's fetch-depth: 0 so dfcd414a stays reachable.
+      # Requires the checkout's fetch-depth: 0 so eded841256 stays reachable.
       # Only the head is event-derived: the PR branch tip on pull_request, the
       # pushed commit otherwise. Pinning it keeps the measurement deterministic
       # instead of depending on whatever the runner happens to have checked out.
