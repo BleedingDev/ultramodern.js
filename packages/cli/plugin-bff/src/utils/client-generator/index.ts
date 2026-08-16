@@ -2,7 +2,6 @@
 
 export type { FileDetails } from './files';
 export {
-  copyFiles,
   createFileDetails,
   readDirectoryFiles,
   writeTargetFile,
@@ -15,4 +14,8 @@ export {
   getPackageName,
   mergePackageJson,
 } from './package-json';
+export {
+  buildClientTypeFacade,
+  MissingClientDeclarationError,
+} from './type-facade';
 export { setPackage, writeClientModuleBoundary } from './write-package';

@@ -56,6 +56,12 @@ export async function setPackage(
     posixJoin(relativeDistPath, CLIENT_DIR, '**', '*'),
     posixJoin(relativeDistPath, RUNTIME_DIR, '**', '*'),
     posixJoin(relativeDistPath, PLUGIN_DIR, '**', '*'),
+    // The client facade re-exports declarations that stay in their original
+    // `dist/<lambda>` / `dist/shared` locations, so every emitted `.d.ts` must
+    // ship or consumers resolve the facade to a missing file (TS2307). The
+    // glob stays scoped to the configured distPath: no source, no runtime JS
+    // beyond the three generated directories above.
+    posixJoin(relativeDistPath, '**', '*.d.ts'),
   ];
 
   const typesVersions = {

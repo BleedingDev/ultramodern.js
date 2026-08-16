@@ -79,7 +79,9 @@ export const createResolvedTsgoConfig = async (
   config.compilerOptions.rootDir = appDirectory;
   config.compilerOptions.outDir = distDir;
   config.compilerOptions.composite = false;
-  config.compilerOptions.declaration = false;
+  // `declaration` is deliberately not overridden — crossProject BFF apps
+  // publish handler declarations their client facades re-export. Only the
+  // options that would make this a composite project build are normalized away.
   config.compilerOptions.declarationMap = false;
   config.compilerOptions.emitDeclarationOnly = false;
   config.compilerOptions.incremental = false;
@@ -258,6 +260,9 @@ const OUTPUT_SOURCE_EXTENSIONS: Record<string, string[]> = {
   '.js': ['.ts', '.tsx', '.js', '.jsx'],
   '.mjs': ['.mts', '.mjs'],
   '.cjs': ['.cts', '.cjs'],
+  '.d.ts': ['.ts', '.tsx', '.js', '.jsx'],
+  '.d.mts': ['.mts', '.mjs'],
+  '.d.cts': ['.cts', '.cjs'],
 };
 
 const getSourceFileForOutput = (
@@ -267,9 +272,16 @@ const getSourceFileForOutput = (
 ) => {
   const relativeOutput = path.relative(distDir, outputFile);
   const parsed = path.parse(relativeOutput);
-  const sourceBase = path.join(appDirectory, parsed.dir, parsed.name);
+  // `path.parse('index.d.ts')` yields name 'index.d' / ext '.ts'; dropping the
+  // `.d` maps a declaration to a source that never existed, which silently
+  // skips the alias rewrite for the whole declaration output.
+  const isDeclaration = parsed.name.endsWith('.d');
+  const outputExtension = isDeclaration ? `.d${parsed.ext}` : parsed.ext;
+  const sourceName = isDeclaration ? parsed.name.slice(0, -2) : parsed.name;
+  const sourceBase = path.join(appDirectory, parsed.dir, sourceName);
   const extensions =
-    OUTPUT_SOURCE_EXTENSIONS[parsed.ext] ?? OUTPUT_SOURCE_EXTENSIONS['.js'];
+    OUTPUT_SOURCE_EXTENSIONS[outputExtension] ??
+    OUTPUT_SOURCE_EXTENSIONS['.js'];
 
   for (const extension of extensions) {
     const candidate = `${sourceBase}${extension}`;
@@ -339,7 +351,11 @@ const collectOutputFiles = async (dir: string): Promise<string[]> => {
       if (entry.isDirectory()) {
         return collectOutputFiles(fullPath);
       }
-      return /\.(?:c|m)?js$/.test(entry.name) ? [fullPath] : [];
+      // Declarations keep tsconfig `paths` verbatim just like the JS output
+      // does, so they need the same rewrite or aliases leak to consumers.
+      return /\.(?:c|m)?js$|\.d\.(?:c|m)?ts$/.test(entry.name)
+        ? [fullPath]
+        : [];
     }),
   );
   return files.flat();

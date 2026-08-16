@@ -1229,6 +1229,7 @@ describe('plugin-bff regressions', () => {
         port: 8080,
         relativeDistPath: '.modern-js',
         relativeApiPath: './api',
+        apiFiles: [],
         bffRuntimeFramework: 'effect',
       };
 
@@ -1286,6 +1287,7 @@ const api = HttpApi.make('ModuleApi').add(
         port: 8080,
         relativeDistPath: '.modern-js',
         relativeApiPath: './api',
+        apiFiles: [],
         bffRuntimeFramework: 'effect',
       });
 
@@ -1411,6 +1413,7 @@ const api = HttpApi.make('ModuleApi').add(
         port: 8080,
         relativeDistPath: '.modern-js',
         relativeApiPath: './api',
+        apiFiles: [],
       };
 
       await expect(clientGenerator(options)).rejects.toThrow(

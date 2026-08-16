@@ -49,7 +49,11 @@
       "require": "./dist-1/runtime/index.js",
       "types": "./dist-1/runtime/index.d.ts"
     },
-"./api/effect/index": {
+    "./api/context/index": {
+      "import": "./dist-1/client/context/index.js",
+      "types": "./dist-1/client/context/index.d.ts"
+    },
+    "./api/effect/index": {
       "import": "./dist-1/client/effect/index.js",
       "types": "./dist-1/client/effect/index.d.ts"
     },
@@ -64,10 +68,6 @@
     "./api/upload": {
       "import": "./dist-1/client/upload.js",
       "types": "./dist-1/client/upload.d.ts"
-    },
-    "./api/context/index": {
-      "import": "./dist-1/client/context/index.js",
-      "types": "./dist-1/client/context/index.d.ts"
     },
     "./api/user/[id]": {
       "import": "./dist-1/client/user/[id].js",
@@ -89,7 +89,10 @@
       "plugin": [
         "./dist-1/plugin/index.d.ts"
       ],
-"api/effect/index": [
+      "api/context/index": [
+        "./dist-1/client/context/index.d.ts"
+      ],
+      "api/effect/index": [
         "./dist-1/client/effect/index.d.ts"
       ],
       "api/index": [
@@ -100,9 +103,6 @@
       ],
       "api/upload": [
         "./dist-1/client/upload.d.ts"
-      ],
-      "api/context/index": [
-        "./dist-1/client/context/index.d.ts"
       ],
       "api/user/[id]": [
         "./dist-1/client/user/[id].d.ts"

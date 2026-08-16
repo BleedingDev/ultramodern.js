@@ -70,8 +70,10 @@ describe('typescript', () => {
     const apiDir = path.join(example, './api');
 
     try {
-      // tsc never resolves `paths` in `.d.ts` output, so the alias must be
-      // rewritten by our `afterDeclarations` transformer.
+      // The compiler never resolves `paths` in `.d.ts` output, so the alias
+      // must be rewritten by the post-emit declaration rewrite. Quote style is
+      // matched loosely: TS-Go keeps the source's quotes where tsc normalized
+      // them to double quotes.
       await compile(example, { alias: {} } as any, {
         sourceDirs: [sharedDir, apiDir],
         distDir,
@@ -89,9 +91,9 @@ describe('typescript', () => {
       // ImportDeclaration / ExportDeclaration
       expect(dts).toMatch(/from ["']\.\.\/shared\/types["']/);
       // ImportTypeNode (inline `import("...")` type)
-      expect(dts).toContain('import("../shared/types")');
+      expect(dts).toMatch(/import\(["']\.\.\/shared\/types["']\)/);
       // ImportEqualsDeclaration (`import x = require("...")`)
-      expect(dts).toContain('require("../shared/types")');
+      expect(dts).toMatch(/require\(["']\.\.\/shared\/types["']\)/);
     } finally {
       await fs.remove(distDir);
     }
@@ -120,8 +122,8 @@ describe('typescript', () => {
       // extension just like the JS output, or `node16`/`nodenext` consumers
       // fail with TS2835. TS resolves `./x.js` back to `./x.d.ts`.
       expect(dts).not.toContain('@shared');
-      expect(dts).toContain('from "../shared/types.js"');
-      expect(dts).toContain('import("../shared/types.js")');
+      expect(dts).toMatch(/from ["']\.\.\/shared\/types\.js["']/);
+      expect(dts).toMatch(/import\(["']\.\.\/shared\/types\.js["']\)/);
     } finally {
       await fs.remove(distDir);
     }

@@ -213,7 +213,7 @@ describe('createResolvedTsgoConfig', () => {
     }
   });
 
-  it('disables composite declaration-only settings for server emits', async () => {
+  it('disables composite project settings but keeps declaration emit', async () => {
     const { example, tempRoot } = await createIsolatedTsExample();
     const tsconfigPath = path.join(example, 'tsconfig.composite.json');
     const sourceDirs = [
@@ -246,9 +246,14 @@ describe('createResolvedTsgoConfig', () => {
     );
 
     try {
+      // `declaration` is the app's decision: crossProject BFF apps publish
+      // handler declarations and the generated client facades re-export them,
+      // so a resolved `declaration: true` must survive. Only the
+      // project-build-shaped options are normalized away, and the emit stays a
+      // one-shot JS emit (`emitDeclarationOnly: false`).
       expect(config.compilerOptions).toMatchObject({
         composite: false,
-        declaration: false,
+        declaration: true,
         declarationMap: false,
         emitDeclarationOnly: false,
         incremental: false,
@@ -259,7 +264,7 @@ describe('createResolvedTsgoConfig', () => {
       await expect(fs.readJSON(resolvedConfigPath)).resolves.toMatchObject({
         compilerOptions: {
           composite: false,
-          declaration: false,
+          declaration: true,
           declarationMap: false,
           emitDeclarationOnly: false,
           incremental: false,
