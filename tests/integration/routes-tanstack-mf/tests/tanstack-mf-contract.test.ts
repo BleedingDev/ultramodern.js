@@ -45,6 +45,11 @@ let releaseFixtureLock: ReleaseFixtureLock | undefined;
 const readFixtureJson = (relativePath: string) =>
   JSON.parse(fs.readFileSync(path.join(projectRoot, relativePath), 'utf8'));
 
+const reactRendererSingletons = () =>
+  ['react', 'react-dom', 'react-dom/client'].map(name =>
+    expect.objectContaining({ name, singleton: true }),
+  );
+
 const isTransientWorkspaceDistRace = (output: string) =>
   output.includes('ENOTEMPTY') ||
   (output.includes('ERR_MODULE_NOT_FOUND') &&
@@ -120,6 +125,7 @@ describe('tanstack + module federation build contracts', () => {
           name: '@tanstack/react-router',
           singleton: true,
         }),
+        ...reactRendererSingletons(),
       ]),
     });
   });
@@ -152,6 +158,7 @@ describe('tanstack + module federation build contracts', () => {
             name: '@tanstack/react-router',
             singleton: true,
           }),
+          ...reactRendererSingletons(),
         ]),
       );
       expect(manifest.remotes).toEqual([]);

@@ -35,6 +35,11 @@ export default createModuleFederationConfig({
       requiredVersion: reactDomVersion,
       treeShaking: false,
     },
+    'react-dom/client': {
+      singleton: true,
+      requiredVersion: reactDomVersion,
+      treeShaking: false,
+    },
     '@tanstack/react-router': {
       singleton: true,
       requiredVersion: dependencies['@tanstack/react-router'],

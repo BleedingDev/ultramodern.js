@@ -1,4 +1,8 @@
 import { createModuleFederationConfig } from '@module-federation/modern-js-v3';
+import { dependencies } from './package.json';
+
+const reactVersion = dependencies.react;
+const reactDomVersion = dependencies['react-dom'];
 
 export default createModuleFederationConfig({
   name: 'consumer',
@@ -11,8 +15,26 @@ export default createModuleFederationConfig({
     AppRemote: 'i18nAppProvider@http://localhost:3005/mf-manifest.json',
   },
   shared: {
-    react: { singleton: true },
-    'react-dom': { singleton: true },
+    react: {
+      singleton: true,
+      requiredVersion: reactVersion,
+      treeShaking: false,
+    },
+    'react-dom': {
+      singleton: true,
+      requiredVersion: reactDomVersion,
+      treeShaking: false,
+    },
+    'react-dom/client': {
+      singleton: true,
+      requiredVersion: reactDomVersion,
+      treeShaking: false,
+    },
+    'react-dom/server': {
+      singleton: true,
+      requiredVersion: reactDomVersion,
+      treeShaking: false,
+    },
     'react-i18next': { singleton: true },
     i18next: { singleton: true },
   },

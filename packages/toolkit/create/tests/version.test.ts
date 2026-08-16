@@ -229,7 +229,8 @@ test('built public UltraModern subpath imports from an ESM consumer and generate
           if (
             bridgeConfig.enabled !== true ||
             bridgeConfig.lockfilePolicy !== 'nested' ||
-            bridgeConfig.reactSingletons.join(',') !== 'react,react-dom'
+            bridgeConfig.reactSingletons.join(',') !==
+              'react,react-dom,react-dom/client'
           ) {
             throw new Error('Expected typed bridge config normalizer');
           }

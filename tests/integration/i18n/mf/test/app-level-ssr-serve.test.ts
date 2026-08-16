@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import path from 'path';
 import {
   killApp,
@@ -46,6 +47,12 @@ const APP_MF_SSR_ENV = {
   MODERN_MF_APP_SSR: 'true',
   MODERN_FAST_TEST: 'true',
 };
+
+async function readMfStats(appDir: string, target: 'client' | 'server') {
+  const relativePath =
+    target === 'server' ? 'dist/bundles/mf-stats.json' : 'dist/mf-stats.json';
+  return JSON.parse(await readFile(path.join(appDir, relativePath), 'utf8'));
+}
 
 async function fetchHtml(port: number, pathname: string) {
   const response = await fetch(`http://localhost:${port}${pathname}`, {
@@ -109,6 +116,43 @@ describe('mf-i18n app-level SSR serve mode', () => {
       await releaseLock();
     }
   });
+
+  conditionalTest(
+    'shares one React renderer per browser and server federation graph',
+    async () => {
+      for (const appDir of [
+        componentProviderDir,
+        appProviderDir,
+        consumerDir,
+      ]) {
+        const clientStats = await readMfStats(appDir, 'client');
+        expect(clientStats.shared).toEqual(
+          expect.arrayContaining([
+            ...['react', 'react-dom', 'react-dom/client'].map(name =>
+              expect.objectContaining({
+                name,
+                singleton: true,
+                treeShaking: false,
+              }),
+            ),
+          ]),
+        );
+
+        const serverStats = await readMfStats(appDir, 'server');
+        expect(serverStats.shared).toEqual(
+          expect.arrayContaining([
+            ...['react', 'react-dom', 'react-dom/server'].map(name =>
+              expect.objectContaining({
+                name,
+                singleton: true,
+                treeShaking: false,
+              }),
+            ),
+          ]),
+        );
+      }
+    },
+  );
 
   conditionalTest(
     'should server render app-level remote route in serve mode',

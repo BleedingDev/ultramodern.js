@@ -83,7 +83,7 @@ export const ZH_LOCALE = {
     optionBridgeGateCwd:
       '      --bridge-gate-cwd <名称=目录> 指定桥接 gate 的工作目录',
     optionBridgeReactSingleton:
-      '      --bridge-react-singleton <包名[,包名]> React 单例包预期（默认：react,react-dom）',
+      '      --bridge-react-singleton <包名[,包名]> React 单例包预期（默认：react,react-dom,react-dom/client）',
     optionVertical:
       '      --vertical[=<名称>] 修改当前已有的 UltraModern 工作区，并接入 MicroVertical',
     optionVerticalName:

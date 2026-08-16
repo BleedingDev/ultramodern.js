@@ -6,6 +6,7 @@ import {
   createServerExecutionOverlay,
 } from './backend-federation';
 import type { UltramodernBridgeConfig } from './bridge-config';
+import { defaultReactSingletons } from './bridge-config/defaults';
 import {
   createDeliveryUnitRecord,
   deliveryUnitContractBlock,
@@ -359,7 +360,7 @@ export function createUltramodernConfig(
       dependencies: [],
       lockfilePolicy: 'nested',
       gates: [],
-      reactSingletons: ['react', 'react-dom'],
+      reactSingletons: [...defaultReactSingletons],
     },
     deploy: {
       worker: {
