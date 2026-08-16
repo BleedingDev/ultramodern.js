@@ -22,9 +22,9 @@ React Server Components (RSC) 是一种新的组件类型，允许在服务端�
 ## 快速开始
 
 :::warning UltraModern 可用性
-RSC 仍属实验性能力，默认关闭，且不对外部消费者提供支持；当前 UltraModern 公司发行版不会随附 RSC。发布批次与 clean-room 发布验收测试验证 RSC 运行时不存在且无法解析，发布批次也不会包含由 Modern.js 维护的 `@bleedingdev/*` RSC 运行时包；启用 RSC 时框架仍按 fail-closed 处理。
+RSC 仍属实验性能力，默认关闭，且不对外部消费者提供支持；当前 UltraModern 公司发行版不会随附 RSC。发布批次与 clean-room 发布验收测试验证 RSC 运行时不存在且无法解析，发布批次也没有已维护的 `@bleedingdev/*` RSC 运行时包；启用 RSC 时，除非应用提供完整的可选工具链，否则框架会按 fail-closed 处理。
 
-根目录专用的 `react-server-dom-rspack@0.0.3` 补丁仅为本仓库的 RSC 回归测试回移 Flight 解码器安全修复；它不会复制到生成工作区或发布给消费者，因此应用自行安装上游包得到的是未打补丁的字节。上游补救链（[SyMind/react#1](https://github.com/SyMind/react/pull/1)、[BleedingDev/react#1](https://github.com/BleedingDev/react/pull/1) 和 [rspack#15144](https://github.com/web-infra-dev/rspack/issues/15144)）已提交、正在审查、尚未合并。此边界仍待所有者最终批准。
+根目录专用的 `react-server-dom-rspack@0.0.3` 补丁仅为本仓库的 RSC 回归测试回移 Flight 解码器安全修复；它不会复制到生成工作区或发布给消费者，因此应用自行安装上游包得到的是未打补丁的字节。[SyMind/react#1](https://github.com/SyMind/react/pull/1) 已于 2026-08-11 合并；[BleedingDev/react#1](https://github.com/BleedingDev/react/pull/1) 与 [rspack#15144](https://github.com/web-infra-dev/rspack/issues/15144) 仍处于 open 状态。npm 上 `react-server-dom-rspack` 的 `latest` 仍为 `0.0.3`，且没有包含补丁的消费者发行版，因此根目录补丁对于本仓库的 RSC 测试仍是必要的。此边界仍待所有者最终批准。
 :::
 
 请保持 [`server.rsc`](/configure/app/server/rsc) 为 `false`：
