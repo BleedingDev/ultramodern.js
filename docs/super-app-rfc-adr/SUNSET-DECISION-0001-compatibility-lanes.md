@@ -13,7 +13,7 @@ Wave 4 adopts this lane disposition:
 
 | Lane | Combination | Classification | Decision |
 | --- | --- | --- | --- |
-| Golden | TanStack + Effect + Module Federation | Keep | Default for new MV shell, remote, and service work. Promote production workloads here when evidence matches the Wave 3 `remote-commerce` package. |
+| Golden | TanStack + Effect + Module Federation | Keep | Default for new MV shell, remote, and service work. Promote production workloads here only when the applicable live release-gate evidence contract in the Migration Playbook §3 is satisfied. |
 | Compat | React Router + Hono + Garfish | Constrain | Keep for existing workloads, migration bridges, and regression coverage. Do not expand as the default for new production MV work. |
 | Experimental | Mixed router, service, or runtime combinations | Sunset for production support | Remove as a production-support category. Preserve bounded smoke coverage only for explicit opt-in validation and approved exceptions. |
 
@@ -27,7 +27,7 @@ Wave 0 established the support tiers in `ADR-0010-mv-wave0-contract-first-gates.
 2. Compat: React Router + Hono + Garfish with compatibility and migration checks.
 3. Experimental: mixed combinations with smoke and explicit opt-in checks.
 
-Wave 1-3 evidence supports promotion of Golden as the target default, not deletion of Compat:
+Wave 1-3 contract documents support promotion of Golden as the target default, not deletion of Compat:
 
 1. `DELIVERY-0001-micro-vertical-reference-delivery.md` defines the intended path from one app to shell route modules, MF remotes, and strict Effect HttpApi service contracts.
 2. `ADR-0011-mf-vs-garfish-runtime-parity-contract.md` requires parity evidence and known non-equivalence disposition before runtime canonicality claims.

@@ -22,13 +22,14 @@ It is not a new support policy. The former remote-commerce rollout and incident 
 | Runtime parity contract | `docs/super-app-rfc-adr/ADR-0011-mf-vs-garfish-runtime-parity-contract.md` | Requires explicit parity evidence and non-equivalence disposition before Module Federation can be treated as canonical. |
 | Topology and Zephyr profile | `docs/super-app-rfc-adr/ADR-0012-mv-topology-manifest-and-zephyr-profile.md` | Defines topology indirection, immutable artifacts, LKG fallback, revocation, kill switches, and vanilla Zephyr constraints. |
 | Reference delivery model | `docs/super-app-rfc-adr/DELIVERY-0001-micro-vertical-reference-delivery.md` | Defines the intended migration path from shell-local slices to remotes and strict service contracts. |
+
 > The former remote-commerce rollout and incident artifacts are intentionally absent from this map. They were not authenticated production evidence and must not be cited as certification.
 
 ## Evidence-Based Findings
 
 1. The retained Wave 0-3 documents define the intended Golden, Compat, and Experimental tiers and the controls required for future promotion; they do not certify that a Golden production rollout occurred.
 2. Compat still has a migration role because Wave 0 explicitly preserved React Router, Hono, and Garfish as compatibility surfaces and ADR-0011 still requires parity evidence and non-equivalence disposition before runtime promotion becomes unconditional.
-3. Experimental mixed combinations do not have production certification evidence. Wave 0 permits them only as explicit opt-in smoke lanes, and Wave 3 certification does not expand that status.
+3. Experimental mixed combinations do not have production certification evidence. Wave 0 permits them only as explicit opt-in smoke lanes; the deleted Wave 3 rollout material does not change that status.
 
 ## Decision Inputs
 

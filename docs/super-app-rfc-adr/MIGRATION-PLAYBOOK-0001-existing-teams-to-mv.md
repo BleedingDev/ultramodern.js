@@ -176,9 +176,9 @@ Exit criteria:
 
 ### Phase 5: Certify Production Rollout
 
-Use the Tractor Explore/Decide/Checkout package split as the production target.
-The legacy `remote-commerce` package can inform evidence structure only; it must
-not be treated as the final architecture.
+Use the live release-gate evidence contracts listed in §3 as the structure for
+any future production evidence package; they do not certify a migration or
+production rollout.
 
 Required actions:
 

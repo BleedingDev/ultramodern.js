@@ -30,12 +30,17 @@ const deletedEvidenceBasenames = [
   'remote-failure.md',
   'trust-policy-failure.md',
 ];
+// `review-evidence.md` remains a legitimate basename in both live contracts;
+// `README.md` is generic, so claim/path guards cover the deleted package instead.
 const retractedClaims = [
   'frozen historical snapshots',
   'Golden has enough evidence',
   'Wave 3 `remote-commerce` package demonstrates',
+  'matches the Wave 3',
   'Production rollout evidence matches the shape of `rollout-evidence.md`',
   'Legacy `remote-commerce` evidence remains useful for evidence shape only',
+  'Wave 3 certification',
+  'legacy `remote-commerce` package',
 ];
 
 function readGovernanceDocs() {
