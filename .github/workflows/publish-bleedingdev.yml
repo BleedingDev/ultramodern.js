@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Package version to publish, for example 3.8.1-ultramodern.1"
+        description: "Package version to publish, for example 3.8.2-ultramodern.1"
         required: true
       dry_run:
         description: "Validate the exact release without authorizing publication"

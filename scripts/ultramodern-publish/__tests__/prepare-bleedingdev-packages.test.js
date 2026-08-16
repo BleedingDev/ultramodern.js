@@ -2870,6 +2870,90 @@ test('registry preflight rejects a non-forward candidate before publication', as
   );
 });
 
+test('registry preflight rejects a carried-over revision on a newer Modern.js base', async () => {
+  const { preflightRegistryPackages } = await import(
+    '../prepare-bleedingdev-packages.mjs'
+  );
+  const targetName = '@bleedingdev/modern-js-create';
+  // Forward semver, so plain ordering accepts it, but it claims a release
+  // history 3.8.2 never had.
+  const version = '3.8.2-ultramodern.6';
+
+  await assert.rejects(
+    () =>
+      preflightRegistryPackages(
+        [{ targetName, version }],
+        { dryRun: false, tag: 'latest', version },
+        {},
+        {
+          lookupRegistryDistTag: async () => '3.8.1-ultramodern.5',
+          lookupRegistryPackageDist: async () => null,
+          verifyRegistryPackageDist: async () => {
+            throw new Error(
+              'absent candidates have no registry bytes to verify',
+            );
+          },
+        },
+      ),
+    /the only valid next version on a base change is 3\.8\.2-ultramodern\.1/u,
+  );
+});
+
+test('registry preflight keeps ordinary same-base revisions moving forward', async () => {
+  const { preflightRegistryPackages } = await import(
+    '../prepare-bleedingdev-packages.mjs'
+  );
+  const targetName = '@bleedingdev/modern-js-create';
+  const version = '3.8.2-ultramodern.2';
+
+  const states = await preflightRegistryPackages(
+    [{ targetName, version }],
+    { dryRun: true, tag: 'latest', version },
+    {},
+    {
+      lookupRegistryDistTag: async () => '3.8.2-ultramodern.1',
+      lookupRegistryPackageDist: async () => null,
+      verifyRegistryPackageDist: async () => {
+        throw new Error('absent candidates have no registry bytes to verify');
+      },
+    },
+  );
+
+  assert.equal(states.get(targetName).currentTag, '3.8.2-ultramodern.1');
+});
+
+test('the release validator tracks the merged Modern.js source version', async () => {
+  const { enforceSingleVersionPolicy } = await import(
+    '../lib/prepare-bleedingdev-packages/rewrite.mjs'
+  );
+  // Read straight from the repository so the merged upstream baseline — not a
+  // hand-written fixture — decides which release versions are legal.
+  const packages = [
+    {
+      packageJson: {
+        name: '@modern-js/create',
+        version: sourceFrameworkVersion,
+      },
+    },
+  ];
+  const accept = version =>
+    enforceSingleVersionPolicy(
+      { dependencyVersion: version, version },
+      packages,
+      packages,
+    );
+
+  assert.equal(sourceFrameworkVersion, '3.8.2');
+  assert.doesNotThrow(() => accept('3.8.2-ultramodern.1'));
+  for (const stale of ['3.8.1-ultramodern.1', '3.8.1-ultramodern.5']) {
+    assert.throws(
+      () => accept(stale),
+      /release base 3\.8\.1 does not match the incorporated Modern\.js source version 3\.8\.2/i,
+      `expected ${stale} to be rejected after the 3.8.2 merge`,
+    );
+  }
+});
+
 test('dry-run preflights absent versions and publishes every exact snapshot without claiming provenance', async () => {
   const { publishManifestPackages, publishPackage, verifyPackageArtifact } =
     await import('../prepare-bleedingdev-packages.mjs');
