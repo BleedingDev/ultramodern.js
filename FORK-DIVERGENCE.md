@@ -33,27 +33,36 @@ is in exactly one bucket:
 - **Bucket A — additive fork behavior** (new features, subsystems, plugins,
   gates, instrumentation). It MUST live in a fork-owned package. Fork-owned
   files carry no divergence budget and are **never listed in this ledger**.
-- **Bucket B — changes to upstream-owned lines** (any file that already exists
-  at the audited merge-base). Allowed only as one of three resolutions:
+- **Bucket B — changes to upstream-owned lines** (any file that exists at the
+  audited base, with that ownership preserved across renames). Allowed only as
+  one of three resolutions:
   1. a PR to upstream `web-infra-dev/modern.js`,
   2. use of an existing upstream extension point, or
-  3. a **capped patch of `<= ~20` changed lines** per file per change, with a
-     matching row in this ledger.
+  3. a **capped patch of at most 20 added-plus-removed PR lines** per
+     audited-base-owned file, with a matching row in this ledger.
 
 Every `packages/**` row below is a Bucket-B divergence except TK-10, which the
 row itself flags as a fork-added directory carrying no budget; §4's root/infra
 rows sit outside the two-bucket rule's `packages/**` scope entirely.
 
-**Rule being amended in parallel (AGENTS.md):** any new Bucket-B divergence
-requires a ledger entry **in the same PR** that raises the budget. A budget
-raise without a ledger row is an incomplete change, not a passing one. After
-adding that ledger row in the same change-set, re-record the sanctioned growth
-with `node scripts/ultramodern-boundary-check/check-fork-import-boundary.js
---mode divergence --write-divergence-allowlist --record-growth`. Plain
-`--write-divergence-allowlist` (without `--record-growth`) refuses every growth
-and prints the offending entries; that flag is for **shrinks**, never for
-laundering a new divergence past the gate. The explicit `--record-growth` path
-is the sanctioned exception, not a way to bypass the same-PR ledger requirement.
+Every non-shrink Bucket-B change requires a ledger entry **in the same PR**.
+A componentwise genuine shrink needs no ledger ceremony; an equal-count
+semantic replacement or rename is a non-shrink. Plain
+`--write-divergence-allowlist` only records shrink. A raised budget or new entry
+must be generated with the reviewed writer operation:
+
+```sh
+node scripts/ultramodern-boundary-check/check-fork-import-boundary.js \
+  --write-divergence-allowlist --record-growth \
+  --merge-base "$PR_MERGE_BASE" --head "$COMMITTED_HEAD"
+```
+
+That operation fails unless every raised audited-base-owned file has at most 20
+added-plus-removed lines in the PR and the ledger changed in the same committed
+range. CI independently resolves both refs, reads the committed allowlists,
+re-measures the full recorded scope, and re-derives the cap and ledger evidence;
+a hand-edited baseline cannot authorize growth by itself. Base or scope changes
+use `--rebase-divergence-allowlist` with the same refs and ledger evidence.
 
 **Owner.** Every entry is owned by the repo owner **`bleedingdev`** unless the
 row names someone else. Owner means: accountable for the disposition landing,
@@ -72,7 +81,7 @@ are ever actually filed).
 | --- | --- |
 | `upstream-PR` | Bucket B resolution (1). Isolatable and PR-able to web-infra-dev/modern.js as-is. |
 | `extension-point` | Bucket B resolution (2). Logic should move out of the upstream file into a fork-owned module; budget shrinks when it does. |
-| `capped-patch` | Bucket B resolution (3). Stays inline, `<= ~20` changed lines, kept deliberately. |
+| `capped-patch` | Bucket B resolution (3). Stays inline, at most 20 added-plus-removed PR lines per audited-base-owned file, kept deliberately. |
 | `fixed-in-fork` | Upstream defect repaired in the fork. Keep the repair; add `upstream-PR` separately when the fix is queued upstream. |
 | `keep-deleted` | Upstream artifact intentionally deleted in the fork. Re-delete it on sync and port upstream changes to its replacement when applicable. |
 | `keep-[F]` | Permanent fork divergence. Only meaningful with the ultramodern lanes (Effect BFF, TanStack, Module Federation, telemetry, tsgo). Never resolved toward upstream. |
@@ -123,20 +132,20 @@ fork-owned by definition, carry no divergence budget, and are not listed here.
 
 ## 3. Allowlist reconciliation
 
-The divergence allowlist covers **633 files / 2,835 hunks / 33,832 changed
+The divergence allowlist covers **633 files / 2,835 hunks / 33,825 changed
 lines** under `packages/`. Every entry is an upstream-owned path that existed at
 `dfcd414a`; fork-added files remain excluded by `git diff --diff-filter=MD`.
 Every allowlisted file family maps to a ledger section below.
 
 | Allowlist group | Files | Hunks | Lines | Ledger coverage |
 | --- | ---: | ---: | ---: | --- |
-| Source trees (`packages/**/src/**`) | 352 | 1,824 | 14,563 | Existing package-family rows below |
+| Source trees (`packages/**/src/**`) | 352 | 1,824 | 14,556 | Existing package-family rows below |
 | Tests and test fixtures | 66 | 309 | 14,368 | Corresponding package-family rows |
 | Manifests and build/type configs | 66 | 284 | 1,237 | Corresponding package-family rows |
 | Snapshots and package documentation | 116 | 358 | 2,774 | Corresponding package-family rows |
 | Other package files outside `src/` | 23 | 50 | 736 | Corresponding package-family rows |
 | Templates outside `src/` | 10 | 10 | 154 | Corresponding package-family rows |
-| **Total** | **633** | **2,835** | **33,832** | Sections 5–9 |
+| **Total** | **633** | **2,835** | **33,825** | Sections 5–9 |
 
 **What the budget covers.** Divergence mode measures every modified or deleted
 path under `packages/` that existed at the audited base, regardless of file
@@ -145,11 +154,16 @@ TypeScript and build configs, snapshots, package documentation, templates, and
 other package-owned artifacts. Each path has independent hunk and changed-line
 budgets; either metric growing is governance-significant.
 
-The allowlist itself is compared with its PR merge-base version. A raised
-metric, newly added entry, or `baseRef` re-anchor is accepted only when
-`FORK-DIVERGENCE.md` changes in the same PR; otherwise CI fails. Section 4
-remains outside the divergence pathspec because it covers root and
-infrastructure files outside `packages/`.
+The allowlist itself is compared with its PR merge-base version. Verification
+uses only its validated, canonical full scope; callers cannot narrow it with a
+pathspec, nested root, alternate file, or inherited Git context. Every entry,
+budget, total, base OID, and base-tree path is validated before measurement. A
+raised metric or new entry is accepted only when it exactly matches the
+committed-head measurement, its audited-base-owned PR delta is at most 20
+added-plus-removed lines, and `FORK-DIVERGENCE.md` changes in the same PR. Base
+or scope transitions require the explicit reviewed re-record operation plus the
+same ledger evidence. Section 4 remains outside the divergence pathspec because
+it covers root and infrastructure files outside `packages/`.
 
 ---
 
