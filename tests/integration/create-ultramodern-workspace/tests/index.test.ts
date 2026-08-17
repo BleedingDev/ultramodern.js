@@ -377,12 +377,49 @@ describe('create-ultramodern-workspace', () => {
     fs.writeFileSync(
       fakePnpmPath,
       `#!/usr/bin/env node
-if (process.argv.includes('--pm-on-fail=ignore') && process.argv.includes('--version')) {
-  console.log('${generatedPnpmVersion}');
+const { spawnSync } = require('node:child_process');
+const path = require('node:path');
+
+if (process.env.ULTRAMODERN_FAKE_PNPM_ACTIVE) {
+  console.error('fake pnpm delegation re-entered');
+  process.exit(1);
+}
+
+const args = process.argv.slice(2);
+if (
+  args.length === 2 &&
+  args[0] === '--pm-on-fail=ignore' &&
+  args[1] === '--version'
+) {
+  console.log(${JSON.stringify(generatedPnpmVersion)});
   process.exit(0);
 }
-console.error('pmOnFail rejected active pnpm before version discovery');
-process.exit(1);
+if (args.includes('--version') || args.includes('-v')) {
+  console.error('pmOnFail rejected active pnpm before version discovery');
+  process.exit(1);
+}
+
+const fakeBinDir = ${JSON.stringify(fakeBinDir)};
+const resolvedFakeBinDir = path.resolve(fakeBinDir);
+const delegatedEnv = {
+  ...process.env,
+  PATH: (process.env.PATH || '')
+    .split(path.delimiter)
+    .filter(
+      entry => entry !== fakeBinDir && path.resolve(entry) !== resolvedFakeBinDir,
+    )
+    .join(path.delimiter),
+  ULTRAMODERN_FAKE_PNPM_ACTIVE: '1',
+};
+const result = spawnSync('pnpm', args, {
+  env: delegatedEnv,
+  stdio: 'inherit',
+});
+if (result.error) {
+  console.error(result.error.message);
+  process.exit(1);
+}
+process.exit(result.status ?? 1);
 `,
       'utf-8',
     );
