@@ -27,5 +27,5 @@ if (process.env.CI === 'true') {
   process.exit(0);
 }
 
-run('npm', ['run', 'prepare-build']);
+run('npm', ['run', 'prepare-build:local']);
 run('husky', []);

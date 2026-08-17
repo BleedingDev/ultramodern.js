@@ -1,5 +1,9 @@
 name: Diff
 
+concurrency:
+  group: diff-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
 on:
   pull_request:
     types: [opened, synchronize, reopened]
