@@ -1,6 +1,6 @@
 # SUNSET-DECISION-0001: Compatibility Lane Sunset Path
 
-- Status: Superseded by events (2026-06-12 fork cleanup, see `docs/research/fork-audit-2026-06-12-findings.md`). The Garfish compat lane (`packages/runtime/plugin-garfish`) was deleted outright, so Module Federation is the sole micro-frontend runtime surface: the ADR-0011 parity-evidence preconditions referenced in §1 item 2 and §8 item 3 are moot (ADR-0011 is itself Retired), and the Compat lane described below no longer exists in this repo. The `evidence/mv-production-rollout/**` documents cited in §1 are frozen historical snapshots — the drills and fixtures that generated them were removed with the MV governance layer.
+- Status: Superseded by events (2026-06-12 fork cleanup, see `docs/research/fork-audit-2026-06-12-findings.md`). The Garfish compat lane (`packages/runtime/plugin-garfish`) was deleted outright, so Module Federation is the sole micro-frontend runtime surface: the ADR-0011 parity-evidence preconditions referenced in §1 item 2 and §8 item 3 are moot (ADR-0011 is itself Retired), and the Compat lane described below no longer exists in this repo. The former MV rollout and incident artifacts were deleted in `fc9caa4877` because they recorded rollout and incident outcomes that never happened; no authenticated production evidence is substituted here.
 - Date: 2026-04-29
 - Related Plan: `.codex/plans/ultramodern-complete-mv-delivery-waves.plan.md`
 - Related Lanes: `uw4-03`, `uw4-04`
@@ -13,7 +13,7 @@ Wave 4 adopts this lane disposition:
 
 | Lane | Combination | Classification | Decision |
 | --- | --- | --- | --- |
-| Golden | TanStack + Effect + Module Federation | Keep | Default for new MV shell, remote, and service work. Promote production workloads here when evidence matches the Wave 3 `remote-commerce` package. |
+| Golden | TanStack + Effect + Module Federation | Keep | Default for new MV shell, remote, and service work. Promote production workloads here only when the applicable live release-gate evidence contract in the Migration Playbook §3 is satisfied. |
 | Compat | React Router + Hono + Garfish | Constrain | Keep for existing workloads, migration bridges, and regression coverage. Do not expand as the default for new production MV work. |
 | Experimental | Mixed router, service, or runtime combinations | Sunset for production support | Remove as a production-support category. Preserve bounded smoke coverage only for explicit opt-in validation and approved exceptions. |
 
@@ -27,18 +27,11 @@ Wave 0 established the support tiers in `ADR-0010-mv-wave0-contract-first-gates.
 2. Compat: React Router + Hono + Garfish with compatibility and migration checks.
 3. Experimental: mixed combinations with smoke and explicit opt-in checks.
 
-Wave 1-3 evidence supports promotion of Golden as the target default, not deletion of Compat:
+Wave 1-3 contract documents support promotion of Golden as the target default, not deletion of Compat:
 
 1. `DELIVERY-0001-micro-vertical-reference-delivery.md` defines the intended path from one app to shell route modules, MF remotes, and strict Effect HttpApi service contracts.
 2. `ADR-0011-mf-vs-garfish-runtime-parity-contract.md` requires parity evidence and known non-equivalence disposition before runtime canonicality claims.
 3. `ADR-0012-mv-topology-manifest-and-zephyr-profile.md` defines topology IDs, immutable artifacts, environment overlays, LKG, revocation, and kill switches.
-4. `docs/super-app-rfc-adr/evidence/mv-production-rollout/remote-commerce/current/rollout-evidence.md` certifies progressive production rollout with signed manifests, in-budget SLOs, rollback triggers, kill-switch availability, and owner approvals.
-5. `docs/super-app-rfc-adr/evidence/mv-production-rollout/remote-commerce/current/extraction-evidence.md` proves stable topology IDs and independent remote deployment without shell refactor.
-6. `docs/super-app-rfc-adr/evidence/mv-production-rollout/remote-commerce/current/fallback-evidence.md` proves shell survivability, canonical fallback telemetry, and kill-switch mapping.
-7. `docs/super-app-rfc-adr/evidence/mv-production-rollout/remote-commerce/current/rollback-evidence.md` proves fallback ordering, LKG selection, revocation precedence, and mitigation within SLO budget.
-8. `docs/super-app-rfc-adr/evidence/mv-production-rollout/remote-commerce/current/trust-evidence.md` proves signed manifest enforcement, digest, SRI, attestation, revocation, and owner metadata.
-9. `docs/super-app-rfc-adr/evidence/mv-production-rollout/remote-commerce/current/design-system-evidence.md` proves isolated DS rollback for an affected consumer.
-10. `docs/super-app-rfc-adr/evidence/mv-production-rollout/remote-commerce/current/review-evidence.md` records vertical-owner and platform-production-readiness review.
 
 ## 3. Lane Requirements
 
@@ -123,11 +116,7 @@ Required rollback controls:
 6. revocation precedence over current, environment overlay, LKG, and CSR fallback.
 7. rollback telemetry and owner approval before rollout resume.
 
-The production SOPs are the required operational references:
-
-1. `docs/super-app-rfc-adr/evidence/mv-production-rollout/incident-sop/remote-failure.md`
-2. `docs/super-app-rfc-adr/evidence/mv-production-rollout/incident-sop/design-system-failure.md`
-3. `docs/super-app-rfc-adr/evidence/mv-production-rollout/incident-sop/trust-policy-failure.md`
+The former MV incident-SOP artifacts were deleted with the fabricated rollout package and are not executable operational references retained by this repository.
 
 ## 6. Exception Policy
 

@@ -1,18 +1,18 @@
 # MV Wave 4 Compatibility Sunset Evidence Index
 
-- Status: Proposed Wave 4 evidence index
+- Status: Historical Wave 4 contract index; rollout evidence retracted
 - Date: 2026-04-29
 - Related Plan: `.codex/plans/ultramodern-complete-mv-delivery-waves.plan.md` (historical reference — `.codex/` planning artifacts were untracked from the repo in ce7c6b06ac and this path no longer exists in-tree)
 - Related Lanes: `uw4-03`, `uw4-04`
 
 ## Purpose
 
-This index records the Wave 0-3 evidence used by:
+This index records the Wave 0-3 contract and design documents retained as inputs for:
 
 1. `MIGRATION-PLAYBOOK-0001-existing-teams-to-mv.md`
 2. `SUNSET-DECISION-0001-compatibility-lanes.md`
 
-It is not a new support policy. It is the evidence map for deciding which lanes stay default, which lanes stay constrained for migration, and which mixed lanes leave production support.
+It is not a new support policy. The former remote-commerce rollout and incident artifacts were deleted in `fc9caa4877` after they were found to be fabricated/self-certified; they are not evidence of production activity. The table below therefore maps only the retained contract documents.
 
 ## Evidence Map
 
@@ -22,20 +22,14 @@ It is not a new support policy. It is the evidence map for deciding which lanes 
 | Runtime parity contract | `docs/super-app-rfc-adr/ADR-0011-mf-vs-garfish-runtime-parity-contract.md` | Requires explicit parity evidence and non-equivalence disposition before Module Federation can be treated as canonical. |
 | Topology and Zephyr profile | `docs/super-app-rfc-adr/ADR-0012-mv-topology-manifest-and-zephyr-profile.md` | Defines topology indirection, immutable artifacts, LKG fallback, revocation, kill switches, and vanilla Zephyr constraints. |
 | Reference delivery model | `docs/super-app-rfc-adr/DELIVERY-0001-micro-vertical-reference-delivery.md` | Defines the intended migration path from shell-local slices to remotes and strict service contracts. |
-| Production rollout | `docs/super-app-rfc-adr/evidence/mv-production-rollout/remote-commerce/current/rollout-evidence.md` | Certifies one production vertical with progressive rollout, signed manifest enforcement, SLOs, and owner approvals. |
-| Extraction | `docs/super-app-rfc-adr/evidence/mv-production-rollout/remote-commerce/current/extraction-evidence.md` | Proves stable topology IDs and URL indirection across independent deployment. |
-| Fallback | `docs/super-app-rfc-adr/evidence/mv-production-rollout/remote-commerce/current/fallback-evidence.md` | Proves shell survivability, canonical fallback telemetry, and production kill-switch mapping. |
-| Rollback | `docs/super-app-rfc-adr/evidence/mv-production-rollout/remote-commerce/current/rollback-evidence.md` | Proves deterministic fallback order, LKG selection, revocation precedence, and mitigation SLOs. |
-| Trust | `docs/super-app-rfc-adr/evidence/mv-production-rollout/remote-commerce/current/trust-evidence.md` | Proves signed production manifests, digest, SRI, attestation, revocation, and owner metadata. |
-| Design system | `docs/super-app-rfc-adr/evidence/mv-production-rollout/remote-commerce/current/design-system-evidence.md` | Proves isolated design-system rollback for an affected consumer without disabling unrelated verticals. |
-| Review | `docs/super-app-rfc-adr/evidence/mv-production-rollout/remote-commerce/current/review-evidence.md` | Records vertical-owner and platform-production-readiness review for the first production certification. |
-| Incident SOPs | `docs/super-app-rfc-adr/evidence/mv-production-rollout/incident-sop/README.md` | Carries Wave 2 drills into production operator actions for remote, design-system, and trust-policy incidents. |
+
+> The former remote-commerce rollout and incident artifacts are intentionally absent from this map. They were not authenticated production evidence and must not be cited as certification.
 
 ## Evidence-Based Findings
 
-1. Golden has enough evidence to remain the target default for new MV work because the Wave 3 `remote-commerce` package demonstrates signed manifest enforcement, stable topology IDs, fallback telemetry, rollback SLOs, kill-switch mapping, trust controls, design-system isolation, and owner review.
+1. The retained Wave 0-3 documents define the intended Golden, Compat, and Experimental tiers and the controls required for future promotion; they do not certify that a Golden production rollout occurred.
 2. Compat still has a migration role because Wave 0 explicitly preserved React Router, Hono, and Garfish as compatibility surfaces and ADR-0011 still requires parity evidence and non-equivalence disposition before runtime promotion becomes unconditional.
-3. Experimental mixed combinations do not have production certification evidence. Wave 0 permits them only as explicit opt-in smoke lanes, and Wave 3 certification does not expand that status.
+3. Experimental mixed combinations do not have production certification evidence. Wave 0 permits them only as explicit opt-in smoke lanes; the deleted Wave 3 rollout material does not change that status.
 
 ## Decision Inputs
 

@@ -46,16 +46,10 @@ Before changing runtime, routing, or service shape, the owning team records thes
 | Rollback controls | Kill switch, LKG candidate, CSR or maintenance fallback, and revocation path. |
 | Evidence gap | The first missing artifact compared with the Tractor Explore/Decide/Checkout target gates. |
 
-Legacy `remote-commerce` evidence remains useful for evidence shape only. It is
-not the final Tractor architecture:
+The live release-gate evidence contracts are the repository's shape examples only. They define required file roles and metadata; they do not certify a migration or production rollout:
 
-1. `docs/super-app-rfc-adr/evidence/mv-production-rollout/remote-commerce/current/rollout-evidence.md`
-2. `docs/super-app-rfc-adr/evidence/mv-production-rollout/remote-commerce/current/extraction-evidence.md`
-3. `docs/super-app-rfc-adr/evidence/mv-production-rollout/remote-commerce/current/fallback-evidence.md`
-4. `docs/super-app-rfc-adr/evidence/mv-production-rollout/remote-commerce/current/rollback-evidence.md`
-5. `docs/super-app-rfc-adr/evidence/mv-production-rollout/remote-commerce/current/trust-evidence.md`
-6. `docs/super-app-rfc-adr/evidence/mv-production-rollout/remote-commerce/current/design-system-evidence.md`
-7. `docs/super-app-rfc-adr/evidence/mv-production-rollout/remote-commerce/current/review-evidence.md`
+1. `docs/super-app-rfc-adr/evidence/release-candidate/current/`
+2. `docs/super-app-rfc-adr/evidence/module-certification/current/`
 
 ## 4. Phased Migration Path
 
@@ -182,9 +176,9 @@ Exit criteria:
 
 ### Phase 5: Certify Production Rollout
 
-Use the Tractor Explore/Decide/Checkout package split as the production target.
-The legacy `remote-commerce` package can inform evidence structure only; it must
-not be treated as the final architecture.
+Use the live release-gate evidence contracts listed in §3 as the structure for
+any future production evidence package; they do not certify a migration or
+production rollout.
 
 Required actions:
 
@@ -196,12 +190,12 @@ Required actions:
 
 Exit criteria:
 
-1. Production rollout evidence matches the shape of `rollout-evidence.md`.
-2. Extraction evidence proves stable topology IDs and no shell refactor.
-3. Fallback evidence proves shell survivability and telemetry.
-4. Rollback evidence proves mitigation within budget.
-5. Trust evidence proves digest, SRI, attestation, signed manifest enforcement, and revocation precedence.
-6. Review evidence includes vertical-owner and platform-production-readiness approval.
+1. A newly generated production evidence package follows one of the live release-gate evidence contracts listed in §3.
+2. The package includes extraction evidence covering stable topology IDs and no shell refactor.
+3. The package includes fallback evidence covering shell survivability and telemetry.
+4. The package includes rollback evidence covering mitigation within budget.
+5. The package includes trust evidence covering digest, SRI, attestation, signed manifest enforcement, and revocation precedence.
+6. The package includes review evidence with vertical-owner and platform-production-readiness approval.
 
 ## 5. Compat Lane Protection
 
@@ -233,10 +227,7 @@ Exceptions are allowed only when all of these are true:
 2. the exception has an owner, reviewer, expiration date, and affected topology IDs.
 3. the exception preserves existing Compat regression coverage.
 4. the exception does not bypass digest, SRI, attestation, origin, runtime compatibility, or revocation policy.
-5. the exception links the incident SOP that would be used if the migration fails:
-   - `docs/super-app-rfc-adr/evidence/mv-production-rollout/incident-sop/remote-failure.md`
-   - `docs/super-app-rfc-adr/evidence/mv-production-rollout/incident-sop/design-system-failure.md`
-   - `docs/super-app-rfc-adr/evidence/mv-production-rollout/incident-sop/trust-policy-failure.md`
+5. the owning team identifies an executable, owner-approved incident procedure for migration failures.
 
 ## 7. Owner and Review Requirements
 
@@ -276,7 +267,7 @@ Use this checklist as a sequence, not as a tracking system:
 A team has completed migration when:
 
 1. the production path is Golden or has an approved, unexpired Compat exception.
-2. topology, trust, fallback, rollback, incident, and owner evidence are linked.
+2. topology, trust, fallback, and rollback evidence plus an executable incident procedure are linked.
 3. the shell can roll forward or back through manifest selection without source edits.
 4. the vertical can fail without taking down unrelated verticals.
 5. no Experimental combination remains in the production path.
