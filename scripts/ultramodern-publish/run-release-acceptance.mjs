@@ -193,7 +193,10 @@ function verifyReceipt({
     runIdentity,
     expectedMode,
   });
-  verifyAcceptanceReceiptOperationalEvidence(receipt, options.receiptPath);
+  // ACC-1: only source receipts carry operational-independence evidence.
+  if (receipt.mode === 'source') {
+    verifyAcceptanceReceiptOperationalEvidence(receipt, options.receiptPath);
+  }
   return verified;
 }
 

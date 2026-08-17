@@ -983,23 +983,27 @@ async function runAcceptanceProfile({
           runtimeIdentityDetails.get('workerd'),
         ),
       );
-      await recordAcceptanceResult(
-        receipt,
-        operationalIndependenceResultId,
-        () =>
-          withDuration(() =>
-            runOperationalIndependenceAcceptance({
-              applicationSourceRevision,
-              ephemeralWorkDir: ownsWorkDir ? workDir : undefined,
-              mode,
-              outPath,
-              packageManagerEnv,
-              projectDir,
-              runImpl,
-              runOperationalIndependenceImpl,
-            }),
-          ),
-      );
+      // ACC-1: operational independence is a source-tree property; the
+      // published receipt contract excludes this result id entirely.
+      if (mode === 'source') {
+        await recordAcceptanceResult(
+          receipt,
+          operationalIndependenceResultId,
+          () =>
+            withDuration(() =>
+              runOperationalIndependenceAcceptance({
+                applicationSourceRevision,
+                ephemeralWorkDir: ownsWorkDir ? workDir : undefined,
+                mode,
+                outPath,
+                packageManagerEnv,
+                projectDir,
+                runImpl,
+                runOperationalIndependenceImpl,
+              }),
+            ),
+        );
+      }
     } catch (error) {
       failure = error;
     }

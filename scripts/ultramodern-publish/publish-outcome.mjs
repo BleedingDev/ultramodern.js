@@ -35,7 +35,7 @@ const requiredNodeNoJavaScriptAssertionTypes = Object.freeze([
   'no-js-screenshot',
 ]);
 const publishOutcomeSchema = 'bleedingdev.ultramodern.publish-outcome';
-const publishOutcomeSchemaVersion = 4;
+const publishOutcomeSchemaVersion = 5;
 const publishOutcomeArtifactPrefix = 'bleedingdev-publish-outcome';
 const digestPattern = /^[a-f0-9]{64}$/u;
 const commitPattern = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
@@ -448,7 +448,6 @@ function readReleaseEvidence({
   manifestDigestPath,
   manifestPath,
   operationalEvidencePath,
-  publishedOperationalEvidencePath,
   publishedReceiptPath,
   receiptPath,
   repository,
@@ -517,29 +516,12 @@ function readReleaseEvidence({
   }
   const acceptanceEvidence = (receiptFile, operationalFile, expectedMode) => {
     const receipt = readJson(receiptFile, `${expectedMode} acceptance receipt`);
-    const operationalEvidence = readJson(
-      operationalFile,
-      `${expectedMode} operational evidence`,
-    );
     assertPlainObject(receipt, `${expectedMode} acceptance receipt`);
-    assertPlainObject(
-      operationalEvidence,
-      `${expectedMode} operational evidence`,
-    );
     assertAcceptanceReceipt(receipt, {
       expectedMode,
       profileId: 'erp-10',
       release: verifiedRelease,
       runIdentity,
-    });
-    const operationalResult = receipt.results.find(
-      result => result?.id === 'operational-independence',
-    );
-    const operationalEvidenceSha256 = sha256File(operationalFile);
-    assertOperationalIndependenceEvidenceMatchesReceipt({
-      details: operationalResult.details,
-      evidence: operationalEvidence,
-      evidenceFileSha256: operationalEvidenceSha256,
     });
     if (
       receipt.mode !== expectedMode ||
@@ -553,7 +535,35 @@ function readReleaseEvidence({
       receipt.binding?.runIdentity !== runIdentity ||
       receipt.binding?.manifest?.sha256 !== manifestSha256 ||
       receipt.binding?.manifest?.cohortDigest !== manifest.cohortDigest ||
-      receipt.binding?.manifest?.packageCount !== manifest.packages.length ||
+      receipt.binding?.manifest?.packageCount !== manifest.packages.length
+    ) {
+      throw new Error(
+        `${expectedMode} acceptance receipt is not a complete passing receipt for the exact release manifest`,
+      );
+    }
+    // ACC-1: operational-independence evidence exists only in the source
+    // lane; the published receipt contract excludes that result id.
+    if (expectedMode !== 'source') {
+      return { receiptSha256: sha256File(receiptFile) };
+    }
+    const operationalEvidence = readJson(
+      operationalFile,
+      `${expectedMode} operational evidence`,
+    );
+    assertPlainObject(
+      operationalEvidence,
+      `${expectedMode} operational evidence`,
+    );
+    const operationalResult = receipt.results.find(
+      result => result?.id === 'operational-independence',
+    );
+    const operationalEvidenceSha256 = sha256File(operationalFile);
+    assertOperationalIndependenceEvidenceMatchesReceipt({
+      details: operationalResult.details,
+      evidence: operationalEvidence,
+      evidenceFileSha256: operationalEvidenceSha256,
+    });
+    if (
       operationalResult?.details?.artifactMode !== expectedMode ||
       operationalResult?.details?.evidenceFileSha256 !==
         operationalEvidenceSha256 ||
@@ -561,7 +571,7 @@ function readReleaseEvidence({
         operationalEvidence.evidenceDigest
     ) {
       throw new Error(
-        `${expectedMode} acceptance receipt is not a complete passing receipt for the exact release manifest and operational evidence`,
+        `${expectedMode} acceptance receipt is not bound to the exact operational evidence`,
       );
     }
     return {
@@ -576,14 +586,9 @@ function readReleaseEvidence({
     'source',
   );
   const publishedAcceptance =
-    publishedReceiptPath === undefined &&
-    publishedOperationalEvidencePath === undefined
+    publishedReceiptPath === undefined
       ? null
-      : acceptanceEvidence(
-          publishedReceiptPath,
-          publishedOperationalEvidencePath,
-          'published',
-        );
+      : acceptanceEvidence(publishedReceiptPath, undefined, 'published');
   const tractorAcceptance = readTractorAcceptanceEvidence({
     baselineRevision: tractorBaselineRevision,
     cohortDigest: manifest.cohortDigest,
@@ -665,7 +670,6 @@ function createPublishOutcome({
   producerArtifactIdentity,
   producerRunAttempt,
   producerRunIdentity,
-  publishedOperationalEvidencePath,
   publishedReceiptPath,
   receiptPath,
   repository,
@@ -718,7 +722,6 @@ function createPublishOutcome({
     manifestDigestPath,
     manifestPath,
     operationalEvidencePath,
-    publishedOperationalEvidencePath,
     publishedReceiptPath,
     receiptPath,
     repository,
@@ -910,7 +913,6 @@ const evidenceOptions = new Set([
   '--manifest',
   '--manifest-digest',
   '--operational-evidence',
-  '--published-operational-evidence',
   '--published-receipt',
   '--receipt',
   '--tractor-baseline-revision',
@@ -920,24 +922,11 @@ const evidenceOptions = new Set([
 
 function evidencePaths(values, { dryRun } = {}) {
   const publishedReceipt = values.get('--published-receipt');
-  const publishedOperationalEvidence = values.get(
-    '--published-operational-evidence',
-  );
   const tractorBaselineRevision = values.get('--tractor-baseline-revision');
   const tractorReport = values.get('--tractor-report');
   const tractorReportSha256 = values.get('--tractor-report-sha256');
-  if (
-    (publishedReceipt === undefined) !==
-    (publishedOperationalEvidence === undefined)
-  ) {
-    throw new Error(
-      '--published-receipt and --published-operational-evidence must be provided together',
-    );
-  }
   if (dryRun === false && publishedReceipt === undefined) {
-    throw new Error(
-      'Non-dry publish outcome requires --published-receipt and --published-operational-evidence',
-    );
+    throw new Error('Non-dry publish outcome requires --published-receipt');
   }
   if (dryRun === true && publishedReceipt !== undefined) {
     throw new Error('Dry-run publish outcome must not bind published evidence');
@@ -970,10 +959,6 @@ function evidencePaths(values, { dryRun } = {}) {
     operationalEvidencePath: path.resolve(
       required(values, '--operational-evidence'),
     ),
-    publishedOperationalEvidencePath:
-      publishedOperationalEvidence === undefined
-        ? undefined
-        : path.resolve(publishedOperationalEvidence),
     publishedReceiptPath:
       publishedReceipt === undefined
         ? undefined

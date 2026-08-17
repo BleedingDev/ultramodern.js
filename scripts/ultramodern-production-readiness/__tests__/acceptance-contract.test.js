@@ -184,6 +184,7 @@ http.createServer((_request, response) => {
 test('the immutable ERP contract independently requires every Node and workerd runtime dimension', async () => {
   const {
     requiredAcceptanceResultIds,
+    requiredAcceptanceResultIdsForMode,
     runtimeAcceptanceDimensions,
     runtimeAcceptancePlatforms,
   } = await loadContract();
@@ -201,6 +202,20 @@ test('the immutable ERP contract independently requires every Node and workerd r
     requiredAcceptanceResultIds.at(-1),
     'operational-independence',
     'operational independence must run only after the complete runtime matrix',
+  );
+  assert.deepEqual(
+    [...requiredAcceptanceResultIdsForMode('source')],
+    [...requiredAcceptanceResultIds],
+    'source lane must require the full contract including operational independence',
+  );
+  assert.deepEqual(
+    [...requiredAcceptanceResultIdsForMode('published')],
+    requiredAcceptanceResultIds.slice(0, -1),
+    'published lane must require the full contract except source-only operational independence',
+  );
+  assert.throws(
+    () => requiredAcceptanceResultIdsForMode('canary'),
+    /Unknown acceptance mode/u,
   );
 });
 

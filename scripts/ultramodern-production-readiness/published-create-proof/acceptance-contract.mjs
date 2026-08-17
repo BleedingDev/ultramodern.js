@@ -46,6 +46,25 @@ const requiredAcceptanceResultIds = Object.freeze([
   operationalIndependenceResultId,
 ]);
 
+// The published lane consumes byte-identity-verified registry artifacts;
+// operational independence is a source-tree property already proven by the
+// source lane, so published receipts must not carry (or smuggle) that result.
+const publishedRequiredAcceptanceResultIds = Object.freeze(
+  requiredAcceptanceResultIds.filter(
+    id => id !== operationalIndependenceResultId,
+  ),
+);
+
+function requiredAcceptanceResultIdsForMode(mode) {
+  if (mode === 'source') {
+    return requiredAcceptanceResultIds;
+  }
+  if (mode === 'published') {
+    return publishedRequiredAcceptanceResultIds;
+  }
+  throw new Error(`Unknown acceptance mode: ${mode}`);
+}
+
 const dependencyBlocks = Object.freeze([
   'dependencies',
   'optionalDependencies',
@@ -921,6 +940,7 @@ export {
   operationalIndependenceEvidencePath,
   operationalIndependenceResultId,
   requiredAcceptanceResultIds,
+  requiredAcceptanceResultIdsForMode,
   runtimeAcceptanceDimensions,
   runtimeAcceptanceInvocation,
   runtimeAcceptancePlatforms,

@@ -9,6 +9,7 @@ import {
   operationalIndependenceEvidencePath,
   operationalIndependenceResultId,
   requiredAcceptanceResultIds,
+  requiredAcceptanceResultIdsForMode,
 } from './acceptance-contract.mjs';
 
 const acceptanceReceiptSchema =
@@ -121,11 +122,11 @@ function createAcceptanceReceipt({
       id: profile.id,
       version: acceptanceProfileVersion,
       verticalCount: profile.verticalCount,
-      requiredResults: [...requiredAcceptanceResultIds],
+      requiredResults: [...requiredAcceptanceResultIdsForMode(mode)],
     },
     runtime,
     registry,
-    results: requiredAcceptanceResultIds.map(id => ({
+    results: requiredAcceptanceResultIdsForMode(mode).map(id => ({
       id,
       status: 'pending',
     })),
@@ -403,7 +404,7 @@ function assertAcceptanceReceipt(
   );
   assertCondition(
     JSON.stringify(receipt.profile.requiredResults) ===
-      JSON.stringify(requiredAcceptanceResultIds),
+      JSON.stringify(requiredAcceptanceResultIdsForMode(receipt.mode)),
     'Acceptance receipt required result contract does not match ERP-10',
   );
 
@@ -635,7 +636,8 @@ function assertAcceptanceReceipt(
     ? receipt.results.map(result => result.id)
     : [];
   assertCondition(
-    JSON.stringify(resultIds) === JSON.stringify(requiredAcceptanceResultIds),
+    JSON.stringify(resultIds) ===
+      JSON.stringify(requiredAcceptanceResultIdsForMode(receipt.mode)),
     'Acceptance receipt must contain every required result exactly once and in ERP-10 order',
   );
   for (const result of receipt.results) {
@@ -958,5 +960,6 @@ export {
   readAcceptanceReceipt,
   recordAcceptanceResult,
   requiredAcceptanceResultIds,
+  requiredAcceptanceResultIdsForMode,
   verifyAcceptanceReceiptOperationalEvidence,
 };

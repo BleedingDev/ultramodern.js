@@ -234,7 +234,7 @@ async function createOperationalAcceptanceReceiptFixture({
       })),
     ]),
   );
-  for (const id of receiptApi.requiredAcceptanceResultIds) {
+  for (const id of receipt.profile.requiredResults) {
     const runtime =
       /^(?<platform>node|workerd)-(?<dimension>ssr|browser-mf|api|backend|backend-driven-ui|failure-isolation|release-identity)$/u.exec(
         id,
@@ -259,17 +259,21 @@ async function createOperationalAcceptanceReceiptFixture({
   receiptApi.bindRuntimeIdentityEvidence(receipt, runtimeIdentity);
   receiptApi.finalizeAcceptanceReceipt(receipt);
 
-  const details = receipt.results.find(
+  const operationalResult = receipt.results.find(
     result => result.id === 'operational-independence',
-  ).details;
-  const evidence = operationalEvidence(details, options);
-  const evidenceSource = `${JSON.stringify(evidence, null, 2)}\n`;
-  details.evidenceDigest = evidence.evidenceDigest;
-  details.evidenceFileSha256 = digest(evidenceSource);
-  fs.writeFileSync(evidencePath, evidenceSource);
+  );
+  let evidenceSource;
+  if (operationalResult) {
+    const details = operationalResult.details;
+    const evidence = operationalEvidence(details, options);
+    evidenceSource = `${JSON.stringify(evidence, null, 2)}\n`;
+    details.evidenceDigest = evidence.evidenceDigest;
+    details.evidenceFileSha256 = digest(evidenceSource);
+    fs.writeFileSync(evidencePath, evidenceSource);
+  }
 
   return {
-    evidencePath,
+    evidencePath: operationalResult ? evidencePath : undefined,
     evidenceSource,
     runtimeIdentity,
   };

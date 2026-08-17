@@ -44,10 +44,6 @@ async function createEvidenceFixture() {
     root,
     'published-acceptance-receipt.json',
   );
-  const publishedOperationalEvidencePath = path.join(
-    root,
-    'published-acceptance-receipt.operational-independence.json',
-  );
   const tractorReportPath = path.join(
     root,
     'tractor-downstream-acceptance.json',
@@ -183,11 +179,9 @@ async function createEvidenceFixture() {
     fs.writeFileSync(targetPath, `${JSON.stringify(receipt)}\n`);
   };
   await createReceipt('source', receiptPath, operationalEvidencePath);
-  await createReceipt(
-    'published',
-    publishedReceiptPath,
-    publishedOperationalEvidencePath,
-  );
+  // ACC-1: published receipts carry no operational-independence result, so
+  // the fixture writes no published operational evidence file.
+  await createReceipt('published', publishedReceiptPath);
   const tractorBaselineRevision = 'cb6974e31bc919c86ae5bb86044409f0f1e036d5';
   const verticalIds = ['checkout', 'decide', 'explore'];
   const boundaryCandidates = {
@@ -388,7 +382,6 @@ async function createEvidenceFixture() {
     manifestPath,
     operationalEvidencePath,
     outPath,
-    publishedOperationalEvidencePath,
     publishedReceiptPath,
     receiptPath,
     root,
@@ -415,7 +408,6 @@ function createOptions(fixture, artifactName, dryRun) {
     version: release.version,
   };
   if (dryRun) {
-    delete options.publishedOperationalEvidencePath;
     delete options.publishedReceiptPath;
     delete options.tractorBaselineRevision;
     delete options.tractorReportPath;
@@ -482,7 +474,6 @@ test('non-dry outcome fails closed without passing published acceptance evidence
   try {
     const missing = createOptions(fixture, artifactName, false);
     delete missing.publishedReceiptPath;
-    delete missing.publishedOperationalEvidencePath;
     assert.throws(
       () => api.createPublishOutcome(missing),
       /requires published and Tractor acceptance evidence/u,
@@ -497,9 +488,11 @@ test('non-dry outcome fails closed without passing published acceptance evidence
       /requires published and Tractor acceptance evidence/u,
     );
 
-    const receipt = JSON.parse(
-      fs.readFileSync(fixture.publishedReceiptPath, 'utf8'),
+    const publishedReceiptSource = fs.readFileSync(
+      fixture.publishedReceiptPath,
+      'utf8',
     );
+    const receipt = JSON.parse(publishedReceiptSource);
     receipt.mode = 'source';
     fs.writeFileSync(
       fixture.publishedReceiptPath,
@@ -509,6 +502,27 @@ test('non-dry outcome fails closed without passing published acceptance evidence
       () =>
         api.createPublishOutcome(createOptions(fixture, artifactName, false)),
       /Acceptance receipt mode must be published/u,
+    );
+
+    // ACC-1: a published receipt cannot smuggle the source-only
+    // operational-independence result back into the contract.
+    const smuggled = JSON.parse(publishedReceiptSource);
+    const sourceReceipt = JSON.parse(
+      fs.readFileSync(fixture.receiptPath, 'utf8'),
+    );
+    smuggled.results.push(
+      sourceReceipt.results.find(
+        result => result.id === 'operational-independence',
+      ),
+    );
+    fs.writeFileSync(
+      fixture.publishedReceiptPath,
+      `${JSON.stringify(smuggled)}\n`,
+    );
+    assert.throws(
+      () =>
+        api.createPublishOutcome(createOptions(fixture, artifactName, false)),
+      /every required result exactly once/u,
     );
   } finally {
     fs.rmSync(fixture.root, { force: true, recursive: true });

@@ -849,7 +849,6 @@ jobs:
           name: ${{ env.BLEEDINGDEV_PUBLISHED_ACCEPTANCE_ARTIFACT }}-${{ needs.accept-release.outputs.producer_artifact_identity }}-publication-attempt-${{ needs.publish.outputs.publication_run_attempt }}
           path: |
             .modern/bleedingdev-publish/published-acceptance-receipt.json
-            .modern/bleedingdev-publish/published-acceptance-receipt.operational-independence.json
           if-no-files-found: error
           include-hidden-files: true
 
@@ -988,7 +987,6 @@ jobs:
             )
             published_evidence=(
               --published-receipt "$BLEEDINGDEV_PUBLISHED_ACCEPTANCE_RECEIPT"
-              --published-operational-evidence "${BLEEDINGDEV_PUBLISHED_ACCEPTANCE_RECEIPT%.json}.operational-independence.json"
             )
             tractor_evidence=(
               --tractor-report "$BLEEDINGDEV_RELEASE_DIR/tractor-downstream-acceptance.json"
@@ -1030,7 +1028,6 @@ jobs:
             .modern/bleedingdev-publish/acceptance-receipt.json
             .modern/bleedingdev-publish/acceptance-receipt.operational-independence.json
             .modern/bleedingdev-publish/published-acceptance-receipt.json
-            .modern/bleedingdev-publish/published-acceptance-receipt.operational-independence.json
             .modern/bleedingdev-publish/tractor-downstream-acceptance.json
             .modern/bleedingdev-publish/publish-outcome.json
           if-no-files-found: error
