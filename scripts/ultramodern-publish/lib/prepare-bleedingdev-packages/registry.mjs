@@ -66,6 +66,33 @@ function isTransientNpmPublishError(error) {
   return transientNpmPublishErrorPatterns.some(pattern => pattern.test(output));
 }
 
+const maxVerificationConcurrency = 8;
+const chronologyVerificationConcurrency = 8;
+
+function resolveVerificationConcurrency(options) {
+  const requested = Number(options?.publishConcurrency);
+  if (!Number.isInteger(requested) || requested < 1) {
+    return 1;
+  }
+  return Math.min(requested, maxVerificationConcurrency);
+}
+
+async function mapWithConcurrency(items, limit, mapper) {
+  const entries = [...items];
+  const results = new Array(entries.length);
+  const workers = Math.min(Math.max(1, limit), entries.length);
+  let cursor = 0;
+  const worker = async () => {
+    while (cursor < entries.length) {
+      const index = cursor;
+      cursor += 1;
+      results[index] = await mapper(entries[index], index);
+    }
+  };
+  await Promise.all(Array.from({ length: workers }, worker));
+  return results;
+}
+
 function packSourcePackage(packageName, packDir) {
   const before = new Set(fs.readdirSync(packDir));
   run(
@@ -224,6 +251,114 @@ async function fetchRegistryPackageMetadata(
   }
 }
 
+const registryPackumentAttempts = 4;
+const registryPackumentRetryDelayMs = 1000;
+const throttledRegistryMetadataMarker = 'registry metadata stayed throttled';
+const registryMetadataStatusPattern =
+  /registry metadata returned HTTP (\d{3})$/u;
+
+function registryMetadataStatus(error) {
+  const match = registryMetadataStatusPattern.exec(
+    error instanceof Error ? error.message : '',
+  );
+  return match ? Number(match[1]) : undefined;
+}
+
+function isRegistryMetadataNotFoundError(error) {
+  return registryMetadataStatus(error) === 404;
+}
+
+function isTransientRegistryMetadataError(error) {
+  const status = registryMetadataStatus(error);
+  if (status === 429 || (status !== undefined && status >= 500)) {
+    return true;
+  }
+  return isTransientNpmPublishError(error);
+}
+
+function isThrottledRegistryMetadataError(error) {
+  return (
+    error instanceof Error &&
+    error.message.includes(throttledRegistryMetadataMarker)
+  );
+}
+
+async function fetchRegistryPackumentWithRetry(packageName, overrides) {
+  const wait = overrides.wait ?? sleep;
+  const retryDelayMs = overrides.retryDelayMs ?? registryPackumentRetryDelayMs;
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await fetchRegistryPackageMetadata(packageName, overrides.fetchImpl);
+    } catch (error) {
+      if (attempt >= registryPackumentAttempts) {
+        if (registryMetadataStatus(error) === 429) {
+          throw new Error(
+            `${packageName} ${throttledRegistryMetadataMarker} after ${registryPackumentAttempts} attempts`,
+            { cause: error },
+          );
+        }
+        throw error;
+      }
+      if (!isTransientRegistryMetadataError(error)) {
+        throw error;
+      }
+      await wait(retryDelayMs * attempt);
+    }
+  }
+}
+
+// Memoized for the process so one packument answers both preflight phases. The
+// post-publish propagation poll must keep using lookupRegistryPackageDist:
+// a cached packument would never observe the version it is waiting for.
+const registryPackumentCache = new Map();
+
+async function lookupRegistryPackument(packageName, overrides = {}) {
+  if (overrides.fetchImpl) {
+    return fetchRegistryPackumentWithRetry(packageName, overrides);
+  }
+  let pending = registryPackumentCache.get(packageName);
+  if (!pending) {
+    pending = fetchRegistryPackumentWithRetry(packageName, overrides).catch(
+      error => {
+        registryPackumentCache.delete(packageName);
+        throw error;
+      },
+    );
+    registryPackumentCache.set(packageName, pending);
+  }
+  return pending;
+}
+
+function registryPackumentDistTag(packument, packageName, tag) {
+  const distTags = packument?.['dist-tags'];
+  if (!isPlainObject(distTags)) {
+    throw new Error(`${packageName} returned invalid registry dist-tags`);
+  }
+  return typeof distTags[tag] === 'string' ? distTags[tag] : undefined;
+}
+
+// `null` is reserved for a genuinely absent version; a malformed versions map
+// or a version entry without usable dist metadata must throw so it can never
+// be mistaken for "not published yet".
+function registryPackumentDist(packument, packageName, version) {
+  const versions = packument?.versions;
+  if (!isPlainObject(versions)) {
+    throw new Error(
+      `${packageName} returned invalid registry versions metadata`,
+    );
+  }
+  if (!Object.hasOwn(versions, version)) {
+    return null;
+  }
+  const dist = versions[version]?.dist;
+  if (!isPlainObject(dist)) {
+    throw new Error(
+      `${packageName}@${version} registry version entry has no dist metadata`,
+    );
+  }
+  return dist;
+}
+
 function parseRegistryTimestamp(value, label) {
   assertNonEmptyString(value, label);
   const timestamp = Date.parse(value);
@@ -359,6 +494,39 @@ function declaresSlsaV1Provenance(published) {
   );
 }
 
+const registryProvenanceStatusPattern =
+  /registry provenance returned HTTP (\d{3})$/u;
+
+// A throttled attestation response carries no information about whether the
+// version is provenanced, so it must never be reported as missing provenance.
+function isThrottledRegistryProvenanceError(error) {
+  const match = registryProvenanceStatusPattern.exec(
+    error instanceof Error ? error.message : '',
+  );
+  return match ? Number(match[1]) === 429 : false;
+}
+
+const registryProvenanceRetryAttempts = 4;
+const registryProvenanceRetryDelayMs = 1000;
+
+// Bounded backoff for throttled attestation reads; anything still throttled
+// after the last attempt propagates so the chronology gate stays fail-closed.
+async function retryThrottledProvenance(operation, wait = sleep) {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      if (
+        attempt >= registryProvenanceRetryAttempts ||
+        !isThrottledRegistryProvenanceError(error)
+      ) {
+        throw error;
+      }
+      await wait(registryProvenanceRetryDelayMs * attempt);
+    }
+  }
+}
+
 function historicalProvenanceExpectation(expectation) {
   return {
     certificateIdentity: expectation.certificateIdentity,
@@ -449,34 +617,60 @@ async function assertRegistrySourceCommitUnpublished(
       commit: cutoverAnchor.sourceCommit,
     },
   };
-  let inspectedCount = 0;
-  for (let index = cutoverIndex; index < chronology.length; index += 1) {
-    const entry = chronology[index];
-    if (!declaresSlsaV1Provenance(entry.published)) {
-      throw new Error(
-        `${packageName}@${entry.version} is missing SLSA v1 provenance after the ${cutoverAnchor.version} cutover`,
-      );
+  const results = await mapWithConcurrency(
+    chronology.slice(cutoverIndex),
+    chronologyVerificationConcurrency,
+    async entry => {
+      try {
+        if (!declaresSlsaV1Provenance(entry.published)) {
+          throw new Error(
+            `${packageName}@${entry.version} is missing SLSA v1 provenance after the ${cutoverAnchor.version} cutover`,
+          );
+        }
+        assertPlainObject(
+          entry.published.dist,
+          `${packageName}@${entry.version} registry dist metadata`,
+        );
+        const evidence = await retryThrottledProvenance(
+          () =>
+            provenanceVerifier(
+              {
+                integrity: entry.published.dist.integrity,
+                targetName: packageName,
+                version: entry.version,
+              },
+              entry.published.dist,
+              entry.version === requestedVersion
+                ? expectation
+                : entry.version === cutoverAnchor.version
+                  ? cutoverExpectation
+                  : discoveryExpectation,
+              fetchImpl,
+              dependencies.bundleVerifier,
+            ),
+          dependencies.wait,
+        );
+        return { entry, evidence };
+      } catch (error) {
+        if (isThrottledRegistryProvenanceError(error)) {
+          return {
+            entry,
+            error: new Error(
+              `${packageName}@${entry.version} registry provenance is throttled; the published-cohort chronology cannot be authenticated`,
+              { cause: error },
+            ),
+          };
+        }
+        return { entry, error };
+      }
+    },
+  );
+  // Assertions replay in chronology order so the reported failure is the
+  // earliest one, exactly as a serial walk would report it.
+  for (const { entry, error, evidence } of results) {
+    if (error) {
+      throw error;
     }
-    assertPlainObject(
-      entry.published.dist,
-      `${packageName}@${entry.version} registry dist metadata`,
-    );
-    const evidence = await provenanceVerifier(
-      {
-        integrity: entry.published.dist.integrity,
-        targetName: packageName,
-        version: entry.version,
-      },
-      entry.published.dist,
-      entry.version === requestedVersion
-        ? expectation
-        : entry.version === cutoverAnchor.version
-          ? cutoverExpectation
-          : discoveryExpectation,
-      fetchImpl,
-      dependencies.bundleVerifier,
-    );
-    inspectedCount += 1;
     if (
       entry.version === cutoverAnchor.version &&
       evidence.sourceCommit !== cutoverAnchor.sourceCommit
@@ -502,7 +696,7 @@ async function assertRegistrySourceCommitUnpublished(
     },
     exactVersionAuthenticated: requestedIndex !== -1,
     grandfatheredCount: cutoverIndex,
-    inspectedCount,
+    inspectedCount: results.length,
     packageName,
     requestedVersion,
     sourceCommit: expectation.source.commit,
@@ -661,6 +855,18 @@ async function verifyRegistryPackageDist(
   return dist;
 }
 
+// 36 attempts, front-loaded so a package that is already coherent is accepted
+// in seconds. The 35 delays the loop can spend must stay at or above the 350s
+// attestation-propagation window npm has needed; this shape spends 360s.
+const registryVerificationRetryDelaysMs = Object.freeze([
+  2000,
+  3000,
+  5000,
+  5000,
+  ...Array.from({ length: 24 }, () => 10000),
+  ...Array.from({ length: 8 }, () => 15000),
+]);
+
 async function verifyRegistryPackage(
   item,
   provenanceExpectation,
@@ -676,9 +882,25 @@ async function verifyRegistryPackage(
   // publish (observed: attestations endpoint 404s ~60s in, then appears), so
   // the window must comfortably outlast that lag or the cohort aborts on a
   // package that in fact published fine.
-  const attempts = 36;
-  const retryDelayMs = 10000;
+  const attempts = registryVerificationRetryDelaysMs.length;
   let lastError = '';
+  // Byte identity is established against the manifest-pinned integrity, shasum,
+  // and size, none of which change between attempts, so the tarball download is
+  // not repeated once it has matched. The dist itself is re-resolved every
+  // attempt: a dist without .attestations is exactly what a lagging publish
+  // looks like and only a fresh lookup can observe it appear.
+  let tarballVerified = false;
+  const verifyTarballOnce = async (tarballItem, dist, ...rest) => {
+    // Only the byte download is safe to memoize; the dist is re-resolved every
+    // attempt, so each one must still prove its tarball URL is the pinned npm
+    // endpoint before the memo can vouch for the bytes behind it.
+    pinnedRegistryTarballUrl(tarballItem, dist?.tarball);
+    if (tarballVerified) {
+      return;
+    }
+    await registry.verifyRegistryTarball(tarballItem, dist, ...rest);
+    tarballVerified = true;
+  };
 
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     const dist = await registry.lookupRegistryPackageDist(
@@ -696,7 +918,7 @@ async function verifyRegistryPackage(
           {
             assertRegistryDistMatches: registry.assertRegistryDistMatches,
             verifyRegistryProvenance: registry.verifyRegistryProvenance,
-            verifyRegistryTarball: registry.verifyRegistryTarball,
+            verifyRegistryTarball: verifyTarballOnce,
           },
         );
         return dist;
@@ -706,7 +928,9 @@ async function verifyRegistryPackage(
     }
 
     if (attempt < attempts) {
-      await new Promise(resolve => setTimeout(resolve, retryDelayMs));
+      await new Promise(resolve =>
+        setTimeout(resolve, registryVerificationRetryDelaysMs[attempt - 1]),
+      );
     }
   }
 
@@ -803,91 +1027,170 @@ async function preflightRegistryPackages(
   registry = {
     lookupRegistryDistTag,
     lookupRegistryPackageDist,
+    lookupRegistryPackument,
     verifyRegistryPackageDist,
   },
 ) {
   const failures = [];
   const states = new Map();
   const currentTags = new Map();
-  for (const item of publishItems) {
-    try {
-      currentTags.set(
-        item.targetName,
-        await registry.lookupRegistryDistTag(item.targetName, options.tag),
-      );
-    } catch (error) {
-      failures.push(
-        `${item.targetName}@${item.version}: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      );
+  const concurrency = resolveVerificationConcurrency(options);
+  const describeFailure = (item, error) =>
+    `${item.targetName}@${item.version}: ${
+      error instanceof Error ? error.message : String(error)
+    }`;
+  // One packument answers both phases, so it may only stand in for lookups the
+  // caller has not replaced with its own implementations.
+  const packumentLookup =
+    registry.lookupRegistryDistTag === lookupRegistryDistTag &&
+    registry.lookupRegistryPackageDist === lookupRegistryPackageDist
+      ? registry.lookupRegistryPackument
+      : undefined;
+  // `undefined`: no packument, fall back to the npm-view lookups. `null`: the
+  // package itself is absent from the registry.
+  const readPackument = async packageName => {
+    if (!packumentLookup) {
+      return undefined;
     }
+    try {
+      return await packumentLookup(packageName);
+    } catch (error) {
+      if (isRegistryMetadataNotFoundError(error)) {
+        return null;
+      }
+      if (isThrottledRegistryMetadataError(error)) {
+        throw error;
+      }
+      return undefined;
+    }
+  };
+
+  const tagResults = await mapWithConcurrency(
+    publishItems,
+    concurrency,
+    async item => {
+      try {
+        const packument = await readPackument(item.targetName);
+        if (packument === undefined) {
+          return {
+            currentTag: await registry.lookupRegistryDistTag(
+              item.targetName,
+              options.tag,
+            ),
+          };
+        }
+        return {
+          currentTag:
+            packument === null
+              ? undefined
+              : registryPackumentDistTag(
+                  packument,
+                  item.targetName,
+                  options.tag,
+                ),
+        };
+      } catch (error) {
+        return { error };
+      }
+    },
+  );
+  // The base-change revision may only be computed once every member's current
+  // tag is known, so this barrier stays between the two phases.
+  for (const [index, item] of publishItems.entries()) {
+    const result = tagResults[index];
+    if (result.error) {
+      failures.push(describeFailure(item, result.error));
+      continue;
+    }
+    currentTags.set(item.targetName, result.currentTag);
   }
   const allowedBaseChangeRevision = nextBaseChangeRevision(
     options.version,
     currentTags.values(),
   );
-  for (const item of publishItems) {
-    if (!currentTags.has(item.targetName)) {
+  const stateResults = await mapWithConcurrency(
+    publishItems,
+    concurrency,
+    async item => {
+      if (!currentTags.has(item.targetName)) {
+        return { skipped: true };
+      }
+      try {
+        const currentTag = currentTags.get(item.targetName);
+        const packument = await readPackument(item.targetName);
+        let dist;
+        if (packument === undefined) {
+          dist = await registry.lookupRegistryPackageDist(
+            item.targetName,
+            item.version,
+          );
+        } else {
+          dist =
+            packument === null
+              ? null
+              : registryPackumentDist(packument, item.targetName, item.version);
+        }
+        if (dist !== null) {
+          await registry.verifyRegistryPackageDist(
+            item,
+            dist,
+            provenanceExpectation,
+          );
+          if (currentTag !== item.version) {
+            throw new Error(
+              `${item.targetName} dist-tag ${options.tag} points at ${currentTag ?? '<missing>'}, expected ${item.version}`,
+            );
+          }
+          return { state: { currentTag, dist, exists: true } };
+        }
+
+        if (currentTag === item.version) {
+          throw new Error(
+            `${item.targetName} dist-tag ${options.tag} points at ${item.version}, but that exact registry version is absent`,
+          );
+        }
+        if (currentTag !== undefined) {
+          if (!semver.valid(item.version) || !semver.valid(currentTag)) {
+            throw new Error(
+              `${item.targetName} cannot compare candidate ${item.version} with current ${options.tag} ${currentTag} as strict semantic versions`,
+            );
+          }
+          if (!semver.gt(item.version, currentTag)) {
+            throw new Error(
+              `${item.targetName}@${item.version} must be greater than current ${options.tag} ${currentTag}`,
+            );
+          }
+          assertBaseRevisionReset(
+            item.targetName,
+            item.version,
+            currentTag,
+            allowedBaseChangeRevision,
+          );
+        }
+        const prefix = options.dryRun
+          ? 'Dry-run registry preflight'
+          : 'Registry publish preflight';
+        return {
+          notice: `${prefix}: ${item.targetName}@${item.version} is absent; provenance equivalence cannot be asserted before publication. Current ${options.tag}: ${currentTag ?? '<missing>'}.`,
+          state: { currentTag, dist: null, exists: false },
+        };
+      } catch (error) {
+        return { error };
+      }
+    },
+  );
+  for (const [index, item] of publishItems.entries()) {
+    const result = stateResults[index];
+    if (result.skipped) {
       continue;
     }
-    try {
-      const currentTag = currentTags.get(item.targetName);
-      const dist = await registry.lookupRegistryPackageDist(
-        item.targetName,
-        item.version,
-      );
-      if (dist !== null) {
-        await registry.verifyRegistryPackageDist(
-          item,
-          dist,
-          provenanceExpectation,
-        );
-        if (currentTag !== item.version) {
-          throw new Error(
-            `${item.targetName} dist-tag ${options.tag} points at ${currentTag ?? '<missing>'}, expected ${item.version}`,
-          );
-        }
-        states.set(item.targetName, { currentTag, dist, exists: true });
-        continue;
-      }
-
-      if (currentTag === item.version) {
-        throw new Error(
-          `${item.targetName} dist-tag ${options.tag} points at ${item.version}, but that exact registry version is absent`,
-        );
-      }
-      if (currentTag !== undefined) {
-        if (!semver.valid(item.version) || !semver.valid(currentTag)) {
-          throw new Error(
-            `${item.targetName} cannot compare candidate ${item.version} with current ${options.tag} ${currentTag} as strict semantic versions`,
-          );
-        }
-        if (!semver.gt(item.version, currentTag)) {
-          throw new Error(
-            `${item.targetName}@${item.version} must be greater than current ${options.tag} ${currentTag}`,
-          );
-        }
-        assertBaseRevisionReset(
-          item.targetName,
-          item.version,
-          currentTag,
-          allowedBaseChangeRevision,
-        );
-      }
-      states.set(item.targetName, { currentTag, dist: null, exists: false });
-      const prefix = options.dryRun
-        ? 'Dry-run registry preflight'
-        : 'Registry publish preflight';
-      console.log(
-        `${prefix}: ${item.targetName}@${item.version} is absent; provenance equivalence cannot be asserted before publication. Current ${options.tag}: ${currentTag ?? '<missing>'}.`,
-      );
-    } catch (error) {
-      failures.push(
-        `${item.targetName}@${item.version}: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      );
+    if (result.error) {
+      failures.push(describeFailure(item, result.error));
+      continue;
+    }
+    states.set(item.targetName, result.state);
+    if (result.notice) {
+      console.log(result.notice);
     }
   }
   if (failures.length > 0) {
@@ -992,6 +1295,8 @@ async function publishPackage(
   return artifact.targetName;
 }
 
+const cohortVerificationFailureBudget = 3;
+
 async function validateRegistryCohort(
   manifest,
   options,
@@ -1004,19 +1309,46 @@ async function validateRegistryCohort(
 
   const provenanceExpectation =
     createRegistryProvenanceExpectation(manifest);
+  let failureCount = 0;
+  const outcomes = await mapWithConcurrency(
+    manifest.packages,
+    resolveVerificationConcurrency(options),
+    async item => {
+      // Every member keeps its full propagation window, but once this many have
+      // definitively failed the cohort cannot become coherent, so the remaining
+      // windows would only burn the job timeout.
+      if (failureCount >= cohortVerificationFailureBudget) {
+        return { unverified: true };
+      }
+      try {
+        await registry.verifyRegistryPackage(item, provenanceExpectation);
+        await registry.verifyRegistryDistTag(
+          item.targetName,
+          options.tag,
+          manifest.release.version,
+        );
+        return {};
+      } catch (error) {
+        failureCount += 1;
+        return { error };
+      }
+    },
+  );
+
   const failures = [];
-  for (const item of manifest.packages) {
-    try {
-      await registry.verifyRegistryPackage(item, provenanceExpectation);
-      await registry.verifyRegistryDistTag(
-        item.targetName,
-        options.tag,
-        manifest.release.version,
-      );
-    } catch (error) {
+  let unverified = 0;
+  for (const [index, item] of manifest.packages.entries()) {
+    const outcome = outcomes[index];
+    if (outcome.unverified) {
+      unverified += 1;
+      continue;
+    }
+    if (outcome.error) {
       failures.push(
         `${item.targetName}@${manifest.release.version}: ${
-          error instanceof Error ? error.message : String(error)
+          outcome.error instanceof Error
+            ? outcome.error.message
+            : String(outcome.error)
         }`,
       );
     }
@@ -1028,6 +1360,11 @@ async function validateRegistryCohort(
         `Registry cohort validation failed for ${manifest.release.version}.`,
         `The ${options.tag} dist-tag is not coherent for the full cohort.`,
         ...failures,
+        ...(unverified > 0
+          ? [
+              `Stopped after ${cohortVerificationFailureBudget} failed members; ${unverified} remaining member(s) were left unverified.`,
+            ]
+          : []),
       ].join('\n'),
     );
   }
@@ -1042,6 +1379,7 @@ async function publishManifestPackages(
     assertRegistryDistMatches,
     lookupRegistryDistTag,
     lookupRegistryPackageDist,
+    lookupRegistryPackument,
     preflightTrustedPublishingPackages,
     preflightRegistryPackages,
     publishPackage,
@@ -1088,6 +1426,7 @@ async function publishManifestPackages(
     {
       lookupRegistryDistTag: registry.lookupRegistryDistTag,
       lookupRegistryPackageDist: registry.lookupRegistryPackageDist,
+      lookupRegistryPackument: registry.lookupRegistryPackument,
       verifyRegistryPackageDist: registry.verifyRegistryPackageDist,
     },
   );
@@ -1107,7 +1446,7 @@ async function publishManifestPackages(
   );
   if (options.publishConcurrency !== 1) {
     console.log(
-      `Ignoring publish concurrency ${options.publishConcurrency}; full-cohort packages publish sequentially so dependency tarballs are fetchable before consumers.`,
+      `Publish concurrency ${options.publishConcurrency} applies to registry verification only; full-cohort packages publish sequentially so dependency tarballs are fetchable before consumers.`,
     );
   }
   for (const artifact of publishItems) {
@@ -1135,9 +1474,6 @@ async function publishManifestPackages(
         : `Published ${publishedName}@${artifact.version}`,
     );
     registry.verifyPackageArtifact(artifact, artifact.artifactPath);
-    if (!options.dryRun) {
-      await registry.verifyRegistryPackage(artifact, provenanceExpectation);
-    }
   }
 
   if (!options.dryRun) {
@@ -1157,11 +1493,14 @@ export {
   isTransientNpmPublishError,
   lookupRegistryDistTag,
   lookupRegistryPackageDist,
+  lookupRegistryPackument,
+  mapWithConcurrency,
   packSourcePackage,
   packageExists,
   preflightRegistryPackages,
   publishManifestPackages,
   publishPackage,
+  registryVerificationRetryDelaysMs,
   validateRegistryCohort,
   verifyRegistryDistTag,
   verifyRegistryPackage,

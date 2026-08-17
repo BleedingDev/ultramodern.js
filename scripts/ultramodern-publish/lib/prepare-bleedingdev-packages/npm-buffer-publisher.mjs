@@ -2,6 +2,7 @@
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import path from 'node:path';
+import { sleep } from './commands.mjs';
 import { npmRegistryOrigin, repoRoot } from './constants.mjs';
 import validationKit from '../../../lib/validation-kit.js';
 import { verifyPackageArtifactBytes } from './release-artifacts.mjs';
@@ -243,6 +244,34 @@ async function requestTrustedPublishingToken(
   return exchange.token;
 }
 
+const maxPreflightConcurrency = 8;
+const preflightTokenRetryAttempts = 2;
+const preflightTokenRetryDelayMs = 1000;
+const preflightTokenStatusPattern = /returned HTTP (\d{3})$/u;
+
+function resolvePreflightConcurrency(options, env) {
+  const requested = Number(
+    options?.publishConcurrency ?? env?.PUBLISH_CONCURRENCY,
+  );
+  if (!Number.isInteger(requested) || requested < 1) {
+    return 1;
+  }
+  return Math.min(requested, maxPreflightConcurrency);
+}
+
+// A throttled or unavailable registry says nothing about whether trusted
+// publishing is configured, so it is retried and then reported as throttling.
+function isThrottledPreflightTokenError(error) {
+  const match = preflightTokenStatusPattern.exec(
+    error instanceof Error ? error.message : '',
+  );
+  if (!match) {
+    return false;
+  }
+  const status = Number(match[1]);
+  return status === 429 || status >= 500;
+}
+
 async function preflightTrustedPublishingPackages(
   items,
   options,
@@ -250,15 +279,74 @@ async function preflightTrustedPublishingPackages(
     env = process.env,
     fetchImpl = globalThis.fetch,
     requestToken = requestTrustedPublishingToken,
+    wait = sleep,
   } = {},
 ) {
   const registry = assertNpmRegistryUrl(options.registryUrl ?? npmRegistryUrl);
-  for (const item of items) {
-    await requestToken(item.targetName, {
-      env,
-      fetchImpl,
-      registryUrl: registry.href,
-    });
+  const entries = [...items];
+  const outcomes = new Array(entries.length);
+  const attemptToken = async item => {
+    let lastError;
+    for (let attempt = 1; attempt <= preflightTokenRetryAttempts; attempt += 1) {
+      try {
+        await requestToken(item.targetName, {
+          env,
+          fetchImpl,
+          registryUrl: registry.href,
+        });
+        return undefined;
+      } catch (error) {
+        lastError = error;
+        if (!isThrottledPreflightTokenError(error)) {
+          return { error };
+        }
+        if (attempt < preflightTokenRetryAttempts) {
+          await wait(preflightTokenRetryDelayMs * attempt);
+        }
+      }
+    }
+    return { error: lastError, throttled: true };
+  };
+  const workers = Math.min(
+    resolvePreflightConcurrency(options, env),
+    entries.length,
+  );
+  let cursor = 0;
+  await Promise.all(
+    Array.from({ length: workers }, async () => {
+      while (cursor < entries.length) {
+        const index = cursor;
+        cursor += 1;
+        outcomes[index] = await attemptToken(entries[index]);
+      }
+    }),
+  );
+
+  const failures = [];
+  for (const [index, item] of entries.entries()) {
+    const outcome = outcomes[index];
+    if (!outcome) {
+      continue;
+    }
+    const detail =
+      outcome.error instanceof Error
+        ? outcome.error.message
+        : String(outcome.error);
+    failures.push(
+      `${item.targetName}: ${
+        outcome.throttled
+          ? `token exchange stayed throttled after ${preflightTokenRetryAttempts} attempts; ${detail}`
+          : detail
+      }`,
+    );
+  }
+  if (failures.length > 0) {
+    throw new Error(
+      [
+        `npm trusted publishing preflight failed for ${failures.length} of ${entries.length} package(s):`,
+        ...failures,
+      ].join('\n'),
+    );
   }
 }
 

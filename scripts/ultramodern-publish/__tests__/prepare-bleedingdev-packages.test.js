@@ -1804,6 +1804,73 @@ test('registry source ledger fails closed when provenance is missing after cutov
   );
 });
 
+test('registry source ledger reports throttled attestations instead of missing provenance', async () => {
+  const { assertRegistrySourceCommitUnpublished } = await import(
+    '../prepare-bleedingdev-packages.mjs'
+  );
+  const ledger = createRegistryLedger([
+    ...knownRegistryHistory,
+    {
+      publishedAt: '2026-05-17T00:00:00.000Z',
+      sourceCommit: 'c'.repeat(40),
+      version: '3.2.0-ultramodern.2',
+    },
+  ]);
+  const calls = [];
+  const waits = [];
+
+  await assert.rejects(
+    () =>
+      assertRegistrySourceCommitUnpublished(registryLedgerRequest(), {
+        bundleVerifier: acceptSigstoreBundle,
+        fetchImpl: async (url, options) => {
+          calls.push({ options, url });
+          if (url === registryMetadataUrl(ledgerPackageName)) {
+            return provenanceResponse(ledger.metadata);
+          }
+          return { ok: false, status: 429, json: async () => ({}) };
+        },
+        wait: async ms => {
+          waits.push(ms);
+        },
+      }),
+    error => {
+      assert.match(
+        error.message,
+        new RegExp(
+          `${ledgerPackageName}@${ledgerCutoverAnchor.version.replace(/\./gu, '\\.')} registry provenance is throttled`,
+          'u',
+        ),
+      );
+      assert.doesNotMatch(error.message, /missing SLSA v1 provenance/u);
+      assert.match(
+        error.cause.message,
+        /registry provenance returned HTTP 429/u,
+      );
+      return true;
+    },
+  );
+  // A persistently throttled attestation endpoint is retried with backoff
+  // before the gate fails closed. The two entries verify concurrently, so
+  // only per-URL counts are deterministic.
+  assert.deepEqual(calls[0].url, registryMetadataUrl(ledgerPackageName));
+  const attestationCounts = new Map();
+  for (const call of calls.slice(1)) {
+    attestationCounts.set(call.url, (attestationCounts.get(call.url) ?? 0) + 1);
+  }
+  assert.deepEqual(
+    [...attestationCounts.entries()].sort(),
+    [
+      [registryAttestationsUrl(ledgerPackageName, '3.2.0-ultramodern.2'), 4],
+      [
+        registryAttestationsUrl(ledgerPackageName, ledgerCutoverAnchor.version),
+        4,
+      ],
+    ].sort(),
+  );
+  assert.deepEqual(waits.sort(), [1000, 1000, 2000, 2000, 3000, 3000]);
+});
+
 test('registry source ledger rejects a source commit authenticated under another version', async () => {
   const { assertRegistrySourceCommitUnpublished } = await import(
     '../prepare-bleedingdev-packages.mjs'
@@ -2227,6 +2294,91 @@ test('trusted publisher preflight discards its credential before the package pub
   } finally {
     removeDir(fixture.root);
   }
+});
+
+test('trusted publisher preflight aggregates every misconfigured package and retries throttling', async () => {
+  const { preflightTrustedPublishingPackages } = await import(
+    '../lib/prepare-bleedingdev-packages/npm-buffer-publisher.mjs'
+  );
+  const items = ['alpha', 'beta', 'gamma'].map(name => ({
+    targetName: `@bleedingdev/modern-js-${name}`,
+  }));
+  const attempts = new Map();
+  const requestToken = async (packageName, requestOptions) => {
+    assert.equal(requestOptions.registryUrl, 'https://registry.npmjs.org/');
+    const attempt = (attempts.get(packageName) ?? 0) + 1;
+    attempts.set(packageName, attempt);
+    if (packageName.endsWith('beta')) {
+      throw new Error(
+        `npm trusted publishing exchange for ${packageName} returned HTTP 429`,
+      );
+    }
+    if (packageName.endsWith('gamma')) {
+      throw new Error(
+        `npm trusted publishing exchange for ${packageName} returned HTTP 403`,
+      );
+    }
+    return `discarded-preflight-token-${packageName}`;
+  };
+
+  const waits = [];
+  await assert.rejects(
+    () =>
+      preflightTrustedPublishingPackages(
+        items,
+        { publishConcurrency: 4 },
+        {
+          env: {},
+          requestToken,
+          wait: async ms => {
+            waits.push(ms);
+          },
+        },
+      ),
+    error => {
+      assert.deepEqual(error.message.split('\n'), [
+        'npm trusted publishing preflight failed for 2 of 3 package(s):',
+        '@bleedingdev/modern-js-beta: token exchange stayed throttled after 2 attempts; npm trusted publishing exchange for @bleedingdev/modern-js-beta returned HTTP 429',
+        '@bleedingdev/modern-js-gamma: npm trusted publishing exchange for @bleedingdev/modern-js-gamma returned HTTP 403',
+      ]);
+      return true;
+    },
+  );
+  // Throttling is retried once after a backoff delay; a configuration answer
+  // is taken at face value.
+  assert.deepEqual([...attempts.entries()].sort(), [
+    ['@bleedingdev/modern-js-alpha', 1],
+    ['@bleedingdev/modern-js-beta', 2],
+    ['@bleedingdev/modern-js-gamma', 1],
+  ]);
+  assert.deepEqual(waits, [1000]);
+
+  const recovered = [];
+  const recoveryWaits = [];
+  await preflightTrustedPublishingPackages(
+    items,
+    { publishConcurrency: 4 },
+    {
+      env: {},
+      requestToken: async packageName => {
+        recovered.push(packageName);
+        if (
+          packageName.endsWith('beta') &&
+          recovered.filter(name => name === packageName).length === 1
+        ) {
+          throw new Error(
+            `npm trusted publishing exchange for ${packageName} returned HTTP 503`,
+          );
+        }
+        return `discarded-preflight-token-${packageName}`;
+      },
+      wait: async ms => {
+        recoveryWaits.push(ms);
+      },
+    },
+  );
+  assert.equal(recovered.length, items.length + 1);
+  assert.deepEqual(recoveryWaits, [1000]);
 });
 
 test('installed libnpmpublish binds buffer, tag, auth, and provenance mode', async () => {
@@ -3027,6 +3179,446 @@ test('registry preflight keeps ordinary same-base revisions moving forward', asy
   assert.equal(states.get(targetName).currentTag, '3.8.2-ultramodern.1');
 });
 
+test('registry preflight resolves both phases from the package packument', async () => {
+  const {
+    lookupRegistryDistTag,
+    lookupRegistryPackageDist,
+    preflightRegistryPackages,
+  } = await import('../lib/prepare-bleedingdev-packages/registry.mjs');
+  const version = '3.8.2-ultramodern.2';
+  const targetName = '@bleedingdev/modern-js-utils';
+  const dist = { integrity: 'sha512-utils', shasum: 'c'.repeat(40) };
+  const packumentCalls = [];
+  const verifiedDists = [];
+
+  const states = await preflightRegistryPackages(
+    [{ targetName, version }],
+    { dryRun: true, publishConcurrency: 4, tag: 'latest', version },
+    {},
+    {
+      lookupRegistryDistTag,
+      lookupRegistryPackageDist,
+      lookupRegistryPackument: async packageName => {
+        packumentCalls.push(packageName);
+        return {
+          'dist-tags': { latest: version, next: '9.9.9' },
+          versions: { [version]: { dist } },
+        };
+      },
+      verifyRegistryPackageDist: async (_item, resolvedDist) => {
+        verifiedDists.push(resolvedDist);
+      },
+    },
+  );
+
+  // Both phases read the packument; the default lookup memoizes the request.
+  assert.deepEqual(packumentCalls, [targetName, targetName]);
+  assert.deepEqual(verifiedDists, [dist]);
+  assert.deepEqual(states.get(targetName), {
+    currentTag: version,
+    dist,
+    exists: true,
+  });
+});
+
+test('registry preflight treats a 404 packument as an absent package', async () => {
+  const {
+    lookupRegistryDistTag,
+    lookupRegistryPackageDist,
+    preflightRegistryPackages,
+  } = await import('../lib/prepare-bleedingdev-packages/registry.mjs');
+  const version = '3.8.2-ultramodern.2';
+  const targetName = '@bleedingdev/modern-js-utils';
+
+  const states = await preflightRegistryPackages(
+    [{ targetName, version }],
+    { dryRun: true, publishConcurrency: 4, tag: 'latest', version },
+    {},
+    {
+      lookupRegistryDistTag,
+      lookupRegistryPackageDist,
+      lookupRegistryPackument: async packageName => {
+        throw new Error(`${packageName} registry metadata returned HTTP 404`);
+      },
+      verifyRegistryPackageDist: async () => {
+        throw new Error('absent candidates have no registry bytes to verify');
+      },
+    },
+  );
+
+  assert.deepEqual(states.get(targetName), {
+    currentTag: undefined,
+    dist: null,
+    exists: false,
+  });
+});
+
+test('registry preflight fails closed on malformed packument version metadata', async () => {
+  const {
+    lookupRegistryDistTag,
+    lookupRegistryPackageDist,
+    preflightRegistryPackages,
+  } = await import('../lib/prepare-bleedingdev-packages/registry.mjs');
+  const version = '3.8.2-ultramodern.2';
+  const targetName = '@bleedingdev/modern-js-utils';
+  const preflightWithPackument = packument =>
+    preflightRegistryPackages(
+      [{ targetName, version }],
+      { dryRun: true, publishConcurrency: 4, tag: 'latest', version },
+      {},
+      {
+        lookupRegistryDistTag,
+        lookupRegistryPackageDist,
+        lookupRegistryPackument: async () => packument,
+        verifyRegistryPackageDist: async () => {
+          throw new Error('malformed metadata must never reach verification');
+        },
+      },
+    );
+
+  // Neither malformed shape may collapse to "absent": that answer would let
+  // the cohort claim a revision on data it never actually inspected.
+  await assert.rejects(
+    () => preflightWithPackument({ 'dist-tags': {}, versions: 'corrupt' }),
+    new RegExp(
+      `${targetName}@${version.replace(/\./gu, '\\.')}: ${targetName} returned invalid registry versions metadata`,
+      'u',
+    ),
+  );
+  await assert.rejects(
+    () =>
+      preflightWithPackument({
+        'dist-tags': {},
+        versions: { [version]: { dist: 'corrupt' } },
+      }),
+    new RegExp(
+      `${targetName}@${version.replace(/\./gu, '\\.')} registry version entry has no dist metadata`,
+      'u',
+    ),
+  );
+});
+
+test('registry preflight fails closed when the packument stays throttled', async () => {
+  const {
+    lookupRegistryDistTag,
+    lookupRegistryPackageDist,
+    lookupRegistryPackument,
+    preflightRegistryPackages,
+  } = await import('../lib/prepare-bleedingdev-packages/registry.mjs');
+  const version = '3.8.2-ultramodern.2';
+  const targetName = '@bleedingdev/modern-js-utils';
+  let fetchCalls = 0;
+
+  await assert.rejects(
+    () =>
+      preflightRegistryPackages(
+        [{ targetName, version }],
+        { dryRun: false, publishConcurrency: 8, tag: 'latest', version },
+        {},
+        {
+          lookupRegistryDistTag,
+          lookupRegistryPackageDist,
+          lookupRegistryPackument: packageName =>
+            lookupRegistryPackument(packageName, {
+              fetchImpl: async () => {
+                fetchCalls += 1;
+                return { ok: false, status: 429 };
+              },
+              wait: async () => {},
+            }),
+          verifyRegistryPackageDist: async () => {},
+        },
+      ),
+    /registry metadata stayed throttled after 4 attempts/u,
+  );
+  assert.equal(fetchCalls, 4);
+});
+
+test('packument lookup retries transient registry responses', async () => {
+  const { lookupRegistryPackument } = await import(
+    '../lib/prepare-bleedingdev-packages/registry.mjs'
+  );
+  const packument = { 'dist-tags': { latest: '3.8.2-ultramodern.2' } };
+  const statuses = [503, 429];
+  let fetchCalls = 0;
+  const waits = [];
+
+  const resolved = await lookupRegistryPackument(
+    '@bleedingdev/modern-js-utils',
+    {
+      fetchImpl: async (url, requestOptions) => {
+        fetchCalls += 1;
+        assert.equal(
+          url,
+          'https://registry.npmjs.org/%40bleedingdev%2Fmodern-js-utils',
+        );
+        assert.equal(requestOptions.redirect, 'error');
+        const status = statuses.shift();
+        return status
+          ? { ok: false, status }
+          : { ok: true, json: async () => packument };
+      },
+      wait: async ms => {
+        waits.push(ms);
+      },
+    },
+  );
+
+  assert.deepEqual(resolved, packument);
+  assert.equal(fetchCalls, 3);
+  assert.deepEqual(waits, [1000, 2000]);
+});
+
+test('mapWithConcurrency preserves order while bounding in-flight work', async () => {
+  const { mapWithConcurrency } = await import(
+    '../lib/prepare-bleedingdev-packages/registry.mjs'
+  );
+  let inFlight = 0;
+  let peak = 0;
+
+  const results = await mapWithConcurrency(
+    [1, 2, 3, 4, 5, 6, 7],
+    3,
+    async value => {
+      inFlight += 1;
+      peak = Math.max(peak, inFlight);
+      await new Promise(resolve => setTimeout(resolve, (8 - value) * 2));
+      inFlight -= 1;
+      return value * 10;
+    },
+  );
+
+  assert.deepEqual(results, [10, 20, 30, 40, 50, 60, 70]);
+  assert.equal(peak, 3);
+});
+
+test('validateRegistryCohort verifies members concurrently and reports failures in manifest order', async () => {
+  const { validateRegistryCohort } = await import(
+    '../prepare-bleedingdev-packages.mjs'
+  );
+  const manifest = {
+    ...makeManifest(),
+    packages: ['alpha', 'beta', 'gamma', 'delta'].map(name => ({
+      sourceName: `@modern-js/${name}`,
+      targetName: `@bleedingdev/modern-js-${name}`,
+      version: '3.2.0-ultramodern.1',
+    })),
+  };
+  const verified = [];
+  let inFlight = 0;
+  let peak = 0;
+
+  await assert.rejects(
+    () =>
+      validateRegistryCohort(
+        manifest,
+        { dryRun: false, publishConcurrency: 4, tag: 'latest' },
+        {
+          verifyRegistryDistTag: async () => {},
+          verifyRegistryPackage: async item => {
+            inFlight += 1;
+            peak = Math.max(peak, inFlight);
+            verified.push(item.targetName);
+            // The later member fails first, so a completion-ordered report
+            // would invert the manifest ordering.
+            const failing = item.targetName.endsWith('alpha')
+              ? { delayMs: 20, fail: true }
+              : item.targetName.endsWith('gamma')
+                ? { delayMs: 0, fail: true }
+                : { delayMs: 10, fail: false };
+            await new Promise(resolve => setTimeout(resolve, failing.delayMs));
+            inFlight -= 1;
+            if (failing.fail) {
+              throw new Error(`${item.targetName} is not present`);
+            }
+          },
+        },
+      ),
+    error => {
+      assert.deepEqual(error.message.split('\n').slice(2), [
+        '@bleedingdev/modern-js-alpha@3.2.0-ultramodern.1: @bleedingdev/modern-js-alpha is not present',
+        '@bleedingdev/modern-js-gamma@3.2.0-ultramodern.1: @bleedingdev/modern-js-gamma is not present',
+      ]);
+      return true;
+    },
+  );
+
+  assert.deepEqual(verified.sort(), [
+    '@bleedingdev/modern-js-alpha',
+    '@bleedingdev/modern-js-beta',
+    '@bleedingdev/modern-js-delta',
+    '@bleedingdev/modern-js-gamma',
+  ]);
+  assert.equal(peak, 4);
+});
+
+test('post-publish verification re-resolves the dist every attempt and downloads the tarball once', async () => {
+  const {
+    registryVerificationRetryDelaysMs,
+    verifyRegistryPackage,
+    verifyRegistryPackageDist,
+  } = await import('../lib/prepare-bleedingdev-packages/registry.mjs');
+
+  // The propagation window itself is a hard release invariant: 36 attempts and
+  // at least 350s of cumulative sleep across the 35 delays the loop can spend.
+  assert.equal(registryVerificationRetryDelaysMs.length, 36);
+  assert(
+    registryVerificationRetryDelaysMs
+      .slice(0, 35)
+      .reduce((total, delayMs) => total + delayMs, 0) >= 350000,
+  );
+
+  const item = {
+    integrity: 'sha512-fixture',
+    shasum: 'fixture-shasum',
+    targetName: '@bleedingdev/modern-js-utils',
+    version: '3.2.0-ultramodern.1',
+  };
+  const pinnedTarball =
+    'https://registry.npmjs.org/@bleedingdev/modern-js-utils/-/modern-js-utils-3.2.0-ultramodern.1.tgz';
+  const lookups = [];
+  let tarballDownloads = 0;
+  let provenanceChecks = 0;
+  const startedAt = Date.now();
+
+  const dist = await verifyRegistryPackage(
+    item,
+    { issuer: 'fixture-issuer' },
+    {
+      assertRegistryDistMatches: () => {},
+      lookupRegistryPackageDist: async (packageName, version) => {
+        lookups.push(`${packageName}@${version}`);
+        // A lagging publish only grows attestations on a later lookup.
+        return lookups.length === 1
+          ? {
+              integrity: item.integrity,
+              shasum: item.shasum,
+              tarball: pinnedTarball,
+            }
+          : {
+              attestations: { provenance: {} },
+              integrity: item.integrity,
+              shasum: item.shasum,
+              tarball: pinnedTarball,
+            };
+      },
+      verifyRegistryPackageDist,
+      verifyRegistryProvenance: async (_item, resolvedDist) => {
+        provenanceChecks += 1;
+        if (!resolvedDist.attestations) {
+          throw new Error('registry dist.attestations must be a plain object');
+        }
+      },
+      verifyRegistryTarball: async () => {
+        tarballDownloads += 1;
+      },
+    },
+  );
+
+  assert.deepEqual(dist.attestations, { provenance: {} });
+  assert.deepEqual(lookups, [
+    '@bleedingdev/modern-js-utils@3.2.0-ultramodern.1',
+    '@bleedingdev/modern-js-utils@3.2.0-ultramodern.1',
+  ]);
+  assert.equal(provenanceChecks, 2);
+  assert.equal(tarballDownloads, 1);
+  const elapsed = Date.now() - startedAt;
+  assert(elapsed >= registryVerificationRetryDelaysMs[0]);
+  assert(elapsed < 10000);
+});
+
+test('post-publish verification re-pins the tarball URL after the download is memoized', async () => {
+  const { verifyRegistryPackage, verifyRegistryPackageDist } = await import(
+    '../lib/prepare-bleedingdev-packages/registry.mjs'
+  );
+  const item = {
+    integrity: 'sha512-fixture',
+    shasum: 'fixture-shasum',
+    targetName: '@bleedingdev/modern-js-utils',
+    version: '3.2.0-ultramodern.1',
+  };
+  const pinnedTarball =
+    'https://registry.npmjs.org/@bleedingdev/modern-js-utils/-/modern-js-utils-3.2.0-ultramodern.1.tgz';
+  let lookupCount = 0;
+  let tarballDownloads = 0;
+  let provenanceChecks = 0;
+
+  const dist = await verifyRegistryPackage(
+    item,
+    { issuer: 'fixture-issuer' },
+    {
+      assertRegistryDistMatches: () => {},
+      lookupRegistryPackageDist: async () => {
+        lookupCount += 1;
+        // Attempt 2 swaps in an unpinned tarball URL after the bytes already
+        // matched once; the memoized download must not vouch for it.
+        return {
+          attestations: lookupCount === 1 ? undefined : { provenance: {} },
+          integrity: item.integrity,
+          shasum: item.shasum,
+          tarball:
+            lookupCount === 2
+              ? 'https://tarballs.example.com/modern-js-utils-3.2.0-ultramodern.1.tgz'
+              : pinnedTarball,
+        };
+      },
+      verifyRegistryPackageDist,
+      verifyRegistryProvenance: async (_item, resolvedDist) => {
+        provenanceChecks += 1;
+        if (!resolvedDist.attestations) {
+          throw new Error('registry dist.attestations must be a plain object');
+        }
+      },
+      verifyRegistryTarball: async () => {
+        tarballDownloads += 1;
+      },
+    },
+  );
+
+  assert.deepEqual(dist.attestations, { provenance: {} });
+  assert.equal(lookupCount, 3);
+  assert.equal(tarballDownloads, 1);
+  // Attempt 2 dies on the unpinned URL before provenance is consulted.
+  assert.equal(provenanceChecks, 2);
+});
+
+test('validateRegistryCohort stops launching windows after three failed members', async () => {
+  const { validateRegistryCohort } = await import(
+    '../prepare-bleedingdev-packages.mjs'
+  );
+  const manifest = {
+    ...makeManifest(),
+    packages: Array.from({ length: 8 }, (_value, index) => ({
+      sourceName: `@modern-js/pkg-${index}`,
+      targetName: `@bleedingdev/modern-js-pkg-${index}`,
+      version: '3.2.0-ultramodern.1',
+    })),
+  };
+  const attempted = [];
+
+  await assert.rejects(
+    () =>
+      validateRegistryCohort(
+        manifest,
+        { dryRun: false, publishConcurrency: 1, tag: 'latest' },
+        {
+          verifyRegistryDistTag: async () => {},
+          verifyRegistryPackage: async item => {
+            attempted.push(item.targetName);
+            throw new Error(`${item.targetName} did not verify on npm`);
+          },
+        },
+      ),
+    /Stopped after 3 failed members; 5 remaining member\(s\) were left unverified\./u,
+  );
+
+  assert.deepEqual(attempted, [
+    '@bleedingdev/modern-js-pkg-0',
+    '@bleedingdev/modern-js-pkg-1',
+    '@bleedingdev/modern-js-pkg-2',
+  ]);
+});
+
 test('the release validator tracks the merged Modern.js source version', async () => {
   const { enforceSingleVersionPolicy } = await import(
     '../lib/prepare-bleedingdev-packages/rewrite.mjs'
@@ -3275,17 +3867,33 @@ test('trusted publishing rejects the entire absent cohort before the first regis
             verifyRegistryPackage: async () => {},
           },
         ),
-      /returned HTTP 403/u,
+      error => {
+        assert.match(error.message, /returned HTTP 403/u);
+        assert.match(
+          error.message,
+          new RegExp(
+            `npm trusted publishing preflight failed for 1 of ${fixture.releaseArtifacts.manifest.publishOrder.length} package\\(s\\):`,
+            'u',
+          ),
+        );
+        assert.match(
+          error.message,
+          new RegExp(
+            `^${fixture.releaseArtifacts.manifest.publishOrder[1]}: `,
+            'mu',
+          ),
+        );
+        assert.doesNotMatch(error.message, /throttled/u);
+        return true;
+      },
     );
 
     assert.deepEqual(
       exchangeRequests,
-      fixture.releaseArtifacts.manifest.publishOrder
-        .slice(0, 2)
-        .map(
-          packageName =>
-            `/-/npm/v1/oidc/token/exchange/package/${packageName.replace('/', '%2f')}`,
-        ),
+      fixture.releaseArtifacts.manifest.publishOrder.map(
+        packageName =>
+          `/-/npm/v1/oidc/token/exchange/package/${packageName.replace('/', '%2f')}`,
+      ),
     );
     assert.deepEqual(registryMutations, []);
   } finally {
@@ -3376,10 +3984,12 @@ test('trusted publishing authorizes every absent package before publishing any o
   }
 });
 
-test('real publish verifies registry provenance after each accepted tarball before cohort validation', async () => {
-  const { publishManifestPackages, verifyPackageArtifact } = await import(
-    '../prepare-bleedingdev-packages.mjs'
-  );
+test('real publish verifies every published package once in the cohort pass', async () => {
+  const {
+    publishManifestPackages,
+    validateRegistryCohort,
+    verifyPackageArtifact,
+  } = await import('../prepare-bleedingdev-packages.mjs');
   const fixture = await createArtifactFixture();
   const events = [];
 
@@ -3404,9 +4014,18 @@ test('real publish verifies registry provenance after each accepted tarball befo
           });
           return artifact.targetName;
         },
-        validateRegistryCohort: async (_manifest, options) => {
-          assert.equal(options.dryRun, false);
+        validateRegistryCohort: async (
+          cohortManifest,
+          cohortOptions,
+          cohortRegistry,
+        ) => {
+          assert.equal(cohortOptions.dryRun, false);
           events.push({ kind: 'cohort' });
+          await validateRegistryCohort(
+            cohortManifest,
+            cohortOptions,
+            cohortRegistry,
+          );
         },
         trustedPublishing: {
           env: {
@@ -3427,7 +4046,11 @@ test('real publish verifies registry provenance after each accepted tarball befo
                 },
         },
         verifyPackageArtifact,
-        verifyRegistryDistTag: async () => {},
+        verifyRegistryDistTag: async (packageName, tag, version) => {
+          assert.equal(tag, 'latest');
+          assert.equal(version, '3.2.0-ultramodern.1');
+          events.push({ kind: 'dist-tag', targetName: packageName });
+        },
         verifyRegistryPackage: async (artifact, expectation) => {
           assert.deepEqual(expectation.source, releaseSource);
           assert.equal(
@@ -3442,18 +4065,30 @@ test('real publish verifies registry provenance after each accepted tarball befo
     const artifactsByTarget = new Map(
       fixture.releaseArtifacts.packages.map(item => [item.targetName, item]),
     );
+    // Registry verification happens exactly once per package, inside the cohort
+    // pass; the publish loop only re-checks the local artifact bytes.
     assert.deepEqual(
       events,
       fixture.releaseArtifacts.manifest.publishOrder
-        .flatMap(targetName => [
-          {
-            artifactPath: artifactsByTarget.get(targetName).artifactPath,
-            kind: 'publish',
-            targetName,
-          },
-          { kind: 'provenance', targetName },
-        ])
-        .concat({ kind: 'cohort' }),
+        .map(targetName => ({
+          artifactPath: artifactsByTarget.get(targetName).artifactPath,
+          kind: 'publish',
+          targetName,
+        }))
+        .concat({ kind: 'cohort' })
+        .concat(
+          fixture.releaseArtifacts.manifest.packages.flatMap(item => [
+            { kind: 'provenance', targetName: item.targetName },
+            { kind: 'dist-tag', targetName: item.targetName },
+          ]),
+        ),
+    );
+    assert.deepEqual(
+      events
+        .filter(event => event.kind === 'provenance')
+        .map(event => event.targetName)
+        .sort(),
+      [...fixture.releaseArtifacts.manifest.publishOrder].sort(),
     );
   } finally {
     removeDir(fixture.root);
