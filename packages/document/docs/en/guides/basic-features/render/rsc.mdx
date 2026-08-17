@@ -22,9 +22,9 @@ Before starting, we recommend reading React's official [Server Components docume
 ## Quick Start
 
 :::warning UltraModern availability
-RSC is not shipped or supported in the current UltraModern company distribution. The framework keeps [`server.rsc`](/configure/app/server/rsc) disabled while the Rspack Flight runtime is completed upstream. Do not install `react-server-dom-rspack` or carry an application-level pnpm patch to enable it early.
+RSC is experimental, default-off, and unsupported for external consumers; it is not shipped in the current UltraModern company distribution. Release-cohort and clean-room release-acceptance tests verify that RSC runtimes are absent and cannot resolve, and the release cohort has no maintained `@bleedingdev/*` RSC runtime package; when enabled, the framework intentionally fails closed unless an application supplies the complete optional toolchain.
 
-The remainder of this page is retained as reference material for future upstream adoption.
+The root-only `react-server-dom-rspack@0.0.3` patch backports Flight decoder security fixes for this repository's RSC tests; it is never copied into generated workspaces or published to consumers, so an app installing the upstream package receives unpatched bytes. [SyMind/react#1](https://github.com/SyMind/react/pull/1) merged on 2026-08-11; [BleedingDev/react#1](https://github.com/BleedingDev/react/pull/1) and [rspack#15144](https://github.com/web-infra-dev/rspack/issues/15144) remain open. npm still reports `react-server-dom-rspack` `latest` as `0.0.3`, with no patched consumer release, so the root-only patch remains necessary for this repository's RSC tests. This boundary is pending final owner ratification.
 :::
 
 Keep [`server.rsc`](/configure/app/server/rsc) set to `false`:

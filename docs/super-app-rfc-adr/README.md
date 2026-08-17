@@ -48,6 +48,10 @@ This folder contains planning artifacts for building a super-app-ready Modern.js
 - `ADR-0016-ultramodern-opinionated-defaults-contract.md`
 - `ADR-0017-superapp-composition-router-framework-coordination.md`
 - `ADR-0018-backend-federation-contract.md`
+- `ADR-0019-federated-loading-unified-delivery.md`
+- `ADR-0020-zoned-surface-versioning.md`
+- `ADR-0021-distributed-ssr-mf-cloudflare-workers.md`
+- `ADR-0022-upstream-freeze-or-track.md` (Proposed — TRACK draft, owner ratification pending)
 - `contracts/ai-capabilities.json` (spec-only since 2026-06-12; no code consumers)
 - `contracts/mv-runtime-parity-contract.json`
 - `contracts/mv-topology-manifest.schema.json` (no in-repo validator since 2026-06-12)
