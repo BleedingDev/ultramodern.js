@@ -79,9 +79,7 @@ export const createResolvedTsgoConfig = async (
   config.compilerOptions.rootDir = appDirectory;
   config.compilerOptions.outDir = distDir;
   config.compilerOptions.composite = false;
-  // `declaration` is deliberately not overridden — crossProject BFF apps
-  // publish handler declarations their client facades re-export. Only the
-  // options that would make this a composite project build are normalized away.
+  // `declaration` stays untouched: crossProject BFF client facades re-export handler declarations.
   config.compilerOptions.declarationMap = false;
   config.compilerOptions.emitDeclarationOnly = false;
   config.compilerOptions.incremental = false;
@@ -272,9 +270,7 @@ const getSourceFileForOutput = (
 ) => {
   const relativeOutput = path.relative(distDir, outputFile);
   const parsed = path.parse(relativeOutput);
-  // `path.parse('index.d.ts')` yields name 'index.d' / ext '.ts'; dropping the
-  // `.d` maps a declaration to a source that never existed, which silently
-  // skips the alias rewrite for the whole declaration output.
+  // `path.parse('index.d.ts')` gives name 'index.d'; keeping the `.d` would map to a nonexistent source and skip the alias rewrite.
   const isDeclaration = parsed.name.endsWith('.d');
   const outputExtension = isDeclaration ? `.d${parsed.ext}` : parsed.ext;
   const sourceName = isDeclaration ? parsed.name.slice(0, -2) : parsed.name;
@@ -351,8 +347,7 @@ const collectOutputFiles = async (dir: string): Promise<string[]> => {
       if (entry.isDirectory()) {
         return collectOutputFiles(fullPath);
       }
-      // Declarations keep tsconfig `paths` verbatim just like the JS output
-      // does, so they need the same rewrite or aliases leak to consumers.
+      // Declarations keep tsconfig `paths` verbatim like JS output; without the rewrite, aliases leak to consumers.
       return /\.(?:c|m)?js$|\.d\.(?:c|m)?ts$/.test(entry.name)
         ? [fullPath]
         : [];
