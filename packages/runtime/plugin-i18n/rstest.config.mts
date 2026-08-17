@@ -33,6 +33,7 @@ export default {
         'tests/linkTypes.test.ts',
         'tests/backendDefaults.test.ts',
         'tests/redirectPolicy.test.ts',
+        'tests/peerCohort.test.ts',
         'tests/reactI18nextRuntimeBoundary.test.ts',
         'tests/federatedI18nBoundary.test.tsx',
       ],

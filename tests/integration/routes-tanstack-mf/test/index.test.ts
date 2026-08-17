@@ -165,6 +165,7 @@ async function assertSharedTreeShakingStats(port: number) {
   const ssrSingletonPackages = new Set([
     'react',
     'react-dom',
+    'react-dom/client',
     '@tanstack/react-router',
     '@modern-js/runtime',
   ]);

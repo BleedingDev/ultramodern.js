@@ -111,8 +111,8 @@
   "peerDependencies": {
     "@modern-js/runtime": "workspace:^3.8.1",
     "i18next": ">=25.7.4",
-    "react": ">=18",
-    "react-dom": ">=18",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
     "react-i18next": ">=15.7.4"
   },
   "peerDependenciesMeta": {

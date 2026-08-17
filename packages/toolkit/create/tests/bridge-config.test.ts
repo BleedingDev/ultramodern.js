@@ -142,7 +142,13 @@ test('bridge config is disabled by default and normalizes explicit API input', (
         cwd: '..',
       },
     ],
-    reactSingletons: ['react', 'react-dom', 'react', 'scheduler'],
+    reactSingletons: [
+      'react',
+      'react-dom',
+      'react-dom/client',
+      'react',
+      'scheduler',
+    ],
   });
 
   assert.deepEqual(bridge, {
@@ -173,7 +179,7 @@ test('bridge config is disabled by default and normalizes explicit API input', (
         cwd: '..',
       },
     ],
-    reactSingletons: ['react', 'react-dom', 'scheduler'],
+    reactSingletons: ['react', 'react-dom', 'react-dom/client', 'scheduler'],
   });
 });
 
@@ -201,7 +207,7 @@ test('bridge CLI parser requires explicit parent package consumption data', () =
     'parent-rstest=pnpm exec rstest packages/domain-core/tests',
     '--bridge-gate-cwd=parent-rstest=..',
     '--bridge-react-singleton',
-    'react,react-dom,scheduler',
+    'react,react-dom,react-dom/client,scheduler',
   ]);
 
   assert.deepEqual(bridge, {
@@ -232,7 +238,7 @@ test('bridge CLI parser requires explicit parent package consumption data', () =
         cwd: '..',
       },
     ],
-    reactSingletons: ['react', 'react-dom', 'scheduler'],
+    reactSingletons: ['react', 'react-dom', 'react-dom/client', 'scheduler'],
   });
 });
 
@@ -372,7 +378,7 @@ test('bridge CLI parser rejects partial or invalid bridge mode', () => {
         ],
         reactSingletons: ['react'],
       }),
-    /React singleton\/dedupe declarations must include react and react-dom/,
+    /React singleton\/dedupe declarations must include react and react-dom and react-dom\/client/,
   );
 
   assert.throws(
@@ -494,7 +500,12 @@ test('bridge mode materializes workspace packages, app dependencies, compact con
             cwd: '../..',
           },
         ],
-        reactSingletons: ['react', 'react-dom', 'scheduler'],
+        reactSingletons: [
+          'react',
+          'react-dom',
+          'react-dom/client',
+          'scheduler',
+        ],
       },
     });
 
@@ -532,6 +543,7 @@ test('bridge mode materializes workspace packages, app dependencies, compact con
     assert.deepEqual(compactConfig.bridge.reactSingletons, [
       'react',
       'react-dom',
+      'react-dom/client',
       'scheduler',
     ]);
     assert.deepEqual(compactConfig.bridge.workspacePackages[0].testAliases, [

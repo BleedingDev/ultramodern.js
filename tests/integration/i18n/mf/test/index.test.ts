@@ -46,6 +46,23 @@ const APP_MF_SSR_ENV = {
   MODERN_MF_APP_SSR: 'true',
   MODERN_FAST_TEST: 'true',
 };
+const MULTIPLE_RENDERERS_WARNING =
+  'Detected multiple renderers concurrently rendering the same context provider.';
+
+function collectBrowserErrors(page: Page, browserErrors: string[]) {
+  page.on('console', message => {
+    if (message.type() === 'error') {
+      browserErrors.push(message.text());
+    }
+  });
+  page.on('pageerror', error => {
+    browserErrors.push(error instanceof Error ? error.message : String(error));
+  });
+}
+
+function expectNoRendererWarnings(output: string[]) {
+  expect(output.join('')).not.toContain(MULTIPLE_RENDERERS_WARNING);
+}
 
 async function fetchHtml(port: number, pathname: string) {
   const response = await fetch(`http://localhost:${port}${pathname}`, {
@@ -69,31 +86,44 @@ describe('mf-i18n-tests', () => {
   let componentProviderBrowser: Browser;
   let appProviderPage: Page;
   let appProviderBrowser: Browser;
+  const componentProviderBrowserErrors: string[] = [];
+  const appProviderBrowserErrors: string[] = [];
+  const componentProviderOutput: string[] = [];
+  const appProviderOutput: string[] = [];
 
   beforeAll(async () => {
     releaseLock = await acquireTestLock('i18n-mf');
     componentProviderApp = await launchApp(
       componentProviderDir,
       COMPONENT_PROVIDER_PORT,
+      {
+        onStdout: (message: string) => componentProviderOutput.push(message),
+        onStderr: (message: string) => componentProviderOutput.push(message),
+      },
     );
     await waitForAppReady(COMPONENT_PROVIDER_PORT);
 
     appProviderApp = await launchApp(
       appProviderDir,
       APP_PROVIDER_PORT,
-      {},
+      {
+        onStdout: (message: string) => appProviderOutput.push(message),
+        onStderr: (message: string) => appProviderOutput.push(message),
+      },
       APP_MF_SSR_ENV,
     );
     await waitForAppReady(APP_PROVIDER_PORT);
 
     componentProviderBrowser = await puppeteer.launch(launchOptions as any);
     componentProviderPage = await componentProviderBrowser.newPage();
+    collectBrowserErrors(componentProviderPage, componentProviderBrowserErrors);
     await componentProviderPage.setExtraHTTPHeaders({
       'Accept-Language': 'en-US,en;q=0.9',
     });
 
     appProviderBrowser = await puppeteer.launch(launchOptions as any);
     appProviderPage = await appProviderBrowser.newPage();
+    collectBrowserErrors(appProviderPage, appProviderBrowserErrors);
     await appProviderPage.setExtraHTTPHeaders({
       'Accept-Language': 'en-US,en;q=0.9',
     });
@@ -119,7 +149,13 @@ describe('mf-i18n-tests', () => {
 
   describe('mf-component-provider standalone', () => {
     beforeEach(async () => {
+      componentProviderBrowserErrors.length = 0;
       await clearI18nTestState(componentProviderPage);
+    });
+
+    afterEach(() => {
+      expect(componentProviderBrowserErrors).toEqual([]);
+      expectNoRendererWarnings(componentProviderOutput);
     });
 
     conditionalTest('should render home page with i18n correctly', async () => {
@@ -176,7 +212,13 @@ describe('mf-i18n-tests', () => {
 
   describe('mf-app-provider standalone', () => {
     beforeEach(async () => {
+      appProviderBrowserErrors.length = 0;
       await clearI18nTestState(appProviderPage);
+    });
+
+    afterEach(() => {
+      expect(appProviderBrowserErrors).toEqual([]);
+      expectNoRendererWarnings(appProviderOutput);
     });
 
     conditionalTest('should render home page correctly', async () => {
@@ -280,25 +322,39 @@ describe('mf-i18n-tests', () => {
     let consumerApp: unknown;
     let page: Page;
     let browser: Browser;
+    const browserErrors: string[] = [];
+    const consumerOutput: string[] = [];
 
     beforeAll(async () => {
       consumerApp = await launchApp(
         consumerDir,
         CONSUMER_PORT,
-        {},
+        {
+          onStdout: (message: string) => consumerOutput.push(message),
+          onStderr: (message: string) => consumerOutput.push(message),
+        },
         APP_MF_SSR_ENV,
       );
       await waitForAppReady(CONSUMER_PORT);
 
       browser = await puppeteer.launch(launchOptions as any);
       page = await browser.newPage();
+      collectBrowserErrors(page, browserErrors);
       await page.setExtraHTTPHeaders({
         'Accept-Language': 'en-US,en;q=0.9',
       });
     });
 
     beforeEach(async () => {
+      browserErrors.length = 0;
       await clearI18nTestState(page);
+    });
+
+    afterEach(() => {
+      expect(browserErrors).toEqual([]);
+      expectNoRendererWarnings(consumerOutput);
+      expectNoRendererWarnings(componentProviderOutput);
+      expectNoRendererWarnings(appProviderOutput);
     });
 
     afterAll(async () => {
@@ -388,25 +444,39 @@ describe('mf-i18n-tests', () => {
     let consumerApp: unknown;
     let page: Page;
     let browser: Browser;
+    const browserErrors: string[] = [];
+    const consumerOutput: string[] = [];
 
     beforeAll(async () => {
       consumerApp = await launchApp(
         consumerDir,
         CONSUMER_PORT,
-        {},
+        {
+          onStdout: (message: string) => consumerOutput.push(message),
+          onStderr: (message: string) => consumerOutput.push(message),
+        },
         APP_MF_SSR_ENV,
       );
       await waitForAppReady(CONSUMER_PORT);
 
       browser = await puppeteer.launch(launchOptions as any);
       page = await browser.newPage();
+      collectBrowserErrors(page, browserErrors);
       await page.setExtraHTTPHeaders({
         'Accept-Language': 'en-US,en;q=0.9',
       });
     });
 
     beforeEach(async () => {
+      browserErrors.length = 0;
       await clearI18nTestState(page);
+    });
+
+    afterEach(() => {
+      expect(browserErrors).toEqual([]);
+      expectNoRendererWarnings(consumerOutput);
+      expectNoRendererWarnings(componentProviderOutput);
+      expectNoRendererWarnings(appProviderOutput);
     });
 
     afterAll(async () => {
@@ -446,6 +516,7 @@ describe('mf-i18n-tests', () => {
           remoteKey,
         );
         expect(remoteText?.trim()).toEqual('Hello World(provider-custom)');
+        expect(browserErrors).toEqual([]);
       },
     );
 

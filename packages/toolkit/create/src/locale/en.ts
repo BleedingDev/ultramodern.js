@@ -88,7 +88,7 @@ export const EN_LOCALE = {
     optionBridgeGateCwd:
       '      --bridge-gate-cwd <name=cwd> Working directory for a named bridge gate',
     optionBridgeReactSingleton:
-      '      --bridge-react-singleton <package[,package]> React singleton package expectation (default: react,react-dom)',
+      '      --bridge-react-singleton <package[,package]> React singleton package expectation (default: react,react-dom,react-dom/client)',
     optionVertical:
       '      --vertical[=<name>] Mutate the current existing UltraModern workspace and wire a MicroVertical',
     optionVerticalName:
