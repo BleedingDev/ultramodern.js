@@ -39,6 +39,20 @@ jobs:
       - name: Install Dependencies
         run: mise exec -- pnpm install --frozen-lockfile
 
+      - name: Restore Nx cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .nx/cache
+          key: nx-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('nx.json') }}
+          restore-keys: |
+            nx-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-
+            nx-${{ runner.os }}-
+
+      # The suites under scripts/ import built package dists
+      # (e.g. @modern-js/app-tools/dist/esm-node), so build before testing.
+      - name: Build Packages
+        run: mise exec -- pnpm run prepare-build
+
       - name: Run script test suites
         run: pnpm run test:scripts
 

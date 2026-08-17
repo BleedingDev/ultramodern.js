@@ -3,6 +3,10 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
+import {
+  acquireFixtureLocks,
+  type ReleaseFixtureLock,
+} from '../../../utils/fixtureLock';
 import { modernBuild } from '../../../utils/modernTestUtils';
 
 rstest.setConfig({ testTimeout: 1000 * 60 * 3, hookTimeout: 1000 * 60 * 3 });
@@ -119,26 +123,37 @@ describe('crossProject client type portability', () => {
   let tarball: string;
 
   beforeAll(async () => {
-    // The generator fails closed when a handler declaration is missing, so a
-    // successful build is itself part of the contract under test.
-    const buildResult = (await modernBuild(apiAppDir, [], {})) as {
-      code: number;
-      stderr?: string;
-    };
-    expect(buildResult.stderr ?? '').not.toContain(
-      'MissingClientDeclarationError',
-    );
-    expect(buildResult.code).toBe(0);
+    // index.test.ts builds and serves the same api app from a parallel rstest
+    // worker; an unlocked concurrent build here clobbers `dist-1` mid-emit and
+    // trips the fail-closed missing-declaration check in both files.
+    let releaseFixtureLocks: ReleaseFixtureLock | undefined;
+    try {
+      releaseFixtureLocks = await acquireFixtureLocks([apiAppDir]);
+      // The generator fails closed when a handler declaration is missing, so a
+      // successful build is itself part of the contract under test.
+      const buildResult = (await modernBuild(apiAppDir, [], {})) as {
+        code: number;
+        stderr?: string;
+      };
+      expect(buildResult.stderr ?? '').not.toContain(
+        'MissingClientDeclarationError',
+      );
+      expect(buildResult.code).toBe(0);
 
-    workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bff-portability-'));
-    // Pack exactly what would be published.
-    execFileSync('pnpm', ['pack', '--pack-destination', workDir], {
-      cwd: apiAppDir,
-      stdio: 'pipe',
-    });
-    const packed = fs.readdirSync(workDir).find(name => name.endsWith('.tgz'));
-    expect(packed).toBeTruthy();
-    tarball = path.join(workDir, packed!);
+      workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bff-portability-'));
+      // Pack exactly what would be published.
+      execFileSync('pnpm', ['pack', '--pack-destination', workDir], {
+        cwd: apiAppDir,
+        stdio: 'pipe',
+      });
+      const packed = fs
+        .readdirSync(workDir)
+        .find(name => name.endsWith('.tgz'));
+      expect(packed).toBeTruthy();
+      tarball = path.join(workDir, packed!);
+    } finally {
+      await releaseFixtureLocks?.();
+    }
   });
 
   afterAll(() => {

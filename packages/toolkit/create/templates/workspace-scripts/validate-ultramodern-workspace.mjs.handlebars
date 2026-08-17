@@ -3062,9 +3062,20 @@ const readPnpmWorkspaceConfig = key =>
   );
 const pnpmOverrides = readPnpmWorkspaceConfig('overrides');
 const pnpmPatches = readPnpmWorkspaceConfig('patchedDependencies');
+// pnpm reports patch paths realpathed against the workspace dir; on Windows
+// that can be the long-name form while `root` (process.cwd()) is the 8.3
+// short form, so compare realpaths instead of raw string equality.
+const canonicalFsPath = target => {
+  try {
+    return fs.realpathSync.native(target);
+  } catch {
+    return path.resolve(target);
+  }
+};
 const patchPathMatches = (key, expectedRelativePath) =>
   typeof pnpmPatches[key] === 'string' &&
-  path.resolve(pnpmPatches[key]) === path.join(root, expectedRelativePath);
+  canonicalFsPath(pnpmPatches[key]) ===
+    canonicalFsPath(path.join(root, expectedRelativePath));
 assert(
   pnpmOverrides['@effect/opentelemetry'] === expectedEffectVersion,
   'pnpm-workspace.yaml must override @effect/opentelemetry to the generated Effect cohort',
