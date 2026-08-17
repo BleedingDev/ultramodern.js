@@ -27,8 +27,12 @@ node scripts/ultramodern-boundary-check/check-fork-import-boundary.js --write-al
 The import gate cannot see fork behavior written directly into upstream-owned
 files. Divergence mode diffs the complete scope recorded in
 `divergence-allowlist.json` against that file's audited upstream base
-(`dfcd414a050d4455851ff76f861822fca0d4bcf4` today). One entry per divergent
-base-owned path records only `hunks` and `changedLines`.
+(`eded841256a7cffdaa622e3889fc83407debd3e4` today — upstream's `Release v3.8.2
+(#8810)` mainline commit, merged into this fork). One entry per divergent
+base-owned path records only `hunks` and `changedLines`. Anchor on the mainline
+commit, not the `v3.8.2` tag: upstream cuts releases on a parallel commit
+(`e642cd16a8`, same parent and same tree), so the tag is patch-equivalent but is
+not an ancestor of `HEAD`.
 
 ### Fail-closed recorded contract
 
@@ -69,6 +73,31 @@ node scripts/ultramodern-boundary-check/check-fork-import-boundary.js \
 
 That plain writer is monotonic. It refuses every raised budget and new entry and
 writes atomically only after validating the complete candidate snapshot.
+
+### Always measure against the recorded base
+
+The budgets in `divergence-allowlist.json` are cumulative counts taken at the
+`baseRef` recorded inside that file, which must equal
+`DEFAULT_DIVERGENCE_BASE_REF` in `divergence.js`. Running the gate against any
+other base — a PR merge-base, `HEAD~1`, a push `before` SHA — compares a
+per-range delta against a full-history budget and is wrong in both directions,
+so `checkForkDivergence` refuses to run when the two bases disagree. CI runs the
+default invocation; do not pass `--base`.
+
+When upstream is merged and the base itself moves, re-anchor the constant and
+re-record in the **same** change as the `FORK-DIVERGENCE.md` rows:
+
+```sh
+node scripts/ultramodern-boundary-check/check-fork-import-boundary.js \
+  --mode divergence --base <new-upstream-base> \
+  --write-divergence-allowlist --rebase-divergence-allowlist --record-growth
+```
+
+`--rebase-divergence-allowlist` alone only waives the base-equality assertion;
+the growth guard still fires, because budgets recorded at the old base are not
+comparable with measurements at the new one. That is why a base re-anchor always
+needs `--record-growth` — and why every entry it raises must be inspected and
+dispositioned first, not blessed in bulk.
 
 ### Exact Rule 5 cap and reviewed growth
 

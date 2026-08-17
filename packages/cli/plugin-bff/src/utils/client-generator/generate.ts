@@ -9,12 +9,17 @@ import {
 } from '../effectClientGenerator';
 import {
   CLIENT_DIR,
-  copyFiles,
   createFileDetails,
+  type FileDetails,
   readDirectoryFiles,
   writeTargetFile,
 } from './files';
 import { getPackageName } from './package-json';
+import {
+  buildClientTypeFacade,
+  DEFAULT_EXPORT_RE,
+  MissingClientDeclarationError,
+} from './type-facade';
 import { setPackage, writeClientModuleBoundary } from './write-package';
 
 export type APILoaderOptions = {
@@ -28,6 +33,14 @@ export type APILoaderOptions = {
   httpMethodDecider?: HttpMethodDecider;
   relativeDistPath: string;
   relativeApiPath: string;
+  /**
+   * Absolute paths of the valid API files, resolved by ApiRouter with the same
+   * `API_FILE_RULES` the runtime router uses. Passing them in keeps the client
+   * generator and the router in agreement about what an API module is, so
+   * stray artifacts next to the sources (compiled `.d.ts`/`.js`, tests,
+   * private files) never reach `generateClient`.
+   */
+  apiFiles: string[];
   bffRuntimeFramework?: 'hono' | 'effect';
   effectEntry?: string;
   effectDataPlatformBatch?: {
@@ -56,6 +69,7 @@ export async function clientGenerator(draftOptions: APILoaderOptions) {
         draftOptions.appDir,
         draftOptions.lambdaDir,
         draftOptions.relativeDistPath,
+        draftOptions.apiFiles,
       )
     : [];
   const generatedSourceList = [...lambdaSourceList];
@@ -95,15 +109,41 @@ export async function clientGenerator(draftOptions: APILoaderOptions) {
     return result;
   };
 
+  // The generated client directory always carries `{"type": "module"}` (see
+  // writeClientModuleBoundary), so its declarations are native ESM whatever the
+  // surrounding app's moduleType is, and their re-export specifiers always need
+  // the explicit `.js` extension. Deriving this from the app-level moduleType
+  // — as upstream's cli.ts does — would emit extensionless specifiers into an
+  // ESM package and break node16/nodenext consumers with TS2835.
+  const writeClientTypeFacade = async (
+    source: FileDetails,
+    clientCode: string,
+  ) => {
+    if (!(await fs.pathExists(path.resolve(source.relativeTargetDistDir)))) {
+      throw new MissingClientDeclarationError(
+        source.resourcePath,
+        source.relativeTargetDistDir,
+      );
+    }
+
+    const clientTypesFile = source.targetDir.replace(/\.js$/, '.d.ts');
+    await writeTargetFile(
+      path.resolve(clientTypesFile),
+      buildClientTypeFacade(
+        clientTypesFile,
+        source.relativeTargetDistDir,
+        DEFAULT_EXPORT_RE.test(clientCode),
+        true,
+      ),
+    );
+  };
+
   try {
     for (const source of lambdaSourceList) {
       const code = await getClitentCode(source.resourcePath, source.source);
       if (code?.value) {
         await writeTargetFile(source.absTargetDir, code.value);
-        await copyFiles(
-          source.relativeTargetDistDir,
-          source.targetDir.replace(`js`, 'd.ts'),
-        );
+        await writeClientTypeFacade(source, code.value);
       }
     }
 
@@ -159,6 +199,12 @@ export async function clientGenerator(draftOptions: APILoaderOptions) {
 
     logger.info(`Client bundle generate succeed`);
   } catch (error) {
+    // A missing handler declaration silently published a broken type surface,
+    // which is exactly the defect this generator now guards; it must not be
+    // downgraded to a log line by the surrounding best-effort handler.
+    if (error instanceof MissingClientDeclarationError) {
+      throw error;
+    }
     logger.error(`Client bundle generate failed: ${error}`);
   }
 

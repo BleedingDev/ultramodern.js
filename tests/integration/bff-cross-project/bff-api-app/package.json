@@ -61,6 +61,10 @@
       "import": "./dist-1/client/index.js",
       "types": "./dist-1/client/index.d.ts"
     },
+    "./api/portable": {
+      "import": "./dist-1/client/portable.js",
+      "types": "./dist-1/client/portable.d.ts"
+    },
     "./api/upload": {
       "import": "./dist-1/client/upload.js",
       "types": "./dist-1/client/upload.d.ts"
@@ -94,6 +98,9 @@
       "api/index": [
         "./dist-1/client/index.d.ts"
       ],
+      "api/portable": [
+        "./dist-1/client/portable.d.ts"
+      ],
       "api/upload": [
         "./dist-1/client/upload.d.ts"
       ],
@@ -108,6 +115,7 @@
   "files": [
     "dist-1/client/**/*",
     "dist-1/runtime/**/*",
-    "dist-1/plugin/**/*"
+    "dist-1/plugin/**/*",
+    "dist-1/**/*.d.ts"
   ]
 }

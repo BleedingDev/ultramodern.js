@@ -720,6 +720,40 @@ async function verifyRegistryDistTag(packageName, tag, version) {
   }
 }
 
+const ultramodernVersionPattern = /^(\d+\.\d+\.\d+)-ultramodern\.([1-9]\d*)$/;
+
+/**
+ * A new incorporated Modern.js base restarts the ultramodern revision counter.
+ * Carrying the previous base's revision forward (3.8.1-ultramodern.5 ->
+ * 3.8.2-ultramodern.6) is still forward semver, so plain ordering accepts it,
+ * but it claims a release history the new base never had. Only
+ * `<newBase>-ultramodern.1` may follow a base change.
+ *
+ * Known limitation: if a `.1` cohort were only partially published, the members
+ * still tagged on the old base could not move to `.2` without first landing
+ * `.1`. That is acceptable because the preflight is all-or-nothing and runs
+ * before any package is published.
+ */
+function assertBaseRevisionReset(targetName, candidate, currentTag) {
+  const candidateMatch = ultramodernVersionPattern.exec(candidate);
+  const currentMatch = ultramodernVersionPattern.exec(currentTag);
+  if (!candidateMatch || !currentMatch) {
+    return;
+  }
+
+  const [, candidateBase, candidateRevision] = candidateMatch;
+  const [, currentBase] = currentMatch;
+  if (!semver.gt(candidateBase, currentBase)) {
+    return;
+  }
+
+  if (candidateRevision !== '1') {
+    throw new Error(
+      `${targetName}@${candidate} moves the incorporated Modern.js base from ${currentBase} to ${candidateBase}; the only valid next version on a base change is ${candidateBase}-ultramodern.1`,
+    );
+  }
+}
+
 async function preflightRegistryPackages(
   publishItems,
   options,
@@ -769,6 +803,7 @@ async function preflightRegistryPackages(
             `${item.targetName}@${item.version} must be greater than current ${options.tag} ${currentTag}`,
           );
         }
+        assertBaseRevisionReset(item.targetName, item.version, currentTag);
       }
       states.set(item.targetName, { currentTag, dist: null, exists: false });
       const prefix = options.dryRun

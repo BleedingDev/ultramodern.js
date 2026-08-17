@@ -12,7 +12,14 @@ const path = require('node:path');
 
 const DIVERGENCE_SCHEMA_VERSION = 1;
 const DIVERGENCE_FILE_PATTERN = /^packages\//;
-const DEFAULT_DIVERGENCE_BASE_REF = 'dfcd414a050d4455851ff76f861822fca0d4bcf4';
+/**
+ * Upstream mainline release commit for v3.8.2, merged into this fork and
+ * therefore a true ancestor of HEAD (`Release v3.8.2 (#8810)`). The `v3.8.2`
+ * tag (e642cd16) is a parallel release commit — same parent 8edf91adb1, same
+ * tree 35d89ac688 — so it is patch-equivalent but not an ancestor; measure
+ * against the mainline commit, not the tag.
+ */
+const DEFAULT_DIVERGENCE_BASE_REF = 'eded841256a7cffdaa622e3889fc83407debd3e4';
 const DEFAULT_DIVERGENCE_ALLOWLIST_REPO_PATH =
   'scripts/ultramodern-boundary-check/divergence-allowlist.json';
 const DEFAULT_DIVERGENCE_ALLOWLIST_PATH = path.join(

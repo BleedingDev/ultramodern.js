@@ -70,49 +70,41 @@ export function createFileDetails(options: {
   };
 }
 
+/**
+ * Turn the API files ApiRouter resolved into client-generation inputs.
+ *
+ * `apiFiles` are absolute paths produced with the very same `API_FILE_RULES`
+ * the runtime router uses, which keeps the client generator and the router in
+ * agreement about what an API module is. A bare recursive read of `directory`
+ * also swept in whatever else happened to sit next to the sources — emitted
+ * `.d.ts` and compiled `.js`, tests, private `_`-prefixed modules — and handed
+ * them to `generateClient`.
+ */
 export async function readDirectoryFiles(
   appDirectory: string,
   directory: string,
   relativeDistPath: string,
+  apiFiles: string[],
 ): Promise<FileDetails[]> {
   const filesList: FileDetails[] = [];
 
-  async function readFiles(currentPath: string): Promise<void> {
-    const entries = await fs.readdir(currentPath, { withFileTypes: true });
-
-    for (const entry of entries) {
-      if (entry.name === '_app.ts') continue;
-
-      const resourcePath = path.join(currentPath, entry.name);
-
-      if (entry.isDirectory()) {
-        await readFiles(resourcePath);
-      } else {
-        const source = await fs.readFile(resourcePath, 'utf8');
-        filesList.push(
-          createFileDetails({
-            appDirectory,
-            baseDirectory: directory,
-            resourcePath,
-            source,
-            relativeDistPath,
-          }),
-        );
-      }
-    }
+  for (const resourcePath of apiFiles) {
+    const source = await fs.readFile(resourcePath, 'utf8');
+    filesList.push(
+      createFileDetails({
+        appDirectory,
+        baseDirectory: directory,
+        resourcePath,
+        source,
+        relativeDistPath,
+      }),
+    );
   }
 
-  await readFiles(directory);
   return filesList;
 }
 
 export async function writeTargetFile(absTargetDir: string, content: string) {
   await fs.mkdir(path.dirname(absTargetDir), { recursive: true });
   await fs.writeFile(absTargetDir, content);
-}
-
-export async function copyFiles(from: string, to: string) {
-  if (await fs.pathExists(from)) {
-    await fs.copy(toPosixPath(from), toPosixPath(to));
-  }
 }

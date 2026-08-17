@@ -261,6 +261,7 @@ export const createBffGenerator = (api: CLIPluginAPI<AppTools>) => {
               httpMethodDecider,
               relativeDistPath,
               relativeApiPath,
+              apiFiles: apiRouter.getApiFiles(),
               bffRuntimeFramework,
               effectEntry: bff?.effect?.entry,
               effectDataPlatformBatch: bff?.effect?.dataPlatform?.batch,
