@@ -2933,6 +2933,44 @@ test('registry preflight lets a recovery cohort claim the next free revision aft
   );
 });
 
+test('registry preflight converges a cohort whose own version is already partially published', async () => {
+  const { preflightRegistryPackages } = await import(
+    '../prepare-bleedingdev-packages.mjs'
+  );
+  // The recovery cohort itself crashed mid-publish: one member already sits at
+  // the cohort version. That member is this cohort placed, not a burned
+  // remnant, so the stragglers still on the old base publish at the SAME
+  // cohort version instead of being pushed to yet another revision.
+  const version = '3.8.2-ultramodern.2';
+  const tagsByPackage = {
+    '@bleedingdev/modern-js-utils': '3.8.2-ultramodern.2',
+    '@bleedingdev/modern-js-create': '3.8.1-ultramodern.5',
+  };
+  const utilsDist = { shasum: 'abc', integrity: 'sha512-abc' };
+
+  const states = await preflightRegistryPackages(
+    [
+      { targetName: '@bleedingdev/modern-js-utils', version },
+      { targetName: '@bleedingdev/modern-js-create', version },
+    ],
+    { dryRun: true, tag: 'latest', version },
+    {},
+    {
+      lookupRegistryDistTag: async name => tagsByPackage[name],
+      lookupRegistryPackageDist: async name =>
+        name === '@bleedingdev/modern-js-utils' ? utilsDist : null,
+      verifyRegistryPackageDist: async () => utilsDist,
+    },
+  );
+
+  assert.equal(states.get('@bleedingdev/modern-js-utils').exists, true);
+  assert.equal(states.get('@bleedingdev/modern-js-create').exists, false);
+  assert.equal(
+    states.get('@bleedingdev/modern-js-create').currentTag,
+    '3.8.1-ultramodern.5',
+  );
+});
+
 test('registry preflight still rejects revisions past the next free one after a partial publish', async () => {
   const { preflightRegistryPackages } = await import(
     '../prepare-bleedingdev-packages.mjs'

@@ -672,8 +672,12 @@ async function verifyRegistryPackage(
     verifyRegistryTarball,
   },
 ) {
-  const attempts = 12;
-  const retryDelayMs = 5000;
+  // npm's attestation propagation regularly exceeds one minute right after
+  // publish (observed: attestations endpoint 404s ~60s in, then appears), so
+  // the window must comfortably outlast that lag or the cohort aborts on a
+  // package that in fact published fine.
+  const attempts = 36;
+  const retryDelayMs = 10000;
   let lastError = '';
 
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
@@ -767,20 +771,27 @@ function assertBaseRevisionReset(
  * The lowest revision the cohort may claim when it moves to a new incorporated
  * base: one past the highest revision any cohort member's current dist-tag
  * already occupies at that base (crash remnants), or `.1` when the base is
- * untouched.
+ * untouched. A member whose current dist-tag already IS the cohort version is
+ * not a remnant — it is this cohort partially placed (a converge re-run after
+ * a mid-cohort crash), so that revision stays claimable by the rest of the
+ * cohort instead of forcing an endless revision escalation.
  */
 function nextBaseChangeRevision(cohortVersion, currentTags) {
   const cohortMatch = ultramodernVersionPattern.exec(cohortVersion ?? '');
   if (!cohortMatch) {
     return '1';
   }
-  const [, cohortBase] = cohortMatch;
+  const [, cohortBase, cohortRevision] = cohortMatch;
   let burned = 0;
   for (const tag of currentTags) {
     const tagMatch = ultramodernVersionPattern.exec(tag ?? '');
-    if (tagMatch && tagMatch[1] === cohortBase) {
-      burned = Math.max(burned, Number(tagMatch[2]));
+    if (!tagMatch || tagMatch[1] !== cohortBase) {
+      continue;
     }
+    if (tag === cohortVersion) {
+      return cohortRevision;
+    }
+    burned = Math.max(burned, Number(tagMatch[2]));
   }
   return String(burned + 1);
 }
