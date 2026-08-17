@@ -134,3 +134,21 @@ test('macOS unit tests run on the supported Apple Silicon image', () => {
   const workflow = readWorkflow('.github/workflows/ut-macOS.yml');
   assert.equal(workflow.jobs?.['ut-mac']?.['runs-on'], 'macos-26');
 });
+
+test('nightly installs the frozen workspace before script tests', () => {
+  const workflow = readWorkflow('.github/workflows/ultramodern-nightly.yml');
+  const steps = workflow.jobs?.['script-tests']?.steps ?? [];
+  const installIndex = steps.findIndex(
+    step => step?.name === 'Install Dependencies',
+  );
+  const testIndex = steps.findIndex(
+    step => step?.name === 'Run script test suites',
+  );
+
+  assert.equal(installIndex + 1, testIndex);
+  assert.deepEqual(steps[installIndex], {
+    name: 'Install Dependencies',
+    run: 'mise exec -- pnpm install --frozen-lockfile',
+  });
+  assert.equal(steps[testIndex]?.run, 'pnpm run test:scripts');
+});
