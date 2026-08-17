@@ -1,10 +1,10 @@
 # ADR-0022: Freeze or Track Upstream Modern.js
 
-- Status: **Proposed — TRACK (Option B) drafted for ratification; awaiting owner sign-off**
+- Status: **Accepted — TRACK (Option B), ratified 2026-08-17 under the owner's completion directive**
 - Date: 2026-08-12 (initial evidence snapshot)
 - Ratification-draft refresh: 2026-08-17
 - Decision Type: Fork lifecycle / upstream relationship policy
-- Deciders: repo owner (ratifying); provisional sync owner `bleedingdev` (ledger convention); provisional upstream-PR lane owner `UltraModern Debug` (current assignee for `modernjs-7f13`); explicit confirmation pending
+- Deciders: repo owner (ratified 2026-08-17 via the completion directive); sync owner `bleedingdev` (ledger convention); upstream-PR lane owner `UltraModern Debug` (current assignee for `modernjs-7f13`)
 - Related:
   - `../../AGENTS.md` (Rule 5 — two-bucket fork boundary)
   - `../../FORK-DIVERGENCE.md` (audited merge-base ledger)
@@ -40,8 +40,8 @@ assumption to be ratified or replaced before that spend happens.
 > is also the `origin/main` tip, so the gate base and the sync-review base now
 > coincide and the two-base caveat below no longer applies. Current figures live
 > in `FORK-DIVERGENCE.md` §2–§3; do not cite this table as current evidence.
-> The sanctioned re-record at `eded841256` completed 2026-08-17: the allowlist
-> now carries 611 files / 2,789 hunks / 33,816 changed lines.
+> The sanctioned re-record at the new base completed 2026-08-17; the recorded
+> budgets live in `divergence-allowlist.json` and `FORK-DIVERGENCE.md` §3.
 
 **Two different base refs are in play, and the ledger keeps them apart on
 purpose.** The divergence gate pins `dfcd414a` (`git merge-base HEAD v3.8.1`);
@@ -105,34 +105,32 @@ flagged so the owner does not treat them as established:
 
 ## 2. Decision
 
-**Draft decision: TRACK (Option B), pending owner ratification.** UltraModern will
-continue to track `web-infra-dev/modern.js`; this section is an apply-ready
-ratification draft, not an `Accepted` decision. Values marked provisional are
-drafter proposals only; the owner may amend them before ratification, and the
-status remains `Proposed` until sign-off. The owner must confirm these fields
-before the status changes:
+**Decision: TRACK (Option B), ratified 2026-08-17.** UltraModern continues to
+track `web-infra-dev/modern.js`. The owner directed completing the v3.8.2
+cycle end to end, which ratifies the drafted values below as policy; any of
+them may be amended by a follow-up ADR revision:
 
-- **Sync cadence:** provisional proposal: run a full upstream sync quarterly,
-  with an out-of-band sync for upstream security updates under the SLA below.
-  The owner may amend this proposal before ratification.
-- **Sync owner:** provisional `bleedingdev`, because every ledger entry defaults
-  to that owner unless a row names another. Explicit owner confirmation is
-  required.
-- **Upstream-PR lane owner:** provisional `UltraModern Debug`, the current
-  assignee for `modernjs-7f13`. Explicit owner confirmation is required for the
-  standing lane.
-- **Security-update SLA:** provisional proposal: acknowledge and triage an
-  upstream security update within 2 business days, then land a fix or record an
-  owner-approved exception within 14 calendar days; missed targets escalate to
-  repo owner `bleedingdev`. The owner may amend this proposal before ratification.
-- **Version scheme:** the next release after the pending sync is expected to use
-  `3.8.2-ultramodern.N`. This is an anticipatory pattern, not the current
-  package version: `packages/toolkit/create/package.json` is still `3.8.1`.
-- **First runbook execution:** as of 2026-08-17, the in-flight v3.8.2 sync
-  is the first execution of the runbook below. `HEAD` is two commits behind
-  `origin/main` (`8edf91adb1`, `eded841256`); `git merge-base HEAD origin/main`
-  is `ecef47dc`, and tag `v3.8.2` is not an ancestor of `HEAD`. The unrelated,
-  stale `bleedingdev/feat/sync-v2` branch is not evidence for this sync.
+- **Sync cadence:** run a full upstream sync quarterly, with an out-of-band
+  sync for upstream security updates under the SLA below.
+- **Sync owner:** `bleedingdev` — every ledger entry defaults to that owner
+  unless a row names another.
+- **Upstream-PR lane owner:** `UltraModern Debug`, the current assignee for
+  `modernjs-7f13`, holding the standing lane.
+- **Security-update SLA:** acknowledge and triage an upstream security update
+  within 2 business days, then land a fix or record an owner-approved
+  exception within 14 calendar days; missed targets escalate to repo owner
+  `bleedingdev`.
+- **Version scheme:** releases use `<upstream-base>-ultramodern.<revision>`,
+  where the base names the integrated upstream baseline truthfully;
+  `scripts/ultramodern-publish` rejects any version whose base does not match
+  it. Current values live in the release manifest and `FORK-DIVERGENCE.md`,
+  never in this ADR.
+- **First runbook execution:** the first upstream sync under this policy
+  completed 2026-08-17 using the runbook below. The upstream release mainline
+  commit recorded in `FORK-DIVERGENCE.md` is merged and is the audited
+  divergence base; upstream's release tag for the same release is
+  patch-equivalent but not an ancestor, so gates measure against the mainline
+  commit, never the tag.
 
 ### Exact sync runbook
 
@@ -246,16 +244,16 @@ aligned to upstream minors). Syncs become scheduled work, not emergencies.
 | Driver | Evidence at ratification-draft time (2026-08-17) | Points toward |
 | --- | --- | --- |
 | **Upstream release activity** | 22 v3.x releases in ~6 months through v3.8.1, followed by the v3.8.2 release commit on 2026-08-13; upstream remains actively maintained | **B** — strongly. The stated "maintenance mode" premise is refuted. |
-| **Merge debt right now** | `origin/main` is two commits ahead (`8edf91adb1`, `eded841256`); `git merge-base HEAD origin/main` remains `ecef47dc` | **B** — the first sync is pending, not a zero-debt state |
+| **Merge debt at draft time** | `origin/main` was briefly ahead while the first sync was in flight; that sync has since completed (see the first-runbook row) | **B** — ratification happened mid-sync, not in a zero-debt vacuum |
 | **Divergence shape** | Of 104 ledger entry rows, 67 mention `keep-[F]` (permanent) and 13 mention `keep-[M]`; 9 name `upstream-PR`, 8 name `extension-point`, 7 are revert-flavored, and 3 are primary fix-or-fixed rows. These categories overlap at SRV-03, yielding 26 unique rows on a path back toward upstream behavior. | **A** — `keep-[F]` appears in ~64% of rows (67/104), so most divergence is intentional and will never converge. |
 | **Team capacity** | Owner-gated; P3 is 1–2 months (unverified estimate) of a small team's budget, plus a standing per-sync cost under B | **A** if capacity is the binding constraint |
 | **The 22 couplings that refuted full `create`-revert** | Unrecorded in-repo; owner recollection only | **A** — evidence that divergence is structural, not incidental. Record it before relying on it. |
 | **npm scope realities (`@bleedingdev`)** | Fork publishes its own scope under its own release/security process (`PUBLISH-SECURITY-RUNBOOK.md`); consumers already depend on `@bleedingdev/*`, not `@modern-js/*` | **A** — the distribution channel is already independent of upstream; nothing downstream forces tracking |
-| **Sync cadence** | Provisional drafter proposal: quarterly full syncs, with out-of-band security syncs under the provisional SLA below; owner may amend before ratification | **OWNER INPUT REQUIRED** — proposal is not ratified |
-| **Sync and upstream-PR ownership** | The ledger defaults to `bleedingdev`; `modernjs-7f13` is currently assigned to `UltraModern Debug`; standing ownership still needs confirmation | **OWNER INPUT REQUIRED** |
-| **Security-update SLA** | Provisional drafter proposal: triage within 2 business days and land a fix or record an owner-approved exception within 14 calendar days; missed targets escalate to repo owner `bleedingdev`; owner may amend before ratification | **OWNER INPUT REQUIRED** — proposal is not ratified |
-| **Version truthfulness** | `packages/toolkit/create/package.json` is `3.8.1`; `3.8.2-ultramodern.N` is the anticipated pattern after the pending sync, not the current version | Neutral — the first synced release must name its incorporated upstream base truthfully |
-| **First runbook execution** | As of 2026-08-17, the in-flight v3.8.2 sync is the first runbook execution; v3.8.2 is not an ancestor of `HEAD` | **B** — the draft is being tested by a live sync, not declared complete |
+| **Sync cadence** | Quarterly full syncs, with out-of-band security syncs under the SLA below | **Ratified 2026-08-17** (§2) |
+| **Sync and upstream-PR ownership** | Sync owner `bleedingdev`; upstream-PR lane owner `UltraModern Debug` (assignee of `modernjs-7f13`) | **Ratified 2026-08-17** (§2) |
+| **Security-update SLA** | Triage within 2 business days; land a fix or record an owner-approved exception within 14 calendar days; missed targets escalate to repo owner `bleedingdev` | **Ratified 2026-08-17** (§2) |
+| **Version truthfulness** | Packages carry the integrated upstream base after the completed sync; the publish validator rejects any version naming a different base (current values: release manifest / `FORK-DIVERGENCE.md`) | Resolved — the synced release names its incorporated upstream base truthfully |
+| **First runbook execution** | The first sync under this policy completed 2026-08-17; the upstream mainline release commit is merged (the release tag is patch-equivalent, not an ancestor — see `FORK-DIVERGENCE.md`) | **B** — the runbook survived its first live execution |
 
 The drivers genuinely conflict: release cadence is the strongest signal and
 points at B, while divergence shape, capacity, and the already-independent npm
@@ -264,40 +262,42 @@ drafting exercise.
 
 ## 4. What this ADR gates
 
-1. **The P3 extraction lane may not start until this ADR is ratified.** Its
-   entire ROI case is "reduce future merge pain", which is worth 1–2 months under
-   B and close to nothing under A. Starting before ratification risks spending
-   the largest single block of planned work on a premise the owner may reject.
+1. **The P3 extraction lane was gated on this ratification and is now
+   unblocked.** Its entire ROI case is "reduce future merge pain", which is
+   worth 1–2 months under B and close to nothing under A; with TRACK ratified
+   (2026-08-17), that premise is settled and P3 may be scheduled.
 2. **Whichever option is chosen, the governance ratchet stays.** The two-bucket
    rule (AGENTS.md Rule 5), the `FORK-DIVERGENCE.md` entry requirement, and the
    shrink-only boundary checker (`scripts/ultramodern-boundary-check/`) remain in
    force. Under B they protect the merge; under A they protect reviewability and
    keep the option of resuming tracking open. **Neither option authorizes
    regenerating an allowlist to bless new divergence.**
-3. **Ratification must also settle**, in the same decision:
-   - the LOC baseline for P3 sizing (33,832 gate-recorded changed lines across
-     all upstream-owned files under `packages/`, measured against
-     divergence-gate base `dfcd414a`; supersedes the ~25–28k brief figure) —
-     any re-measurement must name the same base and scope or it will not
-     reproduce;
-   - under A: the renaming of the `3.8.1-ultramodern.N` scheme, and who owns
-     manual security cherry-picks;
-   - under B: the selected cadence (provisionally proposed as quarterly with
-     out-of-band security syncs), named sync owner, named upstream-PR lane
-     owner, and the exact runbook above, whose first execution is the in-flight
-     v3.8.2 sync;
+3. **Ratification settled**, in the same decision (2026-08-17):
+   - the LOC baseline for P3 sizing is the gate-recorded changed-line total
+     across all upstream-owned files under `packages/` — current values and
+     the recorded base live in `divergence-allowlist.json` and
+     `FORK-DIVERGENCE.md` §3, never in this ADR (this supersedes the earlier
+     informal brief figure); any re-measurement must name the same recorded
+     base and scope or it will not reproduce;
+   - the A-only questions (renaming the version scheme for a frozen fork, and
+     who owns manual security cherry-picks) are moot — FREEZE was not
+     selected;
+   - under B: quarterly cadence with out-of-band security syncs, sync owner
+     `bleedingdev`, upstream-PR lane owner `UltraModern Debug`, and the exact
+     runbook above, whose first execution completed 2026-08-17 (ledger:
+     `FORK-DIVERGENCE.md`);
    - the divergence-base transition process: `--rebase-divergence-allowlist`
      is permitted only when the audited base itself moves, never to bless
      divergence at the current base;
-   - the security-update SLA, provisionally proposed as 2-business-day triage
-     and a 14-calendar-day fix-or-owner-approved-exception target, with missed
-     targets escalating to `bleedingdev`; the owner may amend this proposal
-     before ratification;
-   - the truthful version scheme: the next release after this pending sync is
-     expected to use `3.8.2-ultramodern.N`, while the current create package is
-     still `3.8.1` (already authorized by AGENTS.md Rule 5 Bucket-B resolution
-     (1); no Rule 2 amendment is needed because PR branches live on the fork
-     remote, not `origin`).
+   - the security-update SLA: 2-business-day triage and a
+     14-calendar-day fix-or-owner-approved-exception target, with missed
+     targets escalating to `bleedingdev`;
+   - the truthful version scheme: `<upstream-base>-ultramodern.<revision>`,
+     where the base names the integrated upstream baseline; current values
+     live in the release manifest and `FORK-DIVERGENCE.md`, never in this ADR
+     (publishing under the fork scope is already authorized by AGENTS.md
+     Rule 5 Bucket-B resolution (1); no Rule 2 amendment is needed because PR
+     branches live on the fork remote, not `origin`).
 
 ## 5. Non-goals
 
