@@ -135,20 +135,26 @@ test('macOS unit tests run on the supported Apple Silicon image', () => {
   assert.equal(workflow.jobs?.['ut-mac']?.['runs-on'], 'macos-26');
 });
 
-test('nightly installs the frozen workspace before script tests', () => {
+test('nightly installs the frozen workspace, then builds, then runs script tests', () => {
   const workflow = readWorkflow('.github/workflows/ultramodern-nightly.yml');
   const steps = workflow.jobs?.['script-tests']?.steps ?? [];
   const installIndex = steps.findIndex(
     step => step?.name === 'Install Dependencies',
   );
+  const buildIndex = steps.findIndex(step => step?.name === 'Build Packages');
   const testIndex = steps.findIndex(
     step => step?.name === 'Run script test suites',
   );
 
-  assert.equal(installIndex + 1, testIndex);
+  assert.ok(installIndex >= 0, 'nightly must install before anything runs');
+  assert.ok(
+    installIndex < buildIndex && buildIndex < testIndex,
+    'script tests import built package dists, so the order must be install, build, test',
+  );
   assert.deepEqual(steps[installIndex], {
     name: 'Install Dependencies',
     run: 'mise exec -- pnpm install --frozen-lockfile',
   });
+  assert.equal(steps[buildIndex]?.run, 'mise exec -- pnpm run prepare-build');
   assert.equal(steps[testIndex]?.run, 'pnpm run test:scripts');
 });
