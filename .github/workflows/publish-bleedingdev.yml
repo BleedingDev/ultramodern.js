@@ -82,18 +82,18 @@ jobs:
         run: |
           [[ "$PUBLISH_VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-ultramodern\.[1-9][0-9]*$ ]]
 
-  prepare-release:
-    name: Build the immutable @bleedingdev release bundle
+  # Source qualification gates publication but produces nothing the release
+  # bundle consumes, so it runs beside prepare-release instead of ahead of it.
+  # validate-release and publish both need it, so nothing reaches the registry
+  # on an unqualified source.
+  qualify-source:
+    name: Qualify the release source
     runs-on: ubuntu-latest
     timeout-minutes: 90
     if: >-
       github.actor == github.repository_owner &&
       github.triggering_actor == github.repository_owner &&
       github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern')
-    outputs:
-      producer_artifact_identity: ${{ steps.producer-identity.outputs.artifact_identity }}
-      producer_run_attempt: ${{ steps.producer-identity.outputs.run_attempt }}
-      producer_run_identity: ${{ steps.producer-identity.outputs.run_identity }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
@@ -123,6 +123,18 @@ jobs:
         with:
           version: 2026.8.3
 
+      - name: Resolve pnpm store path
+        id: pnpm-store
+        run: echo "path=$(mise exec -- pnpm store path)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore pnpm store cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-store-${{ runner.os }}-
+
       - name: Install Dependencies
         run: mise exec -- pnpm install --frozen-lockfile
 
@@ -133,19 +145,20 @@ jobs:
 
       - name: Qualify release source
         run: |
-          # Script qualification imports public package entry points. Build the
-          # create dependency closure and app-tools first so a clean checkout
-          # exercises the same package boundaries as an installed workspace.
-          mise exec -- pnpm --filter "@modern-js/create^..." --filter "@modern-js/app-tools..." build
-          # These suites do not run from source alone: bff-core's fixtures
-          # import its own dist/esm-node/index.mjs by absolute path, and the
-          # plugin-i18n and plugin-bff type fixtures resolve @modern-js/runtime
-          # and @modern-js/create-request through their exports maps, which
-          # point at dist/types. The create CLI fixture also loads plugin-i18n
-          # and plugin-tanstack from their built public entries. A clean
-          # checkout has none of it, so build every tested package and
-          # dependency closure before tests.
+          # Script qualification imports public package entry points, and these
+          # suites do not run from source alone: bff-core's fixtures import its
+          # own dist/esm-node/index.mjs by absolute path, and the plugin-i18n
+          # and plugin-bff type fixtures resolve @modern-js/runtime and
+          # @modern-js/create-request through their exports maps, which point at
+          # dist/types. The create CLI fixture also loads plugin-i18n and
+          # plugin-tanstack from their built public entries. A clean checkout
+          # has none of it, so build every tested package and dependency
+          # closure before tests. One invocation with every closure so nx plans
+          # a single graph; each closure still completes before its first
+          # consumer below.
           mise exec -- pnpm \
+            --filter "@modern-js/create^..." \
+            --filter "@modern-js/app-tools..." \
             --filter "@modern-js/runtime..." \
             --filter "@modern-js/plugin-i18n..." \
             --filter "@modern-js/plugin-tanstack..." \
@@ -168,6 +181,58 @@ jobs:
             --project plugin-i18n-client \
             --project @modern-js/plugin-bff \
             --project @modern-js/bff-core
+
+  prepare-release:
+    name: Build the immutable @bleedingdev release bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    if: >-
+      github.actor == github.repository_owner &&
+      github.triggering_actor == github.repository_owner &&
+      github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern')
+    outputs:
+      producer_artifact_identity: ${{ steps.producer-identity.outputs.artifact_identity }}
+      producer_run_attempt: ${{ steps.producer-identity.outputs.run_attempt }}
+      producer_run_identity: ${{ steps.producer-identity.outputs.run_identity }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        # Full history is kept deliberately: the release bundle is built from
+        # the same complete checkout qualify-source qualifies. Matches
+        # ultramodern-nightly.yml and boundary-anti-patterns.yml.
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node.js 26.7.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '26.7.0'
+
+      - name: Setup mise
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
+        with:
+          version: 2026.8.3
+
+      - name: Resolve pnpm store path
+        id: pnpm-store
+        run: echo "path=$(mise exec -- pnpm store path)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore pnpm store cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-store-${{ runner.os }}-
+
+      - name: Install Dependencies
+        run: mise exec -- pnpm install --frozen-lockfile
 
       - name: Reject an already published source cohort
         env:
@@ -284,6 +349,18 @@ jobs:
         with:
           version: 2026.8.3
 
+      - name: Resolve pnpm store path
+        id: pnpm-store
+        run: echo "path=$(mise exec -- pnpm store path)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore pnpm store cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-store-${{ runner.os }}-
+
       - name: Install acceptance runner dependencies
         run: mise exec -- pnpm install --frozen-lockfile --ignore-scripts --filter @scripts/ultramodern-production-readiness
 
@@ -328,6 +405,7 @@ jobs:
       inputs.dry_run == true
     needs:
       - publish-security
+      - qualify-source
       - accept-release
     steps:
       - name: Harden Runner
@@ -411,6 +489,7 @@ jobs:
       inputs.dry_run == false
     needs:
       - publish-security
+      - qualify-source
       - accept-release
     steps:
       - name: Harden Runner
@@ -682,34 +761,71 @@ jobs:
           }
           NODE
 
-      - name: Wait for the exact registry cohort
+      # The cohort wait only reads the registry and the downloaded bundle (the
+      # publish scripts import node: builtins and the committed vendored semver
+      # only), so it runs in the background while the two installs below fetch
+      # node_modules and chromium. A wait-loop failure therefore surfaces after
+      # those installs instead of before them, in "Await the exact registry
+      # cohort" — deliberate, and the only ordering this trades away.
+      - name: Start the exact registry cohort wait
         env:
           PUBLISH_CONCURRENCY: ${{ env.BLEEDINGDEV_PUBLISH_CONCURRENCY }}
           PUBLISH_TAG: ${{ env.BLEEDINGDEV_PUBLISH_TAG }}
           PUBLISH_VERSION: ${{ inputs.version }}
         run: |
-          for attempt in {1..12}; do
-            if node scripts/ultramodern-publish/prepare-bleedingdev-packages.mjs \
-              --publish-existing \
-              --dry-run \
-              --out "$BLEEDINGDEV_RELEASE_DIR" \
-              --version "$PUBLISH_VERSION" \
-              --tag "$PUBLISH_TAG" \
-              --publish-concurrency "$PUBLISH_CONCURRENCY"; then
-              exit 0
-            fi
-            if [[ "$attempt" == "12" ]]; then
-              echo "Exact registry cohort did not become verifiable" >&2
-              exit 1
-            fi
-            sleep 15
-          done
+          (
+            status=1
+            for attempt in {1..12}; do
+              if node scripts/ultramodern-publish/prepare-bleedingdev-packages.mjs \
+                --publish-existing \
+                --dry-run \
+                --out "$BLEEDINGDEV_RELEASE_DIR" \
+                --version "$PUBLISH_VERSION" \
+                --tag "$PUBLISH_TAG" \
+                --publish-concurrency "$PUBLISH_CONCURRENCY"; then
+                status=0
+                break
+              fi
+              if [[ "$attempt" == "12" ]]; then
+                echo "Exact registry cohort did not become verifiable" >&2
+                status=1
+                break
+              fi
+              sleep 15
+            done
+            printf '%s\n' "$status" > "$RUNNER_TEMP/registry-cohort-wait.status"
+            exit "$status"
+          ) > "$RUNNER_TEMP/registry-cohort-wait.log" 2>&1 &
+          printf '%s\n' "$!" > "$RUNNER_TEMP/registry-cohort-wait.pid"
+
+      - name: Resolve pnpm store path
+        id: pnpm-store
+        run: echo "path=$(mise exec -- pnpm store path)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore pnpm store cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-store-${{ runner.os }}-
 
       - name: Install published acceptance runner dependencies
         run: mise exec -- pnpm install --frozen-lockfile --ignore-scripts --filter @scripts/ultramodern-production-readiness
 
       - name: Install browser smoke runtime
         run: npx --yes playwright@1.60.0 install --with-deps chromium
+
+      - name: Await the exact registry cohort
+        run: |
+          # The loop is not a child of this shell, so poll the pid and read the
+          # status it recorded rather than using `wait`.
+          pid="$(cat "$RUNNER_TEMP/registry-cohort-wait.pid")"
+          while kill -0 "$pid" 2>/dev/null; do
+            sleep 5
+          done
+          cat "$RUNNER_TEMP/registry-cohort-wait.log"
+          exit "$(cat "$RUNNER_TEMP/registry-cohort-wait.status")"
 
       - name: Run published ERP-10 acceptance
         env:
@@ -744,12 +860,18 @@ jobs:
       github.triggering_actor == github.repository_owner &&
       github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern') &&
       inputs.dry_run == false
+    # Runs beside accept-published rather than behind it. record-publish-outcome
+    # below still requires both, so evidence ordering is unchanged; only the
+    # scheduling is. The callee re-runs the registry cohort gate itself
+    # (wait_for_registry_cohort) because it may now start before this workflow's
+    # own cohort wait has passed.
     needs:
-      - accept-release
-      - accept-published
+      - prepare-release
+      - publish
     uses: ./.github/workflows/ultramodern-tractor-downstream.yml
     with:
-      release_bundle_artifact: bleedingdev-release-bundle-${{ needs.accept-release.outputs.producer_artifact_identity }}
+      release_bundle_artifact: bleedingdev-release-bundle-${{ needs.prepare-release.outputs.producer_artifact_identity }}
+      wait_for_registry_cohort: true
       # Advance this reviewed immutable baseline after every accepted Tractor update.
       tractor_ref: 5315e425ecf8d70c7fb89e31201b9c51f2c270f8
 

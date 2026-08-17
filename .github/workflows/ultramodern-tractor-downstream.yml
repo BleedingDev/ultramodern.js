@@ -11,6 +11,14 @@ on:
         description: Immutable Tractor Store baseline commit
         required: true
         type: string
+      wait_for_registry_cohort:
+        description: >-
+          Block on the exact published cohort becoming verifiable in the
+          registry before acceptance. Required only when the caller schedules
+          this acceptance before its own registry-cohort gate has passed.
+        required: false
+        type: boolean
+        default: false
     outputs:
       baseline_revision:
         description: Immutable Tractor revision exercised by the acceptance
@@ -71,6 +79,40 @@ jobs:
         with:
           version: 2026.8.3
           working_directory: tractor
+
+      # Same retry shape as publish-bleedingdev.yml's "Wait for the exact
+      # registry cohort". The version and tag come from the downloaded manifest,
+      # which the publishing workflow already bound to its dispatch inputs
+      # before publishing.
+      - name: Wait for the exact registry cohort
+        if: inputs.wait_for_registry_cohort
+        working-directory: modernjs
+        env:
+          # Mirrors BLEEDINGDEV_PUBLISH_CONCURRENCY in publish-bleedingdev.yml.
+          PUBLISH_CONCURRENCY: '8'
+          RELEASE_DIR: .modern/bleedingdev-publish
+        run: |
+          read_release() {
+            node -p "JSON.parse(require('node:fs').readFileSync('$RELEASE_DIR/manifest.json', 'utf8')).release.$1"
+          }
+          PUBLISH_VERSION="$(read_release version)"
+          PUBLISH_TAG="$(read_release tag)"
+          for attempt in {1..12}; do
+            if node scripts/ultramodern-publish/prepare-bleedingdev-packages.mjs \
+              --publish-existing \
+              --dry-run \
+              --out "$RELEASE_DIR" \
+              --version "$PUBLISH_VERSION" \
+              --tag "$PUBLISH_TAG" \
+              --publish-concurrency "$PUBLISH_CONCURRENCY"; then
+              exit 0
+            fi
+            if [[ "$attempt" == "12" ]]; then
+              echo "Exact registry cohort did not become verifiable" >&2
+              exit 1
+            fi
+            sleep 15
+          done
 
       - name: Provision Tractor acceptance dependencies
         working-directory: modernjs

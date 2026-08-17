@@ -413,6 +413,7 @@ const bleedingdevPublishJobs = Object.freeze([
   'publish',
   'publish-change-record',
   'publish-security',
+  'qualify-source',
   'record-publish-outcome',
   'tractor-downstream',
   'validate-release',
