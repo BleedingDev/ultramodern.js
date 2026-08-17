@@ -141,17 +141,15 @@ fork-owned by definition, carry no divergence budget, and are not listed here.
 ## 3. Allowlist reconciliation
 
 Measured divergence at the current gate base `eded841256` is **611 files /
-2,789 hunks / 33,821 changed lines** under `packages/` (`measureDivergence`,
+2,789 hunks / 33,816 changed lines** under `packages/` (`measureDivergence`,
 `--diff-filter=MD`, so fork-added files are excluded). It was 633 files / 2,844
 hunks / 34,177 changed lines at the retired `dfcd414a` base: the drop is upstream
 3.8.2 landing content the fork already carried, not a shrink the fork earned.
 
-**The recorded budgets in `divergence-allowlist.json` are still the `dfcd414a`
-snapshot — the re-record at the new base is the one step of this change that has
-not run.** Until it does, `--mode divergence` stops at the base-mismatch
-assertion instead of reporting budgets. Re-record with the sanctioned writer path
-(§1), which is required here because a base re-anchor is by definition growth,
-and the reviewed writer additionally requires the committed merge-base/head refs:
+**The re-record at the new base is complete (2026-08-17):** the budgets in
+`divergence-allowlist.json` are the `eded841256` snapshot, written through the
+sanctioned reviewed path (§1) — required here because a base re-anchor is by
+definition growth — with the committed merge-base/head refs it demands:
 
 ```sh
 node scripts/ultramodern-boundary-check/check-fork-import-boundary.js \

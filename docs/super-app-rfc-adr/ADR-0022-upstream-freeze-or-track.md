@@ -40,6 +40,8 @@ assumption to be ratified or replaced before that spend happens.
 > is also the `origin/main` tip, so the gate base and the sync-review base now
 > coincide and the two-base caveat below no longer applies. Current figures live
 > in `FORK-DIVERGENCE.md` §2–§3; do not cite this table as current evidence.
+> The sanctioned re-record at `eded841256` completed 2026-08-17: the allowlist
+> now carries 611 files / 2,789 hunks / 33,816 changed lines.
 
 **Two different base refs are in play, and the ledger keeps them apart on
 purpose.** The divergence gate pins `dfcd414a` (`git merge-base HEAD v3.8.1`);
