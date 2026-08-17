@@ -78,20 +78,22 @@ mise exec -- pnpm check
 mise exec -- pnpm build
 ```
 
-### Migrating to `3.5.0-ultramodern.18`
+### Migrating localized Cloudflare SSR workspaces
 
-Use `3.5.0-ultramodern.18` or newer for localized Cloudflare SSR workspaces.
-This cohort moves bare locale-root redirects into the framework-owned
+Current cohorts localize Cloudflare SSR workspaces.
+The framework moves bare locale-root redirects into the framework-owned
 Cloudflare Worker entry and the i18n server runtime. A request for `/` is
 redirected server-side with `302` to the negotiated locale path, for example
 `/cs` for `Accept-Language: cs-CZ` or `/en` for English and fallback traffic.
 
 Existing generated workspaces should upgrade the whole BleedingDev Modern
-package cohort together:
+package cohort together. Resolve the current cohort version first, then run
+the matching migration:
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-create@3.5.0-ultramodern.18 ultramodern \
-  migrate-strict-effect --version 3.5.0-ultramodern.18
+COHORT="$(npm view @bleedingdev/modern-js-create version)"
+pnpm dlx "@bleedingdev/modern-js-create@$COHORT" ultramodern \
+  migrate-strict-effect --version "$COHORT"
 pnpm install
 pnpm check
 pnpm build
@@ -114,22 +116,23 @@ Do not fix older root `404` responses by adding app-owned root route files,
 client-side redirects, custom navigation wrappers, Cloudflare Worker
 postprocessing, generated output edits, or local redirect shims. If `/` still
 returns `404` after upgrading, confirm the production build log shows
-`Modern.js Framework v3.5.0-ultramodern.18` or newer and redeploy the Worker.
+`Modern.js Framework v<cohort-version>` for the cohort you migrated to and
+redeploy the Worker.
 
-Strict generated API migration requires `3.5.0-ultramodern.10` or newer.
-`3.4.0-ultramodern.20` and earlier cohorts do not include this full direct
-`api/index.ts` generator, generated `.mts` checks, strict Oxlint boundary rule
-set, Effect cohort overrides, and strict Effect migration command. Agents that
-cannot install that BleedingDev cohort yet should use the local Modern.js
-workspace for migration validation; otherwise pin `3.5.0-ultramodern.10` or
-newer with `--ultramodern-package-version`.
+Strict generated API migration is part of every current cohort: the direct
+`api/index.ts` generator, generated `.mts` checks, the strict Oxlint boundary
+rule set, Effect cohort overrides, and the strict Effect migration command.
+Agents that cannot install the BleedingDev cohort yet should use the local
+Modern.js workspace for migration validation; otherwise pin the target cohort
+with `--ultramodern-package-version`.
 
 Before hand-editing package aliases or generated metadata, run the framework
 migration command from the target workspace:
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-create@3.5.0-ultramodern.10 ultramodern \
-  migrate-strict-effect --version 3.5.0-ultramodern.10
+COHORT="$(npm view @bleedingdev/modern-js-create version)"
+pnpm dlx "@bleedingdev/modern-js-create@$COHORT" ultramodern \
+  migrate-strict-effect --version "$COHORT"
 pnpm api:check
 pnpm contract:check
 ```

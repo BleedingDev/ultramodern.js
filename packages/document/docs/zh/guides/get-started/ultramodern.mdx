@@ -71,18 +71,19 @@ mise exec -- pnpm check
 mise exec -- pnpm build
 ```
 
-### 迁移到 `3.5.0-ultramodern.18`
+### 迁移本地化 Cloudflare SSR workspace
 
-本地化 Cloudflare SSR workspace 应使用 `3.5.0-ultramodern.18` 或更新版本。这个
-cohort 将裸 locale root 重定向移动到框架拥有的 Cloudflare Worker entry 和 i18n
+当前 cohort 均支持本地化 Cloudflare SSR workspace。框架将裸 locale root 重定向移动到框架拥有的 Cloudflare Worker entry 和 i18n
 server runtime 中。请求 `/` 时，框架会按语言协商在服务端返回 `302`，例如
 `Accept-Language: cs-CZ` 会跳转到 `/cs`，英语或 fallback 流量会跳转到 `/en`。
 
-既有生成 workspace 应整体升级同一个 BleedingDev Modern package cohort：
+既有生成 workspace 应整体升级同一个 BleedingDev Modern package cohort。
+先解析当前 cohort 版本，再运行同版本迁移命令：
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-create@3.5.0-ultramodern.18 ultramodern \
-  migrate-strict-effect --version 3.5.0-ultramodern.18
+COHORT="$(npm view @bleedingdev/modern-js-create version)"
+pnpm dlx "@bleedingdev/modern-js-create@$COHORT" ultramodern \
+  migrate-strict-effect --version "$COHORT"
 pnpm install
 pnpm check
 pnpm build
@@ -102,21 +103,20 @@ redirect 后，应返回匹配语言的 SSR 页面，文档语言和 i18n SSR �
 
 不要通过 app 自有 root route、客户端 redirect、自定义导航 wrapper、Cloudflare Worker
 postprocess、生成产物编辑或本地 redirect shim 来修复旧版本的 root `404`。如果升级后
-`/` 仍然返回 `404`，先确认生产构建日志显示
-`Modern.js Framework v3.5.0-ultramodern.18` 或更新版本，然后重新部署 Worker。
+`/` 仍然返回 `404`，先确认生产构建日志显示的
+`Modern.js Framework v<cohort-version>` 就是迁移目标 cohort，然后重新部署 Worker。
 
-严格生成 API 迁移要求 `3.5.0-ultramodern.10` 或更新版本。
-`3.4.0-ultramodern.20` 及更早 cohort 还没有这套完整的直接
-`api/index.ts` 生成器、生成的 `.mts` 检查、严格 Oxlint 边界规则、Effect 版本组
-overrides 和严格 Effect 迁移命令。还不能安装该 BleedingDev cohort 的 agent 应使用本地
-Modern.js workspace 做迁移校验；否则用 `--ultramodern-package-version` 固定
-`3.5.0-ultramodern.10` 或更新版本。
+严格生成 API 迁移是当前每个 cohort 的组成部分：直接 `api/index.ts` 生成器、生成的
+`.mts` 检查、严格 Oxlint 边界规则、Effect 版本组 overrides 和严格 Effect 迁移命令。
+还不能安装 BleedingDev cohort 的 agent 应使用本地 Modern.js workspace 做迁移校验；
+否则用 `--ultramodern-package-version` 固定目标 cohort。
 
 手写 package alias 或生成 metadata 之前，先在目标 workspace 运行框架迁移命令：
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-create@3.5.0-ultramodern.10 ultramodern \
-  migrate-strict-effect --version 3.5.0-ultramodern.10
+COHORT="$(npm view @bleedingdev/modern-js-create version)"
+pnpm dlx "@bleedingdev/modern-js-create@$COHORT" ultramodern \
+  migrate-strict-effect --version "$COHORT"
 pnpm api:check
 pnpm contract:check
 ```
