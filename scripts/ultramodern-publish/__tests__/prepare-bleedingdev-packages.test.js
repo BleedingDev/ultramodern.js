@@ -2899,6 +2899,73 @@ test('registry preflight rejects a carried-over revision on a newer Modern.js ba
   );
 });
 
+test('registry preflight lets a recovery cohort claim the next free revision after a partial publish', async () => {
+  const { preflightRegistryPackages } = await import(
+    '../prepare-bleedingdev-packages.mjs'
+  );
+  // A crashed cohort attempt left one member already tagged on the new base,
+  // burning `.1` for everyone; the recovery cohort moves together at `.2`.
+  const version = '3.8.2-ultramodern.2';
+  const tagsByPackage = {
+    '@bleedingdev/modern-js-utils': '3.8.2-ultramodern.1',
+    '@bleedingdev/modern-js-create': '3.8.1-ultramodern.5',
+  };
+
+  const states = await preflightRegistryPackages(
+    [
+      { targetName: '@bleedingdev/modern-js-utils', version },
+      { targetName: '@bleedingdev/modern-js-create', version },
+    ],
+    { dryRun: true, tag: 'latest', version },
+    {},
+    {
+      lookupRegistryDistTag: async name => tagsByPackage[name],
+      lookupRegistryPackageDist: async () => null,
+      verifyRegistryPackageDist: async () => {
+        throw new Error('absent candidates have no registry bytes to verify');
+      },
+    },
+  );
+
+  assert.equal(
+    states.get('@bleedingdev/modern-js-create').currentTag,
+    '3.8.1-ultramodern.5',
+  );
+});
+
+test('registry preflight still rejects revisions past the next free one after a partial publish', async () => {
+  const { preflightRegistryPackages } = await import(
+    '../prepare-bleedingdev-packages.mjs'
+  );
+  const version = '3.8.2-ultramodern.3';
+  const tagsByPackage = {
+    '@bleedingdev/modern-js-utils': '3.8.2-ultramodern.1',
+    '@bleedingdev/modern-js-create': '3.8.1-ultramodern.5',
+  };
+
+  await assert.rejects(
+    () =>
+      preflightRegistryPackages(
+        [
+          { targetName: '@bleedingdev/modern-js-utils', version },
+          { targetName: '@bleedingdev/modern-js-create', version },
+        ],
+        { dryRun: false, tag: 'latest', version },
+        {},
+        {
+          lookupRegistryDistTag: async name => tagsByPackage[name],
+          lookupRegistryPackageDist: async () => null,
+          verifyRegistryPackageDist: async () => {
+            throw new Error(
+              'absent candidates have no registry bytes to verify',
+            );
+          },
+        },
+      ),
+    /the only valid next version on a base change is 3\.8\.2-ultramodern\.2 \(lower revisions at base 3\.8\.2 are burned by a partially published cohort\)/u,
+  );
+});
+
 test('registry preflight keeps ordinary same-base revisions moving forward', async () => {
   const { preflightRegistryPackages } = await import(
     '../prepare-bleedingdev-packages.mjs'

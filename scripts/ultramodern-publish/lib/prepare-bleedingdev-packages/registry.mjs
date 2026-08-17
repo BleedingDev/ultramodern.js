@@ -726,15 +726,20 @@ const ultramodernVersionPattern = /^(\d+\.\d+\.\d+)-ultramodern\.([1-9]\d*)$/;
  * A new incorporated Modern.js base restarts the ultramodern revision counter.
  * Carrying the previous base's revision forward (3.8.1-ultramodern.5 ->
  * 3.8.2-ultramodern.6) is still forward semver, so plain ordering accepts it,
- * but it claims a release history the new base never had. Only
- * `<newBase>-ultramodern.1` may follow a base change.
- *
- * Known limitation: if a `.1` cohort were only partially published, the members
- * still tagged on the old base could not move to `.2` without first landing
- * `.1`. That is acceptable because the preflight is all-or-nothing and runs
- * before any package is published.
+ * but it claims a release history the new base never had. A base change must
+ * land on the lowest revision the new base has not used yet: normally `.1`,
+ * but a cohort attempt that crashes after partially publishing (post-publish
+ * verification can abort mid-cohort) leaves members already tagged on the new
+ * base. Those exact versions are immutable and pinned to the crashed run's
+ * provenance, so they burn their revision for the whole cohort and the
+ * recovery cohort publishes at the next free revision instead.
  */
-function assertBaseRevisionReset(targetName, candidate, currentTag) {
+function assertBaseRevisionReset(
+  targetName,
+  candidate,
+  currentTag,
+  allowedRevision = '1',
+) {
   const candidateMatch = ultramodernVersionPattern.exec(candidate);
   const currentMatch = ultramodernVersionPattern.exec(currentTag);
   if (!candidateMatch || !currentMatch) {
@@ -747,11 +752,37 @@ function assertBaseRevisionReset(targetName, candidate, currentTag) {
     return;
   }
 
-  if (candidateRevision !== '1') {
+  if (candidateRevision !== allowedRevision) {
+    const burnedNote =
+      allowedRevision === '1'
+        ? ''
+        : ` (lower revisions at base ${candidateBase} are burned by a partially published cohort)`;
     throw new Error(
-      `${targetName}@${candidate} moves the incorporated Modern.js base from ${currentBase} to ${candidateBase}; the only valid next version on a base change is ${candidateBase}-ultramodern.1`,
+      `${targetName}@${candidate} moves the incorporated Modern.js base from ${currentBase} to ${candidateBase}; the only valid next version on a base change is ${candidateBase}-ultramodern.${allowedRevision}${burnedNote}`,
     );
   }
+}
+
+/**
+ * The lowest revision the cohort may claim when it moves to a new incorporated
+ * base: one past the highest revision any cohort member's current dist-tag
+ * already occupies at that base (crash remnants), or `.1` when the base is
+ * untouched.
+ */
+function nextBaseChangeRevision(cohortVersion, currentTags) {
+  const cohortMatch = ultramodernVersionPattern.exec(cohortVersion ?? '');
+  if (!cohortMatch) {
+    return '1';
+  }
+  const [, cohortBase] = cohortMatch;
+  let burned = 0;
+  for (const tag of currentTags) {
+    const tagMatch = ultramodernVersionPattern.exec(tag ?? '');
+    if (tagMatch && tagMatch[1] === cohortBase) {
+      burned = Math.max(burned, Number(tagMatch[2]));
+    }
+  }
+  return String(burned + 1);
 }
 
 async function preflightRegistryPackages(
@@ -766,12 +797,35 @@ async function preflightRegistryPackages(
 ) {
   const failures = [];
   const states = new Map();
+  const currentTags = new Map();
   for (const item of publishItems) {
     try {
-      const [dist, currentTag] = await Promise.all([
-        registry.lookupRegistryPackageDist(item.targetName, item.version),
-        registry.lookupRegistryDistTag(item.targetName, options.tag),
-      ]);
+      currentTags.set(
+        item.targetName,
+        await registry.lookupRegistryDistTag(item.targetName, options.tag),
+      );
+    } catch (error) {
+      failures.push(
+        `${item.targetName}@${item.version}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+  }
+  const allowedBaseChangeRevision = nextBaseChangeRevision(
+    options.version,
+    currentTags.values(),
+  );
+  for (const item of publishItems) {
+    if (!currentTags.has(item.targetName)) {
+      continue;
+    }
+    try {
+      const currentTag = currentTags.get(item.targetName);
+      const dist = await registry.lookupRegistryPackageDist(
+        item.targetName,
+        item.version,
+      );
       if (dist !== null) {
         await registry.verifyRegistryPackageDist(
           item,
@@ -803,7 +857,12 @@ async function preflightRegistryPackages(
             `${item.targetName}@${item.version} must be greater than current ${options.tag} ${currentTag}`,
           );
         }
-        assertBaseRevisionReset(item.targetName, item.version, currentTag);
+        assertBaseRevisionReset(
+          item.targetName,
+          item.version,
+          currentTag,
+          allowedBaseChangeRevision,
+        );
       }
       states.set(item.targetName, { currentTag, dist: null, exists: false });
       const prefix = options.dryRun
