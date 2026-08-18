@@ -1081,17 +1081,18 @@ test('independent release-age audit retries transient registry transport failure
   assert.equal(metadata[0].integrity, integrity);
 });
 
-test('cohort resolution provenance proof fails closed on missing, foreign, or leaking tarball origins', async () => {
+test('cohort resolution provenance proof fails closed on stale versions, missing integrity, foreign or leaking tarball origins', async () => {
   const { assertCohortResolutionProvenance } = await import(
     '../published-create-proof/acceptance-profile.mjs'
   );
   const root = fs.mkdtempSync(
     path.join(os.tmpdir(), 'acceptance-cohort-provenance-'),
   );
-  const release = { targetScope: 'bleedingdev' };
+  const release = {
+    release: { version: '3.5.0-ultramodern.50' },
+    targetScope: 'bleedingdev',
+  };
   const registryUrl = 'http://127.0.0.1:4879/';
-  const cohortTarball =
-    'http://127.0.0.1:4879/@bleedingdev/modern-js-runtime/-/modern-js-runtime-3.5.0-ultramodern.50.tgz';
   // Pinned-parser output shape, injected so the unit test never spawns the
   // real `pnpm dlx` YAML CLI (matching every other parseYamlFile test here).
   const writeLock = packages =>
@@ -1104,30 +1105,41 @@ test('cohort resolution provenance proof fails closed on missing, foreign, or le
   const provenance = () =>
     assertCohortResolutionProvenance(root, release, registryUrl, parseJsonLock);
   try {
+    // Real scope-routed shape: pnpm derives cohort tarball URLs from the
+    // @scope registry mapping and omits resolution.tarball, so the pass path
+    // is exact-revision keys (peer suffixes included) with pinned integrity.
     writeLock({
       '@bleedingdev/modern-js-runtime@3.5.0-ultramodern.50': {
-        resolution: {
-          integrity: 'sha512-Y2FuZGlkYXRl',
-          tarball: cohortTarball,
-        },
+        resolution: { integrity: 'sha512-Y2FuZGlkYXRl' },
       },
+      '@bleedingdev/modern-js-app-tools@3.5.0-ultramodern.50(typescript@7.0.2)':
+        {
+          resolution: { integrity: 'sha512-YXBwLXRvb2xz' },
+        },
       'external-package@1.0.0': {
         resolution: { integrity: 'sha512-ZXh0ZXJuYWw=' },
       },
     });
     assert.deepEqual(provenance(), {
-      cohortTarballCount: 1,
+      cohortPackageCount: 2,
       registryOrigin: 'http://127.0.0.1:4879',
     });
 
-    // Cohort entry without a tarball URL resolved from the default registry
-    // instead of the scoped ephemeral registry: absence is never a pass.
+    // A stale cohort revision means the scoped registry did not serve this
+    // release: the pinned revision exists nowhere else before publish.
     writeLock({
-      '@bleedingdev/modern-js-runtime@3.5.0-ultramodern.50': {
+      '@bleedingdev/modern-js-runtime@3.5.0-ultramodern.49': {
         resolution: { integrity: 'sha512-Y2FuZGlkYXRl' },
       },
     });
-    assert.throws(provenance, /resolved without a scoped-registry tarball URL/);
+    assert.throws(provenance, /is not the release revision/);
+
+    writeLock({
+      '@bleedingdev/modern-js-runtime@3.5.0-ultramodern.50': {
+        resolution: {},
+      },
+    });
+    assert.throws(provenance, /without a pinned integrity hash/);
 
     writeLock({
       '@bleedingdev/modern-js-runtime@3.5.0-ultramodern.50': {
@@ -1141,10 +1153,7 @@ test('cohort resolution provenance proof fails closed on missing, foreign, or le
 
     writeLock({
       '@bleedingdev/modern-js-runtime@3.5.0-ultramodern.50': {
-        resolution: {
-          integrity: 'sha512-Y2FuZGlkYXRl',
-          tarball: cohortTarball,
-        },
+        resolution: { integrity: 'sha512-Y2FuZGlkYXRl' },
       },
       'external-package@1.0.0': {
         resolution: {
@@ -1158,6 +1167,17 @@ test('cohort resolution provenance proof fails closed on missing, foreign, or le
 
     writeLock({});
     assert.throws(provenance, /found no @bleedingdev\/\* packages/);
+
+    assert.throws(
+      () =>
+        assertCohortResolutionProvenance(
+          root,
+          { targetScope: 'bleedingdev' },
+          registryUrl,
+          parseJsonLock,
+        ),
+      /requires the strict release manifest version/,
+    );
   } finally {
     fs.rmSync(root, { force: true, recursive: true });
   }

@@ -370,12 +370,14 @@ function registryReceiptMetadata({ mode, registryUrl }) {
 }
 
 // Source-mode install proof: with the scoped .npmrc (only @<targetScope> routed
-// to the ephemeral registry, everything else direct npmjs), pnpm-lock.yaml
-// records a resolution.tarball URL exactly for packages served by the
-// non-default registry. Every cohort package MUST carry a tarball URL on the
-// ephemeral registry origin (absence is never a pass), and no non-cohort
-// package may resolve from that origin. This replaces the proxy-mode guarantee
-// that all traffic flowed through Verdaccio.
+// to the ephemeral registry, everything else direct npmjs), pnpm derives the
+// cohort tarball URLs from the scope mapping and therefore omits
+// resolution.tarball for cohort entries — an explicit tarball only appears for
+// packages served from somewhere other than their configured registry. The
+// proof is: every cohort entry is pinned to the exact release revision (which
+// exists only on the ephemeral registry before publish) with a pinned
+// integrity hash, any explicit cohort tarball is on the release registry
+// origin, and no non-cohort package carries a tarball from that origin.
 function assertCohortResolutionProvenance(
   projectDir,
   release,
@@ -393,22 +395,42 @@ function assertCohortResolutionProvenance(
   }
   const registryOrigin = new URL(registryUrl).origin;
   const cohortScopePrefix = `@${release.targetScope}/`;
-  let cohortTarballCount = 0;
+  const releaseVersion = release.release?.version;
+  if (typeof releaseVersion !== 'string' || releaseVersion.length === 0) {
+    throw new Error(
+      'Cohort resolution proof requires the strict release manifest version',
+    );
+  }
+  let cohortPackageCount = 0;
   for (const [packageKey, record] of Object.entries(lockPackages)) {
     const tarball = record?.resolution?.tarball;
     if (packageKey.startsWith(cohortScopePrefix)) {
-      if (typeof tarball !== 'string' || tarball.length === 0) {
+      const peerSuffixStart = packageKey.indexOf('(');
+      const bareKey =
+        peerSuffixStart === -1
+          ? packageKey
+          : packageKey.slice(0, peerSuffixStart);
+      const lockedVersion = bareKey.slice(bareKey.lastIndexOf('@') + 1);
+      if (lockedVersion !== releaseVersion) {
         throw new Error(
-          `Cohort package ${packageKey} resolved without a scoped-registry tarball URL`,
+          `Cohort package ${packageKey} locked version ${lockedVersion} is not the release revision ${releaseVersion}`,
         );
       }
-      const tarballOrigin = new URL(tarball).origin;
-      if (tarballOrigin !== registryOrigin) {
+      const integrity = record?.resolution?.integrity;
+      if (typeof integrity !== 'string' || integrity.length === 0) {
         throw new Error(
-          `Cohort package ${packageKey} tarball origin ${tarballOrigin} is not the release registry ${registryOrigin}`,
+          `Cohort package ${packageKey} resolved without a pinned integrity hash`,
         );
       }
-      cohortTarballCount += 1;
+      if (typeof tarball === 'string' && tarball.length > 0) {
+        const tarballOrigin = new URL(tarball).origin;
+        if (tarballOrigin !== registryOrigin) {
+          throw new Error(
+            `Cohort package ${packageKey} tarball origin ${tarballOrigin} is not the release registry ${registryOrigin}`,
+          );
+        }
+      }
+      cohortPackageCount += 1;
     } else if (typeof tarball === 'string' && tarball.length > 0) {
       if (new URL(tarball).origin === registryOrigin) {
         throw new Error(
@@ -417,12 +439,12 @@ function assertCohortResolutionProvenance(
       }
     }
   }
-  if (cohortTarballCount === 0) {
+  if (cohortPackageCount === 0) {
     throw new Error(
       `Cohort resolution proof found no ${cohortScopePrefix}* packages in ${lockPath}`,
     );
   }
-  return { cohortTarballCount, registryOrigin };
+  return { cohortPackageCount, registryOrigin };
 }
 
 function snapshotAcceptanceWorkspaceSource(projectDir, env, runImpl = run) {
