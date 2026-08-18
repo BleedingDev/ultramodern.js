@@ -224,6 +224,7 @@ it covers root and infrastructure files outside `packages/`.
 | ROOT-20 | `examples/basic-withZephyr/package.json` bumps zephyr plugins `1.1.0` → `1.2.1` | bleedingdev | Upstream's 1.1.0 declares `@modern-js/app-tools: ^2.0.0`, an unmet peer masked by `strictPeerDependencies: false`; 1.2.1 declares `^3.0.0` | upstream-PR (pure hygiene) | P2 |
 | ROOT-21 | `examples/basic-withZephyr/.npmrc` deleted | bleedingdev | pnpm 11 does not read `strict-peer-dependencies` from `.npmrc`; it is dead config that misleads peer debugging | upstream-PR / keep-deleted | P2 |
 | ROOT-22 | No `peerDependencyRules.allowedVersions` for `@modern-js/app-tools` | bleedingdev | pnpm 11 ignores the prerelease tag when comparing peer ranges, so aliased `3.5.0-ultramodern.NN` already satisfies `^3.0.0`; a `'*'` rule silently does nothing | keep-[F] (policy) | — |
+| ROOT-23 | Acceptance runner indirection: `vars.BLEEDINGDEV_ACCEPT_RUNNER_LABELS` selects the accept-job runner and `vars.BLEEDINGDEV_ACCEPT_BUILD_CONCURRENCY` opts the acceptance workspace builds into higher pnpm workspace concurrency | bleedingdev | Publish-pipeline wall-time lane; both are inert when the repo variables are unset (hosted `ubuntu-latest` + reviewed build profile), so hosted-runner receipts are unchanged | keep-[F] — proof-gated before any real runner switch | — |
 
 ---
 

@@ -139,9 +139,26 @@ jobs:
         run: mise exec -- pnpm install --frozen-lockfile
 
       # plugin-runtime's boundary-debugger suite drives a real chromium through
-      # the playwright installed in the rstest browser fixture.
+      # the playwright installed in the rstest browser fixture. The cache key
+      # pins the fixture's lockfile-resolved playwright version; bump the
+      # literal in the same commit as any playwright bump. No restore-keys:
+      # the exact-version literal is the invalidation mechanism.
+      - name: Restore Playwright chromium cache
+        id: playwright-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-1.61.1-${{ runner.os }}
+
       - name: Install browser qualification runtime
-        run: mise exec -- pnpm --dir tests/integration/rstest/basic-app-rstest-browser exec playwright install --with-deps chromium
+        run: |
+          # OS packages are not in ~/.cache/ms-playwright, so install-deps
+          # runs on every run; only the browser download is cacheable.
+          if [[ "${{ steps.playwright-cache.outputs.cache-hit }}" == "true" ]]; then
+            mise exec -- pnpm --dir tests/integration/rstest/basic-app-rstest-browser exec playwright install-deps chromium
+          else
+            mise exec -- pnpm --dir tests/integration/rstest/basic-app-rstest-browser exec playwright install --with-deps chromium
+          fi
 
       - name: Qualify release source
         run: |
@@ -315,7 +332,12 @@ jobs:
 
   accept-release:
     name: Clean-room acceptance of the immutable release bundle
-    runs-on: ubuntu-latest
+    # Runner-label indirection: with BLEEDINGDEV_ACCEPT_RUNNER_LABELS unset the
+    # expression resolves to ubuntu-latest (byte-identical behavior). Setting
+    # the repository variable to a JSON string (e.g. '"ubuntu-latest-8-cores"'
+    # or '["self-hosted","linux"]') moves only the two acceptance jobs to
+    # bigger runners without touching the publish trust chain.
+    runs-on: ${{ fromJSON(vars.BLEEDINGDEV_ACCEPT_RUNNER_LABELS || '"ubuntu-latest"') }}
     timeout-minutes: 120
     if: >-
       github.actor == github.repository_owner &&
@@ -353,13 +375,17 @@ jobs:
         id: pnpm-store
         run: echo "path=$(mise exec -- pnpm store path)" >> "$GITHUB_OUTPUT"
 
+      # Scoped cache namespace: this job installs only the 5-package
+      # @scripts/ultramodern-production-readiness closure, so it restores a
+      # store sized to that closure instead of the full-monorepo store the
+      # qualify/prepare jobs need.
       - name: Restore pnpm store cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ steps.pnpm-store.outputs.path }}
-          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          key: pnpm-store-accept-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: |
-            pnpm-store-${{ runner.os }}-
+            pnpm-store-accept-${{ runner.os }}-
 
       - name: Install acceptance runner dependencies
         run: mise exec -- pnpm install --frozen-lockfile --ignore-scripts --filter @scripts/ultramodern-production-readiness
@@ -373,10 +399,30 @@ jobs:
           repository: ${{ github.repository }}
           run-id: ${{ github.run_id }}
 
+      # Key pins the npx playwright literal below; bump both together. No
+      # restore-keys: the exact-version literal is the invalidation mechanism.
+      - name: Restore Playwright chromium cache
+        id: playwright-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-1.60.0-${{ runner.os }}
+
       - name: Install browser smoke runtime
-        run: npx --yes playwright@1.60.0 install --with-deps chromium
+        run: |
+          # OS packages are not in ~/.cache/ms-playwright, so install-deps
+          # runs on every run; only the browser download is cacheable.
+          if [[ "${{ steps.playwright-cache.outputs.cache-hit }}" == "true" ]]; then
+            npx --yes playwright@1.60.0 install-deps chromium
+          else
+            npx --yes playwright@1.60.0 install --with-deps chromium
+          fi
 
       - name: Run exact-artifact ERP-10 acceptance
+        env:
+          # Opt-in workspace build parallelism for larger self-hosted runners;
+          # unset (the hosted default) leaves the acceptance profile untouched.
+          BLEEDINGDEV_ACCEPT_BUILD_CONCURRENCY: ${{ vars.BLEEDINGDEV_ACCEPT_BUILD_CONCURRENCY }}
         run: |
           node scripts/ultramodern-publish/run-release-acceptance.mjs \
             --manifest "$BLEEDINGDEV_RELEASE_MANIFEST" \
@@ -678,7 +724,8 @@ jobs:
   # same-workflow registry-byte gate, not a pre-exposure gate or rollback.
   accept-published:
     name: Accept the exact published registry cohort
-    runs-on: ubuntu-latest
+    # Same runner-label indirection as accept-release; unset => ubuntu-latest.
+    runs-on: ${{ fromJSON(vars.BLEEDINGDEV_ACCEPT_RUNNER_LABELS || '"ubuntu-latest"') }}
     timeout-minutes: 120
     if: >-
       github.actor == github.repository_owner &&
@@ -802,19 +849,59 @@ jobs:
         id: pnpm-store
         run: echo "path=$(mise exec -- pnpm store path)" >> "$GITHUB_OUTPUT"
 
+      # Scoped cache namespace: same rationale as accept-release — this job
+      # installs only the @scripts/ultramodern-production-readiness closure.
       - name: Restore pnpm store cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ steps.pnpm-store.outputs.path }}
-          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          key: pnpm-store-accept-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: |
-            pnpm-store-${{ runner.os }}-
+            pnpm-store-accept-${{ runner.os }}-
 
-      - name: Install published acceptance runner dependencies
-        run: mise exec -- pnpm install --frozen-lockfile --ignore-scripts --filter @scripts/ultramodern-production-readiness
+      # Backgrounded so it overlaps the playwright install below; the join
+      # step surfaces its log and status before anything depends on
+      # node_modules. Runs after the store restore so the restored CAS is
+      # present. Same background/pid/status idiom as the cohort wait above.
+      - name: Start published acceptance runner dependency install
+        run: |
+          (
+            status=0
+            mise exec -- pnpm install --frozen-lockfile --ignore-scripts --filter @scripts/ultramodern-production-readiness || status=$?
+            printf '%s\n' "$status" > "$RUNNER_TEMP/deps-install.status"
+            exit "$status"
+          ) > "$RUNNER_TEMP/deps-install.log" 2>&1 &
+          printf '%s\n' "$!" > "$RUNNER_TEMP/deps-install.pid"
+
+      # Key pins the npx playwright literal below; bump both together. No
+      # restore-keys: the exact-version literal is the invalidation mechanism.
+      - name: Restore Playwright chromium cache
+        id: playwright-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-1.60.0-${{ runner.os }}
 
       - name: Install browser smoke runtime
-        run: npx --yes playwright@1.60.0 install --with-deps chromium
+        run: |
+          # OS packages are not in ~/.cache/ms-playwright, so install-deps
+          # runs on every run; only the browser download is cacheable.
+          if [[ "${{ steps.playwright-cache.outputs.cache-hit }}" == "true" ]]; then
+            npx --yes playwright@1.60.0 install-deps chromium
+          else
+            npx --yes playwright@1.60.0 install --with-deps chromium
+          fi
+
+      # Unconditional join before anything that needs node_modules: a failed
+      # install fails the job here, never silently.
+      - name: Join published acceptance runner dependency install
+        run: |
+          pid="$(cat "$RUNNER_TEMP/deps-install.pid")"
+          while kill -0 "$pid" 2>/dev/null; do
+            sleep 2
+          done
+          cat "$RUNNER_TEMP/deps-install.log"
+          exit "$(cat "$RUNNER_TEMP/deps-install.status")"
 
       - name: Await the exact registry cohort
         run: |
