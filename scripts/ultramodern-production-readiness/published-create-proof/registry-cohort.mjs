@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { computeTarballDigests } from '../../ultramodern-publish/lib/source-create-proof/release-manifest.mjs';
-import { run } from './process.mjs';
+import { runAsync } from './process.mjs';
 
 function parseJsonOutput(output, label) {
   try {
@@ -21,22 +21,21 @@ function assertEqual(actual, expected, label) {
   }
 }
 
-function verifyRegistryCohort({
+async function verifyRegistryCohort({
   release,
   registryUrl,
   env = {},
   workDir,
-  runImpl = run,
+  runImpl = runAsync,
 }) {
-  const results = [];
   const downloadsDir = path.join(workDir, 'registry-downloads');
   fs.mkdirSync(downloadsDir, { recursive: true });
 
-  for (const item of release.packages) {
+  async function verifyPackage(item, index) {
     const specifier = `${item.targetName}@${item.version}`;
     const packageDir = path.join(downloadsDir, item.sha256.slice(0, 16));
     fs.mkdirSync(packageDir, { recursive: true });
-    const packOutput = runImpl(
+    const packOutput = await runImpl(
       'npm',
       [
         'pack',
@@ -78,7 +77,7 @@ function verifyRegistryCohort({
       `${specifier} downloaded integrity mismatch`,
     );
 
-    const distOutput = runImpl(
+    const distOutput = await runImpl(
       'npm',
       ['view', specifier, 'dist', '--json', '--registry', registryUrl],
       { cwd: packageDir, env, stdio: 'pipe' },
@@ -95,14 +94,49 @@ function verifyRegistryCohort({
       `${specifier} registry metadata shasum mismatch`,
     );
 
-    results.push({
+    results[index] = {
       sourceName: item.sourceName,
       targetName: item.targetName,
       version: item.version,
       sha256: downloaded.sha256,
       shasum: downloaded.shasum,
       integrity: downloaded.integrity,
-    });
+    };
+  }
+
+  const results = new Array(release.packages.length);
+  const failures = new Array(release.packages.length);
+  let nextIndex = 0;
+  // Workers never reject: every dispatched lane settles before the join, so
+  // no npm child outlives a thrown verification failure — the caller's
+  // finally removes workDir (downloadsDir lives under it) immediately after.
+  async function worker() {
+    while (nextIndex < release.packages.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      try {
+        await verifyPackage(release.packages[index], index);
+      } catch (error) {
+        failures[index] = error;
+      }
+    }
+  }
+  // Concurrency 8, hardcoded: matches pnpm_config_network_concurrency '8'
+  // (acceptance-profile.mjs) that the same registry already survives during
+  // install. Not tunable — a tunable is an unreviewed path to a different
+  // receipt.
+  await Promise.all(
+    Array.from({ length: Math.min(8, release.packages.length) }, () =>
+      worker(),
+    ),
+  );
+  const firstFailure = failures.find(Boolean);
+  if (firstFailure) {
+    // Lowest release.packages index, so receipt.error is reproducible.
+    throw firstFailure;
+  }
+  if (results.some(entry => entry === undefined)) {
+    throw new Error('Registry cohort verification left an unfilled slot');
   }
 
   return {

@@ -45,10 +45,16 @@ import {
   assertGeneratedCohort,
   resolveCreatePackage,
 } from './package-cohort.mjs';
-import { createCleanPnpmDlxEnv, roundDurationMs, run } from './process.mjs';
+import {
+  createCleanPnpmDlxEnv,
+  roundDurationMs,
+  run,
+  runAsync,
+} from './process.mjs';
 import { verifyRegistryCohort } from './registry-cohort.mjs';
 import {
   auditReleaseAgePolicy,
+  parseYamlFile,
   verifyStrictInstallInputs,
   YAML_INTEGRITY,
   YAML_NAME,
@@ -181,6 +187,26 @@ function createAcceptancePackageManagerEnv(
   // and the generated build never engages Zephyr (it stays a registered but
   // inactive plugin). This tests "builds without a Zephyr Cloud account".
   return env;
+}
+
+// Opt-in build parallelism for larger self-hosted runners. Unset (the
+// default) returns packageManagerEnv unchanged, so hosted-runner behavior is
+// byte-identical. Only the two workspace build invocations honor the knob;
+// installs and registry traffic keep the reviewed concurrency profile.
+function createAcceptanceBuildEnv(packageManagerEnv, env = process.env) {
+  const raw = env.BLEEDINGDEV_ACCEPT_BUILD_CONCURRENCY;
+  if (raw === undefined || raw === '') {
+    return packageManagerEnv;
+  }
+  if (!/^[1-9][0-9]*$/u.test(raw)) {
+    throw new Error(
+      `BLEEDINGDEV_ACCEPT_BUILD_CONCURRENCY must be a positive integer, found: ${raw}`,
+    );
+  }
+  return {
+    ...packageManagerEnv,
+    pnpm_config_workspace_concurrency: raw,
+  };
 }
 
 async function withDuration(action) {
@@ -339,8 +365,64 @@ function registryReceiptMetadata({ mode, registryUrl }) {
     resolution: 'package-manager-registry',
     cohortPackages: 'registry-only-exact-name-and-version',
     externalDependencies:
-      mode === 'source' ? 'explicit-npmjs-proxy' : 'selected-registry',
+      mode === 'source' ? 'explicit-npmjs-direct' : 'selected-registry',
   };
+}
+
+// Source-mode install proof: with the scoped .npmrc (only @<targetScope> routed
+// to the ephemeral registry, everything else direct npmjs), pnpm-lock.yaml
+// records a resolution.tarball URL exactly for packages served by the
+// non-default registry. Every cohort package MUST carry a tarball URL on the
+// ephemeral registry origin (absence is never a pass), and no non-cohort
+// package may resolve from that origin. This replaces the proxy-mode guarantee
+// that all traffic flowed through Verdaccio.
+function assertCohortResolutionProvenance(
+  projectDir,
+  release,
+  registryUrl,
+  parseYamlFileImpl = parseYamlFile,
+) {
+  const lockPath = path.join(projectDir, 'pnpm-lock.yaml');
+  const lock = parseYamlFileImpl(lockPath);
+  const lockPackages =
+    lock && typeof lock === 'object' ? lock.packages : undefined;
+  if (!lockPackages || typeof lockPackages !== 'object') {
+    throw new Error(
+      `Cohort resolution proof requires a packages section in ${lockPath}`,
+    );
+  }
+  const registryOrigin = new URL(registryUrl).origin;
+  const cohortScopePrefix = `@${release.targetScope}/`;
+  let cohortTarballCount = 0;
+  for (const [packageKey, record] of Object.entries(lockPackages)) {
+    const tarball = record?.resolution?.tarball;
+    if (packageKey.startsWith(cohortScopePrefix)) {
+      if (typeof tarball !== 'string' || tarball.length === 0) {
+        throw new Error(
+          `Cohort package ${packageKey} resolved without a scoped-registry tarball URL`,
+        );
+      }
+      const tarballOrigin = new URL(tarball).origin;
+      if (tarballOrigin !== registryOrigin) {
+        throw new Error(
+          `Cohort package ${packageKey} tarball origin ${tarballOrigin} is not the release registry ${registryOrigin}`,
+        );
+      }
+      cohortTarballCount += 1;
+    } else if (typeof tarball === 'string' && tarball.length > 0) {
+      if (new URL(tarball).origin === registryOrigin) {
+        throw new Error(
+          `Non-cohort package ${packageKey} was served by the ephemeral release registry: ${tarball}`,
+        );
+      }
+    }
+  }
+  if (cohortTarballCount === 0) {
+    throw new Error(
+      `Cohort resolution proof found no ${cohortScopePrefix}* packages in ${lockPath}`,
+    );
+  }
+  return { cohortTarballCount, registryOrigin };
 }
 
 function snapshotAcceptanceWorkspaceSource(projectDir, env, runImpl = run) {
@@ -729,7 +811,10 @@ async function runAcceptanceProfile({
             registryUrl,
             env: packageManagerEnv,
             workDir,
-            runImpl,
+            // Async runner: the cohort proof verifies packages through a
+            // bounded concurrent pool; the profile's shared sync runImpl would
+            // serialize it (spawnSync blocks the event loop).
+            runImpl: runAsync,
           }),
         ),
       );
@@ -864,6 +949,19 @@ async function runAcceptanceProfile({
               projectDir,
               audit.closureIdentities,
             ),
+            // Published mode installs the cohort from the selected public
+            // registry (the default registry, so pnpm records no tarball
+            // URLs); the provenance proof is meaningful only for the scoped
+            // ephemeral-registry install.
+            ...(mode === 'source'
+              ? {
+                  cohortResolution: assertCohortResolutionProvenance(
+                    projectDir,
+                    release,
+                    registryUrl,
+                  ),
+                }
+              : {}),
           };
         }),
       );
@@ -895,7 +993,7 @@ async function runAcceptanceProfile({
         withDuration(() => {
           runImpl('pnpm', requiredPnpmCommands.build, {
             cwd: projectDir,
-            env: packageManagerEnv,
+            env: createAcceptanceBuildEnv(packageManagerEnv),
           });
           return { command: 'pnpm build' };
         }),
@@ -942,7 +1040,7 @@ async function runAcceptanceProfile({
         withDuration(() => {
           runImpl('pnpm', requiredPnpmCommands.cloudflareBuild, {
             cwd: projectDir,
-            env: packageManagerEnv,
+            env: createAcceptanceBuildEnv(packageManagerEnv),
           });
           return { command: 'pnpm cloudflare:build' };
         }),
@@ -1035,7 +1133,9 @@ async function runAcceptanceProfile({
 }
 
 export {
+  assertCohortResolutionProvenance,
   assertDefaultOffRscInstall,
+  createAcceptanceBuildEnv,
   createAcceptancePackageManagerEnv,
   requiredPnpmCommands,
   resolveExactPnpmExecutable,

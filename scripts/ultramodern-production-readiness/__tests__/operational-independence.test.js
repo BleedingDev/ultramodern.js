@@ -465,18 +465,112 @@ test('build commands use native workspace C0 scripts and one exact C1 package fi
     command: 'pnpm',
     args: ['--filter', '@proof/catalog', 'run', 'cloudflare:build'],
   });
-  assert.deepEqual(createWorkspaceBuildCommand('node'), {
-    command: 'pnpm',
-    args: ['run', 'build'],
-  });
-  assert.deepEqual(createWorkspaceBuildCommand('cloudflare'), {
-    command: 'pnpm',
-    args: ['run', 'cloudflare:build'],
-  });
+  assert.deepEqual(createWorkspaceBuildCommand('node', '@proof/shell'), [
+    {
+      command: 'pnpm',
+      args: ['-r', '--filter', './verticals/*', 'run', 'build'],
+    },
+    {
+      command: 'pnpm',
+      args: ['--filter', '@proof/shell', 'run', 'build'],
+    },
+  ]);
+  assert.deepEqual(createWorkspaceBuildCommand('cloudflare', '@proof/shell'), [
+    {
+      command: 'pnpm',
+      args: ['-r', '--filter', './verticals/*', 'run', 'cloudflare:build'],
+    },
+    {
+      command: 'pnpm',
+      args: ['--filter', '@proof/shell', 'run', 'cloudflare:build'],
+    },
+  ]);
   assert.throws(
     () => createBuildCommand('@proof/catalog', 'all'),
     /Unsupported build target/,
   );
+  assert.throws(
+    () => createWorkspaceBuildCommand('all', '@proof/shell'),
+    /Unsupported build target/,
+  );
+  assert.throws(() => createWorkspaceBuildCommand('node', ''), /shell package/);
+});
+
+test('baseline build coverage requires vertical envelopes on target and shell output artifacts', async () => {
+  const { assertBaselineBuildCoverage } = await loadProof();
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'operational-baseline-coverage-'),
+  );
+  const writeTopology = apps => {
+    const configPath = path.join(root, '.modernjs', 'ultramodern.json');
+    fs.mkdirSync(path.dirname(configPath), { recursive: true });
+    fs.writeFileSync(configPath, JSON.stringify({ topology: { apps } }));
+  };
+  const writeEnvelope = (appPath, target) => {
+    const envelopePath = path.join(
+      root,
+      appPath,
+      '.output/release/microvertical-release-envelope.json',
+    );
+    fs.mkdirSync(path.dirname(envelopePath), { recursive: true });
+    fs.writeFileSync(envelopePath, JSON.stringify({ target }));
+  };
+  const writeShellOutput = () => {
+    const outputRoot = path.join(root, 'apps/shell/.output');
+    fs.mkdirSync(outputRoot, { recursive: true });
+    fs.writeFileSync(path.join(outputRoot, 'index.js'), 'served');
+  };
+  const apps = [
+    { id: 'shell-super-app', kind: 'shell', path: 'apps/shell' },
+    { id: 'catalog', kind: 'vertical', path: 'verticals/catalog' },
+    { id: 'checkout', kind: 'vertical', path: 'verticals/checkout' },
+  ];
+  try {
+    writeTopology(apps);
+    writeShellOutput();
+    writeEnvelope('verticals/catalog', 'node');
+    writeEnvelope('verticals/checkout', 'node');
+    assert.deepEqual(assertBaselineBuildCoverage(root, 'node'), {
+      appCount: 3,
+      verticalCount: 2,
+    });
+
+    // Wrong-target envelope: the filtered build must have produced this pass.
+    assert.throws(
+      () => assertBaselineBuildCoverage(root, 'cloudflare'),
+      /baseline envelope target must be cloudflare/,
+    );
+
+    fs.rmSync(
+      path.join(
+        root,
+        'verticals/checkout/.output/release/microvertical-release-envelope.json',
+      ),
+    );
+    assert.throws(
+      () => assertBaselineBuildCoverage(root, 'node'),
+      /MicroVertical checkout without a parseable release envelope/,
+    );
+
+    writeEnvelope('verticals/checkout', 'node');
+    fs.rmSync(path.join(root, 'apps/shell/.output'), {
+      force: true,
+      recursive: true,
+    });
+    assert.throws(
+      () => assertBaselineBuildCoverage(root, 'node'),
+      /shell-super-app without \.output artifacts/,
+    );
+
+    writeShellOutput();
+    writeTopology([apps[0]]);
+    assert.throws(
+      () => assertBaselineBuildCoverage(root, 'node'),
+      /no MicroVertical apps/,
+    );
+  } finally {
+    fs.rmSync(root, { force: true, recursive: true });
+  }
 });
 
 test('path guard accepts only a non-empty changed-MicroVertical diff', async () => {

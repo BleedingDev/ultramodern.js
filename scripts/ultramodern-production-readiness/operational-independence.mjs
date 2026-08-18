@@ -1328,14 +1328,31 @@ function createBuildCommand(packageName, target) {
   };
 }
 
-function createWorkspaceBuildCommand(target) {
+// The C0 baseline needs exactly the app builds the proof consumes: every
+// MicroVertical (captured envelopes) and the shell (MF host, served-behavior
+// runtime). The former root `pnpm run build` also rebuilt every non-app
+// workspace package on both target passes; the two ordered invocations below
+// build the same app surface without that repeated non-app work.
+function createWorkspaceBuildCommand(target, shellPackage) {
   if (target !== 'node' && target !== 'cloudflare') {
     throw new Error(`Unsupported build target: ${String(target)}.`);
   }
-  return {
-    command: 'pnpm',
-    args: ['run', target === 'node' ? 'build' : 'cloudflare:build'],
-  };
+  return [
+    {
+      command: 'pnpm',
+      args: [
+        '-r',
+        '--filter',
+        './verticals/*',
+        'run',
+        target === 'node' ? 'build' : 'cloudflare:build',
+      ],
+    },
+    createBuildCommand(
+      assertNonEmptyString(shellPackage, 'shell package'),
+      target,
+    ),
+  ];
 }
 
 function runProcess(command, args, options = {}) {
@@ -1446,16 +1463,87 @@ function buildApps({ workspace, apps, target, roles, env, run = runProcess }) {
   return commands;
 }
 
-function buildWorkspaceBaseline({ workspace, target, env, run = runProcess }) {
-  const build = createWorkspaceBuildCommand(target);
-  run(build.command, build.args, { cwd: workspace, env });
+function buildWorkspaceBaseline({
+  workspace,
+  apps,
+  target,
+  env,
+  run = runProcess,
+}) {
+  const [verticalBuild, shellBuild] = createWorkspaceBuildCommand(
+    target,
+    apps.shell.package,
+  );
+  run(verticalBuild.command, verticalBuild.args, { cwd: workspace, env });
+  run(shellBuild.command, shellBuild.args, { cwd: workspace, env });
   return [
     {
       appId: '*',
-      package: 'workspace',
-      command: [build.command, ...build.args],
+      package: 'verticals',
+      command: [verticalBuild.command, ...verticalBuild.args],
+    },
+    {
+      appId: apps.shell.id,
+      package: apps.shell.package,
+      command: [shellBuild.command, ...shellBuild.args],
     },
   ];
+}
+
+// Coverage guard for the filtered baseline: the split build must leave every
+// topology app with the artifacts the proof consumes. Full-stack
+// MicroVerticals prove coverage through a parseable release envelope on the
+// requested target; the shell (and any other non-vertical app) emits no
+// MicroVertical envelope by design (the backend-federation gate in
+// app-tools framework-output returns before writing one), so its coverage is
+// proven by non-empty .output artifacts from its explicit build invocation.
+function assertBaselineBuildCoverage(workspace, target) {
+  const configPath = path.join(workspace, '.modernjs', 'ultramodern.json');
+  const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+  const topologyApps = config?.topology?.apps;
+  if (!Array.isArray(topologyApps) || topologyApps.length === 0) {
+    throw new Error(
+      '.modernjs/ultramodern.json topology.apps must be a non-empty array.',
+    );
+  }
+  let verticalCount = 0;
+  for (const app of topologyApps) {
+    const appId = assertNonEmptyString(app?.id, 'topology app id');
+    const appPath = normalizeLogicalPath(app?.path, `${appId}.path`);
+    const outputRoot = path.join(workspace, appPath, '.output');
+    if (app.kind === 'vertical') {
+      const envelopePath = path.join(outputRoot, ENVELOPE_RELATIVE_PATH);
+      let envelope;
+      try {
+        envelope = JSON.parse(fs.readFileSync(envelopePath, 'utf8'));
+      } catch (error) {
+        throw new Error(
+          `Filtered ${target} baseline build left MicroVertical ${appId} without a parseable release envelope at ${envelopePath}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+      if (envelope?.target !== target) {
+        throw new Error(
+          `MicroVertical ${appId} baseline envelope target must be ${target}; received ${String(envelope?.target)}.`,
+        );
+      }
+      verticalCount += 1;
+    } else if (
+      !fs.existsSync(outputRoot) ||
+      fs.readdirSync(outputRoot).length === 0
+    ) {
+      throw new Error(
+        `Filtered ${target} baseline build left ${appId} without .output artifacts.`,
+      );
+    }
+  }
+  if (verticalCount === 0) {
+    throw new Error(
+      'Baseline build coverage found no MicroVertical apps in topology.apps.',
+    );
+  }
+  return { appCount: topologyApps.length, verticalCount };
 }
 
 function removeOutputs(workspace, apps, roles) {
@@ -1587,10 +1675,12 @@ async function runOperationalIndependence(options) {
       removeOutputs(workspace, apps, ['shell', 'changed', 'sibling']);
       const baselineCommands = buildWorkspaceBaseline({
         workspace,
+        apps,
         target,
         env: processEnv,
         run: options.run,
       });
+      assertBaselineBuildCoverage(workspace, target);
       assertCleanGitWorkspace(
         workspace,
         transition.baseline,
@@ -1719,6 +1809,7 @@ async function runOperationalIndependence(options) {
 }
 
 export {
+  assertBaselineBuildCoverage,
   assertByteIdentical,
   assertChangedPathsOwnedBy,
   assertCrossTargetIdentity,

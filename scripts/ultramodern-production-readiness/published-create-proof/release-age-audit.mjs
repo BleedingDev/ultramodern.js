@@ -758,8 +758,12 @@ async function fetchRegistryResponse(fetchImpl, url) {
 
 async function fetchRegistryMetadata(
   packages,
-  { registryUrl, fetchImpl = fetch, now = new Date(), concurrency = 16 },
+  { registryUrlFor, fetchImpl = fetch, now = new Date(), concurrency = 16 },
 ) {
+  assertCondition(
+    typeof registryUrlFor === 'function',
+    'Registry metadata fetch requires a registryUrlFor resolver',
+  );
   const results = new Array(packages.length);
   let nextIndex = 0;
   async function worker() {
@@ -772,7 +776,7 @@ async function fetchRegistryMetadata(
       try {
         response = await fetchRegistryResponse(
           fetchImpl,
-          packumentUrl(registryUrl, item.name),
+          packumentUrl(registryUrlFor(item.name), item.name),
         );
       } catch (error) {
         throw new Error(
@@ -1064,8 +1068,16 @@ async function auditReleaseAgePolicy({
   }
 
   const policy = readExceptionPolicy(policyPath, now);
+  // Cohort packuments stay on the selected registry (in source mode that is
+  // the ephemeral Verdaccio, where the cohort's publishedAt lives and what
+  // feeds the strict-release-manifest exclusion path). External packuments go
+  // direct to npmjs — strictly stronger (authoritative publishedAt/integrity)
+  // and faster than proxying through Verdaccio.
+  const cohortScopePrefix = `@${release.targetScope}/`;
+  const registryUrlFor = name =>
+    name.startsWith(cohortScopePrefix) ? registryUrl : NPM_REGISTRY;
   const metadata = await fetchRegistryMetadata(closureResult.closure, {
-    registryUrl,
+    registryUrlFor,
     fetchImpl,
     now,
   });

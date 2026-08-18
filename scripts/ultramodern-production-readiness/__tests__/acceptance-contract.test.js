@@ -868,37 +868,171 @@ test('exact registry cohort verification fails closed on unavailable or stale pa
     ],
   };
   try {
-    assert.throws(
-      () =>
-        verifyRegistryCohort({
-          release,
-          registryUrl: 'https://registry.npmjs.org/',
-          workDir: root,
-          runImpl() {
-            throw new Error('E404 exact version is unavailable');
-          },
-        }),
+    await assert.rejects(
+      verifyRegistryCohort({
+        release,
+        registryUrl: 'https://registry.npmjs.org/',
+        workDir: root,
+        async runImpl() {
+          throw new Error('E404 exact version is unavailable');
+        },
+      }),
       /E404 exact version is unavailable/,
     );
 
-    assert.throws(
-      () =>
-        verifyRegistryCohort({
-          release,
-          registryUrl: 'https://registry.npmjs.org/',
-          workDir: root,
-          runImpl(command, args) {
-            assert.equal(command, 'npm');
-            assert.equal(
-              args[1],
-              '@bleedingdev/modern-js-runtime@3.5.0-ultramodern.50',
-            );
-            const destination = args[args.indexOf('--pack-destination') + 1];
-            fs.writeFileSync(path.join(destination, 'stale.tgz'), 'stale');
-            return JSON.stringify([{ filename: 'stale.tgz' }]);
-          },
-        }),
+    await assert.rejects(
+      verifyRegistryCohort({
+        release,
+        registryUrl: 'https://registry.npmjs.org/',
+        workDir: root,
+        async runImpl(command, args) {
+          assert.equal(command, 'npm');
+          assert.equal(
+            args[1],
+            '@bleedingdev/modern-js-runtime@3.5.0-ultramodern.50',
+          );
+          const destination = args[args.indexOf('--pack-destination') + 1];
+          fs.writeFileSync(path.join(destination, 'stale.tgz'), 'stale');
+          return JSON.stringify([{ filename: 'stale.tgz' }]);
+        },
+      }),
       /downloaded sha256 mismatch/,
+    );
+  } finally {
+    fs.rmSync(root, { force: true, recursive: true });
+  }
+});
+
+test('registry cohort verification settles every dispatched lane and rejects with the lowest-index failure in release order', async () => {
+  const { verifyRegistryCohort } = await import(
+    '../published-create-proof/registry-cohort.mjs'
+  );
+  const { computeTarballDigests } = await import(
+    '../../ultramodern-publish/lib/source-create-proof/release-manifest.mjs'
+  );
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'acceptance-registry-cohort-pool-'),
+  );
+  const failingIndexes = new Set([3, 9]);
+  const started = new Set();
+  const settled = new Set();
+  try {
+    const packages = Array.from({ length: 12 }, (_, index) => {
+      const tarballPath = path.join(root, `seed-${index}.tgz`);
+      fs.writeFileSync(tarballPath, `cohort-tarball-${index}`);
+      const digests = computeTarballDigests(tarballPath);
+      return {
+        integrity: digests.integrity,
+        sha256: digests.sha256,
+        shasum: digests.shasum,
+        sourceName: `@modern-js/pkg-${index}`,
+        targetName: `@bleedingdev/modern-js-pkg-${index}`,
+        version: '3.5.0-ultramodern.50',
+      };
+    });
+    await assert.rejects(
+      verifyRegistryCohort({
+        release: { packages },
+        registryUrl: 'https://registry.npmjs.org/',
+        workDir: root,
+        async runImpl(command, args) {
+          const specifier = args[1];
+          const index = Number(
+            /pkg-(\d+)@/u.exec(specifier)?.[1] ?? Number.NaN,
+          );
+          started.add(index);
+          try {
+            // Failing lane 9 resolves before failing lane 3 so the
+            // deterministic lowest-index selection is actually exercised.
+            await new Promise(resolve => setTimeout(resolve, (12 - index) * 2));
+            if (failingIndexes.has(index)) {
+              throw new Error(`E404 pkg-${index} exact version is unavailable`);
+            }
+            if (args[0] === 'pack') {
+              const destination = args[args.indexOf('--pack-destination') + 1];
+              const filename = `pkg-${index}.tgz`;
+              fs.copyFileSync(
+                path.join(root, `seed-${index}.tgz`),
+                path.join(destination, filename),
+              );
+              return JSON.stringify([{ filename }]);
+            }
+            return JSON.stringify({
+              integrity: packages[index].integrity,
+              shasum: packages[index].shasum,
+            });
+          } finally {
+            settled.add(index);
+          }
+        },
+      }),
+      /E404 pkg-3 exact version is unavailable/,
+    );
+    // Every package lane was dispatched and settled before rejection: no npm
+    // child may outlive the throw (the caller removes workDir in a finally).
+    assert.equal(started.size, packages.length);
+    assert.equal(settled.size, packages.length);
+  } finally {
+    fs.rmSync(root, { force: true, recursive: true });
+  }
+});
+
+test('registry cohort verification preserves release package order under shuffled lane completion', async () => {
+  const { verifyRegistryCohort } = await import(
+    '../published-create-proof/registry-cohort.mjs'
+  );
+  const { computeTarballDigests } = await import(
+    '../../ultramodern-publish/lib/source-create-proof/release-manifest.mjs'
+  );
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'acceptance-registry-cohort-order-'),
+  );
+  try {
+    const packages = Array.from({ length: 10 }, (_, index) => {
+      const tarballPath = path.join(root, `seed-${index}.tgz`);
+      fs.writeFileSync(tarballPath, `cohort-tarball-${index}`);
+      const digests = computeTarballDigests(tarballPath);
+      return {
+        integrity: digests.integrity,
+        sha256: digests.sha256,
+        shasum: digests.shasum,
+        sourceName: `@modern-js/pkg-${index}`,
+        targetName: `@bleedingdev/modern-js-pkg-${index}`,
+        version: '3.5.0-ultramodern.50',
+      };
+    });
+    const result = await verifyRegistryCohort({
+      release: { packages },
+      registryUrl: 'https://registry.npmjs.org/',
+      workDir: root,
+      async runImpl(command, args) {
+        const specifier = args[1];
+        const index = Number(/pkg-(\d+)@/u.exec(specifier)?.[1] ?? Number.NaN);
+        // Reverse-order completion: index 9 finishes first, index 0 last.
+        await new Promise(resolve => setTimeout(resolve, (10 - index) * 2));
+        if (args[0] === 'pack') {
+          const destination = args[args.indexOf('--pack-destination') + 1];
+          const filename = `pkg-${index}.tgz`;
+          fs.copyFileSync(
+            path.join(root, `seed-${index}.tgz`),
+            path.join(destination, filename),
+          );
+          return JSON.stringify([{ filename }]);
+        }
+        return JSON.stringify({
+          integrity: packages[index].integrity,
+          shasum: packages[index].shasum,
+        });
+      },
+    });
+    assert.equal(result.packageCount, packages.length);
+    assert.deepEqual(
+      result.packages.map(entry => entry.targetName),
+      packages.map(entry => entry.targetName),
+    );
+    assert.deepEqual(
+      result.packages.map(entry => entry.sha256),
+      packages.map(entry => entry.sha256),
     );
   } finally {
     fs.rmSync(root, { force: true, recursive: true });
@@ -940,11 +1074,93 @@ test('independent release-age audit retries transient registry transport failure
         );
       },
       now: new Date('2026-07-10T12:00:00.000Z'),
-      registryUrl: 'https://registry.example.test/',
+      registryUrlFor: () => 'https://registry.example.test/',
     },
   );
   assert.equal(attempts, 2);
   assert.equal(metadata[0].integrity, integrity);
+});
+
+test('cohort resolution provenance proof fails closed on missing, foreign, or leaking tarball origins', async () => {
+  const { assertCohortResolutionProvenance } = await import(
+    '../published-create-proof/acceptance-profile.mjs'
+  );
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'acceptance-cohort-provenance-'),
+  );
+  const release = { targetScope: 'bleedingdev' };
+  const registryUrl = 'http://127.0.0.1:4879/';
+  const cohortTarball =
+    'http://127.0.0.1:4879/@bleedingdev/modern-js-runtime/-/modern-js-runtime-3.5.0-ultramodern.50.tgz';
+  // Pinned-parser output shape, injected so the unit test never spawns the
+  // real `pnpm dlx` YAML CLI (matching every other parseYamlFile test here).
+  const writeLock = packages =>
+    fs.writeFileSync(
+      path.join(root, 'pnpm-lock.yaml'),
+      JSON.stringify({ lockfileVersion: '9.0', packages }),
+    );
+  const parseJsonLock = filePath =>
+    JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  const provenance = () =>
+    assertCohortResolutionProvenance(root, release, registryUrl, parseJsonLock);
+  try {
+    writeLock({
+      '@bleedingdev/modern-js-runtime@3.5.0-ultramodern.50': {
+        resolution: {
+          integrity: 'sha512-Y2FuZGlkYXRl',
+          tarball: cohortTarball,
+        },
+      },
+      'external-package@1.0.0': {
+        resolution: { integrity: 'sha512-ZXh0ZXJuYWw=' },
+      },
+    });
+    assert.deepEqual(provenance(), {
+      cohortTarballCount: 1,
+      registryOrigin: 'http://127.0.0.1:4879',
+    });
+
+    // Cohort entry without a tarball URL resolved from the default registry
+    // instead of the scoped ephemeral registry: absence is never a pass.
+    writeLock({
+      '@bleedingdev/modern-js-runtime@3.5.0-ultramodern.50': {
+        resolution: { integrity: 'sha512-Y2FuZGlkYXRl' },
+      },
+    });
+    assert.throws(provenance, /resolved without a scoped-registry tarball URL/);
+
+    writeLock({
+      '@bleedingdev/modern-js-runtime@3.5.0-ultramodern.50': {
+        resolution: {
+          integrity: 'sha512-Y2FuZGlkYXRl',
+          tarball: 'https://registry.evil.test/runtime.tgz',
+        },
+      },
+    });
+    assert.throws(provenance, /is not the release registry/);
+
+    writeLock({
+      '@bleedingdev/modern-js-runtime@3.5.0-ultramodern.50': {
+        resolution: {
+          integrity: 'sha512-Y2FuZGlkYXRl',
+          tarball: cohortTarball,
+        },
+      },
+      'external-package@1.0.0': {
+        resolution: {
+          integrity: 'sha512-ZXh0ZXJuYWw=',
+          tarball:
+            'http://127.0.0.1:4879/external-package/-/external-package-1.0.0.tgz',
+        },
+      },
+    });
+    assert.throws(provenance, /was served by the ephemeral release registry/);
+
+    writeLock({});
+    assert.throws(provenance, /found no @bleedingdev\/\* packages/);
+  } finally {
+    fs.rmSync(root, { force: true, recursive: true });
+  }
 });
 
 test('release-age exclusions use locale-independent canonical ordering', () => {
