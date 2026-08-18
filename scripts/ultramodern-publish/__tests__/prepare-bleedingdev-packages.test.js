@@ -2968,6 +2968,186 @@ test('local acceptance registry tolerates transient npm uplink failures', async 
   });
 });
 
+test('declaration pre-pass generates independent packages concurrently and rejects nested roots', async () => {
+  const { generateSourceDeclarationsBatch } = await import(
+    '../lib/prepare-bleedingdev-packages/types.mjs'
+  );
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tsgo-dts-batch-'));
+  const makeDeclarationPackage = relativeDir => {
+    const dir = path.join(root, relativeDir);
+    fs.mkdirSync(path.join(dir, 'src'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'tsconfig.json'), '{}');
+    return {
+      dir,
+      packageJson: { name: relativeDir, types: './dist/types/index.d.ts' },
+    };
+  };
+  try {
+    const itemA = makeDeclarationPackage('pkg-a');
+    const itemB = makeDeclarationPackage('pkg-b');
+    // No src directory: filtered out before any subprocess is dispatched.
+    const itemC = {
+      dir: path.join(root, 'pkg-c'),
+      packageJson: { name: 'pkg-c', types: './dist/types/index.d.ts' },
+    };
+    const calls = [];
+    const generated = await generateSourceDeclarationsBatch(
+      [itemA, itemB, itemC],
+      async (command, args) => {
+        calls.push({ command, args });
+      },
+    );
+    assert.equal(generated, 2);
+    assert.deepEqual(
+      calls.map(call => call.args),
+      [
+        ['-w', 'run', 'tsgo:dts', itemA.dir],
+        ['-w', 'run', 'tsgo:dts', itemB.dir],
+      ],
+    );
+    assert.deepEqual(
+      calls.map(call => call.command),
+      ['pnpm', 'pnpm'],
+    );
+
+    const nested = makeDeclarationPackage('pkg-a/nested');
+    await assert.rejects(
+      generateSourceDeclarationsBatch([itemA, nested], async () => {
+        throw new Error('must not dispatch when roots are not independent');
+      }),
+      /mutually independent package dirs/,
+    );
+  } finally {
+    fs.rmSync(root, { force: true, recursive: true });
+  }
+});
+
+test('local acceptance registry keeps the catch-all npmjs proxy for audit fallback', async () => {
+  const { createVerdaccioConfig } = await import(
+    '../lib/source-create-proof/runtime-proof/registry.mjs'
+  );
+  const config = yaml.load(
+    createVerdaccioConfig({
+      storageDir: '/tmp/registry-storage',
+      htpasswdPath: '/tmp/registry-htpasswd',
+      scope: 'bleedingdev',
+    }),
+  );
+
+  // The scoped .npmrc keeps install traffic for external packages off the
+  // ephemeral registry, but the catch-all proxy must survive so release-age
+  // audit fallbacks through Verdaccio still resolve.
+  assert.deepEqual(config.packages['@bleedingdev/*'], {
+    access: '$all',
+    publish: '$authenticated',
+    unpublish: '$authenticated',
+  });
+  assert.deepEqual(config.packages['**'], {
+    access: '$all',
+    proxy: 'npmjs',
+  });
+});
+
+test('local acceptance user config scopes the ephemeral registry and keeps npmjs as the default', async () => {
+  const { writeRegistryUserConfig } = await import(
+    '../lib/source-create-proof/runtime-proof/registry.mjs'
+  );
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'registry-userconfig-'));
+  const userConfigPath = path.join(root, '.npmrc');
+  try {
+    writeRegistryUserConfig(
+      userConfigPath,
+      'http://127.0.0.1:4873/',
+      'ephemeral-registry-token',
+      'bleedingdev',
+    );
+    const lines = fs.readFileSync(userConfigPath, 'utf8').split('\n');
+    assert.deepEqual(lines, [
+      'registry=https://registry.npmjs.org/',
+      '@bleedingdev:registry=http://127.0.0.1:4873/',
+      '//127.0.0.1:4873/:_authToken=ephemeral-registry-token',
+      '',
+    ]);
+  } finally {
+    removeDir(root);
+  }
+});
+
+test('local acceptance registry env carries no registry override keys', async () => {
+  const { createRegistryEnv } = await import(
+    '../lib/source-create-proof/runtime-proof/registry.mjs'
+  );
+  const env = createRegistryEnv({
+    userConfigPath: '/tmp/registry/.npmrc',
+    cacheDir: '/tmp/registry/npm-cache',
+  });
+
+  assert.deepEqual(env, {
+    npm_config_cache: '/tmp/registry/npm-cache',
+    npm_config_userconfig: '/tmp/registry/.npmrc',
+  });
+  // Registry routing lives exclusively in the scoped user config: an env-level
+  // registry override would send external packages through the ephemeral
+  // registry again.
+  assert.deepEqual(
+    Object.keys(env).filter(key => key.toLowerCase().includes('registry')),
+    [],
+  );
+});
+
+test('local acceptance packument reader verifies seeded dist metadata and fails closed', async () => {
+  const { readRegistryDistFromPackument } = await import(
+    '../lib/source-create-proof/runtime-proof/registry.mjs'
+  );
+  const registry = { registryUrl: 'http://127.0.0.1:4873/' };
+  const requests = [];
+  const dist = await readRegistryDistFromPackument(
+    '@bleedingdev/modern-js-runtime@3.8.2-ultramodern.4',
+    registry,
+    async (url, options) => {
+      requests.push({ url: String(url), options });
+      return new Response(
+        JSON.stringify({
+          versions: {
+            '3.8.2-ultramodern.4': {
+              dist: { integrity: 'sha512-Y2FuZGlkYXRl', shasum: 'abc' },
+            },
+          },
+        }),
+        { headers: { 'content-type': 'application/json' }, status: 200 },
+      );
+    },
+  );
+  assert.deepEqual(dist, { integrity: 'sha512-Y2FuZGlkYXRl', shasum: 'abc' });
+  assert.equal(requests.length, 1);
+  assert.equal(
+    requests[0].url,
+    'http://127.0.0.1:4873/@bleedingdev%2fmodern-js-runtime',
+  );
+
+  await assert.rejects(
+    readRegistryDistFromPackument(
+      '@bleedingdev/modern-js-runtime@3.8.2-ultramodern.4',
+      registry,
+      async () => new Response('missing', { status: 404 }),
+    ),
+    /returned HTTP 404/,
+  );
+
+  await assert.rejects(
+    readRegistryDistFromPackument(
+      '@bleedingdev/modern-js-runtime@3.8.2-ultramodern.4',
+      registry,
+      async () =>
+        new Response(JSON.stringify({ versions: {} }), {
+          headers: { 'content-type': 'application/json' },
+          status: 200,
+        }),
+    ),
+    /is missing dist metadata/,
+  );
+});
+
 test('registry preflight accepts a revision reset on a newer Modern.js base', async () => {
   const { preflightRegistryPackages } = await import(
     '../prepare-bleedingdev-packages.mjs'

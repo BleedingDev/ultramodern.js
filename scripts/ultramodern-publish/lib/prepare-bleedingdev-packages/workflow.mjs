@@ -14,7 +14,7 @@ import {
   targetPackageName,
 } from './rewrite.mjs';
 import {
-  generateSourceDeclarations,
+  generateSourceDeclarationsBatch,
   normalizeDeclaredTypePaths,
   validateStagedTypeFiles,
 } from './types.mjs';
@@ -88,10 +88,13 @@ async function prepareBleedingdevPackages(options) {
     packages: [],
   };
 
+  // Declaration pre-pass: fully joined before the first pack, so the strictly
+  // sequential staging loop below only ever reads finished dist/types trees.
+  await generateSourceDeclarationsBatch(packages);
+
   for (const item of packages) {
     const sourceName = item.packageJson.name;
     const targetName = targetPackageName(sourceName, options);
-    generateSourceDeclarations(item);
     const tarball = packSourcePackage(sourceName, packDir);
     const packageDir = extractTarball(
       tarball,

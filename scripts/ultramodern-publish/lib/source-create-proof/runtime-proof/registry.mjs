@@ -191,53 +191,63 @@ async function createRegistryUser(registryUrl, fetchImpl = fetch) {
   return parsed.token;
 }
 
-function createRegistryEnv({ registryUrl, userConfigPath, cacheDir }) {
+// No *_config_registry keys: the .npmrc scopes the ephemeral registry to the
+// cohort scope only, so external packuments and tarballs go direct to npmjs
+// instead of proxying through Verdaccio. The acceptance profile hard-asserts
+// the cohort's lockfile tarball provenance after install, so a silently
+// ignored scope override cannot fall through to npmjs unnoticed.
+function createRegistryEnv({ userConfigPath, cacheDir }) {
   return {
     npm_config_cache: cacheDir,
-    npm_config_registry: registryUrl,
     npm_config_userconfig: userConfigPath,
-    pnpm_config_registry: registryUrl,
   };
 }
 
-function writeRegistryUserConfig(filePath, registryUrl, token) {
+function writeRegistryUserConfig(filePath, registryUrl, token, scope) {
   const url = new URL(registryUrl);
   const authKey = `${url.host}${url.pathname}`.replace(/\/?$/u, '/');
+  // The default registry is stated explicitly so the file is self-describing.
+  // No always-auth: we hold no token for the npmjs default, and the
+  // //host:_authToken line is already host-scoped to the ephemeral registry.
   fs.writeFileSync(
     filePath,
     [
-      `registry=${registryUrl}`,
+      'registry=https://registry.npmjs.org/',
+      `@${scope}:registry=${registryUrl}`,
       `//${authKey}:_authToken=${token}`,
-      'always-auth=true',
       '',
     ].join('\n'),
   );
 }
 
-function readRegistryDist(specifier, registry, runImpl = runChecked) {
-  const output = runImpl(
-    'npm',
-    [
-      'view',
-      specifier,
-      'dist',
-      '--json',
-      '--registry',
-      registry.registryUrl,
-      '--userconfig',
-      registry.userConfigPath,
-    ],
-    { env: registry.env, stdio: 'pipe' },
+// Transport-only replacement for the seed loop's per-package `npm view`
+// subprocess: one packument GET against the ephemeral registry. The two
+// post-publish assertions on the returned dist stay unchanged.
+async function readRegistryDistFromPackument(
+  specifier,
+  registry,
+  fetchImpl = fetch,
+) {
+  const atIndex = specifier.lastIndexOf('@');
+  const name = specifier.slice(0, atIndex);
+  const version = specifier.slice(atIndex + 1);
+  const encodedName = name.startsWith('@')
+    ? name.replace('/', '%2f')
+    : encodeURIComponent(name);
+  const response = await fetchImpl(new URL(encodedName, registry.registryUrl), {
+    headers: { accept: 'application/json' },
+  });
+  assert(
+    response.ok,
+    `Registry packument for ${specifier} returned HTTP ${response.status}`,
   );
-  try {
-    return JSON.parse(output);
-  } catch (error) {
-    throw new Error(
-      `Registry metadata for ${specifier} was not valid JSON: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-    );
-  }
+  const packument = await response.json();
+  const dist = packument?.versions?.[version]?.dist;
+  assert(
+    dist && typeof dist === 'object',
+    `Registry packument for ${specifier} is missing dist metadata`,
+  );
+  return dist;
 }
 
 async function publishReleaseTarballs(
@@ -247,14 +257,16 @@ async function publishReleaseTarballs(
   {
     publishPackageBufferImpl = publishPackageBuffer,
     readArtifactBytes = readVerifiedPackageArtifactBytes,
-    readRegistryDistImpl = readRegistryDist,
-    runImpl = runChecked,
+    readRegistryDistImpl = readRegistryDistFromPackument,
+    fetchImpl = fetch,
   } = {},
 ) {
   const published = [];
   const packagesByTarget = new Map(
     release.packages.map(item => [item.targetName, item]),
   );
+  // Strictly sequential over release.publishOrder — the seed path must remain
+  // trivially correct; the dist read is transport-only (no fan-out).
   for (const targetName of release.publishOrder) {
     const item = packagesByTarget.get(targetName);
     assert(item, `Release publish order references missing package ${targetName}`);
@@ -270,7 +282,7 @@ async function publishReleaseTarballs(
     });
     verifyPackageArtifactBytes(item, acceptedBytes);
     const specifier = `${item.targetName}@${item.version}`;
-    const dist = readRegistryDistImpl(specifier, registry, runImpl);
+    const dist = await readRegistryDistImpl(specifier, registry, fetchImpl);
     assert(
       dist.integrity === item.integrity,
       `${specifier} registry integrity mismatch after exact tarball publication`,
@@ -356,11 +368,16 @@ async function startEphemeralRegistry({
       }),
     ]);
     const token = await createRegistryUser(registryUrl, fetchImpl);
-    writeRegistryUserConfig(userConfigPath, registryUrl, token);
+    writeRegistryUserConfig(
+      userConfigPath,
+      registryUrl,
+      token,
+      release.targetScope,
+    );
     const registry = {
       registryUrl,
       userConfigPath,
-      env: createRegistryEnv({ registryUrl, userConfigPath, cacheDir }),
+      env: createRegistryEnv({ userConfigPath, cacheDir }),
       tool: {
         name: 'verdaccio',
         version: VERDACCIO_VERSION,
@@ -369,12 +386,17 @@ async function startEphemeralRegistry({
       },
       stop: () => stopChild(child),
     };
+    // Stdout-only seed timing so the seed phase is attributable in job logs;
+    // never routed into the receipt.
+    const seedStartedAt = Date.now();
+    console.log('[registry] seed start');
     registry.published = await publishReleaseTarballs(
       release,
       registry,
       token,
-      { runImpl },
+      { fetchImpl },
     );
+    console.log(`[registry] seed end (${Date.now() - seedStartedAt}ms)`);
     return registry;
   } catch (error) {
     await stopChild(child);
@@ -391,9 +413,10 @@ export {
   createRegistryEnv,
   createVerdaccioConfig,
   publishReleaseTarballs,
-  readRegistryDist,
+  readRegistryDistFromPackument,
   reservePort,
   runChecked,
   startEphemeralRegistry,
   verdaccioDlxArgs,
+  writeRegistryUserConfig,
 };
