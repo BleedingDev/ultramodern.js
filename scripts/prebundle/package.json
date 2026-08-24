@@ -61,7 +61,7 @@
     "less": "4.6.7",
     "mime-types": "3.0.2",
     "minimist": "1.2.8",
-    "nanoid": "5.1.16",
+    "nanoid": "6.0.0",
     "normalize-path": "3.0.0",
     "ora": "9.4.1",
     "p-map": "7.0.5",
