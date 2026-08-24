@@ -294,8 +294,8 @@ const releaseAgeReasons = {
     'Reviewed Cloudflare runtime cohort required by generated Worker tooling before pnpm minimum release age elapsed.',
   effect:
     'Reviewed Effect 4 beta cohort required by generated strict Effect workspaces before pnpm minimum release age elapsed.',
-  i18next:
-    'Reviewed i18next release required by generated localized applications before pnpm minimum release age elapsed.',
+  framework:
+    'Reviewed Modern.js framework and fresh generated dependency closure required by workspaces before pnpm minimum release age elapsed.',
   tooling:
     'Reviewed Oxlint and Oxfmt toolchain cohort required by generated workspace quality gates before pnpm minimum release age elapsed.',
   typescript:
@@ -318,19 +318,12 @@ const releaseAgeReviewEvidence = {
     uri: 'https://github.com/BleedingDev/ultramodern.js/commit/eb27eddccec4e51896d63abb070ef46a7b7d3eb7',
     sha256: '47c9f25308e6bb521fa6e5a603205be9664034ae92bb94b1aa7d5683229bb240',
   },
-  i18next: {
+  modernjsUpstream20260824: {
     reviewer: 'Petr Glaser <syreanis+1@gmail.com>',
-    reviewedAt: '2026-07-09T23:03:09.000Z',
-    expiresAt: '2026-08-08T23:03:09.000Z',
-    uri: 'https://github.com/BleedingDev/ultramodern.js/commit/04ae8b3445464e8f6179c3c89606792c97e9acbd',
-    sha256: 'bdc703627ded04958aceff6663844994fca3a0be0d1266ea4fdb8dec7c06f4fa',
-  },
-  releaseCohort: {
-    reviewer: 'Petr Glaser <syreanis+1@gmail.com>',
-    reviewedAt: '2026-07-10T01:20:00.000Z',
-    expiresAt: '2026-08-09T01:20:00.000Z',
-    uri: 'https://github.com/BleedingDev/ultramodern.js/commit/2d0622c2e784676161ce28a2299f1d0847b03cf1',
-    sha256: '3ad53ef8e90582462b11e062a882ba57991c2c9f2cbf87bc1f88a7eb216b33b4',
+    reviewedAt: '2026-08-24T19:40:58.000Z',
+    expiresAt: '2026-08-25T14:46:59.712Z',
+    uri: 'https://github.com/BleedingDev/ultramodern.js/commit/b1cb9adc60074f9619e94e8653f2a1f6c8e40ce9',
+    sha256: 'fed95e26dcacd298e6a848448ed5965809315c7169d26b7fc4c78ec12505adb7',
   },
   typescript: {
     reviewer: 'Petr Glaser <syreanis+1@gmail.com>',
@@ -1106,13 +1099,31 @@ const releaseAgeApprovals: readonly UltramodernReleaseAgeApproval[] = [
       }),
   ),
   createReleaseAgeApproval({
-    packageName: '@typescript/native-preview',
-    version: TYPESCRIPT_NATIVE_PREVIEW_VERSION,
-    reason: releaseAgeReasons.typescript,
-    publishedAt: '2026-07-07T08:20:24.277Z',
+    packageName: '@rsbuild/core',
+    version: '2.2.0-rc.0',
+    reason: releaseAgeReasons.framework,
+    publishedAt: '2026-08-24T08:20:57.218Z',
     integrity:
-      'sha512-oUGp+Rep/hqMhPunyinsALUwSlzHINSxitifPiSaeqoKOKD2OlR9NE3TaPqwsl4NlGslsOSUXI1JotWQzpYCPg==',
-    review: releaseAgeReviewEvidence.typescript,
+      'sha512-f6orjv+wOR1u7KchE/vANGP0Eg7AP0UaiM0qn4n+5I0HOUdkVVbNCA1eZSpyX+TJ9bIdZtkbR6T47vBdoFr1MA==',
+    review: releaseAgeReviewEvidence.modernjsUpstream20260824,
+  }),
+  createReleaseAgeApproval({
+    packageName: 'baseline-browser-mapping',
+    version: '2.11.19',
+    reason: releaseAgeReasons.framework,
+    publishedAt: '2026-08-24T14:46:59.712Z',
+    integrity:
+      'sha512-Grytf1xOxOEMTGRwx6rLGKkTabd4vMg3VrKdj/7joCmV0qgh4QwMMO6xh34YEXQqirAuUdgQGa5orJQQ+69RBw==',
+    review: releaseAgeReviewEvidence.modernjsUpstream20260824,
+  }),
+  createReleaseAgeApproval({
+    packageName: 'electron-to-chromium',
+    version: '1.5.413',
+    reason: releaseAgeReasons.framework,
+    publishedAt: '2026-08-24T10:04:00.088Z',
+    integrity:
+      'sha512-F1XPKvt7HVfly5WND90ec16nFsdr4g5x/cVUP3EqjeyXynupabGDqpMa84wwvuYGDnldXLBz6DLXyZXWO9TPvw==',
+    review: releaseAgeReviewEvidence.modernjsUpstream20260824,
   }),
   ...typescriptPlatformRegistryReleases.map(
     ([platform, publishedAt, integrity]) =>
@@ -1125,24 +1136,6 @@ const releaseAgeApprovals: readonly UltramodernReleaseAgeApproval[] = [
         review: releaseAgeReviewEvidence.typescript,
       }),
   ),
-  createReleaseAgeApproval({
-    packageName: 'i18next',
-    version: I18NEXT_VERSION,
-    reason: releaseAgeReasons.i18next,
-    publishedAt: '2026-07-09T13:42:14.596Z',
-    integrity:
-      'sha512-Bu5Z2nAXgfVyM8xvW3jk9EKRIuX37PudsrBViThNFx7CR7aaYTpP01cxNB/E4c4UUzTDiAZRstEhsRfPOL/8xA==',
-    review: releaseAgeReviewEvidence.i18next,
-  }),
-  createReleaseAgeApproval({
-    packageName: 'typescript',
-    version: TYPESCRIPT_VERSION,
-    reason: releaseAgeReasons.typescript,
-    publishedAt: '2026-07-08T15:55:18.431Z',
-    integrity:
-      'sha512-8FYau96o3NKOhbjKi/qNvG/W5jhzxkbdm5sj9AbZ/5T5sWqn3hJgLfGx27sRKZWTvyzCP8dLRBTf5tBTSRVUNA==',
-    review: releaseAgeReviewEvidence.typescript,
-  }),
 ];
 
 export const ULTRAMODERN_WORKSPACE_POLICY = {

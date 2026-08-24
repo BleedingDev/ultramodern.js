@@ -181,6 +181,81 @@ test('approves only the reviewed lock-reachable immature latest cohort', () => {
   }
 });
 
+test('temporarily approves the exact fresh Modern.js dependency closure', () => {
+  const review = JSON.parse(
+    fs.readFileSync(
+      new URL('../release-age-review-2026-08-24.json', import.meta.url),
+      'utf8',
+    ),
+  ) as {
+    expiresAt: string;
+    registryRecords: Array<{
+      packageName: string;
+      version: string;
+      publishedAt: string;
+      dist: { integrity: string };
+    }>;
+    reviewedAt: string;
+  };
+  const expectedSelectors = new Set(
+    review.registryRecords.map(record =>
+      packageKey(record.packageName, record.version),
+    ),
+  );
+  const approvalBySelector = new Map(
+    ULTRAMODERN_WORKSPACE_POLICY.pnpm.releaseAge.approvals.map(approval => [
+      packageKey(approval.packageName, approval.version),
+      approval,
+    ]),
+  );
+
+  assert.equal(expectedSelectors.size, 3);
+  for (const record of review.registryRecords) {
+    const selector = packageKey(record.packageName, record.version);
+    const approval = approvalBySelector.get(selector);
+    assert.ok(approval, `${selector} must have exact review approval`);
+    assert.equal(approval.reviewedAt, review.reviewedAt);
+    assert.equal(Date.parse(approval.expiresAt), Date.parse(review.expiresAt));
+    assert.deepEqual(approval.registry, {
+      publishedAt: record.publishedAt,
+      dist: { integrity: record.dist.integrity },
+    });
+    assert.deepEqual(approval.evidence, {
+      uri: 'https://github.com/BleedingDev/ultramodern.js/commit/b1cb9adc60074f9619e94e8653f2a1f6c8e40ce9',
+      sha256:
+        'fed95e26dcacd298e6a848448ed5965809315c7169d26b7fc4c78ec12505adb7',
+      sha256Subject: 'git-commit-payload',
+    });
+  }
+
+  const active = new Set(
+    renderMinimumReleaseAgeExclude({
+      now: new Date('2026-08-24T19:40:58.000Z'),
+    }),
+  );
+  const expired = new Set(
+    renderMinimumReleaseAgeExclude({
+      now: new Date('2026-09-01T00:00:00.000Z'),
+    }),
+  );
+  for (const selector of expectedSelectors) {
+    assert.equal(active.has(selector), true);
+    assert.equal(expired.has(selector), false);
+  }
+  for (const retired of [
+    'i18next',
+    'typescript',
+    '@typescript/native-preview',
+  ]) {
+    assert.equal(
+      ULTRAMODERN_WORKSPACE_POLICY.pnpm.releaseAge.approvals.some(
+        approval => approval.packageName === retired,
+      ),
+      false,
+    );
+  }
+});
+
 test('renders reviewed and first-party exclusions in the clean-room canonical order', () => {
   const approvalTime = new Date('2026-08-11T00:39:42.463Z');
   const renderedPolicies = [
