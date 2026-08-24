@@ -111,7 +111,7 @@
     "@modern-js/runtime": "workspace:^3.8.2",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "react-server-dom-rspack": "0.0.3"
+    "react-server-dom-rspack": "0.1.0"
   },
   "peerDependenciesMeta": {
     "react-server-dom-rspack": {
@@ -133,7 +133,7 @@
     "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "react-server-dom-rspack": "0.0.3"
+    "react-server-dom-rspack": "0.1.0"
   },
   "sideEffects": [
     "./src/runtime/register.ts",

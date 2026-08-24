@@ -1,7 +1,7 @@
 // The upstream Rspack Flight package does not publish TypeScript declarations.
 // Keep this ambient surface intentionally limited to the APIs consumed by
 // @modern-js/render. Runtime compatibility is covered by the RSC integration
-// suites against the exact patched upstream development dependency.
+// suites against the exact audited upstream development dependency.
 
 declare module 'react-server-dom-rspack/client.browser' {
   export type CallServerCallback = (

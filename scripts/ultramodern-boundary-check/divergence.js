@@ -13,13 +13,12 @@ const path = require('node:path');
 const DIVERGENCE_SCHEMA_VERSION = 1;
 const DIVERGENCE_FILE_PATTERN = /^packages\//;
 /**
- * Upstream mainline release commit for v3.8.2, merged into this fork and
- * therefore a true ancestor of HEAD (`Release v3.8.2 (#8810)`). The `v3.8.2`
- * tag (e642cd16) is a parallel release commit — same parent 8edf91adb1, same
- * tree 35d89ac688 — so it is patch-equivalent but not an ancestor; measure
- * against the mainline commit, not the tag.
+ * Upstream mainline through the Rsbuild 2.2.0-rc.0 cohort (#8818), merged into
+ * this fork and therefore a true ancestor of HEAD. This is intentionally a
+ * mainline commit rather than the parallel v3.8.2 release tag used by the
+ * previous audited base.
  */
-const DEFAULT_DIVERGENCE_BASE_REF = 'eded841256a7cffdaa622e3889fc83407debd3e4';
+const DEFAULT_DIVERGENCE_BASE_REF = '3748f08860123c797c40576c0604f30a7e376593';
 const DEFAULT_DIVERGENCE_ALLOWLIST_REPO_PATH =
   'scripts/ultramodern-boundary-check/divergence-allowlist.json';
 const DEFAULT_DIVERGENCE_ALLOWLIST_PATH = path.join(

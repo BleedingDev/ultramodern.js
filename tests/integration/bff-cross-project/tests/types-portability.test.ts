@@ -4,14 +4,13 @@ import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import {
-  acquireFixtureLocks,
-  type ReleaseFixtureLock,
-} from '../../../utils/fixtureLock';
-import { modernBuild } from '../../../utils/modernTestUtils';
+  createIsolatedTestApp,
+  modernBuild,
+} from '../../../utils/modernTestUtils';
 
 rstest.setConfig({ testTimeout: 1000 * 60 * 3, hookTimeout: 1000 * 60 * 3 });
 
-const apiAppDir = path.resolve(__dirname, '../bff-api-app');
+const sourceApiAppDir = path.resolve(__dirname, '../bff-api-app');
 
 // The fork type-checks with TS-Go, and the `typescript` package pinned here no
 // longer exposes the legacy Program API (`ts.createProgram` and friends are
@@ -123,12 +122,15 @@ describe('crossProject client type portability', () => {
   let tarball: string;
 
   beforeAll(async () => {
-    // index.test.ts builds and serves the same api app from a parallel rstest
-    // worker; an unlocked concurrent build here clobbers `dist-1` mid-emit and
-    // trips the fail-closed missing-declaration check in both files.
-    let releaseFixtureLocks: ReleaseFixtureLock | undefined;
+    // Build and pack an isolated copy: index.test.ts serves the source fixture
+    // from a parallel worker, and a build there would empty dist-1 underneath
+    // the running server. Excluding dist-1 also prevents stale or half-written
+    // declarations from entering the copy.
+    const { appDir: apiAppDir, cleanup } = await createIsolatedTestApp(
+      sourceApiAppDir,
+      { exclude: ['dist-1'] },
+    );
     try {
-      releaseFixtureLocks = await acquireFixtureLocks([apiAppDir]);
       // The generator fails closed when a handler declaration is missing, so a
       // successful build is itself part of the contract under test.
       const buildResult = (await modernBuild(apiAppDir, [], {})) as {
@@ -152,7 +154,7 @@ describe('crossProject client type portability', () => {
       expect(packed).toBeTruthy();
       tarball = path.join(workDir, packed!);
     } finally {
-      await releaseFixtureLocks?.();
+      await cleanup();
     }
   });
 

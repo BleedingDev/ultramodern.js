@@ -13,7 +13,7 @@
     "client-only": "^0.0.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "react-server-dom-rspack": "0.0.3",
+    "react-server-dom-rspack": "0.1.0",
     "server-only": "^0.0.1"
   },
   "devDependencies": {

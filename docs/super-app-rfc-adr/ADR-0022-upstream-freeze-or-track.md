@@ -34,12 +34,12 @@ assumption to be ratified or replaced before that spend happens.
 | Root/infra diff outside `packages/**` | 467 M, 719 A, 8 D, 37 R (1,231 paths), base `dfcd414a` | `FORK-DIVERGENCE.md` § "Bases and counts" |
 | Ledger disposition split (104 entry rows at ratification-draft refresh; compound dispositions overlap) | **67 rows mention `keep-[F]` / 13 mention `keep-[M]` / 9 `upstream-PR` / 5 `extension-point` primary (8 rows name it, 3 as the budget target of a `keep-[F]` row) / 6 `revert` primary (7 rows mention revert, including 1 `owner-decision` row) / 3 primary `fix`-or-fixed / 3 `capped-patch` / 3 `owner-decision` / 1 `keep-deleted`** | disposition column of the ledger entry tables in `FORK-DIVERGENCE.md` (§ 4 and the `packages/**` sections) |
 
-> **Superseded snapshot (2026-08-16).** Every figure in the table above was
-> measured in the 3.8.1 era. Upstream 3.8.2 has since been merged and the
-> divergence gate re-anchored to `eded841256` (`Release v3.8.2 (#8810)`), which
-> is also the `origin/main` tip, so the gate base and the sync-review base now
-> coincide and the two-base caveat below no longer applies. Current figures live
-> in `FORK-DIVERGENCE.md` §2–§3; do not cite this table as current evidence.
+> **Superseded snapshot (updated 2026-08-24).** Every figure in the table above
+> was measured in the 3.8.1 era. The fork has since merged upstream through
+> `3748f08860` (the Rsbuild 2.2.0-rc.0 cohort in #8818) and re-anchored the
+> divergence gate there, so the gate base and sync-review base coincide and the
+> two-base caveat below no longer applies. Current figures live in
+> `FORK-DIVERGENCE.md` §2–§3; do not cite this table as current evidence.
 > The sanctioned re-record at the new base completed 2026-08-17; the recorded
 > budgets live in `divergence-allowlist.json` and `FORK-DIVERGENCE.md` §3.
 

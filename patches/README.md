@@ -10,7 +10,6 @@ into generated UltraModern workspaces:
 
 - `@module-federation/manifest@2.8.2` -> `patches/@module-federation__manifest@2.8.2.patch`
 - `@module-federation/rspack@2.8.2` -> `patches/@module-federation__rspack@2.8.2.patch`
-- `react-server-dom-rspack@0.0.3` -> `patches/@react-server-dom-rspack@0.0.3.patch` (root-only RSC regression-test containment)
 
 Shared patches exist in both this directory and
 `packages/toolkit/create/template-workspace/patches/`. They must stay
@@ -38,7 +37,10 @@ workspaces:
 - `@module-federation/rspack`: avoids loading `@module-federation/dts-plugin` at module import time and only requires `DtsPlugin` when DTS generation is enabled.
 - `@module-federation/bridge-react`: repairs non-portable declaration specifiers that reference package-local `node_modules/@types/react*` paths.
 - `effect-schema-error-type-id.patch`: replaces beta.107's dangling public `SchemaAST.Sentinel` declaration reference with `unknown`; no private Effect HTTP declarations are patched.
-- `react-server-dom-rspack`: backports the official React Flight decoder security fixes missing from the newest upstream Rspack package across all shipped server bundles. The patched package is used only by root framework RSC regression tests while RSC stays disabled in the UltraModern company distribution. It is not published, copied into generated workspaces, or imposed on application consumers.
+- `react-server-dom-rspack` 0.1.0 includes the official React Flight decoder
+  security fixes that the repository previously backported onto 0.0.3. The
+  root framework regression tests continue to verify those fixes while RSC
+  stays disabled in the UltraModern company distribution.
 
 These patches keep Module Federation usable in the fork's TS 7 native-preview
 lane where apps use `dts: false`, while preserving DTS behavior for callers

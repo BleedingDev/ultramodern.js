@@ -1,11 +1,14 @@
 # FORK-DIVERGENCE — canonical divergence ledger
 
-**Verified: 2026-08-11.** Every row below was re-checked against the working
+**Verified: 2026-08-24.** Every row below was re-checked against the working
 tree on that date. Rows carry their own `Verified` date only when it differs.
 
 **Partially re-verified 2026-08-16** for the upstream 3.8.2 merge: §2 bases and
 counts, §3 reconciliation, CLI-19, CLI-20, SRV-20, SRV-21, SRV-22, SRV-23 and
 notes N9/N10. Rows outside that set still carry the 2026-08-11 date.
+
+**Re-verified 2026-08-24** for the upstream sync through `3748f08860`: §2
+bases and counts, §3 reconciliation, and every base-transition growth entry.
 
 This file is the single canonical record of where the UltraModern fork diverges
 from upstream Modern.js. It is read during every upstream sync and enforced on
@@ -104,24 +107,22 @@ Two different base refs are in play. Do not mix them — the counts differ.
 
 | Base | SHA | Used by | Meaning |
 | --- | --- | --- | --- |
-| Divergence-gate base | `eded841256a7cffdaa622e3889fc83407debd3e4` | `divergence-allowlist.json`, `--mode divergence` | upstream `Release v3.8.2 (#8810)`, merged into this fork and a true ancestor of `HEAD` |
+| Divergence-gate base | `3748f08860123c797c40576c0604f30a7e376593` | `divergence-allowlist.json`, `--mode divergence` | upstream main through the Rsbuild 2.2.0-rc.0 cohort in #8818, merged into this fork and a true ancestor of `HEAD` |
 | Import-gate base | `8a744c1b` | `allowlist.json`, `--mode imports` | frozen import-boundary baseline, deliberately **not** re-anchored with the divergence base |
-| Sync-review base | `eded841256a7cffdaa622e3889fc83407debd3e4` | this ledger's raw counts | `origin/main` tip; identical to the gate base, so the two no longer differ |
+| Sync-review base | `3748f08860123c797c40576c0604f30a7e376593` | this ledger's raw counts | `origin/main` tip at the 2026-08-24 sync; identical to the gate base |
 
-**Re-anchored 2026-08-16 (was `dfcd414a050d4455851ff76f861822fca0d4bcf4`,
-`git merge-base HEAD v3.8.1`).** Measure against the **mainline** release commit,
-never against the `v3.8.2` tag. Upstream cuts releases on a parallel commit: tag
-`v3.8.2` is `e642cd16a8` (`release: v3.8.2`), which shares this base's parent
-`8edf91adb1` and its tree `35d89ac688`. The tag is therefore patch-equivalent but
-**not** an ancestor of `HEAD`, so `git merge-base --is-ancestor v3.8.2 HEAD`
-fails while the same check against `eded841256` passes.
+**Re-anchored 2026-08-24 (was
+`eded841256a7cffdaa622e3889fc83407debd3e4`, upstream's v3.8.2 mainline release
+commit).** Measure against the recorded **mainline** commit. The previous
+`v3.8.2` tag remains a parallel, patch-equivalent commit rather than an ancestor
+and is historical context only; it is not a valid substitute for this base.
 
 Raw `git diff -M <base> --name-status` (worktree vs base) at 2026-08-16:
 
 | Scope | Base | M | A | D | R |
 | --- | --- | --- | --- | --- | --- |
-| `packages/**` | `eded841256` (gate base = `origin/main`) | 582 | 846 | 11 | 18 |
-| root/infra (`:(exclude)packages/**`) | `eded841256` | 467 | 684 | 8 | 39 |
+| `packages/**` | `3748f08860` (gate base = synced `origin/main`) | 581 | 847 | 11 | 18 |
+| root/infra (`:(exclude)packages/**`) | `3748f08860` | 422 | 689 | 8 | 39 |
 
 Regenerate with rename detection pinned on — without `-M` the template moves
 surface as delete/add pairs:
@@ -140,29 +141,36 @@ fork-owned by definition, carry no divergence budget, and are not listed here.
 
 ## 3. Allowlist reconciliation
 
-Measured divergence at the current gate base `eded841256` is **611 files /
-2,789 hunks / 33,816 changed lines** under `packages/` (`measureDivergence`,
-`--diff-filter=MD`, so fork-added files are excluded). It was 633 files / 2,844
-hunks / 34,177 changed lines at the retired `dfcd414a` base: the drop is upstream
-3.8.2 landing content the fork already carried, not a shrink the fork earned.
+Measured divergence at the current gate base `3748f08860` is **610 files /
+2,777 hunks / 34,334 changed lines** under `packages/` (`measureDivergence`,
+`--diff-filter=MD`, so fork-added files are excluded). It was 611 files / 2,789
+hunks / 33,816 changed lines at the retired `eded841256` base. The changed
+totals are a base transition, not a fork-earned shrink or ordinary PR growth.
 
-**The re-record at the new base is complete (2026-08-17):** the budgets in
-`divergence-allowlist.json` are the `eded841256` snapshot, written through the
+**The re-record at the new base is complete (2026-08-24):** the budgets in
+`divergence-allowlist.json` are the `3748f08860` snapshot, written through the
 sanctioned reviewed path (§1) — required here because a base re-anchor is by
 definition growth — with the committed merge-base/head refs it demands:
 
 ```sh
 node scripts/ultramodern-boundary-check/check-fork-import-boundary.js \
-  --mode divergence --base eded841256a7cffdaa622e3889fc83407debd3e4 \
+  --mode divergence --base 3748f08860123c797c40576c0604f30a7e376593 \
   --write-divergence-allowlist --rebase-divergence-allowlist --record-growth \
   --merge-base "$PR_MERGE_BASE" --head "$COMMITTED_HEAD"
 ```
 
-The six entries that grow across the base transition are each dispositioned
-below — CLI-19, CLI-20, SRV-20, SRV-21, SRV-22, SRV-23. Four of them grow purely
-because upstream's own file grew in #8797 while the fork keeps its replacement;
-two are the capped Bucket-B patches that port #8797 onto the fork's tsgo
-pipeline. None is a merge-resolution defect.
+The seven entries that grow across this base transition were inspected and are
+dispositioned here. None is an ordinary fork-side PR growth or a merge-resolution
+defect:
+
+| Audited-base-owned path(s) | Owner | Base-transition reason | Disposition |
+| --- | --- | --- | --- |
+| `packages/cli/builder/tests/__snapshots__/{default,environment}.test.ts.snap` | bleedingdev | Upstream regenerated and enlarged snapshots the fork intentionally deleted after replacing them with focused assertions; the new base therefore measures larger deletions | `keep-deleted` |
+| `packages/cli/plugin-ssg/package.json` | bleedingdev | Upstream dependency edits split the retained mechanical manifest divergence into 5 hunks while changed lines fell 24 → 20 | `keep-[M]` |
+| `packages/document/package.json` | bleedingdev | Upstream dependency edits split the retained mechanical manifest divergence into 10 hunks while changed lines fell 40 → 34 | `keep-[M]` |
+| `packages/runtime/plugin-i18n/package.json` | bleedingdev | Upstream React/dependency edits split the retained fork cohort manifest into 11 hunks while changed lines fell 42 → 38 | `keep-[M]` |
+| `packages/runtime/plugin-image/package.json` | bleedingdev | Upstream dependency edits split the retained mechanical manifest divergence into 5 hunks while changed lines fell 17 → 13 | `keep-[M]` |
+| `packages/runtime/render/package.json` | bleedingdev | Upstream React/RSC dependency edits split the retained fork cohort manifest into 10 hunks while changed lines fell 46 → 38 | `keep-[M]` |
 
 The group breakdown below is the last hand-classified snapshot, taken at
 `dfcd414a`. It is advisory attribution only — the gate reads per-file budgets,
@@ -207,7 +215,6 @@ it covers root and infrastructure files outside `packages/`.
 | ROOT-03 | Generated dependency/toolchain cohort pins (tsgo, TanStack, MF 2.8.2, `@module-federation/node@2.7.49`, react-router 7.18.2, Node 26.7.0, pnpm 11.21.0) | bleedingdev | Generator, templates, validation and docs must agree or generated workspaces break | keep-[F] | — |
 | ROOT-04 | 15 `examples/**` members use `workspace:*`; upstream uses `latest` | bleedingdev | Upstream's spelling installs real Modern.js 3.7.0 beside the fork and pnpm non-deterministically hoists one | keep-[F] — see note N2 | — |
 | ROOT-05 | `patchedDependencies` for MF 2.8.2 cohort | bleedingdev | MF SSR/topology lane | keep-[F] | — |
-| ROOT-06 | Root-only `react-server-dom-rspack@0.0.3` patch | bleedingdev | RSC regression tests only; RSC is disabled in the distribution and the patch is never published or generated | keep-[F] | — |
 | ROOT-07 | `pnpm-workspace.yaml` negative globs `!tests/integration/**/{dist,node_modules}/**` | bleedingdev | Gitignored build output emits `package.json` files that match the positive globs and add phantom importers to the lockfile | keep-[F] | — |
 | ROOT-08 | 10 fork-owned workflows added | bleedingdev | Fork gates (boundary, contract, publish, certification, nightly, readiness, security), docs publishing (`docs-pages`), bun smoke (`bun-superapp-smoke`), and Tractor downstream acceptance (`ultramodern-tractor-downstream`) | keep-[F] | — |
 | ROOT-09 | Modified upstream workflows (dependency check, diff, integration, lint, type-check, unit, builder e2e, issue labels) | bleedingdev | Fork toolchain + gate wiring | capped-patch — reconcile upstream infra fixes by hand | — |

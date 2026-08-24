@@ -250,7 +250,7 @@ test('release cohort version base matches the incorporated Modern.js source', as
 });
 
 test('RSC remains an explicit optional toolchain and is absent from the release cohort', () => {
-  const upstreamRuntime = '0.0.3';
+  const upstreamRuntime = '0.1.0';
   const frameworkContracts = [
     {
       path: 'packages/cli/builder/package.json',
@@ -302,7 +302,7 @@ test('RSC remains an explicit optional toolchain and is absent from the release 
     assert.equal(
       packageJson.dependencies?.['react-server-dom-rspack'],
       upstreamRuntime,
-      `${relativePath} must exercise the patched upstream runtime directly`,
+      `${relativePath} must exercise the audited upstream runtime directly`,
     );
   }
 
