@@ -10,6 +10,10 @@ notes N9/N10. Rows outside that set still carry the 2026-08-11 date.
 **Re-verified 2026-08-24** for the upstream sync through `3748f08860`: §2
 bases and counts, §3 reconciliation, and every base-transition growth entry.
 
+**Re-verified 2026-08-25** for the upstream sync through `f4bc5ee335`: §2
+bases and counts and §3 reconciliation. The re-anchor changed no cumulative
+per-file divergence budget.
+
 This file is the single canonical record of where the UltraModern fork diverges
 from upstream Modern.js. It is read during every upstream sync and enforced on
 every PR.
@@ -107,22 +111,22 @@ Two different base refs are in play. Do not mix them — the counts differ.
 
 | Base | SHA | Used by | Meaning |
 | --- | --- | --- | --- |
-| Divergence-gate base | `3748f08860123c797c40576c0604f30a7e376593` | `divergence-allowlist.json`, `--mode divergence` | upstream main through the Rsbuild 2.2.0-rc.0 cohort in #8818, merged into this fork and a true ancestor of `HEAD` |
+| Divergence-gate base | `f4bc5ee33532b7547876857caeab3782d41ffddd` | `divergence-allowlist.json`, `--mode divergence` | upstream main through the app-tools loader fix in #8819, merged into this fork and a true ancestor of `HEAD` |
 | Import-gate base | `8a744c1b` | `allowlist.json`, `--mode imports` | frozen import-boundary baseline, deliberately **not** re-anchored with the divergence base |
-| Sync-review base | `3748f08860123c797c40576c0604f30a7e376593` | this ledger's raw counts | `origin/main` tip at the 2026-08-24 sync; identical to the gate base |
+| Sync-review base | `f4bc5ee33532b7547876857caeab3782d41ffddd` | this ledger's raw counts | `origin/main` tip at the 2026-08-25 sync; identical to the gate base |
 
-**Re-anchored 2026-08-24 (was
-`eded841256a7cffdaa622e3889fc83407debd3e4`, upstream's v3.8.2 mainline release
-commit).** Measure against the recorded **mainline** commit. The previous
+**Re-anchored 2026-08-25 (was
+`3748f08860123c797c40576c0604f30a7e376593`, upstream through the Rsbuild
+2.2.0-rc.0 cohort).** Measure against the recorded **mainline** commit. The
 `v3.8.2` tag remains a parallel, patch-equivalent commit rather than an ancestor
 and is historical context only; it is not a valid substitute for this base.
 
-Raw `git diff -M <base> --name-status` (worktree vs base) at 2026-08-16:
+Raw `git diff -M <base> --name-status` (committed head vs base) at 2026-08-25:
 
 | Scope | Base | M | A | D | R |
 | --- | --- | --- | --- | --- | --- |
-| `packages/**` | `3748f08860` (gate base = synced `origin/main`) | 581 | 847 | 11 | 18 |
-| root/infra (`:(exclude)packages/**`) | `3748f08860` | 422 | 689 | 8 | 39 |
+| `packages/**` | `f4bc5ee335` (gate base = synced `origin/main`) | 581 | 848 | 11 | 18 |
+| root/infra (`:(exclude)packages/**`) | `f4bc5ee335` | 422 | 691 | 7 | 39 |
 
 Regenerate with rename detection pinned on — without `-M` the template moves
 surface as delete/add pairs:
@@ -141,25 +145,32 @@ fork-owned by definition, carry no divergence budget, and are not listed here.
 
 ## 3. Allowlist reconciliation
 
-Measured divergence at the current gate base `3748f08860` is **610 files /
+Measured divergence at the current gate base `f4bc5ee335` is **610 files /
 2,777 hunks / 34,334 changed lines** under `packages/` (`measureDivergence`,
 `--diff-filter=MD`, so fork-added files are excluded). It was 611 files / 2,789
 hunks / 33,816 changed lines at the retired `eded841256` base. The changed
 totals are a base transition, not a fork-earned shrink or ordinary PR growth.
 
-**The re-record at the new base is complete (2026-08-24):** the budgets in
-`divergence-allowlist.json` are the `3748f08860` snapshot, written through the
+**The re-record at the new base is complete (2026-08-25):** the budgets in
+`divergence-allowlist.json` are the `f4bc5ee335` snapshot, written through the
 sanctioned reviewed path (§1) — required here because a base re-anchor is by
 definition growth — with the committed merge-base/head refs it demands:
 
 ```sh
 node scripts/ultramodern-boundary-check/check-fork-import-boundary.js \
-  --mode divergence --base 3748f08860123c797c40576c0604f30a7e376593 \
+  --mode divergence --base f4bc5ee33532b7547876857caeab3782d41ffddd \
   --write-divergence-allowlist --rebase-divergence-allowlist --record-growth \
   --merge-base "$PR_MERGE_BASE" --head "$COMMITTED_HEAD"
 ```
 
-The seven entries that grow across this base transition were inspected and are
+This transition incorporates upstream's app-tools duplicate-loader fix, BFF
+test portability update, and styled-components plugin bump. After merge
+resolution it changes no cumulative per-file budget: totals and all 610 entries
+are identical to the `3748f08860` snapshot. The ledger change is still required
+because audited-base identity changed.
+
+The seven entries that grew across the preceding 2026-08-24 base transition
+were inspected and are
 dispositioned here. None is an ordinary fork-side PR growth or a merge-resolution
 defect:
 

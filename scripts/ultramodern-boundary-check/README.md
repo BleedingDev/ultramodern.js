@@ -27,8 +27,8 @@ node scripts/ultramodern-boundary-check/check-fork-import-boundary.js --write-al
 The import gate cannot see fork behavior written directly into upstream-owned
 files. Divergence mode diffs the complete scope recorded in
 `divergence-allowlist.json` against that file's audited upstream base
-(`3748f08860123c797c40576c0604f30a7e376593` today — upstream main through the
-Rsbuild 2.2.0-rc.0 cohort in #8818, merged into this fork). One entry per
+(`f4bc5ee33532b7547876857caeab3782d41ffddd` today — upstream main through the
+app-tools loader fix in #8819, merged into this fork). One entry per
 divergent base-owned path records only `hunks` and `changedLines`. Always anchor
 on the recorded upstream mainline commit; the previous v3.8.2 release tag was a
 parallel, patch-equivalent commit and was not an ancestor of this branch.
