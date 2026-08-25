@@ -256,6 +256,65 @@ test('temporarily approves the exact fresh Modern.js dependency closure', () => 
   }
 });
 
+test('temporarily approves the exact fresh browser data cohort', () => {
+  const review = JSON.parse(
+    fs.readFileSync(
+      new URL('../release-age-review-2026-08-25.json', import.meta.url),
+      'utf8',
+    ),
+  ) as {
+    expiresAt: string;
+    registryRecords: Array<{
+      packageName: string;
+      version: string;
+      publishedAt: string;
+      dist: { integrity: string };
+    }>;
+    reviewedAt: string;
+  };
+  const approvalBySelector = new Map(
+    ULTRAMODERN_WORKSPACE_POLICY.pnpm.releaseAge.approvals.map(approval => [
+      packageKey(approval.packageName, approval.version),
+      approval,
+    ]),
+  );
+
+  assert.equal(review.registryRecords.length, 2);
+  for (const record of review.registryRecords) {
+    const selector = packageKey(record.packageName, record.version);
+    const approval = approvalBySelector.get(selector);
+    assert.ok(approval, `${selector} must have exact review approval`);
+    assert.equal(approval.reviewedAt, review.reviewedAt);
+    assert.equal(approval.expiresAt, review.expiresAt);
+    assert.deepEqual(approval.registry, {
+      publishedAt: record.publishedAt,
+      dist: { integrity: record.dist.integrity },
+    });
+    assert.deepEqual(approval.evidence, {
+      uri: 'https://github.com/BleedingDev/ultramodern.js/commit/18a7063b427ee1fcb64ede59c85ff7c7adebe4a1',
+      sha256:
+        'e957c320a8877b107d50ac25ddaae467543d0846ef88c8094cbc8b2a684491db',
+      sha256Subject: 'git-commit-payload',
+    });
+  }
+
+  const active = new Set(
+    renderMinimumReleaseAgeExclude({
+      now: new Date(review.reviewedAt),
+    }),
+  );
+  const expired = new Set(
+    renderMinimumReleaseAgeExclude({
+      now: new Date(review.expiresAt),
+    }),
+  );
+  for (const record of review.registryRecords) {
+    const selector = packageKey(record.packageName, record.version);
+    assert.equal(active.has(selector), true);
+    assert.equal(expired.has(selector), false);
+  }
+});
+
 test('renders reviewed and first-party exclusions in the clean-room canonical order', () => {
   const approvalTime = new Date('2026-08-11T00:39:42.463Z');
   const renderedPolicies = [

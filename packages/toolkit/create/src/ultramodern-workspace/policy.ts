@@ -325,6 +325,13 @@ const releaseAgeReviewEvidence = {
     uri: 'https://github.com/BleedingDev/ultramodern.js/commit/b1cb9adc60074f9619e94e8653f2a1f6c8e40ce9',
     sha256: 'fed95e26dcacd298e6a848448ed5965809315c7169d26b7fc4c78ec12505adb7',
   },
+  modernjsBrowserData20260825: {
+    reviewer: 'Petr Glaser <syreanis+1@gmail.com>',
+    reviewedAt: '2026-08-25T08:10:57.000Z',
+    expiresAt: '2026-08-26T02:05:46.077Z',
+    uri: 'https://github.com/BleedingDev/ultramodern.js/commit/18a7063b427ee1fcb64ede59c85ff7c7adebe4a1',
+    sha256: 'e957c320a8877b107d50ac25ddaae467543d0846ef88c8094cbc8b2a684491db',
+  },
   typescript: {
     reviewer: 'Petr Glaser <syreanis+1@gmail.com>',
     reviewedAt: '2026-07-09T14:00:39.000Z',
@@ -1124,6 +1131,24 @@ const releaseAgeApprovals: readonly UltramodernReleaseAgeApproval[] = [
     integrity:
       'sha512-F1XPKvt7HVfly5WND90ec16nFsdr4g5x/cVUP3EqjeyXynupabGDqpMa84wwvuYGDnldXLBz6DLXyZXWO9TPvw==',
     review: releaseAgeReviewEvidence.modernjsUpstream20260824,
+  }),
+  createReleaseAgeApproval({
+    packageName: 'caniuse-lite',
+    version: '1.0.30001810',
+    reason: releaseAgeReasons.framework,
+    publishedAt: '2026-08-24T20:04:16.328Z',
+    integrity:
+      'sha512-TITQPUkaz+aVk5GL6NhOdwk1aEaNTSDPsGFWrTuhKGtjTF70jL/Oht2W4c6rXUe5fu7Ie19VIahAXHIIiWWNeg==',
+    review: releaseAgeReviewEvidence.modernjsBrowserData20260825,
+  }),
+  createReleaseAgeApproval({
+    packageName: 'electron-to-chromium',
+    version: '1.5.414',
+    reason: releaseAgeReasons.framework,
+    publishedAt: '2026-08-25T02:05:46.077Z',
+    integrity:
+      'sha512-aYlviXiaXBbzvKgyALpcMmqa3Np3sDr0XnZbEG62n2UpZFbEcjQ4EEMOLGzVPhwVnwTz0lvKY+GcARbunuHekw==',
+    review: releaseAgeReviewEvidence.modernjsBrowserData20260825,
   }),
   ...typescriptPlatformRegistryReleases.map(
     ([platform, publishedAt, integrity]) =>
