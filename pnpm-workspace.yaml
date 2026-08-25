@@ -269,3 +269,4 @@ minimumReleaseAgeExclude:
   - zephyr-modernjs-plugin@1.2.1
   - zephyr-rspack-plugin@1.2.1
   - zephyr-xpack-internal@1.2.1
+  - '@rsbuild/plugin-styled-components@1.7.0'

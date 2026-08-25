@@ -30,7 +30,7 @@
     "build": "rslib build && pnpm -w tsgo:dts \"$PWD\""
   },
   "dependencies": {
-    "@rsbuild/plugin-styled-components": "1.6.3",
+    "@rsbuild/plugin-styled-components": "1.7.0",
     "@swc/helpers": "^0.5.23"
   },
   "devDependencies": {
