@@ -334,6 +334,11 @@ const ssrBuilderPlugin = (
           },
         },
         output: outputConfig,
+        splitChunks:
+          isServerEnvironment &&
+          (hasModuleFederationRuntimeMarker || hasExplicitMfSsrFlag)
+            ? false
+            : undefined,
         tools: {
           bundlerChain: useLoadablePlugin
             ? (chain: RspackChain) => {

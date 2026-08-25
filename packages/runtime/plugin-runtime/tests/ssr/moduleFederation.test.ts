@@ -208,12 +208,24 @@ describe('module federation SSR output compatibility', () => {
       expect(result.source?.define?.['process.env.MODERN_MF_APP_SSR']).toBe(
         'false',
       );
+      expect(result.splitChunks).toBe(false);
       expect(result.tools?.bundlerChain).toBeUndefined();
       expect(warnSpy).toHaveBeenCalledTimes(1);
       expect(String(warnSpy.mock.calls[0]?.[0] || '')).toContain('mf-ssr');
     } finally {
       warnSpy.mockRestore();
     }
+  });
+
+  it('keeps explicit module federation SSR server output in one chunk', () => {
+    const transform = createEnvironmentConfigTransformer({
+      normalizedConfig: {
+        server: { ssr: { moduleFederationAppSSR: true } },
+      },
+    });
+    const result = transform({ output: { target: 'node' } });
+
+    expect(result.splitChunks).toBe(false);
   });
 
   it('does not force module federation node output for custom node targets from runtime markers alone', () => {
