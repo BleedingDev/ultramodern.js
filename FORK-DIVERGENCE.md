@@ -223,7 +223,7 @@ it covers root and infrastructure files outside `packages/`.
 | --- | --- | --- | --- | --- | --- |
 | ROOT-01 | `pnpm-workspace.yaml`, `pnpm-lock.yaml`, `.npmrc`, root `package.json`, `nx.json`, `biome.json`, `.gitignore`, `.mise.toml` | bleedingdev | Fork package-manager, Renovate/security, tsgo/rstest/biome and publish policy | keep-[F] | — |
 | ROOT-02 | Effect cohort pinned lockstep across 4 sites (`4.0.0-beta.107`) | bleedingdev | Upstream has no Effect lane; a partial revert leaves 3 sites pointing at an uninstalled version | keep-[F] — see note N1 | — |
-| ROOT-03 | Generated dependency/toolchain cohort pins (tsgo, TanStack, MF 2.8.2, `@module-federation/node@2.7.49`, react-router 7.18.2, Node 26.7.0, pnpm 11.21.0) | bleedingdev | Generator, templates, validation and docs must agree or generated workspaces break | keep-[F] | — |
+| ROOT-03 | Generated dependency/toolchain cohort pins (tsgo, TanStack, MF 2.8.2, `@module-federation/node@2.7.49`, Node 26.7.0, pnpm 11.21.0) | bleedingdev | Generator, templates, validation and docs must agree or generated workspaces break | keep-[F] | — |
 | ROOT-04 | 15 `examples/**` members use `workspace:*`; upstream uses `latest` | bleedingdev | Upstream's spelling installs real Modern.js 3.7.0 beside the fork and pnpm non-deterministically hoists one | keep-[F] — see note N2 | — |
 | ROOT-05 | `patchedDependencies` for MF 2.8.2 cohort | bleedingdev | MF SSR/topology lane | keep-[F] | — |
 | ROOT-07 | `pnpm-workspace.yaml` negative globs `!tests/integration/**/{dist,node_modules}/**` | bleedingdev | Gitignored build output emits `package.json` files that match the positive globs and add phantom importers to the lockfile | keep-[F] | — |

@@ -46,7 +46,6 @@ export const NODE_FETCH_VERSION = '^3.3.2';
 // never float; the cohort advances centrally as an exact bump.
 export const REACT_VERSION = '19.2.8';
 export const REACT_DOM_VERSION = '19.2.8';
-export const REACT_ROUTER_VERSION = '7.18.2';
 export const TYPES_NODE_VERSION = '^26.2.0';
 export const TYPES_REACT_VERSION = '^19.2.18';
 export const TYPES_REACT_DOM_VERSION = '^19.2.4';

@@ -663,10 +663,24 @@ function assertIntegratedVertical(
     verticalPackage.dependencies['@modern-js/plugin-bff'],
     'workspace:*',
   );
-  assert.equal(shellPackage.dependencies['react-router'], '7.18.2');
-  assert.equal(verticalPackage.dependencies['react-router'], '7.18.2');
+  assert.equal(shellPackage.dependencies['react-router'], undefined);
+  assert.equal(verticalPackage.dependencies['react-router'], undefined);
   assert.equal(shellPackage.dependencies['react-router-dom'], undefined);
   assert.equal(verticalPackage.dependencies['react-router-dom'], undefined);
+  // TanStack Router is the frontend router, so no generated app installs
+  // react-router. Every federated React UI must therefore disable the MF React
+  // bridge router, which is what makes the plugin alias
+  // `@module-federation/bridge-react` to its react-router-free base entry.
+  for (const federationConfigPath of [
+    'apps/shell-super-app/module-federation.config.ts',
+    `verticals/${id}/module-federation.config.ts`,
+  ]) {
+    assert.match(
+      read(workspaceDir, federationConfigPath),
+      /bridge: \{\n\s+enableBridgeRouter: false,\n\s+\},/u,
+      federationConfigPath,
+    );
+  }
   assert.equal(shellPackage.dependencies[packageName], 'workspace:*');
   assert.equal(
     shellPackage['zephyr:dependencies'][id],

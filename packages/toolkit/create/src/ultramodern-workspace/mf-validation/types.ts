@@ -33,6 +33,12 @@ export type BalancedBlock = {
   suffix: string;
 };
 
+export type LocatedObjectLiteral = {
+  end: number;
+  source: string;
+  start: number;
+};
+
 export type ParsedObjectLiteral = {
   hasSpread: boolean;
   properties: Map<string, string>;

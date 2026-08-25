@@ -65,6 +65,10 @@ import {
   validateGeneratedPnpmLockReleaseAgePolicy,
 } from './migrate-strict-effect/pnpm-policy';
 import {
+  ensureGeneratedModuleFederationBridgeRouterOptOut,
+  removeRetiredReactRouterDependency,
+} from './migrate-strict-effect/react-router-retirement';
+import {
   updateGeneratedToolchainFiles,
   updateRootPackageToolchain,
 } from './migrate-strict-effect/toolchain-pins';
@@ -707,7 +711,6 @@ function migrateStrictEffect(
 
   updateGeneratedBuildIdentityModules(io, migrated);
   updateGeneratedTypeScriptSurfaces(io, migrated);
-  updateGeneratedModernConfigs(io, migrated);
 
   for (const relativePackageFile of listWorkspacePackageFiles(
     io.workspaceRoot,
@@ -723,6 +726,22 @@ function migrateStrictEffect(
     updateModernDependencies(packageJson, packageSource);
     updateGeneratedToolingDependencies(packageJson);
     ensureBffEffectDependencies(packageJson);
+    const retiredReactRouter = removeRetiredReactRouterDependency(
+      packageJson,
+      path.join(io.workspaceRoot, path.dirname(relativePackageFile)),
+    );
+    if (retiredReactRouter === 'preserved') {
+      io.log(
+        `${relativePackageFile} keeps its react-router dependency: authored ` +
+          'source imports React Router directly, so its generated Module ' +
+          'Federation config keeps bridge.enableBridgeRouter: true.',
+      );
+    } else if (retiredReactRouter === 'removed') {
+      io.log(
+        `${relativePackageFile} dropped its obsolete react-router dependency: ` +
+          'no authored source imports React Router.',
+      );
+    }
     updateGeneratedPackageScripts(packageJson, {
       relativePackageFile,
       apps: allMigratedApps,
@@ -731,6 +750,13 @@ function migrateStrictEffect(
 
     writeJsonFile(io, packageFile, packageJson);
   }
+
+  // Generated Module Federation configs derive bridge.enableBridgeRouter from
+  // each app's declared React Router dependency, so they must be regenerated
+  // only after the retirement pass above has settled those manifests —
+  // otherwise a legacy pin that this run removes would still read as an opt-in.
+  updateGeneratedModernConfigs(io, migrated);
+  ensureGeneratedModuleFederationBridgeRouterOptOut(io, allMigratedApps);
 
   updateGeneratedPnpmWorkspacePolicy(io, packageSource, { releaseCohort });
   updateGeneratedToolchainFiles(io);

@@ -241,6 +241,25 @@ ${developmentPorts.map(port => `  'http://localhost:${port}',`).join('\n')}
   });
 }
 
+// TanStack Router is the frontend router of every generated workspace, so no
+// generated app installs react-router. `@module-federation/bridge-react` is
+// still a generated dependency (the patched `@module-federation/modern-js-v3`
+// runtime re-exports it), and its default entry imports `react-router-dom`.
+// `enableBridgeRouter: false` is the supported escape hatch: the MF plugin then
+// skips the React bridge plugin — which would alias `react-router-dom` — and
+// aliases `@module-federation/bridge-react` to its router-free `base` entry
+// instead. The MF plugin never inspects react-router itself, so an app that
+// genuinely brings React Router only gets the bridge router back by declaring
+// `enableBridgeRouter: true` — which is why the flag is emitted from the app's
+// own declared dependencies rather than assumed.
+function createModuleFederationBridgeConfig(
+  enableBridgeRouter: boolean,
+): string {
+  return `  bridge: {
+    enableBridgeRouter: ${enableBridgeRouter},
+  },`;
+}
+
 function createModuleFederationDtsConfig(hasExposes: boolean): string {
   return hasExposes
     ? `  dts: {
@@ -261,6 +280,7 @@ export function createShellModuleFederationConfig(
   scope: string,
   shell: WorkspaceApp,
   remotes: WorkspaceApp[] = [],
+  enableBridgeRouter = false,
 ): string {
   const shellHost = {
     ...shell,
@@ -283,6 +303,7 @@ const reactDomVersion = (require('react-dom/package.json') as { version: string 
 const moduleFederationConfig: Parameters<
   typeof createModuleFederationConfig
 >[0] = createModuleFederationConfig({
+${createModuleFederationBridgeConfig(enableBridgeRouter)}
 ${createModuleFederationDtsConfig(false)}
   filename: 'remoteEntry.js',
   name: '${shell.mfName}',
@@ -345,6 +366,7 @@ export function createRemoteModuleFederationConfig(
   scope: string,
   app: WorkspaceApp,
   remotes: WorkspaceApp[] = [],
+  enableBridgeRouter = false,
 ): string {
   const exposes = formatTsObjectLiteral(app.exposes ?? {});
   const hasExposes = Object.keys(app.exposes ?? {}).length > 0;
@@ -380,6 +402,7 @@ ${tsgoCompilerInstance}
 const moduleFederationConfig: Parameters<
   typeof createModuleFederationConfig
 >[0] = createModuleFederationConfig({
+${createModuleFederationBridgeConfig(enableBridgeRouter)}
 ${createModuleFederationDtsConfig(hasExposes)}
   exposes: ${exposes},
   filename: 'remoteEntry.js',

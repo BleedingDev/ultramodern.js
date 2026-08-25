@@ -144,8 +144,15 @@ provenance attestation 的迁移；它不属于 release-age 审批。
 | Effect compiler | `@effect/tsgo@0.36.2` |
 | TanStack Router | `@tanstack/react-router@1.170.25`、`@tanstack/router-core@1.171.21`、`@tanstack/history@1.162.1` |
 | Module Federation | `bridge-react`、`manifest`、`modern-js-v3`、`rspack`：`2.8.2`；`@module-federation/node@2.7.49` |
-| React Router | `react-router@7.18.2` |
 | Node 与包管理工具 | Node `26.7.0`、`@types/node@^26.2.0`、pnpm `11.21.0` |
+
+生成的 workspace 默认使用 `@module-federation/bridge-react` 的
+router-free base entry（`bridge.enableBridgeRouter: false`），应用路由由
+TanStack Router 承担；某个 app 的 package.json 直接依赖中声明了
+`react-router`（或 `react-router-dom`），该 app 就会被标记为 React Router
+consumer：generator/migration 会为该 app 的 federation 配置生成
+`enableBridgeRouter: true`，workspace validator 也会接受这个值，UltraModern
+preset 会为该 app 自身的路由 alias `react-router` 的入口。
 
 渐进迁移意味着尚未迁移的旧 Modern.js app 可以保留现有 runtime，直到被转换为
 UltraModern。一个 surface 一旦生成为或迁移为 UltraModern HTTP API，就只能使用

@@ -55,7 +55,6 @@ const installAppDependencies = {
   '@tractor-store/shared-design-tokens': 'workspace:*',
   react: '19.2.8',
   'react-dom': '19.2.8',
-  'react-router': '7.18.2',
 };
 
 // plugin-bff declares both as optional peers, so whoever depends on plugin-bff
@@ -154,7 +153,6 @@ test('workspace package source uses workspace versions for generated framework d
     '@tractor-store/shared-design-tokens': 'workspace:*',
     react: '19.2.8',
     'react-dom': '19.2.8',
-    'react-router': '7.18.2',
     ...bffEffectDependencies,
     '@modern-js/plugin-bff': 'workspace:*',
   });

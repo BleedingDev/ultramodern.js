@@ -1,4 +1,4 @@
-import type { BalancedBlock } from './types';
+import type { BalancedBlock, LocatedObjectLiteral } from './types';
 
 function isEscaped(source: string, index: number): boolean {
   let slashCount = 0;
@@ -176,9 +176,9 @@ function hasIdentifierBoundary(source: string, start: number, end: number) {
   );
 }
 
-export function findCreateModuleFederationConfigObject(
+export function locateCreateModuleFederationConfigObject(
   source: string,
-): string | undefined {
+): LocatedObjectLiteral | undefined {
   const callee = 'createModuleFederationConfig';
   let offset = 0;
 
@@ -210,10 +210,20 @@ export function findCreateModuleFederationConfigObject(
       throw new Error('Module Federation config object literal is not closed.');
     }
 
-    return source.slice(argumentIndex, closeIndex + 1);
+    return {
+      end: closeIndex + 1,
+      source: source.slice(argumentIndex, closeIndex + 1),
+      start: argumentIndex,
+    };
   }
 
   return undefined;
+}
+
+export function findCreateModuleFederationConfigObject(
+  source: string,
+): string | undefined {
+  return locateCreateModuleFederationConfigObject(source)?.source;
 }
 
 export function findExportDefaultObject(source: string): string | undefined {

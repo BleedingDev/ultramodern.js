@@ -126,6 +126,11 @@ const resolveReactRouterPackageDir = (appDirectory: string) => {
   return undefined;
 };
 
+// Dependency-driven opt-in surface for apps that explicitly install
+// react-router/react-router-dom. Default TanStack workspaces install neither,
+// so resolveReactRouterPackageDir returns undefined and this must no-op.
+// Do not remove as dead code: it is the supported escape hatch for apps that
+// bring their own react-router dependency.
 const setReactRouterBridgeSafeAliases = (
   chain: RspackChain,
   { isProd }: { isProd: boolean },

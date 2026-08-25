@@ -35,7 +35,6 @@ import {
   OXLINT_VERSION,
   PNPM_VERSION,
   REACT_DOM_VERSION,
-  REACT_ROUTER_VERSION,
   REACT_VERSION,
   RSBUILD_PLUGIN_TAILWINDCSS_VERSION,
   TAILWIND_VERSION,
@@ -376,6 +375,12 @@ function createReleaseAgeApproval(
 
 export const ULTRAMODERN_PACKAGE_PINS = {
   appDependencies: {
+    // Generated apps never install react-router — TanStack Router is the
+    // frontend router — yet `@module-federation/bridge-react` must stay a
+    // direct dependency: the MF plugin only honours `enableBridgeRouter: false`
+    // by aliasing bridge-react to its router-free `base` entry when it finds
+    // the package in the app's own `package.json`. Drop it and the default,
+    // `react-router-dom`-importing entry is bundled again.
     '@module-federation/bridge-react': MODULE_FEDERATION_VERSION,
     '@module-federation/modern-js-v3': MODULE_FEDERATION_VERSION,
     '@module-federation/runtime': MODULE_FEDERATION_VERSION,
@@ -384,7 +389,6 @@ export const ULTRAMODERN_PACKAGE_PINS = {
     'node-fetch': NODE_FETCH_VERSION,
     react: REACT_VERSION,
     'react-dom': REACT_DOM_VERSION,
-    'react-router': REACT_ROUTER_VERSION,
   },
   // FORK: `@modern-js/plugin-bff` declares `effect` and `@effect/opentelemetry`
   // as OPTIONAL peers so a hono-only consumer is never forced to install Effect.

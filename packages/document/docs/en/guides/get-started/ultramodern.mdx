@@ -163,8 +163,15 @@ metadata transition; they are not release-age approvals.
 | Effect compiler | `@effect/tsgo@0.36.2` |
 | TanStack Router | `@tanstack/react-router@1.170.25`, `@tanstack/router-core@1.171.21`, `@tanstack/history@1.162.1` |
 | Module Federation | `bridge-react`, `manifest`, `modern-js-v3`, and `rspack`: `2.8.2`; `@module-federation/node@2.7.49` |
-| React Router | `react-router@7.18.2` |
 | Node and package tooling | Node `26.7.0`, `@types/node@^26.2.0`, pnpm `11.21.0` |
+
+Generated workspaces default to Module Federation bridge-react's router-free
+base entry (`bridge.enableBridgeRouter: false`), with TanStack Router as the
+application router. Declaring `react-router` (or `react-router-dom`) as a
+direct dependency of an app marks it a React Router consumer: the
+generator/migration then emit `enableBridgeRouter: true` for that app's
+federation config, the workspace validator accepts it, and the UltraModern
+preset aliases `react-router`'s entrypoints for the app's own routing.
 
 Gradual migration means old, unmigrated Modern.js apps can keep their existing
 runtime until they are converted. Once a surface is generated or migrated as

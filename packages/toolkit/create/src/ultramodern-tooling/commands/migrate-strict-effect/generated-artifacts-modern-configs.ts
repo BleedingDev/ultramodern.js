@@ -27,6 +27,7 @@ import {
 } from '../../config';
 import { writeGeneratedUiSourceIfChanged } from './generated-ui-source';
 import { type MigrationIo, readJsonFile } from './io';
+import { appDeclaresReactRouter } from './react-router-retirement';
 
 function isGeneratedShellComposition(source: string) {
   return (
@@ -78,6 +79,12 @@ export function updateGeneratedModernConfigs(
     // A headless (api-only) unit exposes no browser MF surface: migrate must
     // not write a browser config for it — and must remove a stale one.
     if (appEmitsBrowserUi(app)) {
+      // Generated MF configs are regenerated wholesale, so the bridge router
+      // opt-in can only survive migrate by being derived — the app's own
+      // declared React Router dependency is that single source of truth.
+      const enableBridgeRouter = appDeclaresReactRouter(
+        path.join(io.workspaceRoot, app.directory),
+      );
       changed =
         io.write(
           path.join(
@@ -90,11 +97,13 @@ export function updateGeneratedModernConfigs(
                 config.workspace.packageScope,
                 app,
                 remotes,
+                enableBridgeRouter,
               )
             : createRemoteModuleFederationConfig(
                 config.workspace.packageScope,
                 app,
                 remotes,
+                enableBridgeRouter,
               ),
         ) || changed;
     } else {

@@ -950,6 +950,33 @@ describe('Cloudflare output verifier', () => {
     );
   });
 
+  it('rejects the react-router browser lazy-route-loader dynamic import shape', async () => {
+    const { outputDirectory } = await createOutputFixture({
+      bffWorkerSource: [
+        "const route = { module: '@evil/worker-runtime' };",
+        'void (async () => {',
+        '  await import(/* @vite-ignore */ /* webpackIgnore: true */ route.module);',
+        '})();',
+        'const __modern_create_effect_bff_dispatcher = async () => ({ dispatch: async () => new Response("ok"), dispose: async () => {} });',
+        'module.exports = { __modern_create_effect_bff_dispatcher };',
+      ].join('\n'),
+    });
+
+    const result = await verifyCloudflareOutput({
+      outputDirectory,
+      importWorker: false,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        code: 'invalid-worker-bundle',
+        message:
+          'Cloudflare worker bundles must not contain non-static dynamic module imports.',
+      }),
+    );
+  });
+
   it('eagerly lowers local imports across real Rspack worker entries', async () => {
     for (const minimize of [false, true]) {
       const { directory, outputDirectory } = await createOutputFixture({

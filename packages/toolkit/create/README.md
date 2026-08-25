@@ -57,10 +57,10 @@ on those values; do not reintroduce Corepack or older pnpm aliases.
 
 The current generated dependency cohort also pins `@effect/tsgo@0.36.2`,
 `@tanstack/react-router@1.170.25`, `@tanstack/router-core@1.171.21`,
-`@tanstack/history@1.162.1`, the Module Federation integration `2.8.2` cohort,
-`@module-federation/node@2.7.49`, and `react-router@7.18.2`. Move these only
-through the generator-owned version policy so templates, validation, and the
-published workspace contract stay aligned.
+`@tanstack/history@1.162.1`, and the Module Federation integration `2.8.2`
+cohort, `@module-federation/node@2.7.49`. Move these only through the
+generator-owned version policy so templates, validation, and the published
+workspace contract stay aligned.
 
 ## TS-Go Compatibility Boundary
 
