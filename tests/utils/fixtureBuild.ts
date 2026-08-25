@@ -184,7 +184,7 @@ export async function buildFixtureOnce<T extends BuildResult>(
   const markerPath = markerPathFor(fixtureDir, outputDir);
 
   try {
-    const inputHash = await hashFixtureInputs(
+    let inputHash = await hashFixtureInputs(
       fixtureDir,
       options.inputs ?? defaultInputs,
       options.cacheKey,
@@ -197,6 +197,11 @@ export async function buildFixtureOnce<T extends BuildResult>(
     await fs.rm(markerPath, { force: true });
     const result = await options.build();
     if (result.code === 0) {
+      inputHash = await hashFixtureInputs(
+        fixtureDir,
+        options.inputs ?? defaultInputs,
+        options.cacheKey,
+      );
       await writeMarkerAtomically(markerPath, {
         fixtureDir: path.resolve(fixtureDir),
         inputHash,

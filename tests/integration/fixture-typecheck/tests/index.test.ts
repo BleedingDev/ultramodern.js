@@ -105,6 +105,40 @@ describe('fork fixture typechecks', () => {
 });
 
 describe('fixture build cache', () => {
+  test('records generated inputs after a successful build', async () => {
+    const fixtureDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'modernjs-fixture-generated-input-test-'),
+    );
+    const outputPath = path.join(fixtureDir, 'dist');
+    const generatedPath = path.join(fixtureDir, 'src', 'router.gen.ts');
+    let buildCount = 0;
+
+    try {
+      const build = async () => {
+        buildCount += 1;
+        await fs.mkdir(path.dirname(generatedPath), { recursive: true });
+        await fs.writeFile(generatedPath, 'export const route = "/";\n');
+        await fs.mkdir(outputPath, { recursive: true });
+        return { code: 0 };
+      };
+
+      await buildFixtureOnce(fixtureDir, {
+        inputs: ['src'],
+        cacheKey: 'generated-input-test',
+        build,
+      });
+      await buildFixtureOnce(fixtureDir, {
+        inputs: ['src'],
+        cacheKey: 'generated-input-test',
+        build,
+      });
+
+      expect(buildCount).toBe(1);
+    } finally {
+      await fs.rm(fixtureDir, { recursive: true, force: true });
+    }
+  });
+
   test('does not keep a valid marker after an invalidating failed rebuild', async () => {
     const fixtureDir = await fs.mkdtemp(
       path.join(os.tmpdir(), 'modernjs-fixture-build-test-'),
