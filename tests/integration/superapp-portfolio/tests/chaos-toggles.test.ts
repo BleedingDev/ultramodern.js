@@ -105,7 +105,11 @@ async function getBootstrap(port: number) {
 
 async function resetPortfolio(port: number) {
   const response = await postJson(port, '/bff-api/effect/reset');
-  expect(response.status).toBe(200);
+  if (response.status !== 200) {
+    throw new Error(
+      `Portfolio reset returned ${response.status}: ${await response.text()}`,
+    );
+  }
   return response.json();
 }
 

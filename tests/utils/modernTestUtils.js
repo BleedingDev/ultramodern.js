@@ -35,6 +35,16 @@ const kWorkspaceDistWriterLockDir = path.join(
   'writer.lock',
 );
 const kWorkspaceDistReadersDir = path.join(kWorkspaceRwLockRoot, 'readers');
+const kTestPortAllocatorKey = `${kTestsRoot}#test-port-allocator`;
+const kTestPortStatePath = path.join(
+  os.tmpdir(),
+  `modernjs-test-port-${crypto
+    .createHash('sha1')
+    .update(kRepoRoot)
+    .digest('hex')}.json`,
+);
+const kTestPortRangeStart = 20_000;
+const kTestPortRangeEnd = 59_999;
 
 function resolveWorkspacePackageBuildLockDir(packageDir) {
   const digest = crypto
@@ -314,16 +324,25 @@ async function waitForTcpServer(port, timeoutMs = 10_000) {
 
 function resolveReadyPort(configuredPort, output) {
   const numericPort = Number(configuredPort);
-  if (Number.isInteger(numericPort) && numericPort > 0) {
-    return numericPort;
-  }
-
   const localUrl = output.match(
     /> Local:\s+(?:\x1b\[[0-9;]*m)*https?:\/\/(?:localhost|127\.0\.0\.1):(\d+)/i,
   );
   const detectedPort = Number(localUrl?.[1]);
   if (Number.isInteger(detectedPort) && detectedPort > 0) {
+    if (
+      Number.isInteger(numericPort) &&
+      numericPort > 0 &&
+      numericPort !== detectedPort
+    ) {
+      throw new Error(
+        `Modern.js requested port ${numericPort} but started on ${detectedPort}`,
+      );
+    }
     return detectedPort;
+  }
+
+  if (Number.isInteger(numericPort) && numericPort > 0) {
+    return numericPort;
   }
 
   throw new Error('Dev server reported readiness without a usable local port');
@@ -1038,31 +1057,67 @@ async function killApp(instance) {
   });
 }
 
-function reservePort() {
-  return new Promise((resolve, reject) => {
-    const server = net.createServer();
+async function reservePort() {
+  const releaseLock = await acquireWorkspacePackageBuildLock(
+    kTestPortAllocatorKey,
+  );
 
-    server.unref();
-    server.on('error', reject);
-    server.listen(0, '127.0.0.1', () => {
-      const address = server.address();
-      if (!address || typeof address === 'string') {
-        server.close(() => {
-          reject(new Error('Failed to resolve an available TCP port'));
+  try {
+    let nextPort = kTestPortRangeStart;
+    try {
+      const state = JSON.parse(
+        await fs.promises.readFile(kTestPortStatePath, 'utf8'),
+      );
+      if (
+        Number.isInteger(state.nextPort) &&
+        state.nextPort >= kTestPortRangeStart &&
+        state.nextPort <= kTestPortRangeEnd
+      ) {
+        nextPort = state.nextPort;
+      }
+    } catch {}
+
+    const rangeSize = kTestPortRangeEnd - kTestPortRangeStart + 1;
+    for (let attempt = 0; attempt < rangeSize; attempt += 1) {
+      const port = nextPort;
+      nextPort = port === kTestPortRangeEnd ? kTestPortRangeStart : port + 1;
+
+      const available = await new Promise((resolve, reject) => {
+        const server = net.createServer();
+        server.unref();
+        server.once('error', error => {
+          if (error?.code === 'EADDRINUSE') {
+            resolve(false);
+          } else {
+            reject(error);
+          }
         });
-        return;
+        server.listen(port, '127.0.0.1', () => {
+          server.close(error => {
+            if (error) {
+              reject(error);
+            } else {
+              resolve(true);
+            }
+          });
+        });
+      });
+
+      if (!available) {
+        continue;
       }
 
-      const { port } = address;
-      server.close(err => {
-        if (err) {
-          reject(err);
-          return;
-        }
-        resolve(port);
-      });
-    });
-  });
+      await fs.promises.writeFile(
+        kTestPortStatePath,
+        `${JSON.stringify({ nextPort })}\n`,
+      );
+      return port;
+    }
+
+    throw new Error('Failed to reserve a unique test port');
+  } finally {
+    await releaseLock();
+  }
 }
 
 async function getPort() {
