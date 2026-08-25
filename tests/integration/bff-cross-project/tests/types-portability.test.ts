@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
+import crossSpawn from 'cross-spawn';
 import {
   createIsolatedTestApp,
   modernBuild,
@@ -144,10 +145,19 @@ describe('crossProject client type portability', () => {
 
       workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bff-portability-'));
       // Pack exactly what would be published.
-      execFileSync('pnpm', ['pack', '--pack-destination', workDir], {
-        cwd: apiAppDir,
-        stdio: 'pipe',
-      });
+      const pack = crossSpawn.sync(
+        'pnpm',
+        ['pack', '--pack-destination', workDir],
+        {
+          cwd: apiAppDir,
+          stdio: 'pipe',
+        },
+      );
+      if (pack.status !== 0) {
+        throw new Error(
+          `pnpm pack failed (${pack.status ?? pack.error}): ${pack.stderr?.toString() ?? ''}`,
+        );
+      }
       const packed = fs
         .readdirSync(workDir)
         .find(name => name.endsWith('.tgz'));
