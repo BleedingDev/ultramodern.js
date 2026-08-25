@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import zlib from 'node:zlib';
 import { yaml } from '@modern-js/utils';
 import { runUltramodernToolingCli } from '../src/ultramodern-tooling/commands';
 import { ensureBffEffectDependencies } from '../src/ultramodern-tooling/commands/migrate-strict-effect/package-cohort';
@@ -77,6 +78,24 @@ function scaffoldWorkspace(name: string) {
 
 function exists(workspaceDir: string, relativePath: string) {
   return fs.existsSync(path.join(workspaceDir, relativePath));
+}
+
+function writeRetiredRspackRscPatch(
+  workspaceDir: string,
+  relativePath: string,
+) {
+  const fixture = fs.readFileSync(
+    path.resolve(
+      __dirname,
+      '../../../..',
+      'tests/retired-rspack-rsc-0.0.3.patch.gz.base64',
+    ),
+    'utf-8',
+  );
+  fs.writeFileSync(
+    path.join(workspaceDir, relativePath),
+    zlib.gunzipSync(Buffer.from(fixture.trim(), 'base64')),
+  );
 }
 
 function readYaml(workspaceDir: string, relativePath: string) {
@@ -557,10 +576,7 @@ test('migrate retires the former generated Rspack RSC patch', async () => {
     >;
     policy.patchedDependencies[selector] = relativePatchPath;
     fs.writeFileSync(workspacePath, yaml.dump(policy), 'utf-8');
-    fs.copyFileSync(
-      path.resolve(__dirname, '../../../..', 'patches', patchFile),
-      path.join(workspaceDir, relativePatchPath),
-    );
+    writeRetiredRspackRscPatch(workspaceDir, relativePatchPath);
 
     assert.equal(
       await runUltramodernToolingCli(
@@ -652,10 +668,7 @@ test('migrate preserves and rejects a consumer-modified retired Rspack RSC patch
     >;
     policy.patchedDependencies[selector] = relativePatchPath;
     fs.writeFileSync(workspacePath, yaml.dump(policy), 'utf-8');
-    fs.copyFileSync(
-      path.resolve(__dirname, '../../../..', 'patches', patchFile),
-      patchPath,
-    );
+    writeRetiredRspackRscPatch(workspaceDir, relativePatchPath);
     fs.appendFileSync(patchPath, '\n# consumer-owned change\n', 'utf-8');
 
     assert.equal(
@@ -711,10 +724,7 @@ for (const [pathDescription, consumerPatchPath] of [
       policy.patchedDependencies[frameworkSelector] = relativePatchPath;
       policy.patchedDependencies[consumerSelector] = consumerPatchPath;
       fs.writeFileSync(workspacePath, yaml.dump(policy), 'utf-8');
-      fs.copyFileSync(
-        path.resolve(__dirname, '../../../..', 'patches', patchFile),
-        patchPath,
-      );
+      writeRetiredRspackRscPatch(workspaceDir, relativePatchPath);
       const originalWorkspace = fs.readFileSync(workspacePath);
       const originalPatch = fs.readFileSync(patchPath);
 
@@ -753,10 +763,7 @@ test('migrate rejects patched dependency paths that escape the workspace', async
     policy.patchedDependencies['consumer-package@1.0.0'] =
       '../outside-workspace.patch';
     fs.writeFileSync(workspacePath, yaml.dump(policy), 'utf-8');
-    fs.copyFileSync(
-      path.resolve(__dirname, '../../../..', 'patches', patchFile),
-      patchPath,
-    );
+    writeRetiredRspackRscPatch(workspaceDir, relativePatchPath);
     const originalWorkspace = fs.readFileSync(workspacePath);
     const originalPatch = fs.readFileSync(patchPath);
 
@@ -794,10 +801,7 @@ test('migrate preserves a retired patch reached through a consumer symlink', asy
     policy.patchedDependencies['consumer-package@1.0.0'] =
       `consumer-patches/${patchFile}`;
     fs.writeFileSync(workspacePath, yaml.dump(policy), 'utf-8');
-    fs.copyFileSync(
-      path.resolve(__dirname, '../../../..', 'patches', patchFile),
-      patchPath,
-    );
+    writeRetiredRspackRscPatch(workspaceDir, relativePatchPath);
     fs.symlinkSync(
       path.join(workspaceDir, 'patches'),
       linkedPatchesPath,
