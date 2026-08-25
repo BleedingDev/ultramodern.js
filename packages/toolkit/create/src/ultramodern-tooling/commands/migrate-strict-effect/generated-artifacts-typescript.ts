@@ -43,6 +43,109 @@ function readJsonObject(filePath: string) {
   return jsonObject(JSON.parse(fs.readFileSync(filePath, 'utf-8')));
 }
 
+function mergeUniqueJsonValues(generated: unknown, existing: unknown) {
+  const generatedValues = Array.isArray(generated) ? generated : [];
+  const existingValues = Array.isArray(existing) ? existing : [];
+  const seen = new Set(generatedValues.map(value => JSON.stringify(value)));
+  return [
+    ...generatedValues,
+    ...existingValues.filter(value => {
+      const key = JSON.stringify(value);
+      if (seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    }),
+  ];
+}
+
+function mergeTypeScriptPlugins(generated: unknown, existing: unknown) {
+  const generatedPlugins = Array.isArray(generated) ? generated : [];
+  const existingPlugins = Array.isArray(existing) ? existing : [];
+  const existingByName = new Map(
+    existingPlugins
+      .map(jsonObject)
+      .filter(plugin => typeof plugin?.name === 'string')
+      .map(plugin => [plugin.name, plugin]),
+  );
+  const merged = generatedPlugins.map(generatedPlugin => {
+    const generatedObject = jsonObject(generatedPlugin);
+    const existingObject =
+      typeof generatedObject?.name === 'string'
+        ? existingByName.get(generatedObject.name)
+        : undefined;
+    if (!generatedObject || !existingObject) {
+      return generatedPlugin;
+    }
+    existingByName.delete(generatedObject.name as string);
+    return {
+      ...generatedObject,
+      ...existingObject,
+      diagnosticSeverity: {
+        ...jsonObject(generatedObject.diagnosticSeverity),
+        ...jsonObject(existingObject.diagnosticSeverity),
+      },
+    };
+  });
+  return [...merged, ...existingByName.values()];
+}
+
+function mergeTypeScriptConfig(generated: unknown, existing: unknown) {
+  const generatedConfig = jsonObject(generated) ?? {};
+  const existingConfig = jsonObject(existing) ?? {};
+  const generatedCompilerOptions =
+    jsonObject(generatedConfig.compilerOptions) ?? {};
+  const existingCompilerOptions = {
+    ...(jsonObject(existingConfig.compilerOptions) ?? {}),
+  };
+  delete existingCompilerOptions.skipLibCheck;
+  const compilerOptions = {
+    ...existingCompilerOptions,
+    ...generatedCompilerOptions,
+  };
+  if (
+    Array.isArray(generatedCompilerOptions.plugins) ||
+    Array.isArray(existingCompilerOptions.plugins)
+  ) {
+    compilerOptions.plugins = mergeTypeScriptPlugins(
+      generatedCompilerOptions.plugins,
+      existingCompilerOptions.plugins,
+    );
+  }
+  const merged: JsonObject = { ...existingConfig, ...generatedConfig };
+  if (Object.keys(compilerOptions).length > 0) {
+    merged.compilerOptions = compilerOptions;
+  }
+  for (const key of ['include', 'exclude', 'references'] as const) {
+    if (
+      Array.isArray(generatedConfig[key]) ||
+      Array.isArray(existingConfig[key])
+    ) {
+      merged[key] = mergeUniqueJsonValues(
+        generatedConfig[key],
+        existingConfig[key],
+      );
+    }
+  }
+  return merged;
+}
+
+function writeMergedTypeScriptConfig(
+  io: MigrationIo,
+  filePath: string,
+  generated: unknown,
+) {
+  const existing = readJsonObject(filePath);
+  const merged = mergeTypeScriptConfig(generated, existing);
+  if (existing && JSON.stringify(merged) !== JSON.stringify(generated)) {
+    io.log(
+      `${path.relative(io.workspaceRoot, filePath)} preserved consumer-owned TypeScript configuration.`,
+    );
+  }
+  return writeJsonFile(io, filePath, merged);
+}
+
 function generatedManifest(io: MigrationIo, config: UltramodernToolingConfig) {
   const sourcePath = path.isAbsolute(config.sourcePath)
     ? config.sourcePath
@@ -327,7 +430,7 @@ export function updateGeneratedTypeScriptSurfaces(
   const remotes = apps.filter(app => app.kind !== 'shell');
 
   changed =
-    writeJsonFile(
+    writeMergedTypeScriptConfig(
       io,
       path.join(io.workspaceRoot, 'tsconfig.base.json'),
       createTsConfigBase(),
@@ -339,7 +442,7 @@ export function updateGeneratedTypeScriptSurfaces(
     'packages/shared-design-tokens',
   ]) {
     changed =
-      writeJsonFile(
+      writeMergedTypeScriptConfig(
         io,
         path.join(io.workspaceRoot, sharedPackage, 'tsconfig.json'),
         createSharedPackageTsConfig(sharedPackage),
@@ -348,13 +451,13 @@ export function updateGeneratedTypeScriptSurfaces(
 
   for (const app of apps) {
     changed =
-      writeJsonFile(
+      writeMergedTypeScriptConfig(
         io,
         path.join(io.workspaceRoot, app.directory, 'tsconfig.json'),
         createAppTsConfig(app, remotes),
       ) || changed;
     changed =
-      writeJsonFile(
+      writeMergedTypeScriptConfig(
         io,
         path.join(io.workspaceRoot, app.directory, 'tsconfig.mf-types.json'),
         createAppMfTypesTsConfig(app),

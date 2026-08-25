@@ -166,6 +166,56 @@ export function removeRetiredReactRouterDependency(
   return 'removed';
 }
 
+export function isGeneratedModuleFederationConfig(source: string) {
+  if (/^\s*\/\/ ultramodern-mf:/u.test(source)) {
+    return true;
+  }
+
+  // Exposing remotes predate the ownership marker. These signatures appear
+  // together only in the generator's canonical Module Federation template;
+  // requiring the complete cohort avoids treating an ordinary authored config
+  // as generated merely because it uses createModuleFederationConfig.
+  return [
+    "import { createRequire } from 'node:module';",
+    'const pluginI18nVersion =',
+    'const pluginTanstackVersion =',
+    'const runtimeVersion =',
+    'const reactVersion =',
+    'const reactDomVersion =',
+    'const moduleFederationConfig: Parameters<',
+    'typeof createModuleFederationConfig',
+    'export default moduleFederationConfig;',
+  ].every(signature => source.includes(signature));
+}
+
+export function preflightModuleFederationBridgeRouter(
+  workspaceRoot: string,
+  apps: readonly Pick<WorkspaceApp, 'directory'>[],
+) {
+  for (const app of apps) {
+    const relativeConfigPath = `${app.directory}/${moduleFederationConfigFile}`;
+    const configPath = path.join(workspaceRoot, relativeConfigPath);
+    if (!fs.existsSync(configPath)) {
+      continue;
+    }
+    const source = fs.readFileSync(configPath, 'utf-8');
+    if (isGeneratedModuleFederationConfig(source)) {
+      continue;
+    }
+    const packageDirectory = path.join(workspaceRoot, app.directory);
+    const packageJson = readPackageJson(packageDirectory) ?? {};
+    removeRetiredReactRouterDependency(packageJson, packageDirectory);
+    if (insertBridgeRouterOptOut(source, appDeclaresReactRouter(packageJson))) {
+      continue;
+    }
+    throw new Error(
+      `Cannot safely migrate ${relativeConfigPath}: its consumer-owned ` +
+        'createModuleFederationConfig value is not a static object literal. ' +
+        'Resolve bridge.enableBridgeRouter explicitly before retrying; no files were written.',
+    );
+  }
+}
+
 function createBridgeRouterEntry(enableBridgeRouter: boolean) {
   return `
   bridge: {

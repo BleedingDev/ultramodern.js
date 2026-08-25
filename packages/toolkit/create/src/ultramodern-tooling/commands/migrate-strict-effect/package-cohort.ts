@@ -214,6 +214,98 @@ function mergeAggregateCheckScript(
   return [...consumerExtras, ...frameworkSegments].join(' && ');
 }
 
+function mergeGeneratedScript(
+  consumer: string,
+  framework: string,
+): { command: string; preservedConsumerSegments: boolean } {
+  const consumerSegments = splitScriptSegments(consumer);
+  const frameworkSegments = splitScriptSegments(framework);
+  const frameworkSegmentSet = new Set(frameworkSegments);
+  const canonicalFrameworkSegment = (segment: string) => {
+    if (frameworkSegmentSet.has(segment)) {
+      return segment;
+    }
+
+    // Generated deploy commands gained --skip-build after Modern began
+    // separating build and deploy. The unflagged predecessor is framework
+    // history, not a consumer command to append after its replacement.
+    if (
+      frameworkSegmentSet.has(`${segment} --skip-build`) &&
+      /\bmodern deploy$/u.test(segment)
+    ) {
+      return `${segment} --skip-build`;
+    }
+
+    // The dedicated verifier wrapper was folded into ultramodern-tooling.
+    // Its app selector remains in the canonical replacement, so the legacy
+    // wrapper is safe to classify as generated ownership.
+    if (
+      /\bnode\s+\S*scripts\/verify-cloudflare-output\.m[ct]s\s+--app\s+\S+$/u.test(
+        segment,
+      ) &&
+      frameworkSegments.find(candidate =>
+        candidate.includes('ultramodern-tooling.mts cloudflare-output-verify'),
+      )
+    ) {
+      return frameworkSegments.find(candidate =>
+        candidate.includes('ultramodern-tooling.mts cloudflare-output-verify'),
+      );
+    }
+
+    return undefined;
+  };
+  const frameworkIndexes = consumerSegments.flatMap((segment, index) =>
+    canonicalFrameworkSegment(segment) ? [index] : [],
+  );
+
+  // With no exact generated segment there is no defensible ownership proof.
+  if (frameworkIndexes.length === 0) {
+    return { command: consumer, preservedConsumerSegments: true };
+  }
+
+  const firstFrameworkIndex = frameworkIndexes[0];
+  const lastFrameworkIndex = frameworkIndexes.at(-1)!;
+  const consumerPrefix = consumerSegments
+    .slice(0, firstFrameworkIndex)
+    .filter(segment => canonicalFrameworkSegment(segment) === undefined);
+  const consumerExtrasAfter = new Map<string, string[]>();
+  let precedingFrameworkSegment: string | undefined;
+  for (const segment of consumerSegments.slice(
+    firstFrameworkIndex,
+    lastFrameworkIndex + 1,
+  )) {
+    const canonicalSegment = canonicalFrameworkSegment(segment);
+    if (canonicalSegment !== undefined) {
+      precedingFrameworkSegment = canonicalSegment;
+    } else if (precedingFrameworkSegment !== undefined) {
+      const extras = consumerExtrasAfter.get(precedingFrameworkSegment) ?? [];
+      extras.push(segment);
+      consumerExtrasAfter.set(precedingFrameworkSegment, extras);
+    }
+  }
+  const consumerSuffix = consumerSegments
+    .slice(lastFrameworkIndex + 1)
+    .filter(segment => canonicalFrameworkSegment(segment) === undefined);
+  const consumerMiddle = [...consumerExtrasAfter.values()].flat();
+  const consumerExtras = [
+    ...consumerPrefix,
+    ...consumerMiddle,
+    ...consumerSuffix,
+  ];
+
+  return {
+    command: [
+      ...consumerPrefix,
+      ...frameworkSegments.flatMap(segment => [
+        segment,
+        ...(consumerExtrasAfter.get(segment) ?? []),
+      ]),
+      ...consumerSuffix,
+    ].join(' && '),
+    preservedConsumerSegments: consumerExtras.length > 0,
+  };
+}
+
 // Rewrite any script references to a workspace-owned .mjs script that migrate
 // renamed to .mts, so no package.json script points at a deleted file.
 
@@ -242,6 +334,7 @@ export function updateGeneratedPackageScripts(
     relativePackageFile?: string;
     apps?: WorkspaceApp[];
     shellOnly?: boolean;
+    onPreserveScript?: (scriptName: string) => void;
   } = {},
 ) {
   const scripts = packageJson.scripts;
@@ -257,9 +350,29 @@ export function updateGeneratedPackageScripts(
   );
   const isRootPackage = options.relativePackageFile === 'package.json';
 
-  if (isRootPackage && scripts.postinstall !== GENERATED_POSTINSTALL_SCRIPT) {
-    scripts.postinstall = GENERATED_POSTINSTALL_SCRIPT;
+  if (rewriteMigratedScriptReferences(scripts)) {
     changed = true;
+  }
+
+  if (isRootPackage) {
+    const existingPostinstall = scripts.postinstall;
+    const mergedPostinstall =
+      typeof existingPostinstall === 'string'
+        ? mergeGeneratedScript(
+            existingPostinstall,
+            GENERATED_POSTINSTALL_SCRIPT,
+          )
+        : {
+            command: GENERATED_POSTINSTALL_SCRIPT,
+            preservedConsumerSegments: false,
+          };
+    if (mergedPostinstall.preservedConsumerSegments) {
+      options.onPreserveScript?.('postinstall');
+    }
+    if (scripts.postinstall !== mergedPostinstall.command) {
+      scripts.postinstall = mergedPostinstall.command;
+      changed = true;
+    }
   }
 
   const expectedScripts = isRootPackage
@@ -295,20 +408,24 @@ export function updateGeneratedPackageScripts(
       // `check` is a consumer-curated aggregate; framework segments must be
       // present/updated but consumer-owned segments must never be dropped.
       const existingScript = scripts[name];
+      const mergedScript =
+        typeof existingScript === 'string'
+          ? mergeGeneratedScript(existingScript, value)
+          : { command: value, preservedConsumerSegments: false };
       const nextValue =
         name === 'check' && typeof existingScript === 'string'
           ? mergeAggregateCheckScript(existingScript, value)
-          : value;
+          : mergedScript.command;
+
+      if (name !== 'check' && mergedScript.preservedConsumerSegments) {
+        options.onPreserveScript?.(name);
+      }
 
       if (scripts[name] !== nextValue) {
         scripts[name] = nextValue;
         changed = true;
       }
     }
-  }
-
-  if (rewriteMigratedScriptReferences(scripts)) {
-    changed = true;
   }
 
   const build = scripts.build;

@@ -66,6 +66,7 @@ import {
 } from './migrate-strict-effect/pnpm-policy';
 import {
   ensureGeneratedModuleFederationBridgeRouterOptOut,
+  preflightModuleFederationBridgeRouter,
   removeRetiredReactRouterDependency,
 } from './migrate-strict-effect/react-router-retirement';
 import {
@@ -562,6 +563,10 @@ function migrateStrictEffect(
   }
 
   const current = normalizeCompactUltramodernConfig(io.workspaceRoot, raw);
+  preflightModuleFederationBridgeRouter(
+    io.workspaceRoot,
+    allWorkspaceAppsFromToolingConfig(current),
+  );
   const packageSource = createMigrationPackageSource(args, current);
   const result = (status: number) => ({
     status,
@@ -746,6 +751,11 @@ function migrateStrictEffect(
       relativePackageFile,
       apps: allMigratedApps,
       shellOnly,
+      onPreserveScript: scriptName =>
+        io.log(
+          `${relativePackageFile} script ${JSON.stringify(scriptName)} was preserved: ` +
+            'an existing command is mixed consumer/framework ownership.',
+        ),
     });
 
     writeJsonFile(io, packageFile, packageJson);

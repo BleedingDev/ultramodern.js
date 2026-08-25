@@ -27,13 +27,48 @@ import {
 } from '../../config';
 import { writeGeneratedUiSourceIfChanged } from './generated-ui-source';
 import { type MigrationIo, readJsonFile } from './io';
-import { appDeclaresReactRouter } from './react-router-retirement';
+import {
+  appDeclaresReactRouter,
+  isGeneratedModuleFederationConfig,
+} from './react-router-retirement';
 
 function isGeneratedShellComposition(source: string) {
   return (
     source.includes('const createRemoteComponent =') &&
     source.includes('export const VerticalShowcase =')
   );
+}
+
+function writeOwnedTypeScriptConfig(
+  io: MigrationIo,
+  filePath: string,
+  generatedSource: string,
+  isGenerated: (source: string) => boolean,
+) {
+  if (!fs.existsSync(filePath)) {
+    return io.write(filePath, generatedSource);
+  }
+  const existingSource = fs.readFileSync(filePath, 'utf-8');
+  if (existingSource === generatedSource || isGenerated(existingSource)) {
+    return io.write(filePath, generatedSource);
+  }
+  io.log(
+    `${path.relative(io.workspaceRoot, filePath)} was preserved: ` +
+      'its generated ownership cannot be proven.',
+  );
+  return false;
+}
+
+function isGeneratedBackendModuleFederationConfig(source: string) {
+  return [
+    "import { createRequire } from 'node:module';",
+    'const bffVersion =',
+    'const effectVersion =',
+    "'./effect-api': './api/effect-api.ts'",
+    "filename: 'backendRemoteEntry.cjs'",
+    'const moduleFederationConfig: Parameters<',
+    'export default moduleFederationConfig;',
+  ].every(signature => source.includes(signature));
 }
 
 export function updateGeneratedModernConfigs(
@@ -65,17 +100,28 @@ export function updateGeneratedModernConfigs(
       : undefined;
 
   for (const app of apps) {
-    changed =
-      io.write(
-        path.join(io.workspaceRoot, app.directory, 'modern.config.ts'),
-        createAppModernConfig(
-          config.workspace.packageScope,
-          app,
-          remotes,
-          config.features.tailwind,
-          configuredDevPorts,
-        ),
-      ) || changed;
+    const modernConfigPath = path.join(
+      io.workspaceRoot,
+      app.directory,
+      'modern.config.ts',
+    );
+    const generatedModernConfig = createAppModernConfig(
+      config.workspace.packageScope,
+      app,
+      remotes,
+      config.features.tailwind,
+      configuredDevPorts,
+    );
+    if (!fs.existsSync(modernConfigPath)) {
+      changed = io.write(modernConfigPath, generatedModernConfig) || changed;
+    } else if (
+      fs.readFileSync(modernConfigPath, 'utf-8') !== generatedModernConfig
+    ) {
+      io.log(
+        `${path.relative(io.workspaceRoot, modernConfigPath)} was preserved: ` +
+          'an existing Modern config is consumer-owned unless its generated ownership can be proven.',
+      );
+    }
     // A headless (api-only) unit exposes no browser MF surface: migrate must
     // not write a browser config for it — and must remove a stale one.
     if (appEmitsBrowserUi(app)) {
@@ -86,7 +132,8 @@ export function updateGeneratedModernConfigs(
         path.join(io.workspaceRoot, app.directory),
       );
       changed =
-        io.write(
+        writeOwnedTypeScriptConfig(
+          io,
           path.join(
             io.workspaceRoot,
             app.directory,
@@ -105,6 +152,7 @@ export function updateGeneratedModernConfigs(
                 remotes,
                 enableBridgeRouter,
               ),
+          isGeneratedModuleFederationConfig,
         ) || changed;
     } else {
       changed =
@@ -119,13 +167,15 @@ export function updateGeneratedModernConfigs(
 
     if (appHasApi(app)) {
       changed =
-        io.write(
+        writeOwnedTypeScriptConfig(
+          io,
           path.join(
             io.workspaceRoot,
             app.directory,
             'backend-federation.config.ts',
           ),
           createBackendModuleFederationConfig(app),
+          isGeneratedBackendModuleFederationConfig,
         ) || changed;
     } else {
       changed =

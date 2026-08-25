@@ -2109,6 +2109,8 @@ declare module '*.css' {}
       'package.json',
       'shared',
       'server',
+      'modern.config.ts',
+      'module-federation.config.ts',
     ]);
 
     const catalogTsConfig = readJson(
@@ -2122,6 +2124,8 @@ declare module '*.css' {}
       'shared',
       'server',
       'api',
+      'modern.config.ts',
+      'module-federation.config.ts',
     ]);
 
     for (const sharedPackageDir of [
