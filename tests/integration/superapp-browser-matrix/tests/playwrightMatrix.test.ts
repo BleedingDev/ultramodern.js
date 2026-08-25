@@ -2,6 +2,7 @@ import { existsSync, mkdirSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import path from 'node:path';
+import { buildFixtureOnce } from '../../../utils/fixtureBuild';
 import {
   getPort,
   killApp,
@@ -241,7 +242,9 @@ describe('SuperApp Playwright browser matrix', () => {
 
   beforeAll(async () => {
     for (const target of appTargets) {
-      const build = await modernBuild(target.appDir);
+      const build = await buildFixtureOnce(target.appDir, {
+        build: () => modernBuild(target.appDir),
+      });
       expect(build.code).toBe(0);
       const port = await getPort();
       const app = await modernServe(target.appDir, port, {
