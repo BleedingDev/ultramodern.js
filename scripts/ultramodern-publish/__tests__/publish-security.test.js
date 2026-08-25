@@ -306,11 +306,7 @@ test('release acceptance defaults to the exact reviewed third-party policy', asy
   const policy = JSON.parse(
     fs.readFileSync(defaultReleaseAgePolicyPath, 'utf8'),
   );
-  const validated = validateExceptionPolicy(
-    policy,
-    new Date('2026-08-11T01:00:00.000Z'),
-  );
-  const review = JSON.parse(
+  const cohortReview = JSON.parse(
     fs.readFileSync(
       path.join(
         repoRoot,
@@ -319,42 +315,93 @@ test('release acceptance defaults to the exact reviewed third-party policy', asy
       'utf8',
     ),
   );
-  const reviewedRegistry = new Map(
-    review.registryRecords.map(record => [
-      `${record.packageName}@${record.version}`,
-      record,
-    ]),
+  const browserDataReview = JSON.parse(
+    fs.readFileSync(
+      path.join(
+        repoRoot,
+        'scripts/ultramodern-publish/release-age-review-2026-08-25.json',
+      ),
+      'utf8',
+    ),
   );
-  const allowedExpiryDates = new Set([
+  const validated = validateExceptionPolicy(
+    policy,
+    new Date(browserDataReview.reviewedAt),
+  );
+  const cohortExpiryDates = new Set([
     '2026-09-25T23:59:59.000Z',
     '2026-10-09T23:59:59.000Z',
     '2026-10-23T23:59:59.000Z',
     '2026-11-06T23:59:59.000Z',
   ]);
+  const reviewedRegistry = new Map([
+    ...cohortReview.registryRecords.map(record => [
+      `${record.packageName}@${record.version}`,
+      {
+        allowedExpiryDates: cohortExpiryDates,
+        evidence: {
+          sha256:
+            '47c9f25308e6bb521fa6e5a603205be9664034ae92bb94b1aa7d5683229bb240',
+          uri: 'https://github.com/BleedingDev/ultramodern.js/commit/eb27eddccec4e51896d63abb070ef46a7b7d3eb7',
+        },
+        record,
+        review: cohortReview,
+      },
+    ]),
+    ...browserDataReview.packages.map(record => [
+      `${record.packageName}@${record.version}`,
+      {
+        allowedExpiryDates: new Set([record.maturesAt]),
+        evidence: {
+          sha256:
+            'b8f9c9e91c424bb9ea2900fb613d2c3e383e4f9efaf51868b96e9e8e83ac0c82',
+          uri: 'https://github.com/BleedingDev/ultramodern.js/commit/625c94e446ae5b8f91624563c6848f2cc6c934cf',
+        },
+        record,
+        review: browserDataReview,
+      },
+    ]),
+  ]);
+  const allowedExpiryDates = new Set([
+    ...cohortExpiryDates,
+    ...browserDataReview.packages.map(record => record.maturesAt),
+  ]);
   const observedExpiryDates = new Set();
 
   assert.equal(options.releaseAgePolicyPath, defaultReleaseAgePolicyPath);
-  assert.equal(validated.entries.length, 50);
+  assert.equal(validated.entries.length, 53);
   assert.deepEqual(
     policy.entries,
     validated.entries,
     'policy must be canonical',
   );
   for (const entry of validated.entries) {
-    const registryRecord = reviewedRegistry.get(
-      `${entry.package}@${entry.version}`,
-    );
-    assert.ok(registryRecord, `missing review record for ${entry.package}`);
-    assert.equal(registryRecord.dist.integrity, entry.integrity);
-    assert.equal(registryRecord.maturityAtReview.state, 'immature');
-    assert.equal(entry.approvedBy, review.reviewer);
-    assert.equal(entry.reviewedAt, review.reviewedAt);
+    const reviewed = reviewedRegistry.get(`${entry.package}@${entry.version}`);
+    assert.ok(reviewed, `missing review record for ${entry.package}`);
+    assert.equal(reviewed.record.dist.integrity, entry.integrity);
+    if (reviewed.record.maturityAtReview) {
+      assert.equal(reviewed.record.maturityAtReview.state, 'immature');
+    } else {
+      assert.ok(
+        new Date(reviewed.record.publishedAt) <
+          new Date(reviewed.review.reviewedAt),
+        `review must follow publication for ${entry.package}`,
+      );
+      assert.ok(
+        new Date(reviewed.review.reviewedAt) <
+          new Date(reviewed.record.maturesAt),
+        `reviewed browser data must still be immature for ${entry.package}`,
+      );
+    }
+    assert.equal(entry.approvedBy, reviewed.review.reviewer);
+    assert.equal(entry.reviewedAt, reviewed.review.reviewedAt);
+    assert.deepEqual(entry.evidence, reviewed.evidence);
     assert.ok(
-      allowedExpiryDates.has(entry.expiresAt),
+      reviewed.allowedExpiryDates.has(entry.expiresAt),
       `unexpected expiry for ${entry.package}`,
     );
     assert.ok(
-      new Date(entry.expiresAt) > new Date(review.reviewedAt),
+      new Date(entry.expiresAt) > new Date(reviewed.review.reviewedAt),
       `expiry must follow review for ${entry.package}`,
     );
     observedExpiryDates.add(entry.expiresAt);

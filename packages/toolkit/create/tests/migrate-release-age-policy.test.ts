@@ -198,9 +198,13 @@ test('temporarily approves the exact fresh Modern.js dependency closure', () => 
     reviewedAt: string;
   };
   const expectedSelectors = new Set(
-    review.registryRecords.map(record =>
-      packageKey(record.packageName, record.version),
-    ),
+    review.registryRecords
+      .filter(
+        record =>
+          packageKey(record.packageName, record.version) !==
+          'electron-to-chromium@1.5.413',
+      )
+      .map(record => packageKey(record.packageName, record.version)),
   );
   const approvalBySelector = new Map(
     ULTRAMODERN_WORKSPACE_POLICY.pnpm.releaseAge.approvals.map(approval => [
@@ -209,8 +213,10 @@ test('temporarily approves the exact fresh Modern.js dependency closure', () => 
     ]),
   );
 
-  assert.equal(expectedSelectors.size, 3);
-  for (const record of review.registryRecords) {
+  assert.equal(expectedSelectors.size, 2);
+  for (const record of review.registryRecords.filter(record =>
+    expectedSelectors.has(packageKey(record.packageName, record.version)),
+  )) {
     const selector = packageKey(record.packageName, record.version);
     const approval = approvalBySelector.get(selector);
     assert.ok(approval, `${selector} must have exact review approval`);
@@ -254,6 +260,7 @@ test('temporarily approves the exact fresh Modern.js dependency closure', () => 
       false,
     );
   }
+  assert.equal(approvalBySelector.has('electron-to-chromium@1.5.413'), false);
 });
 
 test('temporarily approves the exact fresh browser data cohort', () => {

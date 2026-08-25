@@ -1124,15 +1124,6 @@ const releaseAgeApprovals: readonly UltramodernReleaseAgeApproval[] = [
     review: releaseAgeReviewEvidence.modernjsUpstream20260824,
   }),
   createReleaseAgeApproval({
-    packageName: 'electron-to-chromium',
-    version: '1.5.413',
-    reason: releaseAgeReasons.framework,
-    publishedAt: '2026-08-24T10:04:00.088Z',
-    integrity:
-      'sha512-F1XPKvt7HVfly5WND90ec16nFsdr4g5x/cVUP3EqjeyXynupabGDqpMa84wwvuYGDnldXLBz6DLXyZXWO9TPvw==',
-    review: releaseAgeReviewEvidence.modernjsUpstream20260824,
-  }),
-  createReleaseAgeApproval({
     packageName: 'caniuse-lite',
     version: '1.0.30001810',
     reason: releaseAgeReasons.framework,
