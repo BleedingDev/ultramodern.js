@@ -27,6 +27,7 @@ import fs, { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isDeepStrictEqual } from 'node:util';
 
 import { RELEASE_TAG_PREFIX } from './gen-cohort-change-record.mjs';
 import {
@@ -71,8 +72,10 @@ const requiredArtifactFiles = new Set([
   'manifest.json.sha256',
   'publish-outcome.json',
   'published-acceptance-receipt.json',
-  'published-acceptance-receipt.operational-independence.json',
   'tractor-downstream-acceptance.json',
+]);
+const historicalArtifactFiles = new Set([
+  'published-acceptance-receipt.operational-independence.json',
 ]);
 const tarballEntryPattern = /^tarballs\/[A-Za-z0-9][A-Za-z0-9._-]*\.tgz$/u;
 
@@ -101,6 +104,18 @@ function parseJsonCommand(file, args, label) {
   } catch (error) {
     throw new Error(
       `${label} returned invalid JSON: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  }
+}
+
+function readJsonFile(filePath, label) {
+  try {
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch (error) {
+    throw new Error(
+      `${label} is invalid JSON: ${
         error instanceof Error ? error.message : String(error)
       }`,
     );
@@ -353,7 +368,10 @@ function validateOutcomeArchiveEntries(entries) {
     seen.add(entry);
     if (tarballEntryPattern.test(entry)) {
       tarballCount += 1;
-    } else if (!requiredArtifactFiles.has(entry)) {
+    } else if (
+      !requiredArtifactFiles.has(entry) &&
+      !historicalArtifactFiles.has(entry)
+    ) {
       throw new Error(`Unexpected publish outcome archive entry: ${entry}`);
     }
   }
@@ -432,7 +450,53 @@ function verifyPublishOutcomeAtSourceCommit(
 ) {
   const workDir = path.dirname(artifactDir);
   const archivePath = path.join(workDir, 'source-validator.tar');
+  const reconstructedOutcomePath = path.join(
+    workDir,
+    'reconstructed-publish-outcome.json',
+  );
   const validatorRoot = path.join(workDir, 'source-validator');
+  const expectedOutcomeKeys = [
+    'artifactName',
+    'dryRun',
+    'evidence',
+    'producer',
+    'publication',
+    'release',
+    'schema',
+    'schemaVersion',
+    'source',
+    'workflowRun',
+  ];
+  const actualOutcomeKeys = Object.keys(
+    assertObject(outcome, 'Publish outcome'),
+  ).sort();
+  if (!isDeepStrictEqual(actualOutcomeKeys, expectedOutcomeKeys.sort())) {
+    throw new Error('Publish outcome has unknown or missing fields');
+  }
+  if (
+    outcome.schema !== 'bleedingdev.ultramodern.publish-outcome' ||
+    ![4, 5].includes(outcome.schemaVersion)
+  ) {
+    throw new Error('Publish outcome schema is not recoverable');
+  }
+  if (outcome.dryRun !== false || outcome.publication === null) {
+    throw new Error('Publish outcome is not a completed publication');
+  }
+  const publishedOperationalEvidencePath = path.join(
+    artifactDir,
+    'published-acceptance-receipt.operational-independence.json',
+  );
+  const hasPublishedOperationalEvidence = fs.existsSync(
+    publishedOperationalEvidencePath,
+  );
+  if (
+    (outcome.schemaVersion === 4 && !hasPublishedOperationalEvidence) ||
+    (outcome.schemaVersion === 5 && hasPublishedOperationalEvidence)
+  ) {
+    throw new Error(
+      'Publish outcome archive does not match its schema operational evidence profile',
+    );
+  }
   const sourceArchive = run(
     'git',
     ['archive', '--format=tar', options.commit, 'scripts'],
@@ -446,51 +510,76 @@ function verifyPublishOutcomeAtSourceCommit(
   run('tar', ['-xf', archivePath, '-C', validatorRoot], {
     stdio: ['ignore', 'ignore', 'inherit'],
   });
-  run(
-    'node',
-    [
-      path.join(
-        validatorRoot,
-        'scripts/ultramodern-publish/publish-outcome.mjs',
-      ),
-      'verify',
-      '--outcome',
-      path.join(artifactDir, 'publish-outcome.json'),
-      '--artifact-name',
-      artifact.name,
-      '--manifest',
-      path.join(artifactDir, 'manifest.json'),
-      '--manifest-digest',
-      path.join(artifactDir, 'manifest.json.sha256'),
-      '--cohort-digest',
-      path.join(artifactDir, 'cohort.sha256'),
-      '--receipt',
-      path.join(artifactDir, 'acceptance-receipt.json'),
-      '--operational-evidence',
-      path.join(
-        artifactDir,
-        'acceptance-receipt.operational-independence.json',
-      ),
-      '--published-receipt',
-      path.join(artifactDir, 'published-acceptance-receipt.json'),
-      '--published-operational-evidence',
-      path.join(
-        artifactDir,
-        'published-acceptance-receipt.operational-independence.json',
-      ),
-      '--tractor-report',
-      path.join(artifactDir, 'tractor-downstream-acceptance.json'),
-      '--repository',
-      trustedRepository,
-      '--source-commit',
-      options.commit,
-      '--run-id',
-      options.runId,
-      '--run-attempt',
-      String(options.runAttempt),
-    ],
-    { stdio: ['ignore', 'ignore', 'inherit'] },
+  const validatorScriptPath = fs.realpathSync(
+    path.join(validatorRoot, 'scripts/ultramodern-publish/publish-outcome.mjs'),
   );
+  const createArgs = [
+    validatorScriptPath,
+    'create',
+    '--manifest',
+    path.join(artifactDir, 'manifest.json'),
+    '--manifest-digest',
+    path.join(artifactDir, 'manifest.json.sha256'),
+    '--cohort-digest',
+    path.join(artifactDir, 'cohort.sha256'),
+    '--receipt',
+    path.join(artifactDir, 'acceptance-receipt.json'),
+    '--operational-evidence',
+    path.join(artifactDir, 'acceptance-receipt.operational-independence.json'),
+    '--published-receipt',
+    path.join(artifactDir, 'published-acceptance-receipt.json'),
+    '--tractor-report',
+    path.join(artifactDir, 'tractor-downstream-acceptance.json'),
+    '--tractor-report-sha256',
+    outcome.evidence?.tractorAcceptance?.reportSha256,
+    '--tractor-baseline-revision',
+    outcome.evidence?.tractorAcceptance?.baselineRevision,
+    '--out',
+    reconstructedOutcomePath,
+    '--repository',
+    trustedRepository,
+    '--source-commit',
+    options.commit,
+    '--run-id',
+    options.runId,
+    '--run-attempt',
+    String(options.runAttempt),
+    '--publication-run-attempt',
+    String(outcome.publication?.runAttempt),
+    '--producer-artifact-identity',
+    outcome.producer?.artifactIdentity,
+    '--producer-run-attempt',
+    String(outcome.producer?.runAttempt),
+    '--producer-run-identity',
+    outcome.producer?.runIdentity,
+    '--version',
+    options.version,
+    '--tag',
+    'latest',
+    '--dry-run',
+    'false',
+  ];
+  if (outcome.schemaVersion === 4) {
+    createArgs.splice(
+      createArgs.indexOf('--published-receipt'),
+      0,
+      '--published-operational-evidence',
+      publishedOperationalEvidencePath,
+    );
+  }
+  run('node', createArgs, { stdio: ['ignore', 'ignore', 'inherit'] });
+  const reconstructedOutcome = readJsonFile(
+    reconstructedOutcomePath,
+    'Reconstructed publish outcome',
+  );
+  if (
+    artifact.name !== outcome.artifactName ||
+    !isDeepStrictEqual(reconstructedOutcome, outcome)
+  ) {
+    throw new Error(
+      'Publish outcome does not match the exact source validator reconstruction',
+    );
+  }
   return outcome;
 }
 
@@ -631,16 +720,7 @@ async function verifyBackfillEvidence(
     version: options.version,
   });
   const outcomePath = path.join(artifactDir, 'publish-outcome.json');
-  let outcome;
-  try {
-    outcome = JSON.parse(fs.readFileSync(outcomePath, 'utf8'));
-  } catch (error) {
-    throw new Error(
-      `Publish outcome is invalid JSON: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-    );
-  }
+  const outcome = readJsonFile(outcomePath, 'Publish outcome');
   validators.verifyPublishOutcome(outcome, artifactDir, artifact, options);
   if (
     outcome.dryRun !== false ||

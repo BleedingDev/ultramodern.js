@@ -498,10 +498,22 @@ test('runner has no bypass for Node or workerd release gates', async () => {
     'tractor-package-manager-context',
   );
   const exactPnpmExecutable = '/opt/pnpm-11.17.0/bin/pnpm';
+  const minimumReleaseAgeExclude = [
+    '@bleedingdev/modern-js-create@3.5.0-ultramodern.77',
+    '@bleedingdev/modern-js-i18n-utils@3.5.0-ultramodern.77',
+    '@bleedingdev/modern-js-utils@3.5.0-ultramodern.77',
+  ];
   const calls = [];
   const packageManager = createTractorPackageManagerContext({
     createPackage: {
+      bootstrapReleaseAgePolicy: {
+        minimumReleaseAge: 1440,
+        minimumReleaseAgeExclude,
+        minimumReleaseAgeIgnoreMissingTime: false,
+        minimumReleaseAgeStrict: true,
+      },
       exactSpecifier: '@bleedingdev/modern-js-create@3.5.0-ultramodern.77',
+      version: '3.5.0-ultramodern.77',
     },
     expectedPnpmVersion: '11.17.0',
     packageManagerRoot,
@@ -521,12 +533,21 @@ test('runner has no bypass for Node or workerd release gates', async () => {
   );
   assert.equal(
     packageManager.env.pnpm_config_minimum_release_age_exclude,
-    '@bleedingdev/*',
+    JSON.stringify(minimumReleaseAgeExclude),
+  );
+  assert.equal(packageManager.env.pnpm_config_minimum_release_age, '1440');
+  assert.equal(
+    packageManager.env.pnpm_config_minimum_release_age_ignore_missing_time,
+    'false',
+  );
+  assert.equal(
+    packageManager.env.pnpm_config_minimum_release_age_strict,
+    'true',
   );
   assert.equal(packageManager.env.pnpm_config_pm_on_fail, 'ignore');
   assert.equal(
-    packageManager.env.pnpm_config_trust_policy_exclude,
-    '@bleedingdev/*',
+    Object.hasOwn(packageManager.env, 'pnpm_config_trust_policy_exclude'),
+    false,
   );
   assert.equal(
     packageManager.env.pnpm_config_registry,

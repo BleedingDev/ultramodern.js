@@ -1,5 +1,6 @@
 // Consumer: backfill-change-record.mjs historical release recovery.
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -16,6 +17,7 @@ import {
   validateOutcomeArchiveEntries,
   verifyAuthenticatedRegistryProvenance,
   verifyBackfillEvidence,
+  verifyPublishOutcomeAtSourceCommit,
 } from '../backfill-change-record.mjs';
 
 const version = '3.5.0-ultramodern.102';
@@ -109,7 +111,6 @@ const requiredArchiveEntries = [
   'manifest.json.sha256',
   'publish-outcome.json',
   'published-acceptance-receipt.json',
-  'published-acceptance-receipt.operational-independence.json',
   'tarballs/bleedingdev-modern-js-create-3.5.0-ultramodern.102.tgz',
   'tractor-downstream-acceptance.json',
 ];
@@ -301,6 +302,14 @@ test('publish outcome archive accepts only the complete immutable evidence bundl
   assert.deepEqual(
     validateOutcomeArchiveEntries(requiredArchiveEntries),
     requiredArchiveEntries,
+  );
+  const historicalEntries = [
+    ...requiredArchiveEntries,
+    'published-acceptance-receipt.operational-independence.json',
+  ];
+  assert.deepEqual(
+    validateOutcomeArchiveEntries(historicalEntries),
+    historicalEntries,
   );
   for (const [entries, expected] of [
     [
@@ -678,6 +687,76 @@ test('backfill never mutates GitHub after failed or mismatched proof', async () 
     await assert.rejects(executeBackfill(options(), operations), expected);
     assert.equal(released, false);
     fs.rmSync(temporaryDirectory, { force: true, recursive: true });
+  }
+});
+
+test('backfill archives the current source validator and rejects malformed outcomes before side effects', async () => {
+  const currentSourceCommit =
+    execFileSync('git', ['stash', 'create', 'backfill-source-validator-test'], {
+      encoding: 'utf8',
+    }).trim() ||
+    execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+
+  for (const malformedOutcome of [{}, { unexpected: true }]) {
+    const { events, operations, temporaryDirectory } = createOperations();
+    const artifactDir = path.join(temporaryDirectory, 'publish-outcome');
+    fs.mkdirSync(artifactDir);
+    for (const entry of requiredArchiveEntries) {
+      if (!entry.startsWith('tarballs/')) {
+        fs.writeFileSync(path.join(artifactDir, entry), '');
+      }
+    }
+    fs.writeFileSync(
+      path.join(artifactDir, 'publish-outcome.json'),
+      `${JSON.stringify(malformedOutcome)}\n`,
+    );
+    const currentOptions = options({ commit: currentSourceCommit });
+    const currentWorkflowRun = workflowRun({ head_sha: currentSourceCommit });
+    const currentArtifact = outcomeArtifact({
+      workflow_run: {
+        ...outcomeArtifact().workflow_run,
+        head_sha: currentSourceCommit,
+      },
+    });
+    operations.loadWorkflowRun = async () => {
+      events.push('workflow');
+      return currentWorkflowRun;
+    };
+    operations.assertCommitReachable = async () => {
+      events.push('reachability');
+      return currentSourceCommit;
+    };
+    operations.loadOutcomeArtifact = async () => {
+      events.push('artifact');
+      return currentArtifact;
+    };
+    operations.downloadOutcomeArtifact = async () => {
+      events.push('download');
+      return artifactDir;
+    };
+    operations.verifyEvidence = async (directory, artifact, expected) => {
+      events.push('evidence');
+      return verifyPublishOutcomeAtSourceCommit(
+        malformedOutcome,
+        directory,
+        artifact,
+        expected,
+      );
+    };
+
+    await assert.rejects(
+      executeBackfill(currentOptions, operations),
+      /Publish outcome has unknown or missing fields/u,
+    );
+    assert.deepEqual(events, [
+      'workflow',
+      'reachability',
+      'artifact',
+      'temporary-directory',
+      'download',
+      'evidence',
+      'cleanup',
+    ]);
   }
 });
 

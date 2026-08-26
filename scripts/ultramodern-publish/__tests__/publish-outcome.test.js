@@ -45,7 +45,11 @@ test('publish workflow Tractor baseline has an independently reviewed topology',
   );
 });
 
-async function createEvidenceFixture() {
+async function createEvidenceFixture({
+  includePublishedOperationalEvidence = false,
+  receiptApiOverride,
+  sourceIdentity = source,
+} = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'publish-outcome-'));
   const releaseDir = path.join(root, 'release');
   const manifestPath = path.join(releaseDir, 'manifest.json');
@@ -60,20 +64,29 @@ async function createEvidenceFixture() {
     root,
     'published-acceptance-receipt.json',
   );
+  const publishedOperationalEvidencePath = path.join(
+    root,
+    'published-acceptance-receipt.operational-independence.json',
+  );
   const tractorReportPath = path.join(
     root,
     'tractor-downstream-acceptance.json',
   );
   const outPath = path.join(root, 'publish-outcome.json');
-  const [releaseArtifactsApi, releaseManifestApi, receiptApi, constants] =
-    await Promise.all([
-      import('../prepare-bleedingdev-packages.mjs'),
-      import('../lib/source-create-proof/release-manifest.mjs'),
-      import(
-        '../../ultramodern-production-readiness/published-create-proof/acceptance-receipt.mjs'
-      ),
-      import('../lib/prepare-bleedingdev-packages/constants.mjs'),
-    ]);
+  const [
+    releaseArtifactsApi,
+    releaseManifestApi,
+    currentReceiptApi,
+    constants,
+  ] = await Promise.all([
+    import('../prepare-bleedingdev-packages.mjs'),
+    import('../lib/source-create-proof/release-manifest.mjs'),
+    import(
+      '../../ultramodern-production-readiness/published-create-proof/acceptance-receipt.mjs'
+    ),
+    import('../lib/prepare-bleedingdev-packages/constants.mjs'),
+  ]);
+  const receiptApi = receiptApiOverride ?? currentReceiptApi;
   const aliases = {
     '@modern-js/create': '@bleedingdev/modern-js-create',
     '@modern-js/i18n-utils': '@bleedingdev/modern-js-i18n-utils',
@@ -141,7 +154,7 @@ async function createEvidenceFixture() {
     command: execFileSync,
     outDir: releaseDir,
     packages,
-    source,
+    source: sourceIdentity,
     tag: release.tag,
     tools: { node: process.version, npm: 'fixture-npm', pnpm: 'fixture-pnpm' },
     version: release.version,
@@ -197,7 +210,13 @@ async function createEvidenceFixture() {
   await createReceipt('source', receiptPath, operationalEvidencePath);
   // ACC-1: published receipts carry no operational-independence result, so
   // the fixture writes no published operational evidence file.
-  await createReceipt('published', publishedReceiptPath);
+  await createReceipt(
+    'published',
+    publishedReceiptPath,
+    includePublishedOperationalEvidence
+      ? publishedOperationalEvidencePath
+      : undefined,
+  );
   const tractorBaselineRevision = 'cb6974e31bc919c86ae5bb86044409f0f1e036d5';
   const verticalIds = ['checkout', 'decide', 'explore'];
   const boundaryCandidates = {
@@ -383,7 +402,7 @@ async function createEvidenceFixture() {
       release: {
         cohortDigest,
         manifestSha256,
-        sourceRevision: source.commit,
+        sourceRevision: sourceIdentity.commit,
         version: release.version,
       },
       schema: 'bleedingdev.ultramodern.tractor-downstream-acceptance',
@@ -398,9 +417,11 @@ async function createEvidenceFixture() {
     manifestPath,
     operationalEvidencePath,
     outPath,
+    publishedOperationalEvidencePath,
     publishedReceiptPath,
     receiptPath,
     root,
+    source: sourceIdentity,
     tractorBaselineRevision,
     tractorReportPath,
     tractorReportSha256: digest(fs.readFileSync(tractorReportPath)),
@@ -416,10 +437,10 @@ function createOptions(fixture, artifactName, dryRun) {
     publicationRunAttempt,
     producerRunAttempt,
     producerRunIdentity,
-    repository: source.repository,
+    repository: fixture.source.repository,
     runAttempt: outcomeRunAttempt,
     runId,
-    sourceCommit: source.commit,
+    sourceCommit: fixture.source.commit,
     tag: release.tag,
     version: release.version,
   };
@@ -430,6 +451,37 @@ function createOptions(fixture, artifactName, dryRun) {
     delete options.tractorReportSha256;
   }
   return options;
+}
+
+function populateDownloadedOutcome(fixture, artifactDir) {
+  fs.mkdirSync(artifactDir);
+  const files = [
+    [fixture.cohortDigestPath, 'cohort.sha256'],
+    [fixture.manifestDigestPath, 'manifest.json.sha256'],
+    [fixture.manifestPath, 'manifest.json'],
+    [
+      fixture.operationalEvidencePath,
+      'acceptance-receipt.operational-independence.json',
+    ],
+    [fixture.outPath, 'publish-outcome.json'],
+    [fixture.publishedReceiptPath, 'published-acceptance-receipt.json'],
+    [fixture.receiptPath, 'acceptance-receipt.json'],
+    [fixture.tractorReportPath, 'tractor-downstream-acceptance.json'],
+  ];
+  if (fs.existsSync(fixture.publishedOperationalEvidencePath)) {
+    files.push([
+      fixture.publishedOperationalEvidencePath,
+      'published-acceptance-receipt.operational-independence.json',
+    ]);
+  }
+  for (const [sourcePath, name] of files) {
+    fs.copyFileSync(sourcePath, path.join(artifactDir, name));
+  }
+  fs.cpSync(
+    path.join(path.dirname(fixture.manifestPath), 'tarballs'),
+    path.join(artifactDir, 'tarballs'),
+    { recursive: true },
+  );
 }
 
 function artifact(id, name, overrides = {}) {
@@ -477,6 +529,196 @@ test('dry-run and real publication emit the same strict bound outcome schema', a
     } finally {
       fs.rmSync(fixture.root, { force: true, recursive: true });
     }
+  }
+});
+
+test('backfill reconstructs schema-v5 outcomes with the archived current-source create contract', async () => {
+  const currentSourceCommit =
+    execFileSync('git', ['stash', 'create', 'publish-outcome-source-test'], {
+      encoding: 'utf8',
+    }).trim() ||
+    execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+  const fixture = await createEvidenceFixture({
+    sourceIdentity: { ...source, commit: currentSourceCommit },
+  });
+  const artifactDir = path.join(fixture.root, 'downloaded-outcome');
+  const api = await outcomeApi();
+  const { verifyPublishOutcomeAtSourceCommit } = await import(
+    '../backfill-change-record.mjs'
+  );
+  const artifactName = api.publishOutcomeArtifactName({
+    runAttempt: outcomeRunAttempt,
+    runId,
+  });
+  const outcome = api.createPublishOutcome(
+    createOptions(fixture, artifactName, false),
+  );
+  populateDownloadedOutcome(fixture, artifactDir);
+  const backfillOptions = {
+    commit: currentSourceCommit,
+    runAttempt: outcomeRunAttempt,
+    runId,
+    version: release.version,
+  };
+  try {
+    assert.deepEqual(
+      verifyPublishOutcomeAtSourceCommit(
+        outcome,
+        artifactDir,
+        { name: artifactName },
+        backfillOptions,
+      ),
+      outcome,
+    );
+
+    fs.writeFileSync(
+      path.join(
+        artifactDir,
+        'published-acceptance-receipt.operational-independence.json',
+      ),
+      '{}\n',
+    );
+    assert.throws(
+      () =>
+        verifyPublishOutcomeAtSourceCommit(
+          outcome,
+          artifactDir,
+          { name: artifactName },
+          backfillOptions,
+        ),
+      /does not match its schema operational evidence profile/u,
+    );
+    fs.unlinkSync(
+      path.join(
+        artifactDir,
+        'published-acceptance-receipt.operational-independence.json',
+      ),
+    );
+
+    fs.rmSync(path.join(fixture.root, 'source-validator'), {
+      force: true,
+      recursive: true,
+    });
+    fs.rmSync(path.join(fixture.root, 'source-validator.tar'), { force: true });
+    fs.rmSync(path.join(fixture.root, 'reconstructed-publish-outcome.json'), {
+      force: true,
+    });
+    const tampered = structuredClone(outcome);
+    tampered.evidence.manifestSha256 = 'f'.repeat(64);
+    assert.throws(
+      () =>
+        verifyPublishOutcomeAtSourceCommit(
+          tampered,
+          artifactDir,
+          { name: artifactName },
+          backfillOptions,
+        ),
+      /does not match the exact source validator reconstruction/u,
+    );
+  } finally {
+    fs.rmSync(fixture.root, { force: true, recursive: true });
+  }
+});
+
+test('backfill reconstructs schema-v4 outcomes with the archived historical create contract', async () => {
+  const historicalRef = 'ultramodern-v3.8.2-ultramodern.3';
+  const historicalCommit = execFileSync(
+    'git',
+    ['rev-parse', `${historicalRef}^{commit}`],
+    { encoding: 'utf8' },
+  ).trim();
+  const historicalRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'publish-outcome-v4-source-'),
+  );
+  const sourceArchivePath = path.join(historicalRoot, 'scripts.tar');
+  fs.writeFileSync(
+    sourceArchivePath,
+    execFileSync(
+      'git',
+      ['archive', '--format=tar', historicalCommit, 'scripts'],
+      { encoding: null, maxBuffer: 128 * 1024 * 1024 },
+    ),
+  );
+  execFileSync('tar', ['-xf', sourceArchivePath, '-C', historicalRoot], {
+    stdio: ['ignore', 'ignore', 'inherit'],
+  });
+  const historicalReceiptApi = await import(
+    pathToFileURL(
+      fs.realpathSync(
+        path.join(
+          historicalRoot,
+          'scripts/ultramodern-production-readiness/published-create-proof/acceptance-receipt.mjs',
+        ),
+      ),
+    )
+  );
+  const historicalOutcomeApi = await import(
+    pathToFileURL(
+      fs.realpathSync(
+        path.join(
+          historicalRoot,
+          'scripts/ultramodern-publish/publish-outcome.mjs',
+        ),
+      ),
+    )
+  );
+  const fixture = await createEvidenceFixture({
+    includePublishedOperationalEvidence: true,
+    receiptApiOverride: historicalReceiptApi,
+    sourceIdentity: { ...source, commit: historicalCommit },
+  });
+  const artifactDir = path.join(fixture.root, 'downloaded-outcome');
+  const artifactName = historicalOutcomeApi.publishOutcomeArtifactName({
+    runAttempt: outcomeRunAttempt,
+    runId,
+  });
+  const outcome = historicalOutcomeApi.createPublishOutcome(
+    createOptions(fixture, artifactName, false),
+  );
+  populateDownloadedOutcome(fixture, artifactDir);
+  const { verifyPublishOutcomeAtSourceCommit } = await import(
+    '../backfill-change-record.mjs'
+  );
+  try {
+    assert.equal(outcome.schemaVersion, 4);
+    assert.deepEqual(
+      verifyPublishOutcomeAtSourceCommit(
+        outcome,
+        artifactDir,
+        { name: artifactName },
+        {
+          commit: historicalCommit,
+          runAttempt: outcomeRunAttempt,
+          runId,
+          version: release.version,
+        },
+      ),
+      outcome,
+    );
+    fs.unlinkSync(
+      path.join(
+        artifactDir,
+        'published-acceptance-receipt.operational-independence.json',
+      ),
+    );
+    assert.throws(
+      () =>
+        verifyPublishOutcomeAtSourceCommit(
+          outcome,
+          artifactDir,
+          { name: artifactName },
+          {
+            commit: historicalCommit,
+            runAttempt: outcomeRunAttempt,
+            runId,
+            version: release.version,
+          },
+        ),
+      /does not match its schema operational evidence profile/u,
+    );
+  } finally {
+    fs.rmSync(fixture.root, { force: true, recursive: true });
+    fs.rmSync(historicalRoot, { force: true, recursive: true });
   }
 });
 
