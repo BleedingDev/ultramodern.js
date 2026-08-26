@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { resolveCreatePackageRoot } from '../create-package-root';
@@ -162,6 +163,26 @@ export function writeJson(
   value: JsonValue,
 ) {
   writeFile(targetDir, relativePath, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+export function formatGeneratedSourceCandidates(
+  sources: readonly (readonly [relativePath: string, source: string])[],
+) {
+  const temporaryRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'ultramodern-format-'),
+  );
+  try {
+    sources.forEach(([relativePath, source]) =>
+      writeFileReplacing(temporaryRoot, relativePath, source),
+    );
+    const relativePaths = sources.map(([relativePath]) => relativePath);
+    formatGeneratedWorkspaceFiles(temporaryRoot, relativePaths);
+    return relativePaths.map(relativePath =>
+      fs.readFileSync(path.join(temporaryRoot, relativePath), 'utf-8'),
+    );
+  } finally {
+    fs.rmSync(temporaryRoot, { force: true, recursive: true });
+  }
 }
 
 export function formatGeneratedWorkspaceFiles(

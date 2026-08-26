@@ -12,14 +12,12 @@ export function updateGeneratedZeropsArtifacts(
   config: UltramodernToolingConfig,
 ) {
   const apps = allWorkspaceAppsFromToolingConfig(config);
-  let changed = io.writeGenerated(
+  io.writeGenerated(
     path.join(io.workspaceRoot, 'zerops.yaml'),
     `${createZeropsYaml(config.workspace.packageScope, apps)}\n`,
   );
-  changed =
-    io.writeGenerated(
-      path.join(io.workspaceRoot, 'scripts/materialize-zerops-runtime.mjs'),
-      createZeropsRuntimeMaterializationScript(),
-    ) || changed;
-  return changed;
+  io.writeGenerated(
+    path.join(io.workspaceRoot, 'scripts/materialize-zerops-runtime.mjs'),
+    createZeropsRuntimeMaterializationScript(),
+  );
 }

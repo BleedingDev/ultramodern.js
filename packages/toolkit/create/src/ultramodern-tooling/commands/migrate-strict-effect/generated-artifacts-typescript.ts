@@ -425,48 +425,42 @@ export function updateGeneratedTypeScriptSurfaces(
   io: MigrationIo,
   config: UltramodernToolingConfig,
 ) {
-  let changed = false;
   const apps = allWorkspaceAppsFromToolingConfig(config);
   const remotes = apps.filter(app => app.kind !== 'shell');
 
-  changed =
-    writeMergedTypeScriptConfig(
-      io,
-      path.join(io.workspaceRoot, 'tsconfig.base.json'),
-      createTsConfigBase(),
-    ) || changed;
-  changed = ensureGeneratedIgnoreRules(io) || changed;
+  writeMergedTypeScriptConfig(
+    io,
+    path.join(io.workspaceRoot, 'tsconfig.base.json'),
+    createTsConfigBase(),
+  );
+  ensureGeneratedIgnoreRules(io);
 
   for (const sharedPackage of [
     'packages/shared-contracts',
     'packages/shared-design-tokens',
   ]) {
-    changed =
-      writeMergedTypeScriptConfig(
-        io,
-        path.join(io.workspaceRoot, sharedPackage, 'tsconfig.json'),
-        createSharedPackageTsConfig(sharedPackage),
-      ) || changed;
+    writeMergedTypeScriptConfig(
+      io,
+      path.join(io.workspaceRoot, sharedPackage, 'tsconfig.json'),
+      createSharedPackageTsConfig(sharedPackage),
+    );
   }
 
   for (const app of apps) {
-    changed =
-      writeMergedTypeScriptConfig(
-        io,
-        path.join(io.workspaceRoot, app.directory, 'tsconfig.json'),
-        createAppTsConfig(app, remotes),
-      ) || changed;
-    changed =
-      writeMergedTypeScriptConfig(
-        io,
-        path.join(io.workspaceRoot, app.directory, 'tsconfig.mf-types.json'),
-        createAppMfTypesTsConfig(app),
-      ) || changed;
-    changed =
-      io.write(
-        path.join(io.workspaceRoot, app.directory, 'src/modern-app-env.d.ts'),
-        createAppEnvDts(app, remotes, config.workspace.packageScope),
-      ) || changed;
+    writeMergedTypeScriptConfig(
+      io,
+      path.join(io.workspaceRoot, app.directory, 'tsconfig.json'),
+      createAppTsConfig(app, remotes),
+    );
+    writeMergedTypeScriptConfig(
+      io,
+      path.join(io.workspaceRoot, app.directory, 'tsconfig.mf-types.json'),
+      createAppMfTypesTsConfig(app),
+    );
+    io.write(
+      path.join(io.workspaceRoot, app.directory, 'src/modern-app-env.d.ts'),
+      createAppEnvDts(app, remotes, config.workspace.packageScope),
+    );
 
     if (app.kind !== 'shell') {
       for (const expose of distributedSsrExposes(app)) {
@@ -491,18 +485,15 @@ export function updateGeneratedTypeScriptSurfaces(
         ) {
           continue;
         }
-        changed =
-          writeGeneratedUiSourceIfChanged(
-            io,
-            fragmentPagePath,
-            createRemoteExposeFragmentPage(app, expose),
-          ) || changed;
+        writeGeneratedUiSourceIfChanged(
+          io,
+          fragmentPagePath,
+          createRemoteExposeFragmentPage(app, expose),
+        );
       }
     }
   }
 
-  changed = updateGeneratedShellRuntimeSurfaces(io, config) || changed;
-  changed = updateGeneratedNavigationSurfaces(io, config) || changed;
-
-  return changed;
+  updateGeneratedShellRuntimeSurfaces(io, config);
+  updateGeneratedNavigationSurfaces(io, config);
 }

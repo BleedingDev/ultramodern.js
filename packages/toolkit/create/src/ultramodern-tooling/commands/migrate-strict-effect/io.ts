@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { formatGeneratedWorkspaceFiles } from '../../../ultramodern-workspace/fs-io';
+import { formatGeneratedSourceCandidates } from '../../../ultramodern-workspace/fs-io';
 
 type PathSnapshot =
   | { content: Buffer; mode: number; type: 'file' }
@@ -300,28 +300,23 @@ function createMigrationIoWithBehavior(
     if (generatedPaths.size === 0) {
       return;
     }
-    const temporaryRoot = fs.mkdtempSync(
-      path.join(os.tmpdir(), 'ultramodern-migration-format-'),
-    );
     const relativePaths = [...generatedPaths]
       .map(filePath => path.relative(absoluteWorkspaceRoot, filePath))
       .sort((left, right) => left.localeCompare(right));
-    try {
-      for (const relativePath of relativePaths) {
-        const sourcePath = path.join(absoluteWorkspaceRoot, relativePath);
-        const stagedPath = path.join(temporaryRoot, relativePath);
-        fs.mkdirSync(path.dirname(stagedPath), { recursive: true });
-        fs.copyFileSync(sourcePath, stagedPath);
-      }
-      formatGeneratedWorkspaceFiles(temporaryRoot, relativePaths);
-      for (const relativePath of relativePaths) {
-        io.write(
+    const formattedSources = formatGeneratedSourceCandidates(
+      relativePaths.map(relativePath => [
+        relativePath,
+        fs.readFileSync(
           path.join(absoluteWorkspaceRoot, relativePath),
-          fs.readFileSync(path.join(temporaryRoot, relativePath), 'utf-8'),
-        );
-      }
-    } finally {
-      fs.rmSync(temporaryRoot, { force: true, recursive: true });
+          'utf-8',
+        ),
+      ]),
+    );
+    for (const [index, relativePath] of relativePaths.entries()) {
+      io.write(
+        path.join(absoluteWorkspaceRoot, relativePath),
+        formattedSources[index],
+      );
     }
   };
 

@@ -1,5 +1,4 @@
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { configuredDevelopmentPorts } from '../../../ultramodern-workspace/add-vertical/workspace-state';
 import {
@@ -15,7 +14,7 @@ import {
   distributedSsrFragmentSlug,
   resolveRemoteRefs,
 } from '../../../ultramodern-workspace/descriptors';
-import { formatGeneratedWorkspaceFiles } from '../../../ultramodern-workspace/fs-io';
+import { formatGeneratedSourceCandidates } from '../../../ultramodern-workspace/fs-io';
 import {
   createAppModernConfig,
   createBackendModuleFederationConfig,
@@ -104,41 +103,15 @@ ${optionsEnd}`,
 function formatGeneratedModernConfigCandidates(
   generatedSources: readonly string[],
 ) {
-  const tempRoot = fs.mkdtempSync(
-    path.join(os.tmpdir(), 'ultramodern-modern-config-'),
+  return formatGeneratedSourceCandidates(
+    generatedSources.map(
+      (source, index) => [`candidate-${index}.ts`, source] as const,
+    ),
   );
-  const candidates = generatedSources.map(
-    (_, index) => `candidate-${index}.ts`,
-  );
-  try {
-    for (const [index, generatedSource] of generatedSources.entries()) {
-      fs.writeFileSync(
-        path.join(tempRoot, `candidate-${index}.ts`),
-        generatedSource,
-      );
-    }
-    formatGeneratedWorkspaceFiles(tempRoot, candidates);
-    return candidates.map(candidate =>
-      fs.readFileSync(path.join(tempRoot, candidate), 'utf-8'),
-    );
-  } finally {
-    fs.rmSync(tempRoot, { recursive: true, force: true });
-  }
 }
 
-function formatGeneratedTypeScriptConfig(generatedSource: string) {
-  const tempRoot = fs.mkdtempSync(
-    path.join(os.tmpdir(), 'ultramodern-generated-config-'),
-  );
-  const candidate = 'candidate.ts';
-  try {
-    fs.writeFileSync(path.join(tempRoot, candidate), generatedSource);
-    formatGeneratedWorkspaceFiles(tempRoot, [candidate]);
-    return fs.readFileSync(path.join(tempRoot, candidate), 'utf-8');
-  } finally {
-    fs.rmSync(tempRoot, { recursive: true, force: true });
-  }
-}
+const formatGeneratedTypeScriptConfig = (generatedSource: string) =>
+  formatGeneratedModernConfigCandidates([generatedSource])[0];
 
 function isGeneratedModernConfig(
   source: string,
@@ -158,7 +131,6 @@ export function updateGeneratedModernConfigs(
   io: MigrationIo,
   config: UltramodernToolingConfig,
 ) {
-  let changed = false;
   const apps = allWorkspaceAppsFromToolingConfig(config);
   const remotes = apps.filter(app => app.kind !== 'shell');
   const overlayPath = path.join(
@@ -205,21 +177,18 @@ export function updateGeneratedModernConfigs(
         addLegacyGeneratedModernDefaults(previousTailwindModernConfig),
       ]);
     if (!fs.existsSync(modernConfigPath)) {
-      changed =
-        io.writeGenerated(modernConfigPath, generatedModernConfig) || changed;
+      io.writeGenerated(modernConfigPath, generatedModernConfig);
     } else {
       const existingModernConfig = fs.readFileSync(modernConfigPath, 'utf-8');
       if (existingModernConfig === generatedModernConfig) {
-        changed =
-          io.writeGenerated(modernConfigPath, existingModernConfig) || changed;
+        io.writeGenerated(modernConfigPath, existingModernConfig);
       } else if (
         isGeneratedModernConfig(existingModernConfig, [
           generatedModernConfig,
           ...recognizedGeneratedModernConfigs,
         ])
       ) {
-        changed =
-          io.writeGenerated(modernConfigPath, generatedModernConfig) || changed;
+        io.writeGenerated(modernConfigPath, generatedModernConfig);
       } else {
         io.log(
           `${path.relative(io.workspaceRoot, modernConfigPath)} was preserved: ` +
@@ -264,20 +233,18 @@ export function updateGeneratedModernConfigs(
       // Existing configs are never regenerated wholesale without byte-exact
       // current ownership proof. The later bridge pass performs its one safe,
       // structural edit while preserving consumer extensions.
-      changed =
-        writeOwnedTypeScriptConfig(
-          io,
-          moduleFederationConfigPath,
-          generatedModuleFederationConfig,
-          recognizedModuleFederationConfigs,
-        ) || changed;
+      writeOwnedTypeScriptConfig(
+        io,
+        moduleFederationConfigPath,
+        generatedModuleFederationConfig,
+        recognizedModuleFederationConfigs,
+      );
     } else {
-      changed =
-        removeOwnedTypeScriptConfig(
-          io,
-          moduleFederationConfigPath,
-          recognizedModuleFederationConfigs,
-        ) || changed;
+      removeOwnedTypeScriptConfig(
+        io,
+        moduleFederationConfigPath,
+        recognizedModuleFederationConfigs,
+      );
     }
 
     const backendFederationConfigPath = path.join(
@@ -289,18 +256,16 @@ export function updateGeneratedModernConfigs(
       createBackendModuleFederationConfig(app),
     );
     if (appHasApi(app)) {
-      changed =
-        writeOwnedTypeScriptConfig(
-          io,
-          backendFederationConfigPath,
-          generatedBackendFederationConfig,
-          [generatedBackendFederationConfig],
-        ) || changed;
+      writeOwnedTypeScriptConfig(
+        io,
+        backendFederationConfigPath,
+        generatedBackendFederationConfig,
+        [generatedBackendFederationConfig],
+      );
     } else {
-      changed =
-        removeOwnedTypeScriptConfig(io, backendFederationConfigPath, [
-          generatedBackendFederationConfig,
-        ]) || changed;
+      removeOwnedTypeScriptConfig(io, backendFederationConfigPath, [
+        generatedBackendFederationConfig,
+      ]);
     }
 
     if (app.kind === 'shell') {
@@ -326,16 +291,14 @@ export function updateGeneratedModernConfigs(
         existingComponents === undefined ||
         isGeneratedShellComposition(existingComponents)
       ) {
-        changed =
-          io.writeGenerated(
-            componentsPath,
-            createShellRemoteComponents(app, shellUiRemotes),
-          ) || changed;
-        changed =
-          io.writeGenerated(
-            workerComponentsPath,
-            createShellWorkerRemoteComponents(app, shellUiRemotes),
-          ) || changed;
+        io.writeGenerated(
+          componentsPath,
+          createShellRemoteComponents(app, shellUiRemotes),
+        );
+        io.writeGenerated(
+          workerComponentsPath,
+          createShellWorkerRemoteComponents(app, shellUiRemotes),
+        );
       } else if (
         fs.existsSync(workerComponentsPath) &&
         isGeneratedShellComposition(
@@ -345,54 +308,49 @@ export function updateGeneratedModernConfigs(
         // A custom host composition is environment-neutral and obtains its
         // workerd behavior from federated-components.worker.tsx. A stale
         // generated route sibling would shadow that custom composition.
-        changed = io.remove(workerComponentsPath) || changed;
+        io.remove(workerComponentsPath);
       }
     } else {
       for (const expose of distributedSsrExposes(app)) {
-        changed =
-          writeGeneratedUiSourceIfChanged(
-            io,
-            path.join(
-              io.workspaceRoot,
-              app.directory,
-              `src/routes/[lang]/_mf/fragment/${distributedSsrFragmentSlug(expose)}/page.tsx`,
-            ),
-            createRemoteExposeFragmentPage(app, expose),
-          ) || changed;
+        writeGeneratedUiSourceIfChanged(
+          io,
+          path.join(
+            io.workspaceRoot,
+            app.directory,
+            `src/routes/[lang]/_mf/fragment/${distributedSsrFragmentSlug(expose)}/page.tsx`,
+          ),
+          createRemoteExposeFragmentPage(app, expose),
+        );
       }
     }
     if ((app.verticalRefs?.length ?? 0) > 0) {
-      changed =
-        writeGeneratedUiSourceIfChanged(
-          io,
-          path.join(
-            io.workspaceRoot,
-            app.directory,
-            'src/federated-components.tsx',
-          ),
-          createFederatedComponentsRegistry(
-            config.workspace.packageScope,
-            app,
-            remotes,
-          ),
-        ) || changed;
-      changed =
-        writeGeneratedUiSourceIfChanged(
-          io,
-          path.join(
-            io.workspaceRoot,
-            app.directory,
-            'src/federated-components.worker.tsx',
-          ),
-          createFederatedComponentsRegistry(
-            config.workspace.packageScope,
-            app,
-            remotes,
-            true,
-          ),
-        ) || changed;
+      writeGeneratedUiSourceIfChanged(
+        io,
+        path.join(
+          io.workspaceRoot,
+          app.directory,
+          'src/federated-components.tsx',
+        ),
+        createFederatedComponentsRegistry(
+          config.workspace.packageScope,
+          app,
+          remotes,
+        ),
+      );
+      writeGeneratedUiSourceIfChanged(
+        io,
+        path.join(
+          io.workspaceRoot,
+          app.directory,
+          'src/federated-components.worker.tsx',
+        ),
+        createFederatedComponentsRegistry(
+          config.workspace.packageScope,
+          app,
+          remotes,
+          true,
+        ),
+      );
     }
   }
-
-  return changed;
 }

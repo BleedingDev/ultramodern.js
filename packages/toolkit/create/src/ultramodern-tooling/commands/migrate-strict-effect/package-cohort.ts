@@ -18,9 +18,9 @@ const modernPackageNames = new Set<string>([
   ...ULTRAMODERN_WORKSPACE_MODERN_PACKAGES,
 ]);
 
-export function updateModernDependencies(
+function updateDeclaredDependencies(
   packageJson: Record<string, any>,
-  packageSource: ResolvedUltramodernPackageSource,
+  pins: ReadonlyMap<string, string>,
 ) {
   let changed = false;
   for (const section of [
@@ -38,20 +38,33 @@ export function updateModernDependencies(
       continue;
     }
 
-    for (const packageName of Object.keys(dependencies)) {
-      if (!modernPackageNames.has(packageName)) {
-        continue;
-      }
-
-      const nextSpecifier = modernPackageSpecifier(packageName, packageSource);
-      if (dependencies[packageName] !== nextSpecifier) {
-        dependencies[packageName] = nextSpecifier;
+    for (const [packageName, version] of pins) {
+      if (
+        Object.hasOwn(dependencies, packageName) &&
+        dependencies[packageName] !== version
+      ) {
+        dependencies[packageName] = version;
         changed = true;
       }
     }
   }
 
   return changed;
+}
+
+export function updateModernDependencies(
+  packageJson: Record<string, any>,
+  packageSource: ResolvedUltramodernPackageSource,
+) {
+  return updateDeclaredDependencies(
+    packageJson,
+    new Map(
+      [...modernPackageNames].map(packageName => [
+        packageName,
+        modernPackageSpecifier(packageName, packageSource),
+      ]),
+    ),
+  );
 }
 
 const generatedToolingDependencyPins = new Map<string, string>(
@@ -72,34 +85,10 @@ const generatedToolingDependencyPins = new Map<string, string>(
 export function updateGeneratedToolingDependencies(
   packageJson: Record<string, any>,
 ) {
-  let changed = false;
-  for (const section of [
-    'dependencies',
-    'devDependencies',
-    'peerDependencies',
-    'optionalDependencies',
-  ]) {
-    const dependencies = packageJson[section];
-    if (
-      !dependencies ||
-      typeof dependencies !== 'object' ||
-      Array.isArray(dependencies)
-    ) {
-      continue;
-    }
-
-    for (const [packageName, version] of generatedToolingDependencyPins) {
-      if (
-        Object.prototype.hasOwnProperty.call(dependencies, packageName) &&
-        dependencies[packageName] !== version
-      ) {
-        dependencies[packageName] = version;
-        changed = true;
-      }
-    }
-  }
-
-  return changed;
+  return updateDeclaredDependencies(
+    packageJson,
+    generatedToolingDependencyPins,
+  );
 }
 
 /**
