@@ -45,10 +45,10 @@ const installAppDependencies = {
   '@modern-js/plugin-tanstack': packageVersion,
   '@modern-js/plugin-i18n': packageVersion,
   '@modern-js/runtime': packageVersion,
-  '@module-federation/bridge-react': '2.8.2',
-  '@module-federation/modern-js-v3': '2.8.2',
-  '@module-federation/runtime': '2.8.2',
-  '@tanstack/react-router': '1.170.25',
+  '@module-federation/bridge-react': '2.9.0',
+  '@module-federation/modern-js-v3': '2.9.0',
+  '@module-federation/runtime': '2.9.0',
+  '@tanstack/react-router': '1.170.32',
   i18next: '26.3.6',
   'node-fetch': '^3.3.2',
   '@tractor-store/shared-contracts': 'workspace:*',
@@ -60,8 +60,8 @@ const installAppDependencies = {
 // plugin-bff declares both as optional peers, so whoever depends on plugin-bff
 // carries them at the exact cohort version.
 const bffEffectDependencies = {
-  '@effect/opentelemetry': '4.0.0-beta.107',
-  effect: '4.0.0-beta.107',
+  '@effect/opentelemetry': '4.0.0-rc.112',
+  effect: '4.0.0-rc.112',
 };
 
 function createCatalogVertical() {
@@ -143,10 +143,10 @@ test('workspace package source uses workspace versions for generated framework d
     '@modern-js/plugin-tanstack': 'workspace:*',
     '@modern-js/plugin-i18n': 'workspace:*',
     '@modern-js/runtime': 'workspace:*',
-    '@module-federation/bridge-react': '2.8.2',
-    '@module-federation/modern-js-v3': '2.8.2',
-    '@module-federation/runtime': '2.8.2',
-    '@tanstack/react-router': '1.170.25',
+    '@module-federation/bridge-react': '2.9.0',
+    '@module-federation/modern-js-v3': '2.9.0',
+    '@module-federation/runtime': '2.9.0',
+    '@tanstack/react-router': '1.170.32',
     i18next: '26.3.6',
     'node-fetch': '^3.3.2',
     '@tractor-store/shared-contracts': 'workspace:*',
@@ -191,7 +191,7 @@ test('root package json pins workspace package versions and bridge workspace glo
     '../tractor-store/packages/*',
   ]);
   assert.deepEqual(rootPackageJson.devDependencies, {
-    '@effect/tsgo': '0.36.2',
+    '@effect/tsgo': '0.37.0',
     '@modern-js/code-tools': packageVersion,
     '@modern-js/create': packageVersion,
     '@modern-js/plugin-bff': packageVersion,
@@ -199,9 +199,9 @@ test('root package json pins workspace package versions and bridge workspace glo
     '@typescript/native': 'npm:typescript@7.0.2',
     lefthook: '^2.1.10',
     miniflare: MINIFLARE_VERSION,
-    oxlint: '1.78.0',
-    oxfmt: '0.63.0',
-    ultracite: '7.10.2',
+    oxlint: '1.80.0',
+    oxfmt: '0.65.0',
+    ultracite: '7.10.6',
     wrangler: '4.116.0',
     'zephyr-agent': '1.2.1',
   });

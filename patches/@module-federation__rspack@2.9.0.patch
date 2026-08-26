@@ -10,7 +10,7 @@ diff --git a/dist/ModuleFederationPlugin.js b/dist/ModuleFederationPlugin.js
  ;// CONCATENATED MODULE: external "@module-federation/bridge-react-webpack-plugin"
  const bridge_react_webpack_plugin_namespaceObject = require("@module-federation/bridge-react-webpack-plugin");
  var bridge_react_webpack_plugin_default = /*#__PURE__*/__webpack_require__.n(bridge_react_webpack_plugin_namespaceObject);
-@@ -201,7 +199,8 @@ class ModuleFederationPlugin {
+@@ -207,7 +205,8 @@ class ModuleFederationPlugin {
          let disableManifest = options.manifest === false;
          let disableDts = options.dts === false;
          if (!disableDts) {
@@ -38,7 +38,7 @@ diff --git a/dist/ModuleFederationPlugin.mjs b/dist/ModuleFederationPlugin.mjs
  
  
  
-@@ -131,6 +132,7 @@ class ModuleFederationPlugin {
+@@ -139,6 +140,7 @@ class ModuleFederationPlugin {
          let disableManifest = options.manifest === false;
          let disableDts = options.dts === false;
          if (!disableDts) {

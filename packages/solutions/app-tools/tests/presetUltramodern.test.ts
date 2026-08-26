@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { createBuilder } from '@modern-js/builder';
 import { mergeConfig } from '@modern-js/plugin/cli';
 import { rspack } from '@rsbuild/core';
 import {
@@ -79,6 +80,8 @@ describe('presetUltramodern config', () => {
     const preset = createPresetUltramodernConfig();
 
     expect(preset.output?.precompress).toBe(true);
+    expect(preset.source?.reactCompiler).toBe(true);
+    expect(preset.tools?.lightningcssLoader).toBe(true);
     // RsDoctor stays opt-in per the reverted ADR-0001; the preset must not
     // force-enable it for production builds.
     expect(preset.performance?.rsdoctor).toBeUndefined();
@@ -410,14 +413,55 @@ describe('presetUltramodern config', () => {
     const omitted = presetUltramodern({});
     const undefinedOverride = presetUltramodern({
       output: { precompress: undefined },
+      source: { reactCompiler: undefined },
+      tools: { lightningcssLoader: undefined },
     });
     const falseOverride = presetUltramodern({
       output: { precompress: false },
+      source: { reactCompiler: false },
+      tools: { lightningcssLoader: false },
     });
 
     expect(omitted.output?.precompress).toBe(true);
+    expect(omitted.source?.reactCompiler).toBe(true);
+    expect(omitted.tools?.lightningcssLoader).toBe(true);
     expect(undefinedOverride.output?.precompress).toBe(true);
+    expect(undefinedOverride.source?.reactCompiler).toBe(true);
+    expect(undefinedOverride.tools?.lightningcssLoader).toBe(true);
     expect(falseOverride.output?.precompress).toBe(false);
+    expect(falseOverride.source?.reactCompiler).toBe(false);
+    expect(falseOverride.tools?.lightningcssLoader).toBe(false);
+  });
+
+  it('selects native CSS processing without weakening build defaults', async () => {
+    const config = presetUltramodern({
+      output: {
+        splitRouteChunks: true,
+      },
+      tools: {
+        autoprefixer: {
+          overrideBrowserslist: ['defaults'],
+        },
+      },
+    });
+    const rsbuild = await createBuilder({
+      bundlerType: 'rspack',
+      config: {
+        source: config.source,
+        tools: config.tools,
+      },
+      cwd: path.join(__dirname, '..'),
+    });
+    const {
+      origin: { bundlerConfigs },
+    } = await rsbuild.inspectConfig();
+    const bundlerConfig = bundlerConfigs[0];
+    const moduleRules = JSON.stringify(bundlerConfig.module?.rules);
+    expect(config.output?.splitRouteChunks).toBe(true);
+    expect(bundlerConfig.optimization?.splitChunks).toBeTruthy();
+    expect(moduleRules).toContain('"loader":"builtin:lightningcss-loader"');
+    expect(moduleRules).not.toContain('postcss-loader');
+    expect(moduleRules).toContain('"reactCompiler":true');
   });
 
   it('keeps preset values when consumers provide empty objects or arrays', () => {

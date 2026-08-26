@@ -8,11 +8,11 @@
     "serve": "modern serve"
   },
   "dependencies": {
-    "@effect/opentelemetry": "4.0.0-beta.107",
+    "@effect/opentelemetry": "4.0.0-rc.112",
     "@modern-js/plugin-bff": "workspace:*",
     "@modern-js/runtime": "workspace:*",
     "@modern-js/server-runtime": "workspace:*",
-    "effect": "4.0.0-beta.107",
+    "effect": "4.0.0-rc.112",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },

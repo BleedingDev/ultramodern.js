@@ -110,7 +110,7 @@ ${resolveApiProtocol(app) === 'rest' ? "          openapi: {\n            path: 
 `
     : '';
   const tailwindBuilderPluginsConfig = enableTailwind
-    ? '  builderPlugins: [pluginTailwindcss()],\n'
+    ? '  builderPlugins: [pluginTailwindcss({ optimize: false })],\n'
     : '';
   const bffPluginEntry = appHasApi(app) ? '        bffPlugin(),\n' : '';
   const serviceBindings = resolveRemoteRefs(app, remotes).filter(

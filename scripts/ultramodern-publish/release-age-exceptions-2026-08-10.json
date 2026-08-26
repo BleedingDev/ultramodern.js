@@ -567,6 +567,210 @@
       "version": "1.78.0"
     },
     {
+      "approvedBy": "Petr Glaser <syreanis+1@gmail.com>",
+      "evidence": {
+        "sha256": "fe2b9cbf8027a6241d6cad9fc2bfd1efbc1517af95cbddde5bf5167fb0ae6b38",
+        "uri": "https://github.com/BleedingDev/ultramodern.js/commit/986768d419f032f98d0cdcfd0893538b94ef1ea5"
+      },
+      "expiresAt": "2026-08-27T02:46:55.656Z",
+      "integrity": "sha512-UnBBfxWIDKVdLz2BUBq7hFBatwLclJ4moFhlDFg+pFBPPJ1g34MmCbGUC0c9Mo1DhPGdYJG69qMIldh5MvC74w==",
+      "package": "@rsbuild/core",
+      "reviewedAt": "2026-08-26T10:06:26.000Z",
+      "version": "2.2.0"
+    },
+    {
+      "approvedBy": "Petr Glaser <syreanis+1@gmail.com>",
+      "evidence": {
+        "sha256": "fe2b9cbf8027a6241d6cad9fc2bfd1efbc1517af95cbddde5bf5167fb0ae6b38",
+        "uri": "https://github.com/BleedingDev/ultramodern.js/commit/986768d419f032f98d0cdcfd0893538b94ef1ea5"
+      },
+      "expiresAt": "2026-08-27T02:46:55.656Z",
+      "integrity": "sha512-KAVVT7hp3NBjtc/RY2UtOjzzc8i+s4pIhW1p52UV+Aev6ywQCu3dXwkHTonpPvJO3hqLXc4zIMH5l4HbMqBm4g==",
+      "package": "@rspack/binding-darwin-arm64",
+      "reviewedAt": "2026-08-26T10:06:26.000Z",
+      "version": "2.2.0"
+    },
+    {
+      "approvedBy": "Petr Glaser <syreanis+1@gmail.com>",
+      "evidence": {
+        "sha256": "fe2b9cbf8027a6241d6cad9fc2bfd1efbc1517af95cbddde5bf5167fb0ae6b38",
+        "uri": "https://github.com/BleedingDev/ultramodern.js/commit/986768d419f032f98d0cdcfd0893538b94ef1ea5"
+      },
+      "expiresAt": "2026-08-27T02:46:55.656Z",
+      "integrity": "sha512-rzyJCX99aFwl540trsVMNZOgK4+IFm2d5+YeP+RdNo9Uprxloz8vHz0J4dYtaq6MRiCAyM60dAwEa3wJMwqWAQ==",
+      "package": "@rspack/binding-darwin-x64",
+      "reviewedAt": "2026-08-26T10:06:26.000Z",
+      "version": "2.2.0"
+    },
+    {
+      "approvedBy": "Petr Glaser <syreanis+1@gmail.com>",
+      "evidence": {
+        "sha256": "fe2b9cbf8027a6241d6cad9fc2bfd1efbc1517af95cbddde5bf5167fb0ae6b38",
+        "uri": "https://github.com/BleedingDev/ultramodern.js/commit/986768d419f032f98d0cdcfd0893538b94ef1ea5"
+      },
+      "expiresAt": "2026-08-27T02:46:55.656Z",
+      "integrity": "sha512-0t8QOiOMcBV7RvPSsTJ5DQ4QCK6FIyUZy77qbxnS6asGTOXPZZn7V5cL26IxEv/wuHdQ6tQOXheau1fi+gGyBQ==",
+      "package": "@rspack/binding-linux-arm64-gnu",
+      "reviewedAt": "2026-08-26T10:06:26.000Z",
+      "version": "2.2.0"
+    },
+    {
+      "approvedBy": "Petr Glaser <syreanis+1@gmail.com>",
+      "evidence": {
+        "sha256": "fe2b9cbf8027a6241d6cad9fc2bfd1efbc1517af95cbddde5bf5167fb0ae6b38",
+        "uri": "https://github.com/BleedingDev/ultramodern.js/commit/986768d419f032f98d0cdcfd0893538b94ef1ea5"
+      },
+      "expiresAt": "2026-08-27T02:46:55.656Z",
+      "integrity": "sha512-BAvCukqcuHxUdE294ITCohvhVkEklW8RbkKkR36Uo0WyIiMPGrnvPjARPn0/4Q4xMAz7lUmC60sZrvJHlAOKMw==",
+      "package": "@rspack/binding-linux-arm64-musl",
+      "reviewedAt": "2026-08-26T10:06:26.000Z",
+      "version": "2.2.0"
+    },
+    {
+      "approvedBy": "Petr Glaser <syreanis+1@gmail.com>",
+      "evidence": {
+        "sha256": "fe2b9cbf8027a6241d6cad9fc2bfd1efbc1517af95cbddde5bf5167fb0ae6b38",
+        "uri": "https://github.com/BleedingDev/ultramodern.js/commit/986768d419f032f98d0cdcfd0893538b94ef1ea5"
+      },
+      "expiresAt": "2026-08-27T02:46:55.656Z",
+      "integrity": "sha512-nCHqZLv/E8nm2ccGkb00F5DQtXxzGy3W3X73ArA+N0+zXJUnzRcSRSwr7AE8pVgP/FYfX4yMFgUXy0g0YxYGRA==",
+      "package": "@rspack/binding-linux-ppc64-gnu",
+      "reviewedAt": "2026-08-26T10:06:26.000Z",
+      "version": "2.2.0"
+    },
+    {
+      "approvedBy": "Petr Glaser <syreanis+1@gmail.com>",
+      "evidence": {
+        "sha256": "fe2b9cbf8027a6241d6cad9fc2bfd1efbc1517af95cbddde5bf5167fb0ae6b38",
+        "uri": "https://github.com/BleedingDev/ultramodern.js/commit/986768d419f032f98d0cdcfd0893538b94ef1ea5"
+      },
+      "expiresAt": "2026-08-27T02:46:55.656Z",
+      "integrity": "sha512-CA3WEqKFDI6FAZTnCho2n9pmdPWZYAW/S8mqgxd0cx2Jix43at3VyLxhCC7ED5A9WBSFn/AdHaIbVtgoQHVhWA==",
+      "package": "@rspack/binding-linux-riscv64-gnu",
+      "reviewedAt": "2026-08-26T10:06:26.000Z",
+      "version": "2.2.0"
+    },
+    {
+      "approvedBy": "Petr Glaser <syreanis+1@gmail.com>",
+      "evidence": {
+        "sha256": "fe2b9cbf8027a6241d6cad9fc2bfd1efbc1517af95cbddde5bf5167fb0ae6b38",
+        "uri": "https://github.com/BleedingDev/ultramodern.js/commit/986768d419f032f98d0cdcfd0893538b94ef1ea5"
+      },
+      "expiresAt": "2026-08-27T02:46:55.656Z",
+      "integrity": "sha512-kHB960oClkoPRPZ6sdkhRvqbdRIlbpIMYd/Tbxfmn3DWQahiCk1pkUFJbOtFq3EgESxZISV4THl442W2Y57HvQ==",
+      "package": "@rspack/binding-linux-riscv64-musl",
+      "reviewedAt": "2026-08-26T10:06:26.000Z",
+      "version": "2.2.0"
+    },
+    {
+      "approvedBy": "Petr Glaser <syreanis+1@gmail.com>",
+      "evidence": {
+        "sha256": "fe2b9cbf8027a6241d6cad9fc2bfd1efbc1517af95cbddde5bf5167fb0ae6b38",
+        "uri": "https://github.com/BleedingDev/ultramodern.js/commit/986768d419f032f98d0cdcfd0893538b94ef1ea5"
+      },
+      "expiresAt": "2026-08-27T02:46:55.656Z",
+      "integrity": "sha512-lVBdiffVo1jq0P0jT36jNou2suLB4ueQI4aWUs+HM+h67YPBtVKWu/mo5Wh59+8nowgcZmYaFM5hdH69963I9w==",
+      "package": "@rspack/binding-linux-s390x-gnu",
+      "reviewedAt": "2026-08-26T10:06:26.000Z",
+      "version": "2.2.0"
+    },
+    {
+      "approvedBy": "Petr Glaser <syreanis+1@gmail.com>",
+      "evidence": {
+        "sha256": "fe2b9cbf8027a6241d6cad9fc2bfd1efbc1517af95cbddde5bf5167fb0ae6b38",
+        "uri": "https://github.com/BleedingDev/ultramodern.js/commit/986768d419f032f98d0cdcfd0893538b94ef1ea5"
+      },
+      "expiresAt": "2026-08-27T02:46:55.656Z",
+      "integrity": "sha512-M49UaWspE0YJ3268DsquD8idEQTfjBDMvO/I8qccV/Z5T+Q98FJ+kIs5liUaTWb48OIbDEK+8ZKx5QzLbfVN6g==",
+      "package": "@rspack/binding-linux-x64-gnu",
+      "reviewedAt": "2026-08-26T10:06:26.000Z",
+      "version": "2.2.0"
+    },
+    {
+      "approvedBy": "Petr Glaser <syreanis+1@gmail.com>",
+      "evidence": {
+        "sha256": "fe2b9cbf8027a6241d6cad9fc2bfd1efbc1517af95cbddde5bf5167fb0ae6b38",
+        "uri": "https://github.com/BleedingDev/ultramodern.js/commit/986768d419f032f98d0cdcfd0893538b94ef1ea5"
+      },
+      "expiresAt": "2026-08-27T02:46:55.656Z",
+      "integrity": "sha512-YYbs0wmey+5blhEQDE4Dax3TwJtqfGwe2QBm3OLphlBHo/fcZVvimzKkMV0/pVrZTLy2z5ZAwNhGMY64bNr77w==",
+      "package": "@rspack/binding-linux-x64-musl",
+      "reviewedAt": "2026-08-26T10:06:26.000Z",
+      "version": "2.2.0"
+    },
+    {
+      "approvedBy": "Petr Glaser <syreanis+1@gmail.com>",
+      "evidence": {
+        "sha256": "fe2b9cbf8027a6241d6cad9fc2bfd1efbc1517af95cbddde5bf5167fb0ae6b38",
+        "uri": "https://github.com/BleedingDev/ultramodern.js/commit/986768d419f032f98d0cdcfd0893538b94ef1ea5"
+      },
+      "expiresAt": "2026-08-27T02:46:55.656Z",
+      "integrity": "sha512-rerLPTN/HD4EvLNWs3O2N+Eb37eGvLRIP3dXXc3n+UzTebOepAsahNn44vXeRBsE4m/pHkpDJjwgWTytgQ2gBw==",
+      "package": "@rspack/binding-wasm32-wasi",
+      "reviewedAt": "2026-08-26T10:06:26.000Z",
+      "version": "2.2.0"
+    },
+    {
+      "approvedBy": "Petr Glaser <syreanis+1@gmail.com>",
+      "evidence": {
+        "sha256": "fe2b9cbf8027a6241d6cad9fc2bfd1efbc1517af95cbddde5bf5167fb0ae6b38",
+        "uri": "https://github.com/BleedingDev/ultramodern.js/commit/986768d419f032f98d0cdcfd0893538b94ef1ea5"
+      },
+      "expiresAt": "2026-08-27T02:46:55.656Z",
+      "integrity": "sha512-JUAmnbOQYGTRyX28vls/MOMonZWcmcCi5YtEq6YMc8Xqh3Qx0HUwaLM/I1xr/N9BX3b8CV0dQDOpNuBc2ei+CA==",
+      "package": "@rspack/binding-win32-arm64-msvc",
+      "reviewedAt": "2026-08-26T10:06:26.000Z",
+      "version": "2.2.0"
+    },
+    {
+      "approvedBy": "Petr Glaser <syreanis+1@gmail.com>",
+      "evidence": {
+        "sha256": "fe2b9cbf8027a6241d6cad9fc2bfd1efbc1517af95cbddde5bf5167fb0ae6b38",
+        "uri": "https://github.com/BleedingDev/ultramodern.js/commit/986768d419f032f98d0cdcfd0893538b94ef1ea5"
+      },
+      "expiresAt": "2026-08-27T02:46:55.656Z",
+      "integrity": "sha512-wOmQRUaOG0eWH/fnfslA9yK9xKfaq9X+3Xa1TdTJnTqlo0ARJYs6A+Lzjbs7cxdY/o1f12Xe00BG3nQozReUOg==",
+      "package": "@rspack/binding-win32-ia32-msvc",
+      "reviewedAt": "2026-08-26T10:06:26.000Z",
+      "version": "2.2.0"
+    },
+    {
+      "approvedBy": "Petr Glaser <syreanis+1@gmail.com>",
+      "evidence": {
+        "sha256": "fe2b9cbf8027a6241d6cad9fc2bfd1efbc1517af95cbddde5bf5167fb0ae6b38",
+        "uri": "https://github.com/BleedingDev/ultramodern.js/commit/986768d419f032f98d0cdcfd0893538b94ef1ea5"
+      },
+      "expiresAt": "2026-08-27T02:46:55.656Z",
+      "integrity": "sha512-v6/3bFr9+i7hRpgulL9b5qCvZL0VgR4vQGQNqOWezUzZmPUj9LYpvB0L9xZIVwDQ2ug/xBiA58bfg5IbESgoyw==",
+      "package": "@rspack/binding-win32-x64-msvc",
+      "reviewedAt": "2026-08-26T10:06:26.000Z",
+      "version": "2.2.0"
+    },
+    {
+      "approvedBy": "Petr Glaser <syreanis+1@gmail.com>",
+      "evidence": {
+        "sha256": "fe2b9cbf8027a6241d6cad9fc2bfd1efbc1517af95cbddde5bf5167fb0ae6b38",
+        "uri": "https://github.com/BleedingDev/ultramodern.js/commit/986768d419f032f98d0cdcfd0893538b94ef1ea5"
+      },
+      "expiresAt": "2026-08-27T02:46:55.656Z",
+      "integrity": "sha512-nxZzJqqB0EmEKp6qjzFNkBb/SgGt0k0DSENrLvAJgvVvrm3waVsubD0cfxtPlZY/rd5SzadzxWGEHRyFcds5nA==",
+      "package": "@rspack/binding",
+      "reviewedAt": "2026-08-26T10:06:26.000Z",
+      "version": "2.2.0"
+    },
+    {
+      "approvedBy": "Petr Glaser <syreanis+1@gmail.com>",
+      "evidence": {
+        "sha256": "fe2b9cbf8027a6241d6cad9fc2bfd1efbc1517af95cbddde5bf5167fb0ae6b38",
+        "uri": "https://github.com/BleedingDev/ultramodern.js/commit/986768d419f032f98d0cdcfd0893538b94ef1ea5"
+      },
+      "expiresAt": "2026-08-27T02:46:55.656Z",
+      "integrity": "sha512-3W7oX0BAHbK4VlknH3lfyfRvupzxdZtyEa+DfKmdjzmIAcqYtHnFd0nLqp5dzitDPyDI1TIKkDhpB0AZJn0pVg==",
+      "package": "@rspack/core",
+      "reviewedAt": "2026-08-26T10:06:26.000Z",
+      "version": "2.2.0"
+    },
+    {
       "approvedBy": "OpenAI Codex release reviewer",
       "evidence": {
         "sha256": "b8f9c9e91c424bb9ea2900fb613d2c3e383e4f9efaf51868b96e9e8e83ac0c82",

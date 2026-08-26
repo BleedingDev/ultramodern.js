@@ -263,13 +263,17 @@ test('mode all rejects the same caller-controlled scope override', () => {
 });
 
 test('full recorded repository scope remains green and fully measured', () => {
+  assert.equal(
+    DEFAULT_DIVERGENCE_BASE_REF,
+    'eded841256a7cffdaa622e3889fc83407debd3e4',
+  );
   const report = checkForkDivergence({
     rootDir: repoRoot,
     allowlistPath: DEFAULT_DIVERGENCE_ALLOWLIST_PATH,
   });
   assert.equal(report.ok, true, formatDivergenceReport(report));
-  assert.equal(report.measuredFiles, 610);
-  assert.equal(report.allowlistFiles, 610);
+  assert.equal(report.measuredFiles, 613);
+  assert.equal(report.allowlistFiles, 613);
   assert.equal(report.cleared.length, 0);
 });
 

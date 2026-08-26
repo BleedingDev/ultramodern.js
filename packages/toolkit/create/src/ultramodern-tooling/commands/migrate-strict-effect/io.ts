@@ -34,6 +34,10 @@ export type MigrationIo = {
   withStagedWorkspace<T>(operation: (stagedWorkspaceRoot: string) => T): T;
 };
 
+type MigrationIoBehavior = {
+  materializeDryRun: boolean;
+};
+
 const stagingExcludedEntries = new Set([
   '.git',
   '.nx',
@@ -41,6 +45,12 @@ const stagingExcludedEntries = new Set([
   'coverage',
   'dist',
   'node_modules',
+]);
+const stagingGeneratedOutputEntries = new Set(['coverage', 'dist']);
+const stagingWorkspacePackageDirectories = new Set([
+  'apps',
+  'packages',
+  'verticals',
 ]);
 
 function lstatIfExists(filePath: string) {
@@ -144,17 +154,28 @@ function restorePath(filePath: string, snapshot: PathSnapshot | undefined) {
   fs.chmodSync(filePath, snapshot.mode);
 }
 
-function copyWorkspaceEntry(sourcePath: string, destinationPath: string) {
+function copyWorkspaceEntry(
+  sourcePath: string,
+  destinationPath: string,
+  sourceWorkspaceRoot: string,
+  stagedWorkspaceRoot: string,
+) {
   const stat = fs.lstatSync(sourcePath);
   if (stat.isDirectory()) {
     fs.mkdirSync(destinationPath, { mode: stat.mode & 0o7777 });
+    const relativeSourcePath = path.relative(sourceWorkspaceRoot, sourcePath);
     for (const entry of fs.readdirSync(sourcePath)) {
-      if (stagingExcludedEntries.has(entry)) {
+      const isNamedWorkspacePackage =
+        stagingWorkspacePackageDirectories.has(relativeSourcePath) &&
+        stagingGeneratedOutputEntries.has(entry);
+      if (stagingExcludedEntries.has(entry) && !isNamedWorkspacePackage) {
         continue;
       }
       copyWorkspaceEntry(
         path.join(sourcePath, entry),
         path.join(destinationPath, entry),
+        sourceWorkspaceRoot,
+        stagedWorkspaceRoot,
       );
     }
     fs.chmodSync(destinationPath, stat.mode & 0o7777);
@@ -166,11 +187,31 @@ function copyWorkspaceEntry(sourcePath: string, destinationPath: string) {
     return;
   }
   if (stat.isSymbolicLink()) {
-    fs.symlinkSync(fs.readlinkSync(sourcePath), destinationPath);
+    const target = fs.readlinkSync(sourcePath);
+    const stagedTarget = path.isAbsolute(target)
+      ? relocateWorkspacePath(sourceWorkspaceRoot, stagedWorkspaceRoot, target)
+      : target;
+    fs.symlinkSync(stagedTarget, destinationPath);
     chmodSymlinkIfSupported(destinationPath, stat.mode & 0o7777);
     return;
   }
   throw new Error(`Unsupported migration staging path: ${sourcePath}`);
+}
+
+function relocateWorkspacePath(
+  sourceWorkspaceRoot: string,
+  stagedWorkspaceRoot: string,
+  sourcePath: string,
+) {
+  const relativePath = path.relative(sourceWorkspaceRoot, sourcePath);
+  if (
+    relativePath === '..' ||
+    relativePath.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relativePath)
+  ) {
+    return sourcePath;
+  }
+  return path.join(stagedWorkspaceRoot, relativePath);
 }
 
 function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
@@ -181,9 +222,10 @@ function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
   );
 }
 
-export function createMigrationIo(
+function createMigrationIoWithBehavior(
   workspaceRoot: string,
   dryRun: boolean,
+  behavior: MigrationIoBehavior,
 ): MigrationIo {
   const absoluteWorkspaceRoot = path.resolve(workspaceRoot);
   const plan: string[] = [];
@@ -265,7 +307,9 @@ export function createMigrationIo(
       }
       if (dryRun) {
         plan.push(`[dry-run] would write ${rel(absolutePath)}`);
-        return true;
+        if (!behavior.materializeDryRun) {
+          return true;
+        }
       }
       captureMissingParents(absolutePath);
       captureForRollback(absolutePath);
@@ -296,7 +340,9 @@ export function createMigrationIo(
       }
       if (dryRun) {
         plan.push(`[dry-run] would delete ${rel(absolutePath)}`);
-        return true;
+        if (!behavior.materializeDryRun) {
+          return true;
+        }
       }
       captureForRollback(absolutePath);
       fs.rmSync(absolutePath);
@@ -351,7 +397,12 @@ export function createMigrationIo(
       );
       const stagedWorkspaceRoot = path.join(temporaryRoot, 'workspace');
       try {
-        copyWorkspaceEntry(absoluteWorkspaceRoot, stagedWorkspaceRoot);
+        copyWorkspaceEntry(
+          absoluteWorkspaceRoot,
+          stagedWorkspaceRoot,
+          absoluteWorkspaceRoot,
+          stagedWorkspaceRoot,
+        );
         const result = operation(stagedWorkspaceRoot);
         if (isPromiseLike(result)) {
           return Promise.resolve(result).finally(() => {
@@ -368,6 +419,35 @@ export function createMigrationIo(
   };
 
   return io;
+}
+
+export function createMigrationIo(
+  workspaceRoot: string,
+  dryRun: boolean,
+): MigrationIo {
+  return createMigrationIoWithBehavior(workspaceRoot, dryRun, {
+    materializeDryRun: false,
+  });
+}
+
+/**
+ * Runs a dry-run against an owned, disposable workspace clone. The returned
+ * IO still records a dry-run plan, but materializes that plan only inside the
+ * clone so direct filesystem reads observe the same state as an applied
+ * migration. Callers cannot opt an arbitrary workspace into this behavior.
+ */
+export function withStagedDryRunMigrationIo<T>(
+  workspaceRoot: string,
+  operation: (io: MigrationIo) => T,
+): T {
+  const ownerIo = createMigrationIo(workspaceRoot, true);
+  return ownerIo.withStagedWorkspace(stagedWorkspaceRoot =>
+    operation(
+      createMigrationIoWithBehavior(stagedWorkspaceRoot, true, {
+        materializeDryRun: true,
+      }),
+    ),
+  );
 }
 
 export function readJsonFile(filePath: string) {

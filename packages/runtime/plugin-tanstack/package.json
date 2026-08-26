@@ -103,8 +103,8 @@
     "@modern-js/types": "workspace:*",
     "@modern-js/utils": "workspace:*",
     "@swc/helpers": "^0.5.23",
-    "@tanstack/react-router": "1.170.25",
-    "@tanstack/router-core": "1.171.21"
+    "@tanstack/react-router": "1.170.32",
+    "@tanstack/router-core": "1.171.27"
   },
   "peerDependencies": {
     "@modern-js/app-tools": "workspace:^3.8.2",

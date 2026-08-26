@@ -63,7 +63,7 @@ const baselineCohort: BaselineCohort = {
     react: '^19.2.7',
     tanstackRouter: '1.170.17',
     effect: '4.0.0-beta.102',
-    tailwind: '4.3.2',
+    tailwind: '4.3.3',
   },
 };
 

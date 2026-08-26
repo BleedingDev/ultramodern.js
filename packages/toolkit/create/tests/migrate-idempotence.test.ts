@@ -5,6 +5,7 @@ import path from 'node:path';
 import { yaml } from '@modern-js/utils';
 import { runUltramodernToolingCli } from '../src/ultramodern-tooling/commands';
 import { runMigrateStrictEffect } from '../src/ultramodern-tooling/commands/migrate-strict-effect';
+import { MODULE_FEDERATION_VERSION } from '../src/ultramodern-workspace/versions';
 import { createWorkspace } from './helpers/workspace-kit';
 
 const migrationVersion = '3.5.0-ultramodern.1';
@@ -218,6 +219,16 @@ test('source-checkout migrate uses workspace links and is byte-idempotent after 
     ) as Record<string, unknown>;
     assert.equal(pnpmWorkspace.injectWorkspacePackages, true);
     assert.equal(pnpmWorkspace.linkWorkspacePackages, true);
+    assert.equal(
+      fs.existsSync(
+        path.join(
+          workspaceDir,
+          `patches/@module-federation__dts-plugin@${MODULE_FEDERATION_VERSION}.patch`,
+        ),
+      ),
+      true,
+      'the first migration must materialize the DTS plugin patch before the idempotence snapshot',
+    );
 
     for (const relativePath of retiredMetadataPaths) {
       assert.equal(fs.existsSync(path.join(workspaceDir, relativePath)), false);

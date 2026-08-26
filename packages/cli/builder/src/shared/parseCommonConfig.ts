@@ -299,11 +299,9 @@ export async function parseCommonConfig(
 
   rsbuildPlugins.push(
     pluginReact(
-      options?.disableReactCompiler
+      options?.disableReactCompiler || reactCompiler === undefined
         ? {}
-        : {
-            reactCompiler: reactCompiler ?? true,
-          },
+        : { reactCompiler },
     ),
   );
 

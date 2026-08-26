@@ -29,10 +29,7 @@ import {
 } from '../../config';
 import { writeGeneratedUiSourceIfChanged } from './generated-ui-source';
 import { type MigrationIo, readJsonFile } from './io';
-import {
-  appDeclaresReactRouter,
-  isGeneratedModuleFederationConfig,
-} from './react-router-retirement';
+import { appDeclaresReactRouter } from './react-router-retirement';
 
 function isGeneratedShellComposition(source: string) {
   return (
@@ -45,13 +42,16 @@ function writeOwnedTypeScriptConfig(
   io: MigrationIo,
   filePath: string,
   generatedSource: string,
-  isGenerated: (source: string) => boolean,
+  recognizedGeneratedSources: readonly string[] = [],
 ) {
   if (!fs.existsSync(filePath)) {
     return io.write(filePath, generatedSource);
   }
   const existingSource = fs.readFileSync(filePath, 'utf-8');
-  if (existingSource === generatedSource || isGenerated(existingSource)) {
+  if (existingSource === generatedSource) {
+    return false;
+  }
+  if (recognizedGeneratedSources.includes(existingSource)) {
     return io.write(filePath, generatedSource);
   }
   io.log(
@@ -61,16 +61,22 @@ function writeOwnedTypeScriptConfig(
   return false;
 }
 
-function isGeneratedBackendModuleFederationConfig(source: string) {
-  return [
-    "import { createRequire } from 'node:module';",
-    'const bffVersion =',
-    'const effectVersion =',
-    "'./effect-api': './api/effect-api.ts'",
-    "filename: 'backendRemoteEntry.cjs'",
-    'const moduleFederationConfig: Parameters<',
-    'export default moduleFederationConfig;',
-  ].every(signature => source.includes(signature));
+function removeOwnedTypeScriptConfig(
+  io: MigrationIo,
+  filePath: string,
+  recognizedGeneratedSources: readonly string[],
+) {
+  if (!fs.existsSync(filePath)) {
+    return false;
+  }
+  if (recognizedGeneratedSources.includes(fs.readFileSync(filePath, 'utf-8'))) {
+    return io.remove(filePath);
+  }
+  io.log(
+    `${path.relative(io.workspaceRoot, filePath)} was preserved: ` +
+      'surface metadata cannot delete a config whose exact generated ownership cannot be proven.',
+  );
+  return false;
 }
 
 function addLegacyGeneratedModernDefaults(source: string) {
@@ -96,20 +102,39 @@ ${optionsEnd}`,
 }
 
 function formatGeneratedModernConfigCandidates(
-  generatedSource: string,
-  legacyGeneratedSource: string,
+  generatedSources: readonly string[],
 ) {
   const tempRoot = fs.mkdtempSync(
     path.join(os.tmpdir(), 'ultramodern-modern-config-'),
   );
-  const candidates = ['current.ts', 'legacy.ts'] as const;
+  const candidates = generatedSources.map(
+    (_, index) => `candidate-${index}.ts`,
+  );
   try {
-    fs.writeFileSync(path.join(tempRoot, candidates[0]), generatedSource);
-    fs.writeFileSync(path.join(tempRoot, candidates[1]), legacyGeneratedSource);
+    for (const [index, generatedSource] of generatedSources.entries()) {
+      fs.writeFileSync(
+        path.join(tempRoot, `candidate-${index}.ts`),
+        generatedSource,
+      );
+    }
     formatGeneratedWorkspaceFiles(tempRoot, candidates);
     return candidates.map(candidate =>
       fs.readFileSync(path.join(tempRoot, candidate), 'utf-8'),
-    ) as [string, string];
+    );
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+}
+
+function formatGeneratedTypeScriptConfig(generatedSource: string) {
+  const tempRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'ultramodern-generated-config-'),
+  );
+  const candidate = 'candidate.ts';
+  try {
+    fs.writeFileSync(path.join(tempRoot, candidate), generatedSource);
+    formatGeneratedWorkspaceFiles(tempRoot, [candidate]);
+    return fs.readFileSync(path.join(tempRoot, candidate), 'utf-8');
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
@@ -117,10 +142,16 @@ function formatGeneratedModernConfigCandidates(
 
 function isGeneratedModernConfig(
   source: string,
-  generatedSource: string,
-  legacyGeneratedSource: string,
+  generatedSources: readonly string[],
 ) {
-  return source === generatedSource || source === legacyGeneratedSource;
+  return generatedSources.includes(source);
+}
+
+function addPreviousTailwindPluginDefaults(source: string) {
+  return source.replace(
+    'pluginTailwindcss({ optimize: false })',
+    'pluginTailwindcss()',
+  );
 }
 
 export function updateGeneratedModernConfigs(
@@ -164,22 +195,26 @@ export function updateGeneratedModernConfigs(
       config.features.tailwind,
       configuredDevPorts,
     );
-    const [generatedModernConfig, legacyGeneratedModernConfig] =
-      formatGeneratedModernConfigCandidates(
+    const previousTailwindModernConfig = addPreviousTailwindPluginDefaults(
+      rawGeneratedModernConfig,
+    );
+    const [generatedModernConfig, ...recognizedGeneratedModernConfigs] =
+      formatGeneratedModernConfigCandidates([
         rawGeneratedModernConfig,
         addLegacyGeneratedModernDefaults(rawGeneratedModernConfig),
-      );
+        previousTailwindModernConfig,
+        addLegacyGeneratedModernDefaults(previousTailwindModernConfig),
+      ]);
     if (!fs.existsSync(modernConfigPath)) {
       changed = io.write(modernConfigPath, generatedModernConfig) || changed;
     } else {
       const existingModernConfig = fs.readFileSync(modernConfigPath, 'utf-8');
       if (
         existingModernConfig !== generatedModernConfig &&
-        isGeneratedModernConfig(
-          existingModernConfig,
+        isGeneratedModernConfig(existingModernConfig, [
           generatedModernConfig,
-          legacyGeneratedModernConfig,
-        )
+          ...recognizedGeneratedModernConfigs,
+        ])
       ) {
         changed = io.write(modernConfigPath, generatedModernConfig) || changed;
       } else if (existingModernConfig !== generatedModernConfig) {
@@ -189,70 +224,80 @@ export function updateGeneratedModernConfigs(
         );
       }
     }
-    // A headless (api-only) unit exposes no browser MF surface: migrate must
-    // not write a browser config for it — and must remove a stale one.
-    if (appEmitsBrowserUi(app)) {
-      // Generated MF configs are regenerated wholesale, so the bridge router
-      // opt-in can only survive migrate by being derived — the app's own
-      // declared React Router dependency is that single source of truth.
-      const enableBridgeRouter = appDeclaresReactRouter(
-        path.join(io.workspaceRoot, app.directory),
+    // A headless (api-only) unit exposes no browser MF surface. Delete only a
+    // byte-exact current generator artifact; stale metadata is not ownership
+    // evidence and consumer-owned configs must survive whole.
+    const moduleFederationConfigPath = path.join(
+      io.workspaceRoot,
+      app.directory,
+      'module-federation.config.ts',
+    );
+    const enableBridgeRouter = appDeclaresReactRouter(
+      path.join(io.workspaceRoot, app.directory),
+    );
+    const createGeneratedModuleFederationConfig = (bridgeRouter: boolean) =>
+      formatGeneratedTypeScriptConfig(
+        app.kind === 'shell'
+          ? createShellModuleFederationConfig(
+              config.workspace.packageScope,
+              app,
+              remotes,
+              bridgeRouter,
+            )
+          : createRemoteModuleFederationConfig(
+              config.workspace.packageScope,
+              app,
+              remotes,
+              bridgeRouter,
+            ),
       );
+    const generatedModuleFederationConfig =
+      createGeneratedModuleFederationConfig(enableBridgeRouter);
+    const recognizedModuleFederationConfigs = [
+      generatedModuleFederationConfig,
+      createGeneratedModuleFederationConfig(!enableBridgeRouter),
+    ];
+    if (appEmitsBrowserUi(app)) {
+      // Existing configs are never regenerated wholesale without byte-exact
+      // current ownership proof. The later bridge pass performs its one safe,
+      // structural edit while preserving consumer extensions.
       changed =
         writeOwnedTypeScriptConfig(
           io,
-          path.join(
-            io.workspaceRoot,
-            app.directory,
-            'module-federation.config.ts',
-          ),
-          app.kind === 'shell'
-            ? createShellModuleFederationConfig(
-                config.workspace.packageScope,
-                app,
-                remotes,
-                enableBridgeRouter,
-              )
-            : createRemoteModuleFederationConfig(
-                config.workspace.packageScope,
-                app,
-                remotes,
-                enableBridgeRouter,
-              ),
-          isGeneratedModuleFederationConfig,
+          moduleFederationConfigPath,
+          generatedModuleFederationConfig,
+          recognizedModuleFederationConfigs,
         ) || changed;
     } else {
       changed =
-        io.remove(
-          path.join(
-            io.workspaceRoot,
-            app.directory,
-            'module-federation.config.ts',
-          ),
+        removeOwnedTypeScriptConfig(
+          io,
+          moduleFederationConfigPath,
+          recognizedModuleFederationConfigs,
         ) || changed;
     }
 
+    const backendFederationConfigPath = path.join(
+      io.workspaceRoot,
+      app.directory,
+      'backend-federation.config.ts',
+    );
+    const generatedBackendFederationConfig = formatGeneratedTypeScriptConfig(
+      createBackendModuleFederationConfig(app),
+    );
     if (appHasApi(app)) {
       changed =
         writeOwnedTypeScriptConfig(
           io,
-          path.join(
-            io.workspaceRoot,
-            app.directory,
-            'backend-federation.config.ts',
-          ),
-          createBackendModuleFederationConfig(app),
-          isGeneratedBackendModuleFederationConfig,
+          backendFederationConfigPath,
+          generatedBackendFederationConfig,
+          [generatedBackendFederationConfig],
         ) || changed;
     } else {
       changed =
-        io.remove(
-          path.join(
-            io.workspaceRoot,
-            app.directory,
-            'backend-federation.config.ts',
-          ),
-        ) || changed;
+        removeOwnedTypeScriptConfig(io, backendFederationConfigPath, [
+          generatedBackendFederationConfig,
+        ]) || changed;
     }
 
     if (app.kind === 'shell') {

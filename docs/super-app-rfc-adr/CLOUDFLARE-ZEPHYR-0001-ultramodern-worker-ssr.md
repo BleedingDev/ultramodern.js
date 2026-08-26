@@ -38,7 +38,7 @@ pnpm --filter "./apps/remotes/**" run cloudflare:build
 pnpm --filter "./apps/remotes/remote-explore" run cloudflare:preview
 ```
 
-The workspace pins Node `>=26` and `packageManager: pnpm@11.21.0`, writes `.mise.toml` with pnpm `11.21.0`, and records mise as the toolchain in `.modernjs/ultramodern-generated-contract.json`.
+The workspace pins Node `>=26` and `packageManager: pnpm@11.24.0`, writes `.mise.toml` with pnpm `11.24.0`, and records mise as the toolchain in `.modernjs/ultramodern-generated-contract.json`.
 
 ## Worker Output Contract
 

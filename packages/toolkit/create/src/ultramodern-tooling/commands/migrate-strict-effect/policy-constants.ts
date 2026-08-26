@@ -17,23 +17,31 @@ function requiredPatchPath(packageName: string) {
   return patch.path;
 }
 
+function patchSourcePath(patchPath: string) {
+  return path.join(createPackageRoot, 'template-workspace', patchPath);
+}
+
 export const moduleFederationModernJsPatchPath = requiredPatchPath(
   '@module-federation/modern-js-v3',
 );
 
-export const moduleFederationModernJsPatchSourcePath = path.join(
-  createPackageRoot,
-  'template-workspace',
+export const moduleFederationModernJsPatchSourcePath = patchSourcePath(
   moduleFederationModernJsPatchPath,
+);
+
+export const moduleFederationDtsPluginPatchPath = requiredPatchPath(
+  '@module-federation/dts-plugin',
+);
+
+export const moduleFederationDtsPluginPatchSourcePath = patchSourcePath(
+  moduleFederationDtsPluginPatchPath,
 );
 
 export const moduleFederationBridgeReactPatchPath = requiredPatchPath(
   '@module-federation/bridge-react',
 );
 
-export const moduleFederationBridgeReactPatchSourcePath = path.join(
-  createPackageRoot,
-  'template-workspace',
+export const moduleFederationBridgeReactPatchSourcePath = patchSourcePath(
   moduleFederationBridgeReactPatchPath,
 );
 
@@ -41,24 +49,12 @@ export const tanstackRouterCorePatchPath = requiredPatchPath(
   '@tanstack/router-core',
 );
 
-export const tanstackRouterCorePatchSourcePath = path.join(
-  createPackageRoot,
-  'template-workspace',
+export const tanstackRouterCorePatchSourcePath = patchSourcePath(
   tanstackRouterCorePatchPath,
-);
-
-export const effectDeclarationPatchPath = requiredPatchPath('effect');
-
-export const effectDeclarationPatchSourcePath = path.join(
-  createPackageRoot,
-  'template-workspace',
-  effectDeclarationPatchPath,
 );
 
 export const drizzleOrmDeclarationPatchPath = requiredPatchPath('drizzle-orm');
 
-export const drizzleOrmDeclarationPatchSourcePath = path.join(
-  createPackageRoot,
-  'template-workspace',
+export const drizzleOrmDeclarationPatchSourcePath = patchSourcePath(
   drizzleOrmDeclarationPatchPath,
 );

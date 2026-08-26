@@ -6,10 +6,10 @@ import type { MigrationIo } from './io';
 import {
   drizzleOrmDeclarationPatchPath,
   drizzleOrmDeclarationPatchSourcePath,
-  effectDeclarationPatchPath,
-  effectDeclarationPatchSourcePath,
   moduleFederationBridgeReactPatchPath,
   moduleFederationBridgeReactPatchSourcePath,
+  moduleFederationDtsPluginPatchPath,
+  moduleFederationDtsPluginPatchSourcePath,
   moduleFederationModernJsPatchPath,
   moduleFederationModernJsPatchSourcePath,
   tanstackRouterCorePatchPath,
@@ -30,6 +30,12 @@ export function ensureGeneratedDeclarationPatches(
   changed =
     ensureGeneratedPatchFile(
       io,
+      moduleFederationDtsPluginPatchPath,
+      moduleFederationDtsPluginPatchSourcePath,
+    ) || changed;
+  changed =
+    ensureGeneratedPatchFile(
+      io,
       moduleFederationBridgeReactPatchPath,
       moduleFederationBridgeReactPatchSourcePath,
     ) || changed;
@@ -38,12 +44,6 @@ export function ensureGeneratedDeclarationPatches(
       io,
       tanstackRouterCorePatchPath,
       tanstackRouterCorePatchSourcePath,
-    ) || changed;
-  changed =
-    ensureGeneratedPatchFile(
-      io,
-      effectDeclarationPatchPath,
-      effectDeclarationPatchSourcePath,
     ) || changed;
   if (options.includeDrizzleOrmPatch) {
     changed =

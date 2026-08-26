@@ -91,6 +91,64 @@ test('define', async ({ page }) => {
   builder.close();
 });
 
+for (const enabled of [false, true]) {
+  test(`matching global-vars and define values compile an env string (${enabled})`, async ({
+    page,
+  }) => {
+    const marker = String(enabled);
+    let compilerWarnings: unknown[] = [];
+    const builder = await build({
+      cwd: join(fixtures, 'global-vars'),
+      entry: {
+        main: join(fixtures, 'global-vars/src/mf-ssr-marker.ts'),
+      },
+      plugins: [
+        {
+          name: 'capture-mf-ssr-marker-warnings',
+          setup(api) {
+            api.onAfterBuild(({ stats }) => {
+              compilerWarnings =
+                stats?.toJson({ all: false, warnings: true }).warnings ?? [];
+            });
+          },
+        },
+      ],
+      runServer: true,
+      builderConfig: {
+        source: {
+          globalVars: {
+            'process.env.MODERN_MF_APP_SSR': marker,
+          },
+          define: {
+            'process.env.MODERN_MF_APP_SSR': JSON.stringify(marker),
+          },
+        },
+      },
+    });
+
+    try {
+      const warningText = compilerWarnings
+        .map(warning =>
+          typeof warning === 'string'
+            ? warning
+            : String((warning as { message?: unknown }).message ?? warning),
+        )
+        .join('\n');
+      expect(warningText).not.toContain(
+        "Conflicting values for 'process.env.MODERN_MF_APP_SSR'",
+      );
+
+      await page.goto(getHrefByEntryName('main', builder.port));
+      await expect(page.locator('body')).toHaveText(
+        JSON.stringify({ type: 'string', value: marker }),
+      );
+    } finally {
+      await builder.clean();
+      builder.close();
+    }
+  });
+}
+
 test('tsconfig paths should work and override the alias config', async ({
   page,
 }) => {

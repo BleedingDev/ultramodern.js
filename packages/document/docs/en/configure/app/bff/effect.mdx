@@ -54,7 +54,7 @@ would give your app a second Effect identity. Before setting
 `/effect-server`, `/effect-edge` or `/effect-client`, install the exact cohort:
 
 ```bash
-pnpm add effect@4.0.0-beta.107 @effect/opentelemetry@4.0.0-beta.107
+pnpm add effect@4.0.0-rc.112 @effect/opentelemetry@4.0.0-rc.112
 ```
 
 The pin is exact because UltraModern ships Effect as one lockstep cohort. Apps
@@ -219,17 +219,17 @@ generated apps use:
 
 ```yaml
 trustPolicyExclude:
-  - 'effect@4.0.0-beta.107'
-  - '@effect/opentelemetry@4.0.0-beta.107'
+  - 'effect@4.0.0-rc.112'
+  - '@effect/opentelemetry@4.0.0-rc.112'
 
 overrides:
-  '@effect/opentelemetry': 4.0.0-beta.107
-  '@effect/vitest': 4.0.0-beta.107
-  effect: 4.0.0-beta.107
+  '@effect/opentelemetry': 4.0.0-rc.112
+  '@effect/vitest': 4.0.0-rc.112
+  effect: 4.0.0-rc.112
 ```
 
 Do not add a different direct `effect` version in an app package. A mismatched
-Effect beta can fail while building layers or HTTP middleware because runtime
+Effect prerelease can fail while building layers or HTTP middleware because runtime
 services come from different package instances. The strict 24-hour release-age
 gate applies to installed packages; the current cohort has no Effect age
 exemption, and override-only `@effect/vitest` is not an installed approval

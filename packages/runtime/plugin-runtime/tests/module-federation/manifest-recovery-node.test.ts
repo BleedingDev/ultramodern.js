@@ -54,9 +54,9 @@ const findRuntimePath = () => {
   const packageStoreRoot = path.join(repoRoot, 'node_modules/.pnpm');
   const runtimeEntry = fs
     .readdirSync(packageStoreRoot)
-    .find(entry => entry === '@module-federation+runtime@2.8.2');
+    .find(entry => entry === '@module-federation+runtime@2.9.0');
 
-  assert.ok(runtimeEntry, '@module-federation/runtime@2.8.2 must be installed');
+  assert.ok(runtimeEntry, '@module-federation/runtime@2.9.0 must be installed');
   return path.join(
     packageStoreRoot,
     runtimeEntry,

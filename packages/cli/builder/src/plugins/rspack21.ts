@@ -1,7 +1,6 @@
 import type { RsbuildPlugin } from '@rsbuild/core';
 
 const PERSISTENT_CACHE_MAX_AGE = 7 * 24 * 60 * 60;
-const PERSISTENT_CACHE_MAX_VERSIONS = 3;
 
 export const pluginRspack21 = ({
   sourceImport,
@@ -22,7 +21,6 @@ export const pluginRspack21 = ({
         config.cache.type === 'persistent'
       ) {
         config.cache.maxAge ??= PERSISTENT_CACHE_MAX_AGE;
-        config.cache.maxVersions ??= PERSISTENT_CACHE_MAX_VERSIONS;
       }
 
       if (sourceImport !== undefined) {

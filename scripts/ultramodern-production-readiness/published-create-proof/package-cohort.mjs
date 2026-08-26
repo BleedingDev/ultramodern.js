@@ -15,6 +15,11 @@ const dependencyBlocks = Object.freeze([
   'optionalDependencies',
   'peerDependencies',
 ]);
+const bootstrapDependencyBlocks = Object.freeze([
+  'dependencies',
+  'optionalDependencies',
+]);
+const minimumReleaseAgeMinutes = 1440;
 
 function assertCondition(condition, message) {
   if (!condition) {
@@ -177,6 +182,151 @@ function expectedReleaseCohort(release) {
   });
 }
 
+function exactBootstrapDependencyTargets(packageJson, release, cohort) {
+  const targets = new Set();
+  const knownTargets = new Set(cohort.targetNames);
+  for (const blockName of bootstrapDependencyBlocks) {
+    for (const [dependencyName, specifier] of Object.entries(
+      packageJson[blockName] ?? {},
+    )) {
+      const sourceAliasTarget = cohort.aliases[dependencyName];
+      const npmAlias =
+        typeof specifier === 'string'
+          ? /^npm:(?<target>@[^/]+\/[^@]+|[^@]+)@(?<version>.+)$/u.exec(
+              specifier,
+            )?.groups
+          : undefined;
+      const targetName = sourceAliasTarget ?? npmAlias?.target;
+      if (!targetName || !knownTargets.has(targetName)) {
+        assertCondition(
+          !targetName?.startsWith('@bleedingdev/modern-js-'),
+          `${blockName}.${dependencyName} targets omitted release package ${targetName}`,
+        );
+        continue;
+      }
+      const expectedSpecifier = `npm:${targetName}@${release.release.version}`;
+      assertCondition(
+        specifier === expectedSpecifier,
+        `${blockName}.${dependencyName} must resolve to exact bootstrap dependency ${expectedSpecifier}, found ${String(
+          specifier,
+        )}`,
+      );
+      targets.add(targetName);
+    }
+  }
+  return [...targets].sort((left, right) => left.localeCompare(right));
+}
+
+function resolveBootstrapReleaseAgePolicy(release, cohort, createPackage) {
+  assertCondition(
+    isPlainObject(release?.dependencyGraph),
+    'Strict release manifest dependencyGraph is required for bootstrap policy',
+  );
+  assertCondition(
+    Array.isArray(release?.packages),
+    'Strict release manifest package observations are required for bootstrap policy',
+  );
+
+  const graphTargets = Object.keys(release.dependencyGraph).sort(
+    (left, right) => left.localeCompare(right),
+  );
+  const expectedTargets = [...cohort.targetNames].sort((left, right) =>
+    left.localeCompare(right),
+  );
+  assertCondition(
+    JSON.stringify(graphTargets) === JSON.stringify(expectedTargets),
+    'Strict release manifest dependencyGraph must enumerate the exact release cohort',
+  );
+
+  const packagesByTarget = new Map();
+  for (const item of release.packages) {
+    assertCondition(
+      isPlainObject(item) &&
+        typeof item.sourceName === 'string' &&
+        cohort.aliases[item.sourceName] === item.targetName,
+      `Strict release manifest contains an invalid package observation for ${String(
+        item?.targetName,
+      )}`,
+    );
+    assertCondition(
+      item.version === release.release.version,
+      `Bootstrap dependency ${item.targetName} must use release version ${release.release.version}, found ${String(
+        item.version,
+      )}`,
+    );
+    assertCondition(
+      isPlainObject(item.packageJson),
+      `Bootstrap dependency ${item.targetName} is missing its authenticated packed package.json`,
+    );
+    assertCondition(
+      !packagesByTarget.has(item.targetName),
+      `Strict release manifest contains duplicate package observation ${item.targetName}`,
+    );
+    packagesByTarget.set(item.targetName, item);
+  }
+  assertCondition(
+    packagesByTarget.size === expectedTargets.length,
+    'Strict release manifest package observations must enumerate the exact release cohort for bootstrap policy',
+  );
+
+  for (const targetName of expectedTargets) {
+    const graphDependencies = release.dependencyGraph[targetName];
+    assertCondition(
+      Array.isArray(graphDependencies) &&
+        graphDependencies.every(
+          dependency =>
+            typeof dependency === 'string' &&
+            packagesByTarget.has(dependency) &&
+            dependency !== targetName,
+        ) &&
+        new Set(graphDependencies).size === graphDependencies.length,
+      `Strict release manifest dependencyGraph.${targetName} is malformed`,
+    );
+    const packageObservation = packagesByTarget.get(targetName);
+    const packedDependencies = exactBootstrapDependencyTargets(
+      packageObservation.packageJson,
+      release,
+      cohort,
+    );
+    assertCondition(
+      JSON.stringify(
+        [...graphDependencies].sort((left, right) => left.localeCompare(right)),
+      ) === JSON.stringify(packedDependencies),
+      `Strict release manifest dependencyGraph.${targetName} differs from authenticated packed runtime dependencies`,
+    );
+  }
+
+  const reachableTargets = new Set();
+  const visiting = new Set();
+  const visit = targetName => {
+    assertCondition(
+      !visiting.has(targetName),
+      `Strict release manifest bootstrap dependency cycle includes ${targetName}`,
+    );
+    if (reachableTargets.has(targetName)) {
+      return;
+    }
+    visiting.add(targetName);
+    for (const dependency of release.dependencyGraph[targetName]) {
+      visit(dependency);
+    }
+    visiting.delete(targetName);
+    reachableTargets.add(targetName);
+  };
+  visit(createPackage.targetName);
+
+  return Object.freeze({
+    minimumReleaseAge: minimumReleaseAgeMinutes,
+    minimumReleaseAgeExclude: Object.freeze(
+      [...reachableTargets]
+        .sort((left, right) => left.localeCompare(right))
+        .map(targetName => `${targetName}@${release.release.version}`),
+    ),
+    minimumReleaseAgeIgnoreMissingTime: false,
+    minimumReleaseAgeStrict: true,
+  });
+}
+
 function resolveCreatePackage(release, requestedSpecifier) {
   const cohort = expectedReleaseCohort(release);
   const createPackage = release?.createPackage;
@@ -210,28 +360,74 @@ function resolveCreatePackage(release, requestedSpecifier) {
       `Create package must be the exact release manifest package ${exactSpecifier}, found ${requestedSpecifier}`,
     );
   }
-  return {
+  const bootstrapReleaseAgePolicy = resolveBootstrapReleaseAgePolicy(
+    release,
+    cohort,
+    createPackage,
+  );
+  return Object.freeze({
     packageName: createPackage.targetName,
     version: createPackage.version,
     frameworkVersion,
     exactSpecifier,
-  };
+    bootstrapReleaseAgePolicy,
+  });
 }
 
-function releasePackageScopePattern(createPackage) {
-  const scope = /^(?<scope>@[^/]+)\//u.exec(createPackage.exactSpecifier)
-    ?.groups?.scope;
+function assertBootstrapReleaseAgePolicy(createPackage) {
+  const policy = createPackage?.bootstrapReleaseAgePolicy;
+  const createIdentity =
+    typeof createPackage?.exactSpecifier === 'string'
+      ? /^(?<packageName>@[^/]+\/[^@]+)@(?<version>[1-9]\d*\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?)$/u.exec(
+          createPackage.exactSpecifier,
+        )?.groups
+      : undefined;
+  const exactExcludes = policy?.minimumReleaseAgeExclude;
   assertCondition(
-    scope,
-    `Create package must use a scoped exact specifier, found ${String(createPackage.exactSpecifier)}`,
+    createIdentity &&
+      createPackage.version === createIdentity.version &&
+      policy?.minimumReleaseAge === minimumReleaseAgeMinutes &&
+      policy.minimumReleaseAgeStrict === true &&
+      policy.minimumReleaseAgeIgnoreMissingTime === false &&
+      Array.isArray(exactExcludes) &&
+      exactExcludes.length > 0 &&
+      exactExcludes.every(
+        specifier =>
+          typeof specifier === 'string' &&
+          /^@[^/]+\/[^@/]+@[1-9]\d*\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$/u.test(
+            specifier,
+          ) &&
+          specifier.endsWith(`@${createIdentity.version}`) &&
+          specifier.startsWith(
+            `${createIdentity.packageName.slice(
+              0,
+              createIdentity.packageName.indexOf('/') + 1,
+            )}`,
+          ),
+      ) &&
+      new Set(exactExcludes).size === exactExcludes.length &&
+      JSON.stringify(exactExcludes) ===
+        JSON.stringify(
+          [...exactExcludes].sort((left, right) => left.localeCompare(right)),
+        ) &&
+      exactExcludes.includes(createPackage.exactSpecifier),
+    'Create package must carry an exact authenticated bootstrap release-age policy',
   );
-  return `${scope}/*`;
+  return policy;
 }
 
 function createPnpmDlxArgs(createPackage, forwardedArgs) {
+  const policy = assertBootstrapReleaseAgePolicy(createPackage);
   return [
     '--pm-on-fail=ignore',
-    `--config.minimum-release-age-exclude=${releasePackageScopePattern(createPackage)}`,
+    `--config.minimum-release-age=${policy.minimumReleaseAge}`,
+    `--config.minimum-release-age-strict=${String(policy.minimumReleaseAgeStrict)}`,
+    `--config.minimum-release-age-ignore-missing-time=${String(
+      policy.minimumReleaseAgeIgnoreMissingTime,
+    )}`,
+    ...policy.minimumReleaseAgeExclude.map(
+      specifier => `--config.minimum-release-age-exclude=${specifier}`,
+    ),
     'dlx',
     '--allow-build=esbuild',
     createPackage.exactSpecifier,
@@ -444,11 +640,11 @@ function assertGeneratedCohort(projectDir, release, { registryUrl } = {}) {
 }
 
 export {
+  assertBootstrapReleaseAgePolicy,
   assertGeneratedCohort,
   createPnpmDlxArgs,
   expectedReleaseCohort,
   packageJsonFiles,
-  releasePackageScopePattern,
   resolveCreatePackage,
   retiredMetadataPaths,
 };

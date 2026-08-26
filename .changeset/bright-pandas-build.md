@@ -8,6 +8,10 @@
 '@modern-js/builder': patch
 ---
 
-chore: upgrade Rsbuild to v2.2.0-rc.0 and the SWC plugin to the latest version
+chore: upgrade Rsbuild to v2.2.0 and the SWC plugin to the latest version
 
-chore: 升级 Rsbuild 至 v2.2.0-rc.0，并将 SWC 插件升级至最新版本
+Remove the obsolete Rspack persistent-cache `maxVersions` default.
+
+chore: 升级 Rsbuild 至 v2.2.0，并将 SWC 插件升级至最新版本
+
+移除已废弃的 Rspack 持久化缓存 `maxVersions` 默认值。

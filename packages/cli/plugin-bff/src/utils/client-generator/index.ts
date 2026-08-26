@@ -14,8 +14,5 @@ export {
   getPackageName,
   mergePackageJson,
 } from './package-json';
-export {
-  buildClientTypeFacade,
-  MissingClientDeclarationError,
-} from './type-facade';
+export { buildClientTypeFacade } from './type-facade';
 export { setPackage, writeClientModuleBoundary } from './write-package';

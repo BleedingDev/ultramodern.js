@@ -50,15 +50,15 @@ pnpm check
 pnpm build
 ```
 
-The generated toolchain pins Node `26.7.0`, pnpm `11.21.0`, and
+The generated toolchain pins Node `26.7.0`, pnpm `11.24.0`, and
 `@types/node@^26.2.0`; its engine baseline remains Node `>=26` with pnpm `11+`.
 `packageManager`, `.mise.toml`, generated validation, and CI should all agree
 on those values; do not reintroduce Corepack or older pnpm aliases.
 
-The current generated dependency cohort also pins `@effect/tsgo@0.36.2`,
-`@tanstack/react-router@1.170.25`, `@tanstack/router-core@1.171.21`,
-`@tanstack/history@1.162.1`, and the Module Federation integration `2.8.2`
-cohort, `@module-federation/node@2.7.49`. Move these only through the
+The current generated dependency cohort also pins `@effect/tsgo@0.37.0`,
+`@tanstack/react-router@1.170.32`, `@tanstack/router-core@1.171.27`,
+`@tanstack/history@1.162.1`, and the Module Federation integration `2.9.0`
+cohort, `@module-federation/node@2.7.50`. Move these only through the
 generator-owned version policy so templates, validation, and the published
 workspace contract stay aligned.
 
@@ -214,10 +214,10 @@ your back. If `pnpm api:check` still fails, migrate the source to
 `api/effect`, `api/lambda`, `shared/effect`, and `src/effect` paths.
 
 Generated strict Effect workspaces pin the compatible Effect cohort through
-`pnpm-workspace.yaml` overrides: `effect@4.0.0-beta.107`,
-`@effect/opentelemetry@4.0.0-beta.107`, and
-`@effect/vitest@4.0.0-beta.107`. The strict 24-hour release-age gate applies to
-the installed cohort; the current policy carries no Effect age exemption, and
+`pnpm-workspace.yaml` overrides: `effect@4.0.0-rc.112`,
+`@effect/opentelemetry@4.0.0-rc.112`, and
+`@effect/vitest@4.0.0-rc.112` (requiring `vitest >=4.1.0 <5`). The strict
+24-hour release-age gate applies to the installed cohort; the current policy carries no Effect age exemption, and
 the override-only `@effect/vitest` entry is not an installed approval target.
 Separately, exact
 `trustPolicyExclude` entries for `effect` and `@effect/opentelemetry` cover the

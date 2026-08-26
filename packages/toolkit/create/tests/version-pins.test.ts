@@ -28,9 +28,9 @@ const pluginBffPackagePath = path.resolve(
   '../../../cli/plugin-bff/package.json',
 );
 
-test('pins the Module Federation 2.8 cohort exactly', () => {
-  assert.equal(MODULE_FEDERATION_VERSION, '2.8.2');
-  assert.equal(MODULE_FEDERATION_NODE_VERSION, '2.7.49');
+test('pins the Module Federation 2.9 cohort exactly', () => {
+  assert.equal(MODULE_FEDERATION_VERSION, '2.9.0');
+  assert.equal(MODULE_FEDERATION_NODE_VERSION, '2.7.50');
 
   const pluginBffPackage = JSON.parse(
     fs.readFileSync(pluginBffPackagePath, 'utf-8'),
@@ -78,10 +78,19 @@ test('generated workspace renders the pins from versions.ts', () => {
     });
     assert.deepEqual(pnpmPolicy.patchedDependencies, {
       [`@module-federation/bridge-react@${MODULE_FEDERATION_VERSION}`]: `patches/@module-federation__bridge-react@${MODULE_FEDERATION_VERSION}.patch`,
+      [`@module-federation/dts-plugin@${MODULE_FEDERATION_VERSION}`]: `patches/@module-federation__dts-plugin@${MODULE_FEDERATION_VERSION}.patch`,
       [`@module-federation/modern-js-v3@${MODULE_FEDERATION_VERSION}`]: `patches/@module-federation__modern-js-v3@${MODULE_FEDERATION_VERSION}.patch`,
       [`@tanstack/router-core@${TANSTACK_ROUTER_CORE_VERSION}`]: `patches/@tanstack__router-core@${TANSTACK_ROUTER_CORE_VERSION}.patch`,
-      [`effect@${EFFECT_VERSION}`]: 'patches/effect-schema-error-type-id.patch',
     });
+    assert.ok(
+      fs.existsSync(
+        path.join(
+          workspaceDir,
+          `patches/@module-federation__dts-plugin@${MODULE_FEDERATION_VERSION}.patch`,
+        ),
+      ),
+      'generated Module Federation DTS patch file must match MODULE_FEDERATION_VERSION',
+    );
     assert.ok(
       fs.existsSync(
         path.join(
@@ -100,11 +109,12 @@ test('generated workspace renders the pins from versions.ts', () => {
       ),
       'generated Module Federation React bridge patch file must match MODULE_FEDERATION_VERSION',
     );
-    assert.ok(
+    assert.equal(
       fs.existsSync(
         path.join(workspaceDir, 'patches/effect-schema-error-type-id.patch'),
       ),
-      'generated Effect declaration patch file must be present',
+      false,
+      'generated workspaces must not carry the retired Effect declaration patch',
     );
     assert.ok(
       fs.existsSync(

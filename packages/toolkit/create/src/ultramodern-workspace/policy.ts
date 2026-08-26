@@ -291,12 +291,8 @@ export type UltramodernStalePatchPolicy = UltramodernPatchPolicy & {
 const releaseAgeReasons = {
   cloudflare:
     'Reviewed Cloudflare runtime cohort required by generated Worker tooling before pnpm minimum release age elapsed.',
-  effect:
-    'Reviewed Effect 4 beta cohort required by generated strict Effect workspaces before pnpm minimum release age elapsed.',
   framework:
     'Reviewed Modern.js framework and fresh generated dependency closure required by workspaces before pnpm minimum release age elapsed.',
-  tooling:
-    'Reviewed Oxlint and Oxfmt toolchain cohort required by generated workspace quality gates before pnpm minimum release age elapsed.',
   typescript:
     'Reviewed TypeScript compiler and platform cohort required by generated TypeScript 7 workspaces before pnpm minimum release age elapsed.',
 } as const;
@@ -310,33 +306,12 @@ type ReleaseAgeReviewEvidence = {
 };
 
 const releaseAgeReviewEvidence = {
-  effectTooling20260810: {
+  rsbuildRspack20260826: {
     reviewer: 'Petr Glaser <syreanis+1@gmail.com>',
-    reviewedAt: '2026-08-10T14:36:54.394Z',
-    expiresAt: '2026-09-09T23:59:59.000Z',
-    uri: 'https://github.com/BleedingDev/ultramodern.js/commit/eb27eddccec4e51896d63abb070ef46a7b7d3eb7',
-    sha256: '47c9f25308e6bb521fa6e5a603205be9664034ae92bb94b1aa7d5683229bb240',
-  },
-  modernjsUpstream20260824: {
-    reviewer: 'Petr Glaser <syreanis+1@gmail.com>',
-    reviewedAt: '2026-08-24T19:40:58.000Z',
-    expiresAt: '2026-08-25T14:46:59.712Z',
-    uri: 'https://github.com/BleedingDev/ultramodern.js/commit/b1cb9adc60074f9619e94e8653f2a1f6c8e40ce9',
-    sha256: 'fed95e26dcacd298e6a848448ed5965809315c7169d26b7fc4c78ec12505adb7',
-  },
-  modernjsBrowserData20260825: {
-    reviewer: 'Petr Glaser <syreanis+1@gmail.com>',
-    reviewedAt: '2026-08-25T08:10:57.000Z',
-    expiresAt: '2026-08-26T02:05:46.077Z',
-    uri: 'https://github.com/BleedingDev/ultramodern.js/commit/18a7063b427ee1fcb64ede59c85ff7c7adebe4a1',
-    sha256: 'e957c320a8877b107d50ac25ddaae467543d0846ef88c8094cbc8b2a684491db',
-  },
-  typescript: {
-    reviewer: 'Petr Glaser <syreanis+1@gmail.com>',
-    reviewedAt: '2026-07-09T14:00:39.000Z',
-    expiresAt: '2026-08-08T14:00:39.000Z',
-    uri: 'https://github.com/BleedingDev/ultramodern.js/commit/50b905faa441954cac46bef073036514ddf78faa',
-    sha256: '39b3f634548088af3e6c8417263d34f8ac430f0aff8ffec6dbded3eb977579c1',
+    reviewedAt: '2026-08-26T10:06:26.000Z',
+    expiresAt: '2026-08-27T02:46:55.656Z',
+    uri: 'https://github.com/BleedingDev/ultramodern.js/commit/986768d419f032f98d0cdcfd0893538b94ef1ea5',
+    sha256: 'fe2b9cbf8027a6241d6cad9fc2bfd1efbc1517af95cbddde5bf5167fb0ae6b38',
   },
 } as const satisfies Record<string, ReleaseAgeReviewEvidence>;
 
@@ -439,6 +414,11 @@ export const ULTRAMODERN_PACKAGE_PINS = {
 
 const requiredPatchPolicies: readonly UltramodernPatchPolicy[] = [
   {
+    packageName: '@module-federation/dts-plugin',
+    version: MODULE_FEDERATION_VERSION,
+    path: `patches/@module-federation__dts-plugin@${MODULE_FEDERATION_VERSION}.patch`,
+  },
+  {
     packageName: '@module-federation/bridge-react',
     version: MODULE_FEDERATION_VERSION,
     path: `patches/@module-federation__bridge-react@${MODULE_FEDERATION_VERSION}.patch`,
@@ -449,18 +429,13 @@ const requiredPatchPolicies: readonly UltramodernPatchPolicy[] = [
     path: `patches/@module-federation__modern-js-v3@${MODULE_FEDERATION_VERSION}.patch`,
   },
   {
-    // router-core 1.171.21 still ships `MakeRouteMatch['__beforeLoadContext']`
+    // router-core 1.171.27 still ships `MakeRouteMatch['__beforeLoadContext']`
     // in dist ssr type declarations; the property does not exist on the type,
     // so workspace builds fail under skipLibCheck:false (which generated
     // workspaces enforce). Patch until an upstream release fixes the d.ts.
     packageName: '@tanstack/router-core',
     version: TANSTACK_ROUTER_CORE_VERSION,
     path: `patches/@tanstack__router-core@${TANSTACK_ROUTER_CORE_VERSION}.patch`,
-  },
-  {
-    packageName: 'effect',
-    version: EFFECT_VERSION,
-    path: 'patches/effect-schema-error-type-id.patch',
   },
 ];
 
@@ -473,6 +448,18 @@ const conditionalPatchPolicies: readonly UltramodernPatchPolicy[] = [
 ];
 
 const stalePatchPolicies: readonly UltramodernStalePatchPolicy[] = [
+  {
+    packageName: '@module-federation/bridge-react',
+    version: '2.8.2',
+    path: 'patches/@module-federation__bridge-react@2.8.2.patch',
+    sha256: '8c084f41790295af8fd015b897c6298bbc13d927b796c624ac96cb2bdb4bc87c',
+  },
+  {
+    packageName: '@module-federation/modern-js-v3',
+    version: '2.8.2',
+    path: 'patches/@module-federation__modern-js-v3@2.8.2.patch',
+    sha256: '948d2a725ae526f395b0343b113ff80dfaa50dbdec8158179746e98259925d20',
+  },
   {
     packageName: '@module-federation/bridge-react',
     version: '2.8.0',
@@ -498,13 +485,16 @@ const stalePatchPolicies: readonly UltramodernStalePatchPolicy[] = [
     sha256: 'f51adf0aa6c6e2daa5b7d2978a7716c0d4fb05b29af449b2f16257b957fb7923',
   },
   {
+    // Historical hashes keep retired Effect declarations safely removable.
+    packageName: 'effect',
+    version: '4.0.0-beta.107',
+    path: 'patches/effect-schema-error-type-id.patch',
+    sha256: 'ed9f636f82a1a1e5c128fc85e99e24a8fcf4ba06a35e89e3dd6460250875153f',
+  },
+  {
     packageName: 'effect',
     version: '4.0.0-beta.94',
     path: 'patches/effect-schema-error-type-id.patch',
-    // Same path as the active effect patch, so the primary digest tracks the
-    // current template patch and the legacy list carries superseded ones. The
-    // beta.107 retains only the public SchemaAST.Sentinel repair. The previous
-    // private preResponseHandler declaration hunk is intentionally historical.
     sha256: 'ed9f636f82a1a1e5c128fc85e99e24a8fcf4ba06a35e89e3dd6460250875153f',
     acceptedLegacySha256: [
       'd9e12b42d06a051957899a9df14b2b7b2385fc3a5677a89037eeee3674d64ebe',
@@ -516,10 +506,6 @@ const stalePatchPolicies: readonly UltramodernStalePatchPolicy[] = [
     packageName: 'effect',
     version: '4.0.0-beta.97',
     path: 'patches/effect-schema-error-type-id.patch',
-    // Same path as the active effect patch, so the primary digest tracks the
-    // current template patch and the legacy list carries superseded ones. The
-    // beta.107 retains only the public SchemaAST.Sentinel repair. The previous
-    // private preResponseHandler declaration hunk is intentionally historical.
     sha256: 'ed9f636f82a1a1e5c128fc85e99e24a8fcf4ba06a35e89e3dd6460250875153f',
     acceptedLegacySha256: [
       'd9e12b42d06a051957899a9df14b2b7b2385fc3a5677a89037eeee3674d64ebe',
@@ -567,6 +553,12 @@ const stalePatchPolicies: readonly UltramodernStalePatchPolicy[] = [
   },
   {
     packageName: '@tanstack/router-core',
+    version: '1.171.21',
+    path: 'patches/@tanstack__router-core@1.171.21.patch',
+    sha256: 'fb269f2a1c6c789ffb2d4f9341f6dd6a1dbb977b5bb66ce8e31a3a9cdd197dad',
+  },
+  {
+    packageName: '@tanstack/router-core',
     version: '1.171.13',
     path: 'patches/@tanstack__router-core@1.171.13.patch',
     sha256: '0c6119dcaa6ad35a11e1ce4fd95179bf929d5b5a86e9cbee110f45bd07c5c8d3',
@@ -588,93 +580,93 @@ const stalePatchPolicies: readonly UltramodernStalePatchPolicy[] = [
 const moduleFederationRegistryReleases = [
   [
     'bridge-react',
-    '2026-08-06T11:23:38.662Z',
-    'sha512-cRuoIZ2sX572+N5Ih3gKvajVnWMHN0n3FpWNtTheX81XYYKghGpl+fsJ68fAthZefYccnEcy9SGoaSYyXEtIyA==',
+    '2026-08-24T08:18:02.542Z',
+    'sha512-3wEVz9IMsDnbdTZjG+0XA7BHUU2yIvfTqWRrMPR9RciSOVojJUXocZ6Anksu7WhuYnasc7am8szpms7pZGotnA==',
   ],
   [
     'bridge-react-webpack-plugin',
-    '2026-08-06T11:24:16.927Z',
-    'sha512-cEhnpCsWHqUndQC6WKtwat5BGz+IU0UdCjzyXrZtx1UqHX1jRB0+DZxB4DKYKtxTko8fsV0FUCJ/0FjKZY6z8g==',
+    '2026-08-24T08:19:41.007Z',
+    'sha512-hv3fuQkGERQ/COBKTVbFV1GWovReSg/bzJzDuxWR1F84h6NYtbYMWQqX8Egvb7HKMtn9Rflzw0GeaLr8F08vDg==',
   ],
   [
     'cli',
-    '2026-08-06T11:26:17.305Z',
-    'sha512-SrRe2UOzjYux/9Zf7AYymGGsYpJgrIHUPF+T9JQ+rZ7MC9Uiy5rNUtSYdxNrdFpVaRZYXMrI4b82iUy66CU6UA==',
+    '2026-08-24T08:21:41.802Z',
+    'sha512-r9RdlLRy3zWxuWQRonif48xdDu1reBGx18QpkZwLQ4JfSrOARjycNIGY2Y7QaUw7dedzxyee4FtKFeX/kOVLYQ==',
   ],
   [
     'dts-plugin',
-    '2026-08-06T11:24:53.645Z',
-    'sha512-pwZFW8b2LZTymMMC+o2M9xMXDIQKAHGtCRqj/IkOp0jHRYrKjK9cma9xoUNst8/R3sEn878/i9wgv/43BnCEyg==',
+    '2026-08-24T08:19:17.035Z',
+    'sha512-uMGqEG/p9odG2BVr7WRbBe2OgrvzBd3LPzcp5WP+bm3djBdUJ4PZ3ozqKp6qpy+NFnlh6vnM815Xn6AXkKy1Vw==',
   ],
   [
     'enhanced',
-    '2026-08-06T11:30:02.334Z',
-    'sha512-XVCp1dz7ADd2YgjuvGVsS7IVJ8ViuAUCEz9gAb4M0qMJCjcPfzXQ1CzV1/Me1lKaPPwNj/cJ3NXTRvXjMHanGg==',
+    '2026-08-24T08:20:25.023Z',
+    'sha512-Jd/JHoFL9fNKL4Nnzo/9hf6FD/oQo3gKpE8xt6EGuhxmrvg6wM0radPtqgHiSSWLMW7CiXr2agNjKvquKd83rw==',
   ],
   [
     'error-codes',
-    '2026-08-06T11:26:04.260Z',
-    'sha512-8inlDv48QOjA//CLQ3epjoHEiMQGsz1Pmtu2N+s7gQVggn6AYHpjnMe8AsyGxtpaPg3wbX0HmBZtRFggpXUB9A==',
+    '2026-08-24T08:22:25.614Z',
+    'sha512-IGpd+VRlji3NyGOGGTsk7YEmPRKcDoBK4YHqIuP+OQwyb2YhHCUHO2vW9RXeQxCuKwi+c6xkTweRYG+Umy+0Zw==',
   ],
   [
     'inject-external-runtime-core-plugin',
-    '2026-08-06T11:26:50.044Z',
-    'sha512-RetbaupJGiT2FtmA3WWGm72xZkNSJ6Xyy53jSgtu9HRnR/5xt/wiQl+Pe/iEfzgfLsUnUAkOsSfiPBXrDtNizw==',
+    '2026-08-24T08:21:16.321Z',
+    'sha512-k3wCSZsY21HjYQ61wmIJUQleOgcHgqx/sX4qXYw0XnJnzHuFo64rzMvgr+TuBIgZ1peAQtfILLlTnWyTRjtZHw==',
   ],
   [
     'managers',
-    '2026-08-06T11:25:25.160Z',
-    'sha512-OQfnoUwy1IUfn6DaI2S/DPKgnElkYlP+gG8mbUQlJVEW1Zg/8V/dZbNgJUKikTJly6yR1r08PK59g7239ITYMw==',
+    '2026-08-24T08:19:45.898Z',
+    'sha512-8KhB2PF4g+M0hGaethU1H4GVWabLn5sF5TvnM6VxgAcDL4TfLY8aC/YobAXHG/SV0jpU5lsGe6s6xy6ccV0MQw==',
   ],
   [
     'manifest',
-    '2026-08-06T11:27:26.712Z',
-    'sha512-mJUZo7QFL46NXoEWNby3CfPFFm2235J7LO6bXAAMrEIT4qF8QHLiqfoo5dZmrisRgM6e+muriWtGvPFMprnXyA==',
+    '2026-08-24T08:19:49.387Z',
+    'sha512-Zhm9luVOw9XPou50eTwsvdgr208CszoQ6cGORQDCPAMhjpGb5oYFtilJ+LKW7hQ1LktD15bEZmGhC1anvgXEiQ==',
   ],
   [
     'modern-js-v3',
-    '2026-08-06T11:25:21.202Z',
-    'sha512-FK6ez4uUAZrG9a/5+T37DKN8OIAHLFpNTvlM5Qha4U4reeZavLU8TPsayaPON/3WVbzMxvy2uKfObwXq8+ubTQ==',
+    '2026-08-24T08:21:54.080Z',
+    'sha512-IzFEJnO53vEVLrm5qlDrCPO1bEmN11TLaPHrZtPqHfy7yjwhBDi/63uLAVwcqKVGZnK5Erbqg9Y3hJkZKxd4AQ==',
   ],
   [
     'rsbuild-plugin',
-    '2026-08-06T11:25:12.457Z',
-    'sha512-rUzx5quE/pqEiZk0ESyPj4QCDCvSpqhgoq/+zjuz9vyHAuMvXL/U0si6bOclBg4UGGFlLmq5+XVIJR43iAADJg==',
+    '2026-08-24T08:19:38.788Z',
+    'sha512-CaWAxZg+zOMw/BfgRXQdNBQZ/e5U7DBZvE13LzG13GEclt7yxaMQgKH0si3uOsq9f/X2NC8UnuhNHLIkloqlqA==',
   ],
   [
     'rspack',
-    '2026-08-06T11:25:53.432Z',
-    'sha512-HEDirYhVYvx7IzP9jes6KLPMqSoSQwuLfBzPSOgBqY7sIH/e9zRSRO1qh5C8OXYKHi23WcQpGY+EeecIK9wxWw==',
+    '2026-08-24T08:21:20.630Z',
+    'sha512-9zSlmQYKRHKVWqhlZSMyjstp2A3VVrQV2Of8mrF5NXhngFemNx7Hw35+MTo+gsRfF5glpN8bAzLyIokRUo1Cog==',
   ],
   [
     'runtime',
-    '2026-08-06T11:24:39.297Z',
-    'sha512-SUoP+PD5EjSPSi6FxEPGIZoRkFifxdeYcVQbJE9mO0VEjF51gAk3/TgX8k0vzUryOBPmXekLr9SfQXU6DqUtvA==',
+    '2026-08-24T08:21:03.780Z',
+    'sha512-3cyAav0hWP+dNvB7qrcK9CKxQn+JvkbRvLtZz3zS2g0EyxtDFDjgbHY0Afcf7oHf8IHhKeEdzb/3Kjr1Pjmr7A==',
   ],
   [
     'runtime-core',
-    '2026-08-06T11:24:25.871Z',
-    'sha512-PEkkK9MUp+nUCeQMS4ox3QGZfwwxgfjGA7P4umEnr5c3y8DLNDR+26tyHf/Gkjen2VsjlcyL+mEAQo1Zi4IE3g==',
+    '2026-08-24T08:19:49.581Z',
+    'sha512-dLykRYfpbEJBTdk2NlbNoVVTB196O3qujawTBguLABJkPCWETJNk60NR1yZO34eI+DTH+eGwHU3m7FddAWnbnw==',
   ],
   [
     'runtime-tools',
-    '2026-08-06T11:25:33.018Z',
-    'sha512-eW/yPvZB2LbpbyPXPTnOeF1ieWl165D9QcPV0y5Bj1QYGDjL2cb+dnzrBp0fmFtJhCYqmAdsVNoYItVa3yuJ3g==',
+    '2026-08-24T08:19:57.575Z',
+    'sha512-u2puqsaHiw1bVvLNk1uh98iPo6UzaBuci/aTvOFwKvbT/RF18C3vGGnm+ShHPKQEnoN6ctPtnygyOZDPR+8cgg==',
   ],
   [
     'sdk',
-    '2026-08-06T11:24:06.157Z',
-    'sha512-OPS/lbQjraLXoWniQpCwQ/vqgURHTrhsackSNcOPmcJHM3LyR+DabxUc0pl8jAqExsW2l+uepQq7+/Gkei871w==',
+    '2026-08-24T08:20:29.076Z',
+    'sha512-IMjObgBGQTXd33jTTCYcxvz8iOQGLsZ2QIPOj90rDxuBtJsN4WJwYyXqligrhY/e5p/BipUPdbIgKmWL7zFhTw==',
   ],
   [
     'third-party-dts-extractor',
-    '2026-08-06T11:24:09.575Z',
-    'sha512-Xf3iZ4iDi972XMOMbmUm/c5Vwwb6cTsU+Jpoz96lUom6Yps9FQX48elIdhgcQsL7/K64PqdOONsrlZVo8zphKA==',
+    '2026-08-24T08:22:33.751Z',
+    'sha512-R1Xuqnqzw6wQxWV3yU9fX1FydXAeZF2TNVFAVo1N1oLBA2j5y7aUO/Fc3VSNgd9/gxMzJgTVBdA+nMiD2SFCgg==',
   ],
   [
     'webpack-bundler-runtime',
-    '2026-08-06T11:27:08.353Z',
-    'sha512-g4xQgfgMMCKgJjVMBh7nIYGjLGNDYwSZ4lfpTdkVyWDnxmR3SL6VPQTJEZHRYPyqvrTtZE1zdDhDd++yNRvLdA==',
+    '2026-08-24T08:20:31.955Z',
+    'sha512-MdU6NQibT57MaJG3KPBjC30IVBrz5eU7IcjHoVDYnMh7OmASw3stagBu7hYjdMTP31luNdtzUn85s9axvdwTlw==',
   ],
 ] as const;
 
@@ -682,478 +674,138 @@ const moduleFederationNodeRegistryRelease = {
   packageName: '@module-federation/node',
   version: MODULE_FEDERATION_NODE_VERSION,
   registry: {
-    publishedAt: '2026-08-06T11:26:03.867Z',
+    publishedAt: '2026-08-24T08:22:30.137Z',
     dist: {
       integrity:
-        'sha512-xNGYfhA2aqFpogb/uq6lwBeEbnmDLV6PwHzSe97mRrSSr00eUKAMwlLG6PcQP6ynbkPeDG86RYj/YUC7EWgLMA==',
+        'sha512-mbpQRdafyeWgsmYoJfdhOQf76zS6onOGpC2X1ELpWXB1Y4BcZGloL0CLjNMNon9m3ucfpc99tOGAQqFzQVkSBQ==',
     },
   },
 } as const;
 
-const effectTsgoPlatformRegistryReleases = [
+const rsbuildRspackRegistryReleases = [
   [
-    '@effect/tsgo-darwin-arm64',
-    '2026-08-10T07:00:52.282Z',
-    'sha512-eK1UY2bI//sOjfclmGmW+rrkTr8C7LksCl8aclrni6lz2na8NtCqvoehf4XPC/Mwsnsusc+nZl15OrUlSrhHOw==',
+    '@rsbuild/core',
+    '2.2.0',
+    '2026-08-26T02:46:55.656Z',
+    'sha512-UnBBfxWIDKVdLz2BUBq7hFBatwLclJ4moFhlDFg+pFBPPJ1g34MmCbGUC0c9Mo1DhPGdYJG69qMIldh5MvC74w==',
   ],
   [
-    '@effect/tsgo-darwin-x64',
-    '2026-08-10T07:00:52.990Z',
-    'sha512-LRY9v/awOQljxVQQS/euH29ZNR9u5Ui6FtTSuorvCILdN6P+C5XNwGaup3aKh37B/Tie7vqNNwwFvcPQdyA2hw==',
+    '@rspack/core',
+    '2.2.0',
+    '2026-08-26T02:17:40.412Z',
+    'sha512-3W7oX0BAHbK4VlknH3lfyfRvupzxdZtyEa+DfKmdjzmIAcqYtHnFd0nLqp5dzitDPyDI1TIKkDhpB0AZJn0pVg==',
   ],
   [
-    '@effect/tsgo-linux-arm',
-    '2026-08-10T07:00:48.436Z',
-    'sha512-w+RJ/eUq91HJQEfkH7WohGYRLQQs98uYMFXrX8u+LtCiqIqOsw6KIdhQ6jsBrplZANxUIzQOs3YrSfRKKf1CGg==',
+    '@rspack/binding',
+    '2.2.0',
+    '2026-08-26T02:15:34.205Z',
+    'sha512-nxZzJqqB0EmEKp6qjzFNkBb/SgGt0k0DSENrLvAJgvVvrm3waVsubD0cfxtPlZY/rd5SzadzxWGEHRyFcds5nA==',
   ],
   [
-    '@effect/tsgo-linux-arm64',
-    '2026-08-10T07:00:51.672Z',
-    'sha512-0OpqPvivRBu4lTcn0cMaQKb9WWPl+lSXLZYLKLg2QjV0065MConVK3NvIh601qToHifFtdcet8n71gHQWExRiw==',
+    '@rspack/binding-darwin-arm64',
+    '2.2.0',
+    '2026-08-26T02:10:44.109Z',
+    'sha512-KAVVT7hp3NBjtc/RY2UtOjzzc8i+s4pIhW1p52UV+Aev6ywQCu3dXwkHTonpPvJO3hqLXc4zIMH5l4HbMqBm4g==',
   ],
   [
-    '@effect/tsgo-linux-x64',
-    '2026-08-10T07:00:52.977Z',
-    'sha512-mOAcOtcb5mJa2mIJAW7oZChaItYx1ApQ4ton6FEkjBjDEcMK84OgaCrJWGd5mzHj+JmuHw4Enllzct0pyCZTrg==',
+    '@rspack/binding-darwin-x64',
+    '2.2.0',
+    '2026-08-26T02:10:51.901Z',
+    'sha512-rzyJCX99aFwl540trsVMNZOgK4+IFm2d5+YeP+RdNo9Uprxloz8vHz0J4dYtaq6MRiCAyM60dAwEa3wJMwqWAQ==',
   ],
   [
-    '@effect/tsgo-win32-arm64',
-    '2026-08-10T07:00:51.117Z',
-    'sha512-hyBJelUFZnBGLMJQKiM/w4hED4foqD8GkMOdFPNOBhWNuU5Z8JVTXkircWol01XgSo86RnSEjMfeKYv4FEeLWw==',
+    '@rspack/binding-linux-arm64-gnu',
+    '2.2.0',
+    '2026-08-26T02:16:09.113Z',
+    'sha512-0t8QOiOMcBV7RvPSsTJ5DQ4QCK6FIyUZy77qbxnS6asGTOXPZZn7V5cL26IxEv/wuHdQ6tQOXheau1fi+gGyBQ==',
   ],
   [
-    '@effect/tsgo-win32-x64',
-    '2026-08-10T07:00:51.373Z',
-    'sha512-Gh1nYw6hRudspkleoqWl/KX19+dShuODJPPv8rhqf3pPRRWm0GniKNxzPr5L42rcv1JXN1GK7no8FkStFLb9jQ==',
+    '@rspack/binding-linux-arm64-musl',
+    '2.2.0',
+    '2026-08-26T02:11:06.138Z',
+    'sha512-BAvCukqcuHxUdE294ITCohvhVkEklW8RbkKkR36Uo0WyIiMPGrnvPjARPn0/4Q4xMAz7lUmC60sZrvJHlAOKMw==',
   ],
-] as const;
-
-const oxfmtBindingRegistryReleases = [
   [
-    '@oxfmt/binding-android-arm-eabi',
-    '2026-08-10T10:42:59.749Z',
-    'sha512-YmRth4ZPGgEXcgmkhvANbC9uD67dxmSobW7DQuyt5tOBOKvPnIpk5SVHBj88E+7wMNRI2FhqaDbOhQFBix+b8A==',
+    '@rspack/binding-linux-ppc64-gnu',
+    '2.2.0',
+    '2026-08-26T02:11:12.739Z',
+    'sha512-nCHqZLv/E8nm2ccGkb00F5DQtXxzGy3W3X73ArA+N0+zXJUnzRcSRSwr7AE8pVgP/FYfX4yMFgUXy0g0YxYGRA==',
   ],
   [
-    '@oxfmt/binding-android-arm64',
-    '2026-08-10T10:42:34.186Z',
-    'sha512-icbahX8X2X3sRamOMecvdYeZXWjPDazRDIfvWfy7Ca1nc/ZDT2Y9k5Nt7s46EqFd7NQPdgk+CM3/SgIT5LPCaQ==',
+    '@rspack/binding-linux-riscv64-gnu',
+    '2.2.0',
+    '2026-08-26T02:11:19.331Z',
+    'sha512-CA3WEqKFDI6FAZTnCho2n9pmdPWZYAW/S8mqgxd0cx2Jix43at3VyLxhCC7ED5A9WBSFn/AdHaIbVtgoQHVhWA==',
   ],
   [
-    '@oxfmt/binding-darwin-arm64',
-    '2026-08-10T10:42:29.211Z',
-    'sha512-WV+Ze5v5gI2qoj8jpAovt8KBTW8pjEz/AiMXXjeTQS+Bmf/MmZXTS40S8xNPDszX+W8WDv2Bbk6qKrMTtUGu1A==',
+    '@rspack/binding-linux-riscv64-musl',
+    '2.2.0',
+    '2026-08-26T02:11:26.587Z',
+    'sha512-kHB960oClkoPRPZ6sdkhRvqbdRIlbpIMYd/Tbxfmn3DWQahiCk1pkUFJbOtFq3EgESxZISV4THl442W2Y57HvQ==',
   ],
   [
-    '@oxfmt/binding-darwin-x64',
-    '2026-08-10T10:43:43.321Z',
-    'sha512-CJGSBdDxXOWIpoFXHpverimCvz084KA7L483rqJ44c3jDtzv6d4qOSoR/V9ywSHfV+Ks1lwIj2P49BFhunLNAA==',
+    '@rspack/binding-linux-s390x-gnu',
+    '2.2.0',
+    '2026-08-26T02:11:34.448Z',
+    'sha512-lVBdiffVo1jq0P0jT36jNou2suLB4ueQI4aWUs+HM+h67YPBtVKWu/mo5Wh59+8nowgcZmYaFM5hdH69963I9w==',
   ],
   [
-    '@oxfmt/binding-freebsd-x64',
-    '2026-08-10T10:43:53.247Z',
-    'sha512-BDfKY+KhL2078cgswBBFQPAYuxCy93bS/iC5frdSeSbTLcGrR6VC2hsuPTanoJmg84+wSyWl0wWC1eR+uTnkRg==',
+    '@rspack/binding-linux-x64-gnu',
+    '2.2.0',
+    '2026-08-26T02:13:49.303Z',
+    'sha512-M49UaWspE0YJ3268DsquD8idEQTfjBDMvO/I8qccV/Z5T+Q98FJ+kIs5liUaTWb48OIbDEK+8ZKx5QzLbfVN6g==',
   ],
   [
-    '@oxfmt/binding-linux-arm-gnueabihf',
-    '2026-08-10T10:43:04.657Z',
-    'sha512-Ov1cQEXT4mj7cojAokWSS1eoxkoyvbDfAbxNsGIKY2o36kvdAaFzPxRN6NxFRk9fD72B8oCoTTX/NuYTUWlpsg==',
+    '@rspack/binding-linux-x64-musl',
+    '2.2.0',
+    '2026-08-26T02:21:58.999Z',
+    'sha512-YYbs0wmey+5blhEQDE4Dax3TwJtqfGwe2QBm3OLphlBHo/fcZVvimzKkMV0/pVrZTLy2z5ZAwNhGMY64bNr77w==',
   ],
   [
-    '@oxfmt/binding-linux-arm-musleabihf',
-    '2026-08-10T10:43:09.619Z',
-    'sha512-0LE7ro3+6L79jcMANycAZfRaC7zxr9YZ2+vEL5uMD9QlEep+rS/r1kSJsnuLl991NXJZD60euh0PC1GHrR20vw==',
+    '@rspack/binding-wasm32-wasi',
+    '2.2.0',
+    '2026-08-26T02:11:53.777Z',
+    'sha512-rerLPTN/HD4EvLNWs3O2N+Eb37eGvLRIP3dXXc3n+UzTebOepAsahNn44vXeRBsE4m/pHkpDJjwgWTytgQ2gBw==',
   ],
   [
-    '@oxfmt/binding-linux-arm64-gnu',
-    '2026-08-10T10:43:50.309Z',
-    'sha512-izPk+2Z4gjuZK32Fqh5qXoMpT/2NXzLh++ob57HiEiVSQZ1iYXu8EKMzb+K5AvWyIEXhdDIt7ADjGGtFhkT9Bw==',
+    '@rspack/binding-win32-arm64-msvc',
+    '2.2.0',
+    '2026-08-26T02:11:59.878Z',
+    'sha512-JUAmnbOQYGTRyX28vls/MOMonZWcmcCi5YtEq6YMc8Xqh3Qx0HUwaLM/I1xr/N9BX3b8CV0dQDOpNuBc2ei+CA==',
   ],
   [
-    '@oxfmt/binding-linux-arm64-musl',
-    '2026-08-10T10:42:49.438Z',
-    'sha512-alPmbOuWXFXiSo+lOtv6X71C7SYMEDW2WVvywOvf9BwKgEhSNGhMTLeFVSjKUMCamcjbbgVdsWF8GN1uy8xshg==',
+    '@rspack/binding-win32-ia32-msvc',
+    '2.2.0',
+    '2026-08-26T02:12:06.484Z',
+    'sha512-wOmQRUaOG0eWH/fnfslA9yK9xKfaq9X+3Xa1TdTJnTqlo0ARJYs6A+Lzjbs7cxdY/o1f12Xe00BG3nQozReUOg==',
   ],
   [
-    '@oxfmt/binding-linux-ppc64-gnu',
-    '2026-08-10T10:43:19.947Z',
-    'sha512-BdzCPvolJc4AWZ+YMzgUDJcDzbQWrFjYuqBHoNHNqP1aCaluQRJNs4k3vNU5IG7vTpjf9zeD73D7MFM1TecZpg==',
-  ],
-  [
-    '@oxfmt/binding-linux-riscv64-gnu',
-    '2026-08-10T10:43:26.753Z',
-    'sha512-7sIgfLzqtNKSkMGsGVyRpHwpjNezRg2XONvUOheFZs95TSZpM0JAuPpA8KrQFsWc4wPU95roX2O69JgH8igOgw==',
-  ],
-  [
-    '@oxfmt/binding-linux-riscv64-musl',
-    '2026-08-10T10:43:32.351Z',
-    'sha512-9Tcg0y0WcVa6Mm9AgcgFMseDS+VkFJZpKZ8We9SpDY4gg5jewSwln+0sO04QLcTS1BtfDl9MwR+NfID8L7PUTg==',
-  ],
-  [
-    '@oxfmt/binding-linux-s390x-gnu',
-    '2026-08-10T10:43:37.948Z',
-    'sha512-qWKC1pEOpx1qYhXaugPhHUeXwSfqEOk2wJH2LqVXGPV5iQYfdAZdt+d2XDiX4DTSWA2QDMUcFB+wEORh3Xn/sA==',
-  ],
-  [
-    '@oxfmt/binding-linux-x64-gnu',
-    '2026-08-10T10:45:05.823Z',
-    'sha512-S9wXYOiGSqYGS4Fx/TFsY+xDd/7dE5s+rUgbA4TsHiVF9e8J3ZcKmP7dsP/7iqLI9Wz7Ic7TzEr3mdthRCTdrA==',
-  ],
-  [
-    '@oxfmt/binding-linux-x64-musl',
-    '2026-08-10T10:46:11.254Z',
-    'sha512-5eGyTJuMZNwBSHCivXt8Yuta6GeTYksOPXRk2MIhajiyFGQx7bjaHIwY+ZusAoFHhT157A9x6sktLjYo9D5oMQ==',
-  ],
-  [
-    '@oxfmt/binding-openharmony-arm64',
-    '2026-08-10T10:42:54.565Z',
-    'sha512-Rz7hx+Dv3DoW/S6pwVAyjfFXp7/trdQ1zg+vNmsdsdDNlUccugp4XNqambSuEAeP0DaG9k72AtNyfDXCEg0AGw==',
-  ],
-  [
-    '@oxfmt/binding-win32-arm64-msvc',
-    '2026-08-10T10:42:39.105Z',
-    'sha512-T/IuizKN9mr4Xw6YYnptkXRNdLkyIlUZ7c8zfTOBpoytZyJ1BAsMUvsMDEx0X4YvSMpaivm+DR8112rQfzC25g==',
-  ],
-  [
-    '@oxfmt/binding-win32-ia32-msvc',
-    '2026-08-10T10:43:14.437Z',
-    'sha512-XjrO5FJ5Wl9vsAxtCP1G/eaeT6y1K2s9CICUHGE42cEjou32/J6S+B1KnrOAboj6E7uhJnwPbRSvznWcxNdA0g==',
-  ],
-  [
-    '@oxfmt/binding-win32-x64-msvc',
-    '2026-08-10T10:43:48.242Z',
-    'sha512-sgsHCQy432OTQH4Ikk3tZptp3GqwnhwUDuY0loBH41zyHWfMZY9v8Dy78wsnSofHejvFozZGgJgBB1A0LQRwMQ==',
-  ],
-] as const;
-
-const oxlintBindingRegistryReleases = [
-  [
-    '@oxlint/binding-android-arm-eabi',
-    '2026-08-10T10:43:53.410Z',
-    'sha512-Bu819lmAfZMUHErrpe0cEWj3iaefuUODHSU8+UbXy67V/r7/7f4K3FL0NmbD85E+wiFLDYuhP8Zlv0XnVeXshw==',
-  ],
-  [
-    '@oxlint/binding-android-arm64',
-    '2026-08-10T10:43:12.922Z',
-    'sha512-CDfxZgB61B7buRdY2FJoAYYPPXCZ1EoC1LKscnC5dg3kjobdxiconvAvvN1BmHyW4PyFT3jRLDag/BY/roSNBQ==',
-  ],
-  [
-    '@oxlint/binding-darwin-arm64',
-    '2026-08-10T10:58:18.659Z',
-    'sha512-2Y2U9Ahrz+OO0Ej88f9SJYq51/jUBp1Mc7iZu0ukrbeeZ3gpRGfzIFnoqfHDY96xr0GEfNrPUBFEy0nN5aD7HA==',
-  ],
-  [
-    '@oxlint/binding-darwin-x64',
-    '2026-08-10T10:44:42.061Z',
-    'sha512-rpych6eJq6m9jDRypTEaPD1xysaEW5h9+xuxhGK/QhOg+/xaqPZrCrTNoIl/f3nEjuJeCEmstNDlrE9rJi/3/g==',
-  ],
-  [
-    '@oxlint/binding-freebsd-x64',
-    '2026-08-10T10:44:54.940Z',
-    'sha512-IcMGrQT3QizkOESUJd5et+rOhVqSkNDfNik1cvrKDqIbzqx9KMtRswpFgkCuNTSwylCFLKhGUu8KmqY1ZnC0Dg==',
-  ],
-  [
-    '@oxlint/binding-linux-arm-gnueabihf',
-    '2026-08-10T10:43:59.131Z',
-    'sha512-/uLdoJ0IXE6vo/0f0LKjinQAp+re+VMaCWaNT8ENIv2EOCkSsc8SGaflXAuW0Jua2dq5+GLVWm1NQK7P3UFSNQ==',
-  ],
-  [
-    '@oxlint/binding-linux-arm-musleabihf',
-    '2026-08-10T10:44:04.347Z',
-    'sha512-7xi4Wb/O8NRJhLoUXmDJMUVpNYvB5kefdhFU1Jb8rtae4QoXlTiLwI14X4YvAXVZLNZChP8m5qO9SQAlWQTbkQ==',
-  ],
-  [
-    '@oxlint/binding-linux-arm64-gnu',
-    '2026-08-10T10:45:36.209Z',
-    'sha512-4hFW0+fVXa3OIh1Y4A5SPkmvI4wuuBSrCVKzOyE7PTjhc7yEqZ1pmvEEeS5Lj/MaqvegFxXyF33N+6jkehxdyg==',
-  ],
-  [
-    '@oxlint/binding-linux-arm64-musl',
-    '2026-08-10T10:43:41.258Z',
-    'sha512-oC0mvsgBJjlMijSDEhx9KuvR9zYeHXceA9MjbuXB1F8NSR78Yj2unOBrstEvTVaq+pko+kuue6DajC00eqvTdg==',
-  ],
-  [
-    '@oxlint/binding-linux-ppc64-gnu',
-    '2026-08-10T10:44:16.586Z',
-    'sha512-XAllT5SUZS+ohjuZ3/5S0cwe0r7eboiuigeStCZ5DXRYx/2KVM2UvQXvAfyzXEimtQjAB7cDQ2YxDe2Zl2WNQQ==',
-  ],
-  [
-    '@oxlint/binding-linux-riscv64-gnu',
-    '2026-08-10T10:44:22.637Z',
-    'sha512-trucMER/0QtecoXvc1y/UVqE3kwJipDwrx4oHfj+nNm3dq2zjP44WT0CfHNDPM3G1DXIkx/gY6lAD21NSCZVhA==',
-  ],
-  [
-    '@oxlint/binding-linux-riscv64-musl',
-    '2026-08-10T10:44:28.893Z',
-    'sha512-cm3O4F/HQbdzOUX5mKHqG5KDL6E5w0pnlZ+fbBy2rmLryPOowkuLagFHTopQsEIpjcaZoPOrL+BmmAytAG9HFg==',
-  ],
-  [
-    '@oxlint/binding-linux-s390x-gnu',
-    '2026-08-10T10:44:36.103Z',
-    'sha512-33wRf6HqGNsybJ3qX4cGaQN2ODPxNmc1rMa0mrTmx3eFq1VzOnvQooi9bIGVYakW8a/wmqVx1mgsUm8R2xfTiw==',
-  ],
-  [
-    '@oxlint/binding-linux-x64-gnu',
-    '2026-08-10T10:47:08.430Z',
-    'sha512-rRdISSYegj6VganMZ9tjRjijowfHJ09IZU01i0toBAqr6n5LEtwHq2IeS4FjW2RoskOHlb6efB26H5izYb3GEQ==',
-  ],
-  [
-    '@oxlint/binding-linux-x64-musl',
-    '2026-08-10T10:47:14.572Z',
-    'sha512-GmsP4rW0xTL6u5CVdcDsaN5Fbc7hBc382Wmar1kttbnwSEviM+rSINKOMQ+UQ6iH+AGwC+8gaAiwu134Tgh6Lg==',
-  ],
-  [
-    '@oxlint/binding-openharmony-arm64',
-    '2026-08-10T10:43:47.808Z',
-    'sha512-sy9yeYuADc8a+n4TLBayzMCZiHPW78DcIFVpOXTmdKHWQeM9xe5uzkqIIZmi326D5hY9XVwacipEB1p7tQjPAg==',
-  ],
-  [
-    '@oxlint/binding-win32-arm64-msvc',
-    '2026-08-10T10:43:18.280Z',
-    'sha512-rjc2hF1KfMi8fZj1X/m3AmnHbdsF3rL0v6KQg0Uc880Yb2khjz+3U14sfdZ7jWTpRnN1m1NQa/TT7uU9lJWPrA==',
-  ],
-  [
-    '@oxlint/binding-win32-ia32-msvc',
-    '2026-08-10T10:44:09.793Z',
-    'sha512-zcuXFVrEFHIafRfkCQT8w/Xe41o07ozl/vwHq7p94vB29xVzsB0sZGYORU1jhcYKv3Lr0J3HbJ2T4fHH5rWmvA==',
-  ],
-  [
-    '@oxlint/binding-win32-x64-msvc',
-    '2026-08-10T10:44:48.187Z',
-    'sha512-Sb5ocmLSuYeOuXd+CFOToGKp/gjXUEWDnvIGwhnh8aq8wY4TMmEnKnvbogSW7RdMZv77JSARduS7/gv+khYEjA==',
-  ],
-] as const;
-
-const typescriptPlatformRegistryReleases = [
-  [
-    'aix-ppc64',
-    '2026-07-08T15:49:32.839Z',
-    'sha512-MTKKkWB7p/0E9xi1d1tHtZ5PiLkGEMIq88pK2CubZjOsLtYTLqhgIgi6zepFa+9GHZ6h05NMCkQxGKiPXMxXtQ==',
-  ],
-  [
-    'darwin-arm64',
-    '2026-07-08T15:49:36.897Z',
-    'sha512-gowzar9MwS/aRWp6f3a4KUqzRjAZjOsmGNCM6LcTgXum+dBfgsBVMN+AgvOCCbguXyick6LJhpBszxMebJ8syA==',
-  ],
-  [
-    'darwin-x64',
-    '2026-07-08T15:49:40.886Z',
-    'sha512-SZ9xZInqApNlNGc9s0W1VSsktYSOe9cFqNOIqmN1Gs8SmkjKZYFt017G4VwPxASInODuAdbTW7sXiFUf893RgA==',
-  ],
-  [
-    'freebsd-arm64',
-    '2026-07-08T15:49:45.020Z',
-    'sha512-W5NH4y/J0plIIS5b2xvTEkU7JFxyqdMAOgf+Ilhl0vHQXKO5dZoxd+C/jEtq56c4F3wk71RB4BMRQ2XdI+bwYQ==',
-  ],
-  [
-    'freebsd-x64',
-    '2026-07-08T15:49:49.189Z',
-    'sha512-UMGDx5sTpzNw3WiPebH7l90IWfJggEd+egHt/q6p7/Cm3zqoV7VxkGXt+3DxPIw8CcmvAB0j3sVVfbhX+M4Tpw==',
-  ],
-  [
-    'linux-arm',
-    '2026-07-08T15:49:53.075Z',
-    'sha512-gffT3xPz9sR7j/YJExkyPntrI0P2EP9XbOyWzth2/Gs0RstK+90RBcO0ncXoXy/beYll1SXw846Nf2zdnEz0QQ==',
-  ],
-  [
-    'linux-arm64',
-    '2026-07-08T15:49:57.270Z',
-    'sha512-Qh4eU4/y3yDjnfjjyPYihMj5/ODIlmt+Bzu17OI+fiSRDW57QmU5SiN63exPRNJPKUzcc1INa1NXdrJ+MqHjUQ==',
-  ],
-  [
-    'linux-loong64',
-    '2026-07-08T15:50:01.501Z',
-    'sha512-uEHck9i8hoAzXPiYRib1O7miOnz23SxIeVl6F4LXox+qov1K35jHcEW6VHKvZI+pyvl7fZEP4MCU5LYvIq1GuQ==',
-  ],
-  [
-    'linux-mips64el',
-    '2026-07-08T15:50:05.178Z',
-    'sha512-R4KvAMnE43W5Qeqb0Ly56O3mWMWIAgsMyz36DCaycd5nbg/9kzm0liw3JocfRqyJY0KPmzFjbswozXyW0DnIYA==',
-  ],
-  [
-    'linux-ppc64',
-    '2026-07-08T15:50:09.539Z',
-    'sha512-DORx5b3sd/4S7eayxm4FQv+A7CrkUIGRaHiwI8oiHTAI1fAPWhF4J0vAlkC8biAlHSVVwxMQ3tjZ2/DVbnQiiA==',
-  ],
-  [
-    'linux-riscv64',
-    '2026-07-08T15:50:13.357Z',
-    'sha512-wf0jqEDOjrPRnKwYRyyJDRo11KMbvMFrU+q4zqKyChODBzvlkbhNQfKvLxQCcwTpdDaXSHZTVuh0JoCrKCUMHQ==',
-  ],
-  [
-    'linux-s390x',
-    '2026-07-08T15:50:17.275Z',
-    'sha512-IkwJc3L7yhytWd/ewjyxNDfOmswCm9GWMJT/ue/dU4aZNbwZeYAetq42VyLmsmSjvoX7z74X6ZaYCtzAr0EuGw==',
-  ],
-  [
-    'linux-x64',
-    '2026-07-08T15:50:21.639Z',
-    'sha512-EYdf2cNg7rgCWJnxCdJ+F3V39O8ihb37eHAu1LK8oAFizgTQbPOK7zHHXbPt8rX24COqODXeI3sIf0fCXG7H/A==',
-  ],
-  [
-    'netbsd-arm64',
-    '2026-07-08T15:50:25.229Z',
-    'sha512-+polYF4MF04aPpO5FTkHran9yUQDSXqy5GiSDKpsll5jy3l3+g9QLhpf39T+ePtefhXLOGrLl0QIjkQP6VnelA==',
-  ],
-  [
-    'netbsd-x64',
-    '2026-07-08T15:50:29.798Z',
-    'sha512-8YIT0EHM/3dq10ZOVF/A7pc/YSMtbcecct4rWtexrnSCHOPcpC2KTLXfTCR6vDpnSiY12heNb1GiN/wu+T/FyA==',
-  ],
-  [
-    'openbsd-arm64',
-    '2026-07-08T15:50:33.600Z',
-    'sha512-APT8+ClYnuYm1u9+kgGXoMj2VzWzcymwh2gNSQVySHfkRDGOTVkoWLjCmOQSaO+PoqQ57B0flRp9SA+7GnnkzQ==',
-  ],
-  [
-    'openbsd-x64',
-    '2026-07-08T15:50:37.789Z',
-    'sha512-yX7s+Q0Dln0Dt9tEzZsAjXXR/+ytBM7AlglaqyeMPxQszJ1JhlJdZ6jLA+IzldHtflX81em7lDao1xXu+aRRkg==',
-  ],
-  [
-    'sunos-x64',
-    '2026-07-08T15:50:41.700Z',
-    'sha512-dLJDGaLZ1D4HPQn62u1n8mBDkJREwMsAkCdkwd4Ieqw+x3TUyTsqY0YiBCtE6H6OzzgGk3iuZ3vFWRS+E8/d1g==',
-  ],
-  [
-    'win32-arm64',
-    '2026-07-08T15:50:45.825Z',
-    'sha512-Gyl1Vy6OsWesLzmq+EP0Fb7b4Nid5232AvcA2SFcdYreldpNtYFFofPjnt62y9hQy7VTaZp65ICJjuAQRaVcIQ==',
-  ],
-  [
-    'win32-x64',
-    '2026-07-08T15:50:50.403Z',
-    'sha512-0BQ3HkAHHlKLSp1qRvf3SUhGpGsDuhB/jgFw75guyqbxJqEaS0Cw/VFO8i2nHglJUzQCRtMMR/IBAKE3ETMC4g==',
-  ],
-] as const;
+    '@rspack/binding-win32-x64-msvc',
+    '2.2.0',
+    '2026-08-26T02:12:13.441Z',
+    'sha512-v6/3bFr9+i7hRpgulL9b5qCvZL0VgR4vQGQNqOWezUzZmPUj9LYpvB0L9xZIVwDQ2ug/xBiA58bfg5IbESgoyw==',
+  ],
+] as const satisfies readonly (readonly [
+  packageName: string,
+  version: string,
+  publishedAt: string,
+  integrity: string,
+])[];
 
 const releaseAgeApprovals: readonly UltramodernReleaseAgeApproval[] = [
   // FORK: fresh-cohort approvals are added only after the purpose-built review
   // artifact has an immutable pushed commit identity. Never attest a cohort
   // from a commit that predates its reviewed versions, timestamps, integrities,
   // optional-platform closure, and patch applicability evidence.
-  createReleaseAgeApproval({
-    packageName: 'effect',
-    version: EFFECT_VERSION,
-    reason: releaseAgeReasons.effect,
-    publishedAt: '2026-08-10T04:57:48.469Z',
-    integrity:
-      'sha512-OoBAv8eF+yanc+C6xhgEUnWeXUSHA6ynnscYqpkAY9GSnzZWystsIjBowVqCkLpHGlnRtdIqYT3wHwpOY6JDnQ==',
-    review: releaseAgeReviewEvidence.effectTooling20260810,
-  }),
-  createReleaseAgeApproval({
-    packageName: '@effect/opentelemetry',
-    version: EFFECT_VERSION,
-    reason: releaseAgeReasons.effect,
-    publishedAt: '2026-08-10T04:50:45.944Z',
-    integrity:
-      'sha512-WxR3OEcwVtckNYGxvERA4kiS8cb2B46lSWxQw8P6dCCzW0j0VC7hkWyzryJ16MVXfI/5xQHS3r5j9mud+JVvsg==',
-    review: releaseAgeReviewEvidence.effectTooling20260810,
-  }),
-  createReleaseAgeApproval({
-    packageName: '@effect/tsgo',
-    version: EFFECT_TSGO_VERSION,
-    reason: releaseAgeReasons.effect,
-    publishedAt: '2026-08-10T07:00:57.951Z',
-    integrity:
-      'sha512-qyEhYRuNbltg4YCWOyyAQ2Hd11f8ecF/DaWMuDhDcIyQBUN2IqNKMLPoLeC9aUlSDgRbzJyQZRvtGJpb8CJ2WA==',
-    review: releaseAgeReviewEvidence.effectTooling20260810,
-  }),
-  ...effectTsgoPlatformRegistryReleases.map(
-    ([packageName, publishedAt, integrity]) =>
+  ...rsbuildRspackRegistryReleases.map(
+    ([packageName, version, publishedAt, integrity]) =>
       createReleaseAgeApproval({
         packageName,
-        version: EFFECT_TSGO_VERSION,
-        reason: releaseAgeReasons.effect,
+        version,
+        reason: releaseAgeReasons.framework,
         publishedAt,
         integrity,
-        review: releaseAgeReviewEvidence.effectTooling20260810,
-      }),
-  ),
-  createReleaseAgeApproval({
-    packageName: 'oxfmt',
-    version: OXFMT_VERSION,
-    reason: releaseAgeReasons.tooling,
-    publishedAt: '2026-08-10T10:51:19.151Z',
-    integrity:
-      'sha512-kgdDwv35wvVf6554U2Ab8Jnd0zTM+TsEQWwaB70RAjK3gICFAFGO+2Hd3Be27GMoXj3XRL9IKSNRVl7KBQL6iw==',
-    review: releaseAgeReviewEvidence.effectTooling20260810,
-  }),
-  ...oxfmtBindingRegistryReleases.map(([packageName, publishedAt, integrity]) =>
-    createReleaseAgeApproval({
-      packageName,
-      version: OXFMT_VERSION,
-      reason: releaseAgeReasons.tooling,
-      publishedAt,
-      integrity,
-      review: releaseAgeReviewEvidence.effectTooling20260810,
-    }),
-  ),
-  createReleaseAgeApproval({
-    packageName: 'oxlint',
-    version: OXLINT_VERSION,
-    reason: releaseAgeReasons.tooling,
-    publishedAt: '2026-08-10T10:47:19.210Z',
-    integrity:
-      'sha512-QgQePuxIqKOzo1KSjG2EnITEeWvWnKAm77eq8nrMtf6AGoA+zyGc4PFYtDNJSD25g/ibOwfQ851hZ4/SPkMVoA==',
-    review: releaseAgeReviewEvidence.effectTooling20260810,
-  }),
-  ...oxlintBindingRegistryReleases.map(
-    ([packageName, publishedAt, integrity]) =>
-      createReleaseAgeApproval({
-        packageName,
-        version: OXLINT_VERSION,
-        reason: releaseAgeReasons.tooling,
-        publishedAt,
-        integrity,
-        review: releaseAgeReviewEvidence.effectTooling20260810,
-      }),
-  ),
-  createReleaseAgeApproval({
-    packageName: '@rsbuild/core',
-    version: '2.2.0-rc.0',
-    reason: releaseAgeReasons.framework,
-    publishedAt: '2026-08-24T08:20:57.218Z',
-    integrity:
-      'sha512-f6orjv+wOR1u7KchE/vANGP0Eg7AP0UaiM0qn4n+5I0HOUdkVVbNCA1eZSpyX+TJ9bIdZtkbR6T47vBdoFr1MA==',
-    review: releaseAgeReviewEvidence.modernjsUpstream20260824,
-  }),
-  createReleaseAgeApproval({
-    packageName: 'baseline-browser-mapping',
-    version: '2.11.19',
-    reason: releaseAgeReasons.framework,
-    publishedAt: '2026-08-24T14:46:59.712Z',
-    integrity:
-      'sha512-Grytf1xOxOEMTGRwx6rLGKkTabd4vMg3VrKdj/7joCmV0qgh4QwMMO6xh34YEXQqirAuUdgQGa5orJQQ+69RBw==',
-    review: releaseAgeReviewEvidence.modernjsUpstream20260824,
-  }),
-  createReleaseAgeApproval({
-    packageName: 'caniuse-lite',
-    version: '1.0.30001810',
-    reason: releaseAgeReasons.framework,
-    publishedAt: '2026-08-24T20:04:16.328Z',
-    integrity:
-      'sha512-TITQPUkaz+aVk5GL6NhOdwk1aEaNTSDPsGFWrTuhKGtjTF70jL/Oht2W4c6rXUe5fu7Ie19VIahAXHIIiWWNeg==',
-    review: releaseAgeReviewEvidence.modernjsBrowserData20260825,
-  }),
-  createReleaseAgeApproval({
-    packageName: 'electron-to-chromium',
-    version: '1.5.414',
-    reason: releaseAgeReasons.framework,
-    publishedAt: '2026-08-25T02:05:46.077Z',
-    integrity:
-      'sha512-aYlviXiaXBbzvKgyALpcMmqa3Np3sDr0XnZbEG62n2UpZFbEcjQ4EEMOLGzVPhwVnwTz0lvKY+GcARbunuHekw==',
-    review: releaseAgeReviewEvidence.modernjsBrowserData20260825,
-  }),
-  ...typescriptPlatformRegistryReleases.map(
-    ([platform, publishedAt, integrity]) =>
-      createReleaseAgeApproval({
-        packageName: `@typescript/typescript-${platform}`,
-        version: TYPESCRIPT_VERSION,
-        reason: releaseAgeReasons.typescript,
-        publishedAt,
-        integrity,
-        review: releaseAgeReviewEvidence.typescript,
+        review: releaseAgeReviewEvidence.rsbuildRspack20260826,
       }),
   ),
 ];

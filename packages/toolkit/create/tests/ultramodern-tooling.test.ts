@@ -7,6 +7,7 @@ import { pathToFileURL } from 'node:url';
 import zlib from 'node:zlib';
 import { yaml } from '@modern-js/utils';
 import { runUltramodernToolingCli } from '../src/ultramodern-tooling/commands';
+import { withStagedDryRunMigrationIo } from '../src/ultramodern-tooling/commands/migrate-strict-effect/io';
 import { ensureBffEffectDependencies } from '../src/ultramodern-tooling/commands/migrate-strict-effect/package-cohort';
 import {
   readUltramodernConfig,
@@ -39,6 +40,27 @@ import {
 
 const retiredContractPath = '.modernjs/ultramodern-generated-contract.json';
 const retiredPackageSourcePath = '.modernjs/ultramodern-package-source.json';
+const staleOxcBindingTargets = [
+  'android-arm-eabi',
+  'android-arm64',
+  'darwin-arm64',
+  'darwin-x64',
+  'freebsd-x64',
+  'linux-arm-gnueabihf',
+  'linux-arm-musleabihf',
+  'linux-arm64-gnu',
+  'linux-arm64-musl',
+  'linux-ppc64-gnu',
+  'linux-riscv64-gnu',
+  'linux-riscv64-musl',
+  'linux-s390x-gnu',
+  'linux-x64-gnu',
+  'linux-x64-musl',
+  'openharmony-arm64',
+  'win32-arm64-msvc',
+  'win32-ia32-msvc',
+  'win32-x64-msvc',
+] as const;
 
 function readJson(workspaceDir: string, relativePath: string) {
   return JSON.parse(
@@ -97,6 +119,57 @@ function writeRetiredRspackRscPatch(
     zlib.gunzipSync(Buffer.from(fixture.trim(), 'base64')),
   );
 }
+
+function writeRetiredEffectSchemaPatch(
+  workspaceDir: string,
+  contents?: Uint8Array,
+) {
+  fs.writeFileSync(
+    path.join(workspaceDir, 'patches/effect-schema-error-type-id.patch'),
+    contents ??
+      `diff --git a/dist/Schema.d.ts b/dist/Schema.d.ts
+index 9547bd05cb7b91e5e5decc43b64c10a47a86186a..e58693c3742604ccb703045dedd259fca2c66b6e 100644
+--- a/dist/Schema.d.ts
++++ b/dist/Schema.d.ts
+@@ -10812,7 +10812,7 @@ export declare namespace Annotations {
+          *
+          * Reserved to internal use only.
+          */
+-        readonly "~sentinels"?: ReadonlyArray<SchemaAST.Sentinel> | undefined;
++        readonly "~sentinels"?: ReadonlyArray<unknown> | undefined;
+     }
+     /**
+      * Annotations for filter schema nodes (created via \`Schema.filter\`). Extends
+`,
+  );
+}
+
+const retiredEffectPatchCases = [
+  {
+    selector: 'effect@4.0.0-beta.94',
+    sha256: 'dc7e8088e600beb20185eb877754d749c4a93909fb79f49465e8319e40d6596a',
+    gzipBase64:
+      'H4sIAAAAAAACA71S0W6bMBR95yuu8rSNAHYwxiRdlJdK3cOkqd20Z8O9XtgSYIZWnaru2+cAUrskXZqXSRa2uPccn3uOsTQGguBb2YGOsGy7qKw6spXeRG2xpq0etxDDroX8ZItXVkj3kJqcqOA6kVolOueJzIzKFaOYZyYXMlY645InYTjjGCuTzma7r1CYqQxjpphJU2SEppBxwYhL4IxJIbwgCF6h1PN9/zVqVysI4ikDX8Bq5fl039S2A6Rioy1BUVdtBzd9/6W1tf38q6EPOIfJbzKGii4aatGzlsnCwwNPbx2PzjcUrbuueRLUWLqmtnG30JWucEP2L5vPQ43OK05upUIYnSSYz6RItRIqzjKOuWAxisSVEcOQCYayyNJcJcgKxlFokaaMx4yzPDOJQCFnSOqI82cqexbGmchdPhx8PpW7fIIxn4fHheeX2/7cuUjgHegWLvtIwNh6C5MwjIY1/HVckz3MA1w5CTdk78j2ycHjE3avdAJ+TT9vyb2UowRj8STFMP1LHEN1JDn6TO1wz6cDJ9s5fCX946NuLur8uzNjCm/G5vnhEFNHNMDnR+S9hffL0ehw2C4Om6b7zi6XL4nWTUMVHmr+UrXaOAX/FLoeeuf/fZwedleXuPD+AF+sViVABQAA',
+  },
+  {
+    selector: 'effect@4.0.0-beta.97',
+    sha256: 'dc7e8088e600beb20185eb877754d749c4a93909fb79f49465e8319e40d6596a',
+    gzipBase64:
+      'H4sIAAAAAAACA71S0W6bMBR95yuu8rSNAHYwxiRdlJdK3cOkqd20Z8O9XtgSYIZWnaru2+cAUrskXZqXSRa2uPccn3uOsTQGguBb2YGOsGy7qKw6spXeRG2xpq0etxDDroX8ZItXVkj3kJqcqOA6kVolOueJzIzKFaOYZyYXMlY645InYTjjGCuTzma7r1CYqQxjpphJU2SEppBxwYhL4IxJIbwgCF6h1PN9/zVqVysI4ikDX8Bq5fl039S2A6Rioy1BUVdtBzd9/6W1tf38q6EPOIfJbzKGii4aatGzlsnCwwNPbx2PzjcUrbuueRLUWLqmtnG30JWucEP2L5vPQ43OK05upUIYnSSYz6RItRIqzjKOuWAxisSVEcOQCYayyNJcJcgKxlFokaaMx4yzPDOJQCFnSOqI82cqexbGmchdPhx8PpW7fIIxn4fHheeX2/7cuUjgHegWLvtIwNh6C5MwjIY1/HVckz3MA1w5CTdk78j2ycHjE3avdAJ+TT9vyb2UowRj8STFMP1LHEN1JDn6TO1wz6cDJ9s5fCX946NuLur8uzNjCm/G5vnhEFNHNMDnR+S9hffL0ehw2C4Om6b7zi6XL4nWTUMVHmr+UrXaOAX/FLoeeuf/fZwedleXuPD+AF+sViVABQAA',
+  },
+  {
+    selector: 'effect@4.0.0-beta.102',
+    sha256: 'bd29a0ae24f0674c6007e5e6060d847dbeb9499a6e2cf4c9f13b24ba9fb3af37',
+    gzipBase64:
+      'H4sIAAAAAAACA72SS0/jMBSF9/kVV7AB8nLaPGgLVTdILJjRqAixmY0f12BI7YztMiDEfx+LREJQOkhdIEWKlHvPl3OOLZSUkKY3ygPNhXI+X2vnKWsxv/W+y5X2aDVt887iEl1ntMNzqkWLNhOZd8B2UUVKC3wElKwoa3F8jKKWvK7GbNLIclSQighW4ZiVjLFGYJaNG6xIxWSNhPOGsbriWMsJJZUoGiJ44MgJGQkoCKnLMkrTdLc8URzHO2ZaLCAtkhHERVLDYhGl+NgZ6+H5ZRaleb4Pzqwtxx+065S+uVpenG4hZSvaRb/hpwGNf1ulEagH1AKMBKlajGK1eiX7pw7hCKiDMymRe5DWrGAvy/L+6b8G4t7sveYZzkOkS7QPaM+sNRZe3rQfRl/Il/hnjc5/DhiGXyL6DrYx+ukAGUoVyFtqEXgYebD9f35t9OmmcI30PnR+YthdKCOBg2F5uhkiCaBePv3E3iGczoeis/51srmUfGx2Pt9mOtyDcKibnq+0ozI4+K/R2353+u1xXmUPRolZ9A+P0IT9PAQAAA==',
+  },
+  {
+    selector: 'effect@4.0.0-beta.102',
+    sha256: 'd9e12b42d06a051957899a9df14b2b7b2385fc3a5677a89037eeee3674d64ebe',
+    gzipBase64:
+      'H4sIAAAAAAACA71UTVPbMBC9+1fspBcg8Vdsy06AFA7McGg7HVKmlx7QxwpcHNmVFD6G0t9eETstJKFMLvV4xrJ29+nt05NEKSX4/mVpgYaiNDac8iuc0UAE1gBbm/JKJfAOeE4IK1LKiojGIiV5RjmPYh6nGeGplCgxETGJgyBGOkqGmI6GES8ykZNRlOUZysQhFITTIiM4YkMBcRSRNPV839/AxOv3+5vYHB2BH0d5kQxy6C8HbhLvmlpbEMgrqhEUnaFpKEc4Vqq21Ja1MvDgwZ9n7/kYztCgvkEBtoZSWdSKVjA3CLWq7oPnqaHnL8caqXiKQ++XQWVLhZXpvR87sHb+WGt6f9CyP55+CaZd0gR+wtypKt2P2Pf62+HN1bWqb9UKyALgsf2Ee8vm9l60L2sNsqxcd2AWpEDVAg3scLeydc3flBQuOrXbxIvdAE7uLCphPLHmnLkylrIKwytrm3CpW9hodHo2bkk8pUpUqF+Ya7uqzn8oWZwSURQoiOQkS9gol+kwjrJIsAwTljLGcoFBkOSYRRmTBCPOc8ZIxpHIEY0yEeeR4A5HjqKN/tuS2TOLblm5cPFg6Bw8IM69nt/Z9+Fx3/PD8B2Yeq45fqRNU6rL87MPh68gBTPaeN/gUw0KbytnBaAW3G5BLZ+2Gr1+OVsg2/sGnR2ogRN3WLkFqesZ9IIgbN921iH29l/WPMCpa2n6dDr0idbOQo9/a1dCb5Sf4Y85GrsZoAu+CdFq8BpGG+1AVu4E7kLWHbLFOp/X9DRj+Ir02ml+ULPvTowB7HTJ4/UmBg6oLR9voLcLh5NO6KD9HKwnDVaVnUxeI+184DZ1nfO5MlQ6Bv8ketXmjv97O4uym7p019NvSM+CTXYGAAA=',
+  },
+] as const;
 
 function readYaml(workspaceDir: string, relativePath: string) {
   return yaml.load(
@@ -550,9 +623,23 @@ test('migrate recognizes previously generated Module Federation patch cohorts', 
         `patches/@module-federation__bridge-react@${MODULE_FEDERATION_VERSION}.patch`,
       );
       assert.equal(
-        exists(workspaceDir, 'patches/effect-schema-error-type-id.patch'),
+        migratedPolicy.patchedDependencies[
+          `@module-federation/dts-plugin@${MODULE_FEDERATION_VERSION}`
+        ],
+        `patches/@module-federation__dts-plugin@${MODULE_FEDERATION_VERSION}.patch`,
+      );
+      assert.equal(
+        exists(
+          workspaceDir,
+          `patches/@module-federation__dts-plugin@${MODULE_FEDERATION_VERSION}.patch`,
+        ),
         true,
-        'migration must preserve the active same-path Effect declaration patch',
+        'migration must materialize the current DTS plugin patch',
+      );
+      assert.equal(
+        exists(workspaceDir, 'patches/effect-schema-error-type-id.patch'),
+        false,
+        'migration must not restore the retired Effect declaration patch',
       );
     } finally {
       fs.rmSync(tempRoot, { recursive: true, force: true });
@@ -591,6 +678,89 @@ test('migrate retires the former generated Rspack RSC patch', async () => {
     ) as Record<string, any>;
     assert.equal(migratedPolicy.patchedDependencies[selector], undefined);
     assert.equal(exists(workspaceDir, relativePatchPath), false);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+for (const { selector, sha256, gzipBase64 } of retiredEffectPatchCases) {
+  test(`migrate retires reviewed ${selector} patch bytes ${sha256}`, async () => {
+    const { tempRoot, workspaceDir } = scaffoldWorkspace(
+      `tooling-retired-${selector.replaceAll(/[^a-zA-Z0-9]+/gu, '-')}`,
+    );
+    const workspacePath = path.join(workspaceDir, 'pnpm-workspace.yaml');
+    const relativePatchPath = 'patches/effect-schema-error-type-id.patch';
+
+    try {
+      const policy = yaml.load(
+        fs.readFileSync(workspacePath, 'utf-8'),
+      ) as Record<string, any>;
+      policy.patchedDependencies[selector] = relativePatchPath;
+      fs.writeFileSync(workspacePath, yaml.dump(policy), 'utf-8');
+      writeRetiredEffectSchemaPatch(
+        workspaceDir,
+        zlib.gunzipSync(Buffer.from(gzipBase64, 'base64')),
+      );
+
+      assert.equal(
+        await runUltramodernToolingCli(
+          ['migrate-strict-effect', '--skip-install'],
+          workspaceDir,
+        ),
+        0,
+      );
+
+      const migratedPolicy = yaml.load(
+        fs.readFileSync(workspacePath, 'utf-8'),
+      ) as Record<string, any>;
+      assert.equal(migratedPolicy.patchedDependencies[selector], undefined);
+      assert.equal(exists(workspaceDir, relativePatchPath), false);
+      const firstRunPolicy = fs.readFileSync(workspacePath);
+
+      assert.equal(
+        await runUltramodernToolingCli(
+          ['migrate-strict-effect', '--skip-install'],
+          workspaceDir,
+        ),
+        0,
+      );
+      assert.deepEqual(fs.readFileSync(workspacePath), firstRunPolicy);
+      assert.equal(exists(workspaceDir, relativePatchPath), false);
+    } finally {
+      fs.rmSync(tempRoot, { recursive: true, force: true });
+    }
+  });
+}
+
+test('migrate preserves and rejects unknown bytes at the shared retired Effect patch path', async () => {
+  const { tempRoot, workspaceDir } = scaffoldWorkspace(
+    'tooling-modified-retired-effect-patch',
+  );
+  const workspacePath = path.join(workspaceDir, 'pnpm-workspace.yaml');
+  const relativePatchPath = 'patches/effect-schema-error-type-id.patch';
+  const patchPath = path.join(workspaceDir, relativePatchPath);
+  const selector = 'effect@4.0.0-beta.94';
+
+  try {
+    const policy = yaml.load(fs.readFileSync(workspacePath, 'utf-8')) as Record<
+      string,
+      any
+    >;
+    policy.patchedDependencies[selector] = relativePatchPath;
+    fs.writeFileSync(workspacePath, yaml.dump(policy), 'utf-8');
+    fs.writeFileSync(patchPath, 'consumer-modified Effect patch bytes\n');
+    const originalWorkspace = fs.readFileSync(workspacePath);
+    const originalPatch = fs.readFileSync(patchPath);
+
+    assert.equal(
+      await runUltramodernToolingCli(
+        ['migrate-strict-effect', '--skip-install'],
+        workspaceDir,
+      ),
+      1,
+    );
+    assert.deepEqual(fs.readFileSync(workspacePath), originalWorkspace);
+    assert.deepEqual(fs.readFileSync(patchPath), originalPatch);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
@@ -1035,17 +1205,13 @@ test('migrate reconciles backend federation config files with API metadata', asy
       referenceTopology,
     );
 
-    for (const app of ['catalog', 'checkout']) {
-      fs.writeFileSync(
-        path.join(
-          workspaceDir,
-          'verticals',
-          app,
-          'backend-federation.config.ts',
-        ),
-        'stale\n',
-      );
-    }
+    fs.writeFileSync(
+      path.join(
+        workspaceDir,
+        'verticals/checkout/backend-federation.config.ts',
+      ),
+      'consumer owned\n',
+    );
 
     assert.equal(
       await runUltramodernToolingCli(
@@ -1688,8 +1854,7 @@ export default catalogResource;
     pnpmPolicy.overrides['@effect/vitest'] = '4.0.0-beta.89';
     pnpmPolicy.overrides.effect = '4.0.0-beta.89';
     delete pnpmPolicy.overrides['@effect/opentelemetry'];
-    delete pnpmPolicy.patchedDependencies[`effect@${EFFECT_VERSION}`];
-    pnpmPolicy.patchedDependencies['effect@4.0.0-beta.102'] =
+    pnpmPolicy.patchedDependencies['effect@4.0.0-beta.107'] =
       'patches/effect-schema-error-type-id.patch';
     delete pnpmPolicy.patchedDependencies[
       `@module-federation/bridge-react@${MODULE_FEDERATION_VERSION}`
@@ -1701,10 +1866,19 @@ export default catalogResource;
       '@module-federation/*',
       '@typescript/typescript6@6.0.2',
       'i18next@26.3.1',
+      'ultracite@7.10.5',
+      'oxfmt@0.64.0',
+      'oxlint@1.79.0',
+      ...staleOxcBindingTargets.map(
+        target => `@oxfmt/binding-${target}@0.64.0`,
+      ),
+      ...staleOxcBindingTargets.map(
+        target => `@oxlint/binding-${target}@1.79.0`,
+      ),
     ];
     pnpmPolicy.trustPolicyExclude = [
-      'effect@4.0.0-beta.102',
-      '@effect/opentelemetry@4.0.0-beta.102',
+      'effect@4.0.0-beta.107',
+      '@effect/opentelemetry@4.0.0-beta.107',
     ];
     fs.writeFileSync(
       pnpmWorkspaceFile,
@@ -1716,12 +1890,7 @@ export default catalogResource;
       }),
       'utf-8',
     );
-    fs.rmSync(
-      path.join(workspaceDir, 'patches/effect-schema-error-type-id.patch'),
-      {
-        force: true,
-      },
-    );
+    writeRetiredEffectSchemaPatch(workspaceDir);
     fs.rmSync(
       path.join(
         workspaceDir,
@@ -2021,11 +2190,13 @@ declare module '*.css' {}
       `patches/@module-federation__bridge-react@${MODULE_FEDERATION_VERSION}.patch`,
     );
     assert.equal(
-      migratedPnpmPolicy.patchedDependencies[`effect@${EFFECT_VERSION}`],
-      'patches/effect-schema-error-type-id.patch',
+      migratedPnpmPolicy.patchedDependencies[
+        `@module-federation/dts-plugin@${MODULE_FEDERATION_VERSION}`
+      ],
+      `patches/@module-federation__dts-plugin@${MODULE_FEDERATION_VERSION}.patch`,
     );
     assert.equal(
-      migratedPnpmPolicy.patchedDependencies['effect@4.0.0-beta.102'],
+      migratedPnpmPolicy.patchedDependencies['effect@4.0.0-beta.107'],
       undefined,
     );
     assert.equal(
@@ -2043,6 +2214,23 @@ declare module '*.css' {}
         },
       }),
     );
+    for (const staleSelector of [
+      'ultracite@7.10.5',
+      'oxfmt@0.64.0',
+      'oxlint@1.79.0',
+      ...staleOxcBindingTargets.map(
+        target => `@oxfmt/binding-${target}@0.64.0`,
+      ),
+      ...staleOxcBindingTargets.map(
+        target => `@oxlint/binding-${target}@1.79.0`,
+      ),
+    ]) {
+      assert.equal(
+        migratedPnpmPolicy.minimumReleaseAgeExclude.includes(staleSelector),
+        false,
+        `${staleSelector} must be removed during migration`,
+      );
+    }
     assert.equal(
       migratedPnpmPolicy.minimumReleaseAgeExclude.some((selector: string) =>
         selector.startsWith('@bleedingdev/modern-js-'),
@@ -2059,11 +2247,21 @@ declare module '*.css' {}
       migratedPnpmPolicy.trustPolicyExclude,
       ULTRAMODERN_WORKSPACE_POLICY.pnpm.trustPolicyExclude,
     );
-    assert.ok(
+    assert.equal(
       fs.existsSync(
         path.join(workspaceDir, 'patches/effect-schema-error-type-id.patch'),
       ),
-      'migrate-strict-effect must restore the generated Effect declaration patch',
+      false,
+      'migrate-strict-effect must retire the recognized beta.107 Effect declaration patch',
+    );
+    assert.ok(
+      fs.existsSync(
+        path.join(
+          workspaceDir,
+          `patches/@module-federation__dts-plugin@${MODULE_FEDERATION_VERSION}.patch`,
+        ),
+      ),
+      'migrate-strict-effect must restore the generated Module Federation DTS patch',
     );
     assert.ok(
       fs.existsSync(
@@ -2590,18 +2788,38 @@ function fileMutationStamp(filePath: string) {
   };
 }
 
-function snapshotWorkspaceMetadata(
-  root: string,
-): Record<string, ReturnType<typeof fileMutationStamp>> {
-  const tree: Record<string, ReturnType<typeof fileMutationStamp>> = {};
+type WorkspaceByteSnapshot = Record<
+  string,
+  | { mode: number; type: 'directory' }
+  | { bytes: string; mode: number; type: 'file' }
+  | { mode: number; target: string; type: 'symlink' }
+>;
+
+function snapshotWorkspaceBytes(root: string): WorkspaceByteSnapshot {
+  const tree: WorkspaceByteSnapshot = {};
   const walk = (dir: string) => {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
       const absolute = path.join(dir, entry.name);
+      const relative = path.relative(root, absolute).split(path.sep).join('/');
+      const stat = fs.lstatSync(absolute);
+      const mode = stat.mode & 0o7777;
       if (entry.isDirectory()) {
+        tree[relative] = { mode, type: 'directory' };
         walk(absolute);
       } else if (entry.isFile()) {
-        const relative = path.relative(root, absolute);
-        tree[relative] = fileMutationStamp(absolute);
+        tree[relative] = {
+          bytes: fs.readFileSync(absolute).toString('base64'),
+          mode,
+          type: 'file',
+        };
+      } else if (entry.isSymbolicLink()) {
+        tree[relative] = {
+          mode,
+          target: fs.readlinkSync(absolute),
+          type: 'symlink',
+        };
+      } else {
+        throw new Error(`Unsupported workspace entry in test: ${absolute}`);
       }
     }
   };
@@ -2709,7 +2927,7 @@ test('UltraModern migrate --dry-run performs no filesystem mutations', async () 
   const { tempRoot, workspaceDir } = scaffoldWorkspace('tooling-dry-run');
 
   try {
-    const before = snapshotWorkspaceMetadata(workspaceDir);
+    const before = snapshotWorkspaceBytes(workspaceDir);
 
     const { result, output } = captureStdout(() =>
       runUltramodernToolingCli(
@@ -2719,9 +2937,184 @@ test('UltraModern migrate --dry-run performs no filesystem mutations', async () 
     );
     assert.equal(await result, 0);
 
-    const after = snapshotWorkspaceMetadata(workspaceDir);
+    const after = snapshotWorkspaceBytes(workspaceDir);
     assert.deepEqual(after, before);
     assert.match(output, /\[dry-run\] would write/u);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('UltraModern migrate --dry-run reads the projected topology just like apply', async () => {
+  const { tempRoot, workspaceDir } = scaffoldWorkspace(
+    'tooling-dry-run-topology',
+  );
+
+  try {
+    addUltramodernVertical({
+      workspaceRoot: workspaceDir,
+      name: 'catalog',
+      modernVersion: '3.2.1',
+    });
+    assert.equal(
+      await runUltramodernToolingCli(
+        ['migrate-strict-effect', '--skip-install'],
+        workspaceDir,
+      ),
+      0,
+    );
+
+    const topology = readJson(workspaceDir, 'topology/reference-topology.json');
+    delete topology.verticals[0].api;
+    writeJson(workspaceDir, 'topology/reference-topology.json', topology);
+    const before = snapshotWorkspaceBytes(workspaceDir);
+
+    const { result, output } = captureStdout(() =>
+      runUltramodernToolingCli(
+        ['migrate-strict-effect', '--dry-run'],
+        workspaceDir,
+      ),
+    );
+    assert.equal(await result, 0);
+    assert.deepEqual(snapshotWorkspaceBytes(workspaceDir), before);
+    assert.match(
+      output,
+      /\[dry-run\] would write topology\/reference-topology\.json/u,
+    );
+
+    assert.equal(
+      await runUltramodernToolingCli(
+        ['migrate-strict-effect', '--skip-install'],
+        workspaceDir,
+      ),
+      0,
+    );
+    assert.ok(
+      readJson(workspaceDir, 'topology/reference-topology.json').verticals[0]
+        .api,
+    );
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('UltraModern migrate preserves a dist-named vertical across dry-run and apply', async () => {
+  const { tempRoot, workspaceDir } = scaffoldWorkspace(
+    'tooling-dry-run-dist-vertical',
+  );
+
+  try {
+    addUltramodernVertical({
+      workspaceRoot: workspaceDir,
+      name: 'dist',
+      modernVersion: '3.2.1',
+    });
+    const verticalPackagePath = 'verticals/dist/package.json';
+    const verticalPackage = readJson(workspaceDir, verticalPackagePath);
+    verticalPackage.dependencies['@modern-js/runtime'] = '0.0.0';
+    writeJson(workspaceDir, verticalPackagePath, verticalPackage);
+    const before = snapshotWorkspaceBytes(workspaceDir);
+
+    const { result, output } = captureStdout(() =>
+      runUltramodernToolingCli(
+        ['migrate-strict-effect', '--dry-run'],
+        workspaceDir,
+      ),
+    );
+    assert.equal(await result, 0);
+    assert.deepEqual(snapshotWorkspaceBytes(workspaceDir), before);
+    assert.match(
+      output,
+      /\[dry-run\] would write verticals\/dist\/package\.json/u,
+    );
+
+    assert.equal(
+      await runUltramodernToolingCli(
+        ['migrate-strict-effect', '--skip-install'],
+        workspaceDir,
+      ),
+      0,
+    );
+    assert.equal(
+      readJson(workspaceDir, verticalPackagePath).dependencies[
+        '@modern-js/runtime'
+      ],
+      'workspace:*',
+    );
+    const afterApply = snapshotWorkspaceBytes(workspaceDir);
+
+    assert.equal(
+      await runUltramodernToolingCli(
+        ['migrate-strict-effect', '--skip-install'],
+        workspaceDir,
+      ),
+      0,
+    );
+    assert.deepEqual(snapshotWorkspaceBytes(workspaceDir), afterApply);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('staged migration dry-run cleanup covers synchronous, asynchronous, and failed runs', async () => {
+  const { tempRoot, workspaceDir } = scaffoldWorkspace(
+    'tooling-dry-run-cleanup',
+  );
+  const originalProbe = path.join(workspaceDir, 'stage-probe.txt');
+  const stagedRoots: string[] = [];
+
+  try {
+    assert.equal(
+      withStagedDryRunMigrationIo(workspaceDir, io => {
+        stagedRoots.push(io.workspaceRoot);
+        io.write(path.join(io.workspaceRoot, 'stage-probe.txt'), 'sync\n');
+        assert.equal(
+          fs.readFileSync(
+            path.join(io.workspaceRoot, 'stage-probe.txt'),
+            'utf-8',
+          ),
+          'sync\n',
+        );
+        return 'sync-result';
+      }),
+      'sync-result',
+    );
+
+    assert.equal(
+      await withStagedDryRunMigrationIo(workspaceDir, async io => {
+        stagedRoots.push(io.workspaceRoot);
+        io.write(path.join(io.workspaceRoot, 'stage-probe.txt'), 'async\n');
+        await Promise.resolve();
+        return 'async-result';
+      }),
+      'async-result',
+    );
+
+    assert.throws(
+      () =>
+        withStagedDryRunMigrationIo(workspaceDir, io => {
+          stagedRoots.push(io.workspaceRoot);
+          throw new Error('synchronous stage failure');
+        }),
+      /synchronous stage failure/u,
+    );
+    await assert.rejects(
+      withStagedDryRunMigrationIo(workspaceDir, async io => {
+        stagedRoots.push(io.workspaceRoot);
+        await Promise.resolve();
+        throw new Error('asynchronous stage failure');
+      }),
+      /asynchronous stage failure/u,
+    );
+
+    assert.equal(fs.existsSync(originalProbe), false);
+    for (const stagedRoot of stagedRoots) {
+      assert.equal(
+        fs.existsSync(stagedRoot),
+        false,
+        `${stagedRoot} must be removed after its staged dry-run`,
+      );
+    }
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
@@ -2771,13 +3164,13 @@ test('UltraModern migrate rejects duplicate pnpm mappings without writes', async
 
   try {
     const pnpmWorkspaceFile = path.join(workspaceDir, 'pnpm-workspace.yaml');
-    const unquotedLine = `  effect@${EFFECT_VERSION}: patches/effect-schema-error-type-id.patch`;
+    const unquotedLine = `  @tanstack/router-core@${TANSTACK_ROUTER_CORE_VERSION}: patches/@tanstack__router-core@${TANSTACK_ROUTER_CORE_VERSION}.patch`;
     fs.writeFileSync(
       pnpmWorkspaceFile,
       fs
         .readFileSync(pnpmWorkspaceFile, 'utf-8')
         .replace(
-          `  'effect@${EFFECT_VERSION}': patches/effect-schema-error-type-id.patch`,
+          `  '@tanstack/router-core@${TANSTACK_ROUTER_CORE_VERSION}': patches/@tanstack__router-core@${TANSTACK_ROUTER_CORE_VERSION}.patch`,
           `${unquotedLine}\n${unquotedLine}`,
         ),
       'utf-8',

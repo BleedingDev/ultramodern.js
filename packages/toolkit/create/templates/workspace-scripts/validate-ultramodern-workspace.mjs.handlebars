@@ -3042,7 +3042,6 @@ const requiredPaths = [
   'pnpm-workspace.yaml',
   `patches/@module-federation__modern-js-v3@${expectedModuleFederationVersion}.patch`,
   `patches/@module-federation__bridge-react@${expectedModuleFederationVersion}.patch`,
-  'patches/effect-schema-error-type-id.patch',
   'tsconfig.json',
   'tsconfig.base.json',
   'oxlint.config.ts',
@@ -3216,13 +3215,6 @@ assert(
     `patches/@module-federation__bridge-react@${expectedModuleFederationVersion}.patch`,
   ),
   'pnpm-workspace.yaml must patch the generated Module Federation React bridge cohort',
-);
-assert(
-  patchPathMatches(
-    `effect@${expectedEffectVersion}`,
-    'patches/effect-schema-error-type-id.patch',
-  ),
-  'pnpm-workspace.yaml must patch the generated Effect declaration cohort',
 );
 assertWorkspaceValidationContract(workspaceValidationContract);
 assertAdditionalShellContractShape();

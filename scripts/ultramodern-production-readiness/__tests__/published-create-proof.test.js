@@ -68,25 +68,84 @@ test('generates readable first-ten verticals and deterministic safe names above 
   );
 });
 
-test('builds the supported pnpm dlx package command contract', async () => {
-  const { createPnpmDlxArgs } = await import(
+function makeBootstrapRelease(version = '3.4.0-ultramodern.2') {
+  const aliases = {
+    '@modern-js/create': '@bleedingdev/modern-js-create',
+    '@modern-js/i18n-utils': '@bleedingdev/modern-js-i18n-utils',
+    '@modern-js/runtime': '@bleedingdev/modern-js-runtime',
+    '@modern-js/utils': '@bleedingdev/modern-js-utils',
+  };
+  const packageJson = (sourceName, dependencies = {}) => ({
+    dependencies,
+    ...(sourceName === '@modern-js/create'
+      ? { ultramodern: { frameworkVersion: version } }
+      : {}),
+  });
+  const packages = [
+    {
+      packageJson: packageJson('@modern-js/create', {
+        '@modern-js/i18n-utils': `npm:${aliases['@modern-js/i18n-utils']}@${version}`,
+        chalk: '^5.6.2',
+      }),
+      sourceName: '@modern-js/create',
+      targetName: aliases['@modern-js/create'],
+      version,
+    },
+    {
+      packageJson: packageJson('@modern-js/i18n-utils', {
+        '@modern-js/utils': `npm:${aliases['@modern-js/utils']}@${version}`,
+      }),
+      sourceName: '@modern-js/i18n-utils',
+      targetName: aliases['@modern-js/i18n-utils'],
+      version,
+    },
+    {
+      packageJson: packageJson('@modern-js/runtime'),
+      sourceName: '@modern-js/runtime',
+      targetName: aliases['@modern-js/runtime'],
+      version,
+    },
+    {
+      packageJson: packageJson('@modern-js/utils'),
+      sourceName: '@modern-js/utils',
+      targetName: aliases['@modern-js/utils'],
+      version,
+    },
+  ];
+  return {
+    aliases,
+    createPackage: packages[0],
+    dependencyGraph: {
+      [aliases['@modern-js/create']]: [aliases['@modern-js/i18n-utils']],
+      [aliases['@modern-js/i18n-utils']]: [aliases['@modern-js/utils']],
+      [aliases['@modern-js/runtime']]: [],
+      [aliases['@modern-js/utils']]: [],
+    },
+    packages,
+    publishOrder: packages.map(item => item.targetName),
+    release: { version },
+  };
+}
+
+test('builds the supported pnpm dlx package command contract from the authenticated create closure', async () => {
+  const { createPnpmDlxArgs, resolveCreatePackage } = await import(
     '../published-create-proof/package-cohort.mjs'
   );
   const { createCleanPnpmDlxEnv } = await import(
     '../published-create-proof/process.mjs'
   );
 
+  const createPackage = resolveCreatePackage(makeBootstrapRelease());
   assert.deepEqual(
-    createPnpmDlxArgs(
-      {
-        dlxSpecifier: '@bleedingdev/modern-js-create@latest',
-        exactSpecifier: '@bleedingdev/modern-js-create@3.4.0-ultramodern.2',
-      },
-      ['my-super-app', '--lang', 'en'],
-    ),
+    createPnpmDlxArgs(createPackage, ['my-super-app', '--lang', 'en']),
     [
       '--pm-on-fail=ignore',
-      '--config.minimum-release-age-exclude=@bleedingdev/*',
+      '--config.minimum-release-age=1440',
+      '--config.minimum-release-age-strict=true',
+      '--config.minimum-release-age-ignore-missing-time=false',
+      '--config.minimum-release-age-exclude=@bleedingdev/modern-js-create@3.4.0-ultramodern.2',
+      '--config.minimum-release-age-exclude=@bleedingdev/modern-js-i18n-utils@3.4.0-ultramodern.2',
+      '--config.minimum-release-age-exclude=@bleedingdev/modern-js-utils@3.4.0-ultramodern.2',
       'dlx',
       '--allow-build=esbuild',
       '@bleedingdev/modern-js-create@3.4.0-ultramodern.2',
@@ -96,19 +155,18 @@ test('builds the supported pnpm dlx package command contract', async () => {
     ],
   );
   assert.deepEqual(
-    createPnpmDlxArgs(
-      {
-        dlxSpecifier: '@bleedingdev/modern-js-create@3.2.0-ultramodern.120',
-        exactSpecifier: '@bleedingdev/modern-js-create@3.2.0-ultramodern.120',
-      },
-      ['catalog', '--vertical', '--lang', 'en'],
-    ),
+    createPnpmDlxArgs(createPackage, ['catalog', '--vertical', '--lang', 'en']),
     [
       '--pm-on-fail=ignore',
-      '--config.minimum-release-age-exclude=@bleedingdev/*',
+      '--config.minimum-release-age=1440',
+      '--config.minimum-release-age-strict=true',
+      '--config.minimum-release-age-ignore-missing-time=false',
+      '--config.minimum-release-age-exclude=@bleedingdev/modern-js-create@3.4.0-ultramodern.2',
+      '--config.minimum-release-age-exclude=@bleedingdev/modern-js-i18n-utils@3.4.0-ultramodern.2',
+      '--config.minimum-release-age-exclude=@bleedingdev/modern-js-utils@3.4.0-ultramodern.2',
       'dlx',
       '--allow-build=esbuild',
-      '@bleedingdev/modern-js-create@3.2.0-ultramodern.120',
+      '@bleedingdev/modern-js-create@3.4.0-ultramodern.2',
       'catalog',
       '--vertical',
       '--lang',
@@ -121,7 +179,7 @@ test('builds the supported pnpm dlx package command contract', async () => {
         { exactSpecifier: 'modern-js-create@3.5.0-ultramodern.77' },
         [],
       ),
-    /must use a scoped exact specifier/u,
+    /exact authenticated bootstrap release-age policy/u,
   );
 
   const root = path.join(os.tmpdir(), 'published-create-dlx-cache');
@@ -131,6 +189,37 @@ test('builds the supported pnpm dlx package command contract', async () => {
     npm_config_store_dir: path.join(root, 'store'),
     pnpm_config_store_dir: path.join(root, 'store'),
   });
+});
+
+test('fails closed when the authenticated create closure is omitted, broadened, or version-skewed', async () => {
+  const { resolveCreatePackage } = await import(
+    '../published-create-proof/package-cohort.mjs'
+  );
+
+  const omitted = makeBootstrapRelease();
+  omitted.dependencyGraph[omitted.createPackage.targetName] = [];
+  assert.throws(
+    () => resolveCreatePackage(omitted),
+    /differs from authenticated packed runtime dependencies/u,
+  );
+
+  const extra = makeBootstrapRelease();
+  extra.dependencyGraph[extra.createPackage.targetName].push(
+    extra.aliases['@modern-js/runtime'],
+  );
+  assert.throws(
+    () => resolveCreatePackage(extra),
+    /differs from authenticated packed runtime dependencies/u,
+  );
+
+  const wrongVersion = makeBootstrapRelease();
+  wrongVersion.packages.find(
+    item => item.sourceName === '@modern-js/i18n-utils',
+  ).version = '3.4.0-ultramodern.1';
+  assert.throws(
+    () => resolveCreatePackage(wrongVersion),
+    /must use release version 3\.4\.0-ultramodern\.2/u,
+  );
 });
 
 test('shared ERP-10 profile requires frozen install, checks, both builds, and no framework override', async t => {

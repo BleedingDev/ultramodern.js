@@ -38,11 +38,11 @@ async function getBundlerConfig(config: BuilderConfig) {
 }
 
 describe('source.reactCompiler', () => {
-  test('should enable react compiler by default', async () => {
+  test('should not enable react compiler by default', async () => {
     const transform = getSwcTransformOptions(await getBundlerConfig({}));
 
     expect(transform).toBeDefined();
-    expect(transform?.reactCompiler).toEqual(true);
+    expect(transform).not.toHaveProperty('reactCompiler');
   });
 
   test('should enable react compiler when set to true', async () => {

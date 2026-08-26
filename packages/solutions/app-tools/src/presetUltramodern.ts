@@ -253,19 +253,22 @@ export const createPresetUltramodernConfig = (
       precompress: true,
     },
     server,
-    ...(deliveryUnit
-      ? {
-          source: {
+    source: {
+      reactCompiler: true,
+      ...(deliveryUnit
+        ? {
             globalVars: {
               ULTRAMODERN_BUILD_MARKER: releaseIdentity?.buildMarker,
               ULTRAMODERN_RELEASE_VERSION: deliveryUnit.version,
               ULTRAMODERN_SOURCE_REVISION: releaseIdentity?.sourceRevision,
             },
-          },
-        }
-      : {}),
+          }
+        : {}),
+    },
     tools: {
       bundlerChain: setReactRouterBridgeSafeAliases,
+      // Keep generated Tailwind apps on Rsbuild's native CSS pipeline.
+      lightningcssLoader: true,
       ...(bundledReleaseIdentity
         ? {
             rspack: config => {

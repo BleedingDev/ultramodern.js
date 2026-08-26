@@ -7,23 +7,22 @@ import { toPosixPath } from './files';
 // signal for whether the facade needs a `default` re-export.
 export const DEFAULT_EXPORT_RE = /(^|[\s;])export\s+default\b/;
 
-/**
- * Raised when the handler declaration the client facade must re-export was
- * never emitted. `setPackage` unconditionally publishes `types` entries for
- * every generated client, so a missing declaration means the published package
- * advertises a type surface it cannot resolve. Failing the build is the only
- * honest outcome: the previous behaviour (copy the declaration if it happens to
- * exist, otherwise carry on) shipped tarballs whose clients silently degraded
- * to `any` in consumer projects.
- */
-export class MissingClientDeclarationError extends Error {
-  constructor(resourcePath: string, expectedDeclaration: string) {
-    super(
-      `[plugin-bff] No declaration was emitted for "${resourcePath}", so the published client type for it cannot be generated (expected "${expectedDeclaration}"). Enable "declaration": true in the server tsconfig used by this app.`,
-    );
-    this.name = 'MissingClientDeclarationError';
-  }
+const missingClientDeclarationCause = Symbol('MissingClientDeclarationError');
+
+export function createMissingClientDeclarationError(
+  resourcePath: string,
+  expectedDeclaration: string,
+) {
+  const error = new Error(
+    `[plugin-bff] No declaration was emitted for "${resourcePath}", so the published client type for it cannot be generated (expected "${expectedDeclaration}"). Enable "declaration": true in the server tsconfig used by this app.`,
+    { cause: missingClientDeclarationCause },
+  );
+  error.name = 'MissingClientDeclarationError';
+  return error;
 }
+
+export const isMissingClientDeclarationError = (error: unknown) =>
+  error instanceof Error && error.cause === missingClientDeclarationCause;
 
 /**
  * Build the `.d.ts` that sits next to a generated client module.

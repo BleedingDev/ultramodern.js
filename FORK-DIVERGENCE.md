@@ -12,7 +12,13 @@ bases and counts, §3 reconciliation, and every base-transition growth entry.
 
 **Re-verified 2026-08-25** for the upstream sync through `f4bc5ee335`: §2
 bases and counts and §3 reconciliation. The re-anchor changed no cumulative
-per-file divergence budget.
+per-file divergence budget. The later RT-23 capped patch added five governed
+changed lines without changing the file or hunk totals.
+
+**Re-verified 2026-08-26** after restoring the fixed `eded841256` audited
+measurement point while retaining the complete upstream sync through
+`f4bc5ee335` in `HEAD`: §2 bases and §3 base-transition ownership. The
+sanctioned reviewed writer recorded the exact totals below.
 
 This file is the single canonical record of where the UltraModern fork diverges
 from upstream Modern.js. It is read during every upstream sync and enforced on
@@ -111,29 +117,35 @@ Two different base refs are in play. Do not mix them — the counts differ.
 
 | Base | SHA | Used by | Meaning |
 | --- | --- | --- | --- |
-| Divergence-gate base | `f4bc5ee33532b7547876857caeab3782d41ffddd` | `divergence-allowlist.json`, `--mode divergence` | upstream main through the app-tools loader fix in #8819, merged into this fork and a true ancestor of `HEAD` |
+| Divergence-gate base | `eded841256a7cffdaa622e3889fc83407debd3e4` | `divergence-allowlist.json`, `--mode divergence` | fixed audited point: upstream's `Release v3.8.2 (#8810)` mainline commit and a true ancestor of `HEAD` |
 | Import-gate base | `8a744c1b` | `allowlist.json`, `--mode imports` | frozen import-boundary baseline, deliberately **not** re-anchored with the divergence base |
-| Sync-review base | `f4bc5ee33532b7547876857caeab3782d41ffddd` | this ledger's raw counts | `origin/main` tip at the 2026-08-25 sync; identical to the gate base |
+| Sync-review base | `f4bc5ee33532b7547876857caeab3782d41ffddd` | this ledger's raw sync-review counts | `origin/main` tip at the 2026-08-25 sync, retained in full in `HEAD`; intentionally newer than the gate base |
 
-**Re-anchored 2026-08-25 (was
-`3748f08860123c797c40576c0604f30a7e376593`, upstream through the Rsbuild
-2.2.0-rc.0 cohort).** Measure against the recorded **mainline** commit. The
-`v3.8.2` tag remains a parallel, patch-equivalent commit rather than an ancestor
-and is historical context only; it is not a valid substitute for this base.
+**The divergence gate returned to its fixed audited point on 2026-08-26.** Its
+brief forward re-anchors first to
+`3748f08860123c797c40576c0604f30a7e376593` (upstream through the Rsbuild
+2.2.0-rc.0 cohort) and then to `f4bc5ee335` (through #8819) remain part of the
+review history, not the current measurement contract. Returning the measurement
+point backward does not undo either upstream sync: both remain incorporated in
+`HEAD` and `f4bc5ee335` remains the truthful sync-review base. Measure against
+the recorded **mainline** commit. The parallel `v3.8.2` tag (`e642cd16`) is
+patch-equivalent to `eded841256` but is not an ancestor and is not a valid
+substitute.
 
-Raw `git diff -M <base> --name-status` (committed head vs base) at 2026-08-25:
+Raw `git diff -M <base> --name-status` sync review (committed head vs
+`f4bc5ee335`) at 2026-08-25:
 
 | Scope | Base | M | A | D | R |
 | --- | --- | --- | --- | --- | --- |
-| `packages/**` | `f4bc5ee335` (gate base = synced `origin/main`) | 581 | 848 | 11 | 18 |
+| `packages/**` | `f4bc5ee335` (synced `origin/main`) | 581 | 848 | 11 | 18 |
 | root/infra (`:(exclude)packages/**`) | `f4bc5ee335` | 422 | 691 | 7 | 39 |
 
 Regenerate with rename detection pinned on — without `-M` the template moves
 surface as delete/add pairs:
 
 ```sh
-git diff -M origin/main --name-status -- packages
-git diff -M origin/main --name-status -- . ':(exclude)packages/**'
+git diff -M f4bc5ee33532b7547876857caeab3782d41ffddd --name-status -- packages
+git diff -M f4bc5ee33532b7547876857caeab3782d41ffddd --name-status -- . ':(exclude)packages/**'
 node scripts/ultramodern-boundary-check/check-fork-import-boundary.js --mode divergence --json
 ```
 
@@ -145,32 +157,67 @@ fork-owned by definition, carry no divergence budget, and are not listed here.
 
 ## 3. Allowlist reconciliation
 
-Measured divergence at the current gate base `f4bc5ee335` is **610 files /
-2,777 hunks / 34,334 changed lines** under `packages/` (`measureDivergence`,
-`--diff-filter=MD`, so fork-added files are excluded). It was 611 files / 2,789
-hunks / 33,816 changed lines at the retired `eded841256` base. The changed
-totals are a base transition, not a fork-earned shrink or ordinary PR growth.
+Measured divergence at the fixed gate base `eded841256` is **613 files / 2,790
+hunks / 33,839 changed lines** under `packages/` (`measureDivergence`,
+`--diff-filter=MD`, so fork-added files are excluded). These totals are the
+exact sanctioned writer result; prose estimates do not authorize a budget. For
+historical comparison, the 2026-08-25 `f4bc5ee335` re-anchor snapshot was 610 files /
+2,777 hunks / 34,334 changed lines, and the later RT-23 capped patch raised that
+temporary-base budget to 34,339 changed lines without changing its file or hunk
+totals.
 
-**The re-record at the new base is complete (2026-08-25):** the budgets in
-`divergence-allowlist.json` are the `f4bc5ee335` snapshot, written through the
-sanctioned reviewed path (§1) — required here because a base re-anchor is by
-definition growth — with the committed merge-base/head refs it demands:
+**The reviewed return to the fixed base is being recorded on 2026-08-26.** The
+budgets in `divergence-allowlist.json` must be written through the sanctioned
+base-transition path (§1) with committed merge-base/head refs:
 
 ```sh
 node scripts/ultramodern-boundary-check/check-fork-import-boundary.js \
-  --mode divergence --base f4bc5ee33532b7547876857caeab3782d41ffddd \
+  --mode divergence --base eded841256a7cffdaa622e3889fc83407debd3e4 \
   --write-divergence-allowlist --rebase-divergence-allowlist --record-growth \
   --merge-base "$PR_MERGE_BASE" --head "$COMMITTED_HEAD"
 ```
 
-This transition incorporates upstream's app-tools duplicate-loader fix, BFF
-test portability update, and styled-components plugin bump. After merge
-resolution it changes no cumulative per-file budget: totals and all 610 entries
-are identical to the `3748f08860` snapshot. The ledger change is still required
-because audited-base identity changed.
+This is a backward measurement-point transition, not a rollback of the source
+tree and not ordinary PR growth. `HEAD` still contains the full upstream work
+through `f4bc5ee335`. Consequently, later upstream-owned lines that were absent
+at `eded841256` become measurable relative to the older audit point even though
+the fork did not newly author them in this PR. The 21 raised/new paths are
+reviewed individually below; no other raised/new path belongs to this
+transition.
 
-The seven entries that grew across the preceding 2026-08-24 base transition
-were inspected and are
+### 2026-08-26 fixed-base transition: complete raised/new set
+
+| Audited-base-owned path | Owner | Backward-base transition reason | Disposition |
+| --- | --- | --- | --- |
+| `packages/cli/adapter-rstest/package.json` | bleedingdev | The fully retained post-v3.8.2 upstream Rstest cohort changes are visible when the manifest is measured from the older fixed audit point; this is mechanical dependency metadata, not new PR-authored behavior | `keep-[M]` |
+| `packages/cli/builder/package.json` | bleedingdev | The fully retained post-v3.8.2 upstream builder toolchain manifest changes become part of the cumulative older-base diff; no upstream sync benefit was dropped | `keep-[M]` |
+| `packages/cli/builder/tests/__snapshots__/postcssLegacy.test.ts.snap` | bleedingdev | The synced upstream snapshot regeneration occurred after the fixed audit point, so measuring backward exposes its generated snapshot delta | `keep-[M]` |
+| `packages/cli/plugin-bff/package.json` | bleedingdev | The fully retained post-v3.8.2 upstream BFF manifest edits are newly measurable from the older base; this row records mechanical cohort identity rather than fork-side feature growth | `keep-[M]` |
+| `packages/cli/plugin-data-loader/package.json` | bleedingdev | The synced upstream data-loader manifest cohort is newer than the fixed audit point and therefore raises the cumulative older-base measurement | `keep-[M]` |
+| `packages/cli/plugin-ssg/package.json` | bleedingdev | The synced upstream SSG dependency metadata remains in `HEAD`; returning to the older base makes those mechanical lines measurable again | `keep-[M]` |
+| `packages/cli/plugin-styled-components/package.json` | bleedingdev | The post-v3.8.2 upstream styled-components plugin bump remains fully incorporated and is visible relative to the fixed audit point | `keep-[M]` |
+| `packages/document/package.json` | bleedingdev | The synced documentation dependency/toolchain manifest is newer than the fixed audit point; the resulting delta is mechanical metadata | `keep-[M]` |
+| `packages/runtime/plugin-i18n/package.json` | bleedingdev | The fully retained upstream runtime dependency cohort after v3.8.2 is visible in the older-base cumulative diff | `keep-[M]` |
+| `packages/runtime/plugin-image/package.json` | bleedingdev | The fully retained upstream image-plugin dependency cohort after v3.8.2 is visible in the older-base cumulative diff | `keep-[M]` |
+| `packages/runtime/plugin-runtime/package.json` | bleedingdev | The synced plugin-runtime manifest updates postdate the fixed audit point, so their mechanical dependency delta is newly measured | `keep-[M]` |
+| `packages/runtime/render/package.json` | bleedingdev | The synced React/RSC render cohort remains in `HEAD` and becomes measurable relative to the older v3.8.2 mainline point | `keep-[M]` |
+| `packages/server/core/package.json` | bleedingdev | The fully retained upstream server-core manifest updates postdate the fixed audit point and surface as mechanical cumulative divergence | `keep-[M]` |
+| `packages/server/server/package.json` | bleedingdev | The fully retained upstream server manifest updates postdate the fixed audit point and surface as mechanical cumulative divergence | `keep-[M]` |
+| `packages/solutions/app-tools/package.json` | bleedingdev | The synced app-tools dependency/build cohort remains complete in `HEAD`; measuring from v3.8.2 exposes its mechanical manifest delta | `keep-[M]` |
+| `packages/solutions/app-tools/rslib.config.mts` | bleedingdev | Upstream #8819 already landed the duplicate-loader fix at the later sync-review base; the fix remains in `HEAD` and appears only because the gate measures from the older commit | `upstream-PR` |
+| `packages/solutions/app-tools/tests/fixtures/subcommand/package.json` | bleedingdev | The synced fixture manifest update postdates the fixed audit point, so its test-fixture dependency delta is mechanically measurable | `keep-[M]` |
+| `packages/toolkit/plugin/package.json` | bleedingdev | The fully retained upstream toolkit plugin manifest cohort postdates the fixed base and is exposed by the backward measurement | `keep-[M]` |
+| `packages/toolkit/runtime-utils/package.json` | bleedingdev | The fully retained upstream runtime-utils manifest cohort postdates the fixed base and is exposed by the backward measurement | `keep-[M]` |
+| `packages/toolkit/sandpack-react/package.json` | bleedingdev | The synced Sandpack manifest updates remain in `HEAD`; their post-v3.8.2 dependency delta is mechanical | `keep-[M]` |
+| `packages/toolkit/utils/package.json` | bleedingdev | The fully retained upstream toolkit-utils manifest cohort postdates the fixed base and is exposed by the backward measurement | `keep-[M]` |
+
+The table is the same-PR ownership evidence for the complete base-transition
+increase. It does not claim that later upstream lines are fork-authored, and it
+must not be used to waive the 20-line cap for any unrelated change in those
+files.
+
+The seven entries that grew across the historical forward 2026-08-24 base
+transition were inspected and are
 dispositioned here. None is an ordinary fork-side PR growth or a merge-resolution
 defect:
 
@@ -182,6 +229,22 @@ defect:
 | `packages/runtime/plugin-i18n/package.json` | bleedingdev | Upstream React/dependency edits split the retained fork cohort manifest into 11 hunks while changed lines fell 42 → 38 | `keep-[M]` |
 | `packages/runtime/plugin-image/package.json` | bleedingdev | Upstream dependency edits split the retained mechanical manifest divergence into 5 hunks while changed lines fell 17 → 13 | `keep-[M]` |
 | `packages/runtime/render/package.json` | bleedingdev | Upstream React/RSC dependency edits split the retained fork cohort manifest into 10 hunks while changed lines fell 46 → 38 | `keep-[M]` |
+
+### Current dependency-cohort non-shrinks
+
+These audited-base-owned files are equal-count replacements in the current
+UltraModern dependency-cohort change. They do not raise the canonical
+divergence budget, but remain non-shrinks and therefore require explicit
+same-PR ownership and disposition evidence.
+
+| Audited-base-owned path(s) | Owner | Reason | Disposition |
+| --- | --- | --- | --- |
+| `packages/cli/{adapter-rstest,builder,plugin-bff,plugin-data-loader}/package.json`, `packages/runtime/plugin-runtime/package.json`, `packages/solutions/app-tools/package.json`, `packages/toolkit/plugin/package.json` | bleedingdev | Promote the full framework build/test surface atomically from the Rsbuild 2.2 release candidate to stable 2.2.0; mixed RC/stable installs would invalidate the Rspack, Module Federation, Tailwind, React Compiler, and chunk-splitting acceptance evidence | `keep-[M]` |
+| `packages/cli/plugin-bff/package.json` | bleedingdev | Keep the optional Effect peers, mirrored development identities, and Module Federation runtime on the coherent fork cohort; a partial update can install incompatible Effect identities | `keep-[F]` |
+| `packages/toolkit/create/package.json` | bleedingdev | Keep the generator's formatter and Ultracite runtime dependencies aligned with the generated Oxc toolchain policy | `keep-[M]` |
+| `packages/toolkit/create/README.md` | bleedingdev | Keep package documentation truthful to the fork's generated Effect, TanStack, Module Federation, and pnpm cohort | `keep-[F]` |
+| `packages/document/docs/en/components/prerequisites.mdx` | bleedingdev | Keep the documented pnpm bootstrap command aligned with the fork's generated and CI toolchain | `keep-[M]` |
+| `packages/document/docs/zh/components/prerequisites.mdx` | bleedingdev | Keep the translated pnpm bootstrap command aligned with the fork's generated and CI toolchain | `keep-[M]` |
 
 The group breakdown below is the last hand-classified snapshot, taken at
 `dfcd414a`. It is advisory attribution only — the gate reads per-file budgets,
@@ -222,10 +285,10 @@ it covers root and infrastructure files outside `packages/`.
 | ID | What diverged | Owner | Reason | Disposition | Lane |
 | --- | --- | --- | --- | --- | --- |
 | ROOT-01 | `pnpm-workspace.yaml`, `pnpm-lock.yaml`, `.npmrc`, root `package.json`, `nx.json`, `biome.json`, `.gitignore`, `.mise.toml` | bleedingdev | Fork package-manager, Renovate/security, tsgo/rstest/biome and publish policy | keep-[F] | — |
-| ROOT-02 | Effect cohort pinned lockstep across 4 sites (`4.0.0-beta.107`) | bleedingdev | Upstream has no Effect lane; a partial revert leaves 3 sites pointing at an uninstalled version | keep-[F] — see note N1 | — |
-| ROOT-03 | Generated dependency/toolchain cohort pins (tsgo, TanStack, MF 2.8.2, `@module-federation/node@2.7.49`, Node 26.7.0, pnpm 11.21.0) | bleedingdev | Generator, templates, validation and docs must agree or generated workspaces break | keep-[F] | — |
+| ROOT-02 | Effect cohort pinned lockstep across generator and BFF surfaces (`4.0.0-rc.112`) | bleedingdev | Upstream has no Effect lane; a partial revert leaves generated workspaces and plugin-bff on incompatible Effect identities | keep-[F] — see note N1 | — |
+| ROOT-03 | Generated dependency/toolchain cohort pins (tsgo 0.37.0, TanStack Router 1.170.32/core 1.171.27/history 1.162.1, MF 2.9.0, `@module-federation/node@2.7.50`, Node 26.7.0, pnpm 11.24.0) | bleedingdev | Generator, templates, validation and docs must agree or generated workspaces break | keep-[F] | — |
 | ROOT-04 | 15 `examples/**` members use `workspace:*`; upstream uses `latest` | bleedingdev | Upstream's spelling installs real Modern.js 3.7.0 beside the fork and pnpm non-deterministically hoists one | keep-[F] — see note N2 | — |
-| ROOT-05 | `patchedDependencies` for MF 2.8.2 cohort | bleedingdev | MF SSR/topology lane | keep-[F] | — |
+| ROOT-05 | `patchedDependencies` for MF 2.9.0 (`manifest`, `rspack`, `bridge-react`, `modern-js-v3`) and TanStack router-core 1.171.27 | bleedingdev | MF lazy-DTS/SSR/topology and strict TanStack declaration lanes | keep-[F] | — |
 | ROOT-07 | `pnpm-workspace.yaml` negative globs `!tests/integration/**/{dist,node_modules}/**` | bleedingdev | Gitignored build output emits `package.json` files that match the positive globs and add phantom importers to the lockfile | keep-[F] | — |
 | ROOT-08 | 10 fork-owned workflows added | bleedingdev | Fork gates (boundary, contract, publish, certification, nightly, readiness, security), docs publishing (`docs-pages`), bun smoke (`bun-superapp-smoke`), and Tractor downstream acceptance (`ultramodern-tractor-downstream`) | keep-[F] | — |
 | ROOT-09 | Modified upstream workflows (dependency check, diff, integration, lint, type-check, unit, builder e2e, issue labels) | bleedingdev | Fork toolchain + gate wiring | capped-patch — reconcile upstream infra fixes by hand | — |
@@ -299,7 +362,7 @@ it covers root and infrastructure files outside `packages/`.
 | RT-20 | `render` (6 files) RSC adapter surface: `createFromFetch` export, `rscManifest` plumb-through, `react-server-dom-rspack.d.ts` | bleedingdev | Fork RSC lane; RSC stays disabled in the distribution | keep-[F] | — |
 | RT-21 | React Router / Remix compatibility surface (`plugin-runtime` router paths and related upstream-owned files) | bleedingdev | Maintenance-only: the compatibility surface is retained and takes regression fixes only, no new features or public surface. New routing work belongs to TanStack Router; RT-06/RT-16/RT-18 keep their own dispositions | keep-[F] (maintenance-only) | — |
 | RT-22 | `plugin-i18n/package.json` React and ReactDOM peer ranges match the required `@modern-js/runtime` React 19 cohort | bleedingdev | The plugin requires `@modern-js/runtime`, whose peers are `^19.2.8`; advertising React 18 was unsatisfiable in a supported install. i18next and react-i18next retain upstream floors because older versions are not exercised here | keep-[F] (dependency cohort) | — |
-| RT-23 | `plugin-runtime/src/cli/ssr/index.ts` disables Rsbuild 2.2 `splitChunks` only for Module Federation SSR server environments | bleedingdev | Rsbuild 2.2's server default makes the CommonJS MF render entry resolve asynchronously without `requestHandler`; browser environments retain native chunk splitting | capped-patch | — |
+| RT-23 | `plugin-runtime/src/cli/ssr/index.ts` disables Rsbuild 2.2 `splitChunks` only for Module Federation SSR server environments and emits `MODERN_MF_APP_SSR` with env-compatible string semantics | bleedingdev | Rsbuild 2.2's server default makes the CommonJS MF render entry resolve asynchronously without `requestHandler`; browser environments retain native chunk splitting. Serializing the config-derived marker as a string, paired with APP-09's ambient auto-injection exclusion, prevents conflicting DefinePlugin values while preserving the public `process.env` string contract | capped-patch | — |
 
 ---
 
@@ -345,6 +408,7 @@ it covers root and infrastructure files outside `packages/`.
 | APP-06 | `src/rsbuild.ts:19,58-60` adds `disableReactCompiler?: boolean` to `ResolveModernRsbuildConfigOptions` | bleedingdev | Exists only to let callers opt out of CLI-04's default; disappears if CLI-04 reverts | **revert** with CLI-02 / CLI-04 | **P1** |
 | APP-07 | `src/plugins/initialize/index.ts:36-43` defaults `dev.lazyCompilation` to `{ imports: true, entries: false }` when unset, plus `src/builder/shared/lazyCompilation.ts` route-eager `lazyCompilation.test` | bleedingdev | Deliberate dev-perf divergence, broadened beyond stream-SSR to all route component modules. Low priority so an explicit user `dev.lazyCompilation` always wins | keep-[F], documented | — |
 | APP-08 | esm register hooks, utils, tests | bleedingdev | tsgo toolchain + track the above | keep-[M] | — |
+| APP-09 | `src/utils/env.ts` excludes `MODERN_MF_APP_SSR` from ambient `MODERN_*` auto-injection; `tests/utils/env.test.ts` pins the exclusion | bleedingdev | The variable controls config selection before normalization, while plugin-runtime publishes the resolved SSR mode. Compiling the ambient value through a second DefinePlugin conflicts with the config-derived marker and can mislabel client bundles | capped-patch | — |
 
 ---
 
@@ -375,28 +439,18 @@ it covers root and infrastructure files outside `packages/`.
 Only for entries where a **clean merge silently produces a broken or reverted
 result**. Referenced by ID from the tables above.
 
-**N1 — ROOT-02 Effect cohort (4 sites, one commit).**
+**N1 — ROOT-02 Effect cohort (lockstep, no active patch).**
 `EFFECT_VERSION`/`EFFECT_VITEST_VERSION` in
 `packages/toolkit/create/src/ultramodern-workspace/versions.ts`;
 `packages/cli/plugin-bff/package.json` (dep/peer/devDep, see N5); the generated
 `pnpm.overrides`/`trustPolicyExclude` emitted by
-`ultramodern-workspace/policy.ts`; and
-`packages/toolkit/create/template-workspace/patches/effect-schema-error-type-id.patch`.
-That patch carries one public declaration hunk — it drops the dangling
-`SchemaAST.Sentinel` reference from `Schema.d.ts` (beta.102 marked
-`collectSentinels` `@internal`, erasing `Sentinel` from `SchemaAST.d.ts` while
-`Schema.d.ts` kept referencing it, so the shipped types fail their own `tsgo`
-check with TS2694 — still true on beta.107). Its `index <blob>..<blob>` header
-is version-specific: a version bump without `pnpm patch effect@<new-version>`
-produces a patch that silently fails to apply. The patch is **template-only**
-(deliberately absent from repo-root `patches/` and from
-`SHARED_ULTRAMODERN_WORKSPACE_PATCH_FILES`, so `tests/patch-sync.test.ts` guards
-its *absence* there, not its content); its content is pinned by the `sha256` /
-`acceptedLegacySha256` on the three `packageName: 'effect'` entries (beta.94,
-beta.97, beta.102) in `stalePatchPolicies` —
-`packages/toolkit/create/src/ultramodern-workspace/policy.ts:487-527` at the
-time of writing; **find them by name, not by line**, and re-pin every one on an
-Effect cohort bump.
+`ultramodern-workspace/policy.ts`. Effect 4.0.0-rc.112 includes the former
+`SchemaAST.Sentinel` declaration repair, so generated workspaces carry no
+active Effect patch. `stalePatchPolicies` retains the reviewed beta.107 digest
+(`ed9f636…`) and the beta.94/beta.97/beta.102 legacy digests only so migration
+can recognize and remove the former template patch without deleting
+consumer-owned files. These entries are migration history, not authorization
+to restore or regenerate the patch.
 Guards: `packages/toolkit/create/tests/version-pins.test.ts`,
 `tests/migrate-release-age-policy.test.ts`.
 Release-age exclusions are temporary, exact-version, evidence-backed and removed
@@ -626,12 +680,13 @@ current evidence — do not cite it.
    `node scripts/ultramodern-boundary-check/check-fork-import-boundary.js`.
    Any `unallowlisted-divergence` is a new Bucket-B entry that needs a row in
    this ledger before the budget is re-recorded.
-7. When the upstream base itself moves, re-anchor
-   `DEFAULT_DIVERGENCE_BASE_REF` to the upstream **mainline** release commit
-   (§2), not the release tag, and re-record with the writer command in §3 in the
-   same change as the ledger rows. Expect growth on every upstream-owned file the
-   fork replaced with a shim or an extension point: the fork's side did not
-   change, upstream's did, and a deletion of a bigger file measures bigger.
-   Inspect each entry against `git diff <old-base> <new-base> -- <file>` before
-   recording it — that diff is what separates a base-transition artifact from a
-   merge-resolution defect.
+7. Do not move the fixed audited base merely because upstream was synced; update
+   the Sync-review base in §2 instead. If a separate base transition is
+   explicitly approved, re-anchor `DEFAULT_DIVERGENCE_BASE_REF` to the reviewed
+   upstream **mainline** commit, not a parallel release tag, and re-record with
+   the writer command in §3 in the same change as the ledger rows. Expect growth
+   on every upstream-owned file the fork replaced with a shim or an extension
+   point: the fork's side did not change, upstream's did, and a deletion of a
+   bigger file measures bigger. Inspect each entry against
+   `git diff <old-base> <new-base> -- <file>` before recording it — that diff is
+   what separates a base-transition artifact from a merge-resolution defect.

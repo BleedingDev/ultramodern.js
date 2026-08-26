@@ -17,8 +17,9 @@ import {
 import { getPackageName } from './package-json';
 import {
   buildClientTypeFacade,
+  createMissingClientDeclarationError,
   DEFAULT_EXPORT_RE,
-  MissingClientDeclarationError,
+  isMissingClientDeclarationError,
 } from './type-facade';
 import { setPackage, writeClientModuleBoundary } from './write-package';
 
@@ -120,7 +121,7 @@ export async function clientGenerator(draftOptions: APILoaderOptions) {
     clientCode: string,
   ) => {
     if (!(await fs.pathExists(path.resolve(source.relativeTargetDistDir)))) {
-      throw new MissingClientDeclarationError(
+      throw createMissingClientDeclarationError(
         source.resourcePath,
         source.relativeTargetDistDir,
       );
@@ -202,7 +203,7 @@ export async function clientGenerator(draftOptions: APILoaderOptions) {
     // A missing handler declaration silently published a broken type surface,
     // which is exactly the defect this generator now guards; it must not be
     // downgraded to a log line by the surrounding best-effort handler.
-    if (error instanceof MissingClientDeclarationError) {
+    if (isMissingClientDeclarationError(error)) {
       throw error;
     }
     logger.error(`Client bundle generate failed: ${error}`);

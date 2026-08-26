@@ -3,7 +3,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { runUltramodernToolingCli } from '../src/ultramodern-tooling/commands';
-import { generateUltramodernWorkspace } from '../src/ultramodern-workspace';
+import {
+  addUltramodernVertical,
+  generateUltramodernWorkspace,
+} from '../src/ultramodern-workspace';
 
 function readJson(workspaceRoot: string, relativePath: string) {
   return JSON.parse(
@@ -34,6 +37,29 @@ function captureStdout<T>(run: () => T): { result: T; output: string } {
   } finally {
     process.stdout.write = original;
   }
+}
+
+function snapshotWorkspace(directory: string, root = directory) {
+  const snapshot = new Map<string, Buffer>();
+  for (const entry of fs
+    .readdirSync(directory, { withFileTypes: true })
+    .toSorted((left, right) => left.name.localeCompare(right.name))) {
+    const entryPath = path.join(directory, entry.name);
+    const relativePath = path.relative(root, entryPath);
+    if (entry.isDirectory()) {
+      for (const [nestedPath, content] of snapshotWorkspace(entryPath, root)) {
+        snapshot.set(nestedPath, content);
+      }
+    } else if (entry.isSymbolicLink()) {
+      snapshot.set(
+        relativePath,
+        Buffer.from(`symlink:${fs.readlinkSync(entryPath)}`),
+      );
+    } else {
+      snapshot.set(relativePath, fs.readFileSync(entryPath));
+    }
+  }
+  return snapshot;
 }
 
 function addLegacyGeneratedDefaults(source: string) {
@@ -79,9 +105,14 @@ test('migrate converges a recognized generated Modern config to current preset p
       'apps/shell-super-app/modern.config.ts',
     );
     const currentGeneratedConfig = fs.readFileSync(modernConfigPath, 'utf-8');
+    const predecessorGeneratedConfig = currentGeneratedConfig.replace(
+      'pluginTailwindcss({ optimize: false })',
+      'pluginTailwindcss()',
+    );
+    assert.notEqual(predecessorGeneratedConfig, currentGeneratedConfig);
     fs.writeFileSync(
       modernConfigPath,
-      addLegacyGeneratedDefaults(currentGeneratedConfig),
+      addLegacyGeneratedDefaults(predecessorGeneratedConfig),
       'utf-8',
     );
 
@@ -358,7 +389,7 @@ const cloudflareDeployEnabled =`,
   }
 });
 
-test('migrate refuses an ambiguous consumer Module Federation config before writes', async () => {
+test('migrate refuses a marked ambiguous Module Federation config before writes', async () => {
   const tempRoot = fs.mkdtempSync(
     path.join(os.tmpdir(), 'um-migrate-consumer-conflict-'),
   );
@@ -381,7 +412,8 @@ test('migrate refuses an ambiguous consumer Module Federation config before writ
       'apps/shell-super-app/module-federation.config.ts';
     fs.writeFileSync(
       path.join(workspaceRoot, moduleFederationPath),
-      `import { createModuleFederationConfig } from '@module-federation/modern-js-v3';
+      `// ultramodern-mf: generated
+import { createModuleFederationConfig } from '@module-federation/modern-js-v3';
 
 const productFederationPolicy = { name: 'consumer-shell' };
 
@@ -391,21 +423,7 @@ export default createModuleFederationConfig({
 `,
     );
 
-    const protectedPaths = [
-      '.modernjs/ultramodern.json',
-      'package.json',
-      shellPackagePath,
-      'apps/shell-super-app/modern.config.ts',
-      moduleFederationPath,
-      'apps/shell-super-app/tsconfig.json',
-      'tsconfig.base.json',
-    ];
-    const before = new Map(
-      protectedPaths.map(relativePath => [
-        relativePath,
-        fs.readFileSync(path.join(workspaceRoot, relativePath)),
-      ]),
-    );
+    const before = snapshotWorkspace(workspaceRoot);
 
     assert.equal(
       await runUltramodernToolingCli(
@@ -414,13 +432,285 @@ export default createModuleFederationConfig({
       ),
       1,
     );
-    for (const relativePath of protectedPaths) {
-      assert.deepEqual(
-        fs.readFileSync(path.join(workspaceRoot, relativePath)),
-        before.get(relativePath),
-        `${relativePath} changed despite a preflight conflict`,
-      );
-    }
+    assert.deepEqual(
+      snapshotWorkspace(workspaceRoot),
+      before,
+      'workspace changed despite a marked ambiguous preflight conflict',
+    );
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('migrate preserves a generator-derived Module Federation config with consumer extensions', async () => {
+  const tempRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'um-migrate-extended-mf-config-'),
+  );
+  const workspaceRoot = path.join(tempRoot, 'extended-mf-workspace');
+
+  try {
+    generateUltramodernWorkspace({
+      targetDir: workspaceRoot,
+      packageName: 'extended-mf-workspace',
+      modernVersion: '3.2.1',
+      enableTailwind: true,
+      packageSource: { strategy: 'workspace' },
+    });
+    const configPath = path.join(
+      workspaceRoot,
+      'apps/shell-super-app/module-federation.config.ts',
+    );
+    const generatedSource = fs.readFileSync(configPath, 'utf-8');
+    const extendedSource = generatedSource.replace(
+      'export default moduleFederationConfig;',
+      `export const consumerFederationDiagnostics = {
+  owner: 'product-platform',
+  validateRemoteManifest: true,
+} as const;
+
+export default moduleFederationConfig;`,
+    );
+    assert.notEqual(extendedSource, generatedSource);
+    fs.writeFileSync(configPath, extendedSource);
+
+    assert.equal(
+      await runUltramodernToolingCli(
+        ['migrate-strict-effect', '--skip-install'],
+        workspaceRoot,
+      ),
+      0,
+    );
+    assert.equal(fs.readFileSync(configPath, 'utf-8'), extendedSource);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('migrate preserves unproven browser and backend federation configs on surface retirement', async () => {
+  const tempRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'um-migrate-retired-mf-surface-'),
+  );
+  const workspaceRoot = path.join(tempRoot, 'retired-mf-workspace');
+
+  try {
+    generateUltramodernWorkspace({
+      targetDir: workspaceRoot,
+      packageName: 'retired-mf-workspace',
+      modernVersion: '3.2.1',
+      enableTailwind: false,
+      packageSource: { strategy: 'workspace' },
+    });
+    addUltramodernVertical({
+      workspaceRoot,
+      name: 'headless-orders',
+      modernVersion: '3.2.1',
+      enableTailwind: false,
+      packageSource: { strategy: 'workspace' },
+      preset: 'api-only',
+    });
+    addUltramodernVertical({
+      workspaceRoot,
+      name: 'storefront',
+      modernVersion: '3.2.1',
+      enableTailwind: false,
+      packageSource: { strategy: 'workspace' },
+      preset: 'ui-only',
+    });
+    addUltramodernVertical({
+      workspaceRoot,
+      name: 'generated-headless-orders',
+      modernVersion: '3.2.1',
+      enableTailwind: false,
+      packageSource: { strategy: 'workspace' },
+      preset: 'full-stack',
+    });
+
+    const compactPath = '.modernjs/ultramodern.json';
+    const compact = readJson(workspaceRoot, compactPath);
+    const generatedHeadlessApp = compact.topology.apps.find(
+      (app: Record<string, any>) => app.id === 'generated-headless-orders',
+    );
+    assert.ok(generatedHeadlessApp);
+    generatedHeadlessApp.surfaceProfile = 'api-only';
+    writeJson(workspaceRoot, compactPath, compact);
+
+    const browserConfigPath = path.join(
+      workspaceRoot,
+      'verticals/headless-orders/module-federation.config.ts',
+    );
+    const generatedBrowserConfigPath = path.join(
+      workspaceRoot,
+      'verticals/generated-headless-orders/module-federation.config.ts',
+    );
+    const generatedBrowserConfig = fs.readFileSync(
+      generatedBrowserConfigPath,
+      'utf-8',
+    );
+    const backendConfigPath = path.join(
+      workspaceRoot,
+      'verticals/storefront/backend-federation.config.ts',
+    );
+    const consumerBrowserConfig = `import { createModuleFederationConfig } from '@module-federation/modern-js-v3';
+
+export default createModuleFederationConfig({
+  name: 'consumer-owned-headless-browser-surface',
+  filename: 'consumer-remoteEntry.js',
+});
+`;
+    const consumerBackendConfig = `export default {
+  name: 'consumer-owned-storefront-backend-surface',
+};
+`;
+    fs.writeFileSync(browserConfigPath, consumerBrowserConfig);
+    fs.writeFileSync(backendConfigPath, consumerBackendConfig);
+
+    assert.equal(
+      await runUltramodernToolingCli(
+        ['migrate-strict-effect', '--dry-run', '--skip-install'],
+        workspaceRoot,
+      ),
+      0,
+    );
+    assert.equal(
+      fs.readFileSync(browserConfigPath, 'utf-8'),
+      consumerBrowserConfig,
+    );
+    assert.equal(
+      fs.readFileSync(generatedBrowserConfigPath, 'utf-8'),
+      generatedBrowserConfig,
+    );
+
+    assert.equal(
+      await runUltramodernToolingCli(
+        ['migrate-strict-effect', '--skip-install'],
+        workspaceRoot,
+      ),
+      0,
+    );
+    assert.equal(
+      fs.readFileSync(browserConfigPath, 'utf-8'),
+      consumerBrowserConfig,
+    );
+    assert.equal(fs.existsSync(generatedBrowserConfigPath), false);
+    assert.equal(
+      fs.readFileSync(backendConfigPath, 'utf-8'),
+      consumerBackendConfig,
+    );
+
+    assert.equal(
+      await runUltramodernToolingCli(
+        ['migrate-strict-effect', '--skip-install'],
+        workspaceRoot,
+      ),
+      0,
+    );
+    assert.equal(
+      fs.readFileSync(browserConfigPath, 'utf-8'),
+      consumerBrowserConfig,
+    );
+    assert.equal(fs.existsSync(generatedBrowserConfigPath), false);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('migrate rolls back earlier writes when a deterministic late write fails', async () => {
+  const tempRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'um-migrate-late-rollback-'),
+  );
+  const workspaceRoot = path.join(tempRoot, 'rollback-workspace');
+
+  try {
+    generateUltramodernWorkspace({
+      targetDir: workspaceRoot,
+      packageName: 'rollback-workspace',
+      modernVersion: '3.2.1',
+      enableTailwind: true,
+      packageSource: { strategy: 'workspace' },
+    });
+    const compactPath = '.modernjs/ultramodern.json';
+    const compact = readJson(workspaceRoot, compactPath);
+    compact.generator.version = '0.0.0-rollback-proof';
+    writeJson(workspaceRoot, compactPath, compact);
+
+    const outsideOxlintPath = path.join(tempRoot, 'outside-oxlint.config.ts');
+    fs.writeFileSync(
+      outsideOxlintPath,
+      `export default {
+  extends: [core, react],
+};
+`,
+    );
+    const oxlintPath = path.join(workspaceRoot, 'oxlint.config.ts');
+    fs.rmSync(oxlintPath);
+    fs.symlinkSync(outsideOxlintPath, oxlintPath);
+
+    const before = snapshotWorkspace(workspaceRoot);
+    assert.equal(
+      await runUltramodernToolingCli(
+        ['migrate-strict-effect', '--skip-install'],
+        workspaceRoot,
+      ),
+      1,
+    );
+    assert.deepEqual(snapshotWorkspace(workspaceRoot), before);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('migrate preserves consumer Drizzle versions without materializing an unrelated patch', async () => {
+  const tempRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'um-migrate-consumer-drizzle-'),
+  );
+  const workspaceRoot = path.join(tempRoot, 'consumer-drizzle-workspace');
+
+  try {
+    generateUltramodernWorkspace({
+      targetDir: workspaceRoot,
+      packageName: 'consumer-drizzle-workspace',
+      modernVersion: '3.2.1',
+      enableTailwind: true,
+      packageSource: { strategy: 'workspace' },
+    });
+    addUltramodernVertical({
+      workspaceRoot,
+      name: 'orders',
+      modernVersion: '3.2.1',
+      enableTailwind: true,
+      packageSource: { strategy: 'workspace' },
+    });
+    const ordersPackagePath = 'verticals/orders/package.json';
+    const ordersPackage = readJson(workspaceRoot, ordersPackagePath);
+    ordersPackage.dependencies['drizzle-orm'] = '0.45.2';
+    ordersPackage.devDependencies['drizzle-kit'] = '0.31.10';
+    writeJson(workspaceRoot, ordersPackagePath, ordersPackage);
+
+    const workspacePolicyPath = path.join(workspaceRoot, 'pnpm-workspace.yaml');
+    const beforePolicy = fs.readFileSync(workspacePolicyPath);
+    const drizzlePatchPath = path.join(
+      workspaceRoot,
+      'patches/drizzle-orm-ts7-strict-declarations.patch',
+    );
+    fs.rmSync(drizzlePatchPath, { force: true });
+    assert.equal(fs.existsSync(drizzlePatchPath), false);
+
+    assert.equal(
+      await runUltramodernToolingCli(
+        ['migrate-strict-effect', '--skip-install'],
+        workspaceRoot,
+      ),
+      0,
+    );
+
+    const migratedOrdersPackage = readJson(workspaceRoot, ordersPackagePath);
+    assert.equal(migratedOrdersPackage.dependencies['drizzle-orm'], '0.45.2');
+    assert.equal(
+      migratedOrdersPackage.devDependencies['drizzle-kit'],
+      '0.31.10',
+    );
+    assert.deepEqual(fs.readFileSync(workspacePolicyPath), beforePolicy);
+    assert.equal(fs.existsSync(drizzlePatchPath), false);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
