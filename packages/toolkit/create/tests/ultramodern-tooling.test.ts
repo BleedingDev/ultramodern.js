@@ -8,7 +8,10 @@ import zlib from 'node:zlib';
 import { yaml } from '@modern-js/utils';
 import { runUltramodernToolingCli } from '../src/ultramodern-tooling/commands';
 import { withStagedDryRunMigrationIo } from '../src/ultramodern-tooling/commands/migrate-strict-effect/io';
-import { ensureBffEffectDependencies } from '../src/ultramodern-tooling/commands/migrate-strict-effect/package-cohort';
+import {
+  ensureBffEffectDependencies,
+  updateGeneratedToolingDependencies,
+} from '../src/ultramodern-tooling/commands/migrate-strict-effect/package-cohort';
 import {
   readUltramodernConfig,
   workspaceAppsFromToolingConfig,
@@ -35,6 +38,7 @@ import {
   OXFMT_VERSION,
   PNPM_VERSION,
   TANSTACK_ROUTER_CORE_VERSION,
+  TYPESCRIPT_NATIVE_PREVIEW_VERSION,
   TYPESCRIPT_VERSION,
 } from '../src/ultramodern-workspace/versions';
 
@@ -1948,6 +1952,20 @@ export default catalogResource;
       'packages/shared-contracts',
       'packages/shared-design-tokens',
     ]) {
+      const sharedPackageJson = readJson(
+        workspaceDir,
+        `${sharedPackageDir}/package.json`,
+      );
+      sharedPackageJson.devDependencies = {
+        ...sharedPackageJson.devDependencies,
+        '@typescript/native-preview': '7.0.0-dev.20260628.1',
+        'consumer-only-package': 'consumer-selected-version',
+      };
+      writeJson(
+        workspaceDir,
+        `${sharedPackageDir}/package.json`,
+        sharedPackageJson,
+      );
       writeJson(workspaceDir, `${sharedPackageDir}/tsconfig.json`, {
         extends: '../../tsconfig.base.json',
         compilerOptions: {
@@ -2084,6 +2102,23 @@ declare module '*.css' {}
     );
     assert.equal(rootPackage.devDependencies.oxfmt, OXFMT_VERSION);
     assert.equal(rootPackage.modernjs.packageSource.strategy, 'workspace');
+    for (const sharedPackageDir of [
+      'packages/shared-contracts',
+      'packages/shared-design-tokens',
+    ]) {
+      const sharedPackageJson = readJson(
+        workspaceDir,
+        `${sharedPackageDir}/package.json`,
+      );
+      assert.equal(
+        sharedPackageJson.devDependencies['@typescript/native-preview'],
+        TYPESCRIPT_NATIVE_PREVIEW_VERSION,
+      );
+      assert.equal(
+        sharedPackageJson.devDependencies['consumer-only-package'],
+        'consumer-selected-version',
+      );
+    }
     const rootCloudflareBuild = runRecordedPackageScript(
       tempRoot,
       workspaceDir,
@@ -3325,4 +3360,40 @@ test('migration supplies the optional Effect peers to workspaces generated befor
   };
   assert.equal(ensureBffEffectDependencies(root), true);
   assert.equal(root.devDependencies.effect, EFFECT_VERSION);
+});
+
+test('migration converges legacy generated TS-Go pins without rewriting unrelated consumer dependencies', () => {
+  const packageJson = {
+    dependencies: {
+      '@cloudflare/workers-types': 'consumer-selected-workers-types',
+      react: 'consumer-selected-react',
+    },
+    devDependencies: {
+      '@typescript/native-preview': '7.0.0-dev.20260628.1',
+      'consumer-only-package': 'consumer-selected-version',
+      workerd: 'consumer-selected-workerd',
+    },
+  };
+
+  assert.equal(updateGeneratedToolingDependencies(packageJson), true);
+  assert.deepEqual(packageJson, {
+    dependencies: {
+      '@cloudflare/workers-types': 'consumer-selected-workers-types',
+      react: ULTRAMODERN_WORKSPACE_POLICY.dependencies.appDependencies.react,
+    },
+    devDependencies: {
+      '@typescript/native-preview': TYPESCRIPT_NATIVE_PREVIEW_VERSION,
+      'consumer-only-package': 'consumer-selected-version',
+      workerd: 'consumer-selected-workerd',
+    },
+  });
+  assert.equal(updateGeneratedToolingDependencies(packageJson), false);
+
+  const consumerPackage = {
+    devDependencies: { eslint: 'consumer-selected-eslint' },
+  };
+  assert.equal(updateGeneratedToolingDependencies(consumerPackage), false);
+  assert.deepEqual(consumerPackage, {
+    devDependencies: { eslint: 'consumer-selected-eslint' },
+  });
 });

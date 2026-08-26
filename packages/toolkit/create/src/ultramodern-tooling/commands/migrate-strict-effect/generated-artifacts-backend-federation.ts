@@ -16,7 +16,7 @@ export function updateGeneratedBackendFederationContractFiles(
       continue;
     }
     changed =
-      io.write(
+      io.writeGenerated(
         path.join(io.workspaceRoot, app.directory, 'api/backend-federation.ts'),
         createBackendFederationContractFile(app),
       ) || changed;

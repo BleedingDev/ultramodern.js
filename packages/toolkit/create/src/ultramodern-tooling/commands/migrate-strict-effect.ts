@@ -684,12 +684,12 @@ function migrateStrictEffect(
     if (artifact.legacyPath) {
       io.remove(path.join(io.workspaceRoot, artifact.legacyPath));
     }
-    io.write(
+    io.writeGenerated(
       path.join(io.workspaceRoot, artifact.relativePath),
       artifact.content,
     );
   }
-  io.write(
+  io.writeGenerated(
     path.join(io.workspaceRoot, 'scripts/validate-ultramodern-workspace.mts'),
     createWorkspaceValidationScript(
       validationContractInputs.scope,

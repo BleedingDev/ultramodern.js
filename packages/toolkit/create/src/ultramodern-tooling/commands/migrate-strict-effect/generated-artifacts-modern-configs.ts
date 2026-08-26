@@ -45,14 +45,14 @@ function writeOwnedTypeScriptConfig(
   recognizedGeneratedSources: readonly string[] = [],
 ) {
   if (!fs.existsSync(filePath)) {
-    return io.write(filePath, generatedSource);
+    return io.writeGenerated(filePath, generatedSource);
   }
   const existingSource = fs.readFileSync(filePath, 'utf-8');
   if (existingSource === generatedSource) {
-    return false;
+    return io.writeGenerated(filePath, existingSource);
   }
   if (recognizedGeneratedSources.includes(existingSource)) {
-    return io.write(filePath, generatedSource);
+    return io.writeGenerated(filePath, generatedSource);
   }
   io.log(
     `${path.relative(io.workspaceRoot, filePath)} was preserved: ` +
@@ -147,10 +147,10 @@ function isGeneratedModernConfig(
   return generatedSources.includes(source);
 }
 
-function addPreviousTailwindPluginDefaults(source: string) {
+function addPreviousTailwindOptimizationOverride(source: string) {
   return source.replace(
-    'pluginTailwindcss({ optimize: false })',
     'pluginTailwindcss()',
+    'pluginTailwindcss({ optimize: false })',
   );
 }
 
@@ -195,9 +195,8 @@ export function updateGeneratedModernConfigs(
       config.features.tailwind,
       configuredDevPorts,
     );
-    const previousTailwindModernConfig = addPreviousTailwindPluginDefaults(
-      rawGeneratedModernConfig,
-    );
+    const previousTailwindModernConfig =
+      addPreviousTailwindOptimizationOverride(rawGeneratedModernConfig);
     const [generatedModernConfig, ...recognizedGeneratedModernConfigs] =
       formatGeneratedModernConfigCandidates([
         rawGeneratedModernConfig,
@@ -206,18 +205,22 @@ export function updateGeneratedModernConfigs(
         addLegacyGeneratedModernDefaults(previousTailwindModernConfig),
       ]);
     if (!fs.existsSync(modernConfigPath)) {
-      changed = io.write(modernConfigPath, generatedModernConfig) || changed;
+      changed =
+        io.writeGenerated(modernConfigPath, generatedModernConfig) || changed;
     } else {
       const existingModernConfig = fs.readFileSync(modernConfigPath, 'utf-8');
-      if (
-        existingModernConfig !== generatedModernConfig &&
+      if (existingModernConfig === generatedModernConfig) {
+        changed =
+          io.writeGenerated(modernConfigPath, existingModernConfig) || changed;
+      } else if (
         isGeneratedModernConfig(existingModernConfig, [
           generatedModernConfig,
           ...recognizedGeneratedModernConfigs,
         ])
       ) {
-        changed = io.write(modernConfigPath, generatedModernConfig) || changed;
-      } else if (existingModernConfig !== generatedModernConfig) {
+        changed =
+          io.writeGenerated(modernConfigPath, generatedModernConfig) || changed;
+      } else {
         io.log(
           `${path.relative(io.workspaceRoot, modernConfigPath)} was preserved: ` +
             'an existing Modern config is consumer-owned unless its generated ownership can be proven.',
@@ -324,12 +327,12 @@ export function updateGeneratedModernConfigs(
         isGeneratedShellComposition(existingComponents)
       ) {
         changed =
-          io.write(
+          io.writeGenerated(
             componentsPath,
             createShellRemoteComponents(app, shellUiRemotes),
           ) || changed;
         changed =
-          io.write(
+          io.writeGenerated(
             workerComponentsPath,
             createShellWorkerRemoteComponents(app, shellUiRemotes),
           ) || changed;

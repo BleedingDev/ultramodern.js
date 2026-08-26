@@ -3,6 +3,7 @@ import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { readReleaseManifest } from '../../ultramodern-publish/lib/source-create-proof/release-manifest.mjs';
+import { defaultReleaseAgePolicyPath } from '../../ultramodern-publish/run-release-acceptance.mjs';
 import {
   assertLocalPortsAvailable,
   launchBrowser,
@@ -33,6 +34,10 @@ import {
 } from '../published-create-proof/package-cohort.mjs';
 import { run } from '../published-create-proof/process.mjs';
 import {
+  readActiveReleaseAgeExceptionSelectors,
+  validateExactExclusions,
+} from '../published-create-proof/release-age-audit.mjs';
+import {
   assertAuthenticatedTractorCohort,
   assertExactModernDependencySpecifiers,
   assertNativeTanStackSearch,
@@ -53,9 +58,101 @@ const requiredCommands = Object.freeze([
   Object.freeze(['pnpm', ['cloudflare:build']]),
 ]);
 
+function resolveTractorMinimumReleaseAgeExclude({
+  release,
+  releaseAgePolicyPath,
+  now = new Date(),
+  readActiveReleaseAgeExceptionSelectorsImpl = readActiveReleaseAgeExceptionSelectors,
+}) {
+  if (
+    typeof releaseAgePolicyPath !== 'string' ||
+    releaseAgePolicyPath.length === 0
+  ) {
+    throw new Error(
+      'Tractor bootstrap requires the audited release-age exception policy path',
+    );
+  }
+  if (!Array.isArray(release?.packages) || release.packages.length === 0) {
+    throw new Error(
+      'Strict release manifest package observations are required for Tractor bootstrap policy',
+    );
+  }
+  const releaseVersion = release.release?.version;
+  const firstParty = release.packages.map((item, index) => {
+    if (
+      typeof item?.targetName !== 'string' ||
+      item.version !== releaseVersion
+    ) {
+      throw new Error(
+        `Strict release manifest package observation ${index} must bind targetName to release version ${String(
+          releaseVersion,
+        )}`,
+      );
+    }
+    return `${item.targetName}@${item.version}`;
+  });
+  const exactFirstParty = validateExactExclusions(
+    firstParty.sort(),
+    'Strict release manifest package selectors',
+  );
+  const activeReviewed = readActiveReleaseAgeExceptionSelectorsImpl(
+    releaseAgePolicyPath,
+    { now },
+  );
+  if (!Array.isArray(activeReviewed)) {
+    throw new Error('Active release-age exception selectors must be an array');
+  }
+  return validateExactExclusions(
+    [...new Set([...exactFirstParty, ...activeReviewed])].sort(),
+    'Tractor bootstrap minimumReleaseAgeExclude',
+  );
+}
+
+function createTractorPnpmDlxArgs(
+  createPackage,
+  minimumReleaseAgeExclude,
+  forwardedArgs,
+) {
+  const exactExclusions = validateExactExclusions(
+    minimumReleaseAgeExclude,
+    'Tractor bootstrap minimumReleaseAgeExclude',
+  );
+  const baseArgs = createPnpmDlxArgs(createPackage, forwardedArgs);
+  const dlxIndex = baseArgs.indexOf('dlx');
+  if (dlxIndex < 0) {
+    throw new Error('Authenticated create command is missing pnpm dlx');
+  }
+  const inheritedExclusions = baseArgs
+    .slice(0, dlxIndex)
+    .filter(argument =>
+      argument.startsWith('--config.minimum-release-age-exclude='),
+    )
+    .map(argument => argument.slice(argument.indexOf('=') + 1));
+  if (
+    inheritedExclusions.some(specifier => !exactExclusions.includes(specifier))
+  ) {
+    throw new Error(
+      'Tractor bootstrap exclusions must contain the authenticated create closure',
+    );
+  }
+  return [
+    ...baseArgs
+      .slice(0, dlxIndex)
+      .filter(
+        argument =>
+          !argument.startsWith('--config.minimum-release-age-exclude='),
+      ),
+    ...exactExclusions.map(
+      specifier => `--config.minimum-release-age-exclude=${specifier}`,
+    ),
+    ...baseArgs.slice(dlxIndex),
+  ];
+}
+
 function createTractorPackageManagerContext({
   createPackage,
   expectedPnpmVersion,
+  minimumReleaseAgeExclude,
   packageManagerRoot,
   registryUrl,
   resolveExactPnpmExecutableImpl = resolveExactPnpmExecutable,
@@ -63,6 +160,19 @@ function createTractorPackageManagerContext({
 }) {
   const bootstrapReleaseAgePolicy =
     assertBootstrapReleaseAgePolicy(createPackage);
+  const exactExclusions = validateExactExclusions(
+    minimumReleaseAgeExclude,
+    'Tractor bootstrap minimumReleaseAgeExclude',
+  );
+  if (
+    bootstrapReleaseAgePolicy.minimumReleaseAgeExclude.some(
+      specifier => !exactExclusions.includes(specifier),
+    )
+  ) {
+    throw new Error(
+      'Tractor bootstrap exclusions must contain the authenticated create closure',
+    );
+  }
   const pnpmExecutable = resolveExactPnpmExecutableImpl(
     runImpl,
     expectedPnpmVersion,
@@ -89,9 +199,7 @@ function createTractorPackageManagerContext({
       pnpm_config_minimum_release_age: String(
         bootstrapReleaseAgePolicy.minimumReleaseAge,
       ),
-      pnpm_config_minimum_release_age_exclude: JSON.stringify(
-        bootstrapReleaseAgePolicy.minimumReleaseAgeExclude,
-      ),
+      pnpm_config_minimum_release_age_exclude: JSON.stringify(exactExclusions),
       pnpm_config_trust_policy_exclude: undefined,
       pnpm_config_minimum_release_age_ignore_missing_time: String(
         bootstrapReleaseAgePolicy.minimumReleaseAgeIgnoreMissingTime,
@@ -110,6 +218,7 @@ function parseArgs(argv) {
     '--manifest',
     '--out',
     '--registry-url',
+    '--release-age-policy',
     '--workspace',
   ]);
   for (let index = 0; index < argv.length; index += 1) {
@@ -138,6 +247,9 @@ function parseArgs(argv) {
     registryUrl: new URL(
       values.get('--registry-url') ?? 'https://registry.npmjs.org/',
     ).toString(),
+    releaseAgePolicyPath: path.resolve(
+      values.get('--release-age-policy') ?? defaultReleaseAgePolicyPath,
+    ),
     workspace: fs.realpathSync(path.resolve(values.get('--workspace'))),
   };
 }
@@ -516,12 +628,19 @@ async function runTractorDownstreamAcceptance(
     manifestPath: options.manifestPath,
   });
   const createPackage = resolveCreatePackage(release);
+  const startedAt = new now();
+  const minimumReleaseAgeExclude = resolveTractorMinimumReleaseAgeExclude({
+    release,
+    releaseAgePolicyPath: options.releaseAgePolicyPath,
+    now: startedAt,
+  });
   const packageManagerRoot = fs.mkdtempSync(
     path.join(os.tmpdir(), 'ultramodern-tractor-downstream-'),
   );
   const packageManager = createTractorPackageManagerContext({
     createPackage,
     expectedPnpmVersion: release.tools?.pnpm,
+    minimumReleaseAgeExclude,
     packageManagerRoot,
     registryUrl: options.registryUrl,
     runImpl,
@@ -531,7 +650,7 @@ async function runTractorDownstreamAcceptance(
     schema: 'bleedingdev.ultramodern.tractor-downstream-acceptance',
     schemaVersion: 1,
     status: 'running',
-    startedAt: new now().toISOString(),
+    startedAt: startedAt.toISOString(),
     release: {
       cohortDigest: release.cohortDigest,
       manifestSha256: release.manifestSha256,
@@ -548,7 +667,7 @@ async function runTractorDownstreamAcceptance(
     );
     runImpl(
       packageManager.pnpmExecutable,
-      createPnpmDlxArgs(createPackage, [
+      createTractorPnpmDlxArgs(createPackage, minimumReleaseAgeExclude, [
         'ultramodern',
         'migrate-strict-effect',
         '--version',
@@ -752,6 +871,7 @@ async function main(argv = process.argv.slice(2)) {
 export {
   createReleaseBoundNodeSmokeTargets,
   createTractorPackageManagerContext,
+  createTractorPnpmDlxArgs,
   main,
   parseArgs,
   proveNodeServerRenderedSsr,
@@ -759,6 +879,7 @@ export {
   requiredCommands,
   requiredTractorCheckIds,
   requiredVisibleRuntimePlatforms,
+  resolveTractorMinimumReleaseAgeExclude,
   runTractorDownstreamAcceptance,
   runVisibleWorkflow,
 };

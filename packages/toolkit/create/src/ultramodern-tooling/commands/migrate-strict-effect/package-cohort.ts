@@ -59,6 +59,13 @@ const generatedToolingDependencyPins = new Map<string, string>(
     ...ULTRAMODERN_PACKAGE_PINS.appDependencies,
     ...ULTRAMODERN_PACKAGE_PINS.appDevDependencies,
     ...ULTRAMODERN_PACKAGE_PINS.rootDevDependencies,
+    // Older generated shared packages declared this TS-Go implementation
+    // directly. Re-pin that owned declaration without adopting every
+    // transitive policy pin as consumer-owned migration surface.
+    '@typescript/native-preview':
+      ULTRAMODERN_PACKAGE_PINS.transitiveDependencies[
+        '@typescript/native-preview'
+      ],
   }),
 );
 

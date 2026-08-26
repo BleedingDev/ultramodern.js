@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { formatGeneratedWorkspaceFiles } from '../../../ultramodern-workspace/fs-io';
 
 type PathSnapshot =
   | { content: Buffer; mode: number; type: 'file' }
@@ -12,6 +13,7 @@ type PathSnapshot =
   | { mode: number; target: string; type: 'symlink' };
 
 type MigrationTransaction = {
+  generatedPaths: Set<string>;
   order: string[];
   snapshots: Map<string, PathSnapshot | undefined>;
 };
@@ -25,6 +27,7 @@ export type MigrationIo = {
   dryRun: boolean;
   plan: string[];
   write(filePath: string, content: string): boolean;
+  writeGenerated(filePath: string, content: string): boolean;
   remove(filePath: string): boolean;
   log(message: string): void;
   transaction<T>(
@@ -293,6 +296,35 @@ function createMigrationIoWithBehavior(
     throw error;
   };
 
+  const formatGeneratedWrites = (generatedPaths: ReadonlySet<string>) => {
+    if (generatedPaths.size === 0) {
+      return;
+    }
+    const temporaryRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'ultramodern-migration-format-'),
+    );
+    const relativePaths = [...generatedPaths]
+      .map(filePath => path.relative(absoluteWorkspaceRoot, filePath))
+      .sort((left, right) => left.localeCompare(right));
+    try {
+      for (const relativePath of relativePaths) {
+        const sourcePath = path.join(absoluteWorkspaceRoot, relativePath);
+        const stagedPath = path.join(temporaryRoot, relativePath);
+        fs.mkdirSync(path.dirname(stagedPath), { recursive: true });
+        fs.copyFileSync(sourcePath, stagedPath);
+      }
+      formatGeneratedWorkspaceFiles(temporaryRoot, relativePaths);
+      for (const relativePath of relativePaths) {
+        io.write(
+          path.join(absoluteWorkspaceRoot, relativePath),
+          fs.readFileSync(path.join(temporaryRoot, relativePath), 'utf-8'),
+        );
+      }
+    } finally {
+      fs.rmSync(temporaryRoot, { force: true, recursive: true });
+    }
+  };
+
   const io: MigrationIo = {
     workspaceRoot: absoluteWorkspaceRoot,
     dryRun,
@@ -333,6 +365,19 @@ function createMigrationIoWithBehavior(
       fs.writeFileSync(absolutePath, content, 'utf-8');
       return true;
     },
+    writeGenerated(filePath, content) {
+      const absolutePath = assertWorkspacePath(filePath);
+      const changed = io.write(absolutePath, content);
+      if (dryRun && !behavior.materializeDryRun) {
+        return changed;
+      }
+      if (activeTransaction) {
+        activeTransaction.generatedPaths.add(absolutePath);
+      } else {
+        formatGeneratedWrites(new Set([absolutePath]));
+      }
+      return changed;
+    },
     remove(filePath) {
       const absolutePath = assertWorkspacePath(filePath);
       if (!lstatIfExists(absolutePath)) {
@@ -344,6 +389,7 @@ function createMigrationIoWithBehavior(
           return true;
         }
       }
+      activeTransaction?.generatedPaths.delete(absolutePath);
       captureForRollback(absolutePath);
       fs.rmSync(absolutePath);
       return true;
@@ -360,6 +406,7 @@ function createMigrationIoWithBehavior(
         throw new Error('Nested migration transactions are not supported.');
       }
       const transaction: MigrationTransaction = {
+        generatedPaths: new Set(),
         order: [],
         snapshots: new Map(),
       };
@@ -369,8 +416,12 @@ function createMigrationIoWithBehavior(
         try {
           if (options?.commitWhen && !options.commitWhen(result)) {
             rollback(transaction);
+          } else {
+            formatGeneratedWrites(transaction.generatedPaths);
           }
           return result;
+        } catch (error) {
+          return finishWithError(transaction, error);
         } finally {
           activeTransaction = undefined;
         }

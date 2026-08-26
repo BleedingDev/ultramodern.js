@@ -119,14 +119,11 @@ export function writeGeneratedUiSourceIfChanged(
   filePath: string,
   nextSource: string,
 ) {
-  if (
-    fs.existsSync(filePath) &&
-    !generatedUiSourceRequiresRewrite(
-      fs.readFileSync(filePath, 'utf-8'),
-      nextSource,
-    )
-  ) {
-    return false;
+  if (fs.existsSync(filePath)) {
+    const existingSource = fs.readFileSync(filePath, 'utf-8');
+    if (!generatedUiSourceRequiresRewrite(existingSource, nextSource)) {
+      return io.writeGenerated(filePath, existingSource);
+    }
   }
-  return io.write(filePath, nextSource);
+  return io.writeGenerated(filePath, nextSource);
 }

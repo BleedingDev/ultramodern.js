@@ -85,12 +85,12 @@ export function updateGeneratedBuildIdentityModules(
         ) || changed;
     }
     changed =
-      io.write(
+      io.writeGenerated(
         path.join(io.workspaceRoot, app.directory, 'src/ultramodern-build.ts'),
         createUltramodernBuildReexportModule(),
       ) || changed;
     changed =
-      io.write(
+      io.writeGenerated(
         path.join(
           io.workspaceRoot,
           app.directory,
