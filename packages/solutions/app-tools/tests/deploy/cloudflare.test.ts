@@ -897,9 +897,9 @@ describe('cloudflare deploy preset', () => {
     tempDirectories.push(fixtureDirectory);
     const templatePath = path.join(fixtureDirectory, 'loadable-server.mjs');
     await fs.copyFile(
-      path.join(
-        process.cwd(),
-        'src/plugins/deploy/platforms/templates/cloudflare-worker-loadable-server.mjs',
+      path.resolve(
+        __dirname,
+        '../../src/plugins/deploy/platforms/templates/cloudflare-worker-loadable-server.mjs',
       ),
       templatePath,
     );

@@ -56,7 +56,7 @@ declare namespace hoistNonReactStatics {
   };
 }
 declare module 'hoist-non-react-statics' {
-  declare function hoistNonReactStatics<
+  function hoistNonReactStatics<
     T extends React.ComponentType<any>,
     S extends React.ComponentType<any>,
     C extends {

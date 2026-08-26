@@ -245,6 +245,7 @@ same-PR ownership and disposition evidence.
 | `packages/toolkit/create/README.md` | bleedingdev | Keep package documentation truthful to the fork's generated Effect, TanStack, Module Federation, and pnpm cohort | `keep-[F]` |
 | `packages/document/docs/en/components/prerequisites.mdx` | bleedingdev | Keep the documented pnpm bootstrap command aligned with the fork's generated and CI toolchain | `keep-[M]` |
 | `packages/document/docs/zh/components/prerequisites.mdx` | bleedingdev | Keep the translated pnpm bootstrap command aligned with the fork's generated and CI toolchain | `keep-[M]` |
+| `packages/toolkit/types/packages/hoist-non-react-statics.d.ts` | bleedingdev | Remove a redundant `declare` modifier from an already ambient module so the published declaration compiles under TypeScript without a diagnostic suppression | `capped-patch` + `fixed-in-fork` |
 
 The group breakdown below is the last hand-classified snapshot, taken at
 `dfcd414a`. It is advisory attribution only — the gate reads per-file budgets,
