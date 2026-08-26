@@ -389,7 +389,7 @@ const cloudflareDeployEnabled =`,
   }
 });
 
-test('migrate refuses an ambiguous consumer Module Federation config before writes', async () => {
+test('migrate refuses a marked ambiguous Module Federation config before writes', async () => {
   const tempRoot = fs.mkdtempSync(
     path.join(os.tmpdir(), 'um-migrate-consumer-conflict-'),
   );
@@ -412,7 +412,8 @@ test('migrate refuses an ambiguous consumer Module Federation config before writ
       'apps/shell-super-app/module-federation.config.ts';
     fs.writeFileSync(
       path.join(workspaceRoot, moduleFederationPath),
-      `import { createModuleFederationConfig } from '@module-federation/modern-js-v3';
+      `// ultramodern-mf: generated
+import { createModuleFederationConfig } from '@module-federation/modern-js-v3';
 
 const productFederationPolicy = { name: 'consumer-shell' };
 
@@ -422,21 +423,7 @@ export default createModuleFederationConfig({
 `,
     );
 
-    const protectedPaths = [
-      '.modernjs/ultramodern.json',
-      'package.json',
-      shellPackagePath,
-      'apps/shell-super-app/modern.config.ts',
-      moduleFederationPath,
-      'apps/shell-super-app/tsconfig.json',
-      'tsconfig.base.json',
-    ];
-    const before = new Map(
-      protectedPaths.map(relativePath => [
-        relativePath,
-        fs.readFileSync(path.join(workspaceRoot, relativePath)),
-      ]),
-    );
+    const before = snapshotWorkspace(workspaceRoot);
 
     assert.equal(
       await runUltramodernToolingCli(
@@ -445,13 +432,11 @@ export default createModuleFederationConfig({
       ),
       1,
     );
-    for (const relativePath of protectedPaths) {
-      assert.deepEqual(
-        fs.readFileSync(path.join(workspaceRoot, relativePath)),
-        before.get(relativePath),
-        `${relativePath} changed despite a preflight conflict`,
-      );
-    }
+    assert.deepEqual(
+      snapshotWorkspace(workspaceRoot),
+      before,
+      'workspace changed despite a marked ambiguous preflight conflict',
+    );
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
@@ -531,18 +516,46 @@ test('migrate preserves unproven browser and backend federation configs on surfa
       packageSource: { strategy: 'workspace' },
       preset: 'ui-only',
     });
+    addUltramodernVertical({
+      workspaceRoot,
+      name: 'generated-headless-orders',
+      modernVersion: '3.2.1',
+      enableTailwind: false,
+      packageSource: { strategy: 'workspace' },
+      preset: 'full-stack',
+    });
+
+    const compactPath = '.modernjs/ultramodern.json';
+    const compact = readJson(workspaceRoot, compactPath);
+    const generatedHeadlessApp = compact.topology.apps.find(
+      (app: Record<string, any>) => app.id === 'generated-headless-orders',
+    );
+    assert.ok(generatedHeadlessApp);
+    generatedHeadlessApp.surfaceProfile = 'api-only';
+    writeJson(workspaceRoot, compactPath, compact);
 
     const browserConfigPath = path.join(
       workspaceRoot,
       'verticals/headless-orders/module-federation.config.ts',
     );
+    const generatedBrowserConfigPath = path.join(
+      workspaceRoot,
+      'verticals/generated-headless-orders/module-federation.config.ts',
+    );
+    const generatedBrowserConfig = fs.readFileSync(
+      generatedBrowserConfigPath,
+      'utf-8',
+    );
     const backendConfigPath = path.join(
       workspaceRoot,
       'verticals/storefront/backend-federation.config.ts',
     );
-    const consumerBrowserConfig = `export default {
+    const consumerBrowserConfig = `import { createModuleFederationConfig } from '@module-federation/modern-js-v3';
+
+export default createModuleFederationConfig({
   name: 'consumer-owned-headless-browser-surface',
-};
+  filename: 'consumer-remoteEntry.js',
+});
 `;
     const consumerBackendConfig = `export default {
   name: 'consumer-owned-storefront-backend-surface',
@@ -550,6 +563,22 @@ test('migrate preserves unproven browser and backend federation configs on surfa
 `;
     fs.writeFileSync(browserConfigPath, consumerBrowserConfig);
     fs.writeFileSync(backendConfigPath, consumerBackendConfig);
+
+    assert.equal(
+      await runUltramodernToolingCli(
+        ['migrate-strict-effect', '--dry-run', '--skip-install'],
+        workspaceRoot,
+      ),
+      0,
+    );
+    assert.equal(
+      fs.readFileSync(browserConfigPath, 'utf-8'),
+      consumerBrowserConfig,
+    );
+    assert.equal(
+      fs.readFileSync(generatedBrowserConfigPath, 'utf-8'),
+      generatedBrowserConfig,
+    );
 
     assert.equal(
       await runUltramodernToolingCli(
@@ -562,10 +591,24 @@ test('migrate preserves unproven browser and backend federation configs on surfa
       fs.readFileSync(browserConfigPath, 'utf-8'),
       consumerBrowserConfig,
     );
+    assert.equal(fs.existsSync(generatedBrowserConfigPath), false);
     assert.equal(
       fs.readFileSync(backendConfigPath, 'utf-8'),
       consumerBackendConfig,
     );
+
+    assert.equal(
+      await runUltramodernToolingCli(
+        ['migrate-strict-effect', '--skip-install'],
+        workspaceRoot,
+      ),
+      0,
+    );
+    assert.equal(
+      fs.readFileSync(browserConfigPath, 'utf-8'),
+      consumerBrowserConfig,
+    );
+    assert.equal(fs.existsSync(generatedBrowserConfigPath), false);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }

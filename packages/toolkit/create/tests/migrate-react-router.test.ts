@@ -34,6 +34,21 @@ function writeJson(workspaceDir: string, relativePath: string, value: unknown) {
   );
 }
 
+async function captureStdout<T>(run: () => T | Promise<T>) {
+  const originalWrite = process.stdout.write;
+  let output = '';
+  (process.stdout as NodeJS.WriteStream).write = ((chunk: unknown) => {
+    output += typeof chunk === 'string' ? chunk : String(chunk);
+    return true;
+  }) as typeof process.stdout.write;
+  try {
+    const result = await run();
+    return { output, result };
+  } finally {
+    process.stdout.write = originalWrite;
+  }
+}
+
 function appPackageFilesOf(workspaceDir: string) {
   return listWorkspacePackageFiles(workspaceDir).filter(
     relativePath =>
@@ -192,6 +207,56 @@ test('migrate retires the obsolete react-router pin and derives the MF bridge ro
       afterFirstMigration,
       'a second migration must be a no-op',
     );
+  } finally {
+    fs.rmSync(tempRoot, { force: true, recursive: true });
+  }
+});
+
+test('migration dry-run projects React Router retirement before regenerating Module Federation configs', async () => {
+  const { tempRoot, workspaceDir } = createWorkspace(
+    'migration-react-router-dry-run',
+    { tempPrefix: 'um-migration-react-router-' },
+  );
+
+  try {
+    addUltramodernVertical({
+      workspaceRoot: workspaceDir,
+      name: 'catalog',
+      modernVersion: '3.2.1',
+    });
+    const context = {
+      invocationCwd: workspaceDir,
+      workspaceRoot: workspaceDir,
+    };
+    assert.equal(await runMigrateStrictEffect(['--skip-install'], context), 0);
+
+    const appPackageFiles = appPackageFilesOf(workspaceDir);
+    for (const relativePath of appPackageFiles) {
+      const packageJson = readJson(workspaceDir, relativePath);
+      packageJson.dependencies['react-router'] = legacyReactRouterSpecifier;
+      writeJson(workspaceDir, relativePath, packageJson);
+    }
+    const before = snapshotWorkspace(workspaceDir);
+
+    const { output, result } = await captureStdout(() =>
+      runMigrateStrictEffect(['--dry-run'], context),
+    );
+    assert.equal(result, 0);
+    assert.deepEqual(
+      snapshotWorkspace(workspaceDir),
+      before,
+      'dry-run must leave the source workspace byte-identical',
+    );
+    for (const relativePath of moduleFederationConfigFilesOf(
+      workspaceDir,
+      appPackageFiles,
+    )) {
+      assert.equal(
+        output.includes(`[dry-run] would write ${relativePath}`),
+        false,
+        `${relativePath} must be derived from the projected manifests`,
+      );
+    }
   } finally {
     fs.rmSync(tempRoot, { force: true, recursive: true });
   }

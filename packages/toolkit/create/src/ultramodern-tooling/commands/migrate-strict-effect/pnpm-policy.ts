@@ -76,6 +76,33 @@ const staleOxcBindingTargets = [
   'win32-x64-msvc',
 ] as const;
 
+const reviewedAugust10EffectTsgoPackages = [
+  '@effect/tsgo',
+  '@effect/tsgo-win32-x64',
+  '@effect/tsgo-win32-arm64',
+  '@effect/tsgo-linux-x64',
+  '@effect/tsgo-linux-arm64',
+  '@effect/tsgo-linux-arm',
+  '@effect/tsgo-darwin-x64',
+  '@effect/tsgo-darwin-arm64',
+] as const;
+
+// Recognition-only selectors authenticated by
+// release-age-review-2026-08-10.json. They were emitted by older generated
+// workspaces, but must never become active approvals again.
+const reviewedAugust10StaleReleaseAgeEntries = [
+  'effect@4.0.0-beta.107',
+  '@effect/opentelemetry@4.0.0-beta.107',
+  '@effect/vitest@4.0.0-beta.107',
+  ...reviewedAugust10EffectTsgoPackages.map(
+    packageName => `${packageName}@0.36.2`,
+  ),
+  'oxlint@1.78.0',
+  ...staleOxcBindingTargets.map(target => `@oxlint/binding-${target}@1.78.0`),
+  'oxfmt@0.63.0',
+  ...staleOxcBindingTargets.map(target => `@oxfmt/binding-${target}@0.63.0`),
+] as const;
+
 const knownStaleReleaseAgeEntries = new Set([
   '@effect/opentelemetry@4.0.0-beta.92',
   '@effect/opentelemetry@4.0.0-beta.94',
@@ -102,6 +129,7 @@ const knownStaleReleaseAgeEntries = new Set([
   'oxlint@1.79.0',
   ...staleOxcBindingTargets.map(target => `@oxfmt/binding-${target}@0.64.0`),
   ...staleOxcBindingTargets.map(target => `@oxlint/binding-${target}@1.79.0`),
+  ...reviewedAugust10StaleReleaseAgeEntries,
   ...ULTRAMODERN_WORKSPACE_POLICY.pnpm.releaseAge.approvals
     .filter(approval => approval.packageName.startsWith('@module-federation/'))
     .map(approval => `${approval.packageName}@2.6.0`),
@@ -499,21 +527,49 @@ function stalePatchFilesToRemove(
       .filter(({ actual, expected }) => actual?.identity === expected.identity)
       .map(({ expected }) => expected.identity),
   );
+
+  const stalePatchesByIdentity = new Map<
+    string,
+    {
+      acceptedDigests: Set<string>;
+      absolutePath: string;
+      policyPath: string;
+    }
+  >();
   for (const patch of ULTRAMODERN_WORKSPACE_POLICY.pnpm.patchedDependencies
     .stale) {
     const stalePath = resolvePatchPath(patchKey(patch), patch.path);
-    if (activeFrameworkPatchIdentities.has(stalePath.identity)) {
+    const existing = stalePatchesByIdentity.get(stalePath.identity);
+    const acceptedDigests = [
+      patch.sha256,
+      ...(patch.acceptedLegacySha256 ?? []),
+    ];
+    if (existing) {
+      for (const digest of acceptedDigests) {
+        existing.acceptedDigests.add(digest);
+      }
+      continue;
+    }
+    stalePatchesByIdentity.set(stalePath.identity, {
+      acceptedDigests: new Set(acceptedDigests),
+      absolutePath: stalePath.absolutePath,
+      policyPath: patch.path,
+    });
+  }
+
+  for (const [identity, stalePatch] of stalePatchesByIdentity) {
+    if (activeFrameworkPatchIdentities.has(identity)) {
       continue;
     }
     const survivingSelectors = resolvedPatchedDependencies
-      .filter(resolved => resolved.identity === stalePath.identity)
+      .filter(resolved => resolved.identity === identity)
       .map(resolved => resolved.selector);
     if (survivingSelectors.length > 0) {
       throw new Error(
-        `Stale framework patch ${patch.path} is still referenced by consumer-owned selector(s): ${survivingSelectors.join(', ')}; refusing to mutate the workspace.`,
+        `Stale framework patch ${stalePatch.policyPath} is still referenced by consumer-owned selector(s): ${survivingSelectors.join(', ')}; refusing to mutate the workspace.`,
       );
     }
-    const patchPath = stalePath.absolutePath;
+    const patchPath = stalePatch.absolutePath;
     if (!fs.existsSync(patchPath)) {
       continue;
     }
@@ -521,13 +577,9 @@ function stalePatchFilesToRemove(
       .createHash('sha256')
       .update(fs.readFileSync(patchPath))
       .digest('hex');
-    const acceptedDigests = new Set([
-      patch.sha256,
-      ...(patch.acceptedLegacySha256 ?? []),
-    ]);
-    if (!acceptedDigests.has(digest)) {
+    if (!stalePatch.acceptedDigests.has(digest)) {
       throw new Error(
-        `Stale framework patch ${patch.path} was modified (expected a reviewed sha256, found ${digest}); refusing to delete it.`,
+        `Stale framework patch ${stalePatch.policyPath} was modified (expected a reviewed sha256, found ${digest}); refusing to delete it.`,
       );
     }
     staleFiles.push(patchPath);

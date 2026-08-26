@@ -1,5 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { semver } from '@modern-js/utils';
+import * as pnpmYaml from './pnpm-yaml';
 
 export function workspaceUsesDependency(
   workspaceRoot: string,
@@ -7,6 +9,7 @@ export function workspaceUsesDependency(
   exactVersion?: string,
 ) {
   const packageJsonPaths = [path.join(workspaceRoot, 'package.json')];
+  let compatibleRangeDeclared = false;
 
   for (const workspaceDir of ['apps', 'verticals', 'packages']) {
     const absoluteWorkspaceDir = path.join(workspaceRoot, workspaceDir);
@@ -32,6 +35,7 @@ export function workspaceUsesDependency(
     }
   }
 
+  const aliasPrefix = `npm:${packageName}@`;
   for (const packageJsonPath of packageJsonPaths) {
     const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
     for (const field of [
@@ -50,24 +54,64 @@ export function workspaceUsesDependency(
         if (
           exactVersion === undefined ||
           specifier === exactVersion ||
-          specifier === `npm:${packageName}@${exactVersion}`
+          specifier === `${aliasPrefix}${exactVersion}`
         ) {
           return true;
+        }
+        if (
+          typeof specifier === 'string' &&
+          semver.satisfies(exactVersion, specifier, {
+            includePrerelease: true,
+          })
+        ) {
+          compatibleRangeDeclared = true;
         }
       }
 
       for (const specifier of Object.values(dependencies)) {
         if (
-          typeof specifier === 'string' &&
-          (exactVersion === undefined
-            ? specifier.startsWith(`npm:${packageName}@`)
-            : specifier === `npm:${packageName}@${exactVersion}`)
+          typeof specifier !== 'string' ||
+          !specifier.startsWith(aliasPrefix)
         ) {
+          continue;
+        }
+        const aliasedVersion = specifier.slice(aliasPrefix.length);
+        if (exactVersion === undefined || aliasedVersion === exactVersion) {
           return true;
+        }
+        if (
+          semver.satisfies(exactVersion, aliasedVersion, {
+            includePrerelease: true,
+          })
+        ) {
+          compatibleRangeDeclared = true;
         }
       }
     }
   }
 
-  return false;
+  if (!exactVersion || !compatibleRangeDeclared) {
+    return false;
+  }
+
+  const lockfilePath = path.join(workspaceRoot, 'pnpm-lock.yaml');
+  if (!fs.existsSync(lockfilePath)) return true;
+  try {
+    const closure = pnpmYaml.discoverReachablePnpmLockReleaseAgeClosure(
+      pnpmYaml.parsePnpmWorkspaceYaml(
+        fs.readFileSync(lockfilePath, 'utf-8'),
+        lockfilePath,
+      ).document,
+    );
+    return (
+      closure.unresolved.length > 0 ||
+      closure.candidates.some(
+        candidate =>
+          candidate.packageName === packageName &&
+          candidate.version === exactVersion,
+      )
+    );
+  } catch {
+    return true;
+  }
 }

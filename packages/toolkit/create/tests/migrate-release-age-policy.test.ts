@@ -9,8 +9,10 @@ import {
 } from '../../../../scripts/ultramodern-production-readiness/published-create-proof/release-age-audit.mjs';
 import type { ResolvedUltramodernPackageSource } from '../src/ultramodern-package-source';
 import { parseUltramodernReleaseCohort } from '../src/ultramodern-release-cohort';
+import { createMigrationIo } from '../src/ultramodern-tooling/commands/migrate-strict-effect/io';
 import {
   type ReleaseAgeRegistryFetch,
+  updateGeneratedPnpmWorkspacePolicy,
   validateGeneratedPnpmLockReleaseAgePolicy,
 } from '../src/ultramodern-tooling/commands/migrate-strict-effect/pnpm-policy';
 import { discoverReachablePnpmLockReleaseAgeClosure } from '../src/ultramodern-tooling/commands/migrate-strict-effect/pnpm-yaml';
@@ -100,7 +102,7 @@ test('rejects review evidence created before a dependency was published', () => 
   );
 });
 
-test('does not keep retired Effect, TS-Go, or Oxc release-age approvals active', () => {
+function august10RetiredReleaseAgeSelectors() {
   const historicalReview = JSON.parse(
     fs.readFileSync(
       new URL('../release-age-review-2026-08-10.json', import.meta.url),
@@ -109,11 +111,12 @@ test('does not keep retired Effect, TS-Go, or Oxc release-age approvals active',
   ) as {
     registryRecords: Array<{ packageName: string; version: string }>;
   };
-  const retiredSelectors = historicalReview.registryRecords
+  return historicalReview.registryRecords
     .filter(
       record =>
         record.packageName === 'effect' ||
         record.packageName === '@effect/opentelemetry' ||
+        record.packageName === '@effect/vitest' ||
         record.packageName.startsWith('@effect/tsgo') ||
         record.packageName === 'oxfmt' ||
         record.packageName.startsWith('@oxfmt/binding-') ||
@@ -121,6 +124,10 @@ test('does not keep retired Effect, TS-Go, or Oxc release-age approvals active',
         record.packageName.startsWith('@oxlint/binding-'),
     )
     .map(record => packageKey(record.packageName, record.version));
+}
+
+test('does not keep retired Effect, TS-Go, or Oxc release-age approvals active', () => {
+  const retiredSelectors = august10RetiredReleaseAgeSelectors();
   const activeApprovalSelectors = new Set(
     ULTRAMODERN_WORKSPACE_POLICY.pnpm.releaseAge.approvals.map(approval =>
       packageKey(approval.packageName, approval.version),
@@ -132,7 +139,7 @@ test('does not keep retired Effect, TS-Go, or Oxc release-age approvals active',
     }),
   );
 
-  assert.equal(retiredSelectors.length, 50);
+  assert.equal(retiredSelectors.length, 51);
   for (const selector of retiredSelectors) {
     assert.equal(
       activeApprovalSelectors.has(selector),
@@ -144,6 +151,82 @@ test('does not keep retired Effect, TS-Go, or Oxc release-age approvals active',
       false,
       `${selector} must not render as a release-age exclusion`,
     );
+  }
+});
+
+test('migrates the exact authenticated August 10 release-age list idempotently', () => {
+  const historicalSelectors = august10RetiredReleaseAgeSelectors();
+  const workspaceRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'um-stale-release-age-'),
+  );
+  const workspaceFile = path.join(workspaceRoot, 'pnpm-workspace.yaml');
+  const migrationNow = new Date('2026-08-26T12:00:00.000Z');
+
+  try {
+    fs.writeFileSync(path.join(workspaceRoot, 'package.json'), '{}\n');
+    fs.writeFileSync(
+      workspaceFile,
+      yaml.dump({ minimumReleaseAgeExclude: historicalSelectors }),
+    );
+
+    assert.equal(
+      updateGeneratedPnpmWorkspacePolicy(
+        createMigrationIo(workspaceRoot, false),
+        packageSource,
+        { now: migrationNow, releaseCohort },
+      ),
+      true,
+    );
+
+    const canonicalPolicy = fs.readFileSync(workspaceFile);
+    const migratedPolicy = yaml.load(canonicalPolicy.toString('utf-8')) as {
+      minimumReleaseAgeExclude: string[];
+    };
+    assert.deepEqual(
+      migratedPolicy.minimumReleaseAgeExclude,
+      renderMinimumReleaseAgeExclude({
+        now: migrationNow,
+        packageSource,
+        releaseCohort,
+      }),
+    );
+    assert.equal(
+      historicalSelectors.some(selector =>
+        migratedPolicy.minimumReleaseAgeExclude.includes(selector),
+      ),
+      false,
+    );
+
+    assert.equal(
+      updateGeneratedPnpmWorkspacePolicy(
+        createMigrationIo(workspaceRoot, false),
+        packageSource,
+        { now: migrationNow, releaseCohort },
+      ),
+      false,
+    );
+    assert.deepEqual(fs.readFileSync(workspaceFile), canonicalPolicy);
+
+    const unreviewedSelector = '@oxlint/plugins@1.78.0';
+    fs.writeFileSync(
+      workspaceFile,
+      yaml.dump({
+        minimumReleaseAgeExclude: [...historicalSelectors, unreviewedSelector],
+      }),
+    );
+    const unreviewedPolicy = fs.readFileSync(workspaceFile);
+    assert.throws(
+      () =>
+        updateGeneratedPnpmWorkspacePolicy(
+          createMigrationIo(workspaceRoot, false),
+          packageSource,
+          { now: migrationNow, releaseCohort },
+        ),
+      /Unapproved release-age exclusion "@oxlint\/plugins@1\.78\.0"/u,
+    );
+    assert.deepEqual(fs.readFileSync(workspaceFile), unreviewedPolicy);
+  } finally {
+    fs.rmSync(workspaceRoot, { force: true, recursive: true });
   }
 });
 

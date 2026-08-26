@@ -12,18 +12,24 @@ const acceptanceProfilePath = path.resolve(
   '../published-create-proof/acceptance-profile.mjs',
 );
 
+const createPackage = Object.freeze({
+  packageJson: Object.freeze({
+    ultramodern: Object.freeze({ frameworkVersion: '3.5.0-test.1' }),
+  }),
+  sourceName: '@modern-js/create',
+  targetName: '@bleedingdev/modern-js-create',
+  version: '3.5.0-test.1',
+});
+
 const release = Object.freeze({
   aliases: Object.freeze({
     '@modern-js/create': '@bleedingdev/modern-js-create',
   }),
-  createPackage: Object.freeze({
-    packageJson: Object.freeze({
-      ultramodern: Object.freeze({ frameworkVersion: '3.5.0-test.1' }),
-    }),
-    sourceName: '@modern-js/create',
-    targetName: '@bleedingdev/modern-js-create',
-    version: '3.5.0-test.1',
+  createPackage,
+  dependencyGraph: Object.freeze({
+    '@bleedingdev/modern-js-create': Object.freeze([]),
   }),
+  packages: Object.freeze([createPackage]),
   publishOrder: Object.freeze(['@bleedingdev/modern-js-create']),
   release: Object.freeze({ version: '3.5.0-test.1' }),
 });

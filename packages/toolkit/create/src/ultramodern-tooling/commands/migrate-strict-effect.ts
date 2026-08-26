@@ -51,6 +51,7 @@ import {
   listWorkspacePackageFiles,
   type MigrationIo,
   readJsonFile,
+  withStagedDryRunMigrationIo,
   writeJsonFile,
 } from './migrate-strict-effect/io';
 import {
@@ -835,11 +836,30 @@ export function runMigrateStrictEffect(
 
   const dryRun = hasFlag(args, '--dry-run');
   const skipInstall = dryRun || hasFlag(args, '--skip-install');
-  const io = createMigrationIo(context.workspaceRoot, dryRun);
-  const migration = io.transaction(
-    () => migrateStrictEffect(args, context, io, dryRun, skipInstall),
-    { commitWhen: migrationResult => migrationResult.status === 0 },
-  );
+  const runMigration = (io: MigrationIo, migrationContext: CommandContext) =>
+    io.transaction(
+      () =>
+        migrateStrictEffect(args, migrationContext, io, dryRun, skipInstall),
+      { commitWhen: migrationResult => migrationResult.status === 0 },
+    );
+  const migration = dryRun
+    ? withStagedDryRunMigrationIo(context.workspaceRoot, io => {
+        const invocationRelativePath = path.relative(
+          context.workspaceRoot,
+          context.invocationCwd,
+        );
+        const invocationIsOutsideWorkspace =
+          invocationRelativePath === '..' ||
+          invocationRelativePath.startsWith(`..${path.sep}`) ||
+          path.isAbsolute(invocationRelativePath);
+        return runMigration(io, {
+          workspaceRoot: io.workspaceRoot,
+          invocationCwd: invocationIsOutsideWorkspace
+            ? context.invocationCwd
+            : path.join(io.workspaceRoot, invocationRelativePath),
+        });
+      })
+    : runMigration(createMigrationIo(context.workspaceRoot, false), context);
 
   const report = (migrationResult: Awaited<typeof migration>) => {
     if (migrationResult.status === 0 && !dryRun) {

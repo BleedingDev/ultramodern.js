@@ -202,20 +202,23 @@ export function preflightModuleFederationBridgeRouter(
       continue;
     }
     const source = fs.readFileSync(configPath, 'utf-8');
-    if (isGeneratedModuleFederationConfig(source)) {
-      continue;
-    }
     const packageDirectory = path.join(workspaceRoot, app.directory);
     const packageJson = readPackageJson(packageDirectory) ?? {};
     removeRetiredReactRouterDependency(packageJson, packageDirectory);
-    if (insertBridgeRouterOptOut(source, appDeclaresReactRouter(packageJson))) {
+    const nextSource = insertBridgeRouterOptOut(
+      source,
+      appDeclaresReactRouter(packageJson),
+    );
+    if (nextSource === undefined) {
+      throw new Error(
+        `Cannot safely migrate ${relativeConfigPath}: its ` +
+          'createModuleFederationConfig value is not a static object literal. ' +
+          'Resolve bridge.enableBridgeRouter explicitly before retrying; no files were written.',
+      );
+    }
+    if (isGeneratedModuleFederationConfig(source)) {
       continue;
     }
-    throw new Error(
-      `Cannot safely migrate ${relativeConfigPath}: its consumer-owned ` +
-        'createModuleFederationConfig value is not a static object literal. ' +
-        'Resolve bridge.enableBridgeRouter explicitly before retrying; no files were written.',
-    );
   }
 }
 
@@ -272,11 +275,14 @@ export function insertBridgeRouterOptOut(
 
 export function ensureGeneratedModuleFederationBridgeRouterOptOut(
   io: MigrationIo,
-  apps: readonly Pick<WorkspaceApp, 'directory'>[],
+  apps: readonly Pick<WorkspaceApp, 'directory' | 'surfaceProfile'>[],
 ) {
   let changed = false;
 
   for (const app of apps) {
+    if (app.surfaceProfile === 'api-only') {
+      continue;
+    }
     const relativeConfigPath = `${app.directory}/${moduleFederationConfigFile}`;
     const configPath = path.join(io.workspaceRoot, relativeConfigPath);
     if (!fs.existsSync(configPath)) {
