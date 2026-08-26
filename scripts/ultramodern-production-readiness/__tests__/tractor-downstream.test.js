@@ -8,6 +8,56 @@ const { createProcessEnv, runCommand } = require('../../lib/process-kit');
 const contractPromise = import('../tractor-downstream/contract.mjs');
 const runnerPromise = import('../tractor-downstream/main.mjs');
 
+const stableRsbuildRspackSelectors = [
+  '@rsbuild/core@2.2.0',
+  '@rspack/binding-darwin-arm64@2.2.0',
+  '@rspack/binding-darwin-x64@2.2.0',
+  '@rspack/binding-linux-arm64-gnu@2.2.0',
+  '@rspack/binding-linux-arm64-musl@2.2.0',
+  '@rspack/binding-linux-ppc64-gnu@2.2.0',
+  '@rspack/binding-linux-riscv64-gnu@2.2.0',
+  '@rspack/binding-linux-riscv64-musl@2.2.0',
+  '@rspack/binding-linux-s390x-gnu@2.2.0',
+  '@rspack/binding-linux-x64-gnu@2.2.0',
+  '@rspack/binding-linux-x64-musl@2.2.0',
+  '@rspack/binding-wasm32-wasi@2.2.0',
+  '@rspack/binding-win32-arm64-msvc@2.2.0',
+  '@rspack/binding-win32-ia32-msvc@2.2.0',
+  '@rspack/binding-win32-x64-msvc@2.2.0',
+  '@rspack/binding@2.2.0',
+  '@rspack/core@2.2.0',
+].sort();
+
+function releaseAgeEntry(selector, overrides = {}) {
+  const separator = selector.lastIndexOf('@');
+  return {
+    approvedBy: 'Tractor release reviewer',
+    evidence: {
+      sha256: 'a'.repeat(64),
+      uri: `https://github.com/BleedingDev/ultramodern.js/commit/${'b'.repeat(40)}`,
+    },
+    expiresAt: '2026-08-27T02:46:55.656Z',
+    integrity: 'sha512-QUFBQQ==',
+    package: selector.slice(0, separator),
+    reviewedAt: '2026-08-26T10:06:26.000Z',
+    version: selector.slice(separator + 1),
+    ...overrides,
+  };
+}
+
+function writeReleaseAgePolicy(root, entries) {
+  const policyPath = path.join(root, 'release-age-policy.json');
+  fs.writeFileSync(
+    policyPath,
+    `${JSON.stringify({
+      schema: 'bleedingdev.ultramodern.release-age-exceptions',
+      schemaVersion: 2,
+      entries,
+    })}\n`,
+  );
+  return policyPath;
+}
+
 function fixture() {
   const root = fs.mkdtempSync(
     path.join(os.tmpdir(), 'tractor-downstream-contract-'),
@@ -447,6 +497,188 @@ test('requires structured visible UI behavior evidence', async () => {
   );
 });
 
+test('published .15 Tractor bootstrap carries the full cohort and active audited closure', async t => {
+  const {
+    createTractorPackageManagerContext,
+    createTractorPnpmDlxArgs,
+    parseArgs,
+    resolveTractorMinimumReleaseAgeExclude,
+  } = await runnerPromise;
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tractor-dlx-policy-'));
+  t.after(() => fs.rmSync(root, { force: true, recursive: true }));
+
+  const releaseVersion = '3.8.2-ultramodern.15';
+  const firstPartyTargets = [
+    '@bleedingdev/modern-js-create',
+    '@bleedingdev/modern-js-i18n-utils',
+    '@bleedingdev/modern-js-utils',
+    ...Array.from(
+      { length: 29 },
+      (_, index) =>
+        `@bleedingdev/modern-js-release-member-${String(index + 1).padStart(2, '0')}`,
+    ),
+  ];
+  const strictRelease = {
+    packages: firstPartyTargets.map(targetName => ({
+      targetName,
+      version: releaseVersion,
+    })),
+    release: { version: releaseVersion },
+  };
+  const staleSelector = 'baseline-browser-mapping@2.11.19';
+  const policyPath = parseArgs([
+    '--manifest',
+    path.join(root, 'manifest.json'),
+    '--workspace',
+    root,
+  ]).releaseAgePolicyPath;
+  const minimumReleaseAgeExclude = resolveTractorMinimumReleaseAgeExclude({
+    release: strictRelease,
+    releaseAgePolicyPath: policyPath,
+    now: new Date('2026-08-26T12:00:00.000Z'),
+  });
+  const expected = [
+    ...firstPartyTargets.map(targetName => `${targetName}@${releaseVersion}`),
+    ...stableRsbuildRspackSelectors,
+  ].sort();
+  assert.equal(expected.length, 49);
+  assert.deepEqual(minimumReleaseAgeExclude, expected);
+  assert.equal(minimumReleaseAgeExclude.includes(staleSelector), false);
+  assert.equal(
+    minimumReleaseAgeExclude.some(selector => /[*?]/u.test(selector)),
+    false,
+  );
+
+  const createPackage = {
+    bootstrapReleaseAgePolicy: {
+      minimumReleaseAge: 1440,
+      minimumReleaseAgeExclude: [
+        `@bleedingdev/modern-js-create@${releaseVersion}`,
+        `@bleedingdev/modern-js-i18n-utils@${releaseVersion}`,
+        `@bleedingdev/modern-js-utils@${releaseVersion}`,
+      ],
+      minimumReleaseAgeIgnoreMissingTime: false,
+      minimumReleaseAgeStrict: true,
+    },
+    exactSpecifier: `@bleedingdev/modern-js-create@${releaseVersion}`,
+    version: releaseVersion,
+  };
+  const args = createTractorPnpmDlxArgs(
+    createPackage,
+    minimumReleaseAgeExclude,
+    [
+      'ultramodern',
+      'migrate-strict-effect',
+      '--version',
+      releaseVersion,
+      '--registry',
+      'https://registry.npmjs.org/',
+    ],
+  );
+  assert.deepEqual(
+    args.filter(argument =>
+      argument.startsWith('--config.minimum-release-age-exclude='),
+    ),
+    expected.map(
+      selector => `--config.minimum-release-age-exclude=${selector}`,
+    ),
+  );
+  assert.deepEqual(args.slice(-7), [
+    '@bleedingdev/modern-js-create@3.8.2-ultramodern.15',
+    'ultramodern',
+    'migrate-strict-effect',
+    '--version',
+    releaseVersion,
+    '--registry',
+    'https://registry.npmjs.org/',
+  ]);
+
+  const packageManager = createTractorPackageManagerContext({
+    createPackage,
+    expectedPnpmVersion: '11.17.0',
+    minimumReleaseAgeExclude,
+    packageManagerRoot: root,
+    registryUrl: 'https://registry.npmjs.org/',
+    resolveExactPnpmExecutableImpl: () => '/opt/pnpm-11.17.0/bin/pnpm',
+  });
+  assert.deepEqual(
+    JSON.parse(packageManager.env.pnpm_config_minimum_release_age_exclude),
+    expected,
+  );
+  assert.equal(packageManager.env.pnpm_config_minimum_release_age, '1440');
+  assert.equal(
+    packageManager.env.pnpm_config_minimum_release_age_strict,
+    'true',
+  );
+  assert.equal(
+    packageManager.env.pnpm_config_minimum_release_age_ignore_missing_time,
+    'false',
+  );
+});
+
+test('Tractor bootstrap rejects malformed manifest and audited policy selectors', async t => {
+  const { resolveTractorMinimumReleaseAgeExclude } = await runnerPromise;
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tractor-dlx-invalid-'));
+  t.after(() => fs.rmSync(root, { force: true, recursive: true }));
+  const now = new Date('2026-08-26T12:00:00.000Z');
+  const release = {
+    packages: [
+      {
+        targetName: '@bleedingdev/modern-js-create',
+        version: '3.8.2-ultramodern.15',
+      },
+    ],
+    release: { version: '3.8.2-ultramodern.15' },
+  };
+
+  const wildcardPolicyPath = writeReleaseAgePolicy(root, [
+    releaseAgeEntry('@rspack/core@2.2.0', { package: '@rspack/*' }),
+  ]);
+  assert.throws(
+    () =>
+      resolveTractorMinimumReleaseAgeExclude({
+        release,
+        releaseAgePolicyPath: wildcardPolicyPath,
+        now,
+      }),
+    /must be one exact npm package name/u,
+  );
+
+  const futurePolicyPath = writeReleaseAgePolicy(root, [
+    releaseAgeEntry('@rspack/core@2.2.0', {
+      expiresAt: '2026-08-28T12:00:00.000Z',
+      reviewedAt: '2026-08-27T12:00:00.000Z',
+    }),
+  ]);
+  assert.throws(
+    () =>
+      resolveTractorMinimumReleaseAgeExclude({
+        release,
+        releaseAgePolicyPath: futurePolicyPath,
+        now,
+      }),
+    /reviewedAt must not be in the future/u,
+  );
+
+  assert.throws(
+    () =>
+      resolveTractorMinimumReleaseAgeExclude({
+        release: {
+          ...release,
+          packages: [
+            {
+              targetName: '@bleedingdev/modern-js-create',
+              version: '3.8.2-ultramodern.14',
+            },
+          ],
+        },
+        releaseAgePolicyPath: writeReleaseAgePolicy(root, []),
+        now,
+      }),
+    /must bind targetName to release version/u,
+  );
+});
+
 test('runner has no bypass for Node or workerd release gates', async () => {
   const {
     createTractorPackageManagerContext,
@@ -493,6 +725,21 @@ test('runner has no bypass for Node or workerd release gates', async () => {
       ]),
     /Unknown argument: --skip-browser/u,
   );
+  const parsedPolicyPath = path.join(
+    os.tmpdir(),
+    'tractor-release-age-policy.json',
+  );
+  assert.equal(
+    parseArgs([
+      '--manifest',
+      '/tmp/release/manifest.json',
+      '--workspace',
+      os.tmpdir(),
+      '--release-age-policy',
+      parsedPolicyPath,
+    ]).releaseAgePolicyPath,
+    parsedPolicyPath,
+  );
 
   const packageManagerRoot = path.join(
     os.tmpdir(),
@@ -517,6 +764,7 @@ test('runner has no bypass for Node or workerd release gates', async () => {
       version: '3.5.0-ultramodern.77',
     },
     expectedPnpmVersion: '11.17.0',
+    minimumReleaseAgeExclude,
     packageManagerRoot,
     registryUrl: 'https://registry.npmjs.org/',
     resolveExactPnpmExecutableImpl: (...args) => {
@@ -596,6 +844,7 @@ test('runner rejects inherited package-manager release-age bypasses', async () =
         version: '3.5.0-ultramodern.77',
       },
       expectedPnpmVersion: '11.17.0',
+      minimumReleaseAgeExclude,
       packageManagerRoot: path.join(
         os.tmpdir(),
         'tractor-poisoned-package-manager-context',

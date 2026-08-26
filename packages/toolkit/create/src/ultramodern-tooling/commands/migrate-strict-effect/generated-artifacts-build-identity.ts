@@ -66,7 +66,6 @@ export function updateGeneratedBuildIdentityModules(
   io: MigrationIo,
   config: UltramodernToolingConfig,
 ) {
-  let changed = false;
   for (const app of allWorkspaceAppsFromToolingConfig(config)) {
     const sharedApiPath = path.join(
       io.workspaceRoot,
@@ -74,39 +73,30 @@ export function updateGeneratedBuildIdentityModules(
       'shared/api.ts',
     );
     if (app.api && fs.existsSync(sharedApiPath)) {
-      changed =
-        io.write(
-          sharedApiPath,
-          rewriteApiMarkerIdentitySchema(
-            rewriteLegacyApiMarkerBinding(
-              fs.readFileSync(sharedApiPath, 'utf-8'),
-            ),
+      io.write(
+        sharedApiPath,
+        rewriteApiMarkerIdentitySchema(
+          rewriteLegacyApiMarkerBinding(
+            fs.readFileSync(sharedApiPath, 'utf-8'),
           ),
-        ) || changed;
+        ),
+      );
     }
-    changed =
-      io.write(
-        path.join(io.workspaceRoot, app.directory, 'src/ultramodern-build.ts'),
-        createUltramodernBuildReexportModule(),
-      ) || changed;
-    changed =
-      io.write(
-        path.join(
-          io.workspaceRoot,
-          app.directory,
-          'shared/ultramodern-build.ts',
-        ),
-        createUltramodernBuildModule(config.workspace.packageScope, app),
-      ) || changed;
-    changed =
-      io.write(
-        path.join(
-          io.workspaceRoot,
-          app.directory,
-          'shared/ultramodern-build.json',
-        ),
-        createUltramodernBuildArtifactJson(config.workspace.packageScope, app),
-      ) || changed;
+    io.writeGenerated(
+      path.join(io.workspaceRoot, app.directory, 'src/ultramodern-build.ts'),
+      createUltramodernBuildReexportModule(),
+    );
+    io.writeGenerated(
+      path.join(io.workspaceRoot, app.directory, 'shared/ultramodern-build.ts'),
+      createUltramodernBuildModule(config.workspace.packageScope, app),
+    );
+    io.write(
+      path.join(
+        io.workspaceRoot,
+        app.directory,
+        'shared/ultramodern-build.json',
+      ),
+      createUltramodernBuildArtifactJson(config.workspace.packageScope, app),
+    );
   }
-  return changed;
 }

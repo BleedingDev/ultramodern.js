@@ -35,7 +35,8 @@ export function createMigrationPackageSource(
       : 'install';
   const registry =
     readOption(args, '--registry') ??
-    readOption(args, '--ultramodern-package-registry');
+    readOption(args, '--ultramodern-package-registry') ??
+    current.packageSource?.registry;
   const explicitAliasScope = readOption(args, '--ultramodern-package-scope');
   const aliasScope =
     explicitAliasScope ??

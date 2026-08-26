@@ -86,7 +86,7 @@ function addLegacyGeneratedDefaults(source: string) {
 ${withLegacySsr.slice(optionsEndIndex)}`;
 }
 
-test('migrate converges a recognized generated Modern config to current preset policy', async () => {
+test('migrate converges the published .15 generated Tailwind config to native defaults', async () => {
   const tempRoot = fs.mkdtempSync(
     path.join(os.tmpdir(), 'um-migrate-generated-config-'),
   );
@@ -106,8 +106,8 @@ test('migrate converges a recognized generated Modern config to current preset p
     );
     const currentGeneratedConfig = fs.readFileSync(modernConfigPath, 'utf-8');
     const predecessorGeneratedConfig = currentGeneratedConfig.replace(
-      'pluginTailwindcss({ optimize: false })',
       'pluginTailwindcss()',
+      'pluginTailwindcss({ optimize: false })',
     );
     assert.notEqual(predecessorGeneratedConfig, currentGeneratedConfig);
     fs.writeFileSync(
@@ -164,7 +164,12 @@ test('migrate preserves an unmarked consumer Modern config while updating genera
       'apps/shell-super-app/modern.config.ts',
     );
     const generatedModernConfig = fs.readFileSync(modernConfigPath, 'utf-8');
-    const consumerModernConfig = generatedModernConfig
+    const predecessorGeneratedConfig = generatedModernConfig.replace(
+      'pluginTailwindcss()',
+      'pluginTailwindcss({ optimize: false })',
+    );
+    assert.notEqual(predecessorGeneratedConfig, generatedModernConfig);
+    const consumerModernConfig = predecessorGeneratedConfig
       .replace(
         "import { i18nPlugin } from '@modern-js/plugin-i18n';",
         `import { bffPlugin } from '@modern-js/plugin-bff';

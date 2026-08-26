@@ -18,9 +18,9 @@ const modernPackageNames = new Set<string>([
   ...ULTRAMODERN_WORKSPACE_MODERN_PACKAGES,
 ]);
 
-export function updateModernDependencies(
+function updateDeclaredDependencies(
   packageJson: Record<string, any>,
-  packageSource: ResolvedUltramodernPackageSource,
+  pins: ReadonlyMap<string, string>,
 ) {
   let changed = false;
   for (const section of [
@@ -38,52 +38,9 @@ export function updateModernDependencies(
       continue;
     }
 
-    for (const packageName of Object.keys(dependencies)) {
-      if (!modernPackageNames.has(packageName)) {
-        continue;
-      }
-
-      const nextSpecifier = modernPackageSpecifier(packageName, packageSource);
-      if (dependencies[packageName] !== nextSpecifier) {
-        dependencies[packageName] = nextSpecifier;
-        changed = true;
-      }
-    }
-  }
-
-  return changed;
-}
-
-const generatedToolingDependencyPins = new Map<string, string>(
-  Object.entries({
-    ...ULTRAMODERN_PACKAGE_PINS.appDependencies,
-    ...ULTRAMODERN_PACKAGE_PINS.appDevDependencies,
-    ...ULTRAMODERN_PACKAGE_PINS.rootDevDependencies,
-  }),
-);
-
-export function updateGeneratedToolingDependencies(
-  packageJson: Record<string, any>,
-) {
-  let changed = false;
-  for (const section of [
-    'dependencies',
-    'devDependencies',
-    'peerDependencies',
-    'optionalDependencies',
-  ]) {
-    const dependencies = packageJson[section];
-    if (
-      !dependencies ||
-      typeof dependencies !== 'object' ||
-      Array.isArray(dependencies)
-    ) {
-      continue;
-    }
-
-    for (const [packageName, version] of generatedToolingDependencyPins) {
+    for (const [packageName, version] of pins) {
       if (
-        Object.prototype.hasOwnProperty.call(dependencies, packageName) &&
+        Object.hasOwn(dependencies, packageName) &&
         dependencies[packageName] !== version
       ) {
         dependencies[packageName] = version;
@@ -93,6 +50,45 @@ export function updateGeneratedToolingDependencies(
   }
 
   return changed;
+}
+
+export function updateModernDependencies(
+  packageJson: Record<string, any>,
+  packageSource: ResolvedUltramodernPackageSource,
+) {
+  return updateDeclaredDependencies(
+    packageJson,
+    new Map(
+      [...modernPackageNames].map(packageName => [
+        packageName,
+        modernPackageSpecifier(packageName, packageSource),
+      ]),
+    ),
+  );
+}
+
+const generatedToolingDependencyPins = new Map<string, string>(
+  Object.entries({
+    ...ULTRAMODERN_PACKAGE_PINS.appDependencies,
+    ...ULTRAMODERN_PACKAGE_PINS.appDevDependencies,
+    ...ULTRAMODERN_PACKAGE_PINS.rootDevDependencies,
+    // Older generated shared packages declared this TS-Go implementation
+    // directly. Re-pin that owned declaration without adopting every
+    // transitive policy pin as consumer-owned migration surface.
+    '@typescript/native-preview':
+      ULTRAMODERN_PACKAGE_PINS.transitiveDependencies[
+        '@typescript/native-preview'
+      ],
+  }),
+);
+
+export function updateGeneratedToolingDependencies(
+  packageJson: Record<string, any>,
+) {
+  return updateDeclaredDependencies(
+    packageJson,
+    generatedToolingDependencyPins,
+  );
 }
 
 /**

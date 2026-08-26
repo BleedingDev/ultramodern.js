@@ -169,6 +169,12 @@ describe('create-tailwind', () => {
     expect(shellPackage.devDependencies['@rsbuild/plugin-tailwindcss']).toBe(
       '^2.0.3',
     );
+    const shellModernConfig = fs.readFileSync(
+      path.join(shellDir, 'modern.config.ts'),
+      'utf-8',
+    );
+    expect(shellModernConfig).toContain('pluginTailwindcss()');
+    expect(shellModernConfig).not.toContain('optimize: false');
   });
 
   test('supports --no-tailwind opt-out', () => {
@@ -196,6 +202,12 @@ describe('create-tailwind', () => {
     );
     const verticalPackage = readJson(verticalDir, 'package.json');
     expect(verticalPackage.devDependencies.tailwindcss).toBe('^4.3.3');
+    const verticalModernConfig = fs.readFileSync(
+      path.join(verticalDir, 'modern.config.ts'),
+      'utf-8',
+    );
+    expect(verticalModernConfig).toContain('pluginTailwindcss()');
+    expect(verticalModernConfig).not.toContain('optimize: false');
   });
 
   test('vertical inherits --no-tailwind workspace setting', () => {

@@ -10,16 +10,13 @@ export function updateGeneratedBackendFederationContractFiles(
   io: MigrationIo,
   config: UltramodernToolingConfig,
 ) {
-  let changed = false;
   for (const app of allWorkspaceAppsFromToolingConfig(config)) {
     if (!app.api) {
       continue;
     }
-    changed =
-      io.write(
-        path.join(io.workspaceRoot, app.directory, 'api/backend-federation.ts'),
-        createBackendFederationContractFile(app),
-      ) || changed;
+    io.writeGenerated(
+      path.join(io.workspaceRoot, app.directory, 'api/backend-federation.ts'),
+      createBackendFederationContractFile(app),
+    );
   }
-  return changed;
 }

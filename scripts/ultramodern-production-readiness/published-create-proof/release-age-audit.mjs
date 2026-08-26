@@ -709,6 +709,18 @@ function readExceptionPolicy(policyPath, now = new Date()) {
   return validateExceptionPolicy(policy, now);
 }
 
+function readActiveReleaseAgeExceptionSelectors(
+  policyPath,
+  { now = new Date() } = {},
+) {
+  const policy = readExceptionPolicy(policyPath, now);
+  const nowMs = now.getTime();
+  return policy.entries
+    .filter(entry => Date.parse(entry.expiresAt) > nowMs)
+    .map(identityKey)
+    .sort(compareCodeUnits);
+}
+
 function packumentUrl(registryUrl, packageName) {
   const base = new URL(registryUrl);
   assertCondition(
@@ -1209,6 +1221,7 @@ export {
   parsePackageKey,
   parseYaml,
   parseYamlFile,
+  readActiveReleaseAgeExceptionSelectors,
   sha256,
   validateExactExclusions,
   validateExceptionPolicy,

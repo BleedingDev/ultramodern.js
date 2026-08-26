@@ -157,8 +157,8 @@ fork-owned by definition, carry no divergence budget, and are not listed here.
 
 ## 3. Allowlist reconciliation
 
-Measured divergence at the fixed gate base `eded841256` is **613 files / 2,790
-hunks / 33,839 changed lines** under `packages/` (`measureDivergence`,
+Measured divergence at the fixed gate base `eded841256` is **614 files / 2,791
+hunks / 33,841 changed lines** under `packages/` (`measureDivergence`,
 `--diff-filter=MD`, so fork-added files are excluded). These totals are the
 exact sanctioned writer result; prose estimates do not authorize a budget. For
 historical comparison, the 2026-08-25 `f4bc5ee335` re-anchor snapshot was 610 files /
@@ -245,6 +245,7 @@ same-PR ownership and disposition evidence.
 | `packages/toolkit/create/README.md` | bleedingdev | Keep package documentation truthful to the fork's generated Effect, TanStack, Module Federation, and pnpm cohort | `keep-[F]` |
 | `packages/document/docs/en/components/prerequisites.mdx` | bleedingdev | Keep the documented pnpm bootstrap command aligned with the fork's generated and CI toolchain | `keep-[M]` |
 | `packages/document/docs/zh/components/prerequisites.mdx` | bleedingdev | Keep the translated pnpm bootstrap command aligned with the fork's generated and CI toolchain | `keep-[M]` |
+| `packages/toolkit/types/packages/hoist-non-react-statics.d.ts` | bleedingdev | Remove a redundant `declare` modifier from an already ambient module so the published declaration compiles under TypeScript without a diagnostic suppression | `capped-patch` + `fixed-in-fork` |
 
 The group breakdown below is the last hand-classified snapshot, taken at
 `dfcd414a`. It is advisory attribution only — the gate reads per-file budgets,
