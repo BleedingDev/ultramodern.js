@@ -324,9 +324,18 @@ test('release acceptance defaults to the exact reviewed third-party policy', asy
       'utf8',
     ),
   );
+  const stableRsbuildRspackReview = JSON.parse(
+    fs.readFileSync(
+      path.join(
+        repoRoot,
+        'packages/toolkit/create/release-age-review-2026-08-26-rsbuild-rspack-2.2.0.json',
+      ),
+      'utf8',
+    ),
+  );
   const validated = validateExceptionPolicy(
     policy,
-    new Date(browserDataReview.reviewedAt),
+    new Date(stableRsbuildRspackReview.reviewedAt),
   );
   const cohortExpiryDates = new Set([
     '2026-09-25T23:59:59.000Z',
@@ -361,15 +370,29 @@ test('release acceptance defaults to the exact reviewed third-party policy', asy
         review: browserDataReview,
       },
     ]),
+    ...stableRsbuildRspackReview.registryRecords.map(record => [
+      `${record.packageName}@${record.version}`,
+      {
+        allowedExpiryDates: new Set([stableRsbuildRspackReview.expiresAt]),
+        evidence: {
+          sha256:
+            'fe2b9cbf8027a6241d6cad9fc2bfd1efbc1517af95cbddde5bf5167fb0ae6b38',
+          uri: 'https://github.com/BleedingDev/ultramodern.js/commit/986768d419f032f98d0cdcfd0893538b94ef1ea5',
+        },
+        record,
+        review: stableRsbuildRspackReview,
+      },
+    ]),
   ]);
   const allowedExpiryDates = new Set([
     ...cohortExpiryDates,
     ...browserDataReview.packages.map(record => record.maturesAt),
+    stableRsbuildRspackReview.expiresAt,
   ]);
   const observedExpiryDates = new Set();
 
   assert.equal(options.releaseAgePolicyPath, defaultReleaseAgePolicyPath);
-  assert.equal(validated.entries.length, 53);
+  assert.equal(validated.entries.length, 70);
   assert.deepEqual(
     policy.entries,
     validated.entries,

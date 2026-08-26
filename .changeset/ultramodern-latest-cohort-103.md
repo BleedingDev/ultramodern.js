@@ -46,3 +46,6 @@ conflicting Rspack DefinePlugin values and incorrectly labelled bundles.
 Release identity carrier metadata now exactly covers every executable artifact
 declared by each UI, SSR, API/backend, and federation surface without claiming
 artifacts from a different runtime surface.
+The stable Rsbuild/Rspack 2.2.0 closure carries a temporary, exact-version and
+integrity-bound release-age approval through its normal 24-hour maturity
+boundary; no RC, range, tag, bare-name, wildcard, or host-only approval is used.

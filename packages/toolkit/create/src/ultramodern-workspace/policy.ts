@@ -306,26 +306,12 @@ type ReleaseAgeReviewEvidence = {
 };
 
 const releaseAgeReviewEvidence = {
-  modernjsUpstream20260824: {
+  rsbuildRspack20260826: {
     reviewer: 'Petr Glaser <syreanis+1@gmail.com>',
-    reviewedAt: '2026-08-24T19:40:58.000Z',
-    expiresAt: '2026-08-25T14:46:59.712Z',
-    uri: 'https://github.com/BleedingDev/ultramodern.js/commit/b1cb9adc60074f9619e94e8653f2a1f6c8e40ce9',
-    sha256: 'fed95e26dcacd298e6a848448ed5965809315c7169d26b7fc4c78ec12505adb7',
-  },
-  modernjsBrowserData20260825: {
-    reviewer: 'Petr Glaser <syreanis+1@gmail.com>',
-    reviewedAt: '2026-08-25T08:10:57.000Z',
-    expiresAt: '2026-08-26T02:05:46.077Z',
-    uri: 'https://github.com/BleedingDev/ultramodern.js/commit/18a7063b427ee1fcb64ede59c85ff7c7adebe4a1',
-    sha256: 'e957c320a8877b107d50ac25ddaae467543d0846ef88c8094cbc8b2a684491db',
-  },
-  typescript: {
-    reviewer: 'Petr Glaser <syreanis+1@gmail.com>',
-    reviewedAt: '2026-07-09T14:00:39.000Z',
-    expiresAt: '2026-08-08T14:00:39.000Z',
-    uri: 'https://github.com/BleedingDev/ultramodern.js/commit/50b905faa441954cac46bef073036514ddf78faa',
-    sha256: '39b3f634548088af3e6c8417263d34f8ac430f0aff8ffec6dbded3eb977579c1',
+    reviewedAt: '2026-08-26T10:06:26.000Z',
+    expiresAt: '2026-08-27T02:46:55.656Z',
+    uri: 'https://github.com/BleedingDev/ultramodern.js/commit/986768d419f032f98d0cdcfd0893538b94ef1ea5',
+    sha256: 'fe2b9cbf8027a6241d6cad9fc2bfd1efbc1517af95cbddde5bf5167fb0ae6b38',
   },
 } as const satisfies Record<string, ReleaseAgeReviewEvidence>;
 
@@ -696,150 +682,130 @@ const moduleFederationNodeRegistryRelease = {
   },
 } as const;
 
-const typescriptPlatformRegistryReleases = [
+const rsbuildRspackRegistryReleases = [
   [
-    'aix-ppc64',
-    '2026-07-08T15:49:32.839Z',
-    'sha512-MTKKkWB7p/0E9xi1d1tHtZ5PiLkGEMIq88pK2CubZjOsLtYTLqhgIgi6zepFa+9GHZ6h05NMCkQxGKiPXMxXtQ==',
+    '@rsbuild/core',
+    '2.2.0',
+    '2026-08-26T02:46:55.656Z',
+    'sha512-UnBBfxWIDKVdLz2BUBq7hFBatwLclJ4moFhlDFg+pFBPPJ1g34MmCbGUC0c9Mo1DhPGdYJG69qMIldh5MvC74w==',
   ],
   [
-    'darwin-arm64',
-    '2026-07-08T15:49:36.897Z',
-    'sha512-gowzar9MwS/aRWp6f3a4KUqzRjAZjOsmGNCM6LcTgXum+dBfgsBVMN+AgvOCCbguXyick6LJhpBszxMebJ8syA==',
+    '@rspack/core',
+    '2.2.0',
+    '2026-08-26T02:17:40.412Z',
+    'sha512-3W7oX0BAHbK4VlknH3lfyfRvupzxdZtyEa+DfKmdjzmIAcqYtHnFd0nLqp5dzitDPyDI1TIKkDhpB0AZJn0pVg==',
   ],
   [
-    'darwin-x64',
-    '2026-07-08T15:49:40.886Z',
-    'sha512-SZ9xZInqApNlNGc9s0W1VSsktYSOe9cFqNOIqmN1Gs8SmkjKZYFt017G4VwPxASInODuAdbTW7sXiFUf893RgA==',
+    '@rspack/binding',
+    '2.2.0',
+    '2026-08-26T02:15:34.205Z',
+    'sha512-nxZzJqqB0EmEKp6qjzFNkBb/SgGt0k0DSENrLvAJgvVvrm3waVsubD0cfxtPlZY/rd5SzadzxWGEHRyFcds5nA==',
   ],
   [
-    'freebsd-arm64',
-    '2026-07-08T15:49:45.020Z',
-    'sha512-W5NH4y/J0plIIS5b2xvTEkU7JFxyqdMAOgf+Ilhl0vHQXKO5dZoxd+C/jEtq56c4F3wk71RB4BMRQ2XdI+bwYQ==',
+    '@rspack/binding-darwin-arm64',
+    '2.2.0',
+    '2026-08-26T02:10:44.109Z',
+    'sha512-KAVVT7hp3NBjtc/RY2UtOjzzc8i+s4pIhW1p52UV+Aev6ywQCu3dXwkHTonpPvJO3hqLXc4zIMH5l4HbMqBm4g==',
   ],
   [
-    'freebsd-x64',
-    '2026-07-08T15:49:49.189Z',
-    'sha512-UMGDx5sTpzNw3WiPebH7l90IWfJggEd+egHt/q6p7/Cm3zqoV7VxkGXt+3DxPIw8CcmvAB0j3sVVfbhX+M4Tpw==',
+    '@rspack/binding-darwin-x64',
+    '2.2.0',
+    '2026-08-26T02:10:51.901Z',
+    'sha512-rzyJCX99aFwl540trsVMNZOgK4+IFm2d5+YeP+RdNo9Uprxloz8vHz0J4dYtaq6MRiCAyM60dAwEa3wJMwqWAQ==',
   ],
   [
-    'linux-arm',
-    '2026-07-08T15:49:53.075Z',
-    'sha512-gffT3xPz9sR7j/YJExkyPntrI0P2EP9XbOyWzth2/Gs0RstK+90RBcO0ncXoXy/beYll1SXw846Nf2zdnEz0QQ==',
+    '@rspack/binding-linux-arm64-gnu',
+    '2.2.0',
+    '2026-08-26T02:16:09.113Z',
+    'sha512-0t8QOiOMcBV7RvPSsTJ5DQ4QCK6FIyUZy77qbxnS6asGTOXPZZn7V5cL26IxEv/wuHdQ6tQOXheau1fi+gGyBQ==',
   ],
   [
-    'linux-arm64',
-    '2026-07-08T15:49:57.270Z',
-    'sha512-Qh4eU4/y3yDjnfjjyPYihMj5/ODIlmt+Bzu17OI+fiSRDW57QmU5SiN63exPRNJPKUzcc1INa1NXdrJ+MqHjUQ==',
+    '@rspack/binding-linux-arm64-musl',
+    '2.2.0',
+    '2026-08-26T02:11:06.138Z',
+    'sha512-BAvCukqcuHxUdE294ITCohvhVkEklW8RbkKkR36Uo0WyIiMPGrnvPjARPn0/4Q4xMAz7lUmC60sZrvJHlAOKMw==',
   ],
   [
-    'linux-loong64',
-    '2026-07-08T15:50:01.501Z',
-    'sha512-uEHck9i8hoAzXPiYRib1O7miOnz23SxIeVl6F4LXox+qov1K35jHcEW6VHKvZI+pyvl7fZEP4MCU5LYvIq1GuQ==',
+    '@rspack/binding-linux-ppc64-gnu',
+    '2.2.0',
+    '2026-08-26T02:11:12.739Z',
+    'sha512-nCHqZLv/E8nm2ccGkb00F5DQtXxzGy3W3X73ArA+N0+zXJUnzRcSRSwr7AE8pVgP/FYfX4yMFgUXy0g0YxYGRA==',
   ],
   [
-    'linux-mips64el',
-    '2026-07-08T15:50:05.178Z',
-    'sha512-R4KvAMnE43W5Qeqb0Ly56O3mWMWIAgsMyz36DCaycd5nbg/9kzm0liw3JocfRqyJY0KPmzFjbswozXyW0DnIYA==',
+    '@rspack/binding-linux-riscv64-gnu',
+    '2.2.0',
+    '2026-08-26T02:11:19.331Z',
+    'sha512-CA3WEqKFDI6FAZTnCho2n9pmdPWZYAW/S8mqgxd0cx2Jix43at3VyLxhCC7ED5A9WBSFn/AdHaIbVtgoQHVhWA==',
   ],
   [
-    'linux-ppc64',
-    '2026-07-08T15:50:09.539Z',
-    'sha512-DORx5b3sd/4S7eayxm4FQv+A7CrkUIGRaHiwI8oiHTAI1fAPWhF4J0vAlkC8biAlHSVVwxMQ3tjZ2/DVbnQiiA==',
+    '@rspack/binding-linux-riscv64-musl',
+    '2.2.0',
+    '2026-08-26T02:11:26.587Z',
+    'sha512-kHB960oClkoPRPZ6sdkhRvqbdRIlbpIMYd/Tbxfmn3DWQahiCk1pkUFJbOtFq3EgESxZISV4THl442W2Y57HvQ==',
   ],
   [
-    'linux-riscv64',
-    '2026-07-08T15:50:13.357Z',
-    'sha512-wf0jqEDOjrPRnKwYRyyJDRo11KMbvMFrU+q4zqKyChODBzvlkbhNQfKvLxQCcwTpdDaXSHZTVuh0JoCrKCUMHQ==',
+    '@rspack/binding-linux-s390x-gnu',
+    '2.2.0',
+    '2026-08-26T02:11:34.448Z',
+    'sha512-lVBdiffVo1jq0P0jT36jNou2suLB4ueQI4aWUs+HM+h67YPBtVKWu/mo5Wh59+8nowgcZmYaFM5hdH69963I9w==',
   ],
   [
-    'linux-s390x',
-    '2026-07-08T15:50:17.275Z',
-    'sha512-IkwJc3L7yhytWd/ewjyxNDfOmswCm9GWMJT/ue/dU4aZNbwZeYAetq42VyLmsmSjvoX7z74X6ZaYCtzAr0EuGw==',
+    '@rspack/binding-linux-x64-gnu',
+    '2.2.0',
+    '2026-08-26T02:13:49.303Z',
+    'sha512-M49UaWspE0YJ3268DsquD8idEQTfjBDMvO/I8qccV/Z5T+Q98FJ+kIs5liUaTWb48OIbDEK+8ZKx5QzLbfVN6g==',
   ],
   [
-    'linux-x64',
-    '2026-07-08T15:50:21.639Z',
-    'sha512-EYdf2cNg7rgCWJnxCdJ+F3V39O8ihb37eHAu1LK8oAFizgTQbPOK7zHHXbPt8rX24COqODXeI3sIf0fCXG7H/A==',
+    '@rspack/binding-linux-x64-musl',
+    '2.2.0',
+    '2026-08-26T02:21:58.999Z',
+    'sha512-YYbs0wmey+5blhEQDE4Dax3TwJtqfGwe2QBm3OLphlBHo/fcZVvimzKkMV0/pVrZTLy2z5ZAwNhGMY64bNr77w==',
   ],
   [
-    'netbsd-arm64',
-    '2026-07-08T15:50:25.229Z',
-    'sha512-+polYF4MF04aPpO5FTkHran9yUQDSXqy5GiSDKpsll5jy3l3+g9QLhpf39T+ePtefhXLOGrLl0QIjkQP6VnelA==',
+    '@rspack/binding-wasm32-wasi',
+    '2.2.0',
+    '2026-08-26T02:11:53.777Z',
+    'sha512-rerLPTN/HD4EvLNWs3O2N+Eb37eGvLRIP3dXXc3n+UzTebOepAsahNn44vXeRBsE4m/pHkpDJjwgWTytgQ2gBw==',
   ],
   [
-    'netbsd-x64',
-    '2026-07-08T15:50:29.798Z',
-    'sha512-8YIT0EHM/3dq10ZOVF/A7pc/YSMtbcecct4rWtexrnSCHOPcpC2KTLXfTCR6vDpnSiY12heNb1GiN/wu+T/FyA==',
+    '@rspack/binding-win32-arm64-msvc',
+    '2.2.0',
+    '2026-08-26T02:11:59.878Z',
+    'sha512-JUAmnbOQYGTRyX28vls/MOMonZWcmcCi5YtEq6YMc8Xqh3Qx0HUwaLM/I1xr/N9BX3b8CV0dQDOpNuBc2ei+CA==',
   ],
   [
-    'openbsd-arm64',
-    '2026-07-08T15:50:33.600Z',
-    'sha512-APT8+ClYnuYm1u9+kgGXoMj2VzWzcymwh2gNSQVySHfkRDGOTVkoWLjCmOQSaO+PoqQ57B0flRp9SA+7GnnkzQ==',
+    '@rspack/binding-win32-ia32-msvc',
+    '2.2.0',
+    '2026-08-26T02:12:06.484Z',
+    'sha512-wOmQRUaOG0eWH/fnfslA9yK9xKfaq9X+3Xa1TdTJnTqlo0ARJYs6A+Lzjbs7cxdY/o1f12Xe00BG3nQozReUOg==',
   ],
   [
-    'openbsd-x64',
-    '2026-07-08T15:50:37.789Z',
-    'sha512-yX7s+Q0Dln0Dt9tEzZsAjXXR/+ytBM7AlglaqyeMPxQszJ1JhlJdZ6jLA+IzldHtflX81em7lDao1xXu+aRRkg==',
+    '@rspack/binding-win32-x64-msvc',
+    '2.2.0',
+    '2026-08-26T02:12:13.441Z',
+    'sha512-v6/3bFr9+i7hRpgulL9b5qCvZL0VgR4vQGQNqOWezUzZmPUj9LYpvB0L9xZIVwDQ2ug/xBiA58bfg5IbESgoyw==',
   ],
-  [
-    'sunos-x64',
-    '2026-07-08T15:50:41.700Z',
-    'sha512-dLJDGaLZ1D4HPQn62u1n8mBDkJREwMsAkCdkwd4Ieqw+x3TUyTsqY0YiBCtE6H6OzzgGk3iuZ3vFWRS+E8/d1g==',
-  ],
-  [
-    'win32-arm64',
-    '2026-07-08T15:50:45.825Z',
-    'sha512-Gyl1Vy6OsWesLzmq+EP0Fb7b4Nid5232AvcA2SFcdYreldpNtYFFofPjnt62y9hQy7VTaZp65ICJjuAQRaVcIQ==',
-  ],
-  [
-    'win32-x64',
-    '2026-07-08T15:50:50.403Z',
-    'sha512-0BQ3HkAHHlKLSp1qRvf3SUhGpGsDuhB/jgFw75guyqbxJqEaS0Cw/VFO8i2nHglJUzQCRtMMR/IBAKE3ETMC4g==',
-  ],
-] as const;
+] as const satisfies readonly (readonly [
+  packageName: string,
+  version: string,
+  publishedAt: string,
+  integrity: string,
+])[];
 
 const releaseAgeApprovals: readonly UltramodernReleaseAgeApproval[] = [
   // FORK: fresh-cohort approvals are added only after the purpose-built review
   // artifact has an immutable pushed commit identity. Never attest a cohort
   // from a commit that predates its reviewed versions, timestamps, integrities,
   // optional-platform closure, and patch applicability evidence.
-  createReleaseAgeApproval({
-    packageName: 'baseline-browser-mapping',
-    version: '2.11.19',
-    reason: releaseAgeReasons.framework,
-    publishedAt: '2026-08-24T14:46:59.712Z',
-    integrity:
-      'sha512-Grytf1xOxOEMTGRwx6rLGKkTabd4vMg3VrKdj/7joCmV0qgh4QwMMO6xh34YEXQqirAuUdgQGa5orJQQ+69RBw==',
-    review: releaseAgeReviewEvidence.modernjsUpstream20260824,
-  }),
-  createReleaseAgeApproval({
-    packageName: 'caniuse-lite',
-    version: '1.0.30001810',
-    reason: releaseAgeReasons.framework,
-    publishedAt: '2026-08-24T20:04:16.328Z',
-    integrity:
-      'sha512-TITQPUkaz+aVk5GL6NhOdwk1aEaNTSDPsGFWrTuhKGtjTF70jL/Oht2W4c6rXUe5fu7Ie19VIahAXHIIiWWNeg==',
-    review: releaseAgeReviewEvidence.modernjsBrowserData20260825,
-  }),
-  createReleaseAgeApproval({
-    packageName: 'electron-to-chromium',
-    version: '1.5.414',
-    reason: releaseAgeReasons.framework,
-    publishedAt: '2026-08-25T02:05:46.077Z',
-    integrity:
-      'sha512-aYlviXiaXBbzvKgyALpcMmqa3Np3sDr0XnZbEG62n2UpZFbEcjQ4EEMOLGzVPhwVnwTz0lvKY+GcARbunuHekw==',
-    review: releaseAgeReviewEvidence.modernjsBrowserData20260825,
-  }),
-  ...typescriptPlatformRegistryReleases.map(
-    ([platform, publishedAt, integrity]) =>
+  ...rsbuildRspackRegistryReleases.map(
+    ([packageName, version, publishedAt, integrity]) =>
       createReleaseAgeApproval({
-        packageName: `@typescript/typescript-${platform}`,
-        version: TYPESCRIPT_VERSION,
-        reason: releaseAgeReasons.typescript,
+        packageName,
+        version,
+        reason: releaseAgeReasons.framework,
         publishedAt,
         integrity,
-        review: releaseAgeReviewEvidence.typescript,
+        review: releaseAgeReviewEvidence.rsbuildRspack20260826,
       }),
   ),
 ];

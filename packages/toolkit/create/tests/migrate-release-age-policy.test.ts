@@ -230,7 +230,7 @@ test('migrates the exact authenticated August 10 release-age list idempotently',
   }
 });
 
-test('retires the Rsbuild RC approval while preserving historical review evidence', () => {
+test('retires the expired upstream cohort while preserving historical review evidence', () => {
   const review = JSON.parse(
     fs.readFileSync(
       new URL('../release-age-review-2026-08-24.json', import.meta.url),
@@ -246,52 +246,24 @@ test('retires the Rsbuild RC approval while preserving historical review evidenc
     }>;
     reviewedAt: string;
   };
-  const expectedSelectors = new Set(
-    review.registryRecords
-      .filter(record => record.packageName === 'baseline-browser-mapping')
-      .map(record => packageKey(record.packageName, record.version)),
+  const historicalSelectors = review.registryRecords.map(record =>
+    packageKey(record.packageName, record.version),
   );
-  const approvalBySelector = new Map(
-    ULTRAMODERN_WORKSPACE_POLICY.pnpm.releaseAge.approvals.map(approval => [
+  const activeApprovalSelectors = new Set(
+    ULTRAMODERN_WORKSPACE_POLICY.pnpm.releaseAge.approvals.map(approval =>
       packageKey(approval.packageName, approval.version),
-      approval,
-    ]),
+    ),
   );
 
-  assert.equal(expectedSelectors.size, 1);
-  for (const record of review.registryRecords.filter(record =>
-    expectedSelectors.has(packageKey(record.packageName, record.version)),
-  )) {
-    const selector = packageKey(record.packageName, record.version);
-    const approval = approvalBySelector.get(selector);
-    assert.ok(approval, `${selector} must have exact review approval`);
-    assert.equal(approval.reviewedAt, review.reviewedAt);
-    assert.equal(Date.parse(approval.expiresAt), Date.parse(review.expiresAt));
-    assert.deepEqual(approval.registry, {
-      publishedAt: record.publishedAt,
-      dist: { integrity: record.dist.integrity },
-    });
-    assert.deepEqual(approval.evidence, {
-      uri: 'https://github.com/BleedingDev/ultramodern.js/commit/b1cb9adc60074f9619e94e8653f2a1f6c8e40ce9',
-      sha256:
-        'fed95e26dcacd298e6a848448ed5965809315c7169d26b7fc4c78ec12505adb7',
-      sha256Subject: 'git-commit-payload',
-    });
-  }
-
-  const active = new Set(
+  assert.equal(historicalSelectors.length, 3);
+  const renderedAtReview = new Set(
     renderMinimumReleaseAgeExclude({
-      now: new Date('2026-08-24T19:40:58.000Z'),
+      now: new Date(review.reviewedAt),
     }),
   );
-  const expired = new Set(
-    renderMinimumReleaseAgeExclude({
-      now: new Date('2026-09-01T00:00:00.000Z'),
-    }),
-  );
-  for (const selector of expectedSelectors) {
-    assert.equal(active.has(selector), true);
-    assert.equal(expired.has(selector), false);
+  for (const selector of historicalSelectors) {
+    assert.equal(activeApprovalSelectors.has(selector), false);
+    assert.equal(renderedAtReview.has(selector), false);
   }
   for (const retired of [
     'i18next',
@@ -305,14 +277,56 @@ test('retires the Rsbuild RC approval while preserving historical review evidenc
       false,
     );
   }
-  assert.equal(approvalBySelector.has('electron-to-chromium@1.5.413'), false);
-  assert.equal(approvalBySelector.has('@rsbuild/core@2.2.0-rc.0'), false);
+  assert.equal(
+    ULTRAMODERN_WORKSPACE_POLICY.pnpm.releaseAge.approvals.some(approval =>
+      approval.packageName.startsWith('@typescript/typescript-'),
+    ),
+    false,
+  );
 });
 
-test('temporarily approves the exact fresh browser data cohort', () => {
+test('retires the expired browser data cohort while preserving review evidence', () => {
   const review = JSON.parse(
     fs.readFileSync(
       new URL('../release-age-review-2026-08-25.json', import.meta.url),
+      'utf8',
+    ),
+  ) as {
+    registryRecords: Array<{
+      packageName: string;
+      version: string;
+    }>;
+    reviewedAt: string;
+  };
+  const activeApprovalSelectors = new Set(
+    ULTRAMODERN_WORKSPACE_POLICY.pnpm.releaseAge.approvals.map(approval =>
+      packageKey(approval.packageName, approval.version),
+    ),
+  );
+  const renderedAtReview = new Set(
+    renderMinimumReleaseAgeExclude({ now: new Date(review.reviewedAt) }),
+  );
+
+  assert.equal(review.registryRecords.length, 2);
+  for (const record of review.registryRecords) {
+    const selector = packageKey(record.packageName, record.version);
+    assert.equal(activeApprovalSelectors.has(selector), false);
+    assert.equal(renderedAtReview.has(selector), false);
+  }
+});
+
+test('temporarily approves the exact stable Rsbuild and Rspack cohort', () => {
+  const evidence = {
+    uri: 'https://github.com/BleedingDev/ultramodern.js/commit/986768d419f032f98d0cdcfd0893538b94ef1ea5',
+    sha256: 'fe2b9cbf8027a6241d6cad9fc2bfd1efbc1517af95cbddde5bf5167fb0ae6b38',
+    sha256Subject: 'git-commit-payload',
+  } as const;
+  const review = JSON.parse(
+    fs.readFileSync(
+      new URL(
+        '../release-age-review-2026-08-26-rsbuild-rspack-2.2.0.json',
+        import.meta.url,
+      ),
       'utf8',
     ),
   ) as {
@@ -324,45 +338,48 @@ test('temporarily approves the exact fresh browser data cohort', () => {
       dist: { integrity: string };
     }>;
     reviewedAt: string;
+    reviewer: string;
   };
+  const cohortApprovals =
+    ULTRAMODERN_WORKSPACE_POLICY.pnpm.releaseAge.approvals.filter(
+      approval => approval.evidence.uri === evidence.uri,
+    );
   const approvalBySelector = new Map(
-    ULTRAMODERN_WORKSPACE_POLICY.pnpm.releaseAge.approvals.map(approval => [
+    cohortApprovals.map(approval => [
       packageKey(approval.packageName, approval.version),
       approval,
     ]),
   );
 
-  assert.equal(review.registryRecords.length, 2);
+  assert.equal(review.registryRecords.length, 17);
+  assert.equal(cohortApprovals.length, 17);
+  assert.deepEqual(
+    [...approvalBySelector.keys()].sort(),
+    review.registryRecords
+      .map(record => packageKey(record.packageName, record.version))
+      .sort(),
+  );
   for (const record of review.registryRecords) {
     const selector = packageKey(record.packageName, record.version);
     const approval = approvalBySelector.get(selector);
     assert.ok(approval, `${selector} must have exact review approval`);
+    assert.equal(approval.reviewer, review.reviewer);
     assert.equal(approval.reviewedAt, review.reviewedAt);
     assert.equal(approval.expiresAt, review.expiresAt);
     assert.deepEqual(approval.registry, {
       publishedAt: record.publishedAt,
       dist: { integrity: record.dist.integrity },
     });
-    assert.deepEqual(approval.evidence, {
-      uri: 'https://github.com/BleedingDev/ultramodern.js/commit/18a7063b427ee1fcb64ede59c85ff7c7adebe4a1',
-      sha256:
-        'e957c320a8877b107d50ac25ddaae467543d0846ef88c8094cbc8b2a684491db',
-      sha256Subject: 'git-commit-payload',
-    });
+    assert.deepEqual(approval.evidence, evidence);
   }
 
   const active = new Set(
-    renderMinimumReleaseAgeExclude({
-      now: new Date(review.reviewedAt),
-    }),
+    renderMinimumReleaseAgeExclude({ now: new Date(review.reviewedAt) }),
   );
   const expired = new Set(
-    renderMinimumReleaseAgeExclude({
-      now: new Date(review.expiresAt),
-    }),
+    renderMinimumReleaseAgeExclude({ now: new Date(review.expiresAt) }),
   );
-  for (const record of review.registryRecords) {
-    const selector = packageKey(record.packageName, record.version);
+  for (const selector of approvalBySelector.keys()) {
     assert.equal(active.has(selector), true);
     assert.equal(expired.has(selector), false);
   }
