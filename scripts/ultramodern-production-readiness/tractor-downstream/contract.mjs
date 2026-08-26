@@ -58,6 +58,7 @@ const tractorTopologiesByBaseline = Object.freeze({
   '26059ebdcfd366c9bb0545b2c8dd2f3cfe2a97a5': reviewedTractorTopology,
   '59eefbc840a85461f58ba218398a1b3c13659c9a': reviewedTractorTopology,
   '9b729c5381006d55889355c91fbbde40ee4d4d97': reviewedTractorTopology,
+  '00f386d0b24ef8b20f46a9c50effe9b667d3f99d': reviewedTractorTopology,
 });
 const requiredUiControls = Object.freeze([
   ['link', 'Add to basket'],
