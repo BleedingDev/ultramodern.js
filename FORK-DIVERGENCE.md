@@ -17,9 +17,8 @@ changed lines without changing the file or hunk totals.
 
 **Re-verified 2026-08-26** after restoring the fixed `eded841256` audited
 measurement point while retaining the complete upstream sync through
-`f4bc5ee335` in `HEAD`: §2 bases and §3 base-transition ownership. Exact
-allowlist totals are writer-authoritative and must replace the explicit
-placeholders below when the reviewed re-record lands.
+`f4bc5ee335` in `HEAD`: §2 bases and §3 base-transition ownership. The
+sanctioned reviewed writer recorded the exact totals below.
 
 This file is the single canonical record of where the UltraModern fork diverges
 from upstream Modern.js. It is read during every upstream sync and enforced on
@@ -158,12 +157,11 @@ fork-owned by definition, carry no divergence budget, and are not listed here.
 
 ## 3. Allowlist reconciliation
 
-Measured divergence at the fixed gate base `eded841256` is
-**PENDING-WRITER files / PENDING-WRITER hunks / PENDING-WRITER changed lines**
-under `packages/` (`measureDivergence`, `--diff-filter=MD`, so fork-added files
-are excluded). These placeholders must be replaced with the exact committed
-writer result; prose estimates do not authorize a budget. For historical
-comparison, the 2026-08-25 `f4bc5ee335` re-anchor snapshot was 610 files /
+Measured divergence at the fixed gate base `eded841256` is **611 files / 2,787
+hunks / 33,834 changed lines** under `packages/` (`measureDivergence`,
+`--diff-filter=MD`, so fork-added files are excluded). These totals are the
+exact sanctioned writer result; prose estimates do not authorize a budget. For
+historical comparison, the 2026-08-25 `f4bc5ee335` re-anchor snapshot was 610 files /
 2,777 hunks / 34,334 changed lines, and the later RT-23 capped patch raised that
 temporary-base budget to 34,339 changed lines without changing its file or hunk
 totals.
