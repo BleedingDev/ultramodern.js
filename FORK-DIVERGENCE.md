@@ -12,7 +12,12 @@ bases and counts, §3 reconciliation, and every base-transition growth entry.
 
 **Re-verified 2026-08-25** for the upstream sync through `f4bc5ee335`: §2
 bases and counts and §3 reconciliation. The re-anchor changed no cumulative
-per-file divergence budget.
+per-file divergence budget. The later RT-23 capped patch added five governed
+changed lines without changing the file or hunk totals.
+
+**Re-verified 2026-08-26** against the enforced allowlist: §3 now distinguishes
+the 34,334-line re-anchor snapshot from the current 34,339-line budget after
+RT-23's governed growth.
 
 This file is the single canonical record of where the UltraModern fork diverges
 from upstream Modern.js. It is read during every upstream sync and enforced on
@@ -146,15 +151,19 @@ fork-owned by definition, carry no divergence budget, and are not listed here.
 ## 3. Allowlist reconciliation
 
 Measured divergence at the current gate base `f4bc5ee335` is **610 files /
-2,777 hunks / 34,334 changed lines** under `packages/` (`measureDivergence`,
-`--diff-filter=MD`, so fork-added files are excluded). It was 611 files / 2,789
-hunks / 33,816 changed lines at the retired `eded841256` base. The changed
-totals are a base transition, not a fork-earned shrink or ordinary PR growth.
+2,777 hunks / 34,339 changed lines** under `packages/` (`measureDivergence`,
+`--diff-filter=MD`, so fork-added files are excluded). The 2026-08-25 re-anchor
+snapshot was 610 files / 2,777 hunks / 34,334 changed lines. The later RT-23
+capped patch added five governed changed lines without changing the file or
+hunk totals. The retired `eded841256` base measured 611 files / 2,789 hunks /
+33,816 changed lines; differences across the bases are a base transition, not
+a fork-earned shrink.
 
-**The re-record at the new base is complete (2026-08-25):** the budgets in
-`divergence-allowlist.json` are the `f4bc5ee335` snapshot, written through the
-sanctioned reviewed path (§1) — required here because a base re-anchor is by
-definition growth — with the committed merge-base/head refs it demands:
+**The re-record at the new base is complete (2026-08-25):** the re-anchor
+budgets in `divergence-allowlist.json` were written as the 34,334-line
+`f4bc5ee335` snapshot through the sanctioned reviewed path (§1) — required
+here because a base re-anchor is by definition growth — with the committed
+merge-base/head refs it demands:
 
 ```sh
 node scripts/ultramodern-boundary-check/check-fork-import-boundary.js \
@@ -166,8 +175,12 @@ node scripts/ultramodern-boundary-check/check-fork-import-boundary.js \
 This transition incorporates upstream's app-tools duplicate-loader fix, BFF
 test portability update, and styled-components plugin bump. After merge
 resolution it changes no cumulative per-file budget: totals and all 610 entries
-are identical to the `3748f08860` snapshot. The ledger change is still required
-because audited-base identity changed.
+in that 34,334-line re-anchor snapshot are identical to the `3748f08860`
+snapshot. The ledger change is still required because audited-base identity
+changed. RT-23 was recorded afterward through the governed growth path: its
+single upstream-owned file rose from 228 to 233 changed lines while remaining
+at 12 hunks, producing the current 610 files / 2,777 hunks / 34,339 changed
+lines.
 
 The seven entries that grew across the preceding 2026-08-24 base transition
 were inspected and are
