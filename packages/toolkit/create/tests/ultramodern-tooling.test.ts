@@ -2969,6 +2969,64 @@ test('UltraModern migrate --dry-run reads the projected topology just like apply
   }
 });
 
+test('UltraModern migrate preserves a dist-named vertical across dry-run and apply', async () => {
+  const { tempRoot, workspaceDir } = scaffoldWorkspace(
+    'tooling-dry-run-dist-vertical',
+  );
+
+  try {
+    addUltramodernVertical({
+      workspaceRoot: workspaceDir,
+      name: 'dist',
+      modernVersion: '3.2.1',
+    });
+    const verticalPackagePath = 'verticals/dist/package.json';
+    const verticalPackage = readJson(workspaceDir, verticalPackagePath);
+    verticalPackage.dependencies['@modern-js/runtime'] = '0.0.0';
+    writeJson(workspaceDir, verticalPackagePath, verticalPackage);
+    const before = snapshotWorkspaceBytes(workspaceDir);
+
+    const { result, output } = captureStdout(() =>
+      runUltramodernToolingCli(
+        ['migrate-strict-effect', '--dry-run'],
+        workspaceDir,
+      ),
+    );
+    assert.equal(await result, 0);
+    assert.deepEqual(snapshotWorkspaceBytes(workspaceDir), before);
+    assert.match(
+      output,
+      /\[dry-run\] would write verticals\/dist\/package\.json/u,
+    );
+
+    assert.equal(
+      await runUltramodernToolingCli(
+        ['migrate-strict-effect', '--skip-install'],
+        workspaceDir,
+      ),
+      0,
+    );
+    assert.equal(
+      readJson(workspaceDir, verticalPackagePath).dependencies[
+        '@modern-js/runtime'
+      ],
+      'workspace:*',
+    );
+    const afterApply = snapshotWorkspaceBytes(workspaceDir);
+
+    assert.equal(
+      await runUltramodernToolingCli(
+        ['migrate-strict-effect', '--skip-install'],
+        workspaceDir,
+      ),
+      0,
+    );
+    assert.deepEqual(snapshotWorkspaceBytes(workspaceDir), afterApply);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test('staged migration dry-run cleanup covers synchronous, asynchronous, and failed runs', async () => {
   const { tempRoot, workspaceDir } = scaffoldWorkspace(
     'tooling-dry-run-cleanup',

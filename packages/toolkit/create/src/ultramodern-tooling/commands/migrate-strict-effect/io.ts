@@ -46,6 +46,12 @@ const stagingExcludedEntries = new Set([
   'dist',
   'node_modules',
 ]);
+const stagingGeneratedOutputEntries = new Set(['coverage', 'dist']);
+const stagingWorkspacePackageDirectories = new Set([
+  'apps',
+  'packages',
+  'verticals',
+]);
 
 function lstatIfExists(filePath: string) {
   try {
@@ -157,8 +163,12 @@ function copyWorkspaceEntry(
   const stat = fs.lstatSync(sourcePath);
   if (stat.isDirectory()) {
     fs.mkdirSync(destinationPath, { mode: stat.mode & 0o7777 });
+    const relativeSourcePath = path.relative(sourceWorkspaceRoot, sourcePath);
     for (const entry of fs.readdirSync(sourcePath)) {
-      if (stagingExcludedEntries.has(entry)) {
+      const isNamedWorkspacePackage =
+        stagingWorkspacePackageDirectories.has(relativeSourcePath) &&
+        stagingGeneratedOutputEntries.has(entry);
+      if (stagingExcludedEntries.has(entry) && !isNamedWorkspacePackage) {
         continue;
       }
       copyWorkspaceEntry(
