@@ -219,6 +219,87 @@ migration 时不要再用 app 本地 postprocess。Cloudflare public output 默�
 会按 app、构建目标和 Rspack environment 隔离，避免本地 `build`、`cloudflare:build`
 以及多 environment compiler 共享可变构建状态。
 
+## 配置公开预设
+
+在标准 Modern.js `defineConfig` 调用中使用
+`presetUltramodern(appConfig, presetOptions)`：
+
+```ts title="modern.config.ts"
+import { defineConfig, presetUltramodern } from '@modern-js/app-tools';
+
+export default defineConfig(
+  presetUltramodern(
+    {
+      output: {
+        precompress: false,
+      },
+      server: {
+        telemetry: {
+          failLoudStartup: true,
+        },
+      },
+    },
+    {
+      appId: 'catalog',
+      enableModuleFederationSSR: false,
+      enableTelemetryExporters: false,
+    },
+  ),
+);
+```
+
+第一个参数是普通的 `AppUserConfig`，用于应用自己拥有的配置，并在提供覆盖值时胜出。
+第二个参数控制预设本身。关闭预设能力时，使用它提供的类型化选项，例如
+`enableBffRequestId: false`、`enableTelemetry: false`、
+`enableTelemetryExporters: false` 和 `enableModuleFederationSSR: false`。
+
+组合过程遵循 Modern.js 配置合并规则：
+
+- 嵌套对象会递归合并。修改一个嵌套字段时，预设中的同级字段会保留。
+- 应用提供的标量和 `false` 会覆盖预设值。省略字段或将其保留为 `undefined` 时，
+  预设值会保留。
+- 数组和配置 hook 按预设优先的顺序组合。非函数数组项按深度相等去重，函数项则全部
+  保留。空数组或空对象不会清除预设已经提供的值。
+
+这里没有通用的 reset sentinel。预设拥有的行为应使用类型化预设选项控制，应用拥有的
+行为应使用普通应用配置覆盖。
+
+`createPresetUltramodernConfig(options)` 是用于检查或生成一份全新预设配置的高级 API。
+不要把它的结果展开进另一个配置对象。对象展开是浅层操作，替换 `server`、`output`
+或其他嵌套对象时，会无提示地丢弃预设中的同级字段。编写 `modern.config.ts` 时应使用
+`presetUltramodern(...)`。
+
+### 裸预设与生成 workspace 的策略
+
+预设和 workspace 生成器分别负责不同的配置：
+
+| 来源 | 身份配置 | 其他配置 |
+| --- | --- | --- |
+| 裸 `createPresetUltramodernConfig()` 的结果 | 使用 `appId: 'app'`，不设置 `deliveryUnit` | 使用预设默认值。Telemetry 保持启用，但只有设置具体端点后才会配置对应导出器。 |
+| 生成的应用 | 提供应用专属的 `appId` 和生成时写入的 `deliveryUnit` | 其他严格默认值继承自 `presetUltramodern(...)`。 |
+| 应用 | 通过第一个 `appConfig` 参数提供配置 | 按 Modern.js 的正常合并规则覆盖应用拥有的字段。 |
+
+应保留生成的 `appId` 和 `deliveryUnit` 选项。修改预设拥有的行为时，使用类型化选项，
+例如
+`enableTelemetryExporters: false`、`enableTelemetry: false`、
+`enableBffRequestId: false` 或 `enableModuleFederationSSR: false`。修改应用拥有的
+字段时，应像上面的示例一样，把覆盖值放在第一个参数中。
+
+Telemetry 导出端点默认不设置：
+
+- `MODERN_TELEMETRY_OTLP_ENDPOINT` 只启用 OTLP 导出器。
+- `MODERN_TELEMETRY_VICTORIA_ENDPOINT` 只启用 VictoriaMetrics 导出器。
+- 同时设置两个变量会启用两个导出器。两个变量都未设置时，telemetry 管线保持启用，
+  但不会配置导出器。
+
+类型化的 `otlpEndpoint` 和 `victoriaMetricsEndpoint` 预设选项也能提供同样的
+逐导出器行为，无需使用环境变量。
+
+```bash
+MODERN_TELEMETRY_OTLP_ENDPOINT=https://otel.example.com/v1/logs \
+  mise exec -- pnpm dev
+```
+
 ## 人类工作流
 
 公开的 BleedingDev create 包只有一个受支持的生成产品。默认命令会创建一个
@@ -383,18 +464,6 @@ Live Cloudflare 与 Zephyr 证明需要公开 Worker URL 和 Zephyr 凭据。没
 
 BleedingDev 包通过 GitHub Actions trusted publishing 发布。公开发布 workflow 不使用
 长期 npm token；不要从开发机器手动发布包。
-
-## 基线开关（可按需关闭）
-
-生成的 `presetUltramodern(...)` 脚手架会开启更严格的平台契约。以下环境变量会在生成的 `modern.config.ts` 中读取，可按应用或按环境关闭/覆盖：
-
-- `MODERN_BASELINE_ENABLE_MF_SSR`（默认：`true`）：开启应用级 MF SSR 基线契约（`server.ssr.mode: 'stream'` + `moduleFederationAppSSR`）。应用不使用 app-level MF SSR 或希望先走普通 SSR/CSR 路径时可关闭。
-- `MODERN_BASELINE_ENABLE_BFF_REQUEST_ID`（默认：`true`）：开启默认 BFF producer 身份契约（`bff.requestId`）。应用不需要跨项目 producer 隔离时可关闭。
-- `MODERN_BASELINE_ENABLE_TELEMETRY_EXPORTERS`（默认：`true`）：在基线配置中启用 telemetry 导出器。当前环境还没有 telemetry 后端时可关闭。
-- `MODERN_BASELINE_APP_ID`（默认：`basename(process.cwd())`）：覆盖基线 `bff.requestId` 身份。需要固定、可治理的统一 producer ID 命名时建议设置。
-- `MODERN_TELEMETRY_OTLP_ENDPOINT`（默认：`http://127.0.0.1:4318/v1/logs`）：OTLP 导出端点。接入其他 OTLP collector 地址时覆盖。
-- `MODERN_TELEMETRY_VICTORIA_ENDPOINT`（默认：`http://127.0.0.1:8428/api/v1/import/prometheus`）：VictoriaMetrics 导出端点。接入其他 VM 写入地址时覆盖。
-- `MODERN_TELEMETRY_FAIL_LOUD_STARTUP`（默认：`true`）：导出器健康检查失败时启动即失败（fail-loud）。本地/开发环境希望 telemetry 故障不阻断启动时可关闭。
 
 ## 相关文档
 

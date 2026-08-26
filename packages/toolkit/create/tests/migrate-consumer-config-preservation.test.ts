@@ -36,6 +36,83 @@ function captureStdout<T>(run: () => T): { result: T; output: string } {
   }
 }
 
+function addLegacyGeneratedDefaults(source: string) {
+  const serverAnchor = "        publicDir: ['./locales', './assets'],\n";
+  const withLegacySsr = source.replace(
+    serverAnchor,
+    `${serverAnchor}        ssr: {
+          mode: 'stream',
+          moduleFederationAppSSR: true,
+        },
+`,
+  );
+  assert.notEqual(withLegacySsr, source);
+
+  const composeEndIndex = withLegacySsr.lastIndexOf('\n  )');
+  assert.notEqual(composeEndIndex, -1);
+  const optionsEndIndex =
+    withLegacySsr.lastIndexOf('\n    }', composeEndIndex) + 1;
+  assert.notEqual(optionsEndIndex, 0);
+  return `${withLegacySsr.slice(0, optionsEndIndex)}      enableBffRequestId: true,
+      enableModuleFederationSSR: true,
+      enableTelemetryExporters: true,
+      telemetryFailLoudStartup: false,
+${withLegacySsr.slice(optionsEndIndex)}`;
+}
+
+test('migrate converges a recognized generated Modern config to current preset policy', async () => {
+  const tempRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'um-migrate-generated-config-'),
+  );
+  const workspaceRoot = path.join(tempRoot, 'generated-workspace');
+
+  try {
+    generateUltramodernWorkspace({
+      targetDir: workspaceRoot,
+      packageName: 'generated-workspace',
+      modernVersion: '3.2.1',
+      enableTailwind: true,
+      packageSource: { strategy: 'workspace' },
+    });
+    const modernConfigPath = path.join(
+      workspaceRoot,
+      'apps/shell-super-app/modern.config.ts',
+    );
+    const currentGeneratedConfig = fs.readFileSync(modernConfigPath, 'utf-8');
+    fs.writeFileSync(
+      modernConfigPath,
+      addLegacyGeneratedDefaults(currentGeneratedConfig),
+      'utf-8',
+    );
+
+    assert.equal(
+      await runUltramodernToolingCli(
+        ['migrate-strict-effect', '--skip-install'],
+        workspaceRoot,
+      ),
+      0,
+    );
+    assert.equal(
+      fs.readFileSync(modernConfigPath, 'utf-8'),
+      currentGeneratedConfig,
+    );
+
+    assert.equal(
+      await runUltramodernToolingCli(
+        ['migrate-strict-effect', '--skip-install'],
+        workspaceRoot,
+      ),
+      0,
+    );
+    assert.equal(
+      fs.readFileSync(modernConfigPath, 'utf-8'),
+      currentGeneratedConfig,
+    );
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test('migrate preserves an unmarked consumer Modern config while updating generated bridge ownership', async () => {
   const tempRoot = fs.mkdtempSync(
     path.join(os.tmpdir(), 'um-migrate-consumer-config-'),

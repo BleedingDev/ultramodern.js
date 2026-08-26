@@ -50,14 +50,18 @@ export interface PresetUltramodernOptions {
   /**
    * OTLP exporter endpoint. Setting it (or the environment variable)
    * enables the OTLP exporter unless `enableTelemetryExporters` is `false`.
-   * @default process.env.MODERN_TELEMETRY_OTLP_ENDPOINT || 'http://127.0.0.1:4318/v1/logs'
+   * The localhost endpoint is used only when exporters are forced on with
+   * `enableTelemetryExporters: true` and no endpoint was provided.
+   * @default process.env.MODERN_TELEMETRY_OTLP_ENDPOINT
    */
   otlpEndpoint?: string;
   /**
    * VictoriaMetrics exporter endpoint. Setting it (or the environment
    * variable) enables the VictoriaMetrics exporter unless
    * `enableTelemetryExporters` is `false`.
-   * @default process.env.MODERN_TELEMETRY_VICTORIA_ENDPOINT || 'http://127.0.0.1:8428/api/v1/import/prometheus'
+   * The localhost endpoint is used only when exporters are forced on with
+   * `enableTelemetryExporters: true` and no endpoint was provided.
+   * @default process.env.MODERN_TELEMETRY_VICTORIA_ENDPOINT
    */
   victoriaMetricsEndpoint?: string;
   /**
@@ -168,6 +172,13 @@ const setReactRouterBridgeSafeAliases = (
   );
 };
 
+/**
+ * Materialize a fresh UltraModern preset config.
+ *
+ * This is the advanced inspection API. Use `presetUltramodern` when composing
+ * an application config so nested records, arrays, and hooks keep the normal
+ * Modern.js merge behavior.
+ */
 export const createPresetUltramodernConfig = (
   options: PresetUltramodernOptions = {},
 ): AppUserConfig => {
@@ -289,6 +300,15 @@ export const createPresetUltramodernConfig = (
   return presetConfig;
 };
 
+/**
+ * Compose an application config over the UltraModern preset.
+ *
+ * The application config is merged after the preset. Nested records are
+ * preserved, scalar values and `false` override preset values, and omitted or
+ * `undefined` values keep the preset value. Arrays and hooks compose in
+ * preset-first order. An empty record does not reset nested preset defaults;
+ * use the typed `PresetUltramodernOptions` opt-outs instead.
+ */
 export const presetUltramodern = (
   config: AppUserConfig,
   options: PresetUltramodernOptions = {},

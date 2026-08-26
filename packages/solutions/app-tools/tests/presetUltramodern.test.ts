@@ -1,11 +1,13 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { mergeConfig } from '@modern-js/plugin/cli';
 import { rspack } from '@rsbuild/core';
 import {
   createPresetUltramodernConfig,
   presetUltramodern,
 } from '../src/presetUltramodern';
+import type { AppUserConfig } from '../src/types';
 import { createUltramodernReleaseBuildMarker } from '../src/ultramodern-release-identity';
 
 type BundlerChainFn = (chain: unknown, utils: { isProd: boolean }) => void;
@@ -136,24 +138,35 @@ describe('presetUltramodern config', () => {
     });
   });
 
-  it('enables exporters from telemetry endpoint environment variables', () => {
-    const previous = process.env.MODERN_TELEMETRY_OTLP_ENDPOINT;
-    process.env.MODERN_TELEMETRY_OTLP_ENDPOINT =
-      'http://env-collector.internal:4318/v1/logs';
-    try {
-      const preset = createPresetUltramodernConfig();
+  it('evaluates telemetry endpoint environment variables for every call', () => {
+    const previousOtlp = process.env.MODERN_TELEMETRY_OTLP_ENDPOINT;
+    const previousVictoria = process.env.MODERN_TELEMETRY_VICTORIA_ENDPOINT;
+    delete process.env.MODERN_TELEMETRY_OTLP_ENDPOINT;
+    delete process.env.MODERN_TELEMETRY_VICTORIA_ENDPOINT;
 
-      expect(preset.server?.telemetry?.exporters).toEqual({
+    try {
+      const beforeEndpoint = createPresetUltramodernConfig();
+      process.env.MODERN_TELEMETRY_OTLP_ENDPOINT =
+        'http://env-collector.internal:4318/v1/logs';
+      const afterEndpoint = createPresetUltramodernConfig();
+
+      expect(beforeEndpoint.server?.telemetry?.exporters).toBeUndefined();
+      expect(afterEndpoint.server?.telemetry?.exporters).toEqual({
         otlp: {
           enabled: true,
           endpoint: 'http://env-collector.internal:4318/v1/logs',
         },
       });
     } finally {
-      if (typeof previous === 'undefined') {
+      if (typeof previousOtlp === 'undefined') {
         delete process.env.MODERN_TELEMETRY_OTLP_ENDPOINT;
       } else {
-        process.env.MODERN_TELEMETRY_OTLP_ENDPOINT = previous;
+        process.env.MODERN_TELEMETRY_OTLP_ENDPOINT = previousOtlp;
+      }
+      if (typeof previousVictoria === 'undefined') {
+        delete process.env.MODERN_TELEMETRY_VICTORIA_ENDPOINT;
+      } else {
+        process.env.MODERN_TELEMETRY_VICTORIA_ENDPOINT = previousVictoria;
       }
     }
   });
@@ -388,8 +401,98 @@ describe('presetUltramodern config', () => {
 
     expect(composed.output?.precompress).toBe(false);
     expect(composed.server?.telemetry?.enabled).toBe(false);
+    expect(composed.server?.telemetry?.failLoudStartup).toBe(false);
     expect(composed.server?.ssr).toBe(false);
     expect(composed.bff?.requestId).toBe('custom-app');
+  });
+
+  it('keeps defaults for omitted and undefined values but honors false', () => {
+    const omitted = presetUltramodern({});
+    const undefinedOverride = presetUltramodern({
+      output: { precompress: undefined },
+    });
+    const falseOverride = presetUltramodern({
+      output: { precompress: false },
+    });
+
+    expect(omitted.output?.precompress).toBe(true);
+    expect(undefinedOverride.output?.precompress).toBe(true);
+    expect(falseOverride.output?.precompress).toBe(false);
+  });
+
+  it('keeps preset values when consumers provide empty objects or arrays', () => {
+    type Config = {
+      nested?: { enabled?: boolean };
+      entries?: string[];
+    };
+
+    const merged = mergeConfig<Config, Config>([
+      { nested: { enabled: true }, entries: ['preset'] },
+      { nested: {}, entries: [] },
+    ]);
+
+    expect(merged).toEqual({
+      nested: { enabled: true },
+      entries: ['preset'],
+    });
+  });
+
+  it('merges arrays preset-first with deep dedupe and function retention', () => {
+    const sharedHook = () => undefined;
+    type Config = {
+      entries?: Array<{ name: string } | (() => undefined)>;
+    };
+
+    const merged = mergeConfig<Config, Config>([
+      {
+        entries: [{ name: 'shared' }, { name: 'preset' }, sharedHook],
+      },
+      {
+        entries: [{ name: 'shared' }, { name: 'consumer' }, sharedHook],
+      },
+    ]);
+
+    expect(merged.entries).toEqual([
+      { name: 'shared' },
+      { name: 'preset' },
+      sharedHook,
+      { name: 'consumer' },
+      sharedHook,
+    ]);
+  });
+
+  it('composes hooks in preset-before-consumer order', () => {
+    const calls: string[] = [];
+    const presetHook = () => calls.push('preset');
+    const consumerHook = () => calls.push('consumer');
+    type Config = {
+      hook?: (() => number) | Array<() => number>;
+    };
+
+    const merged = mergeConfig<Config, Config>([
+      { hook: presetHook },
+      { hook: consumerHook },
+    ]);
+    const hooks = Array.isArray(merged.hook) ? merged.hook : [merged.hook!];
+    hooks.forEach(hook => hook());
+
+    expect(calls).toEqual(['preset', 'consumer']);
+  });
+
+  it('replaces removeConsole and baseUrl as whole values', () => {
+    const merged = mergeConfig<AppUserConfig, AppUserConfig>([
+      {
+        source: { removeConsole: ['log', 'warn'] },
+        server: { baseUrl: ['/preset', '/shared'] },
+      },
+      {
+        source: { removeConsole: ['error'] },
+        server: { baseUrl: ['/consumer'] },
+      },
+    ]);
+
+    expect(merged.source?.removeConsole).toEqual(['error']);
+    expect(merged.server?.baseUrl).toEqual(['/consumer']);
   });
 });
 

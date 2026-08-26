@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { configuredDevelopmentPorts } from '../../../ultramodern-workspace/add-vertical/workspace-state';
 import {
@@ -14,6 +15,7 @@ import {
   distributedSsrFragmentSlug,
   resolveRemoteRefs,
 } from '../../../ultramodern-workspace/descriptors';
+import { formatGeneratedWorkspaceFiles } from '../../../ultramodern-workspace/fs-io';
 import {
   createAppModernConfig,
   createBackendModuleFederationConfig,
@@ -71,6 +73,56 @@ function isGeneratedBackendModuleFederationConfig(source: string) {
   ].every(signature => source.includes(signature));
 }
 
+function addLegacyGeneratedModernDefaults(source: string) {
+  const serverAnchor = "        publicDir: ['./locales', './assets'],\n";
+  const optionsEnd = '    },\n  ),\n);';
+  return source
+    .replace(
+      serverAnchor,
+      `${serverAnchor}        ssr: {
+          mode: 'stream',
+          moduleFederationAppSSR: true,
+        },
+`,
+    )
+    .replace(
+      optionsEnd,
+      `      enableBffRequestId: true,
+      enableModuleFederationSSR: true,
+      enableTelemetryExporters: true,
+      telemetryFailLoudStartup: false,
+${optionsEnd}`,
+    );
+}
+
+function formatGeneratedModernConfigCandidates(
+  generatedSource: string,
+  legacyGeneratedSource: string,
+) {
+  const tempRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'ultramodern-modern-config-'),
+  );
+  const candidates = ['current.ts', 'legacy.ts'] as const;
+  try {
+    fs.writeFileSync(path.join(tempRoot, candidates[0]), generatedSource);
+    fs.writeFileSync(path.join(tempRoot, candidates[1]), legacyGeneratedSource);
+    formatGeneratedWorkspaceFiles(tempRoot, candidates);
+    return candidates.map(candidate =>
+      fs.readFileSync(path.join(tempRoot, candidate), 'utf-8'),
+    ) as [string, string];
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+}
+
+function isGeneratedModernConfig(
+  source: string,
+  generatedSource: string,
+  legacyGeneratedSource: string,
+) {
+  return source === generatedSource || source === legacyGeneratedSource;
+}
+
 export function updateGeneratedModernConfigs(
   io: MigrationIo,
   config: UltramodernToolingConfig,
@@ -105,22 +157,37 @@ export function updateGeneratedModernConfigs(
       app.directory,
       'modern.config.ts',
     );
-    const generatedModernConfig = createAppModernConfig(
+    const rawGeneratedModernConfig = createAppModernConfig(
       config.workspace.packageScope,
       app,
       remotes,
       config.features.tailwind,
       configuredDevPorts,
     );
+    const [generatedModernConfig, legacyGeneratedModernConfig] =
+      formatGeneratedModernConfigCandidates(
+        rawGeneratedModernConfig,
+        addLegacyGeneratedModernDefaults(rawGeneratedModernConfig),
+      );
     if (!fs.existsSync(modernConfigPath)) {
       changed = io.write(modernConfigPath, generatedModernConfig) || changed;
-    } else if (
-      fs.readFileSync(modernConfigPath, 'utf-8') !== generatedModernConfig
-    ) {
-      io.log(
-        `${path.relative(io.workspaceRoot, modernConfigPath)} was preserved: ` +
-          'an existing Modern config is consumer-owned unless its generated ownership can be proven.',
-      );
+    } else {
+      const existingModernConfig = fs.readFileSync(modernConfigPath, 'utf-8');
+      if (
+        existingModernConfig !== generatedModernConfig &&
+        isGeneratedModernConfig(
+          existingModernConfig,
+          generatedModernConfig,
+          legacyGeneratedModernConfig,
+        )
+      ) {
+        changed = io.write(modernConfigPath, generatedModernConfig) || changed;
+      } else if (existingModernConfig !== generatedModernConfig) {
+        io.log(
+          `${path.relative(io.workspaceRoot, modernConfigPath)} was preserved: ` +
+            'an existing Modern config is consumer-owned unless its generated ownership can be proven.',
+        );
+      }
     }
     // A headless (api-only) unit exposes no browser MF surface: migrate must
     // not write a browser config for it — and must remove a stale one.

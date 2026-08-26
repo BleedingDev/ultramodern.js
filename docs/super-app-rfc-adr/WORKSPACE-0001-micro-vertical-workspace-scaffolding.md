@@ -82,7 +82,13 @@ Shell requirements:
 1. use `presetUltramodern(...)` as the public config wrapper.
 2. own topology manifest selection, not hardcoded remote URLs.
 3. own route tree assembly and fallback taxonomy.
-4. keep `MODERN_BASELINE_ENABLE_MF_SSR` explicit when MF SSR is enabled or intentionally disabled.
+4. preserve the generated app-specific `appId` and stamped `deliveryUnit` options.
+5. use typed preset options for preset-owned opt-outs and ordinary app config
+   for app-owned overrides.
+6. leave telemetry exporters unconfigured until
+   `MODERN_TELEMETRY_OTLP_ENDPOINT` or
+   `MODERN_TELEMETRY_VICTORIA_ENDPOINT` supplies the matching endpoint. Each
+   variable enables only its matching exporter.
 
 Reference proof:
 

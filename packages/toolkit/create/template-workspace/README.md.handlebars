@@ -23,6 +23,32 @@ private-first route metadata, localized URLs, public-route opt-ins, CSS prefix,
 Effect BFF handlers, local API contract, and typed client surface. Server
 handlers and Effect client/contract modules stay out of browser exposes.
 
+## Generated config policy
+
+Each generated `modern.config.ts` calls
+`presetUltramodern(appConfig, presetOptions)`. A bare config materialized by
+`createPresetUltramodernConfig()` uses `appId: 'app'` and has no
+`deliveryUnit`. Generated apps instead keep their app-specific `appId` and
+stamped `deliveryUnit` in `presetOptions`. Other strict defaults come from the
+preset, so do not copy an expanded defaults object or spread one config over
+another.
+
+Telemetry stays enabled, but exporters have no endpoint by default. Set
+`MODERN_TELEMETRY_OTLP_ENDPOINT` to enable only OTLP, or
+`MODERN_TELEMETRY_VICTORIA_ENDPOINT` to enable only VictoriaMetrics. Set both
+to enable both exporters. Leaving both unset configures neither exporter.
+
+Keep the generated identity options and use typed preset options for opt-outs:
+
+- `enableTelemetryExporters: false` disables all exporters.
+- `enableTelemetry: false` disables the telemetry contract.
+- `enableBffRequestId: false` and `enableModuleFederationSSR: false` disable
+  their matching preset contracts.
+
+Use the first `appConfig` argument for app-owned overrides such as
+`server.telemetry.failLoudStartup`. Nested records merge through the Modern.js
+config merger, so sibling preset fields remain intact.
+
 ## Private-First Public Surfaces
 
 Generated app routes are private and non-indexable by default. Author route

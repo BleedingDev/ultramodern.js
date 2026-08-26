@@ -255,6 +255,94 @@ directories, and caches are isolated per app, build target, and Rspack
 environment so local `build`, `cloudflare:build`, and multi-environment
 compilers do not share mutable build state.
 
+## Configure the public preset
+
+Use `presetUltramodern(appConfig, presetOptions)` inside the normal Modern.js
+`defineConfig` call:
+
+```ts title="modern.config.ts"
+import { defineConfig, presetUltramodern } from '@modern-js/app-tools';
+
+export default defineConfig(
+  presetUltramodern(
+    {
+      output: {
+        precompress: false,
+      },
+      server: {
+        telemetry: {
+          failLoudStartup: true,
+        },
+      },
+    },
+    {
+      appId: 'catalog',
+      enableModuleFederationSSR: false,
+      enableTelemetryExporters: false,
+    },
+  ),
+);
+```
+
+The first argument is ordinary `AppUserConfig`. It contains app-owned config
+and wins where it supplies an override. The second argument controls the
+preset itself. Use its typed options, such as `enableBffRequestId: false`,
+`enableTelemetry: false`, `enableTelemetryExporters: false`, and
+`enableModuleFederationSSR: false`, to turn preset features off.
+
+Composition follows the Modern.js config merge rules:
+
+- Nested records merge, so changing one nested field keeps its preset
+  siblings.
+- Scalars and `false` supplied by the app override preset values. Omitting a
+  field, or leaving it `undefined`, keeps the preset value.
+- Arrays and config hooks compose in preset-first order. Non-function array
+  entries are deduplicated by deep equality, while function entries are all
+  retained. An empty array or empty record does not clear values already
+  supplied by the preset.
+
+There is no generic reset sentinel. Use a typed preset option for preset-owned
+behavior and a normal app config override for app-owned behavior.
+
+`createPresetUltramodernConfig(options)` is an advanced API for inspecting or
+materializing a fresh preset config. Do not spread its result into another
+config object. Object spread is shallow, so replacing `server`, `output`, or
+another nested record can silently discard preset siblings. Use
+`presetUltramodern(...)` for authoring `modern.config.ts`.
+
+### Bare preset and generated workspace policy
+
+The preset and the workspace generator own different parts of the config:
+
+| Source | Identity | Remaining config |
+| --- | --- | --- |
+| Bare `createPresetUltramodernConfig()` result | Uses `appId: 'app'` and has no `deliveryUnit` | Uses the preset defaults. Telemetry stays enabled, but no exporter is configured until its endpoint is set. |
+| Generated app | Supplies the app-specific `appId` and stamped `deliveryUnit` | Inherits the other strict defaults from `presetUltramodern(...)`. |
+| Application | Supplies the first `appConfig` argument | Overrides app-owned fields through the normal Modern.js merge. |
+
+Keep the generated `appId` and `deliveryUnit` options intact. To change
+preset-owned behavior, use typed options such as
+`enableTelemetryExporters: false`,
+`enableTelemetry: false`, `enableBffRequestId: false`, or
+`enableModuleFederationSSR: false`. To change an app-owned field, put the
+override in the first argument, as in the example above.
+
+Telemetry exporter endpoints are unset by default:
+
+- `MODERN_TELEMETRY_OTLP_ENDPOINT` enables only the OTLP exporter.
+- `MODERN_TELEMETRY_VICTORIA_ENDPOINT` enables only the VictoriaMetrics
+  exporter.
+- Setting both enables both. Leaving both unset keeps the telemetry pipeline
+  enabled without configuring an exporter.
+
+The typed `otlpEndpoint` and `victoriaMetricsEndpoint` preset options provide
+the same per-exporter behavior without environment variables.
+
+```bash
+MODERN_TELEMETRY_OTLP_ENDPOINT=https://otel.example.com/v1/logs \
+  mise exec -- pnpm dev
+```
+
 ## Human Workflow
 
 The public BleedingDev create package has one supported generated product. The
@@ -432,18 +520,6 @@ Live Cloudflare and Zephyr proof requires public Worker URLs and Zephyr credenti
 BleedingDev packages are published through GitHub Actions trusted publishing.
 The public workflow is tokenless; do not publish packages manually from a
 developer machine.
-
-## Baseline Switches (Opt-out)
-
-The generated `presetUltramodern(...)` starter enables strict platform contracts. Use these env switches to opt out per app or per environment:
-
-- `MODERN_BASELINE_ENABLE_MF_SSR` (default: `true`): Enables app-level MF SSR baseline contract (`server.ssr.mode: 'stream'` + `moduleFederationAppSSR`). Disable when the app does not use app-level MF SSR, or when you need plain SSR/CSR behavior first.
-- `MODERN_BASELINE_ENABLE_BFF_REQUEST_ID` (default: `true`): Enables default BFF producer identity contract (`bff.requestId`). Disable when the app does not need cross-project producer isolation.
-- `MODERN_BASELINE_ENABLE_TELEMETRY_EXPORTERS` (default: `true`): Enables telemetry exporters in baseline config. Disable when the environment has no telemetry backend yet.
-- `MODERN_BASELINE_APP_ID` (default: `basename(process.cwd())`): Overrides baseline `bff.requestId` identity. Set this when you need a fixed platform-wide producer ID convention.
-- `MODERN_TELEMETRY_OTLP_ENDPOINT` (default: `http://127.0.0.1:4318/v1/logs`): OTLP exporter endpoint. Override when you route telemetry through a different collector endpoint.
-- `MODERN_TELEMETRY_VICTORIA_ENDPOINT` (default: `http://127.0.0.1:8428/api/v1/import/prometheus`): VictoriaMetrics exporter endpoint. Override when you use a different VM ingress endpoint.
-- `MODERN_TELEMETRY_FAIL_LOUD_STARTUP` (default: `true`): Fails startup if configured exporters fail startup health checks. Disable in local/dev environments where temporary telemetry outage should not block boot.
 
 ## Related Docs
 

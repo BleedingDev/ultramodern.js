@@ -23,6 +23,12 @@ const hermeticEnv = {
   ULTRAMODERN_CREATE_BIN: createBinPath,
 };
 
+const generatedConfigRuntimePackages = {
+  'app-tools': path.resolve(packageRoot, '../../solutions/app-tools'),
+  'plugin-i18n': path.resolve(packageRoot, '../../runtime/plugin-i18n'),
+  'plugin-tanstack': path.resolve(packageRoot, '../../runtime/plugin-tanstack'),
+};
+
 function runCli(cwd: string, args: string[]) {
   return spawnSync(process.execPath, [builtCliPath, ...args], {
     cwd,
@@ -49,6 +55,119 @@ function writeJson(workspaceDir: string, relativePath: string, value: unknown) {
 
 function exists(workspaceDir: string, relativePath: string) {
   return fs.existsSync(path.join(workspaceDir, relativePath));
+}
+
+function linkGeneratedConfigRuntime(
+  workspaceDir: string,
+  appDirectory: string,
+) {
+  const workspaceModules = path.join(workspaceDir, 'node_modules');
+  if (!fs.existsSync(workspaceModules)) {
+    fs.symlinkSync(
+      path.resolve(packageRoot, '../../../node_modules/.pnpm/node_modules'),
+      workspaceModules,
+      'dir',
+    );
+  }
+
+  const modernScope = path.join(
+    workspaceDir,
+    appDirectory,
+    'node_modules/@modern-js',
+  );
+  fs.mkdirSync(modernScope, { recursive: true });
+  for (const [name, packagePath] of Object.entries(
+    generatedConfigRuntimePackages,
+  )) {
+    const packageLink = path.join(modernScope, name);
+    if (!fs.existsSync(packageLink)) {
+      fs.symlinkSync(packagePath, packageLink, 'dir');
+    }
+  }
+}
+
+type GeneratedConfigPolicy = {
+  bffRequestId?: string;
+  deliveryIdentity: {
+    buildMarker?: string;
+    releaseVersion?: string;
+    sourceRevision?: string;
+  };
+  deployWorkerSsr?: boolean;
+  serverSsr?: {
+    mode?: string;
+    moduleFederationAppSSR?: boolean;
+  };
+  telemetry?: {
+    enabled?: boolean;
+    exporters?: Record<string, { enabled?: boolean; endpoint?: string }>;
+    failLoudStartup?: boolean;
+  };
+};
+
+function loadGeneratedConfigPolicy(
+  workspaceDir: string,
+  appDirectories: string[],
+  env: Record<string, string | undefined>,
+) {
+  for (const appDirectory of appDirectories) {
+    linkGeneratedConfigRuntime(workspaceDir, appDirectory);
+  }
+
+  const configPaths = Object.fromEntries(
+    appDirectories.map(appDirectory => [
+      appDirectory,
+      path.join(workspaceDir, appDirectory, 'modern.config.ts'),
+    ]),
+  );
+  const tsxLoader = fs.realpathSync(
+    path.join(packageRoot, 'node_modules/tsx/dist/loader.mjs'),
+  );
+  const result = spawnSync(
+    process.execPath,
+    [
+      '--import',
+      tsxLoader,
+      '--input-type=module',
+      '--eval',
+      `
+        import { pathToFileURL } from 'node:url';
+        const configPaths = ${JSON.stringify(configPaths)};
+        const policies = {};
+        for (const [appDirectory, configPath] of Object.entries(configPaths)) {
+          const loaded = await import(pathToFileURL(configPath).href);
+          const config = loaded.default?.default ?? loaded.default;
+          policies[appDirectory] = {
+            bffRequestId: config.bff?.requestId,
+            deliveryIdentity: {
+              buildMarker: config.source?.globalVars?.ULTRAMODERN_BUILD_MARKER,
+              releaseVersion:
+                config.source?.globalVars?.ULTRAMODERN_RELEASE_VERSION,
+              sourceRevision:
+                config.source?.globalVars?.ULTRAMODERN_SOURCE_REVISION,
+            },
+            deployWorkerSsr: config.deploy?.worker?.ssr,
+            serverSsr: config.server?.ssr,
+            telemetry: config.server?.telemetry,
+          };
+        }
+        process.stdout.write(JSON.stringify(policies));
+      `,
+    ],
+    {
+      cwd: workspaceDir,
+      encoding: 'utf8',
+      env: {
+        ...hermeticEnv,
+        MODERNJS_DEPLOY: undefined,
+        MODERN_TELEMETRY_OTLP_ENDPOINT: undefined,
+        MODERN_TELEMETRY_VICTORIA_ENDPOINT: undefined,
+        ...env,
+      },
+    },
+  );
+  assert.equal(result.status, 0, result.stderr);
+  return JSON.parse(result.stdout) as Record<string, GeneratedConfigPolicy>;
 }
 
 function runGeneratedWorkspaceCheck(workspaceDir: string) {
@@ -895,6 +1014,134 @@ test('workspace and MicroVertical integration stays coherent across public API a
       /Refusing to overwrite existing path: verticals\/catalog/,
     );
     assert.deepEqual(snapshotWorkspace(workspaceDir), afterTwoVerticals);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('generated configs resolve endpoint-driven telemetry and preset identities across app profiles', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-config-policy-'));
+  const workspaceDir = path.join(tempRoot, 'config-policy-workspace');
+  const appProfiles = {
+    'apps/shell-super-app': 'shell-super-app',
+    'verticals/headless': 'headless',
+    'verticals/storefront': 'storefront',
+  } as const;
+
+  try {
+    generateUltramodernWorkspace({
+      targetDir: workspaceDir,
+      packageName: 'config-policy-workspace',
+      modernVersion: '3.2.1',
+      enableTailwind: false,
+      packageSource: { strategy: 'workspace' },
+    });
+    addUltramodernVertical({
+      workspaceRoot: workspaceDir,
+      name: 'storefront',
+      preset: 'ui-only',
+      modernVersion: '3.2.1',
+    });
+    addUltramodernVertical({
+      workspaceRoot: workspaceDir,
+      name: 'headless',
+      preset: 'api-only',
+      modernVersion: '3.2.1',
+    });
+
+    const scenarios = [
+      {
+        env: {},
+        expectedTelemetry: {
+          enabled: true,
+          failLoudStartup: false,
+        },
+      },
+      {
+        env: {
+          MODERN_TELEMETRY_OTLP_ENDPOINT: 'https://otel.example/v1/logs',
+        },
+        expectedTelemetry: {
+          enabled: true,
+          exporters: {
+            otlp: {
+              enabled: true,
+              endpoint: 'https://otel.example/v1/logs',
+            },
+          },
+          failLoudStartup: false,
+        },
+      },
+      {
+        env: {
+          MODERN_TELEMETRY_VICTORIA_ENDPOINT:
+            'https://victoria.example/api/v1/import/prometheus',
+        },
+        expectedTelemetry: {
+          enabled: true,
+          exporters: {
+            victoriaMetrics: {
+              enabled: true,
+              endpoint: 'https://victoria.example/api/v1/import/prometheus',
+            },
+          },
+          failLoudStartup: false,
+        },
+      },
+      {
+        env: {
+          MODERN_TELEMETRY_OTLP_ENDPOINT: 'https://otel.example/v1/logs',
+          MODERN_TELEMETRY_VICTORIA_ENDPOINT:
+            'https://victoria.example/api/v1/import/prometheus',
+        },
+        expectedTelemetry: {
+          enabled: true,
+          exporters: {
+            otlp: {
+              enabled: true,
+              endpoint: 'https://otel.example/v1/logs',
+            },
+            victoriaMetrics: {
+              enabled: true,
+              endpoint: 'https://victoria.example/api/v1/import/prometheus',
+            },
+          },
+          failLoudStartup: false,
+        },
+      },
+    ];
+
+    for (const scenario of scenarios) {
+      const policies = loadGeneratedConfigPolicy(
+        workspaceDir,
+        Object.keys(appProfiles),
+        scenario.env,
+      );
+      for (const [appDirectory, appId] of Object.entries(appProfiles)) {
+        const policy = policies[appDirectory];
+        assert.equal(policy.bffRequestId, appId);
+        assert.deepEqual(policy.serverSsr, {
+          mode: 'stream',
+          moduleFederationAppSSR: true,
+        });
+        assert.deepEqual(policy.telemetry, scenario.expectedTelemetry);
+        assert.ok(policy.deliveryIdentity.buildMarker);
+        assert.ok(policy.deliveryIdentity.releaseVersion);
+        assert.ok(policy.deliveryIdentity.sourceRevision);
+      }
+    }
+
+    const cloudflarePolicies = loadGeneratedConfigPolicy(
+      workspaceDir,
+      Object.keys(appProfiles),
+      {
+        MODERNJS_DEPLOY: 'cloudflare',
+        MODERN_PUBLIC_SITE_URL: 'https://example.test',
+      },
+    );
+    for (const policy of Object.values(cloudflarePolicies)) {
+      assert.equal(policy.deployWorkerSsr, true);
+    }
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
