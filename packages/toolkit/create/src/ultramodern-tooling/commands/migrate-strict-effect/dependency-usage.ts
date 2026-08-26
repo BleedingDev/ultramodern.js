@@ -4,6 +4,7 @@ import path from 'node:path';
 export function workspaceUsesDependency(
   workspaceRoot: string,
   packageName: string,
+  exactVersion?: string,
 ) {
   const packageJsonPaths = [path.join(workspaceRoot, 'package.json')];
 
@@ -45,13 +46,22 @@ export function workspaceUsesDependency(
       }
 
       if (Object.prototype.hasOwnProperty.call(dependencies, packageName)) {
-        return true;
+        const specifier = dependencies[packageName];
+        if (
+          exactVersion === undefined ||
+          specifier === exactVersion ||
+          specifier === `npm:${packageName}@${exactVersion}`
+        ) {
+          return true;
+        }
       }
 
       for (const specifier of Object.values(dependencies)) {
         if (
           typeof specifier === 'string' &&
-          specifier.startsWith(`npm:${packageName}@`)
+          (exactVersion === undefined
+            ? specifier.startsWith(`npm:${packageName}@`)
+            : specifier === `npm:${packageName}@${exactVersion}`)
         ) {
           return true;
         }

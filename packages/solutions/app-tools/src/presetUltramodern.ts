@@ -266,6 +266,8 @@ export const createPresetUltramodernConfig = (
       : {}),
     tools: {
       bundlerChain: setReactRouterBridgeSafeAliases,
+      // Keep generated Tailwind apps on Rsbuild's native CSS pipeline.
+      lightningcssLoader: true,
       ...(bundledReleaseIdentity
         ? {
             rspack: config => {

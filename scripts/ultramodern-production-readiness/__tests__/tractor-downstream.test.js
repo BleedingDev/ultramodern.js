@@ -3,6 +3,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
+const { createProcessEnv, runCommand } = require('../../lib/process-kit');
 
 const contractPromise = import('../tractor-downstream/contract.mjs');
 const runnerPromise = import('../tractor-downstream/main.mjs');
@@ -545,10 +546,7 @@ test('runner has no bypass for Node or workerd release gates', async () => {
     'true',
   );
   assert.equal(packageManager.env.pnpm_config_pm_on_fail, 'ignore');
-  assert.equal(
-    Object.hasOwn(packageManager.env, 'pnpm_config_trust_policy_exclude'),
-    false,
-  );
+  assert.equal(packageManager.env.pnpm_config_trust_policy_exclude, undefined);
   assert.equal(
     packageManager.env.pnpm_config_registry,
     'https://registry.npmjs.org/',
@@ -556,6 +554,86 @@ test('runner has no bypass for Node or workerd release gates', async () => {
   assert.equal(calls.length, 1);
   assert.equal(calls[0][1], '11.17.0');
   assert.equal(calls[0][3], packageManagerRoot);
+});
+
+test('runner rejects inherited package-manager release-age bypasses', async () => {
+  const { createTractorPackageManagerContext } = await runnerPromise;
+  const inheritedKeys = [
+    'NPM_CONFIG_MINIMUM_RELEASE_AGE_EXCLUDE',
+    'NPM_CONFIG_TRUST_POLICY_EXCLUDE',
+    'PNPM_CONFIG_MINIMUM_RELEASE_AGE_EXCLUDE',
+    'PNPM_CONFIG_TRUST_POLICY_EXCLUDE',
+    'npm_config_minimum_release_age_exclude',
+    'npm_config_trust_policy_exclude',
+    'pnpm_config_minimum_release_age_exclude',
+    'pnpm_config_trust_policy_exclude',
+    'NpM_Config_Minimum_Release_Age_Exclude',
+    'nPm_Config_Trust_Policy_Exclude',
+    'PnPm_Config_Minimum_Release_Age_Exclude',
+    'pNpM_Config_Trust_Policy_Exclude',
+  ];
+  const inherited = Object.fromEntries(
+    inheritedKeys.map(name => [name, process.env[name]]),
+  );
+  const minimumReleaseAgeExclude = [
+    '@bleedingdev/modern-js-create@3.5.0-ultramodern.77',
+    '@bleedingdev/modern-js-i18n-utils@3.5.0-ultramodern.77',
+    '@bleedingdev/modern-js-utils@3.5.0-ultramodern.77',
+  ];
+  try {
+    for (const name of inheritedKeys) {
+      process.env[name] = '*';
+    }
+    const packageManager = createTractorPackageManagerContext({
+      createPackage: {
+        bootstrapReleaseAgePolicy: {
+          minimumReleaseAge: 1440,
+          minimumReleaseAgeExclude,
+          minimumReleaseAgeIgnoreMissingTime: false,
+          minimumReleaseAgeStrict: true,
+        },
+        exactSpecifier: '@bleedingdev/modern-js-create@3.5.0-ultramodern.77',
+        version: '3.5.0-ultramodern.77',
+      },
+      expectedPnpmVersion: '11.17.0',
+      packageManagerRoot: path.join(
+        os.tmpdir(),
+        'tractor-poisoned-package-manager-context',
+      ),
+      registryUrl: 'https://registry.npmjs.org/',
+      resolveExactPnpmExecutableImpl: () => '/opt/pnpm-11.17.0/bin/pnpm',
+    });
+    const child = runCommand(
+      process.execPath,
+      [
+        '-e',
+        `process.stdout.write(JSON.stringify(Object.fromEntries(
+          Object.entries(process.env).filter(([name]) =>
+            /^(?:npm|pnpm)_config_(?:minimum_release_age|trust_policy)_exclude$/iu.test(name),
+          ),
+        )))`,
+      ],
+      {
+        encoding: 'utf8',
+        env: createProcessEnv(packageManager.env),
+        stdio: 'pipe',
+      },
+    );
+    assert.equal(child.exitCode, 0, child.stderr);
+    assert.deepEqual(JSON.parse(child.stdout), {
+      pnpm_config_minimum_release_age_exclude: JSON.stringify(
+        minimumReleaseAgeExclude,
+      ),
+    });
+  } finally {
+    for (const [name, value] of Object.entries(inherited)) {
+      if (value === undefined) {
+        delete process.env[name];
+      } else {
+        process.env[name] = value;
+      }
+    }
+  }
 });
 
 test('Node runtime targets use release-envelope markers instead of generation markers', async () => {

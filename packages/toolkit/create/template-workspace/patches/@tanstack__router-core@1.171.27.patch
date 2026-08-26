@@ -1,5 +1,5 @@
 diff --git a/dist/cjs/ssr/types.d.cts b/dist/cjs/ssr/types.d.cts
-index f66ad22..92b857d 100644
+index 9050041..e148444 100644
 --- a/dist/cjs/ssr/types.d.cts
 +++ b/dist/cjs/ssr/types.d.cts
 @@ -1,8 +1,8 @@
@@ -13,7 +13,7 @@ index f66ad22..92b857d 100644
      e?: MakeRouteMatch['error'];
      u: MakeRouteMatch['updatedAt'];
 diff --git a/dist/esm/ssr/types.d.ts b/dist/esm/ssr/types.d.ts
-index 1619d6a..843aa9b 100644
+index 9f57d89..f71eaac 100644
 --- a/dist/esm/ssr/types.d.ts
 +++ b/dist/esm/ssr/types.d.ts
 @@ -1,8 +1,8 @@

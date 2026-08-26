@@ -39,6 +39,27 @@ import {
 
 const retiredContractPath = '.modernjs/ultramodern-generated-contract.json';
 const retiredPackageSourcePath = '.modernjs/ultramodern-package-source.json';
+const staleOxcBindingTargets = [
+  'android-arm-eabi',
+  'android-arm64',
+  'darwin-arm64',
+  'darwin-x64',
+  'freebsd-x64',
+  'linux-arm-gnueabihf',
+  'linux-arm-musleabihf',
+  'linux-arm64-gnu',
+  'linux-arm64-musl',
+  'linux-ppc64-gnu',
+  'linux-riscv64-gnu',
+  'linux-riscv64-musl',
+  'linux-s390x-gnu',
+  'linux-x64-gnu',
+  'linux-x64-musl',
+  'openharmony-arm64',
+  'win32-arm64-msvc',
+  'win32-ia32-msvc',
+  'win32-x64-msvc',
+] as const;
 
 function readJson(workspaceDir: string, relativePath: string) {
   return JSON.parse(
@@ -95,6 +116,26 @@ function writeRetiredRspackRscPatch(
   fs.writeFileSync(
     path.join(workspaceDir, relativePath),
     zlib.gunzipSync(Buffer.from(fixture.trim(), 'base64')),
+  );
+}
+
+function writeRetiredEffectSchemaPatch(workspaceDir: string) {
+  fs.writeFileSync(
+    path.join(workspaceDir, 'patches/effect-schema-error-type-id.patch'),
+    `diff --git a/dist/Schema.d.ts b/dist/Schema.d.ts
+index 9547bd05cb7b91e5e5decc43b64c10a47a86186a..e58693c3742604ccb703045dedd259fca2c66b6e 100644
+--- a/dist/Schema.d.ts
++++ b/dist/Schema.d.ts
+@@ -10812,7 +10812,7 @@ export declare namespace Annotations {
+          *
+          * Reserved to internal use only.
+          */
+-        readonly "~sentinels"?: ReadonlyArray<SchemaAST.Sentinel> | undefined;
++        readonly "~sentinels"?: ReadonlyArray<unknown> | undefined;
+     }
+     /**
+      * Annotations for filter schema nodes (created via \`Schema.filter\`). Extends
+`,
   );
 }
 
@@ -551,8 +592,8 @@ test('migrate recognizes previously generated Module Federation patch cohorts', 
       );
       assert.equal(
         exists(workspaceDir, 'patches/effect-schema-error-type-id.patch'),
-        true,
-        'migration must preserve the active same-path Effect declaration patch',
+        false,
+        'migration must not restore the retired Effect declaration patch',
       );
     } finally {
       fs.rmSync(tempRoot, { recursive: true, force: true });
@@ -1035,17 +1076,13 @@ test('migrate reconciles backend federation config files with API metadata', asy
       referenceTopology,
     );
 
-    for (const app of ['catalog', 'checkout']) {
-      fs.writeFileSync(
-        path.join(
-          workspaceDir,
-          'verticals',
-          app,
-          'backend-federation.config.ts',
-        ),
-        'stale\n',
-      );
-    }
+    fs.writeFileSync(
+      path.join(
+        workspaceDir,
+        'verticals/checkout/backend-federation.config.ts',
+      ),
+      'consumer owned\n',
+    );
 
     assert.equal(
       await runUltramodernToolingCli(
@@ -1688,8 +1725,7 @@ export default catalogResource;
     pnpmPolicy.overrides['@effect/vitest'] = '4.0.0-beta.89';
     pnpmPolicy.overrides.effect = '4.0.0-beta.89';
     delete pnpmPolicy.overrides['@effect/opentelemetry'];
-    delete pnpmPolicy.patchedDependencies[`effect@${EFFECT_VERSION}`];
-    pnpmPolicy.patchedDependencies['effect@4.0.0-beta.102'] =
+    pnpmPolicy.patchedDependencies['effect@4.0.0-beta.107'] =
       'patches/effect-schema-error-type-id.patch';
     delete pnpmPolicy.patchedDependencies[
       `@module-federation/bridge-react@${MODULE_FEDERATION_VERSION}`
@@ -1701,10 +1737,19 @@ export default catalogResource;
       '@module-federation/*',
       '@typescript/typescript6@6.0.2',
       'i18next@26.3.1',
+      'ultracite@7.10.5',
+      'oxfmt@0.64.0',
+      'oxlint@1.79.0',
+      ...staleOxcBindingTargets.map(
+        target => `@oxfmt/binding-${target}@0.64.0`,
+      ),
+      ...staleOxcBindingTargets.map(
+        target => `@oxlint/binding-${target}@1.79.0`,
+      ),
     ];
     pnpmPolicy.trustPolicyExclude = [
-      'effect@4.0.0-beta.102',
-      '@effect/opentelemetry@4.0.0-beta.102',
+      'effect@4.0.0-beta.107',
+      '@effect/opentelemetry@4.0.0-beta.107',
     ];
     fs.writeFileSync(
       pnpmWorkspaceFile,
@@ -1716,12 +1761,7 @@ export default catalogResource;
       }),
       'utf-8',
     );
-    fs.rmSync(
-      path.join(workspaceDir, 'patches/effect-schema-error-type-id.patch'),
-      {
-        force: true,
-      },
-    );
+    writeRetiredEffectSchemaPatch(workspaceDir);
     fs.rmSync(
       path.join(
         workspaceDir,
@@ -2021,11 +2061,7 @@ declare module '*.css' {}
       `patches/@module-federation__bridge-react@${MODULE_FEDERATION_VERSION}.patch`,
     );
     assert.equal(
-      migratedPnpmPolicy.patchedDependencies[`effect@${EFFECT_VERSION}`],
-      'patches/effect-schema-error-type-id.patch',
-    );
-    assert.equal(
-      migratedPnpmPolicy.patchedDependencies['effect@4.0.0-beta.102'],
+      migratedPnpmPolicy.patchedDependencies['effect@4.0.0-beta.107'],
       undefined,
     );
     assert.equal(
@@ -2043,6 +2079,23 @@ declare module '*.css' {}
         },
       }),
     );
+    for (const staleSelector of [
+      'ultracite@7.10.5',
+      'oxfmt@0.64.0',
+      'oxlint@1.79.0',
+      ...staleOxcBindingTargets.map(
+        target => `@oxfmt/binding-${target}@0.64.0`,
+      ),
+      ...staleOxcBindingTargets.map(
+        target => `@oxlint/binding-${target}@1.79.0`,
+      ),
+    ]) {
+      assert.equal(
+        migratedPnpmPolicy.minimumReleaseAgeExclude.includes(staleSelector),
+        false,
+        `${staleSelector} must be removed during migration`,
+      );
+    }
     assert.equal(
       migratedPnpmPolicy.minimumReleaseAgeExclude.some((selector: string) =>
         selector.startsWith('@bleedingdev/modern-js-'),
@@ -2059,11 +2112,12 @@ declare module '*.css' {}
       migratedPnpmPolicy.trustPolicyExclude,
       ULTRAMODERN_WORKSPACE_POLICY.pnpm.trustPolicyExclude,
     );
-    assert.ok(
+    assert.equal(
       fs.existsSync(
         path.join(workspaceDir, 'patches/effect-schema-error-type-id.patch'),
       ),
-      'migrate-strict-effect must restore the generated Effect declaration patch',
+      false,
+      'migrate-strict-effect must retire the recognized beta.107 Effect declaration patch',
     );
     assert.ok(
       fs.existsSync(
@@ -2771,13 +2825,13 @@ test('UltraModern migrate rejects duplicate pnpm mappings without writes', async
 
   try {
     const pnpmWorkspaceFile = path.join(workspaceDir, 'pnpm-workspace.yaml');
-    const unquotedLine = `  effect@${EFFECT_VERSION}: patches/effect-schema-error-type-id.patch`;
+    const unquotedLine = `  @tanstack/router-core@${TANSTACK_ROUTER_CORE_VERSION}: patches/@tanstack__router-core@${TANSTACK_ROUTER_CORE_VERSION}.patch`;
     fs.writeFileSync(
       pnpmWorkspaceFile,
       fs
         .readFileSync(pnpmWorkspaceFile, 'utf-8')
         .replace(
-          `  'effect@${EFFECT_VERSION}': patches/effect-schema-error-type-id.patch`,
+          `  '@tanstack/router-core@${TANSTACK_ROUTER_CORE_VERSION}': patches/@tanstack__router-core@${TANSTACK_ROUTER_CORE_VERSION}.patch`,
           `${unquotedLine}\n${unquotedLine}`,
         ),
       'utf-8',

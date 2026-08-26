@@ -79,6 +79,12 @@ function createTractorPackageManagerContext({
         },
         pnpmExecutable,
       ),
+      NPM_CONFIG_MINIMUM_RELEASE_AGE_EXCLUDE: undefined,
+      NPM_CONFIG_TRUST_POLICY_EXCLUDE: undefined,
+      PNPM_CONFIG_MINIMUM_RELEASE_AGE_EXCLUDE: undefined,
+      PNPM_CONFIG_TRUST_POLICY_EXCLUDE: undefined,
+      npm_config_minimum_release_age_exclude: undefined,
+      npm_config_trust_policy_exclude: undefined,
       pnpm_config_pm_on_fail: 'ignore',
       pnpm_config_minimum_release_age: String(
         bootstrapReleaseAgePolicy.minimumReleaseAge,
@@ -86,6 +92,7 @@ function createTractorPackageManagerContext({
       pnpm_config_minimum_release_age_exclude: JSON.stringify(
         bootstrapReleaseAgePolicy.minimumReleaseAgeExclude,
       ),
+      pnpm_config_trust_policy_exclude: undefined,
       pnpm_config_minimum_release_age_ignore_missing_time: String(
         bootstrapReleaseAgePolicy.minimumReleaseAgeIgnoreMissingTime,
       ),

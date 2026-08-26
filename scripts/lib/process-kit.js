@@ -3,12 +3,32 @@
  */
 const { spawnSync } = require('node:child_process');
 
+const completeProcessEnvs = new WeakSet();
+
+function applyProcessEnvOverrides(env, overrides) {
+  for (const [name, value] of Object.entries(overrides)) {
+    const normalizedName = name.toLowerCase();
+    for (const inheritedName of Object.keys(env)) {
+      if (inheritedName.toLowerCase() === normalizedName) {
+        delete env[inheritedName];
+      }
+    }
+    if (value === undefined) {
+      // Undefined is an explicit inherited-variable scrub, not a child value.
+      continue;
+    }
+    env[name] = value;
+  }
+  return env;
+}
+
 function createProcessEnv(overrides = {}) {
-  return {
-    ...process.env,
+  const env = applyProcessEnvOverrides({ ...process.env }, {
     FORCE_COLOR: '0',
-    ...overrides,
-  };
+  });
+  applyProcessEnvOverrides(env, overrides);
+  completeProcessEnvs.add(env);
+  return env;
 }
 
 function writeStream(stream, message) {
@@ -28,10 +48,12 @@ function runCommand(command, args = [], options = {}) {
   const startedAt = Date.now();
   const result = spawnSync(command, args, {
     cwd: options.cwd,
-    env: {
-      ...process.env,
-      ...(options.env || {}),
-    },
+    // A complete env may contain deliberate removals; merging the parent a
+    // second time would restore the variables createProcessEnv scrubbed.
+    env:
+      completeProcessEnvs.has(options.env)
+        ? applyProcessEnvOverrides({}, options.env)
+        : createProcessEnv(options.env || {}),
     encoding: options.encoding || 'utf8',
     stdio: options.stdio || 'inherit',
   });

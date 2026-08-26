@@ -190,9 +190,12 @@ export function isGeneratedModuleFederationConfig(source: string) {
 
 export function preflightModuleFederationBridgeRouter(
   workspaceRoot: string,
-  apps: readonly Pick<WorkspaceApp, 'directory'>[],
+  apps: readonly Pick<WorkspaceApp, 'directory' | 'surfaceProfile'>[],
 ) {
   for (const app of apps) {
+    if (app.surfaceProfile === 'api-only') {
+      continue;
+    }
     const relativeConfigPath = `${app.directory}/${moduleFederationConfigFile}`;
     const configPath = path.join(workspaceRoot, relativeConfigPath);
     if (!fs.existsSync(configPath)) {

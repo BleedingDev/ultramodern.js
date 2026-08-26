@@ -8,16 +8,17 @@ source files; the monorepo applies them through `pnpm-workspace.yaml`.
 Repo-only patches are used by the Modern.js monorepo build and are not copied
 into generated UltraModern workspaces:
 
-- `@module-federation/manifest@2.8.2` -> `patches/@module-federation__manifest@2.8.2.patch`
-- `@module-federation/rspack@2.8.2` -> `patches/@module-federation__rspack@2.8.2.patch`
+- `@module-federation/manifest@2.9.0` -> `patches/@module-federation__manifest@2.9.0.patch`
+- `@module-federation/rspack@2.9.0` -> `patches/@module-federation__rspack@2.9.0.patch`
 
 Shared patches exist in both this directory and
 `packages/toolkit/create/template-workspace/patches/`. They must stay
 byte-identical because generated workspaces rely on the template copy at
 runtime:
 
-- `@module-federation/bridge-react@2.8.2` -> `@module-federation__bridge-react@2.8.2.patch`
-- `@module-federation/modern-js-v3@2.8.2` -> `@module-federation__modern-js-v3@2.8.2.patch`
+- `@module-federation/bridge-react@2.9.0` -> `@module-federation__bridge-react@2.9.0.patch`
+- `@module-federation/modern-js-v3@2.9.0` -> `@module-federation__modern-js-v3@2.9.0.patch`
+- `@tanstack/router-core@1.171.27` -> `@tanstack__router-core@1.171.27.patch`
 
 The shared list is defined in
 `packages/toolkit/create/src/ultramodern-workspace/shared-patches.ts` and gated
@@ -28,7 +29,6 @@ Template-only patches live only under
 workspaces:
 
 - `drizzle-orm-ts7-strict-declarations.patch`
-- `effect-schema-error-type-id.patch`
 
 ## What Patches Do
 
@@ -36,7 +36,7 @@ workspaces:
 - `@module-federation/modern-js-v3`: suppresses the stream SSR splitChunks warning when `splitChunks.chunks` is already `async`, while still coercing invalid values to `async`; disables lazy compilation for both remote producers and consumers; injects the Modern.js manifest-recovery runtime plugin into server builds, resolving it from the application workspace; and keeps React bridge CSS ownership in Modern.js by creating both bridge adapters with `injectLink: false`.
 - `@module-federation/rspack`: avoids loading `@module-federation/dts-plugin` at module import time and only requires `DtsPlugin` when DTS generation is enabled.
 - `@module-federation/bridge-react`: repairs non-portable declaration specifiers that reference package-local `node_modules/@types/react*` paths.
-- `effect-schema-error-type-id.patch`: replaces beta.107's dangling public `SchemaAST.Sentinel` declaration reference with `unknown`; no private Effect HTTP declarations are patched.
+- `@tanstack/router-core`: repairs the invalid `MakeRouteMatch['__beforeLoadContext']` SSR declaration reference under strict library checking.
 - `react-server-dom-rspack` 0.1.0 includes the official React Flight decoder
   security fixes that the repository previously backported onto 0.0.3. The
   root framework regression tests continue to verify those fixes while RSC

@@ -54,6 +54,28 @@ const legacyBareReleaseAgePackages = new Set([
   'ts-checker-rspack-plugin',
 ]);
 
+const staleOxcBindingTargets = [
+  'android-arm-eabi',
+  'android-arm64',
+  'darwin-arm64',
+  'darwin-x64',
+  'freebsd-x64',
+  'linux-arm-gnueabihf',
+  'linux-arm-musleabihf',
+  'linux-arm64-gnu',
+  'linux-arm64-musl',
+  'linux-ppc64-gnu',
+  'linux-riscv64-gnu',
+  'linux-riscv64-musl',
+  'linux-s390x-gnu',
+  'linux-x64-gnu',
+  'linux-x64-musl',
+  'openharmony-arm64',
+  'win32-arm64-msvc',
+  'win32-ia32-msvc',
+  'win32-x64-msvc',
+] as const;
+
 const knownStaleReleaseAgeEntries = new Set([
   '@effect/opentelemetry@4.0.0-beta.92',
   '@effect/opentelemetry@4.0.0-beta.94',
@@ -74,6 +96,12 @@ const knownStaleReleaseAgeEntries = new Set([
   'miniflare@4.20260708.0',
   'workerd@1.20260708.1',
   'wrangler@4.109.0',
+  'ultracite@7.10.2',
+  'ultracite@7.10.5',
+  'oxfmt@0.64.0',
+  'oxlint@1.79.0',
+  ...staleOxcBindingTargets.map(target => `@oxfmt/binding-${target}@0.64.0`),
+  ...staleOxcBindingTargets.map(target => `@oxlint/binding-${target}@1.79.0`),
   ...ULTRAMODERN_WORKSPACE_POLICY.pnpm.releaseAge.approvals
     .filter(approval => approval.packageName.startsWith('@module-federation/'))
     .map(approval => `${approval.packageName}@2.6.0`),
@@ -209,7 +237,9 @@ function assertOwnedTrustPolicyList(
       entry === 'effect@4.0.0-beta.97' ||
       entry === '@effect/opentelemetry@4.0.0-beta.97' ||
       entry === 'effect@4.0.0-beta.102' ||
-      entry === '@effect/opentelemetry@4.0.0-beta.102'
+      entry === '@effect/opentelemetry@4.0.0-beta.102' ||
+      entry === 'effect@4.0.0-beta.107' ||
+      entry === '@effect/opentelemetry@4.0.0-beta.107'
     ) {
       continue;
     }
@@ -521,9 +551,18 @@ export function updateGeneratedPnpmWorkspacePolicy(
     workspaceFile,
   );
   const before = JSON.stringify(document);
+  const drizzleOrmPatch =
+    ULTRAMODERN_WORKSPACE_POLICY.pnpm.patchedDependencies.conditional.find(
+      patch => patch.packageName === 'drizzle-orm',
+    );
   reconcilePnpmPolicy(
     document,
-    workspaceUsesDependency(io.workspaceRoot, 'drizzle-orm'),
+    drizzleOrmPatch !== undefined &&
+      workspaceUsesDependency(
+        io.workspaceRoot,
+        drizzleOrmPatch.packageName,
+        drizzleOrmPatch.version,
+      ),
     packageSource,
     options.releaseCohort,
     options.now,

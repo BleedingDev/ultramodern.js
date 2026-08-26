@@ -770,11 +770,18 @@ function migrateStrictEffect(
 
   updateGeneratedPnpmWorkspacePolicy(io, packageSource, { releaseCohort });
   updateGeneratedToolchainFiles(io);
+  const drizzleOrmPatch =
+    ULTRAMODERN_WORKSPACE_POLICY.pnpm.patchedDependencies.conditional.find(
+      patch => patch.packageName === 'drizzle-orm',
+    );
   ensureGeneratedDeclarationPatches(io, {
-    includeDrizzleOrmPatch: workspaceUsesDependency(
-      io.workspaceRoot,
-      'drizzle-orm',
-    ),
+    includeDrizzleOrmPatch:
+      drizzleOrmPatch !== undefined &&
+      workspaceUsesDependency(
+        io.workspaceRoot,
+        drizzleOrmPatch.packageName,
+        drizzleOrmPatch.version,
+      ),
   });
   ensureGeneratedOxfmtIgnorePatterns(io);
   ensureGeneratedOxlintComponentStyle(io);

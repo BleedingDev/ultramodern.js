@@ -47,14 +47,6 @@ export const tanstackRouterCorePatchSourcePath = path.join(
   tanstackRouterCorePatchPath,
 );
 
-export const effectDeclarationPatchPath = requiredPatchPath('effect');
-
-export const effectDeclarationPatchSourcePath = path.join(
-  createPackageRoot,
-  'template-workspace',
-  effectDeclarationPatchPath,
-);
-
 export const drizzleOrmDeclarationPatchPath = requiredPatchPath('drizzle-orm');
 
 export const drizzleOrmDeclarationPatchSourcePath = path.join(

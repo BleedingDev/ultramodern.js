@@ -54,18 +54,18 @@ test('does not treat Module Federation registry evidence as a release-age approv
   const moduleFederation =
     ULTRAMODERN_WORKSPACE_POLICY.pnpm.releaseAge.registryEvidence
       .moduleFederation;
-  assert.equal(moduleFederation.version, '2.8.2');
-  assert.equal(moduleFederation.nodeVersion, '2.7.49');
+  assert.equal(moduleFederation.version, '2.9.0');
+  assert.equal(moduleFederation.nodeVersion, '2.7.50');
   assert.equal(moduleFederation.releases.length, 18);
   assert.equal(
     moduleFederation.releases.find(
       release => release.packageName === '@module-federation/modern-js-v3',
     )?.registry.publishedAt,
-    '2026-08-06T11:25:21.202Z',
+    '2026-08-24T08:21:54.080Z',
   );
   assert.equal(
     moduleFederation.node.registry.dist.integrity,
-    'sha512-xNGYfhA2aqFpogb/uq6lwBeEbnmDLV6PwHzSe97mRrSSr00eUKAMwlLG6PcQP6ynbkPeDG86RYj/YUC7EWgLMA==',
+    'sha512-mbpQRdafyeWgsmYoJfdhOQf76zS6onOGpC2X1ELpWXB1Y4BcZGloL0CLjNMNon9m3ucfpc99tOGAQqFzQVkSBQ==',
   );
   assert.equal(
     ULTRAMODERN_WORKSPACE_POLICY.pnpm.releaseAge.approvals.some(approval =>
@@ -100,83 +100,49 @@ test('rejects review evidence created before a dependency was published', () => 
   );
 });
 
-test('approves only the reviewed lock-reachable immature latest cohort', () => {
-  const review = JSON.parse(
+test('does not keep retired Effect, TS-Go, or Oxc release-age approvals active', () => {
+  const historicalReview = JSON.parse(
     fs.readFileSync(
       new URL('../release-age-review-2026-08-10.json', import.meta.url),
       'utf8',
     ),
   ) as {
-    expiresAt: string;
-    registryRecords: Array<{
-      packageName: string;
-      version: string;
-      publishedAt: string;
-      dist: { integrity: string };
-    }>;
-    reviewedAt: string;
+    registryRecords: Array<{ packageName: string; version: string }>;
   };
-  const reviewedClosure = review.registryRecords.filter(
-    record =>
-      record.packageName === 'effect' ||
-      record.packageName === '@effect/opentelemetry' ||
-      record.packageName.startsWith('@effect/tsgo') ||
-      record.packageName === 'oxfmt' ||
-      record.packageName.startsWith('@oxfmt/binding-') ||
-      record.packageName === 'oxlint' ||
-      record.packageName.startsWith('@oxlint/binding-'),
-  );
-  const expectedSelectors = new Set(
-    reviewedClosure.map(record =>
-      packageKey(record.packageName, record.version),
-    ),
-  );
-  const approvalBySelector = new Map(
-    ULTRAMODERN_WORKSPACE_POLICY.pnpm.releaseAge.approvals.map(approval => [
+  const retiredSelectors = historicalReview.registryRecords
+    .filter(
+      record =>
+        record.packageName === 'effect' ||
+        record.packageName === '@effect/opentelemetry' ||
+        record.packageName.startsWith('@effect/tsgo') ||
+        record.packageName === 'oxfmt' ||
+        record.packageName.startsWith('@oxfmt/binding-') ||
+        record.packageName === 'oxlint' ||
+        record.packageName.startsWith('@oxlint/binding-'),
+    )
+    .map(record => packageKey(record.packageName, record.version));
+  const activeApprovalSelectors = new Set(
+    ULTRAMODERN_WORKSPACE_POLICY.pnpm.releaseAge.approvals.map(approval =>
       packageKey(approval.packageName, approval.version),
-      approval,
-    ]),
-  );
-
-  assert.equal(reviewedClosure.length, 50);
-  assert.deepEqual(
-    new Set(
-      renderMinimumReleaseAgeExclude({
-        now: new Date('2026-08-11T00:39:42.463Z'),
-      }),
     ),
-    expectedSelectors,
   );
-  for (const record of reviewedClosure) {
-    const selector = packageKey(record.packageName, record.version);
-    const approval = approvalBySelector.get(selector);
-    assert.ok(approval, `${selector} must have exact review approval`);
-    assert.equal(approval.reviewedAt, review.reviewedAt);
-    assert.equal(Date.parse(approval.expiresAt), Date.parse(review.expiresAt));
-    assert.deepEqual(approval.registry, {
-      publishedAt: record.publishedAt,
-      dist: { integrity: record.dist.integrity },
-    });
-    assert.deepEqual(approval.evidence, {
-      uri: 'https://github.com/BleedingDev/ultramodern.js/commit/eb27eddccec4e51896d63abb070ef46a7b7d3eb7',
-      sha256:
-        '47c9f25308e6bb521fa6e5a603205be9664034ae92bb94b1aa7d5683229bb240',
-      sha256Subject: 'git-commit-payload',
-    });
-  }
+  const renderedSelectors = new Set(
+    renderMinimumReleaseAgeExclude({
+      now: new Date('2026-08-11T00:39:42.463Z'),
+    }),
+  );
 
-  for (const packageName of [
-    '@effect/vitest',
-    '@tanstack/react-router',
-    '@tanstack/router-core',
-    '@cloudflare/workers-types',
-  ]) {
+  assert.equal(retiredSelectors.length, 50);
+  for (const selector of retiredSelectors) {
     assert.equal(
-      ULTRAMODERN_WORKSPACE_POLICY.pnpm.releaseAge.approvals.some(
-        approval => approval.packageName === packageName,
-      ),
+      activeApprovalSelectors.has(selector),
       false,
-      `${packageName} is reviewed but not in the failing lock closure`,
+      `${selector} must not remain an active release-age approval`,
+    );
+    assert.equal(
+      renderedSelectors.has(selector),
+      false,
+      `${selector} must not render as a release-age exclusion`,
     );
   }
 });

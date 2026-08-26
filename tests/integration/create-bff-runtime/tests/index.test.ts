@@ -141,7 +141,7 @@ describe('create-bff-runtime', () => {
       'workspace:*',
     );
     expect(verticalPackage.dependencies['@tanstack/react-router']).toBe(
-      '1.170.25',
+      '1.170.32',
     );
     expect(verticalPackage.devDependencies.tailwindcss).toBe('^4.3.3');
     expect(verticalPackage.devDependencies['@rsbuild/plugin-tailwindcss']).toBe(

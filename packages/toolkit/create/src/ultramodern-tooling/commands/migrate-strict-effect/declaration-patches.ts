@@ -6,8 +6,6 @@ import type { MigrationIo } from './io';
 import {
   drizzleOrmDeclarationPatchPath,
   drizzleOrmDeclarationPatchSourcePath,
-  effectDeclarationPatchPath,
-  effectDeclarationPatchSourcePath,
   moduleFederationBridgeReactPatchPath,
   moduleFederationBridgeReactPatchSourcePath,
   moduleFederationModernJsPatchPath,
@@ -38,12 +36,6 @@ export function ensureGeneratedDeclarationPatches(
       io,
       tanstackRouterCorePatchPath,
       tanstackRouterCorePatchSourcePath,
-    ) || changed;
-  changed =
-    ensureGeneratedPatchFile(
-      io,
-      effectDeclarationPatchPath,
-      effectDeclarationPatchSourcePath,
     ) || changed;
   if (options.includeDrizzleOrmPatch) {
     changed =

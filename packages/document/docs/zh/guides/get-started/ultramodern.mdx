@@ -128,8 +128,8 @@ pnpm overrides/trust policy 和 pnpm lockfile。剩余失败就是源码迁移�
 `api/lambda`、`shared/effect` 和 `src/effect`。
 
 严格 Effect 生成 workspace 会通过 pnpm overrides 固定兼容版本组：
-`effect@4.0.0-beta.107`、`@effect/opentelemetry@4.0.0-beta.107` 和
-`@effect/vitest@4.0.0-beta.107`。不要添加与这些 overrides 冲突的 app 本地直接
+`effect@4.0.0-rc.112`、`@effect/opentelemetry@4.0.0-rc.112` 和
+`@effect/vitest@4.0.0-rc.112`。不要添加与这些 overrides 冲突的 app 本地直接
 Effect 版本。严格的 24 小时发布年龄门禁适用于实际安装的包；当前版本组不包含 Effect
 年龄豁免，仅用于 override 的 `@effect/vitest` 也不是已安装的审批目标。
 `trustPolicyExclude` 是独立策略，仅为 `effect` 和
@@ -140,11 +140,13 @@ provenance attestation 的迁移；它不属于 release-age 审批。
 
 | 范围 | 固定版本 |
 | --- | --- |
-| Effect runtime 与测试版本组 | `effect`、`@effect/opentelemetry`、`@effect/vitest`：`4.0.0-beta.107` |
-| Effect compiler | `@effect/tsgo@0.36.2` |
-| TanStack Router | `@tanstack/react-router@1.170.25`、`@tanstack/router-core@1.171.21`、`@tanstack/history@1.162.1` |
-| Module Federation | `bridge-react`、`manifest`、`modern-js-v3`、`rspack`：`2.8.2`；`@module-federation/node@2.7.49` |
-| Node 与包管理工具 | Node `26.7.0`、`@types/node@^26.2.0`、pnpm `11.21.0` |
+| Effect runtime 与测试版本组 | `effect`、`@effect/opentelemetry`、`@effect/vitest`：`4.0.0-rc.112` |
+| Effect compiler | `@effect/tsgo@0.37.0` |
+| Oxc 与 Ultracite | `oxlint@1.80.0`、`oxfmt@0.65.0`、`ultracite@7.10.6` |
+| TanStack Router | `@tanstack/react-router@1.170.32`、`@tanstack/router-core@1.171.27`、`@tanstack/history@1.162.1` |
+| Module Federation | `bridge-react`、`manifest`、`modern-js-v3`、`rspack`：`2.9.0`；`@module-federation/node@2.7.50` |
+| Tailwind CSS | `tailwindcss@4.3.3` |
+| Node 与包管理工具 | Node `26.7.0`、`@types/node@^26.2.0`、pnpm `11.24.0` |
 
 生成的 workspace 默认使用 `@module-federation/bridge-react` 的
 router-free base entry（`bridge.enableBridgeRouter: false`），应用路由由

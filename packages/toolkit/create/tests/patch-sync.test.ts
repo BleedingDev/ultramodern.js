@@ -5,11 +5,9 @@ import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { createRpcContractFile } from '../src/ultramodern-workspace/api/rpc';
 import { SHARED_ULTRAMODERN_WORKSPACE_PATCH_FILES } from '../src/ultramodern-workspace/shared-patches';
 import {
   DRIZZLE_ORM_VERSION,
-  EFFECT_VERSION,
   MODULE_FEDERATION_VERSION,
   TANSTACK_ROUTER_CORE_VERSION,
   TYPES_NODE_VERSION,
@@ -209,7 +207,7 @@ function assertTanstackRouterCorePatchIsLoadBearing(): void {
       stdio: 'pipe',
     });
 
-    // Unpatched 1.171.21 declarations must still fail under
+    // Unpatched 1.171.27 declarations must still fail under
     // skipLibCheck:false; when an upstream release fixes them, this forces a
     // conscious retirement of the patch instead of a silent stale copy.
     assert.throws(
@@ -226,165 +224,6 @@ function assertTanstackRouterCorePatchIsLoadBearing(): void {
       stdio: 'pipe',
     });
     compileTanstackSsrProof(temporaryDir);
-  } finally {
-    fs.rmSync(temporaryDir, { recursive: true, force: true });
-  }
-}
-
-function assertEffectPatchAppliesAndPublicSurfaceCompiles(): void {
-  const patchPath = path.join(
-    templatePatchDir,
-    'effect-schema-error-type-id.patch',
-  );
-  const packageStoreEntry = fs
-    .readdirSync(pnpmModulesDir)
-    .find(entry => entry.startsWith(`effect@${EFFECT_VERSION}`));
-
-  assert.ok(
-    packageStoreEntry,
-    `effect@${EFFECT_VERSION} must be installed for patch validation`,
-  );
-
-  const temporaryDir = fs.mkdtempSync(
-    path.join(os.tmpdir(), 'modern-js-effect-public-patch-proof-'),
-  );
-  try {
-    const installedPackageDir = path.join(
-      pnpmModulesDir,
-      packageStoreEntry,
-      'node_modules/effect',
-    );
-    const temporaryPackageDir = path.join(temporaryDir, 'node_modules/effect');
-    fs.mkdirSync(path.dirname(temporaryPackageDir), { recursive: true });
-    fs.cpSync(installedPackageDir, temporaryPackageDir, { recursive: true });
-    const effectPackageJson = JSON.parse(
-      fs.readFileSync(path.join(installedPackageDir, 'package.json'), 'utf8'),
-    ) as { dependencies?: Record<string, string> };
-    for (const dependencyName of Object.keys(
-      effectPackageJson.dependencies ?? {},
-    )) {
-      const installedDependencyPath = path.join(
-        pnpmModulesDir,
-        packageStoreEntry,
-        'node_modules',
-        dependencyName,
-      );
-      const temporaryDependencyPath = path.join(
-        temporaryDir,
-        'node_modules',
-        dependencyName,
-      );
-      fs.mkdirSync(path.dirname(temporaryDependencyPath), { recursive: true });
-      fs.symlinkSync(
-        fs.realpathSync(installedDependencyPath),
-        temporaryDependencyPath,
-        process.platform === 'win32' ? 'junction' : 'dir',
-      );
-    }
-
-    const typesNodeVersion = TYPES_NODE_VERSION.replace(/^\^/, '');
-    const typesNodeStoreEntry = fs
-      .readdirSync(pnpmModulesDir)
-      .find(entry => entry.startsWith(`@types+node@${typesNodeVersion}`));
-    assert.ok(
-      typesNodeStoreEntry,
-      `@types/node@${typesNodeVersion} must be installed for Effect public compile validation`,
-    );
-    const typesNodeModulesDir = path.join(
-      pnpmModulesDir,
-      typesNodeStoreEntry,
-      'node_modules',
-    );
-    for (const dependencyName of ['@types/node', 'undici-types']) {
-      const installedDependencyPath = path.join(
-        typesNodeModulesDir,
-        dependencyName,
-      );
-      const temporaryDependencyPath = path.join(
-        temporaryDir,
-        'node_modules',
-        dependencyName,
-      );
-      fs.mkdirSync(path.dirname(temporaryDependencyPath), { recursive: true });
-      fs.symlinkSync(
-        fs.realpathSync(installedDependencyPath),
-        temporaryDependencyPath,
-        process.platform === 'win32' ? 'junction' : 'dir',
-      );
-    }
-
-    const pluginBffStubDir = path.join(
-      temporaryDir,
-      'node_modules/@modern-js/plugin-bff',
-    );
-    fs.mkdirSync(pluginBffStubDir, { recursive: true });
-    fs.writeFileSync(
-      path.join(pluginBffStubDir, 'package.json'),
-      `${JSON.stringify(
-        {
-          name: '@modern-js/plugin-bff',
-          exports: {
-            './effect-client': {
-              types: './effect-client.d.ts',
-              default: './effect-client.js',
-            },
-          },
-          type: 'module',
-        },
-        null,
-        2,
-      )}\n`,
-    );
-    fs.writeFileSync(
-      path.join(pluginBffStubDir, 'effect-client.d.ts'),
-      "export * as Schema from 'effect/Schema';\n",
-    );
-    fs.writeFileSync(path.join(pluginBffStubDir, 'effect-client.js'), '');
-    execFileSync('git', ['apply', '--check', patchPath], {
-      cwd: temporaryPackageDir,
-      stdio: 'pipe',
-    });
-    execFileSync('git', ['apply', patchPath], {
-      cwd: temporaryPackageDir,
-      stdio: 'pipe',
-    });
-    const proofPath = path.join(temporaryDir, 'public-effect-proof.ts');
-    fs.writeFileSync(
-      proofPath,
-      createRpcContractFile({
-        id: 'public-proof',
-        api: {
-          stem: 'public-proof',
-          prefix: '/public-proof-api',
-          consumedBy: ['shell-super-app'],
-          protocol: 'rpc',
-        },
-      }),
-    );
-    execFileSync(
-      path.join(
-        repoRoot,
-        `node_modules/.bin/${process.platform === 'win32' ? 'tsgo.cmd' : 'tsgo'}`,
-      ),
-      [
-        '--noEmit',
-        '--strict',
-        '--skipLibCheck',
-        'false',
-        '--module',
-        'NodeNext',
-        '--moduleResolution',
-        'NodeNext',
-        '--target',
-        'ES2022',
-        '--lib',
-        'ES2022,DOM,DOM.Iterable,ESNext.Disposable',
-        '--types',
-        'node',
-        proofPath,
-      ],
-      { cwd: temporaryDir, stdio: 'inherit' },
-    );
   } finally {
     fs.rmSync(temporaryDir, { recursive: true, force: true });
   }
@@ -932,10 +771,6 @@ for (const packageName of [
 
 test('TanStack router-core declaration patch is applied and load-bearing', () => {
   assertTanstackRouterCorePatchIsLoadBearing();
-});
-
-test('Effect patch applies and the generated RPC public surface compiles', () => {
-  assertEffectPatchAppliesAndPublicSurfaceCompiles();
 });
 
 test('Module Federation patches preserve default DTS, explicit opt-out, consumer, and SSR behavior', async () => {

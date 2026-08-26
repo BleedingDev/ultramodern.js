@@ -8,13 +8,13 @@
     "typecheck": "tsgo --noEmit -p tsconfig.typecheck.json"
   },
   "dependencies": {
-    "@effect/opentelemetry": "4.0.0-beta.107",
+    "@effect/opentelemetry": "4.0.0-rc.112",
     "@modern-js/plugin-tanstack": "workspace:*",
     "@modern-js/runtime": "workspace:*",
-    "@module-federation/modern-js-v3": "2.8.2",
-    "@module-federation/runtime": "2.8.2",
-    "@tanstack/react-router": "1.170.25",
-    "effect": "4.0.0-beta.107",
+    "@module-federation/modern-js-v3": "2.9.0",
+    "@module-federation/runtime": "2.9.0",
+    "@tanstack/react-router": "1.170.32",
+    "effect": "4.0.0-rc.112",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },

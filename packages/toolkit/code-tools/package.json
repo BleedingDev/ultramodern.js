@@ -63,7 +63,7 @@
     "test": "rstest --passWithNoTests"
   },
   "dependencies": {
-    "oxlint": "1.78.0"
+    "oxlint": "1.80.0"
   },
   "devDependencies": {
     "@modern-js/rslib": "workspace:*",
