@@ -158,7 +158,7 @@ fork-owned by definition, carry no divergence budget, and are not listed here.
 ## 3. Allowlist reconciliation
 
 Measured divergence at the fixed gate base `eded841256` is **613 files / 2,790
-hunks / 33,842 changed lines** under `packages/` (`measureDivergence`,
+hunks / 33,839 changed lines** under `packages/` (`measureDivergence`,
 `--diff-filter=MD`, so fork-added files are excluded). These totals are the
 exact sanctioned writer result; prose estimates do not authorize a budget. For
 historical comparison, the 2026-08-25 `f4bc5ee335` re-anchor snapshot was 610 files /
@@ -239,6 +239,7 @@ same-PR ownership and disposition evidence.
 
 | Audited-base-owned path(s) | Owner | Reason | Disposition |
 | --- | --- | --- | --- |
+| `packages/cli/{adapter-rstest,builder,plugin-bff,plugin-data-loader}/package.json`, `packages/runtime/plugin-runtime/package.json`, `packages/solutions/app-tools/package.json`, `packages/toolkit/plugin/package.json` | bleedingdev | Promote the full framework build/test surface atomically from the Rsbuild 2.2 release candidate to stable 2.2.0; mixed RC/stable installs would invalidate the Rspack, Module Federation, Tailwind, React Compiler, and chunk-splitting acceptance evidence | `keep-[M]` |
 | `packages/cli/plugin-bff/package.json` | bleedingdev | Keep the optional Effect peers, mirrored development identities, and Module Federation runtime on the coherent fork cohort; a partial update can install incompatible Effect identities | `keep-[F]` |
 | `packages/toolkit/create/package.json` | bleedingdev | Keep the generator's formatter and Ultracite runtime dependencies aligned with the generated Oxc toolchain policy | `keep-[M]` |
 | `packages/toolkit/create/README.md` | bleedingdev | Keep package documentation truthful to the fork's generated Effect, TanStack, Module Federation, and pnpm cohort | `keep-[F]` |

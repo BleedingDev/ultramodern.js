@@ -230,7 +230,7 @@ test('migrates the exact authenticated August 10 release-age list idempotently',
   }
 });
 
-test('temporarily approves the exact fresh Modern.js dependency closure', () => {
+test('retires the Rsbuild RC approval while preserving historical review evidence', () => {
   const review = JSON.parse(
     fs.readFileSync(
       new URL('../release-age-review-2026-08-24.json', import.meta.url),
@@ -248,11 +248,7 @@ test('temporarily approves the exact fresh Modern.js dependency closure', () => 
   };
   const expectedSelectors = new Set(
     review.registryRecords
-      .filter(
-        record =>
-          packageKey(record.packageName, record.version) !==
-          'electron-to-chromium@1.5.413',
-      )
+      .filter(record => record.packageName === 'baseline-browser-mapping')
       .map(record => packageKey(record.packageName, record.version)),
   );
   const approvalBySelector = new Map(
@@ -262,7 +258,7 @@ test('temporarily approves the exact fresh Modern.js dependency closure', () => 
     ]),
   );
 
-  assert.equal(expectedSelectors.size, 2);
+  assert.equal(expectedSelectors.size, 1);
   for (const record of review.registryRecords.filter(record =>
     expectedSelectors.has(packageKey(record.packageName, record.version)),
   )) {
@@ -310,6 +306,7 @@ test('temporarily approves the exact fresh Modern.js dependency closure', () => 
     );
   }
   assert.equal(approvalBySelector.has('electron-to-chromium@1.5.413'), false);
+  assert.equal(approvalBySelector.has('@rsbuild/core@2.2.0-rc.0'), false);
 });
 
 test('temporarily approves the exact fresh browser data cohort', () => {

@@ -805,15 +805,6 @@ const releaseAgeApprovals: readonly UltramodernReleaseAgeApproval[] = [
   // from a commit that predates its reviewed versions, timestamps, integrities,
   // optional-platform closure, and patch applicability evidence.
   createReleaseAgeApproval({
-    packageName: '@rsbuild/core',
-    version: '2.2.0-rc.0',
-    reason: releaseAgeReasons.framework,
-    publishedAt: '2026-08-24T08:20:57.218Z',
-    integrity:
-      'sha512-f6orjv+wOR1u7KchE/vANGP0Eg7AP0UaiM0qn4n+5I0HOUdkVVbNCA1eZSpyX+TJ9bIdZtkbR6T47vBdoFr1MA==',
-    review: releaseAgeReviewEvidence.modernjsUpstream20260824,
-  }),
-  createReleaseAgeApproval({
     packageName: 'baseline-browser-mapping',
     version: '2.11.19',
     reason: releaseAgeReasons.framework,

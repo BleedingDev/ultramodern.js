@@ -8,7 +8,6 @@ exports[`builder rspack with cache > should disable cache by default 1`] = `
     "modern.config.ts",
   ],
   "maxAge": 604800,
-  "maxVersions": 3,
   "storage": {
     "directory": "<WORKSPACE>/packages/cli/builder/node_modules/.cache/rspack/web",
     "type": "filesystem",
@@ -26,7 +25,6 @@ exports[`builder rspack with cache > should generator rspack config correctly wi
     "modern.config.ts",
   ],
   "maxAge": 604800,
-  "maxVersions": 3,
   "storage": {
     "directory": "<WORKSPACE>/packages/cli/builder/node_modules/.cache/rspack/web",
     "type": "filesystem",

@@ -129,7 +129,7 @@ allowedDeprecatedVersions:
 minimumReleaseAgeExclude:
   - '@typescript/native-preview'
   - '@typescript/native-preview-*'
-  - '@rsbuild/core@2.1.5 || 2.2.0-rc.0'
+  - '@rsbuild/core@2.1.5'
   - '@rsbuild/plugin-type-check@1.5.0'
   - '@rspack/binding-darwin-arm64@2.1.3'
   - '@rspack/binding-darwin-x64@2.1.3'

@@ -37,7 +37,6 @@ describe('builder rspack with cache', () => {
 
     expect(bundlerConfigs[0].cache).toMatchSnapshot();
     expect(bundlerConfigs[0].cache.maxAge).toBe(7 * 24 * 60 * 60);
-    expect(bundlerConfigs[0].cache.maxVersions).toBe(3);
   });
 
   it('should isolate persistent cache directories by environment', async () => {

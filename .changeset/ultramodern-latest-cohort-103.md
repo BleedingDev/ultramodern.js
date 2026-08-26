@@ -13,8 +13,9 @@
 
 Advance the UltraModern generator, Effect BFF lane, and TanStack integration to
 the reviewed latest compatible runtime and toolchain cohort. Generated
-workspaces now use Effect 4.0.0-rc.112, TanStack React Router 1.170.32 with
-router-core 1.171.27, Module Federation 2.9.0, Node 26.7 with pnpm 11.24, and
+workspaces now use Rsbuild and Rspack 2.2.0 stable, Effect 4.0.0-rc.112,
+TanStack React Router 1.170.32 with router-core 1.171.27, Module Federation
+2.9.0, Node 26.7 with pnpm 11.24, and
 Oxlint/Oxfmt/Ultracite 1.80.0/0.65.0/7.10.6 alongside the coherent stable
 Cloudflare v4 lane.
 RSC remains disabled by default and is not shipped in the UltraModern company

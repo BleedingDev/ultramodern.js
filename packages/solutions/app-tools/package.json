@@ -149,7 +149,7 @@
     "@modern-js/server-utils": "workspace:*",
     "@modern-js/types": "workspace:*",
     "@modern-js/utils": "workspace:*",
-    "@rsbuild/core": "2.2.0-rc.0",
+    "@rsbuild/core": "2.2.0",
     "@swc/core": "1.15.43",
     "@swc/helpers": "^0.5.23",
     "compression-webpack-plugin": "^12.0.0",

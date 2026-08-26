@@ -16,7 +16,7 @@
     "@modern-js/builder": "workspace:*",
     "@modern-js/utils": "workspace:*",
     "@playwright/test": "1.61.1",
-    "@rsbuild/core": "2.2.0-rc.0",
+    "@rsbuild/core": "2.2.0",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/connect": "^3.4.38",
     "@types/lodash": "^4.17.24",
