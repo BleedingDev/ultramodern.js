@@ -81,6 +81,150 @@ function assertPatchReversesAndReapplies(packageName: string): void {
   }
 }
 
+function compileRuntimeCoreProof(temporaryDir: string): void {
+  const proofPath = path.join(temporaryDir, 'runtime-core-proof.ts');
+  const environmentProofPath = path.join(
+    temporaryDir,
+    'runtime-core-environment.d.ts',
+  );
+  fs.writeFileSync(
+    environmentProofPath,
+    'declare var global: typeof globalThis;\n',
+  );
+  fs.writeFileSync(
+    proofPath,
+    [
+      "import { ModuleFederation } from '@module-federation/runtime-core';",
+      "import type { ResourceLoadContext } from '@module-federation/runtime-core/types';",
+      'export type LoadEntryHook =',
+      "  ModuleFederation['remoteHandler']['hooks']['lifecycle']['loadEntry'];",
+      'export type ResourceContext = ResourceLoadContext;',
+    ].join('\n'),
+  );
+  try {
+    execFileSync(
+      path.join(
+        repoRoot,
+        `node_modules/.bin/${process.platform === 'win32' ? 'tsgo.cmd' : 'tsgo'}`,
+      ),
+      [
+        '--noEmit',
+        '--strict',
+        '--skipLibCheck',
+        'false',
+        '--module',
+        'ESNext',
+        '--moduleResolution',
+        'Bundler',
+        '--target',
+        'ES2022',
+        '--lib',
+        'ES2022,DOM,DOM.Iterable,ESNext.Disposable',
+        environmentProofPath,
+        proofPath,
+      ],
+      { cwd: temporaryDir, stdio: 'pipe' },
+    );
+  } catch (error) {
+    const commandError = error as Error & {
+      stderr?: Buffer | string;
+      stdout?: Buffer | string;
+    };
+    throw new Error(
+      [
+        commandError.message,
+        commandError.stdout?.toString(),
+        commandError.stderr?.toString(),
+      ].join('\n'),
+      { cause: error },
+    );
+  }
+}
+
+function assertRuntimeCorePatchIsLoadBearing(): void {
+  const patchFile = SHARED_ULTRAMODERN_WORKSPACE_PATCH_FILES.find(file =>
+    file.startsWith('@module-federation__runtime-core@'),
+  );
+  assert.ok(patchFile, 'runtime-core patch must be in the shared patch list');
+  const patchPath = path.join(repoPatchDir, patchFile);
+  const installedPackageDir = moduleFederationPackageDirectory('runtime-core');
+  const storeModulesDir = path.resolve(installedPackageDir, '../..');
+  const temporaryDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'modern-js-mf-runtime-core-patch-'),
+  );
+
+  try {
+    const temporaryPackageDir = path.join(
+      temporaryDir,
+      'node_modules/@module-federation/runtime-core',
+    );
+    fs.mkdirSync(path.dirname(temporaryPackageDir), { recursive: true });
+    fs.cpSync(installedPackageDir, temporaryPackageDir, { recursive: true });
+    const webpackStubDir = path.join(temporaryDir, 'node_modules/webpack');
+    fs.mkdirSync(webpackStubDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(webpackStubDir, 'package.json'),
+      `${JSON.stringify({ name: 'webpack', types: './index.d.ts' })}\n`,
+    );
+    fs.writeFileSync(
+      path.join(webpackStubDir, 'index.d.ts'),
+      [
+        'export = webpack;',
+        'declare namespace webpack {',
+        '  interface Compiler {}',
+        '  interface Compilation {}',
+        '}',
+      ].join('\n'),
+    );
+    const packageJson = JSON.parse(
+      fs.readFileSync(path.join(installedPackageDir, 'package.json'), 'utf8'),
+    ) as { dependencies: Record<string, string> };
+    for (const dependencyName of Object.keys(packageJson.dependencies)) {
+      const temporaryDependencyPath = path.join(
+        temporaryDir,
+        'node_modules',
+        dependencyName,
+      );
+      fs.mkdirSync(path.dirname(temporaryDependencyPath), { recursive: true });
+      fs.cpSync(
+        fs.realpathSync(path.join(storeModulesDir, dependencyName)),
+        temporaryDependencyPath,
+        { recursive: true },
+      );
+    }
+
+    compileRuntimeCoreProof(temporaryDir);
+    execFileSync('git', ['apply', '--reverse', patchPath], {
+      cwd: temporaryPackageDir,
+      stdio: 'pipe',
+    });
+    assert.throws(
+      () => compileRuntimeCoreProof(temporaryDir),
+      error => {
+        const commandError = error as Error & {
+          stderr?: Buffer | string;
+          stdout?: Buffer | string;
+        };
+        const output = [
+          commandError.message,
+          commandError.stdout?.toString(),
+          commandError.stderr?.toString(),
+        ].join('\n');
+        assert.match(output, /ResourceLoadContext/u);
+        return true;
+      },
+      'unpatched runtime-core declaration must fail strict library checking',
+    );
+    execFileSync('git', ['apply', patchPath], {
+      cwd: temporaryPackageDir,
+      stdio: 'pipe',
+    });
+    compileRuntimeCoreProof(temporaryDir);
+  } finally {
+    fs.rmSync(temporaryDir, { recursive: true, force: true });
+  }
+}
+
 function compileTanstackSsrProof(temporaryDir: string): void {
   const proofPath = path.join(temporaryDir, 'router-core-ssr-proof.ts');
   fs.writeFileSync(
@@ -764,6 +908,7 @@ for (const packageName of [
   'manifest',
   'modern-js-v3',
   'rspack',
+  'runtime-core',
 ]) {
   test(`Module Federation ${packageName} patch reverses and reapplies cleanly`, () => {
     assertPatchReversesAndReapplies(packageName);
@@ -772,6 +917,10 @@ for (const packageName of [
 
 test('TanStack router-core declaration patch is applied and load-bearing', () => {
   assertTanstackRouterCorePatchIsLoadBearing();
+});
+
+test('Module Federation runtime-core declaration patch is applied and load-bearing', () => {
+  assertRuntimeCorePatchIsLoadBearing();
 });
 
 test('Module Federation patches preserve default DTS, explicit opt-out, consumer, and SSR behavior', async () => {

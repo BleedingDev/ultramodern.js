@@ -62,6 +62,9 @@ patchedDependencies:
   '@module-federation/dts-plugin@2.9.0': patches/@module-federation__dts-plugin@2.9.0.patch
   '@module-federation/manifest@2.9.0': patches/@module-federation__manifest@2.9.0.patch
   '@module-federation/rspack@2.9.0': patches/@module-federation__rspack@2.9.0.patch
+  # Repair the runtime-core remote declaration's missing ResourceLoadContext
+  # import so strict library checking can consume its public hook types.
+  '@module-federation/runtime-core@2.9.0': patches/@module-federation__runtime-core@2.9.0.patch
   # Repair bridge-react's declaration specifiers for portable TS resolution.
   '@module-federation/bridge-react@2.9.0': patches/@module-federation__bridge-react@2.9.0.patch
   # 1.171.27 dist ssr declarations index a property MakeRouteMatch does not

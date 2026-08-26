@@ -2,13 +2,11 @@ import path from 'node:path';
 import { ULTRAMODERN_WORKSPACE_POLICY } from '../../../ultramodern-workspace/policy';
 import { createPackageRoot } from '../context';
 
-const requiredPatches =
-  ULTRAMODERN_WORKSPACE_POLICY.pnpm.patchedDependencies.required;
 const conditionalPatches =
   ULTRAMODERN_WORKSPACE_POLICY.pnpm.patchedDependencies.conditional;
 
-function requiredPatchPath(packageName: string) {
-  const patch = [...requiredPatches, ...conditionalPatches].find(
+function conditionalPatchPath(packageName: string) {
+  const patch = conditionalPatches.find(
     candidate => candidate.packageName === packageName,
   );
   if (!patch) {
@@ -21,39 +19,14 @@ function patchSourcePath(patchPath: string) {
   return path.join(createPackageRoot, 'template-workspace', patchPath);
 }
 
-export const moduleFederationModernJsPatchPath = requiredPatchPath(
-  '@module-federation/modern-js-v3',
-);
+export const requiredGeneratedPatches =
+  ULTRAMODERN_WORKSPACE_POLICY.pnpm.patchedDependencies.required.map(patch => ({
+    path: patch.path,
+    sourcePath: patchSourcePath(patch.path),
+  }));
 
-export const moduleFederationModernJsPatchSourcePath = patchSourcePath(
-  moduleFederationModernJsPatchPath,
-);
-
-export const moduleFederationDtsPluginPatchPath = requiredPatchPath(
-  '@module-federation/dts-plugin',
-);
-
-export const moduleFederationDtsPluginPatchSourcePath = patchSourcePath(
-  moduleFederationDtsPluginPatchPath,
-);
-
-export const moduleFederationBridgeReactPatchPath = requiredPatchPath(
-  '@module-federation/bridge-react',
-);
-
-export const moduleFederationBridgeReactPatchSourcePath = patchSourcePath(
-  moduleFederationBridgeReactPatchPath,
-);
-
-export const tanstackRouterCorePatchPath = requiredPatchPath(
-  '@tanstack/router-core',
-);
-
-export const tanstackRouterCorePatchSourcePath = patchSourcePath(
-  tanstackRouterCorePatchPath,
-);
-
-export const drizzleOrmDeclarationPatchPath = requiredPatchPath('drizzle-orm');
+export const drizzleOrmDeclarationPatchPath =
+  conditionalPatchPath('drizzle-orm');
 
 export const drizzleOrmDeclarationPatchSourcePath = patchSourcePath(
   drizzleOrmDeclarationPatchPath,
