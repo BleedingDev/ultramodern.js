@@ -789,6 +789,9 @@ function migrateStrictEffect(
 
   if (!skipInstall) {
     return io.withStagedWorkspace(stagedWorkspaceRoot => {
+      fs.rmSync(path.join(stagedWorkspaceRoot, 'pnpm-lock.yaml'), {
+        force: true,
+      });
       const status = runPnpmLockfileRefresh({
         ...context,
         workspaceRoot: stagedWorkspaceRoot,
