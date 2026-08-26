@@ -315,6 +315,105 @@ test('retires the expired browser data cohort while preserving review evidence',
   }
 });
 
+test('migrates the exact authenticated August 24 and 25 selectors atomically', () => {
+  const reviewedSelectors = [
+    '../release-age-review-2026-08-24.json',
+    '../release-age-review-2026-08-25.json',
+  ].flatMap(reviewPath => {
+    const review = JSON.parse(
+      fs.readFileSync(new URL(reviewPath, import.meta.url), 'utf8'),
+    ) as {
+      registryRecords: Array<{
+        packageName: string;
+        version: string;
+      }>;
+    };
+    return review.registryRecords.map(record =>
+      packageKey(record.packageName, record.version),
+    );
+  });
+  assert.deepEqual(
+    [...reviewedSelectors].sort(),
+    [
+      '@rsbuild/core@2.2.0-rc.0',
+      'baseline-browser-mapping@2.11.19',
+      'caniuse-lite@1.0.30001810',
+      'electron-to-chromium@1.5.413',
+      'electron-to-chromium@1.5.414',
+    ].sort(),
+  );
+  const workspaceRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'um-stale-reviewed-release-age-'),
+  );
+  const workspaceFile = path.join(workspaceRoot, 'pnpm-workspace.yaml');
+  const migrationNow = new Date('2026-08-26T12:00:00.000Z');
+
+  try {
+    fs.writeFileSync(path.join(workspaceRoot, 'package.json'), '{}\n');
+    fs.writeFileSync(
+      workspaceFile,
+      yaml.dump({ minimumReleaseAgeExclude: reviewedSelectors }),
+    );
+
+    assert.equal(
+      updateGeneratedPnpmWorkspacePolicy(
+        createMigrationIo(workspaceRoot, false),
+        packageSource,
+        { now: migrationNow, releaseCohort },
+      ),
+      true,
+    );
+
+    const canonicalPolicy = fs.readFileSync(workspaceFile);
+    const migratedPolicy = yaml.load(canonicalPolicy.toString('utf-8')) as {
+      minimumReleaseAgeExclude: string[];
+    };
+    for (const reviewedSelector of reviewedSelectors) {
+      assert.equal(
+        migratedPolicy.minimumReleaseAgeExclude.includes(reviewedSelector),
+        false,
+      );
+    }
+    assert.deepEqual(
+      migratedPolicy.minimumReleaseAgeExclude,
+      renderMinimumReleaseAgeExclude({
+        now: migrationNow,
+        packageSource,
+        releaseCohort,
+      }),
+    );
+
+    assert.equal(
+      updateGeneratedPnpmWorkspacePolicy(
+        createMigrationIo(workspaceRoot, false),
+        packageSource,
+        { now: migrationNow, releaseCohort },
+      ),
+      false,
+    );
+    assert.deepEqual(fs.readFileSync(workspaceFile), canonicalPolicy);
+
+    const unreviewedSelector = 'electron-to-chromium@1.5.415';
+    fs.writeFileSync(
+      workspaceFile,
+      yaml.dump({ minimumReleaseAgeExclude: [unreviewedSelector] }),
+    );
+    const unreviewedPolicy = fs.readFileSync(workspaceFile);
+    assert.throws(
+      () =>
+        updateGeneratedPnpmWorkspacePolicy(
+          createMigrationIo(workspaceRoot, false),
+          packageSource,
+          { now: migrationNow, releaseCohort },
+        ),
+      /Unapproved release-age exclusion "electron-to-chromium@1\.5\.415"/u,
+    );
+    assert.deepEqual(fs.readFileSync(workspaceFile), unreviewedPolicy);
+  } finally {
+    fs.rmSync(workspaceRoot, { force: true, recursive: true });
+  }
+});
+
 test('temporarily approves the exact stable Rsbuild and Rspack cohort', () => {
   const evidence = {
     uri: 'https://github.com/BleedingDev/ultramodern.js/commit/986768d419f032f98d0cdcfd0893538b94ef1ea5',
