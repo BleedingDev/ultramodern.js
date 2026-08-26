@@ -172,6 +172,30 @@ describe('module federation SSR output compatibility', () => {
     ).toBe(true);
   });
 
+  it.each([
+    { enabled: false, normalizedConfig: {} },
+    {
+      enabled: true,
+      normalizedConfig: {
+        server: { ssr: { mode: 'stream', moduleFederationAppSSR: true } },
+      },
+    },
+  ])('serializes the public marker as the $enabled string', ({
+    enabled,
+    normalizedConfig,
+  }) => {
+    const marker = String(enabled);
+    const transform = createEnvironmentConfigTransformer({ normalizedConfig });
+    const result = transform({
+      output: { target: 'node' },
+    });
+
+    const defineValue =
+      result.source?.define?.['process.env.MODERN_MF_APP_SSR'];
+    expect(defineValue).toBe(JSON.stringify(marker));
+    expect(JSON.parse(defineValue)).toBe(marker);
+  });
+
   it('keeps esm output for non-mf node server builds', () => {
     const transform = createEnvironmentConfigTransformer();
     const result = transform({
@@ -183,7 +207,7 @@ describe('module federation SSR output compatibility', () => {
     expect(result.output.module).toBe(true);
     expect(result.output.target).toBe('node');
     expect(result.source?.define?.['process.env.MODERN_MF_APP_SSR']).toBe(
-      'false',
+      JSON.stringify('false'),
     );
     expect(result.tools?.bundlerChain).toBeUndefined();
   });
@@ -206,7 +230,7 @@ describe('module federation SSR output compatibility', () => {
       expect(result.output.module).toBe(true);
       expect(result.output.target).toBe('node');
       expect(result.source?.define?.['process.env.MODERN_MF_APP_SSR']).toBe(
-        'false',
+        JSON.stringify('false'),
       );
       expect(result.splitChunks).toBe(false);
       expect(result.tools?.bundlerChain).toBeUndefined();
@@ -246,7 +270,7 @@ describe('module federation SSR output compatibility', () => {
       expect(result.output.module).toBe(true);
       expect(result.output.target).toBe('node18');
       expect(result.source?.define?.['process.env.MODERN_MF_APP_SSR']).toBe(
-        'false',
+        JSON.stringify('false'),
       );
       expect(result.tools?.bundlerChain).toBeUndefined();
       expect(warnSpy).toHaveBeenCalledTimes(1);
@@ -285,7 +309,7 @@ describe('module federation SSR output compatibility', () => {
       expect(result.output.module).toBe(true);
       expect(result.output.target).toBe('node');
       expect(result.source?.define?.['process.env.MODERN_MF_APP_SSR']).toBe(
-        'false',
+        JSON.stringify('false'),
       );
       expect(result.tools?.bundlerChain).toBeUndefined();
     } finally {
@@ -361,7 +385,7 @@ describe('module federation SSR output compatibility', () => {
     expect(result.output.module).toBe(true);
     expect(result.output.target).toBe('node');
     expect(result.source?.define?.['process.env.MODERN_MF_APP_SSR']).toBe(
-      'true',
+      JSON.stringify('true'),
     );
     expect(result.tools?.bundlerChain).toBeUndefined();
   });
@@ -389,7 +413,7 @@ describe('module federation SSR output compatibility', () => {
     expect(result.output.module).toBe(true);
     expect(result.output.target).toBe('node');
     expect(result.source?.define?.['process.env.MODERN_MF_APP_SSR']).toBe(
-      'true',
+      JSON.stringify('true'),
     );
     expect(result.tools?.bundlerChain).toBeUndefined();
   });
@@ -421,7 +445,7 @@ describe('module federation SSR output compatibility', () => {
     expect(result.output.module).toBe(true);
     expect(result.output.target).toBe('web-worker');
     expect(result.source?.define?.['process.env.MODERN_MF_APP_SSR']).toBe(
-      'true',
+      JSON.stringify('true'),
     );
   });
 });

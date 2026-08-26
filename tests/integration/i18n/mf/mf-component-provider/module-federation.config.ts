@@ -1,13 +1,23 @@
+import { resolveEffectTsgoCompiler } from '@modern-js/app-tools/config';
 import { createModuleFederationConfig } from '@module-federation/modern-js-v3';
 import { dependencies } from './package.json';
 
 const reactVersion = dependencies.react;
 const reactDomVersion = dependencies['react-dom'];
+const tsgoCompilerInstance = resolveEffectTsgoCompiler({
+  from: import.meta.url,
+});
 
 export default createModuleFederationConfig({
   name: 'i18nComponentProvider',
   dev: {
     disableDynamicRemoteTypeHints: true,
+  },
+  dts: {
+    generateTypes: {
+      compilerInstance: tsgoCompilerInstance,
+    },
+    tsConfigPath: './tsconfig.mf-types.json',
   },
   filename: 'remoteEntry.js',
   exposes: {

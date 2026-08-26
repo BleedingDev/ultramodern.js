@@ -428,6 +428,11 @@ export const ULTRAMODERN_PACKAGE_PINS = {
 
 const requiredPatchPolicies: readonly UltramodernPatchPolicy[] = [
   {
+    packageName: '@module-federation/dts-plugin',
+    version: MODULE_FEDERATION_VERSION,
+    path: `patches/@module-federation__dts-plugin@${MODULE_FEDERATION_VERSION}.patch`,
+  },
+  {
     packageName: '@module-federation/bridge-react',
     version: MODULE_FEDERATION_VERSION,
     path: `patches/@module-federation__bridge-react@${MODULE_FEDERATION_VERSION}.patch`,
@@ -494,6 +499,7 @@ const stalePatchPolicies: readonly UltramodernStalePatchPolicy[] = [
     sha256: 'f51adf0aa6c6e2daa5b7d2978a7716c0d4fb05b29af449b2f16257b957fb7923',
   },
   {
+    // Historical hashes keep retired Effect declarations safely removable.
     packageName: 'effect',
     version: '4.0.0-beta.107',
     path: 'patches/effect-schema-error-type-id.patch',
@@ -503,9 +509,6 @@ const stalePatchPolicies: readonly UltramodernStalePatchPolicy[] = [
     packageName: 'effect',
     version: '4.0.0-beta.94',
     path: 'patches/effect-schema-error-type-id.patch',
-    // Historical same-path digests remain recognized so migration can remove
-    // the retired declaration patch without treating an owned workspace as
-    // foreign. The private preResponseHandler hunk is intentionally stale.
     sha256: 'ed9f636f82a1a1e5c128fc85e99e24a8fcf4ba06a35e89e3dd6460250875153f',
     acceptedLegacySha256: [
       'd9e12b42d06a051957899a9df14b2b7b2385fc3a5677a89037eeee3674d64ebe',
@@ -517,9 +520,6 @@ const stalePatchPolicies: readonly UltramodernStalePatchPolicy[] = [
     packageName: 'effect',
     version: '4.0.0-beta.97',
     path: 'patches/effect-schema-error-type-id.patch',
-    // Historical same-path digests remain recognized so migration can remove
-    // the retired declaration patch without treating an owned workspace as
-    // foreign. The private preResponseHandler hunk is intentionally stale.
     sha256: 'ed9f636f82a1a1e5c128fc85e99e24a8fcf4ba06a35e89e3dd6460250875153f',
     acceptedLegacySha256: [
       'd9e12b42d06a051957899a9df14b2b7b2385fc3a5677a89037eeee3674d64ebe',

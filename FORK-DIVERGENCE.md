@@ -361,7 +361,7 @@ it covers root and infrastructure files outside `packages/`.
 | RT-20 | `render` (6 files) RSC adapter surface: `createFromFetch` export, `rscManifest` plumb-through, `react-server-dom-rspack.d.ts` | bleedingdev | Fork RSC lane; RSC stays disabled in the distribution | keep-[F] | — |
 | RT-21 | React Router / Remix compatibility surface (`plugin-runtime` router paths and related upstream-owned files) | bleedingdev | Maintenance-only: the compatibility surface is retained and takes regression fixes only, no new features or public surface. New routing work belongs to TanStack Router; RT-06/RT-16/RT-18 keep their own dispositions | keep-[F] (maintenance-only) | — |
 | RT-22 | `plugin-i18n/package.json` React and ReactDOM peer ranges match the required `@modern-js/runtime` React 19 cohort | bleedingdev | The plugin requires `@modern-js/runtime`, whose peers are `^19.2.8`; advertising React 18 was unsatisfiable in a supported install. i18next and react-i18next retain upstream floors because older versions are not exercised here | keep-[F] (dependency cohort) | — |
-| RT-23 | `plugin-runtime/src/cli/ssr/index.ts` disables Rsbuild 2.2 `splitChunks` only for Module Federation SSR server environments | bleedingdev | Rsbuild 2.2's server default makes the CommonJS MF render entry resolve asynchronously without `requestHandler`; browser environments retain native chunk splitting | capped-patch | — |
+| RT-23 | `plugin-runtime/src/cli/ssr/index.ts` disables Rsbuild 2.2 `splitChunks` only for Module Federation SSR server environments and emits `MODERN_MF_APP_SSR` with env-compatible string semantics | bleedingdev | Rsbuild 2.2's server default makes the CommonJS MF render entry resolve asynchronously without `requestHandler`; browser environments retain native chunk splitting. Serializing the config-derived marker as a string, paired with APP-09's ambient auto-injection exclusion, prevents conflicting DefinePlugin values while preserving the public `process.env` string contract | capped-patch | — |
 
 ---
 
@@ -407,6 +407,7 @@ it covers root and infrastructure files outside `packages/`.
 | APP-06 | `src/rsbuild.ts:19,58-60` adds `disableReactCompiler?: boolean` to `ResolveModernRsbuildConfigOptions` | bleedingdev | Exists only to let callers opt out of CLI-04's default; disappears if CLI-04 reverts | **revert** with CLI-02 / CLI-04 | **P1** |
 | APP-07 | `src/plugins/initialize/index.ts:36-43` defaults `dev.lazyCompilation` to `{ imports: true, entries: false }` when unset, plus `src/builder/shared/lazyCompilation.ts` route-eager `lazyCompilation.test` | bleedingdev | Deliberate dev-perf divergence, broadened beyond stream-SSR to all route component modules. Low priority so an explicit user `dev.lazyCompilation` always wins | keep-[F], documented | — |
 | APP-08 | esm register hooks, utils, tests | bleedingdev | tsgo toolchain + track the above | keep-[M] | — |
+| APP-09 | `src/utils/env.ts` excludes `MODERN_MF_APP_SSR` from ambient `MODERN_*` auto-injection; `tests/utils/env.test.ts` pins the exclusion | bleedingdev | The variable controls config selection before normalization, while plugin-runtime publishes the resolved SSR mode. Compiling the ambient value through a second DefinePlugin conflicts with the config-derived marker and can mislabel client bundles | capped-patch | — |
 
 ---
 

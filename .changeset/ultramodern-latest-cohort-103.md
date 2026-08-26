@@ -13,8 +13,10 @@
 
 Advance the UltraModern generator, Effect BFF lane, and TanStack integration to
 the reviewed latest compatible runtime and toolchain cohort. Generated
-workspaces now use Effect beta.107, the current TanStack and Module Federation
-lines, Node 26.7 with pnpm 11.21, and the coherent stable Cloudflare v4 lane.
+workspaces now use Effect 4.0.0-rc.112, TanStack React Router 1.170.32 with
+router-core 1.171.27, Module Federation 2.9.0, Node 26.7 with pnpm 11.24, and
+Oxlint/Oxfmt/Ultracite 1.80.0/0.65.0/7.10.6 alongside the coherent stable
+Cloudflare v4 lane.
 RSC remains disabled by default and is not shipped in the UltraModern company
 distribution. The Rspack RSC toolchain is now an explicit optional peer of the
 framework packages, while the patched upstream runtime is retained only as an
@@ -36,6 +38,10 @@ entries, preserving module identity without a mutable runtime chunk dispatcher.
 An explicit lazy-mode override fails output verification; the verifier rejects
 every nonliteral `import()` specifier instead of granting a compiler-shaped
 exception.
+Module Federation SSR builds now emit `MODERN_MF_APP_SSR` as an env-compatible
+string from resolved SSR config. The ambient variable remains available as a
+build-control input but is excluded from automatic client injection, avoiding
+conflicting Rspack DefinePlugin values and incorrectly labelled bundles.
 Release identity carrier metadata now exactly covers every executable artifact
 declared by each UI, SSR, API/backend, and federation surface without claiming
 artifacts from a different runtime surface.

@@ -40,6 +40,7 @@ pnpmfileChecksum: sha256-e7fv4++EEy5D/4pBzV1yGYuIWnXfQwaMHH7OMxyEZx4=
 
 patchedDependencies:
   '@module-federation/bridge-react@2.9.0': 8c084f41790295af8fd015b897c6298bbc13d927b796c624ac96cb2bdb4bc87c
+  '@module-federation/dts-plugin@2.9.0': b4c8e1b74e7eea711fb133800780765eaae2b10e6ab34daeeda18b882558fd9b
   '@module-federation/manifest@2.9.0': a31d4d30913ffb579faf42be4f1c03a0f330d3f09348e9eedc00059d6e8d123f
   '@module-federation/modern-js-v3@2.9.0': bb1e38c3e8d0d65f9cf86f07c21c69041a24a95240f93692188c4e9ebf9140f1
   '@module-federation/rspack@2.9.0': 7beed0f736d66f78abeba9ed9b5537e571eff92f49aa03bd30a6b674f32f4eae
@@ -22627,7 +22628,7 @@ snapshots:
 
   '@module-federation/cli@2.9.0(bufferutil@4.1.0)(typescript@5.0.4)(utf-8-validate@5.0.10)':
     dependencies:
-      '@module-federation/dts-plugin': 2.9.0(bufferutil@4.1.0)(typescript@5.0.4)(utf-8-validate@5.0.10)
+      '@module-federation/dts-plugin': 2.9.0(patch_hash=b4c8e1b74e7eea711fb133800780765eaae2b10e6ab34daeeda18b882558fd9b)(bufferutil@4.1.0)(typescript@5.0.4)(utf-8-validate@5.0.10)
       '@module-federation/sdk': 2.9.0
       commander: 11.1.0
       jiti: 2.4.2
@@ -22639,7 +22640,7 @@ snapshots:
 
   '@module-federation/cli@2.9.0(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)':
     dependencies:
-      '@module-federation/dts-plugin': 2.9.0(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
+      '@module-federation/dts-plugin': 2.9.0(patch_hash=b4c8e1b74e7eea711fb133800780765eaae2b10e6ab34daeeda18b882558fd9b)(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
       '@module-federation/sdk': 2.9.0
       commander: 11.1.0
       jiti: 2.4.2
@@ -22649,7 +22650,7 @@ snapshots:
       - utf-8-validate
       - vue-tsc
 
-  '@module-federation/dts-plugin@2.9.0(bufferutil@4.1.0)(typescript@5.0.4)(utf-8-validate@5.0.10)':
+  '@module-federation/dts-plugin@2.9.0(patch_hash=b4c8e1b74e7eea711fb133800780765eaae2b10e6ab34daeeda18b882558fd9b)(bufferutil@4.1.0)(typescript@5.0.4)(utf-8-validate@5.0.10)':
     dependencies:
       '@module-federation/error-codes': 2.9.0
       '@module-federation/managers': 2.9.0
@@ -22664,7 +22665,7 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
-  '@module-federation/dts-plugin@2.9.0(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)':
+  '@module-federation/dts-plugin@2.9.0(patch_hash=b4c8e1b74e7eea711fb133800780765eaae2b10e6ab34daeeda18b882558fd9b)(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)':
     dependencies:
       '@module-federation/error-codes': 2.9.0
       '@module-federation/managers': 2.9.0
@@ -22683,7 +22684,7 @@ snapshots:
     dependencies:
       '@module-federation/bridge-react-webpack-plugin': 2.9.0
       '@module-federation/cli': 2.9.0(bufferutil@4.1.0)(typescript@5.0.4)(utf-8-validate@5.0.10)
-      '@module-federation/dts-plugin': 2.9.0(bufferutil@4.1.0)(typescript@5.0.4)(utf-8-validate@5.0.10)
+      '@module-federation/dts-plugin': 2.9.0(patch_hash=b4c8e1b74e7eea711fb133800780765eaae2b10e6ab34daeeda18b882558fd9b)(bufferutil@4.1.0)(typescript@5.0.4)(utf-8-validate@5.0.10)
       '@module-federation/error-codes': 2.9.0
       '@module-federation/inject-external-runtime-core-plugin': 2.9.0(@module-federation/runtime-tools@2.9.0)
       '@module-federation/managers': 2.9.0
@@ -22705,7 +22706,7 @@ snapshots:
     dependencies:
       '@module-federation/bridge-react-webpack-plugin': 2.9.0
       '@module-federation/cli': 2.9.0(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
-      '@module-federation/dts-plugin': 2.9.0(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
+      '@module-federation/dts-plugin': 2.9.0(patch_hash=b4c8e1b74e7eea711fb133800780765eaae2b10e6ab34daeeda18b882558fd9b)(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
       '@module-federation/error-codes': 2.9.0
       '@module-federation/inject-external-runtime-core-plugin': 2.9.0(@module-federation/runtime-tools@2.9.0)
       '@module-federation/managers': 2.9.0
@@ -22735,7 +22736,7 @@ snapshots:
 
   '@module-federation/manifest@2.9.0(patch_hash=a31d4d30913ffb579faf42be4f1c03a0f330d3f09348e9eedc00059d6e8d123f)(bufferutil@4.1.0)(typescript@5.0.4)(utf-8-validate@5.0.10)':
     dependencies:
-      '@module-federation/dts-plugin': 2.9.0(bufferutil@4.1.0)(typescript@5.0.4)(utf-8-validate@5.0.10)
+      '@module-federation/dts-plugin': 2.9.0(patch_hash=b4c8e1b74e7eea711fb133800780765eaae2b10e6ab34daeeda18b882558fd9b)(bufferutil@4.1.0)(typescript@5.0.4)(utf-8-validate@5.0.10)
       '@module-federation/managers': 2.9.0
       '@module-federation/sdk': 2.9.0
     transitivePeerDependencies:
@@ -22746,7 +22747,7 @@ snapshots:
 
   '@module-federation/manifest@2.9.0(patch_hash=a31d4d30913ffb579faf42be4f1c03a0f330d3f09348e9eedc00059d6e8d123f)(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)':
     dependencies:
-      '@module-federation/dts-plugin': 2.9.0(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
+      '@module-federation/dts-plugin': 2.9.0(patch_hash=b4c8e1b74e7eea711fb133800780765eaae2b10e6ab34daeeda18b882558fd9b)(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
       '@module-federation/managers': 2.9.0
       '@module-federation/sdk': 2.9.0
     transitivePeerDependencies:
@@ -22866,7 +22867,7 @@ snapshots:
   '@module-federation/rspack@2.9.0(patch_hash=7beed0f736d66f78abeba9ed9b5537e571eff92f49aa03bd30a6b674f32f4eae)(@rspack/core@2.2.0-rc.0(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(typescript@5.0.4)(utf-8-validate@5.0.10)':
     dependencies:
       '@module-federation/bridge-react-webpack-plugin': 2.9.0
-      '@module-federation/dts-plugin': 2.9.0(bufferutil@4.1.0)(typescript@5.0.4)(utf-8-validate@5.0.10)
+      '@module-federation/dts-plugin': 2.9.0(patch_hash=b4c8e1b74e7eea711fb133800780765eaae2b10e6ab34daeeda18b882558fd9b)(bufferutil@4.1.0)(typescript@5.0.4)(utf-8-validate@5.0.10)
       '@module-federation/inject-external-runtime-core-plugin': 2.9.0(@module-federation/runtime-tools@2.9.0)
       '@module-federation/managers': 2.9.0
       '@module-federation/manifest': 2.9.0(patch_hash=a31d4d30913ffb579faf42be4f1c03a0f330d3f09348e9eedc00059d6e8d123f)(bufferutil@4.1.0)(typescript@5.0.4)(utf-8-validate@5.0.10)
@@ -22882,7 +22883,7 @@ snapshots:
   '@module-federation/rspack@2.9.0(patch_hash=7beed0f736d66f78abeba9ed9b5537e571eff92f49aa03bd30a6b674f32f4eae)(@rspack/core@2.2.0-rc.0(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)':
     dependencies:
       '@module-federation/bridge-react-webpack-plugin': 2.9.0
-      '@module-federation/dts-plugin': 2.9.0(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
+      '@module-federation/dts-plugin': 2.9.0(patch_hash=b4c8e1b74e7eea711fb133800780765eaae2b10e6ab34daeeda18b882558fd9b)(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
       '@module-federation/inject-external-runtime-core-plugin': 2.9.0(@module-federation/runtime-tools@2.9.0)
       '@module-federation/managers': 2.9.0
       '@module-federation/manifest': 2.9.0(patch_hash=a31d4d30913ffb579faf42be4f1c03a0f330d3f09348e9eedc00059d6e8d123f)(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)

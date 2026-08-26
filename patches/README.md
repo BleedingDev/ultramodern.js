@@ -17,6 +17,7 @@ byte-identical because generated workspaces rely on the template copy at
 runtime:
 
 - `@module-federation/bridge-react@2.9.0` -> `@module-federation__bridge-react@2.9.0.patch`
+- `@module-federation/dts-plugin@2.9.0` -> `@module-federation__dts-plugin@2.9.0.patch`
 - `@module-federation/modern-js-v3@2.9.0` -> `@module-federation__modern-js-v3@2.9.0.patch`
 - `@tanstack/router-core@1.171.27` -> `@tanstack__router-core@1.171.27.patch`
 
@@ -33,6 +34,7 @@ workspaces:
 ## What Patches Do
 
 - `@module-federation/manifest`: avoids loading `@module-federation/dts-plugin/core` at module import time and returns default type metadata immediately when `dts: false`.
+- `@module-federation/dts-plugin`: preserves the effective absolute `rootDir` in the temporary TS-Go `--listFilesOnly` config so declarations imported by an exposed module are collected instead of falling back to exposed files only.
 - `@module-federation/modern-js-v3`: suppresses the stream SSR splitChunks warning when `splitChunks.chunks` is already `async`, while still coercing invalid values to `async`; disables lazy compilation for both remote producers and consumers; injects the Modern.js manifest-recovery runtime plugin into server builds, resolving it from the application workspace; and keeps React bridge CSS ownership in Modern.js by creating both bridge adapters with `injectLink: false`.
 - `@module-federation/rspack`: avoids loading `@module-federation/dts-plugin` at module import time and only requires `DtsPlugin` when DTS generation is enabled.
 - `@module-federation/bridge-react`: repairs non-portable declaration specifiers that reference package-local `node_modules/@types/react*` paths.
@@ -44,7 +46,7 @@ workspaces:
 
 These patches keep Module Federation usable in the fork's TS 7 native-preview
 lane where apps use `dts: false`, while preserving DTS behavior for callers
-that explicitly enable it.
+that explicitly enable it and retaining their transitive public declarations.
 
 ## Sync Rules
 

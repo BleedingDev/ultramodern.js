@@ -8,6 +8,8 @@ import {
   drizzleOrmDeclarationPatchSourcePath,
   moduleFederationBridgeReactPatchPath,
   moduleFederationBridgeReactPatchSourcePath,
+  moduleFederationDtsPluginPatchPath,
+  moduleFederationDtsPluginPatchSourcePath,
   moduleFederationModernJsPatchPath,
   moduleFederationModernJsPatchSourcePath,
   tanstackRouterCorePatchPath,
@@ -24,6 +26,12 @@ export function ensureGeneratedDeclarationPatches(
       io,
       moduleFederationModernJsPatchPath,
       moduleFederationModernJsPatchSourcePath,
+    ) || changed;
+  changed =
+    ensureGeneratedPatchFile(
+      io,
+      moduleFederationDtsPluginPatchPath,
+      moduleFederationDtsPluginPatchSourcePath,
     ) || changed;
   changed =
     ensureGeneratedPatchFile(

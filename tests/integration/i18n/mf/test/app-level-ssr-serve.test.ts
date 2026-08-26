@@ -54,6 +54,47 @@ async function readMfStats(appDir: string, target: 'client' | 'server') {
   return JSON.parse(await readFile(path.join(appDir, relativePath), 'utf8'));
 }
 
+async function readZipEntryNames(archivePath: string): Promise<string[]> {
+  const archive = await readFile(archivePath);
+  const minimumEocdOffset = Math.max(0, archive.length - 65_557);
+  let eocdOffset = archive.length - 22;
+  while (
+    eocdOffset >= minimumEocdOffset &&
+    archive.readUInt32LE(eocdOffset) !== 0x06054b50
+  ) {
+    eocdOffset -= 1;
+  }
+  expect(eocdOffset).toBeGreaterThanOrEqual(minimumEocdOffset);
+
+  const entryCount = archive.readUInt16LE(eocdOffset + 10);
+  let entryOffset = archive.readUInt32LE(eocdOffset + 16);
+  const entries: string[] = [];
+  for (let index = 0; index < entryCount; index += 1) {
+    expect(archive.readUInt32LE(entryOffset)).toBe(0x02014b50);
+    const fileNameLength = archive.readUInt16LE(entryOffset + 28);
+    const extraLength = archive.readUInt16LE(entryOffset + 30);
+    const commentLength = archive.readUInt16LE(entryOffset + 32);
+    entries.push(
+      archive
+        .subarray(entryOffset + 46, entryOffset + 46 + fileNameLength)
+        .toString('utf8'),
+    );
+    entryOffset += 46 + fileNameLength + extraLength + commentLength;
+  }
+  return entries.filter(entry => !entry.endsWith('/')).sort();
+}
+
+function expectSuccessfulMfDtsBuild(build: {
+  code: number | null;
+  stderr?: string;
+  stdout?: string;
+}) {
+  expect(build.code).toBe(0);
+  expect(`${build.stdout ?? ''}\n${build.stderr ?? ''}`).not.toMatch(
+    /Conflicting values for 'process\.env\.MODERN_MF_APP_SSR'|Failed to collect TypeScript dependency files|Module Federation DTS.*(?:Error|Failed)|TYPE-001|TS6059/iu,
+  );
+}
+
 async function fetchHtml(port: number, pathname: string) {
   const response = await fetch(`http://localhost:${port}${pathname}`, {
     headers: {
@@ -77,12 +118,14 @@ describe('mf-i18n app-level SSR serve mode', () => {
   beforeAll(async () => {
     releaseLock = await acquireTestLock('i18n-mf');
 
-    await modernBuild(componentProviderDir, [], {
+    const componentProviderBuild = await modernBuild(componentProviderDir, [], {
       env: APP_MF_SSR_ENV,
     });
-    await modernBuild(appProviderDir, [], {
+    expectSuccessfulMfDtsBuild(componentProviderBuild);
+    const appProviderBuild = await modernBuild(appProviderDir, [], {
       env: APP_MF_SSR_ENV,
     });
+    expectSuccessfulMfDtsBuild(appProviderBuild);
     await modernBuild(consumerDir, [], {
       env: APP_MF_SSR_ENV,
     });
@@ -100,6 +143,24 @@ describe('mf-i18n app-level SSR serve mode', () => {
       env: APP_MF_SSR_ENV,
     });
     await waitForAppReady(CONSUMER_PORT);
+  });
+
+  test('producer builds emit public and transitive declaration archives', async () => {
+    await expect(
+      readZipEntryNames(path.join(componentProviderDir, 'dist/@mf-types.zip')),
+    ).resolves.toEqual([
+      'Text.d.ts',
+      'compiled-types/components/Text.d.ts',
+      'compiled-types/i18n.d.ts',
+    ]);
+    await expect(
+      readZipEntryNames(path.join(appProviderDir, 'dist/@mf-types.zip')),
+    ).resolves.toEqual([
+      'compiled-types/custom/export-app.d.ts',
+      'compiled-types/i18n-mf-app-provider/export-app.d.ts',
+      'export-app-custom.d.ts',
+      'export-app.d.ts',
+    ]);
   });
 
   afterAll(async () => {

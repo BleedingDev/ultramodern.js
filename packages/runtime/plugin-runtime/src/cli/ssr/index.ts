@@ -329,7 +329,7 @@ const ssrBuilderPlugin = (
               Boolean(userConfig.server?.rsc),
             ),
             'process.env.MODERN_MF_APP_SSR': JSON.stringify(
-              isModuleFederationAppSSR,
+              String(isModuleFederationAppSSR),
             ),
           },
         },

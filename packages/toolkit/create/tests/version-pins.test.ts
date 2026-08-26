@@ -78,9 +78,19 @@ test('generated workspace renders the pins from versions.ts', () => {
     });
     assert.deepEqual(pnpmPolicy.patchedDependencies, {
       [`@module-federation/bridge-react@${MODULE_FEDERATION_VERSION}`]: `patches/@module-federation__bridge-react@${MODULE_FEDERATION_VERSION}.patch`,
+      [`@module-federation/dts-plugin@${MODULE_FEDERATION_VERSION}`]: `patches/@module-federation__dts-plugin@${MODULE_FEDERATION_VERSION}.patch`,
       [`@module-federation/modern-js-v3@${MODULE_FEDERATION_VERSION}`]: `patches/@module-federation__modern-js-v3@${MODULE_FEDERATION_VERSION}.patch`,
       [`@tanstack/router-core@${TANSTACK_ROUTER_CORE_VERSION}`]: `patches/@tanstack__router-core@${TANSTACK_ROUTER_CORE_VERSION}.patch`,
     });
+    assert.ok(
+      fs.existsSync(
+        path.join(
+          workspaceDir,
+          `patches/@module-federation__dts-plugin@${MODULE_FEDERATION_VERSION}.patch`,
+        ),
+      ),
+      'generated Module Federation DTS patch file must match MODULE_FEDERATION_VERSION',
+    );
     assert.ok(
       fs.existsSync(
         path.join(

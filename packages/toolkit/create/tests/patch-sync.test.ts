@@ -760,6 +760,7 @@ test('shared UltraModern workspace patch list matches files present in both patc
 
 for (const packageName of [
   'bridge-react',
+  'dts-plugin',
   'manifest',
   'modern-js-v3',
   'rspack',

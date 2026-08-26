@@ -623,6 +623,20 @@ test('migrate recognizes previously generated Module Federation patch cohorts', 
         `patches/@module-federation__bridge-react@${MODULE_FEDERATION_VERSION}.patch`,
       );
       assert.equal(
+        migratedPolicy.patchedDependencies[
+          `@module-federation/dts-plugin@${MODULE_FEDERATION_VERSION}`
+        ],
+        `patches/@module-federation__dts-plugin@${MODULE_FEDERATION_VERSION}.patch`,
+      );
+      assert.equal(
+        exists(
+          workspaceDir,
+          `patches/@module-federation__dts-plugin@${MODULE_FEDERATION_VERSION}.patch`,
+        ),
+        true,
+        'migration must materialize the current DTS plugin patch',
+      );
+      assert.equal(
         exists(workspaceDir, 'patches/effect-schema-error-type-id.patch'),
         false,
         'migration must not restore the retired Effect declaration patch',
@@ -2176,6 +2190,12 @@ declare module '*.css' {}
       `patches/@module-federation__bridge-react@${MODULE_FEDERATION_VERSION}.patch`,
     );
     assert.equal(
+      migratedPnpmPolicy.patchedDependencies[
+        `@module-federation/dts-plugin@${MODULE_FEDERATION_VERSION}`
+      ],
+      `patches/@module-federation__dts-plugin@${MODULE_FEDERATION_VERSION}.patch`,
+    );
+    assert.equal(
       migratedPnpmPolicy.patchedDependencies['effect@4.0.0-beta.107'],
       undefined,
     );
@@ -2233,6 +2253,15 @@ declare module '*.css' {}
       ),
       false,
       'migrate-strict-effect must retire the recognized beta.107 Effect declaration patch',
+    );
+    assert.ok(
+      fs.existsSync(
+        path.join(
+          workspaceDir,
+          `patches/@module-federation__dts-plugin@${MODULE_FEDERATION_VERSION}.patch`,
+        ),
+      ),
+      'migrate-strict-effect must restore the generated Module Federation DTS patch',
     );
     assert.ok(
       fs.existsSync(
