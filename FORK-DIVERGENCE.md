@@ -157,8 +157,8 @@ fork-owned by definition, carry no divergence budget, and are not listed here.
 
 ## 3. Allowlist reconciliation
 
-Measured divergence at the fixed gate base `eded841256` is **611 files / 2,787
-hunks / 33,834 changed lines** under `packages/` (`measureDivergence`,
+Measured divergence at the fixed gate base `eded841256` is **613 files / 2,790
+hunks / 33,842 changed lines** under `packages/` (`measureDivergence`,
 `--diff-filter=MD`, so fork-added files are excluded). These totals are the
 exact sanctioned writer result; prose estimates do not authorize a budget. For
 historical comparison, the 2026-08-25 `f4bc5ee335` re-anchor snapshot was 610 files /
