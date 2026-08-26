@@ -103,7 +103,7 @@ jobs:
       - name: Checkout
         # Full history: "Qualify release source" runs pnpm test:scripts, whose
         # divergence gate diffs against the checker's built-in upstream base
-        # (divergence.js DEFAULT_DIVERGENCE_BASE_REF = f4bc5ee335). That commit is
+        # (divergence.js DEFAULT_DIVERGENCE_BASE_REF = eded841256). That commit is
         # unreachable in a shallow clone, so a depth-1 checkout fails release
         # qualification. Matches ultramodern-nightly.yml and
         # boundary-anti-patterns.yml, which check out at fetch-depth: 0 for the

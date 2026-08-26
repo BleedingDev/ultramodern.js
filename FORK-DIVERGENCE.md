@@ -15,9 +15,11 @@ bases and counts and §3 reconciliation. The re-anchor changed no cumulative
 per-file divergence budget. The later RT-23 capped patch added five governed
 changed lines without changing the file or hunk totals.
 
-**Re-verified 2026-08-26** against the enforced allowlist: §3 now distinguishes
-the 34,334-line re-anchor snapshot from the current 34,339-line budget after
-RT-23's governed growth.
+**Re-verified 2026-08-26** after restoring the fixed `eded841256` audited
+measurement point while retaining the complete upstream sync through
+`f4bc5ee335` in `HEAD`: §2 bases and §3 base-transition ownership. Exact
+allowlist totals are writer-authoritative and must replace the explicit
+placeholders below when the reviewed re-record lands.
 
 This file is the single canonical record of where the UltraModern fork diverges
 from upstream Modern.js. It is read during every upstream sync and enforced on
@@ -116,29 +118,35 @@ Two different base refs are in play. Do not mix them — the counts differ.
 
 | Base | SHA | Used by | Meaning |
 | --- | --- | --- | --- |
-| Divergence-gate base | `f4bc5ee33532b7547876857caeab3782d41ffddd` | `divergence-allowlist.json`, `--mode divergence` | upstream main through the app-tools loader fix in #8819, merged into this fork and a true ancestor of `HEAD` |
+| Divergence-gate base | `eded841256a7cffdaa622e3889fc83407debd3e4` | `divergence-allowlist.json`, `--mode divergence` | fixed audited point: upstream's `Release v3.8.2 (#8810)` mainline commit and a true ancestor of `HEAD` |
 | Import-gate base | `8a744c1b` | `allowlist.json`, `--mode imports` | frozen import-boundary baseline, deliberately **not** re-anchored with the divergence base |
-| Sync-review base | `f4bc5ee33532b7547876857caeab3782d41ffddd` | this ledger's raw counts | `origin/main` tip at the 2026-08-25 sync; identical to the gate base |
+| Sync-review base | `f4bc5ee33532b7547876857caeab3782d41ffddd` | this ledger's raw sync-review counts | `origin/main` tip at the 2026-08-25 sync, retained in full in `HEAD`; intentionally newer than the gate base |
 
-**Re-anchored 2026-08-25 (was
-`3748f08860123c797c40576c0604f30a7e376593`, upstream through the Rsbuild
-2.2.0-rc.0 cohort).** Measure against the recorded **mainline** commit. The
-`v3.8.2` tag remains a parallel, patch-equivalent commit rather than an ancestor
-and is historical context only; it is not a valid substitute for this base.
+**The divergence gate returned to its fixed audited point on 2026-08-26.** Its
+brief forward re-anchors first to
+`3748f08860123c797c40576c0604f30a7e376593` (upstream through the Rsbuild
+2.2.0-rc.0 cohort) and then to `f4bc5ee335` (through #8819) remain part of the
+review history, not the current measurement contract. Returning the measurement
+point backward does not undo either upstream sync: both remain incorporated in
+`HEAD` and `f4bc5ee335` remains the truthful sync-review base. Measure against
+the recorded **mainline** commit. The parallel `v3.8.2` tag (`e642cd16`) is
+patch-equivalent to `eded841256` but is not an ancestor and is not a valid
+substitute.
 
-Raw `git diff -M <base> --name-status` (committed head vs base) at 2026-08-25:
+Raw `git diff -M <base> --name-status` sync review (committed head vs
+`f4bc5ee335`) at 2026-08-25:
 
 | Scope | Base | M | A | D | R |
 | --- | --- | --- | --- | --- | --- |
-| `packages/**` | `f4bc5ee335` (gate base = synced `origin/main`) | 581 | 848 | 11 | 18 |
+| `packages/**` | `f4bc5ee335` (synced `origin/main`) | 581 | 848 | 11 | 18 |
 | root/infra (`:(exclude)packages/**`) | `f4bc5ee335` | 422 | 691 | 7 | 39 |
 
 Regenerate with rename detection pinned on — without `-M` the template moves
 surface as delete/add pairs:
 
 ```sh
-git diff -M origin/main --name-status -- packages
-git diff -M origin/main --name-status -- . ':(exclude)packages/**'
+git diff -M f4bc5ee33532b7547876857caeab3782d41ffddd --name-status -- packages
+git diff -M f4bc5ee33532b7547876857caeab3782d41ffddd --name-status -- . ':(exclude)packages/**'
 node scripts/ultramodern-boundary-check/check-fork-import-boundary.js --mode divergence --json
 ```
 
@@ -150,40 +158,68 @@ fork-owned by definition, carry no divergence budget, and are not listed here.
 
 ## 3. Allowlist reconciliation
 
-Measured divergence at the current gate base `f4bc5ee335` is **610 files /
-2,777 hunks / 34,339 changed lines** under `packages/` (`measureDivergence`,
-`--diff-filter=MD`, so fork-added files are excluded). The 2026-08-25 re-anchor
-snapshot was 610 files / 2,777 hunks / 34,334 changed lines. The later RT-23
-capped patch added five governed changed lines without changing the file or
-hunk totals. The retired `eded841256` base measured 611 files / 2,789 hunks /
-33,816 changed lines; differences across the bases are a base transition, not
-a fork-earned shrink.
+Measured divergence at the fixed gate base `eded841256` is
+**PENDING-WRITER files / PENDING-WRITER hunks / PENDING-WRITER changed lines**
+under `packages/` (`measureDivergence`, `--diff-filter=MD`, so fork-added files
+are excluded). These placeholders must be replaced with the exact committed
+writer result; prose estimates do not authorize a budget. For historical
+comparison, the 2026-08-25 `f4bc5ee335` re-anchor snapshot was 610 files /
+2,777 hunks / 34,334 changed lines, and the later RT-23 capped patch raised that
+temporary-base budget to 34,339 changed lines without changing its file or hunk
+totals.
 
-**The re-record at the new base is complete (2026-08-25):** the re-anchor
-budgets in `divergence-allowlist.json` were written as the 34,334-line
-`f4bc5ee335` snapshot through the sanctioned reviewed path (§1) — required
-here because a base re-anchor is by definition growth — with the committed
-merge-base/head refs it demands:
+**The reviewed return to the fixed base is being recorded on 2026-08-26.** The
+budgets in `divergence-allowlist.json` must be written through the sanctioned
+base-transition path (§1) with committed merge-base/head refs:
 
 ```sh
 node scripts/ultramodern-boundary-check/check-fork-import-boundary.js \
-  --mode divergence --base f4bc5ee33532b7547876857caeab3782d41ffddd \
+  --mode divergence --base eded841256a7cffdaa622e3889fc83407debd3e4 \
   --write-divergence-allowlist --rebase-divergence-allowlist --record-growth \
   --merge-base "$PR_MERGE_BASE" --head "$COMMITTED_HEAD"
 ```
 
-This transition incorporates upstream's app-tools duplicate-loader fix, BFF
-test portability update, and styled-components plugin bump. After merge
-resolution it changes no cumulative per-file budget: totals and all 610 entries
-in that 34,334-line re-anchor snapshot are identical to the `3748f08860`
-snapshot. The ledger change is still required because audited-base identity
-changed. RT-23 was recorded afterward through the governed growth path: its
-single upstream-owned file rose from 228 to 233 changed lines while remaining
-at 12 hunks, producing the current 610 files / 2,777 hunks / 34,339 changed
-lines.
+This is a backward measurement-point transition, not a rollback of the source
+tree and not ordinary PR growth. `HEAD` still contains the full upstream work
+through `f4bc5ee335`. Consequently, later upstream-owned lines that were absent
+at `eded841256` become measurable relative to the older audit point even though
+the fork did not newly author them in this PR. The 21 raised/new paths are
+reviewed individually below; no other raised/new path belongs to this
+transition.
 
-The seven entries that grew across the preceding 2026-08-24 base transition
-were inspected and are
+### 2026-08-26 fixed-base transition: complete raised/new set
+
+| Audited-base-owned path | Owner | Backward-base transition reason | Disposition |
+| --- | --- | --- | --- |
+| `packages/cli/adapter-rstest/package.json` | bleedingdev | The fully retained post-v3.8.2 upstream Rstest cohort changes are visible when the manifest is measured from the older fixed audit point; this is mechanical dependency metadata, not new PR-authored behavior | `keep-[M]` |
+| `packages/cli/builder/package.json` | bleedingdev | The fully retained post-v3.8.2 upstream builder toolchain manifest changes become part of the cumulative older-base diff; no upstream sync benefit was dropped | `keep-[M]` |
+| `packages/cli/builder/tests/__snapshots__/postcssLegacy.test.ts.snap` | bleedingdev | The synced upstream snapshot regeneration occurred after the fixed audit point, so measuring backward exposes its generated snapshot delta | `keep-[M]` |
+| `packages/cli/plugin-bff/package.json` | bleedingdev | The fully retained post-v3.8.2 upstream BFF manifest edits are newly measurable from the older base; this row records mechanical cohort identity rather than fork-side feature growth | `keep-[M]` |
+| `packages/cli/plugin-data-loader/package.json` | bleedingdev | The synced upstream data-loader manifest cohort is newer than the fixed audit point and therefore raises the cumulative older-base measurement | `keep-[M]` |
+| `packages/cli/plugin-ssg/package.json` | bleedingdev | The synced upstream SSG dependency metadata remains in `HEAD`; returning to the older base makes those mechanical lines measurable again | `keep-[M]` |
+| `packages/cli/plugin-styled-components/package.json` | bleedingdev | The post-v3.8.2 upstream styled-components plugin bump remains fully incorporated and is visible relative to the fixed audit point | `keep-[M]` |
+| `packages/document/package.json` | bleedingdev | The synced documentation dependency/toolchain manifest is newer than the fixed audit point; the resulting delta is mechanical metadata | `keep-[M]` |
+| `packages/runtime/plugin-i18n/package.json` | bleedingdev | The fully retained upstream runtime dependency cohort after v3.8.2 is visible in the older-base cumulative diff | `keep-[M]` |
+| `packages/runtime/plugin-image/package.json` | bleedingdev | The fully retained upstream image-plugin dependency cohort after v3.8.2 is visible in the older-base cumulative diff | `keep-[M]` |
+| `packages/runtime/plugin-runtime/package.json` | bleedingdev | The synced plugin-runtime manifest updates postdate the fixed audit point, so their mechanical dependency delta is newly measured | `keep-[M]` |
+| `packages/runtime/render/package.json` | bleedingdev | The synced React/RSC render cohort remains in `HEAD` and becomes measurable relative to the older v3.8.2 mainline point | `keep-[M]` |
+| `packages/server/core/package.json` | bleedingdev | The fully retained upstream server-core manifest updates postdate the fixed audit point and surface as mechanical cumulative divergence | `keep-[M]` |
+| `packages/server/server/package.json` | bleedingdev | The fully retained upstream server manifest updates postdate the fixed audit point and surface as mechanical cumulative divergence | `keep-[M]` |
+| `packages/solutions/app-tools/package.json` | bleedingdev | The synced app-tools dependency/build cohort remains complete in `HEAD`; measuring from v3.8.2 exposes its mechanical manifest delta | `keep-[M]` |
+| `packages/solutions/app-tools/rslib.config.mts` | bleedingdev | Upstream #8819 already landed the duplicate-loader fix at the later sync-review base; the fix remains in `HEAD` and appears only because the gate measures from the older commit | `upstream-PR` |
+| `packages/solutions/app-tools/tests/fixtures/subcommand/package.json` | bleedingdev | The synced fixture manifest update postdates the fixed audit point, so its test-fixture dependency delta is mechanically measurable | `keep-[M]` |
+| `packages/toolkit/plugin/package.json` | bleedingdev | The fully retained upstream toolkit plugin manifest cohort postdates the fixed base and is exposed by the backward measurement | `keep-[M]` |
+| `packages/toolkit/runtime-utils/package.json` | bleedingdev | The fully retained upstream runtime-utils manifest cohort postdates the fixed base and is exposed by the backward measurement | `keep-[M]` |
+| `packages/toolkit/sandpack-react/package.json` | bleedingdev | The synced Sandpack manifest updates remain in `HEAD`; their post-v3.8.2 dependency delta is mechanical | `keep-[M]` |
+| `packages/toolkit/utils/package.json` | bleedingdev | The fully retained upstream toolkit-utils manifest cohort postdates the fixed base and is exposed by the backward measurement | `keep-[M]` |
+
+The table is the same-PR ownership evidence for the complete base-transition
+increase. It does not claim that later upstream lines are fork-authored, and it
+must not be used to waive the 20-line cap for any unrelated change in those
+files.
+
+The seven entries that grew across the historical forward 2026-08-24 base
+transition were inspected and are
 dispositioned here. None is an ordinary fork-side PR growth or a merge-resolution
 defect:
 
@@ -644,12 +680,13 @@ current evidence — do not cite it.
    `node scripts/ultramodern-boundary-check/check-fork-import-boundary.js`.
    Any `unallowlisted-divergence` is a new Bucket-B entry that needs a row in
    this ledger before the budget is re-recorded.
-7. When the upstream base itself moves, re-anchor
-   `DEFAULT_DIVERGENCE_BASE_REF` to the upstream **mainline** release commit
-   (§2), not the release tag, and re-record with the writer command in §3 in the
-   same change as the ledger rows. Expect growth on every upstream-owned file the
-   fork replaced with a shim or an extension point: the fork's side did not
-   change, upstream's did, and a deletion of a bigger file measures bigger.
-   Inspect each entry against `git diff <old-base> <new-base> -- <file>` before
-   recording it — that diff is what separates a base-transition artifact from a
-   merge-resolution defect.
+7. Do not move the fixed audited base merely because upstream was synced; update
+   the Sync-review base in §2 instead. If a separate base transition is
+   explicitly approved, re-anchor `DEFAULT_DIVERGENCE_BASE_REF` to the reviewed
+   upstream **mainline** commit, not a parallel release tag, and re-record with
+   the writer command in §3 in the same change as the ledger rows. Expect growth
+   on every upstream-owned file the fork replaced with a shim or an extension
+   point: the fork's side did not change, upstream's did, and a deletion of a
+   bigger file measures bigger. Inspect each entry against
+   `git diff <old-base> <new-base> -- <file>` before recording it — that diff is
+   what separates a base-transition artifact from a merge-resolution defect.

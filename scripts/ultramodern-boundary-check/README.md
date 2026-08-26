@@ -27,11 +27,12 @@ node scripts/ultramodern-boundary-check/check-fork-import-boundary.js --write-al
 The import gate cannot see fork behavior written directly into upstream-owned
 files. Divergence mode diffs the complete scope recorded in
 `divergence-allowlist.json` against that file's audited upstream base
-(`f4bc5ee33532b7547876857caeab3782d41ffddd` today — upstream main through the
-app-tools loader fix in #8819, merged into this fork). One entry per
-divergent base-owned path records only `hunks` and `changedLines`. Always anchor
-on the recorded upstream mainline commit; the previous v3.8.2 release tag was a
-parallel, patch-equivalent commit and was not an ancestor of this branch.
+(`eded841256a7cffdaa622e3889fc83407debd3e4` today — upstream's Release v3.8.2
+(#8810) mainline commit). One entry per divergent base-owned path records only
+`hunks` and `changedLines`. Later upstream syncs remain incorporated in `HEAD`;
+the older audit point is intentional so cumulative fork measurement stays
+comparable. The parallel `v3.8.2` tag (`e642cd16`) is patch-equivalent but is not
+an ancestor of this branch and must not be substituted for the mainline commit.
 
 ### Fail-closed recorded contract
 
@@ -83,8 +84,9 @@ per-range delta against a full-history budget and is wrong in both directions,
 so `checkForkDivergence` refuses to run when the two bases disagree. CI runs the
 default invocation; do not pass `--base`.
 
-When upstream is merged and the base itself moves, re-anchor the constant and
-re-record in the **same** change as the `FORK-DIVERGENCE.md` rows:
+An upstream merge does not automatically move the fixed audited base. If a
+separate, explicitly reviewed base transition is approved, re-anchor the
+constant and re-record in the **same** change as the `FORK-DIVERGENCE.md` rows:
 
 ```sh
 node scripts/ultramodern-boundary-check/check-fork-import-boundary.js \
