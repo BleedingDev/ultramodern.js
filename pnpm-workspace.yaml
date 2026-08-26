@@ -129,7 +129,6 @@ allowedDeprecatedVersions:
 minimumReleaseAgeExclude:
   - '@typescript/native-preview'
   - '@typescript/native-preview-*'
-  - '@rsbuild/plugin-type-check@1.5.0'
   # Exact, integrity-reviewed stable 2.2.0 closure. The corresponding
   # generated-workspace approvals expire at 2026-08-27T02:46:55.656Z;
   # remove these static root exclusions under modernjs-lo5p.5 after expiry.
