@@ -103,6 +103,18 @@ const reviewedAugust10StaleReleaseAgeEntries = [
   ...staleOxcBindingTargets.map(target => `@oxfmt/binding-${target}@0.63.0`),
 ] as const;
 
+// Recognition-only selectors authenticated by
+// release-age-review-2026-08-24.json and release-age-review-2026-08-25.json.
+// They were emitted by older generated workspaces, but must never become
+// active approvals again.
+const reviewedAugust24And25StaleReleaseAgeEntries = [
+  '@rsbuild/core@2.2.0-rc.0',
+  'baseline-browser-mapping@2.11.19',
+  'electron-to-chromium@1.5.413',
+  'caniuse-lite@1.0.30001810',
+  'electron-to-chromium@1.5.414',
+] as const;
+
 const knownStaleReleaseAgeEntries = new Set([
   '@effect/opentelemetry@4.0.0-beta.92',
   '@effect/opentelemetry@4.0.0-beta.94',
@@ -130,6 +142,7 @@ const knownStaleReleaseAgeEntries = new Set([
   ...staleOxcBindingTargets.map(target => `@oxfmt/binding-${target}@0.64.0`),
   ...staleOxcBindingTargets.map(target => `@oxlint/binding-${target}@1.79.0`),
   ...reviewedAugust10StaleReleaseAgeEntries,
+  ...reviewedAugust24And25StaleReleaseAgeEntries,
   ...ULTRAMODERN_WORKSPACE_POLICY.pnpm.releaseAge.approvals
     .filter(approval => approval.packageName.startsWith('@module-federation/'))
     .map(approval => `${approval.packageName}@2.6.0`),
