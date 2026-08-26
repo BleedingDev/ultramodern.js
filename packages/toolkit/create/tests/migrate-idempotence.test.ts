@@ -97,7 +97,11 @@ importers: {}
 packages: {}
 snapshots: {}
 `,
-  options: { beforeExit?: string; exitCode?: number } = {},
+  options: {
+    beforeExit?: string;
+    exitCode?: number;
+    requireLockfileAbsent?: boolean;
+  } = {},
 ) {
   const binDir = path.join(tempRoot, 'bin');
   const invocationLog = path.join(tempRoot, 'pnpm-invocations.log');
@@ -107,6 +111,7 @@ snapshots: {}
     executable,
     `#!/bin/sh
 set -eu
+${options.requireLockfileAbsent ? 'test ! -e pnpm-lock.yaml' : ''}
 printf '%s\\n' "$*" >> "$ULTRAMODERN_TEST_PNPM_LOG"
 cat > pnpm-lock.yaml <<'LOCKFILE'
 ${lockfile}LOCKFILE
@@ -181,7 +186,9 @@ test('source-checkout migrate uses workspace links and is byte-idempotent after 
 
   try {
     const extension = seedRetiredMetadata(workspaceDir);
-    const { binDir, invocationLog } = installFakePnpm(tempRoot);
+    const { binDir, invocationLog } = installFakePnpm(tempRoot, undefined, {
+      requireLockfileAbsent: true,
+    });
     process.env.PATH = `${binDir}${path.delimiter}${previousPath ?? ''}`;
     process.env.ULTRAMODERN_TEST_PNPM_LOG = invocationLog;
 
@@ -319,12 +326,24 @@ test('migrate restores the byte-identical tree when lock refresh exits nonzero',
 
   try {
     seedRetiredMetadata(workspaceDir);
+    const staleLockfile = `lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      stale-package:
+        specifier: 1.0.0
+        version: stale-package@1.0.0
+packages: {}
+snapshots: {}
+`;
+    fs.writeFileSync(path.join(workspaceDir, 'pnpm-lock.yaml'), staleLockfile);
     const { binDir, invocationLog } = installFakePnpm(tempRoot, undefined, {
       beforeExit: `rm package.json
 chmod 600 consumer-tool.sh
 mkdir -p .modernjs/failed-lock-refresh
 printf 'created by failed refresh\\n' > .modernjs/failed-lock-refresh/artifact.txt`,
       exitCode: 23,
+      requireLockfileAbsent: true,
     });
     process.env.PATH = `${binDir}${path.delimiter}${previousPath ?? ''}`;
     process.env.ULTRAMODERN_TEST_PNPM_LOG = invocationLog;
@@ -335,6 +354,10 @@ printf 'created by failed refresh\\n' > .modernjs/failed-lock-refresh/artifact.t
       23,
     );
     assert.deepEqual(snapshotWorkspaceTree(workspaceDir), before);
+    assert.equal(
+      fs.readFileSync(path.join(workspaceDir, 'pnpm-lock.yaml'), 'utf-8'),
+      staleLockfile,
+    );
   } finally {
     if (previousPath === undefined) {
       delete process.env.PATH;
