@@ -429,6 +429,13 @@ const requiredPatchPolicies: readonly UltramodernPatchPolicy[] = [
     path: `patches/@module-federation__modern-js-v3@${MODULE_FEDERATION_VERSION}.patch`,
   },
   {
+    // runtime-core 2.9.0 uses ResourceLoadContext in its public remote hook
+    // declaration without importing it, so strict library checking fails.
+    packageName: '@module-federation/runtime-core',
+    version: MODULE_FEDERATION_VERSION,
+    path: `patches/@module-federation__runtime-core@${MODULE_FEDERATION_VERSION}.patch`,
+  },
+  {
     // router-core 1.171.27 still ships `MakeRouteMatch['__beforeLoadContext']`
     // in dist ssr type declarations; the property does not exist on the type,
     // so workspace builds fail under skipLibCheck:false (which generated

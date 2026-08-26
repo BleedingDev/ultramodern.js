@@ -83,6 +83,7 @@ const expectedWorkspaceManifest = [
   'patches/@module-federation__bridge-react@2.9.0.patch',
   'patches/@module-federation__dts-plugin@2.9.0.patch',
   'patches/@module-federation__modern-js-v3@2.9.0.patch',
+  'patches/@module-federation__runtime-core@2.9.0.patch',
   'patches/@tanstack__router-core@1.171.27.patch',
   'patches/drizzle-orm-ts7-strict-declarations.patch',
   'pnpm-workspace.yaml',

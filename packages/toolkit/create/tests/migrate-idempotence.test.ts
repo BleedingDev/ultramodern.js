@@ -229,6 +229,16 @@ test('source-checkout migrate uses workspace links and is byte-idempotent after 
       true,
       'the first migration must materialize the DTS plugin patch before the idempotence snapshot',
     );
+    assert.equal(
+      fs.existsSync(
+        path.join(
+          workspaceDir,
+          `patches/@module-federation__runtime-core@${MODULE_FEDERATION_VERSION}.patch`,
+        ),
+      ),
+      true,
+      'the first migration must materialize the runtime-core patch before the idempotence snapshot',
+    );
 
     for (const relativePath of retiredMetadataPaths) {
       assert.equal(fs.existsSync(path.join(workspaceDir, relativePath)), false);

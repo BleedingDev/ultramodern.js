@@ -44,6 +44,7 @@ patchedDependencies:
   '@module-federation/manifest@2.9.0': a31d4d30913ffb579faf42be4f1c03a0f330d3f09348e9eedc00059d6e8d123f
   '@module-federation/modern-js-v3@2.9.0': bb1e38c3e8d0d65f9cf86f07c21c69041a24a95240f93692188c4e9ebf9140f1
   '@module-federation/rspack@2.9.0': 7beed0f736d66f78abeba9ed9b5537e571eff92f49aa03bd30a6b674f32f4eae
+  '@module-federation/runtime-core@2.9.0': b241be221397f0e07dbe6c515725e12eaf3b418469bb7dd21750e6e4b215dd8d
   '@tanstack/router-core@1.171.27': d0e147ec82083771b70989d2a1da6aa47f342ae42071af86c4247649f6a5b9e9
 
 importers:
@@ -22896,7 +22897,7 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
-  '@module-federation/runtime-core@2.9.0':
+  '@module-federation/runtime-core@2.9.0(patch_hash=b241be221397f0e07dbe6c515725e12eaf3b418469bb7dd21750e6e4b215dd8d)':
     dependencies:
       '@module-federation/error-codes': 2.9.0
       '@module-federation/sdk': 2.9.0
@@ -22909,7 +22910,7 @@ snapshots:
   '@module-federation/runtime@2.9.0':
     dependencies:
       '@module-federation/error-codes': 2.9.0
-      '@module-federation/runtime-core': 2.9.0
+      '@module-federation/runtime-core': 2.9.0(patch_hash=b241be221397f0e07dbe6c515725e12eaf3b418469bb7dd21750e6e4b215dd8d)
       '@module-federation/sdk': 2.9.0
 
   '@module-federation/sdk@2.9.0': {}

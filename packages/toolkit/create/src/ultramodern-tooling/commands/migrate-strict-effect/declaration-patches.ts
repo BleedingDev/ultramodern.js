@@ -6,14 +6,7 @@ import type { MigrationIo } from './io';
 import {
   drizzleOrmDeclarationPatchPath,
   drizzleOrmDeclarationPatchSourcePath,
-  moduleFederationBridgeReactPatchPath,
-  moduleFederationBridgeReactPatchSourcePath,
-  moduleFederationDtsPluginPatchPath,
-  moduleFederationDtsPluginPatchSourcePath,
-  moduleFederationModernJsPatchPath,
-  moduleFederationModernJsPatchSourcePath,
-  tanstackRouterCorePatchPath,
-  tanstackRouterCorePatchSourcePath,
+  requiredGeneratedPatches,
 } from './policy-constants';
 
 export function ensureGeneratedDeclarationPatches(
@@ -21,30 +14,10 @@ export function ensureGeneratedDeclarationPatches(
   options: { includeDrizzleOrmPatch: boolean },
 ) {
   let changed = false;
-  changed =
-    ensureGeneratedPatchFile(
-      io,
-      moduleFederationModernJsPatchPath,
-      moduleFederationModernJsPatchSourcePath,
-    ) || changed;
-  changed =
-    ensureGeneratedPatchFile(
-      io,
-      moduleFederationDtsPluginPatchPath,
-      moduleFederationDtsPluginPatchSourcePath,
-    ) || changed;
-  changed =
-    ensureGeneratedPatchFile(
-      io,
-      moduleFederationBridgeReactPatchPath,
-      moduleFederationBridgeReactPatchSourcePath,
-    ) || changed;
-  changed =
-    ensureGeneratedPatchFile(
-      io,
-      tanstackRouterCorePatchPath,
-      tanstackRouterCorePatchSourcePath,
-    ) || changed;
+  for (const patch of requiredGeneratedPatches) {
+    changed =
+      ensureGeneratedPatchFile(io, patch.path, patch.sourcePath) || changed;
+  }
   if (options.includeDrizzleOrmPatch) {
     changed =
       ensureGeneratedPatchFile(

@@ -766,35 +766,57 @@ test('migrate preserves and rejects unknown bytes at the shared retired Effect p
   }
 });
 
-test('migrate materializes the required TanStack router declaration patch', async () => {
+test('migrate materializes required shared declaration patches', async () => {
   const { tempRoot, workspaceDir } = scaffoldWorkspace(
-    'tooling-required-tanstack-router-patch',
+    'tooling-required-shared-declaration-patches',
   );
   const workspacePath = path.join(workspaceDir, 'pnpm-workspace.yaml');
-  const patchFile = `@tanstack__router-core@${TANSTACK_ROUTER_CORE_VERSION}.patch`;
-  const relativePatchPath = `patches/${patchFile}`;
-  const selector = `@tanstack/router-core@${TANSTACK_ROUTER_CORE_VERSION}`;
-  const canonicalPatch = fs.readFileSync(
-    path.resolve(__dirname, '../template-workspace', relativePatchPath),
-    'utf-8',
-  );
+  const patchCases = [
+    {
+      label: 'router-core',
+      relativePatchPath: `patches/@tanstack__router-core@${TANSTACK_ROUTER_CORE_VERSION}.patch`,
+      selector: `@tanstack/router-core@${TANSTACK_ROUTER_CORE_VERSION}`,
+    },
+    {
+      label: 'runtime-core',
+      relativePatchPath: `patches/@module-federation__runtime-core@${MODULE_FEDERATION_VERSION}.patch`,
+      selector: `@module-federation/runtime-core@${MODULE_FEDERATION_VERSION}`,
+    },
+  ].map(patchCase => ({
+    ...patchCase,
+    canonicalPatch: fs.readFileSync(
+      path.resolve(
+        __dirname,
+        '../template-workspace',
+        patchCase.relativePatchPath,
+      ),
+      'utf-8',
+    ),
+  }));
 
   try {
-    assert.equal(
-      fs.readFileSync(path.join(workspaceDir, relativePatchPath), 'utf-8'),
-      canonicalPatch,
-      'fresh scaffolds must ship the canonical router-core declaration patch',
-    );
+    for (const patchCase of patchCases) {
+      assert.equal(
+        fs.readFileSync(
+          path.join(workspaceDir, patchCase.relativePatchPath),
+          'utf-8',
+        ),
+        patchCase.canonicalPatch,
+        `fresh scaffolds must ship the canonical ${patchCase.label} declaration patch`,
+      );
+    }
 
-    // Simulate a workspace created before the router-core 1.171.21 cohort:
-    // no selector and no patch file on disk.
+    // Simulate a workspace created before these declarations were repaired:
+    // no selectors and no patch files on disk.
     const policy = yaml.load(fs.readFileSync(workspacePath, 'utf-8')) as Record<
       string,
       any
     >;
-    delete policy.patchedDependencies[selector];
+    for (const patchCase of patchCases) {
+      delete policy.patchedDependencies[patchCase.selector];
+      fs.rmSync(path.join(workspaceDir, patchCase.relativePatchPath));
+    }
     fs.writeFileSync(workspacePath, yaml.dump(policy), 'utf-8');
-    fs.rmSync(path.join(workspaceDir, relativePatchPath));
 
     assert.equal(
       await runUltramodernToolingCli(
@@ -807,15 +829,20 @@ test('migrate materializes the required TanStack router declaration patch', asyn
     const migratedPolicy = yaml.load(
       fs.readFileSync(workspacePath, 'utf-8'),
     ) as Record<string, any>;
-    assert.equal(
-      migratedPolicy.patchedDependencies[selector],
-      relativePatchPath,
-    );
-    assert.equal(
-      fs.readFileSync(path.join(workspaceDir, relativePatchPath), 'utf-8'),
-      canonicalPatch,
-      'migration must restore the canonical router-core declaration patch',
-    );
+    for (const patchCase of patchCases) {
+      assert.equal(
+        migratedPolicy.patchedDependencies[patchCase.selector],
+        patchCase.relativePatchPath,
+      );
+      assert.equal(
+        fs.readFileSync(
+          path.join(workspaceDir, patchCase.relativePatchPath),
+          'utf-8',
+        ),
+        patchCase.canonicalPatch,
+        `migration must restore the canonical ${patchCase.label} declaration patch`,
+      );
+    }
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
