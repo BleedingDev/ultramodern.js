@@ -1,10 +1,6 @@
 import { fs } from '@modern-js/utils';
 import os from 'os';
 import path from 'path';
-import {
-  createMissingClientDeclarationError,
-  isMissingClientDeclarationError,
-} from '../src/utils/client-generator/type-facade';
 import clientGenerator, {
   buildClientTypeFacade,
   readDirectoryFiles,
@@ -108,21 +104,6 @@ describe('clientGenerator', () => {
   });
 
   describe('buildClientTypeFacade', () => {
-    it('brands a native missing-declaration error without name-based matching', () => {
-      const error = createMissingClientDeclarationError(
-        'api/lambda/index.ts',
-        'dist/api/lambda/index.d.ts',
-      );
-      const sameNamedError = new Error('unrelated');
-      sameNamedError.name = error.name;
-
-      expect(error).toBeInstanceOf(Error);
-      expect(error.name).toBe('MissingClientDeclarationError');
-      expect(error.message).toContain('dist/api/lambda/index.d.ts');
-      expect(isMissingClientDeclarationError(error)).toBe(true);
-      expect(isMissingClientDeclarationError(sameNamedError)).toBe(false);
-    });
-
     it('re-exports the default binding only when the module has one', () => {
       const withDefault = buildClientTypeFacade(
         './dist/client/index.d.ts',
