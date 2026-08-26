@@ -3,9 +3,9 @@
   "baseRef": "eded841256a7cffdaa622e3889fc83407debd3e4",
   "pathspec": ["packages"],
   "migrationGoal": "Shrink-only budget of fork edits inside upstream-owned files. Every entry is debt: move it upstream or behind an extension point, then re-run --write-divergence-allowlist.",
-  "totalFiles": 613,
-  "totalHunks": 2790,
-  "totalChangedLines": 33839,
+  "totalFiles": 614,
+  "totalHunks": 2791,
+  "totalChangedLines": 33841,
   "files": [
     {
       "file": "packages/cli/adapter-rstest/package.json",
@@ -2931,6 +2931,11 @@
       "file": "packages/toolkit/types/package.json",
       "hunks": 4,
       "changedLines": 16
+    },
+    {
+      "file": "packages/toolkit/types/packages/hoist-non-react-statics.d.ts",
+      "hunks": 1,
+      "changedLines": 2
     },
     {
       "file": "packages/toolkit/types/server/context.d.ts",
