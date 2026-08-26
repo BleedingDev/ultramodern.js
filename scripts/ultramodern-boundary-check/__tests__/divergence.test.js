@@ -268,8 +268,8 @@ test('full recorded repository scope remains green and fully measured', () => {
     allowlistPath: DEFAULT_DIVERGENCE_ALLOWLIST_PATH,
   });
   assert.equal(report.ok, true, formatDivergenceReport(report));
-  assert.equal(report.measuredFiles, 610);
-  assert.equal(report.allowlistFiles, 610);
+  assert.equal(report.measuredFiles, 611);
+  assert.equal(report.allowlistFiles, 611);
   assert.equal(report.cleared.length, 0);
 });
 
