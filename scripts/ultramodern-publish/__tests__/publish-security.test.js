@@ -324,12 +324,17 @@ test('release acceptance defaults to the exact reviewed third-party policy', asy
       'utf8',
     ),
   );
+  const retainedBrowserDataReview = browserDataReview.packages.filter(
+    record =>
+      `${record.packageName}@${record.version}` === 'caniuse-lite@1.0.30001810',
+  );
+  assert.equal(retainedBrowserDataReview.length, 1);
   const validated = validateExceptionPolicy(
     policy,
     new Date(stableRsbuildRspackReview.reviewedAt),
   );
   const reviewedRegistry = new Map([
-    ...browserDataReview.packages.map(record => [
+    ...retainedBrowserDataReview.map(record => [
       `${record.packageName}@${record.version}`,
       {
         allowedExpiryDates: new Set([record.maturesAt]),
@@ -357,13 +362,13 @@ test('release acceptance defaults to the exact reviewed third-party policy', asy
     ]),
   ]);
   const allowedExpiryDates = new Set([
-    ...browserDataReview.packages.map(record => record.maturesAt),
+    ...retainedBrowserDataReview.map(record => record.maturesAt),
     stableRsbuildRspackReview.expiresAt,
   ]);
   const observedExpiryDates = new Set();
 
   assert.equal(options.releaseAgePolicyPath, defaultReleaseAgePolicyPath);
-  assert.equal(validated.entries.length, 20);
+  assert.equal(validated.entries.length, 18);
   assert.deepEqual(
     policy.entries,
     validated.entries,

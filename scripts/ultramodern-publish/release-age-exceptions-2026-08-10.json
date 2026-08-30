@@ -212,35 +212,11 @@
         "sha256": "b8f9c9e91c424bb9ea2900fb613d2c3e383e4f9efaf51868b96e9e8e83ac0c82",
         "uri": "https://github.com/BleedingDev/ultramodern.js/commit/625c94e446ae5b8f91624563c6848f2cc6c934cf"
       },
-      "expiresAt": "2026-08-25T14:46:59.712Z",
-      "integrity": "sha512-Grytf1xOxOEMTGRwx6rLGKkTabd4vMg3VrKdj/7joCmV0qgh4QwMMO6xh34YEXQqirAuUdgQGa5orJQQ+69RBw==",
-      "package": "baseline-browser-mapping",
-      "reviewedAt": "2026-08-25T09:25:52.000Z",
-      "version": "2.11.19"
-    },
-    {
-      "approvedBy": "OpenAI Codex release reviewer",
-      "evidence": {
-        "sha256": "b8f9c9e91c424bb9ea2900fb613d2c3e383e4f9efaf51868b96e9e8e83ac0c82",
-        "uri": "https://github.com/BleedingDev/ultramodern.js/commit/625c94e446ae5b8f91624563c6848f2cc6c934cf"
-      },
       "expiresAt": "2026-08-25T20:04:16.328Z",
       "integrity": "sha512-TITQPUkaz+aVk5GL6NhOdwk1aEaNTSDPsGFWrTuhKGtjTF70jL/Oht2W4c6rXUe5fu7Ie19VIahAXHIIiWWNeg==",
       "package": "caniuse-lite",
       "reviewedAt": "2026-08-25T09:25:52.000Z",
       "version": "1.0.30001810"
-    },
-    {
-      "approvedBy": "OpenAI Codex release reviewer",
-      "evidence": {
-        "sha256": "b8f9c9e91c424bb9ea2900fb613d2c3e383e4f9efaf51868b96e9e8e83ac0c82",
-        "uri": "https://github.com/BleedingDev/ultramodern.js/commit/625c94e446ae5b8f91624563c6848f2cc6c934cf"
-      },
-      "expiresAt": "2026-08-26T02:05:46.077Z",
-      "integrity": "sha512-aYlviXiaXBbzvKgyALpcMmqa3Np3sDr0XnZbEG62n2UpZFbEcjQ4EEMOLGzVPhwVnwTz0lvKY+GcARbunuHekw==",
-      "package": "electron-to-chromium",
-      "reviewedAt": "2026-08-25T09:25:52.000Z",
-      "version": "1.5.414"
     }
   ]
 }
