@@ -71,6 +71,6 @@ Status: completed in the current working tree on 2026-06-13; Phase D/E and the f
 
 1. Full barrier: `test:ut`, `tests/` framework + superapp-contracts (×2 for flake), `validate:tsgo`, both release-gate profiles `--skip-commands`, `test:scripts`, `validate:security-workflows`, biome.
 2. Demo: pnpm overrides in `tractor-store-vertical-demo-publish-clean` pointing the `@bleedingdev/modern-js-*` aliases at the locally built packages → install → `pnpm check` + `pnpm build` + dev smoke of shell + one vertical.
-3. Updated FORK-DIVERGENCE.md, ADR statuses, changesets for behavior changes; bd issues for deferred items.
+3. Updated FORK-DIVERGENCE.md, ADR statuses, changesets for behavior changes; br issues for deferred items.
 
-Deferred (filed as bd issues, too large/risky for this pass): create-generator template-literal → file-template migration (`toolkit-create#9`), full Helmet replacement decision (`plugin-runtime-fork-lane#2`), gate-spine redesign beyond workflow merge, superapp-portfolio fixture-catalog data model (`tests-fork-suites#4`), MF dist-patch upstreaming (`gap-4#1`).
+Deferred (filed as br issues, too large/risky for this pass): create-generator template-literal → file-template migration (`toolkit-create#9`), full Helmet replacement decision (`plugin-runtime-fork-lane#2`), gate-spine redesign beyond workflow merge, superapp-portfolio fixture-catalog data model (`tests-fork-suites#4`), MF dist-patch upstreaming (`gap-4#1`).
