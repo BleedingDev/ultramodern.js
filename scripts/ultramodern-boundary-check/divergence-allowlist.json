@@ -1,16 +1,16 @@
 {
   "schemaVersion": 1,
-  "baseRef": "eded841256a7cffdaa622e3889fc83407debd3e4",
+  "baseRef": "2f4d9c4559e26209a0d77f02c6757f29fe3699a2",
   "pathspec": ["packages"],
   "migrationGoal": "Shrink-only budget of fork edits inside upstream-owned files. Every entry is debt: move it upstream or behind an extension point, then re-run --write-divergence-allowlist.",
-  "totalFiles": 614,
-  "totalHunks": 2791,
-  "totalChangedLines": 33841,
+  "totalFiles": 613,
+  "totalHunks": 2782,
+  "totalChangedLines": 34329,
   "files": [
     {
       "file": "packages/cli/adapter-rstest/package.json",
-      "hunks": 5,
-      "changedLines": 13
+      "hunks": 3,
+      "changedLines": 9
     },
     {
       "file": "packages/cli/adapter-rstest/rslib.config.mts",
@@ -34,8 +34,8 @@
     },
     {
       "file": "packages/cli/builder/package.json",
-      "hunks": 11,
-      "changedLines": 59
+      "hunks": 10,
+      "changedLines": 39
     },
     {
       "file": "packages/cli/builder/src/createBuilder.ts",
@@ -90,17 +90,17 @@
     {
       "file": "packages/cli/builder/tests/__snapshots__/default.test.ts.snap",
       "hunks": 1,
-      "changedLines": 4932
+      "changedLines": 5309
     },
     {
       "file": "packages/cli/builder/tests/__snapshots__/environment.test.ts.snap",
       "hunks": 1,
-      "changedLines": 3340
+      "changedLines": 3623
     },
     {
       "file": "packages/cli/builder/tests/__snapshots__/postcssLegacy.test.ts.snap",
-      "hunks": 34,
-      "changedLines": 123
+      "hunks": 24,
+      "changedLines": 63
     },
     {
       "file": "packages/cli/builder/tests/cache.test.ts",
@@ -214,8 +214,8 @@
     },
     {
       "file": "packages/cli/plugin-data-loader/package.json",
-      "hunks": 5,
-      "changedLines": 25
+      "hunks": 6,
+      "changedLines": 21
     },
     {
       "file": "packages/cli/plugin-data-loader/src/cli/loader.ts",
@@ -254,8 +254,8 @@
     },
     {
       "file": "packages/cli/plugin-ssg/package.json",
-      "hunks": 4,
-      "changedLines": 24
+      "hunks": 5,
+      "changedLines": 20
     },
     {
       "file": "packages/cli/plugin-ssg/src/index.ts",
@@ -305,7 +305,7 @@
     {
       "file": "packages/cli/plugin-styled-components/package.json",
       "hunks": 5,
-      "changedLines": 16
+      "changedLines": 14
     },
     {
       "file": "packages/cli/plugin-styled-components/src/styled.ts",
@@ -809,8 +809,8 @@
     },
     {
       "file": "packages/document/package.json",
-      "hunks": 8,
-      "changedLines": 40
+      "hunks": 10,
+      "changedLines": 34
     },
     {
       "file": "packages/document/rspress.config.ts",
@@ -894,8 +894,8 @@
     },
     {
       "file": "packages/runtime/plugin-i18n/package.json",
-      "hunks": 9,
-      "changedLines": 46
+      "hunks": 11,
+      "changedLines": 38
     },
     {
       "file": "packages/runtime/plugin-i18n/README.md",
@@ -1019,8 +1019,8 @@
     },
     {
       "file": "packages/runtime/plugin-image/package.json",
-      "hunks": 4,
-      "changedLines": 17
+      "hunks": 5,
+      "changedLines": 13
     },
     {
       "file": "packages/runtime/plugin-image/rslib.config.mts",
@@ -1045,7 +1045,7 @@
     {
       "file": "packages/runtime/plugin-runtime/package.json",
       "hunks": 14,
-      "changedLines": 82
+      "changedLines": 76
     },
     {
       "file": "packages/runtime/plugin-runtime/rstest.config.mts",
@@ -1579,8 +1579,8 @@
     },
     {
       "file": "packages/runtime/render/package.json",
-      "hunks": 8,
-      "changedLines": 46
+      "hunks": 10,
+      "changedLines": 38
     },
     {
       "file": "packages/runtime/render/react-server-dom-rspack.d.ts",
@@ -1720,7 +1720,7 @@
     {
       "file": "packages/server/core/package.json",
       "hunks": 7,
-      "changedLines": 26
+      "changedLines": 24
     },
     {
       "file": "packages/server/core/src/adapters/node/helper/index.ts",
@@ -1829,8 +1829,8 @@
     },
     {
       "file": "packages/server/core/src/plugins/render/render.ts",
-      "hunks": 8,
-      "changedLines": 8
+      "hunks": 7,
+      "changedLines": 9
     },
     {
       "file": "packages/server/core/src/plugins/render/renderRscHandler.ts",
@@ -1855,7 +1855,7 @@
     {
       "file": "packages/server/core/src/types/plugins/index.ts",
       "hunks": 5,
-      "changedLines": 22
+      "changedLines": 14
     },
     {
       "file": "packages/server/core/src/types/plugins/plugin.ts",
@@ -2030,7 +2030,7 @@
     {
       "file": "packages/server/server/package.json",
       "hunks": 8,
-      "changedLines": 28
+      "changedLines": 26
     },
     {
       "file": "packages/server/server/src/createDevServer.ts",
@@ -2195,12 +2195,12 @@
     {
       "file": "packages/solutions/app-tools/package.json",
       "hunks": 12,
-      "changedLines": 52
+      "changedLines": 50
     },
     {
       "file": "packages/solutions/app-tools/rslib.config.mts",
-      "hunks": 6,
-      "changedLines": 42
+      "hunks": 4,
+      "changedLines": 23
     },
     {
       "file": "packages/solutions/app-tools/src/builder/generator/adapterCopy.ts",
@@ -2511,11 +2511,6 @@
       "file": "packages/solutions/app-tools/tests/deploy/generator.test.ts",
       "hunks": 4,
       "changedLines": 28
-    },
-    {
-      "file": "packages/solutions/app-tools/tests/fixtures/subcommand/package.json",
-      "hunks": 1,
-      "changedLines": 2
     },
     {
       "file": "packages/solutions/app-tools/tests/index.test.ts",
@@ -2845,7 +2840,7 @@
     {
       "file": "packages/toolkit/runtime-utils/package.json",
       "hunks": 6,
-      "changedLines": 25
+      "changedLines": 21
     },
     {
       "file": "packages/toolkit/runtime-utils/rslib.config.mts",
@@ -2905,7 +2900,7 @@
     {
       "file": "packages/toolkit/sandpack-react/package.json",
       "hunks": 7,
-      "changedLines": 20
+      "changedLines": 16
     },
     {
       "file": "packages/toolkit/sandpack-react/scripts/template.ts",
@@ -2979,8 +2974,8 @@
     },
     {
       "file": "packages/toolkit/utils/package.json",
-      "hunks": 14,
-      "changedLines": 92
+      "hunks": 13,
+      "changedLines": 88
     },
     {
       "file": "packages/toolkit/utils/rslib.config.mts",
