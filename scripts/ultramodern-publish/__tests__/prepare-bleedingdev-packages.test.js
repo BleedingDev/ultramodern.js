@@ -3820,13 +3820,13 @@ test('the release validator tracks the merged Modern.js source version', async (
       packages,
     );
 
-  assert.equal(sourceFrameworkVersion, '3.8.2');
-  assert.doesNotThrow(() => accept('3.8.2-ultramodern.1'));
-  for (const stale of ['3.8.1-ultramodern.1', '3.8.1-ultramodern.5']) {
+  assert.equal(sourceFrameworkVersion, '3.8.3');
+  assert.doesNotThrow(() => accept('3.8.3-ultramodern.1'));
+  for (const stale of ['3.8.2-ultramodern.1', '3.8.2-ultramodern.16']) {
     assert.throws(
       () => accept(stale),
-      /release base 3\.8\.1 does not match the incorporated Modern\.js source version 3\.8\.2/i,
-      `expected ${stale} to be rejected after the 3.8.2 merge`,
+      /release base 3\.8\.2 does not match the incorporated Modern\.js source version 3\.8\.3/i,
+      `expected ${stale} to be rejected after the 3.8.3 merge`,
     );
   }
 });
