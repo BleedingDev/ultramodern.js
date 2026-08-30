@@ -13,13 +13,11 @@ const path = require('node:path');
 const DIVERGENCE_SCHEMA_VERSION = 1;
 const DIVERGENCE_FILE_PATTERN = /^packages\//;
 /**
- * Upstream's Release v3.8.2 (#8810) mainline commit. Later upstream syncs,
- * including the app-tools loader fix in #8819, remain incorporated in HEAD;
- * this intentionally stable audit point keeps cumulative fork measurement
- * comparable over time. The parallel v3.8.2 tag is patch-equivalent but is
- * not an ancestor of this branch and must not be substituted here.
+ * Upstream main through Release v3.8.3 (#8835) and the monitor-native CSR
+ * fallback reporting in #8836. This is the reviewed mainline commit merged by
+ * the 2026-08-30 sync; release tags must not be substituted for it.
  */
-const DEFAULT_DIVERGENCE_BASE_REF = 'eded841256a7cffdaa622e3889fc83407debd3e4';
+const DEFAULT_DIVERGENCE_BASE_REF = '2f4d9c4559e26209a0d77f02c6757f29fe3699a2';
 const DEFAULT_DIVERGENCE_ALLOWLIST_REPO_PATH =
   'scripts/ultramodern-boundary-check/divergence-allowlist.json';
 const DEFAULT_DIVERGENCE_ALLOWLIST_PATH = path.join(
