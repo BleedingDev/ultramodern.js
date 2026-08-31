@@ -553,12 +553,85 @@ function assertModernJsV3PatchBehavior(): Promise<void> {
       },
     })
     .then(() => {
-      assert.equal(configCallback?.().dev.lazyCompilation, false);
+      assert.equal(
+        configCallback?.().dev.lazyCompilation,
+        true,
+        'a host-only remote consumer can retain lazy compilation',
+      );
       Object.assign(remoteConfig, {
         exposes: { Widget: './src/Widget' },
         remotes: {},
       });
       assert.equal(configCallback?.().dev.lazyCompilation, false);
+
+      const reactPolicy = {
+        import: false,
+        requiredVersion: '^19.0.0',
+        shareKey: 'consumer-react',
+        singleton: true,
+      };
+      const objectSharedConfig = {
+        exposes: {},
+        name: 'object_shared_consumer',
+        shared: {
+          react: reactPolicy,
+          'react-dom': { singleton: true },
+        },
+      };
+      configPlugin.patchMFConfig(objectSharedConfig, false);
+      assert.equal(objectSharedConfig.shared.react, reactPolicy);
+      assert.deepEqual(objectSharedConfig.shared['react/'], {
+        ...reactPolicy,
+        import: false,
+        packageName: 'react',
+        request: 'react/',
+        shareKey: 'react/',
+      });
+      assert.deepEqual(objectSharedConfig.shared['react-dom/'], {
+        import: 'react-dom/',
+        packageName: 'react-dom',
+        request: 'react-dom/',
+        shareKey: 'react-dom/',
+        singleton: true,
+      });
+
+      const arraySharedConfig = {
+        exposes: {},
+        name: 'array_shared_consumer',
+        shared: ['react', { 'react-dom': { singleton: true } }],
+      };
+      configPlugin.patchMFConfig(arraySharedConfig, false);
+      configPlugin.patchMFConfig(arraySharedConfig, false);
+      assert.deepEqual(arraySharedConfig.shared, [
+        'react',
+        { 'react-dom': { singleton: true } },
+        { 'react/': 'react/' },
+        {
+          'react-dom/': {
+            import: 'react-dom/',
+            packageName: 'react-dom',
+            request: 'react-dom/',
+            shareKey: 'react-dom/',
+            singleton: true,
+          },
+        },
+      ]);
+
+      const explicitPrefixPolicy = {
+        import: false,
+        requiredVersion: 'consumer-version',
+        singleton: false,
+      };
+      const explicitPrefixConfig = {
+        exposes: {},
+        name: 'explicit_prefix_consumer',
+        shared: {
+          react: { singleton: true },
+          'react/': explicitPrefixPolicy,
+        },
+      };
+      configPlugin.patchMFConfig(explicitPrefixConfig, false);
+      assert.equal(explicitPrefixConfig.shared['react/'], explicitPrefixPolicy);
 
       const serverWorkspace = fs.mkdtempSync(
         path.join(os.tmpdir(), 'modern-js-v3-server-proof-'),

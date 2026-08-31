@@ -1,5 +1,5 @@
 diff --git a/dist/cjs/cli/configPlugin.js b/dist/cjs/cli/configPlugin.js
-index 247cf19..498e04e 100644
+index 247cf19..ac131b6d 100644
 --- a/dist/cjs/cli/configPlugin.js
 +++ b/dist/cjs/cli/configPlugin.js
 @@ -74,8 +74,8 @@ var __webpack_exports__ = {};
@@ -21,7 +21,58 @@ index 247cf19..498e04e 100644
      const resolveNodeRuntimePlugin = ()=>resolvePackageFile('@module-federation/node', 'dist/src/runtimePlugin.mjs', 'dist/src/runtimePlugin.js');
      const resolveNodeRecordRemoteHashPlugin = ()=>resolvePackageFile('@module-federation/node', 'dist/src/recordDynamicRemoteEntryHashPlugin.mjs', 'dist/src/recordDynamicRemoteEntryHashPlugin.js');
      function setEnv(enableSSR) {
-@@ -147,6 +148,7 @@ var __webpack_exports__ = {};
+@@ -137,16 +138,58 @@ var __webpack_exports__ = {};
+             }
+         }
+     };
++    const patchReactSubpathSharing = (mfConfig)=>{
++        let shared = mfConfig.shared;
++        if (!shared) return;
++        for (const [rootRequest, prefixRequest] of [
++            [
++                'react',
++                'react/'
++            ],
++            [
++                'react-dom',
++                'react-dom/'
++            ]
++        ]){
++            const entries = Array.isArray(shared) ? shared : [
++                shared
++            ];
++            const rootEntry = entries.find((entry)=>'string' == typeof entry ? entry === rootRequest : entry && Object.prototype.hasOwnProperty.call(entry, rootRequest));
++            const hasPrefix = entries.some((entry)=>'string' == typeof entry ? entry === prefixRequest : entry && Object.prototype.hasOwnProperty.call(entry, prefixRequest));
++            if (!rootEntry || hasPrefix) continue;
++            const rootConfig = 'string' == typeof rootEntry ? rootEntry : rootEntry[rootRequest];
++            const prefixConfig = 'string' == typeof rootConfig ? prefixRequest : {
++                ...rootConfig,
++                import: false === rootConfig.import ? false : prefixRequest,
++                packageName: rootRequest,
++                request: prefixRequest,
++                shareKey: prefixRequest
++            };
++            if (Array.isArray(shared)) shared = [
++                ...shared,
++                {
++                    [prefixRequest]: prefixConfig
++                }
++            ];
++            else shared = {
++                ...shared,
++                [prefixRequest]: prefixConfig
++            };
++        }
++        mfConfig.shared = shared;
++    };
+     const patchMFConfig = (mfConfig, isServer)=>{
+         (0, utils_namespaceObject.addDataFetchExposes)(mfConfig.exposes, isServer);
+         if (void 0 === mfConfig.remoteType) mfConfig.remoteType = "script";
+         if (!mfConfig.name) throw new Error(`${external_constant_js_namespaceObject.PLUGIN_IDENTIFIER} mfConfig.name can not be empty!`);
++        patchReactSubpathSharing(mfConfig);
+         const runtimePlugins = [
+             ...mfConfig.runtimePlugins || []
+         ];
          patchDTSConfig(mfConfig, isServer);
          injectRuntimePlugins(resolveSharedStrategyPlugin(), runtimePlugins);
          if (isServer) {
@@ -29,7 +80,7 @@ index 247cf19..498e04e 100644
              injectRuntimePlugins(resolveNodeRuntimePlugin(), runtimePlugins);
              if ((0, external_utils_js_namespaceObject.isDev)()) injectRuntimePlugins(resolveNodeRecordRemoteHashPlugin(), runtimePlugins);
              injectRuntimePlugins(resolveInjectNodeFetchPlugin(), runtimePlugins);
-@@ -224,7 +226,7 @@ var __webpack_exports__ = {};
+@@ -224,7 +267,7 @@ var __webpack_exports__ = {};
          if (!chain.output.get('uniqueName')) chain.output.uniqueName(mfConfig.name);
          const splitChunkConfig = chain.optimization.splitChunks.entries();
          if (!isServer) (0, utils_namespaceObject.autoDeleteSplitChunkCacheGroups)(mfConfig, splitChunkConfig);
@@ -38,48 +89,8 @@ index 247cf19..498e04e 100644
              const previousChunks = splitChunkConfig.chunks;
              splitChunkConfig.chunks = 'async';
              if (previousChunks && 'async' !== previousChunks) external_logger_js_default().warn(`splitChunks.chunks = "${previousChunks}" is not allowed with stream SSR mode; forcing "async"`);
-diff --git a/dist/esm-node/cli/configPlugin.mjs b/dist/esm-node/cli/configPlugin.mjs
-index 4135698..0b0d256 100644
---- a/dist/esm-node/cli/configPlugin.mjs
-+++ b/dist/esm-node/cli/configPlugin.mjs
-@@ -13,8 +13,8 @@ __webpack_require__.add({
-     }
- });
- const defaultPath = path.resolve(process.cwd(), 'module-federation.config.ts');
--const resolvePackageFile = (packageName, esmRelativePath, cjsRelativePath)=>{
--    const packageEntry = require.resolve(packageName);
-+const resolvePackageFile = (packageName, esmRelativePath, cjsRelativePath, resolveFrom)=>{
-+    const packageEntry = require.resolve(packageName, resolveFrom ? { paths: [resolveFrom] } : undefined);
-     let packageRoot = path.dirname(packageEntry);
-     while(!fs.existsSync(path.join(packageRoot, 'package.json'))){
-         const parentDir = path.dirname(packageRoot);
-@@ -25,6 +25,7 @@ const resolvePackageFile = (packageName, esmRelativePath, cjsRelativePath)=>{
- };
- const resolveSharedStrategyPlugin = ()=>resolvePackageFile('@module-federation/modern-js-v3', 'dist/esm/cli/mfRuntimePlugins/shared-strategy.mjs', 'dist/cjs/cli/mfRuntimePlugins/shared-strategy.js');
- const resolveInjectNodeFetchPlugin = ()=>resolvePackageFile('@module-federation/modern-js-v3', 'dist/esm/cli/mfRuntimePlugins/inject-node-fetch.mjs', 'dist/cjs/cli/mfRuntimePlugins/inject-node-fetch.js');
-+const resolveManifestRecoveryPlugin = ()=>resolvePackageFile('@modern-js/runtime', 'dist/esm/module-federation/manifest-recovery-runtime-plugin.mjs', 'dist/cjs/module-federation/manifest-recovery-runtime-plugin.js', process.cwd());
- const resolveNodeRuntimePlugin = ()=>resolvePackageFile('@module-federation/node', 'dist/src/runtimePlugin.mjs', 'dist/src/runtimePlugin.js');
- const resolveNodeRecordRemoteHashPlugin = ()=>resolvePackageFile('@module-federation/node', 'dist/src/recordDynamicRemoteEntryHashPlugin.mjs', 'dist/src/recordDynamicRemoteEntryHashPlugin.js');
- function setEnv(enableSSR) {
-@@ -86,6 +87,7 @@ const patchMFConfig = (mfConfig, isServer)=>{
-     patchDTSConfig(mfConfig, isServer);
-     injectRuntimePlugins(resolveSharedStrategyPlugin(), runtimePlugins);
-     if (isServer) {
-+        injectRuntimePlugins(resolveManifestRecoveryPlugin(), runtimePlugins);
-         injectRuntimePlugins(resolveNodeRuntimePlugin(), runtimePlugins);
-         if (isDev()) injectRuntimePlugins(resolveNodeRecordRemoteHashPlugin(), runtimePlugins);
-         injectRuntimePlugins(resolveInjectNodeFetchPlugin(), runtimePlugins);
-@@ -163,7 +165,7 @@ function patchBundlerConfig(options) {
-     if (!chain.output.get('uniqueName')) chain.output.uniqueName(mfConfig.name);
-     const splitChunkConfig = chain.optimization.splitChunks.entries();
-     if (!isServer) autoDeleteSplitChunkCacheGroups(mfConfig, splitChunkConfig);
--    if (!isServer && enableSSR && splitChunkConfig && 'object' == typeof splitChunkConfig && splitChunkConfig.cacheGroups) {
-+    if (!isServer && enableSSR && splitChunkConfig && 'object' == typeof splitChunkConfig && splitChunkConfig.cacheGroups && splitChunkConfig.chunks !== undefined && splitChunkConfig.chunks !== 'async') {
-         const previousChunks = splitChunkConfig.chunks;
-         splitChunkConfig.chunks = 'async';
-         if (previousChunks && 'async' !== previousChunks) logger.warn(`splitChunks.chunks = "${previousChunks}" is not allowed with stream SSR mode; forcing "async"`);
 diff --git a/dist/esm/cli/configPlugin.mjs b/dist/esm/cli/configPlugin.mjs
-index a390de8..3b7181a 100644
+index a390de85925ec6f5abff007aa7ba7da8890942d1..ce4e2eb642381f1df38a2e652c3858a85792fc35 100644
 --- a/dist/esm/cli/configPlugin.mjs
 +++ b/dist/esm/cli/configPlugin.mjs
 @@ -19,8 +19,8 @@ __webpack_require__.add({
@@ -103,7 +114,58 @@ index a390de8..3b7181a 100644
  var configPlugin_resolveNodeRuntimePlugin = function() {
      return configPlugin_resolvePackageFile('@module-federation/node', 'dist/src/runtimePlugin.mjs', 'dist/src/runtimePlugin.js');
  };
-@@ -117,6 +120,7 @@ var configPlugin_patchMFConfig = function(mfConfig, isServer) {
+@@ -109,14 +112,58 @@ var configPlugin_patchDTSConfig = function(mfConfig, isServer) {
+         }
+     }
+ };
++var configPlugin_patchReactSubpathSharing = function(mfConfig) {
++    var shared = mfConfig.shared;
++    if (!shared) return;
++    var requests = [
++        [
++            'react',
++            'react/'
++        ],
++        [
++            'react-dom',
++            'react-dom/'
++        ]
++    ];
++    for(var index = 0; index < requests.length; index++){
++        var rootRequest = requests[index][0];
++        var prefixRequest = requests[index][1];
++        var entries = Array.isArray(shared) ? shared : [
++            shared
++        ];
++        var rootEntry = entries.find(function(entry) {
++            return 'string' == typeof entry ? entry === rootRequest : entry && Object.prototype.hasOwnProperty.call(entry, rootRequest);
++        });
++        var hasPrefix = entries.some(function(entry) {
++            return 'string' == typeof entry ? entry === prefixRequest : entry && Object.prototype.hasOwnProperty.call(entry, prefixRequest);
++        });
++        if (!rootEntry || hasPrefix) continue;
++        var rootConfig = 'string' == typeof rootEntry ? rootEntry : rootEntry[rootRequest];
++        var prefixConfig = 'string' == typeof rootConfig ? prefixRequest : Object.assign({}, rootConfig, {
++            import: false === rootConfig.import ? false : prefixRequest,
++            packageName: rootRequest,
++            request: prefixRequest,
++            shareKey: prefixRequest
++        });
++        var prefixEntry = {};
++        prefixEntry[prefixRequest] = prefixConfig;
++        if (Array.isArray(shared)) shared = shared.concat([
++            prefixEntry
++        ]);
++        else shared = Object.assign({}, shared, prefixEntry);
++    }
++    mfConfig.shared = shared;
++};
+ var configPlugin_patchMFConfig = function(mfConfig, isServer) {
+     addDataFetchExposes(mfConfig.exposes, isServer);
+     if (void 0 === mfConfig.remoteType) mfConfig.remoteType = "script";
+     if (!mfConfig.name) throw new Error("".concat(PLUGIN_IDENTIFIER, " mfConfig.name can not be empty!"));
++    configPlugin_patchReactSubpathSharing(mfConfig);
+     var runtimePlugins = _to_consumable_array__(mfConfig.runtimePlugins || []);
      configPlugin_patchDTSConfig(mfConfig, isServer);
      configPlugin_injectRuntimePlugins(configPlugin_resolveSharedStrategyPlugin(), runtimePlugins);
      if (isServer) {
@@ -111,7 +173,7 @@ index a390de8..3b7181a 100644
          configPlugin_injectRuntimePlugins(configPlugin_resolveNodeRuntimePlugin(), runtimePlugins);
          if (isDev()) configPlugin_injectRuntimePlugins(configPlugin_resolveNodeRecordRemoteHashPlugin(), runtimePlugins);
          configPlugin_injectRuntimePlugins(configPlugin_resolveInjectNodeFetchPlugin(), runtimePlugins);
-@@ -193,7 +197,7 @@ function patchBundlerConfig(options) {
+@@ -193,7 +240,7 @@ function patchBundlerConfig(options) {
      if (!chain.output.get('uniqueName')) chain.output.uniqueName(mfConfig.name);
      var splitChunkConfig = chain.optimization.splitChunks.entries();
      if (!isServer) autoDeleteSplitChunkCacheGroups(mfConfig, splitChunkConfig);
@@ -121,7 +183,7 @@ index a390de8..3b7181a 100644
          splitChunkConfig.chunks = 'async';
          if (previousChunks && 'async' !== previousChunks) logger.warn('splitChunks.chunks = "'.concat(previousChunks, '" is not allowed with stream SSR mode; forcing "async"'));
 diff --git a/dist/esm/react/data-fetch.mjs b/dist/esm/react/data-fetch.mjs
-index afb5a8f..7cc37e9 100644
+index afb5a8f6a5d1f008382e26b047c7f85ac8f9153a..7cc37e9c7dde5c3ea007ebe547cd71f6239b7447 100644
 --- a/dist/esm/react/data-fetch.mjs
 +++ b/dist/esm/react/data-fetch.mjs
 @@ -1 +1,6 @@
@@ -132,7 +194,7 @@ index afb5a8f..7cc37e9 100644
 +        ...options,
 +    });
 diff --git a/dist/esm/react/index.mjs b/dist/esm/react/index.mjs
-index 7135f3a..8454a2b 100644
+index 7135f3a48be78722f2a46f8b2d366ef5b34d90ed..8454a2b3f7296d829df01cf3894f5912729e37fe 100644
 --- a/dist/esm/react/index.mjs
 +++ b/dist/esm/react/index.mjs
 @@ -1 +1,6 @@
@@ -142,3 +204,94 @@ index 7135f3a..8454a2b 100644
 +        injectLink: false,
 +        ...options,
 +    });
+diff --git a/dist/esm-node/cli/configPlugin.mjs b/dist/esm-node/cli/configPlugin.mjs
+index 41356987ccc29a62903944cfb4a559dd46d1cb90..d4848a71a5935534c811051c6dc30a0279bbc610 100644
+--- a/dist/esm-node/cli/configPlugin.mjs
++++ b/dist/esm-node/cli/configPlugin.mjs
+@@ -13,8 +13,8 @@ __webpack_require__.add({
+     }
+ });
+ const defaultPath = path.resolve(process.cwd(), 'module-federation.config.ts');
+-const resolvePackageFile = (packageName, esmRelativePath, cjsRelativePath)=>{
+-    const packageEntry = require.resolve(packageName);
++const resolvePackageFile = (packageName, esmRelativePath, cjsRelativePath, resolveFrom)=>{
++    const packageEntry = require.resolve(packageName, resolveFrom ? { paths: [resolveFrom] } : undefined);
+     let packageRoot = path.dirname(packageEntry);
+     while(!fs.existsSync(path.join(packageRoot, 'package.json'))){
+         const parentDir = path.dirname(packageRoot);
+@@ -25,6 +25,7 @@ const resolvePackageFile = (packageName, esmRelativePath, cjsRelativePath)=>{
+ };
+ const resolveSharedStrategyPlugin = ()=>resolvePackageFile('@module-federation/modern-js-v3', 'dist/esm/cli/mfRuntimePlugins/shared-strategy.mjs', 'dist/cjs/cli/mfRuntimePlugins/shared-strategy.js');
+ const resolveInjectNodeFetchPlugin = ()=>resolvePackageFile('@module-federation/modern-js-v3', 'dist/esm/cli/mfRuntimePlugins/inject-node-fetch.mjs', 'dist/cjs/cli/mfRuntimePlugins/inject-node-fetch.js');
++const resolveManifestRecoveryPlugin = ()=>resolvePackageFile('@modern-js/runtime', 'dist/esm/module-federation/manifest-recovery-runtime-plugin.mjs', 'dist/cjs/module-federation/manifest-recovery-runtime-plugin.js', process.cwd());
+ const resolveNodeRuntimePlugin = ()=>resolvePackageFile('@module-federation/node', 'dist/src/runtimePlugin.mjs', 'dist/src/runtimePlugin.js');
+ const resolveNodeRecordRemoteHashPlugin = ()=>resolvePackageFile('@module-federation/node', 'dist/src/recordDynamicRemoteEntryHashPlugin.mjs', 'dist/src/recordDynamicRemoteEntryHashPlugin.js');
+ function setEnv(enableSSR) {
+@@ -76,16 +77,58 @@ const patchDTSConfig = (mfConfig, isServer)=>{
+         }
+     }
+ };
++const patchReactSubpathSharing = (mfConfig)=>{
++    let shared = mfConfig.shared;
++    if (!shared) return;
++    for (const [rootRequest, prefixRequest] of [
++        [
++            'react',
++            'react/'
++        ],
++        [
++            'react-dom',
++            'react-dom/'
++        ]
++    ]){
++        const entries = Array.isArray(shared) ? shared : [
++            shared
++        ];
++        const rootEntry = entries.find((entry)=>'string' == typeof entry ? entry === rootRequest : entry && Object.prototype.hasOwnProperty.call(entry, rootRequest));
++        const hasPrefix = entries.some((entry)=>'string' == typeof entry ? entry === prefixRequest : entry && Object.prototype.hasOwnProperty.call(entry, prefixRequest));
++        if (!rootEntry || hasPrefix) continue;
++        const rootConfig = 'string' == typeof rootEntry ? rootEntry : rootEntry[rootRequest];
++        const prefixConfig = 'string' == typeof rootConfig ? prefixRequest : {
++            ...rootConfig,
++            import: false === rootConfig.import ? false : prefixRequest,
++            packageName: rootRequest,
++            request: prefixRequest,
++            shareKey: prefixRequest
++        };
++        if (Array.isArray(shared)) shared = [
++            ...shared,
++            {
++                [prefixRequest]: prefixConfig
++            }
++        ];
++        else shared = {
++            ...shared,
++            [prefixRequest]: prefixConfig
++        };
++    }
++    mfConfig.shared = shared;
++};
+ const patchMFConfig = (mfConfig, isServer)=>{
+     addDataFetchExposes(mfConfig.exposes, isServer);
+     if (void 0 === mfConfig.remoteType) mfConfig.remoteType = "script";
+     if (!mfConfig.name) throw new Error(`${PLUGIN_IDENTIFIER} mfConfig.name can not be empty!`);
++    patchReactSubpathSharing(mfConfig);
+     const runtimePlugins = [
+         ...mfConfig.runtimePlugins || []
+     ];
+     patchDTSConfig(mfConfig, isServer);
+     injectRuntimePlugins(resolveSharedStrategyPlugin(), runtimePlugins);
+     if (isServer) {
++        injectRuntimePlugins(resolveManifestRecoveryPlugin(), runtimePlugins);
+         injectRuntimePlugins(resolveNodeRuntimePlugin(), runtimePlugins);
+         if (isDev()) injectRuntimePlugins(resolveNodeRecordRemoteHashPlugin(), runtimePlugins);
+         injectRuntimePlugins(resolveInjectNodeFetchPlugin(), runtimePlugins);
+@@ -163,7 +206,7 @@ function patchBundlerConfig(options) {
+     if (!chain.output.get('uniqueName')) chain.output.uniqueName(mfConfig.name);
+     const splitChunkConfig = chain.optimization.splitChunks.entries();
+     if (!isServer) autoDeleteSplitChunkCacheGroups(mfConfig, splitChunkConfig);
+-    if (!isServer && enableSSR && splitChunkConfig && 'object' == typeof splitChunkConfig && splitChunkConfig.cacheGroups) {
++    if (!isServer && enableSSR && splitChunkConfig && 'object' == typeof splitChunkConfig && splitChunkConfig.cacheGroups && splitChunkConfig.chunks !== undefined && splitChunkConfig.chunks !== 'async') {
+         const previousChunks = splitChunkConfig.chunks;
+         splitChunkConfig.chunks = 'async';
+         if (previousChunks && 'async' !== previousChunks) logger.warn(`splitChunks.chunks = "${previousChunks}" is not allowed with stream SSR mode; forcing "async"`);
