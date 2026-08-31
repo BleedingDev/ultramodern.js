@@ -3,6 +3,7 @@ import { type GenClientOptions, generateClient } from '@modern-js/bff-core';
 import type { HttpMethodDecider } from '@modern-js/types';
 import { fs, logger } from '@modern-js/utils';
 import path from 'path';
+import type { GeneratedEffectClientArtifacts } from '../effect-client-generator/types';
 import {
   generateEffectClient,
   resolveEffectEntryFile,
@@ -34,6 +35,7 @@ export type APILoaderOptions = {
   httpMethodDecider?: HttpMethodDecider;
   relativeDistPath: string;
   relativeApiPath: string;
+  requestId?: string;
   /**
    * Absolute paths of the valid API files, resolved by ApiRouter with the same
    * `API_FILE_RULES` the runtime router uses. Passing them in keeps the client
@@ -74,6 +76,7 @@ export async function clientGenerator(draftOptions: APILoaderOptions) {
       )
     : [];
   const generatedSourceList = [...lambdaSourceList];
+  let generatedEffectClient: GeneratedEffectClientArtifacts | null = null;
 
   const getClitentCode = async (resourcePath: string, source: string) => {
     const warning = `The file ${resourcePath} is not allowed to be imported in src directory, only API definition files are allowed.`;
@@ -165,7 +168,7 @@ export async function clientGenerator(draftOptions: APILoaderOptions) {
           relativeDistPath: draftOptions.relativeDistPath,
         });
 
-        const effectClientArtifacts = await generateEffectClient({
+        generatedEffectClient = await generateEffectClient({
           appDir: draftOptions.appDir,
           apiDir: draftOptions.apiDir,
           resourcePath: effectEntryFile,
@@ -174,12 +177,13 @@ export async function clientGenerator(draftOptions: APILoaderOptions) {
             : draftOptions.prefix) as string,
           port: Number(draftOptions.port),
           target: 'bundle',
+          requestId: draftOptions.requestId,
           requestCreator: draftOptions.requestCreator,
           httpMethodDecider: draftOptions.httpMethodDecider,
           dataPlatformBatch: draftOptions.effectDataPlatformBatch,
         });
 
-        if (effectClientArtifacts) {
+        if (generatedEffectClient) {
           const targetTypeFile = effectFileDetails.targetDir.replace(
             /\.js$/,
             '.d.ts',
@@ -187,11 +191,11 @@ export async function clientGenerator(draftOptions: APILoaderOptions) {
 
           await writeTargetFile(
             effectFileDetails.absTargetDir,
-            effectClientArtifacts.code,
+            generatedEffectClient.code,
           );
           await writeTargetFile(
             path.resolve(targetTypeFile),
-            effectClientArtifacts.declaration,
+            generatedEffectClient.declaration,
           );
           generatedSourceList.push(effectFileDetails);
         }
@@ -221,6 +225,8 @@ export async function clientGenerator(draftOptions: APILoaderOptions) {
     draftOptions.appDir,
     draftOptions.relativeDistPath,
   );
+
+  return generatedEffectClient;
 }
 
 export default clientGenerator;

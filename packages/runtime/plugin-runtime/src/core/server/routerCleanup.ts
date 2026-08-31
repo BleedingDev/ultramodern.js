@@ -28,6 +28,8 @@ export type RouterCleanup = {
    * returned as-is and the caller is expected to invoke `run()` itself.
    */
   deferUntilBodyDone: (response: Response) => Response;
+  /** Cancels a discarded body before running router cleanup. */
+  discardBody: (response: Response) => Promise<void>;
 };
 
 export async function runWithRouterCleanupOnError<T>(
@@ -116,11 +118,29 @@ export function createRouterCleanup(
     });
   };
 
+  const discardBody = async (response: Response): Promise<void> => {
+    const { body } = response;
+    if (!body) {
+      await run();
+      return;
+    }
+
+    deferred = true;
+    if (body.locked) {
+      throw new TypeError(
+        'Cannot discard a locked response body before router cleanup',
+      );
+    }
+    await body.cancel('Response body discarded during finalization');
+    await run();
+  };
+
   return {
     get deferred() {
       return deferred;
     },
     run,
     deferUntilBodyDone,
+    discardBody,
   };
 }

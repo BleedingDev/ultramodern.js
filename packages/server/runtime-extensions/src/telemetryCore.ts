@@ -1,15 +1,4 @@
 export {
-  type TelemetryCanaryAction,
-  type TelemetryCanaryContractGateStatus,
-  type TelemetryCanaryDecision,
-  type TelemetryCanaryFailure,
-  type TelemetryCanaryFailureReason,
-  TelemetryCanaryOrchestrator,
-  type TelemetryCanaryOrchestratorOptions,
-  type TelemetryCanaryState,
-  type TelemetryCanaryStatusSnapshot,
-} from './telemetry/canary';
-export {
   type TelemetryEnvelope,
   type TelemetryExporter,
   type TelemetrySignalType,
@@ -22,6 +11,17 @@ export {
   type OtlpExporterOptions,
   type VictoriaMetricsExporterOptions,
 } from './telemetry/exporters';
+export {
+  type TelemetryContractGateStatus,
+  type TelemetryHealthEvaluation,
+  type TelemetryHealthFailure,
+  type TelemetryHealthFailureReason,
+  TelemetryHealthMonitor,
+  type TelemetryHealthMonitorOptions,
+  type TelemetryHealthState,
+  type TelemetryHealthStatusSnapshot,
+  type TelemetryHealthTransition,
+} from './telemetry/healthMonitor';
 export { createTelemetryAwareMetrics } from './telemetry/metrics';
 export { TelemetryRegistry } from './telemetry/registry';
 export {

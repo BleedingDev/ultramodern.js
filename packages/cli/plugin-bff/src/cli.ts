@@ -87,6 +87,7 @@ export const bffPlugin = (): CliPlugin<AppTools> => ({
                 lambdaDir,
                 existLambda,
                 port,
+                requestId: bff?.requestId,
                 target: name,
                 // Internal field
                 requestCreator: bff?.requestCreator,

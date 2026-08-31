@@ -48,6 +48,10 @@ const createRecordingRouterCleanup = (): RouterCleanup & {
       calls.push('defer');
       return response;
     },
+    discardBody: async response => {
+      calls.push('discard');
+      await response.body?.cancel();
+    },
   };
 };
 
@@ -97,7 +101,7 @@ describe('plugin-runtime SSR server helper matrix', () => {
       '../../../src/core/server/requestResponse'
     );
     const routerCleanup = createRecordingRouterCleanup();
-    const finalized = finalizeRenderResponse(
+    const finalized = await finalizeRenderResponse(
       new Response('<main>rendered</main>', {
         status: 200,
         headers: {
@@ -121,15 +125,15 @@ describe('plugin-runtime SSR server helper matrix', () => {
       },
       body: null,
     });
-    expect(routerCleanup.calls).toEqual(['defer']);
+    expect(routerCleanup.calls).toEqual(['discard']);
   });
 
-  it('finalizeRenderResponse returns an exact redirect response without deferring cleanup', async () => {
+  it('finalizeRenderResponse returns an exact redirect response after discarding the rendered body', async () => {
     const { finalizeRenderResponse } = await import(
       '../../../src/core/server/requestResponse'
     );
     const routerCleanup = createRecordingRouterCleanup();
-    const finalized = finalizeRenderResponse(
+    const finalized = await finalizeRenderResponse(
       new Response('<main>ignored</main>', {
         status: 200,
         headers: {
@@ -152,7 +156,7 @@ describe('plugin-runtime SSR server helper matrix', () => {
       },
       body: null,
     });
-    expect(routerCleanup.calls).toEqual([]);
+    expect(routerCleanup.calls).toEqual(['discard']);
   });
 
   it('finalizeRenderResponse preserves a normal 200 body and defers router cleanup until the body is done', async () => {
@@ -174,7 +178,7 @@ describe('plugin-runtime SSR server helper matrix', () => {
         controller.close();
       },
     });
-    const finalized = finalizeRenderResponse(
+    const finalized = await finalizeRenderResponse(
       new Response(body, {
         status: 200,
         headers: {

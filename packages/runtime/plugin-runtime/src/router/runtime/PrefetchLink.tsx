@@ -1,5 +1,6 @@
 // @effect-diagnostics asyncFunction:off globalConsole:off globalTimers:off strictBooleanExpressions:off unnecessaryArrowBlock:off
 'use client';
+import { getNavigationWarmupCacheKey } from '@modern-js/runtime-extensions';
 import {
   matchRoutes,
   type Path,
@@ -25,6 +26,14 @@ import type { RouteAssets, RouteManifest } from './types';
 declare const WEBPACK_CHUNK_LOAD:
   | ((chunkId: string | number) => Promise<unknown>)
   | undefined;
+declare const __webpack_chunk_load__: typeof WEBPACK_CHUNK_LOAD;
+declare const __webpack_public_path__: string | undefined;
+const getWebpackChunkLoader = (): typeof WEBPACK_CHUNK_LOAD =>
+  typeof __webpack_chunk_load__ === 'function'
+    ? __webpack_chunk_load__
+    : undefined;
+const getWebpackPublicPath = () =>
+  typeof __webpack_public_path__ === 'string' ? __webpack_public_path__ : '';
 
 interface PrefetchHandlers {
   onFocus?: FocusEventHandler<Element>;
@@ -152,8 +161,7 @@ const runNextWarmup = () => {
     activeWarmups += 1;
     task
       .run()
-      .catch(error => {
-        console.error(error);
+      .catch(() => {
         warmupCache.delete(task.key);
       })
       .finally(() => {
@@ -187,6 +195,9 @@ const scheduleWarmup = (key: string, run: () => Promise<unknown>) => {
 
   return () => {
     task.cancelled = true;
+    if (warmupQueue.includes(task)) {
+      warmupCache.delete(task.key);
+    }
   };
 };
 
@@ -335,6 +346,7 @@ function usePrefetchBehavior(
 async function loadRouteModule(
   route: RouteObject,
   routeAssets: RouteAssets,
+  chunkLoader: NonNullable<typeof WEBPACK_CHUNK_LOAD>,
 ): Promise<string[] | void> {
   const routeId = route.id;
   if (!routeId) {
@@ -354,11 +366,12 @@ async function loadRouteModule(
   try {
     await Promise.all(
       chunkIds.map(chunkId => {
-        return WEBPACK_CHUNK_LOAD?.(chunkId);
+        return chunkLoader(chunkId);
       }),
     );
   } catch (error) {
     console.error(error);
+    throw error;
   }
 }
 
@@ -404,11 +417,12 @@ const PrefetchPageLinks: React.FC<{ path: Path; includeData: boolean }> = ({
   );
 
   React.useEffect(() => {
+    const chunkLoader = getWebpackChunkLoader();
     if (
       !allowNetworkWarmup ||
       !Array.isArray(matches) ||
       !routeAssets ||
-      !WEBPACK_CHUNK_LOAD
+      !chunkLoader
     ) {
       return;
     }
@@ -423,15 +437,20 @@ const PrefetchPageLinks: React.FC<{ path: Path; includeData: boolean }> = ({
       }
 
       return scheduleWarmup(
-        `route-module:${routeId}:${chunkIds.join(',')}`,
-        () => loadRouteModule(match.route, routeAssets),
+        getNavigationWarmupCacheKey(
+          context,
+          chunkLoader,
+          getWebpackPublicPath(),
+          `route-module:${routeId}:${chunkIds.join(',')}`,
+        ),
+        () => loadRouteModule(match.route, routeAssets, chunkLoader),
       );
     });
 
     return () => {
       cancellations.forEach(cancel => cancel());
     };
-  }, [allowNetworkWarmup, matches, routeAssets]);
+  }, [allowNetworkWarmup, context, matches, routeAssets]);
 
   if (!allowNetworkWarmup || !includeData || !window._SSR_DATA) {
     return null;

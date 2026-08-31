@@ -6,7 +6,7 @@
   "types": "./dist/types/index.d.ts",
   "scripts": {
     "dev": "rslib build --watch",
-    "build": "rslib build && pnpm -w tsgo:dts \"$PWD\""
+    "build": "rslib build"
   },
   "exports": {
     ".": {

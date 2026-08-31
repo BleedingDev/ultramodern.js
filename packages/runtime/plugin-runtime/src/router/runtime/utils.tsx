@@ -309,6 +309,7 @@ function serializeRouteErrorResponse(error: unknown) {
       status: error.status,
       statusText: 'Internal Server Error',
       data: 'Unexpected Server Error',
+      internal: error.internal,
       __type: 'RouteErrorResponse',
     };
   }
@@ -317,6 +318,7 @@ function serializeRouteErrorResponse(error: unknown) {
     status: error.status,
     statusText: error.statusText,
     data: error.data,
+    internal: error.internal,
     __type: 'RouteErrorResponse',
   };
 }

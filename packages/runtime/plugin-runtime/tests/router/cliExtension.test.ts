@@ -422,32 +422,50 @@ describe('router cli extension points', () => {
     });
   });
 
-  test('updates nested route spec json deterministically under concurrent writes', async () => {
+  test('atomically conserves built-in and TanStack routes without filesystem locks', async () => {
     tempDir = await mkdtemp(path.join(tmpdir(), 'modern-router-cli-'));
     const specPath = path.join(tempDir, 'dist', NESTED_ROUTE_SPEC_FILE);
 
-    await updateNestedRoutesSpec(specPath, {
+    await fs.outputJSON(specPath, {
       existing: [{ id: 'keep-me' }],
     });
-    await Promise.all(
-      Array.from({ length: 8 }, (_, index) =>
-        updateNestedRoutesSpec(specPath, {
-          [`entry-${index}`]: [{ id: `route-${index}` }],
-        }),
-      ),
-    );
+    const mkdir = rstest.spyOn(fs, 'mkdir');
+    const rename = rstest.spyOn(fs, 'rename');
+
+    await Promise.all([
+      updateNestedRoutesSpec(specPath, {
+        dashboard: [{ id: 'built-in-route' }],
+      }),
+      updateNestedRoutesSpec(specPath, {
+        main: [{ id: 'tanstack-route' }],
+      }),
+    ]);
 
     expect(await fs.readJSON(specPath)).toEqual({
       existing: [{ id: 'keep-me' }],
-      'entry-0': [{ id: 'route-0' }],
-      'entry-1': [{ id: 'route-1' }],
-      'entry-2': [{ id: 'route-2' }],
-      'entry-3': [{ id: 'route-3' }],
-      'entry-4': [{ id: 'route-4' }],
-      'entry-5': [{ id: 'route-5' }],
-      'entry-6': [{ id: 'route-6' }],
-      'entry-7': [{ id: 'route-7' }],
+      dashboard: [{ id: 'built-in-route' }],
+      main: [{ id: 'tanstack-route' }],
     });
+    expect(rename).toHaveBeenCalledTimes(2);
+    expect(
+      rename.mock.calls.map(([temporaryPath, publishedPath]) => ({
+        temporaryDirectory: path.dirname(temporaryPath as string),
+        publishedPath,
+      })),
+    ).toEqual([
+      {
+        temporaryDirectory: path.dirname(specPath),
+        publishedPath: specPath,
+      },
+      {
+        temporaryDirectory: path.dirname(specPath),
+        publishedPath: specPath,
+      },
+    ]);
+    expect(
+      new Set(rename.mock.calls.map(([temporaryPath]) => temporaryPath)).size,
+    ).toBe(2);
+    expect(mkdir).not.toHaveBeenCalledWith(`${specPath}.lock`);
     expect(await fs.pathExists(`${specPath}.lock`)).toBe(false);
   });
 

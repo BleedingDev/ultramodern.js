@@ -3,12 +3,11 @@
   "compilerOptions": {
     "declaration": false,
     "jsx": "preserve",
+    "baseUrl": "./",
     "isolatedModules": true,
     "module": "ESNext",
-    "moduleResolution": "Bundler",
-    "paths": {},
-    "rootDir": "./src",
-    "types": ["node"]
+    "moduleResolution": "node",
+    "paths": {}
   },
   "include": ["src"],
   "exclude": ["template", "dist", "node_modules"]

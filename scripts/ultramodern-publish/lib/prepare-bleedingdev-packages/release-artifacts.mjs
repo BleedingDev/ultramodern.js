@@ -7,6 +7,7 @@ import zlib from 'node:zlib';
 import {
   createTemplateRequiredFiles,
   repoRoot,
+  ultramodernCreateSourceName,
 } from './constants.mjs';
 import {
   createPackageDependencyGraph,
@@ -728,7 +729,7 @@ function validatePackedPackageJson(item, inspection) {
       }
     }
   }
-  if (item.sourceName === '@modern-js/create') {
+  if (item.sourceName === ultramodernCreateSourceName) {
     const filePaths = new Set(inspection.files.map(file => file.path));
     const missing = createTemplateRequiredFiles.filter(
       requiredPath => !filePaths.has(requiredPath),
@@ -1089,11 +1090,11 @@ function verifyReleaseArtifacts(outDir, expected = {}) {
   });
 
   const createPackages = packages.filter(
-    item => item.sourceName === '@modern-js/create',
+    item => item.sourceName === ultramodernCreateSourceName,
   );
   if (createPackages.length !== 1) {
     throw new Error(
-      `Release manifest must contain exactly one @modern-js/create package, found ${createPackages.length}`,
+      `Release manifest must contain exactly one ${ultramodernCreateSourceName} package, found ${createPackages.length}`,
     );
   }
   const createTarballBytes = readVerifiedPackageArtifactBytes(
@@ -1236,11 +1237,11 @@ function createReleaseArtifacts({
     version,
   });
   const createPackages = packages.filter(
-    item => item.sourceName === '@modern-js/create',
+    item => item.sourceName === ultramodernCreateSourceName,
   );
   if (createPackages.length !== 1) {
     throw new Error(
-      `Staged release package cohort must contain exactly one @modern-js/create package, found ${createPackages.length}`,
+      `Staged release package cohort must contain exactly one ${ultramodernCreateSourceName} package, found ${createPackages.length}`,
     );
   }
   const projectionPath = path.join(
@@ -1249,7 +1250,7 @@ function createReleaseArtifacts({
   );
   if (fs.existsSync(projectionPath)) {
     throw new Error(
-      `Staged @modern-js/create package already contains ${releaseCohortProjectionPath}`,
+      `Staged ${ultramodernCreateSourceName} package already contains ${releaseCohortProjectionPath}`,
     );
   }
   fs.mkdirSync(path.dirname(projectionPath), { recursive: true });

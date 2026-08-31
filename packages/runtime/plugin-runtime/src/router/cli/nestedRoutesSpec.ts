@@ -1,57 +1,17 @@
 // @effect-diagnostics asyncFunction:off nodeBuiltinImport:off
 import path from 'node:path';
-import { setTimeout as sleep } from 'node:timers/promises';
 import { fs } from '@modern-js/utils';
 import { cloneDeep } from '@modern-js/utils/lodash';
 
-const lockPollIntervalMs = 25;
-const staleLockAgeMs = 2 * 60 * 1000;
-
 const pendingUpdates = new Map<string, Promise<unknown>>();
 let tempFileCounter = 0;
-
-async function acquireSpecLock(specPath: string) {
-  const lockDir = `${specPath}.lock`;
-  await fs.ensureDir(path.dirname(specPath));
-
-  while (true) {
-    try {
-      await fs.mkdir(lockDir);
-
-      return async () => {
-        await fs.remove(lockDir);
-      };
-    } catch (error: unknown) {
-      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
-        throw error;
-      }
-    }
-
-    try {
-      const stat = await fs.stat(lockDir);
-      if (
-        performance.timeOrigin + performance.now() - stat.mtimeMs >
-        staleLockAgeMs
-      ) {
-        await fs.remove(lockDir);
-        continue;
-      }
-    } catch (error: unknown) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-        throw error;
-      }
-      continue;
-    }
-
-    await sleep(lockPollIntervalMs);
-  }
-}
 
 async function writeJSONAtomically(
   filePath: string,
   value: Record<string, unknown>,
 ) {
   const directory = path.dirname(filePath);
+  await fs.ensureDir(directory);
   const tempPath = path.join(
     directory,
     `.${path.basename(filePath)}.${process.pid}.${(tempFileCounter += 1)}.tmp`,
@@ -77,20 +37,15 @@ export async function updateNestedRoutesSpec(
   const currentUpdate = previousUpdate
     .catch(() => undefined)
     .then(async () => {
-      const releaseLock = await acquireSpecLock(resolvedSpecPath);
+      const existingRoutes = (await fs.pathExists(resolvedSpecPath))
+        ? ((await fs.readJSON(resolvedSpecPath)) as Record<string, unknown>)
+        : {};
+      const mergedRoutes = {
+        ...existingRoutes,
+        ...nextRoutesSnapshot,
+      };
 
-      try {
-        const existingRoutes = (await fs.pathExists(resolvedSpecPath))
-          ? ((await fs.readJSON(resolvedSpecPath)) as Record<string, unknown>)
-          : {};
-
-        await writeJSONAtomically(resolvedSpecPath, {
-          ...existingRoutes,
-          ...nextRoutesSnapshot,
-        });
-      } finally {
-        await releaseLock();
-      }
+      await writeJSONAtomically(resolvedSpecPath, mergedRoutes);
     });
 
   pendingUpdates.set(resolvedSpecPath, currentUpdate);

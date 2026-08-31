@@ -4,7 +4,7 @@ import {
   matchesPathPrefix,
   shouldSkipLocaleRedirect,
   stripLanguagePrefix,
-} from '../shared/localisedUrls.js';
+} from '@modern-js/i18n-runtime-extensions';
 import type { LocaleDetectionOptions } from '../shared/type';
 
 interface LocaleRedirectRequest {

@@ -13,6 +13,7 @@
     "modern.js"
   ],
   "scripts": {
+    "preinstall": "node scripts/ultramodern-node-policy/check-node-version.mjs",
     "setup": "npm run reset && pnpm install",
     "reset": "npx rimraf --glob ./**/node_modules",
     "test:framework": "cd tests && pnpm run test:framework",
@@ -63,7 +64,6 @@
     "ultramodern:build-bleedingdev-publish": "node scripts/ultramodern-publish/build-bleedingdev-packages.mjs",
     "ultramodern:source-create-proof": "node scripts/ultramodern-publish/validate-source-create-proof.mjs",
     "ultramodern:trust-bleedingdev-publish": "node scripts/ultramodern-publish/configure-bleedingdev-trusted-publishing.mjs",
-    "tsgo:dts": "node scripts/tsgo-dts.mjs",
     "validate:tsgo": "node scripts/tsgo-critical.mjs",
     "validate:bun-smoke": "bun scripts/release-gates/validate-release-candidate-gates.js --profile scripts/release-gates/module-certification-profile.json --evidence-dir docs/super-app-rfc-adr/evidence/module-certification/current --skip-commands",
     "validate:rc-gates": "node scripts/release-gates/validate-release-candidate-gates.js --profile scripts/release-gates/rc-contract-profile.json --evidence-dir docs/super-app-rfc-adr/evidence/release-candidate/current",
@@ -71,7 +71,7 @@
     "check-doc-bundle": "cd ./scripts/check-doc-bundle && pnpm start"
   },
   "engines": {
-    "node": ">=20",
+    "node": ">=26.7.0",
     "pnpm": ">=11"
   },
   "packageManager": "pnpm@11.24.0",

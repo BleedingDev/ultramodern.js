@@ -5,16 +5,22 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const repoRoot = path.resolve(__dirname, '../../../../');
-const createBin = path.resolve(repoRoot, 'packages/toolkit/create/bin/run.js');
-const createPackageDir = path.resolve(repoRoot, 'packages/toolkit/create');
+const createBin = path.resolve(
+  repoRoot,
+  'packages/toolkit/ultramodern-create/bin/run.js',
+);
+const ultramodernCreatePackageDir = path.resolve(
+  repoRoot,
+  'packages/toolkit/ultramodern-create',
+);
 const codeToolsPackageDir = path.resolve(
   repoRoot,
   'packages/toolkit/code-tools',
 );
 const testFrameworkVersion = '3.2.0-ultramodern.108';
-const frameworkVersionEnv = 'MODERN_CREATE_ULTRAMODERN_FRAMEWORK_VERSION';
+const frameworkVersionEnv = 'ULTRAMODERN_CREATE_FRAMEWORK_VERSION';
 const bleedingDevAliases: Record<string, string> = {
-  '@modern-js/create': '@bleedingdev/modern-js-create',
+  '@modern-js/ultramodern-create': '@bleedingdev/modern-js-ultramodern-create',
   '@modern-js/code-tools': '@bleedingdev/modern-js-code-tools',
   '@modern-js/app-tools': '@bleedingdev/modern-js-app-tools',
   '@modern-js/plugin-bff': '@bleedingdev/modern-js-plugin-bff',
@@ -152,7 +158,11 @@ function linkModernPackage(
 }
 
 function linkWorkspaceToolPackages(projectDir: string) {
-  linkModernPackage(projectDir, 'create', createPackageDir);
+  linkModernPackage(
+    projectDir,
+    'ultramodern-create',
+    ultramodernCreatePackageDir,
+  );
   linkModernPackage(projectDir, 'code-tools', codeToolsPackageDir);
 }
 
@@ -241,17 +251,21 @@ describe('create-ultramodern-workspace', () => {
 
     const readinessOutput = runPerformanceReadiness(workspaceDir);
     expect(readinessOutput.trim()).toBe(
-      'UltraModern performance readiness diagnostics reported',
+      'UltraModern performance configuration validation reported',
     );
     const readinessReportPath =
       '.codex/reports/performance-readiness/ultramodern-performance-readiness.json';
     const readinessReport = readJson(workspaceDir, readinessReportPath);
     expect(readinessReport).toMatchObject({
-      schemaVersion: 1,
-      profile: 'ultramodern-performance-readiness-diagnostics-v1',
-      status: 'pass',
+      schemaVersion: 2,
+      profile: 'ultramodern-performance-configuration-validation-v2',
+      result: 'configuration-valid',
       defaultOn: true,
       failOn: 'framework-invariant',
+      runtimeMeasurement: {
+        performed: false,
+        reason: 'static-source-and-configuration-validation-only',
+      },
       signals: [
         'bfcache',
         'core-web-vitals-rum',
@@ -267,9 +281,10 @@ describe('create-ultramodern-workspace', () => {
         path: 'apps/shell-super-app',
         signals: readinessReport.signals.map((id: string) =>
           expect.objectContaining({
+            evidenceKind: 'static-source-and-configuration',
             id,
-            severity: 'diagnostic',
-            status: 'pass',
+            severity: 'configuration',
+            status: 'configuration-valid',
           }),
         ),
       },
@@ -304,14 +319,18 @@ describe('create-ultramodern-workspace', () => {
     );
     const disabledReadinessOutput = runPerformanceReadiness(workspaceDir);
     expect(disabledReadinessOutput.trim()).toBe(
-      'UltraModern performance readiness diagnostics disabled',
+      'UltraModern performance configuration validation disabled',
     );
     expect(readJson(workspaceDir, readinessReportPath)).toMatchObject({
-      schemaVersion: 1,
-      profile: 'ultramodern-performance-readiness-diagnostics-v1',
-      status: 'disabled',
+      schemaVersion: 2,
+      profile: 'ultramodern-performance-configuration-validation-v2',
+      result: 'disabled',
       defaultOn: true,
       optOut: `${readinessConfigPath}#enabled=false`,
+      runtimeMeasurement: {
+        performed: false,
+        reason: 'static-source-and-configuration-validation-only',
+      },
       apps: [],
     });
     writeText(workspaceDir, readinessConfigPath, readinessConfigSource);
@@ -319,10 +338,10 @@ describe('create-ultramodern-workspace', () => {
       ULTRAMODERN_PERFORMANCE_READINESS_DIAGNOSTICS: 'false',
     });
     expect(envDisabledReadinessOutput.trim()).toBe(
-      'UltraModern performance readiness diagnostics disabled',
+      'UltraModern performance configuration validation disabled',
     );
     expect(readJson(workspaceDir, readinessReportPath)).toMatchObject({
-      status: 'disabled',
+      result: 'disabled',
       optOut: 'ULTRAMODERN_PERFORMANCE_READINESS_DIAGNOSTICS=false',
     });
 
@@ -506,7 +525,7 @@ process.exit(result.status ?? 1);
     ]);
 
     expect(stderr).toContain(
-      'local @modern-js/create source checkout cannot satisfy an explicit install',
+      'local @modern-js/ultramodern-create source checkout cannot satisfy an explicit install',
     );
     expectNoPath(tempRoot, 'ultra-install-workspace');
   });
@@ -788,7 +807,7 @@ export const entries = [
     ]);
 
     expect(stderr).toContain(
-      'local @modern-js/create source checkout cannot satisfy an explicit install',
+      'local @modern-js/ultramodern-create source checkout cannot satisfy an explicit install',
     );
     expectNoPath(tempRoot, 'ultra-alias-workspace');
   });

@@ -115,4 +115,43 @@ describe('createRouterCleanup', () => {
     expect(result).toBe(redirect);
     expect(routerCleanup.deferred).toBe(false);
   });
+
+  it('runs cleanup exactly once when a discarded response is already bodyless', async () => {
+    let cleanupCalls = 0;
+    const context = createContextWithCleanup(() => {
+      cleanupCalls += 1;
+    });
+    const routerCleanup = createRouterCleanup(context, () => {});
+
+    await routerCleanup.discardBody(new Response(null, { status: 204 }));
+
+    expect(cleanupCalls).toBe(1);
+    await routerCleanup.run();
+    expect(cleanupCalls).toBe(1);
+  });
+
+  it('does not clean up when discarded-body cancellation rejects', async () => {
+    const cancellationFailure = new Error('source still owns the body');
+    let cleanupCalls = 0;
+    const context = createContextWithCleanup(() => {
+      cleanupCalls += 1;
+    });
+    const routerCleanup = createRouterCleanup(context, () => {});
+    const response = new Response(
+      new ReadableStream<Uint8Array>({
+        cancel() {
+          throw cancellationFailure;
+        },
+      }),
+    );
+
+    await expect(routerCleanup.discardBody(response)).rejects.toBe(
+      cancellationFailure,
+    );
+    expect(routerCleanup.deferred).toBe(true);
+    expect(cleanupCalls).toBe(0);
+
+    await routerCleanup.run();
+    expect(cleanupCalls).toBe(1);
+  });
 });

@@ -59,6 +59,24 @@ describe('createHandleAction', () => {
     expect(calls.loadServerAction).toEqual([]);
   });
 
+  it('rejects action headers on non-POST requests without executing them', async () => {
+    const { runtime, calls } = createRuntime();
+    const handleAction = createHandleAction(runtime);
+
+    const res = await handleAction(
+      new Request('http://localhost/rsc-action', {
+        headers: { 'x-rsc-action': 'mod#myAction' },
+      }),
+    );
+
+    expect(res.status).toBe(405);
+    expect(res.headers.get('allow')).toBe('POST');
+    expect(await res.text()).toBe('Method not allowed');
+    expect(calls.loadServerAction).toEqual([]);
+    expect(calls.decodeReply).toEqual([]);
+    expect(calls.renderRsc).toEqual([]);
+  });
+
   it('returns 400 when the server reference does not resolve to a function', async () => {
     const { runtime, calls } = createRuntime({
       loadServerAction: () => undefined,
@@ -98,6 +116,68 @@ describe('createHandleAction', () => {
     expect(await res.text()).toBe('result:decoded-arg');
   });
 
+  it('rejects an oversized text body before decoding or executing it', async () => {
+    const { runtime, calls } = createRuntime();
+    const handleAction = createHandleAction(runtime);
+
+    const res = await handleAction(
+      new Request('http://localhost/rsc-action', {
+        method: 'POST',
+        headers: { 'x-rsc-action': 'mod#myAction' },
+        body: 'x'.repeat(1024 * 1024 + 1),
+      }),
+    );
+
+    expect(res.status).toBe(413);
+    expect(await res.text()).toBe('Server action payload too large');
+    expect(calls.decodeReply).toEqual([]);
+    expect(calls.renderRsc).toEqual([]);
+  });
+
+  it('rejects a declared oversized body before loading the action', async () => {
+    const { runtime, calls } = createRuntime();
+    const handleAction = createHandleAction(runtime);
+
+    const res = await handleAction(
+      new Request('http://localhost/rsc-action', {
+        method: 'POST',
+        headers: {
+          'content-length': String(1024 * 1024 + 1),
+          'x-rsc-action': 'mod#myAction',
+        },
+        body: '',
+      }),
+    );
+
+    expect(res.status).toBe(413);
+    expect(await res.text()).toBe('Server action payload too large');
+    expect(calls.loadServerAction).toEqual([]);
+    expect(calls.decodeReply).toEqual([]);
+    expect(calls.renderRsc).toEqual([]);
+  });
+
+  it('fails closed on a malformed content-length header', async () => {
+    const { runtime, calls } = createRuntime();
+    const handleAction = createHandleAction(runtime);
+
+    const res = await handleAction(
+      new Request('http://localhost/rsc-action', {
+        method: 'POST',
+        headers: {
+          'content-length': 'not-a-length',
+          'x-rsc-action': 'mod#myAction',
+        },
+        body: '',
+      }),
+    );
+
+    expect(res.status).toBe(400);
+    expect(await res.text()).toBe('Invalid server action request');
+    expect(calls.loadServerAction).toEqual([]);
+    expect(calls.decodeReply).toEqual([]);
+    expect(calls.renderRsc).toEqual([]);
+  });
+
   it('decodes multipart bodies as FormData', async () => {
     const { runtime, calls } = createRuntime();
     const handleAction = createHandleAction(runtime);
@@ -116,6 +196,26 @@ describe('createHandleAction', () => {
     expect(res.status).toBe(200);
     expect(calls.decodeReply).toHaveLength(1);
     expect(calls.decodeReply[0]).toBeInstanceOf(FormData);
+  });
+
+  it('rejects an oversized multipart body before parsing or executing it', async () => {
+    const { runtime, calls } = createRuntime();
+    const handleAction = createHandleAction(runtime);
+    const formData = new FormData();
+    formData.append('0', 'x'.repeat(1024 * 1024 + 1));
+
+    const res = await handleAction(
+      new Request('http://localhost/rsc-action', {
+        method: 'POST',
+        headers: { 'x-rsc-action': 'mod#myAction' },
+        body: formData,
+      }),
+    );
+
+    expect(res.status).toBe(413);
+    expect(await res.text()).toBe('Server action payload too large');
+    expect(calls.decodeReply).toEqual([]);
+    expect(calls.renderRsc).toEqual([]);
   });
 
   it('awaits async actions before rendering the result', async () => {

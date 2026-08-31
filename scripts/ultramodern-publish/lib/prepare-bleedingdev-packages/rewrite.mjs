@@ -1,7 +1,11 @@
 import path from 'node:path';
 import fsKit from '../../../lib/fs-kit.js';
 import { collectPackageJsonFiles } from '../fs-utils.mjs';
-import { repoRoot } from './constants.mjs';
+import {
+  incorporatedModernCreateSourceName,
+  repoRoot,
+  ultramodernCreateSourceName,
+} from './constants.mjs';
 
 const { readJsonFile } = fsKit;
 
@@ -76,9 +80,23 @@ function collectModernPackages(options) {
     .filter(({ packageJson }) => !packageJson.private)
     .sort((a, b) => a.packageJson.name.localeCompare(b.packageJson.name));
 
-  const sourceNames = new Set(allPackages.map(item => item.packageJson.name));
+  const packages = allPackages.filter(
+    ({ packageJson }) =>
+      packageJson.name !== incorporatedModernCreateSourceName,
+  );
+  if (
+    !packages.some(
+      ({ packageJson }) => packageJson.name === ultramodernCreateSourceName,
+    )
+  ) {
+    throw new Error(
+      `BleedingDev publishing requires ${ultramodernCreateSourceName}; the upstream ${incorporatedModernCreateSourceName} package is only the incorporated Modern.js version anchor.`,
+    );
+  }
+
+  const sourceNames = new Set(packages.map(item => item.packageJson.name));
   const aliases = Object.fromEntries(
-    allPackages.map(item => [
+    packages.map(item => [
       item.packageJson.name,
       targetPackageName(item.packageJson.name, options),
     ]),
@@ -86,7 +104,7 @@ function collectModernPackages(options) {
 
   return {
     allPackages,
-    packages: allPackages,
+    packages,
     sourceNames,
     aliases,
   };
@@ -94,7 +112,7 @@ function collectModernPackages(options) {
 
 function assertReleaseBaseMatchesSource(options, allPackages) {
   const sourcePackage = allPackages.find(
-    item => item.packageJson.name === '@modern-js/create',
+    item => item.packageJson.name === incorporatedModernCreateSourceName,
   );
   const sourceVersion = sourcePackage?.packageJson.version;
   if (
@@ -133,6 +151,7 @@ function enforceSingleVersionPolicy(options, packages, allPackages) {
   const selected = new Set(packages.map(item => item.packageJson.name));
   const missing = allPackages
     .map(item => item.packageJson.name)
+    .filter(packageName => packageName !== incorporatedModernCreateSourceName)
     .filter(packageName => !selected.has(packageName));
 
   if (missing.length === 0) {
@@ -245,7 +264,7 @@ function rewritePackageJson(packageJson, sourceName, options, sourceNames) {
       packageJson.publishConfig.exports,
     );
   }
-  if (sourceName === '@modern-js/create') {
+  if (sourceName === ultramodernCreateSourceName) {
     packageJson.ultramodern = {
       ...(packageJson.ultramodern ?? {}),
       frameworkVersion: options.dependencyVersion,

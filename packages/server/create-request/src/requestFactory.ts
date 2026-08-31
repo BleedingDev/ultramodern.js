@@ -151,8 +151,9 @@ export const createRequestFactory = <F>(
     const forwardedHeaders: HeaderMap = {};
     if (isServerTarget) {
       for (const key of targetAllowedHeaders) {
-        if (typeof incomingHeaders[key] !== 'undefined') {
-          forwardedHeaders[key] = incomingHeaders[key];
+        const incomingValue = readHeader(incomingHeaders, key);
+        if (typeof incomingValue !== 'undefined') {
+          writeHeader(forwardedHeaders, key, incomingValue);
         }
       }
     }
@@ -225,19 +226,16 @@ export const createRequestFactory = <F>(
         });
         if (resolvedHeaders && typeof resolvedHeaders === 'object') {
           for (const key of targetAllowedHeaders) {
-            if (typeof resolvedHeaders[key] !== 'undefined') {
+            const resolvedValue = readHeader(resolvedHeaders, key);
+            if (typeof resolvedValue !== 'undefined') {
               if (
                 identityBindingEnabled &&
                 protectedIdentityHeaders.includes(key.toLowerCase())
               ) {
-                writeHeader(
-                  forwardedHeaders,
-                  key.toLowerCase(),
-                  resolvedHeaders[key],
-                );
+                writeHeader(forwardedHeaders, key.toLowerCase(), resolvedValue);
                 continue;
               }
-              forwardedHeaders[key] = resolvedHeaders[key];
+              writeHeader(forwardedHeaders, key, resolvedValue);
             }
           }
         }
@@ -245,7 +243,9 @@ export const createRequestFactory = <F>(
     }
 
     if (isServerTarget) {
-      return { ...headers, ...forwardedHeaders };
+      for (const [header, value] of Object.entries(forwardedHeaders)) {
+        writeHeader(headers, header, value);
+      }
     }
 
     return headers;
@@ -275,6 +275,26 @@ export const createRequestFactory = <F>(
     if (interceptor && !request) {
       configuredRequest = interceptor(environment.getFetch());
     }
+
+    let resolvedDomain: string | undefined;
+    if (setDomain) {
+      resolvedDomain = setDomain({
+        target: environment.target,
+        requestId,
+      });
+      if (requestId !== 'default' && isEmptyDomain(resolvedDomain)) {
+        throw new ProducerDomainNotConfiguredError(requestId);
+      }
+    }
+
+    realAllowedHeaders.delete(requestId);
+    realResolveHeaders.delete(requestId);
+    realTransportResilience.delete(requestId);
+    realIdentityBinding.delete(requestId);
+    realOperationContract.delete(requestId);
+    realRequireEnvelope.delete(requestId);
+    realAllowCrossOriginEnvelope.delete(requestId);
+
     if (Array.isArray(allowedHeaders)) {
       realAllowedHeaders.set(requestId, allowedHeaders);
     }
@@ -299,17 +319,8 @@ export const createRequestFactory = <F>(
     ) {
       realAllowCrossOriginEnvelope.set(requestId, allowCrossOriginEnvelope);
     }
-    if (setDomain) {
-      const resolvedDomain = setDomain({
-        target: environment.target,
-        requestId,
-      });
-      if (requestId !== 'default' && isEmptyDomain(resolvedDomain)) {
-        throw new ProducerDomainNotConfiguredError(requestId);
-      }
-      if (typeof resolvedDomain === 'string') {
-        domainMap.set(requestId, resolvedDomain);
-      }
+    if (typeof resolvedDomain === 'string') {
+      domainMap.set(requestId, resolvedDomain);
     }
     realRequest.set(requestId, configuredRequest);
   };
@@ -365,6 +376,11 @@ export const createRequestFactory = <F>(
         headers = {
           'Content-Type': 'application/json',
         };
+        headers = applyIdentityAndForwardedHeaders(
+          headers,
+          requestId,
+          incomingHeaders,
+        );
       } else {
         const payload: BFFRequestPayload =
           typeof senderArgs[senderArgs.length - 1] === 'object'
@@ -511,7 +527,7 @@ export const createRequestFactory = <F>(
         environment.originFetch,
       );
       const { body, headers: uploadHeaders, params } = getUploadPayload(args);
-      const headers: HeaderMap = { ...uploadHeaders };
+      let headers: HeaderMap = { ...uploadHeaders };
       const finalPath = getUploadPath ? getUploadPath(params) : path;
 
       const configDomain = domainMap.get(requestId);
@@ -521,6 +537,11 @@ export const createRequestFactory = <F>(
         path: finalPath,
       });
       const incomingHeaders = environment.readIncomingHeaders();
+      headers = applyIdentityAndForwardedHeaders(
+        headers,
+        requestId,
+        incomingHeaders,
+      );
 
       attachEnvelopeHeaderIfRequired(
         headers,
@@ -536,10 +557,18 @@ export const createRequestFactory = <F>(
         operationContext,
       );
 
-      return (fetcher as (...args: any[]) => Promise<any>)(finalURL, {
+      return executeWithResilience({
+        requestId,
+        target: environment.target,
         method: 'POST',
-        body,
-        headers,
+        url: finalURL,
+        init: {
+          method: 'POST',
+          body,
+          headers,
+        },
+        fetcher: fetcher as (...args: any[]) => Promise<any>,
+        transport: realTransportResilience.get(requestId),
       });
     };
 

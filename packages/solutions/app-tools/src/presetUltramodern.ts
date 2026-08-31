@@ -5,6 +5,8 @@ import { type RspackChain, rspack } from '@rsbuild/core';
 import type { AppUserConfig } from './types';
 import { resolveUltramodernReleaseIdentity } from './ultramodern-release-identity';
 
+export { default as ultramodernReleaseEnvelopePlugin } from './plugins/ultramodernReleaseEnvelope';
+
 const DEFAULT_OTLP_ENDPOINT = 'http://127.0.0.1:4318/v1/logs';
 const DEFAULT_VICTORIA_METRICS_ENDPOINT =
   'http://127.0.0.1:8428/api/v1/import/prometheus';

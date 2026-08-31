@@ -29,10 +29,6 @@ import type { PluginSourceBuildOptions } from '@rsbuild/plugin-source-build';
 import type { SvgDefaultExport } from '@rsbuild/plugin-svgr';
 import type { PluginTypeCheckerOptions } from '@rsbuild/plugin-type-check';
 import type { Options as AutoprefixerOptions } from 'autoprefixer';
-import type { RsdoctorUserConfig } from './rsdoctorConfig';
-
-export type { RsdoctorUserConfig } from './rsdoctorConfig';
-
 export type CacheGroup = Rspack.OptimizationSplitChunksCacheGroup;
 
 export type Stats = Omit<
@@ -176,12 +172,6 @@ export type BuilderExtraConfig = {
       watch?: boolean;
     };
   };
-  performance?: {
-    /**
-     * Configure Rsdoctor diagnostics for build.
-     */
-    rsdoctor?: RsdoctorUserConfig;
-  };
   source?: {
     transformImport?: SourceConfig['transformImport'] | false;
     // TODO: need to support rsbuild alias type in server/utils
@@ -264,10 +254,6 @@ export type BuilderExtraConfig = {
     sourceBuild?:
       | boolean
       | Pick<PluginSourceBuildOptions, 'sourceField' | 'resolvePriority'>;
-    /**
-     * Configure Rspack source phase imports for WebAssembly modules.
-     */
-    sourceImport?: boolean;
   };
 };
 

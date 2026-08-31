@@ -509,7 +509,7 @@ test('published .15 Tractor bootstrap carries the full cohort and active audited
 
   const releaseVersion = '3.8.2-ultramodern.15';
   const firstPartyTargets = [
-    '@bleedingdev/modern-js-create',
+    '@bleedingdev/modern-js-ultramodern-create',
     '@bleedingdev/modern-js-i18n-utils',
     '@bleedingdev/modern-js-utils',
     ...Array.from(
@@ -553,14 +553,14 @@ test('published .15 Tractor bootstrap carries the full cohort and active audited
     bootstrapReleaseAgePolicy: {
       minimumReleaseAge: 1440,
       minimumReleaseAgeExclude: [
-        `@bleedingdev/modern-js-create@${releaseVersion}`,
+        `@bleedingdev/modern-js-ultramodern-create@${releaseVersion}`,
         `@bleedingdev/modern-js-i18n-utils@${releaseVersion}`,
         `@bleedingdev/modern-js-utils@${releaseVersion}`,
       ],
       minimumReleaseAgeIgnoreMissingTime: false,
       minimumReleaseAgeStrict: true,
     },
-    exactSpecifier: `@bleedingdev/modern-js-create@${releaseVersion}`,
+    exactSpecifier: `@bleedingdev/modern-js-ultramodern-create@${releaseVersion}`,
     version: releaseVersion,
   };
   const args = createTractorPnpmDlxArgs(
@@ -584,7 +584,7 @@ test('published .15 Tractor bootstrap carries the full cohort and active audited
     ),
   );
   assert.deepEqual(args.slice(-7), [
-    '@bleedingdev/modern-js-create@3.8.2-ultramodern.15',
+    '@bleedingdev/modern-js-ultramodern-create@3.8.2-ultramodern.15',
     'ultramodern',
     'migrate-strict-effect',
     '--version',
@@ -624,7 +624,7 @@ test('Tractor bootstrap rejects malformed manifest and audited policy selectors'
   const release = {
     packages: [
       {
-        targetName: '@bleedingdev/modern-js-create',
+        targetName: '@bleedingdev/modern-js-ultramodern-create',
         version: '3.8.2-ultramodern.15',
       },
     ],
@@ -667,7 +667,7 @@ test('Tractor bootstrap rejects malformed manifest and audited policy selectors'
           ...release,
           packages: [
             {
-              targetName: '@bleedingdev/modern-js-create',
+              targetName: '@bleedingdev/modern-js-ultramodern-create',
               version: '3.8.2-ultramodern.14',
             },
           ],
@@ -747,7 +747,7 @@ test('runner has no bypass for Node or workerd release gates', async () => {
   );
   const exactPnpmExecutable = '/opt/pnpm-11.17.0/bin/pnpm';
   const minimumReleaseAgeExclude = [
-    '@bleedingdev/modern-js-create@3.5.0-ultramodern.77',
+    '@bleedingdev/modern-js-ultramodern-create@3.5.0-ultramodern.77',
     '@bleedingdev/modern-js-i18n-utils@3.5.0-ultramodern.77',
     '@bleedingdev/modern-js-utils@3.5.0-ultramodern.77',
   ];
@@ -760,7 +760,8 @@ test('runner has no bypass for Node or workerd release gates', async () => {
         minimumReleaseAgeIgnoreMissingTime: false,
         minimumReleaseAgeStrict: true,
       },
-      exactSpecifier: '@bleedingdev/modern-js-create@3.5.0-ultramodern.77',
+      exactSpecifier:
+        '@bleedingdev/modern-js-ultramodern-create@3.5.0-ultramodern.77',
       version: '3.5.0-ultramodern.77',
     },
     expectedPnpmVersion: '11.17.0',
@@ -824,7 +825,7 @@ test('runner rejects inherited package-manager release-age bypasses', async () =
     inheritedKeys.map(name => [name, process.env[name]]),
   );
   const minimumReleaseAgeExclude = [
-    '@bleedingdev/modern-js-create@3.5.0-ultramodern.77',
+    '@bleedingdev/modern-js-ultramodern-create@3.5.0-ultramodern.77',
     '@bleedingdev/modern-js-i18n-utils@3.5.0-ultramodern.77',
     '@bleedingdev/modern-js-utils@3.5.0-ultramodern.77',
   ];
@@ -840,7 +841,8 @@ test('runner rejects inherited package-manager release-age bypasses', async () =
           minimumReleaseAgeIgnoreMissingTime: false,
           minimumReleaseAgeStrict: true,
         },
-        exactSpecifier: '@bleedingdev/modern-js-create@3.5.0-ultramodern.77',
+        exactSpecifier:
+          '@bleedingdev/modern-js-ultramodern-create@3.5.0-ultramodern.77',
         version: '3.5.0-ultramodern.77',
       },
       expectedPnpmVersion: '11.17.0',

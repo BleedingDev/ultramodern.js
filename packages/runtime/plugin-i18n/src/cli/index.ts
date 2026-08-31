@@ -1,16 +1,16 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { AppTools, CliPlugin } from '@modern-js/app-tools';
+import {
+  applyLocalisedUrlsToRoutes,
+  resolveLocalisedUrlsConfig,
+} from '@modern-js/i18n-runtime-extensions';
 import { getPublicDirRoutePrefixes } from '@modern-js/server-core';
 import type {
   Entrypoint,
   NestedRouteForCli,
   PageRoute,
 } from '@modern-js/types';
-import {
-  applyLocalisedUrlsToRoutes,
-  resolveLocalisedUrlsConfig,
-} from '../shared/localisedUrls';
 import type { BackendOptions, LocaleDetectionOptions } from '../shared/type';
 import { getBackendOptions, getLocaleDetectionOptions } from '../shared/utils';
 import { applyDetectedBackendPaths, detectLocalesDirectory } from './locales';

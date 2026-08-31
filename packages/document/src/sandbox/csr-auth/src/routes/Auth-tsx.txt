@@ -1,4 +1,8 @@
-import { Navigate, useLocation, useNavigate } from '@modern-js/runtime/router';
+import {
+  Navigate,
+  useLocation,
+  useNavigate,
+} from '@modern-js/plugin-tanstack/runtime';
 import React from 'react';
 import { fakeAuthProvider } from './fakeAuth';
 
@@ -49,7 +53,7 @@ export function AuthStatus() {
       <button
         type="button"
         onClick={() => {
-          auth.signout(() => navigate('/'));
+          auth.signout(() => void navigate({ to: '/' }));
         }}
       >
         Sign out
@@ -67,7 +71,13 @@ export function RequireAuth({ children }: { children: JSX.Element }) {
     // trying to go to when they were redirected. This allows us to send them
     // along to that page after they login, which is a nicer user experience
     // than dropping them off on the home page.
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    return (
+      <Navigate
+        replace
+        search={{ redirect: location.pathname }}
+        to="/login"
+      />
+    );
   }
 
   return children;

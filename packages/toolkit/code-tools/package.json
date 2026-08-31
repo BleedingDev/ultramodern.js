@@ -58,7 +58,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "rm -rf dist && rslib build -c rslib.config.mts && pnpm -w tsgo:dts \"$PWD\"",
+    "build": "rm -rf dist && rslib build -c rslib.config.mts",
     "dev": "rslib build -c rslib.config.mts -w",
     "test": "rstest --passWithNoTests"
   },

@@ -3,12 +3,12 @@ import {
   type ContractGateSnapshotStore,
   resolveContractGateSnapshotPath,
 } from '../contract-gate-snapshot-store';
-import { ContractGateAutopilot } from '../contractGateAutopilot';
+import { ContractGateSnapshotObserver } from '../contractGateSnapshotObserver';
 import {
   createOtlpTelemetryExporter,
   createVictoriaMetricsTelemetryExporter,
   maybeWarnLegacyOtlpEndpoint,
-  TelemetryCanaryOrchestrator,
+  TelemetryHealthMonitor,
   TelemetryRegistry,
 } from '../telemetryCore';
 
@@ -21,8 +21,8 @@ type RegisterTelemetryLifecycleOptions = {
   api: TelemetryLifecycleApi;
   registry: TelemetryRegistry;
   telemetryConfig: ServerTelemetryUserConfig;
-  canaryConfig: ServerTelemetryUserConfig['canary'] | undefined;
-  canaryOrchestrator?: TelemetryCanaryOrchestrator;
+  legacyHealthConfig: ServerTelemetryUserConfig['canary'] | undefined;
+  healthMonitor?: TelemetryHealthMonitor;
   gateSnapshotStorePromise?: Promise<ContractGateSnapshotStore>;
   appDirectory: string;
 };
@@ -50,12 +50,12 @@ export const registerTelemetryLifecycle = ({
   api,
   registry,
   telemetryConfig,
-  canaryConfig,
-  canaryOrchestrator,
+  legacyHealthConfig,
+  healthMonitor,
   gateSnapshotStorePromise,
   appDirectory,
 }: RegisterTelemetryLifecycleOptions) => {
-  let contractGateAutopilot: ContractGateAutopilot | undefined;
+  let contractGateSnapshotObserver: ContractGateSnapshotObserver | undefined;
   let telemetryLaneClosed = false;
   const closeTelemetryLane = async () => {
     if (telemetryLaneClosed) {
@@ -63,8 +63,8 @@ export const registerTelemetryLifecycle = ({
     }
     telemetryLaneClosed = true;
     activeTelemetryLaneClosers.delete(closeTelemetryLane);
-    contractGateAutopilot?.stop();
-    canaryOrchestrator?.stop();
+    contractGateSnapshotObserver?.stop();
+    healthMonitor?.stop();
     await registry.shutdown();
   };
 
@@ -76,7 +76,7 @@ export const registerTelemetryLifecycle = ({
     prepared = true;
 
     // Shutdown path for the telemetry lane: flush pending envelopes and
-    // stop canary/autopilot pollers when the node server closes (this also
+    // stop health/snapshot pollers when the node server closes (this also
     // covers dev-server restarts, which close the previous node server
     // before assembling a new one), with process beforeExit as the
     // final-flush floor when no node server handle exists.
@@ -112,27 +112,27 @@ export const registerTelemetryLifecycle = ({
       failLoud: telemetryConfig.failLoudStartup ?? true,
     });
 
-    if (!canaryOrchestrator) {
+    if (!healthMonitor) {
       return;
     }
 
-    canaryOrchestrator.start();
+    healthMonitor.start();
     if (gateSnapshotStorePromise) {
       const gateSnapshotStore = await gateSnapshotStorePromise;
-      contractGateAutopilot = new ContractGateAutopilot({
-        orchestrator: canaryOrchestrator,
+      contractGateSnapshotObserver = new ContractGateSnapshotObserver({
+        monitor: healthMonitor,
         gateSnapshotPath: resolveContractGateSnapshotPath(
           appDirectory,
-          canaryConfig?.autopilot?.gateSnapshotPath,
+          legacyHealthConfig?.autopilot?.gateSnapshotPath,
         ),
         gateSnapshotStore,
-        pollIntervalMs: canaryConfig?.autopilot?.pollIntervalMs,
-        gateStaleAfterMs: canaryConfig?.autopilot?.gateStaleAfterMs,
+        pollIntervalMs: legacyHealthConfig?.autopilot?.pollIntervalMs,
+        gateStaleAfterMs: legacyHealthConfig?.autopilot?.gateStaleAfterMs,
       });
     }
-    if (contractGateAutopilot) {
-      await contractGateAutopilot.start();
+    if (contractGateSnapshotObserver) {
+      await contractGateSnapshotObserver.start();
     }
-    canaryOrchestrator.evaluate();
+    healthMonitor.evaluate();
   });
 };

@@ -1,5 +1,4 @@
 import { spawn } from 'node:child_process';
-import crypto from 'node:crypto';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import os from 'node:os';
@@ -64,8 +63,9 @@ import { addVertical, createWorkspace } from './workspace.mjs';
 
 const requiredPnpmCommands = Object.freeze({
   // Resolve the dependency closure into a native lockfile without installing
-  // node_modules. `@modern-js/create` intentionally does not install (it tells
-  // the user to run pnpm install), so acceptance materializes the lock here —
+  // node_modules. `@modern-js/ultramodern-create` intentionally does not
+  // install (it tells the user to run pnpm install), so acceptance materializes
+  // the lock here —
   // against the controlled release registry — before the release-age audit
   // reads it and before the frozen install re-verifies it.
   lockfileOnly: Object.freeze([
@@ -740,20 +740,13 @@ async function runOperationalIndependenceAcceptance({
     applicationSourceRevision,
     changedRevision: transition.changedRevision,
     evidence,
-    evidenceFileSha256: crypto
-      .createHash('sha256')
-      .update(fs.readFileSync(evidencePath))
-      .digest('hex'),
     evidencePath,
     expectedApiValue: transition.mutations.apiResponse.value,
     expectedChangedPaths: transition.changedPaths,
     expectedUiValue: transition.mutations.uiLocalization.value,
     mode,
   });
-  return {
-    ...details,
-    mutations: transition.mutations,
-  };
+  return details;
 }
 
 function receiptFailure(receipt, error) {

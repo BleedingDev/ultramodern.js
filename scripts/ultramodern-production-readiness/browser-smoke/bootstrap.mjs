@@ -287,26 +287,9 @@ async function importPlaywright() {
   }
 }
 
-function findBrowserExecutable() {
-  const candidates = [
-    process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
-    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-    '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
-    '/usr/bin/google-chrome-stable',
-    '/usr/bin/google-chrome',
-    '/usr/bin/chromium',
-    '/usr/bin/chromium-browser',
-  ].filter(Boolean);
-
-  return candidates.find(candidate => fs.existsSync(candidate));
-}
-
 export async function launchBrowser(browserProvider) {
   const playwright = browserProvider ?? (await importPlaywright());
-  const executablePath = findBrowserExecutable();
   return playwright.chromium.launch({
-    args: ['--disable-dev-shm-usage', '--no-sandbox'],
-    ...(executablePath ? { executablePath } : {}),
     headless: true,
   });
 }

@@ -302,8 +302,51 @@ describe('typescript', () => {
       expect(
         await fs.pathExists(path.join(distDir, './server/foo/index.tsx')),
       ).toBeFalsy();
+      expect(
+        await fs.pathExists(path.join(distDir, './server/native.mjs')),
+      ).toBeTruthy();
+      expect(
+        await fs.pathExists(path.join(distDir, './server/native.cjs')),
+      ).toBeTruthy();
+      expect(
+        await fs.pathExists(path.join(distDir, './server/native.mts')),
+      ).toBeFalsy();
+      expect(
+        await fs.pathExists(path.join(distDir, './server/native.cts')),
+      ).toBeFalsy();
     } finally {
       await fs.remove(distDir);
+    }
+  });
+
+  it('rejects native source modules that publish the same output path', async () => {
+    const { example, tempRoot } = await createIsolatedTsExample(
+      'server-utils-native-collision-',
+    );
+    const serverDir = path.join(example, 'server');
+
+    await Promise.all([
+      fs.outputFile(
+        path.join(serverDir, 'collision.mts'),
+        `export const x = 1;`,
+      ),
+      fs.outputFile(
+        path.join(serverDir, 'collision.mjs'),
+        `export const x = 2;`,
+      ),
+    ]);
+
+    try {
+      await expect(
+        compile(example, { alias: {} } as any, {
+          sourceDirs: [serverDir],
+          distDir: path.join(example, 'dist-native-collision'),
+          tsconfigPath: path.join(example, 'tsconfig.json'),
+          moduleType: 'module',
+        }),
+      ).rejects.toThrow(/collision\.mts.*collision\.mjs/u);
+    } finally {
+      await fs.remove(tempRoot);
     }
   });
 

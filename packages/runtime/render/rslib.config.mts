@@ -1,3 +1,4 @@
+import { ts7DtsConfig } from '@modern-js/rslib';
 import { defineConfig } from '@rslib/core';
 
 const sharedConfig = {
@@ -17,6 +18,7 @@ export default defineConfig({
   lib: [
     {
       ...sharedConfig,
+      dts: ts7DtsConfig,
       output: {
         ...sharedConfig.output,
         externals: [

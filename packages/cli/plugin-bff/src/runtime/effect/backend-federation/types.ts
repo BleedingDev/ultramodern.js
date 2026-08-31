@@ -1,3 +1,7 @@
+import type {
+  BackendFederationRemoteEntryPolicy,
+  BackendFederationRemoteEntryVerification,
+} from '@modern-js/server-runtime-extensions/backend-federation-security';
 import type { BACKEND_FEDERATION_EFFECT_EXPOSE } from '@modern-js/utils/universal';
 import type {
   ModuleFederation,
@@ -14,6 +18,7 @@ export type BackendFederationRemote = {
   entryGlobalName?: string;
   shareScope?: string | string[];
   expose?: typeof BACKEND_FEDERATION_EFFECT_EXPOSE;
+  verification?: BackendFederationRemoteEntryVerification;
 };
 
 export type BackendFederationRuntimeOptions = {
@@ -21,6 +26,7 @@ export type BackendFederationRuntimeOptions = {
   remote?: BackendFederationRemote;
   remotes?: BackendFederationRemote[];
   plugins?: ModuleFederationRuntimePlugin[];
+  entryPolicy?: BackendFederationRemoteEntryPolicy;
 };
 
 export type BackendFederationEntryExports = {

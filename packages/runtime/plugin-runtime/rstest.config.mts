@@ -26,6 +26,7 @@ export default {
         'tests/boundary-debugger/client.test.tsx',
         'tests/router/plugin.client.test.tsx',
         'tests/router/prefetch.test.tsx',
+        'tests/router/prefetch-realm-isolation.test.tsx',
       ],
       extends: commonConfig,
       plugins: [
@@ -54,6 +55,7 @@ export default {
         'tests/boundary-debugger/client.test.tsx',
         'tests/router/plugin.client.test.tsx',
         'tests/router/prefetch.test.tsx',
+        'tests/router/prefetch-realm-isolation.test.tsx',
       ],
       extends: commonConfig,
       plugins: [
@@ -69,10 +71,15 @@ export default {
                 code: string;
                 resourcePath: string;
               }) => {
-                return code.replace(
-                  '__webpack_chunk_load__',
-                  '__webpack_chunk_load_test__',
-                );
+                return code
+                  .replace(
+                    '__webpack_chunk_load__',
+                    '__webpack_chunk_load_test__',
+                  )
+                  .replace(
+                    '__webpack_public_path__',
+                    '__webpack_public_path_test__',
+                  );
               },
             );
           },

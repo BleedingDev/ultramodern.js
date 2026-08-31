@@ -10,7 +10,7 @@ import {
   type DeliveryUnitRecord,
 } from '@modern-js/utils/universal';
 import { bffPlugin } from '../../../cli/plugin-bff/src/cli';
-import { appTools } from '../src';
+import { appTools, ultramodernReleaseEnvelopePlugin } from '../src';
 import {
   emitCloudflareStagedReleaseEnvelope,
   emitFrameworkMicroVerticalReleaseEnvelope,
@@ -179,12 +179,17 @@ afterEach(async () => {
 });
 
 describe('framework target-specific MicroVertical release-envelope integration', () => {
-  it('runs after backend federation and before deploy staging', () => {
-    const plugins = appTools().usePlugins ?? [];
+  it('is opt-in and runs after backend federation and before deploy staging', () => {
+    const defaultPlugins = appTools().usePlugins ?? [];
+    expect(
+      defaultPlugins.some(
+        plugin => plugin.name === '@modern-js/ultramodern-release-envelope',
+      ),
+    ).toBe(false);
+
+    const envelopePlugin = ultramodernReleaseEnvelopePlugin();
+    const plugins = [...defaultPlugins, envelopePlugin];
     const pluginNames = plugins.map(plugin => plugin.name);
-    const envelopePlugin = plugins.find(
-      plugin => plugin.name === '@modern-js/ultramodern-release-envelope',
-    );
     expect(pluginNames).toEqual(
       expect.arrayContaining([
         '@modern-js/backend-federation-build',
@@ -197,18 +202,20 @@ describe('framework target-specific MicroVertical release-envelope integration',
     ).toBeLessThan(
       pluginNames.indexOf('@modern-js/ultramodern-release-envelope'),
     );
-    expect(
-      pluginNames.indexOf('@modern-js/ultramodern-release-envelope'),
-    ).toBeLessThan(pluginNames.indexOf('@modern-js/plugin-deploy'));
-    expect(envelopePlugin?.pre).toEqual(
+    expect(envelopePlugin.pre).toEqual(
       expect.arrayContaining([
         '@modern-js/backend-federation-build',
         '@modern-js/plugin-bff',
       ]),
     );
+    expect(envelopePlugin.post).toContain('@modern-js/plugin-deploy');
 
     const pluginManager = createPluginManager();
-    pluginManager.addPlugins([appTools(), bffPlugin()]);
+    pluginManager.addPlugins([
+      appTools(),
+      bffPlugin(),
+      ultramodernReleaseEnvelopePlugin(),
+    ]);
     const resolvedPluginNames = pluginManager
       .getPlugins()
       .map(plugin => plugin.name);
@@ -220,6 +227,9 @@ describe('framework target-specific MicroVertical release-envelope integration',
     ).toBeLessThan(resolvedEnvelopeIndex);
     expect(resolvedPluginNames.indexOf('@modern-js/plugin-bff')).toBeLessThan(
       resolvedEnvelopeIndex,
+    );
+    expect(resolvedEnvelopeIndex).toBeLessThan(
+      resolvedPluginNames.indexOf('@modern-js/plugin-deploy'),
     );
   });
 

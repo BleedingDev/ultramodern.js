@@ -3,6 +3,10 @@ import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import {
+  createOperationContractHash,
+  type ResolvedCrossProjectPolicy,
+} from '@modern-js/bff-core';
 import type { ServerPluginAPI } from '@modern-js/server-core';
 import apiLoader, { type APILoaderOptions } from '../src/loader';
 import { EffectAdapter } from '../src/runtime/effect/adapter';
@@ -50,11 +54,13 @@ const linkFixturePackage = async (appDir: string, packageName: string) => {
 };
 
 const runApiLoader = async ({
+  onDependency,
   options,
   resourcePath,
   resourceQuery,
   source,
 }: {
+  onDependency?: (dependency: string) => void;
   options: APILoaderOptions;
   resourcePath: string;
   resourceQuery: string;
@@ -64,7 +70,7 @@ const runApiLoader = async ({
   let callbackCode: string | Buffer | undefined;
   await new Promise<void>(resolve => {
     const context = {
-      addDependency: () => {},
+      addDependency: (dependency: string) => onDependency?.(dependency),
       async:
         () => (error: Error | null | undefined, code?: string | Buffer) => {
           callbackError = error;
@@ -90,17 +96,23 @@ const buildEffectWorkerRuntimeModule = async ({
   appDir,
   entryFile,
   onBuildInputs,
+  onLoaderDependency,
   prefix,
+  requestId,
   source,
 }: {
   apiDir: string;
   appDir: string;
   entryFile: string;
   onBuildInputs?: (inputs: string[]) => void;
+  onLoaderDependency?: (dependency: string) => void;
   prefix: string;
+  requestId?: string;
   source: string;
 }) => {
+  await linkFixturePackage(appDir, '@modern-js/plugin-bff');
   const wrapperSource = await runApiLoader({
+    onDependency: onLoaderDependency,
     options: {
       apiDir,
       appDir,
@@ -110,8 +122,9 @@ const buildEffectWorkerRuntimeModule = async ({
       lambdaDir: path.join(apiDir, 'lambda'),
       port: 8080,
       prefix,
+      requestId,
       target: 'web',
-    },
+    } as APILoaderOptions & { requestId?: string },
     resourcePath: entryFile,
     resourceQuery: '?modern-bff-runtime',
     source,
@@ -131,6 +144,11 @@ const buildEffectWorkerRuntimeModule = async ({
         __dirname,
         '../src/runtime/effect/edge-dispatcher.ts',
       ),
+      '@modern-js/server-runtime-extensions/backend-federation-security':
+        path.resolve(
+          __dirname,
+          '../../../server/runtime-extensions/src/backend-federation-security/index.ts',
+        ),
     },
     bundle: true,
     entryPoints: [wrapperFile],
@@ -146,6 +164,7 @@ const buildEffectWorkerRuntimeModule = async ({
     `${pathToFileURL(outputFile).href}?t=${Date.now()}`
   ) as Promise<{
     __modern_create_effect_bff_dispatcher: (options: {
+      crossProjectPolicy?: ResolvedCrossProjectPolicy;
       prefix?: string;
     }) => Promise<{
       dispatch: (
@@ -513,6 +532,140 @@ export default defineEffectBff({
           env: 'workerd',
           originalPath: '/catalog-api/readiness',
           routePath: '/readiness',
+        });
+      } finally {
+        await dispatcher.dispose();
+      }
+    } finally {
+      await fs.promises.rm(appDir, { recursive: true, force: true });
+    }
+  });
+
+  test('Effect worker wrapper enforces generated contracts over configured collisions', async () => {
+    const appDir = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), 'modern-plugin-bff-effect-worker-contracts-'),
+    );
+
+    try {
+      const producerDir = path.join(
+        appDir,
+        'node_modules',
+        '@fixture',
+        'catalog',
+      );
+      const apiDir = path.join(producerDir, 'dist', 'api');
+      const entryFile = path.join(apiDir, 'index.ts');
+      const producerPackageJson = path.join(producerDir, 'package.json');
+      const requestId = 'catalog-service';
+      const routePath = '/catalog-api/readiness';
+      const operationVersion = 7;
+      const source = `
+import {
+  Effect,
+  HttpApi,
+  HttpApiBuilder,
+  HttpApiEndpoint,
+  HttpApiGroup,
+  Layer,
+  Schema,
+} from '@modern-js/plugin-bff/effect-edge';
+
+export const api = HttpApi.make('WorkerContractApi').add(
+  HttpApiGroup.make('status').add(
+    HttpApiEndpoint.get('readiness', '/readiness', {
+      success: Schema.Struct({ ok: Schema.Boolean }),
+    }),
+  ),
+);
+const statusLayer = HttpApiBuilder.group(api, 'status', handlers =>
+  handlers.handle('readiness', () => Effect.succeed({ ok: true })),
+);
+export const layer = HttpApiBuilder.layer(api).pipe(
+  Layer.provide(statusLayer),
+);
+`;
+      await writeFile(
+        path.join(appDir, 'package.json'),
+        JSON.stringify({ name: '@fixture/consumer', version: '99.1.0' }),
+      );
+      await writeFile(
+        producerPackageJson,
+        JSON.stringify({ name: '@fixture/catalog', version: '7.4.2' }),
+      );
+      await writeFile(entryFile, source);
+      const loaderDependencies: string[] = [];
+
+      const runtime = await buildEffectWorkerRuntimeModule({
+        apiDir,
+        appDir,
+        entryFile,
+        onLoaderDependency: dependency => loaderDependencies.push(dependency),
+        prefix: '/catalog-api',
+        requestId,
+        source,
+      });
+      expect(loaderDependencies).toContain(producerPackageJson);
+      const dispatcher = await runtime.__modern_create_effect_bff_dispatcher({
+        prefix: '/catalog-api',
+        crossProjectPolicy: {
+          enabled: true,
+          requireEnvelope: true,
+          requireOperationContext: true,
+          requireOperationContextDetails: true,
+          requireOperationSchemaHash: true,
+          requireOperationVersion: true,
+          allowUnknownOperations: false,
+          expectedOperationContracts: {
+            [`GET:${routePath}`]: {
+              schemaHash: 'configured-stale-hash',
+              operationVersion: 99,
+            },
+          },
+        },
+      });
+      const schemaHash = createOperationContractHash(
+        { name: 'readiness', httpMethod: 'GET', routePath },
+        requestId,
+      );
+      const operationId = `${requestId}:GET:${routePath}`;
+      const headers = {
+        'x-modernjs-bff-envelope': JSON.stringify({ requestId }),
+        'x-operation-id': operationId,
+        'x-modernjs-bff-operation-context': JSON.stringify({
+          requestId,
+          operationId,
+          method: 'GET',
+          routePath,
+          schemaHash,
+          operationVersion,
+        }),
+      };
+
+      try {
+        const accepted = await dispatcher.dispatch(
+          new Request(`https://example.com${routePath}`, { headers }),
+        );
+        expect(accepted.status).toBe(200);
+        await expect(accepted.json()).resolves.toEqual({ ok: true });
+
+        const configuredCollision = await dispatcher.dispatch(
+          new Request(`https://example.com${routePath}`, {
+            headers: {
+              ...headers,
+              'x-modernjs-bff-operation-context': JSON.stringify({
+                requestId,
+                operationId,
+                method: 'GET',
+                routePath,
+                schemaHash: 'configured-stale-hash',
+                operationVersion: 99,
+              }),
+            },
+          }),
+        );
+        expect(configuredCollision.status).toBe(403);
+        await expect(configuredCollision.json()).resolves.toMatchObject({
+          reason: 'operation_schema_hash_mismatch',
         });
       } finally {
         await dispatcher.dispose();

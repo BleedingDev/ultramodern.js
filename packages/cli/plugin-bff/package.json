@@ -169,7 +169,7 @@
   },
   "scripts": {
     "prepublishOnly": "only-allow-pnpm",
-    "build": "rslib build && pnpm -w tsgo:dts \"$PWD\"",
+    "build": "rslib build",
     "dev": "rslib build --watch",
     "test": "rstest --passWithNoTests"
   },
@@ -177,7 +177,9 @@
     "@modern-js/bff-core": "workspace:*",
     "@modern-js/builder": "workspace:*",
     "@modern-js/create-request": "workspace:*",
+    "@modern-js/runtime-extensions": "workspace:*",
     "@modern-js/server-core": "workspace:*",
+    "@modern-js/server-runtime-extensions": "workspace:*",
     "@modern-js/server-utils": "workspace:*",
     "@modern-js/utils": "workspace:*",
     "@module-federation/runtime": "2.9.0",

@@ -320,6 +320,59 @@ describe('effect edge runtime', () => {
     });
   });
 
+  test('isolates Effect context between interleaved edge requests', async () => {
+    let markFirstEntered!: () => void;
+    let markSecondEntered!: () => void;
+    let markFirstFinished!: () => void;
+    const firstEntered = new Promise<void>(resolve => {
+      markFirstEntered = resolve;
+    });
+    const secondEntered = new Promise<void>(resolve => {
+      markSecondEntered = resolve;
+    });
+    const firstFinished = new Promise<void>(resolve => {
+      markFirstFinished = resolve;
+    });
+
+    const firstResponsePromise = dispatchEffectBffRequest(
+      async () => {
+        const before = useEffectContext().path;
+        markFirstEntered();
+        await secondEntered;
+        return Response.json({ before, after: useEffectContext().path });
+      },
+      new Request('http://localhost/api/first'),
+      { prefix: '/api' },
+    );
+
+    await firstEntered;
+    const secondResponsePromise = dispatchEffectBffRequest(
+      async () => {
+        const before = useEffectContext().path;
+        markSecondEntered();
+        await firstFinished;
+        return Response.json({ before, after: useEffectContext().path });
+      },
+      new Request('http://localhost/api/second'),
+      { prefix: '/api' },
+    );
+
+    const firstResponse = await firstResponsePromise;
+    markFirstFinished();
+    const secondResponse = await secondResponsePromise;
+
+    expect(firstResponse.status).toBe(200);
+    await expect(firstResponse.json()).resolves.toEqual({
+      before: '/api/first',
+      after: '/api/first',
+    });
+    expect(secondResponse.status).toBe(200);
+    await expect(secondResponse.json()).resolves.toEqual({
+      before: '/api/second',
+      after: '/api/second',
+    });
+  });
+
   test('worker consumer builds through plugin-bff without a direct effect dependency', async () => {
     const { createRsbuild } = await import('@rsbuild/core');
     const appDir = await fs.promises.mkdtemp(
@@ -421,6 +474,13 @@ export default {
                 '@modern-js/plugin-bff/effect-edge$',
                 path.resolve(__dirname, '../src/runtime/effect/edge.ts'),
               );
+              chain.resolve.alias.set(
+                '@modern-js/server-runtime-extensions/backend-federation-security$',
+                path.resolve(
+                  __dirname,
+                  '../../../server/runtime-extensions/src/backend-federation-security/index.ts',
+                ),
+              );
             },
             htmlPlugin: false,
           },
@@ -428,6 +488,24 @@ export default {
       });
 
       await expect(rsbuild.build()).resolves.toBeDefined();
+
+      const distRoot = path.join(appDir, 'dist');
+      const outputFiles = (
+        await fs.promises.readdir(distRoot, { recursive: true })
+      ).filter(file => file.endsWith('.js'));
+      expect(outputFiles.length).toBeGreaterThan(0);
+      const bundledSource = (
+        await Promise.all(
+          outputFiles.map(file =>
+            fs.promises.readFile(path.join(distRoot, file), 'utf8'),
+          ),
+        )
+      ).join('\n');
+
+      expect(bundledSource).not.toMatch(/\bnew\s+Function\s*\(/u);
+      expect(bundledSource).not.toMatch(/\beval\s*\(/u);
+      expect(bundledSource).not.toContain('node:crypto');
+      expect(bundledSource).not.toContain('backend-federation-security/node');
     } finally {
       await fs.promises.rm(appDir, { recursive: true, force: true });
     }

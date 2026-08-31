@@ -1,6 +1,5 @@
 // @effect-diagnostics strictBooleanExpressions:off
 import type * as EffectServiceContext from 'effect/Context';
-import * as Context from 'effect/Context';
 import { HttpApi } from 'effect/unstable/httpapi';
 import {
   classifyEffectBffEntryModule,
@@ -60,16 +59,13 @@ function isRequestHandler(value: unknown): value is EffectBffRequestHandler {
   return typeof value === 'function';
 }
 
-function isEffectServiceContext(
-  context: Parameters<EffectBffRequestHandler>[1],
-): context is EffectServiceContext.Context<any> {
-  return (
-    typeof context === 'object' && context !== null && 'mapUnsafe' in context
-  );
+function shareDispose(dispose: () => Promise<void>) {
+  let disposePromise: Promise<void> | undefined;
+  return () => {
+    disposePromise ??= Promise.resolve().then(dispose);
+    return disposePromise;
+  };
 }
-
-const emptyEffectServiceContext =
-  Context.empty() as EffectServiceContext.Context<any>;
 
 function rejectLegacyEffectModuleShape(
   options: ResolveEffectBffModuleHandlerOptions,
@@ -94,22 +90,17 @@ function createLoadedHandler(webHandler: {
   return {
     handler: (request, context) =>
       callEffectBffRequestHandler(webHandler.handler, request, context),
-    dispose: webHandler.dispose,
+    dispose: shareDispose(webHandler.dispose),
   };
 }
 
 function createLoadedHttpApiHandler(
   webHandler: ReturnType<typeof createHttpApiHandler>,
 ): LoadedEffectBffHandler {
-  return {
-    handler: (request, context) => {
-      const effectContext = isEffectServiceContext(context)
-        ? context
-        : emptyEffectServiceContext;
-      return webHandler.handler(request, effectContext);
-    },
+  return createLoadedHandler({
+    handler: webHandler.handler as EffectBffRequestHandler,
     dispose: webHandler.dispose,
-  };
+  });
 }
 
 function classifyEffectBffRuntimeEntryShape(module: EffectApiModule) {

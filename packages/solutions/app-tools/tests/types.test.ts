@@ -1,8 +1,8 @@
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { createAppEnvDts } from '../../../toolkit/create/src/ultramodern-workspace/app-files';
-import { shellApp } from '../../../toolkit/create/src/ultramodern-workspace/descriptors';
+import { createAppEnvDts } from '../../../toolkit/ultramodern-create/src/ultramodern-workspace/app-files';
+import { shellApp } from '../../../toolkit/ultramodern-create/src/ultramodern-workspace/descriptors';
 import * as buildConfigApi from '../src/config/public';
 
 const repoRoot = join(__dirname, '../../../..');

@@ -4,7 +4,6 @@
     "lib": ["DOM", "DOM.Iterable", "ES2022"],
     "declaration": false,
     "jsx": "preserve",
-    "baseUrl": "./",
     "isolatedModules": true,
     "types": ["node", "@rstest/core/globals"],
     "rootDir": "./src"

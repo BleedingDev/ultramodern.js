@@ -1,4 +1,8 @@
-import { evaluateCrossProjectPolicy } from '../src/security/crossProjectPolicy';
+import {
+  type CrossProjectOperationContract,
+  evaluateCrossProjectPolicy,
+  resolveCrossProjectRequestObservation,
+} from '../src/security/crossProjectPolicy';
 import { buildOperationContractMap } from '../src/security/operationContracts';
 
 const NAMESPACE_ALLOWLIST_REQUIRES_VERIFIER_MESSAGE =
@@ -133,6 +137,141 @@ describe('cross-project policy', () => {
     );
 
     expect(violation).toBeNull();
+  });
+
+  test('should deny client-declared operation metadata that does not match the observed request', () => {
+    const contracts = buildOperationContractMap({
+      handlers: [
+        {
+          name: 'getCustomer',
+          httpMethod: 'GET',
+          routePath: '/api/customer',
+        },
+        {
+          name: 'createInvoice',
+          httpMethod: 'POST',
+          routePath: '/api/invoice',
+        },
+      ],
+      requestId: 'crm.producer-a',
+    });
+    const forgedContract = contracts['POST:/api/invoice'];
+    expect(forgedContract).toBeDefined();
+    if (!forgedContract) {
+      throw new Error('Expected generated invoice contract');
+    }
+
+    const violation = evaluateCrossProjectPolicy(
+      {
+        'x-modernjs-bff-envelope': JSON.stringify({
+          requestId: forgedContract.requestId,
+        }),
+        'x-operation-id': forgedContract.operationId,
+        'x-modernjs-bff-operation-context': JSON.stringify({
+          requestId: forgedContract.requestId,
+          operationId: forgedContract.operationId,
+          method: forgedContract.method,
+          routePath: forgedContract.routePath,
+          schemaHash: forgedContract.schemaHash,
+          operationVersion: forgedContract.operationVersion,
+        }),
+      },
+      {
+        enabled: true,
+        expectedOperationContracts: contracts,
+      },
+      {
+        method: 'GET',
+        routePath: '/api/customer',
+      },
+    );
+
+    expect(violation?.reason).toBe('operation_context_mismatch');
+  });
+
+  test('should deny a client-declared operation id that does not identify the observed contract', () => {
+    const contracts = buildOperationContractMap({
+      handlers: [
+        {
+          name: 'getCustomer',
+          httpMethod: 'GET',
+          routePath: '/api/customer',
+        },
+        {
+          name: 'getInvoice',
+          httpMethod: 'GET',
+          routePath: '/api/invoice',
+        },
+      ],
+      requestId: 'crm.producer-a',
+    });
+    const actualContract = contracts['GET:/api/customer'];
+    const forgedContract = contracts['GET:/api/invoice'];
+    expect(actualContract).toBeDefined();
+    expect(forgedContract).toBeDefined();
+    if (!actualContract || !forgedContract) {
+      throw new Error('Expected generated customer and invoice contracts');
+    }
+
+    const violation = evaluateCrossProjectPolicy(
+      {
+        'x-modernjs-bff-envelope': JSON.stringify({
+          requestId: actualContract.requestId,
+        }),
+        'x-operation-id': forgedContract.operationId,
+        'x-modernjs-bff-operation-context': JSON.stringify({
+          requestId: actualContract.requestId,
+          operationId: forgedContract.operationId,
+          method: actualContract.method,
+          routePath: actualContract.routePath,
+          schemaHash: actualContract.schemaHash,
+          operationVersion: actualContract.operationVersion,
+        }),
+      },
+      {
+        enabled: true,
+        expectedOperationContracts: contracts,
+      },
+      {
+        method: actualContract.method,
+        routePath: actualContract.routePath,
+      },
+    );
+
+    expect(violation?.reason).toBe('operation_context_mismatch');
+  });
+
+  test('should bind operation identity when a manual contract omits operationId', () => {
+    const requestId = 'crm.producer-a';
+    const violation = evaluateCrossProjectPolicy(
+      {
+        'x-modernjs-bff-envelope': JSON.stringify({ requestId }),
+        'x-operation-id': `${requestId}:forged-operation`,
+        'x-modernjs-bff-operation-context': JSON.stringify({
+          requestId,
+          operationId: `${requestId}:forged-operation`,
+          method: 'GET',
+          routePath: '/api/customer',
+          schemaHash: 'schema-customer',
+          operationVersion: 1,
+        }),
+      },
+      {
+        enabled: true,
+        expectedOperationContracts: {
+          'GET:/api/customer': {
+            schemaHash: 'schema-customer',
+            operationVersion: 1,
+          },
+        },
+      },
+      {
+        method: 'GET',
+        routePath: '/api/customer',
+      },
+    );
+
+    expect(violation?.reason).toBe('operation_context_mismatch');
   });
 
   test('should deny operation context header/detail operationId mismatch', () => {
@@ -513,5 +652,178 @@ describe('cross-project policy producer identity binding', () => {
     expect(violation?.message).toBe(
       NAMESPACE_ALLOWLIST_REQUIRES_VERIFIER_MESSAGE,
     );
+  });
+});
+
+describe('cross-project request observation', () => {
+  const resolve = (
+    pathname: string,
+    expectedOperationContracts: Record<string, CrossProjectOperationContract>,
+    method = 'GET',
+  ) =>
+    resolveCrossProjectRequestObservation(
+      { method, pathname },
+      { expectedOperationContracts },
+    );
+
+  test('fails closed when two route templates have the same specificity', () => {
+    expect(
+      resolve('/foo/42', {
+        'GET:/api/:entity/42': {},
+        'GET:/api/foo/:id': {},
+      }),
+    ).toEqual({
+      method: 'GET',
+      routePath: '/foo/42',
+    });
+  });
+
+  test('does not strip a dynamic mount prefix', () => {
+    expect(
+      resolve('/products/42', {
+        'GET:/api/:tenant/products/:id': {},
+      }),
+    ).toEqual({
+      method: 'GET',
+      routePath: '/products/42',
+    });
+  });
+
+  test.each([
+    ['/anything/admin', '/api/*/admin'],
+    ['/scope/admin', '/api/:scope?/admin'],
+  ])('fails closed for nonterminal optional or wildcard template %s', (pathname, routePath) => {
+    expect(resolve(pathname, { [`GET:${routePath}`]: {} })).toEqual({
+      method: 'GET',
+      routePath: pathname,
+    });
+  });
+
+  test.each([
+    '/files/a%2Fb',
+    '/files/a%5Cb',
+    '/files/a%252Fb',
+    '/files/%ZZ',
+  ])('fails closed for ambiguous or malformed percent encoding in %s', pathname => {
+    expect(
+      resolve(pathname, {
+        'GET:/api/files/:id': {},
+      }),
+    ).toEqual({
+      method: 'GET',
+      routePath: pathname,
+    });
+  });
+
+  test('preserves trailing-slash distinctions while accepting an exact trailing template', () => {
+    expect(
+      resolve('/products/42/', {
+        'GET:/api/products/:id': {},
+      }),
+    ).toEqual({
+      method: 'GET',
+      routePath: '/products/42/',
+    });
+    expect(
+      resolve('/products/42/', {
+        'GET:/api/products/:id/': {},
+      }),
+    ).toEqual({
+      method: 'GET',
+      routePath: '/api/products/:id/',
+    });
+  });
+
+  test('preserves the observed method when GET and POST share one route', () => {
+    expect(
+      resolve(
+        '/products/42',
+        {
+          'GET:/api/products/:id': {},
+          'POST:/api/products/:id': {},
+        },
+        'POST',
+      ),
+    ).toEqual({
+      method: 'POST',
+      routePath: '/api/products/:id',
+    });
+  });
+
+  test('ranks route specificity only within the observed method', () => {
+    expect(
+      resolve(
+        '/api/fixed',
+        {
+          'GET:/api/:id': {},
+          'POST:/api/fixed': {},
+        },
+        'GET',
+      ),
+    ).toEqual({
+      method: 'GET',
+      routePath: '/api/:id',
+    });
+  });
+
+  test('binds a mounted root request to the fixed producer prefix', () => {
+    expect(
+      resolve('/', {
+        'GET:/api': {},
+      }),
+    ).toEqual({
+      method: 'GET',
+      routePath: '/api',
+    });
+  });
+
+  test('denies a GET contract sent to a same-route POST operation', () => {
+    const contracts = buildOperationContractMap({
+      handlers: [
+        {
+          name: 'getProduct',
+          httpMethod: 'GET',
+          routePath: '/api/products/:id',
+        },
+        {
+          name: 'updateProduct',
+          httpMethod: 'POST',
+          routePath: '/api/products/:id',
+        },
+      ],
+      requestId: 'catalog.producer-a',
+    });
+    const getContract = contracts['GET:/api/products/:id']!;
+    const observedRequest = resolveCrossProjectRequestObservation(
+      {
+        method: 'POST',
+        pathname: '/products/42',
+      },
+      { expectedOperationContracts: contracts },
+    );
+
+    const violation = evaluateCrossProjectPolicy(
+      {
+        'x-modernjs-bff-envelope': JSON.stringify({
+          requestId: getContract.requestId,
+        }),
+        'x-operation-id': getContract.operationId,
+        'x-modernjs-bff-operation-context': JSON.stringify({
+          requestId: getContract.requestId,
+          operationId: getContract.operationId,
+          method: getContract.method,
+          routePath: getContract.routePath,
+          schemaHash: getContract.schemaHash,
+          operationVersion: getContract.operationVersion,
+        }),
+      },
+      {
+        enabled: true,
+        expectedOperationContracts: contracts,
+      },
+      observedRequest,
+    );
+
+    expect(violation?.reason).toBe('operation_context_mismatch');
   });
 });

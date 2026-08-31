@@ -9,12 +9,14 @@ import {
   OPERATION_CONTRACTS_JSON,
   PACKAGE_NAME,
   PREFIX,
+  REQUEST_ID,
   RUNTIME_FRAMEWORK,
 } from './crossProjectApiPlugin';
 
 function replaceContent(
   source: string,
   packageName: string,
+  requestId: string,
   prefix: string,
   relativeDistPath: string,
   relativeApiPath: string,
@@ -25,6 +27,7 @@ function replaceContent(
 ) {
   const updatedSource = source
     .replace(new RegExp(PACKAGE_NAME, 'g'), packageName)
+    .replace(new RegExp(REQUEST_ID, 'g'), requestId)
     .replace(new RegExp(PREFIX, 'g'), prefix)
     .replace(new RegExp(DIST_DIR, 'g'), normalizeToPosixPath(relativeDistPath))
     .replace(new RegExp(API_DIR, 'g'), normalizeToPosixPath(relativeApiPath))
@@ -46,6 +49,7 @@ function replaceContent(
 async function pluginGenerator({
   prefix,
   appDirectory,
+  requestId,
   relativeDistPath,
   relativeApiPath,
   relativeLambdaPath,
@@ -55,6 +59,7 @@ async function pluginGenerator({
 }: {
   prefix: string;
   appDirectory: string;
+  requestId: string;
   relativeDistPath: string;
   relativeApiPath: string;
   relativeLambdaPath: string;
@@ -83,6 +88,7 @@ async function pluginGenerator({
     const updatedPlugin = replaceContent(
       pluginTemplate,
       packageJson.name,
+      requestId,
       prefix,
       relativeDistPath,
       relativeApiPath,

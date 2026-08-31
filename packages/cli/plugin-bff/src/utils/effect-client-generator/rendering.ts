@@ -1,10 +1,15 @@
-import { deriveOperationVersion } from '@modern-js/bff-core';
+import {
+  buildOperationContractMap,
+  deriveOperationVersion,
+  type OperationContractMap,
+} from '@modern-js/bff-core';
 import { fs, upath as path } from '@modern-js/utils';
 import {
   createEffectEndpointContractHash,
   type EffectEndpointMeta,
   ensureLeadingSlash,
   normalizeEffectPrefix,
+  toOperationContractSources,
 } from '../../runtime/effect/endpoint-contracts';
 import type { EffectClientCodegenOptions } from './types';
 
@@ -44,26 +49,96 @@ function resolveBatchEndpoint(prefix: string, endpoint: string | undefined) {
   return `${normalizedPrefix}${normalizedEndpoint === '/' ? '' : normalizedEndpoint}`;
 }
 
-function getPackageInfo(appDir: string): { name?: string; version?: string } {
-  try {
-    const packageJsonPath = path.resolve(appDir, './package.json');
-    const packageJson = fs.readJSONSync(packageJsonPath) as {
-      name?: string;
-      version?: string;
-    };
-    return { name: packageJson.name, version: packageJson.version };
-  } catch {
-    return {};
+function getPackageInfo(
+  resourcePath: string,
+  appDir: string,
+  onDependency?: (dependency: string) => void,
+): { name?: string; version?: string } {
+  for (const startDir of [path.dirname(resourcePath), appDir]) {
+    let current = path.resolve(startDir);
+    for (let depth = 0; depth < 32; depth += 1) {
+      const packageJsonPath = path.join(current, 'package.json');
+      if (fs.existsSync(packageJsonPath)) {
+        onDependency?.(packageJsonPath);
+        try {
+          const packageJson = fs.readJSONSync(packageJsonPath) as {
+            name?: string;
+            version?: string;
+          };
+          return { name: packageJson.name, version: packageJson.version };
+        } catch {
+          return {};
+        }
+      }
+      const parent = path.dirname(current);
+      if (parent === current) {
+        break;
+      }
+      current = parent;
+    }
   }
+  return {};
 }
 
-export function renderEffectClientCode(
+export function renderEffectClientCode(generation: EffectClientGeneration) {
+  const { config, manifest } = generation;
+  return `import * as __requestRuntime from ${JSON.stringify(
+    generation.requestCreator,
+  )};
+import { createGeneratedEffectClient } from ${JSON.stringify(
+    EFFECT_CLIENT_RUNTIME_IMPORT,
+  )};
+
+const __manifest = ${JSON.stringify(manifest, null, 2)};
+
+const __config = ${JSON.stringify(config, null, 2)};
+
+const __generated = createGeneratedEffectClient(__manifest, __config, __requestRuntime);
+
+const client = __generated.client;
+const operationManifest = __generated.operationManifest;
+const createEffectRequestContext = __generated.createEffectRequestContext;
+const apiModule = {
+  client,
+  operationManifest,
+  createEffectRequestContext,
+};
+
+export { client, createEffectRequestContext, operationManifest };
+export default apiModule;
+`;
+}
+
+export type EffectClientGeneration = {
+  config: Record<string, unknown>;
+  manifest: {
+    endpoints: Array<{
+      apiId: string;
+      group: string;
+      endpoint: string;
+      method: string;
+      routePath: string;
+      schemaHash: string;
+      operationVersion: number;
+    }>;
+  };
+  operationContracts: OperationContractMap;
+  operationVersion: number;
+  requestCreator: string;
+  requestId: string;
+};
+
+export function createEffectClientGeneration(
   endpoints: EffectEndpointMeta[],
   options: EffectClientCodegenOptions,
-) {
+): EffectClientGeneration {
   const requestCreator = options.requestCreator || DEFAULT_REQUEST_CREATOR;
   const httpMethodDecider = options.httpMethodDecider || 'functionName';
-  const packageInfo = getPackageInfo(options.appDir);
+  const packageInfo = getPackageInfo(
+    options.resourcePath,
+    options.appDir,
+    options.onDependency,
+  );
   const packageName = packageInfo.name;
   const dataPlatformAppNamespace =
     packageName === undefined || packageName === ''
@@ -71,9 +146,11 @@ export function renderEffectClientCode(
       : packageName;
   const requestId =
     options.target === 'bundle'
-      ? packageName !== undefined && packageName !== ''
-        ? packageName
-        : undefined
+      ? options.requestId !== undefined && options.requestId.trim() !== ''
+        ? options.requestId.trim()
+        : packageName !== undefined && packageName !== ''
+          ? packageName
+          : undefined
       : undefined;
   const normalizedRequestId =
     requestId === undefined || requestId === '' ? 'default' : requestId;
@@ -121,29 +198,18 @@ export function renderEffectClientCode(
     },
   };
 
-  return `import * as __requestRuntime from ${JSON.stringify(requestCreator)};
-import { createGeneratedEffectClient } from ${JSON.stringify(
-    EFFECT_CLIENT_RUNTIME_IMPORT,
-  )};
-
-const __manifest = ${JSON.stringify(manifest, null, 2)};
-
-const __config = ${JSON.stringify(config, null, 2)};
-
-const __generated = createGeneratedEffectClient(__manifest, __config, __requestRuntime);
-
-const client = __generated.client;
-const operationManifest = __generated.operationManifest;
-const createEffectRequestContext = __generated.createEffectRequestContext;
-const apiModule = {
-  client,
-  operationManifest,
-  createEffectRequestContext,
-};
-
-export { client, createEffectRequestContext, operationManifest };
-export default apiModule;
-`;
+  return {
+    config,
+    manifest,
+    operationContracts: buildOperationContractMap({
+      handlers: toOperationContractSources(endpoints),
+      requestId: normalizedRequestId,
+      operationVersion,
+    }),
+    operationVersion,
+    requestCreator,
+    requestId: normalizedRequestId,
+  };
 }
 
 function renderClientShape(

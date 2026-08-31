@@ -1,5 +1,5 @@
 // @effect-diagnostics anyUnknownInErrorContext:off asyncFunction:off strictBooleanExpressions:off
-import { createSafeFailureResponse } from '../safe-failure';
+import { createSafeFailureResponse } from '@modern-js/runtime-extensions/safe-failure';
 import type { EffectBffRequestHandler } from './module';
 import {
   createEffectOperationContext,

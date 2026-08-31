@@ -18,19 +18,6 @@ const receiptCliPath = path.resolve(
 
 const digest = value => crypto.createHash('sha256').update(value).digest('hex');
 
-function canonicalSerialize(value) {
-  if (value === null || typeof value !== 'object') {
-    return JSON.stringify(value);
-  }
-  if (Array.isArray(value)) {
-    return `[${value.map(canonicalSerialize).join(',')}]`;
-  }
-  return `{${Object.keys(value)
-    .sort()
-    .map(key => `${JSON.stringify(key)}:${canonicalSerialize(value[key])}`)
-    .join(',')}}`;
-}
-
 async function createReceiptFixture(root) {
   const receiptApi = await import(pathToFileURL(receiptCliPath));
   const { bindSupplyChainEvidence, createAcceptanceReceipt } = receiptApi;
@@ -44,7 +31,7 @@ async function createReceiptFixture(root) {
     cohortDigest: digest('release cohort'),
     packages: [
       {
-        targetName: '@bleedingdev/modern-js-create',
+        targetName: '@bleedingdev/modern-js-ultramodern-create',
         version: '3.4.0-ultramodern.2',
         integrity: 'sha512-create',
         packageJson: {
@@ -55,8 +42,8 @@ async function createReceiptFixture(root) {
       },
     ],
     createPackage: {
-      sourceName: '@modern-js/create',
-      targetName: '@bleedingdev/modern-js-create',
+      sourceName: '@modern-js/ultramodern-create',
+      targetName: '@bleedingdev/modern-js-ultramodern-create',
       version: '3.4.0-ultramodern.2',
       integrity: 'sha512-create',
     },
@@ -162,20 +149,25 @@ function verifyReceipt({ manifestPath, receiptPath, runIdentity }) {
 function replaceOperationalEvidence(fixture, evidence) {
   const evidenceSource = `${JSON.stringify(evidence, null, 2)}\n`;
   fs.writeFileSync(fixture.operationalEvidencePath, evidenceSource);
-  const receipt = JSON.parse(fs.readFileSync(fixture.receiptPath, 'utf8'));
-  receipt.results.find(
-    result => result.id === 'operational-independence',
-  ).details.evidenceFileSha256 = digest(evidenceSource);
-  fs.writeFileSync(
-    fixture.receiptPath,
-    `${JSON.stringify(receipt, null, 2)}\n`,
-  );
 }
 
 test('producer receipt passes the shared workflow receipt validator', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ultramodern-receipt-'));
   try {
     const fixture = await createReceiptFixture(root);
+    const receipt = JSON.parse(fs.readFileSync(fixture.receiptPath, 'utf8'));
+    const operationalDetails = receipt.results.find(
+      result => result.id === 'operational-independence',
+    ).details;
+    assert.deepEqual(Object.keys(operationalDetails).sort(), [
+      'artifactMode',
+      'baselineRevision',
+      'changedPaths',
+      'changedRevision',
+      'durationMs',
+      'evidencePath',
+      'mutations',
+    ]);
     const valid = verifyReceipt(fixture);
     assert.equal(valid.status, 0, valid.stderr || valid.stdout);
     assert.match(valid.stdout, /Verified ERP-10 acceptance receipt/);
@@ -229,23 +221,14 @@ test('producer receipt passes the shared workflow receipt validator', async () =
         /artifactMode must be source/,
       ],
       [
-        'operational-independence evidence digest drift',
-        receipt => {
-          receipt.results.find(
-            result => result.id === 'operational-independence',
-          ).details.evidenceDigest = 'not-a-digest';
-        },
-        /evidence path or digest is invalid/,
-      ],
-      [
-        'operational-independence cross-target identity drift',
+        'operational-independence mutation expectation drift',
         receipt => {
           const details = receipt.results.find(
             result => result.id === 'operational-independence',
           ).details;
-          details.crossTargetIdentity.sourceRevision = details.baselineRevision;
+          details.mutations.apiResponse.value = 'forged expected value';
         },
-        /cross-target identity is stale/,
+        /did not observe the exact C1 API and UI mutations/,
       ],
       [
         'operational-independence evidence path drift',
@@ -254,7 +237,7 @@ test('producer receipt passes the shared workflow receipt validator', async () =
             result => result.id === 'operational-independence',
           ).details.evidencePath = 'relative/evidence.json';
         },
-        /evidence path or digest is invalid/,
+        /evidence path is invalid/,
       ],
     ]) {
       const receipt = JSON.parse(fs.readFileSync(fixture.receiptPath, 'utf8'));
@@ -302,7 +285,7 @@ test('producer receipt verification fails closed when operational evidence is ta
     assert.notEqual(tampered.status, 0);
     assert.match(
       tampered.stderr,
-      /Operational-independence evidence file SHA-256 does not match the acceptance receipt/u,
+      /Operational-independence node served behavior is missing, degraded, skipped, or non-passing/u,
     );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
@@ -315,8 +298,6 @@ test('producer receipt verification fails closed when operational evidence is sw
     const fixture = await createReceiptFixture(root);
     const swapped = JSON.parse(fixture.operationalEvidenceSource);
     swapped.commits.changed = '4'.repeat(40);
-    delete swapped.evidenceDigest;
-    swapped.evidenceDigest = digest(canonicalSerialize(swapped));
     fs.writeFileSync(
       fixture.operationalEvidencePath,
       `${JSON.stringify(swapped, null, 2)}\n`,
@@ -325,27 +306,23 @@ test('producer receipt verification fails closed when operational evidence is sw
     assert.notEqual(swappedResult.status, 0);
     assert.match(
       swappedResult.stderr,
-      /Operational-independence evidence file SHA-256 does not match the acceptance receipt/u,
+      /Operational-independence commits are stale, mixed, or outside inventory ownership/u,
     );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
 
-test('producer receipt verification recomputes the operational evidence canonical digest', async () => {
+test('producer receipt verification does not treat the evidence digest as correctness', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ultramodern-receipt-'));
   try {
     const fixture = await createReceiptFixture(root);
     const evidence = JSON.parse(fixture.operationalEvidenceSource);
-    evidence.commits.ownerPath = 'verticals/finance';
+    evidence.evidenceDigest = 'administrative-digest-is-not-proof';
     replaceOperationalEvidence(fixture, evidence);
 
     const result = verifyReceipt(fixture);
-    assert.notEqual(result.status, 0);
-    assert.match(
-      result.stderr,
-      /Operational-independence evidence canonical digest does not match its content/u,
-    );
+    assert.equal(result.status, 0, result.stderr || result.stdout);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -357,8 +334,6 @@ test('producer receipt verification binds operational evidence to the receipt C0
     const fixture = await createReceiptFixture(root);
     const evidence = JSON.parse(fixture.operationalEvidenceSource);
     evidence.commits.changed = '4'.repeat(40);
-    delete evidence.evidenceDigest;
-    evidence.evidenceDigest = digest(canonicalSerialize(evidence));
     replaceOperationalEvidence(fixture, evidence);
 
     const result = verifyReceipt(fixture);
@@ -372,23 +347,19 @@ test('producer receipt verification binds operational evidence to the receipt C0
   }
 });
 
-test('producer receipt verification binds operational evidence target summaries to the receipt', async () => {
+test('producer receipt verification rechecks operational byte conservation', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ultramodern-receipt-'));
   try {
     const fixture = await createReceiptFixture(root);
     const evidence = JSON.parse(fixture.operationalEvidenceSource);
-    evidence.targets.cloudflare.comparison.shell.treeDigest = digest(
-      'swapped-cloudflare-shell',
-    );
-    delete evidence.evidenceDigest;
-    evidence.evidenceDigest = digest(canonicalSerialize(evidence));
+    evidence.targets.cloudflare.comparison.shell.byteIdentical = false;
     replaceOperationalEvidence(fixture, evidence);
 
     const result = verifyReceipt(fixture);
     assert.notEqual(result.status, 0);
     assert.match(
       result.stderr,
-      /Operational-independence evidence does not match the acceptance receipt summary/u,
+      /Operational-independence cloudflare comparison is incomplete or non-passing/u,
     );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });

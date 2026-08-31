@@ -59,7 +59,7 @@ export function normalizeRuntimeFallbackSignalAuthConfig(
 
   if (enabled && !expectedValue) {
     throw new Error(
-      '[telemetry.canary.autopilot.runtimeFallbackSignal] auth.enabled true but no expected token configured',
+      '[telemetry.health.runtimeFallbackSignal] auth.enabled true but no expected token configured',
     );
   }
 
@@ -72,22 +72,22 @@ export function normalizeRuntimeFallbackSignalAuthConfig(
 
 /**
  * Normalizes auth config for the runtime fallback signal endpoint when the
- * endpoint itself is enabled. The endpoint can persist failing contract gates
- * (a canary kill switch), so it always requires a token.
+ * endpoint itself is enabled. The endpoint records observed failing contract
+ * gates, so it always requires a token.
  */
 export function normalizeRequiredRuntimeFallbackSignalAuthConfig(
   configured: Parameters<typeof normalizeRuntimeFallbackSignalAuthConfig>[0],
 ): RuntimeFallbackSignalAuthConfig {
   if (configured?.enabled === false) {
     throw new Error(
-      '[telemetry.canary.autopilot.runtimeFallbackSignal] auth.enabled cannot be false when runtimeFallbackSignal.enabled is true',
+      '[telemetry.health.runtimeFallbackSignal] auth.enabled cannot be false when runtimeFallbackSignal.enabled is true',
     );
   }
 
   const authConfig = normalizeRuntimeFallbackSignalAuthConfig(configured);
   if (!authConfig.expectedValue) {
     throw new Error(
-      '[telemetry.canary.autopilot.runtimeFallbackSignal] auth.expectedValue or auth.expectedValueEnv is required when runtimeFallbackSignal.enabled is true',
+      '[telemetry.health.runtimeFallbackSignal] auth.expectedValue or auth.expectedValueEnv is required when runtimeFallbackSignal.enabled is true',
     );
   }
 

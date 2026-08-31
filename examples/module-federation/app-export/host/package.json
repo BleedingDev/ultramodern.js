@@ -12,7 +12,7 @@
     "lint:fix": "biome check --write"
   },
   "engines": {
-    "node": ">=20.19.5"
+    "node": ">=26.7.0"
   },
   "dependencies": {
     "@modern-js/runtime": "workspace:*",

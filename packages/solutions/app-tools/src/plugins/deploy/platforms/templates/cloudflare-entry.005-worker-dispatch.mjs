@@ -179,8 +179,60 @@ function getEffectBffDispatcher(bff, runtime) {
       throw new Error(`worker bundle does not export ${bff.dispatcherExport}`);
     }
 
+    const effectConfig = bff.effect;
+    if (
+      !effectConfig ||
+      typeof effectConfig !== 'object' ||
+      Array.isArray(effectConfig)
+    ) {
+      throw new Error('manifest declares invalid Effect BFF runtime config');
+    }
+    const crossProjectPolicy = effectConfig.crossProjectPolicy;
+    if (
+      !crossProjectPolicy ||
+      typeof crossProjectPolicy !== 'object' ||
+      Array.isArray(crossProjectPolicy)
+    ) {
+      throw new Error(
+        'manifest declares invalid Effect BFF cross-project policy',
+      );
+    }
+    for (const field of [
+      'enabled',
+      'requireEnvelope',
+      'requireOperationContext',
+      'requireOperationContextDetails',
+      'requireOperationSchemaHash',
+      'requireOperationVersion',
+      'allowUnknownOperations',
+    ]) {
+      if (typeof crossProjectPolicy[field] !== 'boolean') {
+        throw new Error(
+          `manifest Effect BFF cross-project policy requires boolean ${field}`,
+        );
+      }
+    }
+    if (
+      !crossProjectPolicy.expectedOperationContracts ||
+      typeof crossProjectPolicy.expectedOperationContracts !== 'object' ||
+      Array.isArray(crossProjectPolicy.expectedOperationContracts)
+    ) {
+      throw new Error(
+        'manifest Effect BFF cross-project policy requires expectedOperationContracts object',
+      );
+    }
+
     const effectDispatcher = await effectDispatcherFactory({
       prefix: bff.prefix,
+      ...(effectConfig?.openapi === undefined
+        ? {}
+        : { openapi: effectConfig.openapi }),
+      ...(effectConfig?.dataPlatform === undefined
+        ? {}
+        : { dataPlatform: effectConfig.dataPlatform }),
+      ...(effectConfig?.crossProjectPolicy === undefined
+        ? {}
+        : { crossProjectPolicy }),
     });
 
     if (!effectDispatcher || typeof effectDispatcher.dispatch !== 'function') {
@@ -216,6 +268,12 @@ async function dispatchBffRequest(request, env) {
     !matchesPrefix(new URL(request.url).pathname, bff.prefix)
   ) {
     return null;
+  }
+  if (bff.runtimeFramework !== 'effect') {
+    return createEffectBffDispatcherErrorResponse(
+      bff,
+      new Error('manifest must declare runtimeFramework "effect"'),
+    );
   }
 
   const workerModule = await loadWorkerModule(bff.worker);

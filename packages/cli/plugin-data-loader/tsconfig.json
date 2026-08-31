@@ -4,7 +4,6 @@
     "declaration": true,
     "jsx": "preserve",
     "lib": ["DOM", "ESNext", "dom.iterable"],
-    "baseUrl": ".",
     "skipLibCheck": true,
     "esModuleInterop": true,
     "isolatedModules": true,

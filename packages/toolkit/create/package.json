@@ -20,117 +20,38 @@
     "node": ">=20"
   },
   "version": "3.8.3",
-  "types": "./dist/types/index.d.ts",
-  "main": "./dist/esm-node/index.js",
+  "types": "./src/index.ts",
+  "main": "./dist/index.js",
   "bin": {
-    "create": "./bin/run.js",
-    "modern-js-create": "./bin/run.js"
-  },
-  "typesVersions": {
-    "*": {
-      ".": [
-        "./dist/types/index.d.ts"
-      ],
-      "ultramodern-workspace": [
-        "./dist/types/ultramodern-workspace/public-api.d.ts"
-      ],
-      "ultramodern-workspace/codesmith": [
-        "./dist/types/ultramodern-workspace/codesmith.d.ts"
-      ]
-    }
+    "create": "./bin/run.js"
   },
   "exports": {
-    ".": {
-      "types": "./dist/types/index.d.ts",
-      "node": {
-        "modern:source": "./src/index.ts",
-        "import": "./dist/esm-node/index.js",
-        "require": "./dist/cjs/index.cjs"
-      },
-      "default": "./dist/esm-node/index.js"
-    },
-    "./ultramodern-workspace": {
-      "types": "./dist/types/ultramodern-workspace/public-api.d.ts",
-      "node": {
-        "modern:source": "./src/ultramodern-workspace/public-api.ts",
-        "import": "./dist/esm-node/ultramodern-workspace/public-api.js",
-        "require": "./dist/cjs/ultramodern-workspace/public-api.cjs"
-      },
-      "default": "./dist/esm-node/ultramodern-workspace/public-api.js"
-    },
-    "./ultramodern-workspace/codesmith": {
-      "types": "./dist/types/ultramodern-workspace/codesmith.d.ts",
-      "node": {
-        "modern:source": "./src/ultramodern-workspace/codesmith.ts",
-        "import": "./dist/esm-node/ultramodern-workspace/codesmith.js",
-        "require": "./dist/cjs/ultramodern-workspace/codesmith.cjs"
-      },
-      "default": "./dist/esm-node/ultramodern-workspace/codesmith.js"
-    }
+    ".": "./dist/index.js"
   },
   "files": [
     "template",
-    "template-workspace",
-    "templates",
     "dist",
-    "bin"
+    "bin.js"
   ],
   "scripts": {
-    "build": "rm -rf dist && rslib build -c rslibconfig.mts && pnpm -w tsgo:dts \"$PWD\"",
-    "dev": "rslib build -c rslibconfig.mts -w",
-    "start": "node ./dist/esm-node/index.js",
-    "test": "rm -rf dist && rslib build -c rslibconfig.mts && pnpm -w tsgo:dts \"$PWD\" && rstest --passWithNoTests",
-    "type-check": "tsgo --noEmit -p tsconfig.json"
-  },
-  "dependencies": {
-    "@modern-js/codesmith": "2.6.9",
-    "@modern-js/i18n-utils": "workspace:*",
-    "@modern-js/utils": "workspace:*",
-    "esbuild": "^0.28.1",
-    "oxfmt": "0.65.0",
-    "ultracite": "7.10.6"
+    "build": "rslib build",
+    "dev": "rslib build -w",
+    "start": "node ./dist/index.js",
+    "test": "rstest"
   },
   "devDependencies": {
+    "@modern-js/i18n-utils": "workspace:*",
     "@modern-js/rslib": "workspace:*",
     "@rslib/core": "0.23.2",
     "@scripts/rstest-config": "workspace:*",
     "@types/node": "^26.2.0",
-    "@typescript/native-preview": "7.0.0-dev.20260707.2",
-    "drizzle-orm": "1.0.0-rc.4",
     "tsx": "^4.23.0",
     "typescript": "^7.0.2"
   },
   "publishConfig": {
-    "main": "./dist/esm-node/index.js",
+    "main": "./dist/index.js",
     "registry": "https://registry.npmjs.org/",
     "access": "public",
-    "types": "./dist/types/index.d.ts",
-    "exports": {
-      ".": {
-        "types": "./dist/types/index.d.ts",
-        "node": {
-          "import": "./dist/esm-node/index.js",
-          "require": "./dist/cjs/index.cjs"
-        },
-        "default": "./dist/esm-node/index.js"
-      },
-      "./ultramodern-workspace": {
-        "types": "./dist/types/ultramodern-workspace/public-api.d.ts",
-        "node": {
-          "import": "./dist/esm-node/ultramodern-workspace/public-api.js",
-          "require": "./dist/cjs/ultramodern-workspace/public-api.cjs"
-        },
-        "default": "./dist/esm-node/ultramodern-workspace/public-api.js"
-      },
-      "./ultramodern-workspace/codesmith": {
-        "types": "./dist/types/ultramodern-workspace/codesmith.d.ts",
-        "node": {
-          "import": "./dist/esm-node/ultramodern-workspace/codesmith.js",
-          "require": "./dist/cjs/ultramodern-workspace/codesmith.cjs"
-        },
-        "default": "./dist/esm-node/ultramodern-workspace/codesmith.js"
-      }
-    }
-  },
-  "modern:source": "./src/index.ts"
+    "types": "./dist/types/index.d.ts"
+  }
 }

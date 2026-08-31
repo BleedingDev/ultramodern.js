@@ -1,5 +1,10 @@
 // @effect-diagnostics asyncFunction:off extendsNativeError:off globalTimers:off newPromise:off strictBooleanExpressions:off
 
+import {
+  BackendFederationRemoteEntryError,
+  loadBoundedBackendFederationResource,
+  redactBackendFederationUrl,
+} from '@modern-js/server-runtime-extensions/backend-federation-security';
 import { BACKEND_FEDERATION_MANIFEST_FILE } from '../backend-federation';
 import {
   assertManifestAdapter,
@@ -9,7 +14,6 @@ import { isRecord } from './metadata';
 import type {
   BackendFederationManifest,
   BackendFederationManifestAdapterOptions,
-  BackendFederationManifestFetchResponse,
 } from './types';
 
 function getProcessEnv() {
@@ -60,17 +64,10 @@ export function resolveBackendFederationManifestReference(
 }
 
 function assertExpectedIdentityForReference(
-  options: Pick<
-    BackendFederationManifestAdapterOptions,
-    'allowLegacyManifest' | 'expected'
-  >,
+  options: Pick<BackendFederationManifestAdapterOptions, 'expected'>,
   source: ManifestReferenceSource | undefined,
 ) {
-  if (
-    source === undefined ||
-    source === 'path' ||
-    options.allowLegacyManifest
-  ) {
+  if (source === undefined || source === 'path') {
     return;
   }
 
@@ -80,7 +77,7 @@ function assertExpectedIdentityForReference(
 
   throw new BackendFederationManifestAdapterError(
     'version_mismatch',
-    `[BFF][Effect] Backend federation ${source} manifest references require expected.unitId and expected.buildMarker. Pass allowLegacyManifest: true to load legacy manifest references.`,
+    `[BFF][Effect] Backend federation ${source} manifest references require expected.unitId and expected.buildMarker.`,
     undefined,
     {
       label: 'expected.deliveryUnit',
@@ -93,6 +90,12 @@ function assertExpectedIdentityForReference(
 
 function isHttpUrl(value: string) {
   return /^https?:\/\//iu.test(value);
+}
+
+function referenceForDiagnostics(reference: string) {
+  return isHttpUrl(reference)
+    ? redactBackendFederationUrl(reference)
+    : '[local manifest]';
 }
 
 async function readFileReference(reference: string) {
@@ -142,14 +145,15 @@ export async function withTimeout<T>(
 export async function loadBackendFederationManifest(
   options: Pick<
     BackendFederationManifestAdapterOptions,
-    | 'allowLegacyManifest'
     | 'env'
     | 'expected'
     | 'fetch'
     | 'manifest'
     | 'manifestEnv'
+    | 'manifestPolicy'
     | 'manifestPath'
     | 'manifestUrl'
+    | 'signal'
     | 'timeoutMs'
   >,
 ): Promise<BackendFederationManifest> {
@@ -168,51 +172,48 @@ export async function loadBackendFederationManifest(
     options,
     resolveManifestReferenceSource(options),
   );
+  const referenceSource = resolveManifestReferenceSource(options);
+  if (referenceSource === 'path' && isHttpUrl(reference)) {
+    throw new BackendFederationManifestAdapterError(
+      'manifest_unavailable',
+      '[BFF][Effect] Backend federation manifestPath must identify an explicit local file. Use manifestUrl for HTTP(S) manifests.',
+    );
+  }
+  if (
+    (referenceSource === 'url' || referenceSource === 'env') &&
+    !isHttpUrl(reference)
+  ) {
+    throw new BackendFederationManifestAdapterError(
+      'manifest_unavailable',
+      `[BFF][Effect] Backend federation ${referenceSource} manifest references must use HTTP(S). Use manifestPath for an explicit local file.`,
+    );
+  }
 
   try {
+    const diagnosticReference = referenceForDiagnostics(reference);
     const source = isHttpUrl(reference)
-      ? await (async () => {
-          const fetchManifest =
-            options.fetch ??
-            (globalThis.fetch as
-              | ((
-                  url: string,
-                ) => Promise<BackendFederationManifestFetchResponse>)
-              | undefined);
-          if (!fetchManifest) {
-            throw new BackendFederationManifestAdapterError(
-              'manifest_unavailable',
-              `[BFF][Effect] Backend federation manifest ${reference} requires a fetch implementation.`,
-            );
-          }
-
-          const response = await withTimeout(
-            fetchManifest(reference),
-            options.timeoutMs,
-            `Backend federation manifest ${reference}`,
-          );
-          if (!response.ok) {
-            throw new BackendFederationManifestAdapterError(
-              'manifest_unavailable',
-              `[BFF][Effect] Backend federation manifest ${reference} returned HTTP ${response.status}${
-                response.statusText ? ` ${response.statusText}` : ''
-              }.`,
-            );
-          }
-
-          return response.text();
-        })()
+      ? new TextDecoder('utf-8', { fatal: true }).decode(
+          await loadBoundedBackendFederationResource(reference, {
+            allowInsecureHttp:
+              options.manifestPolicy?.allowInsecureHttp === true,
+            fetch: options.fetch,
+            kind: 'manifest',
+            maxBytes: options.manifestPolicy?.maxBytes,
+            signal: options.manifestPolicy?.signal ?? options.signal,
+            timeoutMs: options.manifestPolicy?.timeoutMs ?? options.timeoutMs,
+          }),
+        )
       : await withTimeout(
           readFileReference(reference),
-          options.timeoutMs,
-          `Backend federation manifest ${reference}`,
+          options.manifestPolicy?.timeoutMs ?? options.timeoutMs,
+          'Backend federation local manifest',
         );
     const manifest = JSON.parse(source) as unknown;
 
     assertManifestAdapter(
       isRecord(manifest),
       'manifest_invalid',
-      `[BFF][Effect] Backend federation manifest ${reference} must be a JSON object.`,
+      `[BFF][Effect] Backend federation manifest ${diagnosticReference} must be a JSON object.`,
     );
 
     return manifest;
@@ -221,9 +222,18 @@ export async function loadBackendFederationManifest(
       throw error;
     }
 
+    if (error instanceof BackendFederationRemoteEntryError) {
+      throw new BackendFederationManifestAdapterError(
+        error.code === 'timeout' ? 'timeout' : 'manifest_unavailable',
+        `[BFF][Effect] ${error.message}`,
+        error,
+        error.details,
+      );
+    }
+
     throw new BackendFederationManifestAdapterError(
       'manifest_unavailable',
-      `[BFF][Effect] Backend federation manifest ${reference} could not be loaded.`,
+      `[BFF][Effect] Backend federation manifest ${referenceForDiagnostics(reference)} could not be loaded.`,
       error,
     );
   }

@@ -3,16 +3,20 @@ const fs = require('node:fs');
 
 const digest = value => crypto.createHash('sha256').update(value).digest('hex');
 
-function canonicalSerialize(value) {
+// Historical publish-outcome reconstruction needs the archived schema-v4
+// receipt shape. Current fixtures never create or consume this digest.
+function legacyCanonicalSerialize(value) {
   if (value === null || typeof value !== 'object') {
     return JSON.stringify(value);
   }
   if (Array.isArray(value)) {
-    return `[${value.map(canonicalSerialize).join(',')}]`;
+    return `[${value.map(legacyCanonicalSerialize).join(',')}]`;
   }
   return `{${Object.keys(value)
     .sort()
-    .map(key => `${JSON.stringify(key)}:${canonicalSerialize(value[key])}`)
+    .map(
+      key => `${JSON.stringify(key)}:${legacyCanonicalSerialize(value[key])}`,
+    )
     .join(',')}}`;
 }
 
@@ -65,6 +69,19 @@ function fixtureOptions(overrides) {
 
 function operationalDetails(receipt, evidencePath, options) {
   const { identity, mutations } = options;
+  return {
+    artifactMode: receipt.mode,
+    baselineRevision: identity.baselineRevision,
+    changedPaths: [mutations.apiResponse.path, mutations.uiLocalization.path],
+    changedRevision: identity.changedRevision,
+    durationMs: 1,
+    evidencePath,
+    mutations,
+  };
+}
+
+function operationalEvidence(details, options) {
+  const { identity, mutations } = options;
   const beforeIdentity = {
     buildMarker: `${options.apps.changed}-before`,
     releaseVersion: identity.releaseVersion,
@@ -94,17 +111,22 @@ function operationalDetails(receipt, evidencePath, options) {
       ),
     };
     const runtimePlatform = platform === 'cloudflare' ? 'workerd' : 'node';
+    const shell = {
+      byteIdentical: true,
+      envelopeIdentical: true,
+      treeDigest: digest(`${platform}-${options.apps.shell}`),
+    };
+    const sibling = {
+      byteIdentical: true,
+      envelopeIdentical: true,
+      treeDigest: digest(`${platform}-${options.apps.sibling}`),
+    };
     return {
-      changed,
-      shell: {
-        byteIdentical: true,
-        envelopeIdentical: true,
-        treeDigest: digest(`${platform}-${options.apps.shell}`),
-      },
-      sibling: {
-        byteIdentical: true,
-        envelopeIdentical: true,
-        treeDigest: digest(`${platform}-${options.apps.sibling}`),
+      comparison: {
+        target: platform,
+        changed: { ...changed, changed: true },
+        shell,
+        sibling,
       },
       servedBehavior: {
         appId: options.apps.changed,
@@ -152,41 +174,6 @@ function operationalDetails(receipt, evidencePath, options) {
       },
     };
   };
-  return {
-    artifactMode: receipt.mode,
-    baselineRevision: identity.baselineRevision,
-    changedPaths: [mutations.apiResponse.path, mutations.uiLocalization.path],
-    changedRevision: identity.changedRevision,
-    crossTargetIdentity: afterIdentity,
-    durationMs: 1,
-    evidenceDigest: '0'.repeat(64),
-    evidenceFileSha256: '0'.repeat(64),
-    evidencePath,
-    mutations,
-    selectedApps: options.apps,
-    targets: {
-      cloudflare: target('cloudflare'),
-      node: target('node'),
-    },
-  };
-}
-
-function operationalEvidence(details, options) {
-  const target = platform => {
-    const summary = details.targets[platform];
-    return {
-      comparison: {
-        target: platform,
-        changed: {
-          ...summary.changed,
-          changed: true,
-        },
-        shell: summary.shell,
-        sibling: summary.sibling,
-      },
-      servedBehavior: summary.servedBehavior,
-    };
-  };
   const evidence = {
     schemaVersion: 1,
     kind: 'ultramodern-operational-independence-proof',
@@ -197,9 +184,9 @@ function operationalEvidence(details, options) {
       ownerPath: options.ownerPath,
     },
     apps: {
-      shell: { id: details.selectedApps.shell },
-      changed: { id: details.selectedApps.changed },
-      sibling: { id: details.selectedApps.sibling },
+      shell: { id: options.apps.shell },
+      changed: { id: options.apps.changed },
+      sibling: { id: options.apps.sibling },
     },
     targets: {
       node: target('node'),
@@ -207,21 +194,80 @@ function operationalEvidence(details, options) {
     },
     crossTarget: {
       equal: true,
-      identity: details.crossTargetIdentity,
+      identity: afterIdentity,
     },
     result: 'pass',
   };
-  evidence.evidenceDigest = digest(canonicalSerialize(evidence));
   return evidence;
+}
+
+function legacyOperationalDetails(
+  compactDetails,
+  evidence,
+  evidenceSource,
+  options,
+) {
+  const targets = Object.fromEntries(
+    ['node', 'cloudflare'].map(target => {
+      const { comparison, servedBehavior } = evidence.targets[target];
+      return [
+        target,
+        {
+          changed: {
+            afterIdentity: comparison.changed.afterIdentity,
+            afterTreeDigest: comparison.changed.afterTreeDigest,
+            beforeIdentity: comparison.changed.beforeIdentity,
+            beforeTreeDigest: comparison.changed.beforeTreeDigest,
+            surfaces: comparison.changed.surfaces,
+          },
+          servedBehavior,
+          shell: comparison.shell,
+          sibling: comparison.sibling,
+        },
+      ];
+    }),
+  );
+  return {
+    ...compactDetails,
+    crossTargetIdentity: evidence.crossTarget.identity,
+    evidenceDigest: evidence.evidenceDigest,
+    evidenceFileSha256: digest(evidenceSource),
+    selectedApps: options.apps,
+    targets,
+  };
 }
 
 async function createOperationalAcceptanceReceiptFixture({
   evidencePath,
+  legacyOperationalSummary = false,
   overrides = {},
   receipt,
   receiptApi,
 }) {
   const options = fixtureOptions(overrides);
+  const compactOperationalDetails = evidencePath
+    ? operationalDetails(receipt, evidencePath, options)
+    : undefined;
+  const evidence = compactOperationalDetails
+    ? operationalEvidence(compactOperationalDetails, options)
+    : undefined;
+  if (evidence && legacyOperationalSummary) {
+    evidence.evidenceDigest = digest(legacyCanonicalSerialize(evidence));
+  }
+  const evidenceSource = evidence
+    ? `${JSON.stringify(evidence, null, 2)}\n`
+    : undefined;
+  const recordedOperationalDetails =
+    compactOperationalDetails && evidence && evidenceSource
+      ? legacyOperationalSummary
+        ? legacyOperationalDetails(
+            compactOperationalDetails,
+            evidence,
+            evidenceSource,
+            options,
+          )
+        : compactOperationalDetails
+      : undefined;
   const runtimeIdentity = Object.fromEntries(
     ['node', 'workerd'].map(platform => [
       platform,
@@ -241,7 +287,7 @@ async function createOperationalAcceptanceReceiptFixture({
       )?.groups;
     await receiptApi.recordAcceptanceResult(receipt, id, async () =>
       id === 'operational-independence'
-        ? operationalDetails(receipt, evidencePath, options)
+        ? recordedOperationalDetails
         : runtime
           ? {
               artifactMode: receipt.mode,
@@ -262,13 +308,10 @@ async function createOperationalAcceptanceReceiptFixture({
   const operationalResult = receipt.results.find(
     result => result.id === 'operational-independence',
   );
-  let evidenceSource;
   if (operationalResult) {
-    const details = operationalResult.details;
-    const evidence = operationalEvidence(details, options);
-    evidenceSource = `${JSON.stringify(evidence, null, 2)}\n`;
-    details.evidenceDigest = evidence.evidenceDigest;
-    details.evidenceFileSha256 = digest(evidenceSource);
+    if (!evidenceSource) {
+      throw new Error('Operational evidence fixture source is missing');
+    }
     fs.writeFileSync(evidencePath, evidenceSource);
   }
 

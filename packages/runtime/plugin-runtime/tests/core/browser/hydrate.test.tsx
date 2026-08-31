@@ -17,8 +17,6 @@ rstest.mock('react-dom/client', () => ({
 }));
 
 describe('hydrateRoot loadable chunk loading global', () => {
-  const originalChunkLoadingGlobal = process.env.MODERN_CHUNK_LOADING_GLOBAL;
-
   beforeEach(() => {
     rstest.resetModules();
     loadableReady.mockClear();
@@ -31,31 +29,10 @@ describe('hydrateRoot loadable chunk loading global', () => {
   });
 
   afterAll(() => {
-    if (originalChunkLoadingGlobal === undefined) {
-      delete process.env.MODERN_CHUNK_LOADING_GLOBAL;
-    } else {
-      process.env.MODERN_CHUNK_LOADING_GLOBAL = originalChunkLoadingGlobal;
-    }
     delete (globalThis as any).window;
   });
 
-  test.each([
-    {
-      name: 'uses the compiled per-app chunk loading global',
-      configured: '__REMOTE_INVENTORY_CHUNKS__',
-      expected: '__REMOTE_INVENTORY_CHUNKS__',
-    },
-    {
-      name: 'uses the legacy fallback when the chunk loading global is unset',
-      configured: undefined,
-      expected: '__LOADABLE_LOADED_CHUNKS__',
-    },
-  ])('$name', async ({ configured, expected }) => {
-    if (configured) {
-      process.env.MODERN_CHUNK_LOADING_GLOBAL = configured;
-    } else {
-      delete process.env.MODERN_CHUNK_LOADING_GLOBAL;
-    }
+  test('uses the loadable fallback when no build constant is present', async () => {
     const { hydrateRoot } = await import('../../../src/core/browser/hydrate');
     const hydratedRoot = { kind: 'hydrated-root' };
     const ModernHydrate = rstest.fn().mockResolvedValue(hydratedRoot);
@@ -71,7 +48,7 @@ describe('hydrateRoot loadable chunk loading global', () => {
 
     expect(loadableReady).toHaveBeenCalledTimes(1);
     expect(loadableReady).toHaveBeenCalledWith(expect.any(Function), {
-      chunkLoadingGlobal: expected,
+      chunkLoadingGlobal: '__LOADABLE_LOADED_CHUNKS__',
     });
   });
 

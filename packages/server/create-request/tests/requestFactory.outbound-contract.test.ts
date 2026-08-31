@@ -351,4 +351,328 @@ describe('requestFactory outbound request contract', () => {
       }
     });
   }
+
+  test('inputParams forwards only allowlisted and server-derived identity headers', async () => {
+    const requestId = 'producer-input-params-identity';
+    const { request, requestFactory } = createHarness('server', {
+      'x-tenant-id': 'tenant-server',
+      'x-subject-id': 'subject-server',
+      'x-forwarded-feature': 'feature-server',
+      'x-private-incoming': 'must-not-forward',
+    });
+
+    requestFactory.configure({
+      request: request as unknown as typeof fetch,
+      requestId,
+      allowedHeaders: ['x-forwarded-feature'],
+      operationContract: { enabled: false },
+      requireEnvelope: false,
+      setDomain: () => 'https://producer.example',
+    });
+
+    const send = requestFactory.createRequest({
+      path: REQUEST_PATH,
+      method: 'POST',
+      port: PORT,
+      httpMethodDecider: 'inputParams',
+      requestId,
+    });
+
+    await send('widget');
+
+    expect(request).toHaveBeenCalledTimes(1);
+    const headers = request.mock.calls[0][1]?.headers as HeaderMap;
+    expect(headers).toMatchObject({
+      'x-tenant-id': 'tenant-server',
+      'x-subject-id': 'subject-server',
+      'x-forwarded-feature': 'feature-server',
+    });
+    expect(headers['x-private-incoming']).toBeUndefined();
+  });
+
+  test('uploader forwards only allowlisted and server-derived identity headers', async () => {
+    const requestId = 'producer-uploader-identity';
+    const { request, requestFactory } = createHarness('server', {
+      'x-tenant-id': 'tenant-server',
+      'x-subject-id': 'subject-server',
+      'x-forwarded-feature': 'feature-server',
+      'x-private-incoming': 'must-not-forward',
+    });
+
+    requestFactory.configure({
+      request: request as unknown as typeof fetch,
+      requestId,
+      allowedHeaders: ['x-forwarded-feature'],
+      operationContract: { enabled: false },
+      requireEnvelope: false,
+      setDomain: () => 'https://producer.example',
+    });
+
+    const upload = requestFactory.createUploader({
+      path: REQUEST_PATH,
+      requestId,
+    });
+
+    await upload({
+      files: {
+        file: new File(['widget'], 'widget.txt', { type: 'text/plain' }),
+      },
+    });
+
+    expect(request).toHaveBeenCalledTimes(1);
+    const headers = request.mock.calls[0][1]?.headers as HeaderMap;
+    expect(headers).toMatchObject({
+      'x-tenant-id': 'tenant-server',
+      'x-subject-id': 'subject-server',
+      'x-forwarded-feature': 'feature-server',
+    });
+    expect(headers['x-private-incoming']).toBeUndefined();
+  });
+
+  test('forwards allowlisted and resolved headers without casing assumptions', async () => {
+    const resolveHeaders = rs.fn(() => ({
+      AUTHORIZATION: 'Bearer resolved',
+    }));
+    const { request, requestFactory } = createHarness('server', {
+      Authorization: 'Bearer incoming',
+    });
+
+    requestFactory.configure({
+      request: request as unknown as typeof fetch,
+      allowedHeaders: ['authorization'],
+      resolveHeaders,
+    });
+
+    const send = requestFactory.createRequest({
+      path: REQUEST_PATH,
+      method: 'GET',
+      port: PORT,
+    });
+    await send({
+      headers: { Authorization: 'Bearer caller' },
+    });
+
+    expect(resolveHeaders).toHaveBeenCalledWith(
+      expect.objectContaining({
+        incomingHeaders: { authorization: 'Bearer incoming' },
+      }),
+    );
+    const headers = request.mock.calls[0][1]?.headers as HeaderMap;
+    expect(headers).toMatchObject({
+      authorization: 'Bearer resolved',
+    });
+    expect(
+      Object.keys(headers).filter(key => key.toLowerCase() === 'authorization'),
+    ).toEqual(['authorization']);
+  });
+
+  test('reconfiguration removes omitted header and envelope policy', async () => {
+    const resolveHeaders = rs.fn(() => ({
+      authorization: 'Bearer stale',
+    }));
+    const { request, requestFactory } = createHarness('server', {
+      authorization: 'Bearer incoming',
+    });
+
+    requestFactory.configure({
+      request: request as unknown as typeof fetch,
+      allowedHeaders: ['authorization'],
+      resolveHeaders,
+      requireEnvelope: true,
+      identityBinding: {
+        enabled: true,
+        strict: false,
+        protectedHeaders: ['x-user-id'],
+        deriveHeaders: () => ({ 'x-user-id': 'stale-user' }),
+      },
+    });
+    requestFactory.configure({
+      request: request as unknown as typeof fetch,
+    });
+
+    const send = requestFactory.createRequest({
+      path: REQUEST_PATH,
+      method: 'GET',
+      port: PORT,
+    });
+    await send();
+
+    expect(resolveHeaders).not.toHaveBeenCalled();
+    expect(request.mock.calls[0][1]?.headers).toEqual({
+      accept: ACCEPT_HEADER,
+    });
+  });
+
+  test('reconfiguration removes omitted retry policy', async () => {
+    const failure = Object.assign(new Error('unavailable'), { status: 503 });
+    const request = rs.fn(async () => {
+      throw failure;
+    });
+    const { requestFactory } = createHarness('server');
+
+    requestFactory.configure({
+      request: request as unknown as typeof fetch,
+      transport: {
+        retry: {
+          retries: 1,
+          baseDelayMs: 1,
+          maxDelayMs: 1,
+          jitterRatio: 0,
+        },
+      },
+    });
+    requestFactory.configure({
+      request: request as unknown as typeof fetch,
+    });
+
+    const send = requestFactory.createRequest({
+      path: REQUEST_PATH,
+      method: 'GET',
+      port: PORT,
+    });
+
+    await expect(send()).rejects.toBe(failure);
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+
+  test('reconfiguration restores omitted secured-producer defaults', () => {
+    const requestId = 'producer-policy-reset';
+    const { request, requestFactory } = createHarness('server');
+
+    requestFactory.configure({
+      request: request as unknown as typeof fetch,
+      requestId,
+      requireEnvelope: false,
+      identityBinding: { enabled: false },
+      operationContract: { enabled: false },
+      setDomain: () => 'https://producer.example',
+    });
+    requestFactory.configure({
+      request: request as unknown as typeof fetch,
+      requestId,
+    });
+
+    const send = requestFactory.createRequest({
+      path: REQUEST_PATH,
+      method: 'GET',
+      port: PORT,
+      requestId,
+    });
+
+    expect(() => send()).toThrow('missing_schema_hash');
+  });
+
+  test('uploader uses an explicitly configured POST retry policy', async () => {
+    rs.useFakeTimers();
+    const retryableError = Object.assign(new Error('upload unavailable'), {
+      status: 503,
+    });
+    const response = new Response('{}', { status: 200 });
+    const onDegraded = rs.fn();
+    let attempts = 0;
+    const request = rs.fn(async () => {
+      attempts += 1;
+      if (attempts === 1) {
+        throw retryableError;
+      }
+      return response;
+    });
+    const { requestFactory } = createHarness('server');
+
+    requestFactory.configure({
+      request: request as unknown as typeof fetch,
+      transport: {
+        retry: {
+          retries: 1,
+          baseDelayMs: 5,
+          maxDelayMs: 5,
+          jitterRatio: 0,
+          shouldRetry: ({ method }) => method === 'POST',
+        },
+        onDegraded,
+      },
+    });
+    const upload = requestFactory.createUploader({ path: REQUEST_PATH });
+    const pending = upload({
+      files: { file: new File(['widget'], 'widget.txt') },
+    });
+    const observed = pending.catch(error => error);
+
+    try {
+      await Promise.resolve();
+      expect(request).toHaveBeenCalledTimes(1);
+      await rs.advanceTimersByTimeAsync(5);
+
+      await expect(pending).resolves.toBe(response);
+      expect(request).toHaveBeenCalledTimes(2);
+      expect(onDegraded).toHaveBeenCalledWith(
+        expect.objectContaining({
+          reason: 'retry',
+          method: 'POST',
+          attempt: 1,
+          maxAttempts: 2,
+        }),
+      );
+    } finally {
+      await rs.advanceTimersByTimeAsync(1000);
+      await observed;
+      rs.useRealTimers();
+    }
+  });
+
+  test('uploader timeout aborts transport and emits degraded telemetry', async () => {
+    rs.useFakeTimers();
+    const onDegraded = rs.fn();
+    const cleanupError = new Error('test cleanup');
+    let rejectRequest: ((error: Error) => void) | undefined;
+    let inFlightSignal: AbortSignal | undefined;
+    const request = rs.fn((_url: RequestInfo | URL, init?: RequestInit) => {
+      inFlightSignal = init?.signal || undefined;
+      return new Promise((_, reject) => {
+        rejectRequest = reject;
+        init?.signal?.addEventListener('abort', () => {
+          const error = new Error('aborted');
+          error.name = 'AbortError';
+          reject(error);
+        });
+      });
+    });
+    const { requestFactory } = createHarness('server');
+
+    requestFactory.configure({
+      request: request as unknown as typeof fetch,
+      transport: {
+        timeoutMs: 20,
+        onDegraded,
+      },
+    });
+    const upload = requestFactory.createUploader({ path: REQUEST_PATH });
+    const pending = upload({
+      files: { file: new File(['widget'], 'widget.txt') },
+    });
+    const observed = pending.catch(error => error);
+
+    try {
+      await Promise.resolve();
+      expect(inFlightSignal).toBeDefined();
+      await rs.advanceTimersByTimeAsync(20);
+
+      await expect(observed).resolves.toMatchObject({ name: 'TimeoutError' });
+      expect(inFlightSignal?.aborted).toBe(true);
+      expect(onDegraded).toHaveBeenCalledWith(
+        expect.objectContaining({
+          reason: 'timeout',
+          method: 'POST',
+          timeoutMs: 20,
+        }),
+      );
+    } finally {
+      if (!inFlightSignal?.aborted) {
+        rejectRequest?.(cleanupError);
+      }
+      await observed;
+      await rs.advanceTimersByTimeAsync(1000);
+      rs.useRealTimers();
+    }
+  });
 });

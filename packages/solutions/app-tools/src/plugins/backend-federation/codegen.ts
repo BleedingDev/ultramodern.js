@@ -1,4 +1,5 @@
 import path from 'node:path';
+import type { BackendFederationEntryIntegrity } from '@modern-js/server-runtime-extensions/backend-federation-security';
 import {
   BACKEND_FEDERATION_EFFECT_EXPOSE as BACKEND_EXPOSE,
   BACKEND_FEDERATION_MANIFEST_FILE as BACKEND_MANIFEST_FILE,
@@ -126,6 +127,7 @@ export const createBackendManifest = (
   workspaceRoot: string,
   distDirectory: string,
   app: BackendFederationApp,
+  entryIntegrity: BackendFederationEntryIntegrity,
 ) => {
   const sourceModule = `${app.directory}/api/effect-api.ts`;
   const publicPath = createPublicPath(app.containerEntry, app.port);
@@ -158,6 +160,7 @@ export const createBackendManifest = (
       ssrPublicPath: publicPath,
     },
     entry: {
+      ...entryIntegrity,
       file: BACKEND_REMOTE_ENTRY_FILE,
       path: normalizeRelativePath(
         path.relative(

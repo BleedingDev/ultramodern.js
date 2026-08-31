@@ -120,14 +120,24 @@ export function toBatchItemError(
   };
 }
 
-export function promiseWithTimeout<T>(effect: Promise<T>, timeoutMs: number) {
+export class BatchItemTimeoutError extends Error {}
+
+export function promiseWithTimeout<T>(
+  effect: Promise<T>,
+  timeoutMs: number,
+  onTimeout?: (error: BatchItemTimeoutError) => void,
+) {
   if (timeoutMs <= 0) {
     return effect;
   }
 
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => {
-      reject(new Error(`Batch item timeout after ${String(timeoutMs)}ms`));
+      const error = new BatchItemTimeoutError(
+        `Batch item timeout after ${String(timeoutMs)}ms`,
+      );
+      onTimeout?.(error);
+      reject(error);
     }, timeoutMs);
 
     effect.then(

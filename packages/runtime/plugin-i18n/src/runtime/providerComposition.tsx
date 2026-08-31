@@ -1,3 +1,4 @@
+import { useLanguageSync } from '@modern-js/i18n-runtime-extensions';
 import { RuntimeContext } from '@modern-js/runtime';
 import { Helmet } from '@modern-js/runtime/head';
 import type React from 'react';
@@ -7,7 +8,6 @@ import { ModernI18nProvider } from './context';
 import {
   createContextValue,
   useClientSideRedirect,
-  useLanguageSync,
   useSdkResourcesLoader,
 } from './hooks';
 import type { I18nInstance } from './i18n';
@@ -140,7 +140,10 @@ export const createI18nRootWrapper =
       return (
         <>
           {Boolean(htmlLangAttr) && <Helmet htmlAttributes={{ lang }} />}
-          <ModernI18nProvider value={contextValue}>
+          <ModernI18nProvider
+            i18nextProvider={I18nextProvider}
+            value={contextValue}
+          >
             {appContent}
           </ModernI18nProvider>
         </>

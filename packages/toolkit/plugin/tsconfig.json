@@ -3,7 +3,6 @@
   "compilerOptions": {
     "declaration": false,
     "jsx": "preserve",
-    "baseUrl": "./",
     "isolatedModules": true,
     "paths": {},
     "types": ["node", "@rstest/core/globals"],

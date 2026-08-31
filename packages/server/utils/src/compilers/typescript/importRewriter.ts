@@ -1,17 +1,4 @@
-// Lexer-based import-specifier rewriting for emitted JavaScript.
-//
-// The previous implementation applied a global regex to whole file contents,
-// which also matched `from '...'` / `require('...')`-shaped text inside string
-// literals and comments. This module scans the file once with a minimal
-// JavaScript lexer (strings, template literals + interpolations, comments and
-// regex literals are tracked) and only treats a string literal as an import
-// specifier when it appears in one of the actual module-syntax shapes:
-//
-//   import ... from 'x'   export ... from 'x'   import 'x'
-//   import('x')           require('x')
-//
-// Property accesses such as `Array.from('x')` or `foo.require('x')` and
-// identifiers that merely end in `require` are not matched.
+import { parseSync } from '@swc/core';
 
 type SpecifierRewrite = (specifier: string) => string | undefined;
 
@@ -23,291 +10,205 @@ type SpecifierToken = {
   value: string;
 };
 
-const IDENTIFIER_CHAR = /[A-Za-z0-9_$]/;
-const WHITESPACE = /\s/;
-
-// Tokens after which a `/` starts a regular-expression literal rather than a
-// division operator (the standard heuristic used by minimal JS lexers).
-const KEYWORDS_BEFORE_REGEX = new Set([
-  'return',
-  'typeof',
-  'instanceof',
-  'in',
-  'of',
-  'new',
-  'delete',
-  'void',
-  'throw',
-  'case',
-  'do',
-  'else',
-  'yield',
-  'await',
-]);
-
-const PUNCTUATORS_BEFORE_REGEX = new Set('{}(,;[=:?!&|+-*%^~<>/');
-
-const isRegexAllowed = (lastToken: string): boolean => {
-  if (!lastToken) {
-    return true;
-  }
-  if (KEYWORDS_BEFORE_REGEX.has(lastToken)) {
-    return true;
-  }
-  return lastToken.length === 1 && PUNCTUATORS_BEFORE_REGEX.has(lastToken);
+type AstNode = Record<string, unknown> & {
+  type: string;
 };
 
-const isSpecifierContext = (
-  prev1: string,
-  prev2: string,
-  prev3: string,
-): boolean => {
-  // `import ... from 'x'`, `export ... from 'x'` and bare `import 'x'`.
-  // `from` / `import` as property names (`Array.from 'x'` is not valid JS,
-  // `foo.import` cannot be followed by a string either) are excluded via the
-  // preceding `.` check for safety.
-  if ((prev1 === 'from' || prev1 === 'import') && prev2 !== '.') {
-    return true;
-  }
-  // `import('x')` / `require('x')`, excluding member calls like
-  // `foo.require('x')` or `foo?.import('x')`.
-  return (
-    prev1 === '(' &&
-    (prev2 === 'import' || prev2 === 'require') &&
-    prev3 !== '.'
-  );
+type StringLiteralNode = AstNode & {
+  type: 'StringLiteral';
+  span: {
+    start: number;
+    end: number;
+  };
+  value: string;
 };
 
-const isCallSpecifierContext = (
-  prev1: string,
-  prev2: string,
-  prev3: string,
-): boolean =>
-  prev1 === '(' && (prev2 === 'import' || prev2 === 'require') && prev3 !== '.';
-
-const nextNonTriviaChar = (content: string, start: number): string => {
-  let i = start;
-  while (i < content.length) {
-    if (WHITESPACE.test(content[i])) {
-      i++;
-      continue;
-    }
-    if (content[i] === '/' && content[i + 1] === '/') {
-      const newline = content.indexOf('\n', i + 2);
-      i = newline === -1 ? content.length : newline + 1;
-      continue;
-    }
-    if (content[i] === '/' && content[i + 1] === '*') {
-      const end = content.indexOf('*/', i + 2);
-      i = end === -1 ? content.length : end + 2;
-      continue;
-    }
-    return content[i];
+export const assertNoNativeModuleOutputCollision = (
+  sourceFile: string,
+  fileExists: (file: string) => boolean,
+) => {
+  const rawModuleFile = sourceFile.endsWith('.mts')
+    ? `${sourceFile.slice(0, -4)}.mjs`
+    : sourceFile.endsWith('.cts')
+      ? `${sourceFile.slice(0, -4)}.cjs`
+      : undefined;
+  if (rawModuleFile && fileExists(rawModuleFile)) {
+    throw new Error(
+      `Native module sources collide: "${sourceFile}" and "${rawModuleFile}" publish the same output.`,
+    );
   }
-  return '';
 };
 
-const skipRegexLiteral = (content: string, start: number): number => {
-  let i = start + 1;
-  let inClass = false;
-  while (i < content.length) {
-    const ch = content[i];
-    if (ch === '\\') {
-      i += 2;
-      continue;
+const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+
+const isAstNode = (value: unknown): value is AstNode =>
+  isObjectRecord(value) && typeof value.type === 'string';
+
+const isStringLiteral = (value: unknown): value is StringLiteralNode =>
+  isAstNode(value) &&
+  value.type === 'StringLiteral' &&
+  typeof value.value === 'string' &&
+  typeof value.span === 'object' &&
+  value.span !== null &&
+  typeof (value.span as { start?: unknown }).start === 'number' &&
+  typeof (value.span as { end?: unknown }).end === 'number';
+
+const getCallSpecifier = (node: AstNode): StringLiteralNode | undefined => {
+  if (node.type !== 'CallExpression' || !Array.isArray(node.arguments)) {
+    return;
+  }
+
+  const callee = node.callee;
+  const isDynamicImport = isAstNode(callee) && callee.type === 'Import';
+  const isCommonJsRequire =
+    isAstNode(callee) &&
+    callee.type === 'Identifier' &&
+    callee.value === 'require';
+
+  if (!isDynamicImport && !isCommonJsRequire) {
+    return;
+  }
+
+  const firstArgument = node.arguments[0];
+  if (!isObjectRecord(firstArgument)) {
+    return;
+  }
+
+  return isStringLiteral(firstArgument.expression)
+    ? firstArgument.expression
+    : undefined;
+};
+
+const collectSpecifierLiterals = (content: string): StringLiteralNode[] => {
+  // This parser runs only on TypeScript's emitted JavaScript and declarations.
+  // TypeScript syntax is required for import types in `.d.ts` output; it also
+  // accepts the JavaScript emitted for both ESM and CommonJS modules.
+  const parserOptions = {
+    decorators: true,
+    syntax: 'typescript',
+    target: 'esnext',
+  } as const;
+  let program;
+  try {
+    program = parseSync(content, parserOptions);
+  } catch (typescriptError) {
+    try {
+      program = parseSync(content, { ...parserOptions, tsx: true });
+    } catch {
+      throw typescriptError;
     }
-    if (ch === '\n') {
-      // Unterminated regex — bail out without consuming the line.
-      return i;
+  }
+  const literals: StringLiteralNode[] = [];
+  const seenSpans = new Set<string>();
+
+  const add = (value: unknown) => {
+    if (!isStringLiteral(value)) {
+      return;
     }
-    if (ch === '[') {
-      inClass = true;
-    } else if (ch === ']') {
-      inClass = false;
-    } else if (ch === '/' && !inClass) {
-      i++;
-      while (i < content.length && IDENTIFIER_CHAR.test(content[i])) {
-        i++;
+    const spanKey = `${value.span.start}:${value.span.end}`;
+    if (!seenSpans.has(spanKey)) {
+      seenSpans.add(spanKey);
+      literals.push(value);
+    }
+  };
+
+  const visit = (value: unknown): void => {
+    if (Array.isArray(value)) {
+      value.forEach(visit);
+      return;
+    }
+    if (!isObjectRecord(value)) {
+      return;
+    }
+
+    if (isAstNode(value)) {
+      switch (value.type) {
+        case 'ImportDeclaration':
+        case 'ExportAllDeclaration':
+        case 'ExportNamedDeclaration':
+          add(value.source);
+          break;
+        case 'TsImportType':
+          add(value.argument);
+          break;
+        case 'TsExternalModuleReference':
+          add(value.expression);
+          break;
+        case 'CallExpression':
+          add(getCallSpecifier(value));
+          break;
       }
-      return i;
     }
-    i++;
+
+    for (const [key, child] of Object.entries(value)) {
+      if (key !== 'span') {
+        visit(child);
+      }
+    }
+  };
+
+  visit(program);
+  return literals.sort((left, right) => left.span.start - right.span.start);
+};
+
+/** Convert SWC's one-based UTF-8 byte spans to JavaScript string offsets. */
+const mapUtf8ByteOffsets = (
+  content: string,
+  byteOffsets: number[],
+): Map<number, number> => {
+  const pending = new Set(byteOffsets);
+  const result = new Map<number, number>();
+  let byteOffset = 0;
+  let stringOffset = 0;
+
+  while (stringOffset <= content.length && pending.size > 0) {
+    if (pending.delete(byteOffset)) {
+      result.set(byteOffset, stringOffset);
+    }
+    if (stringOffset === content.length) {
+      break;
+    }
+
+    const codePoint = content.codePointAt(stringOffset);
+    if (codePoint === undefined) {
+      break;
+    }
+    const character = String.fromCodePoint(codePoint);
+    byteOffset += Buffer.byteLength(character);
+    stringOffset += character.length;
   }
-  return i;
+
+  if (pending.size > 0) {
+    throw new Error('SWC returned an import specifier span outside its source');
+  }
+  return result;
 };
 
 const scanSpecifiers = (content: string): SpecifierToken[] => {
-  const specifiers: SpecifierToken[] = [];
-  const length = content.length;
+  const literals = collectSpecifierLiterals(content);
+  const byteOffsets = literals.flatMap(literal => [
+    // SWC spans are one-based and include the opening and closing quote.
+    literal.span.start,
+    literal.span.end - 2,
+  ]);
+  const stringOffsets = mapUtf8ByteOffsets(content, byteOffsets);
 
-  // Brace depth for each open template-literal interpolation, so a `}` can be
-  // matched back to the template it belongs to.
-  const templateExpressionDepths: number[] = [];
-
-  // Ring of the last three meaningful tokens (identifier text or a
-  // single-character punctuator), newest first.
-  let prev1 = '';
-  let prev2 = '';
-  let prev3 = '';
-  const pushToken = (token: string) => {
-    prev3 = prev2;
-    prev2 = prev1;
-    prev1 = token;
-  };
-
-  let mode: 'code' | 'template' = 'code';
-  let i = 0;
-
-  while (i < length) {
-    const ch = content[i];
-
-    if (mode === 'template') {
-      if (ch === '\\') {
-        i += 2;
-        continue;
-      }
-      if (ch === '`') {
-        mode = 'code';
-        pushToken('`');
-        i++;
-        continue;
-      }
-      if (ch === '$' && content[i + 1] === '{') {
-        // Interpolations contain real code (including dynamic imports), so
-        // switch back to code scanning until the matching `}`.
-        templateExpressionDepths.push(0);
-        mode = 'code';
-        pushToken('{');
-        i += 2;
-        continue;
-      }
-      i++;
-      continue;
+  return literals.map(literal => {
+    const start = stringOffsets.get(literal.span.start);
+    const end = stringOffsets.get(literal.span.end - 2);
+    if (start === undefined || end === undefined) {
+      throw new Error('Could not locate an SWC import specifier in its source');
     }
-
-    if (WHITESPACE.test(ch)) {
-      i++;
-      continue;
-    }
-
-    if (ch === '/') {
-      const next = content[i + 1];
-      if (next === '/') {
-        const newline = content.indexOf('\n', i + 2);
-        i = newline === -1 ? length : newline + 1;
-        continue;
-      }
-      if (next === '*') {
-        const end = content.indexOf('*/', i + 2);
-        i = end === -1 ? length : end + 2;
-        continue;
-      }
-      if (isRegexAllowed(prev1)) {
-        i = skipRegexLiteral(content, i);
-        pushToken('/regex/');
-        continue;
-      }
-      pushToken('/');
-      i++;
-      continue;
-    }
-
-    if (ch === '`') {
-      mode = 'template';
-      i++;
-      continue;
-    }
-
-    if (ch === '{') {
-      if (templateExpressionDepths.length > 0) {
-        templateExpressionDepths[templateExpressionDepths.length - 1]++;
-      }
-      pushToken('{');
-      i++;
-      continue;
-    }
-
-    if (ch === '}') {
-      if (templateExpressionDepths.length > 0) {
-        const top = templateExpressionDepths.length - 1;
-        if (templateExpressionDepths[top] === 0) {
-          templateExpressionDepths.pop();
-          mode = 'template';
-          i++;
-          continue;
-        }
-        templateExpressionDepths[top]--;
-      }
-      pushToken('}');
-      i++;
-      continue;
-    }
-
-    if (ch === '"' || ch === "'") {
-      const start = i;
-      let j = i + 1;
-      let terminated = false;
-      while (j < length) {
-        const sch = content[j];
-        if (sch === '\\') {
-          j += 2;
-          continue;
-        }
-        if (sch === ch) {
-          terminated = true;
-          j++;
-          break;
-        }
-        if (sch === '\n') {
-          // Unterminated string literal — not valid module syntax.
-          break;
-        }
-        j++;
-      }
-      const callSpecifier = isCallSpecifierContext(prev1, prev2, prev3);
-      const nextChar = callSpecifier ? nextNonTriviaChar(content, j) : '';
-      const isCompleteCallSpecifier =
-        !callSpecifier || nextChar === ')' || nextChar === ',';
-      if (
-        terminated &&
-        isSpecifierContext(prev1, prev2, prev3) &&
-        isCompleteCallSpecifier
-      ) {
-        specifiers.push({
-          start: start + 1,
-          end: j - 1,
-          value: content.slice(start + 1, j - 1),
-        });
-      }
-      pushToken('"string"');
-      i = j;
-      continue;
-    }
-
-    if (IDENTIFIER_CHAR.test(ch)) {
-      let j = i + 1;
-      while (j < length && IDENTIFIER_CHAR.test(content[j])) {
-        j++;
-      }
-      pushToken(content.slice(i, j));
-      i = j;
-      continue;
-    }
-
-    pushToken(ch);
-    i++;
-  }
-
-  return specifiers;
+    return {
+      start,
+      end,
+      value: content.slice(start, end),
+    };
+  });
 };
 
-/**
- * Rewrite the import/export/require specifiers of emitted JavaScript.
- *
- * Specifiers whose contents contain escape sequences are left untouched (the
- * raw source slice would not round-trip), which never happens for the
- * compiler-emitted relative/alias specifiers this is used on.
- */
+/** Rewrite static module specifiers without touching runtime data or syntax. */
 export const rewriteImportSpecifiers = (
   content: string,
   rewrite: SpecifierRewrite,
@@ -322,6 +223,8 @@ export const rewriteImportSpecifiers = (
   let changed = false;
 
   for (const specifier of specifiers) {
+    // Compiler-emitted relative/alias specifiers do not need escapes. Leaving
+    // escaped source untouched avoids changing its raw JavaScript spelling.
     if (specifier.value.includes('\\')) {
       continue;
     }

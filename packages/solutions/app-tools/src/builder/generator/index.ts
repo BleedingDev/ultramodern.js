@@ -9,7 +9,6 @@ import {
   builderPluginAdapterBasic,
   builderPluginAdapterHooks,
   builderPluginAdapterHtml,
-  builderPluginAdapterLazyCompilation,
   builderPluginAdapterPrecompress,
   builderPluginAdapterSSR,
 } from '../shared/builderPlugins';
@@ -98,7 +97,6 @@ async function applyBuilderPlugins(
 ) {
   builder.addPlugins([
     builderPluginAdapterBasic(options),
-    builderPluginAdapterLazyCompilation(options),
     builderPluginAdapterSSR(options),
     builderPluginAdapterHtml(options),
     builderPluginAdapterPrecompress(options),

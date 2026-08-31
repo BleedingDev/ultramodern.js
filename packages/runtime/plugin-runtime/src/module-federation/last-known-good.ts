@@ -15,10 +15,12 @@
  * different cached build markers). It never stores or serves a partial record,
  * and it never mixes locations across build markers — a served degraded record
  * is a byte-for-byte prior success with only its compatibility verdict flipped
- * to `degraded`. An `incompatible` record is never good: it is neither cached
- * as the last-known-good snapshot nor ever served. The ref's external-major
- * participates in lookup validation but not in the storage key.
+ * to `degraded`. Only a compatible record is promoted to last-known-good;
+ * degraded and incompatible provider results remain live responses without
+ * replacing the recovery snapshot. The ref's external-major participates in
+ * lookup validation but not in the storage key.
  */
+import { selectResolvedSurface } from '@modern-js/utils/universal';
 import {
   createDiscoveryError,
   type DiscoveryResult,
@@ -118,6 +120,14 @@ function staleRecordResult(
   };
 }
 
+function resolutionAnswersRef(
+  resolved: ResolvedDeliveryUnit,
+  ref: ParsedSurfaceRef,
+): boolean {
+  const selected = selectResolvedSurface(resolved, ref);
+  return selected.ok && selected.surface.servedMajor === ref.major;
+}
+
 /**
  * Wrap a provider with a last-known-good cache. On success the whole record is
  * cached (atomic swap). On provider failure (typed discovery error or a thrown
@@ -135,6 +145,39 @@ export function createLastKnownGoodProvider(
     options.now ??
     (() => Math.floor(performance.timeOrigin + performance.now()));
   const maxStaleMs = options.freshness?.maxStaleMs;
+  let nextResolutionGeneration = 0;
+  const latestCacheableGenerationByKey = new Map<string, number>();
+  const writeTailByKey = new Map<string, Promise<void>>();
+
+  async function cacheCompatibleResolution(
+    key: string,
+    generation: number,
+    record: LkgRecord,
+  ): Promise<void> {
+    latestCacheableGenerationByKey.set(
+      key,
+      Math.max(latestCacheableGenerationByKey.get(key) ?? 0, generation),
+    );
+    // This orders writes made by this wrapper instance. LkgStorage has no
+    // revisioned CAS contract, so it intentionally makes no cross-process claim.
+    const previous = writeTailByKey.get(key) ?? Promise.resolve();
+    const write = previous
+      .catch(() => undefined)
+      .then(async () => {
+        if (latestCacheableGenerationByKey.get(key) !== generation) {
+          return;
+        }
+        await storage.write(key, record);
+      });
+    writeTailByKey.set(key, write);
+    try {
+      await write;
+    } finally {
+      if (writeTailByKey.get(key) === write) {
+        writeTailByKey.delete(key);
+      }
+    }
+  }
 
   async function serveFromCache(
     ref: ParsedSurfaceRef,
@@ -153,11 +196,18 @@ export function createLastKnownGoodProvider(
       return fallback();
     }
 
-    // Never serve an incompatible record as last-known-good. Only a previously
-    // compatible record is served, flipped to degraded (defensive: the write
-    // path already refuses to cache incompatible records, but a pluggable
-    // store could hold one).
-    if (cached.resolved.compatibility.status === 'incompatible') {
+    // A unit-level cache entry is only usable when it contains the exact
+    // requested surface materialization. The storage key intentionally lets
+    // sibling surfaces share one atomic snapshot, but it must not turn one
+    // cached surface into evidence that every possible surface exists.
+    if (!resolutionAnswersRef(cached.resolved, ref)) {
+      return fallback();
+    }
+
+    // Only a previously compatible record is a last-known-good snapshot.
+    // Defend against pluggable stores that contain degraded or incompatible
+    // records even though the write path below rejects both.
+    if (cached.resolved.compatibility.status !== 'compatible') {
       return fallback();
     }
 
@@ -182,6 +232,7 @@ export function createLastKnownGoodProvider(
       env: EnvironmentId,
     ): Promise<DiscoveryResult> {
       const key = deliveryUnitResolutionKey(ref.unitId, env);
+      const generation = ++nextResolutionGeneration;
 
       let resolution: DiscoveryResult;
       try {
@@ -206,12 +257,30 @@ export function createLastKnownGoodProvider(
         return serveFromCache(ref, env, () => failure);
       }
 
-      // Fresh complete success: swap the whole record atomically — but never
-      // cache an incompatible verdict. LKG must retain the last *good* record,
-      // so an incompatible refresh is returned live yet leaves the prior good
-      // snapshot in place.
-      if (resolution.unit.compatibility.status !== 'incompatible') {
-        await storage.write(key, {
+      if (!resolutionAnswersRef(resolution.unit, ref)) {
+        return serveFromCache(ref, env, () => ({
+          ok: false,
+          error: createDiscoveryError(
+            'identity-mismatch',
+            ref,
+            `Provider ${options.provider.name} returned a delivery unit that does not answer the requested surface.`,
+            {
+              env,
+              provider: options.provider.name,
+              recordUnitId: resolution.unit.unitId,
+              availableSurfaces: resolution.unit.surfaces.map(
+                surface => surface.surfaceId,
+              ),
+            },
+          ),
+        }));
+      }
+
+      // Fresh compatible success: swap the whole record atomically. Degraded
+      // and incompatible refreshes are still returned live, but neither can
+      // replace the prior known-good snapshot used for recovery.
+      if (resolution.unit.compatibility.status === 'compatible') {
+        await cacheCompatibleResolution(key, generation, {
           resolved: resolution.unit,
           storedAt: now(),
           major: ref.major,

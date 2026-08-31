@@ -263,7 +263,7 @@ export function normalizeCompactApp(rawApp) {
   };
 }
 
-// Must stay in sync with packages/toolkit/create delivery-unit.ts
+// Must stay in sync with packages/toolkit/ultramodern-create delivery-unit.ts
 // createBuildMarker, which seeds the hash with the delivery-unit generation
 // seed. Without this prefix the expected marker drifts from what generated apps
 // actually emit (data-build-marker), failing the browser-smoke SSR marker check.

@@ -4,9 +4,12 @@ import os from 'node:os';
 import path from 'node:path';
 
 const repoRoot = path.resolve(__dirname, '../../../../');
-const createBin = path.resolve(repoRoot, 'packages/toolkit/create/bin/run.js');
+const createBin = path.resolve(
+  repoRoot,
+  'packages/toolkit/ultramodern-create/bin/run.js',
+);
 const testFrameworkVersion = '3.2.0-ultramodern.108';
-const frameworkVersionEnv = 'MODERN_CREATE_ULTRAMODERN_FRAMEWORK_VERSION';
+const frameworkVersionEnv = 'ULTRAMODERN_CREATE_FRAMEWORK_VERSION';
 
 type ExecSyncError = Error & {
   stdout?: Buffer | string;

@@ -60,9 +60,28 @@ describe('agent files generation', () => {
     expect(fs.existsSync(path.join(workdir, 'my-app/package.json'))).toBe(true);
     expect(fs.existsSync(path.join(workdir, 'my-app/AGENTS.md'))).toBe(false);
   });
+
+  it('skips agent files in subproject mode and omits the hint', () => {
+    const output = runCreate(['--sub', 'my-app']);
+
+    expect(fs.existsSync(path.join(workdir, 'my-app/package.json'))).toBe(true);
+    expect(fs.existsSync(path.join(workdir, 'my-app/AGENTS.md'))).toBe(false);
+    expect(output).not.toContain('AGENTS.md & CLAUDE.md generated');
+  });
 });
 
 describe('positional argument parsing', () => {
+  it('does not swallow the project name after a boolean flag', () => {
+    // regression: boolean flags used to be treated like value-consuming
+    // flags, so `create --sub my-app` ignored `my-app`
+    runCreate(['--sub', 'my-app']);
+
+    const pkg = JSON.parse(
+      fs.readFileSync(path.join(workdir, 'my-app/package.json'), 'utf-8'),
+    );
+    expect(pkg.name).toBe('my-app');
+  });
+
   it('still treats the value of --lang as a flag value, not a name', () => {
     runCreate(['--lang', 'zh', 'my-app']);
 

@@ -4,7 +4,16 @@ import type { MatchPath } from '../../compiled/tsconfig-paths';
 
 // Keep the same order as TypeScript's own module resolution so that a
 // directory import like `./foo` resolves to the file `tsc` actually compiles.
-export const SOURCE_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx'];
+export const SOURCE_EXTENSIONS = [
+  '.ts',
+  '.tsx',
+  '.js',
+  '.jsx',
+  '.cts',
+  '.cjs',
+  '.mts',
+  '.mjs',
+];
 const TS_EXTENSIONS = ['.ts', '.tsx'];
 export const JS_LIKE_EXTENSION_RE = /\.(?:c|m)?js$/;
 

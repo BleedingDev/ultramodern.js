@@ -5,6 +5,7 @@ import {
   createNodeServer,
   loadServerRuntimeConfig,
 } from '@modern-js/server-core/node';
+import { initializeDisposableServerRuntime } from '@modern-js/server-runtime-extensions/runtime-lifecycle';
 import { logger } from '@modern-js/utils';
 import { devRuntimeMiddlewarePlugin, setupDevInfra } from './dev';
 import {
@@ -75,6 +76,7 @@ export async function createDevServer(
    * instead of closing over a single runtime instance.
    */
   let currentRuntimeServer: ServerBase | undefined;
+  let nextRuntimeServer: ServerBase | undefined;
 
   let nodeServer: Awaited<ReturnType<typeof createNodeServer>> | undefined;
 
@@ -113,10 +115,16 @@ export async function createDevServer(
     runtimeServer.addPlugins([
       devRuntimeMiddlewarePlugin({ ...options, builderDevServer }, compiler),
     ]);
-    await applyPlugins(runtimeServer, runtimeOptions, nodeServer);
-    await runtimeServer.init();
-    currentRuntimeServer = runtimeServer;
-    return runtimeServer.handle;
+    const handle = await initializeDisposableServerRuntime(
+      runtimeServer,
+      runtimeServer.handle,
+      async () => {
+        await applyPlugins(runtimeServer, runtimeOptions, nodeServer);
+        await runtimeServer.init();
+      },
+    );
+    nextRuntimeServer = runtimeServer;
+    return handle;
   };
 
   // Files changed since the last completed reload. The debounced reload
@@ -128,6 +136,7 @@ export async function createDevServer(
   const reloadManager = createReloadManager({
     build: buildRuntimeServer,
     onReload: () => {
+      currentRuntimeServer = nextRuntimeServer;
       const files = Array.from(pendingReloadFiles);
       pendingReloadFiles.clear();
       logger.info(
@@ -164,6 +173,7 @@ export async function createDevServer(
    * handle". The resulting handle seeds the ReloadManager.
    */
   reloadManager.setHandle(await buildRuntimeServer());
+  currentRuntimeServer = nextRuntimeServer;
 
   /**
    * Process-level dev infra, created once. The file watcher triggers a unified

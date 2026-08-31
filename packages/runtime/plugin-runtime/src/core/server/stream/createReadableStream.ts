@@ -1,4 +1,5 @@
 // @effect-diagnostics asyncFunction:off newPromise:off processEnv:off strictBooleanExpressions:off
+import * as rendererHead from '@modern-js/runtime-extensions/node';
 import { storage } from '@modern-js/runtime-utils/node';
 import { SSR_HYDRATION_ID_PREFIX } from '@modern-js/utils/universal/constants';
 import type { ReactElement } from 'react';
@@ -7,6 +8,7 @@ import { ESCAPED_SHELL_STREAM_END_MARK } from '../../../common';
 import { RenderLevel } from '../../constants';
 import { getGlobalInternalRuntimeContext } from '../../context';
 import { getMonitors } from '../../context/monitors';
+import { createReplaceHelemt, getHelmetData } from '../helmet';
 import { enqueueFromEntries } from './deferredScript';
 import {
   type CreateReadableStreamFromElement,
@@ -79,6 +81,7 @@ export const createReadableStreamFromElement: CreateReadableStreamFromElement =
 
     const chunkVec: Buffer[] = [];
     let hasStartedPipe = false;
+    rendererHead.beginHeadRender(runtimeContext);
 
     return new Promise(resolve => {
       const { pipe: reactStreamingPipe } = renderToPipeableStream(
@@ -144,9 +147,15 @@ export const createReadableStreamFromElement: CreateReadableStreamFromElement =
                         const afterMark = concatedChunk.slice(
                           markerIndex + ESCAPED_SHELL_STREAM_END_MARK.length,
                         );
+                        rendererHead.publishHeadRender(runtimeContext);
+                        const completedShellBefore = createReplaceHelemt(
+                          getHelmetData(runtimeContext),
+                        )(shellBefore);
 
                         shellChunkStatus = ShellChunkStatus.FINISH;
-                        this.push(`${shellBefore}${beforeMark}${shellAfter}`);
+                        this.push(
+                          `${completedShellBefore}${beforeMark}${shellAfter}`,
+                        );
                         if (afterMark) {
                           this.push(afterMark);
                         }
@@ -188,7 +197,9 @@ export const createReadableStreamFromElement: CreateReadableStreamFromElement =
               });
               reactStreamingPipe(passThrough);
 
-              processedStream.pipe(body);
+              processedStream
+                .pipe(rendererHead.createNodeHeadMarkerStripper(runtimeContext))
+                .pipe(body);
 
               // Inject router data scripts, enqueue until shell finished
               try {
@@ -225,6 +236,7 @@ export const createReadableStreamFromElement: CreateReadableStreamFromElement =
           },
 
           onShellError(error: unknown) {
+            rendererHead.abortHeadRender(runtimeContext);
             renderLevel = RenderLevel.CLIENT_RENDER;
             getTemplates(htmlTemplate, {
               request,

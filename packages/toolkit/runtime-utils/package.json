@@ -158,7 +158,7 @@
   "scripts": {
     "prepublishOnly": "only-allow-pnpm",
     "dev": "rslib build --watch",
-    "build": "rslib build && pnpm -w tsgo:dts \"$PWD\"",
+    "build": "rslib build",
     "test": "rstest --passWithNoTests"
   },
   "dependencies": {
@@ -166,8 +166,7 @@
     "@modern-js/utils": "workspace:*",
     "@swc/helpers": "^0.5.23",
     "lru-cache": "^11.5.2",
-    "react-router": "7.18.2",
-    "serialize-javascript": "^7.0.7"
+    "react-router": "7.18.2"
   },
   "peerDependencies": {
     "react": "^19.2.8",
@@ -187,7 +186,6 @@
     "@scripts/rstest-config": "workspace:*",
     "@types/ioredis-mock": "^8.2.7",
     "@types/node": "^26.2.0",
-    "@types/serialize-javascript": "^5.0.4",
     "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "happy-dom": "^20.10.6",
     "ioredis": "^5.11.1",

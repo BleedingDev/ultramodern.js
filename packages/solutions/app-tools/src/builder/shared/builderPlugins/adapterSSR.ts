@@ -3,7 +3,7 @@ import {
   type Rspack,
   SERVICE_WORKER_ENVIRONMENT_NAME,
 } from '@modern-js/builder';
-import { fs, isUseRsc, isUseSSRBundle } from '@modern-js/utils';
+import { fs, isUseRsc, isUseSSRBundle, logger } from '@modern-js/utils';
 import {
   mergeRsbuildConfig,
   type RsbuildPlugin,
@@ -22,6 +22,10 @@ import {
   HtmlAsyncChunkPlugin,
   RouterPlugin,
 } from '../bundlerPlugins';
+import {
+  aggregateEagerRouteComponentFiles,
+  planSSRLazyCompilation,
+} from '../lazyCompilation';
 import type { BuilderOptions } from '../types';
 
 export const builderPluginAdapterSSR = (
@@ -30,9 +34,10 @@ export const builderPluginAdapterSSR = (
   name: 'builder-plugin-adapter-modern-ssr',
 
   setup(api) {
-    const { normalizedConfig, appContext } = options;
+    const { normalizedConfig, appContext, eagerRouteComponentFilesByEntry } =
+      options;
     api.modifyRsbuildConfig(config => {
-      return mergeRsbuildConfig(config, {
+      const merged = mergeRsbuildConfig(config, {
         html: {
           inject: isStreamingSSR(normalizedConfig) ? 'head' : undefined,
         },
@@ -45,6 +50,21 @@ export const builderPluginAdapterSSR = (
               : undefined,
         },
       });
+
+      // Stream SSR + lazy compilation: route component chunks must compile
+      // eagerly, otherwise first-screen chunk/CSS injection has nothing to emit.
+      // Only applied when the user actually enabled lazy compilation for a
+      // stream SSR project; string SSR / RSC keep their own behavior.
+      const lazyCompilation = getSSRLazyCompilation(
+        merged.dev?.lazyCompilation,
+        normalizedConfig,
+        appContext,
+        eagerRouteComponentFilesByEntry,
+      );
+      if (lazyCompilation !== undefined) {
+        merged.dev = { ...merged.dev, lazyCompilation };
+      }
+      return merged;
     });
 
     api.modifyBundlerChain(
@@ -127,6 +147,71 @@ const isStreamingSSR = (userConfig: AppNormalizedConfig): boolean => {
 
   return false;
 };
+
+/**
+ * When a stream SSR project has lazy compilation enabled, return a
+ * `lazyCompilation` value whose `test` forces route components eager (so
+ * first-screen chunk/CSS injection works). Returns undefined when it does not
+ * apply (not stream SSR, RSC, lazy disabled, or no route components collected),
+ * so the caller leaves the config untouched.
+ */
+export function getSSRLazyCompilation(
+  current: unknown,
+  normalizedConfig: AppNormalizedConfig,
+  appContext: AppToolsContext,
+  eagerRouteComponentFilesByEntry: BuilderOptions['eagerRouteComponentFilesByEntry'],
+): Rspack.LazyCompilationOptions | undefined {
+  // Only stream SSR; RSC keeps its own behavior (route-eager alone does not make
+  // its flight/server channel safe under lazy compilation).
+  if (
+    !current ||
+    isUseRsc(normalizedConfig) ||
+    !isStreamingSSR(normalizedConfig)
+  ) {
+    return undefined;
+  }
+  // The route component files were collected (from the FINAL routes) by the
+  // router plugin and threaded in explicitly as
+  // `BuilderOptions.eagerRouteComponentFilesByEntry` (read FRESH from the app
+  // context after `generateEntryCode`), so this plugin reads only the explicit
+  // param — no shared-context back-channel. They are forced eager so stream SSR
+  // first-screen chunk/CSS injection has the assets it needs at render time.
+  const plan = planSSRLazyCompilation(
+    current,
+    aggregateEagerRouteComponentFiles(eagerRouteComponentFilesByEntry),
+  );
+  if (!plan.apply) {
+    // Unresolved route components → we cannot guarantee they are eager, so we
+    // skipped the optimization; warn once per app instead of silently leaving a
+    // route lazy.
+    if (plan.unresolvedByEntry) {
+      warnUnresolvedRouteComponents(
+        appContext.appDirectory,
+        plan.unresolvedByEntry,
+      );
+    }
+    return undefined;
+  }
+  return plan.lazyCompilation as Rspack.LazyCompilationOptions;
+}
+
+const warnedLazyApps = new Set<string>();
+
+function warnUnresolvedRouteComponents(
+  appDirectory: string,
+  unresolvedByEntry: Map<string, string[]>,
+): void {
+  if (warnedLazyApps.has(appDirectory)) {
+    return;
+  }
+  warnedLazyApps.add(appDirectory);
+  const detail = Array.from(unresolvedByEntry)
+    .map(([entry, comps]) => `${entry}: ${comps.join(', ')}`)
+    .join('; ');
+  logger.warn(
+    `[lazyCompilation] Skipped stream SSR route-eager optimization because some route components could not be resolved to a file (${detail}). Lazy compilation may break first-screen CSS/JS for these routes.`,
+  );
+}
 
 function applyAsyncChunkHtmlPlugin({
   chain,

@@ -1,5 +1,4 @@
 export * as OpenTelemetry from '@effect/opentelemetry';
-export * from './backend-federation';
 export {
   BACKEND_FEDERATION_CONTRACT_VERSION,
   BACKEND_FEDERATION_EFFECT_EXPOSE,
@@ -7,13 +6,17 @@ export {
   BACKEND_FEDERATION_NODE_ADAPTER_VERSION,
   type BackendFederatedEffectApiModule,
   type BackendFederationEntryExports,
+  type BackendFederationExpectedIdentity,
+  type BackendFederationIdentityIssue,
+  type BackendFederationIdentityLoadOptions,
   type BackendFederationLoadEntryPluginOptions,
   type BackendFederationRemote,
   type BackendFederationRuntimeOptions,
   createBackendFederationLoadEntryPlugin,
   createBackendFederationRuntime,
-  loadBackendFederatedEffectApi,
+  validateExpectedBackendFederationIdentity,
 } from './backend-federation';
+export { loadBackendFederatedEffectApi } from './backend-federation/node';
 export {
   type BackendFederationManifest,
   BackendFederationManifestAdapterError,
@@ -24,10 +27,10 @@ export {
   type BackendFederationVersionBoundaryExpectation,
   // Generated UltraModern workspace proof scripts import the manifest adapter
   // through this public barrel; keep these exports stable.
-  loadBackendFederatedEffectApiFromManifest,
   loadBackendFederationManifest,
   resolveBackendFederationRemoteFromManifest,
 } from './backend-federation-manifest';
+export { loadBackendFederatedEffectApiFromManifest } from './backend-federation-manifest/node';
 export {
   type CreateEffectOperationContextOptions,
   createEffectOperationContext,

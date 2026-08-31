@@ -1,4 +1,9 @@
-import { getSourceText, getStringLiteralValue } from '../ast.ts';
+import {
+  expressionStringValue,
+  getSourceText,
+  hasLetters,
+  normalizeVisibleText,
+} from '../ast.ts';
 import type { AstNode, Rule, RuleContext } from '../types.ts';
 
 const looksLikeLocaleTest = (context: RuleContext, node: AstNode): boolean => {

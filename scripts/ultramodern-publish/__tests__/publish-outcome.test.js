@@ -88,7 +88,8 @@ async function createEvidenceFixture({
   ]);
   const receiptApi = receiptApiOverride ?? currentReceiptApi;
   const aliases = {
-    '@modern-js/create': '@bleedingdev/modern-js-create',
+    '@modern-js/ultramodern-create':
+      '@bleedingdev/modern-js-ultramodern-create',
     '@modern-js/i18n-utils': '@bleedingdev/modern-js-i18n-utils',
   };
   const exportsMap = {
@@ -103,8 +104,8 @@ async function createEvidenceFixture({
         '@module-federation/runtime': '2.8.0',
       },
       exports: exportsMap,
-      sourceName: '@modern-js/create',
-      targetName: aliases['@modern-js/create'],
+      sourceName: '@modern-js/ultramodern-create',
+      targetName: aliases['@modern-js/ultramodern-create'],
       ultramodern: { frameworkVersion: release.version },
     },
     {
@@ -135,7 +136,7 @@ async function createEvidenceFixture({
       path.join(packageDir, 'index.js'),
       'module.exports = {};\n',
     );
-    if (definition.sourceName === '@modern-js/create') {
+    if (definition.sourceName === '@modern-js/ultramodern-create') {
       for (const relativePath of constants.createTemplateRequiredFiles) {
         const filePath = path.join(packageDir, relativePath);
         fs.mkdirSync(path.dirname(filePath), { recursive: true });
@@ -168,8 +169,8 @@ async function createEvidenceFixture({
   const createReceipt = async (mode, targetPath, evidencePath) => {
     const receipt = receiptApi.createAcceptanceReceipt({
       createPackage: {
-        exactSpecifier: `@bleedingdev/modern-js-create@${release.version}`,
-        packageName: '@bleedingdev/modern-js-create',
+        exactSpecifier: `@bleedingdev/modern-js-ultramodern-create@${release.version}`,
+        packageName: '@bleedingdev/modern-js-ultramodern-create',
         version: release.version,
       },
       mode,
@@ -202,6 +203,7 @@ async function createEvidenceFixture({
     });
     await createOperationalAcceptanceReceiptFixture({
       evidencePath,
+      legacyOperationalSummary: receiptApiOverride !== undefined,
       receipt,
       receiptApi,
     });
@@ -253,7 +255,9 @@ async function createEvidenceFixture({
       'no-js-ssr-css-root-marker',
       'no-js-stylesheet-href-dedupe',
       'no-js-ssr-failed-responses',
-      'no-js-screenshot',
+      // Archived schema-v4 reconstruction must reproduce the historical
+      // validator input; current schema-v6 evidence never gets screenshot credit.
+      ...(receiptApiOverride ? ['no-js-screenshot'] : []),
       noJavaScriptType,
       ...(appId === 'shell-super-app'
         ? ['no-js-shell-composition-boundary']
@@ -296,7 +300,7 @@ async function createEvidenceFixture({
       checks: [
         {
           detail: {
-            createPackage: `@bleedingdev/modern-js-create@${release.version}`,
+            createPackage: `@bleedingdev/modern-js-ultramodern-create@${release.version}`,
             version: release.version,
           },
           id: 'exact-create-migration',
@@ -526,13 +530,34 @@ test('dry-run and real publication emit the same strict bound outcome schema', a
         runAttempt: producerRunAttempt,
         runIdentity: producerRunIdentity,
       });
+      assert.deepEqual(outcome.evidence.prepublishAcceptance, {
+        evidencePath: 'acceptance-receipt.operational-independence.json',
+        receiptPath: 'acceptance-receipt.json',
+      });
+      assert.deepEqual(
+        outcome.evidence.publishedAcceptance,
+        dryRun
+          ? null
+          : {
+              evidencePath: null,
+              receiptPath: 'published-acceptance-receipt.json',
+            },
+      );
+      assert.equal(
+        JSON.stringify(outcome.evidence).includes('receiptSha256'),
+        false,
+      );
+      assert.equal(
+        JSON.stringify(outcome.evidence).includes('operationalEvidenceSha256'),
+        false,
+      );
     } finally {
       fs.rmSync(fixture.root, { force: true, recursive: true });
     }
   }
 });
 
-test('backfill reconstructs schema-v5 outcomes with the archived current-source create contract', async () => {
+test('backfill reconstructs schema-v6 outcomes with the archived current-source create contract', async () => {
   const currentSourceCommit =
     execFileSync('git', ['stash', 'create', 'publish-outcome-source-test'], {
       encoding: 'utf8',
@@ -830,6 +855,22 @@ test('publish outcome rejects incomplete receipt, operational evidence, and Trac
       pattern: /every required result exactly once/u,
     },
     {
+      label: 'receipt references another operational evidence file',
+      mutate(fixture) {
+        const receipt = JSON.parse(
+          fs.readFileSync(fixture.receiptPath, 'utf8'),
+        );
+        receipt.results.find(
+          result => result.id === 'operational-independence',
+        ).details.evidencePath = path.join(
+          path.dirname(fixture.operationalEvidencePath),
+          'other-operational-evidence.json',
+        );
+        fs.writeFileSync(fixture.receiptPath, `${JSON.stringify(receipt)}\n`);
+      },
+      pattern: /not bound to the exact operational evidence/u,
+    },
+    {
       label: 'tampered operational evidence',
       mutate(fixture) {
         const evidence = JSON.parse(
@@ -841,39 +882,20 @@ test('publish outcome rejects incomplete receipt, operational evidence, and Trac
           `${JSON.stringify(evidence)}\n`,
         );
       },
-      pattern: /canonical digest does not match its content/u,
+      pattern: /missing, skipped, or not passing/u,
     },
     {
-      label: 'coherently re-digested operational forgery',
-      async mutate(fixture) {
-        const receipt = JSON.parse(
-          fs.readFileSync(fixture.receiptPath, 'utf8'),
-        );
+      label: 'served-behavior forgery with an irrelevant evidence digest',
+      mutate(fixture) {
         const evidence = JSON.parse(
           fs.readFileSync(fixture.operationalEvidencePath, 'utf8'),
         );
-        const { digestCanonical } = await import(
-          pathToFileURL(
-            path.resolve(
-              __dirname,
-              '../../ultramodern-production-readiness/canonical-digest.mjs',
-            ),
-          )
-        );
-        evidence.result = 'fail';
-        const payload = { ...evidence };
-        delete payload.evidenceDigest;
-        evidence.evidenceDigest = digestCanonical(payload);
+        evidence.targets.node.servedBehavior.responses.ui.value = 'forged';
+        evidence.evidenceDigest = 'irrelevant-administrative-value';
         const evidenceSource = `${JSON.stringify(evidence)}\n`;
         fs.writeFileSync(fixture.operationalEvidencePath, evidenceSource);
-        const detail = receipt.results.find(
-          result => result.id === 'operational-independence',
-        ).details;
-        detail.evidenceDigest = evidence.evidenceDigest;
-        detail.evidenceFileSha256 = digest(evidenceSource);
-        fs.writeFileSync(fixture.receiptPath, `${JSON.stringify(receipt)}\n`);
       },
-      pattern: /missing, skipped, or not passing/u,
+      pattern: /did not observe the exact C1 API and UI mutations/u,
     },
     {
       label: 'missing Tractor check',

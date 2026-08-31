@@ -1,7 +1,6 @@
+import { createSafeFailureResponse } from '@modern-js/runtime-extensions/safe-failure';
 import type { Context, ServerPluginAPI } from '@modern-js/server-core';
 import { logger } from '@modern-js/utils';
-
-import { createSafeFailureResponse } from '../../safe-failure';
 
 export function createEffectAdapterRuntimeErrorResponse(
   api: ServerPluginAPI,

@@ -3,6 +3,7 @@ import i18next, { type i18n } from 'i18next';
 import { act, useState } from 'react';
 import { hydrateRoot } from 'react-dom/client';
 import { renderToString } from 'react-dom/server';
+import { I18nextProvider, useTranslation } from 'react-i18next';
 import { ModernI18nProvider } from '../src/runtime/context';
 import { FederatedI18nBoundary, useModernI18n } from '../src/runtime/core';
 
@@ -21,9 +22,19 @@ const remoteResources = {
 };
 
 function InventoryCopy() {
-  const { t } = useModernI18n();
+  const modernI18n = useModernI18n<i18n>();
+  const reactI18n = useTranslation('inventory');
+  const reactI18nInstance = reactI18n.i18n as i18n & { __original?: i18n };
+  const sharesScopedInstance =
+    reactI18nInstance === modernI18n.i18nInstance ||
+    reactI18nInstance.__original === modernI18n.i18nInstance;
 
-  return <p data-testid="inventory-copy">{t('inventory.widgetBody')}</p>;
+  return (
+    <p data-testid="inventory-copy">
+      {modernI18n.t('inventory.widgetBody')}|
+      {reactI18n.t('inventory.widgetBody')}|{String(sharesScopedInstance)}
+    </p>
+  );
 }
 
 function Host({ hostI18n }: { hostI18n: i18n }) {
@@ -31,6 +42,7 @@ function Host({ hostI18n }: { hostI18n: i18n }) {
 
   return (
     <ModernI18nProvider
+      i18nextProvider={I18nextProvider}
       value={{
         i18nInstance: hostI18n,
         language,
@@ -97,14 +109,19 @@ test('hydrates remote-owned copy and follows the host language', async () => {
   await act(async () => undefined);
   expect(
     container.querySelector('[data-testid="inventory-copy"]')?.textContent,
-  ).toBe('C1 inventory surface owned by the MicroVertical.');
+  ).toBe(
+    'C1 inventory surface owned by the MicroVertical.|C1 inventory surface owned by the MicroVertical.|true',
+  );
 
   await act(async () => {
     (container.querySelector('button') as HTMLButtonElement).click();
   });
   expect(
     container.querySelector('[data-testid="inventory-copy"]')?.textContent,
-  ).toBe('C1 skladová plocha vlastněná MicroVerticalem.');
+  ).toBe(
+    'C1 skladová plocha vlastněná MicroVerticalem.|C1 skladová plocha vlastněná MicroVerticalem.|true',
+  );
+  expect(clientI18n.t('inventory.widgetBody')).toBe('stale host Czech copy');
   expect(hydrationErrors).toEqual([]);
 
   await act(async () => root.unmount());

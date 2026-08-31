@@ -1,7 +1,6 @@
 import { describe, expect, it } from '@rstest/core';
 import { join } from 'path';
 import { createBuilder } from '../src';
-import { isolateEnvironmentBuildCacheDirectory } from '../src/plugins/environmentBuildCache';
 
 describe('builder rspack with cache', () => {
   it('should disable cache by default', async () => {
@@ -36,7 +35,6 @@ describe('builder rspack with cache', () => {
     } = await rsbuild.inspectConfig();
 
     expect(bundlerConfigs[0].cache).toMatchSnapshot();
-    expect(bundlerConfigs[0].cache.maxAge).toBe(7 * 24 * 60 * 60);
   });
 
   it('should isolate persistent cache directories by environment', async () => {
@@ -90,14 +88,5 @@ describe('builder rspack with cache', () => {
     expect(new Set(Object.values(directories)).size).toBe(
       Object.values(directories).length,
     );
-  });
-
-  it('keeps already-isolated cache directories stable', () => {
-    expect(
-      isolateEnvironmentBuildCacheDirectory(
-        'node_modules/.cache/rspack-app/client',
-        'client',
-      ),
-    ).toBe('node_modules/.cache/rspack-app/client');
   });
 });

@@ -1,62 +1,183 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import readline from 'node:readline';
 import { fileURLToPath } from 'node:url';
+import { getLocaleLanguage } from '@modern-js/i18n-utils/language-detector';
 import { runAgentsMd } from './agents-md';
-import {
-  CODESMITH_OVERLAY_FLAG,
-  DRY_RUN_FLAG,
-  detectApiProtocolFlag,
-  detectBffRuntime,
-  detectCodeSmithOverlays,
-  detectDryRunFlag,
-  detectExplicitTailwindFlag,
-  detectHorizontalRemoteFlag,
-  detectLanguage,
-  detectPresetFlag,
-  detectTailwindFlag,
-  readBridgeCliOptions,
-  resolveVerticalCliInput,
-  VERTICAL_FLAG,
-} from './cli/flags';
-import { showHelp, showVersion } from './cli/help';
-import {
-  detectUltramodernPackageSource,
-  getBleedingDevFrameworkVersion,
-  isBleedingDevCreatePackage,
-  readCreatePackageJson,
-  resolveWorkspacePackageSource,
-} from './cli/package-source';
-import { initializeGeneratedGitRepository } from './cli/project-setup';
-import { getProjectName } from './cli/prompts';
 import { i18n, localeKeys } from './locale';
-import { runUltramodernToolingCli } from './ultramodern-tooling/commands';
-import {
-  addUltramodernVertical,
-  generateUltramodernWorkspace,
-  planUltramodernVertical,
-} from './ultramodern-workspace';
-import { hasUltramodernBridgeCliOptions } from './ultramodern-workspace/bridge-config';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const templateDir = [
-  path.resolve(__dirname, '../template-workspace'),
-  path.resolve(__dirname, '../../template-workspace'),
-].find(candidate => fs.existsSync(candidate));
+const templateDir = path.resolve(__dirname, '..', 'template');
 
-if (!templateDir) {
-  throw new Error('Unable to locate the UltraModern workspace templates');
-}
-const availableTemplateDir = templateDir;
+const detectLanguage = (): 'zh' | 'en' => {
+  const langIndex = process.argv.findIndex(
+    arg => arg === '--lang' || arg === '-l',
+  );
+  if (langIndex !== -1 && process.argv[langIndex + 1]) {
+    const lang = process.argv[langIndex + 1];
+    return lang === 'zh' ? 'zh' : 'en';
+  }
+
+  const detectedLang = getLocaleLanguage();
+  if (detectedLang === 'zh') {
+    return 'zh';
+  }
+
+  return 'en';
+};
 
 i18n.changeLanguage({ locale: detectLanguage() });
 
+function renderTemplate(template: string, data: Record<string, any>): string {
+  let result = template;
+
+  const unlessRegex = /\{\{#unless\s+(\w+)\}\}([\s\S]*?)\{\{\/unless\}\}/g;
+  result = result.replace(unlessRegex, (match, condition, content) => {
+    const value = data[condition];
+    if (!value) {
+      return content;
+    }
+    return '';
+  });
+
+  const varRegex = /\{\{(\w+)\}\}/g;
+  result = result.replace(varRegex, (match, key) => {
+    const value = data[key];
+    return value !== undefined && value !== null ? String(value) : match;
+  });
+
+  return result;
+}
+
+function showVersion() {
+  const createPackageJson = path.resolve(__dirname, '..', 'package.json');
+  const createPackage = JSON.parse(fs.readFileSync(createPackageJson, 'utf-8'));
+  const version = createPackage.version || 'unknown';
+  console.log(i18n.t(localeKeys.version.message, { version }));
+  process.exit(0);
+}
+
+function showHelp() {
+  console.log(i18n.t(localeKeys.help.title));
+  console.log(i18n.t(localeKeys.help.description));
+  console.log('');
+  console.log(i18n.t(localeKeys.help.usage));
+  console.log(i18n.t(localeKeys.help.usageExample));
+  console.log('');
+  console.log(i18n.t(localeKeys.help.options));
+  console.log(i18n.t(localeKeys.help.optionHelp));
+  console.log(i18n.t(localeKeys.help.optionVersion));
+  console.log(i18n.t(localeKeys.help.optionLang));
+  console.log(i18n.t(localeKeys.help.optionSub));
+  console.log(i18n.t(localeKeys.help.optionNoAgentsMd));
+  console.log(i18n.t(localeKeys.help.optionAgentsMdOnly));
+  console.log('');
+  console.log(i18n.t(localeKeys.help.examples));
+  console.log(i18n.t(localeKeys.help.example1));
+  console.log(i18n.t(localeKeys.help.example2));
+  console.log(i18n.t(localeKeys.help.example3));
+  if (localeKeys.help.example4) {
+    console.log(i18n.t(localeKeys.help.example4));
+  }
+  console.log('');
+  console.log(i18n.t(localeKeys.help.moreInfo));
+  console.log('');
+  process.exit(0);
+}
+
+function promptInput(question: string): Promise<string> {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  return new Promise(resolve => {
+    rl.question(question, answer => {
+      rl.close();
+      resolve(answer.trim());
+    });
+  });
+}
+
+// flags that consume the next argument as their value
+const VALUE_FLAGS = ['--lang', '-l'];
+// flags that stand alone
+const BOOLEAN_FLAGS = [
+  '--help',
+  '-h',
+  '--version',
+  '-v',
+  '--sub',
+  '-s',
+  '--no-sub',
+  '--no-agents-md',
+  '--agents-md-only',
+];
+
+function detectSubprojectFlag(): boolean | null {
+  const args = process.argv.slice(2);
+  if (args.includes('--sub') || args.includes('-s')) {
+    return true;
+  }
+  if (args.includes('--no-sub')) {
+    return false;
+  }
+  return null;
+}
+
+function detectNoAgentsMdFlag(): boolean {
+  return process.argv.slice(2).includes('--no-agents-md');
+}
+
+function isDirectoryEmpty(dirPath: string): boolean {
+  if (!fs.existsSync(dirPath)) {
+    return false;
+  }
+  try {
+    const files = fs.readdirSync(dirPath);
+    return files.length === 0;
+  } catch {
+    return false;
+  }
+}
+
+async function getProjectName(): Promise<{
+  name: string;
+  useCurrentDir: boolean;
+}> {
+  const args = process.argv.slice(2);
+  // a positional argument is anything that is not a flag itself and not
+  // the value of a value-consuming flag (only --lang/-l takes a value;
+  // boolean flags must not swallow the argument that follows them)
+  const projectNameArg = args.find(
+    (arg, index) =>
+      !VALUE_FLAGS.includes(arg) &&
+      !BOOLEAN_FLAGS.includes(arg) &&
+      !(index > 0 && VALUE_FLAGS.includes(args[index - 1])),
+  );
+
+  if (projectNameArg) {
+    return { name: projectNameArg, useCurrentDir: false };
+  }
+
+  // 如果当前目录为空，直接使用当前目录名作为项目名
+  const currentDir = process.cwd();
+  if (isDirectoryEmpty(currentDir)) {
+    return { name: path.basename(currentDir), useCurrentDir: true };
+  }
+
+  const projectName = await promptInput(i18n.t(localeKeys.prompt.projectName));
+
+  if (!projectName) {
+    console.error(i18n.t(localeKeys.error.projectNameEmpty));
+    process.exit(1);
+  }
+
+  return { name: projectName, useCurrentDir: false };
+}
+
 async function main() {
   const args = process.argv.slice(2);
-
-  if (args[0] === 'ultramodern') {
-    process.exitCode = await runUltramodernToolingCli(args.slice(1));
-    return;
-  }
 
   if (args.includes('--help') || args.includes('-h')) {
     showHelp();
@@ -68,106 +189,30 @@ async function main() {
     return;
   }
 
-  // Mode for existing projects: refresh agent instructions without reserving
-  // a positional project name.
+  // Mode for existing projects: add/refresh AGENTS.md & CLAUDE.md in the
+  // current directory so agents pick up the bundled docs after an upgrade
+  // (idempotent). A flag rather than a positional, so it never collides with
+  // a project name; mutually exclusive with creating a project.
   if (args.includes('--agents-md-only')) {
-    const valueFlags = ['--lang', '-l'];
     const hasProjectName = args.some(
       (arg, index) =>
-        !arg.startsWith('-') && !valueFlags.includes(args[index - 1]),
+        !arg.startsWith('-') && !VALUE_FLAGS.includes(args[index - 1]),
     );
     if (hasProjectName || args.includes('--no-agents-md')) {
       console.error(i18n.t(localeKeys.error.agentsMdOnlyConflict));
       process.exit(1);
     }
-    runAgentsMd(availableTemplateDir, process.cwd());
+    runAgentsMd(templateDir, process.cwd());
     return;
   }
 
-  detectBffRuntime(args);
-  const dryRun = detectDryRunFlag(args);
-  const verticalInput = resolveVerticalCliInput(args);
-  const overlays = detectCodeSmithOverlays(args);
-  const bridgeRequested = hasUltramodernBridgeCliOptions(args);
-
-  if (dryRun && !verticalInput.addVertical) {
-    console.error(
-      `${DRY_RUN_FLAG} is currently supported only with ${VERTICAL_FLAG}`,
-    );
-    process.exit(1);
-  }
-
-  if (verticalInput.addVertical && bridgeRequested) {
-    console.error(
-      'Bridge options are supported only when creating a new UltraModern workspace.',
-    );
-    process.exit(1);
-  }
-
-  const bridge = readBridgeCliOptions(args);
-
-  if (!dryRun) {
-    console.log(`\n${i18n.t(localeKeys.message.welcome)}\n`);
-  }
-
-  const createPackage = readCreatePackageJson();
-  const version = createPackage.version || 'latest';
-  const ultramodernPackageVersion = isBleedingDevCreatePackage(createPackage)
-    ? getBleedingDevFrameworkVersion(createPackage, version)
-    : version;
-
-  if (verticalInput.addVertical) {
-    const overridePackageSource = args.some(arg =>
-      arg.startsWith('--ultramodern-package-'),
-    )
-      ? detectUltramodernPackageSource(
-          args,
-          ultramodernPackageVersion,
-          createPackage,
-        )
-      : undefined;
-    const preset = detectPresetFlag(args);
-    const apiProtocol = detectApiProtocolFlag(args);
-    const horizontalRemote = detectHorizontalRemoteFlag(args);
-    const verticalOptions = {
-      workspaceRoot: process.cwd(),
-      name: verticalInput.name,
-      modernVersion: version,
-      enableTailwind: detectExplicitTailwindFlag(),
-      overlays,
-      packageSource: overridePackageSource,
-      ...(preset ? { preset } : {}),
-      ...(apiProtocol ? { apiProtocol } : {}),
-      ...(horizontalRemote ? { horizontalRemote: true } : {}),
-    };
-
-    if (dryRun) {
-      console.log(
-        JSON.stringify(planUltramodernVertical(verticalOptions), null, 2),
-      );
-      return;
-    }
-
-    addUltramodernVertical(verticalOptions);
-
-    const dim = '\x1b[2m\x1b[3m';
-    const reset = '\x1b[0m';
-
-    console.log(`${i18n.t(localeKeys.message.success)}\n`);
-    console.log(`${dim}   pnpm check${reset}\n`);
-    return;
-  }
-
+  console.log(`\n${i18n.t(localeKeys.message.welcome)}\n`);
   const { name: projectName, useCurrentDir } = await getProjectName();
   const targetDir = useCurrentDir
     ? process.cwd()
     : path.isAbsolute(projectName)
       ? projectName
       : path.resolve(process.cwd(), projectName);
-  const generatedPackageName =
-    useCurrentDir || path.isAbsolute(projectName)
-      ? path.basename(targetDir)
-      : projectName;
 
   if (fs.existsSync(targetDir)) {
     const files = fs.readdirSync(targetDir);
@@ -177,33 +222,50 @@ async function main() {
     }
   }
 
-  const packageSource = resolveWorkspacePackageSource(
-    args,
-    createPackage,
-    detectUltramodernPackageSource(
-      args,
-      ultramodernPackageVersion,
-      createPackage,
-    ),
-  );
-  const generateAgentFiles = !args.includes('--no-agents-md');
-  generateUltramodernWorkspace({
-    targetDir,
-    packageName: generatedPackageName,
-    modernVersion: version,
-    enableTailwind: detectTailwindFlag(),
-    bridge,
-    overlays,
-    packageSource,
-    generateAgentFiles,
-  });
-  initializeGeneratedGitRepository(targetDir);
+  const createPackageJson = path.resolve(__dirname, '..', 'package.json');
+  const createPackage = JSON.parse(fs.readFileSync(createPackageJson, 'utf-8'));
+  const version = createPackage.version || 'latest';
 
+  const subprojectFlag = detectSubprojectFlag();
+  const isSubproject = subprojectFlag === true;
+  const noAgentsMd = detectNoAgentsMdFlag();
+
+  copyTemplate(templateDir, targetDir, {
+    packageName: projectName,
+    version,
+    isSubproject,
+    noAgentsMd,
+  });
+
+  const targetPackageJson = path.join(targetDir, 'package.json');
+  const packageJson = JSON.parse(fs.readFileSync(targetPackageJson, 'utf-8'));
+  packageJson.name = projectName;
+
+  if (isSubproject) {
+    delete packageJson['lint-staged'];
+    delete packageJson['simple-git-hooks'];
+    if (packageJson.scripts) {
+      delete packageJson.scripts.prepare;
+      delete packageJson.scripts.lint;
+    }
+    if (packageJson.devDependencies) {
+      delete packageJson.devDependencies['lint-staged'];
+      delete packageJson.devDependencies['simple-git-hooks'];
+      delete packageJson.devDependencies['@biomejs/biome'];
+    }
+  }
+
+  fs.writeFileSync(
+    targetPackageJson,
+    `${JSON.stringify(packageJson, null, 2)}\n`,
+  );
+
+  // ANSI escape codes: \x1b[2m = dim, \x1b[3m = italic, \x1b[0m = reset
   const dim = '\x1b[2m\x1b[3m';
   const reset = '\x1b[0m';
 
   console.log(`${i18n.t(localeKeys.message.success)}\n`);
-  if (generateAgentFiles) {
+  if (!noAgentsMd && !isSubproject) {
     console.log(`${i18n.t(localeKeys.message.agentsMd)}\n`);
   }
   console.log(i18n.t(localeKeys.message.nextSteps));
@@ -213,8 +275,68 @@ async function main() {
     );
   }
   console.log(`${dim}   ${i18n.t(localeKeys.message.step2)}${reset}`);
-  console.log(`${dim}   pnpm check${reset}`);
   console.log(`${dim}   ${i18n.t(localeKeys.message.step3)}${reset}\n`);
+}
+
+function copyTemplate(
+  src: string,
+  dest: string,
+  options: {
+    packageName: string;
+    version: string;
+    isSubproject: boolean;
+    noAgentsMd: boolean;
+  },
+) {
+  fs.mkdirSync(dest, { recursive: true });
+
+  const excludeInSubproject = [
+    '.gitignore.handlebars',
+    'biome.json',
+    '.npmrc',
+    '.nvmrc',
+    // agent files are managed at the monorepo root in subproject setups
+    'AGENTS.md',
+    'CLAUDE.md',
+  ];
+
+  const agentFiles = ['AGENTS.md', 'CLAUDE.md'];
+
+  function copyRecursive(srcDir: string, destDir: string) {
+    const entries = fs.readdirSync(srcDir, { withFileTypes: true });
+
+    for (const entry of entries) {
+      if (options.isSubproject && excludeInSubproject.includes(entry.name)) {
+        continue;
+      }
+      if (options.noAgentsMd && agentFiles.includes(entry.name)) {
+        continue;
+      }
+
+      const srcPath = path.join(srcDir, entry.name);
+      let destPath = path.join(destDir, entry.name);
+
+      if (entry.isDirectory()) {
+        fs.mkdirSync(destPath, { recursive: true });
+        copyRecursive(srcPath, destPath);
+      } else {
+        if (entry.name.endsWith('.handlebars')) {
+          const templateContent = fs.readFileSync(srcPath, 'utf-8');
+          const rendered = renderTemplate(templateContent, {
+            packageName: options.packageName,
+            version: options.version,
+            isSubproject: options.isSubproject,
+          });
+          destPath = destPath.replace(/\.handlebars$/, '');
+          fs.writeFileSync(destPath, rendered, 'utf-8');
+        } else {
+          fs.copyFileSync(srcPath, destPath);
+        }
+      }
+    }
+  }
+
+  copyRecursive(src, dest);
 }
 
 main().catch(error => {

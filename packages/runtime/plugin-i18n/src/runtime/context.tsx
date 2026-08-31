@@ -1,4 +1,5 @@
-import type { FC, ReactNode } from 'react';
+import type { LocalisedUrlsOption } from '@modern-js/i18n-runtime-extensions';
+import type { ComponentType, FC, ReactNode } from 'react';
 import {
   createContext,
   useCallback,
@@ -6,7 +7,6 @@ import {
   useEffect,
   useMemo,
 } from 'react';
-import type { LocalisedUrlsOption } from '../shared/localisedUrls';
 import {
   changeModernI18nLanguage,
   getPathLanguage,
@@ -36,35 +36,51 @@ interface ModernI18nContextValue {
 const modernI18nContextKey = Symbol.for(
   '@modern-js/plugin-i18n/runtime/ModernI18nContext',
 );
+const reactI18nextProviderContextKey = Symbol.for(
+  '@modern-js/plugin-i18n/runtime/ReactI18nextProviderContext',
+);
 
-type ModernI18nGlobal = typeof globalThis & {
-  [key: symbol]:
-    | ReturnType<typeof createContext<ModernI18nContextValue | null>>
-    | undefined;
+type GlobalContextStore<T> = typeof globalThis & {
+  [key: symbol]: ReturnType<typeof createContext<T>> | undefined;
 };
 
-const getModernI18nContext = () => {
-  const globalStore = globalThis as ModernI18nGlobal;
-  globalStore[modernI18nContextKey] ??=
-    createContext<ModernI18nContextValue | null>(null);
-  return globalStore[modernI18nContextKey];
+const getGlobalContext = <T,>(key: symbol, defaultValue: T) => {
+  const globalStore = globalThis as GlobalContextStore<T>;
+  globalStore[key] ??= createContext<T>(defaultValue);
+  return globalStore[key];
 };
 
-const ModernI18nContext = getModernI18nContext();
+const ModernI18nContext = getGlobalContext<ModernI18nContextValue | null>(
+  modernI18nContextKey,
+  null,
+);
+const ReactI18nextProviderContext = getGlobalContext<ComponentType<any> | null>(
+  reactI18nextProviderContextKey,
+  null,
+);
 
 interface ModernI18nProviderProps {
   children: ReactNode;
+  i18nextProvider?: ComponentType<any> | null;
   value: ModernI18nContextValue;
 }
 
 export const ModernI18nProvider: FC<ModernI18nProviderProps> = ({
   children,
+  i18nextProvider,
   value,
 }) => {
-  return (
+  const content = (
     <ModernI18nContext.Provider value={value}>
       {children}
     </ModernI18nContext.Provider>
+  );
+  return i18nextProvider === undefined ? (
+    content
+  ) : (
+    <ReactI18nextProviderContext.Provider value={i18nextProvider}>
+      {content}
+    </ReactI18nextProviderContext.Provider>
   );
 };
 
@@ -89,6 +105,7 @@ export const FederatedI18nBoundary: FC<FederatedI18nBoundaryProps> = ({
   supportedLanguages,
 }) => {
   const parent = useContext(ModernI18nContext);
+  const I18nextProvider = useContext(ReactI18nextProviderContext);
   if (!parent) {
     throw new Error(
       'FederatedI18nBoundary must be used within ModernI18nProvider',
@@ -184,7 +201,14 @@ export const FederatedI18nBoundary: FC<FederatedI18nBoundaryProps> = ({
     [languages, parent, scopedInstance],
   );
 
-  return <ModernI18nProvider value={value}>{children}</ModernI18nProvider>;
+  const scopedContent = (
+    <ModernI18nProvider value={value}>{children}</ModernI18nProvider>
+  );
+  return I18nextProvider ? (
+    <I18nextProvider i18n={scopedInstance}>{scopedContent}</I18nextProvider>
+  ) : (
+    scopedContent
+  );
 };
 
 export interface UseModernI18nReturn<

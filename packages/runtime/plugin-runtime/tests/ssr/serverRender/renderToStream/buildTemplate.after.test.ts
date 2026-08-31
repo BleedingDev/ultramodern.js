@@ -463,41 +463,53 @@ describe('SSRDataCollector (stream parity)', () => {
     expect(html).not.toContain(SSR_DATA_PLACEHOLDER);
   });
 
-  it('should preserve a custom stream template that omits SSR bootstrap', async () => {
-    const html = await buildShellAfterTemplate(
-      '<script async src="/static/js/index.js"></script>',
-      {
-        entryName: 'index',
-        renderLevel: RenderLevel.SERVER_RENDER,
-        request: new Request('http://localhost/'),
-        runtimeContext: withRouterSnapshot(
-          {
-            initialData: {},
-            __i18nData__: {},
-            routeManifest: {},
-            ssrContext: {
-              request: {
-                params: {},
-                query: {},
-                pathname: '/',
-                host: 'localhost',
-                url: 'http://localhost/',
-                headers: {},
+  it('should preserve a custom stream template that omits script markers', async () => {
+    const template = '<script async src="/static/js/index.js"></script>';
+    const html = await buildShellAfterTemplate(template, {
+      entryName: 'index',
+      renderLevel: RenderLevel.SERVER_RENDER,
+      request: new Request('http://localhost/products/shoe'),
+      runtimeContext: withRouterSnapshot(
+        {
+          initialData: {},
+          __i18nData__: {},
+          routeManifest: {
+            routeAssets: {
+              'products/$slug': {
+                assets: ['/static/js/async/products/$slug.js'],
               },
-              reporter: { sessionId: 'session-1' },
+              'async-index': {
+                assets: ['/static/js/async/async-index.js'],
+              },
             },
           },
-          {
-            hydrationScripts: [
-              '<script>window.__OMITTED_BOOTSTRAP__ = true;</script>',
-            ],
+          ssrContext: {
+            request: {
+              params: {},
+              query: {},
+              pathname: '/products/shoe',
+              host: 'localhost',
+              url: 'http://localhost/products/shoe',
+              headers: {
+                'x-request-id': 'request-1',
+              },
+            },
+            reporter: { sessionId: 'session-1' },
           },
-        ) as any,
-        ssrConfig: {} as any,
-        config: {} as any,
-      },
-    );
+        },
+        {
+          hydrationScripts: [
+            '<script>window.__OMITTED_BOOTSTRAP__ = true;</script>',
+          ],
+          matchedRouteIds: ['products/$slug'],
+        },
+      ) as any,
+      ssrConfig: {
+        unsafeHeaders: ['x-request-id'],
+      } as any,
+      config: {} as any,
+    });
 
-    expect(html).toBe('<script async src="/static/js/index.js"></script>');
+    expect(html).toBe(template);
   });
 });

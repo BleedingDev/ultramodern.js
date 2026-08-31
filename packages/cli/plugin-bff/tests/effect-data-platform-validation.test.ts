@@ -4,6 +4,7 @@ import {
   encodeRequestEnvelopeHeader,
 } from '../src/runtime/data-platform';
 import {
+  createEffectBffEdgeHandler,
   createHttpApiHandler,
   Effect,
   HttpApi,
@@ -13,6 +14,7 @@ import {
   Layer,
   Schema,
 } from '../src/runtime/effect';
+import { createDataPlatformBatchRequestHandler } from '../src/runtime/effect/handler/batch-handler';
 
 describe('effect runtime data-platform validation', () => {
   const api = HttpApi.make('TestEffectApi').add(
@@ -390,6 +392,143 @@ describe('effect runtime data-platform validation', () => {
     await handler.dispose();
   });
 
+  test('binds batch item identity and credentials to the outer request', async () => {
+    let itemHeaders: Headers | undefined;
+    const batchHandler = createDataPlatformBatchRequestHandler({
+      handleItem: async request => {
+        itemHeaders = request.headers;
+        return new Response('ok');
+      },
+    });
+
+    const response = await batchHandler.handle(
+      new Request('http://localhost/_data/batch', {
+        method: 'POST',
+        headers: {
+          authorization: 'Bearer trusted',
+          connection: 'keep-alive',
+          'content-type': 'application/json',
+          cookie: 'session=trusted',
+          'x-verified-producer': 'trusted-gateway',
+        },
+        body: JSON.stringify({
+          protocolVersion: 1,
+          batchId: 'batch-auth-boundary',
+          sentAt: Date.now(),
+          items: [
+            {
+              id: 'malicious-item',
+              path: '/ping',
+              method: 'GET',
+              headers: {
+                authorization: 'Bearer attacker',
+                connection: 'x-item-connection-token',
+                cookie: 'session=attacker',
+                'keep-alive': 'timeout=5',
+                'x-item-connection-token': 'must-not-survive',
+                'x-verified-producer': 'attacker',
+                'accept-language': 'cs-CZ',
+              },
+            },
+          ],
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(itemHeaders?.get('authorization')).toBe('Bearer trusted');
+    expect(itemHeaders?.get('cookie')).toBe('session=trusted');
+    expect(itemHeaders?.get('x-verified-producer')).toBe('trusted-gateway');
+    expect(itemHeaders?.get('accept-language')).toBe('cs-CZ');
+    expect(itemHeaders?.has('connection')).toBe(false);
+    expect(itemHeaders?.has('keep-alive')).toBe(false);
+    expect(itemHeaders?.has('x-item-connection-token')).toBe(false);
+  });
+
+  test('does not synthesize identity or credentials from batch item headers', async () => {
+    let itemHeaders: Headers | undefined;
+    const batchHandler = createDataPlatformBatchRequestHandler({
+      handleItem: async request => {
+        itemHeaders = request.headers;
+        return new Response('ok');
+      },
+    });
+
+    const response = await batchHandler.handle(
+      new Request('http://localhost/_data/batch', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          protocolVersion: 1,
+          batchId: 'batch-auth-absence',
+          sentAt: Date.now(),
+          items: [
+            {
+              id: 'forged-auth-item',
+              path: '/ping',
+              method: 'GET',
+              headers: {
+                authorization: 'Bearer attacker',
+                cookie: 'session=attacker',
+                'x-verified-producer': 'attacker',
+                accept: 'application/json',
+              },
+            },
+          ],
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(itemHeaders?.has('authorization')).toBe(false);
+    expect(itemHeaders?.has('cookie')).toBe(false);
+    expect(itemHeaders?.has('x-verified-producer')).toBe(false);
+    expect(itemHeaders?.get('accept')).toBe('application/json');
+  });
+
+  test('rejects cross-origin batch items before forwarding outer credentials', async () => {
+    let handled = false;
+    const batchHandler = createDataPlatformBatchRequestHandler({
+      handleItem: async () => {
+        handled = true;
+        return new Response('must not run');
+      },
+    });
+
+    const response = await batchHandler.handle(
+      new Request('http://localhost/_data/batch', {
+        method: 'POST',
+        headers: {
+          authorization: 'Bearer trusted',
+          'content-type': 'application/json',
+          cookie: 'session=trusted',
+        },
+        body: JSON.stringify({
+          protocolVersion: 1,
+          batchId: 'batch-cross-origin',
+          sentAt: Date.now(),
+          items: [
+            {
+              id: 'cross-origin-item',
+              path: '//attacker.example/private',
+              method: 'GET',
+            },
+          ],
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    const payload = (await response.json()) as {
+      items: Array<{ status: number; body?: string }>;
+    };
+    expect(payload.items[0]?.status).toBe(400);
+    expect(payload.items[0]?.body).toContain('same origin');
+    expect(handled).toBe(false);
+  });
+
   test('normalizes prefixed batch item paths using mounted context path', async () => {
     const handler = createHttpApiHandler({
       api,
@@ -460,6 +599,56 @@ describe('effect runtime data-platform validation', () => {
     });
 
     await handler.dispose();
+  });
+
+  test('preserves mounted batch paths through raw api and layer modules', async () => {
+    const edge = await createEffectBffEdgeHandler({
+      module: { api, layer },
+      prefix: '/bff-api',
+      dataPlatform: {
+        batch: {
+          enabled: true,
+          maxBatchSize: 8,
+        },
+      },
+    });
+
+    try {
+      const response = await edge.handler(
+        new Request('http://localhost/bff-api/_data/batch', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            protocolVersion: 1,
+            batchId: 'raw-module-prefixed-batch',
+            sentAt: Date.now(),
+            items: [
+              {
+                id: 'raw-module-ping',
+                path: '/bff-api/ping',
+                method: 'GET',
+              },
+            ],
+          }),
+        }),
+      );
+
+      expect(response.status).toBe(200);
+      const payload = (await response.json()) as {
+        items: Array<{ id: string; status: number; body?: string }>;
+      };
+      expect(payload.items).toEqual([
+        expect.objectContaining({
+          id: 'raw-module-ping',
+          status: 200,
+          body: JSON.stringify({ ok: true }),
+        }),
+      ]);
+    } finally {
+      await edge.dispose();
+    }
   });
 
   test('returns per-item error for missing envelope when batch requires envelope', async () => {

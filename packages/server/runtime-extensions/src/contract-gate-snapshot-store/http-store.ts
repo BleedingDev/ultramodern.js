@@ -25,7 +25,7 @@ const normalizeHttpStoreOptions = (
     typeof options?.endpoint === 'string' ? options.endpoint.trim() : '';
   if (!endpoint) {
     throw new Error(
-      '[telemetry.canary.autopilot] HTTP stateStore requires options.endpoint',
+      '[telemetry.health.snapshot] HTTP stateStore requires options.endpoint',
     );
   }
 

@@ -171,13 +171,6 @@ describe('policyCore (shared browser/node policy module)', () => {
 });
 
 describe('createUploader policy headers (node entry)', () => {
-  beforeAll(() => {
-    // getUploadPayload probes `instanceof FileList`, a browser-only global.
-    if (typeof globalThis.FileList === 'undefined') {
-      (globalThis as Record<string, any>).FileList = class FileList {};
-    }
-  });
-
   test('attaches envelope and operation-context headers for secured producers', async () => {
     const { configure, createUploader } = await import('../src/node');
 

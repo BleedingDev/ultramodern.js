@@ -168,9 +168,72 @@ describe('G24a/b last-known-good provider wrapper', () => {
     expect(served.compatibility.status).toBe('degraded');
   });
 
+  test('an older overlapping resolution cannot replace a newer success', async () => {
+    let completeOlder!: (result: DiscoveryResult) => void;
+    let completeNewer!: (result: DiscoveryResult) => void;
+    const older = new Promise<DiscoveryResult>(resolve => {
+      completeOlder = resolve;
+    });
+    const newer = new Promise<DiscoveryResult>(resolve => {
+      completeNewer = resolve;
+    });
+    let calls = 0;
+    const provider: SurfaceResolutionProvider = {
+      name: 'overlapping',
+      resolve() {
+        calls += 1;
+        if (calls === 1) {
+          return older;
+        }
+        if (calls === 2) {
+          return newer;
+        }
+        return {
+          ok: false,
+          error: {
+            code: 'provider-unavailable',
+            ref: 'acme/checkout#cart',
+            message: 'offline',
+          },
+        };
+      },
+    };
+    const lkg = createLastKnownGoodProvider({ provider });
+
+    const olderRequest = lkg.resolve(ref, 'prod');
+    const newerRequest = lkg.resolve(ref, 'prod');
+    completeNewer(okResult('bm-2'));
+    await newerRequest;
+    completeOlder(okResult('bm-1'));
+    await olderRequest;
+
+    const served = unitOf(await lkg.resolve(ref, 'prod'));
+    expect(served.buildMarker).toBe('bm-2');
+    expect(served.compatibility.status).toBe('degraded');
+  });
+
   test('two surfaces of one unit share a single atomically-swapped snapshot', async () => {
+    const multiSurfaceResult: DiscoveryResult = {
+      ok: true,
+      unit: {
+        ...record('bm-1'),
+        surfaces: [
+          ...record('bm-1').surfaces,
+          {
+            surfaceId: 'banner',
+            kind: 'component',
+            locations: [
+              {
+                platform: 'browser-mf-manifest',
+                manifestUrl: 'https://cdn/bm-1-banner.json',
+              },
+            ],
+          },
+        ],
+      },
+    };
     const provider = scriptedProvider([
-      okResult('bm-1'),
+      multiSurfaceResult,
       {
         ok: false,
         error: {
@@ -193,6 +256,54 @@ describe('G24a/b last-known-good provider wrapper', () => {
     expect(served.ok).toBe(true);
     expect(unitOf(served).buildMarker).toBe('bm-1');
     expect(unitOf(served).compatibility.status).toBe('degraded');
+  });
+
+  test('does not serve a cached unit that lacks the requested surface', async () => {
+    const provider = scriptedProvider([
+      okResult('bm-1'),
+      {
+        ok: false,
+        error: {
+          code: 'provider-unavailable',
+          ref: 'acme/checkout#banner',
+          message: 'offline',
+        },
+      },
+    ]);
+    const lkg = createLastKnownGoodProvider({ provider });
+
+    await lkg.resolve(ref, 'prod');
+    const served = await lkg.resolve(
+      { unitId: 'acme/checkout', surfaceId: 'banner' },
+      'prod',
+    );
+
+    expect(served.ok).toBe(false);
+    expect(!served.ok && served.error.code).toBe('provider-unavailable');
+  });
+
+  test('versioned recovery rejects a provider that omits the required surface stamp', async () => {
+    const versionedRef = { ...ref, major: 2 };
+    const provider = scriptedProvider([
+      okResult('bm-1'),
+      {
+        ok: false,
+        error: {
+          code: 'provider-unavailable',
+          ref: 'acme/checkout#cart@v2',
+          message: 'offline',
+        },
+      },
+    ]);
+    const lkg = createLastKnownGoodProvider({ provider });
+
+    const unversioned = await lkg.resolve(versionedRef, 'prod');
+    expect(unversioned.ok).toBe(false);
+    expect(!unversioned.ok && unversioned.error.code).toBe('identity-mismatch');
+
+    const served = await lkg.resolve(versionedRef, 'prod');
+    expect(served.ok).toBe(false);
+    expect(!served.ok && served.error.code).toBe('provider-unavailable');
   });
 
   test('an incompatible record is never cached nor served as last-known-good', async () => {
@@ -259,6 +370,85 @@ describe('G24a/b last-known-good provider wrapper', () => {
     await lkg.resolve(ref, 'prod'); // caches bm-1 (compatible)
     await lkg.resolve(ref, 'prod'); // incompatible bm-2 returned, NOT cached
     const served = unitOf(await lkg.resolve(ref, 'prod')); // provider fails
+    expect(served.buildMarker).toBe('bm-1');
+    expect(served.compatibility.status).toBe('degraded');
+  });
+
+  test('a degraded refresh stays live without replacing the last good record', async () => {
+    const degradedBm2: DiscoveryResult = {
+      ok: true,
+      unit: {
+        ...record('bm-2'),
+        compatibility: {
+          status: 'degraded',
+          baselineCohortId: 'cohort-1',
+          reason: 'provider recovered an incomplete upstream view',
+        },
+      },
+    };
+    const provider = scriptedProvider([
+      okResult('bm-1'),
+      degradedBm2,
+      {
+        ok: false,
+        error: {
+          code: 'provider-unavailable',
+          ref: 'acme/checkout#cart',
+          message: 'offline',
+        },
+      },
+    ]);
+    const lkg = createLastKnownGoodProvider({ provider });
+
+    await lkg.resolve(ref, 'prod');
+    const liveDegraded = unitOf(await lkg.resolve(ref, 'prod'));
+    expect(liveDegraded.buildMarker).toBe('bm-2');
+    expect(liveDegraded.compatibility.status).toBe('degraded');
+
+    const served = unitOf(await lkg.resolve(ref, 'prod'));
+    expect(served.buildMarker).toBe('bm-1');
+    expect(served.compatibility.status).toBe('degraded');
+  });
+
+  test('a wrong-surface refresh cannot replace the last good record', async () => {
+    const wrongSurfaceBm2: DiscoveryResult = {
+      ok: true,
+      unit: {
+        ...record('bm-2'),
+        surfaces: [
+          {
+            surfaceId: 'banner',
+            kind: 'component',
+            locations: [
+              {
+                platform: 'browser-mf-manifest',
+                manifestUrl: 'https://cdn/bm-2-banner.json',
+              },
+            ],
+          },
+        ],
+      },
+    };
+    const provider = scriptedProvider([
+      okResult('bm-1'),
+      wrongSurfaceBm2,
+      {
+        ok: false,
+        error: {
+          code: 'provider-unavailable',
+          ref: 'acme/checkout#cart',
+          message: 'offline',
+        },
+      },
+    ]);
+    const lkg = createLastKnownGoodProvider({ provider });
+
+    await lkg.resolve(ref, 'prod');
+    const refresh = unitOf(await lkg.resolve(ref, 'prod'));
+    expect(refresh.buildMarker).toBe('bm-1');
+    expect(refresh.compatibility.status).toBe('degraded');
+
+    const served = unitOf(await lkg.resolve(ref, 'prod'));
     expect(served.buildMarker).toBe('bm-1');
     expect(served.compatibility.status).toBe('degraded');
   });

@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import http from 'node:http';
 import os from 'node:os';
@@ -168,6 +169,9 @@ describe('backend federation build artifacts', () => {
         encoding: 'utf8',
       }),
     );
+    const container = await fs.readFile(
+      path.join(distDirectory, 'backendRemoteEntry.cjs'),
+    );
     expect(manifest).toEqual(
       expect.objectContaining({
         name: 'verticalExploreBackend',
@@ -180,7 +184,9 @@ describe('backend federation build artifacts', () => {
           }),
         }),
         entry: expect.objectContaining({
+          byteLength: container.byteLength,
           path: 'verticals/explore/dist/backendRemoteEntry.cjs',
+          sha256: createHash('sha256').update(container).digest('hex'),
           type: 'commonjs-module',
           url: 'http://localhost:3021/backendRemoteEntry.cjs',
         }),
@@ -267,7 +273,7 @@ describe('backend federation build artifacts', () => {
     );
   });
 
-  it('loads its emitted bundled container from live HTTP through the official runtime', async () => {
+  it('loads its emitted bundled container from the verified live HTTP path', async () => {
     const workspaceRoot = await createTempDir();
     const appDirectory = path.join(workspaceRoot, 'verticals/explore');
     const distDirectory = path.join(appDirectory, 'dist');
@@ -375,7 +381,6 @@ export const runtime = { brand: 'emitted-live-http' };
       expect(loaded.api).toEqual({ service: 'explore' });
       expect(loaded.runtime).toEqual({ brand: 'emitted-live-http' });
       expect(requests).toEqual([
-        '/backend-mf-manifest.json',
         '/backend-mf-manifest.json',
         '/backendRemoteEntry.cjs',
       ]);

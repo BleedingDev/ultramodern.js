@@ -11,7 +11,7 @@
     "lint": "biome check"
   },
   "engines": {
-    "node": ">=20.19.5"
+    "node": ">=26.7.0"
   },
   "dependencies": {
     "@modern-js/plugin-bff": "workspace:*",

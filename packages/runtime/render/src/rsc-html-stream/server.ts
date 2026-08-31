@@ -2,6 +2,8 @@
  * forked and modified from https://github.com/devongovett/rsc-html-stream/blob/main/server.js
  * license at https://github.com/devongovett/rsc-html-stream/blob/main/LICENSE
  */
+import { injectRSCPayload as injectExtendedRSCPayload } from '@modern-js/runtime-extensions/rsc-html-stream';
+
 const encoder = new TextEncoder();
 const closingTagsPattern = /<\/body>\s*<\/html>\s*$/i;
 
@@ -13,6 +15,9 @@ export function injectRSCPayload(
     injectClosingTags?: boolean;
   },
 ): TransformStream {
+  if (injectClosingTags) {
+    return injectExtendedRSCPayload(rscStream);
+  }
   const decoder = new TextDecoder();
   let resolveFlightDataPromise: (value: void) => void;
   const flightDataPromise = new Promise<void>(

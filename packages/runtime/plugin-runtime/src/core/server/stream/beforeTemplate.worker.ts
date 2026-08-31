@@ -6,7 +6,7 @@ import { createFederatedCssLinks } from '../federatedCss';
 import { createReplaceHelemt, getHelmetData } from '../helmet';
 import type { HandleRequestConfig } from '../requestHandler';
 import { type BuildHtmlCb, buildHtml } from '../shared';
-import { safeReplace } from '../utils';
+import { hasStylesheetLink, safeReplace } from '../utils';
 
 const checkIsInline = (
   chunk: string,
@@ -108,7 +108,7 @@ export async function buildShellBeforeTemplate(
           const { referenceCssAssets = [] } = routeManifest;
           const _cssChunks = referenceCssAssets.filter(
             (asset?: string) =>
-              asset?.endsWith('.css') && !template.includes(asset),
+              asset?.endsWith('.css') && !hasStylesheetLink(template, asset),
           );
           return [...chunks, ..._cssChunks];
         },

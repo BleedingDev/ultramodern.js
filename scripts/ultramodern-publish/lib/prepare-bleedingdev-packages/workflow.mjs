@@ -14,7 +14,6 @@ import {
   targetPackageName,
 } from './rewrite.mjs';
 import {
-  generateSourceDeclarationsBatch,
   normalizeDeclaredTypePaths,
   validateStagedTypeFiles,
 } from './types.mjs';
@@ -30,6 +29,7 @@ import {
   publishManifestPackages,
 } from './registry.mjs';
 import { assertCleanCommittedSource } from '../release-source-state.mjs';
+import { resolveOwnedPreparationOutput } from './options.mjs';
 
 const { readJsonFile, writeJsonFile } = fsKit;
 
@@ -54,17 +54,22 @@ function assertTrustedPublishContext() {
 }
 
 async function prepareBleedingdevPackages(options) {
+  if (!options.publishExisting) {
+    options.out = resolveOwnedPreparationOutput(options.out);
+  }
+
   const sourceCommit = assertCleanCommittedSource(repoRoot);
 
   if (options.publishExisting) {
-    const { allPackages, aliases } = collectModernPackages(options);
-    enforceSingleVersionPolicy(options, allPackages, allPackages);
+    const { allPackages, aliases, packages, sourceNames } =
+      collectModernPackages(options);
+    enforceSingleVersionPolicy(options, packages, allPackages);
     assertCleanCommittedSource(repoRoot, { expectedCommit: sourceCommit });
     const source = { ...resolveSourceIdentity(), commit: sourceCommit };
     const releaseArtifacts = verifyReleaseArtifacts(options.out, {
       aliases,
       source,
-      sourceNames: allPackages.map(item => item.packageJson.name),
+      sourceNames: [...sourceNames],
       tag: options.tag,
       version: options.version,
     });
@@ -79,6 +84,7 @@ async function prepareBleedingdevPackages(options) {
   const packDir = path.join(options.out, 'source-tarballs');
   const stageDir = path.join(options.out, 'packages');
 
+  options.out = resolveOwnedPreparationOutput(options.out);
   fs.rmSync(options.out, { recursive: true, force: true });
   fs.mkdirSync(packDir, { recursive: true });
   fs.mkdirSync(stageDir, { recursive: true });
@@ -87,10 +93,6 @@ async function prepareBleedingdevPackages(options) {
     aliases,
     packages: [],
   };
-
-  // Declaration pre-pass: fully joined before the first pack, so the strictly
-  // sequential staging loop below only ever reads finished dist/types trees.
-  await generateSourceDeclarationsBatch(packages);
 
   for (const item of packages) {
     const sourceName = item.packageJson.name;

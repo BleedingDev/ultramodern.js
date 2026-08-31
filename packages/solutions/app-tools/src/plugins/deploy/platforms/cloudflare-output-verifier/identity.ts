@@ -6,7 +6,11 @@ import {
 import type { CloudflareOutputVerifierIssue, JsonObject } from './issues';
 import { addIssue, assertEqual } from './issues';
 
-export type CloudflareDeliveryUnitIdentity = DeliveryUnitIdentity;
+export type CloudflareDeliveryUnitIdentity = DeliveryUnitIdentity & {
+  surfaces?: Partial<
+    Record<'api' | 'ui', DeliveryUnitIdentity & { surface: 'api' | 'ui' }>
+  >;
+};
 
 export const verifyDeliveryUnitIdentity = (
   issues: CloudflareOutputVerifierIssue[],
@@ -40,11 +44,23 @@ export const verifyDeliveryUnitIdentity = (
     }
   }
 
-  // UI and API surface markers must both derive from the one stamped record,
-  // proving Cloudflare and Node are surfaces of the same delivery unit.
+  // Every profile-declared surface must derive from the one stamped record;
+  // profiles must not claim a UI/API surface they do not emit.
   if (hasStamp && stamped.surfaces && typeof stamped.surfaces === 'object') {
     for (const surface of ['ui', 'api'] as const) {
       const marker = stamped.surfaces[surface];
+      const expected = declared?.surfaces?.[surface];
+
+      if (declared?.surfaces && !expected) {
+        if (marker) {
+          addIssue(issues, {
+            code: 'delivery-unit-drift',
+            message: `Cloudflare worker manifest declares an unexpected ${surface} delivery-unit surface for this topology profile.`,
+            path: manifestPath,
+          });
+        }
+        continue;
+      }
 
       if (!marker || typeof marker !== 'object') {
         addIssue(issues, {

@@ -1,7 +1,6 @@
 import { describe, expect, it } from '@rstest/core';
 import {
   createRscLayerMatchers,
-  enrichServerOnlyDiagnostics,
   getRscPlugins,
 } from '../src/plugins/rscConfig';
 
@@ -79,116 +78,5 @@ describe('getRscPlugins', () => {
         ),
       ),
     ).toBe(false);
-  });
-});
-
-describe('enrichServerOnlyDiagnostics', () => {
-  it('adds environment, layer, and importer chain context to server-only marker diagnostics', () => {
-    const appModule = {
-      layer: 'client',
-      resource: '/repo/src/App.tsx',
-    };
-    const routeModule = {
-      layer: 'ssr',
-      resource: '/repo/src/routes/page.tsx',
-    };
-    const markerModule = {
-      layer: 'rsc-common',
-      resource: '/repo/node_modules/server-only/index.js',
-    };
-    const warning = new Error(
-      'Critical dependency: the request of a dependency is an expression',
-    ) as Error & {
-      details?: string;
-      module?: typeof markerModule;
-    };
-    warning.module = markerModule;
-
-    enrichServerOnlyDiagnostics(
-      {
-        errors: [],
-        moduleGraph: {
-          getIssuer(module) {
-            if (module === markerModule) {
-              return routeModule;
-            }
-            if (module === routeModule) {
-              return appModule;
-            }
-            return null;
-          },
-        },
-        warnings: [warning],
-      },
-      'web',
-    );
-
-    expect(warning.details).toContain(
-      '[Modern.js RSC server-only diagnostic context]',
-    );
-    expect(warning.details).toContain('Environment: web');
-    expect(warning.details).toContain(
-      'Matched module: /repo/node_modules/server-only/index.js [layer: rsc-common]',
-    );
-    expect(warning.details).toContain(
-      'Importer chain: /repo/src/routes/page.tsx [layer: ssr] -> /repo/src/App.tsx [layer: client]',
-    );
-  });
-
-  it('adds importer context when the server-only marker message is on an error', () => {
-    const markerModule = {
-      layer: 'react-server-components',
-      resource: '/repo/src/server/db.ts',
-    };
-    const importerModule = {
-      layer: 'client',
-      resource: '/repo/src/client.tsx',
-    };
-    const error = new Error(
-      'This module uses server-only and cannot be imported from a Client Component.',
-    ) as Error & {
-      details?: string;
-      module?: typeof markerModule;
-    };
-    error.module = markerModule;
-
-    enrichServerOnlyDiagnostics(
-      {
-        errors: [error],
-        moduleGraph: {
-          getIssuer(module) {
-            return module === markerModule ? importerModule : null;
-          },
-        },
-        warnings: [],
-      },
-      'client',
-    );
-
-    expect(error.details).toContain('Environment: client');
-    expect(error.details).toContain('/repo/src/server/db.ts');
-    expect(error.details).toContain('/repo/src/client.tsx [layer: client]');
-  });
-
-  it('leaves unrelated diagnostics unchanged', () => {
-    const warning = new Error('A CSS asset warning') as Error & {
-      details?: string;
-      module?: { layer: string; resource: string };
-    };
-    warning.details = 'Original warning details';
-    warning.module = {
-      layer: 'client',
-      resource: '/repo/src/styles.css',
-    };
-
-    enrichServerOnlyDiagnostics(
-      {
-        errors: [],
-        warnings: [warning],
-      },
-      'web',
-    );
-
-    expect(warning.details).toBe('Original warning details');
   });
 });

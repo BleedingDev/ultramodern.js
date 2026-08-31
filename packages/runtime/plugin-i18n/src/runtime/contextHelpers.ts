@@ -1,5 +1,5 @@
+import type { LocalisedUrlsOption } from '@modern-js/i18n-runtime-extensions';
 import { isBrowser } from '@modern-js/runtime';
-import type { LocalisedUrlsOption } from '../shared/localisedUrls';
 import type { I18nInstance } from './i18n';
 import type { SdkBackend } from './i18n/backend/sdk-backend';
 import { cacheUserLanguage } from './i18n/detection';

@@ -13,7 +13,11 @@ export default defineConfig({
         },
         target: 'node',
       },
-      dts: false,
+      dts: {
+        abortOnError: true,
+        bundle: false,
+        distPath: './dist/types',
+      },
       autoExtension: true,
     },
   ],

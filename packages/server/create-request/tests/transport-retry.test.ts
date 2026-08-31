@@ -274,4 +274,97 @@ describe('transport retry behavior', () => {
     ).rejects.toBe(error);
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
+
+  test('timeout aborts the in-flight request when a caller signal is present', async () => {
+    rs.useFakeTimers();
+    const callerController = new AbortController();
+    const onDegraded = rs.fn();
+    let inFlightSignal: AbortSignal | undefined;
+    const fetcher = rs.fn((_url: string, init: RequestInit) => {
+      inFlightSignal = init.signal || undefined;
+      return new Promise((_, reject) => {
+        init.signal?.addEventListener('abort', () => {
+          reject(createNamedError('AbortError'));
+        });
+      });
+    });
+
+    const pending = executeWithResilience({
+      requestId: 'transport-timeout-with-caller-signal',
+      target: 'browser',
+      method: 'GET',
+      url: requestUrl,
+      init: {
+        method: 'GET',
+        signal: callerController.signal,
+      },
+      fetcher,
+      transport: {
+        timeoutMs: 25,
+        onDegraded,
+      },
+    });
+    const observed = pending.catch(error => error);
+
+    try {
+      await flushMicrotasks();
+      expect(inFlightSignal?.aborted).toBe(false);
+      await rs.advanceTimersByTimeAsync(25);
+
+      await expect(observed).resolves.toMatchObject({ name: 'TimeoutError' });
+      expect(inFlightSignal?.aborted).toBe(true);
+      expect(callerController.signal.aborted).toBe(false);
+      expect(onDegraded).toHaveBeenCalledWith(
+        expect.objectContaining({ reason: 'timeout', timeoutMs: 25 }),
+      );
+    } finally {
+      await rs.advanceTimersByTimeAsync(1000);
+      await observed;
+      rs.useRealTimers();
+    }
+  });
+
+  test('caller abort still cancels a request that has a timeout', async () => {
+    rs.useFakeTimers();
+    const callerController = new AbortController();
+    const onDegraded = rs.fn();
+    let inFlightSignal: AbortSignal | undefined;
+    const abortError = createNamedError('AbortError');
+    const fetcher = rs.fn((_url: string, init: RequestInit) => {
+      inFlightSignal = init.signal || undefined;
+      return new Promise((_, reject) => {
+        init.signal?.addEventListener('abort', () => reject(abortError));
+      });
+    });
+
+    const pending = executeWithResilience({
+      requestId: 'transport-caller-abort-with-timeout',
+      target: 'browser',
+      method: 'GET',
+      url: requestUrl,
+      init: {
+        method: 'GET',
+        signal: callerController.signal,
+      },
+      fetcher,
+      transport: {
+        timeoutMs: 25,
+        onDegraded,
+      },
+    });
+    const observed = pending.catch(error => error);
+
+    try {
+      await flushMicrotasks();
+      callerController.abort();
+
+      await expect(observed).resolves.toBe(abortError);
+      expect(inFlightSignal?.aborted).toBe(true);
+      expect(onDegraded).not.toHaveBeenCalled();
+    } finally {
+      await rs.advanceTimersByTimeAsync(1000);
+      await observed;
+      rs.useRealTimers();
+    }
+  });
 });

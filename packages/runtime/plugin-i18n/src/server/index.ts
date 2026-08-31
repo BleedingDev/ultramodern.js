@@ -1,9 +1,9 @@
+import { resolveLocalisedUrlsConfig } from '@modern-js/i18n-runtime-extensions';
 import * as honoPkg from '@modern-js/server-core/hono';
 
 const { languageDetector } = honoPkg;
 
 import type { Context, Next, ServerPlugin } from '@modern-js/server-runtime';
-import { resolveLocalisedUrlsConfig } from '../shared/localisedUrls.js';
 import type { LocaleDetectionOptions } from '../shared/type';
 import { getLocaleDetectionOptions } from '../shared/utils.js';
 import { collectApiPrefixes, matchesApiPrefix } from './apiPrefix.js';

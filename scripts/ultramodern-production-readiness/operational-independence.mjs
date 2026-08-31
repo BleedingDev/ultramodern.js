@@ -1801,7 +1801,6 @@ async function runOperationalIndependence(options) {
     ),
     result: 'pass',
   };
-  evidence.evidenceDigest = digestCanonical(evidence);
   if (options.out) {
     writeEvidence(path.resolve(options.out), evidence);
   }

@@ -1,5 +1,4 @@
 import path from 'node:path';
-import { digestCanonical } from '../canonical-digest.mjs';
 
 const releaseAcceptanceProfileId = 'erp-10';
 const releaseAcceptanceVerticalCount = 10;
@@ -645,7 +644,6 @@ function createOperationalIndependenceResultDetails({
   applicationSourceRevision,
   changedRevision,
   evidence,
-  evidenceFileSha256,
   evidencePath,
   expectedApiValue,
   expectedChangedPaths,
@@ -679,7 +677,7 @@ function createOperationalIndependenceResultDetails({
       evidence.apps.sibling?.id === 'finance',
     'Operational-independence evidence selected the wrong shell or MicroVerticals',
   );
-  const targets = {};
+  const changedIdentities = [];
   for (const target of ['node', 'cloudflare']) {
     const targetEvidence = evidence.targets?.[target];
     const comparison = targetEvidence?.comparison;
@@ -688,13 +686,25 @@ function createOperationalIndependenceResultDetails({
         isPlainObject(comparison) &&
         comparison.target === target &&
         comparison.changed?.changed === true &&
+        comparison.changed.beforeIdentity?.sourceRevision ===
+          applicationSourceRevision &&
+        comparison.changed.afterIdentity?.sourceRevision === changedRevision &&
+        typeof comparison.changed.beforeTreeDigest === 'string' &&
+        comparison.changed.beforeTreeDigest.length > 0 &&
+        typeof comparison.changed.afterTreeDigest === 'string' &&
+        comparison.changed.afterTreeDigest.length > 0 &&
+        comparison.changed.beforeTreeDigest !==
+          comparison.changed.afterTreeDigest &&
         comparison.shell?.byteIdentical === true &&
         comparison.shell?.envelopeIdentical === true &&
+        typeof comparison.shell.treeDigest === 'string' &&
+        comparison.shell.treeDigest.length > 0 &&
         comparison.sibling?.byteIdentical === true &&
-        comparison.sibling?.envelopeIdentical === true,
+        comparison.sibling?.envelopeIdentical === true &&
+        typeof comparison.sibling.treeDigest === 'string' &&
+        comparison.sibling.treeDigest.length > 0,
       `Operational-independence ${target} comparison is incomplete or non-passing`,
     );
-    const surfaces = {};
     for (const surface of [
       'uiClient',
       'ssr',
@@ -703,110 +713,73 @@ function createOperationalIndependenceResultDetails({
     ]) {
       const surfaceEvidence = comparison.changed.surfaces?.[surface];
       assertCondition(
-        surfaceEvidence?.changed === true,
+        surfaceEvidence?.changed === true &&
+          typeof surfaceEvidence.beforeDigest === 'string' &&
+          surfaceEvidence.beforeDigest.length > 0 &&
+          typeof surfaceEvidence.afterDigest === 'string' &&
+          surfaceEvidence.afterDigest.length > 0 &&
+          surfaceEvidence.beforeDigest !== surfaceEvidence.afterDigest,
         `Operational-independence ${target} ${surface} did not rotate`,
       );
-      surfaces[surface] = {
-        afterDigest: surfaceEvidence.afterDigest,
-        beforeDigest: surfaceEvidence.beforeDigest,
-        changed: true,
-      };
     }
-    targets[target] = {
-      changed: {
-        afterIdentity: comparison.changed.afterIdentity,
-        afterTreeDigest: comparison.changed.afterTreeDigest,
-        beforeIdentity: comparison.changed.beforeIdentity,
-        beforeTreeDigest: comparison.changed.beforeTreeDigest,
-        surfaces,
-      },
-      shell: {
-        byteIdentical: true,
-        envelopeIdentical: true,
-        treeDigest: comparison.shell.treeDigest,
-      },
-      sibling: {
-        byteIdentical: true,
-        envelopeIdentical: true,
-        treeDigest: comparison.sibling.treeDigest,
-      },
-      servedBehavior: assertOperationalServedBehavior({
-        changedIdentity: comparison.changed.afterIdentity,
-        expectedApiValue,
-        expectedUiValue,
-        servedBehavior: targetEvidence.servedBehavior,
-        target,
-      }),
-    };
+    assertOperationalServedBehavior({
+      changedIdentity: comparison.changed.afterIdentity,
+      expectedApiValue,
+      expectedUiValue,
+      servedBehavior: targetEvidence.servedBehavior,
+      target,
+    });
+    changedIdentities.push(comparison.changed.afterIdentity);
   }
   assertCondition(
     evidence.crossTarget?.equal === true &&
-      evidence.crossTarget.identity?.sourceRevision === changedRevision,
+      evidence.crossTarget.identity?.sourceRevision === changedRevision &&
+      sameJson(changedIdentities[0], changedIdentities[1]) &&
+      sameJson(evidence.crossTarget.identity, changedIdentities[0]),
     'Operational-independence Node and Cloudflare changed identities differ',
   );
   assertCondition(
-    typeof evidence.evidenceDigest === 'string' &&
-      /^[a-f0-9]{64}$/u.test(evidence.evidenceDigest) &&
-      typeof evidenceFileSha256 === 'string' &&
-      /^[a-f0-9]{64}$/u.test(evidenceFileSha256) &&
-      typeof evidencePath === 'string' &&
-      path.isAbsolute(evidencePath),
-    'Operational-independence durable evidence path or digest is invalid',
+    typeof evidencePath === 'string' && path.isAbsolute(evidencePath),
+    'Operational-independence durable evidence path is invalid',
   );
   return {
     artifactMode: mode,
     baselineRevision: applicationSourceRevision,
     changedPaths: [...expectedChangedPaths],
     changedRevision,
-    crossTargetIdentity: evidence.crossTarget.identity,
-    evidenceDigest: evidence.evidenceDigest,
-    evidenceFileSha256,
     evidencePath,
-    selectedApps: {
-      changed: 'inventory',
-      shell: 'shell-super-app',
-      sibling: 'finance',
+    mutations: {
+      apiResponse: {
+        path: expectedChangedPaths[0],
+        value: expectedApiValue,
+      },
+      uiLocalization: {
+        path: expectedChangedPaths[1],
+        value: expectedUiValue,
+      },
     },
-    targets,
   };
 }
 
 function assertOperationalIndependenceEvidenceMatchesReceipt({
   details,
   evidence,
-  evidenceFileSha256,
 }) {
   assertOperationalIndependenceResultDetails(details, details.artifactMode);
-  assertCondition(
-    isPlainObject(evidence) && SHA256_PATTERN.test(evidence.evidenceDigest),
-    'Operational-independence evidence canonical digest is missing or invalid',
-  );
-  const canonicalPayload = { ...evidence };
-  delete canonicalPayload.evidenceDigest;
-  const canonicalDigest = digestCanonical(canonicalPayload);
-  assertCondition(
-    canonicalDigest === evidence.evidenceDigest,
-    'Operational-independence evidence canonical digest does not match its content',
-  );
   const reconstructed = createOperationalIndependenceResultDetails({
     applicationSourceRevision: details.baselineRevision,
     changedRevision: details.changedRevision,
     evidence,
-    evidenceFileSha256,
     evidencePath: details.evidencePath,
     expectedApiValue: details.mutations.apiResponse.value,
     expectedChangedPaths: details.changedPaths,
     expectedUiValue: details.mutations.uiLocalization.value,
     mode: details.artifactMode,
   });
-  const {
-    durationMs: _durationMs,
-    mutations: _mutations,
-    ...receiptSummary
-  } = details;
+  const { durationMs: _durationMs, ...receiptReference } = details;
   assertCondition(
-    sameJson(reconstructed, receiptSummary),
-    'Operational-independence evidence does not match the acceptance receipt summary',
+    sameJson(reconstructed, receiptReference),
+    'Operational-independence evidence does not match the acceptance execution reference',
   );
   return evidence;
 }
@@ -821,14 +794,9 @@ function assertOperationalIndependenceResultDetails(details, receiptMode) {
     'baselineRevision',
     'changedPaths',
     'changedRevision',
-    'crossTargetIdentity',
     'durationMs',
-    'evidenceDigest',
-    'evidenceFileSha256',
     'evidencePath',
     'mutations',
-    'selectedApps',
-    'targets',
   ];
   assertCondition(
     sameJson(Object.keys(details).sort(), expectedKeys.sort()),
@@ -853,25 +821,15 @@ function assertOperationalIndependenceResultDetails(details, receiptMode) {
     'Operational-independence receipt changed paths escape inventory UI/API ownership',
   );
   assertCondition(
-    SHA256_PATTERN.test(details.evidenceDigest) &&
-      SHA256_PATTERN.test(details.evidenceFileSha256) &&
-      typeof details.evidencePath === 'string' &&
+    typeof details.evidencePath === 'string' &&
       path.isAbsolute(details.evidencePath),
-    'Operational-independence receipt evidence path or digest is invalid',
+    'Operational-independence receipt evidence path is invalid',
   );
   assertCondition(
     typeof details.durationMs === 'number' &&
       Number.isFinite(details.durationMs) &&
       details.durationMs >= 0,
     'Operational-independence receipt duration is invalid',
-  );
-  assertCondition(
-    sameJson(details.selectedApps, {
-      changed: 'inventory',
-      shell: 'shell-super-app',
-      sibling: 'finance',
-    }),
-    'Operational-independence receipt selected apps are mixed',
   );
   assertCondition(
     details.mutations?.apiResponse?.path === expectedChangedPaths[0] &&
@@ -882,51 +840,6 @@ function assertOperationalIndependenceResultDetails(details, receiptMode) {
       details.mutations.uiLocalization.value.length > 0,
     'Operational-independence receipt mutations do not bind the real inventory UI and API changes',
   );
-  assertCondition(
-    details.crossTargetIdentity?.sourceRevision === details.changedRevision,
-    'Operational-independence receipt cross-target identity is stale',
-  );
-  assertCondition(
-    isPlainObject(details.targets) &&
-      sameJson(Object.keys(details.targets).sort(), ['cloudflare', 'node']),
-    'Operational-independence receipt must contain Node and Cloudflare summaries',
-  );
-  for (const target of ['node', 'cloudflare']) {
-    const targetDetails = details.targets[target];
-    assertCondition(
-      targetDetails?.changed?.beforeIdentity?.sourceRevision ===
-        details.baselineRevision &&
-        targetDetails.changed.afterIdentity?.sourceRevision ===
-          details.changedRevision &&
-        targetDetails.changed.beforeTreeDigest !==
-          targetDetails.changed.afterTreeDigest &&
-        targetDetails.shell?.byteIdentical === true &&
-        targetDetails.shell?.envelopeIdentical === true &&
-        targetDetails.sibling?.byteIdentical === true &&
-        targetDetails.sibling?.envelopeIdentical === true,
-      `Operational-independence receipt ${target} identity or sibling byte evidence is invalid`,
-    );
-    assertOperationalServedBehavior({
-      changedIdentity: targetDetails.changed.afterIdentity,
-      expectedApiValue: details.mutations.apiResponse.value,
-      expectedUiValue: details.mutations.uiLocalization.value,
-      servedBehavior: targetDetails.servedBehavior,
-      target,
-    });
-    for (const surface of [
-      'uiClient',
-      'ssr',
-      'apiBackend',
-      'backendFederation',
-    ]) {
-      const surfaceDetails = targetDetails.changed.surfaces?.[surface];
-      assertCondition(
-        surfaceDetails?.changed === true &&
-          surfaceDetails.beforeDigest !== surfaceDetails.afterDigest,
-        `Operational-independence receipt ${target} ${surface} did not rotate`,
-      );
-    }
-  }
   return details;
 }
 

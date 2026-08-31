@@ -1,5 +1,6 @@
 // @effect-diagnostics strictBooleanExpressions:off
 'use client';
+import * as head from '@modern-js/runtime-extensions';
 import React from 'react';
 import {
   Helmet as AsyncHelmet,
@@ -435,6 +436,13 @@ const collectServerHelmet = (
   runtimeContext: object,
   props: React.PropsWithChildren<HelmetProps>,
 ) => {
+  const marker = head.collectHeadState(
+    runtimeContext,
+    () => createHelmetRecord(props),
+    deriveHelmetServerState,
+    ensureHelmetContext(runtimeContext),
+  );
+  if (marker !== undefined) return marker;
   const helmetContext = ensureHelmetContext(runtimeContext);
   let records = serverHelmetRecords.get(helmetContext);
   if (records === undefined) {
@@ -449,8 +457,10 @@ export const Helmet = (props: React.PropsWithChildren<HelmetProps>) => {
   const runtimeContext = React.useContext(InternalRuntimeContext);
 
   if (runtimeContext !== null && runtimeContext.isBrowser === false) {
-    collectServerHelmet(runtimeContext, props);
-    return null;
+    return head.renderHeadMarker(
+      React,
+      collectServerHelmet(runtimeContext, props),
+    );
   }
 
   return React.createElement(AsyncHelmet, props);

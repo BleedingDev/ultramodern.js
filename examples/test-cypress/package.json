@@ -12,7 +12,7 @@
     "test": "cypress open"
   },
   "engines": {
-    "node": ">=20.19.5"
+    "node": ">=26.7.0"
   },
   "eslintIgnore": [
     "node_modules/",

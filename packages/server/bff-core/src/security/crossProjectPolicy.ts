@@ -34,6 +34,22 @@ export const BFF_OPERATION_CONTEXT_DETAIL_HEADER =
 export type CrossProjectOperationContract = {
   schemaHash?: string;
   operationVersion?: number;
+  operationId?: string;
+};
+
+/**
+ * Request facts observed by the server adapter rather than asserted by the
+ * client. `routePath` is the matched route template when the router exposes
+ * one (for example `/api/customers/:id`), not the client-provided detail.
+ */
+export type CrossProjectRequestObservation = {
+  method: string;
+  routePath: string;
+};
+
+export type CrossProjectRequestTarget = {
+  method: string;
+  pathname: string;
 };
 
 export type CrossProjectPolicyViolationReason =
@@ -102,6 +118,176 @@ export interface CrossProjectPolicyConfig {
     headers: Record<string, unknown>,
   ) => string | undefined;
 }
+
+/** Serializable, fully-defaulted policy accepted by edge dispatchers. */
+export type NormalizedCrossProjectPolicy = CrossProjectPolicyConfig & {
+  enabled: boolean;
+  requireEnvelope: boolean;
+  requireOperationContext: boolean;
+  requireOperationContextDetails: boolean;
+  requireOperationSchemaHash: boolean;
+  requireOperationVersion: boolean;
+  allowUnknownOperations: boolean;
+  expectedOperationContracts: Record<string, CrossProjectOperationContract>;
+};
+
+const splitRoutePath = (routePath: string): string[] =>
+  routePath.split('/').filter(Boolean);
+
+const isDynamicRouteSegment = (segment: string): boolean =>
+  segment.startsWith(':') ||
+  segment === '*' ||
+  segment.startsWith('*') ||
+  segment.startsWith('{*');
+
+const hasTrailingSlash = (routePath: string): boolean =>
+  routePath.length > 1 && routePath.endsWith('/');
+
+const hasUnsafePathEncoding = (requestPath: string): boolean => {
+  let decoded = requestPath;
+  for (let depth = 0; depth < 8; depth += 1) {
+    if (/%(?:2f|5c)/i.test(decoded)) {
+      return true;
+    }
+    try {
+      const next = decodeURIComponent(decoded);
+      if (next === decoded) {
+        return false;
+      }
+      decoded = next;
+    } catch {
+      return true;
+    }
+  }
+  return decoded.includes('%');
+};
+
+const routeSegmentsMatch = (
+  templateSegments: string[],
+  requestSegments: string[],
+): boolean => {
+  let templateIndex = 0;
+  let requestIndex = 0;
+  while (templateIndex < templateSegments.length) {
+    const segment = templateSegments[templateIndex]!;
+    const wildcard =
+      segment === '*' || segment.startsWith('*') || segment.startsWith('{*');
+    const optional = segment.startsWith(':') && segment.endsWith('?');
+    if (templateIndex < templateSegments.length - 1 && (wildcard || optional)) {
+      return false;
+    }
+    if (wildcard) {
+      return true;
+    }
+    const requestSegment = requestSegments[requestIndex];
+    if (requestSegment === undefined) {
+      return optional && templateIndex === templateSegments.length - 1;
+    }
+    if (!segment.startsWith(':') && segment !== requestSegment) {
+      return false;
+    }
+    templateIndex += 1;
+    requestIndex += 1;
+  }
+  return requestIndex === requestSegments.length;
+};
+
+const routeTemplateMatchScore = (
+  routePath: string,
+  requestPath: string,
+): number | undefined => {
+  if (hasTrailingSlash(routePath) !== hasTrailingSlash(requestPath)) {
+    return undefined;
+  }
+  const templateSegments = splitRoutePath(routePath);
+  const requestSegments = splitRoutePath(requestPath);
+  for (
+    let prefixLength = 0;
+    prefixLength <= templateSegments.length;
+    prefixLength += 1
+  ) {
+    const removedPrefix = templateSegments.slice(0, prefixLength);
+    if (removedPrefix.some(isDynamicRouteSegment)) {
+      break;
+    }
+    const mountedTemplate = templateSegments.slice(prefixLength);
+    if (!routeSegmentsMatch(mountedTemplate, requestSegments)) {
+      continue;
+    }
+    const literalSegments = mountedTemplate.filter(
+      segment => !isDynamicRouteSegment(segment),
+    ).length;
+    const dynamicSegments = mountedTemplate.length - literalSegments;
+    return (
+      (prefixLength === 0 ? 1_000_000 : 0) +
+      literalSegments * 10_000 -
+      dynamicSegments * 100 -
+      prefixLength
+    );
+  }
+  return undefined;
+};
+
+/**
+ * Resolves a concrete adapter request to the server-owned route template in
+ * the operation contract map. Effect receives requests after its BFF mount
+ * prefix has been stripped, so leading literal route segments may be mount
+ * prefixes. Ambiguous matches fail closed by retaining the concrete path.
+ */
+export const resolveCrossProjectRequestObservation = (
+  request: CrossProjectRequestTarget,
+  policy: Pick<CrossProjectPolicyConfig, 'expectedOperationContracts'>,
+): CrossProjectRequestObservation | undefined => {
+  const requestMethod = String(request.method || '')
+    .trim()
+    .toUpperCase();
+  const routePaths = [
+    ...new Set(
+      Object.keys(policy.expectedOperationContracts ?? {}).flatMap(key => {
+        if (key.startsWith('operation:')) {
+          return [];
+        }
+        const separator = key.indexOf(':');
+        if (
+          separator === -1 ||
+          key.slice(0, separator).trim().toUpperCase() !== requestMethod
+        ) {
+          return [];
+        }
+        return [key.slice(separator + 1)];
+      }),
+    ),
+  ];
+  if (routePaths.length === 0) {
+    return undefined;
+  }
+
+  if (hasUnsafePathEncoding(request.pathname)) {
+    return {
+      method: request.method,
+      routePath: request.pathname,
+    };
+  }
+
+  const matches = routePaths.flatMap(routePath => {
+    const score = routeTemplateMatchScore(routePath, request.pathname);
+    return score === undefined ? [] : [{ routePath, score }];
+  });
+  if (matches.length === 0) {
+    return {
+      method: request.method,
+      routePath: request.pathname,
+    };
+  }
+  matches.sort((left, right) => right.score - left.score);
+  return {
+    method: request.method,
+    routePath:
+      matches[1]?.score === matches[0]?.score
+        ? request.pathname
+        : matches[0]!.routePath,
+  };
+};
 
 const normalizeHeaderName = (
   headerName: string | undefined,
@@ -193,6 +379,7 @@ type CrossProjectPolicyEvaluationState = {
   operationContextDetails?: Record<string, unknown>;
   detailSchemaHash: string;
   detailOperationVersion: unknown;
+  observedRequest?: CrossProjectRequestObservation;
   complete: boolean;
 };
 
@@ -203,6 +390,7 @@ type CrossProjectPolicyCheck = (
 const createCrossProjectPolicyEvaluationState = (
   headers: Record<string, unknown>,
   policy: CrossProjectPolicyConfig,
+  observedRequest?: CrossProjectRequestObservation,
 ): CrossProjectPolicyEvaluationState => ({
   headers,
   policy,
@@ -236,6 +424,14 @@ const createCrossProjectPolicyEvaluationState = (
   requestId: '',
   detailSchemaHash: '',
   detailOperationVersion: undefined,
+  observedRequest: observedRequest
+    ? {
+        method: String(observedRequest.method || '')
+          .trim()
+          .toUpperCase(),
+        routePath: String(observedRequest.routePath || '').trim(),
+      }
+    : undefined,
   complete: false,
 });
 
@@ -475,9 +671,27 @@ const checkOperationContract: CrossProjectPolicyCheck = state => {
     const operationId = String(
       state.operationContextDetails.operationId || '',
     ).trim();
+    const observedMethod = state.observedRequest?.method;
+    const observedRoutePath = state.observedRequest?.routePath;
+    if (
+      observedMethod &&
+      observedRoutePath &&
+      (method !== observedMethod || routePath !== observedRoutePath)
+    ) {
+      return createViolation(
+        'operation_context_mismatch',
+        `Client operation "${operationId || `${method}:${routePath}`}" does not match observed request "${observedMethod}:${observedRoutePath}"`,
+        state.status,
+      );
+    }
+
+    const contractMethod = observedMethod || method;
+    const contractRoutePath = observedRoutePath || routePath;
     const expectedContract =
-      expectedContracts[`${method}:${routePath}`] ||
-      expectedContracts[`operation:${operationId}`];
+      expectedContracts[`${contractMethod}:${contractRoutePath}`] ||
+      (!state.observedRequest
+        ? expectedContracts[`operation:${operationId}`]
+        : undefined);
 
     if (!expectedContract) {
       if (!state.allowUnknownOperations) {
@@ -488,6 +702,19 @@ const checkOperationContract: CrossProjectPolicyCheck = state => {
         );
       }
     } else {
+      const assertedOperationId = operationId || state.operationContext || '';
+      const canonicalRouteOperationId = `${state.requestId}:${contractMethod}:${contractRoutePath}`;
+      if (
+        state.observedRequest &&
+        assertedOperationId !== expectedContract.operationId &&
+        assertedOperationId !== canonicalRouteOperationId
+      ) {
+        return createViolation(
+          'operation_context_mismatch',
+          `Client operation "${assertedOperationId}" does not identify observed contract "${expectedContract.operationId || canonicalRouteOperationId}"`,
+          state.status,
+        );
+      }
       if (
         expectedContract.schemaHash &&
         state.detailSchemaHash &&
@@ -529,12 +756,17 @@ const CROSS_PROJECT_POLICY_CHECKS: CrossProjectPolicyCheck[] = [
 export const evaluateCrossProjectPolicy = (
   headers: Record<string, unknown>,
   policy?: CrossProjectPolicyConfig,
+  observedRequest?: CrossProjectRequestObservation,
 ): CrossProjectPolicyViolation | null => {
   if (!policy?.enabled) {
     return null;
   }
 
-  const state = createCrossProjectPolicyEvaluationState(headers, policy);
+  const state = createCrossProjectPolicyEvaluationState(
+    headers,
+    policy,
+    observedRequest,
+  );
   for (const check of CROSS_PROJECT_POLICY_CHECKS) {
     const violation = check(state);
     if (violation) {

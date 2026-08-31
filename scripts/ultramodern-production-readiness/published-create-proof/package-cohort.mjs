@@ -20,6 +20,7 @@ const bootstrapDependencyBlocks = Object.freeze([
   'optionalDependencies',
 ]);
 const minimumReleaseAgeMinutes = 1440;
+const ultramodernCreateSourceName = '@modern-js/ultramodern-create';
 
 function assertCondition(condition, message) {
   if (!condition) {
@@ -331,8 +332,8 @@ function resolveCreatePackage(release, requestedSpecifier) {
   const cohort = expectedReleaseCohort(release);
   const createPackage = release?.createPackage;
   assertCondition(
-    createPackage?.sourceName === '@modern-js/create',
-    'Strict release manifest must identify @modern-js/create as the create package',
+    createPackage?.sourceName === ultramodernCreateSourceName,
+    `Strict release manifest must identify ${ultramodernCreateSourceName} as the create package`,
   );
   assertCondition(
     cohort.aliases[createPackage.sourceName] === createPackage.targetName,

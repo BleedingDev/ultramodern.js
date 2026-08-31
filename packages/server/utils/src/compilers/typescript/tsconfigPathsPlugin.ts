@@ -21,7 +21,16 @@ const toImportSpecifier = (sourceFile: string, resolvedPath: string) => {
   return relativePath[0] === '.' ? relativePath : `./${relativePath}`;
 };
 
-const COMPILED_TO_JS_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx']);
+const SOURCE_TO_OUTPUT_EXTENSION = new Map([
+  ['.ts', '.js'],
+  ['.tsx', '.js'],
+  ['.js', '.js'],
+  ['.jsx', '.js'],
+  ['.mts', '.mjs'],
+  ['.mjs', '.mjs'],
+  ['.cts', '.cjs'],
+  ['.cjs', '.cjs'],
+]);
 
 const toEsmOutputPath = (resolvedPath: string) => {
   const sourcePath = (findSourceEntry(resolvedPath) || resolvedPath).replace(
@@ -33,10 +42,11 @@ const toEsmOutputPath = (resolvedPath: string) => {
   if (!ext) {
     return `${sourcePath}.js`;
   }
-  if (!COMPILED_TO_JS_EXTENSIONS.has(ext)) {
+  const outputExtension = SOURCE_TO_OUTPUT_EXTENSION.get(ext);
+  if (!outputExtension) {
     return sourcePath;
   }
-  return `${sourcePath.slice(0, -ext.length)}.js`;
+  return `${sourcePath.slice(0, -ext.length)}${outputExtension}`;
 };
 
 const resolveRelativeEsmSpecifier = (sourceFile: string, text: string) => {
@@ -165,7 +175,7 @@ export function getNotAliasedPath(
     } catch {}
   }
 
-  if (moduleType === 'module') {
+  if (moduleType === 'module' || /\.[cm]ts$/iu.test(result)) {
     result = toEsmOutputPath(result);
   }
 

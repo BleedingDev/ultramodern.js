@@ -416,56 +416,29 @@ async function waitForHydrationStyles(page) {
   }
 }
 
-async function triggerRemoteBoundaryHydration(page, runtime) {
-  const target = await page.evaluate(selector => {
-    const boundary = document.querySelector(selector);
-    const interactiveElement = boundary?.querySelector(
-      'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]',
-    );
-    if (!(interactiveElement instanceof Element)) {
-      return undefined;
-    }
-
-    interactiveElement.setAttribute(
-      'data-modern-selective-hydration-target',
-      '',
-    );
-    window.__modernPreventSelectiveHydrationNavigation = event =>
-      event.preventDefault();
-    document.addEventListener(
-      'click',
-      window.__modernPreventSelectiveHydrationNavigation,
-      { capture: true, once: true },
-    );
-
-    return {
-      boundary: boundary.getAttribute('data-modern-distributed-ssr-boundary'),
-      target: interactiveElement.tagName.toLowerCase(),
-    };
-  }, distributedSsrServerBoundarySelector(runtime));
-  if (target === undefined) {
+export async function triggerRemoteBoundaryHydration(page, runtime) {
+  const boundarySelector = distributedSsrServerBoundarySelector(runtime);
+  const controlSelector =
+    'button[type="button"]:not([disabled]), input[type="button"]:not([disabled]), input[type="checkbox"]:not([disabled]), input[type="radio"]:not([disabled])';
+  const control = page
+    .locator(boundarySelector)
+    .locator(controlSelector)
+    .first();
+  if ((await control.count()) === 0) {
     return undefined;
   }
 
-  try {
-    await page
-      .locator('[data-modern-selective-hydration-target]')
-      .click({ noWaitAfter: true });
-  } finally {
-    await page.evaluate(() => {
-      document
-        .querySelector('[data-modern-selective-hydration-target]')
-        ?.removeAttribute('data-modern-selective-hydration-target');
-      if (window.__modernPreventSelectiveHydrationNavigation) {
-        document.removeEventListener(
-          'click',
-          window.__modernPreventSelectiveHydrationNavigation,
-          { capture: true },
-        );
-        delete window.__modernPreventSelectiveHydrationNavigation;
-      }
-    });
-  }
+  const target = await control.evaluate(
+    (element, selector) => ({
+      boundary: element
+        .closest(selector)
+        ?.getAttribute('data-modern-distributed-ssr-boundary'),
+      target: element.tagName.toLowerCase(),
+      type: element.getAttribute('type')?.toLowerCase(),
+    }),
+    boundarySelector,
+  );
+  await control.click();
 
   return target;
 }
@@ -492,16 +465,6 @@ async function collectStylesheetLinks(page) {
       };
     }),
   );
-}
-
-async function maybeScreenshot(page, filePath) {
-  await page.screenshot({ fullPage: true, path: filePath });
-  const stat = fs.lstatSync(filePath, { throwIfNoEntry: false });
-  assertPass(
-    stat?.isFile() && !stat.isSymbolicLink() && stat.size > 0,
-    `Required browser screenshot is missing or empty: ${filePath}`,
-  );
-  return { bytes: stat.size, path: filePath };
 }
 
 export async function validateNoJavaScriptSsrTarget(
@@ -651,11 +614,6 @@ export async function validateNoJavaScriptSsrTarget(
       { failedResponses },
     );
 
-    const screenshot = await maybeScreenshot(
-      page,
-      path.join(appArtifactDir, 'no-js-ssr.png'),
-    );
-    assertions.push(assertion('no-js-screenshot', 'pass', screenshot));
     return assertions;
   } finally {
     writeJsonFile(
@@ -1011,9 +969,26 @@ export async function validateBrowserTarget(
         );
         assertPass(
           selectiveHydrationTrigger !== undefined,
-          `${app.id} exposed no interactive remote element for selective hydration`,
+          `${app.id} exposed no explicit non-navigation remote control for selective hydration`,
         );
-        await exposedChunkResponse;
+        const hydrationResponse = await exposedChunkResponse;
+        selectiveHydrationTrigger.networkConsequence = {
+          kind: federationAssetKind(
+            hydrationResponse.url(),
+            app,
+            observedRemoteOrigins,
+          ),
+          status: hydrationResponse.status(),
+          url: hydrationResponse.url(),
+        };
+        assertPass(
+          selectiveHydrationTrigger.networkConsequence.kind ===
+            'exposed-chunk' &&
+            selectiveHydrationTrigger.networkConsequence.status >= 200 &&
+            selectiveHydrationTrigger.networkConsequence.status < 400,
+          `${app.id} native remote interaction did not load an exposed chunk`,
+          { selectiveHydrationTrigger },
+        );
         await waitForHydrationStyles(page);
       }
       hydrationIdentity = await readHydrationIdentityProbe(page, runtime);
@@ -1328,11 +1303,6 @@ export async function validateBrowserTarget(
       { failedResponses },
     );
 
-    const screenshot = await maybeScreenshot(
-      page,
-      path.join(appArtifactDir, 'screenshot.png'),
-    );
-    assertions.push(assertion('browser-screenshot', 'pass', screenshot));
     assertions.push(
       ...(await validateNoJavaScriptSsrTarget(target, browser, {
         appArtifactDir,

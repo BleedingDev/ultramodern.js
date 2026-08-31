@@ -23,10 +23,11 @@
   "scripts": {
     "prepublishOnly": "only-allow-pnpm",
     "dev": "rslib build --watch",
-    "build": "rslib build && pnpm -w tsgo:dts \"$PWD\"",
+    "build": "rslib build",
     "test": "tsgo --noEmit -p tsconfig.json && rstest --passWithNoTests"
   },
   "dependencies": {
+    "@modern-js/runtime-extensions": "workspace:*",
     "@modern-js/types": "workspace:*",
     "@modern-js/utils": "workspace:*",
     "@swc/helpers": "^0.5.23"

@@ -1,44 +1,26 @@
 import { pluginSass } from '@rsbuild/plugin-sass';
-import { defineConfig } from '@rspress/core';
 import { transformerNotationHighlight } from '@shikijs/transformers';
 import path from 'path';
 import { pluginOpenGraph } from 'rsbuild-plugin-open-graph';
+import { defineUltraModernConfig as defineConfig } from './ultramodern-preset/src/index.ts';
 
 const docPath = path.join(__dirname, 'docs');
-const staticPath = path.join(__dirname, 'static');
-const siteTitle = 'UltraModern.js 3.0';
+const siteTitle = 'Modern.js';
 const siteDescription =
-  'UltraModern.js 3.0 is a SuperApp framework forked from Modern.js for Effect, TanStack Router, SSR, BFF, and independently deployable Micro Verticals.';
+  'The Modern.js framework is a progressive web framework based on React. At ByteDance, we use Modern.js to build upper-level frameworks that have supported the development of thousands of web applications.';
 const socialDescription =
-  'A SuperApp framework for Effect, TanStack Router, SSR, BFF, and Micro Verticals.';
-
-function normalizeBase(base = '/') {
-  const trimmed = base.trim();
-  const withLeadingSlash = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
-  return withLeadingSlash.endsWith('/')
-    ? withLeadingSlash
-    : `${withLeadingSlash}/`;
-}
-
-// Set by CI for GitHub Pages project sites. Defaults to root for local dev/custom domains.
-const docsBase = normalizeBase(process.env.DOCS_BASE);
-const docsOrigin = (
-  process.env.DOCS_ORIGIN || 'https://bleedingdev.github.io'
-).replace(/\/+$/, '');
-const siteUrl = new URL(docsBase, `${docsOrigin}/`).toString();
-const socialImage = new URL('img/social-card.svg', siteUrl).toString();
-const faviconUrl = new URL('img/favicon.ico', siteUrl).toString();
-const docsAsset = (assetPath: string) =>
-  `${docsBase}${assetPath.replace(/^\//, '')}`;
+  'A Progressive React Framework for modern web development.';
+const socialImage =
+  'https://lf3-static.bytednsdoc.com/obj/eden-cn/nuvjhpqnuvr/modern-website/banner.jpeg';
 
 export default defineConfig({
   root: docPath,
   llms: true,
   title: siteTitle,
   description: siteDescription,
-  base: docsBase,
-  logo: docsAsset('/img/logo.svg'),
-  icon: faviconUrl,
+  base: '/',
+  logo: 'https://lf-cdn-tos.bytescm.com/obj/static/webinfra/modern-js-website/assets/images/images/modernjs-logo.svg',
+  icon: 'https://lf3-static.bytednsdoc.com/obj/eden-cn/uhbfnupenuhf/favicon.ico',
   lang: 'en',
   themeDir: path.join(__dirname, 'src'),
   markdown: {
@@ -50,40 +32,24 @@ export default defineConfig({
   search: {
     codeBlocks: true,
   },
-  // head: [
-  //   () => {
-  //     return [
-  //       `<meta property="og:image" content="${socialImage}">`,
-  //       `<meta property="og:description" content="${socialDescription}">`,
-  //       `<meta property="og:image:alt" content="${siteTitle}">`,
-  //       `<meta name="twitter:card" content="summary_large_image">`,
-  //       `<meta name="twitter:title" content="${siteTitle}">`,
-  //       `<meta name="twitter:description" content="${socialDescription}">`,
-  //       `<meta name="twitter:image" content="${socialImage}">`,
-  //       `<meta name="twitter:image:alt" content="${siteTitle}">`,
-  //     ].join('');
-  //   },
-  // ],
   themeConfig: {
     locales: [
       {
         lang: 'zh',
         title: siteTitle,
         description: socialDescription,
-        // nav: getNavbar('zh'),
         label: '简体中文',
       },
       {
         lang: 'en',
         title: siteTitle,
         description: socialDescription,
-        // nav: getNavbar('en'),
         label: 'English',
       },
     ],
     editLink: {
       docRepoBaseUrl:
-        'https://github.com/BleedingDev/ultramodern.js/tree/main-ultramodern/packages/document/docs',
+        'https://github.com/web-infra-dev/modern.js/tree/main/packages/document/docs',
       text: 'Edit this page on GitHub',
     },
     socialLinks: [
@@ -95,7 +61,7 @@ export default defineConfig({
       {
         icon: 'github',
         mode: 'link',
-        content: 'https://github.com/BleedingDev/ultramodern.js',
+        content: 'https://github.com/web-infra-dev/modern.js',
       },
     ],
   },
@@ -105,7 +71,8 @@ export default defineConfig({
   },
   replaceRules: [
     {
-      // Preserve the upstream replacement contract for inherited docs.
+      // The major version is different inside the ByteDance,
+      // so we use a flag to define it.
       search: /MAJOR_VERSION/g,
       replace: '2',
     },
@@ -128,11 +95,6 @@ export default defineConfig({
     output: {
       dataUriLimit: 0,
     },
-    server: {
-      publicDir: {
-        name: staticPath,
-      },
-    },
     dev: {
       lazyCompilation: process.env.LAZY !== 'false',
     },
@@ -147,15 +109,15 @@ export default defineConfig({
       pluginSass(),
       pluginOpenGraph({
         // Note, title is page-specific
-        title: 'UltraModern.js 3.0 Home Page',
+        title: 'Modern.js Home Page',
         // While site name is site wide
         siteName: siteTitle,
         type: 'website',
-        url: siteUrl,
+        url: 'https://modernjs.dev/',
         image: socialImage,
         description: socialDescription,
         twitter: {
-          site: '@BleedingDev',
+          site: '@_Modern_JS',
           card: 'summary_large_image',
         },
       }),

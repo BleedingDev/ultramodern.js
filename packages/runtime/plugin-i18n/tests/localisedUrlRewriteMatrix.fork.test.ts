@@ -1,3 +1,4 @@
+import type { LocalisedUrlsMap } from '@modern-js/i18n-runtime-extensions';
 import { describe, expect, test } from '@rstest/core';
 import {
   interpolateRouteParams,
@@ -5,7 +6,6 @@ import {
 } from '../src/runtime/linkHelpers';
 import { canonicalPath, localizePath } from '../src/runtime/localizedPaths';
 import { buildLocalizedUrl } from '../src/runtime/utils';
-import type { LocalisedUrlsMap } from '../src/shared/localisedUrls';
 
 const languages = ['en', 'cs'];
 

@@ -1,5 +1,10 @@
 // @effect-diagnostics processEnv:off strictBooleanExpressions:off
+
 import type { ServerUserConfig } from '@modern-js/app-tools';
+import {
+  escapeHtmlAttribute,
+  isSafeHtmlAttributeName,
+} from '@modern-js/runtime-extensions';
 import type { StaticHandlerContext } from '@modern-js/runtime-utils/router';
 import { isRouteErrorResponse } from '../../router/runtime/routerHelper';
 import type { SSRConfig } from './shared';
@@ -8,7 +13,9 @@ export function attributesToString(attributes: Record<string, any>) {
   // Iterate through the properties and convert them into a string, only including properties that are not undefined.
   return Object.entries(attributes).reduce(
     (str, [key, value]) =>
-      value === undefined ? str : `${str} ${key}="${value}"`,
+      value === undefined || !isSafeHtmlAttributeName(key)
+        ? str
+        : `${str} ${key}="${escapeHtmlAttribute(value)}"`,
     '',
   );
 }
@@ -57,7 +64,7 @@ export function serializeErrors(
   return serialized;
 }
 
-function shouldRedactServerError() {
+export function shouldRedactServerError() {
   return (
     process.env.NODE_ENV !== 'development' && process.env.NODE_ENV !== 'test'
   );
@@ -89,6 +96,7 @@ function serializeRouteErrorResponse(error: unknown) {
       status: error.status,
       statusText: 'Internal Server Error',
       data: 'Unexpected Server Error',
+      internal: error.internal,
       __type: 'RouteErrorResponse',
     };
   }
@@ -97,6 +105,7 @@ function serializeRouteErrorResponse(error: unknown) {
     status: error.status,
     statusText: error.statusText,
     data: error.data,
+    internal: error.internal,
     __type: 'RouteErrorResponse',
   };
 }
@@ -131,11 +140,12 @@ const getLinkAttributes = (linkTag: string) => {
 
   while ((match = attributeRegExp.exec(linkTag))) {
     const [, name, doubleQuotedValue, singleQuotedValue, unquotedValue] = match;
-    if (name.toLowerCase() === 'link') {
+    const normalizedName = name.toLowerCase();
+    if (normalizedName === 'link' || attributes.has(normalizedName)) {
       continue;
     }
     attributes.set(
-      name.toLowerCase(),
+      normalizedName,
       doubleQuotedValue ?? singleQuotedValue ?? unquotedValue ?? '',
     );
   }

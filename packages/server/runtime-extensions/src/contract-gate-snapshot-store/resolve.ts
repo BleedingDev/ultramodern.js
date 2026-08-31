@@ -141,7 +141,7 @@ export const resolveContractGateSnapshotStore = async (input: {
   const builtinStore = tryResolveBuiltinSnapshotStore({ stateStore });
   if (builtinStore) {
     logger?.info?.(
-      `[telemetry.canary.autopilot] using built-in contract gate snapshot store "${builtinStore.name}"`,
+      `[telemetry.health.snapshot] using built-in contract gate snapshot store "${builtinStore.name}"`,
     );
     return builtinStore;
   }
@@ -154,14 +154,14 @@ export const resolveContractGateSnapshotStore = async (input: {
     )) as ContractGateSnapshotStoreModule;
   } catch (error) {
     throw new Error(
-      `[telemetry.canary.autopilot] Failed to load stateStore.module "${stateStore.module}" (${modulePath}): ${error instanceof Error ? error.message : String(error)}`,
+      `[telemetry.health.snapshot] Failed to load stateStore.module "${stateStore.module}" (${modulePath}): ${error instanceof Error ? error.message : String(error)}`,
     );
   }
 
   const factory = pickStoreFactory(mod);
   if (!factory) {
     throw new Error(
-      `[telemetry.canary.autopilot] stateStore.module "${stateStore.module}" does not export createContractGateSnapshotStore()`,
+      `[telemetry.health.snapshot] stateStore.module "${stateStore.module}" does not export createContractGateSnapshotStore()`,
     );
   }
 
@@ -173,7 +173,7 @@ export const resolveContractGateSnapshotStore = async (input: {
   });
   ensureStoreShape(store, modulePath);
   logger?.info?.(
-    `[telemetry.canary.autopilot] using contract gate snapshot store "${store.name || modulePath}"`,
+    `[telemetry.health.snapshot] using contract gate snapshot store "${store.name || modulePath}"`,
   );
   return store;
 };

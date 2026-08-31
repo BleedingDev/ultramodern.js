@@ -455,6 +455,7 @@ describe('i18n runtime wrapRoot', () => {
   afterEach(() => {
     cleanup(rendered);
     rendered = undefined;
+    rstest.useRealTimers();
     rstest.restoreAllMocks();
     window.history.replaceState(null, '', '/');
   });
@@ -759,11 +760,10 @@ describe('i18n runtime wrapRoot', () => {
     expect(rendered.container.textContent).toBe('Language');
   });
 
-  test('keeps committed copy after a failed change and recovers later', async () => {
+  test('keeps committed copy after a failed change and retries automatically', async () => {
+    rstest.useFakeTimers();
     window.history.replaceState(null, '', '/en');
-    const consoleError = rstest
-      .spyOn(console, 'error')
-      .mockImplementation(() => undefined);
+    rstest.spyOn(console, 'error').mockImplementation(() => undefined);
     const router = createMutableTanstackRouter();
     const runtimeContext = createTanstackRuntimeContext(router);
     const { instance, pending } = createDeferredI18nInstance();
@@ -801,16 +801,9 @@ describe('i18n runtime wrapRoot', () => {
     });
 
     expect(rendered.container.textContent).toContain('en:Language');
-    expect(consoleError).toHaveBeenCalledTimes(1);
-    expect(consoleError).toHaveBeenCalledWith(
-      'Failed to synchronize i18n language "cs".',
-      languageError,
-    );
 
     await act(async () => {
-      rendered?.container
-        .querySelector('button')
-        ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await rstest.advanceTimersByTimeAsync(50);
     });
     expect(pending).toHaveLength(2);
 

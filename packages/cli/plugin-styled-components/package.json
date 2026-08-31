@@ -27,7 +27,7 @@
   },
   "scripts": {
     "dev": "rslib build --watch",
-    "build": "rslib build && pnpm -w tsgo:dts \"$PWD\""
+    "build": "rslib build"
   },
   "dependencies": {
     "@rsbuild/plugin-styled-components": "1.7.0",

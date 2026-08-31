@@ -255,10 +255,13 @@ export const executeWithResilience = async ({
       controller = new AbortController();
     }
 
-    const nextInit =
-      controller && !init.signal
-        ? { ...init, signal: controller.signal }
-        : init;
+    const callerSignal = init.signal as AbortSignal | undefined;
+    const requestSignal = controller
+      ? callerSignal && !callerSignal.aborted
+        ? AbortSignal.any([callerSignal, controller.signal])
+        : callerSignal || controller.signal
+      : callerSignal;
+    const nextInit = requestSignal ? { ...init, signal: requestSignal } : init;
 
     try {
       const { result } = await withTimeout(

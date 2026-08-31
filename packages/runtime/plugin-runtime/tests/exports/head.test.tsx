@@ -1,3 +1,4 @@
+import * as rendererHead from '@modern-js/runtime-extensions';
 import React from 'react';
 import { renderToString } from 'react-dom/server';
 import { InternalRuntimeContext } from '../../src/core/context';
@@ -6,14 +7,61 @@ import { Helmet } from '../../src/exports/head';
 
 const createServerContext = () => ({ isBrowser: false }) as any;
 
-const renderWithContext = (context: any, node: React.ReactNode) =>
-  renderToString(
-    <InternalRuntimeContext.Provider value={context}>
-      {node}
-    </InternalRuntimeContext.Provider>,
-  );
+const renderWithContext = (context: any, node: React.ReactNode) => {
+  rendererHead.beginHeadRender(context);
+  try {
+    const html = renderToString(
+      <InternalRuntimeContext.Provider value={context}>
+        {node}
+      </InternalRuntimeContext.Provider>,
+    );
+    return rendererHead.completeHeadRender(context, html);
+  } catch (error) {
+    rendererHead.abortHeadRender(context);
+    throw error;
+  }
+};
 
 describe('server Helmet collection', () => {
+  it('excludes Helmet records from a discarded Suspense primary branch', () => {
+    const context = createServerContext();
+    const never = new Promise<never>(() => {});
+
+    const SuspendForever = (): null => {
+      throw never;
+    };
+
+    const html = renderWithContext(
+      context,
+      <>
+        <Helmet>
+          <meta name="outside" content="committed" />
+        </Helmet>
+        <React.Suspense
+          fallback={
+            <>
+              <Helmet>
+                <meta name="fallback" content="committed" />
+              </Helmet>
+              <span>fallback rendered</span>
+            </>
+          }
+        >
+          <Helmet>
+            <meta name="abandoned-unique" content="ghost" />
+          </Helmet>
+          <SuspendForever />
+        </React.Suspense>
+      </>,
+    );
+
+    expect(html).toContain('fallback rendered');
+    const meta = getHelmetData(context)!.meta.toString();
+    expect(meta).toContain('name="outside"');
+    expect(meta).toContain('name="fallback"');
+    expect(meta).not.toContain('name="abandoned-unique"');
+  });
+
   it('collects title/meta during SSR and renders nothing inline', () => {
     const context = createServerContext();
     const html = renderWithContext(

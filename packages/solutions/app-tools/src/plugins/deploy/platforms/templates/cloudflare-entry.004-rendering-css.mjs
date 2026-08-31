@@ -14,6 +14,8 @@ const DISTRIBUTED_SSR_FRAGMENT_REQUEST_LOCALS_KEY =
   '__modernDistributedSsrFragmentRequest';
 const DISTRIBUTED_SSR_CSS_HEADER = 'x-modern-distributed-ssr-css';
 const DISTRIBUTED_SSR_PROVENANCE_HEADER = 'x-modern-distributed-ssr-provenance';
+const CLOUDFLARE_STYLESHEET_LINKS_SENTINEL =
+  '<meta data-modern-cloudflare-stylesheet-links>';
 
 function distributedSsrFragmentKey(remote, expose) {
   return `${remote}::${expose}`;
@@ -165,6 +167,66 @@ function dedupeStylesheetLinks(html) {
     seenHrefs.add(href);
     return link;
   });
+}
+
+function createStylesheetLinksHtml(stylesheetEntries) {
+  return stylesheetEntries
+    .map(({ href, reactResource }) =>
+      reactResource
+        ? `<link href="${escapeAttribute(href)}" rel="stylesheet" type="text/css" data-precedence="default">`
+        : `<link rel="stylesheet" href="${escapeAttribute(href)}">`,
+    )
+    .join('');
+}
+
+function createStylesheetLinkStream(body, stylesheetEntries) {
+  const decoder = new TextDecoder();
+  const encoder = new TextEncoder();
+  let injected = false;
+  let pending = '';
+  const links = createStylesheetLinksHtml(stylesheetEntries);
+
+  const flushReadyHtml = (controller, final) => {
+    const sentinelIndex = pending.indexOf(CLOUDFLARE_STYLESHEET_LINKS_SENTINEL);
+    if (!injected && sentinelIndex >= 0) {
+      const output = `${pending.slice(0, sentinelIndex)}${links}${pending.slice(
+        sentinelIndex + CLOUDFLARE_STYLESHEET_LINKS_SENTINEL.length,
+      )}`;
+      injected = true;
+      pending = '';
+      controller.enqueue(encoder.encode(output));
+      return;
+    }
+
+    const retainedLength =
+      final || injected
+        ? 0
+        : Math.min(
+            pending.length,
+            CLOUDFLARE_STYLESHEET_LINKS_SENTINEL.length - 1,
+          );
+    const readyEnd = pending.length - retainedLength;
+    if (readyEnd > 0) {
+      controller.enqueue(encoder.encode(pending.slice(0, readyEnd)));
+      pending = pending.slice(readyEnd);
+    }
+  };
+
+  return body.pipeThrough(
+    new TransformStream({
+      flush(controller) {
+        pending += decoder.decode();
+        flushReadyHtml(controller, true);
+      },
+      transform(chunk, controller) {
+        pending +=
+          typeof chunk === 'string'
+            ? chunk
+            : decoder.decode(chunk, { stream: true });
+        flushReadyHtml(controller, false);
+      },
+    }),
+  );
 }
 
 function readFragmentStylesheetAssets(response) {
@@ -421,20 +483,32 @@ function createDistributedSsrFragmentContext(request, env) {
     return undefined;
   }
   const cache = new Map();
-  const stylesheetHrefs = new Set();
+  const pendingResolutions = new Set();
+  const stylesheetHrefsByFragment = configuredFragments.map(() => new Set());
 
   return {
     required: true,
-    getStylesheetHrefs() {
-      return [...stylesheetHrefs];
+    async getStylesheetHrefs() {
+      while (pendingResolutions.size > 0) {
+        await Promise.all([...pendingResolutions]);
+      }
+
+      const hrefs = new Set();
+      for (const fragmentHrefs of stylesheetHrefsByFragment) {
+        for (const href of fragmentHrefs) {
+          hrefs.add(href);
+        }
+      }
+
+      return [...hrefs];
     },
     resolve(remote, expose, props) {
-      const configured = configuredFragments.find(
+      const configuredIndex = configuredFragments.findIndex(
         candidate =>
           candidate.fragment.remote === remote &&
           candidate.fragment.expose === expose,
       );
-      if (!configured) {
+      if (configuredIndex < 0) {
         return {
           boundaryId: remote,
           expose,
@@ -443,6 +517,7 @@ function createDistributedSsrFragmentContext(request, env) {
           status: 'degraded',
         };
       }
+      const configured = configuredFragments[configuredIndex];
 
       let propsJson;
       try {
@@ -455,26 +530,29 @@ function createDistributedSsrFragmentContext(request, env) {
       }
       const key = `${distributedSsrFragmentKey(remote, expose)}::${propsJson}`;
       if (!cache.has(key)) {
-        cache.set(
-          key,
-          fetchDistributedSsrFragment(
-            configured.binding,
-            configured.fragment,
-            propsJson,
-            request,
-            env,
-          ).then(result => {
-            if (result.status === 'ready') {
-              for (const href of result.stylesheetHrefs) {
-                stylesheetHrefs.add(href);
-              }
+        const resolution = fetchDistributedSsrFragment(
+          configured.binding,
+          configured.fragment,
+          propsJson,
+          request,
+          env,
+        ).then(result => {
+          if (result.status === 'ready') {
+            for (const href of result.stylesheetHrefs) {
+              stylesheetHrefsByFragment[configuredIndex].add(href);
             }
-            const { stylesheetHrefs: _stylesheetHrefs, ...publicResult } =
-              result;
-            cache.set(key, publicResult);
-            return publicResult;
-          }),
+          }
+          const { stylesheetHrefs: _stylesheetHrefs, ...publicResult } = result;
+          cache.set(key, publicResult);
+          return publicResult;
+        });
+
+        pendingResolutions.add(resolution);
+        resolution.then(
+          () => pendingResolutions.delete(resolution),
+          () => pendingResolutions.delete(resolution),
         );
+        cache.set(key, resolution);
       }
 
       return cache.get(key);
@@ -516,6 +594,25 @@ function readDistributedSsrFragmentRequest(request) {
   }
 }
 
+function withCloudflareStylesheetLinksSentinel(htmlTemplate) {
+  if (htmlTemplate.includes(CLOUDFLARE_STYLESHEET_LINKS_SENTINEL)) {
+    return htmlTemplate;
+  }
+
+  const closingHeads = [...htmlTemplate.matchAll(/<\/head\s*>/giu)];
+  const closingHead = closingHeads.at(-1);
+  if (closingHead?.index === undefined) {
+    return htmlTemplate;
+  }
+
+  return `${htmlTemplate.slice(
+    0,
+    closingHead.index,
+  )}${CLOUDFLARE_STYLESHEET_LINKS_SENTINEL}${htmlTemplate.slice(
+    closingHead.index,
+  )}`;
+}
+
 function createRequestHandlerOptions({
   route,
   htmlTemplate,
@@ -531,7 +628,7 @@ function createRequestHandlerOptions({
       route,
       routeManifest,
       loadableStats,
-      htmlTemplate,
+      htmlTemplate: withCloudflareStylesheetLinksSentinel(htmlTemplate),
       entryName: route.entryName,
     },
     params: {},
@@ -885,12 +982,90 @@ async function withRouteCssLinks(
   routeManifest,
   request,
   env,
-  distributedSsrFragmentCssHrefs = [],
+  distributedSsrFragmentCssHrefs,
 ) {
   const contentType = response.headers.get('content-type') || '';
 
   if (!contentType.includes('text/html')) {
     return response;
+  }
+
+  const resolvedDistributedSsrFragmentCssHrefs = await Promise.resolve(
+    distributedSsrFragmentCssHrefs ?? [],
+  );
+  if (
+    response.body !== null &&
+    resolvedDistributedSsrFragmentCssHrefs.length > 0 &&
+    readDistributedSsrFragmentRequest(request) === undefined
+  ) {
+    const headers = new Headers(response.headers);
+    const cssEntries = [
+      ...collectRouteCssAssets(route, routeManifest).map(asset => {
+        const href = toRouteCssHtmlHref(asset);
+
+        return {
+          href,
+          preloadHref: new URL(href, request.url).toString(),
+          reactResource: false,
+        };
+      }),
+      ...resolvedDistributedSsrFragmentCssHrefs.map(href => ({
+        href,
+        preloadHref: new URL(href, request.url).toString(),
+        reactResource: true,
+      })),
+    ];
+    const seenCssHrefs = new Set();
+    const uniqueCssEntries = cssEntries.filter(entry => {
+      if (seenCssHrefs.has(entry.preloadHref)) {
+        return false;
+      }
+
+      seenCssHrefs.add(entry.preloadHref);
+      return true;
+    });
+    const requestOrigin = new URL(request.url).origin;
+    for (const { preloadHref } of uniqueCssEntries) {
+      const preloadUrl = new URL(preloadHref);
+      const preloadReference =
+        preloadUrl.origin === requestOrigin
+          ? `${preloadUrl.pathname}${preloadUrl.search}`
+          : preloadUrl.toString();
+
+      headers.append('link', `<${preloadReference}>; rel=preload; as=style`);
+    }
+    headers.delete('content-length');
+
+    if (typeof HTMLRewriter === 'function') {
+      const links = createStylesheetLinksHtml(uniqueCssEntries);
+      const htmlResponse = new Response(response.body, {
+        headers,
+        status: response.status,
+        statusText: response.statusText,
+      });
+
+      return new HTMLRewriter()
+        .on('[data-modern-cloudflare-stylesheet-links]', {
+          element(element) {
+            element.remove();
+          },
+        })
+        .on('head', {
+          element(element) {
+            element.append(links, { html: true });
+          },
+        })
+        .transform(htmlResponse);
+    }
+
+    return new Response(
+      createStylesheetLinkStream(response.body, uniqueCssEntries),
+      {
+        headers,
+        status: response.status,
+        statusText: response.statusText,
+      },
+    );
   }
 
   const html = dedupeStylesheetLinks(await response.text());
@@ -924,8 +1099,8 @@ async function withRouteCssLinks(
         reactResource: false,
       };
     }),
-    ...(distributedSsrFragmentCssHrefs.length > 0
-      ? distributedSsrFragmentCssHrefs
+    ...(resolvedDistributedSsrFragmentCssHrefs.length > 0
+      ? resolvedDistributedSsrFragmentCssHrefs
       : await collectRenderedRemoteCssHrefs(html, request, env)
     ).map(href => ({
       href,

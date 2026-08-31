@@ -4,6 +4,10 @@
     "declaration": false,
     "jsx": "preserve",
     "isolatedModules": true,
+    "paths": {
+      "@modern-js/render/rsc": ["./src/rsc.ts"],
+      "@modern-js/render/rsc-worker": ["./src/rsc.worker.ts"]
+    },
     "rootDir": "./src",
     "types": ["node"]
   },

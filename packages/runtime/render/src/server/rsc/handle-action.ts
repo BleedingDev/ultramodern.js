@@ -14,13 +14,64 @@ export type RscActionRuntime = {
   renderRsc: (options: { element: ReactElement }) => ReadableStream<Uint8Array>;
 };
 
+const MAX_ACTION_BODY_BYTES = 1024 * 1024;
+
+const readBoundedBody = async (req: Request): Promise<Uint8Array | null> => {
+  const reader = req.body?.getReader();
+  if (!reader) {
+    return new Uint8Array();
+  }
+
+  const bytes = new Uint8Array(MAX_ACTION_BODY_BYTES);
+  let size = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        return bytes.slice(0, size);
+      }
+      if (value.byteLength > MAX_ACTION_BODY_BYTES - size) {
+        void reader.cancel().catch(() => {});
+        return null;
+      }
+      bytes.set(value, size);
+      size += value.byteLength;
+    }
+  } finally {
+    reader.releaseLock();
+  }
+};
+
 export const createHandleAction =
   ({ decodeReply, loadServerAction, renderRsc }: RscActionRuntime) =>
   async (req: Request): Promise<Response> => {
+    if (req.method !== 'POST') {
+      return new Response('Method not allowed', {
+        status: 405,
+        headers: { Allow: 'POST' },
+      });
+    }
+
     try {
       const serverReference = req.headers.get('x-rsc-action');
       if (!serverReference) {
         return new Response('Cannot find server reference', { status: 404 });
+      }
+
+      const declaredLength = req.headers.get('content-length');
+      if (declaredLength !== null) {
+        const parsedLength = Number(declaredLength);
+        if (
+          !/^\d+$/.test(declaredLength) ||
+          !Number.isSafeInteger(parsedLength)
+        ) {
+          return new Response('Invalid server action request', { status: 400 });
+        }
+        if (parsedLength > MAX_ACTION_BODY_BYTES) {
+          return new Response('Server action payload too large', {
+            status: 413,
+          });
+        }
       }
 
       const action = loadServerAction(serverReference);
@@ -36,11 +87,19 @@ export const createHandleAction =
 
       let args;
       try {
+        const body = await readBoundedBody(req);
+        if (body === null) {
+          return new Response('Server action payload too large', {
+            status: 413,
+          });
+        }
         if (contentType?.includes('multipart/form-data')) {
-          const formData = await req.formData();
+          const formData = await new Response(body, {
+            headers: { 'Content-Type': contentType },
+          }).formData();
           args = await decodeReply(formData);
         } else {
-          const text = await req.text();
+          const text = new TextDecoder('utf-8', { fatal: true }).decode(body);
           args = await decodeReply(text);
         }
       } catch (error) {

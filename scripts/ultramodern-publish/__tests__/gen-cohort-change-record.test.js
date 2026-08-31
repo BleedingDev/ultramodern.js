@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const test = require('node:test');
 const { pathToFileURL } = require('node:url');
+const repoRoot = path.resolve(__dirname, '../../..');
 
 // The generator is ESM; every sibling test in this directory is CommonJS
 // because `pnpm test:scripts` globs `__tests__/*.test.js`.
@@ -11,6 +12,221 @@ const loadGenerator = () =>
     pathToFileURL(path.join(__dirname, '..', 'gen-cohort-change-record.mjs'))
       .href
   );
+
+test('CLI refuses caller-supplied release identity without a verified manifest', () => {
+  const { spawnSync } = require('node:child_process');
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cohort-record-cli-'));
+  const out = path.join(root, 'change-record.md');
+
+  try {
+    const result = spawnSync(
+      process.execPath,
+      [
+        path.join(__dirname, '..', 'gen-cohort-change-record.mjs'),
+        '--out',
+        out,
+      ],
+      {
+        cwd: repoRoot,
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          GITHUB_REPOSITORY: 'BleedingDev/ultramodern.js',
+          GITHUB_SHA: 'e'.repeat(40),
+        },
+      },
+    );
+
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /--manifest is required/u);
+    assert.equal(fs.existsSync(out), false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('CLI derives the record and GitHub outputs from verified release artifacts', async () => {
+  const { execFileSync, spawnSync } = require('node:child_process');
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const [
+    { createReleaseArtifacts },
+    { createTemplateRequiredFiles },
+    generator,
+  ] = await Promise.all([
+    import('../lib/prepare-bleedingdev-packages/release-artifacts.mjs'),
+    import('../lib/prepare-bleedingdev-packages/constants.mjs'),
+    loadGenerator(),
+  ]);
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cohort-record-release-'));
+  const sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+  }).trim();
+  const latestReleaseTag = execFileSync(
+    'git',
+    [
+      'tag',
+      '--list',
+      `${generator.RELEASE_TAG_PREFIX}*`,
+      '--sort=-creatordate',
+    ],
+    { cwd: repoRoot, encoding: 'utf8' },
+  )
+    .trim()
+    .split('\n')[0];
+  assert.ok(latestReleaseTag?.startsWith(generator.RELEASE_TAG_PREFIX));
+  const version = latestReleaseTag.slice(generator.RELEASE_TAG_PREFIX.length);
+  const queuedEntries = await generator.collectChangesetEntries(repoRoot, {
+    targetCommit: sourceCommit,
+    targetVersion: version,
+  });
+  const changedSourceName = queuedEntries
+    .flatMap(entry => entry.packages)
+    .map(pkg => pkg.name)
+    .find(
+      name =>
+        /^@modern-js\/[a-z0-9-]+$/u.test(name) && name !== '@modern-js/create',
+    );
+  assert.ok(changedSourceName, 'fixture needs one queued Modern.js package');
+  const aliases = {
+    '@modern-js/ultramodern-create':
+      '@bleedingdev/modern-js-ultramodern-create',
+    '@modern-js/i18n-utils': '@bleedingdev/modern-js-i18n-utils',
+  };
+  aliases[changedSourceName] = changedSourceName.replace(
+    '@modern-js/',
+    '@bleedingdev/modern-js-',
+  );
+  const definitions = [
+    {
+      dependencies: {
+        '@modern-js/i18n-utils': `npm:${aliases['@modern-js/i18n-utils']}@${version}`,
+      },
+      exports: {
+        '.': './index.js',
+        './ultramodern-workspace': './index.js',
+        './ultramodern-workspace/codesmith': './index.js',
+      },
+      sourceName: '@modern-js/ultramodern-create',
+      targetName: aliases['@modern-js/ultramodern-create'],
+      ultramodern: { frameworkVersion: version },
+    },
+    {
+      dependencies: {},
+      exports: { '.': './index.js' },
+      sourceName: '@modern-js/i18n-utils',
+      targetName: aliases['@modern-js/i18n-utils'],
+    },
+  ];
+  if (
+    !['@modern-js/ultramodern-create', '@modern-js/i18n-utils'].includes(
+      changedSourceName,
+    )
+  ) {
+    definitions.push({
+      dependencies: {},
+      exports: { '.': './index.js' },
+      sourceName: changedSourceName,
+      targetName: aliases[changedSourceName],
+    });
+  }
+
+  try {
+    const packages = definitions.map(definition => {
+      const packageDir = path.join(
+        root,
+        'staged',
+        definition.targetName.replaceAll('/', '__'),
+      );
+      fs.mkdirSync(packageDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(packageDir, 'package.json'),
+        `${JSON.stringify({
+          dependencies: definition.dependencies,
+          exports: definition.exports,
+          name: definition.targetName,
+          publishConfig: {
+            access: 'public',
+            exports: definition.exports,
+          },
+          ultramodern: definition.ultramodern,
+          version,
+        })}\n`,
+      );
+      fs.writeFileSync(path.join(packageDir, 'index.js'), 'export {};\n');
+      if (definition.sourceName === '@modern-js/ultramodern-create') {
+        for (const relativePath of createTemplateRequiredFiles) {
+          const filePath = path.join(packageDir, relativePath);
+          fs.mkdirSync(path.dirname(filePath), { recursive: true });
+          fs.writeFileSync(filePath, 'fixture\n');
+        }
+      }
+      return {
+        packageDir: path.relative(repoRoot, packageDir),
+        sourceName: definition.sourceName,
+        targetName: definition.targetName,
+        version,
+      };
+    });
+    const releaseDir = path.join(root, 'release');
+    createReleaseArtifacts({
+      aliases,
+      outDir: releaseDir,
+      packages,
+      source: {
+        commit: sourceCommit,
+        repository: 'BleedingDev/ultramodern.js',
+      },
+      tag: 'latest',
+      tools: { node: process.version, npm: 'fixture', pnpm: 'fixture' },
+      version,
+    });
+    const out = path.join(root, 'change-record.md');
+    const githubOutput = path.join(root, 'github-output');
+    const result = spawnSync(
+      process.execPath,
+      [
+        path.join(__dirname, '..', 'gen-cohort-change-record.mjs'),
+        '--manifest',
+        path.join(releaseDir, 'manifest.json'),
+        '--out',
+        out,
+        '--github-output',
+        githubOutput,
+      ],
+      {
+        cwd: repoRoot,
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          GITHUB_REPOSITORY: 'Mallory/wrong-repository',
+          GITHUB_SHA: 'e'.repeat(40),
+        },
+      },
+    );
+
+    assert.equal(result.status, 0, result.stderr);
+    const body = fs.readFileSync(out, 'utf8');
+    assert.match(body, new RegExp(`— ${version.replaceAll('.', '\\.')}`));
+    assert.ok(
+      body.includes(
+        `- Source commit: \`${sourceCommit}\` (BleedingDev/ultramodern.js)`,
+      ),
+    );
+    assert.doesNotMatch(body, /Mallory|eeeeeeee/u);
+    assert.deepEqual(fs.readFileSync(githubOutput, 'utf8').split('\n'), [
+      `source_commit=${sourceCommit}`,
+      'source_repository=BleedingDev/ultramodern.js',
+      `version=${version}`,
+      '',
+    ]);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
 
 test('splits fork changes from inherited upstream changes', async () => {
   const { renderCohortChangeRecord } = await loadGenerator();

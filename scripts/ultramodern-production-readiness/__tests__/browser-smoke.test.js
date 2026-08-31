@@ -157,12 +157,40 @@ test('release acceptance requires the browser shell to run in workerd', async ()
   );
 });
 
+test('browser smoke launches the Playwright-managed Chromium without system executable or sandbox bypasses', async t => {
+  const { launchBrowser } = await import('../browser-smoke/bootstrap.mjs');
+  const root = tempRoot();
+  const systemBrowser = path.join(root, 'system-chromium');
+  fs.writeFileSync(systemBrowser, 'not a browser');
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const previousExecutable = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
+  process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH = systemBrowser;
+  t.after(() => {
+    if (previousExecutable === undefined) {
+      delete process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
+    } else {
+      process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH = previousExecutable;
+    }
+  });
+  let launchOptions;
+  const expectedBrowser = {};
+  const browser = await launchBrowser({
+    chromium: {
+      async launch(options) {
+        launchOptions = options;
+        return expectedBrowser;
+      },
+    },
+  });
+
+  assert.equal(browser, expectedBrowser);
+  assert.deepEqual(launchOptions, { headless: true });
+});
+
 test('release acceptance requires localized router navigation evidence from every vertical', async () => {
   const { assertBrowserRuntimeAcceptance } = await loadAcceptanceAssertions();
   const requiredBrowserAssertions = [
-    { status: 'pass', type: 'browser-screenshot' },
     { status: 'pass', type: 'mf-manifest' },
-    { status: 'pass', type: 'no-js-screenshot' },
     { status: 'pass', type: 'stylesheet-evidence' },
   ];
   const report = {
@@ -3137,10 +3165,6 @@ function createFakeBrowser({
     async route(_matcher, handler) {
       routeHandler = handler;
     },
-    async screenshot({ path: screenshotPath }) {
-      fs.mkdirSync(path.dirname(screenshotPath), { recursive: true });
-      fs.writeFileSync(screenshotPath, 'non-empty-screenshot');
-    },
     async waitForLoadState() {
       hydrationSettled = true;
     },
@@ -3244,6 +3268,69 @@ test('classifies hashed chunks from an observed remote runtime origin', async ()
     ),
     'exposed-chunk',
   );
+});
+
+test('selective hydration clicks an explicit non-navigation control without browser event interception', async () => {
+  const { triggerRemoteBoundaryHydration } = await import(
+    '../browser-smoke/browser-validate.mjs'
+  );
+  const clickCalls = [];
+  const controlElement = {
+    closest(selector) {
+      assert.equal(selector, '[data-modern-distributed-ssr-boundary]');
+      return {
+        getAttribute(name) {
+          assert.equal(name, 'data-modern-distributed-ssr-boundary');
+          return 'inventory::./Widget';
+        },
+      };
+    },
+    getAttribute(name) {
+      assert.equal(name, 'type');
+      return 'button';
+    },
+    tagName: 'BUTTON',
+  };
+  const control = {
+    async click(...args) {
+      clickCalls.push(args);
+    },
+    async count() {
+      return 1;
+    },
+    async evaluate(callback, selector) {
+      return callback(controlElement, selector);
+    },
+    first() {
+      return this;
+    },
+  };
+  const page = {
+    async evaluate() {
+      assert.fail('selective hydration must not inject browser event handlers');
+    },
+    locator(selector) {
+      assert.equal(selector, '[data-modern-distributed-ssr-boundary]');
+      return {
+        locator(controlSelector) {
+          assert.equal(
+            controlSelector,
+            'button[type="button"]:not([disabled]), input[type="button"]:not([disabled]), input[type="checkbox"]:not([disabled]), input[type="radio"]:not([disabled])',
+          );
+          return control;
+        },
+      };
+    },
+  };
+
+  const result = await triggerRemoteBoundaryHydration(page, 'node');
+
+  assert.deepEqual(result, {
+    boundary: 'inventory::./Widget',
+    target: 'button',
+    type: 'button',
+  });
+  assert.deepEqual(clickCalls, [[]]);
 });
 
 test('prefers generated app ids for shell composition boundaries', async () => {
@@ -3931,6 +4018,18 @@ test('checks SSR output with JavaScript disabled', async () => {
     assert.equal(
       assertions.some(item => item.type === 'no-js-stylesheet-href-dedupe'),
       true,
+    );
+    assert.equal(
+      assertions.some(item => item.type.includes('screenshot')),
+      false,
+    );
+    assert.equal(
+      fs.existsSync(path.join(root, 'shell-super-app/screenshot.png')),
+      false,
+    );
+    assert.equal(
+      fs.existsSync(path.join(root, 'shell-super-app/no-js-ssr.png')),
+      false,
     );
     assert.equal(
       fs.existsSync(

@@ -475,7 +475,7 @@ function verifyPublishOutcomeAtSourceCommit(
   }
   if (
     outcome.schema !== 'bleedingdev.ultramodern.publish-outcome' ||
-    ![4, 5].includes(outcome.schemaVersion)
+    ![4, 5, 6].includes(outcome.schemaVersion)
   ) {
     throw new Error('Publish outcome schema is not recoverable');
   }
@@ -491,7 +491,7 @@ function verifyPublishOutcomeAtSourceCommit(
   );
   if (
     (outcome.schemaVersion === 4 && !hasPublishedOperationalEvidence) ||
-    (outcome.schemaVersion === 5 && hasPublishedOperationalEvidence)
+    ([5, 6].includes(outcome.schemaVersion) && hasPublishedOperationalEvidence)
   ) {
     throw new Error(
       'Publish outcome archive does not match its schema operational evidence profile',

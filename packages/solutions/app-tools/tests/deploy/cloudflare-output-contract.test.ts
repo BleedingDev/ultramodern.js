@@ -106,7 +106,7 @@ const createCloudflareDeployOutput = async () => {
         },
       },
     } as any,
-    api: {} as any,
+    api: { isPluginExists: () => false } as any,
   });
 
   await preset.prepare?.();

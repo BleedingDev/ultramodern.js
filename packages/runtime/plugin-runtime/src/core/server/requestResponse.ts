@@ -17,16 +17,30 @@ export type RedirectContext = {
 };
 
 const isRedirectStatus = (status: number): boolean =>
-  status >= 300 && status <= 399;
+  status === 301 ||
+  status === 302 ||
+  status === 303 ||
+  status === 307 ||
+  status === 308;
 
 const isNullBodyStatus = (status: number): boolean =>
   status === 204 || status === 205 || status === 304;
+
+const getRedirectLocation = (headers: Headers): string | undefined => {
+  const location = headers.get('Location');
+  return location && URL.canParse(location, 'http://localhost')
+    ? location
+    : undefined;
+};
 
 const processRedirect = (
   headers: Headers,
   status: number,
   ctx: RedirectContext,
 ): Response => {
+  headers.delete('content-length');
+  headers.delete('transfer-encoding');
+
   if (ctx.enableRsc && ctx.isRSCNavigation) {
     return handleRSCRedirect(headers, ctx.basename, status);
   }
@@ -75,7 +89,10 @@ export const createLoaderRedirectResponse = (
     return beforeRenderResult;
   }
 
-  const redirectUrl = beforeRenderResult.headers.get('Location') || '/';
+  const redirectUrl = getRedirectLocation(beforeRenderResult.headers);
+  if (!redirectUrl) {
+    return;
+  }
   return processRedirect(
     new Headers({ Location: redirectUrl }),
     beforeRenderResult.status,
@@ -83,40 +100,48 @@ export const createLoaderRedirectResponse = (
   );
 };
 
-export const finalizeRenderResponse = (
+export const finalizeRenderResponse = async (
   response: Response,
   responseProxy: ResponseProxy,
   redirectCtx: RedirectContext,
   routerCleanup: RouterCleanup,
-): Response => {
+): Promise<Response> => {
+  const proxyHeaders = new Headers(responseProxy.headers);
   if (
     responseProxy.status !== -1 &&
     isRedirectStatus(responseProxy.status) &&
-    responseProxy.headers.Location !== undefined &&
-    responseProxy.headers.Location !== ''
+    getRedirectLocation(proxyHeaders) !== undefined
   ) {
-    return processRedirect(
-      new Headers(responseProxy.headers),
-      responseProxy.status,
-      redirectCtx,
+    await routerCleanup.discardBody(response);
+    return processRedirect(proxyHeaders, responseProxy.status, redirectCtx);
+  }
+
+  const headers = new Headers(response.headers);
+  Object.entries(responseProxy.headers).forEach(([key, value]) => {
+    headers.set(key, value);
+  });
+
+  if (responseProxy.status !== -1) {
+    if (isNullBodyStatus(responseProxy.status)) {
+      await routerCleanup.discardBody(response);
+      headers.delete('content-length');
+      headers.delete('transfer-encoding');
+      return new Response(null, {
+        status: responseProxy.status,
+        headers,
+      });
+    }
+
+    return routerCleanup.deferUntilBodyDone(
+      new Response(response.body, {
+        status: responseProxy.status,
+        headers,
+      }),
     );
   }
 
   Object.entries(responseProxy.headers).forEach(([key, value]) => {
     response.headers.set(key, value);
   });
-
-  if (responseProxy.status !== -1) {
-    return routerCleanup.deferUntilBodyDone(
-      new Response(
-        isNullBodyStatus(responseProxy.status) ? null : response.body,
-        {
-          status: responseProxy.status,
-          headers: response.headers,
-        },
-      ),
-    );
-  }
-
   return routerCleanup.deferUntilBodyDone(response);
 };

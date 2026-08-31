@@ -39,6 +39,42 @@ const createMissingEffectBffWorkerError = (
     )}. ${EFFECT_BFF_CLOUDFLARE_IMPORT_GUIDANCE}`,
   );
 
+const createEffectBffWorkerManifest = (
+  modernConfig: CloudflareModernConfig,
+) => {
+  const bff = modernConfig.bff;
+  const configuredPolicy = bff?.crossProjectPolicy;
+  if (configuredPolicy?.verifyProducerIdentity !== undefined) {
+    throw new Error(
+      'Cloudflare Effect BFF cannot serialize bff.crossProjectPolicy.verifyProducerIdentity into the worker manifest. Configure a worker-native identity binding before enabling this policy at the edge.',
+    );
+  }
+  const crossProjectPolicy = {
+    ...configuredPolicy,
+    enabled: configuredPolicy?.enabled ?? Boolean(bff?.isCrossProjectServer),
+    requireEnvelope: configuredPolicy?.requireEnvelope ?? true,
+    requireOperationContext: configuredPolicy?.requireOperationContext ?? true,
+    requireOperationContextDetails:
+      configuredPolicy?.requireOperationContextDetails ?? true,
+    requireOperationSchemaHash:
+      configuredPolicy?.requireOperationSchemaHash ?? true,
+    requireOperationVersion: configuredPolicy?.requireOperationVersion ?? true,
+    allowUnknownOperations: configuredPolicy?.allowUnknownOperations ?? false,
+    expectedOperationContracts: {
+      ...(configuredPolicy?.expectedOperationContracts ?? {}),
+    },
+  };
+
+  const openapi = bff?.effect?.openapi;
+  const dataPlatform = bff?.effect?.dataPlatform;
+
+  return {
+    ...(openapi === undefined ? {} : { openapi }),
+    ...(dataPlatform === undefined ? {} : { dataPlatform }),
+    crossProjectPolicy,
+  };
+};
+
 const createModuleFederationWorkerManifest = async (
   outputDirectory: string,
 ) => {
@@ -128,6 +164,9 @@ export const createWorkerManifest = async (
       BFF_EFFECT_WORKER_ENTRY,
     );
   }
+  const effectBffManifest = isEffectApi
+    ? createEffectBffWorkerManifest(modernConfig)
+    : undefined;
 
   return {
     version: 1,
@@ -167,6 +206,7 @@ export const createWorkerManifest = async (
             runtimeFramework: 'effect',
             prefix: primaryBffPrefix,
             worker: BFF_EFFECT_WORKER_ENTRY,
+            effect: effectBffManifest,
           }
         : undefined,
     ...(serviceBindings === undefined ? {} : { serviceBindings }),

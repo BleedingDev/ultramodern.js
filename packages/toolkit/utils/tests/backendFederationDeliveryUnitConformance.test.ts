@@ -9,8 +9,8 @@ import {
   createStampedDeliveryUnit,
   readBuildIdentity,
 } from '../../../solutions/app-tools/src/plugins/backend-federation/config';
-import { createUltramodernBuildArtifactJson } from '../../create/src/ultramodern-workspace/module-federation';
-import type { WorkspaceApp } from '../../create/src/ultramodern-workspace/types';
+import { createUltramodernBuildArtifactJson } from '../../ultramodern-create/src/ultramodern-workspace/module-federation';
+import type { WorkspaceApp } from '../../ultramodern-create/src/ultramodern-workspace/types';
 import {
   BACKEND_FEDERATION_EFFECT_EXPOSE,
   type DeliveryUnitRecord,

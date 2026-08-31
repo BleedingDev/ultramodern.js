@@ -26,6 +26,7 @@ const resolveActiveDeployTarget = (
 export default (): CliPlugin<AppTools> => ({
   name: '@modern-js/ultramodern-release-envelope',
   pre: ['@modern-js/backend-federation-build', '@modern-js/plugin-bff'],
+  post: ['@modern-js/plugin-deploy'],
   setup(api) {
     const emitBuildEnvelope = async (target: 'node' | 'cloudflare') => {
       const { apiOnly, distDirectory } = api.getAppContext();

@@ -14,7 +14,7 @@ import {
 
 const acceptanceReceiptSchema =
   'bleedingdev.ultramodern.release-acceptance-receipt';
-const acceptanceReceiptSchemaVersion = 3;
+const acceptanceReceiptSchemaVersion = 4;
 const acceptanceProfileVersion = 3;
 const finalResultStatuses = new Set(['pass', 'fail', 'not-run']);
 const digestPattern = /^[a-f0-9]{64}$/u;
@@ -774,22 +774,18 @@ function verifyAcceptanceReceiptOperationalEvidence(receipt, receiptPath) {
     isPlainObject(details),
     'Operational-independence acceptance receipt details are missing',
   );
-  const evidenceFile = readRegularJson(
-    operationalIndependenceEvidencePath(receiptPath),
-    'Operational-independence evidence',
-  );
-  const evidenceFileSha256 = crypto
-    .createHash('sha256')
-    .update(fs.readFileSync(evidenceFile.path))
-    .digest('hex');
   assertCondition(
-    evidenceFileSha256 === details.evidenceFileSha256,
-    'Operational-independence evidence file SHA-256 does not match the acceptance receipt',
+    path.resolve(details.evidencePath) ===
+      operationalIndependenceEvidencePath(receiptPath),
+    'Operational-independence evidence path is not the receipt-owned raw evidence path',
+  );
+  const evidenceFile = readRegularJson(
+    details.evidencePath,
+    'Operational-independence evidence',
   );
   return assertOperationalIndependenceEvidenceMatchesReceipt({
     details,
     evidence: evidenceFile.value,
-    evidenceFileSha256,
   });
 }
 

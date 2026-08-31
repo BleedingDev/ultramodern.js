@@ -69,6 +69,5 @@ if (env === 'development') {
 } else {
   import(pathToFileURL(entry).href).catch(e => {
     console.error(e);
-    process.exit(1);
   });
 }

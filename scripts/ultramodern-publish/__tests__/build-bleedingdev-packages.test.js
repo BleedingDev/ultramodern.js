@@ -14,7 +14,10 @@ test('release builds bypass local and remote Nx caches', async () => {
   );
 
   assert.deepEqual(
-    createReleaseBuildArgs(['@modern-js/runtime', '@modern-js/create']),
+    createReleaseBuildArgs([
+      '@modern-js/runtime',
+      '@modern-js/ultramodern-create',
+    ]),
     [
       'exec',
       'nx',
@@ -22,7 +25,7 @@ test('release builds bypass local and remote Nx caches', async () => {
       '-t',
       'build',
       '-p',
-      '@modern-js/runtime,@modern-js/create',
+      '@modern-js/runtime,@modern-js/ultramodern-create',
       '--maxParallel=8',
       '--skipNxCache',
       '--skipRemoteCache',

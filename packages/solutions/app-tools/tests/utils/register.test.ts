@@ -30,15 +30,12 @@ rstest.mock('@modern-js/utils', () => ({
 }));
 
 describe('setupTsRuntime', () => {
-  it('should follow node major fallback when native capability is undefined', async () => {
+  it('should reject a missing native TypeScript capability', async () => {
     const { resolveTsRuntimeRegisterMode } = await import(
       '../../src/utils/register'
     );
     setNativeTypeScriptSupport(undefined);
-    const expected =
-      Number(process.versions.node.split('.')[0]) >= 22
-        ? 'node-loader'
-        : 'unsupported';
+    const expected = 'unsupported';
     expect(resolveTsRuntimeRegisterMode()).toBe(expected);
   });
 
@@ -58,8 +55,8 @@ describe('setupTsRuntime', () => {
     expect(resolveTsRuntimeRegisterMode()).toBe('node-loader');
   });
 
-  it('should not fallback to node version when native capability is false', async () => {
-    setNativeTypeScriptSupport(false);
+  it('should reject unknown native TypeScript capabilities', async () => {
+    setNativeTypeScriptSupport('bogus');
     const { resolveTsRuntimeRegisterMode } = await import(
       '../../src/utils/register'
     );
@@ -97,12 +94,15 @@ describe('setupTsRuntime', () => {
     });
   });
 
-  it('should skip runtime setup when native capability is disabled', async () => {
+  it('should fail clearly when native TypeScript is disabled', async () => {
     setNativeTypeScriptSupport(false);
+    mockPathExists.mockResolvedValue(false);
     const { setupTsRuntime } = await import('../../src/utils/register');
 
-    await expect(setupTsRuntime('/project', '/project/dist', [])).resolves.toBe(
-      undefined,
+    await expect(
+      setupTsRuntime('/project', '/project/dist', []),
+    ).rejects.toThrow(
+      /requires Node\.js >=26\.7\.0 with native TypeScript support/,
     );
 
     expect(mockRegisterPathsLoader).not.toBeCalled();

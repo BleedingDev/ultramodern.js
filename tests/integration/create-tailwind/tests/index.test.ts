@@ -5,7 +5,10 @@ import path from 'node:path';
 import { rstest } from '@rstest/core';
 
 const repoRoot = path.resolve(__dirname, '../../../../');
-const createBin = path.resolve(repoRoot, 'packages/toolkit/create/bin/run.js');
+const createBin = path.resolve(
+  repoRoot,
+  'packages/toolkit/ultramodern-create/bin/run.js',
+);
 const expectedEffectVersion = '4.0.0-rc.112';
 const shellAppPath = 'apps/shell-super-app';
 

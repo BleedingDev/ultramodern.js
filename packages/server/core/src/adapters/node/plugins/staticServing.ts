@@ -32,6 +32,8 @@ type StaticServingOptions = {
   pathPrefix: string;
 };
 
+const MODULE_FEDERATION_ASSET_REFRESH_INTERVAL_MS = 1_000;
+
 const getStaticMimeType = (filename: string) =>
   getMimeType(filename) ??
   (path.extname(filename).toLowerCase() === '.cjs'
@@ -46,6 +48,10 @@ export const servePreCompressedPublicRouteAsset = async (
   const { entryPath } = route;
   const originFilename = path.join(pwd, entryPath);
   const preCompressedAsset = await resolvePreCompressedAsset(c, originFilename);
+  if (!preCompressedAsset.acceptable) {
+    applyPreCompressedAssetHeaders(c, preCompressedAsset);
+    return c.body(null, 406);
+  }
   const filename = preCompressedAsset.selected?.filepath ?? originFilename;
   const data = await fileReader.readFile(filename, 'buffer');
   const mimeType = getStaticMimeType(originFilename);
@@ -147,6 +153,10 @@ export const servePublicDirectoryAsset = async (
   }
 
   const preCompressedAsset = await resolvePreCompressedAsset(c, originFilename);
+  if (!preCompressedAsset.acceptable) {
+    applyPreCompressedAssetHeaders(c, preCompressedAsset);
+    return c.body(null, 406);
+  }
   const selectedFilename =
     preCompressedAsset.selected?.filepath ?? originFilename;
   const publicDirectory = await fs.realpath(path.join(pwd, 'public'));
@@ -190,15 +200,33 @@ export const createModuleFederationStaticServing = ({
   pwd,
   pathPrefix,
 }: StaticServingOptions) => {
-  let moduleFederationAssetsPromise: Promise<ModuleFederationServeAssets> | null =
+  let moduleFederationAssets: ModuleFederationServeAssets | null = null;
+  let moduleFederationAssetsExpiresAt = 0;
+  let moduleFederationAssetsRefresh: Promise<ModuleFederationServeAssets> | null =
     null;
 
   const getModuleFederationAssets = async () => {
-    if (!moduleFederationAssetsPromise) {
-      moduleFederationAssetsPromise = getModuleFederationAssetList(pwd);
+    if (
+      moduleFederationAssets &&
+      Date.now() < moduleFederationAssetsExpiresAt
+    ) {
+      return moduleFederationAssets;
     }
 
-    return moduleFederationAssetsPromise;
+    if (!moduleFederationAssetsRefresh) {
+      moduleFederationAssetsRefresh = getModuleFederationAssetList(pwd)
+        .then(assets => {
+          moduleFederationAssets = assets;
+          moduleFederationAssetsExpiresAt =
+            Date.now() + MODULE_FEDERATION_ASSET_REFRESH_INTERVAL_MS;
+          return assets;
+        })
+        .finally(() => {
+          moduleFederationAssetsRefresh = null;
+        });
+    }
+
+    return moduleFederationAssetsRefresh;
   };
 
   const resolveRequest = async (
@@ -247,7 +275,12 @@ export const createModuleFederationStaticServing = ({
       : {
           selected: null,
           hasVariant: false,
+          acceptable: true,
         };
+    if (!preCompressedAsset.acceptable) {
+      applyPreCompressedAssetHeaders(c, preCompressedAsset);
+      return c.body(null, 406);
+    }
     const targetFilepath = preCompressedAsset.selected?.filepath ?? filepath;
 
     // serve static middleware always read file from real filesystem.

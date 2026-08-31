@@ -414,9 +414,22 @@ const __modern_create_effect_bff_dispatcher = async () => {
 module.exports = { __modern_create_effect_bff_dispatcher };
 `;
 
+const configurationAwareEffectBffWorkerSource = `
+const __modern_create_effect_bff_dispatcher = async options => ({
+  dispatch: async () => Response.json(options),
+  dispose: async () => {},
+});
+
+module.exports = { __modern_create_effect_bff_dispatcher };
+`;
+
 async function createFixture({
   artifacts,
+  bffCrossProjectPolicy,
+  bffEffect,
+  bffIsCrossProjectServer,
   bffPrefix = '/commerce-api',
+  bffRequestId,
   bffWorkerSource = defaultEffectBffWorkerSource,
   compatibilityDate,
   d1Databases,
@@ -424,6 +437,7 @@ async function createFixture({
   includeBffWorker = true,
   includeRootRoute = false,
   includeServerOnlyDistSources = false,
+  releaseEnvelopeEnabled = false,
   publicAssetExcludes,
   publicAssets,
   serverPlugins,
@@ -436,7 +450,11 @@ async function createFixture({
   buildModuleIdentity,
 }: {
   artifacts?: CloudflareWorkerArtifactConfig[];
+  bffCrossProjectPolicy?: Record<string, unknown>;
+  bffEffect?: Record<string, unknown>;
+  bffIsCrossProjectServer?: boolean;
   bffPrefix?: string;
+  bffRequestId?: string;
   bffWorkerSource?: string;
   compatibilityDate?: string;
   d1Databases?: CloudflareWorkerD1DatabaseConfig[];
@@ -444,6 +462,7 @@ async function createFixture({
   includeBffWorker?: boolean;
   includeRootRoute?: boolean;
   includeServerOnlyDistSources?: boolean;
+  releaseEnvelopeEnabled?: boolean;
   publicAssetExcludes?: string[];
   publicAssets?: CloudflareWorkerPublicAssetConfig[];
   serverPlugins?: Array<{
@@ -848,7 +867,11 @@ export function sqliteTable(name, columns) {
     } as any,
     modernConfig: {
       bff: {
+        crossProjectPolicy: bffCrossProjectPolicy,
+        effect: bffEffect,
+        isCrossProjectServer: bffIsCrossProjectServer,
         prefix: bffPrefix,
+        requestId: bffRequestId,
         runtimeFramework: 'effect',
       },
       deploy: {
@@ -865,7 +888,11 @@ export function sqliteTable(name, columns) {
         },
       },
     } as any,
-    api: {} as any,
+    api: {
+      isPluginExists: (name: string) =>
+        releaseEnvelopeEnabled &&
+        name === '@modern-js/ultramodern-release-envelope',
+    } as any,
   });
 
   await preset.prepare?.();
@@ -959,6 +986,19 @@ describe('cloudflare deploy preset', () => {
   it('fails clearly when Effect BFF is configured but its worker bundle is missing', async () => {
     await expect(createFixture({ includeBffWorker: false })).rejects.toThrow(
       /Cloudflare Effect API runtime is configured, but the BFF worker bundle is missing: .*worker[\\/]__modern_bff_effect\.js.*@modern-js\/plugin-bff\/effect-edge/u,
+    );
+  });
+
+  it('fails closed when an Effect cross-project policy cannot be serialized into the worker manifest', async () => {
+    await expect(
+      createFixture({
+        bffCrossProjectPolicy: {
+          enabled: true,
+          verifyProducerIdentity: () => 'catalog',
+        },
+      }),
+    ).rejects.toThrow(
+      /Cloudflare Effect BFF cannot serialize bff\.crossProjectPolicy\.verifyProducerIdentity/u,
     );
   });
 
@@ -1332,6 +1372,68 @@ describe('cloudflare deploy preset', () => {
     await expect(
       fs.access(path.join(outputDirectory, 'public/public/robots.txt')),
     ).rejects.toThrow();
+  });
+
+  it('applies public asset exclusions to flattened dist/public assets', async () => {
+    const { outputDirectory } = await createFixture({
+      distFiles: {
+        'public/.env': 'SECRET_TOKEN=public-leak',
+        'public/.well-known/security.txt': 'contact: security@example.com',
+        'public/private-assets/data.json': '{"private":true}',
+        'public/release/envelope.json': '{"internal":true}',
+        'public/route.json': '{"routes":[]}',
+        'public/static/.env.local': 'SECRET_TOKEN=static-leak',
+        'public/static/app.js': 'console.log("public")',
+        'public/worker/index.mjs': 'export const secret = true;',
+      },
+      publicAssetExcludes: ['private-assets'],
+    });
+    const publicDirectory = path.join(outputDirectory, 'public');
+
+    await expect(
+      fs.readFile(path.join(publicDirectory, 'static/app.js'), 'utf-8'),
+    ).resolves.toBe('console.log("public")');
+    await expect(
+      fs.readFile(
+        path.join(publicDirectory, '.well-known/security.txt'),
+        'utf-8',
+      ),
+    ).resolves.toBe('contact: security@example.com');
+    await expect(
+      fs.access(path.join(publicDirectory, '.env')),
+    ).rejects.toThrow();
+    await expect(
+      fs.access(path.join(publicDirectory, 'static/.env.local')),
+    ).rejects.toThrow();
+    await expect(
+      fs.access(path.join(publicDirectory, 'private-assets/data.json')),
+    ).rejects.toThrow();
+    await expect(
+      fs.access(path.join(publicDirectory, 'release/envelope.json')),
+    ).rejects.toThrow();
+    await expect(
+      fs.access(path.join(publicDirectory, 'route.json')),
+    ).rejects.toThrow();
+    await expect(
+      fs.access(path.join(publicDirectory, 'worker/index.mjs')),
+    ).rejects.toThrow();
+  });
+
+  it('requires a release envelope only when its plugin is explicitly selected', async () => {
+    const fullStackMarkers = {
+      'backend-mf-manifest.json': '{}',
+      'ultramodern-build.json': '{}',
+    };
+
+    await expect(
+      createFixture({ distFiles: fullStackMarkers }),
+    ).resolves.toHaveProperty('outputDirectory');
+    await expect(
+      createFixture({
+        distFiles: fullStackMarkers,
+        releaseEnvelopeEnabled: true,
+      }),
+    ).rejects.toThrow('required envelope is missing');
   });
 
   it('emits declarative D1 bindings and stages migrations', async () => {
@@ -1801,6 +1903,18 @@ describe('cloudflare deploy preset', () => {
       runtimeFramework: 'effect',
       prefix: '/commerce-api',
       worker: 'worker/__modern_bff_effect.js',
+      effect: {
+        crossProjectPolicy: {
+          allowUnknownOperations: false,
+          enabled: false,
+          expectedOperationContracts: {},
+          requireEnvelope: true,
+          requireOperationContext: true,
+          requireOperationContextDetails: true,
+          requireOperationSchemaHash: true,
+          requireOperationVersion: true,
+        },
+      },
     });
     await expect(
       fs.access(path.join(outputDirectory, 'worker/__modern_bff_effect.js')),
@@ -3281,7 +3395,7 @@ describe('cloudflare deploy preset', () => {
             './Widget',
             {},
           );
-          return new Response('<!doctype html><html><head></head><body>' + fragment.html + '</body></html>', { headers: { 'content-type': 'text/html; charset=utf-8' } });
+          return new Response('<!doctype html><html><head><meta data-modern-cloudflare-stylesheet-links></head><body>' + fragment.html + '</body></html>', { headers: { 'content-type': 'text/html; charset=utf-8' } });
         } };`,
       },
       services: [
@@ -3355,6 +3469,221 @@ describe('cloudflare deploy preset', () => {
         html.split('https://inventory.example.com/static/css/inventory.css'),
       ).toHaveLength(2);
     } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('retains late distributed fragment CSS in route order without draining the HTML stream', async () => {
+    const inventoryFragment =
+      '<section data-modern-boundary-id="verticalInventory" data-modern-mf-expose="./Widget">Inventory SSR</section>';
+    const checkoutFragment =
+      '<section data-modern-boundary-id="verticalCheckout" data-modern-mf-expose="./Cart">Checkout SSR</section>';
+    const [inventoryDigest, checkoutDigest] = await Promise.all(
+      [inventoryFragment, checkoutFragment].map(async html =>
+        [
+          ...new Uint8Array(
+            await crypto.subtle.digest(
+              'SHA-256',
+              new TextEncoder().encode(html),
+            ),
+          ),
+        ]
+          .map(byte => byte.toString(16).padStart(2, '0'))
+          .join(''),
+      ),
+    );
+    const { outputDirectory } = await createFixture({
+      distFiles: {
+        'mf-manifest.json': JSON.stringify({
+          remotes: [
+            {
+              alias: 'inventory',
+              entry: 'https://inventory.example.com/mf-manifest.json',
+              federationContainerName: 'verticalInventory',
+            },
+            {
+              alias: 'checkout',
+              entry: 'https://checkout.example.com/mf-manifest.json',
+              federationContainerName: 'verticalCheckout',
+            },
+          ],
+        }),
+        'html/main/index.html':
+          '<!doctype html><html><head></HeAd><body></body></html>',
+        'worker/main.js': `module.exports = { requestHandler: async (_request, options) => {
+          if (!options.resource.htmlTemplate.includes('<meta data-modern-cloudflare-stylesheet-links>')) {
+            return new Response('missing Cloudflare stylesheet sentinel', { status: 500 });
+          }
+          const inventoryPromise = options.locals.__modernDistributedSsrFragments.resolve('inventory', './Widget', {});
+          const checkoutPromise = options.locals.__modernDistributedSsrFragments.resolve('checkout', './Cart', {});
+          const encoder = new TextEncoder();
+          return new Response(new ReadableStream({
+            async start(controller) {
+              controller.enqueue(encoder.encode('<!doctype html><html><head><title>Distributed</title><link href="/theme.css" rel="stylesheet" media="print"><link href="/theme.css" rel="stylesheet" media="screen"><meta data-modern-cloudflare-style'));
+              const [inventory, checkout] = await Promise.all([inventoryPromise, checkoutPromise]);
+              await fetch('https://stream-gate.invalid/release');
+              controller.enqueue(encoder.encode('sheet-links></head><body>' + inventory.html + checkout.html + '</body></html>'));
+              controller.close();
+            },
+          }), { headers: { 'content-type': 'text/html; charset=utf-8' } });
+        } };`,
+      },
+      services: [
+        {
+          binding: 'VERTICAL_INVENTORY_WORKER',
+          fragments: [
+            {
+              boundaryId: 'verticalInventory',
+              expose: './Widget',
+              path: '/en/_mf/fragment/widget',
+              remote: 'inventory',
+            },
+          ],
+          service: 'tractor-inventory-worker',
+        },
+        {
+          binding: 'VERTICAL_CHECKOUT_WORKER',
+          fragments: [
+            {
+              boundaryId: 'verticalCheckout',
+              expose: './Cart',
+              path: '/en/_mf/fragment/cart',
+              remote: 'checkout',
+            },
+          ],
+          service: 'tractor-checkout-worker',
+        },
+      ],
+    });
+    const entryPath = path.join(outputDirectory, 'server/index.mjs');
+    const worker = (
+      await import(`${pathToFileURL(entryPath).href}?t=${Date.now()}`)
+    ).default;
+    const createFragmentResponse = (
+      html: string,
+      provenance: Record<string, string>,
+      css: string,
+    ) =>
+      new Response(
+        `<!doctype html><html><head></head><body><template data-modern-boundary-id="${provenance.boundaryId}" data-modern-distributed-ssr-marker="start" data-modern-mf-expose="${provenance.expose}"></template>${html}<template data-modern-boundary-id="${provenance.boundaryId}" data-modern-distributed-ssr-marker="end" data-modern-mf-expose="${provenance.expose}"></template></body></html>`,
+        {
+          headers: {
+            'content-type': 'text/html; charset=utf-8',
+            'x-modern-distributed-ssr-css': JSON.stringify([css]),
+            'x-modern-distributed-ssr-provenance': encodeURIComponent(
+              JSON.stringify(provenance),
+            ),
+          },
+        },
+      );
+    let releaseBody!: () => void;
+    let reportBodyBlocked!: () => void;
+    const bodyRelease = new Promise<void>(resolve => {
+      releaseBody = resolve;
+    });
+    const bodyBlocked = new Promise<void>(resolve => {
+      reportBodyBlocked = resolve;
+    });
+    const originalFetch = globalThis.fetch;
+
+    globalThis.fetch = async input => {
+      const url = input instanceof Request ? input.url : String(input);
+
+      if (url === 'https://stream-gate.invalid/release') {
+        reportBodyBlocked();
+        await bodyRelease;
+
+        return new Response('released');
+      }
+
+      return Response.json({});
+    };
+
+    try {
+      let responseSettled = false;
+      const fetchPromise = worker.fetch(
+        new Request('https://tractor.example.com/dashboard'),
+        {
+          ASSETS: createSpaFallbackAssetBinding(
+            path.join(outputDirectory, 'public'),
+          ),
+          VERTICAL_CHECKOUT_WORKER: {
+            fetch: async () =>
+              createFragmentResponse(
+                checkoutFragment,
+                {
+                  boundaryId: 'verticalCheckout',
+                  buildMarker: 'checkout-build',
+                  digest: checkoutDigest,
+                  expose: './Cart',
+                  remote: 'checkout',
+                  sourceRevision: 'checkout-revision',
+                  unitId: 'tractor-store/checkout',
+                },
+                'static/css/checkout.css',
+              ),
+          },
+          VERTICAL_INVENTORY_WORKER: {
+            fetch: async () => {
+              await new Promise(resolve => setTimeout(resolve, 25));
+
+              return createFragmentResponse(
+                inventoryFragment,
+                {
+                  boundaryId: 'verticalInventory',
+                  buildMarker: 'inventory-build',
+                  digest: inventoryDigest,
+                  expose: './Widget',
+                  remote: 'inventory',
+                  sourceRevision: 'inventory-revision',
+                  unitId: 'tractor-store/inventory',
+                },
+                'static/css/inventory.css',
+              );
+            },
+          },
+        },
+      );
+      void fetchPromise.then(() => {
+        responseSettled = true;
+      });
+
+      await bodyBlocked;
+      await new Promise(resolve => setTimeout(resolve, 0));
+      const returnedBeforeBodyRelease = responseSettled;
+
+      releaseBody();
+
+      const response = await fetchPromise;
+      const html = await response.text();
+      const inventoryHref =
+        'https://inventory.example.com/static/css/inventory.css';
+      const checkoutHref =
+        'https://checkout.example.com/static/css/checkout.css';
+      const linkHeader = response.headers.get('link') ?? '';
+
+      expect(html).toContain(inventoryHref);
+      expect(html).toContain(checkoutHref);
+      expect(html.indexOf(inventoryHref)).toBeLessThan(
+        html.indexOf(checkoutHref),
+      );
+      expect(linkHeader).toContain(inventoryHref);
+      expect(linkHeader).toContain(checkoutHref);
+      expect(linkHeader.indexOf(inventoryHref)).toBeLessThan(
+        linkHeader.indexOf(checkoutHref),
+      );
+      expect(html).toContain(
+        '<link href="/theme.css" rel="stylesheet" media="print">',
+      );
+      expect(html).toContain(
+        '<link href="/theme.css" rel="stylesheet" media="screen">',
+      );
+      expect(html).not.toContain(
+        '<meta data-modern-cloudflare-stylesheet-links>',
+      );
+      expect(returnedBeforeBodyRelease).toBe(true);
+    } finally {
+      releaseBody();
       globalThis.fetch = originalFetch;
     }
   });
@@ -3504,6 +3833,126 @@ describe('cloudflare deploy preset', () => {
       routeAssetKeys: ['main'],
       loadableName: 'loadable-fixture',
     });
+  });
+
+  it('carries normalized Effect policy, OpenAPI, and data-platform config from manifest to dispatcher', async () => {
+    const openapi = { path: '/schema/openapi.json' };
+    const dataPlatform = {
+      enabled: true,
+      expectedNamespace: 'catalog',
+      requireEnvelope: true,
+      batch: { enabled: false },
+    };
+    const expectedOperationContracts = {
+      'GET:/products': {
+        operationVersion: 4,
+        schemaHash: 'catalog-products-v4',
+      },
+    };
+    const { outputDirectory } = await createFixture({
+      bffCrossProjectPolicy: { expectedOperationContracts },
+      bffEffect: { dataPlatform, openapi },
+      bffIsCrossProjectServer: true,
+      bffRequestId: 'catalog.producer',
+      bffWorkerSource: configurationAwareEffectBffWorkerSource,
+      bffPrefix: '/api',
+    });
+    const workerManifest = JSON.parse(
+      await fs.readFile(
+        path.join(outputDirectory, 'server/modern-worker-manifest.json'),
+        'utf-8',
+      ),
+    );
+    const normalizedPolicy = {
+      allowUnknownOperations: false,
+      enabled: true,
+      expectedOperationContracts,
+      requireEnvelope: true,
+      requireOperationContext: true,
+      requireOperationContextDetails: true,
+      requireOperationSchemaHash: true,
+      requireOperationVersion: true,
+    };
+
+    expect(workerManifest.bff.effect).toEqual({
+      crossProjectPolicy: normalizedPolicy,
+      dataPlatform,
+      openapi,
+    });
+
+    const entryPath = path.join(outputDirectory, 'server/index.mjs');
+    const worker = (
+      await import(`${pathToFileURL(entryPath).href}?t=${Date.now()}`)
+    ).default;
+    const response = await worker.fetch(
+      new Request('https://example.com/api/products'),
+      {
+        ASSETS: createAssetBinding(path.join(outputDirectory, 'public')),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      crossProjectPolicy: normalizedPolicy,
+      dataPlatform,
+      openapi,
+      prefix: '/api',
+    });
+  });
+
+  it('fails closed before dispatcher creation when normalized Effect policy is malformed', async () => {
+    const { outputDirectory } = await createFixture({
+      bffCrossProjectPolicy: {
+        enabled: 'true',
+        expectedOperationContracts: {},
+      },
+      bffWorkerSource: configurationAwareEffectBffWorkerSource,
+      bffPrefix: '/api',
+    });
+    const entryPath = path.join(outputDirectory, 'server/index.mjs');
+    const worker = (
+      await import(`${pathToFileURL(entryPath).href}?t=${Date.now()}`)
+    ).default;
+
+    const response = await worker.fetch(
+      new Request('https://example.com/api/products'),
+      {
+        ASSETS: createAssetBinding(path.join(outputDirectory, 'public')),
+      },
+    );
+
+    expect(response.status).toBe(500);
+    await expect(response.text()).resolves.toContain(
+      'cross-project policy requires boolean enabled',
+    );
+  });
+
+  it('fails closed when a staged manifest attempts to downgrade the Effect runtime', async () => {
+    const { outputDirectory } = await createFixture({ bffPrefix: '/api' });
+    const entryPath = path.join(outputDirectory, 'server/index.mjs');
+    const entrySource = await fs.readFile(entryPath, 'utf-8');
+    await fs.writeFile(
+      entryPath,
+      entrySource.replace(
+        '"runtimeFramework": "effect"',
+        '"runtimeFramework": "hono"',
+      ),
+    );
+    const worker = (
+      await import(`${pathToFileURL(entryPath).href}?t=${Date.now()}`)
+    ).default;
+
+    const response = await worker.fetch(
+      new Request('https://example.com/api/products'),
+      {
+        ASSETS: createAssetBinding(path.join(outputDirectory, 'public')),
+      },
+    );
+
+    expect(response.status).toBe(500);
+    await expect(response.text()).resolves.toContain(
+      'manifest must declare runtimeFramework "effect"',
+    );
   });
 
   it('disposes invalid Effect dispatchers, retries initialization, and caches recovery', async () => {

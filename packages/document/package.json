@@ -30,6 +30,7 @@
   },
   "dependencies": {
     "@modern-js/sandpack-react": "workspace:*",
+    "@modern-js/ultramodern-sandpack-profile": "workspace:*",
     "mermaid": "^11.16.0"
   },
   "devDependencies": {

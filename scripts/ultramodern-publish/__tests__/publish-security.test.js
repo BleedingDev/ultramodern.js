@@ -71,7 +71,8 @@ async function createRunnerSubprocessFixture(root) {
     repository: 'BleedingDev/ultramodern.js',
   };
   const aliases = {
-    '@modern-js/create': '@bleedingdev/modern-js-create',
+    '@modern-js/ultramodern-create':
+      '@bleedingdev/modern-js-ultramodern-create',
     '@modern-js/i18n-utils': '@bleedingdev/modern-js-i18n-utils',
   };
   const exportsMap = {
@@ -86,8 +87,8 @@ async function createRunnerSubprocessFixture(root) {
         '@module-federation/runtime': '2.8.0',
       },
       exports: exportsMap,
-      sourceName: '@modern-js/create',
-      targetName: aliases['@modern-js/create'],
+      sourceName: '@modern-js/ultramodern-create',
+      targetName: aliases['@modern-js/ultramodern-create'],
       ultramodern: { frameworkVersion: version },
     },
     {
@@ -117,7 +118,7 @@ async function createRunnerSubprocessFixture(root) {
       path.join(packageDir, 'index.js'),
       'module.exports = {};\n',
     );
-    if (definition.sourceName === '@modern-js/create') {
+    if (definition.sourceName === '@modern-js/ultramodern-create') {
       for (const relativePath of constants.createTemplateRequiredFiles) {
         writeFixtureFile(path.join(packageDir, relativePath));
       }
@@ -319,7 +320,7 @@ test('release acceptance defaults to the exact reviewed third-party policy', asy
     fs.readFileSync(
       path.join(
         repoRoot,
-        'packages/toolkit/create/release-age-review-2026-08-26-rsbuild-rspack-2.2.0.json',
+        'packages/toolkit/ultramodern-create/release-age-review-2026-08-26-rsbuild-rspack-2.2.0.json',
       ),
       'utf8',
     ),
@@ -434,7 +435,7 @@ test('release acceptance runner preserves the accepted producer identity on a pu
     cohortDigest: digest('release cohort'),
     packages: [
       {
-        targetName: '@bleedingdev/modern-js-create',
+        targetName: '@bleedingdev/modern-js-ultramodern-create',
         version: '3.4.0-ultramodern.2',
         integrity: 'sha512-create',
         packageJson: {
@@ -445,8 +446,8 @@ test('release acceptance runner preserves the accepted producer identity on a pu
       },
     ],
     createPackage: {
-      sourceName: '@modern-js/create',
-      targetName: '@bleedingdev/modern-js-create',
+      sourceName: '@modern-js/ultramodern-create',
+      targetName: '@bleedingdev/modern-js-ultramodern-create',
       version: '3.4.0-ultramodern.2',
       integrity: 'sha512-create',
     },
@@ -898,7 +899,60 @@ test('publish change record structurally schedules only for a successful real ou
   );
   const parsed = workflow(publishWorkflowPath);
   const changeRecordJob = parsed.jobs['publish-change-record'];
+  const actionExpression = name => ['${{', name, '}}'].join(' ');
   assert.deepEqual(normalizeNeeds(changeRecordJob), ['record-publish-outcome']);
+  assert.deepEqual(changeRecordJob.permissions, {
+    actions: 'read',
+    contents: 'write',
+  });
+  assert.equal(
+    parsed.jobs['record-publish-outcome'].outputs.artifact_name,
+    actionExpression('steps.publish-outcome.outputs.artifact_name'),
+  );
+  const outcomeDownloads = changeRecordJob.steps.filter(step =>
+    String(step.uses ?? '').startsWith('actions/download-artifact@'),
+  );
+  assert.equal(outcomeDownloads.length, 1);
+  assert.deepEqual(outcomeDownloads[0].with, {
+    'github-token': actionExpression('github.token'),
+    name: actionExpression(
+      'needs.record-publish-outcome.outputs.artifact_name',
+    ),
+    path: '.modern/bleedingdev-publish',
+    repository: actionExpression('github.repository'),
+    'run-id': actionExpression('github.run_id'),
+  });
+  const generateStep = changeRecordJob.steps.find(
+    step => step.name === 'Generate the cohort change record',
+  );
+  assert.equal(generateStep.id, 'change-record');
+  assert.match(
+    generateStep.run,
+    /--manifest "\$BLEEDINGDEV_RELEASE_MANIFEST"/u,
+  );
+  assert.match(generateStep.run, /--github-output "\$GITHUB_OUTPUT"/u);
+  assert.doesNotMatch(generateStep.run, /--version/u);
+  const releaseStep = changeRecordJob.steps.find(
+    step => step.name === 'Create or update the GitHub release',
+  );
+  assert.deepEqual(releaseStep.env, {
+    GH_TOKEN: actionExpression('github.token'),
+    PUBLISH_VERSION: actionExpression('steps.change-record.outputs.version'),
+    SOURCE_COMMIT: actionExpression(
+      'steps.change-record.outputs.source_commit',
+    ),
+  });
+  assert.match(releaseStep.run, /--target "\$SOURCE_COMMIT"/u);
+  assert.doesNotMatch(releaseStep.run, /\$GITHUB_SHA/u);
+  const recordUpload = changeRecordJob.steps.find(step =>
+    String(step.uses ?? '').startsWith('actions/upload-artifact@'),
+  );
+  assert.equal(
+    recordUpload.with.name,
+    `bleedingdev-change-record-${actionExpression(
+      'steps.change-record.outputs.version',
+    )}`,
+  );
 
   const results = {
     'accept-published': 'success',

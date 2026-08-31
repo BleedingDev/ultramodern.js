@@ -62,6 +62,33 @@ export function loadBackendFederatedEffectApi(
     warnLegacyLoad();
   }
 
+  if (options.runtime !== undefined) {
+    const configuredRemote = [
+      ...(options.remotes ?? []),
+      ...(options.remote ? [options.remote] : []),
+    ].find(remote => remote.name === remoteName);
+    if (
+      configuredRemote === undefined ||
+      !/^(?:binding|service|static):/u.test(configuredRemote.entry)
+    ) {
+      return Promise.reject(
+        new Error(
+          '[BFF][Effect] A custom Module Federation runtime requires a caller-pinned static or service-binding remote and cannot execute network backend federation entries.',
+        ),
+      );
+    }
+    if (
+      configuredRemote.verification !== undefined ||
+      options.entryPolicy?.expected !== undefined
+    ) {
+      return Promise.reject(
+        new Error(
+          '[BFF][Effect] A custom Module Federation runtime cannot bypass verified backend entry loading.',
+        ),
+      );
+    }
+  }
+
   const runtime = options.runtime ?? createBackendFederationRuntime(options);
   const expose =
     options.expose ??

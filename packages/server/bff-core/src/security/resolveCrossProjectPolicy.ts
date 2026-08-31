@@ -1,6 +1,6 @@
 import type {
-  CrossProjectOperationContract,
   CrossProjectPolicyConfig,
+  NormalizedCrossProjectPolicy,
 } from './crossProjectPolicy';
 import {
   buildOperationContractMap,
@@ -33,16 +33,7 @@ export interface ResolveCrossProjectPolicyInput {
 /**
  * Fully-defaulted policy returned by {@link resolveCrossProjectPolicy}.
  */
-export type ResolvedCrossProjectPolicy = CrossProjectPolicyConfig & {
-  enabled: boolean;
-  requireEnvelope: boolean;
-  requireOperationContext: boolean;
-  requireOperationContextDetails: boolean;
-  requireOperationSchemaHash: boolean;
-  requireOperationVersion: boolean;
-  allowUnknownOperations: boolean;
-  expectedOperationContracts: Record<string, CrossProjectOperationContract>;
-};
+export type ResolvedCrossProjectPolicy = NormalizedCrossProjectPolicy;
 
 /**
  * Normalizes the user-facing cross-project policy config into the evaluator

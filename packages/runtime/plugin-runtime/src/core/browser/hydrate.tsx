@@ -7,28 +7,14 @@ import type { TRuntimeContext } from '../context/runtime';
 import { wrapRuntimeContextProvider } from '../react/wrapper';
 import { WithCallback } from './withCallback';
 
-const runtimeProcess: unknown = Reflect.get(globalThis, 'process');
-const runtimeEnvironment: unknown =
-  runtimeProcess !== null && typeof runtimeProcess === 'object'
-    ? Reflect.get(runtimeProcess, 'env')
-    : undefined;
-
-const readRuntimeEnvironment = (name: string): string | undefined => {
-  if (runtimeEnvironment === null || typeof runtimeEnvironment !== 'object') {
-    return;
-  }
-
-  const value: unknown = Reflect.get(runtimeEnvironment, name);
-  return typeof value === 'string' ? value : undefined;
-};
+declare const __MODERN_CHUNK_LOADING_GLOBAL__: string | undefined;
 
 const loadableReadyOptions = {
-  chunkLoadingGlobal: (() => {
-    const configured = readRuntimeEnvironment('MODERN_CHUNK_LOADING_GLOBAL');
-    return configured === undefined || configured === ''
-      ? '__LOADABLE_LOADED_CHUNKS__'
-      : configured;
-  })(),
+  chunkLoadingGlobal:
+    typeof __MODERN_CHUNK_LOADING_GLOBAL__ === 'string' &&
+    __MODERN_CHUNK_LOADING_GLOBAL__ !== ''
+      ? __MODERN_CHUNK_LOADING_GLOBAL__
+      : '__LOADABLE_LOADED_CHUNKS__',
 };
 
 export function hydrateWithReact(

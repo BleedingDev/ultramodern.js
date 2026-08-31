@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { createBackendFederationEntryIntegrity } from '@modern-js/server-runtime-extensions/backend-federation-security/node';
 import {
   BACKEND_FEDERATION_MANIFEST_FILE as BACKEND_MANIFEST_FILE,
   BACKEND_FEDERATION_REMOTE_ENTRY_FILE as BACKEND_REMOTE_ENTRY_FILE,
@@ -162,19 +163,17 @@ export const emitBackendFederationArtifacts = async (
   const deliveryUnitArtifactPath = stampedBuildArtifact
     ? path.join(distDirectory, ULTRAMODERN_BUILD_ARTIFACT_FILE)
     : undefined;
-  await fs.mkdir(distDirectory, { recursive: true });
-  await fs.writeFile(
+  const entrySource = await createBackendRemoteEntrySource(
+    workspaceRoot,
+    resolvedApp,
+    effectApiPath,
     entryPath,
-    await createBackendRemoteEntrySource(
-      workspaceRoot,
-      resolvedApp,
-      effectApiPath,
-      entryPath,
-    ),
   );
+  await fs.mkdir(distDirectory, { recursive: true });
+  await fs.writeFile(entryPath, entrySource);
   await fs.writeFile(
     manifestPath,
-    `${JSON.stringify(createBackendManifest(workspaceRoot, distDirectory, resolvedApp), null, 2)}\n`,
+    `${JSON.stringify(createBackendManifest(workspaceRoot, distDirectory, resolvedApp, createBackendFederationEntryIntegrity(entrySource)), null, 2)}\n`,
   );
   if (stampedBuildArtifact && deliveryUnitArtifactPath) {
     await fs.writeFile(

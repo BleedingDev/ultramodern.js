@@ -46,7 +46,13 @@ export const createWebRequest = (
   };
   res.on('close', () => controller.abort('res closed'));
 
-  const url = `http://${req.headers.host}${req.url}`;
+  // The socket is the only protocol signal trusted by this adapter. Forwarded
+  // headers are client-controlled unless a server-level trusted-proxy policy
+  // has normalized them, and server-core currently has no such policy.
+  const protocol =
+    'encrypted' in req.socket && req.socket.encrypted ? 'https' : 'http';
+  const authority = req.headers[':authority'] ?? req.headers.host;
+  const url = `${protocol}://${authority}${req.url}`;
 
   const needsRequestBody = body || !(method === 'GET' || method === 'HEAD');
   const cloneableReq = needsRequestBody ? cloneable(req) : null;

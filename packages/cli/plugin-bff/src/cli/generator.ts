@@ -209,71 +209,87 @@ export const createBffGenerator = (api: CLIPluginAPI<AppTools>) => {
         name?: string;
         version?: string;
       };
-      const requestId = packageJson.name || packageName;
-      const operationContractsPromise = existLambda
-        ? apiRouter.getApiHandlers().then(handlers =>
-            buildOperationContractMap({
-              handlers,
-              requestId,
-              operationVersion: deriveOperationVersion(packageJson.version),
-            }),
-          )
-        : Promise.resolve({});
+      const requestId =
+        bff?.requestId || packageJson.name || packageName || 'default';
+      const operationContractsPromise =
+        bffRuntimeFramework !== 'effect' && existLambda
+          ? apiRouter.getApiHandlers().then(handlers =>
+              buildOperationContractMap({
+                handlers,
+                requestId,
+                operationVersion: deriveOperationVersion(packageJson.version),
+              }),
+            )
+          : Promise.resolve({});
 
-      return operationContractsPromise.then(operationContracts => {
-        const runtime = bff?.runtimeCreateRequest || RUNTIME_CREATE_REQUEST;
-        const relativeApiPath = path.relative(appDirectory, apiDirectory);
-        const relativeLambdaPath = path.relative(appDirectory, lambdaDir);
-        const sourceEffectEntry =
+      const runtime = bff?.runtimeCreateRequest || RUNTIME_CREATE_REQUEST;
+      const relativeApiPath = path.relative(appDirectory, apiDirectory);
+      const relativeLambdaPath = path.relative(appDirectory, lambdaDir);
+      const sourceEffectEntry =
+        bffRuntimeFramework === 'effect'
+          ? resolveEffectSourceEntry(
+              appDirectory,
+              apiDirectory,
+              bff?.effect?.entry,
+            )
+          : undefined;
+      const relativeEffectEntry =
+        sourceEffectEntry !== undefined && sourceEffectEntry.length > 0
+          ? path
+              .relative(appDirectory, sourceEffectEntry)
+              .replace(/\.(?:[cm]?ts|tsx|jsx)$/u, '.js')
+          : '';
+      const clientGenerationPromise = clientGenerator({
+        prefix,
+        appDir: appDirectory,
+        apiDir: apiDirectory,
+        lambdaDir,
+        existLambda,
+        port,
+        requestId,
+        requestCreator: bff?.requestCreator,
+        httpMethodDecider,
+        relativeDistPath,
+        relativeApiPath,
+        apiFiles: apiRouter.getApiFiles(),
+        bffRuntimeFramework,
+        effectEntry: bff?.effect?.entry,
+        effectDataPlatformBatch: bff?.effect?.dataPlatform?.batch,
+      });
+
+      return Promise.all([
+        operationContractsPromise,
+        clientGenerationPromise,
+      ]).then(([lambdaContracts, generatedEffectClient]) => {
+        if (
+          bffRuntimeFramework === 'effect' &&
+          generatedEffectClient === null
+        ) {
+          throw new Error(
+            `Effect cross-project client generation failed for ${sourceEffectEntry ?? apiDirectory}.`,
+          );
+        }
+        const operationContracts =
           bffRuntimeFramework === 'effect'
-            ? resolveEffectSourceEntry(
-                appDirectory,
-                apiDirectory,
-                bff?.effect?.entry,
-              )
-            : undefined;
-        const relativeEffectEntry =
-          sourceEffectEntry !== undefined && sourceEffectEntry.length > 0
-            ? path
-                .relative(appDirectory, sourceEffectEntry)
-                .replace(/\.(?:[cm]?ts|tsx|jsx)$/u, '.js')
-            : '';
-
+            ? (generatedEffectClient?.operationContracts ?? {})
+            : lambdaContracts;
         return pluginGenerator({
           prefix,
           appDirectory,
+          requestId,
           relativeDistPath,
           relativeApiPath,
           relativeLambdaPath,
           runtimeFramework: bffRuntimeFramework === 'hono' ? 'hono' : 'effect',
           relativeEffectEntry,
           operationContracts,
-        })
-          .then(() =>
-            clientGenerator({
-              prefix,
-              appDir: appDirectory,
-              apiDir: apiDirectory,
-              lambdaDir,
-              existLambda,
-              port,
-              requestCreator: bff?.requestCreator,
-              httpMethodDecider,
-              relativeDistPath,
-              relativeApiPath,
-              apiFiles: apiRouter.getApiFiles(),
-              bffRuntimeFramework,
-              effectEntry: bff?.effect?.entry,
-              effectDataPlatformBatch: bff?.effect?.dataPlatform?.batch,
-            }),
-          )
-          .then(() =>
-            runtimeGenerator({
-              runtime,
-              appDirectory,
-              relativeDistPath,
-            }),
-          );
+        }).then(() =>
+          runtimeGenerator({
+            runtime,
+            appDirectory,
+            relativeDistPath,
+          }),
+        );
       });
     });
 

@@ -628,7 +628,7 @@ test('an upstream-owned file with no recorded budget fails the gate', () => {
   }
 });
 
-test('fork-added files remain outside audited ownership', () => {
+test('added production source inside an upstream-owned package fails the gate', () => {
   const fixture = makeGitFixture();
   try {
     writeSnapshot({
@@ -640,9 +640,107 @@ test('fork-added files remain outside audited ownership', () => {
       'packages/runtime/src/fork-only.ts',
       'export const forkOnly = true;\n',
     );
+    runGit(fixture.rootDir, ['add', 'packages/runtime/src/fork-only.ts']);
+    const report = checkForkDivergence({ rootDir: fixture.rootDir });
+    assert.equal(report.ok, false);
+    assert.equal(report.violationCount, 1);
+    assert.equal(
+      report.violations[0].file,
+      'packages/runtime/src/fork-only.ts',
+    );
+    assert.equal(report.violations[0].reason, 'unallowlisted-divergence');
+  } finally {
+    cleanup(fixture.rootDir);
+  }
+});
+
+test('added production source inside an explicit fork-owned package passes', () => {
+  const fixture = makeGitFixture();
+  try {
+    writeSnapshot({
+      rootDir: fixture.rootDir,
+      baseRef: fixture.upstreamBase,
+    });
+    writeRepoFile(
+      fixture.rootDir,
+      'packages/server/runtime-extensions/package.json',
+      `${JSON.stringify({ name: '@modern-js/server-runtime-extensions' })}\n`,
+    );
+    writeRepoFile(
+      fixture.rootDir,
+      'packages/server/runtime-extensions/src/index.ts',
+      'export const extension = true;\n',
+    );
+    runGit(fixture.rootDir, [
+      'add',
+      'packages/server/runtime-extensions/package.json',
+      'packages/server/runtime-extensions/src/index.ts',
+    ]);
     const report = checkForkDivergence({ rootDir: fixture.rootDir });
     assert.equal(report.ok, true);
+    assert.equal(report.violationCount, 0);
     assert.equal(report.measuredFiles, 0);
+  } finally {
+    cleanup(fixture.rootDir);
+  }
+});
+
+test('added i18n extension source inside its fork-owned package passes', () => {
+  const fixture = makeGitFixture();
+  try {
+    writeSnapshot({
+      rootDir: fixture.rootDir,
+      baseRef: fixture.upstreamBase,
+    });
+    writeRepoFile(
+      fixture.rootDir,
+      'packages/runtime/i18n-extensions/package.json',
+      `${JSON.stringify({ name: '@modern-js/i18n-runtime-extensions' })}\n`,
+    );
+    writeRepoFile(
+      fixture.rootDir,
+      'packages/runtime/i18n-extensions/src/index.ts',
+      'export const i18nExtension = true;\n',
+    );
+    runGit(fixture.rootDir, [
+      'add',
+      'packages/runtime/i18n-extensions/package.json',
+      'packages/runtime/i18n-extensions/src/index.ts',
+    ]);
+    const report = checkForkDivergence({ rootDir: fixture.rootDir });
+    assert.equal(report.ok, true);
+    assert.equal(report.violationCount, 0);
+    assert.equal(report.measuredFiles, 0);
+  } finally {
+    cleanup(fixture.rootDir);
+  }
+});
+
+test('added-source diagnostics keep exact counts and bounded deterministic samples', () => {
+  const fixture = makeGitFixture();
+  try {
+    writeSnapshot({
+      rootDir: fixture.rootDir,
+      baseRef: fixture.upstreamBase,
+    });
+    const addedFiles = Array.from(
+      { length: 25 },
+      (_, index) =>
+        `packages/runtime/src/fork-only-${String(index).padStart(2, '0')}.ts`,
+    );
+    for (const file of addedFiles) {
+      writeRepoFile(fixture.rootDir, file, 'export const forkOnly = true;\n');
+    }
+    runGit(fixture.rootDir, ['add', ...addedFiles]);
+
+    const report = checkForkDivergence({ rootDir: fixture.rootDir });
+    const sampledFiles = report.violations.map(violation => violation.file);
+    assert.equal(report.ok, false);
+    assert.equal(report.violationCount, 25);
+    assert.equal(report.violations.length, 20);
+    assert.ok(sampledFiles.includes(addedFiles[0]));
+    assert.ok(sampledFiles.includes(addedFiles[12]));
+    assert.ok(sampledFiles.includes(addedFiles[24]));
   } finally {
     cleanup(fixture.rootDir);
   }

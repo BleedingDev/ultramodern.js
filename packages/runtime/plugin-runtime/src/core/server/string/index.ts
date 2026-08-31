@@ -1,4 +1,5 @@
 // @effect-diagnostics asyncFunction:off strictBooleanExpressions:off
+import * as rendererHead from '@modern-js/runtime-extensions';
 import type { StaticHandlerContext } from '@modern-js/runtime-utils/router';
 import { time } from '@modern-js/runtime-utils/time';
 import { SSR_HYDRATION_ID_PREFIX } from '@modern-js/utils/universal/constants';
@@ -126,18 +127,21 @@ async function generateHtml(
     (pre, creator) => creator.collect?.(pre) || pre,
     App,
   );
+  rendererHead.beginHeadRender(runtimeContext);
   try {
     const end = time();
     // react render to string
     html = ReactDomServer.renderToString(finalApp, {
       identifierPrefix: SSR_HYDRATION_ID_PREFIX,
     });
+    html = rendererHead.completeHeadRender(runtimeContext, html);
     chunkSet.renderLevel = RenderLevel.SERVER_RENDER;
     helmetData = getHelmetData(runtimeContext);
 
     const cost = end();
     onTiming(SSRTimings.RENDER_HTML, cost);
   } catch (e) {
+    rendererHead.abortHeadRender(runtimeContext);
     chunkSet.renderLevel = RenderLevel.CLIENT_RENDER;
     onError(e, SSRErrors.RENDER_HTML);
   }
@@ -169,14 +173,14 @@ function createReplaceHtml(html: string): BuildHtmlCb {
 // primitive (stream/afterTemplate.ts) so `window._SSR_DATA` and the TanStack
 // `$_TSR` bootstrap are emitted BEFORE the entry script in string mode too,
 // giving string mode the same script-ordering guarantee stream mode has.
-// `replaceChunkJsPlaceholder` degrades to `safeReplace` when no entry script
-// tag is found (custom HTML templates, MF host shells): THOSE templates are
-// byte-identical. Every template that DOES carry an entry script tag — i.e.
-// every standard Modern.js app — changes by design: the SSR data + router
-// bootstrap block moves out of the placeholder position to in front of the
-// entry tag, which in the common head-script layout relocates it above the
-// rendered `<div id="root">`. Do NOT restore upstream's `safeReplace` call when
-// resolving a sync merge — the guard is
+// `replaceChunkJsPlaceholder` leaves templates that omit the target marker
+// byte-identical, preserving a custom template's explicit opt-out. When the
+// marker exists but no entry script is found, it degrades to in-place
+// replacement. Every standard Modern.js template with both the marker and an
+// entry script changes by design: the SSR data + router bootstrap block moves
+// in front of the entry tag, which in the common head-script layout relocates
+// it above the rendered `<div id="root">`. Do NOT restore upstream's
+// `safeReplace` call when resolving a sync merge — the guard is
 // tests/ssr/serverRender/renderToString/buildTemplate.test.tsx.
 function createReplaceSSRDataScript(
   data: string,

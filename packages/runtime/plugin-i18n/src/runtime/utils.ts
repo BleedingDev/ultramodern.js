@@ -1,10 +1,10 @@
-import { isBrowser } from '@modern-js/runtime';
-import { getGlobalBasename } from '@modern-js/runtime/context';
-import type { LocalisedUrlsOption } from '../shared/localisedUrls';
 import {
+  type LocalisedUrlsOption,
   localiseTargetPathname,
   shouldSkipLocaleRedirect,
-} from '../shared/localisedUrls';
+} from '@modern-js/i18n-runtime-extensions';
+import { isBrowser } from '@modern-js/runtime';
+import { getGlobalBasename } from '@modern-js/runtime/context';
 
 // Structural parameter: hooks.ts passes a public-TRuntimeContext-based
 // context while core.tsx passes the internal one; both carry the request

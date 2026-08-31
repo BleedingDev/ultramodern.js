@@ -1,7 +1,29 @@
 export {
-  ContractGateAutopilot,
-  type ContractGateAutopilotOptions,
-} from './contractGateAutopilot';
+  type BackendFederationCommonJsEvaluator,
+  type BackendFederationEntryExports,
+  type BackendFederationEntryIntegrity,
+  type BackendFederationRemoteEntry,
+  BackendFederationRemoteEntryError,
+  type BackendFederationRemoteEntryErrorCode,
+  type BackendFederationRemoteEntryExpectation,
+  type BackendFederationRemoteEntryFetch,
+  type BackendFederationRemoteEntryPolicy,
+  type BackendFederationRemoteEntryVerification,
+  type BackendFederationResourceFetch,
+  type BackendFederationResourcePolicy,
+  type BackendFederationResourceResponse,
+  evaluateBackendFederationCommonJsEntry,
+  type LoadBoundedBackendFederationResourceOptions,
+  type LoadVerifiedBackendFederationEntryOptions,
+  loadBoundedBackendFederationResource,
+  loadVerifiedBackendFederationEntry,
+  redactBackendFederationUrl,
+  resolveBackendFederationRemoteEntryVerification,
+} from './backend-federation-security';
+export {
+  ContractGateSnapshotObserver,
+  type ContractGateSnapshotObserverOptions,
+} from './contractGateSnapshotObserver';
 export {
   DEFAULT_ENVIRONMENT_NAME,
   parseServerRuntimeExtensionsEnv,
@@ -26,6 +48,14 @@ export {
   type ModuleFederationManifest,
   type RemoteModuleFederationCssCollection,
 } from './module-federation-css';
+export {
+  createDisposableServerRuntimeHandle,
+  type DisposableServerRuntimeHandle,
+  disposeServerRuntime,
+  initializeDisposableServerRuntime,
+  registerServerRuntimeDisposer,
+  type ServerRuntimeHandle,
+} from './runtimeLifecycle';
 export {
   createOtlpTelemetryExporter,
   createRuntimeFallbackSignalRuntimeState,
@@ -53,11 +83,17 @@ export {
   type RuntimeSignalErrorCode,
   resolveRuntimeFallbackSignalEndpoint,
   resolveTelemetrySloOptions,
-  type TelemetryCanaryDecision,
-  TelemetryCanaryOrchestrator,
-  type TelemetryCanaryStatusSnapshot,
+  type TelemetryContractGateStatus,
   type TelemetryEnvelope,
   type TelemetryExporter,
+  type TelemetryHealthEvaluation,
+  type TelemetryHealthFailure,
+  type TelemetryHealthFailureReason,
+  TelemetryHealthMonitor,
+  type TelemetryHealthMonitorOptions,
+  type TelemetryHealthState,
+  type TelemetryHealthStatusSnapshot,
+  type TelemetryHealthTransition,
   type TelemetryQueueStats,
   TelemetryRegistry,
   type TelemetryRegistryOptions,

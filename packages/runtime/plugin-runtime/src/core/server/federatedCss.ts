@@ -1,11 +1,5 @@
-import { attributesToString } from './utils';
-
-const escapeHtmlAttribute = (value: string): string =>
-  value
-    .replaceAll('&', '&amp;')
-    .replaceAll('"', '&quot;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;');
+import { escapeHtmlAttribute } from '@modern-js/runtime-extensions';
+import { attributesToString, hasStylesheetLink } from './utils';
 
 export const createFederatedCssLinks = (
   assets: string[] | undefined,
@@ -20,7 +14,13 @@ export const createFederatedCssLinks = (
   }
 
   const seen = new Set(options.existingAssets || []);
-  const attributes = attributesToString(options.attributes || {});
+  const attributes = attributesToString(
+    Object.fromEntries(
+      Object.entries(options.attributes || {}).filter(
+        ([name]) => !['href', 'rel'].includes(name.toLowerCase()),
+      ),
+    ),
+  );
   const links: string[] = [];
 
   for (const asset of assets) {
@@ -28,8 +28,8 @@ export const createFederatedCssLinks = (
     if (
       asset === '' ||
       seen.has(asset) ||
-      options.template.includes(asset) ||
-      options.template.includes(href)
+      hasStylesheetLink(options.template, asset) ||
+      hasStylesheetLink(options.template, href)
     ) {
       continue;
     }

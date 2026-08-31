@@ -1,6 +1,7 @@
 import { logger } from '@modern-js/utils';
 import { collectEffectEndpoints } from '../../runtime/effect/endpoint-contracts';
 import {
+  createEffectClientGeneration,
   renderEffectClientCode,
   renderEffectClientDeclaration,
 } from './rendering';
@@ -38,10 +39,14 @@ export function generateEffectClient(
         api,
         options.prefix,
       );
+      const generation = createEffectClientGeneration(endpoints, options);
       return {
-        code: renderEffectClientCode(endpoints, options),
+        code: renderEffectClientCode(generation),
         declaration: renderEffectClientDeclaration(endpoints),
         endpoints,
+        operationContracts: generation.operationContracts,
+        operationVersion: generation.operationVersion,
+        requestId: generation.requestId,
       };
     });
   });

@@ -54,7 +54,7 @@ const makeCreateFixture = ({ includeTemplateDotFiles }) => {
   const root = makeTempDir();
   const packageDir = path.join(root, 'packages/create/package');
   writeJson(path.join(packageDir, 'package.json'), {
-    name: '@bleedingdev/modern-js-create',
+    name: '@bleedingdev/modern-js-ultramodern-create',
     version: fixtureReleaseVersion,
     publishConfig: {
       access: 'public',
@@ -75,12 +75,13 @@ const makeCreateFixture = ({ includeTemplateDotFiles }) => {
     dependencyVersion: fixtureReleaseVersion,
     tag: 'latest',
     aliases: {
-      '@modern-js/create': '@bleedingdev/modern-js-create',
+      '@modern-js/ultramodern-create':
+        '@bleedingdev/modern-js-ultramodern-create',
     },
     packages: [
       {
-        sourceName: '@modern-js/create',
-        targetName: '@bleedingdev/modern-js-create',
+        sourceName: '@modern-js/ultramodern-create',
+        targetName: '@bleedingdev/modern-js-ultramodern-create',
         version: fixtureReleaseVersion,
         packageDir: path.relative(repoRoot, packageDir),
       },
@@ -170,6 +171,38 @@ test('release package rewriting canonicalizes dependency metadata order', async 
   ]);
 });
 
+test('release metadata binds frameworkVersion only to the fork-owned generator', async () => {
+  const { rewritePackageJson } = await import(
+    '../lib/prepare-bleedingdev-packages/rewrite.mjs'
+  );
+  const options = {
+    bugsUrl: 'https://github.com/BleedingDev/ultramodern.js/issues',
+    dependencyVersion: '3.8.3-ultramodern.7',
+    homepage: 'https://github.com/BleedingDev/ultramodern.js',
+    prefix: 'modern-js-',
+    repositoryUrl: 'git+https://github.com/BleedingDev/ultramodern.js.git',
+    scope: 'bleedingdev',
+    version: '3.8.3-ultramodern.7',
+  };
+  const sourceNames = new Set(['@modern-js/ultramodern-create']);
+  const generator = {};
+  const upstreamAnchor = {};
+
+  rewritePackageJson(
+    generator,
+    '@modern-js/ultramodern-create',
+    options,
+    sourceNames,
+  );
+  rewritePackageJson(upstreamAnchor, '@modern-js/create', options, sourceNames);
+
+  assert.equal(
+    generator.ultramodern.frameworkVersion,
+    options.dependencyVersion,
+  );
+  assert.equal(upstreamAnchor.ultramodern, undefined);
+});
+
 test('release cohort version base matches the incorporated Modern.js source', async () => {
   const { enforceSingleVersionPolicy } = await import(
     '../lib/prepare-bleedingdev-packages/rewrite.mjs'
@@ -249,6 +282,40 @@ test('release cohort version base matches the incorporated Modern.js source', as
   );
 });
 
+test('publish selection retains upstream create only as the version anchor', async () => {
+  const { collectModernPackages } = await import(
+    '../lib/prepare-bleedingdev-packages/rewrite.mjs'
+  );
+  const selection = collectModernPackages({
+    prefix: 'modern-js-',
+    scope: 'bleedingdev',
+  });
+
+  assert(
+    selection.allPackages.some(
+      item => item.packageJson.name === '@modern-js/create',
+    ),
+    'the incorporated upstream create package must remain available as the release-base anchor',
+  );
+  assert.equal(selection.aliases['@modern-js/create'], undefined);
+  assert.equal(
+    selection.packages.some(
+      item => item.packageJson.name === '@modern-js/create',
+    ),
+    false,
+  );
+  assert.equal(
+    selection.aliases['@modern-js/ultramodern-create'],
+    '@bleedingdev/modern-js-ultramodern-create',
+  );
+  assert.equal(
+    selection.packages.filter(
+      item => item.packageJson.name === '@modern-js/ultramodern-create',
+    ).length,
+    1,
+  );
+});
+
 test('RSC remains an explicit optional toolchain and is absent from the release cohort', () => {
   const upstreamRuntime = '0.1.0';
   const frameworkContracts = [
@@ -325,21 +392,22 @@ const makeManifest = () => ({
     version: '3.2.0-ultramodern.1',
   },
   aliases: {
-    '@modern-js/create': '@bleedingdev/modern-js-create',
+    '@modern-js/ultramodern-create':
+      '@bleedingdev/modern-js-ultramodern-create',
     '@modern-js/runtime': '@bleedingdev/modern-js-runtime',
   },
   dependencyGraph: {
-    '@bleedingdev/modern-js-create': [],
+    '@bleedingdev/modern-js-ultramodern-create': [],
     '@bleedingdev/modern-js-runtime': [],
   },
   publishOrder: [
     '@bleedingdev/modern-js-runtime',
-    '@bleedingdev/modern-js-create',
+    '@bleedingdev/modern-js-ultramodern-create',
   ],
   packages: [
     {
-      sourceName: '@modern-js/create',
-      targetName: '@bleedingdev/modern-js-create',
+      sourceName: '@modern-js/ultramodern-create',
+      targetName: '@bleedingdev/modern-js-ultramodern-create',
       version: '3.2.0-ultramodern.1',
       integrity: `sha512-${Buffer.alloc(64).toString('base64')}`,
       shasum: 'a'.repeat(40),
@@ -358,8 +426,8 @@ const makePublishOrderFixture = () => {
   const root = makeTempDir();
   const packages = [
     {
-      sourceName: '@modern-js/create',
-      targetName: '@bleedingdev/modern-js-create',
+      sourceName: '@modern-js/ultramodern-create',
+      targetName: '@bleedingdev/modern-js-ultramodern-create',
       dependencies: {
         '@modern-js/i18n-utils':
           'npm:@bleedingdev/modern-js-i18n-utils@3.2.0-ultramodern.1',
@@ -412,7 +480,8 @@ const makePublishOrderFixture = () => {
       ...makeManifest(),
       dependencyGraph: undefined,
       aliases: {
-        '@modern-js/create': '@bleedingdev/modern-js-create',
+        '@modern-js/ultramodern-create':
+          '@bleedingdev/modern-js-ultramodern-create',
         '@modern-js/i18n-utils': '@bleedingdev/modern-js-i18n-utils',
         '@modern-js/runtime': '@bleedingdev/modern-js-runtime',
         '@modern-js/utils': '@bleedingdev/modern-js-utils',
@@ -677,7 +746,8 @@ const createArtifactFixture = async ({
   const outDir = path.join(root, 'release');
   const markerPath = path.join(root, 'lifecycle-ran');
   const aliases = {
-    '@modern-js/create': '@bleedingdev/modern-js-create',
+    '@modern-js/ultramodern-create':
+      '@bleedingdev/modern-js-ultramodern-create',
     '@modern-js/runtime': '@bleedingdev/modern-js-runtime',
     '@modern-js/utils': '@bleedingdev/modern-js-utils',
   };
@@ -697,8 +767,8 @@ const createArtifactFixture = async ({
       dependencies: {},
     },
     {
-      sourceName: '@modern-js/create',
-      targetName: aliases['@modern-js/create'],
+      sourceName: '@modern-js/ultramodern-create',
+      targetName: aliases['@modern-js/ultramodern-create'],
       dependencies: {},
     },
   ];
@@ -728,7 +798,7 @@ const createArtifactFixture = async ({
         `${'long-path-segment-'.repeat(7)}fixture.txt`,
       ),
     );
-    if (definition.sourceName === '@modern-js/create') {
+    if (definition.sourceName === '@modern-js/ultramodern-create') {
       for (const relativePath of createTemplateRequiredFiles) {
         writeFile(path.join(packageDir, relativePath));
       }
@@ -869,7 +939,7 @@ test('parseArgs rejects partial publish controls', async () => {
         '--version',
         '3.2.0-ultramodern.1',
         '--packages',
-        '@modern-js/create',
+        '@modern-js/ultramodern-create',
       ]),
     /--packages is forbidden/,
   );
@@ -896,6 +966,121 @@ test('parseArgs rejects partial publish controls', async () => {
         'acceptance-receipt.json',
       ]),
     /Unknown argument: --acceptance-receipt/,
+  );
+});
+
+test('parseArgs confines destructive preparation to its owned output tree', async () => {
+  const { parseArgs } = await import('../prepare-bleedingdev-packages.mjs');
+  const ownedOutput = path.join(repoRoot, '.modern', 'bleedingdev-publish');
+  const unsafeOutputs = [
+    path.parse(repoRoot).root,
+    path.dirname(repoRoot),
+    repoRoot,
+    path.join(repoRoot, '.modern', 'another-tool'),
+    path.join(os.tmpdir(), 'arbitrary-publish-output'),
+  ];
+
+  for (const output of unsafeOutputs) {
+    assert.throws(
+      () => parseArgs(['--version', '3.2.0-ultramodern.1', '--out', output]),
+      /--out for package preparation must be inside/,
+    );
+  }
+
+  assert.equal(
+    parseArgs(['--version', '3.2.0-ultramodern.1']).out,
+    ownedOutput,
+  );
+  assert.equal(
+    parseArgs([
+      '--version',
+      '3.2.0-ultramodern.1',
+      '--out',
+      path.join(ownedOutput, 'candidate'),
+    ]).out,
+    path.join(ownedOutput, 'candidate'),
+  );
+
+  const existingArtifacts = path.join(os.tmpdir(), 'accepted-release-bundle');
+  assert.equal(
+    parseArgs([
+      '--version',
+      '3.2.0-ultramodern.1',
+      '--publish-existing',
+      '--out',
+      existingArtifacts,
+    ]).out,
+    existingArtifacts,
+  );
+});
+
+test('parseArgs rejects destructive output through an owned-tree symlink', async t => {
+  const { parseArgs } = await import('../prepare-bleedingdev-packages.mjs');
+  const ownedOutput = path.join(repoRoot, '.modern', 'bleedingdev-publish');
+  const ownedOutputExisted = fs.existsSync(ownedOutput);
+  const symlinkTarget = makeTempDir();
+  const sentinel = path.join(symlinkTarget, 'must-survive.txt');
+  fs.writeFileSync(sentinel, 'outside owned output\n');
+  const symlinkPath = path.join(
+    ownedOutput,
+    `outside-${process.pid}-${crypto.randomUUID()}`,
+  );
+  fs.mkdirSync(ownedOutput, { recursive: true });
+  fs.symlinkSync(
+    symlinkTarget,
+    symlinkPath,
+    process.platform === 'win32' ? 'junction' : 'dir',
+  );
+  t.after(() => {
+    fs.unlinkSync(symlinkPath);
+    removeDir(symlinkTarget);
+    if (!ownedOutputExisted) {
+      try {
+        fs.rmdirSync(ownedOutput);
+      } catch (error) {
+        if (error.code !== 'ENOTEMPTY') {
+          throw error;
+        }
+      }
+    }
+  });
+
+  assert.throws(
+    () =>
+      parseArgs([
+        '--version',
+        '3.2.0-ultramodern.1',
+        '--out',
+        path.join(symlinkPath, 'victim'),
+      ]),
+    /--out for package preparation must not traverse a symbolic link/,
+  );
+  const existingArtifactPath = path.join(symlinkPath, 'accepted-release');
+  assert.equal(
+    parseArgs([
+      '--version',
+      '3.2.0-ultramodern.1',
+      '--publish-existing',
+      '--out',
+      existingArtifactPath,
+    ]).out,
+    existingArtifactPath,
+  );
+  assert.equal(fs.readFileSync(sentinel, 'utf8'), 'outside owned output\n');
+});
+
+test('prepare workflow rejects unsafe output before inspecting or deleting source', async () => {
+  const { prepareBleedingdevPackages } = await import(
+    '../lib/prepare-bleedingdev-packages/workflow.mjs'
+  );
+
+  await assert.rejects(
+    () =>
+      prepareBleedingdevPackages({
+        out: repoRoot,
+        publishExisting: false,
+      }),
+    /--out for package preparation must be inside/,
   );
 });
 
@@ -949,6 +1134,25 @@ test('validateFullCohortManifest rejects missing aliases', async () => {
   assert.throws(
     () => validateFullCohortManifest(manifest),
     /BleedingDev publish manifest is missing 1 public package/,
+  );
+});
+
+test('publish manifest rejects the retired create target and requires the fork-owned generator', async () => {
+  const { validateFullCohortManifest } = await import(
+    '../prepare-bleedingdev-packages.mjs'
+  );
+  const manifest = makeManifest();
+  assert.doesNotThrow(() => validateFullCohortManifest(manifest));
+
+  const legacy = structuredClone(manifest);
+  delete legacy.aliases['@modern-js/ultramodern-create'];
+  legacy.aliases['@modern-js/create'] = '@bleedingdev/modern-js-create';
+  legacy.packages[0].sourceName = '@modern-js/create';
+  legacy.packages[0].targetName = '@bleedingdev/modern-js-create';
+
+  assert.throws(
+    () => validateFullCohortManifest(legacy),
+    /@modern-js\/create is the release-base anchor and must never be published as @bleedingdev\/modern-js-create/u,
   );
 });
 
@@ -1010,7 +1214,7 @@ test('orderPublishItems publishes create last so users do not see an incomplete 
 
   assert.deepEqual(
     orderPublishItems(manifest.packages, manifest).map(item => item.sourceName),
-    ['@modern-js/runtime', '@modern-js/create'],
+    ['@modern-js/runtime', '@modern-js/ultramodern-create'],
   );
 });
 
@@ -1031,11 +1235,11 @@ test('orderPublishItems publishes hard dependencies before consumers', async () 
     );
     assert(
       orderedSourceNames.indexOf('@modern-js/i18n-utils') <
-        orderedSourceNames.indexOf('@modern-js/create'),
+        orderedSourceNames.indexOf('@modern-js/ultramodern-create'),
     );
     assert.equal(
       orderedSourceNames.at(-1),
-      '@modern-js/create',
+      '@modern-js/ultramodern-create',
       'create must still publish last',
     );
   } finally {
@@ -2667,24 +2871,30 @@ test('buffer publisher fails closed without trusted GitHub OIDC inputs', async (
 
   await assert.rejects(
     () =>
-      requestTrustedPublishingToken('@bleedingdev/modern-js-create', {
-        env: {},
-        fetchImpl: async () => {
-          throw new Error('must not fetch');
+      requestTrustedPublishingToken(
+        '@bleedingdev/modern-js-ultramodern-create',
+        {
+          env: {},
+          fetchImpl: async () => {
+            throw new Error('must not fetch');
+          },
         },
-      }),
+      ),
     /requires GitHub Actions/u,
   );
   await assert.rejects(
     () =>
-      requestTrustedPublishingToken('@bleedingdev/modern-js-create', {
-        env: {
-          ACTIONS_ID_TOKEN_REQUEST_TOKEN: 'token',
-          ACTIONS_ID_TOKEN_REQUEST_URL: 'https://attacker.example/oidc',
-          GITHUB_ACTIONS: 'true',
+      requestTrustedPublishingToken(
+        '@bleedingdev/modern-js-ultramodern-create',
+        {
+          env: {
+            ACTIONS_ID_TOKEN_REQUEST_TOKEN: 'token',
+            ACTIONS_ID_TOKEN_REQUEST_URL: 'https://attacker.example/oidc',
+            GITHUB_ACTIONS: 'true',
+          },
+          fetchImpl: async () => ({ ok: true, json: async () => ({}) }),
         },
-        fetchImpl: async () => ({ ok: true, json: async () => ({}) }),
-      }),
+      ),
     /GitHub Actions HTTPS endpoint/u,
   );
 });
@@ -2835,7 +3045,7 @@ test('final pack runs once and dry-run consumes accepted bytes without lifecycle
     assert.deepEqual(fixture.releaseArtifacts.manifest.publishOrder, [
       '@bleedingdev/modern-js-utils',
       '@bleedingdev/modern-js-runtime',
-      '@bleedingdev/modern-js-create',
+      '@bleedingdev/modern-js-ultramodern-create',
     ]);
 
     const artifact = fixture.releaseArtifacts.packages.find(
@@ -2966,60 +3176,6 @@ test('local acceptance registry tolerates transient npm uplink failures', async 
     max_fails: 100,
     fail_timeout: '1s',
   });
-});
-
-test('declaration pre-pass generates independent packages concurrently and rejects nested roots', async () => {
-  const { generateSourceDeclarationsBatch } = await import(
-    '../lib/prepare-bleedingdev-packages/types.mjs'
-  );
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tsgo-dts-batch-'));
-  const makeDeclarationPackage = relativeDir => {
-    const dir = path.join(root, relativeDir);
-    fs.mkdirSync(path.join(dir, 'src'), { recursive: true });
-    fs.writeFileSync(path.join(dir, 'tsconfig.json'), '{}');
-    return {
-      dir,
-      packageJson: { name: relativeDir, types: './dist/types/index.d.ts' },
-    };
-  };
-  try {
-    const itemA = makeDeclarationPackage('pkg-a');
-    const itemB = makeDeclarationPackage('pkg-b');
-    // No src directory: filtered out before any subprocess is dispatched.
-    const itemC = {
-      dir: path.join(root, 'pkg-c'),
-      packageJson: { name: 'pkg-c', types: './dist/types/index.d.ts' },
-    };
-    const calls = [];
-    const generated = await generateSourceDeclarationsBatch(
-      [itemA, itemB, itemC],
-      async (command, args) => {
-        calls.push({ command, args });
-      },
-    );
-    assert.equal(generated, 2);
-    assert.deepEqual(
-      calls.map(call => call.args),
-      [
-        ['-w', 'run', 'tsgo:dts', itemA.dir],
-        ['-w', 'run', 'tsgo:dts', itemB.dir],
-      ],
-    );
-    assert.deepEqual(
-      calls.map(call => call.command),
-      ['pnpm', 'pnpm'],
-    );
-
-    const nested = makeDeclarationPackage('pkg-a/nested');
-    await assert.rejects(
-      generateSourceDeclarationsBatch([itemA, nested], async () => {
-        throw new Error('must not dispatch when roots are not independent');
-      }),
-      /mutually independent package dirs/,
-    );
-  } finally {
-    fs.rmSync(root, { force: true, recursive: true });
-  }
 });
 
 test('local acceptance registry keeps the catch-all npmjs proxy for audit fallback', async () => {
@@ -4314,7 +4470,7 @@ test('release verifier rejects schema, cohort, path, detached digest, and tarbal
       /Release cohort projection does not match the accepted release identity/u,
     );
     const projectionAliasDrift = structuredClone(projection);
-    projectionAliasDrift.aliases['@modern-js/create'] =
+    projectionAliasDrift.aliases['@modern-js/ultramodern-create'] =
       '@bleedingdev/modern-js-attacker';
     assert.throws(
       () => validateReleaseCohortProjection(projectionAliasDrift, manifest),

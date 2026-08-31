@@ -244,7 +244,7 @@
   "scripts": {
     "dev": "rslib build --watch",
     "prepublishOnly": "only-allow-pnpm",
-    "build": "rslib build && pnpm run gen-static && pnpm -w tsgo:dts \"$PWD\"",
+    "build": "rslib build && pnpm run gen-static",
     "gen-static": "node --disable-warning=ExperimentalWarning --experimental-strip-types ./scripts/gen-static.mts",
     "test": "rstest"
   },
@@ -254,6 +254,7 @@
     "@modern-js/plugin": "workspace:*",
     "@modern-js/plugin-data-loader": "workspace:*",
     "@modern-js/render": "workspace:*",
+    "@modern-js/runtime-extensions": "workspace:*",
     "@modern-js/runtime-utils": "workspace:*",
     "@modern-js/types": "workspace:*",
     "@modern-js/utils": "workspace:*",

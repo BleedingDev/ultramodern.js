@@ -1,10 +1,17 @@
 // Consumer: publish-bleedingdev.yml prepare/publish CLI invocations.
+import fs from 'node:fs';
 import path from 'node:path';
 import cliKit from '../../../lib/cli-kit.js';
 import { rejectInlineOptionSyntax } from '../option-syntax.mjs';
 import { repoRoot } from './constants.mjs';
 
 const { parseCliArgs } = cliKit;
+
+const ownedPreparationOutputRoot = path.join(
+  repoRoot,
+  '.modern',
+  'bleedingdev-publish',
+);
 
 const cliValueOptions = new Set([
   '--scope',
@@ -35,6 +42,54 @@ function parsePublishConcurrency(value) {
   }
 
   return concurrency;
+}
+
+function assertNoSymlinkedPreparationPath(output) {
+  const relativeOutput = path.relative(repoRoot, output);
+  let currentPath = repoRoot;
+
+  for (const segment of relativeOutput.split(path.sep)) {
+    currentPath = path.join(currentPath, segment);
+
+    let stats;
+    try {
+      stats = fs.lstatSync(currentPath);
+    } catch (error) {
+      if (error.code === 'ENOENT') {
+        return;
+      }
+      throw error;
+    }
+
+    if (stats.isSymbolicLink()) {
+      throw new Error(
+        `--out for package preparation must not traverse a symbolic link: ${currentPath}`,
+      );
+    }
+  }
+}
+
+function resolveOwnedPreparationOutput(output) {
+  const resolvedOutput = path.resolve(output);
+  const relativeOutput = path.relative(
+    ownedPreparationOutputRoot,
+    resolvedOutput,
+  );
+  const isOwnedOutput =
+    relativeOutput === '' ||
+    (!relativeOutput.startsWith(`..${path.sep}`) &&
+      relativeOutput !== '..' &&
+      !path.isAbsolute(relativeOutput));
+
+  if (!isOwnedOutput) {
+    throw new Error(
+      `--out for package preparation must be inside ${ownedPreparationOutputRoot}`,
+    );
+  }
+
+  assertNoSymlinkedPreparationPath(resolvedOutput);
+
+  return resolvedOutput;
 }
 
 function parseArgs(argv) {
@@ -129,6 +184,9 @@ function parseArgs(argv) {
 
   options.scope = options.scope.replace(/^@/, '');
   options.out = path.resolve(options.out);
+  if (!options.publishExisting) {
+    options.out = resolveOwnedPreparationOutput(options.out);
+  }
   options.publish = options.publish || options.publishExisting;
   options.publishConcurrency = parsePublishConcurrency(
     options.publishConcurrency,
@@ -140,4 +198,4 @@ function parseArgs(argv) {
   return options;
 }
 
-export { parseArgs };
+export { parseArgs, resolveOwnedPreparationOutput };

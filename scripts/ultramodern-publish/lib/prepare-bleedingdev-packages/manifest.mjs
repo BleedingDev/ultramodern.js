@@ -2,12 +2,45 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import fsKit from '../../../lib/fs-kit.js';
-import { repoRoot } from './constants.mjs';
+import {
+  incorporatedModernCreateSourceName,
+  repoRoot,
+  retiredBleedingdevCreateTargetName,
+  ultramodernCreateSourceName,
+  ultramodernCreateTargetName,
+} from './constants.mjs';
 import { validateCreateTemplateFiles } from './types.mjs';
 
 const { readJsonFile } = fsKit;
 
 function validateFullCohortManifest(manifest) {
+  const legacyCreate = manifest.packages.find(
+    item =>
+      item.sourceName === incorporatedModernCreateSourceName ||
+      item.targetName === retiredBleedingdevCreateTargetName,
+  );
+  if (
+    legacyCreate ||
+    Object.hasOwn(manifest.aliases, incorporatedModernCreateSourceName) ||
+    Object.values(manifest.aliases).includes(retiredBleedingdevCreateTargetName)
+  ) {
+    throw new Error(
+      `${incorporatedModernCreateSourceName} is the release-base anchor and must never be published as ${retiredBleedingdevCreateTargetName}.`,
+    );
+  }
+  if (
+    manifest.aliases[ultramodernCreateSourceName] !==
+      ultramodernCreateTargetName ||
+    !manifest.packages.some(
+      item =>
+        item.sourceName === ultramodernCreateSourceName &&
+        item.targetName === ultramodernCreateTargetName,
+    )
+  ) {
+    throw new Error(
+      `BleedingDev publish manifest must select ${ultramodernCreateSourceName} as ${ultramodernCreateTargetName}.`,
+    );
+  }
   const selectedSources = new Set(
     manifest.packages.map(item => item.sourceName),
   );
@@ -68,7 +101,7 @@ function validatePublishManifest(manifest) {
     ]) {
       validateNoWorkspaceProtocol(packageJson, item.targetName, blockName);
     }
-    if (item.sourceName === '@modern-js/create') {
+    if (item.sourceName === ultramodernCreateSourceName) {
       validateCreateTemplateFiles(
         path.join(repoRoot, item.packageDir),
         item.targetName,
@@ -151,10 +184,10 @@ function createPackageDependencyGraph(packages, manifest) {
 
 function orderPublishItems(packages, manifest = { aliases: {}, packages }) {
   const sourceOrderedPackages = [...packages].sort((left, right) => {
-    if (left.sourceName === '@modern-js/create') {
+    if (left.sourceName === ultramodernCreateSourceName) {
       return 1;
     }
-    if (right.sourceName === '@modern-js/create') {
+    if (right.sourceName === ultramodernCreateSourceName) {
       return -1;
     }
     return left.sourceName.localeCompare(right.sourceName);
@@ -193,7 +226,8 @@ function orderPublishItems(packages, manifest = { aliases: {}, packages }) {
   }
 
   const createItem = byTargetName.get(
-    manifest.aliases?.['@modern-js/create'] ?? '@modern-js/create',
+    manifest.aliases?.[ultramodernCreateSourceName] ??
+      ultramodernCreateSourceName,
   );
   if (createItem && ordered.at(-1) !== createItem) {
     throw new Error(

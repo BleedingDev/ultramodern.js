@@ -37,17 +37,20 @@ function getStore(context: object): ExtensionStore | undefined {
 
 function ensureStore(context: object): ExtensionStore {
   const target = context as ExtensibleContext;
-  target[EXTENSIONS_SLOT] ??= new Map();
-  return target[EXTENSIONS_SLOT];
+  const store = target[EXTENSIONS_SLOT] ?? new Map();
+  Object.defineProperty(target, EXTENSIONS_SLOT, {
+    configurable: true,
+    enumerable: false,
+    value: store,
+  });
+  return store;
 }
 
 /**
  * Removes the extension slot from a context object.
  *
- * The slot is an enumerable symbol-keyed property, so object spreads copy it
- * onto derived objects. Call this on *copies* that form the public
- * `RuntimeContext` value to keep internal state (router instances, helmet
- * state, ...) unreachable from the public context object.
+ * The slot is non-enumerable and therefore does not cross object spreads.
+ * This remains available for callers that explicitly clear the original context.
  */
 export function stripRuntimeContextExtensions(context: object): void {
   delete (context as ExtensibleContext)[EXTENSIONS_SLOT];

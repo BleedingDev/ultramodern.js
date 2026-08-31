@@ -13,6 +13,11 @@ export default defineConfig({
     {
       format: 'cjs',
       syntax: 'es2021',
+      dts: {
+        abortOnError: true,
+        bundle: false,
+        distPath: './dist/types',
+      },
       source: {
         entry: { index: 'src/cli.ts' },
       },

@@ -12,13 +12,13 @@ import {
   type RuntimeSignalError,
 } from '../runtimeFallbackSignal';
 import type {
-  TelemetryCanaryOrchestrator,
+  TelemetryHealthMonitor,
   TelemetryRegistry,
 } from '../telemetryCore';
 
 type RuntimeStatusMiddlewareOptions = {
   registry: TelemetryRegistry;
-  canaryOrchestrator?: TelemetryCanaryOrchestrator;
+  healthMonitor?: TelemetryHealthMonitor;
   runtimeFallbackSignalConfig?: RuntimeFallbackSignalConfig;
   runtimeStatusAuthConfig?: RuntimeFallbackSignalAuthConfig;
 };
@@ -86,7 +86,7 @@ export const createRuntimeFallbackSignalMiddleware = (
 
 export const createRuntimeStatusMiddleware = ({
   registry,
-  canaryOrchestrator,
+  healthMonitor,
   runtimeFallbackSignalConfig,
   runtimeStatusAuthConfig,
 }: RuntimeStatusMiddlewareOptions) => ({
@@ -96,7 +96,7 @@ export const createRuntimeStatusMiddleware = ({
   order: 'pre' as const,
   handler: async (c: Context<ServerEnv>) => {
     try {
-      // Telemetry/canary/trust internals are only disclosed to
+      // Telemetry/health/trust internals are only disclosed to
       // authenticated callers. Without a configured auth token the
       // endpoint stays bare health probe.
       if (!runtimeStatusAuthConfig?.enabled) {
@@ -118,10 +118,10 @@ export const createRuntimeStatusMiddleware = ({
           queueStats: registry.getQueueStats(),
           exporterHealth: registry.getExporterHealth(),
         },
-        canary: canaryOrchestrator
+        health: healthMonitor
           ? {
               enabled: true,
-              ...canaryOrchestrator.getStatusSnapshot(),
+              ...healthMonitor.getStatusSnapshot(),
             }
           : { enabled: false },
         runtimeFallbackSignal: runtimeFallbackSignalConfig

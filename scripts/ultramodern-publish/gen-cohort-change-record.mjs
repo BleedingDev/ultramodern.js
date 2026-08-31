@@ -9,9 +9,10 @@
 // not run in the release path (it would bump the whole fixed `@modern-js/*`
 // group at major and consume every queued changeset).
 import { execFileSync } from 'node:child_process';
-import { readdir, readFile, writeFile } from 'node:fs/promises';
+import { appendFile, readdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readReleaseManifest } from './lib/source-create-proof/release-manifest.mjs';
 
 const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
 
@@ -226,9 +227,13 @@ export async function collectChangesetEntries(
   return entries;
 }
 
-const renderNames = entry =>
+const renderNames = (entry, aliases) =>
   entry.packages
-    .map(pkg => pkg.name.replace(/^@modern-js\//, '@bleedingdev/modern-js-'))
+    .map(
+      pkg =>
+        aliases?.[pkg.name] ??
+        pkg.name.replace(/^@modern-js\//, '@bleedingdev/modern-js-'),
+    )
     .join(', ');
 
 const entryBump = entry =>
@@ -238,14 +243,14 @@ const entryBump = entry =>
       ? 'minor'
       : 'patch';
 
-const renderEntry = entry =>
-  `- **${entryBump(entry)}** ${entry.summary} (${renderNames(entry)})${
+const renderEntry = (entry, aliases) =>
+  `- **${entryBump(entry)}** ${entry.summary} (${renderNames(entry, aliases)})${
     entry.sha ? ` [\`${entry.sha}\`]` : ''
   }\n`;
 
 export function renderCohortChangeRecord(
   entries,
-  { version, commit, repository, previousVersion },
+  { aliases, version, commit, repository, previousVersion },
 ) {
   const highest = entries.some(entry => entryBump(entry) === 'major')
     ? 'major'
@@ -271,7 +276,7 @@ export function renderCohortChangeRecord(
   if (breaking.length > 0) {
     out += '## BREAKING CHANGES\n\n';
     for (const entry of breaking) {
-      out += renderEntry(entry);
+      out += renderEntry(entry, aliases);
     }
     out += '\n';
   }
@@ -291,7 +296,7 @@ export function renderCohortChangeRecord(
       }
       out += `### ${type}\n\n`;
       for (const entry of bucket) {
-        out += renderEntry(entry);
+        out += renderEntry(entry, aliases);
       }
       out += '\n';
     }
@@ -300,19 +305,25 @@ export function renderCohortChangeRecord(
 }
 
 function parseArgs(argv) {
-  const options = { version: '', out: '' };
-  for (let index = 0; index < argv.length; index += 1) {
-    if (argv[index] === '--version') {
-      options.version = argv[index + 1] ?? '';
+  const options = { githubOutput: '', manifest: '', out: '' };
+  const seen = new Set();
+  for (let index = 0; index < argv.length; index += 2) {
+    const name = argv[index];
+    const value = argv[index + 1];
+    if (
+      !['--github-output', '--manifest', '--out'].includes(name) ||
+      value === undefined ||
+      value.startsWith('--') ||
+      seen.has(name)
+    ) {
+      throw new Error(`Unknown or incomplete argument: ${name ?? '<missing>'}`);
     }
-    if (argv[index] === '--out') {
-      options.out = argv[index + 1] ?? '';
-    }
+    seen.add(name);
+    options[name === '--github-output' ? 'githubOutput' : name.slice(2)] =
+      value;
   }
-  if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(options.version)) {
-    throw new Error(
-      `--version must be a semver value, found "${options.version}"`,
-    );
+  if (!options.manifest) {
+    throw new Error('--manifest is required');
   }
   if (!options.out) {
     throw new Error('--out is required');
@@ -326,20 +337,42 @@ export async function generateCohortChangeRecord({
   out,
   commit,
   repository,
+  release,
 }) {
+  const aliases = release?.aliases;
+  if (release) {
+    const checkoutCommit = git(['rev-parse', 'HEAD'], rootDir);
+    if (checkoutCommit !== release.source.commit) {
+      throw new Error(
+        `release manifest source ${release.source.commit} does not match change-record checkout ${checkoutCommit || '<missing>'}`,
+      );
+    }
+    version = release.release.version;
+    commit = release.source.commit;
+    repository = release.source.repository;
+  }
   const previousRelease = resolvePreviousRelease(rootDir, {
     targetCommit: commit,
     targetVersion: version,
   });
-  const entries = await collectChangesetEntries(rootDir, {
+  let entries = await collectChangesetEntries(rootDir, {
     since: previousRelease.commit,
   });
+  if (aliases) {
+    entries = entries
+      .map(entry => ({
+        ...entry,
+        packages: entry.packages.filter(pkg => aliases[pkg.name]),
+      }))
+      .filter(entry => entry.packages.length > 0);
+  }
   if (entries.length === 0) {
     throw new Error(
       'refusing to publish an empty change record: no queued changesets added since the previous UltraModern release',
     );
   }
   const body = renderCohortChangeRecord(entries, {
+    aliases,
     version,
     commit,
     repository,
@@ -359,15 +392,37 @@ export async function generateCohortChangeRecord({
 }
 
 async function main() {
-  const { version, out } = parseArgs(process.argv.slice(2));
+  const { githubOutput, manifest, out } = parseArgs(process.argv.slice(2));
+  const release = readReleaseManifest({ manifestPath: manifest });
   const { body, entries } = await generateCohortChangeRecord({
-    version,
     out,
-    commit: process.env.GITHUB_SHA,
-    repository: process.env.GITHUB_REPOSITORY,
+    release,
   });
+  if (githubOutput) {
+    const outputs = {
+      source_commit: release.source.commit,
+      source_repository: release.source.repository,
+      version: release.release.version,
+    };
+    for (const [name, value] of Object.entries(outputs)) {
+      if (
+        typeof value !== 'string' ||
+        value.length === 0 ||
+        /[\r\n]/u.test(value)
+      ) {
+        throw new Error(`Release manifest ${name} is unsafe for GitHub output`);
+      }
+    }
+    await appendFile(
+      path.resolve(githubOutput),
+      `${Object.entries(outputs)
+        .map(([name, value]) => `${name}=${value}`)
+        .join('\n')}\n`,
+      'utf8',
+    );
+  }
   console.log(
-    `Wrote cohort change record for ${version} (${entries.length} entries, ${body.length} chars) to ${out}`,
+    `Wrote cohort change record for ${release.release.version} (${entries.length} entries, ${body.length} chars) to ${out}`,
   );
 }
 

@@ -1,5 +1,6 @@
 // @effect-diagnostics asyncFunction:off strictBooleanExpressions:off
 import type { APIHandlerInfo } from '@modern-js/bff-core';
+import { createSafeFailureResponse } from '@modern-js/runtime-extensions/safe-failure';
 import type {
   Context,
   MiddlewareHandler,
@@ -14,7 +15,6 @@ import {
   type ResolvedCrossProjectPolicy,
   resolveAdapterCrossProjectPolicy,
 } from '../../utils/crossProjectServerPolicy';
-import { createSafeFailureResponse } from '../safe-failure';
 
 const before = ['custom-server-hook', 'custom-server-middleware', 'render'];
 
@@ -40,42 +40,46 @@ export class HonoAdapter {
     const { apiHandlerInfos } = this.api.getServerContext();
 
     const honoHandlers = createHonoRoutes(apiHandlerInfos as APIHandlerInfo[]);
-    this.apiMiddleware = honoHandlers.map(({ path, method, handler }) => ({
-      name: 'hono-bff-api',
-      path,
-      method,
-      handler: this.withErrorBoundary(handler),
-      order: 'post',
-      before,
-    }));
-
     this.crossProjectPolicy = resolveAdapterCrossProjectPolicy(
       this.api,
       (apiHandlerInfos as APIHandlerInfo[]) || [],
     );
-    if (this.crossProjectPolicy) {
-      // Enforce the cross-project policy ahead of every BFF route. Without
-      // this middleware the generated SDK's force-enabled policy config was
-      // a silent no-op in the hono lane.
-      const policyMiddleware: MiddlewareHandler = async (c, next) => {
-        const denial = checkCrossProjectPolicyResponse(
-          c.req.header(),
-          this.crossProjectPolicy,
-        );
-        if (denial) {
-          return denial;
-        }
-        await next();
-      };
-      this.apiMiddleware.unshift({
-        name: 'bff-cross-project-policy',
-        path: `${this.prefix}/*`,
-        method: 'all',
-        handler: policyMiddleware,
+    this.apiMiddleware = honoHandlers.map(({ path, method, handler }) => {
+      const routeHandlers = this.withErrorBoundary(handler);
+      let boundHandlers = routeHandlers;
+      if (this.crossProjectPolicy) {
+        // Bind policy evaluation to the route registration that actually
+        // matched. A prefix-wide middleware cannot distinguish a request to
+        // one route from client headers naming another valid contract.
+        const policyMiddleware: MiddlewareHandler = async (c, next) => {
+          const denial = checkCrossProjectPolicyResponse(
+            c.req.header(),
+            this.crossProjectPolicy,
+            {
+              method: c.req.method,
+              routePath: path,
+            },
+          );
+          if (denial) {
+            return denial;
+          }
+          await next();
+        };
+        boundHandlers = [
+          policyMiddleware,
+          ...(Array.isArray(routeHandlers) ? routeHandlers : [routeHandlers]),
+        ];
+      }
+
+      return {
+        name: 'hono-bff-api',
+        path,
+        method,
+        handler: boundHandlers,
         order: 'post',
         before,
-      });
-    }
+      };
+    });
   };
 
   /**

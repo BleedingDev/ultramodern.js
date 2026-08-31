@@ -4,6 +4,7 @@ import type { HttpMethodDecider } from '@modern-js/types';
 import { logger } from '@modern-js/utils';
 import type { Rspack } from '@rsbuild/core';
 import path from 'path';
+import { generateEffectWorkerRuntimeWrapper as workerWrapper } from './utils/effect-worker-runtime-wrapper';
 import {
   generateEffectClientCode,
   resolveEffectEntryFile,
@@ -59,20 +60,6 @@ async function transformEffectRuntimeSource(source: string, filename: string) {
   return result.code;
 }
 
-function createEffectWorkerRuntimeWrapper(resourcePath: string) {
-  const sourceRequest = `${resourcePath}?${EFFECT_BFF_WORKER_RUNTIME_SOURCE_QUERY}`;
-
-  return `import * as effectBffModule from ${JSON.stringify(sourceRequest)};
-import { createEffectBffEdgeDispatcher } from '@modern-js/plugin-bff/effect-edge/dispatcher';
-
-export const __modern_create_effect_bff_dispatcher = options =>
-  createEffectBffEdgeDispatcher({
-    ...options,
-    module: effectBffModule,
-  });
-`;
-}
-
 async function loader(
   this: Rspack.LoaderContext<APILoaderOptions>,
   source: string,
@@ -110,7 +97,7 @@ async function loader(
     path.resolve(effectEntryFile) === path.resolve(resourcePath) &&
     resourceQueries.has(EFFECT_BFF_WORKER_RUNTIME_QUERY)
   ) {
-    callback(undefined, createEffectWorkerRuntimeWrapper(resourcePath));
+    callback(undefined, await workerWrapper(this, draftOptions, resourcePath));
     return;
   }
 

@@ -35,6 +35,16 @@ export const createOperationContextSuccessScenarios = ({
   },
 ];
 
+const getMismatchedOperationVersion = (
+  contract: AdapterParityScenarioContext['helloContract'],
+) => {
+  const operationVersion = contract.operationVersion;
+  if (typeof operationVersion !== 'number') {
+    throw new Error('Adapter parity hello contract requires operationVersion');
+  }
+  return operationVersion + 1;
+};
+
 export const createOperationContextDenialScenarios = ({
   helloContract,
   validEnvelope,
@@ -165,7 +175,7 @@ export const createOperationContextDenialScenarios = ({
         method: 'GET',
         routePath: '/hello',
         schemaHash: helloContract.schemaHash,
-        operationVersion: helloContract.operationVersion + 1,
+        operationVersion: getMismatchedOperationVersion(helloContract),
       }),
     },
   ),

@@ -5,6 +5,11 @@ import type {
   ServerMiddleware,
   ServerPluginAPI,
 } from '@modern-js/server-core';
+import {
+  createDisposableServerRuntimeHandle,
+  type DisposableServerRuntimeHandle,
+  registerServerRuntimeDisposer,
+} from '@modern-js/server-runtime-extensions/runtime-lifecycle';
 import { fs, isProd, logger } from '@modern-js/utils';
 import path from 'path';
 
@@ -27,17 +32,17 @@ interface MiddlewareOptions {
   enableHandleWeb?: boolean;
 }
 
-type RequestHandler = EffectBffRequestHandler;
-
 export class EffectAdapter {
   private api: ServerPluginAPI;
   isEffect = true;
   effectMiddleware?: ServerMiddleware;
   crossProjectPolicy?: ResolvedCrossProjectPolicy;
 
-  private handler: RequestHandler | null = null;
-  private dispose: (() => void | Promise<void>) | null = null;
+  private handler: DisposableServerRuntimeHandle | null = null;
+  private unregisterRuntimeDisposer?: () => void;
   private prefix = '/api';
+  private reloadGeneration = 0;
+  private retired = false;
 
   constructor(api: ServerPluginAPI) {
     this.api = api;
@@ -56,7 +61,21 @@ export class EffectAdapter {
 
     this.prefix = prefix || this.prefix;
 
-    await this.reloadHandler();
+    const { serverBase } = this.api.getServerContext() as {
+      serverBase?: object;
+    };
+    if (serverBase) {
+      this.unregisterRuntimeDisposer = registerServerRuntimeDisposer(
+        serverBase,
+        this.dispose,
+      );
+    }
+    try {
+      await this.reloadHandler();
+    } catch (error) {
+      await this.dispose();
+      throw error;
+    }
 
     this.effectMiddleware = {
       name: 'effect-api-handler',
@@ -65,7 +84,8 @@ export class EffectAdapter {
       order: 'post',
       before,
       handler: async (c: Context, next: Next) => {
-        if (!this.handler) {
+        const handler = this.handler;
+        if (!handler) {
           if (enableHandleWeb) {
             await next();
             return;
@@ -80,7 +100,7 @@ export class EffectAdapter {
         }
 
         const response = await dispatchEffectBffRequestWithContext(
-          this.handler,
+          handler as EffectBffRequestHandler,
           c.req.raw,
           {
             prefix,
@@ -105,8 +125,18 @@ export class EffectAdapter {
     globalMiddlewares.push(this.effectMiddleware);
   };
 
+  dispose = async () => {
+    this.retired = true;
+    this.reloadGeneration += 1;
+    this.unregisterRuntimeDisposer?.();
+    this.unregisterRuntimeDisposer = undefined;
+    const previous = this.handler;
+    this.handler = null;
+    await this.disposeHandler(previous);
+  };
+
   onApiHandlersUpdated = async () => {
-    if (!this.isEffect || isProd()) {
+    if (!this.isEffect || this.retired || isProd()) {
       return;
     }
     await this.reloadHandler();
@@ -120,21 +150,18 @@ export class EffectAdapter {
     if (!this.isEffect) {
       return;
     }
+    const generation = ++this.reloadGeneration;
 
     const entryFile = this.resolveEntryFile();
     if (!entryFile) {
-      await this.disposeCurrentHandler();
-      this.handler = null;
+      await this.installHandler(generation, null);
       return;
     }
 
     if (!(await fs.pathExists(entryFile))) {
-      await this.disposeCurrentHandler();
-      this.handler = null;
+      await this.installHandler(generation, null);
       return;
     }
-
-    await this.disposeCurrentHandler();
 
     let mod: EffectApiModule;
     try {
@@ -149,11 +176,10 @@ export class EffectAdapter {
       logger.error(
         `[BFF][Effect] Failed to load Effect entry: ${entryFile}\n${String(error)}`,
       );
-      this.handler = null;
-      return;
+      throw error;
     }
 
-    this.crossProjectPolicy = await resolveEffectAdapterCrossProjectPolicy(
+    const crossProjectPolicy = await resolveEffectAdapterCrossProjectPolicy(
       this.api,
       this.prefix,
       mod,
@@ -162,34 +188,56 @@ export class EffectAdapter {
     const loaded = await loadEffectAdapterHandlerFromModule(
       this.api,
       mod,
-      this.crossProjectPolicy,
+      crossProjectPolicy,
     );
 
     if (!loaded) {
-      logger.warn(
+      const error = new Error(
         `[BFF][Effect] Invalid Effect entry module: ${entryFile}. Export defineEffectBff(...) or a { api, layer } HttpApi module.`,
       );
-      this.handler = null;
-      return;
+      logger.warn(error.message);
+      throw error;
     }
 
-    this.handler = loaded.handler;
-    this.dispose = loaded.dispose || null;
+    const candidateOwner = {};
+    if (loaded.dispose) {
+      registerServerRuntimeDisposer(candidateOwner, loaded.dispose);
+    }
+    const candidate = createDisposableServerRuntimeHandle(
+      candidateOwner,
+      loaded.handler,
+    );
+    await this.installHandler(generation, candidate, crossProjectPolicy);
+    if (this.retired) {
+      throw new Error('Cannot initialize a retired Effect adapter.');
+    }
   }
 
-  private async disposeCurrentHandler() {
-    if (!this.dispose) {
+  private async installHandler(
+    generation: number,
+    candidate: DisposableServerRuntimeHandle | null,
+    crossProjectPolicy?: ResolvedCrossProjectPolicy,
+  ) {
+    if (this.retired || generation !== this.reloadGeneration) {
+      await this.disposeHandler(candidate);
       return;
     }
+    const previous = this.handler;
+    this.handler = candidate;
+    this.crossProjectPolicy = crossProjectPolicy;
+    await this.disposeHandler(previous);
+  }
 
+  private async disposeHandler(handler: DisposableServerRuntimeHandle | null) {
+    if (!handler) {
+      return;
+    }
     try {
-      await this.dispose();
+      await handler.dispose();
     } catch (error) {
       logger.warn(
         `[BFF][Effect] Failed dispose previous handler: ${String(error)}`,
       );
-    } finally {
-      this.dispose = null;
     }
   }
 }

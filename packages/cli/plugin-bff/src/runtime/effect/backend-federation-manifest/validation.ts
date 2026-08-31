@@ -230,6 +230,15 @@ export function validateLoadedBackendFederationContract(
 
 export function classifyLoadError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
+  if (
+    (typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      error.code === 'timeout') ||
+    /timed out/iu.test(message)
+  ) {
+    return 'timeout' as const;
+  }
 
   if (message.includes('delivery-unit identity mismatch')) {
     return 'version_mismatch' as const;

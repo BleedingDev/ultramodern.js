@@ -10,6 +10,7 @@ import {
   normalizeMethod as normalizeItemMethod,
 } from '../../data-platform';
 import {
+  BatchItemTimeoutError,
   createBatchValidationResponse,
   isBatchRequestPayload,
   mapWithConcurrency,
@@ -29,6 +30,46 @@ type DataPlatformBatchItemHandler<TContext> = (
   request: Request,
   context?: TContext,
 ) => Promise<unknown>;
+
+const HOP_BY_HOP_BATCH_ITEM_HEADERS = new Set([
+  'connection',
+  'keep-alive',
+  'proxy-authenticate',
+  'proxy-authorization',
+  'proxy-connection',
+  'te',
+  'trailer',
+  'transfer-encoding',
+  'upgrade',
+]);
+
+const OUTER_BOUND_BATCH_ITEM_HEADERS = new Set([
+  'authorization',
+  'cookie',
+  'forwarded',
+  'origin',
+  'referer',
+  'sec-fetch-dest',
+  'sec-fetch-mode',
+  'sec-fetch-site',
+  'sec-fetch-user',
+  'x-forwarded-client-cert',
+  'x-forwarded-for',
+  'x-forwarded-host',
+  'x-forwarded-port',
+  'x-forwarded-proto',
+  'x-real-ip',
+  'x-subject-id',
+  'x-tenant-id',
+  'x-user-id',
+  'x-verified-producer',
+]);
+
+const TRANSPORT_CONTROLLED_BATCH_ITEM_HEADERS = new Set([
+  'content-length',
+  'host',
+  ...HOP_BY_HOP_BATCH_ITEM_HEADERS,
+]);
 
 export function createDataPlatformBatchRequestHandler<TContext>(options: {
   dataPlatform?: EffectDataPlatformValidationOptions;
@@ -110,6 +151,7 @@ export function createDataPlatformBatchRequestHandler<TContext>(options: {
       );
     }
 
+    const batchRequestOrigin = new URL(request.url).origin;
     const responseItems = await mapWithConcurrency(
       payload.items,
       batchConcurrency,
@@ -213,6 +255,22 @@ export function createDataPlatformBatchRequestHandler<TContext>(options: {
           }
         }
 
+        const connectionScopedHeaders = new Set(
+          (normalizedHeaders.connection || '')
+            .split(',')
+            .map(header => header.trim().toLowerCase())
+            .filter(Boolean),
+        );
+        for (const header of Object.keys(normalizedHeaders)) {
+          if (
+            TRANSPORT_CONTROLLED_BATCH_ITEM_HEADERS.has(header) ||
+            OUTER_BOUND_BATCH_ITEM_HEADERS.has(header) ||
+            connectionScopedHeaders.has(header)
+          ) {
+            delete normalizedHeaders[header];
+          }
+        }
+
         if (!normalizedHeaders.traceparent) {
           const encodedEnvelope = normalizedHeaders[normalizedEnvelopeHeader];
           if (typeof encodedEnvelope === 'string') {
@@ -220,6 +278,16 @@ export function createDataPlatformBatchRequestHandler<TContext>(options: {
             if (envelope?.traceparent) {
               normalizedHeaders.traceparent = envelope.traceparent;
             }
+          }
+        }
+
+        // Authentication, verified identity, and network-origin context belong
+        // to the authenticated outer request. Batch items may carry application
+        // and operation metadata, but cannot manufacture or replace this context.
+        for (const header of OUTER_BOUND_BATCH_ITEM_HEADERS) {
+          const value = request.headers.get(header);
+          if (value !== null) {
+            normalizedHeaders[header] = value;
           }
         }
 
@@ -231,7 +299,19 @@ export function createDataPlatformBatchRequestHandler<TContext>(options: {
         }
 
         const targetUrl = new URL(normalizedItemPath, request.url);
-        const requestHeaders = new Headers(normalizedHeaders);
+        if (targetUrl.origin !== batchRequestOrigin) {
+          return toBatchItemError(
+            itemId,
+            400,
+            'Batch item path must stay on the same origin',
+          );
+        }
+        let requestHeaders: Headers;
+        try {
+          requestHeaders = new Headers(normalizedHeaders);
+        } catch {
+          return toBatchItemError(itemId, 400, 'Invalid batch item headers');
+        }
         const body =
           itemMethod === 'GET' || itemMethod === 'HEAD'
             ? undefined
@@ -241,16 +321,28 @@ export function createDataPlatformBatchRequestHandler<TContext>(options: {
           requestHeaders.delete('content-type');
         }
 
+        const itemAbortController = new AbortController();
+        const abortFromBatchRequest = () =>
+          itemAbortController.abort(request.signal.reason);
+        if (request.signal.aborted) {
+          abortFromBatchRequest();
+        } else {
+          request.signal.addEventListener('abort', abortFromBatchRequest, {
+            once: true,
+          });
+        }
         const itemRequest = new Request(targetUrl.toString(), {
           method: itemMethod,
           headers: requestHeaders,
           body,
+          signal: itemAbortController.signal,
         });
 
         try {
           const itemResponse = await promiseWithTimeout(
             options.handleItem(itemRequest, context),
             batchItemTimeoutMs,
+            error => itemAbortController.abort(error),
           );
 
           if (!(itemResponse instanceof Response)) {
@@ -270,6 +362,21 @@ export function createDataPlatformBatchRequestHandler<TContext>(options: {
           };
           return responseItem;
         } catch (error) {
+          if (error instanceof BatchItemTimeoutError) {
+            console.error({
+              event: 'bff.batch.item.timeout',
+              batchId: payload.batchId,
+              itemId,
+              method: itemMethod,
+              path: normalizedItemPath,
+              error,
+            });
+            return toBatchItemError(
+              itemId,
+              504,
+              'Batch item request timed out',
+            );
+          }
           if (error instanceof Response) {
             const bodyText = await error.text();
             return {
@@ -280,9 +387,17 @@ export function createDataPlatformBatchRequestHandler<TContext>(options: {
             } as DataBatchResponseItem;
           }
 
-          const message =
-            error instanceof Error ? error.message : String(error);
-          return toBatchItemError(itemId, 500, message);
+          console.error({
+            event: 'bff.batch.item.failure',
+            batchId: payload.batchId,
+            itemId,
+            method: itemMethod,
+            path: normalizedItemPath,
+            error,
+          });
+          return toBatchItemError(itemId, 500, 'Internal Server Error');
+        } finally {
+          request.signal.removeEventListener('abort', abortFromBatchRequest);
         }
       },
     );

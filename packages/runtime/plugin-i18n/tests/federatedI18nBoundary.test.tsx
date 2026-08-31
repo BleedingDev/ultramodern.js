@@ -1,6 +1,7 @@
 import { describe, expect, test } from '@rstest/core';
-import i18next from 'i18next';
+import i18next, { type i18n } from 'i18next';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { I18nextProvider, useTranslation } from 'react-i18next';
 import { ModernI18nProvider } from '../src/runtime/context';
 import { FederatedI18nBoundary, useModernI18n } from '../src/runtime/core';
 
@@ -11,11 +12,19 @@ const HOST_ONLY_INVENTORY_COPY = 'inventory copy owned only by the shell';
 const HOST_ONLY_SHELL_COPY = 'private shell copy';
 
 function InventoryCopy() {
-  const { t } = useModernI18n();
+  const modernI18n = useModernI18n<i18n>();
+  const reactI18n = useTranslation('inventory');
+  const reactI18nInstance = reactI18n.i18n as i18n & { __original?: i18n };
+  const sharesScopedInstance =
+    reactI18nInstance === modernI18n.i18nInstance ||
+    reactI18nInstance.__original === modernI18n.i18nInstance;
 
   return (
     <p>
-      {t('inventory.widgetBody')}|{t('inventory.hostOnly')}|{t('shell:private')}
+      {modernI18n.t('inventory.widgetBody')}|
+      {reactI18n.t('inventory.widgetBody')}|{String(sharesScopedInstance)}|
+      {modernI18n.t('inventory.hostOnly')}|{modernI18n.t('shell:private')}|
+      {reactI18n.t('inventory.hostOnly')}|{reactI18n.t('shell:private')}
     </p>
   );
 }
@@ -45,6 +54,7 @@ describe('FederatedI18nBoundary', () => {
 
     const html = renderToStaticMarkup(
       <ModernI18nProvider
+        i18nextProvider={I18nextProvider}
         value={{
           i18nInstance: hostI18n,
           language: 'en',
@@ -68,6 +78,7 @@ describe('FederatedI18nBoundary', () => {
 
     expect(html).toContain(C1_COPY);
     expect(html).not.toContain(C0_COPY);
+    expect(html).toContain(`${C1_COPY}|${C1_COPY}|true`);
     expect(html).not.toContain(HOST_ONLY_INVENTORY_COPY);
     expect(html).not.toContain(HOST_ONLY_SHELL_COPY);
     expect(hostI18n.t('inventory.widgetBody')).toBe(C0_COPY);
@@ -94,6 +105,7 @@ describe('FederatedI18nBoundary', () => {
     expect(() =>
       renderToStaticMarkup(
         <ModernI18nProvider
+          i18nextProvider={I18nextProvider}
           value={{
             i18nInstance: hostI18n,
             language: 'en',

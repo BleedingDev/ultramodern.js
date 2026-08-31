@@ -13,7 +13,7 @@
     "deploy:gh-pages": "MODERNJS_DEPLOY=ghPages modern deploy && gh-pages -d .output"
   },
   "engines": {
-    "node": ">=20.19.5"
+    "node": ">=26.7.0"
   },
   "dependencies": {
     "@modern-js/runtime": "workspace:*",

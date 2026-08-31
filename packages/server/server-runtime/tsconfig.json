@@ -3,7 +3,6 @@
   "compilerOptions": {
     "declaration": true,
     "jsx": "preserve",
-    "baseUrl": "./",
     "isolatedModules": true,
     "paths": {},
     "rootDir": "./src"

@@ -1,8 +1,8 @@
+import type { LocalisedUrlsOption } from '@modern-js/i18n-runtime-extensions';
 import type {
   LanguageDetectorOptions,
   Resources,
 } from '../runtime/i18n/instance';
-import type { LocalisedUrlsOption } from './localisedUrls';
 
 export interface BaseLocaleDetectionOptions {
   localePathRedirect?: boolean;

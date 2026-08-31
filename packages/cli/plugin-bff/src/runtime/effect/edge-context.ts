@@ -7,7 +7,6 @@ export {
   type EffectContext,
 } from './operation-context';
 
-const kEffectContext = Symbol.for('modernjs.plugin-bff.edgeEffectContext');
 const kEffectContextStorage = Symbol.for(
   'modernjs.plugin-bff.edgeEffectContextStorage',
 );
@@ -17,60 +16,36 @@ type AsyncContextStorage<T> = {
   run: <TResult>(value: T, cb: () => TResult) => TResult;
 };
 
+type AsyncContextStorageConstructor = new <T>() => AsyncContextStorage<T>;
+
 const globalStore = globalThis as typeof globalThis & {
-  [kEffectContext]?: EffectContext;
   [kEffectContextStorage]?: AsyncContextStorage<EffectContext>;
-  AsyncLocalStorage?: new () => AsyncContextStorage<EffectContext>;
+  process?: {
+    getBuiltinModule?: (id: string) => unknown;
+  };
 };
 
-const isPromiseLike = (value: unknown): value is PromiseLike<unknown> =>
-  typeof value === 'object' &&
-  value !== null &&
-  'then' in value &&
-  typeof (value as { then?: unknown }).then === 'function';
+const asyncHooks = globalStore.process?.getBuiltinModule?.(
+  'node:async_hooks',
+) as { AsyncLocalStorage?: AsyncContextStorageConstructor } | undefined;
+const AsyncLocalStorage = asyncHooks?.AsyncLocalStorage;
+if (typeof AsyncLocalStorage !== 'function') {
+  throw new Error(
+    '[BFF][Effect] The edge runtime must provide AsyncLocalStorage. Enable Node.js compatibility or the nodejs_als compatibility flag.',
+  );
+}
 
-const getRuntimeStorage = () => {
-  if (globalStore[kEffectContextStorage]) {
-    return globalStore[kEffectContextStorage];
-  }
-
-  if (typeof globalStore.AsyncLocalStorage === 'function') {
-    globalStore[kEffectContextStorage] = new globalStore.AsyncLocalStorage();
-  }
-
-  return globalStore[kEffectContextStorage];
-};
+const effectContextStorage =
+  globalStore[kEffectContextStorage] ??
+  (globalStore[kEffectContextStorage] = new AsyncLocalStorage<EffectContext>());
 
 export const runWithEffectContext = <T>(
   context: EffectContext,
   cb: () => T,
-): T => {
-  const storage = getRuntimeStorage();
-  if (storage) {
-    return storage.run(context, cb);
-  }
-
-  const previous = globalStore[kEffectContext];
-  globalStore[kEffectContext] = context;
-
-  try {
-    const result = cb();
-    if (isPromiseLike(result)) {
-      return Promise.resolve(result).finally(() => {
-        globalStore[kEffectContext] = previous;
-      }) as T;
-    }
-    globalStore[kEffectContext] = previous;
-    return result;
-  } catch (error) {
-    globalStore[kEffectContext] = previous;
-    throw error;
-  }
-};
+): T => effectContextStorage.run(context, cb);
 
 export const useEffectContext = (): EffectContext => {
-  const context =
-    getRuntimeStorage()?.getStore() ?? globalStore[kEffectContext];
+  const context = effectContextStorage.getStore();
   if (!context) {
     throw new Error(`Can't call useEffectContext out of Effect runtime scope`);
   }

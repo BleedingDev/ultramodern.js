@@ -9,6 +9,7 @@ type ResolvePreCompressedAssetResult = {
     encoding: SupportedEncoding;
   } | null;
   hasVariant: boolean;
+  acceptable: boolean;
 };
 
 const PRE_COMPRESSED_ASSET_EXTENSIONS: Record<SupportedEncoding, string> = {
@@ -17,6 +18,8 @@ const PRE_COMPRESSED_ASSET_EXTENSIONS: Record<SupportedEncoding, string> = {
 };
 
 const PRE_COMPRESSED_SUPPORTED_ENCODINGS: SupportedEncoding[] = ['br', 'gzip'];
+
+const QUALITY_VALUE_PATTERN = /^(?:0(?:\.\d{0,3})?|1(?:\.0{0,3})?)$/u;
 
 const parseAcceptEncoding = (value: string) =>
   value
@@ -27,17 +30,25 @@ const parseAcceptEncoding = (value: string) =>
       const [rawName, ...params] = item.split(';');
       const name = rawName.trim().toLowerCase();
       let q = 1;
+      let qualitySeen = false;
 
       for (const param of params) {
         const [key, rawValue] = param.split('=').map(v => v.trim());
-        if (key.toLowerCase() !== 'q' || rawValue == null) {
+        if (key.toLowerCase() !== 'q') {
           continue;
         }
 
-        const parsedQ = Number(rawValue);
-        if (!Number.isNaN(parsedQ)) {
-          q = Math.max(0, Math.min(parsedQ, 1));
+        if (
+          qualitySeen ||
+          rawValue == null ||
+          !QUALITY_VALUE_PATTERN.test(rawValue)
+        ) {
+          q = 0;
+          break;
         }
+
+        qualitySeen = true;
+        q = Number(rawValue);
       }
 
       return {
@@ -46,11 +57,11 @@ const parseAcceptEncoding = (value: string) =>
       };
     });
 
-const getAcceptedEncodings = (
+const getAcceptedRepresentations = (
   value: string | null | undefined,
-): SupportedEncoding[] => {
+): Array<SupportedEncoding | 'identity'> => {
   if (!value) {
-    return [];
+    return ['identity'];
   }
 
   const parsed = parseAcceptEncoding(value);
@@ -73,10 +84,19 @@ const getAcceptedEncodings = (
     return wildcardQuality ?? 0;
   };
 
-  return PRE_COMPRESSED_SUPPORTED_ENCODINGS.map(encoding => ({
-    encoding,
-    quality: getQuality(encoding),
-  }))
+  const identityQuality =
+    qualityByEncoding.get('identity') ?? (wildcardQuality === 0 ? 0 : 1);
+
+  return [
+    ...PRE_COMPRESSED_SUPPORTED_ENCODINGS.map(encoding => ({
+      encoding,
+      quality: getQuality(encoding),
+    })),
+    {
+      encoding: 'identity' as const,
+      quality: identityQuality,
+    },
+  ]
     .filter(item => item.quality > 0)
     .sort((a, b) => b.quality - a.quality)
     .map(item => item.encoding);
@@ -116,18 +136,19 @@ export const resolvePreCompressedAsset = async (
   ]);
 
   const hasVariant = hasBr || hasGzip;
-  if (!hasVariant) {
-    return {
-      selected: null,
-      hasVariant: false,
-    };
-  }
-
-  const acceptedEncodings = getAcceptedEncodings(
+  const acceptedRepresentations = getAcceptedRepresentations(
     c.req.header('accept-encoding'),
   );
 
-  for (const encoding of acceptedEncodings) {
+  for (const encoding of acceptedRepresentations) {
+    if (encoding === 'identity') {
+      return {
+        selected: null,
+        hasVariant,
+        acceptable: true,
+      };
+    }
+
     if (encoding === 'br' && hasBr) {
       return {
         selected: {
@@ -135,6 +156,7 @@ export const resolvePreCompressedAsset = async (
           encoding,
         },
         hasVariant: true,
+        acceptable: true,
       };
     }
 
@@ -145,13 +167,15 @@ export const resolvePreCompressedAsset = async (
           encoding,
         },
         hasVariant: true,
+        acceptable: true,
       };
     }
   }
 
   return {
     selected: null,
-    hasVariant: true,
+    hasVariant,
+    acceptable: false,
   };
 };
 
@@ -159,7 +183,7 @@ export const applyPreCompressedAssetHeaders = (
   c: Parameters<Middleware>[0],
   preCompressedAsset: ResolvePreCompressedAssetResult,
 ) => {
-  if (preCompressedAsset.hasVariant) {
+  if (preCompressedAsset.hasVariant || !preCompressedAsset.acceptable) {
     appendVaryHeader(c, 'Accept-Encoding');
   }
 

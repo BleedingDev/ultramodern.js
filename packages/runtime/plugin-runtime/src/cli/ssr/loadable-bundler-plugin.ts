@@ -78,8 +78,7 @@ class LoadablePlugin {
 
     compiler.options.output.chunkLoadingGlobal = chunkLoadingGlobal;
     new compiler.webpack.DefinePlugin({
-      'process.env.MODERN_CHUNK_LOADING_GLOBAL':
-        JSON.stringify(chunkLoadingGlobal),
+      __MODERN_CHUNK_LOADING_GLOBAL__: JSON.stringify(chunkLoadingGlobal),
     }).apply(compiler);
 
     if (this.opts.outputAsset || this.opts.writeToDisk) {

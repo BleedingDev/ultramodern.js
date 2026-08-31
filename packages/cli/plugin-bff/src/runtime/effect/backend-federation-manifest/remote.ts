@@ -1,11 +1,18 @@
 // @effect-diagnostics asyncFunction:off extendsNativeError:off globalTimers:off newPromise:off strictBooleanExpressions:off
 
+import {
+  BackendFederationRemoteEntryError,
+  resolveBackendFederationRemoteEntryVerification,
+} from '@modern-js/server-runtime-extensions/backend-federation-security';
 import { backendFederationExposeNames } from '@modern-js/utils/universal';
 import {
   BACKEND_FEDERATION_EFFECT_EXPOSE,
   type BackendFederationRemote,
 } from '../backend-federation';
-import { assertManifestAdapter } from './errors';
+import {
+  assertManifestAdapter,
+  BackendFederationManifestAdapterError,
+} from './errors';
 import {
   backendFederationMetadata,
   recordField,
@@ -42,6 +49,24 @@ export function resolveBackendFederationRemoteFromManifest(
     remoteOverride.expose ??
     backendFederationExposeNames(backendFederation)[0] ??
     BACKEND_FEDERATION_EFFECT_EXPOSE;
+  let verification: BackendFederationRemote['verification'];
+  try {
+    const manifestVerification =
+      resolveBackendFederationRemoteEntryVerification(manifest);
+    verification = remoteOverride.verification ?? manifestVerification;
+  } catch (cause) {
+    if (cause instanceof BackendFederationRemoteEntryError) {
+      throw new BackendFederationManifestAdapterError(
+        cause.code === 'identity_mismatch'
+          ? 'version_mismatch'
+          : 'manifest_invalid',
+        `[BFF][Effect] ${cause.message}`,
+        cause,
+        cause.details,
+      );
+    }
+    throw cause;
+  }
 
   assertManifestAdapter(
     remoteName,
@@ -63,6 +88,7 @@ export function resolveBackendFederationRemoteFromManifest(
     name: remoteName,
     entry: remoteEntryUrl,
     type: remoteType,
+    ...(verification ? { verification } : {}),
     ...(remoteOverride.entryGlobalName
       ? { entryGlobalName: remoteOverride.entryGlobalName }
       : {}),

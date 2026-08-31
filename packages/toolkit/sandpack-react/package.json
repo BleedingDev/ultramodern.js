@@ -34,7 +34,7 @@
   },
   "scripts": {
     "prepublishOnly": "only-allow-pnpm",
-    "build": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/template.mts && rslib build && pnpm -w tsgo:dts \"$PWD\"",
+    "build": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/template.mts && rslib build",
     "dev": "rslib build --watch",
     "test": "rstest --passWithNoTests"
   },

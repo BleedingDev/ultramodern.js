@@ -2,6 +2,7 @@ import React from 'react';
 import { setGlobalInternalRuntimeContext } from '../../../../src/core/context';
 import { SSR_DATA_PLACEHOLDER } from '../../../../src/core/server/constants';
 import { renderString } from '../../../../src/core/server/string';
+import { Helmet } from '../../../../src/exports/head';
 import { applyRouterRuntimeState } from '../../../../src/router/runtime/lifecycle';
 
 const TSR_BOOTSTRAP = '<script>window.$_TSR = { router: "hydrated" };</script>';
@@ -70,6 +71,61 @@ const render = async (
 };
 
 describe('renderString template assembly (string-mode script ordering)', () => {
+  it('publishes only Helmet markers present in completed Suspense output', async () => {
+    setGlobalInternalRuntimeContext({
+      hooks: {
+        extendStringSSRCollectors: {
+          call: () => [],
+        },
+      },
+    } as any);
+    const never = new Promise<never>(() => {});
+    const SuspendForever = (): null => {
+      throw never;
+    };
+
+    const html = await renderString(
+      new Request('http://localhost/'),
+      <>
+        <Helmet>
+          <meta name="outside" content="committed" />
+        </Helmet>
+        <React.Suspense
+          fallback={
+            <>
+              <Helmet>
+                <meta name="fallback" content="committed" />
+              </Helmet>
+              fallback rendered
+            </>
+          }
+        >
+          <Helmet>
+            <meta name="abandoned-unique" content="ghost" />
+          </Helmet>
+          <SuspendForever />
+        </React.Suspense>
+      </>,
+      {
+        resource: {
+          entryName: 'index',
+          htmlTemplate:
+            '<html><head></head><body><!--<?- html ?>--></body></html>',
+          routeManifest: {},
+        },
+        runtimeContext: createRuntimeContext({ withRouterBootstrap: false }),
+        config: {},
+        onError: () => {},
+        onTiming: () => {},
+      } as any,
+    );
+
+    expect(html).toContain('name="outside" content="committed"');
+    expect(html).toContain('name="fallback" content="committed"');
+    expect(html).not.toContain('abandoned-unique');
+    expect(html).not.toContain('data-modern-helmet');
+  });
+
   it('should emit the SSR data + router bootstrap before the entry script', async () => {
     const html = await render(
       [
@@ -137,5 +193,36 @@ describe('renderString template assembly (string-mode script ordering)', () => {
     expect(markerIndex).toBeGreaterThan(-1);
     expect(ssrDataIndex).toBeGreaterThan(markerIndex);
     expect(html).not.toContain(SSR_DATA_PLACEHOLDER);
+  });
+
+  it('should preserve a custom template that omits script markers', async () => {
+    const template =
+      '<html><head><script async src="/static/js/index.js"></script></head><body>custom shell</body></html>';
+    const runtimeContext = createRuntimeContext({ withRouterBootstrap: true });
+    runtimeContext.ssrContext.request.headers = {
+      'x-request-id': 'request-1',
+    };
+
+    const html = await renderString(
+      new Request('http://localhost/'),
+      React.createElement('main', null, 'server markup'),
+      {
+        resource: {
+          entryName: 'index',
+          htmlTemplate: template,
+          routeManifest: {},
+        },
+        runtimeContext,
+        config: {
+          ssr: {
+            unsafeHeaders: ['x-request-id'],
+          },
+        },
+        onError: () => {},
+        onTiming: () => {},
+      } as any,
+    );
+
+    expect(html).toBe(template);
   });
 });

@@ -1,5 +1,9 @@
 // @effect-diagnostics asyncFunction:off globalFetch:off strictBooleanExpressions:off
 
+import {
+  evaluateBackendFederationCommonJsEntry,
+  loadVerifiedBackendFederationEntry,
+} from '@modern-js/server-runtime-extensions/backend-federation-security';
 import type { ModuleFederationRuntimePlugin } from '@module-federation/runtime';
 
 import type {
@@ -23,40 +27,9 @@ async function readCommonJsEntrySource(remote: BackendFederationRemote) {
     return decodeDataUrl(remote.entry);
   }
 
-  if (
-    remote.entry.startsWith('http://') ||
-    remote.entry.startsWith('https://')
-  ) {
-    const response = await fetch(remote.entry);
-    if (!response.ok) {
-      throw new Error(
-        `[BFF][Effect] Failed to load backend federation remote ${remote.name}: ${response.status}`,
-      );
-    }
-    return response.text();
-  }
-
   throw new Error(
     `[BFF][Effect] Backend federation remote ${remote.name} cannot load CommonJS entry ${remote.entry}.`,
   );
-}
-
-function evaluateCommonJsEntry(
-  remote: BackendFederationRemote,
-  source: string,
-) {
-  const module = { exports: {} as Record<string, unknown> };
-  const exports = module.exports;
-  const evaluate = new Function('module', 'exports', 'globalThis', source);
-  evaluate(module, exports, globalThis);
-
-  const entry = module.exports.default ?? module.exports;
-  if (!isRecord(entry)) {
-    throw new Error(
-      `[BFF][Effect] Backend federation remote ${remote.name} entry must load object module.`,
-    );
-  }
-  return entry as unknown as BackendFederationEntryExports;
 }
 
 async function importModuleEntry(remote: BackendFederationRemote) {
@@ -82,9 +55,26 @@ async function resolvePluginEntry(
 
 async function loadBackendFederationEntry(
   remote: BackendFederationRemote,
-  plugins: ModuleFederationRuntimePlugin[] | undefined,
+  options: BackendFederationRuntimeOptions,
 ) {
-  const pluginEntry = await resolvePluginEntry(remote, plugins);
+  const requiresVerification = Boolean(
+    remote.verification || options.entryPolicy?.expected,
+  );
+  const isNetworkEntry = /^https?:\/\//iu.test(remote.entry);
+  if (isNetworkEntry && !requiresVerification) {
+    throw new Error(
+      `[BFF][Effect] Backend federation remote ${remote.name} requires verified entry bytes before network execution.`,
+    );
+  }
+  if (requiresVerification) {
+    return loadVerifiedBackendFederationEntry({
+      ...options.entryPolicy,
+      remote,
+      ...(remote.verification ? { verification: remote.verification } : {}),
+    });
+  }
+
+  const pluginEntry = await resolvePluginEntry(remote, options.plugins);
   if (pluginEntry) {
     return pluginEntry;
   }
@@ -102,7 +92,11 @@ async function loadBackendFederationEntry(
     return importModuleEntry(remote);
   }
 
-  return evaluateCommonJsEntry(remote, await readCommonJsEntrySource(remote));
+  return evaluateBackendFederationCommonJsEntry(
+    remote,
+    new TextEncoder().encode(await readCommonJsEntrySource(remote)),
+    options.entryPolicy?.evaluateCommonJs,
+  );
 }
 
 export async function loadBackendFederationExpose(
@@ -110,7 +104,7 @@ export async function loadBackendFederationExpose(
   expose: string,
   options: BackendFederationRuntimeOptions,
 ) {
-  const entry = await loadBackendFederationEntry(remote, options.plugins);
+  const entry = await loadBackendFederationEntry(remote, options);
   if (typeof entry.init === 'function') {
     await entry.init({ hostName: options.hostName });
   }

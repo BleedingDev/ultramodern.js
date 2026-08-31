@@ -15,9 +15,16 @@ const createTempDir = async () => {
   return dir;
 };
 
-const createStaticServer = async (pwd: string, routes: ServerRoute[] = []) => {
+const createStaticServer = async (
+  pwd: string,
+  routes: ServerRoute[] = [],
+  assetPrefix?: string,
+) => {
   const server = createServerBase({
-    config: getDefaultConfig(),
+    config: {
+      ...getDefaultConfig(),
+      output: assetPrefix ? { assetPrefix } : {},
+    },
     pwd,
     routes,
     appContext: getDefaultAppContext(),
@@ -90,6 +97,115 @@ describe('static plugin precompressed assets', () => {
     expect(Buffer.from(await response.arrayBuffer()).equals(gzipBody)).toBe(
       true,
     );
+  });
+
+  it.each([
+    'bogus',
+    'bogus;q=1',
+    '0.2;q=1',
+    '2',
+    '-0.1',
+    '.8',
+    '0.1234',
+    '1.001',
+  ])('does not accept an invalid quality value %s', async invalidQuality => {
+    const pwd = await createTempDir();
+    const originBody = Buffer.from('invalid quality');
+    const brBody = brotliCompressSync(originBody);
+    const gzipBody = gzipSync(originBody);
+    const staticFile = path.join(pwd, 'static', 'invalid-quality.js');
+
+    await mkdir(path.dirname(staticFile), { recursive: true });
+    await writeFile(staticFile, originBody);
+    await writeFile(`${staticFile}.br`, brBody);
+    await writeFile(`${staticFile}.gz`, gzipBody);
+
+    const server = await createStaticServer(pwd);
+    const response = await server.request('/static/invalid-quality.js', {
+      headers: new Headers({
+        'accept-encoding': `br;q=${invalidQuality}, gzip;q=0.4, identity;q=0`,
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-encoding')).toBe('gzip');
+    expect(Buffer.from(await response.arrayBuffer()).equals(gzipBody)).toBe(
+      true,
+    );
+  });
+
+  it('returns 406 when identity and every available encoding are unacceptable', async () => {
+    const pwd = await createTempDir();
+    const originBody = Buffer.from('no acceptable representation');
+    const staticFile = path.join(pwd, 'static', 'not-acceptable.js');
+
+    await mkdir(path.dirname(staticFile), { recursive: true });
+    await writeFile(staticFile, originBody);
+    await writeFile(`${staticFile}.br`, brotliCompressSync(originBody));
+    await writeFile(`${staticFile}.gz`, gzipSync(originBody));
+
+    const server = await createStaticServer(pwd);
+    const response = await server.request('/static/not-acceptable.js', {
+      headers: new Headers({
+        'accept-encoding': 'br;q=0, gzip;q=0, identity;q=0',
+      }),
+    });
+
+    expect(response.status).toBe(406);
+    expect(response.headers.get('content-encoding')).toBe(null);
+    expect(response.headers.get('vary')).toContain('Accept-Encoding');
+    expect(await response.text()).toBe('');
+  });
+
+  it.each([
+    {
+      acceptEncoding: '*;q=0.8',
+      expectedRepresentation: 'br',
+      expectedEncoding: 'br',
+      expectedBody: 'br',
+    },
+    {
+      acceptEncoding: '*;q=0.8, identity;q=0.9',
+      expectedRepresentation: 'identity',
+      expectedEncoding: null,
+      expectedBody: 'wildcard identity',
+    },
+    {
+      acceptEncoding: '*;q=0.8, identity;q=0',
+      expectedRepresentation: 'br',
+      expectedEncoding: 'br',
+      expectedBody: 'br',
+    },
+    {
+      acceptEncoding: 'br;q=0, *;q=0.8, identity;q=0',
+      expectedRepresentation: 'gzip',
+      expectedEncoding: 'gzip',
+      expectedBody: 'gzip',
+    },
+  ])('selects $expectedRepresentation for $acceptEncoding', async ({
+    acceptEncoding,
+    expectedEncoding,
+    expectedBody,
+  }) => {
+    const pwd = await createTempDir();
+    const originBody = Buffer.from('wildcard identity');
+    const staticFile = path.join(pwd, 'static', 'wildcard.js');
+
+    await mkdir(path.dirname(staticFile), { recursive: true });
+    await writeFile(staticFile, originBody);
+    await writeFile(`${staticFile}.br`, Buffer.from('br'));
+    await writeFile(`${staticFile}.gz`, Buffer.from('gzip'));
+
+    const server = await createStaticServer(pwd);
+    const response = await server.request('/static/wildcard.js', {
+      headers: new Headers({
+        'accept-encoding': acceptEncoding,
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-encoding')).toBe(expectedEncoding);
+    expect(await response.text()).toBe(expectedBody);
   });
 
   it('falls back to origin asset when no variant is accepted', async () => {
@@ -214,6 +330,78 @@ describe('static plugin Module Federation backend assets', () => {
     expect(await remoteEntryResponse.text()).toContain(
       'export function init() {}',
     );
+  });
+
+  it('discovers a manifest created after the first request', async () => {
+    const pwd = await createTempDir();
+    const manifestFile = path.join(pwd, 'mf-manifest.json');
+    const remoteEntryFile = path.join(pwd, 'remoteEntry.js');
+    let now = 1_000;
+    rstest.spyOn(Date, 'now').mockImplementation(() => now);
+
+    const server = await createStaticServer(pwd);
+    const beforeBuildResponse = await server.request('/remoteEntry.js');
+    expect(beforeBuildResponse.status).toBe(404);
+
+    await writeFile(
+      manifestFile,
+      JSON.stringify({
+        metaData: {
+          publicPath: '/',
+          remoteEntry: {
+            path: '',
+            name: 'remoteEntry.js',
+          },
+        },
+      }),
+    );
+    await writeFile(
+      remoteEntryFile,
+      '__webpack_require__.p = "/"; export function init() {}',
+    );
+    now += 1_001;
+
+    const afterBuildResponse = await server.request('/remoteEntry.js');
+
+    expect(afterBuildResponse.status).toBe(200);
+    expect(afterBuildResponse.headers.get('access-control-allow-origin')).toBe(
+      '*',
+    );
+    expect(await afterBuildResponse.text()).toContain(
+      '__webpack_require__.p = "http://localhost/"',
+    );
+  });
+
+  it('removes an asset prefix only from the start of the request path', async () => {
+    const pwd = await createTempDir();
+    const remoteDirectory = path.join(pwd, 'nested');
+
+    await mkdir(remoteDirectory, { recursive: true });
+    await writeFile(
+      path.join(pwd, 'mf-manifest.json'),
+      JSON.stringify({
+        metaData: {
+          publicPath: '/',
+          remoteEntry: {
+            path: 'nested',
+            name: 'remoteEntry.js',
+          },
+        },
+      }),
+    );
+    await writeFile(
+      path.join(remoteDirectory, 'remoteEntry.js'),
+      'export function init() {}',
+    );
+
+    const server = await createStaticServer(pwd, [], '/assets');
+    const validResponse = await server.request('/assets/nested/remoteEntry.js');
+    const misplacedPrefixResponse = await server.request(
+      '/nested/assets/remoteEntry.js',
+    );
+
+    expect(validResponse.status).toBe(200);
+    expect(misplacedPrefixResponse.status).toBe(404);
   });
 });
 

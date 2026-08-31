@@ -28,13 +28,17 @@ type DataBatchFetch = NonNullable<DataBatchTransportOptions['fetch']>;
 type CreateBatchTransportQueueOptions = {
   options: DataBatchTransportOptions;
   baseFetch: DataBatchFetch;
+  bucketRegistry?: BatchBucketRegistry;
 };
 
 type QueuedBatchRequest = {
   key: string;
   endpoint: string;
-  requestUrl: string;
+  requestInput: DataTransportRequestInfo;
   requestInit: RequestInit;
+  authorization: string | undefined;
+  cookie: string | undefined;
+  credentials: RequestCredentials;
   item: DataBatchRequestItem;
   size: number;
   resolve: (value: unknown) => void;
@@ -48,28 +52,53 @@ type BatchBucket = {
   flushing: boolean;
 };
 
-function ensureBucket(
-  buckets: Map<string, BatchBucket>,
-  endpoint: string,
-): BatchBucket {
-  const existing = buckets.get(endpoint);
-  if (existing) {
-    return existing;
+const SAFE_REPLAY_METHODS = new Set(['GET', 'HEAD']);
+
+export class BatchBucketRegistry {
+  private readonly buckets = new Map<string, BatchBucket>();
+
+  get size() {
+    return this.buckets.size;
   }
 
-  const next: BatchBucket = {
-    items: [],
-    bytes: 0,
-    timer: null,
-    flushing: false,
-  };
-  buckets.set(endpoint, next);
-  return next;
+  get(bucketKey: string) {
+    return this.buckets.get(bucketKey);
+  }
+
+  ensure(bucketKey: string) {
+    const existing = this.buckets.get(bucketKey);
+    if (existing) {
+      return existing;
+    }
+
+    const next: BatchBucket = {
+      items: [],
+      bytes: 0,
+      timer: null,
+      flushing: false,
+    };
+    this.buckets.set(bucketKey, next);
+    return next;
+  }
+
+  releaseIfIdle(bucketKey: string, bucket: BatchBucket) {
+    if (
+      this.buckets.get(bucketKey) !== bucket ||
+      bucket.flushing ||
+      bucket.timer !== null ||
+      bucket.items.length > 0
+    ) {
+      return false;
+    }
+
+    return this.buckets.delete(bucketKey);
+  }
 }
 
 export function createBatchTransportQueue({
   options,
   baseFetch,
+  bucketRegistry,
 }: CreateBatchTransportQueueOptions) {
   const flushIntervalMs = Math.max(0, options.flushIntervalMs ?? 8);
   const maxBatchSize = Math.max(1, options.maxBatchSize ?? 16);
@@ -83,13 +112,13 @@ export function createBatchTransportQueue({
   );
   const onEvent = options.onEvent;
 
-  const buckets = new Map<string, BatchBucket>();
+  const buckets = bucketRegistry ?? new BatchBucketRegistry();
   const pendingByKey = new Map<string, Promise<unknown>>();
   const disabledEndpoints = new Set<string>();
   let nextItemId = 0;
 
   const runSingle = async (request: QueuedBatchRequest) => {
-    const response = await baseFetch(request.requestUrl, request.requestInit);
+    const response = await baseFetch(request.requestInput, request.requestInit);
     return parseResponseLikeCreateRequest(response);
   };
 
@@ -111,8 +140,26 @@ export function createBatchTransportQueue({
     );
   };
 
-  const flushBucket = async (endpoint: string) => {
-    const bucket = buckets.get(endpoint);
+  const runAfterAmbiguousBatch = (
+    request: QueuedBatchRequest,
+    reason: string,
+  ) => {
+    if (!SAFE_REPLAY_METHODS.has(request.item.method)) {
+      throw new Error(
+        `Batch result is unknown for ${request.item.method}; automatic replay is disabled (${reason}).`,
+      );
+    }
+    return runSingle(request);
+  };
+
+  const settleAmbiguousBatchRequests = (
+    items: QueuedBatchRequest[],
+    reason: string,
+  ) =>
+    settleRequests(items, request => runAfterAmbiguousBatch(request, reason));
+
+  const flushBucket = async (bucketKey: string) => {
+    const bucket = buckets.get(bucketKey);
     if (!bucket || bucket.flushing) {
       return;
     }
@@ -123,6 +170,7 @@ export function createBatchTransportQueue({
     }
 
     if (bucket.items.length === 0) {
+      buckets.releaseIfIdle(bucketKey, bucket);
       return;
     }
 
@@ -130,6 +178,13 @@ export function createBatchTransportQueue({
     const items = bucket.items;
     bucket.items = [];
     bucket.bytes = 0;
+    const firstItem = items[0];
+    if (!firstItem) {
+      bucket.flushing = false;
+      buckets.releaseIfIdle(bucketKey, bucket);
+      return;
+    }
+    const endpoint = firstItem.endpoint;
 
     if (items.length === 1 || disabledEndpoints.has(endpoint)) {
       emitDataBatchTransportEvent(onEvent, {
@@ -141,8 +196,9 @@ export function createBatchTransportQueue({
       await settleRequests(items, runSingle);
       bucket.flushing = false;
       if (bucket.items.length > 0 && !bucket.timer) {
-        void flushBucket(endpoint);
+        void flushBucket(bucketKey);
       }
+      buckets.releaseIfIdle(bucketKey, bucket);
       return;
     }
 
@@ -165,14 +221,19 @@ export function createBatchTransportQueue({
     const traceparent =
       items.find(item => typeof item.item.headers?.traceparent === 'string')
         ?.item.headers?.traceparent || undefined;
+    const authorization = firstItem.authorization;
+    const cookie = firstItem.cookie;
 
     const requestInit: RequestInit = {
       method: 'POST',
+      credentials: firstItem.credentials,
       headers: {
         accept: 'application/json, */*;q=0.8',
         'content-type': 'application/json; charset=utf-8',
         [DEFAULT_DATA_BATCH_HEADER]: '1',
         ...(traceparent ? { traceparent } : {}),
+        ...(typeof authorization === 'string' ? { authorization } : {}),
+        ...(typeof cookie === 'string' ? { cookie } : {}),
       },
       body: payloadJson,
     };
@@ -217,7 +278,10 @@ export function createBatchTransportQueue({
             reason: `batch-response-${String(response.status)}`,
           });
         }
-        await settleRequests(items, runSingle);
+        await settleAmbiguousBatchRequests(
+          items,
+          `batch-response-${String(response.status)}`,
+        );
         bucket.flushing = false;
         return;
       }
@@ -231,7 +295,7 @@ export function createBatchTransportQueue({
           size: items.length,
           reason: 'invalid-batch-response',
         });
-        await settleRequests(items, runSingle);
+        await settleAmbiguousBatchRequests(items, 'invalid-batch-response');
         bucket.flushing = false;
         return;
       }
@@ -244,7 +308,7 @@ export function createBatchTransportQueue({
       await settleRequests(items, async request => {
         const resultItem = itemMap.get(request.item.id);
         if (!resultItem) {
-          return runSingle(request);
+          return runAfterAmbiguousBatch(request, 'missing-batch-result');
         }
 
         const reconstructedResponse = new Response(resultItem.body ?? '', {
@@ -261,48 +325,64 @@ export function createBatchTransportQueue({
         size: items.length,
         reason: 'batch-transport-error',
       });
-      await settleRequests(items, runSingle);
+      await settleAmbiguousBatchRequests(items, 'batch-transport-error');
     } finally {
       if (timeoutHandle) {
         clearTimeout(timeoutHandle);
       }
       bucket.flushing = false;
       if (bucket.items.length > 0 && !bucket.timer) {
-        void flushBucket(endpoint);
+        void flushBucket(bucketKey);
       }
+      buckets.releaseIfIdle(bucketKey, bucket);
     }
   };
 
   return (input: DataTransportRequestInfo, init?: RequestInit) => {
+    const sourceRequest =
+      typeof Request !== 'undefined' && input instanceof Request
+        ? input
+        : undefined;
     const requestUrl = toAbsoluteUrl(input);
     const batchEndpointUrl = normalizeBatchEndpoint(
       requestUrl,
       options.endpoint,
     );
     const endpoint = batchEndpointUrl.toString();
-    const method = normalizeMethod(init?.method);
+    const method = normalizeMethod(init?.method ?? sourceRequest?.method);
     const body = toRequestBody(init?.body ?? null);
-    const headers = toHeaderRecord(init?.headers);
+    const headers = toHeaderRecord(init?.headers ?? sourceRequest?.headers);
+    const credentials =
+      init?.credentials ?? sourceRequest?.credentials ?? 'same-origin';
+    const hasOpaqueBody =
+      (typeof init?.body !== 'undefined' &&
+        init.body !== null &&
+        typeof body === 'undefined') ||
+      (typeof init?.body === 'undefined' &&
+        sourceRequest !== undefined &&
+        sourceRequest.body !== null);
 
     const normalizedInit: RequestInit = {
       ...init,
       method,
       headers,
-      body,
+      credentials,
+      ...(typeof body === 'string' ? { body } : {}),
     };
+    const requestInput = sourceRequest ?? requestUrl.toString();
 
     if (
       disabledEndpoints.has(endpoint) ||
       !shouldBatchRequest({
         method,
-        body,
+        body: hasOpaqueBody ? '[opaque request body]' : body,
         headers,
         allowedMethods,
         batchEndpoint: endpoint,
         requestUrl,
       })
     ) {
-      return baseFetch(requestUrl.toString(), normalizedInit).then(
+      return baseFetch(requestInput, normalizedInit).then(
         parseResponseLikeCreateRequest,
       );
     }
@@ -312,35 +392,49 @@ export function createBatchTransportQueue({
       .slice(2, 8)}`;
     nextItemId += 1;
 
+    const itemHeaders = { ...headers };
+    delete itemHeaders.authorization;
+    delete itemHeaders.cookie;
     const item: DataBatchRequestItem = {
       id: itemId,
       path: `${requestUrl.pathname}${requestUrl.search}`,
       method,
-      headers,
-      ...(body ? { body } : {}),
+      headers: itemHeaders,
+      ...(typeof body === 'string' ? { body } : {}),
     };
 
-    const key = stableStringify({
+    const bucketKey = stableStringify({
       endpoint,
+      authorization: headers.authorization ?? null,
+      cookie: headers.cookie ?? null,
+      credentials,
+    });
+
+    const key = stableStringify({
+      bucketKey,
       path: item.path,
       method: item.method,
       headers: item.headers,
       body: item.body ?? null,
     });
 
-    const existing = pendingByKey.get(key);
+    const canSharePending = SAFE_REPLAY_METHODS.has(method);
+    const existing = canSharePending ? pendingByKey.get(key) : undefined;
     if (existing) {
       return existing;
     }
 
     const size = measureTextBytes(stableStringify(item));
     const promise = new Promise<unknown>((resolve, reject) => {
-      const bucket = ensureBucket(buckets, endpoint);
+      const bucket = buckets.ensure(bucketKey);
       const queued: QueuedBatchRequest = {
         key,
         endpoint,
-        requestUrl: requestUrl.toString(),
+        requestInput,
         requestInit: normalizedInit,
+        authorization: headers.authorization,
+        cookie: headers.cookie,
+        credentials,
         item,
         size,
         resolve,
@@ -359,19 +453,21 @@ export function createBatchTransportQueue({
         bucket.items.length >= maxBatchSize ||
         bucket.bytes >= maxBatchBytes
       ) {
-        void flushBucket(endpoint);
+        void flushBucket(bucketKey);
         return;
       }
 
       if (!bucket.timer) {
         bucket.timer = setTimeout(() => {
           bucket.timer = null;
-          void flushBucket(endpoint);
+          void flushBucket(bucketKey);
         }, flushIntervalMs);
       }
     });
 
-    pendingByKey.set(key, promise);
+    if (canSharePending) {
+      pendingByKey.set(key, promise);
+    }
     return promise;
   };
 }

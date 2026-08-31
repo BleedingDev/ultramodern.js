@@ -626,6 +626,37 @@ test('publish branches must converge on one deterministic structured outcome', (
     ),
   );
 
+  const unverifiedChangeRecord = structuredClone(parsed);
+  const generateChangeRecord = unverifiedChangeRecord.jobs[
+    'publish-change-record'
+  ].steps.find(step => step.name === 'Generate the cohort change record');
+  generateChangeRecord.run = generateChangeRecord.run
+    .replace(
+      '--manifest "$BLEEDINGDEV_RELEASE_MANIFEST"',
+      '--version "$PUBLISH_VERSION"',
+    )
+    .replace(' --github-output "$GITHUB_OUTPUT"', '');
+  assert.ok(
+    validateWorkflowObject(
+      '.github/workflows/publish-bleedingdev.yml',
+      unverifiedChangeRecord,
+    ).some(error => error.includes('verified release manifest')),
+  );
+
+  const unauthenticatedOutcomeDownload = structuredClone(parsed);
+  const outcomeDownload = unauthenticatedOutcomeDownload.jobs[
+    'publish-change-record'
+  ].steps.find(step =>
+    String(step.uses ?? '').startsWith('actions/download-artifact@'),
+  );
+  delete outcomeDownload.with['github-token'];
+  assert.ok(
+    validateWorkflowObject(
+      '.github/workflows/publish-bleedingdev.yml',
+      unauthenticatedOutcomeDownload,
+    ).some(error => error.includes('authenticated publish outcome artifact')),
+  );
+
   const missingSchedulePolicy = structuredClone(parsed);
   delete missingSchedulePolicy.jobs['publish-change-record'].if;
   assert.ok(

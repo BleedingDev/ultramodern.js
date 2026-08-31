@@ -290,6 +290,103 @@ describe('effect lane cross-project policy enforcement', () => {
     }
   });
 
+  test('denies a valid client contract when it does not match the observed request method', async () => {
+    const response = checkCrossProjectPolicyForRequest(
+      new Request('http://localhost/ping', {
+        method: 'POST',
+        headers: validPolicyHeaders(),
+      }),
+      resolvePolicy(),
+    );
+
+    expect(response).toBeInstanceOf(Response);
+    expect(response!.status).toBe(403);
+    await expect(response!.json()).resolves.toMatchObject({
+      reason: 'operation_context_mismatch',
+    });
+  });
+
+  test('denies a valid client contract when it does not match the observed request path', async () => {
+    const response = checkCrossProjectPolicyForRequest(
+      new Request('http://localhost/not-ping', {
+        headers: validPolicyHeaders(),
+      }),
+      resolvePolicy(),
+    );
+
+    expect(response).toBeInstanceOf(Response);
+    expect(response!.status).toBe(403);
+    await expect(response!.json()).resolves.toMatchObject({
+      reason: 'operation_context_mismatch',
+    });
+  });
+
+  test('fails closed when contracts provide only a client-declared operation lookup', async () => {
+    const resolvedPolicy = resolvePolicy();
+    const operationId = `${REQUEST_ID}:GET:/api/ping`;
+    const operationContract =
+      resolvedPolicy.expectedOperationContracts['GET:/api/ping']!;
+    const policy = {
+      ...resolvedPolicy,
+      expectedOperationContracts: {
+        [`operation:${operationId}`]: operationContract,
+      },
+    };
+
+    const response = checkCrossProjectPolicyForRequest(
+      new Request('http://localhost/not-ping', {
+        headers: validPolicyHeaders(),
+      }),
+      policy,
+    );
+
+    expect(response).toBeInstanceOf(Response);
+    expect(response!.status).toBe(403);
+    await expect(response!.json()).resolves.toMatchObject({
+      reason: 'operation_context_mismatch',
+    });
+  });
+
+  test('binds a concrete Effect request path to its server-known route template', () => {
+    const policy = resolveCrossProjectPolicy({
+      crossProjectPolicy: { enabled: true },
+      handlers: [
+        {
+          name: 'getCustomer',
+          httpMethod: 'GET',
+          routePath: '/api/customers/:id',
+        },
+      ],
+      requestId: REQUEST_ID,
+      isCrossProjectServer: true,
+    })!;
+    const contract =
+      policy.expectedOperationContracts['GET:/api/customers/:id']!;
+    const operationId = `${REQUEST_ID}:GET:/api/customers/:id`;
+
+    const response = checkCrossProjectPolicyForRequest(
+      new Request('http://localhost/customers/customer-42', {
+        headers: {
+          'x-modernjs-bff-envelope': JSON.stringify({
+            requestId: REQUEST_ID,
+          }),
+          'x-operation-id': operationId,
+          'x-modernjs-bff-operation-context': JSON.stringify({
+            requestId: REQUEST_ID,
+            operationId,
+            method: 'GET',
+            routePath: '/api/customers/:id',
+            schemaHash: contract.schemaHash,
+            operationVersion: contract.operationVersion,
+          }),
+        },
+      }),
+      policy,
+    );
+
+    expect(response).toBeNull();
+  });
+
   test('denies stale schema hashes (contract mismatch)', async () => {
     const handler = createPolicyHandler();
 
@@ -332,7 +429,7 @@ describe('effect lane cross-project policy enforcement', () => {
     expect(response!.status).toBe(403);
     await expect(response!.json()).resolves.toMatchObject({
       code: 'BFF_CROSS_PROJECT_POLICY_DENIED',
-      reason: 'unknown_operation_contract',
+      reason: 'operation_context_mismatch',
     });
   });
 
@@ -502,7 +599,7 @@ describe('custom createHandler factory policy enforcement', () => {
     ).toBe(true);
   });
 
-  test('defineEffectBff interceptors run after policy and before delegated body validation', async () => {
+  test('defineEffectBff policy binds the observed operation before interceptors', async () => {
     const policy = resolvePolicy();
     let interceptedRequests = 0;
     const runtime = defineEffectBff({
@@ -536,9 +633,9 @@ describe('custom createHandler factory policy enforcement', () => {
           headers: validPolicyHeaders(),
         }),
       );
-      expect(intercepted.status).toBe(200);
-      await expect(intercepted.json()).resolves.toEqual({
-        source: 'interceptor',
+      expect(intercepted.status).toBe(403);
+      await expect(intercepted.json()).resolves.toMatchObject({
+        reason: 'operation_context_mismatch',
       });
 
       const interceptedMalformedBody = await loaded!.handler(
@@ -551,9 +648,9 @@ describe('custom createHandler factory policy enforcement', () => {
           body: '{',
         }),
       );
-      expect(interceptedMalformedBody.status).toBe(200);
-      await expect(interceptedMalformedBody.json()).resolves.toEqual({
-        source: 'interceptor',
+      expect(interceptedMalformedBody.status).toBe(403);
+      await expect(interceptedMalformedBody.json()).resolves.toMatchObject({
+        reason: 'operation_context_mismatch',
       });
 
       const delegatedMalformedBody = await loaded!.handler(
@@ -566,9 +663,9 @@ describe('custom createHandler factory policy enforcement', () => {
           body: '{',
         }),
       );
-      expect(delegatedMalformedBody.status).toBe(400);
-      await expect(delegatedMalformedBody.json()).resolves.toEqual({
-        message: 'Invalid JSON request body',
+      expect(delegatedMalformedBody.status).toBe(403);
+      await expect(delegatedMalformedBody.json()).resolves.toMatchObject({
+        reason: 'operation_context_mismatch',
       });
 
       const delegated = await loaded!.handler(
@@ -578,7 +675,7 @@ describe('custom createHandler factory policy enforcement', () => {
       );
       expect(delegated.status).toBe(200);
       await expect(delegated.json()).resolves.toEqual({ ok: true });
-      expect(interceptedRequests).toBe(4);
+      expect(interceptedRequests).toBe(1);
     } finally {
       await loaded?.dispose?.();
     }

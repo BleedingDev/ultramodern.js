@@ -1,7 +1,7 @@
+import type { LocalisedUrlsOption } from '@modern-js/i18n-runtime-extensions';
 import { isBrowser } from '@modern-js/runtime';
 import type React from 'react';
 import { useCallback, useEffect, useRef } from 'react';
-import type { LocalisedUrlsOption } from '../shared/localisedUrls';
 import {
   cacheI18nLanguage,
   changeI18nInstanceLanguage,
@@ -181,7 +181,7 @@ export function useClientSideRedirect(
   ignoreRedirectRoutes?: string[] | ((pathname: string) => boolean),
   localisedUrls?: LocalisedUrlsOption,
 ) {
-  const hasRedirectedRef = useRef(false);
+  const urlRef = useRef('');
   const { navigate, location, hasRouter } = useI18nRouterAdapter();
 
   useEffect(() => {
@@ -201,7 +201,7 @@ export function useClientSideRedirect(
       // Ignore errors when checking SSR data
     }
 
-    if (hasRedirectedRef.current) {
+    if (urlRef.current === (location?.pathname || window.location.pathname)) {
       return;
     }
 
@@ -230,12 +230,12 @@ export function useClientSideRedirect(
       localePathRedirect,
     );
 
-    if (pathDetection.detected) {
-      return;
-    }
-
     const targetLanguage =
-      i18nInstance.language || fallbackLanguage || languages[0] || 'en';
+      pathDetection.language ||
+      i18nInstance.language ||
+      fallbackLanguage ||
+      languages[0] ||
+      'en';
 
     const newPath = buildLocalizedUrl(
       relativePath,
@@ -245,9 +245,8 @@ export function useClientSideRedirect(
     );
     const newUrl = entryPath + newPath + currentSearch + currentHash;
 
+    urlRef.current = currentPathname;
     if (newUrl !== currentPathname + currentSearch + currentHash) {
-      hasRedirectedRef.current = true;
-
       // Use navigate if router is available (similar to changeLanguage implementation)
       if (hasRouter && navigate && location) {
         navigate(newUrl, { replace: true });

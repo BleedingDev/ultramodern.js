@@ -65,7 +65,7 @@
   "scripts": {
     "prepublishOnly": "only-allow-pnpm",
     "dev": "rslib build --watch",
-    "build": "rslib build && pnpm -w tsgo:dts \"$PWD\"",
+    "build": "rslib build",
     "test": "rstest --passWithNoTests"
   },
   "engines": {
@@ -73,6 +73,7 @@
   },
   "dependencies": {
     "@modern-js/plugin": "workspace:*",
+    "@modern-js/runtime-extensions": "workspace:*",
     "@modern-js/runtime-utils": "workspace:*",
     "@modern-js/utils": "workspace:*",
     "@swc/helpers": "^0.5.23",

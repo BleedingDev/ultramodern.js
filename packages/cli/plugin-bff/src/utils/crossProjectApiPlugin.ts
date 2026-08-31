@@ -3,6 +3,7 @@ import type { AppTools, CliPlugin } from '@modern-js/app-tools';
 import path from 'path';
 
 export const PACKAGE_NAME = '{packageName}';
+export const REQUEST_ID = '{requestId}';
 export const PREFIX = '{prefix}';
 export const API_DIR = '{apiDirectory}';
 export const LAMBDA_DIR = '{lambdaDirectory}';
@@ -73,6 +74,7 @@ export const crossProjectApiPlugin = (): CliPlugin<AppTools> => ({
       resolvedConfig.bff.requestId =
         resolvedConfig.bff.requestId ||
         config?.bff?.requestId ||
+        REQUEST_ID ||
         PACKAGE_NAME ||
         'default';
       const generatedOperationContracts =

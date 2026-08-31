@@ -25,9 +25,33 @@ const DEFAULT_DIVERGENCE_ALLOWLIST_PATH = path.join(
   'divergence-allowlist.json',
 );
 const DEFAULT_PATHSPEC = Object.freeze(['packages']);
+const FORK_OWNED_PACKAGE_ROOTS = Object.freeze([
+  'packages/runtime/i18n-extensions',
+  'packages/runtime/plugin-tanstack',
+  'packages/server/runtime-extensions',
+  'packages/toolkit/code-tools',
+]);
 const DIVERGENCE_LEDGER_REPO_PATH = 'FORK-DIVERGENCE.md';
 const CAPPED_PATCH_LINES = 20;
+const MAX_DIVERGENCE_REPORT_ENTRIES = 20;
 const GIT_MAX_BUFFER_BYTES = 512 * 1024 * 1024;
+const NON_PRODUCTION_PACKAGE_SEGMENTS = new Set([
+  '__fixtures__',
+  '__snapshots__',
+  '__tests__',
+  'bench',
+  'benches',
+  'benchmark',
+  'benchmarks',
+  'docs',
+  'example',
+  'examples',
+  'fixture',
+  'fixtures',
+  'stories',
+  'test',
+  'tests',
+]);
 
 const TWO_BUCKET_RULE = [
   'Every change to an upstream-owned file must land in one of two buckets:',
@@ -90,6 +114,45 @@ const runGit = ({
     );
   }
   return result.stdout || '';
+};
+
+const resolveForkOwnedPackageRoots = baseTreeSet =>
+  FORK_OWNED_PACKAGE_ROOTS.filter(
+    root => !baseTreeSet.has(`${root}/package.json`),
+  );
+
+const isProductionPackagePath = file => {
+  if (!DIVERGENCE_FILE_PATTERN.test(file)) {
+    return false;
+  }
+  const segments = file.split('/');
+  const basename = segments.at(-1);
+  if (
+    segments
+      .slice(2, -1)
+      .some(segment =>
+        NON_PRODUCTION_PACKAGE_SEGMENTS.has(segment.toLowerCase()),
+      )
+  ) {
+    return false;
+  }
+  return !(
+    /\.(?:md|mdx|snap)$/i.test(basename) ||
+    /(?:^|\.)(?:spec|test)\.[^.]+$/i.test(basename)
+  );
+};
+
+const sampleDivergenceEntries = entries => {
+  if (entries.length <= MAX_DIVERGENCE_REPORT_ENTRIES) {
+    return entries;
+  }
+  const leadingCount = Math.floor((MAX_DIVERGENCE_REPORT_ENTRIES - 1) / 2);
+  const trailingCount = MAX_DIVERGENCE_REPORT_ENTRIES - leadingCount - 1;
+  return [
+    ...entries.slice(0, leadingCount),
+    entries[Math.floor((entries.length - 1) / 2)],
+    ...entries.slice(-trailingCount),
+  ];
 };
 
 const canonicalFsPath = value => {
@@ -505,6 +568,25 @@ const buildDiffArgs = ({ baseRef, headRef, pathspec }) => [
   ...pathspec,
 ];
 
+const buildAddedDiffArgs = ({ baseRef, headRef, pathspec }) => [
+  '-c',
+  'core.quotePath=false',
+  '-c',
+  'diff.algorithm=histogram',
+  '-c',
+  'diff.indentHeuristic=true',
+  'diff',
+  '--no-ext-diff',
+  '--no-color',
+  '-M',
+  '--diff-filter=A',
+  '-U0',
+  baseRef,
+  ...(headRef ? [headRef] : []),
+  '--',
+  ...pathspec,
+];
+
 const stripDiffPathPrefix = value => {
   const trimmed = value.trim();
   if (trimmed === '/dev/null') {
@@ -527,17 +609,23 @@ const parsePatchRecords = patchText => {
 
   const flush = () => {
     if (current) {
+      const oldPath = current.added
+        ? null
+        : (current.oldPath ?? current.headerOldPath);
+      const newPath = current.deleted
+        ? null
+        : (current.newPath ?? current.headerNewPath);
       records.push({
-        oldPath: current.oldPath ?? current.headerOldPath,
-        newPath: current.newPath ?? current.headerNewPath,
+        oldPath,
+        newPath,
         hunks: current.hunks,
         addedLines: current.addedLines,
         removedLines: current.removedLines,
         changedLines: current.addedLines + current.removedLines,
         binary: current.binary,
-        renamed:
-          (current.oldPath ?? current.headerOldPath) !==
-          (current.newPath ?? current.headerNewPath),
+        added: current.added,
+        deleted: current.deleted,
+        renamed: Boolean(oldPath && newPath && oldPath !== newPath),
       });
     }
     current = null;
@@ -557,6 +645,8 @@ const parsePatchRecords = patchText => {
         addedLines: 0,
         removedLines: 0,
         binary: false,
+        added: false,
+        deleted: false,
       };
       inHunk = false;
       continue;
@@ -570,10 +660,16 @@ const parsePatchRecords = patchText => {
       continue;
     }
     if (!inHunk) {
-      if (line.startsWith('--- ')) {
+      if (line.startsWith('new file mode ')) {
+        current.added = true;
+      } else if (line.startsWith('deleted file mode ')) {
+        current.deleted = true;
+      } else if (line.startsWith('--- ')) {
         current.oldPath = stripDiffPathPrefix(line.slice(4));
+        current.added ||= current.oldPath === null;
       } else if (line.startsWith('+++ ')) {
         current.newPath = stripDiffPathPrefix(line.slice(4));
+        current.deleted ||= current.newPath === null;
       } else if (line.startsWith('rename from ')) {
         current.oldPath = line.slice('rename from '.length);
       } else if (line.startsWith('rename to ')) {
@@ -595,11 +691,24 @@ const parsePatchRecords = patchText => {
 
 const parseDivergenceDiff = (
   patchText,
-  { filePattern = DIVERGENCE_FILE_PATTERN } = {},
+  { filePattern = DIVERGENCE_FILE_PATTERN, forkOwnedPackageRoots = [] } = {},
 ) =>
   parsePatchRecords(patchText)
+    .filter(record => {
+      if (!record.added) {
+        return true;
+      }
+      const file = record.newPath;
+      return (
+        file !== null &&
+        isProductionPackagePath(file) &&
+        !forkOwnedPackageRoots.some(root => pathIsInScope(file, root))
+      );
+    })
     .map(record => ({
-      file: record.newPath ?? record.oldPath,
+      file: record.renamed
+        ? record.oldPath
+        : (record.newPath ?? record.oldPath),
       hunks: record.binary ? Math.max(record.hunks, 1) : record.hunks,
       changedLines: record.binary
         ? Math.max(record.changedLines, 1)
@@ -643,7 +752,29 @@ const measureDivergence = ({
       pathspec: validatedPathspec,
     }),
   });
-  const files = parseDivergenceDiff(patchText, { filePattern });
+  const addedPatchText = runGit({
+    rootDir: repositoryRoot,
+    args: buildAddedDiffArgs({
+      baseRef: resolvedBase,
+      headRef: resolvedHead,
+      pathspec: validatedPathspec,
+    }),
+  });
+  const baseTreeSet = new Set(
+    listTreePaths({
+      rootDir: repositoryRoot,
+      baseRef: resolvedBase,
+      pathspec: validatedPathspec,
+    }),
+  );
+  const forkOwnedPackageRoots = resolveForkOwnedPackageRoots(baseTreeSet);
+  const files = [
+    ...parseDivergenceDiff(patchText, { filePattern }),
+    ...parseDivergenceDiff(addedPatchText, {
+      filePattern,
+      forkOwnedPackageRoots,
+    }),
+  ].sort((left, right) => lexicalCompare(left.file, right.file));
   return {
     baseRef: resolvedBase,
     headRef: resolvedHead,
@@ -1358,6 +1489,9 @@ const checkForkDivergence = ({
     allowlistFiles: allowlist.files,
     completeScope: true,
   });
+  const violationCount = comparison.violations.length;
+  const shrunkCount = comparison.shrunk.length;
+  const clearedCount = comparison.cleared.length;
   return {
     baseRef: resolvedBase,
     headRef: measured.headRef,
@@ -1368,9 +1502,12 @@ const checkForkDivergence = ({
     measuredChangedLines: measured.totalChangedLines,
     allowlistFiles: allowlist.totalFiles,
     allowlistChangedLines: allowlist.totalChangedLines,
-    violations: comparison.violations,
-    shrunk: comparison.shrunk,
-    cleared: comparison.cleared,
+    violationCount,
+    shrunkCount,
+    clearedCount,
+    violations: sampleDivergenceEntries(comparison.violations),
+    shrunk: sampleDivergenceEntries(comparison.shrunk),
+    cleared: sampleDivergenceEntries(comparison.cleared),
     ok: comparison.ok,
   };
 };
@@ -1419,18 +1556,28 @@ const formatDivergenceReport = report => {
       report.measuredChangedLines,
     )} lines; allowlist=${String(report.allowlistFiles)} files / ${String(
       report.allowlistChangedLines,
-    )} lines; violations=${String(report.violations.length)}`,
+    )} lines; violations=${String(
+      report.violationCount ?? report.violations.length,
+    )}`,
   ];
-  if (report.violations.length > 0) {
+  const violationCount = report.violationCount ?? report.violations.length;
+  if (violationCount > 0) {
     lines.push(
       '',
       'Fork divergence grew inside upstream-owned files:',
       ...report.violations.map(formatDivergenceViolation),
+      ...(violationCount > report.violations.length
+        ? [
+            `- ... ${String(
+              violationCount - report.violations.length,
+            )} additional violation(s) omitted from this bounded sample`,
+          ]
+        : []),
       '',
       ...TWO_BUCKET_RULE,
     );
   }
-  if (report.violations.length === 0 && report.shrunk.length > 0) {
+  if (violationCount === 0 && report.shrunk.length > 0) {
     lines.push(
       '',
       `Divergence shrank in ${String(
@@ -1448,7 +1595,7 @@ const formatDivergenceReport = report => {
       ...report.cleared.slice(0, 20).map(entry => `- ${entry.file}`),
     );
   }
-  if (report.violations.length === 0) {
+  if (violationCount === 0) {
     lines.push('', 'No new fork divergence inside upstream-owned files.');
   }
   return lines.join('\n');
@@ -1597,6 +1744,7 @@ module.exports = {
   DIVERGENCE_FILE_PATTERN,
   DIVERGENCE_LEDGER_REPO_PATH,
   DIVERGENCE_SCHEMA_VERSION,
+  FORK_OWNED_PACKAGE_ROOTS,
   SELF_TEST_PATCH,
   TWO_BUCKET_RULE,
   assertAllowlistBaseMatches,

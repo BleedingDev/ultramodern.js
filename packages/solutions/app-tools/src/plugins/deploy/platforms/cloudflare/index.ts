@@ -65,6 +65,7 @@ const readCloudflareEntryTemplate = async () =>
   ).join('');
 
 export const createCloudflarePreset: CreatePreset = ({
+  api,
   appContext,
   modernConfig,
 }) => {
@@ -82,6 +83,9 @@ export const createCloudflarePreset: CreatePreset = ({
     appDirectory,
     modernConfig,
   );
+  const releaseEnvelopeEnabled = api.isPluginExists(
+    '@modern-js/ultramodern-release-envelope',
+  );
   let hasReleaseEnvelope = false;
 
   return {
@@ -90,9 +94,10 @@ export const createCloudflarePreset: CreatePreset = ({
     },
     async writeOutput() {
       if (
-        await fse.pathExists(
+        releaseEnvelopeEnabled &&
+        (await fse.pathExists(
           path.join(distDirectory, MICROVERTICAL_RELEASE_ENVELOPE_PATH),
-        )
+        ))
       ) {
         await emitFrameworkMicroVerticalReleaseEnvelope({
           apiOnly,
@@ -100,7 +105,9 @@ export const createCloudflarePreset: CreatePreset = ({
           target: 'cloudflare',
         });
       }
-      await verifyBuildOutputReleaseEnvelope(distDirectory, 'cloudflare');
+      if (releaseEnvelopeEnabled) {
+        await verifyBuildOutputReleaseEnvelope(distDirectory, 'cloudflare');
+      }
       await fse.copy(distDirectory, publicDirectory, {
         filter: src => {
           const relativePath = path
@@ -117,7 +124,22 @@ export const createCloudflarePreset: CreatePreset = ({
       });
       const generatedPublicDirectory = path.join(distDirectory, 'public');
       if (await fse.pathExists(generatedPublicDirectory)) {
-        await fse.copy(generatedPublicDirectory, publicDirectory);
+        await fse.copy(generatedPublicDirectory, publicDirectory, {
+          filter: src => {
+            const relativePath = path
+              .relative(generatedPublicDirectory, src)
+              .replace(/\\/gu, '/');
+            return (
+              relativePath !== 'release' &&
+              !relativePath.startsWith('release/') &&
+              shouldCopyToPublicAssets(
+                src,
+                generatedPublicDirectory,
+                publicAssetExcludes,
+              )
+            );
+          },
+        });
       }
       await fse.ensureDir(path.dirname(workerEntryPath));
       await fse.ensureDir(path.dirname(workerManifestPath));
@@ -188,12 +210,14 @@ export const createCloudflarePreset: CreatePreset = ({
         outputPlan.paths.outputPackage,
         outputPlan.packages.output,
       );
-      hasReleaseEnvelope = Boolean(
-        await stageCloudflareReleaseEnvelope({
-          distDirectory,
-          outputDirectory,
-        }),
-      );
+      hasReleaseEnvelope =
+        releaseEnvelopeEnabled &&
+        Boolean(
+          await stageCloudflareReleaseEnvelope({
+            distDirectory,
+            outputDirectory,
+          }),
+        );
     },
     async genEntry() {
       const template = await readCloudflareEntryTemplate();

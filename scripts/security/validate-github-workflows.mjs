@@ -309,6 +309,15 @@ function collectPublishOutcomeErrors(workflow, relativePath) {
       `${relativePath} record-publish-outcome must upload exactly one deterministically named outcome artifact`,
     );
   }
+  const actionExpression = name => ['${{', name, '}}'].join(' ');
+  if (
+    outcomeJob.outputs?.artifact_name !==
+    actionExpression('steps.publish-outcome.outputs.artifact_name')
+  ) {
+    errors.push(
+      `${relativePath} record-publish-outcome must expose its exact artifact name`,
+    );
+  }
 
   const changeRecordJob = workflow.jobs?.['publish-change-record'];
   if (!isObject(changeRecordJob)) {
@@ -324,6 +333,59 @@ function collectPublishOutcomeErrors(workflow, relativePath) {
   ) {
     errors.push(
       `${relativePath} publish-change-record must depend only on record-publish-outcome`,
+    );
+  }
+  const changeRecordPermissions = changeRecordJob.permissions;
+  if (
+    !isObject(changeRecordPermissions) ||
+    changeRecordPermissions.actions !== 'read' ||
+    changeRecordPermissions.contents !== 'write' ||
+    Object.keys(changeRecordPermissions).length !== 2
+  ) {
+    errors.push(
+      `${relativePath} publish-change-record must grant only actions: read and contents: write`,
+    );
+  }
+  const changeRecordSteps = Array.isArray(changeRecordJob.steps)
+    ? changeRecordJob.steps.filter(isObject)
+    : [];
+  const outcomeDownloads = changeRecordSteps.filter(step =>
+    actionMatches(step, 'actions/download-artifact'),
+  );
+  const [outcomeDownload] = outcomeDownloads;
+  if (
+    outcomeDownloads.length !== 1 ||
+    outcomeDownload.with?.['github-token'] !==
+      actionExpression('github.token') ||
+    outcomeDownload.with?.name !==
+      actionExpression('needs.record-publish-outcome.outputs.artifact_name') ||
+    outcomeDownload.with?.path !== '.modern/bleedingdev-publish' ||
+    outcomeDownload.with?.repository !==
+      actionExpression('github.repository') ||
+    outcomeDownload.with?.['run-id'] !== actionExpression('github.run_id')
+  ) {
+    errors.push(
+      `${relativePath} publish-change-record must download the authenticated publish outcome artifact`,
+    );
+  }
+  const generateChangeRecordSteps = changeRecordSteps.filter(step =>
+    runIncludes(step, 'gen-cohort-change-record.mjs'),
+  );
+  if (
+    generateChangeRecordSteps.length !== 1 ||
+    generateChangeRecordSteps[0].id !== 'change-record' ||
+    !runIncludes(
+      generateChangeRecordSteps[0],
+      '--manifest "$BLEEDINGDEV_RELEASE_MANIFEST"',
+    ) ||
+    !runIncludes(
+      generateChangeRecordSteps[0],
+      '--github-output "$GITHUB_OUTPUT"',
+    ) ||
+    runIncludes(generateChangeRecordSteps[0], '--version')
+  ) {
+    errors.push(
+      `${relativePath} publish-change-record must derive record identity from the verified release manifest`,
     );
   }
 

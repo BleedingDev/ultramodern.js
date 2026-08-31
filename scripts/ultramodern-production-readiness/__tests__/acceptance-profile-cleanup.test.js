@@ -16,21 +16,22 @@ const createPackage = Object.freeze({
   packageJson: Object.freeze({
     ultramodern: Object.freeze({ frameworkVersion: '3.5.0-test.1' }),
   }),
-  sourceName: '@modern-js/create',
-  targetName: '@bleedingdev/modern-js-create',
+  sourceName: '@modern-js/ultramodern-create',
+  targetName: '@bleedingdev/modern-js-ultramodern-create',
   version: '3.5.0-test.1',
 });
 
 const release = Object.freeze({
   aliases: Object.freeze({
-    '@modern-js/create': '@bleedingdev/modern-js-create',
+    '@modern-js/ultramodern-create':
+      '@bleedingdev/modern-js-ultramodern-create',
   }),
   createPackage,
   dependencyGraph: Object.freeze({
-    '@bleedingdev/modern-js-create': Object.freeze([]),
+    '@bleedingdev/modern-js-ultramodern-create': Object.freeze([]),
   }),
   packages: Object.freeze([createPackage]),
-  publishOrder: Object.freeze(['@bleedingdev/modern-js-create']),
+  publishOrder: Object.freeze(['@bleedingdev/modern-js-ultramodern-create']),
   release: Object.freeze({ version: '3.5.0-test.1' }),
 });
 

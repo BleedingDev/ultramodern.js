@@ -127,23 +127,50 @@ const runValidation = args => {
     validatedEvidenceFiles: evidenceReport.validatedFiles.length,
     skippedEvidenceFiles: evidenceReport.skippedFiles.length,
     executedCommands: args.skipCommands ? 0 : profile.gateCommands.length,
+    skippedCommands: args.skipCommands ? profile.gateCommands.length : 0,
   };
+
+  const qualificationGaps = [];
+  if (summary.skippedEvidenceFiles > 0) {
+    qualificationGaps.push(
+      `${String(summary.skippedEvidenceFiles)} required evidence ${summary.skippedEvidenceFiles === 1 ? 'file was' : 'files were'} skipped`,
+    );
+  }
+  if (summary.skippedCommands > 0) {
+    qualificationGaps.push(
+      `${String(summary.skippedCommands)} gate ${summary.skippedCommands === 1 ? 'command was' : 'commands were'} skipped`,
+    );
+  }
+
   return {
     profilePath,
     profile,
     summary,
+    qualified: qualificationGaps.length === 0,
+    qualificationReason:
+      qualificationGaps.length > 0 ? qualificationGaps.join('; ') : undefined,
   };
 };
 
 const main = args => {
-  const { profilePath, profile, summary } = runValidation(args);
+  const { profilePath, profile, qualified, qualificationReason, summary } =
+    runValidation(args);
   persistGateSnapshot({
     args,
     profilePath,
     profile,
-    passed: true,
+    passed: qualified,
+    reason: qualificationReason,
     summary,
   });
+
+  if (!qualified) {
+    console.log(
+      `[release-gates] RC contract gate validation completed without qualification (${qualificationReason}):\n${JSON.stringify(summary, null, 2)}`,
+    );
+    return;
+  }
+
   console.log(
     `[release-gates] RC contract gates passed:\n${JSON.stringify(summary, null, 2)}`,
   );

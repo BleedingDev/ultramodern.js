@@ -1,6 +1,8 @@
+import {
+  canonicalTargetPathname,
+  type LocalisedUrlsOption,
+} from '@modern-js/i18n-runtime-extensions';
 import { useMemo } from 'react';
-import type { LocalisedUrlsOption } from '../shared/localisedUrls';
-import { canonicalTargetPathname } from '../shared/localisedUrls';
 import { useModernI18n } from './context';
 import { useI18nRouterAdapter } from './routerAdapter';
 import { buildLocalizedUrl, splitUrlTarget } from './utils';

@@ -7,6 +7,7 @@ import { toErrorInfo } from '../../src/core/server/stream/deferredScript';
 import { serializeErrors as serializeServerErrors } from '../../src/core/server/utils';
 import {
   createRouteObjectsFromConfig,
+  deserializeErrors,
   getLocation,
   renderRoutes,
   serializeErrors as serializeRouterErrors,
@@ -14,13 +15,21 @@ import {
   urlJoin,
 } from '../../src/router/runtime/utils';
 
-function withNodeEnv<T>(nodeEnv: string, callback: () => T): T {
+function withNodeEnv<T>(nodeEnv: string | undefined, callback: () => T): T {
   const previousNodeEnv = process.env.NODE_ENV;
-  process.env.NODE_ENV = nodeEnv;
+  if (nodeEnv === undefined) {
+    delete process.env.NODE_ENV;
+  } else {
+    process.env.NODE_ENV = nodeEnv;
+  }
   try {
     return callback();
   } finally {
-    process.env.NODE_ENV = previousNodeEnv;
+    if (previousNodeEnv === undefined) {
+      delete process.env.NODE_ENV;
+    } else {
+      process.env.NODE_ENV = previousNodeEnv;
+    }
   }
 }
 
@@ -241,6 +250,7 @@ describe('test runtime router utils', () => {
         status: 500,
         statusText: 'Internal Server Error',
         data: 'Unexpected Server Error',
+        internal: true,
         __type: 'RouteErrorResponse',
       });
       expect(JSON.stringify(serialized)).not.toContain('database password');
@@ -250,11 +260,49 @@ describe('test runtime router utils', () => {
     }
   });
 
+  it('round-trips route error internal identity through both serializers', () => {
+    const routeErrors = {
+      internal: new ErrorResponseImpl(500, 'Internal', 'secret', true),
+      external: new ErrorResponseImpl(404, 'Not Found', 'missing', false),
+    };
+
+    for (const serialize of [serializeRouterErrors, serializeServerErrors]) {
+      const serialized = withNodeEnv('production', () =>
+        serialize(routeErrors as any),
+      );
+      const deserialized = deserializeErrors(serialized as any) as Record<
+        string,
+        ErrorResponseImpl
+      >;
+
+      expect(deserialized.internal).toBeInstanceOf(ErrorResponseImpl);
+      expect(deserialized.internal.internal).toBe(true);
+      expect(deserialized.external).toBeInstanceOf(ErrorResponseImpl);
+      expect(deserialized.external.internal).toBe(false);
+    }
+  });
+
   it('redacts production streaming deferred error messages and stacks', () => {
     const error = new Error('deferred stream secret');
     error.stack = 'deferred stack secret';
 
     const serialized = withNodeEnv('production', () => toErrorInfo(error));
+
+    expect(serialized).toEqual({
+      message: 'Unexpected Server Error',
+    });
+    expect(JSON.stringify(serialized)).not.toContain('deferred stream secret');
+    expect(JSON.stringify(serialized)).not.toContain('deferred stack secret');
+  });
+
+  it.each([
+    undefined,
+    'staging',
+  ])('fails closed for streaming deferred errors when NODE_ENV is %s', nodeEnv => {
+    const error = new Error('deferred stream secret');
+    error.stack = 'deferred stack secret';
+
+    const serialized = withNodeEnv(nodeEnv, () => toErrorInfo(error));
 
     expect(serialized).toEqual({
       message: 'Unexpected Server Error',

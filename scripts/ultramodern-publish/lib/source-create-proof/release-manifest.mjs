@@ -7,6 +7,7 @@ import {
   releaseManifestFile,
   verifyReleaseArtifacts,
 } from '../prepare-bleedingdev-packages/release-artifacts.mjs';
+import { ultramodernCreateSourceName } from '../prepare-bleedingdev-packages/constants.mjs';
 
 function hashBuffer(buffer, algorithm, encoding) {
   return crypto.createHash(algorithm).update(buffer).digest(encoding);
@@ -173,7 +174,7 @@ function validatePackedCohort(packages, manifest) {
   }
 
   const createPackage = packages.find(
-    item => item.sourceName === '@modern-js/create',
+    item => item.sourceName === ultramodernCreateSourceName,
   );
   return {
     create: validateCreatePackage(createPackage, manifest),
@@ -201,11 +202,11 @@ function readReleaseManifest({ manifestPath }) {
     artifactPath: path.resolve(artifactRoot, item.tarballPath),
   }));
   const createPackages = packages.filter(
-    item => item.sourceName === '@modern-js/create',
+    item => item.sourceName === ultramodernCreateSourceName,
   );
   if (createPackages.length !== 1) {
     throw new Error(
-      `Strict release manifest must contain exactly one @modern-js/create package, found ${createPackages.length}`,
+      `Strict release manifest must contain exactly one ${ultramodernCreateSourceName} package, found ${createPackages.length}`,
     );
   }
   const scopes = new Set(packages.map(item => targetScope(item.targetName)));

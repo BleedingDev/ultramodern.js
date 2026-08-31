@@ -13,6 +13,7 @@ const { runCommand } = processKit;
 const excludedPackages = new Set([
   '@modern-js/main-doc',
   '@modern-js/module-tools-docs',
+  '@modern-js/create',
 ]);
 
 function collectPublicModernPackages() {

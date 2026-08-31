@@ -2,7 +2,10 @@ import { fs, getAliasConfig, logger } from '@modern-js/utils';
 import { spawn } from 'child_process';
 import path from 'path';
 import type { CompileFunc } from '../../common';
-import { rewriteImportSpecifiers } from './importRewriter';
+import {
+  assertNoNativeModuleOutputCollision,
+  rewriteImportSpecifiers,
+} from './importRewriter';
 import {
   createTsconfigPathsMatcher,
   getNotAliasedPath,
@@ -47,8 +50,7 @@ const copyFiles = async (from: string, to: string, appDirectory: string) => {
     const targetDir = path.join(to, relativePath);
     await fs.copy(from, targetDir, {
       filter: src =>
-        !['.ts', '.tsx', '.js', '.jsx'].includes(path.extname(src)) &&
-        !src.endsWith('tsconfig.json'),
+        !/\.(?:[cm]?ts|tsx|jsx?)$/u.test(src) && !src.endsWith('tsconfig.json'),
     });
   }
 };
@@ -324,6 +326,7 @@ export const rewriteOutputSpecifiers = async (
       if (!sourceFile) {
         return;
       }
+      assertNoNativeModuleOutputCollision(sourceFile, fs.existsSync);
 
       const content = await fs.readFile(file, 'utf8');
       const { content: rewritten, changed } = rewriteImportSpecifiers(
@@ -435,6 +438,16 @@ export const compileByTs: CompileFunc = async (
   for (const source of sourceDirs) {
     await copyFiles(source, distDir, appDirectory);
   }
+
+  // Raw `.mjs`/`.cjs` files are valid inputs too. Copy them first, then rewrite
+  // the final output so an asset copy cannot overwrite compiler-normalized JS.
+  await rewriteOutputSpecifiers(
+    appDirectory,
+    distDir,
+    absoluteBaseUrl,
+    paths,
+    compileOptions.moduleType,
+  );
 
   logger.info(`TS-Go compile succeed`);
 };

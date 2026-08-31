@@ -58,7 +58,7 @@
   "scripts": {
     "prepublishOnly": "only-allow-pnpm",
     "dev": "rslib build --watch",
-    "build": "rslib build && pnpm -w tsgo:dts \"$PWD\"",
+    "build": "rslib build",
     "test": "rstest --passWithNoTests"
   },
   "dependencies": {

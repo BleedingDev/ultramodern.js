@@ -16,8 +16,9 @@ test('published create proof accepts compact UltraModern metadata', () => {
   const releaseManifest = {
     aliases: {
       '@modern-js/app-tools': '@bleedingdev/modern-js-app-tools',
-      '@modern-js/create': '@bleedingdev/modern-js-create',
       '@modern-js/runtime': '@bleedingdev/modern-js-runtime',
+      '@modern-js/ultramodern-create':
+        '@bleedingdev/modern-js-ultramodern-create',
     },
     createPackage: {
       packageJson: {
@@ -25,8 +26,8 @@ test('published create proof accepts compact UltraModern metadata', () => {
           frameworkVersion: version,
         },
       },
-      sourceName: '@modern-js/create',
-      targetName: '@bleedingdev/modern-js-create',
+      sourceName: '@modern-js/ultramodern-create',
+      targetName: '@bleedingdev/modern-js-ultramodern-create',
       version,
     },
     packages: [
@@ -35,8 +36,8 @@ test('published create proof accepts compact UltraModern metadata', () => {
         targetName: '@bleedingdev/modern-js-app-tools',
       },
       {
-        sourceName: '@modern-js/create',
-        targetName: '@bleedingdev/modern-js-create',
+        sourceName: '@modern-js/ultramodern-create',
+        targetName: '@bleedingdev/modern-js-ultramodern-create',
       },
       {
         sourceName: '@modern-js/runtime',
@@ -45,7 +46,7 @@ test('published create proof accepts compact UltraModern metadata', () => {
     ],
     publishOrder: [
       '@bleedingdev/modern-js-app-tools',
-      '@bleedingdev/modern-js-create',
+      '@bleedingdev/modern-js-ultramodern-create',
       '@bleedingdev/modern-js-runtime',
     ],
     release: {
@@ -71,7 +72,7 @@ test('published create proof accepts compact UltraModern metadata', () => {
   try {
     writeJson(path.join(projectDir, '.modernjs/ultramodern.json'), {
       generator: {
-        package: '@modern-js/create',
+        package: '@modern-js/ultramodern-create',
         version,
       },
       packageSource: {
@@ -84,7 +85,7 @@ test('published create proof accepts compact UltraModern metadata', () => {
     });
     writeJson(path.join(projectDir, 'package.json'), {
       devDependencies: {
-        '@modern-js/create': `npm:@bleedingdev/modern-js-create@${version}`,
+        '@modern-js/ultramodern-create': `npm:@bleedingdev/modern-js-ultramodern-create@${version}`,
       },
       name: 'compact-proof',
       private: true,

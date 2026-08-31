@@ -111,6 +111,61 @@ describe('test utils.error', () => {
     });
   });
 
+  it.each([
+    ['delay-seconds text', '120', '120'],
+    [
+      'the largest safely serializable delay',
+      Number.MAX_SAFE_INTEGER,
+      String(Number.MAX_SAFE_INTEGER),
+    ],
+    [
+      'an HTTP-date string',
+      'Sun, 30 Aug 2026 20:00:00 GMT',
+      'Sun, 30 Aug 2026 20:00:00 GMT',
+    ],
+    [
+      'a Date instance',
+      new Date(Date.UTC(2026, 7, 30, 20, 0, 0)),
+      'Sun, 30 Aug 2026 20:00:00 GMT',
+    ],
+  ])('should preserve %s in Retry-After', (_, retryAfter, expected) => {
+    const result = createSafeFailureHttpResult({
+      status: 503,
+      retryAfter,
+    });
+
+    expect(result.headers['Retry-After']).toBe(expected);
+  });
+
+  it.each([
+    ['a header-injection payload', '120\r\nX-Injected: true'],
+    ['a non-numeric delay', 'after maintenance'],
+    ['a delay too large for integer serialization', 1e21],
+    ['an invalid HTTP date', 'Wed, 99 Jun 2026 25:61:61 GMT'],
+    ['an invalid Date object', new Date(Number.NaN)],
+  ])('should ignore %s in Retry-After without throwing', (_, retryAfter) => {
+    const error = Object.assign(new Error('maintenance window details'), {
+      status: 503,
+      retryAfter,
+    });
+
+    expect(createSafeFailureHttpResult(error)).toEqual({
+      status: 503,
+      body: {
+        success: false,
+        error: {
+          code: 'SERVICE_UNAVAILABLE',
+          message: 'Service Unavailable',
+          status: 503,
+        },
+      },
+      headers: {
+        'content-type': 'application/json; charset=utf-8',
+      },
+    });
+    expect(() => createSafeJsonFailureResponse(error)).not.toThrow();
+  });
+
   it('should clamp invalid thrown status values to 500', () => {
     expect(createSafeFailureHttpResult({ status: 200 }).status).toBe(500);
     expect(createSafeFailureHttpResult({ statusCode: 799 }).status).toBe(500);

@@ -1,3 +1,4 @@
+import type { OperationContractMap } from '@modern-js/bff-core';
 import type { HttpMethodDecider } from '@modern-js/types';
 import type { EffectEndpointMeta } from '../../runtime/effect/endpoint-contracts';
 
@@ -8,6 +9,8 @@ export type EffectClientCodegenOptions = {
   prefix: string;
   port: number;
   target?: string;
+  /** Producer identity used by cross-project clients and server contracts. */
+  requestId?: string;
   requestCreator?: string;
   httpMethodDecider?: HttpMethodDecider;
   onDependency?: (dependency: string) => void;
@@ -26,4 +29,7 @@ export type GeneratedEffectClientArtifacts = {
   code: string;
   declaration: string;
   endpoints: EffectEndpointMeta[];
+  operationContracts: OperationContractMap;
+  operationVersion: number;
+  requestId: string;
 };

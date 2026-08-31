@@ -1,18 +1,13 @@
+import type { RouteObject } from '@modern-js/runtime-utils/router';
 import { createContext, useContext } from 'react';
+import type { RequestContext } from '../types';
 
-type RuntimeRequest = Record<string, unknown>;
-
-type RuntimeResponse = Record<string, unknown>;
-
-export type RequestContext = {
-  request: RuntimeRequest;
-  response: RuntimeResponse;
-};
+export type { RequestContext };
 
 export interface TRuntimeContext {
   initialData?: Record<string, unknown>;
   isBrowser: boolean;
-  routes?: unknown[];
+  routes?: RouteObject[];
   requestContext: RequestContext;
   /**
    * @deprecated Use `requestContext` instead

@@ -5,7 +5,6 @@ import type {
 } from '@rsbuild/core';
 import { createRsbuild } from '@rsbuild/core';
 import { getRscPlugins } from './plugins/rscConfig';
-import { pluginRsdoctor } from './plugins/rsdoctor';
 import { parseCommonConfig } from './shared/parseCommonConfig';
 import { rscDisabledRuntimePlugin } from './shared/rsc/rscDisabledRuntime';
 import type {
@@ -24,8 +23,10 @@ export async function parseConfig(
   builderConfig.performance ??= {};
   builderConfig.performance.buildCache ??= true;
 
-  const { rsbuildConfig, rsbuildPlugins, rsdoctorConfig } =
-    await parseCommonConfig(builderConfig, options);
+  const { rsbuildConfig, rsbuildPlugins } = await parseCommonConfig(
+    builderConfig,
+    options,
+  );
 
   const { sri } = builderConfig.security || {};
   if (sri) {
@@ -70,11 +71,6 @@ export async function parseConfig(
       ...(rsbuildConfig.plugins ?? []),
       rscDisabledRuntimePlugin(),
     ];
-  }
-
-  const rsdoctorPlugin = pluginRsdoctor(rsdoctorConfig);
-  if (rsdoctorPlugin) {
-    rsbuildPlugins.push(rsdoctorPlugin);
   }
 
   return {

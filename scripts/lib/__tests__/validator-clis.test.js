@@ -67,9 +67,10 @@ test('boundary-guards CLI fails on an unsupported profile schemaVersion', () => 
   }
 });
 
-test('release-gates CLI passes on module certification evidence', () => {
+test('release-gates CLI reports skipped commands as non-qualifying', () => {
   const dir = makeTempDir();
   try {
+    const snapshotPath = path.join(dir, 'gates.json');
     const result = runCli(
       'scripts/release-gates/validate-release-candidate-gates.js',
       [
@@ -79,11 +80,109 @@ test('release-gates CLI passes on module certification evidence', () => {
         'docs/super-app-rfc-adr/evidence/module-certification/current',
         '--skip-commands',
         '--gate-snapshot-path',
-        path.join(dir, 'gates.json'),
+        snapshotPath,
       ],
     );
     assert.equal(result.status, 0, result.stderr);
+    assert.match(
+      result.stdout,
+      /\[release-gates\] RC contract gate validation completed without qualification/,
+    );
+    assert.doesNotMatch(result.stdout, /RC contract gates passed/);
+
+    const snapshot = JSON.parse(fs.readFileSync(snapshotPath, 'utf8'));
+    const gate = snapshot.gates['module-onboarding-certification-gates'];
+    assert.equal(gate.passed, false);
+    assert.match(gate.reason, /2 gate commands were skipped/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('release-gates CLI cannot qualify missing evidence and skipped commands', () => {
+  const dir = makeTempDir();
+  try {
+    const evidenceDir = path.join(dir, 'empty-evidence');
+    const snapshotPath = path.join(dir, 'gates.json');
+    fs.mkdirSync(evidenceDir);
+
+    const result = runCli(
+      'scripts/release-gates/validate-release-candidate-gates.js',
+      [
+        '--profile',
+        'scripts/release-gates/module-certification-profile.json',
+        '--evidence-dir',
+        evidenceDir,
+        '--allow-missing-evidence',
+        '--skip-commands',
+        '--gate-snapshot-path',
+        snapshotPath,
+      ],
+    );
+
+    assert.equal(result.status, 0, result.stderr);
+    assert.doesNotMatch(result.stdout, /RC contract gates passed/);
+
+    const snapshot = JSON.parse(fs.readFileSync(snapshotPath, 'utf8'));
+    const gate = snapshot.gates['module-onboarding-certification-gates'];
+    assert.equal(gate.passed, false);
+    assert.equal(gate.summary.validatedEvidenceFiles, 0);
+    assert.equal(gate.summary.skippedEvidenceFiles, 4);
+    assert.equal(gate.summary.executedCommands, 0);
+    assert.equal(gate.summary.skippedCommands, 2);
+    assert.match(gate.reason, /4 required evidence files were skipped/);
+    assert.match(gate.reason, /2 gate commands were skipped/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('release-gates CLI qualifies complete evidence and successful commands', () => {
+  const dir = makeTempDir();
+  try {
+    const evidenceDir = path.join(dir, 'evidence');
+    const snapshotPath = path.join(dir, 'gates.json');
+    fs.mkdirSync(evidenceDir);
+    fs.writeFileSync(path.join(evidenceDir, 'evidence.md'), 'author: test\n');
+
+    const profilePath = writeJson(dir, 'profile.json', {
+      schemaVersion: 1,
+      name: 'focused-real-gate',
+      evidence: {
+        defaultDir: evidenceDir,
+        requiredFiles: ['evidence.md'],
+        requiredMetadataFields: ['author'],
+        minimumReviewers: 0,
+      },
+      gateCommands: [
+        {
+          command: process.execPath,
+          args: ['-e', 'process.exit(0)'],
+        },
+      ],
+    });
+
+    const result = runCli(
+      'scripts/release-gates/validate-release-candidate-gates.js',
+      [
+        '--profile',
+        profilePath,
+        '--evidence-dir',
+        evidenceDir,
+        '--gate-snapshot-path',
+        snapshotPath,
+      ],
+    );
+
+    assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, /\[release-gates\] RC contract gates passed/);
+
+    const snapshot = JSON.parse(fs.readFileSync(snapshotPath, 'utf8'));
+    const gate = snapshot.gates['focused-real-gate'];
+    assert.equal(gate.passed, true);
+    assert.equal(gate.summary.validatedEvidenceFiles, 1);
+    assert.equal(gate.summary.executedCommands, 1);
+    assert.equal(gate.summary.skippedCommands, 0);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

@@ -17,11 +17,13 @@
  * the advisory client-asserted allowlist path.
  */
 import {
-  checkCrossProjectPolicy,
+  type CrossProjectRequestObservation,
   deriveOperationVersion,
+  evaluateCrossProjectPolicy,
   type OperationContractSource,
   type ResolvedCrossProjectPolicy,
   resolveCrossProjectPolicy,
+  resolveCrossProjectRequestObservation,
 } from '@modern-js/bff-core';
 import type { ServerPluginAPI } from '@modern-js/server-core';
 import path from 'path';
@@ -103,18 +105,30 @@ const DENIAL_HEADERS = {
 export const checkCrossProjectPolicyResponse = (
   headers: Record<string, unknown>,
   policy: ResolvedCrossProjectPolicy | undefined,
+  observedRequest?: CrossProjectRequestObservation,
 ): Response | null => {
   if (!policy?.enabled) {
     return null;
   }
-  const denial = checkCrossProjectPolicy(headers, policy);
-  if (!denial) {
+  const violation = evaluateCrossProjectPolicy(
+    headers,
+    policy,
+    observedRequest,
+  );
+  if (!violation) {
     return null;
   }
-  return new Response(JSON.stringify(denial.body), {
-    status: denial.status,
-    headers: DENIAL_HEADERS,
-  });
+  return new Response(
+    JSON.stringify({
+      code: violation.code,
+      reason: violation.reason,
+      message: violation.message,
+    }),
+    {
+      status: violation.status,
+      headers: DENIAL_HEADERS,
+    },
+  );
 };
 
 /**
@@ -128,8 +142,20 @@ export const checkCrossProjectPolicyForRequest = (
   if (!policy?.enabled) {
     return null;
   }
+  const requestTarget = {
+    method: request.method,
+    pathname: new URL(request.url).pathname,
+  };
+  const observedRequest = resolveCrossProjectRequestObservation(
+    requestTarget,
+    policy,
+  ) ?? {
+    method: requestTarget.method,
+    routePath: requestTarget.pathname,
+  };
   return checkCrossProjectPolicyResponse(
     toHeaderRecord(request.headers),
     policy,
+    observedRequest,
   );
 };

@@ -15,9 +15,14 @@ const COMPACT_CONFIG_PATH = '.modernjs/ultramodern.json';
 
 export type DeliveryUnitStamp = DeliveryUnitIdentity & {
   surfaces: {
-    ui: DeliveryUnitIdentity & { surface: 'ui' };
-    api: DeliveryUnitIdentity & { surface: 'api' };
+    ui?: DeliveryUnitIdentity & { surface: 'ui' };
+    api?: DeliveryUnitIdentity & { surface: 'api' };
   };
+};
+
+type CompactAppResolution = {
+  app?: Record<string, unknown>;
+  workspaceRoot: string;
 };
 
 const findWorkspaceRoot = async (
@@ -56,14 +61,9 @@ const stampReleaseIdentity = (
   };
 };
 
-/**
- * Resolve the delivery-unit record declared for this app by the workspace
- * compact config (`.modernjs/ultramodern.json`). This is the topology source
- * of truth the Cloudflare worker snapshot is verified against.
- */
-export const resolveTopologyDeliveryUnit = async (
+const resolveCompactApp = async (
   appDirectory: string,
-): Promise<DeliveryUnitIdentity | undefined> => {
+): Promise<CompactAppResolution | undefined> => {
   const workspaceRoot = await findWorkspaceRoot(appDirectory);
   if (!workspaceRoot) {
     return undefined;
@@ -75,50 +75,81 @@ export const resolveTopologyDeliveryUnit = async (
       path.join(workspaceRoot, COMPACT_CONFIG_PATH),
     );
   } catch {
-    return undefined;
+    return { workspaceRoot };
   }
 
   if (!isRecord(compactConfig)) {
-    return undefined;
+    return { workspaceRoot };
   }
 
   const topology = isRecord(compactConfig.topology)
     ? compactConfig.topology
     : undefined;
   const apps = Array.isArray(topology?.apps) ? topology.apps : undefined;
-  const resolvedAppDirectory = path.resolve(appDirectory);
-
-  if (apps) {
-    for (const app of apps) {
-      if (!isRecord(app)) {
-        continue;
-      }
-
-      const appPath = nonEmptyString(app.path);
-      if (
-        appPath &&
-        path.resolve(workspaceRoot, appPath.replace(/^\.\/+/u, '')) ===
-          resolvedAppDirectory
-      ) {
-        const identity = toDeliveryUnitIdentity(app.deliveryUnit);
-        return identity
-          ? stampReleaseIdentity(identity, workspaceRoot)
-          : undefined;
-      }
-    }
-
-    return undefined;
+  if (!apps) {
+    return { app: compactConfig, workspaceRoot };
   }
 
-  // Single-app compact config: fall back to a top-level declaration.
-  const identity = toDeliveryUnitIdentity(compactConfig.deliveryUnit);
-  return identity ? stampReleaseIdentity(identity, workspaceRoot) : undefined;
+  const resolvedAppDirectory = path.resolve(appDirectory);
+  const app = apps.find(candidate => {
+    if (!isRecord(candidate)) {
+      return false;
+    }
+    const appPath = nonEmptyString(candidate.path);
+    return (
+      appPath !== undefined &&
+      path.resolve(workspaceRoot, appPath.replace(/^\.\/+/u, '')) ===
+        resolvedAppDirectory
+    );
+  });
+  return {
+    ...(isRecord(app) ? { app } : {}),
+    workspaceRoot,
+  };
+};
+
+const createDeliveryUnitStamp = (
+  identity: DeliveryUnitIdentity,
+  app?: Record<string, unknown>,
+): DeliveryUnitStamp => {
+  const surfaceProfile = nonEmptyString(app?.surfaceProfile);
+  const emitsUi = surfaceProfile !== 'api-only';
+  const emitsApi = surfaceProfile !== 'ui-only';
+
+  return {
+    ...identity,
+    surfaces: {
+      ...(emitsUi ? { ui: { ...identity, surface: 'ui' as const } } : {}),
+      ...(emitsApi ? { api: { ...identity, surface: 'api' as const } } : {}),
+    },
+  };
+};
+
+/**
+ * Resolve the delivery-unit record declared for this app by the workspace
+ * compact config (`.modernjs/ultramodern.json`). This is the topology source
+ * of truth the Cloudflare worker snapshot is verified against.
+ */
+export const resolveTopologyDeliveryUnit = async (
+  appDirectory: string,
+): Promise<DeliveryUnitStamp | undefined> => {
+  const resolved = await resolveCompactApp(appDirectory);
+  if (!resolved?.app) {
+    return undefined;
+  }
+  const identity = toDeliveryUnitIdentity(resolved.app.deliveryUnit);
+  return identity
+    ? createDeliveryUnitStamp(
+        stampReleaseIdentity(identity, resolved.workspaceRoot),
+        resolved.app,
+      )
+    : undefined;
 };
 
 /**
  * Resolve the delivery-unit identity actually bundled into the worker by
  * parsing the generated `shared/ultramodern-build.ts` module. This is the
- * worker snapshot / UI+API surface source that gets stamped into the manifest.
+ * worker snapshot / declared surface source that gets stamped into the manifest.
  */
 export const resolveWorkerDeliveryUnitStamp = async (
   appDirectory: string,
@@ -156,16 +187,9 @@ export const resolveWorkerDeliveryUnitStamp = async (
   if (!identity) {
     return undefined;
   }
-  const workspaceRoot = await findWorkspaceRoot(appDirectory);
-  if (workspaceRoot) {
-    identity = stampReleaseIdentity(identity, workspaceRoot);
+  const resolved = await resolveCompactApp(appDirectory);
+  if (resolved) {
+    identity = stampReleaseIdentity(identity, resolved.workspaceRoot);
   }
-
-  return {
-    ...identity,
-    surfaces: {
-      ui: { ...identity, surface: 'ui' },
-      api: { ...identity, surface: 'api' },
-    },
-  };
+  return createDeliveryUnitStamp(identity, resolved?.app);
 };

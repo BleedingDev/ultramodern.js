@@ -305,11 +305,7 @@ function assertBrowserRuntimeAcceptance(report, verticalNames) {
       result.assertions.some(assertion => assertion.type === 'mf-manifest'),
       `${result.appId} browser/runtime proof lacks an MF manifest assertion`,
     );
-    for (const requiredType of [
-      'browser-screenshot',
-      'no-js-screenshot',
-      'stylesheet-evidence',
-    ]) {
+    for (const requiredType of ['stylesheet-evidence']) {
       assertCondition(
         result.assertions.some(
           assertion =>

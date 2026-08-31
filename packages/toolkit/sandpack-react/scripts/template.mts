@@ -154,10 +154,7 @@ async function handleCreateTemplate() {
   );
   const createPackageJsonPath = path.join(createPackagePath, 'package.json');
 
-  // Vendored copy of the upstream single-app MWA template (the old
-  // @modern-js/create `template/` directory). The workspace-shell template
-  // cannot run inside a browser Sandpack/Nodebox environment.
-  const templateDir = path.join(import.meta.dirname, 'mwa-template');
+  const templateDir = path.join(createPackagePath, 'template');
 
   const createPackageJson = JSON.parse(
     fs.readFileSync(createPackageJsonPath, 'utf-8'),

@@ -73,7 +73,7 @@
     }
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=26.7.0"
   },
   "typesVersions": {
     "*": {
@@ -130,7 +130,7 @@
   "scripts": {
     "prepublishOnly": "only-allow-pnpm",
     "dev": "rslib build --watch",
-    "build": "rslib build && pnpm -w tsgo:dts \"$PWD\" && pnpm run verify:public-surface && node ./bin/modern-bundle-docs.js",
+    "build": "rslib build && pnpm run verify:public-surface && node ./bin/modern-bundle-docs.js",
     "verify:public-surface": "node ./tests/config/verify-public-surface.mjs",
     "test": "rstest"
   },
@@ -146,6 +146,7 @@
     "@modern-js/prod-server": "workspace:*",
     "@modern-js/server": "workspace:*",
     "@modern-js/server-core": "workspace:*",
+    "@modern-js/server-runtime-extensions": "workspace:*",
     "@modern-js/server-utils": "workspace:*",
     "@modern-js/types": "workspace:*",
     "@modern-js/utils": "workspace:*",
@@ -169,21 +170,7 @@
     "@types/babel__traverse": "7.28.0",
     "@types/node": "^26.2.0",
     "@typescript/native-preview": "7.0.0-dev.20260707.2",
-    "ts-node": "^10.9.2",
-    "tsconfig-paths": "^4.2.0",
     "typescript": "^7.0.2"
-  },
-  "peerDependencies": {
-    "ts-node": "^10.9.2",
-    "tsconfig-paths": "^4.2.0"
-  },
-  "peerDependenciesMeta": {
-    "tsconfig-paths": {
-      "optional": true
-    },
-    "ts-node": {
-      "optional": true
-    }
   },
   "sideEffects": false,
   "publishConfig": {

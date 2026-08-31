@@ -233,8 +233,6 @@ describe('builder rspack', () => {
 
     expect(rsbuildConfig.plugins?.map(p => (p as RsbuildPlugin)?.name)).toEqual(
       [
-        'modern-js:rspack-2-1-defaults',
-        'modern-js:environment-build-cache-isolation',
         'builder:global-vars',
         'builder:devtool',
         'builder:emit-route-file',
@@ -259,11 +257,7 @@ describe('builder rspack', () => {
 
     const rsbuild = await createBuilder({
       bundlerType: 'rspack',
-      config: {
-        performance: {
-          rsdoctor: false,
-        },
-      },
+      config: {},
       cwd: builderPath,
     });
 
@@ -301,9 +295,6 @@ describe('builder rspack', () => {
     const rsbuild = await createBuilder({
       bundlerType: 'rspack',
       config: {
-        performance: {
-          rsdoctor: false,
-        },
         environments: {
           server: {
             output: {
@@ -341,9 +332,6 @@ describe('builder rspack', () => {
     const rsbuild = await createBuilder({
       bundlerType: 'rspack',
       config: {
-        performance: {
-          rsdoctor: false,
-        },
         environments: {
           workerSSR: {
             output: {
@@ -381,7 +369,7 @@ describe('builder rspack', () => {
     ).toBe(false);
   });
 
-  it('should enable Rspack 2.1 createRequire parsing by default', async () => {
+  it('uses the native createRequire parsing default', async () => {
     const rsbuild = await createBuilder({
       bundlerType: 'rspack',
       config: {},
@@ -395,12 +383,16 @@ describe('builder rspack', () => {
     expect(bundlerConfigs[0].module.parser.javascript.createRequire).toBe(true);
   });
 
-  it('should configure Rspack 2.1 source phase imports when configured', async () => {
+  it('configures source phase imports through the native Rspack seam', async () => {
     const rsbuild = await createBuilder({
       bundlerType: 'rspack',
       config: {
-        experiments: {
-          sourceImport: false,
+        tools: {
+          rspack(config) {
+            config.experiments ??= {};
+            config.experiments.sourceImport = false;
+            return config;
+          },
         },
       },
       cwd: join(__dirname, '..'),

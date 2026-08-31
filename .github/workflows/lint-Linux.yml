@@ -39,10 +39,10 @@ jobs:
           version: 2026.8.3
           install: true
 
-      - name: Setup Node.js 22
+      - name: Setup Node.js 26.7.0
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: "22"
+          node-version: '26.7.0'
           cache: 'pnpm'
 
       - name: Install Dependencies

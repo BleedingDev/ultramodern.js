@@ -127,4 +127,22 @@ describe('rewriteOutputSpecifiers', () => {
       ),
     ).toBe('../shared/index.js');
   });
+
+  it.each([
+    ['.mts', '.mjs', 'module'],
+    ['.cts', '.cjs', 'module'],
+    ['.cts', '.cjs', 'commonjs'],
+  ])('maps an aliased %s source to its emitted %s module in %s output', (sourceExtension, outputExtension, moduleType) => {
+    const matcher = (() =>
+      path.join(appDir, `shared/module${sourceExtension}`)) as any;
+
+    expect(
+      getNotAliasedPath(
+        path.join(appDir, `api/entry${sourceExtension}`),
+        matcher,
+        '@shared/module',
+        moduleType as 'module' | 'commonjs',
+      ),
+    ).toBe(`../shared/module${outputExtension}`);
+  });
 });

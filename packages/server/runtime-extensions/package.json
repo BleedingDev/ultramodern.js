@@ -27,6 +27,35 @@
         "require": "./dist/cjs/index.js"
       },
       "default": "./dist/cjs/index.js"
+    },
+    "./backend-federation-security": {
+      "types": "./dist/types/backend-federation-security/index.d.ts",
+      "modern:source": "./src/backend-federation-security/index.ts",
+      "node": {
+        "import": "./dist/esm-node/backend-federation-security/index.mjs",
+        "require": "./dist/cjs/backend-federation-security/index.js"
+      },
+      "import": "./dist/esm/backend-federation-security/index.mjs",
+      "default": "./dist/esm/backend-federation-security/index.mjs"
+    },
+    "./backend-federation-security/node": {
+      "types": "./dist/types/backend-federation-security/node.d.ts",
+      "modern:source": "./src/backend-federation-security/node.ts",
+      "node": {
+        "import": "./dist/esm-node/backend-federation-security/node.mjs",
+        "require": "./dist/cjs/backend-federation-security/node.js"
+      },
+      "default": "./dist/esm-node/backend-federation-security/node.mjs"
+    },
+    "./runtime-lifecycle": {
+      "types": "./dist/types/runtimeLifecycle.d.ts",
+      "modern:source": "./src/runtimeLifecycle.ts",
+      "node": {
+        "import": "./dist/esm-node/runtimeLifecycle.mjs",
+        "require": "./dist/cjs/runtimeLifecycle.js"
+      },
+      "import": "./dist/esm/runtimeLifecycle.mjs",
+      "default": "./dist/esm/runtimeLifecycle.mjs"
     }
   },
   "typesVersions": {
@@ -34,17 +63,29 @@
       ".": [
         "./dist/types/index.d.ts",
         "./src/index.ts"
+      ],
+      "backend-federation-security": [
+        "./dist/types/backend-federation-security/index.d.ts",
+        "./src/backend-federation-security/index.ts"
+      ],
+      "backend-federation-security/node": [
+        "./dist/types/backend-federation-security/node.d.ts",
+        "./src/backend-federation-security/node.ts"
+      ],
+      "runtime-lifecycle": [
+        "./dist/types/runtimeLifecycle.d.ts",
+        "./src/runtimeLifecycle.ts"
       ]
     }
   },
   "scripts": {
     "prepublishOnly": "only-allow-pnpm",
     "dev": "rslib build --watch",
-    "build": "rslib build && pnpm -w tsgo:dts \"$PWD\"",
+    "build": "rslib build",
     "test": "rstest --passWithNoTests"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=26.7.0"
   },
   "dependencies": {
     "@modern-js/create-request": "workspace:*",

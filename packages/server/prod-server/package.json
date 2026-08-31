@@ -20,7 +20,7 @@
   "main": "./dist/cjs/index.js",
   "scripts": {
     "prepublishOnly": "only-allow-pnpm",
-    "build": "rslib build && pnpm -w tsgo:dts \"$PWD\"",
+    "build": "rslib build",
     "dev": "rslib build --watch",
     "test": "rstest --passWithNoTests"
   },

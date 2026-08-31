@@ -4,10 +4,12 @@ import { logger } from '@modern-js/utils';
  * A request handle compatible with `ServerBase.handle` (Hono's `app.fetch`)
  * and the handler accepted by `createNodeServer`.
  */
-export type ReloadableHandle = (
+export type ReloadableHandle = ((
   request: Request,
   ...args: any[]
-) => Response | Promise<Response>;
+) => Response | Promise<Response>) & {
+  dispose?: () => void | Promise<void>;
+};
 
 export interface ReloadManagerOptions {
   /**
@@ -182,18 +184,21 @@ export class ReloadManager {
       // If the manager was closed while this build was in flight, drop the
       // result without committing — no swap, no onReload after close.
       if (this.#closed) {
+        await this.#dispose(next);
         return;
       }
 
       // Build succeeded: commit the swap. From here on there is no rollback —
       // a failure in the onReload callback (e.g. previous-runtime cleanup) is
       // reported separately and never reverts the already-active handle.
+      const previous = this.#current;
       this.#current = next; // atomic swap: a single field assignment
       try {
         this.#onReload?.(next);
       } catch (callbackError) {
         this.#reportReloadCallbackError(callbackError);
       }
+      await this.#dispose(previous);
     } while (this.#pending && !this.#closed);
   }
 
@@ -221,6 +226,13 @@ export class ReloadManager {
     }
   }
 
+  async #dispose(handle: ReloadableHandle): Promise<void> {
+    try {
+      await handle.dispose?.();
+    } catch (error) {
+      this.#reportReloadCallbackError(error);
+    }
+  }
   /**
    * Stop the manager: cancel any pending debounced reload and reject all
    * further `schedule()` / `reloadNow()` calls. Wired into the dev server's
@@ -228,6 +240,9 @@ export class ReloadManager {
    * rebuild a runtime once the watcher / builder dev server are gone.
    */
   close(): void {
+    if (this.#closed) {
+      return;
+    }
     this.#closed = true;
     // Drop any trailing reload that was coalesced while a build was running,
     // so #runLoop won't start another build after close.
@@ -236,6 +251,7 @@ export class ReloadManager {
       clearTimeout(this.#debounceTimer);
       this.#debounceTimer = null;
     }
+    void this.#dispose(this.#current);
   }
 }
 

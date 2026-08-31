@@ -57,7 +57,20 @@ const trimLeadingSlash = (value: string) => value.replace(/^\/+/, '');
 export const getModuleFederationRequestPath = (
   pathname: string,
   pathPrefix: string,
-) => trimLeadingSlash(pathname.replace(pathPrefix, () => ''));
+) => {
+  const normalizedPrefix = `/${trimLeadingSlash(pathPrefix)}`.replace(
+    /\/+$/u,
+    '',
+  );
+  const requestPath =
+    normalizedPrefix &&
+    (pathname === normalizedPrefix ||
+      pathname.startsWith(`${normalizedPrefix}/`))
+      ? pathname.slice(normalizedPrefix.length)
+      : pathname;
+
+  return trimLeadingSlash(requestPath);
+};
 
 export const isModuleFederationManifestRequest = (requestPath: string) =>
   MODULE_FEDERATION_MANIFEST_FILES.includes(requestPath);

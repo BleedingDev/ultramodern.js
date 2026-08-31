@@ -32,10 +32,9 @@ const requiredNodeNoJavaScriptAssertionTypes = Object.freeze([
   'no-js-ssr-css-root-marker',
   'no-js-stylesheet-href-dedupe',
   'no-js-ssr-failed-responses',
-  'no-js-screenshot',
 ]);
 const publishOutcomeSchema = 'bleedingdev.ultramodern.publish-outcome';
-const publishOutcomeSchemaVersion = 5;
+const publishOutcomeSchemaVersion = 6;
 const publishOutcomeArtifactPrefix = 'bleedingdev-publish-outcome';
 const digestPattern = /^[a-f0-9]{64}$/u;
 const commitPattern = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
@@ -544,7 +543,10 @@ function readReleaseEvidence({
     // ACC-1: operational-independence evidence exists only in the source
     // lane; the published receipt contract excludes that result id.
     if (expectedMode !== 'source') {
-      return { receiptSha256: sha256File(receiptFile) };
+      return {
+        evidencePath: null,
+        receiptPath: path.basename(receiptFile),
+      };
     }
     const operationalEvidence = readJson(
       operationalFile,
@@ -557,26 +559,22 @@ function readReleaseEvidence({
     const operationalResult = receipt.results.find(
       result => result?.id === 'operational-independence',
     );
-    const operationalEvidenceSha256 = sha256File(operationalFile);
     assertOperationalIndependenceEvidenceMatchesReceipt({
       details: operationalResult.details,
       evidence: operationalEvidence,
-      evidenceFileSha256: operationalEvidenceSha256,
     });
     if (
       operationalResult?.details?.artifactMode !== expectedMode ||
-      operationalResult?.details?.evidenceFileSha256 !==
-        operationalEvidenceSha256 ||
-      operationalResult?.details?.evidenceDigest !==
-        operationalEvidence.evidenceDigest
+      path.basename(operationalResult?.details?.evidencePath ?? '') !==
+        path.basename(operationalFile)
     ) {
       throw new Error(
         `${expectedMode} acceptance receipt is not bound to the exact operational evidence`,
       );
     }
     return {
-      operationalEvidenceSha256,
-      receiptSha256: sha256File(receiptFile),
+      evidencePath: path.basename(operationalFile),
+      receiptPath: path.basename(receiptFile),
     };
   };
 

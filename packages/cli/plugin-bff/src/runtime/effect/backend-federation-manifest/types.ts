@@ -1,6 +1,11 @@
 // @effect-diagnostics asyncFunction:off extendsNativeError:off globalTimers:off newPromise:off strictBooleanExpressions:off
 
 import type {
+  BackendFederationRemoteEntryPolicy,
+  BackendFederationResourcePolicy,
+  BackendFederationResourceResponse,
+} from '@modern-js/server-runtime-extensions/backend-federation-security';
+import type {
   ModuleFederation,
   ModuleFederationRuntimePlugin,
 } from '@module-federation/runtime';
@@ -34,12 +39,8 @@ export type BackendFederationVersionBoundaryExpectation = {
   version?: string;
 };
 
-export type BackendFederationManifestFetchResponse = {
-  ok: boolean;
-  status: number;
-  statusText?: string;
-  text: () => Promise<string>;
-};
+export type BackendFederationManifestFetchResponse =
+  BackendFederationResourceResponse;
 
 export type BackendFederationManifestAdapterFallback = (
   error: BackendFederationManifestAdapterError,
@@ -50,18 +51,23 @@ export type BackendFederationManifestAdapterFallback = (
 ) => BackendFederatedEffectApiModule | Promise<BackendFederatedEffectApiModule>;
 
 export type BackendFederationManifestAdapterOptions = {
-  allowLegacyManifest?: boolean;
+  entryPolicy?: BackendFederationRemoteEntryPolicy;
   env?: Record<string, string | undefined>;
   expected?: BackendFederationVersionBoundaryExpectation;
   fallback?: BackendFederationManifestAdapterFallback;
-  fetch?: (url: string) => Promise<BackendFederationManifestFetchResponse>;
+  fetch?: (
+    url: string,
+    init?: RequestInit,
+  ) => Promise<BackendFederationManifestFetchResponse>;
   hostName: string;
   manifest?: BackendFederationManifest;
   manifestEnv?: string;
+  manifestPolicy?: Omit<BackendFederationResourcePolicy, 'fetch'>;
   manifestPath?: string;
   manifestUrl?: string;
   plugins?: ModuleFederationRuntimePlugin[];
   remote?: Partial<BackendFederationRemote>;
   runtime?: ModuleFederation;
+  signal?: AbortSignal;
   timeoutMs?: number;
 };

@@ -347,7 +347,6 @@ function operationalEvidence(options) {
       },
     },
     crossTarget: { equal: true, identity: changedIdentity },
-    evidenceDigest: 'e'.repeat(64),
   };
 }
 
@@ -541,7 +540,6 @@ test('operational acceptance rejects missing, forged, and hardcoded served behav
       applicationSourceRevision: baselineRevision,
       changedRevision,
       evidence,
-      evidenceFileSha256: 'f'.repeat(64),
       evidencePath: path.resolve('/tmp/operational-evidence.json'),
       expectedApiValue: options.expectedApiValue,
       expectedChangedPaths: [
@@ -1224,7 +1222,7 @@ test('reviewed release-age exceptions authorize exact third-party exclusions', a
     publishedAt: '2026-08-10T07:00:57.951Z',
   };
   const firstParty = {
-    name: '@bleedingdev/modern-js-create',
+    name: '@bleedingdev/modern-js-ultramodern-create',
     version: '3.5.0-ultramodern.103',
     integrity: 'sha512-Zmlyc3QtcGFydHk=',
     publishedAt: '2026-08-10T08:00:00.000Z',
@@ -1322,7 +1320,7 @@ test('reviewed release-age exceptions authorize exact third-party exclusions', a
           packages: [
             {
               integrity: firstParty.integrity,
-              sourceName: '@modern-js/create',
+              sourceName: '@modern-js/ultramodern-create',
               targetName: firstParty.name,
               version: firstParty.version,
             },

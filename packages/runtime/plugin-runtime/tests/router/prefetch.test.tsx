@@ -218,6 +218,67 @@ describe('prefetch', () => {
     unmount();
   });
 
+  test('keeps data prefetch working without a webpack chunk loader', async () => {
+    const id = 'missing-chunk-loader';
+    delete (global as { __webpack_chunk_load_test__?: unknown })
+      .__webpack_chunk_load_test__;
+    const routes = [
+      {
+        id: `root-${id}`,
+        path: '/',
+        element: <Link to={id}>No chunk loader</Link>,
+      },
+      createTargetRoute(id),
+    ];
+
+    const { unmount } = renderRouter(routes);
+    rstest.useRealTimers();
+
+    await waitFor(() => {
+      expect(
+        document.head.querySelector('link[rel="prefetch"][as="fetch"]'),
+      ).not.toBeNull();
+    });
+    unmount();
+  });
+
+  test('retries route module warmup after a rejected chunk load', async () => {
+    const id = 'chunk-load-retry';
+    const failure = new Error('transient chunk failure');
+    const consoleError = rstest
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+    global.__webpack_chunk_load_test__ = rstest
+      .fn()
+      .mockRejectedValueOnce(failure)
+      .mockResolvedValue(undefined);
+    const routes = [
+      {
+        id: `root-${id}`,
+        path: '/',
+        element: <Link to={id}>Retry chunk</Link>,
+      },
+      createTargetRoute(id),
+    ];
+
+    const firstRender = renderRouter(routes);
+    rstest.useRealTimers();
+    await waitFor(() => {
+      expect(consoleError).toHaveBeenCalledWith(failure);
+    });
+    firstRender.unmount();
+
+    const secondRender = renderRouter(routes);
+    await waitFor(() => {
+      expect(global.__webpack_chunk_load_test__).toHaveBeenCalledTimes(2);
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    secondRender.unmount();
+    consoleError.mockRestore();
+  });
+
   test('skips data prefetch when the route opts out', async () => {
     const id = 'default-render-data-opt-out';
     const routes = [
@@ -424,7 +485,7 @@ describe('prefetch', () => {
     unmount();
   });
 
-  test('caps concurrent route module warmups', async () => {
+  test('caps concurrent warmups and retries cancelled queued work', async () => {
     const ids = Array.from({ length: 6 }, (_, index) => `concurrent-${index}`);
     const resolvers: Array<() => void> = [];
     global.__webpack_chunk_load_test__ = rstest.fn(
@@ -451,12 +512,14 @@ describe('prefetch', () => {
       ...ids.map(id => createTargetRoute(id)),
     ];
 
-    const { unmount } = renderRouter(routes);
+    const firstRender = renderRouter(routes);
     rstest.useRealTimers();
 
     await waitFor(() => {
       expect(global.__webpack_chunk_load_test__).toBeCalledTimes(4);
     });
+    firstRender.unmount();
+    const secondRender = renderRouter(routes);
 
     await act(async () => {
       resolvers.shift()?.();
@@ -465,17 +528,26 @@ describe('prefetch', () => {
 
     await waitFor(() => {
       expect(global.__webpack_chunk_load_test__).toBeCalledTimes(5);
+      expect(global.__webpack_chunk_load_test__).toHaveBeenNthCalledWith(
+        5,
+        ids[4],
+      );
     });
 
     await act(async () => {
-      while (resolvers.length > 0) {
-        const pendingResolvers = resolvers.splice(0);
-        pendingResolvers.forEach(resolve => resolve());
-        await Promise.resolve();
-      }
+      resolvers.splice(0).forEach(resolve => resolve());
+      await Promise.resolve();
+    });
+    await waitFor(() => {
+      expect(global.__webpack_chunk_load_test__).toBeCalledTimes(6);
+    });
+    await act(async () => {
+      resolvers.splice(0).forEach(resolve => resolve());
+      await Promise.resolve();
+      await Promise.resolve();
     });
 
-    unmount();
+    secondRender.unmount();
   });
 
   test('NavLink uses the same default render warmup', async () => {

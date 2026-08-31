@@ -117,4 +117,45 @@ describe('buildShellBeforeTemplate', () => {
 
     expect(html).toContain('/assets/async-index.css');
   });
+
+  it.each([
+    [
+      'a prefetch link',
+      '<link href="/assets/async-index.css" rel="prefetch" />',
+    ],
+    [
+      'a preload link',
+      '<link href="/assets/async-index.css" rel="preload" as="style" />',
+    ],
+    ['unrelated text', '<meta content="/assets/async-index.css" />'],
+    [
+      'a stylesheet link with a longer URL',
+      '<link href="/assets/async-index.css?v=1" rel="stylesheet" />',
+    ],
+    [
+      'the exact stylesheet link',
+      '<link href="/assets/async-index.css" rel="stylesheet" />',
+    ],
+  ])('should preserve exactly one worker stylesheet when the template contains %s', async (_description, existingMarkup) => {
+    const stylesheet =
+      '<link href="/assets/async-index.css" rel="stylesheet" />';
+    const html = await buildWorkerShellBeforeTemplate(
+      `<html><head>${existingMarkup}${CHUNK_CSS_PLACEHOLDER}</head><body></body></html>`,
+      {
+        entryName: 'index',
+        runtimeContext: {
+          routeManifest: {
+            routeAssets: {
+              'async-index': {
+                referenceCssAssets: ['/assets/async-index.css'],
+              },
+            },
+          },
+        } as any,
+        config: {} as any,
+      },
+    );
+
+    expect(html.split(stylesheet)).toHaveLength(2);
+  });
 });

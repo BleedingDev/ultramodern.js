@@ -1,0 +1,11 @@
+{
+  "extends": "@modern-js/tsconfig/base",
+  "compilerOptions": {
+    "declaration": false,
+    "lib": ["DOM", "ESNext", "dom.iterable"],
+    "jsx": "preserve",
+    "isolatedModules": true,
+    "rootDir": "./src"
+  },
+  "include": ["src"]
+}

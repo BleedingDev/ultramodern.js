@@ -14,7 +14,7 @@ import {
   type TelemetryRegistryOptions,
   toTelemetryEnvelope,
 } from '../telemetryCore';
-import { setupTelemetryCanary } from './canarySetup';
+import { setupTelemetryHealthMonitoring } from './healthSetup';
 import { registerTelemetryLifecycle } from './lifecycle';
 import {
   createRuntimeFallbackSignalMiddleware,
@@ -47,18 +47,18 @@ export {
   createTelemetryAwareMetrics,
   createVictoriaMetricsTelemetryExporter,
   type OtlpExporterOptions,
-  type TelemetryCanaryAction,
-  type TelemetryCanaryContractGateStatus,
-  type TelemetryCanaryDecision,
-  type TelemetryCanaryFailure,
-  type TelemetryCanaryFailureReason,
-  TelemetryCanaryOrchestrator,
-  type TelemetryCanaryOrchestratorOptions,
-  type TelemetryCanaryState,
-  type TelemetryCanaryStatusSnapshot,
+  type TelemetryContractGateStatus,
   type TelemetryEnvelope,
   type TelemetryExporter,
   type TelemetryExporterHealthStatus,
+  type TelemetryHealthEvaluation,
+  type TelemetryHealthFailure,
+  type TelemetryHealthFailureReason,
+  TelemetryHealthMonitor,
+  type TelemetryHealthMonitorOptions,
+  type TelemetryHealthState,
+  type TelemetryHealthStatusSnapshot,
+  type TelemetryHealthTransition,
   type TelemetryQueueStats,
   TelemetryRegistry,
   type TelemetryRegistryOptions,
@@ -132,14 +132,14 @@ export const injectTelemetryPlugin = (): ServerPlugin => ({
     });
 
     const {
-      canaryOrchestrator,
+      healthMonitor,
       gateSnapshotStorePromise,
       runtimeFallbackSignalConfig,
       runtimeStatusAuthConfig,
-    } = setupTelemetryCanary({
+    } = setupTelemetryHealthMonitoring({
       registry,
       appDirectory,
-      canaryConfig: telemetryConfig.canary,
+      legacyHealthConfig: telemetryConfig.canary,
     });
 
     if (runtimeFallbackSignalConfig) {
@@ -150,7 +150,7 @@ export const injectTelemetryPlugin = (): ServerPlugin => ({
     middlewares.push(
       createRuntimeStatusMiddleware({
         registry,
-        canaryOrchestrator,
+        healthMonitor,
         runtimeFallbackSignalConfig,
         runtimeStatusAuthConfig,
       }),
@@ -188,8 +188,8 @@ export const injectTelemetryPlugin = (): ServerPlugin => ({
       api,
       registry,
       telemetryConfig,
-      canaryConfig: telemetryConfig.canary,
-      canaryOrchestrator,
+      legacyHealthConfig: telemetryConfig.canary,
+      healthMonitor,
       gateSnapshotStorePromise,
       appDirectory,
     });

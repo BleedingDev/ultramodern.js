@@ -11,16 +11,12 @@ import { pluginReact } from '@rsbuild/plugin-react';
 import { pluginSass } from '@rsbuild/plugin-sass';
 import { pluginDevtool } from '../plugins/devtools';
 import { pluginEmitRouteFile } from '../plugins/emitRouteFile';
-import { pluginEnvironmentBuildCacheIsolation } from '../plugins/environmentBuildCache';
 import { pluginEnvironmentDefaults } from '../plugins/environmentDefaults';
 import { pluginGlobalVars } from '../plugins/globalVars';
 import { pluginHtmlMinifierTerser } from '../plugins/htmlMinify';
-import { pluginRspack21 } from '../plugins/rspack21';
 import { pluginRuntimeChunk } from '../plugins/runtimeChunk';
-import type { RsdoctorUserConfig } from '../rsdoctorConfig';
 import type { BuilderConfig, CreateBuilderCommonOptions } from '../types';
 import { transformToRsbuildServerOptions } from './devServer';
-import { withTsgoDefaults } from './tsgo';
 import { NODE_MODULES_REGEX } from './utils';
 
 const CSS_MODULES_REGEX = /\.modules?\.\w+$/i;
@@ -61,14 +57,13 @@ export async function parseCommonConfig(
 ): Promise<{
   rsbuildConfig: RsbuildConfig;
   rsbuildPlugins: RsbuildPlugin[];
-  rsdoctorConfig: RsdoctorUserConfig | undefined;
 }> {
   const frameworkConfigPath = options?.frameworkConfigPath;
 
   const {
     plugins: [...plugins] = [],
     splitChunks,
-    performance: { rsdoctor: rsdoctorConfig, ...performanceConfig } = {},
+    performance: { ...performanceConfig } = {},
     output: {
       module = false,
       enableCssModuleTSDeclaration,
@@ -232,11 +227,9 @@ export async function parseCommonConfig(
   rsbuildConfig.html = html;
   rsbuildConfig.output = output;
 
-  const { sourceBuild, sourceImport } = builderConfig.experiments || {};
+  const { sourceBuild } = builderConfig.experiments || {};
 
   const rsbuildPlugins: RsbuildPlugin[] = [
-    pluginRspack21({ sourceImport }),
-    pluginEnvironmentBuildCacheIsolation(),
     pluginGlobalVars(globalVars),
     pluginDevtool({
       sourceMap,
@@ -263,10 +256,7 @@ export async function parseCommonConfig(
     const { pluginTypeCheck } = await import('@rsbuild/plugin-type-check');
     rsbuildPlugins.push(
       pluginTypeCheck({
-        tsCheckerOptions: withTsgoDefaults(
-          tsChecker,
-          options?.cwd ?? process.cwd(),
-        ),
+        tsCheckerOptions: tsChecker,
       }),
     );
   }
@@ -352,6 +342,5 @@ export async function parseCommonConfig(
   return {
     rsbuildConfig: mergeRsbuildConfig(rsbuildConfig, extraConfig),
     rsbuildPlugins,
-    rsdoctorConfig,
   };
 }

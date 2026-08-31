@@ -1,5 +1,11 @@
 // @effect-diagnostics anyUnknownInErrorContext:off asyncFunction:off strictBooleanExpressions:off
 import {
+  evaluateCrossProjectPolicy,
+  type NormalizedCrossProjectPolicy,
+  resolveCrossProjectRequestObservation,
+} from '@modern-js/bff-core/security/cross-project-policy';
+import { toHeaderRecord } from '../../utils/headers';
+import {
   type DispatchEffectBffRequestOptions,
   dispatchEffectBffRequestWithContext,
 } from './dispatch';
@@ -37,12 +43,64 @@ export type EffectBffEdgeHandlerOptions = {
   prefix?: string;
   openapi?: EffectBffOpenApiConfig;
   dataPlatform?: EffectDataPlatformValidationOptions;
+  crossProjectPolicy?: NormalizedCrossProjectPolicy;
   onError?: (
     error: unknown,
     context: EffectContext,
   ) => Promise<Response> | Response;
   onWarning?: (message: string) => void;
 };
+
+const NORMALIZED_POLICY_BOOLEAN_FIELDS = [
+  'enabled',
+  'requireEnvelope',
+  'requireOperationContext',
+  'requireOperationContextDetails',
+  'requireOperationSchemaHash',
+  'requireOperationVersion',
+  'allowUnknownOperations',
+] as const;
+
+function assertNormalizedCrossProjectPolicy(
+  policy: NormalizedCrossProjectPolicy | undefined,
+) {
+  if (policy === undefined) {
+    return;
+  }
+  if (!policy || typeof policy !== 'object' || Array.isArray(policy)) {
+    throw new Error(
+      '[BFF][Effect] Edge cross-project policy must be a normalized object.',
+    );
+  }
+  for (const field of NORMALIZED_POLICY_BOOLEAN_FIELDS) {
+    if (typeof policy[field] !== 'boolean') {
+      throw new Error(
+        `[BFF][Effect] Edge cross-project policy requires boolean ${field}.`,
+      );
+    }
+  }
+  if (
+    !policy.expectedOperationContracts ||
+    typeof policy.expectedOperationContracts !== 'object' ||
+    Array.isArray(policy.expectedOperationContracts)
+  ) {
+    throw new Error(
+      '[BFF][Effect] Edge cross-project policy requires expectedOperationContracts object.',
+    );
+  }
+}
+
+function restoreEffectBffMountPath(
+  request: Request,
+  prefix: string | undefined,
+) {
+  const pathname = new URL(request.url).pathname;
+  if (!prefix || prefix === '/') {
+    return pathname;
+  }
+  const normalizedPrefix = prefix.endsWith('/') ? prefix.slice(0, -1) : prefix;
+  return pathname === '/' ? normalizedPrefix : `${normalizedPrefix}${pathname}`;
+}
 
 export async function dispatchEffectBffRequest(
   handler: EffectBffRequestHandler,
@@ -58,9 +116,45 @@ export async function dispatchEffectBffRequest(
 export async function createEffectBffEdgeDispatcher(
   options: EffectBffEdgeHandlerOptions,
 ) {
+  const crossProjectPolicy = options.crossProjectPolicy;
+  assertNormalizedCrossProjectPolicy(crossProjectPolicy);
   const loaded = await resolveEffectBffModuleHandler(options.module, {
     openapi: options.openapi,
     dataPlatform: options.dataPlatform,
+    validateRequest:
+      crossProjectPolicy?.enabled === true
+        ? request => {
+            const pathname = new URL(request.url).pathname;
+            const observedRequest = resolveCrossProjectRequestObservation(
+              { method: request.method, pathname },
+              crossProjectPolicy,
+            ) ?? {
+              method: request.method,
+              routePath: restoreEffectBffMountPath(request, options.prefix),
+            };
+            const violation = evaluateCrossProjectPolicy(
+              toHeaderRecord(request.headers),
+              crossProjectPolicy,
+              observedRequest,
+            );
+            if (!violation) {
+              return null;
+            }
+            return new Response(
+              JSON.stringify({
+                code: violation.code,
+                reason: violation.reason,
+                message: violation.message,
+              }),
+              {
+                status: violation.status,
+                headers: {
+                  'content-type': 'application/json; charset=utf-8',
+                },
+              },
+            );
+          }
+        : undefined,
     onWarning: options.onWarning,
   });
   if (!loaded) {

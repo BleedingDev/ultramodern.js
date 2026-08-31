@@ -130,11 +130,10 @@ const createRuntimePaths = ({
 // TS-Go/Node-native TypeScript only; classic runtime transpilers are intentionally not supported.
 export const resolveTsRuntimeRegisterMode = (): TsRuntimeRegisterMode => {
   const hasNativeTypeScriptSupport = (process as any).features?.typescript;
-  const nodeMajorVersion = Number(process.versions.node.split('.')[0]);
+  const nodeVersion = process.versions.node.split('.').map(Number);
   const supportsNativeTypeScript =
-    hasNativeTypeScriptSupport === undefined
-      ? nodeMajorVersion >= 22
-      : hasNativeTypeScriptSupport !== false;
+    (nodeVersion[0] > 26 || (nodeVersion[0] === 26 && nodeVersion[1] >= 7)) &&
+    [true, 'strip'].includes(hasNativeTypeScriptSupport);
 
   if (supportsNativeTypeScript) {
     return 'node-loader';
@@ -153,6 +152,11 @@ export const setupTsRuntime = async (
   alias?: ConfigChain<Alias>,
   options: TsRuntimeSetupOptions = {},
 ) => {
+  if (resolveTsRuntimeRegisterMode() === 'unsupported') {
+    throw new Error(
+      `UltraModern.js requires Node.js >=26.7.0 with native TypeScript support; detected v${process.versions.node}. Legacy TypeScript runtime transpilers are unsupported.`,
+    );
+  }
   const tsconfigPath = resolveServerTsconfig(appDir, options.tsconfigPath);
   const isTsProject = await fs.pathExists(tsconfigPath);
 
@@ -172,10 +176,6 @@ export const setupTsRuntime = async (
     paths,
     absoluteBaseUrl,
   });
-
-  if (registerMode === 'unsupported') {
-    return;
-  }
 
   if (registerMode === 'node-loader') {
     const { registerPathsLoader } = await import('../esm/register-esm.mjs');

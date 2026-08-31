@@ -70,25 +70,26 @@ test('generates readable first-ten verticals and deterministic safe names above 
 
 function makeBootstrapRelease(version = '3.4.0-ultramodern.2') {
   const aliases = {
-    '@modern-js/create': '@bleedingdev/modern-js-create',
+    '@modern-js/ultramodern-create':
+      '@bleedingdev/modern-js-ultramodern-create',
     '@modern-js/i18n-utils': '@bleedingdev/modern-js-i18n-utils',
     '@modern-js/runtime': '@bleedingdev/modern-js-runtime',
     '@modern-js/utils': '@bleedingdev/modern-js-utils',
   };
   const packageJson = (sourceName, dependencies = {}) => ({
     dependencies,
-    ...(sourceName === '@modern-js/create'
+    ...(sourceName === '@modern-js/ultramodern-create'
       ? { ultramodern: { frameworkVersion: version } }
       : {}),
   });
   const packages = [
     {
-      packageJson: packageJson('@modern-js/create', {
+      packageJson: packageJson('@modern-js/ultramodern-create', {
         '@modern-js/i18n-utils': `npm:${aliases['@modern-js/i18n-utils']}@${version}`,
         chalk: '^5.6.2',
       }),
-      sourceName: '@modern-js/create',
-      targetName: aliases['@modern-js/create'],
+      sourceName: '@modern-js/ultramodern-create',
+      targetName: aliases['@modern-js/ultramodern-create'],
       version,
     },
     {
@@ -116,7 +117,9 @@ function makeBootstrapRelease(version = '3.4.0-ultramodern.2') {
     aliases,
     createPackage: packages[0],
     dependencyGraph: {
-      [aliases['@modern-js/create']]: [aliases['@modern-js/i18n-utils']],
+      [aliases['@modern-js/ultramodern-create']]: [
+        aliases['@modern-js/i18n-utils'],
+      ],
       [aliases['@modern-js/i18n-utils']]: [aliases['@modern-js/utils']],
       [aliases['@modern-js/runtime']]: [],
       [aliases['@modern-js/utils']]: [],
@@ -143,12 +146,12 @@ test('builds the supported pnpm dlx package command contract from the authentica
       '--config.minimum-release-age=1440',
       '--config.minimum-release-age-strict=true',
       '--config.minimum-release-age-ignore-missing-time=false',
-      '--config.minimum-release-age-exclude=@bleedingdev/modern-js-create@3.4.0-ultramodern.2',
       '--config.minimum-release-age-exclude=@bleedingdev/modern-js-i18n-utils@3.4.0-ultramodern.2',
+      '--config.minimum-release-age-exclude=@bleedingdev/modern-js-ultramodern-create@3.4.0-ultramodern.2',
       '--config.minimum-release-age-exclude=@bleedingdev/modern-js-utils@3.4.0-ultramodern.2',
       'dlx',
       '--allow-build=esbuild',
-      '@bleedingdev/modern-js-create@3.4.0-ultramodern.2',
+      '@bleedingdev/modern-js-ultramodern-create@3.4.0-ultramodern.2',
       'my-super-app',
       '--lang',
       'en',
@@ -161,12 +164,12 @@ test('builds the supported pnpm dlx package command contract from the authentica
       '--config.minimum-release-age=1440',
       '--config.minimum-release-age-strict=true',
       '--config.minimum-release-age-ignore-missing-time=false',
-      '--config.minimum-release-age-exclude=@bleedingdev/modern-js-create@3.4.0-ultramodern.2',
       '--config.minimum-release-age-exclude=@bleedingdev/modern-js-i18n-utils@3.4.0-ultramodern.2',
+      '--config.minimum-release-age-exclude=@bleedingdev/modern-js-ultramodern-create@3.4.0-ultramodern.2',
       '--config.minimum-release-age-exclude=@bleedingdev/modern-js-utils@3.4.0-ultramodern.2',
       'dlx',
       '--allow-build=esbuild',
-      '@bleedingdev/modern-js-create@3.4.0-ultramodern.2',
+      '@bleedingdev/modern-js-ultramodern-create@3.4.0-ultramodern.2',
       'catalog',
       '--vertical',
       '--lang',
@@ -176,7 +179,9 @@ test('builds the supported pnpm dlx package command contract from the authentica
   assert.throws(
     () =>
       createPnpmDlxArgs(
-        { exactSpecifier: 'modern-js-create@3.5.0-ultramodern.77' },
+        {
+          exactSpecifier: 'modern-js-ultramodern-create@3.5.0-ultramodern.77',
+        },
         [],
       ),
     /exact authenticated bootstrap release-age policy/u,
@@ -377,7 +382,8 @@ test('shared ERP-10 profile requires frozen install, checks, both builds, and no
   );
   assert.equal(
     createAcceptancePackageManagerEnv('/tmp/acceptance', {
-      ULTRAMODERN_CREATE_BIN: '/repo/packages/toolkit/create/bin/run.js',
+      ULTRAMODERN_CREATE_BIN:
+        '/repo/packages/toolkit/ultramodern-create/bin/run.js',
     }).ULTRAMODERN_CREATE_BIN,
     undefined,
   );
@@ -846,18 +852,19 @@ test('asserts generated cohorts only from strict manifest expectations and compa
   const version = '3.2.0-framework.1';
   const release = {
     aliases: {
-      '@modern-js/create': '@bleedingdev/modern-js-create',
+      '@modern-js/ultramodern-create':
+        '@bleedingdev/modern-js-ultramodern-create',
       '@modern-js/runtime': '@bleedingdev/modern-js-runtime',
     },
     createPackage: {
-      sourceName: '@modern-js/create',
-      targetName: '@bleedingdev/modern-js-create',
+      sourceName: '@modern-js/ultramodern-create',
+      targetName: '@bleedingdev/modern-js-ultramodern-create',
       version,
     },
     packages: [
       {
-        sourceName: '@modern-js/create',
-        targetName: '@bleedingdev/modern-js-create',
+        sourceName: '@modern-js/ultramodern-create',
+        targetName: '@bleedingdev/modern-js-ultramodern-create',
       },
       {
         sourceName: '@modern-js/runtime',
@@ -866,7 +873,7 @@ test('asserts generated cohorts only from strict manifest expectations and compa
     ],
     publishOrder: [
       '@bleedingdev/modern-js-runtime',
-      '@bleedingdev/modern-js-create',
+      '@bleedingdev/modern-js-ultramodern-create',
     ],
     release: { version },
   };
@@ -886,7 +893,7 @@ test('asserts generated cohorts only from strict manifest expectations and compa
     writeJson(root, '.modernjs/ultramodern.json', {
       schemaVersion: 1,
       generator: {
-        package: '@modern-js/create',
+        package: '@modern-js/ultramodern-create',
         version,
       },
       packageSource: {

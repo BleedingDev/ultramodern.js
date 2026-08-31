@@ -116,6 +116,84 @@ describe('rewriteImportSpecifiers', () => {
     });
   });
 
+  it('does not treat a regex after a control-flow condition as module syntax', () => {
+    const source = `if (true) /from '@shared'/.test('x');`;
+
+    expect(
+      rewriteImportSpecifiers(source, specifier =>
+        specifier === '@shared' ? './shared.js' : undefined,
+      ),
+    ).toEqual({ content: source, changed: false });
+  });
+
+  it('rewrites imports in JavaScript output that preserves JSX', () => {
+    const source = [
+      `import Widget from '@a/widget';`,
+      `export const view = <Widget source="@a/runtime-data" />;`,
+    ].join('\n');
+
+    expect(run(source)).toEqual({
+      content: [
+        `import Widget from './widget.js';`,
+        `export const view = <Widget source="@a/runtime-data" />;`,
+      ].join('\n'),
+      changed: true,
+    });
+  });
+
+  it('rewrites module calls nested inside another call argument', () => {
+    const source = [
+      `const x = __importDefault(require('@a/x'));`,
+      `const y = Promise.resolve().then(() => require('@a/y'));`,
+    ].join('\n');
+
+    expect(run(source)).toEqual({
+      content: [
+        `const x = __importDefault(require('./x.js'));`,
+        `const y = Promise.resolve().then(() => require('./y.js'));`,
+      ].join('\n'),
+      changed: true,
+    });
+  });
+
+  it('keeps UTF-8 spans exact across multiple rewritten specifiers', () => {
+    const source = [
+      `const label = '💥漢';`,
+      `import rocket from '@a/💥';`,
+      `export { rocket as han } from '@a/漢';`,
+    ].join('\n');
+
+    expect(run(source)).toEqual({
+      content: [
+        `const label = '💥漢';`,
+        `import rocket from './💥.js';`,
+        `export { rocket as han } from './漢.js';`,
+      ].join('\n'),
+      changed: true,
+    });
+  });
+
+  it('rewrites TypeScript declaration module references', () => {
+    const source = [
+      `import type { Input } from '@a/input';`,
+      `export type { Output } from '@a/output';`,
+      `type Lazy = import('@a/lazy').Lazy;`,
+      `type Factory = typeof import('@a/factory');`,
+      `import Legacy = require('@a/legacy');`,
+    ].join('\n');
+
+    expect(run(source)).toEqual({
+      content: [
+        `import type { Input } from './input.js';`,
+        `export type { Output } from './output.js';`,
+        `type Lazy = import('./lazy.js').Lazy;`,
+        `type Factory = typeof import('./factory.js');`,
+        `import Legacy = require('./legacy.js');`,
+      ].join('\n'),
+      changed: true,
+    });
+  });
+
   it('leaves computed package imports to the runtime resolver', async () => {
     const packageDir = path.join(fixtureDir, 'node_modules/@a/locales');
     await fs.outputJSON(path.join(packageDir, 'package.json'), {

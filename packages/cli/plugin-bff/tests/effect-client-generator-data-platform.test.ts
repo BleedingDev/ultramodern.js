@@ -278,4 +278,43 @@ describe('effect client generator data-platform integration', () => {
       await fs.promises.rm(appDir, { recursive: true, force: true });
     }
   });
+
+  test('publishes the exact client manifest as server operation contracts', async () => {
+    const { appDir, apiDir, resourcePath } = await createFixtureApp();
+
+    try {
+      const artifacts = await generateEffectClient({
+        appDir,
+        apiDir,
+        resourcePath,
+        prefix: '/api',
+        port: 8080,
+        target: 'bundle',
+        requestId: 'catalog-service',
+      });
+      if (!artifacts) {
+        throw new Error('Effect client artifacts were not generated');
+      }
+      const generated = await executeGeneratedEffectClient(artifacts.code);
+      const endpoint = generated.client.__manifest.endpoints[0];
+      const routeContract = artifacts.operationContracts['GET:/api/ping'];
+
+      expect(artifacts).toMatchObject({
+        operationVersion: 2,
+        requestId: 'catalog-service',
+      });
+      expect(routeContract).toMatchObject({
+        requestId: 'catalog-service',
+        operationVersion: 2,
+        method: 'GET',
+        routePath: '/api/ping',
+        schemaHash: endpoint.schemaHash,
+      });
+      expect(
+        artifacts.operationContracts['operation:catalog-service:ping'],
+      ).toBe(routeContract);
+    } finally {
+      await fs.promises.rm(appDir, { recursive: true, force: true });
+    }
+  });
 });

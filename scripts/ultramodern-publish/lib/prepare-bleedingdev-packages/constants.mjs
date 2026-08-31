@@ -30,6 +30,12 @@ const transientNpmPublishErrorPatterns = [
   /socket hang up/u,
 ];
 
+const incorporatedModernCreateSourceName = '@modern-js/create';
+const ultramodernCreateSourceName = '@modern-js/ultramodern-create';
+const ultramodernCreateTargetName =
+  '@bleedingdev/modern-js-ultramodern-create';
+const retiredBleedingdevCreateTargetName = '@bleedingdev/modern-js-create';
+
 const createTemplateRequiredFiles = [
   'template-workspace/.agents/agent-reference-repos.json',
   'template-workspace/.codex/rstackjs-agent-skills-LICENSE',
@@ -43,6 +49,7 @@ const createTemplateRequiredFiles = [
 
 export {
   createTemplateRequiredFiles,
+  incorporatedModernCreateSourceName,
   npmPublishAttempts,
   npmPublishRetryDelayMs,
   npmRegistryOrigin,
@@ -52,4 +59,7 @@ export {
   trustedPublishRepository,
   trustedPublishWorkflowPath,
   transientNpmPublishErrorPatterns,
+  retiredBleedingdevCreateTargetName,
+  ultramodernCreateSourceName,
+  ultramodernCreateTargetName,
 };

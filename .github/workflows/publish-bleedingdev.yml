@@ -174,7 +174,7 @@ jobs:
           # a single graph; each closure still completes before its first
           # consumer below.
           mise exec -- pnpm \
-            --filter "@modern-js/create^..." \
+            --filter "@modern-js/ultramodern-create^..." \
             --filter "@modern-js/app-tools..." \
             --filter "@modern-js/runtime..." \
             --filter "@modern-js/plugin-i18n..." \
@@ -185,9 +185,9 @@ jobs:
           mise exec -- pnpm test:scripts
           mise exec -- pnpm lint
           mise exec -- pnpm run check-changeset
-          # @modern-js/create's own test script rebuilds only itself; every
+          # @modern-js/ultramodern-create's own test script rebuilds only itself; every
           # installed framework boundary it exercises is already built above.
-          mise exec -- pnpm --filter @modern-js/create test
+          mise exec -- pnpm --filter @modern-js/ultramodern-create test
           # The behavioural surface of the published runtime packages. Without
           # these, a dispatch on a commit whose ut-* workflows are red would
           # still publish to npm at dist-tag latest.
@@ -258,7 +258,7 @@ jobs:
           node --input-type=module <<'NODE'
           import { assertRegistrySourceCommitUnpublished } from './scripts/ultramodern-publish/prepare-bleedingdev-packages.mjs';
 
-          const packageName = '@bleedingdev/modern-js-create';
+          const packageName = '@bleedingdev/modern-js-ultramodern-create';
           const requestedVersion = process.env.PUBLISH_VERSION;
           const sourceCommit = process.env.GITHUB_SHA;
           const sourceRepository = process.env.GITHUB_REPOSITORY;
@@ -965,6 +965,8 @@ jobs:
     name: Record the authenticated publish outcome
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    outputs:
+      artifact_name: ${{ steps.publish-outcome.outputs.artifact_name }}
     needs:
       - publish-security
       - accept-release
@@ -1127,6 +1129,7 @@ jobs:
     # The only job that may write to the repository, and it runs strictly after
     # the publish outcome is recorded.
     permissions:
+      actions: read
       contents: write
     needs:
       - record-publish-outcome
@@ -1154,19 +1157,29 @@ jobs:
         with:
           node-version: '26.7.0'
 
+      - name: Download authenticated publish outcome
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          github-token: ${{ github.token }}
+          name: ${{ needs.record-publish-outcome.outputs.artifact_name }}
+          path: .modern/bleedingdev-publish
+          repository: ${{ github.repository }}
+          run-id: ${{ github.run_id }}
+
       - name: Generate the cohort change record
-        env:
-          PUBLISH_VERSION: ${{ inputs.version }}
+        id: change-record
         run: |
           mkdir -p "$BLEEDINGDEV_RELEASE_DIR"
           node scripts/ultramodern-publish/gen-cohort-change-record.mjs \
-            --version "$PUBLISH_VERSION" \
-            --out "$BLEEDINGDEV_RELEASE_DIR/change-record.md"
+            --manifest "$BLEEDINGDEV_RELEASE_MANIFEST" \
+            --out "$BLEEDINGDEV_RELEASE_DIR/change-record.md" \
+            --github-output "$GITHUB_OUTPUT"
 
       - name: Create or update the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-          PUBLISH_VERSION: ${{ inputs.version }}
+          PUBLISH_VERSION: ${{ steps.change-record.outputs.version }}
+          SOURCE_COMMIT: ${{ steps.change-record.outputs.source_commit }}
         run: |
           set -euo pipefail
           # FORK: this repository carries 271 inherited upstream Modern.js `v*`
@@ -1179,8 +1192,8 @@ jobs:
           NOTES="$BLEEDINGDEV_RELEASE_DIR/change-record.md"
 
           EXISTING_TAG_SHA="$(git rev-parse -q --verify "refs/tags/$TAG^{commit}" || true)"
-          if [ -n "$EXISTING_TAG_SHA" ] && [ "$EXISTING_TAG_SHA" != "$GITHUB_SHA" ]; then
-            echo "::error::tag $TAG already exists at $EXISTING_TAG_SHA, not $GITHUB_SHA" >&2
+          if [ -n "$EXISTING_TAG_SHA" ] && [ "$EXISTING_TAG_SHA" != "$SOURCE_COMMIT" ]; then
+            echo "::error::tag $TAG already exists at $EXISTING_TAG_SHA, not $SOURCE_COMMIT" >&2
             exit 1
           fi
 
@@ -1195,7 +1208,7 @@ jobs:
           else
             gh release create "$TAG" \
               --repo "$GITHUB_REPOSITORY" \
-              --target "$GITHUB_SHA" \
+              --target "$SOURCE_COMMIT" \
               --title "$TITLE" \
               --notes-file "$NOTES"
           fi
@@ -1203,7 +1216,7 @@ jobs:
       - name: Upload the change record
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: bleedingdev-change-record-${{ inputs.version }}
+          name: bleedingdev-change-record-${{ steps.change-record.outputs.version }}
           path: .modern/bleedingdev-publish/change-record.md
           if-no-files-found: error
           include-hidden-files: true

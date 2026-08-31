@@ -35,7 +35,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "rslib build && pnpm -w tsgo:dts \"$PWD\"",
+    "build": "rslib build",
     "dev": "rslib build --watch"
   },
   "dependencies": {

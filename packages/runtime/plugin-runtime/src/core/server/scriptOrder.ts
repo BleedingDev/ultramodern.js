@@ -1,7 +1,7 @@
 import { getRouterMatchedRouteIds } from '../../router/runtime/lifecycle';
 import type { TInternalRuntimeContext } from '../context';
 import { CHUNK_JS_PLACEHOLDER } from './constants';
-import { safeReplace } from './utils';
+import { attributesToString, safeReplace } from './utils';
 
 type RouteAssetManifest = {
   assets?: string[];
@@ -165,6 +165,10 @@ export function replaceChunkJsPlaceholder(
   entryName?: string,
   placeholder = CHUNK_JS_PLACEHOLDER,
 ) {
+  if (!template.includes(placeholder)) {
+    return template;
+  }
+
   if (scripts === '') {
     return safeReplace(template, placeholder, '');
   }
@@ -209,11 +213,14 @@ export function createRouteHydrationScriptTags(
       ].filter((asset: string) => asset.endsWith('.js')),
     ),
   );
-  const nonceAttr =
-    nonce === undefined || nonce === '' ? '' : ` nonce="${nonce}"`;
-
   return jsAssets
     .filter(asset => !existingScriptSrcs.has(asset))
-    .map(asset => `<script src=${asset}${nonceAttr}></script>`)
+    .map(
+      asset =>
+        `<script${attributesToString({
+          src: asset,
+          nonce: nonce || undefined,
+        })}></script>`,
+    )
     .join(' ');
 }
