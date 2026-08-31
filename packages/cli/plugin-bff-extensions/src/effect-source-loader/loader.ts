@@ -259,6 +259,58 @@ function normalizeImportedModule(module: unknown): unknown {
   return module;
 }
 
+function hasErrorCode(error: unknown, code: string): boolean {
+  return (
+    error !== null &&
+    typeof error === 'object' &&
+    'code' in error &&
+    error.code === code
+  );
+}
+
+async function publishImmutableOutput(options: {
+  cacheDirectory: string;
+  contents: Uint8Array;
+  outputName: string;
+}): Promise<string> {
+  const revision = crypto
+    .createHash('sha256')
+    .update(options.contents)
+    .digest('hex');
+  const outputPath = path.join(
+    options.cacheDirectory,
+    `${options.outputName}-${revision}.mjs`,
+  );
+  const temporaryPath = path.join(
+    options.cacheDirectory,
+    `.${options.outputName}-${crypto.randomUUID()}.tmp`,
+  );
+
+  try {
+    await fs.promises.writeFile(temporaryPath, options.contents, {
+      flag: 'wx',
+    });
+    try {
+      await fs.promises.link(temporaryPath, outputPath);
+    } catch (error) {
+      if (!hasErrorCode(error, 'EEXIST')) {
+        throw error;
+      }
+
+      const publishedContents = await fs.promises.readFile(outputPath);
+      if (!publishedContents.equals(Buffer.from(options.contents))) {
+        throw new Error(
+          `Effect source cache entry does not match its content address: ${outputPath}`,
+        );
+      }
+    }
+  } finally {
+    await fs.promises.rm(temporaryPath, { force: true });
+  }
+
+  return outputPath;
+}
+
 /** Loads a production artifact without changing its native Node boundary. */
 export async function loadEffectBuiltModule(
   resourcePath: string,
@@ -294,7 +346,6 @@ export async function loadEffectSourceModule(
     .update(resourcePath)
     .digest('hex')
     .slice(0, 24);
-  const outputPath = path.join(cacheDirectory, `${outputName}.mjs`);
   await fs.promises.mkdir(cacheDirectory, { recursive: true });
 
   const result = await build({
@@ -308,7 +359,7 @@ export async function loadEffectSourceModule(
     jsx: 'automatic',
     logLevel: 'silent',
     metafile: true,
-    outfile: outputPath,
+    outfile: path.join(cacheDirectory, `${outputName}.mjs`),
     platform: 'node',
     plugins: [
       externalizeInstalledDependencies({
@@ -320,6 +371,7 @@ export async function loadEffectSourceModule(
     sourcemap: 'inline',
     target: NODE_TARGET,
     tsconfig: fs.existsSync(tsconfigPath) ? tsconfigPath : undefined,
+    write: false,
   });
 
   for (const input of Object.keys(result.metafile.inputs)) {
@@ -331,9 +383,15 @@ export async function loadEffectSourceModule(
     }
   }
 
-  const output = await fs.promises.readFile(outputPath);
-  const revision = crypto.createHash('sha256').update(output).digest('hex');
-  return normalizeImportedModule(
-    await import(`${pathToFileURL(outputPath).href}?v=${revision}`),
-  );
+  if (result.outputFiles.length !== 1) {
+    throw new Error(
+      `Expected one Effect source output, received ${result.outputFiles.length}`,
+    );
+  }
+  const outputPath = await publishImmutableOutput({
+    cacheDirectory,
+    contents: result.outputFiles[0].contents,
+    outputName,
+  });
+  return normalizeImportedModule(await import(pathToFileURL(outputPath).href));
 }
