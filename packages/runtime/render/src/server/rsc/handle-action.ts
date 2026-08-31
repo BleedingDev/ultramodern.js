@@ -16,7 +16,9 @@ export type RscActionRuntime = {
 
 const MAX_ACTION_BODY_BYTES = 1024 * 1024;
 
-const readBoundedBody = async (req: Request): Promise<Uint8Array | null> => {
+const readBoundedBody = async (
+  req: Request,
+): Promise<Uint8Array<ArrayBuffer> | null> => {
   const reader = req.body?.getReader();
   if (!reader) {
     return new Uint8Array();

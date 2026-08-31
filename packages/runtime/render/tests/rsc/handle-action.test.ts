@@ -52,7 +52,9 @@ describe('createHandleAction', () => {
     const { runtime, calls } = createRuntime();
     const handleAction = createHandleAction(runtime);
 
-    const res = await handleAction(new Request('http://localhost/rsc-action'));
+    const res = await handleAction(
+      new Request('http://localhost/rsc-action', { method: 'POST' }),
+    );
 
     expect(res.status).toBe(404);
     expect(await res.text()).toBe('Cannot find server reference');

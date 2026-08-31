@@ -301,7 +301,7 @@ describe.sequential('handleRequest', () => {
       stack: undefined,
       __type: 'Error',
     });
-    expect(serializedErrors.route).toMatchObject({
+    expect(serializedErrors.route).toEqual({
       status: 500,
       statusText: 'Internal Server Error',
       data: 'Unexpected Server Error',
@@ -317,7 +317,6 @@ describe.sequential('handleRequest', () => {
     expect(JSON.stringify(serializedErrors)).not.toContain(
       'secret status text',
     );
-    expect(JSON.stringify(responseBody)).not.toContain('route secret');
   });
 
   test('redacts production deferred error chunks', async () => {

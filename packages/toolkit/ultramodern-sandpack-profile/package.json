@@ -12,13 +12,13 @@
   "version": "3.8.3",
   "type": "module",
   "types": "./src/index.ts",
-  "main": "./dist/esm/index.mjs",
+  "main": "./dist/esm/index.js",
   "exports": {
     ".": {
       "types": "./dist/types/index.d.ts",
       "modern:source": "./src/index.ts",
-      "import": "./dist/esm/index.mjs",
-      "default": "./dist/esm/index.mjs"
+      "import": "./dist/esm/index.js",
+      "default": "./dist/esm/index.js"
     }
   },
   "typesVersions": {

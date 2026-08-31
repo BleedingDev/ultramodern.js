@@ -78,15 +78,12 @@ function shouldRedactRouteErrorResponse(error: ErrorResponse) {
 }
 
 function serializeRouteErrorResponse(error: ErrorResponse) {
-  if (!shouldRedactRouteErrorResponse(error)) {
-    return { ...error, __type: 'RouteErrorResponse' };
-  }
+  const shouldRedact = shouldRedactRouteErrorResponse(error);
 
   return {
     status: error.status,
-    statusText: 'Internal Server Error',
-    internal: error.internal,
-    data: 'Unexpected Server Error',
+    statusText: shouldRedact ? 'Internal Server Error' : error.statusText,
+    data: shouldRedact ? 'Unexpected Server Error' : error.data,
     __type: 'RouteErrorResponse',
   };
 }
