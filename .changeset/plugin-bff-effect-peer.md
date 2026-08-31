@@ -18,6 +18,10 @@ subpaths delegate to the fork-owned `@modern-js/bff-effect` runtime and
 `@modern-js/plugin-bff-extensions` integration packages without introducing a
 package cycle or an `adapter-kit` forwarding layer.
 
+Move builder and esbuild to development-only dependencies, remove telemetry and
+federation runtime dependencies whose consumers moved to the extracted owners,
+and map the package root declaration directly to `cli.d.ts`.
+
 Remove the forgeable `EFFECT_VALIDATOR_AWARE_FACTORY` and
 `isValidatorAwareHandlerFactory` public APIs. Validator-aware factories are now
 trusted through private `WeakSet` registration inside `@modern-js/bff-effect`.

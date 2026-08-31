@@ -51,6 +51,26 @@ describe('published package surface', () => {
     expect(packageJson.engines).toEqual({ node: '>=26.7.0' });
   });
 
+  test('maps the package root to its CLI declarations', () => {
+    expect(packageJson.typesVersions['*']['.']).toEqual([
+      './dist/types/cli.d.ts',
+    ]);
+  });
+
+  test('keeps build-only tooling out of runtime dependencies', () => {
+    expect({
+      builderDependency: packageJson.dependencies['@modern-js/builder'],
+      builderDevDependency: packageJson.devDependencies['@modern-js/builder'],
+      esbuildDependency: packageJson.dependencies.esbuild,
+      esbuildDevDependency: packageJson.devDependencies.esbuild,
+    }).toEqual({
+      builderDependency: undefined,
+      builderDevDependency: 'workspace:*',
+      esbuildDependency: undefined,
+      esbuildDevDependency: '^0.28.1',
+    });
+  });
+
   test('declares the emitted CLI type dependency as an optional peer', () => {
     const cliDeclaration = fs.readFileSync(
       path.join(packageRoot, 'dist/types/cli.d.ts'),

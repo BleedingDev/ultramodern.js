@@ -129,7 +129,7 @@
   "typesVersions": {
     "*": {
       ".": [
-        "./dist/types/index.d.ts"
+        "./dist/types/cli.d.ts"
       ],
       "cli": [
         "./dist/types/cli.d.ts"
@@ -177,28 +177,13 @@
   },
   "dependencies": {
     "@modern-js/bff-core": "workspace:*",
-    "@modern-js/builder": "workspace:*",
     "@modern-js/bff-effect": "workspace:*",
     "@modern-js/create-request": "workspace:*",
     "@modern-js/plugin-bff-extensions": "workspace:*",
-    "@modern-js/runtime-extensions": "workspace:*",
     "@modern-js/server-core": "workspace:*",
-    "@modern-js/server-runtime-extensions": "workspace:*",
     "@modern-js/server-utils": "workspace:*",
     "@modern-js/utils": "workspace:*",
-    "@module-federation/runtime": "2.9.0",
-    "@opentelemetry/api": "1.9.1",
-    "@opentelemetry/api-logs": "0.220.0",
-    "@opentelemetry/resources": "2.9.0",
-    "@opentelemetry/sdk-logs": "0.220.0",
-    "@opentelemetry/sdk-metrics": "2.9.0",
-    "@opentelemetry/sdk-trace-base": "2.9.0",
-    "@opentelemetry/sdk-trace-node": "2.9.0",
-    "@opentelemetry/sdk-trace-web": "2.9.0",
-    "@opentelemetry/semantic-conventions": "1.43.0",
     "@swc/core": "1.15.43",
-    "@swc/helpers": "^0.5.23",
-    "esbuild": "^0.28.1",
     "qs": "^6.15.3",
     "type-is": "^2.1.0"
   },
@@ -222,6 +207,7 @@
     "@effect/opentelemetry": "4.0.0-rc.112",
     "@modern-js/app-tools": "workspace:*",
     "@modern-js/bff-runtime": "workspace:*",
+    "@modern-js/builder": "workspace:*",
     "@modern-js/plugin": "workspace:*",
     "@modern-js/rslib": "workspace:*",
     "@modern-js/runtime": "workspace:*",
@@ -234,6 +220,7 @@
     "@types/type-is": "^1.6.7",
     "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "effect": "4.0.0-rc.112",
+    "esbuild": "^0.28.1",
     "memfs": "^4.64.0",
     "typescript": "^7.0.2",
     "zod": "^4.4.3"
