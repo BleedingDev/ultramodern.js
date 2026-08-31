@@ -3,6 +3,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { formatGeneratedSourceCandidates } from '../../../ultramodern-workspace/fs-io';
 
+type SymlinkType = 'dir' | 'file' | 'junction';
+
 type PathSnapshot =
   | { content: Buffer; mode: number; type: 'file' }
   | {
@@ -10,7 +12,12 @@ type PathSnapshot =
       mode: number;
       type: 'directory';
     }
-  | { mode: number; target: string; type: 'symlink' };
+  | {
+      linkType: SymlinkType;
+      mode: number;
+      target: string;
+      type: 'symlink';
+    };
 
 type MigrationTransaction = {
   generatedPaths: Set<string>;
@@ -65,6 +72,14 @@ function lstatIfExists(filePath: string) {
     }
     throw error;
   }
+}
+
+function symlinkTypeForPath(filePath: string): SymlinkType {
+  return fs.statSync(filePath, { throwIfNoEntry: false })?.isDirectory()
+    ? process.platform === 'win32'
+      ? 'junction'
+      : 'dir'
+    : 'file';
 }
 
 function isPathInsideRoot(rootPath: string, targetPath: string) {
@@ -148,6 +163,7 @@ function capturePath(filePath: string): PathSnapshot | undefined {
   }
   if (stat.isSymbolicLink()) {
     return {
+      linkType: symlinkTypeForPath(filePath),
       mode,
       target: fs.readlinkSync(filePath),
       type: 'symlink',
@@ -186,11 +202,12 @@ function restorePath(filePath: string, snapshot: PathSnapshot | undefined) {
   if (snapshot.type === 'symlink') {
     if (
       !current?.isSymbolicLink() ||
-      fs.readlinkSync(filePath) !== snapshot.target
+      fs.readlinkSync(filePath) !== snapshot.target ||
+      symlinkTypeForPath(filePath) !== snapshot.linkType
     ) {
       removePath(filePath);
       fs.mkdirSync(path.dirname(filePath), { recursive: true });
-      fs.symlinkSync(snapshot.target, filePath);
+      fs.symlinkSync(snapshot.target, filePath, snapshot.linkType);
     }
     chmodSymlinkIfSupported(filePath, snapshot.mode);
     return;
@@ -254,7 +271,11 @@ function copyWorkspaceEntry(
           target,
         )
       : target;
-    fs.symlinkSync(stagedTarget, destinationPath);
+    fs.symlinkSync(
+      stagedTarget,
+      destinationPath,
+      symlinkTypeForPath(sourcePath),
+    );
     chmodSymlinkIfSupported(destinationPath, stat.mode & 0o7777);
     return;
   }

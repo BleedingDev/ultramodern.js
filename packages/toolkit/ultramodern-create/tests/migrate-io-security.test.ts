@@ -7,6 +7,12 @@ import {
   withStagedDryRunMigrationIo,
 } from '../src/ultramodern-tooling/commands/migrate-strict-effect/io';
 
+const directorySymlinkType = process.platform === 'win32' ? 'junction' : 'dir';
+
+function createDirectoryLink(targetPath: string, linkPath: string) {
+  fs.symlinkSync(targetPath, linkPath, directorySymlinkType);
+}
+
 test('migration IO writes and removes normal paths inside the workspace', () => {
   const temporaryRoot = fs.mkdtempSync(
     path.join(os.tmpdir(), 'um-migrate-io-in-root-'),
@@ -27,6 +33,41 @@ test('migration IO writes and removes normal paths inside the workspace', () => 
   }
 });
 
+test('migration rollback restores directory links with their cross-platform type', () => {
+  const temporaryRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'um-migrate-io-directory-link-rollback-'),
+  );
+  const workspaceRoot = path.join(temporaryRoot, 'workspace');
+  const targetRoot = path.join(workspaceRoot, 'directory-target');
+  const linkedRoot = path.join(workspaceRoot, 'directory-link');
+  const targetFile = path.join(targetRoot, 'preserved.txt');
+
+  try {
+    fs.mkdirSync(targetRoot, { recursive: true });
+    fs.writeFileSync(targetFile, 'preserved\n');
+    createDirectoryLink(targetRoot, linkedRoot);
+
+    const io = createMigrationIo(workspaceRoot, false);
+    assert.throws(
+      () =>
+        io.transaction(() => {
+          assert.equal(io.remove(linkedRoot), true);
+          throw new Error('force directory-link rollback');
+        }),
+      /force directory-link rollback/u,
+    );
+
+    assert.equal(fs.lstatSync(linkedRoot).isSymbolicLink(), true);
+    assert.equal(fs.statSync(linkedRoot).isDirectory(), true);
+    assert.equal(
+      fs.readFileSync(path.join(linkedRoot, 'preserved.txt'), 'utf-8'),
+      'preserved\n',
+    );
+  } finally {
+    fs.rmSync(temporaryRoot, { force: true, recursive: true });
+  }
+});
+
 test('migration IO refuses writes and removals through an escaping ancestor symlink', () => {
   const temporaryRoot = fs.mkdtempSync(
     path.join(os.tmpdir(), 'um-migrate-io-symlink-'),
@@ -39,7 +80,7 @@ test('migration IO refuses writes and removals through an escaping ancestor syml
     fs.mkdirSync(workspaceRoot);
     fs.mkdirSync(outsideRoot);
     fs.writeFileSync(outsideTarget, 'original\n');
-    fs.symlinkSync(outsideRoot, path.join(workspaceRoot, 'apps'), 'dir');
+    createDirectoryLink(outsideRoot, path.join(workspaceRoot, 'apps'));
 
     const io = createMigrationIo(workspaceRoot, false);
     const escapedPath = path.join(workspaceRoot, 'apps/config.json');
@@ -102,8 +143,8 @@ test('migration IO supports a symlinked workspace root and in-root directory ali
 
   try {
     fs.mkdirSync(realAppsRoot, { recursive: true });
-    fs.symlinkSync(realWorkspaceRoot, linkedWorkspaceRoot, 'dir');
-    fs.symlinkSync(realAppsRoot, path.join(realWorkspaceRoot, 'apps'), 'dir');
+    createDirectoryLink(realWorkspaceRoot, linkedWorkspaceRoot);
+    createDirectoryLink(realAppsRoot, path.join(realWorkspaceRoot, 'apps'));
 
     const io = createMigrationIo(linkedWorkspaceRoot, false);
     assert.equal(io.write(linkedTarget, 'linked\n'), true);
@@ -127,7 +168,7 @@ test('migration dry-run performs no target mutation through an escaping ancestor
     fs.mkdirSync(workspaceRoot);
     fs.mkdirSync(outsideRoot);
     fs.writeFileSync(outsideTarget, 'original\n');
-    fs.symlinkSync(outsideRoot, path.join(workspaceRoot, 'apps'), 'dir');
+    createDirectoryLink(outsideRoot, path.join(workspaceRoot, 'apps'));
 
     assert.throws(
       () =>
@@ -207,6 +248,33 @@ test('staged migration dry-run projects writes and removals without touching the
   }
 });
 
+test('staged migration preserves directory links inside the disposable workspace', () => {
+  const temporaryRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'um-migrate-io-staged-directory-link-'),
+  );
+  const workspaceRoot = path.join(temporaryRoot, 'workspace');
+  const targetRoot = path.join(workspaceRoot, 'directory-target');
+  const linkedRoot = path.join(workspaceRoot, 'directory-link');
+
+  try {
+    fs.mkdirSync(targetRoot, { recursive: true });
+    fs.writeFileSync(path.join(targetRoot, 'preserved.txt'), 'preserved\n');
+    createDirectoryLink(targetRoot, linkedRoot);
+
+    withStagedDryRunMigrationIo(workspaceRoot, io => {
+      const stagedLink = path.join(io.workspaceRoot, 'directory-link');
+      assert.equal(fs.lstatSync(stagedLink).isSymbolicLink(), true);
+      assert.equal(fs.statSync(stagedLink).isDirectory(), true);
+      assert.equal(
+        fs.readFileSync(path.join(stagedLink, 'preserved.txt'), 'utf-8'),
+        'preserved\n',
+      );
+    });
+  } finally {
+    fs.rmSync(temporaryRoot, { force: true, recursive: true });
+  }
+});
+
 test('staged migration dry-run does not follow a symlinked workspace root back to its source', () => {
   const temporaryRoot = fs.mkdtempSync(
     path.join(os.tmpdir(), 'um-migrate-io-staged-linked-root-'),
@@ -220,11 +288,10 @@ test('staged migration dry-run does not follow a symlinked workspace root back t
   try {
     fs.mkdirSync(realAppsRoot, { recursive: true });
     fs.writeFileSync(existingPath, 'original\n');
-    fs.symlinkSync(realWorkspaceRoot, linkedWorkspaceRoot, 'dir');
-    fs.symlinkSync(
+    createDirectoryLink(realWorkspaceRoot, linkedWorkspaceRoot);
+    createDirectoryLink(
       path.join(linkedWorkspaceRoot, 'real-apps'),
       path.join(realWorkspaceRoot, 'apps'),
-      'dir',
     );
 
     withStagedDryRunMigrationIo(linkedWorkspaceRoot, io => {
