@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 const packageRoot = path.resolve(__dirname, '..');
 const builtCliPath = path.join(packageRoot, 'dist/esm-node/index.js');
@@ -61,9 +62,9 @@ function loadGeneratedAssetPrefix(
     appDirectory,
     'modern.config.ts',
   );
-  const tsxLoader = fs.realpathSync(
-    path.join(packageRoot, 'node_modules/tsx/dist/loader.mjs'),
-  );
+  const tsxLoader = pathToFileURL(
+    fs.realpathSync(path.join(packageRoot, 'node_modules/tsx/dist/loader.mjs')),
+  ).href;
   const result = spawnSync(
     process.execPath,
     [

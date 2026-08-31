@@ -592,7 +592,9 @@ test('generated api-only RPC entry serves the Cloudflare JSON-RPC probe', () => 
       process.execPath,
       [
         '--import',
-        path.resolve(__dirname, '../node_modules/tsx/dist/loader.mjs'),
+        pathToFileURL(
+          path.resolve(__dirname, '../node_modules/tsx/dist/loader.mjs'),
+        ).href,
         '--input-type=module',
         '--eval',
         `const loaded = await import('./api/index.ts');

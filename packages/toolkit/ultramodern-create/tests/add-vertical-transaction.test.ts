@@ -400,9 +400,11 @@ test('fresh publication preserves target mode and the caller current-directory i
       '../src/ultramodern-workspace/add-vertical/transaction.ts',
     ),
   ).href;
-  const tsxLoader = fs.realpathSync(
-    path.resolve(__dirname, '../node_modules/tsx/dist/loader.mjs'),
-  );
+  const tsxLoader = pathToFileURL(
+    fs.realpathSync(
+      path.resolve(__dirname, '../node_modules/tsx/dist/loader.mjs'),
+    ),
+  ).href;
   try {
     fs.mkdirSync(workspaceDir, { mode: 0o711 });
     const result = spawnSync(

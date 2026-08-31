@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import vm from 'node:vm';
 import { yaml } from '@modern-js/utils';
 import { transformSync } from 'esbuild';
@@ -120,9 +121,9 @@ function loadGeneratedConfigPolicy(
       path.join(workspaceDir, appDirectory, 'modern.config.ts'),
     ]),
   );
-  const tsxLoader = fs.realpathSync(
-    path.join(packageRoot, 'node_modules/tsx/dist/loader.mjs'),
-  );
+  const tsxLoader = pathToFileURL(
+    fs.realpathSync(path.join(packageRoot, 'node_modules/tsx/dist/loader.mjs')),
+  ).href;
   const result = spawnSync(
     process.execPath,
     [
