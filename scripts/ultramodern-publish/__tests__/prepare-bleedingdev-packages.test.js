@@ -174,6 +174,104 @@ test('release package rewriting canonicalizes dependency metadata order', async 
   ]);
 });
 
+test('release package rewriting preserves foreign keys for fork-owned workspace aliases', async () => {
+  const { rewritePackageJson } = await import(
+    '../lib/prepare-bleedingdev-packages/rewrite.mjs'
+  );
+  const options = {
+    bugsUrl: 'https://github.com/BleedingDev/ultramodern.js/issues',
+    dependencyVersion: '3.8.3-ultramodern.7',
+    homepage: 'https://github.com/BleedingDev/ultramodern.js',
+    prefix: 'modern-js-',
+    repositoryUrl: 'git+https://github.com/BleedingDev/ultramodern.js.git',
+    scope: 'bleedingdev',
+    version: '3.8.3-ultramodern.7',
+  };
+  const sourceNames = new Set([
+    '@modern-js/image-core-extensions',
+    '@modern-js/plugin-image',
+    '@modern-js/utils',
+  ]);
+  const packageJson = {
+    name: '@modern-js/plugin-image',
+    version: '3.8.3',
+    dependencies: {
+      '@modern-js/utils': 'workspace:*',
+      '@rsbuild-image/core': 'workspace:@modern-js/image-core-extensions@*',
+      '@vendor/image-core': 'workspace:@vendor/image-core-fork@*',
+    },
+  };
+
+  rewritePackageJson(
+    packageJson,
+    '@modern-js/plugin-image',
+    options,
+    sourceNames,
+  );
+
+  assert.equal(
+    packageJson.dependencies['@rsbuild-image/core'],
+    'npm:@bleedingdev/modern-js-image-core-extensions@3.8.3-ultramodern.7',
+  );
+  assert.equal(
+    packageJson.dependencies['@modern-js/image-core-extensions'],
+    undefined,
+    'the published manifest must preserve the consumer-facing logical key',
+  );
+  assert.equal(
+    packageJson.dependencies['@modern-js/utils'],
+    'npm:@bleedingdev/modern-js-utils@3.8.3-ultramodern.7',
+    'normal @modern-js dependency keys must keep their existing rewrite behavior',
+  );
+  assert.equal(
+    packageJson.dependencies['@vendor/image-core'],
+    'workspace:@vendor/image-core-fork@*',
+    'workspace aliases outside the fork-owned namespace are not publisher-owned',
+  );
+});
+
+test('release package rewriting rejects invalid foreign fork-owned workspace aliases', async () => {
+  const { rewritePackageJson } = await import(
+    '../lib/prepare-bleedingdev-packages/rewrite.mjs'
+  );
+  const options = {
+    bugsUrl: 'https://github.com/BleedingDev/ultramodern.js/issues',
+    dependencyVersion: '3.8.3-ultramodern.7',
+    homepage: 'https://github.com/BleedingDev/ultramodern.js',
+    prefix: 'modern-js-',
+    repositoryUrl: 'git+https://github.com/BleedingDev/ultramodern.js.git',
+    scope: 'bleedingdev',
+    version: '3.8.3-ultramodern.7',
+  };
+  const rewriteDependencies = dependencies =>
+    rewritePackageJson(
+      {
+        name: '@modern-js/plugin-image',
+        version: '3.8.3',
+        dependencies,
+      },
+      '@modern-js/plugin-image',
+      options,
+      new Set(['@modern-js/image-core-extensions', '@modern-js/plugin-image']),
+    );
+
+  assert.throws(
+    () =>
+      rewriteDependencies({
+        '@rsbuild-image/core':
+          'workspace:@modern-js/not-in-the-release-cohort@*',
+      }),
+    /cannot rewrite unpublished internal dependency @modern-js\/not-in-the-release-cohort/i,
+  );
+  assert.throws(
+    () =>
+      rewriteDependencies({
+        '@rsbuild-image/core': 'workspace:@modern-js/image-core-extensions',
+      }),
+    /cannot rewrite malformed internal workspace alias/i,
+  );
+});
+
 test('release metadata binds frameworkVersion only to the fork-owned generator', async () => {
   const { rewritePackageJson } = await import(
     '../lib/prepare-bleedingdev-packages/rewrite.mjs'

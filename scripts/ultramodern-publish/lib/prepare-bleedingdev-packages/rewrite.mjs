@@ -179,28 +179,46 @@ function rewriteDependencyBlock(
   }
 
   for (const packageName of Object.keys(block)) {
-    if (!packageName.startsWith('@modern-js/')) {
+    const dependencySpecifier = String(block[packageName]);
+    const workspaceAliasTarget =
+      /^workspace:(@modern-js\/[^@\s]+)@[^@\s]+$/.exec(
+        dependencySpecifier,
+      )?.[1];
+    if (
+      !packageName.startsWith('@modern-js/') &&
+      dependencySpecifier.startsWith('workspace:@modern-js/') &&
+      !workspaceAliasTarget
+    ) {
+      throw new Error(
+        `Cannot rewrite malformed internal workspace alias ${dependencySpecifier}`,
+      );
+    }
+    const sourceName = packageName.startsWith('@modern-js/')
+      ? packageName
+      : workspaceAliasTarget;
+
+    if (!sourceName) {
       continue;
     }
 
-    if (!sourceNames.has(packageName) && optional) {
+    if (!sourceNames.has(sourceName) && optional) {
       delete block[packageName];
       continue;
     }
 
-    if (!sourceNames.has(packageName)) {
-      if (!String(block[packageName]).startsWith('workspace:')) {
+    if (!sourceNames.has(sourceName)) {
+      if (!dependencySpecifier.startsWith('workspace:')) {
         continue;
       }
 
       throw new Error(
-        `Cannot rewrite unpublished internal dependency ${packageName}`,
+        `Cannot rewrite unpublished internal dependency ${sourceName}`,
       );
     }
 
-    block[packageName] = peer
+    block[packageName] = peer && sourceName === packageName
       ? options.dependencyVersion
-      : aliasSpecifier(packageName, options);
+      : aliasSpecifier(sourceName, options);
   }
 }
 
