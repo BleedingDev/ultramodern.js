@@ -1,0 +1,54 @@
+diff --git a/v4/core/util.cjs b/v4/core/util.cjs
+--- a/v4/core/util.cjs
++++ b/v4/core/util.cjs
+@@ -201,22 +201,6 @@ function isObject(data) {
+     return typeof data === "object" && data !== null && !Array.isArray(data);
+ }
+ exports.allowsEval = cached(() => {
+-    // Skip the probe under `jitless`: strict CSPs report the caught `new Function`
+-    // as a `securitypolicyviolation` even though the throw is swallowed.
+-    if (core_js_1.globalConfig.jitless) {
+-        return false;
+-    }
+-    // @ts-ignore
+-    if (typeof navigator !== "undefined" && navigator?.userAgent?.includes("Cloudflare")) {
+-        return false;
+-    }
+-    try {
+-        const F = Function;
+-        new F("");
+-        return true;
+-    }
+-    catch (_) {
+-        return false;
+-    }
++    return false;
+ });
+ function isPlainObject(o) {
+diff --git a/v4/core/util.js b/v4/core/util.js
+--- a/v4/core/util.js
++++ b/v4/core/util.js
+@@ -143,22 +143,6 @@ export function isObject(data) {
+     return typeof data === "object" && data !== null && !Array.isArray(data);
+ }
+ export const allowsEval = /* @__PURE__*/ cached(() => {
+-    // Skip the probe under `jitless`: strict CSPs report the caught `new Function`
+-    // as a `securitypolicyviolation` even though the throw is swallowed.
+-    if (globalConfig.jitless) {
+-        return false;
+-    }
+-    // @ts-ignore
+-    if (typeof navigator !== "undefined" && navigator?.userAgent?.includes("Cloudflare")) {
+-        return false;
+-    }
+-    try {
+-        const F = Function;
+-        new F("");
+-        return true;
+-    }
+-    catch (_) {
+-        return false;
+-    }
++    return false;
+ });
+ export function isPlainObject(o) {

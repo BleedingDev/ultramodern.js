@@ -61,6 +61,7 @@ import {
   EFFECT_VITEST_VERSION,
   I18NEXT_VERSION,
   MODULE_FEDERATION_VERSION,
+  MSGPACKR_VERSION,
   NODE_FETCH_VERSION,
   NODE_VERSION,
   PNPM_VERSION,
@@ -69,6 +70,7 @@ import {
   TANSTACK_ROUTER_VERSION,
   TYPESCRIPT_VERSION,
   WRANGLER_VERSION,
+  ZOD_VERSION,
 } from './versions';
 import { writeGeneratedWorkspaceScripts } from './workspace-scripts';
 import { writeApp } from './write-app';
@@ -278,6 +280,8 @@ function generateUltramodernWorkspaceInPlace(
       effectVitestVersion: EFFECT_VITEST_VERSION,
       i18nextVersion: I18NEXT_VERSION,
       moduleFederationVersion: MODULE_FEDERATION_VERSION,
+      msgpackrVersion: MSGPACKR_VERSION,
+      zodVersion: ZOD_VERSION,
       tanstackHistoryVersion: TANSTACK_HISTORY_VERSION,
       tanstackRouterCoreVersion: TANSTACK_ROUTER_CORE_VERSION,
       tanstackRouterVersion: TANSTACK_ROUTER_VERSION,

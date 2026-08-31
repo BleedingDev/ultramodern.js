@@ -16,29 +16,35 @@ import {
   EFFECT_VITEST_VERSION,
   MODULE_FEDERATION_NODE_VERSION,
   MODULE_FEDERATION_VERSION,
+  MSGPACKR_VERSION,
   NODE_FETCH_VERSION,
   PNPM_VERSION,
   TANSTACK_HISTORY_VERSION,
   TANSTACK_ROUTER_CORE_VERSION,
   TANSTACK_ROUTER_VERSION,
+  ZOD_VERSION,
 } from '../src/ultramodern-workspace/versions';
 
 const pluginBffPackagePath = path.resolve(
   __dirname,
   '../../../cli/plugin-bff/package.json',
 );
+const pluginBffExtensionsPackagePath = path.resolve(
+  __dirname,
+  '../../../cli/plugin-bff-extensions/package.json',
+);
 
 test('pins the Module Federation 2.9 cohort exactly', () => {
   assert.equal(MODULE_FEDERATION_VERSION, '2.9.0');
   assert.equal(MODULE_FEDERATION_NODE_VERSION, '2.7.50');
 
-  const pluginBffPackage = JSON.parse(
-    fs.readFileSync(pluginBffPackagePath, 'utf-8'),
+  const pluginBffExtensionsPackage = JSON.parse(
+    fs.readFileSync(pluginBffExtensionsPackagePath, 'utf-8'),
   );
   assert.equal(
-    pluginBffPackage.dependencies['@module-federation/runtime'],
+    pluginBffExtensionsPackage.dependencies['@module-federation/runtime'],
     MODULE_FEDERATION_VERSION,
-    '@modern-js/plugin-bff must use the generated Module Federation runtime cohort',
+    '@modern-js/plugin-bff-extensions must use the generated Module Federation runtime cohort',
   );
 });
 
@@ -82,6 +88,8 @@ test('generated workspace renders the pins from versions.ts', () => {
       [`@module-federation/modern-js-v3@${MODULE_FEDERATION_VERSION}`]: `patches/@module-federation__modern-js-v3@${MODULE_FEDERATION_VERSION}.patch`,
       [`@module-federation/runtime-core@${MODULE_FEDERATION_VERSION}`]: `patches/@module-federation__runtime-core@${MODULE_FEDERATION_VERSION}.patch`,
       [`@tanstack/router-core@${TANSTACK_ROUTER_CORE_VERSION}`]: `patches/@tanstack__router-core@${TANSTACK_ROUTER_CORE_VERSION}.patch`,
+      [`msgpackr@${MSGPACKR_VERSION}`]: `patches/msgpackr@${MSGPACKR_VERSION}.patch`,
+      [`zod@${ZOD_VERSION}`]: `patches/zod@${ZOD_VERSION}.patch`,
     });
     assert.ok(
       fs.existsSync(

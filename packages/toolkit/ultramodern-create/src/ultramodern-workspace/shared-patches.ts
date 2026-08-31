@@ -6,7 +6,9 @@ export const SHARED_ULTRAMODERN_WORKSPACE_PATCH_FILES =
     .filter(
       patchFile =>
         patchFile.startsWith('@module-federation__') ||
-        patchFile.startsWith('@tanstack__'),
+        patchFile.startsWith('@tanstack__') ||
+        patchFile.startsWith('msgpackr@') ||
+        patchFile.startsWith('zod@'),
     );
 
 type SharedUltramodernWorkspacePatchFile =

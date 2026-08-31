@@ -70,6 +70,11 @@ patchedDependencies:
   # 1.171.27 dist ssr declarations index a property MakeRouteMatch does not
   # have; fails skipLibCheck:false consumers (generated workspaces enforce it).
   '@tanstack/router-core@1.171.27': patches/@tanstack__router-core@1.171.27.patch
+  # Remove msgpackr's dynamic Function optimization from browser/edge ESM.
+  # Its ordinary decoder is functionally equivalent and CSP/Worker-safe.
+  'msgpackr@2.0.6': patches/msgpackr@2.0.6.patch
+  # Disable Zod's Function-constructor capability probe in CSP/Worker bundles.
+  'zod@4.4.3': patches/zod@4.4.3.patch
 overrides:
   micromatch: ^4.0.8
   'read-yaml-file>js-yaml': 3.14.2

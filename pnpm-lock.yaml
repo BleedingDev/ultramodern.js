@@ -46,6 +46,8 @@ patchedDependencies:
   '@module-federation/rspack@2.9.0': 7beed0f736d66f78abeba9ed9b5537e571eff92f49aa03bd30a6b674f32f4eae
   '@module-federation/runtime-core@2.9.0': b241be221397f0e07dbe6c515725e12eaf3b418469bb7dd21750e6e4b215dd8d
   '@tanstack/router-core@1.171.27': d0e147ec82083771b70989d2a1da6aa47f342ae42071af86c4247649f6a5b9e9
+  msgpackr@2.0.6: ea06f707e02e6b95d68e199347ada7bd640764e2653bfdd77664592390fac811
+  zod@4.4.3: 2ae01a829b3f4082e46f1ccb4cbcffdea0db8664c2544b3566cb507e2c471c77
 
 importers:
 
@@ -661,7 +663,7 @@ importers:
         version: 3.15.0
       zod:
         specifier: ^4.4.3
-        version: 4.4.3
+        version: 4.4.3(patch_hash=2ae01a829b3f4082e46f1ccb4cbcffdea0db8664c2544b3566cb507e2c471c77)
     devDependencies:
       '@modern-js/app-tools':
         specifier: workspace:*
@@ -1218,7 +1220,7 @@ importers:
         version: 7.0.2
       zod:
         specifier: ^4.4.3
-        version: 4.4.3
+        version: 4.4.3(patch_hash=2ae01a829b3f4082e46f1ccb4cbcffdea0db8664c2544b3566cb507e2c471c77)
 
   packages/cli/plugin-bff-extensions:
     dependencies:
@@ -1969,7 +1971,7 @@ importers:
         version: 4.2.0
       zod:
         specifier: ^4.4.3
-        version: 4.4.3
+        version: 4.4.3(patch_hash=2ae01a829b3f4082e46f1ccb4cbcffdea0db8664c2544b3566cb507e2c471c77)
 
   packages/server/bff-effect:
     dependencies:
@@ -2879,7 +2881,7 @@ importers:
         version: 7.0.0-dev.20260707.2
       drizzle-orm:
         specifier: 1.0.0-rc.4
-        version: 1.0.0-rc.4(@opentelemetry/api@1.9.1)(@sinclair/typebox@0.34.49)(effect@4.0.0-rc.112)(zod@4.4.3)
+        version: 1.0.0-rc.4(@opentelemetry/api@1.9.1)(@sinclair/typebox@0.34.49)(effect@4.0.0-rc.112)(zod@4.4.3(patch_hash=2ae01a829b3f4082e46f1ccb4cbcffdea0db8664c2544b3566cb507e2c471c77))
       tsx:
         specifier: ^4.23.0
         version: 4.23.0
@@ -3652,7 +3654,7 @@ importers:
         version: 4.2.0
       zod:
         specifier: ^4.4.3
-        version: 4.4.3
+        version: 4.4.3(patch_hash=2ae01a829b3f4082e46f1ccb4cbcffdea0db8664c2544b3566cb507e2c471c77)
     devDependencies:
       '@modern-js/app-tools':
         specifier: workspace:*
@@ -3710,7 +3712,7 @@ importers:
         version: 4.2.0
       zod:
         specifier: ^4.4.3
-        version: 4.4.3
+        version: 4.4.3(patch_hash=2ae01a829b3f4082e46f1ccb4cbcffdea0db8664c2544b3566cb507e2c471c77)
     devDependencies:
       '@modern-js/app-tools':
         specifier: workspace:*
@@ -3771,7 +3773,7 @@ importers:
         version: 4.2.0
       zod:
         specifier: ^4.4.3
-        version: 4.4.3
+        version: 4.4.3(patch_hash=2ae01a829b3f4082e46f1ccb4cbcffdea0db8664c2544b3566cb507e2c471c77)
     devDependencies:
       '@modern-js/app-tools':
         specifier: workspace:*
@@ -3869,7 +3871,7 @@ importers:
         version: 4.2.0
       zod:
         specifier: ^4.4.3
-        version: 4.4.3
+        version: 4.4.3(patch_hash=2ae01a829b3f4082e46f1ccb4cbcffdea0db8664c2544b3566cb507e2c471c77)
     devDependencies:
       '@modern-js/app-tools':
         specifier: workspace:*
@@ -4163,7 +4165,7 @@ importers:
         version: 4.2.0
       zod:
         specifier: ^4.4.3
-        version: 4.4.3
+        version: 4.4.3(patch_hash=2ae01a829b3f4082e46f1ccb4cbcffdea0db8664c2544b3566cb507e2c471c77)
     devDependencies:
       '@modern-js/app-tools':
         specifier: workspace:*
@@ -4965,7 +4967,7 @@ importers:
         version: 19.2.8(react@19.2.8)
       zod:
         specifier: ^4.4.3
-        version: 4.4.3
+        version: 4.4.3(patch_hash=2ae01a829b3f4082e46f1ccb4cbcffdea0db8664c2544b3566cb507e2c471c77)
     devDependencies:
       '@modern-js/app-tools':
         specifier: workspace:*
@@ -28204,12 +28206,12 @@ snapshots:
 
   dotenv@17.4.2: {}
 
-  drizzle-orm@1.0.0-rc.4(@opentelemetry/api@1.9.1)(@sinclair/typebox@0.34.49)(effect@4.0.0-rc.112)(zod@4.4.3):
+  drizzle-orm@1.0.0-rc.4(@opentelemetry/api@1.9.1)(@sinclair/typebox@0.34.49)(effect@4.0.0-rc.112)(zod@4.4.3(patch_hash=2ae01a829b3f4082e46f1ccb4cbcffdea0db8664c2544b3566cb507e2c471c77)):
     optionalDependencies:
       '@opentelemetry/api': 1.9.1
       '@sinclair/typebox': 0.34.49
       effect: 4.0.0-rc.112
-      zod: 4.4.3
+      zod: 4.4.3(patch_hash=2ae01a829b3f4082e46f1ccb4cbcffdea0db8664c2544b3566cb507e2c471c77)
 
   dts-packer@0.0.3:
     dependencies:
@@ -28249,7 +28251,7 @@ snapshots:
   effect@4.0.0-rc.112:
     dependencies:
       fast-check: 4.9.0
-      msgpackr: 2.0.6
+      msgpackr: 2.0.6(patch_hash=ea06f707e02e6b95d68e199347ada7bd640764e2653bfdd77664592390fac811)
 
   ejs@5.0.1: {}
 
@@ -31472,7 +31474,7 @@ snapshots:
       '@msgpackr-extract/msgpackr-extract-win32-x64': 3.0.4
     optional: true
 
-  msgpackr@2.0.6:
+  msgpackr@2.0.6(patch_hash=ea06f707e02e6b95d68e199347ada7bd640764e2653bfdd77664592390fac811):
     optionalDependencies:
       msgpackr-extract: 3.0.4
 
@@ -34815,7 +34817,7 @@ snapshots:
       resolve.exports: 2.0.3
       string-width: 8.2.2
       yaml: 2.9.0
-      zod: 4.4.3
+      zod: 4.4.3(patch_hash=2ae01a829b3f4082e46f1ccb4cbcffdea0db8664c2544b3566cb507e2c471c77)
     optionalDependencies:
       oxfmt: 0.65.0
       oxlint: 1.80.0
@@ -35391,6 +35393,6 @@ snapshots:
 
   zod@3.25.76: {}
 
-  zod@4.4.3: {}
+  zod@4.4.3(patch_hash=2ae01a829b3f4082e46f1ccb4cbcffdea0db8664c2544b3566cb507e2c471c77): {}
 
   zwitch@2.0.4: {}

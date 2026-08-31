@@ -31,6 +31,7 @@ import {
   MINIFLARE_VERSION,
   MODULE_FEDERATION_NODE_VERSION,
   MODULE_FEDERATION_VERSION,
+  MSGPACKR_VERSION,
   NODE_FETCH_VERSION,
   NODE_VERSION,
   OXFMT_VERSION,
@@ -53,6 +54,7 @@ import {
   WRANGLER_VERSION,
   ZEPHYR_AGENT_VERSION,
   ZEPHYR_RSPACK_PLUGIN_VERSION,
+  ZOD_VERSION,
 } from './versions';
 
 function createCloudflareProofRoute(app: WorkspaceApp): JsonValue {
@@ -461,6 +463,20 @@ const requiredPatchPolicies: readonly UltramodernPatchPolicy[] = [
     packageName: '@tanstack/router-core',
     version: TANSTACK_ROUTER_CORE_VERSION,
     path: `patches/@tanstack__router-core@${TANSTACK_ROUTER_CORE_VERSION}.patch`,
+  },
+  {
+    // msgpackr's record decoder dynamically constructs optimized readers.
+    // Edge runtimes use the equivalent CSP-safe ordinary decoder instead.
+    packageName: 'msgpackr',
+    version: MSGPACKR_VERSION,
+    path: `patches/msgpackr@${MSGPACKR_VERSION}.patch`,
+  },
+  {
+    // Zod probes runtime code generation even when its JIT is disabled later.
+    // Worker/CSP workspaces always use the ordinary schema evaluator.
+    packageName: 'zod',
+    version: ZOD_VERSION,
+    path: `patches/zod@${ZOD_VERSION}.patch`,
   },
 ];
 
