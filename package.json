@@ -63,7 +63,6 @@
     "ultramodern:prepare-bleedingdev-publish": "node scripts/ultramodern-publish/prepare-bleedingdev-packages.mjs",
     "ultramodern:build-bleedingdev-publish": "node scripts/ultramodern-publish/build-bleedingdev-packages.mjs",
     "ultramodern:source-create-proof": "node scripts/ultramodern-publish/validate-source-create-proof.mjs",
-    "ultramodern:trust-bleedingdev-publish": "node scripts/ultramodern-publish/configure-bleedingdev-trusted-publishing.mjs",
     "validate:tsgo": "node scripts/tsgo-critical.mjs",
     "validate:bun-smoke": "bun scripts/release-gates/validate-release-candidate-gates.js --profile scripts/release-gates/module-certification-profile.json --evidence-dir docs/super-app-rfc-adr/evidence/module-certification/current --skip-commands",
     "validate:rc-gates": "node scripts/release-gates/validate-release-candidate-gates.js --profile scripts/release-gates/rc-contract-profile.json --evidence-dir docs/super-app-rfc-adr/evidence/release-candidate/current",
