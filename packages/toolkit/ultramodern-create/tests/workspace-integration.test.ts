@@ -249,25 +249,6 @@ type CommandRecorder = {
   recorderPath: string;
 };
 
-function resolvePackageManagerExecutable() {
-  const npmExecPath = process.env.npm_execpath;
-  if (npmExecPath && fs.existsSync(npmExecPath)) {
-    return npmExecPath;
-  }
-
-  const lookup = spawnSync(
-    process.platform === 'win32' ? 'where' : 'which',
-    ['pnpm'],
-    { encoding: 'utf8' },
-  );
-  assert.equal(lookup.status, 0, commandOutput(lookup));
-  const executable = lookup.stdout.split(/\r?\n/u).find(Boolean);
-  assert.ok(executable, 'Expected pnpm to be available for script execution');
-  return executable;
-}
-
-const packageManagerExecutable = resolvePackageManagerExecutable();
-
 function writeRecorderCommandShim(binDir: string, command: string) {
   const executablePath = path.join(binDir, command);
   fs.writeFileSync(
@@ -352,22 +333,19 @@ function runGeneratedPackageScript(
     env.Path = env.PATH;
     env.PATHEXT = `.CMD;.EXE;.BAT;.COM;${process.env.PATHEXT ?? ''}`;
   }
-  const executableIsJavaScript =
-    /\.[cm]?js$/u.test(packageManagerExecutable) ||
-    fs
-      .readFileSync(packageManagerExecutable, 'utf8')
-      .startsWith('#!/usr/bin/env node');
-  const result = spawnSync(
-    executableIsJavaScript ? process.execPath : packageManagerExecutable,
-    [
-      ...(executableIsJavaScript ? [packageManagerExecutable] : []),
-      '--config.verify-deps-before-run=false',
-      `--config.node-version=${process.versions.node}`,
-      'run',
-      scriptName,
-    ],
-    { cwd: workspaceDir, encoding: 'utf8', env },
+  const packageJson = readJson(workspaceDir, 'package.json');
+  const script = packageJson.scripts?.[scriptName];
+  assert.equal(
+    typeof script,
+    'string',
+    `Missing generated ${scriptName} script`,
   );
+  const result = spawnSync(script, {
+    cwd: workspaceDir,
+    encoding: 'utf8',
+    env,
+    shell: true,
+  });
   return { records: readRecordedCommands(recorder.logPath), result };
 }
 
@@ -1814,12 +1792,70 @@ test('generated validator accepts an api-only (headless) workspace and rejects p
     assert.ok(
       !exists(workspaceDir, 'verticals/headless/src/federation-entry.tsx'),
     );
+    assert.ok(
+      exists(workspaceDir, 'verticals/headless/locales/en/headless.json'),
+    );
+    assert.ok(
+      exists(workspaceDir, 'verticals/headless/locales/cs/headless.json'),
+    );
+
+    const topology = readJson(workspaceDir, 'topology/reference-topology.json');
+    const backendFederation = appById(
+      topology.verticals,
+      'headless',
+    ).backendFederation;
+    assert.equal(backendFederation.runtimeFramework, 'effect');
+    assert.equal(backendFederation.strictEffectApproach, true);
+    assert.equal(
+      backendFederation.executionSurfaces.cloudflare.zephyr.runtime,
+      'api-worker',
+    );
+    assert.equal(
+      backendFederation.executionSurfaces.cloudflare.api.effectBffBundle,
+      '.output/worker/__modern_bff_effect.js',
+    );
+    assert.equal(backendFederation.executionSurfaces.cloudflare.ssr, undefined);
+    assert.equal('ui' in backendFederation.versionBoundary, false);
+
+    const compactApp = appById(
+      readJson(workspaceDir, '.modernjs/ultramodern.json').topology.apps,
+      'headless',
+    );
+    assert.deepEqual(backendFederation.deliveryUnit, compactApp.deliveryUnit);
 
     const passing = runGeneratedWorkspaceCheck(workspaceDir);
     assert.equal(passing.status, 0, commandOutput(passing));
 
     const apiPassing = runGeneratedApiCheck(workspaceDir);
     assert.equal(apiPassing.status, 0, commandOutput(apiPassing));
+
+    // An empty UI boundary is still a UI boundary. A headless API-only unit
+    // must omit the branch itself, not merely its manifest URL.
+    backendFederation.versionBoundary.ui = {};
+    writeJson(workspaceDir, 'topology/reference-topology.json', topology);
+    const failingUiBoundary = runGeneratedWorkspaceCheck(workspaceDir);
+    const uiBoundaryOutput = commandOutput(failingUiBoundary);
+    assert.notEqual(failingUiBoundary.status, 0, uiBoundaryOutput);
+    assert.match(
+      uiBoundaryOutput,
+      /topology\/reference-topology\.json verticals\.headless\.backendFederation/,
+    );
+    delete backendFederation.versionBoundary.ui;
+    writeJson(workspaceDir, 'topology/reference-topology.json', topology);
+
+    // Likewise, any SSR execution branch contradicts an API-worker-only
+    // Cloudflare topology, even when that branch contains no leaf values.
+    backendFederation.executionSurfaces.cloudflare.ssr = {};
+    writeJson(workspaceDir, 'topology/reference-topology.json', topology);
+    const failingSsrBranch = runGeneratedWorkspaceCheck(workspaceDir);
+    const ssrBranchOutput = commandOutput(failingSsrBranch);
+    assert.notEqual(failingSsrBranch.status, 0, ssrBranchOutput);
+    assert.match(
+      ssrBranchOutput,
+      /topology\/reference-topology\.json verticals\.headless\.backendFederation/,
+    );
+    delete backendFederation.executionSurfaces.cloudflare.ssr;
+    writeJson(workspaceDir, 'topology/reference-topology.json', topology);
 
     // Planting a UI/MF artifact into a headless unit must be rejected.
     fs.writeFileSync(

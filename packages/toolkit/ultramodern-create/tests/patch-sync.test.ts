@@ -551,7 +551,7 @@ function assertModernJsV3PatchBehavior(): Promise<void> {
       },
     })
     .then(() => {
-      assert.equal(configCallback?.().dev.lazyCompilation, true);
+      assert.equal(configCallback?.().dev.lazyCompilation, false);
       Object.assign(remoteConfig, {
         exposes: { Widget: './src/Widget' },
         remotes: {},

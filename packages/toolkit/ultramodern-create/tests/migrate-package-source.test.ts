@@ -72,7 +72,7 @@ test('local source checkout still rejects a persisted install package source', (
 
     assert.throws(
       () => createMigrationPackageSource([], current),
-      /local @modern-js\/create source checkout cannot migrate an explicit install package source/u,
+      /local @modern-js\/ultramodern-create source checkout cannot migrate an explicit install package source/u,
     );
   } finally {
     fs.rmSync(tempRoot, { force: true, recursive: true });

@@ -383,7 +383,7 @@ test('staged mutation never follows a workspace symlink outside the workspace', 
     );
 
     assert.deepEqual(fs.readdirSync(outsideDir), []);
-    assert.equal(fs.realpathSync(linkedVertical), outsideDir);
+    assert.equal(fs.realpathSync(linkedVertical), fs.realpathSync(outsideDir));
     assertByteIdentical(before, snapshotAllFiles(workspaceDir));
     assertNoTransactionArtifacts(tempRoot);
   } finally {

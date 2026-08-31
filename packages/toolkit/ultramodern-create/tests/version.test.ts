@@ -568,8 +568,17 @@ test('--workspace conflicts with an explicit install package source', () => {
 test('local source defaults to workspace dependencies without registry lookup', () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'modern-create-cli-'));
   const fakeBinDir = path.join(tmpDir, 'fake-bin');
+  const hooksDir = path.join(tmpDir, 'hooks');
+  const hookMarker = path.join(tmpDir, 'pre-commit-ran');
+  const isolatedGitConfig = path.join(tmpDir, 'gitconfig');
   fs.mkdirSync(fakeBinDir);
+  fs.mkdirSync(hooksDir);
   writeExecutable(path.join(fakeBinDir, 'npm'), '#!/bin/sh\nexit 1\n');
+  writeExecutable(
+    path.join(hooksDir, 'pre-commit'),
+    '#!/bin/sh\n: > "$ULTRAMODERN_TEST_HOOK_MARKER"\n',
+  );
+  fs.writeFileSync(isolatedGitConfig, `[core]\n\thooksPath = ${hooksDir}\n`);
 
   try {
     const result = spawnSync(
@@ -580,14 +589,26 @@ test('local source defaults to workspace dependencies without registry lookup', 
         encoding: 'utf8',
         env: {
           ...process.env,
+          GIT_CONFIG_GLOBAL: isolatedGitConfig,
           MODERN_CREATE_ULTRAMODERN_FRAMEWORK_VERSION: undefined,
           PATH: `${fakeBinDir}${path.delimiter}${process.env.PATH ?? ''}`,
+          ULTRAMODERN_TEST_HOOK_MARKER: hookMarker,
         },
       },
     );
 
     assert.equal(result.status, 0, result.stderr);
     assert.equal(result.stderr, '');
+    assert.equal(
+      fs.existsSync(hookMarker),
+      true,
+      'the initial scaffold commit must run configured hooks',
+    );
+    const head = spawnSync('git', ['rev-parse', '--verify', 'HEAD'], {
+      cwd: path.join(tmpDir, 'offline-fallback-smoke'),
+      encoding: 'utf8',
+    });
+    assert.equal(head.status, 0, head.stderr);
     const ultramodernConfig = JSON.parse(
       readGeneratedFile(
         path.join(tmpDir, 'offline-fallback-smoke'),
@@ -599,6 +620,48 @@ test('local source defaults to workspace dependencies without registry lookup', 
       ultramodernConfig.packageSource.modernPackageVersion,
       'workspace:*',
     );
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('a rejecting initial-commit hook fails visibly without claiming a complete repository', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'modern-create-cli-'));
+  const fakeBinDir = path.join(tmpDir, 'fake-bin');
+  const hooksDir = path.join(tmpDir, 'hooks');
+  const isolatedGitConfig = path.join(tmpDir, 'gitconfig');
+  fs.mkdirSync(fakeBinDir);
+  fs.mkdirSync(hooksDir);
+  writeExecutable(path.join(fakeBinDir, 'npm'), '#!/bin/sh\nexit 1\n');
+  writeExecutable(
+    path.join(hooksDir, 'pre-commit'),
+    '#!/bin/sh\necho "initial scaffold hook rejected" >&2\nexit 19\n',
+  );
+  fs.writeFileSync(isolatedGitConfig, `[core]\n\thooksPath = ${hooksDir}\n`);
+
+  try {
+    const result = spawnSync(
+      process.execPath,
+      [builtCliPath, 'rejected-initial-commit'],
+      {
+        cwd: tmpDir,
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          GIT_CONFIG_GLOBAL: isolatedGitConfig,
+          MODERN_CREATE_ULTRAMODERN_FRAMEWORK_VERSION: undefined,
+          PATH: `${fakeBinDir}${path.delimiter}${process.env.PATH ?? ''}`,
+        },
+      },
+    );
+
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /initial scaffold hook rejected/u);
+    const head = spawnSync('git', ['rev-parse', '--verify', 'HEAD'], {
+      cwd: path.join(tmpDir, 'rejected-initial-commit'),
+      encoding: 'utf8',
+    });
+    assert.notEqual(head.status, 0);
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
@@ -638,7 +701,7 @@ test('local source rejects explicit install before cohort environment validation
       assert.notEqual(result.status, 0);
       assert.match(
         result.stderr,
-        /local @modern-js\/create source checkout cannot satisfy an explicit install/u,
+        /local @modern-js\/ultramodern-create source checkout cannot satisfy an explicit install/u,
       );
       assert.equal(fs.existsSync(registryLookupMarker), false);
     }

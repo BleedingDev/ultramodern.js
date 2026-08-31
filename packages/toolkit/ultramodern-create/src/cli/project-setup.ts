@@ -74,33 +74,27 @@ export function initializeGeneratedGitRepository(targetDir: string) {
   // HEAD commit, which would make a just-scaffolded project unbuildable in CI
   // out of the box. The `-c user.*` options make the commit succeed even when
   // no global git identity is configured (e.g. clean CI runners), without
-  // mutating the user's global config; `--no-verify` skips hooks whose tooling
-  // is not installed yet.
-  try {
-    runSetupCommand('git', ['add', '-A'], {
-      cwd: targetDir,
-      stdio: 'inherit',
-    });
-    runSetupCommand(
-      'git',
-      [
-        '-c',
-        'user.name=UltraModern',
-        '-c',
-        'user.email=ultramodern@bleedingdev.dev',
-        '-c',
-        'commit.gpgsign=false',
-        'commit',
-        '--no-verify',
-        '-m',
-        'chore: initial UltraModern scaffold',
-      ],
-      { cwd: targetDir, stdio: 'inherit' },
-    );
-  } catch {
-    // A failed initial commit must never abort scaffolding; the project is
-    // still generated and the user can commit themselves.
-  }
+  // mutating the user's global config. Configured hooks still run so project
+  // security policy remains active during the initial scaffold commit.
+  runSetupCommand('git', ['add', '-A'], {
+    cwd: targetDir,
+    stdio: 'inherit',
+  });
+  runSetupCommand(
+    'git',
+    [
+      '-c',
+      'user.name=UltraModern',
+      '-c',
+      'user.email=ultramodern@bleedingdev.dev',
+      '-c',
+      'commit.gpgsign=false',
+      'commit',
+      '-m',
+      'chore: initial UltraModern scaffold',
+    ],
+    { cwd: targetDir, stdio: 'inherit' },
+  );
 }
 
 export function isDirectoryEmpty(dirPath: string): boolean {

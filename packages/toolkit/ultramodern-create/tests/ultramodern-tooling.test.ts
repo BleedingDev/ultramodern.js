@@ -3075,15 +3075,18 @@ test('UltraModern migrate preserves a dist-named vertical across dry-run and app
   );
 
   try {
-    addUltramodernVertical({
-      workspaceRoot: workspaceDir,
-      name: 'dist',
-      modernVersion: '3.2.1',
-    });
     const verticalPackagePath = 'verticals/dist/package.json';
-    const verticalPackage = readJson(workspaceDir, verticalPackagePath);
-    verticalPackage.dependencies['@modern-js/runtime'] = '0.0.0';
-    writeJson(workspaceDir, verticalPackagePath, verticalPackage);
+    fs.mkdirSync(path.dirname(path.join(workspaceDir, verticalPackagePath)), {
+      recursive: true,
+    });
+    writeJson(workspaceDir, verticalPackagePath, {
+      name: '@tooling-dry-run-dist-vertical/dist',
+      version: '0.1.0',
+      private: true,
+      dependencies: {
+        '@modern-js/runtime': '0.0.0',
+      },
+    });
     const before = snapshotWorkspaceBytes(workspaceDir);
 
     const { result, output } = captureStdout(() =>

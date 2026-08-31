@@ -2066,11 +2066,20 @@ const backendFederationSubset = backendFederation => ({
   exposeReadiness: backendFederation?.exposes?.['./effect-api']?.readiness,
   versionBoundary: {
     invariant: backendFederation?.versionBoundary?.invariant,
+    hasUi: Object.hasOwn(backendFederation?.versionBoundary ?? {}, 'ui'),
     uiManifestUrl: backendFederation?.versionBoundary?.ui?.manifestUrl,
     apiReadiness: backendFederation?.versionBoundary?.api?.readiness,
   },
   cloudflare: {
     kind: backendFederation?.executionSurfaces?.cloudflare?.kind,
+    hasApi: Object.hasOwn(
+      backendFederation?.executionSurfaces?.cloudflare ?? {},
+      'api',
+    ),
+    hasSsr: Object.hasOwn(
+      backendFederation?.executionSurfaces?.cloudflare ?? {},
+      'ssr',
+    ),
     workerName: backendFederation?.executionSurfaces?.cloudflare?.workerName,
     publicUrlEnv:
       backendFederation?.executionSurfaces?.cloudflare?.publicUrlEnv,
@@ -2107,7 +2116,10 @@ const expectedBackendFederationSubset = vertical => ({
       : `${vertical.apiPrefix}/${vertical.stem}/readiness`,
   versionBoundary: {
     invariant: 'web-and-api-same-build',
-    uiManifestUrl: expectedManifestUrl(vertical),
+    hasUi: vertical.emitsUi,
+    uiManifestUrl: vertical.emitsUi
+      ? expectedManifestUrl(vertical)
+      : undefined,
     apiReadiness:
       vertical.apiProtocol === 'rpc'
         ? undefined
@@ -2115,9 +2127,11 @@ const expectedBackendFederationSubset = vertical => ({
   },
   cloudflare: {
     kind: 'cloudflare-worker-snapshot',
+    hasApi: !vertical.emitsUi,
+    hasSsr: vertical.emitsUi,
     workerName: expectedCloudflareWorkerName(vertical),
     publicUrlEnv: expectedPublicUrlEnv(vertical),
-    zephyrRuntime: 'ssr-worker',
+    zephyrRuntime: vertical.emitsUi ? 'ssr-worker' : 'api-worker',
   },
   node: {
     kind: 'node-mf-runtime',

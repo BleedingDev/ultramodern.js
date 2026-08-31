@@ -190,7 +190,7 @@ test('local source generation rejects an explicit install request', () => {
             modernPackageVersion: '3.2.1',
           },
         }),
-      /local @modern-js\/create source checkout cannot satisfy an explicit install/u,
+      /local @modern-js\/ultramodern-create source checkout cannot satisfy an explicit install/u,
     );
     assert.equal(fs.existsSync(workspaceDir), false);
   } finally {

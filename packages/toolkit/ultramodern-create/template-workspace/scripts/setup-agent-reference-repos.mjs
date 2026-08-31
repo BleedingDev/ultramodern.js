@@ -123,7 +123,7 @@ function porcelainStatus() {
 }
 
 function commitInstallerChanges(message) {
-  run('git', ['commit', '--no-verify', '-m', message], {
+  run('git', ['commit', '-m', message], {
     timeout: 120000,
   });
 }
