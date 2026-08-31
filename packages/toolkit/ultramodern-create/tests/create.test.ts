@@ -71,6 +71,16 @@ describe('positional argument parsing', () => {
   });
 });
 
+describe('help package identity', () => {
+  it('advertises the canonical published package in both locales', () => {
+    for (const args of [['--help'], ['--lang', 'zh', '--help']]) {
+      const output = runCreate(args);
+      expect(output).toContain('@bleedingdev/modern-js-ultramodern-create');
+      expect(output).not.toContain('@bleedingdev/modern-js-create');
+    }
+  });
+});
+
 describe('--agents-md-only (existing projects)', () => {
   const BEGIN = '<!-- BEGIN:modernjs-agent-rules -->';
   const END = '<!-- END:modernjs-agent-rules -->';

@@ -86,7 +86,10 @@ describe('createLoaderRedirectResponse', () => {
     const response = createLoaderRedirectResponse(
       new Response(null, {
         status,
-        headers: { lOcAtIoN: '/cs/objednavky?from=prehled' },
+        headers: {
+          lOcAtIoN: '/cs/objednavky?from=prehled',
+          'x-redirect-metadata': 'preserved',
+        },
       }),
       redirectCtx,
     );
@@ -95,6 +98,7 @@ describe('createLoaderRedirectResponse', () => {
     expect(response?.headers.get('location')).toBe(
       '/cs/objednavky?from=prehled',
     );
+    expect(response?.headers.get('x-redirect-metadata')).toBe('preserved');
   });
 
   it.each([
@@ -106,13 +110,17 @@ describe('createLoaderRedirectResponse', () => {
     const response = createLoaderRedirectResponse(
       new Response(null, {
         status,
-        headers: { Location: '/app/cs/objednavky' },
+        headers: {
+          Location: '/app/cs/objednavky',
+          'x-redirect-metadata': 'preserved',
+        },
       }),
       { enableRsc: true, isRSCNavigation: true, basename: '/app' },
     );
 
     expect(response?.status).toBe(status);
     expect(response?.headers.get('x-modernjs-redirect')).toBe('/cs/objednavky');
+    expect(response?.headers.get('x-redirect-metadata')).toBe('preserved');
     expect(response?.headers.get('location')).toBeNull();
   });
 

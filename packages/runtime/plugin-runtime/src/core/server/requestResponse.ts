@@ -94,7 +94,7 @@ export const createLoaderRedirectResponse = (
     return;
   }
   return processRedirect(
-    new Headers({ Location: redirectUrl }),
+    new Headers(beforeRenderResult.headers),
     beforeRenderResult.status,
     redirectCtx,
   );

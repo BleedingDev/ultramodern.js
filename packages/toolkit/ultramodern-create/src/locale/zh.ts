@@ -39,7 +39,8 @@ export const ZH_LOCALE = {
     title: '🚀 UltraModern.js 项目创建工具',
     description: '默认创建带完整质量基线的 UltraModern.js SuperApp 工作区',
     usage: '📖 用法:',
-    usageExample: '  pnpm dlx @bleedingdev/modern-js-create [项目名称] [选项]',
+    usageExample:
+      '  pnpm dlx @bleedingdev/modern-js-ultramodern-create [项目名称] [选项]',
     options: '⚙️  选项:',
     optionHelp: '  -h, --help     显示帮助信息',
     optionVersion: '  -v, --version  显示版本信息',
@@ -99,21 +100,26 @@ export const ZH_LOCALE = {
     optionHorizontalRemote:
       '      --horizontal-remote 生成仅包含组件的 Horizontal Remote 交付单元',
     examples: '💡 示例:',
-    example1: '  pnpm dlx @bleedingdev/modern-js-create my-workspace',
-    example2: '  pnpm dlx @bleedingdev/modern-js-create my-workspace --lang zh',
+    example1:
+      '  pnpm dlx @bleedingdev/modern-js-ultramodern-create my-workspace',
+    example2:
+      '  pnpm dlx @bleedingdev/modern-js-ultramodern-create my-workspace --lang zh',
     example3:
-      '  pnpm dlx @bleedingdev/modern-js-create my-workspace --no-tailwind',
-    example4: '  pnpm dlx @bleedingdev/modern-js-create --help',
-    example5: '  pnpm dlx @bleedingdev/modern-js-create .',
+      '  pnpm dlx @bleedingdev/modern-js-ultramodern-create my-workspace --no-tailwind',
+    example4: '  pnpm dlx @bleedingdev/modern-js-ultramodern-create --help',
+    example5: '  pnpm dlx @bleedingdev/modern-js-ultramodern-create .',
     example6:
-      '  pnpm dlx @bleedingdev/modern-js-create my-workspace --workspace',
-    example7: '  pnpm dlx @bleedingdev/modern-js-create catalog --vertical',
-    example8: '  pnpm dlx @bleedingdev/modern-js-create --vertical=catalog',
+      '  pnpm dlx @bleedingdev/modern-js-ultramodern-create my-workspace --workspace',
+    example7:
+      '  pnpm dlx @bleedingdev/modern-js-ultramodern-create catalog --vertical',
+    example8:
+      '  pnpm dlx @bleedingdev/modern-js-ultramodern-create --vertical=catalog',
     example9:
-      '  pnpm dlx @bleedingdev/modern-js-create catalog --vertical --dry-run',
+      '  pnpm dlx @bleedingdev/modern-js-ultramodern-create catalog --vertical --dry-run',
     example10:
-      '  pnpm dlx @bleedingdev/modern-js-create catalog --vertical --codesmith-overlay ./overlay-generator',
-    example11: '  pnpm dlx @bleedingdev/modern-js-create --agents-md-only',
+      '  pnpm dlx @bleedingdev/modern-js-ultramodern-create catalog --vertical --codesmith-overlay ./overlay-generator',
+    example11:
+      '  pnpm dlx @bleedingdev/modern-js-ultramodern-create --agents-md-only',
     moreInfo: '📚 更多信息: https://modernjs.dev',
   },
   version: {

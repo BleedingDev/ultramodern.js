@@ -41,7 +41,7 @@ describe('createRouteHydrationScriptTags', () => {
         '<html><head><link href="/static/js/route-a.js.map" rel="prefetch" /></head></html>',
     });
 
-    expect(scripts).toBe('<script src=/static/js/route-a.js></script>');
+    expect(scripts).toBe('<script src="/static/js/route-a.js"></script>');
   });
 });
 
@@ -64,22 +64,30 @@ describe('LoadableCollector federated css', () => {
       routeManifest: {
         routeAssets: {
           'route-a': {
-            assets: ['/static/css/route-a.css'],
+            assets: ['/static/css/route-a.css', '/static/css/shared.css'],
           },
         },
       },
       moduleFederationCssAssets: [
+        '/static/css/shared.css',
         'https://remote.example.com/expose.css',
         'https://remote.example.com/expose.css',
         'https://remote.example.com/already.css',
       ],
     });
 
-    collector.collect(React.createElement('div'));
+    (collector as any).extractor = {
+      chunks: ['local'],
+      getChunkAssets: () => [
+        chunk('/static/css/local.css'),
+        chunk('/static/css/shared.css'),
+      ],
+      getScriptTags: () => '',
+    };
     await collector.effect();
 
     expect(chunkSet.cssChunk).toBe(
-      '<link href="/static/css/route-a.css" rel="stylesheet" /><link href="https://remote.example.com/expose.css" rel="stylesheet" />',
+      '<link href="/static/css/local.css" rel="stylesheet" /><link href="/static/css/shared.css" rel="stylesheet" /><link href="/static/css/route-a.css" rel="stylesheet" /><link href="https://remote.example.com/expose.css" rel="stylesheet" />',
     );
   });
 
@@ -107,7 +115,7 @@ describe('LoadableCollector federated css', () => {
     ]);
   });
 
-  it('emits async entry assets when the sync route manifest contains merged async assets', async () => {
+  it('does not re-emit async assets represented by the entry manifest', async () => {
     const chunkSet = {
       renderLevel: RenderLevel.CLIENT_RENDER,
       ssrScripts: '',
@@ -148,12 +156,8 @@ describe('LoadableCollector federated css', () => {
 
     await collector.effect();
 
-    expect(chunkSet.jsChunk).toBe(
-      '<script defer="true" src="/static/js/async/async-index.js"></script>',
-    );
-    expect(chunkSet.cssChunk).toBe(
-      '<link href="/static/css/async/async-index.css" rel="stylesheet" />',
-    );
+    expect(chunkSet.jsChunk).toBe('');
+    expect(chunkSet.cssChunk).toBe('');
   });
 
   it('does not fall back to runtime route manifest when options omit routeManifest', async () => {

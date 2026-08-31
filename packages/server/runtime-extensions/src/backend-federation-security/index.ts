@@ -697,7 +697,7 @@ export async function loadVerifiedBackendFederationEntry(
       );
     }
 
-    let response: Response;
+    let response: BackendFederationResourceResponse;
     try {
       response = await readWithAbort(
         fetchEntry(requestedUrl.href, {
@@ -740,7 +740,7 @@ export async function loadVerifiedBackendFederationEntry(
     }
 
     const contentLength = parseContentLength(
-      response.headers.get('content-length'),
+      response.headers?.get('content-length') ?? null,
     );
     const byteLimit = Math.min(maxBytes, verification.byteLength);
     if (contentLength !== undefined && contentLength > maxBytes) {

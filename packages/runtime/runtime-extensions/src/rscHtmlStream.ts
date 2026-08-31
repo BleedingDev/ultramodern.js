@@ -5,7 +5,7 @@
 const encoder = new TextEncoder();
 const closingTagsPattern = /<\/body>\s*<\/html>\s*$/i;
 const closingTagsPrefixPattern =
-  /(?:<\/body>\s*(?:<\/html>\s*|<\/h(?:t(?:m(?:l>?)?)?)?|<\/?|<)?|<\/b(?:o(?:d(?:y>?)?)?)?|<\/?|<)$/i;
+  /(?:<\/body>\s*(?:<\/html>\s*|<\/h(?:t(?:m(?:l>?)?)?)?|<\/?|<)?|<\/b(?:o(?:d(?:y>?)?)?)?|<\/?|<[^>]*)$/i;
 
 export const RSC_HTML_CLOSING_TAIL_LIMIT = 8 * 1024;
 
@@ -71,9 +71,11 @@ export function injectRSCPayload(
     }
 
     await startFlight(controller);
-    committedClosingBody = true;
-    committedHtmlClose = /<\/html>/i.test(suffix);
-    committedProbe = suffix.slice(-6);
+    if (/<\/body>/i.test(suffix)) {
+      committedClosingBody = true;
+      committedHtmlClose = /<\/html>/i.test(suffix);
+      committedProbe = suffix.slice(-6);
+    }
     enqueueHtml(suffix, controller);
   };
 

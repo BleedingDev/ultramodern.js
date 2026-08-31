@@ -26,14 +26,10 @@ import type { RouteAssets, RouteManifest } from './types';
 declare const WEBPACK_CHUNK_LOAD:
   | ((chunkId: string | number) => Promise<unknown>)
   | undefined;
-declare const __webpack_chunk_load__: typeof WEBPACK_CHUNK_LOAD;
-declare const __webpack_public_path__: string | undefined;
 const getWebpackChunkLoader = (): typeof WEBPACK_CHUNK_LOAD =>
-  typeof __webpack_chunk_load__ === 'function'
-    ? __webpack_chunk_load__
-    : undefined;
-const getWebpackPublicPath = () =>
-  typeof __webpack_public_path__ === 'string' ? __webpack_public_path__ : '';
+  typeof WEBPACK_CHUNK_LOAD === 'function' ? WEBPACK_CHUNK_LOAD : undefined;
+// @ts-expect-error Webpack supplies this magic runtime global.
+const getWebpackPublicPath = () => __webpack_public_path__ || '';
 
 interface PrefetchHandlers {
   onFocus?: FocusEventHandler<Element>;
@@ -415,9 +411,13 @@ const PrefetchPageLinks: React.FC<{ path: Path; includeData: boolean }> = ({
     () => (Array.isArray(routes) ? matchRoutes(routes, pathname) : []),
     [pathname, routes],
   );
+  const chunkLoader = getWebpackChunkLoader();
+  const routeAssetGeneration = JSON.stringify([
+    getWebpackPublicPath(),
+    matches?.map(({ route: { id } }) => [id, routeAssets?.[id!]?.chunkIds]),
+  ]);
 
   React.useEffect(() => {
-    const chunkLoader = getWebpackChunkLoader();
     if (
       !allowNetworkWarmup ||
       !Array.isArray(matches) ||
@@ -450,7 +450,7 @@ const PrefetchPageLinks: React.FC<{ path: Path; includeData: boolean }> = ({
     return () => {
       cancellations.forEach(cancel => cancel());
     };
-  }, [allowNetworkWarmup, context, matches, routeAssets]);
+  }, [allowNetworkWarmup, chunkLoader, context, routeAssetGeneration]);
 
   if (!allowNetworkWarmup || !includeData || !window._SSR_DATA) {
     return null;

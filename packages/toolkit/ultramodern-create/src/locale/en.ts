@@ -42,7 +42,7 @@ export const EN_LOCALE = {
       'Create a new UltraModern.js SuperApp workspace with the full quality baseline by default',
     usage: '📖 Usage:',
     usageExample:
-      '  pnpm dlx @bleedingdev/modern-js-create [project-name] [options]',
+      '  pnpm dlx @bleedingdev/modern-js-ultramodern-create [project-name] [options]',
     options: '⚙️  Options:',
     optionHelp: '  -h, --help     Display this help message',
     optionVersion: '  -v, --version  Display version information',
@@ -104,21 +104,26 @@ export const EN_LOCALE = {
     optionHorizontalRemote:
       '      --horizontal-remote Generate a components-only Horizontal Remote delivery unit',
     examples: '💡 Examples:',
-    example1: '  pnpm dlx @bleedingdev/modern-js-create my-workspace',
-    example2: '  pnpm dlx @bleedingdev/modern-js-create my-workspace --lang zh',
+    example1:
+      '  pnpm dlx @bleedingdev/modern-js-ultramodern-create my-workspace',
+    example2:
+      '  pnpm dlx @bleedingdev/modern-js-ultramodern-create my-workspace --lang zh',
     example3:
-      '  pnpm dlx @bleedingdev/modern-js-create my-workspace --no-tailwind',
-    example4: '  pnpm dlx @bleedingdev/modern-js-create --help',
-    example5: '  pnpm dlx @bleedingdev/modern-js-create .',
+      '  pnpm dlx @bleedingdev/modern-js-ultramodern-create my-workspace --no-tailwind',
+    example4: '  pnpm dlx @bleedingdev/modern-js-ultramodern-create --help',
+    example5: '  pnpm dlx @bleedingdev/modern-js-ultramodern-create .',
     example6:
-      '  pnpm dlx @bleedingdev/modern-js-create my-workspace --workspace',
-    example7: '  pnpm dlx @bleedingdev/modern-js-create catalog --vertical',
-    example8: '  pnpm dlx @bleedingdev/modern-js-create --vertical=catalog',
+      '  pnpm dlx @bleedingdev/modern-js-ultramodern-create my-workspace --workspace',
+    example7:
+      '  pnpm dlx @bleedingdev/modern-js-ultramodern-create catalog --vertical',
+    example8:
+      '  pnpm dlx @bleedingdev/modern-js-ultramodern-create --vertical=catalog',
     example9:
-      '  pnpm dlx @bleedingdev/modern-js-create catalog --vertical --dry-run',
+      '  pnpm dlx @bleedingdev/modern-js-ultramodern-create catalog --vertical --dry-run',
     example10:
-      '  pnpm dlx @bleedingdev/modern-js-create catalog --vertical --codesmith-overlay ./overlay-generator',
-    example11: '  pnpm dlx @bleedingdev/modern-js-create --agents-md-only',
+      '  pnpm dlx @bleedingdev/modern-js-ultramodern-create catalog --vertical --codesmith-overlay ./overlay-generator',
+    example11:
+      '  pnpm dlx @bleedingdev/modern-js-ultramodern-create --agents-md-only',
     moreInfo: '📚 Learn more: https://modernjs.dev',
   },
   version: {

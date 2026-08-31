@@ -13,12 +13,21 @@ declare global {
   var __webpack_chunk_load_test__:
     | ((chunkId: string) => Promise<void>)
     | undefined;
+  var __webpack_public_path_test__: string | undefined;
   var _SSR_DATA: unknown;
 }
 
 let mockRoutes: RouteObject[] = [];
 let mockRouteManifest = {
   routeAssets: {} as Record<string, { chunkIds: string[]; assets: string[] }>,
+};
+const mockRuntimeContext = {
+  get routes() {
+    return mockRoutes;
+  },
+  get routeManifest() {
+    return mockRouteManifest;
+  },
 };
 
 class MockIntersectionObserver {
@@ -53,10 +62,7 @@ rstest.mock('react', () => {
   const originContext = originalModule.useContext;
   const mockedUseContext = (context: unknown) => {
     if (context === InternalRuntimeContext) {
-      return {
-        routes: mockRoutes,
-        routeManifest: mockRouteManifest,
-      };
+      return mockRuntimeContext;
     }
 
     return originContext(context);
@@ -143,12 +149,14 @@ describe('prefetch', () => {
     });
     setConnection(undefined);
     global.__webpack_chunk_load_test__ = rstest.fn(() => Promise.resolve());
+    global.__webpack_public_path_test__ = '';
     global._SSR_DATA = {};
   });
 
   afterEach(() => {
     removePrefetchLinks();
     setConnection(undefined);
+    delete global.__webpack_public_path_test__;
     delete (global as { IntersectionObserver?: unknown }).IntersectionObserver;
     rstest.useRealTimers();
   });
