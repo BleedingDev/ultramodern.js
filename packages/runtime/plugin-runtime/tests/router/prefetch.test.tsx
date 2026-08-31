@@ -226,10 +226,12 @@ describe('prefetch', () => {
     unmount();
   });
 
-  test('keeps data prefetch working without a webpack chunk loader', async () => {
+  test('keeps data prefetch working without webpack runtime globals', async () => {
     const id = 'missing-chunk-loader';
     delete (global as { __webpack_chunk_load_test__?: unknown })
       .__webpack_chunk_load_test__;
+    delete (global as { __webpack_public_path_test__?: unknown })
+      .__webpack_public_path_test__;
     const routes = [
       {
         id: `root-${id}`,

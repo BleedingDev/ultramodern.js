@@ -28,8 +28,14 @@ declare const WEBPACK_CHUNK_LOAD:
   | undefined;
 const getWebpackChunkLoader = (): typeof WEBPACK_CHUNK_LOAD =>
   typeof WEBPACK_CHUNK_LOAD === 'function' ? WEBPACK_CHUNK_LOAD : undefined;
-// @ts-expect-error Webpack supplies this magic runtime global.
-const getWebpackPublicPath = () => __webpack_public_path__ || '';
+const getWebpackPublicPath = () => {
+  try {
+    // @ts-expect-error Webpack supplies this runtime value.
+    return __webpack_public_path__ || '';
+  } catch {
+    return '';
+  }
+};
 
 interface PrefetchHandlers {
   onFocus?: FocusEventHandler<Element>;
