@@ -1,0 +1,118 @@
+{
+  "name": "@modern-js/image-core-extensions",
+  "description": "Fork-owned bounds-safe image tooling compatible with @rsbuild-image/core.",
+  "homepage": "https://github.com/BleedingDev/ultramodern.js#readme",
+  "bugs": "https://github.com/BleedingDev/ultramodern.js/issues",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/BleedingDev/ultramodern.js",
+    "directory": "packages/runtime/image-core-extensions"
+  },
+  "license": "MIT",
+  "keywords": ["react", "framework", "modern.js", "ultramodern.js", "image"],
+  "version": "3.8.3",
+  "types": "./src/index.ts",
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm-node/index.mjs",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "modern:source": "./src/index.ts",
+      "node": {
+        "import": "./dist/esm-node/index.mjs",
+        "require": "./dist/cjs/index.js"
+      },
+      "module": "./dist/esm-node/index.mjs",
+      "default": "./dist/cjs/index.js"
+    },
+    "./loader": {
+      "types": "./dist/types/loader.d.ts",
+      "modern:source": "./src/loader.ts",
+      "node": {
+        "import": "./dist/esm-node/loader.mjs",
+        "require": "./dist/cjs/loader.js"
+      },
+      "module": "./dist/esm-node/loader.mjs",
+      "default": "./dist/cjs/loader.js"
+    },
+    "./shared": {
+      "types": "./dist/types/shared/index.d.ts",
+      "modern:source": "./src/shared/index.ts",
+      "node": {
+        "import": "./dist/esm-node/shared/index.mjs",
+        "require": "./dist/cjs/shared/index.js"
+      },
+      "module": "./dist/esm/shared/index.mjs",
+      "import": "./dist/esm/shared/index.mjs",
+      "default": "./dist/esm/shared/index.mjs"
+    },
+    "./image-loader": {
+      "types": "./dist/types/shared/image-loader.d.ts",
+      "modern:source": "./src/shared/image-loader.ts",
+      "node": {
+        "import": "./dist/esm-node/shared/image-loader.mjs",
+        "require": "./dist/cjs/shared/image-loader.js"
+      },
+      "module": "./dist/esm/shared/image-loader.mjs",
+      "import": "./dist/esm/shared/image-loader.mjs",
+      "default": "./dist/esm/shared/image-loader.mjs"
+    },
+    "./types": {
+      "types": "./dist/types/env.d.ts",
+      "modern:source": "./src/env.d.ts"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      ".": ["./dist/types/index.d.ts", "./src/index.ts"],
+      "loader": ["./dist/types/loader.d.ts", "./src/loader.ts"],
+      "shared": ["./dist/types/shared/index.d.ts", "./src/shared/index.ts"],
+      "image-loader": [
+        "./dist/types/shared/image-loader.d.ts",
+        "./src/shared/image-loader.ts"
+      ],
+      "types": ["./dist/types/env.d.ts", "./src/env.d.ts"]
+    }
+  },
+  "scripts": {
+    "prepublishOnly": "only-allow-pnpm",
+    "dev": "rslib build --watch",
+    "build": "rslib build",
+    "test": "rstest --passWithNoTests",
+    "type-check": "tsgo --noEmit -p tsconfig.json"
+  },
+  "engines": { "node": ">=26.7.0" },
+  "dependencies": {
+    "knitwork": "^1.2.0",
+    "rslog": "^1.1.0",
+    "type-fest": "^4.37.0",
+    "ufo": "^1.3.0"
+  },
+  "devDependencies": {
+    "@modern-js/rslib": "workspace:*",
+    "@rsbuild/core": "2.2.0",
+    "@rslib/core": "0.23.2",
+    "@scripts/rstest-config": "workspace:*",
+    "@types/node": "^26.2.0",
+    "@types/react": "^19.2.14",
+    "@typescript/native-preview": "7.0.0-dev.20260707.2",
+    "esbuild": "^0.28.1"
+  },
+  "peerDependencies": {
+    "ipx": ">=3.0.3",
+    "react": ">=16.9.0",
+    "react-dom": ">=16.9.0",
+    "sharp": ">=0.33.5"
+  },
+  "peerDependenciesMeta": {
+    "ipx": { "optional": true },
+    "sharp": { "optional": true }
+  },
+  "sideEffects": ["dist/**/logger.*"],
+  "files": ["dist", "LICENSE", "THIRD_PARTY_NOTICES.md"],
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public",
+    "types": "./dist/types/index.d.ts"
+  }
+}
