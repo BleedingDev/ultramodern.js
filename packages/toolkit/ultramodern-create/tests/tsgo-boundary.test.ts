@@ -71,13 +71,24 @@ test('create package scripts emit runtime and declarations before testing', () =
   try {
     const createPackageDir = createPackageScriptWorkspace(tempRoot, {
       build: packageJson.scripts.build,
+      clean: packageJson.scripts.clean,
       test: packageJson.scripts.test,
     });
 
+    fs.mkdirSync(path.join(createPackageDir, 'dist'), { recursive: true });
+    fs.writeFileSync(
+      path.join(createPackageDir, 'dist/stale-before-build'),
+      '',
+    );
     execFileSync('pnpm', ['run', 'build'], {
       cwd: createPackageDir,
       stdio: 'pipe',
     });
+    assert.equal(
+      fs.existsSync(path.join(createPackageDir, 'dist/stale-before-build')),
+      false,
+      'package build must remove stale output through the portable clean script',
+    );
     assert.equal(
       fs.existsSync(path.join(createPackageDir, 'dist/esm-node/index.js')),
       true,
@@ -89,10 +100,16 @@ test('create package scripts emit runtime and declarations before testing', () =
       'the Rslib package build must emit TypeScript 7 declarations',
     );
 
+    fs.writeFileSync(path.join(createPackageDir, 'dist/stale-before-test'), '');
     execFileSync('pnpm', ['run', 'test'], {
       cwd: createPackageDir,
       stdio: 'pipe',
     });
+    assert.equal(
+      fs.existsSync(path.join(createPackageDir, 'dist/stale-before-test')),
+      false,
+      'package tests must rebuild from a clean output directory',
+    );
     assert.deepEqual(
       JSON.parse(
         fs.readFileSync(

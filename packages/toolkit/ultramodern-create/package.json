@@ -82,10 +82,11 @@
     "bin"
   ],
   "scripts": {
-    "build": "rm -rf dist && rslib build -c rslibconfig.mts",
+    "build": "pnpm clean && rslib build -c rslibconfig.mts",
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
     "dev": "rslib build -c rslibconfig.mts -w",
     "start": "node ./dist/esm-node/index.js",
-    "test": "rm -rf dist && rslib build -c rslibconfig.mts && rstest --passWithNoTests",
+    "test": "pnpm build && rstest --passWithNoTests",
     "type-check": "tsgo --noEmit -p tsconfig.json"
   },
   "dependencies": {
