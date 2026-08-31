@@ -96,9 +96,11 @@ async function executeGeneratedClient(code: string) {
 describe('Effect client generation', () => {
   test('keeps the two substantive Node tooling surfaces explicit', () => {
     expect(Object.keys(clientGeneratorSurface).sort()).toEqual([
+      'bundleBuiltEffectEntryForNode',
       'generateEffectClient',
       'generateEffectClientCode',
       'resolveEffectEntryFile',
+      'resolveEffectEntryPaths',
     ]);
     expect(Object.keys(sourceLoaderSurface).sort()).toEqual([
       'bundleEffectEntryForNode',

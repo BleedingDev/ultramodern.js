@@ -25,25 +25,6 @@ import {
 } from './serverGlobalVars';
 
 const RUNTIME_CREATE_REQUEST = '@modern-js/plugin-bff/client';
-function resolveBuiltEffectEntry(
-  appDirectory: string,
-  distDirectory: string,
-  sourceEntry: string | undefined,
-) {
-  if (sourceEntry === undefined || sourceEntry.length === 0) {
-    return undefined;
-  }
-  const relativeEntry = path.relative(appDirectory, sourceEntry);
-  if (relativeEntry === '..' || relativeEntry.startsWith(`..${path.sep}`)) {
-    throw new Error(
-      `Effect BFF entry must be inside the application directory: ${sourceEntry}`,
-    );
-  }
-  const builtEntry = path
-    .resolve(distDirectory, relativeEntry)
-    .replace(/\.(?:[cm]?ts|tsx|jsx)$/u, '.js');
-  return fs.existsSync(builtEntry) ? builtEntry : undefined;
-}
 
 export const createBffGenerator = (api: CLIPluginAPI<AppTools>) => {
   const compileApi = () =>
@@ -118,32 +99,14 @@ export const createBffGenerator = (api: CLIPluginAPI<AppTools>) => {
                 return undefined;
               }
 
-              const { resolveEffectEntryFile } = await import(
+              const { bundleBuiltEffectEntryForNode } = await import(
                 '@modern-js/plugin-bff-extensions/client-generator'
               );
-              const sourceEntry = resolveEffectEntryFile({
+              return bundleBuiltEffectEntryForNode({
                 appDir: appDirectory,
                 apiDir,
-                effectEntry: modernConfig.bff?.effect?.entry,
-              });
-              const builtEntry = resolveBuiltEffectEntry(
-                appDirectory,
                 distDir,
-                sourceEntry,
-              );
-              if (builtEntry === undefined || builtEntry.length === 0) {
-                throw new Error(
-                  `Effect BFF entry was not emitted into ${distDir}: ${
-                    sourceEntry ?? path.resolve(apiDir, 'index')
-                  }`,
-                );
-              }
-              const { bundleEffectEntryForNode } = await import(
-                '@modern-js/plugin-bff-extensions/effect-source-loader'
-              );
-              return bundleEffectEntryForNode({
-                appDir: appDirectory,
-                entryPath: builtEntry,
+                effectEntry: modernConfig.bff?.effect?.entry,
                 format: moduleType === 'module' ? 'esm' : 'cjs',
               });
             });
@@ -201,22 +164,16 @@ export const createBffGenerator = (api: CLIPluginAPI<AppTools>) => {
       const runtime = bff?.runtimeCreateRequest || RUNTIME_CREATE_REQUEST;
       const relativeApiPath = path.relative(appDirectory, apiDirectory);
       const relativeLambdaPath = path.relative(appDirectory, lambdaDir);
-      const sourceEffectEntry =
+      const { sourceEffectEntry, relativeEffectEntry } =
         bffRuntimeFramework === 'effect'
           ? (
               await import('@modern-js/plugin-bff-extensions/client-generator')
-            ).resolveEffectEntryFile({
+            ).resolveEffectEntryPaths({
               appDir: appDirectory,
               apiDir: apiDirectory,
               effectEntry: bff?.effect?.entry,
             })
-          : undefined;
-      const relativeEffectEntry =
-        sourceEffectEntry !== undefined && sourceEffectEntry.length > 0
-          ? path
-              .relative(appDirectory, sourceEffectEntry)
-              .replace(/\.(?:[cm]?ts|tsx|jsx)$/u, '.js')
-          : '';
+          : { sourceEffectEntry: undefined, relativeEffectEntry: '' };
       const clientGenerationPromise = clientGenerator({
         prefix,
         appDir: appDirectory,
