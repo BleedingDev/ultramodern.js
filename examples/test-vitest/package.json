@@ -31,11 +31,12 @@
     "@types/node": "^20",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
-    "@vitejs/plugin-react": "^4.3.1",
+    "@vitejs/plugin-react": "^6.1.1",
     "jsdom": "^25.0.0",
     "prettier": "~2.8.1",
     "rimraf": "~3.0.2",
     "typescript": "~5.0.4",
-    "vitest": "^2.0.5"
+    "vite": "^8.2.2",
+    "vitest": "^4.1.11"
   }
 }

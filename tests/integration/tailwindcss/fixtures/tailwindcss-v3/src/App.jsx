@@ -1,5 +1,6 @@
 import './app.css';
 import { useEffect, useState } from 'react';
+import Macro from './Macro';
 
 const App = () => {
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -71,6 +72,9 @@ const App = () => {
             </div>
           </div>
         </div>
+      </section>
+      <section className="mb-10 bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md dark:shadow-gray-900/30 transition-colors duration-300">
+        <Macro />
       </section>
     </div>
   );
