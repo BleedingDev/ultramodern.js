@@ -20,6 +20,7 @@ const repoRoot = path.resolve(packageRoot, '../../..');
 const repoPatchDir = path.join(repoRoot, 'patches');
 const templatePatchDir = path.join(packageRoot, 'template-workspace/patches');
 const pnpmModulesDir = path.join(repoRoot, 'node_modules/.pnpm');
+const pnpmLock = fs.readFileSync(path.join(repoRoot, 'pnpm-lock.yaml'), 'utf8');
 const require = createRequire(import.meta.url);
 
 function packageStoreDirectory(prefix: string, packagePath: string): string {
@@ -39,8 +40,13 @@ function packageStoreDirectory(prefix: string, packagePath: string): string {
 }
 
 function moduleFederationPackageDirectory(packageName: string): string {
+  const selector = `@module-federation/${packageName}@${MODULE_FEDERATION_VERSION}`;
+  const patchHash = pnpmLock.match(
+    new RegExp(`^  '${selector}': ([a-f0-9]{64})$`, 'm'),
+  )?.[1];
+  assert.ok(patchHash, `${selector} must have a lockfile patch hash`);
   return packageStoreDirectory(
-    `@module-federation+${packageName}@${MODULE_FEDERATION_VERSION}_patch_hash=`,
+    `@module-federation+${packageName}@${MODULE_FEDERATION_VERSION}_patch_hash=${patchHash.slice(0, 12)}`,
     `@module-federation/${packageName}`,
   );
 }
@@ -570,28 +576,27 @@ function assertModernJsV3PatchBehavior(): Promise<void> {
         shareKey: 'consumer-react',
         singleton: true,
       };
+      const explicitRuntimePolicy = {
+        requiredVersion: 'consumer-version',
+        singleton: false,
+        treeShaking: false,
+      };
       const objectSharedConfig = {
         exposes: {},
         name: 'object_shared_consumer',
         shared: {
           react: reactPolicy,
           'react-dom': { singleton: true },
+          'react/jsx-runtime': explicitRuntimePolicy,
         },
       };
       configPlugin.patchMFConfig(objectSharedConfig, false);
       assert.equal(objectSharedConfig.shared.react, reactPolicy);
-      assert.deepEqual(objectSharedConfig.shared['react/'], {
-        ...reactPolicy,
-        import: false,
-        packageName: 'react',
-        request: 'react/',
-        shareKey: 'react/',
-      });
-      assert.deepEqual(objectSharedConfig.shared['react-dom/'], {
-        import: 'react-dom/',
-        packageName: 'react-dom',
-        request: 'react-dom/',
-        shareKey: 'react-dom/',
+      assert.equal(
+        objectSharedConfig.shared['react/jsx-runtime'],
+        explicitRuntimePolicy,
+      );
+      assert.deepEqual(objectSharedConfig.shared['react/jsx-dev-runtime'], {
         singleton: true,
       });
 
@@ -605,16 +610,8 @@ function assertModernJsV3PatchBehavior(): Promise<void> {
       assert.deepEqual(arraySharedConfig.shared, [
         'react',
         { 'react-dom': { singleton: true } },
-        { 'react/': 'react/' },
-        {
-          'react-dom/': {
-            import: 'react-dom/',
-            packageName: 'react-dom',
-            request: 'react-dom/',
-            shareKey: 'react-dom/',
-            singleton: true,
-          },
-        },
+        { 'react/jsx-runtime': { singleton: true } },
+        { 'react/jsx-dev-runtime': { singleton: true } },
       ]);
 
       const explicitPrefixPolicy = {
@@ -632,6 +629,22 @@ function assertModernJsV3PatchBehavior(): Promise<void> {
       };
       configPlugin.patchMFConfig(explicitPrefixConfig, false);
       assert.equal(explicitPrefixConfig.shared['react/'], explicitPrefixPolicy);
+      assert.deepEqual(explicitPrefixConfig.shared['react/jsx-runtime'], {
+        singleton: true,
+      });
+      assert.deepEqual(explicitPrefixConfig.shared['react/jsx-dev-runtime'], {
+        singleton: true,
+      });
+
+      const unrelatedSharedConfig = {
+        exposes: {},
+        name: 'unrelated_shared_consumer',
+        shared: { effect: { singleton: true } },
+      };
+      configPlugin.patchMFConfig(unrelatedSharedConfig, false);
+      assert.deepEqual(unrelatedSharedConfig.shared, {
+        effect: { singleton: true },
+      });
 
       const serverWorkspace = fs.mkdtempSync(
         path.join(os.tmpdir(), 'modern-js-v3-server-proof-'),

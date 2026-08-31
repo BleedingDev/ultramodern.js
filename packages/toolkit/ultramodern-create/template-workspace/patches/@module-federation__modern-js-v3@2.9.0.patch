@@ -1,5 +1,5 @@
 diff --git a/dist/cjs/cli/configPlugin.js b/dist/cjs/cli/configPlugin.js
-index 247cf19..ac131b6d 100644
+index 247cf19..d3e6a21b 100644
 --- a/dist/cjs/cli/configPlugin.js
 +++ b/dist/cjs/cli/configPlugin.js
 @@ -74,8 +74,8 @@ var __webpack_exports__ = {};
@@ -21,46 +21,37 @@ index 247cf19..ac131b6d 100644
      const resolveNodeRuntimePlugin = ()=>resolvePackageFile('@module-federation/node', 'dist/src/runtimePlugin.mjs', 'dist/src/runtimePlugin.js');
      const resolveNodeRecordRemoteHashPlugin = ()=>resolvePackageFile('@module-federation/node', 'dist/src/recordDynamicRemoteEntryHashPlugin.mjs', 'dist/src/recordDynamicRemoteEntryHashPlugin.js');
      function setEnv(enableSSR) {
-@@ -137,16 +138,58 @@ var __webpack_exports__ = {};
+@@ -137,16 +138,49 @@ var __webpack_exports__ = {};
              }
          }
      };
-+    const patchReactSubpathSharing = (mfConfig)=>{
++    const patchReactRuntimeSharing = (mfConfig)=>{
 +        let shared = mfConfig.shared;
 +        if (!shared) return;
-+        for (const [rootRequest, prefixRequest] of [
-+            [
-+                'react',
-+                'react/'
-+            ],
-+            [
-+                'react-dom',
-+                'react-dom/'
-+            ]
++        const entries = Array.isArray(shared) ? shared : [
++            shared
++        ];
++        const hasReact = entries.some((entry)=>'string' == typeof entry ? entry === 'react' : entry && Object.prototype.hasOwnProperty.call(entry, 'react'));
++        if (!hasReact) return;
++        for (const request of [
++            'react/jsx-runtime',
++            'react/jsx-dev-runtime'
 +        ]){
-+            const entries = Array.isArray(shared) ? shared : [
-+                shared
-+            ];
-+            const rootEntry = entries.find((entry)=>'string' == typeof entry ? entry === rootRequest : entry && Object.prototype.hasOwnProperty.call(entry, rootRequest));
-+            const hasPrefix = entries.some((entry)=>'string' == typeof entry ? entry === prefixRequest : entry && Object.prototype.hasOwnProperty.call(entry, prefixRequest));
-+            if (!rootEntry || hasPrefix) continue;
-+            const rootConfig = 'string' == typeof rootEntry ? rootEntry : rootEntry[rootRequest];
-+            const prefixConfig = 'string' == typeof rootConfig ? prefixRequest : {
-+                ...rootConfig,
-+                import: false === rootConfig.import ? false : prefixRequest,
-+                packageName: rootRequest,
-+                request: prefixRequest,
-+                shareKey: prefixRequest
-+            };
++            const configured = entries.some((entry)=>'string' == typeof entry ? entry === request : entry && Object.prototype.hasOwnProperty.call(entry, request));
++            if (configured) continue;
 +            if (Array.isArray(shared)) shared = [
 +                ...shared,
 +                {
-+                    [prefixRequest]: prefixConfig
++                    [request]: {
++                        singleton: true
++                    }
 +                }
 +            ];
 +            else shared = {
 +                ...shared,
-+                [prefixRequest]: prefixConfig
++                [request]: {
++                    singleton: true
++                }
 +            };
 +        }
 +        mfConfig.shared = shared;
@@ -69,7 +60,7 @@ index 247cf19..ac131b6d 100644
          (0, utils_namespaceObject.addDataFetchExposes)(mfConfig.exposes, isServer);
          if (void 0 === mfConfig.remoteType) mfConfig.remoteType = "script";
          if (!mfConfig.name) throw new Error(`${external_constant_js_namespaceObject.PLUGIN_IDENTIFIER} mfConfig.name can not be empty!`);
-+        patchReactSubpathSharing(mfConfig);
++        patchReactRuntimeSharing(mfConfig);
          const runtimePlugins = [
              ...mfConfig.runtimePlugins || []
          ];
@@ -80,7 +71,7 @@ index 247cf19..ac131b6d 100644
              injectRuntimePlugins(resolveNodeRuntimePlugin(), runtimePlugins);
              if ((0, external_utils_js_namespaceObject.isDev)()) injectRuntimePlugins(resolveNodeRecordRemoteHashPlugin(), runtimePlugins);
              injectRuntimePlugins(resolveInjectNodeFetchPlugin(), runtimePlugins);
-@@ -224,7 +267,7 @@ var __webpack_exports__ = {};
+@@ -224,7 +258,7 @@ var __webpack_exports__ = {};
          if (!chain.output.get('uniqueName')) chain.output.uniqueName(mfConfig.name);
          const splitChunkConfig = chain.optimization.splitChunks.entries();
          if (!isServer) (0, utils_namespaceObject.autoDeleteSplitChunkCacheGroups)(mfConfig, splitChunkConfig);
@@ -90,7 +81,7 @@ index 247cf19..ac131b6d 100644
              splitChunkConfig.chunks = 'async';
              if (previousChunks && 'async' !== previousChunks) external_logger_js_default().warn(`splitChunks.chunks = "${previousChunks}" is not allowed with stream SSR mode; forcing "async"`);
 diff --git a/dist/esm/cli/configPlugin.mjs b/dist/esm/cli/configPlugin.mjs
-index a390de85925ec6f5abff007aa7ba7da8890942d1..ce4e2eb642381f1df38a2e652c3858a85792fc35 100644
+index a390de85925ec6f5abff007aa7ba7da8890942d1..b45f6bae8b19d08c50367d2b31783cd68a997773 100644
 --- a/dist/esm/cli/configPlugin.mjs
 +++ b/dist/esm/cli/configPlugin.mjs
 @@ -19,8 +19,8 @@ __webpack_require__.add({
@@ -114,49 +105,38 @@ index a390de85925ec6f5abff007aa7ba7da8890942d1..ce4e2eb642381f1df38a2e652c3858a8
  var configPlugin_resolveNodeRuntimePlugin = function() {
      return configPlugin_resolvePackageFile('@module-federation/node', 'dist/src/runtimePlugin.mjs', 'dist/src/runtimePlugin.js');
  };
-@@ -109,14 +112,58 @@ var configPlugin_patchDTSConfig = function(mfConfig, isServer) {
+@@ -109,14 +112,47 @@ var configPlugin_patchDTSConfig = function(mfConfig, isServer) {
          }
      }
  };
-+var configPlugin_patchReactSubpathSharing = function(mfConfig) {
++var configPlugin_patchReactRuntimeSharing = function(mfConfig) {
 +    var shared = mfConfig.shared;
 +    if (!shared) return;
++    var entries = Array.isArray(shared) ? shared : [
++        shared
++    ];
++    var hasReact = entries.some(function(entry) {
++        return 'string' == typeof entry ? entry === 'react' : entry && Object.prototype.hasOwnProperty.call(entry, 'react');
++    });
++    if (!hasReact) return;
 +    var requests = [
-+        [
-+            'react',
-+            'react/'
-+        ],
-+        [
-+            'react-dom',
-+            'react-dom/'
-+        ]
++        'react/jsx-runtime',
++        'react/jsx-dev-runtime'
 +    ];
 +    for(var index = 0; index < requests.length; index++){
-+        var rootRequest = requests[index][0];
-+        var prefixRequest = requests[index][1];
-+        var entries = Array.isArray(shared) ? shared : [
-+            shared
-+        ];
-+        var rootEntry = entries.find(function(entry) {
-+            return 'string' == typeof entry ? entry === rootRequest : entry && Object.prototype.hasOwnProperty.call(entry, rootRequest);
++        var request = requests[index];
++        var configured = entries.some(function(entry) {
++            return 'string' == typeof entry ? entry === request : entry && Object.prototype.hasOwnProperty.call(entry, request);
 +        });
-+        var hasPrefix = entries.some(function(entry) {
-+            return 'string' == typeof entry ? entry === prefixRequest : entry && Object.prototype.hasOwnProperty.call(entry, prefixRequest);
-+        });
-+        if (!rootEntry || hasPrefix) continue;
-+        var rootConfig = 'string' == typeof rootEntry ? rootEntry : rootEntry[rootRequest];
-+        var prefixConfig = 'string' == typeof rootConfig ? prefixRequest : Object.assign({}, rootConfig, {
-+            import: false === rootConfig.import ? false : prefixRequest,
-+            packageName: rootRequest,
-+            request: prefixRequest,
-+            shareKey: prefixRequest
-+        });
-+        var prefixEntry = {};
-+        prefixEntry[prefixRequest] = prefixConfig;
++        if (configured) continue;
++        var runtimeEntry = {};
++        runtimeEntry[request] = {
++            singleton: true
++        };
 +        if (Array.isArray(shared)) shared = shared.concat([
-+            prefixEntry
++            runtimeEntry
 +        ]);
-+        else shared = Object.assign({}, shared, prefixEntry);
++        else shared = Object.assign({}, shared, runtimeEntry);
 +    }
 +    mfConfig.shared = shared;
 +};
@@ -164,7 +144,7 @@ index a390de85925ec6f5abff007aa7ba7da8890942d1..ce4e2eb642381f1df38a2e652c3858a8
      addDataFetchExposes(mfConfig.exposes, isServer);
      if (void 0 === mfConfig.remoteType) mfConfig.remoteType = "script";
      if (!mfConfig.name) throw new Error("".concat(PLUGIN_IDENTIFIER, " mfConfig.name can not be empty!"));
-+    configPlugin_patchReactSubpathSharing(mfConfig);
++    configPlugin_patchReactRuntimeSharing(mfConfig);
      var runtimePlugins = _to_consumable_array__(mfConfig.runtimePlugins || []);
      configPlugin_patchDTSConfig(mfConfig, isServer);
      configPlugin_injectRuntimePlugins(configPlugin_resolveSharedStrategyPlugin(), runtimePlugins);
@@ -173,7 +153,7 @@ index a390de85925ec6f5abff007aa7ba7da8890942d1..ce4e2eb642381f1df38a2e652c3858a8
          configPlugin_injectRuntimePlugins(configPlugin_resolveNodeRuntimePlugin(), runtimePlugins);
          if (isDev()) configPlugin_injectRuntimePlugins(configPlugin_resolveNodeRecordRemoteHashPlugin(), runtimePlugins);
          configPlugin_injectRuntimePlugins(configPlugin_resolveInjectNodeFetchPlugin(), runtimePlugins);
-@@ -193,7 +240,7 @@ function patchBundlerConfig(options) {
+@@ -193,7 +229,7 @@ function patchBundlerConfig(options) {
      if (!chain.output.get('uniqueName')) chain.output.uniqueName(mfConfig.name);
      var splitChunkConfig = chain.optimization.splitChunks.entries();
      if (!isServer) autoDeleteSplitChunkCacheGroups(mfConfig, splitChunkConfig);
@@ -205,7 +185,7 @@ index 7135f3a48be78722f2a46f8b2d366ef5b34d90ed..8454a2b3f7296d829df01cf3894f5912
 +        ...options,
 +    });
 diff --git a/dist/esm-node/cli/configPlugin.mjs b/dist/esm-node/cli/configPlugin.mjs
-index 41356987ccc29a62903944cfb4a559dd46d1cb90..d4848a71a5935534c811051c6dc30a0279bbc610 100644
+index 41356987ccc29a62903944cfb4a559dd46d1cb90..ccd7d5889d2ddf5b29d25c0edb078efe7783dcbe 100644
 --- a/dist/esm-node/cli/configPlugin.mjs
 +++ b/dist/esm-node/cli/configPlugin.mjs
 @@ -13,8 +13,8 @@ __webpack_require__.add({
@@ -227,46 +207,37 @@ index 41356987ccc29a62903944cfb4a559dd46d1cb90..d4848a71a5935534c811051c6dc30a02
  const resolveNodeRuntimePlugin = ()=>resolvePackageFile('@module-federation/node', 'dist/src/runtimePlugin.mjs', 'dist/src/runtimePlugin.js');
  const resolveNodeRecordRemoteHashPlugin = ()=>resolvePackageFile('@module-federation/node', 'dist/src/recordDynamicRemoteEntryHashPlugin.mjs', 'dist/src/recordDynamicRemoteEntryHashPlugin.js');
  function setEnv(enableSSR) {
-@@ -76,16 +77,58 @@ const patchDTSConfig = (mfConfig, isServer)=>{
+@@ -76,16 +77,49 @@ const patchDTSConfig = (mfConfig, isServer)=>{
          }
      }
  };
-+const patchReactSubpathSharing = (mfConfig)=>{
++const patchReactRuntimeSharing = (mfConfig)=>{
 +    let shared = mfConfig.shared;
 +    if (!shared) return;
-+    for (const [rootRequest, prefixRequest] of [
-+        [
-+            'react',
-+            'react/'
-+        ],
-+        [
-+            'react-dom',
-+            'react-dom/'
-+        ]
++    const entries = Array.isArray(shared) ? shared : [
++        shared
++    ];
++    const hasReact = entries.some((entry)=>'string' == typeof entry ? entry === 'react' : entry && Object.prototype.hasOwnProperty.call(entry, 'react'));
++    if (!hasReact) return;
++    for (const request of [
++        'react/jsx-runtime',
++        'react/jsx-dev-runtime'
 +    ]){
-+        const entries = Array.isArray(shared) ? shared : [
-+            shared
-+        ];
-+        const rootEntry = entries.find((entry)=>'string' == typeof entry ? entry === rootRequest : entry && Object.prototype.hasOwnProperty.call(entry, rootRequest));
-+        const hasPrefix = entries.some((entry)=>'string' == typeof entry ? entry === prefixRequest : entry && Object.prototype.hasOwnProperty.call(entry, prefixRequest));
-+        if (!rootEntry || hasPrefix) continue;
-+        const rootConfig = 'string' == typeof rootEntry ? rootEntry : rootEntry[rootRequest];
-+        const prefixConfig = 'string' == typeof rootConfig ? prefixRequest : {
-+            ...rootConfig,
-+            import: false === rootConfig.import ? false : prefixRequest,
-+            packageName: rootRequest,
-+            request: prefixRequest,
-+            shareKey: prefixRequest
-+        };
++        const configured = entries.some((entry)=>'string' == typeof entry ? entry === request : entry && Object.prototype.hasOwnProperty.call(entry, request));
++        if (configured) continue;
 +        if (Array.isArray(shared)) shared = [
 +            ...shared,
 +            {
-+                [prefixRequest]: prefixConfig
++                [request]: {
++                    singleton: true
++                }
 +            }
 +        ];
 +        else shared = {
 +            ...shared,
-+            [prefixRequest]: prefixConfig
++            [request]: {
++                singleton: true
++            }
 +        };
 +    }
 +    mfConfig.shared = shared;
@@ -275,7 +246,7 @@ index 41356987ccc29a62903944cfb4a559dd46d1cb90..d4848a71a5935534c811051c6dc30a02
      addDataFetchExposes(mfConfig.exposes, isServer);
      if (void 0 === mfConfig.remoteType) mfConfig.remoteType = "script";
      if (!mfConfig.name) throw new Error(`${PLUGIN_IDENTIFIER} mfConfig.name can not be empty!`);
-+    patchReactSubpathSharing(mfConfig);
++    patchReactRuntimeSharing(mfConfig);
      const runtimePlugins = [
          ...mfConfig.runtimePlugins || []
      ];
@@ -286,7 +257,7 @@ index 41356987ccc29a62903944cfb4a559dd46d1cb90..d4848a71a5935534c811051c6dc30a02
          injectRuntimePlugins(resolveNodeRuntimePlugin(), runtimePlugins);
          if (isDev()) injectRuntimePlugins(resolveNodeRecordRemoteHashPlugin(), runtimePlugins);
          injectRuntimePlugins(resolveInjectNodeFetchPlugin(), runtimePlugins);
-@@ -163,7 +206,7 @@ function patchBundlerConfig(options) {
+@@ -163,7 +197,7 @@ function patchBundlerConfig(options) {
      if (!chain.output.get('uniqueName')) chain.output.uniqueName(mfConfig.name);
      const splitChunkConfig = chain.optimization.splitChunks.entries();
      if (!isServer) autoDeleteSplitChunkCacheGroups(mfConfig, splitChunkConfig);
