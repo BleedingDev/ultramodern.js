@@ -68,7 +68,7 @@
     "@modern-js/rslib": "workspace:*",
     "@modern-js/types": "workspace:*",
     "@rslib/core": "0.23.2",
-    "@rsdoctor/rspack-plugin": "^1.5.17",
+    "@rsdoctor/rspack-plugin": "^1.6.3",
     "@scripts/rstest-config": "workspace:*",
     "@types/html-minifier-terser": "^7.0.2",
     "@types/lodash": "^4.17.24",

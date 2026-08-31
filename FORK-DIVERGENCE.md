@@ -203,7 +203,7 @@ No other raised/new path belongs to this transition.
 | Audited-base-owned path | Owner | Backward-base transition reason | Disposition |
 | --- | --- | --- | --- |
 | `packages/cli/adapter-rstest/package.json` | bleedingdev | The fully retained post-v3.8.2 upstream Rstest cohort changes are visible when the manifest is measured from the older fixed audit point; this is mechanical dependency metadata, not new PR-authored behavior | `keep-[M]` |
-| `packages/cli/builder/package.json` | bleedingdev | The fully retained post-v3.8.2 upstream builder toolchain manifest changes become part of the cumulative older-base diff; no upstream sync benefit was dropped | `keep-[M]` |
+| `packages/cli/builder/package.json` | bleedingdev | Retain the post-v3.8.2 upstream builder toolchain manifest and upgrade the fork's opt-in Rsdoctor diagnostics from 1.5.17 to 1.6.3 while the workspace override resolves its Socket.IO 4.8.1 chain to patched `socket.io-parser` 4.2.7 | `capped-patch` + `keep-[M]` |
 | `packages/cli/builder/tests/__snapshots__/postcssLegacy.test.ts.snap` | bleedingdev | The synced upstream snapshot regeneration occurred after the fixed audit point, so measuring backward exposes its generated snapshot delta | `keep-[M]` |
 | `packages/cli/plugin-bff/package.json` | bleedingdev | The fully retained post-v3.8.2 upstream BFF manifest edits are newly measurable from the older base; this row records mechanical cohort identity rather than fork-side feature growth | `keep-[M]` |
 | `packages/cli/plugin-data-loader/package.json` | bleedingdev | The synced upstream data-loader manifest cohort is newer than the fixed audit point and therefore raises the cumulative older-base measurement | `keep-[M]` |

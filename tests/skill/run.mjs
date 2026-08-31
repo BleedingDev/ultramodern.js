@@ -452,6 +452,25 @@ try {
     JSON.parse(bh.read('package.json')).dependencies['@modern-js/runtime'] ===
       'workspace:*',
   );
+  const bhPackage = JSON.parse(bh.read('package.json'));
+  const bhHonoSources = [
+    bh.read('api/index.ts'),
+    bh.read('server/modern.server.ts'),
+  ].join('\n');
+  check(
+    '[security] Hono 4 依赖在迁移后保留',
+    bhPackage.dependencies.hono === '^4.13.5',
+  );
+  check(
+    '[security] BFF fixture 不重新声明旧 Node 支持',
+    bhPackage.engines?.node === '>=26.7.0',
+  );
+  check(
+    '[compat] BFF fixture 不依赖 Hono 3 直接或私有 API',
+    !/from\s+['"]hono(?:\/[^'"]+)?['"]/.test(bhHonoSources) &&
+      /from\s+['"]@modern-js\/plugin-bff\/hono['"]/.test(bhHonoSources) &&
+      /from\s+['"]@modern-js\/server-runtime['"]/.test(bhHonoSources),
+  );
   check(
     '[manual] workspace 协议依赖进 manual（随 monorepo 升级）',
     /workspace\/link\/catalog 协议依赖/.test(bhManual),

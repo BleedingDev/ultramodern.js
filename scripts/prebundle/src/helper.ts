@@ -1,6 +1,4 @@
-import { findUp } from 'find-up';
 import fs from 'fs-extra';
-import { moduleResolve } from 'import-meta-resolve';
 import { dirname, join } from 'path';
 import { pathToFileURL } from 'url';
 import { DIST_DIR, PACKAGES_DIR, TASKS } from './constant';
@@ -20,7 +18,8 @@ export function findDepPath(name: string) {
   return entry;
 }
 
-const resolveESMDependency = (entry: string) => {
+const resolveESMDependency = async (entry: string) => {
+  const { moduleResolve } = await import('import-meta-resolve');
   const conditions = new Set(['import', 'module', 'default']);
   try {
     return moduleResolve(
@@ -35,6 +34,7 @@ const resolveESMDependency = (entry: string) => {
 };
 
 export async function parseTasks() {
+  const { findUp } = await import('find-up');
   const result: ParsedTask[] = [];
 
   for (const { packageName, packageDir, dependencies } of TASKS) {
@@ -45,7 +45,7 @@ export async function parseTasks() {
       const distPath = join(packagePath, DIST_DIR, depName);
       const depPath = findDepPath(depName);
       const depEntry = require.resolve(depName);
-      const resolvedEsmEntry = resolveESMDependency(depName);
+      const resolvedEsmEntry = await resolveESMDependency(depName);
 
       let depEsmEntry = '';
       if (resolvedEsmEntry) {
