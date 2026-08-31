@@ -79,8 +79,13 @@ export const createReadableStreamFromElement: CreateReadableStreamFromElement =
         await readableOriginal.allReady;
       }
 
-      const reader = readableOriginal
-        .pipeThrough(rendererHead.createWebHeadMarkerStripper(runtimeContext))
+      const reader = rendererHead
+        .createConservingWebShellStream(
+          readableOriginal,
+          runtimeContext,
+          ESCAPED_SHELL_STREAM_END_MARK,
+          options.onError,
+        )
         .getReader();
 
       const stream = new ReadableStream({

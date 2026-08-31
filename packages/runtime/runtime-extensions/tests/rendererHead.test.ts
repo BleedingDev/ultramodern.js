@@ -1,3 +1,4 @@
+import { PassThrough, Readable } from 'node:stream';
 import {
   abortHeadRender,
   beginHeadRender,
@@ -7,7 +8,11 @@ import {
   createWebHeadMarkerStripper,
   publishHeadRender,
 } from '../src';
-import { createNodeHeadMarkerStripper } from '../src/node';
+import {
+  createNodeHeadMarkerStripper,
+  createOnceErrorReporter,
+  pipeNodeHeadStream,
+} from '../src/node';
 
 const marker = (props: Record<string, string>) =>
   `<template data-modern-helmet="${props['data-modern-helmet']}"></template>`;
@@ -195,5 +200,100 @@ describe('renderer head transactions', () => {
 
     await expect(output).resolves.toBe('č尾');
     expect(published).toEqual(['node']);
+  });
+
+  it('injects one missing terminal marker without truncating multichunk UTF-8', async () => {
+    const context = {};
+    const terminalMarker = '<!-- shell stream end -->';
+    const prefix = Buffer.from('x'.repeat(9 * 1024));
+    const unicodeTail = Buffer.from('č尾');
+    const input = Buffer.concat([prefix, unicodeTail]);
+    beginHeadRender(context);
+    const stripper = createNodeHeadMarkerStripper(context, terminalMarker);
+    const output = new Promise<string>((resolve, reject) => {
+      let rendered = '';
+      stripper.setEncoding('utf8');
+      stripper.on('data', chunk => {
+        rendered += chunk;
+      });
+      stripper.on('end', () => resolve(rendered));
+      stripper.on('error', reject);
+    });
+    stripper.write(input.subarray(0, prefix.length + 1));
+    stripper.write(input.subarray(prefix.length + 1, prefix.length + 3));
+    stripper.end(input.subarray(prefix.length + 3));
+
+    await expect(output).resolves.toBe(
+      `${input.toString('utf8')}${terminalMarker}`,
+    );
+  });
+
+  it('does not duplicate a split terminal marker or corrupt its tail', async () => {
+    const context = {};
+    const terminalMarker = '<!-- shell stream end -->';
+    const input = Buffer.from(`shell${terminalMarker}č尾`);
+    const markerOffset = Buffer.byteLength('shell') + 7;
+    beginHeadRender(context);
+    const stripper = createNodeHeadMarkerStripper(context, terminalMarker);
+    const output = new Promise<string>((resolve, reject) => {
+      let rendered = '';
+      stripper.setEncoding('utf8');
+      stripper.on('data', chunk => {
+        rendered += chunk;
+      });
+      stripper.on('end', () => resolve(rendered));
+      stripper.on('error', reject);
+    });
+    stripper.write(input.subarray(0, markerOffset));
+    stripper.write(input.subarray(markerOffset, input.length - 1));
+    stripper.end(input.subarray(input.length - 1));
+
+    await expect(output).resolves.toBe(input.toString('utf8'));
+  });
+
+  it('rejects the destination and reports a source error exactly once', async () => {
+    const source = new PassThrough();
+    const destination = new PassThrough();
+    const output = new Response(
+      Readable.toWeb(destination) as ReadableStream<Uint8Array>,
+    ).text();
+    const onError = rstest.fn();
+    pipeNodeHeadStream({ source, destination, context: {}, onError });
+
+    source.destroy(new Error('source failed'));
+
+    await expect(output).rejects.toThrow('source failed');
+    expect(onError).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects the destination and reports a stripper error exactly once', async () => {
+    const source = new PassThrough();
+    const destination = new PassThrough();
+    const output = new Response(
+      Readable.toWeb(destination) as ReadableStream<Uint8Array>,
+    ).text();
+    const onError = rstest.fn();
+    pipeNodeHeadStream({
+      source,
+      destination,
+      context: Object.freeze({}),
+      onError,
+    });
+
+    source.end('trigger frozen-context failure');
+
+    await expect(output).rejects.toThrow('object is not extensible');
+    expect(onError).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports a shared render and stream failure only once', () => {
+    const onError = rstest.fn();
+    const reportError = createOnceErrorReporter(onError);
+    const failure = new Error('shared failure');
+
+    reportError(failure);
+    reportError(failure);
+
+    expect(onError).toHaveBeenCalledExactlyOnceWith(failure);
   });
 });

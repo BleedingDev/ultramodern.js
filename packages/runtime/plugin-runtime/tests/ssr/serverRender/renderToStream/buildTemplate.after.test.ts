@@ -173,7 +173,7 @@ describe('SSRDataCollector (stream parity)', () => {
       config: {} as any,
     });
 
-    expect(html).toContain('<script src=/assets/main.js></script>');
+    expect(html).toContain('<script src="/assets/main.js"></script>');
     expect(html).not.toContain('nonce=');
   });
 
@@ -211,7 +211,7 @@ describe('SSRDataCollector (stream parity)', () => {
     });
 
     expect(html).toContain(
-      '<script src=/assets/main.js nonce="nonce-value"></script>',
+      '<script src="/assets/main.js" nonce="nonce-value"></script>',
     );
   });
 
@@ -257,9 +257,9 @@ describe('SSRDataCollector (stream parity)', () => {
       config: {} as any,
     });
 
-    expect(html).toContain('<script src=/assets/layout.js></script>');
-    expect(html).toContain('<script src=/assets/product.js></script>');
-    expect(html).toContain('<script src=/assets/main.js></script>');
+    expect(html).toContain('<script src="/assets/layout.js"></script>');
+    expect(html).toContain('<script src="/assets/product.js"></script>');
+    expect(html).toContain('<script src="/assets/main.js"></script>');
     expect(html).not.toContain('/assets/product.css');
   });
 
@@ -375,7 +375,7 @@ describe('SSRDataCollector (stream parity)', () => {
       '<script async src="/static/js/index.js"></script>',
     );
     const routeIndex = html.indexOf(
-      '<script src=/static/js/async/products/$slug.js></script>',
+      '<script src="/static/js/async/products/$slug.js"></script>',
     );
     const ssrDataIndex = html.indexOf('window._SSR_DATA =');
     const routerBootstrapIndex = html.indexOf('window.$_TSR =');
@@ -444,7 +444,7 @@ describe('SSRDataCollector (stream parity)', () => {
 
     const html = `${shellBefore}<main>server markup</main>${shellAfter}`;
     const routeIndex = html.indexOf(
-      '<script src=/static/js/async/products/$slug.js nonce="nonce-value"></script>',
+      '<script src="/static/js/async/products/$slug.js" nonce="nonce-value"></script>',
     );
     const ssrDataIndex = html.indexOf(
       '<script type="application/json" id="__MODERN_SSR_DATA__">',

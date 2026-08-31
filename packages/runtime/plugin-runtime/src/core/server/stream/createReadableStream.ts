@@ -82,6 +82,7 @@ export const createReadableStreamFromElement: CreateReadableStreamFromElement =
     const chunkVec: Buffer[] = [];
     let hasStartedPipe = false;
     rendererHead.beginHeadRender(runtimeContext);
+    const reportError = rendererHead.createOnceErrorReporter(options.onError);
 
     return new Promise(resolve => {
       const { pipe: reactStreamingPipe } = renderToPipeableStream(
@@ -195,11 +196,14 @@ export const createReadableStreamFromElement: CreateReadableStreamFromElement =
                   processedStream = extender.processStream(processedStream);
                 }
               });
+              rendererHead.pipeNodeHeadStream({
+                source: processedStream,
+                destination: body,
+                context: runtimeContext,
+                terminalMarker: ESCAPED_SHELL_STREAM_END_MARK,
+                onError: reportError,
+              });
               reactStreamingPipe(passThrough);
-
-              processedStream
-                .pipe(rendererHead.createNodeHeadMarkerStripper(runtimeContext))
-                .pipe(body);
 
               // Inject router data scripts, enqueue until shell finished
               try {
@@ -257,7 +261,7 @@ export const createReadableStreamFromElement: CreateReadableStreamFromElement =
           onError(error: unknown) {
             renderLevel = RenderLevel.CLIENT_RENDER;
 
-            options?.onError?.(error);
+            reportError(error);
           },
         },
       );

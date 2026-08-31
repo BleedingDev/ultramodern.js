@@ -40,6 +40,7 @@ export function helmetReplace(content: string, helmetData: HelmetServerState) {
   }
 
   const base = helmetData.base.toString();
+  const priority = helmetData.priority.toString();
   const link = helmetData.link.toString();
   const meta = helmetData.meta.toString();
   const noscript = helmetData.noscript.toString();
@@ -57,6 +58,7 @@ export function helmetReplace(content: string, helmetData: HelmetServerState) {
 
   const helmetStr = [
     base,
+    priority,
     link,
     meta,
     noscript,

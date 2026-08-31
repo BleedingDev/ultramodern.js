@@ -284,7 +284,7 @@ describe('plugin-runtime SSR server helper matrix', () => {
           '<script defer src="/assets/dashboard.js"></script><script src="/assets/shared.js?cache=1"></script>',
       }),
     ).toBe(
-      '<script src=/assets/shared.js nonce="nonce-1"></script> <script src=/assets/async-main.js nonce="nonce-1"></script>',
+      '<script src="/assets/shared.js" nonce="nonce-1"></script> <script src="/assets/async-main.js" nonce="nonce-1"></script>',
     );
   });
 

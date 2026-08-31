@@ -1,3 +1,4 @@
+import { ensureHelmetContext } from '../../../../src/core/context/helmetContext';
 import { CHUNK_CSS_PLACEHOLDER } from '../../../../src/core/server/constants';
 import { buildShellBeforeTemplate } from '../../../../src/core/server/stream/beforeTemplate';
 import { buildShellBeforeTemplate as buildWorkerShellBeforeTemplate } from '../../../../src/core/server/stream/beforeTemplate.worker';
@@ -15,6 +16,80 @@ const withRouterSnapshot = (
 };
 
 describe('buildShellBeforeTemplate', () => {
+  it.each([
+    ['node', buildShellBeforeTemplate],
+    ['worker', buildWorkerShellBeforeTemplate],
+  ])('preserves the complete %s CSS priority order without duplicate assets', async (_runtime, buildTemplate) => {
+    const runtimeContext = withRouterSnapshot(
+      {
+        routeManifest: {
+          routeAssets: {
+            'route-a': {
+              referenceCssAssets: ['/assets/route-a.css', '/assets/shared.css'],
+            },
+            'route-b': {
+              referenceCssAssets: ['/assets/route-b.css'],
+            },
+            'async-main': {
+              referenceCssAssets: ['/assets/async-main.css'],
+            },
+          },
+        },
+      },
+      {
+        matchedRouteIds: ['route-a', 'route-b'],
+      },
+    );
+    const helmetStylesheet =
+      '<link href="/assets/helmet.css" rel="stylesheet" data-rh="true">';
+    ensureHelmetContext(runtimeContext).helmet = {
+      bodyAttributes: '',
+      htmlAttributes: '',
+      base: '',
+      priority: '',
+      link: helmetStylesheet,
+      meta: '',
+      noscript: '',
+      script: '',
+      style: '',
+      title: '',
+    } as any;
+
+    const styledComponentsStyleTags =
+      '<style data-styled="true">.styled{color:red}</style>';
+    const orderedFragments = [
+      '<link href="/assets/route-a.css" rel="stylesheet" />',
+      '<link href="/assets/shared.css" rel="stylesheet" />',
+      '<link href="/assets/route-b.css" rel="stylesheet" />',
+      '<link href="/assets/async-main.css" rel="stylesheet" />',
+      styledComponentsStyleTags,
+      '<link href="/assets/federated.css" rel="stylesheet" />',
+      helmetStylesheet,
+    ];
+    const expectedHtml = `<html><head>${orderedFragments
+      .slice(0, -1)
+      .join('')}  ${helmetStylesheet}\n</head><body></body></html>`;
+    const html = await buildTemplate(
+      `<html><head>${CHUNK_CSS_PLACEHOLDER}</head><body></body></html>`,
+      {
+        entryName: 'main',
+        runtimeContext: runtimeContext as any,
+        config: {} as any,
+        styledComponentsStyleTags,
+        moduleFederationCssAssets: [
+          '/assets/shared.css',
+          '/assets/federated.css',
+        ],
+      },
+    );
+
+    expect(html).toBe(expectedHtml);
+    expect(orderedFragments.map(fragment => html.indexOf(fragment))).toEqual(
+      orderedFragments.map(fragment => expectedHtml.indexOf(fragment)),
+    );
+    expect(html.split(orderedFragments[1])).toHaveLength(2);
+  });
+
   it('should use shared matched route ids from the router snapshot for css injection', async () => {
     for (const buildTemplate of [
       buildShellBeforeTemplate,
