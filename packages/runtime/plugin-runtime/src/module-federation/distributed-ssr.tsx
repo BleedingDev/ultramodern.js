@@ -63,7 +63,7 @@ export function distributedSsrFragmentKey(remote: string, expose: string) {
 }
 
 function getDistributedSsrFragmentContext(
-  response: Record<string, unknown> | undefined,
+  response: { locals?: unknown } | undefined,
 ): DistributedSsrFragmentContext | undefined {
   const locals = response?.locals;
   if (typeof locals !== 'object' || locals === null) {

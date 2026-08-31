@@ -27,19 +27,29 @@
     ".": {
       "types": "./dist/types/browser.d.ts",
       "modern:source": "./src/browser.ts",
-      "node": "./dist/esm/node.mjs",
+      "node": {
+        "import": "./dist/esm-node/node.mjs",
+        "require": "./dist/cjs/node.js"
+      },
+      "import": "./dist/esm/browser.mjs",
+      "require": "./dist/cjs/browser.js",
       "default": "./dist/esm/browser.mjs"
     },
     "./client": {
       "types": "./dist/types/browser.d.ts",
       "modern:source": "./src/browser.ts",
+      "import": "./dist/esm/browser.mjs",
+      "require": "./dist/cjs/browser.js",
       "default": "./dist/esm/browser.mjs"
     },
     "./server": {
       "types": "./dist/types/node.d.ts",
       "modern:source": "./src/node.ts",
-      "require": "./dist/cjs/node.js",
-      "default": "./dist/esm/node.mjs"
+      "node": {
+        "import": "./dist/esm-node/node.mjs",
+        "require": "./dist/cjs/node.js"
+      },
+      "default": "./dist/cjs/node.js"
     }
   },
   "typesVersions": {

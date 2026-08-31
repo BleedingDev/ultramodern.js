@@ -24,6 +24,10 @@ import type {
   TransportTarget,
 } from './types';
 
+declare const process:
+  | { readonly env?: Readonly<Record<string, string | undefined>> }
+  | undefined;
+
 export const TRACEPARENT_HEADER = 'traceparent';
 
 const readProcessEnv = (key: string) => {

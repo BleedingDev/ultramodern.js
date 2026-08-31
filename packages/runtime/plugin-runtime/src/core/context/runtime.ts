@@ -49,8 +49,19 @@ export const getInitialContext = (
   routeManifest?: RouteManifest,
 ): TInternalRuntimeContext => {
   const requestContext = {
-    request: {},
-    response: {},
+    request: {
+      params: {},
+      pathname: '',
+      query: {},
+      headers: {},
+      host: '',
+      url: '',
+    },
+    response: {
+      setHeader() {},
+      status() {},
+      locals: {},
+    },
   };
   return {
     isBrowser,

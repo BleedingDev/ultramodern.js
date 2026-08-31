@@ -32,12 +32,21 @@ const createTimeoutError = (timeoutMs: number) => {
   return error;
 };
 
+const unrefTimer = (timer: unknown) => {
+  if (
+    typeof timer === 'object' &&
+    timer !== null &&
+    'unref' in timer &&
+    typeof timer.unref === 'function'
+  ) {
+    timer.unref();
+  }
+};
+
 const wait = (ms: number) =>
   new Promise<void>(resolve => {
     const timer = setTimeout(() => resolve(), ms);
-    if (typeof (timer as NodeJS.Timeout).unref === 'function') {
-      (timer as NodeJS.Timeout).unref();
-    }
+    unrefTimer(timer);
   });
 
 const toStatusCode = (error: unknown): number | undefined => {
@@ -197,9 +206,7 @@ const withTimeout = async <T>(
     }
     rejectTimeout?.(createTimeoutError(timeoutMs));
   }, timeoutMs);
-  if (typeof (timer as NodeJS.Timeout).unref === 'function') {
-    (timer as NodeJS.Timeout).unref();
-  }
+  unrefTimer(timer);
 
   try {
     const result = await Promise.race([promise, timeoutPromise]);

@@ -71,6 +71,20 @@ function createBackendManifest() {
   };
 }
 
+function withDeliveryUnitIdentity(
+  manifest: ReturnType<typeof createBackendManifest>,
+) {
+  const identity = { buildMarker: 'catalog-build-123', unitId: 'catalog@21' };
+  Object.assign(manifest.backendFederation, {
+    deliveryUnit: identity,
+    versionBoundary: {
+      ...manifest.backendFederation.versionBoundary,
+      deliveryUnit: identity,
+    },
+  });
+  return manifest;
+}
+
 async function listen(server: http.Server) {
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject);
@@ -943,7 +957,7 @@ module.exports = {
   });
 
   test('rejects local or plugin execution selected by a network manifest', async () => {
-    const manifest = createBackendManifest();
+    const manifest = withDeliveryUnitIdentity(createBackendManifest());
     manifest.entry.url = createBackendRemoteEntryDataUrl(
       'globalThis.__networkManifestDataExecuted = true;',
     );
@@ -987,7 +1001,9 @@ module.exports = {
       'verticalCatalogBackend',
       'catalog-build-123',
     );
-    const manifest = createVerifiedBackendManifest(entrySource);
+    const manifest = withDeliveryUnitIdentity(
+      createVerifiedBackendManifest(entrySource),
+    );
     const fetchedUrls: string[] = [];
 
     await expect(

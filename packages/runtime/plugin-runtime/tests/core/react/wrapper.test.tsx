@@ -182,7 +182,14 @@ describe('wrapRuntimeContextProvider', () => {
 
       expect(html).toContain('RSC request context');
       expect(internalValue?.requestContext).toEqual({
-        request: {},
+        request: {
+          params: {},
+          pathname: '',
+          query: {},
+          headers: {},
+          host: '',
+          url: '',
+        },
         response: { locals: {} },
       });
       expect(internalValue?.ssrContext).toBeUndefined();

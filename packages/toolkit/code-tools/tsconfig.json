@@ -1,6 +1,7 @@
 {
   "extends": "@modern-js/tsconfig/base",
   "compilerOptions": {
+    "allowImportingTsExtensions": true,
     "declaration": false,
     "jsx": "preserve",
     "isolatedModules": true,
@@ -8,6 +9,7 @@
     "moduleResolution": "Bundler",
     "types": ["node"],
     "paths": {},
+    "rewriteRelativeImportExtensions": true,
     "rootDir": "./src"
   },
   "include": ["src"],

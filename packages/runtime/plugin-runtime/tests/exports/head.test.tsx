@@ -227,6 +227,56 @@ describe('server Helmet collection', () => {
     );
   });
 
+  it('publishes prioritized SEO tags separately with component parity', () => {
+    const context = createServerContext();
+    renderWithContext(
+      context,
+      <Helmet prioritizeSeoTags htmlAttributes={{ class: 'app' } as any}>
+        <title>Priority Page</title>
+        <meta name="description" content="priority description" />
+        <meta name="keywords" content="ordinary keywords" />
+        <link rel="canonical" href="https://example.com/page" />
+        <link rel="stylesheet" href="/page.css" />
+        <script type="application/ld+json">{'{"name":"page"}'}</script>
+        <script src="/ordinary.js" />
+      </Helmet>,
+    );
+
+    const helmet = getHelmetData(context)!;
+    expect(helmet.priority.toString()).toContain('priority description');
+    expect(helmet.priority.toString()).toContain('https://example.com/page');
+    expect(helmet.priority.toString()).toContain('application/ld+json');
+    expect(helmet.meta.toString()).toContain('ordinary keywords');
+    expect(helmet.meta.toString()).not.toContain('priority description');
+    expect(helmet.link.toString()).toContain('/page.css');
+    expect(helmet.link.toString()).not.toContain('https://example.com/page');
+    expect(helmet.script.toString()).toContain('/ordinary.js');
+    expect(helmet.script.toString()).not.toContain('application/ld+json');
+
+    const priority = helmet.priority.toComponent();
+    expect(priority.map(element => element.type)).toEqual([
+      'meta',
+      'link',
+      'script',
+    ]);
+    expect(priority[0].props).toMatchObject({
+      'data-rh': true,
+      content: 'priority description',
+      name: 'description',
+    });
+    expect(priority[2].props).toMatchObject({
+      'data-rh': true,
+      dangerouslySetInnerHTML: { __html: '{"name":"page"}' },
+      type: 'application/ld+json',
+    });
+    expect(helmet.meta.toComponent()[0].props).toMatchObject({
+      content: 'ordinary keywords',
+      name: 'keywords',
+    });
+    expect(helmet.title.toComponent()[0].props.children).toBe('Priority Page');
+    expect(helmet.htmlAttributes.toComponent()).toEqual({ className: 'app' });
+  });
+
   it('is idempotent when React replays the tree (streaming SSR retry)', () => {
     const context = createServerContext();
     const app = (

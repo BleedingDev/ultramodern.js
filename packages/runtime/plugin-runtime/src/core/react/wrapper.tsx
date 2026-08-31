@@ -2,6 +2,7 @@ import type React from 'react';
 import { HelmetProvider } from 'react-helmet-async';
 import {
   getGlobalEnableRsc,
+  getInitialContext,
   InternalRuntimeContext,
   RuntimeContext,
   type TInternalRuntimeContext,
@@ -13,11 +14,16 @@ import { ensureHelmetContext } from '../context/helmetContext';
 function createRscSafeRequestContext(
   ssrContext: TInternalRuntimeContext['ssrContext'],
 ): TInternalRuntimeContext['requestContext'] {
+  const requestContext = getInitialContext().requestContext;
+  Object.defineProperty(requestContext.response, 'setHeader', {
+    enumerable: false,
+  });
+  Object.defineProperty(requestContext.response, 'status', {
+    enumerable: false,
+  });
+
   if (ssrContext === undefined) {
-    return {
-      request: {},
-      response: { locals: {} },
-    };
+    return requestContext;
   }
 
   const { request, response } = ssrContext;
@@ -34,9 +40,9 @@ function createRscSafeRequestContext(
       host: request.host,
       referer: request.referer,
     },
-    response: {
+    response: Object.assign(requestContext.response, {
       locals: response.locals ?? {},
-    },
+    }),
   };
 }
 
