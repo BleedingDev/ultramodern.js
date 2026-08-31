@@ -128,10 +128,7 @@ async function loader(
       return;
     }
 
-    callback(
-      undefined,
-      createErrorModule(`Failed to generate Effect client for ${resourcePath}`),
-    );
+    callback(new Error(`Failed to generate Effect client for ${resourcePath}`));
     return;
   }
 

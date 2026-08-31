@@ -409,6 +409,41 @@ module.exports = { api, layer: Layer.empty };`;
     }
   });
 
+  test('fails closed when Effect client generation cannot resolve an HttpApi', async () => {
+    const appDir = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), 'modern-plugin-bff-effect-client-failure-'),
+    );
+
+    try {
+      const apiDir = path.join(appDir, 'api');
+      const entryFile = path.join(apiDir, 'index.ts');
+      const source = 'export const api = null;';
+      await writeEmptyPathsTsconfig(appDir);
+      await writeFile(entryFile, source);
+
+      await expect(
+        runApiLoader({
+          options: {
+            apiDir,
+            appDir,
+            bffRuntimeFramework: 'effect',
+            effectEntry: entryFile,
+            existLambda: false,
+            lambdaDir: path.join(apiDir, 'lambda'),
+            port: 8080,
+            prefix: '/api',
+            target: 'web',
+          },
+          resourcePath: entryFile,
+          resourceQuery: '',
+          source,
+        }),
+      ).rejects.toThrow(`Failed to generate Effect client for ${entryFile}`);
+    } finally {
+      await fs.promises.rm(appDir, { recursive: true, force: true });
+    }
+  });
+
   test('Effect worker runtime entry validates invalid edge modules at dispatcher creation', async () => {
     const appDir = await fs.promises.mkdtemp(
       path.join(os.tmpdir(), 'modern-plugin-bff-effect-worker-wrapper-'),
