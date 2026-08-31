@@ -21,12 +21,98 @@ import {
 } from './module';
 import type { EffectContext } from './operation-context';
 
+export * as Config from 'effect/Config';
+export * as Effect from 'effect/Effect';
+export * as Layer from 'effect/Layer';
+export * as Option from 'effect/Option';
+export * as Schema from 'effect/Schema';
+export {
+  Cookies,
+  Etag,
+  FetchHttpClient,
+  FindMyWay,
+  Headers,
+  HttpBody,
+  HttpClient,
+  HttpClientError,
+  HttpClientRequest,
+  HttpClientResponse,
+  HttpEffect,
+  HttpIncomingMessage,
+  HttpMethod,
+  HttpMiddleware,
+  HttpPlatform,
+  HttpRouter,
+  HttpServer,
+  HttpServerError,
+  HttpServerRequest,
+  HttpServerRespondable,
+  HttpServerResponse,
+  HttpStaticServer,
+  HttpStatus,
+  HttpTraceContext,
+  Multipart,
+  MultipartParser,
+  Template,
+  Url,
+  UrlParams,
+} from 'effect/unstable/http';
+export {
+  HttpApi,
+  HttpApiBuilder,
+  HttpApiClient,
+  HttpApiEndpoint,
+  HttpApiError,
+  HttpApiGroup,
+  HttpApiMiddleware,
+  HttpApiSchema,
+  HttpApiSecurity,
+  HttpApiTest,
+  OpenApi,
+} from 'effect/unstable/httpapi';
+export {
+  Rpc,
+  RpcClient,
+  RpcClientError,
+  RpcGroup,
+  RpcMessage,
+  RpcMiddleware,
+  RpcSchema,
+  RpcSerialization,
+  RpcServer,
+  RpcTest,
+  RpcWorker,
+  Utils,
+} from 'effect/unstable/rpc';
 export {
   runWithEffectContext,
   useEffectContext,
   useOperationContext,
 } from './edge-context';
-export * from './handler';
+export type {
+  EffectApiClientFromApi,
+  EffectApiPromiseClientFromApi,
+  EffectBffDefinition,
+  EffectBffHandlerFactory,
+  EffectBffOpenApiConfig,
+  EffectBffRuntime,
+  EffectDataPlatformBatchOptions,
+  EffectDataPlatformSelectionValidationOptions,
+  EffectDataPlatformValidationOptions,
+  EffectRequestValidator,
+  EffectRpcBffDefinition,
+  EffectRpcBffHandlerFactory,
+  EffectRpcBffHandlerOptions,
+  EffectRpcRuntimeLayer,
+  EffectRpcSerialization,
+  EffectRuntimeLayer,
+  EffectRuntimeRequirements,
+} from './handler';
+export {
+  createHttpApiHandler,
+  defineEffectBff,
+  defineEffectRpcBff,
+} from './handler';
 export {
   type CreateEffectOperationContextOptions,
   createEffectOperationContext,

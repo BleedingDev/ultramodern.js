@@ -50,16 +50,6 @@
       "import": "./dist/esm/effect/edge.mjs",
       "default": "./dist/esm/effect/edge.mjs"
     },
-    "./effect-edge/dispatcher": {
-      "types": "./dist/types/effect/edge-dispatcher.d.ts",
-      "modern:source": "./src/effect/edge-dispatcher.ts",
-      "node": {
-        "import": "./dist/esm-node/effect/edge-dispatcher.mjs",
-        "require": "./dist/cjs/effect/edge-dispatcher.js"
-      },
-      "import": "./dist/esm/effect/edge-dispatcher.mjs",
-      "default": "./dist/esm/effect/edge-dispatcher.mjs"
-    },
     "./effect-client": {
       "types": "./dist/types/effect-client/index.d.ts",
       "modern:source": "./src/effect-client/index.ts",
@@ -96,10 +86,6 @@
       ".": ["./dist/types/index.d.ts", "./src/index.ts"],
       "effect": ["./dist/types/effect/index.d.ts", "./src/effect/index.ts"],
       "effect-edge": ["./dist/types/effect/edge.d.ts", "./src/effect/edge.ts"],
-      "effect-edge/dispatcher": [
-        "./dist/types/effect/edge-dispatcher.d.ts",
-        "./src/effect/edge-dispatcher.ts"
-      ],
       "effect-client": [
         "./dist/types/effect-client/index.d.ts",
         "./src/effect-client/index.ts"
@@ -128,7 +114,14 @@
     "@modern-js/create-request": "workspace:*",
     "@modern-js/runtime-extensions": "workspace:*",
     "@opentelemetry/api": "1.9.1",
-    "@swc/helpers": "^0.5.23"
+    "@opentelemetry/api-logs": "0.220.0",
+    "@opentelemetry/resources": "2.9.0",
+    "@opentelemetry/sdk-logs": "0.220.0",
+    "@opentelemetry/sdk-metrics": "2.9.0",
+    "@opentelemetry/sdk-trace-base": "2.9.0",
+    "@opentelemetry/sdk-trace-node": "2.9.0",
+    "@opentelemetry/sdk-trace-web": "2.9.0",
+    "@opentelemetry/semantic-conventions": "1.43.0"
   },
   "peerDependencies": {
     "@effect/opentelemetry": "4.0.0-rc.112",

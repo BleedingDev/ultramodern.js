@@ -1,29 +1,81 @@
+import {
+  BACKEND_FEDERATION_CONTRACT_VERSION,
+  BACKEND_FEDERATION_EFFECT_EXPOSE,
+  BACKEND_FEDERATION_MANIFEST_FILE,
+  BACKEND_FEDERATION_NODE_ADAPTER_VERSION,
+} from '@modern-js/utils/universal';
+import {
+  type BackendFederationEdgeLoadEntryPlugin,
+  type BackendFederationEdgeLoadEntryPluginOptions,
+  type BackendFederationEdgeRemote,
+  type BackendFederationEdgeRuntimeOptions,
+  createBackendFederationRuntimeForLoad,
+} from './edge-runtime';
 import type { BackendFederationExpectedIdentity } from './identity';
-import { loadBackendFederatedEffectApi as loadUniversalBackendFederatedEffectApi } from './load';
+import { LEGACY_LOAD_WARNING } from './legacy-warning';
 import type {
   BackendFederatedEffectApiModule,
-  BackendFederationIdentityLoadOptions,
   BackendFederationLoadOptions,
+  BackendFederationIdentityLoadOptions as UniversalBackendFederationIdentityLoadOptions,
+} from './types';
+import { normalizeExpose } from './utils';
+
+export {
+  type BackendFederationEdgeLoadEntryPlugin,
+  type BackendFederationEdgeLoadEntryPluginOptions,
+  type BackendFederationEdgeRemote,
+  type BackendFederationEdgeRuntime,
+  type BackendFederationEdgeRuntimeOptions,
+  createBackendFederationLoadEntryPlugin,
+  createBackendFederationRuntime,
+} from './edge-runtime';
+export {
+  type BackendFederationExpectedIdentity,
+  type BackendFederationIdentityIssue,
+  validateExpectedBackendFederationIdentity,
+} from './identity';
+export type {
+  BackendFederatedEffectApiModule,
+  BackendFederationEntryExports,
 } from './types';
 
-type EdgeBackendFederationLoadOptions = Omit<
+export {
+  BACKEND_FEDERATION_CONTRACT_VERSION,
+  BACKEND_FEDERATION_EFFECT_EXPOSE,
+  BACKEND_FEDERATION_MANIFEST_FILE,
+  BACKEND_FEDERATION_NODE_ADAPTER_VERSION,
+};
+
+export type BackendFederationRemote = BackendFederationEdgeRemote;
+export type BackendFederationRuntimeOptions =
+  BackendFederationEdgeRuntimeOptions;
+export type BackendFederationLoadEntryPluginOptions =
+  BackendFederationEdgeLoadEntryPluginOptions;
+
+export type EdgeBackendFederationLoadOptions = Omit<
   BackendFederationLoadOptions,
-  'entryPolicy' | 'runtime'
+  'entryPolicy' | 'plugins' | 'remote' | 'remotes' | 'runtime'
 > & {
   entryPolicy?: never;
+  plugins?: BackendFederationEdgeLoadEntryPlugin[];
+  remote?: BackendFederationEdgeRemote;
+  remotes?: BackendFederationEdgeRemote[];
   runtime?: never;
 };
 
-type EdgeBackendFederationIdentityLoadOptions = Omit<
-  BackendFederationIdentityLoadOptions,
-  'entryPolicy' | 'runtime'
+export type EdgeBackendFederationIdentityLoadOptions = Omit<
+  UniversalBackendFederationIdentityLoadOptions,
+  'entryPolicy' | 'plugins' | 'remote' | 'remotes' | 'runtime'
 > & {
   entryPolicy?: never;
+  plugins?: BackendFederationEdgeLoadEntryPlugin[];
+  remote?: BackendFederationEdgeRemote;
+  remotes?: BackendFederationEdgeRemote[];
   runtime?: never;
 };
 
-const isStaticBindingEntry = (entry: string) =>
-  /^(?:binding|service|static):/u.test(entry);
+export type BackendFederationIdentityLoadOptions =
+  EdgeBackendFederationIdentityLoadOptions;
 
 export function loadBackendFederatedEffectApi(
   options: EdgeBackendFederationIdentityLoadOptions,
@@ -48,19 +100,29 @@ export function loadBackendFederatedEffectApi(
       ),
     );
   }
-  const remotes = [
-    ...(options.remotes ?? []),
-    ...(options.remote ? [options.remote] : []),
-  ];
-  const unsupportedRemote = remotes.find(
-    remote => !isStaticBindingEntry(remote.entry),
-  );
-  if (unsupportedRemote !== undefined) {
+
+  const remoteName = options.remote?.name ?? options.remoteName;
+  if (remoteName === undefined || remoteName.length === 0) {
     return Promise.reject(
-      new Error(
-        `[BFF][Effect] Edge backend federation remote ${unsupportedRemote.name} must use static or service-binding entries.`,
-      ),
+      new Error('[BFF][Effect] Missing backend federation remote name.'),
     );
   }
-  return loadUniversalBackendFederatedEffectApi(options);
+
+  if (options.expected === undefined) {
+    console.warn(LEGACY_LOAD_WARNING);
+  }
+
+  const expose =
+    options.expose ??
+    options.remote?.expose ??
+    BACKEND_FEDERATION_EFFECT_EXPOSE;
+  const remoteRequest = `${remoteName}/${normalizeExpose(expose)}`;
+
+  let runtime;
+  try {
+    runtime = createBackendFederationRuntimeForLoad(options);
+  } catch (error) {
+    return Promise.reject(error);
+  }
+  return runtime.loadRemote(remoteRequest);
 }

@@ -1,14 +1,14 @@
 // @effect-diagnostics asyncFunction:off nodeBuiltinImport:off strictBooleanExpressions:off
 import { type GenClientOptions, generateClient } from '@modern-js/bff-core';
+import {
+  generateEffectClientCode,
+  resolveEffectEntryFile,
+  generateEffectWorkerRuntimeWrapper as workerWrapper,
+} from '@modern-js/plugin-bff-extensions/effect-source-loader';
 import type { HttpMethodDecider } from '@modern-js/types';
 import { logger } from '@modern-js/utils';
 import type { Rspack } from '@rsbuild/core';
 import path from 'path';
-import { generateEffectWorkerRuntimeWrapper as workerWrapper } from './utils/effect-worker-runtime-wrapper';
-import {
-  generateEffectClientCode,
-  resolveEffectEntryFile,
-} from './utils/effectClientGenerator';
 
 const EFFECT_BFF_WORKER_RUNTIME_QUERY = 'modern-bff-runtime';
 const EFFECT_BFF_WORKER_RUNTIME_SOURCE_QUERY = 'modern-bff-runtime-source';
@@ -25,6 +25,7 @@ export type APILoaderOptions = {
   port: number;
   fetcher?: string;
   requestCreator?: string;
+  requestId?: string;
   target: string;
   httpMethodDecider?: HttpMethodDecider;
   bffRuntimeFramework?: 'hono' | 'effect';
@@ -50,7 +51,7 @@ async function transformEffectRuntimeSource(source: string, filename: string) {
         syntax: 'typescript',
         tsx: filename.endsWith('.tsx') || filename.endsWith('.jsx'),
       },
-      target: 'es2022',
+      target: 'es2024',
     },
     module: {
       type: 'es6',
@@ -115,6 +116,7 @@ async function loader(
         : draftOptions.prefix) as string,
       port: Number(draftOptions.port),
       target: draftOptions.target,
+      requestId: draftOptions.requestId,
       requestCreator: draftOptions.requestCreator,
       httpMethodDecider: draftOptions.httpMethodDecider,
       dataPlatformBatch: draftOptions.effectDataPlatformBatch,

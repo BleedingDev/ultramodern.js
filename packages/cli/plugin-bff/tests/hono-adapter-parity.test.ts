@@ -10,7 +10,6 @@
 import { resolveCrossProjectPolicy } from '@modern-js/bff-core';
 import {
   Hono,
-  type MiddlewareHandler,
   type ServerMiddleware,
   type ServerPluginAPI,
 } from '@modern-js/server-core';
@@ -21,35 +20,32 @@ import {
   createParityBffConfig,
   type ParityHttpResponse,
 } from '../../../server/bff-core/src/adapter-kit/parity';
+import { createHonoCrossProjectPolicyMiddleware } from '../../plugin-bff-extensions/src/hono/cross-project-policy';
 import { HonoAdapter } from '../src/runtime/hono/adapter';
 import createHonoRoutes from '../src/utils/createHonoRoutes';
-import { checkCrossProjectPolicyResponse } from '../src/utils/crossProjectServerPolicy';
 
 function createParityApp(policyEnabled: boolean) {
   const app = new Hono();
   const handlerInfos = createParityApiHandlerInfos();
 
-  if (policyEnabled) {
-    const bffConfig = createParityBffConfig();
-    const policy = resolveCrossProjectPolicy({
-      crossProjectPolicy: bffConfig.crossProjectPolicy,
-      handlers: handlerInfos,
-      requestId: bffConfig.requestId,
-    });
-    const policyMiddleware: MiddlewareHandler = async (c, next) => {
-      const denial = checkCrossProjectPolicyResponse(c.req.header(), policy);
-      if (denial) {
-        return denial;
-      }
-      await next();
-    };
-    app.all('*', policyMiddleware);
-  }
+  const bffConfig = createParityBffConfig();
+  const policy = policyEnabled
+    ? resolveCrossProjectPolicy({
+        crossProjectPolicy: bffConfig.crossProjectPolicy,
+        handlers: handlerInfos,
+        requestId: bffConfig.requestId,
+      })
+    : undefined;
 
   for (const route of createHonoRoutes(handlerInfos)) {
     const handlers = Array.isArray(route.handler)
       ? route.handler
       : [route.handler];
+    if (policy) {
+      handlers.unshift(
+        createHonoCrossProjectPolicyMiddleware(policy, route.path),
+      );
+    }
     (
       app as unknown as Record<
         string,
@@ -99,6 +95,25 @@ describe('hono adapter parity (bff-core scenario table)', () => {
       assertParityResult(scenario, await toParityHttpResponse(response));
     });
   }
+
+  test('accepts policy-enabled startup before handlers are discovered', async () => {
+    const adapter = new HonoAdapter({
+      getServerContext: () => ({
+        apiHandlerInfos: undefined,
+        bffRuntimeFramework: 'hono',
+        middlewares: [],
+      }),
+      getServerConfig: () => ({
+        bff: {
+          crossProjectPolicy: { enabled: true },
+          isCrossProjectServer: true,
+        },
+      }),
+    } as unknown as ServerPluginAPI);
+
+    await expect(adapter.setHandlers()).resolves.toBeUndefined();
+    expect(adapter.apiMiddleware).toEqual([]);
+  });
 
   test('returns safe failure when Retry-After value is invalid', async () => {
     const middlewares: ServerMiddleware[] = [];

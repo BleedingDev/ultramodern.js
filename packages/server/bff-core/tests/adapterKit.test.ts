@@ -195,7 +195,7 @@ describe('adapter-kit policy check', () => {
 });
 
 describe('adapter-kit parity table', () => {
-  test('defines unique scenarios and covers every strict policy denial', () => {
+  test('defines unique scenarios and covers every adapter-observable strict policy denial', () => {
     const scenarios = createAdapterParityScenarios();
     const names = scenarios.map(scenario => scenario.name);
     expect(new Set(names).size).toBe(names.length);
@@ -231,14 +231,13 @@ describe('adapter-kit parity table', () => {
         'operation_context_mismatch',
         'operation_schema_hash_mismatch',
         'operation_version_mismatch',
-        'unknown_operation_contract',
       ].sort(),
     );
   });
 
   test('builds strict policy config and fixture handlers for adapter tests', () => {
     expect(createParityBffConfig()).toEqual({
-      requestId: 'crm',
+      requestId: 'crm.producer-a',
       crossProjectPolicy: {
         enabled: true,
         allowedNamespaces: ['crm'],

@@ -143,7 +143,7 @@ function resolveClassifiedEffectBffModuleHandler(
 
   if (facts.api !== undefined && facts.hasRuntimeLayer) {
     options.onWarning?.(
-      '[BFF][Effect] Detected { api, layer } export without createHandler. Prefer `defineEffectBff(...)` from @modern-js/plugin-bff/server to avoid module instance mismatch.',
+      '[BFF][Effect] Detected { api, layer } export without createHandler. Prefer `defineEffectBff(...)` from @modern-js/bff-effect/effect to avoid module instance mismatch.',
     );
     const webHandler = createHttpApiHandler({
       api: facts.api as HttpApi.Top,

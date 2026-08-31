@@ -7,12 +7,11 @@ import {
   resolveCrossProjectPolicy,
 } from '@modern-js/bff-core';
 import type { ServerPluginAPI } from '@modern-js/server-core';
-
+import { resolveAdapterCrossProjectPolicy } from '../src/cross-project-policy';
 import {
   checkCrossProjectPolicyForRequest,
   checkCrossProjectPolicyResponse,
-  resolveAdapterCrossProjectPolicy,
-} from '../src/cross-project-policy';
+} from '../src/cross-project-policy/evaluation';
 
 const REQUEST_ID = 'crm.producer-a';
 const handlers = [

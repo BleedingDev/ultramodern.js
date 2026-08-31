@@ -4,8 +4,8 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { createOperationContractHash } from '@modern-js/bff-core';
+import { generateEffectClient } from '@modern-js/plugin-bff-extensions/client-generator';
 import { build } from 'esbuild';
-import { generateEffectClient } from '../src/utils/effectClientGenerator';
 
 const execFileAsync = promisify(execFile);
 const fixtureRequire = createRequire(import.meta.url);

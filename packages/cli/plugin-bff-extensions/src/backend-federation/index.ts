@@ -12,8 +12,6 @@ export {
   type BackendFederationIdentityIssue,
   validateExpectedBackendFederationIdentity,
 } from './identity';
-export { loadBackendFederatedEffectApi } from './load';
-
 export { createBackendFederationLoadEntryPlugin } from './plugin';
 export { createBackendFederationRuntime } from './runtime';
 export type {

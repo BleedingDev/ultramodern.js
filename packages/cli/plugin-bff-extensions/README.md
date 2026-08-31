@@ -11,18 +11,19 @@ upstream Modern.js project.
 
 ## Entry points
 
-- `@modern-js/plugin-bff-extensions` and `/hono` expose the peer-independent
-  Hono cross-project-policy middleware.
+- `/hono` exposes the peer-independent Hono route binder.
 - `/cross-project-policy`, `/effect-adapter`, `/effect-source-loader`, and
   `/client-generator` expose Node tooling and server integration.
+- `/cross-project-generation` renders the generated producer client runtime
+  consumed by `@modern-js/plugin-bff`.
 - `/backend-federation` exposes the portable federation runtime, while
   `/backend-federation/edge` rejects Node evaluators and non-binding remotes.
 - `/backend-federation/node` enables the hardened Node entry evaluator.
-- `/backend-federation-manifest` exposes manifest resolution, while
+- `/backend-federation-manifest` exposes manifest contracts and resolution,
+  while
   `/backend-federation-manifest/node` enables its hardened Node evaluator.
 
 Effect and its OpenTelemetry integration are exact-cohort optional peers. A
-Hono-only consumer can import the package root or `/hono` without installing
-Effect.
+Hono-only consumer can import `/hono` without installing Effect.
 
 There is deliberately no adapter-kit or re-export-only compatibility layer.

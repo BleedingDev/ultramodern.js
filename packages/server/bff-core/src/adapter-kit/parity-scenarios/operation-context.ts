@@ -135,21 +135,6 @@ export const createOperationContextDenialScenarios = ({
     },
   ),
   deniedScenario(
-    'policy denies unknown operation contract',
-    'unknown_operation_contract',
-    {
-      'x-modernjs-bff-envelope': validEnvelope,
-      'x-operation-id': validOperationId,
-      'x-modernjs-bff-operation-context': detailHeader({
-        requestId: PARITY_PRODUCER_REQUEST_ID,
-        method: 'GET',
-        routePath: '/does-not-exist',
-        schemaHash: helloContract.schemaHash,
-        operationVersion: helloContract.operationVersion,
-      }),
-    },
-  ),
-  deniedScenario(
     'policy denies operation schema hash mismatch',
     'operation_schema_hash_mismatch',
     {

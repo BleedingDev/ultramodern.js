@@ -68,10 +68,6 @@ const sourceLoaders = {
     target: './src/effect/edge.ts',
     load: () => import('../src/effect/edge'),
   },
-  './effect-edge/dispatcher': {
-    target: './src/effect/edge-dispatcher.ts',
-    load: () => import('../src/effect/edge-dispatcher'),
-  },
   './effect-client': {
     target: './src/effect-client/index.ts',
     load: () => import('../src/effect-client'),

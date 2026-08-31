@@ -26,7 +26,7 @@ type PackageManifest = {
   files: string[];
   homepage: string;
   keywords: string[];
-  main: string;
+  main?: string;
   peerDependencies: Record<string, string>;
   peerDependenciesMeta: Record<string, { optional?: boolean }>;
   publishConfig: Record<string, string>;
@@ -37,7 +37,7 @@ type PackageManifest = {
   };
   scripts: Record<string, string>;
   sideEffects: boolean;
-  types: string;
+  types?: string;
   typesVersions: Record<string, Record<string, string[]>>;
 };
 
@@ -48,10 +48,6 @@ const packageManifest = JSON.parse(
 ) as PackageManifest;
 
 const sourceLoaders = {
-  '.': {
-    target: './src/index.ts',
-    load: () => import('../src/index'),
-  },
   './hono': {
     target: './src/hono/index.ts',
     load: () => import('../src/hono'),
@@ -59,6 +55,10 @@ const sourceLoaders = {
   './cross-project-policy': {
     target: './src/cross-project-policy/index.ts',
     load: () => import('../src/cross-project-policy'),
+  },
+  './cross-project-generation': {
+    target: './src/cross-project-generation/index.ts',
+    load: () => import('../src/cross-project-generation'),
   },
   './effect-adapter': {
     target: './src/effect-adapter/index.ts',
@@ -98,7 +98,6 @@ const publicSubpaths = Object.keys(sourceLoaders) as Array<
   keyof typeof sourceLoaders
 >;
 const webSubpaths = new Set<keyof typeof sourceLoaders>([
-  '.',
   './hono',
   './backend-federation',
   './backend-federation/edge',
@@ -135,14 +134,13 @@ describe('@modern-js/plugin-bff-extensions package surface', () => {
     });
     expect(packageManifest.keywords).toContain('ultramodern.js');
     expect(packageManifest.files).toEqual(['dist', 'src']);
-    expect(packageManifest.types).toBe('./dist/types/index.d.ts');
-    expect(packageManifest.main).toBe('./dist/cjs/index.js');
+    expect(packageManifest.types).toBeUndefined();
+    expect(packageManifest.main).toBeUndefined();
     expect(packageManifest.sideEffects).toBe(false);
     expect(packageManifest.engines).toEqual({ node: '>=26.7.0' });
     expect(packageManifest.publishConfig).toEqual({
       registry: 'https://registry.npmjs.org/',
       access: 'public',
-      types: './dist/types/index.d.ts',
     });
     expect(packageManifest.scripts).toMatchObject({
       build: 'rslib build',
@@ -163,7 +161,6 @@ describe('@modern-js/plugin-bff-extensions package surface', () => {
         '@modern-js/types',
         '@modern-js/utils',
         '@module-federation/runtime',
-        '@swc/helpers',
         'esbuild',
       ].sort(),
     );
@@ -189,17 +186,55 @@ describe('@modern-js/plugin-bff-extensions package surface', () => {
       });
     }
 
-    const honoRoot = readFileSync(
-      path.join(packageRoot, 'src/index.ts'),
-      'utf8',
-    );
     const honoEntry = readFileSync(
       path.join(packageRoot, 'src/hono/index.ts'),
       'utf8',
     );
-    expect(`${honoRoot}\n${honoEntry}`).not.toMatch(
-      /(?:^|[/'"])(?:effect)(?:[/'"]|$)/u,
+    expect(honoEntry).not.toMatch(/(?:^|[/'"])(?:effect)(?:[/'"]|$)/u);
+  });
+
+  test('loads built Hono exports without resolving optional Effect peers', () => {
+    const conditions = conditionsFor('./hono');
+    const esmEntries = [conditions.node.import, conditions.import].map(
+      entry => pathToFileURL(path.resolve(packageRoot, entry!)).href,
     );
+    const cjsEntries = [path.resolve(packageRoot, conditions.node.require)];
+    const script = `
+      import { createRequire, registerHooks } from 'node:module';
+
+      const optionalEffectPeers = ['effect', '@effect/opentelemetry'];
+      registerHooks({
+        resolve(specifier, context, nextResolve) {
+          const forbiddenPeer = optionalEffectPeers.find(
+            peer => specifier === peer || specifier.startsWith(peer + '/'),
+          );
+          if (forbiddenPeer) {
+            throw new Error('built Hono surface resolved optional peer: ' + specifier);
+          }
+          return nextResolve(specifier, context);
+        },
+      });
+
+      for (const entry of ${JSON.stringify(esmEntries)}) {
+        await import(entry);
+      }
+
+      const require = createRequire(import.meta.url);
+      for (const entry of ${JSON.stringify(cjsEntries)}) {
+        require(entry);
+      }
+    `;
+    const result = spawnSync(
+      process.execPath,
+      ['--input-type=module', '-e', script],
+      {
+        cwd: packageRoot,
+        encoding: 'utf8',
+      },
+    );
+
+    expect(result.status, result.stderr || result.stdout).toBe(0);
+    expect(result.signal).toBeNull();
   });
 
   test('loads every declared CJS, ESM, and modern:source export', async () => {
@@ -247,6 +282,51 @@ describe('@modern-js/plugin-bff-extensions package surface', () => {
     }
   });
 
+  test('publishes semantic entry points without convenience-only APIs', async () => {
+    expect(packageManifest.exports['.']).toBeUndefined();
+    expect(packageManifest.typesVersions['*']['.']).toBeUndefined();
+    expect(existsSync(path.join(packageRoot, 'src/index.ts'))).toBe(false);
+
+    expect(Object.keys(await sourceLoaders['./hono'].load()).sort()).toEqual([
+      'bindHonoRouteHandlers',
+    ]);
+    expect(
+      Object.keys(await sourceLoaders['./cross-project-policy'].load()).sort(),
+    ).toEqual(['resolveAdapterCrossProjectPolicy']);
+    expect(
+      Object.keys(await sourceLoaders['./effect-source-loader'].load()).sort(),
+    ).toEqual([
+      'bundleEffectEntryForNode',
+      'generateEffectClientCode',
+      'generateEffectWorkerRuntimeWrapper',
+      'resolveEffectEntryFile',
+    ]);
+    expect(
+      Object.keys(await sourceLoaders['./backend-federation'].load()).sort(),
+    ).toEqual(
+      [
+        'BACKEND_FEDERATION_CONTRACT_VERSION',
+        'BACKEND_FEDERATION_EFFECT_EXPOSE',
+        'BACKEND_FEDERATION_MANIFEST_FILE',
+        'BACKEND_FEDERATION_NODE_ADAPTER_VERSION',
+        'createBackendFederationLoadEntryPlugin',
+        'createBackendFederationRuntime',
+        'validateExpectedBackendFederationIdentity',
+      ].sort(),
+    );
+    expect(
+      Object.keys(
+        await sourceLoaders['./backend-federation-manifest'].load(),
+      ).sort(),
+    ).toEqual(
+      [
+        'BackendFederationManifestAdapterError',
+        'loadBackendFederationManifest',
+        'resolveBackendFederationRemoteFromManifest',
+      ].sort(),
+    );
+  });
+
   test('keeps the built edge federation cone free of Node evaluators', async () => {
     const edgeEntry = path.join(
       packageRoot,
@@ -268,7 +348,10 @@ describe('@modern-js/plugin-bff-extensions package surface', () => {
       /\bcreateRequire\b/u,
       /\bnew Function\b/u,
       /\beval\s*\(/u,
+      /\bModuleFederation\b/u,
+      /@module-federation\/runtime/u,
       /evaluateNodeBackendFederationCommonJs/u,
+      /loadBackendFederationExpose/u,
       /backend-federation-security\/node/u,
     ]) {
       expect(output).not.toMatch(forbidden);

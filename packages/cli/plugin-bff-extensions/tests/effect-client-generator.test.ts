@@ -5,7 +5,10 @@ import path from 'node:path';
 import { createOperationContractHash } from '@modern-js/bff-core';
 import { build } from 'esbuild';
 import * as clientGeneratorSurface from '../src/client-generator';
-import { generateEffectClient } from '../src/client-generator';
+import {
+  generateEffectClient,
+  resolveEffectEntryFile,
+} from '../src/client-generator';
 import * as sourceLoaderSurface from '../src/effect-source-loader';
 import { generateEffectWorkerRuntimeWrapper } from '../src/effect-source-loader';
 
@@ -91,7 +94,7 @@ async function executeGeneratedClient(code: string) {
 }
 
 describe('Effect client generation', () => {
-  test('keeps the two substantive Node tooling surfaces minimal', () => {
+  test('keeps the two substantive Node tooling surfaces explicit', () => {
     expect(Object.keys(clientGeneratorSurface).sort()).toEqual([
       'generateEffectClient',
       'generateEffectClientCode',
@@ -99,10 +102,28 @@ describe('Effect client generation', () => {
     ]);
     expect(Object.keys(sourceLoaderSurface).sort()).toEqual([
       'bundleEffectEntryForNode',
+      'generateEffectClientCode',
       'generateEffectWorkerRuntimeWrapper',
-      'loadEffectBuiltModule',
-      'loadEffectSourceModule',
+      'resolveEffectEntryFile',
     ]);
+  });
+
+  test('normalizes a missing Effect entry to undefined', async () => {
+    const appDir = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), 'modern-bff-effect-entry-'),
+    );
+    const apiDir = path.join(appDir, 'api');
+
+    try {
+      await fs.promises.mkdir(apiDir, { recursive: true });
+      expect(resolveEffectEntryFile({ apiDir, appDir })).toBeUndefined();
+
+      const entry = path.join(apiDir, 'index.ts');
+      await fs.promises.writeFile(entry, 'export const value = true;');
+      expect(resolveEffectEntryFile({ apiDir, appDir })).toBe(entry);
+    } finally {
+      await fs.promises.rm(appDir, { recursive: true, force: true });
+    }
   });
 
   test('generates exact public compatibility imports, endpoint types, and operation contracts', async () => {

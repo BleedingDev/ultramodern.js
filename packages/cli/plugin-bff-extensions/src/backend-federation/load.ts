@@ -2,11 +2,8 @@ import { BACKEND_FEDERATION_EFFECT_EXPOSE } from '@modern-js/utils/universal';
 import * as Effect from 'effect/Effect';
 import * as Logger from 'effect/Logger';
 
-import {
-  type BackendFederationExpectedIdentity,
-  formatBackendFederationIdentityIssues,
-  validateExpectedBackendFederationIdentity,
-} from './identity';
+import { type BackendFederationExpectedIdentity } from './identity';
+import { LEGACY_LOAD_WARNING } from './legacy-warning';
 import { collectRemotes } from './remotes';
 import { createBackendFederationRuntime } from './runtime';
 import type {
@@ -14,10 +11,9 @@ import type {
   BackendFederationIdentityLoadOptions,
   BackendFederationLoadOptions,
 } from './types';
-import { isRecord, normalizeExpose } from './utils';
+import { normalizeExpose } from './utils';
+import { validateLoadedBackendFederatedEffectApi } from './validate-loaded';
 
-const LEGACY_LOAD_WARNING =
-  '[BFF][Effect] loadBackendFederatedEffectApi was called without an expected delivery-unit identity (expected.unitId + expected.buildMarker). Identity-less public backend loads are deprecated (ADR-0019/MV-G23) and will be rejected in a future major.';
 const legacyWarningLogger = Logger.withLeveledConsole(Logger.formatLogFmt);
 
 function warnLegacyLoad() {
@@ -95,60 +91,12 @@ export function loadBackendFederatedEffectApi(
     options.remote?.expose ??
     BACKEND_FEDERATION_EFFECT_EXPOSE;
   const remoteRequest = `${remoteName}/${normalizeExpose(expose)}`;
-  return runtime.loadRemote(remoteRequest).then(loaded => {
-    if (!isRecord(loaded)) {
-      throw new Error(
-        `[BFF][Effect] Backend federation expose ${remoteRequest} must load an object module.`,
-      );
-    }
-
-    const backendContract = loaded.backendFederationContract;
-    if (
-      !isRecord(backendContract) ||
-      backendContract.strictEffectApproach !== true
-    ) {
-      throw new Error(
-        `[BFF][Effect] Backend federation expose ${remoteRequest} must expose strict Effect metadata (strictEffectApproach: true).`,
-      );
-    }
-
-    if (backendContract.runtimeFramework !== 'effect') {
-      throw new Error(
-        `[BFF][Effect] Backend federation expose ${remoteRequest} must expose strict Effect metadata (runtimeFramework: "effect").`,
-      );
-    }
-
-    if (
-      typeof backendContract.name === 'string' &&
-      backendContract.name !== remoteName
-    ) {
-      throw new Error(
-        `[BFF][Effect] Backend federation expose ${remoteRequest} metadata name mismatch: expected ${remoteName}, received ${backendContract.name}.`,
-      );
-    }
-
-    if (!('runtime' in loaded)) {
-      throw new Error(
-        `[BFF][Effect] Backend federation expose ${remoteRequest} must expose api and runtime.`,
-      );
-    }
-
-    if (options.expected !== undefined) {
-      const issues = validateExpectedBackendFederationIdentity(
-        loaded,
-        options.expected,
-        {
-          allowMissingIdentityMetadata:
-            options.allowMissingIdentityMetadata === true,
-        },
-      );
-      if (issues.length > 0) {
-        throw new Error(
-          `[BFF][Effect] Backend federation expose ${remoteRequest} delivery-unit identity mismatch: ${formatBackendFederationIdentityIssues(issues)}.`,
-        );
-      }
-    }
-
-    return loaded;
-  });
+  return runtime.loadRemote(remoteRequest).then(loaded =>
+    validateLoadedBackendFederatedEffectApi(loaded, {
+      allowMissingIdentityMetadata: options.allowMissingIdentityMetadata,
+      expected: options.expected,
+      remoteName,
+      remoteRequest,
+    }),
+  );
 }

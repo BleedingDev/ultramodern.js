@@ -3,11 +3,6 @@ import { type GenClientOptions, generateClient } from '@modern-js/bff-core';
 import type { HttpMethodDecider } from '@modern-js/types';
 import { fs, logger } from '@modern-js/utils';
 import path from 'path';
-import type { GeneratedEffectClientArtifacts } from '../effect-client-generator/types';
-import {
-  generateEffectClient,
-  resolveEffectEntryFile,
-} from '../effectClientGenerator';
 import {
   CLIENT_DIR,
   createFileDetails,
@@ -76,7 +71,11 @@ export async function clientGenerator(draftOptions: APILoaderOptions) {
       )
     : [];
   const generatedSourceList = [...lambdaSourceList];
-  let generatedEffectClient: GeneratedEffectClientArtifacts | null = null;
+  let generatedEffectClient = null as Awaited<
+    ReturnType<
+      typeof import('@modern-js/plugin-bff-extensions/client-generator')['generateEffectClient']
+    >
+  >;
 
   const getClitentCode = async (resourcePath: string, source: string) => {
     const warning = `The file ${resourcePath} is not allowed to be imported in src directory, only API definition files are allowed.`;
@@ -152,6 +151,9 @@ export async function clientGenerator(draftOptions: APILoaderOptions) {
     }
 
     if (draftOptions.bffRuntimeFramework === 'effect') {
+      const { generateEffectClient, resolveEffectEntryFile } = await import(
+        '@modern-js/plugin-bff-extensions/client-generator'
+      );
       const effectEntryFile = resolveEffectEntryFile({
         appDir: draftOptions.appDir,
         apiDir: draftOptions.apiDir,

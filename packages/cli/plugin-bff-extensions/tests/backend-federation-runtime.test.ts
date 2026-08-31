@@ -7,12 +7,16 @@ import { pathToFileURL } from 'node:url';
 import {
   BACKEND_FEDERATION_CONTRACT_VERSION,
   BACKEND_FEDERATION_NODE_ADAPTER_VERSION,
-  type BackendFederationEntryExports,
-  type BackendFederationRemote,
   createBackendFederationLoadEntryPlugin,
   createBackendFederationRuntime,
 } from '../src/backend-federation';
-import { loadBackendFederatedEffectApi as loadEdgeBackendFederatedEffectApi } from '../src/backend-federation/edge';
+import {
+  type BackendFederationEntryExports,
+  type BackendFederationRemote,
+  createBackendFederationLoadEntryPlugin as createEdgeBackendFederationLoadEntryPlugin,
+  createBackendFederationRuntime as createEdgeBackendFederationRuntime,
+  loadBackendFederatedEffectApi as loadEdgeBackendFederatedEffectApi,
+} from '../src/backend-federation/edge';
 import { loadBackendFederatedEffectApi } from '../src/backend-federation/node';
 import {
   BackendFederationManifestAdapterError,
@@ -170,6 +174,27 @@ function createVerifiedBackendManifest(
 }
 
 describe('backend federation runtime', () => {
+  test('preserves the published edge-safe backend federation namespace', async () => {
+    const edgeNamespace = await import('../src/backend-federation/edge');
+
+    expect(Object.keys(edgeNamespace).sort()).toEqual([
+      'BACKEND_FEDERATION_CONTRACT_VERSION',
+      'BACKEND_FEDERATION_EFFECT_EXPOSE',
+      'BACKEND_FEDERATION_MANIFEST_FILE',
+      'BACKEND_FEDERATION_NODE_ADAPTER_VERSION',
+      'createBackendFederationLoadEntryPlugin',
+      'createBackendFederationRuntime',
+      'loadBackendFederatedEffectApi',
+      'validateExpectedBackendFederationIdentity',
+    ]);
+    expect(edgeNamespace).not.toHaveProperty(
+      'loadBackendFederatedEffectApiFromManifest',
+    );
+    expect(edgeNamespace).not.toHaveProperty(
+      'evaluateNodeBackendFederationCommonJs',
+    );
+  });
+
   test('rejects unverified network entries without an integrity record', async () => {
     await expect(
       loadBackendFederatedEffectApi({
@@ -555,14 +580,22 @@ module.exports = {
     };
     const resolvedRemotes: BackendFederationRemote[] = [];
     const loaded = await loadEdgeBackendFederatedEffectApi({
+      expected: {
+        buildMarker: 'checkout-build-7',
+        unitId: 'checkout@7',
+      },
       hostName: 'cloudflareWorkerBackendHost',
       remote,
       plugins: [
-        createBackendFederationLoadEntryPlugin({
+        createEdgeBackendFederationLoadEntryPlugin({
           resolveEntry(resolvedRemote) {
             resolvedRemotes.push(resolvedRemote);
             return createEffectApiEntryExports({
               backendFederationContract: {
+                compatibility: {
+                  build: 'checkout-build-7',
+                  unitId: 'checkout@7',
+                },
                 runtimeFramework: 'effect',
                 strictEffectApproach: true,
               },
@@ -581,6 +614,246 @@ module.exports = {
       }),
     ]);
     expect(loaded.runtime).toEqual({ brand: 'defineEffectBff-runtime' });
+  });
+
+  test('loads a static edge entry from its configured global name', async () => {
+    const globalName = '__verticalCheckoutStaticBackend';
+    (globalThis as Record<string, unknown>)[globalName] =
+      createEffectApiEntryExports({
+        backendFederationContract: {
+          compatibility: {
+            build: 'checkout-build-7',
+            unitId: 'checkout@7',
+          },
+          runtimeFramework: 'effect',
+          strictEffectApproach: true,
+        },
+        runtime: { brand: 'static-global-runtime' },
+      });
+
+    try {
+      const loaded = await loadEdgeBackendFederatedEffectApi({
+        expected: {
+          buildMarker: 'checkout-build-7',
+          unitId: 'checkout@7',
+        },
+        hostName: 'cloudflareStaticBackendHost',
+        remote: {
+          entry: 'static:verticalCheckoutBackend',
+          entryGlobalName: globalName,
+          name: 'verticalCheckoutBackend',
+          type: 'module',
+        },
+      });
+
+      expect(loaded.runtime).toEqual({ brand: 'static-global-runtime' });
+    } finally {
+      delete (globalThis as Record<string, unknown>)[globalName];
+    }
+  });
+
+  test('fails closed when a configured static edge entry global is missing', async () => {
+    const globalName = '__missingVerticalCheckoutStaticBackend';
+    delete (globalThis as Record<string, unknown>)[globalName];
+
+    await expect(
+      loadEdgeBackendFederatedEffectApi({
+        expected: {
+          buildMarker: 'checkout-build-7',
+          unitId: 'checkout@7',
+        },
+        hostName: 'cloudflareStaticBackendHost',
+        remote: {
+          entry: 'static:verticalCheckoutBackend',
+          entryGlobalName: globalName,
+          name: 'verticalCheckoutBackend',
+          type: 'module',
+        },
+      }),
+    ).rejects.toThrow(
+      `Missing static backend federation entry global ${globalName}`,
+    );
+  });
+
+  test('keeps the exported edge runtime constrained to binding providers', async () => {
+    let providerCalls = 0;
+    const runtime = createEdgeBackendFederationRuntime({
+      expected: {
+        buildMarker: 'checkout-build-7',
+        unitId: 'checkout@7',
+      },
+      hostName: 'cloudflareWorkerBackendHost',
+      plugins: [
+        createEdgeBackendFederationLoadEntryPlugin({
+          resolveEntry() {
+            providerCalls += 1;
+            return createEffectApiEntryExports({ runtime: { edge: true } });
+          },
+        }),
+      ],
+      remote: {
+        entry: 'https://checkout.example.test/backendRemoteEntry.mjs',
+        name: 'verticalCheckoutBackend',
+        type: 'module',
+      },
+    });
+
+    await expect(
+      runtime.loadRemote('verticalCheckoutBackend/effect-api'),
+    ).rejects.toThrow(/static or service-binding entries/u);
+    expect(providerCalls).toBe(0);
+  });
+
+  test('rejects a missing identity before the exported edge runtime can load', () => {
+    let providerCalls = 0;
+    const invalidOptions = {
+      hostName: 'cloudflareWorkerBackendHost',
+      plugins: [
+        createEdgeBackendFederationLoadEntryPlugin({
+          resolveEntry() {
+            providerCalls += 1;
+            return createEffectApiEntryExports({ runtime: {} });
+          },
+        }),
+      ],
+      remote: {
+        entry: 'binding:verticalCheckoutBackend',
+        name: 'verticalCheckoutBackend',
+      },
+    } as unknown as Parameters<typeof createEdgeBackendFederationRuntime>[0];
+
+    expect(() => createEdgeBackendFederationRuntime(invalidOptions)).toThrow(
+      /requires expected\.unitId and expected\.buildMarker/u,
+    );
+    expect(providerCalls).toBe(0);
+  });
+
+  test('initializes one edge binding container once across repeated exposes', async () => {
+    let providerCalls = 0;
+    const initCalls: unknown[][] = [];
+    const getCalls: string[] = [];
+    const runtime = createEdgeBackendFederationRuntime({
+      expected: {
+        buildMarker: 'checkout-build-7',
+        unitId: 'checkout@7',
+      },
+      hostName: 'cloudflareWorkerBackendHost',
+      plugins: [
+        createEdgeBackendFederationLoadEntryPlugin({
+          resolveEntry() {
+            providerCalls += 1;
+            return {
+              get(id) {
+                getCalls.push(id);
+                return () => ({
+                  backendFederationContract: {
+                    compatibility: {
+                      build: 'checkout-build-7',
+                      unitId: 'checkout@7',
+                    },
+                    runtimeFramework: 'effect',
+                    strictEffectApproach: true,
+                  },
+                  expose: id,
+                  runtime: { brand: 'defineEffectBff-runtime' },
+                });
+              },
+              init(...args) {
+                initCalls.push(args);
+              },
+            };
+          },
+        }),
+      ],
+      remote: {
+        entry: 'binding:verticalCheckoutBackend',
+        name: 'verticalCheckoutBackend',
+        type: 'module',
+      },
+    });
+
+    const [first, repeated, secondExpose] = await Promise.all([
+      runtime.loadRemote<{ expose: string }>(
+        'verticalCheckoutBackend/effect-api',
+      ),
+      runtime.loadRemote<{ expose: string }>(
+        'verticalCheckoutBackend/effect-api',
+      ),
+      runtime.loadRemote<{ expose: string }>('verticalCheckoutBackend/health'),
+    ]);
+
+    expect(first).toBe(repeated);
+    expect(secondExpose).toEqual(
+      expect.objectContaining({ expose: './health' }),
+    );
+    expect(providerCalls).toBe(1);
+    expect(initCalls).toEqual([[{ hostName: 'cloudflareWorkerBackendHost' }]]);
+    expect(getCalls).toEqual(['./effect-api', './health']);
+  });
+
+  test('preserves the identity-less edge load deprecation warning', async () => {
+    const warnSpy = rstest.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      await loadEdgeBackendFederatedEffectApi({
+        hostName: 'cloudflareWorkerBackendHost',
+        plugins: [
+          createEdgeBackendFederationLoadEntryPlugin({
+            resolveEntry() {
+              return createEffectApiEntryExports({
+                backendFederationContract: {
+                  runtimeFramework: 'effect',
+                  strictEffectApproach: true,
+                },
+                runtime: { brand: 'defineEffectBff-runtime' },
+              });
+            },
+          }),
+        ],
+        remote: {
+          entry: 'service:verticalCheckoutBackend',
+          name: 'verticalCheckoutBackend',
+          type: 'module',
+        },
+      });
+
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(String(warnSpy.mock.calls[0]?.[0])).toContain(
+        'without an expected delivery-unit identity',
+      );
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  test('validates delivery-unit identity on the edge binding path', async () => {
+    await expect(
+      loadEdgeBackendFederatedEffectApi({
+        expected: { buildMarker: 'expected-build', unitId: 'checkout@7' },
+        hostName: 'cloudflareWorkerBackendHost',
+        plugins: [
+          createEdgeBackendFederationLoadEntryPlugin({
+            resolveEntry() {
+              return createEffectApiEntryExports({
+                backendFederationContract: {
+                  compatibility: {
+                    build: 'stale-build',
+                    unitId: 'checkout@7',
+                  },
+                  runtimeFramework: 'effect',
+                  strictEffectApproach: true,
+                },
+                runtime: { brand: 'defineEffectBff-runtime' },
+              });
+            },
+          }),
+        ],
+        remote: {
+          entry: 'binding:verticalCheckoutBackend',
+          name: 'verticalCheckoutBackend',
+          type: 'module',
+        },
+      }),
+    ).rejects.toThrow(/delivery-unit identity mismatch.*stale-build/su);
   });
 
   test('fails closed before an edge provider can execute a network remote', async () => {

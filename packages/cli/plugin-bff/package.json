@@ -100,15 +100,16 @@
         "import": "./dist/esm-node/runtime/effect-client/index.mjs",
         "require": "./dist/cjs/runtime/effect-client/index.js"
       },
-      "default": "./dist/cjs/runtime/effect-client/index.js"
+      "import": "./dist/esm/runtime/effect-client/index.mjs",
+      "default": "./dist/esm/runtime/effect-client/index.mjs"
     },
     "./effect-client-runtime": {
       "types": "./dist/types/runtime/effect-client/runtime.d.ts",
-      "modern:source": "./src/runtime/effect-client/runtime.ts",
       "node": {
         "import": "./dist/esm-node/runtime/effect-client/runtime.mjs",
         "require": "./dist/cjs/runtime/effect-client/runtime.js"
       },
+      "import": "./dist/esm/runtime/effect-client/runtime.mjs",
       "default": "./dist/esm/runtime/effect-client/runtime.mjs"
     },
     "./data-platform": {
@@ -117,7 +118,8 @@
         "import": "./dist/esm-node/runtime/data-platform/index.mjs",
         "require": "./dist/cjs/runtime/data-platform/index.js"
       },
-      "default": "./dist/cjs/runtime/data-platform/index.js"
+      "import": "./dist/esm/runtime/data-platform/index.mjs",
+      "default": "./dist/esm/runtime/data-platform/index.mjs"
     },
     "./client": {
       "types": "./dist/types/runtime/create-request/index.d.ts",
@@ -176,7 +178,9 @@
   "dependencies": {
     "@modern-js/bff-core": "workspace:*",
     "@modern-js/builder": "workspace:*",
+    "@modern-js/bff-effect": "workspace:*",
     "@modern-js/create-request": "workspace:*",
+    "@modern-js/plugin-bff-extensions": "workspace:*",
     "@modern-js/runtime-extensions": "workspace:*",
     "@modern-js/server-core": "workspace:*",
     "@modern-js/server-runtime-extensions": "workspace:*",
@@ -200,10 +204,14 @@
   },
   "peerDependencies": {
     "@effect/opentelemetry": "4.0.0-rc.112",
+    "@modern-js/app-tools": "workspace:^3.8.3",
     "effect": "4.0.0-rc.112"
   },
   "peerDependenciesMeta": {
     "@effect/opentelemetry": {
+      "optional": true
+    },
+    "@modern-js/app-tools": {
       "optional": true
     },
     "effect": {
@@ -229,6 +237,9 @@
     "memfs": "^4.64.0",
     "typescript": "^7.0.2",
     "zod": "^4.4.3"
+  },
+  "engines": {
+    "node": ">=26.7.0"
   },
   "sideEffects": false,
   "publishConfig": {

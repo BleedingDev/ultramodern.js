@@ -3,10 +3,11 @@
  * Shared Effect HttpApi endpoint reflection used by BOTH sides of the
  * cross-project contract:
  *
- * - the client generator (`utils/effectClientGenerator`) stamps each
- *   generated operation with a per-endpoint contract hash;
- * - the effect server adapter derives the expected operation-contract map
- *   for the cross-project policy from the same endpoints.
+ * - the `@modern-js/plugin-bff-extensions/client-generator` package stamps
+ *   each generated operation with a per-endpoint contract hash;
+ * - the `@modern-js/plugin-bff-extensions/effect-adapter` package derives the
+ *   expected operation-contract map for the cross-project policy from the
+ *   same endpoints.
  *
  * Keeping route-path normalization and the endpoint -> contract mapping in
  * one module is what guarantees the two hashes agree.

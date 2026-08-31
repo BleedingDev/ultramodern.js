@@ -18,20 +18,8 @@
   ],
   "version": "3.8.3",
   "files": ["dist", "src"],
-  "types": "./dist/types/index.d.ts",
-  "main": "./dist/cjs/index.js",
   "exports": {
     "./package.json": "./package.json",
-    ".": {
-      "types": "./dist/types/index.d.ts",
-      "modern:source": "./src/index.ts",
-      "node": {
-        "import": "./dist/esm-node/index.mjs",
-        "require": "./dist/cjs/index.js"
-      },
-      "import": "./dist/esm/index.mjs",
-      "default": "./dist/esm/index.mjs"
-    },
     "./hono": {
       "types": "./dist/types/hono/index.d.ts",
       "modern:source": "./src/hono/index.ts",
@@ -50,6 +38,15 @@
         "require": "./dist/cjs/cross-project-policy/index.js"
       },
       "default": "./dist/cjs/cross-project-policy/index.js"
+    },
+    "./cross-project-generation": {
+      "types": "./dist/types/cross-project-generation/index.d.ts",
+      "modern:source": "./src/cross-project-generation/index.ts",
+      "node": {
+        "import": "./dist/esm-node/cross-project-generation/index.mjs",
+        "require": "./dist/cjs/cross-project-generation/index.js"
+      },
+      "default": "./dist/cjs/cross-project-generation/index.js"
     },
     "./effect-adapter": {
       "types": "./dist/types/effect-adapter/index.d.ts",
@@ -128,11 +125,14 @@
   },
   "typesVersions": {
     "*": {
-      ".": ["./dist/types/index.d.ts", "./src/index.ts"],
       "hono": ["./dist/types/hono/index.d.ts", "./src/hono/index.ts"],
       "cross-project-policy": [
         "./dist/types/cross-project-policy/index.d.ts",
         "./src/cross-project-policy/index.ts"
+      ],
+      "cross-project-generation": [
+        "./dist/types/cross-project-generation/index.d.ts",
+        "./src/cross-project-generation/index.ts"
       ],
       "effect-adapter": [
         "./dist/types/effect-adapter/index.d.ts",
@@ -187,7 +187,6 @@
     "@modern-js/types": "workspace:*",
     "@modern-js/utils": "workspace:*",
     "@module-federation/runtime": "2.9.0",
-    "@swc/helpers": "^0.5.23",
     "esbuild": "^0.28.1"
   },
   "peerDependencies": {
@@ -215,7 +214,6 @@
   "sideEffects": false,
   "publishConfig": {
     "registry": "https://registry.npmjs.org/",
-    "access": "public",
-    "types": "./dist/types/index.d.ts"
+    "access": "public"
   }
 }

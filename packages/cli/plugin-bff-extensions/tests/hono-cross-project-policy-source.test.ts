@@ -6,7 +6,7 @@ import {
   resolveCrossProjectPolicy,
 } from '@modern-js/bff-core';
 
-import { createHonoCrossProjectPolicyMiddleware } from '../src/hono';
+import { createHonoCrossProjectPolicyMiddleware } from '../src/hono/cross-project-policy';
 
 const REQUEST_ID = 'crm.producer-a';
 const handlers = [

@@ -16,7 +16,7 @@ type ApiMiddlewareRegistration = unknown;
 type RuntimeFramework = NonNullable<BffUserConfig['runtimeFramework']>;
 
 type RuntimeAdapterOptions = {
-  prefix: string;
+  prefix: string | readonly string[];
   enableHandleWeb?: boolean;
 };
 
@@ -27,19 +27,17 @@ type RuntimeAdapter = {
 type RuntimeAdapterLoader = (api: ServerPluginAPI) => Promise<RuntimeAdapter[]>;
 
 // FORK: the Effect adapter is loaded through a DYNAMIC import so that `effect`
-// and `@effect/opentelemetry` are genuinely optional peers. A static
-// `import { EffectAdapter } from './runtime/effect/adapter'` here made
-// `@modern-js/plugin-bff/server-plugin` pull `effect/Effect`, `effect/Layer`,
-// `effect/Schema`, `effect/unstable/http*` and friends into the module graph
-// eagerly, so a hono-only consumer without Effect installed crashed on import
-// with ERR_MODULE_NOT_FOUND. Upstream has no Effect lane at all; do NOT
+// and `@effect/opentelemetry` remain optional peers. Do not
 // collapse this back to a static import on a sync merge.
 // Guard: tests/regression.test.ts ("server entry does not eagerly load Effect").
+
 const RUNTIME_ADAPTER_LOADERS: Record<RuntimeFramework, RuntimeAdapterLoader> =
   {
     hono: async api => [new HonoAdapter(api)],
     effect: async api => {
-      const { EffectAdapter } = await import('./runtime/effect/adapter');
+      const { EffectAdapter } = await import(
+        '@modern-js/plugin-bff-extensions/effect-adapter'
+      );
       return [new EffectAdapter(api)];
     },
   };
@@ -151,7 +149,7 @@ export default (): ServerPlugin => ({
       await Promise.all(
         runtimeAdapters.map(adapter =>
           adapter.registerMiddleware({
-            prefix,
+            prefix: runtimeFramework === 'effect' ? prefixList : prefix,
             enableHandleWeb,
           }),
         ),

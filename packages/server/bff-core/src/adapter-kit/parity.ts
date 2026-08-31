@@ -136,7 +136,7 @@ export const createParityApiHandlerInfos = (): APIHandlerInfo[] => [
  * switches stay at strict defaults.
  */
 export const createParityBffConfig = () => ({
-  requestId: PARITY_REQUEST_ID,
+  requestId: PARITY_PRODUCER_REQUEST_ID,
   crossProjectPolicy: {
     enabled: true,
     allowedNamespaces: [PARITY_REQUEST_ID],
@@ -147,14 +147,14 @@ export const createParityBffConfig = () => ({
 const getParityContracts = () =>
   buildOperationContractMap({
     handlers: createParityApiHandlerInfos(),
-    requestId: PARITY_REQUEST_ID,
+    requestId: PARITY_PRODUCER_REQUEST_ID,
   });
 
 export const createAdapterParityScenarios = (): AdapterParityScenario[] => {
   const contracts = getParityContracts();
   const helloContract = contracts['GET:/hello'];
   const validEnvelope = envelopeHeader(PARITY_PRODUCER_REQUEST_ID);
-  const validOperationId = `${PARITY_PRODUCER_REQUEST_ID}:parity`;
+  const validOperationId = helloContract.operationId;
   const context = { helloContract, validEnvelope, validOperationId };
 
   return [

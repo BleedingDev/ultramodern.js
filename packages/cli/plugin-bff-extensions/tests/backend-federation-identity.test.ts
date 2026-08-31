@@ -7,9 +7,9 @@
 import type { ModuleFederation } from '@module-federation/runtime';
 import {
   type BackendFederationExpectedIdentity,
-  loadBackendFederatedEffectApi,
   validateExpectedBackendFederationIdentity,
-} from '../src/backend-federation';
+} from '../src/backend-federation/edge';
+import { loadBackendFederatedEffectApi } from '../src/backend-federation/load';
 
 const expected: BackendFederationExpectedIdentity = {
   unitId: 'acme/catalog',

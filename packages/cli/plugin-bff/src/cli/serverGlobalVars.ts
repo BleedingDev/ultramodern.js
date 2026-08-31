@@ -113,7 +113,7 @@ export const transformServerGlobalVars = (
                             syntax: 'ecmascript',
                           },
                           preserveAllComments: true,
-                          target: 'es2022',
+                          target: 'es2024',
                           transform: {
                             optimizer: {
                               globals: {

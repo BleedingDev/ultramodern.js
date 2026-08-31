@@ -1,8 +1,13 @@
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
 import { resolveCrossProjectPolicy } from '@modern-js/bff-core';
-import type { ServerPluginAPI } from '@modern-js/server-core';
+import {
+  collectEffectEndpoints,
+  createEffectEndpointContractHash,
+  type EffectApiModule,
+  extractHttpApiFromModule,
+  resolveEffectBffModuleHandler,
+  toOperationContractSources,
+} from '@modern-js/bff-effect/effect';
+import { checkCrossProjectPolicyForRequest } from '../../plugin-bff-extensions/src/cross-project-policy/evaluation';
 import {
   createHttpApiHandler,
   defineEffectBff,
@@ -11,23 +16,9 @@ import {
   HttpApiBuilder,
   HttpApiEndpoint,
   HttpApiGroup,
-  isValidatorAwareHandlerFactory,
   Layer,
   Schema,
 } from '../src/runtime/effect';
-import { EffectAdapter } from '../src/runtime/effect/adapter';
-import {
-  collectEffectEndpoints,
-  createEffectEndpointContractHash,
-  extractHttpApiFromModule,
-  toOperationContractSources,
-} from '../src/runtime/effect/endpoint-contracts';
-import { classifyEffectBffEntryModule } from '../src/runtime/effect/entry-shape';
-import {
-  type EffectApiModule,
-  resolveEffectBffModuleHandler,
-} from '../src/runtime/effect/module';
-import { checkCrossProjectPolicyForRequest } from '../src/utils/crossProjectServerPolicy';
 
 const REQUEST_ID = 'crm.producer-app';
 const PREFIX = '/api';
@@ -153,69 +144,6 @@ describe('effect endpoint contract module extraction', () => {
     await expect(
       resolveEffectBffModuleHandler(module as EffectApiModule),
     ).resolves.toBeNull();
-  });
-});
-
-describe('effect BFF entry shape policy', () => {
-  const requestHandler = () => new Response('ok');
-  const brandedFactory = () => ({
-    handler: requestHandler,
-    dispose: async () => {},
-  });
-  const unbrandedFactory = () => ({
-    handler: requestHandler,
-    dispose: async () => {},
-  });
-  const classify = (module: unknown) =>
-    classifyEffectBffEntryModule(module, {
-      isRequestHandler: value => typeof value === 'function',
-      isValidatorAwareHandlerFactory: value => value === brandedFactory,
-      isHttpApi: value => value === pingApi,
-    });
-
-  test.each([
-    ['top-level handler', { handler: requestHandler }, '`handler` export'],
-    ['default handler', { default: requestHandler }, 'default request handler'],
-    [
-      'default object handler',
-      { default: { handler: requestHandler } },
-      '`handler` export',
-    ],
-  ])('rejects legacy %s shape', (_name, module, legacyShape) => {
-    expect(classify(module)).toMatchObject({
-      legacyShape,
-    });
-  });
-
-  test('classifies branded and unbranded createHandler entries', () => {
-    expect(classify({ createHandler: brandedFactory })).toMatchObject({
-      createHandler: brandedFactory,
-      createHandlerValidatorAware: true,
-    });
-    expect(classify({ createHandler: unbrandedFactory })).toMatchObject({
-      createHandler: unbrandedFactory,
-      createHandlerValidatorAware: false,
-    });
-  });
-
-  test('classifies direct and default HttpApi entries', () => {
-    expect(classify({ api: pingApi, layer: pingLayer })).toMatchObject({
-      api: pingApi,
-      layer: pingLayer,
-      hasRuntimeLayer: true,
-    });
-    expect(
-      classify({
-        default: {
-          api: pingApi,
-          layer: pingLayer,
-        },
-      }),
-    ).toMatchObject({
-      api: pingApi,
-      layer: pingLayer,
-      hasRuntimeLayer: true,
-    });
   });
 });
 
@@ -477,7 +405,7 @@ describe('effect lane cross-project policy enforcement', () => {
 
     try {
       const batchPayload = {
-        protocolVersion: 1,
+        protocolVersion: 2,
         batchId: 'batch-policy-test',
         sentAt: Date.now(),
         items: [
@@ -504,14 +432,20 @@ describe('effect lane cross-project policy enforcement', () => {
       );
       expect(response.status).toBe(200);
       const payload = (await response.json()) as {
-        items: Array<{ id: string; status: number; body?: string }>;
+        items: Array<{
+          id: string;
+          status: number;
+          body?: { encoding: 'base64'; data: string };
+        }>;
       };
 
       const unauthenticated = payload.items.find(
         item => item.id === 'no-headers',
       );
       expect(unauthenticated?.status).toBe(403);
-      expect(JSON.parse(unauthenticated?.body || '{}')).toMatchObject({
+      expect(
+        JSON.parse(atob(unauthenticated?.body?.data || 'e30=')),
+      ).toMatchObject({
         reason: 'missing_envelope',
       });
 
@@ -526,18 +460,6 @@ describe('effect lane cross-project policy enforcement', () => {
 });
 
 describe('custom createHandler factory policy enforcement', () => {
-  test('defineEffectBff brands its createHandler factory as validator-aware', () => {
-    const runtime = defineEffectBff({
-      api: pingApi,
-      layer: pingLayer,
-    });
-
-    expect(isValidatorAwareHandlerFactory(runtime.createHandler)).toBe(true);
-    // A hand-written factory matching the same shape carries no guarantee.
-    expect(isValidatorAwareHandlerFactory(() => ({}))).toBe(false);
-    expect(isValidatorAwareHandlerFactory(undefined)).toBe(false);
-  });
-
   test('branded defineEffectBff factories keep internal (per-batch-item capable) enforcement', async () => {
     const policy = resolvePolicy();
     const warnings: string[] = [];

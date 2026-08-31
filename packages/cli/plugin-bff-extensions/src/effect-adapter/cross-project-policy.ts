@@ -9,10 +9,8 @@ import type { ServerPluginAPI } from '@modern-js/server-core';
 import { logger } from '@modern-js/utils';
 import { HttpApi } from 'effect/unstable/httpapi';
 
-import {
-  type ResolvedCrossProjectPolicy,
-  resolveAdapterCrossProjectPolicy,
-} from '../cross-project-policy';
+import { resolveAdapterCrossProjectPolicy } from '../cross-project-policy';
+import type { ResolvedCrossProjectPolicy } from '../cross-project-policy/evaluation';
 
 export function resolveEffectAdapterCrossProjectPolicy(
   api: ServerPluginAPI,

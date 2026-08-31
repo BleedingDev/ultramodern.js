@@ -1,4 +1,5 @@
 // @effect-diagnostics asyncFunction:off nodeBuiltinImport:off processEnv:off
+import { renderProducerRuntimeDefaults } from '@modern-js/plugin-bff-extensions/cross-project-generation';
 import { fs } from '@modern-js/utils';
 import path from 'path';
 
@@ -43,21 +44,8 @@ async function runtimeGenerator({
 
   const runtimeImportPath = JSON.stringify(runtime);
   const requestIdValue = JSON.stringify(requestId);
-  const source = `const { configure: _configure } = require(${runtimeImportPath});
-    const defaultSecureOptions = {
-      requestId: ${requestIdValue},
-      requireEnvelope: true,
-      identityBinding: {
-        enabled: true,
-        strict: true,
-      },
-      operationContract: {
-        enabled: true,
-        strict: true,
-        requireSchemaHash: true,
-        requireOperationVersion: true,
-      },
-    };
+  const source = `'use strict'; const { configure: _configure } = require(${runtimeImportPath});
+    const defaultSecureOptions = ${renderProducerRuntimeDefaults(requestIdValue)};
     const initProducerClient = (options) => {
       return _configure({
         ...defaultSecureOptions,
@@ -109,7 +97,7 @@ async function runtimeGenerator({
         }) => string;
         requestId?: string;
       };
-  export declare const initProducerClient: (options: ProducerClientOptions) => void;
+  export declare const initProducerClient: (options?: ProducerClientOptions) => ReturnType<ProducerRuntimeModule['configure']>;
   export declare const configure: typeof initProducerClient;`;
   const pluginTypePath = path.join(pluginDir, 'index.d.ts');
   await fs.ensureFile(pluginTypePath);

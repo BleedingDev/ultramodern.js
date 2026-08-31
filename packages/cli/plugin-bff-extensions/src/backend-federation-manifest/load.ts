@@ -4,8 +4,8 @@ import {
   BACKEND_FEDERATION_EFFECT_EXPOSE,
   type BackendFederatedEffectApiModule,
   type BackendFederationRemote,
-  loadBackendFederatedEffectApi,
 } from '../backend-federation';
+import { loadBackendFederatedEffectApi } from '../backend-federation/load';
 import { BackendFederationManifestAdapterError } from './errors';
 import { loadBackendFederationManifest } from './reference';
 import { resolveBackendFederationRemoteFromManifest } from './remote';

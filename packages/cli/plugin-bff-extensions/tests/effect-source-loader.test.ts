@@ -3,11 +3,11 @@ import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { bundleEffectEntryForNode } from '../src/effect-source-loader';
 import {
-  bundleEffectEntryForNode,
   loadEffectBuiltModule,
   loadEffectSourceModule,
-} from '../src/effect-source-loader';
+} from '../src/effect-source-loader/loader';
 
 const writeFile = async (filename: string, source: string) => {
   await fs.promises.mkdir(path.dirname(filename), { recursive: true });

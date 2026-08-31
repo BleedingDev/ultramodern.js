@@ -1,6 +1,6 @@
 // @effect-diagnostics asyncFunction:off strictBooleanExpressions:off
 import type { HttpMethodDecider } from '@modern-js/types';
-import { generateEffectClient } from '../client-generator/generator';
+import type { EffectClientCodegenOptions } from '../client-generator/types';
 
 type EffectWorkerRuntimeGenerationOptions = {
   apiDir: string;
@@ -26,6 +26,9 @@ export async function generateEffectWorkerRuntimeWrapper(
   options: EffectWorkerRuntimeGenerationOptions,
   resourcePath: string,
 ) {
+  const { generateEffectClient } = await import(
+    '../client-generator/generator'
+  );
   const artifacts = await generateEffectClient({
     appDir: options.appDir,
     apiDir: options.apiDir,
@@ -74,4 +77,14 @@ export const __modern_create_effect_bff_dispatcher = options =>
     module: effectBffModule,
   });
 `;
+}
+
+export async function generateEffectClientCode(
+  options: EffectClientCodegenOptions,
+) {
+  const { generateEffectClient } = await import(
+    '../client-generator/generator'
+  );
+  const artifacts = await generateEffectClient(options);
+  return artifacts === null ? null : artifacts.code;
 }

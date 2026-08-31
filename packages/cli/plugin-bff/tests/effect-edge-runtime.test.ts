@@ -487,7 +487,35 @@ export default {
         },
       });
 
+      const buildWarnings: string[] = [];
+      let buildStatsCaptured = false;
+      rsbuild.onAfterBuild(({ stats }) => {
+        if (!stats) {
+          return;
+        }
+        buildStatsCaptured = true;
+        const statsJson = stats.toJson({ all: false, warnings: true });
+        const warnings = [
+          ...(statsJson?.warnings ?? []),
+          ...(statsJson?.children ?? []).flatMap(child => child.warnings ?? []),
+        ];
+        buildWarnings.push(
+          ...warnings.map(
+            warning => warning.message ?? JSON.stringify(warning),
+          ),
+        );
+      });
+
       await expect(rsbuild.build()).resolves.toBeDefined();
+
+      expect(buildStatsCaptured).toBe(true);
+      expect(buildWarnings).not.toEqual(
+        expect.arrayContaining([
+          expect.stringMatching(
+            /critical dependency|dependency is an expression|dynamic (?:import|request).*expression/iu,
+          ),
+        ]),
+      );
 
       const distRoot = path.join(appDir, 'dist');
       const outputFiles = (
@@ -503,6 +531,11 @@ export default {
       ).join('\n');
 
       expect(bundledSource).not.toMatch(/\bnew\s+Function\s*\(/u);
+      expect(bundledSource).not.toMatch(/\bFunction\s*\(/u);
+      expect(bundledSource).not.toMatch(
+        /\b(?:const|let|var)\s+([$\w]+)\s*=\s*Function\b[\s\S]{0,80}\bnew\s+\1\s*\(/u,
+      );
+      expect(bundledSource).not.toContain('allowsEval');
       expect(bundledSource).not.toMatch(/\beval\s*\(/u);
       expect(bundledSource).not.toContain('node:crypto');
       expect(bundledSource).not.toContain('backend-federation-security/node');

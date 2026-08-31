@@ -1,1 +1,4 @@
-export { createHonoCrossProjectPolicyMiddleware } from './cross-project-policy';
+export {
+  type BindHonoRouteHandlersOptions,
+  bindHonoRouteHandlers,
+} from './bind-route-handlers';

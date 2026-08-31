@@ -1,7 +1,6 @@
+export { resolveEffectEntryFile } from '../client-generator/paths';
+export { bundleEffectEntryForNode } from './loader';
 export {
-  bundleEffectEntryForNode,
-  type EffectSourceLoaderOptions,
-  loadEffectBuiltModule,
-  loadEffectSourceModule,
-} from './loader';
-export { generateEffectWorkerRuntimeWrapper } from './worker-runtime-wrapper';
+  generateEffectClientCode,
+  generateEffectWorkerRuntimeWrapper,
+} from './worker-runtime-wrapper';

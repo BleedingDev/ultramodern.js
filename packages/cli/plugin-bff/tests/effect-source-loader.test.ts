@@ -7,15 +7,13 @@ import {
   createOperationContractHash,
   type ResolvedCrossProjectPolicy,
 } from '@modern-js/bff-core';
-import type { ServerPluginAPI } from '@modern-js/server-core';
-import apiLoader, { type APILoaderOptions } from '../src/loader';
-import { EffectAdapter } from '../src/runtime/effect/adapter';
-import { generateEffectClient } from '../src/utils/effectClientGenerator';
+import { generateEffectClient } from '@modern-js/plugin-bff-extensions/client-generator';
+import { bundleEffectEntryForNode } from '@modern-js/plugin-bff-extensions/effect-source-loader';
 import {
-  bundleEffectEntryForNode,
   loadEffectBuiltModule,
   loadEffectSourceModule,
-} from '../src/utils/effectSourceLoader';
+} from '../../plugin-bff-extensions/src/effect-source-loader/loader';
+import apiLoader, { type APILoaderOptions } from '../src/loader';
 
 const require = createRequire(import.meta.url);
 
@@ -124,7 +122,7 @@ const buildEffectWorkerRuntimeModule = async ({
       prefix,
       requestId,
       target: 'web',
-    } as APILoaderOptions & { requestId?: string },
+    },
     resourcePath: entryFile,
     resourceQuery: '?modern-bff-runtime',
     source,
@@ -156,7 +154,7 @@ const buildEffectWorkerRuntimeModule = async ({
     metafile: true,
     outfile: outputFile,
     platform: 'node',
-    target: 'node20',
+    target: 'node26.7',
   });
   onBuildInputs?.(Object.keys(result.metafile.inputs));
 
@@ -363,6 +361,52 @@ exports.default = {
     expect(() => Function(code)()).toThrow(
       `The file ${resourcePath} is not allowed to be imported in src directory, only API definition files are allowed.`,
     );
+  });
+
+  test('forwards the configured request id into Effect client generation', async () => {
+    const appDir = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), 'modern-plugin-bff-effect-client-request-id-'),
+    );
+
+    try {
+      const apiDir = path.join(appDir, 'api');
+      const entryFile = path.join(apiDir, 'index.js');
+      const source = `const { HttpApi, HttpApiEndpoint, HttpApiGroup, Layer, Schema } = require('@modern-js/plugin-bff/effect-client');
+const api = HttpApi.make('LoaderRequestIdApi').add(
+  HttpApiGroup.make('catalog').add(
+    HttpApiEndpoint.get('readiness', '/readiness', { success: Schema.Boolean }),
+  ),
+);
+module.exports = { api, layer: Layer.empty };`;
+      await linkFixturePackage(appDir, '@modern-js/plugin-bff');
+      await writeFile(
+        path.join(appDir, 'package.json'),
+        JSON.stringify({ name: 'package-fallback', version: '1.0.0' }),
+      );
+      await writeFile(entryFile, source);
+
+      const code = await runApiLoader({
+        options: {
+          apiDir,
+          appDir,
+          bffRuntimeFramework: 'effect',
+          effectEntry: entryFile,
+          existLambda: false,
+          lambdaDir: path.join(apiDir, 'lambda'),
+          port: 8080,
+          prefix: '/catalog-api',
+          requestId: 'configured-catalog-service',
+          target: 'bundle',
+        },
+        resourcePath: entryFile,
+        resourceQuery: '',
+        source,
+      });
+
+      expect(code).toContain('"requestId": "configured-catalog-service"');
+    } finally {
+      await fs.promises.rm(appDir, { recursive: true, force: true });
+    }
   });
 
   test('Effect worker runtime entry validates invalid edge modules at dispatcher creation', async () => {
@@ -771,26 +815,55 @@ export const layer = HttpApiBuilder.layer(api).pipe(
       const apiDir = path.join(appDir, 'api');
       const entryFile = path.join(apiDir, 'index.ts');
       const source = `
-import { useEffectContext } from '@modern-js/plugin-bff/effect-edge';
+import {
+  defineEffectBff,
+  Effect,
+  HttpApi,
+  HttpApiBuilder,
+  HttpApiEndpoint,
+  HttpApiGroup,
+  Layer,
+  Schema,
+  useEffectContext,
+} from '@modern-js/plugin-bff/effect-edge';
 
 const disposeMarker = Symbol.for(${JSON.stringify(disposeMarker.description)});
-export const createHandler = () => ({
-  handler: request => {
-    const context = useEffectContext();
-    return Response.json({
-      env: String(context.env.RUNTIME),
-      requestPath: new URL(request.url).pathname,
-    });
-  },
-  dispose: async () => {
-    globalThis[disposeMarker] = Number(globalThis[disposeMarker] || 0) + 1;
-  },
-});
-Object.defineProperty(
-  createHandler,
-  Symbol.for('modernjs.effect.validatorAware'),
-  { value: true },
+const api = HttpApi.make('WorkerDisposalApi').add(
+  HttpApiGroup.make('checkout').add(
+    HttpApiEndpoint.get('cart', '/cart', {
+      success: Schema.Struct({
+        env: Schema.String,
+        requestPath: Schema.String,
+      }),
+    }),
+  ),
 );
+const checkoutLayer = HttpApiBuilder.group(api, 'checkout', handlers =>
+  handlers.handle('cart', () =>
+    Effect.sync(() => {
+      const context = useEffectContext();
+      return {
+        env: String(context.env.RUNTIME),
+        requestPath: context.operationContext.routePath,
+      };
+    }),
+  ),
+);
+const disposalLayer = Layer.effectDiscard(
+  Effect.acquireRelease(Effect.succeed(undefined), () =>
+    Effect.sync(() => {
+      globalThis[disposeMarker] = Number(globalThis[disposeMarker] || 0) + 1;
+    }),
+  ),
+);
+
+export default defineEffectBff({
+  api,
+  layer: Layer.mergeAll(
+    HttpApiBuilder.layer(api).pipe(Layer.provide(checkoutLayer)),
+    disposalLayer,
+  ),
+});
 `;
       await writeFile(entryFile, source);
 
@@ -1220,78 +1293,6 @@ export const api = HttpApi.make('WatchApi').add(
       expect(callbackError).toBeUndefined();
       expect(callbackCode).toEqual(expect.any(String));
       expect(new Set(dependencies)).toEqual(new Set([entryFile, contractFile]));
-    } finally {
-      await fs.promises.rm(appDir, { recursive: true, force: true });
-    }
-  });
-
-  test('dev reload recompiles changed modules in the typed source graph', async () => {
-    const appDir = await fs.promises.mkdtemp(
-      path.join(os.tmpdir(), 'modern-plugin-bff-effect-reload-'),
-    );
-
-    try {
-      const apiDir = path.join(appDir, 'api');
-      const entryFile = path.join(apiDir, 'effect', 'index.ts');
-      const contractFile = path.join(apiDir, 'effect', 'contract.ts');
-      await writeEmptyPathsTsconfig(appDir);
-      await writeFile(contractFile, `export const message = 'first graph';`);
-      await writeFile(
-        entryFile,
-        `import { message } from './contract.js';
-
-const createHandler = Object.assign(
-  () => ({
-    handler: () => new Response(message),
-    dispose: async () => {},
-  }),
-  { [Symbol.for('modernjs.effect.validatorAware')]: true },
-);
-
-export { createHandler };`,
-      );
-
-      const api = {
-        getServerContext() {
-          return {
-            appDirectory: appDir,
-            apiDirectory: apiDir,
-          };
-        },
-        getServerConfig() {
-          return {
-            bff: {
-              effect: {
-                entry: 'api/effect/index.ts',
-              },
-            },
-          };
-        },
-      } as unknown as ServerPluginAPI;
-      const adapter = new EffectAdapter(api);
-      const adapterState = adapter as unknown as {
-        disposeCurrentHandler: () => Promise<void>;
-        handler: ((request: Request) => Promise<Response> | Response) | null;
-        reloadHandler: () => Promise<void>;
-      };
-
-      await adapterState.reloadHandler();
-      expect(adapterState.handler).not.toBeNull();
-      await expect(
-        Promise.resolve(
-          adapterState.handler!(new Request('http://localhost/api/ping')),
-        ).then(response => response.text()),
-      ).resolves.toBe('first graph');
-
-      await writeFile(contractFile, `export const message = 'second graph';`);
-      await adapter.onApiHandlersUpdated();
-
-      await expect(
-        Promise.resolve(
-          adapterState.handler!(new Request('http://localhost/api/ping')),
-        ).then(response => response.text()),
-      ).resolves.toBe('second graph');
-      await adapterState.disposeCurrentHandler();
     } finally {
       await fs.promises.rm(appDir, { recursive: true, force: true });
     }

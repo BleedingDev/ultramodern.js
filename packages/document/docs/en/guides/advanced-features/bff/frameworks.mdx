@@ -122,7 +122,7 @@ const response = await api.client.hello.ping({});
 
 The `api.client.*` surface is materialized by the BFF loader for `@api/index` imports. Do not import `api/index` directly and expect `client` to run in server code, scripts, or tests; direct entry imports expose the server runtime definition, and `client` is only a typed placeholder there.
 
-For UltraModern, Effect `HttpApi` plus Effect BFF is the single blessed authored HTTP path. Use `HttpApi` endpoints with `query`, `params`, `payload`, `success`, and declared errors such as `HttpApiSchema.status(...)`; implement them with `HttpApiBuilder.group(...).handle(...)` and `HttpApiBuilder.layer(...).pipe(Layer.provide(...))`, then default-export the entry as `defineEffectBff({ api, layer })`. See `packages/cli/plugin-bff/tests/effect-httpapi-schema-validation.test.ts` for the real shapes.
+For UltraModern, Effect `HttpApi` plus Effect BFF is the single blessed authored HTTP path. Use `HttpApi` endpoints with `query`, `params`, `payload`, `success`, and declared errors such as `HttpApiSchema.status(...)`; implement them with `HttpApiBuilder.group(...).handle(...)` and `HttpApiBuilder.layer(...).pipe(Layer.provide(...))`, then default-export the entry as `defineEffectBff({ api, layer })`. See `packages/server/bff-effect/tests/effect-edge-runtime.test.ts` for the live runtime shape.
 
 Hono and `api/lambda/**` are internal compatibility only and feature-frozen.
 

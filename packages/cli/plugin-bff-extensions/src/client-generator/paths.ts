@@ -15,7 +15,7 @@ export function resolveEffectEntryFile(options: {
   appDir: string;
   apiDir: string;
   effectEntry?: string;
-}) {
+}): string | undefined {
   const { appDir, apiDir, effectEntry } = options;
 
   const resolveEntry = (entryWithoutExt: string) => {
@@ -23,7 +23,10 @@ export function resolveEffectEntryFile(options: {
       return fs.existsSync(entryWithoutExt) ? entryWithoutExt : undefined;
     }
 
-    return findExists(JS_OR_TS_EXTS.map(ext => `${entryWithoutExt}${ext}`));
+    return (
+      findExists(JS_OR_TS_EXTS.map(ext => `${entryWithoutExt}${ext}`)) ||
+      undefined
+    );
   };
 
   if (effectEntry !== undefined && effectEntry !== '') {
