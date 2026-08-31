@@ -733,6 +733,86 @@ test('app-tools extensions are excluded while neighboring app-tools stays audite
   }
 });
 
+test('BFF extension packages are excluded while neighboring upstream packages stay audited', () => {
+  const fixture = makeGitFixture({
+    files: {
+      'packages/cli/plugin-bff/package.json': `${JSON.stringify({ name: '@modern-js/plugin-bff' })}\n`,
+      'packages/cli/plugin-bff/src/index.ts':
+        'export const pluginBff = true;\n',
+      'packages/server/bff-core/package.json': `${JSON.stringify({ name: '@modern-js/bff-core' })}\n`,
+      'packages/server/bff-core/src/index.ts': 'export const bffCore = true;\n',
+    },
+  });
+  try {
+    writeSnapshot({
+      rootDir: fixture.rootDir,
+      baseRef: fixture.upstreamBase,
+    });
+    writeRepoFile(
+      fixture.rootDir,
+      'packages/cli/plugin-bff-extensions/package.json',
+      `${JSON.stringify({ name: '@modern-js/plugin-bff-extensions' })}\n`,
+    );
+    writeRepoFile(
+      fixture.rootDir,
+      'packages/cli/plugin-bff-extensions/src/index.ts',
+      'export const pluginBffExtension = true;\n',
+    );
+    writeRepoFile(
+      fixture.rootDir,
+      'packages/server/bff-effect/package.json',
+      `${JSON.stringify({ name: '@modern-js/bff-effect' })}\n`,
+    );
+    writeRepoFile(
+      fixture.rootDir,
+      'packages/server/bff-effect/src/index.ts',
+      'export const bffEffect = true;\n',
+    );
+    writeRepoFile(
+      fixture.rootDir,
+      'packages/cli/plugin-bff/src/index.ts',
+      'export const pluginBff = false;\n',
+    );
+    writeRepoFile(
+      fixture.rootDir,
+      'packages/server/bff-core/src/index.ts',
+      'export const bffCore = false;\n',
+    );
+    runGit(fixture.rootDir, [
+      'add',
+      'packages/cli/plugin-bff-extensions/package.json',
+      'packages/cli/plugin-bff-extensions/src/index.ts',
+      'packages/server/bff-effect/package.json',
+      'packages/server/bff-effect/src/index.ts',
+      'packages/cli/plugin-bff/src/index.ts',
+      'packages/server/bff-core/src/index.ts',
+    ]);
+
+    const report = checkForkDivergence({ rootDir: fixture.rootDir });
+    assert.equal(report.ok, false);
+    assert.equal(report.violationCount, 2);
+    assert.equal(report.measuredFiles, 2);
+    assert.deepEqual(
+      report.violations.map(violation => ({
+        file: violation.file,
+        reason: violation.reason,
+      })),
+      [
+        {
+          file: 'packages/cli/plugin-bff/src/index.ts',
+          reason: 'unallowlisted-divergence',
+        },
+        {
+          file: 'packages/server/bff-core/src/index.ts',
+          reason: 'unallowlisted-divergence',
+        },
+      ],
+    );
+  } finally {
+    cleanup(fixture.rootDir);
+  }
+});
+
 test('added i18n extension source inside its fork-owned package passes', () => {
   const fixture = makeGitFixture();
   try {

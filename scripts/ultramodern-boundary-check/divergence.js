@@ -26,8 +26,10 @@ const DEFAULT_DIVERGENCE_ALLOWLIST_PATH = path.join(
 );
 const DEFAULT_PATHSPEC = Object.freeze(['packages']);
 const FORK_OWNED_PACKAGE_ROOTS = Object.freeze([
+  'packages/cli/plugin-bff-extensions',
   'packages/runtime/i18n-extensions',
   'packages/runtime/plugin-tanstack',
+  'packages/server/bff-effect',
   'packages/server/runtime-extensions',
   'packages/solutions/app-tools-extensions',
   'packages/toolkit/code-tools',

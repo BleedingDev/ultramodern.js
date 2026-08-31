@@ -1,0 +1,11 @@
+{
+  "extends": "@modern-js/tsconfig/base",
+  "compilerOptions": {
+    "declaration": false,
+    "isolatedModules": true,
+    "strict": true,
+    "types": ["node", "@rstest/core/globals"],
+    "rootDir": "..",
+    "outDir": "./dist"
+  }
+}
