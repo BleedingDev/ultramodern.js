@@ -25,20 +25,32 @@ node scripts/ultramodern-boundary-check/check-fork-import-boundary.js --write-al
 ## 2. File divergence (`divergence.js`)
 
 The import gate cannot see fork behavior written directly into upstream-owned
-files. Divergence mode diffs the complete scope recorded in
-`divergence-allowlist.json` against that file's audited upstream base
-(`2f4d9c4559e26209a0d77f02c6757f29fe3699a2` today — upstream main through
-Release v3.8.3 and #8836's monitor-native CSR fallback reporting). One entry per
-divergent base-owned path records only `hunks` and `changedLines`. The audited
-base moves only through the reviewed transition operation below; use the
-recorded mainline commit, never a release tag or caller-selected comparison.
+files. Divergence mode therefore records two immutable source identities:
+
+- `baseRef` (`eded841256a7cffdaa622e3889fc83407debd3e4`) owns audited path
+  identity, including identity across upstream renames;
+- `upstreamRef` (`2f4d9c4559e26209a0d77f02c6757f29fe3699a2`) is the reviewed
+  upstream v3.8.3 source already incorporated by the fork.
+
+Exact `baseRef..upstreamRef` source is resolution (1), already upstream, and
+does not consume fork divergence. The cumulative measurement is the single
+rename-aware `upstreamRef..target` patch, grouped back onto immutable audited
+identities. Files added by reviewed upstream become upstream-owned identities;
+every file added later under `packages/**` inside a vanilla upstream package
+remains governed. Directory or filename segments such as `tests`, `fixtures`,
+`examples`, `docs`, and `*.test.*` are not exemptions: they can contain
+executable/configuration inputs or shipped product documentation. Explicit
+fork-owned package roots are excluded only when they did not exist at the
+reviewed upstream provenance.
 
 ### Fail-closed recorded contract
 
 The allowlist, not the caller, owns verification context. Before diffing, the
 checker requires:
 
-- a supported exact schema and a resolvable full commit OID;
+- a supported exact schema and both exact, resolvable full commit OIDs;
+- audited-base ancestry into reviewed provenance and provenance ancestry into
+  the measured target;
 - a nonempty, canonical, uniquely sorted POSIX scope;
 - canonical, unique, sorted file entries that exist with exact case at the
   audited base and remain inside the recorded scope;
@@ -73,31 +85,21 @@ node scripts/ultramodern-boundary-check/check-fork-import-boundary.js \
 That plain writer is monotonic. It refuses every raised budget and new entry and
 writes atomically only after validating the complete candidate snapshot.
 
-### Always measure against the recorded base
+### Always preserve identity and provenance
 
-The budgets in `divergence-allowlist.json` are cumulative counts taken at the
-`baseRef` recorded inside that file, which must equal
-`DEFAULT_DIVERGENCE_BASE_REF` in `divergence.js`. Running the gate against any
-other base — a PR merge-base, `HEAD~1`, a push `before` SHA — compares a
-per-range delta against a full-history budget and is wrong in both directions,
-so `checkForkDivergence` refuses to run when the two bases disagree. CI runs the
-default invocation; do not pass `--base`.
+The budgets in `divergence-allowlist.json` are cumulative counts from the
+recorded `upstreamRef` to the target, keyed by identities derived from the
+recorded `baseRef`. Both refs are exact built-in pins in `divergence.js`.
+Running against a PR merge-base, `HEAD~1`, a push `before` SHA, or substituting
+`HEAD` as provenance would erase or distort debt, so verification rejects every
+such substitution. Only `--head` selects the committed target tree.
 
-An upstream merge does not automatically move the fixed audited base. If a
-separate, explicitly reviewed base transition is approved, re-anchor the
-constant and re-record in the **same** change as the `FORK-DIVERGENCE.md` rows:
-
-```sh
-node scripts/ultramodern-boundary-check/check-fork-import-boundary.js \
-  --mode divergence --base <new-upstream-base> \
-  --write-divergence-allowlist --rebase-divergence-allowlist --record-growth
-```
-
-`--rebase-divergence-allowlist` alone only waives the base-equality assertion;
-the growth guard still fires, because budgets recorded at the old base are not
-comparable with measurements at the new one. That is why a base re-anchor always
-needs `--record-growth` — and why every entry it raises must be inspected and
-dispositioned first, not blessed in bulk.
+Provenance advancement is deliberately not a snapshot-reset operation. The
+writer refuses to change `upstreamRef`; a future advancement needs a separately
+reviewed, identity-preserving budget carry-forward design. The one accepted
+schema migration is the exact v1 `2f4d9c4559` snapshot to v2
+`eded841256`/`2f4d9c4559`, with byte-for-byte identical scope, entries, budgets,
+and totals.
 
 ### Exact Rule 5 cap and reviewed growth
 
@@ -106,10 +108,15 @@ its committed head. Audited-base ownership follows files across renames. An
 equal-count semantic replacement and a pure rename are non-shrinks even when the
 cumulative totals do not grow.
 
-Every non-shrink upstream-owned change needs a same-PR `FORK-DIVERGENCE.md`
-change and has an exact hard maximum of **20 added-plus-removed PR lines per
-audited-base-owned file**. To record a legitimate capped increase after the
-source and ledger commit exists:
+Every non-shrink upstream-owned change needs exactly one new or semantically
+changed path-first `FORK-DIVERGENCE.md` row in the same commit range. Its path
+must exactly equal the immutable audited identity, including the old path of a
+rename; owner and reason must be nonempty; and disposition must consist of the
+ledger's allowed full tokens. Whitespace/reformatting, unrelated rows, grouped
+paths, broad advisory tables, duplicates, and pre-existing historical rows do
+not count. Each file also has an exact hard maximum of **20
+added-plus-removed PR lines**. To record a legitimate capped increase after the
+source and strict ledger row exist:
 
 ```bash
 node scripts/ultramodern-boundary-check/check-fork-import-boundary.js \
@@ -124,16 +131,17 @@ allowlists with `git show`, re-measures the head, reconstructs rename ownership,
 and re-derives the same cap and ledger evidence. Editing the baseline alone
 cannot sanction growth.
 
-### Base or scope migration
+### Scope migration
 
-A real audited-base or scope transition is not an ordinary budget update. It
-requires the explicit reviewed re-record operation, committed merge-base/head
-refs, and a same-PR ledger explanation:
+A real scope transition is not an ordinary budget update. It requires the
+explicit reviewed re-record operation, committed merge-base/head refs, and a
+same-PR ledger explanation. The immutable audited and provenance refs still
+cannot change:
 
 ```bash
 node scripts/ultramodern-boundary-check/check-fork-import-boundary.js \
   --write-divergence-allowlist --rebase-divergence-allowlist \
-  --base "$NEW_AUDITED_BASE" --pathspec "$NEW_SCOPE" \
+  --pathspec "$NEW_SCOPE" \
   --merge-base "$PR_MERGE_BASE" --head "$COMMITTED_HEAD"
 ```
 
@@ -142,22 +150,30 @@ committed-head snapshot. Do not use migration to bless ordinary divergence.
 
 ### CI invocations
 
-The cumulative measurement always uses the recorded audited base, never the PR
-merge-base. Only `--head` selects the committed target tree:
+The cumulative measurement always uses the recorded provenance and audited
+identity base, never the PR merge-base. Only `--head` selects the committed
+target tree:
 
 ```bash
 node scripts/ultramodern-boundary-check/check-fork-import-boundary.js \
   --mode divergence --head "$COMMITTED_HEAD"
 
-MERGE_BASE="$(git merge-base "origin/$GITHUB_BASE_REF" "$COMMITTED_HEAD")"
+MERGE_BASE="$(git merge-base "$PR_BASE_SHA" "$COMMITTED_HEAD")"
 node scripts/ultramodern-boundary-check/check-fork-import-boundary.js \
   --mode allowlist-governance --merge-base "$MERGE_BASE" \
   --head "$COMMITTED_HEAD"
+
+# Protected-branch push validation uses the exact event range. An unresolved
+# or all-zero before SHA fails closed.
+node scripts/ultramodern-boundary-check/check-fork-import-boundary.js \
+  --mode allowlist-governance --merge-base "$PUSH_BEFORE_SHA" \
+  --head "$COMMITTED_HEAD"
 ```
 
-The divergence diff pins Git's histogram algorithm and indent heuristic and uses
-`-U0 --diff-filter=MD --no-renames`. Rule 5 uses rename detection separately so
-a destination never loses the old audited-base identity.
+The divergence diff pins Git's histogram algorithm and indent heuristic and
+uses one `-M -U0 --diff-filter=ACDMRT` stream. Rule 5 composes rename identity
+from audited base through reviewed provenance and the PR merge-base so a
+destination never loses its upstream owner.
 
 ## Self-test and behavior tests
 
@@ -167,6 +183,7 @@ node --test scripts/ultramodern-boundary-check/__tests__/*.test.js
 ```
 
 The behavior suite uses temporary Git repositories to exercise scope attacks,
-strict schema validation, committed-ref governance, capped growth, semantic
+strict schema validation, committed-ref governance, strict semantic ledger-row
+correlation, lexical test/fixture/docs escape attempts, capped growth, semantic
 replacement, renames, genuine shrink, and reviewed migrations through the
 public API and CLI.

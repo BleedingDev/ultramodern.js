@@ -1,6 +1,7 @@
 {
-  "schemaVersion": 1,
-  "baseRef": "2f4d9c4559e26209a0d77f02c6757f29fe3699a2",
+  "schemaVersion": 2,
+  "baseRef": "eded841256a7cffdaa622e3889fc83407debd3e4",
+  "upstreamRef": "2f4d9c4559e26209a0d77f02c6757f29fe3699a2",
   "pathspec": ["packages"],
   "migrationGoal": "Shrink-only budget of fork edits inside upstream-owned files. Every entry is debt: move it upstream or behind an extension point, then re-run --write-divergence-allowlist.",
   "totalFiles": 613,

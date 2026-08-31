@@ -13,12 +13,15 @@ const {
 
 const {
   CAPPED_PATCH_LINES,
+  DEFAULT_DIVERGENCE_BASE_REF,
+  DEFAULT_UPSTREAM_PROVENANCE_REF,
   checkForkDivergence,
   evaluateDivergenceGovernance,
   formatDivergenceGrowth,
   formatDivergenceReport,
   getCanonicalDivergenceAllowlistPath,
   readDivergenceAllowlistAtRef,
+  resolveCommitSha,
   resolveRepositoryTopLevel,
   runSelfTest,
   writeDivergenceAllowlist,
@@ -75,6 +78,7 @@ const printSelfTest = () => {
 const assertNoVerificationOverrides = args => {
   const rejected = [
     ['root', '--root'],
+    ['base', '--base'],
     ['pathspec', '--pathspec'],
     ['divergence-allowlist', '--divergence-allowlist'],
   ];
@@ -169,6 +173,15 @@ const main = () => {
   const rootDir = resolveRepositoryTopLevel({ rootDir: requestedRoot });
   const canonicalDivergenceAllowlistPath =
     getCanonicalDivergenceAllowlistPath(rootDir);
+  const canonicalRefsAvailable = Boolean(
+    resolveCommitSha({ rootDir, ref: DEFAULT_DIVERGENCE_BASE_REF }),
+  );
+  const expectedBaseRef = canonicalRefsAvailable
+    ? DEFAULT_DIVERGENCE_BASE_REF
+    : undefined;
+  const expectedUpstreamRef = canonicalRefsAvailable
+    ? DEFAULT_UPSTREAM_PROVENANCE_REF
+    : undefined;
 
   if (args.mode === 'allowlist-governance') {
     if (!args['merge-base']) {
@@ -183,6 +196,7 @@ const main = () => {
       rootDir,
       ref: args['merge-base'],
       allowMissing: true,
+      allowLegacyProvenance: true,
     });
     const headAllowlist = readDivergenceAllowlistAtRef({
       rootDir,
@@ -195,6 +209,8 @@ const main = () => {
       headRef: args.head,
       baseAllowlist,
       headAllowlist,
+      expectedBaseRef,
+      expectedUpstreamRef,
     });
     printGovernance(governance);
     return;
@@ -240,6 +256,8 @@ const main = () => {
       allowlistPath: divergenceAllowlistPath,
       rebaseAllowlist: args['rebase-divergence-allowlist'],
       recordGrowth: args['record-growth'],
+      expectedBaseRef,
+      expectedUpstreamRef,
     });
     if (report.growth.length > 0) {
       console.warn(
@@ -277,7 +295,8 @@ const main = () => {
   const divergenceReport = runDivergence
     ? checkForkDivergence({
         rootDir,
-        baseRef: args.base,
+        baseRef: expectedBaseRef,
+        upstreamRef: expectedUpstreamRef,
         headRef: args.head,
         allowlistPath: canonicalDivergenceAllowlistPath,
       })

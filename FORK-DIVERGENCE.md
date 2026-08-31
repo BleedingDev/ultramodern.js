@@ -21,9 +21,11 @@ measurement point while retaining the complete upstream sync through
 sanctioned reviewed writer recorded the exact totals below.
 
 **Re-verified 2026-08-30** for the upstream v3.8.3 sync through `2f4d9c4559`:
-§2 bases and counts, §3 reconciliation, and the complete nine-entry audited-base
-transition set. The merge adopts #8836's monitor-native CSR fallback reporting
-while retaining the fork's `serverContext` render seam.
+§2 sync-review counts and the complete nine-entry transition review history.
+The synced source remains in `HEAD`, including #8836's monitor-native CSR
+fallback reporting. The divergence gate now preserves `eded841256` as its
+immutable ownership base and recognizes exact `2f4d9c4559` source as reviewed
+upstream provenance; no upstream update was rolled back.
 
 This file is the single canonical record of where the UltraModern fork diverges
 from upstream Modern.js. It is read during every upstream sync and enforced on
@@ -67,9 +69,14 @@ Every `packages/**` row below is a Bucket-B divergence except TK-10, which the
 row itself flags as a fork-added directory carrying no budget; §4's root/infra
 rows sit outside the two-bucket rule's `packages/**` scope entirely.
 
-Every non-shrink Bucket-B change requires a ledger entry **in the same PR**.
-A componentwise genuine shrink needs no ledger ceremony; an equal-count
-semantic replacement or rename is a non-shrink. Plain
+Every non-shrink Bucket-B change requires exactly one strict path-first ledger
+row **in the same committed range**. The row must name the exact immutable
+audited identity (the old path for a rename), a nonempty owner and reason, and
+one or more full tokens from the disposition vocabulary below. Whitespace or
+table reformatting, unrelated/grouped paths, broad advisory rows, duplicate
+rows, and unchanged historical rows are not evidence. A componentwise genuine
+shrink needs no ledger ceremony; an equal-count semantic replacement or rename
+is a non-shrink. Plain
 `--write-divergence-allowlist` only records shrink. A raised budget or new entry
 must be generated with the reviewed writer operation:
 
@@ -80,11 +87,14 @@ node scripts/ultramodern-boundary-check/check-fork-import-boundary.js \
 ```
 
 That operation fails unless every raised audited-base-owned file has at most 20
-added-plus-removed lines in the PR and the ledger changed in the same committed
-range. CI independently resolves both refs, reads the committed allowlists,
-re-measures the full recorded scope, and re-derives the cap and ledger evidence;
-a hand-edited baseline cannot authorize growth by itself. Base or scope changes
-use `--rebase-divergence-allowlist` with the same refs and ledger evidence.
+added-plus-removed lines in the PR and has its strict ledger row in the same
+committed range. CI independently resolves both refs, reads the committed
+allowlists, semantically compares ledger rows, re-measures the full recorded
+scope, and re-derives the cap and ledger evidence; a hand-edited baseline cannot
+authorize growth by itself. Scope changes use
+`--rebase-divergence-allowlist` with the same refs and ledger evidence. The
+audited ownership and reviewed provenance SHAs are exact pins; provenance
+cannot be advanced by resetting the snapshot.
 
 **Owner.** Every entry is owned by the repo owner **`bleedingdev`** unless the
 row names someone else. Owner means: accountable for the disposition landing,
@@ -118,28 +128,27 @@ P-lanes: **P1** next, **P2** near-term, **P3** scheduled, **P4** owner-gated.
 
 ## 2. Bases and counts
 
-Two different base refs are in play. Do not mix them — the counts differ.
+Three identities are in play. Do not mix them.
 
 | Base | SHA | Used by | Meaning |
 | --- | --- | --- | --- |
-| Divergence-gate base | `2f4d9c4559e26209a0d77f02c6757f29fe3699a2` | `divergence-allowlist.json`, `--mode divergence` | reviewed upstream main through Release v3.8.3 (#8835) and monitor-native CSR fallback reporting (#8836), merged as a true ancestor of `HEAD` |
+| Divergence ownership base | `eded841256a7cffdaa622e3889fc83407debd3e4` | `divergence-allowlist.json`, `--mode divergence` | immutable audited identity point: upstream's `Release v3.8.2 (#8810)` mainline commit; ownership survives renames |
+| Reviewed upstream provenance | `2f4d9c4559e26209a0d77f02c6757f29fe3699a2` | `divergence-allowlist.json`, `--mode divergence`, sync review | exact upstream v3.8.3 source retained in `HEAD`; changes from the ownership base through this commit are resolution (1), already upstream |
 | Import-gate base | `8a744c1b` | `allowlist.json`, `--mode imports` | frozen import-boundary baseline, deliberately **not** re-anchored with the divergence base |
-| Sync-review base | `2f4d9c4559e26209a0d77f02c6757f29fe3699a2` | this ledger's raw sync-review counts | `origin/main` tip at the 2026-08-30 sync; identical to the reviewed gate base |
 
-**Re-anchored 2026-08-30 (was `eded841256`, upstream's v3.8.2 mainline release
-commit).** The explicit reviewed transition aligns both the sync-review and
-divergence-gate bases with the upstream 3.8.3 source actually incorporated and
-published. Historical re-anchors through `3748f08860` and `f4bc5ee335`, plus
-the temporary return to `eded841256`, remain review history rather than current
-measurement inputs. Measure against the recorded **mainline** commit, never a
-release tag.
+The gate derives identity from `eded841256`, subtracts exact reviewed upstream
+source through `2f4d9c4559`, and measures the remaining cumulative fork patch
+from `2f4d9c4559` to the target. It then groups that patch back onto immutable
+audited identities. The parallel `v3.8.2` tag (`e642cd16`) is patch-equivalent
+to `eded841256` but is not an ancestor and is not a valid substitute. Neither
+`HEAD` nor a PR merge-base can substitute for reviewed provenance.
 
 Raw `git diff -M <base> --name-status` sync review (committed head vs
 `2f4d9c4559`) at 2026-08-30:
 
 | Scope | Base | M | A | D | R |
 | --- | --- | --- | --- | --- | --- |
-| `packages/**` | `2f4d9c4559` (gate base = synced `origin/main`) | 584 | 859 | 11 | 18 |
+| `packages/**` | `2f4d9c4559` (synced `origin/main`) | 584 | 859 | 11 | 18 |
 | root/infra (`:(exclude)packages/**`) | `2f4d9c4559` | 424 | 716 | 8 | 39 |
 
 Regenerate with rename detection pinned on — without `-M` the template moves
@@ -151,38 +160,39 @@ git diff -M 2f4d9c4559e26209a0d77f02c6757f29fe3699a2 --name-status -- . ':(exclu
 node scripts/ultramodern-boundary-check/check-fork-import-boundary.js --mode divergence --json
 ```
 
-Fork-**added** files and packages (`@modern-js/plugin-tanstack`,
-`@modern-js/server-runtime-extensions`, `app-tools/src/presetUltramodern.ts`, …) are
-fork-owned by definition, carry no divergence budget, and are not listed here.
+Files inside explicit fork-owned package roots (`@modern-js/plugin-tanstack`,
+`@modern-js/server-runtime-extensions`, and the other roots listed by the
+checker) carry no divergence budget when that package root was absent at the
+reviewed provenance. Every new file placed later inside a vanilla upstream
+package remains governed, including executable or product inputs under
+`tests`, `fixtures`, `examples`, or `docs`; lexical naming never makes it
+fork-owned.
 
 ---
 
 ## 3. Allowlist reconciliation
 
-Measured divergence at the reviewed gate base `2f4d9c4559` is **613 files /
-2,782 hunks / 34,329 changed lines** under `packages/` (`measureDivergence`,
-`--diff-filter=MD`, so fork-added files are excluded). These totals are the exact
-sanctioned writer result; prose estimates do not authorize a budget. For
-historical comparison, the fixed `eded841256` snapshot was 614 files / 2,791
-hunks / 33,841 changed lines.
+The canonical budget remains **613 files / 2,782 hunks / 34,329 changed
+lines**. Schema v2 preserves every v1 per-file budget and total byte-for-byte;
+it changes only the model around those budgets: `eded841256` is the immutable
+identity base and `2f4d9c4559` is reviewed provenance. Exact upstream-only
+changes between those commits consume no budget. The older **614 files / 2,791
+hunks / 33,841 changed lines** number was a direct `eded841256..HEAD`
+composition and is retained only as historical evidence, not as the current
+budget contract.
 
-**The reviewed v3.8.3 transition is recorded on 2026-08-30.** The budgets in
-`divergence-allowlist.json` are written through the sanctioned base-transition
-path (§1) with committed merge-base/head refs:
+The canonical verification is:
 
 ```sh
 node scripts/ultramodern-boundary-check/check-fork-import-boundary.js \
-  --mode divergence --base 2f4d9c4559e26209a0d77f02c6757f29fe3699a2 \
-  --write-divergence-allowlist --rebase-divergence-allowlist --record-growth \
-  --merge-base "$PR_MERGE_BASE" --head "$COMMITTED_HEAD"
+  --mode divergence
 ```
 
-This is an audited-base transition to the upstream source now present in
-`HEAD`, not ordinary fork-side PR growth. The complete set of cumulative metric
-increases relative to the retired snapshot is reviewed below; all other entries
-shrank, cleared, or remained within their prior componentwise budgets.
+The newer upstream source remains present in `HEAD`. The historical transition
+tables below document prior reviews only and do not authorize current growth or
+a future provenance debt reset.
 
-### 2026-08-30 v3.8.3 transition: complete raised set
+### Historical 2026-08-30 v3.8.3 transition: complete raised set
 
 | Upstream-owned path | Owner | Transition reason | Disposition |
 | --- | --- | --- | --- |
@@ -198,7 +208,7 @@ shrank, cleared, or remained within their prior componentwise budgets.
 
 No other raised/new path belongs to this transition.
 
-### Historical 2026-08-26 fixed-base transition: complete raised/new set
+### 2026-08-26 fixed-base transition: complete raised/new set
 
 | Audited-base-owned path | Owner | Backward-base transition reason | Disposition |
 | --- | --- | --- | --- |
@@ -700,13 +710,8 @@ current evidence — do not cite it.
    `node scripts/ultramodern-boundary-check/check-fork-import-boundary.js`.
    Any `unallowlisted-divergence` is a new Bucket-B entry that needs a row in
    this ledger before the budget is re-recorded.
-7. Do not move the fixed audited base merely because upstream was synced; update
-   the Sync-review base in §2 instead. If a separate base transition is
-   explicitly approved, re-anchor `DEFAULT_DIVERGENCE_BASE_REF` to the reviewed
-   upstream **mainline** commit, not a parallel release tag, and re-record with
-   the writer command in §3 in the same change as the ledger rows. Expect growth
-   on every upstream-owned file the fork replaced with a shim or an extension
-   point: the fork's side did not change, upstream's did, and a deletion of a
-   bigger file measures bigger. Inspect each entry against
-   `git diff <old-base> <new-base> -- <file>` before recording it — that diff is
-   what separates a base-transition artifact from a merge-resolution defect.
+7. Do not move the immutable ownership base or reviewed provenance merely
+   because upstream was synced. Record the candidate sync revision separately
+   until an identity-preserving budget carry-forward has been designed and
+   reviewed. Never substitute a release tag, PR merge-base, push before-SHA, or
+   `HEAD`, and never re-record a fresh snapshot to erase existing debt.

@@ -1,23 +1,30 @@
 /**
  * Upstream-file divergence guard.
  *
- * The cumulative allowlist is measured from one audited upstream commit over one
- * recorded repository-root scope. Verification never accepts a caller-selected
- * subset: the validated allowlist is the source of truth for both the base and
- * the scope.
+ * The cumulative allowlist keeps one immutable audited identity base and one
+ * reviewed upstream provenance commit over one recorded repository-root scope.
+ * Verification never accepts caller-selected source identities or a scope
+ * subset: the validated allowlist and exact built-in pins are the contract.
  */
 const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const DIVERGENCE_SCHEMA_VERSION = 1;
+const DIVERGENCE_SCHEMA_VERSION = 2;
 const DIVERGENCE_FILE_PATTERN = /^packages\//;
 /**
- * Upstream main through Release v3.8.3 (#8835) and the monitor-native CSR
- * fallback reporting in #8836. This is the reviewed mainline commit merged by
- * the 2026-08-30 sync; release tags must not be substituted for it.
+ * Fixed upstream v3.8.2 mainline release commit. The v3.8.2 tag points to a
+ * patch-equivalent commit on a side branch and is not an ancestor of HEAD, so
+ * the tag must never be substituted for this audited base.
  */
-const DEFAULT_DIVERGENCE_BASE_REF = '2f4d9c4559e26209a0d77f02c6757f29fe3699a2';
+const DEFAULT_DIVERGENCE_BASE_REF = 'eded841256a7cffdaa622e3889fc83407debd3e4';
+/**
+ * Reviewed upstream source incorporated after the immutable audit point.
+ * Exact bytes from this commit are resolution (1), already upstream; fork
+ * divergence is measured only on top of this provenance.
+ */
+const DEFAULT_UPSTREAM_PROVENANCE_REF =
+  '2f4d9c4559e26209a0d77f02c6757f29fe3699a2';
 const DEFAULT_DIVERGENCE_ALLOWLIST_REPO_PATH =
   'scripts/ultramodern-boundary-check/divergence-allowlist.json';
 const DEFAULT_DIVERGENCE_ALLOWLIST_PATH = path.join(
@@ -36,26 +43,20 @@ const FORK_OWNED_PACKAGE_ROOTS = Object.freeze([
 ]);
 const DIVERGENCE_LEDGER_REPO_PATH = 'FORK-DIVERGENCE.md';
 const CAPPED_PATCH_LINES = 20;
+const ALLOWED_LEDGER_DISPOSITIONS = new Set([
+  'upstream-PR',
+  'extension-point',
+  'capped-patch',
+  'fixed-in-fork',
+  'keep-deleted',
+  'keep-[F]',
+  'keep-[M]',
+  'revert',
+  'fix',
+  'owner-decision',
+]);
 const MAX_DIVERGENCE_REPORT_ENTRIES = 20;
 const GIT_MAX_BUFFER_BYTES = 512 * 1024 * 1024;
-const NON_PRODUCTION_PACKAGE_SEGMENTS = new Set([
-  '__fixtures__',
-  '__snapshots__',
-  '__tests__',
-  'bench',
-  'benches',
-  'benchmark',
-  'benchmarks',
-  'docs',
-  'example',
-  'examples',
-  'fixture',
-  'fixtures',
-  'stories',
-  'test',
-  'tests',
-]);
-
 const TWO_BUCKET_RULE = [
   'Every change to an upstream-owned file must land in one of two buckets:',
   '  1. upstream PR - send the change to web-infra-dev/modern.js instead;',
@@ -124,27 +125,6 @@ const resolveForkOwnedPackageRoots = baseTreeSet =>
     root => !baseTreeSet.has(`${root}/package.json`),
   );
 
-const isProductionPackagePath = file => {
-  if (!DIVERGENCE_FILE_PATTERN.test(file)) {
-    return false;
-  }
-  const segments = file.split('/');
-  const basename = segments.at(-1);
-  if (
-    segments
-      .slice(2, -1)
-      .some(segment =>
-        NON_PRODUCTION_PACKAGE_SEGMENTS.has(segment.toLowerCase()),
-      )
-  ) {
-    return false;
-  }
-  return !(
-    /\.(?:md|mdx|snap)$/i.test(basename) ||
-    /(?:^|\.)(?:spec|test)\.[^.]+$/i.test(basename)
-  );
-};
-
 const sampleDivergenceEntries = entries => {
   if (entries.length <= MAX_DIVERGENCE_REPORT_ENTRIES) {
     return entries;
@@ -204,6 +184,19 @@ const resolveRequiredCommitSha = ({ rootDir, ref, label }) => {
     throw new Error(`${label} ${String(ref)} does not resolve to a commit.`);
   }
   return resolved;
+};
+
+const assertAncestor = ({ rootDir, ancestorRef, descendantRef, label }) => {
+  const result = runGit({
+    rootDir,
+    args: ['merge-base', '--is-ancestor', ancestorRef, descendantRef],
+    allowFailure: true,
+  });
+  if (result === null) {
+    throw new Error(
+      `${label}: ${ancestorRef} is not an ancestor of ${descendantRef}.`,
+    );
+  }
 };
 
 const getCanonicalDivergenceAllowlistPath = rootDir =>
@@ -307,7 +300,12 @@ const parseAllowlistInput = (input, source) => {
 
 const validateDivergenceAllowlist = (
   input,
-  { rootDir = process.cwd(), source = 'divergence allowlist' } = {},
+  {
+    rootDir = process.cwd(),
+    source = 'divergence allowlist',
+    allowLegacyProvenance = false,
+    identityRef = 'HEAD',
+  } = {},
 ) => {
   const repositoryRoot = resolveRepositoryTopLevel({ rootDir });
   const allowlist = parseAllowlistInput(input, source);
@@ -315,11 +313,14 @@ const validateDivergenceAllowlist = (
     throw new Error(`${source} must contain a JSON object.`);
   }
 
+  const legacyProvenance =
+    allowLegacyProvenance && allowlist.schemaVersion === 1;
   assertExactKeys({
     value: allowlist,
     expected: [
       'schemaVersion',
       'baseRef',
+      ...(legacyProvenance ? [] : ['upstreamRef']),
       'pathspec',
       'migrationGoal',
       'totalFiles',
@@ -330,7 +331,10 @@ const validateDivergenceAllowlist = (
     label: source,
   });
 
-  if (allowlist.schemaVersion !== DIVERGENCE_SCHEMA_VERSION) {
+  if (
+    allowlist.schemaVersion !== DIVERGENCE_SCHEMA_VERSION &&
+    !legacyProvenance
+  ) {
     throw new Error(
       `Unsupported divergence allowlist schemaVersion ${String(
         allowlist.schemaVersion,
@@ -350,6 +354,30 @@ const validateDivergenceAllowlist = (
   if (resolvedBase !== allowlist.baseRef) {
     throw new Error(`${source} baseRef must record the resolved commit OID.`);
   }
+  const upstreamRef = legacyProvenance
+    ? allowlist.baseRef
+    : allowlist.upstreamRef;
+  if (!/^[0-9a-f]{40}$/.test(upstreamRef)) {
+    throw new Error(
+      `${source} upstreamRef must be a full lowercase 40-hex commit OID.`,
+    );
+  }
+  const resolvedUpstream = resolveRequiredCommitSha({
+    rootDir: repositoryRoot,
+    ref: upstreamRef,
+    label: `${source} upstreamRef`,
+  });
+  if (resolvedUpstream !== upstreamRef) {
+    throw new Error(
+      `${source} upstreamRef must record the resolved commit OID.`,
+    );
+  }
+  assertAncestor({
+    rootDir: repositoryRoot,
+    ancestorRef: resolvedBase,
+    descendantRef: resolvedUpstream,
+    label: `${source} provenance ancestry mismatch`,
+  });
   if (
     typeof allowlist.migrationGoal !== 'string' ||
     allowlist.migrationGoal.trim().length === 0
@@ -365,11 +393,57 @@ const validateDivergenceAllowlist = (
     baseRef: resolvedBase,
     pathspec,
   });
-  const baseTreeSet = new Set(baseTreePaths);
+  const upstreamTreePaths = listTreePaths({
+    rootDir: repositoryRoot,
+    baseRef: resolvedUpstream,
+    pathspec,
+  });
+  const { ownership: provenanceOwnership } = buildProvenanceOwnership({
+    rootDir: repositoryRoot,
+    auditedBaseRef: resolvedBase,
+    upstreamRef: resolvedUpstream,
+    pathspec,
+  });
+  const canonicalIdentities = new Set(provenanceOwnership.values());
+  const forkOwnedPackageRoots = resolveForkOwnedPackageRoots(
+    new Set(upstreamTreePaths),
+  );
+  let resolvedIdentityRef;
+  const hasPostProvenanceHistory = file => {
+    resolvedIdentityRef ??= resolveRequiredCommitSha({
+      rootDir: repositoryRoot,
+      ref: identityRef,
+      label: `${source} identity target`,
+    });
+    assertAncestor({
+      rootDir: repositoryRoot,
+      ancestorRef: resolvedUpstream,
+      descendantRef: resolvedIdentityRef,
+      label: `${source} identity target does not incorporate reviewed provenance`,
+    });
+    return (
+      runGit({
+        rootDir: repositoryRoot,
+        args: [
+          'log',
+          '-1',
+          '--format=%H',
+          `${resolvedUpstream}..${resolvedIdentityRef}`,
+          '--',
+          file,
+        ],
+      }).trim().length > 0
+    );
+  };
   for (const scope of pathspec) {
     if (!baseTreePaths.some(file => pathIsInScope(file, scope))) {
       throw new Error(
         `${source} pathspec entry ${scope} does not match that exact case in the audited base tree.`,
+      );
+    }
+    if (!upstreamTreePaths.some(file => pathIsInScope(file, scope))) {
+      throw new Error(
+        `${source} pathspec entry ${scope} does not match that exact case in the reviewed upstream tree.`,
       );
     }
   }
@@ -404,9 +478,13 @@ const validateDivergenceAllowlist = (
         `${source} file ${file} is outside the recorded pathspec.`,
       );
     }
-    if (!baseTreeSet.has(file)) {
+    if (
+      !canonicalIdentities.has(file) &&
+      (forkOwnedPackageRoots.some(root => pathIsInScope(file, root)) ||
+        !hasPostProvenanceHistory(file))
+    ) {
       throw new Error(
-        `${source} file ${file} does not exist with that exact path and case at audited base ${resolvedBase}.`,
+        `${source} file ${file} is neither a canonical reviewed-upstream identity nor a governed post-provenance production path derived from audited base ${resolvedBase} and reviewed provenance ${resolvedUpstream}.`,
       );
     }
     seenFiles.add(file);
@@ -440,8 +518,9 @@ const validateDivergenceAllowlist = (
   }
 
   return {
-    schemaVersion: DIVERGENCE_SCHEMA_VERSION,
+    schemaVersion: allowlist.schemaVersion,
     baseRef: resolvedBase,
+    ...(legacyProvenance ? {} : { upstreamRef: resolvedUpstream }),
     pathspec,
     migrationGoal: allowlist.migrationGoal,
     ...totals,
@@ -466,6 +545,7 @@ const readDivergenceAllowlistAtRef = ({
   rootDir,
   ref,
   allowMissing = false,
+  allowLegacyProvenance = false,
 }) => {
   const repositoryRoot = resolveRepositoryTopLevel({ rootDir });
   const commit = resolveRequiredCommitSha({
@@ -502,6 +582,8 @@ const readDivergenceAllowlistAtRef = ({
   return validateDivergenceAllowlist(contents, {
     rootDir: repositoryRoot,
     source: `${DEFAULT_DIVERGENCE_ALLOWLIST_REPO_PATH} at ${commit}`,
+    allowLegacyProvenance,
+    identityRef: commit,
   });
 };
 
@@ -571,7 +653,7 @@ const buildDiffArgs = ({ baseRef, headRef, pathspec }) => [
   ...pathspec,
 ];
 
-const buildAddedDiffArgs = ({ baseRef, headRef, pathspec }) => [
+const buildProvenanceDiffArgs = ({ upstreamRef, headRef, pathspec }) => [
   '-c',
   'core.quotePath=false',
   '-c',
@@ -582,9 +664,9 @@ const buildAddedDiffArgs = ({ baseRef, headRef, pathspec }) => [
   '--no-ext-diff',
   '--no-color',
   '-M',
-  '--diff-filter=A',
+  '--diff-filter=ACDMRT',
   '-U0',
-  baseRef,
+  upstreamRef,
   ...(headRef ? [headRef] : []),
   '--',
   ...pathspec,
@@ -704,7 +786,6 @@ const parseDivergenceDiff = (
       const file = record.newPath;
       return (
         file !== null &&
-        isProductionPackagePath(file) &&
         !forkOwnedPackageRoots.some(root => pathIsInScope(file, root))
       );
     })
@@ -729,6 +810,7 @@ const parseDivergenceDiff = (
 const measureDivergence = ({
   rootDir = process.cwd(),
   baseRef = DEFAULT_DIVERGENCE_BASE_REF,
+  upstreamRef = baseRef,
   headRef,
   pathspec = DEFAULT_PATHSPEC,
   filePattern = DIVERGENCE_FILE_PATTERN,
@@ -740,6 +822,17 @@ const measureDivergence = ({
     ref: baseRef,
     label: 'Divergence base',
   });
+  const resolvedUpstream = resolveRequiredCommitSha({
+    rootDir: repositoryRoot,
+    ref: upstreamRef,
+    label: 'Reviewed upstream provenance',
+  });
+  assertAncestor({
+    rootDir: repositoryRoot,
+    ancestorRef: resolvedBase,
+    descendantRef: resolvedUpstream,
+    label: 'Reviewed upstream provenance ancestry mismatch',
+  });
   const resolvedHead = headRef
     ? resolveRequiredCommitSha({
         rootDir: repositoryRoot,
@@ -747,39 +840,78 @@ const measureDivergence = ({
         label: 'Divergence head',
       })
     : null;
+  const comparisonHead =
+    resolvedHead ??
+    resolveRequiredCommitSha({
+      rootDir: repositoryRoot,
+      ref: 'HEAD',
+      label: 'Divergence worktree HEAD',
+    });
+  assertAncestor({
+    rootDir: repositoryRoot,
+    ancestorRef: resolvedUpstream,
+    descendantRef: comparisonHead,
+    label: 'Reviewed upstream provenance is not incorporated in the target',
+  });
   const patchText = runGit({
     rootDir: repositoryRoot,
-    args: buildDiffArgs({
-      baseRef: resolvedBase,
+    args: buildProvenanceDiffArgs({
+      upstreamRef: resolvedUpstream,
       headRef: resolvedHead,
       pathspec: validatedPathspec,
     }),
   });
-  const addedPatchText = runGit({
+  const { upstreamSet, ownership } = buildProvenanceOwnership({
     rootDir: repositoryRoot,
-    args: buildAddedDiffArgs({
-      baseRef: resolvedBase,
-      headRef: resolvedHead,
-      pathspec: validatedPathspec,
-    }),
+    auditedBaseRef: resolvedBase,
+    upstreamRef: resolvedUpstream,
+    pathspec: validatedPathspec,
   });
-  const baseTreeSet = new Set(
-    listTreePaths({
-      rootDir: repositoryRoot,
-      baseRef: resolvedBase,
-      pathspec: validatedPathspec,
-    }),
-  );
-  const forkOwnedPackageRoots = resolveForkOwnedPackageRoots(baseTreeSet);
-  const files = [
-    ...parseDivergenceDiff(patchText, { filePattern }),
-    ...parseDivergenceDiff(addedPatchText, {
-      filePattern,
-      forkOwnedPackageRoots,
-    }),
-  ].sort((left, right) => lexicalCompare(left.file, right.file));
+  const upstreamTreeSet = upstreamSet;
+  const forkOwnedPackageRoots = resolveForkOwnedPackageRoots(upstreamTreeSet);
+  const grouped = new Map();
+  for (const record of parsePatchRecords(patchText)) {
+    let identity =
+      (record.oldPath && ownership.get(record.oldPath)) ||
+      (record.newPath && ownership.get(record.newPath)) ||
+      null;
+    if (!identity) {
+      const file = record.newPath;
+      if (
+        (!record.added && !record.renamed) ||
+        file === null ||
+        forkOwnedPackageRoots.some(root => pathIsInScope(file, root))
+      ) {
+        continue;
+      }
+      identity = file;
+    }
+    if (filePattern && !filePattern.test(identity)) {
+      continue;
+    }
+    const current = grouped.get(identity) ?? {
+      file: identity,
+      hunks: 0,
+      changedLines: 0,
+      addedLines: 0,
+      removedLines: 0,
+    };
+    current.hunks += record.binary ? Math.max(record.hunks, 1) : record.hunks;
+    current.changedLines += record.binary
+      ? Math.max(record.changedLines, 1)
+      : record.changedLines;
+    current.addedLines += record.binary
+      ? Math.max(record.addedLines, 1)
+      : record.addedLines;
+    current.removedLines += record.removedLines;
+    grouped.set(identity, current);
+  }
+  const files = [...grouped.values()]
+    .filter(entry => entry.hunks > 0 || entry.changedLines > 0)
+    .sort((left, right) => lexicalCompare(left.file, right.file));
   return {
     baseRef: resolvedBase,
+    upstreamRef: resolvedUpstream,
     headRef: resolvedHead,
     files,
     totalFiles: files.length,
@@ -791,7 +923,12 @@ const measureDivergence = ({
   };
 };
 
-const createDivergenceSnapshot = ({ baseRef, pathspec, files = [] }) => {
+const createDivergenceSnapshot = ({
+  baseRef,
+  upstreamRef = baseRef,
+  pathspec,
+  files = [],
+}) => {
   const budgets = [...files]
     .map(entry => ({
       file: entry.file,
@@ -802,6 +939,7 @@ const createDivergenceSnapshot = ({ baseRef, pathspec, files = [] }) => {
   return {
     schemaVersion: DIVERGENCE_SCHEMA_VERSION,
     baseRef,
+    upstreamRef,
     pathspec: [...pathspec],
     migrationGoal:
       'Shrink-only budget of fork edits inside upstream-owned files. Every entry is debt: move it upstream or behind an extension point, then re-run --write-divergence-allowlist.',
@@ -908,8 +1046,26 @@ const compareDivergence = ({
 
 const checkAllowlistGovernance = ({ baseAllowlist, headAllowlist } = {}) => {
   const introduced = baseAllowlist === null;
+  const provenanceModelMigrated =
+    !introduced &&
+    baseAllowlist.schemaVersion === 1 &&
+    headAllowlist.schemaVersion === DIVERGENCE_SCHEMA_VERSION &&
+    baseAllowlist.baseRef === DEFAULT_UPSTREAM_PROVENANCE_REF &&
+    headAllowlist.baseRef === DEFAULT_DIVERGENCE_BASE_REF &&
+    headAllowlist.upstreamRef === DEFAULT_UPSTREAM_PROVENANCE_REF &&
+    arraysEqual(baseAllowlist.pathspec, headAllowlist.pathspec) &&
+    baseAllowlist.totalFiles === headAllowlist.totalFiles &&
+    baseAllowlist.totalHunks === headAllowlist.totalHunks &&
+    baseAllowlist.totalChangedLines === headAllowlist.totalChangedLines &&
+    JSON.stringify(baseAllowlist.files) === JSON.stringify(headAllowlist.files);
   const reAnchored =
-    !introduced && baseAllowlist.baseRef !== headAllowlist.baseRef;
+    !introduced &&
+    !provenanceModelMigrated &&
+    baseAllowlist.baseRef !== headAllowlist.baseRef;
+  const provenanceChanged =
+    !introduced &&
+    !provenanceModelMigrated &&
+    baseAllowlist.upstreamRef !== headAllowlist.upstreamRef;
   const scopeChanged =
     !introduced && !arraysEqual(baseAllowlist.pathspec, headAllowlist.pathspec);
   const comparison = introduced
@@ -921,13 +1077,22 @@ const checkAllowlistGovernance = ({ baseAllowlist, headAllowlist } = {}) => {
   return {
     growth: comparison.violations,
     introduced,
+    provenanceModelMigrated,
     reAnchored,
+    provenanceChanged,
     scopeChanged,
-    transition: introduced || reAnchored || scopeChanged,
+    transition:
+      introduced ||
+      provenanceModelMigrated ||
+      reAnchored ||
+      provenanceChanged ||
+      scopeChanged,
     ok:
       comparison.violations.length === 0 &&
       !introduced &&
+      !provenanceModelMigrated &&
       !reAnchored &&
+      !provenanceChanged &&
       !scopeChanged,
   };
 };
@@ -954,20 +1119,25 @@ const parseNameStatus = output => {
   return records;
 };
 
-const buildOwnershipMap = ({
+function buildProvenanceOwnership({
   rootDir,
   auditedBaseRef,
-  comparisonRef,
+  upstreamRef,
   pathspec,
-}) => {
+}) {
   const auditedPaths = listTreePaths({
     rootDir,
     baseRef: auditedBaseRef,
     pathspec,
   });
   const auditedSet = new Set(auditedPaths);
-  const ownership = new Map(auditedPaths.map(file => [file, file]));
-  if (auditedBaseRef !== comparisonRef) {
+  const ownership = new Map();
+  const upstreamPaths = listTreePaths({
+    rootDir,
+    baseRef: upstreamRef,
+    pathspec,
+  });
+  if (auditedBaseRef !== upstreamRef) {
     const status = runGit({
       rootDir,
       args: [
@@ -978,24 +1148,108 @@ const buildOwnershipMap = ({
         '-z',
         '-M',
         auditedBaseRef,
+        upstreamRef,
+        '--',
+        ...pathspec,
+      ],
+    });
+    for (const record of parseNameStatus(status)) {
+      if (record.status.startsWith('R') && auditedSet.has(record.oldPath)) {
+        ownership.set(record.newPath, record.oldPath);
+      }
+    }
+  }
+  for (const file of upstreamPaths) {
+    if (!ownership.has(file)) {
+      ownership.set(file, file);
+    }
+  }
+
+  return {
+    auditedSet,
+    upstreamSet: new Set(upstreamPaths),
+    ownership,
+  };
+}
+
+const buildOwnershipMap = ({
+  rootDir,
+  auditedBaseRef,
+  upstreamRef,
+  comparisonRef,
+  pathspec,
+}) => {
+  const { auditedSet, upstreamSet, ownership } = buildProvenanceOwnership({
+    rootDir,
+    auditedBaseRef,
+    upstreamRef,
+    pathspec,
+  });
+
+  assertAncestor({
+    rootDir,
+    ancestorRef: upstreamRef,
+    descendantRef: comparisonRef,
+    label:
+      'Reviewed upstream provenance is not incorporated in the governance base',
+  });
+  if (upstreamRef !== comparisonRef) {
+    const status = runGit({
+      rootDir,
+      args: [
+        '-c',
+        'core.quotePath=false',
+        'diff',
+        '--name-status',
+        '-z',
+        '-M',
+        upstreamRef,
         comparisonRef,
         '--',
         ...pathspec,
       ],
     });
     for (const record of parseNameStatus(status)) {
-      if (
-        (record.status.startsWith('R') || record.status.startsWith('C')) &&
-        auditedSet.has(record.oldPath)
-      ) {
-        ownership.set(record.newPath, record.oldPath);
+      if (record.status.startsWith('R')) {
+        const owner = ownership.get(record.oldPath);
+        if (owner) {
+          ownership.set(record.newPath, owner);
+        }
       }
     }
   }
-  return { auditedSet, ownership };
+  const forkOwnedPackageRoots = resolveForkOwnedPackageRoots(upstreamSet);
+  for (const file of listTreePaths({
+    rootDir,
+    baseRef: comparisonRef,
+    pathspec,
+  })) {
+    if (
+      !ownership.has(file) &&
+      !forkOwnedPackageRoots.some(root => pathIsInScope(file, root))
+    ) {
+      ownership.set(file, file);
+    }
+  }
+  return {
+    upstreamOwnedSet: new Set(ownership.keys()),
+    forkOwnedPackageRoots,
+    ownership,
+  };
 };
 
 const metricByFile = files => new Map(files.map(entry => [entry.file, entry]));
+const metricByOwner = (files, ownership) => {
+  const metrics = new Map();
+  for (const entry of files) {
+    const owner = ownership.get(entry.file) ?? entry.file;
+    const current = metrics.get(owner) ?? { hunks: 0, changedLines: 0 };
+    current.hunks += entry.hunks;
+    current.changedLines += entry.changedLines;
+    metrics.set(owner, current);
+  }
+  return metrics;
+};
 const EMPTY_METRIC = Object.freeze({ hunks: 0, changedLines: 0 });
 const isGenuineShrink = (before, after) =>
   after.hunks <= before.hunks &&
@@ -1005,16 +1259,19 @@ const isGenuineShrink = (before, after) =>
 const measureRule5Changes = ({
   rootDir,
   auditedBaseRef,
+  upstreamRef,
   mergeBaseRef,
   headRef,
   pathspec,
 }) => {
-  const { auditedSet, ownership } = buildOwnershipMap({
-    rootDir,
-    auditedBaseRef,
-    comparisonRef: mergeBaseRef,
-    pathspec,
-  });
+  const { upstreamOwnedSet, forkOwnedPackageRoots, ownership } =
+    buildOwnershipMap({
+      rootDir,
+      auditedBaseRef,
+      upstreamRef,
+      comparisonRef: mergeBaseRef,
+      pathspec,
+    });
   const patchText = runGit({
     rootDir,
     args: [
@@ -1038,17 +1295,29 @@ const measureRule5Changes = ({
   });
   const grouped = new Map();
   for (const record of parsePatchRecords(patchText)) {
-    const owner =
+    let owner =
       (record.oldPath && ownership.get(record.oldPath)) ||
       (record.newPath && ownership.get(record.newPath)) ||
-      (record.oldPath && auditedSet.has(record.oldPath)
+      (record.oldPath && upstreamOwnedSet.has(record.oldPath)
         ? record.oldPath
         : null) ||
-      (record.newPath && auditedSet.has(record.newPath)
+      (record.newPath && upstreamOwnedSet.has(record.newPath)
         ? record.newPath
         : null);
+    if (
+      !owner &&
+      (record.added || record.renamed) &&
+      record.newPath &&
+      !forkOwnedPackageRoots.some(root => pathIsInScope(record.newPath, root))
+    ) {
+      owner = record.newPath;
+      ownership.set(record.newPath, owner);
+    }
     if (!owner) {
       continue;
+    }
+    if (record.renamed && record.newPath) {
+      ownership.set(record.newPath, owner);
     }
     const current = grouped.get(owner) ?? {
       file: owner,
@@ -1068,21 +1337,25 @@ const measureRule5Changes = ({
     grouped.set(owner, current);
   }
 
-  const before = metricByFile(
+  const before = metricByOwner(
     measureDivergence({
       rootDir,
       baseRef: auditedBaseRef,
+      upstreamRef,
       headRef: mergeBaseRef,
       pathspec,
     }).files,
+    ownership,
   );
-  const after = metricByFile(
+  const after = metricByOwner(
     measureDivergence({
       rootDir,
       baseRef: auditedBaseRef,
+      upstreamRef,
       headRef,
       pathspec,
     }).files,
+    ownership,
   );
 
   return [...grouped.values()]
@@ -1091,6 +1364,10 @@ const measureRule5Changes = ({
       const afterMetric = after.get(change.file) ?? EMPTY_METRIC;
       return {
         file: change.file,
+        ownedPaths: [...ownership.entries()]
+          .filter(([, owner]) => owner === change.file)
+          .map(([file]) => file)
+          .sort(lexicalCompare),
         currentPaths: [...change.currentPaths].sort(lexicalCompare),
         addedLines: change.addedLines,
         removedLines: change.removedLines,
@@ -1122,12 +1399,225 @@ const checkLedgerChanged = ({ rootDir, mergeBaseRef, headRef }) =>
     ],
   }).trim().length > 0;
 
+const splitMarkdownTableRow = line => {
+  const trimmed = line.trim();
+  if (!trimmed.startsWith('|') || !trimmed.endsWith('|')) {
+    return null;
+  }
+  const cells = [];
+  let cell = '';
+  let inCode = false;
+  let escaped = false;
+  for (const character of trimmed.slice(1, -1)) {
+    if (escaped) {
+      cell += character;
+      escaped = false;
+    } else if (character === '\\') {
+      escaped = true;
+    } else if (character === '`') {
+      inCode = !inCode;
+      cell += character;
+    } else if (character === '|' && !inCode) {
+      cells.push(cell.trim());
+      cell = '';
+    } else {
+      cell += character;
+    }
+  }
+  if (escaped || inCode) {
+    return null;
+  }
+  cells.push(cell.trim());
+  return cells;
+};
+
+const normalizeLedgerHeader = cell =>
+  cell.replace(/[*_`]/g, '').trim().toLowerCase();
+
+const isMarkdownSeparatorRow = cells =>
+  cells.every(cell => /^:?-{3,}:?$/.test(cell.replace(/\s/g, '')));
+
+const stripMarkdownCell = cell =>
+  cell
+    .replace(/<!--[\s\S]*?-->/gu, '')
+    .replace(/<br\s*\/?\s*>/gi, ' ')
+    .replace(/<[^>]*>/gu, '')
+    .replace(/[`*_]/g, '')
+    .replace(/\p{Default_Ignorable_Code_Point}/gu, '')
+    .replace(/\s+/gu, ' ')
+    .trim();
+
+const isMissingLedgerValue = value =>
+  value.length === 0 || /^(?:-|—|none|n\/a)$/iu.test(value);
+
+const parseLedgerDisposition = cell => {
+  const tokens = [...cell.matchAll(/`([^`]+)`/g)].map(match => match[1]);
+  const invalidTokens = tokens.filter(
+    token => !ALLOWED_LEDGER_DISPOSITIONS.has(token),
+  );
+  const normalizedTokens = [...new Set(tokens)].sort(lexicalCompare);
+  const annotationFree = cell
+    .replace(/`[^`]+`/g, '')
+    .replace(/\([^)]*\)/g, '')
+    .replace(/(?:\s+—\s+|\s+-\s+).*$/u, '')
+    .trim();
+  return {
+    value: normalizedTokens.join(' + '),
+    valid:
+      tokens.length > 0 &&
+      invalidTokens.length === 0 &&
+      /^[+/,;\s]*$/u.test(annotationFree),
+  };
+};
+
+const ledgerEvidenceKey = row =>
+  JSON.stringify({
+    path: row.path,
+    owner: row.owner,
+    reason: row.reason,
+    disposition: row.disposition,
+    problems: row.problems,
+  });
+
+const parseLedgerEvidenceRows = contents => {
+  const lines = contents.split(/\r?\n/);
+  const rows = [];
+  let columns = null;
+  let awaitingSeparator = false;
+  const acceptedPathHeaders = new Set([
+    'audited-base-owned path',
+    'audited-base-owned path(s)',
+    'upstream-owned path',
+  ]);
+
+  for (const line of lines) {
+    const cells = splitMarkdownTableRow(line);
+    if (!cells) {
+      columns = null;
+      awaitingSeparator = false;
+      continue;
+    }
+    const headers = cells.map(normalizeLedgerHeader);
+    const candidateColumns = {
+      path: headers.findIndex(header => acceptedPathHeaders.has(header)),
+      owner: headers.findIndex(header => header === 'owner'),
+      reason: headers.findIndex(header => header.includes('reason')),
+      disposition: headers.findIndex(header => header === 'disposition'),
+    };
+    if (Object.values(candidateColumns).every(index => index >= 0)) {
+      columns = candidateColumns;
+      awaitingSeparator = true;
+      continue;
+    }
+    if (awaitingSeparator) {
+      if (!isMarkdownSeparatorRow(cells)) {
+        columns = null;
+      }
+      awaitingSeparator = false;
+      continue;
+    }
+    if (!columns || isMarkdownSeparatorRow(cells)) {
+      continue;
+    }
+    const maxColumn = Math.max(...Object.values(columns));
+    if (cells.length <= maxColumn) {
+      continue;
+    }
+    const pathCell = cells[columns.path];
+    const pathMatch = /^`([^`]+)`$/u.exec(pathCell);
+    const codePaths = [...pathCell.matchAll(/`([^`]+)`/g)].map(
+      match => match[1],
+    );
+    if (!pathMatch && codePaths.length === 0) {
+      continue;
+    }
+    const pathValue = pathMatch?.[1] ?? codePaths[0];
+    const owner = stripMarkdownCell(cells[columns.owner]);
+    const reason = stripMarkdownCell(cells[columns.reason]);
+    const disposition = parseLedgerDisposition(cells[columns.disposition]);
+    const problems = [];
+    if (!pathMatch) {
+      problems.push('path must be exactly one backticked canonical path');
+    } else {
+      try {
+        validateCanonicalRepoPath(pathValue, 'ledger path');
+        if (/[{}]/u.test(pathValue)) {
+          problems.push('path must not use grouping syntax');
+        } else if (!DIVERGENCE_FILE_PATTERN.test(pathValue)) {
+          problems.push('path is outside packages/**');
+        }
+      } catch {
+        problems.push('path is not canonical');
+      }
+    }
+    if (isMissingLedgerValue(owner)) {
+      problems.push('owner is missing');
+    }
+    if (isMissingLedgerValue(reason)) {
+      problems.push('reason is missing');
+    }
+    if (!disposition.valid) {
+      problems.push('disposition is missing or invalid');
+    }
+    const row = {
+      raw: line.trimEnd(),
+      path: pathValue,
+      owner,
+      reason,
+      disposition: disposition.value,
+      problems,
+    };
+    rows.push({ ...row, key: ledgerEvidenceKey(row) });
+  }
+  return rows;
+};
+
+const collectLedgerEvidence = ({ rootDir, mergeBaseRef, headRef }) => {
+  const readLedgerAtRef = ref =>
+    runGit({
+      rootDir,
+      args: ['show', `${ref}:${DIVERGENCE_LEDGER_REPO_PATH}`],
+      allowFailure: true,
+    }) ?? '';
+  const baseRows = parseLedgerEvidenceRows(readLedgerAtRef(mergeBaseRef));
+  const headRows = parseLedgerEvidenceRows(readLedgerAtRef(headRef));
+  const baseKeys = new Set(baseRows.map(row => row.key));
+  const rows = headRows.filter(row => !baseKeys.has(row.key));
+  const byFile = new Map();
+  for (const row of rows) {
+    const candidates = byFile.get(row.path) ?? [];
+    candidates.push(row);
+    byFile.set(row.path, candidates);
+  }
+  return { changed: rows.length > 0, rows, byFile };
+};
+
+const validateLedgerEvidenceForFile = ({ evidence, file }) => {
+  const rows = evidence.byFile.get(file) ?? [];
+  if (rows.length === 0) {
+    return `Non-shrink upstream-owned change ${file} requires a same-PR strict FORK-DIVERGENCE.md row with the exact path, owner, reason, and disposition.`;
+  }
+  const valid = rows.filter(row => row.problems.length === 0);
+  if (valid.length === 1 && rows.length === 1) {
+    return null;
+  }
+  if (valid.length > 1 || (valid.length === 1 && rows.length > 1)) {
+    return `FORK-DIVERGENCE.md has ambiguous duplicate/conflicting same-PR rows for ${file}; exactly one strict row is required.`;
+  }
+  return `FORK-DIVERGENCE.md row for ${file} is invalid: ${rows
+    .flatMap(row => row.problems)
+    .filter((problem, index, all) => all.indexOf(problem) === index)
+    .join(', ')}.`;
+};
+
 const evaluateDivergenceGovernance = ({
   rootDir,
   mergeBaseRef,
   headRef,
   baseAllowlist,
   headAllowlist,
+  expectedBaseRef,
+  expectedUpstreamRef,
 }) => {
   const repositoryRoot = resolveRepositoryTopLevel({ rootDir });
   const mergeBase = resolveRequiredCommitSha({
@@ -1143,13 +1633,29 @@ const evaluateDivergenceGovernance = ({
   const validatedHead = validateDivergenceAllowlist(headAllowlist, {
     rootDir: repositoryRoot,
     source: 'head divergence allowlist',
+    identityRef: head,
   });
+  if (expectedBaseRef && validatedHead.baseRef !== expectedBaseRef) {
+    throw new Error(
+      `Canonical audited base mismatch: expected ${expectedBaseRef}, received ${validatedHead.baseRef}.`,
+    );
+  }
+  if (
+    expectedUpstreamRef &&
+    validatedHead.upstreamRef !== expectedUpstreamRef
+  ) {
+    throw new Error(
+      `Canonical upstream provenance mismatch: expected ${expectedUpstreamRef}, received ${validatedHead.upstreamRef}.`,
+    );
+  }
   const validatedBase =
     baseAllowlist === null
       ? null
       : validateDivergenceAllowlist(baseAllowlist, {
           rootDir: repositoryRoot,
           source: 'merge-base divergence allowlist',
+          allowLegacyProvenance: true,
+          identityRef: mergeBase,
         });
   const allowlist = checkAllowlistGovernance({
     baseAllowlist: validatedBase,
@@ -1160,19 +1666,33 @@ const evaluateDivergenceGovernance = ({
     mergeBaseRef: mergeBase,
     headRef: head,
   });
+  const ledgerEvidence = collectLedgerEvidence({
+    rootDir: repositoryRoot,
+    mergeBaseRef: mergeBase,
+    headRef: head,
+  });
   const rule5Changes = measureRule5Changes({
     rootDir: repositoryRoot,
     auditedBaseRef: validatedHead.baseRef,
+    upstreamRef: validatedHead.upstreamRef,
     mergeBaseRef: mergeBase,
     headRef: head,
     pathspec: validatedHead.pathspec,
   });
-  const rule5ByFile = new Map(
-    rule5Changes.map(change => [change.file, change]),
-  );
+  const rule5ByFile = new Map();
+  for (const change of rule5Changes) {
+    for (const file of new Set([
+      change.file,
+      ...change.ownedPaths,
+      ...change.currentPaths,
+    ])) {
+      rule5ByFile.set(file, change);
+    }
+  }
   const measuredHead = measureDivergence({
     rootDir: repositoryRoot,
     baseRef: validatedHead.baseRef,
+    upstreamRef: validatedHead.upstreamRef,
     headRef: head,
     pathspec: validatedHead.pathspec,
   });
@@ -1183,15 +1703,37 @@ const evaluateDivergenceGovernance = ({
     completeScope: true,
   });
   const errors = [];
+  const ledgerEvidenceChecked = new Set();
+  const requireLedgerEvidence = file => {
+    if (ledgerEvidenceChecked.has(file)) {
+      return;
+    }
+    ledgerEvidenceChecked.add(file);
+    const error = validateLedgerEvidenceForFile({
+      evidence: ledgerEvidence,
+      file,
+    });
+    if (error) {
+      errors.push(error);
+    }
+  };
 
-  if (allowlist.transition && !ledgerChanged) {
+  if (allowlist.reAnchored || allowlist.scopeChanged) {
     errors.push(
-      'Allowlist introduction, base re-anchor, or scope transition requires a same-PR FORK-DIVERGENCE.md change.',
+      'Audited-base and scope transitions cannot be authorized by unrelated per-file ledger rows; a dedicated identity-preserving transition evidence contract is required.',
     );
   }
-  if (allowlist.growth.length > 0 && !ledgerChanged) {
+  if (
+    allowlist.introduced &&
+    !rule5Changes.some(change => !change.genuineShrink)
+  ) {
     errors.push(
-      'Allowlist growth requires a same-PR FORK-DIVERGENCE.md change.',
+      'Initial allowlist introduction requires an attributable non-shrink package change with its own strict ledger row; unrelated transition prose cannot authorize it.',
+    );
+  }
+  if (allowlist.provenanceChanged) {
+    errors.push(
+      'Reviewed upstream provenance transitions cannot reset divergence debt; design and review an identity-preserving budget carry-forward before changing upstreamRef.',
     );
   }
   if (comparison.violations.length > 0) {
@@ -1202,10 +1744,12 @@ const evaluateDivergenceGovernance = ({
     );
   }
 
-  const requireExactSnapshot = allowlist.transition;
+  const requireExactSnapshot =
+    allowlist.transition && !allowlist.provenanceModelMigrated;
   if (requireExactSnapshot) {
     const expected = createDivergenceSnapshot({
       baseRef: validatedHead.baseRef,
+      upstreamRef: validatedHead.upstreamRef,
       pathspec: validatedHead.pathspec,
       files: measuredHead.files,
     });
@@ -1214,11 +1758,12 @@ const evaluateDivergenceGovernance = ({
       serializeDivergenceSnapshot(validatedHead)
     ) {
       errors.push(
-        'A base/scope/initial allowlist transition must record the complete committed-head snapshot exactly.',
+        'An audited-base/provenance/scope/initial allowlist transition must record the complete committed-head snapshot exactly.',
       );
     }
   } else {
     for (const growth of allowlist.growth) {
+      requireLedgerEvidence(growth.file);
       const actual = measuredByFile.get(growth.file);
       if (
         !actual ||
@@ -1250,11 +1795,7 @@ const evaluateDivergenceGovernance = ({
     if (change.genuineShrink) {
       continue;
     }
-    if (!ledgerChanged) {
-      errors.push(
-        `Non-shrink upstream-owned change ${change.file} requires a same-PR FORK-DIVERGENCE.md change.`,
-      );
-    }
+    requireLedgerEvidence(change.file);
     if (change.changedLines > CAPPED_PATCH_LINES) {
       errors.push(
         `Non-shrink upstream-owned change ${change.file} has ${String(
@@ -1273,6 +1814,10 @@ const evaluateDivergenceGovernance = ({
     headAllowlist: validatedHead,
     allowlist,
     ledgerChanged,
+    ledgerEvidence: {
+      changed: ledgerEvidence.changed,
+      rows: ledgerEvidence.rows,
+    },
     rule5Changes,
     measuredHead,
     comparison,
@@ -1299,6 +1844,7 @@ const writeSnapshotAtomically = (allowlistPath, snapshot) => {
 const writeDivergenceAllowlist = ({
   rootDir = process.cwd(),
   baseRef,
+  upstreamRef,
   headRef,
   mergeBaseRef,
   pathspec,
@@ -1306,6 +1852,8 @@ const writeDivergenceAllowlist = ({
   allowlistPath,
   rebaseAllowlist = false,
   recordGrowth = false,
+  expectedBaseRef,
+  expectedUpstreamRef,
 } = {}) => {
   const repositoryRoot = resolveRepositoryTopLevel({ rootDir });
   const targetPath =
@@ -1351,15 +1899,48 @@ const writeDivergenceAllowlist = ({
     ref: requestedBaseRef,
     label: 'Divergence writer base',
   });
+  const requestedUpstreamRef =
+    upstreamRef ??
+    (rebaseAllowlist && baseRef ? requestedBaseRef : null) ??
+    existingAllowlist?.upstreamRef ??
+    resolvedBase;
+  const resolvedUpstream = resolveRequiredCommitSha({
+    rootDir: repositoryRoot,
+    ref: requestedUpstreamRef,
+    label: 'Divergence writer upstream provenance',
+  });
+  if (expectedBaseRef && resolvedBase !== expectedBaseRef) {
+    throw new Error(
+      `Canonical audited base mismatch: expected ${expectedBaseRef}, received ${resolvedBase}.`,
+    );
+  }
+  if (expectedUpstreamRef && resolvedUpstream !== expectedUpstreamRef) {
+    throw new Error(
+      `Canonical upstream provenance mismatch: expected ${expectedUpstreamRef}, received ${resolvedUpstream}.`,
+    );
+  }
+  if (existingAllowlist && resolvedUpstream !== existingAllowlist.upstreamRef) {
+    throw new Error(
+      `Divergence upstream provenance mismatch: writers must retain ${existingAllowlist.upstreamRef}; provenance transitions cannot reset divergence debt and need a separately reviewed identity-preserving carry-forward design.`,
+    );
+  }
+  assertAncestor({
+    rootDir: repositoryRoot,
+    ancestorRef: resolvedBase,
+    descendantRef: resolvedUpstream,
+    label: 'Divergence writer upstream provenance ancestry mismatch',
+  });
   const measured = measureDivergence({
     rootDir: repositoryRoot,
     baseRef: resolvedBase,
+    upstreamRef: resolvedUpstream,
     headRef,
     pathspec: validatedPathspec,
     filePattern,
   });
   const snapshot = createDivergenceSnapshot({
     baseRef: resolvedBase,
+    upstreamRef: resolvedUpstream,
     pathspec: validatedPathspec,
     files: measured.files,
   });
@@ -1428,6 +2009,7 @@ const writeDivergenceAllowlist = ({
       rootDir: repositoryRoot,
       ref: mergeBase,
       allowMissing: true,
+      allowLegacyProvenance: true,
     });
     governance = evaluateDivergenceGovernance({
       rootDir: repositoryRoot,
@@ -1435,6 +2017,8 @@ const writeDivergenceAllowlist = ({
       headRef: head,
       baseAllowlist: baseAtMerge,
       headAllowlist: validatedSnapshot,
+      expectedBaseRef,
+      expectedUpstreamRef,
     });
     if (!governance.ok) {
       throw new Error(
@@ -1459,6 +2043,7 @@ const writeDivergenceAllowlist = ({
 const checkForkDivergence = ({
   rootDir = process.cwd(),
   baseRef,
+  upstreamRef,
   headRef,
   pathspec,
   allowlistPath,
@@ -1480,9 +2065,20 @@ const checkForkDivergence = ({
     allowlistPath: canonicalAllowlist,
     hint: 'Use the recorded base; use --head to select a committed target tree.',
   });
+  const resolvedUpstream = resolveRequiredCommitSha({
+    rootDir: repositoryRoot,
+    ref: upstreamRef ?? allowlist.upstreamRef,
+    label: 'Divergence run upstream provenance',
+  });
+  if (resolvedUpstream !== allowlist.upstreamRef) {
+    throw new Error(
+      `Divergence upstream provenance mismatch: run provenance ${resolvedUpstream} is not the reviewed provenance recorded in ${canonicalAllowlist}: ${allowlist.upstreamRef}.`,
+    );
+  }
   const measured = measureDivergence({
     rootDir: repositoryRoot,
     baseRef: resolvedBase,
+    upstreamRef: resolvedUpstream,
     headRef,
     pathspec: allowlist.pathspec,
     filePattern: DIVERGENCE_FILE_PATTERN,
@@ -1497,6 +2093,7 @@ const checkForkDivergence = ({
   const clearedCount = comparison.cleared.length;
   return {
     baseRef: resolvedBase,
+    upstreamRef: measured.upstreamRef,
     headRef: measured.headRef,
     pathspec: allowlist.pathspec,
     allowlistPath: canonicalAllowlist,
@@ -1547,10 +2144,10 @@ const formatShrinkHint = entry =>
 
 const formatDivergenceReport = report => {
   const range = report.headRef
-    ? `${report.baseRef}..${report.headRef}`
-    : `${report.baseRef}..worktree`;
+    ? `${report.upstreamRef ?? report.baseRef}..${report.headRef}`
+    : `${report.upstreamRef ?? report.baseRef}..worktree`;
   const lines = [
-    `[ultramodern-divergence] diffed ${range} over recorded scope ${JSON.stringify(
+    `[ultramodern-divergence] audited ownership at ${report.baseRef}; diffed reviewed upstream provenance ${range} over recorded scope ${JSON.stringify(
       report.pathspec ?? DEFAULT_PATHSPEC,
     )}`,
     `[ultramodern-divergence] measured=${String(
@@ -1743,6 +2340,7 @@ module.exports = {
   DEFAULT_DIVERGENCE_ALLOWLIST_PATH,
   DEFAULT_DIVERGENCE_ALLOWLIST_REPO_PATH,
   DEFAULT_DIVERGENCE_BASE_REF,
+  DEFAULT_UPSTREAM_PROVENANCE_REF,
   DEFAULT_PATHSPEC,
   DIVERGENCE_FILE_PATTERN,
   DIVERGENCE_LEDGER_REPO_PATH,
@@ -1766,6 +2364,7 @@ module.exports = {
   measureDivergence,
   measureRule5Changes,
   parseDivergenceDiff,
+  parseLedgerEvidenceRows,
   readDivergenceAllowlist,
   readDivergenceAllowlistAtRef,
   resolveCommitSha,
