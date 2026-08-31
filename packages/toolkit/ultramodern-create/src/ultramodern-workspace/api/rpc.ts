@@ -1,9 +1,9 @@
 /**
  * Effect RPC API generation (G7c). When a vertical's API protocol is `rpc`
  * (see {@link resolveApiProtocol}), the generator emits one Effect RPC
- * contract/handler/client surface, mirroring the shapes that plugin-bff's RPC
- * runtime accepts
- * (`packages/cli/plugin-bff/src/runtime/effect/handler/rpc.ts` + `types.ts`):
+ * contract/handler/client surface, mirroring the shapes that Effect BFF's RPC
+ * runtime accepts (`packages/server/bff-effect/src/effect/handler/rpc.ts` +
+ * `packages/server/bff-effect/src/effect/handler/types.ts`):
  * an `RpcGroup` contract, a handler `Layer` provided through the `rpc` field of
  * `defineEffectBff` ({@link EffectRpcBffDefinition}), and the public
  * `makeEffectRpcClient` primitive.
@@ -75,7 +75,7 @@ export class ${notFound} extends Schema.TaggedError<${notFound}>()(
 ) {}
 
 // RpcGroup contract consumed by both the server handler layer and the client
-// (mirrors the shapes plugin-bff's RpcServer/RpcClient runtime accepts).
+// (mirrors the shapes Effect BFF's RpcServer/RpcClient runtime accepts).
 export const ${groupExport} = RpcGroup.make(
   Rpc.make('list', {
     success: Schema.Struct({ items: Schema.Array(${itemSchema}) }),
@@ -201,7 +201,7 @@ export default apiRuntime;
 
 /**
  * Generate the RPC client file (`src/api/${stem}-rpc-client.ts`) built from the
- * shared `RpcGroup` through plugin-bff's public HTTP RPC client primitive.
+ * shared `RpcGroup` through Effect BFF's public HTTP RPC client primitive.
  */
 export function createRpcClientFile(service: ApiService): string {
   const groupExport = verticalRpcGroupExport(service);

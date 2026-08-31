@@ -1,7 +1,7 @@
 // G14-RPC: RPC surface comparator (contract-version based).
 //
-// Mirrors the plugin-bff cross-project contract model
-// (packages/cli/plugin-bff/src/runtime/effect/endpoint-contracts.ts:
+// Mirrors the Effect BFF cross-project contract model
+// (packages/server/bff-effect/src/effect/endpoint-contracts.ts:
 // each operation is stamped with a per-endpoint contract hash;
 // `createOperationContractHash` / `OperationContractSource`). The RPC surface
 // declares a single integer `contractVersion` that is its externally published

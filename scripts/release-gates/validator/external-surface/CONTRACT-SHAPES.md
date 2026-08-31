@@ -68,8 +68,8 @@ is never masked.
   "operations": [ { "name": "addItem", "contractHash": "<per-op contract hash>" } ] }
 ```
 
-Mirrors the plugin-bff cross-project contract model
-(`packages/cli/plugin-bff/src/runtime/effect/endpoint-contracts.ts`:
+Mirrors the Effect BFF cross-project contract model
+(`packages/server/bff-effect/src/effect/endpoint-contracts.ts`:
 per-endpoint `createOperationContractHash`). `contractVersion` is the published
 major. **Breaking** = op removed, `contractHash` changed, **or a
 previously-served major dropped from `servedVersions` without being listed in
