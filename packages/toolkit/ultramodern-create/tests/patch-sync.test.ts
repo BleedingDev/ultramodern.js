@@ -597,7 +597,9 @@ function assertModernJsV3PatchBehavior(): Promise<void> {
         explicitRuntimePolicy,
       );
       assert.deepEqual(objectSharedConfig.shared['react/jsx-dev-runtime'], {
+        requiredVersion: '^19.0.0',
         singleton: true,
+        treeShaking: false,
       });
 
       const arraySharedConfig = {
@@ -610,8 +612,12 @@ function assertModernJsV3PatchBehavior(): Promise<void> {
       assert.deepEqual(arraySharedConfig.shared, [
         'react',
         { 'react-dom': { singleton: true } },
-        { 'react/jsx-runtime': { singleton: true } },
-        { 'react/jsx-dev-runtime': { singleton: true } },
+        {
+          'react/jsx-runtime': { singleton: true, treeShaking: false },
+        },
+        {
+          'react/jsx-dev-runtime': { singleton: true, treeShaking: false },
+        },
       ]);
 
       const explicitPrefixPolicy = {
@@ -631,9 +637,51 @@ function assertModernJsV3PatchBehavior(): Promise<void> {
       assert.equal(explicitPrefixConfig.shared['react/'], explicitPrefixPolicy);
       assert.deepEqual(explicitPrefixConfig.shared['react/jsx-runtime'], {
         singleton: true,
+        treeShaking: false,
       });
       assert.deepEqual(explicitPrefixConfig.shared['react/jsx-dev-runtime'], {
         singleton: true,
+        treeShaking: false,
+      });
+
+      const shorthandVersionConfig = {
+        exposes: {},
+        name: 'shorthand_version_consumer',
+        shared: { react: '^19.0.0' },
+      };
+      configPlugin.patchMFConfig(shorthandVersionConfig, false);
+      assert.deepEqual(shorthandVersionConfig.shared, {
+        react: '^19.0.0',
+        'react/jsx-runtime': {
+          requiredVersion: '^19.0.0',
+          singleton: true,
+          treeShaking: false,
+        },
+        'react/jsx-dev-runtime': {
+          requiredVersion: '^19.0.0',
+          singleton: true,
+          treeShaking: false,
+        },
+      });
+
+      const aliasedReactConfig = {
+        exposes: {},
+        name: 'aliased_react_consumer',
+        shared: {
+          react: {
+            import: '@vendor/react',
+            packageName: '@vendor/react',
+            singleton: true,
+          },
+        },
+      };
+      configPlugin.patchMFConfig(aliasedReactConfig, false);
+      assert.deepEqual(aliasedReactConfig.shared, {
+        react: {
+          import: '@vendor/react',
+          packageName: '@vendor/react',
+          singleton: true,
+        },
       });
 
       const unrelatedSharedConfig = {
