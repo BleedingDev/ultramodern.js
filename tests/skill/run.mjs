@@ -19,7 +19,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..', '..');
 const SCRIPTS = path.join(REPO, 'skills/modernjs-migrate-to-v3/scripts');
 const { transformSync } = createRequire(
-  path.join(REPO, 'packages/toolkit/create/package.json'),
+  path.join(REPO, 'packages/toolkit/ultramodern-create/package.json'),
 )('esbuild');
 const tmpDirs = [];
 
