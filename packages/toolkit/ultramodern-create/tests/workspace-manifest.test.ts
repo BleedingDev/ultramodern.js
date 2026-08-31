@@ -86,6 +86,8 @@ const expectedWorkspaceManifest = [
   'patches/@module-federation__runtime-core@2.9.0.patch',
   'patches/@tanstack__router-core@1.171.27.patch',
   'patches/drizzle-orm-ts7-strict-declarations.patch',
+  'patches/msgpackr@2.0.6.patch',
+  'patches/zod@4.4.3.patch',
   'pnpm-workspace.yaml',
   'scripts/assert-mf-types.mts',
   'scripts/bootstrap-agent-skills.mts',

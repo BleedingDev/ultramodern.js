@@ -1,0 +1,16 @@
+{
+  "Stop": [
+    {
+      "command": "pnpm format && pnpm lint:fix && pnpm check",
+      "timeout": 600000,
+      "statusMessage": "Running UltraModern quality gates"
+    }
+  ],
+  "SubagentStop": [
+    {
+      "command": "pnpm format && pnpm lint:fix && pnpm check",
+      "timeout": 600000,
+      "statusMessage": "Running UltraModern quality gates"
+    }
+  ]
+}

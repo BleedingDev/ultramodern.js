@@ -65,9 +65,13 @@ dist-1
 dist-ssg
 # agent planning artifacts (local only)
 .codex/
+!packages/toolkit/ultramodern-create/template-workspace/.codex/
+!packages/toolkit/ultramodern-create/template-workspace/.codex/**
 .fastcontext/
 .swe
 .cursor
 .claude
 .agents/
+!packages/toolkit/ultramodern-create/template-workspace/.agents/
+!packages/toolkit/ultramodern-create/template-workspace/.agents/**
 .specify/
