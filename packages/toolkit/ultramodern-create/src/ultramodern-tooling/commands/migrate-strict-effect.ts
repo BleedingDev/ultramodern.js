@@ -718,6 +718,27 @@ function migrateStrictEffect(
   updateGeneratedBuildIdentityModules(io, migrated);
   updateGeneratedTypeScriptSurfaces(io, migrated);
 
+  const canRetireLegacyOxfmtCliExclusion =
+    ensureGeneratedOxfmtIgnorePatterns(io);
+  const rootScripts = readJsonFile(
+    path.join(io.workspaceRoot, 'package.json'),
+  ).scripts;
+  const hasLegacyOxfmtCliExclusion =
+    rootScripts &&
+    typeof rootScripts === 'object' &&
+    !Array.isArray(rootScripts) &&
+    Object.values(rootScripts).some(
+      script =>
+        typeof script === 'string' &&
+        /\boxfmt(?: --check)? \. '!repos\/\*\*'(?:\s*&&|$)/u.test(script),
+    );
+  if (hasLegacyOxfmtCliExclusion && !canRetireLegacyOxfmtCliExclusion) {
+    throw new Error(
+      "Cannot replace the legacy Oxfmt '!repos/**' CLI exclusion until " +
+        "oxfmt.config.ts has a static ignorePatterns array containing 'repos/**'.",
+    );
+  }
+
   for (const relativePackageFile of listWorkspacePackageFiles(
     io.workspaceRoot,
   )) {
@@ -730,7 +751,14 @@ function migrateStrictEffect(
     }
 
     updateModernDependencies(packageJson, packageSource);
-    updateGeneratedToolingDependencies(packageJson);
+    const ownsGeneratedScripts =
+      relativePackageFile === 'package.json' ||
+      allMigratedApps.some(
+        app => `${app.directory}/package.json` === relativePackageFile,
+      );
+    updateGeneratedToolingDependencies(packageJson, {
+      ownsGeneratedScripts,
+    });
     ensureBffEffectDependencies(packageJson);
     const retiredReactRouter = removeRetiredReactRouterDependency(
       packageJson,
@@ -752,6 +780,7 @@ function migrateStrictEffect(
       relativePackageFile,
       apps: allMigratedApps,
       shellOnly,
+      canRetireLegacyOxfmtCliExclusion,
       onPreserveScript: scriptName =>
         io.log(
           `${relativePackageFile} script ${JSON.stringify(scriptName)} was preserved: ` +
@@ -784,7 +813,6 @@ function migrateStrictEffect(
         drizzleOrmPatch.version,
       ),
   });
-  ensureGeneratedOxfmtIgnorePatterns(io);
   ensureGeneratedOxlintComponentStyle(io);
 
   if (!skipInstall) {

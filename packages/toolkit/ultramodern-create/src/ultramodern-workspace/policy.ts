@@ -22,6 +22,7 @@ import { isRecord } from './types';
 import {
   CLOUDFLARE_COMPATIBILITY_DATE,
   CLOUDFLARE_WORKERS_TYPES_VERSION,
+  CROSS_ENV_VERSION,
   DRIZZLE_ORM_VERSION,
   EFFECT_TSGO_VERSION,
   EFFECT_VERSION,
@@ -405,6 +406,7 @@ export const ULTRAMODERN_PACKAGE_PINS = {
     '@types/node': TYPES_NODE_VERSION,
     '@types/react': TYPES_REACT_VERSION,
     '@types/react-dom': TYPES_REACT_DOM_VERSION,
+    'cross-env': CROSS_ENV_VERSION,
     tailwindcss: `^${TAILWIND_VERSION}`,
     typescript: TYPESCRIPT_VERSION,
     wrangler: WRANGLER_VERSION,
@@ -413,6 +415,7 @@ export const ULTRAMODERN_PACKAGE_PINS = {
   rootDevDependencies: {
     '@effect/tsgo': EFFECT_TSGO_VERSION,
     '@typescript/native': `npm:typescript@${TYPESCRIPT_VERSION}`,
+    'cross-env': CROSS_ENV_VERSION,
     lefthook: LEFTHOOK_VERSION,
     miniflare: MINIFLARE_VERSION,
     oxlint: OXLINT_VERSION,

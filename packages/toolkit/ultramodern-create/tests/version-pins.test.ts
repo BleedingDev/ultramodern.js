@@ -12,6 +12,7 @@ import {
   ULTRAMODERN_WORKSPACE_POLICY,
 } from '../src/ultramodern-workspace/policy';
 import {
+  CROSS_ENV_VERSION,
   EFFECT_VERSION,
   EFFECT_VITEST_VERSION,
   MODULE_FEDERATION_NODE_VERSION,
@@ -174,9 +175,18 @@ test('generated workspace renders the pins from versions.ts', () => {
         `${relativePath} must render PNPM_VERSION from versions.ts`,
       );
     }
+    assert.match(
+      readGenerated('README.md'),
+      /pnpm exec cross-env ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP=https:\/\/shell-super-app\.example\.workers\.dev pnpm cloudflare:proof --require-public-urls/u,
+    );
 
     const rootPackage = JSON.parse(readGenerated('package.json'));
     assert.equal(rootPackage.packageManager, `pnpm@${PNPM_VERSION}`);
+    assert.equal(rootPackage.devDependencies['cross-env'], CROSS_ENV_VERSION);
+    const shellPackage = JSON.parse(
+      readGenerated('apps/shell-super-app/package.json'),
+    );
+    assert.equal(shellPackage.devDependencies['cross-env'], CROSS_ENV_VERSION);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }

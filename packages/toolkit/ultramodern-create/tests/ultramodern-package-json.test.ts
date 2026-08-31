@@ -156,6 +156,30 @@ test('workspace package source uses workspace versions for generated framework d
     ...bffEffectDependencies,
     '@modern-js/plugin-bff': 'workspace:*',
   });
+  assert.equal(packageJson.devDependencies['cross-env'], '10.1.0');
+  const scripts = packageRecord(packageJson.scripts);
+  assert.match(
+    scripts.build as string,
+    /(?:^| && )cross-env MODERNJS_DEPLOY=node modern deploy --skip-build(?: && |$)/u,
+  );
+  assert.match(
+    scripts['cloudflare:build'] as string,
+    /(?:^| && )cross-env MODERNJS_DEPLOY=cloudflare modern build(?: && |$)/u,
+  );
+  assert.match(
+    scripts['cloudflare:build'] as string,
+    /(?:^| && )cross-env MODERNJS_DEPLOY=cloudflare modern deploy --skip-build(?: && |$)/u,
+  );
+  assert.equal(
+    scripts['cloudflare:deploy'],
+    'cross-env ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS=true pnpm run cloudflare:build && wrangler deploy --config .output/wrangler.json',
+  );
+  for (const command of Object.values(scripts)) {
+    assert.doesNotMatch(
+      command as string,
+      /(?:^| && )(?:MODERNJS_DEPLOY|ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS)=/u,
+    );
+  }
 });
 
 test('workspace package source isolates linked framework dependencies without changing install-backed workspaces', () => {
@@ -190,6 +214,13 @@ test('root package json pins workspace package versions and bridge workspace glo
     'packages/*',
     '../tractor-store/packages/*',
   ]);
+  const rootScripts = packageRecord(rootPackageJson.scripts);
+  assert.equal(rootScripts.format, 'oxfmt .');
+  assert.equal(rootScripts['format:check'], 'oxfmt --check .');
+  assert.equal(
+    rootScripts.postinstall,
+    'node ./scripts/bootstrap-agent-skills.mts --postinstall && oxfmt .',
+  );
   assert.deepEqual(rootPackageJson.devDependencies, {
     '@effect/tsgo': '0.37.0',
     '@modern-js/code-tools': packageVersion,
@@ -197,6 +228,7 @@ test('root package json pins workspace package versions and bridge workspace glo
     '@modern-js/plugin-bff': packageVersion,
     ...bffEffectDependencies,
     '@typescript/native': 'npm:typescript@7.0.2',
+    'cross-env': '10.1.0',
     lefthook: '^2.1.10',
     miniflare: MINIFLARE_VERSION,
     oxlint: '1.80.0',

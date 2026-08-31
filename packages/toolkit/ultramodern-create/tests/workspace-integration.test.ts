@@ -1755,6 +1755,59 @@ test('generated validator accepts multiple verticals added in non-alphabetical o
     const passing = runGeneratedWorkspaceCheck(workspaceDir);
     assert.equal(passing.status, 0, commandOutput(passing));
 
+    const inventoryPackagePath = 'verticals/inventory/package.json';
+    const inventoryPackage = readJson(workspaceDir, inventoryPackagePath);
+    const portabilityMutations = [
+      {
+        expected: /inventory cross-env dependency must match/u,
+        mutate(packageJson: Record<string, any>) {
+          packageJson.devDependencies['cross-env'] = '10.0.0';
+        },
+      },
+      {
+        expected: /inventory build must use cross-env/u,
+        mutate(packageJson: Record<string, any>) {
+          packageJson.scripts.build = packageJson.scripts.build.replace(
+            'cross-env MODERNJS_DEPLOY=node',
+            'MODERNJS_DEPLOY=node',
+          );
+        },
+      },
+      {
+        expected:
+          /inventory cloudflare:build must use cross-env for Modern build/u,
+        mutate(packageJson: Record<string, any>) {
+          packageJson.scripts['cloudflare:build'] = packageJson.scripts[
+            'cloudflare:build'
+          ].replace(
+            'cross-env MODERNJS_DEPLOY=cloudflare modern build',
+            'MODERNJS_DEPLOY=cloudflare modern build',
+          );
+        },
+      },
+      {
+        expected:
+          /inventory cloudflare:build must use cross-env for Modern deploy/u,
+        mutate(packageJson: Record<string, any>) {
+          packageJson.scripts['cloudflare:build'] = packageJson.scripts[
+            'cloudflare:build'
+          ].replace(
+            'cross-env MODERNJS_DEPLOY=cloudflare modern deploy',
+            'MODERNJS_DEPLOY=cloudflare modern deploy',
+          );
+        },
+      },
+    ];
+    for (const { expected, mutate } of portabilityMutations) {
+      const invalidPackage = structuredClone(inventoryPackage);
+      mutate(invalidPackage);
+      writeJson(workspaceDir, inventoryPackagePath, invalidPackage);
+      const invalidResult = runGeneratedWorkspaceCheck(workspaceDir);
+      assert.notEqual(invalidResult.status, 0, commandOutput(invalidResult));
+      assert.match(commandOutput(invalidResult), expected);
+    }
+    writeJson(workspaceDir, inventoryPackagePath, inventoryPackage);
+
     const apiPassing = runGeneratedApiCheck(workspaceDir);
     assert.equal(apiPassing.status, 0, commandOutput(apiPassing));
 

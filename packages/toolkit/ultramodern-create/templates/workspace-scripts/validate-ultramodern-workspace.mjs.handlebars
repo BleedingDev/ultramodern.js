@@ -9,6 +9,8 @@ const root = process.cwd();
 const workspaceValidationContract = {{workspaceValidationContractJson}};
 const packageScope = workspaceValidationContract.packageScope;
 const expectedNodeVersion = workspaceValidationContract.versions.node;
+const expectedCrossEnvVersion =
+  workspaceValidationContract.versions.crossEnv;
 const expectedEffectVersion = workspaceValidationContract.versions.effect;
 const expectedEffectVitestVersion =
   workspaceValidationContract.versions.effectVitest;
@@ -135,6 +137,15 @@ const assert = (condition, message) => {
   if (!condition) {
     throw new Error(message);
   }
+};
+const assertPortableGeneratedEnvironmentScripts = (packageJson, label) => {
+  const build = packageJson.scripts?.build ?? '';
+  const cloudflareBuild = packageJson.scripts?.['cloudflare:build'] ?? '';
+  assert(build.includes('cross-env MODERNJS_DEPLOY=node modern deploy --skip-build'), `${label} build must use cross-env for its Node deploy`);
+  assert(cloudflareBuild.includes('cross-env MODERNJS_DEPLOY=cloudflare modern build'), `${label} cloudflare:build must use cross-env for Modern build`);
+  assert(cloudflareBuild.includes('cross-env MODERNJS_DEPLOY=cloudflare modern deploy --skip-build'), `${label} cloudflare:build must use cross-env for Modern deploy`);
+  assert(!/(?:^|\s+&&\s+)MODERNJS_DEPLOY=/u.test(build), `${label} build must not use a POSIX-only environment prefix`);
+  assert(!/(?:^|\s+&&\s+)MODERNJS_DEPLOY=/u.test(cloudflareBuild), `${label} cloudflare:build must not use a POSIX-only environment prefix`);
 };
 const assertExists = relativePath => {
   assert(fs.existsSync(path.join(root, relativePath)), `Missing ${relativePath}`);
@@ -3473,7 +3484,9 @@ const assertAdditionalShellCohort = () => {
     assert(packageJson.name === shell.packageName, `${shell.id} package name is incorrect`);
     assert(packageJson.modernjs?.appId === shell.id, `${shell.id} package modernjs.appId is incorrect`);
     assert(packageJson.modernjs?.role === 'shell', `${shell.id} package modernjs.role must be shell`);
-    assert(packageJson.scripts?.['cloudflare:deploy'] === 'ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS=true pnpm run cloudflare:build && wrangler deploy --config .output/wrangler.json', `${shell.id} must expose cloudflare:deploy`);
+    assert(packageJson.scripts?.['cloudflare:deploy'] === 'cross-env ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS=true pnpm run cloudflare:build && wrangler deploy --config .output/wrangler.json', `${shell.id} must expose a portable cloudflare:deploy`);
+    assert(packageJson.devDependencies?.['cross-env'] === expectedCrossEnvVersion, `${shell.id} cross-env dependency must match the portable generated-script cohort`);
+    assertPortableGeneratedEnvironmentScripts(packageJson, shell.id);
 
     const buildArtifact = readJson(`${shell.path}/shared/ultramodern-build.json`);
     assert(buildArtifact.deliveryUnit?.appId === shell.id, `${shell.id} build artifact appId is incorrect`);
@@ -3540,6 +3553,9 @@ assert(
     expectedModernPackageSpecifier('@modern-js/plugin-bff'),
   'Root must depend on @modern-js/plugin-bff for Node backend federation proof',
 );
+assert(rootPackage.devDependencies?.['cross-env'] === expectedCrossEnvVersion, 'Root cross-env dependency must match the portable generated-script cohort');
+assert(rootPackage.scripts?.format === 'oxfmt .', 'Root format script must rely on the cross-platform Oxfmt ignore configuration');
+assert(rootPackage.scripts?.['format:check'] === 'oxfmt --check .', 'Root format:check script must rely on the cross-platform Oxfmt ignore configuration');
 if (packageSource.strategy === 'install') {
   const installSpecifier = packageSource.modernPackages?.specifier;
   assert(
@@ -3672,7 +3688,7 @@ assert(rootPackage.scripts?.['cloudflare:proof'] === 'node ./scripts/proof-cloud
 assert(rootPackage.scripts?.['migrate:strict-effect'] === 'node ./scripts/migrate-strict-effect.mts', 'Root must expose migrate:strict-effect');
 assert(rootPackage.scripts?.['skills:install'] === 'node ./scripts/bootstrap-agent-skills.mts', 'Root must expose skills:install');
 assert(rootPackage.scripts?.['skills:check'] === 'node ./scripts/bootstrap-agent-skills.mts --check', 'Root must expose skills:check');
-assert(rootPackage.scripts?.postinstall === "node ./scripts/bootstrap-agent-skills.mts --postinstall && oxfmt . '!repos/**'", 'Root postinstall must run the default-on Codex skills bootstrap, format installed skills, and leave reference repository installs explicit');
+assert(rootPackage.scripts?.postinstall === 'node ./scripts/bootstrap-agent-skills.mts --postinstall && oxfmt .', 'Root postinstall must run the default-on Codex skills bootstrap, format installed skills through the cross-platform ignore configuration, and leave reference repository installs explicit');
 assert(rootPackage.scripts?.['agents:refs:install'] === 'node ./scripts/setup-agent-reference-repos.mts', 'Root must expose agents:refs:install as the explicit reference repo installer');
 
 const expectedAppIds = ['shell-super-app', ...fullStackVerticals.map(vertical => vertical.id)];
@@ -3726,7 +3742,9 @@ assert(shellPackage.dependencies?.['@modern-js/plugin-bff'] === expectedModernPa
 assert(shellPackage.dependencies?.['@modern-js/plugin-i18n'] === expectedModernPackageSpecifier('@modern-js/plugin-i18n'), 'Shell plugin-i18n dependency must match package source metadata');
 assert(shellPackage.dependencies?.['@modern-js/plugin-tanstack'] === expectedModernPackageSpecifier('@modern-js/plugin-tanstack'), 'Shell plugin-tanstack dependency must match package source metadata');
 assert(shellPackage.dependencies?.['@modern-js/runtime'] === expectedModernPackageSpecifier('@modern-js/runtime'), 'Shell runtime dependency must match package source metadata');
-assert(shellPackage.scripts?.['cloudflare:deploy'] === 'ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS=true pnpm run cloudflare:build && wrangler deploy --config .output/wrangler.json', 'Shell must expose cloudflare:deploy');
+assert(shellPackage.scripts?.['cloudflare:deploy'] === 'cross-env ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS=true pnpm run cloudflare:build && wrangler deploy --config .output/wrangler.json', 'Shell must expose a portable cloudflare:deploy');
+assert(shellPackage.devDependencies?.['cross-env'] === expectedCrossEnvVersion, 'Shell cross-env dependency must match the portable generated-script cohort');
+assertPortableGeneratedEnvironmentScripts(shellPackage, 'Shell');
 const shellContract = generatedContract.apps?.find(app => app.id === 'shell-super-app');
 assert(shellContract?.deploy?.cloudflare?.workerName === expectedWorkerName('shell-super-app'), 'Shell Cloudflare workerName is incorrect');
 assert(shellContract?.deploy?.cloudflare?.publicUrlEnv === 'ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP', 'Shell Cloudflare public URL env is incorrect');
@@ -3815,7 +3833,9 @@ for (const vertical of fullStackVerticals) {
     );
   }
   assert(packageJson.name === vertical.packageName, `${vertical.id} package name is incorrect`);
-  assert(packageJson.scripts?.['cloudflare:deploy'] === 'ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS=true pnpm run cloudflare:build && wrangler deploy --config .output/wrangler.json', `${vertical.id} must expose cloudflare:deploy`);
+  assert(packageJson.scripts?.['cloudflare:deploy'] === 'cross-env ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS=true pnpm run cloudflare:build && wrangler deploy --config .output/wrangler.json', `${vertical.id} must expose a portable cloudflare:deploy`);
+  assert(packageJson.devDependencies?.['cross-env'] === expectedCrossEnvVersion, `${vertical.id} cross-env dependency must match the portable generated-script cohort`);
+  assertPortableGeneratedEnvironmentScripts(packageJson, vertical.id);
   assert(packageJson.devDependencies?.['@modern-js/app-tools'] === expectedModernPackageSpecifier('@modern-js/app-tools'), `${vertical.id} app-tools dependency must match package source metadata`);
   if (vertical.emitsApi) {
     assert(packageJson.dependencies?.['@modern-js/plugin-bff'] === expectedModernPackageSpecifier('@modern-js/plugin-bff'), `${vertical.id} plugin-bff dependency must match package source metadata`);

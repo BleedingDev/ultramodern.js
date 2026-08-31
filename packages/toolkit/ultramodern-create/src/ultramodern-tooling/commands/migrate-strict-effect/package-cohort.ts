@@ -84,11 +84,29 @@ const generatedToolingDependencyPins = new Map<string, string>(
 
 export function updateGeneratedToolingDependencies(
   packageJson: Record<string, any>,
+  options: { ownsGeneratedScripts?: boolean } = {},
 ) {
-  return updateDeclaredDependencies(
+  let changed = updateDeclaredDependencies(
     packageJson,
     generatedToolingDependencyPins,
   );
+
+  if (options.ownsGeneratedScripts) {
+    const devDependencies =
+      packageJson.devDependencies &&
+      typeof packageJson.devDependencies === 'object' &&
+      !Array.isArray(packageJson.devDependencies)
+        ? packageJson.devDependencies
+        : (packageJson.devDependencies = {});
+    const crossEnvVersion =
+      ULTRAMODERN_PACKAGE_PINS.rootDevDependencies['cross-env'];
+    if (devDependencies['cross-env'] !== crossEnvVersion) {
+      devDependencies['cross-env'] = crossEnvVersion;
+      changed = true;
+    }
+  }
+
+  return changed;
 }
 
 /**
@@ -160,6 +178,11 @@ const CONDITIONAL_FRAMEWORK_ROOT_SCRIPTS: readonly string[] = [
   'zerops:materialize',
 ];
 
+const legacyPortableRootScripts = new Map([
+  ['format', ["oxfmt . '!repos/**'", 'oxfmt .']],
+  ['format:check', ["oxfmt --check . '!repos/**'", 'oxfmt --check .']],
+] as const);
+
 // Split an aggregate script (`a && b && c`) into its `&&`-joined segments.
 
 const splitScriptSegments = (command: string): string[] =>
@@ -213,6 +236,7 @@ function mergeAggregateCheckScript(
 function mergeGeneratedScript(
   consumer: string,
   framework: string,
+  canRetireLegacyOxfmtCliExclusion = false,
 ): { command: string; preservedConsumerSegments: boolean } {
   const consumerSegments = splitScriptSegments(consumer);
   const frameworkSegments = splitScriptSegments(framework);
@@ -222,14 +246,48 @@ function mergeGeneratedScript(
       return segment;
     }
 
+    // Generated package scripts used POSIX-only environment prefixes before
+    // cross-env became part of the owned dependency cohort. Treat the exact
+    // predecessor as framework history so migration replaces it instead of
+    // preserving it alongside the portable command.
+    const portableEnvironmentSegment = `cross-env ${segment}`;
+    if (frameworkSegmentSet.has(portableEnvironmentSegment)) {
+      return portableEnvironmentSegment;
+    }
+
+    // The generated Oxfmt config already excludes repos/**. Retire the old
+    // POSIX-only quoted CLI argument instead of preserving it as consumer work.
+    const portableOxfmtSegment = segment.replace(/ '!repos\/\*\*'$/u, '');
+    if (
+      canRetireLegacyOxfmtCliExclusion &&
+      frameworkSegmentSet.has(portableOxfmtSegment)
+    ) {
+      return portableOxfmtSegment;
+    }
+
     // Generated deploy commands gained --skip-build after Modern began
     // separating build and deploy. The unflagged predecessor is framework
     // history, not a consumer command to append after its replacement.
     if (
-      frameworkSegmentSet.has(`${segment} --skip-build`) &&
+      (frameworkSegmentSet.has(`${segment} --skip-build`) ||
+        frameworkSegmentSet.has(
+          `${portableEnvironmentSegment} --skip-build`,
+        )) &&
       /\bmodern deploy$/u.test(segment)
     ) {
-      return `${segment} --skip-build`;
+      return frameworkSegmentSet.has(`${segment} --skip-build`)
+        ? `${segment} --skip-build`
+        : `${portableEnvironmentSegment} --skip-build`;
+    }
+
+    // A historical generator incorrectly appended Modern's --skip-build flag
+    // to Wrangler. Fold that exact predecessor into the canonical Wrangler
+    // segment before merge; normalizing it afterwards would leave two deploys.
+    if (
+      segment === cloudflareWranglerDeployInvalidSkipBuildCommand &&
+      frameworkSegmentSet.has(cloudflareWranglerDeployCommand)
+    ) {
+      return cloudflareWranglerDeployCommand;
     }
 
     // The dedicated verifier wrapper was folded into ultramodern-tooling.
@@ -330,6 +388,7 @@ export function updateGeneratedPackageScripts(
     relativePackageFile?: string;
     apps?: WorkspaceApp[];
     shellOnly?: boolean;
+    canRetireLegacyOxfmtCliExclusion?: boolean;
     onPreserveScript?: (scriptName: string) => void;
   } = {},
 ) {
@@ -351,12 +410,23 @@ export function updateGeneratedPackageScripts(
   }
 
   if (isRootPackage) {
+    for (const [name, [legacy, portable]] of legacyPortableRootScripts) {
+      if (
+        options.canRetireLegacyOxfmtCliExclusion === true &&
+        scripts[name] === legacy
+      ) {
+        scripts[name] = portable;
+        changed = true;
+      }
+    }
+
     const existingPostinstall = scripts.postinstall;
     const mergedPostinstall =
       typeof existingPostinstall === 'string'
         ? mergeGeneratedScript(
             existingPostinstall,
             GENERATED_POSTINSTALL_SCRIPT,
+            options.canRetireLegacyOxfmtCliExclusion,
           )
         : {
             command: GENERATED_POSTINSTALL_SCRIPT,
@@ -406,7 +476,11 @@ export function updateGeneratedPackageScripts(
       const existingScript = scripts[name];
       const mergedScript =
         typeof existingScript === 'string'
-          ? mergeGeneratedScript(existingScript, value)
+          ? mergeGeneratedScript(
+              existingScript,
+              value,
+              options.canRetireLegacyOxfmtCliExclusion,
+            )
           : { command: value, preservedConsumerSegments: false };
       const nextValue =
         name === 'check' && typeof existingScript === 'string'

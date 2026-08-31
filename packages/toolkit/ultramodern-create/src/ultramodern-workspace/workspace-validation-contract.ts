@@ -38,6 +38,7 @@ import type { WorkspaceApp } from './types';
 import { resolveOwnerAttribution } from './types';
 import {
   CLOUDFLARE_COMPATIBILITY_DATE,
+  CROSS_ENV_VERSION,
   EFFECT_VERSION,
   EFFECT_VITEST_VERSION,
   MODULE_FEDERATION_VERSION,
@@ -455,6 +456,7 @@ export function createWorkspaceValidationContract(
     },
     versions: {
       cloudflareCompatibilityDate: CLOUDFLARE_COMPATIBILITY_DATE,
+      crossEnv: CROSS_ENV_VERSION,
       effect: EFFECT_VERSION,
       effectVitest: EFFECT_VITEST_VERSION,
       moduleFederation: MODULE_FEDERATION_VERSION,

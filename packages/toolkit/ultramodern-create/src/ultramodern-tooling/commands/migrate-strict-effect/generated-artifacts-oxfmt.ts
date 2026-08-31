@@ -16,6 +16,7 @@ export function ensureGeneratedOxfmtIgnorePatterns(io: MigrationIo) {
   const requiredPatterns = [
     '.modernjs',
     '.output',
+    'repos/**',
     '**/modern-tanstack/**',
     '**/routeTree.gen.*',
   ];
@@ -31,21 +32,24 @@ export function ensureGeneratedOxfmtIgnorePatterns(io: MigrationIo) {
     }
   };
 
-  const writePresetReconciliation = () =>
-    nextPresetSource === source
-      ? false
-      : io.write(configPath, nextPresetSource);
+  const writePresetReconciliation = () => {
+    if (nextPresetSource !== source) {
+      io.write(configPath, nextPresetSource);
+    }
+  };
 
   const anchor = nextPresetSource.indexOf('ignorePatterns:');
   if (anchor === -1) {
     warnUnparseable();
-    return writePresetReconciliation();
+    writePresetReconciliation();
+    return false;
   }
 
   const openBracket = nextPresetSource.indexOf('[', anchor);
   if (openBracket === -1) {
     warnUnparseable();
-    return writePresetReconciliation();
+    writePresetReconciliation();
+    return false;
   }
 
   // Bracket-match to find the matching closing ], skipping brackets inside
@@ -78,14 +82,16 @@ export function ensureGeneratedOxfmtIgnorePatterns(io: MigrationIo) {
 
   if (closeBracket === -1) {
     warnUnparseable();
-    return writePresetReconciliation();
+    writePresetReconciliation();
+    return false;
   }
 
   const body = nextPresetSource.slice(openBracket + 1, closeBracket);
   // Reject dynamic/spread ignorePattern arrays we cannot safely edit.
   if (body.includes('...')) {
     warnUnparseable();
-    return writePresetReconciliation();
+    writePresetReconciliation();
+    return false;
   }
 
   const literalPattern = /(['"`])((?:\\.|(?!\1).)*)\1/g;
@@ -96,7 +102,8 @@ export function ensureGeneratedOxfmtIgnorePatterns(io: MigrationIo) {
 
   const missing = requiredPatterns.filter(pattern => !existing.has(pattern));
   if (missing.length === 0) {
-    return writePresetReconciliation();
+    writePresetReconciliation();
+    return true;
   }
 
   // Derive indentation and quote style from the last existing literal line.
@@ -126,5 +133,6 @@ export function ensureGeneratedOxfmtIgnorePatterns(io: MigrationIo) {
     .join('\n');
   const nextSource = `${bodyContent}\n${insertionLines}${tail}${rest}`;
 
-  return io.write(configPath, nextSource);
+  io.write(configPath, nextSource);
+  return true;
 }

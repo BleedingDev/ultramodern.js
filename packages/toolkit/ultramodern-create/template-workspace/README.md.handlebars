@@ -170,8 +170,7 @@ pattern with hyphens converted to underscores and uppercased.
 
 ```bash
 pnpm cloudflare:deploy
-ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP=https://shell-super-app.example.workers.dev \
-pnpm cloudflare:proof --require-public-urls
+pnpm exec cross-env ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP=https://shell-super-app.example.workers.dev pnpm cloudflare:proof --require-public-urls
 ```
 
 ## Strict Effect API

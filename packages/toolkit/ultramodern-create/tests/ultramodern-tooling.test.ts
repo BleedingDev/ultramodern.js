@@ -31,6 +31,7 @@ import {
   ULTRAMODERN_WORKSPACE_POLICY,
 } from '../src/ultramodern-workspace/policy';
 import {
+  CROSS_ENV_VERSION,
   DRIZZLE_ORM_VERSION,
   EFFECT_VERSION,
   EFFECT_VITEST_VERSION,
@@ -258,9 +259,25 @@ function installCommandRecorder(tempRoot: string) {
     `#!${process.execPath}
 const fs = require('node:fs');
 const path = require('node:path');
+const { spawnSync } = require('node:child_process');
 
-const command = path.basename(process.argv[1]);
-const args = process.argv.slice(2);
+const [command, ...args] = process.argv.slice(2);
+if (command === 'cross-env') {
+  const env = { ...process.env };
+  let commandIndex = 0;
+  while (/^[A-Za-z_][A-Za-z0-9_]*=/u.test(args[commandIndex] ?? '')) {
+    const assignment = args[commandIndex];
+    const separator = assignment.indexOf('=');
+    env[assignment.slice(0, separator)] = assignment.slice(separator + 1);
+    commandIndex += 1;
+  }
+  const result = spawnSync(args[commandIndex], args.slice(commandIndex + 1), {
+    env,
+    shell: process.platform === 'win32',
+    stdio: 'inherit',
+  });
+  process.exit(result.status ?? 1);
+}
 const record = {
   args,
   command,
@@ -292,8 +309,25 @@ if (process.env.ULTRAMODERN_TEST_FAIL_INVOCATION === invocation) {
     'utf-8',
   );
   fs.chmodSync(recorderPath, 0o755);
-  for (const command of ['modern', 'node', 'oxfmt', 'pnpm', 'wrangler']) {
-    fs.symlinkSync(recorderPath, path.join(binDir, command));
+  for (const command of [
+    'cross-env',
+    'modern',
+    'node',
+    'oxfmt',
+    'pnpm',
+    'wrangler',
+  ]) {
+    const executablePath = path.join(binDir, command);
+    fs.writeFileSync(
+      executablePath,
+      `#!/bin/sh\nexec "${process.execPath}" "${recorderPath}" ${command} "$@"\n`,
+      { mode: 0o755 },
+    );
+    fs.writeFileSync(
+      `${executablePath}.cmd`,
+      `@echo off\r\n"${process.execPath}" "${recorderPath}" ${command} %*\r\n`,
+      'utf-8',
+    );
   }
   return { binDir, logPath };
 }
@@ -314,23 +348,28 @@ function runRecordedPackageScript(
     path.join(packageDir, 'package.json'),
   );
   const script = packageJson.scripts?.[scriptName];
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    PATH: `${binDir}${path.delimiter}${process.env.PATH ?? ''}`,
+    ULTRAMODERN_TEST_COMMAND_LOG: logPath,
+    ...(options.failInvocation
+      ? {
+          ULTRAMODERN_TEST_FAIL_CODE: String(options.failCode ?? 1),
+          ULTRAMODERN_TEST_FAIL_INVOCATION: options.failInvocation,
+        }
+      : {}),
+  };
+  if (process.platform === 'win32') {
+    env.Path = env.PATH;
+    env.PATHEXT = `.CMD;.EXE;.BAT;.COM;${process.env.PATHEXT ?? ''}`;
+  }
   const result = spawnSync(
     typeof script === 'string' ? script : 'exit 127',
     [],
     {
       cwd,
       encoding: 'utf-8',
-      env: {
-        ...process.env,
-        PATH: `${binDir}${path.delimiter}${process.env.PATH ?? ''}`,
-        ULTRAMODERN_TEST_COMMAND_LOG: logPath,
-        ...(options.failInvocation
-          ? {
-              ULTRAMODERN_TEST_FAIL_CODE: String(options.failCode ?? 1),
-              ULTRAMODERN_TEST_FAIL_INVOCATION: options.failInvocation,
-            }
-          : {}),
-      },
+      env,
       shell: true,
     },
   );
@@ -1362,6 +1401,8 @@ test('migrate materializes every validator-required wrapper and rewires legacy s
       'node ./scripts/bootstrap-agent-skills.mjs --check';
     before.scripts.postinstall =
       "oxfmt . '!repos/**' && node ./scripts/bootstrap-agent-skills.mjs --postinstall";
+    before.scripts.format = "oxfmt . '!repos/**'";
+    before.scripts['format:check'] = "oxfmt --check . '!repos/**'";
     before.scripts['agents:refs:install'] =
       'node ./scripts/setup-agent-reference-repos.mjs';
     before.scripts['i18n:boundaries'] =
@@ -1405,7 +1446,35 @@ test('migrate materializes every validator-required wrapper and rewires legacy s
           execution.records.map(record => record.command),
           ['node', 'oxfmt'],
         );
+        assert.deepEqual(execution.records.at(-1)?.args, ['.']);
       }
+    }
+    const after = readJson(workspaceDir, 'package.json');
+    assert.equal(after.scripts.format, 'oxfmt .');
+    assert.equal(after.scripts['format:check'], 'oxfmt --check .');
+    assert.equal(
+      after.scripts.postinstall,
+      'node ./scripts/bootstrap-agent-skills.mts --postinstall && oxfmt .',
+    );
+    for (const [scriptName, expectedArgs] of [
+      ['format', ['.']],
+      ['format:check', ['--check', '.']],
+    ] as const) {
+      const execution = runRecordedPackageScript(
+        tempRoot,
+        workspaceDir,
+        '.',
+        scriptName,
+      );
+      assert.equal(execution.result.status, 0, execution.result.stderr);
+      assert.equal(execution.records.length, 1);
+      assert.equal(execution.records[0]?.command, 'oxfmt');
+      assert.deepEqual(execution.records[0]?.args, expectedArgs);
+      assert.equal(
+        fs.realpathSync(execution.records[0]!.cwd),
+        fs.realpathSync(workspaceDir),
+      );
+      assert.deepEqual(execution.records[0]?.env, {});
     }
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
@@ -1813,6 +1882,7 @@ export default catalogResource;
 
     const rootPackageBefore = readJson(workspaceDir, 'package.json');
     delete rootPackageBefore.devDependencies['@typescript/native'];
+    delete rootPackageBefore.devDependencies['cross-env'];
     rootPackageBefore.devDependencies.typescript = '6.0.0';
     rootPackageBefore.devDependencies['drizzle-orm'] = DRIZZLE_ORM_VERSION;
     rootPackageBefore.devDependencies.oxfmt = '0.55.0';
@@ -1860,6 +1930,16 @@ export default catalogResource;
         ? 'shell-super-app'
         : 'catalog';
       const packageJson = readJson(workspaceDir, packageFile);
+      delete packageJson.devDependencies['cross-env'];
+      for (const scriptName of [
+        'build',
+        'cloudflare:build',
+        'cloudflare:deploy',
+      ]) {
+        packageJson.scripts[scriptName] = packageJson.scripts[
+          scriptName
+        ].replaceAll('cross-env ', '');
+      }
       if (appId === 'catalog') {
         packageJson.scripts.build = packageJson.scripts.build.replace(
           'modern build',
@@ -2110,6 +2190,7 @@ declare module '*.css' {}
       `npm:typescript@${TYPESCRIPT_VERSION}`,
     );
     assert.equal(rootPackage.devDependencies.oxfmt, OXFMT_VERSION);
+    assert.equal(rootPackage.devDependencies['cross-env'], CROSS_ENV_VERSION);
     assert.equal(rootPackage.modernjs.packageSource.strategy, 'workspace');
     for (const sharedPackageDir of [
       'packages/shared-contracts',
@@ -2424,6 +2505,7 @@ declare module '*.css' {}
       workspaceDir,
       'apps/shell-super-app/package.json',
     );
+    assert.equal(shellPackage.devDependencies['cross-env'], CROSS_ENV_VERSION);
     assert.equal(
       shellPackage.dependencies['@modern-js/plugin-bff'],
       'workspace:*',
@@ -2569,6 +2651,18 @@ declare module '*.css' {}
     );
 
     for (const packageDir of ['apps/shell-super-app', 'verticals/catalog']) {
+      const migratedPackage = readJson(
+        workspaceDir,
+        `${packageDir}/package.json`,
+      );
+      assert.equal(
+        migratedPackage.devDependencies['cross-env'],
+        CROSS_ENV_VERSION,
+      );
+      assert.equal(
+        migratedPackage.scripts['cloudflare:deploy'],
+        'cross-env ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS=true pnpm run cloudflare:build && wrangler deploy --config .output/wrangler.json',
+      );
       const deploy = runRecordedPackageScript(
         tempRoot,
         workspaceDir,
@@ -2584,6 +2678,11 @@ declare module '*.css' {}
       );
       const wrangler = deploy.records.find(
         record => record.command === 'wrangler',
+      );
+      assert.equal(
+        deploy.records.filter(record => record.command === 'wrangler').length,
+        1,
+        `${packageDir} must run Wrangler deploy exactly once`,
       );
       assert.deepEqual(wrangler?.args, [
         'deploy',
@@ -3304,6 +3403,7 @@ export default defineConfig({
       '.modernjs',
       '**/modern-tanstack/**',
       '.output',
+      'repos/**',
       '**/routeTree.gen.*',
     ]);
 
@@ -3335,6 +3435,29 @@ export default defineConfig({
         workspaceDir,
       ),
       0,
+    );
+    assert.deepEqual(fileMutationStamp(oxfmtPath), unparseableStamp);
+
+    const rootPackage = readJson(workspaceDir, 'package.json');
+    rootPackage.scripts.postinstall =
+      "oxfmt . '!repos/**' && node ./scripts/bootstrap-agent-skills.mts --postinstall";
+    rootPackage.scripts.format = "oxfmt . '!repos/**'";
+    rootPackage.scripts['format:check'] = "oxfmt --check . '!repos/**'";
+    writeJson(workspaceDir, 'package.json', rootPackage);
+    const legacyRootStamp = fileMutationStamp(
+      path.join(workspaceDir, 'package.json'),
+    );
+
+    assert.equal(
+      await runUltramodernToolingCli(
+        ['migrate-strict-effect', '--skip-install'],
+        workspaceDir,
+      ),
+      1,
+    );
+    assert.deepEqual(
+      fileMutationStamp(path.join(workspaceDir, 'package.json')),
+      legacyRootStamp,
     );
     assert.deepEqual(fileMutationStamp(oxfmtPath), unparseableStamp);
   } finally {
@@ -3400,6 +3523,26 @@ test('migration converges legacy generated TS-Go pins without rewriting unrelate
     },
   });
   assert.equal(updateGeneratedToolingDependencies(packageJson), false);
+
+  const generatedApp = {
+    devDependencies: { 'consumer-only-package': 'consumer-selected-version' },
+  };
+  assert.equal(
+    updateGeneratedToolingDependencies(generatedApp, {
+      ownsGeneratedScripts: true,
+    }),
+    true,
+  );
+  assert.deepEqual(generatedApp.devDependencies, {
+    'consumer-only-package': 'consumer-selected-version',
+    'cross-env': CROSS_ENV_VERSION,
+  });
+  assert.equal(
+    updateGeneratedToolingDependencies(generatedApp, {
+      ownsGeneratedScripts: true,
+    }),
+    false,
+  );
 
   const consumerPackage = {
     devDependencies: { eslint: 'consumer-selected-eslint' },

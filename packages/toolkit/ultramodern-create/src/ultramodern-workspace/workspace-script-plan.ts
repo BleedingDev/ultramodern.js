@@ -8,7 +8,7 @@ import {
 import type { WorkspaceApp } from './types';
 
 export const GENERATED_POSTINSTALL_SCRIPT =
-  "node ./scripts/bootstrap-agent-skills.mts --postinstall && oxfmt . '!repos/**'";
+  'node ./scripts/bootstrap-agent-skills.mts --postinstall && oxfmt .';
 
 const toolingWrapperPath = (key: GeneratedToolingCommandKey) =>
   GENERATED_TOOLING_COMMANDS[key].wrapperPath;
@@ -124,7 +124,7 @@ function createWorkspaceAppScriptPlan(
   const buildSteps = [
     'modern build',
     createPublicSurfaceGenerationCommand(app, 'dist'),
-    'MODERNJS_DEPLOY=node modern deploy --skip-build',
+    'cross-env MODERNJS_DEPLOY=node modern deploy --skip-build',
     // NOTE: the Module Federation DTS archive is emitted by `modern build`
     // above; verifying it (assert-mf-types) is done ONCE at the workspace root
     // (`pnpm mf:types`) AFTER every app has built. A per-app verify here races
@@ -132,9 +132,9 @@ function createWorkspaceAppScriptPlan(
     // not-yet-emitted archive — so it is intentionally omitted.
   ].filter((step): step is string => Boolean(step));
   const cloudflareBuildSteps = [
-    'MODERNJS_DEPLOY=cloudflare modern build',
+    'cross-env MODERNJS_DEPLOY=cloudflare modern build',
     createPublicSurfaceGenerationCommand(app, 'cloudflare-dist'),
-    'MODERNJS_DEPLOY=cloudflare modern deploy --skip-build',
+    'cross-env MODERNJS_DEPLOY=cloudflare modern deploy --skip-build',
     `${packageToolingWrapperCommand(
       app.directory,
       'cloudflareOutputVerify',
@@ -146,7 +146,7 @@ function createWorkspaceAppScriptPlan(
     build: buildSteps.join(' && '),
     cloudflareBuild: cloudflareBuildSteps.join(' && '),
     cloudflareDeploy:
-      'ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS=true pnpm run cloudflare:build && wrangler deploy --config .output/wrangler.json',
+      'cross-env ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS=true pnpm run cloudflare:build && wrangler deploy --config .output/wrangler.json',
     cloudflarePreview:
       'pnpm run cloudflare:build && wrangler dev --config .output/wrangler.json',
     cloudflareProof: `${packageToolingWrapperCommand(

@@ -36,6 +36,7 @@ export const TYPESCRIPT_NATIVE_PREVIEW_VERSION = '7.0.0-dev.20260707.2';
 export const OXLINT_VERSION = '1.80.0';
 export const OXFMT_VERSION = '0.65.0';
 export const ULTRACITE_VERSION = '7.10.6';
+export const CROSS_ENV_VERSION = '10.1.0';
 export const LEFTHOOK_VERSION = '^2.1.10';
 export const I18NEXT_VERSION = '26.3.6';
 export const MODULE_FEDERATION_NODE_VERSION = '2.7.50';
