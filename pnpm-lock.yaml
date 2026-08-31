@@ -51,6 +51,7 @@ patchedDependencies:
   '@module-federation/rspack@2.9.0': 7beed0f736d66f78abeba9ed9b5537e571eff92f49aa03bd30a6b674f32f4eae
   '@module-federation/runtime-core@2.9.0': b241be221397f0e07dbe6c515725e12eaf3b418469bb7dd21750e6e4b215dd8d
   '@tanstack/router-core@1.171.27': d0e147ec82083771b70989d2a1da6aa47f342ae42071af86c4247649f6a5b9e9
+  image-size@2.0.2: a415773e955878a9876448317ce183de538fe49d9083bd160abe668a0ec53801
   msgpackr@2.0.6: ea06f707e02e6b95d68e199347ada7bd640764e2653bfdd77664592390fac811
   zod@4.4.3: 2ae01a829b3f4082e46f1ccb4cbcffdea0db8664c2544b3566cb507e2c471c77
 
@@ -24716,7 +24717,7 @@ snapshots:
 
   '@rsbuild-image/core@0.0.1-next.36(ipx@3.1.1(ioredis@5.11.1(supports-color@8.1.1)))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(sharp@0.35.3(@types/node@26.2.0))':
     dependencies:
-      image-size: 2.0.2
+      image-size: 2.0.2(patch_hash=a415773e955878a9876448317ce183de538fe49d9083bd160abe668a0ec53801)
       knitwork: 1.3.0
       react: 19.2.8
       react-dom: 19.2.8(react@19.2.8)
@@ -29844,7 +29845,7 @@ snapshots:
   image-size@0.5.5:
     optional: true
 
-  image-size@2.0.2: {}
+  image-size@2.0.2(patch_hash=a415773e955878a9876448317ce183de538fe49d9083bd160abe668a0ec53801): {}
 
   immutable@5.1.9: {}
 
