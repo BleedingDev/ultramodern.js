@@ -54,6 +54,9 @@ const registrySourceChronologyPolicies = Object.freeze({
       }),
     ]),
   }),
+  '@bleedingdev/modern-js-ultramodern-create': Object.freeze({
+    provenanceRequiredFromFirstVersion: true,
+  }),
 });
 
 function isTransientNpmPublishError(error) {
@@ -563,41 +566,70 @@ async function assertRegistrySourceCommitUnpublished(
   const fetchImpl = dependencies.fetchImpl ?? globalThis.fetch;
   const provenanceVerifier =
     dependencies.verifyRegistryProvenance ?? verifyRegistryProvenance;
-  const metadata = await fetchRegistryPackageMetadata(packageName, fetchImpl);
+  const provenanceRequiredFromFirstVersion =
+    chronologyPolicy.provenanceRequiredFromFirstVersion === true;
+  let metadata;
+  try {
+    metadata = await fetchRegistryPackageMetadata(packageName, fetchImpl);
+  } catch (error) {
+    if (
+      provenanceRequiredFromFirstVersion &&
+      isRegistryMetadataNotFoundError(error)
+    ) {
+      return {
+        cutover: null,
+        exactVersionAuthenticated: false,
+        grandfatheredCount: 0,
+        inspectedCount: 0,
+        packageName,
+        requestedVersion,
+        sourceCommit: expectation.source.commit,
+        versionCount: 0,
+      };
+    }
+    throw error;
+  }
   const chronology = registryVersionChronology(metadata, packageName);
-  const { cutoverAnchor, grandfatheredVersions } = chronologyPolicy;
-  const cutoverIndex = chronology.findIndex(
-    entry => entry.version === cutoverAnchor.version,
-  );
-  if (cutoverIndex === -1) {
-    throw new Error(
-      `${packageName} registry chronology is missing independently maintained provenance cutover anchor ${cutoverAnchor.version}`,
+  const { cutoverAnchor, grandfatheredVersions = [] } = chronologyPolicy;
+  let cutoverIndex = 0;
+  if (!provenanceRequiredFromFirstVersion) {
+    cutoverIndex = chronology.findIndex(
+      entry => entry.version === cutoverAnchor.version,
     );
-  }
-  if (cutoverIndex !== grandfatheredVersions.length) {
-    throw new Error(
-      `${packageName} registry chronology before ${cutoverAnchor.version} is not independently authorized`,
-    );
-  }
-  for (const [index, grandfatheredVersion] of
-    grandfatheredVersions.entries()) {
-    assertPinnedRegistryChronologyEntry(
-      chronology[index],
-      grandfatheredVersion,
-      packageName,
-      'grandfathered version',
-    );
+    if (cutoverIndex === -1) {
+      throw new Error(
+        `${packageName} registry chronology is missing independently maintained provenance cutover anchor ${cutoverAnchor.version}`,
+      );
+    }
+    if (cutoverIndex !== grandfatheredVersions.length) {
+      throw new Error(
+        `${packageName} registry chronology before ${cutoverAnchor.version} is not independently authorized`,
+      );
+    }
+    for (const [index, grandfatheredVersion] of
+      grandfatheredVersions.entries()) {
+      assertPinnedRegistryChronologyEntry(
+        chronology[index],
+        grandfatheredVersion,
+        packageName,
+        'grandfathered version',
+      );
+    }
   }
   const cutoverEntry = chronology[cutoverIndex];
-  assertPinnedRegistryChronologyEntry(
-    cutoverEntry,
-    cutoverAnchor,
-    packageName,
-    'provenance cutover anchor',
-  );
+  if (cutoverAnchor) {
+    assertPinnedRegistryChronologyEntry(
+      cutoverEntry,
+      cutoverAnchor,
+      packageName,
+      'provenance cutover anchor',
+    );
+  }
   if (!declaresSlsaV1Provenance(cutoverEntry.published)) {
     throw new Error(
-      `${packageName}@${cutoverAnchor.version} authenticated provenance cutover anchor is missing its SLSA v1 declaration`,
+      provenanceRequiredFromFirstVersion
+        ? `${packageName}@${cutoverEntry.version} is missing SLSA v1 provenance; this identity requires provenance from its first published version`
+        : `${packageName}@${cutoverAnchor.version} authenticated provenance cutover anchor is missing its SLSA v1 declaration`,
     );
   }
   const requestedIndex = chronology.findIndex(
@@ -610,13 +642,15 @@ async function assertRegistrySourceCommitUnpublished(
   }
 
   const discoveryExpectation = historicalProvenanceExpectation(expectation);
-  const cutoverExpectation = {
-    ...discoveryExpectation,
-    source: {
-      ...discoveryExpectation.source,
-      commit: cutoverAnchor.sourceCommit,
-    },
-  };
+  const cutoverExpectation = cutoverAnchor
+    ? {
+        ...discoveryExpectation,
+        source: {
+          ...discoveryExpectation.source,
+          commit: cutoverAnchor.sourceCommit,
+        },
+      }
+    : discoveryExpectation;
   const results = await mapWithConcurrency(
     chronology.slice(cutoverIndex),
     chronologyVerificationConcurrency,
@@ -624,7 +658,9 @@ async function assertRegistrySourceCommitUnpublished(
       try {
         if (!declaresSlsaV1Provenance(entry.published)) {
           throw new Error(
-            `${packageName}@${entry.version} is missing SLSA v1 provenance after the ${cutoverAnchor.version} cutover`,
+            provenanceRequiredFromFirstVersion
+              ? `${packageName}@${entry.version} is missing SLSA v1 provenance; this identity requires provenance from its first published version`
+              : `${packageName}@${entry.version} is missing SLSA v1 provenance after the ${cutoverAnchor.version} cutover`,
           );
         }
         assertPlainObject(
@@ -642,7 +678,7 @@ async function assertRegistrySourceCommitUnpublished(
               entry.published.dist,
               entry.version === requestedVersion
                 ? expectation
-                : entry.version === cutoverAnchor.version
+                : cutoverAnchor && entry.version === cutoverAnchor.version
                   ? cutoverExpectation
                   : discoveryExpectation,
               fetchImpl,
@@ -672,6 +708,7 @@ async function assertRegistrySourceCommitUnpublished(
       throw error;
     }
     if (
+      cutoverAnchor &&
       entry.version === cutoverAnchor.version &&
       evidence.sourceCommit !== cutoverAnchor.sourceCommit
     ) {

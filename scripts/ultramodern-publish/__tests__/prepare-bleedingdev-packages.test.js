@@ -617,6 +617,8 @@ const registryDistFor = item => ({
 });
 
 const ledgerPackageName = '@bleedingdev/modern-js-create';
+const firstPublishLedgerPackageName =
+  '@bleedingdev/modern-js-ultramodern-create';
 const ledgerGrandfatheredVersion = Object.freeze({
   integrity:
     'sha512-+ZyvnxrZouvlF5yqdw6rbtEB/+X8GJJLrBNzKVZhN7aSjYbBI1nVgugRE0IogCNtyQzibOfakbeWNKwKtEI62Q==',
@@ -646,13 +648,13 @@ const registryAttestationsUrl = (packageName, version) => {
   )}`;
 };
 
-const createRegistryLedger = entries => {
+const createRegistryLedger = (entries, packageName = ledgerPackageName) => {
   const chronologicalEntries = [...entries].sort(
     (left, right) =>
       Date.parse(left.publishedAt) - Date.parse(right.publishedAt),
   );
   const metadata = {
-    name: ledgerPackageName,
+    name: packageName,
     time: {
       created: chronologicalEntries[0].publishedAt,
       modified: chronologicalEntries.at(-1).publishedAt,
@@ -666,9 +668,9 @@ const createRegistryLedger = entries => {
         entry.integrity ??
         `sha512-${crypto
           .createHash('sha512')
-          .update(`${ledgerPackageName}@${entry.version}`)
+          .update(`${packageName}@${entry.version}`)
           .digest('base64')}`,
-      targetName: ledgerPackageName,
+      targetName: packageName,
       version: entry.version,
     };
     const dist = { integrity: item.integrity };
@@ -677,10 +679,10 @@ const createRegistryLedger = entries => {
         provenance: { predicateType: slsaProvenanceV1 },
         url:
           entry.attestationsUrl ??
-          registryAttestationsUrl(ledgerPackageName, entry.version),
+          registryAttestationsUrl(packageName, entry.version),
       };
       documents.set(
-        registryAttestationsUrl(ledgerPackageName, entry.version),
+        registryAttestationsUrl(packageName, entry.version),
         provenanceDocument(
           provenanceStatement(item, {
             invocationId: entry.invocationId,
@@ -692,7 +694,7 @@ const createRegistryLedger = entries => {
     metadata.time[entry.version] = entry.publishedAt;
     metadata.versions[entry.version] = {
       dist,
-      name: ledgerPackageName,
+      name: packageName,
       version: entry.version,
     };
   }
@@ -701,7 +703,7 @@ const createRegistryLedger = entries => {
 
 const createRegistryLedgerFetch = (ledger, calls) => async (url, options) => {
   calls.push({ options, url });
-  if (url === registryMetadataUrl(ledgerPackageName)) {
+  if (url === registryMetadataUrl(ledger.metadata.name)) {
     return provenanceResponse(ledger.metadata);
   }
   const document = ledger.documents.get(url);
@@ -1856,6 +1858,121 @@ test('registry source ledger accepts known history and grandfathers only indepen
       method: 'GET',
       redirect: 'error',
     });
+  }
+});
+
+test('registry source ledger accepts an empty first-publish identity only on registry 404', async () => {
+  const { assertRegistrySourceCommitUnpublished } = await import(
+    '../prepare-bleedingdev-packages.mjs'
+  );
+  const calls = [];
+  const result = await assertRegistrySourceCommitUnpublished(
+    registryLedgerRequest({ packageName: firstPublishLedgerPackageName }),
+    {
+      fetchImpl: async (url, options) => {
+        calls.push({ options, url });
+        return { ok: false, status: 404, json: async () => ({}) };
+      },
+    },
+  );
+
+  assert.deepEqual(result, {
+    cutover: null,
+    exactVersionAuthenticated: false,
+    grandfatheredCount: 0,
+    inspectedCount: 0,
+    packageName: firstPublishLedgerPackageName,
+    requestedVersion: '9.0.0-ultramodern.1',
+    sourceCommit: releaseSource.commit,
+    versionCount: 0,
+  });
+  assert.deepEqual(calls, [
+    {
+      options: {
+        headers: { accept: 'application/json' },
+        method: 'GET',
+        redirect: 'error',
+      },
+      url: registryMetadataUrl(firstPublishLedgerPackageName),
+    },
+  ]);
+});
+
+test('registry source ledger authenticates provenance from a new identity first version', async () => {
+  const { assertRegistrySourceCommitUnpublished } = await import(
+    '../prepare-bleedingdev-packages.mjs'
+  );
+  const firstPublishedVersion = {
+    publishedAt: '2026-08-31T18:00:00.000Z',
+    sourceCommit: 'd'.repeat(40),
+    version: '3.8.2-ultramodern.0',
+  };
+  const ledger = createRegistryLedger(
+    [firstPublishedVersion],
+    firstPublishLedgerPackageName,
+  );
+
+  const result = await assertRegistrySourceCommitUnpublished(
+    registryLedgerRequest({ packageName: firstPublishLedgerPackageName }),
+    {
+      bundleVerifier: acceptSigstoreBundle,
+      fetchImpl: createRegistryLedgerFetch(ledger, []),
+    },
+  );
+
+  assert.deepEqual(result.cutover, {
+    publishedAt: firstPublishedVersion.publishedAt,
+    version: firstPublishedVersion.version,
+  });
+  assert.equal(result.grandfatheredCount, 0);
+  assert.equal(result.inspectedCount, 1);
+  assert.equal(result.versionCount, 1);
+});
+
+test('registry source ledger rejects missing first-version provenance and non-404 metadata failures', async () => {
+  const { assertRegistrySourceCommitUnpublished } = await import(
+    '../prepare-bleedingdev-packages.mjs'
+  );
+  const firstPublishedVersion = {
+    provenance: false,
+    publishedAt: '2026-08-31T18:00:00.000Z',
+    version: '3.8.2-ultramodern.0',
+  };
+  const ledger = createRegistryLedger(
+    [firstPublishedVersion],
+    firstPublishLedgerPackageName,
+  );
+
+  await assert.rejects(
+    () =>
+      assertRegistrySourceCommitUnpublished(
+        registryLedgerRequest({ packageName: firstPublishLedgerPackageName }),
+        {
+          bundleVerifier: acceptSigstoreBundle,
+          fetchImpl: createRegistryLedgerFetch(ledger, []),
+        },
+      ),
+    /modern-js-ultramodern-create@3\.8\.2-ultramodern\.0 is missing SLSA v1 provenance; this identity requires provenance from its first published version/u,
+  );
+
+  for (const { packageName, status } of [
+    { packageName: firstPublishLedgerPackageName, status: 500 },
+    { packageName: ledgerPackageName, status: 404 },
+  ]) {
+    await assert.rejects(
+      () =>
+        assertRegistrySourceCommitUnpublished(
+          registryLedgerRequest({ packageName }),
+          {
+            fetchImpl: async () => ({
+              ok: false,
+              status,
+              json: async () => ({}),
+            }),
+          },
+        ),
+      new RegExp(`registry metadata returned HTTP ${String(status)}`, 'u'),
+    );
   }
 });
 
