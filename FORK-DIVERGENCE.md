@@ -282,6 +282,18 @@ and disposition evidence.
 | `packages/runtime/plugin-runtime/src/router/runtime/PrefetchLink.tsx` | bleedingdev | Read the Webpack-supplied `__webpack_public_path__` magic global inside `try`/`catch` so a non-Webpack realm returns an empty public path instead of throwing a `ReferenceError` on an undeclared identifier; RT-09 prefetch behavior is unchanged and RT-07/RT-08 remain scheduled | `capped-patch` + `fix` |
 | `packages/runtime/plugin-runtime/tests/router/prefetch.test.tsx` | bleedingdev | Extend the audited-base-owned router prefetch regression to cover the non-Webpack realm so the `PrefetchLink.tsx` public-path guard cannot regress silently | `capped-patch` + `fix` |
 
+### 2026-09-01 security dependency non-shrinks
+
+These audited-base-owned manifests receive equal-count dependency replacements
+in the same committed range. Each replacement is a two-line PR delta, remains
+below the Rule-5 cap, and carries strict path-first ownership evidence without
+running the growth writer.
+
+| Audited-base-owned path | Owner | Reason | Disposition |
+| --- | --- | --- | --- |
+| `packages/server/core/package.json` | bleedingdev | Raise the Hono runtime minimum from 4.12.28 to 4.13.5 so installations receive the upstream 4.13 security and correctness fixes while preserving the fork's current Node.js runtime baseline | `capped-patch` + `fixed-in-fork` |
+| `packages/document/package.json` | bleedingdev | Raise Mermaid from 11.16.0 to 11.17.2 so documentation diagrams resolve the DOMPurify 3.4.14 security fixes without changing the site's existing loose-security rendering behavior | `capped-patch` + `fixed-in-fork` |
+
 ### 2026-09-01 skill-suite anchor repair
 
 This audited-base-owned file changes without a componentwise cumulative shrink
