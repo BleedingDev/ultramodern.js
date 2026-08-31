@@ -1,5 +1,5 @@
 ---
-'@modern-js/create': patch
+'@modern-js/ultramodern-create': patch
 ---
 
 Keep generated UltraModern release identity promotable during native builds by

@@ -1,5 +1,5 @@
 ---
-'@modern-js/create': minor
+'@modern-js/ultramodern-create': minor
 ---
 
 feat(create): scaffold TanStack Router and Tailwind CSS projects

@@ -956,7 +956,7 @@ test('renovate config with approval-gated carve-outs passes', () => {
 test('template renovate config is not required to carry repo carve-outs', () => {
   assert.deepEqual(
     validateRenovateConfigObject(
-      'packages/toolkit/create/template-workspace/.github/renovate.json',
+      'packages/toolkit/ultramodern-create/template-workspace/.github/renovate.json',
       baseRenovateConfig(),
       { requirePinLatticeCarveOuts: false },
     ),

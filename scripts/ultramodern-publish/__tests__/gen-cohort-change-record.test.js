@@ -88,7 +88,8 @@ test('CLI derives the record and GitHub outputs from verified release artifacts'
     .map(pkg => pkg.name)
     .find(
       name =>
-        /^@modern-js\/[a-z0-9-]+$/u.test(name) && name !== '@modern-js/create',
+        /^@modern-js\/[a-z0-9-]+$/u.test(name) &&
+        name !== '@modern-js/ultramodern-create',
     );
   assert.ok(changedSourceName, 'fixture needs one queued Modern.js package');
   const aliases = {

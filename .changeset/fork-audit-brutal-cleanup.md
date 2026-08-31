@@ -1,7 +1,7 @@
 ---
 '@modern-js/builder': patch
 '@modern-js/render': patch
-'@modern-js/create': patch
+'@modern-js/ultramodern-create': patch
 '@modern-js/types': patch
 '@modern-js/prod-server': patch
 '@modern-js/server-runtime-extensions': patch

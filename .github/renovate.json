@@ -34,7 +34,7 @@
       "labels": ["dependencies", "pin-lattice"]
     },
     {
-      "description": "Fork pin lattice: TanStack Router versions are exact-pinned in plugin-runtime/plugin-tanstack and mirrored by packages/toolkit/create/src/ultramodern-workspace/versions.ts plus the release gates; bumps must update all of them in lockstep.",
+      "description": "Fork pin lattice: TanStack Router versions are exact-pinned in plugin-runtime/plugin-tanstack and mirrored by packages/toolkit/ultramodern-create/src/ultramodern-workspace/versions.ts plus the release gates; bumps must update all of them in lockstep.",
       "matchManagers": ["npm"],
       "matchPackageNames": ["@tanstack/**"],
       "groupName": "tanstack (gate-pinned lattice)",

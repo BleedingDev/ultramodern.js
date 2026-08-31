@@ -1,5 +1,5 @@
 ---
-'@modern-js/create': patch
+'@modern-js/ultramodern-create': patch
 ---
 
 Run the downstream Tractor workspace check and commit the migrated,

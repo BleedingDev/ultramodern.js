@@ -12,7 +12,7 @@ into generated UltraModern workspaces:
 - `@module-federation/rspack@2.9.0` -> `patches/@module-federation__rspack@2.9.0.patch`
 
 Shared patches exist in both this directory and
-`packages/toolkit/create/template-workspace/patches/`. They must stay
+`packages/toolkit/ultramodern-create/template-workspace/patches/`. They must stay
 byte-identical because generated workspaces rely on the template copy at
 runtime:
 
@@ -23,11 +23,11 @@ runtime:
 - `@tanstack/router-core@1.171.27` -> `@tanstack__router-core@1.171.27.patch`
 
 The shared list is defined in
-`packages/toolkit/create/src/ultramodern-workspace/shared-patches.ts` and gated
-by `packages/toolkit/create/tests/patch-sync.test.ts`.
+`packages/toolkit/ultramodern-create/src/ultramodern-workspace/shared-patches.ts` and gated
+by `packages/toolkit/ultramodern-create/tests/patch-sync.test.ts`.
 
 Template-only patches live only under
-`packages/toolkit/create/template-workspace/patches/` and are used by generated
+`packages/toolkit/ultramodern-create/template-workspace/patches/` and are used by generated
 workspaces:
 
 - `drizzle-orm-ts7-strict-declarations.patch`

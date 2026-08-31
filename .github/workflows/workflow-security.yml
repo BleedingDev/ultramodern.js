@@ -5,7 +5,7 @@ on:
     paths:
       - '.github/workflows/**'
       - '.github/renovate.json'
-      - 'packages/toolkit/create/template-workspace/.github/**'
+      - 'packages/toolkit/ultramodern-create/template-workspace/.github/**'
       - 'scripts/security/**'
       - 'scripts/ultramodern-publish/**'
       - 'scripts/ultramodern-production-readiness/**'
@@ -16,7 +16,7 @@ on:
     paths:
       - '.github/workflows/**'
       - '.github/renovate.json'
-      - 'packages/toolkit/create/template-workspace/.github/**'
+      - 'packages/toolkit/ultramodern-create/template-workspace/.github/**'
       - 'scripts/security/**'
       - 'scripts/ultramodern-publish/**'
       - 'scripts/ultramodern-production-readiness/**'

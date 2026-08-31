@@ -1,5 +1,5 @@
 ---
-"@modern-js/create": patch
+"@modern-js/ultramodern-create": patch
 ---
 
 Fix UltraModern generated Module Federation remotes to publish their own dev

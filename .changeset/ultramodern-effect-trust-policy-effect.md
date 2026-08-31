@@ -1,5 +1,5 @@
 ---
-'@modern-js/create': patch
+'@modern-js/ultramodern-create': patch
 ---
 
 Expand generated and migrated strict Effect pnpm trust-policy exclusions to

@@ -1,5 +1,5 @@
 ---
-'@modern-js/create': patch
+'@modern-js/ultramodern-create': patch
 ---
 
 Make `ultramodern migrate-strict-effect` converge a workspace to the same end

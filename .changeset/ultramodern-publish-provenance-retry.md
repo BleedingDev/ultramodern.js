@@ -1,5 +1,5 @@
 ---
-'@modern-js/create': patch
+'@modern-js/ultramodern-create': patch
 ---
 
 Harden the BleedingDev UltraModern release flow around one immutable package

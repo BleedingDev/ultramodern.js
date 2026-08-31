@@ -1,5 +1,5 @@
 ---
-'@modern-js/create': patch
+'@modern-js/ultramodern-create': patch
 ---
 
 Repair the Module Federation runtime-core 2.9.0 remote declaration by importing

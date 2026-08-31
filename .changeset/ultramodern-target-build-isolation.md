@@ -1,5 +1,5 @@
 ---
-'@modern-js/create': patch
+'@modern-js/ultramodern-create': patch
 ---
 
 Isolate generated UltraModern web and Cloudflare build output, temp, and Rspack

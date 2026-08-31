@@ -1,7 +1,7 @@
 ---
 '@modern-js/runtime': patch
 '@modern-js/app-tools': patch
-'@modern-js/create': patch
+'@modern-js/ultramodern-create': patch
 ---
 
 Compose MicroVertical SSR fragments in Cloudflare shell Workers through service

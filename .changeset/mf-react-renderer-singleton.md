@@ -1,5 +1,5 @@
 ---
-"@modern-js/create": patch
+"@modern-js/ultramodern-create": patch
 "@modern-js/plugin-i18n": patch
 ---
 

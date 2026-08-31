@@ -1,5 +1,5 @@
 ---
-'@modern-js/create': patch
+'@modern-js/ultramodern-create': patch
 ---
 
 Accept pnpm 11.17 lockfiles that keep base package metadata separate from

@@ -1,6 +1,6 @@
 ---
 '@modern-js/plugin-tanstack': patch
-'@modern-js/create': patch
+'@modern-js/ultramodern-create': patch
 ---
 
 fix(routes-generate): resolve the app config file for headless TanStack route generation

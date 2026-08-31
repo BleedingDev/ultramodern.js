@@ -3,26 +3,27 @@ workspaces. It does not require global installation and can be run on-demand
 using `pnpm dlx`.
 
 The supported pnpm command is the scoped package specifier:
-`pnpm dlx @bleedingdev/modern-js-create <target>`. Do not shorten it to
-`pnpm dlx modern-js-create`; there is no unscoped package by that name.
+`pnpm dlx @bleedingdev/modern-js-ultramodern-create <target>`. Do not shorten it
+to `pnpm dlx modern-js-ultramodern-create`; there is no unscoped package by
+that name.
 
 You can initialize the empty directory you are already in:
 
 ```bash
 mkdir myapp && cd myapp
-pnpm dlx @bleedingdev/modern-js-create .
+pnpm dlx @bleedingdev/modern-js-ultramodern-create .
 ```
 
 You can also create a project directly in a new directory:
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-create my-super-app
+pnpm dlx @bleedingdev/modern-js-ultramodern-create my-super-app
 ```
 
 To initialize with workspace protocol dependencies (for local monorepo testing of unreleased Modern.js packages):
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-create my-super-app --workspace
+pnpm dlx @bleedingdev/modern-js-ultramodern-create my-super-app --workspace
 ```
 
 The BleedingDev create package will directly create the application without providing an interactive Q & A interface:
@@ -73,13 +74,13 @@ The default workspace starts shell-only and installs the published BleedingDev
 package aliases:
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-create my-super-app
+pnpm dlx @bleedingdev/modern-js-ultramodern-create my-super-app
 ```
 
 From a generated SuperApp workspace, add a business MicroVertical in place:
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-create transportation --vertical
+pnpm dlx @bleedingdev/modern-js-ultramodern-create transportation --vertical
 ```
 
 The `--vertical` command mutates the current workspace: it adds the vertical

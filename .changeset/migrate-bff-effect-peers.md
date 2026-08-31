@@ -1,5 +1,5 @@
 ---
-'@modern-js/create': patch
+'@modern-js/ultramodern-create': patch
 ---
 
 `ultramodern migrate-strict-effect` now supplies plugin-bff's optional Effect peers.

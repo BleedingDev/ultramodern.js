@@ -8,7 +8,7 @@
   - `ADR-0018-backend-federation-contract.md` (incl. Amendment 2026-07-10)
   - `ADR-0019-federated-loading-unified-delivery.md`
   - `ADR-0020-zoned-surface-versioning.md`
-  - `packages/toolkit/create/delivery-unit-schema-SPEC.md` (canonical types; contract checkpoint)
+  - `packages/toolkit/ultramodern-create/delivery-unit-schema-SPEC.md` (canonical types; contract checkpoint)
 
 ## 1. Problem
 

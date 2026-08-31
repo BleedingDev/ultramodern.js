@@ -1,6 +1,6 @@
 ---
 '@modern-js/app-tools': patch
-'@modern-js/create': patch
+'@modern-js/ultramodern-create': patch
 '@modern-js/plugin-bff': patch
 '@modern-js/utils': patch
 ---

@@ -259,7 +259,7 @@ vocabulary in `CONTEXT.md` and the evolution policy in ADR-0020.
    statements that the current proof is CommonJS and ESM containers remain
    unproven (lines 181-185), are superseded. The current generator emits the
    Node execution-surface metadata with `remoteType: 'module'`
-   (`packages/toolkit/create/src/ultramodern-workspace/backend-federation.ts:99-122`).
+   (`packages/toolkit/ultramodern-create/src/ultramodern-workspace/backend-federation.ts:99-122`).
    That source evidence proves the generated contract selects an ESM remote; it
    does not prove that a generated Node adapter successfully loads that remote
    at runtime. The required missing proof is an executed Node adapter test that

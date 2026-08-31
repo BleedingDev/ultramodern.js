@@ -63,12 +63,12 @@ For install strategy:
       "@modern-js/plugin-tanstack",
       "@modern-js/runtime",
       "@modern-js/code-tools",
-      "@modern-js/create"
+      "@modern-js/ultramodern-create"
     ],
     "specifier": "<cohort>",
     "aliases": {
       "@modern-js/code-tools": "@bleedingdev/modern-js-code-tools",
-      "@modern-js/create": "@bleedingdev/modern-js-create"
+      "@modern-js/ultramodern-create": "@bleedingdev/modern-js-ultramodern-create"
     }
   }
 }
@@ -92,7 +92,7 @@ Add the root devDependency using the package source strategy:
 {
   "devDependencies": {
     "@modern-js/code-tools": "npm:@bleedingdev/modern-js-code-tools@<cohort>",
-    "@modern-js/create": "npm:@bleedingdev/modern-js-create@<cohort>"
+    "@modern-js/ultramodern-create": "npm:@bleedingdev/modern-js-ultramodern-create@<cohort>"
   }
 }
 ```
@@ -103,7 +103,7 @@ For workspace strategy:
 {
   "devDependencies": {
     "@modern-js/code-tools": "workspace:*",
-    "@modern-js/create": "workspace:*"
+    "@modern-js/ultramodern-create": "workspace:*"
   }
 }
 ```

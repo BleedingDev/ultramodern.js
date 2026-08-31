@@ -1,5 +1,5 @@
 ---
-'@modern-js/create': minor
+'@modern-js/ultramodern-create': minor
 '@modern-js/sandpack-react': patch
 ---
 

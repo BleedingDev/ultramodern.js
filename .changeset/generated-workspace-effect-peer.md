@@ -1,5 +1,5 @@
 ---
-'@modern-js/create': patch
+'@modern-js/ultramodern-create': patch
 ---
 
 Declare `effect` and `@effect/opentelemetry` in generated UltraModern workspaces.

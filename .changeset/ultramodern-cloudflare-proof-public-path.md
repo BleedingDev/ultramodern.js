@@ -1,5 +1,5 @@
 ---
-'@modern-js/create': patch
+'@modern-js/ultramodern-create': patch
 ---
 
 Resolve Cloudflare proof Module Federation manifest `publicPath` values against

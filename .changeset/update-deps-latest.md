@@ -13,7 +13,7 @@
 '@modern-js/runtime-utils': patch
 '@modern-js/utils': patch
 '@modern-js/image': patch
-'@modern-js/create': patch
+'@modern-js/ultramodern-create': patch
 ---
 
 chore: update dependencies to latest

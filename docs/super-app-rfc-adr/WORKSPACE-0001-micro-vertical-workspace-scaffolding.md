@@ -9,9 +9,9 @@
   - `ADR-0019-federated-loading-unified-delivery.md`
   - `ADR-0012-mv-topology-manifest-and-zephyr-profile.md`
   - `ADR-0014-mv-template-supply-chain-policy.md`
-  - `packages/toolkit/create/README.md`
-  - `packages/toolkit/create/template-workspace/`
-  - `packages/toolkit/create/templates/`
+  - `packages/toolkit/ultramodern-create/README.md`
+  - `packages/toolkit/ultramodern-create/template-workspace/`
+  - `packages/toolkit/ultramodern-create/templates/`
 
 ## 1. Purpose
 
@@ -64,17 +64,17 @@ Directory/package boundaries are not release boundaries. A service package that 
 Use the existing BleedingDev create entrypoint and add MicroVerticals from the
 workspace root with the UltraModern add flow. The add flow derives paths,
 package names, ports, Module Federation names, topology entries, overlays,
-ownership, and root dev scripts from the requested name and kind.
+ownership, and root dev scripts from the requested vertical name.
 
 The supported pnpm invocation is the scoped package specifier,
-`pnpm dlx @bleedingdev/modern-js-create <target>`. The bare
-`pnpm dlx modern-js-create` lookup is not supported because no unscoped
-`modern-js-create` package is published.
+`pnpm dlx @bleedingdev/modern-js-ultramodern-create <target>`. The bare
+`pnpm dlx modern-js-ultramodern-create` lookup is not supported because no
+unscoped `modern-js-ultramodern-create` package is published.
 
 ### 3.1 Initial workspace
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-create my-super-app
+pnpm dlx @bleedingdev/modern-js-ultramodern-create my-super-app
 ```
 
 Shell requirements:
@@ -95,18 +95,19 @@ Reference proof:
 1. `tests/integration/routes-tanstack-mf/mf-host`
 2. `tests/integration/routes-tanstack-mf/test/index.test.ts`
 
-### 3.2 Remote vertical
+### 3.2 Full-stack vertical
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-create catalog --microvertical remote
+pnpm dlx @bleedingdev/modern-js-ultramodern-create catalog --vertical
 ```
 
-Remote requirements:
+Vertical requirements:
 
 1. own its route subtree, loader/action bridge, local presentation, and degraded UI.
 2. publish composition-surface artifacts through one MicroVertical delivery-unit identity.
 3. emit remote failure and fallback telemetry.
 4. declare ownership metadata before production rollout.
+5. own its Effect HttpApi BFF contract and generated client in the same delivery unit.
 
 Reference proof:
 
@@ -115,9 +116,11 @@ Reference proof:
 
 ### 3.3 Horizontal remote
 
-```bash
-pnpm dlx @bleedingdev/modern-js-create design-system --microvertical horizontal-remote
-```
+The create package does not expose a `horizontal-remote` mode. Use an ordinary
+workspace package for shared design tokens and primitives. If the surface needs
+independent deployment, rollback, and incident ownership, model it explicitly
+as a separately owned delivery unit rather than disguising it as generator
+sugar.
 
 Horizontal remote requirements:
 
@@ -129,9 +132,9 @@ Horizontal remote requirements:
 
 Effect-first service:
 
-```bash
-pnpm dlx @bleedingdev/modern-js-create catalog-api --microvertical service
-```
+The create package does not expose a service-only mode. A generated
+`--vertical` owns its Effect HttpApi BFF and client. A genuinely cross-vertical
+service requires an explicit delivery-unit design outside the create surface.
 
 Service requirements:
 
@@ -148,11 +151,8 @@ Reference proof:
 
 ### 3.5 Shared package
 
-```bash
-pnpm dlx @bleedingdev/modern-js-create catalog-contracts --microvertical shared
-```
-
-Shared packages are created as normal workspace packages, not app remotes.
+Shared packages are created as normal workspace packages, not by a special
+create mode and not as app remotes.
 
 When the design system needs an independent release boundary, create it as a horizontal Module Federation remote delivery unit instead of treating it as a special framework subsystem. It must use the same topology, trust, compatibility, SSR, and fallback expectations as vertical remotes.
 
@@ -207,7 +207,7 @@ A generated Micro Vertical workspace is scaffold-ready only when these checks ha
 | Shell + remote route composition | `pnpm --dir tests exec rstest run integration/routes-tanstack-mf/test/index.test.ts` |
 | MF manifest and shared tree-shaking metadata | `tests/integration/routes-tanstack-mf/tests/tanstack-mf-contract.test.ts` |
 | Effect service propagation | `tests/integration/bff-runtime-parity` and `tests/integration/bff-cross-project` |
-| Template manifest and supply-chain policy | `packages/toolkit/create/src/index.ts` manifest validation and `.modernjs/mv-template-manifest.json` output |
+| Template manifest and supply-chain policy | `packages/toolkit/ultramodern-create/src/index.ts` manifest validation and `.modernjs/mv-template-manifest.json` output |
 | Release gate compatibility | `pnpm run validate:bun-smoke` |
 
 The minimal topology smoke path is `pnpm run validate:mv-topology-smoke`.
@@ -216,19 +216,22 @@ Graph handoff metadata for plan/subagent orchestration lives at
 
 ## 6. Generator Surface Policy
 
-The create package exposes both low-level Modern.js scaffold primitives and the
-UltraModern add flow:
+The create package exposes one initial SuperApp workspace flow and one
+full-stack MicroVertical add flow:
 
-1. `--microvertical remote` for vertical Module Federation remotes.
-2. `--microvertical horizontal-remote` for independently deployed horizontal remotes.
-3. `--microvertical service` for Effect-first service packages.
-4. `--microvertical shared` for shared workspace packages.
-5. TanStack Router and Effect HttpApi BFF are the default low-level app scaffold. Generated UltraModern HTTP APIs do not use `--bff-runtime hono`.
+1. The default command creates a shell-only SuperApp workspace.
+2. `--vertical` adds a full-stack vertical with TanStack Router, Module
+   Federation, Effect HttpApi BFF, ownership, topology, i18n, and Tailwind
+   contracts.
+3. `--vertical --dry-run` validates and reports the exact mutation plan without
+   writing files.
+4. The public API and CodeSmith adapter expose the same workspace and vertical
+   operations for automation.
+5. Generated UltraModern HTTP APIs do not use `--bff-runtime hono`.
 
-New CLI flags should be added only when they produce materially different files
-or eliminate repeated, error-prone workspace metadata edits. `--microvertical`
-is intentionally thin sugar over existing generator primitives plus topology,
-ownership, overlay, and root-script updates.
+Do not advertise a `--microvertical` compatibility surface. Service-only,
+shared-package, and horizontal-remote modes remain outside the generator until
+they have real producers, consumers, and focused behavioral proof.
 
 ## 7. Acceptance Checklist
 

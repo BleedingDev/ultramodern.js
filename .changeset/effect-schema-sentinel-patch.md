@@ -1,5 +1,5 @@
 ---
-'@modern-js/create': patch
+'@modern-js/ultramodern-create': patch
 ---
 
 Repair `effect@4.0.0-beta.102`'s own `Schema.d.ts` in generated workspaces.

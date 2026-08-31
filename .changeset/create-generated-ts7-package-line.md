@@ -1,5 +1,5 @@
 ---
-"@modern-js/create": patch
+"@modern-js/ultramodern-create": patch
 ---
 
 Emit the stable TypeScript 7 package line in generated UltraModern app

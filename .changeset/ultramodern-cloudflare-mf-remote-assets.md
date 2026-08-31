@@ -1,5 +1,5 @@
 ---
-'@modern-js/create': patch
+'@modern-js/ultramodern-create': patch
 ---
 
 Make generated UltraModern Cloudflare proof and Module Federation remote asset

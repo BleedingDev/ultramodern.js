@@ -1,5 +1,5 @@
 ---
-'@modern-js/create': minor
+'@modern-js/ultramodern-create': minor
 ---
 
 Generated workspaces default `output.assetPrefix` to origin-relative `/` and set

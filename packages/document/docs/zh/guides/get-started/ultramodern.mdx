@@ -62,9 +62,9 @@ UltraModern.js 的增强能力是新 SuperApp 的默认产品面。框架方向�
 旧版生成 workspace 迁移时，以已发布的包 cohort 作为事实来源：
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-create@latest --help
-pnpm dlx @bleedingdev/modern-js-create@latest catalog --vertical --dry-run
-pnpm dlx @bleedingdev/modern-js-create@latest catalog --vertical
+pnpm dlx @bleedingdev/modern-js-ultramodern-create@latest --help
+pnpm dlx @bleedingdev/modern-js-ultramodern-create@latest catalog --vertical --dry-run
+pnpm dlx @bleedingdev/modern-js-ultramodern-create@latest catalog --vertical
 mise install
 mise exec -- pnpm install
 mise exec -- pnpm check
@@ -81,8 +81,8 @@ server runtime 中。请求 `/` 时，框架会按语言协商在服务端返回
 先解析当前 cohort 版本，再运行同版本迁移命令：
 
 ```bash
-COHORT="$(npm view @bleedingdev/modern-js-create version)"
-pnpm dlx "@bleedingdev/modern-js-create@$COHORT" ultramodern \
+COHORT="$(npm view @bleedingdev/modern-js-ultramodern-create version)"
+pnpm dlx "@bleedingdev/modern-js-ultramodern-create@$COHORT" ultramodern \
   migrate-strict-effect --version "$COHORT"
 pnpm install
 pnpm check
@@ -114,8 +114,8 @@ postprocess、生成产物编辑或本地 redirect shim 来修复旧版本的 ro
 手写 package alias 或生成 metadata 之前，先在目标 workspace 运行框架迁移命令：
 
 ```bash
-COHORT="$(npm view @bleedingdev/modern-js-create version)"
-pnpm dlx "@bleedingdev/modern-js-create@$COHORT" ultramodern \
+COHORT="$(npm view @bleedingdev/modern-js-ultramodern-create version)"
+pnpm dlx "@bleedingdev/modern-js-ultramodern-create@$COHORT" ultramodern \
   migrate-strict-effect --version "$COHORT"
 pnpm api:check
 pnpm contract:check
@@ -310,7 +310,7 @@ SSR、TanStack Router、Tailwind CSS v4、i18n、Effect HttpApi BFF、Module Fed
 topology、生成质量 gate，以及 Cloudflare 部署基础：
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-create myapp
+pnpm dlx @bleedingdev/modern-js-ultramodern-create myapp
 cd myapp
 mise install
 mise exec -- pnpm install
@@ -321,10 +321,10 @@ workspace 从 shell 和平台契约起步，不强制生成演示业务域。真
 再添加对应 MicroVertical：
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-create transportation --vertical
-pnpm dlx @bleedingdev/modern-js-create food-delivery --vertical
-pnpm dlx @bleedingdev/modern-js-create payments --vertical
-pnpm dlx @bleedingdev/modern-js-create maps --vertical
+pnpm dlx @bleedingdev/modern-js-ultramodern-create transportation --vertical
+pnpm dlx @bleedingdev/modern-js-ultramodern-create food-delivery --vertical
+pnpm dlx @bleedingdev/modern-js-ultramodern-create payments --vertical
+pnpm dlx @bleedingdev/modern-js-ultramodern-create maps --vertical
 mise exec -- pnpm check
 ```
 
@@ -337,10 +337,10 @@ ownership 记录、shell Module Federation、开发 overlays、包依赖、生�
 自动化脚本可以使用显式 MicroVertical 语法，不必依赖位置参数：
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-create --vertical=transportation
-pnpm dlx @bleedingdev/modern-js-create --vertical-name transportation
-pnpm dlx @bleedingdev/modern-js-create transportation --vertical --dry-run
-pnpm dlx @bleedingdev/modern-js-create transportation --vertical \
+pnpm dlx @bleedingdev/modern-js-ultramodern-create --vertical=transportation
+pnpm dlx @bleedingdev/modern-js-ultramodern-create --vertical-name transportation
+pnpm dlx @bleedingdev/modern-js-ultramodern-create transportation --vertical --dry-run
+pnpm dlx @bleedingdev/modern-js-ultramodern-create transportation --vertical \
   --codesmith-overlay ./generators/vertical-overlay
 ```
 
@@ -358,7 +358,7 @@ import {
   addUltramodernVertical,
   generateUltramodernWorkspace,
   planUltramodernVertical,
-} from '@modern-js/create/ultramodern-workspace';
+} from '@modern-js/ultramodern-create/ultramodern-workspace';
 
 const workspace = generateUltramodernWorkspace({
   targetDir: '/tmp/my-workspace',
@@ -389,7 +389,7 @@ MicroVertical dry-run 返回相同结构，并额外包含 `dryRun`、`selectedP
 CodeSmith 消费方可以使用 adapter subpath：
 
 ```ts
-import ultramodernCodeSmith from '@modern-js/create/ultramodern-workspace/codesmith';
+import ultramodernCodeSmith from '@modern-js/ultramodern-create/ultramodern-workspace/codesmith';
 
 await ultramodernCodeSmith({
   config: {

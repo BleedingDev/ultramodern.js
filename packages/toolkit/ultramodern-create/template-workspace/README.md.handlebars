@@ -14,8 +14,8 @@ UltraModern.js 3.0 SuperApp surface and starts with an explicit shell:
 Add a full-stack MicroVertical when the product needs one:
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-create transportation --vertical
-pnpm dlx @bleedingdev/modern-js-create payments --vertical
+pnpm dlx @bleedingdev/modern-js-ultramodern-create transportation --vertical
+pnpm dlx @bleedingdev/modern-js-ultramodern-create payments --vertical
 ```
 
 Each added vertical owns its UI/routes, browser-safe Module Federation exposes,
@@ -204,7 +204,7 @@ from trusted-publisher metadata to provenance attestations.
 For older generated workspaces, run the framework migration command first:
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-create@3.5.0-ultramodern.10 ultramodern \
+pnpm dlx @bleedingdev/modern-js-ultramodern-create@3.5.0-ultramodern.10 ultramodern \
   migrate-strict-effect --version 3.5.0-ultramodern.10
 pnpm api:check
 pnpm contract:check

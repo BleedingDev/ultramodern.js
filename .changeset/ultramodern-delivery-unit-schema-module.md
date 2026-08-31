@@ -1,10 +1,10 @@
 ---
-'@modern-js/create': patch
+'@modern-js/ultramodern-create': patch
 ---
 
 Integrate the canonical delivery-unit schema module (`DeliveryUnitDescriptor`,
 `SurfaceDescriptor`, `SurfaceRef` parser/formatter, `ResolvedDeliveryUnit`, and
-v1 projections with unknown-field preservation) into `@modern-js/create`'s
+v1 projections with unknown-field preservation) into `@modern-js/ultramodern-create`'s
 generator paths. Generation now derives grammar-safe surface IDs, preserves
 `agent` / `agent-team` owners through v1 round-trips, and checks v1
 representability without rejecting owners the projection can preserve. The

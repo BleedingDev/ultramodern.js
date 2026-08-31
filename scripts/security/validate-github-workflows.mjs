@@ -37,7 +37,7 @@ export const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
 
 const workflowDirs = [
   '.github/workflows',
-  'packages/toolkit/create/template-workspace/.github/workflows',
+  'packages/toolkit/ultramodern-create/template-workspace/.github/workflows',
 ];
 
 const sensitiveWorkflowPaths = new Set([
@@ -46,7 +46,7 @@ const sensitiveWorkflowPaths = new Set([
   '.github/workflows/ultramodern-nightly.yml',
   '.github/workflows/workflow-security.yml',
   '.github/workflows/superapp-certification.yml',
-  'packages/toolkit/create/template-workspace/.github/workflows/ultramodern-workspace-gates.yml.handlebars',
+  'packages/toolkit/ultramodern-create/template-workspace/.github/workflows/ultramodern-workspace-gates.yml.handlebars',
 ]);
 
 /**
@@ -1112,7 +1112,7 @@ export function validateRepository(rootDir = repoRoot) {
     }),
     ...validateRenovateConfigFile(
       rootDir,
-      'packages/toolkit/create/template-workspace/.github/renovate.json',
+      'packages/toolkit/ultramodern-create/template-workspace/.github/renovate.json',
       { requirePinLatticeCarveOuts: false },
     ),
   ];

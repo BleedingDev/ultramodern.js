@@ -13,19 +13,20 @@
 The BleedingDev create package has one supported generated product: an UltraModern SuperApp workspace. New scaffolds use TanStack Router.
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-create my-workspace
+pnpm dlx @bleedingdev/modern-js-ultramodern-create my-workspace
 ```
 
 The supported pnpm command contract is the scoped package specifier above:
-`pnpm dlx @bleedingdev/modern-js-create <target>`. Do not shorten it to
-`pnpm dlx modern-js-create`; there is no unscoped `modern-js-create` npm
-package. Release proof runs this scoped form from a temporary pnpm store/cache
-so it cannot pass because of a local link cache.
+`pnpm dlx @bleedingdev/modern-js-ultramodern-create <target>`. Do not shorten it
+to `pnpm dlx modern-js-ultramodern-create`; there is no unscoped
+`modern-js-ultramodern-create` npm package. Release proof runs this scoped form
+from a temporary pnpm store/cache so it cannot pass because of a local link
+cache.
 
 To initialize the empty directory you are already in, pass `.` explicitly:
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-create .
+pnpm dlx @bleedingdev/modern-js-ultramodern-create .
 ```
 
 The workspace starts shell-only so the first commit has no fake business
@@ -66,22 +67,22 @@ workspace contract stay aligned.
 
 The supported generator runtime surfaces are:
 
-- `@modern-js/create/ultramodern-workspace`
-- `@modern-js/create/ultramodern-workspace/codesmith`
-- The `@bleedingdev/modern-js-create` CLI that delegates to those APIs.
+- `@modern-js/ultramodern-create/ultramodern-workspace`
+- `@modern-js/ultramodern-create/ultramodern-workspace/codesmith`
+- The `@bleedingdev/modern-js-ultramodern-create` CLI that delegates to those APIs.
 
 These surfaces are plain Node generator code. They must not import
 `typescript` or TypeScript compiler internals at runtime. The package build is
 the local validation command for this boundary:
 
 ```bash
-pnpm --filter @modern-js/create build
+pnpm --filter @modern-js/ultramodern-create build
 ```
 
 That command lets Rslib emit runtime modules and declarations together through
 the installed stable TypeScript 7 backend. The same declaration configuration
 stays active during `rslib build --watch`. Run
-`pnpm --filter @modern-js/create test` when changing generator behavior; it
+`pnpm --filter @modern-js/ultramodern-create test` when changing generator behavior; it
 includes a boundary test that scans generator sources, templates, and generated
 workspace output for compiler API imports.
 
@@ -99,7 +100,7 @@ runs the read-only primitive gates in parallel on pre-push.
 For local monorepo dependency testing, add `--workspace`:
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-create my-workspace --workspace
+pnpm dlx @bleedingdev/modern-js-ultramodern-create my-workspace --workspace
 ```
 
 For package-source validation outside the monorepo, pass explicit
@@ -116,7 +117,7 @@ import {
   addUltramodernVertical,
   generateUltramodernWorkspace,
   planUltramodernVertical,
-} from '@modern-js/create/ultramodern-workspace';
+} from '@modern-js/ultramodern-create/ultramodern-workspace';
 
 const workspace = generateUltramodernWorkspace({
   targetDir: '/tmp/my-workspace',
@@ -151,9 +152,9 @@ Dry-run is available for MicroVertical addition only. The CLI prints the plan as
 JSON and writes no files:
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-create new-vertical --vertical --dry-run
-pnpm dlx @bleedingdev/modern-js-create --vertical=new-vertical --dry-run
-pnpm dlx @bleedingdev/modern-js-create --vertical-name new-vertical --dry-run
+pnpm dlx @bleedingdev/modern-js-ultramodern-create new-vertical --vertical --dry-run
+pnpm dlx @bleedingdev/modern-js-ultramodern-create --vertical=new-vertical --dry-run
+pnpm dlx @bleedingdev/modern-js-ultramodern-create --vertical-name new-vertical --dry-run
 ```
 
 The dry-run object adds `dryRun: true`, `selectedPort`,
@@ -187,8 +188,8 @@ topology, ownership, package-source, overlay, Tailwind prefix, Module Federation
 and compact UltraModern config conflicts before files are written:
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-create@latest catalog --vertical --dry-run
-pnpm dlx @bleedingdev/modern-js-create@latest catalog --vertical
+pnpm dlx @bleedingdev/modern-js-ultramodern-create@latest catalog --vertical --dry-run
+pnpm dlx @bleedingdev/modern-js-ultramodern-create@latest catalog --vertical
 mise install
 mise exec -- pnpm install
 mise exec -- pnpm check
@@ -199,7 +200,7 @@ For strict Effect API migrations, update generated package metadata and Modern
 package aliases through the framework command before hand-editing app code:
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-create@3.5.0-ultramodern.10 ultramodern \
+pnpm dlx @bleedingdev/modern-js-ultramodern-create@3.5.0-ultramodern.10 ultramodern \
   migrate-strict-effect --version 3.5.0-ultramodern.10
 pnpm api:check
 pnpm contract:check
@@ -240,7 +241,7 @@ by hand.
 The CodeSmith adapter is exported from:
 
 ```ts
-import ultramodernCodeSmith from '@modern-js/create/ultramodern-workspace/codesmith';
+import ultramodernCodeSmith from '@modern-js/ultramodern-create/ultramodern-workspace/codesmith';
 ```
 
 Non-interactive usage passes config directly:
@@ -276,7 +277,7 @@ Overlays are explicit CodeSmith generators that run after base workspace or
 MicroVertical generation:
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-create new-vertical --vertical \
+pnpm dlx @bleedingdev/modern-js-ultramodern-create new-vertical --vertical \
   --codesmith-overlay ./generators/vertical-overlay
 ```
 
@@ -311,9 +312,9 @@ overlay, ownership entry, strict Effect HttpApi surface, and root `dev:*` script
 requested vertical name.
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-create catalog --vertical
-pnpm dlx @bleedingdev/modern-js-create --vertical=catalog
-pnpm dlx @bleedingdev/modern-js-create --vertical-name catalog
+pnpm dlx @bleedingdev/modern-js-ultramodern-create catalog --vertical
+pnpm dlx @bleedingdev/modern-js-ultramodern-create --vertical=catalog
+pnpm dlx @bleedingdev/modern-js-ultramodern-create --vertical-name catalog
 ```
 
 Use this decision table before adding a vertical:

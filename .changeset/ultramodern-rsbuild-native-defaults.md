@@ -1,5 +1,5 @@
 ---
-'@modern-js/create': patch
+'@modern-js/ultramodern-create': patch
 ---
 
 Let generated UltraModern applications inherit Rsbuild 2.2's environment-aware

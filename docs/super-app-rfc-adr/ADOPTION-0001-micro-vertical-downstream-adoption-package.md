@@ -32,9 +32,9 @@ This order is intentional:
 
 | Team question | Canonical answer |
 | --- | --- |
-| What does the generated Tractor reference workspace contain? | `packages/document/docs/en/guides/get-started/ultramodern.mdx`, `packages/toolkit/create/template-workspace/README.md.handlebars`, and `packages/toolkit/create/src/ultramodern-workspace/` |
+| What does the generated Tractor reference workspace contain? | `packages/document/docs/en/guides/get-started/ultramodern.mdx`, `packages/toolkit/ultramodern-create/template-workspace/README.md.handlebars`, and `packages/toolkit/ultramodern-create/src/ultramodern-workspace/` |
 | How do we lay out the repo? | `WORKSPACE-0001-micro-vertical-workspace-scaffolding.md` |
-| How do we scaffold shell, remote, and service packages? | `packages/toolkit/create/README.md`, `packages/toolkit/create/template-workspace/`, and `packages/toolkit/create/src/ultramodern-workspace/` |
+| How do we scaffold shell, remote, and service packages? | `packages/toolkit/ultramodern-create/README.md`, `packages/toolkit/ultramodern-create/template-workspace/`, and `packages/toolkit/ultramodern-create/src/ultramodern-workspace/` |
 | When should we extract a remote or service? | `GOVERNANCE-0001-micro-vertical-extraction-governance.md` |
 | How do we migrate an existing app? | `MIGRATION-PLAYBOOK-0001-existing-teams-to-mv.md` |
 | How do we migrate generated source checks? | `MIGRATION-PLAYBOOK-0002-ultramodern-shared-checks.md` |

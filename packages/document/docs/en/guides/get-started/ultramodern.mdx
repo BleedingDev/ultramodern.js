@@ -69,9 +69,9 @@ For an older generated workspace, migrate by treating the published cohort as
 the source of truth:
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-create@latest --help
-pnpm dlx @bleedingdev/modern-js-create@latest catalog --vertical --dry-run
-pnpm dlx @bleedingdev/modern-js-create@latest catalog --vertical
+pnpm dlx @bleedingdev/modern-js-ultramodern-create@latest --help
+pnpm dlx @bleedingdev/modern-js-ultramodern-create@latest catalog --vertical --dry-run
+pnpm dlx @bleedingdev/modern-js-ultramodern-create@latest catalog --vertical
 mise install
 mise exec -- pnpm install
 mise exec -- pnpm check
@@ -91,8 +91,8 @@ package cohort together. Resolve the current cohort version first, then run
 the matching migration:
 
 ```bash
-COHORT="$(npm view @bleedingdev/modern-js-create version)"
-pnpm dlx "@bleedingdev/modern-js-create@$COHORT" ultramodern \
+COHORT="$(npm view @bleedingdev/modern-js-ultramodern-create version)"
+pnpm dlx "@bleedingdev/modern-js-ultramodern-create@$COHORT" ultramodern \
   migrate-strict-effect --version "$COHORT"
 pnpm install
 pnpm check
@@ -130,8 +130,8 @@ Before hand-editing package aliases or generated metadata, run the framework
 migration command from the target workspace:
 
 ```bash
-COHORT="$(npm view @bleedingdev/modern-js-create version)"
-pnpm dlx "@bleedingdev/modern-js-create@$COHORT" ultramodern \
+COHORT="$(npm view @bleedingdev/modern-js-ultramodern-create version)"
+pnpm dlx "@bleedingdev/modern-js-ultramodern-create@$COHORT" ultramodern \
   migrate-strict-effect --version "$COHORT"
 pnpm api:check
 pnpm contract:check
@@ -354,7 +354,7 @@ BFF, Module Federation topology, generated quality gates, and Cloudflare deploy
 basics:
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-create myapp
+pnpm dlx @bleedingdev/modern-js-ultramodern-create myapp
 cd myapp
 mise install
 mise exec -- pnpm install
@@ -366,10 +366,10 @@ generate a demo domain by default. Add real business MicroVerticals when they
 become real ownership boundaries:
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-create transportation --vertical
-pnpm dlx @bleedingdev/modern-js-create food-delivery --vertical
-pnpm dlx @bleedingdev/modern-js-create payments --vertical
-pnpm dlx @bleedingdev/modern-js-create maps --vertical
+pnpm dlx @bleedingdev/modern-js-ultramodern-create transportation --vertical
+pnpm dlx @bleedingdev/modern-js-ultramodern-create food-delivery --vertical
+pnpm dlx @bleedingdev/modern-js-ultramodern-create payments --vertical
+pnpm dlx @bleedingdev/modern-js-ultramodern-create maps --vertical
 mise exec -- pnpm check
 ```
 
@@ -385,10 +385,10 @@ Automation can use explicit MicroVertical syntax instead of relying on the
 positional form:
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-create --vertical=transportation
-pnpm dlx @bleedingdev/modern-js-create --vertical-name transportation
-pnpm dlx @bleedingdev/modern-js-create transportation --vertical --dry-run
-pnpm dlx @bleedingdev/modern-js-create transportation --vertical \
+pnpm dlx @bleedingdev/modern-js-ultramodern-create --vertical=transportation
+pnpm dlx @bleedingdev/modern-js-ultramodern-create --vertical-name transportation
+pnpm dlx @bleedingdev/modern-js-ultramodern-create transportation --vertical --dry-run
+pnpm dlx @bleedingdev/modern-js-ultramodern-create transportation --vertical \
   --codesmith-overlay ./generators/vertical-overlay
 ```
 
@@ -407,7 +407,7 @@ import {
   addUltramodernVertical,
   generateUltramodernWorkspace,
   planUltramodernVertical,
-} from '@modern-js/create/ultramodern-workspace';
+} from '@modern-js/ultramodern-create/ultramodern-workspace';
 
 const workspace = generateUltramodernWorkspace({
   targetDir: '/tmp/my-workspace',
@@ -439,7 +439,7 @@ returns the same shape plus `dryRun`, `selectedPort`, `moduleFederationRemote`,
 CodeSmith consumers can use the adapter subpath:
 
 ```ts
-import ultramodernCodeSmith from '@modern-js/create/ultramodern-workspace/codesmith';
+import ultramodernCodeSmith from '@modern-js/ultramodern-create/ultramodern-workspace/codesmith';
 
 await ultramodernCodeSmith({
   config: {

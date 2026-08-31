@@ -1,26 +1,26 @@
 UltraModern.js 提供 BleedingDev create 包来创建 SuperApp workspace，不需要全局安装，直接使用 `pnpm dlx` 按需运行即可。
 
 pnpm 支持的命令契约是 scoped package specifier：
-`pnpm dlx @bleedingdev/modern-js-create <target>`。不要简写成
-`pnpm dlx modern-js-create`；npm 上没有这个未加 scope 的包。
+`pnpm dlx @bleedingdev/modern-js-ultramodern-create <target>`。不要简写成
+`pnpm dlx modern-js-ultramodern-create`；npm 上没有这个未加 scope 的包。
 
 你可以在当前已有的空目录中初始化项目：
 
 ```bash
 mkdir myapp && cd myapp
-pnpm dlx @bleedingdev/modern-js-create .
+pnpm dlx @bleedingdev/modern-js-ultramodern-create .
 ```
 
 也可以直接用新目录创建项目：
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-create myapp
+pnpm dlx @bleedingdev/modern-js-ultramodern-create myapp
 ```
 
 使用 workspace 协议依赖初始化（用于在本地 monorepo 中联调未发布的 Modern.js 包）：
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-create myapp --workspace
+pnpm dlx @bleedingdev/modern-js-ultramodern-create myapp --workspace
 ```
 
 BleedingDev create 包会直接创建应用，不再提供问答界面：
@@ -70,14 +70,14 @@ BleedingDev create 包会直接创建应用，不再提供问答界面：
 默认 workspace 从 shell 起步，并安装已发布的 BleedingDev 包别名：
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-create my-super-app
+pnpm dlx @bleedingdev/modern-js-ultramodern-create my-super-app
 ```
 
 在已生成的 SuperApp workspace 根目录中，可以就地添加业务
 MicroVertical：
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-create transportation --vertical
+pnpm dlx @bleedingdev/modern-js-ultramodern-create transportation --vertical
 ```
 
 `--vertical` 会修改当前 workspace：新增 vertical 包，并写入 topology、

@@ -14,9 +14,12 @@ const repoRoot = path.resolve(__dirname, '../../..');
 const requireFromCreate = createRequire(
   path.join(repoRoot, 'packages/toolkit/create/package.json'),
 );
+const requireFromUltramodernCreate = createRequire(
+  path.join(repoRoot, 'packages/toolkit/ultramodern-create/package.json'),
+);
 const sourceFrameworkVersion = requireFromCreate('./package.json').version;
 const fixtureReleaseVersion = `${sourceFrameworkVersion}-ultramodern.1`;
-const { yaml } = requireFromCreate('@modern-js/utils');
+const { yaml } = requireFromUltramodernCreate('@modern-js/utils');
 const scriptPath = path.join(
   repoRoot,
   'scripts/ultramodern-publish/prepare-bleedingdev-packages.mjs',

@@ -162,7 +162,7 @@ pnpm check
 pnpm build
 pnpm cloudflare:build
 # Cloudflare evidence comes from generated workspace proof scripts sourced from
-# packages/toolkit/create/templates/workspace-scripts/*.mjs.
+# packages/toolkit/ultramodern-create/templates/workspace-scripts/*.mjs.handlebars.
 # Status (2026-07-07): Cloudflare deploy proof is opt-in. Scheduled
 # ultramodern-production-readiness runs do not deploy Cloudflare; the workflow
 # enables deploy only on workflow_dispatch with deploy_cloudflare=true, and
