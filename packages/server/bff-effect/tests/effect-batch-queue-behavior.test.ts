@@ -11,6 +11,21 @@ import { createDataPlatformBatchRequestHandler } from '../src/effect/handler/bat
 
 type BatchFetch = NonNullable<DataBatchTransportOptions['fetch']>;
 
+const IDENTITY_HEADERS = [
+  'origin',
+  'forwarded',
+  'x-forwarded-client-cert',
+  'x-forwarded-for',
+  'x-forwarded-host',
+  'x-forwarded-port',
+  'x-forwarded-proto',
+  'x-real-ip',
+  'x-tenant-id',
+  'x-subject-id',
+  'x-user-id',
+  'x-verified-producer',
+] as const;
+
 const parseBatchPayload = (init?: RequestInit) =>
   JSON.parse(String(init?.body)) as DataBatchRequestPayload;
 
@@ -136,6 +151,9 @@ describe('Effect batch queue behavior', () => {
 
   test('partitions by endpoint, credentials, and outer auth without promoting spoofed identity', async () => {
     const batchPath = '/internal/data-batch';
+    const trustedIdentity = Object.fromEntries(
+      IDENTITY_HEADERS.map(name => [name, `trusted:${name}`]),
+    );
     const handler = createDataPlatformBatchRequestHandler({
       dataPlatform: { batch: { endpoint: batchPath } },
       handleItem: async request =>
@@ -143,10 +161,9 @@ describe('Effect batch queue behavior', () => {
           path: new URL(request.url).pathname,
           authorization: request.headers.get('authorization'),
           cookie: request.headers.get('cookie'),
-          origin: request.headers.get('origin'),
-          tenant: request.headers.get('x-tenant-id'),
-          user: request.headers.get('x-user-id'),
-          verifiedProducer: request.headers.get('x-verified-producer'),
+          identity: Object.fromEntries(
+            IDENTITY_HEADERS.map(name => [name, request.headers.get(name)]),
+          ),
         }),
     });
     const outerRequests: Array<{
@@ -157,32 +174,33 @@ describe('Effect batch queue behavior', () => {
       paths: string[];
       outerIdentity: Array<string | null>;
       itemCredentials: Array<Array<string | null>>;
+      itemIdentity: Array<Array<string | null>>;
+      serializedCredentials: boolean;
     }> = [];
     const fetchMock = rs.fn<BatchFetch>(async (input, init) => {
       const headers = new Headers(init?.headers);
-      const payload = parseBatchPayload(init);
+      const serializedPayload = String(init?.body);
+      const payload = JSON.parse(serializedPayload) as DataBatchRequestPayload;
       outerRequests.push({
         endpoint: String(input),
         authorization: headers.get('authorization'),
         cookie: headers.get('cookie'),
         credentials: init?.credentials ?? null,
         paths: payload.items.map(item => item.path),
-        outerIdentity: [
-          headers.get('origin'),
-          headers.get('x-tenant-id'),
-          headers.get('x-user-id'),
-          headers.get('x-verified-producer'),
-        ],
+        outerIdentity: IDENTITY_HEADERS.map(name => headers.get(name)),
         itemCredentials: payload.items.map(item => [
           item.headers?.authorization ?? null,
           item.headers?.cookie ?? null,
         ]),
+        itemIdentity: payload.items.map(item =>
+          IDENTITY_HEADERS.map(name => item.headers?.[name] ?? null),
+        ),
+        serializedCredentials: serializedPayload.includes('"credentials"'),
       });
 
-      headers.set('origin', 'https://trusted.example');
-      headers.set('x-tenant-id', 'trusted-tenant');
-      headers.set('x-user-id', 'trusted-user');
-      headers.set('x-verified-producer', 'trusted-producer');
+      for (const [name, value] of Object.entries(trustedIdentity)) {
+        headers.set(name, value);
+      }
       return handler.handle(new Request(String(input), { ...init, headers }));
     });
     const request = createDataBatchTransport({
@@ -214,6 +232,13 @@ describe('Effect batch queue behavior', () => {
         credentials: 'same-origin',
       },
       {
+        name: 'authorization-beta',
+        origin: 'http://one.test',
+        authorization: 'Bearer beta',
+        cookie: 'session=alpha',
+        credentials: 'same-origin',
+      },
+      {
         name: 'credentials-include',
         origin: 'http://one.test',
         authorization: 'Bearer shared',
@@ -237,12 +262,14 @@ describe('Effect batch queue behavior', () => {
           const init: RequestInit = {
             credentials: context.credentials,
             headers: {
+              ...Object.fromEntries(
+                IDENTITY_HEADERS.map(name => [
+                  name,
+                  `spoofed:${name}:${context.name}`,
+                ]),
+              ),
               authorization: context.authorization,
               cookie: context.cookie,
-              origin: 'https://attacker.example',
-              'x-tenant-id': `spoofed-tenant-${context.name}`,
-              'x-user-id': `spoofed-user-${context.name}`,
-              'x-verified-producer': `spoofed-producer-${context.name}`,
             },
           };
           return context.requestInput
@@ -258,14 +285,11 @@ describe('Effect batch queue behavior', () => {
           path: `/api/${context.name}-${suffix}`,
           authorization: context.authorization,
           cookie: context.cookie,
-          origin: 'https://trusted.example',
-          tenant: 'trusted-tenant',
-          user: 'trusted-user',
-          verifiedProducer: 'trusted-producer',
+          identity: trustedIdentity,
         })),
       ),
     );
-    expect(outerRequests).toHaveLength(4);
+    expect(outerRequests).toHaveLength(contexts.length);
     expect(
       outerRequests.map(call => ({
         endpoint: call.endpoint,
@@ -296,6 +320,16 @@ describe('Effect batch queue behavior', () => {
           values.every(value => value === null),
         ),
       ),
+    ).toBe(true);
+    expect(
+      outerRequests.every(call =>
+        call.itemIdentity.every(values =>
+          values.every(value => value?.startsWith('spoofed:')),
+        ),
+      ),
+    ).toBe(true);
+    expect(
+      outerRequests.every(call => call.serializedCredentials === false),
     ).toBe(true);
   });
 
@@ -355,6 +389,34 @@ describe('Effect batch queue behavior', () => {
     ]);
   });
 
+  test('preserves inherited and non-enumerable POST bodies on the direct path', async () => {
+    const bodies: Array<BodyInit | null | undefined> = [];
+    const fetchMock = rs.fn<BatchFetch>(async (_input, init) => {
+      bodies.push(init?.body);
+      return Response.json({ body: init?.body });
+    });
+    const request = createDataBatchTransport({ fetch: fetchMock });
+    const inheritedInit = Object.assign(
+      Object.create({ body: 'inherited-body' }),
+      { method: 'POST' },
+    ) as RequestInit;
+    const nonEnumerableInit = { method: 'POST' } as RequestInit;
+    Object.defineProperty(nonEnumerableInit, 'body', {
+      value: 'non-enumerable-body',
+    });
+
+    await expect(
+      Promise.all([
+        request('http://localhost/api/inherited-body', inheritedInit),
+        request('http://localhost/api/non-enumerable-body', nonEnumerableInit),
+      ]),
+    ).resolves.toEqual([
+      { body: 'inherited-body' },
+      { body: 'non-enumerable-body' },
+    ]);
+    expect(bodies).toEqual(['inherited-body', 'non-enumerable-body']);
+  });
+
   test('deduplicates unsignaled reads but preserves identical mutations', async () => {
     const calls: Array<{ url: string; paths?: string[] }> = [];
     const fetchMock = rs.fn<BatchFetch>(async (input, init) => {
@@ -374,14 +436,14 @@ describe('Effect batch queue behavior', () => {
       maxBatchSize: 2,
     });
 
-    const reads = Promise.all([
-      request('http://localhost/api/dedupe', {
-        headers: { 'x-stable': 'same' },
-      }),
-      request('http://localhost/api/dedupe', {
-        headers: { 'x-stable': 'same' },
-      }),
-    ]);
+    const firstRead = request('http://localhost/api/dedupe', {
+      headers: { 'x-stable': 'same' },
+    });
+    const secondRead = request('http://localhost/api/dedupe', {
+      headers: { 'x-stable': 'same' },
+    });
+    expect(secondRead).toBe(firstRead);
+    const reads = Promise.all([firstRead, secondRead]);
     await advance(10);
     await expect(reads).resolves.toEqual([
       { value: 'deduped' },

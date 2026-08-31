@@ -117,6 +117,7 @@ describe('data-platform public codec boundaries', () => {
   test.each([
     ['missing id', (itemId: string) => ({ status: 204, originalId: itemId })],
     ['non-numeric status', (itemId: string) => ({ id: itemId, status: '204' })],
+    ['missing status', (itemId: string) => ({ id: itemId })],
     [
       'malformed headers',
       (itemId: string) => ({

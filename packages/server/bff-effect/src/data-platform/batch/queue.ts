@@ -32,6 +32,19 @@ type CreateBatchTransportQueueOptions = {
   bucketRegistry?: BatchBucketRegistry;
 };
 
+type NormalizedBatchTransportRequest = {
+  requestUrl: URL;
+  endpoint: string;
+  method: string;
+  headers: Record<string, string>;
+  credentials: RequestCredentials;
+  body: BodyInit | null;
+  hasOpaqueSourceBody: boolean;
+  requestInput: DataTransportRequestInfo;
+  requestInit: RequestInit;
+  sourceSignal: AbortSignal | undefined;
+};
+
 type RequestLifetime = {
   signal: AbortSignal;
   timedOut: boolean;
@@ -563,48 +576,126 @@ export function createBatchTransportQueue({
     }
   };
 
-  return async (input: DataTransportRequestInfo, init?: RequestInit) => {
+  const pendingReadPromises = new Map<string, Promise<unknown>>();
+  const normalizeRequest = (
+    input: DataTransportRequestInfo,
+    init?: RequestInit,
+  ): NormalizedBatchTransportRequest => {
     const sourceRequest =
       typeof Request !== 'undefined' && input instanceof Request
         ? input
         : undefined;
+    const initDefinesSignal = init !== undefined && 'signal' in init;
+    const initDefinesBody = init !== undefined && 'body' in init;
+    const initSnapshot = init ? { ...init } : undefined;
+    const getInitValue = <Key extends keyof RequestInit>(key: Key) => {
+      if (!init) {
+        return undefined;
+      }
+      return Object.prototype.hasOwnProperty.call(initSnapshot, key)
+        ? initSnapshot?.[key]
+        : init[key];
+    };
+    const method = normalizeMethod(
+      getInitValue('method') ?? sourceRequest?.method,
+    );
+    const headers = toHeaderRecord(
+      getInitValue('headers') ?? sourceRequest?.headers,
+    );
+    const credentials =
+      getInitValue('credentials') ??
+      sourceRequest?.credentials ??
+      'same-origin';
+    const initBody = getInitValue('body');
+    const body = initBody ?? null;
+    const initSignal = initDefinesSignal ? getInitValue('signal') : undefined;
+    const sourceSignal = initDefinesSignal
+      ? (initSignal ?? undefined)
+      : sourceRequest?.signal;
     const requestUrl = toAbsoluteUrl(input);
-    const batchEndpointUrl = normalizeBatchEndpoint(
+    const endpoint = normalizeBatchEndpoint(
       requestUrl,
       options.endpoint,
-    );
-    const endpoint = batchEndpointUrl.toString();
-    const method = normalizeMethod(init?.method ?? sourceRequest?.method);
-    const headers = toHeaderRecord(init?.headers ?? sourceRequest?.headers);
-    const credentials =
-      init?.credentials ?? sourceRequest?.credentials ?? 'same-origin';
-    const preparedBody = await toRequestBody(init?.body ?? null);
-    const hasOpaqueBody =
-      !preparedBody.batchable ||
-      (typeof init?.body === 'undefined' &&
-        sourceRequest !== undefined &&
-        sourceRequest.body !== null);
+    ).toString();
 
-    const normalizedInit: RequestInit = {
-      ...init,
+    return {
+      requestUrl,
+      endpoint,
       method,
       headers,
       credentials,
-    };
-    const requestInput = sourceRequest ?? requestUrl.toString();
-
-    if (
-      disabledEndpoints.has(endpoint) ||
-      !shouldBatchRequest({
+      body,
+      hasOpaqueSourceBody:
+        initBody === undefined &&
+        sourceRequest !== undefined &&
+        sourceRequest.body !== null,
+      requestInput: sourceRequest ?? requestUrl.toString(),
+      requestInit: {
+        ...initSnapshot,
         method,
-        body: hasOpaqueBody ? '[opaque request body]' : undefined,
         headers,
+        credentials,
+        ...(initDefinesBody ? { body: initBody } : {}),
+        ...(initDefinesSignal ? { signal: initSignal } : {}),
+      },
+      sourceSignal,
+    };
+  };
+
+  const getPendingReadKey = (request: NormalizedBatchTransportRequest) => {
+    if (
+      !SAFE_REPLAY_METHODS.has(request.method) ||
+      request.sourceSignal !== undefined ||
+      request.body !== null ||
+      request.hasOpaqueSourceBody ||
+      disabledEndpoints.has(request.endpoint) ||
+      !shouldBatchRequest({
+        method: request.method,
+        body: undefined,
+        headers: request.headers,
         allowedMethods,
-        batchEndpoint: endpoint,
-        requestUrl,
+        batchEndpoint: request.endpoint,
+        requestUrl: request.requestUrl,
       })
     ) {
-      return baseFetch(requestInput, normalizedInit).then(
+      return undefined;
+    }
+
+    const itemHeaders = { ...request.headers };
+    delete itemHeaders.authorization;
+    delete itemHeaders.cookie;
+    const bucketKey = stableStringify({
+      endpoint: request.endpoint,
+      authorization: request.headers.authorization ?? null,
+      cookie: request.headers.cookie ?? null,
+      credentials: request.credentials,
+    });
+    return stableStringify({
+      bucketKey,
+      path: `${request.requestUrl.pathname}${request.requestUrl.search}`,
+      method: request.method,
+      headers: itemHeaders,
+      body: null,
+    });
+  };
+
+  const enqueue = async (request: NormalizedBatchTransportRequest) => {
+    const preparedBody = await toRequestBody(request.body);
+    const hasOpaqueBody =
+      !preparedBody.batchable || request.hasOpaqueSourceBody;
+
+    if (
+      disabledEndpoints.has(request.endpoint) ||
+      !shouldBatchRequest({
+        method: request.method,
+        body: hasOpaqueBody ? '[opaque request body]' : undefined,
+        headers: request.headers,
+        allowedMethods,
+        batchEndpoint: request.endpoint,
+        requestUrl: request.requestUrl,
+      })
+    ) {
+      return baseFetch(request.requestInput, request.requestInit).then(
         parseResponseLikeCreateRequest,
       );
     }
@@ -614,7 +705,7 @@ export function createBatchTransportQueue({
       .slice(2, 8)}`;
     nextItemId += 1;
 
-    const itemHeaders = { ...headers };
+    const itemHeaders = { ...request.headers };
     delete itemHeaders.authorization;
     delete itemHeaders.cookie;
     if (
@@ -626,17 +717,17 @@ export function createBatchTransportQueue({
     }
     const item: DataBatchRequestItem = {
       id: itemId,
-      path: `${requestUrl.pathname}${requestUrl.search}`,
-      method,
+      path: `${request.requestUrl.pathname}${request.requestUrl.search}`,
+      method: request.method,
       headers: itemHeaders,
       ...(preparedBody.body ? { body: preparedBody.body } : {}),
     };
 
     const bucketKey = stableStringify({
-      endpoint,
-      authorization: headers.authorization ?? null,
-      cookie: headers.cookie ?? null,
-      credentials,
+      endpoint: request.endpoint,
+      authorization: request.headers.authorization ?? null,
+      cookie: request.headers.cookie ?? null,
+      credentials: request.credentials,
     });
 
     const key = stableStringify({
@@ -647,31 +738,29 @@ export function createBatchTransportQueue({
       body: item.body ?? null,
     });
 
-    const initDefinesSignal =
-      init !== undefined &&
-      Object.prototype.hasOwnProperty.call(init, 'signal');
-    const sourceSignal = initDefinesSignal
-      ? (init?.signal ?? undefined)
-      : sourceRequest?.signal;
     const canSharePending =
-      SAFE_REPLAY_METHODS.has(method) && sourceSignal === undefined;
+      SAFE_REPLAY_METHODS.has(request.method) &&
+      request.sourceSignal === undefined;
     const existing = canSharePending ? pendingByKey.get(key) : undefined;
     if (existing) {
       return existing.promise;
     }
 
-    const lifetime = createRequestLifetime(sourceSignal, requestTimeoutMs);
-    normalizedInit.signal = lifetime.signal;
+    const lifetime = createRequestLifetime(
+      request.sourceSignal,
+      requestTimeoutMs,
+    );
+    request.requestInit.signal = lifetime.signal;
     const deferred = Promise.withResolvers<unknown>();
     const queued: QueuedBatchRequest = {
       key,
       bucketKey,
-      endpoint,
-      requestInput,
-      requestInit: normalizedInit,
-      authorization: headers.authorization,
-      cookie: headers.cookie,
-      credentials,
+      endpoint: request.endpoint,
+      requestInput: request.requestInput,
+      requestInit: request.requestInit,
+      authorization: request.headers.authorization,
+      cookie: request.headers.cookie,
+      credentials: request.credentials,
       item,
       lifetime,
       phase: 'queued',
@@ -697,7 +786,7 @@ export function createBatchTransportQueue({
     if (singletonBytes > maxBatchBytes) {
       emitDataBatchTransportEvent(onEvent, {
         type: 'fallback',
-        endpoint,
+        endpoint: request.endpoint,
         size: 1,
         reason: 'batch-item-too-large',
       });
@@ -713,7 +802,7 @@ export function createBatchTransportQueue({
       if (bucket.flushing) {
         emitDataBatchTransportEvent(onEvent, {
           type: 'fallback',
-          endpoint,
+          endpoint: request.endpoint,
           size: 1,
           reason: 'batch-capacity-during-flush',
         });
@@ -725,7 +814,7 @@ export function createBatchTransportQueue({
       if (measurePayload(bucket, [queued]) > maxBatchBytes) {
         emitDataBatchTransportEvent(onEvent, {
           type: 'fallback',
-          endpoint,
+          endpoint: request.endpoint,
           size: 1,
           reason: 'batch-item-too-large',
         });
@@ -739,7 +828,7 @@ export function createBatchTransportQueue({
     bucket.bytes = measurePayload(bucket, bucket.items);
     emitDataBatchTransportEvent(onEvent, {
       type: 'enqueue',
-      endpoint,
+      endpoint: request.endpoint,
       size: bucket.items.length,
     });
 
@@ -755,5 +844,33 @@ export function createBatchTransportQueue({
       }, flushIntervalMs);
     }
     return queued.promise;
+  };
+
+  return (input: DataTransportRequestInfo, init?: RequestInit) => {
+    let request: NormalizedBatchTransportRequest;
+    try {
+      request = normalizeRequest(input, init);
+    } catch (error) {
+      return Promise.reject(error);
+    }
+    const pendingReadKey = getPendingReadKey(request);
+    const existing = pendingReadKey
+      ? pendingReadPromises.get(pendingReadKey)
+      : undefined;
+    if (existing) {
+      return existing;
+    }
+
+    const pending = enqueue(request);
+    if (pendingReadKey) {
+      pendingReadPromises.set(pendingReadKey, pending);
+      const clearPendingRead = () => {
+        if (pendingReadPromises.get(pendingReadKey) === pending) {
+          pendingReadPromises.delete(pendingReadKey);
+        }
+      };
+      void pending.then(clearPendingRead, clearPendingRead);
+    }
+    return pending;
   };
 }

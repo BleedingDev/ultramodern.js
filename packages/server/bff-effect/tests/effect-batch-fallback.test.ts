@@ -60,13 +60,16 @@ describe('Effect batch fallback behavior', () => {
           }
           return jsonResponse({ url });
         },
-        { onEvent: event => events.push(event) },
+        {
+          allowedMethods: ['GET', 'HEAD'],
+          onEvent: event => events.push(event),
+        },
       );
 
       await expect(
         Promise.all([
           transport('http://localhost/api/disabled-a'),
-          transport('http://localhost/api/disabled-b'),
+          transport('http://localhost/api/disabled-b', { method: 'HEAD' }),
         ]),
       ).resolves.toEqual([
         { url: 'http://localhost/api/disabled-a' },
@@ -100,9 +103,17 @@ describe('Effect batch fallback behavior', () => {
   test('replays a read but never a mutation after malformed or non-2xx batch responses', async () => {
     const scenarios = [
       {
-        name: 'malformed',
+        name: 'invalid-payload',
         reason: 'invalid-batch-response',
         response: () => jsonResponse({ not: 'a batch response' }),
+      },
+      {
+        name: 'malformed-json',
+        reason: 'batch-transport-error',
+        response: () =>
+          new Response('{', {
+            headers: { 'content-type': 'application/json' },
+          }),
       },
       {
         name: 'non-2xx',
@@ -301,9 +312,10 @@ describe('Effect batch fallback behavior', () => {
     ]);
   });
 
-  test('replays GET and HEAD but never POST after a batch transport error', async () => {
+  test('replays GET and HEAD but never POST or unknown methods after a batch transport error', async () => {
     const calls: Array<{ method: string; url: string }> = [];
     const mutationExecutions: string[] = [];
+    const events: DataBatchTransportEvent[] = [];
     const transport = createTransport(
       async (input, init) => {
         const url = String(input);
@@ -324,8 +336,9 @@ describe('Effect batch fallback behavior', () => {
         return jsonResponse({ source: 'fallback', url });
       },
       {
-        allowedMethods: ['GET', 'HEAD', 'POST'],
-        maxBatchSize: 3,
+        allowedMethods: ['GET', 'HEAD', 'POST', 'UNKNOWN'],
+        maxBatchSize: 4,
+        onEvent: event => events.push(event),
       },
     );
 
@@ -333,6 +346,7 @@ describe('Effect batch fallback behavior', () => {
       transport('http://localhost/api/mutation', { method: 'POST' }),
       transport('http://localhost/api/read'),
       transport('http://localhost/api/head', { method: 'HEAD' }),
+      transport('http://localhost/api/unknown', { method: 'UNKNOWN' }),
     ]);
 
     expect(outcomes).toEqual([
@@ -356,6 +370,12 @@ describe('Effect batch fallback behavior', () => {
           url: 'http://localhost/api/head',
         },
       },
+      {
+        status: 'rejected',
+        reason: expect.objectContaining({
+          message: expect.stringContaining('batch-transport-error'),
+        }),
+      },
     ]);
     expect(mutationExecutions).toEqual(['/api/mutation']);
     expect(calls).toEqual([
@@ -366,9 +386,23 @@ describe('Effect batch fallback behavior', () => {
       { method: 'GET', url: 'http://localhost/api/read' },
       { method: 'HEAD', url: 'http://localhost/api/head' },
     ]);
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: 'fallback',
+        endpoint: `http://localhost${DEFAULT_DATA_BATCH_ENDPOINT}`,
+        reason: 'batch-transport-error',
+        size: 4,
+      }),
+    );
   });
 
-  test('bypasses batching for POST by default', async () => {
+  test.each([
+    'POST',
+    'PUT',
+    'PATCH',
+    'DELETE',
+  ] as const)('bypasses batching for %s by default', async method => {
+    const path = method.toLowerCase();
     const calls: Array<{ method: string; url: string }> = [];
     const transport = createDataBatchTransport({
       fetch: async (input, init) => {
@@ -382,13 +416,13 @@ describe('Effect batch fallback behavior', () => {
     });
 
     await expect(
-      transport('http://localhost/api/default-post', { method: 'POST' }),
+      transport(`http://localhost/api/default-${path}`, { method }),
     ).resolves.toEqual({
-      method: 'POST',
-      url: 'http://localhost/api/default-post',
+      method,
+      url: `http://localhost/api/default-${path}`,
     });
     expect(calls).toEqual([
-      { method: 'POST', url: 'http://localhost/api/default-post' },
+      { method, url: `http://localhost/api/default-${path}` },
     ]);
   });
 });

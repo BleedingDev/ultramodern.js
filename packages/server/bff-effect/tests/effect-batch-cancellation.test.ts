@@ -162,6 +162,95 @@ describe('Effect batch cancellation and deadlines', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  test('snapshots an accessor signal once and isolates its cancellation', async () => {
+    const fetchMock = rs.fn(async () =>
+      Response.json({ path: '/accessor-signal' }),
+    );
+    const request = createQueue(fetchMock);
+    const controller = new AbortController();
+    const reason = new DOMException('accessor caller stopped', 'AbortError');
+    let signalReads = 0;
+    const mutableInit = {} as RequestInit;
+    Object.defineProperty(mutableInit, 'signal', {
+      enumerable: true,
+      get() {
+        signalReads += 1;
+        return signalReads === 1 ? controller.signal : undefined;
+      },
+    });
+
+    const signaled = request('http://localhost/accessor-signal', mutableInit);
+    const unsignaled = request('http://localhost/accessor-signal');
+    expect(signaled).not.toBe(unsignaled);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    controller.abort(reason);
+    await expect(signaled).rejects.toBe(reason);
+    await advance(100);
+    await expect(unsignaled).resolves.toEqual({ path: '/accessor-signal' });
+    expect(signalReads).toBe(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  test('honors an inherited signal without deduplicating its caller', async () => {
+    const fetchMock = rs.fn(async () =>
+      Response.json({ path: '/inherited-signal' }),
+    );
+    const request = createQueue(fetchMock);
+    const controller = new AbortController();
+    const reason = new DOMException('inherited caller stopped', 'AbortError');
+    const inheritedInit = Object.create({
+      signal: controller.signal,
+    }) as RequestInit;
+
+    const signaled = request(
+      'http://localhost/inherited-signal',
+      inheritedInit,
+    );
+    const unsignaled = request('http://localhost/inherited-signal');
+    expect(signaled).not.toBe(unsignaled);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    controller.abort(reason);
+    await expect(signaled).rejects.toBe(reason);
+    await advance(100);
+    await expect(unsignaled).resolves.toEqual({ path: '/inherited-signal' });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  test('preserves a non-enumerable signal on the direct request path', async () => {
+    const controller = new AbortController();
+    const reason = new DOMException('direct caller stopped', 'AbortError');
+    const fetchMock = rs.fn(async (_input, init?: RequestInit) => {
+      expect(init?.method).toBe('POST');
+      expect(init?.signal).toBe(controller.signal);
+      const signal = init?.signal;
+      if (signal?.aborted) {
+        throw signal.reason;
+      }
+      return new Promise<Response>((_resolve, reject) => {
+        signal?.addEventListener('abort', () => reject(signal.reason), {
+          once: true,
+        });
+      });
+    });
+    const request = createQueue(fetchMock);
+    const directInit = { method: 'POST' } as RequestInit;
+    Object.defineProperty(directInit, 'signal', {
+      value: controller.signal,
+    });
+
+    const pending = request('http://localhost/direct-signal', directInit);
+    await Promise.resolve();
+    await Promise.resolve();
+    controller.abort(reason);
+
+    await expect(pending).rejects.toBe(reason);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   test('aborts the outer POST only after every in-flight caller aborts', async () => {
     const registry = new BatchBucketRegistry();
     const events: DataBatchTransportEvent[] = [];
