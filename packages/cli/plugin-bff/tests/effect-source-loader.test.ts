@@ -1278,7 +1278,8 @@ export const layer = Layer.empty;`,
       await writeEmptyPathsTsconfig(appDir);
       await writeFile(
         contractFile,
-        `import * as Schema from 'effect/Schema';
+        `import { Layer } from 'effect';
+import * as Schema from 'effect/Schema';
 import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/unstable/httpapi';
 export const api = HttpApi.make('WatchApi').add(
   HttpApiGroup.make('watch').add(
@@ -1286,9 +1287,10 @@ export const api = HttpApi.make('WatchApi').add(
       success: Schema.Struct({ ok: Schema.Boolean }),
     }),
   ),
-);`,
+);
+export const layer = Layer.empty;`,
       );
-      await writeFile(entryFile, `export { api } from './contract.js';`);
+      await writeFile(entryFile, `export { api, layer } from './contract.js';`);
 
       const dependencies: string[] = [];
       const options: APILoaderOptions = {
