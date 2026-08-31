@@ -2,8 +2,8 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { createCloudflarePreset } from '../../src/plugins/deploy/platforms/cloudflare/index';
-import { verifyCloudflareOutput } from '../../src/plugins/deploy/platforms/cloudflare-output-verifier/index';
+import { createCloudflarePreset } from '@modern-js/app-tools-extensions/cloudflare';
+import { verifyCloudflareOutput } from '@modern-js/app-tools-extensions/cloudflare-output-verifier';
 
 const tempDirectories: string[] = [];
 

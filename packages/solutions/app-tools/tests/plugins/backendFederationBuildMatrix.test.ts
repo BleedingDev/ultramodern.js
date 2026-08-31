@@ -1,13 +1,13 @@
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { createUltramodernReleaseBuildMarker } from '@modern-js/app-tools-extensions/release-identity';
 import {
   ULTRAMODERN_BUILD_ARTIFACT_PATH,
   ULTRAMODERN_BUILD_MODULE_PATH,
 } from '@modern-js/utils/universal';
 import { readBuildIdentity } from '../../src/plugins/backend-federation/config';
 import { emitBackendFederationArtifacts } from '../../src/plugins/backendFederationBuild';
-import { createUltramodernReleaseBuildMarker } from '../../src/ultramodern-release-identity';
 
 type ConfigShape = 'compact' | 'full';
 type IdentitySource = 'json' | 'legacy-ts';

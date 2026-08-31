@@ -179,3 +179,18 @@ export interface CloudflareWorkerSecurityConfig {
   };
   reason?: string;
 }
+
+export interface CloudflareDeployConfig {
+  worker?: {
+    name?: string;
+    compatibilityDate?: string;
+    ssr?: boolean;
+    security?: CloudflareWorkerSecurityConfig;
+    wrangler?: Record<string, JsonValue>;
+    artifacts?: CloudflareWorkerArtifactConfig[];
+    publicAssets?: CloudflareWorkerPublicAssetConfig[];
+    d1Databases?: CloudflareWorkerD1DatabaseConfig[];
+    services?: CloudflareWorkerServiceBindingConfig[];
+    publicAssetExcludes?: string[];
+  };
+}

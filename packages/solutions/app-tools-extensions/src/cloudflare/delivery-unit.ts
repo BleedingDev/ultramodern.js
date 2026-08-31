@@ -8,7 +8,7 @@ import {
   ULTRAMODERN_BUILD_ARTIFACT_PATH,
   ULTRAMODERN_BUILD_MODULE_PATH,
 } from '@modern-js/utils/universal';
-import { resolveUltramodernReleaseIdentity } from '../../../../ultramodern-release-identity';
+import { resolveUltramodernReleaseIdentity } from '../release-identity';
 import { isRecord } from './utils';
 
 const COMPACT_CONFIG_PATH = '.modernjs/ultramodern.json';

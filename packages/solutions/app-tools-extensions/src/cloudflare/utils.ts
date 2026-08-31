@@ -1,5 +1,5 @@
 import path from 'node:path';
-import type { JsonValue } from '../../../../types/config/deploy';
+import type { JsonValue } from '../config';
 
 export const isRecord = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value);

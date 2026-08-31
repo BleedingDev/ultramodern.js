@@ -2,9 +2,8 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { normalizeRouterAssetPublicPath } from '../../src/builder/shared/bundlerPlugins/RouterPlugin';
-import { resolveTopologyDeliveryUnit } from '../../src/plugins/deploy/platforms/cloudflare/delivery-unit';
-import { createCloudflarePreset } from '../../src/plugins/deploy/platforms/cloudflare/index';
+import { createCloudflarePreset } from '@modern-js/app-tools-extensions/cloudflare';
+import { resolveTopologyDeliveryUnit } from '@modern-js/app-tools-extensions/cloudflare/delivery-unit';
 import type {
   CloudflareWorkerArtifactConfig,
   CloudflareWorkerD1DatabaseConfig,
@@ -12,7 +11,8 @@ import type {
   CloudflareWorkerSecurityConfig,
   CloudflareWorkerServiceBindingConfig,
   JsonValue,
-} from '../../src/types/config/deploy';
+} from '@modern-js/app-tools-extensions/config';
+import { normalizeRouterAssetPublicPath } from '../../src/builder/shared/bundlerPlugins/RouterPlugin';
 import { cloudflareWorkerSources } from '../fixtures/cloudflare/worker-sources';
 
 const tempDirectories: string[] = [];
@@ -926,7 +926,7 @@ describe('cloudflare deploy preset', () => {
     await fs.copyFile(
       path.resolve(
         __dirname,
-        '../../src/plugins/deploy/platforms/templates/cloudflare-worker-loadable-server.mjs',
+        '../../../app-tools-extensions/src/templates/cloudflare-worker-loadable-server.mjs',
       ),
       templatePath,
     );

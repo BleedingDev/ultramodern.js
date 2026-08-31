@@ -1,9 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { resolveUltramodernReleaseIdentity } from '@modern-js/app-tools-extensions/release-identity';
 import { mergeConfig } from '@modern-js/plugin/cli';
 import { type RspackChain, rspack } from '@rsbuild/core';
 import type { AppUserConfig } from './types';
-import { resolveUltramodernReleaseIdentity } from './ultramodern-release-identity';
 
 export { default as ultramodernReleaseEnvelopePlugin } from './plugins/ultramodernReleaseEnvelope';
 

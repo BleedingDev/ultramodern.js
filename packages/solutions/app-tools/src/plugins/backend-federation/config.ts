@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { resolveUltramodernSourceRevision } from '@modern-js/app-tools-extensions/release-identity';
 import {
   BACKEND_FEDERATION_MANIFEST_FILE as BACKEND_MANIFEST_FILE,
   BACKEND_FEDERATION_REMOTE_ENTRY_FILE as BACKEND_REMOTE_ENTRY_FILE,
@@ -18,7 +19,6 @@ import {
   validateDeliveryUnitRecord,
   validateUltramodernBuildArtifact,
 } from '@modern-js/utils/universal';
-import { resolveUltramodernSourceRevision } from '../../ultramodern-release-identity';
 
 export const COMPACT_CONFIG_PATH = '.modernjs/ultramodern.json';
 

@@ -306,10 +306,13 @@ const getStaticImport = (modulePath: NodePath) => {
 };
 
 const isAmbientLoaderWrite = (modulePath: NodePath) => {
-  let targetPath: NodePath | null = modulePath;
+  let targetPath: NodePath = modulePath;
 
-  while (targetPath.parentPath) {
-    const parentPath = targetPath.parentPath;
+  while (true) {
+    const parentPath: NodePath | null = targetPath.parentPath;
+    if (parentPath === null) {
+      return false;
+    }
     if (parentPath.isAssignmentExpression()) {
       return targetPath.key === 'left';
     }
@@ -337,8 +340,6 @@ const isAmbientLoaderWrite = (modulePath: NodePath) => {
     }
     return false;
   }
-
-  return false;
 };
 
 const analyzeWorkerModule = (source: string): WorkerModuleAnalysis => {
@@ -354,7 +355,7 @@ const analyzeWorkerModule = (source: string): WorkerModuleAnalysis => {
     collectCommonJsExports(statement as AstNode, exports);
   }
   traverse(ast, {
-    enter(modulePath) {
+    enter(modulePath: NodePath) {
       const node = modulePath.node as unknown as AstNode;
       if (
         (node.type === 'ImportExpression' ||

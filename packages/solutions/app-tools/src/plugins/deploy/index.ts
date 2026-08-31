@@ -1,3 +1,4 @@
+import { createCloudflarePreset } from '@modern-js/app-tools-extensions/cloudflare';
 import { provider } from 'std-env';
 import type {
   AppTools,
@@ -6,7 +7,6 @@ import type {
 } from '../../types';
 import type { DeployTarget } from '../../types/config/deploy';
 import type { AppToolsContext } from '../../types/plugin';
-import { createCloudflarePreset } from './platforms/cloudflare/index';
 import { createGhPagesPreset } from './platforms/gh-pages';
 import { createNetlifyPreset } from './platforms/netlify';
 import { createNodePreset } from './platforms/node';

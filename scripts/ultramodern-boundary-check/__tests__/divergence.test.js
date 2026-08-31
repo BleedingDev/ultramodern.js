@@ -685,6 +685,54 @@ test('added production source inside an explicit fork-owned package passes', () 
   }
 });
 
+test('app-tools extensions are excluded while neighboring app-tools stays audited', () => {
+  const fixture = makeGitFixture({
+    files: {
+      'packages/solutions/app-tools/package.json': `${JSON.stringify({ name: '@modern-js/app-tools' })}\n`,
+      'packages/solutions/app-tools/src/index.ts':
+        'export const appTools = true;\n',
+    },
+  });
+  try {
+    writeSnapshot({
+      rootDir: fixture.rootDir,
+      baseRef: fixture.upstreamBase,
+    });
+    writeRepoFile(
+      fixture.rootDir,
+      'packages/solutions/app-tools-extensions/package.json',
+      `${JSON.stringify({ name: '@modern-js/app-tools-extensions' })}\n`,
+    );
+    writeRepoFile(
+      fixture.rootDir,
+      'packages/solutions/app-tools-extensions/src/index.ts',
+      'export const extension = true;\n',
+    );
+    writeRepoFile(
+      fixture.rootDir,
+      'packages/solutions/app-tools/src/index.ts',
+      'export const appTools = false;\n',
+    );
+    runGit(fixture.rootDir, [
+      'add',
+      'packages/solutions/app-tools-extensions/package.json',
+      'packages/solutions/app-tools-extensions/src/index.ts',
+      'packages/solutions/app-tools/src/index.ts',
+    ]);
+    const report = checkForkDivergence({ rootDir: fixture.rootDir });
+    assert.equal(report.ok, false);
+    assert.equal(report.violationCount, 1);
+    assert.equal(report.measuredFiles, 1);
+    assert.equal(
+      report.violations[0].file,
+      'packages/solutions/app-tools/src/index.ts',
+    );
+    assert.equal(report.violations[0].reason, 'unallowlisted-divergence');
+  } finally {
+    cleanup(fixture.rootDir);
+  }
+});
+
 test('added i18n extension source inside its fork-owned package passes', () => {
   const fixture = makeGitFixture();
   try {

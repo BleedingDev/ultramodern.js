@@ -3,6 +3,7 @@ import {
   fs,
   getEntryOptions,
   isPlainObject,
+  MAIN_ENTRY_NAME,
   ROUTE_SPEC_FILE,
   removeLeadingSlash,
   removeTailSlash,

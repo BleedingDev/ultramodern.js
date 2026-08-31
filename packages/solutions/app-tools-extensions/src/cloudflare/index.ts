@@ -1,5 +1,8 @@
 import path from 'node:path';
 import { fs as fse } from '@modern-js/utils';
+import { createCloudflareOutputPlan } from '../cloudflare-output-plan';
+import { assertCloudflareOutput } from '../cloudflare-output-verifier/index';
+import { readTemplate } from '../read-template';
 import {
   emitCloudflareStagedReleaseEnvelope,
   emitFrameworkMicroVerticalReleaseEnvelope,
@@ -7,11 +10,7 @@ import {
   stageCloudflareReleaseEnvelope,
   verifyBuildOutputReleaseEnvelope,
   verifyCloudflareReleaseEnvelopeStaging,
-} from '../../../../ultramodern-release-envelope/framework-output';
-import { readTemplate } from '../../utils';
-import { createCloudflareOutputPlan } from '../cloudflare-output-plan';
-import { assertCloudflareOutput } from '../cloudflare-output-verifier/index';
-import type { CreatePreset } from '../platform';
+} from '../release-envelope/framework-output';
 import {
   copyCloudflareArtifacts,
   copyCloudflareD1Migrations,
@@ -31,6 +30,7 @@ import {
   resolveTopologyDeliveryUnit,
   resolveWorkerDeliveryUnitStamp,
 } from './delivery-unit';
+import type { CreateCloudflarePreset } from './types';
 import {
   createWorkerManifest,
   createWorkerModuleLoaders,
@@ -64,7 +64,7 @@ const readCloudflareEntryTemplate = async () =>
     )
   ).join('');
 
-export const createCloudflarePreset: CreatePreset = ({
+export const createCloudflarePreset: CreateCloudflarePreset = ({
   api,
   appContext,
   modernConfig,

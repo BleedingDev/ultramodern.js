@@ -24,18 +24,10 @@ export const isDefaultExportFunction = (file: string | false): boolean => {
     plugins: [
       'jsx',
       'typescript',
-      'classProperties',
-      'dynamicImport',
       'exportDefaultFrom',
-      'exportNamespaceFrom',
       'decorators-legacy',
       'functionBind',
-      'classPrivateMethods',
       ['pipelineOperator', { proposal: 'fsharp' }],
-      'optionalChaining',
-      'optionalCatchBinding',
-      'objectRestSpread',
-      'numericSeparator',
     ],
   });
 

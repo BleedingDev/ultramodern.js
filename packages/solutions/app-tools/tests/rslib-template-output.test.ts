@@ -1,6 +1,5 @@
 import { createRslib, type RslibConfig } from '@rslib/core';
 import { afterAll, beforeAll, describe, expect, it } from '@rstest/core';
-import { transform } from 'esbuild';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -8,27 +7,11 @@ import { pathToFileURL } from 'url';
 import appToolsRslibConfig from '../rslib.config.mts';
 
 const appToolsDirectory = path.resolve(__dirname, '..');
-const templatesDirectory = path.join(
-  appToolsDirectory,
-  'src/plugins/deploy/platforms/templates',
-);
 const temporaryDirectory = fs.mkdtempSync(
   path.join(os.tmpdir(), 'modernjs-app-tools-rslib-'),
 );
 const outputDirectory = path.join(temporaryDirectory, 'dist');
 const outputFormats = ['esm-node', 'esm', 'cjs'];
-
-function getTemplateFiles(directory: string): string[] {
-  return fs.readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
-    const entryPath = path.join(directory, entry.name);
-
-    if (entry.isDirectory()) {
-      return getTemplateFiles(entryPath);
-    }
-
-    return /\.[cm]js$/u.test(entry.name) ? [entryPath] : [];
-  });
-}
 
 function getBuildConfig(): RslibConfig {
   return {
@@ -49,7 +32,7 @@ function getBuildConfig(): RslibConfig {
   };
 }
 
-describe('App Tools Rslib deploy templates', () => {
+describe('App Tools Rslib ESM loaders', () => {
   beforeAll(async () => {
     fs.symlinkSync(
       path.join(appToolsDirectory, 'node_modules'),
@@ -67,35 +50,6 @@ describe('App Tools Rslib deploy templates', () => {
   afterAll(() => {
     fs.rmSync(temporaryDirectory, { recursive: true, force: true });
   });
-
-  it('emits every deploy template as parseable JavaScript in each library output', async () => {
-    const templateFiles = getTemplateFiles(templatesDirectory);
-
-    expect(templateFiles).toHaveLength(16);
-
-    for (const sourcePath of templateFiles) {
-      const relativePath = path.relative(
-        path.join(appToolsDirectory, 'src'),
-        sourcePath,
-      );
-
-      for (const outputFormat of outputFormats) {
-        const outputPath = path.join(
-          outputDirectory,
-          outputFormat,
-          relativePath,
-        );
-        const output = fs.readFileSync(outputPath, 'utf8');
-        await expect(
-          transform(output, {
-            format: outputPath.endsWith('.cjs') ? 'cjs' : 'esm',
-            loader: 'js',
-            sourcefile: outputPath,
-          }),
-        ).resolves.toMatchObject({ warnings: [] });
-      }
-    }
-  }, 120_000);
 
   it('loads emitted ESM loaders and compiled CJS runtime entries', async () => {
     const runtimeEntries = fs

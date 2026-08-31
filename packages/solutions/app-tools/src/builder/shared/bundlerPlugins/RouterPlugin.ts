@@ -32,7 +32,9 @@ const generateContentHash = (content: string) => {
   return createHash('md5').update(content).digest('hex').slice(0, 8);
 };
 
-const isAutomaticPublicPath = (publicPath: unknown): publicPath is string =>
+const isAutomaticPublicPath = (
+  publicPath: unknown,
+): publicPath is 'auto' | 'auto/' =>
   publicPath === 'auto' || publicPath === 'auto/';
 
 const normalizeAutomaticHtmlAsset = (asset: string): string =>

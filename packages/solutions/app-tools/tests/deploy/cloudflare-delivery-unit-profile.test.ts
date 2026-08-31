@@ -1,12 +1,12 @@
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { createUltramodernBuildArtifact } from '@modern-js/utils/universal';
 import {
   resolveTopologyDeliveryUnit,
   resolveWorkerDeliveryUnitStamp,
-} from '../../src/plugins/deploy/platforms/cloudflare/delivery-unit';
-import { verifyDeliveryUnitIdentity } from '../../src/plugins/deploy/platforms/cloudflare-output-verifier/identity';
+} from '@modern-js/app-tools-extensions/cloudflare/delivery-unit';
+import { verifyDeliveryUnitIdentity } from '@modern-js/app-tools-extensions/cloudflare-output-verifier/identity';
+import { createUltramodernBuildArtifact } from '@modern-js/utils/universal';
 
 const createDeliveryUnit = (appId: string) => ({
   appId,

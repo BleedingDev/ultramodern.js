@@ -6,7 +6,7 @@ import type {
   CloudflareWorkerServiceBindingConfig,
   DeployTarget,
   JsonValue,
-} from './cloudflareDeploy';
+} from '@modern-js/app-tools-extensions/config';
 
 export type {
   CloudflareWorkerArtifactConfig,
@@ -21,7 +21,7 @@ export type {
   CloudflareWorkerServiceBindingFragmentConfig,
   DeployTarget,
   JsonValue,
-} from './cloudflareDeploy';
+} from '@modern-js/app-tools-extensions/config';
 
 export interface MicroFrontend {
   /**

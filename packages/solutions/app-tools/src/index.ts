@@ -1,3 +1,4 @@
+import { createCloudflareBuilderPlugin } from '@modern-js/app-tools-extensions/cloudflare-builder';
 import { castArray } from '@modern-js/builder';
 import { getLocaleLanguage } from '@modern-js/i18n-utils/language-detector';
 import { createAsyncHook } from '@modern-js/plugin';
@@ -56,6 +57,7 @@ export const appTools = (): CliPlugin<AppTools> => ({
     serverBuildPlugin(),
     backendFederationBuildPlugin(),
     deployPlugin(),
+    createCloudflareBuilderPlugin(),
   ],
   post: [
     '@modern-js/plugin-initialize',

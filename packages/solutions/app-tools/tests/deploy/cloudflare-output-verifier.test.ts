@@ -6,20 +6,20 @@ import { createRsbuild } from '@rsbuild/core';
 
 const packageRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
-  '../../',
+  '../../../app-tools-extensions',
 );
 
 import {
   applyCloudflareWorkerMfRuntimeBoundary,
   applyCloudflareWorkerRspackConfig,
   getCloudflareWorkerRspackConfig,
-} from '../../src/builder/generator/getBuilderEnvironments';
-import { createCloudflareOutputPlan } from '../../src/plugins/deploy/platforms/cloudflare-output-plan';
+} from '@modern-js/app-tools-extensions/cloudflare-builder';
+import { createCloudflareOutputPlan } from '@modern-js/app-tools-extensions/cloudflare-output-plan';
 import {
   assertCloudflareOutput,
   verifyCloudflareOutput,
   verifyCloudflareOutputMutationPolicy,
-} from '../../src/plugins/deploy/platforms/cloudflare-output-verifier/index';
+} from '@modern-js/app-tools-extensions/cloudflare-output-verifier';
 
 const tempDirectories: string[] = [];
 
@@ -339,14 +339,10 @@ describe('Cloudflare output verifier', () => {
     );
 
     expect(packageJson.exports['./cloudflare-output-verifier']).toEqual({
-      types:
-        './dist/types/plugins/deploy/platforms/cloudflare-output-verifier/index.d.ts',
-      import:
-        './dist/esm-node/plugins/deploy/platforms/cloudflare-output-verifier/index.mjs',
-      require:
-        './dist/cjs/plugins/deploy/platforms/cloudflare-output-verifier/index.js',
-      default:
-        './dist/cjs/plugins/deploy/platforms/cloudflare-output-verifier/index.js',
+      types: './dist/types/cloudflare-output-verifier/index.d.ts',
+      'modern:source': './src/cloudflare-output-verifier/index.ts',
+      import: './dist/esm-node/cloudflare-output-verifier/index.mjs',
+      require: './dist/cjs/cloudflare-output-verifier/index.js',
     });
   });
 

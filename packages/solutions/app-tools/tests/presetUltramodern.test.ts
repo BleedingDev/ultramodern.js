@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { createUltramodernReleaseBuildMarker } from '@modern-js/app-tools-extensions/release-identity';
 import { createBuilder } from '@modern-js/builder';
 import { mergeConfig } from '@modern-js/plugin/cli';
 import { rspack } from '@rsbuild/core';
@@ -9,7 +10,6 @@ import {
   presetUltramodern,
 } from '../src/presetUltramodern';
 import type { AppUserConfig } from '../src/types';
-import { createUltramodernReleaseBuildMarker } from '../src/ultramodern-release-identity';
 
 type BundlerChainFn = (chain: unknown, utils: { isProd: boolean }) => void;
 

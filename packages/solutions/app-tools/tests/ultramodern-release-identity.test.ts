@@ -6,7 +6,7 @@ import {
   createUltramodernReleaseBuildMarker,
   resolveUltramodernReleaseIdentity,
   resolveUltramodernSourceRevision,
-} from '../src/ultramodern-release-identity';
+} from '@modern-js/app-tools-extensions/release-identity';
 
 const generationBuildMarker = '0123456789abcdef';
 const sourceRevision = 'a'.repeat(40);

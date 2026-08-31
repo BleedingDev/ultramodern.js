@@ -1,3 +1,4 @@
+import { CssExtractRuntimePlugin } from '@modern-js/app-tools-extensions';
 import {
   isHtmlDisabled,
   type Rspack,
@@ -17,11 +18,7 @@ import type {
   SSGMultiEntryOptions,
 } from '../../../types';
 import type { AppToolsContext } from '../../../types/plugin';
-import {
-  CssExtractRuntimePlugin,
-  HtmlAsyncChunkPlugin,
-  RouterPlugin,
-} from '../bundlerPlugins';
+import { HtmlAsyncChunkPlugin, RouterPlugin } from '../bundlerPlugins';
 import {
   aggregateEagerRouteComponentFiles,
   planSSRLazyCompilation,
@@ -330,10 +327,9 @@ async function applySSRLoaderEntry(
   optinos: BuilderOptions,
   isServer: boolean,
 ) {
-  const { appContext, normalizedConfig } = optinos;
+  const { appContext } = optinos;
   const { internalDirectory } = appContext;
   const { entrypoints } = appContext;
-  const isRsc = isUseRsc(normalizedConfig);
 
   await Promise.all(
     entrypoints.map(async entrypoint => {
@@ -360,7 +356,7 @@ async function applySSRLoaderEntry(
         } catch (err) {
           // ignore the error
         }
-      } else if (isRsc) {
+      } else if (isUseRsc(optinos.normalizedConfig)) {
         chain
           .entry(`${entryName}-server-loaders`)
           .add('data:text/javascript,export%20{};');

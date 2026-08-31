@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { resolveUltramodernReleaseIdentity } from '@modern-js/app-tools-extensions/release-identity';
 import { createBackendFederationEntryIntegrity } from '@modern-js/server-runtime-extensions/backend-federation-security/node';
 import {
   BACKEND_FEDERATION_MANIFEST_FILE as BACKEND_MANIFEST_FILE,
@@ -9,7 +10,6 @@ import {
   ULTRAMODERN_BUILD_ARTIFACT_FILE,
 } from '@modern-js/utils/universal';
 import type { AppTools, CliPlugin } from '../../types';
-import { resolveUltramodernReleaseIdentity } from '../../ultramodern-release-identity';
 import {
   createBackendManifest,
   createBackendRemoteEntrySource,

@@ -139,6 +139,7 @@
     "@babel/traverse": "^8.0.0",
     "@babel/types": "^8.0.0",
     "@loadable/component": "5.16.7",
+    "@modern-js/app-tools-extensions": "workspace:*",
     "@modern-js/builder": "workspace:*",
     "@modern-js/i18n-utils": "workspace:*",
     "@modern-js/plugin": "workspace:*",

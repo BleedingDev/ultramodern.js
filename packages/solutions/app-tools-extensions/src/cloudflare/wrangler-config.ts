@@ -3,7 +3,7 @@ import type {
   CloudflareWorkerD1DatabaseConfig,
   CloudflareWorkerServiceBindingConfig,
   JsonValue,
-} from '../../../../types/config/deploy';
+} from '../config';
 import {
   ASSETS_BINDING,
   COMPATIBILITY_DATE_PATTERN,
@@ -272,7 +272,8 @@ export const createWorkerManifestServiceBindings = (
     return undefined;
   }
 
-  const manifestBindings = serviceBindings
+  const bindings: unknown[] = serviceBindings;
+  const manifestBindings = bindings
     .filter(
       (
         service,

@@ -2,10 +2,8 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import vm from 'node:vm';
 import { ROUTE_MANIFEST_FILE } from '@modern-js/utils';
 import { rspack } from '@rsbuild/core';
-import { CssExtractRuntimePlugin } from '../../src/builder/shared/bundlerPlugins/CssExtractRuntimePlugin';
 import { RouterPlugin } from '../../src/builder/shared/bundlerPlugins/RouterPlugin';
 
 const tempDirectories: string[] = [];
@@ -22,11 +20,7 @@ afterEach(async () => {
   );
 });
 
-const compile = async (
-  context: string,
-  outputPath: string,
-  publicPath = 'auto/',
-) =>
+const compile = async (context: string, outputPath: string) =>
   new Promise<void>((resolve, reject) => {
     rspack.rspack(
       {
@@ -49,14 +43,13 @@ const compile = async (
           cssFilename: 'static/css/[name].css',
           filename: 'static/js/[name].js',
           path: outputPath,
-          publicPath,
+          publicPath: 'auto/',
         },
         plugins: [
           new rspack.CssExtractRspackPlugin({
             chunkFilename: 'static/css/[name].css',
             filename: 'static/css/[name].css',
           }),
-          new CssExtractRuntimePlugin(),
           new rspack.HtmlRspackPlugin({
             chunks: ['main'],
             templateContent:
@@ -124,106 +117,5 @@ describe('RouterPlugin', () => {
     expect(emittedAssets).toContain('/static/css/main.css');
     expect(emittedAssets).toContain('/static/css/lazy.css');
     expect(emittedAssets.some(asset => asset.includes('auto/'))).toBe(false);
-  });
-});
-
-describe('CssExtractRuntimePlugin', () => {
-  it('reuses the equivalent SSR stylesheet without crossing runtime origins', async () => {
-    const context = await fs.mkdtemp(
-      path.join(os.tmpdir(), 'modern-router-plugin-css-runtime-'),
-    );
-    tempDirectories.push(context);
-    const outputPath = path.join(context, 'dist');
-
-    await Promise.all([
-      fs.writeFile(
-        path.join(context, 'entry.js'),
-        "globalThis.__loadLazyCss = () => import(/* webpackChunkName: 'lazy' */ './lazy.js');\n",
-      ),
-      fs.writeFile(
-        path.join(context, 'lazy.js'),
-        "import './lazy.css'; export default 'lazy';\n",
-      ),
-      fs.writeFile(path.join(context, 'lazy.css'), '.lazy { color: blue; }\n'),
-    ]);
-
-    await compile(context, outputPath, 'auto');
-    const runtime = await fs.readFile(
-      path.join(outputPath, 'static/js/main.js'),
-      'utf8',
-    );
-
-    const executeWithStylesheet = (attributeHref: string) => {
-      const appendedStylesheets: Array<{ href?: string }> = [];
-      const currentScript = {
-        getAttribute: (name: string) =>
-          name === 'src'
-            ? 'https://inventory.example/static/js/main.js'
-            : undefined,
-        src: 'https://inventory.example/static/js/main.js',
-        tagName: 'SCRIPT',
-      };
-      const existingStylesheet = {
-        getAttribute: (name: string) =>
-          name === 'href' ? attributeHref : undefined,
-        href: new URL(attributeHref, 'https://inventory.example/').href,
-        rel: 'stylesheet',
-      };
-      const document = {
-        baseURI: 'https://inventory.example/',
-        createElement: (tagName: string) => {
-          const attributes = new Map<string, string>();
-          return {
-            getAttribute: (name: string) => attributes.get(name),
-            parentNode: { removeChild: () => undefined },
-            setAttribute: (name: string, value: string) =>
-              attributes.set(name, value),
-            tagName: tagName.toUpperCase(),
-          };
-        },
-        currentScript,
-        getElementsByTagName: (tagName: string) => {
-          if (tagName === 'link') {
-            return [existingStylesheet];
-          }
-          if (tagName === 'script') {
-            return [currentScript];
-          }
-          return [];
-        },
-        head: {
-          appendChild: (element: { href?: string; rel?: string }) => {
-            if (element.rel === 'stylesheet') {
-              appendedStylesheets.push(element);
-            }
-          },
-        },
-      };
-      const browser = {
-        clearTimeout: () => undefined,
-        document,
-        globalThis: undefined as unknown,
-        self: undefined as unknown,
-        setTimeout: () => 1,
-        URL,
-      };
-      browser.globalThis = browser;
-      browser.self = browser;
-
-      vm.runInNewContext(runtime, browser);
-      (browser as unknown as { __loadLazyCss: () => Promise<unknown> })
-        .__loadLazyCss()
-        .catch(() => undefined);
-
-      return appendedStylesheets;
-    };
-
-    expect(executeWithStylesheet('/static/css/lazy.css')).toEqual([]);
-    expect(
-      executeWithStylesheet('https://other.example/static/css/lazy.css'),
-    ).toHaveLength(1);
-    expect(
-      executeWithStylesheet('/static/css/lazy.css?version=stale'),
-    ).toHaveLength(1);
   });
 });

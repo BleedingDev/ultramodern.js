@@ -415,14 +415,15 @@ it covers root and infrastructure files outside `packages/`.
 | ID | What diverged | Owner | Reason | Disposition | Lane |
 | --- | --- | --- | --- | --- | --- |
 | APP-01 | `config/initialize`, `src/index.ts`, types wire fork-added `src/presetUltramodern.ts` (telemetry, MF SSR defaults) | bleedingdev | Fork preset entry point. **Corrected 2026-08-11:** the old ledger named `src/baseline.ts`; that file and its alias shim were deleted in `5f8230e055` | keep-[F] | — |
-| APP-02 | `src/builder/generator/getBuilderEnvironments.ts` — Effect BFF worker entry + Cloudflare worker compat template resolution (591 changed lines) | bleedingdev | Second-heaviest budgeted file; fork lanes written inline into an upstream generator | **extension-point** — move to a fork-owned environment contributor | P3 |
-| APP-03 | `src/plugins/deploy/*` platform entries | bleedingdev | Fork deploy targets. `deploy.microFrontend.{runtimeDigest,integrity,attestation}` were removed in the 2026-06-12 cleanup; `MicroFrontend` is back to upstream shape | keep-[F] | — |
+| APP-02 | `package.json`, `src/index.ts`, `src/builder/shared/builderPlugins/adapterSSR.ts`, and `tests/index.test.ts` register fork-owned `@modern-js/app-tools-extensions` plugins; `src/builder/generator/getBuilderEnvironments.ts` and the former in-package CSS runtime plugin are now genuine removals | bleedingdev | Keep only capped package/plugin registration seams in upstream-owned app-tools while Cloudflare worker entries, bundler policy, provider detection, CSS runtime normalization, templates, and tests live in the fork package | extension-point | — |
+| APP-03 | `src/plugins/deploy/index.ts` and `src/types/config/deploy.ts` import public `@modern-js/app-tools-extensions` owners; the only retained Cloudflare facade backs the published `@modern-js/app-tools/cloudflare-output-verifier` compatibility contract, while the other former platform files are genuine removals | bleedingdev | Preserve the established app-tools deploy target, configuration types, and unavoidable published verifier path while keeping additive Cloudflare delivery, output verification, release-envelope, security, i18n, and worker-manifest behavior in the fork package | extension-point | — |
 | APP-04 | `src/commands/*` dev/build/serve/deploy/info/inspect hooks | bleedingdev | Fork CLI surface. **Corrected 2026-08-11:** the old ledger claimed `modern runtime status` / `fallback-signal` registration (EPIC-7); those commands were deleted in `5f8230e055` and `src/commands/` no longer contains them | keep-[F] | — |
 | APP-05 | `src/plugins/analyze/*` entry/routes-owner integration | bleedingdev | Pairs with RT-18 | keep-[F] | — |
 | APP-06 | `src/rsbuild.ts:19,58-60` adds `disableReactCompiler?: boolean` to `ResolveModernRsbuildConfigOptions` | bleedingdev | Exists only to let callers opt out of CLI-04's default; disappears if CLI-04 reverts | **revert** with CLI-02 / CLI-04 | **P1** |
 | APP-07 | `src/plugins/initialize/index.ts:36-43` defaults `dev.lazyCompilation` to `{ imports: true, entries: false }` when unset, plus `src/builder/shared/lazyCompilation.ts` route-eager `lazyCompilation.test` | bleedingdev | Deliberate dev-perf divergence, broadened beyond stream-SSR to all route component modules. Low priority so an explicit user `dev.lazyCompilation` always wins | keep-[F], documented | — |
 | APP-08 | esm register hooks, utils, tests | bleedingdev | tsgo toolchain + track the above | keep-[M] | — |
 | APP-09 | `src/utils/env.ts` excludes `MODERN_MF_APP_SSR` from ambient `MODERN_*` auto-injection; `tests/utils/env.test.ts` pins the exclusion | bleedingdev | The variable controls config selection before normalization, while plugin-runtime publishes the resolved SSR mode. Compiling the ambient value through a second DefinePlugin conflicts with the config-derived marker and can mislabel client bundles | capped-patch | — |
+| APP-10 | `src/builder/shared/bundlerPlugins/RouterPlugin.ts`, `src/bundleDocs.ts`, and `src/plugins/analyze/{getServerRoutes,isDefaultExportFunction}.ts` carry capped Node 26 / TS7 / Rspack 2 / Babel 8 compatibility repairs | bleedingdev | Keep automatic public paths truthfully narrowed, use Node 26 `Dirent.parentPath`, restore the canonical main-entry constant import, and remove syntax plugins Babel 8 parses by default. Each upstream-owned file stays within the 20-line PR cap; no legacy Node support, casts, or diagnostic suppression are introduced | fixed-in-fork + upstream-PR | P1 |
 
 ---
 
@@ -455,7 +456,7 @@ result**. Referenced by ID from the tables above.
 
 **N1 — ROOT-02 Effect cohort (lockstep, no active patch).**
 `EFFECT_VERSION`/`EFFECT_VITEST_VERSION` in
-`packages/toolkit/create/src/ultramodern-workspace/versions.ts`;
+`packages/toolkit/ultramodern-create/src/ultramodern-workspace/versions.ts`;
 `packages/cli/plugin-bff/package.json` (dep/peer/devDep, see N5); the generated
 `pnpm.overrides`/`trustPolicyExclude` emitted by
 `ultramodern-workspace/policy.ts`. Effect 4.0.0-rc.112 includes the former
@@ -465,7 +466,7 @@ active Effect patch. `stalePatchPolicies` retains the reviewed beta.107 digest
 can recognize and remove the former template patch without deleting
 consumer-owned files. These entries are migration history, not authorization
 to restore or regenerate the patch.
-Guards: `packages/toolkit/create/tests/version-pins.test.ts`,
+Guards: `packages/toolkit/ultramodern-create/tests/version-pins.test.ts`,
 `tests/migrate-release-age-policy.test.ts`.
 Release-age exclusions are temporary, exact-version, evidence-backed and removed
 after the 24-hour window; they are **distinct** from generated
@@ -506,7 +507,7 @@ transitively and makes the optional `effect` peer a fiction. Guards:
 `dependencies[name] === undefined`,
 `peerDependencies[name] === devDependencies[name]`, and
 `peerDependenciesMeta[name].optional === true`; plus
-`packages/toolkit/create/tests/version-pins.test.ts`
+`packages/toolkit/ultramodern-create/tests/version-pins.test.ts`
 (`plugin-bff declares the same Effect cohort generated workspaces pin`).
 
 **N6 — RT-02 `I18nInstance`.**

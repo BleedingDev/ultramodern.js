@@ -52,12 +52,17 @@ export class CssExtractRuntimePlugin {
           return;
         }
 
-        const runtimeSource = runtimeModule.source?.source;
+        const source = runtimeModule.source;
+        if (!source) {
+          return;
+        }
+
+        const runtimeSource = source.source;
         if (typeof runtimeSource !== 'string') {
           return;
         }
 
-        runtimeModule.source.source =
+        source.source =
           normalizeCssExtractRuntimeStylesheetLookup(runtimeSource);
       });
     });

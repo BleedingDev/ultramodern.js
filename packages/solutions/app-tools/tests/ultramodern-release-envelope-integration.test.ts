@@ -1,6 +1,17 @@
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import {
+  emitCloudflareStagedReleaseEnvelope,
+  emitFrameworkMicroVerticalReleaseEnvelope,
+  emitNodeStagedReleaseEnvelope,
+  MICROVERTICAL_RELEASE_ENVELOPE_PATH,
+  stageCloudflareReleaseEnvelope,
+  verifyBuildOutputReleaseEnvelope,
+  verifyCloudflareReleaseEnvelopeStaging,
+  verifyNodeReleaseEnvelopeStaging,
+} from '@modern-js/app-tools-extensions/release-envelope/framework-output';
+import type { MicroVerticalReleaseTarget } from '@modern-js/app-tools-extensions/release-envelope/types';
 import { createPluginManager } from '@modern-js/plugin';
 import {
   createUltramodernBuildArtifact,
@@ -11,17 +22,6 @@ import {
 } from '@modern-js/utils/universal';
 import { bffPlugin } from '../../../cli/plugin-bff/src/cli';
 import { appTools, ultramodernReleaseEnvelopePlugin } from '../src';
-import {
-  emitCloudflareStagedReleaseEnvelope,
-  emitFrameworkMicroVerticalReleaseEnvelope,
-  emitNodeStagedReleaseEnvelope,
-  MICROVERTICAL_RELEASE_ENVELOPE_PATH,
-  stageCloudflareReleaseEnvelope,
-  verifyBuildOutputReleaseEnvelope,
-  verifyCloudflareReleaseEnvelopeStaging,
-  verifyNodeReleaseEnvelopeStaging,
-} from '../src/ultramodern-release-envelope/framework-output';
-import type { MicroVerticalReleaseTarget } from '../src/ultramodern-release-envelope/types';
 
 const tempDirectories: string[] = [];
 

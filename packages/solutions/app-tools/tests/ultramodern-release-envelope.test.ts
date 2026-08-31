@@ -7,7 +7,7 @@ import {
   createMicroVerticalReleaseEnvelope,
   type MicroVerticalReleaseArtifactInput,
   verifyMicroVerticalReleaseEnvelope,
-} from '../src/ultramodern-release-envelope';
+} from '@modern-js/app-tools-extensions/release-envelope';
 
 const tempDirectories: string[] = [];
 

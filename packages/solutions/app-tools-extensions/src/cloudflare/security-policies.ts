@@ -1,4 +1,5 @@
-import type { CloudflareWorkerSecurityConfig } from '../../../../types/config/deploy';
+import type { CloudflareWorkerSecurityConfig } from '../config';
+import type { CloudflareModernConfig } from './types';
 
 const DEFAULT_SECURITY_HEADERS = {
   referrerPolicy: 'strict-origin-when-cross-origin',
@@ -158,7 +159,7 @@ const createCloudflareWorkerCorsPolicy = (
 });
 
 export const createCloudflareWorkerSecurityPolicy = (
-  modernConfig: Parameters<CreatePreset>[0]['modernConfig'],
+  modernConfig: CloudflareModernConfig,
 ) => {
   const security = modernConfig.deploy?.worker?.security;
 

@@ -29,6 +29,7 @@ const FORK_OWNED_PACKAGE_ROOTS = Object.freeze([
   'packages/runtime/i18n-extensions',
   'packages/runtime/plugin-tanstack',
   'packages/server/runtime-extensions',
+  'packages/solutions/app-tools-extensions',
   'packages/toolkit/code-tools',
 ]);
 const DIVERGENCE_LEDGER_REPO_PATH = 'FORK-DIVERGENCE.md';

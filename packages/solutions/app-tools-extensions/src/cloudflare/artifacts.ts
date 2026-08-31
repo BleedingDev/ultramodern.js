@@ -3,7 +3,7 @@ import { fs as fse } from '@modern-js/utils';
 import type {
   CloudflareWorkerArtifactConfig,
   CloudflareWorkerPublicAssetConfig,
-} from '../../../../types/config/deploy';
+} from '../config';
 import {
   RESERVED_ARTIFACT_DESTINATION_DIRECTORIES,
   RESERVED_ARTIFACT_DESTINATION_FILES,
