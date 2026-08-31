@@ -1,0 +1,1 @@
+export { createHonoCrossProjectPolicyMiddleware } from './hono';
