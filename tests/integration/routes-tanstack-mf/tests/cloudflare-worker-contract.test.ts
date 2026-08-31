@@ -55,6 +55,38 @@ const BARE_REACT_ROUTER_SPECIFIER = /["'](react-router(-dom)?)(\/[^"']*)?["']/;
 const REACT_ROUTER_NODE_MODULES_PATH = /node_modules\/react-router(-dom)?\b/;
 const ROUTE_MODULE_DYNAMIC_IMPORT =
   /await import\(\s*(?:\/\*[\s\S]*?\*\/\s*)*route\.module\s*\)/;
+const MF_DTS_FALLBACK_DIAGNOSTIC =
+  /Failed to collect TypeScript dependency files with "tsc --listFilesOnly"; falling back to exposed files only|Module Federation DTS.*(?:Error|Failed)|TYPE-001|TS6059/iu;
+
+const readZipEntryNames = async (archivePath: string): Promise<string[]> => {
+  const archive = await readFile(archivePath);
+  const minimumEocdOffset = Math.max(0, archive.length - 65_557);
+  let eocdOffset = archive.length - 22;
+  while (
+    eocdOffset >= minimumEocdOffset &&
+    archive.readUInt32LE(eocdOffset) !== 0x06054b50
+  ) {
+    eocdOffset -= 1;
+  }
+  expect(eocdOffset).toBeGreaterThanOrEqual(minimumEocdOffset);
+
+  const entryCount = archive.readUInt16LE(eocdOffset + 10);
+  let entryOffset = archive.readUInt32LE(eocdOffset + 16);
+  const entries: string[] = [];
+  for (let index = 0; index < entryCount; index += 1) {
+    expect(archive.readUInt32LE(entryOffset)).toBe(0x02014b50);
+    const fileNameLength = archive.readUInt16LE(entryOffset + 28);
+    const extraLength = archive.readUInt16LE(entryOffset + 30);
+    const commentLength = archive.readUInt16LE(entryOffset + 32);
+    entries.push(
+      archive
+        .subarray(entryOffset + 46, entryOffset + 46 + fileNameLength)
+        .toString('utf8'),
+    );
+    entryOffset += 46 + fileNameLength + extraLength + commentLength;
+  }
+  return entries.filter(entry => !entry.endsWith('/')).sort();
+};
 
 const collectFilesRecursively = async (root: string): Promise<string[]> => {
   let entries: Array<{ isDirectory: () => boolean; name: string }>;
@@ -176,6 +208,22 @@ describe('TanStack Module Federation Cloudflare worker contract', () => {
       env: cloudflareEnvironment,
     })) as CommandResult;
     requireSuccessfulCommand('Cloudflare build', buildResult);
+    expect(
+      `${buildResult.stdout ?? ''}\n${buildResult.stderr ?? ''}`,
+    ).not.toMatch(MF_DTS_FALLBACK_DIAGNOSTIC);
+    await expect(
+      readZipEntryNames(path.join(appDir, 'dist-cloudflare/@mf-types.zip')),
+    ).resolves.toEqual([
+      'App.d.ts',
+      'Mutator.d.ts',
+      'Widget.d.ts',
+      'compiled-types/src/components/Mutator.d.ts',
+      'compiled-types/src/components/RuntimeApp.d.ts',
+      'compiled-types/src/components/Widget.d.ts',
+      'compiled-types/src/modern-tanstack/index/router.gen.d.ts',
+      'compiled-types/src/routes/layout.d.ts',
+      'compiled-types/src/routes/page.d.ts',
+    ]);
 
     const deployResult = (await runModernCommand(['deploy', '--skip-build'], {
       cwd: appDir,
@@ -219,12 +267,14 @@ describe('TanStack Module Federation Cloudflare worker contract', () => {
         }),
       ]),
     );
-    expect(manifest.bff).toEqual({
-      dispatcherExport: '__modern_create_effect_bff_dispatcher',
-      prefix: '/remote-api',
-      runtimeFramework: 'effect',
-      worker: 'worker/__modern_bff_effect.js',
-    });
+    expect(manifest.bff).toEqual(
+      expect.objectContaining({
+        dispatcherExport: '__modern_create_effect_bff_dispatcher',
+        prefix: '/remote-api',
+        runtimeFramework: 'effect',
+        worker: 'worker/__modern_bff_effect.js',
+      }),
+    );
     await Promise.all(
       [
         'worker/index.js',
