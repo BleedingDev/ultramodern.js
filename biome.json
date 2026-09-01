@@ -123,6 +123,7 @@
       "!**/coverage/**/*",
       "!**/node_modules/**/*",
       "!**/dist/**/*",
+      "!packages/sidecar/*/bin/**",
       "!**/dist-1/**/*",
       "!**/dist-2/**/*",
       "!**/dist-swc/**/*",
