@@ -15,7 +15,7 @@ export { default as fs } from '../compiled/fs-extra';
 export { default as glob } from '../compiled/glob';
 export { default as globby } from '../compiled/globby';
 export { default as gzipSize } from '../compiled/gzip-size';
-export { default as yaml } from '../compiled/js-yaml';
+export * as yaml from '../compiled/js-yaml';
 export { default as json5 } from '../compiled/json5';
 export { default as lodash } from '../compiled/lodash';
 export { default as minimist } from '../compiled/minimist';
