@@ -269,6 +269,7 @@ same-PR ownership and disposition evidence.
 | `packages/document/docs/en/components/prerequisites.mdx` | bleedingdev | Keep the documented pnpm bootstrap command aligned with the fork's generated and CI toolchain | `keep-[M]` |
 | `packages/document/docs/zh/components/prerequisites.mdx` | bleedingdev | Keep the translated pnpm bootstrap command aligned with the fork's generated and CI toolchain | `keep-[M]` |
 | `packages/toolkit/types/packages/hoist-non-react-statics.d.ts` | bleedingdev | Remove a redundant `declare` modifier from an already ambient module so the published declaration compiles under TypeScript without a diagnostic suppression | `capped-patch` + `fixed-in-fork` |
+| `packages/toolkit/utils/src/compiled.ts` | bleedingdev | Preserve the public `yaml.load` and `yaml.dump` namespace in native CommonJS and ESM after js-yaml 5 removed its generated default export | `capped-patch` + `fixed-in-fork` |
 
 ### 2026-09-01 runtime cone non-shrinks
 
