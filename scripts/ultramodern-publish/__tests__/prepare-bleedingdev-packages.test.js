@@ -228,6 +228,26 @@ test('release package rewriting preserves foreign keys for fork-owned workspace 
     'workspace:@vendor/image-core-fork@*',
     'workspace aliases outside the fork-owned namespace are not publisher-owned',
   );
+
+  const crossAliasPackageJson = {
+    name: '@modern-js/plugin-image',
+    version: '3.8.3',
+    dependencies: {
+      '@modern-js/utils':
+        'workspace:@modern-js/image-core-extensions@*',
+    },
+  };
+  rewritePackageJson(
+    crossAliasPackageJson,
+    '@modern-js/plugin-image',
+    options,
+    sourceNames,
+  );
+  assert.equal(
+    crossAliasPackageJson.dependencies['@modern-js/utils'],
+    'npm:@bleedingdev/modern-js-image-core-extensions@3.8.3-ultramodern.7',
+    'an explicit workspace alias target takes precedence over its dependency key',
+  );
 });
 
 test('release package rewriting rejects invalid foreign fork-owned workspace aliases', async () => {
@@ -267,6 +287,22 @@ test('release package rewriting rejects invalid foreign fork-owned workspace ali
     () =>
       rewriteDependencies({
         '@rsbuild-image/core': 'workspace:@modern-js/image-core-extensions',
+      }),
+    /cannot rewrite malformed internal workspace alias/i,
+  );
+  assert.throws(
+    () =>
+      rewriteDependencies({
+        '@rsbuild-image/core':
+          'workspace:@modern-js/image-core-extensions@garbage',
+      }),
+    /cannot rewrite malformed internal workspace alias/i,
+  );
+  assert.throws(
+    () =>
+      rewriteDependencies({
+        '@modern-js/plugin-image':
+          'workspace:@modern-js/image-core-extensions',
       }),
     /cannot rewrite malformed internal workspace alias/i,
   );
