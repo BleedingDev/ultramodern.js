@@ -527,6 +527,20 @@ function assertModuleFederationRuntimePatchBehavior(): void {
 
 function assertModernJsV3PatchBehavior(): Promise<void> {
   const packageDir = moduleFederationPackageDirectory('modern-js-v3');
+  const consumerDir = path.join(
+    repoRoot,
+    'examples/module-federation/app-export/remote',
+  );
+  const consumerRequire = createRequire(path.join(consumerDir, 'package.json'));
+  const reactVersion = (
+    consumerRequire('react/package.json') as { version: string }
+  ).version;
+  const resolvedReactRuntimes = {
+    'react/jsx-runtime': consumerRequire.resolve('react/jsx-runtime'),
+    'react/jsx-dev-runtime': consumerRequire.resolve(
+      'react/jsx-dev-runtime',
+    ),
+  } as const;
   const configPluginPath = path.join(
     packageDir,
     'dist/cjs/cli/configPlugin.js',
@@ -540,6 +554,18 @@ function assertModernJsV3PatchBehavior(): Promise<void> {
       isServer: boolean,
     ): Record<string, unknown>;
     patchBundlerConfig(options: Record<string, unknown>): void;
+  };
+  const patchConsumerConfig = (
+    config: Record<string, unknown>,
+    isServer = false,
+  ) => {
+    const previousCwd = process.cwd();
+    process.chdir(consumerDir);
+    try {
+      return configPlugin.patchMFConfig(config, isServer);
+    } finally {
+      process.chdir(previousCwd);
+    }
   };
   const remoteConfig = {
     name: 'consumer',
@@ -590,33 +616,64 @@ function assertModernJsV3PatchBehavior(): Promise<void> {
           'react/jsx-runtime': explicitRuntimePolicy,
         },
       };
-      configPlugin.patchMFConfig(objectSharedConfig, false);
+      patchConsumerConfig(objectSharedConfig);
       assert.equal(objectSharedConfig.shared.react, reactPolicy);
       assert.equal(
         objectSharedConfig.shared['react/jsx-runtime'],
         explicitRuntimePolicy,
       );
-      assert.deepEqual(objectSharedConfig.shared['react/jsx-dev-runtime'], {
-        requiredVersion: '^19.0.0',
-        singleton: true,
-        treeShaking: false,
-      });
+      assert.deepEqual(
+        objectSharedConfig.shared[
+          resolvedReactRuntimes['react/jsx-runtime']
+        ],
+        {
+          requiredVersion: 'consumer-version',
+          shareKey: 'react/jsx-runtime',
+          singleton: false,
+          treeShaking: false,
+          version: reactVersion,
+        },
+      );
+      assert.deepEqual(
+        objectSharedConfig.shared[
+          resolvedReactRuntimes['react/jsx-dev-runtime']
+        ],
+        {
+          import: false,
+          requiredVersion: '^19.0.0',
+          shareKey: 'react/jsx-dev-runtime',
+          singleton: true,
+          version: reactVersion,
+        },
+      );
+      assert.equal(
+        Object.hasOwn(objectSharedConfig.shared, 'react/jsx-dev-runtime'),
+        false,
+      );
 
       const arraySharedConfig = {
         exposes: {},
         name: 'array_shared_consumer',
         shared: ['react', { 'react-dom': { singleton: true } }],
       };
-      configPlugin.patchMFConfig(arraySharedConfig, false);
-      configPlugin.patchMFConfig(arraySharedConfig, false);
+      patchConsumerConfig(arraySharedConfig);
+      patchConsumerConfig(arraySharedConfig);
       assert.deepEqual(arraySharedConfig.shared, [
         'react',
         { 'react-dom': { singleton: true } },
         {
-          'react/jsx-runtime': { singleton: true, treeShaking: false },
+          [resolvedReactRuntimes['react/jsx-runtime']]: {
+            shareKey: 'react/jsx-runtime',
+            singleton: true,
+            version: reactVersion,
+          },
         },
         {
-          'react/jsx-dev-runtime': { singleton: true, treeShaking: false },
+          [resolvedReactRuntimes['react/jsx-dev-runtime']]: {
+            shareKey: 'react/jsx-dev-runtime',
+            singleton: true,
+            version: reactVersion,
+          },
         },
       ]);
 
@@ -633,34 +690,52 @@ function assertModernJsV3PatchBehavior(): Promise<void> {
           'react/': explicitPrefixPolicy,
         },
       };
-      configPlugin.patchMFConfig(explicitPrefixConfig, false);
+      patchConsumerConfig(explicitPrefixConfig);
       assert.equal(explicitPrefixConfig.shared['react/'], explicitPrefixPolicy);
-      assert.deepEqual(explicitPrefixConfig.shared['react/jsx-runtime'], {
-        singleton: true,
-        treeShaking: false,
-      });
-      assert.deepEqual(explicitPrefixConfig.shared['react/jsx-dev-runtime'], {
-        singleton: true,
-        treeShaking: false,
-      });
+      assert.deepEqual(
+        explicitPrefixConfig.shared[
+          resolvedReactRuntimes['react/jsx-runtime']
+        ],
+        {
+          import: false,
+          requiredVersion: 'consumer-version',
+          shareKey: 'react/jsx-runtime',
+          singleton: false,
+          version: reactVersion,
+        },
+      );
+      assert.deepEqual(
+        explicitPrefixConfig.shared[
+          resolvedReactRuntimes['react/jsx-dev-runtime']
+        ],
+        {
+          import: false,
+          requiredVersion: 'consumer-version',
+          shareKey: 'react/jsx-dev-runtime',
+          singleton: false,
+          version: reactVersion,
+        },
+      );
 
       const shorthandVersionConfig = {
         exposes: {},
         name: 'shorthand_version_consumer',
         shared: { react: '^19.0.0' },
       };
-      configPlugin.patchMFConfig(shorthandVersionConfig, false);
+      patchConsumerConfig(shorthandVersionConfig);
       assert.deepEqual(shorthandVersionConfig.shared, {
         react: '^19.0.0',
-        'react/jsx-runtime': {
+        [resolvedReactRuntimes['react/jsx-runtime']]: {
           requiredVersion: '^19.0.0',
+          shareKey: 'react/jsx-runtime',
           singleton: true,
-          treeShaking: false,
+          version: reactVersion,
         },
-        'react/jsx-dev-runtime': {
+        [resolvedReactRuntimes['react/jsx-dev-runtime']]: {
           requiredVersion: '^19.0.0',
+          shareKey: 'react/jsx-dev-runtime',
           singleton: true,
-          treeShaking: false,
+          version: reactVersion,
         },
       });
 
@@ -675,7 +750,7 @@ function assertModernJsV3PatchBehavior(): Promise<void> {
           },
         },
       };
-      configPlugin.patchMFConfig(aliasedReactConfig, false);
+      patchConsumerConfig(aliasedReactConfig);
       assert.deepEqual(aliasedReactConfig.shared, {
         react: {
           import: '@vendor/react',
@@ -689,7 +764,7 @@ function assertModernJsV3PatchBehavior(): Promise<void> {
         name: 'unrelated_shared_consumer',
         shared: { effect: { singleton: true } },
       };
-      configPlugin.patchMFConfig(unrelatedSharedConfig, false);
+      patchConsumerConfig(unrelatedSharedConfig);
       assert.deepEqual(unrelatedSharedConfig.shared, {
         effect: { singleton: true },
       });
