@@ -112,6 +112,17 @@
       }
     }
   },
+  "overrides": [
+    {
+      "includes": [
+        "tests/integration/tailwindcss/fixtures/tailwindcss-v2/src/**/*.css",
+        "tests/integration/tailwindcss/fixtures/tailwindcss-v3/src/**/*.css"
+      ],
+      "linter": {
+        "rules": { "suspicious": { "noUnknownAtRules": "off" } }
+      }
+    }
+  ],
   "assist": { "actions": { "source": { "organizeImports": "on" } } },
   "files": {
     "ignoreUnknown": true,
@@ -123,7 +134,7 @@
       "!**/coverage/**/*",
       "!**/node_modules/**/*",
       "!**/dist/**/*",
-      "!packages/sidecar/*/bin/**",
+      "!packages/sidecar/*/bin",
       "!**/dist-1/**/*",
       "!**/dist-2/**/*",
       "!**/dist-swc/**/*",
