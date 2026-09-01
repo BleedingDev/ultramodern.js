@@ -36,12 +36,14 @@ import {
   EFFECT_VERSION,
   EFFECT_VITEST_VERSION,
   MODULE_FEDERATION_VERSION,
+  MSGPACKR_VERSION,
   NODE_VERSION,
   OXFMT_VERSION,
   PNPM_VERSION,
   TANSTACK_ROUTER_CORE_VERSION,
   TYPESCRIPT_NATIVE_PREVIEW_VERSION,
   TYPESCRIPT_VERSION,
+  ZOD_VERSION,
 } from '../src/ultramodern-workspace/versions';
 
 const retiredContractPath = '.modernjs/ultramodern-generated-contract.json';
@@ -1974,6 +1976,8 @@ export default catalogResource;
     pnpmPolicy.overrides['@effect/vitest'] = '4.0.0-beta.89';
     pnpmPolicy.overrides.effect = '4.0.0-beta.89';
     delete pnpmPolicy.overrides['@effect/opentelemetry'];
+    delete pnpmPolicy.overrides.msgpackr;
+    delete pnpmPolicy.overrides.zod;
     pnpmPolicy.patchedDependencies['effect@4.0.0-beta.107'] =
       'patches/effect-schema-error-type-id.patch';
     delete pnpmPolicy.patchedDependencies[
@@ -2329,6 +2333,8 @@ declare module '*.css' {}
       migratedPnpmPolicy.overrides['@effect/opentelemetry'],
       EFFECT_VERSION,
     );
+    assert.equal(migratedPnpmPolicy.overrides.msgpackr, MSGPACKR_VERSION);
+    assert.equal(migratedPnpmPolicy.overrides.zod, ZOD_VERSION);
     assert.equal(
       migratedPnpmPolicy.patchedDependencies[
         `@module-federation/modern-js-v3@${MODULE_FEDERATION_VERSION}`

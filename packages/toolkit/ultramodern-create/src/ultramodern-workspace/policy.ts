@@ -896,7 +896,9 @@ export const ULTRAMODERN_WORKSPACE_POLICY = {
       '@tanstack/react-router': TANSTACK_ROUTER_VERSION,
       '@tanstack/router-core': TANSTACK_ROUTER_CORE_VERSION,
       effect: EFFECT_VERSION,
+      msgpackr: MSGPACKR_VERSION,
       'node-fetch': NODE_FETCH_VERSION,
+      zod: ZOD_VERSION,
     },
     allowBuilds: {
       '@parcel/watcher': true,
