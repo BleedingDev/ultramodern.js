@@ -36,6 +36,13 @@ const ultramodernCreateTargetName =
   '@bleedingdev/modern-js-ultramodern-create';
 const retiredBleedingdevCreateTargetName = '@bleedingdev/modern-js-create';
 
+// Sidecar republications are staged beside the cohort but never inside it:
+// they keep their own stable versions and their own npm scope.
+const sidecarScope = '@bleedingdev';
+const sidecarStagingDirectory = 'sidecars';
+const sidecarManifestFile = 'sidecars.json';
+const sidecarAliasConsumerTargetName = '@bleedingdev/modern-js-image';
+
 const createTemplateRequiredFiles = [
   'template-workspace/.agents/agent-reference-repos.json',
   'template-workspace/.codex/rstackjs-agent-skills-LICENSE',
@@ -54,6 +61,10 @@ export {
   npmPublishRetryDelayMs,
   npmRegistryOrigin,
   repoRoot,
+  sidecarAliasConsumerTargetName,
+  sidecarManifestFile,
+  sidecarScope,
+  sidecarStagingDirectory,
   trustedPublishOidcIssuer,
   trustedPublishRef,
   trustedPublishRepository,

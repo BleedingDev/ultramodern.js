@@ -4,9 +4,17 @@ import path from 'node:path';
 import fsKit from '../../../lib/fs-kit.js';
 import {
   repoRoot,
+  sidecarAliasConsumerTargetName,
+  sidecarStagingDirectory,
   trustedPublishRef,
   trustedPublishRepository,
 } from './constants.mjs';
+import {
+  collectSidecarPackages,
+  stageSidecarPackage,
+  validateAliasConsistency,
+  writeSidecarStagingManifest,
+} from './sidecars.mjs';
 import {
   collectModernPackages,
   enforceSingleVersionPolicy,
@@ -83,16 +91,31 @@ async function prepareBleedingdevPackages(options) {
   enforceSingleVersionPolicy(options, packages, allPackages);
   const packDir = path.join(options.out, 'source-tarballs');
   const stageDir = path.join(options.out, 'packages');
+  // Read the sidecar roots before the output directory is recreated so an
+  // invalid sidecar fails the run before anything is staged.
+  const sidecars = options.includeSidecars
+    ? collectSidecarPackages(repoRoot)
+    : [];
 
   options.out = resolveOwnedPreparationOutput(options.out);
   fs.rmSync(options.out, { recursive: true, force: true });
   fs.mkdirSync(packDir, { recursive: true });
   fs.mkdirSync(stageDir, { recursive: true });
 
+  const stagedSidecars = [];
+  if (options.includeSidecars) {
+    const sidecarStageDir = path.join(options.out, sidecarStagingDirectory);
+    fs.mkdirSync(sidecarStageDir, { recursive: true });
+    for (const sidecar of sidecars) {
+      stagedSidecars.push(stageSidecarPackage(sidecar, sidecarStageDir));
+    }
+  }
+
   const stagingManifest = {
     aliases,
     packages: [],
   };
+  const stagedManifests = [];
 
   for (const item of packages) {
     const sourceName = item.packageJson.name;
@@ -109,12 +132,31 @@ async function prepareBleedingdevPackages(options) {
     writeJsonFile(packageJsonPath, packageJson);
     validateStagedTypeFiles(packageDir, packageJson);
 
+    stagedManifests.push({ name: targetName, packageJson });
     stagingManifest.packages.push({
       sourceName,
       targetName,
       version: options.version,
       packageDir: path.relative(repoRoot, packageDir),
     });
+  }
+
+  if (options.includeSidecars) {
+    validateAliasConsistency(stagedManifests, stagedSidecars, {
+      cohortTargetNames: new Set(Object.values(aliases)),
+    });
+    const { manifest: sidecarManifest, manifestPath } =
+      writeSidecarStagingManifest(options.out, stagedSidecars, {
+        publishBefore: sidecarAliasConsumerTargetName,
+      });
+    console.log(
+      [
+        `Staged ${sidecarManifest.packages.length} version-preserving sidecar package(s): ${sidecarManifest.packages
+          .map(item => `${item.name}@${item.version}`)
+          .join(', ')}`,
+        `Publish order recorded in ${path.relative(repoRoot, manifestPath)}; these must reach npm before ${sidecarAliasConsumerTargetName}.`,
+      ].join('\n'),
+    );
   }
 
   validatePublishManifest(stagingManifest);

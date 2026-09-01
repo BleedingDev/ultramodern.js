@@ -168,17 +168,52 @@ function enforceSingleVersionPolicy(options, packages, allPackages) {
   );
 }
 
+// The rewriter renames dependency KEYS but never the target inside an
+// `npm:<name>@<range>` alias specifier. A published package that still aliases
+// an upstream @modern-js/* name would point consumers at a name this fork does
+// not publish, so the specifier is rejected instead of silently rewritten.
+function assertNoModernAliasTarget(
+  specifier,
+  { blockName, dependencyName, packageName },
+) {
+  if (
+    typeof specifier !== 'string' ||
+    !/^npm:@modern-js\//u.test(specifier)
+  ) {
+    return;
+  }
+
+  throw new Error(
+    [
+      `${packageName} ${blockName}.${dependencyName} uses the alias specifier ${specifier}.`,
+      'BleedingDev package rewriting renames dependency keys but never npm: alias targets, so this would publish a dependency on the unpublished upstream name.',
+      'Point the alias at a published @bleedingdev/* target (or drop the alias) before releasing.',
+    ].join('\n'),
+  );
+}
+
 function rewriteDependencyBlock(
   block,
   options,
   sourceNames,
-  { peer = false, optional = false } = {},
+  {
+    peer = false,
+    optional = false,
+    blockName = 'dependencies',
+    packageName: ownerName = 'package',
+  } = {},
 ) {
   if (!block) {
     return;
   }
 
   for (const packageName of Object.keys(block)) {
+    assertNoModernAliasTarget(block[packageName], {
+      blockName,
+      dependencyName: packageName,
+      packageName: ownerName,
+    });
+
     if (!packageName.startsWith('@modern-js/')) {
       continue;
     }
@@ -271,17 +306,29 @@ function rewritePackageJson(packageJson, sourceName, options, sourceNames) {
     };
   }
 
-  rewriteDependencyBlock(packageJson.dependencies, options, sourceNames);
+  const ownerName = packageJson.name;
+  rewriteDependencyBlock(packageJson.dependencies, options, sourceNames, {
+    blockName: 'dependencies',
+    packageName: ownerName,
+  });
   rewriteDependencyBlock(
     packageJson.optionalDependencies,
     options,
     sourceNames,
+    {
+      blockName: 'optionalDependencies',
+      packageName: ownerName,
+    },
   );
   rewriteDependencyBlock(packageJson.devDependencies, options, sourceNames, {
+    blockName: 'devDependencies',
     optional: true,
+    packageName: ownerName,
   });
   rewriteDependencyBlock(packageJson.peerDependencies, options, sourceNames, {
+    blockName: 'peerDependencies',
     peer: true,
+    packageName: ownerName,
   });
   // pnpm pack may append resolved workspace dependencies in a different order
   // depending on the preceding install/build state. npm tarballs preserve JSON

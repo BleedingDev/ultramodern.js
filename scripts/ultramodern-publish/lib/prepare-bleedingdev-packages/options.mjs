@@ -29,6 +29,7 @@ const cliBooleanOptions = new Set([
   '--publish',
   '--publish-existing',
   '--dry-run',
+  '--include-sidecars',
 ]);
 
 function parsePublishConcurrency(value) {
@@ -113,6 +114,7 @@ function parseArgs(argv) {
       publish: false,
       publishExisting: false,
       dryRun: false,
+      includeSidecars: false,
       noSkipExisting: false,
       publishConcurrency: 8,
     },
@@ -148,6 +150,10 @@ function parseArgs(argv) {
         key: 'dryRun',
         type: 'boolean',
       },
+      'include-sidecars': {
+        key: 'includeSidecars',
+        type: 'boolean',
+      },
       'no-skip-existing': {
         key: 'noSkipExisting',
         type: 'boolean',
@@ -173,6 +179,16 @@ function parseArgs(argv) {
   if (options.noSkipExisting) {
     throw new Error(
       '--no-skip-existing is forbidden; exact-version reuse is controlled by the full-cohort registry gate',
+    );
+  }
+
+  if (options.includeSidecars && (options.publish || options.publishExisting)) {
+    throw new Error(
+      [
+        '--include-sidecars is a staging-only flag.',
+        'Sidecars keep their own stable versions and must be published to npm BEFORE the cohort, because @modern-js/image pins them through npm: alias specifiers that only resolve once those versions exist.',
+        'Stage them in their own step, publish them, then run the cohort publish without --include-sidecars.',
+      ].join('\n'),
     );
   }
 
