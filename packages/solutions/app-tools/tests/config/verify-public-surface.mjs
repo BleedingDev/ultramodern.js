@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -25,8 +25,24 @@ const expectedRuntimeExports = [
   'resolveEffectTsgoCompiler',
   'withBuildConfigEnvironment',
 ];
+const deploymentTemplates = [
+  'netlify-entry.cjs',
+  'netlify-entry.mjs',
+  'node-entry.cjs',
+  'node-entry.mjs',
+  'vercel-entry.cjs',
+  'vercel-entry.mjs',
+];
 
 assert.deepEqual(configExport, expectedExport);
+for (const format of ['cjs', 'esm-node']) {
+  assert.deepEqual(
+    readdirSync(
+      join(packageRoot, 'dist', format, 'plugins/deploy/platforms/templates'),
+    ).sort(),
+    deploymentTemplates,
+  );
+}
 
 try {
   const tsgo = createTsgoInvocation({

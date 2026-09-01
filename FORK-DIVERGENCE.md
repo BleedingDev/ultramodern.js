@@ -192,6 +192,14 @@ The newer upstream source remains present in `HEAD`. The historical transition
 tables below document prior reviews only and do not authorize current growth or
 a future provenance debt reset.
 
+### 2026-09-02 app-tools deployment-template packaging repair
+
+| Upstream-owned path | Owner | Reason | Disposition |
+| --- | --- | --- | --- |
+| `packages/solutions/app-tools/rslib.config.mts` | bleedingdev | Copy the deployment entry templates into every compiled output so `createNodePreset` and the other runtime deployment readers receive the required CJS and ESM files; retain upstream #8819's duplicate-loader fix | `capped-patch` + `fixed-in-fork` + `upstream-PR` |
+| `packages/solutions/app-tools/tests/config/verify-public-surface.mjs` | bleedingdev | Verify both compiled formats contain the complete deployment-template set so an incomplete app-tools tarball fails during its producer build rather than clean-room application acceptance | `capped-patch` + `fixed-in-fork` + `upstream-PR` |
+| `packages/runtime/plugin-runtime/src/core/context/extensions.ts` | bleedingdev | Make the internal symbol slot enumerable so SSR object spreads preserve extension state while string-key enumeration and JSON remain unchanged | `capped-patch` + `fixed-in-fork` + `upstream-PR` |
+
 ### Historical 2026-08-30 v3.8.3 transition: complete raised set
 
 | Upstream-owned path | Owner | Transition reason | Disposition |
@@ -227,7 +235,6 @@ No other raised/new path belongs to this transition.
 | `packages/server/core/package.json` | bleedingdev | The fully retained upstream server-core manifest updates postdate the fixed audit point and surface as mechanical cumulative divergence | `keep-[M]` |
 | `packages/server/server/package.json` | bleedingdev | The fully retained upstream server manifest updates postdate the fixed audit point and surface as mechanical cumulative divergence | `keep-[M]` |
 | `packages/solutions/app-tools/package.json` | bleedingdev | The synced app-tools dependency/build cohort remains complete in `HEAD`; measuring from v3.8.2 exposes its mechanical manifest delta | `keep-[M]` |
-| `packages/solutions/app-tools/rslib.config.mts` | bleedingdev | Upstream #8819 already landed the duplicate-loader fix at the later sync-review base; the fix remains in `HEAD` and appears only because the gate measures from the older commit | `upstream-PR` |
 | `packages/solutions/app-tools/tests/fixtures/subcommand/package.json` | bleedingdev | The synced fixture manifest update postdates the fixed audit point, so its test-fixture dependency delta is mechanically measurable | `keep-[M]` |
 | `packages/toolkit/plugin/package.json` | bleedingdev | The fully retained upstream toolkit plugin manifest cohort postdates the fixed base and is exposed by the backward measurement | `keep-[M]` |
 | `packages/toolkit/runtime-utils/package.json` | bleedingdev | The fully retained upstream runtime-utils manifest cohort postdates the fixed base and is exposed by the backward measurement | `keep-[M]` |

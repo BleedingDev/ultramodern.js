@@ -40,7 +40,7 @@ function ensureStore(context: object): ExtensionStore {
   const store = target[EXTENSIONS_SLOT] ?? new Map();
   Object.defineProperty(target, EXTENSIONS_SLOT, {
     configurable: true,
-    enumerable: false,
+    enumerable: true,
     value: store,
   });
   return store;
@@ -49,8 +49,8 @@ function ensureStore(context: object): ExtensionStore {
 /**
  * Removes the extension slot from a context object.
  *
- * The slot is non-enumerable and therefore does not cross object spreads.
- * This remains available for callers that explicitly clear the original context.
+ * The symbol slot crosses object spreads while remaining absent from string-key
+ * enumeration and JSON. Callers can still explicitly clear the original context.
  */
 export function stripRuntimeContextExtensions(context: object): void {
   delete (context as ExtensibleContext)[EXTENSIONS_SLOT];

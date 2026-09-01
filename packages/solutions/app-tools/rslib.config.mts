@@ -27,6 +27,10 @@ export default defineConfig({
         // `.js`, so there the copy is the only thing providing the `.mjs`
         // loaders that `register()` resolves by name; keep it for that alone.
         copy: [
+          {
+            from: './src/plugins/deploy/platforms/templates',
+            to: './plugins/deploy/platforms/templates',
+          },
           ...(libConfig.format === 'esm'
             ? []
             : [
