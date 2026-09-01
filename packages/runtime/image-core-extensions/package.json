@@ -59,7 +59,7 @@
     },
     "./types": {
       "types": "./dist/types/env.d.ts",
-      "modern:source": "./src/env.d.ts"
+      "modern:source": "./src/env.ts"
     }
   },
   "typesVersions": {
@@ -71,11 +71,12 @@
         "./dist/types/shared/image-loader.d.ts",
         "./src/shared/image-loader.ts"
       ],
-      "types": ["./dist/types/env.d.ts", "./src/env.d.ts"]
+      "types": ["./dist/types/env.d.ts", "./src/env.ts"]
     }
   },
   "scripts": {
     "prepublishOnly": "only-allow-pnpm",
+    "pretest": "pnpm run build",
     "dev": "rslib build --watch",
     "build": "rslib build",
     "test": "rstest --passWithNoTests",

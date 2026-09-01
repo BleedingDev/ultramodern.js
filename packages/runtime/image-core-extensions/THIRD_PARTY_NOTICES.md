@@ -1,7 +1,16 @@
 # Third-party notices
 
-The in-memory image metadata parser in `src/image-size` is derived from
-`image-size` 2.0.2 and retains its MIT license:
+The plugin, loader, and shared runtime implementation is copied and adapted
+from `@rsbuild-image/core` 0.0.1-next.36 (`packages/core`) at tag
+[`v0.0.1-next.36`](https://github.com/rspack-contrib/rsbuild-image/tree/v0.0.1-next.36),
+commit `8ee6190ecc56af3cea27b780d46099b540019cfd`. Its Rspack Contrib MIT notice is
+preserved in `LICENSE`.
+
+The in-memory image metadata parser in `src/image-size` adapts `lib/**` from
+`image-size` 2.0.2 at tag
+[`v2.0.2`](https://github.com/image-size/image-size/tree/v2.0.2), commit
+`032c3347b86f09a2e16449e17537cf5e1009520c`, with additional bounds hardening.
+It retains the following MIT license:
 
 > The MIT License (MIT)
 >
