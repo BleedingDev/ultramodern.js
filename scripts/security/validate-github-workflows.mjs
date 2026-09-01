@@ -41,6 +41,7 @@ const workflowDirs = [
 ];
 
 const sensitiveWorkflowPaths = new Set([
+  '.github/workflows/bootstrap-bleedingdev-sidecars.yml',
   '.github/workflows/contract-gates.yml',
   '.github/workflows/publish-bleedingdev.yml',
   '.github/workflows/ultramodern-nightly.yml',
@@ -57,7 +58,27 @@ const sensitiveWorkflowPaths = new Set([
  *
  * @type {Array<{ file: string, rule: string, match?: string, reason: string }>}
  */
-export const ALLOWLIST = [];
+export const ALLOWLIST = [
+  {
+    file: '.github/workflows/bootstrap-bleedingdev-sidecars.yml',
+    rule: 'npm-token',
+    reason:
+      'One-time first-publication bridge; the short-lived token is scoped to one protected-environment publish step and the workflow is deleted after bootstrap.',
+  },
+  {
+    file: '.github/workflows/boundary-anti-patterns.yml',
+    rule: 'pull-request-target',
+    reason:
+      'Trusted-base orchestration selects a hosted runner before executing an external fork head; workflow permissions remain contents: read.',
+  },
+  {
+    file: '.github/workflows/boundary-anti-patterns.yml',
+    rule: 'privileged-trigger-checkout-ref',
+    match: 'github.event.pull_request.head.sha || github.sha',
+    reason:
+      'The read-only boundary job intentionally checks out the immutable fork head only after trusted-base runner selection.',
+  },
+];
 
 const shaPattern = /^[a-f0-9]{40}$/;
 
@@ -401,6 +422,7 @@ function collectPublishOutcomeErrors(workflow, relativePath) {
     'prepare-release': 'success',
     publish: 'success',
     'publish-security': 'success',
+    'publish-sidecars': 'success',
     'record-publish-outcome': 'success',
     'tractor-downstream': 'success',
     'validate-release': 'skipped',
@@ -454,12 +476,13 @@ function collectPublishOutcomeErrors(workflow, relativePath) {
 const bleedingdevPublishWorkflowPath =
   '.github/workflows/publish-bleedingdev.yml';
 
-// Consumer: publish-bleedingdev.yml — `publish` mints the npm OIDC token
-// (id-token: write) and `publish-change-record` commits the change record
-// (contents: write). No other job in the release graph may hold either.
+// Consumer: publish-bleedingdev.yml — `publish` and `publish-sidecars` mint
+// npm OIDC tokens (id-token: write), while `publish-change-record` commits the
+// change record (contents: write). No other release job may hold either.
 const bleedingdevElevatedPermissionJobs = Object.freeze([
   'publish',
   'publish-change-record',
+  'publish-sidecars',
 ]);
 const bleedingdevGuardedPermissionScopes = Object.freeze([
   'contents',
@@ -474,6 +497,7 @@ const bleedingdevPublishJobs = Object.freeze([
   'prepare-release',
   'publish',
   'publish-change-record',
+  'publish-sidecars',
   'publish-security',
   'qualify-source',
   'record-publish-outcome',

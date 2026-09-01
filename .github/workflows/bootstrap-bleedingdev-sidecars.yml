@@ -1,0 +1,158 @@
+name: Bootstrap BleedingDev Sidecars (one-time)
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type bootstrap-three-sidecars to authorize first publication"
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: bootstrap-bleedingdev-sidecars
+  cancel-in-progress: false
+
+jobs:
+  bootstrap:
+    name: Publish the three first-version sidecars
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: npm-publish
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+    if: >-
+      github.actor == github.repository_owner &&
+      github.triggering_actor == github.repository_owner &&
+      github.ref == 'refs/heads/main-ultramodern' &&
+      inputs.confirm == 'bootstrap-three-sidecars'
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        with:
+          egress-policy: audit
+
+      - name: Checkout the exact bootstrap source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Node.js 26.7.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '26.7.0'
+
+      - name: Pin npm
+        run: npm install --global npm@11.10.1 --ignore-scripts
+
+      - name: Verify sidecar behavior
+        run: |
+          set -euo pipefail
+          npm install \
+            --prefix packages/sidecar/ipx \
+            --package-lock=false \
+            --no-audit \
+            --no-fund
+          (
+            cd packages/sidecar/ipx
+            mkdir -p .verify-fixtures
+            node --input-type=module <<'NODE'
+          import sharp from 'sharp';
+          const width = 64;
+          const height = 64;
+          const data = Buffer.alloc(width * height * 3);
+          for (let y = 0; y < height; y += 1) {
+            for (let x = 0; x < width; x += 1) {
+              const offset = (y * width + x) * 3;
+              const value = ((x >> 3) + (y >> 3)) % 2 === 0 ? 32 : 224;
+              data[offset] = value;
+              data[offset + 1] = 255 - value;
+              data[offset + 2] = (x * 4 + y * 2) % 256;
+            }
+          }
+          await sharp(data, { raw: { width, height, channels: 3 } })
+            .png()
+            .toFile('.verify-fixtures/input.png');
+          NODE
+            npm run verify:sharpen -- .verify-fixtures
+          )
+          npm run verify --prefix packages/sidecar/rsbuild-image-core
+          node --input-type=module <<'NODE'
+          import { createRequire } from 'node:module';
+          import { pathToFileURL } from 'node:url';
+
+          for (const entry of [
+            './packages/sidecar/image-size/dist/index.cjs',
+            './packages/sidecar/image-size/dist/index.mjs',
+          ]) {
+            const module = entry.endsWith('.cjs')
+              ? createRequire(import.meta.url)(entry)
+              : await import(pathToFileURL(entry));
+            const invalidJpeg = Uint8Array.from([0xff, 0xd8, 0xff, 0xe0, 0, 0]);
+            try {
+              module.imageSize(invalidJpeg);
+              throw new Error(`${entry} accepted a zero-length JPEG segment`);
+            } catch (error) {
+              if (error.message !== 'Corrupt JPG, invalid segment length') {
+                throw error;
+              }
+            }
+          }
+          NODE
+
+      - name: Pack the exact package directories once
+        run: |
+          set -euo pipefail
+          mkdir -p .modern/sidecar-bootstrap
+          npm pack packages/sidecar/image-size --ignore-scripts --pack-destination .modern/sidecar-bootstrap
+          npm pack packages/sidecar/ipx --ignore-scripts --pack-destination .modern/sidecar-bootstrap
+          npm pack packages/sidecar/rsbuild-image-core --ignore-scripts --pack-destination .modern/sidecar-bootstrap
+          test -f .modern/sidecar-bootstrap/bleedingdev-image-size-2.1.0.tgz
+          test -f .modern/sidecar-bootstrap/bleedingdev-ipx-3.2.0.tgz
+          test -f .modern/sidecar-bootstrap/bleedingdev-rsbuild-image-core-0.1.0.tgz
+
+      - name: Publish the three package identities
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_BOOTSTRAP_TOKEN }}
+          NPM_CONFIG_USERCONFIG: ${{ runner.temp }}/sidecar-bootstrap.npmrc
+        run: |
+          set -euo pipefail
+          umask 077
+          trap 'rm -f "$NPM_CONFIG_USERCONFIG"' EXIT
+          cat > "$NPM_CONFIG_USERCONFIG" <<'NPMRC'
+          registry=https://registry.npmjs.org/
+          @bleedingdev:registry=https://registry.npmjs.org/
+          //registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}
+          NPMRC
+          npm publish .modern/sidecar-bootstrap/bleedingdev-image-size-2.1.0.tgz --access public --tag latest --provenance --ignore-scripts
+          npm publish .modern/sidecar-bootstrap/bleedingdev-ipx-3.2.0.tgz --access public --tag latest --provenance --ignore-scripts
+          npm publish .modern/sidecar-bootstrap/bleedingdev-rsbuild-image-core-0.1.0.tgz --access public --tag latest --provenance --ignore-scripts
+
+      - name: Verify public package identities
+        run: |
+          set -euo pipefail
+          verify() {
+            local package="$1"
+            local version="$2"
+            for _ in {1..12}; do
+              if [[ "$(npm view "$package@$version" version 2>/dev/null || true)" == "$version" ]] && \
+                 [[ "$(npm view "$package" dist-tags.latest 2>/dev/null || true)" == "$version" ]]; then
+                return 0
+              fi
+              sleep 5
+            done
+            return 1
+          }
+          verify @bleedingdev/image-size 2.1.0
+          verify @bleedingdev/ipx 3.2.0
+          verify @bleedingdev/rsbuild-image-core 0.1.0
