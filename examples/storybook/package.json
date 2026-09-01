@@ -20,7 +20,7 @@
     "@modern-js/runtime": "workspace:*",
     "@modern-js/server-runtime": "workspace:*",
     "antd": "^5.29.3",
-    "hono": "^4.11.7",
+    "hono": "^4.13.5",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "ts-node": "^10.9.2",
