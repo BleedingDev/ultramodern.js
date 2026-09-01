@@ -1,4 +1,4 @@
-import type { RuntimePlugin } from '@modern-js/runtime';
+import type { RuntimePlugin } from '@modern-js/runtime/plugin';
 import { StreamStyledExtender } from './extender/stream';
 import { StyledCollector } from './extender/string';
 

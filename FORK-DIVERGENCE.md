@@ -269,6 +269,7 @@ same-PR ownership and disposition evidence.
 | `packages/document/docs/en/components/prerequisites.mdx` | bleedingdev | Keep the documented pnpm bootstrap command aligned with the fork's generated and CI toolchain | `keep-[M]` |
 | `packages/document/docs/zh/components/prerequisites.mdx` | bleedingdev | Keep the translated pnpm bootstrap command aligned with the fork's generated and CI toolchain | `keep-[M]` |
 | `packages/toolkit/types/packages/hoist-non-react-statics.d.ts` | bleedingdev | Remove a redundant `declare` modifier from an already ambient module so the published declaration compiles under TypeScript without a diagnostic suppression | `capped-patch` + `fixed-in-fork` |
+| `packages/cli/plugin-styled-components/src/runtime.ts` | bleedingdev | Import the strongly typed runtime-plugin authoring contract so tsgo preserves the collector callback context instead of inferring an implicit `any` | `capped-patch` + `fixed-in-fork` |
 
 ### 2026-09-01 runtime cone non-shrinks
 
