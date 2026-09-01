@@ -67,8 +67,9 @@ describe('@modern-js/image-core-extensions public package surface', () => {
 
       expect(result.outputFiles).toHaveLength(1);
       expect(result.outputFiles[0].text).not.toMatch(/(?:node:|createRequire)/);
-      expect(Object.values(result.metafile.outputs).flatMap(output => output.imports))
-        .toEqual([]);
+      expect(
+        Object.values(result.metafile.outputs).flatMap(output => output.imports),
+      ).toEqual([]);
     },
   );
 });
