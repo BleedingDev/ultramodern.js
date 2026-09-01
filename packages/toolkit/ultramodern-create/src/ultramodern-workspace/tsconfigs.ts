@@ -1,10 +1,5 @@
 import path from 'node:path';
-import {
-  appHasApi,
-  resolveRemoteRefs,
-  sharedPackages,
-  verticalApiApps,
-} from './descriptors';
+import { appHasApi, resolveRemoteRefs, sharedPackages } from './descriptors';
 import { effectDiagnostics } from './effect-diagnostics';
 import { relativeRootFor } from './naming';
 import type { JsonValue, WorkspaceApp } from './types';
@@ -123,12 +118,13 @@ export function createAppTsConfig(
   app: WorkspaceApp,
   remotes: WorkspaceApp[] = [],
 ): JsonValue {
-  const appRemotes = resolveRemoteRefs(app, remotes);
   const references = [
     ...sharedPackages.map(sharedPackage => sharedPackage.directory),
+    // Federation hosts resolve remote package exports directly to source.
+    // Project references would require declaration output before host builds.
     ...(app.kind === 'shell'
-      ? verticalApiApps(appRemotes).map(remote => remote.directory)
-      : appRemotes.map(remote => remote.directory)),
+      ? []
+      : resolveRemoteRefs(app, remotes).map(remote => remote.directory)),
   ];
   return createPackageTsConfig(app.directory, {
     includeApi: appHasApi(app),

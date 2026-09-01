@@ -809,6 +809,13 @@ test('generated workspace scripts execute the complete ordered command plan and 
       modernVersion: '3.2.1',
     });
 
+    const rootPackage = readJson(workspaceDir, 'package.json');
+    assert.equal(
+      rootPackage.scripts.typecheck,
+      'node ./scripts/ultramodern-typecheck.mts --project tsconfig.json',
+      'root typecheck must preserve strict project-mode checking',
+    );
+
     assertGeneratedWorkspaceScriptBehavior(workspaceDir, tempRoot);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });

@@ -2881,7 +2881,7 @@ test('compact UltraModern config maps component exposes to concrete DTS source f
   );
 });
 
-test('generated app tsconfig uses sibling-relative vertical references', () => {
+test('generated app tsconfig keeps shells independent from remote declaration output', () => {
   const apps = workspaceAppsFromToolingConfig({
     schemaVersion: 1,
     source: 'compact',
@@ -2935,11 +2935,21 @@ test('generated app tsconfig uses sibling-relative vertical references', () => {
       ],
     },
   });
+  const remotes = apps.filter(app => app.kind !== 'shell');
+  const shell = apps.find(app => app.id === 'shell-super-app');
   const checkout = apps.find(app => app.id === 'checkout');
-  const checkoutTsConfig = createAppTsConfig(
-    checkout!,
-    apps.filter(app => app.kind !== 'shell'),
-  ) as Record<string, unknown>;
+  const shellTsConfig = createAppTsConfig(shell!, remotes) as Record<
+    string,
+    unknown
+  >;
+  const checkoutTsConfig = createAppTsConfig(checkout!, remotes) as Record<
+    string,
+    unknown
+  >;
+  assert.deepEqual(shellTsConfig.references, [
+    { path: '../../packages/shared-contracts' },
+    { path: '../../packages/shared-design-tokens' },
+  ]);
   assert.deepEqual(checkoutTsConfig.include, [
     'src',
     'locales/**/*.json',

@@ -2713,18 +2713,7 @@ const assertTsConfigReferenceGraph = () => {
     ...fullStackVerticals.map(vertical => vertical.path),
     ...additionalShellPaths,
   ].map(referencePath => ({ path: referencePath }));
-  const expectedShellReferences = [
-    ...sharedPackagePaths,
-    ...(topology.shell?.verticalRefs ?? [])
-      .map(verticalRef =>
-        fullStackVerticals.find(candidate => candidate.id === verticalRef),
-      )
-      .filter(Boolean)
-      // The shell only project-references verticals whose API client types it
-      // imports; UI-only remotes are federated at runtime, not type-referenced.
-      .filter(vertical => vertical.emitsApi)
-      .map(vertical => vertical.path),
-  ].map(referencePath =>
+  const expectedShellReferences = sharedPackagePaths.map(referencePath =>
     referenceFrom('apps/shell-super-app', referencePath),
   );
 
@@ -2833,15 +2822,9 @@ const assertTsConfigReferenceGraph = () => {
     const shellMfTypesTsConfig = readJson(
       `${shell.path}/tsconfig.mf-types.json`,
     );
-    const expectedShellReferences = [
-      ...sharedPackagePaths,
-      ...(shell.verticalRefs ?? [])
-        .map(verticalRef =>
-          fullStackVerticals.find(candidate => candidate.id === verticalRef),
-        )
-        .filter(Boolean)
-        .map(referencedVertical => referencedVertical.path),
-    ].map(referencePath => referenceFrom(shell.path, referencePath));
+    const expectedShellReferences = sharedPackagePaths.map(referencePath =>
+      referenceFrom(shell.path, referencePath),
+    );
     assertSameJson(
       shellTsConfig.references ?? [],
       expectedShellReferences,

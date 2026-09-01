@@ -290,7 +290,6 @@ test('generated workspace file manifest matches the checked-in snapshot', () => 
       [
         '.modernjs/ultramodern.json',
         'apps/shell-super-app/package.json',
-        'apps/shell-super-app/tsconfig.json',
         'apps/shell-super-app/src/api/vertical-clients.ts',
         'apps/shell-super-app/src/routes/vertical-components.tsx',
         'apps/shell-super-app/src/routes/vertical-components.worker.tsx',
@@ -303,6 +302,12 @@ test('generated workspace file manifest matches the checked-in snapshot', () => 
         verticalResult.rewrittenPaths.includes(relativePath),
       ),
       'MicroVertical result must report rewritten shell/topology integration surfaces',
+    );
+    assert.ok(
+      !verticalResult.rewrittenPaths.includes(
+        'apps/shell-super-app/tsconfig.json',
+      ),
+      'adding a remote must not couple the shell to remote declaration output',
     );
     assert.deepEqual(verticalResult.createdApps, [
       {
