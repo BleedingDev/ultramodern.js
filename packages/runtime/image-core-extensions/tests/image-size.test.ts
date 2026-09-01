@@ -28,6 +28,12 @@ function u32(value: number): Uint8Array {
   return bytes;
 }
 
+function u16(value: number): Uint8Array {
+  const bytes = new Uint8Array(2);
+  new DataView(bytes.buffer).setUint16(0, value);
+  return bytes;
+}
+
 function u64(value: bigint): Uint8Array {
   const bytes = new Uint8Array(8);
   new DataView(bytes.buffer).setBigUint64(0, value);
@@ -185,6 +191,83 @@ describe('bounds-safe image metadata parsing', () => {
 
     expect(findBox(input, 'want', 0, inside.length)).toBeUndefined();
   });
+
+  it('ignores truncated EXIF metadata and continues to a valid JPEG frame', () => {
+    const input = concat(
+      Uint8Array.of(0xff, 0xd8, 0xff, 0xe1),
+      u16(18),
+      ascii('Exif\0\0'),
+      Uint8Array.of(0x4d, 0x4d, 0, 0x2a),
+      u32(8),
+      u16(1),
+      Uint8Array.of(0xff, 0xc0),
+      u16(11),
+      Uint8Array.of(8),
+      u16(9),
+      u16(7),
+      Uint8Array.of(1, 1, 0x11, 0),
+    );
+
+    expect(imageSize(input)).toEqual({ height: 9, type: 'jpg', width: 7 });
+  });
+
+  it('reads JPEG orientation from the TIFF-declared IFD offset', () => {
+    const exif = concat(
+      ascii('Exif\0\0'),
+      Uint8Array.of(0x4d, 0x4d, 0, 0x2a),
+      u32(16),
+      new Uint8Array(8),
+      u16(1),
+      Uint8Array.of(0x01, 0x12, 0, 3),
+      u32(1),
+      Uint8Array.of(0, 6, 0, 0),
+    );
+    const input = concat(
+      Uint8Array.of(0xff, 0xd8, 0xff, 0xe1),
+      u16(exif.length + 2),
+      exif,
+      Uint8Array.of(0xff, 0xc0),
+      u16(11),
+      Uint8Array.of(8),
+      u16(9),
+      u16(7),
+      Uint8Array.of(1, 1, 0x11, 0),
+    );
+
+    expect(imageSize(input)).toEqual({
+      height: 9,
+      orientation: 6,
+      type: 'jpg',
+      width: 7,
+    });
+  });
+
+  it('accepts legal JPEG marker fill before a frame header', () => {
+    const input = Uint8Array.of(
+      0xff,
+      0xd8,
+      0xff,
+      0xe0,
+      0,
+      2,
+      0xff,
+      0xff,
+      0xc0,
+      0,
+      11,
+      8,
+      0,
+      9,
+      0,
+      7,
+      1,
+      1,
+      0x11,
+      0,
+    );
+
+    expect(imageSize(input)).toEqual({ height: 9, type: 'jpg', width: 7 });
+  });
 });
 
 describe('HEIF bounds', () => {
@@ -232,6 +315,15 @@ describe('HEIF bounds', () => {
 });
 
 describe('JP2 bounds', () => {
+  it('rejects a forged JP2 signature payload', () => {
+    const input = concat(
+      box('jP  ', new Uint8Array(4)),
+      box('ftyp', concat(ascii('jp2 '), u32(0), ascii('jp2 '))),
+    );
+
+    expect(JP2.validate(input)).toBe(false);
+  });
+
   it('parses normal and extended ihdr boxes inside jp2h', () => {
     expect(JP2.calculate(jp2(ihdr(7, 9)))).toEqual({ height: 9, width: 7 });
     expect(JP2.calculate(jp2(ihdr(11, 13, true), true))).toEqual({
