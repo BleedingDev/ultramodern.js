@@ -22,7 +22,8 @@ function createFederatedI18nSetup(
 ): string {
   const namespace = appI18nNamespace(app);
 
-  return `import { FederatedI18nBoundary, useModernI18n } from '@modern-js/plugin-i18n/runtime';
+  return `import type { JSX } from 'react';
+import { FederatedI18nBoundary, useModernI18n } from '@modern-js/plugin-i18n/runtime/consumer';
 import csResource from '${localeRoot}/cs/${namespace}.json';
 import enResource from '${localeRoot}/en/${namespace}.json';
 
@@ -340,7 +341,7 @@ export function createRemotePage(app: WorkspaceApp): string {
   const rpcApi = resolveApiProtocol(app) === 'rpc';
   const apiImport = appHasApi(app)
     ? rpcApi
-      ? `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
+      ? `import { useModernI18n } from '@modern-js/plugin-i18n/runtime/consumer';
 import { Link } from '@modern-js/plugin-tanstack/runtime';
 import { useEffect, useState } from 'react';
 import {
@@ -350,7 +351,7 @@ import {
 import { UltramodernRouteHead } from '../ultramodern-route-head';
 import { ultramodernUiMarker } from '../../ultramodern-build';
 `
-      : `import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
+      : `import { useModernI18n } from '@modern-js/plugin-i18n/runtime/consumer';
 import { Link } from '@modern-js/plugin-tanstack/runtime';
 import { useEffect, useState } from 'react';
 import {
@@ -361,7 +362,7 @@ import {
 import { UltramodernRouteHead } from '../ultramodern-route-head';
 import { ultramodernUiMarker } from '../../ultramodern-build';
 `
-    : "import { useModernI18n } from '@modern-js/plugin-i18n/runtime';\nimport { Link } from '@modern-js/plugin-tanstack/runtime';\nimport { UltramodernRouteHead } from '../ultramodern-route-head';\nimport { ultramodernUiMarker } from '../../ultramodern-build';\n";
+    : "import { useModernI18n } from '@modern-js/plugin-i18n/runtime/consumer';\nimport { Link } from '@modern-js/plugin-tanstack/runtime';\nimport { UltramodernRouteHead } from '../ultramodern-route-head';\nimport { ultramodernUiMarker } from '../../ultramodern-build';\n";
   const apiState = appHasApi(app)
     ? `  const [apiStatus, setApiStatus] = useState('pending');
 
@@ -461,7 +462,9 @@ const ${componentName}Content = () => {
   );
 };
 
-export default function ${componentName}() {
+export default function ${componentName}(props: Record<string, never>): JSX.Element {
+  void props;
+
   return (
     ${createFederatedI18nBoundary(namespace, `<${componentName}Content />`)}
   );
@@ -488,7 +491,9 @@ const ${componentName}Content = () => {
   );
 };
 
-export default function ${componentName}() {
+export default function ${componentName}(props: Record<string, never>): JSX.Element {
+  void props;
+
   return (
     ${createFederatedI18nBoundary(namespace, `<${componentName}Content />`)}
   );
@@ -563,7 +568,9 @@ const ${componentName}Content = () => {
   );
 };
 
-export default function ${componentName}() {
+export default function ${componentName}(props: Record<string, never>): JSX.Element {
+  void props;
+
   return (
     ${createFederatedI18nBoundary(namespace, `<${componentName}Content />`)}
   );

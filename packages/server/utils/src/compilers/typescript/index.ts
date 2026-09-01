@@ -40,6 +40,7 @@ type NativePreviewPackageJson = {
   bin?:
     | string
     | {
+        tsc?: string;
         tsgo?: string;
       };
 };
@@ -217,7 +218,7 @@ const getTsgoBinEntry = (pkg: NativePreviewPackageJson) => {
   if (typeof pkg.bin === 'string') {
     return pkg.bin;
   }
-  return pkg.bin?.tsgo;
+  return pkg.bin?.tsc ?? pkg.bin?.tsgo;
 };
 
 const resolveTsgoBinPath = (pkgPath: string) => {
@@ -243,13 +244,20 @@ export const getTsgoBinPath = (
   resolvePaths: string[] = [appDirectory, __dirname],
 ) => {
   try {
-    const pkgPath = require.resolve('@typescript/native-preview/package.json', {
-      paths: resolvePaths,
-    });
+    let pkgPath: string;
+    try {
+      pkgPath = require.resolve('@typescript/native/package.json', {
+        paths: resolvePaths,
+      });
+    } catch {
+      pkgPath = require.resolve('@typescript/native-preview/package.json', {
+        paths: resolvePaths,
+      });
+    }
     return resolveTsgoBinPath(pkgPath);
   } catch {
     throw new Error(
-      'tsgo could not be found! Please install "@typescript/native-preview" in your project to compile BFF/server code.',
+      'tsgo could not be found! Please install "@typescript/native" (or legacy "@typescript/native-preview") in your project to compile BFF/server code.',
     );
   }
 };

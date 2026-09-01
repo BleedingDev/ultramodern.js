@@ -18,6 +18,9 @@ function resolveTsgoBin() {
 }
 
 const tsgoBin = resolveTsgoBin();
+const useShell = process.platform === 'win32';
+const execOptions = { cwd: path.dirname(__dirname), shell: useShell };
+execFileSync('pnpm', ['build'], execOptions);
 
 describe('Link type-level tests', () => {
   test('fixture type-checks correctly: valid uses compile, invalid uses are rejected', () => {
@@ -35,5 +38,22 @@ describe('Link type-level tests', () => {
       const stderr = e?.stderr ? String(e.stderr) : '';
       throw new Error(`TypeScript type-check failed:\n${stdout}\n${stderr}`);
     }
+  }, 60_000);
+
+  test('consumer declarations avoid toolchain internals', () => {
+    const output = execFileSync(process.execPath, [
+      tsgoBin,
+      '--ignoreConfig',
+      '--listFilesOnly',
+      '--module',
+      'preserve',
+      '--moduleResolution',
+      'bundler',
+      path.resolve(__dirname, '../dist/types/runtime/context.d.ts'),
+    ]);
+    const files = output.toString().replaceAll('\\', '/');
+    expect(files).not.toMatch(
+      /\/packages\/(cli|runtime\/plugin-runtime\/dist\/types|solutions\/app-tools|toolkit\/(types|utils))\//u,
+    );
   }, 60_000);
 });

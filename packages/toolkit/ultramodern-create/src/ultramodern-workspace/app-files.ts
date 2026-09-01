@@ -91,7 +91,8 @@ export function createAppRuntimeConfig(
   const routeNamespace = emitsUi ? 'ultramodernRouteNamespace' : "'api'";
 
   return `import { defineRuntimeConfig } from '@modern-js/runtime';
-${app.kind === 'shell' ? "import { ultramodernBoundaryDebuggerPlugin } from '@modern-js/runtime/boundary-debugger';\n" : ''}import { createInstance } from 'i18next';
+${app.kind === 'shell' ? "import { ultramodernBoundaryDebuggerPlugin } from '@modern-js/runtime/boundary-debugger';\n" : ''}import type { I18nInstance } from '@modern-js/plugin-i18n/runtime';
+import { createInstance } from 'i18next';
 import csResource from '../locales/cs/${appI18nNamespace(app)}.json';
 import enResource from '../locales/en/${appI18nNamespace(app)}.json';
 ${routeMetadataImport}
@@ -124,7 +125,7 @@ const resources = {
 
 export default defineRuntimeConfig({
   i18n: {
-    i18nInstance,
+    i18nInstance: i18nInstance as I18nInstance,
     initOptions: {
       defaultNS: ${routeNamespace},
       fallbackLng: 'en',

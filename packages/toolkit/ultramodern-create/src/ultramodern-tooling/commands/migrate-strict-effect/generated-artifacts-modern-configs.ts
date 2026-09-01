@@ -127,6 +127,18 @@ function addPreviousTailwindOptimizationOverride(source: string) {
   );
 }
 
+function removeTsCheckerBuildOverride(source: string) {
+  return source.replace(
+    `        tsChecker: {
+          typescript: {
+            build: false,
+          },
+        },
+`,
+    '',
+  );
+}
+
 export function updateGeneratedModernConfigs(
   io: MigrationIo,
   config: UltramodernToolingConfig,
@@ -169,13 +181,19 @@ export function updateGeneratedModernConfigs(
     );
     const previousTailwindModernConfig =
       addPreviousTailwindOptimizationOverride(rawGeneratedModernConfig);
+    const currentGeneratedModernConfigs = [
+      rawGeneratedModernConfig,
+      addLegacyGeneratedModernDefaults(rawGeneratedModernConfig),
+      previousTailwindModernConfig,
+      addLegacyGeneratedModernDefaults(previousTailwindModernConfig),
+    ];
     const [generatedModernConfig, ...recognizedGeneratedModernConfigs] =
-      formatGeneratedModernConfigCandidates([
-        rawGeneratedModernConfig,
-        addLegacyGeneratedModernDefaults(rawGeneratedModernConfig),
-        previousTailwindModernConfig,
-        addLegacyGeneratedModernDefaults(previousTailwindModernConfig),
-      ]);
+      formatGeneratedModernConfigCandidates(
+        currentGeneratedModernConfigs.flatMap(source => [
+          source,
+          removeTsCheckerBuildOverride(source),
+        ]),
+      );
     if (!fs.existsSync(modernConfigPath)) {
       io.writeGenerated(modernConfigPath, generatedModernConfig);
     } else {

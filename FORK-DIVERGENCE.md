@@ -281,6 +281,10 @@ and disposition evidence.
 | --- | --- | --- | --- |
 | `packages/runtime/plugin-runtime/src/router/runtime/PrefetchLink.tsx` | bleedingdev | Read the Webpack-supplied `__webpack_public_path__` magic global inside `try`/`catch` so a non-Webpack realm returns an empty public path instead of throwing a `ReferenceError` on an undeclared identifier; RT-09 prefetch behavior is unchanged and RT-07/RT-08 remain scheduled | `capped-patch` + `fix` |
 | `packages/runtime/plugin-runtime/tests/router/prefetch.test.tsx` | bleedingdev | Extend the audited-base-owned router prefetch regression to cover the non-Webpack realm so the `PrefetchLink.tsx` public-path guard cannot regress silently | `capped-patch` + `fix` |
+| `packages/server/utils/src/compilers/typescript/index.ts` | bleedingdev | Resolve the generated stable `@typescript/native` alias and its `bin.tsc` entry before retaining the legacy native-preview fallback, so BFF/server compilation uses the compiler identity emitted by the UltraModern generator | `capped-patch` + `fixed-in-fork` |
+| `packages/server/utils/tests/tsgo.test.ts` | bleedingdev | Pin stable `@typescript/native` binary resolution while preserving the existing native-preview compatibility regressions | `capped-patch` + `fixed-in-fork` |
+| `packages/runtime/plugin-i18n/package.json` | bleedingdev | Expose consumer-only i18n runtime declarations, including the generated no-react-i18next alias shape, so federated declaration generation does not enter plugin-authoring and build-tool declarations | `capped-patch` + `fixed-in-fork` |
+| `packages/runtime/plugin-i18n/tests/linkTypes.test.ts` | bleedingdev | Compile the emitted consumer declaration graph under tsgo and reject any path back into builder, app-tools, runtime-plugin internals, or toolkit utility declarations | `capped-patch` + `fixed-in-fork` |
 
 ### 2026-09-01 skill-suite anchor repair
 

@@ -46,12 +46,26 @@
       },
       "default": "./dist/esm/runtime/index.mjs"
     },
+    "./runtime/consumer": {
+      "types": "./dist/types/runtime/context.d.ts",
+      "node": {
+        "module": "./dist/esm/runtime/context.mjs"
+      },
+      "default": "./dist/esm/runtime/context.mjs"
+    },
     "./runtime/no-react-i18next": {
       "types": "./dist/types/runtime/no-react-i18next.d.ts",
       "node": {
         "module": "./dist/esm/runtime/no-react-i18next.mjs"
       },
       "default": "./dist/esm/runtime/no-react-i18next.mjs"
+    },
+    "./runtime/no-react-i18next/consumer": {
+      "types": "./dist/types/runtime/context.d.ts",
+      "node": {
+        "module": "./dist/esm/runtime/context.mjs"
+      },
+      "default": "./dist/esm/runtime/context.mjs"
     },
     "./server": {
       "types": "./dist/types/server/index.d.ts",
@@ -77,8 +91,14 @@
       "runtime": [
         "./dist/types/runtime/index.d.ts"
       ],
+      "runtime/consumer": [
+        "./dist/types/runtime/context.d.ts"
+      ],
       "runtime/no-react-i18next": [
         "./dist/types/runtime/no-react-i18next.d.ts"
+      ],
+      "runtime/no-react-i18next/consumer": [
+        "./dist/types/runtime/context.d.ts"
       ],
       "server": [
         "./dist/types/server/index.d.ts"

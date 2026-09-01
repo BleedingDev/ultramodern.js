@@ -20,7 +20,20 @@ describe('getTsgoBinPath', () => {
     await fs.remove(tmpDir);
   });
 
-  it('prefers the app-local @typescript/native-preview install', async () => {
+  it('prefers the app-local @typescript/native install', async () => {
+    const pkgDir = path.join(tmpDir, 'node_modules/@typescript/native');
+    await fs.outputJSON(path.join(pkgDir, 'package.json'), {
+      name: 'typescript',
+      version: '7.0.0-test',
+      exports: { './package.json': './package.json' },
+      bin: { tsc: './bin/tsc' },
+    });
+    await fs.outputFile(path.join(pkgDir, 'bin/tsc'), '// stub\n');
+
+    expect(getTsgoBinPath(tmpDir)).toBe(path.join(pkgDir, 'bin/tsc'));
+  });
+
+  it('supports app-local @typescript/native-preview installs', async () => {
     const pkgDir = path.join(tmpDir, 'node_modules/@typescript/native-preview');
     await fs.outputJSON(path.join(pkgDir, 'package.json'), {
       name: '@typescript/native-preview',
@@ -60,7 +73,7 @@ describe('getTsgoBinPath', () => {
 
   it('throws an actionable error when tsgo cannot be resolved anywhere', () => {
     expect(() => getTsgoBinPath(tmpDir, [tmpDir])).toThrow(
-      /Please install "@typescript\/native-preview"/,
+      /Please install "@typescript\/native"/,
     );
   });
 });

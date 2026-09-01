@@ -62,6 +62,18 @@ function snapshotWorkspace(directory: string, root = directory) {
   return snapshot;
 }
 
+function removeTsCheckerBuildOverride(source: string) {
+  return source.replace(
+    `        tsChecker: {
+          typescript: {
+            build: false,
+          },
+        },
+`,
+    '',
+  );
+}
+
 function addLegacyGeneratedDefaults(source: string) {
   const serverAnchor = "        publicDir: ['./locales', './assets'],\n";
   const withLegacySsr = source.replace(
@@ -105,11 +117,18 @@ test('migrate converges the published .15 generated Tailwind config to native de
       'apps/shell-super-app/modern.config.ts',
     );
     const currentGeneratedConfig = fs.readFileSync(modernConfigPath, 'utf-8');
-    const predecessorGeneratedConfig = currentGeneratedConfig.replace(
-      'pluginTailwindcss()',
-      'pluginTailwindcss({ optimize: false })',
+    assert.match(
+      currentGeneratedConfig,
+      /tsChecker:\s*\{\s*typescript:\s*\{\s*build: false,/u,
+    );
+    const predecessorGeneratedConfig = removeTsCheckerBuildOverride(
+      currentGeneratedConfig.replace(
+        'pluginTailwindcss()',
+        'pluginTailwindcss({ optimize: false })',
+      ),
     );
     assert.notEqual(predecessorGeneratedConfig, currentGeneratedConfig);
+    assert.doesNotMatch(predecessorGeneratedConfig, /tsChecker/u);
     fs.writeFileSync(
       modernConfigPath,
       addLegacyGeneratedDefaults(predecessorGeneratedConfig),
@@ -164,11 +183,14 @@ test('migrate preserves an unmarked consumer Modern config while updating genera
       'apps/shell-super-app/modern.config.ts',
     );
     const generatedModernConfig = fs.readFileSync(modernConfigPath, 'utf-8');
-    const predecessorGeneratedConfig = generatedModernConfig.replace(
-      'pluginTailwindcss()',
-      'pluginTailwindcss({ optimize: false })',
+    const predecessorGeneratedConfig = removeTsCheckerBuildOverride(
+      generatedModernConfig.replace(
+        'pluginTailwindcss()',
+        'pluginTailwindcss({ optimize: false })',
+      ),
     );
     assert.notEqual(predecessorGeneratedConfig, generatedModernConfig);
+    assert.doesNotMatch(predecessorGeneratedConfig, /tsChecker/u);
     const consumerModernConfig = predecessorGeneratedConfig
       .replace(
         "import { i18nPlugin } from '@modern-js/plugin-i18n';",
