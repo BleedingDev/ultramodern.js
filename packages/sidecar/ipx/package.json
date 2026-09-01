@@ -3,7 +3,11 @@
   "version": "3.2.0",
   "description": "UltraModern sidecar fork of ipx: high performance, secure and easy-to-use image optimizer, built against sharp ^0.35.3.",
   "license": "MIT",
-  "repository": "unjs/ipx",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BleedingDev/ultramodern.js.git",
+    "directory": "packages/sidecar/ipx"
+  },
   "publishConfig": {
     "registry": "https://registry.npmjs.org/",
     "access": "public"

@@ -10,7 +10,8 @@
   "author": "Rspack Contrib",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/rspack-contrib/rsbuild-image.git"
+    "url": "git+https://github.com/BleedingDev/ultramodern.js.git",
+    "directory": "packages/sidecar/rsbuild-image-core"
   },
   "exports": {
     ".": {

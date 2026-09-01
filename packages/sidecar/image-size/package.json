@@ -71,7 +71,8 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git://github.com/image-size/image-size.git"
+    "url": "git+https://github.com/BleedingDev/ultramodern.js.git",
+    "directory": "packages/sidecar/image-size"
   },
   "author": "netroy <aditya@netroy.in> (http://netroy.in/)",
   "license": "MIT",
