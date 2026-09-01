@@ -234,6 +234,7 @@ function readReleaseManifest({ manifestPath }) {
     artifactRoot,
     source: Object.freeze({ ...verified.manifest.source }),
     release: Object.freeze({ ...verified.manifest.release }),
+    sidecars: verified.sidecars,
     tools: Object.freeze({ ...verified.manifest.tools }),
     aliases: Object.freeze({ ...verified.manifest.aliases }),
     dependencyGraph: Object.freeze({ ...verified.manifest.dependencyGraph }),

@@ -222,7 +222,11 @@ async function runPrepublish({ release, options, runIdentity }) {
   );
   let registry;
   try {
-    registry = await startEphemeralRegistry({ release, rootDir: registryRoot });
+    registry = await startEphemeralRegistry({
+      release,
+      releaseDir: options.releaseDir,
+      rootDir: registryRoot,
+    });
     return await executeAcceptanceProfile({
       mode: 'source',
       release,

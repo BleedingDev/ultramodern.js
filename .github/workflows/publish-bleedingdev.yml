@@ -12,8 +12,9 @@ on:
         type: boolean
         default: false
 
-# id-token: write (OIDC for npm trusted publishing) is granted only on the
-# publish job below; every other job runs read-only.
+# id-token: write (OIDC for npm trusted publishing) is granted only on the two
+# jobs that reach the registry with publish authority - publish-sidecars and
+# publish - and never through a token secret; every other job runs read-only.
 permissions:
   contents: read
   actions: read
@@ -279,9 +280,28 @@ jobs:
           PUBLISH_VERSION: ${{ inputs.version }}
           PUBLISH_TAG: ${{ env.BLEEDINGDEV_PUBLISH_TAG }}
         run: |
+          # --include-sidecars stages the version-preserving @bleedingdev
+          # sidecars beside the cohort (own stable versions, own scope, never
+          # rewritten) and validates that every npm: alias literal in the staged
+          # cohort names a sidecar this run actually stages, at that exact
+          # version. It packs each sidecar once, records its exact digests in
+          # sidecars.json, and binds that manifest into manifest.json and the cohort
+          # digest. Staging-only by construction: the
+          # CLI refuses --include-sidecars together with a publish flag.
           mise exec -- pnpm ultramodern:prepare-bleedingdev-publish -- \
             --version "$PUBLISH_VERSION" \
-            --tag "$PUBLISH_TAG"
+            --tag "$PUBLISH_TAG" \
+            --include-sidecars
+
+      # Offline: fails the producer if the staged sidecar lane is malformed,
+      # mis-ordered, or not addressed at the cohort package that aliases it, so
+      # a broken lane never reaches an OIDC-bearing job.
+      - name: Verify the staged sidecar publication lane
+        run: |
+          node scripts/ultramodern-publish/publish-sidecars.mjs \
+            --check-staging \
+            --out "$BLEEDINGDEV_RELEASE_DIR" \
+            --tag "$BLEEDINGDEV_PUBLISH_TAG"
 
       - name: Verify release bundle output shape
         run: |
@@ -327,6 +347,8 @@ jobs:
             .modern/bleedingdev-publish/manifest.json.sha256
             .modern/bleedingdev-publish/cohort.sha256
             .modern/bleedingdev-publish/tarballs/*.tgz
+            .modern/bleedingdev-publish/sidecars.json
+            .modern/bleedingdev-publish/sidecar-tarballs/*.tgz
           if-no-files-found: error
           include-hidden-files: true
 
@@ -517,6 +539,106 @@ jobs:
             --tag "$PUBLISH_TAG" \
             --publish-concurrency "$PUBLISH_CONCURRENCY"
 
+      # The same registry reconciliation publish-sidecars performs, without
+      # publishing and without OIDC: a dry run reports what the sidecar lane
+      # would do and fails closed on any registry content/version mismatch.
+      - name: Validate the sidecar publication lane against the registry
+        run: |
+          node scripts/ultramodern-publish/publish-sidecars.mjs \
+            --dry-run \
+            --out "$BLEEDINGDEV_RELEASE_DIR" \
+            --tag "$BLEEDINGDEV_PUBLISH_TAG"
+
+  # Sidecars are NOT cohort members: they keep their own stable versions and
+  # their own scope, and they are published from this dedicated job strictly
+  # BEFORE the cohort. @bleedingdev/modern-js-image pins them through
+  # `npm:@bleedingdev/<name>@<exact version>` alias specifiers, which npm can
+  # only resolve once those exact versions exist on the registry. `publish`
+  # declares this job in `needs`, so a failed or skipped sidecar publication
+  # makes the cohort publish unreachable rather than shipping a cohort whose
+  # image package cannot install. Trusted publishing only: id-token: write and
+  # the npm-publish environment, no token secret.
+  publish-sidecars:
+    name: Publish the stable sidecars before the cohort
+    runs-on: ubuntu-latest
+    environment: npm-publish
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+    timeout-minutes: 45
+    if: >-
+      github.actor == github.repository_owner &&
+      github.triggering_actor == github.repository_owner &&
+      github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern') &&
+      inputs.dry_run == false
+    needs:
+      - publish-security
+      - qualify-source
+      - accept-release
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        with:
+          egress-policy: audit
+
+      - name: Checkout exact-artifact sidecar publish CLI
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Node.js 26.7.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '26.7.0'
+
+      - name: Download accepted release bundle
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          github-token: ${{ github.token }}
+          name: ${{ env.BLEEDINGDEV_RELEASE_BUNDLE_ARTIFACT }}-${{ needs.accept-release.outputs.producer_artifact_identity }}
+          path: .modern/bleedingdev-publish
+          repository: ${{ github.repository }}
+          run-id: ${{ github.run_id }}
+
+      - name: Download release acceptance receipt
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          github-token: ${{ github.token }}
+          name: ${{ env.BLEEDINGDEV_RELEASE_ACCEPTANCE_ARTIFACT }}-${{ needs.accept-release.outputs.producer_artifact_identity }}
+          path: .modern/bleedingdev-publish
+          repository: ${{ github.repository }}
+          run-id: ${{ github.run_id }}
+
+      - name: Verify exact release acceptance receipt
+        run: |
+          node scripts/ultramodern-publish/run-release-acceptance.mjs \
+            --verify-receipt \
+            --manifest "$BLEEDINGDEV_RELEASE_MANIFEST" \
+            --scale-profile erp-10 \
+            --receipt "$BLEEDINGDEV_RELEASE_ACCEPTANCE_RECEIPT" \
+            --run-identity "${{ needs.accept-release.outputs.producer_run_identity }}"
+
+          node scripts/ultramodern-production-readiness/published-create-proof/acceptance-receipt.mjs \
+            --verify \
+            --manifest "$BLEEDINGDEV_RELEASE_MANIFEST" \
+            --receipt "$BLEEDINGDEV_RELEASE_ACCEPTANCE_RECEIPT" \
+            --run-identity "${{ needs.accept-release.outputs.producer_run_identity }}"
+
+      - name: Publish the staged sidecars in alias order
+        run: |
+          # Publish the exact tarball bytes bound by the accepted release identity.
+          # An already-published version is reused only when registry integrity
+          # and shasum match those accepted bytes, so a re-run after a mid-lane
+          # failure converges. Every other registry state - byte drift on that
+          # version, a dist-tag pointing
+          # elsewhere, a version the dist-tag claims but the registry lacks, a
+          # backwards republish - fails the job and therefore the cohort.
+          node scripts/ultramodern-publish/publish-sidecars.mjs \
+            --out "$BLEEDINGDEV_RELEASE_DIR" \
+            --tag "$BLEEDINGDEV_PUBLISH_TAG"
+
   publish:
     name: Publish accepted @bleedingdev tarballs
     runs-on: ubuntu-latest
@@ -537,6 +659,10 @@ jobs:
       - publish-security
       - qualify-source
       - accept-release
+      # Hard ordering gate: the cohort's @bleedingdev/modern-js-image aliases
+      # resolve only after these exact sidecar versions are on the registry.
+      # A failed or skipped publish-sidecars makes this job unreachable.
+      - publish-sidecars
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
@@ -971,6 +1097,7 @@ jobs:
       - publish-security
       - accept-release
       - validate-release
+      - publish-sidecars
       - publish
       - accept-published
       - tractor-downstream
@@ -980,8 +1107,8 @@ jobs:
       github.triggering_actor == github.repository_owner &&
       github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern') &&
       (
-        (inputs.dry_run == true && needs.validate-release.result == 'success' && needs.publish.result == 'skipped') ||
-        (inputs.dry_run == false && needs.publish.result == 'success' && needs.accept-published.result == 'success' && needs.tractor-downstream.result == 'success' && needs.validate-release.result == 'skipped')
+        (inputs.dry_run == true && needs.validate-release.result == 'success' && needs.publish-sidecars.result == 'skipped' && needs.publish.result == 'skipped') ||
+        (inputs.dry_run == false && needs.publish-sidecars.result == 'success' && needs.publish.result == 'success' && needs.accept-published.result == 'success' && needs.tractor-downstream.result == 'success' && needs.validate-release.result == 'skipped')
       )
     env:
       DRY_RUN: ${{ inputs.dry_run }}

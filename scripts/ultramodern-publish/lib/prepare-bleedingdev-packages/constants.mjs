@@ -40,7 +40,10 @@ const retiredBleedingdevCreateTargetName = '@bleedingdev/modern-js-create';
 // they keep their own stable versions and their own npm scope.
 const sidecarScope = '@bleedingdev';
 const sidecarStagingDirectory = 'sidecars';
+const sidecarTarballsDirectory = 'sidecar-tarballs';
 const sidecarManifestFile = 'sidecars.json';
+const sidecarManifestSchema = 'bleedingdev.ultramodern.sidecar-manifest';
+const sidecarManifestSchemaVersion = 2;
 const sidecarAliasConsumerTargetName = '@bleedingdev/modern-js-image';
 
 const createTemplateRequiredFiles = [
@@ -63,8 +66,11 @@ export {
   repoRoot,
   sidecarAliasConsumerTargetName,
   sidecarManifestFile,
+  sidecarManifestSchema,
+  sidecarManifestSchemaVersion,
   sidecarScope,
   sidecarStagingDirectory,
+  sidecarTarballsDirectory,
   trustedPublishOidcIssuer,
   trustedPublishRef,
   trustedPublishRepository,

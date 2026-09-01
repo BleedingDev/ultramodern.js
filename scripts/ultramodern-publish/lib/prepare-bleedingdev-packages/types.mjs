@@ -88,12 +88,46 @@ function normalizeDeclaredTypePaths(packageDir, packageJson) {
   normalizeExportTypePaths(packageDir, packageJson.exports);
 }
 
+function isWithinDirectory(directory, candidate) {
+  const relative = path.relative(directory, candidate);
+  return relative !== '..' && !relative.startsWith(`..${path.sep}`);
+}
+
+function declaredTypePathExists(packageDir, typePath) {
+  const candidate = path.resolve(packageDir, typePath);
+  if (fs.existsSync(candidate)) {
+    return isWithinDirectory(packageDir, candidate);
+  }
+  if (!typePath.includes('*')) {
+    return false;
+  }
+
+  const wildcardIndex = typePath.indexOf('*');
+  const staticPrefix = typePath.slice(0, wildcardIndex);
+  const prefixDirectory = staticPrefix.endsWith('/')
+    ? staticPrefix
+    : path.dirname(staticPrefix);
+  if (
+    !isWithinDirectory(packageDir, path.resolve(packageDir, prefixDirectory))
+  ) {
+    return false;
+  }
+
+  return fs.globSync(typePath, { cwd: packageDir }).some(match => {
+    const matchPath = path.resolve(packageDir, match);
+    return (
+      isWithinDirectory(packageDir, matchPath) &&
+      fs.statSync(matchPath, { throwIfNoEntry: false })?.isFile()
+    );
+  });
+}
+
 function validateStagedTypeFiles(packageDir, packageJson) {
   const typePaths = collectDeclaredTypePaths(packageJson);
 
   const missing = [...typePaths]
     .filter(typePath => typePath.startsWith('.'))
-    .filter(typePath => !fs.existsSync(path.join(packageDir, typePath)));
+    .filter(typePath => !declaredTypePathExists(packageDir, typePath));
 
   if (missing.length > 0) {
     throw new Error(

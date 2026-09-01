@@ -471,6 +471,7 @@ function readReleaseEvidence({
       'release',
       'schema',
       'schemaVersion',
+      'sidecars',
       'source',
       'tools',
     ],
@@ -480,12 +481,12 @@ function readReleaseEvidence({
   assertExactKeys(manifest.release, ['tag', 'version'], 'Release identity');
   if (
     manifest.schema !== 'bleedingdev.ultramodern.release-manifest' ||
-    manifest.schemaVersion !== 2 ||
+    manifest.schemaVersion !== 3 ||
     !Array.isArray(manifest.packages) ||
     manifest.packages.length === 0 ||
     !Array.isArray(manifest.publishOrder)
   ) {
-    throw new Error('Release manifest must use the strict v2 release schema');
+    throw new Error('Release manifest must use the strict v3 release schema');
   }
   assertRepository(manifest.source.repository, 'Release source repository');
   assertSourceCommit(manifest.source.commit, 'Release source commit');

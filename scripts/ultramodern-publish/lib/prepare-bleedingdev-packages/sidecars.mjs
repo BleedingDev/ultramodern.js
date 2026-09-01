@@ -16,16 +16,25 @@
 //     strict npm/yarn-classic consumer;
 //   * their dependency keys are never rewritten - a sidecar manifest is
 //     published exactly as it is vendored.
+import { execFileSync } from 'node:child_process';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import fsKit from '../../../lib/fs-kit.js';
 import {
   repoRoot as defaultRepoRoot,
   sidecarManifestFile,
+  sidecarManifestSchema,
+  sidecarManifestSchemaVersion,
   sidecarScope,
+  sidecarTarballsDirectory,
 } from './constants.mjs';
+import {
+  canonicalJson,
+  inspectNpmTarball,
+} from './release-artifacts.mjs';
 
-const { readJsonFile, writeJsonFile } = fsKit;
+const { readJsonFile } = fsKit;
 
 const SIDECAR_PACKAGE_ROOTS = [
   'packages/sidecar/ipx',
@@ -50,6 +59,11 @@ const dependencyBlockNames = [
   'optionalDependencies',
   'peerDependencies',
 ];
+
+const sidecarConsumerDependencyTargets = Object.freeze({
+  '@rsbuild-image/core': '@bleedingdev/rsbuild-image-core',
+  ipx: '@bleedingdev/ipx',
+});
 
 const stagedDirectoryName = name => name.replaceAll('/', '__');
 
@@ -249,6 +263,36 @@ function collectSidecarPackages(
   return sidecars;
 }
 
+function rewriteSidecarConsumerAliases(packageJson, sidecars) {
+  const dependencies = packageJson.dependencies;
+  if (!dependencies || typeof dependencies !== 'object' || Array.isArray(dependencies)) {
+    throw new Error(
+      `Sidecar consumer ${String(packageJson.name)} must declare dependencies`,
+    );
+  }
+
+  const byName = new Map(sidecars.map(sidecar => [sidecar.name, sidecar]));
+  for (const [dependencyName, targetName] of Object.entries(
+    sidecarConsumerDependencyTargets,
+  )) {
+    const sourceSpecifier = dependencies[dependencyName];
+    if (typeof sourceSpecifier !== 'string' || sourceSpecifier.length === 0) {
+      throw new Error(
+        `Sidecar consumer ${String(packageJson.name)} must declare dependencies.${dependencyName} before release staging can redirect it`,
+      );
+    }
+    const sidecar = byName.get(targetName);
+    if (!sidecar) {
+      throw new Error(
+        `Sidecar consumer ${String(packageJson.name)} cannot redirect dependencies.${dependencyName}; staged sidecar ${targetName} is missing`,
+      );
+    }
+    dependencies[dependencyName] = `npm:${targetName}@${sidecar.version}`;
+  }
+
+  return packageJson;
+}
+
 function sidecarAliasEntries(packageJson) {
   const entries = [];
   for (const blockName of dependencyBlockNames) {
@@ -352,6 +396,120 @@ function stageSidecarPackage(
   };
 }
 
+function sidecarArtifactDigests(bytes) {
+  return {
+    integrity: `sha512-${crypto.createHash('sha512').update(bytes).digest('base64')}`,
+    sha256: crypto.createHash('sha256').update(bytes).digest('hex'),
+    shasum: crypto.createHash('sha1').update(bytes).digest('hex'),
+  };
+}
+
+function packStagedSidecar(
+  sidecar,
+  tarballsDir,
+  { command = execFileSync, outDir = path.dirname(tarballsDir) } = {},
+) {
+  fs.mkdirSync(tarballsDir, { recursive: true });
+  const before = new Set(fs.readdirSync(tarballsDir));
+  const stdout = command(
+    'npm',
+    [
+      'pack',
+      sidecar.stagedDir,
+      '--ignore-scripts',
+      '--json',
+      '--pack-destination',
+      tarballsDir,
+    ],
+    {
+      cwd: defaultRepoRoot,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    },
+  );
+  let metadata;
+  try {
+    const parsed = JSON.parse(String(stdout));
+    if (!Array.isArray(parsed) || parsed.length !== 1) {
+      throw new Error('npm pack must return exactly one artifact');
+    }
+    [metadata] = parsed;
+  } catch (error) {
+    throw new Error(
+      `npm pack for ${sidecar.name} did not return a single JSON artifact: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  }
+  const created = fs
+    .readdirSync(tarballsDir)
+    .filter(fileName => !before.has(fileName));
+  if (created.length !== 1) {
+    throw new Error(
+      `npm pack for ${sidecar.name} created ${created.length} files; expected exactly one`,
+    );
+  }
+  if (
+    typeof metadata.filename !== 'string' ||
+    path.basename(metadata.filename) !== metadata.filename ||
+    metadata.filename !== created[0]
+  ) {
+    throw new Error(`npm pack for ${sidecar.name} returned an unsafe filename`);
+  }
+  if (metadata.name !== sidecar.name || metadata.version !== sidecar.version) {
+    throw new Error(
+      `npm pack identity mismatch for ${sidecar.name}: ${String(metadata.name)}@${String(metadata.version)}`,
+    );
+  }
+
+  const tarballPath = path.join(tarballsDir, metadata.filename);
+  const bytes = fs.readFileSync(tarballPath);
+  const inspection = inspectNpmTarball(bytes);
+  const stagedPackageJsonBytes = fs.readFileSync(
+    path.join(sidecar.stagedDir, 'package.json'),
+  );
+  if (!inspection.packageJsonBytes.equals(stagedPackageJsonBytes)) {
+    throw new Error(
+      `Packed sidecar ${sidecar.name} manifest differs from its staged package.json`,
+    );
+  }
+  const digests = sidecarArtifactDigests(bytes);
+  const computed = {
+    ...digests,
+    fileCount: inspection.fileCount,
+    fileListSha256: inspection.fileListSha256,
+    packageJsonSha256: inspection.packageJsonSha256,
+    size: bytes.length,
+    unpackedSize: inspection.unpackedSize,
+  };
+  for (const field of [
+    'integrity',
+    'shasum',
+    'size',
+    'unpackedSize',
+  ]) {
+    if (metadata[field] !== computed[field]) {
+      throw new Error(
+        `npm pack ${field} mismatch for ${sidecar.name}: reported ${String(metadata[field])}, computed ${computed[field]}`,
+      );
+    }
+  }
+  if (metadata.entryCount !== computed.fileCount) {
+    throw new Error(
+      `npm pack file count mismatch for ${sidecar.name}: reported ${String(metadata.entryCount)}, computed ${computed.fileCount}`,
+    );
+  }
+
+  return {
+    artifact: {
+      ...computed,
+      tarballPath: path.relative(outDir, tarballPath).split(path.sep).join('/'),
+    },
+    bytes,
+    tarballPath,
+  };
+}
+
 /**
  * Every hard-coded `npm:@bleedingdev/<name>@<version>` alias in the staged
  * cohort (notably @modern-js/image) and inside the sidecar manifests
@@ -415,31 +573,54 @@ function validateAliasConsistency(
 function writeSidecarStagingManifest(
   outDir,
   stagedSidecars,
-  { publishBefore } = {},
+  { command = execFileSync, publishBefore } = {},
 ) {
   const ordered = sidecarPublishOrder(stagedSidecars);
+  const tarballsDir = path.join(outDir, sidecarTarballsDirectory);
+  fs.rmSync(tarballsDir, { force: true, recursive: true });
+  fs.mkdirSync(tarballsDir, { recursive: true });
+  const packages = ordered.map(sidecar => {
+    const { artifact } = packStagedSidecar(sidecar, tarballsDir, {
+      command,
+      outDir,
+    });
+    return {
+      ...artifact,
+      name: sidecar.name,
+      root: sidecar.root,
+      version: sidecar.version,
+    };
+  });
   const manifest = {
-    schemaVersion: 1,
+    packages,
     ...(publishBefore ? { publishBefore } : {}),
     publishOrder: ordered.map(sidecar => sidecar.name),
-    packages: ordered.map(sidecar => ({
-      name: sidecar.name,
-      version: sidecar.version,
-      packageDir: sidecar.packageDir,
-      root: sidecar.root,
-    })),
+    schema: sidecarManifestSchema,
+    schemaVersion: sidecarManifestSchemaVersion,
   };
 
   const manifestPath = path.join(outDir, sidecarManifestFile);
-  writeJsonFile(manifestPath, manifest);
-  return { manifest, manifestPath };
+  const manifestBytes = Buffer.from(`${canonicalJson(manifest, 2)}\n`, 'utf8');
+  fs.writeFileSync(manifestPath, manifestBytes);
+  return {
+    descriptor: {
+      manifestPath: sidecarManifestFile,
+      sha256: crypto.createHash('sha256').update(manifestBytes).digest('hex'),
+    },
+    manifest,
+    manifestPath,
+  };
 }
 
 export {
   SIDECAR_PACKAGE_ROOTS,
   collectSidecarPackages,
   normalizeSidecarBin,
+  packStagedSidecar,
+  rewriteSidecarConsumerAliases,
   sidecarAliasEntries,
+  sidecarManifestSchema,
+  sidecarManifestSchemaVersion,
   sidecarPublishOrder,
   stageSidecarPackage,
   validateAliasConsistency,

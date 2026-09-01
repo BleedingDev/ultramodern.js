@@ -266,6 +266,42 @@ test('alias targets must match a staged sidecar exactly', async () => {
   );
 });
 
+test('release staging projects exact sidecar aliases without making source installs depend on unpublished packages', async () => {
+  const { collectSidecarPackages, rewriteSidecarConsumerAliases } =
+    await importSidecars();
+  const sidecars = collectSidecarPackages(makeSidecarFixture());
+  const packageJson = {
+    name: '@bleedingdev/modern-js-image',
+    dependencies: {
+      '@rsbuild-image/core': '0.0.1-next.36',
+      '@rsbuild-image/react': '0.0.1-next.36',
+      ipx: '^3.1.1',
+      sharp: '^0.35.3',
+    },
+  };
+
+  rewriteSidecarConsumerAliases(packageJson, sidecars);
+  assert.equal(
+    packageJson.dependencies['@rsbuild-image/core'],
+    'npm:@bleedingdev/rsbuild-image-core@0.1.0',
+  );
+  assert.equal(packageJson.dependencies.ipx, 'npm:@bleedingdev/ipx@3.2.0');
+  assert.equal(
+    packageJson.dependencies['@rsbuild-image/react'],
+    '0.0.1-next.36',
+  );
+  assert.equal(packageJson.dependencies.sharp, '^0.35.3');
+
+  assert.throws(
+    () =>
+      rewriteSidecarConsumerAliases(
+        { name: packageJson.name, dependencies: { ipx: '^3.1.1' } },
+        sidecars,
+      ),
+    /must declare dependencies\.@rsbuild-image\/core/u,
+  );
+});
+
 test('sidecar-internal aliases are validated and ordered before their dependents', async () => {
   const {
     collectSidecarPackages,
@@ -461,6 +497,22 @@ test('sidecar npm: aliases survive cohort rewriting untouched', async () => {
   });
   assert.equal(packageJson.name, '@bleedingdev/modern-js-image');
   assert.equal(packageJson.version, '3.8.3-ultramodern.9');
+});
+
+test('sidecar staging requires exactly one cohort image consumer', async () => {
+  const { assertSidecarAliasConsumerCount } = await import(
+    '../lib/prepare-bleedingdev-packages/workflow.mjs'
+  );
+
+  assert.doesNotThrow(() => assertSidecarAliasConsumerCount(1));
+  assert.throws(
+    () => assertSidecarAliasConsumerCount(0),
+    /requires exactly one @bleedingdev\/modern-js-image cohort package, found 0/u,
+  );
+  assert.throws(
+    () => assertSidecarAliasConsumerCount(2),
+    /requires exactly one @bleedingdev\/modern-js-image cohort package, found 2/u,
+  );
 });
 
 test('--include-sidecars is opt-in, staging-only, and leaves defaults untouched', async () => {

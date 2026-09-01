@@ -3106,7 +3106,7 @@ test('final pack runs once and dry-run consumes accepted bytes without lifecycle
     );
     const manifest = fixture.releaseArtifacts.manifest;
     assert.equal(manifest.schema, 'bleedingdev.ultramodern.release-manifest');
-    assert.equal(manifest.schemaVersion, 2);
+    assert.equal(manifest.schemaVersion, 3);
     assert.deepEqual(Object.keys(manifest).sort(), [
       'aliases',
       'cohortDigest',
@@ -3117,9 +3117,11 @@ test('final pack runs once and dry-run consumes accepted bytes without lifecycle
       'release',
       'schema',
       'schemaVersion',
+      'sidecars',
       'source',
       'tools',
     ]);
+    assert.equal(manifest.sidecars, null);
     assert.deepEqual(manifest.source, releaseSource);
     assert.deepEqual(manifest.release, {
       tag: 'latest',
@@ -3275,6 +3277,77 @@ test('local acceptance publishes verified buffers even when source paths mutate'
       JSON.stringify(published).includes('ephemeral-registry-token'),
       false,
     );
+  } finally {
+    removeDir(fixture.root);
+  }
+});
+
+test('local acceptance seeds staged sidecars before the exact cohort', async () => {
+  const { publishStagedSidecars } = await import(
+    '../lib/source-create-proof/runtime-proof/registry.mjs'
+  );
+  const fixture = await createArtifactFixture();
+  const bytes = Buffer.from('sidecar tarball bytes');
+  const integrity = `sha512-${crypto.createHash('sha512').update(bytes).digest('base64')}`;
+  const shasum = crypto.createHash('sha1').update(bytes).digest('hex');
+  const sidecar = {
+    bytes,
+    integrity,
+    name: '@bleedingdev/ipx',
+    shasum,
+    version: '3.2.0',
+    packageJson: {
+      name: '@bleedingdev/ipx',
+      version: '3.2.0',
+      publishConfig: {
+        access: 'public',
+        registry: 'https://registry.npmjs.org/',
+      },
+    },
+  };
+  const publishCalls = [];
+
+  try {
+    const published = await publishStagedSidecars(
+      fixture.outDir,
+      fixture.releaseArtifacts.manifest.tools,
+      {
+        registryUrl: 'http://127.0.0.1:4873/',
+        userConfigPath: path.join(fixture.root, '.npmrc'),
+      },
+      'ephemeral-registry-token',
+      {
+        loadRuntime: () => ({
+          libnpmpublishVersion: 'test',
+          npmVersion: fixture.releaseArtifacts.manifest.tools.npm,
+          publish: async (manifest, publishedBytes, options) => {
+            publishCalls.push({
+              bytes: Buffer.from(publishedBytes),
+              manifest,
+              options,
+            });
+          },
+        }),
+        readRegistryDistImpl: async () => ({ integrity, shasum }),
+        readSidecars: () => ({ sidecars: [sidecar] }),
+      },
+    );
+
+    assert.equal(publishCalls.length, 1);
+    assert.deepEqual(publishCalls[0].bytes, bytes);
+    assert.equal(publishCalls[0].options.registry, 'http://127.0.0.1:4873/');
+    assert.equal(
+      publishCalls[0].options['//127.0.0.1:4873/:_authToken'],
+      'ephemeral-registry-token',
+    );
+    assert.deepEqual(published, [
+      {
+        name: sidecar.name,
+        version: sidecar.version,
+        integrity,
+        shasum,
+      },
+    ]);
   } finally {
     removeDir(fixture.root);
   }
@@ -4648,6 +4721,19 @@ test('release verifier rejects schema, cohort, path, detached digest, and tarbal
     assert.notEqual(computeCohortDigest(changedTools), manifest.cohortDigest);
     assert.throws(
       () => validateReleaseManifest(changedTools, expected),
+      /Release cohort digest mismatch/,
+    );
+    const attachedSidecars = structuredClone(manifest);
+    attachedSidecars.sidecars = {
+      manifestPath: 'sidecars.json',
+      sha256: 'a'.repeat(64),
+    };
+    assert.notEqual(
+      computeCohortDigest(attachedSidecars),
+      manifest.cohortDigest,
+    );
+    assert.throws(
+      () => validateReleaseManifest(attachedSidecars, expected),
       /Release cohort digest mismatch/,
     );
     assert.throws(

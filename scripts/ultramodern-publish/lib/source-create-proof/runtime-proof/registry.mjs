@@ -1,14 +1,20 @@
 // Consumer: run-release-acceptance.mjs source-mode exact-tarball registry.
 import { spawn, spawnSync } from 'node:child_process';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 import { once } from 'node:events';
-import { publishPackageBuffer } from '../../prepare-bleedingdev-packages/npm-buffer-publisher.mjs';
+import {
+  assertAcceptedPublishToolchain,
+  loadNpmPublishingRuntime,
+  publishPackageBuffer,
+} from '../../prepare-bleedingdev-packages/npm-buffer-publisher.mjs';
 import {
   readVerifiedPackageArtifactBytes,
   verifyPackageArtifactBytes,
 } from '../../prepare-bleedingdev-packages/release-artifacts.mjs';
+import { readStagedSidecars } from '../../../publish-sidecars.mjs';
 
 const VERDACCIO_VERSION = '6.7.4';
 const VERDACCIO_SPECIFIER = `verdaccio@${VERDACCIO_VERSION}`;
@@ -302,6 +308,54 @@ async function publishReleaseTarballs(
   return published;
 }
 
+async function publishStagedSidecars(
+  releaseDir,
+  acceptedTools,
+  registry,
+  authToken,
+  {
+    loadRuntime = loadNpmPublishingRuntime,
+    readRegistryDistImpl = readRegistryDistFromPackument,
+    readSidecars = readStagedSidecars,
+  } = {},
+) {
+  const { sidecars } = readSidecars(releaseDir);
+  const runtime = loadRuntime();
+  assertAcceptedPublishToolchain(acceptedTools, runtime);
+  const registryUrl = new URL(registry.registryUrl);
+  const authKey = `//${registryUrl.host}${registryUrl.pathname}:_authToken`;
+  const published = [];
+
+  for (const sidecar of sidecars) {
+    await runtime.publish(sidecar.packageJson, sidecar.bytes, {
+      access: 'public',
+      defaultTag: 'latest',
+      npmVersion: runtime.npmVersion,
+      provenance: false,
+      registry: registry.registryUrl,
+      [authKey]: authToken,
+    });
+    const specifier = `${sidecar.name}@${sidecar.version}`;
+    const dist = await readRegistryDistImpl(specifier, registry);
+    assert(
+      dist.integrity === sidecar.integrity,
+      `${specifier} registry integrity mismatch after exact sidecar tarball publication`,
+    );
+    assert(
+      dist.shasum === sidecar.shasum,
+      `${specifier} registry shasum mismatch after exact sidecar tarball publication`,
+    );
+    published.push({
+      name: sidecar.name,
+      version: sidecar.version,
+      integrity: sidecar.integrity,
+      shasum: sidecar.shasum,
+    });
+  }
+
+  return published;
+}
+
 async function stopChild(child) {
   if (child.exitCode !== null || child.signalCode !== null) {
     return;
@@ -319,6 +373,7 @@ async function stopChild(child) {
 
 async function startEphemeralRegistry({
   release,
+  releaseDir,
   rootDir,
   fetchImpl = fetch,
   runImpl = runChecked,
@@ -387,9 +442,18 @@ async function startEphemeralRegistry({
       stop: () => stopChild(child),
     };
     // Stdout-only seed timing so the seed phase is attributable in job logs;
-    // never routed into the receipt.
+    // never routed into the receipt. Sidecars publish first because the staged
+    // cohort image package aliases them by exact registry version.
     const seedStartedAt = Date.now();
     console.log('[registry] seed start');
+    registry.sidecars = release.sidecars
+      ? await publishStagedSidecars(
+          releaseDir,
+          release.tools,
+          registry,
+          token,
+        )
+      : [];
     registry.published = await publishReleaseTarballs(
       release,
       registry,
@@ -413,6 +477,7 @@ export {
   createRegistryEnv,
   createVerdaccioConfig,
   publishReleaseTarballs,
+  publishStagedSidecars,
   readRegistryDistFromPackument,
   reservePort,
   runChecked,

@@ -11,6 +11,7 @@ import {
 } from './constants.mjs';
 import {
   collectSidecarPackages,
+  rewriteSidecarConsumerAliases,
   stageSidecarPackage,
   validateAliasConsistency,
   writeSidecarStagingManifest,
@@ -40,6 +41,14 @@ import { assertCleanCommittedSource } from '../release-source-state.mjs';
 import { resolveOwnedPreparationOutput } from './options.mjs';
 
 const { readJsonFile, writeJsonFile } = fsKit;
+
+function assertSidecarAliasConsumerCount(count) {
+  if (count !== 1) {
+    throw new Error(
+      `Sidecar staging requires exactly one ${sidecarAliasConsumerTargetName} cohort package, found ${count}`,
+    );
+  }
+}
 
 function assertTrustedPublishContext() {
   if (process.env.GITHUB_ACTIONS !== 'true') {
@@ -116,6 +125,7 @@ async function prepareBleedingdevPackages(options) {
     packages: [],
   };
   const stagedManifests = [];
+  let sidecarAliasConsumerCount = 0;
 
   for (const item of packages) {
     const sourceName = item.packageJson.name;
@@ -128,6 +138,13 @@ async function prepareBleedingdevPackages(options) {
     const packageJsonPath = path.join(packageDir, 'package.json');
     const packageJson = readJsonFile(packageJsonPath);
     rewritePackageJson(packageJson, sourceName, options, sourceNames);
+    if (
+      options.includeSidecars &&
+      targetName === sidecarAliasConsumerTargetName
+    ) {
+      sidecarAliasConsumerCount += 1;
+      rewriteSidecarConsumerAliases(packageJson, stagedSidecars);
+    }
     normalizeDeclaredTypePaths(packageDir, packageJson);
     writeJsonFile(packageJsonPath, packageJson);
     validateStagedTypeFiles(packageDir, packageJson);
@@ -141,14 +158,20 @@ async function prepareBleedingdevPackages(options) {
     });
   }
 
+  let sidecarDescriptor = null;
   if (options.includeSidecars) {
+    assertSidecarAliasConsumerCount(sidecarAliasConsumerCount);
     validateAliasConsistency(stagedManifests, stagedSidecars, {
       cohortTargetNames: new Set(Object.values(aliases)),
     });
-    const { manifest: sidecarManifest, manifestPath } =
-      writeSidecarStagingManifest(options.out, stagedSidecars, {
+    const {
+      descriptor,
+      manifest: sidecarManifest,
+      manifestPath,
+    } = writeSidecarStagingManifest(options.out, stagedSidecars, {
         publishBefore: sidecarAliasConsumerTargetName,
       });
+    sidecarDescriptor = descriptor;
     console.log(
       [
         `Staged ${sidecarManifest.packages.length} version-preserving sidecar package(s): ${sidecarManifest.packages
@@ -165,6 +188,7 @@ async function prepareBleedingdevPackages(options) {
     aliases,
     outDir: options.out,
     packages: stagingManifest.packages,
+    sidecars: sidecarDescriptor,
     source: { ...resolveSourceIdentity(), commit: sourceCommit },
     tag: options.tag,
     version: options.version,
@@ -185,4 +209,4 @@ async function prepareBleedingdevPackages(options) {
   await publishManifestPackages(releaseArtifacts, options);
 }
 
-export { prepareBleedingdevPackages };
+export { assertSidecarAliasConsumerCount, prepareBleedingdevPackages };

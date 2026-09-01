@@ -631,7 +631,7 @@ test('release acceptance subprocess verifies producer attempt 1 during publicati
     assert.notEqual(tampered.status, 0);
     assert.match(
       tampered.stderr,
-      /Operational-independence evidence file SHA-256 does not match the acceptance receipt/u,
+      /Operational-independence node served behavior is missing, degraded, skipped, or non-passing/u,
     );
 
     fs.rmSync(fixture.evidencePath);

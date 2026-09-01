@@ -553,8 +553,8 @@ test('published .15 Tractor bootstrap carries the full cohort and active audited
     bootstrapReleaseAgePolicy: {
       minimumReleaseAge: 1440,
       minimumReleaseAgeExclude: [
-        `@bleedingdev/modern-js-ultramodern-create@${releaseVersion}`,
         `@bleedingdev/modern-js-i18n-utils@${releaseVersion}`,
+        `@bleedingdev/modern-js-ultramodern-create@${releaseVersion}`,
         `@bleedingdev/modern-js-utils@${releaseVersion}`,
       ],
       minimumReleaseAgeIgnoreMissingTime: false,
@@ -747,8 +747,8 @@ test('runner has no bypass for Node or workerd release gates', async () => {
   );
   const exactPnpmExecutable = '/opt/pnpm-11.17.0/bin/pnpm';
   const minimumReleaseAgeExclude = [
-    '@bleedingdev/modern-js-ultramodern-create@3.5.0-ultramodern.77',
     '@bleedingdev/modern-js-i18n-utils@3.5.0-ultramodern.77',
+    '@bleedingdev/modern-js-ultramodern-create@3.5.0-ultramodern.77',
     '@bleedingdev/modern-js-utils@3.5.0-ultramodern.77',
   ];
   const calls = [];
@@ -825,8 +825,8 @@ test('runner rejects inherited package-manager release-age bypasses', async () =
     inheritedKeys.map(name => [name, process.env[name]]),
   );
   const minimumReleaseAgeExclude = [
-    '@bleedingdev/modern-js-ultramodern-create@3.5.0-ultramodern.77',
     '@bleedingdev/modern-js-i18n-utils@3.5.0-ultramodern.77',
+    '@bleedingdev/modern-js-ultramodern-create@3.5.0-ultramodern.77',
     '@bleedingdev/modern-js-utils@3.5.0-ultramodern.77',
   ];
   try {

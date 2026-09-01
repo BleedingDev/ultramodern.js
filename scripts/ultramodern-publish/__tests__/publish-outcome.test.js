@@ -46,8 +46,13 @@ test('publish workflow Tractor baseline has an independently reviewed topology',
 });
 
 async function createEvidenceFixture({
+  createSourceName = '@modern-js/ultramodern-create',
+  createTargetName = '@bleedingdev/modern-js-ultramodern-create',
   includePublishedOperationalEvidence = false,
   receiptApiOverride,
+  releaseArtifactsApiOverride,
+  releaseManifestApiOverride,
+  releaseRepoRoot = repoRoot,
   sourceIdentity = source,
 } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'publish-outcome-'));
@@ -74,8 +79,8 @@ async function createEvidenceFixture({
   );
   const outPath = path.join(root, 'publish-outcome.json');
   const [
-    releaseArtifactsApi,
-    releaseManifestApi,
+    currentReleaseArtifactsApi,
+    currentReleaseManifestApi,
     currentReceiptApi,
     constants,
   ] = await Promise.all([
@@ -86,10 +91,13 @@ async function createEvidenceFixture({
     ),
     import('../lib/prepare-bleedingdev-packages/constants.mjs'),
   ]);
+  const releaseArtifactsApi =
+    releaseArtifactsApiOverride ?? currentReleaseArtifactsApi;
+  const releaseManifestApi =
+    releaseManifestApiOverride ?? currentReleaseManifestApi;
   const receiptApi = receiptApiOverride ?? currentReceiptApi;
   const aliases = {
-    '@modern-js/ultramodern-create':
-      '@bleedingdev/modern-js-ultramodern-create',
+    [createSourceName]: createTargetName,
     '@modern-js/i18n-utils': '@bleedingdev/modern-js-i18n-utils',
   };
   const exportsMap = {
@@ -104,8 +112,8 @@ async function createEvidenceFixture({
         '@module-federation/runtime': '2.8.0',
       },
       exports: exportsMap,
-      sourceName: '@modern-js/ultramodern-create',
-      targetName: aliases['@modern-js/ultramodern-create'],
+      sourceName: createSourceName,
+      targetName: createTargetName,
       ultramodern: { frameworkVersion: release.version },
     },
     {
@@ -136,7 +144,7 @@ async function createEvidenceFixture({
       path.join(packageDir, 'index.js'),
       'module.exports = {};\n',
     );
-    if (definition.sourceName === '@modern-js/ultramodern-create') {
+    if (definition.sourceName === createSourceName) {
       for (const relativePath of constants.createTemplateRequiredFiles) {
         const filePath = path.join(packageDir, relativePath);
         fs.mkdirSync(path.dirname(filePath), { recursive: true });
@@ -144,7 +152,7 @@ async function createEvidenceFixture({
       }
     }
     return {
-      packageDir: path.relative(repoRoot, packageDir),
+      packageDir: path.relative(releaseRepoRoot, packageDir),
       sourceName: definition.sourceName,
       targetName: definition.targetName,
       version: release.version,
@@ -169,8 +177,8 @@ async function createEvidenceFixture({
   const createReceipt = async (mode, targetPath, evidencePath) => {
     const receipt = receiptApi.createAcceptanceReceipt({
       createPackage: {
-        exactSpecifier: `@bleedingdev/modern-js-ultramodern-create@${release.version}`,
-        packageName: '@bleedingdev/modern-js-ultramodern-create',
+        exactSpecifier: `${createTargetName}@${release.version}`,
+        packageName: createTargetName,
         version: release.version,
       },
       mode,
@@ -300,7 +308,7 @@ async function createEvidenceFixture({
       checks: [
         {
           detail: {
-            createPackage: `@bleedingdev/modern-js-ultramodern-create@${release.version}`,
+            createPackage: `${createTargetName}@${release.version}`,
             version: release.version,
           },
           id: 'exact-create-migration',
@@ -677,6 +685,26 @@ test('backfill reconstructs schema-v4 outcomes with the archived historical crea
       ),
     )
   );
+  const historicalReleaseArtifactsApi = await import(
+    pathToFileURL(
+      fs.realpathSync(
+        path.join(
+          historicalRoot,
+          'scripts/ultramodern-publish/lib/prepare-bleedingdev-packages/release-artifacts.mjs',
+        ),
+      ),
+    )
+  );
+  const historicalReleaseManifestApi = await import(
+    pathToFileURL(
+      fs.realpathSync(
+        path.join(
+          historicalRoot,
+          'scripts/ultramodern-publish/lib/source-create-proof/release-manifest.mjs',
+        ),
+      ),
+    )
+  );
   const historicalOutcomeApi = await import(
     pathToFileURL(
       fs.realpathSync(
@@ -688,8 +716,13 @@ test('backfill reconstructs schema-v4 outcomes with the archived historical crea
     )
   );
   const fixture = await createEvidenceFixture({
+    createSourceName: '@modern-js/create',
+    createTargetName: '@bleedingdev/modern-js-create',
     includePublishedOperationalEvidence: true,
     receiptApiOverride: historicalReceiptApi,
+    releaseArtifactsApiOverride: historicalReleaseArtifactsApi,
+    releaseManifestApiOverride: historicalReleaseManifestApi,
+    releaseRepoRoot: historicalRoot,
     sourceIdentity: { ...source, commit: historicalCommit },
   });
   const artifactDir = path.join(fixture.root, 'downloaded-outcome');
@@ -825,8 +858,11 @@ test('publish outcome rejects incomplete receipt, operational evidence, and Trac
         const receipt = JSON.parse(
           fs.readFileSync(fixture.receiptPath, 'utf8'),
         );
-        receipt.binding.artifacts.packages[0].integrity = 'sha512-Zm9yZ2Vk';
-        receipt.binding.create.integrity = 'sha512-Zm9yZ2Vk';
+        const nonCreatePackage = receipt.binding.artifacts.packages.find(
+          item => item.targetName !== receipt.binding.create.targetName,
+        );
+        assert.ok(nonCreatePackage);
+        nonCreatePackage.integrity = 'sha512-Zm9yZ2Vk';
         fs.writeFileSync(fixture.receiptPath, `${JSON.stringify(receipt)}\n`);
       },
       pattern: /binding does not match the strict release manifest/u,

@@ -7,6 +7,11 @@ import zlib from 'node:zlib';
 import {
   createTemplateRequiredFiles,
   repoRoot,
+  sidecarManifestFile,
+  sidecarManifestSchema,
+  sidecarManifestSchemaVersion,
+  sidecarScope,
+  sidecarTarballsDirectory,
   ultramodernCreateSourceName,
 } from './constants.mjs';
 import {
@@ -18,7 +23,7 @@ import validationKit from '../../../lib/validation-kit.js';
 
 const { assertNonEmptyString, assertPlainObject } = validationKit;
 const releaseManifestSchema = 'bleedingdev.ultramodern.release-manifest';
-const releaseManifestSchemaVersion = 2;
+const releaseManifestSchemaVersion = 3;
 const releaseManifestFile = 'manifest.json';
 const releaseManifestDigestFile = 'manifest.json.sha256';
 const releaseCohortDigestFile = 'cohort.sha256';
@@ -125,25 +130,29 @@ function assertSameJson(actual, expected, label) {
   }
 }
 
-function validateRelativeTarballPath(tarballPath) {
-  assertNonEmptyString(tarballPath, 'Release package tarballPath');
+function validateRelativeTarballPath(
+  tarballPath,
+  {
+    directory = tarballsDirectory,
+    label = 'Release package tarballPath',
+  } = {},
+) {
+  assertNonEmptyString(tarballPath, label);
   if (
     tarballPath.includes('\\') ||
     path.posix.isAbsolute(tarballPath) ||
     path.posix.normalize(tarballPath) !== tarballPath
   ) {
-    throw new Error(
-      `Release package tarballPath escapes the artifact root: ${tarballPath}`,
-    );
+    throw new Error(`${label} escapes the artifact root: ${tarballPath}`);
   }
   const segments = tarballPath.split('/');
   if (
     segments.length !== 2 ||
-    segments[0] !== tarballsDirectory ||
+    segments[0] !== directory ||
     !segments[1].endsWith('.tgz')
   ) {
     throw new Error(
-      `Release package tarballPath must be tarballs/<file>.tgz: ${tarballPath}`,
+      `${label} must be ${directory}/<file>.tgz: ${tarballPath}`,
     );
   }
 }
@@ -158,6 +167,7 @@ function cohortIdentity(manifest) {
     release: manifest.release,
     schema: manifest.schema,
     schemaVersion: manifest.schemaVersion,
+    sidecars: manifest.sidecars,
     source: manifest.source,
     tools: manifest.tools,
   };
@@ -229,6 +239,7 @@ function validateReleaseManifest(manifest, expected = {}) {
       'release',
       'schema',
       'schemaVersion',
+      'sidecars',
       'source',
       'tools',
     ],
@@ -261,6 +272,22 @@ function validateReleaseManifest(manifest, expected = {}) {
   assertExactKeys(manifest.cohortProjection, ['sha256'], 'cohortProjection');
   if (!/^[a-f0-9]{64}$/u.test(manifest.cohortProjection.sha256)) {
     throw new Error('cohortProjection.sha256 must be a SHA-256 hex digest');
+  }
+
+  if (manifest.sidecars !== null) {
+    assertExactKeys(
+      manifest.sidecars,
+      ['manifestPath', 'sha256'],
+      'sidecars',
+    );
+    if (manifest.sidecars.manifestPath !== sidecarManifestFile) {
+      throw new Error(
+        `sidecars.manifestPath must be ${sidecarManifestFile}`,
+      );
+    }
+    if (!/^[a-f0-9]{64}$/u.test(manifest.sidecars.sha256)) {
+      throw new Error('sidecars.sha256 must be a SHA-256 hex digest');
+    }
   }
 
   assertExactKeys(manifest.tools, ['node', 'npm', 'pnpm'], 'tools');
@@ -660,6 +687,7 @@ function inspectNpmTarball(tarballBytes) {
     fileListSha256: sha256(canonicalJson(files)),
     files,
     packageJson,
+    packageJsonBytes,
     packageJsonSha256: sha256(packageJsonBytes),
     unpackedSize: files.reduce((total, file) => total + file.size, 0),
   };
@@ -803,6 +831,183 @@ function verifyPackageArtifact(item, artifactPath) {
     `${item.targetName} release tarball`,
   );
   return verifyPackageArtifactBytes(item, bytes, artifactPath);
+}
+
+function verifySidecarArtifacts(outDir, descriptor) {
+  if (descriptor === null) {
+    for (const relativePath of [sidecarManifestFile, sidecarTarballsDirectory]) {
+      if (fs.lstatSync(path.join(outDir, relativePath), { throwIfNoEntry: false })) {
+        throw new Error(
+          `Release manifest declares no sidecars but ${relativePath} is present`,
+        );
+      }
+    }
+    return null;
+  }
+
+  const manifestPath = path.join(outDir, descriptor.manifestPath);
+  const manifestBytes = readRegularFile(manifestPath, 'Sidecar manifest');
+  if (sha256(manifestBytes) !== descriptor.sha256) {
+    throw new Error('Sidecar manifest SHA-256 mismatch');
+  }
+  let manifest;
+  try {
+    manifest = JSON.parse(manifestBytes.toString('utf8'));
+  } catch (error) {
+    throw new Error(
+      `Sidecar manifest is invalid JSON: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  }
+  const canonicalManifestBytes = Buffer.from(
+    `${canonicalJson(manifest, 2)}\n`,
+    'utf8',
+  );
+  if (!manifestBytes.equals(canonicalManifestBytes)) {
+    throw new Error('Sidecar manifest is not canonical JSON');
+  }
+  assertExactKeys(
+    manifest,
+    ['packages', 'publishBefore', 'publishOrder', 'schema', 'schemaVersion'],
+    'Sidecar manifest',
+  );
+  if (
+    manifest.schema !== sidecarManifestSchema ||
+    manifest.schemaVersion !== sidecarManifestSchemaVersion
+  ) {
+    throw new Error(
+      `Unknown sidecar manifest schema ${String(manifest.schema)}@${String(manifest.schemaVersion)}`,
+    );
+  }
+  assertNonEmptyString(manifest.publishBefore, 'Sidecar manifest publishBefore');
+  if (!Array.isArray(manifest.packages) || manifest.packages.length === 0) {
+    throw new Error('Sidecar manifest packages must be a non-empty array');
+  }
+  if (!Array.isArray(manifest.publishOrder)) {
+    throw new Error('Sidecar manifest publishOrder must be an array');
+  }
+
+  const names = [];
+  const tarballPaths = [];
+  const packages = manifest.packages.map((item, index) => {
+    const label = `Sidecar packages[${index}]`;
+    assertExactKeys(
+      item,
+      [
+        'fileCount',
+        'fileListSha256',
+        'integrity',
+        'name',
+        'packageJsonSha256',
+        'root',
+        'sha256',
+        'shasum',
+        'size',
+        'tarballPath',
+        'unpackedSize',
+        'version',
+      ],
+      label,
+    );
+    for (const field of ['name', 'root', 'tarballPath', 'version']) {
+      assertNonEmptyString(item[field], `${label}.${field}`);
+    }
+    if (!item.name.startsWith(`${sidecarScope}/`)) {
+      throw new Error(`${label}.name must use the ${sidecarScope} scope`);
+    }
+    if (!/^\d+\.\d+\.\d+$/u.test(item.version)) {
+      throw new Error(`${label}.version must be stable semver`);
+    }
+    validateRelativeTarballPath(item.tarballPath, {
+      directory: sidecarTarballsDirectory,
+      label: `${label}.tarballPath`,
+    });
+    for (const field of ['size', 'fileCount', 'unpackedSize']) {
+      assertSafeInteger(item[field], `${label}.${field}`, { positive: true });
+    }
+    for (const field of ['sha256', 'packageJsonSha256', 'fileListSha256']) {
+      if (!/^[a-f0-9]{64}$/u.test(item[field])) {
+        throw new Error(`${label}.${field} must be a SHA-256 hex digest`);
+      }
+    }
+    if (!/^[a-f0-9]{40}$/u.test(item.shasum)) {
+      throw new Error(`${label}.shasum must be an npm SHA-1 hex digest`);
+    }
+    if (!/^sha512-[A-Za-z0-9+/]+={0,2}$/u.test(item.integrity)) {
+      throw new Error(`${label}.integrity must be a SHA-512 SRI value`);
+    }
+
+    const artifactPath = path.resolve(outDir, item.tarballPath);
+    const relative = path.relative(outDir, artifactPath);
+    if (relative.startsWith('..') || path.isAbsolute(relative)) {
+      throw new Error(`${item.name} sidecar tarball escapes the artifact root`);
+    }
+    const bytes = readRegularFile(artifactPath, `${item.name} sidecar tarball`);
+    if (bytes.length !== item.size) {
+      throw new Error(`${item.name} sidecar tarball size mismatch`);
+    }
+    if (sha256(bytes) !== item.sha256) {
+      throw new Error(`${item.name} sidecar tarball SHA-256 mismatch`);
+    }
+    if (hashBuffer('sha1', bytes) !== item.shasum) {
+      throw new Error(`${item.name} sidecar tarball npm shasum mismatch`);
+    }
+    if (`sha512-${hashBuffer('sha512', bytes, 'base64')}` !== item.integrity) {
+      throw new Error(`${item.name} sidecar tarball npm integrity mismatch`);
+    }
+    const inspection = inspectNpmTarball(bytes);
+    for (const field of [
+      'fileCount',
+      'unpackedSize',
+      'packageJsonSha256',
+      'fileListSha256',
+    ]) {
+      if (inspection[field] !== item[field]) {
+        throw new Error(`${item.name} sidecar tarball ${field} mismatch`);
+      }
+    }
+    if (
+      inspection.packageJson.name !== item.name ||
+      inspection.packageJson.version !== item.version
+    ) {
+      throw new Error(
+        `${item.name}@${item.version} sidecar tarball contains ${String(inspection.packageJson.name)}@${String(inspection.packageJson.version)}`,
+      );
+    }
+    names.push(item.name);
+    tarballPaths.push(item.tarballPath);
+    return { ...item, artifactPath, bytes, packageJson: inspection.packageJson };
+  });
+
+  if (new Set(names).size !== names.length) {
+    throw new Error('Sidecar manifest package names contain duplicates');
+  }
+  if (new Set(tarballPaths).size !== tarballPaths.length) {
+    throw new Error('Sidecar manifest tarball paths contain duplicates');
+  }
+  assertSameJson(manifest.publishOrder, names, 'Sidecar publish order');
+
+  const tarballsDir = path.join(outDir, sidecarTarballsDirectory);
+  const tarballsStat = fs.lstatSync(tarballsDir, { throwIfNoEntry: false });
+  if (!tarballsStat?.isDirectory() || tarballsStat.isSymbolicLink()) {
+    throw new Error('Sidecar tarballs directory is missing or unsafe');
+  }
+  const expectedTarballs = tarballPaths
+    .map(item => path.posix.basename(item))
+    .sort(compareCanonicalStrings);
+  const actualTarballs = fs
+    .readdirSync(tarballsDir, { withFileTypes: true })
+    .map(entry => {
+      if (!entry.isFile() || entry.isSymbolicLink()) {
+        throw new Error(`Unexpected entry in sidecar tarballs: ${entry.name}`);
+      }
+      return entry.name;
+    })
+    .sort(compareCanonicalStrings);
+  assertSameJson(actualTarballs, expectedTarballs, 'Sidecar tarball set');
+
+  return Object.freeze({ manifest, manifestBytes, manifestPath, packages });
 }
 
 function parseNpmPackOutput(stdout, sourceName) {
@@ -1055,6 +1260,8 @@ function verifyReleaseArtifacts(outDir, expected = {}) {
     throw new Error('Detached release cohort digest mismatch');
   }
 
+  const sidecars = verifySidecarArtifacts(resolvedOutDir, manifest.sidecars);
+
   const tarballsDir = path.join(resolvedOutDir, tarballsDirectory);
   const tarballsStat = fs.lstatSync(tarballsDir, { throwIfNoEntry: false });
   if (!tarballsStat?.isDirectory() || tarballsStat.isSymbolicLink()) {
@@ -1157,6 +1364,7 @@ function verifyReleaseArtifacts(outDir, expected = {}) {
     manifestSha256: manifestDigest,
     outDir: resolvedOutDir,
     packages,
+    sidecars,
   };
   Object.defineProperty(verified, verifiedReleaseArtifactsBrand, {
     value: true,
@@ -1190,6 +1398,7 @@ function createReleaseArtifacts({
   command = execFileSync,
   outDir,
   packages,
+  sidecars = null,
   source = resolveSourceIdentity(),
   tag,
   tools = resolveToolVersions(),
@@ -1280,6 +1489,7 @@ function createReleaseArtifacts({
     release: { tag, version },
     schema: releaseManifestSchema,
     schemaVersion: releaseManifestSchemaVersion,
+    sidecars,
     source,
     tools,
   };
@@ -1304,9 +1514,11 @@ function createReleaseArtifacts({
 
 export {
   assertVerifiedReleaseArtifacts,
+  canonicalJson,
   computeCohortDigest,
   createReleaseArtifacts,
   createReleaseCohortProjection,
+  inspectNpmTarball,
   readNpmTarballFile,
   releaseCohortDigestFile,
   releaseCohortProjectionPath,
@@ -1325,4 +1537,5 @@ export {
   verifyPackageArtifact,
   verifyPackageArtifactBytes,
   verifyReleaseArtifacts,
+  verifySidecarArtifacts,
 };

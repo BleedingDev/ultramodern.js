@@ -75,8 +75,8 @@ patchedDependencies:
   'msgpackr@2.0.6': patches/msgpackr@2.0.6.patch
   # Disable Zod's Function-constructor capability probe in CSP/Worker bundles.
   'zod@4.4.3': patches/zod@4.4.3.patch
-  # Backport upstream image-size PR459 bounds/validation hardening (HEIF,
-  # ICNS, JXL, JP2, JPEG, ISO-BMFF) onto the compiled 2.0.2 distribution.
+  # Keep source-workspace installs hardened before the independently published
+  # image sidecars exist; release staging redirects the shipped image package.
   'image-size@2.0.2': patches/image-size@2.0.2.patch
 overrides:
   micromatch: ^4.0.8
