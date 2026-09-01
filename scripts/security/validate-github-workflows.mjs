@@ -41,7 +41,6 @@ const workflowDirs = [
 ];
 
 const sensitiveWorkflowPaths = new Set([
-  '.github/workflows/bootstrap-bleedingdev-sidecars.yml',
   '.github/workflows/contract-gates.yml',
   '.github/workflows/publish-bleedingdev.yml',
   '.github/workflows/ultramodern-nightly.yml',
@@ -59,12 +58,6 @@ const sensitiveWorkflowPaths = new Set([
  * @type {Array<{ file: string, rule: string, match?: string, reason: string }>}
  */
 export const ALLOWLIST = [
-  {
-    file: '.github/workflows/bootstrap-bleedingdev-sidecars.yml',
-    rule: 'npm-token',
-    reason:
-      'One-time first-publication bridge; the short-lived token is scoped to one protected-environment publish step and the workflow is deleted after bootstrap.',
-  },
   {
     file: '.github/workflows/boundary-anti-patterns.yml',
     rule: 'pull-request-target',
