@@ -126,17 +126,6 @@ describe('effect endpoint contract module extraction', () => {
         }),
       },
     ],
-    [
-      'unbranded createHandler with api/layer',
-      {
-        api: pingApi,
-        layer: pingLayer,
-        createHandler: () => ({
-          handler: () => new Response('ok'),
-          dispose: async () => {},
-        }),
-      },
-    ],
   ])('rejects runtime-invalid %s in resolver and extractor', async (_name, module) => {
     await expect(
       extractHttpApiFromModule(module, HttpApi.isHttpApi),
@@ -144,6 +133,38 @@ describe('effect endpoint contract module extraction', () => {
     await expect(
       resolveEffectBffModuleHandler(module as EffectApiModule),
     ).resolves.toBeNull();
+  });
+
+  test('ignores an unbranded factory when strict api/layer exports can be rebuilt', async () => {
+    let factoryCalled = false;
+    const warnings: string[] = [];
+    const module = {
+      api: pingApi,
+      layer: pingLayer,
+      createHandler: () => {
+        factoryCalled = true;
+        return {
+          handler: () => new Response('unsafe'),
+          dispose: async () => {},
+        };
+      },
+    };
+
+    await expect(
+      extractHttpApiFromModule(module, HttpApi.isHttpApi),
+    ).resolves.toBeNull();
+    const resolved = await resolveEffectBffModuleHandler(module, {
+      onWarning: warning => warnings.push(warning),
+    });
+
+    expect(resolved).not.toBeNull();
+    expect(factoryCalled).toBe(false);
+    expect(warnings).toEqual([
+      expect.stringContaining(
+        'Ignored unbranded `createHandler` export and rebuilt the handler',
+      ),
+    ]);
+    await resolved?.dispose?.();
   });
 });
 

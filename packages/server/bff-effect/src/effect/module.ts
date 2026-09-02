@@ -126,25 +126,35 @@ function resolveClassifiedEffectBffModuleHandler(
   }
 
   if (typeof facts.createHandler === 'function') {
-    if (
-      !facts.createHandlerValidatorAware &&
-      rejectLegacyEffectModuleShape(options, 'unbranded `createHandler` export')
-    ) {
+    if (facts.createHandlerValidatorAware) {
+      const factory = facts.createHandler as EffectBffHandlerFactory;
+      const webHandler = factory({
+        openapi: options.openapi,
+        dataPlatform: options.dataPlatform,
+        validateRequest: options.validateRequest,
+      });
+      return createLoadedHandler(webHandler);
+    }
+
+    if (facts.api === undefined || !facts.hasRuntimeLayer) {
+      rejectLegacyEffectModuleShape(
+        options,
+        'unbranded `createHandler` export',
+      );
       return null;
     }
-    const factory = facts.createHandler as EffectBffHandlerFactory;
-    const webHandler = factory({
-      openapi: options.openapi,
-      dataPlatform: options.dataPlatform,
-      validateRequest: options.validateRequest,
-    });
-    return createLoadedHandler(webHandler);
+
+    options.onWarning?.(
+      `${strictEffectApproachMessage} Ignored unbranded \`createHandler\` export and rebuilt the handler from its { api, layer } exports.`,
+    );
   }
 
   if (facts.api !== undefined && facts.hasRuntimeLayer) {
-    options.onWarning?.(
-      '[BFF][Effect] Detected { api, layer } export without createHandler. Prefer `defineEffectBff(...)` from @modern-js/bff-effect/effect to avoid module instance mismatch.',
-    );
+    if (facts.createHandler === undefined) {
+      options.onWarning?.(
+        '[BFF][Effect] Detected { api, layer } export without createHandler. Prefer `defineEffectBff(...)` from @modern-js/bff-effect/effect to avoid module instance mismatch.',
+      );
+    }
     const webHandler = createHttpApiHandler({
       api: facts.api as HttpApi.Top,
       layer: facts.layer as EffectRuntimeLayer,
