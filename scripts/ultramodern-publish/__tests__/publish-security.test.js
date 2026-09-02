@@ -891,6 +891,143 @@ test('Tractor evidence binder validates the immutable report before exporting ou
   }
 });
 
+test('release recovery reuses only an accepted ancestral bundle and preserves its source identity', () => {
+  const parsed = workflow(publishWorkflowPath);
+  const actionExpression = name => ['${{', name, '}}'].join(' ');
+  const inputs = parsed.on.workflow_dispatch.inputs;
+
+  assert.deepEqual(inputs.recovery_run_id, {
+    description:
+      'Prior same-repository run containing an accepted immutable bundle',
+    required: false,
+    type: 'string',
+    default: '',
+  });
+  assert.deepEqual(inputs.recovery_run_attempt, {
+    description: 'Producer attempt for the prior accepted immutable bundle',
+    required: false,
+    type: 'string',
+    default: '',
+  });
+
+  const securityJob = parsed.jobs['publish-security'];
+  const inputValidation = securityJob.steps.find(
+    step => step.name === 'Validate publish inputs',
+  );
+  assert.deepEqual(inputValidation.env, {
+    PUBLISH_VERSION: actionExpression('inputs.version'),
+    RECOVERY_RUN_ID: actionExpression('inputs.recovery_run_id'),
+    RECOVERY_RUN_ATTEMPT: actionExpression('inputs.recovery_run_attempt'),
+  });
+  assert.match(
+    inputValidation.run,
+    /if \[\[ -n "\$RECOVERY_RUN_ID" \|\| -n "\$RECOVERY_RUN_ATTEMPT" \]\]; then/u,
+  );
+  assert.match(
+    inputValidation.run,
+    /\[\[ "\$RECOVERY_RUN_ID" =~ \^\[1-9\]\[0-9\]\*\$ \]\]/u,
+  );
+  assert.match(
+    inputValidation.run,
+    /\[\[ "\$RECOVERY_RUN_ATTEMPT" =~ \^\[1-9\]\[0-9\]\*\$ \]\]/u,
+  );
+
+  const prepareJob = parsed.jobs['prepare-release'];
+  for (const stepName of [
+    'Reject an already published source cohort',
+    'Build Packages',
+    'Prepare exact release tarballs and manifest',
+  ]) {
+    assert.equal(
+      prepareJob.steps.find(step => step.name === stepName).if,
+      "inputs.recovery_run_id == ''",
+    );
+  }
+
+  const recoveryDownloads = prepareJob.steps.filter(
+    step =>
+      String(step.uses ?? '').startsWith('actions/download-artifact@') &&
+      step.if === "inputs.recovery_run_id != ''",
+  );
+  assert.equal(recoveryDownloads.length, 2);
+  for (const step of recoveryDownloads) {
+    assert.equal(step.with['github-token'], actionExpression('github.token'));
+    assert.equal(step.with.repository, actionExpression('github.repository'));
+    assert.equal(
+      step.with['run-id'],
+      actionExpression('inputs.recovery_run_id'),
+    );
+    assert.match(
+      step.with.name,
+      /inputs\.recovery_run_id, inputs\.recovery_run_attempt/u,
+    );
+  }
+
+  const previousAcceptance = prepareJob.steps.find(
+    step => step.name === 'Verify previously accepted release bundle',
+  );
+  assert.equal(previousAcceptance.if, "inputs.recovery_run_id != ''");
+  assert.match(
+    previousAcceptance.run,
+    /recovery_run_identity="github:\$\{GITHUB_REPOSITORY\}:run:\$\{RECOVERY_RUN_ID\}:attempt:\$\{RECOVERY_RUN_ATTEMPT\}"/u,
+  );
+  assert.match(previousAcceptance.run, /--verify-receipt/u);
+  assert.match(previousAcceptance.run, /--scale-profile erp-10/u);
+  assert.match(
+    previousAcceptance.run,
+    /--run-identity "\$recovery_run_identity"/u,
+  );
+
+  const bundleVerification = prepareJob.steps.find(
+    step => step.name === 'Verify release bundle identity',
+  );
+  assert.equal(bundleVerification.id, 'verify-bundle');
+  assert.match(
+    bundleVerification.run,
+    /release\.manifest\.source\.repository !== process\.env\.GITHUB_REPOSITORY/u,
+  );
+  assert.match(
+    bundleVerification.run,
+    /\['merge-base', '--is-ancestor', release\.manifest\.source\.commit, process\.env\.GITHUB_SHA\]/u,
+  );
+  assert.match(
+    bundleVerification.run,
+    /`source_commit=\$\{release\.manifest\.source\.commit\}\\n`/u,
+  );
+  assert.equal(
+    prepareJob.outputs.release_source_commit,
+    actionExpression('steps.verify-bundle.outputs.source_commit'),
+  );
+  assert.equal(
+    parsed.jobs['accept-release'].outputs.release_source_commit,
+    actionExpression('needs.prepare-release.outputs.release_source_commit'),
+  );
+
+  const acceptedSource = actionExpression(
+    'needs.accept-release.outputs.release_source_commit',
+  );
+  const publishIdentity = parsed.jobs.publish.steps.find(
+    step => step.name === 'Prepare non-dry-run release identity',
+  );
+  assert.equal(publishIdentity.env.SOURCE_COMMIT, acceptedSource);
+  const publishedAcceptance = parsed.jobs['accept-published'].steps.find(
+    step => step.name === 'Run published ERP-10 acceptance',
+  );
+  assert.match(
+    publishedAcceptance.run,
+    /--expected-source-revision "\$\{\{ needs\.accept-release\.outputs\.release_source_commit \}\}"/u,
+  );
+  assert.equal(
+    parsed.jobs['record-publish-outcome'].env.RELEASE_SOURCE_COMMIT,
+    acceptedSource,
+  );
+  const outcomeStep = parsed.jobs['record-publish-outcome'].steps.find(
+    step => step.name === 'Create publish outcome',
+  );
+  assert.match(outcomeStep.run, /--source-commit "\$RELEASE_SOURCE_COMMIT"/u);
+  assert.doesNotMatch(outcomeStep.run, /--source-commit "\$GITHUB_SHA"/u);
+});
+
 test('publish change record structurally schedules only for a successful real outcome despite a skipped branch ancestor', async () => {
   const { evaluateJobSchedule } = await import(
     pathToFileURL(

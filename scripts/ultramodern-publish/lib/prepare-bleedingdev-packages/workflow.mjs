@@ -82,14 +82,18 @@ async function prepareBleedingdevPackages(options) {
       collectModernPackages(options);
     enforceSingleVersionPolicy(options, packages, allPackages);
     assertCleanCommittedSource(repoRoot, { expectedCommit: sourceCommit });
-    const source = { ...resolveSourceIdentity(), commit: sourceCommit };
+    const checkoutSource = { ...resolveSourceIdentity(), commit: sourceCommit };
     const releaseArtifacts = verifyReleaseArtifacts(options.out, {
       aliases,
-      source,
       sourceNames: [...sourceNames],
       tag: options.tag,
       version: options.version,
     });
+    if (releaseArtifacts.manifest.source.repository !== checkoutSource.repository) {
+      throw new Error(
+        `Release artifact repository ${releaseArtifacts.manifest.source.repository} does not match trusted checkout ${checkoutSource.repository}`,
+      );
+    }
     assertTrustedPublishContext();
     await publishManifestPackages(releaseArtifacts, options);
     return;
