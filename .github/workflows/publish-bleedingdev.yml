@@ -933,6 +933,8 @@ jobs:
             .modern/bleedingdev-publish/manifest.json
             .modern/bleedingdev-publish/manifest.json.sha256
             .modern/bleedingdev-publish/cohort.sha256
+            .modern/bleedingdev-publish/sidecars.json
+            .modern/bleedingdev-publish/sidecar-tarballs/*.tgz
             .modern/bleedingdev-publish/tarballs/*.tgz
             .modern/bleedingdev-publish/acceptance-receipt.json
             .modern/bleedingdev-publish/acceptance-receipt.operational-independence.json

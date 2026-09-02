@@ -1019,6 +1019,17 @@ test('release recovery reuses only an accepted ancestral bundle and preserves it
     step => step.name === 'Prepare non-dry-run release identity',
   );
   assert.equal(publishIdentity.env.SOURCE_COMMIT, acceptedSource);
+  const identityUpload = parsed.jobs.publish.steps.find(
+    step => step.name === 'Upload published release identity',
+  );
+  assert.match(
+    identityUpload.with.path,
+    /^\.modern\/bleedingdev-publish\/sidecars\.json$/mu,
+  );
+  assert.match(
+    identityUpload.with.path,
+    /^\.modern\/bleedingdev-publish\/sidecar-tarballs\/\*\.tgz$/mu,
+  );
   const publishedAcceptance = parsed.jobs['accept-published'].steps.find(
     step => step.name === 'Run published ERP-10 acceptance',
   );
