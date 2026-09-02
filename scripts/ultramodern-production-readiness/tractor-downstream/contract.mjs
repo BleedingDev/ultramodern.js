@@ -33,7 +33,7 @@ const requiredTractorCheckIds = Object.freeze([
   'visible-tractor-ui',
 ]);
 const requiredVisibleRuntimePlatforms = Object.freeze(['node', 'workerd']);
-const reviewedTractorTopology = Object.freeze({
+const requiredTractorTopology = Object.freeze({
   backendAppIds: Object.freeze(['checkout', 'decide', 'explore']),
   visibleWorkflowRoutePatterns: Object.freeze([
     '^/en/tractors$',
@@ -48,17 +48,6 @@ const reviewedTractorTopology = Object.freeze({
     explore: Object.freeze(['explore', 'verticalExplore']),
   }),
   ssrVerticalIds: Object.freeze(['checkout', 'decide', 'explore']),
-});
-const tractorTopologiesByBaseline = Object.freeze({
-  '2cb6e1c939686b1dfd5cbfb594198512fa9d04f7': reviewedTractorTopology,
-  '3a9ac349f8f52662d451030aa86ba142ca01973d': reviewedTractorTopology,
-  a2cc23e01c280ed34fb8e9a1e7117f5efe67ec37: reviewedTractorTopology,
-  cb6974e31bc919c86ae5bb86044409f0f1e036d5: reviewedTractorTopology,
-  '5315e425ecf8d70c7fb89e31201b9c51f2c270f8': reviewedTractorTopology,
-  '26059ebdcfd366c9bb0545b2c8dd2f3cfe2a97a5': reviewedTractorTopology,
-  '59eefbc840a85461f58ba218398a1b3c13659c9a': reviewedTractorTopology,
-  '9b729c5381006d55889355c91fbbde40ee4d4d97': reviewedTractorTopology,
-  '00f386d0b24ef8b20f46a9c50effe9b667d3f99d': reviewedTractorTopology,
 });
 const requiredUiControls = Object.freeze([
   ['link', 'Add to basket'],
@@ -465,6 +454,6 @@ export {
   assertVisibleTractorUi,
   assertVisibleTractorUiSummary,
   requiredTractorCheckIds,
+  requiredTractorTopology,
   requiredVisibleRuntimePlatforms,
-  tractorTopologiesByBaseline,
 };

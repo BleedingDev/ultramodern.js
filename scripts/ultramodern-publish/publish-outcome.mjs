@@ -12,8 +12,8 @@ import { assertAcceptanceReceipt } from '../ultramodern-production-readiness/pub
 import {
   assertVisibleTractorUiSummary,
   requiredTractorCheckIds,
+  requiredTractorTopology,
   requiredVisibleRuntimePlatforms,
-  tractorTopologiesByBaseline,
 } from '../ultramodern-production-readiness/tractor-downstream/contract.mjs';
 import { readReleaseManifest } from './lib/source-create-proof/release-manifest.mjs';
 
@@ -334,12 +334,7 @@ function readTractorAcceptanceEvidence({
       'Tractor acceptance report exact cohort does not match the strict release manifest',
     );
   }
-  const reviewedTopology = tractorTopologiesByBaseline[baselineRevision];
-  if (!reviewedTopology) {
-    throw new Error(
-      'Tractor acceptance baseline has no independently reviewed topology contract',
-    );
-  }
+  const reviewedTopology = requiredTractorTopology;
   for (const [id, platform] of [
     ['node-visible-tractor-workflow', 'node'],
     ['workerd-visible-tractor-workflow', 'workerd'],
