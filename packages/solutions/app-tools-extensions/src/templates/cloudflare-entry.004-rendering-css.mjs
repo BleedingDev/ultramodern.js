@@ -202,10 +202,12 @@ function createStylesheetLinkStream(body, stylesheetEntries, requestUrl) {
 
   const flushReadyHtml = (controller, final) => {
     const sentinelIndex = pending.indexOf(CLOUDFLARE_STYLESHEET_LINKS_SENTINEL);
-    if (!injected && sentinelIndex >= 0) {
-      const htmlBeforeSentinel = pending.slice(0, sentinelIndex);
+    const closingHeadIndex =
+      sentinelIndex >= 0 ? pending.indexOf('</head>', sentinelIndex) : -1;
+    if (!injected && sentinelIndex >= 0 && (closingHeadIndex >= 0 || final)) {
+      const headEnd = closingHeadIndex >= 0 ? closingHeadIndex : pending.length;
       const existingHrefs = new Set(
-        collectStylesheetHrefs(htmlBeforeSentinel).map(href =>
+        collectStylesheetHrefs(pending.slice(0, headEnd)).map(href =>
           normalizeStylesheetHref(href, requestUrl),
         ),
       );
@@ -214,9 +216,10 @@ function createStylesheetLinkStream(body, stylesheetEntries, requestUrl) {
           ({ preloadHref }) => !existingHrefs.has(preloadHref),
         ),
       );
-      const output = `${htmlBeforeSentinel}${links}${pending.slice(
-        sentinelIndex + CLOUDFLARE_STYLESHEET_LINKS_SENTINEL.length,
-      )}`;
+      const output = pending.replace(
+        CLOUDFLARE_STYLESHEET_LINKS_SENTINEL,
+        links,
+      );
       injected = true;
       pending = '';
       controller.enqueue(encoder.encode(output));

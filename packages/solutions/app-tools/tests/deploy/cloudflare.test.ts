@@ -3402,7 +3402,7 @@ describe('cloudflare deploy preset', () => {
             './Widget',
             {},
           );
-          return new Response('<!doctype html><html><head><link rel="stylesheet" href="/static/css/shell.css"><meta data-modern-cloudflare-stylesheet-links></head><body>' + fragment.html + '</body></html>', { headers: { 'content-type': 'text/html; charset=utf-8' } });
+          return new Response('<!doctype html><html><head><meta data-modern-cloudflare-stylesheet-links><link rel="stylesheet" href="/static/css/shell.css"></head><body>' + fragment.html + '</body></html>', { headers: { 'content-type': 'text/html; charset=utf-8' } });
         } };`,
       },
       services: [
