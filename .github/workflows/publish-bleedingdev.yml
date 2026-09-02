@@ -12,9 +12,9 @@ on:
         type: boolean
         default: false
 
-# id-token: write (OIDC for npm trusted publishing) is granted only on the two
-# jobs that reach the registry with publish authority - publish-sidecars and
-# publish - and never through a token secret; every other job runs read-only.
+# id-token: write is granted only to the two registry publish jobs. The cohort
+# job has an exact-version token bootstrap for seven first publications; every
+# other publication uses trusted-publishing OIDC and all other jobs are read-only.
 permissions:
   contents: read
   actions: read
@@ -820,6 +820,88 @@ jobs:
             `publication_run_attempt=${process.env.PUBLICATION_RUN_ATTEMPT}\n`,
           );
           NODE
+
+      - name: Bootstrap first publication of new package identities
+        if: inputs.version == '3.8.3-ultramodern.2'
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_FIRST_PUBLISH_TOKEN }}
+          PUBLISH_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if [ -z "$NPM_TOKEN" ]; then
+            echo 'NPM_FIRST_PUBLISH_TOKEN is required for the first publication bootstrap.' >&2
+            exit 1
+          fi
+
+          bootstrap_list="$RUNNER_TEMP/ultramodern-first-publish.tsv"
+          lookup_error="$RUNNER_TEMP/ultramodern-first-publish-view-error.txt"
+          npm_userconfig="$RUNNER_TEMP/ultramodern-first-publish.npmrc"
+          cleanup() {
+            rm -f "$bootstrap_list" "$lookup_error" "$npm_userconfig"
+          }
+          trap cleanup EXIT
+          # npm expands the environment placeholder without writing the token itself.
+          # shellcheck disable=SC2016
+          printf '//registry.npmjs.org/:_authToken=${NPM_TOKEN}\n' > "$npm_userconfig"
+          export NPM_CONFIG_USERCONFIG="$npm_userconfig"
+
+          node <<'NODE' > "$bootstrap_list"
+          const fs = require('node:fs');
+          const path = require('node:path');
+
+          const allowlist = new Set([
+            '@bleedingdev/modern-js-app-tools-extensions',
+            '@bleedingdev/modern-js-bff-effect',
+            '@bleedingdev/modern-js-i18n-runtime-extensions',
+            '@bleedingdev/modern-js-plugin-bff-extensions',
+            '@bleedingdev/modern-js-runtime-extensions',
+            '@bleedingdev/modern-js-ultramodern-create',
+            '@bleedingdev/modern-js-ultramodern-sandpack-profile',
+          ]);
+          const manifestPath = process.env.BLEEDINGDEV_RELEASE_MANIFEST;
+          const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+          if (manifest.release.version !== process.env.PUBLISH_VERSION) {
+            throw new Error('First-publication version does not match the accepted manifest');
+          }
+          const selected = manifest.packages.filter(pkg => allowlist.has(pkg.targetName));
+          if (
+            selected.length !== allowlist.size ||
+            new Set(selected.map(pkg => pkg.targetName)).size !== allowlist.size
+          ) {
+            throw new Error('Accepted manifest does not contain the complete first-publication allowlist');
+          }
+          for (const pkg of selected) {
+            if (pkg.version !== process.env.PUBLISH_VERSION) {
+              throw new Error(`Unexpected version for ${pkg.targetName}`);
+            }
+            const tarballPath = path.resolve(
+              path.dirname(manifestPath),
+              pkg.tarballPath,
+            );
+            if (!fs.statSync(tarballPath).isFile()) {
+              throw new Error(`Missing accepted tarball for ${pkg.targetName}`);
+            }
+            process.stdout.write(`${pkg.targetName}\t${tarballPath}\n`);
+          }
+          NODE
+
+          while IFS=$'\t' read -r package_name tarball_path; do
+            if npm view "$package_name@$PUBLISH_VERSION" version \
+              --registry https://registry.npmjs.org/ >/dev/null 2>"$lookup_error"; then
+              echo "Reusing existing $package_name@$PUBLISH_VERSION."
+              continue
+            fi
+            if ! grep -qE 'E404|404 Not Found' "$lookup_error"; then
+              echo "Registry lookup failed for $package_name@$PUBLISH_VERSION." >&2
+              exit 1
+            fi
+            npm publish "$tarball_path" \
+              --access public \
+              --tag latest \
+              --provenance \
+              --ignore-scripts \
+              --registry https://registry.npmjs.org/
+          done < "$bootstrap_list"
 
       - name: Publish only the accepted tarballs
         env:
