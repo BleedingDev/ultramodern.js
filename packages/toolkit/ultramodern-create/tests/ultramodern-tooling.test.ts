@@ -3013,7 +3013,7 @@ test('generated app tsconfig keeps shells independent from remote declaration ou
 
   const scripts = createWorkspaceRootPackageScripts(remotes);
   const referencedDeclarationBuild =
-    'node ./scripts/ultramodern-typecheck.mts --project verticals/catalog/tsconfig.json --skipLibCheck';
+    'node ./scripts/ultramodern-typecheck.mts --emit --project verticals/catalog/tsconfig.json --skipLibCheck';
   assert.ok(scripts.build.includes(referencedDeclarationBuild));
   assert.ok(scripts['cloudflare:build'].includes(referencedDeclarationBuild));
   assert.match(

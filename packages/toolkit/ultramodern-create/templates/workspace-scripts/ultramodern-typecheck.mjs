@@ -41,6 +41,7 @@ function readArgs() {
   let projectTarget;
   let checkers;
   let builders;
+  let emit = false;
   const passthrough = [];
 
   for (let index = 0; index < args.length; index += 1) {
@@ -69,6 +70,11 @@ function readArgs() {
       continue;
     }
 
+    if (arg === '--emit') {
+      emit = true;
+      continue;
+    }
+
     if (arg === '--checkers') {
       if (!next || next.startsWith('-')) {
         fail('--checkers requires a positive integer.');
@@ -93,12 +99,16 @@ function readArgs() {
   if (buildTarget && projectTarget) {
     fail('Choose either --build or --project, not both.');
   }
+  if (buildTarget && emit) {
+    fail('--emit is only supported with project mode.');
+  }
 
   return {
     mode: buildTarget ? 'build' : 'project',
     target: buildTarget ?? projectTarget ?? 'tsconfig.json',
     checkers,
     builders,
+    emit,
     passthrough,
   };
 }
@@ -140,7 +150,7 @@ const tsgoArgs =
     : [
         '--project',
         parsed.target,
-        '--noEmit',
+        ...(parsed.emit ? [] : ['--noEmit']),
         '--pretty',
         'false',
         '--checkers',

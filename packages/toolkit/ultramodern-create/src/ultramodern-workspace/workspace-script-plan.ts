@@ -207,7 +207,7 @@ function createReferencedRemoteDeclarationBuilds(remotes: WorkspaceApp[]) {
   return orderedRemotes
     .map(
       remote =>
-        `${rootToolingWrapperCommand('typecheck')} --project ${remote.directory}/tsconfig.json --skipLibCheck`,
+        `${rootToolingWrapperCommand('typecheck')} --emit --project ${remote.directory}/tsconfig.json --skipLibCheck`,
     )
     .join(' && ');
 }

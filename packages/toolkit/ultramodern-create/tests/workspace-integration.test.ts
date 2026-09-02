@@ -804,6 +804,76 @@ function assertIntegratedVertical(
   );
 }
 
+test('generated typecheck wrapper emits only when explicitly requested', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-typecheck-'));
+  const workspaceDir = path.join(tempRoot, 'integration-workspace');
+  const compilerLog = path.join(tempRoot, 'compiler-args.json');
+  const fakeCompiler = path.join(tempRoot, 'effect-tsgo');
+
+  try {
+    generateUltramodernWorkspace({
+      targetDir: workspaceDir,
+      packageName: 'integration-workspace',
+      modernVersion: '3.2.1',
+      enableTailwind: true,
+      packageSource: { strategy: 'workspace' },
+    });
+    fs.writeFileSync(
+      fakeCompiler,
+      `#!/usr/bin/env node
+require('node:fs').writeFileSync(
+  process.env.ULTRAMODERN_TEST_TSGO_LOG,
+  JSON.stringify(process.argv.slice(2)),
+);
+`,
+      { mode: 0o755 },
+    );
+
+    const runTypecheck = (args: string[]) =>
+      spawnSync(
+        process.execPath,
+        [path.join(workspaceDir, 'scripts/ultramodern-typecheck.mts'), ...args],
+        {
+          cwd: workspaceDir,
+          encoding: 'utf8',
+          env: {
+            ...hermeticEnv,
+            EFFECT_TSGO_BIN: fakeCompiler,
+            ULTRAMODERN_TEST_TSGO_LOG: compilerLog,
+          },
+        },
+      );
+
+    const strictCheck = runTypecheck(['--project', 'tsconfig.json']);
+    assert.equal(strictCheck.status, 0, commandOutput(strictCheck));
+    assert.ok(
+      (readJson(tempRoot, 'compiler-args.json') as string[]).includes(
+        '--noEmit',
+      ),
+    );
+
+    const declarationBuild = runTypecheck([
+      '--emit',
+      '--project',
+      'verticals/catalog/tsconfig.json',
+      '--skipLibCheck',
+    ]);
+    assert.equal(declarationBuild.status, 0, commandOutput(declarationBuild));
+    const declarationArgs = readJson(
+      tempRoot,
+      'compiler-args.json',
+    ) as string[];
+    assert.deepEqual(declarationArgs.slice(0, 2), [
+      '--project',
+      'verticals/catalog/tsconfig.json',
+    ]);
+    assert.equal(declarationArgs.includes('--noEmit'), false);
+    assert.ok(declarationArgs.includes('--skipLibCheck'));
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test('generated workspace scripts execute the complete ordered command plan and stop on failure', () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-script-plan-'));
   const workspaceDir = path.join(tempRoot, 'integration-workspace');
