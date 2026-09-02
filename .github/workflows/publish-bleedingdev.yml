@@ -754,7 +754,7 @@ jobs:
 
           if (
             manifest.schema !== 'bleedingdev.ultramodern.release-manifest' ||
-            manifest.schemaVersion !== 2
+            manifest.schemaVersion !== 3
           ) {
             throw new Error(`Unknown release manifest schema ${manifest.schema}@${manifest.schemaVersion}`);
           }
@@ -769,6 +769,7 @@ jobs:
               'release',
               'schema',
               'schemaVersion',
+              'sidecars',
               'source',
               'tools',
             ]) ||
@@ -779,7 +780,7 @@ jobs:
             manifest.packages.length === 0 ||
             !Array.isArray(manifest.publishOrder)
           ) {
-            throw new Error('Release manifest does not match the strict v2 shape');
+            throw new Error('Release manifest does not match the strict v3 shape');
           }
           if (
             detachedManifestSha256 !== `${manifestSha256}  manifest.json\n` ||

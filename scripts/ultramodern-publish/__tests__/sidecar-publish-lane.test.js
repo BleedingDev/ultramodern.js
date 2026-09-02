@@ -190,6 +190,14 @@ test('sidecars are staged with the cohort and carried in the immutable bundle', 
   assert.match(upload.with.path, /sidecars\.json/u);
   assert.match(upload.with.path, /sidecar-tarballs\/\*\.tgz/u);
   assert.doesNotMatch(upload.with.path, /sidecars\/\*\*/u);
+
+  const [identityRun] = jobStepRun(
+    parsed.jobs.publish,
+    /Prepare non-dry-run release identity/u,
+  );
+  assert.match(identityRun, /manifest\.schemaVersion !== 3/u);
+  assert.match(identityRun, /'sidecars'/u);
+  assert.match(identityRun, /strict v3 shape/u);
 });
 
 test('the OIDC sidecar job verifies the clean-room acceptance receipt before publishing', () => {
