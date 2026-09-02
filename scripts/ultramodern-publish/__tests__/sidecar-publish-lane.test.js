@@ -36,7 +36,6 @@ const sidecarNames = Object.freeze([
 ]);
 
 const workflow = () => parseYaml(fs.readFileSync(publishWorkflowPath, 'utf8'));
-const workflowText = () => fs.readFileSync(publishWorkflowPath, 'utf8');
 const normalizeNeeds = job =>
   Array.isArray(job.needs) ? job.needs : job.needs ? [job.needs] : [];
 const jobStepRun = (job, namePattern) =>
@@ -111,7 +110,7 @@ test('sidecar publication is a dedicated job the cohort publish depends on', () 
   assert.equal(sidecarJob.environment, publishJob.environment);
 });
 
-test('sidecar publication publishes through OIDC trusted publishing only', () => {
+test('sidecar publication uses OIDC apart from the bounded first-publication bootstrap', () => {
   const parsed = workflow();
   const sidecarJob = parsed.jobs['publish-sidecars'];
 
@@ -132,15 +131,45 @@ test('sidecar publication publishes through OIDC trusted publishing only', () =>
     'only the two registry-publishing jobs may hold id-token: write',
   );
 
-  // No npm token anywhere: trusted publishing is the only credential path.
-  const text = workflowText();
-  assert.ok(
-    !/NODE_AUTH_TOKEN|NPM_TOKEN|npm_token|registry-url:/u.test(text),
-    'the publish workflow must not configure an npm token or a token-bearing registry-url',
+  const publishJob = parsed.jobs.publish;
+  const bootstrapSteps = publishJob.steps.filter(
+    step =>
+      step.name === 'Bootstrap first publication of new package identities',
   );
-  assert.ok(
-    !/secrets\./u.test(text),
-    'the publish workflow must not read any repository secret',
+  assert.equal(bootstrapSteps.length, 1);
+  const [bootstrapStep] = bootstrapSteps;
+  assert.equal(bootstrapStep.if, "inputs.version == '3.8.3-ultramodern.2'");
+  assert.deepEqual(Object.keys(bootstrapStep.env).sort(), [
+    'NPM_TOKEN',
+    'PUBLISH_VERSION',
+  ]);
+  assert.match(
+    bootstrapStep.env.NPM_TOKEN,
+    /secrets\.NPM_FIRST_PUBLISH_TOKEN/u,
+  );
+  for (const packageName of [
+    '@bleedingdev/modern-js-app-tools-extensions',
+    '@bleedingdev/modern-js-bff-effect',
+    '@bleedingdev/modern-js-i18n-runtime-extensions',
+    '@bleedingdev/modern-js-plugin-bff-extensions',
+    '@bleedingdev/modern-js-runtime-extensions',
+    '@bleedingdev/modern-js-ultramodern-create',
+    '@bleedingdev/modern-js-ultramodern-sandpack-profile',
+  ]) {
+    assert.match(bootstrapStep.run, new RegExp(packageName, 'u'));
+  }
+  assert.match(bootstrapStep.run, /npm publish[\s\S]*--provenance/u);
+
+  const withoutBootstrap = structuredClone(parsed);
+  withoutBootstrap.jobs.publish.steps =
+    withoutBootstrap.jobs.publish.steps.filter(
+      step => step.name !== bootstrapStep.name,
+    );
+  const ordinaryWorkflow = JSON.stringify(withoutBootstrap);
+  assert.doesNotMatch(
+    ordinaryWorkflow,
+    /NODE_AUTH_TOKEN|NPM_TOKEN|npm_token|"registry-url":|secrets\./u,
+    'normal publication must remain OIDC-only and secret-free',
   );
 });
 

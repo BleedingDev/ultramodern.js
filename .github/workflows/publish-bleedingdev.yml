@@ -365,6 +365,8 @@ jobs:
     # bigger runners without touching the publish trust chain.
     runs-on: ${{ fromJSON(vars.BLEEDINGDEV_ACCEPT_RUNNER_LABELS || '"ubuntu-latest"') }}
     timeout-minutes: 120
+    env:
+      PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/ms-playwright
     if: >-
       github.actor == github.repository_owner &&
       github.triggering_actor == github.repository_owner &&
@@ -431,7 +433,7 @@ jobs:
         id: playwright-cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.cache/ms-playwright
+          path: ${{ env.PLAYWRIGHT_BROWSERS_PATH }}
           key: playwright-chromium-1.60.0-${{ runner.os }}
 
       - name: Install browser smoke runtime
@@ -939,6 +941,8 @@ jobs:
     # Same runner-label indirection as accept-release; unset => ubuntu-latest.
     runs-on: ${{ fromJSON(vars.BLEEDINGDEV_ACCEPT_RUNNER_LABELS || '"ubuntu-latest"') }}
     timeout-minutes: 120
+    env:
+      PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/ms-playwright
     if: >-
       github.actor == github.repository_owner &&
       github.triggering_actor == github.repository_owner &&
@@ -1091,7 +1095,7 @@ jobs:
         id: playwright-cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.cache/ms-playwright
+          path: ${{ env.PLAYWRIGHT_BROWSERS_PATH }}
           key: playwright-chromium-1.60.0-${{ runner.os }}
 
       - name: Install browser smoke runtime

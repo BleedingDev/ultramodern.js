@@ -566,11 +566,17 @@ test('dry-run and real publication emit the same strict bound outcome schema', a
 });
 
 test('backfill reconstructs schema-v6 outcomes with the archived current-source create contract', async () => {
-  const currentSourceCommit =
-    execFileSync('git', ['stash', 'create', 'publish-outcome-source-test'], {
-      encoding: 'utf8',
-    }).trim() ||
-    execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+  let currentSourceCommit;
+  try {
+    currentSourceCommit = execFileSync(
+      'git',
+      ['stash', 'create', 'publish-outcome-source-test'],
+      { encoding: 'utf8' },
+    ).trim();
+  } catch {}
+  currentSourceCommit ||= execFileSync('git', ['rev-parse', 'HEAD'], {
+    encoding: 'utf8',
+  }).trim();
   const fixture = await createEvidenceFixture({
     sourceIdentity: { ...source, commit: currentSourceCommit },
   });
