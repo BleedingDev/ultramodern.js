@@ -676,11 +676,9 @@ async function assertRegistrySourceCommitUnpublished(
                 version: entry.version,
               },
               entry.published.dist,
-              entry.version === requestedVersion
-                ? expectation
-                : cutoverAnchor && entry.version === cutoverAnchor.version
-                  ? cutoverExpectation
-                  : discoveryExpectation,
+              cutoverAnchor && entry.version === cutoverAnchor.version
+                ? cutoverExpectation
+                : discoveryExpectation,
               fetchImpl,
               dependencies.bundleVerifier,
             ),
@@ -884,10 +882,13 @@ async function verifyRegistryPackageDist(
 ) {
   registry.assertRegistryDistMatches(item, dist);
   await registry.verifyRegistryTarball(item, dist);
+  // An immutable version may have been placed by an earlier failed run. Its
+  // signed source commit is authenticated from the bundle; exact tarball bytes
+  // establish equivalence with this release rather than mutable run identity.
   await registry.verifyRegistryProvenance(
     item,
     dist,
-    provenanceExpectation,
+    historicalProvenanceExpectation(provenanceExpectation),
   );
   return dist;
 }

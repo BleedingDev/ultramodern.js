@@ -1444,7 +1444,12 @@ test('verifyRegistryProvenance validates npm DSSE SLSA subject bytes and trusted
         provenanceChecks += 1;
         assert.equal(verifiedItem, artifact);
         assert.equal(dist, provenanceDist);
-        assert.equal(verifiedExpectation, expectation);
+        assert.deepEqual(verifiedExpectation, {
+          certificateIdentity: expectation.certificateIdentity,
+          issuer: expectation.issuer,
+          source: { repository: expectation.source.repository },
+          workflow: expectation.workflow,
+        });
       },
     });
     assert.equal(tarballChecks, 1);
@@ -2268,21 +2273,23 @@ test('registry source ledger fetches each pinned attestation once and rejects re
   }
 });
 
-test('registry source ledger accepts an exact-version retry from an older attempt in the same run', async () => {
+test('registry source ledger accepts an exact version from a prior trusted run and source', async () => {
   const { assertRegistrySourceCommitUnpublished } = await import(
     '../prepare-bleedingdev-packages.mjs'
   );
   const requestedVersion = '3.2.0-ultramodern.2';
+  const historicalCommit = 'd'.repeat(40);
   const ledger = createRegistryLedger([
     ...knownRegistryHistory,
     {
       invocationId:
-        'https://github.com/BleedingDev/ultramodern.js/actions/runs/123/attempts/1',
+        'https://github.com/BleedingDev/ultramodern.js/actions/runs/999/attempts/1',
       publishedAt: '2026-05-17T00:00:00.000Z',
-      sourceCommit: releaseSource.commit,
+      sourceCommit: historicalCommit,
       version: requestedVersion,
     },
   ]);
+  const authenticatedExpectations = [];
 
   const result = await assertRegistrySourceCommitUnpublished(
     registryLedgerRequest({
@@ -2290,7 +2297,10 @@ test('registry source ledger accepts an exact-version retry from an older attemp
       requestedVersion,
     }),
     {
-      bundleVerifier: acceptSigstoreBundle,
+      bundleVerifier: async (_bundle, expectation) => {
+        authenticatedExpectations.push(expectation);
+        return sigstoreVerificationResult(expectation);
+      },
       fetchImpl: createRegistryLedgerFetch(ledger, []),
     },
   );
@@ -2301,61 +2311,57 @@ test('registry source ledger accepts an exact-version retry from an older attemp
     publishedAt: ledgerCutoverAnchor.publishedAt,
     version: ledgerCutoverAnchor.version,
   });
+  assert.deepEqual(
+    authenticatedExpectations
+      .map(expectation => expectation.source.commit)
+      .sort(),
+    [historicalCommit, ledgerCutoverAnchor.sourceCommit].sort(),
+  );
+  assert.equal(
+    authenticatedExpectations.every(
+      expectation => expectation.invocation === undefined,
+    ),
+    true,
+  );
 });
 
-test('registry source ledger rejects cross-run, future-attempt, and malformed exact-version provenance', async () => {
+test('registry source ledger fails closed when the signed exact-version commit is not certificate-authenticated', async () => {
   const { assertRegistrySourceCommitUnpublished } = await import(
     '../prepare-bleedingdev-packages.mjs'
   );
   const requestedVersion = '3.2.0-ultramodern.2';
-  const cases = [
+  const historicalCommit = 'd'.repeat(40);
+  const ledger = createRegistryLedger([
+    ...knownRegistryHistory,
     {
-      invocationId:
-        'https://github.com/BleedingDev/ultramodern.js/actions/runs/999/attempts/1',
-      pattern: /belongs to workflow run 999, expected 123/,
+      publishedAt: '2026-05-17T00:00:00.000Z',
+      sourceCommit: historicalCommit,
+      version: requestedVersion,
     },
-    {
-      invocationId:
-        'https://github.com/BleedingDev/ultramodern.js/actions/runs/123/attempts/3',
-      pattern: /attempt 3 is newer than current run attempt 2/,
-    },
-    {
-      invocationId: 'not-a-github-invocation',
-      pattern: /invocationId must be a GitHub Actions invocation URL/,
-    },
-    {
-      invocationId:
-        'https://github.com/Other/repository/actions/runs/123/attempts/1',
-      pattern:
-        /invocation repository Other\/repository does not match trusted repository/,
-    },
-  ];
+  ]);
 
-  for (const { invocationId, pattern } of cases) {
-    const ledger = createRegistryLedger([
-      ...knownRegistryHistory,
-      {
-        invocationId,
-        publishedAt: '2026-05-17T00:00:00.000Z',
-        sourceCommit: releaseSource.commit,
-        version: requestedVersion,
-      },
-    ]);
-    await assert.rejects(
-      () =>
-        assertRegistrySourceCommitUnpublished(
-          registryLedgerRequest({
-            env: { GITHUB_RUN_ATTEMPT: '2', GITHUB_RUN_ID: '123' },
-            requestedVersion,
-          }),
-          {
-            bundleVerifier: acceptSigstoreBundle,
-            fetchImpl: createRegistryLedgerFetch(ledger, []),
+  await assert.rejects(
+    () =>
+      assertRegistrySourceCommitUnpublished(
+        registryLedgerRequest({ requestedVersion }),
+        {
+          bundleVerifier: async (_bundle, expectation) => {
+            if (expectation.source.commit === historicalCommit) {
+              throw new Error('fixture certificate source commit mismatch');
+            }
+            return sigstoreVerificationResult(expectation);
           },
-        ),
-      pattern,
-    );
-  }
+          fetchImpl: createRegistryLedgerFetch(ledger, []),
+        },
+      ),
+    /fixture certificate source commit mismatch/u,
+  );
+});
+
+test('registry source ledger rejects incomplete current-run invocation context', async () => {
+  const { assertRegistrySourceCommitUnpublished } = await import(
+    '../prepare-bleedingdev-packages.mjs'
+  );
 
   await assert.rejects(
     () =>
@@ -3983,6 +3989,7 @@ test('validateRegistryCohort verifies members concurrently and reports failures 
 
 test('post-publish verification re-resolves the dist every attempt and downloads the tarball once', async () => {
   const {
+    createRegistryProvenanceExpectation,
     registryVerificationRetryDelaysMs,
     verifyRegistryPackage,
     verifyRegistryPackageDist,
@@ -4012,7 +4019,13 @@ test('post-publish verification re-resolves the dist every attempt and downloads
 
   const dist = await verifyRegistryPackage(
     item,
-    { issuer: 'fixture-issuer' },
+    createRegistryProvenanceExpectation(
+      { source: releaseSource },
+      {
+        GITHUB_REF: trustedWorkflow.ref,
+        GITHUB_REPOSITORY: releaseSource.repository,
+      },
+    ),
     {
       assertRegistryDistMatches: () => {},
       lookupRegistryPackageDist: async (packageName, version) => {
@@ -4057,9 +4070,11 @@ test('post-publish verification re-resolves the dist every attempt and downloads
 });
 
 test('post-publish verification re-pins the tarball URL after the download is memoized', async () => {
-  const { verifyRegistryPackage, verifyRegistryPackageDist } = await import(
-    '../lib/prepare-bleedingdev-packages/registry.mjs'
-  );
+  const {
+    createRegistryProvenanceExpectation,
+    verifyRegistryPackage,
+    verifyRegistryPackageDist,
+  } = await import('../lib/prepare-bleedingdev-packages/registry.mjs');
   const item = {
     integrity: 'sha512-fixture',
     shasum: 'fixture-shasum',
@@ -4074,7 +4089,13 @@ test('post-publish verification re-pins the tarball URL after the download is me
 
   const dist = await verifyRegistryPackage(
     item,
-    { issuer: 'fixture-issuer' },
+    createRegistryProvenanceExpectation(
+      { source: releaseSource },
+      {
+        GITHUB_REF: trustedWorkflow.ref,
+        GITHUB_REPOSITORY: releaseSource.repository,
+      },
+    ),
     {
       assertRegistryDistMatches: () => {},
       lookupRegistryPackageDist: async () => {
