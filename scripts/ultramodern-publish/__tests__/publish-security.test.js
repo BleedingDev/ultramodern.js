@@ -962,6 +962,10 @@ test('release recovery reuses only an accepted ancestral bundle and preserves it
       /inputs\.recovery_run_id, inputs\.recovery_run_attempt/u,
     );
   }
+  const acceptanceDownload = recoveryDownloads.find(
+    step => step.name === 'Download previous release acceptance receipt',
+  );
+  assert.equal(acceptanceDownload.with.path, '.modern/bleedingdev-publish');
 
   const previousAcceptance = prepareJob.steps.find(
     step => step.name === 'Verify previously accepted release bundle',
@@ -973,6 +977,11 @@ test('release recovery reuses only an accepted ancestral bundle and preserves it
   );
   assert.match(previousAcceptance.run, /--verify-receipt/u);
   assert.match(previousAcceptance.run, /--scale-profile erp-10/u);
+  assert.match(
+    previousAcceptance.run,
+    /--receipt "\$BLEEDINGDEV_RELEASE_ACCEPTANCE_RECEIPT"/u,
+  );
+  assert.doesNotMatch(previousAcceptance.run, /recovery-acceptance/u);
   assert.match(
     previousAcceptance.run,
     /--run-identity "\$recovery_run_identity"/u,

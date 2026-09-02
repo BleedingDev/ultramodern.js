@@ -332,7 +332,7 @@ jobs:
         with:
           github-token: ${{ github.token }}
           name: ${{ format('{0}-run-{1}-attempt-{2}', env.BLEEDINGDEV_RELEASE_ACCEPTANCE_ARTIFACT, inputs.recovery_run_id, inputs.recovery_run_attempt) }}
-          path: .modern/recovery-acceptance
+          path: .modern/bleedingdev-publish
           repository: ${{ github.repository }}
           run-id: ${{ inputs.recovery_run_id }}
 
@@ -348,12 +348,12 @@ jobs:
             --verify-receipt \
             --manifest "$BLEEDINGDEV_RELEASE_MANIFEST" \
             --scale-profile erp-10 \
-            --receipt .modern/recovery-acceptance/acceptance-receipt.json \
+            --receipt "$BLEEDINGDEV_RELEASE_ACCEPTANCE_RECEIPT" \
             --run-identity "$recovery_run_identity"
           node scripts/ultramodern-production-readiness/published-create-proof/acceptance-receipt.mjs \
             --verify \
             --manifest "$BLEEDINGDEV_RELEASE_MANIFEST" \
-            --receipt .modern/recovery-acceptance/acceptance-receipt.json \
+            --receipt "$BLEEDINGDEV_RELEASE_ACCEPTANCE_RECEIPT" \
             --run-identity "$recovery_run_identity"
 
       - name: Verify release bundle identity
