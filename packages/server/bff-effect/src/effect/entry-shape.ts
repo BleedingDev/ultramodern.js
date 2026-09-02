@@ -17,11 +17,16 @@ function createLocalValidatorAwareHandlerFactoryRegistry(): ValidatorAwareHandle
 }
 
 function loadNodeValidatorAwareHandlerFactoryRegistry(): ValidatorAwareHandlerFactoryRegistry {
+  const moduleUrl = import.meta.url;
+  if (typeof moduleUrl !== 'string' || !moduleUrl.startsWith('file:')) {
+    return createLocalValidatorAwareHandlerFactoryRegistry();
+  }
+
   const moduleBuiltin = process.getBuiltinModule(
     'node:module',
   ) as typeof import('node:module');
   try {
-    return moduleBuiltin.createRequire(import.meta.url)(
+    return moduleBuiltin.createRequire(moduleUrl)(
       `#effect-entry-shape-${'registry'}`,
     ) as ValidatorAwareHandlerFactoryRegistry;
   } catch (error) {
