@@ -179,17 +179,31 @@ function createStylesheetLinksHtml(stylesheetEntries) {
     .join('');
 }
 
-function createStylesheetLinkStream(body, stylesheetEntries) {
+function createStylesheetLinkStream(body, stylesheetEntries, requestUrl) {
   const decoder = new TextDecoder();
   const encoder = new TextEncoder();
   let injected = false;
   let pending = '';
-  const links = createStylesheetLinksHtml(stylesheetEntries);
 
   const flushReadyHtml = (controller, final) => {
     const sentinelIndex = pending.indexOf(CLOUDFLARE_STYLESHEET_LINKS_SENTINEL);
     if (!injected && sentinelIndex >= 0) {
-      const output = `${pending.slice(0, sentinelIndex)}${links}${pending.slice(
+      const htmlBeforeSentinel = pending.slice(0, sentinelIndex);
+      const existingHrefs = new Set(
+        collectStylesheetHrefs(htmlBeforeSentinel).map(href => {
+          try {
+            return new URL(href, requestUrl).toString();
+          } catch {
+            return href;
+          }
+        }),
+      );
+      const links = createStylesheetLinksHtml(
+        stylesheetEntries.filter(
+          ({ preloadHref }) => !existingHrefs.has(preloadHref),
+        ),
+      );
+      const output = `${htmlBeforeSentinel}${links}${pending.slice(
         sentinelIndex + CLOUDFLARE_STYLESHEET_LINKS_SENTINEL.length,
       )}`;
       injected = true;
@@ -198,17 +212,12 @@ function createStylesheetLinkStream(body, stylesheetEntries) {
       return;
     }
 
-    const retainedLength =
-      final || injected
-        ? 0
-        : Math.min(
-            pending.length,
-            CLOUDFLARE_STYLESHEET_LINKS_SENTINEL.length - 1,
-          );
-    const readyEnd = pending.length - retainedLength;
-    if (readyEnd > 0) {
-      controller.enqueue(encoder.encode(pending.slice(0, readyEnd)));
-      pending = pending.slice(readyEnd);
+    if (!final && !injected) {
+      return;
+    }
+    if (pending.length > 0) {
+      controller.enqueue(encoder.encode(pending));
+      pending = '';
     }
   };
 
@@ -1036,30 +1045,8 @@ async function withRouteCssLinks(
     }
     headers.delete('content-length');
 
-    if (typeof HTMLRewriter === 'function') {
-      const links = createStylesheetLinksHtml(uniqueCssEntries);
-      const htmlResponse = new Response(response.body, {
-        headers,
-        status: response.status,
-        statusText: response.statusText,
-      });
-
-      return new HTMLRewriter()
-        .on('[data-modern-cloudflare-stylesheet-links]', {
-          element(element) {
-            element.remove();
-          },
-        })
-        .on('head', {
-          element(element) {
-            element.append(links, { html: true });
-          },
-        })
-        .transform(htmlResponse);
-    }
-
     return new Response(
-      createStylesheetLinkStream(response.body, uniqueCssEntries),
+      createStylesheetLinkStream(response.body, uniqueCssEntries, request.url),
       {
         headers,
         status: response.status,

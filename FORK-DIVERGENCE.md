@@ -198,6 +198,7 @@ a future provenance debt reset.
 | --- | --- | --- | --- |
 | `packages/solutions/app-tools/rslib.config.mts` | bleedingdev | Copy the deployment entry templates into every compiled output so `createNodePreset` and the other runtime deployment readers receive the required CJS and ESM files; retain upstream #8819's duplicate-loader fix | `capped-patch` + `fixed-in-fork` + `upstream-PR` |
 | `packages/solutions/app-tools/tests/config/verify-public-surface.mjs` | bleedingdev | Verify both compiled formats contain the complete deployment-template set so an incomplete app-tools tarball fails during its producer build rather than clean-room application acceptance | `capped-patch` + `fixed-in-fork` + `upstream-PR` |
+| `packages/solutions/app-tools/tests/deploy/cloudflare.test.ts` | bleedingdev | Regress the fork-owned Cloudflare streaming stylesheet injector against route CSS already rendered before the distributed-SSR sentinel, preventing duplicate links in workerd output without changing app-tools runtime ownership | `capped-patch` + `fixed-in-fork` |
 | `packages/runtime/plugin-runtime/src/core/context/extensions.ts` | bleedingdev | Make the internal symbol slot enumerable so SSR object spreads preserve extension state while string-key enumeration and JSON remain unchanged | `capped-patch` + `fixed-in-fork` + `upstream-PR` |
 
 ### Historical 2026-08-30 v3.8.3 transition: complete raised set

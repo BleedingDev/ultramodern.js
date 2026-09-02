@@ -3389,13 +3389,20 @@ describe('cloudflare deploy preset', () => {
             },
           ],
         }),
+        'routes-manifest.json': JSON.stringify({
+          routeAssets: {
+            main: {
+              referenceCssAssets: ['static/css/shell.css'],
+            },
+          },
+        }),
         'worker/main.js': `module.exports = { requestHandler: async (_request, options) => {
           const fragment = await options.locals.__modernDistributedSsrFragments.resolve(
             'inventory',
             './Widget',
             {},
           );
-          return new Response('<!doctype html><html><head><meta data-modern-cloudflare-stylesheet-links></head><body>' + fragment.html + '</body></html>', { headers: { 'content-type': 'text/html; charset=utf-8' } });
+          return new Response('<!doctype html><html><head><link rel="stylesheet" href="/static/css/shell.css"><meta data-modern-cloudflare-stylesheet-links></head><body>' + fragment.html + '</body></html>', { headers: { 'content-type': 'text/html; charset=utf-8' } });
         } };`,
       },
       services: [
@@ -3457,8 +3464,12 @@ describe('cloudflare deploy preset', () => {
 
       expect(outboundRequests).toEqual([]);
       expect(response.headers.get('link')).toContain(
+        '</static/css/shell.css>; rel=preload; as=style',
+      );
+      expect(response.headers.get('link')).toContain(
         '<https://inventory.example.com/static/css/inventory.css>; rel=preload; as=style',
       );
+      expect(html.split('/static/css/shell.css')).toHaveLength(2);
       expect(html).toContain(
         '<link href="https://inventory.example.com/static/css/inventory.css" rel="stylesheet" type="text/css" data-precedence="default">',
       );
