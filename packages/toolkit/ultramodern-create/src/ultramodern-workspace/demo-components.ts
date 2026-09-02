@@ -588,7 +588,11 @@ export function remoteComponentOutputPath(app: WorkspaceApp, expose: string) {
   return `${app.directory}/${exposePath.replace(/^\.\//u, '')}`;
 }
 
-export type GeneratedNavigationSurfaceKind = 'demo-component' | 'shell-frame';
+export type GeneratedNavigationSurfaceKind =
+  | 'checkout-add-to-cart'
+  | 'checkout-page'
+  | 'demo-component'
+  | 'shell-frame';
 
 const tanstackRuntimeModule = '@modern-js/plugin-tanstack/runtime';
 
@@ -626,6 +630,32 @@ function ensureNamedImport(
   return firstImportEnd < 0
     ? `${importLine}${source}`
     : `${source.slice(0, firstImportEnd + 1)}${importLine}${source.slice(firstImportEnd + 1)}`;
+}
+
+function removeNamedImport(source: string, moduleName: string, name: string) {
+  const importEndMarker = `from '${moduleName}';`;
+  const importEnd = source.indexOf(importEndMarker);
+  if (importEnd < 0) {
+    return source;
+  }
+
+  const importStart = source.lastIndexOf('import ', importEnd);
+  const openBrace = source.indexOf('{', importStart);
+  const closeBrace = source.indexOf('}', openBrace);
+  if (openBrace < 0 || closeBrace < 0 || closeBrace > importEnd) {
+    return source;
+  }
+
+  const names = source
+    .slice(openBrace + 1, closeBrace)
+    .split(',')
+    .map(importName => importName.trim())
+    .filter(importName => importName !== '' && importName !== name);
+  if (names.length === 0) {
+    const lineEnd = source.indexOf('\n', importEnd + importEndMarker.length);
+    return `${source.slice(0, importStart)}${source.slice(lineEnd < 0 ? source.length : lineEnd + 1)}`;
+  }
+  return `${source.slice(0, openBrace + 1)} ${names.join(', ')} ${source.slice(closeBrace)}`;
 }
 
 function ensureNavigateHook(source: string) {
@@ -822,6 +852,56 @@ function removeSyntheticClickHandler(openingTag: string) {
   return openingTag;
 }
 
+function rewriteCheckoutCartLink(source: string) {
+  let changed = false;
+  const next = source.replace(
+    /^(\s*)to=\{`\/\$\{language\}\/cart\?sku=\$\{sku\}`\},?$/gmu,
+    (_match, indentation: string) => {
+      changed = true;
+      return `${indentation}params={{ lang: language }}\n${indentation}search={{ sku }}\n${indentation}to="/$lang/cart"`;
+    },
+  );
+  return { changed, source: next };
+}
+
+function rewriteCrossRemoteTractorsLink(source: string) {
+  let next = source;
+  let searchFrom = 0;
+  let changed = false;
+
+  while (true) {
+    const openingTagStart = next.indexOf('<Link', searchFrom);
+    if (openingTagStart < 0) {
+      break;
+    }
+    const openingTagEnd = closingJsxTag(next, openingTagStart);
+    if (openingTagEnd < 0) {
+      break;
+    }
+    const openingTag = next.slice(openingTagStart, openingTagEnd + 1);
+    if (!openingTag.includes('to={`/$' + '{language}/tractors`}')) {
+      searchFrom = openingTagEnd + 1;
+      continue;
+    }
+    const closingTagStart = next.indexOf('</Link>', openingTagEnd + 1);
+    if (closingTagStart < 0) {
+      break;
+    }
+
+    const nativeOpeningTag = openingTag
+      .replace('<Link', '<a')
+      .replace('to=', 'href=');
+    next = `${next.slice(0, openingTagStart)}${nativeOpeningTag}${next.slice(
+      openingTagEnd + 1,
+      closingTagStart,
+    )}</a>${next.slice(closingTagStart + '</Link>'.length)}`;
+    searchFrom = openingTagStart + nativeOpeningTag.length;
+    changed = true;
+  }
+
+  return { changed, source: next };
+}
+
 function rewriteInternalAnchors(source: string) {
   let next = source;
   let searchFrom = 0;
@@ -903,26 +983,69 @@ function rewriteJsxElementName(
   return { changed, source: next };
 }
 
+function ensureNoPropsComponentContract(source: string) {
+  let changed = false;
+  let next = source.replace(
+    /export default function ([A-Za-z_$][\w$]*)\(\) \{/u,
+    (_match, componentName: string) => {
+      changed = true;
+      return `export default function ${componentName}(\n  props: Record<string, never>\n): JSX.Element {\n  void props;`;
+    },
+  );
+  if (changed) {
+    next = ensureNamedImport(next, 'react', ['JSX']);
+  }
+  return { changed, source: next };
+}
+
+export function regenerateGeneratedProductRouteAdapter(source: string) {
+  let next = source.replaceAll('search.sku', "search['sku']");
+  next = next.replace(
+    /<(DecideProductPage|ProductPage) sku=\{sku\} slug=\{slug\} \/>/u,
+    `<$1\n        {...(sku === undefined ? {} : { sku })}\n        {...(slug === undefined ? {} : { slug })}\n      />`,
+  );
+  return next;
+}
+
 export function regenerateGeneratedNavigationSurface(
   source: string,
   kind: GeneratedNavigationSurfaceKind,
 ) {
   const routerLocationSuffix = rewriteRouterLocationSuffix(source);
-  const anchors = rewriteInternalAnchors(routerLocationSuffix.source);
-  const locationAssignments = rewriteWindowLocationAssignments(anchors.source);
+  const anchors =
+    kind === 'checkout-page'
+      ? rewriteCrossRemoteTractorsLink(routerLocationSuffix.source)
+      : rewriteInternalAnchors(routerLocationSuffix.source);
+  const cartLink =
+    kind === 'checkout-add-to-cart'
+      ? rewriteCheckoutCartLink(anchors.source)
+      : { changed: false, source: anchors.source };
+  const locationAssignments = rewriteWindowLocationAssignments(cartLink.source);
   const forms =
-    kind === 'demo-component'
+    kind === 'demo-component' || kind === 'checkout-page'
       ? rewriteJsxElementName(locationAssignments.source, 'form', 'Form')
       : { changed: false, source: locationAssignments.source };
-  let next = forms.source;
+  const noProps =
+    kind === 'checkout-page'
+      ? ensureNoPropsComponentContract(forms.source)
+      : { changed: false, source: forms.source };
+  let next = noProps.source;
 
-  if (anchors.changed || locationAssignments.changed || forms.changed) {
+  const usesLink = next.includes('<Link');
+  if (
+    forms.changed ||
+    (anchors.changed && usesLink) ||
+    locationAssignments.changed
+  ) {
     const imports = [
       ...(forms.changed ? ['Form'] : []),
-      ...(anchors.changed ? ['Link'] : []),
+      ...(anchors.changed && usesLink ? ['Link'] : []),
       ...(locationAssignments.changed ? ['useNavigate'] : []),
     ];
     next = ensureNamedImport(next, tanstackRuntimeModule, imports);
+  }
+  if (!usesLink) {
+    next = removeNamedImport(next, tanstackRuntimeModule, 'Link');
   }
   if (locationAssignments.changed) {
     next = ensureNavigateHook(next);

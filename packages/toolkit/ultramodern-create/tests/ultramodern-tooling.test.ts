@@ -12,6 +12,7 @@ import { withStagedDryRunMigrationIo } from '../src/ultramodern-tooling/commands
 import {
   ensureBffEffectDependencies,
   updateGeneratedToolingDependencies,
+  updateModernDependencies,
 } from '../src/ultramodern-tooling/commands/migrate-strict-effect/package-cohort';
 import {
   readUltramodernConfig,
@@ -21,6 +22,10 @@ import {
   addUltramodernVertical,
   generateUltramodernWorkspace,
 } from '../src/ultramodern-workspace';
+import {
+  regenerateGeneratedNavigationSurface,
+  regenerateGeneratedProductRouteAdapter,
+} from '../src/ultramodern-workspace/demo-components';
 import {
   createAppMfTypesTsConfig,
   createAppTsConfig,
@@ -45,6 +50,7 @@ import {
   TYPESCRIPT_VERSION,
   ZOD_VERSION,
 } from '../src/ultramodern-workspace/versions';
+import { createWorkspaceRootPackageScripts } from '../src/ultramodern-workspace/workspace-script-plan';
 
 const retiredContractPath = '.modernjs/ultramodern-generated-contract.json';
 const retiredPackageSourcePath = '.modernjs/ultramodern-package-source.json';
@@ -2808,6 +2814,34 @@ test('UltraModern mf-types validates real Module Federation config files', async
       ),
       0,
     );
+
+    assert.equal(
+      await runUltramodernToolingCli(
+        ['mf-types', '--target', 'cloudflare', 'verticals/catalog'],
+        workspaceDir,
+      ),
+      1,
+    );
+    const cloudflareArchivePath = path.join(
+      workspaceDir,
+      'verticals/catalog/dist-cloudflare/@mf-types.zip',
+    );
+    fs.mkdirSync(path.dirname(cloudflareArchivePath), { recursive: true });
+    fs.writeFileSync(cloudflareArchivePath, 'zip');
+    assert.equal(
+      await runUltramodernToolingCli(
+        ['mf-types', '--target=cloudflare', 'verticals/catalog'],
+        workspaceDir,
+      ),
+      0,
+    );
+    assert.equal(
+      await runUltramodernToolingCli(
+        ['mf-types', '--target', 'invalid', 'verticals/catalog'],
+        workspaceDir,
+      ),
+      1,
+    );
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
@@ -2868,8 +2902,12 @@ test('compact UltraModern config maps component exposes to concrete DTS source f
     './Route': './src/federation-entry.tsx',
     './Widget': './src/components/catalog-widget.tsx',
   });
+  const mfTypesConfig = createAppMfTypesTsConfig(catalog!) as Record<
+    string,
+    unknown
+  >;
   assert.deepEqual(
-    (createAppMfTypesTsConfig(catalog!) as Record<string, unknown>).include,
+    mfTypesConfig.include,
     [
       'src/federation-entry.tsx',
       'src/components/product-grid.tsx',
@@ -2879,6 +2917,7 @@ test('compact UltraModern config maps component exposes to concrete DTS source f
     ],
     'custom expose order must keep the route entry first for MF DTS validation',
   );
+  assert.deepEqual(mfTypesConfig.compilerOptions, { skipLibCheck: true });
 });
 
 test('generated app tsconfig keeps shells independent from remote declaration output', () => {
@@ -2950,6 +2989,10 @@ test('generated app tsconfig keeps shells independent from remote declaration ou
     { path: '../../packages/shared-contracts' },
     { path: '../../packages/shared-design-tokens' },
   ]);
+  assert.equal(
+    (shellTsConfig.compilerOptions as Record<string, unknown>).skipLibCheck,
+    undefined,
+  );
   assert.deepEqual(checkoutTsConfig.include, [
     'src',
     'locales/**/*.json',
@@ -2963,6 +3006,101 @@ test('generated app tsconfig keeps shells independent from remote declaration ou
     { path: '../../packages/shared-design-tokens' },
     { path: '../catalog' },
   ]);
+  assert.equal(
+    (checkoutTsConfig.compilerOptions as Record<string, unknown>).skipLibCheck,
+    true,
+  );
+
+  const scripts = createWorkspaceRootPackageScripts(remotes);
+  const referencedDeclarationBuild =
+    'node ./scripts/ultramodern-typecheck.mts --project verticals/catalog/tsconfig.json --skipLibCheck';
+  assert.ok(scripts.build.includes(referencedDeclarationBuild));
+  assert.ok(scripts['cloudflare:build'].includes(referencedDeclarationBuild));
+  assert.match(
+    scripts['cloudflare:build'],
+    /pnpm mf:types --target cloudflare/u,
+  );
+  assert.ok(
+    scripts.build.indexOf(referencedDeclarationBuild) <
+      scripts.build.indexOf('pnpm -r --filter "./verticals/*" run build'),
+  );
+});
+
+test('migration emits typed local checkout links and preserves cross-remote anchors', () => {
+  const addToCart = `import { Link } from '@modern-js/plugin-tanstack/runtime';
+
+export default function CheckoutAddToCart() {
+  return (
+    <Link
+      className="button"
+      to={\`/\${language}/cart?sku=\${sku}\`}
+      onClick={() => cart.addProduct({ id: sku })}
+    >
+      Add
+    </Link>
+  );
+}
+`;
+  const checkoutPage = `import { Form, Link, useNavigate } from '@modern-js/plugin-tanstack/runtime';
+import type { FormEvent } from 'react';
+
+export default function CheckoutCheckoutPage() {
+  return (
+    <Link className="button" to={\`/\${language}/tractors\`}>
+      Continue shopping
+    </Link>
+  );
+}
+`;
+
+  const migratedAddToCart = regenerateGeneratedNavigationSurface(
+    addToCart,
+    'checkout-add-to-cart',
+  );
+  assert.match(migratedAddToCart, /params=\{\{ lang: language \}\}/u);
+  assert.match(migratedAddToCart, /search=\{\{ sku \}\}/u);
+  assert.match(migratedAddToCart, /to="\/\$lang\/cart"/u);
+  assert.doesNotMatch(migratedAddToCart, /cart\?sku/u);
+
+  const migratedCheckoutPage = regenerateGeneratedNavigationSurface(
+    checkoutPage,
+    'checkout-page',
+  );
+  assert.match(migratedCheckoutPage, /<a className="button"/u);
+  assert.match(migratedCheckoutPage, /href=\{`\/\$\{language\}\/tractors`\}/u);
+  assert.doesNotMatch(migratedCheckoutPage, /\bLink\b/u);
+  assert.match(
+    migratedCheckoutPage,
+    /import type \{ FormEvent, JSX \} from 'react';/u,
+  );
+  assert.match(
+    migratedCheckoutPage,
+    /props: Record<string, never>[\s\S]*void props;/u,
+  );
+  assert.equal(
+    regenerateGeneratedNavigationSurface(migratedCheckoutPage, 'checkout-page'),
+    migratedCheckoutPage,
+  );
+});
+
+test('migration repairs strict product route adapters', () => {
+  const searchAdapter = `export const validateSearch = (search: Record<string, unknown>) => ({
+  sku: typeof search.sku === 'string' ? search.sku : undefined,
+});
+`;
+  const routeAdapter = `<DecideProductPage sku={sku} slug={slug} />`;
+
+  assert.equal(
+    regenerateGeneratedProductRouteAdapter(searchAdapter),
+    `export const validateSearch = (search: Record<string, unknown>) => ({
+  sku: typeof search['sku'] === 'string' ? search['sku'] : undefined,
+});
+`,
+  );
+  assert.match(
+    regenerateGeneratedProductRouteAdapter(routeAdapter),
+    /<DecideProductPage[\s\S]*sku === undefined[\s\S]*slug === undefined/u,
+  );
 });
 
 function fileMutationStamp(filePath: string) {
@@ -3511,6 +3649,34 @@ test('migration supplies the optional Effect peers to workspaces generated befor
   };
   assert.equal(ensureBffEffectDependencies(root), true);
   assert.equal(root.devDependencies.effect, EFFECT_VERSION);
+});
+
+test('migration replaces the retired create alias before regenerating the lockfile', () => {
+  const packageJson = {
+    devDependencies: {
+      '@modern-js/create':
+        'npm:@bleedingdev/modern-js-create@3.8.2-ultramodern.12',
+      '@modern-js/runtime':
+        'npm:@bleedingdev/modern-js-runtime@3.8.2-ultramodern.12',
+      eslint: 'consumer-selected-eslint',
+    },
+  };
+  const packageSource = {
+    strategy: 'install' as const,
+    modernPackageVersion: '3.8.3-ultramodern.2',
+    aliasScope: 'bleedingdev',
+    aliasPackageNamePrefix: 'modern-js-',
+  };
+
+  assert.equal(updateModernDependencies(packageJson, packageSource), true);
+  assert.deepEqual(packageJson.devDependencies, {
+    '@modern-js/runtime':
+      'npm:@bleedingdev/modern-js-runtime@3.8.3-ultramodern.2',
+    '@modern-js/ultramodern-create':
+      'npm:@bleedingdev/modern-js-ultramodern-create@3.8.3-ultramodern.2',
+    eslint: 'consumer-selected-eslint',
+  });
+  assert.equal(updateModernDependencies(packageJson, packageSource), false);
 });
 
 test('migration converges legacy generated TS-Go pins without rewriting unrelated consumer dependencies', () => {

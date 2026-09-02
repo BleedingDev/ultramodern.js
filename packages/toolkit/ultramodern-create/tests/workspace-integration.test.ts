@@ -365,6 +365,18 @@ function assertGeneratedWorkspaceScriptBehavior(
     command: 'node',
     cwd: '.',
   });
+  const sharedDeclarationBuilds = [
+    node(
+      './scripts/ultramodern-typecheck.mts',
+      '--build',
+      'packages/shared-contracts/tsconfig.json',
+    ),
+    node(
+      './scripts/ultramodern-typecheck.mts',
+      '--build',
+      'packages/shared-design-tokens/tsconfig.json',
+    ),
+  ];
   const successfulScenarios: Array<{
     expected: RecordedCommand[];
     scriptName: string;
@@ -395,6 +407,7 @@ function assertGeneratedWorkspaceScriptBehavior(
     {
       scriptName: 'build',
       expected: [
+        ...sharedDeclarationBuilds,
         pnpm('-r', '--filter', './verticals/*', 'run', 'build'),
         pnpm('--filter', './apps/shell-super-app', 'run', 'build'),
         pnpm('mf:types'),
@@ -433,9 +446,10 @@ function assertGeneratedWorkspaceScriptBehavior(
     {
       scriptName: 'cloudflare:build',
       expected: [
+        ...sharedDeclarationBuilds,
         pnpm('-r', '--filter', './verticals/*', 'run', 'cloudflare:build'),
         pnpm('--filter', './apps/shell-super-app', 'run', 'cloudflare:build'),
-        pnpm('mf:types'),
+        pnpm('mf:types', '--target', 'cloudflare'),
         pnpm('cloudflare-output:verify'),
         pnpm('cloudflare:ssr-proof'),
       ],
@@ -464,7 +478,10 @@ function assertGeneratedWorkspaceScriptBehavior(
     {
       scriptName: 'build',
       failure: pnpm('-r', '--filter', './verticals/*', 'run', 'build'),
-      expected: [pnpm('-r', '--filter', './verticals/*', 'run', 'build')],
+      expected: [
+        ...sharedDeclarationBuilds,
+        pnpm('-r', '--filter', './verticals/*', 'run', 'build'),
+      ],
     },
     {
       scriptName: 'check',
@@ -483,9 +500,10 @@ function assertGeneratedWorkspaceScriptBehavior(
       scriptName: 'cloudflare:build',
       failure: pnpm('cloudflare-output:verify'),
       expected: [
+        ...sharedDeclarationBuilds,
         pnpm('-r', '--filter', './verticals/*', 'run', 'cloudflare:build'),
         pnpm('--filter', './apps/shell-super-app', 'run', 'cloudflare:build'),
-        pnpm('mf:types'),
+        pnpm('mf:types', '--target', 'cloudflare'),
         pnpm('cloudflare-output:verify'),
       ],
     },

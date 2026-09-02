@@ -1,4 +1,4 @@
-import { appHasApi, shellApp } from './descriptors';
+import { appHasApi, sharedPackages, shellApp } from './descriptors';
 import { relativeRootFor } from './naming';
 import { createPublicSurfaceGenerationCommand } from './public-surface';
 import {
@@ -173,6 +173,45 @@ export function createWorkspaceAppPackageScripts(
   ) as WorkspaceAppPackageScripts;
 }
 
+function createReferencedRemoteDeclarationBuilds(remotes: WorkspaceApp[]) {
+  const remotesById = new Map(remotes.map(remote => [remote.id, remote]));
+  const referencedRemoteIds = new Set(
+    remotes.flatMap(remote => remote.verticalRefs ?? []),
+  );
+  const orderedRemotes: WorkspaceApp[] = [];
+  const visiting = new Set<string>();
+  const visited = new Set<string>();
+
+  const visit = (remote: WorkspaceApp) => {
+    if (visited.has(remote.id) || visiting.has(remote.id)) {
+      return;
+    }
+    visiting.add(remote.id);
+    for (const dependencyId of remote.verticalRefs ?? []) {
+      const dependency = remotesById.get(dependencyId);
+      if (dependency !== undefined) {
+        visit(dependency);
+      }
+    }
+    visiting.delete(remote.id);
+    visited.add(remote.id);
+    orderedRemotes.push(remote);
+  };
+
+  for (const remote of remotes) {
+    if (referencedRemoteIds.has(remote.id)) {
+      visit(remote);
+    }
+  }
+
+  return orderedRemotes
+    .map(
+      remote =>
+        `${rootToolingWrapperCommand('typecheck')} --project ${remote.directory}/tsconfig.json --skipLibCheck`,
+    )
+    .join(' && ');
+}
+
 export function createWorkspaceRootScriptPlan(
   remotes: WorkspaceApp[] = [],
   options: {
@@ -207,6 +246,21 @@ export function createWorkspaceRootScriptPlan(
     'cloudflareOutputVerify',
   );
   const bridgeCheck = options.bridgeCheck ?? '';
+  const sharedDeclarationsBuild = sharedPackages
+    .map(
+      sharedPackage =>
+        `${rootToolingWrapperCommand('typecheck')} --build ${sharedPackage.directory}/tsconfig.json`,
+    )
+    .join(' && ');
+  const referencedRemoteDeclarationsBuild =
+    createReferencedRemoteDeclarationBuilds(remotes);
+  const declarationBuild = [
+    sharedDeclarationsBuild,
+    referencedRemoteDeclarationsBuild,
+  ]
+    .filter(Boolean)
+    .join(' && ');
+  const buildPrefix = `${declarationBuild} && `;
   const remoteBuildPrefix = hasRemotes
     ? 'pnpm -r --filter "./verticals/*" run build && '
     : '';
@@ -221,8 +275,8 @@ export function createWorkspaceRootScriptPlan(
     : '';
 
   return {
-    build: `${remoteBuildPrefix}${shellBuild} && pnpm ${mfTypesScript} && pnpm ${performanceReadinessScript}`,
-    cloudflareBuild: `${remoteCloudflareBuildPrefix}${shellCloudflareBuild} && pnpm ${mfTypesScript} && pnpm ${cloudflareOutputVerifyScript}${cloudflareSsrProofSuffix}`,
+    build: `${buildPrefix}${remoteBuildPrefix}${shellBuild} && pnpm ${mfTypesScript} && pnpm ${performanceReadinessScript}`,
+    cloudflareBuild: `${buildPrefix}${remoteCloudflareBuildPrefix}${shellCloudflareBuild} && pnpm ${mfTypesScript} --target cloudflare && pnpm ${cloudflareOutputVerifyScript}${cloudflareSsrProofSuffix}`,
     cloudflareDeploy: `${remoteCloudflareDeployPrefix}${shellCloudflareDeploy}`,
     cloudflareProof: `${rootToolingWrapperCommand(
       'cloudflareProof',

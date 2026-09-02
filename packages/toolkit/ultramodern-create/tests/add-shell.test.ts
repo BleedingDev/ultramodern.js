@@ -11,6 +11,8 @@ import {
 } from '../src/ultramodern-workspace';
 import { UnknownUltramodernShellError } from '../src/ultramodern-workspace/add-vertical/preflight';
 
+const createBinPath = path.resolve(__dirname, '../bin/run.js');
+
 function readJson(workspaceDir: string, relativePath: string): any {
   return JSON.parse(
     fs.readFileSync(path.join(workspaceDir, relativePath), 'utf-8'),
@@ -55,6 +57,7 @@ function runRecordedRootBuild(
   const binDir = path.join(recorderRoot, 'bin');
   const invocationLog = path.join(recorderRoot, 'invocations.jsonl');
   const fakePnpm = path.join(binDir, 'pnpm');
+  const fakeTsgo = path.join(binDir, 'tsgo');
   fs.mkdirSync(binDir, { recursive: true });
   fs.writeFileSync(
     fakePnpm,
@@ -71,6 +74,8 @@ if (argv.includes(process.env.ULTRAMODERN_TEST_FAIL_FILTER)) {
 `,
   );
   fs.chmodSync(fakePnpm, 0o755);
+  fs.writeFileSync(fakeTsgo, '#!/usr/bin/env node\n');
+  fs.chmodSync(fakeTsgo, 0o755);
 
   const rootPackage = readJson(workspaceDir, 'package.json');
   const result = spawnSync(rootPackage.scripts.build, {
@@ -79,6 +84,8 @@ if (argv.includes(process.env.ULTRAMODERN_TEST_FAIL_FILTER)) {
     env: {
       ...process.env,
       PATH: `${binDir}${path.delimiter}${process.env.PATH ?? ''}`,
+      EFFECT_TSGO_BIN: fakeTsgo,
+      ULTRAMODERN_CREATE_BIN: createBinPath,
       ULTRAMODERN_TEST_BUILD_LOG: invocationLog,
       ULTRAMODERN_TEST_FAIL_FILTER: options.failFilter ?? '',
     },

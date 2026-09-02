@@ -8,6 +8,7 @@ import {
 import {
   createRemoteExposeFragmentPage,
   regenerateGeneratedNavigationSurface,
+  regenerateGeneratedProductRouteAdapter,
   remoteComponentOutputPath,
 } from '../../../ultramodern-workspace/demo-components';
 import {
@@ -178,19 +179,30 @@ function packageManifest(io: MigrationIo, appDirectory: string) {
   );
 }
 
-function shellSurfaceIsOwned(
+function appSurfaceIsOwned(
   io: MigrationIo,
   app: ReturnType<typeof allWorkspaceAppsFromToolingConfig>[number],
   manifestApp: JsonObject,
 ) {
   const packageJson = packageManifest(io, app.directory);
-  const moduleFederation = jsonObject(manifestApp.moduleFederation);
   return (
-    manifestApp.kind === 'shell' &&
     manifestApp.path === app.directory &&
-    moduleFederation?.role === 'host' &&
+    manifestApp.kind === app.kind &&
     typeof manifestApp.package === 'string' &&
     packageJson?.name === manifestApp.package
+  );
+}
+
+function shellSurfaceIsOwned(
+  io: MigrationIo,
+  app: ReturnType<typeof allWorkspaceAppsFromToolingConfig>[number],
+  manifestApp: JsonObject,
+) {
+  const moduleFederation = jsonObject(manifestApp.moduleFederation);
+  return (
+    appSurfaceIsOwned(io, app, manifestApp) &&
+    app.kind === 'shell' &&
+    moduleFederation?.role === 'host'
   );
 }
 
@@ -221,6 +233,50 @@ function deliveryUnitSurfaceIsOwned(
     exposedSurfaces.includes(expose) &&
     packageExports?.[expose] === sourcePath
   );
+}
+
+function updateGeneratedProductRouteAdapters(
+  io: MigrationIo,
+  config: UltramodernToolingConfig,
+) {
+  const manifest = generatedManifest(io, config);
+  if (manifest === undefined) {
+    return false;
+  }
+
+  const appsById = new Map(
+    manifestApps(manifest).map(app => [String(app.id ?? ''), app]),
+  );
+  let changed = false;
+
+  for (const app of allWorkspaceAppsFromToolingConfig(config)) {
+    const manifestApp = appsById.get(app.id);
+    if (
+      (app.id !== 'decide' && app.kind !== 'shell') ||
+      manifestApp === undefined ||
+      !appSurfaceIsOwned(io, app, manifestApp)
+    ) {
+      continue;
+    }
+
+    const routeDirectory = path.join(
+      io.workspaceRoot,
+      app.directory,
+      'src/routes/[lang]/tractors/[slug]',
+    );
+    for (const fileName of ['page.search.ts', 'page.tsx']) {
+      const filePath = path.join(routeDirectory, fileName);
+      if (!fs.existsSync(filePath)) {
+        continue;
+      }
+      const source = fs.readFileSync(filePath, 'utf-8');
+      changed =
+        io.write(filePath, regenerateGeneratedProductRouteAdapter(source)) ||
+        changed;
+    }
+  }
+
+  return changed;
 }
 
 function updateGeneratedNavigationSurfaces(
@@ -298,7 +354,10 @@ function updateGeneratedNavigationSurfaces(
       changed =
         io.write(
           filePath,
-          regenerateGeneratedNavigationSurface(source, 'demo-component'),
+          regenerateGeneratedNavigationSurface(
+            source,
+            expose === './AddToCart' ? 'checkout-add-to-cart' : 'checkout-page',
+          ),
         ) || changed;
     }
   }
@@ -505,5 +564,6 @@ export function updateGeneratedTypeScriptSurfaces(
   }
 
   updateGeneratedShellRuntimeSurfaces(io, config);
+  updateGeneratedProductRouteAdapters(io, config);
   updateGeneratedNavigationSurfaces(io, config);
 }

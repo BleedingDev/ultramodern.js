@@ -139,6 +139,12 @@ function removeTsCheckerBuildOverride(source: string) {
   );
 }
 
+function removeReleaseEnvelopePlugin(source: string) {
+  return source
+    .replace('  ultramodernReleaseEnvelopePlugin,\n', '')
+    .replace('        ultramodernReleaseEnvelopePlugin(),\n', '');
+}
+
 export function updateGeneratedModernConfigs(
   io: MigrationIo,
   config: UltramodernToolingConfig,
@@ -189,10 +195,15 @@ export function updateGeneratedModernConfigs(
     ];
     const [generatedModernConfig, ...recognizedGeneratedModernConfigs] =
       formatGeneratedModernConfigCandidates(
-        currentGeneratedModernConfigs.flatMap(source => [
-          source,
-          removeTsCheckerBuildOverride(source),
-        ]),
+        currentGeneratedModernConfigs.flatMap(source => {
+          const withoutReleaseEnvelope = removeReleaseEnvelopePlugin(source);
+          return [
+            source,
+            removeTsCheckerBuildOverride(source),
+            withoutReleaseEnvelope,
+            removeTsCheckerBuildOverride(withoutReleaseEnvelope),
+          ];
+        }),
       );
     if (!fs.existsSync(modernConfigPath)) {
       io.writeGenerated(modernConfigPath, generatedModernConfig);

@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   createJsonLdHelperModule,
+  createLocalisedUrlsMapFromRoutes,
   createPublicRouteMetadataFromRoutes,
 } from '../src/ultramodern-workspace/routes';
 import type { RouteOwnedI18nPath } from '../src/ultramodern-workspace/types';
@@ -26,6 +27,16 @@ const baseRoute: RouteOwnedI18nPath = {
   publicSurface: 'private-app-screen',
   titleKey: 'shell.title',
 };
+
+test('localised URLs retain one canonical owner per route', () => {
+  const localisedPaths = { cs: '/prodejci', en: '/stores' };
+  assert.deepEqual(
+    createLocalisedUrlsMapFromRoutes([
+      { ...baseRoute, canonicalPath: '/stores', localisedPaths },
+    ]),
+    { '/stores': localisedPaths },
+  );
+});
 
 test('public route metadata carries only explicitly authored JSON-LD', () => {
   const explicitJsonLd = {

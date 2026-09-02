@@ -5,5 +5,6 @@ export type {
   ModuleFederationDiscoveredConfig,
   ModuleFederationValidationOptions,
   ModuleFederationValidationResult,
+  ModuleFederationValidationTarget,
 } from './mf-validation/types';
 export { validateModuleFederationTypes } from './mf-validation/validate';

@@ -59,19 +59,13 @@ function isPublicIndexableRoute(route: RouteOwnedI18nPath): boolean {
   return route.public && route.indexable;
 }
 
-function createLocalisedUrlsMapFromRoutes(
+export function createLocalisedUrlsMapFromRoutes(
   routes: RouteOwnedI18nPath[],
 ): Record<string, JsonValue> {
   return Object.fromEntries(
-    routes.flatMap(route => {
-      if (route.canonicalPath === '/') {
-        return [];
-      }
-
-      return Array.from(
-        new Set([route.canonicalPath, ...Object.values(route.localisedPaths)]),
-      ).map(pathname => [pathname, route.localisedPaths] as const);
-    }),
+    routes
+      .filter(route => route.canonicalPath !== '/')
+      .map(route => [route.canonicalPath, route.localisedPaths] as const),
   );
 }
 

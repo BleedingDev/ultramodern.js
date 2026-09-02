@@ -23,9 +23,12 @@ export type ModuleFederationValidationResult = {
   apps: ModuleFederationConfigInspection[];
 };
 
+export type ModuleFederationValidationTarget = 'cloudflare' | 'node';
+
 export type ModuleFederationValidationOptions = {
   workspaceRoot: string;
   appDirs?: string[];
+  target?: ModuleFederationValidationTarget;
 };
 
 export type BalancedBlock = {

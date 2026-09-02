@@ -1,6 +1,7 @@
 import {
   modernPackageSpecifier,
   type ResolvedUltramodernPackageSource,
+  ULTRAMODERN_CREATE_PACKAGE,
   ULTRAMODERN_SINGLE_APP_MODERN_PACKAGES,
   ULTRAMODERN_WORKSPACE_MODERN_PACKAGES,
 } from '../../../ultramodern-package-source';
@@ -56,14 +57,28 @@ export function updateModernDependencies(
   packageJson: Record<string, any>,
   packageSource: ResolvedUltramodernPackageSource,
 ) {
-  return updateDeclaredDependencies(
-    packageJson,
-    new Map(
-      [...modernPackageNames].map(packageName => [
-        packageName,
-        modernPackageSpecifier(packageName, packageSource),
-      ]),
-    ),
+  let changed = false;
+  for (const section of ['dependencies', 'devDependencies']) {
+    const dependencies = packageJson[section];
+    if (dependencies && Object.hasOwn(dependencies, '@modern-js/create')) {
+      dependencies[ULTRAMODERN_CREATE_PACKAGE] = modernPackageSpecifier(
+        ULTRAMODERN_CREATE_PACKAGE,
+        packageSource,
+      );
+      delete dependencies['@modern-js/create'];
+      changed = true;
+    }
+  }
+  return (
+    updateDeclaredDependencies(
+      packageJson,
+      new Map(
+        [...modernPackageNames].map(packageName => [
+          packageName,
+          modernPackageSpecifier(packageName, packageSource),
+        ]),
+      ),
+    ) || changed
   );
 }
 

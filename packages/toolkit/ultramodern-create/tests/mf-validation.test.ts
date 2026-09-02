@@ -35,8 +35,15 @@ function writeMfTypesArchive(
   workspaceRoot: string,
   appDir: string,
   content: string | Buffer = 'zip-bytes',
+  target: 'cloudflare' | 'node' = 'node',
 ) {
-  const archivePath = path.join(workspaceRoot, appDir, 'dist/@mf-types.zip');
+  const archivePath = path.join(
+    workspaceRoot,
+    appDir,
+    target === 'cloudflare'
+      ? 'dist-cloudflare/@mf-types.zip'
+      : 'dist/@mf-types.zip',
+  );
   fs.mkdirSync(path.dirname(archivePath), { recursive: true });
   fs.writeFileSync(archivePath, content);
 }
@@ -175,6 +182,46 @@ test('rejects exposed apps without a DTS archive', () => {
   const workspaceRoot = createWorkspace({
     'apps/remote/module-federation.config.ts': mfConfig(),
   });
+
+  assertThrowsWithMessage(
+    () => validateModuleFederationTypes({ workspaceRoot }),
+    /Missing Module Federation DTS archive: apps\/remote\/dist\/@mf-types\.zip/u,
+  );
+});
+
+test('validates Cloudflare DTS archives independently from Node output', () => {
+  const workspaceRoot = createWorkspace({
+    'apps/remote/module-federation.config.ts': mfConfig(),
+  });
+  writeMfTypesArchive(workspaceRoot, 'apps/remote');
+
+  assertThrowsWithMessage(
+    () =>
+      validateModuleFederationTypes({ workspaceRoot, target: 'cloudflare' }),
+    /Missing Module Federation DTS archive: apps\/remote\/dist-cloudflare\/@mf-types\.zip/u,
+  );
+
+  writeMfTypesArchive(
+    workspaceRoot,
+    'apps/remote',
+    'cloudflare-zip-bytes',
+    'cloudflare',
+  );
+  assert.doesNotThrow(() =>
+    validateModuleFederationTypes({ workspaceRoot, target: 'cloudflare' }),
+  );
+});
+
+test('does not accept Cloudflare output for Node archive validation', () => {
+  const workspaceRoot = createWorkspace({
+    'apps/remote/module-federation.config.ts': mfConfig(),
+  });
+  writeMfTypesArchive(
+    workspaceRoot,
+    'apps/remote',
+    'cloudflare-zip-bytes',
+    'cloudflare',
+  );
 
   assertThrowsWithMessage(
     () => validateModuleFederationTypes({ workspaceRoot }),

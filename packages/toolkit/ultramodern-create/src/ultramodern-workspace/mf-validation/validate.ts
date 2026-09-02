@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { mfTypesArchive } from './constants';
+import { mfTypesArchives } from './constants';
 import { discoverModuleFederationConfigs } from './discovery';
 import { inspectModuleFederationConfigSource } from './inspect';
 import { relativePath } from './path-utils';
@@ -8,6 +8,7 @@ import type {
   ModuleFederationConfigInspection,
   ModuleFederationValidationOptions,
   ModuleFederationValidationResult,
+  ModuleFederationValidationTarget,
 } from './types';
 
 export function assertExposedAppDtsSettings(
@@ -26,8 +27,16 @@ export function assertExposedAppDtsSettings(
   }
 }
 
-export function assertTypesArchive(workspaceRoot: string, appDir: string) {
-  const typesArchivePath = path.join(workspaceRoot, appDir, mfTypesArchive);
+export function assertTypesArchive(
+  workspaceRoot: string,
+  appDir: string,
+  target: ModuleFederationValidationTarget = 'node',
+) {
+  const typesArchivePath = path.join(
+    workspaceRoot,
+    appDir,
+    mfTypesArchives[target],
+  );
   if (!fs.existsSync(typesArchivePath)) {
     throw new Error(
       `Missing Module Federation DTS archive: ${relativePath(
@@ -107,7 +116,7 @@ export function validateModuleFederationTypes(
     }
 
     assertExposedAppDtsSettings(app);
-    assertTypesArchive(workspaceRoot, app.appDir);
+    assertTypesArchive(workspaceRoot, app.appDir, options.target);
     exposedAppCount += 1;
   }
 

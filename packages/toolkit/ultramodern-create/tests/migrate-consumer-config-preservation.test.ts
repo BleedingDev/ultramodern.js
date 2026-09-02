@@ -74,6 +74,12 @@ function removeTsCheckerBuildOverride(source: string) {
   );
 }
 
+function removeReleaseEnvelopePlugin(source: string) {
+  return source
+    .replace('  ultramodernReleaseEnvelopePlugin,\n', '')
+    .replace('        ultramodernReleaseEnvelopePlugin(),\n', '');
+}
+
 function addLegacyGeneratedDefaults(source: string) {
   const serverAnchor = "        publicDir: ['./locales', './assets'],\n";
   const withLegacySsr = source.replace(
@@ -134,6 +140,63 @@ test('migrate converges the published .15 generated Tailwind config to native de
       addLegacyGeneratedDefaults(predecessorGeneratedConfig),
       'utf-8',
     );
+
+    assert.equal(
+      await runUltramodernToolingCli(
+        ['migrate-strict-effect', '--skip-install'],
+        workspaceRoot,
+      ),
+      0,
+    );
+    assert.equal(
+      fs.readFileSync(modernConfigPath, 'utf-8'),
+      currentGeneratedConfig,
+    );
+
+    assert.equal(
+      await runUltramodernToolingCli(
+        ['migrate-strict-effect', '--skip-install'],
+        workspaceRoot,
+      ),
+      0,
+    );
+    assert.equal(
+      fs.readFileSync(modernConfigPath, 'utf-8'),
+      currentGeneratedConfig,
+    );
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('migrate adds the release-envelope plugin to its previous generated Modern config', async () => {
+  const tempRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'um-migrate-release-envelope-'),
+  );
+  const workspaceRoot = path.join(tempRoot, 'generated-workspace');
+
+  try {
+    generateUltramodernWorkspace({
+      targetDir: workspaceRoot,
+      packageName: 'generated-workspace',
+      modernVersion: '3.2.1',
+      enableTailwind: true,
+      packageSource: { strategy: 'workspace' },
+    });
+    const modernConfigPath = path.join(
+      workspaceRoot,
+      'apps/shell-super-app/modern.config.ts',
+    );
+    const currentGeneratedConfig = fs.readFileSync(modernConfigPath, 'utf-8');
+    const predecessorGeneratedConfig = removeReleaseEnvelopePlugin(
+      currentGeneratedConfig,
+    );
+    assert.notEqual(predecessorGeneratedConfig, currentGeneratedConfig);
+    assert.doesNotMatch(
+      predecessorGeneratedConfig,
+      /ultramodernReleaseEnvelopePlugin/u,
+    );
+    fs.writeFileSync(modernConfigPath, predecessorGeneratedConfig, 'utf-8');
 
     assert.equal(
       await runUltramodernToolingCli(

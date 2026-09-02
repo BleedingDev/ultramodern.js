@@ -2752,6 +2752,9 @@ const assertTsConfigReferenceGraph = () => {
     {
       extends: '../../tsconfig.base.json',
       include: ['src/modern-app-env.d.ts'],
+      compilerOptions: {
+        skipLibCheck: true,
+      },
     },
     'apps/shell-super-app/tsconfig.mf-types.json',
     'restore the generated shell Module Federation DTS boundary',
@@ -2797,6 +2800,12 @@ const assertTsConfigReferenceGraph = () => {
       'restore the generated MicroVertical typecheck boundary',
     );
     assertProjectReferenceEmitConfig(verticalTsConfig, vertical.path);
+    assert(
+      (vertical.verticalRefs ?? []).length > 0
+        ? verticalTsConfig.compilerOptions?.skipLibCheck === true
+        : verticalTsConfig.compilerOptions?.skipLibCheck !== true,
+      `${vertical.path}/tsconfig.json must scope skipLibCheck to composed remotes`,
+    );
     assertSameJson(
       verticalMfTypesTsConfig,
       {
@@ -2812,6 +2821,9 @@ const assertTsConfigReferenceGraph = () => {
               'src/modern-app-env.d.ts',
             ]
           : ['src/modern-app-env.d.ts'],
+        compilerOptions: {
+          skipLibCheck: true,
+        },
       },
       `${vertical.path}/tsconfig.mf-types.json`,
       'restore the generated MicroVertical Module Federation DTS boundary',
@@ -2844,6 +2856,9 @@ const assertTsConfigReferenceGraph = () => {
       {
         extends: '../../tsconfig.base.json',
         include: ['src/modern-app-env.d.ts'],
+        compilerOptions: {
+          skipLibCheck: true,
+        },
       },
       `${shell.path}/tsconfig.mf-types.json`,
       'restore the generated additional-shell Module Federation DTS boundary',

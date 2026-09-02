@@ -70,6 +70,7 @@ type CreatePackageTsConfigOptions = {
   includeApi?: boolean;
   includeServer?: boolean;
   references?: string[];
+  skipLibCheck?: boolean;
 };
 
 export function createPackageTsConfig(
@@ -103,6 +104,7 @@ export function createPackageTsConfig(
       emitDeclarationOnly: true,
       incremental: true,
       noEmit: false,
+      ...(resolvedOptions.skipLibCheck ? { skipLibCheck: true } : {}),
       outDir: createTsDeclarationOutDir(packageDir),
       tsBuildInfoFile: createTsBuildInfoFile(packageDir),
     },
@@ -118,18 +120,21 @@ export function createAppTsConfig(
   app: WorkspaceApp,
   remotes: WorkspaceApp[] = [],
 ): JsonValue {
+  const remoteRefs =
+    app.kind === 'shell' ? [] : resolveRemoteRefs(app, remotes);
   const references = [
     ...sharedPackages.map(sharedPackage => sharedPackage.directory),
     // Federation hosts resolve remote package exports directly to source.
     // Project references would require declaration output before host builds.
-    ...(app.kind === 'shell'
-      ? []
-      : resolveRemoteRefs(app, remotes).map(remote => remote.directory)),
+    ...remoteRefs.map(remote => remote.directory),
   ];
   return createPackageTsConfig(app.directory, {
     includeApi: appHasApi(app),
     includeServer: true,
     references,
+    // Composed remotes import sibling source exports, so their application
+    // checker traverses framework declaration dependencies outside app source.
+    skipLibCheck: remoteRefs.length > 0,
   });
 }
 
@@ -143,6 +148,12 @@ export function createAppMfTypesTsConfig(app: WorkspaceApp): JsonValue {
   return {
     extends: `${relativeRootFor(app.directory)}/tsconfig.base.json`,
     include: [...new Set([...exposedFiles, 'src/modern-app-env.d.ts'])],
+    // The MF declaration compiler follows framework implementation types that
+    // are not part of the exposed application surface. Application source is
+    // still checked separately; composed apps use the same dependency boundary.
+    compilerOptions: {
+      skipLibCheck: true,
+    },
   };
 }
 
