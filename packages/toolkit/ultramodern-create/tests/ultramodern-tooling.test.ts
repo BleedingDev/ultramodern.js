@@ -11,6 +11,7 @@ import { runUltramodernToolingCli } from '../src/ultramodern-tooling/commands';
 import { withStagedDryRunMigrationIo } from '../src/ultramodern-tooling/commands/migrate-strict-effect/io';
 import {
   ensureBffEffectDependencies,
+  updateGeneratedPackageScripts,
   updateGeneratedToolingDependencies,
   updateModernDependencies,
 } from '../src/ultramodern-tooling/commands/migrate-strict-effect/package-cohort';
@@ -3024,6 +3025,91 @@ test('generated app tsconfig keeps shells independent from remote declaration ou
     scripts.build.indexOf(referencedDeclarationBuild) <
       scripts.build.indexOf('pnpm -r --filter "./verticals/*" run build'),
   );
+});
+
+test('migration replaces non-emitting referenced declaration prebuilds', () => {
+  const apps = workspaceAppsFromToolingConfig({
+    schemaVersion: 1,
+    source: 'compact',
+    sourcePath: '.modernjs/ultramodern.json',
+    workspace: {
+      packageScope: 'tooling-references',
+    },
+    features: {
+      tailwind: true,
+    },
+    topology: {
+      apps: [
+        {
+          id: 'shell-super-app',
+          kind: 'shell',
+          path: 'apps/shell-super-app',
+          moduleFederation: {
+            role: 'host',
+            verticalRefs: ['catalog', 'checkout'],
+          },
+        },
+        {
+          id: 'catalog',
+          kind: 'vertical',
+          path: 'verticals/catalog',
+          moduleFederation: {
+            role: 'remote',
+            exposes: ['./Route'],
+          },
+          api: {
+            stem: 'catalog',
+            prefix: '/catalog-api',
+            consumedBy: ['shell-super-app', 'catalog', 'checkout'],
+          },
+        },
+        {
+          id: 'checkout',
+          kind: 'vertical',
+          path: 'verticals/checkout',
+          moduleFederation: {
+            role: 'remote',
+            exposes: ['./Route'],
+            verticalRefs: ['catalog'],
+          },
+          api: {
+            stem: 'checkout',
+            prefix: '/checkout-api',
+            consumedBy: ['shell-super-app', 'checkout'],
+          },
+        },
+      ],
+    },
+  });
+  const expectedScripts = createWorkspaceRootPackageScripts(
+    apps.filter(app => app.kind !== 'shell'),
+  );
+  const packageJson = {
+    scripts: {
+      ...expectedScripts,
+      build: expectedScripts.build.replace(' --emit --project ', ' --project '),
+      'cloudflare:build': expectedScripts['cloudflare:build'].replace(
+        ' --emit --project ',
+        ' --project ',
+      ),
+    },
+  };
+  const preservedScripts: string[] = [];
+
+  assert.equal(
+    updateGeneratedPackageScripts(packageJson, {
+      relativePackageFile: 'package.json',
+      apps,
+      onPreserveScript: scriptName => preservedScripts.push(scriptName),
+    }),
+    true,
+  );
+  assert.equal(packageJson.scripts.build, expectedScripts.build);
+  assert.equal(
+    packageJson.scripts['cloudflare:build'],
+    expectedScripts['cloudflare:build'],
+  );
+  assert.deepEqual(preservedScripts, []);
 });
 
 test('migration emits typed local checkout links and preserves cross-remote anchors', () => {

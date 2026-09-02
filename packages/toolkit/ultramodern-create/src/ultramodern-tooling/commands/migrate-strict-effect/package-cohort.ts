@@ -280,6 +280,20 @@ function mergeGeneratedScript(
       return portableOxfmtSegment;
     }
 
+    // Referenced remote declaration prebuilds gained an explicit --emit flag
+    // after project-mode typechecks stopped being sufficient for dependent
+    // builds. Fold the exact prior generated segment into its replacement.
+    const emittingDeclarationSegment = segment.replace(
+      /(\bultramodern-typecheck\.m[ct]s\s+)--project\s+/u,
+      '$1--emit --project ',
+    );
+    if (
+      emittingDeclarationSegment !== segment &&
+      frameworkSegmentSet.has(emittingDeclarationSegment)
+    ) {
+      return emittingDeclarationSegment;
+    }
+
     // Generated deploy commands gained --skip-build after Modern began
     // separating build and deploy. The unflagged predecessor is framework
     // history, not a consumer command to append after its replacement.
