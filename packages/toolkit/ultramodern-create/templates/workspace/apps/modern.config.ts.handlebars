@@ -2,6 +2,7 @@ import {
   appTools,
   defineConfig,
   presetUltramodern,
+  ultramodernReleaseEnvelopePlugin,
 } from '@modern-js/app-tools';
 import {
   getBuildConfigEnvironment,
@@ -106,6 +107,7 @@ export default defineConfig(
       },
       plugins: [
         appTools(),
+        ultramodernReleaseEnvelopePlugin(),
         tanstackRouterPlugin(),
         i18nPlugin({
           backend: {

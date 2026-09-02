@@ -55,6 +55,14 @@ test('generated apps preserve checker and runtime type contracts', () => {
       assert.match(modernConfig, /disableTsChecker: false/u);
       assert.match(
         modernConfig,
+        /ultramodernReleaseEnvelopePlugin,\s*\} from '@modern-js\/app-tools';/u,
+      );
+      assert.match(
+        modernConfig,
+        /plugins:\s*\[\s*appTools\(\),\s*ultramodernReleaseEnvelopePlugin\(\),/u,
+      );
+      assert.match(
+        modernConfig,
         /tsChecker:\s*\{\s*typescript:\s*\{\s*build: false,/u,
       );
       const moduleFederationConfig = fs.readFileSync(

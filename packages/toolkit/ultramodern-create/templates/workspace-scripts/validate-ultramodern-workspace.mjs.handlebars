@@ -1731,6 +1731,7 @@ const createAppConfigContract = app => ({
   preset: 'presetUltramodern',
   plugins: [
     'appTools',
+    'ultramodernReleaseEnvelopePlugin',
     'tanstackRouterPlugin',
     'i18nPlugin',
     ...(app.api ? ['bffPlugin'] : []),
