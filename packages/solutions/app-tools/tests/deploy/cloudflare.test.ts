@@ -3358,7 +3358,7 @@ describe('cloudflare deploy preset', () => {
 
   it('preloads service-composed fragment CSS without duplication or remote network fetches', async () => {
     const renderedFragment =
-      '<section data-modern-boundary-id="verticalInventory" data-modern-mf-expose="./Widget"><div>Inventory SSR</div></section>';
+      '<section data-modern-boundary-id="verticalInventory" data-modern-mf-expose="./Widget"><link href="/static/css/inventory.css" rel="stylesheet"><link href="https://inventory.example.com/static/css/inventory.css" rel="stylesheet" type="text/css"><div>Inventory SSR</div></section>';
     const digest = [
       ...new Uint8Array(
         await crypto.subtle.digest(
@@ -3470,6 +3470,7 @@ describe('cloudflare deploy preset', () => {
         '<https://inventory.example.com/static/css/inventory.css>; rel=preload; as=style',
       );
       expect(html.split('/static/css/shell.css')).toHaveLength(2);
+      expect(html).not.toContain('href="/static/css/inventory.css"');
       expect(html).toContain(
         '<link href="https://inventory.example.com/static/css/inventory.css" rel="stylesheet" type="text/css" data-precedence="default">',
       );

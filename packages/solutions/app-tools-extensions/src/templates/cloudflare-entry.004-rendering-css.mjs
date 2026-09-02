@@ -150,9 +150,15 @@ function collectStylesheetHrefs(html) {
   return hrefs;
 }
 
-function dedupeStylesheetLinks(html) {
-  const seenHrefs = new Set();
+function normalizeStylesheetHref(href, requestUrl) {
+  try {
+    return new URL(href, requestUrl).toString();
+  } catch {
+    return href;
+  }
+}
 
+function dedupeStylesheetLinks(html, seenHrefs = new Set(), requestUrl) {
   return html.replace(/<link\b[^>]*>/giu, link => {
     const rel = readOpeningTagAttribute(link, 'rel');
     const href = readOpeningTagAttribute(link, 'href');
@@ -160,12 +166,21 @@ function dedupeStylesheetLinks(html) {
     if (!href || !rel?.split(/\s+/u).includes('stylesheet')) {
       return link;
     }
-    if (seenHrefs.has(href)) {
+
+    const normalizedHref = normalizeStylesheetHref(href, requestUrl);
+    if (seenHrefs.has(normalizedHref)) {
       return '';
     }
 
-    seenHrefs.add(href);
+    seenHrefs.add(normalizedHref);
     return link;
+  });
+}
+
+function stripStylesheetLinks(html) {
+  return html.replace(/<link\b[^>]*>/giu, link => {
+    const rel = readOpeningTagAttribute(link, 'rel');
+    return rel?.split(/\s+/u).includes('stylesheet') ? '' : link;
   });
 }
 
@@ -190,13 +205,9 @@ function createStylesheetLinkStream(body, stylesheetEntries, requestUrl) {
     if (!injected && sentinelIndex >= 0) {
       const htmlBeforeSentinel = pending.slice(0, sentinelIndex);
       const existingHrefs = new Set(
-        collectStylesheetHrefs(htmlBeforeSentinel).map(href => {
-          try {
-            return new URL(href, requestUrl).toString();
-          } catch {
-            return href;
-          }
-        }),
+        collectStylesheetHrefs(htmlBeforeSentinel).map(href =>
+          normalizeStylesheetHref(href, requestUrl),
+        ),
       );
       const links = createStylesheetLinksHtml(
         stylesheetEntries.filter(
@@ -460,7 +471,9 @@ async function fetchDistributedSsrFragment(
       request,
       env,
     );
-    const fragmentHtml = createHydratableFragmentHtml(renderedBoundaryHtml);
+    const fragmentHtml = createHydratableFragmentHtml(
+      stripStylesheetLinks(renderedBoundaryHtml),
+    );
 
     return {
       boundaryId: fragment.boundaryId,
@@ -1055,7 +1068,11 @@ async function withRouteCssLinks(
     );
   }
 
-  const html = dedupeStylesheetLinks(await response.text());
+  const html = dedupeStylesheetLinks(
+    await response.text(),
+    undefined,
+    request.url,
+  );
   const headers = new Headers(response.headers);
   const localFragmentCssAssets = collectLocalFragmentCssAssets(html, request);
   const localFragmentProvenance = await createLocalFragmentProvenance(
