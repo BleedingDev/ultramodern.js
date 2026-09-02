@@ -1,3 +1,47 @@
+type ValidatorAwareHandlerFactoryRegistry = {
+  register<TFactory extends Function>(factory: TFactory): TFactory;
+  is(factory: unknown): boolean;
+};
+
+function createLocalValidatorAwareHandlerFactoryRegistry(): ValidatorAwareHandlerFactoryRegistry {
+  const factories = new WeakSet<Function>();
+  return {
+    register<TFactory extends Function>(factory: TFactory): TFactory {
+      factories.add(factory);
+      return factory;
+    },
+    is(factory: unknown): boolean {
+      return typeof factory === 'function' && factories.has(factory);
+    },
+  };
+}
+
+function loadNodeValidatorAwareHandlerFactoryRegistry(): ValidatorAwareHandlerFactoryRegistry {
+  const moduleBuiltin = process.getBuiltinModule(
+    'node:module',
+  ) as typeof import('node:module');
+  try {
+    return moduleBuiltin.createRequire(import.meta.url)(
+      `#effect-entry-shape-${'registry'}`,
+    ) as ValidatorAwareHandlerFactoryRegistry;
+  } catch (error) {
+    if (
+      error !== null &&
+      typeof error === 'object' &&
+      'code' in error &&
+      error.code === 'MODULE_NOT_FOUND'
+    ) {
+      return createLocalValidatorAwareHandlerFactoryRegistry();
+    }
+    throw error;
+  }
+}
+
+const validatorAwareHandlerFactoryRegistry =
+  process.env.MODERN_EFFECT_NODE_RUNTIME === 'true'
+    ? loadNodeValidatorAwareHandlerFactoryRegistry()
+    : createLocalValidatorAwareHandlerFactoryRegistry();
+
 type EffectBffEntryModule = {
   api?: unknown;
   layer?: unknown;
@@ -24,14 +68,11 @@ type EffectBffEntryShapePredicates = {
   isHttpApi: (value: unknown) => boolean;
 };
 
-const validatorAwareHandlerFactories = new WeakSet<Function>();
-
 /** @internal Registers factories created by `defineEffectBff`. */
 export function registerValidatorAwareHandlerFactory<TFactory extends Function>(
   factory: TFactory,
 ): TFactory {
-  validatorAwareHandlerFactories.add(factory);
-  return factory;
+  return validatorAwareHandlerFactoryRegistry.register(factory);
 }
 
 /**
@@ -39,9 +80,7 @@ export function registerValidatorAwareHandlerFactory<TFactory extends Function>(
  * therefore forwards strict cross-project validation into createHttpApiHandler.
  */
 export function isValidatorAwareHandlerFactory(factory: unknown): boolean {
-  return (
-    typeof factory === 'function' && validatorAwareHandlerFactories.has(factory)
-  );
+  return validatorAwareHandlerFactoryRegistry.is(factory);
 }
 
 export const strictEffectApproachMessage =

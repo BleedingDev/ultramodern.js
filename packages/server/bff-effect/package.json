@@ -20,6 +20,12 @@
   "files": ["dist", "src"],
   "types": "./dist/types/index.d.ts",
   "main": "./dist/cjs/index.js",
+  "imports": {
+    "#effect-entry-shape-registry": {
+      "types": "./src/effect/entry-shape-registry.d.cts",
+      "default": "./src/effect/entry-shape-registry.cjs"
+    }
+  },
   "exports": {
     "./package.json": "./package.json",
     ".": {

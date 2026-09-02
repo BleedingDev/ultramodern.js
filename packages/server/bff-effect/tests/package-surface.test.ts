@@ -33,6 +33,7 @@ type PackageManifest = {
   exports: Record<string, ExportConditions | string>;
   files: string[];
   homepage: string;
+  imports: Record<string, { default: string; types: string }>;
   keywords: string[];
   main: string;
   peerDependencies: Record<string, string>;
@@ -119,6 +120,12 @@ describe('@modern-js/bff-effect package surface', () => {
     expect(packageManifest.files).toEqual(['dist', 'src']);
     expect(packageManifest.types).toBe('./dist/types/index.d.ts');
     expect(packageManifest.main).toBe('./dist/cjs/index.js');
+    expect(packageManifest.imports).toEqual({
+      '#effect-entry-shape-registry': {
+        types: './src/effect/entry-shape-registry.d.cts',
+        default: './src/effect/entry-shape-registry.cjs',
+      },
+    });
     expect(packageManifest.sideEffects).toBe(false);
     expect(packageManifest.engines).toEqual({ node: '>=26.7.0' });
     expect(packageManifest.publishConfig).toEqual({
@@ -196,6 +203,28 @@ describe('@modern-js/bff-effect package surface', () => {
         );
       }
     }
+  });
+
+  test('shares validator-aware factory identity across CJS and ESM builds', async () => {
+    const cjsEntryShape = requireCjs(
+      path.join(packageRoot, 'dist/cjs/effect/entry-shape.js'),
+    ) as {
+      registerValidatorAwareHandlerFactory: <TFactory extends Function>(
+        factory: TFactory,
+      ) => TFactory;
+    };
+    const esmEntryShape = (await import(
+      pathToFileURL(
+        path.join(packageRoot, 'dist/esm-node/effect/entry-shape.mjs'),
+      ).href
+    )) as {
+      isValidatorAwareHandlerFactory: (factory: unknown) => boolean;
+    };
+    const factory = () => undefined;
+
+    cjsEntryShape.registerValidatorAwareHandlerFactory(factory);
+
+    expect(esmEntryShape.isValidatorAwareHandlerFactory(factory)).toBe(true);
   });
 
   test('resolves every declared types export with TypeScript 7', () => {
