@@ -366,7 +366,7 @@ jobs:
     runs-on: ${{ fromJSON(vars.BLEEDINGDEV_ACCEPT_RUNNER_LABELS || '"ubuntu-latest"') }}
     timeout-minutes: 120
     env:
-      PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/ms-playwright
+      PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/../ms-playwright
     if: >-
       github.actor == github.repository_owner &&
       github.triggering_actor == github.repository_owner &&
@@ -942,7 +942,7 @@ jobs:
     runs-on: ${{ fromJSON(vars.BLEEDINGDEV_ACCEPT_RUNNER_LABELS || '"ubuntu-latest"') }}
     timeout-minutes: 120
     env:
-      PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/ms-playwright
+      PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/../ms-playwright
     if: >-
       github.actor == github.repository_owner &&
       github.triggering_actor == github.repository_owner &&
