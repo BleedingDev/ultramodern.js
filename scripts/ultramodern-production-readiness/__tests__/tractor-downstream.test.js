@@ -1249,3 +1249,145 @@ test('Node backend proof requires every API-bearing MicroVertical exactly once a
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('Tractor delegates its whole runtime context to the shared acceptance owner', async t => {
+  const { createTractorPackageManagerContext, executionCommands } =
+    await runnerPromise;
+  const {
+    acceptancePlaywrightBrowsersPath,
+    acceptancePlaywrightInstallArgs,
+    createAcceptanceRuntimeContext,
+  } = await import('../published-create-proof/acceptance-profile.mjs');
+
+  const packageManagerRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'tractor-runtime-delegate-'),
+  );
+  t.after(() =>
+    fs.rmSync(packageManagerRoot, { force: true, recursive: true }),
+  );
+  const pnpmExecutable = '/opt/pnpm-11.17.0/bin/pnpm';
+  const registryUrl = 'https://registry.npmjs.org/';
+  const minimumReleaseAgeExclude = [
+    '@bleedingdev/modern-js-i18n-utils@3.5.0-ultramodern.77',
+    '@bleedingdev/modern-js-ultramodern-create@3.5.0-ultramodern.77',
+    '@bleedingdev/modern-js-utils@3.5.0-ultramodern.77',
+  ];
+  const packageManager = createTractorPackageManagerContext({
+    createPackage: {
+      bootstrapReleaseAgePolicy: {
+        minimumReleaseAge: 1440,
+        minimumReleaseAgeExclude,
+        minimumReleaseAgeIgnoreMissingTime: false,
+        minimumReleaseAgeStrict: true,
+      },
+      exactSpecifier:
+        '@bleedingdev/modern-js-ultramodern-create@3.5.0-ultramodern.77',
+      version: '3.5.0-ultramodern.77',
+    },
+    expectedPnpmVersion: '11.17.0',
+    minimumReleaseAgeExclude,
+    packageManagerRoot,
+    registryUrl,
+    resolveExactPnpmExecutableImpl: () => pnpmExecutable,
+  });
+  const owner = createAcceptanceRuntimeContext({
+    browsers: 'isolated',
+    environment: { PATH: process.env.PATH },
+    expectedPnpmVersion: '11.17.0',
+    registryEnv: {
+      npm_config_registry: registryUrl,
+      pnpm_config_registry: registryUrl,
+    },
+    resolveExactPnpmExecutableImpl: () => pnpmExecutable,
+    workDir: packageManagerRoot,
+  });
+
+  // Nothing here is computed twice: every runtime-context value the Tractor
+  // context exposes is the owner's value.
+  for (const name of [
+    'PATH',
+    'PLAYWRIGHT_BROWSERS_PATH',
+    'XDG_CACHE_HOME',
+    'npm_config_cache',
+    'npm_config_registry',
+    'npm_config_store_dir',
+    'pnpm_config_registry',
+    'pnpm_config_store_dir',
+  ]) {
+    assert.equal(packageManager.env[name], owner.env[name], name);
+  }
+  assert.equal(packageManager.pnpmExecutable, owner.pnpmExecutable);
+  assert.equal(
+    packageManager.playwrightBrowsersPath,
+    acceptancePlaywrightBrowsersPath(packageManagerRoot),
+  );
+  assert.equal(
+    packageManager.env.PLAYWRIGHT_BROWSERS_PATH,
+    packageManager.playwrightBrowsersPath,
+    'the browsers the install writes are the browsers the launch reads',
+  );
+  assert.deepEqual(
+    [...packageManager.playwrightInstallArgs],
+    [...acceptancePlaywrightInstallArgs],
+  );
+
+  // The Playwright provisioning stays operational: it is the shared owner's
+  // pnpm exec invocation, it runs after the frozen install, and it reports no
+  // acceptance check of its own.
+  const playwrightCommands = executionCommands.filter(
+    entry => entry.command[1][0] === 'exec',
+  );
+  assert.equal(playwrightCommands.length, 1);
+  assert.deepEqual(
+    [...playwrightCommands[0].command[1]],
+    [...acceptancePlaywrightInstallArgs],
+  );
+  assert.equal(playwrightCommands[0].report, false);
+  assert.equal(
+    executionCommands.indexOf(playwrightCommands[0]),
+    1,
+    'browsers install after the frozen lockfile install resolves them',
+  );
+});
+
+test('Tractor evidence ids and order are unchanged by runtime-context ownership', async () => {
+  const { requiredTractorCheckIds } = await contractPromise;
+  const { executionCommands, requiredCommands } = await runnerPromise;
+
+  assert.deepEqual(
+    [...requiredTractorCheckIds],
+    [
+      'exact-create-migration',
+      'exact-cohort',
+      'install---frozen-lockfile',
+      'check',
+      'promotable-application-source',
+      'build',
+      'node:proof',
+      'node-backend-federation-executed',
+      'node-server-rendered-ssr-executed',
+      'node-visible-tractor-workflow',
+      'cloudflare:build',
+      'workerd-visible-tractor-workflow',
+      'native-tanstack-search',
+      'visible-tractor-ui',
+    ],
+  );
+  assert.deepEqual(
+    executionCommands
+      .filter(entry => entry.report)
+      .map(entry => entry.command[1].join('-')),
+    [
+      'install---frozen-lockfile',
+      'check',
+      'build',
+      'node:proof',
+      'cloudflare:build',
+    ],
+    'every reported command id must still come from a required Tractor command',
+  );
+  assert.deepEqual(
+    executionCommands.filter(entry => entry.report).map(entry => entry.command),
+    [...requiredCommands],
+  );
+});

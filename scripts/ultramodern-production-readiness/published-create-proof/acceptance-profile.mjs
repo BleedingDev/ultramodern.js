@@ -155,13 +155,42 @@ function currentTime(now) {
   return new now();
 }
 
+// Single acceptance runtime-context owner. Every value a clean-room
+// subprocess needs to be hermetic — the exact pnpm executable, the PATH that
+// binds it, the registry, the npm/pnpm stores, the XDG cache, and
+// PLAYWRIGHT_BROWSERS_PATH — is derived here and nowhere else, so ERP and
+// Tractor cannot drift apart. Callers layer only their own policy on top.
+const acceptancePlaywrightInstallArgs = Object.freeze([
+  // Dependency-resolved: `pnpm exec` runs the playwright binary the frozen
+  // downstream graph already resolved, so no acceptance surface pins a
+  // playwright version of its own.
+  'exec',
+  'playwright',
+  'install',
+  '--with-deps',
+  'chromium',
+]);
+const acceptanceBrowserIsolations = Object.freeze(['inherited', 'isolated']);
+
+function acceptancePackageManagerRoot(workDir) {
+  return path.join(workDir, 'package-manager');
+}
+
+function acceptancePlaywrightBrowsersPath(workDir) {
+  return path.join(
+    acceptancePackageManagerRoot(workDir),
+    'xdg',
+    'ms-playwright',
+  );
+}
+
 function createAcceptancePackageManagerEnv(
   workDir,
   registryEnv = {},
   pnpmExecutable,
 ) {
   const env = {
-    ...createCleanPnpmDlxEnv(path.join(workDir, 'package-manager')),
+    ...createCleanPnpmDlxEnv(acceptancePackageManagerRoot(workDir)),
     ...registryEnv,
     CI: 'true',
     npm_config_fetch_retries: '5',
@@ -357,6 +386,82 @@ function resolveExactPnpmExecutable(
   throw new Error(
     `No executable pnpm candidate could be verified as ${expectedVersion}`,
   );
+}
+
+// The one constructor for an acceptance runtime context. `isolated` browsers
+// keep chromium inside the disposable package-manager root (Tractor, which
+// installs it from the downstream frozen graph); `inherited` reuses the
+// browsers the operational provisioning step already placed on the runner
+// (ERP). Either way the value is decided here, so the install path and the
+// launch path can never disagree.
+function createAcceptanceRuntimeContext({
+  browsers = 'inherited',
+  environment = process.env,
+  expectedPnpmVersion,
+  registryEnv = {},
+  resolveExactPnpmExecutableImpl = resolveExactPnpmExecutable,
+  runImpl = run,
+  verificationCwd,
+  workDir,
+}) {
+  if (typeof workDir !== 'string' || !path.isAbsolute(workDir)) {
+    throw new Error(
+      `Acceptance runtime context requires an absolute work directory: ${String(workDir)}`,
+    );
+  }
+  if (!acceptanceBrowserIsolations.includes(browsers)) {
+    throw new Error(
+      `Acceptance browser isolation must be ${acceptanceBrowserIsolations.join(' or ')}, found ${String(browsers)}`,
+    );
+  }
+  const pnpmExecutable = resolveExactPnpmExecutableImpl(
+    runImpl,
+    expectedPnpmVersion,
+    environment,
+    verificationCwd ?? workDir,
+  );
+  const playwrightBrowsersPath =
+    browsers === 'isolated'
+      ? acceptancePlaywrightBrowsersPath(workDir)
+      : environment.PLAYWRIGHT_BROWSERS_PATH;
+  const env = createAcceptancePackageManagerEnv(
+    workDir,
+    registryEnv,
+    pnpmExecutable,
+  );
+  if (playwrightBrowsersPath !== undefined) {
+    env.PLAYWRIGHT_BROWSERS_PATH = playwrightBrowsersPath;
+  }
+  return {
+    browsers,
+    env,
+    packageManagerRoot: acceptancePackageManagerRoot(workDir),
+    playwrightBrowsersPath,
+    playwrightInstallArgs: acceptancePlaywrightInstallArgs,
+    pnpmExecutable,
+  };
+}
+
+// In-process Playwright reads PLAYWRIGHT_BROWSERS_PATH from the real process
+// environment, not from a subprocess env object, so the runtime context is
+// applied around the launch and the parent process value restored afterwards
+// — including when the launch throws.
+async function withAcceptancePlaywrightBrowsersPath(browsersPath, action) {
+  const previousBrowsersPath = process.env.PLAYWRIGHT_BROWSERS_PATH;
+  try {
+    if (browsersPath === undefined) {
+      delete process.env.PLAYWRIGHT_BROWSERS_PATH;
+    } else {
+      process.env.PLAYWRIGHT_BROWSERS_PATH = browsersPath;
+    }
+    return await action();
+  } finally {
+    if (previousBrowsersPath === undefined) {
+      delete process.env.PLAYWRIGHT_BROWSERS_PATH;
+    } else {
+      process.env.PLAYWRIGHT_BROWSERS_PATH = previousBrowsersPath;
+    }
+  }
 }
 
 function registryReceiptMetadata({ mode, registryUrl }) {
@@ -790,17 +895,16 @@ async function runAcceptanceProfile({
   try {
     const projectDir = path.join(workDir, options.projectName);
     const runtime = runtimeVersions(runImpl, registryTool);
-    const exactPnpmExecutable = resolveExactPnpmExecutable(
-      runImpl,
-      release.tools?.pnpm ?? runtime.pnpm,
-      process.env,
-      workDir,
-    );
-    const packageManagerEnv = createAcceptancePackageManagerEnv(
-      workDir,
+    // ERP subprocesses take their whole runtime context from the shared owner;
+    // the browsers themselves are provisioned operationally on the runner, so
+    // this profile inherits that path rather than isolating its own.
+    const { env: packageManagerEnv } = createAcceptanceRuntimeContext({
+      browsers: 'inherited',
+      expectedPnpmVersion: release.tools?.pnpm ?? runtime.pnpm,
       registryEnv,
-      exactPnpmExecutable,
-    );
+      runImpl,
+      workDir,
+    });
     const receipt = createAcceptanceReceipt({
       release,
       mode,
@@ -1148,13 +1252,17 @@ async function runAcceptanceProfile({
 }
 
 export {
+  acceptancePlaywrightBrowsersPath,
+  acceptancePlaywrightInstallArgs,
   assertCohortResolutionProvenance,
   assertDefaultOffRscInstall,
   createAcceptanceBuildEnv,
   createAcceptancePackageManagerEnv,
+  createAcceptanceRuntimeContext,
   requiredPnpmCommands,
   resolveExactPnpmExecutable,
   runAcceptanceProfile,
   runOperationalIndependenceAcceptance,
   snapshotAcceptanceWorkspaceSource,
+  withAcceptancePlaywrightBrowsersPath,
 };

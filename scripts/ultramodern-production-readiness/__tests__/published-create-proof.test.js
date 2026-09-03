@@ -957,3 +957,343 @@ test('asserts generated cohorts only from strict manifest expectations and compa
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('one acceptance runtime context owns pnpm, stores, registry, and the browsers path', async t => {
+  const {
+    acceptancePlaywrightBrowsersPath,
+    acceptancePlaywrightInstallArgs,
+    createAcceptanceRuntimeContext,
+  } = await import('../published-create-proof/acceptance-profile.mjs');
+
+  const workDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'ultramodern-runtime-context-'),
+  );
+  t.after(() => fs.rmSync(workDir, { force: true, recursive: true }));
+  const packageManagerRoot = path.join(workDir, 'package-manager');
+  const pnpmExecutable = path.join('/opt', 'pnpm-11.17.0', 'bin', 'pnpm');
+  const resolverCalls = [];
+  const resolveExactPnpmExecutableImpl = (...args) => {
+    resolverCalls.push(args);
+    return pnpmExecutable;
+  };
+
+  const isolated = createAcceptanceRuntimeContext({
+    browsers: 'isolated',
+    environment: {
+      PATH: '/hostile/path',
+      PLAYWRIGHT_BROWSERS_PATH: '/inherited/ms-playwright',
+    },
+    expectedPnpmVersion: '11.17.0',
+    registryEnv: {
+      npm_config_registry: 'https://registry.npmjs.org/',
+      pnpm_config_registry: 'https://registry.npmjs.org/',
+    },
+    resolveExactPnpmExecutableImpl,
+    workDir,
+  });
+
+  assert.equal(isolated.pnpmExecutable, pnpmExecutable);
+  assert.equal(isolated.packageManagerRoot, packageManagerRoot);
+  assert.equal(
+    isolated.env.PATH.split(path.delimiter)[0],
+    path.dirname(pnpmExecutable),
+    'the manifest-verified pnpm must own the head of PATH',
+  );
+  assert.deepEqual(
+    {
+      XDG_CACHE_HOME: isolated.env.XDG_CACHE_HOME,
+      npm_config_cache: isolated.env.npm_config_cache,
+      npm_config_registry: isolated.env.npm_config_registry,
+      npm_config_store_dir: isolated.env.npm_config_store_dir,
+      pnpm_config_registry: isolated.env.pnpm_config_registry,
+      pnpm_config_store_dir: isolated.env.pnpm_config_store_dir,
+    },
+    {
+      XDG_CACHE_HOME: path.join(packageManagerRoot, 'xdg'),
+      npm_config_cache: path.join(packageManagerRoot, 'npm-cache'),
+      npm_config_registry: 'https://registry.npmjs.org/',
+      npm_config_store_dir: path.join(packageManagerRoot, 'store'),
+      pnpm_config_registry: 'https://registry.npmjs.org/',
+      pnpm_config_store_dir: path.join(packageManagerRoot, 'store'),
+    },
+    'one module owns the stores, the XDG cache, and the registry',
+  );
+  // Install/launch coherence: the value the subprocess env carries is the same
+  // value the owner reports for the in-process Playwright launch.
+  assert.equal(
+    isolated.env.PLAYWRIGHT_BROWSERS_PATH,
+    acceptancePlaywrightBrowsersPath(workDir),
+  );
+  assert.equal(
+    isolated.playwrightBrowsersPath,
+    isolated.env.PLAYWRIGHT_BROWSERS_PATH,
+  );
+  assert.equal(
+    isolated.env.PLAYWRIGHT_BROWSERS_PATH.startsWith(
+      `${packageManagerRoot}${path.sep}`,
+    ),
+    true,
+    'isolated browsers must stay inside the disposable package-manager root',
+  );
+  assert.deepEqual(
+    [...isolated.playwrightInstallArgs],
+    ['exec', 'playwright', 'install', '--with-deps', 'chromium'],
+    'the install must be dependency-resolved through pnpm exec, never a pinned version',
+  );
+  assert.deepEqual(
+    [...acceptancePlaywrightInstallArgs],
+    [...isolated.playwrightInstallArgs],
+  );
+  assert.equal(
+    acceptancePlaywrightInstallArgs.some(argument =>
+      /\d+\.\d+\.\d+/u.test(argument),
+    ),
+    false,
+    'the shared install invocation must not pin a playwright version',
+  );
+  assert.deepEqual(resolverCalls[0].slice(1), [
+    '11.17.0',
+    {
+      PATH: '/hostile/path',
+      PLAYWRIGHT_BROWSERS_PATH: '/inherited/ms-playwright',
+    },
+    workDir,
+  ]);
+
+  const inherited = createAcceptanceRuntimeContext({
+    environment: { PLAYWRIGHT_BROWSERS_PATH: '/inherited/ms-playwright' },
+    expectedPnpmVersion: '11.17.0',
+    resolveExactPnpmExecutableImpl,
+    workDir,
+  });
+  assert.equal(inherited.browsers, 'inherited');
+  assert.equal(
+    inherited.env.PLAYWRIGHT_BROWSERS_PATH,
+    '/inherited/ms-playwright',
+    'ERP reuses the operationally provisioned browsers on the runner',
+  );
+
+  const unprovisioned = createAcceptanceRuntimeContext({
+    environment: {},
+    expectedPnpmVersion: '11.17.0',
+    resolveExactPnpmExecutableImpl,
+    workDir,
+  });
+  assert.equal(
+    Object.hasOwn(unprovisioned.env, 'PLAYWRIGHT_BROWSERS_PATH'),
+    false,
+    'an absent inherited browsers path must not be forced into the child env',
+  );
+
+  assert.throws(
+    () =>
+      createAcceptanceRuntimeContext({
+        expectedPnpmVersion: '11.17.0',
+        resolveExactPnpmExecutableImpl,
+        workDir: 'relative/work-dir',
+      }),
+    /absolute work directory/u,
+  );
+  assert.throws(
+    () =>
+      createAcceptanceRuntimeContext({
+        browsers: 'shared',
+        expectedPnpmVersion: '11.17.0',
+        resolveExactPnpmExecutableImpl,
+        workDir,
+      }),
+    /browser isolation must be inherited or isolated/u,
+  );
+  // Exact pnpm stays fail-closed through the single owner.
+  assert.throws(
+    () =>
+      createAcceptanceRuntimeContext({
+        expectedPnpmVersion: '11',
+        workDir,
+      }),
+    /must bind an exact pnpm version/u,
+  );
+  assert.throws(
+    () =>
+      createAcceptanceRuntimeContext({
+        environment: { PATH: '' },
+        expectedPnpmVersion: '11.17.0',
+        runImpl: () => {
+          throw new Error('no pnpm on PATH');
+        },
+        workDir,
+      }),
+    /pnpm executable is absent from the acceptance parent PATH/u,
+  );
+});
+
+test('the in-process Playwright launch restores the parent browsers path', async t => {
+  const { withAcceptancePlaywrightBrowsersPath } = await import(
+    '../published-create-proof/acceptance-profile.mjs'
+  );
+  const originalBrowsersPath = process.env.PLAYWRIGHT_BROWSERS_PATH;
+  t.after(() => {
+    if (originalBrowsersPath === undefined) {
+      delete process.env.PLAYWRIGHT_BROWSERS_PATH;
+    } else {
+      process.env.PLAYWRIGHT_BROWSERS_PATH = originalBrowsersPath;
+    }
+  });
+
+  process.env.PLAYWRIGHT_BROWSERS_PATH = '/parent/ms-playwright';
+  const observed = await withAcceptancePlaywrightBrowsersPath(
+    '/isolated/ms-playwright',
+    async () => process.env.PLAYWRIGHT_BROWSERS_PATH,
+  );
+  assert.equal(observed, '/isolated/ms-playwright');
+  assert.equal(process.env.PLAYWRIGHT_BROWSERS_PATH, '/parent/ms-playwright');
+
+  await assert.rejects(
+    () =>
+      withAcceptancePlaywrightBrowsersPath('/isolated/ms-playwright', () => {
+        throw new Error('launch failed');
+      }),
+    /launch failed/u,
+  );
+  assert.equal(
+    process.env.PLAYWRIGHT_BROWSERS_PATH,
+    '/parent/ms-playwright',
+    'a failed launch must still restore the parent process',
+  );
+
+  const cleared = await withAcceptancePlaywrightBrowsersPath(
+    undefined,
+    async () => Object.hasOwn(process.env, 'PLAYWRIGHT_BROWSERS_PATH'),
+  );
+  assert.equal(cleared, false);
+  assert.equal(process.env.PLAYWRIGHT_BROWSERS_PATH, '/parent/ms-playwright');
+
+  delete process.env.PLAYWRIGHT_BROWSERS_PATH;
+  await withAcceptancePlaywrightBrowsersPath(
+    '/isolated/ms-playwright',
+    async () => undefined,
+  );
+  assert.equal(
+    Object.hasOwn(process.env, 'PLAYWRIGHT_BROWSERS_PATH'),
+    false,
+    'an unset parent value must be removed again, not left behind',
+  );
+});
+
+test('acceptance browser provisioning is operational and keyed by the resolved runtime', async t => {
+  const {
+    acceptanceBrowserCacheKey,
+    acceptanceBrowserInstallArgs,
+    parseProvisionArgs,
+    provisionAcceptanceBrowsers,
+    resolveAcceptanceBrowserRuntime,
+  } = await import('../published-create-proof/browser-provisioning.mjs');
+
+  const runtimeDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'ultramodern-browser-runtime-'),
+  );
+  t.after(() => fs.rmSync(runtimeDir, { force: true, recursive: true }));
+  writeJson(runtimeDir, 'node_modules/playwright/package.json', {
+    name: 'playwright',
+    version: '1.60.0',
+  });
+
+  const runtime = resolveAcceptanceBrowserRuntime({
+    ensureBrowserSmokeRuntimeImpl: () => runtimeDir,
+  });
+  assert.equal(runtime.version, '1.60.0');
+  assert.equal(
+    runtime.executable.startsWith(
+      path.join(runtimeDir, 'node_modules', '.bin'),
+    ),
+    true,
+    'the installer must be the resolved runtime binary, not an ad-hoc npx download',
+  );
+  assert.equal(
+    acceptanceBrowserCacheKey({ runnerOs: 'Linux', version: runtime.version }),
+    'playwright-chromium-1.60.0-Linux',
+  );
+  assert.deepEqual(acceptanceBrowserInstallArgs(false), [
+    'install',
+    '--with-deps',
+    'chromium',
+  ]);
+  assert.deepEqual(acceptanceBrowserInstallArgs(true), [
+    'install-deps',
+    'chromium',
+  ]);
+
+  const outputs = [];
+  const resolved = provisionAcceptanceBrowsers(['--resolve'], {
+    environment: { RUNNER_OS: 'Linux' },
+    resolveAcceptanceBrowserRuntimeImpl: () => runtime,
+    writeOutput: (name, value) => outputs.push([name, value]),
+  });
+  assert.deepEqual(resolved, {
+    cacheKey: 'playwright-chromium-1.60.0-Linux',
+    version: '1.60.0',
+  });
+  assert.deepEqual(outputs, [
+    ['cache_key', 'playwright-chromium-1.60.0-Linux'],
+    ['version', '1.60.0'],
+  ]);
+
+  const installs = [];
+  provisionAcceptanceBrowsers(['--install', '--cache-hit', 'true'], {
+    environment: {},
+    installAcceptanceBrowsersImpl: options => installs.push(options.cacheHit),
+    resolveAcceptanceBrowserRuntimeImpl: () => runtime,
+    writeOutput: () => assert.fail('provisioning must report no evidence'),
+  });
+  assert.deepEqual(installs, [true]);
+
+  assert.throws(() => parseProvisionArgs([]), /exactly one of --resolve/u);
+  assert.throws(
+    () => parseProvisionArgs(['--resolve', '--install']),
+    /exactly one of --resolve/u,
+  );
+  assert.throws(
+    () => parseProvisionArgs(['--install', '--cache-hit', 'maybe']),
+    /--cache-hit requires true or false/u,
+  );
+  writeJson(runtimeDir, 'node_modules/playwright/package.json', {
+    name: 'playwright',
+    version: 'latest',
+  });
+  assert.throws(
+    () =>
+      resolveAcceptanceBrowserRuntime({
+        ensureBrowserSmokeRuntimeImpl: () => runtimeDir,
+      }),
+    /exact playwright version/u,
+  );
+  assert.throws(
+    () => acceptanceBrowserCacheKey({ runnerOs: 'Linux', version: '1.60' }),
+    /exact resolved playwright version/u,
+  );
+});
+
+test('no workflow owns a Playwright installer or version literal', () => {
+  const workflowDir = path.join(__dirname, '../../../.github/workflows');
+  const offenders = [];
+  for (const entry of fs.readdirSync(workflowDir).sort()) {
+    if (!entry.endsWith('.yml') && !entry.endsWith('.yaml')) {
+      continue;
+    }
+    const source = fs.readFileSync(path.join(workflowDir, entry), 'utf8');
+    source.split('\n').forEach((line, index) => {
+      if (
+        /playwright@\d/u.test(line) ||
+        /playwright-chromium-\d/u.test(line) ||
+        /npx[^\n]*playwright/u.test(line)
+      ) {
+        offenders.push(`${entry}:${index + 1}: ${line.trim()}`);
+      }
+    });
+  }
+  assert.deepEqual(
+    offenders,
+    [],
+    'Playwright version and installer ownership belongs to the acceptance runtime, not workflow YAML',
+  );
+});

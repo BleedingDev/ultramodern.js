@@ -155,16 +155,16 @@ jobs:
         run: mise exec -- pnpm install --frozen-lockfile
 
       # plugin-runtime's boundary-debugger suite drives a real chromium through
-      # the playwright installed in the rstest browser fixture. The cache key
-      # pins the fixture's lockfile-resolved playwright version; bump the
-      # literal in the same commit as any playwright bump. No restore-keys:
-      # the exact-version literal is the invalidation mechanism.
+      # the playwright installed in the rstest browser fixture. The key is
+      # derived from the frozen lockfile that resolves that playwright, so a
+      # bump invalidates the cache without any workflow-side version literal.
+      # No restore-keys: the lockfile hash is the invalidation mechanism.
       - name: Restore Playwright chromium cache
         id: playwright-cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-chromium-1.61.1-${{ runner.os }}
+          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
 
       - name: Install browser qualification runtime
         run: |
@@ -515,24 +515,26 @@ jobs:
           repository: ${{ github.repository }}
           run-id: ${{ github.run_id }}
 
-      # Key pins the npx playwright literal below; bump both together. No
-      # restore-keys: the exact-version literal is the invalidation mechanism.
+      # Resolves the same browser-smoke runtime the acceptance profile uses and
+      # reports its playwright version, so the cache key below comes from a
+      # resolved runtime output instead of a workflow version literal.
+      - name: Resolve browser smoke runtime
+        id: browser-runtime
+        run: node scripts/ultramodern-production-readiness/provision-acceptance-browsers.mjs --resolve
+
+      # No restore-keys: the resolved playwright version is the invalidation
+      # mechanism.
       - name: Restore Playwright chromium cache
         id: playwright-cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ env.PLAYWRIGHT_BROWSERS_PATH }}
-          key: playwright-chromium-1.60.0-${{ runner.os }}
+          key: ${{ steps.browser-runtime.outputs.cache_key }}
 
       - name: Install browser smoke runtime
-        run: |
-          # OS packages are not in ~/.cache/ms-playwright, so install-deps
-          # runs on every run; only the browser download is cacheable.
-          if [[ "${{ steps.playwright-cache.outputs.cache-hit }}" == "true" ]]; then
-            npx --yes playwright@1.60.0 install-deps chromium
-          else
-            npx --yes playwright@1.60.0 install --with-deps chromium
-          fi
+        run: >-
+          node scripts/ultramodern-production-readiness/provision-acceptance-browsers.mjs
+          --install --cache-hit ${{ steps.playwright-cache.outputs.cache-hit == 'true' }}
 
       - name: Run exact-artifact ERP-10 acceptance
         env:
@@ -1098,24 +1100,27 @@ jobs:
           ) > "$RUNNER_TEMP/deps-install.log" 2>&1 &
           printf '%s\n' "$!" > "$RUNNER_TEMP/deps-install.pid"
 
-      # Key pins the npx playwright literal below; bump both together. No
-      # restore-keys: the exact-version literal is the invalidation mechanism.
+      # Runs while the dependency install above is still in flight: the
+      # provisioning module imports node builtins and repo-local helpers only,
+      # so it needs no node_modules. It reports the resolved playwright version
+      # that keys the cache below, replacing a workflow version literal.
+      - name: Resolve browser smoke runtime
+        id: browser-runtime
+        run: node scripts/ultramodern-production-readiness/provision-acceptance-browsers.mjs --resolve
+
+      # No restore-keys: the resolved playwright version is the invalidation
+      # mechanism.
       - name: Restore Playwright chromium cache
         id: playwright-cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ env.PLAYWRIGHT_BROWSERS_PATH }}
-          key: playwright-chromium-1.60.0-${{ runner.os }}
+          key: ${{ steps.browser-runtime.outputs.cache_key }}
 
       - name: Install browser smoke runtime
-        run: |
-          # OS packages are not in ~/.cache/ms-playwright, so install-deps
-          # runs on every run; only the browser download is cacheable.
-          if [[ "${{ steps.playwright-cache.outputs.cache-hit }}" == "true" ]]; then
-            npx --yes playwright@1.60.0 install-deps chromium
-          else
-            npx --yes playwright@1.60.0 install --with-deps chromium
-          fi
+        run: >-
+          node scripts/ultramodern-production-readiness/provision-acceptance-browsers.mjs
+          --install --cache-hit ${{ steps.playwright-cache.outputs.cache-hit == 'true' }}
 
       # Unconditional join before anything that needs node_modules: a failed
       # install fails the job here, never silently.

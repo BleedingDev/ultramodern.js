@@ -22,9 +22,11 @@ import {
   orderTargetsForLocalStartup,
 } from '../browser-smoke/targets.mjs';
 import {
-  createAcceptancePackageManagerEnv,
+  acceptancePlaywrightInstallArgs,
+  createAcceptanceRuntimeContext,
   resolveExactPnpmExecutable,
   snapshotAcceptanceWorkspaceSource,
+  withAcceptancePlaywrightBrowsersPath,
 } from '../published-create-proof/acceptance-profile.mjs';
 import { writeJsonFile } from '../published-create-proof/constants.mjs';
 import {
@@ -59,11 +61,11 @@ const requiredCommands = Object.freeze([
 ]);
 const executionCommands = Object.freeze([
   Object.freeze({ command: requiredCommands[0], report: true }),
+  // Runs after the frozen install so `pnpm exec` resolves the playwright the
+  // downstream lockfile already pinned. Operational, never reported: it
+  // provisions the runtime and contributes no acceptance check id.
   Object.freeze({
-    command: Object.freeze([
-      'pnpm',
-      ['exec', 'playwright', 'install', '--with-deps', 'chromium'],
-    ]),
+    command: Object.freeze(['pnpm', acceptancePlaywrightInstallArgs]),
     report: false,
   }),
   ...requiredCommands
@@ -186,29 +188,24 @@ function createTractorPackageManagerContext({
       'Tractor bootstrap exclusions must contain the authenticated create closure',
     );
   }
-  const pnpmExecutable = resolveExactPnpmExecutableImpl(
-    runImpl,
+  // Thin delegate: the shared acceptance owner decides the exact pnpm
+  // executable, PATH, registry, npm/pnpm stores, XDG cache, and
+  // PLAYWRIGHT_BROWSERS_PATH. Only the Tractor bootstrap release-age policy
+  // is layered on top here.
+  const runtime = createAcceptanceRuntimeContext({
+    browsers: 'isolated',
     expectedPnpmVersion,
-    process.env,
-    packageManagerRoot,
-  );
-  const playwrightBrowsersPath = path.join(
-    packageManagerRoot,
-    'package-manager',
-    'xdg',
-    'ms-playwright',
-  );
+    registryEnv: {
+      npm_config_registry: registryUrl,
+      pnpm_config_registry: registryUrl,
+    },
+    resolveExactPnpmExecutableImpl,
+    runImpl,
+    workDir: packageManagerRoot,
+  });
   return {
     env: {
-      ...createAcceptancePackageManagerEnv(
-        packageManagerRoot,
-        {
-          npm_config_registry: registryUrl,
-          pnpm_config_registry: registryUrl,
-        },
-        pnpmExecutable,
-      ),
-      PLAYWRIGHT_BROWSERS_PATH: playwrightBrowsersPath,
+      ...runtime.env,
       NPM_CONFIG_MINIMUM_RELEASE_AGE_EXCLUDE: undefined,
       NPM_CONFIG_TRUST_POLICY_EXCLUDE: undefined,
       PNPM_CONFIG_MINIMUM_RELEASE_AGE_EXCLUDE: undefined,
@@ -228,7 +225,9 @@ function createTractorPackageManagerContext({
         bootstrapReleaseAgePolicy.minimumReleaseAgeStrict,
       ),
     },
-    pnpmExecutable,
+    playwrightBrowsersPath: runtime.playwrightBrowsersPath,
+    playwrightInstallArgs: runtime.playwrightInstallArgs,
+    pnpmExecutable: runtime.pnpmExecutable,
   };
 }
 
@@ -422,28 +421,18 @@ function loadWorkspacePlaywright(workspace) {
   return workspaceRequire('@playwright/test');
 }
 
-async function launchWorkspaceBrowser(
+// The subprocess env and this in-process launch must agree on where the
+// browsers were installed, so both read the same runtime-context value; the
+// shared owner restores the parent process afterwards.
+function launchWorkspaceBrowser(
   { browserProvider, processEnv, workspace },
   { launchBrowserImpl = launchBrowser } = {},
 ) {
-  const previousBrowsersPath = process.env.PLAYWRIGHT_BROWSERS_PATH;
-  try {
-    if (processEnv.PLAYWRIGHT_BROWSERS_PATH === undefined) {
-      delete process.env.PLAYWRIGHT_BROWSERS_PATH;
-    } else {
-      process.env.PLAYWRIGHT_BROWSERS_PATH =
-        processEnv.PLAYWRIGHT_BROWSERS_PATH;
-    }
-    return await launchBrowserImpl(
-      browserProvider ?? loadWorkspacePlaywright(workspace),
-    );
-  } finally {
-    if (previousBrowsersPath === undefined) {
-      delete process.env.PLAYWRIGHT_BROWSERS_PATH;
-    } else {
-      process.env.PLAYWRIGHT_BROWSERS_PATH = previousBrowsersPath;
-    }
-  }
+  return withAcceptancePlaywrightBrowsersPath(
+    processEnv.PLAYWRIGHT_BROWSERS_PATH,
+    () =>
+      launchBrowserImpl(browserProvider ?? loadWorkspacePlaywright(workspace)),
+  );
 }
 
 function createReleaseBoundNodeSmokeTargets(
