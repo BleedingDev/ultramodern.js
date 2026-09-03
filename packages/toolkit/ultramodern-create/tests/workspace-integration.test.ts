@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -9,9 +10,14 @@ import { yaml } from '@modern-js/utils';
 import { transformSync } from 'esbuild';
 import { runUltramodernToolingCli } from '../src/ultramodern-tooling/commands';
 import {
+  readUltramodernConfig,
+  workspaceAppsFromToolingConfig,
+} from '../src/ultramodern-tooling/config';
+import {
   addUltramodernVertical,
   generateUltramodernWorkspace,
 } from '../src/ultramodern-workspace';
+import { createWorkspaceRootPackageScripts } from '../src/ultramodern-workspace/workspace-script-plan';
 import { snapshotWorkspace } from './helpers/workspace-kit';
 
 const packageRoot = path.resolve(__dirname, '..');
@@ -869,6 +875,176 @@ require('node:fs').writeFileSync(
     ]);
     assert.equal(declarationArgs.includes('--noEmit'), false);
     assert.ok(declarationArgs.includes('--skipLibCheck'));
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+/**
+ * Resolves the native TypeScript 7 executable installed for this platform by
+ * `@typescript/native-preview`. The native binary (rather than a package bin
+ * shim) keeps `EFFECT_TSGO_BIN` spawnable without a shell on every OS.
+ */
+function resolveInstalledTsgoExecutable() {
+  const nativePreviewManifest = createRequire(
+    path.join(packageRoot, 'package.json'),
+  ).resolve('@typescript/native-preview/package.json');
+  const platformManifest = createRequire(nativePreviewManifest).resolve(
+    `@typescript/native-preview-${process.platform}-${process.arch}/package.json`,
+  );
+
+  return path.join(
+    path.dirname(platformManifest),
+    'lib',
+    process.platform === 'win32' ? 'tsgo.exe' : 'tsgo',
+  );
+}
+
+test('referenced remote declaration prebuild emits declarations from a clean cache before the dependent shell build', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-declaration-'));
+  const workspaceDir = path.join(tempRoot, 'integration-workspace');
+
+  try {
+    generateUltramodernWorkspace({
+      targetDir: workspaceDir,
+      packageName: 'integration-workspace',
+      modernVersion: '3.2.1',
+      enableTailwind: true,
+      packageSource: { strategy: 'workspace' },
+    });
+    addUltramodernVertical({
+      workspaceRoot: workspaceDir,
+      name: 'catalog',
+      modernVersion: '3.2.1',
+    });
+    addUltramodernVertical({
+      workspaceRoot: workspaceDir,
+      name: 'checkout',
+      modernVersion: '3.2.1',
+    });
+
+    // A cross-remote reference is the only topology the generator prebuilds
+    // with `--emit --project`, so take the executed command from the generator
+    // instead of restating it here.
+    const toolingConfig = readJson(workspaceDir, '.modernjs/ultramodern.json');
+    appById(
+      toolingConfig.topology.apps,
+      'checkout',
+    ).moduleFederation.verticalRefs = ['catalog'];
+    writeJson(workspaceDir, '.modernjs/ultramodern.json', toolingConfig);
+    const declarationPrebuild = createWorkspaceRootPackageScripts(
+      workspaceAppsFromToolingConfig(
+        readUltramodernConfig(workspaceDir),
+      ).filter(app => app.kind !== 'shell'),
+    )
+      .build.split(' && ')
+      .find(segment => segment.includes('--emit --project verticals/catalog/'));
+    assert.ok(
+      declarationPrebuild,
+      'the generated root build must prebuild referenced remote declarations',
+    );
+
+    // The generated remote's real sources import the whole framework, which a
+    // hermetic fixture cannot install. Reduce the referenced remote to one
+    // dependency-free module so the installed TypeScript 7 compiler runs
+    // offline. The two things this proof is about, the generated tsconfig and
+    // the generated prebuild command, stay untouched.
+    for (const sourceDirectory of ['api', 'server', 'shared', 'src']) {
+      fs.rmSync(path.join(workspaceDir, 'verticals/catalog', sourceDirectory), {
+        force: true,
+        recursive: true,
+      });
+    }
+    fs.mkdirSync(path.join(workspaceDir, 'verticals/catalog/src'), {
+      recursive: true,
+    });
+    fs.writeFileSync(
+      path.join(workspaceDir, 'verticals/catalog/src/index.ts'),
+      "export const catalogRemoteContract = 'catalog' as const;\n",
+      'utf-8',
+    );
+
+    const catalogTsConfig = readJson(
+      workspaceDir,
+      'verticals/catalog/tsconfig.json',
+    );
+    const declarationFile = path.resolve(
+      workspaceDir,
+      'verticals/catalog',
+      catalogTsConfig.compilerOptions.outDir,
+      'src/index.d.ts',
+    );
+    const tsgoCache = path.join(workspaceDir, 'node_modules/.cache/tsgo');
+    const runDeclarationPrebuild = (command: string) =>
+      spawnSync(command, {
+        cwd: workspaceDir,
+        encoding: 'utf8',
+        env: {
+          ...hermeticEnv,
+          EFFECT_TSGO_BIN: resolveInstalledTsgoExecutable(),
+        },
+        shell: true,
+      });
+    // Stand-in for `pnpm --filter "./apps/shell-super-app" run build`: the only
+    // thing the dependent shell build needs from the prebuild is the referenced
+    // remote's declaration output, so the mock gates on exactly that.
+    const shellBuildGate = path.join(tempRoot, 'shell-build-gate.mjs');
+    fs.writeFileSync(
+      shellBuildGate,
+      `import { existsSync } from 'node:fs';
+if (!existsSync(process.argv[2])) {
+  console.error('missing referenced remote declarations: ' + process.argv[2]);
+  process.exit(1);
+}
+`,
+      'utf-8',
+    );
+    const runDependentShellBuild = () =>
+      spawnSync(process.execPath, [shellBuildGate, declarationFile], {
+        cwd: workspaceDir,
+        encoding: 'utf8',
+      });
+
+    // Clean cache: a freshly generated workspace carries no TS-Go declaration
+    // cache, so every artifact below is produced by this run.
+    assert.equal(fs.existsSync(tsgoCache), false);
+
+    const prebuild = runDeclarationPrebuild(declarationPrebuild);
+    assert.equal(prebuild.status, 0, commandOutput(prebuild));
+    assert.equal(
+      fs.existsSync(declarationFile),
+      true,
+      'the referenced remote prebuild must emit declarations from a clean cache',
+    );
+    assert.match(
+      fs.readFileSync(declarationFile, 'utf-8'),
+      /catalogRemoteContract/u,
+    );
+    const readyShellBuild = runDependentShellBuild();
+    assert.equal(readyShellBuild.status, 0, commandOutput(readyShellBuild));
+
+    // Predecessor form: dropping `--emit` still exits zero, so the exit status
+    // proves nothing on its own; only the emitted declarations do.
+    fs.rmSync(tsgoCache, { force: true, recursive: true });
+    const nonEmittingPrebuild = runDeclarationPrebuild(
+      declarationPrebuild.replace(' --emit --project ', ' --project '),
+    );
+    assert.equal(
+      nonEmittingPrebuild.status,
+      0,
+      commandOutput(nonEmittingPrebuild),
+    );
+    assert.equal(fs.existsSync(declarationFile), false);
+    const starvedShellBuild = runDependentShellBuild();
+    assert.notEqual(
+      starvedShellBuild.status,
+      0,
+      'the dependent shell build must fail when the prebuild emitted nothing',
+    );
+    assert.match(
+      starvedShellBuild.stderr,
+      /missing referenced remote declarations/u,
+    );
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
