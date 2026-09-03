@@ -1362,9 +1362,11 @@ jobs:
       actions: read
       contents: write
     needs:
+      - accept-release
       - record-publish-outcome
     if: >-
       always() &&
+      needs.accept-release.result == 'success' &&
       needs.record-publish-outcome.result == 'success' &&
       github.actor == github.repository_owner &&
       github.triggering_actor == github.repository_owner &&
@@ -1398,7 +1400,10 @@ jobs:
 
       - name: Generate the cohort change record
         id: change-record
+        env:
+          RELEASE_SOURCE_COMMIT: ${{ needs.accept-release.outputs.release_source_commit }}
         run: |
+          git checkout --detach "$RELEASE_SOURCE_COMMIT"
           mkdir -p "$BLEEDINGDEV_RELEASE_DIR"
           node scripts/ultramodern-publish/gen-cohort-change-record.mjs \
             --manifest "$BLEEDINGDEV_RELEASE_MANIFEST" \

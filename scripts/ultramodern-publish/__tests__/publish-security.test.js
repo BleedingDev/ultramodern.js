@@ -1069,7 +1069,10 @@ test('publish change record structurally schedules only for a successful real ou
   const changeRecordJob = parsed.jobs['publish-change-record'];
   assert.equal(changeRecordJob['continue-on-error'], true);
   const actionExpression = name => ['${{', name, '}}'].join(' ');
-  assert.deepEqual(normalizeNeeds(changeRecordJob), ['record-publish-outcome']);
+  assert.deepEqual(normalizeNeeds(changeRecordJob), [
+    'accept-release',
+    'record-publish-outcome',
+  ]);
   assert.deepEqual(changeRecordJob.permissions, {
     actions: 'read',
     contents: 'write',
@@ -1095,6 +1098,15 @@ test('publish change record structurally schedules only for a successful real ou
     step => step.name === 'Generate the cohort change record',
   );
   assert.equal(generateStep.id, 'change-record');
+  assert.deepEqual(generateStep.env, {
+    RELEASE_SOURCE_COMMIT: actionExpression(
+      'needs.accept-release.outputs.release_source_commit',
+    ),
+  });
+  assert.match(
+    generateStep.run,
+    /git checkout --detach "\$RELEASE_SOURCE_COMMIT"/u,
+  );
   assert.match(
     generateStep.run,
     /--manifest "\$BLEEDINGDEV_RELEASE_MANIFEST"/u,
