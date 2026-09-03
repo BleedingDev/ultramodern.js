@@ -184,25 +184,61 @@ function acceptancePlaywrightBrowsersPath(workDir) {
   );
 }
 
-// `inherited` browsers only mean anything if the caller actually says where
-// the runner put them. This runtime context always redirects XDG_CACHE_HOME
-// into the disposable package-manager root, and Playwright derives its default
-// browser directory from that cache home, so an absent
-// PLAYWRIGHT_BROWSERS_PATH would silently point install and launch at an empty
-// directory inside the work dir rather than at the browsers operational
-// provisioning placed on the runner. Fail closed with both ways out instead of
-// guessing a pre-redirection default.
-function assertInheritedPlaywrightBrowsersPath(browsersPath) {
-  if (
-    typeof browsersPath !== 'string' ||
-    browsersPath === '' ||
-    !path.isAbsolute(browsersPath)
-  ) {
-    throw new Error(
-      `Inherited acceptance browsers require an absolute PLAYWRIGHT_BROWSERS_PATH in the injected environment, found ${String(browsersPath)}. This runtime context redirects XDG_CACHE_HOME into the disposable package-manager root, so an unset value resolves Playwright's default browser directory there instead of the runner's. Provision the browsers with PLAYWRIGHT_BROWSERS_PATH set (as the acceptance jobs do) or ask for browsers: 'isolated'.`,
-    );
+// Playwright's default browser registry is per-platform, and only the Linux
+// one is derived from XDG_CACHE_HOME:
+//   * linux — $XDG_CACHE_HOME/ms-playwright
+//   * darwin — ~/Library/Caches/ms-playwright
+//   * win32 — %LOCALAPPDATA%\ms-playwright
+// This runtime context always redirects XDG_CACHE_HOME into the disposable
+// package-manager root, so on Linux an absent PLAYWRIGHT_BROWSERS_PATH is not
+// the runner's registry at all — it silently becomes an empty directory inside
+// the work dir. On darwin and win32 the redirect cannot move that default, so
+// the pre-redirection registry is derivable and inheriting it is exactly what
+// the caller asked for.
+const playwrightRegistryCacheHome = Object.freeze({
+  darwin: ({ homedir }) => path.join(homedir, 'Library', 'Caches'),
+  win32: ({ environment, homedir }) =>
+    typeof environment.LOCALAPPDATA === 'string' &&
+    path.isAbsolute(environment.LOCALAPPDATA)
+      ? environment.LOCALAPPDATA
+      : path.join(homedir, 'AppData', 'Local'),
+});
+
+// `inherited` browsers only mean anything if this returns the registry the
+// browsers actually live in. An explicit PLAYWRIGHT_BROWSERS_PATH always wins
+// and must be absolute; otherwise the platform default is derived where the
+// XDG redirect cannot reach it, and fails closed everywhere it can — naming
+// both ways out rather than guessing a pre-redirection default.
+function inheritedPlaywrightBrowsersPath(
+  browsersPath,
+  {
+    environment = process.env,
+    homedir = os.homedir(),
+    platform = process.platform,
+  } = {},
+) {
+  if (typeof browsersPath === 'string' && path.isAbsolute(browsersPath)) {
+    return browsersPath;
   }
-  return browsersPath;
+  const cacheHome = playwrightRegistryCacheHome[platform];
+  if (browsersPath === undefined && cacheHome !== undefined) {
+    const derived = path.join(
+      cacheHome({ environment, homedir }),
+      'ms-playwright',
+    );
+    if (path.isAbsolute(derived)) {
+      return derived;
+    }
+  }
+  const reason =
+    browsersPath !== undefined
+      ? `A stated inherited browsers path must be absolute.`
+      : platform === 'linux'
+        ? `This runtime context redirects XDG_CACHE_HOME into the disposable package-manager root, and Playwright derives its default browser directory on linux from that cache home, so an unset value resolves inside the work dir instead of the runner's registry.`
+        : `Playwright's default browser registry on ${String(platform)} could not be derived from this environment.`;
+  throw new Error(
+    `Inherited acceptance browsers require an absolute PLAYWRIGHT_BROWSERS_PATH in the injected environment, found ${String(browsersPath)}. ${reason} Provision the browsers with PLAYWRIGHT_BROWSERS_PATH set (as the acceptance jobs do) or ask for browsers: 'isolated'.`,
+  );
 }
 
 function createAcceptancePackageManagerEnv(
@@ -423,10 +459,11 @@ function resolveExactPnpmExecutable(
 // keep chromium inside the disposable package-manager root (Tractor, which
 // installs it from the downstream frozen graph); `inherited` reuses the
 // browsers the operational provisioning step already placed on the runner
-// (ERP) and requires that runner path to be stated explicitly. Either way the
-// value is decided here and carried only by `env`, so the install path and the
-// launch path cannot disagree: both read PLAYWRIGHT_BROWSERS_PATH out of this
-// one environment, which always defines it.
+// (ERP), taking the stated path when there is one and otherwise the platform
+// default the XDG redirect cannot move. Either way the value is decided here
+// and carried only by `env`, so the install path and the launch path cannot
+// disagree: both read PLAYWRIGHT_BROWSERS_PATH out of this one environment,
+// which always defines it.
 function createAcceptanceRuntimeContext({
   browsers = 'inherited',
   environment = process.env,
@@ -447,14 +484,15 @@ function createAcceptanceRuntimeContext({
       `Acceptance browser isolation must be ${acceptanceBrowserIsolations.join(' or ')}, found ${String(browsers)}`,
     );
   }
-  // Decided before anything is spawned: an unprovisioned inherited path is a
-  // caller mistake, not a runtime failure to discover halfway through.
+  // Decided before anything is spawned: an inherited path that cannot be
+  // stated or derived is a caller mistake, not a runtime failure to discover
+  // halfway through.
   const playwrightBrowsersPath =
     browsers === 'isolated'
       ? acceptancePlaywrightBrowsersPath(workDir)
-      : assertInheritedPlaywrightBrowsersPath(
-          environment.PLAYWRIGHT_BROWSERS_PATH,
-        );
+      : inheritedPlaywrightBrowsersPath(environment.PLAYWRIGHT_BROWSERS_PATH, {
+          environment,
+        });
   const pnpmExecutable = resolveExactPnpmExecutableImpl(
     runImpl,
     expectedPnpmVersion,
@@ -1290,6 +1328,7 @@ export {
   createAcceptanceBuildEnv,
   createAcceptancePackageManagerEnv,
   createAcceptanceRuntimeContext,
+  inheritedPlaywrightBrowsersPath,
   requiredPnpmCommands,
   resolveExactPnpmExecutable,
   runAcceptanceProfile,

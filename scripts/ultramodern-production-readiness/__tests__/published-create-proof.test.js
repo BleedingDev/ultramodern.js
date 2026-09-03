@@ -1089,13 +1089,10 @@ test('one acceptance runtime context owns pnpm, stores, registry, and the browse
     'ERP reuses the operationally provisioned browsers on the runner',
   );
 
-  // Inherited browsers with no runner path stated is the one combination that
-  // could pass silently: this env redirects XDG_CACHE_HOME into the disposable
-  // package-manager root, so Playwright would derive its default browser
-  // directory from that empty redirect. It fails closed instead, before
-  // anything is spawned, and names both ways out.
+  // A stated-but-unusable inherited path is a caller mistake on every
+  // platform: it fails closed before anything is spawned and names both ways
+  // out.
   for (const unprovisionedEnvironment of [
-    {},
     { PLAYWRIGHT_BROWSERS_PATH: '' },
     { PLAYWRIGHT_BROWSERS_PATH: 'relative/ms-playwright' },
   ]) {
@@ -1112,7 +1109,7 @@ test('one acceptance runtime context owns pnpm, stores, registry, and the browse
         }),
       error =>
         /require an absolute PLAYWRIGHT_BROWSERS_PATH/u.test(error.message) &&
-        /XDG_CACHE_HOME/u.test(error.message) &&
+        /must be absolute/u.test(error.message) &&
         /browsers: 'isolated'/u.test(error.message),
       `inherited browsers must fail closed for ${JSON.stringify(unprovisionedEnvironment)}`,
     );
@@ -1173,6 +1170,93 @@ test('one acceptance runtime context owns pnpm, stores, registry, and the browse
       }),
     /pnpm executable is absent from the acceptance parent PATH/u,
   );
+});
+
+test('inherited browsers resolve the real per-platform Playwright registry', async () => {
+  const { inheritedPlaywrightBrowsersPath } = await import(
+    '../published-create-proof/acceptance-profile.mjs'
+  );
+  const homedir = path.join(path.sep, 'home', 'runner');
+
+  // A stated absolute path always wins, on every platform.
+  for (const platform of ['linux', 'darwin', 'win32', 'freebsd']) {
+    assert.equal(
+      inheritedPlaywrightBrowsersPath('/inherited/ms-playwright', {
+        environment: {},
+        homedir,
+        platform,
+      }),
+      '/inherited/ms-playwright',
+    );
+  }
+
+  // Only the linux default is derived from XDG_CACHE_HOME, which this runtime
+  // context redirects, so only linux fails closed on an unset value.
+  assert.throws(
+    () =>
+      inheritedPlaywrightBrowsersPath(undefined, {
+        environment: {},
+        homedir,
+        platform: 'linux',
+      }),
+    error =>
+      /require an absolute PLAYWRIGHT_BROWSERS_PATH/u.test(error.message) &&
+      /XDG_CACHE_HOME/u.test(error.message) &&
+      /browsers: 'isolated'/u.test(error.message),
+  );
+  // An unsupported platform has no derivable registry either.
+  assert.throws(
+    () =>
+      inheritedPlaywrightBrowsersPath(undefined, {
+        environment: {},
+        homedir,
+        platform: 'freebsd',
+      }),
+    /default browser registry on freebsd could not be derived/u,
+  );
+
+  // darwin and win32 derive their registry from a cache home the XDG redirect
+  // cannot move, so the local source proof keeps inheriting the real browsers.
+  assert.equal(
+    inheritedPlaywrightBrowsersPath(undefined, {
+      environment: { XDG_CACHE_HOME: '/work/package-manager/xdg' },
+      homedir,
+      platform: 'darwin',
+    }),
+    path.join(homedir, 'Library', 'Caches', 'ms-playwright'),
+  );
+  assert.equal(
+    inheritedPlaywrightBrowsersPath(undefined, {
+      environment: { LOCALAPPDATA: path.join(path.sep, 'Local') },
+      homedir,
+      platform: 'win32',
+    }),
+    path.join(path.sep, 'Local', 'ms-playwright'),
+  );
+  assert.equal(
+    inheritedPlaywrightBrowsersPath(undefined, {
+      environment: { LOCALAPPDATA: 'relative' },
+      homedir,
+      platform: 'win32',
+    }),
+    path.join(homedir, 'AppData', 'Local', 'ms-playwright'),
+  );
+
+  // A stated-but-unusable value never falls back to a derived default.
+  for (const platform of ['darwin', 'linux', 'win32']) {
+    for (const stated of ['', 'relative/ms-playwright']) {
+      assert.throws(
+        () =>
+          inheritedPlaywrightBrowsersPath(stated, {
+            environment: {},
+            homedir,
+            platform,
+          }),
+        /A stated inherited browsers path must be absolute/u,
+        `${platform} must reject ${JSON.stringify(stated)}`,
+      );
+    }
+  }
 });
 
 test('the in-process Playwright launch restores the parent browsers path', async t => {
@@ -1382,7 +1466,8 @@ test('browser provisioning resolves an exact version without installing and keys
           });
         },
         // Installing carries the version the resolve step reported across the
-        // cache restore; it never re-reads the manifest that step read.
+        // cache restore and compares the manifest it re-reads against it; it
+        // never re-runs the resolve step's own resolution.
         resolveAcceptanceBrowserVersionImpl: () =>
           assert.fail('installing must not re-resolve the runtime version'),
         writeOutput: () => assert.fail('provisioning must report no evidence'),
@@ -1398,11 +1483,7 @@ test('browser provisioning resolves an exact version without installing and keys
   assert.deepEqual(installCalls, [
     { cacheHit: true, target: 'smoke', version: '1.60.0' },
     [
-      path.join(
-        runtimeDir,
-        'node_modules/.bin',
-        process.platform === 'win32' ? 'playwright.cmd' : 'playwright',
-      ),
+      path.join(runtimeDir, 'node_modules/.bin', 'playwright'),
       ['install-deps', 'chromium'],
       runtimeDir,
     ],
@@ -1419,9 +1500,45 @@ test('browser provisioning resolves an exact version without installing and keys
       ),
     /Provisioned playwright 1\.60\.0 is not the 1\.61\.1 that keyed the browser cache/u,
   );
+  // Windows is an explicit non-goal, not a silently broken path: the runtime's
+  // console entry there is playwright.cmd, which run() cannot spawn without a
+  // shell. The rejection lands before the runtime is materialized or the
+  // manifest is read, and names the supported hosts.
+  const { acceptanceBrowserExecutable } = await import(
+    '../published-create-proof/browser-provisioning.mjs'
+  );
+  assert.throws(
+    () => acceptanceBrowserExecutable(runtimeDir, 'win32'),
+    /does not support win32[\s\S]*playwright\.cmd[\s\S]*linux or darwin host/u,
+  );
+  for (const platform of ['linux', 'darwin']) {
+    assert.equal(
+      acceptanceBrowserExecutable(runtimeDir, platform),
+      path.join(runtimeDir, 'node_modules/.bin', 'playwright'),
+      `${platform} drives the resolved runtime's own console entry`,
+    );
+  }
+  assert.throws(
+    () =>
+      installAcceptanceBrowsers(
+        { target: 'smoke', version: '1.60.0' },
+        {
+          ensureBrowserSmokeRuntimeImpl: () =>
+            assert.fail('win32 must be rejected before anything is resolved'),
+          platform: 'win32',
+          readJsonFileImpl: () =>
+            assert.fail('win32 must be rejected before the manifest is read'),
+          runImpl: () =>
+            assert.fail('win32 must be rejected before anything is spawned'),
+        },
+      ),
+    /Acceptance browser provisioning does not support win32/u,
+  );
+
   // The same fail-closed comparison, driven end to end from the carried
-  // version: a runtime replaced between the resolve step and the install step
-  // is caught across those steps instead of by rereading one manifest twice.
+  // version: the install step re-reads the manifest and compares it with the
+  // version resolve reported, so a runtime replaced between those steps is
+  // caught across the cache restore rather than by a self-consistent reread.
   assert.throws(
     () =>
       provisionAcceptanceBrowsers(
@@ -1593,7 +1710,9 @@ test('browser provisioning resolves an exact version without installing and keys
   );
 });
 
-test('no workflow owns a Playwright installer, version literal, or lockfile-hashed browser cache', () => {
+// Scoped to what the scan can actually see: three literal shapes in workflow
+// YAML. It does not prove ownership of Playwright anywhere else.
+test('workflow YAML carries no pinned Playwright version literal, npx-downloaded installer, or lockfile-hashed browser cache key', () => {
   const workflowDir = path.join(__dirname, '../../../.github/workflows');
   const offenders = [];
   for (const entry of fs.readdirSync(workflowDir).sort()) {
@@ -1638,18 +1757,22 @@ test('every workflow browser install carries the version its resolve step report
       }
     }
   }
-  assert.notEqual(
-    installSteps.length,
-    0,
-    'the acceptance workflow must still provision browsers',
-  );
-  const uncarried = installSteps.filter(
-    step =>
-      !/--version \$\{\{ steps\.[a-z0-9-]+\.outputs\.version \}\}/u.test(step),
-  );
+  // The release workflow provisions browsers three times: the qualification
+  // runtime for the boundary-debugger suite, and the smoke runtime for each of
+  // the two acceptance jobs. Asserting the exact set, not merely a nonzero
+  // count, catches a provisioning step that is dropped or duplicated as well
+  // as one that stops carrying the resolved version.
+  const carriedInstall = target =>
+    `publish-bleedingdev.yml: --install --target ${target} ` +
+    `--version \${{ steps.browser-runtime.outputs.version }} ` +
+    `--cache-hit \${{ steps.playwright-cache.outputs.cache-hit == 'true' }}`;
   assert.deepEqual(
-    uncarried,
-    [],
-    'an --install step must carry the resolved version across the cache restore instead of rereading the manifest',
+    installSteps.sort(),
+    [
+      carriedInstall('qualification'),
+      carriedInstall('smoke'),
+      carriedInstall('smoke'),
+    ].sort(),
+    'every release-workflow --install step must carry the version its resolve step reported across the cache restore',
   );
 });

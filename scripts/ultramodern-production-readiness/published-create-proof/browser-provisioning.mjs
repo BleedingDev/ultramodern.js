@@ -7,9 +7,15 @@
 // workflow names a playwright version or an installer of its own.
 //
 // `--resolve` reports that version once; the workflow carries it across the
-// cache restore into `--install --version`, so the install step compares the
-// runtime it finds against the version the restored cache was keyed from
-// rather than re-reading the manifest `--resolve` already read.
+// cache restore into `--install --version`. `--install` then re-reads the
+// runtime manifest present after the restore and compares it with the carried
+// version, so the check spans the restore instead of comparing a manifest to
+// itself.
+//
+// Provisioning spawns the resolved runtime's own console entry directly, with
+// no shell, so it is supported on linux and darwin only; win32 is rejected
+// explicitly rather than emitting a `playwright.cmd` the process helper cannot
+// execute.
 //
 // The two browser runtimes are versioned independently, so they resolve and
 // key independently and a bump to one never invalidates the other's cache:
@@ -66,12 +72,25 @@ function installedPlaywrightVersion(runtimeDir, readJsonFileImpl) {
 // The installer is the resolved runtime's own binary, never an ad-hoc
 // download, so the browsers it writes belong to the playwright that will
 // launch them.
-function acceptanceBrowserExecutable(runtimeDir) {
-  return path.join(
-    runtimeDir,
-    'node_modules/.bin',
-    process.platform === 'win32' ? 'playwright.cmd' : 'playwright',
-  );
+//
+// Windows is an explicit non-goal. The runtime's console entry there is
+// `playwright.cmd`, and `run()` spawns without a shell, so a .cmd cannot be
+// executed directly; claiming support would mean adding shell execution here
+// and matching `pnpm.cmd` handling across the acceptance profile. The
+// acceptance and qualification jobs run on Linux runners, so the honest
+// boundary is to reject win32 before anything is spawned.
+function assertSupportedBrowserProvisioningPlatform(platform) {
+  if (platform === 'win32') {
+    throw new Error(
+      'Acceptance browser provisioning does not support win32: the playwright.cmd console entry cannot be spawned without a shell. Provision browsers on a linux or darwin host.',
+    );
+  }
+  return platform;
+}
+
+function acceptanceBrowserExecutable(runtimeDir, platform = process.platform) {
+  assertSupportedBrowserProvisioningPlatform(platform);
+  return path.join(runtimeDir, 'node_modules/.bin', 'playwright');
 }
 
 // Pure by construction for the pinned smoke specifier and a plain manifest
@@ -133,17 +152,22 @@ function installAcceptanceBrowsers(
   { cacheHit = false, target, version },
   {
     ensureBrowserSmokeRuntimeImpl = ensureBrowserSmokeRuntime,
+    platform = process.platform,
     readJsonFileImpl = readJsonFile,
     runImpl = run,
   } = {},
 ) {
+  // Rejected before anything is materialized or spawned, not halfway through
+  // a job.
+  assertSupportedBrowserProvisioningPlatform(platform);
   const runtimeDir =
     target === 'qualification'
       ? qualificationRuntimeDir
       : ensureBrowserSmokeRuntimeImpl();
-  // Fail closed if the materialized runtime is not the version that keyed the
-  // cache; otherwise a cache hit could be restored for browsers this runtime
-  // cannot launch.
+  const executable = acceptanceBrowserExecutable(runtimeDir, platform);
+  // Re-read the runtime manifest present after the cache restore and fail
+  // closed if it is not the version that keyed the cache; otherwise a cache
+  // hit could be restored for browsers this runtime cannot launch.
   const installedVersion = installedPlaywrightVersion(
     runtimeDir,
     readJsonFileImpl,
@@ -153,11 +177,9 @@ function installAcceptanceBrowsers(
       `Provisioned playwright ${installedVersion} is not the ${String(version)} that keyed the browser cache`,
     );
   }
-  runImpl(
-    acceptanceBrowserExecutable(runtimeDir),
-    acceptanceBrowserInstallArgs(cacheHit),
-    { cwd: runtimeDir },
-  );
+  runImpl(executable, acceptanceBrowserInstallArgs(cacheHit), {
+    cwd: runtimeDir,
+  });
   return {
     browsers: [...installedBrowsers],
     cacheHit,
@@ -219,10 +241,11 @@ function parseProvisionArgs(argv) {
   if (options.resolve && version !== undefined) {
     throw new Error('--version applies only to --install');
   }
-  // --install never re-reads the manifest --resolve already read: the caller
-  // carries the resolved version that keyed the cache across the restore step,
-  // so the mismatch check below spans those steps instead of comparing a
-  // manifest to itself.
+  // --install re-reads the runtime manifest and compares it with the version
+  // the caller carried from --resolve across the cache restore, so the
+  // mismatch check spans those steps instead of comparing a manifest to
+  // itself. That comparison is only possible with the carried version, so
+  // --version is required.
   if (options.install && version === undefined) {
     throw new Error(
       '--install requires --version <playwright version> from the matching --resolve step',
@@ -251,9 +274,9 @@ function provisionAcceptanceBrowsers(
 ) {
   const options = parseProvisionArgs(argv);
   if (options.install) {
-    // The version comes from the earlier --resolve step, never from a second
-    // read of the same manifest: installing verifies that the runtime present
-    // after the cache restore is still the one the cache key was built from.
+    // The expected version comes from the earlier --resolve step; installing
+    // re-reads the manifest and verifies that the runtime present after the
+    // cache restore is still the one the cache key was built from.
     return installAcceptanceBrowsersImpl({
       cacheHit: options.cacheHit,
       target: options.target,
@@ -273,6 +296,7 @@ function provisionAcceptanceBrowsers(
 
 export {
   acceptanceBrowserCacheKey,
+  acceptanceBrowserExecutable,
   acceptanceBrowserInstallArgs,
   acceptanceBrowserTargets,
   installAcceptanceBrowsers,
