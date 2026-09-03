@@ -192,6 +192,12 @@ function createTractorPackageManagerContext({
     process.env,
     packageManagerRoot,
   );
+  const playwrightBrowsersPath = path.join(
+    packageManagerRoot,
+    'package-manager',
+    'xdg',
+    'ms-playwright',
+  );
   return {
     env: {
       ...createAcceptancePackageManagerEnv(
@@ -202,6 +208,7 @@ function createTractorPackageManagerContext({
         },
         pnpmExecutable,
       ),
+      PLAYWRIGHT_BROWSERS_PATH: playwrightBrowsersPath,
       NPM_CONFIG_MINIMUM_RELEASE_AGE_EXCLUDE: undefined,
       NPM_CONFIG_TRUST_POLICY_EXCLUDE: undefined,
       PNPM_CONFIG_MINIMUM_RELEASE_AGE_EXCLUDE: undefined,
@@ -415,6 +422,30 @@ function loadWorkspacePlaywright(workspace) {
   return workspaceRequire('@playwright/test');
 }
 
+async function launchWorkspaceBrowser(
+  { browserProvider, processEnv, workspace },
+  { launchBrowserImpl = launchBrowser } = {},
+) {
+  const previousBrowsersPath = process.env.PLAYWRIGHT_BROWSERS_PATH;
+  try {
+    if (processEnv.PLAYWRIGHT_BROWSERS_PATH === undefined) {
+      delete process.env.PLAYWRIGHT_BROWSERS_PATH;
+    } else {
+      process.env.PLAYWRIGHT_BROWSERS_PATH =
+        processEnv.PLAYWRIGHT_BROWSERS_PATH;
+    }
+    return await launchBrowserImpl(
+      browserProvider ?? loadWorkspacePlaywright(workspace),
+    );
+  } finally {
+    if (previousBrowsersPath === undefined) {
+      delete process.env.PLAYWRIGHT_BROWSERS_PATH;
+    } else {
+      process.env.PLAYWRIGHT_BROWSERS_PATH = previousBrowsersPath;
+    }
+  }
+}
+
 function createReleaseBoundNodeSmokeTargets(
   { contract, projectDir },
   {
@@ -431,7 +462,7 @@ function createReleaseBoundNodeSmokeTargets(
 }
 
 async function startNodeProof(
-  { artifactDir, projectDir, timeoutMs = 90_000 },
+  { artifactDir, processEnv = process.env, projectDir, timeoutMs = 90_000 },
   {
     browserProvider,
     launchBrowserImpl = launchBrowser,
@@ -482,8 +513,13 @@ async function startNodeProof(
       serverLogPath: shellRuntime.logPath,
       timeoutMs,
     });
-    const browser = await launchBrowserImpl(
-      browserProvider ?? loadWorkspacePlaywright(projectDir),
+    const browser = await launchWorkspaceBrowser(
+      {
+        browserProvider,
+        processEnv,
+        workspace: projectDir,
+      },
+      { launchBrowserImpl },
     );
     let ssrEvidence;
     try {
@@ -758,6 +794,7 @@ async function runTractorDownstreamAcceptance(
         );
         const nodeRuntime = await startNodeProofImpl({
           artifactDir: nodeArtifactDir,
+          processEnv: env,
           projectDir: options.workspace,
           timeoutMs: 90_000,
         });
@@ -891,6 +928,7 @@ export {
   createTractorPackageManagerContext,
   createTractorPnpmDlxArgs,
   executionCommands,
+  launchWorkspaceBrowser,
   main,
   parseArgs,
   proveNodeServerRenderedSsr,

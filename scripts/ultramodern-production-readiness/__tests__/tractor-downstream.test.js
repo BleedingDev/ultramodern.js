@@ -816,6 +816,10 @@ test('runner has no bypass for Node or workerd release gates', async () => {
     'true',
   );
   assert.equal(packageManager.env.pnpm_config_pm_on_fail, 'ignore');
+  assert.equal(
+    packageManager.env.PLAYWRIGHT_BROWSERS_PATH,
+    path.join(packageManagerRoot, 'package-manager', 'xdg', 'ms-playwright'),
+  );
   assert.equal(packageManager.env.pnpm_config_trust_policy_exclude, undefined);
   assert.equal(
     packageManager.env.pnpm_config_registry,
@@ -824,6 +828,44 @@ test('runner has no bypass for Node or workerd release gates', async () => {
   assert.equal(calls.length, 1);
   assert.equal(calls[0][1], '11.17.0');
   assert.equal(calls[0][3], packageManagerRoot);
+});
+
+test('runner launches Node proof from the installed Playwright browser path', async t => {
+  const { launchWorkspaceBrowser } = await runnerPromise;
+  const originalBrowsersPath = process.env.PLAYWRIGHT_BROWSERS_PATH;
+  const inheritedBrowsersPath = path.join(os.tmpdir(), 'inherited-playwright');
+  const installedBrowsersPath = path.join(os.tmpdir(), 'installed-playwright');
+  process.env.PLAYWRIGHT_BROWSERS_PATH = inheritedBrowsersPath;
+  t.after(() => {
+    if (originalBrowsersPath === undefined) {
+      delete process.env.PLAYWRIGHT_BROWSERS_PATH;
+    } else {
+      process.env.PLAYWRIGHT_BROWSERS_PATH = originalBrowsersPath;
+    }
+  });
+
+  const browserProvider = {};
+  const expectedBrowser = {};
+  const browser = await launchWorkspaceBrowser(
+    {
+      browserProvider,
+      processEnv: { PLAYWRIGHT_BROWSERS_PATH: installedBrowsersPath },
+      workspace: os.tmpdir(),
+    },
+    {
+      launchBrowserImpl: async observedProvider => {
+        assert.equal(observedProvider, browserProvider);
+        assert.equal(
+          process.env.PLAYWRIGHT_BROWSERS_PATH,
+          installedBrowsersPath,
+        );
+        return expectedBrowser;
+      },
+    },
+  );
+
+  assert.equal(browser, expectedBrowser);
+  assert.equal(process.env.PLAYWRIGHT_BROWSERS_PATH, inheritedBrowsersPath);
 });
 
 test('runner rejects inherited package-manager release-age bypasses', async () => {
