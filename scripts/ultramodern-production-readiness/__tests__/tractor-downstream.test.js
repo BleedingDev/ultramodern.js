@@ -682,6 +682,7 @@ test('Tractor bootstrap rejects malformed manifest and audited policy selectors'
 test('runner has no bypass for Node or workerd release gates', async () => {
   const {
     createTractorPackageManagerContext,
+    executionCommands,
     parseArgs,
     requiredCommands,
     requiredTractorCheckIds,
@@ -690,18 +691,36 @@ test('runner has no bypass for Node or workerd release gates', async () => {
   } = await runnerPromise;
   assert.deepEqual(requiredCommands, [
     ['pnpm', ['install', '--frozen-lockfile']],
-    ['pnpm', ['exec', 'playwright', 'install', '--with-deps', 'chromium']],
     ['pnpm', ['check']],
     ['pnpm', ['build']],
     ['pnpm', ['node:proof']],
     ['pnpm', ['cloudflare:build']],
   ]);
+  assert.deepEqual(
+    executionCommands.map(({ command, report }) => ({ command, report })),
+    [
+      {
+        command: ['pnpm', ['install', '--frozen-lockfile']],
+        report: true,
+      },
+      {
+        command: [
+          'pnpm',
+          ['exec', 'playwright', 'install', '--with-deps', 'chromium'],
+        ],
+        report: false,
+      },
+      { command: ['pnpm', ['check']], report: true },
+      { command: ['pnpm', ['build']], report: true },
+      { command: ['pnpm', ['node:proof']], report: true },
+      { command: ['pnpm', ['cloudflare:build']], report: true },
+    ],
+  );
   assert.deepEqual(requiredVisibleRuntimePlatforms, ['node', 'workerd']);
   assert.deepEqual(requiredTractorCheckIds, [
     'exact-create-migration',
     'exact-cohort',
     'install---frozen-lockfile',
-    'exec-playwright-install---with-deps-chromium',
     'check',
     'promotable-application-source',
     'build',

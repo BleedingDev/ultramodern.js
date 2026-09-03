@@ -52,16 +52,23 @@ const nodeBackendProofPath =
   '.codex/reports/node-backend-federation-proof/proof.json';
 const requiredCommands = Object.freeze([
   Object.freeze(['pnpm', ['install', '--frozen-lockfile']]),
-  // Install the browser revision required by Tractor's resolved Playwright,
-  // not a separately pinned CLI that can drift from its dependency range.
-  Object.freeze([
-    'pnpm',
-    ['exec', 'playwright', 'install', '--with-deps', 'chromium'],
-  ]),
   Object.freeze(['pnpm', ['check']]),
   Object.freeze(['pnpm', ['build']]),
   Object.freeze(['pnpm', ['node:proof']]),
   Object.freeze(['pnpm', ['cloudflare:build']]),
+]);
+const executionCommands = Object.freeze([
+  Object.freeze({ command: requiredCommands[0], report: true }),
+  Object.freeze({
+    command: Object.freeze([
+      'pnpm',
+      ['exec', 'playwright', 'install', '--with-deps', 'chromium'],
+    ]),
+    report: false,
+  }),
+  ...requiredCommands
+    .slice(1)
+    .map(command => Object.freeze({ command, report: true })),
 ]);
 
 function resolveTractorMinimumReleaseAgeExclude({
@@ -709,18 +716,23 @@ async function runTractorDownstreamAcceptance(
       },
     });
 
-    for (const [command, args] of requiredCommands) {
+    for (const {
+      command: [command, args],
+      report: reportCommand,
+    } of executionCommands) {
       if (args[0] === 'node:proof') {
         fs.rmSync(path.join(options.workspace, nodeBackendProofPath), {
           force: true,
         });
       }
       runImpl(command, args, { cwd: options.workspace, env });
-      report.checks.push({
-        id: args.join('-'),
-        status: 'passed',
-        detail: { command: [command, ...args].join(' ') },
-      });
+      if (reportCommand) {
+        report.checks.push({
+          id: args.join('-'),
+          status: 'passed',
+          detail: { command: [command, ...args].join(' ') },
+        });
+      }
       if (args[0] === 'check') {
         const applicationSourceRevision = snapshotAcceptanceWorkspaceSource(
           options.workspace,
@@ -878,6 +890,7 @@ export {
   createReleaseBoundNodeSmokeTargets,
   createTractorPackageManagerContext,
   createTractorPnpmDlxArgs,
+  executionCommands,
   main,
   parseArgs,
   proveNodeServerRenderedSsr,
