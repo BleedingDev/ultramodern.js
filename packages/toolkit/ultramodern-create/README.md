@@ -177,7 +177,7 @@ Package source is explicit and recorded in `.modernjs/ultramodern.json`.
 
 | Strategy | Use when | CLI |
 | --- | --- | --- |
-| `install` | Published BleedingDev package cohort or release proof | Default for the BleedingDev create package; optional `--ultramodern-package-version`, `--ultramodern-package-registry`, `--ultramodern-package-scope`, and `--ultramodern-package-name-prefix` |
+| `install` | Published BleedingDev package cohort or release proof | Default for the BleedingDev create package; optional `--ultramodern-package-version`, `--ultramodern-package-registry` (serves the cohort scope only; release-age metadata for every other dependency is validated against npmjs), `--ultramodern-package-scope`, and `--ultramodern-package-name-prefix` |
 | `workspace` | Local monorepo testing against unreleased packages | `--workspace` or `--ultramodern-package-source=workspace` |
 
 ## Migrating Older Workspaces

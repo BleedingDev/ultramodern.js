@@ -956,6 +956,8 @@ test('rejects non-loopback HTTP scope registries and disables registry redirects
 });
 
 test('validates cohort-scope packuments on the package-source registry and everything else on npmjs', async () => {
+  const cohortMember = '@bleedingdev/modern-js-create';
+  const cohortTarget = `${cohortMember}@${packageSource.modernPackageVersion}`;
   const sidecar = '@bleedingdev/sidecar-fixture';
   const thirdParty = 'third-party-fixture';
   const version = '1.0.0';
@@ -964,16 +966,22 @@ test('validates cohort-scope packuments on the package-source registry and every
     importers: {
       '.': {
         dependencies: {
+          '@modern-js/create': {
+            specifier: `npm:${cohortTarget}`,
+            version: cohortTarget,
+          },
           [sidecar]: { specifier: version, version },
           [thirdParty]: { specifier: version, version },
         },
       },
     },
     packages: {
+      [cohortTarget]: { resolution: { integrity } },
       [`${sidecar}@${version}`]: { resolution: { integrity } },
       [`${thirdParty}@${version}`]: { resolution: { integrity } },
     },
     snapshots: {
+      [cohortTarget]: {},
       [`${sidecar}@${version}`]: {},
       [`${thirdParty}@${version}`]: {},
     },
@@ -1004,6 +1012,7 @@ test('validates cohort-scope packuments on the package-source registry and every
     );
 
     assert.deepEqual(validated.reviewCandidates, []);
+    // Authenticated cohort members are never fetched from any registry.
     assert.deepEqual([...origins.entries()].sort(), [
       [sidecar, 'http://127.0.0.1:4873'],
       [thirdParty, 'https://registry.npmjs.org'],

@@ -650,11 +650,10 @@ export function updateGeneratedPnpmWorkspacePolicy(
 
 const NPM_REGISTRY_URL = 'https://registry.npmjs.org/';
 
-function isLoopbackHost(hostname: string) {
-  return (
-    hostname === '127.0.0.1' || hostname === '[::1]' || hostname === 'localhost'
-  );
-}
+// The literal host the source-mode release rehearsal binds its ephemeral
+// registry to. Name-based loopback aliases are resolver-dependent, so they are
+// deliberately not accepted.
+const LOOPBACK_REGISTRY_HOST = '127.0.0.1';
 
 function packageRegistryUrl(registryUrl: string, packageName: string) {
   let base: URL;
@@ -667,7 +666,7 @@ function packageRegistryUrl(registryUrl: string, packageName: string) {
   // source-mode release rehearsal serves the cohort scope from this machine.
   if (
     base.protocol !== 'https:' &&
-    !(base.protocol === 'http:' && isLoopbackHost(base.hostname))
+    !(base.protocol === 'http:' && base.hostname === LOOPBACK_REGISTRY_HOST)
   ) {
     throw new Error(`Registry URL must use HTTPS: ${registryUrl}`);
   }
