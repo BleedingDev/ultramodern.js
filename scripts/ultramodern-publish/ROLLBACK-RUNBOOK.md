@@ -83,6 +83,34 @@ Expected result: each package has `latest` equal to `GOOD_VERSION`, and each
 corrected `dist` record is present. If any package disagrees, stop and escalate
 to the release owner; do not use `npm dist-tag` to force coherence.
 
+## 4. Re-driving a failed release run
+
+A failed run is not a rollback. Re-drive it in this order:
+
+1. **Nothing in the repository changed:** re-run the failed jobs of that run
+   (`gh run rerun <run-id> --failed`). Successful jobs keep their outputs and
+   artifacts, so the accepted producer identity, the publication attempt, and
+   every downstream verification stay bound to the same run. This is the
+   default and the cheapest path.
+2. **The run can no longer be re-run, or the fix is outside the release bytes:**
+   dispatch `Publish BleedingDev Packages` again with `recovery_run_id` and
+   `recovery_run_attempt` set to the prior run and its producer attempt. That
+   run's accepted bundle is reused instead of rebuilt, and the recovery lane
+   skips the qualification suites: it publishes the recovered bytes, not this
+   dispatch's HEAD. Both jobs instead require the recovered run's
+   `bleedingdev-source-qualification` receipt, and `prepare-release` requires
+   it to name the recovered manifest's own source commit. A run whose
+   qualification never passed uploaded no receipt, so its bundle cannot be
+   promoted; re-dispatch from source instead.
+3. **The release bytes themselves are wrong:** this is a rollback. Use the
+   deprecate-and-republish path above with a new revision; never recover bad
+   bytes.
+
+The GitHub release record is the one non-blocking step: `publish-change-record`
+is `continue-on-error`, and a missed record is repaired out of band with
+`scripts/ultramodern-publish/backfill-change-record.mjs`, never by re-driving a
+completed publication.
+
 ## Evidence anchors
 
 - Workflow tag, retired canary, OIDC limitation, and owner/branch gates:

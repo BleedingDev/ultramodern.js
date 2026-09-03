@@ -949,7 +949,8 @@ test('release recovery reuses only an accepted ancestral bundle and preserves it
       String(step.uses ?? '').startsWith('actions/download-artifact@') &&
       step.if === "inputs.recovery_run_id != ''",
   );
-  assert.equal(recoveryDownloads.length, 2);
+  // Bundle, acceptance receipt, source qualification receipt.
+  assert.equal(recoveryDownloads.length, 3);
   for (const step of recoveryDownloads) {
     assert.equal(step.with['github-token'], actionExpression('github.token'));
     assert.equal(step.with.repository, actionExpression('github.repository'));
@@ -1046,6 +1047,151 @@ test('release recovery reuses only an accepted ancestral bundle and preserves it
   );
   assert.match(outcomeStep.run, /--source-commit "\$RELEASE_SOURCE_COMMIT"/u);
   assert.doesNotMatch(outcomeStep.run, /--source-commit "\$GITHUB_SHA"/u);
+});
+
+test('release recovery may only reuse a bundle qualified at its own source commit', () => {
+  const parsed = workflow(publishWorkflowPath);
+  const actionExpression = name => ['${{', name, '}}'].join(' ');
+  const qualifyJob = parsed.jobs['qualify-source'];
+  const prepareJob = parsed.jobs['prepare-release'];
+
+  // The recovery lane publishes the recovered run's bytes, so re-qualifying
+  // this run's HEAD buys nothing: every qualification suite is skipped and the
+  // recovered run's own receipt is verified instead.
+  for (const stepName of [
+    'Setup mise',
+    'Resolve pnpm store path',
+    'Restore pnpm store cache',
+    'Install Dependencies',
+    'Restore Playwright chromium cache',
+    'Install browser qualification runtime',
+    'Qualify release source',
+    'Record the qualified source commit',
+    'Upload the source qualification receipt',
+  ]) {
+    assert.equal(
+      qualifyJob.steps.find(step => step.name === stepName).if,
+      "inputs.recovery_run_id == ''",
+      stepName,
+    );
+  }
+
+  // Written after the suites pass, so a failed qualification uploads nothing
+  // and leaves its bundle unrecoverable.
+  const qualifyStepNames = qualifyJob.steps.map(step => step.name);
+  assert.ok(
+    qualifyStepNames.indexOf('Qualify release source') <
+      qualifyStepNames.indexOf('Record the qualified source commit'),
+  );
+  const recordStep = qualifyJob.steps.find(
+    step => step.name === 'Record the qualified source commit',
+  );
+  assert.match(
+    recordStep.run,
+    /source-qualification\.mjs create[\s\S]*--commit "\$GITHUB_SHA"[\s\S]*--run-id "\$GITHUB_RUN_ID"[\s\S]*--run-attempt "\$GITHUB_RUN_ATTEMPT"/u,
+  );
+  const receiptUpload = qualifyJob.steps.find(
+    step => step.name === 'Upload the source qualification receipt',
+  );
+  assert.equal(
+    receiptUpload.with.name,
+    `${actionExpression(
+      'env.BLEEDINGDEV_SOURCE_QUALIFICATION_ARTIFACT',
+    )}-run-${actionExpression('github.run_id')}-attempt-${actionExpression(
+      'github.run_attempt',
+    )}`,
+  );
+  assert.equal(receiptUpload.with['if-no-files-found'], 'error');
+
+  // Both consumers address the recovered run's artifact by run and attempt, so
+  // a run that never uploaded a receipt has nothing to download and fails the
+  // job rather than falling back to an unqualified reuse.
+  const receiptDownloads = [qualifyJob, prepareJob].map(job =>
+    job.steps.find(
+      step =>
+        step.name === 'Download the recovered source qualification receipt',
+    ),
+  );
+  for (const step of receiptDownloads) {
+    assert.equal(step.if, "inputs.recovery_run_id != ''");
+    assert.equal(step.with['github-token'], actionExpression('github.token'));
+    assert.equal(step.with.repository, actionExpression('github.repository'));
+    assert.equal(
+      step.with['run-id'],
+      actionExpression('inputs.recovery_run_id'),
+    );
+    assert.match(
+      step.with.name,
+      /BLEEDINGDEV_SOURCE_QUALIFICATION_ARTIFACT, inputs\.recovery_run_id, inputs\.recovery_run_attempt/u,
+    );
+    assert.equal(step.with.path, '.modern/bleedingdev-publish');
+  }
+
+  const qualifyVerify = qualifyJob.steps.find(
+    step => step.name === 'Verify the recovered source qualification receipt',
+  );
+  assert.equal(qualifyVerify.if, "inputs.recovery_run_id != ''");
+  assert.deepEqual(qualifyVerify.env, {
+    RECOVERY_RUN_ID: actionExpression('inputs.recovery_run_id'),
+    RECOVERY_RUN_ATTEMPT: actionExpression('inputs.recovery_run_attempt'),
+  });
+  assert.match(
+    qualifyVerify.run,
+    /source-qualification\.mjs verify[\s\S]*--run-id "\$RECOVERY_RUN_ID"[\s\S]*--run-attempt "\$RECOVERY_RUN_ATTEMPT"/u,
+  );
+
+  // The binding that closes the ancestral hole: the receipt must name the
+  // recovered manifest's own commit, not merely an ancestor of this run's HEAD.
+  const bundleQualification = prepareJob.steps.find(
+    step =>
+      step.name ===
+      'Verify the recovered bundle was qualified at its own source commit',
+  );
+  assert.equal(bundleQualification.if, "inputs.recovery_run_id != ''");
+  assert.equal(
+    bundleQualification.env.RELEASE_SOURCE_COMMIT,
+    actionExpression('steps.verify-bundle.outputs.source_commit'),
+  );
+  assert.match(
+    bundleQualification.run,
+    /--expect-commit "\$RELEASE_SOURCE_COMMIT"/u,
+  );
+  assert.doesNotMatch(
+    bundleQualification.run,
+    /--expect-commit "\$GITHUB_SHA"/u,
+  );
+  const prepareStepNames = prepareJob.steps.map(step => step.name);
+  assert.ok(
+    prepareStepNames.indexOf('Verify release bundle identity') <
+      prepareStepNames.indexOf(bundleQualification.name),
+  );
+
+  // Recovery stays inside this workflow's existing job graph: no new job, and
+  // no job outside the two registry publishers may hold publish authority.
+  assert.deepEqual(Object.keys(parsed.jobs), [
+    'publish-security',
+    'qualify-source',
+    'prepare-release',
+    'accept-release',
+    'validate-release',
+    'publish-sidecars',
+    'publish',
+    'accept-published',
+    'tractor-downstream',
+    'record-publish-outcome',
+    'publish-change-record',
+  ]);
+  assert.equal(qualifyJob.permissions, undefined);
+  assert.equal(prepareJob.permissions, undefined);
+  assert.deepEqual(
+    Object.entries(parsed.jobs)
+      .filter(([, job]) => job.permissions?.['id-token'] === 'write')
+      .map(([name]) => name),
+    ['publish-sidecars', 'publish'],
+  );
+  for (const consumer of ['validate-release', 'publish-sidecars', 'publish']) {
+    assert.ok(normalizeNeeds(parsed.jobs[consumer]).includes('qualify-source'));
+  }
 });
 
 test('publish change record structurally schedules only for a successful real outcome despite a skipped branch ancestor', async () => {

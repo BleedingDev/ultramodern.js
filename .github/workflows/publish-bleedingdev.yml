@@ -44,6 +44,7 @@ env:
   BLEEDINGDEV_PUBLISHED_ACCEPTANCE_ARTIFACT: bleedingdev-published-acceptance
   BLEEDINGDEV_RELEASE_IDENTITY_ARTIFACT: bleedingdev-release-identity
   BLEEDINGDEV_PUBLISH_OUTCOME_ARTIFACT: bleedingdev-publish-outcome
+  BLEEDINGDEV_SOURCE_QUALIFICATION_ARTIFACT: bleedingdev-source-qualification
   BLEEDINGDEV_RELEASE_DIR: .modern/bleedingdev-publish
   BLEEDINGDEV_RELEASE_MANIFEST: .modern/bleedingdev-publish/manifest.json
   BLEEDINGDEV_RELEASE_MANIFEST_DIGEST: .modern/bleedingdev-publish/manifest.json.sha256
@@ -52,6 +53,7 @@ env:
   BLEEDINGDEV_PUBLISHED_ACCEPTANCE_RECEIPT: .modern/bleedingdev-publish/published-acceptance-receipt.json
   BLEEDINGDEV_RELEASE_IDENTITY: .modern/bleedingdev-publish/release-identity.json
   BLEEDINGDEV_PUBLISH_OUTCOME: .modern/bleedingdev-publish/publish-outcome.json
+  BLEEDINGDEV_SOURCE_QUALIFICATION: .modern/bleedingdev-publish/source-qualification.json
 
 # Every version and dry run shares this lock. A newer dispatch queues behind an
 # active release instead of cancelling or racing it.
@@ -98,10 +100,12 @@ jobs:
             [[ "$RECOVERY_RUN_ATTEMPT" =~ ^[1-9][0-9]*$ ]]
           fi
 
-  # Source qualification gates publication but produces nothing the release
-  # bundle consumes, so it runs beside prepare-release instead of ahead of it.
-  # validate-release and publish both need it, so nothing reaches the registry
-  # on an unqualified source.
+  # Source qualification gates publication but produces nothing this run's
+  # release bundle consumes, so it runs beside prepare-release instead of ahead
+  # of it. validate-release and publish both need it, so nothing reaches the
+  # registry on an unqualified source. It does emit one artifact — a receipt
+  # naming the exact commit it qualified — which a later recovery dispatch must
+  # present for the bundle it recovers.
   qualify-source:
     name: Qualify the release source
     runs-on: ubuntu-latest
@@ -134,16 +138,25 @@ jobs:
         with:
           node-version: '26.7.0'
 
+      # Every step below through "Qualify release source" is skipped in the
+      # recovery lane: that dispatch publishes the recovered run's bytes, never
+      # this run's HEAD, so qualifying HEAD again would qualify a commit nothing
+      # publishes. The recovered run's own qualification receipt is verified
+      # instead, at the end of this job and again against the recovered
+      # manifest in prepare-release.
       - name: Setup mise
+        if: inputs.recovery_run_id == ''
         uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
         with:
           version: 2026.8.3
 
       - name: Resolve pnpm store path
+        if: inputs.recovery_run_id == ''
         id: pnpm-store
         run: echo "path=$(mise exec -- pnpm store path)" >> "$GITHUB_OUTPUT"
 
       - name: Restore pnpm store cache
+        if: inputs.recovery_run_id == ''
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ steps.pnpm-store.outputs.path }}
@@ -152,6 +165,7 @@ jobs:
             pnpm-store-${{ runner.os }}-
 
       - name: Install Dependencies
+        if: inputs.recovery_run_id == ''
         run: mise exec -- pnpm install --frozen-lockfile
 
       # plugin-runtime's boundary-debugger suite drives a real chromium through
@@ -161,6 +175,7 @@ jobs:
       # key below comes from a resolved runtime instead of a workflow literal
       # or a whole-lockfile hash that every unrelated dependency invalidates.
       - name: Resolve browser qualification runtime
+        if: inputs.recovery_run_id == ''
         id: browser-runtime
         run: >-
           node scripts/ultramodern-production-readiness/provision-acceptance-browsers.mjs
@@ -169,6 +184,7 @@ jobs:
       # No restore-keys: the resolved playwright version is the invalidation
       # mechanism.
       - name: Restore Playwright chromium cache
+        if: inputs.recovery_run_id == ''
         id: playwright-cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -179,6 +195,7 @@ jobs:
       # install fails closed when the runtime present after it is not the one
       # the restored cache was keyed from.
       - name: Install browser qualification runtime
+        if: inputs.recovery_run_id == ''
         run: >-
           node scripts/ultramodern-production-readiness/provision-acceptance-browsers.mjs
           --install --target qualification
@@ -186,6 +203,7 @@ jobs:
           --cache-hit ${{ steps.playwright-cache.outputs.cache-hit == 'true' }}
 
       - name: Qualify release source
+        if: inputs.recovery_run_id == ''
         run: |
           # Script qualification imports public package entry points, and these
           # suites do not run from source alone: bff-core's fixtures import its
@@ -227,6 +245,57 @@ jobs:
             --project plugin-i18n-client \
             --project @modern-js/plugin-bff \
             --project @modern-js/bff-core
+
+      # The proof a later recovery dispatch needs: the exact commit this job
+      # qualified, bound to this run and attempt. Written only after the suites
+      # above pass, so a failed qualification uploads nothing and its bundle
+      # stays unrecoverable.
+      - name: Record the qualified source commit
+        if: inputs.recovery_run_id == ''
+        run: |
+          node scripts/ultramodern-publish/source-qualification.mjs create \
+            --out "$BLEEDINGDEV_SOURCE_QUALIFICATION" \
+            --repository "$GITHUB_REPOSITORY" \
+            --commit "$GITHUB_SHA" \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT"
+
+      - name: Upload the source qualification receipt
+        if: inputs.recovery_run_id == ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ env.BLEEDINGDEV_SOURCE_QUALIFICATION_ARTIFACT }}-run-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+          path: .modern/bleedingdev-publish/source-qualification.json
+          if-no-files-found: error
+          include-hidden-files: true
+
+      # Recovery lane. A recovered run that never uploaded this receipt — its
+      # qualification failed, or it predates this contract — has no artifact to
+      # download, so this job fails and publication stays unreachable. The
+      # recovered run's qualify-source and prepare-release must share one
+      # attempt; when they diverge the download fails closed and the operator
+      # re-dispatches from source instead.
+      - name: Download the recovered source qualification receipt
+        if: inputs.recovery_run_id != ''
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          github-token: ${{ github.token }}
+          name: ${{ format('{0}-run-{1}-attempt-{2}', env.BLEEDINGDEV_SOURCE_QUALIFICATION_ARTIFACT, inputs.recovery_run_id, inputs.recovery_run_attempt) }}
+          path: .modern/bleedingdev-publish
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.recovery_run_id }}
+
+      - name: Verify the recovered source qualification receipt
+        if: inputs.recovery_run_id != ''
+        env:
+          RECOVERY_RUN_ID: ${{ inputs.recovery_run_id }}
+          RECOVERY_RUN_ATTEMPT: ${{ inputs.recovery_run_attempt }}
+        run: |
+          node scripts/ultramodern-publish/source-qualification.mjs verify \
+            --receipt "$BLEEDINGDEV_SOURCE_QUALIFICATION" \
+            --repository "$GITHUB_REPOSITORY" \
+            --run-id "$RECOVERY_RUN_ID" \
+            --run-attempt "$RECOVERY_RUN_ATTEMPT"
 
   prepare-release:
     name: Build the immutable @bleedingdev release bundle
@@ -392,6 +461,36 @@ jobs:
             `source_commit=${release.manifest.source.commit}\n`,
           );
           NODE
+
+      - name: Download the recovered source qualification receipt
+        if: inputs.recovery_run_id != ''
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          github-token: ${{ github.token }}
+          name: ${{ format('{0}-run-{1}-attempt-{2}', env.BLEEDINGDEV_SOURCE_QUALIFICATION_ARTIFACT, inputs.recovery_run_id, inputs.recovery_run_attempt) }}
+          path: .modern/bleedingdev-publish
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.recovery_run_id }}
+
+      # Binds the recovered bytes to the qualification that actually covered
+      # them. The ancestry check above only proves the manifest commit precedes
+      # this run's HEAD; qualify-source qualifies HEAD, not that commit. Without
+      # this step a run whose qualification failed while its producer succeeded
+      # leaves a bundle that a later recovery dispatch could promote from an
+      # unqualified commit.
+      - name: Verify the recovered bundle was qualified at its own source commit
+        if: inputs.recovery_run_id != ''
+        env:
+          RECOVERY_RUN_ID: ${{ inputs.recovery_run_id }}
+          RECOVERY_RUN_ATTEMPT: ${{ inputs.recovery_run_attempt }}
+          RELEASE_SOURCE_COMMIT: ${{ steps.verify-bundle.outputs.source_commit }}
+        run: |
+          node scripts/ultramodern-publish/source-qualification.mjs verify \
+            --receipt "$BLEEDINGDEV_SOURCE_QUALIFICATION" \
+            --repository "$GITHUB_REPOSITORY" \
+            --run-id "$RECOVERY_RUN_ID" \
+            --run-attempt "$RECOVERY_RUN_ATTEMPT" \
+            --expect-commit "$RELEASE_SOURCE_COMMIT"
 
       # Offline: fails the producer if the staged sidecar lane is malformed,
       # mis-ordered, or not addressed at the cohort package that aliases it, so
