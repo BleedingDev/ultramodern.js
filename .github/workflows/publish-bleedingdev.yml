@@ -1610,6 +1610,62 @@ jobs:
           if-no-files-found: error
           include-hidden-files: true
 
+      # One concise, truthful delivery-state summary read straight off the
+      # authenticated outcome this job just wrote — no new receipt schema, no
+      # certification hash, no progress database. Persistent Tractor main
+      # promotion is real product delivery this workflow cannot perform itself
+      # (it would need cross-repo write credentials this workflow never
+      # holds), so it is reported as a required, visible, retryable
+      # obligation rather than folded into a silent "done".
+      - name: Summarize the publish delivery state
+        env:
+          TRACTOR_STORE_REPOSITORY: BleedingDev/tractor-store-vertical-demo
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const outcome = JSON.parse(
+            fs.readFileSync(process.env.BLEEDINGDEV_PUBLISH_OUTCOME, 'utf8'),
+          );
+          const runUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+          const yesno = (label, value) =>
+            value ? `passed (${label})` : 'skipped (dry run)';
+          const lines = [];
+          lines.push('## UltraModern publish delivery state');
+          lines.push('');
+          lines.push(
+            outcome.dryRun
+              ? `- Mode: dry run rehearsal of \`${outcome.release.version}\` — nothing below is promotable`
+              : `- Mode: live publish of \`${outcome.release.version}\` @ \`${outcome.source.commit}\` ([this run](${runUrl}))`,
+          );
+          lines.push(
+            `- Immutable bundle / ERP-10 accepted (source): ${
+              outcome.evidence.prepublishAcceptance ? 'passed' : 'missing'
+            }`,
+          );
+          lines.push(
+            `- npm \`${outcome.release.tag}\` cohort converged: ${yesno('accept-published', !outcome.dryRun)}`,
+          );
+          lines.push(
+            `- Published-registry ERP-10 accepted: ${yesno('accept-published', outcome.evidence.publishedAcceptance !== null)}`,
+          );
+          lines.push(
+            `- Published Tractor Node/workerd/browser accepted: ${yesno('tractor-downstream', outcome.evidence.tractorAcceptance !== null)}`,
+          );
+          const baseline = outcome.evidence.tractorAcceptance?.baselineRevision;
+          lines.push(
+            `- Published-mode promotable Tractor revision: ${baseline ? `\`${baseline}\`` : 'none (dry run)'}`,
+          );
+          lines.push(
+            baseline
+              ? `- Persistent Tractor main promotion/adoption: REQUIRED, not automated by this workflow — merge \`${baseline}\` into ${process.env.TRACTOR_STORE_REPOSITORY}'s main and advance the pinned \`tractor_ref\` in this workflow; treat as open until that lands.`
+              : '- Persistent Tractor main promotion/adoption: not applicable to a dry run.',
+          );
+          fs.appendFileSync(
+            process.env.GITHUB_STEP_SUMMARY,
+            `${lines.join('\n')}\n`,
+          );
+          NODE
+
   publish-change-record:
     name: Publish the cohort change record
     continue-on-error: true
@@ -1621,11 +1677,9 @@ jobs:
       actions: read
       contents: write
     needs:
-      - accept-release
       - record-publish-outcome
     if: >-
       always() &&
-      needs.accept-release.result == 'success' &&
       needs.record-publish-outcome.result == 'success' &&
       github.actor == github.repository_owner &&
       github.triggering_actor == github.repository_owner &&
@@ -1659,9 +1713,12 @@ jobs:
 
       - name: Generate the cohort change record
         id: change-record
-        env:
-          RELEASE_SOURCE_COMMIT: ${{ needs.accept-release.outputs.release_source_commit }}
         run: |
+          # Immutable source identity comes from the authenticated publish
+          # outcome's own manifest.json (downloaded above), never from a
+          # second job dependency: the outcome already verified this manifest
+          # against the accepted release before uploading it.
+          RELEASE_SOURCE_COMMIT="$(node -e "process.stdout.write(JSON.parse(require('fs').readFileSync(process.env.BLEEDINGDEV_RELEASE_MANIFEST, 'utf8')).source.commit)")"
           git checkout --detach "$RELEASE_SOURCE_COMMIT"
           mkdir -p "$BLEEDINGDEV_RELEASE_DIR"
           node scripts/ultramodern-publish/gen-cohort-change-record.mjs \

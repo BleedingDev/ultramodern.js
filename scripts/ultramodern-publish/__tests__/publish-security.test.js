@@ -1836,10 +1836,10 @@ test('publish change record structurally schedules only for a successful real ou
   const changeRecordJob = parsed.jobs['publish-change-record'];
   assert.equal(changeRecordJob['continue-on-error'], true);
   const actionExpression = name => ['${{', name, '}}'].join(' ');
-  assert.deepEqual(normalizeNeeds(changeRecordJob), [
-    'accept-release',
-    'record-publish-outcome',
-  ]);
+  // Reduced to its single true dependency: immutable source identity comes
+  // from the manifest inside the authenticated publish outcome artifact
+  // itself, so a second job dependency on accept-release buys nothing.
+  assert.deepEqual(normalizeNeeds(changeRecordJob), ['record-publish-outcome']);
   assert.deepEqual(changeRecordJob.permissions, {
     actions: 'read',
     contents: 'write',
@@ -1865,11 +1865,14 @@ test('publish change record structurally schedules only for a successful real ou
     step => step.name === 'Generate the cohort change record',
   );
   assert.equal(generateStep.id, 'change-record');
-  assert.deepEqual(generateStep.env, {
-    RELEASE_SOURCE_COMMIT: actionExpression(
-      'needs.accept-release.outputs.release_source_commit',
-    ),
-  });
+  assert.equal(generateStep.env, undefined);
+  // Immutable source commit is read straight out of the manifest inside the
+  // authenticated outcome artifact this job downloaded, never from a second
+  // job's output.
+  assert.match(
+    generateStep.run,
+    /RELEASE_SOURCE_COMMIT="\$\(node -e "process\.stdout\.write\(JSON\.parse\(require\('fs'\)\.readFileSync\(process\.env\.BLEEDINGDEV_RELEASE_MANIFEST, 'utf8'\)\)\.source\.commit\)"\)"/u,
+  );
   assert.match(
     generateStep.run,
     /git checkout --detach "\$RELEASE_SOURCE_COMMIT"/u,
