@@ -72,10 +72,12 @@ env:
   BLEEDINGDEV_PUBLISH_OUTCOME: .modern/bleedingdev-publish/publish-outcome.json
   BLEEDINGDEV_SOURCE_QUALIFICATION: .modern/bleedingdev-publish/source-qualification.json
 
-# Every version and dry run shares this lock. A newer dispatch queues behind an
-# active release instead of cancelling or racing it.
+# Every live release shares one lock: a newer dispatch queues behind an active
+# release instead of cancelling or racing it. A dry run holds no publish
+# authority and touches no shared state, so it gets its own group and runs
+# alongside anything else.
 concurrency:
-  group: publish-bleedingdev
+  group: ${{ inputs.dry_run == true && format('publish-bleedingdev-dry-run-{0}', github.run_id) || 'publish-bleedingdev' }}
   cancel-in-progress: false
 
 jobs:
@@ -867,14 +869,17 @@ jobs:
       github.actor == github.repository_owner &&
       github.triggering_actor == github.repository_owner &&
       github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern')
+    # Only the immutable bundle is needed here, so the rehearsal runs alongside
+    # the exact-artifact acceptance instead of behind it. Both remain required
+    # by every job that can reach npm.
     needs:
       - publish-security
       - qualify-source
-      - accept-release
+      - prepare-release
     uses: ./.github/workflows/ultramodern-tractor-downstream.yml
     with:
       mode: source
-      release_bundle_artifact: bleedingdev-release-bundle-${{ needs.accept-release.outputs.producer_artifact_identity }}
+      release_bundle_artifact: bleedingdev-release-bundle-${{ needs.prepare-release.outputs.producer_artifact_identity }}
       # Must stay identical to the published tractor-downstream pin below;
       # publish-security.test.js compares the two.
       tractor_ref: 2ec6d74ee66085b6895ec0f8ff4180385c713c58

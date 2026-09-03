@@ -919,6 +919,24 @@ test('Tractor evidence binder validates the immutable report before exporting ou
   }
 });
 
+test('live releases serialize on one lock while dry runs run alongside anything', () => {
+  const parsed = workflow(publishWorkflowPath);
+  assert.equal(parsed.concurrency['cancel-in-progress'], false);
+  // A live release (dry_run false) resolves to the shared literal group; a dry
+  // run resolves to a group nothing else can share. No other input or context
+  // participates, so a recovery dispatch is still a live release.
+  assert.equal(
+    parsed.concurrency.group,
+    [
+      '${{',
+      'inputs.dry_run == true &&',
+      "format('publish-bleedingdev-dry-run-{0}', github.run_id) ||",
+      "'publish-bleedingdev'",
+      '}}',
+    ].join(' '),
+  );
+});
+
 test('the pre-publication Tractor rehearsal gates npm publication and can never promote', () => {
   const parsed = workflow(publishWorkflowPath);
   const callee = workflow(tractorWorkflowPath);
@@ -926,21 +944,23 @@ test('the pre-publication Tractor rehearsal gates npm publication and can never 
   const published = parsed.jobs['tractor-downstream'];
   const calleePath = './.github/workflows/ultramodern-tractor-downstream.yml';
 
-  // (1) DAG reachability: the rehearsal sits behind the immutable bundle and
-  // its exact-artifact acceptance, and ahead of both jobs that can reach npm.
-  // A failed or skipped rehearsal makes publication unreachable rather than
-  // optional.
+  // (1) DAG reachability: the rehearsal sits behind the immutable bundle,
+  // beside its exact-artifact acceptance, and ahead of both jobs that can
+  // reach npm. A failed or skipped rehearsal makes publication unreachable
+  // rather than optional, and neither gate can stand in for the other.
   assert.equal(rehearsal.uses, calleePath);
   assert.deepEqual(normalizeNeeds(rehearsal).sort(), [
-    'accept-release',
+    'prepare-release',
     'publish-security',
     'qualify-source',
   ]);
   for (const gated of ['publish-sidecars', 'publish']) {
-    assert.ok(
-      normalizeNeeds(parsed.jobs[gated]).includes('rehearse-tractor'),
-      `${gated} must not be reachable without the rehearsal`,
-    );
+    for (const gate of ['accept-release', 'rehearse-tractor']) {
+      assert.ok(
+        normalizeNeeds(parsed.jobs[gated]).includes(gate),
+        `${gated} must not be reachable without ${gate}`,
+      );
+    }
   }
   // A recovery dispatch replays the gate against the recovered bundle: the
   // rehearsal carries no recovery or dry-run escape hatch.
@@ -948,13 +968,22 @@ test('the pre-publication Tractor rehearsal gates npm publication and can never 
   assert.equal(rehearsal.with.mode, 'source');
 
   // (2) Exact bundle-only seeding: the rehearsal names the producer identity
-  // accept-release proved, and the callee downloads that artifact from this
-  // run. Nothing in the callee builds, packs, repacks, or rewrites a tarball.
+  // prepare-release verified (the same value accept-release forwards), and the
+  // callee downloads that artifact from this run. Nothing in the callee
+  // builds, packs, repacks, or rewrites a tarball.
   assert.equal(
     rehearsal.with.release_bundle_artifact,
     [
       'bleedingdev-release-bundle-${{',
-      'needs.accept-release.outputs.producer_artifact_identity',
+      'needs.prepare-release.outputs.producer_artifact_identity',
+      '}}',
+    ].join(' '),
+  );
+  assert.equal(
+    parsed.jobs['accept-release'].outputs.producer_artifact_identity,
+    [
+      '${{',
+      'needs.prepare-release.outputs.producer_artifact_identity',
       '}}',
     ].join(' '),
   );
