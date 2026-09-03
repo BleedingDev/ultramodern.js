@@ -945,17 +945,21 @@ test('the pre-publication Tractor rehearsal gates npm publication and can never 
   const calleePath = './.github/workflows/ultramodern-tractor-downstream.yml';
 
   // (1) DAG reachability: the rehearsal sits behind the immutable bundle,
-  // beside its exact-artifact acceptance, and ahead of both jobs that can
-  // reach npm. A failed or skipped rehearsal makes publication unreachable
-  // rather than optional, and neither gate can stand in for the other.
+  // beside source qualification and exact-artifact acceptance, and ahead of
+  // both jobs that can reach npm. A failed or skipped rehearsal makes
+  // publication unreachable rather than optional, and no gate can stand in
+  // for another.
   assert.equal(rehearsal.uses, calleePath);
   assert.deepEqual(normalizeNeeds(rehearsal).sort(), [
     'prepare-release',
     'publish-security',
-    'qualify-source',
   ]);
   for (const gated of ['publish-sidecars', 'publish']) {
-    for (const gate of ['accept-release', 'rehearse-tractor']) {
+    for (const gate of [
+      'accept-release',
+      'qualify-source',
+      'rehearse-tractor',
+    ]) {
       assert.ok(
         normalizeNeeds(parsed.jobs[gated]).includes(gate),
         `${gated} must not be reachable without ${gate}`,

@@ -870,11 +870,10 @@ jobs:
       github.triggering_actor == github.repository_owner &&
       github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern')
     # Only the immutable bundle is needed here, so the rehearsal runs alongside
-    # the exact-artifact acceptance instead of behind it. Both remain required
-    # by every job that can reach npm.
+    # source qualification and the exact-artifact acceptance instead of behind
+    # them. All three remain required by every job that can reach npm.
     needs:
       - publish-security
-      - qualify-source
       - prepare-release
     uses: ./.github/workflows/ultramodern-tractor-downstream.yml
     with:
