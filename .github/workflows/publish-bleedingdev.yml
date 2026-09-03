@@ -175,10 +175,14 @@ jobs:
           path: ~/.cache/ms-playwright
           key: ${{ steps.browser-runtime.outputs.cache_key }}
 
+      # --version carries the version resolved before the restore, so the
+      # install fails closed when the runtime present after it is not the one
+      # the restored cache was keyed from.
       - name: Install browser qualification runtime
         run: >-
           node scripts/ultramodern-production-readiness/provision-acceptance-browsers.mjs
           --install --target qualification
+          --version ${{ steps.browser-runtime.outputs.version }}
           --cache-hit ${{ steps.playwright-cache.outputs.cache-hit == 'true' }}
 
       - name: Qualify release source
@@ -538,10 +542,14 @@ jobs:
           path: ${{ env.PLAYWRIGHT_BROWSERS_PATH }}
           key: ${{ steps.browser-runtime.outputs.cache_key }}
 
+      # --version carries the version resolved before the restore, so the
+      # install fails closed when the runtime present after it is not the one
+      # the restored cache was keyed from.
       - name: Install browser smoke runtime
         run: >-
           node scripts/ultramodern-production-readiness/provision-acceptance-browsers.mjs
           --install --target smoke
+          --version ${{ steps.browser-runtime.outputs.version }}
           --cache-hit ${{ steps.playwright-cache.outputs.cache-hit == 'true' }}
 
       - name: Run exact-artifact ERP-10 acceptance
@@ -1127,10 +1135,14 @@ jobs:
           path: ${{ env.PLAYWRIGHT_BROWSERS_PATH }}
           key: ${{ steps.browser-runtime.outputs.cache_key }}
 
+      # --version carries the version resolved before the restore, so the
+      # install fails closed when the runtime present after it is not the one
+      # the restored cache was keyed from.
       - name: Install browser smoke runtime
         run: >-
           node scripts/ultramodern-production-readiness/provision-acceptance-browsers.mjs
           --install --target smoke
+          --version ${{ steps.browser-runtime.outputs.version }}
           --cache-hit ${{ steps.playwright-cache.outputs.cache-hit == 'true' }}
 
       # Unconditional join before anything that needs node_modules: a failed

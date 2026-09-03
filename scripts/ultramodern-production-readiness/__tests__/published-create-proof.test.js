@@ -307,6 +307,39 @@ test('shared ERP-10 profile requires frozen install, checks, both builds, and no
     ],
   );
   assert.equal(calls[1].options.cwd, exactPnpmDir);
+  // The nested discovery subprocess runs under the injected environment, not
+  // the ambient parent one: discovery and the PATH the returned executable
+  // builds for the child must come from a single environment.
+  assert.deepEqual(
+    calls[0].options.env,
+    { PATH: exactPnpmDir },
+    'nested pnpm discovery must search the injected PATH',
+  );
+  assert.notEqual(
+    calls[0].options.env.PATH,
+    process.env.PATH,
+    'the assertion above is only meaningful while the injected PATH differs from the ambient one',
+  );
+  const discoveryEnvs = [];
+  assert.equal(
+    resolveExactPnpmExecutable(
+      (command, args, options) => {
+        if (command === 'pnpm') {
+          discoveryEnvs.push(options.env);
+          // A discovery that honors the injected PATH cannot reach a directory
+          // the injected environment never names.
+          assert.equal(options.env.PATH, exactPnpmDir);
+          throw new Error('pnpm exec PATH exposes no shim');
+        }
+        return command === exactPnpmExecutable ? '11.17.0' : '11.11.0';
+      },
+      '11.17.0',
+      { PATH: exactPnpmDir },
+      exactPnpmDir,
+    ),
+    exactPnpmExecutable,
+  );
+  assert.deepEqual(discoveryEnvs, [{ PATH: exactPnpmDir }]);
   const stalePnpmDir = fs.mkdtempSync(
     path.join(os.tmpdir(), 'ultramodern-stale-pnpm-shim-'),
   );
@@ -1056,16 +1089,44 @@ test('one acceptance runtime context owns pnpm, stores, registry, and the browse
     'ERP reuses the operationally provisioned browsers on the runner',
   );
 
-  const unprovisioned = createAcceptanceRuntimeContext({
-    environment: {},
-    expectedPnpmVersion: '11.17.0',
-    resolveExactPnpmExecutableImpl,
-    workDir,
-  });
+  // Inherited browsers with no runner path stated is the one combination that
+  // could pass silently: this env redirects XDG_CACHE_HOME into the disposable
+  // package-manager root, so Playwright would derive its default browser
+  // directory from that empty redirect. It fails closed instead, before
+  // anything is spawned, and names both ways out.
+  for (const unprovisionedEnvironment of [
+    {},
+    { PLAYWRIGHT_BROWSERS_PATH: '' },
+    { PLAYWRIGHT_BROWSERS_PATH: 'relative/ms-playwright' },
+  ]) {
+    assert.throws(
+      () =>
+        createAcceptanceRuntimeContext({
+          environment: unprovisionedEnvironment,
+          expectedPnpmVersion: '11.17.0',
+          resolveExactPnpmExecutableImpl: () =>
+            assert.fail(
+              'an unprovisioned inherited browsers path must fail before any subprocess',
+            ),
+          workDir,
+        }),
+      error =>
+        /require an absolute PLAYWRIGHT_BROWSERS_PATH/u.test(error.message) &&
+        /XDG_CACHE_HOME/u.test(error.message) &&
+        /browsers: 'isolated'/u.test(error.message),
+      `inherited browsers must fail closed for ${JSON.stringify(unprovisionedEnvironment)}`,
+    );
+  }
+  // Isolated browsers own their path, so they never need the runner's.
   assert.equal(
-    Object.hasOwn(unprovisioned.env, 'PLAYWRIGHT_BROWSERS_PATH'),
-    false,
-    'an absent inherited browsers path must not be forced into the child env',
+    createAcceptanceRuntimeContext({
+      browsers: 'isolated',
+      environment: {},
+      expectedPnpmVersion: '11.17.0',
+      resolveExactPnpmExecutableImpl,
+      workDir,
+    }).env.PLAYWRIGHT_BROWSERS_PATH,
+    path.join(packageManagerRoot, 'xdg', 'ms-playwright'),
   );
 
   assert.throws(
@@ -1091,6 +1152,7 @@ test('one acceptance runtime context owns pnpm, stores, registry, and the browse
   assert.throws(
     () =>
       createAcceptanceRuntimeContext({
+        environment: { PLAYWRIGHT_BROWSERS_PATH: '/inherited/ms-playwright' },
         expectedPnpmVersion: '11',
         workDir,
       }),
@@ -1099,7 +1161,10 @@ test('one acceptance runtime context owns pnpm, stores, registry, and the browse
   assert.throws(
     () =>
       createAcceptanceRuntimeContext({
-        environment: { PATH: '' },
+        environment: {
+          PATH: '',
+          PLAYWRIGHT_BROWSERS_PATH: '/inherited/ms-playwright',
+        },
         expectedPnpmVersion: '11.17.0',
         runImpl: () => {
           throw new Error('no pnpm on PATH');
@@ -1295,7 +1360,15 @@ test('browser provisioning resolves an exact version without installing and keys
   const installCalls = [];
   assert.deepEqual(
     provisionAcceptanceBrowsers(
-      ['--install', '--target', 'smoke', '--cache-hit', 'true'],
+      [
+        '--install',
+        '--target',
+        'smoke',
+        '--version',
+        '1.60.0',
+        '--cache-hit',
+        'true',
+      ],
       {
         environment: {},
         installAcceptanceBrowsersImpl: options => {
@@ -1308,7 +1381,10 @@ test('browser provisioning resolves an exact version without installing and keys
             },
           });
         },
-        resolveAcceptanceBrowserVersionImpl: () => '1.60.0',
+        // Installing carries the version the resolve step reported across the
+        // cache restore; it never re-reads the manifest that step read.
+        resolveAcceptanceBrowserVersionImpl: () =>
+          assert.fail('installing must not re-resolve the runtime version'),
         writeOutput: () => assert.fail('provisioning must report no evidence'),
       },
     ),
@@ -1343,13 +1419,94 @@ test('browser provisioning resolves an exact version without installing and keys
       ),
     /Provisioned playwright 1\.60\.0 is not the 1\.61\.1 that keyed the browser cache/u,
   );
+  // The same fail-closed comparison, driven end to end from the carried
+  // version: a runtime replaced between the resolve step and the install step
+  // is caught across those steps instead of by rereading one manifest twice.
+  assert.throws(
+    () =>
+      provisionAcceptanceBrowsers(
+        ['--install', '--target', 'smoke', '--version', '1.61.1'],
+        {
+          environment: {},
+          installAcceptanceBrowsersImpl: options =>
+            installAcceptanceBrowsers(options, {
+              ensureBrowserSmokeRuntimeImpl: () => runtimeDir,
+              runImpl: () =>
+                assert.fail('a mismatched runtime must not install browsers'),
+            }),
+          resolveAcceptanceBrowserVersionImpl: () =>
+            assert.fail('installing must not re-resolve the runtime version'),
+          writeOutput: () =>
+            assert.fail('provisioning must report no evidence'),
+        },
+      ),
+    /Provisioned playwright 1\.60\.0 is not the 1\.61\.1 that keyed the browser cache/u,
+  );
 
   assert.deepEqual(parseProvisionArgs(['--resolve', '--target', 'smoke']), {
     cacheHit: false,
     install: false,
     resolve: true,
     target: 'smoke',
+    version: undefined,
   });
+  assert.deepEqual(
+    parseProvisionArgs([
+      '--install',
+      '--target',
+      'qualification',
+      '--version',
+      '1.61.1',
+      '--cache-hit',
+      'true',
+    ]),
+    {
+      cacheHit: true,
+      install: true,
+      resolve: false,
+      target: 'qualification',
+      version: '1.61.1',
+    },
+  );
+  assert.throws(
+    () => parseProvisionArgs(['--install', '--target', 'smoke']),
+    /--install requires --version <playwright version> from the matching --resolve step/u,
+  );
+  assert.throws(
+    () =>
+      parseProvisionArgs([
+        '--resolve',
+        '--target',
+        'smoke',
+        '--version',
+        '1.60.0',
+      ]),
+    /--version applies only to --install/u,
+  );
+  assert.throws(
+    () =>
+      parseProvisionArgs([
+        '--install',
+        '--target',
+        'smoke',
+        '--version',
+        '1.60',
+      ]),
+    /--version must be an exact playwright version/u,
+  );
+  assert.throws(
+    () =>
+      parseProvisionArgs([
+        '--install',
+        '--target',
+        'smoke',
+        '--version',
+        '1.60.0',
+        '--version',
+        '1.61.1',
+      ]),
+    /Duplicate argument: --version/u,
+  );
   assert.throws(
     () => parseProvisionArgs(['--target', 'smoke']),
     /exactly one of --resolve/u,
@@ -1459,5 +1616,40 @@ test('no workflow owns a Playwright installer, version literal, or lockfile-hash
     offenders,
     [],
     'Playwright version and installer ownership belongs to the acceptance runtime, not workflow YAML',
+  );
+});
+
+test('every workflow browser install carries the version its resolve step reported', () => {
+  const workflowDir = path.join(__dirname, '../../../.github/workflows');
+  const installSteps = [];
+  for (const entry of fs.readdirSync(workflowDir).sort()) {
+    if (!entry.endsWith('.yml') && !entry.endsWith('.yaml')) {
+      continue;
+    }
+    const source = fs.readFileSync(path.join(workflowDir, entry), 'utf8');
+    // Each provisioning invocation is one folded `run:` scalar; collapsing
+    // whitespace reads the whole command the runner executes.
+    for (const match of source.matchAll(
+      /provision-acceptance-browsers\.mjs(?<args>[\s\S]*?)\n\n/gu,
+    )) {
+      const command = match.groups.args.replace(/\s+/gu, ' ').trim();
+      if (command.includes('--install')) {
+        installSteps.push(`${entry}: ${command}`);
+      }
+    }
+  }
+  assert.notEqual(
+    installSteps.length,
+    0,
+    'the acceptance workflow must still provision browsers',
+  );
+  const uncarried = installSteps.filter(
+    step =>
+      !/--version \$\{\{ steps\.[a-z0-9-]+\.outputs\.version \}\}/u.test(step),
+  );
+  assert.deepEqual(
+    uncarried,
+    [],
+    'an --install step must carry the resolved version across the cache restore instead of rereading the manifest',
   );
 });

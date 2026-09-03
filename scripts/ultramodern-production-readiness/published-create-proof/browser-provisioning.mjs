@@ -6,6 +6,11 @@
 // them and to report the exact playwright version that keys their cache, so no
 // workflow names a playwright version or an installer of its own.
 //
+// `--resolve` reports that version once; the workflow carries it across the
+// cache restore into `--install --version`, so the install step compares the
+// runtime it finds against the version the restored cache was keyed from
+// rather than re-reading the manifest `--resolve` already read.
+//
 // The two browser runtimes are versioned independently, so they resolve and
 // key independently and a bump to one never invalidates the other's cache:
 //   * `smoke` is the ERP browser-smoke runtime, pinned by the exact
@@ -165,13 +170,18 @@ function parseProvisionArgs(argv) {
   const options = { cacheHit: false, install: false, resolve: false };
   const seen = new Set();
   let target;
+  let version;
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
     if (seen.has(argument)) {
       throw new Error(`Duplicate argument: ${argument}`);
     }
     seen.add(argument);
-    if (argument === '--cache-hit' || argument === '--target') {
+    if (
+      argument === '--cache-hit' ||
+      argument === '--target' ||
+      argument === '--version'
+    ) {
       const value = argv[index + 1];
       index += 1;
       if (argument === '--target') {
@@ -181,6 +191,10 @@ function parseProvisionArgs(argv) {
           );
         }
         target = value;
+        continue;
+      }
+      if (argument === '--version') {
+        version = assertExactPlaywrightVersion(value, '--version');
         continue;
       }
       if (value !== 'true' && value !== 'false') {
@@ -202,12 +216,24 @@ function parseProvisionArgs(argv) {
   if (options.resolve && seen.has('--cache-hit')) {
     throw new Error('--cache-hit applies only to --install');
   }
+  if (options.resolve && version !== undefined) {
+    throw new Error('--version applies only to --install');
+  }
+  // --install never re-reads the manifest --resolve already read: the caller
+  // carries the resolved version that keyed the cache across the restore step,
+  // so the mismatch check below spans those steps instead of comparing a
+  // manifest to itself.
+  if (options.install && version === undefined) {
+    throw new Error(
+      '--install requires --version <playwright version> from the matching --resolve step',
+    );
+  }
   if (target === undefined) {
     throw new Error(
       `Browser provisioning requires --target ${acceptanceBrowserTargets.join(' or ')}`,
     );
   }
-  return { ...options, target };
+  return { ...options, target, version };
 }
 
 function provisionAcceptanceBrowsers(
@@ -224,14 +250,17 @@ function provisionAcceptanceBrowsers(
   } = {},
 ) {
   const options = parseProvisionArgs(argv);
-  const version = resolveAcceptanceBrowserVersionImpl(options.target);
   if (options.install) {
+    // The version comes from the earlier --resolve step, never from a second
+    // read of the same manifest: installing verifies that the runtime present
+    // after the cache restore is still the one the cache key was built from.
     return installAcceptanceBrowsersImpl({
       cacheHit: options.cacheHit,
       target: options.target,
-      version,
+      version: options.version,
     });
   }
+  const version = resolveAcceptanceBrowserVersionImpl(options.target);
   const cacheKey = acceptanceBrowserCacheKey({
     runnerOs: environment.RUNNER_OS ?? process.platform,
     target: options.target,

@@ -184,6 +184,27 @@ function acceptancePlaywrightBrowsersPath(workDir) {
   );
 }
 
+// `inherited` browsers only mean anything if the caller actually says where
+// the runner put them. This runtime context always redirects XDG_CACHE_HOME
+// into the disposable package-manager root, and Playwright derives its default
+// browser directory from that cache home, so an absent
+// PLAYWRIGHT_BROWSERS_PATH would silently point install and launch at an empty
+// directory inside the work dir rather than at the browsers operational
+// provisioning placed on the runner. Fail closed with both ways out instead of
+// guessing a pre-redirection default.
+function assertInheritedPlaywrightBrowsersPath(browsersPath) {
+  if (
+    typeof browsersPath !== 'string' ||
+    browsersPath === '' ||
+    !path.isAbsolute(browsersPath)
+  ) {
+    throw new Error(
+      `Inherited acceptance browsers require an absolute PLAYWRIGHT_BROWSERS_PATH in the injected environment, found ${String(browsersPath)}. This runtime context redirects XDG_CACHE_HOME into the disposable package-manager root, so an unset value resolves Playwright's default browser directory there instead of the runner's. Provision the browsers with PLAYWRIGHT_BROWSERS_PATH set (as the acceptance jobs do) or ask for browsers: 'isolated'.`,
+    );
+  }
+  return browsersPath;
+}
+
 function createAcceptancePackageManagerEnv(
   workDir,
   registryEnv = {},
@@ -334,6 +355,12 @@ function resolveExactPnpmExecutable(
         ['exec', 'node', '-e', discoveryScript],
         {
           cwd: repoRoot,
+          // Discovery reads the PATH of the environment this resolution was
+          // handed, exactly like the parent-PATH scan below and exactly like
+          // the child PATH built from the executable it returns. Falling back
+          // to the ambient parent PATH here would let a candidate be
+          // discovered from an environment the child never gets.
+          env: { PATH: environment.PATH },
           stdio: 'pipe',
         },
       );
@@ -396,9 +423,10 @@ function resolveExactPnpmExecutable(
 // keep chromium inside the disposable package-manager root (Tractor, which
 // installs it from the downstream frozen graph); `inherited` reuses the
 // browsers the operational provisioning step already placed on the runner
-// (ERP). Either way the value is decided here and carried only by `env`, so
-// the install path and the launch path cannot disagree: both read
-// PLAYWRIGHT_BROWSERS_PATH out of this one environment.
+// (ERP) and requires that runner path to be stated explicitly. Either way the
+// value is decided here and carried only by `env`, so the install path and the
+// launch path cannot disagree: both read PLAYWRIGHT_BROWSERS_PATH out of this
+// one environment, which always defines it.
 function createAcceptanceRuntimeContext({
   browsers = 'inherited',
   environment = process.env,
@@ -419,25 +447,27 @@ function createAcceptanceRuntimeContext({
       `Acceptance browser isolation must be ${acceptanceBrowserIsolations.join(' or ')}, found ${String(browsers)}`,
     );
   }
+  // Decided before anything is spawned: an unprovisioned inherited path is a
+  // caller mistake, not a runtime failure to discover halfway through.
+  const playwrightBrowsersPath =
+    browsers === 'isolated'
+      ? acceptancePlaywrightBrowsersPath(workDir)
+      : assertInheritedPlaywrightBrowsersPath(
+          environment.PLAYWRIGHT_BROWSERS_PATH,
+        );
   const pnpmExecutable = resolveExactPnpmExecutableImpl(
     runImpl,
     expectedPnpmVersion,
     environment,
     verificationCwd ?? workDir,
   );
-  const playwrightBrowsersPath =
-    browsers === 'isolated'
-      ? acceptancePlaywrightBrowsersPath(workDir)
-      : environment.PLAYWRIGHT_BROWSERS_PATH;
   const env = createAcceptancePackageManagerEnv(
     workDir,
     registryEnv,
     pnpmExecutable,
     environment,
   );
-  if (playwrightBrowsersPath !== undefined) {
-    env.PLAYWRIGHT_BROWSERS_PATH = playwrightBrowsersPath;
-  }
+  env.PLAYWRIGHT_BROWSERS_PATH = playwrightBrowsersPath;
   // Only what a clean room actually consumes: the child environment and the
   // absolute pnpm the Tractor bootstrap invokes directly. Everything else the
   // owner decides is observable through `env`.
