@@ -155,26 +155,31 @@ jobs:
         run: mise exec -- pnpm install --frozen-lockfile
 
       # plugin-runtime's boundary-debugger suite drives a real chromium through
-      # the playwright installed in the rstest browser fixture. The key is
-      # derived from the frozen lockfile that resolves that playwright, so a
-      # bump invalidates the cache without any workflow-side version literal.
-      # No restore-keys: the lockfile hash is the invalidation mechanism.
+      # the playwright the rstest browser fixture resolved from the frozen
+      # workspace lockfile — a runtime versioned independently of the ERP
+      # browser-smoke runtime. This reads back that installed version, so the
+      # key below comes from a resolved runtime instead of a workflow literal
+      # or a whole-lockfile hash that every unrelated dependency invalidates.
+      - name: Resolve browser qualification runtime
+        id: browser-runtime
+        run: >-
+          node scripts/ultramodern-production-readiness/provision-acceptance-browsers.mjs
+          --resolve --target qualification
+
+      # No restore-keys: the resolved playwright version is the invalidation
+      # mechanism.
       - name: Restore Playwright chromium cache
         id: playwright-cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          key: ${{ steps.browser-runtime.outputs.cache_key }}
 
       - name: Install browser qualification runtime
-        run: |
-          # OS packages are not in ~/.cache/ms-playwright, so install-deps
-          # runs on every run; only the browser download is cacheable.
-          if [[ "${{ steps.playwright-cache.outputs.cache-hit }}" == "true" ]]; then
-            mise exec -- pnpm --dir tests/integration/rstest/basic-app-rstest-browser exec playwright install-deps chromium
-          else
-            mise exec -- pnpm --dir tests/integration/rstest/basic-app-rstest-browser exec playwright install --with-deps chromium
-          fi
+        run: >-
+          node scripts/ultramodern-production-readiness/provision-acceptance-browsers.mjs
+          --install --target qualification
+          --cache-hit ${{ steps.playwright-cache.outputs.cache-hit == 'true' }}
 
       - name: Qualify release source
         run: |
@@ -520,7 +525,9 @@ jobs:
       # resolved runtime output instead of a workflow version literal.
       - name: Resolve browser smoke runtime
         id: browser-runtime
-        run: node scripts/ultramodern-production-readiness/provision-acceptance-browsers.mjs --resolve
+        run: >-
+          node scripts/ultramodern-production-readiness/provision-acceptance-browsers.mjs
+          --resolve --target smoke
 
       # No restore-keys: the resolved playwright version is the invalidation
       # mechanism.
@@ -534,7 +541,8 @@ jobs:
       - name: Install browser smoke runtime
         run: >-
           node scripts/ultramodern-production-readiness/provision-acceptance-browsers.mjs
-          --install --cache-hit ${{ steps.playwright-cache.outputs.cache-hit == 'true' }}
+          --install --target smoke
+          --cache-hit ${{ steps.playwright-cache.outputs.cache-hit == 'true' }}
 
       - name: Run exact-artifact ERP-10 acceptance
         env:
@@ -1106,7 +1114,9 @@ jobs:
       # that keys the cache below, replacing a workflow version literal.
       - name: Resolve browser smoke runtime
         id: browser-runtime
-        run: node scripts/ultramodern-production-readiness/provision-acceptance-browsers.mjs --resolve
+        run: >-
+          node scripts/ultramodern-production-readiness/provision-acceptance-browsers.mjs
+          --resolve --target smoke
 
       # No restore-keys: the resolved playwright version is the invalidation
       # mechanism.
@@ -1120,7 +1130,8 @@ jobs:
       - name: Install browser smoke runtime
         run: >-
           node scripts/ultramodern-production-readiness/provision-acceptance-browsers.mjs
-          --install --cache-hit ${{ steps.playwright-cache.outputs.cache-hit == 'true' }}
+          --install --target smoke
+          --cache-hit ${{ steps.playwright-cache.outputs.cache-hit == 'true' }}
 
       # Unconditional join before anything that needs node_modules: a failed
       # install fails the job here, never silently.

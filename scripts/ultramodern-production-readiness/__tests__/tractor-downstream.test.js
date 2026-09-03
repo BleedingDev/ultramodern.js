@@ -1251,13 +1251,13 @@ test('Node backend proof requires every API-bearing MicroVertical exactly once a
 });
 
 test('Tractor delegates its whole runtime context to the shared acceptance owner', async t => {
-  const { createTractorPackageManagerContext, executionCommands } =
-    await runnerPromise;
   const {
-    acceptancePlaywrightBrowsersPath,
-    acceptancePlaywrightInstallArgs,
-    createAcceptanceRuntimeContext,
-  } = await import('../published-create-proof/acceptance-profile.mjs');
+    createTractorPackageManagerContext,
+    executionCommands,
+    launchWorkspaceBrowser,
+  } = await runnerPromise;
+  const { acceptancePlaywrightInstallArgs, createAcceptanceRuntimeContext } =
+    await import('../published-create-proof/acceptance-profile.mjs');
 
   const packageManagerRoot = fs.mkdtempSync(
     path.join(os.tmpdir(), 'tractor-runtime-delegate-'),
@@ -1317,18 +1317,50 @@ test('Tractor delegates its whole runtime context to the shared acceptance owner
     assert.equal(packageManager.env[name], owner.env[name], name);
   }
   assert.equal(packageManager.pnpmExecutable, owner.pnpmExecutable);
-  assert.equal(
-    packageManager.playwrightBrowsersPath,
-    acceptancePlaywrightBrowsersPath(packageManagerRoot),
+
+  // Install/launch coherence, observed rather than reconstructed: the browsers
+  // path carried by the env that runs `pnpm exec playwright install` is the
+  // path the in-process launch actually sees, and the parent process is
+  // restored afterwards.
+  const originalBrowsersPath = process.env.PLAYWRIGHT_BROWSERS_PATH;
+  process.env.PLAYWRIGHT_BROWSERS_PATH = path.join(
+    os.tmpdir(),
+    'parent-playwright',
   );
-  assert.equal(
+  t.after(() => {
+    if (originalBrowsersPath === undefined) {
+      delete process.env.PLAYWRIGHT_BROWSERS_PATH;
+    } else {
+      process.env.PLAYWRIGHT_BROWSERS_PATH = originalBrowsersPath;
+    }
+  });
+  const observedBrowsersPaths = [];
+  await launchWorkspaceBrowser(
+    {
+      browserProvider: {},
+      processEnv: packageManager.env,
+      workspace: os.tmpdir(),
+    },
+    {
+      launchBrowserImpl: async () => {
+        observedBrowsersPaths.push(process.env.PLAYWRIGHT_BROWSERS_PATH);
+        return {};
+      },
+    },
+  );
+  assert.deepEqual(observedBrowsersPaths, [
     packageManager.env.PLAYWRIGHT_BROWSERS_PATH,
-    packageManager.playwrightBrowsersPath,
-    'the browsers the install writes are the browsers the launch reads',
+  ]);
+  assert.equal(
+    observedBrowsersPaths[0].startsWith(
+      `${path.join(packageManagerRoot, 'package-manager')}${path.sep}`,
+    ),
+    true,
+    'the launch reads browsers from inside the disposable Tractor root',
   );
-  assert.deepEqual(
-    [...packageManager.playwrightInstallArgs],
-    [...acceptancePlaywrightInstallArgs],
+  assert.equal(
+    process.env.PLAYWRIGHT_BROWSERS_PATH,
+    path.join(os.tmpdir(), 'parent-playwright'),
   );
 
   // The Playwright provisioning stays operational: it is the shared owner's

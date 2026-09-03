@@ -188,6 +188,7 @@ function createAcceptancePackageManagerEnv(
   workDir,
   registryEnv = {},
   pnpmExecutable,
+  environment = process.env,
 ) {
   const env = {
     ...createCleanPnpmDlxEnv(acceptancePackageManagerRoot(workDir)),
@@ -208,7 +209,10 @@ function createAcceptancePackageManagerEnv(
         `Acceptance pnpm executable must be absolute: ${pnpmExecutable}`,
       );
     }
-    env.PATH = [path.dirname(pnpmExecutable), process.env.PATH]
+    // The PATH the caller injected, never the ambient parent PATH: a runtime
+    // context is only hermetic if its own environment decides what the child
+    // can execute.
+    env.PATH = [path.dirname(pnpmExecutable), environment.PATH]
       .filter(Boolean)
       .join(path.delimiter);
   }
@@ -392,8 +396,9 @@ function resolveExactPnpmExecutable(
 // keep chromium inside the disposable package-manager root (Tractor, which
 // installs it from the downstream frozen graph); `inherited` reuses the
 // browsers the operational provisioning step already placed on the runner
-// (ERP). Either way the value is decided here, so the install path and the
-// launch path can never disagree.
+// (ERP). Either way the value is decided here and carried only by `env`, so
+// the install path and the launch path cannot disagree: both read
+// PLAYWRIGHT_BROWSERS_PATH out of this one environment.
 function createAcceptanceRuntimeContext({
   browsers = 'inherited',
   environment = process.env,
@@ -428,18 +433,15 @@ function createAcceptanceRuntimeContext({
     workDir,
     registryEnv,
     pnpmExecutable,
+    environment,
   );
   if (playwrightBrowsersPath !== undefined) {
     env.PLAYWRIGHT_BROWSERS_PATH = playwrightBrowsersPath;
   }
-  return {
-    browsers,
-    env,
-    packageManagerRoot: acceptancePackageManagerRoot(workDir),
-    playwrightBrowsersPath,
-    playwrightInstallArgs: acceptancePlaywrightInstallArgs,
-    pnpmExecutable,
-  };
+  // Only what a clean room actually consumes: the child environment and the
+  // absolute pnpm the Tractor bootstrap invokes directly. Everything else the
+  // owner decides is observable through `env`.
+  return { env, pnpmExecutable };
 }
 
 // In-process Playwright reads PLAYWRIGHT_BROWSERS_PATH from the real process
@@ -1252,7 +1254,6 @@ async function runAcceptanceProfile({
 }
 
 export {
-  acceptancePlaywrightBrowsersPath,
   acceptancePlaywrightInstallArgs,
   assertCohortResolutionProvenance,
   assertDefaultOffRscInstall,

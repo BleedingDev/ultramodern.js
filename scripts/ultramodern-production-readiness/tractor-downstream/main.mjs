@@ -225,8 +225,6 @@ function createTractorPackageManagerContext({
         bootstrapReleaseAgePolicy.minimumReleaseAgeStrict,
       ),
     },
-    playwrightBrowsersPath: runtime.playwrightBrowsersPath,
-    playwrightInstallArgs: runtime.playwrightInstallArgs,
     pnpmExecutable: runtime.pnpmExecutable,
   };
 }

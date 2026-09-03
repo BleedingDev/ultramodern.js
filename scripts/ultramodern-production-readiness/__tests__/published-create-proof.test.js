@@ -341,14 +341,15 @@ test('shared ERP-10 profile requires frozen install, checks, both builds, and no
     'an explicitly provisioned manifest pnpm must win over a stale project shim',
   );
   assert.deepEqual(explicitCalls, [[exactPnpmExecutable, ['--version']]]);
-  assert.equal(
+  assert.deepEqual(
     createAcceptancePackageManagerEnv(
       '/tmp/acceptance',
       { PATH: '/hostile/registry/path' },
       exactPnpmExecutable,
-    ).PATH.split(path.delimiter)[0],
-    path.dirname(exactPnpmExecutable),
-    'the manifest-verified pnpm must override inherited and registry PATH entries',
+      { PATH: '/injected/tool/path' },
+    ).PATH.split(path.delimiter),
+    [path.dirname(exactPnpmExecutable), '/injected/tool/path'],
+    'the manifest-verified pnpm heads the injected PATH, and no registry or ambient entry survives',
   );
   assert.throws(
     () =>
@@ -959,11 +960,8 @@ test('asserts generated cohorts only from strict manifest expectations and compa
 });
 
 test('one acceptance runtime context owns pnpm, stores, registry, and the browsers path', async t => {
-  const {
-    acceptancePlaywrightBrowsersPath,
-    acceptancePlaywrightInstallArgs,
-    createAcceptanceRuntimeContext,
-  } = await import('../published-create-proof/acceptance-profile.mjs');
+  const { acceptancePlaywrightInstallArgs, createAcceptanceRuntimeContext } =
+    await import('../published-create-proof/acceptance-profile.mjs');
 
   const workDir = fs.mkdtempSync(
     path.join(os.tmpdir(), 'ultramodern-runtime-context-'),
@@ -971,6 +969,7 @@ test('one acceptance runtime context owns pnpm, stores, registry, and the browse
   t.after(() => fs.rmSync(workDir, { force: true, recursive: true }));
   const packageManagerRoot = path.join(workDir, 'package-manager');
   const pnpmExecutable = path.join('/opt', 'pnpm-11.17.0', 'bin', 'pnpm');
+  const injectedPath = path.join('/injected', 'tool', 'path');
   const resolverCalls = [];
   const resolveExactPnpmExecutableImpl = (...args) => {
     resolverCalls.push(args);
@@ -980,7 +979,7 @@ test('one acceptance runtime context owns pnpm, stores, registry, and the browse
   const isolated = createAcceptanceRuntimeContext({
     browsers: 'isolated',
     environment: {
-      PATH: '/hostile/path',
+      PATH: injectedPath,
       PLAYWRIGHT_BROWSERS_PATH: '/inherited/ms-playwright',
     },
     expectedPnpmVersion: '11.17.0',
@@ -992,13 +991,19 @@ test('one acceptance runtime context owns pnpm, stores, registry, and the browse
     workDir,
   });
 
-  assert.equal(isolated.pnpmExecutable, pnpmExecutable);
-  assert.equal(isolated.packageManagerRoot, packageManagerRoot);
-  assert.equal(
-    isolated.env.PATH.split(path.delimiter)[0],
-    path.dirname(pnpmExecutable),
-    'the manifest-verified pnpm must own the head of PATH',
+  assert.deepEqual(
+    Object.keys(isolated).sort(),
+    ['env', 'pnpmExecutable'],
+    'the context exposes only what a clean room consumes',
   );
+  assert.equal(isolated.pnpmExecutable, pnpmExecutable);
+  // The whole PATH, not just its head: the injected environment decides what
+  // the child can execute, so the ambient parent PATH must not leak in behind
+  // the manifest-verified pnpm.
+  assert.deepEqual(isolated.env.PATH.split(path.delimiter), [
+    path.dirname(pnpmExecutable),
+    injectedPath,
+  ]);
   assert.deepEqual(
     {
       XDG_CACHE_HOME: isolated.env.XDG_CACHE_HOME,
@@ -1018,16 +1023,6 @@ test('one acceptance runtime context owns pnpm, stores, registry, and the browse
     },
     'one module owns the stores, the XDG cache, and the registry',
   );
-  // Install/launch coherence: the value the subprocess env carries is the same
-  // value the owner reports for the in-process Playwright launch.
-  assert.equal(
-    isolated.env.PLAYWRIGHT_BROWSERS_PATH,
-    acceptancePlaywrightBrowsersPath(workDir),
-  );
-  assert.equal(
-    isolated.playwrightBrowsersPath,
-    isolated.env.PLAYWRIGHT_BROWSERS_PATH,
-  );
   assert.equal(
     isolated.env.PLAYWRIGHT_BROWSERS_PATH.startsWith(
       `${packageManagerRoot}${path.sep}`,
@@ -1036,25 +1031,14 @@ test('one acceptance runtime context owns pnpm, stores, registry, and the browse
     'isolated browsers must stay inside the disposable package-manager root',
   );
   assert.deepEqual(
-    [...isolated.playwrightInstallArgs],
-    ['exec', 'playwright', 'install', '--with-deps', 'chromium'],
-    'the install must be dependency-resolved through pnpm exec, never a pinned version',
-  );
-  assert.deepEqual(
     [...acceptancePlaywrightInstallArgs],
-    [...isolated.playwrightInstallArgs],
-  );
-  assert.equal(
-    acceptancePlaywrightInstallArgs.some(argument =>
-      /\d+\.\d+\.\d+/u.test(argument),
-    ),
-    false,
-    'the shared install invocation must not pin a playwright version',
+    ['exec', 'playwright', 'install', '--with-deps', 'chromium'],
+    'the shared install must be dependency-resolved through pnpm exec, never a pinned version',
   );
   assert.deepEqual(resolverCalls[0].slice(1), [
     '11.17.0',
     {
-      PATH: '/hostile/path',
+      PATH: injectedPath,
       PLAYWRIGHT_BROWSERS_PATH: '/inherited/ms-playwright',
     },
     workDir,
@@ -1066,7 +1050,6 @@ test('one acceptance runtime context owns pnpm, stores, registry, and the browse
     resolveExactPnpmExecutableImpl,
     workDir,
   });
-  assert.equal(inherited.browsers, 'inherited');
   assert.equal(
     inherited.env.PLAYWRIGHT_BROWSERS_PATH,
     '/inherited/ms-playwright',
@@ -1180,14 +1163,18 @@ test('the in-process Playwright launch restores the parent browsers path', async
   );
 });
 
-test('acceptance browser provisioning is operational and keyed by the resolved runtime', async t => {
+test('browser provisioning resolves an exact version without installing and keys each runtime apart', async t => {
   const {
     acceptanceBrowserCacheKey,
     acceptanceBrowserInstallArgs,
     parseProvisionArgs,
     provisionAcceptanceBrowsers,
-    resolveAcceptanceBrowserRuntime,
+    qualificationRuntimeDir,
+    resolveAcceptanceBrowserVersion,
   } = await import('../published-create-proof/browser-provisioning.mjs');
+  const { browserSmokePlaywrightPackage } = await import(
+    '../published-create-proof/constants.mjs'
+  );
 
   const runtimeDir = fs.mkdtempSync(
     path.join(os.tmpdir(), 'ultramodern-browser-runtime-'),
@@ -1198,20 +1185,79 @@ test('acceptance browser provisioning is operational and keyed by the resolved r
     version: '1.60.0',
   });
 
-  const runtime = resolveAcceptanceBrowserRuntime({
-    ensureBrowserSmokeRuntimeImpl: () => runtimeDir,
-  });
-  assert.equal(runtime.version, '1.60.0');
+  // An exactly pinned smoke specifier resolves by parsing it: keying the cache
+  // must never reach the network or write a runtime.
   assert.equal(
-    runtime.executable.startsWith(
-      path.join(runtimeDir, 'node_modules', '.bin'),
-    ),
-    true,
-    'the installer must be the resolved runtime binary, not an ad-hoc npx download',
+    resolveAcceptanceBrowserVersion('smoke', {
+      ensureBrowserSmokeRuntimeImpl: () =>
+        assert.fail('resolving an exact specifier must install nothing'),
+      playwrightPackage: 'playwright@1.60.0',
+    }),
+    '1.60.0',
+  );
+  // Only a non-exact override has to materialize a runtime to learn what it
+  // resolved to.
+  assert.equal(
+    resolveAcceptanceBrowserVersion('smoke', {
+      ensureBrowserSmokeRuntimeImpl: () => runtimeDir,
+      playwrightPackage: 'playwright@^1.60.0',
+    }),
+    '1.60.0',
   );
   assert.equal(
-    acceptanceBrowserCacheKey({ runnerOs: 'Linux', version: runtime.version }),
-    'playwright-chromium-1.60.0-Linux',
+    resolveAcceptanceBrowserVersion('qualification', {
+      ensureBrowserSmokeRuntimeImpl: () =>
+        assert.fail('the qualification runtime is the rstest browser fixture'),
+      readJsonFileImpl: manifestPath => {
+        assert.equal(
+          manifestPath,
+          path.join(
+            qualificationRuntimeDir,
+            'node_modules/playwright/package.json',
+          ),
+        );
+        return { name: 'playwright', version: '1.61.1' };
+      },
+    }),
+    '1.61.1',
+  );
+
+  // The qualification runtime is independently versioned: the rstest browser
+  // fixture declares its own playwright dependency, resolved by the workspace
+  // lockfile, and never inherits the ERP smoke specifier. Distinct targets
+  // therefore key distinct caches even at an identical version.
+  const fixtureManifest = JSON.parse(
+    fs.readFileSync(path.join(qualificationRuntimeDir, 'package.json'), 'utf8'),
+  );
+  assert.equal(
+    typeof fixtureManifest.devDependencies.playwright,
+    'string',
+    'the qualification runtime must own its playwright dependency',
+  );
+  assert.notEqual(
+    `playwright@${fixtureManifest.devDependencies.playwright}`,
+    browserSmokePlaywrightPackage,
+    'the qualification and smoke playwright runtimes are versioned separately',
+  );
+  assert.notEqual(
+    acceptanceBrowserCacheKey({
+      runnerOs: 'Linux',
+      target: 'qualification',
+      version: '1.60.0',
+    }),
+    acceptanceBrowserCacheKey({
+      runnerOs: 'Linux',
+      target: 'smoke',
+      version: '1.60.0',
+    }),
+  );
+  assert.equal(
+    acceptanceBrowserCacheKey({
+      runnerOs: 'Linux',
+      target: 'smoke',
+      version: '1.60.0',
+    }),
+    'playwright-smoke-chromium-1.60.0-Linux',
   );
   assert.deepEqual(acceptanceBrowserInstallArgs(false), [
     'install',
@@ -1224,37 +1270,140 @@ test('acceptance browser provisioning is operational and keyed by the resolved r
   ]);
 
   const outputs = [];
-  const resolved = provisionAcceptanceBrowsers(['--resolve'], {
-    environment: { RUNNER_OS: 'Linux' },
-    resolveAcceptanceBrowserRuntimeImpl: () => runtime,
-    writeOutput: (name, value) => outputs.push([name, value]),
-  });
-  assert.deepEqual(resolved, {
-    cacheKey: 'playwright-chromium-1.60.0-Linux',
-    version: '1.60.0',
-  });
+  assert.deepEqual(
+    provisionAcceptanceBrowsers(['--resolve', '--target', 'smoke'], {
+      environment: { RUNNER_OS: 'Linux' },
+      resolveAcceptanceBrowserVersionImpl: target => {
+        assert.equal(target, 'smoke');
+        return '1.60.0';
+      },
+      writeOutput: (name, value) => outputs.push([name, value]),
+    }),
+    { cacheKey: 'playwright-smoke-chromium-1.60.0-Linux', version: '1.60.0' },
+  );
   assert.deepEqual(outputs, [
-    ['cache_key', 'playwright-chromium-1.60.0-Linux'],
+    ['cache_key', 'playwright-smoke-chromium-1.60.0-Linux'],
     ['version', '1.60.0'],
   ]);
 
-  const installs = [];
-  provisionAcceptanceBrowsers(['--install', '--cache-hit', 'true'], {
-    environment: {},
-    installAcceptanceBrowsersImpl: options => installs.push(options.cacheHit),
-    resolveAcceptanceBrowserRuntimeImpl: () => runtime,
-    writeOutput: () => assert.fail('provisioning must report no evidence'),
-  });
-  assert.deepEqual(installs, [true]);
-
-  assert.throws(() => parseProvisionArgs([]), /exactly one of --resolve/u);
+  // Installing is operational: it reports no evidence, drives the resolved
+  // runtime's own binary, and fails closed when that runtime is not the
+  // version that keyed the cache.
+  const { installAcceptanceBrowsers } = await import(
+    '../published-create-proof/browser-provisioning.mjs'
+  );
+  const installCalls = [];
+  assert.deepEqual(
+    provisionAcceptanceBrowsers(
+      ['--install', '--target', 'smoke', '--cache-hit', 'true'],
+      {
+        environment: {},
+        installAcceptanceBrowsersImpl: options => {
+          installCalls.push(options);
+          return installAcceptanceBrowsers(options, {
+            ensureBrowserSmokeRuntimeImpl: () => runtimeDir,
+            runImpl: (command, args, runOptions) => {
+              installCalls.push([command, args, runOptions.cwd]);
+              return '';
+            },
+          });
+        },
+        resolveAcceptanceBrowserVersionImpl: () => '1.60.0',
+        writeOutput: () => assert.fail('provisioning must report no evidence'),
+      },
+    ),
+    {
+      browsers: ['chromium'],
+      cacheHit: true,
+      target: 'smoke',
+      version: '1.60.0',
+    },
+  );
+  assert.deepEqual(installCalls, [
+    { cacheHit: true, target: 'smoke', version: '1.60.0' },
+    [
+      path.join(
+        runtimeDir,
+        'node_modules/.bin',
+        process.platform === 'win32' ? 'playwright.cmd' : 'playwright',
+      ),
+      ['install-deps', 'chromium'],
+      runtimeDir,
+    ],
+  ]);
   assert.throws(
-    () => parseProvisionArgs(['--resolve', '--install']),
+    () =>
+      installAcceptanceBrowsers(
+        { target: 'smoke', version: '1.61.1' },
+        {
+          ensureBrowserSmokeRuntimeImpl: () => runtimeDir,
+          runImpl: () =>
+            assert.fail('a mismatched runtime must not install browsers'),
+        },
+      ),
+    /Provisioned playwright 1\.60\.0 is not the 1\.61\.1 that keyed the browser cache/u,
+  );
+
+  assert.deepEqual(parseProvisionArgs(['--resolve', '--target', 'smoke']), {
+    cacheHit: false,
+    install: false,
+    resolve: true,
+    target: 'smoke',
+  });
+  assert.throws(
+    () => parseProvisionArgs(['--target', 'smoke']),
     /exactly one of --resolve/u,
   );
   assert.throws(
-    () => parseProvisionArgs(['--install', '--cache-hit', 'maybe']),
+    () => parseProvisionArgs(['--resolve', '--install', '--target', 'smoke']),
+    /exactly one of --resolve/u,
+  );
+  assert.throws(
+    () => parseProvisionArgs(['--resolve', '--resolve', '--target', 'smoke']),
+    /Duplicate argument: --resolve/u,
+  );
+  assert.throws(
+    () =>
+      parseProvisionArgs([
+        '--install',
+        '--target',
+        'smoke',
+        '--cache-hit',
+        'true',
+        '--cache-hit',
+        'false',
+      ]),
+    /Duplicate argument: --cache-hit/u,
+  );
+  assert.throws(
+    () =>
+      parseProvisionArgs([
+        '--resolve',
+        '--target',
+        'smoke',
+        '--cache-hit',
+        'true',
+      ]),
+    /--cache-hit applies only to --install/u,
+  );
+  assert.throws(
+    () =>
+      parseProvisionArgs([
+        '--install',
+        '--target',
+        'smoke',
+        '--cache-hit',
+        'maybe',
+      ]),
     /--cache-hit requires true or false/u,
+  );
+  assert.throws(
+    () => parseProvisionArgs(['--resolve']),
+    /requires --target qualification or smoke/u,
+  );
+  assert.throws(
+    () => parseProvisionArgs(['--resolve', '--target', 'browser']),
+    /--target requires qualification or smoke/u,
   );
   writeJson(runtimeDir, 'node_modules/playwright/package.json', {
     name: 'playwright',
@@ -1262,18 +1411,32 @@ test('acceptance browser provisioning is operational and keyed by the resolved r
   });
   assert.throws(
     () =>
-      resolveAcceptanceBrowserRuntime({
+      resolveAcceptanceBrowserVersion('smoke', {
         ensureBrowserSmokeRuntimeImpl: () => runtimeDir,
+        playwrightPackage: 'playwright@latest',
       }),
-    /exact playwright version/u,
+    /must be an exact playwright version/u,
   );
   assert.throws(
-    () => acceptanceBrowserCacheKey({ runnerOs: 'Linux', version: '1.60' }),
-    /exact resolved playwright version/u,
+    () =>
+      resolveAcceptanceBrowserVersion('smoke', {
+        ensureBrowserSmokeRuntimeImpl: () => path.join(runtimeDir, 'absent'),
+        playwrightPackage: 'playwright@latest',
+      }),
+    /Playwright runtime is not installed at/u,
+  );
+  assert.throws(
+    () =>
+      acceptanceBrowserCacheKey({
+        runnerOs: 'Linux',
+        target: 'smoke',
+        version: '1.60',
+      }),
+    /must be an exact playwright version/u,
   );
 });
 
-test('no workflow owns a Playwright installer or version literal', () => {
+test('no workflow owns a Playwright installer, version literal, or lockfile-hashed browser cache', () => {
   const workflowDir = path.join(__dirname, '../../../.github/workflows');
   const offenders = [];
   for (const entry of fs.readdirSync(workflowDir).sort()) {
@@ -1285,7 +1448,8 @@ test('no workflow owns a Playwright installer or version literal', () => {
       if (
         /playwright@\d/u.test(line) ||
         /playwright-chromium-\d/u.test(line) ||
-        /npx[^\n]*playwright/u.test(line)
+        /npx[^\n]*playwright/u.test(line) ||
+        /playwright[^\n]*hashFiles/iu.test(line)
       ) {
         offenders.push(`${entry}:${index + 1}: ${line.trim()}`);
       }
