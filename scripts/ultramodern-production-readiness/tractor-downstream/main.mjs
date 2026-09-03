@@ -57,6 +57,12 @@ const defaultOut =
 // of the mode/registry pairing fail closed: a rehearsal may reach nothing else,
 // and a published acceptance may never be satisfied by it.
 const sourceCandidateRegistryHost = '127.0.0.1';
+// Naming either of these routes every dependency, not just the cohort scope,
+// at the stated registry. Only the published lane is allowed to do that.
+const globalRegistryEnvKeys = Object.freeze([
+  'npm_config_registry',
+  'pnpm_config_registry',
+]);
 const nodeBackendProofPath =
   '.codex/reports/node-backend-federation-proof/proof.json';
 const requiredCommands = Object.freeze([
@@ -217,7 +223,7 @@ function createTractorPackageManagerContext({
   expectedPnpmVersion,
   minimumReleaseAgeExclude,
   packageManagerRoot,
-  registryUrl,
+  registryEnv,
   resolveExactPnpmExecutableImpl = resolveExactPnpmExecutable,
   runImpl = run,
 }) {
@@ -239,14 +245,12 @@ function createTractorPackageManagerContext({
   // Thin delegate: the shared acceptance owner decides the exact pnpm
   // executable, PATH, registry, npm/pnpm stores, XDG cache, and
   // PLAYWRIGHT_BROWSERS_PATH. Only the Tractor bootstrap release-age policy
-  // is layered on top here.
+  // is layered on top here. The registry environment is decided by the mode
+  // (see resolveAcceptanceRegistryEnv) and passed straight through.
   const runtime = createAcceptanceRuntimeContext({
     browsers: 'isolated',
     expectedPnpmVersion,
-    registryEnv: {
-      npm_config_registry: registryUrl,
-      pnpm_config_registry: registryUrl,
-    },
+    registryEnv,
     resolveExactPnpmExecutableImpl,
     runImpl,
     workDir: packageManagerRoot,
@@ -301,6 +305,71 @@ function assertAcceptanceRegistry(mode, registryUrl) {
     );
   }
   return url.toString();
+}
+
+// The published lane owns exactly one registry and may name it globally. A
+// rehearsal may not: its ephemeral registry serves the cohort scope alone, and
+// the seeder has already written a user config that routes `@<targetScope>`
+// there while leaving npmjs the stated default. Naming the loopback registry
+// globally would drag every unrelated dependency through a throwaway Verdaccio
+// proxy, so a source-mode context is refused unless it carries that user
+// config and states no global registry at all.
+function assertSourceCandidateRegistryEnv(registryEnv) {
+  if (
+    !registryEnv ||
+    typeof registryEnv !== 'object' ||
+    Array.isArray(registryEnv)
+  ) {
+    throw new Error(
+      'Source-candidate Tractor rehearsal requires the ephemeral registry environment',
+    );
+  }
+  for (const key of ['npm_config_userconfig', 'npm_config_cache']) {
+    const value = registryEnv[key];
+    if (typeof value !== 'string' || !path.isAbsolute(value)) {
+      throw new Error(
+        `Source-candidate Tractor rehearsal requires an absolute ${key}, found ${String(value)}`,
+      );
+    }
+  }
+  for (const key of Object.keys(registryEnv)) {
+    if (globalRegistryEnvKeys.includes(key.toLowerCase())) {
+      throw new Error(
+        `Source-candidate Tractor rehearsal must not name a global registry (${key}); only the cohort scope resolves from the ephemeral registry`,
+      );
+    }
+  }
+  return { ...registryEnv };
+}
+
+function resolveAcceptanceRegistryEnv(mode, registryUrl, registryEnv) {
+  if (mode === promotableTractorAcceptanceMode) {
+    return {
+      npm_config_registry: registryUrl,
+      pnpm_config_registry: registryUrl,
+    };
+  }
+  return assertSourceCandidateRegistryEnv(registryEnv);
+}
+
+// The seeder republishes the accepted tarball bytes through the exact-artifact
+// publisher, which refuses to publish under any Node.js other than the one the
+// accepted manifest records. Stating that here fails a mis-provisioned
+// rehearsal on the manifest alone, before a registry is started, rather than
+// midway through the seed loop.
+function assertSourceCandidateSeedRuntime(release, version = process.version) {
+  const accepted = release?.tools?.node;
+  if (typeof accepted !== 'string' || accepted.length === 0) {
+    throw new Error(
+      'Source-candidate Tractor rehearsal requires the accepted release Node.js version',
+    );
+  }
+  if (accepted !== version) {
+    throw new Error(
+      `Source-candidate Tractor rehearsal must seed under the accepted release Node.js ${accepted}, found ${String(version)}`,
+    );
+  }
+  return accepted;
 }
 
 function parseArgs(argv) {
@@ -764,6 +833,11 @@ async function runTractorDownstreamAcceptance(
     );
   }
   const registryUrl = assertAcceptanceRegistry(mode, options.registryUrl);
+  const registryEnv = resolveAcceptanceRegistryEnv(
+    mode,
+    registryUrl,
+    options.registryEnv,
+  );
   const release = readReleaseManifest({
     manifestPath: options.manifestPath,
   });
@@ -783,7 +857,7 @@ async function runTractorDownstreamAcceptance(
     expectedPnpmVersion: release.tools?.pnpm,
     minimumReleaseAgeExclude,
     packageManagerRoot,
-    registryUrl,
+    registryEnv,
     runImpl,
   });
   const env = packageManager.env;
@@ -1016,19 +1090,45 @@ async function runTractorDownstreamAcceptance(
 // pnpm through the manifest and export it as an absolute path, so put that
 // exact executable's directory first when it is present; a local run keeps the
 // ambient PATH.
-function sourceCandidateRegistryPath(environment) {
+function sourceCandidateRegistryPath(environment, execPath = process.execPath) {
   const provisioned = environment.ULTRAMODERN_PNPM_EXECUTABLE;
-  if (provisioned === undefined) {
-    return environment.PATH;
-  }
-  if (typeof provisioned !== 'string' || !path.isAbsolute(provisioned)) {
+  if (
+    provisioned !== undefined &&
+    (typeof provisioned !== 'string' || !path.isAbsolute(provisioned))
+  ) {
     throw new Error(
       `Provisioned acceptance pnpm executable must be absolute: ${String(provisioned)}`,
     );
   }
-  return [path.dirname(provisioned), environment.PATH]
+  if (typeof execPath !== 'string' || !path.isAbsolute(execPath)) {
+    throw new Error(
+      `Source-candidate seeding interpreter must be absolute: ${String(execPath)}`,
+    );
+  }
+  return [
+    provisioned === undefined ? undefined : path.dirname(provisioned),
+    // The bundled `npm` of the interpreter this process runs under, so the
+    // publisher's accepted-toolchain guard reads the same npm the accepted
+    // manifest recorded instead of whatever npm the Tractor checkout's mise
+    // toolchain happens to expose first.
+    path.dirname(execPath),
+    environment.PATH,
+  ]
     .filter(Boolean)
     .join(path.delimiter);
+}
+
+// The seeding window only. The Tractor workspace commands that follow keep the
+// PATH the job gave them, so the rehearsal exercises the same toolchain
+// resolution the published lane does.
+async function withSourceCandidateSeedPath(action) {
+  const inheritedPath = process.env.PATH;
+  process.env.PATH = sourceCandidateRegistryPath(process.env);
+  try {
+    return await action();
+  } finally {
+    process.env.PATH = inheritedPath;
+  }
 }
 
 // Starts one fresh registry for this process, seeds it from the verified bundle
@@ -1039,6 +1139,7 @@ async function withSourceCandidateRegistry(
   options,
   action,
   {
+    nodeVersion = process.version,
     readReleaseManifestImpl = readReleaseManifest,
     startEphemeralRegistryImpl,
   } = {},
@@ -1053,23 +1154,27 @@ async function withSourceCandidateRegistry(
   const release = readReleaseManifestImpl({
     manifestPath: options.manifestPath,
   });
+  assertSourceCandidateSeedRuntime(release, nodeVersion);
   const rootDir = fs.mkdtempSync(
     path.join(os.tmpdir(), 'ultramodern-tractor-rehearsal-registry-'),
   );
-  const inheritedPath = process.env.PATH;
-  process.env.PATH = sourceCandidateRegistryPath(process.env);
   let registry;
   try {
-    registry = await startEphemeralRegistry({
-      release,
-      releaseDir: options.releaseDir,
-      rootDir,
-    });
+    registry = await withSourceCandidateSeedPath(() =>
+      startEphemeralRegistry({
+        release,
+        releaseDir: options.releaseDir,
+        rootDir,
+      }),
+    );
+    // The seeder's own scoped user config, not a global registry override: the
+    // rehearsal reads `@<targetScope>` from loopback and everything else
+    // straight from npmjs.
     return await action(
       assertAcceptanceRegistry(options.mode, registry.registryUrl),
+      assertSourceCandidateRegistryEnv(registry.env),
     );
   } finally {
-    process.env.PATH = inheritedPath;
     await registry?.stop();
     fs.rmSync(rootDir, { recursive: true, force: true });
   }
@@ -1080,8 +1185,12 @@ async function main(argv = process.argv.slice(2)) {
   const report =
     options.mode === promotableTractorAcceptanceMode
       ? await runTractorDownstreamAcceptance(options)
-      : await withSourceCandidateRegistry(options, registryUrl =>
-          runTractorDownstreamAcceptance({ ...options, registryUrl }),
+      : await withSourceCandidateRegistry(options, (registryUrl, registryEnv) =>
+          runTractorDownstreamAcceptance({
+            ...options,
+            registryEnv,
+            registryUrl,
+          }),
         );
   process.stdout.write(
     `Tractor ${options.mode}-mode downstream acceptance passed for ${report.release.version}: ${options.outPath}\n`,
@@ -1090,6 +1199,8 @@ async function main(argv = process.argv.slice(2)) {
 
 export {
   assertAcceptanceRegistry,
+  assertSourceCandidateRegistryEnv,
+  assertSourceCandidateSeedRuntime,
   createReleaseBoundNodeSmokeTargets,
   createTractorPackageManagerContext,
   createTractorPnpmDlxArgs,
@@ -1103,6 +1214,7 @@ export {
   requiredCommands,
   requiredTractorCheckIds,
   requiredVisibleRuntimePlatforms,
+  resolveAcceptanceRegistryEnv,
   resolveTractorMinimumReleaseAgeExclude,
   runTractorDownstreamAcceptance,
   runVisibleWorkflow,

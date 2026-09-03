@@ -788,7 +788,10 @@ test('runner has no bypass for Node or workerd release gates', async () => {
     expectedPnpmVersion: '11.17.0',
     minimumReleaseAgeExclude,
     packageManagerRoot,
-    registryUrl: 'https://registry.npmjs.org/',
+    registryEnv: {
+      npm_config_registry: 'https://registry.npmjs.org/',
+      pnpm_config_registry: 'https://registry.npmjs.org/',
+    },
     resolveExactPnpmExecutableImpl: (...args) => {
       calls.push(args);
       return exactPnpmExecutable;
@@ -914,7 +917,10 @@ test('runner rejects inherited package-manager release-age bypasses', async () =
         os.tmpdir(),
         'tractor-poisoned-package-manager-context',
       ),
-      registryUrl: 'https://registry.npmjs.org/',
+      registryEnv: {
+        npm_config_registry: 'https://registry.npmjs.org/',
+        pnpm_config_registry: 'https://registry.npmjs.org/',
+      },
       resolveExactPnpmExecutableImpl: () => '/opt/pnpm-11.17.0/bin/pnpm',
     });
     const child = runCommand(
@@ -1287,7 +1293,10 @@ test('Tractor delegates its whole runtime context to the shared acceptance owner
     expectedPnpmVersion: '11.17.0',
     minimumReleaseAgeExclude,
     packageManagerRoot,
-    registryUrl,
+    registryEnv: {
+      npm_config_registry: registryUrl,
+      pnpm_config_registry: registryUrl,
+    },
     resolveExactPnpmExecutableImpl: () => pnpmExecutable,
   });
   const owner = createAcceptanceRuntimeContext({
@@ -1561,6 +1570,10 @@ test('source-candidate rehearsal seeds only the verified immutable bundle', asyn
       { targetName: '@bleedingdev/modern-js-image', version: releaseVersion },
     ],
     release: { version: releaseVersion },
+    // The accepted toolchain the producer recorded. The seeder republishes the
+    // accepted bytes through the exact-artifact publisher, which refuses any
+    // other Node.js, so the rehearsal must run under this one.
+    tools: { node: process.version, npm: '11.10.1', pnpm: '11.17.0' },
     // Sidecars keep their own stable versions and are seeded into the ephemeral
     // registry moments before the install, so their registry publish time is
     // always "now".
@@ -1633,18 +1646,30 @@ test('source-candidate rehearsal seeds only the verified immutable bundle', asyn
   const starts = [];
   let stopped = 0;
   const observedRegistryUrls = [];
+  const observedRegistryEnvs = [];
+  const inheritedPath = process.env.PATH;
+  let seedPath;
+  let actionPath;
+  const seededEnv = {
+    npm_config_cache: path.join(root, 'npm-cache'),
+    npm_config_userconfig: path.join(root, '.npmrc'),
+  };
   const returned = await withSourceCandidateRegistry(
     options,
-    registryUrl => {
+    (registryUrl, registryEnv) => {
       observedRegistryUrls.push(registryUrl);
+      observedRegistryEnvs.push(registryEnv);
+      actionPath = process.env.PATH;
       return 'accepted';
     },
     {
       readReleaseManifestImpl: () => release,
       startEphemeralRegistryImpl: async started => {
         starts.push(started);
+        seedPath = process.env.PATH;
         assert.equal(fs.existsSync(started.rootDir), true);
         return {
+          env: seededEnv,
           registryUrl: 'http://127.0.0.1:4873/',
           stop: () => {
             stopped += 1;
@@ -1661,6 +1686,28 @@ test('source-candidate rehearsal seeds only the verified immutable bundle', asyn
   assert.equal(stopped, 1);
   assert.equal(fs.existsSync(starts[0].rootDir), false);
 
+  // The seeder's own scoped user config reaches the acceptance verbatim, and
+  // nothing in it names a registry globally: only `@<targetScope>` is routed to
+  // loopback, so unrelated dependencies are still fetched from npmjs directly.
+  assert.deepEqual(observedRegistryEnvs, [seededEnv]);
+  assert.notEqual(observedRegistryEnvs[0], seededEnv);
+  for (const name of ['npm_config_registry', 'pnpm_config_registry']) {
+    assert.equal(observedRegistryEnvs[0][name], undefined, name);
+  }
+
+  // The interpreter's own bin dir is on PATH while the registry is seeded -
+  // that is where the `npm` the accepted toolchain names lives - and the
+  // acceptance that follows runs on the PATH the job gave it, exactly as the
+  // published lane does.
+  assert.equal(
+    seedPath,
+    [path.dirname(process.execPath), inheritedPath]
+      .filter(Boolean)
+      .join(path.delimiter),
+  );
+  assert.equal(actionPath, inheritedPath);
+  assert.equal(process.env.PATH, inheritedPath);
+
   // A registry that came up anywhere but loopback is refused before any
   // downstream work runs, and is still torn down.
   let escapedRootDir;
@@ -1671,6 +1718,7 @@ test('source-candidate rehearsal seeds only the verified immutable bundle', asyn
       startEphemeralRegistryImpl: async started => {
         escapedRootDir = started.rootDir;
         return {
+          env: seededEnv,
           registryUrl: 'https://registry.npmjs.org/',
           stop: () => {
             escapedStops += 1;
@@ -1682,6 +1730,54 @@ test('source-candidate rehearsal seeds only the verified immutable bundle', asyn
   );
   assert.equal(escapedStops, 1);
   assert.equal(fs.existsSync(escapedRootDir), false);
+
+  // A registry seeded with a global override never reaches the acceptance
+  // either, and is torn down the same way.
+  let overriddenStops = 0;
+  await assert.rejects(
+    withSourceCandidateRegistry(options, () => 'must not run', {
+      readReleaseManifestImpl: () => release,
+      startEphemeralRegistryImpl: async () => ({
+        env: { ...seededEnv, npm_config_registry: 'http://127.0.0.1:4873/' },
+        registryUrl: 'http://127.0.0.1:4873/',
+        stop: () => {
+          overriddenStops += 1;
+        },
+      }),
+    }),
+    /must not name a global registry \(npm_config_registry\)/u,
+  );
+  assert.equal(overriddenStops, 1);
+
+  // The rehearsal refuses to seed under any interpreter but the one the
+  // accepted manifest recorded, before a registry is ever started.
+  let driftedStarts = 0;
+  await assert.rejects(
+    withSourceCandidateRegistry(options, () => 'must not run', {
+      nodeVersion: 'v20.0.0',
+      readReleaseManifestImpl: () => release,
+      startEphemeralRegistryImpl: async () => {
+        driftedStarts += 1;
+        return { registryUrl: 'http://127.0.0.1:4873/', stop: () => {} };
+      },
+    }),
+    new RegExp(
+      `must seed under the accepted release Node\\.js ${process.version.replaceAll('.', '\\.')}`,
+      'u',
+    ),
+  );
+  assert.equal(driftedStarts, 0);
+  await assert.rejects(
+    withSourceCandidateRegistry(options, () => 'must not run', {
+      readReleaseManifestImpl: () => ({ ...release, tools: undefined }),
+      startEphemeralRegistryImpl: async () => {
+        driftedStarts += 1;
+        return { registryUrl: 'http://127.0.0.1:4873/', stop: () => {} };
+      },
+    }),
+    /requires the accepted release Node\.js version/u,
+  );
+  assert.equal(driftedStarts, 0);
 });
 
 test('source-candidate rehearsal reuses the exact-artifact acceptance seeder', async () => {
@@ -1698,21 +1794,38 @@ test('source-candidate rehearsal reuses the exact-artifact acceptance seeder', a
   assert.equal(typeof registry.publishStagedSidecars, 'function');
 
   // The seeder spawns bare `pnpm`, so a provisioned manifest pnpm wins over the
-  // ambient PATH; a local run without one keeps the inherited PATH.
-  assert.equal(sourceCandidateRegistryPath({ PATH: '/usr/bin' }), '/usr/bin');
+  // ambient PATH; a local run without one still gets the seeding interpreter's
+  // own bin dir (where its bundled npm lives) ahead of the inherited PATH.
+  const execPath = '/opt/node-26.7.0/bin/node';
   assert.equal(
-    sourceCandidateRegistryPath({
-      PATH: '/usr/bin',
-      ULTRAMODERN_PNPM_EXECUTABLE: '/opt/pnpm-11.17.0/bin/pnpm',
-    }),
-    ['/opt/pnpm-11.17.0/bin', '/usr/bin'].join(path.delimiter),
+    sourceCandidateRegistryPath({ PATH: '/usr/bin' }, execPath),
+    ['/opt/node-26.7.0/bin', '/usr/bin'].join(path.delimiter),
+  );
+  assert.equal(
+    sourceCandidateRegistryPath(
+      {
+        PATH: '/usr/bin',
+        ULTRAMODERN_PNPM_EXECUTABLE: '/opt/pnpm-11.17.0/bin/pnpm',
+      },
+      execPath,
+    ),
+    ['/opt/pnpm-11.17.0/bin', '/opt/node-26.7.0/bin', '/usr/bin'].join(
+      path.delimiter,
+    ),
   );
   assert.throws(
     () =>
-      sourceCandidateRegistryPath({
-        PATH: '/usr/bin',
-        ULTRAMODERN_PNPM_EXECUTABLE: 'pnpm',
-      }),
+      sourceCandidateRegistryPath(
+        {
+          PATH: '/usr/bin',
+          ULTRAMODERN_PNPM_EXECUTABLE: 'pnpm',
+        },
+        execPath,
+      ),
     /must be absolute/u,
+  );
+  assert.throws(
+    () => sourceCandidateRegistryPath({ PATH: '/usr/bin' }, 'node'),
+    /Source-candidate seeding interpreter must be absolute/u,
   );
 });

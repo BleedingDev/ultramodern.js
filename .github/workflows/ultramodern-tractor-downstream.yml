@@ -107,6 +107,26 @@ jobs:
           repository: ${{ github.repository }}
           run-id: ${{ github.run_id }}
 
+      # The exact same pinned interpreter prepare-release and every bundle job
+      # use. It matters here because a rehearsal seeds its ephemeral registry
+      # through the exact-artifact publisher, whose accepted-toolchain guard
+      # refuses to publish under any Node.js or npm other than the one the
+      # accepted manifest recorded - and that manifest was written under this
+      # exact version. Deliberately placed before the mise setup below, so the
+      # Tractor checkout's own toolchain still wins the PATH for the workspace
+      # commands and the published lane behaves exactly as it did.
+      - name: Setup Node.js 26.7.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '26.7.0'
+
+      - name: Bind the pinned acceptance interpreter
+        run: |
+          acceptance_node="$(command -v node)"
+          [[ -x "$acceptance_node" ]]
+          [[ "$("$acceptance_node" --version)" == "v26.7.0" ]]
+          echo "ULTRAMODERN_ACCEPTANCE_NODE=$acceptance_node" >> "$GITHUB_ENV"
+
       - name: Setup mise
         uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
         with:
@@ -155,6 +175,12 @@ jobs:
       # registry; `source` names none, because the runner starts its own
       # ephemeral registry from the downloaded immutable bundle and refuses any
       # non-loopback URL. Nothing here builds, packs, or rewrites a tarball.
+      #
+      # The acceptance process itself is launched from the pinned interpreter
+      # bound above, because in source mode this process is also the one that
+      # seeds the registry and must satisfy the publisher's accepted-toolchain
+      # guard. It still runs inside `mise exec`, so the Tractor workspace
+      # commands it spawns resolve the baseline's own toolchain unchanged.
       - name: Run exact-cohort Tractor acceptance
         working-directory: tractor
         env:
@@ -164,7 +190,7 @@ jobs:
           if [[ "$MODE" == "published" ]]; then
             registry=(--registry-url https://registry.npmjs.org/)
           fi
-          mise exec -- node \
+          mise exec -- "$ULTRAMODERN_ACCEPTANCE_NODE" \
             ../modernjs/scripts/ultramodern-production-readiness/run-tractor-downstream-acceptance.mjs \
             --mode "$MODE" \
             --manifest ../modernjs/.modern/bleedingdev-publish/manifest.json \

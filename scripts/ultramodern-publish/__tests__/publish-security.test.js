@@ -1005,7 +1005,9 @@ test('the pre-publication Tractor rehearsal gates npm publication and can never 
 
   // (4) No source-report promotion: the callee binds and uploads evidence only
   // in published mode, so a rehearsal leaves no artifact at all, and the
-  // publish outcome never lists the rehearsal among its inputs.
+  // publish outcome reads nothing from it. It still requires the rehearsal to
+  // have succeeded, because a dry run has no publish job of its own to carry a
+  // rehearsal failure.
   for (const stepName of [
     'Bind Tractor acceptance evidence',
     'Upload Tractor acceptance evidence',
@@ -1015,11 +1017,14 @@ test('the pre-publication Tractor rehearsal gates npm publication and can never 
     );
     assert.equal(step.if, "always() && inputs.mode == 'published'", stepName);
   }
-  assert.equal(
+  assert.ok(
     normalizeNeeds(parsed.jobs['record-publish-outcome']).includes(
       'rehearse-tractor',
     ),
-    false,
+  );
+  assert.match(
+    parsed.jobs['record-publish-outcome'].if,
+    /inputs\.dry_run == true[\s\S]*needs\.rehearse-tractor\.result == 'success'/u,
   );
 
   // (5) The published Tractor acceptance stays required and unchanged: same

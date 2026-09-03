@@ -851,10 +851,12 @@ jobs:
   # producer's bundle and seeds those exact bytes.
   #
   # Source-mode evidence is permanently non-promotable, by construction rather
-  # than by policy: the callee binds and uploads nothing in this mode, this job
-  # is absent from record-publish-outcome's needs, and both the evidence binder
-  # and publish-outcome refuse a report whose mode is not `published`. The
-  # published Tractor job below is untouched and still mandatory.
+  # than by policy: the callee binds and uploads nothing in this mode, so there
+  # is no source artifact for anything to download, and both the evidence
+  # binder and publish-outcome refuse a report whose mode is not `published`.
+  # record-publish-outcome requires this job to have succeeded - a dry run has
+  # no publish job to carry a rehearsal failure - but reads nothing from it.
+  # The published Tractor job below is untouched and still mandatory.
   #
   # A recovery dispatch replays this gate for free: prepare-release re-uploads
   # the recovered bundle under this run's producer identity, and this job reads
@@ -1452,6 +1454,10 @@ jobs:
       - publish-sidecars
       - publish
       - accept-published
+      # The rehearsal runs in a dry run too, and a dry run has no publish job to
+      # carry its failure, so it is required directly below. It contributes a
+      # gate only: source evidence is never downloaded, read, or promoted here.
+      - rehearse-tractor
       - tractor-downstream
     if: >-
       always() &&
@@ -1459,7 +1465,7 @@ jobs:
       github.triggering_actor == github.repository_owner &&
       github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern') &&
       (
-        (inputs.dry_run == true && needs.validate-release.result == 'success' && needs.publish-sidecars.result == 'skipped' && needs.publish.result == 'skipped') ||
+        (inputs.dry_run == true && needs.validate-release.result == 'success' && needs.rehearse-tractor.result == 'success' && needs.publish-sidecars.result == 'skipped' && needs.publish.result == 'skipped') ||
         (inputs.dry_run == false && needs.publish-sidecars.result == 'success' && needs.publish.result == 'success' && needs.accept-published.result == 'success' && needs.tractor-downstream.result == 'success' && needs.validate-release.result == 'skipped')
       )
     env:
