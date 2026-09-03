@@ -207,9 +207,20 @@ jobs:
         run: |
           mise exec -- pnpm lint
           # test:publish-tooling is the publish-security suite plus every other
-          # suite covering the scripts the two OIDC jobs execute; its two globs
-          # are exactly the directories those `node scripts/...` targets live
-          # in, which publish-security.test.js asserts.
+          # suite covering the scripts the two OIDC jobs load. Its globs cover
+          # the `node scripts/...` entrypoints those jobs run *and* the shared
+          # helpers those entrypoints statically import, because an untested
+          # helper in that closure is unqualified code running with
+          # id-token: write. publish-security.test.js recomputes that import
+          # closure from the workflow file and fails if any reached scripts
+          # directory with tests is not covered by these globs, so the list
+          # below is derived, not asserted by hand.
+          #
+          # It is not a claim about every line those jobs run: the publish job
+          # also executes an inline `node <<'NODE'` heredoc that lives in this
+          # file, which no test glob can load. Any such heredoc is held to
+          # importing nothing but `node:` builtins — publish-security.test.js
+          # asserts that too, which is what keeps the closure above complete.
           #
           # The skip is the single publish-tooling test that needs built package
           # bytes: it stages @modern-js/image's dist into the packed-consumer

@@ -1289,35 +1289,236 @@ test('a recovery dispatch still qualifies the publication tooling that runs with
     /pnpm lint/u,
   );
 
-  // The glob the tooling lane runs must actually cover the scripts the two
-  // OIDC jobs execute; otherwise "qualified tooling" would be a claim about
-  // code no suite loads.
-  const rootScripts = require(path.join(repoRoot, 'package.json')).scripts;
-  const toolingGlobs = rootScripts['test:publish-tooling']
+  // Coverage is asserted by its own test below, against the import closure
+  // rather than against the entrypoint names alone.
+});
+
+// A `node --test scripts/<dir>/__tests__/<pattern>` script, split into the
+// directories it runs and the filename patterns it runs there.
+function parseTestGlobs(scriptName) {
+  const script = require(path.join(repoRoot, 'package.json')).scripts[
+    scriptName
+  ];
+  assert.ok(script, `missing root script ${scriptName}`);
+  return script
     .split(/\s+/u)
     .filter(token => token.startsWith('scripts/'))
-    .map(token => token.slice(0, token.indexOf('__tests__')));
-  assert.deepEqual(toolingGlobs, [
-    'scripts/ultramodern-publish/',
-    'scripts/ultramodern-production-readiness/',
-  ]);
-  for (const jobName of ['publish-sidecars', 'publish']) {
-    const targets = new Set();
-    for (const oidcStep of parsed.jobs[jobName].steps) {
-      for (const match of String(oidcStep.run ?? '').matchAll(
-        /node\s+(scripts\/[^\s\\]+)/gu,
-      )) {
-        targets.add(match[1]);
-      }
-    }
-    assert.ok(targets.size > 0, jobName);
-    for (const target of targets) {
+    .map(token => {
+      const marker = token.indexOf('/__tests__/');
+      assert.notEqual(marker, -1, `unexpected ${scriptName} glob: ${token}`);
+      return {
+        dir: token.slice(0, marker),
+        filePattern: token.slice(marker + '/__tests__/'.length),
+      };
+    });
+}
+
+// A glob run by `node --test` is expanded by the shell, so a directory is only
+// as covered as its filename patterns: `*.test.js` silently skips a sibling
+// `*.test.mjs`, which reads as coverage but runs nothing.
+function assertGlobsRunEveryTestFile(globs, scriptName) {
+  for (const dir of [...new Set(globs.map(glob => glob.dir))].sort()) {
+    const patterns = globs
+      .filter(glob => glob.dir === dir)
+      .map(
+        glob =>
+          new RegExp(
+            `^${glob.filePattern
+              .split('*')
+              .map(part => part.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&'))
+              .join('[^/]*')}$`,
+            'u',
+          ),
+      );
+    const testFiles = fs
+      .readdirSync(path.join(repoRoot, dir, '__tests__'))
+      .filter(entry => /\.test\.[cm]?js$/u.test(entry));
+    assert.ok(testFiles.length > 0, `${dir} has an empty __tests__`);
+    for (const testFile of testFiles) {
       assert.ok(
-        toolingGlobs.some(prefix => target.startsWith(prefix)),
-        `${jobName} runs unqualified tooling: ${target}`,
+        patterns.some(pattern => pattern.test(testFile)),
+        `${scriptName} never runs ${dir}/__tests__/${testFile}`,
       );
     }
   }
+}
+
+// Relative specifiers a Node module can statically pull in. Bare specifiers
+// (`node:fs`, dependencies) are deliberately not followed: this closure is
+// about first-party repository code that a test glob could qualify.
+const MODULE_SPECIFIER_PATTERNS = [
+  /(?:^|[^\w$.])(?:import|export)\s[^;]*?\sfrom\s*['"]([^'"]+)['"]/gu,
+  /(?:^|[^\w$.])import\s*\(\s*['"]([^'"]+)['"]\s*\)/gu,
+  /(?:^|[^\w$.])import\s+['"]([^'"]+)['"]/gu,
+  /(?:^|[^\w$.])require\s*\(\s*['"]([^'"]+)['"]\s*\)/gu,
+];
+
+function moduleSpecifiers(source) {
+  const specifiers = new Set();
+  for (const pattern of MODULE_SPECIFIER_PATTERNS) {
+    for (const match of source.matchAll(pattern)) {
+      specifiers.add(match[1]);
+    }
+  }
+  return specifiers;
+}
+
+function resolveRepoRelative(fromRepoRelative, specifier) {
+  const base = path.posix.join(path.posix.dirname(fromRepoRelative), specifier);
+  return [
+    base,
+    `${base}.mjs`,
+    `${base}.js`,
+    `${base}.cjs`,
+    `${base}/index.mjs`,
+    `${base}/index.js`,
+  ].find(candidate => {
+    const absolute = path.join(repoRoot, candidate);
+    return fs.existsSync(absolute) && fs.statSync(absolute).isFile();
+  });
+}
+
+// Every step's `run` in a job, plus the bodies of any inline `node <<'TAG'`
+// heredoc it executes. Heredoc bodies are returned separately because they
+// live in the workflow file, so no test glob can ever load them.
+function jobShellSources(job) {
+  const runs = job.steps.map(step => String(step.run ?? ''));
+  const heredocs = [];
+  for (const run of runs) {
+    const lines = run.split('\n');
+    for (const [index, line] of lines.entries()) {
+      const opener =
+        /\bnode\b(?:\s+--[^\s]+)*\s*<<\s*'([A-Za-z_]\w*)'\s*$/u.exec(line);
+      if (!opener) {
+        continue;
+      }
+      const terminator = lines.findIndex(
+        (candidate, at) => at > index && candidate.trim() === opener[1],
+      );
+      // Fail closed: an unterminated heredoc means this test cannot see the
+      // code the job runs, which is exactly the case it exists to catch.
+      assert.notEqual(terminator, -1, `unterminated heredoc: ${line.trim()}`);
+      heredocs.push(lines.slice(index + 1, terminator).join('\n'));
+    }
+  }
+  return { runs, heredocs };
+}
+
+test('the tooling lane qualifies the whole import closure the OIDC jobs load', () => {
+  const parsed = workflow(publishWorkflowPath);
+  const oidcJobs = Object.entries(parsed.jobs)
+    .filter(([, job]) => job.permissions?.['id-token'] === 'write')
+    .map(([name]) => name)
+    .sort();
+  assert.deepEqual(oidcJobs, ['publish', 'publish-sidecars']);
+
+  // Entrypoints are the `node scripts/...` targets the OIDC jobs invoke. The
+  // qualification claim is about the code those jobs *load*, though, not the
+  // filenames they type: an entrypoint drags in a static import closure, and
+  // an untested helper in that closure is unqualified code running with
+  // id-token: write. So walk the closure and check coverage against it.
+  const entrypoints = new Set();
+  for (const jobName of oidcJobs) {
+    const { runs, heredocs } = jobShellSources(parsed.jobs[jobName]);
+    const jobTargets = new Set();
+    for (const run of runs) {
+      for (const match of run.matchAll(
+        /\bnode\b(?:\s+--[^\s]+)*\s+(scripts\/[^\s\\]+)/gu,
+      )) {
+        jobTargets.add(match[1]);
+      }
+    }
+    assert.ok(jobTargets.size > 0, `${jobName} runs no publish tooling`);
+    for (const target of jobTargets) {
+      entrypoints.add(target);
+    }
+
+    // The inline heredocs are the one part of an OIDC job no glob can cover,
+    // so they are held to a shape that needs no coverage: `node:` builtins
+    // only. A relative or absolute specifier there would silently extend the
+    // closure past what this test can see, so it fails instead.
+    for (const body of heredocs) {
+      for (const specifier of moduleSpecifiers(body)) {
+        assert.ok(
+          specifier.startsWith('node:'),
+          `${jobName} heredoc imports ${specifier}; it must import only node: builtins or become a file under a qualified scripts directory`,
+        );
+      }
+    }
+  }
+
+  const closure = new Set();
+  const pending = [...entrypoints];
+  while (pending.length > 0) {
+    const current = pending.shift();
+    if (closure.has(current)) {
+      continue;
+    }
+    closure.add(current);
+    const absolute = path.join(repoRoot, current);
+    assert.ok(fs.existsSync(absolute), `missing publish tooling: ${current}`);
+    for (const specifier of moduleSpecifiers(
+      fs.readFileSync(absolute, 'utf8'),
+    )) {
+      if (!specifier.startsWith('.')) {
+        continue;
+      }
+      const resolved = resolveRepoRelative(current, specifier);
+      // Fail closed again: an unresolvable relative import means the closure
+      // is incomplete and the coverage answer below would be wrong.
+      assert.ok(resolved, `${current} imports unresolvable ${specifier}`);
+      pending.push(resolved);
+    }
+  }
+  assert.ok(closure.size > entrypoints.size, 'closure walk found no imports');
+
+  // The `__tests__` directory that owns a closure file is the nearest one at
+  // or above it, bounded by `scripts/`. Files outside `scripts/` — vendored
+  // and prebundled dependencies — are not publish tooling and are covered by
+  // their own packages, so they are not part of this claim.
+  const owningTestDirs = new Set();
+  for (const file of closure) {
+    if (!file.startsWith('scripts/')) {
+      continue;
+    }
+    let dir = path.posix.dirname(file);
+    while (dir.startsWith('scripts/')) {
+      if (fs.existsSync(path.join(repoRoot, dir, '__tests__'))) {
+        owningTestDirs.add(dir);
+        break;
+      }
+      dir = path.posix.dirname(dir);
+    }
+  }
+
+  // `scripts/lib` is in the closure through cli-kit/fs-kit/process-kit/
+  // validation-kit, which both OIDC entrypoint trees import. Anchoring it
+  // keeps the derivation above from silently degenerating into a check that
+  // covers only the two directories the entrypoints happen to sit in.
+  assert.ok(
+    owningTestDirs.has('scripts/lib'),
+    'expected scripts/lib in the OIDC import closure',
+  );
+
+  const toolingGlobs = parseTestGlobs('test:publish-tooling');
+
+  // Two-way: every reached directory with tests is qualified, and the lane
+  // carries no glob for a directory outside the closure.
+  assert.deepEqual(
+    [...new Set(toolingGlobs.map(glob => glob.dir))].sort(),
+    [...owningTestDirs].sort(),
+  );
+
+  // ...and the globs must reach every test file in those directories, not
+  // just the ones sharing an extension with the first suite anyone wrote.
+  assertGlobsRunEveryTestFile(toolingGlobs, 'test:publish-tooling');
+});
+
+test('the root script suites run every test file they claim to cover', () => {
+  // The source lane qualifies the same publish tooling under `pnpm
+  // test:scripts`, so a suite the extension patterns skip there is a suite
+  // neither lane ever runs.
+  assertGlobsRunEveryTestFile(parseTestGlobs('test:scripts'), 'test:scripts');
 });
 
 test('the recovered qualification attempt is independent of the recovered bundle attempt', () => {
