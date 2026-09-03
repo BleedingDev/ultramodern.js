@@ -1341,6 +1341,8 @@ jobs:
             .modern/bleedingdev-publish/manifest.json.sha256
             .modern/bleedingdev-publish/cohort.sha256
             .modern/bleedingdev-publish/tarballs/*.tgz
+            .modern/bleedingdev-publish/sidecars.json
+            .modern/bleedingdev-publish/sidecar-tarballs/*.tgz
             .modern/bleedingdev-publish/acceptance-receipt.json
             .modern/bleedingdev-publish/acceptance-receipt.operational-independence.json
             .modern/bleedingdev-publish/published-acceptance-receipt.json
@@ -1351,6 +1353,7 @@ jobs:
 
   publish-change-record:
     name: Publish the cohort change record
+    continue-on-error: true
     runs-on: ubuntu-latest
     timeout-minutes: 15
     # The only job that may write to the repository, and it runs strictly after

@@ -1055,7 +1055,19 @@ test('publish change record structurally schedules only for a successful real ou
     )
   );
   const parsed = workflow(publishWorkflowPath);
+  const outcomeUpload = parsed.jobs['record-publish-outcome'].steps.find(
+    step => step.name === 'Upload publish outcome',
+  );
+  assert.match(
+    outcomeUpload.with.path,
+    /^\.modern\/bleedingdev-publish\/sidecars\.json$/mu,
+  );
+  assert.match(
+    outcomeUpload.with.path,
+    /^\.modern\/bleedingdev-publish\/sidecar-tarballs\/\*\.tgz$/mu,
+  );
   const changeRecordJob = parsed.jobs['publish-change-record'];
+  assert.equal(changeRecordJob['continue-on-error'], true);
   const actionExpression = name => ['${{', name, '}}'].join(' ');
   assert.deepEqual(normalizeNeeds(changeRecordJob), ['record-publish-outcome']);
   assert.deepEqual(changeRecordJob.permissions, {
