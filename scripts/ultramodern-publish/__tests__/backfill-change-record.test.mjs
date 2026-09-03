@@ -25,6 +25,40 @@ const commit = 'ea21b8ba12e3e68ce529622b8b93b63fd4345018';
 const runId = '31386576796';
 const runAttempt = 2;
 
+function createCurrentSourceCommit() {
+  const directory = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'backfill-source-validator-'),
+  );
+  const indexPath = path.join(directory, 'index');
+  const environment = {
+    ...process.env,
+    GIT_AUTHOR_EMAIL: 'tests@ultramodern.invalid',
+    GIT_AUTHOR_NAME: 'UltraModern tests',
+    GIT_COMMITTER_EMAIL: 'tests@ultramodern.invalid',
+    GIT_COMMITTER_NAME: 'UltraModern tests',
+    GIT_INDEX_FILE: indexPath,
+  };
+
+  try {
+    const head = execFileSync('git', ['rev-parse', 'HEAD'], {
+      encoding: 'utf8',
+    }).trim();
+    execFileSync('git', ['read-tree', head], { env: environment });
+    execFileSync('git', ['add', '-A', '--', 'scripts'], { env: environment });
+    const tree = execFileSync('git', ['write-tree'], {
+      encoding: 'utf8',
+      env: environment,
+    }).trim();
+    return execFileSync(
+      'git',
+      ['commit-tree', tree, '-p', head, '-m', 'backfill source validator test'],
+      { encoding: 'utf8', env: environment },
+    ).trim();
+  } finally {
+    fs.rmSync(directory, { force: true, recursive: true });
+  }
+}
+
 function options(overrides = {}) {
   return {
     commit,
@@ -691,11 +725,7 @@ test('backfill never mutates GitHub after failed or mismatched proof', async () 
 });
 
 test('backfill archives the current source validator and rejects malformed outcomes before side effects', async () => {
-  const currentSourceCommit =
-    execFileSync('git', ['stash', 'create', 'backfill-source-validator-test'], {
-      encoding: 'utf8',
-    }).trim() ||
-    execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+  const currentSourceCommit = createCurrentSourceCommit();
 
   for (const malformedOutcome of [{}, { unexpected: true }]) {
     const { events, operations, temporaryDirectory } = createOperations();
