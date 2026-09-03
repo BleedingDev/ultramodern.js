@@ -3112,6 +3112,96 @@ test('migration replaces non-emitting referenced declaration prebuilds', () => {
   assert.deepEqual(preservedScripts, []);
 });
 
+test('migration converges non-emitting declaration prebuilds while preserving a consumer-appended build segment, and is byte-stable on a second run', () => {
+  const apps = workspaceAppsFromToolingConfig({
+    schemaVersion: 1,
+    source: 'compact',
+    sourcePath: '.modernjs/ultramodern.json',
+    workspace: {
+      packageScope: 'tooling-references',
+    },
+    features: {
+      tailwind: true,
+    },
+    topology: {
+      apps: [
+        {
+          id: 'shell-super-app',
+          kind: 'shell',
+          path: 'apps/shell-super-app',
+          moduleFederation: {
+            role: 'host',
+            verticalRefs: ['catalog'],
+          },
+        },
+        {
+          id: 'catalog',
+          kind: 'vertical',
+          path: 'verticals/catalog',
+          moduleFederation: {
+            role: 'remote',
+            exposes: ['./Route'],
+          },
+          api: {
+            stem: 'catalog',
+            prefix: '/catalog-api',
+            consumedBy: ['shell-super-app', 'catalog'],
+          },
+        },
+      ],
+    },
+  });
+  const expectedScripts = createWorkspaceRootPackageScripts(
+    apps.filter(app => app.kind !== 'shell'),
+  );
+  const consumerBuildSuffix = ' && node ./scripts/consumer-report.mjs';
+  const packageJson = {
+    scripts: {
+      ...expectedScripts,
+      // Historical predecessor: the referenced remote declaration build had
+      // not yet gained --emit, AND the consumer appended their own reporting
+      // step after the framework's build segments.
+      build: `${expectedScripts.build.replace(
+        ' --emit --project ',
+        ' --project ',
+      )}${consumerBuildSuffix}`,
+    },
+  };
+  const preservedScripts: string[] = [];
+
+  assert.equal(
+    updateGeneratedPackageScripts(packageJson, {
+      relativePackageFile: 'package.json',
+      apps,
+      onPreserveScript: scriptName => preservedScripts.push(scriptName),
+    }),
+    true,
+  );
+  // Exact convergence: the non-emitting predecessor is folded into the
+  // canonical --emit segment, byte-identical to a fresh generation.
+  assert.equal(
+    packageJson.scripts.build,
+    `${expectedScripts.build}${consumerBuildSuffix}`,
+  );
+  // Consumer-command preservation: the appended segment survives the merge
+  // and is reported as a preserved consumer addition.
+  assert.deepEqual(preservedScripts, ['build']);
+
+  // Second-run byte stability: nothing left to converge, no further writes.
+  const beforeSecondRun = JSON.stringify(packageJson.scripts);
+  const secondPreservedScripts: string[] = [];
+  assert.equal(
+    updateGeneratedPackageScripts(packageJson, {
+      relativePackageFile: 'package.json',
+      apps,
+      onPreserveScript: scriptName => secondPreservedScripts.push(scriptName),
+    }),
+    false,
+  );
+  assert.equal(JSON.stringify(packageJson.scripts), beforeSecondRun);
+  assert.deepEqual(secondPreservedScripts, ['build']);
+});
+
 test('migration emits typed local checkout links and preserves cross-remote anchors', () => {
   const addToCart = `import { Link } from '@modern-js/plugin-tanstack/runtime';
 
