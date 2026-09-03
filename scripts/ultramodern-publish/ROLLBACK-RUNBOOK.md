@@ -96,7 +96,7 @@ A failed run is not a rollback. Re-drive it in this order:
    dispatch `Publish BleedingDev Packages` again with `recovery_run_id` and
    `recovery_run_attempt` set to the prior run and its producer attempt. That
    run's accepted bundle is reused instead of rebuilt, and the recovery lane
-   skips the qualification suites: it publishes the recovered bytes, not this
+   skips the *source* qualification: it publishes the recovered bytes, not this
    dispatch's HEAD. Both jobs instead require the recovered run's
    `bleedingdev-source-qualification` receipt, and `prepare-release` requires
    it to name the recovered manifest's own source commit. A run whose
@@ -105,6 +105,49 @@ A failed run is not a rollback. Re-drive it in this order:
 3. **The release bytes themselves are wrong:** this is a rollback. Use the
    deprecate-and-republish path above with a new revision; never recover bad
    bytes.
+
+### What a recovery dispatch still qualifies
+
+Recovery skips the source qualification, never the tooling qualification. The
+workflow file, the two OIDC publish CLIs, the receipt verifiers they call, and
+the outcome and record tooling are all checked out from the *dispatch's* HEAD,
+so `qualify-source` installs the workspace and runs lint, the workflow security
+validator, and the publish tooling suites on every dispatch, recovery included.
+What recovery drops is the expensive source lane: the framework build closures,
+the browser qualification runtime, and the framework unit suites — the bulk of
+the job's wall clock.
+
+### Repeated recovery targets the original producer, never a recovery run
+
+`recovery_run_id` always names the run that **produced** the bundle. If a
+recovery dispatch itself fails and has to be re-driven, the next dispatch names
+that same original producer run again — never the intervening recovery run.
+
+This is enforced, not merely advised. A recovery run re-uploads the bundle it
+recovered, but its `qualify-source` records no qualification receipt of its own
+(the record and upload steps run only in the source lane). Naming a recovery run
+as `recovery_run_id` therefore finds bytes and no proof, and the receipt
+download fails the job. Chaining recoveries is impossible by construction; the
+original producer run and its bundle stay the single recovery target for as many
+attempts as it takes.
+
+### When qualification and production landed on different attempts
+
+`qualify-source` and `prepare-release` are separate jobs, and
+`gh run rerun --failed` advances only the jobs that failed. A producer run can
+therefore have passed qualification on attempt 1 and produced its bundle on
+attempt 2. Set the optional `recovery_qualification_attempt` to the attempt that
+recorded the receipt and leave `recovery_run_attempt` on the attempt that
+produced the bundle; blank means "same as `recovery_run_attempt`", which is the
+ordinary case.
+
+The split is safe because the attempt only selects which artifact to fetch. What
+authorizes the reuse is the commit binding: `prepare-release` requires the
+receipt to name the recovered manifest's own source commit, so a qualification
+attempt that qualified some other commit fails there rather than promoting it.
+The bundle and its acceptance receipt always stay on `recovery_run_attempt` —
+they are one indivisible pair, and an acceptance receipt must never vouch for
+tarballs it did not cover.
 
 The GitHub release record is the one non-blocking step: `publish-change-record`
 is `continue-on-error`, and a missed record is repaired out of band with

@@ -898,7 +898,7 @@ test('release recovery reuses only an accepted ancestral bundle and preserves it
 
   assert.deepEqual(inputs.recovery_run_id, {
     description:
-      'Prior same-repository run containing an accepted immutable bundle',
+      'Original producer run containing an accepted immutable bundle (never an earlier recovery run)',
     required: false,
     type: 'string',
     default: '',
@@ -918,6 +918,9 @@ test('release recovery reuses only an accepted ancestral bundle and preserves it
     PUBLISH_VERSION: actionExpression('inputs.version'),
     RECOVERY_RUN_ID: actionExpression('inputs.recovery_run_id'),
     RECOVERY_RUN_ATTEMPT: actionExpression('inputs.recovery_run_attempt'),
+    RECOVERY_QUALIFICATION_ATTEMPT: actionExpression(
+      'inputs.recovery_qualification_attempt',
+    ),
   });
   assert.match(
     inputValidation.run,
@@ -958,9 +961,23 @@ test('release recovery reuses only an accepted ancestral bundle and preserves it
       step.with['run-id'],
       actionExpression('inputs.recovery_run_id'),
     );
+  }
+  // The bytes and the acceptance that covers them are one indivisible producer
+  // artifact pair: only the source-qualification receipt may follow a different
+  // attempt of the same run.
+  for (const step of recoveryDownloads.filter(
+    candidate =>
+      candidate.name !== 'Download the recovered source qualification receipt',
+  )) {
     assert.match(
       step.with.name,
-      /inputs\.recovery_run_id, inputs\.recovery_run_attempt/u,
+      /inputs\.recovery_run_id, inputs\.recovery_run_attempt\)/u,
+      step.name,
+    );
+    assert.doesNotMatch(
+      step.with.name,
+      /recovery_qualification_attempt/u,
+      step.name,
     );
   }
   const acceptanceDownload = recoveryDownloads.find(
@@ -1056,13 +1073,9 @@ test('release recovery may only reuse a bundle qualified at its own source commi
   const prepareJob = parsed.jobs['prepare-release'];
 
   // The recovery lane publishes the recovered run's bytes, so re-qualifying
-  // this run's HEAD buys nothing: every qualification suite is skipped and the
+  // this run's *source* buys nothing: those suites are skipped and the
   // recovered run's own receipt is verified instead.
   for (const stepName of [
-    'Setup mise',
-    'Resolve pnpm store path',
-    'Restore pnpm store cache',
-    'Install Dependencies',
     'Restore Playwright chromium cache',
     'Install browser qualification runtime',
     'Qualify release source',
@@ -1122,7 +1135,7 @@ test('release recovery may only reuse a bundle qualified at its own source commi
     );
     assert.match(
       step.with.name,
-      /BLEEDINGDEV_SOURCE_QUALIFICATION_ARTIFACT, inputs\.recovery_run_id, inputs\.recovery_run_attempt/u,
+      /BLEEDINGDEV_SOURCE_QUALIFICATION_ARTIFACT, inputs\.recovery_run_id, inputs\.recovery_qualification_attempt \|\| inputs\.recovery_run_attempt/u,
     );
     assert.equal(step.with.path, '.modern/bleedingdev-publish');
   }
@@ -1133,11 +1146,13 @@ test('release recovery may only reuse a bundle qualified at its own source commi
   assert.equal(qualifyVerify.if, "inputs.recovery_run_id != ''");
   assert.deepEqual(qualifyVerify.env, {
     RECOVERY_RUN_ID: actionExpression('inputs.recovery_run_id'),
-    RECOVERY_RUN_ATTEMPT: actionExpression('inputs.recovery_run_attempt'),
+    RECOVERY_QUALIFICATION_ATTEMPT: actionExpression(
+      'inputs.recovery_qualification_attempt || inputs.recovery_run_attempt',
+    ),
   });
   assert.match(
     qualifyVerify.run,
-    /source-qualification\.mjs verify[\s\S]*--run-id "\$RECOVERY_RUN_ID"[\s\S]*--run-attempt "\$RECOVERY_RUN_ATTEMPT"/u,
+    /source-qualification\.mjs verify[\s\S]*--run-id "\$RECOVERY_RUN_ID"[\s\S]*--run-attempt "\$RECOVERY_QUALIFICATION_ATTEMPT"/u,
   );
 
   // The binding that closes the ancestral hole: the receipt must name the
@@ -1151,6 +1166,17 @@ test('release recovery may only reuse a bundle qualified at its own source commi
   assert.equal(
     bundleQualification.env.RELEASE_SOURCE_COMMIT,
     actionExpression('steps.verify-bundle.outputs.source_commit'),
+  );
+  assert.equal(
+    bundleQualification.env.RECOVERY_QUALIFICATION_ATTEMPT,
+    actionExpression(
+      'inputs.recovery_qualification_attempt || inputs.recovery_run_attempt',
+    ),
+  );
+  assert.equal(bundleQualification.env.RECOVERY_RUN_ATTEMPT, undefined);
+  assert.match(
+    bundleQualification.run,
+    /--run-attempt "\$RECOVERY_QUALIFICATION_ATTEMPT"/u,
   );
   assert.match(
     bundleQualification.run,
@@ -1192,6 +1218,236 @@ test('release recovery may only reuse a bundle qualified at its own source commi
   for (const consumer of ['validate-release', 'publish-sidecars', 'publish']) {
     assert.ok(normalizeNeeds(parsed.jobs[consumer]).includes('qualify-source'));
   }
+});
+
+test('a recovery dispatch still qualifies the publication tooling that runs with OIDC', () => {
+  const parsed = workflow(publishWorkflowPath);
+  const qualifyJob = parsed.jobs['qualify-source'];
+  const stepNames = qualifyJob.steps.map(step => step.name);
+  const step = name =>
+    qualifyJob.steps.find(candidate => candidate.name === name);
+
+  // A recovery dispatch reuses the recovered run's bytes, but the workflow file
+  // and every publish CLI are checked out from *this* dispatch's HEAD. The
+  // workspace and the tooling qualification therefore carry no lane guard at
+  // all: gating any of them on the source lane would hand an unqualified HEAD
+  // to a job holding id-token: write.
+  for (const name of [
+    'Setup mise',
+    'Resolve pnpm store path',
+    'Restore pnpm store cache',
+    'Install Dependencies',
+    'Qualify the release publication tooling',
+  ]) {
+    assert.equal(step(name).if, undefined, name);
+  }
+
+  const toolingStep = step('Qualify the release publication tooling');
+  assert.match(toolingStep.run, /pnpm lint$/mu);
+  assert.match(toolingStep.run, /pnpm run test:publish-tooling$/mu);
+
+  // Proportionate by construction: the always-on lane builds no package bytes
+  // and runs no framework unit suite, which is what keeps the recovery saving
+  // substantial. Comments are stripped so prose about the skipped work cannot
+  // satisfy or defeat the check.
+  const toolingCommands = toolingStep.run
+    .split('\n')
+    .filter(line => !/^\s*#/u.test(line))
+    .join('\n');
+  for (const forbidden of [
+    /\bbuild\b/u,
+    /test:ut/u,
+    /test:scripts/u,
+    /check-changeset/u,
+    /playwright/iu,
+  ]) {
+    assert.doesNotMatch(toolingCommands, forbidden, String(forbidden));
+  }
+
+  // ...and the expensive work stays behind the source lane, so recovery still
+  // drops the framework build, the browser runtime, and the unit suites.
+  const sourceStep = step('Qualify release source');
+  assert.equal(sourceStep.if, "inputs.recovery_run_id == ''");
+  assert.match(sourceStep.run, /pnpm \\\n\s+--filter/u);
+  assert.match(sourceStep.run, /pnpm test:ut/u);
+  assert.match(sourceStep.run, /pnpm test:scripts/u);
+  assert.ok(
+    stepNames.indexOf('Install Dependencies') <
+      stepNames.indexOf('Qualify the release publication tooling'),
+  );
+  assert.ok(
+    stepNames.indexOf('Qualify the release publication tooling') <
+      stepNames.indexOf('Qualify release source'),
+  );
+
+  // `pnpm lint` moved into the always-on lane rather than being duplicated.
+  assert.doesNotMatch(
+    sourceStep.run
+      .split('\n')
+      .filter(line => !/^\s*#/u.test(line))
+      .join('\n'),
+    /pnpm lint/u,
+  );
+
+  // The glob the tooling lane runs must actually cover the scripts the two
+  // OIDC jobs execute; otherwise "qualified tooling" would be a claim about
+  // code no suite loads.
+  const rootScripts = require(path.join(repoRoot, 'package.json')).scripts;
+  const toolingGlobs = rootScripts['test:publish-tooling']
+    .split(/\s+/u)
+    .filter(token => token.startsWith('scripts/'))
+    .map(token => token.slice(0, token.indexOf('__tests__')));
+  assert.deepEqual(toolingGlobs, [
+    'scripts/ultramodern-publish/',
+    'scripts/ultramodern-production-readiness/',
+  ]);
+  for (const jobName of ['publish-sidecars', 'publish']) {
+    const targets = new Set();
+    for (const oidcStep of parsed.jobs[jobName].steps) {
+      for (const match of String(oidcStep.run ?? '').matchAll(
+        /node\s+(scripts\/[^\s\\]+)/gu,
+      )) {
+        targets.add(match[1]);
+      }
+    }
+    assert.ok(targets.size > 0, jobName);
+    for (const target of targets) {
+      assert.ok(
+        toolingGlobs.some(prefix => target.startsWith(prefix)),
+        `${jobName} runs unqualified tooling: ${target}`,
+      );
+    }
+  }
+});
+
+test('the recovered qualification attempt is independent of the recovered bundle attempt', () => {
+  const parsed = workflow(publishWorkflowPath);
+  const actionExpression = name => ['${{', name, '}}'].join(' ');
+  const resolvedAttempt = actionExpression(
+    'inputs.recovery_qualification_attempt || inputs.recovery_run_attempt',
+  );
+
+  // Optional and blank-defaulted: an operator who does not need it dispatches
+  // exactly as before and the receipt follows recovery_run_attempt.
+  assert.deepEqual(
+    parsed.on.workflow_dispatch.inputs.recovery_qualification_attempt,
+    {
+      description:
+        'Attempt of the producer run whose qualify-source recorded the receipt; blank reuses recovery_run_attempt',
+      required: false,
+      type: 'string',
+      default: '',
+    },
+  );
+
+  // Negative: a qualification attempt outside the recovery lane would address
+  // an artifact of this run, so it is rejected rather than ignored.
+  const inputValidation = parsed.jobs['publish-security'].steps.find(
+    step => step.name === 'Validate publish inputs',
+  );
+  assert.match(
+    inputValidation.run,
+    /if \[\[ -n "\$RECOVERY_QUALIFICATION_ATTEMPT" \]\]; then\n\s+\[\[ -n "\$RECOVERY_RUN_ID" \]\]\n\s+\[\[ "\$RECOVERY_QUALIFICATION_ATTEMPT" =~ \^\[1-9\]\[0-9\]\*\$ \]\]/u,
+  );
+
+  // Only the source-qualification receipt follows it. The bundle and the
+  // acceptance receipt that covers those exact bytes stay on the producer
+  // attempt: splitting them would let an accepted receipt vouch for tarballs it
+  // never saw.
+  const qualificationConsumers = [];
+  const bundleConsumers = [];
+  for (const jobName of ['qualify-source', 'prepare-release']) {
+    for (const step of parsed.jobs[jobName].steps) {
+      const artifactName = String(step.with?.name ?? '');
+      if (!step.uses?.startsWith('actions/download-artifact@')) {
+        continue;
+      }
+      if (artifactName.includes('SOURCE_QUALIFICATION')) {
+        qualificationConsumers.push(step);
+      } else {
+        bundleConsumers.push(step);
+      }
+    }
+  }
+  assert.equal(qualificationConsumers.length, 2);
+  assert.equal(bundleConsumers.length, 2);
+  for (const step of qualificationConsumers) {
+    assert.match(
+      step.with.name,
+      /inputs\.recovery_qualification_attempt \|\| inputs\.recovery_run_attempt/u,
+    );
+  }
+  for (const step of bundleConsumers) {
+    assert.doesNotMatch(step.with.name, /recovery_qualification_attempt/u);
+    assert.match(step.with.name, /inputs\.recovery_run_attempt\)/u);
+  }
+
+  // Both verifiers read the same resolved attempt, and neither still reads the
+  // producer attempt under the old name.
+  const verifiers = [
+    parsed.jobs['qualify-source'].steps.find(
+      step => step.name === 'Verify the recovered source qualification receipt',
+    ),
+    parsed.jobs['prepare-release'].steps.find(
+      step =>
+        step.name ===
+        'Verify the recovered bundle was qualified at its own source commit',
+    ),
+  ];
+  for (const step of verifiers) {
+    assert.equal(step.env.RECOVERY_QUALIFICATION_ATTEMPT, resolvedAttempt);
+    assert.equal(step.env.RECOVERY_RUN_ATTEMPT, undefined);
+    assert.match(step.run, /--run-attempt "\$RECOVERY_QUALIFICATION_ATTEMPT"/u);
+  }
+
+  // The acceptance verification still binds the producer attempt, unchanged.
+  const acceptanceVerify = parsed.jobs['prepare-release'].steps.find(
+    step => step.name === 'Verify previously accepted release bundle',
+  );
+  assert.equal(
+    acceptanceVerify.env.RECOVERY_RUN_ATTEMPT,
+    actionExpression('inputs.recovery_run_attempt'),
+  );
+  assert.equal(acceptanceVerify.env.RECOVERY_QUALIFICATION_ATTEMPT, undefined);
+});
+
+test('a recovery run records no receipt, so recovery always names the original producer run', () => {
+  const parsed = workflow(publishWorkflowPath);
+  const qualifyJob = parsed.jobs['qualify-source'];
+  const prepareJob = parsed.jobs['prepare-release'];
+
+  // The mechanism behind the documented rule: a recovery run re-uploads the
+  // bundle it recovered (that upload carries no lane guard) but records and
+  // uploads no qualification receipt of its own. Naming a recovery run as
+  // recovery_run_id therefore finds bytes and no proof, and the receipt
+  // download fails closed instead of promoting an unqualified chain.
+  for (const name of [
+    'Record the qualified source commit',
+    'Upload the source qualification receipt',
+  ]) {
+    assert.equal(
+      qualifyJob.steps.find(step => step.name === name).if,
+      "inputs.recovery_run_id == ''",
+      name,
+    );
+  }
+  assert.equal(
+    prepareJob.steps.find(
+      step => step.name === 'Upload immutable release bundle',
+    ).if,
+    undefined,
+  );
+
+  // The rule is stated where an operator dispatching a recovery reads it.
+  const recoveryInput = fs.readFileSync(publishWorkflowPath, 'utf8');
+  assert.match(recoveryInput, /never an earlier recovery run/u);
+  assert.match(
+    fs.readFileSync(
+      path.join(repoRoot, 'scripts/ultramodern-publish/ROLLBACK-RUNBOOK.md'),
+      'utf8',
+    ),
+    /original producer run/u,
+  );
 });
 
 test('publish change record structurally schedules only for a successful real outcome despite a skipped branch ancestor', async () => {

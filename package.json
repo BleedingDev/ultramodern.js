@@ -66,6 +66,7 @@
     "validate:tsgo": "node scripts/tsgo-critical.mjs",
     "validate:bun-smoke": "bun scripts/release-gates/validate-release-candidate-gates.js --profile scripts/release-gates/module-certification-profile.json --evidence-dir docs/super-app-rfc-adr/evidence/module-certification/current --skip-commands",
     "validate:rc-gates": "node scripts/release-gates/validate-release-candidate-gates.js --profile scripts/release-gates/rc-contract-profile.json --evidence-dir docs/super-app-rfc-adr/evidence/release-candidate/current",
+    "test:publish-tooling": "node --test scripts/ultramodern-publish/__tests__/*.test.js scripts/ultramodern-production-readiness/__tests__/*.test.js",
     "test:scripts": "node --test scripts/__tests__/*.test.mjs scripts/lib/__tests__/*.test.js scripts/boundary-guards/__tests__/*.test.js scripts/ultramodern-boundary-check/__tests__/*.test.js scripts/release-gates/__tests__/*.test.js scripts/superapp-certification/__tests__/*.test.js scripts/ultramodern-publish/__tests__/*.test.js scripts/ultramodern-production-readiness/__tests__/*.test.js",
     "check-doc-bundle": "cd ./scripts/check-doc-bundle && pnpm start"
   },

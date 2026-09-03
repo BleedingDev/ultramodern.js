@@ -10,9 +10,21 @@
 // This receipt is that proof. `qualify-source` records the exact commit it
 // qualified, bound to its own run identity, and a recovery run may reuse a
 // prior bundle only when that run's receipt names the manifest's own source
-// commit. Once the proof is required, re-running the qualification suites in a
+// commit. Once the proof is required, re-running the *source* suites in a
 // recovery run would only qualify a commit nothing publishes, so the recovery
-// lane skips them and the replay drops a full qualification pass.
+// lane skips them. It does not skip the tooling qualification: the workflow and
+// the OIDC publish CLIs always come from the dispatch's own HEAD.
+//
+// A recovery run records no receipt of its own — the create/upload steps are
+// source-lane only — so a repeated recovery keeps naming the original producer
+// run rather than chaining through the recovery run before it.
+//
+// `runAttempt` is the attempt that recorded the receipt, which need not be the
+// attempt that produced the bundle: a native failed-job rerun advances only the
+// failed jobs. The workflow addresses it with `recovery_qualification_attempt`,
+// independent of `recovery_run_attempt`. That decoupling is safe because the
+// attempt only selects the artifact; `expectedCommit` below is what authorizes
+// the reuse.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

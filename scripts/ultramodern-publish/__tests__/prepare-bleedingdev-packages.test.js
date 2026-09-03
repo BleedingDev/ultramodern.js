@@ -14,12 +14,17 @@ const repoRoot = path.resolve(__dirname, '../../..');
 const requireFromCreate = createRequire(
   path.join(repoRoot, 'packages/toolkit/create/package.json'),
 );
-const requireFromUltramodernCreate = createRequire(
-  path.join(repoRoot, 'packages/toolkit/ultramodern-create/package.json'),
+// js-yaml from the prebundle toolchain, as in the sibling workflow suites, and
+// not the `yaml` re-exported by @modern-js/utils: that one resolves through the
+// package's exports map into its dist/, which makes this suite unloadable on a
+// checkout with no built package bytes. `qualify-source` runs the publish
+// tooling suites in the recovery lane, where nothing is built.
+const requireFromPrebundle = createRequire(
+  path.join(repoRoot, 'scripts/prebundle/package.json'),
 );
 const sourceFrameworkVersion = requireFromCreate('./package.json').version;
 const fixtureReleaseVersion = `${sourceFrameworkVersion}-ultramodern.1`;
-const { yaml } = requireFromUltramodernCreate('@modern-js/utils');
+const yaml = requireFromPrebundle('js-yaml');
 const scriptPath = path.join(
   repoRoot,
   'scripts/ultramodern-publish/prepare-bleedingdev-packages.mjs',

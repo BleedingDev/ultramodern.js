@@ -11,13 +11,30 @@ on:
         required: true
         type: boolean
         default: false
+      # Recovery always names the run that *produced* the bundle. A recovery
+      # dispatch is not itself a producer for recovery purposes: its
+      # qualify-source records no receipt (see the job below), so recovering
+      # from an earlier recovery run fails closed at the receipt download.
+      # Chained recoveries therefore keep pointing at the original producer run
+      # and its bundle, never at an intermediate recovery run.
       recovery_run_id:
-        description: "Prior same-repository run containing an accepted immutable bundle"
+        description: "Original producer run containing an accepted immutable bundle (never an earlier recovery run)"
         required: false
         type: string
         default: ""
       recovery_run_attempt:
         description: "Producer attempt for the prior accepted immutable bundle"
+        required: false
+        type: string
+        default: ""
+      # qualify-source and prepare-release are separate jobs in the recovered
+      # run and a native failed-job rerun advances only the jobs that failed, so
+      # the attempt that recorded the qualification receipt is not always the
+      # attempt that produced the bundle. Blank means "same as
+      # recovery_run_attempt"; it is consumed only by the source-qualification
+      # receipt, never by the bundle or the acceptance receipt.
+      recovery_qualification_attempt:
+        description: "Attempt of the producer run whose qualify-source recorded the receipt; blank reuses recovery_run_attempt"
         required: false
         type: string
         default: ""
@@ -93,11 +110,19 @@ jobs:
           PUBLISH_VERSION: ${{ inputs.version }}
           RECOVERY_RUN_ID: ${{ inputs.recovery_run_id }}
           RECOVERY_RUN_ATTEMPT: ${{ inputs.recovery_run_attempt }}
+          RECOVERY_QUALIFICATION_ATTEMPT: ${{ inputs.recovery_qualification_attempt }}
         run: |
           [[ "$PUBLISH_VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-ultramodern\.[1-9][0-9]*$ ]]
           if [[ -n "$RECOVERY_RUN_ID" || -n "$RECOVERY_RUN_ATTEMPT" ]]; then
             [[ "$RECOVERY_RUN_ID" =~ ^[1-9][0-9]*$ ]]
             [[ "$RECOVERY_RUN_ATTEMPT" =~ ^[1-9][0-9]*$ ]]
+          fi
+          # Optional and independent, but meaningless outside the recovery lane:
+          # a qualification attempt without a recovery run would silently name an
+          # artifact of this run instead.
+          if [[ -n "$RECOVERY_QUALIFICATION_ATTEMPT" ]]; then
+            [[ -n "$RECOVERY_RUN_ID" ]]
+            [[ "$RECOVERY_QUALIFICATION_ATTEMPT" =~ ^[1-9][0-9]*$ ]]
           fi
 
   # Source qualification gates publication but produces nothing this run's
@@ -106,6 +131,15 @@ jobs:
   # registry on an unqualified source. It does emit one artifact — a receipt
   # naming the exact commit it qualified — which a later recovery dispatch must
   # present for the bundle it recovers.
+  #
+  # Two lanes, and both qualify something:
+  #   * the publication tooling — the workflow file, the OIDC publish CLIs and
+  #     the receipt verifiers — always comes from *this* dispatch's HEAD, even
+  #     in recovery, so it is qualified on every dispatch;
+  #   * the release source — the bytes that become tarballs — is qualified only
+  #     when this dispatch builds them. A recovery dispatch publishes the
+  #     recovered run's bytes, so its source qualification is the recovered
+  #     run's own receipt, verified below and again in prepare-release.
   qualify-source:
     name: Qualify the release source
     runs-on: ubuntu-latest
@@ -138,25 +172,18 @@ jobs:
         with:
           node-version: '26.7.0'
 
-      # Every step below through "Qualify release source" is skipped in the
-      # recovery lane: that dispatch publishes the recovered run's bytes, never
-      # this run's HEAD, so qualifying HEAD again would qualify a commit nothing
-      # publishes. The recovered run's own qualification receipt is verified
-      # instead, at the end of this job and again against the recovered
-      # manifest in prepare-release.
+      # Unconditional: the tooling qualification below needs a workspace, and
+      # the recovery lane runs it too.
       - name: Setup mise
-        if: inputs.recovery_run_id == ''
         uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
         with:
           version: 2026.8.3
 
       - name: Resolve pnpm store path
-        if: inputs.recovery_run_id == ''
         id: pnpm-store
         run: echo "path=$(mise exec -- pnpm store path)" >> "$GITHUB_OUTPUT"
 
       - name: Restore pnpm store cache
-        if: inputs.recovery_run_id == ''
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ steps.pnpm-store.outputs.path }}
@@ -165,9 +192,39 @@ jobs:
             pnpm-store-${{ runner.os }}-
 
       - name: Install Dependencies
-        if: inputs.recovery_run_id == ''
         run: mise exec -- pnpm install --frozen-lockfile
 
+      # Both lanes, including recovery. A recovery dispatch reuses the recovered
+      # run's tarballs, but every line of code that moves them — this workflow
+      # file, the two OIDC publish CLIs, the receipt verifiers they call, and
+      # the outcome/record tooling — is checked out from *this* dispatch's HEAD.
+      # Skipping this in recovery would let an unqualified HEAD drive the
+      # registry with id-token: write. It is deliberately proportionate: no
+      # package bytes are built, so it costs an install plus a couple of minutes
+      # of suites, and the recovery lane still drops the whole framework build,
+      # the browser runtime, and the unit suites below.
+      - name: Qualify the release publication tooling
+        run: |
+          mise exec -- pnpm lint
+          # test:publish-tooling is the publish-security suite plus every other
+          # suite covering the scripts the two OIDC jobs execute; its two globs
+          # are exactly the directories those `node scripts/...` targets live
+          # in, which publish-security.test.js asserts.
+          #
+          # The skip is the single publish-tooling test that needs built package
+          # bytes: it stages @modern-js/image's dist into the packed-consumer
+          # proof. The source lane covers it in `pnpm test:scripts` below, after
+          # the build.
+          NODE_OPTIONS='--test-skip-pattern=^the\x20packed-consumer\x20proof\x20stages\x20the\x20cohort\x20image\x20with\x20its\x20aliases\x20intact$' \
+            mise exec -- pnpm run test:publish-tooling
+
+      # Every step below through "Upload the source qualification receipt" is
+      # skipped in the recovery lane: that dispatch publishes the recovered
+      # run's bytes, never this run's HEAD, so qualifying HEAD's *source* would
+      # qualify a commit nothing publishes. The recovered run's own
+      # qualification receipt is verified instead, at the end of this job and
+      # again against the recovered manifest in prepare-release.
+      #
       # plugin-runtime's boundary-debugger suite drives a real chromium through
       # the playwright the rstest browser fixture resolved from the frozen
       # workspace lockfile — a runtime versioned independently of the ERP
@@ -230,7 +287,10 @@ jobs:
           # boundary workflow; stale bookkeeping must not reject valid release bytes.
           NODE_OPTIONS='--test-skip-pattern=^(?:repo\x20allowlist\x20has\x20no\x20new\x20upstream-owned\x20imports\x20of\x20fork-only\x20code|full\x20recorded\x20repository\x20scope\x20remains\x20green\x20and\x20fully\x20measured)$' \
             mise exec -- pnpm test:scripts
-          mise exec -- pnpm lint
+          # `pnpm lint` and the publish-tooling suites already ran above, in
+          # both lanes. `test:scripts` re-runs the tooling suites deliberately:
+          # here they run against built package bytes, which is the only place
+          # the skipped cohort-image proof can execute.
           mise exec -- pnpm run check-changeset
           # @modern-js/ultramodern-create's own test script rebuilds only itself; every
           # installed framework boundary it exercises is already built above.
@@ -270,17 +330,24 @@ jobs:
           include-hidden-files: true
 
       # Recovery lane. A recovered run that never uploaded this receipt — its
-      # qualification failed, or it predates this contract — has no artifact to
-      # download, so this job fails and publication stays unreachable. The
-      # recovered run's qualify-source and prepare-release must share one
-      # attempt; when they diverge the download fails closed and the operator
-      # re-dispatches from source instead.
+      # qualification failed, it predates this contract, or it was itself a
+      # recovery run and so recorded none — has no artifact to download, so this
+      # job fails and publication stays unreachable.
+      #
+      # The receipt is addressed by `recovery_qualification_attempt`, which
+      # defaults to `recovery_run_attempt`. Both attempts belong to the same
+      # producer run, but not necessarily to the same attempt of it: a native
+      # failed-job rerun re-runs only the failed jobs, so qualify-source can
+      # have passed on attempt 1 while prepare-release only produced the bundle
+      # on attempt 2. The bundle and the acceptance receipt stay on
+      # `recovery_run_attempt`; only this receipt follows the qualification
+      # attempt.
       - name: Download the recovered source qualification receipt
         if: inputs.recovery_run_id != ''
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           github-token: ${{ github.token }}
-          name: ${{ format('{0}-run-{1}-attempt-{2}', env.BLEEDINGDEV_SOURCE_QUALIFICATION_ARTIFACT, inputs.recovery_run_id, inputs.recovery_run_attempt) }}
+          name: ${{ format('{0}-run-{1}-attempt-{2}', env.BLEEDINGDEV_SOURCE_QUALIFICATION_ARTIFACT, inputs.recovery_run_id, inputs.recovery_qualification_attempt || inputs.recovery_run_attempt) }}
           path: .modern/bleedingdev-publish
           repository: ${{ github.repository }}
           run-id: ${{ inputs.recovery_run_id }}
@@ -289,13 +356,13 @@ jobs:
         if: inputs.recovery_run_id != ''
         env:
           RECOVERY_RUN_ID: ${{ inputs.recovery_run_id }}
-          RECOVERY_RUN_ATTEMPT: ${{ inputs.recovery_run_attempt }}
+          RECOVERY_QUALIFICATION_ATTEMPT: ${{ inputs.recovery_qualification_attempt || inputs.recovery_run_attempt }}
         run: |
           node scripts/ultramodern-publish/source-qualification.mjs verify \
             --receipt "$BLEEDINGDEV_SOURCE_QUALIFICATION" \
             --repository "$GITHUB_REPOSITORY" \
             --run-id "$RECOVERY_RUN_ID" \
-            --run-attempt "$RECOVERY_RUN_ATTEMPT"
+            --run-attempt "$RECOVERY_QUALIFICATION_ATTEMPT"
 
   prepare-release:
     name: Build the immutable @bleedingdev release bundle
@@ -467,7 +534,7 @@ jobs:
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           github-token: ${{ github.token }}
-          name: ${{ format('{0}-run-{1}-attempt-{2}', env.BLEEDINGDEV_SOURCE_QUALIFICATION_ARTIFACT, inputs.recovery_run_id, inputs.recovery_run_attempt) }}
+          name: ${{ format('{0}-run-{1}-attempt-{2}', env.BLEEDINGDEV_SOURCE_QUALIFICATION_ARTIFACT, inputs.recovery_run_id, inputs.recovery_qualification_attempt || inputs.recovery_run_attempt) }}
           path: .modern/bleedingdev-publish
           repository: ${{ github.repository }}
           run-id: ${{ inputs.recovery_run_id }}
@@ -478,18 +545,23 @@ jobs:
       # this step a run whose qualification failed while its producer succeeded
       # leaves a bundle that a later recovery dispatch could promote from an
       # unqualified commit.
+      #
+      # This is also what makes a decoupled qualification attempt safe. The
+      # attempt only says *which artifact to fetch*; the commit binding is what
+      # authorizes the reuse, so pointing at a qualification attempt that
+      # qualified some other commit fails here rather than promoting it.
       - name: Verify the recovered bundle was qualified at its own source commit
         if: inputs.recovery_run_id != ''
         env:
           RECOVERY_RUN_ID: ${{ inputs.recovery_run_id }}
-          RECOVERY_RUN_ATTEMPT: ${{ inputs.recovery_run_attempt }}
+          RECOVERY_QUALIFICATION_ATTEMPT: ${{ inputs.recovery_qualification_attempt || inputs.recovery_run_attempt }}
           RELEASE_SOURCE_COMMIT: ${{ steps.verify-bundle.outputs.source_commit }}
         run: |
           node scripts/ultramodern-publish/source-qualification.mjs verify \
             --receipt "$BLEEDINGDEV_SOURCE_QUALIFICATION" \
             --repository "$GITHUB_REPOSITORY" \
             --run-id "$RECOVERY_RUN_ID" \
-            --run-attempt "$RECOVERY_RUN_ATTEMPT" \
+            --run-attempt "$RECOVERY_QUALIFICATION_ATTEMPT" \
             --expect-commit "$RELEASE_SOURCE_COMMIT"
 
       # Offline: fails the producer if the staged sidecar lane is malformed,
