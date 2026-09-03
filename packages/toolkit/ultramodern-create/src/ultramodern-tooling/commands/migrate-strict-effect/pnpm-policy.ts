@@ -648,6 +648,14 @@ export function updateGeneratedPnpmWorkspacePolicy(
   return changed;
 }
 
+const NPM_REGISTRY_URL = 'https://registry.npmjs.org/';
+
+function isLoopbackHost(hostname: string) {
+  return (
+    hostname === '127.0.0.1' || hostname === '[::1]' || hostname === 'localhost'
+  );
+}
+
 function packageRegistryUrl(registryUrl: string, packageName: string) {
   let base: URL;
   try {
@@ -655,7 +663,12 @@ function packageRegistryUrl(registryUrl: string, packageName: string) {
   } catch {
     throw new Error(`Registry URL is invalid: ${registryUrl}`);
   }
-  if (base.protocol !== 'https:') {
+  // Plain HTTP is only acceptable for a loopback registry, which is how a
+  // source-mode release rehearsal serves the cohort scope from this machine.
+  if (
+    base.protocol !== 'https:' &&
+    !(base.protocol === 'http:' && isLoopbackHost(base.hostname))
+  ) {
     throw new Error(`Registry URL must use HTTPS: ${registryUrl}`);
   }
   const encodedName = packageName.startsWith('@')
@@ -719,7 +732,7 @@ async function resolveRegistryCandidates(
   options: {
     fetchImpl: ReleaseAgeRegistryFetch;
     now: Date;
-    registryUrl: string;
+    registryUrlFor: (packageName: string) => string;
   },
 ) {
   const nowTimestamp = options.now.getTime();
@@ -733,7 +746,10 @@ async function resolveRegistryCandidates(
     try {
       response = await fetchRegistryResponse(
         options.fetchImpl,
-        packageRegistryUrl(options.registryUrl, candidate.packageName),
+        packageRegistryUrl(
+          options.registryUrlFor(candidate.packageName),
+          candidate.packageName,
+        ),
       );
     } catch (error) {
       throw new Error(
@@ -916,15 +932,26 @@ export async function validateGeneratedPnpmLockReleaseAgePolicy(
     candidate =>
       !isFirstPartyCandidate(candidate.packageName, candidate.version),
   );
+  // Same routing as the release-age audit of the published-create proof: only
+  // packuments in the cohort scope come from the package-source registry (a
+  // loopback ephemeral registry during a source-mode rehearsal). Every other
+  // package is validated against npmjs, which is authoritative for its
+  // publication time and integrity and is where a scoped consumer .npmrc
+  // resolves those tarballs from anyway.
+  const scopeRegistryUrl =
+    options.registryUrl ?? packageSource.registry ?? NPM_REGISTRY_URL;
+  const scopePrefix = packageSource.aliasScope
+    ? `@${packageSource.aliasScope.replace(/^@/u, '')}/`
+    : undefined;
   const activeCandidates = await resolveRegistryCandidates(
     thirdPartyCandidates,
     {
       fetchImpl: options.fetchImpl ?? (fetch as ReleaseAgeRegistryFetch),
       now,
-      registryUrl:
-        options.registryUrl ??
-        packageSource.registry ??
-        'https://registry.npmjs.org/',
+      registryUrlFor: packageName =>
+        scopePrefix !== undefined && packageName.startsWith(scopePrefix)
+          ? scopeRegistryUrl
+          : NPM_REGISTRY_URL,
     },
   );
   const resolved = resolveReleaseAgeApprovals(activeCandidates, {

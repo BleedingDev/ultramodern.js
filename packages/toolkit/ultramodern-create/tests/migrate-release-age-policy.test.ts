@@ -910,11 +910,12 @@ test('rejects a reachable package entry with no matching snapshot', async () => 
   }
 });
 
-test('rejects HTTP registries and disables registry redirects', async () => {
-  const target = 'unapproved-package@1.0.0';
-  const workspaceRoot = createWorkspace(
-    lockfileWithImporter('unapproved-package', target),
-  );
+test('rejects non-loopback HTTP scope registries and disables registry redirects', async () => {
+  // A cohort-scope package outside the authenticated cohort (a sidecar) is the
+  // only kind of candidate that reads the package-source registry.
+  const sidecar = '@bleedingdev/sidecar-fixture';
+  const target = `${sidecar}@1.0.0`;
+  const workspaceRoot = createWorkspace(lockfileWithImporter(sidecar, target));
 
   try {
     await assert.rejects(
@@ -949,6 +950,64 @@ test('rejects HTTP registries and disables registry redirects', async () => {
         ),
       /Registry metadata is uncertain.*redirect rejected/u,
     );
+  } finally {
+    fs.rmSync(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
+test('validates cohort-scope packuments on the package-source registry and everything else on npmjs', async () => {
+  const sidecar = '@bleedingdev/sidecar-fixture';
+  const thirdParty = 'third-party-fixture';
+  const version = '1.0.0';
+  const workspaceRoot = createWorkspace({
+    lockfileVersion: '9.0',
+    importers: {
+      '.': {
+        dependencies: {
+          [sidecar]: { specifier: version, version },
+          [thirdParty]: { specifier: version, version },
+        },
+      },
+    },
+    packages: {
+      [`${sidecar}@${version}`]: { resolution: { integrity } },
+      [`${thirdParty}@${version}`]: { resolution: { integrity } },
+    },
+    snapshots: {
+      [`${sidecar}@${version}`]: {},
+      [`${thirdParty}@${version}`]: {},
+    },
+  });
+  const origins = new Map<string, string>();
+
+  try {
+    const validated = await validateGeneratedPnpmLockReleaseAgePolicy(
+      workspaceRoot,
+      // The source-mode release rehearsal passes its loopback ephemeral
+      // registry, which only ever serves the cohort scope.
+      { ...packageSource, registry: 'http://127.0.0.1:4873/' },
+      {
+        async fetchImpl(url) {
+          origins.set(
+            decodeURIComponent(url.pathname.replace(/^\//u, '')),
+            url.origin,
+          );
+          return {
+            ok: true,
+            status: 200,
+            json: async () => packument(version, '2026-07-01T00:00:00.000Z'),
+          };
+        },
+        now,
+        releaseCohort,
+      },
+    );
+
+    assert.deepEqual(validated.reviewCandidates, []);
+    assert.deepEqual([...origins.entries()].sort(), [
+      [sidecar, 'http://127.0.0.1:4873'],
+      [thirdParty, 'https://registry.npmjs.org'],
+    ]);
   } finally {
     fs.rmSync(workspaceRoot, { recursive: true, force: true });
   }
