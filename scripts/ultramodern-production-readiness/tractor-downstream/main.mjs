@@ -52,6 +52,12 @@ const nodeBackendProofPath =
   '.codex/reports/node-backend-federation-proof/proof.json';
 const requiredCommands = Object.freeze([
   Object.freeze(['pnpm', ['install', '--frozen-lockfile']]),
+  // Install the browser revision required by Tractor's resolved Playwright,
+  // not a separately pinned CLI that can drift from its dependency range.
+  Object.freeze([
+    'pnpm',
+    ['exec', 'playwright', 'install', '--with-deps', 'chromium'],
+  ]),
   Object.freeze(['pnpm', ['check']]),
   Object.freeze(['pnpm', ['build']]),
   Object.freeze(['pnpm', ['node:proof']]),

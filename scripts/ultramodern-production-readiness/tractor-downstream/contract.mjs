@@ -20,6 +20,7 @@ const requiredTractorCheckIds = Object.freeze([
   'exact-create-migration',
   'exact-cohort',
   'install---frozen-lockfile',
+  'exec-playwright-install---with-deps-chromium',
   'check',
   'promotable-application-source',
   'build',

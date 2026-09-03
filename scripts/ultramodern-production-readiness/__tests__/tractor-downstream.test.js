@@ -690,6 +690,7 @@ test('runner has no bypass for Node or workerd release gates', async () => {
   } = await runnerPromise;
   assert.deepEqual(requiredCommands, [
     ['pnpm', ['install', '--frozen-lockfile']],
+    ['pnpm', ['exec', 'playwright', 'install', '--with-deps', 'chromium']],
     ['pnpm', ['check']],
     ['pnpm', ['build']],
     ['pnpm', ['node:proof']],
@@ -700,6 +701,7 @@ test('runner has no bypass for Node or workerd release gates', async () => {
     'exact-create-migration',
     'exact-cohort',
     'install---frozen-lockfile',
+    'exec-playwright-install---with-deps-chromium',
     'check',
     'promotable-application-source',
     'build',

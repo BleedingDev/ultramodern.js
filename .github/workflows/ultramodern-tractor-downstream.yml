@@ -118,10 +118,6 @@ jobs:
         working-directory: modernjs
         run: node scripts/ultramodern-publish/provision-tractor-acceptance.mjs
 
-      - name: Install Chromium
-        working-directory: tractor
-        run: mise exec -- npx --yes playwright@1.60.0 install --with-deps chromium
-
       - name: Run exact-cohort Tractor acceptance
         working-directory: tractor
         run: >-
