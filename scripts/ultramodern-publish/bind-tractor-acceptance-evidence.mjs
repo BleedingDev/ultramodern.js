@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { promotableTractorAcceptanceMode } from '../ultramodern-production-readiness/tractor-downstream/contract.mjs';
 
 export function bindTractorAcceptanceEvidence({
   cwd = process.cwd(),
@@ -27,6 +28,15 @@ export function bindTractorAcceptanceEvidence({
   );
   const bytes = fs.readFileSync(reportPath);
   const report = JSON.parse(bytes.toString('utf8'));
+  // First promotion barrier. A pre-publication rehearsal produces the same
+  // report shape against a throwaway registry; binding it would let that stand
+  // in for the published cohort Tractor actually adopts, so it is refused here
+  // as well as in publish-outcome.
+  if (report.mode !== promotableTractorAcceptanceMode) {
+    throw new Error(
+      `Only a ${promotableTractorAcceptanceMode}-mode Tractor acceptance report is promotable evidence, found ${String(report.mode)}`,
+    );
+  }
   if (report.tractor?.baselineRevision !== tractorRef) {
     throw new Error(
       'Tractor acceptance report is not bound to the immutable baseline',

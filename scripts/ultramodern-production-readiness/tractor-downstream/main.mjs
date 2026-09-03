@@ -44,12 +44,19 @@ import {
   assertExactModernDependencySpecifiers,
   assertNativeTanStackSearch,
   assertVisibleTractorUi,
+  promotableTractorAcceptanceMode,
   requiredTractorCheckIds,
   requiredVisibleRuntimePlatforms,
+  tractorAcceptanceModes,
 } from './contract.mjs';
 
 const defaultOut =
   '.modern/production-readiness/tractor-downstream-acceptance.json';
+// The ephemeral registry the source-candidate rehearsal seeds binds to loopback
+// only (see startEphemeralRegistry). Stating the host here lets both directions
+// of the mode/registry pairing fail closed: a rehearsal may reach nothing else,
+// and a published acceptance may never be satisfied by it.
+const sourceCandidateRegistryHost = '127.0.0.1';
 const nodeBackendProofPath =
   '.codex/reports/node-backend-federation-proof/proof.json';
 const requiredCommands = Object.freeze([
@@ -73,7 +80,42 @@ const executionCommands = Object.freeze([
     .map(command => Object.freeze({ command, report: true })),
 ]);
 
+// Sidecars are not cohort members: they keep their own stable versions and the
+// published lane reads their real npmjs publish times. A source-candidate
+// rehearsal seeds those exact accepted tarballs into the ephemeral registry
+// moments before the install, so their registry publish time is always "now"
+// and the bootstrap release-age floor would reject the bundle for being a
+// bundle. They are exempted the same way the cohort already is, derived from
+// the verified staged sidecar observations in the immutable manifest, and only
+// in this mode.
+function sourceCandidateSidecarSelectors(release) {
+  const sidecars = release?.sidecars;
+  if (sidecars === null || sidecars === undefined) {
+    return [];
+  }
+  const packages = sidecars.packages;
+  if (!Array.isArray(packages) || packages.length === 0) {
+    throw new Error(
+      'Source-candidate Tractor rehearsal requires verified staged sidecar observations',
+    );
+  }
+  return packages.map((item, index) => {
+    if (
+      typeof item?.name !== 'string' ||
+      item.name.length === 0 ||
+      typeof item.version !== 'string' ||
+      item.version.length === 0
+    ) {
+      throw new Error(
+        `Verified staged sidecar observation ${index} must bind an exact name and version`,
+      );
+    }
+    return `${item.name}@${item.version}`;
+  });
+}
+
 function resolveTractorMinimumReleaseAgeExclude({
+  mode = promotableTractorAcceptanceMode,
   release,
   releaseAgePolicyPath,
   now = new Date(),
@@ -117,8 +159,14 @@ function resolveTractorMinimumReleaseAgeExclude({
   if (!Array.isArray(activeReviewed)) {
     throw new Error('Active release-age exception selectors must be an array');
   }
+  const seededSidecars =
+    mode === promotableTractorAcceptanceMode
+      ? []
+      : sourceCandidateSidecarSelectors(release);
   return validateExactExclusions(
-    [...new Set([...exactFirstParty, ...activeReviewed])].sort(),
+    [
+      ...new Set([...exactFirstParty, ...activeReviewed, ...seededSidecars]),
+    ].sort(),
     'Tractor bootstrap minimumReleaseAgeExclude',
   );
 }
@@ -229,10 +277,37 @@ function createTractorPackageManagerContext({
   };
 }
 
+// A source-candidate rehearsal may reach the throwaway loopback registry and
+// nothing else, and a published acceptance may never be satisfied by one. Both
+// directions are checked here, so neither the workflow nor a hand-run CLI can
+// pair a mode with the wrong registry.
+function assertAcceptanceRegistry(mode, registryUrl) {
+  if (typeof registryUrl !== 'string' || registryUrl.length === 0) {
+    throw new Error(
+      `Tractor ${String(mode)} acceptance requires an exact registry URL`,
+    );
+  }
+  const url = new URL(registryUrl);
+  const loopback = url.hostname === sourceCandidateRegistryHost;
+  if (mode === promotableTractorAcceptanceMode) {
+    if (loopback) {
+      throw new Error(
+        'Published Tractor acceptance must read a real registry, never the ephemeral rehearsal registry',
+      );
+    }
+  } else if (!loopback || url.protocol !== 'http:') {
+    throw new Error(
+      `Source-candidate Tractor rehearsal must target the loopback ephemeral registry at http://${sourceCandidateRegistryHost}, found ${registryUrl}`,
+    );
+  }
+  return url.toString();
+}
+
 function parseArgs(argv) {
   const values = new Map();
   const allowed = new Set([
     '--manifest',
+    '--mode',
     '--out',
     '--registry-url',
     '--release-age-policy',
@@ -258,15 +333,37 @@ function parseArgs(argv) {
       throw new Error(`${required} is required`);
     }
   }
+  const mode = values.get('--mode') ?? promotableTractorAcceptanceMode;
+  if (!tractorAcceptanceModes.includes(mode)) {
+    throw new Error(`--mode must be ${tractorAcceptanceModes.join(' or ')}`);
+  }
+  // In source mode the registry does not exist yet: it is started inside this
+  // process from the immutable bundle, and it decides its own port. Accepting a
+  // caller-supplied URL there would let a rehearsal be pointed at npm.
+  if (
+    mode !== promotableTractorAcceptanceMode &&
+    values.has('--registry-url')
+  ) {
+    throw new Error(
+      '--registry-url is decided by the ephemeral registry in source mode',
+    );
+  }
+  const manifestPath = path.resolve(values.get('--manifest'));
   return {
-    manifestPath: path.resolve(values.get('--manifest')),
+    manifestPath,
+    mode,
     outPath: path.resolve(values.get('--out') ?? defaultOut),
-    registryUrl: new URL(
-      values.get('--registry-url') ?? 'https://registry.npmjs.org/',
-    ).toString(),
+    registryUrl:
+      mode === promotableTractorAcceptanceMode
+        ? assertAcceptanceRegistry(
+            mode,
+            values.get('--registry-url') ?? 'https://registry.npmjs.org/',
+          )
+        : undefined,
     releaseAgePolicyPath: path.resolve(
       values.get('--release-age-policy') ?? defaultReleaseAgePolicyPath,
     ),
+    releaseDir: path.dirname(manifestPath),
     workspace: fs.realpathSync(path.resolve(values.get('--workspace'))),
   };
 }
@@ -660,12 +757,20 @@ async function runTractorDownstreamAcceptance(
     now = Date,
   } = {},
 ) {
+  const mode = options.mode ?? promotableTractorAcceptanceMode;
+  if (!tractorAcceptanceModes.includes(mode)) {
+    throw new Error(
+      `Tractor acceptance mode must be ${tractorAcceptanceModes.join(' or ')}, found ${String(mode)}`,
+    );
+  }
+  const registryUrl = assertAcceptanceRegistry(mode, options.registryUrl);
   const release = readReleaseManifest({
     manifestPath: options.manifestPath,
   });
   const createPackage = resolveCreatePackage(release);
   const startedAt = new now();
   const minimumReleaseAgeExclude = resolveTractorMinimumReleaseAgeExclude({
+    mode,
     release,
     releaseAgePolicyPath: options.releaseAgePolicyPath,
     now: startedAt,
@@ -678,13 +783,18 @@ async function runTractorDownstreamAcceptance(
     expectedPnpmVersion: release.tools?.pnpm,
     minimumReleaseAgeExclude,
     packageManagerRoot,
-    registryUrl: options.registryUrl,
+    registryUrl,
     runImpl,
   });
   const env = packageManager.env;
   const report = {
     schema: 'bleedingdev.ultramodern.tractor-downstream-acceptance',
     schemaVersion: 1,
+    // Same shape, same check ids, same order in both lanes. Only a
+    // `published` report is promotable: the evidence binder and the publish
+    // outcome both reject anything else, so a rehearsal can never stand in for
+    // the persistent Tractor adoption the published lane proves.
+    mode,
     status: 'running',
     startedAt: startedAt.toISOString(),
     release: {
@@ -709,7 +819,7 @@ async function runTractorDownstreamAcceptance(
         '--version',
         release.release.version,
         '--registry',
-        options.registryUrl,
+        registryUrl,
       ]),
       { cwd: options.workspace, env: packageManager.env },
     );
@@ -902,15 +1012,84 @@ async function runTractorDownstreamAcceptance(
   }
 }
 
+// The registry seeder spawns bare `pnpm` and `npm`. The acceptance jobs pin
+// pnpm through the manifest and export it as an absolute path, so put that
+// exact executable's directory first when it is present; a local run keeps the
+// ambient PATH.
+function sourceCandidateRegistryPath(environment) {
+  const provisioned = environment.ULTRAMODERN_PNPM_EXECUTABLE;
+  if (provisioned === undefined) {
+    return environment.PATH;
+  }
+  if (typeof provisioned !== 'string' || !path.isAbsolute(provisioned)) {
+    throw new Error(
+      `Provisioned acceptance pnpm executable must be absolute: ${String(provisioned)}`,
+    );
+  }
+  return [path.dirname(provisioned), environment.PATH]
+    .filter(Boolean)
+    .join(path.delimiter);
+}
+
+// Starts one fresh registry for this process, seeds it from the verified bundle
+// tarballs in dependency order using the same implementation the exact-artifact
+// acceptance uses, and stops it again. The seeder is imported lazily so the
+// published lane never loads the publishing runtime at all.
+async function withSourceCandidateRegistry(
+  options,
+  action,
+  {
+    readReleaseManifestImpl = readReleaseManifest,
+    startEphemeralRegistryImpl,
+  } = {},
+) {
+  const startEphemeralRegistry =
+    startEphemeralRegistryImpl ??
+    (
+      await import(
+        '../../ultramodern-publish/lib/source-create-proof/runtime-proof/registry.mjs'
+      )
+    ).startEphemeralRegistry;
+  const release = readReleaseManifestImpl({
+    manifestPath: options.manifestPath,
+  });
+  const rootDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'ultramodern-tractor-rehearsal-registry-'),
+  );
+  const inheritedPath = process.env.PATH;
+  process.env.PATH = sourceCandidateRegistryPath(process.env);
+  let registry;
+  try {
+    registry = await startEphemeralRegistry({
+      release,
+      releaseDir: options.releaseDir,
+      rootDir,
+    });
+    return await action(
+      assertAcceptanceRegistry(options.mode, registry.registryUrl),
+    );
+  } finally {
+    process.env.PATH = inheritedPath;
+    await registry?.stop();
+    fs.rmSync(rootDir, { recursive: true, force: true });
+  }
+}
+
 async function main(argv = process.argv.slice(2)) {
   const options = parseArgs(argv);
-  const report = await runTractorDownstreamAcceptance(options);
+  const report =
+    options.mode === promotableTractorAcceptanceMode
+      ? await runTractorDownstreamAcceptance(options)
+      : await withSourceCandidateRegistry(options, registryUrl =>
+          runTractorDownstreamAcceptance({ ...options, registryUrl }),
+        );
   process.stdout.write(
-    `Tractor downstream acceptance passed for ${report.release.version}: ${options.outPath}\n`,
+    `Tractor ${options.mode}-mode downstream acceptance passed for ${report.release.version}: ${options.outPath}\n`,
   );
 }
 
 export {
+  assertAcceptanceRegistry,
   createReleaseBoundNodeSmokeTargets,
   createTractorPackageManagerContext,
   createTractorPnpmDlxArgs,
@@ -918,6 +1097,7 @@ export {
   launchWorkspaceBrowser,
   main,
   parseArgs,
+  promotableTractorAcceptanceMode,
   proveNodeServerRenderedSsr,
   readPassingNodeBackendProof,
   requiredCommands,
@@ -926,4 +1106,7 @@ export {
   resolveTractorMinimumReleaseAgeExclude,
   runTractorDownstreamAcceptance,
   runVisibleWorkflow,
+  sourceCandidateRegistryPath,
+  tractorAcceptanceModes,
+  withSourceCandidateRegistry,
 };

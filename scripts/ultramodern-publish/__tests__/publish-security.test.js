@@ -29,6 +29,10 @@ const tractorEvidenceScriptPath = path.join(
   repoRoot,
   'scripts/ultramodern-publish/bind-tractor-acceptance-evidence.mjs',
 );
+const tractorWorkflowPath = path.join(
+  repoRoot,
+  '.github/workflows/ultramodern-tractor-downstream.yml',
+);
 const pnpmWorkspacePath = path.join(repoRoot, 'pnpm-workspace.yaml');
 const requireFromPrebundle = createRequire(
   path.join(repoRoot, 'scripts/prebundle/package.json'),
@@ -836,6 +840,7 @@ test('Tractor evidence binder validates the immutable report before exporting ou
       '.modern/production-readiness/tractor-downstream-acceptance.json',
     );
     const report = {
+      mode: 'published',
       schema: 'bleedingdev.ultramodern.tractor-downstream-acceptance',
       tractor: { baselineRevision: tractorRef },
     };
@@ -886,9 +891,162 @@ test('Tractor evidence binder validates the immutable report before exporting ou
     assert.notEqual(failure.status, 0);
     assert.match(failure.stderr, /not bound to the immutable baseline/u);
     assert.equal(fs.existsSync(failedOutputPath), false);
+
+    // A pre-publication rehearsal report is bound to the same immutable
+    // baseline and is otherwise identical, so the baseline check above cannot
+    // separate the two. Mode does: source evidence is never promotable, and the
+    // binder is the first of the two places that refuses it.
+    writeFixtureJson(reportPath, { ...report, mode: 'source' });
+    const rehearsalOutputPath = path.join(root, 'rehearsal-github-output');
+    const rehearsal = spawnSync(process.execPath, [tractorEvidenceScriptPath], {
+      cwd: root,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        GITHUB_OUTPUT: rehearsalOutputPath,
+        GITHUB_RUN_ATTEMPT: '3',
+        TRACTOR_REF: tractorRef,
+      },
+    });
+    assert.notEqual(rehearsal.status, 0);
+    assert.match(
+      rehearsal.stderr,
+      /Only a published-mode Tractor acceptance report is promotable evidence, found source/u,
+    );
+    assert.equal(fs.existsSync(rehearsalOutputPath), false);
   } finally {
     fs.rmSync(root, { force: true, recursive: true });
   }
+});
+
+test('the pre-publication Tractor rehearsal gates npm publication and can never promote', () => {
+  const parsed = workflow(publishWorkflowPath);
+  const callee = workflow(tractorWorkflowPath);
+  const rehearsal = parsed.jobs['rehearse-tractor'];
+  const published = parsed.jobs['tractor-downstream'];
+  const calleePath = './.github/workflows/ultramodern-tractor-downstream.yml';
+
+  // (1) DAG reachability: the rehearsal sits behind the immutable bundle and
+  // its exact-artifact acceptance, and ahead of both jobs that can reach npm.
+  // A failed or skipped rehearsal makes publication unreachable rather than
+  // optional.
+  assert.equal(rehearsal.uses, calleePath);
+  assert.deepEqual(normalizeNeeds(rehearsal).sort(), [
+    'accept-release',
+    'publish-security',
+    'qualify-source',
+  ]);
+  for (const gated of ['publish-sidecars', 'publish']) {
+    assert.ok(
+      normalizeNeeds(parsed.jobs[gated]).includes('rehearse-tractor'),
+      `${gated} must not be reachable without the rehearsal`,
+    );
+  }
+  // A recovery dispatch replays the gate against the recovered bundle: the
+  // rehearsal carries no recovery or dry-run escape hatch.
+  assert.doesNotMatch(rehearsal.if, /dry_run|recovery_run_id/u);
+  assert.equal(rehearsal.with.mode, 'source');
+
+  // (2) Exact bundle-only seeding: the rehearsal names the producer identity
+  // accept-release proved, and the callee downloads that artifact from this
+  // run. Nothing in the callee builds, packs, repacks, or rewrites a tarball.
+  assert.equal(
+    rehearsal.with.release_bundle_artifact,
+    [
+      'bleedingdev-release-bundle-${{',
+      'needs.accept-release.outputs.producer_artifact_identity',
+      '}}',
+    ].join(' '),
+  );
+  const bundleDownload = callee.jobs['tractor-downstream'].steps.find(step =>
+    String(step.uses ?? '').startsWith('actions/download-artifact@'),
+  );
+  assert.equal(
+    bundleDownload.with.name,
+    ['${{', 'inputs.release_bundle_artifact', '}}'].join(' '),
+  );
+  assert.equal(
+    bundleDownload.with['run-id'],
+    ['${{', 'github.run_id', '}}'].join(' '),
+  );
+  const calleeRuns = callee.jobs['tractor-downstream'].steps.map(step =>
+    String(step.run ?? ''),
+  );
+  for (const forbidden of [
+    /build-bleedingdev-packages/u,
+    /npm\s+pack/u,
+    /--publish-existing(?![\s\S]*--dry-run)/u,
+  ]) {
+    assert.doesNotMatch(calleeRuns.join('\n'), forbidden, String(forbidden));
+  }
+
+  // (3) No publish authority anywhere on the rehearsal path: no OIDC, no
+  // deployment environment, no secrets, and no npm publish entrypoint. The
+  // callee is shared with the published lane, so this covers both.
+  assert.equal(rehearsal.permissions, undefined);
+  assert.equal(rehearsal.secrets, undefined);
+  assert.equal(rehearsal.environment, undefined);
+  assert.deepEqual(callee.permissions, { actions: 'read', contents: 'read' });
+  for (const [name, job] of Object.entries(callee.jobs)) {
+    assert.equal(job.permissions, undefined, name);
+    assert.equal(job.environment, undefined, name);
+  }
+  // Comments are stripped so prose about the absent publish authority cannot
+  // satisfy or defeat the check.
+  assert.doesNotMatch(
+    fs
+      .readFileSync(tractorWorkflowPath, 'utf8')
+      .split('\n')
+      .filter(line => !/^\s*#/u.test(line))
+      .join('\n'),
+    /id-token|secrets\.|npm-publish/u,
+  );
+  assert.doesNotMatch(calleeRuns.join('\n'), /publish-sidecars\.mjs/u);
+
+  // (4) No source-report promotion: the callee binds and uploads evidence only
+  // in published mode, so a rehearsal leaves no artifact at all, and the
+  // publish outcome never lists the rehearsal among its inputs.
+  for (const stepName of [
+    'Bind Tractor acceptance evidence',
+    'Upload Tractor acceptance evidence',
+  ]) {
+    const step = callee.jobs['tractor-downstream'].steps.find(
+      candidate => candidate.name === stepName,
+    );
+    assert.equal(step.if, "always() && inputs.mode == 'published'", stepName);
+  }
+  assert.equal(
+    normalizeNeeds(parsed.jobs['record-publish-outcome']).includes(
+      'rehearse-tractor',
+    ),
+    false,
+  );
+
+  // (5) The published Tractor acceptance stays required and unchanged: same
+  // callee, still behind the real publication, still waiting on the registry
+  // cohort, and still the job record-publish-outcome demands succeed.
+  assert.equal(published.uses, calleePath);
+  assert.equal(published.with.mode, 'published');
+  assert.equal(published.with.wait_for_registry_cohort, true);
+  assert.deepEqual(normalizeNeeds(published).sort(), [
+    'prepare-release',
+    'publish',
+  ]);
+  assert.match(
+    parsed.jobs['record-publish-outcome'].if,
+    /needs\.tractor-downstream\.result == 'success'/u,
+  );
+  assert.ok(
+    normalizeNeeds(parsed.jobs['record-publish-outcome']).includes(
+      'tractor-downstream',
+    ),
+  );
+
+  // Both calls must exercise the same reviewed immutable Tractor baseline; a
+  // rehearsal against a different commit would prove nothing about the one the
+  // published lane adopts.
+  assert.match(rehearsal.with.tractor_ref, /^[a-f0-9]{40}$/u);
+  assert.equal(rehearsal.with.tractor_ref, published.with.tractor_ref);
 });
 
 test('release recovery reuses only an accepted ancestral bundle and preserves its source identity', () => {
@@ -1192,14 +1350,15 @@ test('release recovery may only reuse a bundle qualified at its own source commi
       prepareStepNames.indexOf(bundleQualification.name),
   );
 
-  // Recovery stays inside this workflow's existing job graph: no new job, and
-  // no job outside the two registry publishers may hold publish authority.
+  // Recovery stays inside this workflow's existing job graph, and no job
+  // outside the two registry publishers may hold publish authority.
   assert.deepEqual(Object.keys(parsed.jobs), [
     'publish-security',
     'qualify-source',
     'prepare-release',
     'accept-release',
     'validate-release',
+    'rehearse-tractor',
     'publish-sidecars',
     'publish',
     'accept-published',

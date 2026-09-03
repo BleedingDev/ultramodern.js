@@ -843,6 +843,40 @@ jobs:
             --out "$BLEEDINGDEV_RELEASE_DIR" \
             --tag "$BLEEDINGDEV_PUBLISH_TAG"
 
+  # Pre-publication gate. The exact immutable bundle accept-release just proved
+  # is seeded into a fresh ephemeral registry inside the callee job, and the
+  # pinned Tractor baseline is accepted against it — so a downstream Tractor
+  # break is found here rather than after an unrollbackable npm publish. No
+  # tarball is built, packed, repacked, or rewritten: the callee downloads the
+  # producer's bundle and seeds those exact bytes.
+  #
+  # Source-mode evidence is permanently non-promotable, by construction rather
+  # than by policy: the callee binds and uploads nothing in this mode, this job
+  # is absent from record-publish-outcome's needs, and both the evidence binder
+  # and publish-outcome refuse a report whose mode is not `published`. The
+  # published Tractor job below is untouched and still mandatory.
+  #
+  # A recovery dispatch replays this gate for free: prepare-release re-uploads
+  # the recovered bundle under this run's producer identity, and this job reads
+  # that artifact. Nothing is rebuilt from recovered product source.
+  rehearse-tractor:
+    name: Rehearse Tractor against the immutable bundle
+    if: >-
+      github.actor == github.repository_owner &&
+      github.triggering_actor == github.repository_owner &&
+      github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern')
+    needs:
+      - publish-security
+      - qualify-source
+      - accept-release
+    uses: ./.github/workflows/ultramodern-tractor-downstream.yml
+    with:
+      mode: source
+      release_bundle_artifact: bleedingdev-release-bundle-${{ needs.accept-release.outputs.producer_artifact_identity }}
+      # Must stay identical to the published tractor-downstream pin below;
+      # publish-security.test.js compares the two.
+      tractor_ref: 2ec6d74ee66085b6895ec0f8ff4180385c713c58
+
   # Sidecars are NOT cohort members: they keep their own stable versions and
   # their own scope, and they are published from this dedicated job strictly
   # BEFORE the cohort. @bleedingdev/modern-js-image pins them through
@@ -870,6 +904,9 @@ jobs:
       - publish-security
       - qualify-source
       - accept-release
+      # Nothing reaches npm until the immutable bundle has already been proven
+      # downstream in Tractor against an ephemeral registry.
+      - rehearse-tractor
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
@@ -953,6 +990,9 @@ jobs:
       - publish-security
       - qualify-source
       - accept-release
+      # Same pre-publication gate as publish-sidecars, declared explicitly here
+      # too rather than relied on transitively.
+      - rehearse-tractor
       # Hard ordering gate: the cohort's @bleedingdev/modern-js-image aliases
       # resolve only after these exact sidecar versions are on the registry.
       # A failed or skipped publish-sidecars makes this job unreachable.
@@ -1391,6 +1431,9 @@ jobs:
       - publish
     uses: ./.github/workflows/ultramodern-tractor-downstream.yml
     with:
+      # Stated rather than defaulted: this is the only lane whose evidence is
+      # promotable, and record-publish-outcome still requires it.
+      mode: published
       release_bundle_artifact: bleedingdev-release-bundle-${{ needs.prepare-release.outputs.producer_artifact_identity }}
       wait_for_registry_cohort: true
       # Advance this reviewed immutable baseline after every accepted Tractor update.

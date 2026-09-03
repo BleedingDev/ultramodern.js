@@ -1423,3 +1423,296 @@ test('Tractor evidence ids and order are unchanged by runtime-context ownership'
     [...requiredCommands],
   );
 });
+
+test('source-candidate rehearsal is bound to a loopback ephemeral registry', async () => {
+  const {
+    assertAcceptanceRegistry,
+    parseArgs,
+    promotableTractorAcceptanceMode,
+    tractorAcceptanceModes,
+  } = await runnerPromise;
+  const manifestPath = path.join(os.tmpdir(), 'release', 'manifest.json');
+
+  assert.deepEqual([...tractorAcceptanceModes], ['published', 'source']);
+  assert.equal(promotableTractorAcceptanceMode, 'published');
+
+  // The published lane is untouched by the new mode: same default, same
+  // registry, and the release dir is still derived from the manifest.
+  const published = parseArgs([
+    '--manifest',
+    manifestPath,
+    '--workspace',
+    os.tmpdir(),
+  ]);
+  assert.equal(published.mode, 'published');
+  assert.equal(published.registryUrl, 'https://registry.npmjs.org/');
+  assert.equal(published.releaseDir, path.dirname(manifestPath));
+
+  // A rehearsal names no registry: the ephemeral one does not exist until this
+  // process starts it, and accepting a URL here is exactly how a rehearsal
+  // could be pointed at npm.
+  const rehearsal = parseArgs([
+    '--mode',
+    'source',
+    '--manifest',
+    manifestPath,
+    '--workspace',
+    os.tmpdir(),
+  ]);
+  assert.equal(rehearsal.mode, 'source');
+  assert.equal(rehearsal.registryUrl, undefined);
+  assert.equal(rehearsal.releaseDir, path.dirname(manifestPath));
+  assert.throws(
+    () =>
+      parseArgs([
+        '--mode',
+        'source',
+        '--manifest',
+        manifestPath,
+        '--workspace',
+        os.tmpdir(),
+        '--registry-url',
+        'https://registry.npmjs.org/',
+      ]),
+    /--registry-url is decided by the ephemeral registry in source mode/u,
+  );
+  assert.throws(
+    () =>
+      parseArgs([
+        '--mode',
+        'rehearsal',
+        '--manifest',
+        manifestPath,
+        '--workspace',
+        os.tmpdir(),
+      ]),
+    /--mode must be published or source/u,
+  );
+
+  // Both directions of the mode/registry pairing fail closed.
+  assert.equal(
+    assertAcceptanceRegistry('source', 'http://127.0.0.1:4873/'),
+    'http://127.0.0.1:4873/',
+  );
+  assert.throws(
+    () => assertAcceptanceRegistry('source', 'https://registry.npmjs.org/'),
+    /must target the loopback ephemeral registry/u,
+  );
+  assert.throws(
+    () => assertAcceptanceRegistry('source', 'https://127.0.0.1:4873/'),
+    /must target the loopback ephemeral registry/u,
+  );
+  assert.throws(
+    () => assertAcceptanceRegistry('published', 'http://127.0.0.1:4873/'),
+    /never the ephemeral rehearsal registry/u,
+  );
+  assert.throws(
+    () => assertAcceptanceRegistry('source', undefined),
+    /requires an exact registry URL/u,
+  );
+
+  // The acceptance itself settles mode and registry together, before it reads
+  // the manifest or touches a workspace: the one `mode` that picks the registry
+  // is the same one stamped on the report, so a rehearsal cannot report itself
+  // as published or read a published registry.
+  const { runTractorDownstreamAcceptance } = await runnerPromise;
+  await assert.rejects(
+    runTractorDownstreamAcceptance({
+      manifestPath: path.join(os.tmpdir(), 'absent', 'manifest.json'),
+      mode: 'rehearsal',
+      registryUrl: 'http://127.0.0.1:4873/',
+    }),
+    /Tractor acceptance mode must be published or source, found rehearsal/u,
+  );
+  await assert.rejects(
+    runTractorDownstreamAcceptance({
+      manifestPath: path.join(os.tmpdir(), 'absent', 'manifest.json'),
+      mode: 'source',
+      registryUrl: 'https://registry.npmjs.org/',
+    }),
+    /must target the loopback ephemeral registry/u,
+  );
+  await assert.rejects(
+    runTractorDownstreamAcceptance({
+      manifestPath: path.join(os.tmpdir(), 'absent', 'manifest.json'),
+      mode: 'published',
+      registryUrl: 'http://127.0.0.1:4873/',
+    }),
+    /never the ephemeral rehearsal registry/u,
+  );
+});
+
+test('source-candidate rehearsal seeds only the verified immutable bundle', async t => {
+  const {
+    parseArgs,
+    resolveTractorMinimumReleaseAgeExclude,
+    withSourceCandidateRegistry,
+  } = await runnerPromise;
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tractor-rehearsal-'));
+  t.after(() => fs.rmSync(root, { force: true, recursive: true }));
+
+  const releaseVersion = '3.8.2-ultramodern.15';
+  const release = {
+    packages: [
+      {
+        targetName: '@bleedingdev/modern-js-ultramodern-create',
+        version: releaseVersion,
+      },
+      { targetName: '@bleedingdev/modern-js-image', version: releaseVersion },
+    ],
+    release: { version: releaseVersion },
+    // Sidecars keep their own stable versions and are seeded into the ephemeral
+    // registry moments before the install, so their registry publish time is
+    // always "now".
+    sidecars: {
+      packages: [
+        { name: '@bleedingdev/ipx', version: '3.1.2' },
+        { name: '@bleedingdev/image-size', version: '2.0.2' },
+      ],
+    },
+  };
+  const releaseAgePolicyPath = writeReleaseAgePolicy(root, []);
+  const now = new Date('2026-08-26T12:00:00.000Z');
+
+  const publishedExclusions = resolveTractorMinimumReleaseAgeExclude({
+    mode: 'published',
+    release,
+    releaseAgePolicyPath,
+    now,
+  });
+  assert.deepEqual(publishedExclusions, [
+    `@bleedingdev/modern-js-image@${releaseVersion}`,
+    `@bleedingdev/modern-js-ultramodern-create@${releaseVersion}`,
+  ]);
+  assert.deepEqual(
+    resolveTractorMinimumReleaseAgeExclude({
+      release,
+      releaseAgePolicyPath,
+      now,
+    }),
+    publishedExclusions,
+    'the default lane is still the published one',
+  );
+
+  assert.deepEqual(
+    resolveTractorMinimumReleaseAgeExclude({
+      mode: 'source',
+      release,
+      releaseAgePolicyPath,
+      now,
+    }),
+    [
+      '@bleedingdev/image-size@2.0.2',
+      '@bleedingdev/ipx@3.1.2',
+      `@bleedingdev/modern-js-image@${releaseVersion}`,
+      `@bleedingdev/modern-js-ultramodern-create@${releaseVersion}`,
+    ],
+  );
+  assert.throws(
+    () =>
+      resolveTractorMinimumReleaseAgeExclude({
+        mode: 'source',
+        release: { ...release, sidecars: { packages: [{ name: 'x' }] } },
+        releaseAgePolicyPath,
+        now,
+      }),
+    /must bind an exact name and version/u,
+  );
+
+  // The registry lifecycle is the exact-artifact acceptance's own: one fresh
+  // instance seeded from the immutable bundle this process downloaded, stopped
+  // and removed afterwards, never shared across jobs.
+  const options = parseArgs([
+    '--mode',
+    'source',
+    '--manifest',
+    path.join(root, 'release', 'manifest.json'),
+    '--workspace',
+    root,
+  ]);
+  const starts = [];
+  let stopped = 0;
+  const observedRegistryUrls = [];
+  const returned = await withSourceCandidateRegistry(
+    options,
+    registryUrl => {
+      observedRegistryUrls.push(registryUrl);
+      return 'accepted';
+    },
+    {
+      readReleaseManifestImpl: () => release,
+      startEphemeralRegistryImpl: async started => {
+        starts.push(started);
+        assert.equal(fs.existsSync(started.rootDir), true);
+        return {
+          registryUrl: 'http://127.0.0.1:4873/',
+          stop: () => {
+            stopped += 1;
+          },
+        };
+      },
+    },
+  );
+  assert.equal(returned, 'accepted');
+  assert.deepEqual(observedRegistryUrls, ['http://127.0.0.1:4873/']);
+  assert.equal(starts.length, 1);
+  assert.equal(starts[0].release, release);
+  assert.equal(starts[0].releaseDir, options.releaseDir);
+  assert.equal(stopped, 1);
+  assert.equal(fs.existsSync(starts[0].rootDir), false);
+
+  // A registry that came up anywhere but loopback is refused before any
+  // downstream work runs, and is still torn down.
+  let escapedRootDir;
+  let escapedStops = 0;
+  await assert.rejects(
+    withSourceCandidateRegistry(options, () => 'must not run', {
+      readReleaseManifestImpl: () => release,
+      startEphemeralRegistryImpl: async started => {
+        escapedRootDir = started.rootDir;
+        return {
+          registryUrl: 'https://registry.npmjs.org/',
+          stop: () => {
+            escapedStops += 1;
+          },
+        };
+      },
+    }),
+    /must target the loopback ephemeral registry/u,
+  );
+  assert.equal(escapedStops, 1);
+  assert.equal(fs.existsSync(escapedRootDir), false);
+});
+
+test('source-candidate rehearsal reuses the exact-artifact acceptance seeder', async () => {
+  const { sourceCandidateRegistryPath } = await runnerPromise;
+  const registry = await import(
+    '../../ultramodern-publish/lib/source-create-proof/runtime-proof/registry.mjs'
+  );
+
+  // The rehearsal reuses the seeder the exact-artifact acceptance already owns:
+  // exact accepted tarball bytes, strictly in release publishOrder, sidecars
+  // first, with registry integrity and shasum re-read afterwards.
+  assert.equal(typeof registry.startEphemeralRegistry, 'function');
+  assert.equal(typeof registry.publishReleaseTarballs, 'function');
+  assert.equal(typeof registry.publishStagedSidecars, 'function');
+
+  // The seeder spawns bare `pnpm`, so a provisioned manifest pnpm wins over the
+  // ambient PATH; a local run without one keeps the inherited PATH.
+  assert.equal(sourceCandidateRegistryPath({ PATH: '/usr/bin' }), '/usr/bin');
+  assert.equal(
+    sourceCandidateRegistryPath({
+      PATH: '/usr/bin',
+      ULTRAMODERN_PNPM_EXECUTABLE: '/opt/pnpm-11.17.0/bin/pnpm',
+    }),
+    ['/opt/pnpm-11.17.0/bin', '/usr/bin'].join(path.delimiter),
+  );
+  assert.throws(
+    () =>
+      sourceCandidateRegistryPath({
+        PATH: '/usr/bin',
+        ULTRAMODERN_PNPM_EXECUTABLE: 'pnpm',
+      }),
+    /must be absolute/u,
+  );
+});

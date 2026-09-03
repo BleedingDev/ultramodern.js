@@ -3,6 +3,16 @@ name: UltraModern Tractor Downstream Acceptance
 on:
   workflow_call:
     inputs:
+      mode:
+        description: >-
+          `published` accepts the exact cohort as npm serves it and is the only
+          lane that produces promotable evidence. `source` rehearses the same
+          immutable bundle before publication: this job starts its own throwaway
+          loopback registry, seeds it from the verified bundle tarballs, and
+          binds and uploads nothing.
+        required: false
+        type: string
+        default: published
       release_bundle_artifact:
         description: Exact UltraModern release-bundle artifact name from this run
         required: true
@@ -30,6 +40,10 @@ on:
         description: SHA-256 of the passing Tractor acceptance report
         value: ${{ jobs.tractor-downstream.outputs.report_sha256 }}
 
+# No secrets, no environment, and no id-token: write anywhere in this workflow.
+# Both lanes only read a registry - the published one reads npm, the rehearsal
+# one reads a loopback registry it started itself - so neither can reach a
+# publish credential.
 permissions:
   actions: read
   contents: read
@@ -38,7 +52,9 @@ jobs:
   tractor-downstream:
     name: Exact cohort passes Tractor Node and workerd acceptance
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # The rehearsal additionally starts and seeds a registry from the bundle
+    # before the same downstream work begins.
+    timeout-minutes: ${{ inputs.mode == 'source' && 75 || 45 }}
     outputs:
       baseline_revision: ${{ steps.evidence.outputs.baseline_revision }}
       evidence_artifact_name: ${{ steps.evidence.outputs.artifact_name }}
@@ -48,6 +64,23 @@ jobs:
         uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
         with:
           egress-policy: audit
+
+      # Fail closed before anything is checked out: an unknown mode, or a
+      # rehearsal asked to wait on a published cohort that by definition does
+      # not exist yet, is a caller mistake.
+      - name: Validate the acceptance mode
+        env:
+          MODE: ${{ inputs.mode }}
+          WAIT_FOR_REGISTRY_COHORT: ${{ inputs.wait_for_registry_cohort }}
+        run: |
+          case "$MODE" in
+            published|source) ;;
+            *) echo "::error::unsupported Tractor acceptance mode: $MODE" >&2; exit 1 ;;
+          esac
+          if [[ "$MODE" == "source" && "$WAIT_FOR_REGISTRY_COHORT" == "true" ]]; then
+            echo "::error::a source-mode rehearsal never waits on the published registry cohort" >&2
+            exit 1
+          fi
 
       - name: Checkout acceptance runner
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -118,26 +151,40 @@ jobs:
         working-directory: modernjs
         run: node scripts/ultramodern-publish/provision-tractor-acceptance.mjs
 
+      # One acceptance implementation for both lanes. `published` names the real
+      # registry; `source` names none, because the runner starts its own
+      # ephemeral registry from the downloaded immutable bundle and refuses any
+      # non-loopback URL. Nothing here builds, packs, or rewrites a tarball.
       - name: Run exact-cohort Tractor acceptance
         working-directory: tractor
-        run: >-
-          mise exec -- node
-          ../modernjs/scripts/ultramodern-production-readiness/run-tractor-downstream-acceptance.mjs
-          --manifest ../modernjs/.modern/bleedingdev-publish/manifest.json
-          --workspace .
-          --registry-url https://registry.npmjs.org/
-          --out ../modernjs/.modern/production-readiness/tractor-downstream-acceptance.json
+        env:
+          MODE: ${{ inputs.mode }}
+        run: |
+          registry=()
+          if [[ "$MODE" == "published" ]]; then
+            registry=(--registry-url https://registry.npmjs.org/)
+          fi
+          mise exec -- node \
+            ../modernjs/scripts/ultramodern-production-readiness/run-tractor-downstream-acceptance.mjs \
+            --mode "$MODE" \
+            --manifest ../modernjs/.modern/bleedingdev-publish/manifest.json \
+            --workspace . \
+            "${registry[@]}" \
+            --out ../modernjs/.modern/production-readiness/tractor-downstream-acceptance.json
 
+      # Promotion is a published-lane concern only. A rehearsal binds nothing
+      # and uploads nothing: its whole result is this job's own success, so
+      # there is no source-mode artifact for anything downstream to consume.
       - name: Bind Tractor acceptance evidence
         id: evidence
-        if: always()
+        if: always() && inputs.mode == 'published'
         working-directory: modernjs
         env:
           TRACTOR_REF: ${{ inputs.tractor_ref }}
         run: node scripts/ultramodern-publish/bind-tractor-acceptance-evidence.mjs
 
       - name: Upload Tractor acceptance evidence
-        if: always()
+        if: always() && inputs.mode == 'published'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ steps.evidence.outputs.artifact_name }}

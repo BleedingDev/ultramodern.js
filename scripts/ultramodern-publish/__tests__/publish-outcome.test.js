@@ -407,6 +407,7 @@ async function createEvidenceFixture({
           status: 'passed',
         },
       ],
+      mode: 'published',
       release: {
         cohortDigest,
         manifestSha256,
@@ -934,6 +935,27 @@ test('publish outcome rejects incomplete receipt, operational evidence, and Trac
         fs.writeFileSync(fixture.operationalEvidencePath, evidenceSource);
       },
       pattern: /did not observe the exact C1 API and UI mutations/u,
+    },
+    {
+      // The pre-publication rehearsal produces a byte-for-byte valid report
+      // against a throwaway registry. Only its mode separates it from the
+      // published one, and that is enough to keep it out of publish-outcome
+      // identity.
+      label: 'otherwise complete source-mode rehearsal report',
+      mutate(fixture) {
+        const report = JSON.parse(
+          fs.readFileSync(fixture.tractorReportPath, 'utf8'),
+        );
+        report.mode = 'source';
+        fs.writeFileSync(
+          fixture.tractorReportPath,
+          `${JSON.stringify(report)}\n`,
+        );
+        fixture.tractorReportSha256 = digest(
+          fs.readFileSync(fixture.tractorReportPath),
+        );
+      },
+      pattern: /not a passing report for the exact release and baseline/u,
     },
     {
       label: 'missing Tractor check',

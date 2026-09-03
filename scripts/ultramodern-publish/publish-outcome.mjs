@@ -11,6 +11,7 @@ import { assertOperationalIndependenceEvidenceMatchesReceipt } from '../ultramod
 import { assertAcceptanceReceipt } from '../ultramodern-production-readiness/published-create-proof/acceptance-receipt.mjs';
 import {
   assertVisibleTractorUiSummary,
+  promotableTractorAcceptanceMode,
   requiredTractorCheckIds,
   requiredTractorTopology,
   requiredVisibleRuntimePlatforms,
@@ -277,9 +278,13 @@ function readTractorAcceptanceEvidence({
     );
   }
   const report = readJson(reportPath, 'Tractor acceptance report');
+  // Second promotion barrier, independent of the evidence binder: publish
+  // outcome identity accepts only the published-mode report. A pre-publication
+  // rehearsal report carries mode 'source' and can never satisfy this.
   if (
     report.schema !== 'bleedingdev.ultramodern.tractor-downstream-acceptance' ||
     report.schemaVersion !== 1 ||
+    report.mode !== promotableTractorAcceptanceMode ||
     report.status !== 'passed' ||
     report.release?.cohortDigest !== cohortDigest ||
     report.release?.manifestSha256 !== manifestSha256 ||

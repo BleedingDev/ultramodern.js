@@ -33,6 +33,13 @@ const requiredTractorCheckIds = Object.freeze([
   'visible-tractor-ui',
 ]);
 const requiredVisibleRuntimePlatforms = Object.freeze(['node', 'workerd']);
+// The two lanes a Tractor acceptance can run in. `published` accepts the cohort
+// as npm serves it and is the only promotable evidence there is; `source`
+// rehearses the immutable release bundle against a throwaway loopback registry
+// before publication. Same report shape, same check ids, same order — the mode
+// is the one field that decides whether the report may be promoted at all.
+const tractorAcceptanceModes = Object.freeze(['published', 'source']);
+const promotableTractorAcceptanceMode = 'published';
 const requiredTractorTopology = Object.freeze({
   backendAppIds: Object.freeze(['checkout', 'decide', 'explore']),
   visibleWorkflowRoutePatterns: Object.freeze([
@@ -453,7 +460,9 @@ export {
   assertNativeTanStackSearch,
   assertVisibleTractorUi,
   assertVisibleTractorUiSummary,
+  promotableTractorAcceptanceMode,
   requiredTractorCheckIds,
   requiredTractorTopology,
   requiredVisibleRuntimePlatforms,
+  tractorAcceptanceModes,
 };
