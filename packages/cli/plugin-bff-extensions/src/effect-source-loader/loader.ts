@@ -48,6 +48,8 @@ function preserveSourceModuleSemantics(): Plugin {
         const source = await fs.promises.readFile(args.path, 'utf8');
         const compiled = await transform(source, {
           define: {
+            __dirname: JSON.stringify(path.dirname(args.path)),
+            __filename: JSON.stringify(args.path),
             'import.meta.url': JSON.stringify(pathToFileURL(args.path).href),
           },
           jsx: 'automatic',

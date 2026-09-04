@@ -100,6 +100,57 @@ describe('Effect source loading', () => {
     }
   });
 
+  test('preserves CommonJS globals in bundled workspace dependencies', async () => {
+    const fixtureDir = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), 'modern-bff-effect-workspace-commonjs-'),
+    );
+    const appDir = path.join(fixtureDir, 'app');
+    const workspacePackageDir = path.join(fixtureDir, 'workspace-package');
+
+    try {
+      await writeFile(
+        path.join(workspacePackageDir, 'package.json'),
+        JSON.stringify({ name: 'workspace-commonjs', main: './index.js' }),
+      );
+      await writeFile(
+        path.join(workspacePackageDir, 'index.js'),
+        `module.exports = { directory: __dirname, filename: __filename };`,
+      );
+
+      const workspaceLink = path.join(
+        appDir,
+        'node_modules',
+        'workspace-commonjs',
+      );
+      await fs.promises.mkdir(path.dirname(workspaceLink), { recursive: true });
+      await fs.promises.symlink(
+        workspacePackageDir,
+        workspaceLink,
+        process.platform === 'win32' ? 'junction' : 'dir',
+      );
+
+      const entryPath = path.join(appDir, 'api', 'index.ts');
+      await writeFile(
+        entryPath,
+        `import commonjs from 'workspace-commonjs'; export const moduleGlobals = commonjs;`,
+      );
+
+      const loaded = (await loadEffectSourceModule({
+        appDir,
+        resourcePath: entryPath,
+      })) as {
+        moduleGlobals: { directory: string; filename: string };
+      };
+
+      expect(loaded.moduleGlobals).toEqual({
+        directory: workspacePackageDir,
+        filename: path.join(workspacePackageDir, 'index.js'),
+      });
+    } finally {
+      await fs.promises.rm(fixtureDir, { recursive: true, force: true });
+    }
+  });
+
   test('isolates concurrent revisions when publication completes in reverse order', async () => {
     const appDir = await fs.promises.mkdtemp(
       path.join(os.tmpdir(), 'modern-bff-effect-concurrent-source-'),
