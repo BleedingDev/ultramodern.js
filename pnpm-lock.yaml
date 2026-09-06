@@ -653,8 +653,8 @@ importers:
         specifier: ^5.29.3
         version: 5.29.3(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       hono:
-        specifier: ^4.11.7
-        version: 4.12.28
+        specifier: ^4.12.34
+        version: 4.12.34
       react:
         specifier: ^19.2.8
         version: 19.2.8
@@ -2074,8 +2074,8 @@ importers:
         specifier: ^3.4.4
         version: 3.4.4
       hono:
-        specifier: ^4.12.28
-        version: 4.12.28
+        specifier: ^4.12.34
+        version: 4.12.34
       ts-deepmerge:
         specifier: 8.0.0
         version: 8.0.0
@@ -3629,8 +3629,8 @@ importers:
         specifier: ^5.2.1
         version: 5.2.1(supports-color@8.1.1)
       hono:
-        specifier: ^4.12.28
-        version: 4.12.28
+        specifier: ^4.12.34
+        version: 4.12.34
       react:
         specifier: ^19.2.8
         version: 19.2.8
@@ -3846,8 +3846,8 @@ importers:
         specifier: workspace:*
         version: link:../../../packages/server/server-runtime
       hono:
-        specifier: ^4.12.28
-        version: 4.12.28
+        specifier: ^4.12.34
+        version: 4.12.34
       react:
         specifier: ^19.2.8
         version: 19.2.8
@@ -15279,8 +15279,8 @@ packages:
   hoist-non-react-statics@3.3.2:
     resolution: {integrity: sha512-/gGivxi8JPKWNm/W0jSmzcMPpfpPLc3dY/6GxhX2hQ9iGj3aDfklV4ET7NjKpSinLpJ5vafa9iiGIEZg10SfBw==}
 
-  hono@4.12.28:
-    resolution: {integrity: sha512-YwUvVpSF7m1yOblFPrU3Hbo8XhPheBoiyfGuII6z19LnOr6JpDnyyp7LFNrfV56wS8tpvtBFGRISHN02pDdLOA==}
+  hono@4.12.34:
+    resolution: {integrity: sha512-GqXJqY/xJkJmuloTrnV1ZEXG3fqte+VjkUqoRNZXcrUidiUOP4fMSIHHY4tsqZBK++kVyWmt/AAfSUuy57/eSA==}
     engines: {node: '>=16.9.0'}
 
   hookable@6.1.1:
@@ -29656,7 +29656,7 @@ snapshots:
     dependencies:
       react-is: 16.13.1
 
-  hono@4.12.28: {}
+  hono@4.12.34: {}
 
   hookable@6.1.1: {}
 
