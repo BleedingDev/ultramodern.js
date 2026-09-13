@@ -55,10 +55,17 @@ async function processCache({
 }) {
   const response = await requestHandler(request, requestHandlerOptions);
   const { onError } = requestHandlerOptions;
+  const deleteCache = async () => {
+    try {
+      await container.delete(key);
+    } catch {
+      (onError || console.error)('[render-cache] delete cache failed');
+    }
+  };
 
   if (!isCacheableResponse(response) || !response.body) {
     // A refresh can change a previously public response into a private one.
-    await container.delete(key);
+    await deleteCache();
     return response;
   }
   const headers = Object.fromEntries(response.headers);
@@ -80,7 +87,7 @@ async function processCache({
           // case 1: We should not cache the html, if we can match the html is downgrading.
           // case 2: We should not cache the html, if the user's code contains <NoSSRCache>.
           if (match) {
-            await container.delete(key);
+            await deleteCache();
             return writer.close();
           }
           const current = Date.now();
