@@ -40,6 +40,7 @@ Retain a narrow inline correction to the existing opt-in SSR cache. Its storage/
 | Audited-base-owned path | Owner | Reason | Disposition |
 | --- | --- | --- | --- |
 | `packages/server/core/src/plugins/render/ssrCache.ts` | bleedingdev | Partition default keys by origin/path/query; bypass unsafe requests and exclude private responses before storage; preserve public headers, evict private refreshes, isolate unchecked entries and handle stream failures. | `inline-patch` |
+| `packages/server/core/tests/plugins/ssrCachePrivacy.test.ts` | bleedingdev | Exercise the native cache correction, including real Node-adapter requests, credential isolation, response exclusion and stale eviction; tests belong beside the corrected cache rather than in a separate extension. | `inline-patch` |
 | `packages/document/docs/en/guides/basic-features/render/ssr-cache.mdx` | bleedingdev | Document the corrected cache policy and application-owned custom-key partitioning in the existing English API guide; an extension-point document would leave the native guide incorrect. | `inline-patch` |
 | `packages/document/docs/zh/guides/basic-features/render/ssr-cache.mdx` | bleedingdev | Keep the existing Chinese API guide consistent with the corrected cache policy and custom-key responsibility; no separate fork API is introduced. | `inline-patch` |
 
