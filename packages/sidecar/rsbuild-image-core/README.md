@@ -30,16 +30,17 @@ byte under `dist/` is vendored verbatim and the entire delta lives in
 | Field | Upstream | Here |
 | --- | --- | --- |
 | `name` | `@rsbuild-image/core` | `@bleedingdev/rsbuild-image-core` |
-| `version` | `0.0.1-next.36` | `0.1.0` |
+| `version` | `0.0.1-next.36` | `0.1.1` |
 | `dependencies["image-size"]` | `^2.0.1` | `npm:@bleedingdev/image-size@2.1.0` |
 | `devDependencies` | build/test toolchain | dropped (nothing is built here) |
+| `peerDependencies.sharp` | `>=0.33.5` | `>=0.35.4` (patched floor) |
 
 Everything else — `type`, `main`, `module`, `types`, the full five-subpath
 `exports` map with all of its conditions, `typesVersions`, `sideEffects`,
-`files`, `peerDependencies`, `peerDependenciesMeta` — is copied verbatim and is
-asserted byte-equal by `scripts/verify-manifest.mjs`.
+`files`, peers other than Sharp, and `peerDependenciesMeta` — is copied verbatim.
+`scripts/verify-manifest.mjs` checks that fidelity and the exact patched Sharp floor.
 
-`0.1.0` is a **stable** semver version on purpose. `@rsbuild-image/react`
+`0.1.1` is a **stable** semver version on purpose. `@rsbuild-image/react`
 declares its peer on core as the wildcard `"*"`, which every resolver
 short-circuits before semver, so the exact number is free; a stable one keeps
 strict-peer consumers (npm, yarn classic) from ever having to opt into
@@ -95,20 +96,19 @@ silently leak a Node dependency into the edge bundle.
 
 ## Peer dependencies
 
-`peerDependencies` and `peerDependenciesMeta` are copied verbatim and are
-deliberately **not** "improved":
+Peers retain upstream requirements and optionality, except that Sharp requires
+the patched 0.35.4 floor:
 
 ```
 react      >=16.9.0   (required)
 react-dom  >=16.9.0   (required)
-sharp      >=0.33.5   (optional)
+sharp      >=0.35.4   (optional)
 ipx        >=3.0.3    (optional)
 ```
 
-`@modern-js/image` supplies `sharp@^0.35.3` and
-`ipx: npm:@bleedingdev/ipx@3.2.0`; both satisfy these ranges under pnpm and
-under npm's stricter, prerelease-excluding check. Making `react` optional would
-be a product decision that belongs to the fork owner, not to this repackage.
+Consumers using Sharp must resolve 0.35.4 or newer, even when their declared
+range also permits an older version. Optionality remains unchanged; this does
+not upgrade Sharp copies owned by other dependencies such as Miniflare.
 
 ## Verification
 
@@ -127,6 +127,6 @@ installed), and that `npm pack --dry-run` ships every export subpath target.
 1. Copy `dist/` and `LICENSE` verbatim from the new upstream release.
 2. Update `UPSTREAM_VERSION` and the `UPSTREAM_SNAPSHOT` literal in
    `scripts/verify-manifest.mjs`.
-3. Re-apply the single `image-size` alias and bump this package's version.
+3. Re-apply the `image-size` alias and patched Sharp peer floor, then bump this package's version.
 4. Run the verifier; it will flag any newly introduced self-reference,
    deep import, or Node dependency that leaked into `dist/shared/**`.

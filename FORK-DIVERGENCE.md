@@ -33,6 +33,16 @@ every PR.
 
 ---
 
+### 2026-09-13 SSR cache privacy
+
+Retain a narrow inline correction to the existing opt-in SSR cache. Its storage/read path has no extension point that can enforce request eligibility, response privacy, header replay and stale-entry eviction together. An upstream PR is not part of this fork release; no replacement cache subsystem is introduced.
+
+| Audited-base-owned path | Owner | Reason | Disposition |
+| --- | --- | --- | --- |
+| `packages/server/core/src/plugins/render/ssrCache.ts` | bleedingdev | Partition default keys by origin/path/query; bypass unsafe requests and exclude private responses before storage; preserve public headers, evict private refreshes, isolate unchecked entries and handle stream failures. | `inline-patch` |
+| `packages/document/docs/en/guides/basic-features/render/ssr-cache.mdx` | bleedingdev | Document the corrected cache policy and application-owned custom-key partitioning in the existing English API guide; an extension-point document would leave the native guide incorrect. | `inline-patch` |
+| `packages/document/docs/zh/guides/basic-features/render/ssr-cache.mdx` | bleedingdev | Keep the existing Chinese API guide consistent with the corrected cache policy and custom-key responsibility; no separate fork API is introduced. | `inline-patch` |
+
 ### 2026-09-12 dev watcher CPU starvation
 
 Linux V8 profiles in run 34708962442 show every federation fixture server spending its main-thread CPU rebuilding dependency trees and recompiling minimatch ignore patterns. Reuse compiled patterns and use the already-filtered tree to resolve edges. Follow-up run 34710562468 identifies thousands of events under shared/effect/node_modules reached through workspace symlinks (up to 5528 events and 56.5 seconds in watcher callbacks). Exclude installed dependency subtrees at the watcher boundary while retaining symlinked shared source watching; cache-invalidation rules and readiness timeouts remain unchanged.

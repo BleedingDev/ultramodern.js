@@ -1,4 +1,6 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import type { Server } from 'node:http';
+import { createServer } from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import {
@@ -6,6 +8,19 @@ import {
   collectModuleFederationManifestCss,
   createModuleFederationCssCollector,
 } from '../src/module-federation-css';
+
+const listen = async (server: Server) => {
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => resolve());
+  });
+  const address = server.address();
+  const port = typeof address === 'object' && address ? address.port : 0;
+  return `http://127.0.0.1:${String(port)}`;
+};
+
+const closeServer = (server: Server) =>
+  new Promise<void>(resolve => server.close(() => resolve()));
 
 const tempDirs: string[] = [];
 
@@ -207,6 +222,92 @@ describe('module federation css collection', () => {
     expect(result.errored).toBe(true);
     expect(fetcher).toHaveBeenCalledTimes(2);
     expect(warn).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('module federation css native fetch redirect policy', () => {
+  it('never contacts a redirect destination and marks the remote errored', async () => {
+    const servers: Server[] = [];
+    try {
+      let destinationHits = 0;
+      const destinationServer = createServer((_req, res) => {
+        destinationHits += 1;
+        res.statusCode = 200;
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify({ exposes: [] }));
+      });
+      servers.push(destinationServer);
+      const destinationOrigin = await listen(destinationServer);
+
+      const redirectServer = createServer((_req, res) => {
+        res.statusCode = 302;
+        res.setHeader('location', `${destinationOrigin}/mf-manifest.json`);
+        res.end();
+      });
+      servers.push(redirectServer);
+      const redirectOrigin = await listen(redirectServer);
+
+      const pwd = await createTempDir();
+      await writeFile(
+        path.join(pwd, 'mf-manifest.json'),
+        JSON.stringify({
+          remotes: [{ entry: `${redirectOrigin}/mf-manifest.json` }],
+        }),
+      );
+
+      const warn = rs.fn();
+      const result = await collectDirectRemoteModuleFederationCssWithMeta(pwd, {
+        monitors: { warn } as any,
+      });
+
+      expect(result.assets).toEqual([]);
+      expect(result.errored).toBe(true);
+      expect(destinationHits).toBe(0);
+      expect(warn).toHaveBeenCalledTimes(1);
+    } finally {
+      await Promise.all(servers.map(closeServer));
+    }
+  });
+
+  it('still collects CSS from a direct loopback manifest (safe direct control)', async () => {
+    const servers: Server[] = [];
+    try {
+      const directServer = createServer((_req, res) => {
+        res.statusCode = 200;
+        res.setHeader('content-type', 'application/json');
+        res.end(
+          JSON.stringify({
+            metaData: { publicPath: 'https://cdn.example.com/direct/' },
+            exposes: [
+              {
+                assets: {
+                  css: { sync: ['static/css/direct.css'] },
+                },
+              },
+            ],
+          }),
+        );
+      });
+      servers.push(directServer);
+      const directOrigin = await listen(directServer);
+
+      const pwd = await createTempDir();
+      await writeFile(
+        path.join(pwd, 'mf-manifest.json'),
+        JSON.stringify({
+          remotes: [{ entry: `${directOrigin}/mf-manifest.json` }],
+        }),
+      );
+
+      const result = await collectDirectRemoteModuleFederationCssWithMeta(pwd);
+
+      expect(result.assets).toEqual([
+        'https://cdn.example.com/direct/static/css/direct.css',
+      ]);
+      expect(result.errored).toBe(false);
+    } finally {
+      await Promise.all(servers.map(closeServer));
+    }
   });
 });
 

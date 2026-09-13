@@ -35,7 +35,7 @@ export interface CacheControl {
 }
 ```
 
-Here, `customKey` is the custom cache key. By default, Modern.js uses the request `pathname` as the cache key, but developers can define it when necessary.
+Here, `customKey` is the custom cache key. By default, the cache key is derived from the request's origin, normalized pathname (trailing slash removed), and query string. When `customKey` is set, it fully replaces the default key: the `customKey` callback receives the normalized pathname (not the `CacheOptionProvider`'s `req`) and is responsible for the whole partition (e.g. by tenant, host, or query) — it must not embed raw cookies or other credentials into the returned key.
 
 **Function Type**
 
@@ -105,6 +105,19 @@ export const cacheOption: CacheOption = {
 - The route `http://xxx/abc` will apply the last rule.
 
 The above `/home` and `/about` are patterns, meaning `/home/abc` will also match. You can use regex in these patterns, such as `/home/.+`.
+
+### Cache Policy
+
+The following policy is enforced automatically and cannot be overridden by the returned `CacheControl`:
+
+- Only `GET` requests are cached.
+- A request carrying a `Cookie` or `Authorization` header skips the cache unless `customKey` is set, since a custom key is treated as an explicit partitioning contract.
+- A request with `Cache-Control: private`, `no-cache`, or `no-store` skips the cache.
+- A response is only stored when it is `200`, has no `private`/`no-cache`/`no-store` in `Cache-Control`, has no `Set-Cookie`, and has no nonempty `Vary` header; otherwise any existing cache entry for that key is deleted instead of being written.
+- If a `stale` revalidation produces a response that is no longer cacheable (for example, it became per-user), that already-served stale response is unaffected, but the cache entry is evicted so subsequent requests no longer hit it.
+- A `CacheOptionProvider` returning `false` still disables caching entirely for that request, independent of the policy above.
+
+Cache keys are namespaced (`__ssr__cache:v2:...`). Older un-namespaced entries — including ones already stored in a custom `Container` — are never read back; they simply age out under the container's own eviction/TTL. There is no global cache flush.
 
 ### Cache Container
 
