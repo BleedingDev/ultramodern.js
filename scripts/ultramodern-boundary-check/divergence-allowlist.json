@@ -4,9 +4,9 @@
   "upstreamRef": "2f4d9c4559e26209a0d77f02c6757f29fe3699a2",
   "pathspec": ["packages"],
   "migrationGoal": "Shrink-only budget of fork edits inside upstream-owned files. Every entry is debt: move it upstream or behind an extension point, then re-run --write-divergence-allowlist.",
-  "totalFiles": 812,
-  "totalHunks": 3050,
-  "totalChangedLines": 50473,
+  "totalFiles": 816,
+  "totalHunks": 3075,
+  "totalChangedLines": 50828,
   "files": [
     {
       "file": "packages/cli/adapter-rstest/package.json",
@@ -644,6 +644,11 @@
       "changedLines": 19
     },
     {
+      "file": "packages/document/docs/en/guides/basic-features/render/ssr-cache.mdx",
+      "hunks": 2,
+      "changedLines": 15
+    },
+    {
       "file": "packages/document/docs/en/guides/basic-features/routes/routes.mdx",
       "hunks": 13,
       "changedLines": 58
@@ -917,6 +922,11 @@
       "file": "packages/document/docs/zh/guides/basic-features/render/rsc.mdx",
       "hunks": 4,
       "changedLines": 19
+    },
+    {
+      "file": "packages/document/docs/zh/guides/basic-features/render/ssr-cache.mdx",
+      "hunks": 2,
+      "changedLines": 15
     },
     {
       "file": "packages/document/docs/zh/guides/basic-features/routes/routes.mdx",
@@ -2614,6 +2624,11 @@
       "changedLines": 7
     },
     {
+      "file": "packages/server/core/src/plugins/render/ssrCache.ts",
+      "hunks": 20,
+      "changedLines": 92
+    },
+    {
       "file": "packages/server/core/src/plugins/render/ssrRender.ts",
       "hunks": 10,
       "changedLines": 17
@@ -2702,6 +2717,11 @@
       "file": "packages/server/core/tests/plugins/serverActionHandler.test.ts",
       "hunks": 1,
       "changedLines": 25
+    },
+    {
+      "file": "packages/server/core/tests/plugins/ssrCachePrivacy.test.ts",
+      "hunks": 1,
+      "changedLines": 233
     },
     {
       "file": "packages/server/core/tests/plugins/staticAssetResponder.test.ts",
