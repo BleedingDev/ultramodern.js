@@ -23,7 +23,11 @@ upstream Modern.js project.
   `/backend-federation-manifest/node` enables its hardened Node evaluator.
   `loadBackendFederatedEffectApiFromManifest` enforces one shared
   manifest-plus-entry load deadline (default 10s, override via `timeoutMs`,
-  0 to opt out) instead of resetting a fresh timeout per network hop.
+  0 to opt out) instead of resetting a fresh timeout per network hop. The
+  load settles on that shared deadline/abort even when a caller-pinned
+  `loadEntry` plugin, its `init`/`get`, or a custom runtime's `loadRemote`
+  never settles; it cannot stop that uncooperative work from still running,
+  only stop waiting on it.
 
 Effect and its OpenTelemetry integration are exact-cohort optional peers. A
 Hono-only consumer can import `/hono` without installing Effect.
