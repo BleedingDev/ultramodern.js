@@ -4,7 +4,7 @@
  *
  * The fork is a *dist-level repackage* of @rsbuild-image/core@0.0.1-next.36:
  * every byte under dist/ is vendored verbatim and the ONLY delta lives in
- * package.json (name, version, and the image-size dependency alias). This
+ * package.json (identity, image-size alias, and patched Sharp peer floor). This
  * script proves that invariant without needing a network or an install.
  *
  * Checks
@@ -38,7 +38,7 @@ const REPO_ROOT = path.resolve(PKG_DIR, '..', '..', '..');
 const UPSTREAM_NAME = '@rsbuild-image/core';
 const UPSTREAM_VERSION = '0.0.1-next.36';
 const FORK_NAME = '@bleedingdev/rsbuild-image-core';
-const FORK_VERSION = '0.1.0';
+const FORK_VERSION = '0.1.1';
 const IMAGE_SIZE_ALIAS = 'npm:@bleedingdev/image-size@2.1.0';
 
 /**
@@ -275,12 +275,21 @@ if (fork.dependencies?.['image-size'] !== IMAGE_SIZE_ALIAS) {
   }
 }
 
-for (const field of ['peerDependencies', 'peerDependenciesMeta']) {
-  if (!deepEqual(fork[field], UPSTREAM_SNAPSHOT[field])) {
-    fail(`${field} is not deep-equal to upstream`);
-  } else {
-    pass(`${field} deep-equals upstream`);
-  }
+const expectedPeers = {
+  ...UPSTREAM_SNAPSHOT.peerDependencies,
+  sharp: '>=0.35.4',
+};
+if (!deepEqual(fork.peerDependencies, expectedPeers)) {
+  fail('peerDependencies must match upstream with the patched Sharp floor');
+} else {
+  pass('peerDependencies match upstream with Sharp >=0.35.4');
+}
+if (
+  !deepEqual(fork.peerDependenciesMeta, UPSTREAM_SNAPSHOT.peerDependenciesMeta)
+) {
+  fail('peerDependenciesMeta is not deep-equal to upstream');
+} else {
+  pass('peerDependenciesMeta deep-equals upstream');
 }
 
 for (const field of [

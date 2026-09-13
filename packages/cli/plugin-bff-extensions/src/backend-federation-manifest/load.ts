@@ -25,6 +25,10 @@ import {
   validateLoadedBackendFederationContract,
 } from './validation';
 
+// One manifest+entry budget. Explicit outer 0 opts out; nested 0 cannot
+// disable a positive nested deadline.
+const DEFAULT_SHARED_MANIFEST_LOAD_TIMEOUT_MS = 10_000;
+
 function createManifestLoadScope(
   options: BackendFederationManifestAdapterOptions,
 ) {
@@ -44,9 +48,14 @@ function createManifestLoadScope(
       );
     }
   }
+  const positivePolicyTimeouts = policyTimeouts.filter(timeout => timeout > 0);
   const timeoutMs =
     options.timeoutMs ??
-    (policyTimeouts.length > 0 ? Math.min(...policyTimeouts) : 0);
+    (policyTimeouts.length === 0
+      ? DEFAULT_SHARED_MANIFEST_LOAD_TIMEOUT_MS
+      : positivePolicyTimeouts.length > 0
+        ? Math.min(...positivePolicyTimeouts)
+        : 0);
   const inputSignals = [
     options.signal,
     options.manifestPolicy?.signal,

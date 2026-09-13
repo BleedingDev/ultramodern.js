@@ -21,6 +21,9 @@ upstream Modern.js project.
 - `/backend-federation-manifest` exposes manifest contracts and resolution,
   while
   `/backend-federation-manifest/node` enables its hardened Node evaluator.
+  `loadBackendFederatedEffectApiFromManifest` enforces one shared
+  manifest-plus-entry load deadline (default 10s, override via `timeoutMs`,
+  0 to opt out) instead of resetting a fresh timeout per network hop.
 
 Effect and its OpenTelemetry integration are exact-cohort optional peers. A
 Hono-only consumer can import `/hono` without installing Effect.

@@ -14,7 +14,9 @@ stays small:
 - **Module federation runtime helpers** — remote CSS collection for SSR
   (`collectDirectRemoteModuleFederationCss`, `injectModuleFederationCssPlugin()`)
   and MF asset cache-header policies (`resolveMfAssetCacheHeaders`,
-  `injectMfAssetCacheHeadersPlugin()`).
+  `injectMfAssetCacheHeadersPlugin()`). Remote entries configure the canonical
+  final manifest URL: the native fetch rejects redirects (`redirect: 'error'`),
+  and a trusted injected `fetcher` must honor that same option.
 
 ## Registration
 

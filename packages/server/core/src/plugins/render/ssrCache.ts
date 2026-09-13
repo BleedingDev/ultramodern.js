@@ -16,7 +16,19 @@ import { createTransformStream, getPathname } from '../../utils';
 interface CacheStruct {
   val: string;
   cursor: number;
+  headers: Record<string, string>;
 }
+
+const preventsSharedCaching = (headers: Headers): boolean =>
+  /(?:^|,)\s*(?:private|no-store|no-cache)\s*(?:[=,]|$)/i.test(
+    headers.get('cache-control') || '',
+  );
+
+const isCacheableResponse = (response: Response): boolean =>
+  response.status === 200 &&
+  !preventsSharedCaching(response.headers) &&
+  !response.headers.has('set-cookie') &&
+  !response.headers.get('vary');
 
 const removeTailSlash = (s: string): string => s.replace(/\/+$/, '');
 const ZERO_RENDER_LEVEL = /"renderLevel":0/;
@@ -44,11 +56,12 @@ async function processCache({
   const response = await requestHandler(request, requestHandlerOptions);
   const { onError } = requestHandlerOptions;
 
-  // Do not cache responses with certain status codes
-  const nonCacheableStatusCodes = [204, 305, 404, 405, 500, 501, 502, 503, 504];
-  if (nonCacheableStatusCodes.includes(response.status)) {
+  if (!isCacheableResponse(response) || !response.body) {
+    // A refresh can change a previously public response into a private one.
+    await container.delete(key);
     return response;
   }
+  const headers = Object.fromEntries(response.headers);
 
   const decoder: TextDecoder = new TextDecoder();
 
@@ -59,50 +72,42 @@ async function processCache({
     const writer = stream.writable.getWriter();
 
     let html = '';
-    const push = () =>
-      reader.read().then(({ done, value }) => {
+    const push = (): Promise<void> =>
+      reader.read().then(async ({ done, value }) => {
         if (done) {
+          html += decoder.decode();
           const match = ZERO_RENDER_LEVEL.test(html) || NO_SSR_CACHE.test(html);
           // case 1: We should not cache the html, if we can match the html is downgrading.
           // case 2: We should not cache the html, if the user's code contains <NoSSRCache>.
           if (match) {
-            writer.close();
-            return;
+            await container.delete(key);
+            return writer.close();
           }
           const current = Date.now();
           const cache: CacheStruct = {
             val: html,
             cursor: current,
+            headers,
           };
 
           container.set(key, JSON.stringify(cache), { ttl }).catch(() => {
-            if (onError) {
-              onError(
-                `[render-cache] set cache failed, key: ${key}, value: ${JSON.stringify(
-                  cache,
-                )}`,
-              );
-            } else {
-              console.error(
-                `[render-cache] set cache failed, key: ${key}, value: ${JSON.stringify(
-                  cache,
-                )}`,
-              );
-            }
+            (onError || console.error)('[render-cache] set cache failed');
           });
 
-          writer.close();
-          return;
+          return writer.close();
         }
 
-        const content = decoder.decode(value);
+        const content = decoder.decode(value, { stream: true });
         html += content;
 
-        writer.write(value);
-        push();
+        await writer.write(value);
+        return push();
       });
 
-    push();
+    push().catch(async error => {
+      await Promise.allSettled([writer.abort(error), reader.cancel(error)]);
+      (onError || console.error)('[render-cache] response stream failed');
+    });
 
     cacheStatus && response.headers.set(X_RENDER_CACHE, cacheStatus);
 
@@ -136,7 +141,8 @@ function computedKey(req: Request, cacheControl: CacheControl): string {
       return customKey(defaultKey);
     }
   } else {
-    return defaultKey;
+    const url = new URL(req.url);
+    return `${url.origin}${defaultKey}${url.search}`;
   }
 }
 
@@ -213,16 +219,29 @@ export async function getCacheResult(
   } = options;
   const { onError } = requestHandlerOptions;
 
-  const key = computedKey(request, cacheControl);
+  // A custom key is an explicit partitioning contract owned by the provider.
+  const hasCredentials =
+    request.headers.has('cookie') || request.headers.has('authorization');
+  if (
+    request.method !== 'GET' ||
+    !shouldUseCache(request) ||
+    preventsSharedCaching(request.headers) ||
+    (hasCredentials && !cacheControl.customKey)
+  ) {
+    return requestHandler(request, requestHandlerOptions);
+  }
+
+  // Isolate entries written before response privacy checks, including custom stores.
+  const key = `${CACHE_NAMESPACE}:v2:${computedKey(request, cacheControl)}`;
 
   let value: string | undefined;
   try {
     value = await container.get(key);
   } catch (_) {
     if (onError) {
-      onError(`[render-cache] get cache failed, key: ${key}`);
+      onError('[render-cache] get cache failed');
     } else {
-      console.error(`[render-cache] get cache failed, key: ${key}`);
+      console.error('[render-cache] get cache failed');
     }
     value = undefined;
   }
@@ -239,6 +258,7 @@ export async function getCacheResult(
       const cacheStatus: CacheStatus = 'hit';
       return new Response(cache.val, {
         headers: {
+          ...cache.headers,
           [X_RENDER_CACHE]: cacheStatus,
         },
       });
@@ -253,14 +273,18 @@ export async function getCacheResult(
         requestHandlerOptions,
         ttl,
         container,
-      }).then(async response => {
-        // For cache the readableStream, we need confirm the response is consume,
-        await response.text();
-      });
+      })
+        .then(async response => {
+          await response.text();
+        })
+        .catch(() => {
+          (onError || console.error)('[render-cache] revalidation failed');
+        });
 
       const cacheStatus: CacheStatus = 'stale';
       return new Response(cache.val, {
         headers: {
+          ...cache.headers,
           [X_RENDER_CACHE]: cacheStatus,
         },
       });

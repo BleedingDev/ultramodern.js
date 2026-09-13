@@ -39,7 +39,7 @@ export interface CacheControl {
 }
 ```
 
-其中 `customKey` 为自定义缓存 key。默认情况下 Modern.js 将会把请求 `pathname` 作为 key 进行缓存，但在某些情况下这不能满足你的需求，开发者可以进行自定义。
+其中 `customKey` 为自定义缓存 key。默认情况下，缓存 key 由请求的 origin、归一化后的 pathname（去除末尾斜杠）以及 query 组成。当设置了 `customKey` 后，它会完全替代默认 key：`customKey` 回调函数接收的是归一化后的 pathname（而非 `CacheOptionProvider` 的 `req`），并需要自行负责整个分区（例如按租户、host 或 query 区分）——不能将原始 cookie 或其他凭证嵌入返回的 key 中。
 
 **Function 类型**
 
@@ -110,6 +110,19 @@ export const cacheOption: CacheOption = {
 - 路由 `http://xxx/abc` 将会应用最后一条规则。
 
 上述 `/home` 和 `/about` 将会作为模式进行匹配，这意味着 `/home/abc` 也会匹配上该规则。同时，你也可以在其中编写正则语法：`/home/.+`
+
+### 缓存策略
+
+以下策略由框架自动执行，返回的 `CacheControl` 无法覆盖：
+
+- 只有 `GET` 请求会被缓存。
+- 请求携带 `Cookie` 或 `Authorization` 请求头时会跳过缓存，除非设置了 `customKey`（自定义 key 被视为一份明确的分区约定）。
+- 请求的 `Cache-Control` 为 `private`、`no-cache` 或 `no-store` 时会跳过缓存。
+- 只有当响应为 `200`、`Cache-Control` 中不含 `private`/`no-cache`/`no-store`、不含 `Set-Cookie`、也不含非空的 `Vary` 头时才会被写入缓存；否则会删除该 key 已有的缓存条目，而不是写入新的。
+- 当 `stale` 状态触发的重新渲染结果不再可缓存时（例如变为按用户区分），本次已返回的 stale 响应不受影响，但缓存条目会被清除，后续请求将不再命中该缓存。
+- `CacheOptionProvider` 返回 `false` 依然会完全禁用该请求的缓存，不受上述策略影响。
+
+缓存 key 带有命名空间（`__ssr__cache:v2:...`）。旧版本未加命名空间的缓存条目（包括自定义 `Container` 中已存储的条目）不会再被读取，只会依据容器自身的淘汰/TTL 机制自然过期；不存在全局缓存清空操作。
 
 ### 缓存容器
 

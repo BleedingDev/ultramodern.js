@@ -15,6 +15,8 @@ type FetchLike = (
   input: string,
   init?: {
     signal?: AbortSignal;
+    /** Trusted fetchers must honor this: reject instead of following a redirect. */
+    redirect?: 'error';
   },
 ) => Promise<Response>;
 
@@ -34,7 +36,7 @@ const fetchJsonWithTimeout = async (
 
   try {
     const response = await Promise.race([
-      fetcher(url, { signal: controller.signal }),
+      fetcher(url, { signal: controller.signal, redirect: 'error' }),
       new Promise<Response>((_, reject) => {
         timeoutId = setTimeout(() => {
           controller.abort();

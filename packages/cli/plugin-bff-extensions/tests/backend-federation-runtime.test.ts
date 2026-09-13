@@ -558,6 +558,212 @@ module.exports = {
     ).rejects.toThrow(/strictEffectApproach: true/u);
   });
 
+  describe('shared manifest-plus-entry load deadline', () => {
+    function createHangingFetch() {
+      let settled = false;
+      let resolveResponse!: (response: Response) => void;
+      const response = new Promise<Response>(resolve => {
+        resolveResponse = resolve;
+      });
+      const fetch = rs.fn(async () => response);
+      return {
+        fetch,
+        resolveWithManifest(manifest: unknown) {
+          if (settled) {
+            return;
+          }
+          settled = true;
+          resolveResponse(new Response(JSON.stringify(manifest)));
+        },
+      };
+    }
+
+    function loadWithHangingManifestFetch(
+      overrides: Partial<
+        Pick<
+          Parameters<typeof loadBackendFederatedEffectApiFromManifest>[0],
+          'entryPolicy' | 'manifestPolicy' | 'timeoutMs'
+        >
+      >,
+    ) {
+      // The manifest's own declared remote (service:verticalCatalogBackend)
+      // is a caller-pinned static binding, matched via `remote` below, so a
+      // load that survives to the entry stage succeeds instead of tripping
+      // the "network manifests cannot select local/global/plugin entry"
+      // guard that a bare network-manifest reference would hit.
+      const manifest = withDeliveryUnitIdentity(createBackendManifest());
+      const { fetch, resolveWithManifest } = createHangingFetch();
+      const resolveEntry = rs.fn(() =>
+        createEffectApiEntryExports(createManifestEffectApiModule()),
+      );
+      const resultPromise = loadBackendFederatedEffectApiFromManifest({
+        expected: { unitId: 'catalog@21', buildMarker: 'catalog-build-123' },
+        fetch,
+        hostName: 'sharedDeadlineHost',
+        manifestUrl: 'https://catalog.example.test/backend-mf-manifest.json',
+        plugins: [createBackendFederationLoadEntryPlugin({ resolveEntry })],
+        remote: {
+          entry: 'service:verticalCatalogBackend',
+          name: 'verticalCatalogBackend',
+        },
+        ...overrides,
+      });
+      // Attach the outcome handler immediately, in the same tick the
+      // promise is created, so nothing is ever unhandled regardless of when
+      // fake timers are advanced or the manifest fetch is resolved.
+      let outcome: { ok: true } | { error: unknown } | undefined;
+      const tracked = resultPromise.then(
+        () => {
+          outcome = { ok: true };
+        },
+        error => {
+          outcome = { error };
+        },
+      );
+      return {
+        fetch,
+        manifest,
+        resolveEntry,
+        resolveWithManifest: () => resolveWithManifest(manifest),
+        resultPromise,
+        settled: () => outcome !== undefined,
+        tracked,
+      };
+    }
+
+    beforeEach(() => {
+      rs.useFakeTimers();
+    });
+
+    afterEach(() => {
+      rs.useRealTimers();
+    });
+
+    test('applies a finite 10s shared default when no timeout is configured', async () => {
+      const { resolveEntry, resultPromise } = loadWithHangingManifestFetch({});
+
+      await rs.advanceTimersByTimeAsync(9_999);
+      expect(resolveEntry).not.toHaveBeenCalled();
+
+      await rs.advanceTimersByTimeAsync(1);
+
+      await expect(resultPromise).rejects.toMatchObject({ code: 'timeout' });
+      expect(resolveEntry).not.toHaveBeenCalled();
+    });
+
+    test('honors an explicit positive outer timeoutMs override', async () => {
+      const { resultPromise } = loadWithHangingManifestFetch({
+        timeoutMs: 50,
+      });
+
+      await rs.advanceTimersByTimeAsync(49);
+      await rs.advanceTimersByTimeAsync(1);
+
+      await expect(resultPromise).rejects.toMatchObject({ code: 'timeout' });
+    });
+
+    test('treats an explicit outer timeoutMs of 0 as a deliberate opt-out', async () => {
+      const { resolveWithManifest, resultPromise, settled } =
+        loadWithHangingManifestFetch({ timeoutMs: 0 });
+
+      await rs.advanceTimersByTimeAsync(1_000_000);
+      expect(settled()).toBe(false);
+
+      resolveWithManifest();
+      await expect(resultPromise).resolves.toBeDefined();
+    });
+
+    test('picks the smallest explicit positive nested policy timeout when no outer override is set', async () => {
+      const { resultPromise } = loadWithHangingManifestFetch({
+        manifestPolicy: { timeoutMs: 300 },
+        entryPolicy: { timeoutMs: 150 },
+      });
+
+      await rs.advanceTimersByTimeAsync(149);
+      await rs.advanceTimersByTimeAsync(1);
+
+      await expect(resultPromise).rejects.toMatchObject({ code: 'timeout' });
+    });
+
+    test('an explicit nested zero does not disable an explicitly positive nested limit', async () => {
+      const { resultPromise } = loadWithHangingManifestFetch({
+        manifestPolicy: { timeoutMs: 0 },
+        entryPolicy: { timeoutMs: 200 },
+      });
+
+      await rs.advanceTimersByTimeAsync(199);
+      await rs.advanceTimersByTimeAsync(1);
+
+      await expect(resultPromise).rejects.toMatchObject({ code: 'timeout' });
+    });
+
+    test('opts out only when every explicit nested policy timeout is zero', async () => {
+      const { resolveWithManifest, resultPromise, settled } =
+        loadWithHangingManifestFetch({
+          manifestPolicy: { timeoutMs: 0 },
+          entryPolicy: { timeoutMs: 0 },
+        });
+
+      await rs.advanceTimersByTimeAsync(1_000_000);
+      expect(settled()).toBe(false);
+
+      resolveWithManifest();
+      await expect(resultPromise).resolves.toBeDefined();
+    });
+
+    test('spends the same shared budget across the manifest and entry network stages, not a fresh one per hop', async () => {
+      const entryUrl = 'https://catalog.example.test/backendRemoteEntry.cjs';
+      const entrySource = createLiveBackendEntrySource(
+        'verticalCatalogBackend',
+        'catalog-build-123',
+      );
+      const manifest = withDeliveryUnitIdentity(
+        createVerifiedBackendManifest(entrySource, entryUrl),
+      );
+      const { fetch: manifestFetch, resolveWithManifest } =
+        createHangingFetch();
+      const entryFetch = rs.fn(() => new Promise<Response>(() => {}));
+
+      const resultPromise = loadBackendFederatedEffectApiFromManifest({
+        expected: { unitId: 'catalog@21', buildMarker: 'catalog-build-123' },
+        fetch: manifestFetch,
+        hostName: 'sharedDeadlineAcrossStagesHost',
+        manifestUrl: 'https://catalog.example.test/backend-mf-manifest.json',
+        timeoutMs: 100,
+        entryPolicy: {
+          expected: {
+            byteLength: Buffer.byteLength(entrySource),
+            entryUrl,
+            remoteName: 'verticalCatalogBackend',
+            sha256: createHash('sha256').update(entrySource).digest('hex'),
+          },
+          fetch: entryFetch,
+        },
+      });
+      resultPromise.then(
+        () => {},
+        () => {},
+      );
+
+      // The manifest fetch consumes 60ms of the shared 100ms budget before
+      // resolving; the entry stage then begins with only ~40ms left of the
+      // SAME deadline.
+      await rs.advanceTimersByTimeAsync(60);
+      resolveWithManifest(manifest);
+      await rs.advanceTimersByTimeAsync(0);
+      expect(entryFetch).toHaveBeenCalledTimes(1);
+
+      // If the entry stage reset its own fresh 100ms budget instead of
+      // spending down the remaining shared allowance, this would still be
+      // pending at the 100ms mark.
+      await rs.advanceTimersByTimeAsync(39);
+      await rs.advanceTimersByTimeAsync(1);
+
+      await expect(resultPromise).rejects.toMatchObject({ code: 'timeout' });
+      expect(entryFetch).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe('ADR-0019 delivery-unit identity root', () => {
     function createBackendManifestWithDeliveryUnit(
       deliveryUnit: Record<string, unknown>,
