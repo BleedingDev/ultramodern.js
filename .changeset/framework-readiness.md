@@ -2,7 +2,6 @@
 '@modern-js/server-core': patch
 '@modern-js/server-runtime-extensions': patch
 '@modern-js/plugin-bff-extensions': patch
-'@bleedingdev/rsbuild-image-core': patch
 ---
 
 Harden opt-in SSR caching with origin/query partitioning, credential-aware request bypass, response privacy checks, public-header replay and stale-entry eviction. Custom keys remain an application-owned partitioning contract.
