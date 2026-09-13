@@ -149,6 +149,39 @@ function throwIfManifestLoadAborted(signal: AbortSignal) {
   }
 }
 
+// Stop waiting even when trusted plugin work ignores cancellation. The race
+// observes late rejections; it cannot stop that work from running.
+function settleOnSharedAbort<T>(
+  promise: Promise<T>,
+  signal: AbortSignal,
+): Promise<T> {
+  if (signal.aborted) {
+    // Observe work even when the pre-aborted path never reaches Promise.race.
+    promise.catch(() => {});
+    throwIfManifestLoadAborted(signal);
+  }
+
+  let onAbort: (() => void) | undefined;
+  const aborted = new Promise<never>((_resolve, reject) => {
+    onAbort = () => {
+      reject(
+        new BackendFederationManifestAdapterError(
+          'remote_unavailable',
+          '[BFF][Effect] Backend federation load was aborted before remote execution.',
+          signal.reason,
+        ),
+      );
+    };
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
+
+  return Promise.race([promise, aborted]).finally(() => {
+    if (onAbort) {
+      signal.removeEventListener('abort', onAbort);
+    }
+  });
+}
+
 export async function loadBackendFederatedEffectApiFromManifest(
   options: BackendFederationManifestAdapterOptions,
 ): Promise<BackendFederatedEffectApiModule> {
@@ -159,16 +192,19 @@ export async function loadBackendFederatedEffectApiFromManifest(
   try {
     scope = createManifestLoadScope(options);
     throwIfManifestLoadAborted(scope.signal);
-    manifest = await loadBackendFederationManifest({
-      ...options,
-      manifestPolicy: {
-        ...options.manifestPolicy,
+    manifest = await settleOnSharedAbort(
+      loadBackendFederationManifest({
+        ...options,
+        manifestPolicy: {
+          ...options.manifestPolicy,
+          signal: scope.signal,
+          timeoutMs: 0,
+        },
         signal: scope.signal,
         timeoutMs: 0,
-      },
-      signal: scope.signal,
-      timeoutMs: 0,
-    });
+      }),
+      scope.signal,
+    );
     validateBackendFederationManifest(manifest, options.expected);
     remote = resolveBackendFederationRemoteFromManifest(
       manifest,
@@ -232,24 +268,27 @@ export async function loadBackendFederatedEffectApiFromManifest(
         'manifest_invalid',
         'Backend federation manifest requires delivery-unit identity.',
       );
-    const loaded = await loadBackendFederatedEffectApi({
-      hostName: options.hostName,
-      remote,
-      ...(options.plugins ? { plugins: options.plugins } : {}),
-      entryPolicy: {
-        ...options.entryPolicy,
-        signal: scope.signal,
-        timeoutMs: 0,
-      },
-      ...(options.runtime ? { runtime: options.runtime } : {}),
-      expected: { unitId, buildMarker },
-    }).catch((error: unknown) => {
-      throw new BackendFederationManifestAdapterError(
-        scope?.timedOut() === true ? 'timeout' : classifyLoadError(error),
-        `[BFF][Effect] Backend federation remote ${remote?.name ?? 'unknown'} could not load ${remote?.expose ?? BACKEND_FEDERATION_EFFECT_EXPOSE}.`,
-        error,
-      );
-    });
+    const loaded = await settleOnSharedAbort(
+      loadBackendFederatedEffectApi({
+        hostName: options.hostName,
+        remote,
+        ...(options.plugins ? { plugins: options.plugins } : {}),
+        entryPolicy: {
+          ...options.entryPolicy,
+          signal: scope.signal,
+          timeoutMs: 0,
+        },
+        ...(options.runtime ? { runtime: options.runtime } : {}),
+        expected: { unitId, buildMarker },
+      }).catch((error: unknown) => {
+        throw new BackendFederationManifestAdapterError(
+          scope?.timedOut() === true ? 'timeout' : classifyLoadError(error),
+          `[BFF][Effect] Backend federation remote ${remote?.name ?? 'unknown'} could not load ${remote?.expose ?? BACKEND_FEDERATION_EFFECT_EXPOSE}.`,
+          error,
+        );
+      }),
+      scope.signal,
+    );
 
     validateLoadedBackendFederationContract(loaded, manifest, remote);
 

@@ -762,6 +762,134 @@ module.exports = {
       await expect(resultPromise).rejects.toMatchObject({ code: 'timeout' });
       expect(entryFetch).toHaveBeenCalledTimes(1);
     });
+
+    describe('a hanging entry stage (PR87 verified deadline correction)', () => {
+      // The shared timeout/abort only cancels network fetches wired to the
+      // shared signal. A caller-pinned service/static entry plugin (or a
+      // custom runtime) is arbitrary, uncooperative JS: nothing can force
+      // its loadEntry/init/get/loadRemote promise to actually stop running.
+      // These tests prove the top-level load still *settles* on the shared
+      // deadline/abort in that case, instead of hanging forever.
+      function manifestOptions() {
+        return {
+          expected: { unitId: 'catalog@21', buildMarker: 'catalog-build-123' },
+          manifest: withDeliveryUnitIdentity(createBackendManifest()),
+        } as const;
+      }
+
+      test('settles a hanging caller-pinned loadEntry plugin on the default shared deadline', async () => {
+        const resolveEntry = rs.fn(() => new Promise<never>(() => {}));
+        const resultPromise = loadBackendFederatedEffectApiFromManifest({
+          ...manifestOptions(),
+          hostName: 'hangingLoadEntryHost',
+          plugins: [createBackendFederationLoadEntryPlugin({ resolveEntry })],
+        });
+        resultPromise.then(
+          () => {},
+          () => {},
+        );
+
+        await rs.advanceTimersByTimeAsync(9_999);
+        expect(resolveEntry).toHaveBeenCalledTimes(1);
+
+        await rs.advanceTimersByTimeAsync(1);
+        await expect(resultPromise).rejects.toMatchObject({ code: 'timeout' });
+      });
+
+      test('settles a hanging entry.init() on an explicit shared deadline, then falls back', async () => {
+        const initHang = new Promise<void>(() => {});
+        const fallbackErrors: BackendFederationManifestAdapterError[] = [];
+        const resultPromise = loadBackendFederatedEffectApiFromManifest({
+          ...manifestOptions(),
+          hostName: 'hangingInitHost',
+          timeoutMs: 25,
+          plugins: [
+            createBackendFederationLoadEntryPlugin({
+              resolveEntry: () => ({
+                init: () => initHang,
+                get(id: string) {
+                  if (id !== './effect-api') {
+                    throw new Error(`Unexpected expose ${id}`);
+                  }
+                  return async () => createManifestEffectApiModule();
+                },
+              }),
+            }),
+          ],
+          fallback(error) {
+            fallbackErrors.push(error);
+            return createManifestEffectApiModule({
+              runtime: { brand: 'fallback-after-hang' },
+            });
+          },
+        });
+
+        await rs.advanceTimersByTimeAsync(24);
+        await rs.advanceTimersByTimeAsync(1);
+
+        const loaded = await resultPromise;
+        expect(loaded.runtime).toEqual({ brand: 'fallback-after-hang' });
+        expect(fallbackErrors).toHaveLength(1);
+        expect(fallbackErrors[0].code).toBe('timeout');
+      });
+
+      test('settles a hanging custom runtime.loadRemote on the default shared deadline', async () => {
+        const loadRemote = rs.fn(() => new Promise<never>(() => {}));
+        const resultPromise = loadBackendFederatedEffectApiFromManifest({
+          ...manifestOptions(),
+          hostName: 'hangingRuntimeLoadRemoteHost',
+          runtime: { loadRemote } as never,
+        });
+        resultPromise.then(
+          () => {},
+          () => {},
+        );
+
+        await rs.advanceTimersByTimeAsync(9_999);
+        expect(loadRemote).toHaveBeenCalledTimes(1);
+
+        await rs.advanceTimersByTimeAsync(1);
+        await expect(resultPromise).rejects.toMatchObject({ code: 'timeout' });
+      });
+
+      test('rejects promptly on an external abort while a loadEntry plugin hangs, and observes its late rejection', async () => {
+        const controller = new AbortController();
+        let rejectHangingEntry!: (error: unknown) => void;
+        const hangingEntry = new Promise<BackendFederationEntryExports>(
+          (_resolve, reject) => {
+            rejectHangingEntry = reject;
+          },
+        );
+
+        const resultPromise = loadBackendFederatedEffectApiFromManifest({
+          ...manifestOptions(),
+          hostName: 'externalAbortHangingEntryHost',
+          plugins: [
+            createBackendFederationLoadEntryPlugin({
+              resolveEntry: () => hangingEntry,
+            }),
+          ],
+          signal: controller.signal,
+        });
+
+        // Give the plugin's promise a tick to be requested, then cancel from
+        // the outside well before the 10s default deadline would ever fire.
+        await rs.advanceTimersByTimeAsync(5);
+        controller.abort(new Error('caller cancelled'));
+
+        await expect(resultPromise).rejects.toMatchObject({
+          code: 'remote_unavailable',
+        });
+
+        // The plugin never actually stops running; it rejects later, well
+        // after the adapter already settled via the external abort. That
+        // late rejection must be observed here instead of surfacing as an
+        // unhandled rejection for the suite.
+        rejectHangingEntry(new Error('late plugin failure'));
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+    });
   });
 
   describe('ADR-0019 delivery-unit identity root', () => {
