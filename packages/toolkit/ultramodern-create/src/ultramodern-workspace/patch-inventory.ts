@@ -30,11 +30,11 @@ export default [
     packageName: '@module-federation/modern-js-v3',
     version: '2.9.0',
     path: 'patches/@module-federation__modern-js-v3@2.9.0.patch',
-    sha256: '3fb0015257028b2b6a465c44f1d7d2fc966235e643f74828743099533becd584',
+    sha256: '0ab5fa14ed744c31c8221c6f663c9fc5b50a134f641e65277900c88da6cb72d0',
     repository: true,
     workspace: 'required',
     reason:
-      'Preserve lazy compilation, framework CSS ownership, SSR manifest recovery and valid async splitting.',
+      'Preserve lazy compilation, framework CSS ownership, SSR manifest recovery, valid async splitting and native ESM CLI package resolution.',
   },
   {
     packageName: '@module-federation/rspack',

@@ -17,3 +17,5 @@
 ---
 
 Consolidate fork-owned workspace validation, route and navigation contracts, BFF metadata, federation transport, and build resolution while preserving current generated application and runtime behavior. Generated validation now runs from the installed package, router preparation owns cancellation and disposal, and remote address resolution uses one policy in generated and runtime configuration.
+
+Fix packed route generation from app-owned dependencies and repair Module Federation CLI ESM bindings while keeping optional DTS loading lazy.

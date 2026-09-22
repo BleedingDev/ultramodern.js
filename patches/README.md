@@ -8,7 +8,7 @@ Edit `packages/toolkit/ultramodern-create/src/ultramodern-workspace/patch-invent
 | @module-federation/bridge-react@2.9.0 | yes | required | Portable React declaration specifiers. |
 | @module-federation/dts-plugin@2.9.0 | yes | required | Preserve absolute rootDir when collecting public declarations. |
 | @module-federation/manifest@2.9.0 | yes | none | Defer DTS loading when DTS is disabled. |
-| @module-federation/modern-js-v3@2.9.0 | yes | required | Preserve lazy compilation, framework CSS ownership, SSR manifest recovery and valid async splitting. |
+| @module-federation/modern-js-v3@2.9.0 | yes | required | Preserve lazy compilation, framework CSS ownership, SSR manifest recovery, valid async splitting and native ESM CLI package resolution. |
 | @module-federation/rspack@2.9.0 | yes | none | Defer DTS plugin loading when DTS is disabled. |
 | @module-federation/runtime-core@2.9.0 | yes | required | Import ResourceLoadContext used by public remote hooks. |
 | drizzle-orm@1.0.0-rc.4 | no | conditional | Strict TypeScript declarations for generated database applications. |
