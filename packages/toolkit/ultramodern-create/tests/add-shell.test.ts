@@ -7,7 +7,6 @@ import path from 'node:path';
 import {
   addUltramodernShell,
   addUltramodernVertical,
-  generateUltramodernWorkspace,
   planUltramodernShell,
 } from '../src/ultramodern-workspace';
 import { UnknownUltramodernShellError } from '../src/ultramodern-workspace/add-vertical/preflight';
@@ -16,6 +15,7 @@ import {
   prependCommandFixturePath,
   writeNodeCommandFixture,
 } from './helpers/node-command-fixture';
+import { createWorkspace, runValidation } from './helpers/workspace-kit';
 
 const createBinPath = path.resolve(__dirname, '../bin/run.js');
 const nativePreviewRequire = createRequire(
@@ -40,26 +40,12 @@ function readJson(workspaceDir: string, relativePath: string): any {
 }
 
 function createBaseWorkspace(workspaceDir: string) {
-  generateUltramodernWorkspace({
-    targetDir: workspaceDir,
-    packageName: path.basename(workspaceDir),
-    modernVersion: '3.2.1',
-    enableTailwind: true,
-    packageSource: { strategy: 'workspace' },
-  });
+  createWorkspace(workspaceDir);
   addUltramodernVertical({
     workspaceRoot: workspaceDir,
     name: 'catalog',
     modernVersion: '3.2.1',
   });
-}
-
-function runValidation(workspaceDir: string) {
-  return spawnSync(
-    process.execPath,
-    ['scripts/validate-ultramodern-workspace.mts'],
-    { cwd: workspaceDir, encoding: 'utf-8' },
-  );
 }
 
 type RecordedBuildInvocation = {
