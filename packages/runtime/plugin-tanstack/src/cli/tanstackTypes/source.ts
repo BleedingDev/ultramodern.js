@@ -82,14 +82,10 @@ export async function generateTanstackRouterTypesSourceForEntry(opts: {
         // value carries the internal `@_modern_js_src` alias, which the app's
         // tsconfig does not map — the generated file must use relative
         // imports.
-        const resolvedNoExt = await resolveRouteModuleNoExt(componentPath);
-        if (!resolvedNoExt) {
+        const relImport = await resolveRouteImport(componentPath);
+        if (!relImport) {
           return null;
         }
-
-        const relImport = normalizeRelativeImport(
-          path.relative(outDir, resolvedNoExt),
-        );
 
         const componentName = `component_${componentIndex++}`;
         imports.push(`import ${componentName} from ${quote(relImport)};`);
@@ -101,7 +97,7 @@ export async function generateTanstackRouterTypesSourceForEntry(opts: {
     return pendingImportName;
   };
 
-  const resolveRouteModuleNoExt = async (aliasedNoExtPath: string) => {
+  const resolveRouteImport = async (aliasedNoExtPath: string) => {
     const prefix = `${appContext.internalSrcAlias}/`;
     let absNoExt: string;
     if (aliasedNoExtPath.startsWith(prefix)) {
@@ -114,7 +110,10 @@ export async function generateTanstackRouterTypesSourceForEntry(opts: {
       absNoExt = path.join(appContext.srcDirectory, aliasedNoExtPath);
     }
 
-    return resolveFileNoExt(absNoExt);
+    const resolvedNoExt = await resolveFileNoExt(absNoExt);
+    return resolvedNoExt
+      ? normalizeRelativeImport(path.relative(outDir, resolvedNoExt))
+      : null;
   };
 
   const getImportNamesForLoader = async (
@@ -133,14 +132,10 @@ export async function generateTanstackRouterTypesSourceForEntry(opts: {
       };
     }
 
-    const resolvedNoExt = await resolveRouteModuleNoExt(aliasedNoExtPath);
-    if (!resolvedNoExt) {
+    const relImport = await resolveRouteImport(aliasedNoExtPath);
+    if (!relImport) {
       return null;
     }
-
-    const relImport = normalizeRelativeImport(
-      path.relative(outDir, resolvedNoExt),
-    );
 
     const importName = `loader_${loaderIndex++}`;
     const actionName = hasAction
@@ -172,14 +167,10 @@ export async function generateTanstackRouterTypesSourceForEntry(opts: {
       return existing;
     }
 
-    const resolvedNoExt = await resolveRouteModuleNoExt(aliasedNoExtPath);
-    if (!resolvedNoExt) {
+    const relImport = await resolveRouteImport(aliasedNoExtPath);
+    if (!relImport) {
       return null;
     }
-
-    const relImport = normalizeRelativeImport(
-      path.relative(outDir, resolvedNoExt),
-    );
     const importName =
       exportName === 'validateSearch'
         ? `validateSearch_${validateSearchIndex++}`
