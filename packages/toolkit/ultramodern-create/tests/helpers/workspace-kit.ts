@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import os from 'node:os';
@@ -5,6 +6,29 @@ import path from 'node:path';
 import { generateUltramodernWorkspace } from '../../src/ultramodern-workspace';
 
 const require = createRequire(import.meta.url);
+
+export function linkInstalledCompiler(workspaceDir: string) {
+  const compilerPath = path.join(
+    workspaceDir,
+    'node_modules/@typescript/native',
+  );
+  if (!fs.existsSync(compilerPath)) {
+    fs.mkdirSync(path.dirname(compilerPath), { recursive: true });
+    fs.symlinkSync(
+      path.dirname(require.resolve('typescript/package.json')),
+      compilerPath,
+      process.platform === 'win32' ? 'junction' : 'dir',
+    );
+  }
+}
+
+export function runValidation(workspaceDir: string) {
+  return spawnSync(
+    process.execPath,
+    ['scripts/validate-ultramodern-workspace.mts'],
+    { cwd: workspaceDir, encoding: 'utf-8' },
+  );
+}
 
 export function linkWorkspaceFormatterDependencies(workspaceDir: string) {
   const modulesDirectory = path.join(workspaceDir, 'node_modules');

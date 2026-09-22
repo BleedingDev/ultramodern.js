@@ -190,9 +190,10 @@ test('import and Rule 5 ownership survive renames; equal metrics do not count as
   const renamed = 'packages/runtime/src/renamed.ts';
   git(root, 'mv', entry.path, renamed);
   head = commit();
-  assert.equal(changes()[0].file, entry.path);
-  assert.equal(changes()[0].renamed, true);
-  assert.equal(changes()[0].genuineShrink, false);
+  const [change] = changes();
+  assert.equal(change.file, entry.path);
+  assert.equal(change.renamed, true);
+  assert.equal(change.genuineShrink, false);
   write(renamed, stable + 'import "@modern-js/plugin-tanstack";\n');
   assert.equal(
     scanUpstreamOwnedForkImports({ rootDir: root, baseRef: base }).violations[0]

@@ -1,39 +1,15 @@
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
-import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
-import { generateUltramodernWorkspace } from '../src/ultramodern-workspace';
+import {
+  createWorkspace,
+  linkInstalledCompiler,
+  runValidation,
+} from './helpers/workspace-kit';
 
 const moduleFederationConfigPath =
   'apps/shell-super-app/module-federation.config.ts';
-
-function runValidation(workspaceDir: string) {
-  const typescriptPackage = createRequire(import.meta.url).resolve(
-    'typescript/package.json',
-  );
-  const compilerPath = path.join(
-    workspaceDir,
-    'node_modules/@typescript/native',
-  );
-  if (!fs.existsSync(compilerPath)) {
-    fs.mkdirSync(path.dirname(compilerPath), { recursive: true });
-    fs.symlinkSync(
-      path.dirname(typescriptPackage),
-      compilerPath,
-      process.platform === 'win32' ? 'junction' : 'dir',
-    );
-  }
-  return spawnSync(
-    process.execPath,
-    ['scripts/validate-ultramodern-workspace.mts'],
-    {
-      cwd: workspaceDir,
-      encoding: 'utf-8',
-    },
-  );
-}
 
 function output(result: ReturnType<typeof runValidation>) {
   return `${result.stdout}\n${result.stderr}`;
@@ -61,22 +37,13 @@ function declareReactRouter(workspaceDir: string) {
   fs.writeFileSync(packagePath, `${JSON.stringify(packageJson, null, 2)}\n`);
 }
 
-function generateWorkspace(workspaceDir: string) {
-  generateUltramodernWorkspace({
-    targetDir: workspaceDir,
-    packageName: path.basename(workspaceDir),
-    modernVersion: '3.2.1',
-    enableTailwind: true,
-    packageSource: { strategy: 'workspace' },
-  });
-}
-
 test('bridge router gate consumes the declaration and dependency boundary', () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-bridge-router-'));
   const baselineDir = path.join(tempRoot, 'baseline');
 
   try {
-    generateWorkspace(baselineDir);
+    createWorkspace(baselineDir);
+    linkInstalledCompiler(baselineDir);
     const baseline = runValidation(baselineDir);
     assert.equal(baseline.status, 0, output(baseline));
 

@@ -1,58 +1,35 @@
-# Fork simplification implementation
+# Fork simplification, 22 September 2026
 
-Implementation baseline: `0dee65d737` (framework source `ba2f373ad9`). First implementation checkpoint: `6669146287`. The fixed vanilla ownership base remains `eded841256`; no ownership scope or provenance reset was made.
+Implemented in `0dee65d737..bc67fd6e7b`. Vanilla ownership remains based on `eded841256`; budgets and provenance were not reset.
 
-## Changes
+| Area | Simplification |
+|---|---|
+| Workspace | One prepared transaction supplies preview and apply; reuse normalized ownership and configuration. |
+| Validator | Typed installed modules replace executable Handlebars and temporary rendered programs. |
+| Scaffold | Shared remote rendering and named template inputs replace repeated bodies and positional fields. |
+| Routes | One descriptor feeds runtime routes and emitted types; preserve both routers and localized splats. |
+| Router | Explicit navigation capabilities, immutable SSR metadata and request-owned cleanup. |
+| BFF | Shared producer/operation identity and batch defaults; preserve native Effect types and Hono defaults. |
+| Federation | Shared bounded acquisition and identity checks; preserve cancellation, integrity and platform adapters. |
+| Build | Shared remote-address policy and source analysis; installed app TypeScript bundles correctly. |
+| Governance | Structured ledger evidence and shared ownership classification; historical evidence still works. |
+| Release | Fixed script entrypoints and shared registry reads replace inline programs and repeated verification. |
+| Tests | Explicit prerequisite builds and actual packed installs replace mutable-dist locks and flattened dependencies. |
+| Supply | One patch inventory and deterministic sidecar reconstruction replace duplicated inventories and store-dependent checks. |
 
-Twelve parallel owners implemented the selected graph, with separate independent semantic reviews and root-controlled builds. The cuts remove competing decisions and executable template machinery; current application features and platform boundaries remain acceptance requirements.
+The per-app route worker remains because Module Federation captures its working directory at import and app-tools has process-global lifecycle state. Each app needs a fresh process with native cleanup.
 
-| Area | Removed machinery | Preserved contract |
-|---|---|---|
-| Workspace | Double preview staging, handwritten JSON mutation summaries, repeated config reads | Preview/apply bytes, authored files, modes, symlinks, concurrent edits and recovery |
-| Validator | Executable Handlebars validator, reconstructed ghost contract, temporary rendered commands | Installed policy, real filesystem checks, compiler checks, cohort/patch parity and authored proof inputs |
-| Scaffold | Three repeated remote bodies and positional template inputs | 21 byte-identical generated outputs, native links and visible markup |
-| Routes | Locale expansion/collapse and conflicting root/pathless/index rules | Physical React Router routes, canonical TanStack routes, localized splats and emitted navigation types |
-| Router | Framework-shape guessing and copied live snapshot metadata | Native provider capabilities, immutable SSR snapshot, stream lifetime and active-loader cancellation |
-| BFF | Competing producer lookups, hash projections, entry resolvers and batch defaults | Native Effect inference, source-free SDK identity, Hono default identity, auth/cancel/dedup/replay policy |
-| Federation | Repeated acquisition/cancellation and identity interpretation | Exact bytes, SHA-256, whole-operation budgets, redirects, platform differences and nonblocking fallback telemetry |
-| Build | Generated remote URL algorithm, repeated parser/scope mechanics and SSR inference | Explicit production addresses, local development, app-copy priority and conditional exports |
-| Governance | Parallel ownership classification and current Markdown evidence parsing | Fixed audited identity, semantic same-PR evidence, fail-closed budgets and historical ledger reading |
-| Release | Six inline programs, duplicate registry transport, manifest parsing and receipt checks | OIDC/job separation, exact artifacts, provenance, attempt identity and propagation budget |
-| Tests | Implicit build locks/caches and all-to-all dependency links | One prerequisite owner, actual packed dependency graphs, Windows spawning and retained browser assertions |
-| Supply | Repeated patch inventories and incidental-store verification | One integrity-pinned inventory, deterministic sidecars, executable modes, licenses and image behavior |
+## Verification at the implementation commit
 
-The static per-app route worker remains intentionally: Module Federation captures the working directory when imported, and app-tools owns process-global lifecycle state. Each app receives a fresh process and native cleanup. The worker is packaged source, not a rendered temporary program.
+- All 47 build tasks, repository lint, ten strict TypeScript configurations and both fork-boundary checks passed.
+- Packed consumers passed with framework sources removed and `NODE_PATH` cleared: two BFF cases and three workspace cases. Four retained browser cases and three prerequisite cases also passed.
+- Tractor passed all 15 acceptance checks, including Node/workerd distributed SSR, JavaScript-disabled rendering and visible shopping. Proof used local servers and a local registry with 46 framework packages and three sidecars. The configured demo checkout was absent, so the runner used pinned revision `28a3e4d363226b5d4e08576a21fe83583e4d736a`. Browser proof covered `/en`; separate framework suites covered locale behavior.
+- Tractor framework source: `5438498b2d0354d4a4396d802ef0b166f0a08cff`. Cohort digest: `64ae52d47224065eaca03cd154f8ce59b65a9465a23c9db17da19c3f68bed700`. Nothing was published.
 
-## Verification
+The original audit, full acceptance JSON and completed plans remain in Git at `bc67fd6e7b`. They were removed from the working tree after completion. Recover the full report with `git show bc67fd6e7b:docs/audits/fork-simplification-20260922-tractor.json`.
 
-The initial baseline passed 106 focused tests and all 47 prerequisite build tasks. After implementation, all 47 build tasks passed again, repository-wide Biome passed, and all ten strict Effect/TypeScript configurations passed. Each lane ran its retained behavior suites; counts overlap and are not presented as one inflated total.
+## Measurements and remaining work
 
-Independent reviews caught and led to fixes for implicit Hono identity, extracted release bindings, React Router publication, active-loader cancellation, localized wildcard types, and formatting-only ledger authorization. Actual packed installation exposed injected-workspace TypeScript externalization, which is fixed in the fork-owned loader; both CJS and ESM regressions and production BFF serving pass.
+Before the subsequent paperwork/test cleanup, the implementation removed 1,181 net production/template lines, added 1,180 test/harness lines and added 593 dependency-patch lines. These exclude audit and tracking artifacts. Native divergence grew by 88 lines, largely regression tests, to 50,970 lines; the required same-PR ledger evidence was recorded.
 
-The final source-isolated packed suites passed: two BFF cases and three workspace cases. They use real generated dependency manifests, strip first-party framework source directories and clear `NODE_PATH`; they cover installed validation, route generation with natural process exit, generated route artifacts, production serving/building, mixed-cohort rejection, undeclared-import rejection and public exports. All four retained portfolio browser cases and three prerequisite-runner checks passed.
-
-The [Tractor acceptance report](fork-simplification-20260922-tractor.json) passed against framework revision `5438498b2d0354d4a4396d802ef0b166f0a08cff`, with 46 framework packages and three stable sidecars staged into a local registry. The report records the exact cohort digest and artifact identity. Both Node and workerd passed distributed server rendering, JavaScript-disabled HTML checks and the visible shopping workflow. The runner also passed frozen installation, formatting, type/architecture checks, builds and backend federation. Its browser routes use `/en`; this is not a claim of additional-locale browser coverage. Framework locale suites provide separate coverage. No package was published.
-
-The fixed-scope boundary check and same-PR allowlist-governance check passed. Supported budget recording preserves the fixed vanilla base: 816 files, 3,076 hunks and 50,970 divergent lines. Divergence grew by 88 lines, largely native regression tests, with five current ledger entries covering non-shrink native changes. This work does not claim reduced canonical native divergence.
-
-## Measured cuts
-
-Compared with implementation baseline `0dee65d737`, counting both sides of changed files with rename detection disabled:
-
-| Category | Before | After | Net |
-|---|---:|---:|---:|
-| Production code and executable templates | 33,396 | 32,215 | **−1,181** |
-| Tests and harnesses | 16,906 | 18,086 | +1,180 |
-| Dependency patch files | 536 | 1,129 | +593 |
-| Manifests and lockfiles | 37,687 | 37,687 | 0 |
-| Other changed declarative/docs files | 6,463 | 6,332 | −131 |
-
-These are changed-file populations, not whole-repository totals. Production includes JS/TS and Handlebars; tests are classified first by test directories or test/spec filenames. Patch assets include the canonical Drizzle declaration patch and the Module Federation ESM correction. Beads, execution plans, this audit directory and the divergence ledger are excluded. Tests and patches outweigh the production reduction; there is no claim of a net repository line reduction.
-
-## Qualified decisions
-
-No worker wrappers were added around upstream or external Cloudflare aliases. Historical Markdown ledger reading and the distinct AST policy check remain because deleting them would weaken historical evidence or inline-policy enforcement. Governance improves authority and maintainability but is not a net line reduction.
-
-Follow-up `modernjs-wuutt.15` retains unproved replacements, the evidenced broad module-root resolver leak, and a dead ownership recognizer whose retained synthetic test requires explicit test-selection approval. No prior test purge or retired framework migration/Effect-generation system was restored.
-
-The configured Tractor checkout was absent. Acceptance used a clean disposable checkout of workflow-pinned revision `28a3e4d363226b5d4e08576a21fe83583e4d736a`, preserving its visible UI. All proof requests targeted local servers. The report records the resulting acceptance application commit; no demo change was pushed. Existing unrelated Beads edits were kept outside implementation commits.
+Beads `modernjs-wuutt` records completed implementation. Open follow-up `modernjs-wuutt.15` covers unproved replacements for Zephyr leases, public-path rewriting, declaration repair, drain ownership and artifact rediscovery, plus a package-scoped resolver and the obsolete ownership recognizer. Current features, database migrations and platform interoperability remain required.

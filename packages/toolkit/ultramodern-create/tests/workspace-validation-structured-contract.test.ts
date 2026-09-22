@@ -8,6 +8,7 @@ import {
   addUltramodernVertical,
   generateUltramodernWorkspace,
 } from '../src/ultramodern-workspace';
+import { linkInstalledCompiler, runValidation } from './helpers/workspace-kit';
 
 const structuredMetadataPaths = [
   '.modernjs/ultramodern.json',
@@ -84,27 +85,6 @@ function generateWorkspace(workspaceDir: string, enableTailwind = true) {
     modernVersion: '3.2.1',
   });
   linkInstalledCompiler(workspaceDir);
-}
-
-function linkInstalledCompiler(workspaceDir: string) {
-  const compilerScope = path.join(workspaceDir, 'node_modules/@typescript');
-  fs.mkdirSync(compilerScope, { recursive: true });
-  fs.symlinkSync(
-    fs.realpathSync(path.resolve(__dirname, '../node_modules/typescript')),
-    path.join(compilerScope, 'native'),
-    process.platform === 'win32' ? 'junction' : 'dir',
-  );
-}
-
-function runValidation(workspaceDir: string) {
-  return spawnSync(
-    process.execPath,
-    ['scripts/validate-ultramodern-workspace.mts'],
-    {
-      cwd: workspaceDir,
-      encoding: 'utf-8',
-    },
-  );
 }
 
 function commandOutput(result: ReturnType<typeof runValidation>) {

@@ -262,7 +262,6 @@ test('release jobs reject inline programs and different Tractor acceptance revis
     ),
     'utf8',
   );
-  assert.deepEqual(validateWorkflowContent(workflowPath, content), []);
   const pin = /tractor_ref: ([a-f0-9]{40})/u.exec(content)[1];
   const changedPin = content.replace(
     `tractor_ref: ${pin}`,

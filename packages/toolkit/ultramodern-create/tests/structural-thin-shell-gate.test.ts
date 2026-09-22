@@ -1,49 +1,13 @@
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
-import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
+import { addUltramodernShell } from '../src/ultramodern-workspace';
 import {
-  addUltramodernShell,
-  generateUltramodernWorkspace,
-} from '../src/ultramodern-workspace';
-
-function generateWorkspace(workspaceDir: string) {
-  generateUltramodernWorkspace({
-    targetDir: workspaceDir,
-    packageName: path.basename(workspaceDir),
-    modernVersion: '3.2.1',
-    enableTailwind: true,
-    packageSource: { strategy: 'workspace' },
-  });
-}
-
-function runValidation(workspaceDir: string) {
-  const typescriptPackage = createRequire(import.meta.url).resolve(
-    'typescript/package.json',
-  );
-  const compilerPath = path.join(
-    workspaceDir,
-    'node_modules/@typescript/native',
-  );
-  if (!fs.existsSync(compilerPath)) {
-    fs.mkdirSync(path.dirname(compilerPath), { recursive: true });
-    fs.symlinkSync(
-      path.dirname(typescriptPackage),
-      compilerPath,
-      process.platform === 'win32' ? 'junction' : 'dir',
-    );
-  }
-  return spawnSync(
-    process.execPath,
-    ['scripts/validate-ultramodern-workspace.mts'],
-    {
-      cwd: workspaceDir,
-      encoding: 'utf-8',
-    },
-  );
-}
+  createWorkspace,
+  linkInstalledCompiler,
+  runValidation,
+} from './helpers/workspace-kit';
 
 function commandOutput(result: ReturnType<typeof runValidation>) {
   return `${result.stdout}\n${result.stderr}`;
@@ -125,7 +89,8 @@ test('generated validator enforces the structural thin-shell gate', () => {
   ];
 
   try {
-    generateWorkspace(baselineDir);
+    createWorkspace(baselineDir);
+    linkInstalledCompiler(baselineDir);
     addUltramodernShell({
       workspaceRoot: baselineDir,
       name: 'admin',
