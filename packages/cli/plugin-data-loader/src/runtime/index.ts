@@ -35,9 +35,15 @@ const LOADER_ROUTE_ID_RESOLVER =
 /** Register route identity resolution for this request's loader context. */
 export function setLoaderRouteIdResolver(
   loaderContext: Map<string, unknown>,
-  resolver: LoaderRouteIdResolver,
+  resolveRouteId: LoaderRouteIdResolver,
+  transformRoutes?: (
+    routes: ServerLoaderBundle['routes'],
+  ) => ServerLoaderBundle['routes'],
 ): void {
-  loaderContext.set(LOADER_ROUTE_ID_RESOLVER, resolver);
+  loaderContext.set(LOADER_ROUTE_ID_RESOLVER, {
+    resolveRouteId,
+    transformRoutes,
+  });
 }
 
 const redirectStatusCodes = new Set([301, 302, 303, 307, 308]);
@@ -120,13 +126,21 @@ export const handleRequest: ServerLoaderBundle['handleRequest'] = async ({
       activeDeferreds,
     },
     async () => {
-      const routes = transformNestedRoutes(routesConfig);
-      const resolveRouteId = loaderContext?.get(LOADER_ROUTE_ID_RESOLVER) as
-        | LoaderRouteIdResolver
+      const resolver = loaderContext?.get(LOADER_ROUTE_ID_RESOLVER) as
+        | {
+            resolveRouteId: LoaderRouteIdResolver;
+            transformRoutes?: (
+              routes: ServerLoaderBundle['routes'],
+            ) => ServerLoaderBundle['routes'];
+          }
         | undefined;
+      const loaderRoutes =
+        resolver?.transformRoutes?.(routesConfig) ?? routesConfig;
+      const routes = transformNestedRoutes(loaderRoutes);
+      const resolveRouteId = resolver?.resolveRouteId;
       const routeId = resolveRouteId
         ? resolveRouteId(requestedRouteId, {
-            routes: routesConfig,
+            routes: loaderRoutes,
             matchedRouteIds:
               matchRoutes(routes, url.pathname, basename)?.map(
                 match => match.route.id,

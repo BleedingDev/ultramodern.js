@@ -1,4 +1,5 @@
 import { handleRequest } from '@modern-js/plugin-data-loader/runtime';
+import { applyLocalisedUrlsToRoutes } from '@modern-js/runtime-extensions/localised-urls';
 import {
   createServerBase,
   getLoaderCtx,
@@ -40,10 +41,12 @@ const routes = [
   })),
 ];
 
+let activeRoutes = routes;
+
 const render: MiddlewareHandler = async context =>
   (await handleRequest({
     request: context.req.raw,
-    routes,
+    routes: activeRoutes,
     serverRoutes: [
       {
         urlPath: '/base',
@@ -117,4 +120,36 @@ test('retains canonical routes and rejects loader IDs from another route', async
   expect((await load('/base/cs/hledat', 'resource'))?.status).toBe(403);
   expect((await load('/base/cs/zdroje/item', 'search'))?.status).toBe(403);
   expect((await load('/base/cs/hledat', 'missing'))?.status).toBe(403);
+});
+
+test('projects canonical routes for loader matching without rewriting the request URL', async () => {
+  const previous = activeRoutes;
+  activeRoutes = applyLocalisedUrlsToRoutes(
+    [
+      {
+        type: 'nested',
+        id: 'search',
+        path: ':lang/search',
+        loader: ({ params, request }) =>
+          Response.json({
+            language: params.lang,
+            url: request.url,
+          }),
+      },
+    ] satisfies NestedRoute[],
+    ['en', 'cs'],
+    { '/search': { en: '/search', cs: '/hledat' } },
+    'canonical',
+  ) as typeof routes;
+  try {
+    const response = await load('/base/cs/hledat?q=tractor', 'search');
+    expect(response?.status).toBe(200);
+    expect(await response?.json()).toEqual({
+      language: 'cs',
+      url: 'https://example.test/base/cs/hledat?q=tractor&__loader=search',
+    });
+    expect((await load('/base/cs/hledat', 'missing'))?.status).toBe(403);
+  } finally {
+    activeRoutes = previous;
+  }
 });

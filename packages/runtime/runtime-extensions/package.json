@@ -206,6 +206,15 @@
         "require": "./dist/cjs/routerPrefetchPolicy.js"
       },
       "default": "./dist/esm/routerPrefetchPolicy.mjs"
+    },
+    "./localised-urls": {
+      "types": "./dist/types/localisedUrls/index.d.ts",
+      "modern:source": "./src/localisedUrls/index.ts",
+      "node": {
+        "import": "./dist/esm-node/localisedUrls/index.mjs",
+        "require": "./dist/cjs/localisedUrls/index.js"
+      },
+      "default": "./dist/esm/localisedUrls/index.mjs"
     }
   },
   "typesVersions": {
@@ -289,6 +298,10 @@
       "router-prefetch-policy": [
         "./dist/types/routerPrefetchPolicy.d.ts",
         "./src/routerPrefetchPolicy.ts"
+      ],
+      "localised-urls": [
+        "./dist/types/localisedUrls/index.d.ts",
+        "./src/localisedUrls/index.ts"
       ]
     }
   },

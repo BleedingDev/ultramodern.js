@@ -41,6 +41,10 @@ export const createI18nRouterNavigation = <
   I18nNavigationProvider,
   useNativeI18nRouterAdapter,
 }: I18nRouterNavigationDependencies<Adapter>) => {
+  // The injected context accepts null to preserve native-router fallback.
+  const NavigationProvider = I18nNavigationProvider as React.ComponentType<
+    React.PropsWithChildren<{ value: Adapter | null }>
+  >;
   const useIntegratedRouterAdapter = (): Adapter => {
     const runtimeContext = useContext(RuntimeContext);
     const internalContext = useContext(InternalRuntimeContext);
@@ -102,12 +106,13 @@ export const createI18nRouterNavigation = <
   }: React.PropsWithChildren) => {
     const value = useIntegratedRouterAdapter();
     const native = useNativeI18nRouterAdapter();
-    // A native React Router consumer resolves its context below this wrapper.
-    if (!value.hasRouter || native.hasRouter) {
-      return <>{children}</>;
-    }
+    // Keep the router subtree mounted when a capability arrives or disappears.
     return (
-      <I18nNavigationProvider value={value}>{children}</I18nNavigationProvider>
+      <NavigationProvider
+        value={value.hasRouter && !native.hasRouter ? value : null}
+      >
+        {children}
+      </NavigationProvider>
     );
   };
 

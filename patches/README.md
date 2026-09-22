@@ -6,7 +6,7 @@ Edit `packages/toolkit/ultramodern-create/src/ultramodern-workspace/patch-invent
 | Package | Repository | Workspace | Purpose |
 | --- | --- | --- | --- |
 | @module-federation/bridge-react@2.9.0 | yes | required | Portable React declaration specifiers. |
-| @module-federation/dts-plugin@2.9.0 | yes | required | Preserve absolute rootDir when collecting public declarations. |
+| @module-federation/dts-plugin@2.9.0 | yes | required | Preserve declaration rootDir and execute native compiler paths without shell parsing. |
 | @module-federation/manifest@2.9.0 | yes | none | Defer DTS loading when DTS is disabled. |
 | @module-federation/modern-js-v3@2.9.0 | yes | required | Preserve lazy compilation, framework CSS ownership, SSR manifest recovery, valid async splitting and native ESM CLI package resolution. |
 | @module-federation/rspack@2.9.0 | yes | none | Defer DTS plugin loading when DTS is disabled. |

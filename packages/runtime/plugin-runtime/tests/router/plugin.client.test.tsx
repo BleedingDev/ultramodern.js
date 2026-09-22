@@ -1,8 +1,9 @@
 import { runtime } from '@modern-js/plugin/runtime';
 import { getRouterRuntimeState } from '@modern-js/runtime-extensions/router-state';
 import { createRouterStatePlugin } from '@modern-js/runtime-extensions/router-state-plugin';
+import { useLocation } from '@modern-js/runtime-utils/router';
 import type React from 'react';
-import { act, useEffect } from 'react';
+import { act, Fragment, StrictMode, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
   InternalRuntimeContext,
@@ -21,7 +22,14 @@ describe('router runtime root', () => {
     window._ROUTER_DATA = undefined;
   });
 
-  it('keeps the mounted RouterProvider tree across parent renders', async () => {
+  it.each([
+    false,
+    true,
+  ])('keeps router publication and the mounted tree stable (StrictMode: %s)', async strict => {
+    const Wrapper = strict ? StrictMode : Fragment;
+    const mountCounts = strict
+      ? { mounts: 2, unmounts: 1 }
+      : { mounts: 1, unmounts: 0 };
     (
       globalThis as typeof globalThis & {
         __webpack_require__?: { u: (chunkId: unknown) => string };
@@ -34,18 +42,20 @@ describe('router runtime root', () => {
     let mounts = 0;
     let unmounts = 0;
     const RouteProbe = () => {
+      const location = useLocation();
       useEffect(() => {
         mounts += 1;
         return () => {
           unmounts += 1;
         };
       }, []);
-      return <main>route content</main>;
+      return <main>route content{location.search}</main>;
     };
     const Shell = ({ children }: React.PropsWithChildren) => <>{children}</>;
     let RouterRoot: React.ComponentType<any> | undefined;
     const passThrough = { call: <T,>(value: T) => value };
     const notify = { call: () => undefined };
+    const created = rstest.fn();
 
     routerPlugin({
       createRoutes: () => [
@@ -57,7 +67,7 @@ describe('router runtime root', () => {
     }).setup?.({
       getHooks: () => ({
         modifyRoutes: passThrough,
-        onAfterCreateRouter: notify,
+        onAfterCreateRouter: { call: created },
         onAfterHydrateRouter: notify,
         onBeforeCreateRouter: notify,
         onBeforeHydrateRouter: notify,
@@ -86,28 +96,38 @@ describe('router runtime root', () => {
 
     await act(async () => {
       root.render(
-        <InternalRuntimeContext.Provider value={runtimeContext}>
-          <RouterRoot renderVersion={0} />
-        </InternalRuntimeContext.Provider>,
+        <Wrapper>
+          <InternalRuntimeContext.Provider value={runtimeContext}>
+            <RouterRoot renderVersion={0} />
+          </InternalRuntimeContext.Provider>
+        </Wrapper>,
       );
     });
     expect(container.textContent).toBe('route content');
-    expect({ mounts, unmounts }).toEqual({ mounts: 1, unmounts: 0 });
+    expect({ mounts, unmounts }).toEqual(mountCounts);
 
     await act(async () => {
       root.render(
-        <InternalRuntimeContext.Provider value={runtimeContext}>
-          <RouterRoot renderVersion={1} />
-        </InternalRuntimeContext.Provider>,
+        <Wrapper>
+          <InternalRuntimeContext.Provider value={runtimeContext}>
+            <RouterRoot renderVersion={1} />
+          </InternalRuntimeContext.Provider>
+        </Wrapper>,
       );
     });
     expect(container.textContent).toBe('route content');
-    expect({ mounts, unmounts }).toEqual({ mounts: 1, unmounts: 0 });
+    expect({ mounts, unmounts }).toEqual(mountCounts);
+    expect(created).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await created.mock.calls[0][0].router.navigate('/?next');
+    });
+    expect(container.textContent).toBe('route content?next');
+    expect({ mounts, unmounts }).toEqual(mountCounts);
 
     await act(async () => {
       root.unmount();
     });
-    expect(unmounts).toBe(1);
+    expect(unmounts).toBe(mountCounts.unmounts + 1);
     container.remove();
   });
   it('delivers the native hash router and hydration events after fork state capture', async () => {

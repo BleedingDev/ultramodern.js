@@ -391,6 +391,30 @@ test('a dry run never claims published acceptance evidence', async t => {
     real.evidence.publishedAcceptance.receiptPath,
     'published-acceptance-receipt.json',
   );
+  const { runWorkflowCommand } = await import('../workflow.mjs');
+  const summaryPath = path.join(fixture.root, 'summary.md');
+  fs.writeFileSync(fixture.outPath, JSON.stringify(real));
+  await runWorkflowCommand(['summarize-delivery'], {
+    BLEEDINGDEV_PUBLISH_OUTCOME: fixture.outPath,
+    GITHUB_STEP_SUMMARY: summaryPath,
+    GITHUB_SERVER_URL: 'https://github.com',
+    GITHUB_REPOSITORY: source.repository,
+    GITHUB_RUN_ID: runId,
+    TRACTOR_STORE_REPOSITORY: 'BleedingDev/tractor-store-vertical-demo',
+  });
+  const summary = fs.readFileSync(summaryPath, 'utf8');
+  assert.ok(
+    summary.includes(
+      `Tractor baseline used for published acceptance: \`${fixture.tractorBaselineRevision}\``,
+    ),
+  );
+  assert.match(summary, /published-mode acceptance.*exact bundle/u);
+  assert.match(
+    summary,
+    /push the passing report's `applicationSourceRevision` to main/u,
+  );
+  assert.match(summary, /update both `tractor_ref` pins/u);
+  assert.doesNotMatch(summary, /promotable Tractor revision|merge `/u);
 });
 
 test('non-dry outcome fails closed without passing published acceptance evidence', async t => {

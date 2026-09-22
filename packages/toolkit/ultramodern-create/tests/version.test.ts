@@ -74,9 +74,30 @@ function loadGeneratedAssetPrefix(
       '--input-type=module',
       '--eval',
       `
+        import assert from 'node:assert/strict';
+        import { createRequire } from 'node:module';
         import { pathToFileURL } from 'node:url';
         const loaded = await import(pathToFileURL(${JSON.stringify(configPath)}).href);
         const config = loaded.default?.default ?? loaded.default;
+        const require = createRequire(pathToFileURL(${JSON.stringify(configPath)}));
+        const appToolsRequire = createRequire(require.resolve('@modern-js/app-tools'));
+        const rsbuildRequire = createRequire(appToolsRequire.resolve('@rsbuild/core'));
+        const { rspack } = rsbuildRequire('@rspack/core');
+        const compiler = rspack({ mode: 'none', resolve: { alias: config.source.alias } });
+        try {
+          const resolver = compiler.resolverFactory.get('normal', {});
+          for (const [request, target] of [
+            ['runtime', 'runtime/no-react-i18next'],
+            ['runtime/consumer', 'runtime/consumer'],
+          ]) {
+            assert.equal(
+              resolver.resolveSync({}, process.cwd(), '@modern-js/plugin-i18n/' + request),
+              require.resolve('@modern-js/plugin-i18n/' + target),
+            );
+          }
+        } finally {
+          await new Promise((resolve, reject) => compiler.close(error => error ? reject(error) : resolve()));
+        }
         process.stdout.write(JSON.stringify(config.output.assetPrefix));
       `,
     ],

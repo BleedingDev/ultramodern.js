@@ -12,10 +12,11 @@ export default [
     packageName: '@module-federation/dts-plugin',
     version: '2.9.0',
     path: 'patches/@module-federation__dts-plugin@2.9.0.patch',
-    sha256: '14ea5b3eb439a652e51fef37f12001e3703be7daf3e9626a4a0763d49ad4d6f8',
+    sha256: 'c52b86d551da354492cf255cfb8c0e56e51cb6b4452319b47295ac969704819d',
     repository: true,
     workspace: 'required',
-    reason: 'Preserve absolute rootDir when collecting public declarations.',
+    reason:
+      'Preserve declaration rootDir and execute native compiler paths without shell parsing.',
   },
   {
     packageName: '@module-federation/manifest',

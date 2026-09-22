@@ -5,9 +5,11 @@ import {
   useLocalizedLocation,
 } from '@modern-js/plugin-i18n/runtime/no-react-i18next';
 import { InternalRuntimeContext } from '@modern-js/runtime/context';
+import { applyRouterRuntimeState } from '@modern-js/runtime-extensions/router-state';
 import type React from 'react';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import { createTanstackNavigation } from '../../plugin-tanstack/src/runtime/navigation';
 import { I18nRouterNavigationProvider } from '../src/navigation';
 import { createI18nUrlStrategy } from '../src/urlStrategy';
 
@@ -84,6 +86,7 @@ function createTanstackRouter(target = '/en/terms-of-service', lang = 'en') {
 
   return {
     navigate: rstest.fn(async () => undefined),
+    subscribe: () => () => {},
     state: {
       location: {
         pathname: url.pathname,
@@ -96,21 +99,26 @@ function createTanstackRouter(target = '/en/terms-of-service', lang = 'en') {
 }
 
 function createTanstackRuntimeContext(router: unknown) {
-  return {
+  const context = {
     isBrowser: true,
     requestContext,
     context: requestContext,
-    routerFramework: 'tanstack',
-    routerInstance: router,
-    routerRuntime: {
-      framework: 'tanstack',
-      instance: router,
-    },
     router: {
       Link: TanstackLink,
       useRouter: () => router,
     },
   } as any;
+  applyRouterRuntimeState(context, {
+    framework: 'tanstack',
+    instance: router,
+    navigation: {
+      ...createTanstackNavigation(
+        router as Parameters<typeof createTanstackNavigation>[0],
+      ),
+      Link: TanstackLink,
+    },
+  });
+  return context;
 }
 
 function providerValue(language: string) {

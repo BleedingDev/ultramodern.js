@@ -155,11 +155,11 @@ function summarizeDelivery(env) {
   );
   const baseline = outcome.evidence.tractorAcceptance?.baselineRevision;
   lines.push(
-    `- Published-mode promotable Tractor revision: ${baseline ? `\`${baseline}\`` : 'none (dry run)'}`,
+    `- Tractor baseline used for published acceptance: ${baseline ? `\`${baseline}\`` : 'none (dry run)'}`,
   );
   lines.push(
     baseline
-      ? `- Persistent Tractor main promotion/adoption: REQUIRED, not automated by this workflow — merge \`${baseline}\` into ${env.TRACTOR_STORE_REPOSITORY}'s main and advance the pinned \`tractor_ref\` in this workflow; treat as open until that lands.`
+      ? `- Persistent Tractor adoption: REQUIRED, not automated by this workflow. Run published-mode acceptance using this release's exact bundle in a persistent ${env.TRACTOR_STORE_REPOSITORY} checkout, push the passing report's \`applicationSourceRevision\` to main, then update both \`tractor_ref\` pins. The uploaded report contains no recoverable application source.`
       : '- Persistent Tractor main promotion/adoption: not applicable to a dry run.',
   );
   fs.appendFileSync(env.GITHUB_STEP_SUMMARY, `${lines.join('\n')}\n`);

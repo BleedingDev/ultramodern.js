@@ -56,7 +56,7 @@ const resolveCliPlugin = async (
     module = await compatibleRequire(path);
   } catch (e) {
     // load esm module
-    ({ default: module } = await dynamicImport(path));
+    ({ default: module } = await dynamicImport(pathToFileURL(path).href));
   }
 
   // handle string plugin
@@ -92,3 +92,5 @@ export const loadInternalPlugins = async (
 
   return loadedPlugins;
 };
+
+import { pathToFileURL } from 'node:url';

@@ -1,8 +1,7 @@
 diff --git a/dist/esm/expose-rpc-B0rqtOKP.mjs b/dist/esm/expose-rpc-B0rqtOKP.mjs
-index 1692a3eb129bf1bd81b139861f478fbcd3b62f89..373e9f182dcc1952b958ca1629edd0311fbaeb4a 100644
 --- a/dist/esm/expose-rpc-B0rqtOKP.mjs
 +++ b/dist/esm/expose-rpc-B0rqtOKP.mjs
-@@ -408,7 +408,6 @@ var ModuleFederationDevServer = class {
+@@ -408,7 +408,6 @@
  //#region src/server/createHttpServer.ts
  async function createHttpServer(options) {
  	const { typeTarPath } = options;
@@ -10,7 +9,7 @@ index 1692a3eb129bf1bd81b139861f478fbcd3b62f89..373e9f182dcc1952b958ca1629edd031
  	const server = http.createServer((req, res) => {
  		if ((req.url?.split("?")[0] ?? "/") === `/${DEFAULT_TAR_NAME}`) {
  			res.statusCode = 200;
-@@ -431,7 +430,27 @@ async function createHttpServer(options) {
+@@ -431,7 +430,27 @@
  		res.statusCode = 404;
  		res.end();
  	});
@@ -39,7 +38,24 @@ index 1692a3eb129bf1bd81b139861f478fbcd3b62f89..373e9f182dcc1952b958ca1629edd031
  	return {
  		server,
  		serverAddress: `http://${getIPV4()}:${freeport}`
-@@ -1415,7 +1434,7 @@ const formatCompilerError = (error) => {
+@@ -594,6 +613,16 @@
+ 	return typeof dtsOptions !== "boolean" && dtsOptions?.cwd ? dtsOptions.cwd : remoteOptions.context;
+ };
+ const resolveCompilerCommand = (remoteOptions, tempTsConfigJsonPath) => {
++	if (isAbsolute(remoteOptions.compilerInstance) && existsSync(remoteOptions.compilerInstance)) {
++		const executable = remoteOptions.compilerInstance;
++		const args = ["--project", tempTsConfigJsonPath];
++		return {
++			executable,
++			args,
++			displayCommand: formatCommandForDisplay(executable, args),
++			shell: false
++		};
++	}
+ 	const compilerArgs = splitCommandArgs(remoteOptions.compilerInstance);
+ 	const resolvedCompilerArgs = compilerArgs.length > 0 ? compilerArgs : [remoteOptions.compilerInstance];
+ 	if (resolvedCompilerArgs[0] === "tsc") {
+@@ -1415,7 +1444,7 @@
  const getDependentFilesWithTsc = (rootFiles, rootDir, resolvedTsConfigPath, compilerOptions, context, typeScriptContext) => {
  	if (!rootFiles.length) return [];
  	const typeScriptPackageInfo = getTypeScriptPackageInfo(typeScriptContext);
@@ -49,10 +65,9 @@ index 1692a3eb129bf1bd81b139861f478fbcd3b62f89..373e9f182dcc1952b958ca1629edd031
  		const dependentFiles = execFileSync(process.execPath, [
  			typeScriptPackageInfo.tscBinPath,
 diff --git a/dist/expose-rpc-jaGpsAVL.js b/dist/expose-rpc-jaGpsAVL.js
-index 55f07d89995c80d121d6ebcaf803e3ae12e2d1be..88a722f67d43a10b9d684f9525f1bbf022166f5e 100644
 --- a/dist/expose-rpc-jaGpsAVL.js
 +++ b/dist/expose-rpc-jaGpsAVL.js
-@@ -397,7 +397,6 @@ var ModuleFederationDevServer = class {
+@@ -397,7 +397,6 @@
  //#region src/server/createHttpServer.ts
  async function createHttpServer(options) {
  	const { typeTarPath } = options;
@@ -60,7 +75,7 @@ index 55f07d89995c80d121d6ebcaf803e3ae12e2d1be..88a722f67d43a10b9d684f9525f1bbf0
  	const server = http.default.createServer((req, res) => {
  		if ((req.url?.split("?")[0] ?? "/") === `/${require_Action.DEFAULT_TAR_NAME}`) {
  			res.statusCode = 200;
-@@ -420,7 +419,27 @@ async function createHttpServer(options) {
+@@ -420,7 +419,27 @@
  		res.statusCode = 404;
  		res.end();
  	});
@@ -89,7 +104,24 @@ index 55f07d89995c80d121d6ebcaf803e3ae12e2d1be..88a722f67d43a10b9d684f9525f1bbf0
  	return {
  		server,
  		serverAddress: `http://${require_Broker.getIPV4()}:${freeport}`
-@@ -1404,7 +1423,7 @@ const formatCompilerError = (error) => {
+@@ -583,6 +602,16 @@
+ 	return typeof dtsOptions !== "boolean" && dtsOptions?.cwd ? dtsOptions.cwd : remoteOptions.context;
+ };
+ const resolveCompilerCommand = (remoteOptions, tempTsConfigJsonPath) => {
++	if (path.isAbsolute(remoteOptions.compilerInstance) && fs.existsSync(remoteOptions.compilerInstance)) {
++		const executable = remoteOptions.compilerInstance;
++		const args = ["--project", tempTsConfigJsonPath];
++		return {
++			executable,
++			args,
++			displayCommand: formatCommandForDisplay(executable, args),
++			shell: false
++		};
++	}
+ 	const compilerArgs = splitCommandArgs(remoteOptions.compilerInstance);
+ 	const resolvedCompilerArgs = compilerArgs.length > 0 ? compilerArgs : [remoteOptions.compilerInstance];
+ 	if (resolvedCompilerArgs[0] === "tsc") {
+@@ -1404,7 +1433,7 @@
  const getDependentFilesWithTsc = (rootFiles, rootDir, resolvedTsConfigPath, compilerOptions, context, typeScriptContext) => {
  	if (!rootFiles.length) return [];
  	const typeScriptPackageInfo = getTypeScriptPackageInfo(typeScriptContext);

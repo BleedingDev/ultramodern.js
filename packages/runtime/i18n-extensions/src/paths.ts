@@ -1,9 +1,9 @@
-import { splitUrlTarget } from '@modern-js/runtime-utils/url';
 import {
   canonicalTargetPathname,
   type LocalisedUrlsOption,
   localiseTargetPathname,
-} from './localisedUrls';
+} from '@modern-js/runtime-extensions/localised-urls';
+import { splitUrlTarget } from '@modern-js/runtime-utils/url';
 
 export interface LocalizedPathsConfig {
   languages: string[];

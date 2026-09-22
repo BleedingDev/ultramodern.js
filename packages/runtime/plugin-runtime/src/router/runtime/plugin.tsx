@@ -18,7 +18,7 @@ import {
 } from '@modern-js/runtime-utils/router';
 import { normalizePathname } from '@modern-js/runtime-utils/url';
 import * as React from 'react';
-import { useContext, useEffect, useMemo } from 'react';
+import { useContext, useEffect, useRef } from 'react';
 import type { RuntimePlugin } from '../../common';
 import {
   getGlobalEnableRsc,
@@ -153,9 +153,6 @@ export const routerPlugin = (
           return match || '/';
         };
 
-        // Cache router instance in closure to avoid recreating on parent re-render
-        let cachedRouter: any = null;
-
         const RouterWrapper = (props: any) => {
           const routerResult = useRouterCreation(
             (
@@ -177,16 +174,7 @@ export const routerPlugin = (
             },
           );
 
-          // Only cache router instance, routes are always from routerResult
-          const router = useMemo(() => {
-            if (cachedRouter) {
-              return cachedRouter;
-            }
-
-            cachedRouter = routerResult.router;
-            return cachedRouter;
-          }, []);
-          const { routes } = routerResult;
+          const { router, routes } = routerResult;
 
           routesContainer.current = routes;
 
@@ -268,7 +256,12 @@ function useRouterCreation(props: any, options: UseRouterCreationOptions) {
         ? window._ROUTER_DATA || rscPayload
         : window._ROUTER_DATA;
 
-  return useMemo(() => {
+  // Creation and publication share the mounted provider's lifetime.
+  const result = useRef<{
+    router: RouterProviderProps['router'];
+    routes: RouteObject[];
+  } | null>(null);
+  if (result.current === null) {
     if (hydrationData?.errors) {
       hydrationData = {
         ...hydrationData,
@@ -318,10 +311,11 @@ function useRouterCreation(props: any, options: UseRouterCreationOptions) {
           _basename,
         );
 
-        return {
+        result.current = {
           router,
           routes: router.routes || [],
         };
+        return result.current;
       } catch (e) {
         console.error('Failed to create router from RSC payload:', e);
       }
@@ -380,9 +374,10 @@ function useRouterCreation(props: any, options: UseRouterCreationOptions) {
       return originSubscribe(wrappedListener);
     };
 
-    return {
+    result.current = {
       router,
       routes: modifiedRoutes,
     };
-  }, [finalRouteConfig, props, _basename, hydrationData, getBlockNavState]);
+  }
+  return result.current;
 }

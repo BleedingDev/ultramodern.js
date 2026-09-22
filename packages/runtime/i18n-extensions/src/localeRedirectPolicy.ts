@@ -1,11 +1,11 @@
-import type { LocalisedUrlsOption } from './localisedUrls/index';
+import type { LocalisedUrlsOption } from '@modern-js/runtime-extensions/localised-urls';
 import {
   isDefaultLocaleRedirectSkipPath,
   localiseTargetPathname,
   matchesPathPrefix,
   shouldSkipLocaleRedirect,
   stripLanguagePrefix,
-} from './localisedUrls/index';
+} from '@modern-js/runtime-extensions/localised-urls';
 
 interface LocaleRedirectRequest {
   url: string;
