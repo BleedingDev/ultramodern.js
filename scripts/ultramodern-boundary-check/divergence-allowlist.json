@@ -4,9 +4,9 @@
   "upstreamRef": "2f4d9c4559e26209a0d77f02c6757f29fe3699a2",
   "pathspec": ["packages"],
   "migrationGoal": "Shrink-only budget of fork edits inside upstream-owned files. Every entry is debt: move it upstream or behind an extension point, then re-run --write-divergence-allowlist.",
-  "totalFiles": 816,
-  "totalHunks": 3076,
-  "totalChangedLines": 50970,
+  "totalFiles": 817,
+  "totalHunks": 3086,
+  "totalChangedLines": 51091,
   "files": [
     {
       "file": "packages/cli/adapter-rstest/package.json",
@@ -331,7 +331,7 @@
     {
       "file": "packages/cli/plugin-data-loader/src/runtime/index.ts",
       "hunks": 11,
-      "changedLines": 42
+      "changedLines": 58
     },
     {
       "file": "packages/cli/plugin-data-loader/src/runtime/response.ts",
@@ -1940,8 +1940,8 @@
     },
     {
       "file": "packages/runtime/plugin-runtime/src/router/runtime/plugin.tsx",
-      "hunks": 28,
-      "changedLines": 123
+      "hunks": 35,
+      "changedLines": 154
     },
     {
       "file": "packages/runtime/plugin-runtime/src/router/runtime/PrefetchLink.tsx",
@@ -2101,7 +2101,7 @@
     {
       "file": "packages/runtime/plugin-runtime/tests/router/plugin.client.test.tsx",
       "hunks": 1,
-      "changedLines": 186
+      "changedLines": 206
     },
     {
       "file": "packages/runtime/plugin-runtime/tests/router/prefetch-realm-isolation.test.tsx",
@@ -3410,8 +3410,8 @@
     },
     {
       "file": "packages/solutions/app-tools/src/utils/loadPlugins.ts",
-      "hunks": 3,
-      "changedLines": 9
+      "hunks": 5,
+      "changedLines": 13
     },
     {
       "file": "packages/solutions/app-tools/src/utils/register.ts",
@@ -3512,6 +3512,11 @@
       "file": "packages/solutions/app-tools/tests/utils/env.test.ts",
       "hunks": 2,
       "changedLines": 2
+    },
+    {
+      "file": "packages/solutions/app-tools/tests/utils/loadPlugins.test.ts",
+      "hunks": 1,
+      "changedLines": 50
     },
     {
       "file": "packages/solutions/app-tools/tests/utils/register-esm.test.ts",
