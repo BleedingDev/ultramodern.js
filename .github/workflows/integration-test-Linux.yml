@@ -20,9 +20,9 @@ permissions:
 jobs:
   integration-test-linux:
     # The type of runner that the job will run on
-    runs-on: namespace-profile-testing
+    runs-on: ubuntu-24.04
 
-    # `namespace-profile-testing` is 8 vCPU / 16 GB. A healthy run is ~15 min;
+    # The GitHub-hosted public runner has 4 vCPU / 16 GB. A healthy run is ~15 min;
     # this ceiling turns a hung fixture into a clean failure instead of letting
     # the job sit on the GitHub default of 6 hours.
     timeout-minutes: 60

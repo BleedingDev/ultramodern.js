@@ -83,7 +83,7 @@ concurrency:
 jobs:
   publish-security:
     name: Validate publish security
-    runs-on: namespace-profile-testing
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     if: >-
       github.actor == github.repository_owner &&
@@ -144,7 +144,7 @@ jobs:
   #     run's own receipt, verified below and again in prepare-release.
   qualify-source:
     name: Qualify the release source
-    runs-on: namespace-profile-testing
+    runs-on: ubuntu-24.04
     timeout-minutes: 90
     if: >-
       github.actor == github.repository_owner &&
@@ -373,7 +373,7 @@ jobs:
 
   prepare-release:
     name: Build the immutable @bleedingdev release bundle
-    runs-on: namespace-profile-testing
+    runs-on: ubuntu-24.04
     timeout-minutes: 90
     if: >-
       github.actor == github.repository_owner &&
@@ -691,7 +691,7 @@ jobs:
 
   validate-release:
     name: Validate accepted @bleedingdev tarballs without publish authority
-    runs-on: namespace-profile-testing
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     if: >-
       github.actor == github.repository_owner &&
@@ -1231,7 +1231,7 @@ jobs:
 
   record-publish-outcome:
     name: Record the authenticated publish outcome
-    runs-on: namespace-profile-testing
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     outputs:
       artifact_name: ${{ steps.publish-outcome.outputs.artifact_name }}
@@ -1414,7 +1414,7 @@ jobs:
   publish-change-record:
     name: Publish the cohort change record
     continue-on-error: true
-    runs-on: namespace-profile-testing
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     # The only job that may write to the repository, and it runs strictly after
     # the publish outcome is recorded.

@@ -24,16 +24,8 @@ export default defineConfig({
   include: ['integration/**/*.(spec|test).[jt]s?(x)'],
   exclude: ['integration/rstest/**'],
   globals: true,
-  // Framework tests spawn many build/dev-server/puppeteer tasks; cap file-level
-  // concurrency to avoid CI resource contention without changing assertions.
-  //
-  // The cap is a worker *count*, not a CPU percentage. `namespace-profile-testing`
-  // is an 8 vCPU / 16 GB box, so the old `'50%'` resolved to 4 workers. A single
-  // heavy file (routes-tanstack-mf, superapp-portfolio) holds an rstest worker
-  // plus up to three `modern dev` servers plus a Chromium at once — 4-5 GB. Four
-  // of those in flight exceeds 16 GB and the kernel OOM-kills the whole process
-  // group, which is why the Test step died mid-suite with no rstest summary.
-  // Two workers keeps the worst case inside the box; coverage is unchanged.
+  // Heavy fixtures keep up to three dev servers and a browser alive (4-5 GB).
+  // Two test-file workers fit within the CI runner's 16 GB memory budget.
   pool: {
     maxWorkers: resolveMaxWorkers(),
   },

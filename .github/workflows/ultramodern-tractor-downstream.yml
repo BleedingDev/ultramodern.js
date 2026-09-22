@@ -51,7 +51,7 @@ permissions:
 jobs:
   tractor-downstream:
     name: Exact cohort passes Tractor Node and workerd acceptance
-    runs-on: namespace-profile-testing
+    runs-on: ubuntu-24.04
     # The rehearsal additionally starts and seeds a registry from the bundle
     # before the same downstream work begins.
     timeout-minutes: ${{ inputs.mode == 'source' && 75 || 45 }}
