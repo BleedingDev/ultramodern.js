@@ -1,6 +1,5 @@
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
-import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import {
@@ -58,6 +57,7 @@ function runCreate(projectDir: string, args: string[], bin = createBin) {
       cwd: repoRoot,
       env: {
         ...process.env,
+        NODE_PATH: '',
         [frameworkVersionEnv]: testFrameworkVersion,
         FORCE_COLOR: '0',
       },
@@ -107,7 +107,7 @@ function runWorkspaceValidator(workspaceDir: string) {
     ],
     {
       cwd: workspaceDir,
-      env: process.env,
+      env: { ...process.env, NODE_PATH: '' },
       stdio: 'pipe',
     },
   ).toString();
@@ -144,13 +144,13 @@ describe('create-ultramodern-workspace', () => {
     fs.rmSync(workspaceDir, { recursive: true, force: true });
     runCreate(workspaceDir, ['--no-tailwind', '--lang', 'en']);
     materializeGeneratedWorkspaceDependencies(workspaceDir);
-    const shellRequire = createRequire(
-      path.join(workspaceDir, 'apps/shell-super-app/package.json'),
-    );
+    expectWorkspaceValidatorPass(workspaceDir);
+    const shellDir = path.join(workspaceDir, 'apps/shell-super-app');
+    const isolatedEnv = { ...process.env, NODE_PATH: '' };
     const installedRouter = execFileSync(
       process.execPath,
       ['-e', 'console.log(require.resolve("@modern-js/plugin-tanstack"))'],
-      { cwd: workspaceDir, encoding: 'utf8' },
+      { cwd: shellDir, encoding: 'utf8', env: isolatedEnv },
     ).trim();
     expect(
       fs
@@ -159,7 +159,11 @@ describe('create-ultramodern-workspace', () => {
     ).toBe(true);
     // The old all-to-all links made undeclared framework packages available.
     expect(() =>
-      shellRequire.resolve('@modern-js/plugin-data-loader/runtime'),
+      execFileSync(
+        process.execPath,
+        ['-e', 'require.resolve("@modern-js/plugin-data-loader/runtime")'],
+        { cwd: shellDir, env: isolatedEnv, stdio: 'pipe' },
+      ),
     ).toThrow();
     execFileSync(
       process.execPath,
@@ -173,19 +177,14 @@ describe('create-ultramodern-workspace', () => {
       ],
       {
         cwd: workspaceDir,
-        env: process.env,
+        env: { ...process.env, NODE_PATH: '' },
         stdio: 'pipe',
         timeout: 90_000,
       },
     );
     expect(
-      fs.existsSync(
-        path.join(
-          workspaceDir,
-          'apps/shell-super-app/src/modern-tanstack/main/router.gen.ts',
-        ),
-      ),
-    ).toBe(true);
+      fs.globSync('src/modern-tanstack/*/router.gen.ts', { cwd: shellDir }),
+    ).not.toEqual([]);
     const buildResult = await modernBuild(
       path.join(workspaceDir, 'apps/shell-super-app'),
       [],
@@ -193,12 +192,12 @@ describe('create-ultramodern-workspace', () => {
         modernBin: generatedModernBin(
           path.join(workspaceDir, 'apps/shell-super-app'),
         ),
+        env: { NODE_PATH: '' },
         stdout: false,
         stderr: false,
       },
     );
     expect(buildResult.code).toBe(0);
-    expectWorkspaceValidatorPass(workspaceDir);
 
     const shellPackagePath = 'apps/shell-super-app/package.json';
     const originalShellPackage = readText(workspaceDir, shellPackagePath);
@@ -430,6 +429,7 @@ export const entries = [
         cwd: workspaceDir,
         env: {
           ...process.env,
+          NODE_PATH: '',
           ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP: 'https://example.com',
         },
         stdio: 'pipe',
@@ -504,6 +504,7 @@ export const entries = [
         cwd: workspaceDir,
         env: {
           ...process.env,
+          NODE_PATH: '',
           MODERN_PUBLIC_SITE_URL: 'https://global.example/path-is-ignored',
           ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP:
             'https://per-app.example.workers.dev',

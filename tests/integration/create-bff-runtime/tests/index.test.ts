@@ -41,6 +41,7 @@ function runCreate(projectDir: string, args: string[]) {
       cwd: repoRoot,
       env: {
         ...process.env,
+        NODE_PATH: '',
         FORCE_COLOR: '0',
         [frameworkVersionEnv]: testFrameworkVersion,
       },
@@ -54,6 +55,7 @@ function runCreateInWorkspace(workspaceDir: string, args: string[]) {
     cwd: workspaceDir,
     env: {
       ...process.env,
+      NODE_PATH: '',
       FORCE_COLOR: '0',
       [frameworkVersionEnv]: testFrameworkVersion,
     },
@@ -112,6 +114,7 @@ describe('create-bff-runtime', () => {
     const verticalDir = path.join(workspaceDir, 'verticals/greetings');
     const buildResult = await modernBuild(verticalDir, [], {
       modernBin: generatedModernBin(verticalDir),
+      env: { NODE_PATH: '' },
       stdout: false,
       stderr: false,
     });
@@ -124,6 +127,7 @@ ${buildResult.stderr}`,
     const port = await getPort();
     const server = await modernServe(verticalDir, port, {
       modernBin: generatedModernBin(verticalDir),
+      env: { NODE_PATH: '' },
     });
     try {
       const response = await fetch(

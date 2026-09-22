@@ -1,112 +1,112 @@
 flowchart TD
   subgraph plan_00_baseline["preservation-baseline"]
-    plan_00_baseline_todo_1["preservation-baseline-reconcile (pending)\nReconcile completed native Effect inference, migration/legacy-registry retirement and approved test purge against ba2f373ad9; freeze the CURRENT supported feature and ownership matrix."]
-    plan_00_baseline_todo_2["preservation-baseline-map-proofs (pending)\nMap every ranked cut to retained behavior evidence, current public consumers and an owning package; record baseline production, template, test and governance measurements separately."]
+    plan_00_baseline_todo_1["preservation-baseline-reconcile (completed)\nReconcile completed native Effect inference, migration/legacy-registry retirement and approved test purge against ba2f373ad9; freeze the CURRENT supported feature and ownership matrix."]
+    plan_00_baseline_todo_2["preservation-baseline-map-proofs (completed)\nMap every ranked cut to retained behavior evidence, current public consumers and an owning package; record baseline production, template, test and governance measurements separately."]
     plan_00_baseline_todo_1 --> plan_00_baseline_todo_2
-    plan_00_baseline_todo_3["preservation-baseline-qualify (pending)\nRun the existing targeted preservation checks, resolve unexpected failures and freeze shared contract decisions and file ownership for parallel implementation."]
+    plan_00_baseline_todo_3["preservation-baseline-qualify (completed)\nRun the existing targeted preservation checks, resolve unexpected failures and freeze shared contract decisions and file ownership for parallel implementation."]
     plan_00_baseline_todo_2 --> plan_00_baseline_todo_3
   end
   subgraph plan_10_workspace["workspace-model-transactions"]
-    plan_10_workspace_todo_1["workspace-model-transactions-model (pending)\nConsolidate workspace normalization and ownership-aware projections for create/add-vertical/add-shell, preserving current consumer fields and distinct additional-shell representation."]
-    plan_10_workspace_todo_2["workspace-model-transactions-operations (pending)\nReplace per-command topology, port, overlay and generated-artifact reconstruction with the common projection and explicit operation intent."]
+    plan_10_workspace_todo_1["workspace-model-transactions-model (completed)\nConsolidate workspace normalization and ownership-aware projections for create/add-vertical/add-shell, preserving current consumer fields and distinct additional-shell representation."]
+    plan_10_workspace_todo_2["workspace-model-transactions-operations (completed)\nReplace per-command topology, port, overlay and generated-artifact reconstruction with the common projection and explicit operation intent."]
     plan_10_workspace_todo_1 --> plan_10_workspace_todo_2
-    plan_10_workspace_todo_3["workspace-model-transactions-preview (pending)\nExpose a prepared transaction for preview or publication; remove preview double-copy/staging and handwritten JSON mutation reconstruction after concurrency and failure parity."]
+    plan_10_workspace_todo_3["workspace-model-transactions-preview (completed)\nExpose a prepared transaction for preview or publication; remove preview double-copy/staging and handwritten JSON mutation reconstruction after concurrency and failure parity."]
     plan_10_workspace_todo_2 --> plan_10_workspace_todo_3
   end
   subgraph plan_11_validator["packaged-validator"]
-    plan_11_validator_todo_1["packaged-validator-package (pending)\nExtract validator logic into ordinary typed modules with explicit workspace root, immutable expected contract and bounded dependency inputs; preserve diagnostics and CLI exit behavior."]
-    plan_11_validator_todo_2["packaged-validator-invoke (pending)\nInvoke typed validation directly or through one static packaged entrypoint; preserve thin current consumer wrappers and remove obsolete template execution paths."]
+    plan_11_validator_todo_1["packaged-validator-package (completed)\nExtract validator logic into ordinary typed modules with explicit workspace root, immutable expected contract and bounded dependency inputs; preserve diagnostics and CLI exit behavior."]
+    plan_11_validator_todo_2["packaged-validator-invoke (completed)\nInvoke typed validation directly or through one static packaged entrypoint; preserve thin current consumer wrappers and remove obsolete template execution paths."]
     plan_11_validator_todo_1 --> plan_11_validator_todo_2
-    plan_11_validator_todo_3["packaged-validator-remove (pending)\nRemove current validator executable templating, temporary command creation and template-induced dependency discovery after packed-consumer and adversarial validation parity."]
+    plan_11_validator_todo_3["packaged-validator-remove (completed)\nRemove current validator executable templating, temporary command creation and template-induced dependency discovery after packed-consumer and adversarial validation parity."]
     plan_11_validator_todo_2 --> plan_11_validator_todo_3
   end
   subgraph plan_12_generator_source["generator-source-cuts"]
-    plan_12_generator_source_todo_1["generator-source-cuts-templates (pending)\nCombine repeated remote scaffold source bodies through named inputs and replace anonymous shell valueN fields without adding a template framework."]
-    plan_12_generator_source_todo_2["generator-source-cuts-prove (pending)\nVerify deterministic formatted generated code, i18n boundaries, native links, expose/SSR markers and visible Tractor UI; remove only superseded render bodies and positional glue."]
+    plan_12_generator_source_todo_1["generator-source-cuts-templates (completed)\nCombine repeated remote scaffold source bodies through named inputs and replace anonymous shell valueN fields without adding a template framework."]
+    plan_12_generator_source_todo_2["generator-source-cuts-prove (completed)\nVerify 21 generated-source parity cases and 13 retained generator behavior checks for deterministic formatting, i18n boundaries, native links and expose/SSR markers; remove only superseded render bodies and positional glue."]
     plan_12_generator_source_todo_1 --> plan_12_generator_source_todo_2
   end
   subgraph plan_20_routes["canonical-route-model"]
-    plan_20_routes_todo_1["canonical-route-model-descriptor (pending)\nDefine the smallest canonical route descriptor by reusing current normalization; make locale expansion an explicit adapter decision and preserve non-i18n lang routes."]
-    plan_20_routes_todo_2["canonical-route-model-materialize (pending)\nFeed React Router physical locale routes and TanStack native rewriting/runtime construction from the descriptor; remove TanStack expansion-collapse work."]
+    plan_20_routes_todo_1["canonical-route-model-descriptor (completed)\nDefine the smallest canonical route descriptor by reusing current normalization; make locale expansion an explicit adapter decision and preserve non-i18n lang routes."]
+    plan_20_routes_todo_2["canonical-route-model-materialize (completed)\nFeed React Router physical locale routes and TanStack native rewriting/runtime construction from the descriptor; remove TanStack expansion-collapse work."]
     plan_20_routes_todo_1 --> plan_20_routes_todo_2
-    plan_20_routes_todo_3["canonical-route-model-types (pending)\nGenerate concrete TanStack createRoute expressions from the same descriptor; delete duplicate root, parent, pathless, index and metadata interpretation."]
+    plan_20_routes_todo_3["canonical-route-model-types (completed)\nGenerate concrete TanStack createRoute expressions from the same descriptor; delete duplicate root, parent, pathless, index and metadata interpretation."]
     plan_20_routes_todo_2 --> plan_20_routes_todo_3
-    plan_20_routes_todo_4["canonical-route-model-parity (pending)\nProve route matching, identity and type inference across existing fixtures and remove old conversion paths rather than retaining a third graph."]
+    plan_20_routes_todo_4["canonical-route-model-parity (completed)\nProve route matching, identity and type inference across existing fixtures and remove old conversion paths rather than retaining a third graph."]
     plan_20_routes_todo_3 --> plan_20_routes_todo_4
   end
   subgraph plan_21_router_state["router-capabilities-lifetime"]
-    plan_21_router_state_todo_1["router-capabilities-lifetime-capability (pending)\nAdd a provider-owned typed navigation capability with stable location/params, native Link, target conversion and navigation; migrate i18n and remove internal store/framework guessing."]
-    plan_21_router_state_todo_2["router-capabilities-lifetime-snapshot (pending)\nKeep one immutable prepared SSR snapshot apart from live state and update current consumers atomically; remove repeated fields, double normalization and reader fallback ladders."]
+    plan_21_router_state_todo_1["router-capabilities-lifetime-capability (completed)\nAdd a provider-owned typed navigation capability with stable location/params, native Link, target conversion and navigation; migrate i18n and remove internal store/framework guessing."]
+    plan_21_router_state_todo_2["router-capabilities-lifetime-snapshot (completed)\nKeep one immutable prepared SSR snapshot apart from live state and update current consumers atomically; remove repeated fields, double normalization and reader fallback ladders."]
     plan_21_router_state_todo_1 --> plan_21_router_state_todo_2
-    plan_21_router_state_todo_3["router-capabilities-lifetime-lifetime (pending)\nAcquire an idempotent router disposer when resources are attached and transfer lifetime to response termination only after successful preparation; remove branch cleanup duplication."]
+    plan_21_router_state_todo_3["router-capabilities-lifetime-lifetime (completed)\nAcquire an idempotent router disposer when resources are attached and transfer lifetime to response termination only after successful preparation; remove branch cleanup duplication."]
     plan_21_router_state_todo_2 --> plan_21_router_state_todo_3
-    plan_21_router_state_todo_4["router-capabilities-lifetime-verify (pending)\nVerify standalone and federated navigation, provider replacement, string/stream/RSC lifecycle and every preparation failure before retiring old paths."]
+    plan_21_router_state_todo_4["router-capabilities-lifetime-verify (completed)\nVerify standalone and federated navigation, provider replacement, string/stream/RSC lifecycle and every preparation failure before retiring old paths."]
     plan_21_router_state_todo_3 --> plan_21_router_state_todo_4
   end
   subgraph plan_30_bff["bff-contracts-clients"]
-    plan_30_bff_todo_1["bff-contracts-clients-producer (pending)\nCompile explicit producer identity and operation descriptors once for Effect and Hono instead of 32-level, 10-level and app-root metadata lookups."]
-    plan_30_bff_todo_2["bff-contracts-clients-policy (pending)\nShare browser-safe canonical operation serialization/hash construction between native client middleware and server policy while preserving precise native contract inference."]
+    plan_30_bff_todo_1["bff-contracts-clients-producer (completed)\nCompile explicit producer identity and operation descriptors once for Effect and Hono instead of 32-level, 10-level and app-root metadata lookups."]
+    plan_30_bff_todo_2["bff-contracts-clients-policy (completed)\nShare browser-safe canonical operation serialization/hash construction between native client middleware and server policy while preserving precise native contract inference."]
     plan_30_bff_todo_1 --> plan_30_bff_todo_2
-    plan_30_bff_todo_3["bff-contracts-clients-entries (pending)\nCentralize discriminated app-source, built-output and external-SDK entry resolution; remove duplicated extension/output mapping while retaining consumer-specific restrictions."]
+    plan_30_bff_todo_3["bff-contracts-clients-entries (completed)\nCentralize discriminated app-source, built-output and external-SDK entry resolution; remove duplicated extension/output mapping while retaining consumer-specific restrictions."]
     plan_30_bff_todo_2 --> plan_30_bff_todo_3
-    plan_30_bff_todo_4["bff-contracts-clients-batch (pending)\nNormalize current client/server batch defaults once and simplify assembly/settlement ownership after auth, cancellation, deduplication and ambiguous-outcome behavior parity."]
+    plan_30_bff_todo_4["bff-contracts-clients-batch (completed)\nNormalize current client/server batch defaults once and simplify assembly/settlement ownership after auth, cancellation, deduplication and ambiguous-outcome behavior parity."]
     plan_30_bff_todo_3 --> plan_30_bff_todo_4
   end
   subgraph plan_40_federation["federation-contracts-transport"]
-    plan_40_federation_todo_1["federation-contracts-transport-transport (pending)\nShare internal deadline, abort and bounded acquisition mechanics while retaining generic-resource and strict executable-entry policy adapters."]
-    plan_40_federation_todo_2["federation-contracts-transport-identity (pending)\nConstruct one internal delivery identity with compatible wire projections and share decoded compatibility constraints across manifest/expose consumers; retain independent trust-boundary verification."]
+    plan_40_federation_todo_1["federation-contracts-transport-transport (completed)\nShare internal deadline, abort and bounded acquisition mechanics while retaining generic-resource and strict executable-entry policy adapters."]
+    plan_40_federation_todo_2["federation-contracts-transport-identity (completed)\nConstruct one internal delivery identity with compatible wire projections and share decoded compatibility constraints across manifest/expose consumers; retain independent trust-boundary verification."]
     plan_40_federation_todo_1 --> plan_40_federation_todo_2
-    plan_40_federation_todo_3["federation-contracts-transport-telemetry (pending)\nMove telemetry payload/emission into a leaf module, make remote reporting bounded and independent of fallback completion, and expose explicit observation/flush for tests."]
+    plan_40_federation_todo_3["federation-contracts-transport-telemetry (completed)\nMove telemetry payload/emission into a leaf module, make remote reporting bounded and independent of fallback completion, and expose explicit observation/flush for tests."]
     plan_40_federation_todo_2 --> plan_40_federation_todo_3
-    plan_40_federation_todo_4["federation-contracts-transport-prove (pending)\nRun adversarial acquisition, identity, critical/noncritical fallback and platform-isolation contracts, then delete duplicate state machines and payload construction."]
+    plan_40_federation_todo_4["federation-contracts-transport-prove (completed)\nRun adversarial acquisition, identity, critical/noncritical fallback and platform-isolation contracts, then delete duplicate state machines and payload construction."]
     plan_40_federation_todo_3 --> plan_40_federation_todo_4
   end
   subgraph plan_50_build["build-resolution-ownership"]
-    plan_50_build_todo_1["build-resolution-ownership-addresses (pending)\nUse surface-resolution as the shared pure remote-address owner; make generated configs pass data and preserve formatting through a thin build adapter."]
-    plan_50_build_todo_2["build-resolution-ownership-targets (pending)\nAdd supported worker entry points for fork-owned runtime targets and remove corresponding private-path aliases; retain version-tested adapters for unsupported dependency exports."]
+    plan_50_build_todo_1["build-resolution-ownership-addresses (completed)\nUse surface-resolution as the shared pure remote-address owner; make generated configs pass data and preserve formatting through a thin build adapter."]
+    plan_50_build_todo_2["build-resolution-ownership-targets (completed)\nVerify worker entry ownership; remove private fork-package aliases only where they exist and retain upstream/external adapters where owned exports cannot replace them."]
     plan_50_build_todo_1 --> plan_50_build_todo_2
-    plan_50_build_todo_3["build-resolution-ownership-analysis (pending)\nShare bounded parser/scope/diagnostic mechanics inside code-tools while preserving separate baseline and runtime policies."]
+    plan_50_build_todo_3["build-resolution-ownership-analysis (completed)\nShare bounded parser/scope/diagnostic mechanics inside code-tools while preserving separate baseline and runtime policies."]
     plan_50_build_todo_2 --> plan_50_build_todo_3
-    plan_50_build_todo_4["build-resolution-ownership-capabilities (pending)\nNormalize MF SSR capabilities once at composition ingress with legacy marker translation, then remove repeated plugin-shape/environment inference from execution."]
+    plan_50_build_todo_4["build-resolution-ownership-capabilities (completed)\nNormalize MF SSR capabilities once at composition ingress with legacy marker translation, then remove repeated plugin-shape/environment inference from execution."]
     plan_50_build_todo_3 --> plan_50_build_todo_4
   end
   subgraph plan_60_governance["governance-representation"]
-    plan_60_governance_todo_1["governance-representation-ownership (pending)\nDerive resolved ownership/import decisions from fixed-base and rename facts; prove old/new gate equivalence with retained checks and compact direct adversarial cases for currently unprotected classifier behavior."]
-    plan_60_governance_todo_2["governance-representation-ledger (pending)\nIntroduce strict versioned structured evidence inside the same FORK-DIVERGENCE.md and generate its readable tables with a reviewed lossless migration."]
+    plan_60_governance_todo_1["governance-representation-ownership (completed)\nDerive resolved ownership/import decisions from fixed-base and rename facts; prove old/new gate equivalence with retained checks and compact direct adversarial cases for currently unprotected classifier behavior."]
+    plan_60_governance_todo_2["governance-representation-ledger (completed)\nIntroduce strict versioned structured evidence inside the same FORK-DIVERGENCE.md and generate its readable tables with a reviewed lossless migration."]
     plan_60_governance_todo_1 --> plan_60_governance_todo_2
-    plan_60_governance_todo_3["governance-representation-retire (pending)\nRemove superseded create-request fingerprint logic and Markdown grammar only after fail-closed parity and complete canonical-scope verification."]
+    plan_60_governance_todo_3["governance-representation-retire (completed)\nRetire duplicated native inventory and current Markdown input after fail-closed parity; retain historical-only grammar and distinct AST policy safeguards."]
     plan_60_governance_todo_2 --> plan_60_governance_todo_3
   end
   subgraph plan_61_release["release-policy-owners"]
-    plan_61_release_todo_1["release-policy-owners-registry (pending)\nShare read-only registry transport, retry classification and exact-byte verification between publication and readiness; keep public provenance and write authorization separate."]
-    plan_61_release_todo_2["release-policy-owners-evidence (pending)\nExport one pure readiness semantic validator and call it independently at receipt creation, consumption and outcome recording with each caller identity/digest bindings."]
+    plan_61_release_todo_1["release-policy-owners-registry (completed)\nShare read-only registry transport, retry classification and exact-byte verification between publication and readiness; keep public provenance and write authorization separate."]
+    plan_61_release_todo_2["release-policy-owners-evidence (completed)\nExport one pure readiness semantic validator and call it independently at receipt creation, consumption and outcome recording with each caller identity/digest bindings."]
     plan_61_release_todo_1 --> plan_61_release_todo_2
-    plan_61_release_todo_3["release-policy-owners-workflow (pending)\nMove inline workflow programs into fixed CLI entrypoints and simplify permission-separated job transitions while preserving recovery and attempt identity."]
+    plan_61_release_todo_3["release-policy-owners-workflow (completed)\nMove inline workflow programs into fixed CLI entrypoints and simplify permission-separated job transitions while preserving recovery and attempt identity."]
     plan_61_release_todo_2 --> plan_61_release_todo_3
-    plan_61_release_todo_4["release-policy-owners-remove (pending)\nDelete security-parser branches and duplicated outcome/registry policy made unnecessary by the simpler workflow, retaining mutation coverage for every invariant."]
+    plan_61_release_todo_4["release-policy-owners-remove (completed)\nDelete security-parser branches and duplicated outcome/registry policy made unnecessary by the simpler workflow, retaining mutation coverage for every invariant."]
     plan_61_release_todo_3 --> plan_61_release_todo_4
   end
   subgraph plan_70_tests["truthful-test-infrastructure"]
-    plan_70_tests_todo_1["truthful-test-infrastructure-prerequisites (pending)\nMake selected workspace package builds explicit immutable test prerequisites with cold-checkout support; remove implicit rebuild/freshness and dist reader/writer lock protocols after parallel parity."]
-    plan_70_tests_todo_2["truthful-test-infrastructure-consumers (pending)\nInstall real generated workspace manifests against packed local packages through supported package-manager mechanisms; remove dependency flattening and all-to-all package links."]
+    plan_70_tests_todo_1["truthful-test-infrastructure-prerequisites (completed)\nMake selected workspace package builds explicit immutable test prerequisites with cold-checkout support; remove implicit rebuild/freshness and dist reader/writer lock protocols after parallel parity."]
+    plan_70_tests_todo_2["truthful-test-infrastructure-consumers (completed)\nInstall real generated workspace manifests against packed local packages through supported package-manager mechanisms; remove dependency flattening and all-to-all package links."]
     plan_70_tests_todo_1 --> plan_70_tests_todo_2
-    plan_70_tests_todo_3["truthful-test-infrastructure-browser (pending)\nGive the two remaining portfolio browser suites an explicit Playwright dependency and typed shared lifecycle; preserve existing diagnostics and current scenarios without recreating the deleted cross-browser matrix."]
+    plan_70_tests_todo_3["truthful-test-infrastructure-browser (completed)\nGive the two remaining portfolio browser suites an explicit Playwright dependency and typed shared lifecycle; preserve existing diagnostics and current scenarios without recreating the deleted cross-browser matrix."]
     plan_70_tests_todo_2 --> plan_70_tests_todo_3
   end
   subgraph plan_80_supply["patch-sidecar-provenance"]
-    plan_80_supply_todo_1["patch-sidecar-provenance-patches (pending)\nDefine one canonical patch inventory with package/version/integrity and repo/template applicability; derive packaged generator assets and documentation/config fragments."]
-    plan_80_supply_todo_2["patch-sidecar-provenance-sidecars (pending)\nRecord pinned upstream artifact identity, licenses and allowed transformations for each sidecar; verify deterministic staging without depending on incidental pnpm-store presence."]
+    plan_80_supply_todo_1["patch-sidecar-provenance-patches (completed)\nDefine one canonical patch inventory with package/version/integrity and repo/template applicability; derive packaged generator assets and documentation/config fragments."]
+    plan_80_supply_todo_2["patch-sidecar-provenance-sidecars (completed)\nRecord pinned upstream artifact identity, licenses and allowed transformations for each sidecar; verify deterministic staging without depending on incidental pnpm-store presence."]
     plan_80_supply_todo_1 --> plan_80_supply_todo_2
-    plan_80_supply_todo_3["patch-sidecar-provenance-verify (pending)\nProve packed generator self-containment and sidecar behavioral/artifact contracts, then remove duplicate authored copies, filename-prefix classification and skip-on-missing verification."]
+    plan_80_supply_todo_3["patch-sidecar-provenance-verify (completed)\nProve packed generator self-containment and sidecar behavioral/artifact contracts, then remove duplicate authored copies, filename-prefix classification and skip-on-missing verification."]
     plan_80_supply_todo_2 --> plan_80_supply_todo_3
   end
   subgraph plan_90_acceptance["integrated-feature-parity"]
-    plan_90_acceptance_todo_1["integrated-feature-parity-integrate (pending)\nReconcile public exports, dependency metadata, changesets, generated assets, shared scripts and ledger evidence; verify no lane retained competing implementations or introduced ownership cycles."]
-    plan_90_acceptance_todo_2["integrated-feature-parity-consumer-matrix (pending)\nBuild and test packed packages with source unavailable across current create/add/validate workflows, native typed BFF, router/SSR/i18n, Node/workerd federation, release receipts and retained browser scenarios."]
+    plan_90_acceptance_todo_1["integrated-feature-parity-integrate (completed)\nReconcile public exports, dependency metadata, changesets, generated assets, shared scripts and ledger evidence; verify no lane retained competing implementations or introduced ownership cycles."]
+    plan_90_acceptance_todo_2["integrated-feature-parity-consumer-matrix (completed)\nBuild and test packed packages with source unavailable across current create/add/validate workflows, native typed BFF, router/SSR/i18n, Node/workerd federation, release receipts and retained browser scenarios."]
     plan_90_acceptance_todo_1 --> plan_90_acceptance_todo_2
-    plan_90_acceptance_todo_3["integrated-feature-parity-tractor (pending)\nUpdate and validate /Users/satan/side/experiments/tractor-store-vertical when present, preserving visible UI and proving the changed generator/runtime/tooling behavior downstream."]
+    plan_90_acceptance_todo_3["integrated-feature-parity-tractor (completed)\nUpdate and validate /Users/satan/side/experiments/tractor-store-vertical when present, preserving visible UI and proving the changed generator/runtime/tooling behavior downstream."]
     plan_90_acceptance_todo_2 --> plan_90_acceptance_todo_3
-    plan_90_acceptance_todo_4["integrated-feature-parity-publish-results (pending)\nRun required lint/build/test/boundary gates, report production/template/test/vendor deltas and preserved feature evidence, update Beads, commit and push to bleedingdev."]
+    plan_90_acceptance_todo_4["integrated-feature-parity-publish-results (in_progress)\nRun required lint/build/test/boundary gates, report production/template/test/vendor deltas and preserved feature evidence, update Beads, commit and push to bleedingdev."]
     plan_90_acceptance_todo_3 --> plan_90_acceptance_todo_4
   end
   plan_00_baseline_todo_3 --> plan_10_workspace_todo_1

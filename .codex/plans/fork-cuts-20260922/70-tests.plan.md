@@ -7,10 +7,10 @@ todos:
     status: completed
   - id: truthful-test-infrastructure-consumers
     content: "Install real generated workspace manifests against packed local packages through supported package-manager mechanisms; remove dependency flattening and all-to-all package links."
-    status: in_progress
+    status: completed
   - id: truthful-test-infrastructure-browser
     content: "Give the two remaining portfolio browser suites an explicit Playwright dependency and typed shared lifecycle; preserve existing diagnostics and current scenarios without recreating the deleted cross-browser matrix."
-    status: in_progress
+    status: completed
 isProject: false
 ---
 
@@ -20,7 +20,7 @@ isProject: false
 
 Own tests/utils/modernTestUtils.js, generatedWorkspaceDependencies.ts, relevant build/fixture helpers and fork browser suite harnesses. Exclude package business assertions and upstream unchanged tests. Coordinate root runner wiring and package scripts through the integration owner. New test assertion deletions are proposals requiring user selection, not authorized by this infrastructure plan.
 
-Audit: [current fork evidence](../../../docs/audits/fork-simplification-20260922.md). Final audited fork `ba2f373ad9587642062efc65c763276a68aee909`; fixed vanilla ownership base `eded841256a7cffdaa622e3889fc83407debd3e4`. Beads `modernjs-wuutt.12` under `modernjs-wuutt` is authoritative; keep this execution projection aligned. All implementation is pending.
+Audit: [current fork evidence](../../../docs/audits/fork-simplification-20260922.md). Final audited fork `ba2f373ad9587642062efc65c763276a68aee909`; fixed vanilla ownership base `eded841256a7cffdaa622e3889fc83407debd3e4`. Beads `modernjs-wuutt.12` under `modernjs-wuutt` is authoritative; keep this execution projection aligned. Implementation and focused acceptance are complete. Root owns integrated release and downstream acceptance.
 
 ## Constraints
 
@@ -38,16 +38,26 @@ Use the exact selection/edges in docs/audits/fork-simplification-20260922-handof
 
 The test runner now builds before workers start, packs immutable framework artifacts once, and passes a verified package manifest to generated consumers. Workers only assert prerequisite completeness. Removed workspace freshness recursion, implicit package builds, promise caches and dist reader/writer/reentrant locks; the independent port allocator and boot-timeout cleanup remain.
 
-Generated consumer installs now use actual generated manifests, pnpm native workspace resolution and local artifact overrides parsed by the existing js-yaml dependency. They execute the installed CLI. Removed dependency flattening, custom allowBuilds YAML parsing and all-to-all first-party links.
+Generated consumer installs now use actual generated manifests, pnpm native workspace resolution and local artifact overrides parsed through the supported @modern-js/utils YAML export. They execute the installed CLI. Removed dependency flattening, custom allowBuilds YAML parsing and all-to-all first-party links.
 
 Both portfolio suites import Playwright directly and share a typed browser/page lifecycle; their existing assertions and diagnostics remain. Root integrates the explicit dependency and runner scripts.
 
-Focused prerequisite behavior checks: 3 passed (parallel builds alongside a live server, startup timeout child cleanup, and parallel nested runners consuming one owner manifest without a package-manager executable). Changed-file Biome checks passed. Packed generated-workspace and browser acceptance remain pending the coordinated dependency refresh and framework rebuild.
+Focused prerequisite behavior checks: 3 passed (parallel builds alongside a live server, startup timeout child cleanup, and parallel nested runners consuming one owner manifest without a package-manager executable). Changed-file Biome checks passed. The packed generated-workspace and browser acceptance results follow below.
 
 The two generated suites now scaffold with a standalone packed generator outside the repository, use the workspace-installed CLI for builds/validation, and have no source-bin fallback. They explicitly select the supported workspace dependency strategy because source tarballs do not carry an authenticated published release cohort. Registry/cohort release qualification remains separate. The sole retained source-bin invocation tests rejection of an explicit install request from a source checkout.
 
 One top-level runner owns prepare/build/pack; nested invocations inherit its artifact manifest and cannot rebuild. Simultaneous independent top-level build writers are outside this contract. The runner uses cross-spawn for Windows command shims.
 
-Packed acceptance first pass installed the real standalone generator and generated dependency graphs successfully. It exposed two owning-layer defects previously hidden by source links: injected workspace TypeScript was externalized from the Effect BFF server bundle, and direct routes-generate resolved Module Federation config from workspace cwd instead of the app directory. Owners are repairing these before requalification. Public-surface generation with the standalone installed packed CLI passed after removing the old test-only source-bin invocation. No assertions were deleted or weakened.
+Packed acceptance first pass installed the real standalone generator and generated dependency graphs successfully. It exposed two owning-layer defects previously hidden by source links: injected workspace TypeScript was externalized from the Effect BFF server bundle, and direct routes-generate resolved Module Federation config from workspace cwd instead of the app directory. The owning framework packages fixed both defects before requalification. Public-surface generation with the standalone installed packed CLI passed after removing the old test-only source-bin invocation. No assertions were deleted or weakened.
 
 After the owning BFF loader bundled injected workspace TypeScript, packed BFF acceptance passed both retained tests (39.4 seconds): installed generator, real generated dependency installation, installed CLI build, production serving and Effect response. Artifact inventory is retained for integrated acceptance; no shared builds occur while consumers run.
+
+Both retained portfolio browser suites passed all four scenarios with the direct Playwright dependency (18.3 seconds): SSR/forced CSR, configured asset prefixes, route navigation/workflow, and slow-bootstrap/offline recovery. Diagnostics and assertions remain.
+
+The source-unavailable fixture now removes framework src directories only inside disposable installed package roots and verifies built entry realpaths. It clears the test host NODE_PATH for consumer children. This exposed a real routes-worker dependency ownership bug: its provider lookup anchored at workspace root instead of the owning app; the owner corrected that anchor before final shell qualification.
+
+Actual packed validator acceptance also passed before route generation: the installed workspace CLI validated with framework src directories absent and NODE_PATH cleared. App-owned TanStack resolution stayed inside the consumer and an undeclared exported first-party subpath failed resolution. A later shell failure exposed the canonical Module Federation ESM patch using bare require. Its owner supplied the native-ESM fix, which the final packed suite exercised successfully.
+
+Final packed workspace acceptance passed all three retained tests in 36.8 seconds. The installed validator, routes-generate command with natural process exit, generated router artifacts, shell production build, mixed-cohort rejection, source-checkout install rejection and public-surface outputs all passed. Framework source copies were absent and NODE_PATH was empty. Package entry realpaths stayed inside the consumer, and an undeclared first-party runtime subpath could not resolve. Packed BFF acceptance also passed both tests under the same source isolation. No retained assertions were removed.
+
+Evidence logs are `/tmp/modernjs-fork-cuts-packed-workspace-qualified.log`, `/tmp/modernjs-fork-cuts-packed-consumers-isolated.log` and `/tmp/modernjs-fork-cuts-portfolio-final.log`. The immutable artifact manifest remains at `/tmp/modernjs-fork-cuts-test-packages-20260922/packages.json` for root integration acceptance.

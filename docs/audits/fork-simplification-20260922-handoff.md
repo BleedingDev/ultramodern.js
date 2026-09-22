@@ -111,3 +111,7 @@ Use the same exact selection and all edges with `dag --format json`, `dag --form
 Before launching implementation subagents, finish the baseline decisions, validate the graph and assign the exact ownership in each file. All workers must preserve one another's edits. The root integrates shared manifests, exports, scripts, lockfile generation and ledger entries. Required downstream acceptance uses `/Users/satan/side/experiments/tractor-store-vertical` when present and preserves its visible UI.
 
 No implementation test suite was run by the audit. The read-only boundary gate passed; graph validation and artifact checks cover this documentation change. Future runtime changes require their stated behavior tests, relevant lint/build checks, changesets and real consumer acceptance. Push only to `bleedingdev` unless separately directed.
+
+## Implementation outcome
+
+The twelve implementation lanes and integrated acceptance are complete. See the [implementation report](fork-simplification-20260922-implementation.md) for measured cuts, retained contracts, packed-consumer proof and the exact Tractor cohort report. The plan files and regenerated graph show current execution state; the audit and initial instructions above remain historical. Conditional research modernjs-wuutt.15 stays outside the accepted graph.

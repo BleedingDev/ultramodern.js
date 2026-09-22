@@ -10,7 +10,7 @@ todos:
     status: completed
   - id: packaged-validator-remove
     content: "Remove current validator executable templating, temporary command creation and template-induced dependency discovery after packed-consumer and adversarial validation parity."
-    status: pending
+    status: completed
 isProject: false
 ---
 
@@ -20,7 +20,7 @@ isProject: false
 
 Own ultramodern-create/templates/workspace-scripts/validate-ultramodern-workspace.mjs.handlebars, src/ultramodern-workspace/workspace-scripts.ts, src/ultramodern-tooling/commands/{validate.ts,context.ts} and new validator modules in this existing fork package. Preserve other commands using context.ts; remove runRenderedModule only when all callers have a replacement. Coordinate expected-contract signatures with the workspace owner.
 
-Audit: [current fork evidence](../../../docs/audits/fork-simplification-20260922.md). Final audited fork `ba2f373ad9587642062efc65c763276a68aee909`; fixed vanilla ownership base `eded841256a7cffdaa622e3889fc83407debd3e4`. Beads `modernjs-wuutt.3` under `modernjs-wuutt` is authoritative; keep this execution projection aligned. Typed validator extraction and direct CLI invocation are implemented. Focused source and CLI preservation checks pass; packed consumer parity is coordinated with integrated acceptance.
+Audit: [current fork evidence](../../../docs/audits/fork-simplification-20260922.md). Final audited fork `ba2f373ad9587642062efc65c763276a68aee909`; fixed vanilla ownership base `eded841256a7cffdaa622e3889fc83407debd3e4`. Beads `modernjs-wuutt.3` under `modernjs-wuutt` is authoritative; keep this execution projection aligned. Typed validator extraction and direct CLI invocation are implemented. Focused source, CLI mutation and packed source-unavailable validator checks pass; route worker end-to-end acceptance is coordinated with integrated acceptance.
 
 ## Constraints
 
@@ -40,4 +40,4 @@ The packaged validator now directly consumes the installed generator's expected 
 
 All three temporary program callers were converted: validation and Cloudflare verification run directly; routes-generate uses one static packaged per-app entrypoint to isolate the native CLI's process-global state and import-time working directory. Each path resolves the consumer's installed provider and preserves diagnostics. The shared temporary file runner and the obsolete embedded-validator ownership artifact are gone. Consumer wrappers remain thin stable CLI entrypoints.
 
-Verification: package source type-check and targeted Biome pass; 18 focused normalization/patch/cohort/Cloudflare command tests pass; 15 CLI/profile tests pass including structured mutation matrices, compiler bridge/thin-shell gates and REST/RPC/profile preservation. Final structured drift matrix also passes after direct SSR, primary-shell identity and compact federation checks were added; source-relative TypeScript import contracts and invocation from outside the workspace pass. Packed source-unavailable proof and natural per-app route worker termination remain the final gate for the remove task, owned jointly with integrated acceptance.
+Verification: package source type-check and targeted Biome pass; 18 focused normalization/patch/cohort/Cloudflare command tests pass; 15 CLI/profile tests pass including structured mutation matrices, compiler bridge/thin-shell gates and REST/RPC/profile preservation. Final structured drift matrix also passes after direct SSR, primary-shell identity and compact federation checks were added; source-relative TypeScript import contracts and invocation from outside the workspace pass. Packed source-unavailable validator proof passed: the actual workspace-installed CLI validated a generated consumer with all first-party framework source directories removed and NODE_PATH cleared (tests owner evidence: /tmp/modernjs-fork-cuts-packed-validator.log). The retained structured drift matrix provides adversarial parity. Natural successful route worker termination remains an integrated acceptance check while the supply owner repairs the independently exposed Module Federation ESM patch defect.

@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -36,6 +37,67 @@ function packedPrerequisites() {
   return { overrides, allowBuilds };
 }
 
+/** Remove only framework source copies in this disposable consumer. Application
+ * workspace TypeScript (including injected shared-contracts) remains intact. */
+function prepareSourceUnavailableConsumer(
+  consumer: string,
+  requireFramework = false,
+) {
+  const root = fs.realpathSync(consumer);
+  const required = new Set(
+    requireFramework
+      ? [
+          '@modern-js/ultramodern-create',
+          '@modern-js/plugin-tanstack',
+          '@modern-js/app-tools',
+          '@modern-js/server-runtime-extensions',
+        ]
+      : ['@modern-js/ultramodern-create'],
+  );
+  const { overrides } = packedPrerequisites();
+  for (const name of Object.keys(overrides)) {
+    for (const manifest of fs.globSync(
+      `node_modules/.pnpm/*/node_modules/${name}/package.json`,
+      { cwd: consumer },
+    )) {
+      const packageDir = fs.realpathSync(
+        path.dirname(path.join(consumer, manifest)),
+      );
+      if (!packageDir.startsWith(`${root}${path.sep}`)) {
+        throw new Error(
+          `Packed package escaped its consumer: ${name}: ${packageDir}`,
+        );
+      }
+      fs.rmSync(path.join(packageDir, 'src'), { recursive: true, force: true });
+      if (required.has(name)) {
+        const entry = execFileSync(
+          process.execPath,
+          ['-e', 'console.log(require.resolve(process.argv[1]))', name],
+          {
+            cwd: packageDir,
+            encoding: 'utf8',
+            env: { ...process.env, NODE_PATH: '' },
+          },
+        ).trim();
+        const resolved = fs.realpathSync(entry);
+        if (
+          !resolved.startsWith(`${root}${path.sep}`) ||
+          resolved.split(path.sep).includes('src')
+        ) {
+          throw new Error(
+            `Packed entry selected framework source or an external tree: ${name}: ${resolved}`,
+          );
+        }
+        required.delete(name);
+      }
+    }
+  }
+  if (required.size)
+    throw new Error(
+      `Missing packed framework consumer entries: ${[...required].join(', ')}`,
+    );
+}
+
 /** pnpm owns workspace links, per-package versions, peer resolution and builds. */
 export function materializeGeneratedWorkspaceDependencies(
   workspaceDir: string,
@@ -53,9 +115,10 @@ export function materializeGeneratedWorkspaceDependencies(
   );
   runPnpm(['install', '--no-frozen-lockfile'], {
     cwd: workspaceDir,
-    env: { ...process.env, CI: 'true' },
+    env: { ...process.env, NODE_PATH: '', CI: 'true' },
     stdio: 'pipe',
   });
+  prepareSourceUnavailableConsumer(workspaceDir, true);
 }
 
 /** A standalone consumer outside the repository, without source links. */
@@ -80,9 +143,10 @@ export function installPackedGenerator(tempRoot: string): string {
   );
   runPnpm(['install', '--no-frozen-lockfile'], {
     cwd: consumer,
-    env: { ...process.env, CI: 'true' },
+    env: { ...process.env, NODE_PATH: '', CI: 'true' },
     stdio: 'pipe',
   });
+  prepareSourceUnavailableConsumer(consumer);
   const bin = path.join(
     consumer,
     'node_modules/@modern-js/ultramodern-create/bin/run.js',
