@@ -5,14 +5,12 @@ import { pathToFileURL } from 'node:url';
 // Static packaged entrypoint. No executable source is rendered into consumers
 // or temporary directories; the process boundary isolates native CLI singletons.
 async function main(): Promise<void> {
-  const [workspaceRoot, appDirectory, label] = process.argv.slice(2);
+  const [appDirectory, label] = process.argv.slice(2);
   try {
-    if (!workspaceRoot || !appDirectory || !label) {
-      throw new Error(
-        'Route generation requires a workspace root, app directory and label.',
-      );
+    if (!appDirectory || !label) {
+      throw new Error('Route generation requires an app directory and label.');
     }
-    const appRequire = createRequire(path.join(workspaceRoot, 'package.json'));
+    const appRequire = createRequire(path.join(appDirectory, 'package.json'));
     const pluginUrl = pathToFileURL(
       appRequire.resolve('@modern-js/plugin-tanstack'),
     ).href;

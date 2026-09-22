@@ -55,7 +55,7 @@ generated workspace app is regenerated.
   for (const target of targets) {
     const status = spawnNodeScript(
       'dist/esm-node/ultramodern-tooling/commands/routes-generate-app.js',
-      [context.workspaceRoot, target.appDirectory, target.label],
+      [target.appDirectory, target.label],
       context,
       { cwd: target.appDirectory },
     );
