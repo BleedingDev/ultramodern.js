@@ -13,7 +13,7 @@ todos:
     status: completed
   - id: integrated-feature-parity-publish-results
     content: "Run required lint/build/test/boundary gates, report production/template/test/vendor deltas and preserved feature evidence, update Beads, commit and push to bleedingdev."
-    status: in_progress
+    status: completed
 isProject: false
 ---
 
@@ -23,7 +23,7 @@ isProject: false
 
 Root integration owner. Own cross-lane acceptance evidence, shared lockfile/package-script integration, release changesets, final ledger resolution and downstream acceptance coordination. Publishing results means committing audit/implementation evidence and pushing the fork; it does not authorize an npm release or upstream push. Do not clear unrelated stashes or prune unrelated branches.
 
-Audit: [current fork evidence](../../../docs/audits/fork-simplification-20260922.md). Final audited fork `ba2f373ad9587642062efc65c763276a68aee909`; fixed vanilla ownership base `eded841256a7cffdaa622e3889fc83407debd3e4`. Beads `modernjs-wuutt.14` under `modernjs-wuutt` is authoritative; keep this execution projection aligned. All implementation and consumer acceptance are complete; final result publication is in progress.
+Audit: [current fork evidence](../../../docs/audits/fork-simplification-20260922.md). Final audited fork `ba2f373ad9587642062efc65c763276a68aee909`; fixed vanilla ownership base `eded841256a7cffdaa622e3889fc83407debd3e4`. Beads `modernjs-wuutt.14` under `modernjs-wuutt` is authoritative; keep this execution projection aligned. All implementation, consumer acceptance and fork publication are complete.
 
 ## Constraints
 
@@ -41,4 +41,6 @@ Use the exact selection/edges in docs/audits/fork-simplification-20260922-handof
 
 All twelve implementation lanes completed. Full47-task build, repository Biome, ten strict TypeScript configurations, canonical boundary and actual-PR-base allowlist governance passed. Packed consumers passed with framework sources removed and NODE_PATH cleared: BFF2/2 and workspace3/3. Retained browser4/4 and prerequisite3/3 checks passed.
 
-Tractor source-mode acceptance passed on source5438498b2d with an exact46-package cohort and3sidecars: Node/workerd distributed SSR, JavaScript-disabled HTML and visible shopping. Original configured checkout was absent; proof used the pinned disposable checkout, local registry and local servers. Report and measured cuts: docs/audits/fork-simplification-20260922-implementation.md. No npm publication or upstream push. Final commit/fork push remains the only open execution step.
+Tractor source-mode acceptance passed on source5438498b2d with an exact46-package cohort and3sidecars: Node/workerd distributed SSR, JavaScript-disabled HTML and visible shopping. Original configured checkout was absent; proof used the pinned disposable checkout, local registry and local servers. Report and measured cuts: docs/audits/fork-simplification-20260922-implementation.md. No npm publication or upstream push. Implementation and evidence were committed and pushed to bleedingdev at aea3d193b6. This final tracking update closes all 48 selected graph steps.
+
+Temporary acceptance resources were removed after the durable report was committed: the owned release worktree, pinned disposable Tractor checkout and packed-test archives. Unrelated Beads records and stashes were preserved.
