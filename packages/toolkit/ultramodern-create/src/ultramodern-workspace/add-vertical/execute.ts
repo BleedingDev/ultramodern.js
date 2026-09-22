@@ -33,6 +33,7 @@ import type {
   AddUltramodernVerticalOptions,
   JsonValue,
   UltramodernGenerationResult,
+  WorkspaceApp,
 } from '../types';
 import {
   preserveConsumerWorkspaceArtifacts,
@@ -100,17 +101,34 @@ export function executeAddUltramodernVertical(
   const existingVerticals = updatedVerticals.filter(
     app => app.id !== vertical.id,
   );
+  const existingIds = new Set(existingVerticals.map(app => app.id));
+  // Ownership recognition renders the workspace before this addition. The
+  // target shell may already reference the new vertical in stale topology.
+  const previousProjection = (apps: WorkspaceApp[]) =>
+    apps.map(app =>
+      app.id === targetShell.id
+        ? {
+            ...app,
+            verticalRefs: app.verticalRefs?.filter(id => existingIds.has(id)),
+          }
+        : app,
+    );
   const previousApps = normalizeWorkspaceInputs(options.workspaceRoot, {
     config,
   }).apps;
   const previousDevPorts = workspaceDevelopmentPorts(previousApps);
   const { io: ownedIo } = preserveConsumerWorkspaceArtifacts(
     options.workspaceRoot,
-    workspaceArtifactCandidates(scope, previousApps, previousTailwind, [
-      primaryShell,
-      ...existingVerticals,
-      ...additionalShells,
-    ]),
+    workspaceArtifactCandidates(
+      scope,
+      previousProjection(previousApps),
+      previousTailwind,
+      previousProjection([
+        primaryShell,
+        ...existingVerticals,
+        ...additionalShells,
+      ]),
+    ),
   );
 
   const nextTargetShell = {

@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { isAbsolute } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { moduleResolve } from 'import-meta-resolve';
 import { findExists } from './fs';
 
@@ -153,12 +153,9 @@ const tryResolveESM = (name: string, ...resolvePath: string[]) => {
   const conditions = new Set(['node', 'import', 'module', 'default']);
   for (const p of resolvePath) {
     try {
-      return moduleResolve(
-        name,
-        pathToFileURL(`${p}/`),
-        conditions,
-        false,
-      ).pathname.replace(/^\/(\w):/, '$1:');
+      return fileURLToPath(
+        moduleResolve(name, pathToFileURL(`${p}/`), conditions, false),
+      );
     } catch (err) {
       // ignore
     }
