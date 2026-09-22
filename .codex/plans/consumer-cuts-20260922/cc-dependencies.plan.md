@@ -6,7 +6,7 @@ todos:
     content: "Map framework-required patch consumers and prepare corrected packages through the existing sidecar mechanism."
     status: pending
   - id: cc-dependencies-packed-dependency-proof
-    content: "Verify direct and transitive package resolution, exports, peers, types and runtime identity without consumer patches."
+    content: "Verify corrected sidecar exports, peers, types and runtime identity; hand off every framework dependency edge for full closure proof."
     status: pending
 isProject: false
 ---
@@ -23,10 +23,14 @@ Redirect every actual dependency edge that needs the correction, including direc
 
 Report vendored third-party source separately from first-party implementation in cut statistics. Do not hide large source additions by only reporting deleted patch files.
 
+The existing mechanism is image-specific: `SIDECAR_PACKAGE_ROOTS`, `sidecarConsumerDependencyTargets`, `rewriteSidecarConsumerAliases`, and publication tests assume image consumers. Extend only the concrete dependency edges required by the verified closure. Preserve reproducible producer-side correction recipes in `scripts/ultramodern-supply`; consumer patch elimination does not require deleting authenticated source recipes. Measure the proposed closure and copied bytes before vendoring it. Do not republish an entire ecosystem merely to redirect one edge without first checking an upstream fix or an existing build extension.
+
+Resolve sidecar version and peer semantics before implementing the Drizzle case. `assertSidecarVersion` currently accepts stable X.Y.Z only, while the patched input is 1.0.0-rc.4. A renamed stable package does not automatically satisfy exact prerelease peers or preserve type identity. Prove the selected version and every direct, transitive and peer edge with pinned consumer pnpm and the existing npm package-install checks; change the image-derived restriction only if the actual peer contract supports it. Keep source installs usable before publication through existing local workspace/build resolution and release-time manifest projection. Never put an unavailable registry version into the source install path.
+
 ## Constraints
 
 Own new corrected sources under packages/sidecar/** and scripts/ultramodern-supply sidecar records; scripts/ultramodern-publish/lib/prepare-bleedingdev-packages/sidecars.mjs and sidecar-publication.mjs plus their dedicated tests. Root owns all existing package.json, pnpm files, changesets, patch-inventory.ts and central publication orchestration. Hand those exact manifest/pin/deletion changes to cc-integration. Do not edit generator policy or consumers concurrently. Respect Rule 5 for existing upstream-owned manifest edges.
 
 ## Operator Guidance
 
-Independent at the initial frontier; run alongside cc-contract using existing source contracts. Route any proposed shared-config change to root. Stop after producing verified corrected tarballs and a complete dependency-edge change list. Test clean temporary consumer installs with no framework-required patchedDependencies and inspect actual resolved modules, not only manifest strings. Validate pnpm consumer behavior and the existing published-package npm checks. No registry publication in this lane. If an upstream version removes a patch, prove equivalent behavior before choosing it. A missing corrected transitive edge is a release blocker.
+Independent at the initial frontier; run alongside cc-contract using existing source contracts. Route any proposed shared-config change to root. Stop after producing verified corrected tarballs, sidecar-only clean-install proof and a complete dependency-edge change list. Full framework transitive-closure proof requires root manifest integration and is mandatory in cc-package-proof; it is not a prerequisite for releasing this lane to integration. Test clean temporary consumer installs with no framework-required patchedDependencies and inspect actual resolved modules, not only manifest strings. Validate pnpm consumer behavior and the existing published-package npm checks. No registry publication in this lane. If an upstream version removes a patch, prove equivalent behavior before choosing it. A missing corrected transitive edge is a release blocker.

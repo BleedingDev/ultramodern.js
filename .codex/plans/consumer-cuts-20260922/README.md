@@ -22,6 +22,19 @@ No backwards compatibility, dual writes, silent fallbacks, alias APIs, shims, mo
 
 Planning base: Modern.js `a0ae288f342aa1394a87298cda398eb63b19855a`; OntOS `e1690997ba67ba2e19ee0efc3cf2b51e6c65ea62` in [PR #886](https://github.com/TechsioCZ/ontos/pull/886). Recheck actual branch heads and PR state at execution; do not copy stale worktrees or assume a PR remains unmerged.
 
+Plan review checks the repository at `379b4f4edc`. Claude Code 2.1.280 completed an independent plan review with canonical model `claude-opus-5-5`, first-party provider. Codex checked its implementation claims against the source. A separate longer source review was interrupted without a report; no finding below is attributed to that unfinished pass. This review changes planning artifacts only; implementation remains pending.
+
+| Review finding | Disposition and resulting change |
+| --- | --- |
+| Release pin ordering and candidate identity | Apply with evidence-backed correction. Both CI Tractor pins precede final bundle production; rehearsal is non-promotable, final bytes repeat acceptance. The existing installer must resolve the supplied bundle version before frozen install. |
+| Missing reader/CLI ownership | Apply. Metadata owns tooling-reader conversion; generator receives command implementation files afterward; integration owns templates and readiness callers. |
+| Executable config versus lightweight checks | Apply with correction. The contract records read phase and consuming check for each leaf. Existing development overlay owns local ports; runtime-only checks move to native build/output verification instead of copying plugin options into topology. |
+| Catalog authority, package managers and release age | Apply with correction. Native pnpm catalog owns framework requests, lock owns resolution; npm remains package-compatibility verification. Fresh installs use exact transient exceptions, ordinary frozen-install acceptance respects actual age policy. |
+| Impossible independent-lane acceptance | Apply with correction. Root supplies needed manifest edits in isolated worker checkouts. Sidecar-only proof ends that lane; full framework closure and Windows execution are later package gates. |
+| Duplicated status and checkout-specific graph metadata | Apply with correction. Beads owns task state and blockers; the operator log only assigns agents/worktrees. Keep the selection hash and projected plan status required by the requested graph skills. The selection hash changes with paths/edges, not every content edit. |
+
+Source checks also added the existing analyzer's no-compiler-process constraint, explicit Drizzle prerelease peer qualification, producer recipe retention, per-consumer registry lifecycle, and runnable verification entry points.
+
 OntOS's files contain 292 and 1,330 lines respectively. Removing both cuts 1,622 copied metadata lines from that consumer, but this is a file-deletion baseline, not a promised total net reduction. The framework and all consumer diffs must still be measured honestly.
 
 Relevant verified source:
@@ -46,6 +59,7 @@ These are the agreed destinations, not a new runtime translation registry. `cc-c
 | `schemaVersion`, `profile` | Existing topology schema where needed; retire the compact format/profile discriminator. Preserve feature selection as actual plugin options, not a frozen profile copy. |
 | `generator` | Installed package identity; remove the application version stamp. |
 | `workspace` | Existing package names, `packageManager`, engines, mise settings and workspace membership. Resolve conflicts rather than inventing another authority. |
+| Local ports and add-operation collision inputs | Existing `topology/local-overlays/development.json`; native app configuration consumes those assignments. Keep preflight declarative. |
 | `packageSource` | Native manifest/catalog and package-manager registry configuration; local generation flags are invocation state. |
 | `features` | Existing plugin/build options or meaningful logical topology choices. Defaults stay in the framework. |
 | `topology` | Existing reference topology and ownership records for logical composition; package manifests for package identity. |
@@ -100,7 +114,7 @@ Resolved Codex limits: `max_threads=50`, `max_depth=3`, from `/Users/satan/.code
 | 2 | `cc-integration` | Optional read-only reviewer of a finished patch, no concurrent shared writes | Clean coherent source candidate and canonical boundary gate. |
 | 3 | `cc-package-proof` | Independent platform verification only when existing runners/worktrees isolate outputs | One immutable packed candidate passes fresh-app acceptance. |
 | 4 | Maintain exact candidate and integrate findings | `cc-ontos` and `cc-tractor`, one owner per repo | Both real downstreams pass that candidate. |
-| 5 | `cc-release` and final cut report | Reuse the two consumer owners for published adoption checks | Verified publication, required consumer checks, successful pushes. |
+| 5 | `cc-release`: freeze both Tractor pins before the producer, then publish and report cuts | Reuse consumer owners to qualify the final release-version bundle, then verify published adoption | Verified final bytes, publication, required consumer checks, successful pushes. |
 
 Likely critical path: contract -> metadata -> generator -> integration -> packed proof -> slower downstream -> published acceptance. The corrected-dependency branch can become critical if the required dependency closure or peer resolution needs additional fixes. Do not start integration before either branch finishes.
 
@@ -118,9 +132,27 @@ Each lane file gives its exact scope, do-not-edit boundary, acceptance and stop 
 | Sidecar code and publication helpers | `cc-dependencies`; central package/policy rewiring remains root-owned. |
 | OntOS and Tractor files | Separate consumer owners in separate worktrees; no source-framework repairs there. |
 
-Before each native `spawn_agent`, send: the exact lane path, README, graph handoff, Beads id, candidate/base identity, assigned worktree, write allowlist, verification and stop condition. Include: "You are not alone in the codebase. Do not revert others' edits. Do not broaden scope or spawn agents. Hand cross-owner edits back to root." Default to the available native Codex model. Do not launch Claude Code or another agent CLI.
+Before each native `spawn_agent`, send: the exact lane path, README, graph handoff, Beads id, candidate/base identity, assigned worktree, write allowlist, verification and stop condition. Include: "You are not alone in the codebase. Do not revert others' edits. Do not broaden scope or spawn agents. Hand cross-owner edits back to root." Default to the available native Codex model. Do not launch Claude Code or another agent CLI unless the user explicitly authorizes it. The Opus 5.5 review is a task-specific exception, not an implementation-host change.
+
+Root may apply an exact proposed manifest change early in a worker's isolated worktree when it is needed to build or pack that lane; the worker does not gain ownership of shared manifests or the lockfile. Integration remains the sole merger and regenerates the lock with pnpm. Sidecar-only proof may complete cc-dependencies; full framework closure and cross-platform proof remain package-proof gates.
 
 A worker returns changed paths, behavior/deletions, tests with results, unresolved blockers, and any exact cross-owner patch needed. Root checks scope and evidence before releasing successor lanes. One overlap triggers a narrowed handoff; a second overlap serializes that area. Tooling/runtime defects go back to their owner rather than becoming consumer workarounds.
+
+## Verification entry points
+
+Run these during implementation, with the repository's pinned toolchain. The review does not run builds or application tests. Narrow existing suites to the behavior changed while a lane is active; run the affected full suites once at integration. A zero-test result is not evidence even where the package script permits it.
+
+| Owner | Existing command and expected result |
+| --- | --- |
+| Analyzer | `pnpm --filter @modern-js/code-tools build` and `pnpm --filter @modern-js/code-tools test`; resolver, strict-runtime and private-boundary controls pass. |
+| Runtime | `pnpm --filter @modern-js/app-tools-extensions test`; its pretest builds all package outputs and verifies exports, then envelope/runtime tests pass. |
+| Metadata/generator | `pnpm --filter @modern-js/ultramodern-create test`; builds before testing. Use focused reader tests at metadata handoff; generation and installed-template execution must pass after integration. |
+| Dependencies/integration | `pnpm test:publish-tooling` and `pnpm validate:supply`; actual manifest resolution, immutable publication and authenticated source reconstruction pass. |
+| Integration | `pnpm lint`, `node scripts/ultramodern-boundary-check/check-fork-import-boundary.js`, and affected package suites; no new diagnostics or unexplained boundary growth. Run `node tests/skill/feature-enable.mjs` only if skill behavior changes. |
+| Packed candidate | `pnpm ultramodern:build-bleedingdev-publish`, then `pnpm ultramodern:prepare-bleedingdev-publish -- --version "$CANDIDATE_VERSION" --tag latest --include-sidecars`; run `node scripts/ultramodern-publish/run-release-acceptance.mjs --mode prepublish --manifest "$BUNDLE_DIR/manifest.json" --receipt "$BUNDLE_DIR/source-acceptance.json"`. Bind these execution variables to the chosen exact version and produced bundle. Preparation does not publish. |
+| Tractor | `node scripts/ultramodern-production-readiness/run-tractor-downstream-acceptance.mjs --mode source --manifest "$BUNDLE_DIR/manifest.json" --workspace "$TRACTOR_WORKTREE"`; all existing required checks pass against its own seeded registry. Published adoption uses `--mode published`. |
+
+OntOS commands run from its `app` directory with `mise exec -- pnpm`. Read its current scripts and CI when selecting the worktree; preserve its full `check`, unit/component, Node/Cloudflare and service-integration gates. Do not invent command names from the framework scripts or reuse the framework's toolchain there.
 
 ## Exact graph targeting
 
@@ -154,9 +186,9 @@ The current ready frontier is `cc-contract`, `cc-runtime`, `cc-analyzer`, and `c
 
 ## Tracking and completion
 
-Beads is the execution tracker. The mapping below connects every lane to its task under execution epic `modernjs-h7or2`; plan statuses are the required graph projection. Claim/close the Beads task and update its plan status together. Do not maintain a second Markdown checkbox list. The planning task is `modernjs-wn5fr` and closes once these artifacts validate and are pushed; execution tasks remain open.
+Beads is the execution tracker. The mapping below connects every lane to its task under execution epic `modernjs-h7or2`; plan statuses are the required graph projection. Claim/close the Beads task and update its plan status together. Do not maintain a second Markdown checkbox list. The original planning task `modernjs-wn5fr` is closed. Plan review is `modernjs-pwh9l`; execution tasks remain open.
 
-At execution, append only live lane/agent/owner/blocker/status/next-action facts to `.codex/plan-graphs/consumer-cuts-20260922/operator-log.md`. Do not turn it into a narrative report. Keep graph snapshots as local saved state; the selected plans and explicit edges are the portable source of truth.
+At execution, use the graph operator log only for active lane-to-agent/worktree ownership needed by orchestration. Beads owns blockers and next actions; do not copy task narratives or check results into the log. Keep graph snapshots as local saved state; the selected plans and explicit edges are the portable source of truth.
 
 Final acceptance requires the deletions and behavior evidence above, zero replacement compatibility machinery, real downstream publication acceptance, and honest first-party/generated/vendor diff accounting. Feature preservation outranks a cosmetic line-count target. If unavoidable new first-party code outweighs the removed scaffolding, explain and review that result instead of calling it simplification. Preserve unrelated user work and only commit task-owned records and files.
 

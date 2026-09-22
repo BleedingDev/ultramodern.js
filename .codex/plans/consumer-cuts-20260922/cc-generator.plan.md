@@ -23,10 +23,12 @@ Replace generated pass-through scripts with package scripts that invoke the inst
 
 Delete obsolete compact emitters, format parsers, copyCreateReleaseCohort callers, duplicated metadata snapshots, and docs/tests preserving those implementation details. Leave current command help and behavior-level tests.
 
+After the metadata handoff, own direct-command behavior in src/ultramodern-tooling/commands.ts, commands/**, context.ts and options.ts, and the tooling dispatch call site in src/index.ts. Keep this transfer sequential. Prove local cwd/arguments/status/cancellation behavior here; actual Windows execution belongs to cc-package-proof and the existing CI runner. Source reader and generator commits are dependency-ordered work in progress, not separately releasable framework versions.
+
 ## Constraints
 
 Own packages/toolkit/ultramodern-create/src/ultramodern-workspace/{write-workspace,generation-result,descriptors,package-json,workspace-script-plan,workspace-validation-contract,tooling-command-catalog,delivery-unit-sync,add-shell}.ts, add-vertical/**, producer-side metadata builders found by the bounded inventory, and dedicated generation tests. No config reader/validation writes after handoff without coordination. Integration alone owns policy.ts, patch-inventory.ts, template patch deletion and shared package manifests. Do not edit templates/workspace-scripts/proof-node-backend-federation.mjs; hand direct-command/template deletions there to integration.
 
 ## Operator Guidance
 
-Root-owned successor to cc-metadata. Verify fresh shell/UI/API-only workspaces, a second shell, add-vertical twice, and nondefault security/deployment settings. The generated outputs must contain neither retired JSON file and must execute with no pass-through script dependency. Verify catalog support with the actual supported pnpm versions before adopting syntax. Test real Windows argument/path behavior through the existing acceptance suite. Stop when generators write only the agreed sources and produce a deletion list for integration.
+Root-owned successor to cc-metadata. Verify fresh shell/UI/API-only workspaces, a second shell, add-vertical twice, and nondefault security/deployment settings. The generated outputs must contain neither retired JSON file and must execute with no pass-through script dependency. Verify catalog support with the actual supported pnpm versions before adopting syntax. Hand the Windows argument/path cases to cc-package-proof for execution through existing platform acceptance. Stop when generators write only the agreed sources and produce a deletion list for integration.

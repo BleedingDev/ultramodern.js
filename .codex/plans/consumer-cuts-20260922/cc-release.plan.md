@@ -2,6 +2,9 @@
 name: cc-release
 overview: "Publish the verified cuts, adopt the published packages downstream, and measure whether maintenance actually decreased."
 todos:
+  - id: cc-release-freeze-source
+    content: "Pin the pushed Tractor adaptation, produce the final release-version bundle, and requalify its exact bytes before publication."
+    status: pending
   - id: cc-release-publish-verified-candidate
     content: "Publish the qualified framework and corrected dependencies through the existing release workflow."
     status: pending
@@ -18,9 +21,13 @@ isProject: false
 
 ## Execution Notes
 
-Starts only when both real consumers pass the same immutable candidate. Recheck that publication is authorized by the execution request. Planning itself never authorizes running a release now. Use the existing release pipeline to publish corrected dependencies in dependency order and one new framework version. Verify npm tarball integrity and source identity, and separately verify the GitHub release record because .12 exposed a final change-record failure hidden by overall workflow status. Do not rebuild different bytes between qualification and publication or overwrite an existing version.
+Starts only when both real consumers pass the same immutable candidate. Recheck that publication is authorized by the execution request. Planning itself never authorizes running a release now.
 
-Reinstall actual published packages in each downstream checkout and regenerate lockfiles with its own package manager. Reuse the two consumer owners for parallel published acceptance; they must not run against stale tarballs or source links. Commit/push downstream updates and update the framework's Tractor acceptance reference after the accepted commit exists. Preserve normal repo review/merge policy; deployment is not silently implied by a dependency change.
+Freeze the release source before producing the promotable bundle. `.github/workflows/publish-bleedingdev.yml` pins `tractor_ref` in both `rehearse-tractor` and `tractor-downstream`; both must name the same pushed, reviewed Tractor adaptation commit before the producer starts. The earlier plan's post-publication-only pin update was too late for source rehearsal. The source candidate used to adapt consumers is rehearsal evidence. Commit both pins, complete required release-branch review/integration, then produce a new bundle at the actual release version from the final permitted release source. Rerun exact-bundle fresh-app, OntOS and Tractor acceptance before publishing it. The rehearsal bundle is never promotable. Prove the existing installer replaces rehearsal dependency requests and lock resolution with the supplied final bundle; do not require another Tractor source pin merely to change an installed version. Reuse consumer owners and existing verification commands; add no new acceptance system. A consumer-only lockfile update afterward does not alter framework tarball identity.
+
+Use the existing release pipeline to publish corrected dependencies in dependency order and one new framework version. Verify npm tarball integrity and source identity, and separately verify the GitHub release record because .12 exposed a final change-record failure hidden by overall workflow status. Publish the final qualified bytes without rebuilding or overwriting an existing version. Recovery must reuse that bundle; any product change invalidates its acceptance and requires a new candidate.
+
+Reinstall actual published packages in each downstream checkout and regenerate lockfiles with its own package manager. Reuse the two consumer owners for parallel published acceptance; they must not run against stale tarballs or source links. Commit/push downstream updates. A later Tractor pin advance records the published adoption for future releases; it cannot be used as evidence for the already produced release. Preserve normal repo review/merge policy; deployment is not silently implied by a dependency change.
 
 Success requires zero production consumer read/write paths for release-cohort.json and ultramodern.json, zero patches consumers must apply to UltraModern itself, zero generated consumer patches required by the supported framework features, and zero pass-through command wrappers for framework-only behavior. No old-format fallback, compatibility API, migration engine, duplicate config registry or hook mutation may replace the deleted machinery. Retain the real runtime manifests, build envelopes, DB migrations and public interoperability required by existing features.
 
