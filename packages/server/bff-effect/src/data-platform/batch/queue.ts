@@ -342,12 +342,6 @@ export function createBatchTransportQueue({
     return runSingle(request);
   };
 
-  const settleAmbiguousBatchRequests = (
-    items: QueuedBatchRequest[],
-    reason: string,
-  ) =>
-    settleRequests(items, request => runAfterAmbiguousBatch(request, reason));
-
   const finishFlush = (bucketKey: string, bucket: BatchBucket) => {
     bucket.flushing = false;
     if (bucket.items.length > 0 && !bucket.timer) void flushBucket(bucketKey);
@@ -406,6 +400,18 @@ export function createBatchTransportQueue({
 
     const payload = createPayload(payloadIdentity, items);
     const batchId = payload.batchId;
+    const settleAmbiguousBatchRequests = (reason: string) => {
+      emitDataBatchTransportEvent(onEvent, {
+        type: 'fallback',
+        endpoint,
+        batchId,
+        size: items.length,
+        reason,
+      });
+      return settleRequests(items, request =>
+        runAfterAmbiguousBatch(request, reason),
+      );
+    };
 
     emitDataBatchTransportEvent(onEvent, {
       type: 'flush',
@@ -472,19 +478,17 @@ export function createBatchTransportQueue({
             batchId,
             reason: `batch-endpoint-unavailable-${String(response.status)}`,
           });
+          await settleRequests(items, request =>
+            runAfterAmbiguousBatch(
+              request,
+              `batch-response-${String(response.status)}`,
+            ),
+          );
         } else {
-          emitDataBatchTransportEvent(onEvent, {
-            type: 'fallback',
-            endpoint,
-            batchId,
-            size: items.length,
-            reason: `batch-response-${String(response.status)}`,
-          });
+          await settleAmbiguousBatchRequests(
+            `batch-response-${String(response.status)}`,
+          );
         }
-        await settleAmbiguousBatchRequests(
-          items,
-          `batch-response-${String(response.status)}`,
-        );
         return;
       }
 
@@ -492,26 +496,12 @@ export function createBatchTransportQueue({
         response.json(),
       );
       if (!isBatchResponsePayload(result)) {
-        emitDataBatchTransportEvent(onEvent, {
-          type: 'fallback',
-          endpoint,
-          batchId,
-          size: items.length,
-          reason: 'invalid-batch-response',
-        });
-        await settleAmbiguousBatchRequests(items, 'invalid-batch-response');
+        await settleAmbiguousBatchRequests('invalid-batch-response');
         return;
       }
 
       if (result.batchId !== batchId) {
-        emitDataBatchTransportEvent(onEvent, {
-          type: 'fallback',
-          endpoint,
-          batchId,
-          size: items.length,
-          reason: 'mismatched-batch-id',
-        });
-        await settleAmbiguousBatchRequests(items, 'mismatched-batch-id');
+        await settleAmbiguousBatchRequests('mismatched-batch-id');
         return;
       }
 
@@ -551,14 +541,7 @@ export function createBatchTransportQueue({
         }
         return;
       }
-      emitDataBatchTransportEvent(onEvent, {
-        type: 'fallback',
-        endpoint,
-        batchId,
-        size: items.length,
-        reason: 'batch-transport-error',
-      });
-      await settleAmbiguousBatchRequests(items, 'batch-transport-error');
+      await settleAmbiguousBatchRequests('batch-transport-error');
     } finally {
       for (const item of items) {
         item.abortBatchIfUnused = undefined;
