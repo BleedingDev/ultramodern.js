@@ -17,11 +17,13 @@ isProject: false
 
 This is the sole writer of shared package manifests, root pnpm config/lockfile, policy.ts, patch-inventory.ts, changesets, FORK-DIVERGENCE.md and boundary measurement files. Integrate cc-runtime, cc-analyzer, cc-dependencies and cc-generator before changing downstream consumers. Regenerate lockfiles with pnpm, never by text replacement. Keep changeset scope/versioning aligned with packages actually changed.
 
-Update templates/workspace-scripts and the installed tooling commands to consume canonical inputs. Specifically remove the synthetic API-only binding and make proof-node-backend-federation consume the emitted native envelope. Remove pass-through templates and template patch files once no generated consumer needs them. Remove obsolete patch-parity branches and copied metadata validation in source qualification and production-readiness helpers. Keep meaningful package integrity, identity, ownership, CSP and artifact verification.
+Update templates/workspace-scripts and release/readiness call sites to consume the finished canonical-reader and CLI contracts from cc-metadata and cc-generator. Specifically remove the synthetic API-only binding and make proof-node-backend-federation consume the emitted native envelope. Remove pass-through templates and template patch files once no generated consumer needs them. Remove obsolete patch-parity branches and copied metadata validation in source qualification and production-readiness helpers. Keep meaningful package integrity, identity, ownership, CSP and artifact verification.
 
 Update scripts/ultramodern-production-readiness/{published-create-proof,tractor-downstream}/ so qualification reads the installed release and canonical app state, and the consumer updater performs an ordinary package-manager adoption rather than copying framework metadata/patches. Preserve the release producer's authenticated manifest and immutable publication checks; distinguish those from the consumer JSON being deleted. Update current maintainer/application guidance in source skill directories, then use pnpm sync:skills for generated mirrors only if their source changed.
 
 Use one compact commit/PR explanation of deletions, native replacements and residual app responsibilities. No new governance dashboard, migration tutorial, custom graph runner or parallel validation subsystem.
+
+Update tractor-downstream/cohort-install.mjs so prepareTractorCohortInstallation changes native catalog requests and regenerates the consumer lock through its package manager for the exact supplied bundle. Remove its current required compact JSON, nonempty patch-template and persistent release-age-list branches. Both source and published modes must install the supplied bundle version even when the pinned consumer commit requested a rehearsal version; verify this before freezing Tractor pins. This is the existing acceptance installer, not an application upgrade API.
 
 ## Constraints
 

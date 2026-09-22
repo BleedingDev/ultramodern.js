@@ -21,9 +21,11 @@ Update existing load/normalize/types, cohort-parity, and validation code to cons
 
 Cover all tooling readers: validation, MF types, Node/Cloudflare output/proofs, performance checks, backend federation, delivery inspection, and add-operation preflight inputs. Return useful missing/conflicting-source errors. Remove old compact source tags, conversion branches, embedded expected compact snapshots, dead validators, and tests asserting retired file bytes. For build-only resolved configuration, use existing Modern.js loading APIs at build time. Lightweight operations must read declarative topology/manifests without requiring deployment secrets or importing business modules.
 
+Own the canonical-reader conversion in src/ultramodern-tooling/**, including commands/validate.ts, commands/routes-generate.ts and commands/cloudflare-output-verify.ts, plus the indirect readers enumerated by cc-contract. Transfer these files to cc-generator only after reader tests pass. Do not claim whole-generator acceptance at this handoff; old emitters are removed in the following lane and integrated package acceptance follows the join.
+
 ## Constraints
 
-Own packages/toolkit/ultramodern-create/src/ultramodern-tooling/config/** after cc-contract handoff; src/ultramodern-release-cohort.ts; src/ultramodern-workspace/cohort-parity.ts; src/ultramodern-workspace/validation/**; reader-facing portions of workspace-validation-contract.ts; and their dedicated tests. Hand off any necessary producer changes in workspace-validation-contract.ts to cc-generator, which starts after this lane. Do not edit generator writers, policy.ts, patch-inventory.ts, templates/workspace-scripts, package manifests, publish scripts, consumer repos, or runtime-envelope code.
+Own packages/toolkit/ultramodern-create/src/ultramodern-tooling/** after cc-contract handoff; src/ultramodern-release-cohort.ts; src/ultramodern-workspace/cohort-parity.ts; src/ultramodern-workspace/validation/**; reader-facing portions of workspace-validation-contract.ts; and their dedicated tests. Hand off any necessary producer changes in workspace-validation-contract.ts to cc-generator, which starts after this lane. Do not edit generator writers, policy.ts, patch-inventory.ts, templates/workspace-scripts, package manifests, publish scripts, consumer repos, or runtime-envelope code.
 
 ## Operator Guidance
 
