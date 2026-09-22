@@ -15,7 +15,7 @@ import {
 rstest.setConfig({ testTimeout: 1000 * 60 * 5, hookTimeout: 1000 * 60 * 5 });
 
 const sourceAppDir = path.resolve(__dirname, '../');
-const ensureWorkspacePackages = [
+const requiredWorkspacePackages = [
   '@modern-js/app-tools',
   '@modern-js/plugin-bff',
   '@modern-js/server-utils',
@@ -145,7 +145,7 @@ describe('pure-esm-project in dev', () => {
     appDir = await createIsolatedAppDir('.pure-esm-index-');
     port = await getPort();
     app = await launchApp(appDir, port, {
-      ensureWorkspacePackages,
+      requiredWorkspacePackages,
     });
     browser = await puppeteer.launch(launchOptions as any);
     page = await browser.newPage();
@@ -192,7 +192,7 @@ describe('pure-esm-project in prod', () => {
     port = await getPort();
 
     await modernBuild(appDir, [], {
-      ensureWorkspacePackages,
+      requiredWorkspacePackages,
     });
 
     app = await modernServe(appDir, port, {});

@@ -44,7 +44,7 @@ const buildWorkerShellBeforeTemplate = (template: string, options: any) =>
     lifecycle: lifecycleFor(options),
   });
 
-import { applyRouterRuntimeState } from '@modern-js/runtime-extensions/router-state';
+import { applyRouterServerPrepareResult } from '@modern-js/runtime-extensions/router-state';
 import { CHUNK_CSS_PLACEHOLDER } from '../../plugin-runtime/src/core/server/constants';
 import { buildShellBeforeTemplate as nativeBuildShellBeforeTemplate } from '../../plugin-runtime/src/core/server/stream/beforeTemplate';
 import { buildShellBeforeTemplate as nativeBuildWorkerShellBeforeTemplate } from '../../plugin-runtime/src/core/server/stream/beforeTemplate.worker';
@@ -53,9 +53,9 @@ const withRouterSnapshot = (
   runtimeContext: Record<string, unknown>,
   serverSnapshot: Record<string, unknown>,
 ) => {
-  applyRouterRuntimeState(runtimeContext as any, {
-    framework: 'react-router',
-    serverSnapshot,
+  applyRouterServerPrepareResult(runtimeContext as any, {
+    state: { framework: 'react-router' },
+    snapshot: serverSnapshot,
   });
   return runtimeContext;
 };
@@ -180,9 +180,9 @@ import { LoadableCollector as NativeLoadableCollector } from '../../plugin-runti
 
 const createRuntimeContextWithMatchedRoutes = (matchedRouteIds: string[]) => {
   const runtimeContext = {} as any;
-  applyRouterRuntimeState(runtimeContext, {
-    framework: 'react-router',
-    serverSnapshot: { matchedRouteIds },
+  applyRouterServerPrepareResult(runtimeContext, {
+    state: { framework: 'react-router' },
+    snapshot: { matchedRouteIds },
   });
   return runtimeContext;
 };

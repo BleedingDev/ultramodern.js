@@ -13,31 +13,13 @@ const kModernAppTools = path.join(
   __dirname,
   '../node_modules/@modern-js/app-tools/bin/modern.js',
 );
-const kWorkspacePackageBuilds = new Map();
 const kWorkspaceSearchRoots = [
   path.join(kRepoRoot, 'packages'),
   path.join(kRepoRoot, 'tests'),
 ];
-const kWorkspacePackageLockPollInterval = 200;
-const kWorkspacePackageLockStaleAge = 10 * 60 * 1000;
+const kPortAllocatorLockPollInterval = 200;
+const kPortAllocatorLockStaleAge = 10 * 60 * 1000;
 const kGlobPatternCharacters = ['*', '?', '[', '{'];
-// Readers (spawned modern builds) can legitimately run for several minutes;
-// only steamroll them when the owning process is gone or clearly abandoned.
-const kWorkspaceDistReaderStaleAge = 30 * 60 * 1000;
-const kWorkspaceRwLockRoot = path.join(
-  os.tmpdir(),
-  `modernjs-workspace-rwlock-${crypto
-    .createHash('sha1')
-    .update(kRepoRoot)
-    .digest('hex')}`,
-);
-const kWorkspaceDistWriterLockDir = path.join(
-  kWorkspaceRwLockRoot,
-  'writer.lock',
-);
-const kWorkspaceDistReadersDir = path.join(kWorkspaceRwLockRoot, 'readers');
-// Dist read locks this process currently holds; see acquireWorkspaceDistReadLock.
-let kWorkspaceDistReadersHeld = 0;
 const kTestPortAllocatorKey = `${kTestsRoot}#test-port-allocator`;
 const kTestPortStatePath = path.join(
   os.tmpdir(),
@@ -49,17 +31,17 @@ const kTestPortStatePath = path.join(
 const kTestPortRangeStart = 20_000;
 const kTestPortRangeEnd = 59_999;
 
-function resolveWorkspacePackageBuildLockDir(packageDir) {
+function resolvePortAllocatorLockDir(packageDir) {
   const digest = crypto
     .createHash('sha1')
     .update(path.resolve(packageDir))
     .digest('hex');
 
-  return path.join(os.tmpdir(), `modernjs-workspace-package-${digest}.lock`);
+  return path.join(os.tmpdir(), `modernjs-port-allocator-${digest}.lock`);
 }
 
-async function acquireWorkspacePackageBuildLock(packageDir) {
-  const lockDir = resolveWorkspacePackageBuildLockDir(packageDir);
+async function acquirePortAllocatorLock(packageDir) {
+  const lockDir = resolvePortAllocatorLockDir(packageDir);
 
   while (true) {
     try {
@@ -83,7 +65,7 @@ async function acquireWorkspacePackageBuildLock(packageDir) {
 
       try {
         const stat = await fs.promises.stat(lockDir);
-        if (Date.now() - stat.mtimeMs > kWorkspacePackageLockStaleAge) {
+        if (Date.now() - stat.mtimeMs > kPortAllocatorLockStaleAge) {
           await fs.promises.rm(lockDir, { recursive: true, force: true });
           continue;
         }
@@ -92,252 +74,10 @@ async function acquireWorkspacePackageBuildLock(packageDir) {
       }
 
       await new Promise(resolve =>
-        setTimeout(resolve, kWorkspacePackageLockPollInterval),
+        setTimeout(resolve, kPortAllocatorLockPollInterval),
       );
     }
   }
-}
-
-// --- workspace dist reader/writer coordination -----------------------------
-//
-// Root-cause guard for the first-run-after-prepare-build flake: workspace
-// package rebuilds triggered by `ensureWorkspacePackagesBuilt` wipe and
-// rewrite `packages/*/dist` trees (rslib cleans dist first). A `modern build`
-// spawned by ANOTHER rstest worker resolves workspace deps (e.g.
-// `@modern-js/utils/dist/esm-node/index.mjs` from app-tools'
-// ts-paths-loader.mjs loader thread) through those same dist trees and dies
-// with ERR_MODULE_NOT_FOUND if it races a wipe window. The per-package build
-// locks above only serialize rebuilds against each other, not against
-// spawned fixture builds.
-//
-// The locks below implement a cross-process reader/writer protocol in
-// os.tmpdir() (scoped per repo root):
-//   - every spawned modern command holds a READ lock while it may resolve
-//     workspace dist files (builds, dev servers, and preview servers: until
-//     exit),
-//   - a workspace package rebuild takes the WRITE lock: it blocks new readers
-//     and waits for in-flight readers to drain before wiping any dist tree.
-// Writers are preferred (new readers wait once writer.lock exists), so
-// rebuilds cannot be starved.
-
-function isPidAlive(pid) {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    // EPERM means the process exists but belongs to another user.
-    return error?.code === 'EPERM';
-  }
-}
-
-async function listActiveWorkspaceDistReaders() {
-  let entries;
-  try {
-    entries = await fs.promises.readdir(kWorkspaceDistReadersDir);
-  } catch (error) {
-    if (error?.code === 'ENOENT') {
-      return [];
-    }
-    throw error;
-  }
-
-  const activeReaders = [];
-  for (const entry of entries) {
-    const readerPath = path.join(kWorkspaceDistReadersDir, entry);
-    const readerPid = Number(entry.split('-')[0]);
-    let stat;
-    try {
-      stat = await fs.promises.stat(readerPath);
-    } catch {
-      continue;
-    }
-
-    const isStale =
-      (Number.isInteger(readerPid) &&
-        readerPid > 0 &&
-        !isPidAlive(readerPid)) ||
-      Date.now() - stat.mtimeMs > kWorkspaceDistReaderStaleAge;
-    if (isStale) {
-      await fs.promises.rm(readerPath, { force: true });
-      continue;
-    }
-
-    activeReaders.push(entry);
-  }
-
-  return activeReaders;
-}
-
-async function isWorkspaceDistWriterActive() {
-  try {
-    const stat = await fs.promises.stat(kWorkspaceDistWriterLockDir);
-    if (Date.now() - stat.mtimeMs > kWorkspacePackageLockStaleAge) {
-      await fs.promises.rm(kWorkspaceDistWriterLockDir, {
-        recursive: true,
-        force: true,
-      });
-      return false;
-    }
-    return true;
-  } catch (error) {
-    if (error?.code === 'ENOENT') {
-      return false;
-    }
-    // Be conservative on unexpected stat failures: treat as writer active.
-    return true;
-  }
-}
-
-async function readWorkspaceDistWriterOwner() {
-  try {
-    return JSON.parse(
-      await fs.promises.readFile(
-        path.join(kWorkspaceDistWriterLockDir, 'owner.json'),
-        'utf8',
-      ),
-    );
-  } catch {
-    return undefined;
-  }
-}
-
-async function acquireWorkspaceDistReadLock() {
-  await fs.promises.mkdir(kWorkspaceDistReadersDir, { recursive: true });
-  const readerPath = path.join(
-    kWorkspaceDistReadersDir,
-    `${process.pid}-${crypto.randomUUID()}.json`,
-  );
-
-  // Reader acquisition is re-entrant per process. A worker that already holds
-  // a reader is keeping it for the lifetime of a spawned dev/serve child, and
-  // a pending writer drains exactly those readers before it proceeds. Making
-  // the second acquisition yield to that writer deadlocks the pair: the writer
-  // waits for readers this process can only release after it finishes setting
-  // up, and the setup waits for the writer to clear. Fixtures that bring up
-  // several servers (federation hosts with their remotes, cross-project BFF
-  // suites) hit this whenever another worker rebuilds a workspace package, and
-  // the only symptom is an opaque `beforeAll hook timed out`. Admitting the
-  // re-entrant reader costs the writer nothing it was not already waiting for.
-  const isReentrant = kWorkspaceDistReadersHeld > 0;
-  const waitStartedAt = Date.now();
-  let warnedAboutWriter = false;
-
-  while (!isReentrant) {
-    if (await isWorkspaceDistWriterActive()) {
-      // A blocked reader used to be invisible: the suite simply reported
-      // `beforeAll hook timed out` with no indication that it never reached
-      // the spawn. Name the writer once so a stall is diagnosable from the
-      // CI log alone.
-      if (!warnedAboutWriter && Date.now() - waitStartedAt > 30_000) {
-        warnedAboutWriter = true;
-        const owner = await readWorkspaceDistWriterOwner();
-        console.warn(
-          `[modernTestUtils] waiting on the workspace dist write lock for ${Math.round(
-            (Date.now() - waitStartedAt) / 1000,
-          )}s; writer=${owner ? JSON.stringify(owner) : 'unknown'}`,
-        );
-      }
-      await new Promise(resolve =>
-        setTimeout(resolve, kWorkspacePackageLockPollInterval),
-      );
-      continue;
-    }
-
-    await fs.promises.writeFile(
-      readerPath,
-      JSON.stringify({
-        pid: process.pid,
-        acquiredAt: new Date().toISOString(),
-      }),
-    );
-
-    // Close the register/acquire race: if a writer appeared while we were
-    // registering, back off so it can drain the readers it already observed.
-    if (!(await isWorkspaceDistWriterActive())) {
-      break;
-    }
-    await fs.promises.rm(readerPath, { force: true });
-    await new Promise(resolve =>
-      setTimeout(resolve, kWorkspacePackageLockPollInterval),
-    );
-  }
-
-  if (isReentrant) {
-    await fs.promises.writeFile(
-      readerPath,
-      JSON.stringify({
-        pid: process.pid,
-        acquiredAt: new Date().toISOString(),
-        reentrant: true,
-      }),
-    );
-  }
-
-  kWorkspaceDistReadersHeld += 1;
-  let released = false;
-  return async () => {
-    if (released) {
-      return;
-    }
-    released = true;
-    kWorkspaceDistReadersHeld -= 1;
-    await fs.promises.rm(readerPath, { force: true });
-  };
-}
-
-async function acquireWorkspaceDistWriteLock() {
-  await fs.promises.mkdir(kWorkspaceRwLockRoot, { recursive: true });
-
-  while (true) {
-    try {
-      await fs.promises.mkdir(kWorkspaceDistWriterLockDir);
-      break;
-    } catch (error) {
-      if (error?.code !== 'EEXIST') {
-        throw error;
-      }
-
-      try {
-        const stat = await fs.promises.stat(kWorkspaceDistWriterLockDir);
-        if (Date.now() - stat.mtimeMs > kWorkspacePackageLockStaleAge) {
-          await fs.promises.rm(kWorkspaceDistWriterLockDir, {
-            recursive: true,
-            force: true,
-          });
-          continue;
-        }
-      } catch {
-        continue;
-      }
-
-      await new Promise(resolve =>
-        setTimeout(resolve, kWorkspacePackageLockPollInterval),
-      );
-    }
-  }
-
-  await fs.promises.writeFile(
-    path.join(kWorkspaceDistWriterLockDir, 'owner.json'),
-    JSON.stringify({
-      pid: process.pid,
-      acquiredAt: new Date().toISOString(),
-    }),
-  );
-
-  // New readers are blocked by writer.lock; wait for in-flight spawned
-  // builds to finish before letting the caller wipe any dist tree.
-  while ((await listActiveWorkspaceDistReaders()).length > 0) {
-    await new Promise(resolve =>
-      setTimeout(resolve, kWorkspacePackageLockPollInterval),
-    );
-  }
-
-  return async () => {
-    await fs.promises.rm(kWorkspaceDistWriterLockDir, {
-      recursive: true,
-      force: true,
-    });
-  };
 }
 
 async function waitForTcpServer(port, timeoutMs = 10_000) {
@@ -402,34 +142,6 @@ function resolveReadyPort(configuredPort, output) {
   }
 
   throw new Error('Dev server reported readiness without a usable local port');
-}
-
-function getNewestModifiedAt(targetPath) {
-  if (!fs.existsSync(targetPath)) {
-    return 0;
-  }
-
-  const stat = fs.statSync(targetPath);
-  if (!stat.isDirectory()) {
-    return stat.mtimeMs;
-  }
-
-  let newestModifiedAt = stat.mtimeMs;
-  const entries = fs.readdirSync(targetPath, { withFileTypes: true });
-
-  for (const entry of entries) {
-    if (entry.name === 'dist' || entry.name === 'node_modules') {
-      continue;
-    }
-
-    const entryPath = path.join(targetPath, entry.name);
-    newestModifiedAt = Math.max(
-      newestModifiedAt,
-      getNewestModifiedAt(entryPath),
-    );
-  }
-
-  return newestModifiedAt;
 }
 
 function resolveWorkspacePackageInfo(packageName) {
@@ -572,134 +284,6 @@ function resolveRequiredPackageDistEntries(packageDir, packageJson) {
   return [...new Set(entries)];
 }
 
-function shouldRefreshWorkspacePackageBuild(packageDir, packageJson) {
-  if (!packageDir.includes(`${path.sep}packages${path.sep}`)) {
-    return false;
-  }
-
-  const distEntry = resolvePackageDistEntry(packageDir, packageJson);
-  if (!fs.existsSync(distEntry)) {
-    return true;
-  }
-
-  const requiredDistEntries = resolveRequiredPackageDistEntries(
-    packageDir,
-    packageJson,
-  );
-  if (requiredDistEntries.some(entry => !fs.existsSync(entry))) {
-    return true;
-  }
-
-  const watchedEntries = [
-    'src',
-    'bin',
-    'package.json',
-    'tsconfig.json',
-    'rslib.config.ts',
-    'rslib.config.js',
-  ];
-
-  const newestSourceModifiedAt = watchedEntries.reduce((latest, entry) => {
-    return Math.max(latest, getNewestModifiedAt(path.join(packageDir, entry)));
-  }, 0);
-
-  return fs.statSync(distEntry).mtimeMs < newestSourceModifiedAt;
-}
-
-function runProcess(command, args, options = {}) {
-  return new Promise((resolve, reject) => {
-    const instance = spawn(command, args, {
-      cwd: options.cwd,
-      env: {
-        ...process.env,
-        ...(options.env || {}),
-      },
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-
-    let stdout = '';
-    let stderr = '';
-
-    instance.stdout.on('data', chunk => {
-      stdout += chunk;
-      if (options.stdout) {
-        process.stdout.write(chunk);
-      }
-    });
-
-    instance.stderr.on('data', chunk => {
-      stderr += chunk;
-      if (options.stderr) {
-        process.stderr.write(chunk);
-      }
-    });
-
-    instance.on('error', error => {
-      error.stdout = stdout;
-      error.stderr = stderr;
-      reject(error);
-    });
-
-    instance.on('close', code => {
-      if (code === 0) {
-        resolve({ stdout, stderr });
-        return;
-      }
-
-      const detail = [stdout.trim(), stderr.trim()].filter(Boolean).join('\n');
-      const message = detail
-        ? `${command} ${args.join(' ')} failed with code ${code}.\n${detail}`
-        : `${command} ${args.join(' ')} failed with code ${code}.`;
-      const error = new Error(message);
-      error.code = code;
-      error.stdout = stdout;
-      error.stderr = stderr;
-      reject(error);
-    });
-  });
-}
-
-function ensureWorkspacePackageBuilt(packageName) {
-  if (!kWorkspacePackageBuilds.has(packageName)) {
-    const buildPromise = (async () => {
-      const { packageDir, packageJson } =
-        resolveWorkspacePackageInfo(packageName);
-      const releaseBuildLock =
-        await acquireWorkspacePackageBuildLock(packageDir);
-
-      try {
-        if (!shouldRefreshWorkspacePackageBuild(packageDir, packageJson)) {
-          return;
-        }
-
-        // The rebuild wipes `dist` before re-emitting it. Take the workspace
-        // dist write lock so no spawned modern build (in this or any other
-        // rstest worker) resolves through the half-written tree.
-        const releaseDistWriteLock = await acquireWorkspaceDistWriteLock();
-        try {
-          await runProcess('pnpm', ['--dir', packageDir, 'run', 'build'], {
-            cwd: kRepoRoot,
-          });
-        } finally {
-          await releaseDistWriteLock();
-        }
-      } finally {
-        await releaseBuildLock();
-      }
-    })();
-
-    kWorkspacePackageBuilds.set(packageName, buildPromise);
-  }
-
-  return kWorkspacePackageBuilds.get(packageName);
-}
-
-async function ensureWorkspacePackagesBuilt(packageNames = []) {
-  for (const packageName of packageNames) {
-    await ensureWorkspacePackageBuilt(packageName);
-  }
-}
-
 // Build-completeness probe: refuse to spawn a modern command against a dist
 // tree that is missing required entries (e.g. a half-restored nx cache or an
 // interrupted rebuild). Failing here produces an actionable error instead of
@@ -740,22 +324,21 @@ function runModernCommand(argv, options = {}) {
     ...process.env,
     ...options.env,
   };
-  let releaseWorkspaceDistReadLock;
 
   const commandPromise = new Promise((resolve, reject) => {
     const launch = async () => {
-      await ensureWorkspacePackagesBuilt(options.ensureWorkspacePackages);
-      assertWorkspacePackagesBuildComplete(options.ensureWorkspacePackages);
-      // Hold the dist read lock for the lifetime of the child so concurrent
-      // workspace package rebuilds cannot wipe dist trees out from under it.
-      releaseWorkspaceDistReadLock = await acquireWorkspaceDistReadLock();
+      assertWorkspacePackagesBuildComplete(options.requiredWorkspacePackages);
 
-      const instance = spawn(process.execPath, [kModernAppTools, ...argv], {
-        ...options.spawnOptions,
-        cwd,
-        env,
-        stdio: ['ignore', 'pipe', 'pipe'],
-      });
+      const instance = spawn(
+        process.execPath,
+        [options.modernBin ?? kModernAppTools, ...argv],
+        {
+          ...options.spawnOptions,
+          cwd,
+          env,
+          stdio: ['ignore', 'pipe', 'pipe'],
+        },
+      );
 
       if (typeof options.instance === 'function') {
         options.instance(instance);
@@ -812,7 +395,7 @@ function runModernCommand(argv, options = {}) {
     launch().catch(reject);
   });
 
-  return commandPromise.finally(() => releaseWorkspaceDistReadLock?.());
+  return commandPromise;
 }
 
 function runModernCommandDev(argv, stdOut, options = {}) {
@@ -821,28 +404,18 @@ function runModernCommandDev(argv, stdOut, options = {}) {
     ...process.env,
     ...options.env,
   };
-  let releaseWorkspaceDistReadLock;
-
-  const releaseDistReadLock = async () => {
-    const release = releaseWorkspaceDistReadLock;
-    releaseWorkspaceDistReadLock = undefined;
-    await release?.();
-  };
 
   const commandPromise = new Promise((resolve, reject) => {
     const launch = async () => {
-      await ensureWorkspacePackagesBuilt(options.ensureWorkspacePackages);
-      assertWorkspacePackagesBuildComplete(options.ensureWorkspacePackages);
-      // A ready dev/serve process can still lazily resolve workspace packages
-      // during compilation, route discovery, and request handling. Keep its
-      // read lock until the child exits so a concurrent fixture cannot wipe a
-      // package dist tree while the live server is still using it.
-      releaseWorkspaceDistReadLock = await acquireWorkspaceDistReadLock();
-
-      const instance = spawn(process.execPath, [kModernAppTools, ...argv], {
-        cwd,
-        env,
-      });
+      assertWorkspacePackagesBuildComplete(options.requiredWorkspacePackages);
+      const instance = spawn(
+        process.execPath,
+        [options.modernBin ?? kModernAppTools, ...argv],
+        {
+          cwd,
+          env,
+        },
+      );
       let didResolve = false;
       let readinessStarted = false;
       let stdoutOutput = '';
@@ -955,13 +528,7 @@ function runModernCommandDev(argv, stdOut, options = {}) {
         );
         error.stdout = stdoutOutput;
         error.stderr = stderrOutput;
-        // `launchApp` never returns here, so no caller can hold this child for
-        // its `afterAll`. Leaving it alive would keep a dev server and its
-        // pipes running for the rest of the session, and - because the dist
-        // read lock is what stops a concurrent rebuild wiping the tree it is
-        // reading - releasing that lock while the child still runs is exactly
-        // the corruption the lock exists to prevent. Kill it and wait for the
-        // close before releasing and rejecting.
+        // No caller can clean up a child whose startup never completed.
         void (async () => {
           try {
             await killApp(instance);
@@ -976,7 +543,6 @@ function runModernCommandDev(argv, stdOut, options = {}) {
               setTimeout(done, 10_000).unref?.();
             });
           }
-          await releaseDistReadLock();
           reject(error);
         })();
       }, bootupTimeoutMs);
@@ -987,13 +553,11 @@ function runModernCommandDev(argv, stdOut, options = {}) {
         clearBootupTimer();
         error.stdout = stdoutOutput;
         error.stderr = stderrOutput;
-        void releaseDistReadLock();
         reject(error);
       });
 
       instance.on('close', code => {
         clearBootupTimer();
-        void releaseDistReadLock();
         instance.stdout.removeListener('data', handleStdout);
         if (!didResolve) {
           const phase = options.modernServe ? 'serve' : 'dev';
@@ -1016,10 +580,7 @@ function runModernCommandDev(argv, stdOut, options = {}) {
     launch().catch(reject);
   });
 
-  return commandPromise.catch(async error => {
-    await releaseDistReadLock();
-    throw error;
-  });
+  return commandPromise;
 }
 
 function runContinuousTask(argv, stdOut, options = {}) {
@@ -1182,9 +743,7 @@ async function killApp(instance) {
 }
 
 async function reservePort() {
-  const releaseLock = await acquireWorkspacePackageBuildLock(
-    kTestPortAllocatorKey,
-  );
+  const releaseLock = await acquirePortAllocatorLock(kTestPortAllocatorKey);
 
   try {
     let nextPort = kTestPortRangeStart;
@@ -1347,8 +906,7 @@ module.exports = {
   sleep,
   runContinuousTask,
   launchOptions,
-  ensureWorkspacePackagesBuilt,
+  assertWorkspacePackagesBuildComplete,
   resolveRequiredPackageDistEntries,
-  acquireWorkspaceDistWriteLock,
   createIsolatedTestApp,
 };

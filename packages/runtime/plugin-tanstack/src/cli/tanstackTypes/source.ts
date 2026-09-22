@@ -1,25 +1,22 @@
 // @effect-diagnostics asyncFunction:off strictBooleanExpressions:off
 
-import type {
-  AppNormalizedConfig,
-  AppTools,
-  AppToolsContext,
-} from '@modern-js/app-tools';
-import { canonicaliseLocalisedRoutes } from '@modern-js/i18n-runtime-extensions';
+import type { AppToolsContext } from '@modern-js/app-tools';
 import { makeLegalIdentifier } from '@modern-js/runtime/cli';
 import type { NestedRouteForCli, PageRoute } from '@modern-js/types';
 import { upath as path } from '@modern-js/utils';
 
 import {
+  describeRouteTree,
+  type RouteDescriptor,
+} from '../../shared/routeDescriptor';
+
+import {
   createRouteStaticDataSnippet,
-  isIndexRoute,
-  isPathlessLayout,
   normalizeRelativeImport,
   pickModernLoaderModule,
   pickRouteSearchContractModules,
   quote,
   resolveFileNoExt,
-  toTanstackPath,
 } from './shared';
 
 type RouteForCli = NestedRouteForCli | PageRoute;
@@ -46,22 +43,15 @@ export async function generateTanstackRouterTypesSourceForEntry(opts: {
     appContext,
     entryName,
     generatedDirName = 'modern-tanstack',
-    routes: rawRoutes,
+    routes,
   } = opts;
-  const routes: RouteForCli[] = canonicaliseLocalisedRoutes(rawRoutes);
   const outDir = path.join(
     appContext.srcDirectory,
     generatedDirName,
     entryName,
   );
 
-  const rootModern = routes.find(r => {
-    const extras = r as RouteExtras;
-    return r && extras.type === 'nested' && extras.isRoot;
-  }) as NestedRouteForCli | undefined;
-
-  const rootExtras = rootModern as RouteExtras | undefined;
-  const topLevel = rootModern ? rootExtras?.children || [] : routes;
+  const { root: rootModern, children: topLevel } = describeRouteTree(routes);
 
   const imports: string[] = [];
   const statements: string[] = [];
@@ -217,15 +207,8 @@ export async function generateTanstackRouterTypesSourceForEntry(opts: {
     return reserveRouteVarName(`route_${base}`);
   };
 
-  const buildRoute = async (opts: {
-    parentVar: string;
-    route: NestedRouteForCli | PageRoute;
-  }): Promise<string> => {
-    const { parentVar, route } = opts;
-
-    const varName = createRouteVarName(route);
+  const createRouteOptions = async (route: RouteForCli, hasSplat: boolean) => {
     const routeExtras = route as RouteExtras;
-
     const loaderInfo = pickModernLoaderModule(route);
     const routeAction = routeExtras.action;
     const loaderImports = loaderInfo
@@ -251,24 +234,13 @@ export async function generateTanstackRouterTypesSourceForEntry(opts: {
         )
       : null;
 
-    const rawPath = routeExtras.path;
-    const hasSplat = typeof rawPath === 'string' && rawPath.includes('*');
-
-    const routeOpts: string[] = [`getParentRoute: () => ${parentVar},`];
+    const routeOpts: string[] = [];
 
     const componentName = await getImportNameForComponent(
       routeExtras._component,
     );
     if (componentName) {
       routeOpts.push(`component: ${componentName},`);
-    }
-
-    if (isPathlessLayout(route)) {
-      const id = routeExtras.id;
-      routeOpts.push(`id: ${quote(id || 'pathless')},`);
-    } else {
-      const p = isIndexRoute(route) ? '/' : toTanstackPath(rawPath || '');
-      routeOpts.push(`path: ${quote(p)},`);
     }
 
     if (loaderName) {
@@ -292,7 +264,22 @@ export async function generateTanstackRouterTypesSourceForEntry(opts: {
       routeOpts.push(staticDataSnippet);
     }
 
-    const children = routeExtras.children;
+    return routeOpts;
+  };
+
+  const buildRoute = async (
+    descriptor: RouteDescriptor<RouteForCli>,
+    parentVar: string,
+  ): Promise<string> => {
+    const { source: route, location, hasSplat, children } = descriptor;
+    const varName = createRouteVarName(route);
+    const routeOpts = [
+      `getParentRoute: () => ${parentVar},`,
+      ...Object.entries(location).map(
+        ([key, value]) => `${key}: ${quote(value)},`,
+      ),
+      ...(await createRouteOptions(route, hasSplat)),
+    ];
     const hasChildren = Boolean(children && children.length > 0);
     const routeCtorVarName = hasChildren
       ? reserveRouteVarName(`${varName}__base`)
@@ -305,9 +292,7 @@ export async function generateTanstackRouterTypesSourceForEntry(opts: {
     if (children && children.length > 0) {
       const childVars: string[] = [];
       for (const child of children) {
-        childVars.push(
-          await buildRoute({ parentVar: routeCtorVarName, route: child }),
-        );
+        childVars.push(await buildRoute(child, routeCtorVarName));
       }
       statements.push(
         `const ${varName} = ${routeCtorVarName}.addChildren([${childVars.join(', ')}]);`,
@@ -317,60 +302,14 @@ export async function generateTanstackRouterTypesSourceForEntry(opts: {
     return varName;
   };
 
-  const rootLoaderInfo = rootModern ? pickModernLoaderModule(rootModern) : null;
-  const rootAction = rootExtras?.action;
-  const rootLoaderImports = rootLoaderInfo?.loaderPath
-    ? await getImportNamesForLoader(
-        rootLoaderInfo.loaderPath,
-        rootLoaderInfo.inline,
-        Boolean(
-          rootLoaderInfo.inline && rootAction === rootLoaderInfo.loaderPath,
-        ),
-      )
-    : null;
-  const rootLoaderName = rootLoaderImports?.loaderName || null;
-  const rootActionName = rootLoaderImports?.actionName || null;
-  const rootSearchContractInfo = rootModern
-    ? pickRouteSearchContractModules(rootModern)
-    : null;
-  const rootValidateSearchName = rootSearchContractInfo?.validateSearchPath
-    ? await getImportNameForSearchContract(
-        rootSearchContractInfo.validateSearchPath,
-        'validateSearch',
-      )
-    : null;
-  const rootLoaderDepsName = rootSearchContractInfo?.loaderDepsPath
-    ? await getImportNameForSearchContract(
-        rootSearchContractInfo.loaderDepsPath,
-        'loaderDeps',
-      )
-    : null;
-
   const topLevelVars: string[] = [];
   for (const route of topLevel) {
-    topLevelVars.push(await buildRoute({ parentVar: 'rootRoute', route }));
+    topLevelVars.push(await buildRoute(route, 'rootRoute'));
   }
 
-  const rootOpts: string[] = [];
-
-  const rootComponentName = await getImportNameForComponent(
-    rootExtras?._component,
-  );
-  if (rootComponentName) {
-    rootOpts.push(`component: ${rootComponentName},`);
-  }
-
-  if (rootLoaderName) {
-    rootOpts.push(
-      `loader: modernLoaderToTanstack({ hasSplat: false }, ${rootLoaderName}),`,
-    );
-  }
-  if (rootValidateSearchName) {
-    rootOpts.push(`validateSearch: ${rootValidateSearchName},`);
-  }
-  if (rootLoaderDepsName) {
-    rootOpts.push(`loaderDeps: ${rootLoaderDepsName},`);
-  }
+  const rootOpts = rootModern
+    ? await createRouteOptions(rootModern, false)
+    : [];
 
   const routerGenTs = `// This file is auto-generated by Modern.js. Do not edit manually.
 
@@ -388,13 +327,7 @@ ${imports.join('\n')}
 
 export const rootRoute = createRootRouteWithContext<ModernRouterContext>()({
   ${rootOpts.join('\n  ')}
-  ${
-    createRouteStaticDataSnippet({
-      modernRouteId: rootExtras?.id,
-      loaderName: rootLoaderName,
-      actionName: rootActionName,
-    }) || ''
-  }
+
 });
 
 ${statements.join('\n\n')}

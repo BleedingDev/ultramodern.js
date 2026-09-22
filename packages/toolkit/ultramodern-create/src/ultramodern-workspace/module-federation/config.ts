@@ -367,7 +367,7 @@ export function createRemoteModuleFederationConfig(
   const hasRemoteRefs = resolveRemoteRefs(app, remotes).length > 0;
   const hostOnlyMarker = hasExposes ? '' : '\n// ultramodern-mf: no-exposes';
   const appToolsConfigImports = [
-    ...(hasRemoteRefs ? ['getBuildConfigEnvironment'] : []),
+    ...(hasRemoteRefs ? ['createRemoteManifestUrl'] : []),
     ...(hasExposes ? ['resolveEffectTsgoCompiler'] : []),
   ];
   const appToolsConfigImport =

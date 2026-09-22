@@ -24,16 +24,6 @@ export function normalizeBatchPath(pathname: string | undefined) {
   return pathname as `/${string}`;
 }
 
-export function normalizeBatchAllowedMethods(
-  allowedMethods: string[] | undefined,
-) {
-  const source =
-    Array.isArray(allowedMethods) && allowedMethods.length > 0
-      ? allowedMethods
-      : ['GET'];
-  return new Set(source.map(method => method.toUpperCase()));
-}
-
 type ParsedBatchRequestPayload = Omit<DataBatchRequestPayload, 'items'> & {
   items: unknown[];
 };

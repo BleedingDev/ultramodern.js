@@ -6,6 +6,7 @@ import {
   toOperationContractSources,
 } from '@modern-js/bff-effect/effect';
 import type { ServerPluginAPI } from '@modern-js/server-core';
+import type { resolveOperationProducer } from '@modern-js/server-runtime-extensions/bff-policy/node';
 import { logger } from '@modern-js/utils';
 import { HttpApi } from 'effect/unstable/httpapi';
 
@@ -16,6 +17,7 @@ export function resolveEffectAdapterCrossProjectPolicy(
   api: ServerPluginAPI,
   prefix: string,
   mod: EffectApiModule | null,
+  producer?: ReturnType<typeof resolveOperationProducer>,
 ): Promise<ResolvedCrossProjectPolicy | undefined> {
   const contractSourcesPromise =
     mod === null
@@ -52,7 +54,11 @@ export function resolveEffectAdapterCrossProjectPolicy(
           });
 
   return contractSourcesPromise.then(contractSources => {
-    const policy = resolveAdapterCrossProjectPolicy(api, contractSources);
+    const policy = resolveAdapterCrossProjectPolicy(
+      api,
+      contractSources,
+      producer,
+    );
     if (policy?.enabled === true && contractSources.length === 0) {
       logger.warn(
         '[BFF][Effect] Cross-project policy enabled but no HttpApi endpoints could be reflected; requests fail operation-contract matching unless allowUnknownOperations is enabled.',

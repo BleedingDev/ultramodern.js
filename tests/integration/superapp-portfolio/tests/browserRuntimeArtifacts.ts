@@ -2,28 +2,7 @@ import { mkdirSync, rmSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-type BrowserContext = any;
-type Page = any;
-type PlaywrightConsoleMessage = {
-  location?: () => {
-    columnNumber: number;
-    lineNumber: number;
-    url: string;
-  };
-  text: () => string;
-  type: () => string;
-};
-type PlaywrightRequest = {
-  failure: () => { errorText: string } | null;
-  method: () => string;
-  resourceType: () => string;
-  url: () => string;
-};
-type PlaywrightResponse = {
-  request: () => PlaywrightRequest;
-  status: () => number;
-  url: () => string;
-};
+import type { BrowserContext, Page } from 'playwright';
 
 export type BrowserRuntimeDiagnostics = {
   brokenResources: string[];
@@ -79,7 +58,7 @@ export function captureBrowserRuntimeDiagnostics(
     requestFailures: [],
   };
 
-  page.on('console', (message: PlaywrightConsoleMessage) => {
+  page.on('console', message => {
     const text = message.text();
     const entry = {
       location: message.location?.(),
@@ -110,7 +89,7 @@ export function captureBrowserRuntimeDiagnostics(
     diagnostics.errors.push(`pageerror:${message}`);
   });
 
-  page.on('requestfailed', (request: PlaywrightRequest) => {
+  page.on('requestfailed', request => {
     const failure = request.failure();
     const message = `requestfailed:${request.method()} ${request.url()} ${
       failure?.errorText ?? 'unknown'
@@ -126,7 +105,7 @@ export function captureBrowserRuntimeDiagnostics(
     diagnostics.requestFailures.push(message);
   });
 
-  page.on('response', (response: PlaywrightResponse) => {
+  page.on('response', response => {
     const request = response.request();
     const status = response.status();
     const resourceType = request.resourceType();

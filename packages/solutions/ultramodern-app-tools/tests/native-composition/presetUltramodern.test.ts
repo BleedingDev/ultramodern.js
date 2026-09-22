@@ -5,6 +5,51 @@ import { createPresetUltramodernConfig } from '@modern-js/ultramodern-app-tools'
 import { rspack } from '@rsbuild/core';
 
 describe('presetUltramodern config', () => {
+  it('keeps React Router optional and uses the consumer copy before a nested DOM dependency', () => {
+    const root = fs.realpathSync(
+      fs.mkdtempSync(path.join(os.tmpdir(), 'modern-optional-router-')),
+    );
+    const configure = createPresetUltramodernConfig().tools!
+      .bundlerChain as Function;
+    const aliases = new Map<string, string>();
+    const chain = {
+      get: () => root,
+      resolve: { alias: aliases },
+      plugins: new Set(),
+    };
+    const run = () =>
+      configure(chain, {
+        isProd: true,
+        CHAIN_ID: { PLUGIN: { TS_CHECKER: 'checker' } },
+      });
+    const install = (directory: string, name: string) => {
+      const target = path.join(directory, 'node_modules', name);
+      fs.mkdirSync(target, { recursive: true });
+      fs.writeFileSync(
+        path.join(target, 'package.json'),
+        JSON.stringify({ name }),
+      );
+      return target;
+    };
+    try {
+      run();
+      expect(aliases.size).toBe(0);
+      const dom = install(root, 'react-router-dom');
+      const nested = install(dom, 'react-router');
+      run();
+      expect(aliases.get('react-router$')).toBe(
+        path.join(nested, 'dist/production/index.mjs'),
+      );
+      const direct = install(root, 'react-router');
+      run();
+      expect(aliases.get('react-router$')).toBe(
+        path.join(direct, 'dist/production/index.mjs'),
+      );
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it('evaluates telemetry endpoint environment variables for every call', () => {
     const previousOtlp = process.env.MODERN_TELEMETRY_OTLP_ENDPOINT;
     const previousVictoria = process.env.MODERN_TELEMETRY_VICTORIA_ENDPOINT;

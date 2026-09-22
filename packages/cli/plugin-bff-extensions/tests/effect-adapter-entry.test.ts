@@ -13,6 +13,32 @@ afterEach(() => {
 });
 
 describe('resolveEffectAdapterEntryFile', () => {
+  test('runs an explicit TypeScript entry from output after sources have been removed', () => {
+    const appDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'modern-effect-output-'),
+    );
+    try {
+      const distDirectory = path.join(appDirectory, 'dist');
+      const builtEntry = path.join(distDirectory, 'api/custom.js');
+      fs.mkdirSync(path.dirname(builtEntry), { recursive: true });
+      fs.writeFileSync(builtEntry, 'module.exports = {};');
+      process.env.NODE_ENV = 'production';
+      const api = {
+        getServerContext: () => ({
+          appDirectory,
+          apiDirectory: path.join(appDirectory, 'api'),
+          distDirectory,
+        }),
+        getServerConfig: () => ({
+          bff: { effect: { entry: 'api/custom.ts' } },
+        }),
+      } as unknown as ServerPluginAPI;
+      expect(resolveEffectAdapterEntryFile(api)).toBe(builtEntry);
+    } finally {
+      fs.rmSync(appDirectory, { recursive: true, force: true });
+    }
+  });
+
   test('uses an API directory that already points into production output', () => {
     const appDirectory = fs.mkdtempSync(
       path.join(os.tmpdir(), 'modern-effect-entry-'),

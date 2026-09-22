@@ -7,10 +7,9 @@ import { ApiRouter } from '@modern-js/bff-core';
 import type { CLIPluginAPI } from '@modern-js/plugin';
 import {
   buildOperationContractMap,
-  deriveOperationVersion,
   type OperationContractMap,
+  resolveOperationProducer,
 } from '@modern-js/server-runtime-extensions/bff-policy/node';
-import { fs, upath as path } from '@modern-js/utils';
 
 export const BFF_REQUEST_RUNTIME =
   '@modern-js/runtime-extensions/request-policy';
@@ -66,14 +65,13 @@ export function registerBffClientArtifacts(
         httpMethodDecider: generation.httpMethodDecider,
         isBuild: true,
       });
-      const packageJson = await fs.readJSON(
-        path.join(generation.appDirectory, 'package.json'),
-      );
       const operationContracts = generation.existLambda
         ? buildOperationContractMap({
             handlers: await router.getApiHandlers(),
-            requestId: generation.requestId,
-            operationVersion: deriveOperationVersion(packageJson.version),
+            ...resolveOperationProducer({
+              directories: [generation.apiDirectory, generation.appDirectory],
+              requestId: generation.requestId || 'default',
+            }),
           })
         : {};
       metadata.set(generation, {

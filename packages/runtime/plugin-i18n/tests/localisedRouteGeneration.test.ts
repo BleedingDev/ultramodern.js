@@ -100,6 +100,47 @@ describe('native localised route generation', () => {
     expect(paths).toContain('produkty/:slug');
   });
 
+  test('keeps one source identity for TanStack entries while validating locale mappings', async () => {
+    const modifyRoutes = await createNativeOnlyHarness({
+      localeDetection: {
+        localePathRedirect: true,
+        languages: ['en', 'cs'],
+        localisedUrls,
+      },
+    });
+    const result = await modifyRoutes({
+      entrypoint: {
+        ...entrypoint,
+        __modernRoutesOwner: '@modern-js/plugin-tanstack',
+      },
+      routes: [
+        createRoute(':lang', [
+          createRoute('about'),
+          createRoute('products/:slug'),
+        ]),
+      ],
+    });
+    expect(result.routes[0].children).toMatchObject([
+      {
+        id: 'about',
+        path: 'about',
+        modernLocalisedRoute: {
+          canonicalPath: '/about',
+          paths: localisedUrls['/about'],
+        },
+      },
+      {
+        id: 'products/:slug',
+        path: 'products/:slug',
+        modernLocalisedRoute: {
+          canonicalPath: '/products/:slug',
+          paths: localisedUrls['/products/:slug'],
+        },
+      },
+    ]);
+    expect(result.routes[0].children).toHaveLength(2);
+  });
+
   test('leaves routes untouched when no map is declared', async () => {
     const modifyRoutes = await createNativeOnlyHarness({
       localeDetection: {

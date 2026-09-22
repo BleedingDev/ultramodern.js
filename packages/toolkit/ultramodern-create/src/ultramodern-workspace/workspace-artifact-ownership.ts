@@ -1,7 +1,75 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { parse } from '@babel/parser';
+import { configuredDevelopmentPorts } from './add-vertical/workspace-state';
+import { appHasApi, resolveRemoteRefs } from './descriptors';
 import { formatGeneratedSourceCandidates, writeFileReplacing } from './fs-io';
+import { createAppModernConfig } from './module-federation';
+import { createRootTsConfig } from './tsconfigs';
+import type { WorkspaceApp } from './types';
+import {
+  createWorkspaceScriptArtifacts,
+  createWorkspaceValidationScript,
+} from './workspace-scripts';
+import { createZeropsYaml } from './zerops';
+
+/** The same projections identify generator ownership for every update command. */
+export function workspaceArtifactCandidates(
+  scope: string,
+  apps: WorkspaceApp[],
+  enableTailwind: boolean,
+  alternateApps: WorkspaceApp[] = [],
+): ArtifactCandidate[] {
+  const remotes = apps.filter(app => app.kind === 'vertical');
+  return [
+    ...createWorkspaceScriptArtifacts({
+      shellOnly: remotes.length === 0,
+      hasBackendSurface: remotes.some(appHasApi),
+      validationScript: createWorkspaceValidationScript(),
+    }),
+    {
+      relativePath: 'tsconfig.json',
+      content: `${JSON.stringify(createRootTsConfig(apps), null, 2)}\n`,
+    },
+    ...[apps, ...(alternateApps.length ? [alternateApps] : [])].flatMap(
+      projection => {
+        const verticals = projection.filter(app => app.kind === 'vertical');
+        const devPorts = workspaceDevelopmentPorts(projection);
+        return [
+          {
+            relativePath: 'zerops.yaml',
+            content: `${createZeropsYaml(scope, projection)}\n`,
+          },
+          ...projection.map(app => ({
+            relativePath: `${app.directory}/modern.config.ts`,
+            content: createAppModernConfig(
+              scope,
+              app,
+              app.kind === 'shell'
+                ? resolveRemoteRefs(app, verticals)
+                : verticals,
+              enableTailwind,
+              devPorts,
+            ),
+          })),
+        ];
+      },
+    ),
+  ];
+}
+
+/** A single-shell workspace intentionally uses the framework's default ports. */
+export function workspaceDevelopmentPorts(
+  apps: WorkspaceApp[],
+  ports: Record<string, unknown> = {},
+): number[] | undefined {
+  return apps.filter(app => app.kind === 'shell').length > 1
+    ? configuredDevelopmentPorts({
+        ...ports,
+        ...Object.fromEntries(apps.map(app => [app.id, app.port])),
+      }).toSorted((left, right) => left - right)
+    : undefined;
+}
 
 type ArtifactCandidate = {
   relativePath: string;
@@ -94,54 +162,47 @@ export function preserveConsumerWorkspaceArtifacts(
     ),
   );
   for (const [index, candidate] of candidates.entries()) {
-    const paths = [candidate.relativePath];
-    for (const relativePath of paths) {
-      const filePath = path.join(workspaceRoot, relativePath);
-      if (!fs.existsSync(filePath)) continue;
-      const physicalRelative = path.relative(
-        physicalRoot,
-        fs.realpathSync(filePath),
-      );
-      if (
-        physicalRelative === '..' ||
-        physicalRelative.startsWith(`..${path.sep}`) ||
-        path.isAbsolute(physicalRelative)
-      ) {
-        throw new Error(
-          `Refusing to inspect an artifact outside the workspace: ${relativePath}`,
-        );
-      }
-      const source = fs.readFileSync(filePath, 'utf8');
-      let recognized = source === candidate.content;
-      if (!recognized) {
-        try {
-          const normalized = withoutGeneratedData(
-            source,
-            candidate.generatedDataBinding,
-          );
-          const canonical = canonicalSources[index];
-          recognized =
-            normalized === canonical ||
-            formatGeneratedSourceCandidates([[relativePath, normalized]])[0] ===
-              canonical;
-        } catch {
-          // An authored file that the generator cannot parse is still owned
-          // by its author, not an invitation to overwrite it.
-        }
-      }
-      recognizedPaths.set(
-        relativePath,
-        recognizedPaths.get(relativePath) === true || recognized,
-      );
-    }
-  }
-  for (const candidate of candidates) {
-    const paths = [candidate.relativePath];
+    const relativePath = candidate.relativePath;
+    const filePath = path.join(workspaceRoot, relativePath);
+    if (!fs.existsSync(filePath)) continue;
+    const physicalRelative = path.relative(
+      physicalRoot,
+      fs.realpathSync(filePath),
+    );
     if (
-      paths.some(relativePath => recognizedPaths.get(relativePath) === false)
+      physicalRelative === '..' ||
+      physicalRelative.startsWith(`..${path.sep}`) ||
+      path.isAbsolute(physicalRelative)
     ) {
-      for (const pairedPath of paths) preservedPaths.add(pairedPath);
+      throw new Error(
+        `Refusing to inspect an artifact outside the workspace: ${relativePath}`,
+      );
     }
+    const source = fs.readFileSync(filePath, 'utf8');
+    let recognized = source === candidate.content;
+    if (!recognized) {
+      try {
+        const normalized = withoutGeneratedData(
+          source,
+          candidate.generatedDataBinding,
+        );
+        const canonical = canonicalSources[index];
+        recognized =
+          normalized === canonical ||
+          formatGeneratedSourceCandidates([[relativePath, normalized]])[0] ===
+            canonical;
+      } catch {
+        // An authored file that the generator cannot parse is still owned
+        // by its author, not an invitation to overwrite it.
+      }
+    }
+    recognizedPaths.set(
+      relativePath,
+      recognizedPaths.get(relativePath) === true || recognized,
+    );
+  }
+  for (const [relativePath, recognized] of recognizedPaths) {
+    if (!recognized) preservedPaths.add(relativePath);
   }
   const reported = new Set<string>();
   const isPreserved = (filePath: string) => {
@@ -151,7 +212,7 @@ export function preserveConsumerWorkspaceArtifacts(
       .join('/');
     if (!preservedPaths.has(relativePath)) return false;
     if (!reported.has(relativePath)) {
-      console.info(
+      console.warn(
         `${relativePath} preserved consumer-owned artifact: its canonical generated source does not match.`,
       );
       reported.add(relativePath);

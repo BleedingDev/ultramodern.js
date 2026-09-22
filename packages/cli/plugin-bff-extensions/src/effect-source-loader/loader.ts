@@ -125,10 +125,9 @@ function isBareSpecifier(specifier: string) {
 }
 
 /**
- * Keep installed registry dependencies external while bundling symlinked
- * workspace source packages. Registry packages remain executable from the
- * deployment node_modules tree; workspace TypeScript is bundled so the
- * generated entry is relocatable and directly executable by Node 26.7.
+ * Keep installed executable dependencies external to preserve runtime identity.
+ * Source requiring compilation is bundled even when pnpm injects a workspace
+ * package into node_modules: Node does not strip types inside that directory.
  */
 function externalizeInstalledDependencies(options: {
   runtimeResolveDir: string;
@@ -167,7 +166,13 @@ function externalizeInstalledDependencies(options: {
         const realPath = await fs.promises
           .realpath(resolution.path)
           .catch(() => resolution.path);
-        if (realPath.includes(`${path.sep}node_modules${path.sep}`)) {
+        const loader = SOURCE_LOADERS.get(path.extname(realPath).toLowerCase());
+        if (
+          realPath.includes(`${path.sep}node_modules${path.sep}`) &&
+          loader !== 'ts' &&
+          loader !== 'tsx' &&
+          loader !== 'jsx'
+        ) {
           const runtimeResolution = await buildApi.resolve(args.path, {
             importer: '',
             kind: args.kind,

@@ -9,7 +9,7 @@ import {
   workspaceAppsFromToolingConfig,
 } from '../src/ultramodern-tooling/config';
 import { shellApp } from '../src/ultramodern-workspace/descriptors';
-import { createPackagedWorkspaceValidationScript } from '../src/ultramodern-workspace/workspace-scripts';
+import { createWorkspaceValidationContract } from '../src/ultramodern-workspace/workspace-validation-contract';
 
 function inputs() {
   return {
@@ -71,6 +71,21 @@ test('workspace reads retain unknown input fields without mutating consumer inpu
   const before = structuredClone(raw);
   const view = normalizeWorkspaceInputs('/workspace', raw);
   assert.equal(view.raw, raw);
+  assert.deepEqual(view.primaryShell?.verticalRefs, []);
+  assert.deepEqual(
+    normalizeWorkspaceInputs('/workspace', raw, undefined, {
+      primaryComposition: 'compact',
+    }).primaryShell?.verticalRefs,
+    ['orders'],
+  );
+  const emptyComposition = structuredClone(raw);
+  emptyComposition.config.topology.apps[0].moduleFederation.verticalRefs = [];
+  assert.deepEqual(
+    normalizeWorkspaceInputs('/workspace', emptyComposition, undefined, {
+      primaryComposition: 'compact',
+    }).primaryShell?.verticalRefs,
+    [],
+  );
   assert.deepEqual(view.raw, before);
   assert.deepEqual(raw, before);
 });
@@ -153,7 +168,7 @@ test('the generated validator expects the surface the expose map declares', () =
       './src/components/page-contacts.tsx',
     );
 
-    const script = createPackagedWorkspaceValidationScript(
+    const contract = createWorkspaceValidationContract(
       '@app',
       false,
       remotes,
@@ -166,13 +181,13 @@ test('the generated validator expects the surface the expose map declares', () =
       root,
     );
     assert.equal(
-      script.includes(
+      JSON.stringify(contract).includes(
         'verticals/party-registry/src/federation/page-contacts.tsx',
       ),
       true,
     );
     assert.equal(
-      script.includes(
+      JSON.stringify(contract).includes(
         'verticals/party-registry/src/components/page-contacts.tsx',
       ),
       false,

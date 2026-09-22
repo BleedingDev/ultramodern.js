@@ -3,7 +3,6 @@ import {
   applyRouterRuntimeState,
   applyRouterServerPrepareResult,
   cleanupRouterRuntimeState,
-  createRouterRuntimeState,
   createRouterServerSnapshot,
   getRouterHydrationScripts,
   getRouterMatchedRouteIds,
@@ -111,13 +110,16 @@ describe('router lifecycle seams', () => {
 
   it('should expose generic router runtime state helpers', () => {
     const context = getInitialContext(true) as any;
-    applyRouterRuntimeState(context, {
-      framework: 'custom-router',
-      basename: '/shell',
-      instance: { kind: 'router' },
-      matches: [{ routeId: 'route-a', assetRouteId: 'mf/page' }],
-      hydrationScripts: ['<script>one()</script>', '<script>two()</script>'],
-      serverSnapshot: {
+    applyRouterServerPrepareResult(context, {
+      state: {
+        framework: 'custom-router',
+        basename: '/shell',
+        instance: { kind: 'router' },
+      },
+      snapshot: {
+        framework: 'custom-router',
+        basename: '/shell',
+        hydrationScripts: ['<script>one()</script>', '<script>two()</script>'],
         matches: [{ routeId: 'route-a', assetRouteId: 'mf/page' }],
       },
     });
@@ -126,15 +128,11 @@ describe('router lifecycle seams', () => {
     expect(getRouterRuntimeState(context)).toMatchObject({
       framework: 'custom-router',
       basename: '/shell',
-      matchedRouteIds: ['mf/page'],
-      hydrationScript: '<script>one()</script>',
-      hydrationScripts: ['<script>one()</script>', '<script>two()</script>'],
     });
     expect(getRouterServerSnapshot(context)).toMatchObject({
       framework: 'custom-router',
       basename: '/shell',
       matchedRouteIds: ['mf/page'],
-      hydrationScript: '<script>one()</script>',
       hydrationScripts: ['<script>one()</script>', '<script>two()</script>'],
     });
     expect(getRouterHydrationScripts(context)).toEqual([
@@ -178,7 +176,7 @@ describe('router lifecycle seams', () => {
       basename: '/app',
       statusCode: 299,
       matchedRouteIds: ['asset-root'],
-      hydrationScript: '<script>hydrateA()</script>',
+      hydrationScripts: ['<script>hydrateA()</script>'],
     });
     getRouterRuntimeState(context)?.cleanup?.();
     expect(cleaned).toBe(true);

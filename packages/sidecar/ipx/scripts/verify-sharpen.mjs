@@ -14,17 +14,34 @@
  *
  *   node packages/sidecar/ipx/scripts/verify-sharpen.mjs [imageDir]
  */
-import { existsSync, readdirSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import os from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import sharp from 'sharp';
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const distEntry = resolve(packageRoot, 'dist/index.mjs');
 
-const imageDir = resolve(
-  process.argv[2] ||
-    resolve(packageRoot, '../../../tests/integration/image-component/src'),
-);
+const imageDir = process.argv[2]
+  ? resolve(process.argv[2])
+  : mkdtempSync(resolve(os.tmpdir(), 'ipx-sharpen-'));
+if (!process.argv[2]) {
+  process.once('exit', () =>
+    rmSync(imageDir, { recursive: true, force: true }),
+  );
+  // Deterministic high-frequency RGB detail makes sigma and edge response
+  // observable through real libvips output, without a repository image fixture.
+  const pixels = Buffer.from(
+    Array.from(
+      { length: 64 * 64 * 3 },
+      (_, index) => (index * 37 + Math.floor(index / 192) * 73) % 256,
+    ),
+  );
+  await sharp(pixels, { raw: { width: 64, height: 64, channels: 3 } })
+    .png()
+    .toFile(resolve(imageDir, 'detail.png'));
+}
 
 if (!existsSync(distEntry)) {
   throw new Error(`missing dist entry: ${distEntry}`);

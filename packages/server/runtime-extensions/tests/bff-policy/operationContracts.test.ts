@@ -1,4 +1,7 @@
 import 'reflect-metadata';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { z } from 'zod';
 import {
   buildOperationContractMap,
@@ -8,6 +11,8 @@ import {
   deriveOperationVersion,
   type OperationContractSource,
 } from '../../src/bff-policy/operationContracts';
+import { digestOperationContract } from '../../src/bff-policy/operationIdentity';
+import { resolveOperationProducer } from '../../src/bff-policy/producer';
 
 const createSchemaHandler = (schema: z.ZodType) => {
   const handler = () => ({ ok: true });
@@ -16,6 +21,58 @@ const createSchemaHandler = (schema: z.ZodType) => {
 };
 
 describe('operation contract utilities', () => {
+  test('browser and Node hash the same canonical operation including nested schemas', async () => {
+    const operation = {
+      name: 'café',
+      httpMethod: 'post',
+      routePath: '/api/:id',
+      schemas: {
+        QUERY: {
+          properties: { z: { type: 'number' }, a: { enum: ['x', 'y'] } },
+        },
+      },
+    };
+    expect(await digestOperationContract(operation, 'producer')).toBe(
+      createOperationContractHash(operation, 'producer'),
+    );
+  });
+
+  test('resolves the owning producer beyond former depth limits and never borrows its parent version', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bff-producer-'));
+    const producer = path.join(root, 'producer');
+    const nested = path.join(
+      producer,
+      ...Array.from({ length: 35 }, () => 'nested'),
+    );
+    fs.mkdirSync(nested, { recursive: true });
+    fs.writeFileSync(
+      path.join(root, 'package.json'),
+      JSON.stringify({ version: '99.0.0' }),
+    );
+    fs.writeFileSync(
+      path.join(producer, 'package.json'),
+      JSON.stringify({ name: 'producer', version: '3.1.0' }),
+    );
+    try {
+      const dependencies: string[] = [];
+      expect(
+        resolveOperationProducer({
+          directories: [nested, root],
+          onDependency: file => dependencies.push(file),
+        }),
+      ).toEqual({ requestId: 'producer', operationVersion: 3 });
+      expect(dependencies).toEqual([path.join(producer, 'package.json')]);
+      fs.writeFileSync(path.join(producer, 'package.json'), '{broken');
+      expect(
+        resolveOperationProducer({
+          directories: [nested, root],
+          requestId: ' explicit ',
+        }),
+      ).toEqual({ requestId: 'explicit', operationVersion: 1 });
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
   test('creates deterministic operation entries and aggregate hashes', () => {
     const handlers = [
       {

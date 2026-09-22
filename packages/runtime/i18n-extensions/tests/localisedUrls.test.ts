@@ -43,6 +43,34 @@ describe('localisedUrls', () => {
     ).toEqual(internalRoute);
   });
 
+  test('validates nested translations before producing canonical routes', () => {
+    const routes = [
+      createRoute(':lang', [createRoute('products', [createRoute(':slug?')])]),
+    ];
+    const map = {
+      '/products': { en: '/products', cs: '/produkty' },
+      '/products/:slug?': { en: '/products/:slug?', cs: '/wrong/:slug?' },
+    };
+    expect(() =>
+      applyLocalisedUrlsToRoutes(routes, ['en', 'cs'], map, 'canonical'),
+    ).toThrow('must be nested under');
+    map['/products/:slug?'].cs = '/produkty/:slug?';
+    const canonical = applyLocalisedUrlsToRoutes(
+      routes,
+      ['en', 'cs'],
+      map,
+      'canonical',
+    );
+    expect(canonical[0].children).toHaveLength(1);
+    expect(canonical[0].children?.[0].children).toMatchObject([
+      {
+        id: ':slug?',
+        path: ':slug?',
+        modernLocalisedRoute: { canonicalPath: '/products/:slug?' },
+      },
+    ]);
+  });
+
   test('requires every localisable route path to define every language', () => {
     const routes = [createRoute(':lang', [createRoute('terms-of-service')])];
 

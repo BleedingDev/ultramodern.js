@@ -1,48 +1,17 @@
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import '@modern-js/server-runtime-extensions/server-config';
 import type { ServerPluginAPI } from '@modern-js/server-core';
 import {
-  deriveOperationVersion,
   type OperationContractSource,
   resolveCrossProjectPolicy,
+  resolveOperationProducer,
 } from '@modern-js/server-runtime-extensions/bff-policy/node';
 
 import type { ResolvedCrossProjectPolicy } from './evaluation';
 
-const readNearestPackageVersion = (
-  startDir: string | undefined,
-): string | undefined => {
-  if (!startDir) {
-    return undefined;
-  }
-
-  let current = path.resolve(startDir);
-  for (let depth = 0; depth < 10; depth += 1) {
-    try {
-      const packageJson = JSON.parse(
-        readFileSync(path.join(current, 'package.json'), 'utf8'),
-      ) as { version?: unknown };
-      if (typeof packageJson.version === 'string') {
-        return packageJson.version;
-      }
-    } catch {
-      // The producer package may be nested below its package.json.
-    }
-
-    const parent = path.dirname(current);
-    if (parent === current) {
-      return undefined;
-    }
-    current = parent;
-  }
-
-  return undefined;
-};
-
 export const resolveAdapterCrossProjectPolicy = (
   api: ServerPluginAPI,
   handlers: OperationContractSource[],
+  producer?: ReturnType<typeof resolveOperationProducer>,
 ): ResolvedCrossProjectPolicy | undefined => {
   const bff = api.getServerConfig()?.bff;
   const { apiDirectory, appDirectory } = api.getServerContext() as {
@@ -53,11 +22,11 @@ export const resolveAdapterCrossProjectPolicy = (
   return resolveCrossProjectPolicy({
     crossProjectPolicy: bff?.crossProjectPolicy,
     handlers,
-    requestId: bff?.requestId,
     isCrossProjectServer: bff?.isCrossProjectServer,
-    operationVersion: deriveOperationVersion(
-      readNearestPackageVersion(apiDirectory) ??
-        readNearestPackageVersion(appDirectory),
-    ),
+    ...(producer ??
+      resolveOperationProducer({
+        directories: [apiDirectory, appDirectory],
+        requestId: bff?.requestId || 'default',
+      })),
   });
 };

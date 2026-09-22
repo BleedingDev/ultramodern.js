@@ -68,7 +68,8 @@
     "test:scripts": "node --test scripts/__tests__/*.test.mjs scripts/lib/__tests__/*.test.js scripts/boundary-guards/__tests__/*.test.js scripts/ultramodern-boundary-check/__tests__/*.test.js scripts/superapp-certification/__tests__/*.test.js scripts/ultramodern-publish/__tests__/*.test.js scripts/ultramodern-publish/__tests__/*.test.mjs scripts/ultramodern-production-readiness/__tests__/*.test.js",
     "check-doc-bundle": "cd ./scripts/check-doc-bundle && pnpm start",
     "test:build-consumers": "pnpm --dir scripts/rslib test && pnpm --filter ultramodern-sandpack-profile-smoke test",
-    "test:build-consumers:release": "pnpm run test:build-consumers && ULTRAMODERN_RELEASE_LANE=1 node scripts/prebundle/ultramodern/packed-runtime-consumer.test.mjs"
+    "test:build-consumers:release": "pnpm run test:build-consumers && ULTRAMODERN_RELEASE_LANE=1 node scripts/prebundle/ultramodern/packed-runtime-consumer.test.mjs",
+    "validate:supply": "node scripts/ultramodern-supply/sync-patches.mjs && node scripts/ultramodern-supply/verify-sidecars.mjs"
   },
   "engines": {
     "node": ">=26.7.0",

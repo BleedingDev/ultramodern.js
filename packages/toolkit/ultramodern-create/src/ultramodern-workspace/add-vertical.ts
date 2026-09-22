@@ -14,8 +14,5 @@ export {
 export {
   assertCanCreate,
   assertValidVerticalName,
-  existingBridgeConfig,
-  existingPackageSource,
-  existingTailwindEnabled,
   nextAvailablePort,
 } from './add-vertical/workspace-state';

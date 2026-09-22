@@ -5,67 +5,17 @@ import 'reflect-metadata';
 // Structural handler protocol; native operators retain ownership of metadata.
 type ApiHandler = (...args: any) => any | Promise<any>;
 
-export type OperationContractEntry = {
-  name: string;
-  httpMethod: string;
-  routePath: string;
-};
+import {
+  DEFAULT_OPERATION_VERSION,
+  type OperationContractDefinition,
+  type OperationContractEntry,
+  type OperationContractHashInput,
+  type OperationContractMap,
+  serializeOperationContract,
+  stableOperationStringify,
+} from './operationIdentity';
 
-export type OperationContractDefinition = {
-  requestId: string;
-  operationVersion: number;
-  schemaHash: string;
-  method: string;
-  routePath: string;
-  operationId: string;
-  handlerName: string;
-  filename?: string;
-};
-
-export type OperationContractMap = Record<string, OperationContractDefinition>;
-
-export const DEFAULT_OPERATION_VERSION = 1;
-
-/**
- * Derives the operation version from a producer package version: the semver
- * major is the contract version, so consumers regenerated against an older
- * producer major fail the `operation_version_mismatch` gate instead of
- * silently calling an incompatible API.
- *
- * Falls back to {@link DEFAULT_OPERATION_VERSION} when no parseable version
- * is available.
- */
-export const deriveOperationVersion = (packageVersion?: unknown): number => {
-  if (typeof packageVersion !== 'string') {
-    return DEFAULT_OPERATION_VERSION;
-  }
-  const match = packageVersion.trim().match(/^v?(\d+)\./);
-  if (!match) {
-    return DEFAULT_OPERATION_VERSION;
-  }
-  const major = Number.parseInt(match[1]!, 10);
-  return Number.isInteger(major) && major >= 0
-    ? major
-    : DEFAULT_OPERATION_VERSION;
-};
-
-/** JSON.stringify with recursively sorted object keys for stable hashing. */
-const stableStringify = (value: unknown): string => {
-  if (Array.isArray(value)) {
-    return `[${value.map(item => stableStringify(item)).join(',')}]`;
-  }
-  if (value && typeof value === 'object') {
-    const entries = Object.entries(value as Record<string, unknown>)
-      .filter(([, entryValue]) => typeof entryValue !== 'undefined')
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(
-        ([key, entryValue]) =>
-          `${JSON.stringify(key)}:${stableStringify(entryValue)}`,
-      );
-    return `{${entries.join(',')}}`;
-  }
-  return JSON.stringify(value) ?? 'null';
-};
+export * from './operationIdentity';
 
 const sha256 = (text: string) =>
   createHash('sha256').update(text).digest('hex');
@@ -156,33 +106,10 @@ export const serializeOperationSchemas = (
   return Object.keys(serialized).length > 0 ? serialized : undefined;
 };
 
-export type OperationContractHashInput = OperationContractEntry & {
-  /** Serialized schema documents; omit for schema-less operations. */
-  schemas?: Record<string, unknown> | undefined;
-};
-
-/**
- * Per-operation contract hash. The hash covers the operation identity
- * (name, method, route, producer requestId) plus the serialized input
- * schemas, so:
- *
- * - changing an input schema changes the hash of exactly that operation;
- * - reordering routes or adding unrelated operations never rotates the hash
- *   of other operations (each operation is hashed independently).
- */
 export const createOperationContractHash = (
   operation: OperationContractHashInput,
   requestId: string,
-): string =>
-  sha256(
-    stableStringify({
-      httpMethod: String(operation.httpMethod || '').toUpperCase(),
-      name: operation.name,
-      requestId,
-      routePath: operation.routePath,
-      ...(operation.schemas ? { schemas: operation.schemas } : {}),
-    }),
-  );
+): string => sha256(serializeOperationContract(operation, requestId));
 
 export const createOperationEntries = (
   handlers: Array<{
@@ -213,7 +140,7 @@ export const createOperationSchemaHash = (
   requestId: string,
 ): string =>
   sha256(
-    stableStringify({
+    stableOperationStringify({
       operations: [...operationEntries]
         .map(item => ({
           hash:

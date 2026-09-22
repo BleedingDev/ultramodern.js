@@ -1,58 +1,34 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { readUltramodernConfig } from '../../ultramodern-tooling/config';
-import type { UltramodernBridgeConfig } from '../bridge-config';
+import type { UltramodernToolingConfig } from '../../ultramodern-tooling/config';
 import { ULTRAMODERN_CONFIG_PATH } from '../descriptors';
 import { packageName, toKebabCase } from '../naming';
 import { resolvePackageSource } from '../package-source';
-import type {
-  ResolvedPackageSource,
-  UltramodernWorkspaceOptions,
-  WorkspaceApp,
-} from '../types';
+import type { AddUltramodernShellOptions, WorkspaceApp } from '../types';
 import { FIRST_VERTICAL_PORT } from './constants';
 
-export function existingPackageSource(
-  workspaceRoot: string,
-  modernVersion: string,
-  packageSource?: UltramodernWorkspaceOptions['packageSource'],
-): ResolvedPackageSource {
-  if (packageSource) {
-    return resolvePackageSource({
-      targetDir: workspaceRoot,
-      packageName: path.basename(workspaceRoot),
-      modernVersion,
-      packageSource,
-    });
-  }
-
-  const compactPath = path.join(workspaceRoot, ULTRAMODERN_CONFIG_PATH);
-  if (fs.existsSync(compactPath)) {
-    const compactConfig = readUltramodernConfig(workspaceRoot);
-    if (compactConfig.packageSource) {
-      return compactConfig.packageSource;
-    }
-  }
-
-  throw new Error(`Missing UltraModern workspace file: ${compactPath}`);
-}
-
-export function existingTailwindEnabled(workspaceRoot: string): boolean {
-  const compactPath = path.join(workspaceRoot, ULTRAMODERN_CONFIG_PATH);
-  if (fs.existsSync(compactPath)) {
-    return readUltramodernConfig(workspaceRoot).features.tailwind;
-  }
-
-  throw new Error(`Missing UltraModern workspace file: ${compactPath}`);
-}
-
-export function existingBridgeConfig(
-  workspaceRoot: string,
-): UltramodernBridgeConfig | undefined {
-  const compactPath = path.join(workspaceRoot, ULTRAMODERN_CONFIG_PATH);
-  return fs.existsSync(compactPath)
-    ? readUltramodernConfig(workspaceRoot).bridge
-    : undefined;
+/** Resolve command overrides against the already normalized input snapshot. */
+export function workspaceOperationSettings(
+  options: AddUltramodernShellOptions,
+  config: UltramodernToolingConfig,
+) {
+  const packageSource = options.packageSource
+    ? resolvePackageSource({
+        targetDir: options.workspaceRoot,
+        packageName: path.basename(options.workspaceRoot),
+        modernVersion: options.modernVersion,
+        packageSource: options.packageSource,
+      })
+    : config.packageSource;
+  if (!packageSource)
+    throw new Error(
+      `Missing UltraModern package source: ${path.join(options.workspaceRoot, ULTRAMODERN_CONFIG_PATH)}`,
+    );
+  return {
+    packageSource,
+    enableTailwind: options.enableTailwind ?? config.features.tailwind,
+    bridge: config.bridge,
+  };
 }
 
 export function assertValidVerticalName(name: string): string {

@@ -251,5 +251,10 @@ export async function generateTanstackRouteArtifacts(opts: {
     internalPlugins: (utils as { INTERNAL_RUNTIME_PLUGINS: unknown })
       .INTERNAL_RUNTIME_PLUGINS as never,
   });
-  await cli.init({ ...runOptions, command: 'build' });
+  const { appContext } = await cli.init({ ...runOptions, command: 'build' });
+  // Preparation owns the artifact writes; there is no dev server or bundler
+  // phase after it. Release plugin resources before the headless caller exits.
+  // Failed initialization propagates unchanged: it has not returned a context
+  // whose lifecycle this caller can close.
+  await appContext.hooks.onBeforeExit.call();
 }

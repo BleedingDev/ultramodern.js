@@ -32,6 +32,7 @@ import {
   applyRouterRuntimeState,
   type RouterLifecycleContext,
 } from './lifecycle';
+import { createTanstackNavigation } from './navigation';
 import {
   createTanstackRouteObjects,
   getMergedRouterConfig,
@@ -259,10 +260,15 @@ export const tanstackRouterPlugin = (
           if (!router) {
             return App ? <App /> : null;
           }
+          const navigation = useMemo(
+            () => createTanstackNavigation(router),
+            [router],
+          );
           const runtimeState = applyRouterRuntimeState(runtimeContext, {
             framework: 'tanstack',
             basename: _basename,
             instance: router,
+            navigation,
           });
           const lifecycleContext: RouterLifecycleContext = {
             framework: 'tanstack',

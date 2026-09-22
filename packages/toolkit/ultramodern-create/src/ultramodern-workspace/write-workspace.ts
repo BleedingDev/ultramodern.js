@@ -400,13 +400,7 @@ function generateUltramodernWorkspaceInPlace(
     );
   }
   writeSharedPackages(options.targetDir, scope, packageSource);
-  writeGeneratedWorkspaceScripts(
-    options.targetDir,
-    scope,
-    enableTailwind,
-    initialVerticals,
-    releaseCohort,
-  );
+  writeGeneratedWorkspaceScripts(options.targetDir, initialVerticals);
 
   const preliminaryAfterFiles = createFileSnapshot(options.targetDir);
   const preliminaryDiff = diffFileSnapshots(beforeFiles, preliminaryAfterFiles);

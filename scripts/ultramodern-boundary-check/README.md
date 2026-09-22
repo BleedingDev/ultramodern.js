@@ -27,12 +27,11 @@ of the target. Import verification rejects `--root`, `--base-ref`, `--allowlist`
 context variables are removed before Git runs.
 
 The classifier uses the existing literal import-specifier marker scan over
-`packages/**/src` files present at the import ownership base. Literal dynamic
-imports, requires, type imports and direct re-exports are covered. This check
-does not yet prove alias resolution, transitive barrel resolution, renamed
-source identity, or imports in later upstream-added source. Strict success is
-therefore evidence about the existing governed inventory, not a substitute for
-those remaining final-gate proofs.
+`packages/**/src` identities present at the import ownership base. It shares the
+divergence gate's rename projection, so a detected rename retains ownership in
+committed and worktree scans. Literal dynamic imports, requires, type imports
+and direct re-exports are covered. This check does not prove arbitrary alias or
+transitive barrel resolution, or imports in later upstream-added source.
 
 One exact native dependency has a target-aware exception: named imports or
 re-exports of `configure`, `createRequest` and `createUploader` from the bare
@@ -41,8 +40,8 @@ re-exports of `configure`, `createRequest` and `createUploader` from the bare
 Namespace, default, dynamic and CommonJS references do not qualify.
 
 The exception applies only when that measured target retains the native package
-identity, native node/browser export targets, reviewed native dependencies and
-the recorded eight native source identities. AST checks validate local imports,
+identity, native node/browser export targets, fixed-base native dependencies and
+source identities, plus the reviewed neutral factory/header extraction. AST checks validate local imports,
 public value/type bindings and absence of retired policy identifiers/property
 keys. Unknown files, fork policy modules/imports, new export surfaces, malformed
 source or metadata, and source symlinks revoke eligibility. Committed targets
@@ -167,7 +166,23 @@ equal-count semantic replacement and a pure rename are non-shrinks even when the
 cumulative totals do not grow.
 
 Every non-shrink upstream-owned change needs exactly one new or semantically
-changed path-first `FORK-DIVERGENCE.md` row in the same commit range. Its path
+changed structured `FORK-DIVERGENCE.md` entry in the same commit range.
+The sole current input is the `fork-evidence:v1` JSON block. Its strict schema
+requires `schemaVersion: 1` and `entries`, each with `path`, `owner`, `reason`,
+and an array of full `dispositions` tokens. Unknown fields, malformed data,
+missing values and multiple blocks fail closed. Generate the readable table:
+
+```bash
+node scripts/ultramodern-boundary-check/render-ledger.js
+node scripts/ultramodern-boundary-check/render-ledger.js --check
+```
+
+The default gate verifies that the table matches the data. Historical merge-base
+commits without a structured block retain the read-only legacy parser so a
+representation-only migration cannot grant new evidence rights. Current heads
+never accept the Markdown grammar. The migration retains all 472 formerly valid
+semantic keys; the five previously invalid advisory rows remain non-authorizing.
+ Its path
 must exactly equal the immutable audited identity, including the old path of a
 rename; owner and reason must be nonempty; and disposition must consist of the
 ledger's allowed full tokens. Whitespace/reformatting, unrelated rows, grouped
@@ -246,8 +261,10 @@ node scripts/ultramodern-boundary-check/check-fork-import-boundary.js --self-tes
 node --test scripts/ultramodern-boundary-check/__tests__/*.test.js
 ```
 
-The behavior suite uses temporary Git repositories to exercise scope attacks,
-strict schema validation, committed-ref governance, strict semantic ledger-row
-correlation, lexical test/fixture/docs escape attempts, reviewed growth, semantic
-replacement, renames, genuine shrink, and reviewed migrations through the
-public API and CLI.
+The focused behavior suite uses temporary Git repositories for literal import
+violations, unresolved refs, inherited Git redirection, canonical CLI scope,
+structured schema rejection, historical migration without evidence laundering,
+duplicate evidence, equal-count replacement, rename identity and native request
+policy/alias/source/symlink rejection. The built-in self-test covers divergence
+parsing, deleted identity and componentwise budgets. Broader deleted test suites
+are not claimed as retained coverage.

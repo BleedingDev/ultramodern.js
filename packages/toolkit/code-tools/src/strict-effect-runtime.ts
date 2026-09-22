@@ -1,29 +1,19 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { parse } from '@babel/parser';
-import traverse, { type Binding, Hub, NodePath } from '@babel/traverse';
+import type { Binding, NodePath } from '@babel/traverse';
 import * as t from '@babel/types';
+import {
+  parseSource,
+  SourceSyntaxError,
+  traverseSource,
+  unwrapExpression,
+} from './source-analysis';
 
 const edge = '@modern-js/bff-effect/effect-edge';
 const nodeRuntime = '@modern-js/bff-effect/effect';
 const sharedRuntime = /^@[^/]+\/shared-contracts\/server\/effect-bff-runtime$/u;
 const failure =
   'Generated API entries must export defineEffectBff(...) or the server-only shared Effect BFF assembly helper with an explicitly composed handler Layer and an unshadowed executable root; entries must implement handlers through HttpApiBuilder.group.';
-
-const invalidSources = new WeakSet<object>();
-function invalidSource(message: string): Error {
-  const error = new Error(message);
-  invalidSources.add(error);
-  return error;
-}
-
-// Babel's public Hub is the source-diagnostic boundary used by scope collision
-// checks. Tag only diagnostics constructed here, not arbitrary thrown TypeErrors.
-class SourceValidationHub extends Hub {
-  override buildError(_node: t.Node | undefined, message: string): Error {
-    return invalidSource(message);
-  }
-}
 
 /** A bounded, owner-local source resolver; never executes application modules. */
 export interface EffectApiSource {
@@ -86,88 +76,44 @@ export function strictEffectRuntimeTopologyViolation(
     const existing = modules.get(input.id);
     if (existing) return existing;
     if (modules.size >= 64 || input.source.length > 1_000_000)
-      throw invalidSource('API source budget exceeded');
-    let file: t.File;
-    try {
-      file = parse(input.source, {
-        sourceType: 'module',
-        sourceFilename: input.id,
-        plugins: ['typescript'],
-      });
-    } catch (cause) {
-      // Documented Babel parser identity, not the exception's constructor or
-      // message: an operational SyntaxError must still surface as tool failure.
-      if (
-        typeof cause === 'object' &&
-        cause !== null &&
-        'code' in cause &&
-        cause.code === 'BABEL_PARSER_SYNTAX_ERROR' &&
-        'reasonCode' in cause &&
-        typeof cause.reasonCode === 'string'
-      )
-        throw invalidSource('Invalid API syntax');
-      throw cause;
-    }
+      throw new SourceSyntaxError('API source budget exceeded');
+    const file = parseSource(input.source, input.id, 'Invalid API syntax');
     const module = { ...input, file };
     modules.set(input.id, module);
-    const program = NodePath.get({
-      hub: new SourceValidationHub(),
-      parentPath: undefined,
-      parent: file,
-      container: file,
-      key: 'program',
-    });
-    program.setContext();
-    traverse(
-      file,
-      {
-        enter(nodePath: NodePath) {
-          paths.set(nodePath.node, nodePath);
-          owners.set(nodePath.node, module);
-          // Babel bindings track rebinding (including destructuring). Also reject
-          // writes through a trusted namespace, and TS value namespace merges.
-          if (
-            nodePath.isAssignmentExpression() ||
-            nodePath.isUpdateExpression() ||
-            nodePath.isUnaryExpression({ operator: 'delete' })
-          ) {
-            let target: t.Node = nodePath.isAssignmentExpression()
-              ? nodePath.node.left
-              : nodePath.node.argument;
-            while (t.isMemberExpression(target)) target = target.object;
-            if (t.isIdentifier(target)) {
-              const binding = nodePath.scope.getBinding(target.name);
-              if (binding) mutated.add(binding);
-            }
-          }
-          if (
-            nodePath.isTSModuleDeclaration() &&
-            t.isIdentifier(nodePath.node.id)
-          ) {
-            const binding = nodePath.scope.getBinding(nodePath.node.id.name);
+    traverseSource(file, {
+      enter(nodePath: NodePath) {
+        paths.set(nodePath.node, nodePath);
+        owners.set(nodePath.node, module);
+        // Babel bindings track rebinding (including destructuring). Also reject
+        // writes through a trusted namespace, and TS value namespace merges.
+        if (
+          nodePath.isAssignmentExpression() ||
+          nodePath.isUpdateExpression() ||
+          nodePath.isUnaryExpression({ operator: 'delete' })
+        ) {
+          let target: t.Node = nodePath.isAssignmentExpression()
+            ? nodePath.node.left
+            : nodePath.node.argument;
+          while (t.isMemberExpression(target)) target = target.object;
+          if (t.isIdentifier(target)) {
+            const binding = nodePath.scope.getBinding(target.name);
             if (binding) mutated.add(binding);
           }
-        },
+        }
+        if (
+          nodePath.isTSModuleDeclaration() &&
+          t.isIdentifier(nodePath.node.id)
+        ) {
+          const binding = nodePath.scope.getBinding(nodePath.node.id.name);
+          if (binding) mutated.add(binding);
+        }
       },
-      program.scope,
-      undefined,
-      program,
-    );
+    });
     return module;
   };
   try {
     const entry = load({ id: '/entry.ts', source, resolveImport });
-    const unwrap = (node: t.Node): t.Node => {
-      while (
-        t.isParenthesizedExpression(node) ||
-        t.isTSSatisfiesExpression(node) ||
-        t.isTSAsExpression(node) ||
-        t.isTSTypeAssertion(node) ||
-        t.isTSNonNullExpression(node)
-      )
-        node = node.expression;
-      return node;
-    };
+    const unwrap = (node: t.Node) => unwrapExpression(node, true);
     const binding = (node: t.Node): Binding | undefined => {
       node = unwrap(node);
       if (!t.isIdentifier(node)) return undefined;
@@ -571,12 +517,7 @@ export function strictEffectRuntimeTopologyViolation(
     );
     return root && runtime(root.declaration) ? undefined : failure;
   } catch (cause) {
-    if (
-      typeof cause === 'object' &&
-      cause !== null &&
-      invalidSources.has(cause)
-    )
-      return failure;
+    if (cause instanceof SourceSyntaxError) return failure;
     const message =
       typeof cause === 'object' &&
       cause !== null &&

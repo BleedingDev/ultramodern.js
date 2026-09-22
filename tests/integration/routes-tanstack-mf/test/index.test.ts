@@ -15,7 +15,7 @@ import {
   modernServe,
 } from '../../../utils/modernTestUtils';
 import { setSuiteTimeout } from '../../../utils/setSuiteTimeout';
-import { ensurePluginDataLoaderRuntimeBuilt } from './pluginDataLoaderRuntime';
+import { assertPluginDataLoaderRuntimeBuilt } from './pluginDataLoaderRuntime';
 
 setSuiteTimeout(1000 * 60 * 8);
 
@@ -348,7 +348,7 @@ async function buildFederatedFixtureApp(
   appDir: string,
   env: Record<string, string>,
 ) {
-  await ensurePluginDataLoaderRuntimeBuilt();
+  assertPluginDataLoaderRuntimeBuilt();
   let result:
     | {
         code: number | null;
@@ -747,7 +747,7 @@ describe('routes-tanstack-mf', () => {
     ports = await createFederatedPorts();
     const env = createFederatedEnv(ports);
 
-    await ensurePluginDataLoaderRuntimeBuilt();
+    assertPluginDataLoaderRuntimeBuilt();
 
     remoteApp = await launchApp(remoteDir, ports.remote, { env });
     await waitForAppReady(`http://localhost:${ports.remote}/mf-manifest.json`);

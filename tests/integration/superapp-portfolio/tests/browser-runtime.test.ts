@@ -1,6 +1,5 @@
-import { existsSync } from 'node:fs';
-import { createRequire } from 'node:module';
 import path from 'node:path';
+import type { Browser, Page } from 'playwright';
 import { buildFixtureOnce } from '../../../utils/fixtureBuild';
 import {
   getPort,
@@ -9,24 +8,15 @@ import {
   modernServe,
 } from '../../../utils/modernTestUtils';
 import { setSuiteTimeout } from '../../../utils/setSuiteTimeout';
-import { captureBrowserRuntimeDiagnostics } from './browserRuntimeArtifacts';
+import {
+  createBrowserRuntimePage as createRuntimePage,
+  launchRuntimeBrowser,
+} from './browserRuntimeFixture';
 
 setSuiteTimeout(1000 * 60 * 10);
 
-type Browser = any;
-type BrowserContext = any;
-type BrowserType = any;
-type Page = any;
-
-const requireFromRstestBrowserFixture = createRequire(
-  path.resolve(__dirname, '../../rstest/basic-app-rstest-browser/package.json'),
-);
-const { chromium }: { chromium: BrowserType } =
-  requireFromRstestBrowserFixture('playwright');
-
 const appDir = path.resolve(__dirname, '../');
 const host = 'http://localhost';
-const defaultViewport = { width: 1440, height: 960 };
 const bootstrapApiPattern = '**/bff-api/effect/bootstrap';
 const offlineErrorPattern =
   /ERR_INTERNET_DISCONNECTED|ERR_FAILED|Failed to fetch|Failed to load resource/i;
@@ -39,7 +29,7 @@ async function resetPortfolio(port: number) {
 }
 
 async function getByTestIdText(page: Page, testId: string) {
-  return page.getByTestId(testId).evaluate((element: HTMLElement) => {
+  return page.getByTestId(testId).evaluate(element => {
     return element.textContent ?? '';
   });
 }
@@ -113,26 +103,12 @@ async function expectPortfolioHome(page: Page) {
   expect(new URL(page.url()).pathname).toBe('/');
 }
 
-async function createRuntimePage(browser: Browser) {
-  const context: BrowserContext = await browser.newContext({
-    viewport: defaultViewport,
-  });
-  const page = await context.newPage();
-  const diagnostics = captureBrowserRuntimeDiagnostics(page);
-  return { context, diagnostics, page };
-}
-
 describe('superapp portfolio browser runtime coverage', () => {
   let port: number;
   let app: Awaited<ReturnType<typeof modernServe>> | undefined;
   let browser: Browser | undefined;
 
   beforeAll(async () => {
-    if (!existsSync(chromium.executablePath())) {
-      throw new Error(
-        'Playwright chromium executable is missing. Run playwright install before running superapp browser runtime coverage.',
-      );
-    }
     const build = await buildFixtureOnce(appDir, {
       build: () => modernBuild(appDir),
     });
@@ -143,7 +119,7 @@ describe('superapp portfolio browser runtime coverage', () => {
       stderr: false,
       stdout: false,
     });
-    browser = await chromium.launch();
+    browser = await launchRuntimeBrowser();
   });
 
   afterAll(async () => {
@@ -195,7 +171,7 @@ describe('superapp portfolio browser runtime coverage', () => {
       });
       await context.route(
         bootstrapApiPattern,
-        async (route: any) => {
+        async route => {
           await bootstrapHeld;
           await route.continue();
         },

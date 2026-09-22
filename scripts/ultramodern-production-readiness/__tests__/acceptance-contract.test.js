@@ -237,7 +237,7 @@ test('registry cohort verification fails closed when downloaded bytes differ', a
           return JSON.stringify([{ filename: 'stale.tgz' }]);
         },
       }),
-      /downloaded sha256 mismatch/,
+      /Registry tarball byte mismatch/,
     );
   } finally {
     fs.rmSync(root, { force: true, recursive: true });

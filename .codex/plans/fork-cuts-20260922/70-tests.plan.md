@@ -4,13 +4,13 @@ overview: "Use immutable prerequisite builds, real consumer dependency installs 
 todos:
   - id: truthful-test-infrastructure-prerequisites
     content: "Make selected workspace package builds explicit immutable test prerequisites with cold-checkout support; remove implicit rebuild/freshness and dist reader/writer lock protocols after parallel parity."
-    status: pending
+    status: completed
   - id: truthful-test-infrastructure-consumers
     content: "Install real generated workspace manifests against packed local packages through supported package-manager mechanisms; remove dependency flattening and all-to-all package links."
-    status: pending
+    status: in_progress
   - id: truthful-test-infrastructure-browser
     content: "Give the two remaining portfolio browser suites an explicit Playwright dependency and typed shared lifecycle; preserve existing diagnostics and current scenarios without recreating the deleted cross-browser matrix."
-    status: pending
+    status: in_progress
 isProject: false
 ---
 
@@ -33,3 +33,21 @@ Preserve parallelism, fixture isolation, failure invalidation, ports, reentrant 
 Depends on preservation-baseline and blocks integrated-feature-parity. Siblings may run in parallel within the named ownership boundaries. Native Codex workers are not alone in the codebase and must preserve other owners edits. Shared file changes go through the root integrator.
 
 Use the exact selection/edges in docs/audits/fork-simplification-20260922-handoff.md. Validate before plan-backed launches. Run relevant current behavior checks, report limitations and include concrete removed decision owners plus net authored-code change in the PR.
+
+## Implementation evidence
+
+The test runner now builds before workers start, packs immutable framework artifacts once, and passes a verified package manifest to generated consumers. Workers only assert prerequisite completeness. Removed workspace freshness recursion, implicit package builds, promise caches and dist reader/writer/reentrant locks; the independent port allocator and boot-timeout cleanup remain.
+
+Generated consumer installs now use actual generated manifests, pnpm native workspace resolution and local artifact overrides parsed by the existing js-yaml dependency. They execute the installed CLI. Removed dependency flattening, custom allowBuilds YAML parsing and all-to-all first-party links.
+
+Both portfolio suites import Playwright directly and share a typed browser/page lifecycle; their existing assertions and diagnostics remain. Root integrates the explicit dependency and runner scripts.
+
+Focused prerequisite behavior checks: 3 passed (parallel builds alongside a live server, startup timeout child cleanup, and parallel nested runners consuming one owner manifest without a package-manager executable). Changed-file Biome checks passed. Packed generated-workspace and browser acceptance remain pending the coordinated dependency refresh and framework rebuild.
+
+The two generated suites now scaffold with a standalone packed generator outside the repository, use the workspace-installed CLI for builds/validation, and have no source-bin fallback. They explicitly select the supported workspace dependency strategy because source tarballs do not carry an authenticated published release cohort. Registry/cohort release qualification remains separate. The sole retained source-bin invocation tests rejection of an explicit install request from a source checkout.
+
+One top-level runner owns prepare/build/pack; nested invocations inherit its artifact manifest and cannot rebuild. Simultaneous independent top-level build writers are outside this contract. The runner uses cross-spawn for Windows command shims.
+
+Packed acceptance first pass installed the real standalone generator and generated dependency graphs successfully. It exposed two owning-layer defects previously hidden by source links: injected workspace TypeScript was externalized from the Effect BFF server bundle, and direct routes-generate resolved Module Federation config from workspace cwd instead of the app directory. Owners are repairing these before requalification. Public-surface generation with the standalone installed packed CLI passed after removing the old test-only source-bin invocation. No assertions were deleted or weakened.
+
+After the owning BFF loader bundled injected workspace TypeScript, packed BFF acceptance passed both retained tests (39.4 seconds): installed generator, real generated dependency installation, installed CLI build, production serving and Effect response. Artifact inventory is retained for integrated acceptance; no shared builds occur while consumers run.

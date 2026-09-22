@@ -1,16 +1,16 @@
-{{value0}}import { Link, useModernI18n } from '@modern-js/plugin-i18n/runtime';
+{{federationImports}}import { Link, useModernI18n } from '@modern-js/plugin-i18n/runtime';
 
-	const widgetCount = Number('{{value1}}');
+	const widgetCount = Number('{{widgetCount}}');
 
-	{{value2}}
-	{{value3}}
+	{{federationHelpers}}
+	{{remoteComponentExports}}
 
 	export const Header = () => {
   const { t } = useModernI18n();
 
   return (
-    <header className="{{value4}}" data-modern-boundary-id="{{value5}}" data-modern-mf-expose="shell/Header">
-      <Link className="{{value6}}" to="/">{t('shell.title')}</Link>
+    <header className="{{headerClassName}}" data-modern-boundary-id="{{boundaryId}}" data-modern-mf-expose="shell/Header">
+      <Link className="{{titleClassName}}" to="/">{t('shell.title')}</Link>
     </header>
   );
 };
@@ -19,7 +19,7 @@ export const StatusBadge = () => {
   const { t } = useModernI18n();
 
   return (
-    <span className="{{value7}}">
+    <span className="{{statusBadgeClassName}}">
       {widgetCount} {t('shell.hero.cardOneKicker')}
     </span>
   );
@@ -30,15 +30,15 @@ export const VerticalShowcase = () => {
 
   if (widgetCount === 0) {
     return (
-      <section className="{{value8}}">
-        <p className="{{value9}}">{t('shell.hero.empty')}</p>
+      <section className="{{emptyShowcaseClassName}}">
+        <p className="{{emptyMessageClassName}}">{t('shell.hero.empty')}</p>
       </section>
     );
   }
 
   return (
-    <section className="{{value10}}" data-modern-boundary-id="{{value11}}">
-      {{value12}}
+    <section className="{{showcaseClassName}}" data-modern-boundary-id="{{boundaryId}}">
+      {{showcaseGrid}}
     </section>
   );
 };

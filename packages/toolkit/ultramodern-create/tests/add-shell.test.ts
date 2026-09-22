@@ -444,6 +444,12 @@ test('add-shell keeps consumer-authored root scripts and tsconfig bytes', () => 
     manifest.scripts['consumer:check'] = 'echo authored';
     manifest.scripts.build = 'echo authored-build';
     fs.writeFileSync(packagePath, JSON.stringify(manifest, null, 2));
+    const configPath = path.join(workspaceDir, '.modernjs/ultramodern.json');
+    const config = readJson(workspaceDir, '.modernjs/ultramodern.json');
+    config.topology.apps.find(
+      (app: { id: string }) => app.id === 'shell-super-app',
+    ).moduleFederation.verticalRefs = [];
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
     const tsconfigPath = path.join(workspaceDir, 'tsconfig.json');
     const authoredTsconfig =
       '{"references":[],"compilerOptions":{"strict":true},"extra":"authored"}\n';
@@ -459,6 +465,12 @@ test('add-shell keeps consumer-authored root scripts and tsconfig bytes', () => 
     assert.equal(next.scripts['consumer:check'], 'echo authored');
     assert.equal(next.scripts.build, 'echo authored-build');
     assert.equal(fs.readFileSync(tsconfigPath, 'utf-8'), authoredTsconfig);
+    assert.deepEqual(
+      readJson(workspaceDir, '.modernjs/ultramodern.json').topology.apps.find(
+        (app: { id: string }) => app.id === 'shell-super-app',
+      ).moduleFederation.verticalRefs,
+      [],
+    );
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }

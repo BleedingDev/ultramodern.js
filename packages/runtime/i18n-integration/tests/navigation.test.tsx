@@ -13,12 +13,14 @@ import {
   RouterProvider,
 } from '@modern-js/runtime/router';
 import { applyRouterRuntimeState } from '@modern-js/runtime-extensions/router-state';
+import { createRouterStatePlugin } from '@modern-js/runtime-extensions/router-state-plugin';
 import i18next from 'i18next';
 import type React from 'react';
 import type { ComponentType } from 'react';
 import { act, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { useTranslation } from 'react-i18next';
+import { createTanstackNavigation } from '../../plugin-tanstack/src/runtime/navigation';
 import { I18nRouterNavigationProvider } from '../src/navigation';
 import type { I18nPluginOptions } from '../src/options';
 import { i18nPlugin } from '../src/runtime';
@@ -72,10 +74,34 @@ function createRuntimeContext(
     router: {
       ...(framework === 'tanstack'
         ? { Link: TanstackLink, useRouter: () => router }
-        : { useLocation: () => undefined, useHref: () => undefined }),
+        : {
+            Link: ReactRouterLink,
+            useLocation: () => undefined,
+            useHref: () => undefined,
+          }),
     },
   } as any;
-  applyRouterRuntimeState(context, { framework, instance: router });
+  if (framework === 'tanstack') {
+    applyRouterRuntimeState(context, {
+      framework,
+      instance: router,
+      navigation: createTanstackNavigation(
+        router as Parameters<typeof createTanstackNavigation>[0],
+      ),
+    });
+  } else {
+    createRouterStatePlugin({ registryHooks: {} }).setup({
+      onBeforeRender() {},
+      onAfterCreateRouter(callback) {
+        callback({
+          framework,
+          phase: 'client-create',
+          runtimeContext: context,
+          router,
+        });
+      },
+    });
+  }
   return context;
 }
 
@@ -128,6 +154,13 @@ function createMutableTanstackRouter(pathname = '/en') {
 
   return {
     navigate: rstest.fn(async () => undefined),
+    get state() {
+      return { location, matches };
+    },
+    subscribe(_event: string, listener: () => void) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
     stores: {
       location: {
         get: () => location,
@@ -401,7 +434,10 @@ describe('i18n router adapter', () => {
 
   test('keeps React Router positional replacement when changeLanguage updates the URL', async () => {
     window.history.replaceState(null, '', '/en/terms-of-service');
-    const router = { navigate: rstest.fn(async () => undefined) };
+    const router = createMemoryRouter([{ path: '*' }], {
+      initialEntries: ['/en/terms-of-service'],
+    });
+    rstest.spyOn(router, 'navigate').mockResolvedValue(undefined);
     rendered = await changeLanguageThroughConsumer(
       createReactRouterRuntimeContext(router),
     );

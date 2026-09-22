@@ -29,10 +29,8 @@ import {
   assertCanCreate,
   assertGlobalPortUniqueness,
   assertValidVerticalName,
-  existingBridgeConfig,
-  existingPackageSource,
-  existingTailwindEnabled,
   nextAvailablePort,
+  workspaceOperationSettings,
 } from './workspace-state';
 
 export { createPrimaryShellDescriptor } from './topology';
@@ -130,19 +128,16 @@ export function prepareAddUltramodernVertical(
     topology,
     overlay,
   });
+  const { packageSource, enableTailwind, bridge } = workspaceOperationSettings(
+    options,
+    workspace.config,
+  );
 
   overlay.ports ??= {};
   const scope = toPackageScope(
     String(rootPackage.name ?? path.basename(options.workspaceRoot)),
   );
-  const packageSource = existingPackageSource(
-    options.workspaceRoot,
-    options.modernVersion,
-    options.packageSource,
-  );
-  const enableTailwind =
-    options.enableTailwind ?? existingTailwindEnabled(options.workspaceRoot);
-  const bridge = existingBridgeConfig(options.workspaceRoot);
+
   const existingVerticals = workspace.verticals;
   const additionalShells = workspace.additionalShells;
   // Supplying topology always resolves the primary shell, including defaults.
@@ -205,7 +200,7 @@ export function prepareAddUltramodernVertical(
   };
 }
 
-function readRequiredJsonObject(filePath: string): Record<string, any> {
+export function readRequiredJsonObject(filePath: string): Record<string, any> {
   if (!fs.existsSync(filePath)) {
     throw new Error(`Missing UltraModern workspace file: ${filePath}`);
   }

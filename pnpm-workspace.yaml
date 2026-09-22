@@ -56,25 +56,15 @@ allowBuilds:
   workerd: true
 
 patchedDependencies:
-  # Lazy-load Module Federation DTS helpers so apps with `dts: false` do not
-  # import the DTS plugin in the TS 7 native-preview lane.
-  '@module-federation/modern-js-v3@2.9.0': patches/@module-federation__modern-js-v3@2.9.0.patch
+  '@module-federation/bridge-react@2.9.0': patches/@module-federation__bridge-react@2.9.0.patch
   '@module-federation/dts-plugin@2.9.0': patches/@module-federation__dts-plugin@2.9.0.patch
   '@module-federation/manifest@2.9.0': patches/@module-federation__manifest@2.9.0.patch
+  '@module-federation/modern-js-v3@2.9.0': patches/@module-federation__modern-js-v3@2.9.0.patch
   '@module-federation/rspack@2.9.0': patches/@module-federation__rspack@2.9.0.patch
-  # Repair the runtime-core remote declaration's missing ResourceLoadContext
-  # import so strict library checking can consume its public hook types.
   '@module-federation/runtime-core@2.9.0': patches/@module-federation__runtime-core@2.9.0.patch
-  # Repair bridge-react's declaration specifiers for portable TS resolution.
-  '@module-federation/bridge-react@2.9.0': patches/@module-federation__bridge-react@2.9.0.patch
-  # Remove msgpackr's dynamic Function optimization from browser/edge ESM.
-  # Its ordinary decoder is functionally equivalent and CSP/Worker-safe.
-  'msgpackr@2.1.0': patches/msgpackr@2.1.0.patch
-  # Disable Zod's Function-constructor capability probe in CSP/Worker bundles.
-  'zod@4.5.4': patches/zod@4.5.4.patch
-  # Keep source-workspace installs hardened before the independently published
-  # image sidecars exist; release staging redirects the shipped image package.
   'image-size@2.0.2': patches/image-size@2.0.2.patch
+  'msgpackr@2.1.0': patches/msgpackr@2.1.0.patch
+  'zod@4.5.4': patches/zod@4.5.4.patch
 overrides:
   micromatch: ^4.0.8
   # Effect resolves msgpackr through a caret; pin it to the patched release.

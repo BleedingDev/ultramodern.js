@@ -1,17 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import type { UltramodernReleaseCohort } from '../ultramodern-release-cohort';
 import { appHasApi } from './descriptors';
 import {
   readFileTemplate,
-  renderFileTemplate,
   workspaceTemplateDir,
   writeFileReplacing,
 } from './fs-io';
 import { selectGeneratedToolingCommands } from './tooling-command-catalog';
 import type { WorkspaceApp } from './types';
-import { WORKSPACE_SCRIPT_SEGMENT_PATTERN } from './workspace-script-plan';
-import { createWorkspaceValidationContract } from './workspace-validation-contract';
 
 // Emitted wrapper source must satisfy the generated workspace's oxfmt config,
 // which enforces `singleQuote: true`; JSON.stringify would emit double quotes.
@@ -93,47 +89,8 @@ const result = createBin
 ${toolWrapperResultHandling}`;
 }
 
-export function createPackagedWorkspaceValidationScript(
-  scope: string,
-  enableTailwind: boolean,
-  remotes: WorkspaceApp[] = [],
-  releaseCohort?: UltramodernReleaseCohort,
-  additionalShells: WorkspaceApp[] = [],
-  primaryShell?: WorkspaceApp,
-  compactConfigOverride?: Record<string, unknown>,
-  ownershipOverride?: Record<string, unknown>,
-  developmentOverlayOverride?: Record<string, unknown>,
-  workspaceRoot?: string,
-): string {
-  const contract = createWorkspaceValidationContract(
-    scope,
-    enableTailwind,
-    remotes,
-    releaseCohort,
-    additionalShells,
-    primaryShell,
-    compactConfigOverride,
-    ownershipOverride,
-    developmentOverlayOverride,
-    workspaceRoot,
-  );
-
-  return renderFileTemplate(
-    'workspace-scripts/validate-ultramodern-workspace.mjs',
-    {
-      workspaceValidationContractJson: JSON.stringify(contract, null, 2),
-      workspaceScriptSegmentPattern: JSON.stringify(
-        WORKSPACE_SCRIPT_SEGMENT_PATTERN.source,
-      ),
-    },
-  );
-}
-
-// The stable consumer entrypoint delegates to the installed cohort's validator.
-// Release and topology data are read by that command at invocation time.
-export function createWorkspaceValidationScript(
-  ..._options: Parameters<typeof createPackagedWorkspaceValidationScript>
-): string {
+// Consumer entrypoints delegate to the installed cohort's packaged validator.
+export function createWorkspaceValidationScript(): string {
   return createToolWrapperScript('validate');
 }
 
@@ -155,33 +112,15 @@ export function createZeropsRuntimeMaterializationScript(): string {
 
 export function writeGeneratedWorkspaceScripts(
   targetDir: string,
-  scope: string,
-  enableTailwind: boolean,
   remotes: WorkspaceApp[] = [],
-  releaseCohort?: UltramodernReleaseCohort,
-  additionalShells: WorkspaceApp[] = [],
-  primaryShell?: WorkspaceApp,
   options: {
     io?: { writeGenerated: (filePath: string, content: string) => unknown };
-    compactConfig?: Record<string, unknown>;
-    ownership?: Record<string, unknown>;
-    developmentOverlay?: Record<string, unknown>;
   } = {},
 ) {
   for (const artifact of createWorkspaceScriptArtifacts({
     shellOnly: remotes.length === 0,
     hasBackendSurface: remotes.some(appHasApi),
-    validationScript: createWorkspaceValidationScript(
-      scope,
-      enableTailwind,
-      remotes,
-      releaseCohort,
-      additionalShells,
-      primaryShell,
-      options.compactConfig,
-      options.ownership,
-      options.developmentOverlay,
-    ),
+    validationScript: createWorkspaceValidationScript(),
   })) {
     if (options.io) {
       options.io.writeGenerated(

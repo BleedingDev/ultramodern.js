@@ -8,6 +8,7 @@ import {
   isPlainObject,
   normalizeMethod as normalizeItemMethod,
 } from '../../data-platform';
+import { normalizeBatchLimits } from '../../data-platform/batch/options';
 import {
   decodeBatchBody,
   isBatchBody,
@@ -18,7 +19,6 @@ import {
   createBatchValidationResponse,
   isBatchRequestPayload,
   mapWithConcurrency,
-  normalizeBatchAllowedMethods,
   normalizeBatchPath,
   promiseWithTimeout,
   toBatchItemError,
@@ -129,14 +129,11 @@ export function createDataPlatformBatchRequestHandler<TContext>(options: {
   const dataPlatformBatchOptions = options.dataPlatform?.batch;
   const batchEnabled = dataPlatformBatchOptions?.enabled !== false;
   const batchPath = normalizeBatchPath(dataPlatformBatchOptions?.endpoint);
-  const batchMaxSize = Math.max(
-    1,
-    dataPlatformBatchOptions?.maxBatchSize ?? 16,
-  );
-  const batchMaxBytes = Math.max(
-    1024,
-    dataPlatformBatchOptions?.maxBatchBytes ?? 64 * 1024,
-  );
+  const {
+    maxBatchSize: batchMaxSize,
+    maxBatchBytes: batchMaxBytes,
+    allowedMethods: batchAllowedMethods,
+  } = normalizeBatchLimits(dataPlatformBatchOptions);
   const batchConcurrency = Math.max(
     1,
     dataPlatformBatchOptions?.maxConcurrency ?? 4,
@@ -144,9 +141,6 @@ export function createDataPlatformBatchRequestHandler<TContext>(options: {
   const batchItemTimeoutMs = Math.max(
     0,
     dataPlatformBatchOptions?.requestTimeoutMs ?? 10_000,
-  );
-  const batchAllowedMethods = normalizeBatchAllowedMethods(
-    dataPlatformBatchOptions?.allowedMethods,
   );
   const envelopeHeader =
     options.dataPlatform?.envelopeHeader || DEFAULT_DATA_ENVELOPE_HEADER;

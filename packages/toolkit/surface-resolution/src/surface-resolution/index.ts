@@ -1,4 +1,5 @@
 export {
+  type BrowserManifestAddressOptions,
   createEnvStaticSurfaceResolutionProvider,
   DEFAULT_LOCAL_ENVIRONMENTS,
   ENV_STATIC_PROVIDER_NAME,
@@ -9,6 +10,7 @@ export {
   type EnvStaticSurfaceConfig,
   type EnvStaticSurfacePlatforms,
   type EnvStaticUnitConfig,
+  resolveBrowserManifestAddress,
 } from './env-static-provider';
 export {
   formatSurfaceRef,

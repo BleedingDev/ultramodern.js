@@ -30,7 +30,7 @@ describe('router-ssr-i18n-localised-urls navigation and API exclusions', () => {
   beforeAll(async () => {
     appPort = await getPort();
     app = await launchApp(projectDir, appPort, {
-      ensureWorkspacePackages: [
+      requiredWorkspacePackages: [
         '@modern-js/plugin-bff',
         '@modern-js/plugin-i18n',
         '@modern-js/runtime',

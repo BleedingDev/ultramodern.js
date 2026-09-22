@@ -3,7 +3,6 @@ import { createRuntimeContextExtension } from './contextExtensions';
 import type {
   InternalRouterRuntimeState,
   InternalRouterServerSnapshot,
-  RouterRouteMatchSnapshot,
   RouterServerPrepareResult,
 } from './routerStateTypes';
 
@@ -13,6 +12,9 @@ export type {
   InternalRouterServerSnapshot,
   RouterFramework,
   RouterLifecyclePhase,
+  RouterLinkTarget,
+  RouterNavigationCapability,
+  RouterNavigationSnapshot,
   RouterRouteMatchSnapshot,
   RouterServerPrepareResult,
 } from './routerStateTypes';
@@ -50,99 +52,49 @@ export function getRouterServerSnapshot(
   return routerServerSnapshotExtension.get(runtimeContext);
 }
 
-type RouterSnapshotLike = Partial<InternalRouterServerSnapshot>;
-
-function toHydrationScripts(state: {
-  hydrationScript?: string;
-  hydrationScripts?: string[];
-}) {
-  if (state.hydrationScripts?.length) {
-    return state.hydrationScripts;
-  }
-
-  return state.hydrationScript ? [state.hydrationScript] : undefined;
-}
-
-function getMatchedRouteIdsFromMatches(matches?: RouterRouteMatchSnapshot[]) {
-  const routeIds = matches
-    ?.map(match => match.assetRouteId ?? match.routeId)
-    .filter((routeId): routeId is string => typeof routeId === 'string');
-
-  return routeIds?.length ? routeIds : undefined;
-}
-
+/** Capture prepared metadata once; live router updates cannot rewrite it. */
 export function createRouterServerSnapshot(
-  state: RouterSnapshotLike,
+  snapshot: InternalRouterServerSnapshot,
 ): InternalRouterServerSnapshot {
-  const hydrationScripts = toHydrationScripts(state);
+  const matches = snapshot.matches?.map(match =>
+    Object.freeze({
+      ...match,
+      ...(match.params ? { params: Object.freeze({ ...match.params }) } : {}),
+    }),
+  );
   const matchedRouteIds =
-    state.matchedRouteIds ?? getMatchedRouteIdsFromMatches(state.matches);
-
-  return {
-    ...state,
-    ...(hydrationScripts?.length
+    snapshot.matchedRouteIds ??
+    matches?.map(match => match.assetRouteId ?? match.routeId);
+  return Object.freeze({
+    ...snapshot,
+    ...(snapshot.hydrationScripts
+      ? { hydrationScripts: Object.freeze([...snapshot.hydrationScripts]) }
+      : {}),
+    ...(matchedRouteIds
+      ? { matchedRouteIds: Object.freeze([...matchedRouteIds]) }
+      : {}),
+    ...(matches ? { matches: Object.freeze(matches) } : {}),
+    ...(snapshot.errors
+      ? { errors: Object.freeze({ ...snapshot.errors }) }
+      : {}),
+    ...(snapshot.routerData
       ? {
-          hydrationScript: state.hydrationScript ?? hydrationScripts[0],
-          hydrationScripts,
+          routerData: Object.freeze({
+            ...snapshot.routerData,
+            ...(snapshot.routerData.loaderData
+              ? {
+                  loaderData: Object.freeze({
+                    ...snapshot.routerData.loaderData,
+                  }),
+                }
+              : {}),
+            ...(snapshot.routerData.errors
+              ? { errors: Object.freeze({ ...snapshot.routerData.errors }) }
+              : {}),
+          }),
         }
       : {}),
-    ...(matchedRouteIds ? { matchedRouteIds } : {}),
-  };
-}
-
-export function createRouterRuntimeState(
-  state: InternalRouterRuntimeState,
-): InternalRouterRuntimeState {
-  const hasSnapshotState =
-    Boolean(state.serverSnapshot) ||
-    Boolean(state.hydrationScript) ||
-    Boolean(state.hydrationScripts?.length) ||
-    Boolean(state.matchedRouteIds?.length) ||
-    Boolean(state.matches?.length);
-  const serverSnapshot = state.serverSnapshot
-    ? createRouterServerSnapshot({
-        ...state.serverSnapshot,
-        framework: state.serverSnapshot.framework ?? state.framework,
-        basename: state.serverSnapshot.basename ?? state.basename,
-        hydrationScript:
-          state.serverSnapshot.hydrationScript ?? state.hydrationScript,
-        hydrationScripts:
-          state.serverSnapshot.hydrationScripts ?? state.hydrationScripts,
-        matchedRouteIds:
-          state.serverSnapshot.matchedRouteIds ?? state.matchedRouteIds,
-        matches: state.serverSnapshot.matches ?? state.matches,
-      })
-    : hasSnapshotState
-      ? createRouterServerSnapshot({
-          framework: state.framework,
-          basename: state.basename,
-          hydrationScript: state.hydrationScript,
-          hydrationScripts: state.hydrationScripts,
-          matchedRouteIds: state.matchedRouteIds,
-          matches: state.matches,
-        })
-      : undefined;
-  const hydrationScripts = toHydrationScripts({
-    hydrationScript: state.hydrationScript ?? serverSnapshot?.hydrationScript,
-    hydrationScripts:
-      state.hydrationScripts ?? serverSnapshot?.hydrationScripts,
   });
-  const matchedRouteIds =
-    state.matchedRouteIds ??
-    serverSnapshot?.matchedRouteIds ??
-    getMatchedRouteIdsFromMatches(state.matches);
-
-  return {
-    ...state,
-    ...(hydrationScripts?.length
-      ? {
-          hydrationScript: state.hydrationScript ?? hydrationScripts[0],
-          hydrationScripts,
-        }
-      : {}),
-    ...(matchedRouteIds ? { matchedRouteIds } : {}),
-    ...(serverSnapshot ? { serverSnapshot } : {}),
-  };
 }
 
 /**
@@ -223,19 +175,13 @@ export function applyRouterRuntimeState<Context extends object>(
   state: InternalRouterRuntimeState,
 ) {
   const previous = routerRuntimeStateExtension.get(runtimeContext);
-  const normalized = createRouterRuntimeState(state);
-  routerRuntimeStateExtension.set(runtimeContext, normalized);
-  if (normalized.serverSnapshot) {
-    routerServerSnapshotExtension.set(
-      runtimeContext,
-      normalized.serverSnapshot,
-    );
-  }
+  routerRuntimeStateExtension.set(runtimeContext, state);
   // Only a change of identity is worth a re-render; `RouterWrapper` reapplies
   // the same instance on every render of the app.
   if (
-    previous?.instance !== normalized.instance ||
-    previous?.framework !== normalized.framework
+    previous?.instance !== state.instance ||
+    previous?.framework !== state.framework ||
+    previous?.navigation !== state.navigation
   ) {
     notifyRouterRuntimeState(runtimeContext);
   }
@@ -247,40 +193,24 @@ export function applyRouterServerPrepareResult<Context extends object>(
   runtimeContext: Context,
   result: RouterServerPrepareResult,
 ) {
-  const state = createRouterRuntimeState({
+  if (result.snapshot) {
+    routerServerSnapshotExtension.set(
+      runtimeContext,
+      createRouterServerSnapshot(result.snapshot),
+    );
+  }
+  return applyRouterRuntimeState(runtimeContext, {
     ...result.state,
     cleanup: result.cleanup ?? result.state.cleanup,
-    serverSnapshot: result.snapshot ?? result.state.serverSnapshot,
   });
-  applyRouterRuntimeState(runtimeContext, state);
-  return runtimeContext;
 }
 
 export function getRouterHydrationScripts(runtimeContext: object) {
-  const serverSnapshot = getRouterServerSnapshot(runtimeContext);
-  const runtimeState = getRouterRuntimeState(runtimeContext);
-  return (
-    serverSnapshot?.hydrationScripts ??
-    toHydrationScripts({
-      hydrationScript: serverSnapshot?.hydrationScript,
-    }) ??
-    runtimeState?.hydrationScripts ??
-    toHydrationScripts({
-      hydrationScript: runtimeState?.hydrationScript,
-    }) ??
-    []
-  );
+  return getRouterServerSnapshot(runtimeContext)?.hydrationScripts ?? [];
 }
 
 export function getRouterMatchedRouteIds(runtimeContext: object) {
-  const serverSnapshot = getRouterServerSnapshot(runtimeContext);
-  const runtimeState = getRouterRuntimeState(runtimeContext);
-  return (
-    serverSnapshot?.matchedRouteIds ??
-    getMatchedRouteIdsFromMatches(serverSnapshot?.matches) ??
-    runtimeState?.matchedRouteIds ??
-    getMatchedRouteIdsFromMatches(runtimeState?.matches)
-  );
+  return getRouterServerSnapshot(runtimeContext)?.matchedRouteIds;
 }
 
 export async function cleanupRouterRuntimeState(runtimeContext: object) {

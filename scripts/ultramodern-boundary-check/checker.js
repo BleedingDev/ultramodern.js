@@ -4,7 +4,12 @@ const { parseSync, types: babelTypes } = require('@babel/core');
 
 const { extractImportSpecifiers } = require('../boundary-guards/validator');
 const { createProcessEnv, runCommand } = require('../lib/process-kit');
-const { resolveCommitSha, resolveRepositoryTopLevel } = require('./divergence');
+const {
+  buildProvenanceOwnership,
+  parseNameStatus,
+  resolveCommitSha,
+  resolveRepositoryTopLevel,
+} = require('./divergence');
 
 const DEFAULT_BASE_REF = '8a744c1b3178d1e85d4113f29e8837ff94079fb3';
 const DEFAULT_ALLOWLIST_PATH = path.join(__dirname, 'allowlist.json');
@@ -90,16 +95,6 @@ const listPackageSourceFiles = (rootDir, headRef) => {
     .sort();
 };
 
-const pathExistsAtRef = ({ rootDir, baseRef, file }) => {
-  const result = runGit({
-    rootDir,
-    args: ['cat-file', '-e', `${baseRef}:${file}`],
-    allowFailure: true,
-  });
-
-  return result.status === 0;
-};
-
 const listUpstreamOwnedPackageSourceFiles = ({
   rootDir,
   baseRef = DEFAULT_BASE_REF,
@@ -113,8 +108,27 @@ const listUpstreamOwnedPackageSourceFiles = ({
     );
   }
   const candidateFiles = files ?? listPackageSourceFiles(rootDir, headRef);
+  // Reuse divergence's immutable identity projection. A rename cannot turn an
+  // existing native source into a fork-owned source by changing its filename.
+  const { ownership } = buildProvenanceOwnership({
+    rootDir,
+    auditedBaseRef: resolvedBase,
+    upstreamRef: headRef ?? 'HEAD',
+    pathspec: ['packages'],
+  });
   const ownedFiles = new Set(listPackageSourceFiles(rootDir, resolvedBase));
-  return candidateFiles.filter(file => ownedFiles.has(file));
+  if (!headRef) {
+    const changes = runGit({
+      rootDir,
+      args: ['diff', '--name-status', '-z', '-M', 'HEAD', '--', 'packages'],
+    }).stdout;
+    for (const { status, oldPath, newPath } of parseNameStatus(changes)) {
+      if (status.startsWith('R') && ownership.has(oldPath)) {
+        ownership.set(newPath, ownership.get(oldPath));
+      }
+    }
+  }
+  return candidateFiles.filter(file => ownedFiles.has(ownership.get(file)));
 };
 
 const findDenylistMatches = ({ specifier, denylist = DEFAULT_DENYLIST }) => {
@@ -131,27 +145,6 @@ const NATIVE_REQUEST_BINDINGS = new Set([
   'configure',
   'createRequest',
   'createUploader',
-]);
-// Six audited native files plus the reviewed native factory/header extraction.
-// This is classification evidence, not a divergence budget or semantic proof.
-const NATIVE_REQUEST_SOURCE_FILES = new Set([
-  'browser.ts',
-  'node.ts',
-  'types.ts',
-  'handleRes.ts',
-  'utiles.ts',
-  'qs.ts',
-  'headers.ts',
-  'requestFactory.ts',
-]);
-const NATIVE_REQUEST_DEPENDENCIES = new Set([
-  '@modern-js/runtime-utils',
-  '@modern-js/types',
-  '@modern-js/utils',
-  '@swc/helpers',
-  'encoding',
-  'path-to-regexp',
-  'qs',
 ]);
 const NATIVE_REQUEST_TYPES = new Set([
   'RequestOptions',
@@ -370,6 +363,11 @@ const containsRetiredRequestPolicy = ast => {
 const isRecord = value =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
 
+const hasKeys = (value, keys) =>
+  isRecord(value) &&
+  Object.keys(value).length === keys.length &&
+  keys.every(key => Object.hasOwn(value, key));
+
 const stringLeaves = value => {
   if (typeof value === 'string') return [value];
   if (!isRecord(value) && !Array.isArray(value)) return [null];
@@ -377,23 +375,14 @@ const stringLeaves = value => {
   return children.length > 0 ? children.flatMap(stringLeaves) : [null];
 };
 
-const isNativeCreateRequestSurface = ({ manifest, sources }) => {
+const isNativeCreateRequestSurface = ({ manifest, sources }, native) => {
   if (!isRecord(manifest) || manifest.name !== NATIVE_REQUEST_SPECIFIER) {
     return false;
   }
   if (
-    !isRecord(manifest.exports) ||
-    JSON.stringify(Object.keys(manifest.exports).sort()) !==
-      JSON.stringify(['.', './client', './server'])
-  ) {
-    return false;
-  }
-  if (
-    !isRecord(manifest.typesVersions) ||
-    Object.keys(manifest.typesVersions).length !== 1 ||
-    !isRecord(manifest.typesVersions['*']) ||
-    JSON.stringify(Object.keys(manifest.typesVersions['*']).sort()) !==
-      JSON.stringify(['.', 'client', 'server'])
+    !hasKeys(manifest.exports, ['.', './client', './server']) ||
+    !hasKeys(manifest.typesVersions, ['*']) ||
+    !hasKeys(manifest.typesVersions['*'], ['.', 'client', 'server'])
   ) {
     return false;
   }
@@ -425,7 +414,7 @@ const isNativeCreateRequestSurface = ({ manifest, sources }) => {
       (!isRecord(manifest[field]) ||
         Object.entries(manifest[field]).some(
           ([name, range]) =>
-            !NATIVE_REQUEST_DEPENDENCIES.has(name) ||
+            !native.dependencies.has(name) ||
             typeof range !== 'string' ||
             (range.includes(':') && !range.startsWith('workspace:')),
         ))
@@ -438,7 +427,7 @@ const isNativeCreateRequestSurface = ({ manifest, sources }) => {
     !['node.ts', 'browser.ts', 'types.ts'].every(file =>
       Object.hasOwn(sources, file),
     ) ||
-    Object.keys(sources).some(file => !NATIVE_REQUEST_SOURCE_FILES.has(file))
+    Object.keys(sources).some(file => !native.sources.has(file))
   ) {
     return false;
   }
@@ -463,7 +452,7 @@ const isNativeCreateRequestSurface = ({ manifest, sources }) => {
           ? specifier.split('/').slice(0, 2).join('/')
           : specifier.split('/')[0];
         if (
-          !NATIVE_REQUEST_DEPENDENCIES.has(dependency) &&
+          !native.dependencies.has(dependency) &&
           specifier !== 'http' &&
           specifier !== 'node:http'
         ) {
@@ -556,16 +545,36 @@ const readNativeRequestTarget = ({ rootDir, headRef }) => {
 
 const isNativeCreateRequestPackage = ({ rootDir, baseRef, headRef }) => {
   try {
-    const baseManifest = JSON.parse(
-      runGit({
-        rootDir,
-        args: ['show', `${baseRef}:${NATIVE_REQUEST_PACKAGE}/package.json`],
-      }).stdout,
-    );
+    const base = readNativeRequestTarget({ rootDir, headRef: baseRef });
+    const dependencies = new Set(Object.keys(base.manifest.dependencies));
+    for (const [file, content] of Object.entries(base.sources)) {
+      const ast = parseSourceAst(content, file);
+      if (!ast) return false;
+      for (const { specifier } of collectModuleReferences(ast)) {
+        if (specifier && !specifier.startsWith('.')) {
+          const dependency = specifier.startsWith('@')
+            ? specifier.split('/').slice(0, 2).join('/')
+            : specifier.split('/')[0];
+          if (Object.hasOwn(base.manifest.devDependencies ?? {}, dependency))
+            dependencies.add(dependency);
+        }
+      }
+    }
+    // Only the reviewed neutral factory/header extraction extends native source
+    // identity; arbitrary new files never inherit a package-wide exemption.
+    const native = {
+      dependencies,
+      sources: new Set([
+        ...Object.keys(base.sources),
+        'headers.ts',
+        'requestFactory.ts',
+      ]),
+    };
     return (
-      baseManifest.name === NATIVE_REQUEST_SPECIFIER &&
+      base.manifest.name === NATIVE_REQUEST_SPECIFIER &&
       isNativeCreateRequestSurface(
         readNativeRequestTarget({ rootDir, headRef }),
+        native,
       )
     );
   } catch {
@@ -844,8 +853,6 @@ module.exports = {
   listPackageSourceFiles,
   listUpstreamOwnedPackageSourceFiles,
   isNativeCreateRequestPackage,
-  isNativeCreateRequestSurface,
-  pathExistsAtRef,
   readAllowlist,
   scanUpstreamOwnedForkImports,
   writeAllowlist,

@@ -9,32 +9,66 @@ const JS_OR_TS_EXTS = [
   '.mts',
   '.cjs',
   '.cts',
-] as const;
+];
 
-export function resolveEffectEntryFile(options: {
+export const emittedEffectEntry = (entry: string) =>
+  entry.replace(/\.(?:[cm]?ts|tsx|jsx)$/u, '.js');
+
+export function relativeEffectAppPath(appDir: string, entry: string) {
+  const relative = path.relative(appDir, entry);
+  return relative === '..' ||
+    relative.startsWith('../') ||
+    relative.split('/').includes('node_modules')
+    ? undefined
+    : relative;
+}
+
+function existingEntry(entry: string): string | undefined {
+  return path.extname(entry)
+    ? fs.existsSync(entry)
+      ? entry
+      : undefined
+    : findExists(JS_OR_TS_EXTS.map(ext => `${entry}${ext}`)) || undefined;
+}
+
+type EffectEntryOptions = {
   appDir: string;
   apiDir: string;
   effectEntry?: string;
-}): string | undefined {
-  const { appDir, apiDir, effectEntry } = options;
+};
+export type EffectEntry =
+  | { kind: 'app-source'; path: string | undefined }
+  | { kind: 'built-output'; path: string | undefined }
+  | { kind: 'external-sdk'; path: string | undefined };
 
-  const resolveEntry = (entryWithoutExt: string) => {
-    if (path.extname(entryWithoutExt) !== '') {
-      return fs.existsSync(entryWithoutExt) ? entryWithoutExt : undefined;
-    }
-
-    return (
-      findExists(JS_OR_TS_EXTS.map(ext => `${entryWithoutExt}${ext}`)) ||
-      undefined
-    );
-  };
-
-  if (effectEntry !== undefined && effectEntry !== '') {
-    const entryWithoutExt = path.isAbsolute(effectEntry)
-      ? effectEntry
-      : path.resolve(appDir, effectEntry);
-    return resolveEntry(entryWithoutExt);
+/** Classify ownership before resolving files: production works without source. */
+export function resolveEffectEntry(
+  options: EffectEntryOptions & { distDir?: string },
+): EffectEntry {
+  const { appDir, apiDir, effectEntry, distDir } = options;
+  const entry = path.resolve(appDir, effectEntry || path.join(apiDir, 'index'));
+  if (distDir && relativeEffectAppPath(distDir, entry) !== undefined) {
+    return {
+      kind: 'built-output',
+      path: existingEntry(emittedEffectEntry(entry)),
+    };
   }
+  const relative = relativeEffectAppPath(appDir, entry);
+  if (relative === undefined) {
+    return { kind: 'external-sdk', path: existingEntry(entry) };
+  }
+  return distDir
+    ? {
+        kind: 'built-output',
+        path: existingEntry(
+          emittedEffectEntry(path.resolve(distDir, relative)),
+        ),
+      }
+    : { kind: 'app-source', path: existingEntry(entry) };
+}
 
-  return resolveEntry(path.resolve(apiDir, 'index'));
+export function resolveEffectEntryFile(
+  options: EffectEntryOptions,
+): string | undefined {
+  return resolveEffectEntry(options).path;
 }

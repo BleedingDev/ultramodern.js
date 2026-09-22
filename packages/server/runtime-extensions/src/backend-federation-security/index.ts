@@ -387,193 +387,192 @@ const sha256Hex = async (
   );
 };
 
+/** One deadline owns fetch, body acquisition and policy verification. */
+async function acquireBackendFederationResource(
+  requestedUrl: URL,
+  options: BackendFederationResourcePolicy,
+  policy: {
+    label: string;
+    maxBytes: number;
+    exactByteLength?: number;
+    verify?: (
+      bytes: Uint8Array<ArrayBuffer>,
+      signal: AbortSignal,
+    ) => Promise<void>;
+  },
+): Promise<Uint8Array<ArrayBuffer>> {
+  const { label, maxBytes, exactByteLength } = policy;
+  const timeoutMs = options.timeoutMs ?? DEFAULT_ENTRY_TIMEOUT_MS;
+  if (
+    !Number.isSafeInteger(maxBytes) ||
+    maxBytes <= 0 ||
+    !Number.isSafeInteger(timeoutMs) ||
+    timeoutMs < 0
+  ) {
+    throw new BackendFederationRemoteEntryError(
+      'invalid_verification',
+      '[Module Federation] Resource maxBytes must be a positive safe integer and timeoutMs a non-negative safe integer.',
+    );
+  }
+  if (exactByteLength !== undefined && exactByteLength > maxBytes) {
+    throw new BackendFederationRemoteEntryError(
+      'entry_too_large',
+      `[Module Federation] ${label} exceeds the ${maxBytes}-byte policy limit.`,
+    );
+  }
+  const controller = new AbortController();
+  let timedOut = false;
+  const onCallerAbort = () => controller.abort(options.signal?.reason);
+  if (options.signal?.aborted) onCallerAbort();
+  else options.signal?.addEventListener('abort', onCallerAbort, { once: true });
+  const timeout =
+    timeoutMs > 0
+      ? setTimeout(() => {
+          timedOut = true;
+          controller.abort(
+            new Error(`${label} timed out after ${timeoutMs}ms`),
+          );
+        }, timeoutMs)
+      : undefined;
+  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+  let response: BackendFederationResourceResponse | undefined;
+  try {
+    const fetchResource = options.fetch ?? globalThis.fetch;
+    if (controller.signal.aborted) throw controller.signal.reason;
+    if (typeof fetchResource !== 'function')
+      throw new Error('Loading requires fetch.');
+    response = await readWithAbort(
+      fetchResource(requestedUrl.href, {
+        cache: 'no-store',
+        redirect: 'error',
+        signal: controller.signal,
+      }),
+      controller.signal,
+    );
+    if (!response.ok) {
+      throw new BackendFederationRemoteEntryError(
+        'fetch_failed',
+        `[Module Federation] ${label} returned HTTP ${response.status}.`,
+      );
+    }
+    if (
+      response.url &&
+      canonicalEntryUrl(response.url).href !== requestedUrl.href
+    ) {
+      throw new BackendFederationRemoteEntryError(
+        'redirect_mismatch',
+        `[Module Federation] ${label} redirected outside its trusted URL.`,
+        {
+          details: {
+            expected: redactBackendFederationUrl(requestedUrl.href),
+            received: redactBackendFederationUrl(response.url),
+          },
+        },
+      );
+    }
+    const contentLength = parseContentLength(
+      response.headers?.get('content-length') ?? null,
+    );
+    const byteLimit = exactByteLength ?? maxBytes;
+    if (contentLength !== undefined && contentLength > maxBytes) {
+      throw new BackendFederationRemoteEntryError(
+        'entry_too_large',
+        `[Module Federation] ${label} declares ${contentLength} bytes, exceeding its ${maxBytes}-byte policy limit.`,
+      );
+    }
+    // Executable entries use trusted preallocation; generic resources collect
+    // bounded chunks and may use a text-only platform response.
+    const exactBytes =
+      exactByteLength === undefined
+        ? undefined
+        : new Uint8Array(exactByteLength);
+    const chunks: Uint8Array[] = [];
+    let byteLength = 0;
+    const append = (chunk: Uint8Array) => {
+      if (byteLength + chunk.byteLength > byteLimit) {
+        throw new BackendFederationRemoteEntryError(
+          'entry_too_large',
+          `[Module Federation] ${label} exceeded its ${byteLimit}-byte limit while streaming.`,
+        );
+      }
+      if (exactBytes) exactBytes.set(chunk, byteLength);
+      else chunks.push(chunk);
+      byteLength += chunk.byteLength;
+    };
+    if (response.body) {
+      reader = response.body.getReader();
+      while (true) {
+        const result = await readWithAbort(reader.read(), controller.signal);
+        if (result.done) break;
+        append(result.value);
+      }
+    } else if (exactByteLength === undefined && response.text) {
+      append(
+        new TextEncoder().encode(
+          await readWithAbort(response.text(), controller.signal),
+        ),
+      );
+    }
+    if (exactByteLength !== undefined && byteLength !== exactByteLength) {
+      throw new BackendFederationRemoteEntryError(
+        'byte_length_mismatch',
+        `[Module Federation] ${label} byte length mismatch.`,
+        {
+          details: { expected: exactByteLength, received: byteLength },
+        },
+      );
+    }
+    const bytes = exactBytes ?? new Uint8Array(byteLength);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    if (controller.signal.aborted) throw controller.signal.reason;
+    if (policy.verify)
+      await readWithAbort(
+        policy.verify(bytes, controller.signal),
+        controller.signal,
+      );
+    return bytes;
+  } catch (cause) {
+    const cancelled = controller.signal.aborted;
+    controller.abort(cause);
+    // A noncooperative stream's cancellation must not extend the deadline.
+    if (reader) void reader.cancel(cause).catch(() => undefined);
+    else if (response?.body)
+      void response.body.cancel(cause).catch(() => undefined);
+    if (cancelled) {
+      throw new BackendFederationRemoteEntryError(
+        timedOut ? 'timeout' : 'aborted',
+        timedOut
+          ? `[Module Federation] ${label} timed out after ${timeoutMs}ms.`
+          : `[Module Federation] ${label} loading was aborted.`,
+        { cause },
+      );
+    }
+    if (cause instanceof BackendFederationRemoteEntryError) throw cause;
+    throw new BackendFederationRemoteEntryError(
+      'fetch_failed',
+      `[Module Federation] ${label} loading failed.`,
+      { cause },
+    );
+  } finally {
+    if (timeout) clearTimeout(timeout);
+    options.signal?.removeEventListener('abort', onCallerAbort);
+  }
+}
+
 export async function loadBoundedBackendFederationResource(
   resourceUrl: string,
   options: LoadBoundedBackendFederationResourceOptions = {},
 ) {
   const requestedUrl = canonicalEntryUrl(resourceUrl);
   assertAllowedEntryUrl(requestedUrl, options.allowInsecureHttp === true);
-  const maxBytes = options.maxBytes ?? DEFAULT_MAX_RESOURCE_BYTES;
-  if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) {
-    throw new BackendFederationRemoteEntryError(
-      'invalid_verification',
-      '[Module Federation] Backend federation resource maxBytes must be a positive safe integer.',
-    );
-  }
-  const timeoutMs = options.timeoutMs ?? DEFAULT_ENTRY_TIMEOUT_MS;
-  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 0) {
-    throw new BackendFederationRemoteEntryError(
-      'invalid_verification',
-      '[Module Federation] Backend federation resource timeoutMs must be a non-negative safe integer.',
-    );
-  }
-
-  const controller = new AbortController();
-  let timedOut = false;
-  let callerAborted = false;
-  const onCallerAbort = () => {
-    callerAborted = true;
-    controller.abort(options.signal?.reason);
-  };
-  if (options.signal?.aborted) {
-    onCallerAbort();
-  } else {
-    options.signal?.addEventListener('abort', onCallerAbort, { once: true });
-  }
-  const timeout =
-    timeoutMs > 0
-      ? setTimeout(() => {
-          timedOut = true;
-          controller.abort(
-            new Error(
-              `Backend federation ${options.kind ?? 'manifest'} timed out after ${timeoutMs}ms`,
-            ),
-          );
-        }, timeoutMs)
-      : undefined;
-  const fetchResource =
-    options.fetch ??
-    (globalThis.fetch as BackendFederationResourceFetch | undefined);
-  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
-  const resourceKind = options.kind ?? 'manifest';
-  const cancellationError = (cause?: unknown) =>
-    new BackendFederationRemoteEntryError(
-      timedOut ? 'timeout' : 'aborted',
-      timedOut
-        ? `[Module Federation] Backend federation ${resourceKind} timed out after ${timeoutMs}ms.`
-        : `[Module Federation] Backend federation ${resourceKind} loading was aborted.`,
-      { cause },
-    );
-
-  try {
-    if (controller.signal.aborted) {
-      throw cancellationError(controller.signal.reason);
-    }
-    if (typeof fetchResource !== 'function') {
-      throw new BackendFederationRemoteEntryError(
-        'fetch_failed',
-        `[Module Federation] Backend federation ${resourceKind} loading requires fetch.`,
-      );
-    }
-
-    let response: BackendFederationResourceResponse;
-    try {
-      response = await readWithAbort(
-        fetchResource(requestedUrl.href, {
-          cache: 'no-store',
-          redirect: 'error',
-          signal: controller.signal,
-        }),
-        controller.signal,
-      );
-    } catch (cause) {
-      if (controller.signal.aborted) {
-        throw cancellationError(cause);
-      }
-      throw new BackendFederationRemoteEntryError(
-        'fetch_failed',
-        `[Module Federation] Failed to fetch backend federation ${resourceKind}.`,
-        { cause },
-      );
-    }
-    if (!response.ok) {
-      throw new BackendFederationRemoteEntryError(
-        'fetch_failed',
-        `[Module Federation] Backend federation ${resourceKind} returned HTTP ${response.status}.`,
-      );
-    }
-    if (response.url) {
-      const responseUrl = canonicalEntryUrl(response.url);
-      if (responseUrl.href !== requestedUrl.href) {
-        throw new BackendFederationRemoteEntryError(
-          'redirect_mismatch',
-          `[Module Federation] Backend federation ${resourceKind} redirected outside its trusted URL.`,
-          {
-            details: {
-              expected: redactBackendFederationUrl(requestedUrl.href),
-              received: redactBackendFederationUrl(responseUrl.href),
-            },
-          },
-        );
-      }
-    }
-
-    const contentLength = parseContentLength(
-      response.headers?.get('content-length') ?? null,
-    );
-    if (contentLength !== undefined && contentLength > maxBytes) {
-      controller.abort();
-      await response.body?.cancel().catch(() => undefined);
-      throw new BackendFederationRemoteEntryError(
-        'entry_too_large',
-        `[Module Federation] Backend federation ${resourceKind} declares ${contentLength} bytes, exceeding its ${maxBytes}-byte policy limit.`,
-      );
-    }
-
-    const chunks: Uint8Array[] = [];
-    let byteLength = 0;
-    if (response.body) {
-      reader = response.body.getReader();
-      while (true) {
-        const result = await readWithAbort(reader.read(), controller.signal);
-        if (result.done) {
-          break;
-        }
-        byteLength += result.value.byteLength;
-        if (byteLength > maxBytes) {
-          throw new BackendFederationRemoteEntryError(
-            'entry_too_large',
-            `[Module Federation] Backend federation ${resourceKind} exceeded its ${maxBytes}-byte limit while streaming.`,
-          );
-        }
-        chunks.push(result.value);
-      }
-    } else if (response.text) {
-      const bytes = new TextEncoder().encode(
-        await readWithAbort(response.text(), controller.signal),
-      );
-      if (bytes.byteLength > maxBytes) {
-        throw new BackendFederationRemoteEntryError(
-          'entry_too_large',
-          `[Module Federation] Backend federation ${resourceKind} exceeded its ${maxBytes}-byte limit.`,
-        );
-      }
-      chunks.push(bytes);
-      byteLength = bytes.byteLength;
-    }
-
-    const bytes = new Uint8Array(byteLength);
-    let offset = 0;
-    for (const chunk of chunks) {
-      bytes.set(chunk, offset);
-      offset += chunk.byteLength;
-    }
-    if (controller.signal.aborted) {
-      throw cancellationError(controller.signal.reason);
-    }
-    return bytes;
-  } catch (cause) {
-    if (!controller.signal.aborted) {
-      controller.abort(cause);
-    }
-    await reader?.cancel(cause).catch(() => undefined);
-    if (cause instanceof BackendFederationRemoteEntryError) {
-      throw cause;
-    }
-    if (timedOut || callerAborted) {
-      throw cancellationError(cause);
-    }
-    throw new BackendFederationRemoteEntryError(
-      'fetch_failed',
-      `[Module Federation] Backend federation ${resourceKind} loading failed.`,
-      { cause },
-    );
-  } finally {
-    if (timeout) {
-      clearTimeout(timeout);
-    }
-    options.signal?.removeEventListener('abort', onCallerAbort);
-  }
+  return acquireBackendFederationResource(requestedUrl, options, {
+    label: `Backend federation ${options.kind ?? 'manifest'}`,
+    maxBytes: options.maxBytes ?? DEFAULT_MAX_RESOURCE_BYTES,
+  });
 }
 
 export const evaluateBackendFederationCommonJsEntry = (
@@ -632,200 +631,34 @@ export async function loadVerifiedBackendFederationEntry(
     options.expected ?? {},
     options.allowInsecureHttp === true,
   );
-  const maxBytes = options.maxBytes ?? DEFAULT_MAX_ENTRY_BYTES;
-  if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) {
-    throw new BackendFederationRemoteEntryError(
-      'invalid_verification',
-      '[Module Federation] Backend remote entry maxBytes must be a positive safe integer.',
-    );
-  }
-  if (verification.byteLength > maxBytes) {
-    throw new BackendFederationRemoteEntryError(
-      'entry_too_large',
-      `[Module Federation] Backend remote entry exceeds the ${maxBytes}-byte policy limit.`,
-    );
-  }
-
-  const timeoutMs = options.timeoutMs ?? DEFAULT_ENTRY_TIMEOUT_MS;
-  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 0) {
-    throw new BackendFederationRemoteEntryError(
-      'invalid_verification',
-      '[Module Federation] Backend remote entry timeoutMs must be a non-negative safe integer.',
-    );
-  }
-  const controller = new AbortController();
-  let timedOut = false;
-  let callerAborted = false;
-  const onCallerAbort = () => {
-    callerAborted = true;
-    controller.abort(options.signal?.reason);
-  };
-  if (options.signal?.aborted) {
-    onCallerAbort();
-  } else {
-    options.signal?.addEventListener('abort', onCallerAbort, { once: true });
-  }
-  const timeout =
-    timeoutMs > 0
-      ? setTimeout(() => {
-          timedOut = true;
-          controller.abort(
-            new Error(`Backend remote entry timed out after ${timeoutMs}ms`),
-          );
-        }, timeoutMs)
-      : undefined;
-  const fetchEntry = options.fetch ?? globalThis.fetch;
-  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
-
-  const cancellationError = (cause?: unknown) =>
-    new BackendFederationRemoteEntryError(
-      timedOut ? 'timeout' : 'aborted',
-      timedOut
-        ? `[Module Federation] Backend remote ${options.remote.name} timed out after ${timeoutMs}ms.`
-        : `[Module Federation] Backend remote ${options.remote.name} loading was aborted.`,
-      { cause },
-    );
-
-  try {
-    if (controller.signal.aborted) {
-      throw cancellationError(controller.signal.reason);
-    }
-    if (typeof fetchEntry !== 'function') {
-      throw new BackendFederationRemoteEntryError(
-        'fetch_failed',
-        '[Module Federation] Backend remote entry loading requires fetch.',
-      );
-    }
-
-    let response: BackendFederationResourceResponse;
-    try {
-      response = await readWithAbort(
-        fetchEntry(requestedUrl.href, {
-          cache: 'no-store',
-          redirect: 'error',
-          signal: controller.signal,
-        }),
-        controller.signal,
-      );
-    } catch (cause) {
-      if (controller.signal.aborted) {
-        throw cancellationError(cause);
-      }
-      throw new BackendFederationRemoteEntryError(
-        'fetch_failed',
-        `[Module Federation] Failed to fetch backend remote ${options.remote.name}.`,
-        { cause },
-      );
-    }
-    if (!response.ok) {
-      throw new BackendFederationRemoteEntryError(
-        'fetch_failed',
-        `[Module Federation] Backend remote ${options.remote.name} returned HTTP ${response.status}.`,
-      );
-    }
-    if (response.url) {
-      const responseUrl = canonicalEntryUrl(response.url);
-      if (responseUrl.href !== requestedUrl.href) {
+  const bytes = await acquireBackendFederationResource(requestedUrl, options, {
+    label: `Backend remote ${options.remote.name}`,
+    maxBytes: options.maxBytes ?? DEFAULT_MAX_ENTRY_BYTES,
+    exactByteLength: verification.byteLength,
+    async verify(bytes, signal) {
+      const actualDigest = await sha256Hex(bytes, signal);
+      if (signal.aborted) throw signal.reason;
+      if (actualDigest !== verification.sha256) {
         throw new BackendFederationRemoteEntryError(
-          'redirect_mismatch',
-          `[Module Federation] Backend remote ${options.remote.name} redirected outside its verified entry URL.`,
+          'integrity_mismatch',
+          `[Module Federation] Backend remote ${options.remote.name} SHA-256 mismatch.`,
           {
-            details: {
-              expected: redactBackendFederationUrl(requestedUrl.href),
-              received: redactBackendFederationUrl(responseUrl.href),
-            },
+            details: { expected: verification.sha256, received: actualDigest },
           },
         );
       }
-    }
-
-    const contentLength = parseContentLength(
-      response.headers?.get('content-length') ?? null,
+    },
+  });
+  if (options.signal?.aborted) {
+    throw new BackendFederationRemoteEntryError(
+      'aborted',
+      `[Module Federation] Backend remote ${options.remote.name} loading was aborted.`,
+      { cause: options.signal.reason },
     );
-    const byteLimit = Math.min(maxBytes, verification.byteLength);
-    if (contentLength !== undefined && contentLength > maxBytes) {
-      controller.abort();
-      await response.body?.cancel().catch(() => undefined);
-      throw new BackendFederationRemoteEntryError(
-        'entry_too_large',
-        `[Module Federation] Backend remote ${options.remote.name} declares ${contentLength} bytes, exceeding its ${maxBytes}-byte policy limit.`,
-      );
-    }
-
-    reader = response.body?.getReader();
-    const bytes = new Uint8Array(verification.byteLength);
-    let byteLength = 0;
-    if (reader) {
-      while (true) {
-        const result = await readWithAbort(reader.read(), controller.signal);
-        if (result.done) {
-          break;
-        }
-        const nextByteLength = byteLength + result.value.byteLength;
-        if (nextByteLength > byteLimit) {
-          throw new BackendFederationRemoteEntryError(
-            'entry_too_large',
-            `[Module Federation] Backend remote ${options.remote.name} exceeded its ${byteLimit}-byte limit while streaming.`,
-          );
-        }
-        bytes.set(result.value, byteLength);
-        byteLength = nextByteLength;
-      }
-    }
-
-    if (byteLength !== verification.byteLength) {
-      throw new BackendFederationRemoteEntryError(
-        'byte_length_mismatch',
-        `[Module Federation] Backend remote ${options.remote.name} byte length mismatch.`,
-        {
-          details: {
-            expected: verification.byteLength,
-            received: byteLength,
-          },
-        },
-      );
-    }
-    const actualDigest = await sha256Hex(bytes, controller.signal);
-    if (controller.signal.aborted) {
-      throw cancellationError(controller.signal.reason);
-    }
-    if (actualDigest !== verification.sha256) {
-      throw new BackendFederationRemoteEntryError(
-        'integrity_mismatch',
-        `[Module Federation] Backend remote ${options.remote.name} SHA-256 mismatch.`,
-        {
-          details: {
-            expected: verification.sha256,
-            received: actualDigest,
-          },
-        },
-      );
-    }
-
-    return evaluateBackendFederationCommonJsEntry(
-      options.remote,
-      bytes,
-      options.evaluateCommonJs,
-    );
-  } catch (cause) {
-    if (!controller.signal.aborted) {
-      controller.abort(cause);
-    }
-    await reader?.cancel(cause).catch(() => undefined);
-    if (
-      cause instanceof BackendFederationRemoteEntryError &&
-      !(cause.code === 'aborted' && timedOut)
-    ) {
-      throw cause;
-    }
-    if (controller.signal.aborted && (timedOut || callerAborted)) {
-      throw cancellationError(cause);
-    }
-    throw cause;
-  } finally {
-    if (timeout) {
-      clearTimeout(timeout);
-    }
-    options.signal?.removeEventListener('abort', onCallerAbort);
   }
+  return evaluateBackendFederationCommonJsEntry(
+    options.remote,
+    bytes,
+    options.evaluateCommonJs,
+  );
 }

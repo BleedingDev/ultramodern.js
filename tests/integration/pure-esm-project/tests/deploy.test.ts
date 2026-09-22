@@ -8,7 +8,7 @@ import {
 } from '../../../utils/modernTestUtils';
 
 const sourceAppDir = path.resolve(__dirname, '../');
-const ensureWorkspacePackages = [
+const requiredWorkspacePackages = [
   '@modern-js/app-tools',
   '@modern-js/plugin-bff',
   '@modern-js/server-utils',
@@ -81,7 +81,7 @@ describe('deploy', () => {
         TEST_DIST: 'dist-deploy',
         TEST_BUNDLE_SERVER: 'false',
       },
-      ensureWorkspacePackages,
+      requiredWorkspacePackages,
     });
   });
 

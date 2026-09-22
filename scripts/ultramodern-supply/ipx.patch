@@ -1,0 +1,84 @@
+--- a/dist/cli.cjs
++++ b/dist/cli.cjs
+@@ -15,7 +15,7 @@
+ require('pathe');
+ 
+ const name = "ipx";
+-const version = "3.1.1";
++const version = "3.2.1";
+ const description = "High performance, secure and easy-to-use image optimizer.";
+ 
+ const serve = citty.defineCommand({
+--- a/dist/cli.mjs
++++ b/dist/cli.mjs
+@@ -13,7 +13,7 @@
+ import 'pathe';
+ 
+ const name = "ipx";
+-const version = "3.1.1";
++const version = "3.2.1";
+ const description = "High performance, secure and easy-to-use image optimizer.";
+ 
+ const serve = defineCommand({
+--- a/dist/shared/ipx.CXJeaylD.mjs
++++ b/dist/shared/ipx.CXJeaylD.mjs
+@@ -213,7 +213,27 @@
+ const sharpen = {
+   args: [VArg, VArg, VArg],
+   apply: (_context, pipe, sigma, flat, jagged) => {
+-    return pipe.sharpen(sigma, flat, jagged);
++    const sharpenArg = (value) => {
++      if (value === void 0 || value === null || value === "") {
++        return void 0;
++      }
++      const numeric = Number(value);
++      return Number.isNaN(numeric) ? void 0 : numeric;
++    };
++    const sharpenSigma = sharpenArg(sigma);
++    if (sharpenSigma === void 0) {
++      return pipe.sharpen();
++    }
++    const sharpenOptions = { sigma: sharpenSigma };
++    const sharpenM1 = sharpenArg(flat);
++    if (sharpenM1 !== void 0) {
++      sharpenOptions.m1 = sharpenM1;
++    }
++    const sharpenM2 = sharpenArg(jagged);
++    if (sharpenM2 !== void 0) {
++      sharpenOptions.m2 = sharpenM2;
++    }
++    return pipe.sharpen(sharpenOptions);
+   }
+ };
+ const median = {
+--- a/dist/shared/ipx.GUc23orS.cjs
++++ b/dist/shared/ipx.GUc23orS.cjs
+@@ -220,7 +220,27 @@
+ const sharpen = {
+   args: [VArg, VArg, VArg],
+   apply: (_context, pipe, sigma, flat, jagged) => {
+-    return pipe.sharpen(sigma, flat, jagged);
++    const sharpenArg = (value) => {
++      if (value === void 0 || value === null || value === "") {
++        return void 0;
++      }
++      const numeric = Number(value);
++      return Number.isNaN(numeric) ? void 0 : numeric;
++    };
++    const sharpenSigma = sharpenArg(sigma);
++    if (sharpenSigma === void 0) {
++      return pipe.sharpen();
++    }
++    const sharpenOptions = { sigma: sharpenSigma };
++    const sharpenM1 = sharpenArg(flat);
++    if (sharpenM1 !== void 0) {
++      sharpenOptions.m1 = sharpenM1;
++    }
++    const sharpenM2 = sharpenArg(jagged);
++    if (sharpenM2 !== void 0) {
++      sharpenOptions.m2 = sharpenM2;
++    }
++    return pipe.sharpen(sharpenOptions);
+   }
+ };
+ const median = {

@@ -116,17 +116,17 @@ not upgrade Sharp copies owned by other dependencies such as Miniflare.
 node packages/sidecar/rsbuild-image-core/scripts/verify-manifest.mjs
 ```
 
-No install and no network required. The script asserts manifest identity,
-byte-equal dependency ranges, deep-equal `exports`/peers, on-disk existence of
-every export target, the specifier audits described above, a byte-identical
-`diff -ru` against the upstream copy in the pnpm store (skipped when it is not
-installed), and that `npm pack --dry-run` ships every export subpath target.
+The verifier reconstructs the exact pinned upstream tarball and compares all runtime
+bytes, manifest contracts and the MIT license, then checks browser isolation and
+packed export targets. Missing upstream inputs and pack failures fail the check.
+It never discovers or trusts an incidental pnpm-store copy. See the
+[pinned recipes](../../../scripts/ultramodern-supply/README.md) for offline inputs.
 
 ## Re-vendoring
 
 1. Copy `dist/` and `LICENSE` verbatim from the new upstream release.
-2. Update `UPSTREAM_VERSION` and the `UPSTREAM_SNAPSHOT` literal in
-   `scripts/verify-manifest.mjs`.
+2. Update the upstream URL/integrity, version and allowed manifest changes in
+   `scripts/ultramodern-supply/sidecars.json`.
 3. Re-apply the `image-size` alias and patched Sharp peer floor, then bump this package's version.
 4. Run the verifier; it will flag any newly introduced self-reference,
    deep import, or Node dependency that leaked into `dist/shared/**`.

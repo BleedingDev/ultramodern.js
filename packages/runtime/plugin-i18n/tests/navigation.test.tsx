@@ -42,27 +42,30 @@ function createI18nInstance(language = 'en'): I18nInstance {
   };
 }
 
-/** A TanStack-shaped router whose location store can be republished. */
+/** A provider capability whose location can be republished. */
 function createMutableTanstackRouter(pathname: string) {
-  let location = { pathname, searchStr: '', hash: '' };
-  let matches = [{ params: { lang: pathname.split('/')[1] ?? '' } }];
+  let snapshot = {
+    location: { pathname, search: '', hash: '' },
+    params: { lang: pathname.split('/')[1] ?? '' },
+  };
   const listeners = new Set<() => void>();
 
   return {
     navigate: rstest.fn(async () => undefined),
-    stores: {
-      location: {
-        get: () => location,
-        subscribe: (listener: () => void) => {
-          listeners.add(listener);
-          return () => listeners.delete(listener);
-        },
+    navigation: {
+      getSnapshot: () => snapshot,
+      Link: TanstackLink,
+      navigate: rstest.fn(async () => undefined),
+      subscribe: (listener: () => void) => {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
       },
-      matches: { get: () => matches },
     },
     publishPathname(nextPathname: string) {
-      location = { pathname: nextPathname, searchStr: '', hash: '' };
-      matches = [{ params: { lang: nextPathname.split('/')[1] ?? '' } }];
+      snapshot = {
+        location: { pathname: nextPathname, search: '', hash: '' },
+        params: { lang: nextPathname.split('/')[1] ?? '' },
+      };
       for (const listener of listeners) {
         listener();
       }
@@ -129,6 +132,7 @@ function createTanstackRuntimeContext(
   applyRouterRuntimeState(runtimeContext, {
     framework: 'tanstack',
     instance: router,
+    navigation: router.navigation,
   } as any);
   return runtimeContext;
 }
@@ -270,7 +274,8 @@ describe('bare plugin-i18n navigation adapter', () => {
     await act(async () => {
       applyRouterRuntimeState(runtimeContext, {
         framework: 'tanstack',
-        instance: createMutableTanstackRouter('/en/terms-of-service'),
+        navigation: createMutableTanstackRouter('/en/terms-of-service')
+          .navigation,
       } as any);
     });
 
@@ -329,11 +334,44 @@ describe('bare plugin-i18n navigation adapter', () => {
     await act(async () => {
       applyRouterRuntimeState(runtimeContext, {
         framework: 'tanstack',
-        instance: createMutableTanstackRouter('/cs/obchodni-podminky'),
+        navigation: createMutableTanstackRouter('/cs/obchodni-podminky')
+          .navigation,
       } as any);
     });
 
     expect(anchor()?.getAttribute('data-router-link')).toBe('tanstack');
+  });
+
+  test('replaces providers and stops observing the previous router', async () => {
+    const first = createMutableTanstackRouter('/en/products/shoe');
+    const second = createMutableTanstackRouter('/cs/produkty/bota');
+    const runtimeContext = createTanstackRuntimeContext(first);
+    const App = () => {
+      const adapter = useIntegratedRouterAdapter();
+      return <span data-testid="path">{adapter.location?.pathname}</span>;
+    };
+    rendered = await renderBareRuntime(
+      App,
+      runtimeContext,
+      createI18nInstance('en'),
+    );
+    await act(async () => {
+      applyRouterRuntimeState(runtimeContext, {
+        framework: 'custom-provider',
+        navigation: second.navigation,
+      });
+    });
+    expect(
+      rendered.container.querySelector('[data-testid="path"]')?.textContent,
+    ).toBe('/cs/produkty/bota');
+    await act(async () => first.publishPathname('/en/stale'));
+    expect(
+      rendered.container.querySelector('[data-testid="path"]')?.textContent,
+    ).toBe('/cs/produkty/bota');
+    await act(async () => second.publishPathname('/en/current'));
+    expect(
+      rendered.container.querySelector('[data-testid="path"]')?.textContent,
+    ).toBe('/en/current');
   });
 
   test('follows the router location so the language tracks a client navigation', async () => {

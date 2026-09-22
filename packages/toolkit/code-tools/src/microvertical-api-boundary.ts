@@ -3,7 +3,6 @@ import path from 'node:path';
 import { parse } from '@babel/parser';
 import * as t from '@babel/types';
 import {
-  consumerParserPlugins,
   type MicroVerticalApiBaselineExpectation,
   microVerticalApiBaselineViolation,
 } from './microvertical-api-baseline';
@@ -11,6 +10,7 @@ import {
   baselinePackage,
   resolveBaselinePackageDirectory,
 } from './microvertical-api-owner';
+import { consumerParserPlugins } from './source-analysis';
 import {
   createEffectApiImportResolver,
   strictEffectRuntimeTopologyViolation,

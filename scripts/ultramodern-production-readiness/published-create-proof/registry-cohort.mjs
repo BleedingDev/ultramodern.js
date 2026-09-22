@@ -1,6 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { computeTarballDigests } from '../../ultramodern-publish/lib/source-create-proof/release-manifest.mjs';
+import {
+  assertRegistryDistMatches,
+  assertRegistryTarballBytes,
+  mapWithConcurrency,
+  resolveRegistryPackageDist,
+} from '../../ultramodern-publish/lib/prepare-bleedingdev-packages/registry-read.mjs';
 import { runAsync } from './process.mjs';
 
 function parseJsonOutput(output, label) {
@@ -15,12 +20,6 @@ function parseJsonOutput(output, label) {
   }
 }
 
-function assertEqual(actual, expected, label) {
-  if (actual !== expected) {
-    throw new Error(`${label}: expected ${expected}, found ${actual}`);
-  }
-}
-
 async function verifyRegistryCohort({
   release,
   registryUrl,
@@ -31,7 +30,7 @@ async function verifyRegistryCohort({
   const downloadsDir = path.join(workDir, 'registry-downloads');
   fs.mkdirSync(downloadsDir, { recursive: true });
 
-  async function verifyPackage(item, index) {
+  async function verifyPackage(item) {
     const specifier = `${item.targetName}@${item.version}`;
     const packageDir = path.join(downloadsDir, item.sha256.slice(0, 16));
     fs.mkdirSync(packageDir, { recursive: true });
@@ -60,41 +59,23 @@ async function verifyRegistryCohort({
         `${specifier} downloaded tarball is missing: ${downloadedTarball}`,
       );
     }
-    const downloaded = computeTarballDigests(downloadedTarball);
-    assertEqual(
-      downloaded.sha256,
-      item.sha256,
-      `${specifier} downloaded sha256 mismatch`,
+    const downloaded = assertRegistryTarballBytes(
+      item,
+      fs.readFileSync(downloadedTarball),
     );
-    assertEqual(
-      downloaded.shasum,
-      item.shasum,
-      `${specifier} downloaded shasum mismatch`,
+    const dist = await resolveRegistryPackageDist(
+      item.targetName,
+      item.version,
+      {
+        registryUrl,
+        cwd: packageDir,
+        env,
+        run: async (...args) => ({ stdout: await runImpl(...args) }),
+      },
     );
-    assertEqual(
-      downloaded.integrity,
-      item.integrity,
-      `${specifier} downloaded integrity mismatch`,
-    );
+    assertRegistryDistMatches(item, dist);
 
-    const distOutput = await runImpl(
-      'npm',
-      ['view', specifier, 'dist', '--json', '--registry', registryUrl],
-      { cwd: packageDir, env, stdio: 'pipe' },
-    );
-    const dist = parseJsonOutput(distOutput, `npm view ${specifier} dist`);
-    assertEqual(
-      dist.integrity,
-      item.integrity,
-      `${specifier} registry metadata integrity mismatch`,
-    );
-    assertEqual(
-      dist.shasum,
-      item.shasum,
-      `${specifier} registry metadata shasum mismatch`,
-    );
-
-    results[index] = {
+    return {
       sourceName: item.sourceName,
       targetName: item.targetName,
       version: item.version,
@@ -104,40 +85,8 @@ async function verifyRegistryCohort({
     };
   }
 
-  const results = new Array(release.packages.length);
-  const failures = new Array(release.packages.length);
-  let nextIndex = 0;
-  // Workers never reject: every dispatched lane settles before the join, so
-  // no npm child outlives a thrown verification failure — the caller's
-  // finally removes workDir (downloadsDir lives under it) immediately after.
-  async function worker() {
-    while (nextIndex < release.packages.length) {
-      const index = nextIndex;
-      nextIndex += 1;
-      try {
-        await verifyPackage(release.packages[index], index);
-      } catch (error) {
-        failures[index] = error;
-      }
-    }
-  }
-  // Concurrency 8, hardcoded: matches pnpm_config_network_concurrency '8'
-  // (acceptance-profile.mjs) that the same registry already survives during
-  // install. Not tunable — a tunable is an unreviewed path to a different
-  // receipt.
-  await Promise.all(
-    Array.from({ length: Math.min(8, release.packages.length) }, () =>
-      worker(),
-    ),
-  );
-  const firstFailure = failures.find(Boolean);
-  if (firstFailure) {
-    // Lowest release.packages index, so receipt.error is reproducible.
-    throw firstFailure;
-  }
-  if (results.some(entry => entry === undefined)) {
-    throw new Error('Registry cohort verification left an unfilled slot');
-  }
+  // Read-only workers drain before workDir cleanup, even when one fails.
+  const results = await mapWithConcurrency(release.packages, 8, verifyPackage);
 
   return {
     packageCount: results.length,

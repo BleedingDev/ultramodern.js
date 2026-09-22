@@ -1,25 +1,22 @@
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
-import { materializeGeneratedWorkspaceDependencies } from '../../../utils/generatedWorkspaceDependencies';
+import {
+  generatedModernBin,
+  installPackedGenerator,
+  materializeGeneratedWorkspaceDependencies,
+} from '../../../utils/generatedWorkspaceDependencies';
 import { modernBuild } from '../../../utils/modernTestUtils';
+import { setSuiteTimeout } from '../../../utils/setSuiteTimeout';
+
+setSuiteTimeout(600_000);
 
 const repoRoot = path.resolve(__dirname, '../../../../');
-const createBin = path.resolve(
-  repoRoot,
-  'packages/toolkit/ultramodern-create/bin/run.js',
-);
+let createBin: string;
 const testFrameworkVersion = '3.2.0-ultramodern.108';
 const frameworkVersionEnv = 'ULTRAMODERN_CREATE_FRAMEWORK_VERSION';
-const generatedBuildPackages = [
-  '@modern-js/app-tools',
-  '@modern-js/plugin-bff',
-  '@modern-js/plugin-i18n',
-  '@modern-js/plugin-tanstack',
-  '@modern-js/runtime',
-  '@modern-js/runtime-extensions',
-];
 const bleedingDevAliases: Record<string, string> = {
   '@modern-js/app-tools': '@bleedingdev/modern-js-app-tools',
   '@modern-js/plugin-bff': '@bleedingdev/modern-js-plugin-bff',
@@ -51,34 +48,36 @@ function differentUltramodernVersion(version: string) {
   return match[1] + (Number(match[2]) + 1);
 }
 
-function runCreate(projectDir: string, args: string[]) {
-  execFileSync(process.execPath, [createBin, projectDir, ...args], {
-    cwd: repoRoot,
-    env: {
-      ...process.env,
-      [frameworkVersionEnv]: testFrameworkVersion,
-      FORCE_COLOR: '0',
+function runCreate(projectDir: string, args: string[], bin = createBin) {
+  const packageSourceArgs =
+    bin === createBin ? ['--ultramodern-package-source', 'workspace'] : [];
+  execFileSync(
+    process.execPath,
+    [bin, projectDir, ...packageSourceArgs, ...args],
+    {
+      cwd: repoRoot,
+      env: {
+        ...process.env,
+        [frameworkVersionEnv]: testFrameworkVersion,
+        FORCE_COLOR: '0',
+      },
+      stdio: 'pipe',
     },
-    stdio: 'pipe',
-  });
+  );
 }
 
-function captureCreateFailure(projectDir: string, args: string[]) {
+function captureCreateFailure(
+  projectDir: string,
+  args: string[],
+  bin = createBin,
+) {
   try {
-    runCreate(projectDir, args);
+    runCreate(projectDir, args, bin);
   } catch (error) {
     const stderr = (error as ExecSyncError).stderr;
     return typeof stderr === 'string' ? stderr : stderr?.toString() || '';
   }
   throw new Error(`Expected create to reject: ${args.join(' ')}`);
-}
-
-function generatedToolEnv(env: Record<string, string | undefined> = {}) {
-  return {
-    ...process.env,
-    ULTRAMODERN_CREATE_BIN: createBin,
-    ...env,
-  };
 }
 
 function readText(root: string, relativePath: string) {
@@ -98,10 +97,17 @@ function writeText(root: string, relativePath: string, content: string) {
 function runWorkspaceValidator(workspaceDir: string) {
   return execFileSync(
     process.execPath,
-    ['scripts/validate-ultramodern-workspace.mts'],
+    [
+      path.join(
+        workspaceDir,
+        'node_modules/@modern-js/ultramodern-create/bin/run.js',
+      ),
+      'ultramodern',
+      'validate',
+    ],
     {
       cwd: workspaceDir,
-      env: generatedToolEnv(),
+      env: process.env,
       stdio: 'pipe',
     },
   ).toString();
@@ -124,6 +130,7 @@ describe('create-ultramodern-workspace', () => {
     tempRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), 'modern-create-ultramodern-workspace-'),
     );
+    createBin = installPackedGenerator(tempRoot);
   });
 
   afterAll(() => {
@@ -136,75 +143,118 @@ describe('create-ultramodern-workspace', () => {
     const workspaceDir = path.join(tempRoot, 'ultra-workspace');
     fs.rmSync(workspaceDir, { recursive: true, force: true });
     runCreate(workspaceDir, ['--no-tailwind', '--lang', 'en']);
-    const cleanupDependencies =
-      materializeGeneratedWorkspaceDependencies(workspaceDir);
-    try {
-      const buildResult = await modernBuild(
-        path.join(workspaceDir, 'apps/shell-super-app'),
-        [],
-        {
-          ensureWorkspacePackages: generatedBuildPackages,
-          stdout: false,
-          stderr: false,
-        },
-      );
-      expect(buildResult.code).toBe(0);
-      expectWorkspaceValidatorPass(workspaceDir);
+    materializeGeneratedWorkspaceDependencies(workspaceDir);
+    const shellRequire = createRequire(
+      path.join(workspaceDir, 'apps/shell-super-app/package.json'),
+    );
+    const installedRouter = execFileSync(
+      process.execPath,
+      ['-e', 'console.log(require.resolve("@modern-js/plugin-tanstack"))'],
+      { cwd: workspaceDir, encoding: 'utf8' },
+    ).trim();
+    expect(
+      fs
+        .realpathSync(installedRouter)
+        .startsWith(`${fs.realpathSync(workspaceDir)}${path.sep}`),
+    ).toBe(true);
+    // The old all-to-all links made undeclared framework packages available.
+    expect(() =>
+      shellRequire.resolve('@modern-js/plugin-data-loader/runtime'),
+    ).toThrow();
+    execFileSync(
+      process.execPath,
+      [
+        path.join(
+          workspaceDir,
+          'node_modules/@modern-js/ultramodern-create/bin/run.js',
+        ),
+        'ultramodern',
+        'routes-generate',
+      ],
+      {
+        cwd: workspaceDir,
+        env: process.env,
+        stdio: 'pipe',
+        timeout: 90_000,
+      },
+    );
+    expect(
+      fs.existsSync(
+        path.join(
+          workspaceDir,
+          'apps/shell-super-app/src/modern-tanstack/main/router.gen.ts',
+        ),
+      ),
+    ).toBe(true);
+    const buildResult = await modernBuild(
+      path.join(workspaceDir, 'apps/shell-super-app'),
+      [],
+      {
+        modernBin: generatedModernBin(
+          path.join(workspaceDir, 'apps/shell-super-app'),
+        ),
+        stdout: false,
+        stderr: false,
+      },
+    );
+    expect(buildResult.code).toBe(0);
+    expectWorkspaceValidatorPass(workspaceDir);
 
-      const shellPackagePath = 'apps/shell-super-app/package.json';
-      const originalShellPackage = readText(workspaceDir, shellPackagePath);
-      const mutatedShellPackage = JSON.parse(originalShellPackage);
-      mutatedShellPackage.dependencies['@modern-js/runtime'] =
-        expectedBleedingDevSpecifier(
-          '@modern-js/runtime',
-          differentUltramodernVersion(testFrameworkVersion),
-        );
-      writeText(
-        workspaceDir,
-        shellPackagePath,
-        `${JSON.stringify(mutatedShellPackage, null, 2)}\n`,
+    const shellPackagePath = 'apps/shell-super-app/package.json';
+    const originalShellPackage = readText(workspaceDir, shellPackagePath);
+    const mutatedShellPackage = JSON.parse(originalShellPackage);
+    mutatedShellPackage.dependencies['@modern-js/runtime'] =
+      expectedBleedingDevSpecifier(
+        '@modern-js/runtime',
+        differentUltramodernVersion(testFrameworkVersion),
       );
-      try {
-        runWorkspaceValidator(workspaceDir);
-        throw new Error(
-          'Expected workspace validator to reject a mixed Modern package cohort',
-        );
-      } catch (error) {
-        const execError = error as ExecSyncError & {
-          stdout?: Buffer | string;
-        };
-        const stdout =
-          typeof execError.stdout === 'string'
-            ? execError.stdout
-            : execError.stdout?.toString() || '';
-        const stderr =
-          typeof execError.stderr === 'string'
-            ? execError.stderr
-            : execError.stderr?.toString() || '';
-        expect(`${stdout}\n${stderr}`).toMatch(
-          /apps\/shell-super-app\/package\.json dependencies\.@modern-js\/runtime must match package source metadata/u,
-        );
-      } finally {
-        writeText(workspaceDir, shellPackagePath, originalShellPackage);
-      }
+    writeText(
+      workspaceDir,
+      shellPackagePath,
+      `${JSON.stringify(mutatedShellPackage, null, 2)}\n`,
+    );
+    try {
+      runWorkspaceValidator(workspaceDir);
+      throw new Error(
+        'Expected workspace validator to reject a mixed Modern package cohort',
+      );
+    } catch (error) {
+      const execError = error as ExecSyncError & {
+        stdout?: Buffer | string;
+      };
+      const stdout =
+        typeof execError.stdout === 'string'
+          ? execError.stdout
+          : execError.stdout?.toString() || '';
+      const stderr =
+        typeof execError.stderr === 'string'
+          ? execError.stderr
+          : execError.stderr?.toString() || '';
+      expect(`${stdout}\n${stderr}`).toMatch(
+        /apps\/shell-super-app\/package\.json dependencies\.@modern-js\/runtime must match package source metadata/u,
+      );
     } finally {
-      cleanupDependencies();
+      writeText(workspaceDir, shellPackagePath, originalShellPackage);
     }
   });
 
   test('rejects install-backed package source from a local source checkout', () => {
     const workspaceDir = path.join(tempRoot, 'ultra-install-workspace');
     fs.rmSync(workspaceDir, { recursive: true, force: true });
-    const stderr = captureCreateFailure(workspaceDir, [
-      '--ultramodern-package-source',
-      'install',
-      '--ultramodern-package-version',
-      '3.2.0-ultramodern.0',
-      '--ultramodern-package-registry',
-      'https://registry.example.test/',
-      '--lang',
-      'en',
-    ]);
+    const stderr = captureCreateFailure(
+      workspaceDir,
+      [
+        '--ultramodern-package-source',
+        'install',
+        '--ultramodern-package-version',
+        '3.2.0-ultramodern.0',
+        '--ultramodern-package-registry',
+        'https://registry.example.test/',
+        '--lang',
+        'en',
+      ],
+      path.join(repoRoot, 'packages/toolkit/ultramodern-create/bin/run.js'),
+    );
 
     expect(stderr).toContain(
       'local @modern-js/ultramodern-create source checkout cannot satisfy an explicit install',
@@ -367,7 +417,9 @@ export const entries = [
     execFileSync(
       process.execPath,
       [
-        'scripts/generate-public-surface-assets.mts',
+        createBin,
+        'ultramodern',
+        'public-surface',
         '--app',
         'shell-super-app',
         '--target',
@@ -377,7 +429,7 @@ export const entries = [
       {
         cwd: workspaceDir,
         env: {
-          ...generatedToolEnv(),
+          ...process.env,
           ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP: 'https://example.com',
         },
         stdio: 'pipe',
@@ -440,7 +492,9 @@ export const entries = [
     execFileSync(
       process.execPath,
       [
-        'scripts/generate-public-surface-assets.mts',
+        createBin,
+        'ultramodern',
+        'public-surface',
         '--app',
         'shell-super-app',
         '--target',
@@ -449,7 +503,7 @@ export const entries = [
       {
         cwd: workspaceDir,
         env: {
-          ...generatedToolEnv(),
+          ...process.env,
           MODERN_PUBLIC_SITE_URL: 'https://global.example/path-is-ignored',
           ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP:
             'https://per-app.example.workers.dev',

@@ -1,22 +1,18 @@
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { normalizeWorkspaceInputs } from '../ultramodern-tooling/config';
 import {
   DEVELOPMENT_OVERLAY_PATH,
   TOPOLOGY_PATH,
 } from './add-vertical/constants';
-import { createPrimaryShellDescriptor } from './add-vertical/preflight';
+import { readRequiredJsonObject } from './add-vertical/preflight';
+import { describeJsonChanges } from './add-vertical/preview';
 import { updateRootWorkspaceScripts } from './add-vertical/shell-files';
-import { verticalsFromTopology } from './add-vertical/topology';
 import { runWorkspaceTransaction } from './add-vertical/transaction';
 import {
   assertGlobalPortUniqueness,
-  configuredDevelopmentPorts,
-  existingBridgeConfig,
-  existingPackageSource,
-  existingTailwindEnabled,
   nextAvailablePort,
+  workspaceOperationSettings,
 } from './add-vertical/workspace-state';
 import {
   appEmitsBrowserUi,
@@ -24,11 +20,7 @@ import {
   shellApp,
   ULTRAMODERN_CONFIG_PATH,
 } from './descriptors';
-import {
-  formatGeneratedWorkspaceFiles,
-  readJsonFile,
-  writeJsonFile,
-} from './fs-io';
+import { formatGeneratedWorkspaceFiles, writeJsonFile } from './fs-io';
 import {
   createFileSnapshot,
   createGenerationResult,
@@ -42,7 +34,6 @@ import {
   createShellDescriptor,
   FIRST_ADDITIONAL_SHELL_PORT,
   PRIMARY_SHELL_ID,
-  resolveConfiguredAdditionalShells,
 } from './shells';
 import { createRootTsConfig } from './tsconfigs';
 import type {
@@ -52,14 +43,12 @@ import type {
   UltramodernVerticalPlan,
   WorkspaceApp,
 } from './types';
-import { isRecord } from './types';
-import { preserveConsumerWorkspaceArtifacts } from './workspace-artifact-ownership';
 import {
-  createPackagedWorkspaceValidationScript,
-  createWorkspaceScriptArtifacts,
-  createWorkspaceValidationScript,
-  writeGeneratedWorkspaceScripts,
-} from './workspace-scripts';
+  preserveConsumerWorkspaceArtifacts,
+  workspaceArtifactCandidates,
+  workspaceDevelopmentPorts,
+} from './workspace-artifact-ownership';
+import { writeGeneratedWorkspaceScripts } from './workspace-scripts';
 import { writeApp } from './write-app';
 import { createZeropsYaml } from './zerops';
 
@@ -69,27 +58,14 @@ type AddUltramodernShellPreflight = {
   overlayPath: string;
   config: Record<string, any>;
   overlay: Record<string, any>;
-  packageSource: ReturnType<typeof existingPackageSource>;
+  packageSource: ReturnType<typeof workspaceOperationSettings>['packageSource'];
   enableTailwind: boolean;
-  bridge: ReturnType<typeof existingBridgeConfig>;
+  bridge: ReturnType<typeof workspaceOperationSettings>['bridge'];
+  primaryShell: WorkspaceApp;
   existingVerticals: WorkspaceApp[];
   existingAdditionalShells: WorkspaceApp[];
   shell: WorkspaceApp;
-  composedVerticals: WorkspaceApp[];
 };
-
-function readRequiredJsonObject(filePath: string): Record<string, any> {
-  if (!fs.existsSync(filePath)) {
-    throw new Error(`Missing UltraModern workspace file: ${filePath}`);
-  }
-  const value = readJsonFile(filePath);
-  if (!isRecord(value)) {
-    throw new Error(
-      `UltraModern workspace file must contain a JSON object: ${filePath}`,
-    );
-  }
-  return value;
-}
 
 function prepareAddUltramodernShell(
   options: AddUltramodernShellOptions,
@@ -113,17 +89,27 @@ function prepareAddUltramodernShell(
   const scope = toPackageScope(
     String(rootPackage.name ?? path.basename(options.workspaceRoot)),
   );
-  const packageSource = existingPackageSource(
-    options.workspaceRoot,
-    options.modernVersion,
-    options.packageSource,
-  );
-  const enableTailwind =
-    options.enableTailwind ?? existingTailwindEnabled(options.workspaceRoot);
-  const bridge = existingBridgeConfig(options.workspaceRoot);
 
-  const existingVerticals = verticalsFromTopology(topology, overlay.ports);
-  const existingAdditionalShells = resolveConfiguredAdditionalShells(config);
+  const workspace = normalizeWorkspaceInputs(
+    options.workspaceRoot,
+    {
+      config,
+      topology,
+      overlay,
+    },
+    undefined,
+    { primaryComposition: 'compact' },
+  );
+  const { packageSource, enableTailwind, bridge } = workspaceOperationSettings(
+    options,
+    workspace.config,
+  );
+  const {
+    primaryShell: resolvedPrimaryShell,
+    verticals: existingVerticals,
+    additionalShells: existingAdditionalShells,
+  } = workspace;
+  const primaryShell = resolvedPrimaryShell!;
 
   const shellId = `shell-${name}`;
   if (
@@ -136,18 +122,9 @@ function prepareAddUltramodernShell(
     throw new Error(`Refusing to overwrite existing path: apps/${shellId}`);
   }
 
-  // Feed the primary shell's ACTUAL development port into the unified
-  // allocation set. Never clobber a customized overlay port with the hardcoded
-  // default (3020) — doing so would let a newly allocated additional shell
-  // collide with a primary shell that operators moved (e.g. to 3120). Fall back
-  // to the descriptor default only when the overlay does not record it.
-  const overlayPorts = overlay.ports ?? {};
   const portsWithPrimary = {
-    ...overlayPorts,
-    [shellApp.id]:
-      typeof overlayPorts[shellApp.id] === 'number'
-        ? overlayPorts[shellApp.id]
-        : shellApp.port,
+    ...overlay.ports,
+    [primaryShell.id]: primaryShell.port,
   };
   assertGlobalPortUniqueness(portsWithPrimary, existingAdditionalShells);
   const shell = createShellDescriptor(
@@ -197,10 +174,10 @@ function prepareAddUltramodernShell(
     packageSource,
     enableTailwind,
     bridge,
+    primaryShell,
     existingVerticals,
     existingAdditionalShells,
     shell,
-    composedVerticals,
   };
 }
 
@@ -236,38 +213,17 @@ function executeAddUltramodernShell(
     packageSource,
     enableTailwind,
     bridge,
+    primaryShell,
     existingVerticals,
     existingAdditionalShells,
     shell,
-    composedVerticals,
   } = preflight;
 
-  // Preserve the CONFIGURED primary descriptor (customized port/directory and
-  // its own composition refs) instead of rebuilding from static identity +
-  // every vertical. An EXPLICIT refs list is honored verbatim — including an
-  // intentionally empty one; only an unconfigured primary falls back to the
-  // UI-emitting default (G2a).
-  const configuredPrimary = createPrimaryShellDescriptor({}, config);
-  const primaryRefsConfigured = Array.isArray(
-    config.topology?.apps?.find(
-      (app: { id?: unknown }) => app?.id === shellApp.id,
-    )?.moduleFederation?.verticalRefs,
-  );
-  const primaryShell = {
-    ...configuredPrimary,
-    port:
-      typeof preflight.overlay.ports?.[configuredPrimary.id] === 'number'
-        ? preflight.overlay.ports[configuredPrimary.id]
-        : configuredPrimary.port,
-    verticalRefs: primaryRefsConfigured
-      ? configuredPrimary.verticalRefs
-      : existingVerticals.filter(appEmitsBrowserUi).map(v => v.id),
-  };
   const allAdditionalShells = [...existingAdditionalShells, shell];
-  const configuredDevPorts = configuredDevelopmentPorts(
-    { ...preflight.overlay.ports, [shell.id]: shell.port },
-    allAdditionalShells,
-  ).toSorted((left, right) => left - right);
+  const configuredDevPorts = workspaceDevelopmentPorts(
+    [primaryShell, ...existingVerticals, ...allAdditionalShells],
+    preflight.overlay.ports,
+  );
 
   const previousApps = [
     primaryShell,
@@ -277,83 +233,14 @@ function executeAddUltramodernShell(
   const compactWorkspace = normalizeWorkspaceInputs(options.workspaceRoot, {
     config,
   });
-  const previousDevPorts =
-    existingAdditionalShells.length > 0
-      ? previousApps
-          .map(app => app.port)
-          .toSorted((left, right) => left - right)
-      : undefined;
   const { io: ownedIo } = preserveConsumerWorkspaceArtifacts(
     options.workspaceRoot,
-    [
-      ...createWorkspaceScriptArtifacts({
-        shellOnly: existingVerticals.length === 0,
-        hasBackendSurface: existingVerticals.some(app => Boolean(app.api)),
-        validationScript: createWorkspaceValidationScript(
-          scope,
-          enableTailwind,
-          existingVerticals,
-        ),
-      }),
-      {
-        relativePath: 'scripts/validate-ultramodern-workspace.mts',
-        generatedDataBinding: 'workspaceValidationContract',
-        content: createPackagedWorkspaceValidationScript(
-          scope,
-          enableTailwind,
-          existingVerticals,
-          undefined,
-          existingAdditionalShells,
-          primaryShell,
-          undefined,
-          undefined,
-          undefined,
-          // The real workspace, not the staging copy: existing verticals keep
-          // their Module Federation configs there.
-          logicalWorkspaceRoot,
-        ),
-      },
-      {
-        relativePath: 'zerops.yaml',
-        content: `${createZeropsYaml(scope, previousApps)}\n`,
-      },
-      {
-        relativePath: 'zerops.yaml',
-        content: `${createZeropsYaml(scope, compactWorkspace.apps)}\n`,
-      },
-      {
-        relativePath: 'tsconfig.json',
-        content: `${JSON.stringify(createRootTsConfig(previousApps), null, 2)}\n`,
-      },
-      ...previousApps.map(app => ({
-        relativePath: `${app.directory}/modern.config.ts`,
-        content: createAppModernConfig(
-          scope,
-          app,
-          app.kind === 'shell'
-            ? resolveRemoteRefs(app, existingVerticals)
-            : existingVerticals,
-          enableTailwind,
-          previousDevPorts,
-        ),
-      })),
-      ...compactWorkspace.apps.map(app => ({
-        relativePath: `${app.directory}/modern.config.ts`,
-        content: createAppModernConfig(
-          scope,
-          app,
-          app.kind === 'shell'
-            ? resolveRemoteRefs(app, compactWorkspace.verticals)
-            : compactWorkspace.verticals,
-          enableTailwind,
-          existingAdditionalShells.length > 0
-            ? compactWorkspace.apps
-                .map(app => app.port)
-                .toSorted((left, right) => left - right)
-            : undefined,
-        ),
-      })),
-    ],
+    workspaceArtifactCandidates(
+      scope,
+      previousApps,
+      enableTailwind,
+      compactWorkspace.apps,
+    ),
   );
 
   writeApp(
@@ -409,20 +296,9 @@ function executeAddUltramodernShell(
     `${JSON.stringify(createRootTsConfig([primaryShell, ...existingVerticals, ...allAdditionalShells]), null, 2)}\n`,
   );
 
-  writeGeneratedWorkspaceScripts(
-    options.workspaceRoot,
-    scope,
-    enableTailwind,
-    existingVerticals,
-    undefined,
-    allAdditionalShells,
-    primaryShell,
-    {
-      io: { ...ownedIo, writeGenerated: ownedIo.write },
-      compactConfig: config,
-      developmentOverlay: preflight.overlay,
-    },
-  );
+  writeGeneratedWorkspaceScripts(options.workspaceRoot, existingVerticals, {
+    io: { writeGenerated: ownedIo.write },
+  });
 
   ownedIo.write(
     path.join(options.workspaceRoot, 'zerops.yaml'),
@@ -459,73 +335,49 @@ function executeAddUltramodernShell(
 
 /**
  * Dry-run parity for {@link addUltramodernShell} (G28). Applies the operation
- * against a throwaway copy of the workspace and returns the planned result
+ * through the shared transaction preparation path and returns the planned result
  * (created/rewritten paths, delivery-unit identity) without touching the real
  * workspace.
  */
 export function planUltramodernShell(
   options: AddUltramodernShellOptions,
 ): UltramodernVerticalPlan {
-  prepareAddUltramodernShell(options);
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-shell-plan-'));
-  const copiedWorkspaceRoot = path.join(tempRoot, 'workspace');
-  const skippedDirectories = new Set([
-    '.git',
-    '.nx',
-    '.output',
-    'coverage',
-    'dist',
-    'node_modules',
-  ]);
-
-  try {
-    fs.cpSync(options.workspaceRoot, copiedWorkspaceRoot, {
-      recursive: true,
-      filter: sourcePath => !skippedDirectories.has(path.basename(sourcePath)),
-    });
-    const plannedResult = addUltramodernShell({
-      ...options,
-      workspaceRoot: copiedWorkspaceRoot,
-    });
-    const shell = plannedResult.createdApps[0];
-
-    return {
-      ...plannedResult,
-      workspaceRoot: options.workspaceRoot,
-      dryRun: true,
-      selectedPort: shell?.port ?? 0,
-      moduleFederationRemote: {
-        id: shell?.id ?? '',
-        name: shell?.moduleFederationName ?? '',
-        manifestUrl: `http://localhost:${shell?.port ?? 0}/mf-manifest.json`,
+  const preflight = prepareAddUltramodernShell(options);
+  let jsonMutations: UltramodernVerticalPlan['jsonMutations'] = [];
+  const plannedResult = runWorkspaceTransaction(
+    options.workspaceRoot,
+    stagingRoot =>
+      executeAddUltramodernShell(
+        { ...options, workspaceRoot: stagingRoot },
+        options.workspaceRoot,
+      ),
+    {
+      mode: 'preview',
+      inspectChanges: changes => {
+        jsonMutations = describeJsonChanges(changes);
       },
-      jsonMutations: [
-        {
-          path: ULTRAMODERN_CONFIG_PATH,
-          pointer: '/shells/-',
-          description: `Register additional shell ${shell?.id}`,
-        },
-        {
-          path: 'package.json',
-          pointer: '/scripts',
-          description: 'Enumerate all configured shells in workspace scripts',
-        },
-        {
-          path: 'tsconfig.json',
-          pointer: '/references',
-          description: `Add ${shell?.id} to the root TS-Go build graph`,
-        },
-      ],
-      shellDependencyChanges: [],
-      generatedContractChanges: [
-        {
-          path: ULTRAMODERN_CONFIG_PATH,
-          addedAppIds: [shell?.id ?? ''],
-          shellVerticalRefs: options.verticals ?? [],
-        },
-      ],
-    };
-  } finally {
-    fs.rmSync(tempRoot, { recursive: true, force: true });
-  }
+    },
+  );
+  const shell = plannedResult.createdApps[0];
+
+  return {
+    ...plannedResult,
+    workspaceRoot: options.workspaceRoot,
+    dryRun: true,
+    selectedPort: shell?.port ?? 0,
+    moduleFederationRemote: {
+      id: shell?.id ?? '',
+      name: shell?.moduleFederationName ?? '',
+      manifestUrl: `http://localhost:${shell?.port ?? 0}/mf-manifest.json`,
+    },
+    jsonMutations,
+    shellDependencyChanges: [],
+    generatedContractChanges: [
+      {
+        path: ULTRAMODERN_CONFIG_PATH,
+        addedAppIds: [shell?.id ?? ''],
+        shellVerticalRefs: preflight.shell.verticalRefs ?? [],
+      },
+    ],
+  };
 }

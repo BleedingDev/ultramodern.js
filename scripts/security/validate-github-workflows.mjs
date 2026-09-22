@@ -694,6 +694,34 @@ function collectBleedingdevPublishStructureErrors(workflow, relativePath) {
     }
   }
 
+  const tractorRef = jobs['rehearse-tractor']?.with?.tractor_ref;
+  if (
+    !shaPattern.test(tractorRef ?? '') ||
+    tractorRef !== jobs['tractor-downstream']?.with?.tractor_ref
+  ) {
+    errors.push(
+      `${relativePath} Tractor rehearsal and published acceptance must use the same immutable tractor_ref`,
+    );
+  }
+  for (const { jobId, step } of workflowSteps(workflow)) {
+    if (typeof step.run !== 'string') continue;
+    const command = stripShellComments(step.run);
+    const hasInlineNode = shellCommandWords(command).some(words => {
+      const index = words.findIndex(word =>
+        /(?:^|[/(])node(?:\.exe)?$/u.test(word),
+      );
+      return (
+        index !== -1 &&
+        !/^scripts\/[A-Za-z0-9_./-]+\.m?js$/u.test(words[index + 1] ?? '')
+      );
+    });
+    if (command.includes('<<') || hasInlineNode) {
+      errors.push(
+        `${relativePath} job ${jobId} must use fixed Node script entrypoints, not inline programs`,
+      );
+    }
+  }
+
   const actualJobs = Object.keys(jobs).sort();
   const unexpectedJobs = actualJobs.filter(
     jobId => !bleedingdevPublishJobs.includes(jobId),

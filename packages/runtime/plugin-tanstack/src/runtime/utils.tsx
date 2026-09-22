@@ -55,6 +55,7 @@ function toTanstackRouteObject(
   if (route.type === 'nested') {
     return {
       modernLocalisedRoute: Reflect.get(route, 'modernLocalisedRoute'),
+      isRoot: Reflect.get(route, 'isRoot'),
       path: route.path,
       id: route.id,
       loader: route.loader,

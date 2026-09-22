@@ -1,9 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { parse } from '@babel/parser';
-import traverse, { Hub, NodePath } from '@babel/traverse';
 import * as t from '@babel/types';
 import { baselinePublicIdentityIsExact } from './microvertical-api-owner';
+import {
+  parseSource,
+  SourceSyntaxError,
+  traverseSource,
+  unwrapExpression,
+} from './source-analysis';
 
 type Node = t.Node;
 type Expression = t.Node;
@@ -17,79 +21,29 @@ type ObjectLiteralElementLike =
   | t.SpreadElement;
 type CallExpression = t.CallExpression;
 
-/**
- * Only `.tsx` is JSX. Enabling JSX for a `.ts` file misreads a generic arrow
- * such as `const f = <T>(value: T) => value` as an unclosed JSX element.
- */
-export const consumerParserPlugins = (
-  filePath: string,
-): ('typescript' | 'jsx')[] =>
-  filePath.endsWith('.tsx') || filePath.endsWith('.jsx')
-    ? ['typescript', 'jsx']
-    : ['typescript'];
-
-class ConsumerSyntaxError extends Error {}
-class ConsumerValidationHub extends Hub {
-  override buildError(_node: t.Node | undefined, message: string): Error {
-    return new ConsumerSyntaxError(message);
-  }
-}
-
 function parseConsumer(filePath: string): t.File {
   if (fs.statSync(filePath).size > 1_000_000)
     throw new Error(
       `${filePath}: consumer source exceeds 1 MB analysis budget`,
     );
-  let file: t.File;
-  try {
-    file = parse(fs.readFileSync(filePath, 'utf8'), {
-      sourceType: 'module',
-      sourceFilename: filePath,
-      plugins: consumerParserPlugins(filePath),
-    });
-  } catch (error) {
-    if (
-      typeof error === 'object' &&
-      error !== null &&
-      'code' in error &&
-      error.code === 'BABEL_PARSER_SYNTAX_ERROR'
-    )
-      throw new ConsumerSyntaxError(
-        error instanceof Error ? error.message : String(error),
+  const file = parseSource(fs.readFileSync(filePath, 'utf8'), filePath);
+  traverseSource(file, {
+    AssignmentExpression(p) {
+      throw new SourceSyntaxError(
+        `contract bindings must be immutable at ${p.node.start}`,
       );
-    throw error;
-  }
-  const program = NodePath.get({
-    hub: new ConsumerValidationHub(),
-    parentPath: undefined,
-    parent: file,
-    container: file,
-    key: 'program',
-  });
-  program.setContext();
-  traverse(
-    file,
-    {
-      AssignmentExpression(p) {
-        throw new ConsumerSyntaxError(
-          `contract bindings must be immutable at ${p.node.start}`,
-        );
-      },
-      UpdateExpression(p) {
-        throw new ConsumerSyntaxError(
-          `contract bindings must be immutable at ${p.node.start}`,
-        );
-      },
-      TSModuleDeclaration() {
-        throw new ConsumerSyntaxError(
-          'contract bindings must not be merged with namespaces',
-        );
-      },
     },
-    program.scope,
-    undefined,
-    program,
-  );
+    UpdateExpression(p) {
+      throw new SourceSyntaxError(
+        `contract bindings must be immutable at ${p.node.start}`,
+      );
+    },
+    TSModuleDeclaration() {
+      throw new SourceSyntaxError(
+        'contract bindings must not be merged with namespaces',
+      );
+    },
+  });
   return file;
 }
 
@@ -135,18 +89,6 @@ const accessPath = (node: Expression): readonly string[] | undefined => {
 
 const isAccessPath = (node: Expression, expected: readonly string[]): boolean =>
   accessPath(node)?.join('.') === expected.join('.');
-
-const unwrapExpression = (expression: Expression): Expression => {
-  let current = expression;
-  while (
-    t.isTSAsExpression(current) ||
-    t.isParenthesizedExpression(current) ||
-    t.isTSSatisfiesExpression(current)
-  ) {
-    current = current.expression;
-  }
-  return current;
-};
 
 const stringLiteral = (
   expression: Expression | null | undefined,
@@ -1181,7 +1123,7 @@ export const microVerticalApiBaselineViolation = (
       expectation,
     );
   } catch (error) {
-    if (error instanceof ConsumerSyntaxError)
+    if (error instanceof SourceSyntaxError)
       return `MicroVertical root contract must be valid TypeScript syntax (${error.message})`;
     throw error;
   }

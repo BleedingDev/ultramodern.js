@@ -8,6 +8,7 @@ import type {
   DataTransportRequestInfo,
 } from '../types';
 import { DEFAULT_DATA_BATCH_HEADER } from '../types';
+import { normalizeBatchLimits } from './options';
 import { decodeBatchBody, isNullBodyStatus } from './protocol';
 import {
   createBatchId,
@@ -37,6 +38,9 @@ type NormalizedBatchTransportRequest = {
   endpoint: string;
   method: string;
   headers: Record<string, string>;
+  itemHeaders: Record<string, string>;
+  bucketKey: string;
+  itemPath: string;
   credentials: RequestCredentials;
   body: BodyInit | null;
   hasOpaqueSourceBody: boolean;
@@ -76,7 +80,6 @@ type QueuedBatchRequest = {
 
 type BatchBucket = {
   items: QueuedBatchRequest[];
-  bytes: number;
   batchId: string;
   sentAt: number;
   timer: ReturnType<typeof setTimeout> | null;
@@ -185,7 +188,6 @@ export class BatchBucketRegistry {
 
     const next: BatchBucket = {
       items: [],
-      bytes: 0,
       batchId: createBatchId(),
       sentAt: Date.now(),
       timer: null,
@@ -215,15 +217,9 @@ export function createBatchTransportQueue({
   bucketRegistry,
 }: CreateBatchTransportQueueOptions) {
   const flushIntervalMs = Math.max(0, options.flushIntervalMs ?? 8);
-  const maxBatchSize = Math.max(1, options.maxBatchSize ?? 16);
-  const maxBatchBytes = Math.max(1024, options.maxBatchBytes ?? 64 * 1024);
+  const { maxBatchSize, maxBatchBytes, allowedMethods } =
+    normalizeBatchLimits(options);
   const requestTimeoutMs = options.requestTimeoutMs;
-  const allowedMethods = new Set(
-    (options.allowedMethods && options.allowedMethods.length > 0
-      ? options.allowedMethods
-      : ['GET']
-    ).map(method => method.toUpperCase()),
-  );
   const onEvent = options.onEvent;
 
   const buckets = bucketRegistry ?? new BatchBucketRegistry();
@@ -284,7 +280,6 @@ export function createBatchTransportQueue({
       return;
     }
     bucket.items.splice(index, 1);
-    bucket.bytes = measurePayload(bucket, bucket.items);
     if (bucket.items.length === 0 && bucket.timer) {
       clearTimeout(bucket.timer);
       bucket.timer = null;
@@ -353,6 +348,12 @@ export function createBatchTransportQueue({
   ) =>
     settleRequests(items, request => runAfterAmbiguousBatch(request, reason));
 
+  const finishFlush = (bucketKey: string, bucket: BatchBucket) => {
+    bucket.flushing = false;
+    if (bucket.items.length > 0 && !bucket.timer) void flushBucket(bucketKey);
+    buckets.releaseIfIdle(bucketKey, bucket);
+  };
+
   const flushBucket = async (bucketKey: string) => {
     const bucket = buckets.get(bucketKey);
     if (!bucket || bucket.flushing) {
@@ -379,7 +380,6 @@ export function createBatchTransportQueue({
       sentAt: bucket.sentAt,
     };
     bucket.items = [];
-    bucket.bytes = 0;
     rotatePayloadIdentity(bucket);
     const firstItem = items[0];
     if (!firstItem) {
@@ -396,12 +396,11 @@ export function createBatchTransportQueue({
         size: items.length,
         reason: disabledEndpoints.has(endpoint) ? 'batch-disabled' : undefined,
       });
-      await settleRequests(items, runSingle);
-      bucket.flushing = false;
-      if (bucket.items.length > 0 && !bucket.timer) {
-        void flushBucket(bucketKey);
+      try {
+        await settleRequests(items, runSingle);
+      } finally {
+        finishFlush(bucketKey, bucket);
       }
-      buckets.releaseIfIdle(bucketKey, bucket);
       return;
     }
 
@@ -486,7 +485,6 @@ export function createBatchTransportQueue({
           items,
           `batch-response-${String(response.status)}`,
         );
-        bucket.flushing = false;
         return;
       }
 
@@ -502,7 +500,6 @@ export function createBatchTransportQueue({
           reason: 'invalid-batch-response',
         });
         await settleAmbiguousBatchRequests(items, 'invalid-batch-response');
-        bucket.flushing = false;
         return;
       }
 
@@ -515,7 +512,6 @@ export function createBatchTransportQueue({
           reason: 'mismatched-batch-id',
         });
         await settleAmbiguousBatchRequests(items, 'mismatched-batch-id');
-        bucket.flushing = false;
         return;
       }
 
@@ -567,11 +563,7 @@ export function createBatchTransportQueue({
       for (const item of items) {
         item.abortBatchIfUnused = undefined;
       }
-      bucket.flushing = false;
-      if (bucket.items.length > 0 && !bucket.timer) {
-        void flushBucket(bucketKey);
-      }
-      buckets.releaseIfIdle(bucketKey, bucket);
+      finishFlush(bucketKey, bucket);
     }
   };
 
@@ -617,7 +609,18 @@ export function createBatchTransportQueue({
       options.endpoint,
     ).toString();
 
+    const itemHeaders = { ...headers };
+    delete itemHeaders.authorization;
+    delete itemHeaders.cookie;
     return {
+      itemHeaders,
+      itemPath: `${requestUrl.pathname}${requestUrl.search}`,
+      bucketKey: stableStringify({
+        endpoint,
+        authorization: headers.authorization ?? null,
+        cookie: headers.cookie ?? null,
+        credentials,
+      }),
       requestUrl,
       endpoint,
       method,
@@ -660,20 +663,11 @@ export function createBatchTransportQueue({
       return undefined;
     }
 
-    const itemHeaders = { ...request.headers };
-    delete itemHeaders.authorization;
-    delete itemHeaders.cookie;
-    const bucketKey = stableStringify({
-      endpoint: request.endpoint,
-      authorization: request.headers.authorization ?? null,
-      cookie: request.headers.cookie ?? null,
-      credentials: request.credentials,
-    });
     return stableStringify({
-      bucketKey,
-      path: `${request.requestUrl.pathname}${request.requestUrl.search}`,
+      bucketKey: request.bucketKey,
+      path: request.itemPath,
       method: request.method,
-      headers: itemHeaders,
+      headers: request.itemHeaders,
       body: null,
     });
   };
@@ -704,9 +698,7 @@ export function createBatchTransportQueue({
       .slice(2, 8)}`;
     nextItemId += 1;
 
-    const itemHeaders = { ...request.headers };
-    delete itemHeaders.authorization;
-    delete itemHeaders.cookie;
+    const itemHeaders = { ...request.itemHeaders };
     if (
       preparedBody.body &&
       preparedBody.inferredContentType &&
@@ -716,18 +708,13 @@ export function createBatchTransportQueue({
     }
     const item: DataBatchRequestItem = {
       id: itemId,
-      path: `${request.requestUrl.pathname}${request.requestUrl.search}`,
+      path: request.itemPath,
       method: request.method,
       headers: itemHeaders,
       ...(preparedBody.body ? { body: preparedBody.body } : {}),
     };
 
-    const bucketKey = stableStringify({
-      endpoint: request.endpoint,
-      authorization: request.headers.authorization ?? null,
-      cookie: request.headers.cookie ?? null,
-      credentials: request.credentials,
-    });
+    const { bucketKey } = request;
 
     const key = stableStringify({
       bucketKey,
@@ -824,14 +811,16 @@ export function createBatchTransportQueue({
     }
 
     bucket.items.push(queued);
-    bucket.bytes = measurePayload(bucket, bucket.items);
     emitDataBatchTransportEvent(onEvent, {
       type: 'enqueue',
       endpoint: request.endpoint,
       size: bucket.items.length,
     });
 
-    if (bucket.items.length >= maxBatchSize || bucket.bytes >= maxBatchBytes) {
+    if (
+      bucket.items.length >= maxBatchSize ||
+      measurePayload(bucket, bucket.items) >= maxBatchBytes
+    ) {
       void flushBucket(bucketKey);
       return queued.promise;
     }

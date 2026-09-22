@@ -1,6 +1,6 @@
 import { createRouteHydrationScriptTags as createTags } from '@modern-js/runtime-extensions';
 import {
-  applyRouterRuntimeState,
+  applyRouterServerPrepareResult,
   getRouterMatchedRouteIds,
 } from '@modern-js/runtime-extensions/router-state';
 
@@ -19,9 +19,9 @@ const createRouteHydrationScriptTags = (
 describe('route hydration script serialization', () => {
   it('quotes and escapes asset and nonce attributes', () => {
     const runtimeContext = {} as any;
-    applyRouterRuntimeState(runtimeContext, {
-      framework: 'react-router',
-      serverSnapshot: { matchedRouteIds: ['route-a'] },
+    applyRouterServerPrepareResult(runtimeContext, {
+      state: { framework: 'react-router' },
+      snapshot: { matchedRouteIds: ['route-a'] },
     });
     runtimeContext.routeManifest = {
       routeAssets: {

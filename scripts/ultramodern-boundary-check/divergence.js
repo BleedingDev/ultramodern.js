@@ -1506,7 +1506,7 @@ const ledgerEvidenceKey = row =>
     problems: row.problems,
   });
 
-const parseLedgerEvidenceRows = contents => {
+const parseHistoricalLedgerEvidenceRows = contents => {
   const lines = contents.split(/\r?\n/);
   const rows = [];
   let columns = null;
@@ -1599,6 +1599,143 @@ const parseLedgerEvidenceRows = contents => {
   return rows;
 };
 
+// The legacy grammar is read-only historical evidence. Current ledgers have
+// one versioned data block; Markdown layout cannot grant governance rights.
+const LEDGER_DATA_START = '<!-- fork-evidence:v1 -->';
+const LEDGER_DATA_END = '<!-- /fork-evidence:v1 -->';
+const LEDGER_VIEW_START = '<!-- fork-evidence:table -->';
+const LEDGER_VIEW_END = '<!-- /fork-evidence:table -->';
+// Representation changes must preserve the historical semantic key. Formatting
+// and invisible comments cannot authorize a new upstream-owned change.
+const normalizeEvidenceText = value =>
+  typeof value === 'string' ? stripMarkdownCell(value) : '';
+
+const parseLedgerEvidenceRows = (contents, { historical = false } = {}) => {
+  const starts = contents.split(LEDGER_DATA_START);
+  if (
+    starts.length === 1 &&
+    historical &&
+    !contents.includes('fork-evidence:')
+  ) {
+    return parseHistoricalLedgerEvidenceRows(contents);
+  }
+  if (
+    starts.length !== 2 ||
+    contents.split(LEDGER_DATA_END).length !== 2 ||
+    contents.indexOf(LEDGER_DATA_END) < contents.indexOf(LEDGER_DATA_START)
+  ) {
+    throw new Error(
+      'FORK-DIVERGENCE.md requires exactly one fork-evidence:v1 block.',
+    );
+  }
+  const match = /^\s*```json\s*\n([\s\S]*?)\n```\s*$/.exec(
+    starts[1].split(LEDGER_DATA_END)[0],
+  );
+  if (!match) throw new Error('Malformed fork-evidence:v1 JSON block.');
+  const data = JSON.parse(match[1]);
+  if (
+    !isPlainObject(data) ||
+    Object.keys(data).sort().join(',') !== 'entries,schemaVersion' ||
+    data.schemaVersion !== 1 ||
+    !Array.isArray(data.entries)
+  ) {
+    throw new Error(
+      'Invalid fork evidence schema; expected version 1 and entries.',
+    );
+  }
+  return data.entries.map((entry, index) => {
+    if (
+      !isPlainObject(entry) ||
+      Object.keys(entry).sort().join(',') !== 'dispositions,owner,path,reason'
+    ) {
+      throw new Error(
+        `Invalid fork evidence entry ${index}: unknown or missing fields.`,
+      );
+    }
+    validateCanonicalRepoPath(entry.path, 'ledger path');
+    if (!DIVERGENCE_FILE_PATTERN.test(entry.path) || /[{}]/u.test(entry.path)) {
+      throw new Error(`Invalid fork evidence path ${entry.path}.`);
+    }
+    const owner = normalizeEvidenceText(entry.owner);
+    const reason = normalizeEvidenceText(entry.reason);
+    if (isMissingLedgerValue(owner) || isMissingLedgerValue(reason)) {
+      throw new Error(`Fork evidence ${entry.path} requires owner and reason.`);
+    }
+    if (
+      !Array.isArray(entry.dispositions) ||
+      entry.dispositions.length === 0 ||
+      entry.dispositions.some(
+        value => !ALLOWED_LEDGER_DISPOSITIONS.has(value),
+      ) ||
+      new Set(entry.dispositions).size !== entry.dispositions.length
+    ) {
+      throw new Error(`Fork evidence ${entry.path} has invalid dispositions.`);
+    }
+    const row = {
+      path: entry.path,
+      owner,
+      reason,
+      disposition: [...entry.dispositions].sort(lexicalCompare).join(' + '),
+      problems: [],
+    };
+    return { ...row, raw: JSON.stringify(entry), key: ledgerEvidenceKey(row) };
+  });
+};
+
+const renderLedgerEvidence = contents => {
+  const rows = parseLedgerEvidenceRows(contents);
+  const escapeCell = value =>
+    value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\|/g, '&#124;')
+      .replace(/`/g, '&#96;');
+  const table = [
+    LEDGER_VIEW_START,
+    '| Upstream-owned path | Owner | Reason | Disposition |',
+    '| --- | --- | --- | --- |',
+    ...rows.map(
+      row =>
+        `| \`${escapeCell(row.path)}\` | ${escapeCell(row.owner)} | ${escapeCell(row.reason)} | ${row.disposition
+          .split(' + ')
+          .map(value => `\`${value}\``)
+          .join(' + ')} |`,
+    ),
+    LEDGER_VIEW_END,
+  ].join('\n');
+  if (
+    contents.split(LEDGER_VIEW_START).length !== 2 ||
+    contents.split(LEDGER_VIEW_END).length !== 2
+  ) {
+    throw new Error(
+      'FORK-DIVERGENCE.md requires exactly one generated evidence table.',
+    );
+  }
+  const start = contents.indexOf(LEDGER_VIEW_START);
+  const end = contents.indexOf(LEDGER_VIEW_END, start) + LEDGER_VIEW_END.length;
+  if (end < start)
+    throw new Error('Invalid generated evidence table ordering.');
+  return contents.slice(0, start) + table + contents.slice(end);
+};
+
+const validateLedgerDocument = ({ rootDir, headRef }) => {
+  const contents = headRef
+    ? runGit({
+        rootDir,
+        args: [
+          'show',
+          `${resolveRequiredCommitSha({ rootDir, ref: headRef, label: 'Ledger head' })}:${DIVERGENCE_LEDGER_REPO_PATH}`,
+        ],
+      })
+    : fs.readFileSync(path.join(rootDir, DIVERGENCE_LEDGER_REPO_PATH), 'utf8');
+  if (renderLedgerEvidence(contents) !== contents) {
+    throw new Error(
+      'FORK-DIVERGENCE.md evidence table is stale; run scripts/ultramodern-boundary-check/render-ledger.js.',
+    );
+  }
+};
+
 const collectLedgerEvidence = ({ rootDir, mergeBaseRef, headRef }) => {
   const readLedgerAtRef = ref =>
     runGit({
@@ -1606,7 +1743,9 @@ const collectLedgerEvidence = ({ rootDir, mergeBaseRef, headRef }) => {
       args: ['show', `${ref}:${DIVERGENCE_LEDGER_REPO_PATH}`],
       allowFailure: true,
     }) ?? '';
-  const baseRows = parseLedgerEvidenceRows(readLedgerAtRef(mergeBaseRef));
+  const baseRows = parseLedgerEvidenceRows(readLedgerAtRef(mergeBaseRef), {
+    historical: true,
+  });
   const headRows = parseLedgerEvidenceRows(readLedgerAtRef(headRef));
   const baseKeys = new Set(baseRows.map(row => row.key));
   const rows = headRows.filter(row => !baseKeys.has(row.key));
@@ -2345,6 +2484,10 @@ module.exports = {
   checkAllowlistGovernance,
   checkForkDivergence,
   checkLedgerChanged,
+  buildProvenanceOwnership,
+  parseNameStatus,
+  buildOwnershipMap,
+  collectLedgerEvidence,
   compareDivergence,
   createDivergenceSnapshot,
   evaluateDivergenceGovernance,
@@ -2356,6 +2499,9 @@ module.exports = {
   measureRule5Changes,
   parseDivergenceDiff,
   parseLedgerEvidenceRows,
+  renderLedgerEvidence,
+  validateLedgerEvidenceForFile,
+  validateLedgerDocument,
   readDivergenceAllowlist,
   readDivergenceAllowlistAtRef,
   resolveCommitSha,

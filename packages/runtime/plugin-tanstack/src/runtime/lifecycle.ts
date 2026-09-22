@@ -19,7 +19,6 @@ export type RouterLifecycleContext = NativeRouterLifecycleContext & {
 export {
   applyRouterRuntimeState,
   applyRouterServerPrepareResult,
-  createRouterRuntimeState,
   createRouterServerSnapshot,
   getRouterRuntimeState,
   getRouterServerSnapshot,

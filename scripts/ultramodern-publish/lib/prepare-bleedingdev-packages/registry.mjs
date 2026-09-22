@@ -1,16 +1,23 @@
+import {
+  assertRegistryDistMatches,
+  fetchRegistryPackageMetadata,
+  pinnedRegistryTarballUrl,
+  isRegistryNotFoundError,
+  isRegistryMetadataNotFoundError,
+  isThrottledRegistryMetadataError,
+  isTransientNpmPublishError,
+  lookupRegistryDistTag,
+  lookupRegistryPackageDist,
+  lookupRegistryPackument,
+  mapWithConcurrency,
+  registryPackumentDist,
+  registryPackumentDistTag,
+  verifyRegistryTarball,
+} from './registry-read.mjs';
 // Consumer: publish-bleedingdev.yml preflight, publish, and exact registry verification.
-import { execFile } from 'node:child_process';
-import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { promisify } from 'node:util';
-import {
-  npmPublishAttempts,
-  npmPublishRetryDelayMs,
-  npmRegistryOrigin,
-  repoRoot,
-  transientNpmPublishErrorPatterns,
-} from './constants.mjs';
+import { npmPublishAttempts, npmPublishRetryDelayMs } from './constants.mjs';
 import { run, sleep } from './commands.mjs';
 import {
   preflightTrustedPublishingPackages,
@@ -31,8 +38,7 @@ import {
 import semver from '../../../../packages/toolkit/utils/compiled/semver/index.js';
 import validationKit from '../../../lib/validation-kit.js';
 
-const { assertNonEmptyString, assertPlainObject, isPlainObject } = validationKit;
-const execFileAsync = promisify(execFile);
+const { assertNonEmptyString, assertPlainObject } = validationKit;
 
 // This code-reviewed checkpoint is deliberately independent of mutable npm
 // packuments; only the listed legacy identities may bypass provenance.
@@ -59,16 +65,6 @@ const registrySourceChronologyPolicies = Object.freeze({
   }),
 });
 
-function isTransientNpmPublishError(error) {
-  const output = [
-    error instanceof Error ? error.message : '',
-    typeof error?.stdout === 'string' ? error.stdout : '',
-    typeof error?.stderr === 'string' ? error.stderr : '',
-  ].join('\n');
-
-  return transientNpmPublishErrorPatterns.some(pattern => pattern.test(output));
-}
-
 const maxVerificationConcurrency = 8;
 const chronologyVerificationConcurrency = 8;
 
@@ -78,22 +74,6 @@ function resolveVerificationConcurrency(options) {
     return 1;
   }
   return Math.min(requested, maxVerificationConcurrency);
-}
-
-async function mapWithConcurrency(items, limit, mapper) {
-  const entries = [...items];
-  const results = new Array(entries.length);
-  const workers = Math.min(Math.max(1, limit), entries.length);
-  let cursor = 0;
-  const worker = async () => {
-    while (cursor < entries.length) {
-      const index = cursor;
-      cursor += 1;
-      results[index] = await mapper(entries[index], index);
-    }
-  };
-  await Promise.all(Array.from({ length: workers }, worker));
-  return results;
 }
 
 function packSourcePackage(packageName, packDir) {
@@ -128,244 +108,13 @@ async function packageExists(packageName, version) {
   return (await lookupRegistryPackageDist(packageName, version)) !== null;
 }
 
-async function resolveRegistryDistTag(packageName, tag) {
-  const { stdout } = await execFileAsync(
-    'npm',
-    ['view', packageName, 'dist-tags', '--json'],
-    {
-      cwd: repoRoot,
-      encoding: 'utf-8',
-    },
-  );
-  const distTags = JSON.parse(stdout);
-  if (!distTags || typeof distTags !== 'object' || Array.isArray(distTags)) {
-    throw new Error(`${packageName} returned invalid registry dist-tags`);
-  }
-  return typeof distTags[tag] === 'string' ? distTags[tag] : undefined;
-}
-
-async function resolveRegistryPackageDist(packageName, version) {
-  const { stdout } = await execFileAsync(
-    'npm',
-    ['view', `${packageName}@${version}`, 'dist', '--json'],
-    {
-      cwd: repoRoot,
-      encoding: 'utf-8',
-    },
-  );
-  const dist = JSON.parse(stdout);
-  if (!dist || typeof dist !== 'object' || Array.isArray(dist)) {
-    throw new Error(
-      `${packageName}@${version} returned invalid registry dist metadata`,
-    );
-  }
-  return dist;
-}
-
-function isRegistryNotFoundError(error) {
-  const output = [
-    error instanceof Error ? error.message : '',
-    typeof error?.stdout === 'string' ? error.stdout : '',
-    typeof error?.stderr === 'string' ? error.stderr : '',
-  ].join('\n');
-  return (
-    /\bE404\b/u.test(output) ||
-    /404 Not Found/u.test(output) ||
-    /is not in this registry/u.test(output)
-  );
-}
-
-async function lookupRegistryDistTag(packageName, tag) {
-  try {
-    return await resolveRegistryDistTag(packageName, tag);
-  } catch (error) {
-    if (isRegistryNotFoundError(error)) {
-      return undefined;
-    }
-    throw new Error(
-      `Registry dist-tag state is uncertain for ${packageName}: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-      { cause: error },
-    );
-  }
-}
-
-async function lookupRegistryPackageDist(packageName, version) {
-  try {
-    return await resolveRegistryPackageDist(packageName, version);
-  } catch (error) {
-    if (isRegistryNotFoundError(error)) {
-      return null;
-    }
-    throw new Error(
-      `Registry state is uncertain for ${packageName}@${version}: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-      { cause: error },
-    );
-  }
-}
-
-function pinnedRegistryPackageMetadataUrl(packageName) {
-  assertNonEmptyString(packageName, 'Registry package name');
-  return `${npmRegistryOrigin}/${encodeURIComponent(packageName)}`;
-}
-
-async function fetchRegistryPackageMetadata(
-  packageName,
-  fetchImpl = globalThis.fetch,
-) {
-  const metadataUrl = pinnedRegistryPackageMetadataUrl(packageName);
-  if (typeof fetchImpl !== 'function') {
-    throw new Error(`${packageName} registry metadata fetch is unavailable`);
-  }
-  let response;
-  try {
-    response = await fetchImpl(metadataUrl, {
-      headers: { accept: 'application/json' },
-      method: 'GET',
-      redirect: 'error',
-    });
-  } catch (error) {
-    throw new Error(
-      `${packageName} registry metadata request failed: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-      { cause: error },
-    );
-  }
-  if (!response?.ok) {
-    throw new Error(
-      `${packageName} registry metadata returned HTTP ${String(
-        response?.status ?? '<unknown>',
-      )}`,
-    );
-  }
-  if (typeof response.json !== 'function') {
-    throw new Error(`${packageName} registry metadata response is malformed`);
-  }
-  try {
-    return await response.json();
-  } catch (error) {
-    throw new Error(`${packageName} registry metadata is not valid JSON`, {
-      cause: error,
-    });
-  }
-}
-
-const registryPackumentAttempts = 4;
-const registryPackumentRetryDelayMs = 1000;
-const throttledRegistryMetadataMarker = 'registry metadata stayed throttled';
-const registryMetadataStatusPattern =
-  /registry metadata returned HTTP (\d{3})$/u;
-
-function registryMetadataStatus(error) {
-  const match = registryMetadataStatusPattern.exec(
-    error instanceof Error ? error.message : '',
-  );
-  return match ? Number(match[1]) : undefined;
-}
-
-function isRegistryMetadataNotFoundError(error) {
-  return registryMetadataStatus(error) === 404;
-}
-
-function isTransientRegistryMetadataError(error) {
-  const status = registryMetadataStatus(error);
-  if (status === 429 || (status !== undefined && status >= 500)) {
-    return true;
-  }
-  return isTransientNpmPublishError(error);
-}
-
-function isThrottledRegistryMetadataError(error) {
-  return (
-    error instanceof Error &&
-    error.message.includes(throttledRegistryMetadataMarker)
-  );
-}
-
-async function fetchRegistryPackumentWithRetry(packageName, overrides) {
-  const wait = overrides.wait ?? sleep;
-  const retryDelayMs = overrides.retryDelayMs ?? registryPackumentRetryDelayMs;
-  for (let attempt = 1; ; attempt += 1) {
-    try {
-      return await fetchRegistryPackageMetadata(packageName, overrides.fetchImpl);
-    } catch (error) {
-      if (attempt >= registryPackumentAttempts) {
-        if (registryMetadataStatus(error) === 429) {
-          throw new Error(
-            `${packageName} ${throttledRegistryMetadataMarker} after ${registryPackumentAttempts} attempts`,
-            { cause: error },
-          );
-        }
-        throw error;
-      }
-      if (!isTransientRegistryMetadataError(error)) {
-        throw error;
-      }
-      await wait(retryDelayMs * attempt);
-    }
-  }
-}
-
-// Memoized for the process so one packument answers both preflight phases. The
-// post-publish propagation poll must keep using lookupRegistryPackageDist:
-// a cached packument would never observe the version it is waiting for.
-const registryPackumentCache = new Map();
-
-async function lookupRegistryPackument(packageName, overrides = {}) {
-  if (overrides.fetchImpl) {
-    return fetchRegistryPackumentWithRetry(packageName, overrides);
-  }
-  let pending = registryPackumentCache.get(packageName);
-  if (!pending) {
-    pending = fetchRegistryPackumentWithRetry(packageName, overrides).catch(
-      error => {
-        registryPackumentCache.delete(packageName);
-        throw error;
-      },
-    );
-    registryPackumentCache.set(packageName, pending);
-  }
-  return pending;
-}
-
-function registryPackumentDistTag(packument, packageName, tag) {
-  const distTags = packument?.['dist-tags'];
-  if (!isPlainObject(distTags)) {
-    throw new Error(`${packageName} returned invalid registry dist-tags`);
-  }
-  return typeof distTags[tag] === 'string' ? distTags[tag] : undefined;
-}
-
-// `null` is reserved for a genuinely absent version; a malformed versions map
-// or a version entry without usable dist metadata must throw so it can never
-// be mistaken for "not published yet".
-function registryPackumentDist(packument, packageName, version) {
-  const versions = packument?.versions;
-  if (!isPlainObject(versions)) {
-    throw new Error(
-      `${packageName} returned invalid registry versions metadata`,
-    );
-  }
-  if (!Object.hasOwn(versions, version)) {
-    return null;
-  }
-  const dist = versions[version]?.dist;
-  if (!isPlainObject(dist)) {
-    throw new Error(
-      `${packageName}@${version} registry version entry has no dist metadata`,
-    );
-  }
-  return dist;
-}
-
 function parseRegistryTimestamp(value, label) {
   assertNonEmptyString(value, label);
   const timestamp = Date.parse(value);
-  if (!Number.isFinite(timestamp) || new Date(timestamp).toISOString() !== value) {
+  if (
+    !Number.isFinite(timestamp) ||
+    new Date(timestamp).toISOString() !== value
+  ) {
     throw new Error(`${label} must be a canonical ISO-8601 timestamp`);
   }
   return timestamp;
@@ -478,7 +227,8 @@ function registryVersionChronology(metadata, packageName) {
   }
   entries.sort(
     (left, right) =>
-      left.timestamp - right.timestamp || left.originalIndex - right.originalIndex,
+      left.timestamp - right.timestamp ||
+      left.originalIndex - right.originalIndex,
   );
   for (let index = 1; index < entries.length; index += 1) {
     if (entries[index - 1].timestamp === entries[index].timestamp) {
@@ -606,8 +356,10 @@ async function assertRegistrySourceCommitUnpublished(
         `${packageName} registry chronology before ${cutoverAnchor.version} is not independently authorized`,
       );
     }
-    for (const [index, grandfatheredVersion] of
-      grandfatheredVersions.entries()) {
+    for (const [
+      index,
+      grandfatheredVersion,
+    ] of grandfatheredVersions.entries()) {
       assertPinnedRegistryChronologyEntry(
         chronology[index],
         grandfatheredVersion,
@@ -737,137 +489,6 @@ async function assertRegistrySourceCommitUnpublished(
     sourceCommit: expectation.source.commit,
     versionCount: chronology.length,
   };
-}
-
-function assertRegistryDistMatches(item, dist) {
-  const mismatches = [];
-  if (dist?.integrity !== item.integrity) {
-    mismatches.push(
-      `integrity expected ${item.integrity}, found ${String(dist?.integrity)}`,
-    );
-  }
-  if (dist?.shasum !== item.shasum) {
-    mismatches.push(
-      `shasum expected ${item.shasum}, found ${String(dist?.shasum)}`,
-    );
-  }
-  if (mismatches.length > 0) {
-    throw new Error(
-      `Registry artifact identity mismatch for ${item.targetName}@${item.version}: ${mismatches.join(
-        '; ',
-      )}`,
-    );
-  }
-}
-
-function pinnedRegistryTarballUrl(item, value) {
-  if (typeof value !== 'string' || value.trim() !== value || value === '') {
-    throw new Error(`${item.targetName}@${item.version} is missing dist.tarball`);
-  }
-  let url;
-  try {
-    url = new URL(value);
-  } catch (error) {
-    throw new Error(
-      `${item.targetName}@${item.version} registry tarball URL is invalid`,
-      { cause: error },
-    );
-  }
-  const packageBaseName = item.targetName.slice(
-    item.targetName.lastIndexOf('/') + 1,
-  );
-  const expectedPath = `/${item.targetName}/-/${packageBaseName}-${item.version}.tgz`;
-  let decodedPath;
-  try {
-    decodedPath = decodeURIComponent(url.pathname);
-  } catch (error) {
-    throw new Error(
-      `${item.targetName}@${item.version} registry tarball URL has invalid encoding`,
-      { cause: error },
-    );
-  }
-  if (
-    url.origin !== npmRegistryOrigin ||
-    url.username !== '' ||
-    url.password !== '' ||
-    url.port !== '' ||
-    url.search !== '' ||
-    url.hash !== '' ||
-    decodedPath !== expectedPath
-  ) {
-    throw new Error(
-      `${item.targetName}@${item.version} registry tarball URL is not the pinned npm endpoint ${npmRegistryOrigin}${expectedPath}`,
-    );
-  }
-  return url.href;
-}
-
-async function verifyRegistryTarball(
-  item,
-  dist,
-  fetchImpl = globalThis.fetch,
-) {
-  const packageLabel = `${item.targetName}@${item.version}`;
-  const tarballUrl = pinnedRegistryTarballUrl(item, dist?.tarball);
-  if (typeof fetchImpl !== 'function') {
-    throw new Error(`${packageLabel} registry tarball fetch is unavailable`);
-  }
-  let response;
-  try {
-    response = await fetchImpl(tarballUrl, {
-      headers: { accept: 'application/octet-stream' },
-      method: 'GET',
-      redirect: 'error',
-    });
-  } catch (error) {
-    throw new Error(
-      `${packageLabel} registry tarball request failed: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-      { cause: error },
-    );
-  }
-  if (!response?.ok) {
-    throw new Error(
-      `${packageLabel} registry tarball ${tarballUrl} returned HTTP ${String(
-        response?.status ?? '<unknown>',
-      )}`,
-    );
-  }
-  if (typeof response.arrayBuffer !== 'function') {
-    throw new Error(`${packageLabel} registry tarball response is malformed`);
-  }
-  let bytes;
-  try {
-    bytes = Buffer.from(await response.arrayBuffer());
-  } catch (error) {
-    throw new Error(`${packageLabel} registry tarball body could not be read`, {
-      cause: error,
-    });
-  }
-
-  const actual = {
-    integrity: `sha512-${crypto.createHash('sha512').update(bytes).digest('base64')}`,
-    sha256: crypto.createHash('sha256').update(bytes).digest('hex'),
-    shasum: crypto.createHash('sha1').update(bytes).digest('hex'),
-    size: bytes.length,
-  };
-  const mismatches = [];
-  for (const field of ['size', 'sha256', 'shasum', 'integrity']) {
-    if (actual[field] !== item[field]) {
-      mismatches.push(
-        `${field} expected ${String(item[field])}, found ${String(actual[field])}`,
-      );
-    }
-  }
-  if (mismatches.length > 0) {
-    throw new Error(
-      `Registry tarball byte mismatch for ${packageLabel}: ${mismatches.join(
-        '; ',
-      )}`,
-    );
-  }
-  return { ...actual, tarballUrl };
 }
 
 async function verifyRegistryPackageDist(
@@ -1248,11 +869,7 @@ async function preflightRegistryPackages(
   return states;
 }
 
-async function publishPackage(
-  artifact,
-  options,
-  overrides = {},
-) {
+async function publishPackage(artifact, options, overrides = {}) {
   const registry = {
     assertRegistryDistMatches,
     lookupRegistryPackageDist,
@@ -1296,42 +913,42 @@ async function publishPackage(
         verifyPackageArtifactBytes(artifact, acceptedBytes);
       }
     } catch (error) {
-        if (!options.dryRun && options.provenanceExpectation) {
-          const dist = await registry.lookupRegistryPackageDist(
-            artifact.targetName,
-            artifact.version,
-          );
-          if (dist !== null) {
-            await registry.verifyRegistryPackageDist(
-              artifact,
-              dist,
-              options.provenanceExpectation,
-              {
-                assertRegistryDistMatches: registry.assertRegistryDistMatches,
-                verifyRegistryProvenance: registry.verifyRegistryProvenance,
-                verifyRegistryTarball: registry.verifyRegistryTarball,
-              },
-            );
-            console.log(
-              `Reusing byte-identical ${artifact.targetName}@${artifact.version} after npm publish returned an error`,
-            );
-            return artifact.targetName;
-          }
-        }
-
-        const shouldRetry =
-          attempt < maxAttempts && isTransientNpmPublishError(error);
-        if (!shouldRetry) {
-          throw error;
-        }
-
-        console.warn(
-          `npm publish for ${artifact.targetName}@${artifact.version} failed with a transient registry/provenance error; retrying attempt ${
-            attempt + 1
-          }/${maxAttempts} in ${npmPublishRetryDelayMs}ms.`,
+      if (!options.dryRun && options.provenanceExpectation) {
+        const dist = await registry.lookupRegistryPackageDist(
+          artifact.targetName,
+          artifact.version,
         );
-        await wait(npmPublishRetryDelayMs);
-        continue;
+        if (dist !== null) {
+          await registry.verifyRegistryPackageDist(
+            artifact,
+            dist,
+            options.provenanceExpectation,
+            {
+              assertRegistryDistMatches: registry.assertRegistryDistMatches,
+              verifyRegistryProvenance: registry.verifyRegistryProvenance,
+              verifyRegistryTarball: registry.verifyRegistryTarball,
+            },
+          );
+          console.log(
+            `Reusing byte-identical ${artifact.targetName}@${artifact.version} after npm publish returned an error`,
+          );
+          return artifact.targetName;
+        }
+      }
+
+      const shouldRetry =
+        attempt < maxAttempts && isTransientNpmPublishError(error);
+      if (!shouldRetry) {
+        throw error;
+      }
+
+      console.warn(
+        `npm publish for ${artifact.targetName}@${artifact.version} failed with a transient registry/provenance error; retrying attempt ${
+          attempt + 1
+        }/${maxAttempts} in ${npmPublishRetryDelayMs}ms.`,
+      );
+      await wait(npmPublishRetryDelayMs);
+      continue;
     }
 
     return artifact.targetName;
@@ -1351,8 +968,7 @@ async function validateRegistryCohort(
     return;
   }
 
-  const provenanceExpectation =
-    createRegistryProvenanceExpectation(manifest);
+  const provenanceExpectation = createRegistryProvenanceExpectation(manifest);
   let failureCount = 0;
   const outcomes = await mapWithConcurrency(
     manifest.packages,
@@ -1446,8 +1062,7 @@ async function publishManifestPackages(
       `Verified release ${manifest.release.version} (${manifest.release.tag}) does not match publish request ${options.version} (${options.tag})`,
     );
   }
-  const provenanceExpectation =
-    createRegistryProvenanceExpectation(manifest);
+  const provenanceExpectation = createRegistryProvenanceExpectation(manifest);
 
   const artifactsByTarget = new Map(
     releaseArtifacts.packages.map(item => [item.targetName, item]),

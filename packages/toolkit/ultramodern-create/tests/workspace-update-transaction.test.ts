@@ -35,6 +35,45 @@ function fixture() {
   };
 }
 
+test('preview inspects prepared bytes without publishing or changing file modes', async () => {
+  const f = fixture();
+  try {
+    __transactionTestHooks.beforePublish = () => {
+      throw new Error('Preview cannot publish');
+    };
+    let inspected = false;
+    const result = await runWorkspaceTransaction(
+      f.root,
+      async stage => {
+        fs.writeFileSync(path.join(stage, 'owned.json'), 'after');
+        return 'prepared';
+      },
+      {
+        mode: 'preview',
+        inspectChanges: changes => {
+          assert.equal(changes.length, 1);
+          assert.equal(changes[0].before?.content.toString(), 'before');
+          assert.equal(changes[0].after?.content.toString(), 'after');
+          inspected = true;
+        },
+      },
+    );
+    assert.equal(result, 'prepared');
+    assert.equal(inspected, true);
+    assert.equal(
+      fs.readFileSync(path.join(f.root, 'owned.json'), 'utf8'),
+      'before',
+    );
+    assert.equal(
+      fs.statSync(path.join(f.root, 'owned.json')).mode & 0o777,
+      f.fileMode,
+    );
+    assert.deepEqual(fs.readdirSync(f.parent), ['workspace']);
+  } finally {
+    f.clean();
+  }
+});
+
 test('async mutation and validation finish before any live publication', async () => {
   const f = fixture();
   try {

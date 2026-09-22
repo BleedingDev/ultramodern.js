@@ -10,6 +10,7 @@ import {
   useEffectContext,
 } from '@modern-js/bff-effect/effect';
 import type { Context, Next, ServerPluginAPI } from '@modern-js/server-core';
+import { resolveOperationProducer } from '@modern-js/server-runtime-extensions/bff-policy/node';
 import {
   createDisposableServerRuntimeHandle,
   type DisposableServerRuntimeHandle,
@@ -161,9 +162,9 @@ export class EffectAdapter {
       return;
     }
 
+    const { appDirectory } = this.api.getServerContext();
     let mod: EffectApiModule;
     try {
-      const { appDirectory } = this.api.getServerContext();
       mod = (await (isProd()
         ? loadEffectBuiltModule(entryFile)
         : loadEffectSourceModule({
@@ -177,6 +178,10 @@ export class EffectAdapter {
       throw error;
     }
 
+    const producer = resolveOperationProducer({
+      directories: [path.dirname(entryFile), appDirectory],
+      requestId: this.api.getServerConfig()?.bff?.requestId,
+    });
     const crossProjectPolicies = new Map(
       await Promise.all(
         this.prefixes.map(
@@ -187,6 +192,7 @@ export class EffectAdapter {
                 this.api,
                 prefix,
                 mod,
+                producer,
               ),
             ] as const,
         ),

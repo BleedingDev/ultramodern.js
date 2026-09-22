@@ -414,3 +414,66 @@ describe('verified backend federation entry loading', () => {
     );
   });
 });
+
+describe('shared acquisition deadline', () => {
+  test.each([
+    'resource',
+    'entry',
+  ] as const)('%s settles despite noncooperative stream cancellation', async kind => {
+    let cancelled = false;
+    const fetch = async () =>
+      new Response(
+        new ReadableStream<Uint8Array>({
+          cancel() {
+            cancelled = true;
+            return new Promise(() => {});
+          },
+        }),
+      );
+    const policy = { fetch, timeoutMs: 10 };
+    const operation =
+      kind === 'resource'
+        ? loadBoundedBackendFederationResource(entryUrl, policy)
+        : loadVerifiedNodeEntry({
+            ...policy,
+            remote: { entry: entryUrl, name: remoteName },
+            verification: verification(),
+          });
+    await expect(operation).rejects.toMatchObject({ code: 'timeout' });
+    expect(cancelled).toBe(true);
+  });
+
+  test('the entry deadline includes SHA-256 and never evaluates after expiration', async () => {
+    const evaluateCommonJs = rs.fn();
+    const digest = rs
+      .spyOn(globalThis.crypto.subtle, 'digest')
+      .mockImplementation(() => new Promise(() => {}));
+    try {
+      await expect(
+        loadVerifiedBackendFederationEntry({
+          fetch: async () => new Response(source),
+          timeoutMs: 10,
+          remote: { entry: entryUrl, name: remoteName },
+          verification: verification(),
+          evaluateCommonJs,
+        }),
+      ).rejects.toMatchObject({ code: 'timeout' });
+      expect(evaluateCommonJs).not.toHaveBeenCalled();
+    } finally {
+      digest.mockRestore();
+    }
+  });
+
+  test('zero disables the timer while retaining exact-byte verification', async () => {
+    const entry = await loadVerifiedNodeEntry({
+      fetch: async () => {
+        await new Promise(resolve => setTimeout(resolve, 20));
+        return new Response(source);
+      },
+      timeoutMs: 0,
+      remote: { entry: entryUrl, name: remoteName },
+      verification: verification(),
+    });
+    expect(typeof entry.get).toBe('function');
+  });
+});

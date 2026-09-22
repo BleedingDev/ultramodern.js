@@ -4,6 +4,7 @@ import { builderPluginAdapterPrecompress } from '@modern-js/app-tools-extensions
 import { resolveEffectTsgoCompiler } from '@modern-js/app-tools-extensions/config';
 import { configureUltramodernTypeChecker } from '@modern-js/app-tools-extensions/native-type-checker';
 import { resolveUltramodernReleaseIdentity } from '@modern-js/app-tools-extensions/release-identity';
+import { findHostingModuleDirectory } from '@modern-js/app-tools-extensions/runtime-package-resolution';
 import { mergeConfig } from '@modern-js/plugin/cli';
 import { type RspackChain, rspack } from '@rsbuild/core';
 import type { AppUserConfig } from './types';
@@ -81,56 +82,14 @@ export interface PresetUltramodernOptions {
 }
 
 const resolveReactRouterPackageDir = (appDirectory: string) => {
-  const resolveNodeModulePackageJson = (
-    packageName: string,
-    fromDirectory: string,
-  ) => {
-    let currentDirectory = path.resolve(fromDirectory);
-
-    while (true) {
-      const packageJson = path.join(
-        currentDirectory,
-        'node_modules',
-        packageName,
-        'package.json',
-      );
-      if (fs.existsSync(packageJson)) {
-        return fs.realpathSync(packageJson);
-      }
-
-      const parentDirectory = path.dirname(currentDirectory);
-      if (parentDirectory === currentDirectory) {
-        return undefined;
-      }
-      currentDirectory = parentDirectory;
-    }
+  const findPackage = (name: string, from: string) => {
+    const modules = findHostingModuleDirectory(name, from);
+    return modules ? fs.realpathSync(path.join(modules, name)) : undefined;
   };
-
-  const reactRouterPackageJson = resolveNodeModulePackageJson(
-    'react-router',
-    appDirectory,
-  );
-  if (reactRouterPackageJson) {
-    return path.dirname(reactRouterPackageJson);
-  }
-
-  const reactRouterDomPackageJson = resolveNodeModulePackageJson(
-    'react-router-dom',
-    appDirectory,
-  );
-  if (!reactRouterDomPackageJson) {
-    return undefined;
-  }
-
-  const nestedReactRouterPackageJson = resolveNodeModulePackageJson(
-    'react-router',
-    path.dirname(reactRouterDomPackageJson),
-  );
-  if (nestedReactRouterPackageJson) {
-    return path.dirname(nestedReactRouterPackageJson);
-  }
-
-  return undefined;
+  const direct = findPackage('react-router', appDirectory);
+  if (direct) return direct;
+  const dom = findPackage('react-router-dom', appDirectory);
+  return dom ? findPackage('react-router', dom) : undefined;
 };
 
 // Dependency-driven opt-in surface for apps that explicitly install

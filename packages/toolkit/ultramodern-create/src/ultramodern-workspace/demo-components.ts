@@ -16,38 +16,6 @@ import {
 } from './naming';
 import type { WorkspaceApp } from './types';
 
-function createFederatedI18nSetup(
-  app: WorkspaceApp,
-  localeRoot: string,
-): string {
-  const namespace = appI18nNamespace(app);
-
-  return `import type { JSX } from 'react';
-import { FederatedI18nBoundary, useModernI18n } from '@modern-js/plugin-i18n/runtime/consumer';
-import csResource from '${localeRoot}/cs/${namespace}.json';
-import enResource from '${localeRoot}/en/${namespace}.json';
-
-const federatedI18nLanguages = ['en', 'cs'];
-const federatedI18nResources = {
-  cs: { ${JSON.stringify(namespace)}: csResource },
-  en: { ${JSON.stringify(namespace)}: enResource },
-};`;
-}
-
-function createFederatedI18nBoundary(
-  namespace: string,
-  content: string,
-): string {
-  return `<FederatedI18nBoundary
-      defaultNamespace="${namespace}"
-      fallbackLanguage="en"
-      resources={federatedI18nResources}
-      supportedLanguages={federatedI18nLanguages}
-    >
-      ${content}
-    </FederatedI18nBoundary>`;
-}
-
 export function createShellPage(
   shell: WorkspaceApp,
   remotes: WorkspaceApp[] = [],
@@ -58,41 +26,40 @@ export function createShellPage(
   return renderFileTemplate(
     'workspace/apps/shell-super-app/src/routes/[lang]/page.tsx',
     {
-      value0: tw(
+      heroClassName: tw(
         'mx-auto grid max-w-7xl items-center gap-8 py-8 md:grid-cols-[0.9fr_1.1fr] lg:gap-14',
       ),
-      value1: tw('min-w-0'),
-      value2: tw(
+      heroContentClassName: tw('min-w-0'),
+      eyebrowClassName: tw(
         'text-xs font-black uppercase tracking-[0.18em] text-emerald-800',
       ),
-      value3: tw(
+      titleClassName: tw(
         'mt-3 max-w-3xl text-5xl font-black leading-none tracking-normal text-stone-950 md:text-7xl',
       ),
-      value4: tw('mt-5 max-w-2xl text-lg leading-8 text-stone-600'),
-      value5: tw('mt-7 flex flex-wrap gap-3'),
-      value6: tw(
+      ledeClassName: tw('mt-5 max-w-2xl text-lg leading-8 text-stone-600'),
+      actionsClassName: tw('mt-7 flex flex-wrap gap-3'),
+      primaryActionClassName: tw(
         'inline-flex min-h-11 items-center justify-center rounded-full bg-emerald-800 px-5 font-bold text-white shadow-lg shadow-stone-900/10',
       ),
-      value7: tw(
+      secondaryActionClassName: tw(
         'inline-flex min-h-11 items-center justify-center rounded-full border border-stone-900/15 bg-white/90 px-5 font-bold text-stone-950 shadow-lg shadow-stone-900/10',
       ),
-      value8: tw('rounded-3xl bg-white/90 p-6 shadow-2xl shadow-stone-900/15'),
-      value9: tw('grid gap-4 sm:grid-cols-2'),
-      value10: tw('rounded-2xl bg-emerald-50 p-5'),
-      value11: tw(
+      cardsClassName: tw(
+        'rounded-3xl bg-white/90 p-6 shadow-2xl shadow-stone-900/15',
+      ),
+      cardsGridClassName: tw('grid gap-4 sm:grid-cols-2'),
+      remoteCardClassName: tw('rounded-2xl bg-emerald-50 p-5'),
+      remoteCardKickerClassName: tw(
         'text-sm font-black uppercase tracking-[0.16em] text-emerald-800',
       ),
-      value12: tw('mt-3 block text-3xl font-black text-stone-950'),
-      value13: remoteCount,
-      value14: tw('mt-2 text-sm font-semibold text-stone-600'),
-      value15: tw('rounded-2xl bg-amber-50 p-5'),
-      value16: tw(
+      cardValueClassName: tw('mt-3 block text-3xl font-black text-stone-950'),
+      remoteCount,
+      cardBodyClassName: tw('mt-2 text-sm font-semibold text-stone-600'),
+      ssrCardClassName: tw('rounded-2xl bg-amber-50 p-5'),
+      ssrCardKickerClassName: tw(
         'text-sm font-black uppercase tracking-[0.16em] text-amber-800',
       ),
-      value17: tw('mt-3 block text-3xl font-black text-stone-950'),
-      value18: tw('mt-2 text-sm font-semibold text-stone-600'),
-      value19: tw('sr-only'),
-      value20: tw('sr-only'),
+      hiddenClassName: tw('sr-only'),
     },
   );
 }
@@ -137,8 +104,7 @@ function createShellRemoteComponentsSource(
             ? 'workspace/apps/shell-super-app/src/routes/vertical-components.worker.helpers.tsx'
             : 'workspace/apps/shell-super-app/src/routes/vertical-components.helpers.tsx',
           {
-            value0: shell.id,
-            value1: tw(
+            unavailableClassName: tw(
               'rounded-xl border border-red-900/20 bg-red-50 px-4 py-3 text-sm font-semibold text-red-900',
             ),
           },
@@ -162,27 +128,26 @@ ${showcaseItems}
   return renderFileTemplate(
     'workspace/apps/shell-super-app/src/routes/vertical-components.tsx',
     {
-      value0: federationImports,
-      value1: remoteCount,
-      value2: federationHelpers,
-      value3: remoteComponentExports,
-      value4: tw(
+      federationImports,
+      widgetCount: remoteCount,
+      federationHelpers,
+      remoteComponentExports,
+      headerClassName: tw(
         'flex min-w-0 flex-wrap items-center gap-x-8 gap-y-2 md:flex-1',
       ),
-      value5: shell.mfName,
-      value6: tw(
+      boundaryId: shell.mfName,
+      titleClassName: tw(
         'whitespace-nowrap text-xl font-black tracking-normal text-stone-950 no-underline',
       ),
-      value7: tw(
+      statusBadgeClassName: tw(
         'inline-flex h-10 shrink-0 items-center justify-center rounded-full border border-stone-900/15 bg-white px-4 text-sm font-extrabold text-stone-950 shadow-lg shadow-stone-900/5',
       ),
-      value8: tw(
+      emptyShowcaseClassName: tw(
         'mx-auto mt-12 max-w-7xl rounded-2xl bg-white/90 p-6 shadow-xl shadow-stone-900/10',
       ),
-      value9: tw('text-lg font-bold text-stone-700'),
-      value10: tw('mx-auto mt-12 max-w-7xl'),
-      value11: shell.mfName,
-      value12: showcaseGrid,
+      emptyMessageClassName: tw('text-lg font-bold text-stone-700'),
+      showcaseClassName: tw('mx-auto mt-12 max-w-7xl'),
+      showcaseGrid,
     },
   );
 }
@@ -444,20 +409,48 @@ export default function Layout() {
 }
 
 export function createRemoteEntry(app: WorkspaceApp): string {
+  return createRemoteSurface(app, {
+    expose: './Route',
+    localeRoot: '../locales',
+    bodyTranslationKey: 'routeSurface',
+  });
+}
+
+function createRemoteSurface(
+  app: WorkspaceApp,
+  {
+    expose,
+    localeRoot,
+    bodyTranslationKey,
+  }: {
+    expose: string;
+    localeRoot: string;
+    bodyTranslationKey: string;
+  },
+): string {
   const tw = createTw(tailwindPrefixForApp(app));
   const domain = app.domain ?? app.id;
   const namespace = appI18nNamespace(app);
-  const componentName = `${toPascalCase(domain)}Route`;
+  const componentName = `${toPascalCase(domain)}${toPascalCase(expose.replace(/^\.\//u, ''))}`;
 
-  return `${createFederatedI18nSetup(app, '../locales')}
+  return `import type { JSX } from 'react';
+import { FederatedI18nBoundary, useModernI18n } from '@modern-js/plugin-i18n/runtime/consumer';
+import csResource from '${localeRoot}/cs/${namespace}.json';
+import enResource from '${localeRoot}/en/${namespace}.json';
+
+const federatedI18nLanguages = ['en', 'cs'];
+const federatedI18nResources = {
+  cs: { ${JSON.stringify(namespace)}: csResource },
+  en: { ${JSON.stringify(namespace)}: enResource },
+};
 
 const ${componentName}Content = () => {
   const { t } = useModernI18n();
 
   return (
-    <section className="${tw('rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10')}" data-modern-boundary-id="${app.mfName}" data-modern-mf-expose="./Route">
+    <section className="${tw('rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10')}" data-modern-boundary-id="${app.mfName}" data-modern-mf-expose="${expose}">
       <h2 className="${tw('text-2xl font-black')}">{t('${domain}.title')}</h2>
-      <p className="${tw('mt-2 text-stone-600')}">{t('${domain}.routeSurface')}</p>
+      <p className="${tw('mt-2 text-stone-600')}">{t('${domain}.${bodyTranslationKey}')}</p>
     </section>
   );
 };
@@ -466,36 +459,14 @@ export default function ${componentName}(props: Record<string, never>): JSX.Elem
   void props;
 
   return (
-    ${createFederatedI18nBoundary(namespace, `<${componentName}Content />`)}
-  );
-}
-`;
-}
-
-function createRemoteWidget(app: WorkspaceApp): string {
-  const tw = createTw(tailwindPrefixForApp(app));
-  const domain = app.domain ?? app.id;
-  const componentName = `${toPascalCase(domain)}Widget`;
-  const namespace = appI18nNamespace(app);
-
-  return `${createFederatedI18nSetup(app, '../../locales')}
-
-const ${componentName}Content = () => {
-  const { t } = useModernI18n();
-
-  return (
-    <section className="${tw('rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10')}" data-modern-boundary-id="${app.mfName}" data-modern-mf-expose="./Widget">
-      <h2 className="${tw('text-2xl font-black')}">{t('${domain}.title')}</h2>
-      <p className="${tw('mt-2 text-stone-600')}">{t('${domain}.widgetBody')}</p>
-    </section>
-  );
-};
-
-export default function ${componentName}(props: Record<string, never>): JSX.Element {
-  void props;
-
-  return (
-    ${createFederatedI18nBoundary(namespace, `<${componentName}Content />`)}
+    <FederatedI18nBoundary
+      defaultNamespace="${namespace}"
+      fallbackLanguage="en"
+      resources={federatedI18nResources}
+      supportedLanguages={federatedI18nLanguages}
+    >
+      <${componentName}Content />
+    </FederatedI18nBoundary>
   );
 }
 `;
@@ -543,39 +514,12 @@ export function createRemoteExposeComponent(
   app: WorkspaceApp,
   expose: string,
 ): string {
-  const tw = createTw(tailwindPrefixForApp(app));
-
-  if (expose === './Widget') {
-    return createRemoteWidget(app);
-  }
-
-  const componentName = `${toPascalCase(app.domain ?? app.id)}${toPascalCase(
-    expose.replace(/^\.\//u, ''),
-  )}`;
-  const domain = app.domain ?? app.id;
-  const namespace = appI18nNamespace(app);
-
-  return `${createFederatedI18nSetup(app, '../../locales')}
-
-const ${componentName}Content = () => {
-  const { t } = useModernI18n();
-
-  return (
-    <section className="${tw('rounded-2xl bg-white/90 p-5 shadow-xl shadow-stone-900/10')}" data-modern-boundary-id="${app.mfName}" data-modern-mf-expose="${expose}">
-      <h2 className="${tw('text-2xl font-black')}">{t('${domain}.title')}</h2>
-      <p className="${tw('mt-2 text-stone-600')}">{t('${domain}.federatedSurface')}</p>
-    </section>
-  );
-};
-
-export default function ${componentName}(props: Record<string, never>): JSX.Element {
-  void props;
-
-  return (
-    ${createFederatedI18nBoundary(namespace, `<${componentName}Content />`)}
-  );
-}
-`;
+  return createRemoteSurface(app, {
+    expose,
+    localeRoot: '../../locales',
+    bodyTranslationKey:
+      expose === './Widget' ? 'widgetBody' : 'federatedSurface',
+  });
 }
 
 export function remoteComponentOutputPath(app: WorkspaceApp, expose: string) {

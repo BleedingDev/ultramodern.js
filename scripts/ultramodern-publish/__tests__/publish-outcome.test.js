@@ -647,3 +647,62 @@ test('Tractor evidence binder refuses a rehearsal report and binds the published
     fs.rmSync(root, { force: true, recursive: true });
   }
 });
+
+test('workflow identity commands bind immutable bytes and distinct producer/publication attempts', async () => {
+  const { runWorkflowCommand } = await import('../workflow.mjs');
+  const fixture = await createEvidenceFixture();
+  const env = {
+    BLEEDINGDEV_RELEASE_DIR: path.dirname(fixture.manifestPath),
+    BLEEDINGDEV_RELEASE_MANIFEST: fixture.manifestPath,
+    BLEEDINGDEV_RELEASE_ACCEPTANCE_RECEIPT: fixture.receiptPath,
+    BLEEDINGDEV_RELEASE_IDENTITY: path.join(fixture.root, 'identity.json'),
+    BLEEDINGDEV_PUBLISH_TAG: release.tag,
+    PUBLISH_VERSION: release.version,
+    SOURCE_COMMIT: source.commit,
+    GITHUB_REPOSITORY: source.repository,
+    GITHUB_RUN_ID: runId,
+    GITHUB_OUTPUT: path.join(fixture.root, 'output'),
+    PRODUCER_ARTIFACT_IDENTITY: producerArtifactIdentity,
+    PRODUCER_RUN_ATTEMPT: String(producerRunAttempt),
+    PRODUCER_RUN_IDENTITY: producerRunIdentity,
+    PUBLICATION_RUN_ATTEMPT: String(publicationRunAttempt),
+  };
+  try {
+    await runWorkflowCommand(['create-published-identity'], env);
+    await runWorkflowCommand(['verify-published-identity'], env);
+    const identity = JSON.parse(
+      fs.readFileSync(env.BLEEDINGDEV_RELEASE_IDENTITY),
+    );
+    assert.equal(identity.producerRunAttempt, '1');
+    assert.equal(identity.publicationRunAttempt, '2');
+    for (const [key, value] of Object.entries({
+      GITHUB_RUN_ID: 'foreign',
+      PUBLICATION_RUN_ATTEMPT: '3',
+      PRODUCER_RUN_IDENTITY: 'foreign',
+    })) {
+      await assert.rejects(
+        runWorkflowCommand(['verify-published-identity'], {
+          ...env,
+          [key]: value,
+        }),
+        /does not bind/,
+      );
+    }
+    fs.appendFileSync(fixture.receiptPath, ' ');
+    await assert.rejects(
+      runWorkflowCommand(['verify-published-identity'], env),
+      /does not bind/,
+    );
+    fs.appendFileSync(fixture.manifestPath, ' ');
+    await assert.rejects(
+      runWorkflowCommand(['create-published-identity'], env),
+      /SHA-256 mismatch|canonical JSON/,
+    );
+    await assert.rejects(
+      runWorkflowCommand(['create-published-identity', 'extra'], env),
+      /Expected one workflow command/,
+    );
+  } finally {
+    fs.rmSync(fixture.root, { recursive: true, force: true });
+  }
+});

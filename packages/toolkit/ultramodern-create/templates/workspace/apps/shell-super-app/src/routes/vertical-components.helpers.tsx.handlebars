@@ -4,7 +4,7 @@ interface RemoteComponentModule {
 
 const RemoteUnavailable = () => {
   const { t } = useModernI18n();
-  return <div className="{{value1}}">{t('shell.remoteUnavailable')}</div>;
+  return <div className="{{unavailableClassName}}">{t('shell.remoteUnavailable')}</div>;
 };
 
 const createRemoteComponent = (

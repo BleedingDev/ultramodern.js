@@ -35,9 +35,9 @@ export async function runUltramodernToolingCli(
       case GENERATED_TOOLING_COMMANDS.mfTypes.command:
         return runMfTypes(rest, context);
       case GENERATED_TOOLING_COMMANDS.cloudflareOutputVerify.command:
-        return runCloudflareOutputVerify(rest, context);
+        return await runCloudflareOutputVerify(rest, context);
       case GENERATED_TOOLING_COMMANDS.routesGenerate.command:
-        return runRoutesGenerate(rest, context);
+        return await runRoutesGenerate(rest, context);
       case AD_HOC_TOOLING_COMMANDS.syncDeliveryUnit:
         return runSyncDeliveryUnit(rest, context);
       case AD_HOC_TOOLING_COMMANDS.skills:

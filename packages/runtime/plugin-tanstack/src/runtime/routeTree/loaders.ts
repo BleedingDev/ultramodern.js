@@ -3,6 +3,7 @@
 import type { RouteObject } from '@modern-js/runtime-utils/router';
 import {
   getLoaderHref,
+  getLoaderSignal,
   handleModernLoaderError,
   handleModernLoaderResult,
   mapSplatParamsForModernLoader,
@@ -118,10 +119,7 @@ export function wrapRouteObjectLoader(
         } catch {}
       }
 
-      const signal: AbortSignal =
-        ctx?.abortController?.signal ||
-        ctx?.signal ||
-        new AbortController().signal;
+      const signal = getLoaderSignal(ctx);
       const baseRequest: Request | undefined =
         ctx?.context?.request instanceof Request
           ? ctx.context.request

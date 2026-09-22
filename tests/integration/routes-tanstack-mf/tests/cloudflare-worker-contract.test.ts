@@ -35,7 +35,7 @@ const cloudflareEnvironment = {
   MF_REMOTE_PORT: '3010',
   MODERNJS_DEPLOY: 'cloudflare',
 };
-const ensureWorkspacePackages = [
+const requiredWorkspacePackages = [
   '@modern-js/app-tools',
   '@modern-js/bff-core',
   '@modern-js/create-request',
@@ -93,14 +93,14 @@ describe('TanStack Module Federation Cloudflare worker contract', () => {
 
   test('deploys the generated route and Effect workers through the production verifier', async () => {
     const buildResult = (await modernBuild(appDir, [], {
-      ensureWorkspacePackages,
+      requiredWorkspacePackages,
       env: cloudflareEnvironment,
     })) as CommandResult;
     requireSuccessfulCommand('Cloudflare build', buildResult);
 
     const deployResult = (await runModernCommand(['deploy', '--skip-build'], {
       cwd: appDir,
-      ensureWorkspacePackages,
+      requiredWorkspacePackages,
       env: {
         ...cloudflareEnvironment,
         NODE_ENV: 'production',

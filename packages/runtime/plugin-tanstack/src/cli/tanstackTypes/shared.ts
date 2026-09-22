@@ -71,20 +71,6 @@ export function pickRouteSearchContractModules(
   };
 }
 
-export function isPathlessLayout(route: NestedRouteForCli | PageRoute) {
-  const extras = route as RouteExtras;
-  return (
-    extras.type === 'nested' &&
-    typeof extras.index !== 'boolean' &&
-    typeof extras.path === 'undefined'
-  );
-}
-
-export function isIndexRoute(route: NestedRouteForCli | PageRoute) {
-  const extras = route as RouteExtras;
-  return extras.type === 'nested' && Boolean(extras.index);
-}
-
 export function createRouteStaticDataSnippet(opts: {
   modernRouteId?: string;
   loaderName?: string | null;

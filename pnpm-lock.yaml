@@ -723,7 +723,7 @@ importers:
         version: 3.3.4(@modern-js/app-tools@packages+solutions+app-tools)(@modern-js/plugin@3.9.0(@module-federation/runtime-tools@2.9.0)(core-js@3.50.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@rsbuild/core@2.2.3(@module-federation/runtime-tools@2.9.0)(core-js@3.50.0))(storybook-builder-rsbuild@3.4.2(@rsbuild/core@2.2.3(@module-federation/runtime-tools@2.9.0)(core-js@3.50.0))(@typescript/native-preview@7.0.0-dev.20260707.2)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(storybook@10.5.10(@types/react@19.2.18)(bufferutil@4.1.0)(prettier@3.9.4)(react@19.2.8)(utf-8-validate@5.0.10))(typescript@5.7.3))(typescript@5.7.3)
       storybook-react-rsbuild:
         specifier: 3.4.2
-        version: 3.4.2(@rsbuild/core@2.2.3(@module-federation/runtime-tools@2.9.0)(core-js@3.50.0))(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(@typescript/native-preview@7.0.0-dev.20260707.2)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(rollup@4.62.2)(storybook@10.5.10(@types/react@19.2.18)(bufferutil@4.1.0)(prettier@3.9.4)(react@19.2.8)(utf-8-validate@5.0.10))(supports-color@10.2.2)(typescript@5.7.3)
+        version: 3.4.2(@rsbuild/core@2.2.3(@module-federation/runtime-tools@2.9.0)(core-js@3.50.0))(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(@typescript/native-preview@7.0.0-dev.20260707.2)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(rollup@4.62.2)(storybook@10.5.10(@types/react@19.2.18)(bufferutil@4.1.0)(prettier@3.9.4)(react@19.2.8)(utf-8-validate@5.0.10))(supports-color@8.1.1)(typescript@5.7.3)
       typescript:
         specifier: ^5
         version: 5.7.3
@@ -2957,6 +2957,9 @@ importers:
       '@modern-js/server-runtime-extensions':
         specifier: workspace:*
         version: link:../../server/runtime-extensions
+      '@modern-js/surface-resolution':
+        specifier: workspace:*
+        version: link:../../toolkit/surface-resolution
       '@modern-js/types':
         specifier: workspace:*
         version: link:../../toolkit/types
@@ -3941,6 +3944,9 @@ importers:
       kill-port:
         specifier: ^2.0.1
         version: 2.0.1
+      playwright:
+        specifier: ^1.63.0
+        version: 1.63.0
       puppeteer:
         specifier: ^25.10.0
         version: 25.10.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)(yauzl@3.4.0)
@@ -35828,7 +35834,7 @@ snapshots:
       - msw
       - vite
 
-  storybook-react-rsbuild@3.4.2(@rsbuild/core@2.2.3(@module-federation/runtime-tools@2.9.0)(core-js@3.50.0))(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(@typescript/native-preview@7.0.0-dev.20260707.2)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(rollup@4.62.2)(storybook@10.5.10(@types/react@19.2.18)(bufferutil@4.1.0)(prettier@3.9.4)(react@19.2.8)(utf-8-validate@5.0.10))(supports-color@10.2.2)(typescript@5.7.3):
+  storybook-react-rsbuild@3.4.2(@rsbuild/core@2.2.3(@module-federation/runtime-tools@2.9.0)(core-js@3.50.0))(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(@typescript/native-preview@7.0.0-dev.20260707.2)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(rollup@4.62.2)(storybook@10.5.10(@types/react@19.2.18)(bufferutil@4.1.0)(prettier@3.9.4)(react@19.2.8)(utf-8-validate@5.0.10))(supports-color@8.1.1)(typescript@5.7.3):
     dependencies:
       '@rollup/pluginutils': 5.4.0(rollup@4.62.2)
       '@rsbuild/core': 2.2.3(@module-federation/runtime-tools@2.9.0)(core-js@3.50.0)

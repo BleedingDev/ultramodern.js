@@ -15,30 +15,6 @@ interface RouteNode {
   modernLocalisedRoute?: RouteIdentity;
 }
 
-/** Restore one source route identity for routers with strict route-ID hooks. */
-export function canonicaliseLocalisedRoutes<T extends RouteNode>(
-  routes: T[],
-): T[] {
-  const seen = new Set<string>();
-  return routes.flatMap(route => {
-    const identity = route.modernLocalisedRoute;
-    const key = identity?.id ?? identity?.path;
-    if (key !== undefined) {
-      if (seen.has(key)) return [];
-      seen.add(key);
-    }
-    return [
-      {
-        ...route,
-        ...(identity ? { id: identity.id, path: identity.path } : {}),
-        ...(route.children
-          ? { children: canonicaliseLocalisedRoutes(route.children) }
-          : {}),
-      },
-    ];
-  });
-}
-
 type PathRewrite = { from: string; to: string };
 
 function rewritePath(url: URL, mappings: PathRewrite[]) {
@@ -91,7 +67,7 @@ export function createLocalisedRouteRewrite(routes: RouteNode[]) {
       if (route.children) visit(route.children, fullPath);
     }
   };
-  visit(canonicaliseLocalisedRoutes(routes), '');
+  visit(routes, '');
   if (input.length === 0) return undefined;
   const specificity = (pattern: string) =>
     pattern

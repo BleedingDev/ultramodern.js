@@ -34,16 +34,38 @@ module.exports = createRemoteManifestUrl({
     { format: 'cjs', loader: 'ts', target: 'node20' },
   ).code;
   const module = { exports: undefined as unknown };
-  vm.runInNewContext(executableHelpers, {
-    module,
-    exports: module.exports,
-    require(specifier: string) {
-      assert.equal(specifier, '@modern-js/app-tools-extensions/config');
-      return {
-        getBuildConfigEnvironment: (name: string) => env[name],
-      };
-    },
-  });
+  const config = createRequire(__filename)(
+    '@modern-js/app-tools-extensions/config',
+  );
+  const names = new Set([
+    ...Object.keys(env),
+    'NODE_ENV',
+    'MODERNJS_DEPLOY',
+    'VERTICAL_CATALOG_MF_MANIFEST',
+    'VERTICAL_CATALOG_PUBLIC_URL',
+    'ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN',
+    'ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS',
+  ]);
+  const previous = new Map([...names].map(name => [name, process.env[name]]));
+  try {
+    for (const name of names) {
+      if (env[name] === undefined) delete process.env[name];
+      else process.env[name] = env[name];
+    }
+    vm.runInNewContext(executableHelpers, {
+      module,
+      exports: module.exports,
+      require(specifier: string) {
+        assert.equal(specifier, '@modern-js/app-tools-extensions/config');
+        return config;
+      },
+    });
+  } finally {
+    for (const [name, value] of previous) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  }
 
   return module.exports;
 }
@@ -75,7 +97,52 @@ test('module federation remote refs treat blank Cloudflare workers subdomain as 
         ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS: 'true',
         ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN: '   ',
       }),
-    /Cloudflare deploy needs VERTICAL_CATALOG_PUBLIC_URL, VERTICAL_CATALOG_MF_MANIFEST, or ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN for remote verticalCatalog/u,
+    /Remote verticalCatalog:.*Cloudflare deploy requires VERTICAL_CATALOG_PUBLIC_URL/u,
+  );
+});
+
+test('generated remotes use packaged address policy and preserve explicit refs', () => {
+  const catalog = createVerticalDescriptor('catalog', { port: 4101 });
+  const helpers = createModuleFederationRemoteUrlHelpers(
+    { ...shellApp, verticalRefs: [catalog.id] },
+    [catalog],
+  );
+  for (const configured of [
+    'https://cdn.example/manifest.json',
+    'verticalCatalog@https://cdn.example/manifest.json',
+  ]) {
+    assert.equal(
+      evaluateGeneratedRemoteManifestUrl(helpers, {
+        NODE_ENV: 'production',
+        VERTICAL_CATALOG_MF_MANIFEST: `  ${configured}  `,
+        VERTICAL_CATALOG_PUBLIC_URL: 'https://ignored.example',
+      }),
+      configured,
+    );
+  }
+  assert.equal(
+    evaluateGeneratedRemoteManifestUrl(helpers, {
+      NODE_ENV: 'production',
+      VERTICAL_CATALOG_PUBLIC_URL: ' https://cdn.example/// ',
+    }),
+    'verticalCatalog@https://cdn.example/mf-manifest.json',
+  );
+  assert.equal(
+    evaluateGeneratedRemoteManifestUrl(helpers, {
+      NODE_ENV: 'production',
+      MODERNJS_DEPLOY: 'cloudflare',
+      ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN: ' team ',
+    }),
+    'verticalCatalog@https://tractor-store-catalog.team.workers.dev/mf-manifest.json',
+  );
+  assert.equal(
+    evaluateGeneratedRemoteManifestUrl(helpers, { NODE_ENV: 'development' }),
+    'verticalCatalog@http://localhost:4101/mf-manifest.json',
+  );
+  assert.throws(
+    () =>
+      evaluateGeneratedRemoteManifestUrl(helpers, { NODE_ENV: 'production' }),
+    /localhost fallback is disabled outside designated local environments/u,
   );
 });
 

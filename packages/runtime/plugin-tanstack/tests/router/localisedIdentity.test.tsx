@@ -55,6 +55,7 @@ test('localized URLs preserve native loader and params route identity in SSR and
       '/search': { en: '/find', cs: '/hledat' },
       '/resources/:id': { en: '/resources/:id', cs: '/zdroje/:id' },
     },
+    'canonical',
   );
   const routeObjects = createTanstackRouteObjectsFromConfig({
     routesConfig: { routes },

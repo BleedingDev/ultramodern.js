@@ -488,24 +488,6 @@ function readReleaseEvidence({
       release: manifest,
       runIdentity,
     });
-    if (
-      receipt.mode !== expectedMode ||
-      receipt.status !== 'passed' ||
-      receipt.passed !== true ||
-      receipt.error !== null ||
-      receipt.binding?.source?.repository !== repository ||
-      receipt.binding?.source?.commit !== sourceCommit ||
-      receipt.binding?.release?.tag !== tag ||
-      receipt.binding?.release?.version !== version ||
-      receipt.binding?.runIdentity !== runIdentity ||
-      receipt.binding?.manifest?.sha256 !== manifestSha256 ||
-      receipt.binding?.manifest?.cohortDigest !== manifest.cohortDigest ||
-      receipt.binding?.manifest?.packageCount !== manifest.packages.length
-    ) {
-      throw new Error(
-        `${expectedMode} acceptance receipt is not a complete passing receipt for the exact release manifest`,
-      );
-    }
     // ACC-1: operational-independence evidence exists only in the source
     // lane; the published receipt contract excludes that result id.
     if (expectedMode !== 'source') {

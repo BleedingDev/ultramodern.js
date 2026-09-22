@@ -16,14 +16,24 @@ const writeFile = async (filename: string, source: string) => {
 
 describe('Effect source loading', () => {
   test.each([
-    'cjs',
-    'esm',
-  ] as const)('keeps installed Effect schema identity across bundled workspace source in %s', async format => {
+    { format: 'cjs', injected: false },
+    { format: 'esm', injected: false },
+    { format: 'cjs', injected: true },
+    { format: 'esm', injected: true },
+  ] as const)('keeps installed Effect schema identity in $format with injected=$injected workspace source', async ({
+    format,
+    injected,
+  }) => {
     const appDir = await fs.promises.mkdtemp(
       path.join(os.tmpdir(), 'modern-bff-effect-identity-'),
     );
     try {
-      const contractsDir = path.join(appDir, 'contracts');
+      const contractsDir = path.join(
+        appDir,
+        injected
+          ? 'node_modules/.pnpm/contracts@file+contracts/node_modules/@fixture/contracts'
+          : 'contracts',
+      );
       const entryPath = path.join(
         appDir,
         format === 'cjs' ? 'entry.cts' : 'entry.mts',

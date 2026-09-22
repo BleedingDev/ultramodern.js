@@ -1,7 +1,5 @@
 // @effect-diagnostics asyncFunction:off strictBooleanExpressions:off
 
-import type { RouteObject } from '@modern-js/runtime-utils/router';
-
 export function toTanstackPath(pathname: string): string {
   // TanStack Router uses `$param` and `$` (splat) style params.
   // Modern's conventional routing currently generates React Router style params (e.g. `:id`, `*`).
@@ -29,8 +27,4 @@ export function toTanstackPath(pathname: string): string {
       return segment;
     })
     .join('/');
-}
-
-export function isRouteObjectPathlessLayout(route: RouteObject) {
-  return !route.path && !route.index;
 }

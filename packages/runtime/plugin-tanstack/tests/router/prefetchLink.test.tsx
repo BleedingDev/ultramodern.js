@@ -7,6 +7,7 @@ import {
 } from '@tanstack/react-router';
 import { act, render, waitFor } from '@testing-library/react';
 import React from 'react';
+import { createTanstackNavigation } from '../../src/runtime/navigation';
 import { Link, NavLink } from '../../src/runtime/prefetchLink';
 
 // Real-router harness (no module mocking): STATIC_ACTIVE_PROPS (the
@@ -119,4 +120,32 @@ describe('tanstack prefetch link adapter - aria-current override', () => {
     });
     expect(ref.current).toBe(anchor);
   });
+});
+
+test('provider navigation observes native navigation and preserves history state', async () => {
+  const { router, unmount } = await renderLink({ initialPath: '/' });
+  const capability = createTanstackNavigation(router);
+  const initial = capability.getSnapshot();
+  expect(capability.getSnapshot()).toBe(initial);
+  const listener = rstest.fn();
+  const stop = capability.subscribe(listener);
+  await act(() =>
+    capability.navigate('/settings?q=two#detail', {
+      replace: true,
+      state: { custom: true },
+    }),
+  );
+  expect(listener).toHaveBeenCalled();
+  expect(capability.getSnapshot().location).toEqual({
+    pathname: '/settings',
+    search: '?q=two',
+    hash: '#detail',
+  });
+  expect(router.state.location.state).toMatchObject({ custom: true });
+  expect(router.history.length).toBe(1);
+  stop();
+  listener.mockClear();
+  await act(() => capability.navigate('/'));
+  expect(listener).not.toHaveBeenCalled();
+  unmount();
 });

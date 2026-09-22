@@ -153,12 +153,15 @@ export { effectApi as api, effectLayer as layer };
     }
   });
 
-  test('defaults an empty prefix list to /api and validates batch items against their mounted route', async () => {
+  test('validates an external built producer and mounted batches using its version after source removal', async () => {
     const appDirectory = await fs.promises.mkdtemp(
       path.join(os.tmpdir(), 'modern-effect-adapter-policy-'),
     );
+    const producerDirectory = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), 'modern-effect-producer-'),
+    );
     const originalNodeEnv = process.env.NODE_ENV;
-    const entryFile = path.join(appDirectory, 'api', 'effect.mjs');
+    const entryFile = path.join(producerDirectory, 'dist', 'api', 'effect.mjs');
     const entrySource = `
 import {
   defineEffectBff,
@@ -190,11 +193,19 @@ export { effectApi as api, effectLayer as layer };
     try {
       await fs.promises.symlink(
         path.resolve(__dirname, '../node_modules'),
-        path.join(appDirectory, 'node_modules'),
+        path.join(producerDirectory, 'node_modules'),
         'dir',
       );
       await fs.promises.mkdir(path.dirname(entryFile), { recursive: true });
       await fs.promises.writeFile(entryFile, entrySource);
+      await fs.promises.writeFile(
+        path.join(appDirectory, 'package.json'),
+        JSON.stringify({ name: 'consumer', version: '99.0.0' }),
+      );
+      await fs.promises.writeFile(
+        path.join(producerDirectory, 'package.json'),
+        JSON.stringify({ name: 'producer', version: '7.2.0' }),
+      );
       process.env.NODE_ENV = 'production';
 
       const createApi = (
@@ -204,7 +215,8 @@ export { effectApi as api, effectLayer as layer };
         ({
           getServerContext: () => ({
             appDirectory,
-            apiDirectory: path.dirname(entryFile),
+            apiDirectory: path.join(appDirectory, 'api'),
+            distDirectory: path.join(appDirectory, 'dist'),
             bffRuntimeFramework: 'effect',
             middlewares,
           }),
@@ -239,7 +251,7 @@ export { effectApi as api, effectLayer as layer };
               },
               'crm.producer',
             ),
-            operationVersion: 1,
+            operationVersion: 7,
           }),
         };
       };
@@ -338,6 +350,7 @@ export { effectApi as api, effectLayer as layer };
     } finally {
       process.env.NODE_ENV = originalNodeEnv;
       await fs.promises.rm(appDirectory, { recursive: true, force: true });
+      await fs.promises.rm(producerDirectory, { recursive: true, force: true });
     }
   });
 

@@ -1,5 +1,6 @@
 import path from 'node:path';
 import {
+  normalizeWorkspaceInputs,
   preserveUnknownProjectionFields,
   reconcileGeneratedOverlayUrls,
 } from '../../ultramodern-tooling/config';
@@ -17,14 +18,9 @@ import {
   resolveApiPrefix,
   resolveApiProtocol,
   resolveRemoteRefs,
-  shellApp,
   ULTRAMODERN_CONFIG_PATH,
 } from '../descriptors';
-import {
-  formatGeneratedWorkspaceFiles,
-  writeFileReplacing,
-  writeJsonFile,
-} from '../fs-io';
+import { formatGeneratedWorkspaceFiles, writeJsonFile } from '../fs-io';
 import {
   createFileSnapshot,
   createGenerationResult,
@@ -38,13 +34,12 @@ import type {
   JsonValue,
   UltramodernGenerationResult,
 } from '../types';
-import { preserveConsumerWorkspaceArtifacts } from '../workspace-artifact-ownership';
 import {
-  createPackagedWorkspaceValidationScript,
-  createWorkspaceScriptArtifacts,
-  createWorkspaceValidationScript,
-  writeGeneratedWorkspaceScripts,
-} from '../workspace-scripts';
+  preserveConsumerWorkspaceArtifacts,
+  workspaceArtifactCandidates,
+  workspaceDevelopmentPorts,
+} from '../workspace-artifact-ownership';
+import { writeGeneratedWorkspaceScripts } from '../workspace-scripts';
 import { createCompactUltramodernConfig, writeApp } from '../write-workspace';
 import { createZeropsYaml } from '../zerops';
 import { prepareAddUltramodernVertical } from './preflight';
@@ -54,7 +49,6 @@ import {
 } from './shell-files';
 import { ownershipEntry, verticalTopologyEntry } from './topology';
 import { runWorkspaceTransaction } from './transaction';
-import { configuredDevelopmentPorts } from './workspace-state';
 
 /**
  * Add a MicroVertical to an existing workspace. Transactional (G1c): the
@@ -77,7 +71,7 @@ export function addUltramodernVertical(
   );
 }
 
-function executeAddUltramodernVertical(
+export function executeAddUltramodernVertical(
   options: AddUltramodernVerticalOptions,
   logicalWorkspaceRoot = options.workspaceRoot,
 ): UltramodernGenerationResult {
@@ -106,91 +100,17 @@ function executeAddUltramodernVertical(
   const existingVerticals = updatedVerticals.filter(
     app => app.id !== vertical.id,
   );
-  const previousApps = [
-    primaryShell,
-    ...existingVerticals,
-    ...additionalShells,
-  ].map(app => {
-    const compact = config.topology.apps.find(
-      (entry: Record<string, any>) => entry.id === app.id,
-    );
-    const refs = compact?.moduleFederation?.verticalRefs ?? app.verticalRefs;
-    return {
-      ...app,
-      port: typeof compact?.port === 'number' ? compact.port : app.port,
-      verticalRefs: refs?.filter((id: string) =>
-        existingVerticals.some(remote => remote.id === id),
-      ),
-    };
-  });
-  const previousDevPorts =
-    additionalShells.length > 0
-      ? previousApps
-          .map(app => app.port)
-          .toSorted((left, right) => left - right)
-      : undefined;
+  const previousApps = normalizeWorkspaceInputs(options.workspaceRoot, {
+    config,
+  }).apps;
+  const previousDevPorts = workspaceDevelopmentPorts(previousApps);
   const { io: ownedIo } = preserveConsumerWorkspaceArtifacts(
     options.workspaceRoot,
-    [
-      ...createWorkspaceScriptArtifacts({
-        shellOnly: false,
-        hasBackendSurface: true,
-        validationScript: createWorkspaceValidationScript(
-          scope,
-          enableTailwind,
-          existingVerticals,
-          undefined,
-          previousApps.filter(
-            app => app.kind === 'shell' && app.id !== primaryShell.id,
-          ),
-          previousApps.find(app => app.id === primaryShell.id),
-        ),
-      }),
-      {
-        relativePath: 'scripts/validate-ultramodern-workspace.mts',
-        generatedDataBinding: 'workspaceValidationContract',
-        content: createPackagedWorkspaceValidationScript(
-          scope,
-          enableTailwind,
-          existingVerticals,
-          undefined,
-          previousApps.filter(
-            app => app.kind === 'shell' && app.id !== primaryShell.id,
-          ),
-          previousApps.find(app => app.id === primaryShell.id),
-          undefined,
-          undefined,
-          undefined,
-          // The real workspace, not the staging copy: existing verticals keep
-          // their Module Federation configs there.
-          logicalWorkspaceRoot,
-        ),
-      },
-      {
-        relativePath: 'zerops.yaml',
-        content: `${createZeropsYaml(scope, previousApps)}\n`,
-      },
-      {
-        relativePath: 'zerops.yaml',
-        content: `${createZeropsYaml(scope, [primaryShell, ...existingVerticals, ...additionalShells])}\n`,
-      },
-      {
-        relativePath: 'tsconfig.json',
-        content: `${JSON.stringify(createRootTsConfig(previousApps), null, 2)}\n`,
-      },
-      ...previousApps.map(app => ({
-        relativePath: `${app.directory}/modern.config.ts`,
-        content: createAppModernConfig(
-          scope,
-          app,
-          app.kind === 'shell'
-            ? resolveRemoteRefs(app, existingVerticals)
-            : existingVerticals,
-          previousTailwind,
-          previousDevPorts,
-        ),
-      })),
-    ],
+    workspaceArtifactCandidates(scope, previousApps, previousTailwind, [
+      primaryShell,
+      ...existingVerticals,
+      ...additionalShells,
+    ]),
   );
 
   const nextTargetShell = {
@@ -208,17 +128,10 @@ function executeAddUltramodernVertical(
   const nextAdditionalShells = additionalShells.map(shell =>
     shell.id === nextTargetShell.id ? nextTargetShell : shell,
   );
-  const configuredDevPorts =
-    nextAdditionalShells.length > 0
-      ? configuredDevelopmentPorts(
-          {
-            ...overlay.ports,
-            [primaryShell.id]: primaryShell.port,
-            [vertical.id]: vertical.port,
-          },
-          nextAdditionalShells,
-        ).toSorted((left, right) => left - right)
-      : undefined;
+  const configuredDevPorts = workspaceDevelopmentPorts(
+    [nextPrimaryShell, ...updatedVerticals, ...nextAdditionalShells],
+    overlay.ports,
+  );
 
   writeApp(
     options.workspaceRoot,
@@ -421,21 +334,9 @@ function executeAddUltramodernVertical(
       },
     );
   }
-  writeGeneratedWorkspaceScripts(
-    options.workspaceRoot,
-    scope,
-    enableTailwind,
-    updatedVerticals,
-    undefined,
-    nextAdditionalShells,
-    nextPrimaryShell,
-    {
-      io: { ...ownedIo, writeGenerated: ownedIo.write },
-      compactConfig: config,
-      ownership,
-      developmentOverlay: overlay,
-    },
-  );
+  writeGeneratedWorkspaceScripts(options.workspaceRoot, updatedVerticals, {
+    io: { writeGenerated: ownedIo.write },
+  });
   updateRootWorkspaceScripts(
     options.workspaceRoot,
     scope,

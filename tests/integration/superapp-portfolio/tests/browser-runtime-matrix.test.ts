@@ -1,7 +1,7 @@
 import dns from 'node:dns';
-import { existsSync, readFileSync, rmSync } from 'node:fs';
-import { createRequire } from 'node:module';
+import { readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
+import type { Browser, BrowserContext, Page } from 'playwright';
 import {
   acquireFixtureLock,
   type ReleaseFixtureLock,
@@ -14,25 +14,17 @@ import {
 } from '../../../utils/modernTestUtils';
 import { setSuiteTimeout } from '../../../utils/setSuiteTimeout';
 import {
-  captureBrowserRuntimeDiagnostics,
   createBrowserRuntimeArtifactPaths,
   finishBrowserRuntimeArtifacts,
   startBrowserRuntimeTrace,
 } from './browserRuntimeArtifacts';
+import {
+  createBrowserRuntimePage,
+  launchRuntimeBrowser,
+} from './browserRuntimeFixture';
 
 dns.setDefaultResultOrder('ipv4first');
 setSuiteTimeout(1000 * 60 * 12);
-
-type Browser = any;
-type BrowserContext = any;
-type BrowserType = any;
-type Page = any;
-
-const requireFromRstestBrowserFixture = createRequire(
-  path.resolve(__dirname, '../../rstest/basic-app-rstest-browser/package.json'),
-);
-const { chromium }: { chromium: BrowserType } =
-  requireFromRstestBrowserFixture('playwright');
 
 const appDir = path.resolve(__dirname, '../');
 const host = 'http://localhost';
@@ -106,12 +98,9 @@ async function expectPortfolioHome(page: Page) {
 
 async function createRuntimePage(browser: Browser, testId: string) {
   const artifactPaths = createBrowserRuntimeArtifactPaths(testId);
-  const context: BrowserContext = await browser.newContext({
-    viewport: { width: 1440, height: 960 },
-  });
+  const { context, diagnostics, page } =
+    await createBrowserRuntimePage(browser);
   await startBrowserRuntimeTrace(context);
-  const page = await context.newPage();
-  const diagnostics = captureBrowserRuntimeDiagnostics(page);
   return { ...artifactPaths, context, diagnostics, page, testId };
 }
 
@@ -147,14 +136,9 @@ describe('superapp portfolio browser runtime boundaries', () => {
   const runningApps: unknown[] = [];
 
   beforeAll(async () => {
-    if (!existsSync(chromium.executablePath())) {
-      throw new Error(
-        'Playwright chromium executable is missing. Run playwright install before running superapp runtime boundary coverage.',
-      );
-    }
     releaseFixtureLock = await acquireFixtureLock(appDir);
     cleanMatrixDistRoots();
-    browser = await chromium.launch();
+    browser = await launchRuntimeBrowser();
   });
 
   afterAll(async () => {

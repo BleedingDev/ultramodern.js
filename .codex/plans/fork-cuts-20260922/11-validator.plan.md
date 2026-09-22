@@ -4,10 +4,10 @@ overview: "Replace executable validation templates and per-invocation temporary 
 todos:
   - id: packaged-validator-package
     content: "Extract validator logic into ordinary typed modules with explicit workspace root, immutable expected contract and bounded dependency inputs; preserve diagnostics and CLI exit behavior."
-    status: pending
+    status: completed
   - id: packaged-validator-invoke
     content: "Invoke typed validation directly or through one static packaged entrypoint; preserve thin current consumer wrappers and remove obsolete template execution paths."
-    status: pending
+    status: completed
   - id: packaged-validator-remove
     content: "Remove current validator executable templating, temporary command creation and template-induced dependency discovery after packed-consumer and adversarial validation parity."
     status: pending
@@ -20,7 +20,7 @@ isProject: false
 
 Own ultramodern-create/templates/workspace-scripts/validate-ultramodern-workspace.mjs.handlebars, src/ultramodern-workspace/workspace-scripts.ts, src/ultramodern-tooling/commands/{validate.ts,context.ts} and new validator modules in this existing fork package. Preserve other commands using context.ts; remove runRenderedModule only when all callers have a replacement. Coordinate expected-contract signatures with the workspace owner.
 
-Audit: [current fork evidence](../../../docs/audits/fork-simplification-20260922.md). Final audited fork `ba2f373ad9587642062efc65c763276a68aee909`; fixed vanilla ownership base `eded841256a7cffdaa622e3889fc83407debd3e4`. Beads `modernjs-wuutt.3` under `modernjs-wuutt` is authoritative; keep this execution projection aligned. All implementation is pending.
+Audit: [current fork evidence](../../../docs/audits/fork-simplification-20260922.md). Final audited fork `ba2f373ad9587642062efc65c763276a68aee909`; fixed vanilla ownership base `eded841256a7cffdaa622e3889fc83407debd3e4`. Beads `modernjs-wuutt.3` under `modernjs-wuutt` is authoritative; keep this execution projection aligned. Typed validator extraction and direct CLI invocation are implemented. Focused source and CLI preservation checks pass; packed consumer parity is coordinated with integrated acceptance.
 
 ## Constraints
 
@@ -33,3 +33,11 @@ Preserve installed-template expectations, patch parity, installed-cohort provena
 Depends on preservation-baseline and blocks integrated-feature-parity. Siblings may run in parallel within the named ownership boundaries. Native Codex workers are not alone in the codebase and must preserve other owners edits. Shared file changes go through the root integrator.
 
 Use the exact selection/edges in docs/audits/fork-simplification-20260922-handoff.md. Validate before plan-backed launches. Run relevant current behavior checks, report limitations and include concrete removed decision owners plus net authored-code change in the PR.
+
+## Execution evidence
+
+The packaged validator now directly consumes the installed generator's expected contract. Architecture evidence, JSON assertions and artifact validation are ordinary TypeScript modules. The deleted template's synthetic reconstruction of retired generated-contract metadata and comparisons of its own constants were removed; real compact policy, topology, manifests, delivery identity, public source artifact, profile, patch/cohort and compiler checks remain. Native compiler lookup is bounded to the consumer root, runs with that root as cwd, and closes on success or failure.
+
+All three temporary program callers were converted: validation and Cloudflare verification run directly; routes-generate uses one static packaged per-app entrypoint to isolate the native CLI's process-global state and import-time working directory. Each path resolves the consumer's installed provider and preserves diagnostics. The shared temporary file runner and the obsolete embedded-validator ownership artifact are gone. Consumer wrappers remain thin stable CLI entrypoints.
+
+Verification: package source type-check and targeted Biome pass; 18 focused normalization/patch/cohort/Cloudflare command tests pass; 15 CLI/profile tests pass including structured mutation matrices, compiler bridge/thin-shell gates and REST/RPC/profile preservation. Final structured drift matrix also passes after direct SSR, primary-shell identity and compact federation checks were added; source-relative TypeScript import contracts and invocation from outside the workspace pass. Packed source-unavailable proof and natural per-app route worker termination remain the final gate for the remove task, owned jointly with integrated acceptance.

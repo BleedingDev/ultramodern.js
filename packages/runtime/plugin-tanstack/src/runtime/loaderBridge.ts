@@ -98,15 +98,15 @@ type LoaderLikeContext = {
   params?: Record<string, string>;
 };
 
-function getLoaderSignal(ctx: LoaderLikeContext | undefined): AbortSignal {
-  const abortSignal = ctx?.abortController?.signal;
-  if (abortSignal instanceof AbortSignal) {
-    return abortSignal;
-  }
-  if (ctx?.signal instanceof AbortSignal) {
-    return ctx.signal;
-  }
-  return new AbortController().signal;
+export function getLoaderSignal(
+  ctx: LoaderLikeContext | undefined,
+): AbortSignal {
+  const matchSignal = ctx?.abortController?.signal ?? ctx?.signal;
+  const requestSignal = ctx?.context?.request?.signal;
+  const signals = [matchSignal, requestSignal].filter(
+    (signal): signal is AbortSignal => signal instanceof AbortSignal,
+  );
+  return AbortSignal.any(signals);
 }
 
 export function getLoaderHref(ctx: LoaderLikeContext | undefined): string {

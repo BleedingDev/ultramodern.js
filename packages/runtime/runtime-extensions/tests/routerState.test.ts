@@ -12,12 +12,10 @@ describe('router state primitives', () => {
   it('preserves snapshot precedence and a captured snapshot across client state updates', () => {
     const context = { requestId: 'one' };
     expect(
-      applyRouterRuntimeState(context, {
-        framework: 'custom',
-        basename: '/client',
-        hydrationScripts: ['client'],
-        matchedRouteIds: ['client-route'],
-        serverSnapshot: {
+      applyRouterServerPrepareResult(context, {
+        state: { framework: 'custom', basename: '/client' },
+        snapshot: {
+          framework: 'custom',
           basename: '/server',
           hydrationScripts: ['server'],
           matchedRouteIds: ['server-route'],
@@ -31,6 +29,8 @@ describe('router state primitives', () => {
       hydrationScripts: ['server'],
       matchedRouteIds: ['server-route'],
     });
+    expect(Object.isFrozen(snapshot)).toBe(true);
+    expect(Object.isFrozen(snapshot?.hydrationScripts)).toBe(true);
     expect(getRouterHydrationScripts(context)).toEqual(['server']);
     expect(getRouterMatchedRouteIds(context)).toEqual(['server-route']);
 
@@ -38,7 +38,7 @@ describe('router state primitives', () => {
       framework: 'custom',
       instance: { client: true },
     });
-    expect(getRouterRuntimeState(context)?.serverSnapshot).toBeUndefined();
+    expect(getRouterRuntimeState(context)).not.toHaveProperty('serverSnapshot');
     expect(getRouterServerSnapshot(context)).toBe(snapshot);
     expect(getRouterHydrationScripts(context)).toEqual(['server']);
     expect(getRouterMatchedRouteIds(context)).toEqual(['server-route']);
@@ -55,7 +55,6 @@ describe('router state primitives', () => {
         state: {
           framework: 'custom',
           cleanup: stateCleanup,
-          serverSnapshot: { statusCode: 200 },
         },
         snapshot: { statusCode: 299 },
         cleanup,

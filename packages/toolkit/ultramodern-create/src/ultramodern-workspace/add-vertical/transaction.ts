@@ -12,7 +12,7 @@ type WorkspaceFile = {
 
 type WorkspaceSnapshot = Map<string, WorkspaceFile>;
 
-type WorkspaceChange = {
+export type WorkspaceChange = {
   relativePath: string;
   before?: WorkspaceFile;
   after?: WorkspaceFile;
@@ -1356,11 +1356,14 @@ function publishChangePlan(
  * semantic file changes produced there are published, and every owned target
  * must still match its exact preimage. Unrelated workspace files are never
  * copied back, so concurrent consumer work is conserved without a lock.
+ * Preview prepares and inspects the same change set, then discards its stage;
+ * it never publishes or recovers an earlier transaction into the live tree.
  */
 export function runWorkspaceTransaction<T>(
   root: string,
   mutate: (stagingRoot: string) => T,
   options: {
+    mode?: 'publish' | 'preview';
     commitWhen?: (result: Awaited<T>) => boolean;
     inspectChanges?: (changes: readonly WorkspaceChange[]) => void;
   } = {},
@@ -1369,7 +1372,7 @@ export function runWorkspaceTransaction<T>(
   if (!fs.statSync(workspaceRoot).isDirectory()) {
     throw new Error(`Workspace root is not a directory: ${root}`);
   }
-  recoverWorkspaceTransactions(workspaceRoot);
+  if (options.mode !== 'preview') recoverWorkspaceTransactions(workspaceRoot);
   const stagingRoot = createTemporarySibling(workspaceRoot);
   const stagingIdentity = fs.lstatSync(stagingRoot);
   const cleanup = () => {
@@ -1388,7 +1391,8 @@ export function runWorkspaceTransaction<T>(
         captureWorkspace(stagingRoot, workspaceRoot),
       );
       options.inspectChanges?.(changes);
-      publishChangePlan(workspaceRoot, stagingRoot, changes);
+      if (options.mode !== 'preview')
+        publishChangePlan(workspaceRoot, stagingRoot, changes);
       return result;
     };
     const result = mutate(stagingRoot);

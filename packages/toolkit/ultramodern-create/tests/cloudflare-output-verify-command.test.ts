@@ -33,7 +33,7 @@ test('Cloudflare command resolves the native provider and reports output diagnos
     const runner = path.join(workspaceRoot, 'run-command.mts');
     fs.writeFileSync(
       runner,
-      `import { runCloudflareOutputVerify } from ${JSON.stringify(commandUrl)};\nprocess.exit(runCloudflareOutputVerify(process.argv.slice(2), { workspaceRoot: process.cwd(), invocationCwd: process.cwd() }));\n`,
+      `import { runCloudflareOutputVerify } from ${JSON.stringify(commandUrl)};\nprocess.exit(await runCloudflareOutputVerify(process.argv.slice(2), { workspaceRoot: process.cwd(), invocationCwd: process.cwd() }));\n`,
     );
     const result = spawnSync(
       process.execPath,
@@ -61,11 +61,11 @@ test('Cloudflare command resolves the native provider and reports output diagnos
   }
 });
 
-test('Cloudflare command rejects conflicting selectors before loading a provider', () => {
-  expect(() =>
+test('Cloudflare command rejects conflicting selectors before loading a provider', async () => {
+  await expect(
     runCloudflareOutputVerify(
       ['--app', 'shell-super-app', '--output', 'missing-output'],
       { workspaceRoot: '/nonexistent', invocationCwd: '/nonexistent' },
     ),
-  ).toThrow('Use either --app or --output, not both.');
+  ).rejects.toThrow('Use either --app or --output, not both.');
 });

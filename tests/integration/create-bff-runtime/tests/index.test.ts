@@ -2,19 +2,23 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { materializeGeneratedWorkspaceDependencies } from '../../../utils/generatedWorkspaceDependencies';
+import {
+  generatedModernBin,
+  installPackedGenerator,
+  materializeGeneratedWorkspaceDependencies,
+} from '../../../utils/generatedWorkspaceDependencies';
 import {
   getPort,
   killApp,
   modernBuild,
   modernServe,
 } from '../../../utils/modernTestUtils';
+import { setSuiteTimeout } from '../../../utils/setSuiteTimeout';
+
+setSuiteTimeout(600_000);
 
 const repoRoot = path.resolve(__dirname, '../../../../');
-const createBin = path.resolve(
-  repoRoot,
-  'packages/toolkit/ultramodern-create/bin/run.js',
-);
+let createBin: string;
 const testFrameworkVersion = '3.2.0-ultramodern.108';
 const frameworkVersionEnv = 'ULTRAMODERN_CREATE_FRAMEWORK_VERSION';
 
@@ -24,15 +28,25 @@ type ExecSyncError = Error & {
 };
 
 function runCreate(projectDir: string, args: string[]) {
-  execFileSync(process.execPath, [createBin, projectDir, ...args], {
-    cwd: repoRoot,
-    env: {
-      ...process.env,
-      FORCE_COLOR: '0',
-      [frameworkVersionEnv]: testFrameworkVersion,
+  execFileSync(
+    process.execPath,
+    [
+      createBin,
+      projectDir,
+      '--ultramodern-package-source',
+      'workspace',
+      ...args,
+    ],
+    {
+      cwd: repoRoot,
+      env: {
+        ...process.env,
+        FORCE_COLOR: '0',
+        [frameworkVersionEnv]: testFrameworkVersion,
+      },
+      stdio: 'pipe',
     },
-    stdio: 'pipe',
-  });
+  );
 }
 
 function runCreateInWorkspace(workspaceDir: string, args: string[]) {
@@ -57,15 +71,6 @@ function scaffoldWorkspaceWithVertical(
   runCreateInWorkspace(workspaceDir, verticalArgs);
 }
 
-const generatedBuildPackages = [
-  '@modern-js/app-tools',
-  '@modern-js/plugin-bff',
-  '@modern-js/plugin-i18n',
-  '@modern-js/plugin-tanstack',
-  '@modern-js/runtime',
-  '@modern-js/runtime-extensions',
-];
-
 function captureCreateFailure(projectDir: string, args: string[]): string {
   try {
     runCreate(projectDir, args);
@@ -87,6 +92,7 @@ describe('create-bff-runtime', () => {
     tempRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), 'modern-create-bff-runtime-'),
     );
+    createBin = installPackedGenerator(tempRoot);
   });
 
   afterAll(() => {
@@ -102,43 +108,38 @@ describe('create-bff-runtime', () => {
       ['--bff-runtime', 'effect', '--lang', 'en'],
       ['greetings', '--vertical', '--bff-runtime', 'effect', '--lang', 'en'],
     );
-    const cleanupDependencies =
-      materializeGeneratedWorkspaceDependencies(workspaceDir);
-    try {
-      const verticalDir = path.join(workspaceDir, 'verticals/greetings');
-      const buildResult = await modernBuild(verticalDir, [], {
-        ensureWorkspacePackages: generatedBuildPackages,
-        stdout: false,
-        stderr: false,
-      });
-      expect(
-        buildResult.code,
-        `${buildResult.stdout}
+    materializeGeneratedWorkspaceDependencies(workspaceDir);
+    const verticalDir = path.join(workspaceDir, 'verticals/greetings');
+    const buildResult = await modernBuild(verticalDir, [], {
+      modernBin: generatedModernBin(verticalDir),
+      stdout: false,
+      stderr: false,
+    });
+    expect(
+      buildResult.code,
+      `${buildResult.stdout}
 ${buildResult.stderr}`,
-      ).toBe(0);
+    ).toBe(0);
 
-      const port = await getPort();
-      const server = await modernServe(verticalDir, port, {
-        ensureWorkspacePackages: generatedBuildPackages,
+    const port = await getPort();
+    const server = await modernServe(verticalDir, port, {
+      modernBin: generatedModernBin(verticalDir),
+    });
+    try {
+      const response = await fetch(
+        `http://127.0.0.1:${port}/greetings-api/greetings?limit=1`,
+      );
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toMatchObject({
+        items: [
+          {
+            id: 'starter-greetings',
+            title: 'Wire a real greetings source here',
+          },
+        ],
       });
-      try {
-        const response = await fetch(
-          `http://127.0.0.1:${port}/greetings-api/greetings?limit=1`,
-        );
-        expect(response.status).toBe(200);
-        await expect(response.json()).resolves.toMatchObject({
-          items: [
-            {
-              id: 'starter-greetings',
-              title: 'Wire a real greetings source here',
-            },
-          ],
-        });
-      } finally {
-        await killApp(server);
-      }
     } finally {
-      cleanupDependencies();
+      await killApp(server);
     }
   });
 

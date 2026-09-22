@@ -6,6 +6,7 @@ import {
   addUltramodernVertical,
   planUltramodernVertical,
 } from '../src/ultramodern-workspace';
+import { __transactionTestHooks } from '../src/ultramodern-workspace/add-vertical/transaction';
 import { createWorkspace, snapshotWorkspace } from './helpers/workspace-kit';
 
 const packageRoot = path.resolve(__dirname, '..');
@@ -72,6 +73,7 @@ test('workspace snapshots ignore Git maintenance state and retain generated file
     fs.rmSync(addedPath);
     assert.deepEqual(snapshotWorkspace(workspaceDir), before);
   } finally {
+    __transactionTestHooks.beforePublish = undefined;
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
 });
@@ -83,12 +85,16 @@ test('public dry-run plan leaves workspace unchanged and matches normal run summ
 
   try {
     const before = snapshotWorkspace(workspaceDir);
+    __transactionTestHooks.beforePublish = () => {
+      throw new Error('Preview must not publish');
+    };
     const plan = planUltramodernVertical({
       workspaceRoot: workspaceDir,
       name: 'catalog',
       modernVersion: '3.2.1',
     });
 
+    __transactionTestHooks.beforePublish = undefined;
     assert.deepEqual(snapshotWorkspace(workspaceDir), before);
     assert.equal(plan.dryRun, true);
     assert.equal(plan.selectedPort, 4101);
@@ -141,6 +147,39 @@ test('public dry-run plan leaves workspace unchanged and matches normal run summ
       name: 'catalog',
       modernVersion: '3.2.1',
     });
+    const projected = new Map<string, any>();
+    for (const mutation of plan.jsonMutations) {
+      if (!projected.has(mutation.path))
+        projected.set(
+          mutation.path,
+          before[mutation.path] ? JSON.parse(before[mutation.path]) : undefined,
+        );
+      if (mutation.pointer === '') {
+        projected.set(mutation.path, mutation.value);
+        continue;
+      }
+      const segments = mutation.pointer
+        .slice(1)
+        .split('/')
+        .map(part => part.replaceAll('~1', '/').replaceAll('~0', '~'));
+      const key = segments.pop()!;
+      const parent = segments.reduce(
+        (value, segment) => value[segment],
+        projected.get(mutation.path),
+      );
+      if (key === '-') parent.push(mutation.value);
+      else if (mutation.value === undefined) delete parent[key];
+      else parent[key] = mutation.value;
+    }
+    for (const [relativePath, expected] of projected) {
+      assert.deepEqual(
+        JSON.parse(
+          fs.readFileSync(path.join(workspaceDir, relativePath), 'utf8'),
+        ),
+        expected,
+        `preview must describe the actual published JSON: ${relativePath}`,
+      );
+    }
     assert.deepEqual(plan.createdApps, result.createdApps);
     assert.deepEqual(plan.createdPaths, result.createdPaths);
     assert.deepEqual(plan.rewrittenPaths, result.rewrittenPaths);
@@ -149,6 +188,7 @@ test('public dry-run plan leaves workspace unchanged and matches normal run summ
     assert.deepEqual(plan.apiPrefixes, result.apiPrefixes);
     assert.equal(plan.generatedContractPath, result.generatedContractPath);
   } finally {
+    __transactionTestHooks.beforePublish = undefined;
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
 });
@@ -160,6 +200,14 @@ test('CLI --dry-run prints a MicroVertical plan without writing files', () => {
   );
 
   try {
+    const configPath = path.join(
+      workspaceDir,
+      'apps/shell-super-app/modern.config.ts',
+    );
+    fs.writeFileSync(
+      configPath,
+      `// Authored configuration must survive preview.\n${fs.readFileSync(configPath, 'utf8')}`,
+    );
     const before = snapshotWorkspace(workspaceDir);
 
     const dryRunResult = runCli(workspaceDir, [
@@ -168,6 +216,7 @@ test('CLI --dry-run prints a MicroVertical plan without writing files', () => {
       '--dry-run',
     ]);
     assert.equal(dryRunResult.status, 0, dryRunResult.stderr);
+    assert.match(dryRunResult.stderr, /preserved consumer-owned artifact/);
     const plan = JSON.parse(dryRunResult.stdout);
     assert.equal(plan.dryRun, true);
     assert.equal(plan.selectedPort, 4101);

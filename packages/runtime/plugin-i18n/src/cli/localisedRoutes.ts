@@ -2,7 +2,12 @@ import {
   applyLocalisedUrlsToRoutes,
   resolveLocalisedUrlsConfig,
 } from '@modern-js/i18n-runtime-extensions';
-import type { NestedRouteForCli, PageRoute } from '@modern-js/types';
+import { getEntrypointRoutesOwner } from '@modern-js/runtime/cli';
+import type {
+  Entrypoint,
+  NestedRouteForCli,
+  PageRoute,
+} from '@modern-js/types';
 import type { BaseLocaleDetectionOptions } from '../shared/type';
 
 type FileSystemRoutes = (NestedRouteForCli | PageRoute)[];
@@ -23,6 +28,7 @@ type FileSystemRoutes = (NestedRouteForCli | PageRoute)[];
 export const applyLocalisedRoutes = (
   routes: FileSystemRoutes,
   localeDetection: BaseLocaleDetectionOptions | undefined,
+  entrypoint?: Entrypoint & Parameters<typeof getEntrypointRoutesOwner>[0],
 ): FileSystemRoutes => {
   const {
     localePathRedirect,
@@ -39,5 +45,9 @@ export const applyLocalisedRoutes = (
     routes,
     languages,
     resolved.map,
+    entrypoint &&
+      getEntrypointRoutesOwner(entrypoint) === '@modern-js/plugin-tanstack'
+      ? 'canonical'
+      : 'physical',
   ) as FileSystemRoutes;
 };

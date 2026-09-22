@@ -23,11 +23,13 @@ import { createModernBasepathRewrite } from './basepathRewrite';
 import { routerProviderRegistryHooks } from './hooks';
 import { wrapTanstackSsrHydrationBoundary } from './hydrationBoundary';
 import {
+  applyRouterRuntimeState,
   applyRouterServerPrepareResult,
-  createRouterServerSnapshot,
   getRouterRuntimeState,
+  getRouterServerSnapshot,
   type RouterLifecycleContext,
 } from './lifecycle';
+import { createTanstackNavigation } from './navigation';
 import {
   createTanstackRouteObjects,
   getTanstackRouteConfig,
@@ -168,116 +170,136 @@ export const tanstackRouterPlugin = (
           setTanstackRscRouter(serverRouter);
         }
 
-        await attachServerSsrUtils(serverRouter);
-
-        const end = time();
-
+        let disposed = false;
+        let prepared = false;
+        const onAbort = () => controller.abort(rawRequest.signal.reason);
+        const cleanup = () => {
+          if (disposed) return;
+          disposed = true;
+          rawRequest.signal.removeEventListener('abort', onAbort);
+          controller.abort();
+          serverRouter.serverSsr?.cleanup?.();
+        };
+        // Acquire the disposer before attachment: every subsequent failure,
+        // including partial attachment, has an owner. Successful preparation
+        // leaves disposal to the response lifetime in the SSR pipeline.
+        applyRouterRuntimeState(context, {
+          framework: 'tanstack',
+          basename: _basename,
+          instance: serverRouter,
+          cleanup,
+        });
+        rawRequest.signal.addEventListener('abort', onAbort, { once: true });
         try {
-          await tanstackRouter.load({ sync: true });
-        } finally {
-          const cost = end();
-          context.ssrContext?.onTiming?.(LOADER_REPORTER_NAME, cost);
-        }
+          rawRequest.signal.throwIfAborted();
+          await attachServerSsrUtils(serverRouter);
+          rawRequest.signal.throwIfAborted();
 
-        const serverLoadResult = serverRouter._serverResult;
-        if (!serverLoadResult) {
-          try {
-            serverRouter.serverSsr?.cleanup?.();
-          } catch {}
-          throw new Error(
-            'TanStack Router completed an SSR load without a server result.',
-          );
-        }
-
-        if (serverLoadResult.type === 'redirect') {
-          const { redirect } = serverLoadResult;
+          const end = time();
 
           try {
-            serverRouter.serverSsr?.cleanup?.();
-          } catch {}
+            await tanstackRouter.load({ sync: true });
+          } finally {
+            const cost = end();
+            context.ssrContext?.onTiming?.(LOADER_REPORTER_NAME, cost);
+          }
 
-          return interrupt(
-            isRSCNavigation
-              ? handleTanstackRscRedirect(
-                  redirect.headers,
-                  _basename,
-                  redirect.status,
-                )
-              : redirect,
-          );
-        }
+          rawRequest.signal.throwIfAborted();
+          const serverLoadResult = serverRouter._serverResult;
+          if (!serverLoadResult) {
+            throw new Error(
+              'TanStack Router completed an SSR load without a server result.',
+            );
+          }
 
-        const routerErrors = collectRouterErrors(tanstackRouter);
-        if (routerErrors && loaderFailureMode === 'clientRender') {
+          if (serverLoadResult.type === 'redirect') {
+            const { redirect } = serverLoadResult;
+
+            return interrupt(
+              isRSCNavigation
+                ? handleTanstackRscRedirect(
+                    redirect.headers,
+                    _basename,
+                    redirect.status,
+                  )
+                : redirect,
+            );
+          }
+
+          const routerErrors = collectRouterErrors(tanstackRouter);
+          if (routerErrors && loaderFailureMode === 'clientRender') {
+            (
+              context.ssrContext?.response as
+                | { status: (code: number) => void }
+                | undefined
+            )?.status(200);
+            throw Object.values(routerErrors)[0];
+          }
+
+          await preloadMatchedRouteComponents(serverRouter);
+
           (
             context.ssrContext?.response as
               | { status: (code: number) => void }
               | undefined
-          )?.status(200);
-          try {
-            serverRouter.serverSsr?.cleanup?.();
-          } catch {}
-          throw Object.values(routerErrors)[0];
-        }
+          )?.status(serverLoadResult.status);
 
-        await preloadMatchedRouteComponents(serverRouter);
+          await serverRouter.serverSsr?.dehydrate?.();
 
-        (
-          context.ssrContext?.response as
-            | { status: (code: number) => void }
-            | undefined
-        )?.status(serverLoadResult.status);
+          if (enableRsc) {
+            if (isRSCNavigation) {
+              // RSC navigations consume the server payload directly. Normal HTML SSR
+              // emits the buffered bootstrap script below and must not wait here
+              // because Modern's non-streaming hook has not rendered the app yet.
+              await waitForRouterSerialization(serverRouter);
+            }
 
-        await serverRouter.serverSsr?.dehydrate?.();
-
-        if (enableRsc) {
-          if (isRSCNavigation) {
-            // RSC navigations consume the server payload directly. Normal HTML SSR
-            // emits the buffered bootstrap script below and must not wait here
-            // because Modern's non-streaming hook has not rendered the app yet.
-            await waitForRouterSerialization(serverRouter);
+            setTanstackRscServerPayload(
+              createTanstackRscServerPayload(serverRouter, {
+                omitClientLoaderData: isRSCNavigation,
+              }),
+            );
           }
 
-          setTanstackRscServerPayload(
-            createTanstackRscServerPayload(serverRouter, {
-              omitClientLoaderData: isRSCNavigation,
-            }),
-          );
-        }
-
-        const ssrScriptTags = serverRouter.serverSsr?.takeBufferedScripts?.();
-        const hydrationScripts = routerManagedTagsToHtml(ssrScriptTags);
-        const matchedRouteIds = getModernRouteIdsFromMatches(serverRouter);
-        const routerServerSnapshot: InternalRouterServerSnapshot =
-          createRouterServerSnapshot({
+          const ssrScriptTags = serverRouter.serverSsr?.takeBufferedScripts?.();
+          const hydrationScripts = routerManagedTagsToHtml(ssrScriptTags);
+          const matchedRouteIds = getModernRouteIdsFromMatches(serverRouter);
+          const routerServerSnapshot: InternalRouterServerSnapshot = {
             framework: 'tanstack',
             basename: _basename,
             statusCode: serverLoadResult.status,
             errors: routerErrors,
             matchedRouteIds,
             hydrationScripts,
-          });
-        const runtimeContext = applyRouterServerPrepareResult(
-          context as TInternalRuntimeContext,
-          {
-            snapshot: routerServerSnapshot,
-            cleanup: () => serverRouter.serverSsr?.cleanup?.(),
-            state: {
-              framework: 'tanstack',
-              basename: _basename,
-              instance: serverRouter,
-              hydrationScripts,
-              matchedRouteIds,
-              serverSnapshot: routerServerSnapshot,
+          };
+          const runtimeContext = applyRouterServerPrepareResult(
+            context as TInternalRuntimeContext,
+            {
+              snapshot: routerServerSnapshot,
+              cleanup,
+              state: {
+                framework: 'tanstack',
+                basename: _basename,
+                instance: serverRouter,
+                navigation: createTanstackNavigation(tanstackRouter),
+              },
             },
-          },
-        );
-        hooks.onAfterCreateRouter.call({
-          ...routerLifecycleContext,
-          router: serverRouter,
-          serverSnapshot: routerServerSnapshot,
-          runtimeContext,
-        });
+          );
+          rawRequest.signal.throwIfAborted();
+          hooks.onAfterCreateRouter.call({
+            ...routerLifecycleContext,
+            router: serverRouter,
+            serverSnapshot: getRouterServerSnapshot(runtimeContext),
+            runtimeContext,
+          });
+          prepared = true;
+        } finally {
+          if (!prepared) {
+            try {
+              cleanup();
+            } catch {}
+          }
+        }
       });
 
       api.wrapRoot(App => {

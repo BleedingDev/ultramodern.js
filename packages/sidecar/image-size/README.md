@@ -59,3 +59,8 @@ valid-image regression per format against **this directory's own `dist/`**, over
 and the ES-module entry points, under a wall-clock budget. It resolves the distribution by absolute
 path rather than through the monorepo's resolution chain, so a pass proves the published artifact is
 hardened on its own — independent of any repo-level patching.
+
+Artifact reconstruction is specified by the [pinned sidecar recipe](../../../scripts/ultramodern-supply/README.md).
+Run `node scripts/ultramodern-supply/verify-sidecars.mjs` from the repository root
+to compare every vendored byte and manifest contract against integrity-checked
+upstream artifacts plus the reviewed patch; no installed upstream copy is used.

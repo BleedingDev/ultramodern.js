@@ -691,3 +691,69 @@ test('dry-run validation cannot publish or request credentials', async () => {
     removeDir(fixture.root);
   }
 });
+
+test('registry entrypoints fetch source state and accept an already coherent published package without retrying', async t => {
+  const api = await import('../prepare-bleedingdev-packages.mjs');
+  const packageName = '@bleedingdev/modern-js-ultramodern-create';
+  const request = {
+    packageName,
+    requestedVersion: '3.2.0-ultramodern.1',
+    sourceCommit: releaseSource.commit,
+    sourceRepository: releaseSource.repository,
+    env: {},
+  };
+  let fetchedUrl;
+  const state = await api.assertRegistrySourceCommitUnpublished(request, {
+    fetchImpl: async url => {
+      fetchedUrl = url;
+      return { ok: false, status: 404 };
+    },
+  });
+  assert.equal(
+    fetchedUrl,
+    `https://registry.npmjs.org/${encodeURIComponent(packageName)}`,
+  );
+  assert.equal(state.versionCount, 0);
+  await assert.rejects(
+    api.assertRegistrySourceCommitUnpublished(request, {
+      fetchImpl: async () => ({ ok: false, status: 429 }),
+    }),
+    /HTTP 429/,
+  );
+
+  const fixture = await createArtifactFixture();
+  try {
+    const artifact = fixture.releaseArtifacts.packages[0];
+    const dist = registryDistFor(artifact);
+    const bytes = fs.readFileSync(artifact.artifactPath);
+    let provenanceChecks = 0;
+    t.mock.method(globalThis, 'setTimeout', () => {
+      throw new Error(
+        'A coherent package must not enter the propagation retry wait',
+      );
+    });
+    const verified = await api.verifyRegistryPackage(
+      artifact,
+      api.createRegistryProvenanceExpectation(
+        fixture.releaseArtifacts.manifest,
+        {},
+      ),
+      {
+        assertRegistryDistMatches: api.assertRegistryDistMatches,
+        lookupRegistryPackageDist: async () => dist,
+        verifyRegistryPackageDist: api.verifyRegistryPackageDist,
+        verifyRegistryProvenance: async () => {
+          provenanceChecks += 1;
+        },
+        verifyRegistryTarball: (item, metadata) =>
+          api.verifyRegistryTarball(item, metadata, async () =>
+            tarballResponse(bytes),
+          ),
+      },
+    );
+    assert.equal(verified, dist);
+    assert.equal(provenanceChecks, 1);
+  } finally {
+    removeDir(fixture.root);
+  }
+});

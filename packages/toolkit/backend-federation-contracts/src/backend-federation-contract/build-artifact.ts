@@ -35,40 +35,14 @@ export const createUltramodernBuildArtifact = (
     unitId: record.unitId,
     version: record.version,
   };
-  const api = {
-    appId: deliveryUnit.appId,
-    build: deliveryUnit.build,
-    buildMarker: deliveryUnit.buildMarker,
-    deployProfile: deliveryUnit.deployProfile,
-    kind: deliveryUnit.kind,
-    packageName: deliveryUnit.packageName,
-    schemaVersion: deliveryUnit.schemaVersion,
-    sourceRevision: deliveryUnit.sourceRevision,
-    surface: 'api' as const,
-    unitId: deliveryUnit.unitId,
-    version: deliveryUnit.version,
-  };
-  const ui = {
-    appId: deliveryUnit.appId,
-    build: deliveryUnit.build,
-    buildMarker: deliveryUnit.buildMarker,
-    deployProfile: deliveryUnit.deployProfile,
-    kind: deliveryUnit.kind,
-    packageName: deliveryUnit.packageName,
-    schemaVersion: deliveryUnit.schemaVersion,
-    sourceRevision: deliveryUnit.sourceRevision,
-    surface: 'ui' as const,
-    unitId: deliveryUnit.unitId,
-    version: deliveryUnit.version,
-  };
 
   return {
     deliveryUnit,
     kind: 'ultramodern-build-artifact',
     schemaVersion: DELIVERY_UNIT_SCHEMA_VERSION,
     surfaces: {
-      api,
-      ui,
+      api: { ...deliveryUnit, surface: 'api' },
+      ui: { ...deliveryUnit, surface: 'ui' },
     },
   };
 };
@@ -190,29 +164,22 @@ export const stampUltramodernBuildArtifactIdentity = (
     buildMarker: string;
     sourceRevision: string;
   },
-): UltramodernBuildArtifact => ({
-  ...artifact,
-  deliveryUnit: {
-    ...artifact.deliveryUnit,
+): UltramodernBuildArtifact => {
+  const stamped = {
     build: identity.buildMarker,
     buildMarker: identity.buildMarker,
     sourceRevision: identity.sourceRevision,
-  },
-  surfaces: {
-    ui: {
-      ...artifact.surfaces.ui,
-      build: identity.buildMarker,
-      buildMarker: identity.buildMarker,
-      sourceRevision: identity.sourceRevision,
+  };
+  const stamp = <T>(value: T) => ({ ...value, ...stamped });
+  return {
+    ...artifact,
+    deliveryUnit: stamp(artifact.deliveryUnit),
+    surfaces: {
+      ui: stamp(artifact.surfaces.ui),
+      api: stamp(artifact.surfaces.api),
     },
-    api: {
-      ...artifact.surfaces.api,
-      build: identity.buildMarker,
-      buildMarker: identity.buildMarker,
-      sourceRevision: identity.sourceRevision,
-    },
-  },
-});
+  };
+};
 
 export const stampUltramodernBuildArtifactSourceRevision = (
   artifact: UltramodernBuildArtifact,

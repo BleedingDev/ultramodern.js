@@ -223,9 +223,9 @@ function createEnvContext(
  */
 function resolveBaseUrl(
   context: EnvContext,
-  unit: EnvStaticUnitConfig,
+  unit: { publicUrlEnv: string; workerName?: string; port?: number },
 ): LocationOutcomeBase {
-  const publicUrlEnv = `ULTRAMODERN_PUBLIC_URL_${unit.envSegment}`;
+  const { publicUrlEnv } = unit;
   const configuredPublicUrl = envValue(context.env, publicUrlEnv);
   if (configuredPublicUrl !== undefined) {
     return { ok: true, baseUrl: trimTrailingSlashes(configuredPublicUrl) };
@@ -273,19 +273,39 @@ type LocationOutcomeBase =
   | { ok: true; baseUrl: string }
   | { ok: false; reason: string; details?: Record<string, unknown> };
 
-function resolveBrowserMfManifest(
+export type BrowserManifestAddressOptions = {
+  manifestEnv: string;
+  publicUrlEnv: string;
+  mfName: string;
+  workerName?: string;
+  port?: number;
+};
+
+/** Shared address policy for runtime discovery and build-time remote refs. */
+export function resolveBrowserManifestAddress(
+  env: EnvRecord,
+  unit: BrowserManifestAddressOptions,
+  environment: EnvironmentId,
+  localEnvironments: readonly EnvironmentId[] = DEFAULT_LOCAL_ENVIRONMENTS,
+):
+  | { ok: true; manifestUrl: string }
+  | { ok: false; reason: string; details?: Record<string, unknown> } {
+  return resolveBrowserManifestAddressInContext(
+    createEnvContext(env, localEnvironments.includes(environment)),
+    unit,
+  );
+}
+
+function resolveBrowserManifestAddressInContext(
   context: EnvContext,
-  unit: EnvStaticUnitConfig,
-): LocationOutcome {
-  const manifestEnv = `VERTICAL_${unit.envSegment}_MF_MANIFEST`;
+  unit: BrowserManifestAddressOptions,
+): ReturnType<typeof resolveBrowserManifestAddress> {
+  const { manifestEnv } = unit;
   const configuredManifest = envValue(context.env, manifestEnv);
   if (configuredManifest !== undefined) {
     return {
       ok: true,
-      location: {
-        platform: 'browser-mf-manifest',
-        manifestUrl: stripMfNamePrefix(configuredManifest, unit.mfName),
-      },
+      manifestUrl: stripMfNamePrefix(configuredManifest, unit.mfName),
     };
   }
 
@@ -300,10 +320,7 @@ function resolveBrowserMfManifest(
 
   return {
     ok: true,
-    location: {
-      platform: 'browser-mf-manifest',
-      manifestUrl: `${base.baseUrl}/mf-manifest.json`,
-    },
+    manifestUrl: `${base.baseUrl}/mf-manifest.json`,
   };
 }
 
@@ -353,7 +370,10 @@ function resolveHttpApi(
   unit: EnvStaticUnitConfig,
   config: { prefix: string },
 ): LocationOutcome {
-  const base = resolveBaseUrl(context, unit);
+  const base = resolveBaseUrl(context, {
+    ...unit,
+    publicUrlEnv: `ULTRAMODERN_PUBLIC_URL_${unit.envSegment}`,
+  });
   if (!base.ok) {
     return {
       ok: false,
@@ -402,7 +422,22 @@ function resolveSurfaceLocations(
   | { ok: false; reason: string; details?: Record<string, unknown> } {
   const outcomes: LocationOutcome[] = [];
   if (surface.platforms.browserMfManifest) {
-    outcomes.push(resolveBrowserMfManifest(context, unit));
+    const address = resolveBrowserManifestAddressInContext(context, {
+      ...unit,
+      manifestEnv: `VERTICAL_${unit.envSegment}_MF_MANIFEST`,
+      publicUrlEnv: `ULTRAMODERN_PUBLIC_URL_${unit.envSegment}`,
+    });
+    outcomes.push(
+      address.ok
+        ? {
+            ok: true,
+            location: {
+              platform: 'browser-mf-manifest',
+              manifestUrl: address.manifestUrl,
+            },
+          }
+        : address,
+    );
   }
   if (surface.platforms.nodeMfManifest) {
     outcomes.push(resolveNodeMfManifest(context, unit));

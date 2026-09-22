@@ -174,6 +174,7 @@ export const i18nPlugin = (
         localeDetection
           ? getLocaleDetectionOptions(entrypoint.entryName, localeDetection)
           : undefined,
+        entrypoint,
       ) as typeof routes,
     }));
 

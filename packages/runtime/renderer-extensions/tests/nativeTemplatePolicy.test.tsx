@@ -57,7 +57,7 @@ const createDataCollector = (options: any) => {
   };
 };
 
-import { applyRouterRuntimeState } from '@modern-js/runtime-extensions/router-state';
+import { applyRouterServerPrepareResult } from '@modern-js/runtime-extensions/router-state';
 import { RenderLevel } from '../../plugin-runtime/src/core/constants';
 import { SSR_DATA_PLACEHOLDER } from '../../plugin-runtime/src/core/server/constants';
 import { buildShellAfterTemplate as nativeBuildShellAfterTemplate } from '../../plugin-runtime/src/core/server/stream/afterTemplate';
@@ -67,9 +67,9 @@ const withRouterSnapshot = (
   runtimeContext: Record<string, unknown>,
   serverSnapshot: Record<string, unknown>,
 ) => {
-  applyRouterRuntimeState(runtimeContext as any, {
-    framework: 'react-router',
-    serverSnapshot,
+  applyRouterServerPrepareResult(runtimeContext as any, {
+    state: { framework: 'react-router' },
+    snapshot: serverSnapshot,
   });
   return runtimeContext;
 };
@@ -160,9 +160,9 @@ const createRuntimeContext = (options: { withRouterBootstrap: boolean }) => {
   };
 
   if (options.withRouterBootstrap) {
-    applyRouterRuntimeState(runtimeContext as any, {
-      framework: 'react-router',
-      serverSnapshot: {
+    applyRouterServerPrepareResult(runtimeContext as any, {
+      state: { framework: 'react-router' },
+      snapshot: {
         hydrationScripts: [TSR_BOOTSTRAP],
       },
     });
@@ -267,7 +267,6 @@ const createScripts = (options?: {
       loaderData?: Record<string, unknown>;
       errors?: Record<string, unknown>;
     };
-    hydrationScript?: string;
     hydrationScripts?: string[];
   };
 }) => {
@@ -283,9 +282,9 @@ const createScripts = (options?: {
     __i18nData__: {},
   } as any;
   if (options?.routerServerSnapshot) {
-    applyRouterRuntimeState(runtimeContext, {
-      framework: 'react-router',
-      serverSnapshot: options.routerServerSnapshot,
+    applyRouterServerPrepareResult(runtimeContext, {
+      state: { framework: 'react-router' },
+      snapshot: options.routerServerSnapshot,
     });
   }
 
@@ -352,7 +351,7 @@ describe('SSR data script generation', () => {
             loaderData: { route: { ok: true } },
             errors: {},
           },
-          hydrationScript: '<script>window.__ROUTER_SSR__ = true;</script>',
+          hydrationScripts: ['<script>window.__ROUTER_SSR__ = true;</script>'],
         },
       }),
     );

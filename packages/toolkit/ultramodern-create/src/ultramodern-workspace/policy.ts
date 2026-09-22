@@ -16,6 +16,7 @@ import {
   resolveApiProtocol,
   resolveApiStem,
 } from './descriptors';
+import PATCH_INVENTORY from './patch-inventory';
 import { createLocalisedUrlsMap } from './routes';
 import type { JsonValue, WorkspaceApp } from './types';
 import { isRecord } from './types';
@@ -23,7 +24,6 @@ import {
   CLOUDFLARE_COMPATIBILITY_DATE,
   CLOUDFLARE_WORKERS_TYPES_VERSION,
   CROSS_ENV_VERSION,
-  DRIZZLE_ORM_VERSION,
   EFFECT_TSGO_VERSION,
   EFFECT_VERSION,
   EFFECT_VITEST_VERSION,
@@ -371,52 +371,10 @@ export const ULTRAMODERN_PACKAGE_PINS = {
   },
 } as const;
 
-const requiredPatchPolicies: readonly UltramodernPatchPolicy[] = [
-  {
-    packageName: '@module-federation/dts-plugin',
-    version: MODULE_FEDERATION_VERSION,
-    path: `patches/@module-federation__dts-plugin@${MODULE_FEDERATION_VERSION}.patch`,
-  },
-  {
-    packageName: '@module-federation/bridge-react',
-    version: MODULE_FEDERATION_VERSION,
-    path: `patches/@module-federation__bridge-react@${MODULE_FEDERATION_VERSION}.patch`,
-  },
-  {
-    packageName: '@module-federation/modern-js-v3',
-    version: MODULE_FEDERATION_VERSION,
-    path: `patches/@module-federation__modern-js-v3@${MODULE_FEDERATION_VERSION}.patch`,
-  },
-  {
-    // runtime-core 2.9.0 uses ResourceLoadContext in its public remote hook
-    // declaration without importing it, so strict library checking fails.
-    packageName: '@module-federation/runtime-core',
-    version: MODULE_FEDERATION_VERSION,
-    path: `patches/@module-federation__runtime-core@${MODULE_FEDERATION_VERSION}.patch`,
-  },
-  {
-    // msgpackr's record decoder dynamically constructs optimized readers.
-    // Edge runtimes use the equivalent CSP-safe ordinary decoder instead.
-    packageName: 'msgpackr',
-    version: MSGPACKR_VERSION,
-    path: `patches/msgpackr@${MSGPACKR_VERSION}.patch`,
-  },
-  {
-    // Zod probes runtime code generation even when its JIT is disabled later.
-    // Worker/CSP workspaces always use the ordinary schema evaluator.
-    packageName: 'zod',
-    version: ZOD_VERSION,
-    path: `patches/zod@${ZOD_VERSION}.patch`,
-  },
-];
-
-const conditionalPatchPolicies: readonly UltramodernPatchPolicy[] = [
-  {
-    packageName: 'drizzle-orm',
-    version: DRIZZLE_ORM_VERSION,
-    path: 'patches/drizzle-orm-ts7-strict-declarations.patch',
-  },
-];
+const requiredPatchPolicies: readonly UltramodernPatchPolicy[] =
+  PATCH_INVENTORY.filter(patch => patch.workspace === 'required');
+const conditionalPatchPolicies: readonly UltramodernPatchPolicy[] =
+  PATCH_INVENTORY.filter(patch => patch.workspace === 'conditional');
 
 const moduleFederationRegistryReleases = [
   [

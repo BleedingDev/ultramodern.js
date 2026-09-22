@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import test from 'node:test';
 import {
   validateRepository,
@@ -250,4 +251,42 @@ test('allowlist entries suppress only the matching error', () => {
 
 test('the real repository tree passes the validator end to end', () => {
   assert.deepEqual(validateRepository(), []);
+});
+
+test('release jobs reject inline programs and different Tractor acceptance revisions', () => {
+  const workflowPath = '.github/workflows/publish-bleedingdev.yml';
+  const content = fs.readFileSync(
+    new URL(
+      '../../../.github/workflows/publish-bleedingdev.yml',
+      import.meta.url,
+    ),
+    'utf8',
+  );
+  assert.deepEqual(validateWorkflowContent(workflowPath, content), []);
+  const pin = /tractor_ref: ([a-f0-9]{40})/u.exec(content)[1];
+  const changedPin = content.replace(
+    `tractor_ref: ${pin}`,
+    `tractor_ref: ${'0'.repeat(40)}`,
+  );
+  assert.ok(
+    validateWorkflowContent(workflowPath, changedPin).some(error =>
+      error.includes('same immutable tractor_ref'),
+    ),
+  );
+  for (const inline of [
+    'node -e "require(\'unreviewed\')"',
+    "node <<'NODE'",
+    'node --input-type=module --eval "await import(\'unreviewed\')"',
+  ]) {
+    const mutated = content.replace(
+      'node scripts/ultramodern-publish/workflow.mjs create-published-identity',
+      inline,
+    );
+    assert.ok(
+      validateWorkflowContent(workflowPath, mutated).some(error =>
+        error.includes('fixed Node script entrypoints'),
+      ),
+      inline,
+    );
+  }
 });

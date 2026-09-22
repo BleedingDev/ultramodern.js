@@ -23,14 +23,7 @@
  * consumption during a rollout window should be driven by expand/contract, not
  * by silent degrade.
  */
-import {
-  classifyModuleFederationFallback,
-  createModuleFederationFallbackTelemetry,
-  emitModuleFederationFallbackTelemetry,
-  type ModuleFederationFallbackClassification,
-  type ModuleFederationFallbackTelemetryEmitOptions,
-  type ModuleFederationFallbackTelemetryPayload,
-} from './index';
+
 import {
   createDiscoveryError,
   type DiscoveryError,
@@ -44,6 +37,15 @@ import {
   type SurfaceResolutionProvider,
   validateSurfaceRef,
 } from './surface-resolution-types';
+import {
+  classifyModuleFederationFallback,
+  createModuleFederationFallbackTelemetry,
+  emitModuleFederationFallbackPayload,
+  emitModuleFederationFallbackTelemetry,
+  type ModuleFederationFallbackClassification,
+  type ModuleFederationFallbackTelemetryEmitOptions,
+  type ModuleFederationFallbackTelemetryPayload,
+} from './telemetry';
 
 /** Where in the consumption lifecycle a failure was raised. */
 export type SurfaceConsumptionPhase = 'discovery' | 'load' | 'mount';
@@ -100,7 +102,7 @@ export type SurfaceConsumerOptions<T> = {
    * omitted.
    *
    * - `'noncritical'`: the degraded handler's result is returned and the
-   *   failure is swallowed — the promise never rejects.
+   *   failure is swallowed — a failed degraded handler resolves undefined.
    * - `'critical'`: the degraded handler still runs (telemetry + fallback-UI
    *   obligations hold), but the returned promise then REJECTS with the typed
    *   failure so callers / rollout machinery observe it. Prefer expand/contract
@@ -154,7 +156,7 @@ async function reportFailure<T>(
     error?: unknown;
     resolved?: ResolvedDeliveryUnit;
   },
-): Promise<T> {
+): Promise<T | undefined> {
   const remote = toRemoteString(ref);
   const telemetry = createModuleFederationFallbackTelemetry({
     appName: options.appName,
@@ -173,24 +175,7 @@ async function reportFailure<T>(
     status: 'degraded',
   });
 
-  // Fire-and-forget style, but awaited so tests can assert emission. Emission
-  // failures must never mask the degraded path.
-  try {
-    await emitModuleFederationFallbackTelemetry(
-      {
-        appName: options.appName,
-        classification: base.classification,
-        error: base.error ?? base.discoveryError,
-        metadata: telemetry.metadata,
-        phase: base.phase,
-        remote,
-        status: 'degraded',
-      },
-      options.telemetry ?? {},
-    );
-  } catch {
-    // Telemetry sink failure is itself a degraded condition; swallow it.
-  }
+  void emitModuleFederationFallbackPayload(telemetry, options.telemetry);
 
   const failure: SurfaceConsumptionFailure = {
     ref,
@@ -234,7 +219,7 @@ async function reportFailure<T>(
     // telemetry, then for noncritical resolve undefined; for critical reject
     // with the ORIGINAL typed error (never the handler's).
     try {
-      await emitModuleFederationFallbackTelemetry(
+      void emitModuleFederationFallbackTelemetry(
         {
           appName: options.appName,
           classification: base.classification,
@@ -252,7 +237,7 @@ async function reportFailure<T>(
     if (critical) {
       throw reason;
     }
-    return undefined as T;
+    return undefined;
   }
 
   if (critical) {
@@ -266,14 +251,14 @@ async function reportFailure<T>(
  * load failure the required degraded handler runs (telemetry + fallback UI).
  *
  * For a `noncritical` consumption (see {@link SurfaceConsumerOptions.classification})
- * this resolves to the degraded value and never rejects, so a failing
+ * this resolves to the degraded value (or undefined if the handler fails), so a failing
  * consumption is isolated from any sibling. For a `critical` consumption (the
  * default) it rejects with the typed failure AFTER the degraded handler has
  * run, so callers / rollout machinery observe the failure.
  */
 export async function consumeSurface<T>(
   options: SurfaceConsumerOptions<T>,
-): Promise<T> {
+): Promise<T | undefined> {
   let ref: ParsedSurfaceRef;
   if (typeof options.ref === 'string') {
     const parsed = parseSurfaceRef(options.ref);
@@ -360,7 +345,7 @@ export function createSurfaceConsumer(
   return function consume<T>(
     options: Omit<SurfaceConsumerOptions<T>, keyof typeof base> &
       Partial<Pick<SurfaceConsumerOptions<T>, keyof typeof base>>,
-  ): Promise<T> {
+  ): Promise<T | undefined> {
     return consumeSurface<T>({
       ...base,
       ...options,

@@ -1,5 +1,6 @@
 import { createRequire } from 'node:module';
 import { generateClient } from '@modern-js/bff-core';
+import { createOperationContractHash } from '@modern-js/server-runtime-extensions/bff-policy/node';
 import { fs } from '@modern-js/utils';
 import { build } from 'esbuild';
 import path from 'path';
@@ -140,6 +141,12 @@ describe('fork Hono client code generation', () => {
         operationVersion: 1,
       }),
     });
+    expect(client.get.args[0].operationContext.schemaHash).toBe(
+      createOperationContractHash(
+        { name: 'get', httpMethod: 'GET', routePath: '/api/:id/origin/foo' },
+        'default',
+      ),
+    );
     expect(client.post.args[0].method).toBe('POST');
     expect(client.operationManifest.operations).toHaveLength(2);
   });

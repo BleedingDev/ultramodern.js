@@ -10,17 +10,14 @@ import {
   checkPatchParity,
   formatPatchParityReport,
 } from '../../ultramodern-workspace/patch-parity';
-import { createPackagedWorkspaceValidationScript } from '../../ultramodern-workspace/workspace-scripts';
+import { validateWorkspace } from '../../ultramodern-workspace/validation/workspace';
+import { createWorkspaceValidationContract } from '../../ultramodern-workspace/workspace-validation-contract';
 import {
   readJsonObject,
   readUltramodernWorkspaceInputs,
   workspaceAppsFromToolingConfig,
 } from '../config';
-import {
-  type CommandContext,
-  createPackageRoot,
-  runRenderedModule,
-} from './context';
+import { type CommandContext, createPackageRoot } from './context';
 
 export function runValidate(context: CommandContext) {
   // A workspace that still carries a previous cohort's patch keeps applying it,
@@ -110,7 +107,7 @@ export function runValidate(context: CommandContext) {
     config.packageSource?.strategy === 'install'
       ? readWorkspaceReleaseCohort(context.workspaceRoot)
       : undefined;
-  const source = createPackagedWorkspaceValidationScript(
+  const contract = createWorkspaceValidationContract(
     config.workspace.packageScope,
     config.features.tailwind,
     remotes,
@@ -125,5 +122,6 @@ export function runValidate(context: CommandContext) {
     context.workspaceRoot,
   );
 
-  return runRenderedModule(source, context);
+  validateWorkspace(context.workspaceRoot, contract);
+  return 0;
 }

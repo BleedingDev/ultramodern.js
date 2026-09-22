@@ -18,7 +18,7 @@ dns.setDefaultResultOrder('ipv4first');
 
 const appDir = path.resolve(__dirname, '../');
 const host = 'http://localhost';
-const ensureWorkspacePackages = [
+const requiredWorkspacePackages = [
   '@modern-js/plugin-bff',
   '@modern-js/server-core',
   '@modern-js/server-runtime',
@@ -323,7 +323,7 @@ describe('bff effect tests', () => {
       setSuiteTimeout(1000 * 60 * 2);
       releaseFixtureLock = await acquireFixtureLock(appDir);
       port = await getPort();
-      await modernBuild(appDir, [], { ensureWorkspacePackages });
+      await modernBuild(appDir, [], { requiredWorkspacePackages });
       app = await modernServe(appDir, port, {});
       browser = await puppeteer.launch(browserLaunchOptions);
       page = await browser.newPage();

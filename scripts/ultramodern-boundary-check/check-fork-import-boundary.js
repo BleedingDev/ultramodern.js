@@ -22,6 +22,7 @@ const {
   resolveCommitSha,
   resolveRepositoryTopLevel,
   runSelfTest,
+  validateLedgerDocument,
   writeDivergenceAllowlist,
 } = require('./divergence');
 
@@ -288,6 +289,7 @@ const main = () => {
 
   const runImports = args.mode === 'all' || args.mode === 'imports';
   const runDivergence = args.mode === 'all' || args.mode === 'divergence';
+  if (runDivergence) validateLedgerDocument({ rootDir, headRef: args.head });
   const importReport = runImports
     ? checkForkImportBoundary({
         rootDir,

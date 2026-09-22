@@ -1,8 +1,10 @@
 import { fs, upath as path } from '@modern-js/utils';
 
-import { resolveEffectEntryFile } from './paths';
-
-const BUILT_ENTRY_EXT = /\.(?:[cm]?ts|tsx|jsx)$/u;
+import {
+  emittedEffectEntry,
+  relativeEffectAppPath,
+  resolveEffectEntryFile,
+} from './paths';
 
 export function resolveBuiltEffectEntry(
   appDirectory: string,
@@ -12,15 +14,15 @@ export function resolveBuiltEffectEntry(
   if (sourceEntry === undefined || sourceEntry.length === 0) {
     return undefined;
   }
-  const relativeEntry = path.relative(appDirectory, sourceEntry);
-  if (relativeEntry === '..' || relativeEntry.startsWith(`..${path.sep}`)) {
+  const relativeEntry = relativeEffectAppPath(appDirectory, sourceEntry);
+  if (relativeEntry === undefined) {
     throw new Error(
       `Effect BFF entry must be inside the application directory: ${sourceEntry}`,
     );
   }
-  const builtEntry = path
-    .resolve(distDirectory, relativeEntry)
-    .replace(BUILT_ENTRY_EXT, '.js');
+  const builtEntry = emittedEffectEntry(
+    path.resolve(distDirectory, relativeEntry),
+  );
   return fs.existsSync(builtEntry) ? builtEntry : undefined;
 }
 
@@ -62,7 +64,7 @@ export function resolveEffectEntryPaths(options: {
   });
   const relativeEffectEntry =
     sourceEffectEntry !== undefined && sourceEffectEntry.length > 0
-      ? path.relative(appDir, sourceEffectEntry).replace(BUILT_ENTRY_EXT, '.js')
+      ? emittedEffectEntry(path.relative(appDir, sourceEffectEntry))
       : '';
   return { sourceEffectEntry, relativeEffectEntry };
 }

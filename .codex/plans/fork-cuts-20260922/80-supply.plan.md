@@ -4,13 +4,13 @@ overview: "Replace manually synchronized patch distribution and environment-depe
 todos:
   - id: patch-sidecar-provenance-patches
     content: "Define one canonical patch inventory with package/version/integrity and repo/template applicability; derive packaged generator assets and documentation/config fragments."
-    status: pending
+    status: completed
   - id: patch-sidecar-provenance-sidecars
     content: "Record pinned upstream artifact identity, licenses and allowed transformations for each sidecar; verify deterministic staging without depending on incidental pnpm-store presence."
-    status: pending
+    status: completed
   - id: patch-sidecar-provenance-verify
     content: "Prove packed generator self-containment and sidecar behavioral/artifact contracts, then remove duplicate authored copies, filename-prefix classification and skip-on-missing verification."
-    status: pending
+    status: completed
 isProject: false
 ---
 
@@ -33,3 +33,11 @@ Preserve packed generator self-containment and current patch/cohort parity check
 Depends on preservation-baseline and blocks integrated-feature-parity. Siblings may run in parallel within the named ownership boundaries. Native Codex workers are not alone in the codebase and must preserve other owners edits. Shared file changes go through the root integrator.
 
 Use the exact selection/edges in docs/audits/fork-simplification-20260922-handoff.md. Validate before plan-backed launches. Run relevant current behavior checks, report limitations and include concrete removed decision owners plus net authored-code change in the PR.
+
+## Implementation evidence
+
+Canonical patch inventory now projects repository config, packaged assets, workspace patch policy and documentation without prefix classification. The pinned sidecar recipes reconstruct all three distributions independently of pnpm store state; identity, manifest contracts, complete dist/bin bytes and MIT licenses match. Sharp >=0.35.4 remains explicit. Vendor dist is unchanged. Core provenance/manifest duplication and skip paths are removed; the sharpen fixture is generated deterministically rather than borrowed from a deleted integration fixture.
+
+Focused checks passed: generator version pins 4/4; missing/tampered input and changed runtime artifact rejection 2/2; image parser bounds/valid images 76/76; actual Sharp/libvips 7/7; core exports/browser/pack checks 12/12; all three online and explicit offline recipe reconstructions; canonical patch projection check; scoped Biome. After the coordinated rebuild, npm-packed generator extraction loaded both esm-node and CommonJS inventory/shared projections with no src tree or source links; all 7 packaged patch bytes matched their canonical SHA-256, including the conditional Drizzle patch. Inventory is a declarative TypeScript module so normal Rslib emits both formats without copy hooks.
+
+Authored production/script change is -82 lines excluding new adversarial tests, declarative inventories, docs and vendor patch bytes. Template assets remain generated committed copies for offline source packaging; they are not independent authoring inputs.

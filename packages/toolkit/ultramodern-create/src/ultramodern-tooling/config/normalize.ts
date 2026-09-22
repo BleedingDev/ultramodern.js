@@ -7,6 +7,7 @@ import {
 
 import { normalizeUltramodernBridgeConfig } from '../../ultramodern-workspace/bridge-config';
 import {
+  appEmitsBrowserUi,
   createNeutralOwnership,
   shellApp,
   ULTRAMODERN_CONFIG_PATH,
@@ -392,6 +393,7 @@ export function normalizeWorkspaceInputs(
   workspaceRoot: string,
   inputs: UltramodernWorkspaceInputs,
   sourcePath = path.join(workspaceRoot, ULTRAMODERN_CONFIG_PATH),
+  options: { primaryComposition?: 'topology' | 'compact' } = {},
 ) {
   const config = normalizeCompactConfig(
     workspaceRoot,
@@ -406,6 +408,22 @@ export function normalizeWorkspaceInputs(
         ...verticalsFromTopology(inputs.topology, ports),
       ]
     : workspaceAppsFromToolingConfig(config, workspaceRoot);
+  if (options.primaryComposition === 'compact') {
+    const primary = topologyApps.find(app => app.id === shellApp.id);
+    if (primary) {
+      const configured = createPrimaryShellDescriptor({}, inputs.config);
+      const refs = inputs.config.topology?.apps?.find(
+        (app: { id?: unknown }) => app.id === shellApp.id,
+      )?.moduleFederation?.verticalRefs;
+      Object.assign(primary, configured, {
+        verticalRefs: Array.isArray(refs)
+          ? configured.verticalRefs
+          : topologyApps
+              .filter(app => app.kind === 'vertical' && appEmitsBrowserUi(app))
+              .map(app => app.id),
+      });
+    }
+  }
   const apps = [
     ...topologyApps.map(app => ({
       ...app,

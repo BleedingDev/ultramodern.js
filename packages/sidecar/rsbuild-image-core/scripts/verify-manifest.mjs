@@ -1,110 +1,17 @@
 #!/usr/bin/env node
-/**
- * Verification harness for the @bleedingdev/rsbuild-image-core sidecar fork.
- *
- * The fork is a *dist-level repackage* of @rsbuild-image/core@0.0.1-next.36:
- * every byte under dist/ is vendored verbatim and the ONLY delta lives in
- * package.json (identity, image-size alias, and patched Sharp peer floor). This
- * script proves that invariant without needing a network or an install.
- *
- * Checks
- *   1. Manifest identity + dependency/peer fidelity vs the frozen upstream
- *      snapshot (and vs the live pnpm store copy when it is present).
- *   2. exports map deep-equals upstream and every referenced file exists.
- *   3. Module-specifier audit of dist/:
- *        - zero bare '@rsbuild-image/core' *import specifiers* (self-references
- *          would break under the rename), with the documented non-specifier
- *          occurrences pinned to an exact allowlist;
- *        - 'ipx' / 'sharp' only as dynamic import() externals in the expected
- *          Node-only entries, 'image-size' only as the bare static specifier;
- *        - dist/shared/** (the browser/edge-safe surface, including the
- *          ./image-loader entry) imports nothing but 'ufo' and relative
- *          siblings: no node: builtins, no ipx/sharp/image-size.
- *   4. `diff -ru` of vendored dist vs the upstream store dist is empty.
- *   5. `npm pack --dry-run --json` ships every exports subpath target.
- *
- * Usage: node packages/sidecar/rsbuild-image-core/scripts/verify-manifest.mjs
- */
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
+/** Verify the pinned upstream recipe, manifest, browser-safe surface and packed exports. */
+import { verifySidecar } from '../../../../scripts/ultramodern-supply/verify-sidecars.mjs';
 
 const PKG_DIR = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
 const DIST_DIR = path.join(PKG_DIR, 'dist');
-const REPO_ROOT = path.resolve(PKG_DIR, '..', '..', '..');
 
 const UPSTREAM_NAME = '@rsbuild-image/core';
-const UPSTREAM_VERSION = '0.0.1-next.36';
-const FORK_NAME = '@bleedingdev/rsbuild-image-core';
-const FORK_VERSION = '0.1.1';
-const IMAGE_SIZE_ALIAS = 'npm:@bleedingdev/image-size@2.1.0';
-
-/**
- * Frozen copy of the upstream manifest fields this fork must preserve.
- * Cross-checked against the live pnpm store copy whenever it is installed, so
- * a drifted snapshot cannot silently weaken the comparison.
- */
-const UPSTREAM_SNAPSHOT = {
-  type: 'commonjs',
-  main: './dist/index.js',
-  module: './dist/index.mjs',
-  types: './dist/index.d.ts',
-  sideEffects: ['**/*.css', 'dist/logger.*'],
-  files: ['dist'],
-  exports: {
-    '.': {
-      types: './dist/index.d.ts',
-      node: './dist/index.js',
-      module: './dist/index.mjs',
-    },
-    './loader': {
-      types: './dist/loader.d.ts',
-      node: './dist/loader.js',
-      module: './dist/loader.mjs',
-    },
-    './shared': {
-      types: './dist/shared/index.d.ts',
-      node: './dist/shared/index.js',
-      module: './dist/shared/index.mjs',
-    },
-    './image-loader': {
-      types: './dist/shared/image-loader.d.ts',
-      node: './dist/shared/image-loader.mjs',
-      module: './dist/shared/image-loader.mjs',
-    },
-    './types': {
-      types: './dist/env.d.ts',
-    },
-  },
-  typesVersions: {
-    '*': {
-      '.': ['./dist/index.d.ts'],
-      loader: ['./dist/loader.d.ts'],
-      shared: ['./dist/shared/index.d.ts'],
-      'image-loader': ['./dist/shared/image-loader.d.ts'],
-      types: ['./dist/env.d.ts'],
-    },
-  },
-  dependencies: {
-    'image-size': '^2.0.1',
-    knitwork: '^1.2.0',
-    rslog: '^1.1.0',
-    'type-fest': '^4.37.0',
-    ufo: '^1.3.0',
-  },
-  peerDependencies: {
-    react: '>=16.9.0',
-    'react-dom': '>=16.9.0',
-    sharp: '>=0.33.5',
-    ipx: '>=3.0.3',
-  },
-  peerDependenciesMeta: {
-    sharp: { optional: true },
-    ipx: { optional: true },
-  },
-};
+await verifySidecar('rsbuild-image-core');
 
 /**
  * Every literal occurrence of the bare upstream package name that survives in
@@ -146,26 +53,9 @@ const SHARED_ALLOWED_SPECIFIERS = new Set([
 ]);
 
 const failures = [];
-const skips = [];
 const passes = [];
 const fail = msg => failures.push(msg);
 const pass = msg => passes.push(msg);
-const skip = msg => skips.push(msg);
-
-function deepEqual(a, b) {
-  return JSON.stringify(sortKeys(a)) === JSON.stringify(sortKeys(b));
-}
-function sortKeys(value) {
-  if (Array.isArray(value)) return value.map(sortKeys);
-  if (value && typeof value === 'object') {
-    return Object.fromEntries(
-      Object.keys(value)
-        .sort()
-        .map(k => [k, sortKeys(value[k])]),
-    );
-  }
-  return value;
-}
 
 function listFiles(dir, base = dir) {
   const out = [];
@@ -175,24 +65,6 @@ function listFiles(dir, base = dir) {
     else out.push(path.relative(base, abs));
   }
   return out.sort();
-}
-
-/** Locate the upstream copy inside the pnpm store, if installed. */
-function findUpstreamDir() {
-  const storeRoot = path.join(REPO_ROOT, 'node_modules', '.pnpm');
-  if (!fs.existsSync(storeRoot)) return null;
-  const prefix = `@rsbuild-image+core@${UPSTREAM_VERSION}`;
-  for (const entry of fs.readdirSync(storeRoot)) {
-    if (!entry.startsWith(prefix)) continue;
-    const candidate = path.join(
-      storeRoot,
-      entry,
-      'node_modules',
-      UPSTREAM_NAME,
-    );
-    if (fs.existsSync(path.join(candidate, 'package.json'))) return candidate;
-  }
-  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -206,127 +78,6 @@ try {
 } catch (err) {
   fail(`package.json does not parse: ${err.message}`);
   report();
-}
-
-const upstreamDir = findUpstreamDir();
-let upstream = null;
-if (upstreamDir) {
-  upstream = JSON.parse(
-    fs.readFileSync(path.join(upstreamDir, 'package.json'), 'utf8'),
-  );
-  pass(`upstream store copy found: ${path.relative(REPO_ROOT, upstreamDir)}`);
-  // The frozen snapshot must itself match the live upstream manifest.
-  for (const key of Object.keys(UPSTREAM_SNAPSHOT)) {
-    if (!deepEqual(UPSTREAM_SNAPSHOT[key], upstream[key])) {
-      fail(
-        `frozen UPSTREAM_SNAPSHOT.${key} drifted from the live store manifest — update the snapshot`,
-      );
-    }
-  }
-} else {
-  skip(
-    'upstream @rsbuild-image/core store copy not installed — snapshot-only comparison, dist diff skipped',
-  );
-}
-
-// ---------------------------------------------------------------------------
-// 1. Identity, dependencies, peers
-// ---------------------------------------------------------------------------
-if (fork.name !== FORK_NAME)
-  fail(`name is ${fork.name}, expected ${FORK_NAME}`);
-else pass(`name = ${FORK_NAME}`);
-
-if (fork.version !== FORK_VERSION)
-  fail(`version is ${fork.version}, expected ${FORK_VERSION}`);
-else pass(`version = ${FORK_VERSION}`);
-
-if (fork.dependencies?.['image-size'] !== IMAGE_SIZE_ALIAS) {
-  fail(
-    `dependencies['image-size'] is ${fork.dependencies?.['image-size']}, expected ${IMAGE_SIZE_ALIAS}`,
-  );
-} else {
-  pass(
-    `dependencies['image-size'] = ${IMAGE_SIZE_ALIAS} (alias install name stays 'image-size')`,
-  );
-}
-
-{
-  const upstreamDeps = UPSTREAM_SNAPSHOT.dependencies;
-  const forkDeps = fork.dependencies ?? {};
-  const upstreamKeys = Object.keys(upstreamDeps).sort();
-  const forkKeys = Object.keys(forkDeps).sort();
-  if (upstreamKeys.join(',') !== forkKeys.join(',')) {
-    fail(
-      `dependency key set changed: upstream [${upstreamKeys}] vs fork [${forkKeys}]`,
-    );
-  } else {
-    let ok = true;
-    for (const key of upstreamKeys) {
-      if (key === 'image-size') continue;
-      if (forkDeps[key] !== upstreamDeps[key]) {
-        ok = false;
-        fail(
-          `dependencies['${key}'] = ${forkDeps[key]}, upstream byte-equal value is ${upstreamDeps[key]}`,
-        );
-      }
-    }
-    if (ok)
-      pass('all non-aliased dependency ranges are byte-equal to upstream');
-  }
-}
-
-const expectedPeers = {
-  ...UPSTREAM_SNAPSHOT.peerDependencies,
-  sharp: '>=0.35.4',
-};
-if (!deepEqual(fork.peerDependencies, expectedPeers)) {
-  fail('peerDependencies must match upstream with the patched Sharp floor');
-} else {
-  pass('peerDependencies match upstream with Sharp >=0.35.4');
-}
-if (
-  !deepEqual(fork.peerDependenciesMeta, UPSTREAM_SNAPSHOT.peerDependenciesMeta)
-) {
-  fail('peerDependenciesMeta is not deep-equal to upstream');
-} else {
-  pass('peerDependenciesMeta deep-equals upstream');
-}
-
-for (const field of [
-  'type',
-  'main',
-  'module',
-  'types',
-  'sideEffects',
-  'files',
-  'typesVersions',
-]) {
-  if (!deepEqual(fork[field], UPSTREAM_SNAPSHOT[field])) {
-    fail(
-      `${field} is not deep-equal to upstream (${JSON.stringify(fork[field])})`,
-    );
-  } else {
-    pass(`${field} deep-equals upstream`);
-  }
-}
-
-if (fork.devDependencies) {
-  fail(
-    'devDependencies must be dropped: this is a dist repackage with no local build',
-  );
-} else {
-  pass(
-    'devDependencies intentionally absent (dist repackage, nothing is rebuilt here)',
-  );
-}
-
-// ---------------------------------------------------------------------------
-// 2. exports map + referenced files
-// ---------------------------------------------------------------------------
-if (!deepEqual(fork.exports, UPSTREAM_SNAPSHOT.exports)) {
-  fail('exports map is not deep-equal to upstream');
-} else {
-  pass('exports map deep-equals upstream (all 5 subpaths, all conditions)');
 }
 
 const exportTargets = new Set();
@@ -538,30 +289,6 @@ function specifiersOf(text) {
 }
 
 // ---------------------------------------------------------------------------
-// 4. dist byte-identity vs the upstream store copy
-// ---------------------------------------------------------------------------
-if (upstreamDir) {
-  try {
-    execFileSync('diff', ['-ru', path.join(upstreamDir, 'dist'), DIST_DIR], {
-      encoding: 'utf8',
-    });
-    pass(
-      'diff -ru vendored dist vs upstream store dist is EMPTY (byte-identical, zero rewrites)',
-    );
-  } catch (err) {
-    fail(
-      `vendored dist differs from upstream store dist:\n${err.stdout || err.message}`,
-    );
-  }
-  const licA = fs.readFileSync(path.join(upstreamDir, 'LICENSE'), 'utf8');
-  const licB = fs.readFileSync(path.join(PKG_DIR, 'LICENSE'), 'utf8');
-  if (licA !== licB) fail('LICENSE is not byte-identical to upstream');
-  else pass('LICENSE byte-identical to upstream (MIT, Rspack Contrib)');
-} else {
-  skip('dist diff vs upstream store skipped (upstream not installed)');
-}
-
-// ---------------------------------------------------------------------------
 // 5. npm pack --dry-run --json
 // ---------------------------------------------------------------------------
 {
@@ -574,7 +301,7 @@ if (upstreamDir) {
     });
     packed = JSON.parse(out);
   } catch (err) {
-    skip(
+    fail(
       `npm pack --dry-run --json could not run: ${(err.message || '').split('\n')[0]}`,
     );
   }
@@ -600,10 +327,7 @@ report();
 
 function report() {
   for (const p of passes) console.log(`PASS  ${p}`);
-  for (const s of skips) console.log(`SKIP  ${s}`);
   for (const f of failures) console.error(`FAIL  ${f}`);
-  console.log(
-    `\n${passes.length} passed, ${skips.length} skipped, ${failures.length} failed`,
-  );
+  console.log(`\n${passes.length} passed, ${failures.length} failed`);
   process.exit(failures.length ? 1 : 0);
 }

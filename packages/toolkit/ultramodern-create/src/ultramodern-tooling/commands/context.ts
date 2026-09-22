@@ -1,6 +1,4 @@
 import { spawnSync } from 'node:child_process';
-import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { resolveCreatePackageRoot } from '../../create-package-root';
@@ -81,23 +79,4 @@ export function runTemplateBackedToolingCommand(
         ? context.invocationCwd
         : context.workspaceRoot,
   });
-}
-
-export function runRenderedModule(source: string, context: CommandContext) {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ultramodern-tool-'));
-  const tempFile = path.join(tempDir, 'command.mjs');
-
-  try {
-    fs.writeFileSync(tempFile, source, 'utf-8');
-    const result = spawnSync(process.execPath, [tempFile], {
-      cwd: context.workspaceRoot,
-      stdio: 'inherit',
-    });
-    if (result.error) {
-      throw result.error;
-    }
-    return result.status ?? 1;
-  } finally {
-    fs.rmSync(tempDir, { force: true, recursive: true });
-  }
 }

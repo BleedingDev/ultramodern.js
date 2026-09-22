@@ -1,7 +1,10 @@
 // @effect-diagnostics asyncFunction:off strictBooleanExpressions:off
 
 import type { NestedRouteForCli, PageRoute } from '@modern-js/types';
-import { MAIN_ENTRY_NAME } from '@modern-js/utils';
+import {
+  describeRouteTree,
+  type RouteDescriptor,
+} from '../../shared/routeDescriptor';
 
 import { toTanstackPath } from './shared';
 
@@ -16,6 +19,7 @@ const LOCALE_PARAM_SEGMENTS = new Set([
 
 type CanonicalAwareRoute = (NestedRouteForCli | PageRoute) & {
   modernCanonicalPath?: string;
+  modernLocalisedRoute?: { canonicalPath: string };
   index?: boolean;
   isRoot?: boolean;
   children?: CanonicalAwareRoute[];
@@ -101,12 +105,18 @@ export function collectCanonicalRoutesForEntry(
     }
   };
 
-  const visit = (route: CanonicalAwareRoute, parentPath: string) => {
+  const visit = (
+    descriptor: RouteDescriptor<CanonicalAwareRoute>,
+    parentPath: string,
+  ) => {
+    const { source: route, children } = descriptor;
     let currentPath = parentPath;
 
-    if (typeof route.modernCanonicalPath === 'string') {
+    const canonicalPath =
+      route.modernLocalisedRoute?.canonicalPath ?? route.modernCanonicalPath;
+    if (typeof canonicalPath === 'string') {
       hasI18nSurface = true;
-      currentPath = normalizeJoined(route.modernCanonicalPath);
+      currentPath = canonicalPath ? normalizeJoined(canonicalPath) : '';
     } else if (typeof route.path === 'string' && route.path.length > 0) {
       const segments = route.path
         .replace(/\[(.+?)\]/g, ':$1')
@@ -125,7 +135,6 @@ export function collectCanonicalRoutesForEntry(
         : parentPath;
     }
 
-    const children = route.children;
     if (children && children.length > 0) {
       for (const child of children) {
         visit(child, currentPath);
@@ -137,13 +146,9 @@ export function collectCanonicalRoutesForEntry(
     record(currentPath || '/');
   };
 
-  const rootModern = routes.find(
-    route => (route as CanonicalAwareRoute).isRoot,
-  ) as CanonicalAwareRoute | undefined;
-  const topLevel = rootModern ? (rootModern.children ?? []) : routes;
-
-  for (const route of topLevel) {
-    visit(route as CanonicalAwareRoute, '');
+  for (const route of describeRouteTree(routes as CanonicalAwareRoute[])
+    .children) {
+    visit(route, '');
   }
 
   if (!hasI18nSurface || canonicalParams.size === 0) {

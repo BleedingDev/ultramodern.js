@@ -13,16 +13,24 @@ function runValidation(workspaceDir: string) {
   const typescriptPackage = createRequire(import.meta.url).resolve(
     'typescript/package.json',
   );
+  const compilerPath = path.join(
+    workspaceDir,
+    'node_modules/@typescript/native',
+  );
+  if (!fs.existsSync(compilerPath)) {
+    fs.mkdirSync(path.dirname(compilerPath), { recursive: true });
+    fs.symlinkSync(
+      path.dirname(typescriptPackage),
+      compilerPath,
+      process.platform === 'win32' ? 'junction' : 'dir',
+    );
+  }
   return spawnSync(
     process.execPath,
     ['scripts/validate-ultramodern-workspace.mts'],
     {
       cwd: workspaceDir,
       encoding: 'utf-8',
-      env: {
-        ...process.env,
-        NODE_PATH: path.dirname(path.dirname(typescriptPackage)),
-      },
     },
   );
 }

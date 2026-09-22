@@ -98,7 +98,8 @@ Every Sharp method IPX's modifier table reaches was compared between `sharp@0.34
 `scripts/verify-sharpen.mjs` exercises the remap end-to-end against a real image through
 `createIPX` + `ipxFSStorage` and asserts that `sigma`, `flat` and `jagged` actually reach
 libvips (different values must produce different bytes). Run it from a checkout where the
-runtime dependencies resolve:
+runtime dependencies resolve. It generates a deterministic detailed PNG when no
+image directory is supplied, so verification does not depend on repository fixtures:
 
 ```sh
 node packages/sidecar/ipx/scripts/verify-sharpen.mjs [imageDir]
@@ -116,3 +117,8 @@ stable version because the package manifest changes the immutable npm tarball.
 On an upstream `ipx` release, re-vendor `bin/`, `dist/` and `LICENSE`, then re-apply the hunks in
 "Fork delta" (or drop them if upstream has adopted Sharp 0.35). `diff -ru` against the upstream
 tarball must show those hunks and nothing else.
+
+Artifact reconstruction is specified by the [pinned sidecar recipe](../../../scripts/ultramodern-supply/README.md).
+Run `node scripts/ultramodern-supply/verify-sidecars.mjs` from the repository root
+to compare every vendored byte and manifest contract against integrity-checked
+upstream artifacts plus the reviewed patch; no installed upstream copy is used.

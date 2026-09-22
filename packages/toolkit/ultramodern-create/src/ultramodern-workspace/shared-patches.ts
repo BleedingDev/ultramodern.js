@@ -1,15 +1,5 @@
-import { ULTRAMODERN_WORKSPACE_POLICY } from './policy';
+import PATCH_INVENTORY from './patch-inventory';
 
-export const SHARED_ULTRAMODERN_WORKSPACE_PATCH_FILES =
-  ULTRAMODERN_WORKSPACE_POLICY.pnpm.patchedDependencies.required
-    .map(patch => patch.path.replace(/^patches\//u, ''))
-    .filter(
-      patchFile =>
-        patchFile.startsWith('@module-federation__') ||
-        patchFile.startsWith('@tanstack__') ||
-        patchFile.startsWith('msgpackr@') ||
-        patchFile.startsWith('zod@'),
-    );
-
-type SharedUltramodernWorkspacePatchFile =
-  (typeof SHARED_ULTRAMODERN_WORKSPACE_PATCH_FILES)[number];
+export const SHARED_ULTRAMODERN_WORKSPACE_PATCH_FILES = PATCH_INVENTORY.filter(
+  patch => patch.repository && patch.workspace !== null,
+).map(patch => patch.path.slice('patches/'.length));

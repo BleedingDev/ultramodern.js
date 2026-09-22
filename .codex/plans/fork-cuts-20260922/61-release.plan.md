@@ -4,16 +4,16 @@ overview: "Reduce workflow interpreter machinery and duplicated registry/evidenc
 todos:
   - id: release-policy-owners-registry
     content: "Share read-only registry transport, retry classification and exact-byte verification between publication and readiness; keep public provenance and write authorization separate."
-    status: pending
+    status: completed
   - id: release-policy-owners-evidence
     content: "Export one pure readiness semantic validator and call it independently at receipt creation, consumption and outcome recording with each caller identity/digest bindings."
-    status: pending
+    status: completed
   - id: release-policy-owners-workflow
     content: "Move inline workflow programs into fixed CLI entrypoints and simplify permission-separated job transitions while preserving recovery and attempt identity."
-    status: pending
+    status: completed
   - id: release-policy-owners-remove
     content: "Delete security-parser branches and duplicated outcome/registry policy made unnecessary by the simpler workflow, retaining mutation coverage for every invariant."
-    status: pending
+    status: completed
 isProject: false
 ---
 
@@ -23,7 +23,7 @@ isProject: false
 
 Own scripts/ultramodern-publish, scripts/ultramodern-production-readiness registry/evidence contracts, scripts/security release workflow validation and .github/workflows/publish-bleedingdev.yml. Exclude boundary governance and canonical patch/sidecar manifests. No real publish is needed to refactor this lane; release actions remain separately authorized. Root owns shared package scripts and workflow conflicts.
 
-Audit: [current fork evidence](../../../docs/audits/fork-simplification-20260922.md). Final audited fork `ba2f373ad9587642062efc65c763276a68aee909`; fixed vanilla ownership base `eded841256a7cffdaa622e3889fc83407debd3e4`. Beads `modernjs-wuutt.11` under `modernjs-wuutt` is authoritative; keep this execution projection aligned. All implementation is pending.
+Audit: [current fork evidence](../../../docs/audits/fork-simplification-20260922.md). Final audited fork `ba2f373ad9587642062efc65c763276a68aee909`; fixed vanilla ownership base `eded841256a7cffdaa622e3889fc83407debd3e4`. Beads `modernjs-wuutt.11` under `modernjs-wuutt` is authoritative; keep this execution projection aligned. Implementation and focused verification completed in the release owner lane.
 
 ## Constraints
 
@@ -36,3 +36,17 @@ Preserve OIDC job isolation, fork owner/ref restrictions, source/tooling qualifi
 Depends on preservation-baseline and blocks integrated-feature-parity. Siblings may run in parallel within the named ownership boundaries. Native Codex workers are not alone in the codebase and must preserve other owners edits. Shared file changes go through the root integrator.
 
 Use the exact selection/edges in docs/audits/fork-simplification-20260922-handoff.md. Validate before plan-backed launches. Run relevant current behavior checks, report limitations and include concrete removed decision owners plus net authored-code change in the PR.
+
+## Implementation evidence
+
+The read-only registry module now owns npm metadata transport, absence/throttle classification, tarball digest comparison and the draining worker pool. Publication still owns authorization, signed provenance and the 855-second propagation schedule. Readiness uses the same dist reader, byte comparison and pool with its explicit registry and environment.
+
+`assertAcceptanceReceipt` was already the complete pure contract used by production, consumption and outcome recording. Outcome recording now relies on that validator instead of interpreting the same binding fields again. Identity and digest verification still run independently at each boundary.
+
+The release workflow now invokes fixed CLI commands. The privileged identity producer reuses `verifyReleaseArtifacts`; its partial manifest parser and the redundant bundle-shape gate are removed. Job permissions, owner/ref guards, recovered producer identity and separate publication attempts are unchanged. Workflow validation rejects inline Node programs and mismatched immutable Tractor pins. The generic shell lexer remains because it also validates receipt commands in other workflows; removing it would weaken those checks.
+
+Validation: 148 publish/readiness/security tests passed with `COPYFILE_DISABLE=1`, the macOS tar setting that prevents AppleDouble entries in an existing Tractor test fixture. Actionlint 1.7.12 reports zero errors. The repository workflow security validator and focused Biome checks pass. New tests cover distinct producer/publication attempts and changed bytes, concurrent draining, 404/429/malformed metadata, inline programs and mismatched Tractor pins. No live publication occurred.
+
+Net authored source/workflow change is -19 lines; five focused tests add 233 lines. Most of the registry module extraction is ownership consolidation, not counted as a code cut. Removed policy copies and interpreters are the material improvement. Final packed/downstream integration belongs to integrated-feature-parity.
+
+Independent review found two missing bindings after the registry extraction. Both are now imported from the read-only owner. A regression calls the public source-preflight and post-publication entrypoints with controlled registry responses, real metadata/byte checks and an immediate failure if an already coherent package enters the propagation wait. Isolated Biome undeclared-variable checks pass for both registry modules; removing the metadata import was confirmed to fail that check. The full 148-test lane passes after the repair.

@@ -4,13 +4,13 @@ overview: "Freeze required behavior, audited ownership and existing-work reconci
 todos:
   - id: preservation-baseline-reconcile
     content: "Reconcile completed native Effect inference, migration/legacy-registry retirement and approved test purge against ba2f373ad9; freeze the CURRENT supported feature and ownership matrix."
-    status: pending
+    status: completed
   - id: preservation-baseline-map-proofs
     content: "Map every ranked cut to retained behavior evidence, current public consumers and an owning package; record baseline production, template, test and governance measurements separately."
-    status: pending
+    status: completed
   - id: preservation-baseline-qualify
     content: "Run the existing targeted preservation checks, resolve unexpected failures and freeze shared contract decisions and file ownership for parallel implementation."
-    status: pending
+    status: completed
 isProject: false
 ---
 

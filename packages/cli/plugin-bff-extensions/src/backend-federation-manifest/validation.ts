@@ -11,6 +11,11 @@ import {
   type BackendFederationRemote,
 } from '../backend-federation';
 import {
+  backendFederationCompatibility,
+  formatBackendFederationIdentityIssues,
+  validateBackendFederationCompatibility,
+} from '../backend-federation/identity';
+import {
   assertConsistentValue,
   assertManifestAdapter,
   assertVersionValue,
@@ -19,7 +24,6 @@ import {
 import {
   backendFederationMetadata,
   manifestDeliveryUnit,
-  recordField,
   stringValue,
   versionBoundaryMetadata,
 } from './metadata';
@@ -166,7 +170,7 @@ export function validateLoadedBackendFederationContract(
   const loadedContract = loaded.backendFederationContract;
   const backendFederation = backendFederationMetadata(manifest);
   const boundary = versionBoundaryMetadata(manifest);
-  const compatibility = recordField(loadedContract, 'compatibility');
+  const compatibility = backendFederationCompatibility(loaded);
 
   assertManifestAdapter(
     compatibility,
@@ -186,26 +190,6 @@ export function validateLoadedBackendFederationContract(
     remote.name,
     'expose name',
   );
-  assertVersionValue(
-    stringValue(compatibility.contractVersion),
-    stringValue(backendFederation?.contractVersion),
-    'expose contractVersion',
-  );
-  assertVersionValue(
-    stringValue(compatibility.nodeAdapterVersion),
-    stringValue(backendFederation?.nodeAdapterVersion),
-    'expose nodeAdapterVersion',
-  );
-  assertVersionValue(
-    stringValue(compatibility.packageName),
-    stringValue(boundary?.packageName),
-    'expose packageName',
-  );
-  assertVersionValue(
-    stringValue(compatibility.build),
-    stringValue(boundary?.buildVersion),
-    'expose buildVersion',
-  );
 
   const deliveryUnit = manifestDeliveryUnit(backendFederation, boundary);
   const manifestUnitId =
@@ -213,15 +197,24 @@ export function validateLoadedBackendFederationContract(
     stringValue(deliveryUnit.top?.unitId);
   const manifestBuildMarker = stringValue(deliveryUnit.boundary?.buildMarker);
 
-  assertVersionValue(
-    stringValue(compatibility.unitId),
-    manifestUnitId,
-    'deliveryUnit.unitId vs expose compatibility.unitId',
-  );
+  const issues = validateBackendFederationCompatibility(compatibility, {
+    contractVersion: stringValue(backendFederation?.contractVersion),
+    nodeAdapterVersion: stringValue(backendFederation?.nodeAdapterVersion),
+    packageName: stringValue(boundary?.packageName),
+    unitId: manifestUnitId,
+    build: manifestBuildMarker ?? stringValue(boundary?.buildVersion),
+  });
+  // Manifest validation establishes buildVersion/buildMarker consistency; the
+  // executed expose is still checked independently against that trusted record.
   assertVersionValue(
     stringValue(compatibility.build),
-    manifestBuildMarker,
-    'deliveryUnit.buildMarker vs expose compatibility.build',
+    stringValue(boundary?.buildVersion),
+    'expose buildVersion',
+  );
+  assertManifestAdapter(
+    issues.length === 0,
+    'version_mismatch',
+    `[BFF][Effect] ${formatBackendFederationIdentityIssues(issues)}.`,
   );
 }
 

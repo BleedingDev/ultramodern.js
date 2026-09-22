@@ -4,6 +4,7 @@ export {
   resolveEffectTsgoCompiler,
   withBuildConfigEnvironment,
 } from './build-config/public';
+export { createRemoteManifestUrl } from './build-config/remote-address';
 
 export type DeployTarget =
   | 'node'

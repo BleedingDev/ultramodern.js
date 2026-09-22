@@ -262,8 +262,12 @@ const transformLocalisedRoute = (
   parentLocalisedPaths: Record<string, string>,
   languages: string[],
   localisedUrls: LocalisedUrlsMap,
+  projection: 'physical' | 'canonical',
 ): LocalisedRoute[] => {
-  const canonicalPath = joinPath(parentCanonicalPath, route.path);
+  const isSplat = stripLeadingLocaleParam(route.path) === '*';
+  const canonicalPath = isSplat
+    ? normalisePathPattern(`${parentCanonicalPath}/*`)
+    : joinPath(parentCanonicalPath, route.path);
   const localisedUrlEntry =
     isLocalisableRoutePath(route.path) &&
     !isFrameworkInternalRoutePath(canonicalPath)
@@ -274,7 +278,14 @@ const transformLocalisedRoute = (
         acc[language] = normalisePathPattern(localisedUrlEntry[language]);
         return acc;
       }, {})
-    : parentLocalisedPaths;
+    : isSplat
+      ? Object.fromEntries(
+          Object.entries(parentLocalisedPaths).map(([language, path]) => [
+            language,
+            normalisePathPattern(`${path}/*`),
+          ]),
+        )
+      : parentLocalisedPaths;
 
   const children =
     'children' in route && route.children
@@ -285,6 +296,7 @@ const transformLocalisedRoute = (
             routeLocalisedPaths,
             languages,
             localisedUrls,
+            projection,
           ),
         )
       : undefined;
@@ -297,7 +309,8 @@ const transformLocalisedRoute = (
             id: route.id,
             path: route.path,
             canonicalPath,
-            paths: localisedUrlEntry,
+            paths:
+              localisedUrlEntry ?? (isSplat ? routeLocalisedPaths : undefined),
           },
         }
       : {}),
@@ -314,6 +327,10 @@ const transformLocalisedRoute = (
     languages,
     localisedUrlEntry,
   );
+  // Validate nesting for both adapters, but only React Router needs physical
+  // variants. TanStack consumes the source identity and native URL rewrites.
+  if (projection === 'canonical') return [baseRoute];
+
   const leadingLocaleParam = getLeadingLocaleParam(route.path);
   const routeIdPaths = leadingLocaleParam
     ? localisedPaths.map(path =>
@@ -407,6 +424,7 @@ export const applyLocalisedUrlsToRoutes = (
   routes: LocalisedRoute[],
   languages: string[],
   localisedUrls: LocalisedUrlsMap,
+  projection: 'physical' | 'canonical' = 'physical',
 ): LocalisedRoute[] => {
   const rootLocalisedPaths = languages.reduce<Record<string, string>>(
     (acc, language) => {
@@ -425,6 +443,7 @@ export const applyLocalisedUrlsToRoutes = (
       rootLocalisedPaths,
       languages,
       localisedUrls,
+      projection,
     ),
   );
   validateNoNewRouteIdCollisions(routes, localisedRoutes);

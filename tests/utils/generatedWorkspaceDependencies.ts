@@ -1,412 +1,105 @@
-import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
+import { yaml } from '@modern-js/utils';
+import { runPnpm } from './runWithPrerequisites.mjs';
 
-const repoRoot = path.resolve(__dirname, '../..');
-const dependencyFields = [
-  'dependencies',
-  'devDependencies',
-  'optionalDependencies',
-  'peerDependencies',
-] as const;
-type DependencyField = (typeof dependencyFields)[number];
-type PackageManifest = {
-  name?: unknown;
-  [field: string]: unknown;
-};
+const { dump, load } = yaml;
 
-type DependencyRecord = {
-  field: DependencyField;
-  manifestPath: string;
-  specifier: string;
-};
+type PackedPackage = { tarball: string; integrity: string };
 
-type PackageSource = {
-  manifestPath: string;
-  packageDir: string;
-};
-
-function readManifest(manifestPath: string): PackageManifest {
-  return JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as PackageManifest;
-}
-
-function collectManifestPaths(root: string): string[] {
-  if (!fs.existsSync(root)) {
-    return [];
+function packedPrerequisites() {
+  const manifestPath = process.env.MODERN_TEST_PACKAGE_MANIFEST;
+  if (!manifestPath) {
+    throw new Error(
+      'Missing packed framework prerequisites. Run pnpm test:framework, or ' +
+        'set MODERN_TEST_PACKAGE_MANIFEST to the packages.json produced by ' +
+        'tests/utils/runWithPrerequisites.mjs --pack-only <directory>.',
+    );
   }
-
-  const manifests: string[] = [];
-  const visit = (directory: string) => {
-    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
-      if (
-        entry.name === '.git' ||
-        entry.name === '.cache' ||
-        entry.name === 'coverage' ||
-        entry.name === 'dist' ||
-        entry.name === 'node_modules'
-      ) {
-        continue;
-      }
-
-      const entryPath = path.join(directory, entry.name);
-      if (entry.isDirectory()) {
-        visit(entryPath);
-      } else if (entry.isFile() && entry.name === 'package.json') {
-        manifests.push(entryPath);
-      }
-    }
+  const { packages, allowBuilds } = JSON.parse(
+    fs.readFileSync(manifestPath, 'utf8'),
+  ) as {
+    packages: Record<string, PackedPackage>;
+    allowBuilds: Record<string, boolean>;
   };
-
-  visit(root);
-  return manifests;
+  const overrides: Record<string, string> = {};
+  for (const [name, { tarball, integrity }] of Object.entries(packages)) {
+    const actual = createHash('sha256')
+      .update(fs.readFileSync(tarball))
+      .digest('hex');
+    if (actual !== integrity) {
+      throw new Error(`Packed prerequisite changed after preparation: ${name}`);
+    }
+    overrides[name] = `file:${tarball}`;
+  }
+  return { overrides, allowBuilds };
 }
 
-function collectGeneratedPackageSources(workspaceDir: string) {
-  const sources = new Map<string, PackageSource>();
-  for (const parent of ['packages', 'apps', 'verticals']) {
-    for (const manifestPath of collectManifestPaths(
-      path.join(workspaceDir, parent),
-    )) {
-      const manifest = readManifest(manifestPath);
-      if (typeof manifest.name !== 'string') {
-        continue;
-      }
-
-      const packageDir = path.dirname(manifestPath);
-      const previous = sources.get(manifest.name);
-      if (previous && previous.packageDir !== packageDir) {
-        throw new Error(
-          `Generated workspace package ${manifest.name} has multiple sources: ` +
-            `${previous.packageDir} and ${packageDir}.`,
-        );
-      }
-      sources.set(manifest.name, { manifestPath, packageDir });
-    }
-  }
-  return sources;
-}
-
-function collectLocalModernPackageSources() {
-  const sources = new Map<string, PackageSource>();
-  for (const manifestPath of collectManifestPaths(
-    path.join(repoRoot, 'packages'),
-  )) {
-    const manifest = readManifest(manifestPath);
-    if (
-      typeof manifest.name !== 'string' ||
-      !manifest.name.startsWith('@modern-js/')
-    ) {
-      continue;
-    }
-
-    const packageDir = path.dirname(manifestPath);
-    const previous = sources.get(manifest.name);
-    if (previous && previous.packageDir !== packageDir) {
-      throw new Error(
-        `Local Modern package ${manifest.name} has multiple sources: ` +
-          `${previous.packageDir} and ${packageDir}.`,
-      );
-    }
-    sources.set(manifest.name, { manifestPath, packageDir });
-  }
-  return sources;
-}
-
-function collectDeclaredDependencies(workspaceDir: string) {
-  const dependencies = new Map<string, DependencyRecord>();
-  const manifestPaths = [
-    path.join(workspaceDir, 'package.json'),
-    ...['apps', 'verticals', 'packages'].flatMap(parent =>
-      collectManifestPaths(path.join(workspaceDir, parent)),
-    ),
-  ].filter(manifestPath => fs.existsSync(manifestPath));
-
-  for (const manifestPath of manifestPaths) {
-    const manifest = readManifest(manifestPath);
-    for (const field of dependencyFields) {
-      const record = manifest[field];
-      if (!record || typeof record !== 'object' || Array.isArray(record)) {
-        continue;
-      }
-
-      for (const [name, rawSpecifier] of Object.entries(
-        record as Record<string, unknown>,
-      )) {
-        if (typeof rawSpecifier !== 'string') {
-          throw new Error(
-            `Dependency ${name} in ${manifestPath} has a non-string ` +
-              `${field} specifier.`,
-          );
-        }
-
-        const previous = dependencies.get(name);
-        if (previous && previous.specifier !== rawSpecifier) {
-          throw new Error(
-            `Conflicting direct dependency ${name}: ` +
-              `${previous.specifier} (${previous.manifestPath} ` +
-              `${previous.field}) versus ${rawSpecifier} ` +
-              `(${manifestPath} ${field}).`,
-          );
-        }
-        dependencies.set(name, {
-          field,
-          manifestPath,
-          specifier: rawSpecifier,
-        });
-      }
-    }
-  }
-
-  return dependencies;
-}
-
-function linkPackage(
-  packageRoot: string,
-  packageName: string,
-  sourceDir: string,
-) {
-  const packagePath = path.join(packageRoot, 'node_modules', packageName);
-  fs.mkdirSync(path.dirname(packagePath), { recursive: true });
-
-  let existing: fs.Stats | undefined;
-  try {
-    existing = fs.lstatSync(packagePath);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-      throw error;
-    }
-  }
-
-  if (existing) {
-    if (!existing.isSymbolicLink()) {
-      throw new Error(
-        `Cannot replace generated dependency ${packageName} at ${packagePath}; ` +
-          'the path is not a symbolic link.',
-      );
-    }
-    const linkedSource = fs.realpathSync(packagePath);
-    if (linkedSource !== fs.realpathSync(sourceDir)) {
-      throw new Error(
-        `Generated dependency ${packageName} at ${packagePath} points to ` +
-          `${linkedSource}, expected ${sourceDir}.`,
-      );
-    }
-    return;
-  }
-
-  fs.symlinkSync(sourceDir, packagePath, 'dir');
-}
-
-function linkInstalledNodeModules(workspaceDir: string, installedPath: string) {
-  const workspaceNodeModules = path.join(workspaceDir, 'node_modules');
-  let existing: fs.Stats | undefined;
-  try {
-    existing = fs.lstatSync(workspaceNodeModules);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-      throw error;
-    }
-  }
-
-  if (existing) {
-    if (!existing.isSymbolicLink()) {
-      throw new Error(
-        `Cannot materialize generated dependencies at ${workspaceNodeModules}; ` +
-          'the existing path is not a symbolic link.',
-      );
-    }
-    fs.unlinkSync(workspaceNodeModules);
-  }
-
-  fs.symlinkSync(installedPath, workspaceNodeModules, 'dir');
-  return workspaceNodeModules;
-}
-
-function removeWorkspaceNodeModules(workspaceNodeModules: string) {
-  try {
-    if (fs.lstatSync(workspaceNodeModules).isSymbolicLink()) {
-      fs.unlinkSync(workspaceNodeModules);
-    }
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-      throw error;
-    }
-  }
-}
-
-/** A workspace file whose only job is to carry the build-script approvals. */
-function renderInstallWorkspaceFile(allowedBuilds: readonly string[]): string {
-  const entries = allowedBuilds.map(name => `  '${name}': true`).join('\n');
-  return `packages: []\n${
-    entries.length > 0 ? `\nallowBuilds:\n${entries}\n` : ''
-  }`;
-}
-
-/**
- * The dependency build scripts the generated workspace approves, read from its
- * own `pnpm-workspace.yaml` so the two stay in lockstep. pnpm fails an install
- * that would silently skip an unapproved build script, and the temporary
- * install directory cannot see the workspace file.
- */
-function readAllowedBuilds(workspaceDir: string): string[] {
-  const workspaceFile = path.join(workspaceDir, 'pnpm-workspace.yaml');
-  if (!fs.existsSync(workspaceFile)) {
-    return [];
-  }
-  const allowed: string[] = [];
-  let inside = false;
-  for (const rawLine of fs.readFileSync(workspaceFile, 'utf8').split('\n')) {
-    const line = rawLine.replace(/\r$/u, '');
-    if (/^allowBuilds:\s*$/u.test(line)) {
-      inside = true;
-      continue;
-    }
-    if (inside && /^\S/u.test(line)) {
-      break;
-    }
-    if (!inside) {
-      continue;
-    }
-    const entry = /^\s+(?:'([^']+)'|"([^"]+)"|([^:\s]+))\s*:\s*true\s*$/u.exec(
-      line,
-    );
-    if (entry) {
-      allowed.push(entry[1] ?? entry[2] ?? entry[3]);
-    }
-  }
-  return allowed;
-}
-
-function installDependencies(
-  workspaceDir: string,
-  dependencies: Map<string, DependencyRecord>,
-  localPackageNames: Set<string>,
-) {
-  const externalDependencies = Object.fromEntries(
-    [...dependencies.entries()]
-      .filter(([name]) => !localPackageNames.has(name))
-      .map(([name, record]) => [name, record.specifier])
-      .sort(([left], [right]) => left.localeCompare(right)),
-  );
-
-  for (const [name, specifier] of Object.entries(externalDependencies)) {
-    if (specifier.startsWith('workspace:')) {
-      throw new Error(
-        `Generated workspace dependency ${name} uses ${specifier}, but no ` +
-          'generated local package provides that name.',
-      );
-    }
-  }
-
-  const installRoot = fs.mkdtempSync(
-    path.join(os.tmpdir(), 'modern-generated-workspace-deps-'),
-  );
-  try {
-    fs.writeFileSync(
-      path.join(installRoot, 'package.json'),
-      `${JSON.stringify(
-        {
-          name: 'modern-generated-workspace-dependencies',
-          private: true,
-          version: '0.0.0',
-          dependencies: externalDependencies,
-        },
-        null,
-        2,
-      )}\n`,
-    );
-    // The generated workspace approves its dependencies' build scripts in its
-    // own `pnpm-workspace.yaml`, and pnpm reads that setting only from a
-    // workspace file. Give this install directory its own, carrying the same
-    // approvals; without them pnpm refuses the install with
-    // ERR_PNPM_IGNORED_BUILDS.
-    fs.writeFileSync(
-      path.join(installRoot, 'pnpm-workspace.yaml'),
-      renderInstallWorkspaceFile(readAllowedBuilds(workspaceDir)),
-    );
-    try {
-      // No `--ignore-workspace`: the install directory is its own workspace
-      // root (outside the repository), which is how pnpm reads `allowBuilds`.
-      execFileSync('pnpm', ['install'], {
-        cwd: installRoot,
-        env: { ...process.env, CI: 'true' },
-        stdio: 'pipe',
-      });
-    } catch (error) {
-      // `stdio: 'pipe'` keeps pnpm's own `ERR_PNPM_*` diagnosis out of the
-      // test log, which leaves an install failure undiagnosable in CI.
-      const { stdout, stderr } = error as {
-        stdout?: Buffer | string;
-        stderr?: Buffer | string;
-      };
-      throw new Error(
-        [
-          `pnpm install failed in ${installRoot}`,
-          `dependencies: ${JSON.stringify(externalDependencies, null, 2)}`,
-          `stdout:\n${String(stdout ?? '')}`,
-          `stderr:\n${String(stderr ?? '')}`,
-        ].join('\n'),
-        { cause: error },
-      );
-    }
-    const workspaceNodeModules = linkInstalledNodeModules(
-      workspaceDir,
-      path.join(installRoot, 'node_modules'),
-    );
-    return { installRoot, workspaceNodeModules };
-  } catch (error) {
-    fs.rmSync(installRoot, { recursive: true, force: true });
-    throw error;
-  }
-}
-
-/**
- * Install the generated workspace's third-party dependencies outside the
- * repository workspace and link local first-party artifacts into each app.
- * The returned cleanup must run after every build/serve attempt.
- */
+/** pnpm owns workspace links, per-package versions, peer resolution and builds. */
 export function materializeGeneratedWorkspaceDependencies(
   workspaceDir: string,
-): () => void {
-  const generatedPackages = collectGeneratedPackageSources(workspaceDir);
-  const localPackages = collectLocalModernPackageSources();
-  const dependencies = collectDeclaredDependencies(workspaceDir);
-  const packageSources = new Map(localPackages);
-  for (const [name, source] of generatedPackages) {
-    packageSources.set(name, source);
-  }
-
-  const materialized = installDependencies(
-    workspaceDir,
-    dependencies,
-    new Set(packageSources.keys()),
-  );
-
-  try {
-    const generatedPackageDirectories = [
-      ...collectManifestPaths(path.join(workspaceDir, 'apps')),
-      ...collectManifestPaths(path.join(workspaceDir, 'verticals')),
-      ...collectManifestPaths(path.join(workspaceDir, 'packages')),
-    ].map(manifestPath => path.dirname(manifestPath));
-    for (const packageDirectory of generatedPackageDirectories) {
-      for (const [packageName, source] of packageSources) {
-        linkPackage(packageDirectory, packageName, source.packageDir);
-      }
-    }
-  } catch (error) {
-    removeWorkspaceNodeModules(materialized.workspaceNodeModules);
-    fs.rmSync(materialized.installRoot, { recursive: true, force: true });
-    throw error;
-  }
-
-  let cleaned = false;
-  return () => {
-    if (cleaned) {
-      return;
-    }
-    cleaned = true;
-    removeWorkspaceNodeModules(materialized.workspaceNodeModules);
-    fs.rmSync(materialized.installRoot, { recursive: true, force: true });
+): void {
+  const { overrides } = packedPrerequisites();
+  const workspaceFile = path.join(workspaceDir, 'pnpm-workspace.yaml');
+  const workspace = load(fs.readFileSync(workspaceFile, 'utf8')) as {
+    overrides?: Record<string, string>;
   };
+  // Keep the transport overrides installed: reverting them would invalidate
+  // pnpm's lockfile settings and break verifyDepsBeforeRun for real commands.
+  fs.writeFileSync(
+    workspaceFile,
+    dump({ ...workspace, overrides: { ...workspace.overrides, ...overrides } }),
+  );
+  runPnpm(['install', '--no-frozen-lockfile'], {
+    cwd: workspaceDir,
+    env: { ...process.env, CI: 'true' },
+    stdio: 'pipe',
+  });
+}
+
+/** A standalone consumer outside the repository, without source links. */
+export function installPackedGenerator(tempRoot: string): string {
+  const { overrides, allowBuilds } = packedPrerequisites();
+  const consumer = path.join(tempRoot, 'generator-consumer');
+  fs.mkdirSync(consumer, { recursive: true });
+  fs.writeFileSync(
+    path.join(consumer, 'package.json'),
+    JSON.stringify({
+      name: 'packed-generator-consumer',
+      private: true,
+      dependencies: {
+        '@modern-js/ultramodern-create':
+          overrides['@modern-js/ultramodern-create'],
+      },
+    }),
+  );
+  fs.writeFileSync(
+    path.join(consumer, 'pnpm-workspace.yaml'),
+    dump({ packages: [], overrides, allowBuilds }),
+  );
+  runPnpm(['install', '--no-frozen-lockfile'], {
+    cwd: consumer,
+    env: { ...process.env, CI: 'true' },
+    stdio: 'pipe',
+  });
+  const bin = path.join(
+    consumer,
+    'node_modules/@modern-js/ultramodern-create/bin/run.js',
+  );
+  if (
+    !fs.realpathSync(bin).startsWith(`${fs.realpathSync(consumer)}${path.sep}`)
+  ) {
+    throw new Error(
+      'Packed generator resolved outside its standalone consumer',
+    );
+  }
+  return bin;
+}
+
+export function generatedModernBin(packageDir: string): string {
+  return path.join(
+    packageDir,
+    'node_modules/@modern-js/app-tools/bin/modern.js',
+  );
 }

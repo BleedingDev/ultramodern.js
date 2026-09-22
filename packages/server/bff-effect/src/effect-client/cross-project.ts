@@ -2,6 +2,7 @@ import {
   BFF_ENVELOPE_HEADER,
   BFF_OPERATION_CONTEXT_DETAIL_HEADER,
   BFF_OPERATION_CONTEXT_HEADER,
+  digestOperationContract,
   resolveCrossProjectRequestObservation,
 } from '@modern-js/server-runtime-extensions/bff-policy';
 import * as Effect from 'effect/Effect';
@@ -66,22 +67,16 @@ export function withCrossProjectPolicy<
         );
       }
       return Effect.gen(function* () {
-        // Canonical field order matches the server's route-identity SHA-256.
-        const input = encodeJson({
-          httpMethod: contract.method,
-          name: contract.name,
-          requestId: options.requestId,
-          routePath: contract.routePath,
-        });
-        const digest = yield* Effect.promise(() =>
-          globalThis.crypto.subtle.digest(
-            'SHA-256',
-            new TextEncoder().encode(input),
+        const schemaHash = yield* Effect.promise(() =>
+          digestOperationContract(
+            {
+              httpMethod: contract.method,
+              name: contract.name,
+              routePath: contract.routePath,
+            },
+            options.requestId,
           ),
         );
-        const schemaHash = Array.from(new Uint8Array(digest), value =>
-          value.toString(16).padStart(2, '0'),
-        ).join('');
         return request.pipe(
           HttpClientRequest.setHeader(
             BFF_ENVELOPE_HEADER,

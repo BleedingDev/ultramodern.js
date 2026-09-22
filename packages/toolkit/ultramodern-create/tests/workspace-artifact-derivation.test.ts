@@ -52,33 +52,15 @@ test('fresh/add-vertical share script bytes for api-bearing inputs', () => {
       topology: readJson(workspaceDir, topologyPath),
       overlay,
     });
-    writeGeneratedWorkspaceScripts(
-      freshRoot,
-      view.config.workspace.packageScope,
-      view.config.features.tailwind,
-      view.verticals,
-      undefined,
-      view.additionalShells,
-      view.primaryShell,
-      {
-        compactConfig: config,
-        developmentOverlay: overlay,
-        ownership: readJson(workspaceDir, 'topology/ownership.json'),
-      },
-    );
+    writeGeneratedWorkspaceScripts(freshRoot, view.verticals);
     const artifacts = createWorkspaceScriptArtifacts({
       shellOnly: view.verticals.length === 0,
       hasBackendSurface: view.verticals.some(app => app.api !== undefined),
     });
     const paths = artifacts.map(artifact => artifact.relativePath);
     formatGeneratedWorkspaceFiles(freshRoot, paths);
-    // The validator has contextual cohort/metadata data; all shared runtime
-    // wrappers and copied assets must be identical across actual writers.
-    const sharedPaths = paths.filter(
-      relativePath =>
-        relativePath !== 'scripts/validate-ultramodern-workspace.mts',
-    );
-    for (const relativePath of sharedPaths) {
+    // Every thin runtime wrapper, including validation, comes from the installed CLI.
+    for (const relativePath of paths) {
       assert.equal(
         fs.readFileSync(path.join(workspaceDir, relativePath), 'utf8'),
         fs.readFileSync(path.join(freshRoot, relativePath), 'utf8'),

@@ -1,14 +1,19 @@
 import { execFile } from 'node:child_process';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
-
+import { applyLocalisedUrlsToRoutes } from '@modern-js/i18n-runtime-extensions';
+import { createMemoryHistory, createRouter } from '@tanstack/react-router';
 import { writeTanstackRegisterFile } from '../../src/cli/artifacts';
 import {
   collectCanonicalRoutesForEntry,
   generateTanstackRouterTypesSourceForEntry,
 } from '../../src/cli/tanstackTypes';
+import { createModernBasepathRewrite } from '../../src/runtime/basepathRewrite';
+import { createRouteTreeFromRouteObjects } from '../../src/runtime/routeTree';
+import { createTanstackRouteObjectsFromConfig } from '../../src/runtime/utils';
 
 const execFileAsync = promisify(execFile);
 const strictestTsconfigPath = path.resolve(
@@ -258,6 +263,119 @@ describe('tanstack router type generation', () => {
     await compileGeneratedRouterAgainstInstalledDeclarations({
       projectDirectory: tempDir,
       routerGenTs,
+    });
+  });
+
+  test('generated and runtime trees agree on localized splats, root siblings, layouts and params', async () => {
+    tempDir = await mkdtemp(path.join(tmpdir(), 'modern-tanstack-parity-'));
+    const localized = applyLocalisedUrlsToRoutes(
+      [
+        {
+          type: 'nested',
+          id: 'lang',
+          path: ':lang',
+          children: [
+            {
+              type: 'nested',
+              id: 'products',
+              path: 'products',
+              children: [{ type: 'nested', id: 'product-files', path: '*' }],
+            },
+            { type: 'nested', id: 'fallback', path: '*' },
+          ],
+        },
+      ],
+      ['en', 'cs'],
+      { '/products': { en: '/products', cs: '/produkty' } },
+      'canonical',
+    );
+    const routes = [
+      {
+        type: 'nested',
+        id: 'layout',
+        isRoot: true,
+        children: [
+          ...localized,
+          {
+            type: 'nested',
+            children: [{ type: 'nested', path: 'one/:id?', index: false }],
+          },
+          { type: 'nested', children: [{ type: 'nested', path: 'two/*' }] },
+          { type: 'nested', id: 'index', index: true },
+        ],
+      },
+      { type: 'nested', id: 'sibling', path: 'outside/:lang' },
+    ] as any;
+    const { routerGenTs } = await generateTanstackRouterTypesSourceForEntry({
+      appContext: {
+        srcDirectory: path.join(tempDir, 'src'),
+        internalSrcAlias: '@/_',
+      } as any,
+      entryName: 'parity',
+      routes,
+    });
+    const generated = path.join(tempDir, 'router.gen.ts');
+    await writeFile(generated, routerGenTs);
+    const modules = path.join(tempDir, 'node_modules', '@modern-js');
+    await mkdir(modules, { recursive: true });
+    await symlink(
+      path.resolve(__dirname, '../..'),
+      path.join(modules, 'plugin-tanstack'),
+      'junction',
+    );
+    const { stdout } = await execFileAsync(process.execPath, [
+      '--input-type=module',
+      '--eval',
+      `
+      import { router } from ${JSON.stringify(pathToFileURL(generated).href)};
+      import { createModernBasepathRewrite } from ${JSON.stringify(pathToFileURL(path.resolve(__dirname, '../../dist/esm/runtime/basepathRewrite.mjs')).href)};
+      router.update({ rewrite: createModernBasepathRewrite('/base', false, ${JSON.stringify(routes)}) });
+      await router.navigate({ to: '/cs/produkty/a/b', search: { q: 'tractor' }, hash: 'files' });
+      console.log(JSON.stringify({ ids: Object.keys(router.routesById).sort(), match: router.state.matches.at(-1).routeId, params: router.state.matches.at(-1).params, href: router.history.location.href }));
+    `,
+    ]);
+    const routeObjects = createTanstackRouteObjectsFromConfig({
+      routesConfig: { routes },
+    })!;
+    const runtime = createRouter({
+      routeTree: createRouteTreeFromRouteObjects(routeObjects),
+      history: createMemoryHistory({
+        initialEntries: ['/base/cs/produkty/a/b?q=tractor#files'],
+      }),
+      rewrite: createModernBasepathRewrite('/base', false, routeObjects),
+    });
+    await runtime.load();
+    expect(JSON.parse(stdout)).toEqual({
+      ids: Object.keys(runtime.routesById).sort(),
+      match: runtime.state.matches.at(-1)?.routeId,
+      params: runtime.state.matches.at(-1)?.params,
+      href: runtime.history.location.href,
+    });
+    expect(runtime.state.matches.at(-1)?.routeId).toBe('/$lang/products/$');
+    expect(runtime.state.matches.at(-1)?.params).toMatchObject({
+      lang: 'cs',
+      _splat: 'a/b',
+    });
+    await runtime.navigate({ to: '/cs/missing/path' });
+    expect(runtime.state.matches.at(-1)?.routeId).toBe('/$lang/$');
+    expect(runtime.state.matches.at(-1)?.params).toMatchObject({
+      lang: 'cs',
+      _splat: 'missing/path',
+    });
+    await runtime.navigate({ to: '/outside/cs' });
+    expect(runtime.state.matches.at(-1)?.params).toEqual({ lang: 'cs' });
+    const canonicalRoutes = collectCanonicalRoutesForEntry(localized as any)!;
+    expect(Object.keys(canonicalRoutes)).toEqual(['/$', '/products/$']);
+    await typecheckCanonicalRegisterContract({
+      projectDirectory: tempDir,
+      canonicalRoutes,
+      contractLines: [
+        "const product: UltramodernCanonicalRoutes['/products/$'] = { _splat: 'a/b' };",
+        "const fallback: UltramodernCanonicalRoutes['/$'] = { _splat: 'unknown/path' };",
+        '// @ts-expect-error splat remains a string',
+        "const invalid: UltramodernCanonicalRoutes['/products/$'] = { _splat: 42 };",
+        'void product; void fallback; void invalid;',
+      ],
     });
   });
 

@@ -1,4 +1,4 @@
-import { applyRouterRuntimeState } from '@modern-js/runtime-extensions/router-state';
+import { applyRouterServerPrepareResult } from '@modern-js/runtime-extensions/router-state';
 import React from 'react';
 import {
   setGlobalContext,
@@ -32,9 +32,9 @@ describe('createRequestHandler router snapshot fallback', () => {
         },
         onBeforeRender: {
           call: async (context: any) => {
-            applyRouterRuntimeState(context, {
-              framework: 'custom-router',
-              serverSnapshot: {
+            applyRouterServerPrepareResult(context, {
+              state: { framework: 'custom-router' },
+              snapshot: {
                 statusCode: 418,
                 errors: {
                   root: new Error('loader failed'),
@@ -93,7 +93,7 @@ describe('createRequestHandler router snapshot fallback', () => {
         },
         onBeforeRender: {
           call: async (context: any) => {
-            applyRouterRuntimeState(context, {
+            applyRouterServerPrepareResult(context, {
               framework: 'custom-router',
               cleanup: () => {
                 cleaned = true;

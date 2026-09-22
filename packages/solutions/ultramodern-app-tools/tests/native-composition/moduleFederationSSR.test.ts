@@ -219,6 +219,23 @@ describe('module federation SSR output compatibility', () => {
     );
     expect(result.tools?.bundlerChain).toBeUndefined();
   });
+
+  it('preserves false opt-outs and entry-specific SSR capabilities', () => {
+    for (const [server, expected] of [
+      [{ ssr: false }, false],
+      [{ ssr: { moduleFederationAppSSR: false } }, false],
+      [{ ssrByEntries: { main: { moduleFederationAppSSR: true } } }, true],
+    ] as const) {
+      const result = createEnvironmentConfigTransformer({
+        normalizedConfig: { server },
+      })({ output: { target: 'node' } });
+      expect(result.source.define['process.env.MODERN_MF_APP_SSR']).toBe(
+        JSON.stringify(String(expected)),
+      );
+      if (expected) expect(result.splitChunks).toBe(false);
+      else expect(result.splitChunks).toBeUndefined();
+    }
+  });
 });
 
 describe('native Rsbuild SSR composition', () => {

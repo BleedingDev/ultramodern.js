@@ -136,6 +136,21 @@ test('generated validator accepts equivalent structured JSON representations', (
     const baseline = runValidation(workspaceDir);
     assert.equal(baseline.status, 0, commandOutput(baseline));
 
+    const externalInvocation = spawnSync(
+      process.execPath,
+      [path.resolve(__dirname, '../bin/run.js'), 'ultramodern', 'validate'],
+      {
+        cwd: tempRoot,
+        encoding: 'utf-8',
+        env: { ...process.env, ULTRAMODERN_WORKSPACE_ROOT: workspaceDir },
+      },
+    );
+    assert.equal(
+      externalInvocation.status,
+      0,
+      commandOutput(externalInvocation),
+    );
+
     for (const relativePath of [
       ...structuredMetadataPaths,
       'package.json',
@@ -358,6 +373,36 @@ test('generated validator rejects schema, cohort, topology, policy, and legacy d
       },
       expected:
         /MicroVertical contract self-check failed: \.modernjs\/ultramodern\.json policy/,
+    },
+    {
+      name: 'compact-remote-federation-drift',
+      mutate: workspaceDir => {
+        mutateJson(workspaceDir, '.modernjs/ultramodern.json', value => {
+          value.topology.apps.find(
+            (app: { id: string }) => app.id === 'catalog',
+          ).moduleFederation.exposes = [];
+        });
+      },
+      expected:
+        /topology(?:\.apps\.catalog published surfaces|\/reference-topology\.json verticals\.catalog)/,
+    },
+    {
+      name: 'primary-shell-identity-drift',
+      mutate: workspaceDir => {
+        mutateJson(workspaceDir, '.modernjs/ultramodern.json', value => {
+          value.topology.apps[0].portEnv = 'UNSUPPORTED_SHELL_PORT';
+        });
+      },
+      expected: /topology\.apps\.shell-super-app shell identity/,
+    },
+    {
+      name: 'disabled-streaming-ssr',
+      mutate: workspaceDir => {
+        mutateJson(workspaceDir, '.modernjs/ultramodern.json', value => {
+          value.topology.apps[0].moduleFederation.ssr = false;
+        });
+      },
+      expected: /topology\.apps\.shell-super-app\.moduleFederation\.ssr/,
     },
     {
       name: 'missing-cloudflare-smoke-contract',

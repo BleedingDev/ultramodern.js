@@ -71,7 +71,7 @@ const isAsyncEntryScriptChunk = (chunk: ScriptChunkLike, entryName: string) => {
 
 export function getMatchedRouteChunks<T>(
   routeManifest: RouteManifestLike | undefined,
-  matchedRouteIds: string[],
+  matchedRouteIds: readonly string[],
   routeAssetToChunk: (asset: string) => T,
 ): T[] {
   const routeAssets = routeManifest?.routeAssets;
@@ -167,7 +167,7 @@ export function replaceChunkJsPlaceholder(
 
 export function createRouteHydrationScriptTags(
   routeManifest: RouteManifestLike | undefined,
-  matchedRouteIds: string[],
+  matchedRouteIds: readonly string[],
   entryName: string,
   options: {
     nonce?: string;

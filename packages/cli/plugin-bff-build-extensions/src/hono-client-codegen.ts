@@ -1,9 +1,8 @@
-import path from 'node:path';
 import type { ClientCodegenPlugin } from '@modern-js/bff-core';
 import {
   buildOperationContractMap,
   createOperationSchemaHash,
-  deriveOperationVersion,
+  resolveOperationProducer,
 } from '@modern-js/server-runtime-extensions/bff-policy/node';
 
 const REQUEST_RUNTIME = '@modern-js/runtime-extensions/request-policy';
@@ -11,14 +10,11 @@ const REQUEST_RUNTIME = '@modern-js/runtime-extensions/request-policy';
 export const modifyClient: ClientCodegenPlugin = (draft, context) => {
   const { appDir, requestId } = context.options;
   draft.requestCreator = context.options.requestCreator || REQUEST_RUNTIME;
-  let version: string | undefined;
-  try {
-    version = require(path.resolve(appDir, 'package.json')).version;
-  } catch {
-    // Missing or invalid package metadata uses the established version fallback.
-  }
-  const operationVersion = deriveOperationVersion(version);
-  const normalizedRequestId = requestId || 'default';
+  const { operationVersion, requestId: normalizedRequestId } =
+    resolveOperationProducer({
+      directories: [context.options.apiDir, appDir],
+      requestId: requestId || 'default',
+    });
   const operationContracts = buildOperationContractMap({
     handlers: [...context.handlerInfos],
     requestId: normalizedRequestId,
