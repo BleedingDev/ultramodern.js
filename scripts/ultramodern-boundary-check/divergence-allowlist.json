@@ -6,7 +6,7 @@
   "migrationGoal": "Shrink-only budget of fork edits inside upstream-owned files. Every entry is debt: move it upstream or behind an extension point, then re-run --write-divergence-allowlist.",
   "totalFiles": 816,
   "totalHunks": 3076,
-  "totalChangedLines": 50882,
+  "totalChangedLines": 50970,
   "files": [
     {
       "file": "packages/cli/adapter-rstest/package.json",
@@ -1126,7 +1126,7 @@
     {
       "file": "packages/runtime/plugin-i18n/src/cli/index.ts",
       "hunks": 8,
-      "changedLines": 53
+      "changedLines": 54
     },
     {
       "file": "packages/runtime/plugin-i18n/src/cli/locales.ts",
@@ -1136,7 +1136,7 @@
     {
       "file": "packages/runtime/plugin-i18n/src/cli/localisedRoutes.ts",
       "hunks": 1,
-      "changedLines": 43
+      "changedLines": 53
     },
     {
       "file": "packages/runtime/plugin-i18n/src/runtime/canonicalRoutes.ts",
@@ -1406,7 +1406,7 @@
     {
       "file": "packages/runtime/plugin-i18n/tests/localisedRouteGeneration.test.ts",
       "hunks": 1,
-      "changedLines": 159
+      "changedLines": 200
     },
     {
       "file": "packages/runtime/plugin-i18n/tests/localisedUrls.test.ts",
@@ -1421,7 +1421,7 @@
     {
       "file": "packages/runtime/plugin-i18n/tests/navigation.test.tsx",
       "hunks": 1,
-      "changedLines": 365
+      "changedLines": 403
     },
     {
       "file": "packages/runtime/plugin-i18n/tests/reactI18nextRuntimeBoundary.test.ts",
@@ -2091,7 +2091,7 @@
     {
       "file": "packages/runtime/plugin-runtime/tests/router/lifecycle.test.tsx",
       "hunks": 1,
-      "changedLines": 186
+      "changedLines": 184
     },
     {
       "file": "packages/runtime/plugin-runtime/tests/router/nestedRoutes.test.ts",
