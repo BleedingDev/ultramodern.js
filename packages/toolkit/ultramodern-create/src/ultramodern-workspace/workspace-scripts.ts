@@ -13,7 +13,29 @@ import type { WorkspaceApp } from './types';
 // which enforces `singleQuote: true`; JSON.stringify would emit double quotes.
 const singleQuoted = (value: string) => `'${value.replace(/'/gu, "\\'")}'`;
 
-const toolWrapperResultHandling = `
+function renderToolWrapper(argumentSetup: string) {
+  return `#!/usr/bin/env node
+import { spawnSync } from 'node:child_process';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const createBin = process.env.ULTRAMODERN_CREATE_BIN;
+const forwardedArgs = process.argv.slice(2);
+const workspaceRoot =
+  process.env.ULTRAMODERN_WORKSPACE_ROOT ??
+  path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+${argumentSetup}
+const result = createBin
+  ? spawnSync(process.execPath, [createBin, ...ultramodernArgs], {
+      env: { ...process.env, ULTRAMODERN_WORKSPACE_ROOT: workspaceRoot },
+      stdio: 'inherit',
+    })
+  : spawnSync('ultramodern-create', ultramodernArgs, {
+      env: { ...process.env, ULTRAMODERN_WORKSPACE_ROOT: workspaceRoot },
+      shell: process.platform === 'win32',
+      stdio: 'inherit',
+    });
+
 if (result.error) {
   const launchTarget = createBin
     ? process.execPath + ' with ULTRAMODERN_CREATE_BIN=' + createBin
@@ -31,62 +53,23 @@ if (result.error) {
 
 process.exit(result.status ?? 1);
 `;
+}
 
 function createToolWrapperScript(command: string, extraArgs: string[] = []) {
   const commandLiteral = singleQuoted(command);
   const extraArgsLiteral = `[${extraArgs.map(singleQuoted).join(', ')}]`;
 
-  return `#!/usr/bin/env node
-import { spawnSync } from 'node:child_process';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const createBin = process.env.ULTRAMODERN_CREATE_BIN;
-const forwardedArgs = process.argv.slice(2);
-const workspaceRoot =
-  process.env.ULTRAMODERN_WORKSPACE_ROOT ??
-  path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const ultramodernArgs = ['ultramodern', ${commandLiteral}, ...${extraArgsLiteral}, ...forwardedArgs];
-const result = createBin
-  ? spawnSync(process.execPath, [createBin, ...ultramodernArgs], {
-      env: { ...process.env, ULTRAMODERN_WORKSPACE_ROOT: workspaceRoot },
-      stdio: 'inherit',
-    })
-  : spawnSync('ultramodern-create', ultramodernArgs, {
-      env: { ...process.env, ULTRAMODERN_WORKSPACE_ROOT: workspaceRoot },
-      shell: process.platform === 'win32',
-      stdio: 'inherit',
-    });
-${toolWrapperResultHandling}`;
+  return renderToolWrapper(
+    `const ultramodernArgs = ['ultramodern', ${commandLiteral}, ...${extraArgsLiteral}, ...forwardedArgs];`,
+  );
 }
 
 function createSkillsToolWrapperScript() {
-  return `#!/usr/bin/env node
-import { spawnSync } from 'node:child_process';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const createBin = process.env.ULTRAMODERN_CREATE_BIN;
-const forwardedArgs = process.argv.slice(2);
-const workspaceRoot =
-  process.env.ULTRAMODERN_WORKSPACE_ROOT ??
-  path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const checkOnly = forwardedArgs.includes('--check');
+  return renderToolWrapper(`const checkOnly = forwardedArgs.includes('--check');
 const skillArgs = checkOnly
   ? ['skills', 'check', ...forwardedArgs.filter(arg => arg !== '--check')]
   : ['skills', 'install', ...forwardedArgs];
-const ultramodernArgs = ['ultramodern', ...skillArgs];
-const result = createBin
-  ? spawnSync(process.execPath, [createBin, ...ultramodernArgs], {
-      env: { ...process.env, ULTRAMODERN_WORKSPACE_ROOT: workspaceRoot },
-      stdio: 'inherit',
-    })
-  : spawnSync('ultramodern-create', ultramodernArgs, {
-      env: { ...process.env, ULTRAMODERN_WORKSPACE_ROOT: workspaceRoot },
-      shell: process.platform === 'win32',
-      stdio: 'inherit',
-    });
-${toolWrapperResultHandling}`;
+const ultramodernArgs = ['ultramodern', ...skillArgs];`);
 }
 
 // Consumer entrypoints delegate to the installed cohort's packaged validator.
