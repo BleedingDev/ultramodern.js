@@ -4,7 +4,6 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
 import validationKit from '../lib/validation-kit.js';
 import { assertOperationalIndependenceEvidenceMatchesReceipt } from '../ultramodern-production-readiness/published-create-proof/acceptance-contract.mjs';
@@ -16,6 +15,7 @@ import {
   requiredTractorTopology,
   requiredVisibleRuntimePlatforms,
 } from '../ultramodern-production-readiness/tractor-downstream/contract.mjs';
+import { isDirectRun } from './lib/direct-run.mjs';
 import { readReleaseManifest } from './lib/source-create-proof/release-manifest.mjs';
 
 const { assertNonEmptyString: assertBaseNonEmptyString, assertPlainObject } =
@@ -41,23 +41,6 @@ const digestPattern = /^[a-f0-9]{64}$/u;
 const commitPattern = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 const semverPattern =
   /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/u;
-
-function assertExactKeys(value, expected, label) {
-  assertPlainObject(value, label);
-  const actual = Object.keys(value).sort((left, right) =>
-    left.localeCompare(right),
-  );
-  const sortedExpected = [...expected].sort((left, right) =>
-    left.localeCompare(right),
-  );
-  if (JSON.stringify(actual) !== JSON.stringify(sortedExpected)) {
-    throw new Error(
-      `${label} has unknown or missing fields: expected ${sortedExpected.join(
-        ', ',
-      )}; found ${actual.join(', ')}`,
-    );
-  }
-}
 
 function assertNonEmptyString(value, label) {
   assertBaseNonEmptyString(value, label);
@@ -967,10 +950,7 @@ async function main(argv = process.argv.slice(2)) {
   throw new Error('Command must be create');
 }
 
-if (
-  process.argv[1] &&
-  fileURLToPath(import.meta.url) === path.resolve(process.argv[1])
-) {
+if (isDirectRun(import.meta.url)) {
   try {
     process.exitCode = await main();
   } catch (error) {
