@@ -216,6 +216,49 @@ test('fails closed when the authenticated create closure is omitted or version-s
   );
 });
 
+test('acceptance production builds and runtime proofs use the same explicit local deployment addresses', async () => {
+  const { createAcceptanceBuildEnv, createAcceptanceDeploymentEnv } =
+    await import('../published-create-proof/acceptance-profile.mjs');
+  const { createSmokeTargets } = await import('../browser-smoke/targets.mjs');
+  const contract = {
+    topology: {
+      apps: [
+        { id: 'shell-super-app', kind: 'shell', port: 3020 },
+        { id: 'analytics', kind: 'vertical', port: 3030 },
+      ],
+    },
+  };
+  const packageManagerEnv = {
+    NODE_ENV: 'production',
+    ANALYTICS_PORT: '4030',
+    ULTRAMODERN_PUBLIC_URL_ANALYTICS: 'https://unrelated.example',
+    npm_config_registry: 'http://localhost:4873',
+  };
+  const deploymentEnv = createAcceptanceDeploymentEnv(
+    contract,
+    packageManagerEnv,
+  );
+  const buildEnv = createAcceptanceBuildEnv(deploymentEnv, {});
+  const { targets } = createSmokeTargets(contract, { env: deploymentEnv });
+  for (const target of targets) {
+    assert.equal(buildEnv[target.publicUrlEnv], target.baseUrl);
+    assert.equal(buildEnv[target.portEnv], String(target.port));
+  }
+  assert.equal(
+    buildEnv.ULTRAMODERN_PUBLIC_URL_ANALYTICS,
+    'http://localhost:4030',
+  );
+  assert.equal(buildEnv.NODE_ENV, 'production');
+  assert.equal(
+    buildEnv.npm_config_registry,
+    packageManagerEnv.npm_config_registry,
+  );
+  assert.equal(
+    packageManagerEnv.ULTRAMODERN_PUBLIC_URL_ANALYTICS,
+    'https://unrelated.example',
+  );
+});
+
 test('acceptance children never inherit a source create bin or framework override', async () => {
   const { createAcceptancePackageManagerEnv } = await import(
     '../published-create-proof/acceptance-profile.mjs'

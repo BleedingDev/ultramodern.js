@@ -5,8 +5,8 @@
   "pathspec": ["packages"],
   "migrationGoal": "Shrink-only budget of fork edits inside upstream-owned files. Every entry is debt: move it upstream or behind an extension point, then re-run --write-divergence-allowlist.",
   "totalFiles": 817,
-  "totalHunks": 3086,
-  "totalChangedLines": 51091,
+  "totalHunks": 3089,
+  "totalChangedLines": 51141,
   "files": [
     {
       "file": "packages/cli/adapter-rstest/package.json",
@@ -4030,8 +4030,8 @@
     },
     {
       "file": "packages/toolkit/utils/src/cli/require.ts",
-      "hunks": 8,
-      "changedLines": 36
+      "hunks": 9,
+      "changedLines": 45
     },
     {
       "file": "packages/toolkit/utils/src/cli/version.ts",
@@ -4065,8 +4065,8 @@
     },
     {
       "file": "packages/toolkit/utils/tests/compatRequire.test.ts",
-      "hunks": 4,
-      "changedLines": 23
+      "hunks": 6,
+      "changedLines": 64
     },
     {
       "file": "packages/toolkit/utils/tests/compiledYamlExports.test.ts",

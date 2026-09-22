@@ -6,6 +6,8 @@ import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { fileURLToPath } from 'node:url';
 import { parseSync, transformFromAstSync, traverse, types } from '@babel/core';
+import { readSmokeContract } from '../browser-smoke/contract.mjs';
+import { createSmokeTargets } from '../browser-smoke/targets.mjs';
 import { runOperationalIndependence } from '../operational-independence.mjs';
 import {
   assertApiAcceptance,
@@ -297,6 +299,25 @@ function createAcceptanceBuildEnv(packageManagerEnv, env = process.env) {
     ...packageManagerEnv,
     pnpm_config_workspace_concurrency: raw,
   };
+}
+
+function createAcceptanceDeploymentEnv(contract, packageManagerEnv) {
+  const env = { ...packageManagerEnv };
+  const { targets } = createSmokeTargets(contract, {
+    env: { ...process.env, ...env },
+    mode: 'local',
+  });
+  // These are explicit addresses of the proof deployment. Production builds
+  // must not depend on the development-only implicit localhost fallback.
+  for (const target of targets) {
+    if (target.publicUrlEnv) {
+      env[target.publicUrlEnv] = target.baseUrl;
+    }
+    if (target.portEnv) {
+      env[target.portEnv] = String(target.port);
+    }
+  }
+  return env;
 }
 
 async function withDuration(action) {
@@ -1181,11 +1202,15 @@ async function runAcceptanceProfile({
         }),
       );
 
+      const deploymentEnv = createAcceptanceDeploymentEnv(
+        readSmokeContract(projectDir).contract,
+        packageManagerEnv,
+      );
       await recordAcceptanceResult(receipt, 'build', () =>
         withDuration(() => {
           runImpl('pnpm', requiredPnpmCommands.build, {
             cwd: projectDir,
-            env: createAcceptanceBuildEnv(packageManagerEnv),
+            env: createAcceptanceBuildEnv(deploymentEnv),
           });
           return { command: 'pnpm build' };
         }),
@@ -1197,7 +1222,7 @@ async function runAcceptanceProfile({
       // platform/dimension order.
       const nodeRuntimeReport = await browserSmokeImpl(projectDir, {
         ...runtimeAcceptanceInvocation(mode, 'node'),
-        packageManagerEnv,
+        packageManagerEnv: deploymentEnv,
       });
       if (!nodeRuntimeReport || typeof nodeRuntimeReport !== 'object') {
         throw new Error('Node runtime acceptance did not produce a report');
@@ -1232,7 +1257,7 @@ async function runAcceptanceProfile({
         withDuration(() => {
           runImpl('pnpm', requiredPnpmCommands.cloudflareBuild, {
             cwd: projectDir,
-            env: createAcceptanceBuildEnv(packageManagerEnv),
+            env: createAcceptanceBuildEnv(deploymentEnv),
           });
           return { command: 'pnpm cloudflare:build' };
         }),
@@ -1246,7 +1271,7 @@ async function runAcceptanceProfile({
               if (!report) {
                 report = await browserSmokeImpl(projectDir, {
                   ...runtimeAcceptanceInvocation(mode, platform),
-                  packageManagerEnv,
+                  packageManagerEnv: deploymentEnv,
                 });
                 runtimeReports.set(platform, report);
               }
@@ -1286,7 +1311,7 @@ async function runAcceptanceProfile({
                 ephemeralWorkDir: ownsWorkDir ? workDir : undefined,
                 mode,
                 outPath,
-                packageManagerEnv,
+                packageManagerEnv: deploymentEnv,
                 projectDir,
                 runImpl,
                 runOperationalIndependenceImpl,
@@ -1330,6 +1355,7 @@ export {
   assertDefaultOffRscInstall,
   configureAcceptanceWorkspaceGit,
   createAcceptanceBuildEnv,
+  createAcceptanceDeploymentEnv,
   createAcceptancePackageManagerEnv,
   createAcceptanceRuntimeContext,
   inheritedPlaywrightBrowsersPath,
