@@ -1,6 +1,6 @@
 {
   "name": "@bleedingdev/rsbuild-image-core",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "UltraModern sidecar repackage of @rsbuild-image/core@0.0.1-next.36 with its image-size dependency aliased to the hardened @bleedingdev/image-size fork",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
@@ -68,7 +68,7 @@
     "verify": "node scripts/verify-manifest.mjs"
   },
   "dependencies": {
-    "image-size": "npm:@bleedingdev/image-size@2.1.0",
+    "image-size": "npm:@bleedingdev/image-size@2.1.1",
     "knitwork": "^1.2.0",
     "rslog": "^1.1.0",
     "type-fest": "^4.37.0",

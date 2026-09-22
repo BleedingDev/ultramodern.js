@@ -4,7 +4,7 @@ A minimal, distributable sidecar fork of [`ipx`](https://github.com/unjs/ipx) �
 performance, secure and easy-to-use image optimizer" — by Pooya Parsa and the UnJS
 contributors, MIT licensed. The upstream `LICENSE` is preserved verbatim next to this file.
 
-Forked from **`ipx@3.1.1`**. Published as **`@bleedingdev/ipx@3.2.1`**.
+Forked from **`ipx@3.1.1`**. Published as **`@bleedingdev/ipx@3.2.2`**.
 
 The `dist/` tree here is the upstream published build, vendored byte-for-byte except for the
 hunks listed below. Upstream ships no TypeScript sources in the npm tarball, so this fork
@@ -22,7 +22,7 @@ IPX. Plain dependencies cannot be redirected from a consumer's manifest: `pnpm.o
 package. Forking the dependency and aliasing it in `@modern-js/image` is the only distributable
 fix.
 
-The version is a **stable** `3.2.1` on purpose. Both `@rsbuild-image/core` and
+The version is a **stable** `3.2.2` on purpose. Both `@rsbuild-image/core` and
 `@rsbuild-image/react` declare the peer range `"ipx": ">=3.0.3"`, and npm evaluates non-wildcard
 peer ranges with a loose-only `semver.satisfies` that **excludes prereleases**. A prerelease
 version such as `3.2.0-ultramodern.1` would pass pnpm but fail strict npm and yarn-classic
@@ -69,7 +69,7 @@ Behaviour notes:
 - `flat`/`jagged` map to `m1`/`m2`, whose valid range widens to `0`–`1000000` (Sharp 0.34's
   deprecated path capped them at `10000`).
 
-### 3. CLI banner version string `3.1.1` → `3.2.1` (`dist/cli.mjs`, `dist/cli.cjs`)
+### 3. CLI banner version string `3.1.1` → `3.2.2` (`dist/cli.mjs`, `dist/cli.cjs`)
 
 Cosmetic and non-functional: the version is inlined into the published CLI at build time, so
 without this hunk `ipx --version` would disagree with this package's manifest. The bin name

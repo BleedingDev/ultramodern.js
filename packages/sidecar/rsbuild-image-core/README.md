@@ -30,8 +30,8 @@ byte under `dist/` is vendored verbatim and the entire delta lives in
 | Field | Upstream | Here |
 | --- | --- | --- |
 | `name` | `@rsbuild-image/core` | `@bleedingdev/rsbuild-image-core` |
-| `version` | `0.0.1-next.36` | `0.1.1` |
-| `dependencies["image-size"]` | `^2.0.1` | `npm:@bleedingdev/image-size@2.1.0` |
+| `version` | `0.0.1-next.36` | `0.1.2` |
+| `dependencies["image-size"]` | `^2.0.1` | `npm:@bleedingdev/image-size@2.1.1` |
 | `devDependencies` | build/test toolchain | dropped (nothing is built here) |
 | `peerDependencies.sharp` | `>=0.33.5` | `>=0.35.4` (patched floor) |
 
@@ -40,7 +40,7 @@ Everything else — `type`, `main`, `module`, `types`, the full five-subpath
 `files`, peers other than Sharp, and `peerDependenciesMeta` — is copied verbatim.
 `scripts/verify-manifest.mjs` checks that fidelity and the exact patched Sharp floor.
 
-`0.1.1` is a **stable** semver version on purpose. `@rsbuild-image/react`
+`0.1.2` is a **stable** semver version on purpose. `@rsbuild-image/react`
 declares its peer on core as the wildcard `"*"`, which every resolver
 short-circuits before semver, so the exact number is free; a stable one keeps
 strict-peer consumers (npm, yarn classic) from ever having to opt into
@@ -55,7 +55,7 @@ import * as … from "image-size";      // dist/image.mjs:1
 const … = require("image-size");      // dist/image.js:48
 ```
 
-resolve to `@bleedingdev/image-size@2.1.0` with zero rewrites. Those two lines
+resolve to `@bleedingdev/image-size@2.1.1` with zero rewrites. Those two lines
 are the only places `image-size` appears in the whole bundle, and both use the
 bare specifier — no deep or file-path import can bypass the alias.
 

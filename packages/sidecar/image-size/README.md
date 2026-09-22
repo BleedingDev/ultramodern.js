@@ -42,7 +42,7 @@ what makes the fix reach installs of the published packages.
 
 ## Versioning
 
-`2.1.0` — a stable (non-prerelease) minor over upstream `2.0.2`, signalling the hardening delta while
+`2.1.1` — a stable (non-prerelease) release over upstream `2.0.2`, signalling the hardening delta while
 staying trivially comparable to the upstream line. A stable version is required: prerelease versions
 are excluded by npm's loose `semver.satisfies` when strict peer ranges are evaluated downstream.
 

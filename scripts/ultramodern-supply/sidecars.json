@@ -9,13 +9,13 @@
     },
     "fork": {
       "name": "@bleedingdev/ipx",
-      "version": "3.2.1"
+      "version": "3.2.2"
     },
     "license": "MIT",
     "artifacts": ["dist", "LICENSE", "bin"],
     "patch": {
       "path": "scripts/ultramodern-supply/ipx.patch",
-      "sha256": "72cf4c516b3629dcbc08dfb63a0509551f7a89b7ec9eb9b50a6b340716e5a8c5"
+      "sha256": "773490785d226e44f96c80bf6c2ac4533b55487baac31b1f5b467e584a0c512c"
     },
     "manifestChanges": {
       "dependencies": {
@@ -33,7 +33,7 @@
     },
     "fork": {
       "name": "@bleedingdev/image-size",
-      "version": "2.1.0"
+      "version": "2.1.1"
     },
     "license": "MIT",
     "artifacts": ["dist", "LICENSE", "bin"],
@@ -52,14 +52,14 @@
     },
     "fork": {
       "name": "@bleedingdev/rsbuild-image-core",
-      "version": "0.1.1"
+      "version": "0.1.2"
     },
     "license": "MIT",
     "artifacts": ["dist", "LICENSE"],
     "patch": null,
     "manifestChanges": {
       "dependencies": {
-        "image-size": "npm:@bleedingdev/image-size@2.1.0"
+        "image-size": "npm:@bleedingdev/image-size@2.1.1"
       },
       "peerDependencies": {
         "sharp": ">=0.35.4"

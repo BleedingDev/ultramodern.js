@@ -1,6 +1,6 @@
 {
   "name": "@bleedingdev/image-size",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "description": "get dimensions of any image file - UltraModern sidecar fork of image-size@2.0.2 with the upstream PR459 parser DoS hardening applied",
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
