@@ -154,6 +154,59 @@ export function federationAssetKind(url, app, observedRemoteOrigins = []) {
   return undefined;
 }
 
+export function remoteFederationNetworkEvidence(remotes, targets, responses) {
+  const requiredKinds = ['manifest', 'remote-entry', 'exposed-chunk'];
+  const targetsById = new Map(targets.map(target => [target.app.id, target]));
+  return remotes.map(remote => {
+    const target = targetsById.get(remote.id);
+    let configuredManifestUrl;
+    try {
+      configuredManifestUrl = new URL(remote.manifestUrl);
+    } catch {
+      // Leave the configured URL visible in failure evidence below.
+    }
+    if (!target || !configuredManifestUrl) {
+      return {
+        manifestUrl: remote.manifestUrl,
+        remoteId: remote.id,
+        status: 'fail',
+      };
+    }
+    const manifestUrl = joinUrl(target.baseUrl, target.routes.mfManifest);
+    if (configuredManifestUrl.pathname !== new URL(manifestUrl).pathname) {
+      return { manifestUrl, remoteId: remote.id, status: 'fail' };
+    }
+    const remoteOrigin = new URL(manifestUrl).origin;
+    const remoteResponses = responses.filter(response => {
+      try {
+        return new URL(response.url).origin === remoteOrigin;
+      } catch {
+        return false;
+      }
+    });
+    const observedKinds = [
+      ...new Set(
+        remoteResponses
+          .filter(response => response.status >= 200 && response.status < 400)
+          .filter(
+            response =>
+              response.kind !== 'manifest' || response.url === manifestUrl,
+          )
+          .map(response => response.kind),
+      ),
+    ];
+    return {
+      manifestUrl,
+      observedKinds,
+      remoteId: remote.id,
+      responses: remoteResponses,
+      status: requiredKinds.every(kind => observedKinds.includes(kind))
+        ? 'pass'
+        : 'fail',
+    };
+  });
+}
+
 async function installHydrationIdentityProbe(page, runtime) {
   return page.evaluate(selector => {
     const records = [...document.querySelectorAll(selector)].map(boundary => {
@@ -633,7 +686,7 @@ export async function validateNoJavaScriptSsrTarget(
 export async function validateBrowserTarget(
   target,
   browser,
-  { artifactDir, runtime = 'node' },
+  { artifactDir, runtime = 'node', targets = [target] },
 ) {
   const app = target.app;
   const appArtifactDir = path.join(artifactDir, app.id);
@@ -1011,49 +1064,11 @@ export async function validateBrowserTarget(
           .map(response => response.kind),
       );
       const requiredKinds = ['manifest', 'remote-entry', 'exposed-chunk'];
-      const remoteNetworkEvidence = (app.moduleFederation?.remotes ?? [])
-        .filter(
-          remote =>
-            typeof remote.manifestUrl === 'string' &&
-            remote.manifestUrl.length > 0,
-        )
-        .map(remote => {
-          let manifestUrl;
-          try {
-            manifestUrl = new URL(remote.manifestUrl);
-          } catch {
-            return {
-              manifestUrl: remote.manifestUrl,
-              remoteId: remote.id,
-              status: 'fail',
-            };
-          }
-          const responses = federationResponses.filter(response => {
-            try {
-              return new URL(response.url).origin === manifestUrl.origin;
-            } catch {
-              return false;
-            }
-          });
-          const observedKinds = [
-            ...new Set(
-              responses
-                .filter(
-                  response => response.status >= 200 && response.status < 400,
-                )
-                .map(response => response.kind),
-            ),
-          ];
-          return {
-            manifestUrl: manifestUrl.href,
-            observedKinds,
-            remoteId: remote.id,
-            responses,
-            status: requiredKinds.every(kind => observedKinds.includes(kind))
-              ? 'pass'
-              : 'fail',
-          };
-        });
+      const remoteNetworkEvidence = remoteFederationNetworkEvidence(
+        app.moduleFederation?.remotes ?? [],
+        targets,
+        federationResponses,
+      );
       const hasConfiguredRemoteUrls = remoteNetworkEvidence.length > 0;
       const networkEvidence = {
         interceptedRequests: interceptedFederationRequests,
