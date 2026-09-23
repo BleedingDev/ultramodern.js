@@ -5,6 +5,7 @@ type PackageJson = {
   name?: string;
   version?: string;
   dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
   optionalDependencies?: Record<string, string>;
   [key: string]: unknown;
 };
@@ -21,6 +22,7 @@ export type NpmAlias = {
 };
 
 const dependencyKeys = ['dependencies', 'optionalDependencies'] as const;
+const rootDependencyKeys = [...dependencyKeys, 'devDependencies'] as const;
 const exactVersionPattern =
   /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/u;
 
@@ -51,9 +53,12 @@ function parseNpmAlias(
   };
 }
 
-function aliasesFromPackageJson(packageJson: PackageJson): NpmAlias[] {
+function aliasesFromPackageJson(
+  packageJson: PackageJson,
+  keys: readonly (typeof rootDependencyKeys)[number][] = dependencyKeys,
+): NpmAlias[] {
   const aliases: NpmAlias[] = [];
-  for (const dependencyKey of dependencyKeys) {
+  for (const dependencyKey of keys) {
     for (const [aliasName, specifier] of Object.entries(
       packageJson[dependencyKey] ?? {},
     )) {
@@ -71,7 +76,7 @@ async function catalogAliasesFromInstalledPackages(
   packageJson: PackageJson,
 ): Promise<NpmAlias[]> {
   const aliases: NpmAlias[] = [];
-  for (const dependencyKey of dependencyKeys) {
+  for (const dependencyKey of rootDependencyKeys) {
     for (const [aliasName, specifier] of Object.entries(
       packageJson[dependencyKey] ?? {},
     )) {
@@ -318,7 +323,7 @@ export async function preserveNpmAliases({
     path.join(appDirectory, 'package.json'),
   );
   const rootAliases = [
-    ...aliasesFromPackageJson(appPackageJson),
+    ...aliasesFromPackageJson(appPackageJson, rootDependencyKeys),
     ...(await catalogAliasesFromInstalledPackages(
       appDirectory,
       appPackageJson,
