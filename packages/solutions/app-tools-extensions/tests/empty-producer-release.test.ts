@@ -313,6 +313,13 @@ describe('API-only release', () => {
   test('binds the real Node API, backend container and build identity', async () => {
     const f = await apiOnlyFixture('node');
     await f.put('public/robots.txt', 'User-agent: *\nDisallow: /\n');
+    await f.json('public/.well-known/ontos-module-manifest.json', {
+      kind: 'api-contract',
+    });
+    await f.put(
+      'public/_headers',
+      '/.well-known/ontos-module-manifest.json\n  Cache-Control: no-cache\n',
+    );
     const envelope = await f.emit();
     expect(envelope?.surfaces).toMatchObject({
       uiClient: [],
@@ -329,6 +336,14 @@ describe('API-only release', () => {
           logicalPath: 'public/robots.txt',
           runtime: 'crawler-policy',
         }),
+        expect.objectContaining({
+          logicalPath: 'public/.well-known/ontos-module-manifest.json',
+          runtime: 'public-metadata',
+        }),
+        expect.objectContaining({
+          logicalPath: 'public/_headers',
+          runtime: 'public-metadata',
+        }),
       ]),
     );
     await framework.verifyBuildOutputReleaseEnvelope(f.root, 'node');
@@ -343,6 +358,14 @@ describe('API-only release', () => {
         expect.objectContaining({
           logicalPath: 'public/robots.txt',
           runtime: 'crawler-policy',
+        }),
+        expect.objectContaining({
+          logicalPath: 'public/.well-known/ontos-module-manifest.json',
+          runtime: 'public-metadata',
+        }),
+        expect.objectContaining({
+          logicalPath: 'public/_headers',
+          runtime: 'public-metadata',
         }),
       ]),
     );
@@ -394,11 +417,27 @@ describe('API-only release', () => {
     const publicUi = await apiOnlyFixture('node');
     await publicUi.put('public/index.html', '<main>unexpected UI</main>');
     await expect(publicUi.emit()).rejects.toThrow(/undeclared UI\/client/u);
+
+    const wellKnownScript = await apiOnlyFixture('node');
+    await wellKnownScript.put(
+      'public/.well-known/client.js',
+      'console.log("unexpected UI")',
+    );
+    await expect(wellKnownScript.emit()).rejects.toThrow(
+      /undeclared UI\/client/u,
+    );
   });
 
   test('binds a Cloudflare API worker through final output', async () => {
     const f = await apiOnlyFixture('cloudflare');
     await f.put('public/robots.txt', 'User-agent: *\nDisallow: /\n');
+    await f.json('public/.well-known/ontos-module-manifest.json', {
+      kind: 'api-contract',
+    });
+    await f.put(
+      'public/_headers',
+      '/.well-known/ontos-module-manifest.json\n  Cache-Control: no-cache\n',
+    );
     for (const name of [
       'worker/__modern_worker_runtime.js',
       'worker/__modern_worker_shared.js',
@@ -413,6 +452,14 @@ describe('API-only release', () => {
         expect.objectContaining({
           logicalPath: 'public/robots.txt',
           runtime: 'crawler-policy',
+        }),
+        expect.objectContaining({
+          logicalPath: 'public/.well-known/ontos-module-manifest.json',
+          runtime: 'public-metadata',
+        }),
+        expect.objectContaining({
+          logicalPath: 'public/_headers',
+          runtime: 'public-metadata',
         }),
       ]),
     );
@@ -442,6 +489,11 @@ describe('API-only release', () => {
       ['backendRemoteEntry.cjs', 'public/backendRemoteEntry.cjs'],
       ['ultramodern-build.json', 'public/ultramodern-build.json'],
       ['public/robots.txt', 'public/robots.txt'],
+      [
+        'public/.well-known/ontos-module-manifest.json',
+        'public/.well-known/ontos-module-manifest.json',
+      ],
+      ['public/_headers', 'public/_headers'],
       ['worker/__modern_bff_effect.js', 'worker/__modern_bff_effect.js'],
       [
         'worker/__modern_worker_runtime.js',
@@ -485,6 +537,14 @@ describe('API-only release', () => {
         expect.objectContaining({
           logicalPath: 'public/robots.txt',
           runtime: 'crawler-policy',
+        }),
+        expect.objectContaining({
+          logicalPath: 'public/.well-known/ontos-module-manifest.json',
+          runtime: 'public-metadata',
+        }),
+        expect.objectContaining({
+          logicalPath: 'public/_headers',
+          runtime: 'public-metadata',
         }),
         expect.objectContaining({
           logicalPath: 'public/ultramodern-build.json',
