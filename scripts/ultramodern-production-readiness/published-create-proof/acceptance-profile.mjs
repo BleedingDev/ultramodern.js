@@ -56,6 +56,7 @@ import { verifyRegistryCohort } from './registry-cohort.mjs';
 import {
   auditReleaseAgePolicy,
   parseYamlFile,
+  resolveAcceptanceReleaseAgeExclusions,
   verifyStrictInstallInputs,
   YAML_INTEGRITY,
   YAML_NAME,
@@ -80,6 +81,15 @@ const requiredPnpmCommands = Object.freeze({
   build: Object.freeze(['build']),
   cloudflareBuild: Object.freeze(['cloudflare:build']),
 });
+
+function createAcceptancePnpmInstallArgs(command, exactExclusions) {
+  return [
+    ...exactExclusions.map(
+      specifier => `--config.minimum-release-age-exclude=${specifier}`,
+    ),
+    ...command,
+  ];
+}
 const operationalIndependenceChangedPaths = Object.freeze([
   'verticals/inventory/api/index.ts',
   'verticals/inventory/locales/en/inventory.json',
@@ -597,6 +607,12 @@ function assertCohortResolutionProvenance(
       'Cohort resolution proof requires the strict release manifest version',
     );
   }
+  const cohortByName = new Map(
+    (release.packages ?? []).map(item => [item.targetName, item]),
+  );
+  const sidecarsByName = new Map(
+    (release.sidecars?.packages ?? []).map(item => [item.name, item]),
+  );
   let cohortPackageCount = 0;
   for (const [packageKey, record] of Object.entries(lockPackages)) {
     const tarball = record?.resolution?.tarball;
@@ -606,16 +622,30 @@ function assertCohortResolutionProvenance(
         peerSuffixStart === -1
           ? packageKey
           : packageKey.slice(0, peerSuffixStart);
-      const lockedVersion = bareKey.slice(bareKey.lastIndexOf('@') + 1);
-      if (lockedVersion !== releaseVersion) {
+      const separator = bareKey.lastIndexOf('@');
+      const packageName = bareKey.slice(0, separator);
+      const lockedVersion = bareKey.slice(separator + 1);
+      const cohort = cohortByName.get(packageName);
+      const sidecar = sidecarsByName.get(packageName);
+      if (!cohort && !sidecar) {
         throw new Error(
-          `Cohort package ${packageKey} locked version ${lockedVersion} is not the release revision ${releaseVersion}`,
+          `Scoped release package ${packageKey} is outside the authenticated cohort and sidecars`,
+        );
+      }
+      const expectedVersion = cohort ? releaseVersion : sidecar.version;
+      if (lockedVersion !== expectedVersion) {
+        throw new Error(
+          `${cohort ? 'Cohort' : 'Sidecar'} package ${packageKey} locked version ${lockedVersion} is not the release revision ${expectedVersion}`,
         );
       }
       const integrity = record?.resolution?.integrity;
-      if (typeof integrity !== 'string' || integrity.length === 0) {
+      if (
+        typeof integrity !== 'string' ||
+        integrity.length === 0 ||
+        integrity !== (cohort ?? sidecar).integrity
+      ) {
         throw new Error(
-          `Cohort package ${packageKey} resolved without a pinned integrity hash`,
+          `Release package ${packageKey} resolution integrity differs from its authenticated manifest`,
         );
       }
       if (typeof tarball === 'string' && tarball.length > 0) {
@@ -626,7 +656,7 @@ function assertCohortResolutionProvenance(
           );
         }
       }
-      cohortPackageCount += 1;
+      if (cohort) cohortPackageCount += 1;
     } else if (typeof tarball === 'string' && tarball.length > 0) {
       if (new URL(tarball).origin === registryOrigin) {
         throw new Error(
@@ -992,6 +1022,12 @@ async function runAcceptanceProfile({
   assertReleaseAcceptanceProfile(options);
 
   const createPackage = resolveCreatePackage(release, options.createPackage);
+  const commandExclusions = resolveAcceptanceReleaseAgeExclusions({
+    release,
+    mode,
+    policyPath: releaseAgePolicyPath,
+    now: currentTime(now),
+  });
   const workDir =
     suppliedWorkDir ??
     fs.mkdtempSync(path.join(os.tmpdir(), 'ultramodern-release-acceptance-'));
@@ -1098,10 +1134,17 @@ async function runAcceptanceProfile({
 
       await recordAcceptanceResult(receipt, 'generate-lockfile', () =>
         withDuration(() => {
-          runImpl('pnpm', requiredPnpmCommands.lockfileOnly, {
-            cwd: projectDir,
-            env: packageManagerEnv,
-          });
+          runImpl(
+            'pnpm',
+            createAcceptancePnpmInstallArgs(
+              requiredPnpmCommands.lockfileOnly,
+              commandExclusions,
+            ),
+            {
+              cwd: projectDir,
+              env: packageManagerEnv,
+            },
+          );
           return {
             command: 'pnpm install --lockfile-only --ignore-scripts',
             lockfile: 'pnpm-lock.yaml',
@@ -1114,6 +1157,8 @@ async function runAcceptanceProfile({
           audit = await auditReleaseAgePolicyImpl({
             projectDir,
             release,
+            mode,
+            commandExclusions,
             registryUrl,
             policyPath: releaseAgePolicyPath,
             runImpl,
@@ -1142,10 +1187,17 @@ async function runAcceptanceProfile({
             now: currentTime(now),
             phase: 'before-frozen-install',
           });
-          runImpl('pnpm', requiredPnpmCommands.install, {
-            cwd: projectDir,
-            env: packageManagerEnv,
-          });
+          runImpl(
+            'pnpm',
+            createAcceptancePnpmInstallArgs(
+              requiredPnpmCommands.install,
+              audit.exactExclusions,
+            ),
+            {
+              cwd: projectDir,
+              env: packageManagerEnv,
+            },
+          );
           const afterInstall = verifyStrictInstallInputs(projectDir, audit, {
             now: currentTime(now),
             phase: 'after-frozen-install',
@@ -1354,6 +1406,7 @@ export {
   createAcceptanceBuildEnv,
   createAcceptanceDeploymentEnv,
   createAcceptancePackageManagerEnv,
+  createAcceptancePnpmInstallArgs,
   createAcceptanceRuntimeContext,
   inheritedPlaywrightBrowsersPath,
   requiredPnpmCommands,
