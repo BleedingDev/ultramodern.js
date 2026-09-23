@@ -1,4 +1,9 @@
 import path from 'node:path';
+import {
+  BACKEND_FEDERATION_MANIFEST_FILE,
+  BACKEND_FEDERATION_REMOTE_ENTRY_FILE,
+  ULTRAMODERN_BUILD_ARTIFACT_FILE,
+} from '@modern-js/backend-federation-contracts';
 import { fs as fse } from '@modern-js/utils';
 import { createCloudflareOutputPlan } from '../cloudflare-output-plan';
 import { assertCloudflareOutput } from '../cloudflare-output-verifier/index';
@@ -108,6 +113,20 @@ export const createCloudflarePreset: CreateCloudflarePreset = ({
           const relativePath = path
             .relative(distDirectory, src)
             .replace(/\\/gu, '/');
+          // API-only builds emit server modules at arbitrary paths under dist,
+          // including transitive imports outside api/. Only the framework's
+          // published backend contract belongs beside the explicit public tree.
+          if (
+            apiOnly &&
+            relativePath !== '' &&
+            ![
+              BACKEND_FEDERATION_MANIFEST_FILE,
+              BACKEND_FEDERATION_REMOTE_ENTRY_FILE,
+              ULTRAMODERN_BUILD_ARTIFACT_FILE,
+            ].includes(relativePath)
+          ) {
+            return false;
+          }
           return (
             relativePath !== 'release' &&
             !relativePath.startsWith('release/') &&
