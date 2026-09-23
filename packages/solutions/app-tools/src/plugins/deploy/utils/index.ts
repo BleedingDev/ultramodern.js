@@ -58,7 +58,10 @@ export const getTemplatePath = (file: string) =>
 export const readTemplate = async (file: string) =>
   (await fse.readFile(getTemplatePath(file))).toString();
 
-export const resolveESMDependency = async (entry: string) => {
+export const resolveESMDependency = async (
+  entry: string,
+  fromDirectory?: string,
+) => {
   const conditions = new Set(['node', 'import', 'module', 'default']);
 
   try {
@@ -83,7 +86,9 @@ export const resolveESMDependency = async (entry: string) => {
     return normalizePath(
       moduleResolve(
         entry,
-        pathToFileURL(`${__dirname}/`),
+        fromDirectory
+          ? pathToFileURL(path.join(fromDirectory, 'package.json'))
+          : pathToFileURL(`${__dirname}/`),
         conditions,
         false,
       ).pathname.replace(/^\/(\w):/, '$1:'),
