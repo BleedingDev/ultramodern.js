@@ -423,7 +423,10 @@ export function readSmokeContract(projectDir) {
           : entry.id === 'shell-super-app'
             ? 'SHELL_SUPER_APP_PORT'
             : `SHELL_${toEnvSegment(entry.id.replace(/^shell-/u, ''))}_PORT`),
-      moduleFederation: entry.moduleFederation ?? {},
+      moduleFederation: {
+        ...entry.moduleFederation,
+        ...(kind === 'shell' ? { verticalRefs: entry.verticalRefs } : {}),
+      },
       api,
       deploy: { cloudflare: entry.cloudflare },
     };
