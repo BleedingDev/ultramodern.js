@@ -43,6 +43,7 @@ import {
   writeJsonFile,
 } from './constants.mjs';
 import {
+  assertBootstrapReleaseAgePolicy,
   assertGeneratedCohort,
   resolveCreatePackage,
 } from './package-cohort.mjs';
@@ -57,6 +58,7 @@ import {
   auditReleaseAgePolicy,
   parseYamlFile,
   resolveAcceptanceReleaseAgeExclusions,
+  validateExactExclusions,
   verifyStrictInstallInputs,
   YAML_INTEGRITY,
   YAML_NAME,
@@ -82,13 +84,43 @@ const requiredPnpmCommands = Object.freeze({
   cloudflareBuild: Object.freeze(['cloudflare:build']),
 });
 
-function createAcceptancePnpmInstallArgs(command, exactExclusions) {
-  return [
-    ...exactExclusions.map(
-      specifier => `--config.minimum-release-age-exclude=${specifier}`,
+function createAcceptanceReleaseAgeEnv(
+  runtimeEnv,
+  createPackage,
+  exactExclusions,
+  registryEnv = {},
+) {
+  const policy = assertBootstrapReleaseAgePolicy(createPackage);
+  validateExactExclusions(exactExclusions, 'Acceptance release-age exclusions');
+  if (
+    policy.minimumReleaseAgeExclude.some(
+      specifier => !exactExclusions.includes(specifier),
+    )
+  ) {
+    throw new Error(
+      'Acceptance release-age exclusions must contain the authenticated create closure',
+    );
+  }
+  return {
+    ...runtimeEnv,
+    NPM_CONFIG_MINIMUM_RELEASE_AGE_EXCLUDE: undefined,
+    NPM_CONFIG_TRUST_POLICY_EXCLUDE: undefined,
+    PNPM_CONFIG_MINIMUM_RELEASE_AGE_EXCLUDE: undefined,
+    PNPM_CONFIG_TRUST_POLICY_EXCLUDE: undefined,
+    npm_config_minimum_release_age_exclude: undefined,
+    npm_config_trust_policy_exclude: undefined,
+    pnpm_config_pm_on_fail: 'ignore',
+    pnpm_config_minimum_release_age: String(policy.minimumReleaseAge),
+    pnpm_config_minimum_release_age_exclude: JSON.stringify(exactExclusions),
+    pnpm_config_trust_policy_exclude:
+      registryEnv.PNPM_CONFIG_TRUST_POLICY_EXCLUDE,
+    pnpm_config_minimum_release_age_ignore_missing_time: String(
+      policy.minimumReleaseAgeIgnoreMissingTime,
     ),
-    ...command,
-  ];
+    pnpm_config_minimum_release_age_strict: String(
+      policy.minimumReleaseAgeStrict,
+    ),
+  };
 }
 const operationalIndependenceChangedPaths = Object.freeze([
   'verticals/inventory/api/index.ts',
@@ -1041,13 +1073,19 @@ async function runAcceptanceProfile({
     // ERP subprocesses take their whole runtime context from the shared owner;
     // the browsers themselves are provisioned operationally on the runner, so
     // this profile inherits that path rather than isolating its own.
-    const { env: packageManagerEnv } = createAcceptanceRuntimeContext({
+    const { env: runtimeEnv } = createAcceptanceRuntimeContext({
       browsers: 'inherited',
       expectedPnpmVersion: release.tools?.pnpm ?? runtime.pnpm,
       registryEnv,
       runImpl,
       workDir,
     });
+    const packageManagerEnv = createAcceptanceReleaseAgeEnv(
+      runtimeEnv,
+      createPackage,
+      commandExclusions,
+      registryEnv,
+    );
     const receipt = createAcceptanceReceipt({
       release,
       mode,
@@ -1134,17 +1172,10 @@ async function runAcceptanceProfile({
 
       await recordAcceptanceResult(receipt, 'generate-lockfile', () =>
         withDuration(() => {
-          runImpl(
-            'pnpm',
-            createAcceptancePnpmInstallArgs(
-              requiredPnpmCommands.lockfileOnly,
-              commandExclusions,
-            ),
-            {
-              cwd: projectDir,
-              env: packageManagerEnv,
-            },
-          );
+          runImpl('pnpm', requiredPnpmCommands.lockfileOnly, {
+            cwd: projectDir,
+            env: packageManagerEnv,
+          });
           return {
             command: 'pnpm install --lockfile-only --ignore-scripts',
             lockfile: 'pnpm-lock.yaml',
@@ -1187,17 +1218,10 @@ async function runAcceptanceProfile({
             now: currentTime(now),
             phase: 'before-frozen-install',
           });
-          runImpl(
-            'pnpm',
-            createAcceptancePnpmInstallArgs(
-              requiredPnpmCommands.install,
-              audit.exactExclusions,
-            ),
-            {
-              cwd: projectDir,
-              env: packageManagerEnv,
-            },
-          );
+          runImpl('pnpm', requiredPnpmCommands.install, {
+            cwd: projectDir,
+            env: packageManagerEnv,
+          });
           const afterInstall = verifyStrictInstallInputs(projectDir, audit, {
             now: currentTime(now),
             phase: 'after-frozen-install',
@@ -1406,7 +1430,7 @@ export {
   createAcceptanceBuildEnv,
   createAcceptanceDeploymentEnv,
   createAcceptancePackageManagerEnv,
-  createAcceptancePnpmInstallArgs,
+  createAcceptanceReleaseAgeEnv,
   createAcceptanceRuntimeContext,
   inheritedPlaywrightBrowsersPath,
   requiredPnpmCommands,
