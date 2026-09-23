@@ -39,7 +39,7 @@ export function createApiServiceEntry(
   const notFoundErrorExport = verticalApiNotFoundErrorExport(service);
   const stem = resolveApiStem(service);
   const assemblyImport = options
-    ? `import { assembleEffectBffRuntime } from '${packageName(options.scope, 'shared-contracts')}/server/effect-bff-runtime';\n`
+    ? "import { assembleEffectBffRuntime } from '@modern-js/bff-effect/assembly';\n"
     : '';
   return `${assemblyImport}import {
   ${options ? '' : 'defineEffectBff,'}

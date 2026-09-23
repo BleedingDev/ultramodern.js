@@ -339,10 +339,6 @@ export function createSharedPackage(
   };
 
   if (id === 'shared-contracts') {
-    packageJson.exports = {
-      '.': './src/index.ts',
-      './server/effect-bff-runtime': './src/effect-bff-runtime.ts',
-    };
     packageJson.dependencies = {
       ...ULTRAMODERN_PACKAGE_PINS.bffEffectDependencies,
       '@modern-js/bff-effect': packageSource

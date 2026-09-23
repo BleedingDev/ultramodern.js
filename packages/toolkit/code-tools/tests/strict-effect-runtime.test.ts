@@ -1,7 +1,7 @@
 import { strictEffectRuntimeTopologyViolation as violation } from '../src/strict-effect-runtime';
 
 const imports = `
-import { assembleEffectBffRuntime } from '@fixture/shared-contracts/server/effect-bff-runtime';
+import { assembleEffectBffRuntime } from '@modern-js/bff-effect/assembly';
 import { defineEffectBff, HttpApiBuilder, Layer } from '@modern-js/bff-effect/effect-edge';
 import { fixtureApi } from '../shared/api.ts';
 `;
@@ -76,7 +76,7 @@ export default make(Layer.empty);`;
   test.each([
     shared,
     direct,
-  ])('accepts genuine executable direct/shared roots', source => {
+  ])('accepts genuine executable direct/assembled roots', source => {
     expect(violation(source)).toBeUndefined();
   });
 
@@ -96,7 +96,7 @@ defineEffectBff({api: fixtureApi, layer: fixtureLayer});`,
     expect(violation('export const invalid = ;')).toBeDefined();
     // TypeScript parsing permits this import/value collision; scope crawling
     // reports it through Babel's Hub, not BABEL_PARSER_SYNTAX_ERROR.
-    const duplicate = `import { assembleEffectBffRuntime } from '@fixture/shared-contracts/server/effect-bff-runtime';
+    const duplicate = `import { assembleEffectBffRuntime } from '@modern-js/bff-effect/assembly';
 import { HttpApiBuilder, Layer } from '@modern-js/bff-effect/effect-edge';
 import { Layer as GovernedReadLayer } from 'effect';
 import { fixtureApi, governedHttpApi } from '../shared/api.ts';
@@ -145,6 +145,16 @@ export default defineEffectBff({ api, layer, rpc: { group: fixtureRpcGroup, laye
     };
     expect(violation(source, resolve(false))).toBeUndefined();
     expect(violation(source, resolve(true))).toBeDefined();
+  });
+  test('rejects the removed shared-contracts assembly forwarding path', () => {
+    expect(
+      violation(
+        shared.replace(
+          "'@modern-js/bff-effect/assembly'",
+          "'@fixture/shared-contracts/server/effect-bff-runtime'",
+        ),
+      ),
+    ).toBeDefined();
   });
 });
 
