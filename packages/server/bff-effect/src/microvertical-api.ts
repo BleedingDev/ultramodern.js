@@ -48,7 +48,7 @@ export const MicroVerticalOperationSourceSchema = Schema.Literals([
   'client',
   'server',
   'generated-client',
-  'effect-adapter',
+  'effect-server',
   'data-platform',
   'unknown',
 ]);

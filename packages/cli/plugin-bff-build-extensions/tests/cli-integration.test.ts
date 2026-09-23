@@ -121,21 +121,30 @@ test('missing native hooks reject setup instead of silently dropping taps', asyn
   ).rejects.toThrow('Native BFF build hook onBeforeBffCompile is unavailable');
 });
 
-test.each([
-  ['effect', '@modern-js/plugin-bff-extensions/effect-adapter'],
-  ['hono', '@modern-js/plugin-bff-extensions/hono/node'],
-] as const)('declares the selected %s BFF adapter as a Node deploy entry', async (runtimeFramework, entry) => {
-  const { appDirectory, api } = await createFixture(runtimeFramework);
-  try {
-    const registered = await api
-      .getHooks()
-      ._internalServerPlugins.call({ plugins: [] });
-    const bff = registered.plugins.find(
-      plugin => plugin.name === '@modern-js/plugin-bff/server-plugin',
-    );
-    expect(bff?.includeEntries).toEqual([entry]);
-  } finally {
-    await fs.remove(appDirectory);
+test('selects direct Effect server plugin and native Hono server plugin', async () => {
+  for (const runtimeFramework of ['effect', 'hono'] as const) {
+    const { appDirectory, api } = await createFixture(runtimeFramework);
+    try {
+      const registered = await api
+        .getHooks()
+        ._internalServerPlugins.call({ plugins: [] });
+      expect(registered.plugins).toHaveLength(1);
+      if (runtimeFramework === 'effect') {
+        expect(registered.plugins[0]?.name).toBe(
+          '@modern-js/plugin-bff-extensions/effect-server',
+        );
+        expect(registered.plugins[0]?.includeEntries).toBeUndefined();
+      } else {
+        expect(registered.plugins[0]?.name).toBe(
+          '@modern-js/plugin-bff/server-plugin',
+        );
+        expect(registered.plugins[0]?.includeEntries).toEqual([
+          '@modern-js/plugin-bff-extensions/hono/node',
+        ]);
+      }
+    } finally {
+      await fs.remove(appDirectory);
+    }
   }
 });
 

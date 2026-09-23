@@ -5,7 +5,7 @@ import type { ServerPluginAPI } from '@modern-js/server-core';
 import { API_DIR, isProd } from '@modern-js/utils';
 import { resolveEffectEntry } from '../effect-source-loader/paths';
 
-export function resolveEffectAdapterEntryFile(api: ServerPluginAPI) {
+export function resolveEffectServerEntryFile(api: ServerPluginAPI) {
   const { appDirectory, apiDirectory, distDirectory } = api.getServerContext();
   const appDir = path.resolve(appDirectory || process.cwd());
   return resolveEffectEntry({

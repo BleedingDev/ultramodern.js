@@ -13,7 +13,7 @@ import { HttpApi } from 'effect/unstable/httpapi';
 import { resolveAdapterCrossProjectPolicy } from '../cross-project-policy';
 import type { ResolvedCrossProjectPolicy } from '../cross-project-policy/evaluation';
 
-export function resolveEffectAdapterCrossProjectPolicy(
+export function resolveEffectServerCrossProjectPolicy(
   api: ServerPluginAPI,
   prefix: string,
   mod: EffectApiModule | null,

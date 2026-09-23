@@ -174,7 +174,7 @@ export type OperationContextSource =
   | 'client'
   | 'server'
   | 'generated-client'
-  | 'effect-adapter'
+  | 'effect-server'
   | 'data-platform'
   | 'unknown';
 

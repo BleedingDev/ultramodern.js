@@ -51,14 +51,14 @@
       },
       "default": "./dist/cjs/cross-project-generation/index.js"
     },
-    "./effect-adapter": {
-      "types": "./dist/types/effect-adapter/index.d.ts",
-      "modern:source": "./src/effect-adapter/index.ts",
+    "./effect-server": {
+      "types": "./dist/types/effect-server/index.d.ts",
+      "modern:source": "./src/effect-server/index.ts",
       "node": {
-        "import": "./dist/esm-node/effect-adapter/index.mjs",
-        "require": "./dist/cjs/effect-adapter/index.js"
+        "import": "./dist/esm-node/effect-server/index.mjs",
+        "require": "./dist/cjs/effect-server/index.js"
       },
-      "default": "./dist/cjs/effect-adapter/index.js"
+      "default": "./dist/cjs/effect-server/index.js"
     },
     "./effect-source-loader": {
       "types": "./dist/types/effect-source-loader/index.d.ts",
@@ -158,9 +158,9 @@
         "./dist/types/cross-project-generation/index.d.ts",
         "./src/cross-project-generation/index.ts"
       ],
-      "effect-adapter": [
-        "./dist/types/effect-adapter/index.d.ts",
-        "./src/effect-adapter/index.ts"
+      "effect-server": [
+        "./dist/types/effect-server/index.d.ts",
+        "./src/effect-server/index.ts"
       ],
       "effect-source-loader": [
         "./dist/types/effect-source-loader/index.d.ts",
