@@ -90,6 +90,90 @@ function safePath(root: string, relative: unknown, label: string): string {
   return resolved;
 }
 
+export function validateApiClientExports(
+  root: string,
+  appPath: string,
+  appId: string,
+  exports: JsonRecord | undefined,
+): void {
+  const clients = ['./api/client', './api/rpc-client']
+    .map(key => exports?.[key])
+    .filter(value => value !== undefined);
+  assert(clients.length > 0, `${appId} must export its API client`);
+  for (const client of clients) {
+    assert(
+      typeof client === 'string' &&
+        client.startsWith('./') &&
+        !client.split(/[\\/]/u).includes('..') &&
+        /\.[cm]?[jt]sx?$/u.test(client),
+      `${appId} must export its API client from an app-owned source module`,
+    );
+    assert(
+      fs.existsSync(path.join(root, appPath, client)),
+      `${appId} API client is missing: ${client}`,
+    );
+    const clientFile = safePath(
+      path.join(root, appPath),
+      client,
+      `${appId} API client`,
+    );
+    assert(
+      fs.statSync(clientFile).isFile(),
+      `${appId} API client must be a file`,
+    );
+  }
+}
+
+export function validateApiOnlySourceSurface(
+  root: string,
+  app: JsonRecord,
+): void {
+  assert(
+    !Object.hasOwn(app.backendFederation?.versionBoundary ?? {}, 'ui'),
+    `topology/reference-topology.json verticals.${app.id}.backendFederation must omit the UI boundary for an api-only unit`,
+  );
+  for (const relative of [
+    'module-federation.config.ts',
+    'src/federation-entry.tsx',
+    `src/components/${app.id}-widget.tsx`,
+    'src/routes/layout.tsx',
+    'src/routes/[lang]/page.tsx',
+    'src/routes/[lang]/route.meta.ts',
+    'src/routes/ultramodern-route-metadata.ts',
+    'src/routes/ultramodern-route-head.tsx',
+    'src/routes/index.css',
+  ]) {
+    assert(
+      !fs.existsSync(path.join(root, app.path, relative)),
+      `Unexpected ${app.path}/${relative} for a api-only unit`,
+    );
+  }
+  const mfTypesPath = path.join(root, app.path, 'tsconfig.mf-types.json');
+  if (fs.existsSync(mfTypesPath)) {
+    const mfTypes = record(
+      JSON.parse(fs.readFileSync(mfTypesPath, 'utf8')),
+      `${app.id} tsconfig.mf-types.json`,
+    );
+    assert(
+      !mfTypes.include?.includes('src/federation-entry.tsx'),
+      `${app.id}: restore the generated MicroVertical Module Federation DTS boundary`,
+    );
+  }
+}
+
+export function validateBackendFederationEntrypoints(
+  root: string,
+  appPath: string,
+  appId: string,
+): void {
+  for (const relative of [
+    'backend-federation.config.ts',
+    'api/index.ts',
+    'api/effect-api.ts',
+  ])
+    requiredFile(root, `${appPath}/${relative}`, `${appId} API surface`);
+}
+
 /** Validate authored workspace relationships without evaluating application config. */
 export function validateWorkspace(
   root: string,
@@ -136,6 +220,10 @@ export function validateWorkspace(
   distinct(
     [...apps, ...shared].map(app => app.path),
     'topology package paths',
+  );
+  distinct(
+    shared.map(pkg => pkg.id),
+    'topology shared package ids',
   );
   distinct(
     owners.map(owner => owner.id),
@@ -315,13 +403,7 @@ export function validateWorkspace(
         `${app.id} backend container URL`,
         '/backendRemoteEntry.cjs',
       );
-      for (const relative of [
-        'backend-federation.config.ts',
-        'api/index.ts',
-        'api/effect-api.ts',
-        'api/backend-federation.ts',
-      ])
-        requiredFile(root, `${app.path}/${relative}`, `${app.id} API surface`);
+      validateBackendFederationEntrypoints(root, app.path, app.id);
       const apiExport = manifest.exports?.['./api'];
       assert(
         typeof apiExport === 'string' && apiExport.startsWith('./shared/'),
@@ -331,15 +413,7 @@ export function validateWorkspace(
         fs.existsSync(path.join(root, app.path, apiExport)),
         `${app.id} shared API contract ${apiExport} is missing`,
       );
-      const apiClient =
-        manifest.exports?.['./api/client'] ??
-        manifest.exports?.['./api/rpc-client'];
-      const clientDirectory = input.emitsUi ? './src/api/' : './shared/';
-      assert(
-        typeof apiClient === 'string' && apiClient.startsWith(clientDirectory),
-        `${app.id} must export its API client`,
-      );
-      requiredFile(root, `${app.path}/${apiClient}`, `${app.id} API client`);
+      validateApiClientExports(root, app.path, app.id, manifest.exports);
       const backendDelivery = record(
         backend.deliveryUnit,
         `${app.id} backendFederation.deliveryUnit`,
@@ -373,38 +447,7 @@ export function validateWorkspace(
       );
     }
     if (app.kind === 'vertical' && !input.emitsUi) {
-      assert(
-        !fs.existsSync(path.join(root, app.path, 'src')),
-        `Unexpected ${app.path}/src for a api-only unit`,
-      );
-      assert(
-        !Object.hasOwn(app.backendFederation?.versionBoundary ?? {}, 'ui'),
-        `topology/reference-topology.json verticals.${app.id}.backendFederation must omit the UI boundary for an api-only unit`,
-      );
-      for (const relative of [
-        'module-federation.config.ts',
-        'src/federation-entry.tsx',
-        `src/components/${app.id}-widget.tsx`,
-        'src/routes/layout.tsx',
-        'src/routes/[lang]/page.tsx',
-        'src/routes/[lang]/route.meta.ts',
-        'src/routes/ultramodern-route-metadata.ts',
-        'src/routes/ultramodern-route-head.tsx',
-        'src/routes/index.css',
-      ]) {
-        assert(
-          !fs.existsSync(path.join(root, app.path, relative)),
-          `Unexpected ${app.path}/${relative} for a api-only unit`,
-        );
-      }
-      const mfTypesPath = path.join(root, app.path, 'tsconfig.mf-types.json');
-      if (fs.existsSync(mfTypesPath)) {
-        const mfTypes = readJson(`${app.path}/tsconfig.mf-types.json`);
-        assert(
-          !mfTypes.include?.includes('src/federation-entry.tsx'),
-          `${app.id}: restore the generated MicroVertical Module Federation DTS boundary`,
-        );
-      }
+      validateApiOnlySourceSurface(root, app);
     }
     if (app.kind === 'vertical' && !input.emitsApi) {
       assert(

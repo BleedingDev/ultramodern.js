@@ -4,13 +4,14 @@ import { readUltramodernWorkspaceInputs } from '../config';
 import type { CommandContext } from './context';
 
 export function runValidate(context: CommandContext) {
-  const { config, verticals, primaryShell, additionalShells } =
+  const { config, raw, verticals, primaryShell, additionalShells } =
     readUltramodernWorkspaceInputs(context.workspaceRoot);
   validateWorkspace(
     context.workspaceRoot,
     createWorkspaceValidationContract(
       config.workspace.packageScope,
       config.features.tailwind,
+      raw.topology.sharedPackages,
       verticals,
       additionalShells,
       primaryShell,
