@@ -1,10 +1,5 @@
 import { ULTRAMODERN_WORKSPACE_MODERN_PACKAGES } from '../ultramodern-package-source';
-import {
-  appEmitsBrowserUi,
-  appHasApi,
-  createShellHost,
-  sharedPackages,
-} from './descriptors';
+import { appEmitsBrowserUi, appHasApi, createShellHost } from './descriptors';
 import { packageName } from './naming';
 import type { WorkspaceApp } from './types';
 
@@ -12,10 +7,29 @@ import type { WorkspaceApp } from './types';
 export function createWorkspaceValidationContract(
   scope: string,
   enableTailwind: boolean,
+  authoredSharedPackages: readonly {
+    id: string;
+    path: string;
+    package: string;
+  }[],
   remotes: WorkspaceApp[] = [],
   additionalShells: WorkspaceApp[] = [],
   primaryShell: WorkspaceApp = createShellHost(remotes),
 ) {
+  if (
+    !Array.isArray(authoredSharedPackages) ||
+    !authoredSharedPackages.every(
+      pkg =>
+        pkg &&
+        typeof pkg.id === 'string' &&
+        pkg.id.length > 0 &&
+        typeof pkg.path === 'string' &&
+        pkg.path.length > 0 &&
+        typeof pkg.package === 'string' &&
+        pkg.package.length > 0,
+    )
+  )
+    throw new Error('Canonical shared package inventory is invalid.');
   const apps = [primaryShell, ...additionalShells, ...remotes];
   return {
     packageScope: scope,
@@ -31,10 +45,10 @@ export function createWorkspaceValidationContract(
       exposes: app.exposes ?? {},
       verticalRefs: app.verticalRefs ?? [],
     })),
-    sharedPackages: sharedPackages.map(pkg => ({
+    sharedPackages: authoredSharedPackages.map(pkg => ({
       id: pkg.id,
-      path: pkg.directory,
-      packageName: packageName(scope, pkg.id),
+      path: pkg.path,
+      packageName: pkg.package,
     })),
     structuralShellPolicy: {
       schemaVersion: 1,
