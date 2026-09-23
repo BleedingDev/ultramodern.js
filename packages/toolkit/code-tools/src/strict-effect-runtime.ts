@@ -11,9 +11,9 @@ import {
 
 const edge = '@modern-js/bff-effect/effect-edge';
 const nodeRuntime = '@modern-js/bff-effect/effect';
-const sharedRuntime = /^@[^/]+\/shared-contracts\/server\/effect-bff-runtime$/u;
+const assembly = '@modern-js/bff-effect/assembly';
 const failure =
-  'Generated API entries must export defineEffectBff(...) or the server-only shared Effect BFF assembly helper with an explicitly composed handler Layer and an unshadowed executable root; entries must implement handlers through HttpApiBuilder.group.';
+  'Generated API entries must export defineEffectBff(...) or the native Effect BFF assembly helper with an explicitly composed handler Layer and an unshadowed executable root; entries must implement handlers through HttpApiBuilder.group.';
 const MAX_API_SOURCE_MODULES = 256;
 
 /** A bounded, owner-local source resolver; never executes application modules. */
@@ -472,7 +472,7 @@ export function strictEffectRuntimeTopologyViolation(
           (value?.name === 'defineEffectBff' &&
             [edge, nodeRuntime].includes(value.specifier)) ||
           (value?.name === 'assembleEffectBffRuntime' &&
-            sharedRuntime.test(value.specifier))
+            value.specifier === assembly)
         ) {
           if (node.arguments.length !== 1) return false;
           const values = properties(node.arguments[0]);

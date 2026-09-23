@@ -17,7 +17,6 @@ import { createShellHost, sharedPackages, shellApp } from './descriptors';
 import {
   copyRootTemplate,
   formatGeneratedWorkspaceFiles,
-  readFileTemplate,
   writeFile,
   writeFileReplacing,
   writeJson,
@@ -104,11 +103,6 @@ function writeSharedPackages(
     targetDir,
     'packages/shared-contracts/src/index.ts',
     createSharedContractsIndex(),
-  );
-  writeFile(
-    targetDir,
-    'packages/shared-contracts/src/effect-bff-runtime.ts',
-    readFileTemplate('packages/effect-bff-runtime.ts'),
   );
   writeFile(
     targetDir,
