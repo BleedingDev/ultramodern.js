@@ -42,8 +42,11 @@ test('browser smoke reads canonical topology, overlay and app security choices',
       kind: 'shell',
       path: 'apps/shell',
       package: '@fixture/shell',
+      verticalRefs: ['inventory'],
+      moduleFederation: { role: 'host' },
       cloudflare: {
         workerName: 'custom-shell-worker',
+        distributedSsrProofRoutes: ['/cs', '/cs/inventory/example'],
         security: { enabled: true, contentSecurityPolicy: { mode: 'enforce' } },
         routes: { ssr: '/cs' },
       },
@@ -98,6 +101,13 @@ test('browser smoke reads canonical topology, overlay and app security choices',
     'enforce',
   );
   assert.equal(contract.apps[0].deploy.cloudflare.routes.ssr, '/cs');
+  assert.deepEqual(contract.apps[0].moduleFederation.verticalRefs, [
+    'inventory',
+  ]);
+  assert.deepEqual(
+    contract.apps[0].deploy.cloudflare.distributedSsrProofRoutes,
+    ['/cs', '/cs/inventory/example'],
+  );
   assert.equal(
     contract.apps[1].deploy.cloudflare.jsonSmokeChecks[0].id,
     'inventory-ready',
